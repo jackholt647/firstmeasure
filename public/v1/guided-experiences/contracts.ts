@@ -113,7 +113,20 @@ export const experienceSchema = z.object({
     ])).max(6).default([])
   }).strict().default({}),
   /** Whether "show me again" may play it after it was completed. */
-  replayable: z.boolean().default(false)
+  replayable: z.boolean().default(false),
+  /**
+   * Onboarding sequencing, never access: until this person has finished the experience (`until`), the named project
+   * tab shows only on projects matching `when`. Conditions are map-form equality over project facts
+   * (`{ "project.has_report": true }`), the part of the condition contract the browser evaluates.
+   */
+  reveal: z.array(z.object({
+    tab: id,
+    until: z.enum(["finished", "completed"]).default("finished"),
+    when: z.record(z.union([z.boolean(), z.string(), z.number()])).superRefine((value, context) => {
+      for (const key of Object.keys(value)) if (!/^project\.[a-z][a-z0-9_]{0,59}$/.test(key)) context.addIssue({ code: z.ZodIssueCode.custom, message: `${key} is not a project fact.` });
+      if (!Object.keys(value).length) context.addIssue({ code: z.ZodIssueCode.custom, message: "A reveal needs a condition." });
+    })
+  }).strict()).max(4).default([])
 }).strict().superRefine((value, context) => {
   const ids = new Set<string>();
   for (const step of value.steps) {

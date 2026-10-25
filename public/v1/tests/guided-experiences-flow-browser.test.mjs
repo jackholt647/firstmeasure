@@ -30,11 +30,11 @@ const FAQS={tab:'project.materials',questions:[{id:'materials.how',text:t('gx_fa
 
 /** The fake server: progress, events, the project conversation. Lives in Node, so it survives page reloads. */
 function server(){
-  const state={progress:{},events:[],thread:[],generated:0};
+  const state={progress:{},events:[],thread:[],generated:0,completes:[],conversations:0};
   const finished=id=>state.progress[id]&&state.progress[id]!=='started';
   const list=()=>{
     const out=[];
-    if(!finished(SETUP.id))out.push({...SETUP,triggers:[{kind:'before_action',action:'materials.generate',selector:'[data-mt-generate-materials]',once:true}],progress:state.progress[SETUP.id]?{status:state.progress[SETUP.id]}:null});
+    if(!finished(SETUP.id))out.push({...SETUP,triggers:[{kind:'tab_opened',tab:'project.materials',delay_ms:200},{kind:'before_action',action:'materials.generate',selector:'[data-mt-generate-materials]',once:true}],progress:state.progress[SETUP.id]?{status:state.progress[SETUP.id]}:null});
     out.push({...TOUR,triggers:finished(SETUP.id)&&!finished(TOUR.id)?[{kind:'tab_opened',tab:'project.materials',delay_ms:200}]:[],progress:state.progress[TOUR.id]?{status:state.progress[TOUR.id]}:null});
     return out;
   };
@@ -43,8 +43,9 @@ function server(){
     const json=data=>route.fulfill({contentType:'application/json',body:JSON.stringify({ok:true,...data})});
     if(url.pathname.startsWith('/libraries/'))return route.fulfill({contentType:'text/javascript',body:await lib(url.pathname.slice(11))});
     if(url.pathname==='/portal/')return route.fulfill({contentType:'text/html',body:page('portal')});
-    if(url.pathname.startsWith('/project/'))return route.fulfill({contentType:'text/html',body:page('project',url.pathname.split('/')[2])});
-    if(url.pathname.endsWith('/experiences'))return json({experiences:list(),faqs:url.searchParams.get('tab')==='project.materials'?FAQS:null});
+    if(url.pathname.startsWith('/project/'))return route.fulfill({contentType:'text/html',body:page('project',url.pathname.split('/')[2],url.searchParams.has('silent'))});
+    // As the server: until the tour is finished, Materials shows only on projects with a report.
+    if(url.pathname.endsWith('/experiences'))return json({experiences:list(),reveals:finished(TOUR.id)?[]:[{tab:'project.materials',when:{'project.has_report':true},experience:TOUR.id}],faqs:url.searchParams.get('tab')==='project.materials'?FAQS:null});
     const id=decodeURIComponent(url.pathname.split('/experiences/')[1]?.split('/')[0]||'');
     if(url.pathname.endsWith('/events')){
       state.events.push({id,...body,at:Date.now()});
@@ -53,8 +54,8 @@ function server(){
       if(body.type==='dismiss')state.progress[id]='dismissed';
       return json({recorded:true});
     }
-    if(url.pathname.endsWith('/complete')){state.progress[id]='completed';return json({result:{items:3}});}
-    if(url.pathname.endsWith('/conversation')){
+    if(url.pathname.endsWith('/complete')){state.completes.push(body);state.progress[id]='completed';return json({result:{items:3}});}
+    if(url.pathname.endsWith('/conversation')){state.conversations++;
       // As the server: every scripted line has a stable key and is written once.
       const at=body.step_id||'done',keys=new Set(state.thread.map(m=>m.data?.line_key).filter(Boolean));
       const lines=[...(body.choice?[{role:'user',content:body.choice,key:`${id}:${at}:choice:${body.choice}`}]:[]),...(SAY[at]||[]).map((content,i)=>({role:'assistant',content,key:`${id}:${at}:say:${i}`}))];
@@ -69,31 +70,39 @@ function server(){
   return {state,handle};
 }
 
-function page(kind,project='p1'){
+// p1 has a delivered report, p2 has none, draft is a project not saved yet. `silent` skips announcing the tab.
+function page(kind,project='p1',silent=false){
   const boot=`window.__APP={userOrgId:'o',platformApiBase:'https://fm.test/v1/platform'};
-    window.route={project:${JSON.stringify(kind==='project'?project:'')},projectTab:${JSON.stringify(kind==='project'?'materials':'')}};
+    window.project=${JSON.stringify(project==='draft'?{}:{id:project,...(project==='p1'?{report_url:'https://fm.test/report.pdf'}:{})})};
+    window.route={project:${JSON.stringify(kind==='project'&&project!=='draft'?project:'')},projectTab:${JSON.stringify(kind==='project'?'materials':'')}};
     window.Portal={navigation:{read:()=>window.route},can:()=>true,tabs:{activateTab(){}},util:{currentBranchId:()=>'default'}};
+    window.PlatformAPI={appFlags:{projectTabs:()=>({order:['project.photos','project.materials'],pills:{}})}};
     const thread={id:'t1',subject_id:'project:p1'},get=async p=>(await fetch(p)).json(),post=async(p,b)=>(await fetch(p,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(b)})).json();
     window.AssistantAPI={context:async()=>({main_thread:{id:'main'},threads:[],agents:[],dashboard:[]}),projectConversation:async()=>({thread}),thread:async()=>get('/mock-assistant/thread'),send:async(o,t,b)=>post('/mock-assistant/send',b)};`;
   const scripts=LIBS.map(file=>`<script src="/libraries/${file}"></script>`).join('');
-  if(kind==='portal')return `<!doctype html><html><head><style>body{margin:0;font:14px Arial}iframe{position:fixed;inset:0;width:100%;height:100%;border:0}</style></head><body><main class="main"><div id="mainPanels"></div></main><script>${boot}</script>${scripts}<iframe id="project" src="/project/p1"></iframe></body></html>`;
+  if(kind==='portal')return `<!doctype html><html><head><style>body{margin:0;font:14px Arial}iframe{position:fixed;inset:0;width:100%;height:100%;border:0}</style></head><body><main class="main"><div id="mainPanels"></div></main><script>${boot}</script>${scripts}<iframe id="project"></iframe><script>const q=new URLSearchParams(location.search);document.querySelector('#project').src='/project/'+(q.get('project')||'p1')+(q.has('silent')?'?silent=1':'');</script></body></html>`;
   return `<!doctype html><html><head><style>body{margin:0;font:14px Arial}#rOverlay{position:fixed;inset:0;display:flex;flex-direction:column}.fm-project-tray-tabs{display:flex;justify-content:flex-end}.fm-project-content{flex:1;display:grid;grid-template-columns:1fr 380px}.mt{padding:20px;display:flex;gap:12px;align-items:flex-start}.mt-resource-column{width:240px;height:160px;border:1px solid #ccc}.fm-project-tray{display:flex;flex-direction:column;min-height:0}</style></head><body>
-    <div id="rOverlay"><nav class="fm-project-tray-tabs"><button type="button" data-tray="agent" aria-selected="false">Agent</button></nav>
+    <div id="rOverlay"><nav id="tabs"></nav><nav class="fm-project-tray-tabs"><button type="button" data-tray="agent" aria-selected="false">Agent</button></nav>
     <div class="fm-project-content"><div class="mt"><button type="button" data-mt-generate-materials>Generate</button><div class="mt-resource-column">Materials</div></div><aside class="fm-project-tray"></aside></div></div>
     <script>${boot}</script>${scripts}
     <script>
       document.querySelector('[data-mt-generate-materials]').addEventListener('click',()=>fetch('/mock-generate',{method:'POST'}));
       document.querySelector('[data-tray=agent]').addEventListener('click',e=>{e.currentTarget.setAttribute('aria-selected','true');if(!window.tray)window.tray=PlatformAssistant.mountProject(document.querySelector('.fm-project-tray'),{projectId:${JSON.stringify(project)}});});
+      // The project window's tab strip, as project-request/app.js builds it: the organization's order, then reveal rules.
+      const apps=[{appId:'project.map'},{appId:'project.materials'},{appId:'project.photos'},{appId:'project.customer_portal'}];
+      window.renderTabs=()=>{document.querySelector('#tabs').innerHTML=FirstMateGuides.filterProjectTabs(FirstMateTabGuides.order(apps),window.project).map(app=>'<button data-tab="'+app.appId+'">'+app.appId+'</button>').join('');};
+      window.addEventListener('fm:guides:tabs-changed',()=>{window.tabRenders=(window.tabRenders||0)+1;renderTabs();});
+      renderTabs();
       // The project window announces its active tab, as project-request/app.js does through tab guides.
-      setTimeout(()=>FirstMateTabGuides.opened({appId:'project.materials',tabId:'materials',container:document.querySelector('.fm-project-content'),delay:50}),50);
+      ${silent?'':"setTimeout(()=>FirstMateTabGuides.opened({appId:'project.materials',tabId:'materials',container:document.querySelector('.fm-project-content'),delay:50}),50);"}
     </script></body></html>`;
 }
 
-async function open(browser,srv,{width=1280,height=800}={}){
+async function open(browser,srv,{width=1280,height=800,project='p1',silent=false}={}){
   const tab=await browser.newPage({viewport:{width,height}}),errors=[];
   tab.on('pageerror',error=>errors.push(error.message));
   await tab.route('https://fm.test/**',route=>srv.handle(route));
-  await tab.goto('https://fm.test/portal/');
+  await tab.goto(`https://fm.test/portal/?project=${project}${silent?'&silent=1':''}`);
   const frame=()=>tab.frames().find(f=>f.url().includes('/project/'));
   await tab.waitForFunction(()=>document.querySelector('#project')?.contentWindow?.FirstMateGuides?.experiences().length>0);
   return {tab,errors,frame};
@@ -106,11 +115,7 @@ test('one experience at a time, fast Next and Back, close mid-tour, reopen, relo
   const browser=await launch(),srv=server();
   try{
     let {tab,errors,frame}=await open(browser,srv);
-    // Opening Materials before the setup plays nothing.
-    await tab.waitForTimeout(500);
-    assert.deepEqual(await showing(tab,frame),{outer:0,inner:{pops:0,setups:0}});
-    // The first Generate is held for the setup, in the project window only.
-    await frame().click('[data-mt-generate-materials]');
+    // Opening Materials for the first time plays the setup, with no Generate press, in the project window only.
     await frame().waitForSelector('.gxs[data-kind=agentic]');
     assert.deepEqual(await showing(tab,frame),{outer:0,inner:{pops:0,setups:1}});
     assert.equal(srv.state.generated,0);
@@ -142,7 +147,7 @@ test('one experience at a time, fast Next and Back, close mid-tour, reopen, relo
     await frame().waitForSelector('.gx-pop',{timeout:10000});
     await tab.waitForTimeout(800);
     assert.deepEqual(await showing(tab,frame),{outer:0,inner:{pops:1,setups:0}});
-    assert.equal(srv.state.generated,1,'the held Generate ran once');
+    assert.equal(srv.state.generated,0,'nothing was held, so nothing is pressed for them');
     // The tray holds the conversation, each line once, drawn like any other assistant message.
     await frame().waitForSelector('.fm-project-tray .fma-msg.assistant',{state:'attached'});
     const trayLines=await frame().locator('.fm-project-tray .fma-msg.assistant').allInnerTexts();
@@ -170,7 +175,7 @@ test('one experience at a time, fast Next and Back, close mid-tour, reopen, relo
     await frame().click('[data-mt-generate-materials]');
     await tab.waitForTimeout(700);
     assert.deepEqual(await showing(tab,frame),{outer:0,inner:{pops:0,setups:0}});
-    assert.equal(srv.state.generated,2,'Generate now goes straight through');
+    assert.equal(srv.state.generated,1,'Generate now goes straight through');
     await tab.reload();
     await tab.waitForFunction(()=>document.querySelector('#project')?.contentWindow?.FirstMateGuides?.experiences().length>0);
     await tab.waitForTimeout(700);
@@ -206,5 +211,71 @@ test('the tour after the setup and the tab trigger never stack',async()=>{
     assert.deepEqual(await showing(tab,frame),{outer:0,inner:{pops:0,setups:0}},'the queued request for the same tour does not play it again');
     assert.equal(srv.state.events.filter(e=>e.id===TOUR.id&&e.type==='complete').length,1);
     assert.deepEqual(errors,[]);
+  } finally { await browser.close(); }
+});
+
+const tabsOf=frame=>frame().evaluate(()=>[...document.querySelectorAll('#tabs [data-tab]')].map(b=>b.dataset.tab));
+
+test('Materials shows only on projects with a report until the tour is done, then everywhere, live and in order',async()=>{
+  const browser=await launch(),srv=server();
+  srv.state.progress[SETUP.id]='completed';
+  try{
+    // No report, tour not done: no Materials tab. The organization's order is kept for the rest.
+    let {tab,errors,frame}=await open(browser,srv,{project:'p2',silent:true});
+    await frame().waitForFunction(()=>window.tabRenders>=1);
+    assert.deepEqual(await tabsOf(frame),['project.photos','project.map','project.customer_portal']);
+    // A project with a report shows it.
+    const second=await open(browser,srv,{project:'p1',silent:true});
+    await second.frame().waitForFunction(()=>window.tabRenders>=1);
+    assert.deepEqual(await tabsOf(second.frame),['project.photos','project.materials','project.map','project.customer_portal']);
+    await second.tab.close();
+    // Going through the tour (here, closing it) shows Materials on this project too, without a reload.
+    await frame().evaluate(()=>{FirstMateGuides.play('materials.tab_tutorial');});
+    await frame().waitForSelector('.gx-pop');
+    await frame().click('.gx-pop [data-gx=close]');
+    await frame().waitForFunction(()=>[...document.querySelectorAll('#tabs [data-tab]')].some(b=>b.dataset.tab==='project.materials'),null,{timeout:5000});
+    assert.deepEqual(await tabsOf(frame),['project.photos','project.materials','project.map','project.customer_portal']);
+    // And on a draft.
+    const draft=await open(browser,srv,{project:'draft',silent:true});
+    await draft.frame().waitForFunction(()=>document.querySelectorAll('#tabs [data-tab]').length>0);
+    assert.ok((await tabsOf(draft.frame)).includes('project.materials'));
+    assert.deepEqual([...errors,...draft.errors],[]);
+  } finally { await browser.close(); }
+});
+
+test('on a draft the first view plays the setup without saving a project, and Generate still catches anyone who missed it',async()=>{
+  const browser=await launch(),srv=server();
+  try{
+    const {tab,errors,frame}=await open(browser,srv,{project:'draft'});
+    await frame().waitForSelector('.gxs');
+    assert.equal(await frame().locator('.gxs').getAttribute('data-kind'),'modal','no project, so no project conversation: the steps play as a modal');
+    // A person's pace: a press a little after the step appears.
+    const next=async()=>{await frame().waitForTimeout(300);await frame().click('[data-gxs=next]');};
+    await frame().click('[data-all]');
+    await next();
+    await frame().waitForFunction(()=>document.querySelector('.gxs-step:not(.gxs-above) h2')?.textContent==='What shingles do you usually use?');
+    await next();
+    await frame().waitForFunction(()=>document.querySelector('.gxs-step:not(.gxs-above) h2')?.textContent==='Check your prices');
+    await next();
+    await frame().waitForFunction(()=>!document.querySelector('.gxs'),null,{timeout:8000});
+    assert.equal(srv.state.completes.length,1);
+    assert.equal(srv.state.completes[0].project_id,'','the price book is written for the organization, with no project');
+    assert.equal(srv.state.conversations,0,'no project conversation was opened');
+    assert.deepEqual(errors,[]);
+    await tab.close();
+    // Someone whose first view did not start it is asked when they press Generate.
+    const fresh=server();
+    const late=await open(browser,fresh,{project:'p1',silent:true});
+    await late.tab.waitForTimeout(500);
+    assert.deepEqual(await showing(late.tab,late.frame),{outer:0,inner:{pops:0,setups:0}});
+    await late.frame().click('[data-mt-generate-materials]');
+    await late.frame().waitForSelector('.gxs');
+    assert.equal(fresh.state.generated,0,'held while the setup plays');
+    await late.frame().click('[data-gxs=close]');
+    await late.frame().click('[data-gxs=dismiss]');
+    await late.frame().waitForFunction(()=>!document.querySelector('.gxs'));
+    await late.tab.waitForTimeout(500);
+    assert.equal(fresh.state.generated,1,'then let through');
+    assert.deepEqual(late.errors,[]);
   } finally { await browser.close(); }
 });

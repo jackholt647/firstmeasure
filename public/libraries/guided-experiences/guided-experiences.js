@@ -80,7 +80,7 @@
   root.addEventListener?.('fm:project-modal:hydrated', (event) => { lastProject = clean(event?.detail?.projectId) || lastProject; });
 
   // ── State ──────────────────────────────────────────────────────────────
-  const state = { experiences: new Map(), faqs: new Map(), loaded: '', loading: null, playing: null, bypass: new WeakSet(), tabTimers: new Set(), openedTabs: new Set() };
+  const state = { reveals: null, experiences: new Map(), faqs: new Map(), loaded: '', loading: null, playing: null, bypass: new WeakSet(), tabTimers: new Set(), openedTabs: new Set() };
   const kinds = new Map();
 
   async function refresh(force = false){
@@ -91,6 +91,13 @@
     if (state.loading && !force) return state.loading;
     state.loading = api.list(here.tab, here.projectId).then((result) => {
       state.experiences = new Map(array(result.experiences).map((entry) => [entry.id, entry]));
+      const reveals = array(result.reveals);
+      if (JSON.stringify(reveals) !== JSON.stringify(state.reveals)) {
+        const first = state.reveals === null;
+        state.reveals = reveals;
+        // The project window redraws its tabs (project-request/app.js); nothing to redraw on the first load.
+        if (!first || reveals.length) root.dispatchEvent?.(new CustomEvent('fm:guides:tabs-changed', { detail: { reveals } }));
+      }
       if (result.faqs?.tab) state.faqs.set(result.faqs.tab, result.faqs);
       else if (here.tab) state.faqs.set(here.tab, { tab: here.tab, questions: [] });
       state.loaded = key;
@@ -128,11 +135,21 @@
       try { request.run(); return; } catch (_) { /* that frame is gone */ }
     }
   }
+  /**
+   * Plays one experience, then what its completion says to do next whatever started it: let a held click through
+   * (`options.held`, `options.selector`) and play the next experience.
+   */
   async function play(id, options = {}){
+    let ran = null;
+    const outcome = await playOne(id, options, (experience) => { ran = experience; });
+    if (ran || options.held) await follow(ran || { completion: {} }, outcome || {}, options.held, options.selector);
+    return outcome;
+  }
+  async function playOne(id, options, started){
     // The same experience asked for again (a second trigger, a double click) is ignored, never stacked.
     if (shared.active?.id === id || shared.queue.some((entry) => entry.id === id)) return { status: 'busy' };
     if (shared.active) {
-      return new Promise((resolve) => shared.queue.push({ id, run: () => { play(id, options).then(resolve, () => resolve({ status: 'failed' })); } }));
+      return new Promise((resolve) => shared.queue.push({ id, run: () => { playOne(id, options, started).then(resolve, () => resolve({ status: 'failed' })); } }));
     }
     const token = { id, frame: root };
     shared.active = token;
@@ -146,6 +163,7 @@
       const player = kinds.get(experience.kind);
       if (!player) return { status: 'unavailable' };
       state.playing = experience.id;
+      started(experience);
       root.dispatchEvent?.(new CustomEvent('fm:guides:playing', { detail: { id: experience.id } }));
       track(experience, options.replay ? 'replay' : 'exposure');
       if (!options.replay) track(experience, 'start');
@@ -193,8 +211,7 @@
       event.preventDefault();
       event.stopImmediatePropagation();
       (async () => {
-        const outcome = await play(experience.id, { trigger });
-        await follow(experience, outcome || {}, target, trigger.selector);
+        await play(experience.id, { trigger, held: target, selector: trigger.selector });
       })();
       return;
     }
@@ -305,8 +322,10 @@
         function place(){
           const step = list[index];
           const main = targets[0];
-          pop.classList.toggle('gx-center', !main);
+          // A step with nothing to point at is a centred card with no arrow.
+          pop.classList.toggle('gx-center', !main || step.placement === 'center');
           const arrow = pop.querySelector('.gx-arrow');
+          if (!main || step.placement === 'center') { arrow?.remove(); ring.hidden = !main; if (!main) return; }
           if (!main) { ring.hidden = true; return; }
           const r = main.getBoundingClientRect(), p = pop.getBoundingClientRect(), gap = 16, W = root.innerWidth, H = root.innerHeight;
           ring.hidden = false; Object.assign(ring.style, { left: `${r.left - 6}px`, top: `${r.top - 6}px`, width: `${r.width + 12}px`, height: `${r.height + 12}px` });
@@ -333,7 +352,7 @@
               ${position > 1 ? `<button type="button" class="gx-b gx-link" data-gx="back">${esc(L('gx_ui_back', 'Back'))}</button>` : ''}
               ${!last ? `<button type="button" class="gx-b gx-link" data-gx="skip">${esc(L('gx_ui_skip_step', 'Skip step'))}</button>` : ''}
               ${step.advance === 'click' && targets.length ? '' : `<button type="button" class="gx-b gx-primary" data-gx="next">${esc(last ? L('gx_ui_done', 'Done') : L('gx_ui_next', 'Next'))}</button>`}</footer>
-            <span class="gx-arrow" aria-hidden="true"></span>`;
+            ${targets.length && step.placement !== 'center' ? '<span class="gx-arrow" aria-hidden="true"></span>' : ''}`;
           pop.setAttribute('aria-label', L(step.title));
           pop.classList.remove('gx-enter'); void pop.offsetWidth; pop.classList.add('gx-enter');
           setTimeout(() => pop.querySelector('[data-gx=next]')?.focus?.({ preventScroll: true }), 30);
@@ -399,10 +418,14 @@
 
   // ── Assistant suggestions (FAQs) ───────────────────────────────────────
   const faqCss = `
-    .gx-faqs{display:flex;gap:6px;overflow-x:auto;padding:2px 2px 8px;scrollbar-width:none;mask-image:linear-gradient(90deg,#000 92%,transparent)}
-    .gx-faqs::-webkit-scrollbar{display:none}
-    .gx-faqs[hidden]{display:none}
-    .gx-faq{flex:none;display:inline-flex;align-items:center;gap:6px;height:30px;padding:0 12px;border:1px solid #e4e7ec;border-radius:999px;background:#fff;color:#344054;font:inherit;font-size:12.5px;font-weight:600;cursor:pointer;white-space:nowrap;transition:background .15s,border-color .15s,transform .15s;animation:gxChip .35s cubic-bezier(.22,1,.36,1) both}
+    .gx-faqs-wrap{padding:2px 2px 8px}
+    .gx-faqs-wrap[hidden]{display:none}
+    .gx-faqs{display:flex;flex-wrap:wrap;gap:6px;overflow:hidden;transition:max-height .3s cubic-bezier(.22,1,.36,1)}
+    .gx-faqs[data-collapsed=true]{max-height:68px}
+    .gx-faq{flex:0 1 auto;max-width:100%;display:inline-flex;align-items:center;gap:6px;min-height:30px;padding:5px 12px;border:1px solid #e4e7ec;border-radius:999px;background:#fff;color:#344054;font:inherit;font-size:12.5px;line-height:1.3;font-weight:600;text-align:left;cursor:pointer;white-space:normal;box-sizing:border-box;transition:background .15s,border-color .15s,transform .15s;animation:gxChip .35s cubic-bezier(.22,1,.36,1) both}
+    .gx-faq-more{margin-top:4px;border:0;background:transparent;color:var(--primary,#d93025);font:inherit;font-size:12px;font-weight:650;cursor:pointer;padding:2px 4px}
+    .gx-faq-more[hidden]{display:none}
+    .gx-faq-more:focus-visible{outline:2px solid var(--primary,#d93025);outline-offset:1px}
     .gx-faq:hover{background:#f9fafb;border-color:#98a2b3;transform:translateY(-1px)}
     .gx-faq i{color:var(--primary,#d93025);font-size:11px}
     .gx-faq:focus-visible{outline:2px solid var(--primary,#d93025);outline-offset:1px}
@@ -428,26 +451,42 @@
    * conversation; `getContext()` names the project and tab the assistant is showing (the project tray's context).
    */
   function attachAssistant(drawer, assistant = {}){
-    if (!drawer || drawer.querySelector(':scope .gx-faqs')) return null;
+    if (!drawer || drawer.querySelector('.gx-faqs-wrap')) return null;
     const doc = drawer.ownerDocument || document;
     injectCss('gx-faq-css', faqCss, doc);
     const composer = drawer.querySelector('[data-fma="composer"]');
     const shell = composer?.querySelector('.fma-compose-shell');
     if (!composer || !shell) return null;
-    const strip = doc.createElement('div'); strip.className = 'gx-faqs'; strip.hidden = true; strip.setAttribute('role', 'list'); strip.setAttribute('aria-label', L('gx_ui_suggested', 'Suggested questions'));
-    composer.insertBefore(strip, shell);
+    // Every question visible at once, wrapped into rows; two rows at most until "More".
+    const wrap = doc.createElement('div'); wrap.className = 'gx-faqs-wrap'; wrap.hidden = true;
+    const more = doc.createElement('button'); more.type = 'button'; more.className = 'gx-faq-more'; more.hidden = true;
+    const strip = doc.createElement('div'); strip.className = 'gx-faqs'; strip.dataset.collapsed = 'true'; strip.setAttribute('role', 'list'); strip.setAttribute('aria-label', L('gx_ui_suggested', 'Suggested questions'));
+    wrap.append(strip, more);
+    composer.insertBefore(wrap, shell);
     let shownTab = '';
     // The tab the assistant says it is showing; else the route of the frame the drawer is in.
     const tabNow = () => { const context = object(assistant.getContext?.()); return clean(context.tab) ? (clean(context.tab).includes('.') ? clean(context.tab) : `project.${clean(context.tab)}`) : (doc.defaultView?.FirstMateGuides?.where?.() || where()).tab; };
     const render = () => {
       const tab = tabNow();
       const questions = faqs(tab);
-      if (!questions.length) { strip.hidden = true; strip.innerHTML = ''; shownTab = tab; if (tab && !state.faqs.has(tab)) loadFaqs(tab).then(() => { if (faqs(tab).length) render(); }); return; }
-      if (tab === shownTab && !strip.hidden) return;
+      if (!questions.length) { wrap.hidden = true; strip.innerHTML = ''; shownTab = tab; if (tab && !state.faqs.has(tab)) loadFaqs(tab).then(() => { if (faqs(tab).length) render(); }); return; }
+      if (tab === shownTab && !wrap.hidden) return;
       shownTab = tab;
-      strip.innerHTML = questions.map((question, i) => `<button type="button" class="gx-faq" role="listitem" data-gx-faq="${esc(question.id)}" style="animation-delay:${i * 40}ms">${question.action === 'play' ? '<i class="fas fa-circle-play" aria-hidden="true"></i>' : '<i class="fas fa-sparkles" aria-hidden="true"></i>'}${esc(L(question.text))}</button>`).join('');
-      strip.hidden = false;
+      // A replay ("Show me the tutorial again") leads, so it is never behind "More".
+      strip.innerHTML = [...questions].sort((a, b) => Number(b.action === 'play') - Number(a.action === 'play')).map((question, i) => `<button type="button" class="gx-faq" role="listitem" data-gx-faq="${esc(question.id)}" style="animation-delay:${i * 40}ms">${question.action === 'play' ? '<i class="fas fa-circle-play" aria-hidden="true"></i>' : '<i class="fas fa-sparkles" aria-hidden="true"></i>'}${esc(L(question.text))}</button>`).join('');
+      wrap.hidden = false;
+      strip.dataset.collapsed = 'true';
+      syncMore();
     };
+    function syncMore(){
+      const collapsed = strip.dataset.collapsed === 'true';
+      const overflowing = strip.scrollHeight > strip.clientHeight + 2;
+      more.hidden = collapsed ? !overflowing : false;
+      more.textContent = collapsed ? L('gx_ui_more_questions', 'More') : L('gx_ui_fewer_questions', 'Less');
+      more.setAttribute('aria-expanded', String(!collapsed));
+    }
+    more.addEventListener('click', () => { strip.dataset.collapsed = String(strip.dataset.collapsed !== 'true'); syncMore(); });
+    if (doc.defaultView?.ResizeObserver) new doc.defaultView.ResizeObserver(() => { if (!wrap.hidden) syncMore(); }).observe(strip);
     strip.addEventListener('click', (event) => {
       const id = event.target.closest?.('[data-gx-faq]')?.dataset.gxFaq;
       const question = faqs(tabNow()).find((entry) => entry.id === id);
@@ -465,10 +504,41 @@
     const names = ['fm:guides:updated', 'fm:route-state:updated', 'fm:project-window:placement', 'fm:project-tab:opened'];
     windows.forEach((win) => names.forEach((name) => win.addEventListener(name, onChange)));
     render();
-    return { render, destroy(){ windows.forEach((win) => names.forEach((name) => win.removeEventListener(name, onChange))); strip.remove(); } };
+    return { render, destroy(){ windows.forEach((win) => names.forEach((name) => win.removeEventListener(name, onChange))); wrap.remove(); } };
+  }
+
+  // ── Revealing tabs (onboarding sequencing) ─────────────────────────────
+  /**
+   * Facts about a project that a reveal rule can name. `has_report`: a measurement report has been delivered for it
+   * (a report link or file, or a completed report). Ordered but not delivered does not count: Materials would have
+   * nothing to work from yet.
+   */
+  function projectFacts(project){
+    const p = object(project), m = object(p.measurement_project || p.measurement), raw = object(m.raw), manifest = object(p.manifest || raw.manifest);
+    const rows = [p, m, raw, manifest];
+    const delivered = rows.some((row) => row.has_report === true || !!clean(row.report_url) || !!clean(row.pdf_url) || !!clean(row.summary_url) || !!clean(row.xml_url) || ['completed', 'complete', 'delivered'].includes(clean(row.workflow_state || row.status).toLowerCase()));
+    return { has_report: delivered, is_draft: !clean(p.platform_project_id || p.id) };
+  }
+  /** Map-form equality (`{ "project.has_report": true }`), the part of the condition contract a reveal may use. */
+  function factsMatch(when, facts){
+    return Object.entries(object(when)).every(([field, expected]) => {
+      const actual = field.startsWith('project.') ? facts[field.slice(8)] : undefined;
+      return Array.isArray(expected) ? expected.map(String).includes(String(actual)) : String(actual) === String(expected);
+    });
+  }
+  /**
+   * The project tabs this person sees now: a tab held back by an unfinished reveal shows only on projects that match
+   * its rule. Never a permission check, and the given order is kept.
+   */
+  function filterProjectTabs(apps, project){
+    const rules = array(state.reveals);
+    if (!rules.length) return apps;
+    const facts = projectFacts(project);
+    return array(apps).filter((app) => rules.every((rule) => clean(rule.tab) !== clean(app?.appId || app?.id) || factsMatch(rule.when, facts)));
   }
 
   root.FirstMateGuides = {
+    filterProjectTabs, projectFacts,
     refresh: () => refresh(true), play, faqs, attachAssistant, overlay, where, follow,
     registerKind(kind, player){ kinds.set(kind, player); },
     experience: (id) => state.experiences.get(id) || null,

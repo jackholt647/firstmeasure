@@ -108,8 +108,20 @@ export async function availableExperiences(ctx: PlatformAuthContext, surface: { 
   const chooser = await chooserContext(ctx, surface);
   const rows = await listProgress(ctx.orgId, ["", ctx.userId]);
   const out: ResolvedExperience[] = [];
-  for (const definition of listExperiences()) {
-    if (!(await eligible(definition, ctx, chooser))) continue;
+  // Which experiences this person could play, so a condition can say "only when they are not asked to set this up".
+  const able: ExperienceDefinition[] = [];
+  for (const definition of listExperiences()) if (await eligible(definition, ctx, chooser)) able.push(definition);
+  chooser.person.eligible = able.map((definition) => definition.id);
+  const reveals: { tab: string; when: Record<string, unknown>; experience: string }[] = [];
+  for (const definition of able) {
+    const progress = rows.find((row) => row.experience_id === definition.id && row.subject_id === subjectFor(definition, ctx)) || null;
+    // Until this person finished it, its tab shows only where `when` holds. Someone who cannot play it is never held back.
+    for (const reveal of definition.reveal) {
+      const done = reveal.until === "completed" ? progress?.status === "completed" : !!progress && progress.status !== "started";
+      if (!done) reveals.push({ tab: reveal.tab, when: reveal.when, experience: definition.id });
+    }
+  }
+  for (const definition of able) {
     const progress = rows.find((row) => row.experience_id === definition.id && row.subject_id === subjectFor(definition, ctx)) || null;
     if (progress && progress.status !== "started" && !definition.replayable) continue;
     const resolved = await resolve(definition, ctx, chooser, progress);
@@ -118,7 +130,7 @@ export async function availableExperiences(ctx: PlatformAuthContext, surface: { 
   const playable = new Set(out.map((entry) => entry.id));
   const faqs = surface.tab ? tabFaqs(text(surface.tab)) : null;
   return {
-    experiences: out,
+    experiences: out, reveals,
     faqs: faqs ? { tab: faqs.tab, questions: faqs.questions.filter((question) => question.action !== "play" || playable.has(question.experience!)) } : null
   };
 }

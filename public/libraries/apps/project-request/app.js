@@ -7477,6 +7477,8 @@ window.PlatformCommerce.onReady(async function(){
     const apps = runtime.listApps(context)
       .filter((meta) => meta?.id && meta.id !== 'project.request')
       .filter((meta) => meta.app?.kind === 'project_modal_app' || String(meta.id || '').startsWith(PROJECT_MODAL_APP_PREFIX))
+      // Onboarding sequencing from guided experiences (a reveal rule), never access: docs/architecture/guided-experiences.md.
+      .filter((meta) => !window.FirstMateGuides?.filterProjectTabs || window.FirstMateGuides.filterProjectTabs([{ appId: meta.id }], options.opening ? options.project : activeBaseProject).length > 0)
       .map((meta) => ({
         ...meta,
         id: projectModalTabId(meta),
@@ -7749,6 +7751,8 @@ window.PlatformCommerce.onReady(async function(){
     })) syncProjectViewerTabs();
   }
 
+  // A guided experience finished: a tab it held back may now show (docs/architecture/guided-experiences.md).
+  window.addEventListener('fm:guides:tabs-changed', () => { if ($('#rOverlay')?.classList.contains('active')) refreshProjectModalAppsForOrderTransition(); });
   function refreshProjectModalAppsForOrderTransition(previousTab = activePreviewTab){
     ensureProjectModalAppPanels();
     pruneStaleProjectModalAppPanels();

@@ -132,5 +132,19 @@ test("the Materials setup and tour are valid data, offered by eligibility, with 
   assert.ok(listed.faqs!.questions.length >= 4);
   const crew = person("crew", { role: "member", permissions: { view_projects: true }, accessProfile: { roles: [], app_restrictions: [] } });
   assert.equal((await service.availableExperiences(crew, {})).experiences.some((entry) => entry.id === "materials.pricebook_setup.roofing"), false, "only someone who may change company settings is asked");
+  // The first view of Materials starts the setup; Generate is the fallback.
+  assert.deepEqual(offered.triggers.map((trigger: any) => trigger.kind), ["tab_opened", "before_action"]);
+  // Onboarding sequencing: until the tour is done, Materials shows only on projects with a report.
+  assert.deepEqual(listed.reveals, [{ tab: "project.materials", when: { "project.has_report": true }, experience: "materials.tab_tutorial" }]);
+  const tourForOwner = listed.experiences.find((entry) => entry.id === "materials.tab_tutorial")!;
+  assert.equal(tourForOwner.triggers.some((trigger: any) => trigger.kind === "tab_opened"), false, "the owner's tour waits for the setup");
+  // Someone who is not asked to set the price book up gets the tour on their first view straight away.
+  const crewList = await service.availableExperiences(crew, {});
+  assert.deepEqual(crewList.experiences.find((entry) => entry.id === "materials.tab_tutorial")!.triggers.map((trigger: any) => trigger.kind), ["after_experience", "tab_opened"]);
+  await service.recordGuidedEvent(crew, "materials.tab_tutorial", { type: "dismiss", step_id: "intro" });
+  assert.deepEqual((await service.availableExperiences(crew, {})).reveals, [], "closing the tour counts as having been through it");
+  assert.equal((await service.availableExperiences(owner, {})).reveals.length, 1, "per person");
+  const { experienceSchema } = await import("../guided-experiences/contracts.js");
+  assert.equal(experienceSchema.safeParse({ ...experience("materials.tab_tutorial"), reveal: [{ tab: "project.materials", when: { "organization.size": 3 } }] }).success, false, "a reveal reads project facts only");
   assert.equal(await service.guidedConversationContext(owner, "project:p1"), "", "no setup open on that conversation");
 });

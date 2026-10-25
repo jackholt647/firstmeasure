@@ -39,7 +39,8 @@ const TOUR={id:'materials.tab_tutorial',version:1,kind:'overlay',scope:'person',
     {id:'lists',targets:['.mt-resource-column'],placement:'auto',title:t('gx_mt_lists_title','Your lists'),body:t('gx_w','Click any quantity.'),advance:'next',wait_ms:300}],
   completion:{action:null,say:[],then:[]},progress:null};
 const FAQS={'project.materials':{tab:'project.materials',questions:[{id:'materials.how_generate',text:t('gx_faq_mat_how_generate','How do I generate the materials list?'),action:'ask'},{id:'materials.tour',text:t('gx_faq_mat_tour','Show me the tutorial again'),action:'play',experience:'materials.tab_tutorial'}]},
-  'project.photos':{tab:'project.photos',questions:[{id:'photos.add',text:t('gx_faq_photos_add','How do I add photos to this project?'),action:'ask'}]}};
+  'project.photos':{tab:'project.photos',questions:[{id:'photos.add',text:t('gx_faq_photos_add','How do I add photos to this project?'),action:'ask'}]},
+  'project.docs':{tab:'project.docs',questions:[...['How do I make a proposal for this project?','How does the customer sign?','Can I send a document by text message?','What happens after the customer signs?','How do I change a price on a sent proposal?','Where do signed documents go?'].map((text,i)=>({id:'docs.q'+i,text:t('gx_faq_docs_'+i,text),action:'ask'})),{id:'docs.tour',text:t('gx_faq_mat_tour','Show me the tutorial again'),action:'play',experience:'materials.tab_tutorial'}]}};
 
 async function load(browser,{width=1280,height=800,reduced=false}={}){
   const page=await browser.newPage({viewport:{width,height}}),errors=[];
@@ -202,6 +203,8 @@ test('the first Generate plays the agentic setup, hands the conversation to the 
     await page.waitForFunction(()=>document.querySelector('.gx-pop h3')?.textContent==='Generate');
     await page.keyboard.press('Escape');
     await page.waitForFunction(()=>!document.querySelector('.gx-pop'));
+    // Events go out in the background, in order.
+    await page.waitForFunction(()=>window.calls.some(c=>c.path.includes('materials.tab_tutorial')&&c.body?.type==='dismiss'));
     const events=await page.evaluate(()=>window.calls.filter(c=>c.path.includes('materials.tab_tutorial')&&c.path.endsWith('/events')).map(c=>c.body.type));
     for(const type of ['exposure','start','step_view','step_done','step_skip','back','dismiss'])assert.ok(events.includes(type),`${type} recorded`);
     // A second Generate goes straight through: the setup is done.
@@ -218,9 +221,9 @@ test('the assistant suggests questions for the open tab, and "Show me the tutori
     const {page,errors}=await load(browser);
     await page.evaluate(()=>{window.asked=[];window.FirstMateGuides.attachAssistant(document.querySelector('.fma-drawer'),{getContext:()=>({surface:'project',projectId:'p1',tab:window.route.projectTab}),ask:text=>window.asked.push(text)});});
     await page.waitForSelector('.gx-faqs:not([hidden]) .gx-faq');
-    assert.deepEqual(await page.locator('.gx-faq').allInnerTexts(),['How do I generate the materials list?','Show me the tutorial again']);
-    assert.ok(await page.evaluate(()=>document.querySelector('.gx-faqs').nextElementSibling.classList.contains('fma-compose-shell')),'just above the composer');
-    await page.click('.gx-faq >> nth=0');
+    assert.deepEqual(await page.locator('.gx-faq').allInnerTexts(),['Show me the tutorial again','How do I generate the materials list?'],'the replay leads');
+    assert.ok(await page.evaluate(()=>document.querySelector('.gx-faqs-wrap').nextElementSibling.classList.contains('fma-compose-shell')),'just above the composer');
+    await page.click('text=How do I generate the materials list?');
     assert.deepEqual(await page.evaluate(()=>window.asked),['How do I generate the materials list?']);
     await page.click('text=Show me the tutorial again');
     await page.waitForSelector('.gx-pop');
@@ -260,6 +263,48 @@ test('at phone width the setup fills the screen with the conversation folded bel
     await page.waitForFunction(()=>!document.querySelector('.gxs'));
     await page.waitForFunction(()=>window.generated===1,null,{timeout:3000});
     assert.ok(await page.evaluate(()=>window.calls.some(c=>c.body?.type==='dismiss'&&c.path.includes('pricebook_setup'))),'skipping the setup is recorded and lets Generate run');
+    assert.deepEqual(errors,[]);
+  } finally { await browser.close(); }
+});
+
+test('every suggested question is visible at once in wrapped rows, with More for the rest, the replay first',async()=>{
+  const browser=await launch();
+  try{
+    const {page,errors}=await load(browser,{width:390,height:780});
+    await page.evaluate(()=>{const host=document.querySelector('#faqHost');host.style.cssText='width:360px;position:fixed;left:15px;bottom:0;background:#fff';window.route={project:'p1',projectTab:'docs'};window.FirstMateGuides.attachAssistant(host,{getContext:()=>({tab:'docs'}),ask(){}});});
+    await page.waitForSelector('#faqHost .gx-faq');
+    const box=await page.evaluate(()=>{const strip=document.querySelector('#faqHost .gx-faqs'),r=strip.getBoundingClientRect();return {sideways:strip.scrollWidth>strip.clientWidth+1,height:r.height,inside:[...strip.children].every(c=>c.getBoundingClientRect().right<=r.right+1&&c.getBoundingClientRect().left>=r.left-1),first:strip.firstElementChild.textContent,icon:!!strip.firstElementChild.querySelector('.fa-circle-play')};});
+    assert.equal(box.sideways,false,'no sideways scrolling');
+    assert.ok(box.inside,'every chip fits the width');
+    assert.ok(box.height<=70,`two rows at most before More (${box.height})`);
+    assert.equal(box.first,'Show me the tutorial again');assert.ok(box.icon);
+    assert.equal(await page.locator('#faqHost .gx-faq-more').isVisible(),true);
+    assert.equal(await page.locator('#faqHost .gx-faq-more').innerText(),'More');
+    await page.click('#faqHost .gx-faq-more');
+    const open=await page.evaluate(()=>{const strip=document.querySelector('#faqHost .gx-faqs');return {all:strip.scrollHeight<=strip.clientHeight+6,label:document.querySelector('#faqHost .gx-faq-more').textContent};});
+    assert.deepEqual(open,{all:true,label:'Less'});
+    await shot(page,'8-faqs');
+    // A short list needs no More.
+    await page.evaluate(()=>{window.route={project:'p1',projectTab:'materials'};window.FirstMateGuides.attachAssistant(document.querySelector('.fma-drawer:not(#faqHost)')||document.body,{});});
+    assert.deepEqual(errors,[]);
+  } finally { await browser.close(); }
+});
+
+test('the tour draws an arrow only against a target, pointing at it',async()=>{
+  const browser=await launch();
+  try{
+    const {page,errors}=await load(browser);
+    await page.evaluate(()=>{window.FirstMateGuides.play('materials.tab_tutorial',{replay:true});});
+    await page.waitForSelector('.gx-pop');
+    assert.equal(await page.locator('.gx-pop h3').innerText(),'Welcome to Materials');
+    assert.equal(await page.locator('.gx-pop .gx-arrow').count(),0,'the centred welcome has no arrow');
+    await page.click('.gx-pop [data-gx=next]');
+    await page.waitForFunction(()=>document.querySelector('.gx-pop h3')?.textContent==='Generate');
+    await page.waitForTimeout(600);
+    const arrow=await page.evaluate(()=>{const a=document.querySelector('.gx-pop .gx-arrow').getBoundingClientRect(),b=document.querySelector('[data-mt-generate-materials]').getBoundingClientRect();return {ax:a.left+a.width/2,ay:a.top+a.height/2,left:b.left,right:b.right,bottom:b.bottom};});
+    assert.ok(arrow.ax>=arrow.left-2&&arrow.ax<=arrow.right+2,'the arrow sits under the button it points at');
+    assert.ok(Math.abs(arrow.ay-arrow.bottom)<30,'right by it');
+    await page.click('.gx-pop [data-gx=close]');
     assert.deepEqual(errors,[]);
   } finally { await browser.close(); }
 });

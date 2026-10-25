@@ -29,7 +29,11 @@ export function registerMaterialsGuidedExperiences() {
       // Roofing first. An organization that has not said what it does is treated as roofing, as FirstMeasure customers are.
       when: { match: "any", rules: [{ field: "organization.industry", operator: "is_missing" }, { field: "organization.industry", operator: "in", value: ["roofing", "exteriors", "roofing_and_exteriors"] }] }
     },
-    triggers: [{ kind: "before_action", action: "materials.generate", selector: "[data-mt-generate-materials],[data-mt-generate-column]", once: true }],
+    // The first time someone who can set it up opens Materials, report or not; Generate catches anyone who skipped.
+    triggers: [
+      { kind: "tab_opened", tab: "project.materials", delay_ms: 500 },
+      { kind: "before_action", action: "materials.generate", selector: "[data-mt-generate-materials],[data-mt-generate-column]", once: true }
+    ],
     variants: [
       // The agent beside the setup, where the assistant is on for the organization.
       { id: "agentic", weight: 1, when: { field: "organization.flags.assistant", operator: "equals", value: true } },
@@ -86,9 +90,15 @@ export function registerMaterialsGuidedExperiences() {
     eligibility: { capabilities: ["platform.materials"] },
     triggers: [
       { kind: "after_experience", experience: MATERIALS_SETUP },
-      // Someone joining an organization that already set up its price book gets the tour the first time they open the tab.
-      { kind: "tab_opened", tab: "project.materials", delay_ms: 900, when: { field: "organization.finished", operator: "contains", value: MATERIALS_SETUP } }
+      // The first time they open the tab once the price book is set up, or straight away for someone who is not asked to set it up.
+      { kind: "tab_opened", tab: "project.materials", delay_ms: 900, when: { match: "any", rules: [
+        { field: "organization.finished", operator: "contains", value: MATERIALS_SETUP },
+        { field: "person.eligible", operator: "not_contains", value: MATERIALS_SETUP }
+      ] } }
     ],
+    // Onboarding sequencing: until this person has been through the tour (or closed it), Materials shows only on
+    // projects with a delivered report, where it has something to show. Afterwards it shows on every project.
+    reveal: [{ tab: "project.materials", until: "finished", when: { "project.has_report": true } }],
     variants: [{ id: "tour", weight: 1 }],
     steps: [
       { id: "intro", targets: [], placement: "center", title: t("gx_mt_intro_title", "Welcome to Materials"), body: t("gx_mt_intro_body", "Every list here is built from the roof's measurements and your price book. Here's a quick look around.") },

@@ -51,6 +51,15 @@ An **experience** (`experienceSchema`):
   assistant_tray`, `resume` (let the held click through), `play` (another
   experience).
 - `replayable`: whether "show me again" may play it after it finished.
+- `reveal`: onboarding sequencing, never access. `[{ tab, until: 'finished' |
+  'completed', when: { "project.<fact>": value } }]`: until this person has
+  finished the experience, the tab shows only on projects matching `when`. The
+  list response carries the person's unfinished `reveals`; the project window
+  filters its tabs with `FirstMateGuides.filterProjectTabs(apps, project)` (order
+  and pills untouched) and redraws on `fm:guides:tabs-changed`. Someone who cannot
+  play the experience is never held back. Project facts come from
+  `FirstMateGuides.projectFacts`: `has_report` (a report delivered: a report link
+  or file, or a completed report) and `is_draft`.
 
 Copy is `{ key, text }`: a `PlatformLanguage` key in the `guided-experiences`
 namespace and its English text. The browser resolves it through
@@ -99,8 +108,8 @@ region the context resolves (`state`, then the census region, else national).
 
 **Overlay** (`FirstMateGuides.overlay.run`): an SVG mask dims the page with a
 hole over each target; the hole slides between steps, a ring pulses on the
-highlighted element, and the popover sits beside it (a bottom sheet under 640px,
-a centred card when a step has no target). Back, Next, Skip step, Skip tutorial
+highlighted element, and the popover sits beside it with an arrow at the target (a
+bottom sheet under 640px; a centred card with no arrow when a step has no target). Back, Next, Skip step, Skip tutorial
 (the X), Escape and arrow keys. A step whose target never appears is skipped.
 The highlighted element can still be pressed; everything else is blocked. Above
 the project window (`z-index` 2147483300) and `data-fmr-ignore`.
@@ -160,6 +169,11 @@ skipped at once, and a newer move cancels an older one. Back works at any time.
 
 ## Assistant suggestions
 
+The questions wrap into rows above the composer, the replay ("Show me the
+tutorial again", with its play icon) first; more than two rows fold behind
+"More". No sideways scrolling.
+
+
 `platform-assistant.js` calls `FirstMateGuides.attachAssistant(drawer, { getContext,
 ask })` when it builds. The strip of questions for the current tab sits just above
 the composer in every assistant instance (the project's agent tray, the global
@@ -173,13 +187,19 @@ question.
 - `materials.pricebook_setup.roofing` (agentic, organization). Eligible to
   people with `manage_company_settings` and `manage_projects` where
   `platform.materials` is on and the organization is roofing or has not said.
-  Trigger: the Materials tab's Generate buttons. Variants: `agentic` (assistant on),
+  Triggers: the first time they open the Materials tab (report or not, saved or
+  draft: on a draft it plays as a modal, since there is no project conversation,
+  and its write is organization-level, so nothing saves the project), and the
+  Generate buttons for anyone the first view missed. Variants: `agentic` (assistant on),
   `agentic_express` (weight 0, no rules walkthrough), `modal` (assistant off).
   Steps: brands, lines, rules (how a roof becomes a list), prices. Completion:
   `pricebook.setup.apply` with `trade: roofing`, then hand-off, the held Generate,
   and the tour.
 - `materials.tab_tutorial` (overlay, person, replayable): after the setup, or on
-  first opening the tab once the organization has finished the setup.
+  first opening the tab once the organization has finished the setup (or straight
+  away for someone not asked to set it up: `person.eligible`). Its `reveal`
+  keeps Materials to projects with a delivered report until the person has been
+  through it (or closed it); then Materials shows on every project, drafts too.
 - FAQs for Materials, Photos, Docs, Reports, Customer Portal and Overview.
 
 **Price book setup** (`pricebook/setups/roofing.ts`). Products, rules and regions
