@@ -1218,17 +1218,22 @@ export const registerFirstMeasureApi: FastifyPluginAsync = async (app) => {
     const propertyQuote = providerRoute === "/report-expedite-options" && Boolean(quoteInput.address || quoteInput.lat || quoteInput.lng || quoteInput.pins);
     if (!propertyQuote && (request.method !== "POST" || !providerBackedRoutes.has(providerRoute))) return;
 
-    const suppliedInternalSecret = String(request.headers["x-firstmeasure-internal"] ?? "");
+    // Who is calling comes from the verified principal (docs/architecture/request-security.md);
 
-    const isInternal = Boolean(env.firstMeasureInternalApiSecret)
+    // our own service calls share one bucket, as before.
 
-      && suppliedInternalSecret === env.firstMeasureInternalApiSecret;
+    const principal = await requestPrincipal(request);
 
     let rateKey = `internal:${request.ip}`;
 
-    if (!isInternal) {
+    if (principal.kind === "staff") {
+
+      rateKey = `staff:${principal.staff.email}`;
+
+    } else if (principal.kind !== "system") {
 
       // Every FirstMeasure route belongs to the Reports app (docs/architecture/app-experience.md).
+
       const auth = await requirePlatformAuth(request, { app: ["project.measurements"] });
 
       rateKey = String(auth.identity.email ?? auth.userId ?? auth.sessionId).toLowerCase();
