@@ -431,9 +431,11 @@ async function writeFileAtomic(filePath: string, content: string) {
     await writeFile(tempPath, content);
     // Windows: rename-over-existing races with concurrent readers/writers of
     // the same record (e.g. parallel requests touching one session file) and
-    // surfaces as EPERM/EACCES. Retry briefly before giving up.
+    // surfaces as EPERM/EACCES. Retry over the existing record, never remove
+    // it first: removing it let a concurrent read find no record at all, which
+    // signed local browsers out at random (a session read during signup).
     let lastError: unknown = null;
-    for (let attempt = 0; attempt < 5; attempt += 1) {
+    for (let attempt = 0; attempt < 12; attempt += 1) {
       try {
         await rename(tempPath, filePath);
         return;
@@ -441,8 +443,7 @@ async function writeFileAtomic(filePath: string, content: string) {
         const code = (error as NodeJS.ErrnoException).code;
         if (process.platform !== "win32" || !["EPERM", "EEXIST", "EACCES"].includes(String(code))) throw error;
         lastError = error;
-        await rm(filePath, { force: true }).catch(() => undefined);
-        await new Promise((resolve) => setTimeout(resolve, 15 * (attempt + 1)));
+        await new Promise((resolve) => setTimeout(resolve, Math.min(10 * (attempt + 1), 100)));
       }
     }
     throw lastError;
