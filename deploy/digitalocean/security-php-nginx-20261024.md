@@ -249,6 +249,14 @@ and `npm run test:platform:php` (PHP lint). The PHP integration tests
 (`full-house-*-php`, `tutorial-exteriors`, `dev/resource-frame-extract`) now
 set the staff mark in their session fixtures.
 
+Results on this branch (2026-10-24): `request-security-php.test.ts` 5/5, PHP
+lint 86 files, the PHP-only tests, `full-house-php` and
+`full-house-references-php` pass. `full-house-address-php` fails only on its
+last assertion, which predates this work (`full_house.php` already sends
+`measurement_system` and `report_language` that the test does not expect).
+`tutorial-exteriors` cannot boot the app yet: the Node WIP route gate refuses
+`POST /v1/firstmeasure/ai/gemini-image` for lack of an access declaration.
+
 ## Open questions
 
 1. **`/v1/internal/me` for non-staff.** The current handler answers any
