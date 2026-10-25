@@ -95,6 +95,18 @@ check(fm_staff_session_email() === '', 'a changed identity drops the staff mark'
 $_SESSION = ['user_email' => 'staff@example.test'];
 check(fm_staff_session_email() === '' && fm_node_identity_headers('session', 'GET', 'http://127.0.0.1:3111/v1/internal/me') === [], 'no staff, no signature');
 
+// --- Forwarded cookies -------------------------------------------------------
+putenv('PLATFORM_SESSION_COOKIE_NAME');
+$_SERVER = ['HTTP_COOKIE' => 'PHPSESSID=php123; fm_platform_session=old; other=x; fm_platform_session=new; fm_platform_session_csrf=tok%2B1; fm_platform_session_accounts=dev', 'HTTP_ORIGIN' => 'https://app.1m8.ai'];
+$cookieHeaders = fm_node_cookie_headers(true);
+check(($cookieHeaders[0] ?? '') === 'Cookie: fm_platform_session=old; fm_platform_session=new; fm_platform_session_csrf=tok%2B1; fm_platform_session_accounts=dev', 'only platform cookies, every session cookie kept');
+check(in_array('Origin: https://app.1m8.ai', $cookieHeaders, true) && in_array('X-Platform-CSRF: tok+1', $cookieHeaders, true), 'writes carry the browser origin and CSRF header');
+check(count(fm_node_cookie_headers(false)) === 1, 'reads carry only the cookie');
+$_SERVER = ['HTTP_COOKIE' => 'PHPSESSID=php123'];
+check(fm_node_cookie_headers(true) === [] && fm_platform_session_cookie() === '', 'no platform session, nothing forwarded');
+$_SERVER = ['HTTP_COOKIE' => "fm_platform_session=a\r\nX-Evil: 1"];
+check(fm_platform_session_cookie() === '', 'header injection in a cookie value refused');
+
 // --- Signature shape ---------------------------------------------------------
 putenv('FIRSTMEASURE_INTERNAL_API_SECRET=test-secret');
 $headers = fm_node_signature_headers('get', 'https://app.1m8.ai/v1/internal/users/a%40b.test?x=1&y=2', 'Staff@Example.test', null, false, 1700000000);

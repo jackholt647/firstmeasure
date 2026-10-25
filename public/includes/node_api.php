@@ -223,28 +223,55 @@ function fm_platform_session_cookie_name(): string
     return preg_match('/^[A-Za-z0-9_-]{1,80}$/D', $configured) ? $configured : 'fm_platform_session';
 }
 
-/** The browser's platform session cookie value, or ''. */
+/**
+ * The browser's platform cookies, as sent: [[name, raw value], ...] for the
+ * session, its CSRF cookie and the account-device cookie. A browser can hold
+ * two session cookies with the same name (different paths or domains); Node
+ * picks the newest live one, so every occurrence is kept, in order.
+ */
+function fm_platform_cookie_pairs(): array
+{
+    $name = fm_platform_session_cookie_name();
+    $wanted = [$name, $name . '_csrf', $name . '_accounts'];
+    $pairs = [];
+    foreach (explode(';', (string)($_SERVER['HTTP_COOKIE'] ?? '')) as $part) {
+        $eq = strpos($part, '=');
+        if ($eq === false) continue;
+        $key = trim(substr($part, 0, $eq));
+        $value = trim(substr($part, $eq + 1));
+        if ($value === '' || !in_array($key, $wanted, true) || preg_match('/[\x00-\x1f\x7f;,\s]/', $value)) continue;
+        $pairs[] = [$key, $value];
+    }
+    return $pairs;
+}
+
+/** The browser's platform session cookie value (the first one sent), or ''. */
 function fm_platform_session_cookie(): string
 {
-    $value = $_COOKIE[fm_platform_session_cookie_name()] ?? '';
-    return is_string($value) ? $value : '';
+    $name = fm_platform_session_cookie_name();
+    foreach (fm_platform_cookie_pairs() as [$key, $value]) {
+        if ($key === $name) return $value;
+    }
+    return '';
 }
 
 /**
  * Headers that let Node see the browser user's own platform session: the
- * session and CSRF cookies only (not PHP's), and for a write the browser's
- * own Origin plus the double-submit CSRF header, so Node's cross-site write
- * check applies to the browser's request exactly as if it called Node itself.
+ * platform cookies only (not PHP's), and for a write the browser's own
+ * Origin plus the double-submit CSRF header, so Node's cross-site write check
+ * applies to the browser's request exactly as if it called Node itself.
  */
 function fm_node_cookie_headers(bool $write = false): array
 {
     $name = fm_platform_session_cookie_name();
-    $session = fm_platform_session_cookie();
-    if ($session === '' || preg_match('/[;\r\n]/', $session)) return [];
-    $cookies = [$name . '=' . $session];
-    $csrf = $_COOKIE[$name . '_csrf'] ?? '';
-    $csrf = is_string($csrf) && !preg_match('/[;\r\n]/', $csrf) ? $csrf : '';
-    if ($csrf !== '') $cookies[] = $name . '_csrf=' . $csrf;
+    if (fm_platform_session_cookie() === '') return [];
+    $cookies = [];
+    $csrf = '';
+    foreach (fm_platform_cookie_pairs() as [$key, $value]) {
+        $cookies[] = $key . '=' . $value;
+        if ($key === $name . '_csrf' && $csrf === '') $csrf = rawurldecode($value);
+    }
+    if (preg_match('/[\r\n]/', $csrf)) $csrf = '';
     $headers = ['Cookie: ' . implode('; ', $cookies)];
     if ($write) {
         $origin = (string)($_SERVER['HTTP_ORIGIN'] ?? '');
