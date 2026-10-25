@@ -4,8 +4,11 @@
 (function(){
   let materialsAPI;
   let scopeWorkspace;
+  let scopeWorkspaceLoading = null;
+  let draftSave = null;
   let refreshTimer;
-  const scopeWorkspaceUrl = new URL('./scope-of-work.js?v=20261025-intro-tooltip', document.currentScript?.src || `${location.origin}/libraries/apps/materials/project.js`).href;
+  const draftText = (key, fallback) => globalThis.PlatformLanguage?.text("materials", key, fallback) ?? fallback;
+  const scopeWorkspaceUrl = new URL('./scope-of-work.js?v=20261025-draft-project', document.currentScript?.src || `${location.origin}/libraries/apps/materials/project.js`).href;
   const calculusAdapterUrl = new URL('./calculus-native.js?v=20261022-retire', document.currentScript?.src || `${location.origin}/libraries/apps/materials/project.js`).href;
   const closeoutUrl = new URL('./closeout.js?v=20261019-closeout-partial', document.currentScript?.src || `${location.origin}/libraries/apps/materials/project.js`).href;
   const runtime = window.FirstMateEmbeddableApps;
@@ -321,6 +324,11 @@
   function callHost(name, ...args){
     const fn = projectHost()[name];
     return typeof fn === 'function' ? fn(...args) : undefined;
+  }
+  // A new project that is not saved yet (a draft). Opening the tab reads nothing and creates nothing; the first write
+  // saves it through the project window (host.ensureProject) and the tab adopts the new id in place.
+  function draftProject(){
+    return !projectId();
   }
 
   async function confirmAction(message, options = {}){
@@ -756,7 +764,11 @@
     return true;
   }
   function projectFromContext(context = {}){
-    return context.project || context.activeProject || context.projectModel?.state?.activeBaseProject || state.project || null;
+    const named = context.project || context.activeProject || context.projectModel?.state?.activeBaseProject;
+    if (named) return named;
+    // A window that says which project it shows, and names none, is showing a new project: never the one shown before.
+    if (('project' in context || 'projectId' in context) && !cleanText(context.projectId || context.entityId)) return null;
+    return state.project || null;
   }
 
   function css(){
@@ -809,6 +821,9 @@
       .sw-home section+section,.sw-detail section{margin-top:24px}.sw-home h3,.sw-detail h3{font-size:13px;letter-spacing:.02em;margin:0 0 12px;color:#475467}
       .sw-summary{display:flex;flex-direction:column;gap:6px;margin:16px 0}.sw-summary strong,.sw-total{font-size:21px;color:#172f50}.sw-summary span,.sw-tile-footer{font-size:11px;color:#52647e;line-height:1.5}.sw-tile-footer{display:flex;justify-content:space-between;gap:8px;margin-top:14px}
       .sw-empty{font-size:12px;line-height:1.6;color:#667085}
+      .mt-rail-state{height:100%;min-height:0;display:flex;flex-direction:column;background:#f7f9fc}.mt-rail-state-stage{flex:1;min-height:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;padding:16px;text-align:center;color:#667085;font-size:12px;line-height:1.5}.mt-rail-state-stage i{font-size:20px;color:#98a2b3}.mt-rail-state-stage strong{font-size:13px;color:#475467}.mt-rail-state.is-error .mt-rail-state-stage i{color:#d92d20}.mt-rail-state-stage button{margin-top:4px;border:1px solid #d0d5dd;background:#fff;border-radius:6px;padding:5px 12px;font:inherit;font-size:12px;color:#344054;cursor:pointer}.mt-rail-state-stage button:focus-visible{outline:2px solid var(--primary,#d93025);outline-offset:2px}.mt-rail-state-tabs{flex:0 0 36px;display:flex;align-items:center;justify-content:space-around;padding:0 16px;border-top:1px solid #d5deeb;background:#fff}.mt-rail-state-tabs span{width:14px;height:14px;border-radius:4px;background:#eaecf0}
+      .mt-req-skeleton{display:flex;flex-direction:column;gap:8px;padding:10px}.mt-req-skeleton span{display:block;height:12px;border-radius:4px;background:linear-gradient(90deg,#f2f4f7 25%,#e4e7ec 50%,#f2f4f7 75%);background-size:200% 100%;animation:mt-shimmer 1.2s ease-in-out infinite}.mt-req-skeleton span:nth-child(2){width:78%}.mt-req-skeleton span:nth-child(3){width:62%}
+      @keyframes mt-shimmer{from{background-position:200% 0}to{background-position:-200% 0}}@media (prefers-reduced-motion:reduce){.mt-req-skeleton span,.mt-rail-state .mt-spin{animation:none}}
 
       .mt-workspace-header{display:flex;align-items:center;gap:8px;flex:0 0 auto;min-height:26px}.mt-workspace-actions{flex:none;display:flex;align-items:center;gap:6px;margin-left:auto}.mt-workspace-actions button{display:inline-flex;align-items:center;gap:5px;white-space:nowrap}
       .mt-icon-toggles{align-self:stretch;display:inline-flex;align-items:stretch;gap:3px}.mt-workspace-actions .mt-icon-toggles button{width:30px;min-height:26px;padding:0;justify-content:center}.mt-column-divider{flex:0 0 10px;align-self:stretch;position:relative;padding:0;border:0;background:transparent;cursor:col-resize;touch-action:none}.mt-column-divider::after{content:'';position:absolute;top:8px;bottom:8px;left:4px;width:2px;border-radius:2px;background:transparent;transition:background .12s}.mt-column-divider:hover::after,.mt-column-divider:focus-visible::after,.mt-column-divider.is-dragging::after{background:var(--primary,#d93025)}.mt-column-divider:focus-visible{outline:none}.mt-minimize-ghost{position:fixed;z-index:2147482650;box-sizing:border-box;display:flex;overflow:hidden;border-radius:8px;box-shadow:0 12px 32px rgba(15,23,42,.2);font-family:Inter,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;color:#111827;pointer-events:none;transform-origin:0 0;will-change:transform,opacity;animation:mt-suck-in .24s linear forwards}.mt-minimize-ghost.is-restoring{animation:mt-suck-out .36s cubic-bezier(.15,.65,.3,1) forwards}.mt-minimize-ghost>.mt-resource-column{flex:1 1 auto!important;width:100%;height:100%}@keyframes mt-suck-in{to{transform:translate(var(--dx),var(--dy)) scale(var(--sx),var(--sy));opacity:.15}}@keyframes mt-suck-out{from{transform:translate(var(--dx),var(--dy)) scale(var(--sx),var(--sy));opacity:.15}to{transform:none;opacity:1}}@keyframes mt-tab-pop{from{transform:scale(1.2)}to{transform:scale(1)}}.mt-collapsed-pills button[data-mt-restore-type]{border-color:color-mix(in srgb,var(--tab-color,#667085) 35%,#fff);background:color-mix(in srgb,var(--tab-color,#667085) 10%,#fff);color:color-mix(in srgb,var(--tab-color,#667085) 85%,#101828)}.mt-collapsed-pills button[data-mt-restore-type] i{color:var(--tab-color,#667085)}.mt-collapsed-pills button.is-receiving{animation:mt-tab-pop .24s ease-out}.mt-workspace-header button,.mt-list-head button{border:1px solid #d0d5dd;border-radius:6px;background:#fff;padding:6px 9px;font-size:11px;color:#475467;cursor:pointer}.mt-collapsed-pills{display:flex;flex-wrap:wrap;gap:6px;flex:1;min-width:0}.mt-collapsed-pills button{border-radius:20px;background:rgba(var(--primary-rgb,217,48,37),.08);color:var(--primary-readable,var(--primary,#d93025))}.mt-list-pane{display:grid;grid-template-rows:1fr;opacity:1;transition:grid-template-rows .22s ease,opacity .22s ease;flex-shrink:0}.mt-list-pane.is-collapsing{grid-template-rows:0fr;opacity:0}.mt-list-pane-inner{min-height:0;overflow:hidden}.mt-list-head{display:flex;align-items:center;gap:5px;padding:8px 2px}.mt-list-head strong{flex:1;font-size:12px;overflow-wrap:anywhere}.mt-list-head button{padding:4px 6px}.mt-list-pane .mt-list-secondary{margin-bottom:8px}.mt-list-pane .mt-section{min-width:350px}.mt-list-add-item{margin:8px 0}.mt-resource-scroll>.mt-list-pane{min-width:0}@media(prefers-reduced-motion:reduce){.mt-list-pane{transition:none}}
@@ -2245,7 +2260,7 @@
   }
 
   async function refreshWorkspace(){
-    if (!state.mounted || !state.active || document.hidden || workspaceIsEditing() || !materialsAPI || !scopeWorkspace) return;
+    if (!state.mounted || !state.active || document.hidden || workspaceIsEditing() || !materialsAPI || !scopeWorkspace || draftProject()) return;
     const operation = captureProjectOperation();
     const fingerprint = (lists) => JSON.stringify(lists.map((list) => [list.id, list.revision, list.status, list.delivery_status, list.current_items]));
     try {
@@ -2266,9 +2281,25 @@
     } catch { /* Keep the last usable view; the next background read retries. */ }
   }
 
+  // The rail's module. A failure is kept so the rail says so (with a retry) instead of loading forever; a retry asks
+  // for a fresh copy, since the browser remembers a module that failed to load.
+  let scopeWorkspaceAttempts = 0;
+  function ensureScopeWorkspace(){
+    if (scopeWorkspace) return Promise.resolve(scopeWorkspace);
+    scopeWorkspaceLoading ||= import(scopeWorkspaceAttempts++ ? `${scopeWorkspaceUrl}&retry=${scopeWorkspaceAttempts}` : scopeWorkspaceUrl).then((module) => {
+      scopeWorkspace = module;
+      state.scopeWorkspaceError = '';
+      return module;
+    }).catch((error) => {
+      state.scopeWorkspaceError = error?.message || 'unavailable';
+      throw error;
+    }).finally(() => { scopeWorkspaceLoading = null; });
+    return scopeWorkspaceLoading;
+  }
+
   async function loadScopeDocuments(loadContext){
     try {
-      scopeWorkspace ||= await import(scopeWorkspaceUrl);
+      await ensureScopeWorkspace();
       const result = await scopeWorkspace.loadDocuments(loadContext.orgId, loadContext.projectId);
       if (!loadContextIsCurrent(loadContext)) return;
       state.scopeDocuments = result.documents;
@@ -2279,7 +2310,24 @@
     } catch (error) {
       if (!loadContextIsCurrent(loadContext)) return;
       state.scopeDocumentsError = 'Scope documents could not load.';
+      renderLeft();
     }
+  }
+
+  // A draft has nothing to read for this project yet: the resource types are the organization's, everything else is
+  // empty until the first write saves the project.
+  async function loadDraftWorkspace(loadContext){
+    state.scopeDocuments = [];
+    state.scopeDocumentsError = '';
+    applyMaterialLists([]);
+    const types = window.MaterialsAPI?.resourceTypes?.list;
+    const [result] = await Promise.allSettled([
+      types ? Promise.resolve(types(loadContext.orgId)) : Promise.reject(Error('materials_api_unavailable')),
+      ensureScopeWorkspace()
+    ]);
+    if (!loadContextIsCurrent(loadContext)) return;
+    if (result.status === 'fulfilled') state.resourceTypes = Array.isArray(result.value?.resource_types) ? result.value.resource_types : [];
+    else state.lastError = draftText('mt_draft_types_failed', 'The lists could not load. Close the project and open it again to retry.');
   }
 
   async function loadData(){
@@ -2290,10 +2338,12 @@
     state.loading = true;
     state.lastError = '';
     render();
+    let ancillary = null;
     try {
+      if (!loadContext.projectId) { await loadDraftWorkspace(loadContext); return; }
       if (!apiReady()) throw new Error('materials_api_unavailable');
       if (!materialsAPI) materialsAPI = (await import(calculusAdapterUrl)).nativeCalculusAPI(window.MaterialsAPI, projectId);
-      const ancillary = Promise.allSettled([loadPricebookItems(loadContext), loadWorkResources(loadContext), requestMeasurementHydration(), loadScopeDocuments(loadContext)]);
+      ancillary = Promise.allSettled([loadPricebookItems(loadContext), loadWorkResources(loadContext), requestMeasurementHydration(), loadScopeDocuments(loadContext)]);
       const result = await (materialsAPI || window.MaterialsAPI).projects.list(loadContext.orgId, loadContext.projectId);
       if (!loadContextIsCurrent(loadContext)) return;
       state.resourceTypes=Array.isArray(result.resource_types)?result.resource_types:[];
@@ -2308,6 +2358,8 @@
       await Promise.all([loadActiveListDetails(loadContext), loadExpenseProjection(loadContext)]);
     } catch (error) {
       if (!loadContextIsCurrent(loadContext)) return;
+      // The rail reads its own data; it still loads (or says it could not) when the lists fail first.
+      if (!ancillary) void loadScopeDocuments(loadContext);
       state.lastError = error?.message === 'materials_api_unavailable' ? '' : (error?.message || 'Could not load materials.');
       // Keep the successfully loaded lists if optional initialization fails.
       state.versions = [];
@@ -2323,6 +2375,58 @@
       }
     }
   }
+
+  // The first write on a draft saves the project once through the project window, adopts the new id here and waits
+  // for the lists to load, so the write that asked for it runs against the saved project.
+  function saveDraftProject(){
+    if (!draftProject()) return Promise.resolve(true);
+    if (draftSave) return draftSave;
+    const ensure = projectHost().ensureProject || state.context?.ensureProject;
+    if (typeof ensure !== 'function') {
+      showToast(draftText('mt_draft_save_unavailable_title', 'Save the project first'), draftText('mt_draft_save_unavailable_body', 'This project is not saved yet, so nothing can be added to it here.'), false);
+      return Promise.resolve(false);
+    }
+    draftSave = Promise.resolve().then(() => ensure()).then(async (project) => {
+      const id = cleanText(project?.id || projectHost().getProject?.()?.id);
+      if (!id) throw new Error(draftText('mt_draft_save_failed_body', 'The project could not be saved.'));
+      if (!state.mounted) return false;
+      // The window may already have handed the saved project over (a remount); otherwise adopt it here.
+      if (draftProject()) {
+        state.project = { ...(project || {}), id };
+        state.requirements = null;
+        void loadData();
+      }
+      // The lists are enough to go on; documents, prices and the rest keep loading behind the write.
+      await new Promise((resolve) => { const check = () => (!state.loading || !state.mounted ? resolve() : setTimeout(check, 40)); check(); });
+      return state.mounted && projectId() === id;
+    }).catch((error) => {
+      showToast(draftText('mt_draft_save_failed_title', 'Could not save the project'), error?.message || 'Please try again.', false);
+      return false;
+    }).finally(() => { draftSave = null; });
+    return draftSave;
+  }
+  // The controls that write. On a draft their click is held, the project saved, and the click made again on the same
+  // control once it is drawn for the saved project. This listens on the window, ahead of the guided setups' hold on the
+  // document, so the setup that plays on the first Generate plays after the save, against the saved project.
+  const DRAFT_WRITE_CONTROLS = ['data-mt-new-category-list', 'data-mt-add-section', 'data-mt-add-custom', 'data-mt-generate-column', 'data-mt-generate-materials', 'data-mt-generate', 'data-mt-req-fix', 'data-mt-delivery-toggle', 'data-mt-add-pricebook', 'data-mt-schedule-job'];
+  function holdDraftWrite(event){
+    if (!state.mounted || !state.active || !draftProject()) return;
+    const control = event.target?.closest?.(DRAFT_WRITE_CONTROLS.map((name) => `[${name}]`).join(','));
+    if (!control || !(state.panelRoot?.contains(control) || state.sidebarRoot?.contains(control))) return;
+    event.preventDefault();
+    event.stopImmediatePropagation();
+    const name = DRAFT_WRITE_CONTROLS.find((attribute) => control.hasAttribute(attribute));
+    const value = control.getAttribute(name) || '';
+    const selector = `[${name}${value ? `="${window.CSS?.escape ? CSS.escape(value) : value}"` : ''}]`;
+    control.setAttribute('aria-busy', 'true');
+    saveDraftProject().then((saved) => {
+      control.removeAttribute('aria-busy');
+      if (!saved || !state.mounted) return;
+      const again = control.isConnected ? control : materialRoot()?.querySelector?.(selector) || state.sidebarRoot?.querySelector?.(selector);
+      again?.click();
+    });
+  }
+  rootWindow.addEventListener?.('click', holdDraftWrite, true);
 
   async function createInitialList(){
     const autoItems = defaultPricebookItemsForGeneration()
@@ -4443,7 +4547,7 @@
       const listTotal=list=>listProjected(list);
       const weight=Number(state.columnWeights?.[type])>0?Number(state.columnWeights[type]):0;
       return `<section class="mt-resource-column" data-resource-type="${escapeHtml(type)}" style="--resource-color:${escapeHtml(category.color)}${weight>0?`;--column-weight:${weight}`:''}" data-empty="${!rows.length&&!lists.length}" data-all-empty="${allEmpty}">
-        <h3 class="mt-resource-heading"><button type="button" class="mt-resource-tool" data-mt-category-icon="${escapeHtml(type)}" aria-label="Edit ${escapeHtml(terms.plural)} icon and color" title="Icon and color"><i class="fas ${escapeHtml(category.icon)}" aria-hidden="true"></i></button>${merged?'<span class="mt-column-title" title="Who does the work, what they are paid for it, and the equipment it takes">Work order</span>':`<input data-mt-category-name="${escapeHtml(type)}" value="${escapeHtml(category.name||'')}" placeholder="Untitled" aria-label="Resource type name">`}<span class="mt-category-tools">${type==='material'&&projectId()?`<button type="button" data-mt-generate-column="material" title="Generate materials from the signed document and the scope, or from the measurement report when nothing is signed" aria-label="Generate materials"${state.generatingMaterials?' disabled':''}><i class="fas ${state.generatingMaterials?'fa-rotate mt-spin':'fa-wand-magic-sparkles'}" aria-hidden="true"></i></button>`:''}<button type="button" data-mt-category-sources="${escapeHtml(type)}" aria-haspopup="dialog" title="Line item sources" aria-label="Line item sources for ${escapeHtml(terms.plural)}"><i class="fas fa-gear"></i></button><button type="button" data-mt-new-category-list="${escapeHtml(type)}" title="${merged?'Add a work order':'Add list'}" aria-label="Add list to ${escapeHtml(terms.plural)}"><i class="fas fa-list"></i><i class="fas fa-plus"></i></button>${merged&&equipmentOn()?'<button type="button" data-mt-new-category-list="equipment" title="Add an equipment list" aria-label="Add an equipment list"><i class="fas fa-truck-pickup"></i><i class="fas fa-plus"></i></button>':''}<button type="button" data-mt-minimize-type="${escapeHtml(type)}" title="Minimize ${escapeHtml(terms.plural)}" aria-label="Minimize ${escapeHtml(terms.plural)}"><i class="fas fa-minus"></i></button>${['material','labor','equipment'].includes(type)?'':`<button type="button" data-mt-delete-type="${escapeHtml(type)}" title="Remove resource type" aria-label="Remove ${escapeHtml(category.name||'this resource type')}"><i class="fas fa-trash"></i></button>`}</span></h3>
+        <h3 class="mt-resource-heading"><button type="button" class="mt-resource-tool" data-mt-category-icon="${escapeHtml(type)}" aria-label="Edit ${escapeHtml(terms.plural)} icon and color" title="Icon and color"><i class="fas ${escapeHtml(category.icon)}" aria-hidden="true"></i></button>${merged?'<span class="mt-column-title" title="Who does the work, what they are paid for it, and the equipment it takes">Work order</span>':`<input data-mt-category-name="${escapeHtml(type)}" value="${escapeHtml(category.name||'')}" placeholder="Untitled" aria-label="Resource type name">`}<span class="mt-category-tools">${type==='material'?`<button type="button" data-mt-generate-column="material" title="Generate materials from the signed document and the scope, or from the measurement report when nothing is signed" aria-label="Generate materials"${state.generatingMaterials?' disabled':''}><i class="fas ${state.generatingMaterials?'fa-rotate mt-spin':'fa-wand-magic-sparkles'}" aria-hidden="true"></i></button>`:''}<button type="button" data-mt-category-sources="${escapeHtml(type)}" aria-haspopup="dialog" title="Line item sources" aria-label="Line item sources for ${escapeHtml(terms.plural)}"><i class="fas fa-gear"></i></button><button type="button" data-mt-new-category-list="${escapeHtml(type)}" title="${merged?'Add a work order':'Add list'}" aria-label="Add list to ${escapeHtml(terms.plural)}"><i class="fas fa-list"></i><i class="fas fa-plus"></i></button>${merged&&equipmentOn()?'<button type="button" data-mt-new-category-list="equipment" title="Add an equipment list" aria-label="Add an equipment list"><i class="fas fa-truck-pickup"></i><i class="fas fa-plus"></i></button>':''}<button type="button" data-mt-minimize-type="${escapeHtml(type)}" title="Minimize ${escapeHtml(terms.plural)}" aria-label="Minimize ${escapeHtml(terms.plural)}"><i class="fas fa-minus"></i></button>${['material','labor','equipment'].includes(type)?'':`<button type="button" data-mt-delete-type="${escapeHtml(type)}" title="Remove resource type" aria-label="Remove ${escapeHtml(category.name||'this resource type')}"><i class="fas fa-trash"></i></button>`}</span></h3>
         <div class="mt-resource-scroll">${merged&&laborAssignmentOn()&&!lists.some(list=>resourceType(list)==='labor')&&projectId()?`<article class="mt-list-pane" data-mt-pane-list="project:${escapeHtml(projectId())}"><div class="mt-list-pane-inner">${renderAssignBlock({id:`project:${projectId()}`,resource_type:'labor'})}</div></article>`:''}${lists.map(list=>{
           // Inside a merged column each list is still its own kind.
           const type=resourceType(list),terms=resourceTerms(type,list),category=resourceCategories().find(row=>row.id===type)||{};
@@ -6112,10 +6216,30 @@
       label.hidden = true;
     }
     disposeScopeWidgets();
-    if(scopeWorkspace)scopeWorkspace.mountSidebar(target,state.scopeDocuments,state.scopeDocumentsError,`${orgId()}:${projectId()}`,{scheduling:schedulingOn(),widgetContext:scopeWidgetContext(),scheduleContext:state.context,measurementOverrides:state.measurementOverrides,onMeasurementChange:(key,value)=>{state.measurementOverrides={...state.measurementOverrides,[key]:value};syncMaterialsGrid();}});
-    else target.textContent='Loading published scope data…';
+    if(scopeWorkspace)scopeWorkspace.mountSidebar(target,state.scopeDocuments,state.scopeDocumentsError,`${orgId()}:${projectId()}`,{draft:!projectId(),scheduling:schedulingOn(),widgetContext:scopeWidgetContext(),scheduleContext:state.context,measurementOverrides:state.measurementOverrides,onMeasurementChange:(key,value)=>{state.measurementOverrides={...state.measurementOverrides,[key]:value};syncMaterialsGrid();}});
+    else renderRailState(target);
     scopeWorkspace?.installDivider(state.sidebarRoot);
     timingMark('renderLeft:end', { active: state.active }, timingStart);
+  }
+
+  // Before the rail's module is here: the rail's own shape with a spinner, or what went wrong and a retry. A draft
+  // fetches the module itself (it has no documents to load, which is what fetches it for a saved project).
+  function renderRailState(target){
+    const failed = !!state.scopeWorkspaceError;
+    if (!failed && draftProject()) ensureScopeWorkspace().then(() => { renderLeft(); }).catch(() => { renderLeft(); });
+    const stage = failed
+      ? `<i class="fas fa-triangle-exclamation" aria-hidden="true"></i><strong>${escapeHtml(draftText('mt_rail_failed_title', 'This panel could not load'))}</strong><span>${escapeHtml(draftText('mt_rail_failed_body', 'Measurements, documents and photos are unavailable right now.'))}</span><button type="button" data-mt-rail-retry>${escapeHtml(draftText('mt_rail_retry', 'Try again'))}</button>`
+      : `<i class="fas fa-circle-notch mt-spin" aria-hidden="true"></i><span>${escapeHtml(draftText('mt_rail_loading', 'Loading measurements, documents and photos…'))}</span>`;
+    target.innerHTML = `<div class="mt-rail-state${failed ? ' is-error' : ''}" data-mt-rail-state="${failed ? 'error' : 'loading'}" role="${failed ? 'alert' : 'status'}" aria-busy="${failed ? 'false' : 'true'}"><div class="mt-rail-state-stage">${stage}</div><div class="mt-rail-state-tabs" aria-hidden="true"><span></span><span></span><span></span>${schedulingOn() ? '<span></span>' : ''}</div></div>`;
+    const retry = target.querySelector('[data-mt-rail-retry]');
+    if (retry) retry.onclick = () => {
+      state.scopeWorkspaceError = '';
+      renderLeft();
+      if (!draftProject()) loadScopeDocuments(beginRailContext());
+    };
+  }
+  function beginRailContext(){
+    return { generation: state.loadGeneration, orgId: orgId(), projectId: projectId(), branchId: branchId() };
   }
 
   function leftContentRoot(){
@@ -6809,17 +6933,21 @@
   }
   function renderRequirementsTray(){
     const open = requirementsOpen(), set = requirementSet();
-    if (!set) loadRequirements().then((entry) => { if (entry && state.requirements === entry) { if ((minimizeIdleWorkOrder(entry) || (entry.data?.line_warnings || []).length) && !workspaceIsEditing()) syncMaterialsGrid(); else syncRequirementsTray(); } });
-    const data = set?.data, rows = data?.requirements || [], counts = data?.counts || { open: 0, warning: 0, covered: 0 };
-    const status = !data ? 'loading' : data.status;
+    // A draft requires nothing yet and reads nothing; a page without the requirements read says so instead of waiting.
+    const draft = !projectId(), unavailable = !draft && !set && (!(materialsAPI || window.MaterialsAPI)?.labor?.requirements || !apiReady());
+    if (!set && !draft && !unavailable) loadRequirements().then((entry) => { if (entry && state.requirements === entry) { if ((minimizeIdleWorkOrder(entry) || (entry.data?.line_warnings || []).length) && !workspaceIsEditing()) syncMaterialsGrid(); else syncRequirementsTray(); } });
+    const data = draft ? { status: 'empty', requirements: [] } : set?.data, rows = data?.requirements || [], counts = data?.counts || { open: 0, warning: 0, covered: 0 };
+    const failure = draft ? '' : set?.error || (unavailable ? draftText('mt_req_unavailable', 'Requirements are not available here.') : '');
+    const status = failure && !data ? 'error' : !data ? 'loading' : data.status;
     // Collapsed, the bar alone says how the project stands: red for anything missing, yellow for anything to check, green when neither.
-    const badges = status === 'loading' ? '<i class="fas fa-circle-notch mt-spin" aria-hidden="true"></i>' : status === 'empty' ? '<i class="fas fa-minus" aria-hidden="true"></i>'
+    const badges = status === 'loading' ? '<i class="fas fa-circle-notch mt-spin" aria-hidden="true"></i>' : status === 'error' ? '<i class="fas fa-triangle-exclamation" aria-hidden="true"></i>' : status === 'empty' ? '<i class="fas fa-minus" aria-hidden="true"></i>'
       : `${counts.open ? `<span class="mt-req-badge is-open" title="${counts.open} not accounted for">${counts.open}</span>` : ''}${counts.warning ? `<span class="mt-req-badge is-warning" title="${counts.warning} to check">${counts.warning}</span>` : ''}${!counts.open && !counts.warning ? '<span class="mt-req-badge is-covered" title="Everything is accounted for"><i class="fas fa-circle-check" aria-hidden="true"></i></span>' : ''}`;
-    const summary = status === 'loading' ? 'Working out what this project requires' : status === 'empty' ? 'No requirements yet' : [counts.open ? `${counts.open} not accounted for` : '', counts.warning ? `${counts.warning} to check` : '', !counts.open && !counts.warning ? 'Everything is accounted for' : ''].filter(Boolean).join(', ');
+    const summary = status === 'loading' ? draftText('mt_req_loading', 'Working out what this project requires…') : status === 'error' ? draftText('mt_req_error_summary', 'Could not be worked out') : status === 'empty' ? 'No requirements yet' : [counts.open ? `${counts.open} not accounted for` : '', counts.warning ? `${counts.warning} to check` : '', !counts.open && !counts.warning ? 'Everything is accounted for' : ''].filter(Boolean).join(', ');
     const attention = rows.filter((row) => row.status !== 'covered').sort((a, b) => Number(b.status === 'open') - Number(a.status === 'open'));
     const settled = rows.filter((row) => row.status === 'covered');
     const group = (key, label, list) => { if (!list.length) return ''; const collapsed = !!state.collapsedRequirementGroups?.has(key); return `<section class="mt-req-group${collapsed ? ' is-collapsed' : ''}"><button type="button" class="mt-req-group-head" data-mt-req-group="${escapeHtml(key)}" aria-expanded="${!collapsed}"><i class="fas fa-chevron-${collapsed ? 'right' : 'down'}" aria-hidden="true"></i><span>${escapeHtml(label)}</span><em>${list.length}</em></button>${collapsed ? '' : list.map(renderRequirementRow).join('')}</section>`; };
-    const body = set?.error ? `<p class="mt-req-note">${escapeHtml(set.error)}</p>` : !data ? '<p class="mt-req-note">Working out what this project requires…</p>' : !rows.length ? `<p class="mt-req-note">${escapeHtml(data.reason || 'Nothing is required yet.')}</p>`
+    // While loading, the title says what is happening; the body only holds the shape of the rows to come.
+    const body = failure ? `<p class="mt-req-note" role="alert">${escapeHtml(failure)}</p>` : !data ? '<div class="mt-req-skeleton" data-mt-req-skeleton aria-hidden="true"><span></span><span></span><span></span></div>' : !rows.length ? `<p class="mt-req-note">${escapeHtml(data.reason || 'Nothing is required yet.')}</p>`
       : `${group('missing', 'Missing', attention.filter((row) => row.status === 'open'))}${group('check', 'To check', attention.filter((row) => row.status !== 'open'))}${group('material', 'Materials', settled.filter((row) => row.kind === 'material'))}${group('work', 'Work', settled.filter((row) => row.kind === 'work'))}${group('function', 'Other', settled.filter((row) => row.kind === 'function'))}`;
     return `<aside class="mt-req-tray${open ? ' is-open' : ''}" data-mt-req-tray data-status="${escapeHtml(status)}" aria-label="Requirements"><button type="button" class="mt-req-bar" data-mt-req-open aria-expanded="${open}" title="${escapeHtml(`Requirements: ${summary}. ${open ? 'Click to close.' : 'Click to open.'}`)}" aria-label="${escapeHtml(`Requirements: ${summary}`)}"><i class="fas fa-chevron-left mt-req-arrow" aria-hidden="true"></i><span class="mt-req-badges">${badges}</span><span class="mt-req-bar-label">Requirements</span></button><div class="mt-req-panel"><div class="mt-req-panel-inner"><header class="mt-req-title"><div><strong>Requirements</strong><span>${escapeHtml(summary)}</span></div>${counts.open || state.resolvingRequirements ? `<button type="button" class="mt-req-fix" data-mt-req-fix ${state.resolvingRequirements ? 'disabled' : ''} title="Fix all: generate only what the open requirements need — the signed document's materials, work orders, and equipment that provides what is missing" aria-label="Fix all requirements"><i class="fas ${state.resolvingRequirements ? 'fa-circle-notch mt-spin' : 'fa-wand-magic-sparkles'}" aria-hidden="true"></i><span>Fix all</span></button>` : ''}${(data?.available || []).length ? `<select data-mt-req-add aria-label="Add a requirement by hand" title="Add something this job includes that no accepted document has listed. It is sized from the measurements."><option value="">+ Add</option>${data.available.map((entry) => `<option value="${escapeHtml(entry.item)}" title="${escapeHtml(entry.description || '')}">${escapeHtml(entry.label)}</option>`).join('')}</select>` : ''}</header><div class="mt-req-scroll">${body}</div></div></div></aside>`;
   }
@@ -7528,7 +7656,8 @@
     state.context = context;
     state.host = context.host || context.projectWorkspace || state.host;
     state.project = nextProject;
-    if (previousProjectId && nextProjectId && previousProjectId !== nextProjectId) {
+    // A different project, or a new one after a saved one, starts empty. A draft that was just saved keeps its view.
+    if (previousProjectId && previousProjectId !== nextProjectId) {
       state.scopeDocuments = [];
       state.scopeDocumentsError = '';
       state.lists = [];

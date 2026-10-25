@@ -6,16 +6,18 @@ import {chromium} from 'playwright-core';
 // Guided experiences in the browser (docs/architecture/guided-experiences.md): the held Generate click, the agentic
 // setup, the hand-off to the agent tray, the Materials tour overlay, the assistant's questions per tab and the replay.
 const read=file=>readFile(new URL('../../'+file,import.meta.url),'utf8');
-const sources={core:await read('libraries/guided-experiences/guided-experiences.js'),setup:await read('libraries/guided-experiences/guided-setup.js')};
+const sources={core:await read('libraries/guided-experiences/guided-experiences.js'),setup:await read('libraries/guided-experiences/guided-setup.js'),
+  assistant:[await read('libraries/window-manager/window-manager.js'),await read('libraries/doc-markdown/firstmate-markdown.js'),await read('libraries/platform-assistant/platform-assistant.js')]};
 const t=(key,text)=>({key,text});
 
 const line=(id,name,tier,price,popular=false)=>({id,name,kind:'line',role:'field_shingles',unit:'bundle',price,tier,popular,coverage:0.3333,rule:'field_shingles'});
 const OPTIONS={trade:'roofing',catalog:'research',markup:35,region:{id:'south',label:'South'},regions:[{id:'national',label:'National average'},{id:'south',label:'South'}],
   brands:[
-    {id:'gaf',name:'GAF',color:'#d71920',tagline:'Timberline',lines:[line('lib-shingle-gaf-hdz','GAF Timberline HDZ','architectural',55,true),line('lib-shingle-gaf-uhdz','GAF Timberline UHDZ','premium_architectural',74)],accessories:[{id:'lib-starter-gaf-prostart',name:'GAF Pro-Start',kind:'accessory',role:'starter',unit:'bundle',price:74}]},
+    {id:'gaf',name:'GAF',color:'#d71920',tagline:'Timberline',logo:'/images/brands/roofing/gaf.svg',lines:[line('lib-shingle-gaf-hdz','GAF Timberline HDZ','architectural',55,true),line('lib-shingle-gaf-uhdz','GAF Timberline UHDZ','premium_architectural',74)],accessories:[{id:'lib-starter-gaf-prostart',name:'GAF Pro-Start',kind:'accessory',role:'starter',unit:'bundle',price:74}]},
     {id:'owens_corning',name:'Owens Corning',color:'#d6246e',tagline:'Duration',lines:[line('lib-shingle-oc-duration','Owens Corning TruDefinition Duration','architectural',58,true)],accessories:[]},
-    {id:'malarkey',name:'Malarkey',color:'#1f6f43',tagline:'Vista',lines:[line('lib-shingle-malarkey-vista','Malarkey Vista','impact_rated',59)],accessories:[]},
-    {id:'certainteed',name:'CertainTeed',color:'#0a5aa5',tagline:'Landmark',lines:[line('lib-shingle-ct-landmark','CertainTeed Landmark','architectural',60)],accessories:[]}],
+    {id:'malarkey',name:'Malarkey',color:'#1f6f43',tagline:'Vista',logo:'/images/brands/roofing/missing.png',lines:[line('lib-shingle-malarkey-vista','Malarkey Vista','impact_rated',59)],accessories:[]},
+    {id:'certainteed',name:'CertainTeed',color:'#0a5aa5',tagline:'Landmark',lines:[line('lib-shingle-ct-landmark','CertainTeed Landmark','architectural',60)],accessories:[]},
+    ...['IKO','Atlas','TAMKO','PABCO'].map(name=>({id:name.toLowerCase(),name,color:'#344054',tagline:'',lines:[line(`lib-shingle-${name.toLowerCase()}`,`${name} Architectural`,'architectural',50)],accessories:[]}))],
   generic:[{id:'lib-drip-edge-alum-white',name:'Drip edge',kind:'generic',role:'flashing',unit:'pc',price:12,rule:'drip_edge'}],
   labor:[{id:'labor-tearoff-layer1',name:'Tear-off',kind:'labor',role:'labor',unit:'sq',price:125,rule:'tear_off'}],
   rules:[{id:'field_shingles',label:'Shingles',explanation:'Every square except the flat part.',formula:'roofSquares - flatRoofSquares',unit:'sq',include_waste:true,measurements:[{key:'roofSquares',label:'Roof squares'},{key:'flatRoofSquares',label:'Flat roof squares'}],manual:false},
@@ -43,14 +45,20 @@ async function load(browser,{width=1280,height=800,reduced=false}={}){
   const page=await browser.newPage({viewport:{width,height}}),errors=[];
   if(reduced)await page.emulateMedia({reducedMotion:'reduce'});
   page.on('pageerror',error=>errors.push(error.message));
+  // A real origin, so the logo request and the assistant's storage behave as on the portal.
+  await page.route('https://fm.test/**',route=>{const url=route.request().url();
+    if(url.endsWith('/gaf.svg'))return route.fulfill({contentType:'image/svg+xml',body:'<svg xmlns="http://www.w3.org/2000/svg" width="120" height="40"><rect width="120" height="40" fill="#d71920"/></svg>'});
+    if(url.includes('/images/'))return route.fulfill({status:404,body:''});
+    return route.fulfill({contentType:'text/html',body:'<html></html>'});});
+  await page.goto('https://fm.test/portal/');
   await page.setContent(`<style>body{margin:0;font:14px Arial}#rOverlay{position:fixed;inset:0;display:flex;flex-direction:column}.fm-project-tray-tabs{display:flex;justify-content:flex-end}.fm-project-content{flex:1;display:grid;grid-template-columns:1fr 0}.mt{padding:20px;display:flex;gap:12px;align-items:flex-start;flex-wrap:wrap}.mt-resource-column{width:260px;height:200px;border:1px solid #ccc;border-radius:8px}</style>
     <div id="rOverlay"><nav class="fm-project-tray-tabs"><button type="button" data-tray="agent" aria-selected="false">Agent</button></nav>
     <div class="fm-project-content"><div class="mt"><button type="button" data-mt-generate-materials>Generate</button><div class="mt-resource-column">Materials</div><button data-mt-open-pricebook>Price book</button></div><aside class="fm-project-tray"></aside></div></div>
-    <div class="fma-drawer"><div data-fma="composer"><div class="fma-compose-shell"><textarea></textarea></div></div></div>`);
+    <div class="fma-drawer" id="faqHost"><div data-fma="composer"><div class="fma-compose-shell"><textarea></textarea></div></div></div><main class="main"><div id="mainPanels"></div></main>`);
   await page.evaluate(({SETUP,TOUR,FAQS})=>{
     window.__APP={userOrgId:'o',platformApiBase:'http://fm.test/v1/platform'};
     window.route={project:'p1',projectTab:'materials'};
-    window.Portal={navigation:{read:()=>window.route}};
+    window.Portal={navigation:{read:()=>window.route},can:()=>true,tabs:{activateTab(){}},util:{currentBranchId:()=>'default'}};
     window.calls=[];window.generated=0;window.trayOpened=0;
     document.querySelector('[data-mt-generate-materials]').addEventListener('click',()=>{window.generated++;});
     document.querySelector('[data-tray=agent]').addEventListener('click',e=>{window.trayOpened++;e.currentTarget.setAttribute('aria-selected','true');});
@@ -64,11 +72,15 @@ async function load(browser,{width=1280,height=800,reduced=false}={}){
       const id=decodeURIComponent(u.pathname.split('/experiences/')[1]?.split('/')[0]||'');
       if(u.pathname.endsWith('/events')){if(body.type==='complete')progress[id]={status:'completed'};if(body.type==='dismiss')progress[id]={status:'dismissed'};if(body.type==='replay')progress[id]={status:'started'};return json({recorded:true,progress:progress[id]||null});}
       if(u.pathname.endsWith('/complete')){progress[id]={status:'completed'};return json({result:{items:12,default_line:'lib-shingle-gaf-hdz'},progress:progress[id]});}
-      if(u.pathname.endsWith('/conversation'))return json({thread_id:'thread_1',messages:1});
+      // The server stores the scripted turn in the person's project conversation.
+      if(u.pathname.endsWith('/conversation')){const step=SETUP.steps.find(s=>s.id===body.step_id);if(body.choice)window.thread.push({id:'m'+window.thread.length,role:'user',content:body.choice,data:{source:'guided_experience'}});for(const line of (step?step.say:body.phase==='done'?SETUP.completion.say:[]))window.thread.push({id:'m'+window.thread.length,role:'assistant',content:line.text,data:{source:'guided_experience'}});return json({thread_id:'thread_1',messages:1});}
       return new Response('{}',{status:404});
     };
-    window.AssistantAPI={send:async(org,thread,body)=>{window.calls.push({path:'assistant',thread,body});return {assistant_message:{content:'Architectural shingles are the thicker, layered kind.'}};}};
+    window.thread=[];const projectThread={id:'thread_1',subject_id:'project:p1'};
+    window.AssistantAPI={context:async()=>({main_thread:{id:'main',subject_id:'main'},threads:[],agents:[],dashboard:[]}),projectConversation:async()=>({thread:projectThread}),thread:async()=>({thread:projectThread,messages:window.thread.slice()}),
+      send:async(org,thread,body)=>{window.calls.push({path:'assistant',thread,body});const reply={id:'r'+window.thread.length,role:'assistant',content:'Architectural shingles are the thicker, layered kind.'};window.thread.push({id:'u'+window.thread.length,role:'user',content:body.message},reply);return {thread:projectThread,assistant_message:reply};}};
   },{SETUP,TOUR,FAQS});
+  for(const content of sources.assistant)await page.addScriptTag({content});
   await page.addScriptTag({content:sources.core});
   await page.addScriptTag({content:sources.setup});
   await page.waitForFunction(()=>window.FirstMateGuides?.experiences().length===2);
@@ -87,30 +99,58 @@ test('the first Generate plays the agentic setup, hands the conversation to the 
     assert.equal(await page.evaluate(()=>window.generated),0,'the click is held while the setup plays');
     assert.equal(await page.locator('.gxs').getAttribute('data-fmr-ignore'),'','the setup is left out of session replays');
     assert.ok(Number(await page.locator('.gxs').evaluate(el=>getComputedStyle(el).zIndex))>2147483200,'above the project window');
-    await page.waitForFunction(()=>[...document.querySelectorAll('.gxs-msg.bot')].some(el=>/Which shingle manufacturers/.test(el.textContent)));
+    // The agent is the platform assistant itself, in the project conversation, saying the step's lines.
+    await page.waitForSelector('.gxs-chat .gxs-assistant .fma-drawer.fma-embedded [data-fma=composer]');
+    await page.waitForFunction(()=>[...document.querySelectorAll('.gxs-assistant .fma-msg.assistant')].some(el=>/Which shingle manufacturers/.test(el.textContent)));
+    const lines=await page.locator('.gxs-assistant .fma-msg.assistant').allInnerTexts();
+    assert.equal(lines.filter(text=>/Which shingle manufacturers/.test(text)).length,1,'a line the server also stored is shown once');
+    assert.equal(await page.locator('.gxs-assistant .gx-faqs').count(),0,'no tab questions inside a setup');
     assert.equal(await page.locator('.gxs-step h2').innerText(),'Which shingle manufacturers do you use?');
-    assert.equal(await page.locator('.gxs-card').count(),4,'four logo cards');
+    // One close, top right of the whole sheet, by the agent column.
+    assert.equal(await page.locator('[data-gxs=close]').count(),1);
+    assert.equal(await page.locator('.gxs-head [data-gxs=close]').count(),0);
+    const [sheet,close,chatBox]=await Promise.all([page.locator('.gxs-sheet').boundingBox(),page.locator('.gxs-close').boundingBox(),page.locator('.gxs-chat').boundingBox()]);
+    assert.ok(sheet.x+sheet.width-(close.x+close.width)<16&&close.y-sheet.y<16,'top right');
+    assert.ok(close.x>chatBox.x,'over the agent column');
+    // Eight brands in an even grid; a logo where there is one, the wordmark otherwise or when it fails.
+    assert.equal(await page.locator('.gxs-card').count(),8);
+    await page.waitForFunction(()=>document.querySelector('[data-brand=gaf] img')?.naturalWidth>0);
+    await page.waitForFunction(()=>!document.querySelector('[data-brand=malarkey] img')&&document.querySelector('[data-brand=malarkey] .gxs-wordmark')?.textContent==='Malarkey');
+    assert.equal(await page.locator('[data-brand=gaf] .gxs-wordmark').count(),0);
+    assert.equal(await page.locator('[data-brand=iko] .gxs-wordmark').innerText(),'IKO');
+    const logo=await page.locator('[data-brand=gaf] img').boundingBox();
+    assert.ok(logo.height<=48,'logos share one box');
+    const heights=new Set(await page.locator('.gxs-card').evaluateAll(cards=>cards.map(card=>Math.round(card.getBoundingClientRect().height))));
+    assert.equal(heights.size,1,'every card is the same height');
     await page.waitForTimeout(process.env.GX_SHOTS?700:0);await shot(page,'1-brands');
     assert.equal(await page.locator('[data-gxs=next]').isDisabled(),true,'a brand is needed first');
     await page.click('[data-all]');
-    assert.equal(await page.locator('.gxs-card[aria-pressed=true]').count(),4,'Use all picks every brand');
+    assert.equal(await page.locator('.gxs-card[aria-pressed=true]').count(),8,'Use all picks every brand');
     await page.click('[data-gxs=next]');
     await page.waitForFunction(()=>document.querySelector('.gxs-step:not(.gxs-above) h2')?.textContent==='What shingles do you usually use?');
-    await page.waitForFunction(()=>[...document.querySelectorAll('.gxs-msg.me')].some(el=>el.textContent==='All of them'),null,{timeout:4000});
+    await page.waitForFunction(()=>[...document.querySelectorAll('.gxs-assistant .fma-msg.user')].some(el=>el.textContent==='All of them'),null,{timeout:4000});
     // Popular lines start ticked; include-all and the star set the default.
     assert.equal(await page.locator('.gxs-row[aria-checked=true]').count(),2);
     await page.click('.gxs-allbar [data-all]');
-    assert.equal(await page.locator('.gxs-row[aria-checked=true]').count(),5);
+    assert.equal(await page.locator('.gxs-row[aria-checked=true]').count(),9);
     await page.click('[data-star="lib-shingle-gaf-uhdz"]');
     await shot(page,'2-lines');
     // Typing switches to the real assistant for one turn, then back to the steps.
-    await page.fill('.gxs-compose input','What is an architectural shingle?');
-    await page.press('.gxs-compose input','Enter');
-    await page.waitForFunction(()=>document.querySelector('.gxs-msgs').innerText.includes('thicker, layered'));
+    await page.fill('.gxs-assistant [data-fma=input]','What is an architectural shingle?');
+    await page.click('.gxs-assistant [data-fma=send]');
+    await page.waitForFunction(()=>document.querySelector('.gxs-assistant .fma-msgs')?.innerText.includes('thicker, layered'));
     const asked=await page.evaluate(()=>window.calls.find(c=>c.path==='assistant'));
     assert.equal(asked.thread,'thread_1','asked in the setup conversation');
     assert.equal(asked.body.ui_context.tab,'project.materials');
-    await page.waitForFunction(()=>document.querySelector('.gxs-msgs').innerText.includes('carry on with the step'));
+    await page.waitForFunction(()=>document.querySelector('.gxs-assistant .fma-msgs').innerText.includes('carry on with the step'));
+    assert.ok(await page.evaluate(()=>window.calls.some(c=>c.body?.type==='question')),'the question is recorded');
+    // The skip confirmation sits on one row at desktop width.
+    await page.click('.gxs-close');
+    const row=await page.locator('.gxs-confirm').evaluate(bar=>[...bar.children].map(el=>{const r=el.getBoundingClientRect();return {top:Math.round(r.top+r.height/2),h:r.height};}));
+    assert.ok(row.every(item=>Math.abs(item.top-row[0].top)<=3),'sentence and both buttons on one line: '+JSON.stringify(row));
+    await shot(page,'1b-skip');
+    await page.click('[data-gxs=keep]');
+    assert.equal(await page.locator('.gxs-confirm').count(),0);
     await page.click('[data-gxs=next]');
     await page.waitForFunction(()=>document.querySelector('.gxs-step:not(.gxs-above) h2')?.textContent==='How a roof becomes a materials list');
     assert.match(await page.locator('.gxs-rule').first().innerText(),/Shingles/);
@@ -130,7 +170,7 @@ test('the first Generate plays the agentic setup, hands the conversation to the 
     await page.waitForSelector('.gxs-done');
     await page.waitForTimeout(process.env.GX_SHOTS?900:0);await shot(page,'5-done');
     const complete=await page.evaluate(()=>window.calls.find(c=>c.path.endsWith('/complete')));
-    assert.deepEqual(complete.body.selections.brands,['gaf','owens_corning','malarkey','certainteed']);
+    assert.deepEqual(complete.body.selections.brands,['gaf','owens_corning','malarkey','certainteed','iko','atlas','tamko','pabco']);
     assert.equal(complete.body.selections.default_line,'lib-shingle-gaf-uhdz');
     assert.equal(complete.body.selections.waste,15);
     assert.equal(complete.body.selections.ice_eave_width,3);
@@ -203,12 +243,19 @@ test('at phone width the setup fills the screen with the conversation folded bel
     await page.waitForSelector('.gxs-sheet');
     const box=await page.locator('.gxs-sheet').boundingBox();
     assert.ok(Math.abs(box.width-390)<1&&box.x===0,'full width');
-    assert.ok((await page.locator('.gxs-chat').boundingBox()).height<=46,'conversation folded');
+    assert.ok((await page.locator('.gxs-chat').boundingBox()).height<=50,'conversation folded');
     await shot(page,'7-phone');
     assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=390),'no sideways scroll');
-    await page.click('.gxs-chat header');
+    await page.click('.gxs-chat-handle');
     await page.waitForFunction(()=>document.querySelector('.gxs-chat').getBoundingClientRect().height>200);
+    assert.ok(await page.locator('.gxs-assistant [data-fma=input]').isVisible(),'the assistant composer, unfolded');
+    await page.click('.gxs-chat-handle');
     await page.click('[data-gxs=close]');
+    // At phone width the sentence takes its own line and the two buttons share the next.
+    const [text,keep,skip]=await page.locator('.gxs-confirm > *').evaluateAll(els=>els.map(el=>el.getBoundingClientRect().toJSON()));
+    assert.ok(Math.abs(keep.top-skip.top)<=2&&keep.top>=text.bottom-1,'buttons together under the sentence');
+    assert.ok(skip.right<=390,'nothing runs off the screen');
+    await shot(page,'7b-phone-skip');
     await page.click('[data-gxs=dismiss]');
     await page.waitForFunction(()=>!document.querySelector('.gxs'));
     await page.waitForFunction(()=>window.generated===1,null,{timeout:3000});

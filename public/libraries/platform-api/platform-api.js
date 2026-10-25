@@ -2285,6 +2285,51 @@
     },
     TOP_DOWN_THUMBNAIL_ID: 'top_down_thumbnail',
     TOP_DOWN_THUMBNAIL_DESIGNATOR: 'top_down_thumbnail',
+    // The satellite image saved into the library as an ordinary photo (projects/satellite-media.ts on the server).
+    SATELLITE_MEDIA_SOURCE: 'satellite_top_down',
+    isSatelliteMedia(photo = {}){
+      const ref = photo && typeof photo === 'object' ? photo : {};
+      const metadata = ref.metadata && typeof ref.metadata === 'object' ? ref.metadata : {};
+      return !!cleanText(ref.media_id) && firstText(ref.source, metadata.source) === projectMedia.SATELLITE_MEDIA_SOURCE;
+    },
+    savedSatellitePhoto(photos = []){
+      return (Array.isArray(photos) ? photos : []).find((photo) => projectMedia.isSatelliteMedia(photo) && !photo.in_trash && !photo.trashed_at) || null;
+    },
+    // Saves the project's satellite image into its library once (server side) and returns what the project now holds:
+    // { status, media_id, photos, custom_field_values, satellite_media }. One request per project per page.
+    ensureSatelliteMedia(orgId, projectId){
+      const key = `${cleanText(orgId)} ${cleanText(projectId)}`;
+      if (!cleanText(orgId) || !cleanText(projectId)) return Promise.resolve(null);
+      projectMedia._satelliteRequests ||= new Map();
+      if (!projectMedia._satelliteRequests.has(key)) {
+        const pending = request(orgPath(orgId, `/projects/${enc(projectId)}/satellite-media`), { method: 'POST', body: {} })
+          .then((result) => {
+            if (result && Array.isArray(result.photos)) {
+              // Edit saves diff against the read they started from; the server added these fields since.
+              api.projects.advanceBaseline?.(projectId, {
+                photos: result.photos,
+                custom_field_values: result.custom_field_values || {},
+                custom_fields: result.custom_field_values || {},
+                satellite_media: result.satellite_media || {}
+              });
+            }
+            return result;
+          })
+          .catch((error) => { projectMedia._satelliteRequests.delete(key); throw error; });
+        projectMedia._satelliteRequests.set(key, pending);
+      }
+      return projectMedia._satelliteRequests.get(key);
+    },
+    // A library list with the satellite photo from an ensureSatelliteMedia result added (once), and the generated
+    // stand-in dropped once the saved photo is there.
+    withSavedSatellite(photos = [], result = null){
+      const list = Array.isArray(photos) ? photos.slice() : [];
+      const saved = (Array.isArray(result?.photos) ? result.photos : []).filter((photo) => projectMedia.isSatelliteMedia(photo));
+      const ids = new Set(list.map((photo) => cleanText(photo?.media_id || photo?.id)));
+      saved.forEach((photo) => { if (!ids.has(cleanText(photo.media_id))) list.push(photo); });
+      if (!projectMedia.savedSatellitePhoto(list)) return list;
+      return list.filter((photo) => !(photo?.id === projectMedia.TOP_DOWN_THUMBNAIL_ID || ((photo?.is_top_down_thumbnail || photo?.designator === projectMedia.TOP_DOWN_THUMBNAIL_DESIGNATOR) && !photo?.media_id)));
+    },
     mediaKind,
     isVideo(reference = {}){ return mediaKind(reference) === 'video'; },
     isImage(reference = {}){ return mediaKind(reference) !== 'video'; },
@@ -2420,6 +2465,13 @@
     },
     withFirstMeasureTopDown(project = {}, options = {}) {
       const photos = projectMedia.normalizePhotos(project.photos || [], options);
+      // Once the satellite image is a saved library photo, the generated stand-in is not shown beside it.
+      if (projectMedia.savedSatellitePhoto(photos)) {
+        return projectMedia.ensureThumbnail(photos.filter((photo) => !(
+          photo.id === projectMedia.TOP_DOWN_THUMBNAIL_ID
+          || (photo.designator === projectMedia.TOP_DOWN_THUMBNAIL_DESIGNATOR && !photo.media_id)
+        )), project.thumbnail_photo_id || project.thumbnailPhotoId || project.thumbnail_id);
+      }
       const topDown = projectMedia.firstMeasureTopDownPhoto(project, options) || projectMedia.googleStaticMapPhoto(project, options);
       if (!topDown) return photos;
       const existingIndex = photos.findIndex((photo) => (
@@ -2456,7 +2508,7 @@
     setThumbnail(photos = [], photoId = '') {
       return projectMedia.ensureThumbnail(photos, photoId);
     },
-    // A cover is a single library reference. No cover means the satellite image;
+    // A cover is a single library reference. No cover means the satellite image (the saved photo once there is one);
     // thumbnail aliases are derived display state, never the selection authority.
     primaryPhoto(project = {}, options = {}) {
       const photos = projectMedia.withFirstMeasureTopDown(project, options);
@@ -2467,7 +2519,9 @@
           return projectMedia.normalizePhoto({...existing, media_id: coverId}, options);
         }
       }
-      return photos.find(photo => photo.is_top_down_thumbnail || photo.designator === projectMedia.TOP_DOWN_THUMBNAIL_DESIGNATOR)
+      // No cover chosen: the saved satellite photo, else the generated satellite image, else the first photo.
+      return projectMedia.savedSatellitePhoto(photos)
+        || photos.find(photo => photo.is_top_down_thumbnail || photo.designator === projectMedia.TOP_DOWN_THUMBNAIL_DESIGNATOR)
         || photos.find(photo => !photo.in_trash && !photo.trashed_at && mediaKind(photo) !== 'video')
         || null;
     },

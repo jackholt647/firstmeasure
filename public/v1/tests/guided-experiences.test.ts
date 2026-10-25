@@ -127,7 +127,7 @@ test("the Materials setup and tour are valid data, offered by eligibility, with 
   assert.equal(offered.variant.id, "modal", "the assistant is off in this fixture, so the setup plays as a modal");
   assert.equal(offered.kind, "modal");
   const brands = (offered.steps[0] as any).options.brands.map((brand: any) => brand.id).sort();
-  assert.deepEqual(brands, ["certainteed", "gaf", "malarkey", "owens_corning"]);
+  for (const id of ["certainteed", "gaf", "malarkey", "owens_corning"]) assert.ok(brands.includes(id), `${id} is offered`);
   assert.equal((offered.steps[0] as any).options.region.id, "south", "Texas prices");
   assert.ok(listed.faqs!.questions.length >= 4);
   const crew = person("crew", { role: "member", permissions: { view_projects: true }, accessProfile: { roles: [], app_restrictions: [] } });

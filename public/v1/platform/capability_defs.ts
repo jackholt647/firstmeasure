@@ -1162,6 +1162,14 @@ const definitions: CapabilityDefinition[] = [
     default: true
   },
   {
+    key: "customer_portal.guest_links",
+    kind: "feature",
+    parent: "platform.customer_portal",
+    label: "Customer Guest Links",
+    description: "Customers can make read-only links from their portal to share with someone else.",
+    default: true
+  },
+  {
     key: "topbar.global_search",
     kind: "setting",
     parent: "platform.top_bar",

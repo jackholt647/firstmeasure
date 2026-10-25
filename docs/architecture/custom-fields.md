@@ -194,6 +194,25 @@ shared; choosing a cover never publishes private media. Measurement maps keep
 their actual satellite imagery. Clearing, replacing, or trashing the cover updates
 the mounted selection, display aliases, and project-viewer cache together.
 
+The satellite image is saved into the project's library as an ordinary photo
+(`projects/satellite-media.ts`): when a linked FirstMeasure report completes
+(`firstmeasure/project-events.ts`), and otherwise lazily the first time the Photos
+or Customer Portal tab opens a saved project (`POST .../projects/:id/satellite-media`,
+`PlatformAPI.projectMedia.ensureSatelliteMedia`). The source is the completed
+report's top-down artifact, or Google's static satellite map once the project has
+coordinates; the report's image replaces a static-map cover this writer chose. The
+photo is named "Top-down satellite" with `metadata.source: "satellite_top_down"`
+and `satellite_source`, its media id is derived from organization, project and
+source, and `satellite_media[source]` on the project records the save, so a repeat
+writes nothing and a satellite photo someone removed is not put back. It becomes
+`cover_photo` when no cover is chosen. A project that does not exist is never
+created. After the save the photo is library media like any other: Photos shows
+it as a normal tile with a "Cover" pill (there is no cover row and no "Use
+satellite image"), the Customer Portal tab shares or hides it like any photo, and
+the customer's portal never treats a cover specially. A cleared cover falls back
+to the saved satellite photo. The generated satellite image remains only as the
+stand-in until the photo can be saved (no completed report, no coordinates).
+
 User fields belong to organization membership records (`users`), not global login
 identities. Their definitions are shared across branches from the default branch.
 Settings → Custom Fields → Users defines them; both user editors include them

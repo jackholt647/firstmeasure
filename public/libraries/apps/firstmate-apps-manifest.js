@@ -38,7 +38,7 @@
     versionedBundle('../window-manager/window-shell.js', '20261008-tray-shell-v1'),
     versionedBundle('../agent-chat/agent-chat.js', '20261002-widget-controls'),
     versionedBundle('../assistant-api/assistant-api.js', '20261002-agent-persistence-v1'),
-    versionedBundle('../platform-assistant/platform-assistant.js', '20261024-guided-faqs'),
+    versionedBundle('../platform-assistant/platform-assistant.js', '20261025-workflow-surface'),
     versionedBundle('photos/feed.js', '20261024-cover-photo'),
     versionedBundle('../markup/firstmate-markup.js', '20261012-photo-comments-v1'),
     versionedBundle('../channels-ui/channels-ui.js', '20261012-shared-polish-v1'),
@@ -164,7 +164,7 @@
       kind: 'project_modal_app',
       surfaces: ['project_modal'],
       requiresContext: ['project'],
-      bundles: [versionedBundle('photos/project.js', '20261024-cover-photo')]
+      bundles: [versionedBundle('photos/project.js', '20261024-cover-as-media')]
     },
     {
       // DEPRECATED (2026-08): legacy Proposals project tab — hidden by its
@@ -282,7 +282,7 @@
       surfaces: ['project_modal'],
       requiresContext: ['project'],
       dependencies: ['pricebook.bridge'],
-    bundles: [...channelsLibBundles, versionedBundle('../materials-api/materials-api.js', '20261022-ordering'), versionedBundle('../payments-api/payments-api.js', '20261019-forward-cert'), bundle('../comms-api/comms-api.js'), versionedBundle('../equipment-api/equipment-api.js', '20261013-functions'), versionedBundle('materials/project.js', '20261025-intro-tooltip')]
+    bundles: [...channelsLibBundles, versionedBundle('../materials-api/materials-api.js', '20261022-ordering'), versionedBundle('../payments-api/payments-api.js', '20261019-forward-cert'), bundle('../comms-api/comms-api.js'), versionedBundle('../equipment-api/equipment-api.js', '20261013-functions'), versionedBundle('materials/project.js', '20261025-draft-project')]
     },
     {
       id: 'project.money',
@@ -303,7 +303,7 @@
       kind: 'modal_app',
       surfaces: ['modal', 'project_modal'],
       dependencies: ['firstmeasure.order', 'project.map', 'project.photos', 'project.proposal', 'project.materials', 'project.money', 'project.customer_portal', 'project.schedule', 'project.measurements', 'project.checklists'],
-      bundles: [...channelsLibBundles, versionedBundle('../window-manager/project-windows.js', '20261010-priority-owners-v2'), versionedBundle('project-request/app.js', '20261024-typed-address-v1')]
+      bundles: [...channelsLibBundles, versionedBundle('../window-manager/project-windows.js', '20261010-priority-owners-v2'), versionedBundle('project-request/app.js', '20261025-draft-materials')]
     },
     {
       id: 'firstmeasure.order',
@@ -332,7 +332,7 @@
       kind: 'project_modal_app',
       surfaces: ['project_modal'],
       requiresContext: ['project'],
-      bundles: [versionedBundle('customer-portal/project.js', '20261024-portal-tab-draft-v3')]
+      bundles: [versionedBundle('../platform-qr/platform-qr.js', '20261024-qr-v1'), versionedBundle('customer-portal/project.js', '20261024-cover-as-media')]
     },
     {
       id: 'project.schedule',
@@ -542,7 +542,7 @@
         versionedBundle('../window-manager/window-manager.js', '20261006-firstmeasure-localization-v1'),
         versionedBundle('../window-manager/window-shell.js', '20261008-tray-shell-v1'),
         versionedBundle('../assistant-api/assistant-api.js', '20261002-agent-persistence-v1'),
-        ...widgetBundles, bookingBundle, priorityFieldsBundle, versionedBundle('../platform-assistant/platform-assistant.js', '20261024-guided-faqs'),
+        ...widgetBundles, bookingBundle, priorityFieldsBundle, versionedBundle('../platform-assistant/platform-assistant.js', '20261025-workflow-surface'),
         versionedBundle('photos/feed.js', '20261024-cover-photo'),
     versionedBundle('../markup/firstmate-markup.js', '20261012-photo-comments-v1'),
     versionedBundle('../channels-ui/channels-ui.js', '20261012-shared-polish-v1'),
@@ -564,7 +564,7 @@
       order: 45,
       placement: 'more',
       fullBleed: true,
-      bundles: [...widgetBundles, bookingBundle, priorityFieldsBundle, bundle('../assistant-api/assistant-api.js'), bundle('../window-manager/window-manager.js'), versionedBundle('../window-manager/window-shell.js', '20261008-tray-shell-v1'), versionedBundle('../platform-assistant/platform-assistant.js', '20261024-guided-faqs')]
+      bundles: [...widgetBundles, bookingBundle, priorityFieldsBundle, bundle('../assistant-api/assistant-api.js'), bundle('../window-manager/window-manager.js'), versionedBundle('../window-manager/window-shell.js', '20261008-tray-shell-v1'), versionedBundle('../platform-assistant/platform-assistant.js', '20261025-workflow-surface')]
     },
     {
       id: 'portal.canvassing',

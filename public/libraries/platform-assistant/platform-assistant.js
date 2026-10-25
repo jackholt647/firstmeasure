@@ -745,7 +745,7 @@
 
     attachSurfaceWindow(host);
     // Suggested questions for the open tab (docs/architecture/guided-experiences.md).
-    window.FirstMateGuides?.attachAssistant?.(drawer, { getContext: () => surface.getContext?.() || {}, ask: (text) => { els.input.value = String(text); sendMessage(); } });
+    if (!surface.workflow) window.FirstMateGuides?.attachAssistant?.(drawer, { getContext: () => surface.getContext?.() || {}, ask: (text) => { els.input.value = String(text); sendMessage(); } });
     if (projectSurface()) { q('new').style.display = 'none'; els.searchInput.closest('.fma-nav-search').style.display = 'none'; }
     q('new').addEventListener('click', () => {
       if (sidebarExternal()) openFull();
@@ -1094,6 +1094,9 @@
         ? `<button type="button" class="fma-panel-chip${anim}" data-focus-panel="${esc(panel.id)}"><i class="fas fa-chart-column" aria-hidden="true"></i>${esc(panel.title)}</button>`
         : panelCardHtml(panel, { inline:true, width })).join('');
     }
+    // A workflow's offered answers (surface.workflow, docs/architecture/guided-experiences.md).
+    const choices = array(data.choices).map(object).filter((choice) => clean(choice.id) && clean(choice.label));
+    if (choices.length) html += `<div class="fma-actions fma-choices${anim}">${choices.map((choice) => `<button type="button" class="fma-action" data-fma-choice="${esc(choice.id)}" data-message-id="${esc(clean(message.id))}">${esc(choice.label)}</button>`).join('')}</div>`;
     const actions = array(data.actions);
     if (actions.length) {
       html += `<div class="fma-actions${anim}" data-message-id="${esc(clean(message.id))}">${actions.map((action, index) => actionChipHtml(object(action), index)).join('')}</div>`;
@@ -1181,8 +1184,13 @@
     } else if (state.view !== 'agent' && !state.messages.length && !state.pending) {
       if (!sessions.some(chat => chat.entries.length) && !voiceCall) parts.push(welcomeHtml());
     } else {
+      // A scripted workflow line is shown once, even when an older conversation stored it twice.
+      const scripted = new Set();
       state.messages.forEach((message, index) => {
         insertVoice(index);
+        const line = object(message.data), lineKey = clean(line.line_key) || (clean(line.source) === 'guided_experience' ? `${clean(message.role)}\u0000${message.content}` : '');
+        if (lineKey && scripted.has(lineKey)) return;
+        if (lineKey) scripted.add(lineKey);
         const channelThread = state.threads.some(thread => clean(thread.id) === clean(state.threadId) && clean(thread.subject_id).startsWith('channel:'));
         if (clean(message.role) === 'user' && (object(message.data).automatic_channel_recap === true || (channelThread && index === 0 && message.content === 'Summarize the recent conversation in this channel, including decisions, open questions, and action items with their owners.'))) return;
         if (sessions.some(chat => chat.hiddenIndexes.has(index))) {
@@ -1195,7 +1203,7 @@
     }
     insertVoice(state.messages.length);
     if (!liveInserted) parts.push('<div data-fma="voiceAnchor"></div>');
-    if (state.pending && !voiceCall) {
+    if ((state.pending || state.scriptTyping) && !voiceCall) {
       parts.push(`<div class="fma-pending"><i class="fas fa-wand-magic-sparkles"></i><span>${(globalThis.PlatformLanguage?.htmlText("platform-assistant","m_186fc46dfb3cc0","Working") ?? "Working")}<span class="dots"><span>.</span><span>.</span><span>.</span></span></span></div>`);
     }
     replaceMessages(parts.join(''));
@@ -1225,6 +1233,8 @@
       const target = [...els.boardItems.querySelectorAll('fm-platform-widget')].find(el => el.getAttribute('reference') === widget.dataset.focusWidget);
       target?.scrollIntoView({block:'nearest',behavior:'smooth'}); return;
     }
+    const choice = event.target.closest('[data-fma-choice]');
+    if (choice) { surface.workflow?.onChoice?.(choice.dataset.fmaChoice, choice.dataset.messageId); return; }
     const suggest = event.target.closest('.fma-suggest');
     if (suggest) { els.input.value = suggest.textContent; sendMessage(); return; }
     const source = event.target.closest('[data-open-agent]');
@@ -2242,6 +2252,12 @@
     if (recorder) { stopRecording(); return; }
     const text = channelRecap ? 'Summarize the recent conversation in this channel, including decisions, open questions, and action items with their owners.' : widgetAnswer || clean(els.input.value);
     if (!text && !state.attachments.length) return;
+    // A host running a preprogrammed workflow sees the typed message first and may answer it itself; otherwise the model does.
+    if (surface.workflow?.onUserMessage && !channelRecap && !widgetAnswer && !state.attachments.length && state.view !== 'agent') {
+      let handled = false;
+      try { handled = await surface.workflow.onUserMessage(text) === true; } catch (error) { console.warn('[assistant] workflow message hook failed', error); }
+      if (handled) { els.input.value = ''; state.messages.push({ id:`local_${Date.now()}`, role:'user', content:text, data:{ source:'workflow' } }); renderMessages({ animateLast:true }); updateComposer(); return; }
+    }
     const files = channelRecap || widgetAnswer ? [] : [...state.attachments];
     // Capture the screen before the transcript re-renders, so the selection that triggered this turn is the one sent.
     const uiContext = widgetUiContext();
@@ -2328,6 +2344,7 @@
       updateComposer();
       if (array(object(state.messages.at(-1)?.data).renders).some(render => render.type === 'appointment_booking')) openAppointmentBooking();
       if (array(object(state.messages.at(-1)?.data).renders).some(render => render.type === 'payment_setup')) openPaymentSetup();
+      if (surface.workflow?.onReply && clean(state.messages.at(-1)?.role) === 'assistant') { try { surface.workflow.onReply(state.messages.at(-1)); } catch (error) { console.warn('[assistant] workflow reply hook failed', error); } }
     }
   }
 
@@ -2562,6 +2579,41 @@
     if (state.booted && !state.pending) void refresh();
   }
 
+  // ── Preprogrammed workflows ─────────────────────────────────────────────
+  // A host (a guided setup) speaks in this same conversation with programmatic lines: no model call. The lines are
+  // shown here; the host stores them in the thread itself so a later reload, or the agent tray, shows them too.
+  /** Adds one message now: { role: 'assistant' | 'user', content, data: { choices: [{ id, label }] } }. */
+  function workflowPost(message = {}){
+    if (disposed) return null;
+    // The host also stores its lines in the thread; when a reload already brought this one in, it is not added twice.
+    const source = clean(object(message.data).source), role = clean(message.role) === 'user' ? 'user' : 'assistant';
+    const twin = state.messages.find((m) => !claimedWorkflowMessages.has(m.id) && !String(m.id).startsWith('script_') && !String(m.id).startsWith('local_') && clean(m.role) === role && String(m.content) === String(message.content ?? '') && clean(object(m.data).source) === source);
+    if (source && twin) { claimedWorkflowMessages.add(twin.id); return twin; }
+    const entry = { id:clean(message.id) || `script_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`, role:clean(message.role) === 'user' ? 'user' : 'assistant', content:String(message.content ?? ''), data:{ source:'workflow', ...object(message.data) }, created_at:new Date().toISOString() };
+    state.messages.push(entry);
+    renderMessages({ animateLast:true });
+    return entry;
+  }
+  /** Says scripted lines one after another, with the usual working indicator while each is "typed". */
+  let sayChain = Promise.resolve();
+  const claimedWorkflowMessages = new Set();
+  function workflowSay(lines = [], options = {}){
+    const list = array(lines).map((line) => typeof line === 'string' ? { content:line } : object(line)).filter((line) => clean(line.content));
+    const reduce = window.matchMedia?.('(prefers-reduced-motion: reduce)')?.matches;
+    sayChain = sayChain.then(async () => {
+      for (const line of list) {
+        if (disposed) return;
+        if (!reduce && options.typing !== false) {
+          state.scriptTyping = true; renderMessages();
+          await new Promise((resolve) => setTimeout(resolve, Math.min(1100, 350 + String(line.content).length * 9)));
+          state.scriptTyping = false;
+        }
+        workflowPost({ role:'assistant', ...line });
+      }
+    }).catch((error) => { state.scriptTyping = false; console.warn('[assistant] workflow line failed', error); });
+    return sayChain;
+  }
+
   const instanceApi = {
     adoptProject,
     setDraft(text){if(els?.input){els.input.value=String(text);updateComposer();els.input.focus({preventScroll:embedded});}},
@@ -2570,6 +2622,8 @@
     moveTo(container){if(els && els.drawer.parentElement!==container)container.append(els.drawer);},
     destroy, boot, refresh, suspend(){stopVoice();stopRecording(true);},
     openPaymentSetup,
+    say: workflowSay,
+    post: workflowPost,
     open,
     openFull,
     openConversation,

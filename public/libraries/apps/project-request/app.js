@@ -7138,6 +7138,13 @@ window.PlatformCommerce.onReady(async function(){
         return reportOrderState;
       },
       persistProject: () => persistActiveBaseProject(),
+      // A tab app's first write on a new project saves it here, as the trays do; reads never call this.
+      ensureProject: async () => {
+        const project = ensureDraftBaseProject({ allowEmpty:true });
+        if (!project) throw Error((globalThis.PlatformLanguage?.text("project-request","project_save_failed","Project could not be saved.") ?? "Project could not be saved."));
+        await window.Portal.ProjectStore.saveRemote(project);
+        return activeBaseProject;
+      },
       saveContactEmail: async ({ contact_id: contactId = '', index = 0, email = '' } = {}) => {
         const cards = [...($('#rContactList')?.querySelectorAll('.r-contact-card') || [])];
         const normalizedId = projectText(contactId);

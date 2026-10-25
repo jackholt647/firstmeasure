@@ -2160,6 +2160,18 @@ app.get("/auth/google/config", async () => ({
     return { ok: true, share: await revokePortalGuestLink(found, getParam(request.params, "shareId")) };
   });
 
+  // The project's top-down satellite image as an ordinary library photo, saved once (projects/satellite-media.ts).
+  // Photos, Customer Portal and Overview ask for it when they open a saved project; it never creates a project.
+  app.post("/organizations/:orgId/projects/:projectId/satellite-media", async (request) => {
+    const orgId = getParam(request.params, "orgId");
+    const projectId = getParam(request.params, "projectId");
+    await requirePlatformAuth(request, { orgId, csrf: true, app: ["project.photos", "project.customer_portal", "project.map", "portal.viewer"], permission: "view_projects" });
+    const { ensureProjectSatelliteMedia } = await import("../projects/satellite-media.js");
+    const result = await ensureProjectSatelliteMedia(orgId, projectId);
+    if (result.status === "no_project") throw notFound("project_not_found", "The project was not found.");
+    return { ok: true, ...result };
+  });
+
   app.get("/customer-portals/preview/:portalUuid", async (request) => {
     const ctx = await authContextFromRequest(request);
     const result = await publicCustomerPortalPayload(getParam(request.params, "portalUuid"), true, publicRequestBaseUrl(request), ctx?.orgId || "", apiRequestBaseUrl(request));
@@ -5955,8 +5967,22 @@ async function ensureRecoverablePortalGuestLinks(found: CustomerPortalResolution
   return recovered.changed ? savePortalGuestLinks(found, recovered.links) : found;
 }
 
+// Customer guest links are an organization feature (default on). Off stops new links only: existing ones keep working
+// until they expire or are revoked, and revoking stays available to the customer and to staff. Only the feature's own
+// switch turns them off: portals already work without the Customer Portal app switch, and that must not change here.
+const PORTAL_GUEST_LINKS_CAPABILITY = "customer_portal.guest_links";
+
+async function portalGuestLinksEnabled(orgId: string) {
+  const { rawCapabilityValues } = await import("./capabilities.js");
+  const values = await rawCapabilityValues(orgId).catch(() => null);
+  return !!values && values[PORTAL_GUEST_LINKS_CAPABILITY] !== false;
+}
+
 async function createPortalGuestLink(foundInput: CustomerPortalResolution, input: JsonObject, baseUrl: string, createdBy = "customer") {
   const found = requirePortalOwner(foundInput);
+  if (!(await portalGuestLinksEnabled(found.orgId))) {
+    throw forbidden("portal_guest_links_disabled", "Guest links are turned off for this organization. Existing links keep working until they expire or are revoked.");
+  }
   const defaults = await portalOrgDefaults(found.orgId);
   const settings = portalSettingsFor(defaults, found.data);
   if (!settings.sharing.enabled && createdBy === "customer") {
@@ -7397,6 +7423,7 @@ async function publicCustomerPortalPayload(uuid: string, preview: boolean, baseU
   // A customer is offered online payment only while the organization can take one.
   const { canTakeOnlinePayments } = await import("../payments/readiness.js");
   const onlinePayments = await canTakeOnlinePayments(found.orgId);
+  const guestLinksEnabled = found.access_mode === "owner" && await portalGuestLinksEnabled(found.orgId);
   return {
     language:{context:portalLanguage.context,terminology:{labels:projectLabels(terminologyData.labels),localized_labels:{[portalLanguage.context.locale]:projectLabels(asObject(terminologyData.localized_labels)[portalLanguage.context.locale])}}},
     preview,
@@ -7417,7 +7444,7 @@ async function publicCustomerPortalPayload(uuid: string, preview: boolean, baseU
       can_pay: !preview && onlinePayments,
       can_sign: !preview,
       can_write: !preview,
-      can_share: !preview && portalSettings.sharing.enabled
+      can_share: !preview && portalSettings.sharing.enabled && guestLinksEnabled
     },
     sharing: found.access_mode === "owner" ? activeBundle.sharing : null,
     portal: {

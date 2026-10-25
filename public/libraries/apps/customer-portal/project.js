@@ -76,8 +76,9 @@
     return Array.isArray(project().photos) ? project().photos : [];
   }
 
-  // Library photos and videos: what can be shared. A project's generated
-  // satellite image is not library media, so it is shown as the cover only.
+  // Library photos and videos: what can be shared, the cover among them. The
+  // generated satellite stand-in (before the satellite photo is saved) is not
+  // library media, so it is not listed.
   function libraryMedia(){
     return photos().filter((photo) => !photo?.is_top_down_thumbnail && photo?.designator !== 'top_down_thumbnail' && photo?.id !== 'top_down_thumbnail');
   }
@@ -132,6 +133,7 @@
   }
 
   const RESCHEDULING_CAPABILITY = 'scheduling.customer_rescheduling';
+  const GUEST_LINKS_CAPABILITY = 'customer_portal.guest_links';
 
   // Fails closed: an option tied to a capability shows only once the
   // organization's capabilities say it is on.
@@ -262,14 +264,6 @@
       .cpo-tile.is-shared .cpo-badge{opacity:1;transform:none;background:#079455}
       .cpo-tile.is-pending .cpo-badge{opacity:1;transform:none;background:rgba(16,24,40,.55)}
       .cpo-kind{position:absolute;z-index:3;bottom:7px;left:7px;width:22px;height:22px;border-radius:7px;background:rgba(16,24,40,.55);color:#fff;display:flex;align-items:center;justify-content:center;font-size:9px}
-      .cpo-cover{display:flex;align-items:center;gap:12px;padding:8px 10px 8px 8px;border:1px solid #eaecf0;border-radius:11px;background:#fcfcfd;min-width:0;animation:cpoIn .28s ease both}
-      .cpo-cover-media{flex:0 0 auto;width:76px;aspect-ratio:4/3;border-radius:8px;overflow:hidden;background:#f2f4f7;display:flex;align-items:center;justify-content:center;color:#98a2b3;font-size:18px}
-      .cpo-cover-media img{width:100%;height:100%;object-fit:cover;display:block}
-      .cpo-cover-copy{display:flex;flex-direction:column;gap:3px;min-width:0;flex:1}
-      .cpo-cover-kicker{display:inline-flex;align-items:center;gap:6px;font-size:10px;font-weight:1000;text-transform:uppercase;letter-spacing:.08em;color:var(--primary-readable,var(--primary,#d93025))}
-      .cpo-cover-copy strong{font-size:13px;color:#101828;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-      .cpo-cover-state{flex:0 0 auto;display:inline-flex;align-items:center;gap:6px;height:24px;padding:0 9px;border-radius:999px;background:#f2f4f7;color:#475467;font-size:11px;font-weight:1000;transition:background .2s ease,color .2s ease}
-      .cpo-cover-state.is-shared{background:#ecfdf3;color:#067647}
       .cpo-cover-chip{position:absolute;z-index:3;bottom:7px;left:7px;height:22px;padding:0 8px;border-radius:999px;display:inline-flex;align-items:center;gap:5px;font-size:10px;font-weight:1000;background:var(--primary,#d93025);color:#fff}
       .cpo-empty{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;padding:28px 12px;color:#667085;font-size:12px;font-weight:800;text-align:center}
       .cpo-empty i{width:40px;height:40px;border-radius:12px;background:#f2f4f7;color:#98a2b3;display:flex;align-items:center;justify-content:center;font-size:16px}
@@ -567,29 +561,24 @@
     return `mailto:${encodeURIComponent(customerEmail())}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
   }
 
+  // The QR code is drawn here (PlatformQR, in the browser): the private link is never sent anywhere to make it.
   async function downloadQr(url, button){
     if (!url) return;
-    const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=640x640&margin=16&data=${encodeURIComponent(url)}`;
-    const save = (href) => {
-      const link = document.createElement('a');
-      link.href = href;
-      link.download = 'customer-portal-qr.png';
-      link.rel = 'noopener';
-      document.body.appendChild(link);
-      link.click();
-      link.remove();
-    };
-    try {
-      const response = await fetch(qrUrl, { mode: 'cors', credentials: 'omit' });
-      if (!response.ok) throw new Error('qr');
-      const objectUrl = URL.createObjectURL(await response.blob());
-      save(objectUrl);
-      setTimeout(() => URL.revokeObjectURL(objectUrl), 4000);
-      flashDone(button);
-    } catch (_) {
-      // Cross-origin download blocked: open the image so it can be saved.
-      window.open(qrUrl, '_blank', 'noopener');
+    const blob = await window.PlatformQR?.pngBlob?.(url, { size: 640, quiet: 4 })?.catch?.(() => null);
+    if (!blob) {
+      showToast(L('cpo_qr_failed', 'QR code not made'), L('cpo_qr_failed_body', 'The QR code could not be made here. Copy the link instead.'), false);
+      return;
     }
+    const objectUrl = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = objectUrl;
+    link.download = 'customer-portal-qr.png';
+    link.rel = 'noopener';
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    setTimeout(() => URL.revokeObjectURL(objectUrl), 4000);
+    flashDone(button);
   }
 
   /* ---------- history ---------- */
@@ -750,84 +739,46 @@
 
   /* ---------- cover ---------- */
 
-  // The project's cover, resolved as the Photos tab does: the chosen
-  // cover_photo media, else the satellite image (projectMedia.primaryPhoto).
-  function coverOptions(){
-    return {
-      orgId: orgId(),
-      firstMeasureUrlBuilder: util.fmUrl || ((path) => String(path || '')),
-      googleMapsApiKey: Portal?.util?.googleMapsApiKey?.() || '',
-      width: 640
-    };
-  }
-
-  function coverInfo(){
+  // The project's cover is an ordinary library photo here, shared or hidden
+  // like any other; its tile only carries a small "Cover" pill. It is the chosen
+  // cover_photo, else the saved satellite photo.
+  function coverMediaId(){
     const current = project() || {};
     const values = current.custom_field_values || current.custom_fields || {};
-    const chosenId = String(values.cover_photo?.media_id || '').trim();
     const library = libraryMedia();
-    const chosen = chosenId ? library.find((photo) => photoId(photo) === chosenId || String(photo?.media_id || '') === chosenId) || null : null;
+    const chosenId = String(values.cover_photo?.media_id || '').trim();
+    const chosen = chosenId ? library.find((photo) => photoId(photo) === chosenId || String(photo?.media_id || '') === chosenId) : null;
+    if (chosen) return photoId(chosen);
+    const saved = window.PlatformAPI?.projectMedia?.savedSatellitePhoto?.(library);
+    return saved ? photoId(saved) : '';
+  }
+
+  // A saved project gets its satellite image as a library photo the first time
+  // it is needed (server side, once); the tab then lists it like any other.
+  async function ensureSatelliteMedia(){
     const media = window.PlatformAPI?.projectMedia;
-    let photo = null;
-    try { photo = media?.primaryPhoto?.({ ...current, photos: library }, coverOptions()) || null; } catch (_) { photo = null; }
-    if (!photo && chosen) photo = chosen;
-    if (!photo) return null;
-    const resolvedId = String(photo.media_id || photo.id || '').trim();
-    const isChosen = !!chosenId && resolvedId === chosenId;
-    const mediaId = isChosen ? chosenId : (photo.is_top_down_thumbnail ? '' : photoId(photo));
-    let src = '';
-    if (mediaId) {
-      try { src = String(window.PlatformAPI?.media?.thumbnailUrl?.(orgId(), mediaId, 320) || '').trim(); } catch (_) { src = ''; }
+    const oid = orgId();
+    const pid = projectId();
+    if (!oid || !pid || typeof media?.ensureSatelliteMedia !== 'function') return;
+    if (media.savedSatellitePhoto?.(photos())) return;
+    const result = await media.ensureSatelliteMedia(oid, pid).catch(() => null);
+    if (!result || projectId() !== pid) return;
+    const next = media.withSavedSatellite ? media.withSavedSatellite(photos(), result) : photos();
+    if (next.length === photos().length && next.every((photo, index) => photo === photos()[index])) return;
+    if (typeof state.host?.setPhotos === 'function') state.host.setPhotos(next);
+    else if (Array.isArray(state.model?.state?.projectPhotos)) state.model.state.projectPhotos = next;
+    else if (Array.isArray(window.projectPhotos)) window.projectPhotos = next;
+    const current = project();
+    if (current && typeof current === 'object') {
+      current.photos = next;
+      const values = current.custom_field_values || current.custom_fields || {};
+      if (result.custom_field_values?.cover_photo?.media_id && !values.cover_photo?.media_id) {
+        current.custom_field_values = { ...values, cover_photo: result.custom_field_values.cover_photo };
+        current.custom_fields = current.custom_field_values;
+      }
+      if (result.satellite_media) current.satellite_media = result.satellite_media;
     }
-    src = src || String(photo.thumb || photo.src || '').trim();
-    let staticMap = null;
-    if (photo.is_top_down_thumbnail && photo.source !== 'google_static_map') {
-      try { staticMap = media?.googleStaticMapPhoto?.(current, coverOptions()) || null; } catch (_) { staticMap = null; }
-    }
-    const fallbacks = [...new Set([photo.src, chosen?.thumb, chosen?.src, staticMap?.thumb || staticMap?.src].map((url) => String(url || '').trim()))].filter((url) => url && url !== src);
-    const entry = mediaId ? library.find((item) => photoId(item) === mediaId) : null;
-    return {
-      kind: photo.is_top_down_thumbnail ? 'satellite' : (isChosen ? 'chosen' : 'library'),
-      mediaId: entry ? photoId(entry) : '',
-      src,
-      fallbacks,
-      label: firstText(entry?.file_name, entry?.label, photo.file_name, photo.label, photo.alt) || L('cpo_cover_label', 'Cover photo')
-    };
-  }
-
-  function coverTip(cover, shared){
-    if (!cover.mediaId) return L('cpo_tip_cover_satellite', 'The project’s cover: its satellite image, shown on the project tile and in Overview. The customer’s portal does not show a cover image, so the customer does not see this. Choose another cover in Photos.');
-    return shared
-      ? L('cpo_tip_cover_shared', 'The project’s cover, shown on the project tile and in Overview. The customer can see this photo with the shared media below. The customer’s portal does not show it as a cover.')
-      : L('cpo_tip_cover_hidden', 'The project’s cover, shown on the project tile and in Overview. It is hidden from the customer; share it below if they should see it. The customer’s portal does not show a cover image.');
-  }
-
-  function coverStateHtml(cover, shared){
-    if (!cover.mediaId) return `<i class="fas fa-eye-slash"></i>${H('cpo_cover_not_in_portal', 'Not in portal')}`;
-    return shared ? `<i class="fas fa-eye"></i>${H('cpo_badge_shared', 'Shared')}` : `<i class="fas fa-eye-slash"></i>${H('cpo_cover_hidden', 'Hidden')}`;
-  }
-
-  function coverHtml(cover, shared){
-    if (!cover) return '';
-    const isShared = !!cover.mediaId && shared.has(cover.mediaId);
-    return `<div class="cpo-cover" data-cpo-cover data-cover-kind="${esc(cover.kind)}" data-cover-media="${esc(cover.mediaId)}" data-fm-tooltip="${esc(coverTip(cover, isShared))}">
-      <span class="cpo-cover-media">${cover.src ? `<img src="${esc(cover.src)}" alt=""${cover.fallbacks.length ? ` data-cpo-fallbacks="${esc(JSON.stringify(cover.fallbacks))}"` : ''}>` : '<i class="fas fa-image"></i>'}</span>
-      <span class="cpo-cover-copy"><span class="cpo-cover-kicker"><i class="fas fa-image"></i>${H('cpo_cover_kicker', 'Cover')}</span><strong>${esc(cover.kind === 'satellite' ? L('cpo_cover_satellite', 'Satellite image') : cover.label)}</strong></span>
-      <span class="cpo-cover-state${isShared ? ' is-shared' : ''}" data-cpo-cover-state>${coverStateHtml(cover, isShared)}</span>
-    </div>`;
-  }
-
-  function bindCoverFallbacks(root){
-    root.querySelectorAll('.cpo-cover img[data-cpo-fallbacks]').forEach((img) => {
-      img.addEventListener('error', () => {
-        let rest = [];
-        try { rest = JSON.parse(img.dataset.cpoFallbacks) || []; } catch (_) { rest = []; }
-        const next = rest.shift();
-        img.dataset.cpoFallbacks = JSON.stringify(rest);
-        if (next) img.src = next;
-        else img.replaceWith(Object.assign(document.createElement('i'), { className: 'fas fa-image' }));
-      });
-    });
+    if (state.mounted && state.panelRoot?.isConnected) render();
   }
 
   /* ---------- rendering ---------- */
@@ -905,19 +856,21 @@
     const guestCount = guests.length
       ? `<button type="button" class="cpo-guest-count" data-cpo-guests-toggle aria-expanded="${state.guestOpen ? 'true' : 'false'}" data-fm-tooltip="${H('cpo_tip_guest_list', 'Guest links that still work. Open the list to copy or revoke one.')}">${esc(guests.length === 1 ? L('cpo_guest_count_one', '1 active') : L('cpo_guest_count', '{n} active', { n: guests.length }))}<i class="fas fa-chevron-down"></i></button>`
       : '';
+    // Customer guest links are an organization feature: off hides the switch and the links (the server makes no new ones).
+    const guestLinks = capabilityOn(GUEST_LINKS_CAPABILITY);
     const resched = capabilityOn(RESCHEDULING_CAPABILITY) ? `
         <label class="cpo-switch" data-cpo-resched-switch data-fm-tooltip="${H('cpo_tip_resched', 'Lets the customer pick a new time for an upcoming appointment from live availability, when that appointment’s scheduling rules also allow it. Off: only your team reschedules.')}">
           <input type="checkbox" data-cpo-rescheduling${reschedulingOn ? ' checked' : ''}${disabled}><span class="cpo-track"></span><span>${H('cpo_resched_label', 'Customer can reschedule')}</span>
         </label>` : '';
     return `
       <div class="cpo-options">
-        <label class="cpo-switch" data-cpo-guest-switch data-fm-tooltip="${H('cpo_tip_guests', 'Lets the customer make their own read-only links to share the portal with someone else, such as a family member or an adjuster. Guest links can expire, never include payments, signing, approvals or editing, and you can revoke any of them here. Turning this off stops new links; existing ones keep working until they expire or you revoke them.')}">
+        ${guestLinks ? `<label class="cpo-switch" data-cpo-guest-switch data-fm-tooltip="${H('cpo_tip_guests', 'Lets the customer make their own read-only links to share the portal with someone else, such as a family member or an adjuster. Guest links can expire, never include payments, signing, approvals or editing, and you can revoke any of them here. Turning this off stops new links; existing ones keep working until they expire or you revoke them.')}">
           <input type="checkbox" data-cpo-sharing${sharingOn ? ' checked' : ''}${disabled}><span class="cpo-track"></span><span>${H('cpo_guests_label', 'Customer can share guest links')}</span>
         </label>
-        ${guestCount}
+        ${guestCount}` : ''}
         ${resched}
       </div>
-      ${guests.length ? `<div class="cpo-reveal${state.guestOpen ? ' is-open' : ''}" data-cpo-guests><div><div class="cpo-guests">${guests.map(guestRowHtml).join('')}</div></div></div>` : ''}
+      ${guestLinks && guests.length ? `<div class="cpo-reveal${state.guestOpen ? ' is-open' : ''}" data-cpo-guests><div><div class="cpo-guests">${guests.map(guestRowHtml).join('')}</div></div></div>` : ''}
     `;
   }
 
@@ -945,7 +898,7 @@
   function mediaCardHtml(){
     const shared = sharedPortalMediaIds();
     const items = libraryMedia();
-    const cover = coverInfo();
+    const coverId = coverMediaId();
     const sharedCount = items.filter((photo) => shared.has(photoId(photo))).length;
     const filter = state.mediaFilter;
     const head = `
@@ -963,11 +916,11 @@
         </div>` : ''}
       </div>`;
     const grid = items.length
-      ? `<div class="cpo-grid${state.selection.size ? ' has-selection' : ''}" data-cpo-grid data-filter="${esc(filter)}">${items.map((photo) => mediaTileHtml(photo, shared.has(photoId(photo)), false, !!cover?.mediaId && cover.mediaId === photoId(photo))).join('')}</div>`
+      ? `<div class="cpo-grid${state.selection.size ? ' has-selection' : ''}" data-cpo-grid data-filter="${esc(filter)}">${items.map((photo) => mediaTileHtml(photo, shared.has(photoId(photo)), false, !!coverId && coverId === photoId(photo))).join('')}</div>`
       : '';
-    // Empty only when there is truly nothing: no media and no cover.
-    const body = items.length || cover
-      ? coverHtml(cover, shared) + grid
+    // Empty only when the project has no media at all.
+    const body = items.length
+      ? grid
       : `<div class="cpo-empty" data-cpo-media-empty><i class="fas fa-images"></i><span>${H('cpo_media_empty', 'No photos or videos on this project yet')}</span></div>`;
     const selbar = `
       <div class="cpo-selwrap"><div class="cpo-selbar" data-cpo-selbar role="toolbar" aria-label="${H('cpo_selection_label', 'Selected media')}">
@@ -981,8 +934,7 @@
 
   // Which tiles exist; shared state is synced in place so it can animate.
   function mediaSignature(){
-    const cover = coverInfo();
-    return [cover ? `cover|${cover.kind}|${cover.mediaId}|${cover.src}` : 'cover|none', ...libraryMedia().map((photo) => `${photoId(photo)}|${photo?.thumb || photo?.src || ''}`)].join('\n');
+    return [`cover|${coverMediaId()}`, ...libraryMedia().map((photo) => `${photoId(photo)}|${photo?.thumb || photo?.src || ''}`)].join('\n');
   }
 
   function skeletonHtml(){
@@ -1049,7 +1001,6 @@
       state.mediaSignature = signature;
       slot.innerHTML = mediaCardHtml();
       bindThumbLoading(slot);
-      bindCoverFallbacks(slot);
     }
     syncSelection(root);
   }
@@ -1090,18 +1041,6 @@
     if (mediaCount) {
       const items = libraryMedia();
       mediaCount.textContent = L('cpo_media_count', '{shared} of {total} shared', { shared: items.filter((photo) => shared.has(photoId(photo))).length, total: items.length });
-    }
-    const coverRow = root.querySelector('[data-cpo-cover]');
-    const coverMedia = coverRow?.dataset.coverMedia || '';
-    if (coverMedia) {
-      const coverShared = shared.has(coverMedia);
-      const chip = coverRow.querySelector('[data-cpo-cover-state]');
-      if (chip && chip.classList.contains('is-shared') !== coverShared) {
-        const info = { mediaId: coverMedia };
-        chip.classList.toggle('is-shared', coverShared);
-        chip.innerHTML = coverStateHtml(info, coverShared);
-        coverRow.setAttribute('data-fm-tooltip', coverTip(info, coverShared));
-      }
     }
     root.querySelector('[data-cpo-grid]')?.classList.toggle('has-selection', state.selection.size > 0);
     root.querySelector('[data-cpo-media]')?.classList.toggle('has-selection', state.selection.size > 0);
@@ -1348,6 +1287,7 @@
     render(context);
     // Reading never creates a project: a draft loads nothing until something writes.
     if (projectId() && !state.portal.portal && !state.portal.loading) load({ silent: true });
+    if (projectId()) ensureSatelliteMedia();
   }
 
   function reset(){
