@@ -6023,14 +6023,34 @@ function publicProjectTopDownSource(project: JsonObject) {
   return "google.png";
 }
 
-function publicProjectTopDownThumbnail(project: JsonObject, apiBaseUrl = "") {
-  const firstMeasureId = publicProjectFirstMeasureId(project);
+/**
+ * The signed-link query ("exp=…&sig=…") that lets a homeowner's browser load
+ * a FirstMeasure project's thumbnail without a session. Called only after the
+ * portal link token has been authorized (publicCustomerPortalPayload), and
+ * only for a FirstMeasure project of the portal's own organization: the
+ * platform project's link to it is organization-editable data, so it is
+ * checked against the FirstMeasure record. Null when it may not be shown.
+ */
+async function portalFirstMeasureThumbnailQuery(orgId: string, firstMeasureId: string): Promise<string | null> {
   if (!firstMeasureId) return null;
+  const access = await import("../firstmeasure/access.js");
+  const { readManifest } = await import("../firstmeasure/storage.js");
+  const manifest = await readManifest(firstMeasureId).catch(() => null);
+  if (!manifest || access.projectOrganizationId(manifest) !== orgId) return null;
+  // TODO(merge): signedProjectFileQuery lands with claude/request-security-20261024;
+  // replace this lookup with a named import from "../firstmeasure/access.js" then.
+  const sign = (access as unknown as { signedProjectFileQuery?: (projectId: string, name: string, ttlSeconds?: number) => string }).signedProjectFileQuery;
+  return sign ? sign(firstMeasureId, "thumbnail") : "";
+}
+
+function publicProjectTopDownThumbnail(project: JsonObject, apiBaseUrl = "", signedQuery: string | null = null) {
+  const firstMeasureId = publicProjectFirstMeasureId(project);
+  if (!firstMeasureId || signedQuery === null) return null;
   const source = publicProjectTopDownSource(project);
   const base = cleanText(apiBaseUrl).replace(/\/+$/, "");
   if (!base) return null;
   const params = new URLSearchParams({ w: "640", source });
-  const src = `${base}/v1/firstmeasure/projects/${encodeURIComponent(firstMeasureId)}/thumbnail?${params.toString()}`;
+  const src = `${base}/v1/firstmeasure/projects/${encodeURIComponent(firstMeasureId)}/thumbnail?${params.toString()}${signedQuery ? `&${signedQuery}` : ""}`;
   return {
     id: "top_down_thumbnail",
     photo_id: "top_down_thumbnail",
@@ -6047,12 +6067,12 @@ function publicProjectTopDownThumbnail(project: JsonObject, apiBaseUrl = "") {
   };
 }
 
-function publicProjectView(project: JsonObject, apiBaseUrl = "", sharedMedia: JsonObject[] = []) {
+function publicProjectView(project: JsonObject, apiBaseUrl = "", sharedMedia: JsonObject[] = [], thumbnailQuery: string | null = null) {
   const contact = projectPrimaryContact(project);
   const address = cleanText(project.address);
   const title = projectDisplayTitle(project, "");
   const displayName = portalDisplayName(contact.name, title && title !== address ? title : "");
-  const satellite = publicProjectTopDownThumbnail(project, apiBaseUrl);
+  const satellite = publicProjectTopDownThumbnail(project, apiBaseUrl, thumbnailQuery);
   const coverId = cleanText(asObject(asObject(project.custom_field_values || project.custom_fields).cover_photo).media_id);
   // Resolve only through the already authorized public library; choosing a cover
   // must not implicitly share a private project photo.
@@ -6942,7 +6962,7 @@ async function publicPortalProjectBundle(
       live_url: preview ? publicPortalUrl(cleanText(portalData.public_uuid), baseUrl, false) : publicPortalUrl(portalUuid, baseUrl, false),
       preview_url: publicPortalUrl(cleanText(portalData.preview_uuid), baseUrl, true)
     },
-    project: publicProjectView(project, apiBaseUrl, sharedMedia),
+    project: publicProjectView(project, apiBaseUrl, sharedMedia, await portalFirstMeasureThumbnailQuery(orgId, publicProjectFirstMeasureId(project)).catch(() => null)),
     media: sharedMedia,
     resources,
     settings: publicPortalSettings(settings),
