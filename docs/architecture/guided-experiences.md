@@ -167,8 +167,10 @@ of its `say` lines; its `agent_note` is added to the model's context on that ste
 **Supplier columns** (`supplier-columns.js`, reusable). `window.FirstMateSupplierColumns.mount(el,
 { suppliers, items, onChange, onPriceSheet })` draws one thin column per supplier
 (brand colour on top, an initials badge, what it carries with a cost each, a
-Price sheet button), two at a time; an arrow slides to the next and points back
-at the end. `priceSheet({ supplier, assistant, before })` asks for a file and
+Price sheet button), two at a time in a native horizontal scroller (thin
+scrollbar, trackpad, shift-wheel, snapping to a column). An arrow on each side
+scrolls one column and shows only while there is more that way; both follow
+the scroll position, however it moved. `priceSheet({ supplier, assistant, before })` asks for a file and
 sends it to the assistant (an instance, or the global one) naming the supplier
 and its id, so the agent sets that supplier's costs with `suppliers.prices.update`.
 It stores nothing itself; the Materials settings can mount both.
@@ -219,8 +221,8 @@ question.
   Generate buttons for anyone the first view missed. Variants: `agentic` (assistant on),
   `agentic_express` (weight 0, no rules walkthrough), `modal` (assistant off).
   Steps: brands, lines, rules (how a roof becomes a list), suppliers (who
-  provides your materials), material prices, labor prices (optional; Skip leaves
-  labor out). Completion:
+  provides your materials, where material costs are set per supplier), labor
+  prices (optional; Skip leaves labor out). There is no separate material prices step. Completion:
   `pricebook.setup.apply` with `trade: roofing`, then hand-off, the held Generate,
   and the tour.
 - `materials.tab_tutorial` (overlay, person, replayable): after the setup, or on
@@ -260,18 +262,22 @@ attributes are read by the defaults, not by formulas.
 
 Both are written through their own writers (`saveOrganizationCatalog`,
 `saveMeasurementDefaults`). Prices are costs: research cost x the region's
-material multiplier (labor uses the labor multiplier), typed prices win. The
+material multiplier (labor uses the labor multiplier). A material's cost comes
+from the supplier columns (`supplierItemCosts`): a cost typed in a supplier's
+column (the first chosen supplier that carries the item), else the price seen
+at that supplier, else the typical cost. The
 setup writes no markup: it sets `internal_cost` (what the company pays) and
 `unit_price` to the same cost; selling prices and margins belong to documents and
 pricing settings. A cost a price sheet set (`metadata.price_source: price_sheet`)
 is kept when the setup is finished again.
 
-**Price sheets.** The material prices step offers an upload in the agent's line
+**Price sheets.** The suppliers step offers an upload in the agent's line
 ("If you have a price sheet from your supplier…"). Before the file goes to the
 model, the setup saves what is chosen so far through the completion action (the
 draft), so the agent finds the items. The agent reads them with
 `pricebook.prices.list` and applies a checked list with `pricebook.prices.update`
-(costs, never a markup; it asks before an uncertain match).
+(costs, never a markup; it asks before an uncertain match). A sheet that names a
+supplier also sets that supplier's costs (`suppliers.prices.update`).
 
 **Suppliers.** The suppliers step offers the researched suppliers in
 `materials/roofing-research/roofing-suppliers-2026.json` (which manufacturers each

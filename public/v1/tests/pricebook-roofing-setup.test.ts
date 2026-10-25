@@ -184,6 +184,15 @@ test("the suppliers step saves each supplier through its own writer, and a price
   assert.deepEqual(homeDepot.offerings.map((row) => row.item_id).sort(), ["lib-shingle-gaf-hdz", "lib-shingle-gaf-uhdz"]);
   assert.equal(homeDepot.offerings.find((row) => row.item_id === "lib-shingle-gaf-hdz")!.price_cents, 4050, "a typed cost, in cents, not marked up");
   assert.deepEqual(suppliers.find((supplier) => supplier.name === "Smith Roofing Supply")!.offerings, [], "a typed supplier starts empty");
+  // The cost typed in a supplier's column is the price book cost (the prices step is gone): cost and sell, no markup.
+  const book = (await (await import("../pricebook/storage.js")).getOrganizationPricebook(ORG)).catalog.items.find((item: any) => item.id === "lib-shingle-gaf-hdz") as any;
+  assert.equal(book.internal_cost, 40.5);
+  assert.equal(book.unit_price, 40.5);
+  // Typed beats the price seen at a supplier, the first chosen supplier wins, and an item price typed on its own wins over both.
+  const costs = roofing.supplierItemCosts(roofing.roofingSelectionsSchema.parse({ brands: ["gaf"], lines: ["a"], suppliers: [
+    { preset: "p1", name: "One", item_ids: ["a", "b", "c"], prices: { a: 10 } }, { preset: "p2", name: "Two", item_ids: ["a", "b", "d"], prices: { b: 20 } }] }),
+    [{ id: "p1", name: "One", kind: "distributor", color: "#000", manufacturers: [], line_scope: "full_range", regions: "", prices: { b: 15, c: 30 } }, { id: "p2", name: "Two", kind: "distributor", color: "#000", manufacturers: [], line_scope: "full_range", regions: "", prices: { d: 40, a: 1 } }]);
+  assert.deepEqual(costs, { a: 10, b: 20, c: 30, d: 40 });
 
   // The agent reads the Home Depot sheet: that supplier's costs only.
   const sheet = { supplier_id: homeDepot.id, prices: [{ item_id: "lib-shingle-gaf-uhdz", price_cents: 5555, sku: "HD-UHDZ" }] };

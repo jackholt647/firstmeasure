@@ -305,6 +305,11 @@ test('development: copy is editable in place, saves as you type, shows for every
     assert.ok(pill.z>2147483200&&pill.left<=16&&pill.bottom<=16,JSON.stringify(pill));
     assert.equal(await tab.locator('.gx-dev [data-gxd=toggle]').getAttribute('aria-pressed'),'true');
     assert.equal(await tab.locator('.gx-dev').getAttribute('data-fmr-ignore'),'');
+    // Exactly one panel across every frame, even when the page's library draws an assistant inside the project frame.
+    await tab.evaluate(()=>{const d=document.querySelector('#project').contentDocument,drawer=d.createElement('div');drawer.innerHTML='<div data-fma="composer"><div class="fma-compose-shell"></div></div>';d.body.appendChild(drawer);FirstMateGuides.attachAssistant(drawer,{});});
+    await tab.waitForTimeout(300);
+    const panels=(await Promise.all(tab.frames().map(f=>f.evaluate(()=>document.querySelectorAll('.gx-dev').length)))).reduce((a,b)=>a+b,0);
+    assert.equal(panels,1,'one dev panel across all frames');
     // Typing saves after a pause, as plain text.
     const title=frame().locator('.gx-pop h3 [data-gx-copy]');
     await title.click();

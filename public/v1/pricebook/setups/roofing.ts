@@ -392,17 +392,37 @@ export function buildRoofingSetup(selections: RoofingSelections, current: Measur
 }
 
 /** Writes the setup: the price book through its catalog writer, then the measurement defaults through theirs. */
+/**
+ * The costs the supplier columns show, as price book costs: for each item, a cost typed in a supplier's column (the
+ * first chosen supplier that carries it), else the price seen at that supplier, else nothing (the typical cost
+ * stays). A price typed for the item itself still wins. Never a markup.
+ */
+export function supplierItemCosts(selections: RoofingSelections, presets = roofingSupplierPresets()) {
+  const typed: Record<string, number> = {}, seen: Record<string, number> = {};
+  const byId = new Map(presets.map((preset) => [preset.id, preset]));
+  for (const choice of selections.suppliers) {
+    const preset = choice.preset ? byId.get(choice.preset) : undefined;
+    for (const itemId of choice.item_ids) {
+      if (typed[itemId] === undefined && choice.prices[itemId] !== undefined) typed[itemId] = choice.prices[itemId]!;
+      if (seen[itemId] === undefined && preset?.prices[itemId] !== undefined) seen[itemId] = preset.prices[itemId]!;
+    }
+  }
+  return { ...seen, ...typed };
+}
+
 export async function applyRoofingSetup(ctx: PublicationContext, input: unknown) {
   const orgId = ctx.organizationId;
-  const selections = roofingSelectionsSchema.parse(input);
+  const parsed = roofingSelectionsSchema.parse(input);
+  const typedForItems = parsed.prices;
+  const selections = { ...parsed, prices: { ...supplierItemCosts(parsed), ...parsed.prices } };
   const current = await readMeasurementDefaults(orgId);
   const built = buildRoofingSetup(selections, current.settings);
   const book = await getOrganizationPricebook(orgId);
-  // A cost a supplier price sheet set (pricebook.prices.update) stays unless the person typed another.
+  // A cost a price sheet set (pricebook.prices.update) stays unless the person typed another.
   for (const item of built.items as Record<string, unknown>[]) {
     const before = (book.catalog.items as Record<string, unknown>[]).find((entry) => entry.id === item.id);
     const metadata = (before?.metadata || {}) as Record<string, unknown>;
-    if (before && metadata.price_source === "price_sheet" && selections.prices[String(item.id)] === undefined) Object.assign(item, { internal_cost: before.internal_cost, unit_price: before.unit_price, unitPrice: before.unit_price, base_price: before.unit_price, metadata: { ...(item.metadata as Record<string, unknown>), price_source: "price_sheet" } });
+    if (before && metadata.price_source === "price_sheet" && typedForItems[String(item.id)] === undefined && !parsed.suppliers.some((choice) => choice.prices[String(item.id)] !== undefined)) Object.assign(item, { internal_cost: before.internal_cost, unit_price: before.unit_price, unitPrice: before.unit_price, base_price: before.unit_price, metadata: { ...(item.metadata as Record<string, unknown>), price_source: "price_sheet" } });
   }
   const ids = new Set(built.items.map((item) => item.id));
   const saved = await saveOrganizationCatalog(orgId, { ...book.catalog, items: [...book.catalog.items.filter((item) => !ids.has(String((item as { id?: unknown }).id))), ...built.items] }, Number(book.manifest.revision));

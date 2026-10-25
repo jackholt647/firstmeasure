@@ -41,9 +41,8 @@ const SETUP={id:'materials.pricebook_setup.roofing',version:1,kind:'agentic',sco
     {id:'brands',widget:'brand-cards',title:t('gx_mps_brands_title','Which shingle manufacturers do you use?'),subtitle:t('gx_mps_brands_subtitle','Pick every brand you install.'),say:[t('gx_a','Let’s set up your price book.'),t('gx_b','Which shingle manufacturers do you use?')],options:{...OPTIONS,allow_all:true},required:true},
     {id:'lines',widget:'product-lines',title:t('gx_mps_lines_title','What shingles do you usually use?'),subtitle:t('gx_mps_lines_subtitle','Tick the lines you install.'),say:[t('gx_c','Here are the lines.')],options:{...OPTIONS,allow_all:true},required:true},
     {id:'rules',widget:'measurement-rules',title:t('gx_mps_rules_title','How a roof becomes a materials list'),subtitle:t('gx_mps_rules_subtitle','Each material comes from the measurement report.'),say:[t('gx_d','Here is how each material is worked out.')],options:OPTIONS,required:false},
-    {id:'suppliers',widget:'supplier-columns',title:t('gx_mps_suppliers_title','Who provides your materials?'),subtitle:t('gx_su','Pick every supplier you buy from.'),say:[t('gx_sv','Who do you buy from?')],options:OPTIONS,required:false},
-    {id:'prices',widget:'price-review',title:t('gx_mps_material_prices_title','Check your material prices'),subtitle:t('gx_s','What you pay your supplier.'),say:[t('gx_e','These are typical supplier prices.'),t('gx_mps_price_sheet_say','If you have a price sheet from your supplier, you can upload it here and I’ll set it up for you.')],
-      upload:{line:'gx_mps_price_sheet_say',button:t('gx_mps_price_sheet_button','Upload a price sheet'),message:t('gx_mps_price_sheet_message','Here’s my supplier price sheet. Please update my material prices from it.'),accept:'.csv,.xlsx,.xls,.pdf,.txt'},options:{...OPTIONS,kinds:['line','accessory','generic']},required:false},
+    {id:'suppliers',widget:'supplier-columns',title:t('gx_mps_suppliers_title','Who provides your materials?'),subtitle:t('gx_su','Pick every supplier you buy from.'),say:[t('gx_sv','Who do you buy from?'),t('gx_mps_price_sheet_say','If you have a price sheet from your supplier, you can upload it here and I’ll set it up for you.')],
+      upload:{line:'gx_mps_price_sheet_say',button:t('gx_mps_price_sheet_button','Upload a price sheet'),message:t('gx_mps_price_sheet_message','Here’s my supplier price sheet. Please update my material prices from it.'),accept:'.csv,.xlsx,.xls,.pdf,.txt'},options:OPTIONS,required:false},
     {id:'labor_prices',widget:'price-review',title:t('gx_mps_labor_prices_title','Check your labor prices'),subtitle:t('gx_l','Optional.'),say:[t('gx_g','Optional: typical labor rates.')],options:{...OPTIONS,kinds:['labor'],optional:true,skip_sets:{include_labor:false}},required:false}],
   completion:{action:{id:'pricebook.setup.apply',target:'organization',input:{trade:'roofing'}},say:[t('gx_f','Your price book is ready.')],then:[{handoff:'assistant_tray'},{resume:true},{play:'materials.tab_tutorial'}]},progress:null};
 const TOUR={id:'materials.tab_tutorial',version:1,kind:'overlay',scope:'person',title:t('gx_mt_title','Materials tour'),tab:'project.materials',replayable:true,variant:{id:'tour',bucket:0.1,unit:'person:o:u'},triggers:[],
@@ -62,7 +61,7 @@ async function load(browser,{width=1280,height=800,reduced=false}={}){
   page.on('pageerror',error=>errors.push(error.message));
   // A real origin, so the logo request and the assistant's storage behave as on the portal.
   await page.route('https://fm.test/**',route=>{const url=route.request().url();
-    if(url.endsWith('/gaf.svg'))return route.fulfill({contentType:'image/svg+xml',body:'<svg xmlns="http://www.w3.org/2000/svg" width="120" height="40"><rect width="120" height="40" fill="#d71920"/></svg>'});
+    if(url.endsWith('/gaf.svg'))return route.fulfill({contentType:'image/svg+xml',body:'<svg xmlns="http://www.w3.org/2000/svg" width="100" height="100"><rect width="100" height="100" fill="#d71920"/></svg>'});
     if(url.includes('/images/'))return route.fulfill({status:404,body:''});
     return route.fulfill({contentType:'text/html',body:'<html></html>'});});
   await page.goto('https://fm.test/portal/');
@@ -140,6 +139,9 @@ test('the setup: logo grid, lines in tiers, materials list, costs and a price sh
     assert.equal(tiles.text,'','no text beside the logos');
     assert.equal(tiles.border,'0px');
     assert.equal(tiles.heights.length,1);
+    // The logo fills the tile: a square logo is most of its height.
+    const logo=await page.evaluate(()=>{const tile=document.querySelector('[data-brand=gaf]'),img=tile.querySelector('img');return {img:img.getBoundingClientRect().height,tile:tile.getBoundingClientRect().height};});
+    assert.ok(logo.img>=90&&logo.img>=logo.tile*0.7,`logo ${logo.img}px in a ${logo.tile}px tile`);
     assert.equal(await page.locator('[data-gxs=next]').isDisabled(),true,'a brand is needed first');
     await page.click('[data-brand=gaf]');
     await page.waitForFunction(()=>getComputedStyle(document.querySelector('[data-brand=gaf] .gxs-badge-check')).opacity==='1');
@@ -170,6 +172,7 @@ test('the setup: logo grid, lines in tiers, materials list, costs and a price sh
     await onStep(page,'How a roof becomes a materials list');
     // One row per material and where its amount comes from.
     const rows=await page.evaluate(()=>[...document.querySelectorAll('.gxs-mat')].map(row=>[row.querySelector('strong').textContent,row.querySelector('.gxs-source').textContent]));
+    assert.equal(await page.evaluate(()=>new Set([...document.querySelectorAll('.gxs-mat')].map(row=>Math.round(row.getBoundingClientRect().left))).size),2,'two columns');
     assert.deepEqual(rows,[['Architectural shingles','From measurement report'],['Starter strip','From measurement report'],['Ice and water shield','From measurement report'],['Pipe boots','Entered by hand'],['Decking replacement','Entered by hand']]);
     // Hover: the rule in plain words, never a sample roof's amount.
     await page.hover('[data-mat=shingles] [data-mat-toggle]');
@@ -209,19 +212,28 @@ test('the setup: logo grid, lines in tiers, materials list, costs and a price sh
     assert.ok(!cols[2].carried.includes('lib-shingle-oc-duration'),'this Lowes stocks GAF only');
     assert.deepEqual(cols[3].carried,[],'your own supplier starts empty');
     assert.equal(await page.locator('[data-supplier=home_depot] [data-cost="lib-shingle-gaf-hdz"]').inputValue(),'37.98','the price seen there');
-    // The arrow slides one supplier at a time, then turns round and goes back.
-    const offset=()=>page.evaluate(()=>Math.round(new DOMMatrix(getComputedStyle(document.querySelector('.gxsc-track')).transform).m41));
-    assert.equal(await page.locator('.gxsc-arrow').getAttribute('data-dir'),'back','at the end the arrow points back');
-    await page.click('.gxsc-arrow');await page.waitForTimeout(550);
-    assert.equal(await offset(),0);
-    assert.equal(await page.locator('.gxsc-arrow').getAttribute('data-dir'),'next');
-    await page.click('.gxsc-arrow');await page.waitForTimeout(550);
-    const one=await offset();assert.ok(one<0,'slid');
-    await page.click('.gxsc-arrow');await page.waitForTimeout(550);
-    assert.ok(await offset()<one);
-    assert.equal(await page.locator('.gxsc-arrow').getAttribute('data-dir'),'back');
-    await page.click('.gxsc-arrow');await page.waitForTimeout(550);
-    assert.equal(await offset(),0,'back to the start');
+    // A native scroller with arrows on the sides: each shows only while there is more that way, and follows the scroll.
+    const nav=()=>page.evaluate(()=>{const v=document.querySelector('.gxsc-viewport'),r=v.getBoundingClientRect(),[prev,next]=['prev','next'].map(d=>document.querySelector(`.gxsc-arrow[data-dir=${d}]`));const box=b=>b.getBoundingClientRect();return {left:Math.round(v.scrollLeft),max:v.scrollWidth-v.clientWidth,overflow:getComputedStyle(v).overflowX,prev:prev.dataset.off!=='true',next:next.dataset.off!=='true',prevSide:box(prev).left<r.left+20,nextSide:box(next).right>r.right-20};});
+    let at=await nav();
+    assert.equal(at.overflow,'auto');
+    assert.ok(at.left>=at.max-1&&at.max>0,'scrolled to the one just added');
+    assert.deepEqual([at.prev,at.next],[true,false],'at the end only the left arrow');
+    assert.ok(at.prevSide&&at.nextSide,'arrows on the left and right edges');
+    await page.click('.gxsc-arrow[data-dir=prev]');await page.waitForTimeout(700);
+    at=await nav();
+    assert.ok(at.left>0&&at.left<at.max,'one column back');
+    assert.deepEqual([at.prev,at.next],[true,true],'in the middle both arrows');
+    // Scrolling by hand (a trackpad or shift-wheel) moves it too, and the arrows follow.
+    await page.hover('.gxsc-viewport');
+    await page.mouse.wheel(-2000,0);await page.waitForTimeout(700);
+    at=await nav();
+    assert.equal(at.left,0);
+    assert.deepEqual([at.prev,at.next],[false,true],'at the start only the right arrow');
+    await page.click('.gxsc-arrow[data-dir=next]');await page.waitForTimeout(700);
+    const step=await page.evaluate(()=>{const c=document.querySelectorAll('.gxsc-col');return c[1].getBoundingClientRect().left-c[0].getBoundingClientRect().left;});
+    assert.ok(Math.abs((await nav()).left-step)<=2,'one column at a time');
+    await page.click('.gxsc-arrow[data-dir=prev]');await page.waitForTimeout(700);
+    assert.equal((await nav()).left,0);
     // What a supplier carries can change.
     await page.uncheck('[data-supplier=home_depot] [data-carry="lib-shingle-gaf-hdz"]');
     // A supplier's price sheet goes to the agent with that supplier named, after the draft saves it.
@@ -236,29 +248,28 @@ test('the setup: logo grid, lines in tiers, materials list, costs and a price sh
     assert.equal(draft.action,'pricebook.setup.apply');
     assert.equal(draft.input.trade,'roofing');
     assert.deepEqual(draft.input.suppliers.map(entry=>entry.name),['The Home Depot','ABC Supply','Lowes','Smith Roofing Supply']);
-    await shot(page,'4-suppliers');
-    await press(page);
-    await onStep(page,'Check your material prices');
-    // Costs only, in two columns by kind; no markup; the coloured starter is listed because Grand Sequoia shows its starter.
+    // Costs are typed per supplier; they become the price book costs.
+    await page.fill('[data-supplier=home_depot] [data-cost="lib-shingle-gaf-uhdz"]','39.5');
+    await page.locator('[data-supplier=home_depot] [data-cost="lib-shingle-gaf-uhdz"]').dispatchEvent('change');
     assert.equal(await page.locator('[data-markup]').count(),0,'no markup');
-    assert.deepEqual(await page.locator('.gxs-prices h3').allInnerTexts(),['SHINGLES','ACCESSORIES (GAF)','COMMON ITEMS']);
-    assert.equal(await page.locator('[data-price="lib-starter-gaf-startermatch"]').count(),1);
-    assert.equal(await page.locator('[data-price="labor-tearoff-layer1"]').count(),0,'labor has its own page');
-    await page.fill('[data-price="lib-shingle-gaf-hdz"]','39.5');
-    await page.locator('[data-price="lib-shingle-gaf-hdz"]').dispatchEvent('change');
-    // The agent offers a price sheet upload in the conversation; the file goes to the model with the setup's message.
+    // The general price sheet: the agent offers it in this step; the file goes to the model with the setup's message.
     await page.waitForSelector('.gxs-assistant [data-fma-upload]');
-    assert.match(await page.locator('.gxs-assistant .fma-msg.assistant').last().innerText(),/price sheet from your supplier/);
+    assert.equal(await page.locator('.gxs-assistant .fma-msg.assistant',{hasText:/price sheet from your supplier/}).count(),1,'the agent offers it once');
     const [chooser]=await Promise.all([page.waitForEvent('filechooser'),page.click('.gxs-assistant [data-fma-upload]')]);
     await chooser.setFiles({name:'abc-supply.csv',mimeType:'text/csv',buffer:Buffer.from('sku,description,price\n0489180,Timberline HDZ,36.40\n')});
-    await page.waitForFunction(()=>window.calls.some(c=>c.path==='assistant'&&/price sheet/.test(c.body.message)));
+    await page.waitForFunction(()=>window.calls.some(c=>c.path==='assistant'&&/update my material prices/.test(c.body.message)));
     const sent=await page.evaluate(()=>window.calls.filter(c=>c.path==='assistant').at(-1));
     assert.deepEqual(sent.body.attachments,['media_abc-supply.csv'],'the file goes with it');
     assert.ok(await page.evaluate(()=>window.calls.some(c=>c.body?.type==='question'&&c.body.properties?.upload)));
-    await shot(page,'4-material-prices');
+    await shot(page,'4-suppliers');
     await press(page);
     await onStep(page,'Check your labor prices');
     await page.waitForTimeout(600);assert.deepEqual(await page.locator('.gxs-step:not(.gxs-above) .gxs-prices h3').allInnerTexts(),['LABOR AND SERVICES']);
+    // The labor list uses the full width, and its explanation is a tooltip.
+    const wide=await page.evaluate(()=>{const step=document.querySelector('.gxs-step:not(.gxs-above)'),body=step.querySelector('.gxs-body').getBoundingClientRect(),rows=step.querySelector('.gxs-price-rows').getBoundingClientRect();return {ratio:rows.width/body.width,sub:step.querySelectorAll('.gxs-sub').length,tip:!!step.querySelector('h2 [data-gxs-info] .gxs-info-tip')};});
+    assert.ok(wide.ratio>0.95,`full width (${wide.ratio})`);
+    assert.equal(wide.sub,0,'no wrapped subtitle');
+    assert.equal(wide.tip,true);
     assert.equal(await page.locator('[data-gxs=skip]').isVisible(),true,'an optional page has a clear Skip');
     await page.waitForTimeout(300);
     // Record the hand-off frame by frame.
@@ -276,7 +287,7 @@ test('the setup: logo grid, lines in tiers, materials list, costs and a price sh
     assert.equal(complete.body.selections.default_line,'lib-shingle-gaf-grand-sequoia');
     assert.equal(complete.body.selections.rules.shingles.waste,15);
     assert.equal(complete.body.selections.ice_eave_width,3);
-    assert.equal(complete.body.selections.prices['lib-shingle-gaf-hdz'],39.5);
+    assert.equal(complete.body.selections.suppliers.find(entry=>entry.preset==='home_depot').prices['lib-shingle-gaf-uhdz'],39.5,'the cost typed for that supplier');
     assert.equal(complete.body.selections.markup,undefined,'no markup is sent');
     const depot=complete.body.selections.suppliers.find(entry=>entry.preset==='home_depot');
     assert.ok(depot&&!depot.item_ids.includes('lib-shingle-gaf-hdz')&&depot.item_ids.includes('lib-shingle-gaf-uhdz'),'the unticked item left that supplier');
@@ -380,7 +391,7 @@ test('the labor page can be skipped, which leaves labor out',async()=>{
     await page.click('[data-mt-generate-materials]');
     await page.waitForSelector('.gxs-logo-tile');
     await page.click('[data-brand=gaf]');
-    for(const title of ['What shingles do you usually use?','How a roof becomes a materials list','Who provides your materials?','Check your material prices']){await press(page);await onStep(page,title);}
+    for(const title of ['What shingles do you usually use?','How a roof becomes a materials list','Who provides your materials?']){await press(page);await onStep(page,title);}
     await press(page);
     await onStep(page,'Check your labor prices');
     assert.equal(await page.locator('[data-gxs=next]').innerText(),'Build my price book');
@@ -513,7 +524,7 @@ test('the Materials settings mount: saved suppliers as columns, saved through th
     assert.equal(cols[0].accent,'rgb(249, 99, 2)');
     assert.deepEqual(cols.map(c=>c.carried),[['i2','i1'],['i2'],[]]);
     assert.equal(await page.locator('#tools [data-supplier=s1] [data-cost=i1]').inputValue(),'37.98','the saved cost');
-    assert.equal(await page.locator('#tools .gxsc-arrow').isVisible(),true,'three suppliers: an arrow to the third');
+    assert.equal(await page.locator('#tools .gxsc-arrow[data-dir=next]').getAttribute('data-off'),'false','three suppliers: an arrow to the third');
     await page.uncheck('#tools [data-supplier=s1] [data-carry=i2]');
     await page.fill('#tools [data-supplier=s1] [data-cost=i1]','36.5');
     await page.locator('#tools [data-supplier=s1] [data-cost=i1]').dispatchEvent('change');

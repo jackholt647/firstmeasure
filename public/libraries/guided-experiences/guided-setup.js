@@ -56,7 +56,8 @@
     .gxs-step h2{display:flex;align-items:center;gap:8px;margin:4px 0 12px;padding-right:44px;font-size:clamp(18px,2vw,22px);line-height:1.2;letter-spacing:-.02em;font-weight:780}
     .gxs-info{position:relative;flex:none;width:20px;height:20px;border-radius:50%;border:1px solid #d0d5dd;background:#fff;color:#667085;font:italic 700 11px/1 Georgia,serif;cursor:help;display:inline-grid;place-items:center;padding:0}
     .gxs-info-tip{position:absolute;left:50%;top:calc(100% + 8px);transform:translate(-50%,4px);width:max-content;max-width:min(320px,70vw);background:#101828;color:#fff;font:400 12.5px/1.45 system-ui,-apple-system,Segoe UI,Roboto,sans-serif;letter-spacing:0;text-align:left;border-radius:9px;padding:8px 10px;opacity:0;pointer-events:none;transition:opacity .15s,transform .15s;z-index:10}
-    .gxs-info:hover .gxs-info-tip,.gxs-info:focus-visible .gxs-info-tip{opacity:1;transform:translate(-50%,0)}
+    .gxs-info:hover .gxs-info-tip,.gxs-info:focus-visible .gxs-info-tip,.gxs-info:focus-within .gxs-info-tip{opacity:1;transform:translate(-50%,0)}
+    .gxs-info:focus-within .gxs-info-tip{pointer-events:auto;cursor:text}
     .gxs-step>p.gxs-sub{margin:0 0 18px;color:#667085;max-width:60ch}
     .gxs-foot{display:flex;align-items:center;gap:10px;padding:14px 20px;border-top:1px solid #f2f4f7;background:#fff}
     .gxs-foot .gxs-status{margin-right:auto;color:#667085;font-size:12.5px;min-height:18px}
@@ -297,9 +298,9 @@
         mounted?.destroy?.();
         const el = document.createElement('div');
         el.className = 'gxs-step' + (old && !reduced() ? (direction > 0 ? ' gxs-below' : ' gxs-above') : ''); el.dataset.gxStep = step.id;
-        // A compact header: the title, and its explanation in a tooltip (shown as text for a copy editor).
-        const editingCopy = !!G()?.isDevEditor?.();
-        el.innerHTML = `<h2>${H(step.title)}${step.subtitle && !editingCopy ? ` <button type="button" class="gxs-info" data-gxs-info aria-label="${esc(L(step.subtitle))}"><span aria-hidden="true">i</span><span class="gxs-info-tip" role="tooltip">${esc(L(step.subtitle))}</span></button>` : ''}</h2>${step.subtitle && editingCopy ? `<p class="gxs-sub">${H(step.subtitle)}</p>` : ''}<div class="gxs-body"></div>`;
+        // A compact header: the title, and its explanation in a tooltip. A copy editor edits it in the tooltip, which
+        // stays open while it has focus.
+        el.innerHTML = `<h2>${H(step.title)}${step.subtitle ? ` <span class="gxs-info" role="button" tabindex="0" data-gxs-info aria-label="${esc(L(step.subtitle))}"><span aria-hidden="true">i</span><span class="gxs-info-tip" role="tooltip">${H(step.subtitle)}</span></span>` : ''}</h2><div class="gxs-body"></div>`;
         stage.appendChild(el);
         currentPane = el;
         index = to;
@@ -501,10 +502,10 @@
   function registerWidget(id, widget){ widgets.set(id, widget); }
   const widgetCss = `
     .gxs-logos{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px}
-    .gxs-logo-tile{position:relative;display:grid;place-items:center;height:96px;padding:14px 18px;border:0;border-radius:14px;background:#f9fafb;cursor:pointer;transition:background .2s,box-shadow .25s,transform .2s;animation:gxsMsg .4s cubic-bezier(.22,1,.36,1) both}
+    .gxs-logo-tile{position:relative;display:grid;place-items:center;height:128px;padding:12px 16px;border:0;border-radius:14px;background:#f9fafb;cursor:pointer;transition:background .2s,box-shadow .25s,transform .2s;animation:gxsMsg .4s cubic-bezier(.22,1,.36,1) both}
     .gxs-logo-tile:hover{background:#f2f4f7;transform:translateY(-1px)}
-    .gxs-logo-tile img{display:block;max-width:100%;max-height:56px;width:auto;height:auto;object-fit:contain;transition:transform .25s cubic-bezier(.34,1.56,.64,1),filter .2s}
-    .gxs-logo-tile .gxs-wordmark{min-height:0;padding:0;font-size:22px;justify-content:center;text-align:center}
+    .gxs-logo-tile img{display:block;max-width:100%;max-height:100px;width:auto;height:auto;object-fit:contain;transition:transform .25s cubic-bezier(.34,1.56,.64,1),filter .2s}
+    .gxs-logo-tile .gxs-wordmark{min-height:0;padding:0;font-size:22px;line-height:1.1;max-width:100%;overflow-wrap:anywhere;justify-content:center;text-align:center}
     .gxs-logo-tile[aria-pressed=true]{background:color-mix(in srgb,var(--brand,#d93025) 7%,#fff);box-shadow:0 0 0 2px var(--brand,#d93025)}
     .gxs-logo-tile[aria-pressed=true] img{transform:scale(1.04)}
     .gxs-logo-tile[aria-pressed=false] img{filter:saturate(.85)}
@@ -525,7 +526,9 @@
     .gxs-line strong{font-weight:650;flex:1;min-width:0}
     .gxs-line em{font-style:normal;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:#667085}
     .gxs-more{border:0;background:transparent;color:var(--primary,#d93025);font:inherit;font-size:12px;font-weight:650;cursor:pointer;padding:2px 2px 6px}
-    .gxs-mats{display:flex;flex-direction:column;gap:6px}
+    .gxs-mats{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px 10px;align-items:start}
+    .gxs-mats .gxs-field{row-gap:4px}
+    .gxs-mats .gxs-field>span:first-child{flex-basis:100%;min-width:0}
     .gxs-mat{border:1px solid #eaecf0;border-radius:12px;background:#fff;overflow:visible}
     .gxs-mat>button{position:relative;display:flex;align-items:center;gap:10px;width:100%;border:0;background:transparent;padding:10px 12px;font:inherit;text-align:left;cursor:pointer;color:inherit;border-radius:12px}
     .gxs-mat>button:hover{background:#f9fafb}
@@ -545,8 +548,8 @@
     .gxs-field input[type=number]{width:84px;height:30px;border:1px solid #d0d5dd;border-radius:8px;padding:0 8px;font:inherit}
     .gxs-tip{position:fixed;z-index:2147483700;max-width:300px;background:#101828;color:#fff;font-size:12.5px;line-height:1.45;border-radius:10px;padding:8px 11px;box-shadow:0 12px 30px rgba(16,24,40,.3);pointer-events:none;opacity:0;transform:translateY(4px);transition:opacity .15s,transform .15s}
     .gxs-tip[data-show=true]{opacity:1;transform:none}
-    .gxs-prices{columns:2 300px;column-gap:20px}
-    .gxs-prices>section{break-inside:avoid;margin:0 0 10px}
+    .gxs-prices>section{margin:0 0 12px}
+    .gxs-price-rows{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));column-gap:24px}
     .gxs-prices h3{margin:0 0 4px;font-size:11.5px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:#667085}
     .gxs-price-row{display:flex;align-items:center;gap:8px;padding:4px 0;border-top:1px solid #f2f4f7;font-size:12.5px}
     .gxs-price-row span{flex:1;min-width:0}
@@ -559,8 +562,8 @@
     .gxs-supplier-custom{display:contents}
     .gxs-supplier-tag button{border:0;background:transparent;margin-left:4px;cursor:pointer;font-size:14px;line-height:1;color:#667085;padding:0}
     .gxs-supplier-input{flex:1 1 220px}
-    .gxs-supplier-cols{margin-top:6px;padding-right:14px}
-    @media(max-width:760px){.gxs-logos{grid-template-columns:repeat(2,minmax(0,1fr))}.gxs-logo-tile{height:76px}.gxs-logo-tile img{max-height:40px}}
+    .gxs-supplier-cols{margin-top:6px}
+    @media(max-width:760px){.gxs-logos{grid-template-columns:repeat(2,minmax(0,1fr))}.gxs-logo-tile{height:92px;padding:10px 12px}.gxs-logo-tile img{max-height:70px}.gxs-mats{grid-template-columns:minmax(0,1fr)}}
   `;
   const injectWidgetCss = () => G()?.injectCss?.('gx-setup-widgets-css', widgetCss);
   /** One shared tooltip: plain text, positioned beside the element it explains. */
@@ -743,7 +746,7 @@
         ['labor', L('gx_ui_group_labor', 'Labor and services'), array(options.labor)]
       ] };
   }
-  // Costs only, in two columns grouped by kind of material. The kinds come from the step (materials, or labor on its own page).
+  // Costs only, grouped by kind, rows across the full width. The kinds come from the step (labor on its own page).
   registerWidget('price-review', {
     render(el, { step, options, selections, change, L }){
       injectWidgetCss();
@@ -751,7 +754,7 @@
       const prices = { ...object(selections.prices) };
       const groups = chosenProducts(options, selections, L).groups.filter(([kind, , items]) => kinds.includes(kind) && items.length);
       const priceOf = (item) => prices[item.id] ?? item.price;
-      el.innerHTML = `<p class="gxs-sub" style="margin:0 0 8px">${H('gx_ui_prices_region', 'Typical costs for')} <b>${esc(options.region?.label || '')}</b></p><div class="gxs-prices">${groups.map(([, title, items]) => `<section><h3>${esc(title)}</h3>${items.map((item) => `<label class="gxs-price-row"><span>${esc(item.name)} <small>/ ${esc(item.unit)}</small></span><input type="number" min="0" step="0.01" inputmode="decimal" data-price="${esc(item.id)}" value="${esc(priceOf(item))}" aria-label="${esc(item.name)}"></label>`).join('')}</section>`).join('')}</div>`;
+      el.innerHTML = `<div class="gxs-prices">${groups.map(([, title, items]) => `<section><h3>${esc(title)}</h3><div class="gxs-price-rows">${items.map((item) => `<label class="gxs-price-row"><span>${esc(item.name)} <small>/ ${esc(item.unit)}</small></span><input type="number" min="0" step="0.01" inputmode="decimal" data-price="${esc(item.id)}" value="${esc(priceOf(item))}" aria-label="${esc(item.name)}"></label>`).join('')}</div></section>`).join('')}</div>`;
       const count = groups.reduce((sum, [, , items]) => sum + items.length, 0);
       const report = () => change({ prices, ...(kinds.includes('labor') ? { include_labor: true } : {}) }, `${count} ${L('gx_ui_products', 'products')}`);
       el.addEventListener('change', (event) => { const input = event.target.closest('[data-price]'); if (!input) return; const value = Number(input.value); if (Number.isFinite(value) && value >= 0) prices[input.dataset.price] = value; report(); });

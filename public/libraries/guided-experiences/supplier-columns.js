@@ -1,6 +1,7 @@
 /* public/libraries/guided-experiences/supplier-columns.js
  * Supplier columns: one thin column per supplier, side by side, showing the price book items it carries and what
- * they cost from it. Two show at a time; an arrow slides to the next and turns round at the end. Used by the price
+ * they cost from it. Two show at a time in a native horizontal scroller (scrollbar,
+ * trackpad, shift-wheel) snapping to a column; an arrow on each side scrolls one column, shown while there is more. Used by the price
  * book setup's "Who provides your materials?" step and mountable anywhere (the Materials settings).
  *
  *   window.FirstMateSupplierColumns.mount(el, { suppliers, items, onChange, onPriceSheet, labels })
@@ -37,10 +38,14 @@
   const initials = (name) => clean(name).split(/\s+/).filter((word) => /^[A-Za-z0-9]/.test(word)).slice(0, 2).map((word) => word[0].toUpperCase()).join('') || '?';
 
   const css = `
-    .gxsc{position:relative;--gxsc-gap:12px}
-    .gxsc-viewport{overflow:hidden;border-radius:12px}
-    .gxsc-track{display:flex;gap:var(--gxsc-gap);transition:transform .45s cubic-bezier(.65,0,.35,1);will-change:transform}
-    .gxsc-col{flex:0 0 calc((100% - var(--gxsc-gap)) / 2);min-width:0;border:1px solid #eaecf0;border-top:4px solid var(--supplier,#344054);border-radius:12px;background:#fff;display:flex;flex-direction:column;max-height:min(46vh,400px)}
+    .gxsc{position:relative;--gxsc-gap:12px;padding:0 16px}
+    .gxsc-viewport{overflow-x:auto;overflow-y:hidden;scroll-snap-type:x mandatory;scroll-behavior:smooth;overscroll-behavior-x:contain;padding-bottom:8px;scrollbar-width:thin;scrollbar-color:#c4c9d2 transparent}
+    .gxsc-viewport::-webkit-scrollbar{height:6px}
+    .gxsc-viewport::-webkit-scrollbar-track{background:transparent}
+    .gxsc-viewport::-webkit-scrollbar-thumb{background:#c4c9d2;border-radius:999px}
+    .gxsc-viewport::-webkit-scrollbar-thumb:hover{background:#98a2b3}
+    .gxsc-track{display:flex;gap:var(--gxsc-gap)}
+    .gxsc-col{flex:0 0 calc((100% - var(--gxsc-gap)) / 2);min-width:0;scroll-snap-align:start;border:1px solid #eaecf0;border-top:4px solid var(--supplier,#344054);border-radius:12px;background:#fff;display:flex;flex-direction:column;max-height:min(46vh,400px)}
     .gxsc-head{display:flex;align-items:center;gap:8px;padding:9px 10px 7px;border-bottom:1px solid #f2f4f7}
     .gxsc-badge{flex:none;width:26px;height:26px;border-radius:7px;background:var(--supplier,#344054);color:#fff;display:grid;place-items:center;font:800 11px/1 system-ui,sans-serif;letter-spacing:.02em}
     .gxsc-badge img{width:100%;height:100%;object-fit:contain;background:#fff;border-radius:7px}
@@ -59,14 +64,16 @@
     .gxsc-item[data-carried=false] input[type=number]{visibility:hidden}
     .gxsc-tools-head{display:flex;flex-direction:column;gap:2px;margin:0 0 8px}
     .gxsc-tools-head strong{font-size:13px;color:#101828}.gxsc-tools-head small{font-size:11.5px;color:#667085}
-    .gxsc-tools-cols{padding-right:14px}
+    .gxsc-tools-cols{}
     .gxsc-empty{color:#98a2b3;font-size:12px;padding:10px 4px}
-    .gxsc-arrow{position:absolute;top:50%;right:-14px;transform:translateY(-50%);width:32px;height:32px;border-radius:50%;border:1px solid #d0d5dd;background:#fff;box-shadow:0 6px 16px rgba(16,24,40,.15);cursor:pointer;display:grid;place-items:center;font-size:15px;color:#344054;transition:transform .3s cubic-bezier(.65,0,.35,1),opacity .2s;z-index:2}
-    .gxsc-arrow[data-dir=back]{transform:translateY(-50%) rotate(180deg)}
-    .gxsc-arrow[hidden]{display:none}
+    .gxsc-arrow{position:absolute;top:calc(50% - 4px);transform:translateY(-50%);width:32px;height:32px;border-radius:50%;border:1px solid #d0d5dd;background:#fff;box-shadow:0 6px 16px rgba(16,24,40,.15);cursor:pointer;display:grid;place-items:center;font-size:15px;color:#344054;z-index:2;transition:opacity .2s,transform .2s}
+    .gxsc-arrow[data-dir=prev]{left:0}
+    .gxsc-arrow[data-dir=next]{right:0}
+    .gxsc-arrow:hover{transform:translateY(-50%) scale(1.06)}
+    .gxsc-arrow[data-off=true]{opacity:0;pointer-events:none;transform:translateY(-50%) scale(.85)}
     .gxsc-arrow:focus-visible,.gxsc-sheet:focus-visible{outline:2px solid var(--primary,#d93025);outline-offset:2px}
-    @media(max-width:560px){.gxsc-col{flex-basis:calc((100% - var(--gxsc-gap)) / 2);max-height:300px}.gxsc-arrow{right:-6px}}
-    @media(prefers-reduced-motion:reduce){.gxsc-track,.gxsc-arrow{transition:none}}
+    @media(max-width:560px){.gxsc-col{max-height:300px}}
+    @media(prefers-reduced-motion:reduce){.gxsc-viewport{scroll-behavior:auto}.gxsc-arrow{transition:none}}
   `;
   function injectCss(doc){
     if (doc.getElementById('gx-supplier-columns-css')) return;
@@ -78,10 +85,10 @@
     injectCss(doc);
     let suppliers = array(options.suppliers).map((supplier) => ({ ...supplier, item_ids: [...new Set(array(supplier.item_ids))], prices: { ...(supplier.prices || {}) } }));
     const items = array(options.items);
-    let offset = 0;
     el.classList.add('gxsc');
-    el.innerHTML = '<div class="gxsc-viewport"><div class="gxsc-track"></div></div><button type="button" class="gxsc-arrow" data-dir="next" hidden>&#8594;</button>';
-    const track = el.querySelector('.gxsc-track'), arrow = el.querySelector('.gxsc-arrow');
+    el.innerHTML = `<div class="gxsc-viewport" tabindex="-1"><div class="gxsc-track"></div></div><button type="button" class="gxsc-arrow" data-dir="prev" data-off="true" aria-label="${esc(L('gx_sc_prev', 'Previous supplier'))}">&#8592;</button><button type="button" class="gxsc-arrow" data-dir="next" data-off="true" aria-label="${esc(L('gx_sc_next', 'Next supplier'))}">&#8594;</button>`;
+    const viewport = el.querySelector('.gxsc-viewport'), track = el.querySelector('.gxsc-track');
+    const prev = el.querySelector('[data-dir=prev]'), next = el.querySelector('[data-dir=next]');
     const groups = () => { const out = new Map(); for (const item of items) { const key = clean(item.group) || L('gx_sc_items', 'Items'); if (!out.has(key)) out.set(key, []); out.get(key).push(item); } return [...out]; };
     const column = (supplier) => {
       const carried = new Set(supplier.item_ids);
@@ -90,16 +97,16 @@
         <div class="gxsc-body">${items.length ? groups().map(([group, entries]) => `<div class="gxsc-group">${esc(group)}</div>${entries.map((item) => `<label class="gxsc-item" data-carried="${carried.has(item.id)}"><input type="checkbox" data-carry="${esc(item.id)}" ${carried.has(item.id) ? 'checked' : ''} aria-label="${esc(supplier.name)}: ${esc(item.name)}"><span title="${esc(item.name)}">${esc(item.name)}</span><input type="number" min="0" step="0.01" inputmode="decimal" data-cost="${esc(item.id)}" value="${esc(supplier.prices[item.id] ?? supplier.base_prices?.[item.id] ?? item.price ?? '')}" aria-label="${esc(L('gx_sc_cost', 'Cost'))}: ${esc(item.name)}"></label>`).join('')}`).join('') : `<div class="gxsc-empty">${H('gx_sc_no_items', 'No products yet.')}</div>`}</div>
       </section>`;
     };
+    /** The arrows follow the scroll position, however it got there: each shows while there is more that way. */
     function syncArrow(){
-      const pages = Math.max(0, suppliers.length - 2);
-      arrow.hidden = pages === 0;
-      offset = Math.min(offset, pages);
-      arrow.dataset.dir = offset >= pages ? 'back' : 'next';
-      arrow.setAttribute('aria-label', offset >= pages ? L('gx_sc_back', 'Back to the first suppliers') : L('gx_sc_next', 'Next supplier'));
-      const col = track.querySelector('.gxsc-col');
-      const step = col ? col.getBoundingClientRect().width + 12 : 0;
-      track.style.transform = `translateX(${-offset * step}px)`;
+      const max = viewport.scrollWidth - viewport.clientWidth;
+      const set = (arrow, off) => { arrow.dataset.off = String(off); arrow.tabIndex = off ? -1 : 0; arrow.setAttribute('aria-hidden', String(off)); };
+      set(prev, viewport.scrollLeft <= 1);
+      set(next, viewport.scrollLeft >= max - 1);
     }
+    const columnStep = () => { const col = track.querySelector('.gxsc-col'); return col ? col.getBoundingClientRect().width + (parseFloat(getComputedStyle(track).columnGap) || 12) : viewport.clientWidth / 2; };
+    const scrollColumns = (count) => viewport.scrollBy({ left: count * columnStep(), behavior: reduced() ? 'auto' : 'smooth' });
+    viewport.addEventListener('scroll', syncArrow, { passive: true });
     function draw(){ track.innerHTML = suppliers.map(column).join(''); syncArrow(); }
     const notify = () => options.onChange?.(suppliers.map((supplier) => ({ ...supplier, item_ids: [...supplier.item_ids], prices: { ...supplier.prices } })));
     el.addEventListener('change', (event) => {
@@ -118,7 +125,8 @@
       notify();
     });
     el.addEventListener('click', (event) => {
-      if (event.target.closest('.gxsc-arrow')) { const pages = Math.max(0, suppliers.length - 2); offset = offset >= pages ? 0 : offset + 1; syncArrow(); return; }
+      const arrow = event.target.closest('.gxsc-arrow');
+      if (arrow) { scrollColumns(arrow.dataset.dir === 'prev' ? -1 : 1); return; }
       const sheet = event.target.closest('[data-sheet]');
       if (sheet) options.onPriceSheet?.(suppliers.find((entry) => entry.key === sheet.dataset.sheet));
     });
@@ -126,7 +134,8 @@
     resize?.observe(el);
     draw();
     return {
-      update(next){ const before = suppliers.length; suppliers = array(next).map((supplier) => ({ ...supplier, item_ids: [...new Set(array(supplier.item_ids))], prices: { ...(supplier.prices || {}) } })); if (suppliers.length > before) offset = Math.max(0, suppliers.length - 2); draw(); },
+      // A supplier just added is scrolled into view.
+      update(list){ const before = suppliers.length; suppliers = array(list).map((supplier) => ({ ...supplier, item_ids: [...new Set(array(supplier.item_ids))], prices: { ...(supplier.prices || {}) } })); const left = viewport.scrollLeft; draw(); viewport.scrollLeft = left; if (suppliers.length > before) viewport.scrollTo({ left: viewport.scrollWidth, behavior: reduced() ? 'auto' : 'smooth' }); syncArrow(); },
       suppliers: () => suppliers,
       destroy(){ resize?.disconnect(); el.innerHTML = ''; el.classList.remove('gxsc'); }
     };

@@ -471,7 +471,9 @@
     if (!drawer || drawer.querySelector('.gx-faqs-wrap')) return null;
     const doc = drawer.ownerDocument || document;
     injectCss('gx-faq-css', faqCss, doc);
-    if (devState.editor) installDev(doc);
+    // A frame with its own copy of this library edits its own document; installing there too would save every edit twice.
+    const ownGuides = (() => { try { return doc.defaultView?.FirstMateGuides; } catch (_) { return null; } })();
+    if (devState.editor && (!ownGuides || ownGuides === root.FirstMateGuides)) installDev(doc);
     const composer = drawer.querySelector('[data-fma="composer"]');
     const shell = composer?.querySelector('.fma-compose-shell');
     if (!composer || !shell) return null;
@@ -681,10 +683,10 @@
    */
   const COLLAPSE_KEY = 'fm-gx-dev-collapsed';
   function mountDevPill(doc){
-    let top = null;
-    try { top = root.top !== root && root.top.document ? root.top : null; } catch (_) { top = null; }
-    // A project frame leaves the pill to the page above it (same origin); only an unreachable parent gets its own.
-    if (top) return;
+    // Only the top page gets the pill. A project frame (whichever library instance draws into it: its own, or the
+    // page's when it attaches the frame's assistant) leaves it to the page above; only an unreachable parent gets one.
+    const reachableTop = (win) => { try { return win && win.top !== win && win.top.document ? win.top : null; } catch (_) { return null; } };
+    if (reachableTop(root) || reachableTop(doc.defaultView)) return;
     if (doc.querySelector('.gx-dev')) return;
     const host = doc.createElement('div'); host.className = 'gx-dev'; host.setAttribute('data-fmr-ignore', '');
     let collapsed = true;
