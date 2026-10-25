@@ -229,9 +229,15 @@ export function disposeSidebar(root){const state=sidebars.get(root);state?.obser
 export function showSidebarView(root,view){const state=sidebars.get(root);if(!state||!(state.views||VIEWS).some(([key])=>key===view))return false;if(state.view!==view){state.view=view;showViews(root,state);}return true;}
 export function setSidebarVisible(root,visible){const state=sidebars.get(root);if(state){state.visible=visible;showViews(root,state);}}
 
-export function installDivider(sidebar) {
+// options.defaultRatio is the left side's starting share (percent); options.layout names the arrangement it belongs to,
+// so a width someone dragged in one arrangement (e.g. several resource columns) is not reused for another.
+export function installDivider(sidebar, options = {}) {
   const parent = sidebar?.parentElement;
-  if (!parent || dividers.has(sidebar)) return;
+  const defaultRatio = Number(options.defaultRatio) || 100 / 3;
+  const storageKey = options.layout ? `firstmate.scope.widgetWidth.${options.layout}` : 'firstmate.scope.widgetWidth';
+  const installed = dividers.get(sidebar);
+  if (installed) { installed.__layout?.(defaultRatio, storageKey); return; }
+  if (!parent) return;
   const divider = document.createElement('button');
   divider.className = 'mt-scope-divider';
   divider.type = 'button';
@@ -240,15 +246,23 @@ export function installDivider(sidebar) {
   divider.setAttribute('aria-orientation', 'vertical');
   divider.setAttribute('aria-valuemin', '20');
   divider.setAttribute('aria-valuemax', '65');
-  let ratio = 100 / 3;
-  try { ratio = Number(localStorage.getItem('firstmate.scope.widgetWidth')) || ratio; } catch {}
+  let key = storageKey, layoutDefault = defaultRatio;
+  const remembered = name => { try { return Number(localStorage.getItem(name)) || 0; } catch { return 0; } };
+  let ratio = remembered(key) || layoutDefault;
   const set = value => {
     ratio = Math.min(65, Math.max(20, value));
     sidebar.style.setProperty('--scope-sidebar-width', `${ratio}%`);
     divider.setAttribute('aria-valuenow', String(Math.round(ratio)));
   };
-  const save = () => { try { localStorage.setItem('firstmate.scope.widgetWidth', String(ratio)); } catch {} };
+  const save = () => { try { localStorage.setItem(key, String(ratio)); } catch {} };
   set(ratio);
+  // The arrangement changed (e.g. a resource column was added): use that arrangement's remembered or default width.
+  divider.__layout = (nextDefault, nextKey) => {
+    if (nextKey === key && nextDefault === layoutDefault) return;
+    key = nextKey; layoutDefault = nextDefault;
+    set(remembered(key) || layoutDefault);
+    window.dispatchEvent(new Event('resize'));
+  };
   let dragging = false;
   divider.addEventListener('pointerdown', event => { dragging = true; divider.setPointerCapture(event.pointerId); event.preventDefault(); });
   divider.addEventListener('pointermove', event => {

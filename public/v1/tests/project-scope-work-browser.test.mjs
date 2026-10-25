@@ -75,8 +75,12 @@ test('the project renderer mounts the compact published rail without requiring w
   const target={querySelector(){},textContent:''};
   const ctx={performance,state:{active:true,lists:[],scopeDocuments:[],scopeDocumentsError:'',sidebarRoot:{classList:{add(){},remove(){}},querySelector:()=>null}},
     leftContentRoot:()=>target,orgId:()=> 'org',projectId:()=> 'project',schedulingOn:()=>true,timingMark(){},disposeScopeWidgets(){},scopeWidgetContext:()=>({fragments:{'scope.lists':()=>null}}),
-    scopeWorkspace:{mountSidebar:(root,docs,error,key)=>{assert.equal(key,'org:project');mounted=true},installDivider:()=>divider=true}};
-  vm.createContext(ctx);vm.runInContext(fn('renderLeft'),ctx);ctx.renderLeft();assert.ok(mounted&&divider);
+    railLayout:()=>({defaultRatio:50,layout:'single'}),
+    scopeWorkspace:{mountSidebar:(root,docs,error,key)=>{assert.equal(key,'org:project');mounted=true},installDivider:(root,layout)=>{divider=layout}}};
+  vm.createContext(ctx);vm.runInContext(fn('renderLeft'),ctx);ctx.renderLeft();assert.ok(mounted);assert.equal(divider.defaultRatio,50);
+  // One resource column gives an even split; several give the rail a third.
+  const layoutCtx={resourceCategories:()=>[{id:'material'}]};vm.createContext(layoutCtx);vm.runInContext(fn('railLayout'),layoutCtx);
+  assert.equal(layoutCtx.railLayout().defaultRatio,50);layoutCtx.resourceCategories=()=>[{id:'material'},{id:'labor'}];assert.ok(Math.abs(layoutCtx.railLayout().defaultRatio-100/3)<1e-9);
 });
 
 test('failed creation does not persist an item and releases the saving state', async () => {

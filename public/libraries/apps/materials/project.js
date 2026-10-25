@@ -8,7 +8,7 @@
   let draftSave = null;
   let refreshTimer;
   const draftText = (key, fallback) => globalThis.PlatformLanguage?.text("materials", key, fallback) ?? fallback;
-  const scopeWorkspaceUrl = new URL('./scope-of-work.js?v=20261025-draft-project', document.currentScript?.src || `${location.origin}/libraries/apps/materials/project.js`).href;
+  const scopeWorkspaceUrl = new URL('./scope-of-work.js?v=20261025-rail-split', document.currentScript?.src || `${location.origin}/libraries/apps/materials/project.js`).href;
   const calculusAdapterUrl = new URL('./calculus-native.js?v=20261022-retire', document.currentScript?.src || `${location.origin}/libraries/apps/materials/project.js`).href;
   const closeoutUrl = new URL('./closeout.js?v=20261019-closeout-partial', document.currentScript?.src || `${location.origin}/libraries/apps/materials/project.js`).href;
   const runtime = window.FirstMateEmbeddableApps;
@@ -394,6 +394,9 @@
   // Whether the organization has the Equipment app (apps.equipment). The server leaves the equipment column out of the
   // resource types while it is off and refuses to make an equipment list, so the columns it sent are the answer here.
   function equipmentOn(){ return resourceCategories().some((row) => row.id === 'equipment'); }
+  // The rail and the resource columns share the width: with one column (often just materials) it is an even split,
+  // which leaves room for the roof model beside the agent; with more columns the rail takes a third.
+  function railLayout(){ return resourceCategories().length <= 1 ? { defaultRatio:50, layout:'single' } : { defaultRatio:100 / 3 }; }
   // An equipment list kept from when the Equipment app was on: still shown in the work order column, read-only.
   function equipmentListRetired(list){ return resourceType(list) === 'equipment' && !equipmentOn(); }
   // Whether the organization has groups of users (the groups app, apps.crew; People › Groups). Unknown flags change nothing.
@@ -2306,7 +2309,7 @@
       state.scopeDocumentsError = result.error;
       render({ preserveScroll:true });
       renderLeft();
-      scopeWorkspace.installDivider(state.sidebarRoot);
+      scopeWorkspace.installDivider(state.sidebarRoot, railLayout());
     } catch (error) {
       if (!loadContextIsCurrent(loadContext)) return;
       state.scopeDocumentsError = 'Scope documents could not load.';
@@ -6218,7 +6221,7 @@
     disposeScopeWidgets();
     if(scopeWorkspace)scopeWorkspace.mountSidebar(target,state.scopeDocuments,state.scopeDocumentsError,`${orgId()}:${projectId()}`,{draft:!projectId(),scheduling:schedulingOn(),widgetContext:scopeWidgetContext(),scheduleContext:state.context,measurementOverrides:state.measurementOverrides,onMeasurementChange:(key,value)=>{state.measurementOverrides={...state.measurementOverrides,[key]:value};syncMaterialsGrid();}});
     else renderRailState(target);
-    scopeWorkspace?.installDivider(state.sidebarRoot);
+    scopeWorkspace?.installDivider(state.sidebarRoot, railLayout());
     timingMark('renderLeft:end', { active: state.active }, timingStart);
   }
 
