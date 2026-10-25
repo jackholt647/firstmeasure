@@ -11,6 +11,9 @@ import { EVENT_TYPES, selectionsSchema, type Copy, type ExperienceDefinition, ty
 import { experience, guidedSource, listExperiences, tabFaqs } from "./registry.js";
 import { listProgress, readProgress, recordEvent, wasExposed, writeProgress, type Progress } from "./store.js";
 import { registerMaterialsGuidedExperiences } from "./definitions/materials.js";
+import { registerPhotosGuidedExperiences } from "./definitions/photos.js";
+import { registerReportsGuidedExperiences } from "./definitions/reports.js";
+import { registerCustomerPortalGuidedExperiences } from "./definitions/customer-portal.js";
 
 /**
  * The guided-experience runtime on the server: which experiences a person may play now (eligibility, the chooser,
@@ -19,7 +22,7 @@ import { registerMaterialsGuidedExperiences } from "./definitions/materials.js";
  * conversation) and the context the real assistant gets when the person types during one.
  */
 
-export function ensureGuidedDefinitions() { registerMaterialsGuidedExperiences(); }
+export function ensureGuidedDefinitions() { registerMaterialsGuidedExperiences(); registerPhotosGuidedExperiences(); registerReportsGuidedExperiences(); registerCustomerPortalGuidedExperiences(); }
 
 const text = (value: unknown) => String(value ?? "").trim();
 const object = (value: unknown): Record<string, unknown> => value && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : {};

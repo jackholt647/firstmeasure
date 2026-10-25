@@ -13,7 +13,7 @@ eligibility and its chooser.
 | Where | What |
 |---|---|
 | `public/v1/guided-experiences/contracts.ts` | The definition schema (zod): kinds, steps, triggers, variants, completion, FAQs, selection limits. |
-| `public/v1/guided-experiences/registry.ts` | `registerExperience`, `registerTabFaqs`, `registerGuidedSource`. A malformed definition stops the server. |
+| `public/v1/guided-experiences/registry.ts` | `registerExperience`, `registerTabFaqs`, `addTabFaqs`, `registerGuidedSource`. A malformed definition stops the server. |
 | `public/v1/guided-experiences/chooser.ts` | Deterministic bucketing and variant choice; region and size helpers. |
 | `public/v1/guided-experiences/store.ts` | SQL store `guided-experiences`: `guided_progress`, `guided_events`. |
 | `public/v1/guided-experiences/service.ts` | Eligibility, resolving for a person, events, completion, the scripted conversation, the assistant hook. |
@@ -287,6 +287,26 @@ sets its costs with `suppliers.prices.update`. No supplier logos ship (they need
 each company's permission). Another
 trade plugs in with a `TradeSetup` in `pricebook/setups/index.ts` and its own
 experience definition.
+
+## Tab tours: Photos, Reports, Customer Portal
+
+One overlay tour per tab, each in its own file under `definitions/` and
+registered in `ensureGuidedDefinitions`: `photos.tab_tutorial` (`photos.ts`,
+`project.photos`, `platform.project_photos`), `reports.tab_tutorial`
+(`reports.ts`, `project.measurements`, `apps.firstmeasure`) and
+`customer_portal.tab_tutorial` (`customer-portal.ts`, `project.customer_portal`,
+`platform.customer_portal`). Each is per person and replayable, plays on the
+first `tab_opened` of its tab wherever the tab's capability is on, and has an
+intro, its steps on the tab's own hooks (a step whose control is not on the
+page, such as a report's model before it is ready, is skipped) and an outro
+pointing at "Show me the tutorial again". That replay question is added to the
+tab's existing questions with `addTabFaqs`, which merges with
+`registerTabFaqs` in either order and keeps the limit of eight; a file never
+edits another file's questions. There is no Docs tour yet: the Documents tab
+is being reworked first. `tests/guided-tab-tours.test.ts` checks the data and
+that every target's hooks are in the tab's source;
+`tests/guided-tab-tours-browser.test.ts` plays each tour against the real
+service.
 
 ## Agents can press the buttons
 
