@@ -231,8 +231,11 @@
     const id = lower(appId);
     if (!id) return false;
     injectStyles();
-    syncHelp(container, tabId, id);
-    const tutorial = tutorialFor(id);
+    // Guided experiences (docs/architecture/guided-experiences.md) play tab tours; this hook only announces the tab.
+    root.dispatchEvent?.(new CustomEvent('fm:project-tab:opened', { detail:{ appId:id, tabId, isActive } }));
+    if (root.FirstMateGuides) { container?.querySelector?.(':scope > .fm-tab-help')?.remove(); }
+    else syncHelp(container, tabId, id);
+    const tutorial = root.FirstMateGuides ? null : tutorialFor(id);
     if (tutorial && !hasSeen(SEEN_TUTORIALS, tutorial.id) && !playing) {
       const timer = setTimeout(() => {
         pendingTimers.delete(timer);

@@ -105,19 +105,34 @@ a centred card when a step has no target). Back, Next, Skip step, Skip tutorial
 The highlighted element can still be pressed; everything else is blocked. Above
 the project window (`z-index` 2147483300) and `data-fmr-ignore`.
 
-**Modal / agentic** (`guided-setup.js`): a sheet in front of a blurred dim. The
-step widget is on the left and each new step rises into place as the last one
-lifts away. The agentic kind adds the conversation on the right: the step's
-`say` lines appear with a typing indicator. Each scripted turn (the person's
-choice in plain words and the step's lines) is also written into the person's
-own project conversation (`POST …/conversation`, `project:<id>` thread), so the
-agent tray later holds it. If the person types, the real assistant answers in
-that thread: the assistant's prepare hook adds `guidedConversationContext`
-(which setup, which step, the choices so far, and to hand back to the steps and
-not write the price book itself). On finish the completion action runs, the
-sheet closes and the conversation flies to where the project's agent tray opens;
-the tray loads the same thread. Under 760px the sheet fills the screen and the
-conversation folds below it. `prefers-reduced-motion` turns every animation off.
+**Modal / agentic** (`guided-setup.js`): a sheet in front of a blurred dim, with
+one close (X) at its top right that asks before skipping the setup. The step
+widget is on the left and each new step rises into place as the last one lifts
+away. The agentic kind puts the platform assistant itself on the right: a
+`PlatformAssistant.mountProject` instance on the person's own project
+conversation, the same component as the agent tray, running the setup as a
+preprogrammed workflow (below). Each scripted turn (the person's choice in plain
+words and the step's `say` lines) is written into that conversation on the server
+(`POST …/conversation`) and shown in the assistant as it would type it. If the
+person types, the assistant sends the turn to the real model in that thread: the
+prepare hook adds `guidedConversationContext` (which setup, which step, the
+choices so far, and to hand back to the steps and not write the price book
+itself); after its answer the workflow says to carry on. On finish the
+completion action runs, the sheet closes and the assistant column flies to where
+the project's agent tray opens; the tray's own instance loads the same thread.
+Under 760px the sheet fills the screen and the assistant folds below it behind an
+Agent handle. `prefers-reduced-motion` turns every animation off. Without the
+assistant (or without a project) the same steps play as a modal.
+
+**Preprogrammed workflows in the assistant** (`platform-assistant.js`). A host
+passes `workflow` when it mounts an instance (`mountProject`, `mountSurface`):
+`onUserMessage(text)` sees a typed message first (return `true` to answer it
+itself, otherwise the model answers); `onReply(message)` follows each model
+answer; `onChoice(id, messageId)` receives a press on a choice. The instance adds
+`say(lines)` (programmatic lines with the usual working indicator) and
+`post({ role, content, data })`; `data.choices: [{ id, label }]` draws choice
+buttons under a message. A line the host also stored in the thread is not shown
+twice when the conversation reloads. A workflow surface gets no tab questions.
 
 Widgets are registered with `FirstMateGuidedSetup.registerWidget(id, { render(el,
 { step, options, selections, change }) })`. `change(patch, summary)` merges a
@@ -126,9 +141,22 @@ selection patch and gives the plain summary the agent repeats. First ones:
 
 **Triggers in the browser.** `before_action` is a capture-phase click listener:
 it holds the click, plays, and after `then` clicks the element again with a
-bypass. A dismissed setup also lets the click through. `tab_opened` reads the
-route (`project`, `projectTab`) on `fm:route-state:updated`. `after_experience`
-is the `play` in `then`.
+bypass (found again by its selector if the page redrew it). A dismissed setup
+also lets the click through. `tab_opened` listens for `fm:project-tab:opened`,
+which `tab-guides.js` `opened()` dispatches in the frame that shows the tab;
+route changes only refresh what is offered. `after_experience` is the `play` in
+`then`.
+
+**One experience at a time.** The portal and every project window (an iframe of
+the portal) load this library, so the lock and queue live on the top window
+(`__fmGuidedLock`): a second request waits, the same experience asked for again
+is ignored, and every play re-reads progress from the server first, so nothing
+finished replays. Events are sent in order in the background; nothing on screen
+waits for them. In a setup, Next moves at once (only a step with `branches`
+waits for the server) and a burst of presses within 250 ms counts once; in a
+tour, only the first step waits for its target, later missing targets are
+skipped at once, and a newer move cancels an older one. Back works at any time.
+`tab-guides.js` no longer plays its own tutorials when this library is present.
 
 ## Assistant suggestions
 
@@ -156,7 +184,10 @@ question.
 
 **Price book setup** (`pricebook/setups/roofing.ts`). Products, rules and regions
 come from `materials/roofing-research/roofing-catalog-2026.json`, read in its own
-schema, with the roofing library as the fallback. The selections become:
+schema, with the roofing library as the fallback. Every manufacturer in the catalog is offered,
+the four most installed first; a manufacturer's `logo` (a path under
+`public/images/brands/roofing/`, checked by `logoPath`) shows in a common box on its card, and the
+wordmark shows when there is none or it fails to load. The selections become:
 
 - price book items for the chosen lines, the default line's brand's system
   accessories (another chosen brand fills a gap), the common items, and labor and
@@ -215,7 +246,9 @@ Materials tab audit (October 24), button to published action:
 6. Tests: `tests/guided-experiences.test.ts` (engine),
    `tests/pricebook-roofing-setup.test.ts` (the roofing setup) and
    `tests/guided-experiences-browser.test.mjs` (overlay, setup, hand-off, FAQs,
-   replay, phone width). Set `GX_SHOTS=<dir>` to save screenshots.
+   replay, phone width) and `tests/guided-experiences-flow-browser.test.mjs`
+   (portal plus project frame: one experience at a time, fast Next and Back,
+   close mid-tour, reopen, reload, switch projects, the tray's lines once). Set `GX_SHOTS=<dir>` to save screenshots.
 
 ## Limits (prototype)
 

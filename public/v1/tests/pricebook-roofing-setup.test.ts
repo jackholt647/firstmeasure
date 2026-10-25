@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
-import { mkdtemp, rm } from "node:fs/promises";
+import { mkdtemp, readFile, rm } from "node:fs/promises";
+import { existsSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import test, { after } from "node:test";
@@ -20,13 +21,30 @@ test("the research catalog is read in its own schema, with the library as the fa
   const roofing = await import("../pricebook/setups/roofing.js");
   const research = roofing.readResearchCatalog();
   assert.ok(research, "the research catalog is in the checkout");
-  assert.deepEqual(research!.brands.map((brand) => brand.id).sort(), ["certainteed", "gaf", "malarkey", "owens_corning"]);
+  // Every manufacturer in the catalog file is offered, whatever the research adds.
+  const raw = JSON.parse(await readFile(path.resolve(process.cwd(), "materials/roofing-research/roofing-catalog-2026.json"), "utf8"));
+  const expected = raw.manufacturers.map((maker: any) => String(maker.pricebook_manufacturer || maker.id)).sort();
+  assert.deepEqual(research!.brands.map((brand) => brand.id).sort(), expected);
+  for (const id of ["certainteed", "gaf", "malarkey", "owens_corning"]) assert.ok(expected.includes(id));
+  for (const maker of raw.manufacturers.filter((entry: any) => entry.logo)) {
+    const brandId = String(maker.pricebook_manufacturer || maker.id);
+    const brand: { id: string; logo?: string } = research!.brands.find((entry) => entry.id === brandId)!;
+    assert.equal(brand.logo, roofing.logoPath(maker.logo), `${brand.id} carries its logo`);
+    assert.ok(existsSync(path.resolve(process.cwd(), "..", brand.logo!.slice(1))), `${brand.logo} is in public/`);
+  }
   assert.ok(research!.brands.every((brand) => brand.lines.length >= 3), "each brand has its lines");
   const duration = research!.brands.find((brand) => brand.id === "owens_corning")!.lines.find((line) => line.id === "lib-shingle-oc-duration")!;
   assert.equal(Math.round(duration.coverage * 1000) / 1000, 0.328, "an Owens Corning bundle covers 32.8 sq ft, not a flat third of a square");
   const weatherwatch = research!.brands.find((brand) => brand.id === "gaf")!.accessories.find((entry) => entry.id === "lib-iws-gaf-weatherwatch")!;
   assert.equal(weatherwatch.coverage, 2, "a WeatherWatch roll's own coverage, 200 sq ft");
   assert.ok(research!.regions.some((region) => region.id === "northeast" && region.states.includes("NY")));
+  // Logos are site paths under public/images; anything else is dropped and the card shows the wordmark.
+  assert.equal(roofing.logoPath("public/images/brands/roofing/gaf.svg"), "/images/brands/roofing/gaf.svg");
+  assert.equal(roofing.logoPath({ src: "images/brands/roofing/iko.png" }), "/images/brands/roofing/iko.png");
+  assert.equal(roofing.logoPath("javascript:alert(1)"), "");
+  assert.equal(roofing.logoPath("images/brands/roofing/gaf.exe"), "");
+  const options = roofing.roofingSetupOptions("TX");
+  assert.deepEqual(options.brands.slice(0, 4).map((brand: any) => brand.id), ["gaf", "owens_corning", "malarkey", "certainteed"], "the four most installed first, any others after");
   const library = roofing.readResearchCatalog(path.join(dir, "missing.json"));
   assert.equal(library, null);
   assert.ok(roofing.libraryCatalog().brands.length >= 3, "without the research file the library still offers brands");

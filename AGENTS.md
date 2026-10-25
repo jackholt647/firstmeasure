@@ -394,7 +394,8 @@ conditions), never a configuration check. What a setup writes is a published
 action run as the person. Scripted agent lines are programmatic; the real
 assistant answers only when the person types. Run
 `tests/guided-experiences.test.ts`, `tests/pricebook-roofing-setup.test.ts` and
-`tests/guided-experiences-browser.test.mjs` for changes here.
+`tests/guided-experiences-browser.test.mjs` and
+`tests/guided-experiences-flow-browser.test.mjs` for changes here.
 
 ## Realtime: one stream per page
 

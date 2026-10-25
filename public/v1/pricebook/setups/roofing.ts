@@ -32,7 +32,7 @@ export type Product = {
   coverage: number; rule: string;
 };
 export type Rule = { id: string; label: string; explanation: string; group: string; formula: string | null; unit: string; include_waste: boolean; show: boolean; order: number; per_package?: number };
-type Brand = { id: string; name: string; color: string; tagline: string; lines: Product[]; accessories: Product[] };
+type Brand = { id: string; name: string; color: string; tagline: string; logo?: string; lines: Product[]; accessories: Product[] };
 type Region = { id: string; label: string; states: string[]; material: number; labor: number };
 export type RoofingCatalog = { source: "research" | "library"; markup: number; brands: Brand[]; generic: Product[]; labor: Product[]; rules: Rule[]; regions: Region[] };
 
@@ -57,6 +57,14 @@ const num = (...values: unknown[]) => { for (const value of values) { const n = 
 const list = (value: unknown) => Array.isArray(value) ? value as Record<string, unknown>[] : [];
 const obj = (value: unknown) => value && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : {};
 
+/** A brand's logo as a site path: the research writes images under public/images/brands/<trade>/. */
+export function logoPath(value: unknown) {
+  const raw = String(typeof value === "string" ? value : obj(value).src ?? obj(value).path ?? obj(value).url ?? "").trim().split("\\").join("/");
+  if (!raw || /[<>"'\s]/.test(raw) || /^(javascript|data):/i.test(raw)) return "";
+  if (/^https:\/\//i.test(raw)) return raw;
+  const site = raw.replace(/^(\.\/)+/, "").replace(/^public\//, "").replace(/^\/+/, "");
+  return /\.(svg|png|webp|jpe?g)$/i.test(site) ? `/${site}` : "";
+}
 const RESEARCH_PATH = () => path.resolve(process.cwd(), "materials/roofing-research/roofing-catalog-2026.json");
 let cache: { file: string; mtime: number; value: RoofingCatalog | null } | null = null;
 
@@ -99,7 +107,10 @@ export function readResearchCatalog(file = RESEARCH_PATH()): RoofingCatalog | nu
     const brands: Brand[] = list(raw.manufacturers).map((maker) => {
       const id = String(maker.pricebook_manufacturer || maker.id), look = BRAND_LOOK[id] || { name: String(maker.name), color: String(obj(maker.logo_hint).primary_color || "#344054"), tagline: "" };
       const manufacturer = String(maker.name || look.name);
-      return { id, name: manufacturer, color: String(obj(maker.logo_hint).primary_color || look.color), tagline: look.tagline,
+      // A brand without a written tagline is described by its first few lines, popular ones first.
+      const named = list(maker.product_lines).sort((a, b) => Number(b.popular === true) - Number(a.popular === true)).map((line) => String(line.name || "")).filter(Boolean);
+      const tagline = BRAND_LOOK[id]?.tagline || named.slice(0, 3).join(", ");
+      return { id, name: manufacturer, color: String(obj(maker.logo_hint).primary_color || look.color), tagline, ...(logoPath(maker.logo) ? { logo: logoPath(maker.logo) } : {}),
         lines: list(maker.product_lines).map((line) => ({ ...product(line, "line", id, manufacturer, "field_shingles"), name: `${manufacturer} ${String(line.name)}` })),
         accessories: list(maker.accessories).filter((entry) => ACCESSORY_ROLES.includes(String(entry.role))).map((entry) => ({ ...product(entry, "accessory", id, manufacturer, String(entry.role)), name: `${manufacturer} ${String(entry.name)}` })) };
     }).filter((brand) => brand.lines.length);
@@ -179,6 +190,7 @@ export function productFormula(rule: Rule, product: Product, iceEaveWidth: numbe
 }
 
 /** What the setup shows: brands and their lines, the walkthrough's rules and sample roof, and prices for the region. */
+const rank = (id: string) => FEATURED.includes(id) ? FEATURED.indexOf(id) : FEATURED.length;
 export function roofingSetupOptions(state: string, regionId = "") {
   const catalog = roofingCatalog(), region = regionFor(catalog, state, regionId);
   const price = (product: Product) => round2(product.price * (product.kind === "labor" ? region.labor : region.material));
@@ -187,7 +199,8 @@ export function roofingSetupOptions(state: string, regionId = "") {
   return {
     trade: "roofing", catalog: catalog.source, markup: catalog.markup,
     region: { id: region.id, label: region.label }, regions: catalog.regions.map((entry) => ({ id: entry.id, label: entry.label })),
-    brands: catalog.brands.sort((a, b) => FEATURED.indexOf(a.id) - FEATURED.indexOf(b.id)).map((brand) => ({ id: brand.id, name: brand.name, color: brand.color, tagline: brand.tagline, lines: brand.lines.map(card), accessories: brand.accessories.map(card) })),
+    // The four most installed first, then every other brand in the catalog's order.
+    brands: [...catalog.brands].sort((a, b) => rank(a.id) - rank(b.id)).map((brand) => ({ id: brand.id, name: brand.name, color: brand.color, tagline: brand.tagline, ...(brand.logo ? { logo: brand.logo } : {}), lines: brand.lines.map(card), accessories: brand.accessories.map(card) })),
     generic: catalog.generic.map(card), labor: catalog.labor.map(card),
     rules: catalog.rules.filter((rule) => rule.show).sort((a, b) => a.order - b.order).map((rule) => ({ ...rule, measurements: rule.formula && dictionaryOnly(rule.formula) ? formulaTokens(rule.formula).filter((t) => t.type === "measurement").map((t) => ({ key: t.value, label: definitionForKey(t.value)?.label || t.value })) : [], manual: !dictionaryOnly(rule.formula) })),
     waste: { default: "roof", options: [10, 12, 15, 20], settings: defaults.materials.waste },

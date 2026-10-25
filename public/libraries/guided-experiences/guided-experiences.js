@@ -105,30 +105,57 @@
     const here = where();
     const body = { type, tab: here.tab, project_id: here.projectId, ...extra };
     root.FirstMateStatsig?.track?.('guided_experience', { experience: experience.id, version: experience.version, variant: experience.variant?.id, bucket: experience.variant?.bucket, type, step: extra.step_id || '' });
-    return api.event(experience.id, body).catch((error) => { console.warn('Guided experience event not saved.', error); return null; });
+    // Sent in order in the background: nothing on screen waits for the server.
+    const sent = eventChain.then(() => api.event(experience.id, body)).catch((error) => { console.warn('Guided experience event not saved.', error); return null; });
+    eventChain = sent;
+    return sent;
   }
+  let eventChain = Promise.resolve();
 
   // ── Playing ────────────────────────────────────────────────────────────
+  /**
+   * One experience at a time for the whole page. The portal and every project window (an iframe of the portal) each
+   * load this library, so the lock and the queue live on the top window: whichever frame asks second waits its turn.
+   */
+  const shared = (() => {
+    let host = root;
+    try { if (root.top && root.top !== root && root.top.document) host = root.top; } catch (_) { host = root; }
+    return host.__fmGuidedLock || (host.__fmGuidedLock = { active: null, queue: [] });
+  })();
+  function nextInQueue(){
+    while (!shared.active && shared.queue.length) {
+      const request = shared.queue.shift();
+      try { request.run(); return; } catch (_) { /* that frame is gone */ }
+    }
+  }
   async function play(id, options = {}){
-    if (state.playing) return { status: 'busy' };
-    await refresh();
-    let experience = state.experiences.get(id);
-    if (!experience) { await refresh(true); experience = state.experiences.get(id); }
-    if (!experience) return { status: 'unavailable' };
-    if (experience.progress && experience.progress.status !== 'started' && !options.replay && !options.force) return { status: 'done' };
-    const player = kinds.get(experience.kind);
-    if (!player) return { status: 'unavailable' };
-    state.playing = experience.id;
-    root.dispatchEvent?.(new CustomEvent('fm:guides:playing', { detail: { id: experience.id } }));
+    // The same experience asked for again (a second trigger, a double click) is ignored, never stacked.
+    if (shared.active?.id === id || shared.queue.some((entry) => entry.id === id)) return { status: 'busy' };
+    if (shared.active) {
+      return new Promise((resolve) => shared.queue.push({ id, run: () => { play(id, options).then(resolve, () => resolve({ status: 'failed' })); } }));
+    }
+    const token = { id, frame: root };
+    shared.active = token;
+    let experience = null;
     try {
-      await track(experience, options.replay ? 'replay' : 'exposure');
-      if (!options.replay) await track(experience, 'start');
+      // Always from the server: another frame or tab may have finished it a moment ago.
+      await refresh(true);
+      experience = state.experiences.get(id);
+      if (!experience) return { status: 'unavailable' };
+      if (experience.progress && experience.progress.status !== 'started' && !options.replay && !options.force) return { status: 'done' };
+      const player = kinds.get(experience.kind);
+      if (!player) return { status: 'unavailable' };
+      state.playing = experience.id;
+      root.dispatchEvent?.(new CustomEvent('fm:guides:playing', { detail: { id: experience.id } }));
+      track(experience, options.replay ? 'replay' : 'exposure');
+      if (!options.replay) track(experience, 'start');
       const outcome = await player({ experience, api, track: (type, extra) => track(experience, type, extra), where, L, esc, reducedMotion, options });
       return outcome || { status: 'ended' };
     } finally {
       state.playing = null;
-      await refresh(true);
-      root.dispatchEvent?.(new CustomEvent('fm:guides:ended', { detail: { id: experience.id } }));
+      if (shared.active === token) shared.active = null;
+      if (experience) root.dispatchEvent?.(new CustomEvent('fm:guides:ended', { detail: { id: experience.id } }));
+      refresh(true).finally(nextInQueue);
     }
   }
 
@@ -157,7 +184,7 @@
 
   // before_action: hold the click, play, then let it through.
   document?.addEventListener('click', (event) => {
-    if (state.playing || event.defaultPrevented) return;
+    if (shared.active || event.defaultPrevented) return;
     const target = event.target?.closest?.('button,[role=button],a,[data-mt-generate-materials],[data-mt-generate-column]');
     if (!target || state.bypass.has(target)) { if (target) state.bypass.delete(target); return; }
     for (const experience of state.experiences.values()) {
@@ -174,22 +201,25 @@
   }, true);
   function safeMatches(element, selector){ try { return !!element.closest(selector); } catch (_) { return false; } }
 
-  // tab_opened: the project route names the tab.
-  function onRoute(){
-    const here = where();
+  // tab_opened: the project window says which tab became active (tab-guides.js `opened`), in the frame that shows it.
+  function onTabOpened(event){
+    const tab = clean(event?.detail?.appId);
+    const key = `${where().projectId}|${tab}`;
+    if (!tab || state.openedTabs.has(key)) return;
+    state.openedTabs.add(key);
     refresh().then(() => {
-      if (!here.tab || state.openedTabs.has(`${here.projectId}|${here.tab}`)) return;
-      state.openedTabs.add(`${here.projectId}|${here.tab}`);
       for (const experience of state.experiences.values()) {
-        const trigger = array(experience.triggers).find((entry) => entry.kind === 'tab_opened' && entry.tab === here.tab);
+        const trigger = array(experience.triggers).find((entry) => entry.kind === 'tab_opened' && entry.tab === tab);
         if (!trigger || (experience.progress && experience.progress.status !== 'started')) continue;
-        const timer = setTimeout(() => { state.tabTimers.delete(timer); if (where().tab === here.tab) play(experience.id); }, Number(trigger.delay_ms || 700));
+        const timer = setTimeout(() => { state.tabTimers.delete(timer); if (!event.detail?.isActive || event.detail.isActive()) play(experience.id); }, Number(trigger.delay_ms || 700));
         state.tabTimers.add(timer);
         break;
       }
     });
   }
-  root.addEventListener?.('fm:route-state:updated', onRoute);
+  root.addEventListener?.('fm:project-tab:opened', onTabOpened);
+  // The route only refreshes what is offered (questions for the tab); it never starts anything.
+  root.addEventListener?.('fm:route-state:updated', () => { refresh(); });
 
   // ── Overlay tutorials ──────────────────────────────────────────────────
   const overlayCss = `
@@ -220,9 +250,10 @@
     @media(max-width:640px){.gx-pop:not(.gx-center){left:12px!important;right:12px;top:auto!important;bottom:12px;width:auto}.gx-pop:not(.gx-center) .gx-arrow{display:none}}
     @media(prefers-reduced-motion:reduce){.gx-ov-ring,.gx-pop,.gx-ov-dim{transition:none!important;animation:none!important}}
   `;
-  function injectCss(id, css){
-    if (document.getElementById(id)) return;
-    const style = document.createElement('style'); style.id = id; style.textContent = css; document.head.appendChild(style);
+  /** Styles go into the document that shows the element: the project tray's assistant lives in a project window frame. */
+  function injectCss(id, css, doc = document){
+    if (!doc?.head || doc.getElementById(id)) return;
+    const style = doc.createElement('style'); style.id = id; style.textContent = css; doc.head.appendChild(style);
   }
   const visible = (selector) => { try { const el = document.querySelector(selector); if (!el) return null; const r = el.getBoundingClientRect(); return r.width > 0 && r.height > 0 && el.offsetParent !== null ? el : null; } catch (_) { return null; } };
   const waitFor = (selectors, timeout) => new Promise((resolve) => {
@@ -307,21 +338,29 @@
           pop.classList.remove('gx-enter'); void pop.offsetWidth; pop.classList.add('gx-enter');
           setTimeout(() => pop.querySelector('[data-gx=next]')?.focus?.({ preventScroll: true }), 30);
         }
+        /**
+         * Moves to the next step that can show. Only the first step waits for its target to appear (the page may
+         * still be drawing); after that a missing target is skipped at once, so Next and Back answer immediately.
+         * A newer move cancels an older one that is still looking, so fast clicks never pile up.
+         */
+        let move = 0;
         async function go(to, direction){
           if (ended) return;
+          const mine = ++move;
           clickTarget?.removeEventListener('click', onTargetClick, true); clickTarget = null;
           for (let i = to; i >= 0 && i < list.length; i += direction) {
             const step = list[i];
             const selectors = array(step.targets);
             let found = [];
             if (selectors.length) {
-              const first = await waitFor(selectors, direction > 0 ? Number(step.wait_ms ?? 1500) : 0);
-              if (ended) return;
+              const first = await waitFor(selectors, shown === 0 && direction > 0 ? Number(step.wait_ms ?? 1500) : 0);
+              if (ended || mine !== move) return;
               if (!first) { options.onStep?.({ type: 'step_skip', step: step.id, missing: true }); continue; }
               found = selectors.map(visible).filter(Boolean);
               found.sort((a, b) => (a === first ? -1 : b === first ? 1 : 0));
               first.scrollIntoView?.({ block: 'nearest', inline: 'nearest', behavior: reducedMotion() ? 'auto' : 'smooth' });
             }
+            if (mine !== move) return;
             index = i; current = step; targets = found; shown += 1;
             render(step);
             animateTo(targets.map(rectOf));
@@ -330,7 +369,7 @@
             options.onStep?.({ type: 'step_view', step: step.id, index: i });
             return;
           }
-          if (direction > 0) finish('completed');
+          if (direction > 0 && mine === move) finish('completed');
         }
         function key(event){
           if (event.key === 'Escape') { event.preventDefault(); event.stopPropagation(); options.onStep?.({ type: 'dismiss', step: current?.id }); finish('dismissed'); }
@@ -370,6 +409,15 @@
     @keyframes gxChip{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:none}}
     @media(prefers-reduced-motion:reduce){.gx-faq{animation:none;transition:none}}
   `;
+  /** Loads one tab's questions (the tray's tab, which may differ from this frame's route). */
+  const faqLoads = new Map();
+  function loadFaqs(tab){
+    if (!faqLoads.has(tab)) faqLoads.set(tab, api.list(tab, where().projectId).then((result) => {
+      state.faqs.set(tab, result.faqs?.tab ? result.faqs : { tab, questions: [] });
+      for (const entry of array(result.experiences)) if (!state.experiences.has(entry.id)) state.experiences.set(entry.id, entry);
+    }).catch(() => { faqLoads.delete(tab); }));
+    return faqLoads.get(tab);
+  }
   /** The suggested questions for a project tab, without those this person cannot play. */
   function faqs(tab){
     const entry = state.faqs.get(clean(tab));
@@ -381,18 +429,20 @@
    */
   function attachAssistant(drawer, assistant = {}){
     if (!drawer || drawer.querySelector(':scope .gx-faqs')) return null;
-    injectCss('gx-faq-css', faqCss);
+    const doc = drawer.ownerDocument || document;
+    injectCss('gx-faq-css', faqCss, doc);
     const composer = drawer.querySelector('[data-fma="composer"]');
     const shell = composer?.querySelector('.fma-compose-shell');
     if (!composer || !shell) return null;
-    const strip = document.createElement('div'); strip.className = 'gx-faqs'; strip.hidden = true; strip.setAttribute('role', 'list'); strip.setAttribute('aria-label', L('gx_ui_suggested', 'Suggested questions'));
+    const strip = doc.createElement('div'); strip.className = 'gx-faqs'; strip.hidden = true; strip.setAttribute('role', 'list'); strip.setAttribute('aria-label', L('gx_ui_suggested', 'Suggested questions'));
     composer.insertBefore(strip, shell);
     let shownTab = '';
-    const tabNow = () => { const context = object(assistant.getContext?.()); return clean(context.tab) ? (clean(context.tab).includes('.') ? clean(context.tab) : `project.${clean(context.tab)}`) : where().tab; };
+    // The tab the assistant says it is showing; else the route of the frame the drawer is in.
+    const tabNow = () => { const context = object(assistant.getContext?.()); return clean(context.tab) ? (clean(context.tab).includes('.') ? clean(context.tab) : `project.${clean(context.tab)}`) : (doc.defaultView?.FirstMateGuides?.where?.() || where()).tab; };
     const render = () => {
       const tab = tabNow();
       const questions = faqs(tab);
-      if (!questions.length) { strip.hidden = true; strip.innerHTML = ''; shownTab = tab; if (tab && !state.faqs.has(tab)) refresh(); return; }
+      if (!questions.length) { strip.hidden = true; strip.innerHTML = ''; shownTab = tab; if (tab && !state.faqs.has(tab)) loadFaqs(tab).then(() => { if (faqs(tab).length) render(); }); return; }
       if (tab === shownTab && !strip.hidden) return;
       shownTab = tab;
       strip.innerHTML = questions.map((question, i) => `<button type="button" class="gx-faq" role="listitem" data-gx-faq="${esc(question.id)}" style="animation-delay:${i * 40}ms">${question.action === 'play' ? '<i class="fas fa-circle-play" aria-hidden="true"></i>' : '<i class="fas fa-sparkles" aria-hidden="true"></i>'}${esc(L(question.text))}</button>`).join('');
@@ -405,13 +455,17 @@
       const experience = question.experience && state.experiences.get(question.experience);
       root.FirstMateStatsig?.track?.('guided_faq', { question: question.id, tab: tabNow() });
       if (experience) api.event(experience.id, { type: 'faq', tab: tabNow(), project_id: where().projectId, properties: { question: question.id } }).catch(() => null);
-      if (question.action === 'play') play(question.experience, { replay: true });
+      // A tour plays in the frame that shows the tab it points at, where the tray is.
+      if (question.action === 'play') (doc.defaultView?.FirstMateGuides?.play || play)(question.experience, { replay: true });
       else assistant.ask?.(L(question.prompt || question.text));
     });
     const onChange = () => render();
-    root.addEventListener('fm:guides:updated', onChange); root.addEventListener('fm:route-state:updated', onChange); root.addEventListener('fm:project-window:placement', onChange);
-    refresh().then(render);
-    return { render, destroy(){ root.removeEventListener('fm:guides:updated', onChange); root.removeEventListener('fm:route-state:updated', onChange); root.removeEventListener('fm:project-window:placement', onChange); strip.remove(); } };
+    // The tray may sit in a project window frame: follow its tab changes there as well as here.
+    const windows = [...new Set([root, doc.defaultView].filter(Boolean))];
+    const names = ['fm:guides:updated', 'fm:route-state:updated', 'fm:project-window:placement', 'fm:project-tab:opened'];
+    windows.forEach((win) => names.forEach((name) => win.addEventListener(name, onChange)));
+    render();
+    return { render, destroy(){ windows.forEach((win) => names.forEach((name) => win.removeEventListener(name, onChange))); strip.remove(); } };
   }
 
   root.FirstMateGuides = {
@@ -419,7 +473,7 @@
     registerKind(kind, player){ kinds.set(kind, player); },
     experience: (id) => state.experiences.get(id) || null,
     experiences: () => [...state.experiences.values()],
-    isPlaying: () => !!state.playing,
+    isPlaying: () => !!shared.active,
     L, esc, api, injectCss, reducedMotion
   };
   if (document?.readyState === 'loading') document.addEventListener('DOMContentLoaded', () => refresh(), { once: true }); else setTimeout(() => refresh(), 0);

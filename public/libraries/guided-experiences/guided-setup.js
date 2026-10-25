@@ -65,30 +65,27 @@
     .gxs-btn:focus-visible,.gxs-icon:focus-visible,.gxs-card:focus-visible{outline:2px solid var(--primary,#d93025);outline-offset:2px}
     .gxs-spin{width:14px;height:14px;border-radius:50%;border:2px solid currentColor;border-right-color:transparent;animation:gxsSpin .7s linear infinite}
     @keyframes gxsSpin{to{transform:rotate(360deg)}}
-    .gxs-confirm{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-right:auto;font-size:13px;color:#344054}
+    .gxs-confirm{flex:1 1 auto;min-width:0;display:flex;align-items:center;gap:10px;font-size:13px;color:#344054}
+    .gxs-confirm>span{flex:1 1 auto;min-width:0;line-height:1.4}
+    .gxs-confirm .gxs-btn{flex:none;white-space:nowrap}
+    @media(max-width:640px){.gxs-confirm{flex-wrap:wrap;row-gap:8px}.gxs-confirm>span{flex-basis:100%}.gxs-confirm>span+.gxs-btn{margin-left:auto}}
     /* Chat */
-    .gxs-chat{display:flex;flex-direction:column;min-height:0;background:#f8f9fb;border-left:1px solid #eaecf0}
-    .gxs-chat header{display:flex;align-items:center;gap:10px;padding:16px 16px 10px;font-weight:700}
-    .gxs-avatar{width:30px;height:30px;border-radius:50%;background:conic-gradient(from 200deg,var(--primary,#d93025),#f59e0b,#8b5cf6,var(--primary,#d93025));display:inline-grid;place-items:center;color:#fff;font-size:13px;box-shadow:0 4px 12px rgba(16,24,40,.18)}
-    .gxs-chat header small{display:block;font-weight:500;color:#667085;font-size:11.5px}
-    .gxs-chat header .gxs-toggle{margin-left:auto;display:none}
-    .gxs-msgs{flex:1;min-height:0;overflow:auto;padding:6px 14px 12px;display:flex;flex-direction:column;gap:8px;scroll-behavior:smooth}
-    .gxs-msg{max-width:88%;padding:9px 12px;border-radius:14px;background:#fff;box-shadow:0 1px 2px rgba(16,24,40,.06);animation:gxsMsg .35s cubic-bezier(.22,1,.36,1) both;white-space:pre-wrap;word-wrap:break-word}
-    .gxs-msg.me{align-self:flex-end;background:var(--primary,#d93025);color:#fff;border-bottom-right-radius:5px}
-    .gxs-msg.bot{align-self:flex-start;border-bottom-left-radius:5px}
-    .gxs-msg.note{align-self:center;background:transparent;box-shadow:none;color:#667085;font-size:12px}
+    .gxs-chat{position:relative;display:flex;flex-direction:column;min-height:0;min-width:0;background:#fff;border-left:1px solid #eaecf0}
+    .gxs-assistant{flex:1;min-height:0;display:flex;flex-direction:column}
+    .gxs-assistant>.fma-drawer{flex:1;min-height:0}
+    .gxs-chat .fma-head{padding-right:52px}
+    .gxs-chat-handle{display:none}
+    .gxs-close{position:absolute;top:10px;right:10px;z-index:5;width:36px;height:36px;border:0;border-radius:10px;background:rgba(255,255,255,.9);color:#475467;cursor:pointer;display:inline-grid;place-items:center;font-size:18px;transition:background .15s,color .15s}
+    .gxs-close:hover{background:#f2f4f7;color:#101828}
+    .gxs-close:focus-visible{outline:2px solid var(--primary,#d93025);outline-offset:2px}
+    .gxs-close .gxs-x{font-size:24px;line-height:1;font-weight:400}
     @keyframes gxsMsg{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
-    .gxs-typing{display:inline-flex;gap:4px;padding:12px 14px}
-    .gxs-typing i{width:6px;height:6px;border-radius:50%;background:#98a2b3;animation:gxsDot 1s infinite ease-in-out}
-    .gxs-typing i:nth-child(2){animation-delay:.15s}.gxs-typing i:nth-child(3){animation-delay:.3s}
-    @keyframes gxsDot{0%,80%,100%{transform:translateY(0);opacity:.5}40%{transform:translateY(-4px);opacity:1}}
-    .gxs-compose{display:flex;gap:8px;padding:10px 12px 14px}
-    .gxs-compose input{flex:1;min-width:0;height:40px;border:1px solid #d0d5dd;border-radius:12px;padding:0 12px;font:inherit;background:#fff}
-    .gxs-compose input:focus{outline:none;border-color:var(--primary,#d93025);box-shadow:0 0 0 3px rgba(var(--primary-rgb,217,48,37),.12)}
-    .gxs-compose button{width:40px;height:40px;border:0;border-radius:12px;background:var(--primary,#d93025);color:#fff;cursor:pointer}
-    .gxs-compose button:disabled{opacity:.5}
     /* Widgets */
-    .gxs-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:14px}
+    .gxs-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(168px,1fr));grid-auto-rows:1fr;gap:14px}
+    .gxs-grid .gxs-card{display:flex;flex-direction:column;align-items:stretch;min-height:150px}
+    .gxs-logo{display:flex;align-items:center;height:64px;padding-right:28px}
+    .gxs-logo img{display:block;max-width:100%;max-height:48px;width:auto;height:auto;object-fit:contain}
+    .gxs-card .gxs-meta{margin-top:auto}
     .gxs-card{position:relative;text-align:left;border:1.5px solid #eaecf0;border-radius:16px;background:#fff;padding:18px;cursor:pointer;font:inherit;color:inherit;transition:border-color .2s,box-shadow .2s,transform .2s;animation:gxsMsg .4s cubic-bezier(.22,1,.36,1) both}
     .gxs-card:hover{transform:translateY(-2px);box-shadow:0 10px 24px rgba(16,24,40,.08)}
     .gxs-card[aria-pressed=true]{border-color:var(--brand,var(--primary,#d93025));box-shadow:0 0 0 3px color-mix(in srgb,var(--brand,#d93025) 18%,transparent)}
@@ -145,15 +142,17 @@
     .gxs.gxs-leaving[data-kind=modal] .gxs-sheet{opacity:0;transform:scale(.97);transition:opacity .3s,transform .3s}
     @media(max-width:760px){
       .gxs-sheet{grid-template-columns:minmax(0,1fr);grid-template-rows:minmax(0,1fr) auto;width:100vw;height:100dvh;border-radius:0}
-      .gxs-chat{border-left:0;border-top:1px solid #eaecf0;max-height:44px;transition:max-height .35s cubic-bezier(.22,1,.36,1)}
-      .gxs-chat[data-open=true]{max-height:52dvh}
-      .gxs-chat header{padding:8px 14px;cursor:pointer}
-      .gxs-chat header .gxs-toggle{display:inline-grid}
+      .gxs-chat{border-left:0;border-top:1px solid #eaecf0;max-height:48px;overflow:hidden;transition:max-height .35s cubic-bezier(.22,1,.36,1)}
+      .gxs-chat[data-open=true]{max-height:58dvh}
+      .gxs-chat-handle{display:flex;align-items:center;gap:8px;flex:none;height:48px;padding:0 16px;border:0;background:#fff;font:inherit;font-weight:700;color:#101828;cursor:pointer;text-align:left}
+      .gxs-chat-handle .gxs-chevron{margin-left:auto;transition:transform .3s}
+      .gxs-chat[data-open=true] .gxs-chat-handle .gxs-chevron{transform:rotate(180deg)}
+      .gxs-close{top:6px;right:6px}
       .gxs-step{padding:6px 16px 20px}
       .gxs-head{padding:12px 12px 6px}
       .gxs-badge span{display:none}
       .gxs-grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
-      .gxs-card{padding:12px}.gxs-wordmark{min-height:46px;font-size:19px}
+      .gxs-card{padding:12px}.gxs-grid .gxs-card{min-height:124px}.gxs-wordmark{min-height:46px;font-size:19px}.gxs-logo{height:48px}.gxs-logo img{max-height:36px}
       .gxs-foot{padding:10px 12px}
     }
     @media(prefers-reduced-motion:reduce){.gxs *,.gxs{animation:none!important;transition:none!important}}
@@ -168,21 +167,23 @@
       const { experience, track } = ctx;
       const here = ctx.where();
       const steps = array(experience.steps);
-      const agentic = kind === 'agentic' && !!here.projectId && !!root.AssistantAPI;
+      const orgId = clean(root.__APP?.userOrgId);
+      // The agent is the platform assistant itself, in the person's own project conversation (the one the tray shows).
+      let agentic = kind === 'agentic' && !!here.projectId && !!orgId && !!root.AssistantAPI && typeof root.PlatformAssistant?.mountProject === 'function';
       const selections = { ...object(experience.progress?.data) };
       const summaries = {};
       let index = Math.max(0, steps.findIndex((step) => step.id === experience.progress?.step_id));
       if (index >= steps.length) index = 0;
-      let mounted = null, busy = false, threadId = '', closed = false, sayChain = Promise.resolve();
+      let mounted = null, busy = false, closed = false, assistant = null;
 
       const host = document.createElement('div');
       host.className = 'gxs'; host.dataset.kind = agentic ? 'agentic' : 'modal'; host.setAttribute('data-fmr-ignore', ''); host.setAttribute('data-gx-setup', experience.id);
       host.innerHTML = `<div class="gxs-scrim"></div>
         <section class="gxs-sheet" role="dialog" aria-modal="true" aria-label="${esc(L(experience.title))}">
+          <button type="button" class="gxs-close" data-gxs="close" aria-label="${esc(L('gx_ui_close_setup', 'Close setup'))}" title="${esc(L('gx_ui_close_setup', 'Close setup'))}"><span class="gxs-x" aria-hidden="true">&times;</span></button>
           <div class="gxs-widget">
             <header class="gxs-head"><span class="gxs-badge"><i class="fas fa-wand-magic-sparkles" aria-hidden="true"></i><span>${esc(L(experience.title))}</span></span>
-              <ol class="gxs-progress" aria-hidden="true">${steps.map(() => '<li><i></i></li>').join('')}</ol>
-              <button type="button" class="gxs-icon" data-gxs="close" aria-label="${esc(L('gx_ui_close_setup', 'Close setup'))}" title="${esc(L('gx_ui_close_setup', 'Close setup'))}"><i class="fas fa-xmark" aria-hidden="true"></i></button></header>
+              <ol class="gxs-progress" aria-hidden="true">${steps.map(() => '<li><i></i></li>').join('')}</ol></header>
             <div class="gxs-stage"></div>
             <footer class="gxs-foot"><span class="gxs-status" role="status"></span>
               <button type="button" class="gxs-btn ghost" data-gxs="back">${esc(L('gx_ui_back', 'Back'))}</button>
@@ -190,58 +191,46 @@
               <button type="button" class="gxs-btn primary" data-gxs="next"></button></footer>
           </div>
           <aside class="gxs-chat" aria-label="${esc(L('gx_ui_agent', 'Agent'))}">
-            <header data-gxs="toggleChat"><span class="gxs-avatar"><i class="fas fa-sparkles" aria-hidden="true"></i></span><span>${esc(L('gx_ui_agent', 'Agent'))}<small>${esc(L('gx_ui_agent_hint', 'Ask me anything about this step'))}</small></span><button type="button" class="gxs-icon gxs-toggle" aria-label="${esc(L('gx_ui_show_chat', 'Show the conversation'))}"><i class="fas fa-chevron-up" aria-hidden="true"></i></button></header>
-            <div class="gxs-msgs" aria-live="polite"></div>
-            <form class="gxs-compose"><input type="text" maxlength="2000" placeholder="${esc(L('gx_ui_ask_placeholder', 'Ask a question…'))}" aria-label="${esc(L('gx_ui_ask_placeholder', 'Ask a question…'))}"><button type="submit" aria-label="${esc(L('gx_ui_send', 'Send'))}"><i class="fas fa-arrow-up" aria-hidden="true"></i></button></form>
+            <button type="button" class="gxs-chat-handle" data-gxs="toggleChat" aria-expanded="false"><i class="fas fa-sparkles" aria-hidden="true"></i>${esc(L('gx_ui_agent', 'Agent'))}<i class="fas fa-chevron-up gxs-chevron" aria-hidden="true"></i></button>
+            <div class="gxs-assistant"></div>
           </aside>
         </section>`;
       document.body.appendChild(host);
       const $ = (selector) => host.querySelector(selector);
-      const stage = $('.gxs-stage'), msgs = $('.gxs-msgs'), status = $('.gxs-status'), chat = $('.gxs-chat');
+      const stage = $('.gxs-stage'), status = $('.gxs-status'), chat = $('.gxs-chat');
       const previousFocus = document.activeElement;
 
-      // Chat
-      const scroll = () => { msgs.scrollTop = msgs.scrollHeight; };
-      const bubble = (role, content) => { const el = document.createElement('div'); el.className = `gxs-msg ${role}`; el.textContent = content; msgs.appendChild(el); scroll(); return el; };
-      const typing = () => { const el = document.createElement('div'); el.className = 'gxs-msg bot gxs-typing'; el.innerHTML = '<i></i><i></i><i></i>'; msgs.appendChild(el); scroll(); return el; };
-      function say(lines, choice){
-        sayChain = sayChain.then(async () => {
-          if (choice) bubble('me', choice);
-          for (const line of lines) {
-            if (closed) return;
-            const dots = typing();
-            await wait(Math.min(1100, 380 + String(line).length * 9));
-            dots.remove();
-            if (!closed) bubble('bot', line);
-          }
-        });
-        return sayChain;
-      }
-      /** The scripted turn, written into the project conversation so the agent tray holds it later. */
-      function persist(body){
-        if (!agentic) return Promise.resolve();
-        return ctx.api.conversation(experience.id, { project_id: here.projectId, tab: here.tab, ...body }).then((result) => { threadId = clean(result?.thread_id) || threadId; }).catch((error) => console.warn('Setup conversation not saved.', error));
-      }
-      async function ask(text){
-        const question = clean(text).slice(0, 2000);
-        if (!question) return;
-        bubble('me', question);
-        const dots = typing();
-        track('question', { step_id: steps[index]?.id, properties: { length: question.length } });
+      // The agent: a platform assistant instance running this setup as a preprogrammed workflow.
+      if (agentic) {
         try {
-          if (!threadId) await persist({ step_id: steps[index].id });
-          if (!threadId) throw new Error('no conversation');
-          const result = await root.AssistantAPI.send(clean(root.__APP?.userOrgId), threadId, { message: question, ui_context: { surface: 'project', projectId: here.projectId, tab: here.tab } });
-          dots.remove();
-          bubble('bot', clean(result?.assistant_message?.content) || L('gx_ui_no_answer', 'I could not answer that just now.'));
-          await say([L('gx_ui_back_to_step', 'Whenever you’re ready, carry on with the step on the left.')]);
+          assistant = root.PlatformAssistant.mountProject($('.gxs-assistant'), {
+            orgId, projectId: here.projectId,
+            getContext: () => ({ surface: 'project', projectId: here.projectId, tab: here.tab, tray: 'guided_setup' }),
+            workflow: {
+              // Typing hands this turn to the real assistant, which is told the step and choices (guidedConversationContext).
+              onUserMessage: (text) => { track('question', { step_id: steps[index]?.id, properties: { length: String(text).length } }); return false; },
+              onReply: () => { if (!closed) say([L('gx_ui_back_to_step', 'Whenever you’re ready, carry on with the step on the left.')], '', ''); },
+              onChoice: (id) => { if (id === 'continue' && !closed) next(false); }
+            }
+          });
         } catch (error) {
-          dots.remove();
-          bubble('bot', L('gx_ui_ask_failed', 'I can’t answer questions here right now. You can carry on with the setup, and ask me in the agent tray afterwards.'));
+          console.warn('The setup could not open the assistant; it continues without it.', error);
+          agentic = false; host.dataset.kind = 'modal'; assistant = null;
         }
       }
-      $('.gxs-compose').addEventListener('submit', (event) => { event.preventDefault(); const input = $('.gxs-compose input'); const value = input.value; input.value = ''; ask(value); });
-      $('[data-gxs=toggleChat]').addEventListener('click', () => { if (root.innerWidth <= 760) chat.dataset.open = String(chat.dataset.open !== 'true'); });
+      /** The agent's scripted lines, shown in the assistant as it would type them. */
+      /** `at` is the step (or 'done') whose lines these are: their keys match the ones the server stores. */
+      function say(lines, choice, at){
+        if (!assistant || closed) return Promise.resolve();
+        if (choice) assistant.post({ role: 'user', content: choice, data: { source: 'guided_experience' } });
+        return assistant.say(lines.map((content, i) => ({ content, data: { source: 'guided_experience', ...(at ? { line_key: `${experience.id}:${at}:say:${i}` } : {}) } })));
+      }
+      /** The scripted turn, written into the project conversation so a reload and the agent tray hold it too. */
+      function persist(body){
+        if (!agentic) return Promise.resolve();
+        return ctx.api.conversation(experience.id, { project_id: here.projectId, tab: here.tab, ...body }).catch((error) => console.warn('Setup conversation not saved.', error));
+      }
+      $('[data-gxs=toggleChat]').addEventListener('click', () => { const open = chat.dataset.open !== 'true'; chat.dataset.open = String(open); $('[data-gxs=toggleChat]').setAttribute('aria-expanded', String(open)); });
 
       // Steps
       function progress(){ host.querySelectorAll('.gxs-progress li').forEach((li, i) => { li.classList.toggle('done', i < index); li.classList.toggle('on', i === index); }); }
@@ -280,22 +269,37 @@
         if (direction > 0) {
           const lines = array(steps[to].say).map((copy) => L(copy));
           persist({ step_id: steps[to].id, choice: choice || '' });
-          if (lines.length || choice) say(agentic ? lines : [], agentic ? choice : '');
+          if (lines.length || choice) say(lines, choice, steps[to].id);
         }
       }
+      /**
+       * Moves on at once; the event goes to the server in the background. Only a step whose next step depends on the
+       * choices (branches, decided on the server) waits for the answer. A burst of presses counts once.
+       */
+      let movingUntil = 0;
+      // Working in the step between two presses makes the second one deliberate.
+      ['input', 'change', 'pointerdown'].forEach((name) => stage.addEventListener(name, () => { movingUntil = 0; }, true));
       async function next(skip = false){
-        if (busy) return;
+        if (busy || closed || Date.now() < movingUntil) return;
+        // A second press within a moment of the first is the same press: a burst never skips a step.
+        movingUntil = Date.now() + 250;
         const step = steps[index];
+        if (!skip && step.required !== false && mounted?.valid?.() === false) return;
         const choice = skip ? '' : clean(summaries[step.id] || mounted?.summary?.() || '');
-        const result = await track(skip ? 'step_skip' : 'step_done', { step_id: step.id, selections });
+        const sent = track(skip ? 'step_skip' : 'step_done', { step_id: step.id, selections });
         if (index === steps.length - 1) return finish(choice);
-        const target = clean(result?.next_step);
-        const to = target && steps.findIndex((entry) => entry.id === target) > index ? steps.findIndex((entry) => entry.id === target) : index + 1;
-        enter(to, 1, choice);
+        let to = index + 1;
+        if (step.next && typeof step.next === 'object') {
+          busy = true; footer();
+          const target = clean((await sent)?.next_step);
+          busy = false;
+          const found = steps.findIndex((entry) => entry.id === target);
+          if (found > index) to = found;
+        }
+        if (!closed) enter(to, 1, choice);
       }
       async function finish(choice){
         busy = true; footer(); status.textContent = ''; status.classList.remove('err');
-        if (choice && agentic) bubble('me', choice);
         try {
           const result = await ctx.api.complete(experience.id, { selections, tab: here.tab, project_id: here.projectId, idempotency_key: `${experience.id}:${Date.now()}:${Math.random().toString(36).slice(2)}` });
           const value = object(result.result);
@@ -308,7 +312,7 @@
           $('.gxs-foot').style.visibility = 'hidden';
           const lines = array(experience.completion?.say).map((copy) => L(copy));
           persist({ phase: 'done', choice: choice || '' });
-          if (agentic) await say(lines);
+          await say(lines, choice, 'done');
           await wait(900);
           const handoff = agentic && array(experience.completion?.then).some((entry) => entry.handoff === 'assistant_tray');
           await close(handoff ? 'handoff' : 'plain');
@@ -353,6 +357,9 @@
         mounted?.destroy?.();
         if (mode === 'handoff') await flyToTray();
         else if (!reduced()) { host.classList.add('gxs-leaving'); await wait(320); }
+        // The tray has its own instance on the same conversation; this one goes with the sheet.
+        try { assistant?.destroy?.(); } catch (_) {}
+        assistant = null;
         host.remove();
         try { previousFocus?.focus?.({ preventScroll: true }); } catch (_) {}
       }
@@ -395,7 +402,9 @@
       const picked = new Set(array(selections.brands).filter((id) => brands.some((brand) => brand.id === id)));
       const draw = () => {
         el.innerHTML = `${options.allow_all !== false ? `<div class="gxs-allbar"><button type="button" class="gxs-chip" data-all aria-pressed="${picked.size === brands.length}">${esc(L('gx_ui_use_all', 'Use all'))}</button><span style="color:#667085;font-size:12.5px">${esc(L('gx_ui_selected', 'Selected'))}: ${picked.size}</span></div>` : ''}
-          <div class="gxs-grid">${brands.map((brand, i) => `<button type="button" class="gxs-card" style="--brand:${esc(brand.color)};animation-delay:${i * 60}ms" aria-pressed="${picked.has(brand.id)}" data-brand="${esc(brand.id)}"><span class="gxs-tick"><i class="fas fa-check" aria-hidden="true"></i></span><span class="gxs-wordmark">${esc(brand.name)}</span><small>${esc(brand.tagline || '')}</small><small>${esc(array(brand.lines).length + ' ' + L('gx_ui_lines', 'shingle lines'))}</small></button>`).join('')}</div>`;
+          <div class="gxs-grid">${brands.map((brand, i) => `<button type="button" class="gxs-card" style="--brand:${esc(brand.color)};animation-delay:${i * 60}ms" aria-pressed="${picked.has(brand.id)}" data-brand="${esc(brand.id)}"><span class="gxs-tick"><i class="fas fa-check" aria-hidden="true"></i></span>${brand.logo ? `<span class="gxs-logo"><img src="${esc(brand.logo)}" alt="${esc(brand.name)}" loading="lazy" decoding="async" data-gxs-logo></span>` : `<span class="gxs-wordmark">${esc(brand.name)}</span>`}<span class="gxs-meta"><small>${esc(brand.tagline || '')}</small><small>${esc(array(brand.lines).length + ' ' + L('gx_ui_lines', 'shingle lines'))}</small></span></button>`).join('')}</div>`;
+        // A logo that does not load gives way to the wordmark.
+        el.querySelectorAll('img[data-gxs-logo]').forEach((img) => img.addEventListener('error', () => { const mark = document.createElement('span'); mark.className = 'gxs-wordmark'; mark.textContent = img.alt; img.closest('.gxs-logo').replaceWith(mark); }, { once: true }));
         report();
       };
       const report = () => change({ brands: brands.filter((brand) => picked.has(brand.id)).map((brand) => brand.id), region: clean(options.region?.id) }, picked.size === brands.length ? L('gx_ui_all_brands', 'All of them') : brands.filter((brand) => picked.has(brand.id)).map((brand) => brand.name).join(', '));

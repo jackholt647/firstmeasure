@@ -4,7 +4,8 @@ import { invokeAction } from "../platform/publication/actions.js";
 import { userPublicationContext } from "../platform/publication/context.js";
 import { resolveOrganizationTimezone } from "../platform/timezone.js";
 import { evaluateConditions } from "../work/conditions.js";
-import { appendAgentMessage } from "../agents/storage.js";
+import { createHash } from "node:crypto";
+import { appendAgentMessage, listAgentMessages } from "../agents/storage.js";
 import { chooseVariant, regionForState, sizeTierFor, unitIdFor, type ChooserContext } from "./chooser.js";
 import { EVENT_TYPES, selectionsSchema, type Copy, type ExperienceDefinition, type ExperienceStep, type GuidedEventType } from "./contracts.js";
 import { experience, guidedSource, listExperiences, tabFaqs } from "./registry.js";
@@ -204,10 +205,22 @@ export async function guidedConversationTurn(ctx: PlatformAuthContext, experienc
   const said = (phase === "done" ? definition.completion.say : (step as { say?: Copy[] }).say || []).map((copy) => copy.text);
   const choiceText = text(body.choice).replace(/[<>]/g, "").slice(0, 300);
   const data = { source: "guided_experience", experience_id: definition.id, variant_id: choice.variant.id, ...(step ? { step_id: step.id } : { phase }) };
-  if (choiceText) await appendAgentMessage("assistant", ctx.orgId, threadId, { role: "user", content: choiceText, data });
-  for (const content of said) await appendAgentMessage("assistant", ctx.orgId, threadId, { role: "assistant", content, data });
+  // Idempotent: every scripted line has a stable key, and a line the thread already holds is not written again
+  // (a step shown twice, a resumed setup, a retried request, two frames).
+  const at = step ? step.id : phase;
+  const existing = new Set((await listAgentMessages("assistant", ctx.orgId, threadId, { limit: 500 }) as Record<string, unknown>[]).map((message) => String(object(object(message).data).line_key || "")).filter(Boolean));
+  const turn: { role: string; content: string; line_key: string }[] = [
+    ...(choiceText ? [{ role: "user", content: choiceText, line_key: `${definition.id}:${at}:choice:${createHash("sha256").update(choiceText).digest("hex").slice(0, 12)}` }] : []),
+    ...said.map((content, i) => ({ role: "assistant", content, line_key: `${definition.id}:${at}:say:${i}` }))
+  ];
+  let written = 0;
+  for (const line of turn) {
+    if (existing.has(line.line_key)) continue;
+    await appendAgentMessage("assistant", ctx.orgId, threadId, { role: line.role, content: line.content, data: { ...data, line_key: line.line_key } });
+    written += 1;
+  }
   await writeProgress(ctx.orgId, subjectFor(definition, ctx), definition.id, { experience_version: definition.version, variant_id: choice.variant.id, bucket: choice.bucket, thread_subject: `project:${projectId}`, ...(step ? { step_id: step.id } : {}) });
-  return { thread_id: threadId, messages: said.length + (choiceText ? 1 : 0) };
+  return { thread_id: threadId, messages: written, line_keys: turn.map((line) => line.line_key) };
 }
 
 /**
