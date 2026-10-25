@@ -309,7 +309,7 @@
       try {
         const pending = {}; handles.set(key,pending);
         const handle = await mountWidget(node,key,{orgId:oid,projectId:mountingProject,getProject,ensureProject,
-          agentOptions:{orgId:oid, projectId, onClose:close, openTray:key=>selected===key?Promise.resolve():open(key), onPin:()=>{if(selected==='agent'){manualPin=!manualPin;syncAgentPin();}else void open('agent');}, onState:state=>{agentState=state;queueMicrotask(syncAgentPin);}, getContext:()=>({surface:'project',projectId,trays:available(),tab:options.getActiveTab?.() || '',tray:selected || '',minimized:options.isMinimized?.() || false})}});
+          agentOptions:{orgId:oid, projectId, onClose:close, openTray:key=>selected===key?Promise.resolve():open(key), onState:state=>{agentState=state;queueMicrotask(syncAgentPin);}, getContext:()=>({surface:'project',projectId,trays:available(),tab:options.getActiveTab?.() || '',tray:selected || '',minimized:options.isMinimized?.() || false})}});
         if (disposed || mountingProject !== projectId || handles.get(key)!==pending) {handle.destroy?.();return;}
         handles.set(key,handle); handle.setVisible?.(selected===key);
         syncAgentPin();

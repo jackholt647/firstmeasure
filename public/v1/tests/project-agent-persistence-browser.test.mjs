@@ -36,15 +36,14 @@ test('project voice pins across trays, survives minimizing and transfers out of 
  await frame.addScriptTag({url:'http://agent.test/libraries/platform-widgets/runtime.js'});
  await frame.evaluate(()=>window.trays=FirstMateProjectTrays.mount(document.querySelector('#shell'),{project:{id:'1'}}));
  await frame.getByRole('tab',{name:'Agent',exact:true}).click();await frame.waitForSelector('.fma-welcome');
- await frame.getByRole('button',{name:'Pin assistant',exact:true}).click();
- await frame.getByRole('button',{name:'Close assistant',exact:true}).click();
- assert.equal(await frame.locator('.fm-project-agent-pin').isVisible(),true);
- await frame.getByRole('textbox',{name:'Message',exact:true}).fill('Pinned draft');
+ // The project tray offers no manual pin; the agent only stays pinned on its own during a voice call.
+ assert.equal(await frame.getByRole('button',{name:'Pin assistant',exact:true}).count(),0);
+ await frame.getByRole('textbox',{name:'Message',exact:true}).fill('Kept draft');
  await frame.getByRole('tab',{name:'Notes',exact:true}).click();
  assert.equal(await frame.getByRole('textbox',{name:'Note',exact:true}).isVisible(),true);
- assert.equal(await frame.getByRole('textbox',{name:'Message',exact:true}).inputValue(),'Pinned draft');
+ assert.equal(await frame.locator('.fm-project-agent-pin').isVisible(),false);
  await frame.getByRole('tab',{name:'Agent',exact:true}).click();
- await frame.getByRole('button',{name:'Pin assistant',exact:true}).click();
+ assert.equal(await frame.getByRole('textbox',{name:'Message',exact:true}).inputValue(),'Kept draft');
  await frame.getByRole('button',{name:'Start voice conversation',exact:true}).click();await page.waitForFunction(()=>starts.length===1);
  await page.evaluate(()=>window.nextActions=[{kind:'project_tray',project_id:'1',tray:'notes'}]);
  await frame.getByRole('textbox',{name:'Message',exact:true}).fill('Open notes');
