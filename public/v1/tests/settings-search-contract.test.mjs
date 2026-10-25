@@ -24,11 +24,17 @@ function searchHarness(){
   return { api:window.FirstMateSettingsSearch, navigations };
 }
 
-function artifactHarness(){
+const EVERY_SOURCE = ['project', 'contact', 'equipment', 'event', 'invoice', 'receipt', 'document', 'scope', 'channel', 'setting', 'user'];
+const EVERY_TYPE = ['project', 'contact', 'equipment', 'event', 'document', 'scope', 'channel', 'setting', 'user'];
+
+function artifactHarness(offer = { types:EVERY_TYPE, sources:EVERY_SOURCE }){
   const navigations = [];
+  const calls = [];
   const window = {
     Portal:{ navigation:{ navigate:(route, options) => navigations.push({ route, options }) } },
+    addEventListener:() => {},
     PlatformAPI:{
+      search:{ types:async (orgId, options) => { calls.push({ orgId, options }); return offer; } },
       users:{ list:async () => ({ users:[{ id:'user-1', name:'Alice Installer', email:'alice@example.com' }] }) },
       calendarEvents:{ list:async () => ({ events:[] }) },
       scopes:{ list:async () => ({ templates:[] }) }
@@ -43,7 +49,13 @@ function artifactHarness(){
     FirstMateSettingsSearch:{ search:() => [], open:() => true }
   };
   vm.runInNewContext(artifactSource, { window });
-  return { api:window.FirstMateArtifactSearch, navigations };
+  return { api:window.FirstMateArtifactSearch, navigations, calls, window };
+}
+
+async function offeredHarness(offer){
+  const harness = artifactHarness(offer);
+  await harness.api.loadOffered({ orgId:'org-1', branchId:'branch-1' });
+  return harness;
 }
 
 test('shared settings search finds a specific setting and its nested view', () => {
@@ -77,7 +89,7 @@ test('artifact catalogue exposes the core searchable result types', () => {
 });
 
 test('the Documents type includes invoices and receipts', async () => {
-  const { api } = artifactHarness();
+  const { api } = await offeredHarness();
   const [invoice] = await api.search('INV-1042', { orgId:'org-1', branchId:'branch-1', types:['document'] });
   const [receipt] = await api.search('Northside Supply', { orgId:'org-1', branchId:'branch-1', types:['document'] });
   assert.equal(invoice.type, 'document');
@@ -87,7 +99,7 @@ test('the Documents type includes invoices and receipts', async () => {
 });
 
 test('users and equipment providers return routed global-search results', async () => {
-  const { api, navigations } = artifactHarness();
+  const { api, navigations } = await offeredHarness();
   const [person] = await api.search('alice', { orgId:'org-1', branchId:'branch-1', types:['user'] });
   const [equipment] = await api.search('lift', { orgId:'org-1', branchId:'branch-1', types:['equipment'] });
 
@@ -102,6 +114,50 @@ test('users and equipment providers return routed global-search results', async 
     { tab:'photos_feed', user:'user-1', userTab:'activity' },
     { tab:'equipment', equipmentView:'fleet', equipmentItem:'unit-1' }
   ]);
+});
+
+// The MVP platform: no equipment, no scheduling, channels only behind project notes, one scope.
+const MVP_OFFER = { types:['project', 'contact', 'setting', 'user'], sources:['project', 'contact', 'setting', 'user'] };
+
+test('the type filters list only the result types the organization has', async () => {
+  const { api, calls } = await offeredHarness(MVP_OFFER);
+  assert.deepEqual(JSON.parse(JSON.stringify(calls)), [{ orgId:'org-1', options:{ branchId:'branch-1' } }]);
+  assert.deepEqual(Array.from(api.available(), ({ id }) => id), ['project', 'contact', 'setting', 'user']);
+  for (const id of ['equipment', 'event', 'document', 'scope', 'channel']) assert.equal(api.offered(id), false, id);
+  // Asked again for the same organization and branch, the answer is reused.
+  await api.loadOffered({ orgId:'org-1', branchId:'branch-1' });
+  assert.equal(calls.length, 1);
+});
+
+test('a type the organization does not have is never searched, even when asked for', async () => {
+  const { api } = await offeredHarness(MVP_OFFER);
+  const results = await api.search('lift', { orgId:'org-1', branchId:'branch-1', types:['equipment', 'event', 'scope', 'channel', 'document'] });
+  assert.deepEqual(Array.from(results), []);
+  const [person] = await api.search('alice', { orgId:'org-1', branchId:'branch-1', types:['user', 'equipment'] });
+  assert.equal(person.type, 'user');
+});
+
+test('a Documents source the organization lacks is skipped while the others still search', async () => {
+  const { api } = await offeredHarness({ types:['document'], sources:['receipt'] });
+  assert.deepEqual(Array.from(await api.search('INV-1042', { orgId:'org-1', branchId:'branch-1', types:['document'] })), []);
+  const [receipt] = await api.search('Northside Supply', { orgId:'org-1', branchId:'branch-1', types:['document'] });
+  assert.match(receipt.subtitle, /^Receipt/);
+});
+
+test('until the server answers, or when it cannot, only projects, contacts and settings are offered', async () => {
+  const before = artifactHarness();
+  assert.deepEqual(Array.from(before.api.available(), ({ id }) => id), ['project', 'contact', 'setting']);
+  const failing = artifactHarness();
+  failing.window.PlatformAPI.search.types = async () => { throw new Error('offline'); };
+  await failing.api.loadOffered({ orgId:'org-1', branchId:'branch-1' });
+  assert.deepEqual(Array.from(failing.api.available(), ({ id }) => id), ['project', 'contact', 'setting']);
+  assert.deepEqual(Array.from(await failing.api.search('lift', { orgId:'org-1', types:['equipment'] })), []);
+});
+
+test('the top bar filters and searches only offered types', () => {
+  assert.match(topbarSource, /FirstMateArtifactSearch\?\.available\?\.\(\)/);
+  assert.match(topbarSource, /FirstMateArtifactSearch\?\.loadOffered\?\.\(/);
+  assert.match(topbarSource, /\['project','contact'\]\.filter\(\(type\) => enabledSearchTypes\.has\(type\) && offered\(type\)\)/);
 });
 
 test('global and settings-only search surfaces share the catalogue contract', () => {

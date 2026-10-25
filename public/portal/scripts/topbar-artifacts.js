@@ -135,10 +135,43 @@
     return tokens.length > 0 && tokens.every((token) => row.search_text.includes(token));
   }
 
+  // What this person's organization has, from the server (platform/search/result-types.ts). Until it
+  // has answered, or when it cannot, only the searches every organization has are offered.
+  const FALLBACK_OFFER = Object.freeze({ types:['project','contact','setting'], sources:['project','contact','setting'] });
+  let offer = { key:'', types:new Set(FALLBACK_OFFER.types), sources:new Set(FALLBACK_OFFER.sources), promise:null };
+
+  function setOffer(key, value){
+    offer = { key, types:new Set(array(value?.types).map((id) => clean(id))), sources:new Set(array(value?.sources).map((id) => clean(id))), promise:null };
+    return offer;
+  }
+
+  async function loadOffered(options = {}){
+    const orgId = clean(options.orgId);
+    const branchId = clean(options.branchId, 'default');
+    const key = `${orgId}:${branchId}`;
+    if (offer.key === key && offer.promise) return offer.promise;
+    if (offer.key === key && !options.refresh) return offer;
+    const loader = root.PlatformAPI?.search?.types;
+    if (!orgId || typeof loader !== 'function') return setOffer(key, FALLBACK_OFFER);
+    const promise = Promise.resolve(loader(orgId, { branchId }))
+      .then((result) => setOffer(key, Array.isArray(result?.types) ? result : FALLBACK_OFFER))
+      .catch(() => setOffer(key, FALLBACK_OFFER));
+    offer = { ...offer, key, promise };
+    return promise;
+  }
+
+  // Switching an app or feature, or moving an app, changes what is offered: ask again on the next search.
+  ['fm:capabilities:updated', 'fm:app-flags:updated'].forEach((name) => root.addEventListener?.(name, () => { offer = { ...offer, key:'' }; }));
+
+  const offeredType = (id) => offer.types.has(clean(id));
+  const available = () => TYPES.filter((type) => offeredType(type.id));
+
   async function search(query, options = {}){
-    const active = new Set(array(options.types));
+    const active = new Set(array(options.types).filter(offeredType));
     const context = { orgId:clean(options.orgId), branchId:clean(options.branchId, 'default') };
-    const providerTypes = Object.keys(providers).filter((type) => active.has(type) || (active.has('document') && ['invoice','receipt'].includes(type)));
+    const providerTypes = Object.keys(providers)
+      .filter((type) => offer.sources.has(type))
+      .filter((type) => active.has(type) || (active.has('document') && ['invoice','receipt'].includes(type)));
     const groups = await Promise.all(providerTypes.map((type) => providerRows(type, context)));
     const settings = active.has('setting')
       ? (root.FirstMateSettingsSearch?.search?.(query, { limit:40 }) || []).map((setting) => row(
@@ -156,5 +189,8 @@
     return true;
   }
 
-  root.FirstMateArtifactSearch = { TYPES:Object.freeze(TYPES), type:(id) => TYPE_MAP[id], search, open, clearCache:() => cache.clear() };
+  root.FirstMateArtifactSearch = {
+    TYPES:Object.freeze(TYPES), type:(id) => TYPE_MAP[id], search, open, loadOffered, available, offered:offeredType,
+    clearCache:() => { cache.clear(); offer = { ...offer, key:'' }; }
+  };
 })(window);

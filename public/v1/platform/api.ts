@@ -2763,13 +2763,25 @@ app.get("/auth/google/config", async () => ({
     const ctx = await requirePlatformAuth(request, { orgId });
     const query = request.query && typeof request.query === "object" ? request.query as Record<string, unknown> : {};
     const assignedProjectIds = seesEveryProject(ctx) ? undefined : await assignedProjectIdsForUser(orgId, ctx.userId);
+    // Only result types the organization has are searched (platform/search/result-types.ts).
+    const offered = await (await import("./search/result-types.js")).offeredSearchSources(ctx);
     const result = await searchPlatformProjectsAndContacts(orgId, {
       query: cleanText(query.q || query.query || query.search),
       types: cleanText(query.types || query.type),
       limit: query.limit,
-      projectIds: assignedProjectIds
+      projectIds: assignedProjectIds,
+      allowedTypes: new Set(offered.types)
     });
     return { ok: true, ...result };
+  });
+
+  // The result types and sources the global search offers this person.
+  app.get("/organizations/:orgId/search/types", async (request) => {
+    const orgId = getParam(request.params, "orgId");
+    const ctx = await requirePlatformAuth(request, { orgId });
+    const query = request.query && typeof request.query === "object" ? request.query as Record<string, unknown> : {};
+    const offered = await (await import("./search/result-types.js")).offeredSearchSources(ctx, { branchId: cleanText(query.branch_id || query.branchId) });
+    return { ok: true, ...offered };
   });
 
   app.get("/organizations/:orgId/projects/:projectId/documents", async (request) => {
@@ -3885,12 +3897,13 @@ function rowSearchScore(row: PlatformSearchIndexRow, queryText: string, queryTok
   return score;
 }
 
-export async function searchPlatformProjectsAndContacts(orgId: string, input: { query?: string; types?: string; limit?: unknown; projectIds?: ReadonlySet<string> }) {
+export async function searchPlatformProjectsAndContacts(orgId: string, input: { query?: string; types?: string; limit?: unknown; projectIds?: ReadonlySet<string>; allowedTypes?: ReadonlySet<string> }) {
   const queryText = normalizeSearchText(input.query);
   const queryTokens = searchTokens(queryText);
   const queryCompact = compactSearchText(queryText);
   const queryPhone = phoneDigits(input.query);
   const types = platformSearchTypes(cleanText(input.types));
+  if (input.allowedTypes) types.forEach((type) => { if (!input.allowedTypes?.has(type)) types.delete(type); });
   const limit = platformSearchLimit(input.limit);
   const rows = await platformSearchRows(orgId);
   const scopedRows = input.projectIds

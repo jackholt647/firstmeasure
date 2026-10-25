@@ -155,6 +155,26 @@ Search, presence, receipts and the New button take "works with every project"
 from the permissions `view_projects` or `manage_projects` (`seesEveryProject`).
 Anyone else sees only the projects they are assigned to.
 
+## Global search
+
+The top bar search offers only result types the organization has. Each source
+of results declares, in `public/v1/platform/search/result-types.ts`
+(`SEARCH_SOURCES`), the switches it needs and the app its results open; a
+source is offered when every switch is on and its app is offered here (switch
+on, in the person's app experience, placement not `hidden` or `settings`). A
+source that needs data to be worth searching says so (`available`). Scopes are
+offered only with expanded access and My Projects on, to someone who may open
+Settings › Project Scopes (`manage_company_settings`), and only while more than
+one scope template is switched on in the branch: an organization that runs a
+single scope never chooses one. `GET /organizations/:orgId/search/types`
+returns the offered types and sources; `/search` drops project or contact
+results the organization does not have, whatever was asked for, and the top
+bar shows filters and runs browser providers only for offered ones. Add a
+searchable thing as a source with its requirements; never check an
+organization or configuration by name. Project notes are found through their
+project, not as channels. Run `tests/global-search-types.test.ts` and
+`tests/settings-search-contract.test.mjs` for changes here.
+
 `tests/access-gates.test.ts` records every route's, export's and action's gate,
 and every app's devices and switches, in `tests/access-gates.snapshot.json`.
 Accept a deliberate change with `UPDATE_ACCESS_GATES=1`.

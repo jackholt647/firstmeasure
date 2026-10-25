@@ -760,6 +760,7 @@
     "GET /v1/platform/organizations/:orgId/recurrence-series": {"file":"platform/api.ts","gates":[{"app":"any","permission":"view_projects"}],"kind":"any:permission"},
     "GET /v1/platform/organizations/:orgId/recurrence-series/:seriesId/occurrences": {"file":"platform/api.ts","gates":[{"app":"any","permission":"view_projects"}],"kind":"any:permission"},
     "GET /v1/platform/organizations/:orgId/search": {"file":"platform/api.ts","gates":[{"app":"any"}],"kind":"any:login_only"},
+    "GET /v1/platform/organizations/:orgId/search/types": {"file":"platform/api.ts","gates":[{"app":"any"}],"kind":"any:login_only"},
     "GET /v1/platform/organizations/:orgId/terminology-assistant": {"file":"platform/api.ts","gates":[{"app":"any","permission":"manage_company_settings"}],"kind":"any:permission"},
     "GET /v1/platform/organizations/:orgId/terminology-assistant/threads/:threadId": {"file":"platform/api.ts","gates":[{"app":"any","permission":"manage_company_settings"}],"kind":"any:permission"},
     "GET /v1/platform/ping": {"file":"platform/api.ts","kind":"no_platform_session"},

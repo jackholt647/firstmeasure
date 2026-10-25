@@ -595,3 +595,14 @@ projects found, and so the events and datasets published, stay the same.
 
 **Why it can wait.** It runs once per report completion, not per request, and organizations have hundreds of projects.
 (docs/architecture/automation-authoring.md, "Report, document and materials milestones")
+
+## Global search lists every scope template to decide whether scopes are offered
+
+**Today.** `GET /organizations/:orgId/search/types` (`public/v1/platform/search/result-types.ts`) calls
+`listScopeTemplates`, which reads every template's current version, only to count the ones switched on.
+
+**Where the change goes.** Count enabled templates from the scope flags and the `scope_templates` rows without reading
+versions. The count, and so the offered types, stay the same.
+
+**Why it can wait.** The top bar asks once per page load (and after a switch changes), and organizations have a handful
+of scope templates. (docs/architecture/app-experience.md, "Global search")

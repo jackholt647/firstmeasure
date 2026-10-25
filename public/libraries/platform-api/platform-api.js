@@ -558,6 +558,11 @@
         if (isMissingRecord(error)) return { ok: true, results: [], count: 0, missing: true };
         throw error;
       });
+    },
+    // The result types and sources the global search offers this person (platform/search/result-types.ts).
+    types(orgId, options = {}){
+      const branchId = cleanText(options.branchId || options.branch_id);
+      return request(orgPath(orgId, `/search/types${branchId ? `?branch_id=${enc(branchId)}` : ''}`));
     }
   };
 
