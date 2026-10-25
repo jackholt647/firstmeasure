@@ -111,3 +111,12 @@ To roll back, set both rows back to `active` (and `active = 1`).
 Confirmed working: the first bonus purchase since the outage came at 2026-10-25T02:51:10Z. A new account paid $100 and
 got the +$50 bonus. Between the stopgap and then, 17 of 20 new signups held a bonus offer; the other 3 arrived with no
 campaign. No payment was held for review.
+
+Correction (Oct 25): the code fix was not dev-only. `b9f89a1d` shipped to production in release `6fefe93c`, about
+20:36 UTC on Oct 24, within a minute of the data change. It is still in release `eac399d9`, and production serves the
+fixed `signup-widget.js`. So both the code fix and the data stopgap were live from about 20:36 UTC. The stray
+campaign stays inactive; it is harmless and blocks the same failure for any other `utm_campaign` that names it.
+
+Bonus purchases since: 02:51 UTC ($100 +$50), 15:00 UTC ($500 +$250) and 16:29 UTC ($100 +$50), all new accounts.
+By 18:24 UTC Oct 25, 47 of 58 new signups held a bonus offer. No stray campaign appeared and no payment was held for
+review.
