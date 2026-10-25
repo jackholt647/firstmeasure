@@ -28,7 +28,7 @@ function record(value: unknown): Json {
 /** The organization a project belongs to (`organization_ref.id`, or the legacy `organization_id`). */
 export function projectOrganizationId(manifest: ProjectManifest | Json) {
   const value = manifest as Json;
-  return String(value.organization_id ?? record(value.organization_ref).id ?? "").trim();
+  return (String(value.organization_id ?? "").trim() || String(record(value.organization_ref).id ?? "").trim());
 }
 
 function notFound() {

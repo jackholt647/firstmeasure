@@ -6048,10 +6048,7 @@ async function portalFirstMeasureThumbnailQuery(orgId: string, firstMeasureId: s
   const { readManifest } = await import("../firstmeasure/storage.js");
   const manifest = await readManifest(firstMeasureId).catch(() => null);
   if (!manifest || access.projectOrganizationId(manifest) !== orgId) return null;
-  // TODO(merge): signedProjectFileQuery lands with claude/request-security-20261024;
-  // replace this lookup with a named import from "../firstmeasure/access.js" then.
-  const sign = (access as unknown as { signedProjectFileQuery?: (projectId: string, name: string, ttlSeconds?: number) => string }).signedProjectFileQuery;
-  return sign ? sign(firstMeasureId, "thumbnail") : "";
+  return access.signedProjectFileQuery(firstMeasureId, "thumbnail");
 }
 
 function publicProjectTopDownThumbnail(project: JsonObject, apiBaseUrl = "", signedQuery: string | null = null) {

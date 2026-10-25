@@ -2121,7 +2121,8 @@ export const registerFirstMeasureApi: FastifyPluginAsync = async (app) => {
 
     if (exterior) {
 
-      if (!env.firstMeasureInternalApiSecret || request.headers["x-firstmeasure-internal"]!==env.firstMeasureInternalApiSecret) throw new FirstMeasureError("internal_required",403,"Use the customer order workflow.");
+      // Full House orders are queued by the platform's order workflow after it has charged the customer.
+      if ((await requestPrincipal(request)).kind !== "system") throw new FirstMeasureError("internal_required",403,"Use the customer order workflow.");
 
       const orgId=String(asRecord(rawBody.organization_ref).id || "");
 

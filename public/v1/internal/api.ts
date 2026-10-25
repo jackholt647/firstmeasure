@@ -42,7 +42,7 @@ import {
   searchReferralOrganizations,
   updateReferralRewardStatus as updateCrmReferralRewardStatus
 } from "./crm/referrals.js";
-import { PlatformError, badRequest, forbidden, notFound, unauthorized } from "../platform/errors.js";
+import { PlatformError, badRequest, conflict, forbidden, notFound, unauthorized } from "../platform/errors.js";
 import {
   addIdentityMembership,
   createAuthSession,
@@ -101,7 +101,7 @@ import { createPublicFirstMeasureKeyDelivery } from "../public-firstmeasure/key_
 import { hasPublicFirstMeasureApiKeySecret } from "../public-firstmeasure/key_secret_vault.js";
 import { knownPrincipal, principalActor, systemPrincipal } from "../platform/security/principal.js";
 import { serviceInject } from "../platform/security/service.js";
-import { startImpersonation, stopImpersonation } from "../platform/security/impersonation.js";
+import { impersonationMark, recordSecurityEvent, startImpersonation, stopImpersonation } from "../platform/security/impersonation.js";
 import { staffAuthority } from "../platform/security/staff.js";
 import { assertMayManageInternalUser, requireLegacyActionLevel, staffOrSystem } from "./staff-guards.js";
 
@@ -342,18 +342,25 @@ export const registerInternalApi: FastifyPluginAsync = async (app) => {
   // the admin's own session (platform/security/impersonation.ts).
   app.get("/impersonation", async (request) => {
     const principal = knownPrincipal(request);
+    const admin = principal.kind === "staff" ? principal.impersonator ?? principal.staff : null;
+    const mark = admin && principal.kind === "staff" && principal.impersonator && principal.auth
+      ? await impersonationMark(principal.auth.sessionId, admin.email) : null;
     return {
       ok: true,
       success: true,
-      impersonating: principal.kind === "staff" && principal.impersonator ? principal.staff.email : null,
-      admin_email: principal.kind === "staff" ? (principal.impersonator ?? principal.staff).email : null
+      active: Boolean(mark),
+      target_email: mark?.target_email ?? null,
+      admin_email: admin?.email ?? null,
+      started_at: mark?.started_at ?? null,
+      expires_at: mark?.expires_at ?? null
     };
   });
 
   app.post("/impersonation", async (request) => {
     const principal = knownPrincipal(request);
     if (principal.kind !== "staff" || principal.via !== "session" || !principal.auth) throw forbidden("session_required", "Acting as someone needs a signed-in admin session.");
-    const admin = principal.impersonator ?? principal.staff;
+    if (principal.impersonator) throw conflict("already_impersonating", "Stop acting as the current staff member first.");
+    const admin = principal.staff;
     if (!admin.admin) throw forbidden("admin_required", "Only full admins can act as another staff member.");
     const targetEmail = String(asObject(request.body).target_email ?? "").trim().toLowerCase();
     const target = staffAuthority(targetEmail ? await readInternalUser(targetEmail) : null);
@@ -1547,6 +1554,10 @@ async function startCustomerImpersonation(request: FastifyRequest, reply: Fastif
   const email = cleanText(body.email || body.user_email).toLowerCase();
   const requestedOrgId = cleanText(body.org_id || body.organization_id);
   if (!email) return { ok: false, success: false, status_code: 400, error: "missing_user_email" };
+  // Acting as staff goes through /v1/internal/impersonation; this is for customer accounts.
+  if (requestedOrgId && requestedOrgId.toLowerCase() === internalPlatformOrgId()) {
+    return { ok: false, success: false, status_code: 403, error: "staff_impersonation_not_here" };
+  }
 
   const identity = await findIdentityByEmailOrNull(email);
   if (!identity) return { ok: false, success: false, status_code: 404, error: "identity_not_found" };
@@ -1564,6 +1575,8 @@ async function startCustomerImpersonation(request: FastifyRequest, reply: Fastif
   const orgId = cleanText(organization.id);
   const userId = cleanText(userDocument.id || user.id);
   if (!orgId || !userId) return { ok: false, success: false, status_code: 500, error: "invalid_membership" };
+  if (orgId.toLowerCase() === internalPlatformOrgId()) return { ok: false, success: false, status_code: 403, error: "staff_impersonation_not_here" };
+  await recordSecurityEvent("customer_impersonation_started", { admin_email: actorEmail, target_email: email, organization_id: orgId });
 
   const role = cleanText(user.role || asObject(selected).role || "member") || "member";
   const permissions = asObject(user.permissions);

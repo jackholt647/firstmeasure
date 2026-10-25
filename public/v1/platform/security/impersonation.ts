@@ -17,8 +17,10 @@ async function storage() {
   return await import("../../internal/storage.js");
 }
 
-/** The email the admin is acting as, or null. */
-export async function activeImpersonation(sessionId: string, adminEmail: string) {
+export type ImpersonationMark = { target_email: string; admin_email: string; started_at: string; expires_at: string };
+
+/** The admin's current mark (whom they are acting as, until when), or null. */
+export async function impersonationMark(sessionId: string, adminEmail: string): Promise<ImpersonationMark | null> {
   if (!sessionId) return null;
   const { readInternalDocument } = await storage();
   const document = await readInternalDocument(COLLECTION, sessionKey(sessionId)).catch(() => null);
@@ -26,7 +28,12 @@ export async function activeImpersonation(sessionId: string, adminEmail: string)
   const target = String(data.target_email ?? "").trim().toLowerCase();
   if (!target || String(data.admin_email ?? "").toLowerCase() !== adminEmail.toLowerCase()) return null;
   if (!(Date.parse(String(data.expires_at ?? "")) > Date.now())) return null;
-  return target;
+  return { target_email: target, admin_email: adminEmail.toLowerCase(), started_at: String(data.started_at ?? ""), expires_at: String(data.expires_at ?? "") };
+}
+
+/** The email the admin is acting as, or null. */
+export async function activeImpersonation(sessionId: string, adminEmail: string) {
+  return (await impersonationMark(sessionId, adminEmail))?.target_email ?? null;
 }
 
 export async function startImpersonation(sessionId: string, adminEmail: string, targetEmail: string) {
