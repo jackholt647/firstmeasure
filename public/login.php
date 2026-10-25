@@ -21,7 +21,7 @@ if (isset($_GET['logout'])) {
 
 // Already logged in? Redirect
 if (auth_is_logged_in()) {
-    header('Location: ' . ($_GET['return'] ?? 'browse.php'));
+    header('Location: ' . fm_safe_redirect_path($_GET['return'] ?? '', 'browse.php'));
     exit;
 }
 
@@ -47,7 +47,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $error = 'No users configured. Visit login.php?hash=YourPassword to set up.';
     } elseif (auth_login($username, $password)) {
         $_SESSION['login_attempts'] = ['count' => 0, 'first' => time()];
-        $return = $_POST['return'] ?? $_GET['return'] ?? 'browse.php';
+        $return = fm_safe_redirect_path($_POST['return'] ?? $_GET['return'] ?? '', 'browse.php');
         header('Location: ' . $return);
         exit;
     } else {
@@ -55,7 +55,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 }
 
-$return = htmlspecialchars($_GET['return'] ?? 'browse.php');
+$return = htmlspecialchars(fm_safe_redirect_path($_GET['return'] ?? '', 'browse.php'));
 $hasUsers = file_exists(AUTH_USERS_FILE) && count(auth_load_users()) > 0;
 ?>
 <!DOCTYPE html>

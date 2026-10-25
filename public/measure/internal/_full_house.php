@@ -11,7 +11,8 @@ function fm_full_house_secret() {
     return getenv('FIRSTMEASURE_FULL_HOUSE_SIGNING_SECRET') ?: (fm_provider_key_value('application', 'internal_api_secret') ?: getenv('FIRSTMEASURE_INTERNAL_API_SECRET'));
 }
 function fm_full_house_headers() {
-    $email = strtolower(trim((string)($_SESSION['user_email'] ?? '')));
+    // Only a Node-verified staff session (includes/node_api.php) is signed.
+    $email = fm_staff_session_email();
     $secret = fm_full_house_secret();
     if ($email === '' || !$secret) return [];
     $time = (string)time();
@@ -19,7 +20,7 @@ function fm_full_house_headers() {
         'X-Full-House-Signature: ' . hash_hmac('sha256', $email . "\n" . $time, $secret)];
 }
 function fm_full_house_allowed() {
-    if (empty($_SESSION['user_email'])) return false;
+    if (fm_staff_session_email() === '') return false;
     $result = fm_api_request('GET', 'internal-exteriors/capability');
     return $result['status'] === 200 && !empty($result['json']['email']);
 }

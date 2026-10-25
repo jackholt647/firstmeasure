@@ -521,6 +521,14 @@ if ($IS_DIR_SIZE_WORKER) {
 
 $action = $_REQUEST['action'] ?? '';
 
+// Reads may be plain GET links (downloads, previews). Anything else changes
+// files, so it must be a POST carrying ide.php's per-session token.
+$IDE_READ_ACTIONS = ['list', 'read', 'info', 'download', 'download_zip', 'search', 'tree', 'symlink_info', 'trash_list', 'trash_stats', 'dir_size', 'dir_size_status'];
+if ($_SERVER['REQUEST_METHOD'] === 'POST' || !in_array($action, $IDE_READ_ACTIONS, true)) {
+    if ($_SERVER['REQUEST_METHOD'] !== 'POST') fail('POST required.', 405);
+    if (!fm_csrf_valid('ide', (string)($_SERVER['HTTP_X_IDE_CSRF'] ?? ($_POST['csrf_token'] ?? '')))) fail('Invalid or missing request token. Reload the IDE.', 403);
+}
+
 switch ($action) {
 
     // ── LIST DIRECTORY ───────────────────────────────────────────────────────

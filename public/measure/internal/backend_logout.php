@@ -1,24 +1,35 @@
 <?php
 require_once __DIR__ . '/_storage.php';
-session_start();
+require_once __DIR__ . '/_staff_session.php';
+fm_internal_session_start();
+// An administrator acting as someone stops doing so when they sign out.
+if (!empty($_SESSION['is_impersonating']) && fm_platform_session_cookie() !== '') {
+    fm_node_request('DELETE', fm_node_v1_url('internal/impersonation'), ['auth' => 'cookie', 'timeout' => 5]);
+}
 session_unset();
 session_destroy();
-$configuredCookie = trim((string)(getenv('PLATFORM_SESSION_COOKIE_NAME') ?: ($_SERVER['PLATFORM_SESSION_COOKIE_NAME'] ?? '')));
-$platformCookie = preg_match('/^[A-Za-z0-9_-]{1,80}$/', $configuredCookie) ? $configuredCookie : 'fm_platform_session';
+$platformCookie = fm_platform_session_cookie_name();
+$secure = fm_request_is_https();
+setcookie(session_name(), '', [
+    'expires' => time() - 3600,
+    'path' => '/',
+    'secure' => $secure,
+    'httponly' => true,
+    'samesite' => 'Lax',
+]);
 setcookie($platformCookie, '', [
     'expires' => time() - 3600,
     'path' => '/',
-    'secure' => (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off'),
+    'secure' => $secure,
     'httponly' => true,
     'samesite' => 'Lax',
 ]);
 setcookie($platformCookie . '_csrf', '', [
     'expires' => time() - 3600,
     'path' => '/',
-    'secure' => (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off'),
+    'secure' => $secure,
     'httponly' => false,
     'samesite' => 'Lax',
 ]);
 header("Location: backend_login.php");
 exit;
-?>

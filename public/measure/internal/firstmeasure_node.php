@@ -1,5 +1,6 @@
 <?php
 require_once __DIR__ . '/_storage.php';
+require_once dirname(__DIR__, 2) . '/includes/node_api.php';
 
 if (defined('FIRSTMEASURE_PROJECT_API_LOADED')) {
     return;
@@ -36,23 +37,16 @@ function fm_api_base_url() {
     static $base = null;
     if ($base !== null) return $base;
 
-    $envBase = getenv('FIRSTMEASURE_API_BASE');
-    if (is_string($envBase) && trim($envBase) !== '') {
-        $base = rtrim(trim($envBase), '/');
+    // From configuration only (includes/node_api.php): FIRSTMEASURE_API_BASE
+    // as given, else derived from FIRSTMEASURE_NODE_BASE_URL. Never from the
+    // request's Host; '' when unconfigured, and callers refuse.
+    $configured = rtrim(fm_node_config('FIRSTMEASURE_API_BASE'), '/');
+    if ($configured !== '' && fm_node_valid_base($configured)) {
+        $base = $configured;
         return $base;
     }
-
-    $host = strtolower((string)($_SERVER['HTTP_HOST'] ?? ''));
-    $hostOnly = preg_replace('/:\d+$/', '', $host);
-    if ($hostOnly === '127.0.0.1' || $hostOnly === 'localhost') {
-        $base = 'http://127.0.0.1:3111/v1/firstmeasure';
-        return $base;
-    }
-
-    $forwardedProto = strtolower((string)($_SERVER['HTTP_X_FORWARDED_PROTO'] ?? ''));
-    $scheme = ($forwardedProto === 'https' || (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off')) ? 'https' : 'http';
-    $publicHost = (string)($_SERVER['HTTP_HOST'] ?? 'app.1m8.ai');
-    $base = $scheme . '://' . $publicHost . '/v1/firstmeasure';
+    $v1 = fm_node_v1_base_url('api', 3111);
+    $base = $v1 === '' ? '' : $v1 . '/firstmeasure';
     return $base;
 }
 
@@ -103,8 +97,11 @@ function fm_json_decode($raw, $fallback = null) {
     return is_array($decoded) ? $decoded : $fallback;
 }
 
+// $opts['auth']: 'session' (default) signs as the Node-verified staff member,
+// 'system' as PHP's own unattended work (includes/node_api.php).
 function fm_api_request($method, $path, $opts = []) {
     $method = strtoupper(trim((string)$method));
+    if (fm_api_base_url() === '') return fm_node_not_configured_result();
     $url = rtrim(fm_api_base_url(), '/') . '/' . ltrim((string)$path, '/');
     if (!empty($opts['query']) && is_array($opts['query'])) {
         $qs = http_build_query($opts['query']);
@@ -146,16 +143,17 @@ function fm_api_request($method, $path, $opts = []) {
 
     $headers = array_merge($headers, fm_api_forwarded_headers($url));
     if (function_exists('fm_full_house_headers') && (strpos((string)$path, 'internal-exteriors/') === 0 || strpos((string)$path, 'fullhouse_') !== false)) $headers = array_merge($headers, fm_full_house_headers());
+    $isMultipart = !empty($opts['multipart']) && is_array($body);
+    $signedBody = ($method !== 'GET' && $method !== 'HEAD' && is_string($body)) ? $body : null;
+    $headers = array_merge($headers, fm_node_identity_headers((string)($opts['auth'] ?? 'session'), $method, $url, $signedBody, $isMultipart));
     if (function_exists('curl_init')) {
         $ch = curl_init($url);
         $responseHeaders = [];
-        curl_setopt_array($ch, [
+        curl_setopt_array($ch, fm_node_curl_options() + [
             CURLOPT_RETURNTRANSFER => true,
             CURLOPT_CUSTOMREQUEST => $method,
-            CURLOPT_FOLLOWLOCATION => true,
             CURLOPT_CONNECTTIMEOUT => $opts['connect_timeout'] ?? 3,
             CURLOPT_TIMEOUT => $opts['timeout'] ?? 45,
-            CURLOPT_SSL_VERIFYPEER => false,
             CURLOPT_HTTPHEADER => $headers,
             CURLOPT_HEADERFUNCTION => function ($curl, $header) use (&$responseHeaders) {
                 $len = strlen($header);
@@ -205,14 +203,12 @@ function fm_stream_http_request($method, $url, $headers, $body, $isMultipart = f
         'http' => [
             'method' => $method,
             'timeout' => $timeout,
+            'follow_location' => 0,
             'ignore_errors' => true,
             'header' => implode("\r\n", $headerLines),
             'content' => ($method !== 'GET' && $body !== null) ? $body : ''
         ],
-        'ssl' => [
-            'verify_peer' => false,
-            'verify_peer_name' => false,
-        ]
+        'ssl' => fm_node_stream_ssl_options(),
     ]);
 
     $resp = @file_get_contents($url, false, $context);

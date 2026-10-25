@@ -1,7 +1,9 @@
 <?php
 require_once __DIR__ . '/_storage.php';
+require_once __DIR__ . '/_staff_session.php';
 // apple_key_ingest.php
-// Public CORS endpoint to store Apple Maps accessKey.
+// Staff-admin endpoint to store the Apple Maps accessKey (same origin only;
+// it was a public cross-origin endpoint until 2026-10-24).
 // Accepts POST { url: "...?....&accessKey=XYZ" } OR POST { key: "XYZ" }.
 // Either payload may optionally include { tile_version: 10401 }.
 // Extracts key as LAST query param if using url.
@@ -11,15 +13,42 @@ require_once __DIR__ . '/_storage.php';
 ignore_user_abort(true);
 set_time_limit(30);
 
-// CORS: allow any traffic
-header('Access-Control-Allow-Origin: *');
-header('Access-Control-Allow-Methods: GET, POST, OPTIONS');
-header('Access-Control-Allow-Headers: Content-Type, X-FirstMeasure-Debug, X-FirstMeasure-Debug-Source');
 header('Content-Type: application/json');
+header('Cache-Control: no-store');
+header('X-Content-Type-Options: nosniff');
 
 if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
   http_response_code(204);
   exit;
+}
+
+// Reading or replacing the key needs a staff full admin, checked live with
+// Node (GET /v1/internal/me with the platform session), not a stored flag.
+fm_internal_session_start();
+$appleStaffCheck = fm_staff_refresh_from_node();
+if ($appleStaffCheck['state'] !== 'staff') {
+  session_write_close();
+  http_response_code($appleStaffCheck['state'] === 'error' ? 503 : 401);
+  echo json_encode(['success' => false, 'error' => $appleStaffCheck['state'] === 'error' ? 'staff_verification_unavailable' : 'staff_session_required']);
+  exit;
+}
+if (empty($_SESSION['user_is_admin'])) {
+  session_write_close();
+  http_response_code(403);
+  echo json_encode(['success' => false, 'error' => 'strict_admin_required']);
+  exit;
+}
+session_write_close();
+// Writes come from this site's own pages only.
+if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+  $appleOrigin = (string)($_SERVER['HTTP_ORIGIN'] ?? '');
+  $appleOriginHost = strtolower((string)parse_url($appleOrigin, PHP_URL_HOST));
+  $appleHost = strtolower((string)preg_replace('/:\d+$/', '', (string)($_SERVER['HTTP_HOST'] ?? '')));
+  if ($appleOrigin !== '' && $appleOriginHost !== $appleHost) {
+    http_response_code(403);
+    echo json_encode(['success' => false, 'error' => 'cross_origin_write_refused']);
+    exit;
+  }
 }
 
 function appleKeyPath() {

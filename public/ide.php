@@ -2,6 +2,8 @@
 // ide.php — Unified IDE: File Browser + Code Editor + Linting & Error Detection + Trash System
 require_once __DIR__ . '/auth.php';
 auth_require_login();
+// Every request this page makes to api.php carries this token (api.php refuses writes without it).
+$ideCsrfToken = fm_csrf_token('ide');
 $fileParam = $_GET['file'] ?? '';
 $dirParam  = $_GET['dir'] ?? '';
 ?>
@@ -643,6 +645,7 @@ a{color:var(--accent);text-decoration:none}
 <div id="lintTip" class="lint-tooltip" style="display:none"></div>
 <script>
 const API='api.php', WEB_ROOT='https://app.1m8.ai/';
+const IDE_CSRF=<?= json_encode($ideCsrfToken) ?>;
 const tabs=[]; let activeTab=null, editor=null;
 let treeExpanded=new Set(['']), sidebarCache={}, sidebarFilter='';
 let minimapDirty=true, minimapRAF=null;
@@ -660,8 +663,8 @@ let taskIdCounter=0, longTasks=[];
 async function api(p,o={}){
     try{
         let r;
-        if(o.upload)r=await fetch(API+'?action=upload&path='+encodeURIComponent(p.path),{method:'POST',body:p.formData});
-        else r=await fetch(API+'?'+new URLSearchParams(p));
+        if(o.upload)r=await fetch(API+'?action=upload&path='+encodeURIComponent(p.path),{method:'POST',headers:{'X-IDE-CSRF':IDE_CSRF},body:p.formData});
+        else r=await fetch(API,{method:'POST',headers:{'X-IDE-CSRF':IDE_CSRF},body:new URLSearchParams(p)});
         if(r.status===413)return{ok:false,error:'File too large.'};
         const text=await r.text();
         let data;
@@ -674,7 +677,7 @@ async function api(p,o={}){
 async function apiPost(path,content){
     try{
         const fd=new FormData();fd.append('content',content);
-        const r=await fetch(API+'?action=write&path='+encodeURIComponent(path),{method:'POST',body:fd});
+        const r=await fetch(API+'?action=write&path='+encodeURIComponent(path),{method:'POST',headers:{'X-IDE-CSRF':IDE_CSRF},body:fd});
         const text=await r.text();
         let data;
         try{data=JSON.parse(text)}catch(e){data={ok:false,error:text||('HTTP '+r.status)}}
@@ -683,7 +686,7 @@ async function apiPost(path,content){
         return data;
     }catch(e){return{ok:false,error:'Network: '+e.message}}
 }
-async function trashApi(p){try{const r=await fetch(API+'?'+new URLSearchParams(p));const text=await r.text();try{return JSON.parse(text)}catch(e){return{ok:false,error:'Invalid response'}}}catch(e){return{ok:false,error:'Network: '+e.message}}}
+async function trashApi(p){try{const r=await fetch(API,{method:'POST',headers:{'X-IDE-CSRF':IDE_CSRF},body:new URLSearchParams(p)});const text=await r.text();try{return JSON.parse(text)}catch(e){return{ok:false,error:'Invalid response'}}}catch(e){return{ok:false,error:'Network: '+e.message}}}
 function toast(m,t='info'){const e=document.createElement('div');e.className='toast '+t;e.textContent=m;document.getElementById('toasts').appendChild(e);setTimeout(()=>{e.style.opacity='0';e.style.transition='opacity .3s';setTimeout(()=>e.remove(),300)},2500)}
 function createTask(title,subtitle,detail){
     const id='task_'+(++taskIdCounter);

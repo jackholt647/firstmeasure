@@ -1,9 +1,9 @@
 <?php
-session_start();
+require_once __DIR__ . '/_staff_session.php';
+fm_internal_require_staff('text');
 session_write_close();
 require_once __DIR__ . '/_tutorial_access.php';
 header('Cache-Control: private, no-store');
-if (empty($_SESSION['user_email'])) { http_response_code(401); exit('Login required.'); }
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (($_SERVER['HTTP_X_TUTORIAL_REQUEST'] ?? '') !== '1') { http_response_code(403); exit('Invalid request.'); }
     $body = json_decode(file_get_contents('php://input'), true);

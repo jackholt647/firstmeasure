@@ -67,7 +67,7 @@ test('project_resources.php accepts a frame job, answers before extracting, and 
  });});
  await new Promise(r=>api.listen(0,'127.0.0.1',r));
  const router=path.join(dir,'router.php'),entry=path.resolve(__dirname,'../public/measure/internal/project_resources.php').replace(/\\/g,'/');
- fs.writeFileSync(router,`<?php session_start(); $_SESSION['user_email']='tech@example.com'; session_write_close(); chdir(${JSON.stringify(path.dirname(entry))}); require ${JSON.stringify(entry)};`);
+ fs.writeFileSync(router,`<?php session_start(); $_SESSION['user_email']='tech@example.com'; $_SESSION['fm_staff']=['email'=>'tech@example.com','verified_at'=>time()]; session_write_close(); chdir(${JSON.stringify(path.dirname(entry))}); require ${JSON.stringify(entry)};`);
  const port=40000+Math.floor(Math.random()*20000);
  const server=require('node:child_process').spawn(php,[...phpArgs,'-S','127.0.0.1:'+port,router],{env:{...process.env,FIRSTMEASURE_API_BASE:'http://127.0.0.1:'+api.address().port,FIRSTMEASURE_FULL_HOUSE_SIGNING_SECRET:'test-secret',FIRSTMEASURE_FFMPEG:ffmpeg},stdio:'ignore'});
  try{

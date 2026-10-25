@@ -2,7 +2,7 @@
 require_once __DIR__ . '/_full_house.php';
 
 function fm_tutorial_bridge($body) {
-    $email = strtolower(trim((string)($_SESSION['user_email'] ?? '')));
+    $email = fm_staff_session_email();
     // The training API runs on compatibility, whose secret may differ from the
     // web-only full-house signing override. Prefer the existing shared PHP bridge key.
     $secret = getenv('STAFF_TRACKING_BRIDGE_SECRET') ?: (fm_provider_key_value('application', 'internal_api_secret') ?: getenv('FIRSTMEASURE_INTERNAL_API_SECRET'));
@@ -10,10 +10,15 @@ function fm_tutorial_bridge($body) {
     $time = (string)time();
     $json = json_encode($body, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
     $signature = hash_hmac('sha256', $email . "\n" . $time . "\n" . $json, $secret);
+    if (fm_api_base_url() === '') return ['status' => 503, 'body' => '', 'json' => null];
     $base = preg_replace('#/firstmeasure/?$#', '/internal', rtrim(fm_api_base_url(), '/'));
-    $ch = curl_init($base . '/tutorial-exteriors');
-    curl_setopt_array($ch, [CURLOPT_RETURNTRANSFER => true, CURLOPT_POST => true, CURLOPT_POSTFIELDS => $json,
-        CURLOPT_HTTPHEADER => ['Content-Type: application/json', 'X-Tutorial-User: ' . $email, 'X-Tutorial-Time: ' . $time, 'X-Tutorial-Signature: ' . $signature],
+    $url = $base . '/tutorial-exteriors';
+    // The tutorial receipt stays for one release; the service signature is what Node's route gate reads.
+    $headers = array_merge(['Content-Type: application/json', 'X-Tutorial-User: ' . $email, 'X-Tutorial-Time: ' . $time, 'X-Tutorial-Signature: ' . $signature],
+        fm_node_signature_headers('POST', $url, $email, $json));
+    $ch = curl_init($url);
+    curl_setopt_array($ch, fm_node_curl_options() + [CURLOPT_RETURNTRANSFER => true, CURLOPT_POST => true, CURLOPT_POSTFIELDS => $json,
+        CURLOPT_HTTPHEADER => $headers,
         CURLOPT_CONNECTTIMEOUT => 5, CURLOPT_TIMEOUT => 120]);
     $raw = curl_exec($ch); $status = (int)curl_getinfo($ch, CURLINFO_HTTP_CODE); curl_close($ch);
     return ['status' => $status ?: 502, 'body' => $raw ?: '', 'json' => json_decode($raw ?: '', true)];

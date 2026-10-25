@@ -15,14 +15,9 @@
  * Generate a hash at: login.php?hash=YourPassword
  * Or CLI: php -r "echo password_hash('YourPassword', PASSWORD_DEFAULT);"
  */
-if (session_status() === PHP_SESSION_NONE) {
-    $isHttps = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off')
-        || strtolower((string)($_SERVER['HTTP_X_FORWARDED_PROTO'] ?? '')) === 'https';
-    ini_set('session.cookie_httponly', '1');
-    ini_set('session.cookie_secure', $isHttps ? '1' : '0');
-    ini_set('session.use_strict_mode', '1');
-    session_start();
-}
+require_once __DIR__ . '/includes/web_security.php';
+// HttpOnly, SameSite=Lax, Secure over HTTPS, strict ids (includes/web_security.php).
+fm_session_start_secure();
 define('AUTH_USERS_FILE', __DIR__ . '/auth_users.json');
 define('AUTH_SESSION_KEY', 'ide_authenticated');
 define('AUTH_SESSION_USER', 'ide_username');

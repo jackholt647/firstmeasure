@@ -1,13 +1,14 @@
 <?php
+require_once dirname(__DIR__, 2) . '/includes/node_api.php';
 // Stream a trusted Node JSON response without building a PHP string/array copy.
 // Authentication and blind-review selection are performed by editor.php first.
 function fm_editor_stream_node_bundle($url, &$upstreamStatus = null) {
-    if (!function_exists('curl_init')) return false;
+    if (!function_exists('curl_init') || strpos((string)$url, '/') === 0) return false;
     $started = false;
     $ch = curl_init($url);
-    curl_setopt_array($ch, [
+    curl_setopt_array($ch, fm_node_curl_options() + [
         CURLOPT_HTTPGET => true,
-        CURLOPT_HTTPHEADER => array_merge(['Accept: application/json'], function_exists('fm_api_forwarded_headers') ? fm_api_forwarded_headers($url) : [], strpos($url, '/projects/fullhouse_') !== false && function_exists('fm_full_house_headers') ? fm_full_house_headers() : []),
+        CURLOPT_HTTPHEADER => array_merge(['Accept: application/json'], function_exists('fm_api_forwarded_headers') ? fm_api_forwarded_headers($url) : [], strpos($url, '/projects/fullhouse_') !== false && function_exists('fm_full_house_headers') ? fm_full_house_headers() : [], fm_node_identity_headers('session', 'GET', $url)),
         CURLOPT_CONNECTTIMEOUT => 3,
         CURLOPT_TIMEOUT => 45,
         CURLOPT_FAILONERROR => true,

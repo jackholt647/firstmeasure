@@ -2,12 +2,13 @@
 // Explicit development-only, owner-only experimental vision endpoint.
 require_once __DIR__ . '/firstmeasure_node.php';
 require_once __DIR__ . '/_full_house.php';
-session_start();
+require_once __DIR__ . '/_staff_session.php';
+fm_internal_session_start();
 header('Content-Type: application/json');
 header('Cache-Control: private, no-store');
 function ai_fail($code, $message) { http_response_code($code); echo json_encode(['error'=>$message]); exit; }
 if (strtolower(explode(':', $_SERVER['HTTP_HOST'] ?? '')[0]) !== 'dev.1m8.ai'
-    || strtolower($_SESSION['user_email'] ?? '') !== 'jack@1m8.ai'
+    || fm_staff_session_resolve() !== 'jack@1m8.ai'
     || !is_file('/var/lib/firstmeasure-exterior-ai/api.key')) ai_fail(404, 'Experiment unavailable.');
 if (($_SERVER['REQUEST_METHOD'] ?? '') !== 'POST') ai_fail(405, 'POST required.');
 if (($_SERVER['HTTP_ORIGIN'] ?? '') !== 'https://dev.1m8.ai') ai_fail(403, 'Origin rejected.');

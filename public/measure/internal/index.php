@@ -18,7 +18,8 @@ require_once dirname(__DIR__, 2) . '/includes/provider_keys.php';
  * - Node /v1 APIs host core app APIs (projects list, queue, tutorials, coupons, etc).
  */
 
-session_start();
+require_once __DIR__ . '/_staff_session.php';
+fm_internal_session_start();
 require_once __DIR__ . '/firstmeasure_node.php';
 require_once __DIR__ . '/_permission_options.php';
 require_once __DIR__ . '/_tutorials.php';
@@ -88,10 +89,9 @@ function portalDefaultTutorialCourseForUser($userData) {
 }
 
 // --- AUTH CHECK ---
-if (!isset($_SESSION['user_email'])) {
-    header("Location: backend_login.php?redirect=" . urlencode($_SERVER['REQUEST_URI']));
-    exit;
-}
+// A Node-verified staff session only: a customer's portal login shares this
+// PHP session but never carries the staff mark (_staff_session.php).
+fm_internal_require_staff('html');
 
 $currentUserEmail = $_SESSION['user_email'];
 $currentUserName  = $_SESSION['user_name'];
@@ -103,6 +103,7 @@ if (in_array(strtolower(trim((string)$currentUserEmail)), ['', 'unknown@example.
     header("Location: backend_login.php?redirect=" . urlencode($_SERVER['REQUEST_URI']));
     exit;
 }
+$portalConsoleCsrfToken = fm_csrf_token('staff_console');
 if (session_status() === PHP_SESSION_ACTIVE && function_exists('session_write_close')) {
     session_write_close();
 }
@@ -133,23 +134,25 @@ function portalReadUserDataByEmail($email) {
 
 function portalInternalApiBaseUrl() {
     $base = rtrim((string)fm_api_base_url(), '/');
+    if ($base === '') return '';
     $internal = preg_replace('#/firstmeasure/?$#', '/internal', $base);
     if (is_string($internal) && $internal !== '' && $internal !== $base) return $internal;
     return rtrim($base, '/') . '/../internal';
 }
 
-function portalNodeInternalRequest($method, $path, $body = null, $query = []) {
+// $auth 'session' signs as the signed-in staff member; 'system' is for work
+// PHP computes on its own (refunds after a review decision).
+function portalNodeInternalRequest($method, $path, $body = null, $query = [], $auth = 'session') {
     $method = strtoupper(trim((string)$method));
-    $url = rtrim(portalInternalApiBaseUrl(), '/') . '/' . ltrim((string)$path, '/');
+    $internalBase = portalInternalApiBaseUrl();
+    if ($internalBase === '') return ['ok' => false, 'status' => 503, 'json' => null, 'body' => '', 'error' => 'node_base_url_not_configured'];
+    $url = rtrim($internalBase, '/') . '/' . ltrim((string)$path, '/');
     if (is_array($query) && $query) {
         $qs = http_build_query($query);
         if ($qs !== '') $url .= (strpos($url, '?') === false ? '?' : '&') . $qs;
     }
 
-    $actorEmail = strtolower(trim((string)($_SESSION['user_email'] ?? '')));
     $headers = ['Accept: application/json'];
-    if ($actorEmail !== '') $headers[] = 'X-Internal-User-Email: ' . $actorEmail;
-    if (!empty($_SESSION['user_name'])) $headers[] = 'X-Internal-User-Name: ' . (string)$_SESSION['user_name'];
     $headers = array_merge($headers, fm_api_forwarded_headers($url));
 
     $payload = null;
@@ -157,20 +160,19 @@ function portalNodeInternalRequest($method, $path, $body = null, $query = []) {
         $payload = json_encode($body);
         $headers[] = 'Content-Type: application/json';
     }
+    $headers = array_merge($headers, fm_node_identity_headers($auth, $method, $url, ($payload !== null && $method !== 'GET') ? $payload : null));
 
     if (!function_exists('curl_init')) {
         return ['ok' => false, 'status' => 500, 'json' => null, 'body' => '', 'error' => 'curl_missing'];
     }
 
     $ch = curl_init($url);
-    curl_setopt_array($ch, [
+    curl_setopt_array($ch, fm_node_curl_options() + [
         CURLOPT_RETURNTRANSFER => true,
         CURLOPT_CUSTOMREQUEST => $method,
         CURLOPT_HTTPHEADER => $headers,
         CURLOPT_TIMEOUT => 15,
         CURLOPT_CONNECTTIMEOUT => 3,
-        CURLOPT_SSL_VERIFYPEER => false,
-        CURLOPT_SSL_VERIFYHOST => false,
     ]);
     if ($payload !== null && $method !== 'GET') {
         curl_setopt($ch, CURLOPT_POSTFIELDS, $payload);
@@ -1184,7 +1186,9 @@ function portalRefundCreditsByOrganizationId($orgId, $amount, $reason, $meta = [
         'unit' => 'usd_dollars',
     ];
 
-    $res = portalNodeInternalRequest('POST', 'organizations/' . rawurlencode($orgId) . '/credits/adjust', $payload);
+    // A refund PHP computed from a review decision, not a credit grant the
+    // signed-in reviewer chose: sign it as the system.
+    $res = portalNodeInternalRequest('POST', 'organizations/' . rawurlencode($orgId) . '/credits/adjust', $payload, [], 'system');
     if (empty($res['ok'])) {
         $json = is_array($res['json'] ?? null) ? $res['json'] : [];
         return [
@@ -6586,6 +6590,7 @@ $ver = time(); // cache busting
     });
 
     window.PORTAL_CFG = {
+        csrf_token: <?php echo json_encode($portalConsoleCsrfToken); ?>,
         endpoints: {
             portal: INTERNAL_LEGACY_ACTION_URL,
             server: INTERNAL_LEGACY_ACTION_URL,

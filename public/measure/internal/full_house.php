@@ -1,6 +1,7 @@
 <?php
-session_start();
-if (empty($_SESSION['user_email'])) {
+require_once __DIR__ . '/_staff_session.php';
+fm_internal_session_start();
+if (fm_staff_session_resolve() === '') {
     session_write_close();
     header('Cache-Control: private, no-store');
     header('Location: backend_login.php?redirect=' . urlencode('/measure/internal/full_house.php'));
@@ -29,8 +30,16 @@ if (isset($_GET['path'])) {
     $headers[] = 'Accept: */*';
     if (isset($_SERVER['HTTP_RANGE'])) $headers[] = 'Range: ' . $_SERVER['HTTP_RANGE'];
     $headers = array_merge($headers, fm_api_forwarded_headers(fm_api_base_url()));
-    $ch = curl_init(rtrim(fm_api_base_url(), '/') . $path);
-    curl_setopt_array($ch, [CURLOPT_CUSTOMREQUEST => $method, CURLOPT_HTTPHEADER => $headers,
+    if (fm_api_base_url() === '') { http_response_code(503); exit('Not configured'); }
+    $upstreamUrl = rtrim(fm_api_base_url(), '/') . $path;
+    // Signed as the staff member. A file upload is multipart (unsigned body);
+    // a streamed body is hashed from php://input before it is sent.
+    $identity = (in_array($method, ['POST', 'PUT'], true) && empty($_FILES))
+        ? fm_node_signature_headers_for_stream($method, $upstreamUrl, fm_staff_session_email(), 'php://input')
+        : fm_node_identity_headers('session', $method, $upstreamUrl, null, !empty($_FILES));
+    $headers = array_merge($headers, $identity);
+    $ch = curl_init($upstreamUrl);
+    curl_setopt_array($ch, fm_node_curl_options() + [CURLOPT_CUSTOMREQUEST => $method, CURLOPT_HTTPHEADER => $headers,
         CURLOPT_CONNECTTIMEOUT => 5, CURLOPT_TIMEOUT => 240,
         CURLOPT_HEADERFUNCTION => function ($ch, $line) {
             if (preg_match('#^HTTP/\S+ (\d+)#', $line, $match)) http_response_code((int)$match[1]);

@@ -1,97 +1,27 @@
 <?php
 require_once __DIR__ . '/_storage.php';
+require_once __DIR__ . '/_staff_session.php';
 /**
- * login.php - Backend Login (Staff Console)
- * Authenticates through the Node Platform API, then hydrates the legacy PHP
- * session keys that the internal shell still checks.
+ * backend_login.php - Backend Login (Staff Console)
+ * The browser signs in to the Node Platform API; this page then asks Node
+ * whether that platform session is staff (GET /v1/internal/me with the
+ * session cookie) and only then marks the PHP session as staff
+ * (docs/architecture/request-security.md#principals).
+ *
+ * Impersonation is Node's mark on the admin's platform session
+ * (POST/DELETE /v1/internal/impersonation); PHP mirrors it so the console
+ * renders as the target and keeps the admin's email for "stop".
  */
 
-session_start();
-
-function backendNodeBaseUrl(): string
-{
-    $configured = trim((string)(getenv('FIRSTMEASURE_NODE_BASE_URL') ?: ($_SERVER['FIRSTMEASURE_NODE_BASE_URL'] ?? '')));
-    if ($configured !== '') {
-        $base = rtrim($configured, '/');
-        // The shared PHP configuration points at the Platform API, while this
-        // bridge also calls /v1/internal endpoints. Normalize it to /v1.
-        if (substr($base, -9) === '/platform') {
-            $base = substr($base, 0, -9);
-        }
-        return rtrim($base, '/');
-    }
-    $host = strtolower((string)($_SERVER['HTTP_HOST'] ?? 'localhost'));
-    $hostOnly = preg_replace('/:\d+$/', '', $host);
-    if ($hostOnly === '127.0.0.1' || $hostOnly === 'localhost') {
-        return 'http://127.0.0.1:3111/v1';
-    }
-    $forwardedProto = strtolower(trim(explode(',', (string)($_SERVER['HTTP_X_FORWARDED_PROTO'] ?? ''))[0]));
-    $scheme = $forwardedProto === 'https' || (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ? 'https' : 'http';
-    return $scheme . '://' . ($_SERVER['HTTP_HOST'] ?? 'localhost') . '/v1';
-}
-
-function backendPublicNodeBaseUrl(): string
-{
-    $host = strtolower((string)($_SERVER['HTTP_HOST'] ?? 'localhost'));
-    $hostOnly = preg_replace('/:\d+$/', '', $host);
-    if ($hostOnly === '127.0.0.1' || $hostOnly === 'localhost') {
-        return backendNodeBaseUrl();
-    }
-    $forwardedProto = strtolower(trim(explode(',', (string)($_SERVER['HTTP_X_FORWARDED_PROTO'] ?? ''))[0]));
-    $scheme = $forwardedProto === 'http' ? 'http' : 'https';
-    if (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') {
-        $scheme = 'https';
-    }
-    return $scheme . '://' . ($_SERVER['HTTP_HOST'] ?? 'localhost') . '/v1';
-}
+fm_internal_session_start();
 
 function backendJsonResponse(int $status, array $payload): void
 {
     http_response_code($status);
     header('Content-Type: application/json');
+    header('Cache-Control: no-store');
     echo json_encode($payload);
     exit;
-}
-
-function backendCurlJson(string $url, array $headers = []): array
-{
-    if (!function_exists('curl_init')) {
-        return ['ok' => false, 'status' => 500, 'data' => null, 'error' => 'curl_missing'];
-    }
-    $ch = curl_init($url);
-    curl_setopt_array($ch, [
-        CURLOPT_RETURNTRANSFER => true,
-        CURLOPT_HTTPHEADER => array_merge(['Accept: application/json'], $headers),
-        CURLOPT_TIMEOUT => 8,
-        CURLOPT_CONNECTTIMEOUT => 3,
-        CURLOPT_SSL_VERIFYPEER => false,
-        CURLOPT_SSL_VERIFYHOST => false,
-    ]);
-    $raw = curl_exec($ch);
-    $status = (int)curl_getinfo($ch, CURLINFO_HTTP_CODE);
-    $error = curl_error($ch);
-    curl_close($ch);
-    $data = is_string($raw) && $raw !== '' ? json_decode($raw, true) : null;
-    return [
-        'ok' => $status >= 200 && $status < 300 && is_array($data),
-        'status' => $status ?: 500,
-        'data' => is_array($data) ? $data : null,
-        'error' => $error,
-    ];
-}
-
-function backendUserCanAccessInternal(array $user): bool
-{
-    $status = strtolower(trim((string)($user['status'] ?? 'active')));
-    if ($status === 'disabled' || $status === 'inactive') return false;
-    $role = strtolower(trim((string)($user['role'] ?? '')));
-    $permissions = is_array($user['permissions'] ?? null) ? $user['permissions'] : [];
-    if (($user['account_type'] ?? '') === 'employee') return true;
-    if (in_array($role, ['admin', 'manager', 'qa', 'technician', 'sales_manager', 'salesperson', 'trainee'], true)) return true;
-    foreach (['is_admin_legacy', 'view_all_projects', 'manage_queue', 'manage_users', 'manage_qa', 'manage_sales_users'] as $key) {
-        if (!empty($permissions[$key])) return true;
-    }
-    return false;
 }
 
 function backendCleanEmail($value): string
@@ -99,96 +29,79 @@ function backendCleanEmail($value): string
     return strtolower(trim((string)$value));
 }
 
+function backendUserCanAccessInternal(array $user): bool
+{
+    return fm_staff_user_can_access_internal($user);
+}
+
 function backendUserIsStrictAdmin(array $user): bool
 {
-    $role = strtolower(trim((string)($user['role'] ?? '')));
-    $permissions = is_array($user['permissions'] ?? null) ? $user['permissions'] : [];
-    return $role === 'admin' || !empty($user['is_admin']) || !empty($permissions['is_admin_legacy']);
+    return fm_staff_user_is_strict_admin($user);
 }
 
-function backendInternalGet(string $path, string $actorEmail = '', string $actorName = ''): array
+function backendRequireConsoleCsrf(): void
 {
-    $headers = [];
-    if ($actorEmail !== '') {
-        $headers[] = 'X-Internal-User-Email: ' . $actorEmail;
+    if (!fm_csrf_valid('staff_console', fm_csrf_presented())) {
+        backendJsonResponse(403, ['success' => false, 'error' => 'invalid_csrf_token']);
     }
-    if ($actorName !== '') {
-        $headers[] = 'X-Internal-User-Name: ' . $actorName;
-    }
-    return backendCurlJson(backendPublicNodeBaseUrl() . '/internal/' . ltrim($path, '/'), $headers);
 }
 
-function backendFetchInternalUser(string $email, string $actorEmail = '', string $actorName = ''): ?array
+function backendNodeError(array $res, string $fallback): string
 {
-    $cleanEmail = backendCleanEmail($email);
-    if ($cleanEmail === '') return null;
-    $res = backendInternalGet('users/' . rawurlencode($cleanEmail), $actorEmail, $actorName);
-    $data = is_array($res['data'] ?? null) ? $res['data'] : [];
-    $user = is_array($data['user'] ?? null) ? $data['user'] : null;
-    return ($res['ok'] && is_array($user)) ? $user : null;
-}
-
-function backendApplyInternalUserSession(array $user): void
-{
-    $email = backendCleanEmail($user['email'] ?? $user['id'] ?? '');
-    if ($email === '') {
-        backendJsonResponse(500, ['success' => false, 'error' => 'target_missing_email']);
-    }
-    $role = strtolower(trim((string)($user['role'] ?? 'user')));
-    $permissions = is_array($user['permissions'] ?? null) ? $user['permissions'] : [];
-    $_SESSION['user_email'] = $email;
-    $_SESSION['user_name'] = (string)($user['name'] ?? $email);
-    $_SESSION['user_role'] = $role ?: 'user';
-    $_SESSION['user_team_id'] = (string)($user['team_id'] ?? 'default');
-    $_SESSION['user_branch_id'] = (string)($user['branch_id'] ?? 'default');
-    $_SESSION['user_is_admin'] = backendUserIsStrictAdmin($user);
-    $_SESSION['platform_node_auth'] = true;
-}
-
-function backendRequireStrictAdminSession(): array
-{
-    $email = backendCleanEmail($_SESSION['user_email'] ?? '');
-    if ($email === '') {
-        backendJsonResponse(401, ['success' => false, 'error' => 'missing_admin_session']);
-    }
-    $user = backendFetchInternalUser($email, $email, (string)($_SESSION['user_name'] ?? $email));
-    if (!$user || !backendUserCanAccessInternal($user) || !backendUserIsStrictAdmin($user)) {
-        backendJsonResponse(403, ['success' => false, 'error' => 'strict_admin_required']);
-    }
-    return $user;
+    $json = is_array($res['json'] ?? null) ? $res['json'] : [];
+    $error = (string)($json['error'] ?? $json['message'] ?? '');
+    return $error !== '' ? substr($error, 0, 200) : $fallback;
 }
 
 function backendImpersonateInternalUser(): void
 {
+    backendRequireConsoleCsrf();
     if (!empty($_SESSION['is_impersonating'])) {
         backendJsonResponse(409, ['success' => false, 'error' => 'already_impersonating']);
     }
-
-    $admin = backendRequireStrictAdminSession();
-    $adminEmail = backendCleanEmail($admin['email'] ?? $_SESSION['user_email'] ?? '');
+    $adminEmail = fm_staff_session_resolve();
+    if ($adminEmail === '') {
+        backendJsonResponse(401, ['success' => false, 'error' => 'missing_admin_session']);
+    }
+    if (empty($_SESSION['user_is_admin'])) {
+        backendJsonResponse(403, ['success' => false, 'error' => 'strict_admin_required']);
+    }
+    $adminName = (string)($_SESSION['user_name'] ?? $adminEmail);
+    $adminRole = (string)($_SESSION['user_role'] ?? 'admin');
     $targetEmail = backendCleanEmail($_POST['email'] ?? $_POST['target_email'] ?? '');
-    if ($targetEmail === '') {
+    if ($targetEmail === '' || !filter_var($targetEmail, FILTER_VALIDATE_EMAIL)) {
         backendJsonResponse(400, ['success' => false, 'error' => 'missing_target_email']);
     }
     if ($targetEmail === $adminEmail) {
         backendJsonResponse(400, ['success' => false, 'error' => 'cannot_impersonate_self']);
     }
 
-    $target = backendFetchInternalUser($targetEmail, $adminEmail, (string)($admin['name'] ?? $adminEmail));
-    if (!$target) {
-        backendJsonResponse(404, ['success' => false, 'error' => 'target_not_found']);
-    }
-    if (!backendUserCanAccessInternal($target)) {
-        backendJsonResponse(403, ['success' => false, 'error' => 'target_not_internal_user']);
+    // Node checks the admin, the target and records the start in its audit log.
+    $start = fm_node_request('POST', fm_node_v1_url('internal/impersonation'), [
+        'auth' => 'cookie', 'json' => ['target_email' => $targetEmail], 'timeout' => 10,
+    ]);
+    if (!$start['ok']) {
+        $status = (int)$start['status'];
+        $code = $status === 404 ? 404 : ($status === 403 ? 403 : ($status === 409 ? 409 : 502));
+        backendJsonResponse($code, ['success' => false, 'error' => backendNodeError($start, $code === 502 ? 'impersonation_failed' : 'target_not_internal_user')]);
     }
 
-    session_regenerate_id(true);
+    $verified = fm_staff_verify_with_node();
+    if ($verified['state'] !== 'staff' || $verified['user']['email'] !== $targetEmail) {
+        // Do not leave Node acting as someone the console cannot show.
+        fm_node_request('DELETE', fm_node_v1_url('internal/impersonation'), ['auth' => 'cookie', 'timeout' => 10]);
+        backendJsonResponse(502, ['success' => false, 'error' => 'impersonation_not_confirmed']);
+    }
+
+    fm_session_regenerate();
+    fm_staff_apply_verified_user($verified['user']);
+    $startJson = is_array($start['json'] ?? null) ? $start['json'] : [];
     $_SESSION['is_impersonating'] = true;
     $_SESSION['impersonating_from_email'] = $adminEmail;
-    $_SESSION['impersonating_from_name'] = (string)($admin['name'] ?? $adminEmail);
-    $_SESSION['impersonating_from_role'] = (string)($admin['role'] ?? 'admin');
+    $_SESSION['impersonating_from_name'] = $adminName;
+    $_SESSION['impersonating_from_role'] = $adminRole;
     $_SESSION['impersonating_started_at'] = date('c');
-    backendApplyInternalUserSession($target);
+    $_SESSION['impersonation_expires_at'] = (string)($startJson['expires_at'] ?? '');
 
     backendJsonResponse(200, [
         'success' => true,
@@ -197,30 +110,32 @@ function backendImpersonateInternalUser(): void
         'target_email' => $_SESSION['user_email'],
         'target_name' => $_SESSION['user_name'],
         'target_role' => $_SESSION['user_role'],
+        'expires_at' => $_SESSION['impersonation_expires_at'],
     ]);
 }
 
 function backendStopInternalImpersonation(): void
 {
+    backendRequireConsoleCsrf();
     $adminEmail = backendCleanEmail($_SESSION['impersonating_from_email'] ?? '');
     if (empty($_SESSION['is_impersonating']) || $adminEmail === '') {
-        backendJsonResponse(409, ['success' => false, 'error' => 'not_impersonating']);
+        $node = fm_staff_node_impersonation();
+        if (!$node) backendJsonResponse(409, ['success' => false, 'error' => 'not_impersonating']);
     }
 
-    $admin = backendFetchInternalUser($adminEmail, $adminEmail, (string)($_SESSION['impersonating_from_name'] ?? $adminEmail));
-    if (!$admin || !backendUserIsStrictAdmin($admin)) {
+    $stop = fm_node_request('DELETE', fm_node_v1_url('internal/impersonation'), ['auth' => 'cookie', 'timeout' => 10]);
+    if (!$stop['ok']) {
+        backendJsonResponse(502, ['success' => false, 'error' => backendNodeError($stop, 'admin_restore_failed')]);
+    }
+
+    $verified = fm_staff_verify_with_node();
+    if ($verified['state'] !== 'staff') {
+        fm_staff_clear_session();
         backendJsonResponse(403, ['success' => false, 'error' => 'admin_restore_failed']);
     }
-
-    session_regenerate_id(true);
-    unset(
-        $_SESSION['is_impersonating'],
-        $_SESSION['impersonating_from_email'],
-        $_SESSION['impersonating_from_name'],
-        $_SESSION['impersonating_from_role'],
-        $_SESSION['impersonating_started_at']
-    );
-    backendApplyInternalUserSession($admin);
+    fm_session_regenerate();
+    fm_staff_apply_impersonation(null, '');
+    fm_staff_apply_verified_user($verified['user']);
 
     backendJsonResponse(200, [
         'success' => true,
@@ -232,55 +147,20 @@ function backendStopInternalImpersonation(): void
 
 function backendHydratePhpSessionFromNode(): void
 {
-    $cookie = (string)($_SERVER['HTTP_COOKIE'] ?? '');
-    $configuredCookie = trim((string)(getenv('PLATFORM_SESSION_COOKIE_NAME') ?: ($_SERVER['PLATFORM_SESSION_COOKIE_NAME'] ?? '')));
-    $platformCookie = preg_match('/^[A-Za-z0-9_-]{1,80}$/', $configuredCookie) ? $configuredCookie : 'fm_platform_session';
-    if ($cookie === '' || strpos($cookie, $platformCookie . '=') === false) {
+    if (fm_platform_session_cookie() === '') {
         backendJsonResponse(401, ['success' => false, 'error' => 'missing_node_session']);
     }
 
-    $base = backendNodeBaseUrl();
-    $session = backendCurlJson($base . '/platform/auth/session', ['Cookie: ' . $cookie]);
-    $sessionData = is_array($session['data'] ?? null) ? $session['data'] : [];
-    if (!$session['ok'] || empty($sessionData['authenticated'])) {
-        backendJsonResponse(401, ['success' => false, 'error' => 'node_session_invalid']);
-    }
-
-    $identity = is_array($sessionData['identity'] ?? null) ? $sessionData['identity'] : [];
-    $membership = is_array($sessionData['membership'] ?? null) ? $sessionData['membership'] : [];
-    $email = strtolower(trim((string)($identity['email'] ?? '')));
-    if ($email === '') {
-        backendJsonResponse(401, ['success' => false, 'error' => 'node_session_missing_email']);
-    }
-
-    // The fixed legacy role protects non-session APIs with a private proxy
-    // secret. Route staff lookups through the public cluster web tier, which
-    // reads the same PostgreSQL index and applies the normal API policy.
-    $internal = backendCurlJson(backendPublicNodeBaseUrl() . '/internal/me', [
-        'X-Internal-User-Email: ' . $email,
-        'X-Internal-User-Name: ' . (string)($identity['name'] ?? $email),
-    ]);
-    $internalData = is_array($internal['data'] ?? null) ? $internal['data'] : [];
-    $user = is_array($internalData['user'] ?? null) ? $internalData['user'] : [];
-    if (!$internal['ok']) {
-        error_log('FirstMeasure staff lookup failed: HTTP ' . (int)$internal['status']);
+    $result = fm_staff_refresh_from_node();
+    if ($result['state'] === 'error') {
         backendJsonResponse(502, ['success' => false, 'error' => 'Could not verify staff access. Please try again or contact support.']);
     }
-    if (!backendUserCanAccessInternal($user)) {
+    if ($result['state'] !== 'staff') {
+        if ((int)($result['status'] ?? 0) === 401) {
+            backendJsonResponse(401, ['success' => false, 'error' => 'node_session_invalid']);
+        }
         backendJsonResponse(403, ['success' => false, 'error' => 'This account is not an internal staff account.']);
     }
-
-    $role = strtolower(trim((string)($user['role'] ?? ($membership['role'] ?? 'user'))));
-    $permissions = is_array($user['permissions'] ?? null) ? $user['permissions'] : [];
-
-    session_regenerate_id(true);
-    $_SESSION['user_email'] = $email;
-    $_SESSION['user_name'] = (string)($user['name'] ?? $identity['name'] ?? $email);
-    $_SESSION['user_role'] = $role ?: 'user';
-    $_SESSION['user_team_id'] = (string)($user['team_id'] ?? 'default');
-    $_SESSION['user_branch_id'] = (string)($user['branch_id'] ?? 'default');
-    $_SESSION['user_is_admin'] = $role === 'admin' || !empty($user['is_admin']) || !empty($permissions['is_admin_legacy']);
-    $_SESSION['platform_node_auth'] = true;
 
     backendJsonResponse(200, [
         'success' => true,
@@ -303,15 +183,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['action'] ?? '') === 'stop_
     backendStopInternalImpersonation();
 }
 
-// If already logged in as any internal staff user, go straight to backend.
-if (isset($_SESSION['user_email']) && backendFetchInternalUser((string)$_SESSION['user_email'], (string)$_SESSION['user_email'], (string)($_SESSION['user_name'] ?? ''))) {
-    header("Location: portal.php");
+// Only same-site paths: ?redirect= is attacker-chosen.
+$redirect = fm_safe_redirect_path($_GET['redirect'] ?? '', 'portal.php');
+
+// Already a verified staff session (or a platform session Node confirms is
+// staff): go straight to the console.
+if (fm_staff_session_resolve() !== '') {
+    header('Location: ' . $redirect);
     exit;
 }
-
-// Preserve redirect target back to this backend login after standard login/OTP.
-// If someone came here with ?redirect=..., keep it, else default to portal.php.
-$redirect = isset($_GET['redirect']) ? $_GET['redirect'] : 'portal.php';
 
 $requestPath = strtolower((string)($_SERVER['REQUEST_URI'] ?? ''));
 $platformLoginPath = strpos($requestPath, '/measure-dev/') !== false ? '/platform-dev/login.php' : '/platform/login.php';
@@ -416,8 +296,17 @@ $clientLoginUrl = $platformLoginPath . '?redirect=' . urlencode($redirect);
 
 <script>
     // Where to send them after success (default portal.php). If this page has ?redirect=..., use it.
-    const urlParams = new URLSearchParams(window.location.search);
-    const redirectTarget = urlParams.get('redirect') || 'portal.php';
+    // The server already reduced ?redirect= to a same-site path; check again here.
+    function sameOriginPath(raw, fallback){
+        try {
+            const url = new URL(String(raw || ''), window.location.href);
+            if (url.origin !== window.location.origin) return fallback;
+            return url.pathname + url.search + url.hash;
+        } catch (_) {
+            return fallback;
+        }
+    }
+    const redirectTarget = sameOriginPath(<?php echo json_encode($redirect); ?>, 'portal.php');
     const loginDiagPrefix = '[BackendLogin]';
 
     const clientLoginUrl = <?php echo json_encode($clientLoginUrl); ?>;

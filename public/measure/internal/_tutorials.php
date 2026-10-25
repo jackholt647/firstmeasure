@@ -1,6 +1,7 @@
 <?php
 require_once __DIR__ . '/_storage.php';
 require_once __DIR__ . '/firstmeasure_node.php';
+require_once dirname(__DIR__, 2) . '/includes/web_security.php';
 
 if (defined('FIRSTMEASURE_TUTORIALS_LOADED')) {
     return;
@@ -1648,6 +1649,8 @@ function fm_tutorial_store_uploaded_file($tutorialId, $userEmail, $file, $course
         return ['success' => false, 'error' => 'Upload failed.'];
     }
     $name = fm_tutorial_sanitize_file_name($nameOverride ?: ($file['name'] ?? 'file.bin'));
+    // Only the kinds of files the editor saves (images, PDF, JSON, models, video, text): never HTML, SVG or script.
+    if (!fm_upload_extension_allowed($name)) return ['success' => false, 'error' => 'This file type cannot be uploaded.'];
     $dir = fm_tutorial_project_artifacts_dir($found['course_id'], $userEmail, $tutorialId);
     if (!$dir) return ['success' => false, 'error' => 'Invalid tutorial project.'];
     $dest = $dir . $name;
@@ -1669,6 +1672,7 @@ function fm_tutorial_store_text_artifact($tutorialId, $userEmail, $fileName, $co
     $found = fm_tutorial_find_project($tutorialId, $userEmail, $courseId);
     if (!$found) return ['success' => false, 'error' => 'Tutorial project not found.'];
     $name = fm_tutorial_sanitize_file_name($fileName, 'file.txt');
+    if (!fm_upload_extension_allowed($name)) return ['success' => false, 'error' => 'This file type cannot be saved.'];
     $dir = fm_tutorial_project_artifacts_dir($found['course_id'], $userEmail, $tutorialId);
     if (!$dir) return ['success' => false, 'error' => 'Invalid tutorial project.'];
     @file_put_contents($dir . $name, (string)$content);
