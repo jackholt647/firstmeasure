@@ -2293,6 +2293,7 @@ session_write_close();
   <script src="../libraries/apps/docs/project.js?v=<?= portalAssetVersion('../libraries/apps/docs/project.js') ?>"></script>
   <script src="../libraries/pricebook/firstmate-pricebook.js?v=<?= portalAssetVersion('../libraries/pricebook/firstmate-pricebook.js') ?>"></script>
   <script src="../libraries/apps/pricebook/bridge.js?v=<?= portalAssetVersion('../libraries/apps/pricebook/bridge.js') ?>"></script>
+  <script src="../libraries/apps/materials/settings.js?v=<?= portalAssetVersion('../libraries/apps/materials/settings.js') ?>"></script>
   <script src="../libraries/apps/materials/project.js?v=<?= portalAssetVersion('../libraries/apps/materials/project.js') ?>"></script>
   <script src="../libraries/apps/proposals/project.js?v=<?= portalAssetVersion('../libraries/apps/proposals/project.js') ?>"></script>
   <?php if ($platformExpandedAssets): ?>
