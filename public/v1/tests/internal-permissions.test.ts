@@ -58,8 +58,8 @@ test("shift editing is manager-only while statistics and bulk QA approval are fu
       recurring: JSON.stringify({ monday: { blocks: [{ start: "09:00", end: "17:00" }] } })
     });
     assert.equal(deniedShiftWrite.statusCode, 403);
-    // Refused by the staff-level guard (LEGACY_ACTION_LEVELS) before the handler's own check.
-    assert.equal(deniedShiftWrite.json().error, "staff_level_required");
+    // Refused by the handler's own shift manager check.
+    assert.equal(deniedShiftWrite.json().error, "manager_required");
 
     const managerShiftWrite = await legacy("shift_save_schedule", "manager@example.test", {
       target_email: "tech@example.test",

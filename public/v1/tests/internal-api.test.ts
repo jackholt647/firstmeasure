@@ -217,8 +217,8 @@ test("Shift editing is manager-only and statistics are full-admin-only", async (
     }
   });
   assert.equal(deniedShift.statusCode, 403);
-  // The staff-level guard (LEGACY_ACTION_LEVELS) refuses before the handler's own manager check.
-  assert.equal(JSON.parse(deniedShift.body).error, "staff_level_required");
+  // Shift edits are decided by the handler's own manager check (managers and manage_queue).
+  assert.equal(JSON.parse(deniedShift.body).error, "manager_required");
 
   const deniedDirectShift = await app.inject({
     method: "POST",
@@ -227,8 +227,8 @@ test("Shift editing is manager-only and statistics are full-admin-only", async (
     payload: { recurring: { monday: [{ start: "09:00", end: "17:00", role: "technician" }] } }
   });
   assert.equal(deniedDirectShift.statusCode, 403);
-  // The route is declared manager-only, so the route gate refuses a technician.
-  assert.equal(JSON.parse(deniedDirectShift.body).error, "access_denied");
+  // The handler's shift manager check refuses a technician.
+  assert.equal(JSON.parse(deniedDirectShift.body).error, "manager_required");
 
   const deniedStats = await app.inject({
     method: "POST",
