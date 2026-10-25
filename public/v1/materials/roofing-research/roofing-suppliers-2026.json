@@ -1,0 +1,77 @@
+{
+  "schema_version": 1,
+  "id": "roofing-suppliers-2026",
+  "title": "Roofing material suppliers (US and Canada), 2026",
+  "researched_on": "2026-10-25",
+  "status": "provisional",
+  "notes": [
+    "PROVISIONAL placeholder data, to be replaced as a data-only change by the distributor catalogs Jack is compiling. Which manufacturers each supplier carries here is a reasonable starting set, not verified per branch. Replace this file (same fields) and nothing else needs to change.",
+    "Source data for the price book setup's \"Who provides your materials?\" step. Which manufacturers each supplier stocks, and how much of each range (line_scope).",
+    "line_scope \"full_range\": a roofing distributor that stocks or orders every line of a brand it carries. \"retail_core\": a big-box store that stocks a brand's mainstream lines (the setup's default lines) and its common accessories, not designer or specialty lines.",
+    "library_supplier names the supplier in materials/roofing-library-data.ts whose observed SKUs and shelf prices (2026-10-12) are used as that supplier's starting costs. A supplier without one starts from the price book's typical costs.",
+    "Carriage is by manufacturer at the national level; branches vary. Every list is a starting point the organization edits.",
+    "Colours are approximations of each company's brand colour for the setup's column accent, not a logo. No supplier logo is shipped: a supplier's logo needs that company's permission (the same caveat as the manufacturer logos)."
+  ],
+  "suppliers": [
+    {
+      "id": "abc_supply", "name": "ABC Supply", "kind": "distributor", "color": "#C8102E",
+      "manufacturers": ["gaf", "owens_corning", "certainteed", "atlas", "iko", "malarkey", "tamko", "pabco"], "line_scope": "full_range",
+      "regions": "United States, about 900+ branches", "confidence": "sourced_range",
+      "note": "The largest US wholesale distributor of roofing, siding and windows (IBISWorld). Stocks the national shingle brands; PABCO mainly in western branches.",
+      "sources": ["ibisworld-roofing-siding-insulation-wholesaling", "abc-supply-brands-page"]
+    },
+    {
+      "id": "srs", "name": "SRS Distribution", "kind": "distributor", "color": "#E35205",
+      "manufacturers": ["gaf", "owens_corning", "certainteed", "atlas", "iko", "malarkey", "tamko"], "line_scope": "full_range", "library_supplier": "SRS Building Products",
+      "regions": "United States (Home Depot company since 2024), including Roofing Supply Group branches", "confidence": "observed",
+      "note": "The library's 2026-10-12 research saw SRS branches list GAF, Owens Corning, CertainTeed, Atlas, IKO and Malarkey items (prices behind a contractor login).",
+      "sources": ["library-2026-10-12", "srs-distribution-about"]
+    },
+    {
+      "id": "beacon", "name": "Beacon (QXO)", "kind": "distributor", "color": "#003A70",
+      "manufacturers": ["gaf", "owens_corning", "certainteed", "atlas", "iko", "malarkey", "tamko", "pabco"], "line_scope": "full_range",
+      "regions": "United States and Canada; acquired by QXO in 2025", "confidence": "sourced_range",
+      "note": "Described as the largest publicly traded distributor of residential and non-residential roofing in the US and Canada before its acquisition by QXO.",
+      "sources": ["qxo-10k-fy2025", "macrotrends-becn"]
+    },
+    {
+      "id": "home_depot", "name": "The Home Depot", "kind": "big_box", "color": "#F96302",
+      "manufacturers": ["gaf", "owens_corning", "certainteed", "iko"], "line_scope": "retail_core", "library_supplier": "The Home Depot",
+      "regions": "United States and Canada", "confidence": "observed",
+      "note": "Shelf and online prices observed for GAF, Owens Corning, CertainTeed and IKO items on 2026-10-12.",
+      "sources": ["library-2026-10-12"]
+    },
+    {
+      "id": "lowes", "name": "Lowe's", "kind": "big_box", "color": "#004990",
+      "manufacturers": ["gaf", "owens_corning", "certainteed"], "line_scope": "retail_core", "library_supplier": "Lowe's",
+      "regions": "United States", "confidence": "observed",
+      "note": "Listings seen for GAF, Owens Corning and CertainTeed items on 2026-10-12.",
+      "sources": ["library-2026-10-12"]
+    },
+    {
+      "id": "gulfeagle", "name": "Gulfeagle Supply", "kind": "distributor", "color": "#00539B",
+      "manufacturers": ["gaf", "owens_corning", "certainteed", "atlas", "iko", "tamko"], "line_scope": "full_range",
+      "regions": "Southeast and Texas, about 150 branches", "confidence": "estimate",
+      "note": "A large regional roofing distributor; brand list from its published brand partners, to be confirmed by branch.",
+      "sources": ["gulfeagle-brands-page"]
+    },
+    {
+      "id": "convoy_supply", "name": "Convoy Supply", "kind": "distributor", "color": "#D2232A",
+      "manufacturers": ["gaf", "owens_corning", "certainteed", "malarkey", "iko"], "line_scope": "full_range", "library_supplier": "Convoy Supply",
+      "regions": "Pacific Northwest, Montana, Maryland and Canada (about 40 locations; headquarters Surrey, BC)", "confidence": "sourced_range",
+      "note": "A one-step roofing and building envelope distributor. The library's 2026-10-12 research saw GAF, CertainTeed and Malarkey items in its catalogue.",
+      "sources": ["roofingcontractor-convoy-directory", "convoy-supply-site", "library-2026-10-12"]
+    }
+  ],
+  "sources": [
+    { "id": "ibisworld-roofing-siding-insulation-wholesaling", "url": "https://www.ibisworld.com/united-states/number-of-businesses/roofing-contractors/198", "accessed": "2026-10-25", "kind": "industry_report" },
+    { "id": "qxo-10k-fy2025", "url": "https://www.sec.gov/Archives/edgar/data/1236275/000162828026012601/qxo-20251231.htm", "accessed": "2026-10-25", "kind": "filing" },
+    { "id": "macrotrends-becn", "url": "https://pro.macrotrends.net/stocks/charts/BECN/beacon-roofing-supply/market-cap", "accessed": "2026-10-25", "kind": "market_data" },
+    { "id": "roofingcontractor-convoy-directory", "url": "https://digitaledition.roofingcontractor.com/ad-directory-convoy/", "accessed": "2026-10-25", "kind": "trade_directory" },
+    { "id": "convoy-supply-site", "url": "https://www.roofingcontractor.com/articles/100866-convoy-supply-opening-new-us-and-canada-locations", "accessed": "2026-10-25", "kind": "trade_press" },
+    { "id": "abc-supply-brands-page", "url": "https://www.abcsupply.com/", "accessed": "2026-10-25", "kind": "distributor" },
+    { "id": "srs-distribution-about", "url": "https://www.srsdistribution.com/", "accessed": "2026-10-25", "kind": "distributor" },
+    { "id": "gulfeagle-brands-page", "url": "https://www.gulfeaglesupply.com/", "accessed": "2026-10-25", "kind": "distributor" },
+    { "id": "library-2026-10-12", "url": "public/v1/materials/roofing-library-data.ts", "accessed": "2026-10-12", "kind": "prior_research" }
+  ]
+}

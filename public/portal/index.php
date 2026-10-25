@@ -2266,6 +2266,7 @@ session_write_close();
   <script src="../libraries/tab-guides/tab-guides.js?v=<?= portalAssetVersion('../libraries/tab-guides/tab-guides.js') ?>"></script>
   <script src="../libraries/guided-experiences/guided-experiences.js?v=<?= portalAssetVersion('../libraries/guided-experiences/guided-experiences.js') ?>"></script>
   <script src="../libraries/guided-experiences/guided-setup.js?v=<?= portalAssetVersion('../libraries/guided-experiences/guided-setup.js') ?>"></script>
+  <script src="../libraries/guided-experiences/supplier-columns.js?v=<?= portalAssetVersion('../libraries/guided-experiences/supplier-columns.js') ?>"></script>
   <script src="../libraries/apps/project-map/app.js?v=<?= portalAssetVersion('../libraries/apps/project-map/app.js') ?>"></script>
   <script src="../libraries/apps/customer-portal/project.js?v=<?= portalAssetVersion('../libraries/apps/customer-portal/project.js') ?>"></script>
   <script src="../libraries/apps/project-schedule/panel.js?v=<?= portalAssetVersion('../libraries/apps/project-schedule/panel.js') ?>"></script>

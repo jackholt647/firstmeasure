@@ -50,6 +50,10 @@ const setupStep = z.object({
   /** The selection keys this step's widget writes; branches and the completion action read them. */
   selects: z.array(z.string().regex(/^[a-z][a-z0-9_]{0,59}$/)).max(12).default([]),
   required: z.boolean().default(true),
+  /** What the real assistant is told about this step when the person types or uploads during it. */
+  agent_note: copySchema.optional(),
+  /** An upload offered inside one of the step's agent lines (`line` names its copy key); the file goes to the real assistant. */
+  upload: z.object({ line: z.string().regex(/^gx_[a-z0-9_]{2,90}$/), button: copySchema, message: copySchema, accept: z.string().max(200).default("") }).strict().optional(),
   next: next.optional()
 }).strict();
 

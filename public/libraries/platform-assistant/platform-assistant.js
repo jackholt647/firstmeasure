@@ -1097,6 +1097,9 @@
     }
     // A workflow's offered answers (surface.workflow, docs/architecture/guided-experiences.md).
     const choices = array(data.choices).map(object).filter((choice) => clean(choice.id) && clean(choice.label));
+    // A workflow line may offer an upload: the file goes to the model in this conversation with the line's message.
+    const upload = object(data.upload);
+    if (clean(upload.label)) html += `<div class="fma-actions fma-upload${anim}"><button type="button" class="fma-action" data-fma-upload="${esc(clean(message.id))}"><i class="fas fa-file-arrow-up" aria-hidden="true"></i>${esc(clean(upload.label))}</button></div>`;
     if (choices.length) html += `<div class="fma-actions fma-choices${anim}">${choices.map((choice) => `<button type="button" class="fma-action" data-fma-choice="${esc(choice.id)}" data-message-id="${esc(clean(message.id))}">${esc(choice.label)}</button>`).join('')}</div>`;
     const actions = array(data.actions);
     if (actions.length) {
@@ -1233,6 +1236,20 @@
     if (widget) {
       const target = [...els.boardItems.querySelectorAll('fm-platform-widget')].find(el => el.getAttribute('reference') === widget.dataset.focusWidget);
       target?.scrollIntoView({block:'nearest',behavior:'smooth'}); return;
+    }
+    const uploadButton = event.target.closest('[data-fma-upload]');
+    if (uploadButton) {
+      const offer = object(object(state.messages.find((entry) => clean(entry.id) === uploadButton.dataset.fmaUpload)?.data).upload);
+      const picker = document.createElement('input'); picker.type = 'file'; if (clean(offer.accept)) picker.accept = clean(offer.accept);
+      picker.addEventListener('change', async () => {
+        if (!picker.files?.length) return;
+        const files = [...picker.files];
+        // The host may need to save what the conversation will refer to before the model reads the file.
+        try { await surface.workflow?.onUpload?.(files); } catch (error) { console.warn('[assistant] workflow upload hook failed', error); }
+        sendWithFiles(clean(offer.message), files);
+      }, { once:true });
+      picker.click();
+      return;
     }
     const choice = event.target.closest('[data-fma-choice]');
     if (choice) { surface.workflow?.onChoice?.(choice.dataset.fmaChoice, choice.dataset.messageId); return; }
@@ -2595,6 +2612,14 @@
     renderMessages({ animateLast:true });
     return entry;
   }
+  /** Sends a message with files in this conversation, as if the person attached them and pressed send. */
+  function sendWithFiles(text, files = []){
+    if (disposed || !els) return;
+    addAttachments(files);
+    if (files.length && !state.attachments.length) return;
+    els.input.value = String(text || '');
+    return sendMessage();
+  }
   /** Says scripted lines one after another, with the usual working indicator while each is "typed". */
   let sayChain = Promise.resolve();
   const claimedWorkflowMessages = new Set();
@@ -2625,6 +2650,7 @@
     openPaymentSetup,
     say: workflowSay,
     post: workflowPost,
+    sendWithFiles,
     open,
     openFull,
     openConversation,
@@ -2657,7 +2683,7 @@
     visibility.observe(container.ownerDocument.body,{childList:true,subtree:true});
     return {...instance,ready:instance.boot(),destroy(){visibility.disconnect();if(!instance.isTransferred())instance.destroy();}};
   }};
-  for(const name of ['open','openFull','toggle','close','isOpen','isFull','dockIfFull','openConversation','mountSidebar','unmountSidebar'])publicApi[name]=(...args)=>(adoptedAssistant || globalAssistant)[name](...args);
+  for(const name of ['open','openFull','toggle','close','isOpen','isFull','dockIfFull','openConversation','mountSidebar','unmountSidebar','sendWithFiles'])publicApi[name]=(...args)=>(adoptedAssistant || globalAssistant)[name](...args);
   publicApi.mountSurface=(container,options={})=>{
     if(!container)throw new Error('A container is required.');
     const instance=createAssistant({...options,container});instance.open();

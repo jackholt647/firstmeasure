@@ -71,7 +71,9 @@ test("selections become price book items whose formulas use only dictionary keys
   assert.equal(boots.formulaConfig, undefined, "pipe boots are not in the dictionary, so they are entered by hand");
   assert.equal(boots.metadata.quantity, "entered_by_hand");
   assert.equal(built.items.find((item) => item.id === "lib-shingle-gaf-hdz")!.unit_price, 60, "a typed price wins");
-  assert.ok(built.items.find((item) => item.id === "lib-shingle-oc-oakridge")!.unit_price > 40 * 1.35, "materials are priced for the Northeast");
+  const oakridge = built.items.find((item) => item.id === "lib-shingle-oc-oakridge")!;
+  assert.equal(oakridge.internal_cost, Math.round(40 * 1.03 * 100) / 100, "the Northeast's material cost, no markup");
+  assert.equal(oakridge.unit_price, oakridge.internal_cost, "no markup is assumed: the sell price is the cost");
 
   const settings = d.parseMeasurementDefaults(built.settings);
   const known = new Set(listMeasurementDefinitions().map((definition) => definition.id));
@@ -113,4 +115,87 @@ test("the published action writes through the price book and defaults writers, a
   const defaults = await (await import("../materials/measurement-defaults.js")).readMeasurementDefaults(ORG);
   assert.equal(defaults.stored, true);
   assert.equal(defaults.settings.materials.rules.find((rule) => rule.key === "shingles")!.product_id, "lib-shingle-gaf-uhdz");
+
+  // A supplier price sheet: the agent lists the prices, then applies a checked list of cost changes.
+  const listed = await invokeAction(userPublicationContext(owner, { mode: "evaluate" }), { action: "pricebook.prices.list", target }, { query: "UHDZ" }) as any;
+  assert.ok(listed.value.items.some((item: any) => item.id === "lib-shingle-gaf-uhdz"));
+  await assert.rejects(async () => invokeAction(userPublicationContext(crew, { mode: "command" }), { action: "pricebook.prices.update", target }, { changes: [{ item_id: "lib-shingle-gaf-uhdz", internal_cost: 1 }] }, { idempotencyKey: "denied-prices" }), /not permitted|permission/i);
+  const updated = await invokeAction(userPublicationContext(owner, { mode: "command" }), { action: "pricebook.prices.update", target }, { changes: [{ item_id: "lib-shingle-gaf-uhdz", internal_cost: 51.25, source: "ABC Supply sheet line 12" }, { item_id: "nope", internal_cost: 2 }] }, { idempotencyKey: "prices-1" }) as any;
+  assert.deepEqual(updated.value.missing, ["nope"]);
+  assert.equal(updated.value.applied[0].after.internal_cost, 51.25);
+  const after = (await (await import("../pricebook/storage.js")).getOrganizationPricebook(ORG)).catalog.items.find((item: any) => item.id === "lib-shingle-gaf-uhdz") as any;
+  assert.equal(after.internal_cost, 51.25);
+  assert.equal(after.formulaConfig.tokens.length > 0, true, "only the price changed");
+});
+
+test("a shingle that shows its starter course makes the starter rule buy the coloured starter", async () => {
+  const roofing = await import("../pricebook/setups/roofing.js"), d = await import("../materials/measurement-defaults.js");
+  const research = roofing.readResearchCatalog()!;
+  const gaf = research.brands.find((brand) => brand.id === "gaf")!;
+  assert.equal(gaf.lines.find((line) => line.id === "lib-shingle-gaf-grand-sequoia")!.reveals_starter, true);
+  assert.equal(gaf.lines.find((line) => line.id === "lib-shingle-gaf-hdz")!.reveals_starter, false);
+  assert.deepEqual([...new Set(research.brands.flatMap((brand) => brand.lines).map((line) => line.visibility))].sort(), ["default", "more", "visible"], "every line has a tier");
+  assert.deepEqual(gaf.lines.filter((line) => line.visibility === "default").map((line) => line.id), ["lib-shingle-gaf-hdz", "lib-shingle-gaf-uhdz", "lib-shingle-gaf-ns", "lib-shingle-gaf-grand-sequoia"]);
+  assert.equal(gaf.lines.find((line) => line.id === "lib-shingle-gaf-hdz-rs")!.visibility, "more", "the Reflector series is behind More");
+  const built = roofing.buildRoofingSetup(roofing.roofingSelectionsSchema.parse({ brands: ["gaf"], lines: ["lib-shingle-gaf-hdz", "lib-shingle-gaf-grand-sequoia"], default_line: "lib-shingle-gaf-grand-sequoia",
+    rules: { coil_nails: { source: "hand" }, starter: { waste: 0, coverage: 100 } } }), d.industryMeasurementDefaults());
+  const ids = built.items.map((item) => item.id);
+  assert.ok(ids.includes("lib-starter-gaf-startermatch"), "the coloured starter is in the price book");
+  assert.deepEqual((built.items.find((item) => item.id === "lib-shingle-gaf-grand-sequoia") as any).attributes, { reveals_starter: true });
+  const settings = d.parseMeasurementDefaults(built.settings);
+  const starter = settings.materials.rules.find((rule) => rule.key === "starter")!;
+  assert.equal(starter.product_id, "lib-starter-gaf-prostart");
+  assert.deepEqual(starter.alternatives.map((entry) => [entry.when, entry.product_id]), [[{ rule: "shingles", attribute: "reveals_starter", equals: true }, "lib-starter-gaf-startermatch"]]);
+  assert.equal(starter.waste, 0); assert.equal(starter.package?.coverage, 100, "the person's coverage");
+  assert.equal(settings.materials.rules.find((rule) => rule.key === "coil_nails")!.enabled, false, "entered by hand");
+  // The calculation reads the shingle's attribute: Grand Sequoia buys StarterMatch; HDZ buys Pro-Start.
+  const items = built.items.map((item: any) => ({ id: item.id, name: item.name, type: item.type, unit: item.unit, cost: item.internal_cost, attributes: item.attributes || {} }));
+  const pick = (defaultLine: string) => { const copy = structuredClone(settings); copy.materials.rules.find((rule) => rule.key === "shingles")!.product_id = defaultLine; return d.measurementDefaultsCalculus(copy, items).defaults.rules.find((rule: any) => rule.key === "starter")!.product!.id; };
+  assert.equal(pick("lib-shingle-gaf-grand-sequoia"), "lib-starter-gaf-startermatch");
+  assert.equal(pick("lib-shingle-gaf-hdz"), "lib-starter-gaf-prostart");
+  const broken = structuredClone(settings); broken.materials.rules.find((rule) => rule.key === "starter")!.alternatives[0]!.when.rule = "nothing";
+  assert.throws(() => d.parseMeasurementDefaults(broken), /not another rule/);
+  // The walkthrough's list: one row per material, pipe boots and decking by hand.
+  const rows = roofing.roofingSetupOptions("TX").materials;
+  assert.deepEqual(rows.filter((row) => row.source === "hand").map((row) => row.key), ["pipe_boots", "decking_allowance"]);
+  assert.equal(rows.find((row) => row.key === "shingles")!.waste, "roof", "waste from the measurement report by default");
+  assert.equal(new Set(rows.map((row) => row.key)).size, rows.length, "one row per material");
+});
+
+test("the suppliers step saves each supplier through its own writer, and a price sheet sets that supplier's costs", async () => {
+  const roofing = await import("../pricebook/setups/roofing.js");
+  const presets = roofing.roofingSupplierPresets();
+  for (const id of ["abc_supply", "srs", "beacon", "home_depot", "lowes", "gulfeagle", "convoy_supply"]) assert.ok(presets.some((preset) => preset.id === id), `${id} is offered`);
+  const depot = presets.find((preset) => preset.id === "home_depot")!;
+  assert.equal(depot.color, "#F96302");
+  assert.equal(depot.line_scope, "retail_core");
+  assert.ok(Object.keys(depot.prices).length > 0, "observed shelf prices come with it");
+  assert.ok(roofing.roofingSetupOptions("TX").suppliers.length >= 7);
+
+  const { invokeAction } = await import("../platform/publication/actions.js"), { userPublicationContext } = await import("../platform/publication/context.js");
+  const { listSuppliers } = await import("../materials/suppliers.js");
+  const target = { scope: "organization" as const, organizationId: ORG };
+  const base = { trade: "roofing", brands: ["gaf"], lines: ["lib-shingle-gaf-hdz", "lib-shingle-gaf-uhdz"], default_line: "lib-shingle-gaf-uhdz" };
+  const done = await invokeAction(userPublicationContext(owner, { mode: "command" }), { action: "pricebook.setup.apply", target }, { ...base,
+    suppliers: [{ preset: "home_depot", name: "The Home Depot", item_ids: ["lib-shingle-gaf-hdz", "lib-shingle-gaf-uhdz"], prices: { "lib-shingle-gaf-hdz": 40.5 } }, { name: "Smith Roofing Supply", item_ids: [] }] }, { idempotencyKey: "setup-suppliers-1" }) as any;
+  assert.equal(done.value.suppliers.length, 2);
+  let suppliers = await listSuppliers(ORG);
+  const homeDepot = suppliers.find((supplier) => supplier.name === "The Home Depot")!;
+  assert.deepEqual(homeDepot.offerings.map((row) => row.item_id).sort(), ["lib-shingle-gaf-hdz", "lib-shingle-gaf-uhdz"]);
+  assert.equal(homeDepot.offerings.find((row) => row.item_id === "lib-shingle-gaf-hdz")!.price_cents, 4050, "a typed cost, in cents, not marked up");
+  assert.deepEqual(suppliers.find((supplier) => supplier.name === "Smith Roofing Supply")!.offerings, [], "a typed supplier starts empty");
+
+  // The agent reads the Home Depot sheet: that supplier's costs only.
+  const sheet = { supplier_id: homeDepot.id, prices: [{ item_id: "lib-shingle-gaf-uhdz", price_cents: 5555, sku: "HD-UHDZ" }] };
+  await assert.rejects(async () => invokeAction(userPublicationContext(crew, { mode: "command" }), { action: "suppliers.prices.update", target }, sheet, { idempotencyKey: "denied-supplier-prices" }), /not permitted|permission/i);
+  const updated = await invokeAction(userPublicationContext(owner, { mode: "command" }), { action: "suppliers.prices.update", target }, sheet, { idempotencyKey: "supplier-prices-1" }) as any;
+  assert.deepEqual(updated.value.changed[0].after, 5555);
+
+  // Finishing the setup again keeps the sheet's cost, and an unticked item leaves that supplier.
+  await invokeAction(userPublicationContext(owner, { mode: "command" }), { action: "pricebook.setup.apply", target }, { ...base,
+    suppliers: [{ preset: "home_depot", name: "The Home Depot", item_ids: ["lib-shingle-gaf-uhdz"], prices: {} }] }, { idempotencyKey: "setup-suppliers-2" });
+  suppliers = await listSuppliers(ORG);
+  const again = suppliers.filter((supplier) => supplier.name === "The Home Depot");
+  assert.equal(again.length, 1, "merged with the saved supplier, not duplicated");
+  assert.deepEqual(again[0]!.offerings.map((row) => [row.item_id, row.price_cents, row.sku]), [["lib-shingle-gaf-uhdz", 5555, "HD-UHDZ"]]);
 });

@@ -92,6 +92,7 @@
       "product_lines": [
         {
           "id": "lib-shingle-gaf-hdz",
+          "setup_visibility": "default",
           "template_item_id": "gaf_hd",
           "name": "Timberline HDZ",
           "tier": "architectural",
@@ -118,6 +119,7 @@
         },
         {
           "id": "lib-shingle-gaf-uhdz",
+          "setup_visibility": "default",
           "template_item_id": "gaf_uhdz",
           "name": "Timberline UHDZ",
           "tier": "premium_architectural",
@@ -141,6 +143,7 @@
         },
         {
           "id": "lib-shingle-gaf-as2",
+          "setup_visibility": "visible",
           "template_item_id": null,
           "name": "Timberline AS II",
           "tier": "impact_rated",
@@ -163,6 +166,7 @@
         },
         {
           "id": "lib-shingle-gaf-ns",
+          "setup_visibility": "default",
           "template_item_id": "gaf_ns",
           "name": "Timberline NS (Natural Shadow)",
           "tier": "architectural",
@@ -183,6 +187,7 @@
         },
         {
           "id": "lib-shingle-gaf-royal-sovereign",
+          "setup_visibility": "visible",
           "template_item_id": null,
           "name": "Royal Sovereign",
           "tier": "3_tab",
@@ -205,6 +210,8 @@
         },
         {
           "id": "lib-shingle-gaf-grand-sequoia",
+          "setup_visibility": "default",
+          "reveals_starter": true,
           "template_item_id": "gaf_grand_sequoia",
           "name": "Grand Sequoia",
           "tier": "designer",
@@ -224,6 +231,7 @@
         },
         {
           "id": "lib-shingle-gaf-hdz-rs",
+          "setup_visibility": "more",
           "template_item_id": null,
           "name": "Timberline HDZ RS (Reflector Series)",
           "tier": "architectural",
@@ -248,6 +256,8 @@
         },
         {
           "id": "lib-shingle-gaf-camelot-ii",
+          "setup_visibility": "visible",
+          "reveals_starter": true,
           "template_item_id": null,
           "name": "Camelot II",
           "tier": "designer",
@@ -272,6 +282,7 @@
         },
         {
           "id": "lib-shingle-gaf-slateline",
+          "setup_visibility": "more",
           "template_item_id": null,
           "name": "Slateline",
           "tier": "designer",
@@ -295,6 +306,8 @@
         },
         {
           "id": "lib-shingle-gaf-woodland",
+          "setup_visibility": "more",
+          "reveals_starter": true,
           "template_item_id": null,
           "name": "Woodland",
           "tier": "designer",
@@ -318,6 +331,8 @@
         },
         {
           "id": "lib-shingle-gaf-grand-sequoia-as",
+          "setup_visibility": "more",
+          "reveals_starter": true,
           "template_item_id": null,
           "name": "Grand Sequoia ArmorShield",
           "tier": "designer",
@@ -341,6 +356,8 @@
         },
         {
           "id": "lib-shingle-gaf-grand-canyon",
+          "setup_visibility": "more",
+          "reveals_starter": true,
           "template_item_id": null,
           "name": "Grand Canyon",
           "tier": "designer",
@@ -652,6 +669,7 @@
         },
         {
           "id": "lib-starter-gaf-startermatch",
+          "colored_starter": true,
           "template_item_id": null,
           "role": "starter",
           "name": "StarterMatch Starter Strip (designer colors)",
@@ -727,6 +745,7 @@
       "product_lines": [
         {
           "id": "lib-shingle-oc-supreme",
+          "setup_visibility": "visible",
           "template_item_id": null,
           "name": "Supreme",
           "tier": "3_tab",
@@ -749,6 +768,7 @@
         },
         {
           "id": "lib-shingle-oc-oakridge",
+          "setup_visibility": "default",
           "template_item_id": null,
           "name": "TruDefinition Oakridge",
           "tier": "architectural",
@@ -774,6 +794,7 @@
         },
         {
           "id": "lib-shingle-oc-duration",
+          "setup_visibility": "default",
           "template_item_id": "owens_duration",
           "name": "TruDefinition Duration",
           "tier": "architectural",
@@ -797,6 +818,7 @@
         },
         {
           "id": "lib-shingle-oc-duration-flex",
+          "setup_visibility": "default",
           "template_item_id": null,
           "name": "TruDefinition Duration FLEX",
           "tier": "impact_rated",
@@ -819,6 +841,7 @@
         },
         {
           "id": "lib-shingle-oc-duration-storm",
+          "setup_visibility": "visible",
           "template_item_id": null,
           "name": "TruDefinition Duration STORM",
           "tier": "impact_rated",
@@ -841,6 +864,7 @@
         },
         {
           "id": "lib-shingle-oc-duration-designer",
+          "setup_visibility": "visible",
           "template_item_id": null,
           "name": "TruDefinition Duration Designer",
           "tier": "architectural",
@@ -863,6 +887,7 @@
         },
         {
           "id": "lib-shingle-oc-duration-premium",
+          "setup_visibility": "visible",
           "template_item_id": null,
           "name": "Duration Premium",
           "tier": "premium_architectural",
@@ -886,6 +911,7 @@
         },
         {
           "id": "lib-shingle-oc-duration-max",
+          "setup_visibility": "more",
           "template_item_id": null,
           "name": "TruDefinition Duration MAX",
           "tier": "premium_architectural",
@@ -910,6 +936,7 @@
         },
         {
           "id": "lib-shingle-oc-duration-cool-plus",
+          "setup_visibility": "more",
           "template_item_id": null,
           "name": "TruDefinition Duration COOL Plus",
           "tier": "architectural",
@@ -933,6 +960,8 @@
         },
         {
           "id": "lib-shingle-oc-woodcrest",
+          "setup_visibility": "visible",
+          "reveals_starter": true,
           "template_item_id": null,
           "name": "Woodcrest",
           "tier": "designer",
@@ -957,6 +986,8 @@
         },
         {
           "id": "lib-shingle-oc-woodmoor",
+          "setup_visibility": "more",
+          "reveals_starter": true,
           "template_item_id": null,
           "name": "Woodmoor",
           "tier": "designer",
@@ -1157,6 +1188,7 @@
         },
         {
           "id": "lib-starter-oc-woodstart",
+          "colored_starter": true,
           "template_item_id": null,
           "role": "starter",
           "name": "WoodStart Starter Shingles",
@@ -1256,6 +1288,7 @@
       "product_lines": [
         {
           "id": "lib-shingle-malarkey-highlander",
+          "setup_visibility": "default",
           "template_item_id": null,
           "name": "Highlander",
           "tier": "architectural",
@@ -1278,6 +1311,7 @@
         },
         {
           "id": "lib-shingle-malarkey-vista",
+          "setup_visibility": "default",
           "template_item_id": "malarkey_vista",
           "name": "Vista",
           "tier": "impact_rated",
@@ -1301,6 +1335,7 @@
         },
         {
           "id": "lib-shingle-malarkey-legacy",
+          "setup_visibility": "visible",
           "template_item_id": null,
           "name": "Legacy",
           "tier": "impact_rated",
@@ -1323,6 +1358,8 @@
         },
         {
           "id": "lib-shingle-malarkey-windsor",
+          "setup_visibility": "visible",
+          "reveals_starter": true,
           "template_item_id": null,
           "name": "Windsor",
           "tier": "designer",
@@ -1368,6 +1405,7 @@
         },
         {
           "id": "lib-starter-malarkey-windsor",
+          "colored_starter": true,
           "template_item_id": null,
           "role": "starter_designer",
           "name": "Windsor Starter (212)",
@@ -1577,6 +1615,7 @@
       "product_lines": [
         {
           "id": "lib-shingle-ct-xt25",
+          "setup_visibility": "visible",
           "template_item_id": null,
           "name": "XT 25",
           "tier": "3_tab",
@@ -1597,6 +1636,7 @@
         },
         {
           "id": "lib-shingle-ct-landmark",
+          "setup_visibility": "default",
           "template_item_id": null,
           "name": "Landmark",
           "tier": "architectural",
@@ -1620,6 +1660,7 @@
         },
         {
           "id": "lib-shingle-ct-landmark-pro",
+          "setup_visibility": "default",
           "template_item_id": null,
           "name": "Landmark PRO",
           "tier": "premium_architectural",
@@ -1642,6 +1683,7 @@
         },
         {
           "id": "lib-shingle-ct-climateflex",
+          "setup_visibility": "visible",
           "template_item_id": null,
           "name": "Landmark ClimateFlex",
           "tier": "impact_rated",
@@ -1662,6 +1704,8 @@
         },
         {
           "id": "lib-shingle-ct-presidential-shake",
+          "setup_visibility": "default",
+          "reveals_starter": true,
           "template_item_id": "ct_presidential_shake",
           "name": "Presidential Shake",
           "tier": "designer",
@@ -1685,6 +1729,7 @@
         },
         {
           "id": "lib-shingle-ct-landmark-premium",
+          "setup_visibility": "visible",
           "template_item_id": null,
           "name": "Landmark Premium",
           "tier": "premium_architectural",
@@ -1709,6 +1754,7 @@
         },
         {
           "id": "lib-shingle-ct-highland-slate",
+          "setup_visibility": "more",
           "template_item_id": null,
           "name": "Highland Slate",
           "tier": "designer",
@@ -1733,6 +1779,7 @@
         },
         {
           "id": "lib-shingle-ct-belmont",
+          "setup_visibility": "more",
           "template_item_id": null,
           "name": "Belmont",
           "tier": "designer",
@@ -1756,6 +1803,8 @@
         },
         {
           "id": "lib-shingle-ct-grand-manor",
+          "setup_visibility": "more",
+          "reveals_starter": true,
           "template_item_id": null,
           "name": "Grand Manor",
           "tier": "designer",
@@ -1782,6 +1831,8 @@
         },
         {
           "id": "lib-shingle-ct-carriage-house",
+          "setup_visibility": "more",
+          "reveals_starter": true,
           "template_item_id": null,
           "name": "Carriage House",
           "tier": "designer",
@@ -2043,6 +2094,7 @@
       "product_lines": [
         {
           "id": "lib-shingle-iko-marathon-plus-ar",
+          "setup_visibility": "visible",
           "template_item_id": null,
           "name": "Marathon Plus AR",
           "tier": "3_tab",
@@ -2068,6 +2120,7 @@
         },
         {
           "id": "lib-shingle-iko-cambridge",
+          "setup_visibility": "default",
           "template_item_id": null,
           "name": "Cambridge",
           "tier": "architectural",
@@ -2093,6 +2146,7 @@
         },
         {
           "id": "lib-shingle-iko-dynasty",
+          "setup_visibility": "default",
           "template_item_id": null,
           "name": "Dynasty",
           "tier": "premium_architectural",
@@ -2118,6 +2172,7 @@
         },
         {
           "id": "lib-shingle-iko-nordic",
+          "setup_visibility": "visible",
           "template_item_id": null,
           "name": "Nordic",
           "tier": "impact_rated",
@@ -2143,6 +2198,7 @@
         },
         {
           "id": "lib-shingle-iko-royal-estate",
+          "setup_visibility": "more",
           "template_item_id": null,
           "name": "Royal Estate",
           "tier": "designer",
@@ -2167,6 +2223,7 @@
         },
         {
           "id": "lib-shingle-iko-crowne-slate",
+          "setup_visibility": "more",
           "template_item_id": null,
           "name": "Crowne Slate",
           "tier": "designer",
@@ -2190,6 +2247,7 @@
         },
         {
           "id": "lib-shingle-iko-armourshake",
+          "setup_visibility": "more",
           "template_item_id": null,
           "name": "Armourshake",
           "tier": "designer",
@@ -2411,6 +2469,7 @@
       "product_lines": [
         {
           "id": "lib-shingle-atlas-pinnacle-pristine",
+          "setup_visibility": "default",
           "template_item_id": null,
           "name": "Pinnacle Pristine",
           "tier": "architectural",
@@ -2436,6 +2495,7 @@
         },
         {
           "id": "lib-shingle-atlas-pinnacle-impact",
+          "setup_visibility": "default",
           "template_item_id": null,
           "name": "Pinnacle Impact",
           "tier": "impact_rated",
@@ -2459,6 +2519,7 @@
         },
         {
           "id": "lib-shingle-atlas-stormmaster-shake",
+          "setup_visibility": "visible",
           "template_item_id": null,
           "name": "StormMaster Shake",
           "tier": "impact_rated",
@@ -2482,6 +2543,7 @@
         },
         {
           "id": "lib-shingle-atlas-pinnacle-sun",
+          "setup_visibility": "more",
           "template_item_id": null,
           "name": "Pinnacle Sun",
           "tier": "architectural",
@@ -2505,6 +2567,7 @@
         },
         {
           "id": "lib-shingle-atlas-castlebrook",
+          "setup_visibility": "visible",
           "template_item_id": null,
           "name": "Castlebrook",
           "tier": "architectural",
@@ -2527,6 +2590,7 @@
         },
         {
           "id": "lib-shingle-atlas-briarwood-pro",
+          "setup_visibility": "more",
           "template_item_id": null,
           "name": "Briarwood Pro",
           "tier": "architectural",
@@ -2549,6 +2613,7 @@
         },
         {
           "id": "lib-shingle-atlas-prolam",
+          "setup_visibility": "more",
           "template_item_id": null,
           "name": "ProLam",
           "tier": "architectural",
@@ -2772,6 +2837,7 @@
       "product_lines": [
         {
           "id": "lib-shingle-tamko-elite-glass-seal",
+          "setup_visibility": "visible",
           "template_item_id": null,
           "name": "Elite Glass-Seal",
           "tier": "3_tab",
@@ -2797,6 +2863,7 @@
         },
         {
           "id": "lib-shingle-tamko-heritage",
+          "setup_visibility": "default",
           "template_item_id": null,
           "name": "Heritage",
           "tier": "architectural",
@@ -2823,6 +2890,7 @@
         },
         {
           "id": "lib-shingle-tamko-titan-xt",
+          "setup_visibility": "default",
           "template_item_id": null,
           "name": "Titan XT",
           "tier": "premium_architectural",
@@ -2848,6 +2916,7 @@
         },
         {
           "id": "lib-shingle-tamko-stormfighter-flex",
+          "setup_visibility": "visible",
           "template_item_id": null,
           "name": "StormFighter FLEX",
           "tier": "impact_rated",
@@ -2872,6 +2941,7 @@
         },
         {
           "id": "lib-shingle-tamko-hailguard",
+          "setup_visibility": "more",
           "template_item_id": null,
           "name": "HailGuard",
           "tier": "impact_rated",
@@ -3191,6 +3261,7 @@
       "product_lines": [
         {
           "id": "lib-shingle-pabco-premier",
+          "setup_visibility": "default",
           "template_item_id": null,
           "name": "Premier",
           "tier": "architectural",
@@ -3217,6 +3288,7 @@
         },
         {
           "id": "lib-shingle-pabco-premier-radiance",
+          "setup_visibility": "more",
           "template_item_id": null,
           "name": "Premier Radiance",
           "tier": "architectural",
@@ -3240,6 +3312,7 @@
         },
         {
           "id": "lib-shingle-pabco-prestige",
+          "setup_visibility": "visible",
           "template_item_id": null,
           "name": "Prestige",
           "tier": "premium_architectural",
@@ -3265,6 +3338,8 @@
         },
         {
           "id": "lib-shingle-pabco-paramount",
+          "setup_visibility": "default",
+          "reveals_starter": true,
           "template_item_id": null,
           "name": "Paramount",
           "tier": "designer",
@@ -3290,6 +3365,8 @@
         },
         {
           "id": "lib-shingle-pabco-paramount-advantage",
+          "setup_visibility": "visible",
+          "reveals_starter": true,
           "template_item_id": null,
           "name": "Paramount Advantage",
           "tier": "designer",
@@ -3316,6 +3393,7 @@
         },
         {
           "id": "lib-shingle-pabco-cascade",
+          "setup_visibility": "more",
           "template_item_id": null,
           "name": "Cascade",
           "tier": "designer",
@@ -3364,6 +3442,7 @@
         },
         {
           "id": "lib-starter-pabco-paramount-starter",
+          "colored_starter": true,
           "template_item_id": null,
           "role": "starter",
           "name": "Paramount Starter",

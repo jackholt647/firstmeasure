@@ -70,10 +70,28 @@ export function registerMaterialsGuidedExperiences() {
         ]
       },
       {
-        id: "prices", widget: "price-review", source: "pricebook.roofing_setup", selects: ["prices", "markup", "include_labor"], required: false,
-        title: t("gx_mps_prices_title", "Check your prices"),
-        subtitle: t("gx_mps_prices_subtitle", "Typical prices for your area. Change any that don't look right."),
-        say: [t("gx_mps_prices_say_1", "Last step. These are typical prices for your area. Change any that look off; you can edit them in your price book later too.")]
+        id: "suppliers", widget: "supplier-columns", source: "pricebook.roofing_setup", selects: ["suppliers"], required: false,
+        title: t("gx_mps_suppliers_title", "Who provides your materials?"),
+        subtitle: t("gx_mps_suppliers_subtitle", "Pick every supplier you buy from, or type your own. Each one starts with the brands it stocks; change what it carries any time."),
+        say: [t("gx_mps_suppliers_say_1", "Who do you buy from? Pick your suppliers. I'll load each one with the products it usually stocks, and you can change that.")],
+        agent_note: t("gx_mps_suppliers_agent", "If the person uploads a price sheet for a named supplier (its id is in the message), read it, match each line to their price book items (pricebook.prices.list) and that supplier's items (suppliers.catalog), show the matches and price changes as a short list, ask before applying any uncertain match, then set the supplier's costs with suppliers.prices.update (cents). Costs only, never a markup.")
+      },
+      {
+        id: "prices", widget: "price-review", source: "pricebook.roofing_setup", selects: ["prices"], required: false, options: { kinds: ["line", "accessory", "generic"] },
+        title: t("gx_mps_material_prices_title", "Check your material prices"),
+        subtitle: t("gx_mps_material_prices_subtitle", "What you pay your supplier. These are typical for your area; change any that look off."),
+        say: [
+          t("gx_mps_material_prices_say_1", "These are typical supplier prices for your area. Change any that look off."),
+          t("gx_mps_price_sheet_say", "If you have a price sheet from your supplier, you can upload it here and I'll set it up for you.")
+        ],
+        upload: { line: "gx_mps_price_sheet_say", button: t("gx_mps_price_sheet_button", "Upload a price sheet"), message: t("gx_mps_price_sheet_message", "Here's my supplier price sheet. Please update my material prices from it."), accept: ".csv,.xlsx,.xls,.pdf,.txt" },
+        agent_note: t("gx_mps_material_prices_agent", "If the person uploads a supplier price sheet, read it and match each line to their price book items (pricebook.prices.list). Show what you matched and the price changes as a short list, ask before applying any match you are unsure of, then apply the confirmed costs with pricebook.prices.update. These are costs, not sell prices: never add a markup. The setup's own table refreshes when they continue.")
+      },
+      {
+        id: "labor_prices", widget: "price-review", source: "pricebook.roofing_setup", selects: ["prices", "include_labor"], required: false, options: { kinds: ["labor"], optional: true, skip_sets: { include_labor: false } },
+        title: t("gx_mps_labor_prices_title", "Check your labor prices"),
+        subtitle: t("gx_mps_labor_prices_subtitle", "Optional. Typical labor and service rates for your area; skip this if you price labor elsewhere."),
+        say: [t("gx_mps_labor_prices_say_1", "Optional: typical labor rates for your area. Skip this if you price labor somewhere else.")]
       }
     ],
     completion: {

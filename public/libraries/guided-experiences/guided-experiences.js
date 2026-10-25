@@ -434,14 +434,15 @@
 
   // ── Assistant suggestions (FAQs) ───────────────────────────────────────
   const faqCss = `
-    .gx-faqs-wrap{padding:2px 2px 8px}
+    .gx-faqs-wrap{padding:0 2px 5px}
     .gx-faqs-wrap[hidden]{display:none}
-    .gx-faqs{display:flex;flex-wrap:wrap;gap:6px;overflow:hidden;transition:max-height .3s cubic-bezier(.22,1,.36,1)}
-    .gx-faqs[data-collapsed=true]{max-height:68px}
-    .gx-faq{flex:0 1 auto;max-width:100%;display:inline-flex;align-items:center;gap:6px;min-height:30px;padding:5px 12px;border:1px solid #e4e7ec;border-radius:999px;background:#fff;color:#344054;font:inherit;font-size:12.5px;line-height:1.3;font-weight:600;text-align:left;cursor:pointer;white-space:normal;box-sizing:border-box;transition:background .15s,border-color .15s,transform .15s;animation:gxChip .35s cubic-bezier(.22,1,.36,1) both}
-    .gx-faq-more{margin-top:4px;border:0;background:transparent;color:var(--primary,#d93025);font:inherit;font-size:12px;font-weight:650;cursor:pointer;padding:2px 4px}
-    .gx-faq-more[hidden]{display:none}
+    .gx-faqs{display:flex;flex-wrap:wrap;align-items:center;gap:5px;overflow:hidden;transition:height .28s cubic-bezier(.22,1,.36,1)}
+    .gx-faq{flex:0 1 auto;max-width:calc(50% - 3px);min-width:0;display:inline-flex;align-items:center;gap:5px;min-height:26px;padding:3px 10px;border:1px solid #e4e7ec;border-radius:999px;background:#fff;color:#344054;font:inherit;font-size:12px;line-height:1.25;font-weight:600;text-align:left;cursor:pointer;white-space:normal;box-sizing:border-box;transition:background .15s,border-color .15s,transform .15s;animation:gxChip .35s cubic-bezier(.22,1,.36,1) both}
+    .gx-faq[hidden]{display:none}
+    .gx-faq-text{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+    .gx-faq-more{flex:none;min-height:26px;padding:3px 10px;border:1px dashed #d0d5dd;border-radius:999px;background:#f9fafb;color:#475467;font:inherit;font-size:12px;font-weight:650;cursor:pointer}
     .gx-faq-more:focus-visible{outline:2px solid var(--primary,#d93025);outline-offset:1px}
+    @media(prefers-reduced-motion:reduce){.gx-faqs{transition:none}}
     .gx-faq:hover{background:#f9fafb;border-color:#98a2b3;transform:translateY(-1px)}
     .gx-faq i{color:var(--primary,#d93025);font-size:11px}
     .gx-faq:focus-visible{outline:2px solid var(--primary,#d93025);outline-offset:1px}
@@ -474,11 +475,11 @@
     const composer = drawer.querySelector('[data-fma="composer"]');
     const shell = composer?.querySelector('.fma-compose-shell');
     if (!composer || !shell) return null;
-    // Every question visible at once, wrapped into rows; two rows at most until "More".
+    // The first three questions at once, inline; the rest behind a More chip at the end of the row.
     const wrap = doc.createElement('div'); wrap.className = 'gx-faqs-wrap'; wrap.hidden = true;
-    const more = doc.createElement('button'); more.type = 'button'; more.className = 'gx-faq-more'; more.hidden = true;
+    const VISIBLE = 3;
     const strip = doc.createElement('div'); strip.className = 'gx-faqs'; strip.dataset.collapsed = 'true'; strip.setAttribute('role', 'list'); strip.setAttribute('aria-label', L('gx_ui_suggested', 'Suggested questions'));
-    wrap.append(strip, more);
+    wrap.append(strip);
     composer.insertBefore(wrap, shell);
     let shownTab = '';
     // The tab the assistant says it is showing; else the route of the frame the drawer is in.
@@ -490,21 +491,31 @@
       if (tab === shownTab && !wrap.hidden) return;
       shownTab = tab;
       // A replay ("Show me the tutorial again") leads, so it is never behind "More".
-      strip.innerHTML = [...questions].sort((a, b) => Number(b.action === 'play') - Number(a.action === 'play')).map((question, i) => `<button type="button" class="gx-faq" role="listitem" data-gx-faq="${esc(question.id)}" style="animation-delay:${i * 40}ms">${question.action === 'play' ? '<i class="fas fa-circle-play" aria-hidden="true"></i>' : '<i class="fas fa-sparkles" aria-hidden="true"></i>'}${H(question.text)}</button>`).join('');
+      strip.innerHTML = [...questions].sort((a, b) => Number(b.action === 'play') - Number(a.action === 'play')).map((question, i) => `<button type="button" class="gx-faq" role="listitem" data-gx-faq="${esc(question.id)}" title="${esc(L(question.text))}" style="animation-delay:${i * 40}ms"${i >= VISIBLE ? ' hidden data-gx-extra' : ''}>${question.action === 'play' ? '<i class="fas fa-circle-play" aria-hidden="true"></i>' : '<i class="fas fa-sparkles" aria-hidden="true"></i>'}<span class="gx-faq-text">${H(question.text)}</span></button>`).join('')
+        + (questions.length > VISIBLE ? `<button type="button" class="gx-faq-more" data-gx-more aria-expanded="false">${H('gx_ui_more_questions', 'More')}</button>` : '');
       wrap.hidden = false;
       strip.dataset.collapsed = 'true';
-      syncMore();
+      strip.style.height = '';
     };
-    function syncMore(){
+    /** Shows or hides the rest, animating the strip's height from where it is to where it ends up. */
+    function toggleMore(){
       const collapsed = strip.dataset.collapsed === 'true';
-      const overflowing = strip.scrollHeight > strip.clientHeight + 2;
-      more.hidden = collapsed ? !overflowing : false;
-      more.textContent = collapsed ? L('gx_ui_more_questions', 'More') : L('gx_ui_fewer_questions', 'Less');
-      more.setAttribute('aria-expanded', String(!collapsed));
+      const from = strip.getBoundingClientRect().height;
+      strip.dataset.collapsed = String(!collapsed);
+      strip.querySelectorAll('[data-gx-extra]').forEach((chip) => { chip.hidden = !collapsed; });
+      const more = strip.querySelector('[data-gx-more]');
+      more.innerHTML = collapsed ? H('gx_ui_fewer_questions', 'Less') : H('gx_ui_more_questions', 'More');
+      more.setAttribute('aria-expanded', String(collapsed));
+      strip.style.height = 'auto';
+      const to = strip.getBoundingClientRect().height;
+      if (reducedMotion()) { strip.style.height = ''; return; }
+      strip.style.height = `${from}px`;
+      void strip.offsetHeight;
+      strip.style.height = `${to}px`;
+      setTimeout(() => { strip.style.height = ''; }, 320);
     }
-    more.addEventListener('click', () => { strip.dataset.collapsed = String(strip.dataset.collapsed !== 'true'); syncMore(); });
-    if (doc.defaultView?.ResizeObserver) new doc.defaultView.ResizeObserver(() => { if (!wrap.hidden) syncMore(); }).observe(strip);
     strip.addEventListener('click', (event) => {
+      if (event.target.closest?.('[data-gx-more]')) { toggleMore(); return; }
       const id = event.target.closest?.('[data-gx-faq]')?.dataset.gxFaq;
       const question = faqs(tabNow()).find((entry) => entry.id === id);
       if (!question) return;
@@ -572,6 +583,9 @@
     .gx-dev-pill button:hover{background:rgba(255,255,255,.14)}
     .gx-dev-pill button[aria-pressed=true]:hover{background:#b42318}
     .gx-dev-status{opacity:.75;padding-right:6px;min-width:42px}
+    .gx-dev-pill .gx-dev-handle{width:26px;height:26px;padding:0;display:grid;place-items:center;font-size:10px;font-weight:800;letter-spacing:.02em}
+    .gx-dev[data-collapsed=true] .gx-dev-pill{padding:3px}
+    .gx-dev[data-collapsed=true] .gx-dev-pill>:not(.gx-dev-handle),.gx-dev[data-collapsed=true] .gx-dev-panel{display:none}
     .gx-dev-panel{position:absolute;left:0;bottom:44px;width:min(340px,calc(100vw - 24px));max-height:min(60vh,520px);overflow:auto;background:#fff;border:1px solid #e4e7ec;border-radius:12px;box-shadow:0 18px 50px rgba(16,24,40,.25);padding:10px}
     .gx-dev-panel[hidden]{display:none}
     .gx-dev-panel h4{margin:8px 4px 6px;font-size:11px;text-transform:uppercase;letter-spacing:.05em;color:#667085}
@@ -602,7 +616,12 @@
     doc.querySelectorAll('[data-gx-copy]').forEach(setEditable);
     doc.querySelectorAll('.gx-dev [data-gxd=toggle]').forEach((button) => button.setAttribute('aria-pressed', String(editing())));
   }
-  function status(text){ devStatus = text; devDocs.forEach((doc) => doc.querySelectorAll('.gx-dev-status').forEach((el) => { el.textContent = text; })); }
+  function status(text){
+    devStatus = text;
+    const docs = new Set(devDocs);
+    try { if (root.top !== root && root.top.document) docs.add(root.top.document); } catch (_) {}
+    docs.forEach((doc) => doc.querySelectorAll('.gx-dev-status').forEach((el) => { el.textContent = text; }));
+  }
   const pending = new Map();
   function copyPlace(el){
     const host = el.closest('[data-gx-setup],[data-gx-overlay]');
@@ -624,6 +643,7 @@
     };
     if (now) run(); else pending.set(key, setTimeout(run, 700));
   }
+  root.addEventListener?.('storage', (event) => { if (event.key === EDIT_KEY) devDocs.forEach(syncEditing); });
   function installDev(doc){
     if (!doc?.documentElement || devDocs.has(doc)) return;
     devDocs.add(doc);
@@ -639,7 +659,7 @@
       if (event.key === 'Escape') { event.preventDefault(); el.textContent = el.dataset.gxOriginal ?? el.textContent; el.blur(); }
     }, true);
     doc.addEventListener('keyup', (event) => { if (inEditable(event)) { event.stopImmediatePropagation(); event.preventDefault(); } }, true);
-    doc.addEventListener('focusin', (event) => { const el = inEditable(event); if (el) { el.dataset.gxOriginal = el.textContent; lastKey = el.dataset.gxCopy; } });
+    doc.addEventListener('focusin', (event) => { const el = inEditable(event); if (el) { el.dataset.gxOriginal = el.textContent; lastKey = el.dataset.gxCopy; try { root.top.__gxLastCopyKey = lastKey; } catch (_) {} } });
     doc.addEventListener('input', (event) => { const el = inEditable(event); if (el) save(el); }, true);
     doc.addEventListener('focusout', (event) => { const el = inEditable(event); if (el && el.textContent !== el.dataset.gxOriginal) save(el, true); });
     new (doc.defaultView?.MutationObserver || MutationObserver)((records) => {
@@ -654,25 +674,35 @@
     mountDevPill(doc);
     watchDevTools(doc);
   }
-  /** The pill: "Editing copy" on or off, the last edited field's history, and reset or replay for each experience. */
+  /**
+   * The pill: "Editing copy" on or off, the last edited field's history, and reset or replay for each experience.
+   * One pill, on the top page, fixed to the bottom left of the screen above the project window (2147483200); it
+   * acts on the open project frame. It folds to a small "GX" handle.
+   */
+  const COLLAPSE_KEY = 'fm-gx-dev-collapsed';
   function mountDevPill(doc){
+    let top = null;
+    try { top = root.top !== root && root.top.document ? root.top : null; } catch (_) { top = null; }
+    // A project frame leaves the pill to the page above it (same origin); only an unreachable parent gets its own.
+    if (top) return;
     if (doc.querySelector('.gx-dev')) return;
     const host = doc.createElement('div'); host.className = 'gx-dev'; host.setAttribute('data-fmr-ignore', '');
-    host.innerHTML = `<div class="gx-dev-panel" hidden></div><div class="gx-dev-pill"><button type="button" data-gxd="toggle" aria-pressed="${editing()}">${esc(L('gx_dev_editing', 'Editing copy'))}</button><span class="gx-dev-status" role="status">${esc(devStatus)}</span><button type="button" data-gxd="menu" aria-expanded="false" aria-label="${esc(L('gx_dev_menu', 'Guided experience tools'))}">&#8943;</button></div>`;
+    let collapsed = true;
+    try { collapsed = root.localStorage?.getItem(COLLAPSE_KEY) !== 'open'; } catch (_) {}
+    host.dataset.collapsed = String(collapsed);
+    host.innerHTML = `<div class="gx-dev-panel" hidden></div><div class="gx-dev-pill"><button type="button" class="gx-dev-handle" data-gxd="collapse" aria-expanded="${!collapsed}" aria-label="${esc(L('gx_dev_handle', 'Guided experience tools'))}" title="${esc(L('gx_dev_handle', 'Guided experience tools'))}">GX</button><button type="button" data-gxd="toggle" aria-pressed="${editing()}">${esc(L('gx_dev_editing', 'Editing copy'))}</button><span class="gx-dev-status" role="status">${esc(devStatus)}</span><button type="button" data-gxd="menu" aria-expanded="false" aria-label="${esc(L('gx_dev_menu', 'Guided experience tools'))}">&#8943;</button></div>`;
     (doc.body || doc.documentElement).appendChild(host);
     const panel = host.querySelector('.gx-dev-panel');
     host.addEventListener('click', async (event) => {
       const action = event.target.closest?.('[data-gxd]');
       if (!action) return;
       const kind = action.dataset.gxd;
-      if (kind === 'toggle') { try { root.localStorage?.setItem(EDIT_KEY, editing() ? 'off' : 'on'); } catch (_) {} devDocs.forEach(syncEditing); return; }
+      if (kind === 'collapse') { const next = host.dataset.collapsed !== 'true'; host.dataset.collapsed = String(next); action.setAttribute('aria-expanded', String(!next)); try { root.localStorage?.setItem(COLLAPSE_KEY, next ? 'closed' : 'open'); } catch (_) {} return; }
+      if (kind === 'toggle') { try { root.localStorage?.setItem(EDIT_KEY, editing() ? 'off' : 'on'); } catch (_) {} devDocs.forEach(syncEditing); doc.querySelectorAll('iframe').forEach((frame) => { try { const guides = frame.contentWindow?.FirstMateGuides; if (guides && guides !== root.FirstMateGuides) guides.syncDevEditing?.(); } catch (_) {} }); return; }
       if (kind === 'menu') { panel.hidden = !panel.hidden; action.setAttribute('aria-expanded', String(!panel.hidden)); if (!panel.hidden) renderDevPanel(panel); return; }
       await devAction(action.dataset, () => renderDevPanel(panel));
     });
-    // Always there for a development editor, in the document that shows the project: the portal page hides its own
-    // while a project window (a frame with its own pill) is open.
     host.hidden = false;
-    if (doc === document && root.top === root) setInterval(() => { host.hidden = !!projectFrameGuides(); }, 1000);
   }
   async function devAction(data, rerender){
     const kind = data.gxd, id = data.gxdId;
@@ -702,6 +732,7 @@
   async function renderDevPanel(panel){
     const list = array(state.devExperiences);
     let history = [];
+    try { if (root.__gxLastCopyKey) lastKey = root.__gxLastCopyKey; } catch (_) {}
     if (lastKey) history = array((await devApi.history(lastKey).catch(() => ({}))).history);
     panel.innerHTML = `<h4>${esc(L('gx_dev_field', 'Last edited copy'))}</h4>${lastKey ? `<div class="gx-dev-history">${history.map((entry) => `<div class="gx-dev-row"><span>${esc(entry.text || '(code)')}<small>${esc(entry.author)} · ${esc(new Date(entry.created_at).toLocaleString())} · r${entry.revision}</small></span><button type="button" data-gxd="revert" data-gxd-key="${esc(lastKey)}" data-gxd-revision="${entry.revision}">${esc(L('gx_dev_use', 'Use'))}</button></div>`).join('')}<div class="gx-dev-row"><span>${esc(lastKey)}</span><button type="button" data-gxd="revert" data-gxd-key="${esc(lastKey)}" data-gxd-revision="0">${esc(L('gx_dev_code_text', 'Use the code’s text'))}</button></div></div>` : `<div class="gx-dev-empty">${esc(L('gx_dev_no_field', 'Edit any copy to see its history here.'))}</div>`}
       <h4>${esc(L('gx_dev_experiences', 'Experiences'))}</h4>${list.map((entry) => `<div class="gx-dev-row"><span title="${esc(entry.id)}">${esc(L(entry.title))}</span>${entry.kind === 'overlay' ? `<button type="button" data-gxd="replay" data-gxd-id="${esc(entry.id)}">${esc(L('gx_dev_replay', 'Replay'))}</button>` : `<button type="button" data-gxd="restart" data-gxd-id="${esc(entry.id)}">${esc(L('gx_dev_restart', 'Restart'))}</button>`}<button type="button" data-gxd="reset-me" data-gxd-id="${esc(entry.id)}">${esc(L('gx_dev_reset_me', 'Reset me'))}</button><button type="button" data-gxd="reset-org" data-gxd-id="${esc(entry.id)}">${esc(L('gx_dev_reset_org', 'Reset org'))}</button></div>`).join('') || `<div class="gx-dev-empty">${esc(L('gx_dev_none', 'No experiences.'))}</div>`}`;
@@ -725,6 +756,8 @@
   }
 
   root.FirstMateGuides = {
+    /** Development: re-reads the editing switch (the pill on the page above calls it on project frames). */
+    syncDevEditing: () => devDocs.forEach(syncEditing),
     copyHtml: H, installDev, syncDevEditing: () => devDocs.forEach(syncEditing), isDevEditor: () => devState.editor,
     filterProjectTabs, projectFacts,
     refresh: () => refresh(true), play, faqs, attachAssistant, overlay, where, follow,

@@ -41,7 +41,16 @@ const ruleSchema = z.object({
   /** How it is bought: one package covers this much of the line's unit. */
   package: z.object({ unit: z.string().trim().min(1).max(40), coverage: z.number().finite().positive().max(1e6) }).strict().optional(),
   /** The price book product, by id; else the first product of this item type. */
-  product_id: z.string().trim().max(120).default(""), product_type: z.string().trim().max(120).default("")
+  product_id: z.string().trim().max(120).default(""), product_type: z.string().trim().max(120).default(""),
+  /**
+   * Another product when another rule's product has an attribute (price book item `attributes`): the starter rule
+   * buys a coloured starter when the shingle it goes with has `reveals_starter`. The first that holds wins.
+   */
+  alternatives: z.array(z.object({
+    when: z.object({ rule: key, attribute: z.string().trim().regex(/^[a-z][a-z0-9_]{0,59}$/), equals: z.union([z.boolean(), z.string().max(120), z.number()]).default(true) }).strict(),
+    product_id: z.string().trim().min(1).max(120),
+    package: z.object({ unit: z.string().trim().min(1).max(40), coverage: z.number().finite().positive().max(1e6) }).strict().optional()
+  }).strict()).max(4).default([])
 }).strict();
 const wasteSchema = z.object({
   base_percent: percent, per_cut_foot_percent: z.number().finite().min(0).max(10), steep_percent: percent,
@@ -75,6 +84,9 @@ function check(settings: MeasurementDefaults) {
     // Feet and squares are never added together.
     if (units.size > 1) throw badRequest("measurement_defaults_invalid", `${rule.label} adds measurements in different units.`, { path: `${at}.terms` });
   });
+  settings.materials.rules.forEach((rule, index) => rule.alternatives.forEach((alternative, at) => {
+    if (!keys.has(alternative.when.rule) || alternative.when.rule === rule.key) throw badRequest("measurement_defaults_invalid", `${rule.label} depends on ${alternative.when.rule}, which is not another rule.`, { path: `materials.rules.${index}.alternatives.${at}.when.rule` });
+  }));
   if (settings.materials.waste.min_percent > settings.materials.waste.max_percent) throw badRequest("measurement_defaults_invalid", "The lowest waste is above the highest.", { path: "materials.waste.min_percent" });
   const offered = new Set(roofingWork().map((entry) => entry.item)), items = new Set<string>();
   settings.labor.items.forEach((entry, index) => {
@@ -88,7 +100,7 @@ export function parseMeasurementDefaults(value: unknown): MeasurementDefaults { 
 
 const term = (measurement: string, factor = 1) => ({ measurement, factor });
 const shingled = [term("roof.squares"), term("roof.flat_squares", -1)];
-const rule = (key: string, label: string, group: string, terms: Rule["terms"], waste: Rule["waste"], pack: Rule["package"], product_id: string, product_type = ""): Rule => ({ key, enabled: true, label, group, terms, waste, package: pack, product_id, product_type });
+const rule = (key: string, label: string, group: string, terms: Rule["terms"], waste: Rule["waste"], pack: Rule["package"], product_id: string, product_type = ""): Rule => ({ key, enabled: true, label, group, terms, waste, package: pack, product_id, product_type, alternatives: [] });
 /**
  * Industry defaults for a shingle roof replacement. Every number is a starting point an organization changes in
  * Settings; the product ids are the roofing library's, and a price book without them falls back to the item type, or
@@ -182,7 +194,7 @@ for (const rule of v.rules || []) {
 }
 return { outputs: { lines, warnings, work: v.work || [] } };`;
 
-type PricebookItem = { id: string; name: string; type: string; unit: string; cost: number };
+type PricebookItem = { id: string; name: string; type: string; unit: string; cost: number; attributes?: Record<string, unknown> };
 const lower = (value: unknown) => String(value ?? "").trim().toLowerCase();
 /** The price book product a rule names, its cost per unit of the line where its own unit is the package's. */
 function product(rule: Rule, items: PricebookItem[]) {
@@ -195,8 +207,14 @@ function product(rule: Rule, items: PricebookItem[]) {
 /** The artifact's definition for these settings, with each rule's product looked up in the price book now. */
 export function measurementDefaultsCalculus(settings: MeasurementDefaults, items: PricebookItem[]) {
   const known = definitions(), missing: string[] = [];
-  const rules = (settings.materials.enabled ? settings.materials.rules : []).filter((entry) => entry.enabled).map((entry) => {
-    const found = product(entry, items);
+  const enabled = (settings.materials.enabled ? settings.materials.rules : []).filter((entry) => entry.enabled);
+  // Each rule's own product first, so an alternative can read the attributes of the product another rule buys.
+  const chosen = new Map(enabled.map((entry) => [entry.key, product(entry, items)]));
+  const attributes = (ruleKey: string) => items.find((item) => item.id === chosen.get(ruleKey)?.id)?.attributes || {};
+  const rules = enabled.map((rawEntry) => {
+    const alternative = rawEntry.alternatives.find((entry) => String(attributes(entry.when.rule)[entry.when.attribute] ?? false) === String(entry.when.equals) && items.some((item) => item.id === entry.product_id));
+    const entry = alternative ? { ...rawEntry, product_id: alternative.product_id, product_type: "", ...(alternative.package ? { package: alternative.package } : {}) } : rawEntry;
+    const found = alternative ? product(entry, items) : chosen.get(entry.key) ?? null;
     if (!found && (entry.product_id || entry.product_type)) missing.push(entry.label);
     return { key: entry.key, label: entry.label, group: entry.group, terms: entry.terms, waste: entry.waste, unit: UNIT_WORDS[known.get(entry.terms[0]!.measurement)?.unit || ""] || "ea", ...(entry.package ? { package: entry.package } : {}), ...(found ? { product: found } : {}) };
   });
@@ -215,7 +233,8 @@ async function pricebookItems(orgId: string): Promise<PricebookItem[]> {
   try {
     return (await readOrganizationPricebook(orgId)).catalog.items.map((raw) => {
       const item = raw as Record<string, unknown>, cost = Number(item.internal_cost ?? item.base_cost);
-      return { id: String(item.id || ""), name: String(item.name || item.id || ""), type: String(item.type || item.category || ""), unit: String(item.unit || ""), cost: Number.isFinite(cost) && cost > 0 ? cost : Number(item.unit_price) || 0 };
+      const attributes = item.attributes && typeof item.attributes === "object" && !Array.isArray(item.attributes) ? item.attributes as Record<string, unknown> : {};
+      return { id: String(item.id || ""), name: String(item.name || item.id || ""), type: String(item.type || item.category || ""), unit: String(item.unit || ""), cost: Number.isFinite(cost) && cost > 0 ? cost : Number(item.unit_price) || 0, attributes };
     });
   } catch { return []; } // An organization without a price book still gets its lines, by the defaults' own names.
 }

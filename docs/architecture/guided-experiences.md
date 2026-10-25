@@ -21,7 +21,9 @@ eligibility and its chooser.
 | `public/v1/guided-experiences/definitions/*.ts` | Domain definitions. `materials.ts` holds the first ones. |
 | `public/libraries/guided-experiences/guided-experiences.js` | `window.FirstMateGuides`: API client, triggers, the overlay engine, assistant FAQs. |
 | `public/libraries/guided-experiences/guided-setup.js` | `window.FirstMateGuidedSetup`: the `modal` and `agentic` players and step widgets. |
-| `public/v1/pricebook/setups/` | Price book setups by trade and the `pricebook.setup.apply` action. Roofing is the first. |
+| `public/v1/pricebook/setups/` | Price book setups by trade and the `pricebook.setup.apply` action, plus `pricebook.prices.list` / `pricebook.prices.update` for price sheets. Roofing is the first. |
+| `public/libraries/guided-experiences/supplier-columns.js` | `window.FirstMateSupplierColumns`: supplier columns and the supplier price sheet hand-off, mountable anywhere. |
+| `public/v1/materials/supplier-prices-publication.ts` | `suppliers.prices.update`: one supplier's costs from its price sheet (agent). |
 
 ## Data model
 
@@ -127,8 +129,16 @@ person types, the assistant sends the turn to the real model in that thread: the
 prepare hook adds `guidedConversationContext` (which setup, which step, the
 choices so far, and to hand back to the steps and not write the price book
 itself); after its answer the workflow says to carry on. On finish the
-completion action runs, the sheet closes and the assistant column flies to where
-the project's agent tray opens; the tray's own instance loads the same thread.
+completion action runs and the hand-off plays as one choreographed transition
+(`flyToTray`): one timeline (520 ms, `cubic-bezier(.65,0,.35,1)`) started on one
+frame, in which the widget side shrinks onto the agent and fades, the backdrop
+fades, the agent card (laid out once at its final size, then only transformed and
+clipped) moves into the tray's rectangle, and the project window opens the tray
+with the same duration and easing. The tray's own instance loads the same thread
+underneath; the card fades only once the tray shows the conversation. Reduced
+motion opens the tray at once. Each step change has one owner: a generation
+counter removes every pane but the one on screen and stale animation callbacks
+do nothing, so fast Back/Continue never stacks steps.
 Under 760px the sheet fills the screen and the assistant folds below it behind an
 Agent handle. `prefers-reduced-motion` turns every animation off. Without the
 assistant (or without a project) the same steps play as a modal.
@@ -138,15 +148,30 @@ passes `workflow` when it mounts an instance (`mountProject`, `mountSurface`):
 `onUserMessage(text)` sees a typed message first (return `true` to answer it
 itself, otherwise the model answers); `onReply(message)` follows each model
 answer; `onChoice(id, messageId)` receives a press on a choice. The instance adds
-`say(lines)` (programmatic lines with the usual working indicator) and
-`post({ role, content, data })`; `data.choices: [{ id, label }]` draws choice
-buttons under a message. A line the host also stored in the thread is not shown
+`say(lines)` (programmatic lines with the usual working indicator),
+`post({ role, content, data })` and `sendWithFiles(text, files)` (attach and send
+to the model); `data.choices: [{ id, label }]` draws choice buttons under a
+message, and `data.upload: { label, message, accept }` draws an upload control
+in the line: the file is attached and sent with `message` to the real model,
+after `workflow.onUpload(files)` has run (the setup saves its draft there). A line the host also stored in the thread is not shown
 twice when the conversation reloads. A workflow surface gets no tab questions.
 
 Widgets are registered with `FirstMateGuidedSetup.registerWidget(id, { render(el,
 { step, options, selections, change }) })`. `change(patch, summary)` merges a
 selection patch and gives the plain summary the agent repeats. First ones:
-`brand-cards`, `product-lines`, `measurement-rules`, `price-review`.
+`brand-cards` (logos only), `product-lines` (two columns, tiers, search),
+`measurement-rules` (one row per material), `supplier-columns`, `price-review`
+(costs only, by `options.kinds`). A step's `upload` puts an upload control in one
+of its `say` lines; its `agent_note` is added to the model's context on that step.
+
+**Supplier columns** (`supplier-columns.js`, reusable). `window.FirstMateSupplierColumns.mount(el,
+{ suppliers, items, onChange, onPriceSheet })` draws one thin column per supplier
+(brand colour on top, an initials badge, what it carries with a cost each, a
+Price sheet button), two at a time; an arrow slides to the next and points back
+at the end. `priceSheet({ supplier, assistant, before })` asks for a file and
+sends it to the assistant (an instance, or the global one) naming the supplier
+and its id, so the agent sets that supplier's costs with `suppliers.prices.update`.
+It stores nothing itself; the Materials settings can mount both.
 
 **Triggers in the browser.** `before_action` is a capture-phase click listener:
 it holds the click, plays, and after `then` clicks the element again with a
@@ -169,9 +194,10 @@ skipped at once, and a newer move cancels an older one. Back works at any time.
 
 ## Assistant suggestions
 
-The questions wrap into rows above the composer, the replay ("Show me the
-tutorial again", with its play icon) first; more than two rows fold behind
-"More". No sideways scrolling.
+The first three questions show inline above the composer, the replay ("Show me
+the tutorial again", with its play icon) first, and a More chip at the end of
+that row opens the rest with a height animation (Less folds them). No sideways
+scrolling.
 
 
 `platform-assistant.js` calls `FirstMateGuides.attachAssistant(drawer, { getContext,
@@ -192,7 +218,9 @@ question.
   and its write is organization-level, so nothing saves the project), and the
   Generate buttons for anyone the first view missed. Variants: `agentic` (assistant on),
   `agentic_express` (weight 0, no rules walkthrough), `modal` (assistant off).
-  Steps: brands, lines, rules (how a roof becomes a list), prices. Completion:
+  Steps: brands, lines, rules (how a roof becomes a list), suppliers (who
+  provides your materials), material prices, labor prices (optional; Skip leaves
+  labor out). Completion:
   `pricebook.setup.apply` with `trade: roofing`, then hand-off, the held Generate,
   and the tour.
 - `materials.tab_tutorial` (overlay, person, replayable): after the setup, or on
@@ -222,9 +250,41 @@ wordmark shows when there is none or it fails to load. The selections become:
   naming its product and package; shingle waste is the company's (worked out per
   roof, or a fixed percent).
 
+Lines carry `setup_visibility` in the catalog: `default` lines are ticked,
+`visible` ones shown, `more` ones behind More. A designer line that shows its
+starter course has `reveals_starter: true`; it is written as the item's
+`attributes`, and the starter rule gets an `alternatives` entry (measurement
+defaults: when the `shingles` rule's product has that attribute, use the
+coloured starter). Quantity formulas still read only measurements; an item's
+attributes are read by the defaults, not by formulas.
+
 Both are written through their own writers (`saveOrganizationCatalog`,
-`saveMeasurementDefaults`). Prices: research cost x (1 + markup) x the region's
-material multiplier; labor uses the labor multiplier; typed prices win. Another
+`saveMeasurementDefaults`). Prices are costs: research cost x the region's
+material multiplier (labor uses the labor multiplier), typed prices win. The
+setup writes no markup: it sets `internal_cost` (what the company pays) and
+`unit_price` to the same cost; selling prices and margins belong to documents and
+pricing settings. A cost a price sheet set (`metadata.price_source: price_sheet`)
+is kept when the setup is finished again.
+
+**Price sheets.** The material prices step offers an upload in the agent's line
+("If you have a price sheet from your supplier…"). Before the file goes to the
+model, the setup saves what is chosen so far through the completion action (the
+draft), so the agent finds the items. The agent reads them with
+`pricebook.prices.list` and applies a checked list with `pricebook.prices.update`
+(costs, never a markup; it asks before an uncertain match).
+
+**Suppliers.** The suppliers step offers the researched suppliers in
+`materials/roofing-research/roofing-suppliers-2026.json` (which manufacturers each
+stocks, `full_range` or `retail_core`, a brand colour, observed library prices)
+as pills, and any typed supplier as a tag. A researched supplier starts with the
+chosen products of the brands it stocks (a big-box store only default lines and
+plain accessories); a typed one starts empty. On finish each supplier is saved
+through `suppliers.supplier.save`, invoked as the person, merged by name with a
+supplier already saved: of the setup's items it carries the ticked ones; prices
+are a typed cost, else one already saved (a price sheet), else the observed
+price. A supplier's price sheet goes to the agent with the supplier's id, which
+sets its costs with `suppliers.prices.update`. No supplier logos ship (they need
+each company's permission). Another
 trade plugs in with a `TradeSetup` in `pricebook/setups/index.ts` and its own
 experience definition.
 
@@ -249,6 +309,8 @@ Materials tab audit (October 24), button to published action:
 | Requirements, manual scope | `work-requirements.manual.save` |
 | Pay out, reopen, close out | `labor.list.finalize`, `labor.list.reopen`, `project-closeout.*` |
 | Set up the price book | `pricebook.setup.apply` (new) |
+| Apply a supplier price sheet to the price book | `pricebook.prices.list`, `pricebook.prices.update` (new) |
+| Set a supplier's costs from its price sheet | `suppliers.prices.update` (new) |
 | Older (non-calculus) lists: add list, rename, delete, add or edit lines, mark ordered, mark delivered | missing: plain routes in `materials/api.ts` |
 | Email a supplier order, share a shopping list, PO PDF, schedule a list's delivery, work order document, labor preview/compare | missing |
 

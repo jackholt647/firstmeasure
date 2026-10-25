@@ -12,6 +12,7 @@ import { registerMaterialsCalculusPublication } from '../../materials/calculus-p
 import { registerMaterialOrderingPublication } from '../../materials/ordering-publication.js';
 import { registerMaterialsGeneratePublication } from '../../materials/generate-publication.js';
 import { registerPricebookSetupPublication } from '../../pricebook/setups/index.js';
+import { registerSupplierPricesPublication } from '../../materials/supplier-prices-publication.js';
 import { registerMaterialsInputs } from '../../materials/calculus-inputs.js';
 import { registerNotificationProvider } from "../notifications/provider.js";
 import { registerBuiltinDataProviders } from "./provider-adapters.js";
@@ -71,5 +72,6 @@ export function initializePublication() {
   registerProjectHistoryPublication();
   registerMaterialsGeneratePublication();
   registerPricebookSetupPublication();
+  registerSupplierPricesPublication();
   initialized = true;
 }

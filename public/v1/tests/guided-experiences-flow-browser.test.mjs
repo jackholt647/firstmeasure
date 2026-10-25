@@ -161,7 +161,7 @@ test('one experience at a time, fast Next and Back, close mid-tour, reopen, relo
     // The tray's questions are styled chips in the project window's document.
     await frame().waitForSelector('.fm-project-tray .gx-faq');
     const chip=await frame().locator('.fm-project-tray .gx-faq').first().evaluate(el=>{const s=getComputedStyle(el);return {radius:s.borderTopLeftRadius,height:el.getBoundingClientRect().height,bg:s.backgroundColor};});
-    assert.equal(chip.radius,'999px');assert.ok(chip.height>=28&&chip.height<=34);assert.equal(chip.bg,'rgb(255, 255, 255)');
+    assert.equal(chip.radius,'999px');assert.ok(chip.height>=24&&chip.height<=30);assert.equal(chip.bg,'rgb(255, 255, 255)');
     // Fast Next through the tour: every press is one step, missing targets are skipped without waiting.
     const titles=[];
     // Seconds of lag was the bug; these bounds leave room for a busy test machine. Timed in the page: the click to the new step's title, without waiting for the popover to stop sliding.
@@ -295,14 +295,22 @@ test('development: copy is editable in place, saves as you type, shows for every
     // Obvious: editable text is outlined and the pill says so.
     assert.equal(await frame().evaluate(()=>document.documentElement.classList.contains('gx-editing')),true);
     assert.equal(await frame().locator('.gx-pop h3 [data-gx-copy]').getAttribute('contenteditable'),'plaintext-only');
-    assert.equal(await frame().locator('.gx-dev [data-gxd=toggle]').getAttribute('aria-pressed'),'true');
-    assert.equal(await frame().locator('.gx-dev').getAttribute('data-fmr-ignore'),'');
+    // One pill, on the page itself at the bottom left of the screen, above the project window; folded to a handle.
+    assert.equal(await frame().locator('.gx-dev').count(),0,'none inside the project window');
+    await tab.waitForSelector('.gx-dev .gx-dev-handle');
+    assert.equal(await tab.locator('.gx-dev').getAttribute('data-collapsed'),'true');
+    await tab.click('.gx-dev [data-gxd=collapse]');
+    const pill=await tab.evaluate(()=>{const el=document.querySelector('.gx-dev'),r=el.getBoundingClientRect(),cs=getComputedStyle(el);return {position:cs.position,z:Number(cs.zIndex),left:r.left,bottom:innerHeight-r.bottom};});
+    assert.equal(pill.position,'fixed');
+    assert.ok(pill.z>2147483200&&pill.left<=16&&pill.bottom<=16,JSON.stringify(pill));
+    assert.equal(await tab.locator('.gx-dev [data-gxd=toggle]').getAttribute('aria-pressed'),'true');
+    assert.equal(await tab.locator('.gx-dev').getAttribute('data-fmr-ignore'),'');
     // Typing saves after a pause, as plain text.
     const title=frame().locator('.gx-pop h3 [data-gx-copy]');
     await title.click();
     await tab.keyboard.press('Control+A');
     await tab.keyboard.type('Hello from <the> roof');
-    await frame().waitForFunction(()=>document.querySelector('.gx-dev-status')?.textContent==='Saved',null,{timeout:4000});
+    await tab.waitForFunction(()=>document.querySelector('.gx-dev-status')?.textContent==='Saved',null,{timeout:4000});
     assert.deepEqual(srv.state.copySaves.map(save=>[save.key,save.text,save.experience_id,save.step_id]),[['gx_a','Hello from <the> roof','materials.tab_tutorial','intro']]);
     assert.equal(await frame().locator('.gx-pop h3').innerText(),'Hello from <the> roof','shown as text, never markup');
     // Editing a button's label does not press it.
@@ -310,17 +318,17 @@ test('development: copy is editable in place, saves as you type, shows for every
     assert.equal(await frame().locator('.gx-pop h3').innerText(),'Hello from <the> roof','still on the same step');
     await tab.keyboard.press('Escape');
     // The toggle gives the clean view.
-    await frame().click('.gx-dev [data-gxd=toggle]');
+    await tab.click('.gx-dev [data-gxd=toggle]');
     assert.equal(await frame().evaluate(()=>document.documentElement.classList.contains('gx-editing')),false);
     assert.equal(await frame().locator('.gx-pop h3 [data-gx-copy]').getAttribute('contenteditable'),null);
     await frame().click('.gx-pop [data-gx=next]');
     await frame().waitForFunction(()=>document.querySelector('.gx-pop h3')?.textContent==='Generate');
-    await frame().click('.gx-dev [data-gxd=toggle]');
+    await tab.click('.gx-dev [data-gxd=toggle]');
     // The tools: reset this tour for me from the pill.
-    await frame().click('.gx-dev [data-gxd=menu]');
-    await frame().waitForSelector('.gx-dev-panel [data-gxd="reset-me"][data-gxd-id="materials.tab_tutorial"]');
-    await frame().click('.gx-dev-panel [data-gxd="reset-me"][data-gxd-id="materials.tab_tutorial"]');
-    await frame().waitForFunction(()=>/Reset/.test(document.querySelector('.gx-dev-status')?.textContent||''));
+    await tab.click('.gx-dev [data-gxd=menu]');
+    await tab.waitForSelector('.gx-dev-panel [data-gxd="reset-me"][data-gxd-id="materials.tab_tutorial"]');
+    await tab.click('.gx-dev-panel [data-gxd="reset-me"][data-gxd-id="materials.tab_tutorial"]');
+    await tab.waitForFunction(()=>/Reset/.test(document.querySelector('.gx-dev-status')?.textContent||''));
     assert.deepEqual(srv.state.resets,[{experience_id:'materials.tab_tutorial',scope:'me'}]);
     await frame().click('.gx-pop [data-gx=close]');
     assert.deepEqual(errors,[]);
@@ -332,6 +340,7 @@ test('development: copy is editable in place, saves as you type, shows for every
     assert.equal(await other.frame().locator('.gx-pop h3').innerText(),'Hello from <the> roof');
     assert.equal(await other.frame().locator('[data-gx-copy]').count(),0);
     assert.equal(await other.frame().locator('.gx-dev').count(),0);
+    assert.equal(await other.tab.locator('.gx-dev').count(),0);
     assert.deepEqual(other.errors,[]);
   } finally { await browser.close(); }
 });

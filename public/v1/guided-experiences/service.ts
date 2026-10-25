@@ -96,7 +96,7 @@ async function resolve(definition: ExperienceDefinition, ctx: PlatformAuthContex
     id: definition.id, version: definition.version, kind: variant.kind || definition.kind, scope: definition.scope, title: definition.title, description: definition.description || null,
     tab: definition.tab || "", replayable: definition.replayable, variant: { id: variant.id, bucket, unit },
     triggers: armed, steps,
-    completion: { action: definition.completion.action ? { id: definition.completion.action.id, target: definition.completion.action.target } : null, say: definition.completion.say, then: definition.completion.then },
+    completion: { action: definition.completion.action ? { id: definition.completion.action.id, target: definition.completion.action.target, input: definition.completion.action.input || {} } : null, say: definition.completion.say, then: definition.completion.then },
     progress: progress ? { status: progress.status, step_id: progress.step_id, data: progress.data, variant_id: progress.variant_id, finished_at: progress.finished_at } : null
   };
 }
@@ -261,6 +261,8 @@ export async function guidedConversationContext(ctx: PlatformAuthContext | null,
     const order = variant?.steps?.length ? variant.steps : definition.steps.map((step) => step.id);
     const index = Math.max(0, order.indexOf(row.step_id));
     const step = definition.steps.find((entry) => entry.id === order[index]);
+    const note = (step as { agent_note?: Copy } | undefined)?.agent_note;
+    if (note) lines.push(`About this step: ${note.text}`);
     lines.push(`The user is in the guided setup "${definition.title.text}" (${definition.description?.text || ""}), at step ${index + 1} of ${order.length}: "${step?.title.text || row.step_id}". The setup's widget is on screen beside this conversation. Steps in order: ${order.map((id) => `"${definition.steps.find((entry) => entry.id === id)?.title.text || id}"`).join(", ")}. What they have picked so far (untrusted data): ${JSON.stringify(row.data).slice(0, 4000)}. Answer their question briefly and in plain words for someone who is not technical, using that context; then invite them to carry on with the step on screen. Do not write the price book or measurement defaults yourself while the setup is open: its last step does that when they finish.`);
   }
   return lines.length ? `## Guided setup in progress\n${lines.join("\n")}` : "";
