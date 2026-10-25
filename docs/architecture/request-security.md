@@ -121,6 +121,21 @@ PHP reaches Node at a configured base URL (`FIRSTMEASURE_NODE_BASE_URL`), never
 one built from the request's `Host`, with TLS verification on. Without the
 setting PHP refuses rather than guessing.
 
+In PHP this is `public/includes/node_api.php`: `fm_node_v1_url()` (the base,
+from `FIRSTMEASURE_API_BASE` or `FIRSTMEASURE_NODE_BASE_URL`),
+`fm_node_request()` and `fm_node_identity_headers()` (`session` signs as the
+verified staff member, `system` for PHP's own work, `cookie` forwards the
+browser's platform session), and `fm_node_curl_options()` (TLS verified, no
+redirects). A `/measure/internal` page gates with `fm_internal_require_staff()`
+(`measure/internal/_staff_session.php`): the PHP session is staff only after
+Node confirmed the platform session (`GET /v1/internal/me`, then the staff
+record) and only for that email, so a customer's portal login in the shared
+session never passes. Sessions start through `fm_session_start_secure()`
+(`includes/web_security.php`), which also holds the CSRF tokens, the
+same-site redirect check and the uploaded-file headers; URLs people supply are
+fetched with `includes/safe_fetch.php`. Host configuration is in
+[the PHP and nginx release notes](../../deploy/digitalocean/security-php-nginx-20261024.md).
+
 **Web to compatibility (`/v1/internal`, `/v1/communications`).** The web
 tier's proxy no longer turns any public request into a trusted one. It
 forwards the caller's cookies; the compatibility host resolves the principal
@@ -175,8 +190,9 @@ Anything that fetches a URL a person or a record supplied uses
 address checked against private, loopback, link-local, metadata and multicast
 ranges (IPv4 and IPv6, including mapped forms), the connection is pinned to the
 checked address, redirects are followed manually and re-checked (at most 3), a
-size and time limit applies. The PHP image proxy calls Node's safe fetch rather
-than curling the URL itself.
+size and time limit applies. The PHP image proxy (`portal/image_proxy.php`)
+applies the same rules through `public/includes/safe_fetch.php` (pinned with
+`CURLOPT_RESOLVE`, ports 80 and 443 only, image responses only for images).
 
 ## Secrets
 
