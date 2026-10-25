@@ -744,6 +744,8 @@
     };
 
     attachSurfaceWindow(host);
+    // Suggested questions for the open tab (docs/architecture/guided-experiences.md).
+    window.FirstMateGuides?.attachAssistant?.(drawer, { getContext: () => surface.getContext?.() || {}, ask: (text) => { els.input.value = String(text); sendMessage(); } });
     if (projectSurface()) { q('new').style.display = 'none'; els.searchInput.closest('.fma-nav-search').style.display = 'none'; }
     q('new').addEventListener('click', () => {
       if (sidebarExternal()) openFull();

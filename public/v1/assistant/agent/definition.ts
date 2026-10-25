@@ -698,6 +698,8 @@ registerAgent({
     run.scratch.formContext = await formConversationContext(run.ctx, cleanText(run.scratch.threadSubjectId || run.subjectId));
     run.scratch.projectContext = await projectConversationContext(run.ctx, cleanText(run.scratch.threadSubjectId || run.subjectId));
     run.scratch.channelContext = await channelConversationContext(run.ctx, cleanText(run.scratch.threadSubjectId || run.subjectId));
+    // A guided setup open beside this conversation (docs/architecture/guided-experiences.md).
+    run.scratch.guidedContext = await (await import("../../guided-experiences/service.js")).guidedConversationContext(run.ctx, cleanText(run.scratch.threadSubjectId || run.subjectId)).catch(() => "");
     const capabilities = await effectiveCapabilities(run.orgId).catch(() => null);
     const effective = asObject(asObject(capabilities).effectiveByKey);
     run.scratch.actionsAllowed = effective["assistant.actions"] === true;
@@ -735,6 +737,7 @@ ${notificationAssistantInstructions}
 ${run.subjectId === "notifications" ? "The user is in Notification settings. Help them configure notifications through this conversation." : ""}
 ${run.scratch.channelContext || ""}
 ${run.scratch.projectContext || ""}
+${run.scratch.guidedContext || ""}
 ${run.agentId === ASSISTANT_AGENT_ID ? assistantAgentInstructions : ""}
 
 ## Appointment booking

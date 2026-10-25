@@ -381,6 +381,21 @@ registered. Mark a step `planned` when what it needs is not built, and verify a
 recipe against the code before writing it as fact. Run
 `tests/agent-how-to-index.test.ts` for changes here.
 
+## Guided experiences
+
+Read [guided experiences](docs/architecture/guided-experiences.md) before adding
+or changing an in-app setup, tutorial, tour, or the assistant's suggested
+questions. Every guide is a definition (data) played by one runtime: overlay,
+modal or agentic, with triggers, variants chosen by the deterministic chooser,
+progress and events kept on the server, and copy as new `gx_` language keys.
+Do not add another tutorial engine, a per-app onboarding modal or progress in
+browser storage. Who sees one is eligibility (capabilities, permissions,
+conditions), never a configuration check. What a setup writes is a published
+action run as the person. Scripted agent lines are programmatic; the real
+assistant answers only when the person types. Run
+`tests/guided-experiences.test.ts`, `tests/pricebook-roofing-setup.test.ts` and
+`tests/guided-experiences-browser.test.mjs` for changes here.
+
 ## Realtime: one stream per page
 
 Read [realtime](docs/architecture/realtime.md) before adding anything that
