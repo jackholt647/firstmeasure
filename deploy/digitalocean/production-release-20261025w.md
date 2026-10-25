@@ -59,4 +59,4 @@ Web node 64.23.240.81 kept 1,910 events from Sept 8–9 in its local database. T
 
 ## Rollback
 
-Roll back to `6fefe93c` by republishing `f1267322…`. The old code would fail inserts again: the unique index is dropped, but that is harmless.
+Roll back to `6fefe93c` by republishing `f1267322…`. The dropped unique index stays dropped, so the old code would record events too; only batching and the 400/429 handling would go.
