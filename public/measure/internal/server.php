@@ -10,10 +10,13 @@
 
 declare(strict_types=1);
 
+require_once dirname(__DIR__, 2) . '/includes/web_security.php';
+require_once dirname(__DIR__, 2) . '/includes/node_api.php';
+
+// Stripe calls this server to server and the billing pages are same-origin:
+// no cross-origin access (it was "*" until 2026-10-24).
 header('Content-Type: application/json');
-header('Access-Control-Allow-Origin: *');
-header('Access-Control-Allow-Headers: Content-Type, Stripe-Signature, X-FirstMeasure-Debug, X-FirstMeasure-Debug-Source');
-header('Access-Control-Allow-Methods: GET, POST, OPTIONS');
+header('X-Content-Type-Options: nosniff');
 
 ignore_user_abort(true);
 set_time_limit(90);
@@ -30,15 +33,6 @@ function fm_json_response(int $status, array $payload): void {
     exit;
 }
 
-function fm_node_v1_base_url(): string {
-    $host = strtolower((string)($_SERVER['HTTP_HOST'] ?? ''));
-    if (strpos($host, '127.0.0.1') !== false || strpos($host, 'localhost') !== false) {
-        return 'http://127.0.0.1:3111/v1';
-    }
-    $scheme = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ? 'https' : 'http';
-    $hostname = (string)($_SERVER['HTTP_HOST'] ?? 'app.1m8.ai');
-    return $scheme . '://' . $hostname . '/v1';
-}
 
 function fm_request_json(): array {
     $raw = file_get_contents('php://input');
@@ -57,18 +51,26 @@ function fm_post_body(): array {
     return $_POST;
 }
 
-function fm_forward_json_to_node(string $path, array $payload, int $timeout = 45): void {
+// $auth: 'none' for Stripe's own signed webhook; 'cookie' to act as the
+// signed-in browser user (Node reads their platform session).
+function fm_forward_json_to_node(string $path, array $payload, int $timeout = 45, string $auth = 'none'): void {
     if (!function_exists('curl_init')) {
         fm_json_response(500, ['success' => false, 'error' => 'PHP cURL is not available for the Stripe compatibility bridge.']);
     }
 
-    $url = rtrim(fm_node_v1_base_url(), '/') . '/' . ltrim($path, '/');
+    // Platform routes are served by the web nodes: the API base, from configuration only.
+    $url = fm_node_v1_url($path, 'api', 3111);
+    if ($url === '') {
+        fm_json_response(503, ['success' => false, 'error' => 'The Stripe compatibility bridge is not configured.']);
+    }
+    $body = json_encode($payload);
+    $headers = array_merge(['Content-Type: application/json', 'Accept: application/json'], fm_node_identity_headers($auth, 'POST', $url, $body));
     $ch = curl_init($url);
-    curl_setopt_array($ch, [
+    curl_setopt_array($ch, fm_node_curl_options() + [
         CURLOPT_RETURNTRANSFER => true,
         CURLOPT_POST => true,
-        CURLOPT_HTTPHEADER => ['Content-Type: application/json', 'Accept: application/json'],
-        CURLOPT_POSTFIELDS => json_encode($payload),
+        CURLOPT_HTTPHEADER => $headers,
+        CURLOPT_POSTFIELDS => $body,
         CURLOPT_TIMEOUT => $timeout,
     ]);
     $response = curl_exec($ch);
@@ -100,7 +102,7 @@ function fm_stripe_webhook_bridge(): void {
 }
 
 function fm_public_base_url(string $fallbackPath): string {
-    $scheme = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ? 'https' : 'http';
+    $scheme = fm_request_is_https() ? 'https' : 'http';
     $host = (string)($_SERVER['HTTP_HOST'] ?? 'app.1m8.ai');
     return $scheme . '://' . $host . $fallbackPath;
 }
@@ -120,18 +122,22 @@ function fm_stripe_action_bridge(string $action): void {
         @session_start();
     }
 
+    // Who is acting comes from the session (and Node reads the forwarded
+    // platform cookie), never from the request body.
+    $requestedReturn = is_string($body['return_base_url'] ?? null) ? $body['return_base_url'] : '';
+    unset($body['actor_email'], $body['actor_name'], $body['actor_org_id'], $body['actor'], $body['return_base_url']);
+    // Stripe sends the customer back to this site only.
+    $siteOrigin = fm_public_base_url('');
+    $returnBase = strpos($requestedReturn, $siteOrigin . '/') === 0 ? $requestedReturn : fm_public_base_url('/portal');
     $payload = array_merge($body, [
         'action' => $action,
-        'actor_email' => $body['actor_email'] ?? ($_SESSION['user_email'] ?? ''),
-        'actor_name' => $body['actor_name'] ?? ($_SESSION['user_name'] ?? ''),
-        'actor_org_id' => $body['actor_org_id'] ?? ($_SESSION['user_org_id'] ?? ($_SESSION['organization_id'] ?? '')),
+        'actor_email' => (string)($_SESSION['user_email'] ?? ''),
+        'actor_name' => (string)($_SESSION['user_name'] ?? ''),
+        'actor_org_id' => (string)($_SESSION['user_org_id'] ?? ($_SESSION['organization_id'] ?? '')),
+        'return_base_url' => $returnBase,
     ]);
 
-    if (empty($payload['return_base_url'])) {
-        $payload['return_base_url'] = fm_public_base_url('/portal');
-    }
-
-    fm_forward_json_to_node('platform/portal-action', $payload);
+    fm_forward_json_to_node('platform/portal-action', $payload, 45, 'cookie');
 }
 
 $method = (string)($_SERVER['REQUEST_METHOD'] ?? 'GET');
@@ -157,5 +163,4 @@ if ($action !== '' && isset($stripeActions[$action])) {
 fm_json_response(410, [
     'success' => false,
     'error' => 'This compatibility endpoint now supports Stripe callbacks and Stripe billing actions only.',
-    'node_endpoint' => rtrim(fm_node_v1_base_url(), '/') . '/platform/stripe-webhook-proxy',
 ]);

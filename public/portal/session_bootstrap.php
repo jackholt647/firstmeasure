@@ -1,6 +1,9 @@
 <?php
 declare(strict_types=1);
 
+require_once dirname(__DIR__) . '/includes/web_security.php';
+require_once dirname(__DIR__) . '/includes/node_api.php';
+
 const PORTAL_SESSION_LIFETIME_SECONDS = 1209600; // 14 days
 
 function portalPlatformSessionCookieName(): string
@@ -38,6 +41,10 @@ function portalStartSession(): void
 
     ini_set('session.gc_maxlifetime', (string)PORTAL_SESSION_LIFETIME_SECONDS);
     ini_set('session.cookie_lifetime', (string)PORTAL_SESSION_LIFETIME_SECONDS);
+    // Never adopt a session id the server did not issue.
+    ini_set('session.use_strict_mode', '1');
+    ini_set('session.use_only_cookies', '1');
+    ini_set('session.use_trans_sid', '0');
 
     $options = portalSessionCookieOptions();
     session_set_cookie_params([
@@ -58,43 +65,39 @@ function portalStartSession(): void
     portalHydrateSessionFromNodeAuth();
 }
 
+// From configuration only (FIRSTMEASURE_NODE_BASE_URL, includes/node_api.php),
+// never the request's Host. '' when unconfigured: the session check then
+// fails closed as a backend failure.
 function portalNodePlatformBaseUrl(): string
 {
-    $configured = trim((string)(getenv('FIRSTMEASURE_NODE_BASE_URL') ?: ($_SERVER['FIRSTMEASURE_NODE_BASE_URL'] ?? '')));
-    if ($configured !== '') {
-        return rtrim($configured, '/');
-    }
-    $host = strtolower((string)($_SERVER['HTTP_HOST'] ?? 'localhost'));
-    $hostOnly = preg_replace('/:\d+$/', '', $host);
-    if ($hostOnly === '127.0.0.1' || $hostOnly === 'localhost' || $hostOnly === '10.0.2.2') {
-        return 'http://127.0.0.1:3101/v1/platform';
-    }
-    $forwardedProto = strtolower(trim(explode(',', (string)($_SERVER['HTTP_X_FORWARDED_PROTO'] ?? ''))[0]));
-    $scheme = $forwardedProto === 'https' || (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ? 'https' : 'http';
-    return $scheme . '://' . ($_SERVER['HTTP_HOST'] ?? 'localhost') . '/v1/platform';
+    $v1 = fm_node_v1_base_url('session', 3101);
+    return $v1 === '' ? '' : $v1 . '/platform';
 }
 
 function portalHydrateSessionFromNodeAuth(): void
 {
-    $cookie = (string)($_SERVER['HTTP_COOKIE'] ?? '');
-    if ($cookie === '' || strpos($cookie, portalPlatformSessionCookieName() . '=') === false) {
+    if (fm_platform_session_cookie() === '') {
         portalClearNodeBackedSessionState();
         return;
     }
 
-    $url = portalNodePlatformBaseUrl() . '/auth/session';
-    $headers = ['Accept: application/json', 'Cookie: ' . $cookie];
+    $base = portalNodePlatformBaseUrl();
+    if ($base === '') {
+        portalDecodeAuthSessionResponse(false, 0);
+        return;
+    }
+    $url = $base . '/auth/session';
+    // Only the platform session cookies go to Node, not PHP's or anyone else's.
+    $headers = array_merge(['Accept: application/json'], fm_node_cookie_headers(false));
     $context = stream_context_create([
         'http' => [
             'method' => 'GET',
             'header' => implode("\r\n", $headers),
             'ignore_errors' => true,
+            'follow_location' => 0,
             'timeout' => 4,
         ],
-        'ssl' => [
-            'verify_peer' => false,
-            'verify_peer_name' => false,
-        ],
+        'ssl' => fm_node_stream_ssl_options(),
     ]);
     $raw = @file_get_contents($url, false, $context);
     $status = 0;
@@ -106,13 +109,11 @@ function portalHydrateSessionFromNodeAuth(): void
     if ((!is_string($raw) || $raw === '') && function_exists('curl_init')) {
         $ch = curl_init($url);
         if ($ch !== false) {
-            curl_setopt_array($ch, [
+            curl_setopt_array($ch, fm_node_curl_options() + [
                 CURLOPT_RETURNTRANSFER => true,
                 CURLOPT_HTTPHEADER => $headers,
                 CURLOPT_TIMEOUT => 4,
                 CURLOPT_CONNECTTIMEOUT => 2,
-                CURLOPT_SSL_VERIFYPEER => false,
-                CURLOPT_SSL_VERIFYHOST => false,
             ]);
             $curlRaw = curl_exec($ch);
             $status = (int)curl_getinfo($ch, CURLINFO_RESPONSE_CODE);
@@ -137,6 +138,12 @@ function portalHydrateSessionFromNodeAuth(): void
     $email = strtolower(trim((string)($identity['email'] ?? $user['email'] ?? '')));
     if ($email === '') {
         return;
+    }
+
+    // A new identity in this browser gets a new PHP session id (login fixation).
+    if (strtolower(trim((string)($_SESSION['user_email'] ?? ''))) !== $email && !headers_sent()) {
+        session_regenerate_id(true);
+        setcookie(session_name(), session_id(), portalSessionCookieOptions());
     }
 
     $_SESSION['user_email'] = $email;
@@ -202,7 +209,9 @@ function portalClearNodeBackedSessionState(): void
         $_SESSION['platform_assistant_access'],
         $_SESSION['is_impersonating'],
         $_SESSION['impersonating_from_email'],
-        $_SESSION['impersonation_started_at']
+        $_SESSION['impersonation_started_at'],
+        $_SESSION['fm_staff'],
+        $_SESSION['user_is_admin']
     );
 }
 

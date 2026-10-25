@@ -1,18 +1,13 @@
 <?php
+require_once dirname(__DIR__) . '/includes/node_api.php';
 header('Content-Type: application/json');
 ignore_user_abort(true);
 set_time_limit(60);
 
+// Node's webhook bridge, from configuration only (never the request's Host).
+// Stripe's signature, checked by Node, is the only proof this call carries.
 function nodePlatformStripeWebhookUrl(): string {
-    $host = $_SERVER['HTTP_HOST'] ?? '127.0.0.1:8011';
-    $hostOnly = explode(':', $host, 2)[0];
-    if ($hostOnly === '127.0.0.1' || $hostOnly === 'localhost') {
-        return 'http://' . $hostOnly . ':3101/v1/platform/stripe-webhook-proxy';
-    }
-    // TLS terminates at the trusted load balancer, before this PHP request.
-    $forwardedProto = strtolower(trim(explode(',', (string)($_SERVER['HTTP_X_FORWARDED_PROTO'] ?? ''))[0]));
-    $scheme = ((!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') || $forwardedProto === 'https') ? 'https' : 'http';
-    return $scheme . '://' . $host . '/v1/platform/stripe-webhook-proxy';
+    return fm_node_v1_url('platform/stripe-webhook-proxy', 'api', 3101);
 }
 
 $payload = file_get_contents('php://input');
@@ -23,8 +18,15 @@ if (!$payload || !$signature) {
     exit;
 }
 
-$ch = curl_init(nodePlatformStripeWebhookUrl());
-curl_setopt_array($ch, [
+$url = nodePlatformStripeWebhookUrl();
+if ($url === '') {
+    http_response_code(503);
+    echo json_encode(['success' => false, 'error' => 'Stripe webhook bridge is not configured']);
+    exit;
+}
+
+$ch = curl_init($url);
+curl_setopt_array($ch, fm_node_curl_options() + [
     CURLOPT_RETURNTRANSFER => true,
     CURLOPT_POST => true,
     CURLOPT_HTTPHEADER => ['Content-Type: application/json', 'Accept: application/json'],
@@ -41,4 +43,5 @@ $err = curl_error($ch);
 curl_close($ch);
 
 http_response_code($http ?: 500);
-echo $resp !== false ? $resp : json_encode(['success' => false, 'error' => 'Node Stripe webhook bridge failed: ' . $err]);
+if ($resp === false) error_log('Node Stripe webhook bridge failed: ' . $err);
+echo $resp !== false ? $resp : json_encode(['success' => false, 'error' => 'Node Stripe webhook bridge failed']);
