@@ -11,7 +11,7 @@ import { env } from "../../src/config/env.js";
 import { authContextFromRequest, type PlatformAuthContext } from "../auth.js";
 import { forbidden, unauthorized } from "../errors.js";
 import { identityIsStaffMember, internalStaffOrgId, staffActorRoles, staffAuthority, staffMeets, type StaffAuthority, type StaffLevel } from "./staff.js";
-import { presentsProcessToken, presentsServiceSignature, processPrincipal, verifyServiceSignature } from "./service.js";
+import { presentsProcessToken, presentsServiceSignature, processPrincipal, serviceSecrets, verifyServiceSignature } from "./service.js";
 import { activeImpersonation } from "./impersonation.js";
 
 export type Principal =
@@ -65,10 +65,9 @@ function legacyFullHouseActor(request: FastifyRequest) {
   const email = String(request.headers["x-full-house-user"] ?? "").trim().toLowerCase();
   const time = String(request.headers["x-full-house-time"] ?? "");
   const signature = String(request.headers["x-full-house-signature"] ?? "").toLowerCase();
-  const secret = env.firstMeasureInternalApiSecret;
-  if (!email || !secret || !/^\d{10}$/.test(time) || Math.abs(Date.now() / 1000 - Number(time)) > 180 || !/^[a-f0-9]{64}$/.test(signature)) return null;
-  const expected = createHmac("sha256", secret).update(`${email}\n${time}`).digest("hex");
-  return timingSafeEqual(Buffer.from(signature), Buffer.from(expected)) ? email : null;
+  const secrets = serviceSecrets(env.firstMeasureInternalApiSecret);
+  if (!email || !secrets.length || !/^\d{10}$/.test(time) || Math.abs(Date.now() / 1000 - Number(time)) > 180 || !/^[a-f0-9]{64}$/.test(signature)) return null;
+  return secrets.some((secret) => timingSafeEqual(Buffer.from(signature), Buffer.from(createHmac("sha256", secret).update(`${email}\n${time}`).digest("hex")))) ? email : null;
 }
 
 async function resolve(request: FastifyRequest): Promise<Principal> {
@@ -78,7 +77,7 @@ async function resolve(request: FastifyRequest): Promise<Principal> {
     return principal;
   }
   if (presentsServiceSignature(request)) {
-    const actor = verifyServiceSignature(request, env.firstMeasureInternalApiSecret);
+    const actor = verifyServiceSignature(request, serviceSecrets(env.firstMeasureInternalApiSecret));
     if (!actor) throw unauthorized("service_signature_invalid", "The service signature is not valid.");
     if (actor === "system") return { kind: "system", via: "php" };
     const staff = staffAuthority(await readStaffUser(actor));

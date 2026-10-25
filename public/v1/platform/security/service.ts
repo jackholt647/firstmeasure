@@ -112,11 +112,24 @@ export function rememberRawBody(request: FastifyRequest, body: Buffer) {
 }
 
 /**
+ * The internal secrets a service signature may use: the provider-key secret
+ * this Node resolves (`env.firstMeasureInternalApiSecret`), the
+ * FIRSTMEASURE_INTERNAL_API_SECRET environment value when a host's provider
+ * file holds a different one, and FIRSTMEASURE_INTERNAL_API_SECRET_PREVIOUS
+ * while a rotation is rolling out.
+ */
+export function serviceSecrets(primary: string) {
+  return [...new Set([primary, process.env.FIRSTMEASURE_INTERNAL_API_SECRET, process.env.FIRSTMEASURE_INTERNAL_API_SECRET_PREVIOUS]
+    .map((value) => String(value ?? "").trim()).filter((value) => value.length >= 16))];
+}
+
+/**
  * The verified actor of a signed PHP request ("system" or a lower-case
  * email), or null. A wrong signature, stale time or mismatched body is null.
  */
-export function verifyServiceSignature(request: FastifyRequest, secret: string, nowSeconds = Math.floor(Date.now() / 1000)) {
-  if (!secret) return null;
+export function verifyServiceSignature(request: FastifyRequest, secrets: string | string[], nowSeconds = Math.floor(Date.now() / 1000)) {
+  const keys = (Array.isArray(secrets) ? secrets : [secrets]).filter(Boolean);
+  if (!keys.length) return null;
   const time = header(request, SERVICE_SIGNATURE_HEADERS.time);
   const actor = header(request, SERVICE_SIGNATURE_HEADERS.actor).toLowerCase();
   const bodySha256 = header(request, SERVICE_SIGNATURE_HEADERS.bodySha256).toLowerCase();
@@ -124,10 +137,10 @@ export function verifyServiceSignature(request: FastifyRequest, secret: string, 
   if (!/^\d{10}$/.test(time) || Math.abs(nowSeconds - Number(time)) > SERVICE_SIGNATURE_WINDOW_SECONDS) return null;
   if (!actor || !/^[a-f0-9]{64}$/.test(signature)) return null;
   if (bodySha256 !== UNSIGNED_PAYLOAD.toLowerCase() && !/^[a-f0-9]{64}$/.test(bodySha256)) return null;
-  const expected = createHmac("sha256", secret).update(serviceSignaturePayload({
+  const payload = serviceSignaturePayload({
     method: request.method, url: request.url, time, actor, bodySha256: bodySha256 === UNSIGNED_PAYLOAD.toLowerCase() ? UNSIGNED_PAYLOAD : bodySha256
-  })).digest("hex");
-  if (!safeEqual(signature, expected)) return null;
+  });
+  if (!keys.some((key) => safeEqual(signature, createHmac("sha256", key).update(payload).digest("hex")))) return null;
   const contentType = header(request, "content-type").toLowerCase();
   const multipart = contentType.startsWith("multipart/");
   if (bodySha256 === UNSIGNED_PAYLOAD.toLowerCase()) {

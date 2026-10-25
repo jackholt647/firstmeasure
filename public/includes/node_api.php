@@ -114,23 +114,19 @@ function fm_node_not_configured_result(): array
 }
 
 /**
- * The secret that signs a request to `$url`. It must equal the
- * FIRSTMEASURE_INTERNAL_API_SECRET (provider key application.internal_api_secret)
- * of the Node that serves it. FIRSTMEASURE_NODE_SIGNING_SECRET overrides it
- * everywhere; for web-node routes the existing full-house override (which
- * exists because some compatibility hosts hold a different provider file) is
- * preferred next.
+ * The secret that signs a request to `$url`. Every Node role accepts its
+ * provider-key secret and its FIRSTMEASURE_INTERNAL_API_SECRET environment
+ * value (platform/security/service.ts serviceSecrets), so one shared value
+ * signs for web and compatibility alike. FIRSTMEASURE_NODE_SIGNING_SECRET
+ * overrides it; the full-house signing secret (set where a compatibility
+ * host's provider file differs from the web nodes') comes next.
  */
 function fm_node_service_secret(string $url = ''): string
 {
     $explicit = fm_node_config('FIRSTMEASURE_NODE_SIGNING_SECRET');
     if ($explicit !== '') return $explicit;
-    $path = (string)parse_url($url, PHP_URL_PATH);
-    $compatibility = preg_match('#/v1/(internal|communications)(/|$)#', $path) === 1;
-    if (!$compatibility) {
-        $fullHouse = fm_node_config('FIRSTMEASURE_FULL_HOUSE_SIGNING_SECRET');
-        if ($fullHouse !== '') return $fullHouse;
-    }
+    $fullHouse = fm_node_config('FIRSTMEASURE_FULL_HOUSE_SIGNING_SECRET');
+    if ($fullHouse !== '') return $fullHouse;
     $provider = fm_provider_key_value('application', 'internal_api_secret');
     if ($provider !== '') return $provider;
     return fm_node_config('FIRSTMEASURE_INTERNAL_API_SECRET');
