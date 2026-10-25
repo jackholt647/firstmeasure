@@ -59,6 +59,9 @@ registerRouteAccessTable({
   // The handler also requires a feature-flag admin (admin or manage_sales_users).
   "POST /v1/internal/admin/organizations/:orgId/app-flags": any,
   "PUT /v1/internal/admin/app-flag-defaults": any,
+  // From production-live (1M8-228); the handler also requires a feature-flag admin.
+  "GET /v1/internal/admin/capability-country-rules": any,
+  "PUT /v1/internal/admin/capability-country-rules": any,
   "GET /v1/internal/shifts/schedules": any,
   "GET /v1/internal/shifts/me": any,
   "GET /v1/internal/shifts/current-status": any,

@@ -32,5 +32,8 @@ registerRouteAccessTable({
   "PUT /v1/firstmeasure/admin/prices/commercial": { staff: "admin" },
   "GET /v1/firstmeasure/admin/prices": { staff: "admin" },
   "POST /v1/firstmeasure/admin/prices/preview": { staff: "admin" },
-  "PUT /v1/firstmeasure/admin/prices": { staff: "admin" }
+  "PUT /v1/firstmeasure/admin/prices": { staff: "admin" },
+  // From production-live (1M8-228, an organization's country of record); requirePricingAdmin also checks.
+  "GET /v1/firstmeasure/admin/prices/organizations/:orgId/commercial-profile": { staff: "admin" },
+  "POST /v1/firstmeasure/admin/prices/organizations/:orgId/commercial-profile": { staff: "admin" }
 });
