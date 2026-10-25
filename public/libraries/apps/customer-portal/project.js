@@ -196,7 +196,9 @@
       /* Link card */
       .cpo-head-tools{display:flex;align-items:center;gap:10px;min-width:0}
       .cpo-head-action{height:38px;padding:0 14px;flex:0 0 auto}
-      .cpo-head-action[aria-disabled="true"]{opacity:.5;cursor:default;pointer-events:none}
+      .cpo-head-action[aria-disabled="true"]{opacity:.5;cursor:not-allowed;box-shadow:none}
+      .cpo-link-none{display:flex;align-items:center;color:#98a2b3;font-family:inherit;font-weight:800;border-style:dashed;background:#fcfcfd}
+      .cpo-spin{animation:cpoSpin 1s linear infinite}
       .cpo-link{padding:12px 14px;display:flex;flex-direction:column;gap:10px}
       .cpo-label{flex:0 0 auto;white-space:nowrap}
       .cpo-label{display:inline-flex;align-items:center;gap:7px;font-size:12px;font-weight:1000;color:#344054}
@@ -368,7 +370,7 @@
   }
 
   function portalLinks(){
-    const portal = state.portal.portal || {};
+    const portal = (projectId() && state.portal.portal) || {};
     return { live: String(portal.live_url || '').trim(), preview: String(portal.preview_url || '').trim() };
   }
 
@@ -379,6 +381,57 @@
   function activeGuestLinks(){
     const links = Array.isArray(state.portal.portal?.guest_links) ? state.portal.portal.guest_links : [];
     return links.filter((item) => String(item?.status || '').toLowerCase() === 'active');
+  }
+
+  // A draft project (not saved yet) shows the whole tab empty. Opening or
+  // reading it never creates the project; the first thing that writes (Generate
+  // link, sharing media, a switch) saves the draft through the project window's
+  // ensureProject (the path the To Do, Activity and Agent trays use), then acts.
+  let draftSave = null;
+  function ensureProjectFn(){
+    const own = state.ensureProject || state.host?.ensureProject;
+    if (typeof own === 'function') return own;
+    // The project window's tray path: create the draft record, then save it remotely.
+    if (typeof window.ensureDraftBaseProject === 'function' && window.Portal?.ProjectStore?.saveRemote) {
+      return async () => {
+        const created = window.ensureDraftBaseProject({ allowEmpty: true });
+        if (!created) throw new Error(L('cpo_save_failed', 'The project could not be saved.'));
+        await window.Portal.ProjectStore.saveRemote(created);
+        return project();
+      };
+    }
+    return null;
+  }
+
+  async function ensureSavedProject(){
+    if (projectId()) return true;
+    const ensure = ensureProjectFn();
+    if (!ensure) throw new Error(L('cpo_save_failed', 'The project could not be saved.'));
+    draftSave ||= Promise.resolve().then(() => ensure()).finally(() => { draftSave = null; });
+    await draftSave;
+    if (!projectId()) throw new Error(L('cpo_save_failed', 'The project could not be saved.'));
+    return true;
+  }
+
+  // Runs a write, saving a draft project first and loading its portal, so the
+  // tab adopts the new project in place.
+  async function withSavedProject(action){
+    if (projectId() && state.portal.portal) return action ? action() : true;
+    try {
+      state.saving = true;
+      render();
+      await ensureSavedProject();
+      if (!state.portal.portal) await load({ silent: true });
+      if (!state.portal.portal) return false;
+    } catch (error) {
+      setPortal({ ...state.portal, loading: false, error: error?.message || L('cpo_save_failed', 'The project could not be saved.') });
+      render();
+      return false;
+    } finally {
+      state.saving = false;
+      renderStatus();
+    }
+    return action ? action() : true;
   }
 
   async function load(options = {}){
@@ -456,21 +509,21 @@
   }
 
   function setCustomerSharingEnabled(enabled){
-    return updateSettings(
+    return withSavedProject(() => updateSettings(
       (settings) => ({ sharing: { ...(settings.sharing || {}), enabled: enabled === true } }),
       enabled
         ? [L('cpo_toast_guests_on', 'Guest links on'), L('cpo_toast_guests_on_body', 'The customer can now share read-only guest links.')]
         : [L('cpo_toast_guests_off', 'Guest links off'), L('cpo_toast_guests_off_body', 'The customer can no longer make new guest links.')]
-    );
+    ));
   }
 
   function setCustomerReschedulingEnabled(enabled){
-    return updateSettings(
+    return withSavedProject(() => updateSettings(
       (settings) => ({ scheduling: { ...(settings.scheduling || {}), enabled: enabled === true, reschedule: enabled === true } }),
       enabled
         ? [L('cpo_toast_resched_on', 'Rescheduling on'), L('cpo_toast_resched_on_body', 'Eligible appointments can be rescheduled in the portal.')]
         : [L('cpo_toast_resched_off', 'Rescheduling off'), L('cpo_toast_resched_off_body', 'The customer can no longer reschedule from the portal.')]
-    );
+    ));
   }
 
   async function revokeGuestShare(shareId){
@@ -814,9 +867,24 @@
     const ready = !!links.live;
     const email = customerEmail();
     const disabled = ready ? '' : ' disabled';
+    const label = `<span class="cpo-label">${H('cpo_link_label', 'Customer link')}<i class="fas fa-circle-info cpo-help" tabindex="0" data-fm-tooltip="${H('cpo_tip_link', 'The customer’s private link to their portal for this project. Anyone with it can open the portal, so send it only to the customer.')}"></i></span>`;
+    // No link yet (a draft project): offer to make one. Generating saves the project.
+    if (!ready && !projectId()) {
+      const busy = state.saving || state.portal.loading;
+      return `
+      <div class="cpo-link-row">
+        ${label}
+        <span class="cpo-link-field cpo-link-none" data-cpo-no-link>${H('cpo_no_link', 'No link yet')}</span>
+        <div class="cpo-link-actions">
+          <button type="button" class="cpo-btn primary" data-cpo-generate${busy ? ' disabled' : ''} data-fm-tooltip="${H('cpo_tip_generate', 'Make the customer’s private portal link. This saves the project, so it appears in your projects. Nothing is sent to the customer.')}"><i class="fas ${busy ? 'fa-rotate cpo-spin' : 'fa-link'}"></i><span>${H('cpo_generate', 'Generate link')}</span></button>
+        </div>
+      </div>
+      ${optionsHtml()}
+    `;
+    }
     return `
       <div class="cpo-link-row">
-        <span class="cpo-label">${H('cpo_link_label', 'Customer link')}<i class="fas fa-circle-info cpo-help" tabindex="0" data-fm-tooltip="${H('cpo_tip_link', 'The customer’s private link to their portal for this project. Anyone with it can open the portal, so send it only to the customer.')}"></i></span>
+        ${label}
         <input class="cpo-link-field${ready ? '' : ' is-pending'}" data-cpo-link readonly data-fmr-mask aria-label="${H('cpo_link_label', 'Customer link')}" value="${esc(links.live)}">
         <div class="cpo-link-actions">
           <button type="button" class="cpo-btn" data-cpo-copy${disabled} data-fm-tooltip="${H('cpo_tip_copy', 'Copy the customer link to paste into a text or message.')}"><i class="fas fa-copy cpo-idle"></i><i class="fas fa-check cpo-done"></i><span>${H('cpo_copy', 'Copy')}</span></button>
@@ -833,7 +901,7 @@
     const sharingOn = portal.settings?.sharing?.enabled === true;
     const reschedulingOn = portal.settings?.scheduling?.enabled === true && portal.settings?.scheduling?.reschedule === true;
     const guests = activeGuestLinks();
-    const disabled = state.portal.loading || !state.portal.portal ? ' disabled' : '';
+    const disabled = state.portal.loading || state.saving || (projectId() && !state.portal.portal) ? ' disabled' : '';
     const guestCount = guests.length
       ? `<button type="button" class="cpo-guest-count" data-cpo-guests-toggle aria-expanded="${state.guestOpen ? 'true' : 'false'}" data-fm-tooltip="${H('cpo_tip_guest_list', 'Guest links that still work. Open the list to copy or revoke one.')}">${esc(guests.length === 1 ? L('cpo_guest_count_one', '1 active') : L('cpo_guest_count', '{n} active', { n: guests.length }))}<i class="fas fa-chevron-down"></i></button>`
       : '';
@@ -917,11 +985,6 @@
     return [cover ? `cover|${cover.kind}|${cover.mediaId}|${cover.src}` : 'cover|none', ...libraryMedia().map((photo) => `${photoId(photo)}|${photo?.thumb || photo?.src || ''}`)].join('\n');
   }
 
-  // A project not saved yet (no address) has no portal: the tab is there and says when it will be.
-  function unsavedHtml(){
-    return `<div class="cpo-wrap" data-cpo-unsaved><div class="cpo-card cpo-empty"><i class="fas ${APP_ICON}"></i><strong>${esc(window.Portal?.terminology?.get?.('customer_portal.project_tab', '') || L('m_61f3d0db590ab0', 'Customer Portal'))}</strong><span>${H('cpo_unsaved_text', 'The customer portal is ready once this project is saved. Add an address to get started.')}</span></div></div>`;
-  }
-
   function skeletonHtml(){
     const title = window.Portal?.terminology?.get?.('customer_portal.project_tab', '') || L('m_61f3d0db590ab0', 'Customer Portal');
     return `
@@ -957,7 +1020,8 @@
     if (!root) return;
     root.querySelector('[data-cpo-sync]')?.classList.toggle('is-on', !!state.portal.loading);
     root.querySelector('[data-cpo-history]')?.setAttribute('aria-busy', state.portal.loading ? 'true' : 'false');
-    root.querySelectorAll('[data-cpo-sharing],[data-cpo-rescheduling]').forEach((input) => { input.disabled = !!state.portal.loading || !state.portal.portal; });
+    root.querySelectorAll('[data-cpo-sharing],[data-cpo-rescheduling]').forEach((input) => { input.disabled = !!state.portal.loading || !!state.saving || (!!projectId() && !state.portal.portal); });
+    root.querySelector('[data-cpo-sync]')?.classList.toggle('is-on', !!state.portal.loading || !!state.saving);
   }
 
   function renderError(root){
@@ -1075,15 +1139,10 @@
     state.panelRoot = root;
     injectStyles();
     root.classList.add('cpo-panel');
-    if (!projectId()) {
-      if (!root.querySelector('[data-cpo-unsaved]')) root.innerHTML = unsavedHtml();
-      state.mediaSignature = '';
-      return;
-    }
-    if (root.querySelector('[data-cpo-unsaved]')) {
-      root.innerHTML = '';
-      // The project was just saved: load its portal.
-      queueMicrotask(() => { if (state.active && !state.portal.portal && !state.portal.loading) load({ silent: true }); });
+    // A draft has no portal yet: never show another project's link, media state or visits.
+    if (!projectId() && (state.portal.portal || state.portal.activity.length) && !state.saving) {
+      setPortal({ loading: false, portal: null, activity: [], error: state.portal.error });
+      state.selection.clear();
     }
     if (!root.querySelector('.cpo-wrap')) {
       root.innerHTML = skeletonHtml();
@@ -1115,9 +1174,11 @@
       button.setAttribute('target', '_blank');
       button.setAttribute('rel', 'noopener');
       button.removeAttribute('aria-disabled');
+      button.setAttribute('data-fm-tooltip', L('cpo_tip_preview', 'Opens exactly what the customer sees, in a new tab. Nothing can be signed, accepted or paid there, and your visit is not recorded in History.'));
     } else {
       button.removeAttribute('href');
       button.setAttribute('aria-disabled', 'true');
+      if (!projectId()) button.setAttribute('data-fm-tooltip', L('cpo_tip_preview_draft', 'Generate the customer link first, then preview what the customer sees.'));
     }
   }
 
@@ -1128,7 +1189,7 @@
     root._cpoOwner = api;
     root.addEventListener('click', (event) => {
       if (root._cpoOwner !== api) return;
-      const target = event.target.closest('[data-cpo-tile],[data-cpo-filter],[data-cpo-select-all],[data-cpo-share],[data-cpo-unshare],[data-cpo-clear],[data-cpo-copy],[data-cpo-qr],[data-cpo-refresh],[data-cpo-retry],[data-cpo-guests-toggle],[data-cpo-revoke],[data-cpo-guest-copy],[data-cpo-history-more],[data-cpo-preview],[data-cpo-email],[data-cpo-link]');
+      const target = event.target.closest('[data-cpo-generate],[data-cpo-tile],[data-cpo-filter],[data-cpo-select-all],[data-cpo-share],[data-cpo-unshare],[data-cpo-clear],[data-cpo-copy],[data-cpo-qr],[data-cpo-refresh],[data-cpo-retry],[data-cpo-guests-toggle],[data-cpo-revoke],[data-cpo-guest-copy],[data-cpo-history-more],[data-cpo-preview],[data-cpo-email],[data-cpo-link]');
       if (!target || !root.contains(target)) return;
       const links = portalLinks();
       if (target.matches('[data-cpo-preview],[data-cpo-email]')) {
@@ -1136,6 +1197,15 @@
         return;
       }
       if (target.matches('[data-cpo-link]')) { target.select(); return; }
+      if (target.matches('[data-cpo-generate]')) {
+        if (target.disabled) return;
+        target.disabled = true;
+        withSavedProject().then((ok) => {
+          if (ok) showToast(L('cpo_toast_link_ready', 'Customer link ready'), L('cpo_toast_link_ready_body', 'The project is saved and its portal link is ready to share.'), true);
+          else render();
+        });
+        return;
+      }
       if (target.matches('[data-cpo-tile]')) {
         const id = target.dataset.cpoTile;
         if (!id || target.disabled) return;
@@ -1167,7 +1237,7 @@
         const share = target.matches('[data-cpo-share]');
         const shared = sharedPortalMediaIds();
         const ids = [...state.selection].filter((id) => shared.has(id) !== share);
-        updateSharing(ids, share);
+        withSavedProject(() => updateSharing(ids, share));
         return;
       }
       if (target.matches('[data-cpo-clear]')) { state.selection.clear(); syncSelection(root); return; }
@@ -1260,6 +1330,7 @@
 
   function mount(context = {}){
     state.host = hostFor(context);
+    if (typeof context.ensureProject === 'function') state.ensureProject = context.ensureProject;
     state.model = modelFromContext(context);
     state.panelRoot = resolveRoot(context);
     state.mounted = !!state.panelRoot;
@@ -1275,7 +1346,8 @@
     if (context.host || context.projectWorkspace) mount(context);
     state.active = true;
     render(context);
-    if (!state.portal.portal && !state.portal.loading) load({ silent: true });
+    // Reading never creates a project: a draft loads nothing until something writes.
+    if (projectId() && !state.portal.portal && !state.portal.loading) load({ silent: true });
   }
 
   function reset(){
@@ -1309,7 +1381,7 @@
     surfaces: ['project_modal'],
     regions: ['main'],
     requiresContext: ['project'],
-    // Shown on a draft project too; until it is saved the tab says so (unsavedHtml).
+    // Shown on a draft project too: the whole tab, empty, until something writes.
     enabled: (context = {}) => context.customerPortalEnabled !== false,
     panelHtml,
     mount

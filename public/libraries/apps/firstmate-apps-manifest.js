@@ -332,7 +332,7 @@
       kind: 'project_modal_app',
       surfaces: ['project_modal'],
       requiresContext: ['project'],
-      bundles: [versionedBundle('customer-portal/project.js', '20261024-portal-tab-cover-v2')]
+      bundles: [versionedBundle('customer-portal/project.js', '20261024-portal-tab-draft-v3')]
     },
     {
       id: 'project.schedule',

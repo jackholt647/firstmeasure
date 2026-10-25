@@ -73,6 +73,8 @@ async function setup(browser,{width=1280,height=860,reducedMotion='no-preference
     };
     window.currentProject=draft?{}:{id:'p1',contacts:[{id:'c1',primary:true,name:'Pat',email:'pat@example.com'}],custom_field_values:cover?{cover_photo:{media_id:cover}}:{}};
     window.cpHost.getProject=()=>window.currentProject;
+    window.savedProject={id:'p1',contacts:[{id:'c1',primary:true,name:'Pat',email:'pat@example.com'}]};
+    window.cpHost.ensureProject=async()=>{calls.push(['ensureProject']);await new Promise(resolve=>setTimeout(resolve,60));window.currentProject=window.savedProject;return window.currentProject;};
   },{LIVE,PREVIEW,photos,activity,draft,caps,cover,satellite,topDownInList});
   if(runtime)await page.addScriptTag({url:'/libraries/app-runtime/firstmate-embeddable-apps.js'});
   await page.addScriptTag({url:'/libraries/apps/customer-portal/project.js'});
@@ -93,22 +95,71 @@ async function withBrowser(fn){
   try{await fn(browser);}finally{await browser.close();}
 }
 
-test('a draft project (no address yet) has the tab, which says the portal comes once the project is saved',()=>withBrowser(async browser=>{
-  const {page,errors,root}=await setup(browser,{draft:true,runtime:true});
+test('a draft project shows the whole tab, empty, and opening or reading it creates nothing',()=>withBrowser(async browser=>{
+  const {page,errors,root}=await setup(browser,{draft:true,runtime:true,photos:0});
   // The tab is offered before the project is saved, like the other tabs.
   const offered=await page.evaluate(()=>window.FirstMateEmbeddableApps.listApps({surface:'project_modal',entityType:'project',customerPortalEnabled:true,activeProject:null}).map(app=>app.id));
   assert.ok(offered.includes('project.customer_portal'),offered.join(','));
-  assert.equal(await root.locator('[data-cpo-unsaved]').count(),1);
-  assert.match(await root.innerText(),/ready once this project is saved/);
-  assert.equal(await page.evaluate(()=>calls.length),0,'nothing is loaded for an unsaved project');
-  // Once saved, the same tab loads the project's portal.
-  await page.evaluate(()=>{window.currentProject={id:'p1',contacts:[{id:'c1',primary:true,name:'Pat',email:'pat@example.com'}]};Portal.modules.customerPortalProject.activate({});});
+  await page.evaluate(()=>Portal.modules.customerPortalProject.activate({}));
+  assert.doesNotMatch(await root.innerText(),/once this project is saved/);
+  assert.equal(await root.locator('[data-app-header] .cpo-title strong').innerText(),'Customer Portal');
+  const preview=root.locator('[data-cpo-preview]');
+  assert.equal(await preview.getAttribute('aria-disabled'),'true');
+  assert.equal(await preview.getAttribute('href'),null);
+  assert.match(await preview.getAttribute('data-fm-tooltip'),/Generate the customer link first/);
+  assert.match(await root.locator('[data-cpo-no-link]').innerText(),/No link yet/);
+  assert.equal(await root.locator('[data-cpo-link]').count(),0);
+  assert.equal(await root.getByRole('button',{name:'Generate link'}).count(),1);
+  assert.equal(await root.locator('[data-cpo-sharing]').isDisabled(),false,'switches are usable; they save the draft first');
+  assert.equal(await root.locator('[data-cpo-media-empty]').count(),1);
+  assert.equal(await root.locator('[data-cpo-history-empty]').count(),1);
+  await preview.click({force:true});
+  assert.deepEqual(await page.evaluate(()=>calls),[],'opening, reading and the disabled preview create no project and load nothing');
+  assert.deepEqual(errors,[]);
+}));
+
+test('Generate link saves the draft once, then the tab adopts the project and shows its link',()=>withBrowser(async browser=>{
+  const {page,errors,root}=await setup(browser,{draft:true,photos:0});
+  const generate=root.getByRole('button',{name:'Generate link'});
+  await generate.click();
+  await page.evaluate(()=>document.querySelector('[data-cpo-generate]')?.click());
   await root.locator('[data-cpo-link]').waitFor();
   await page.waitForFunction(()=>document.querySelector('[data-cpo-link]')?.value);
-  assert.equal(await root.locator('[data-cpo-unsaved]').count(),0);
   assert.equal(await root.locator('[data-cpo-link]').inputValue(),LIVE);
-  assert.equal(await page.evaluate(()=>calls.filter(call=>call[0]==='ensure').length),1,'loaded once');
+  assert.equal(await page.evaluate(()=>calls.filter(call=>call[0]==='ensureProject').length),1,'saved once');
+  assert.deepEqual(await page.evaluate(()=>calls.find(call=>call[0]==='ensure').slice(1,3)),['org1','p1']);
+  assert.equal(await page.evaluate(()=>calls.filter(call=>call[0]==='ensure').length),1);
+  assert.equal(await root.locator('[data-cpo-preview]').getAttribute('href'),PREVIEW);
+  assert.equal(await root.locator('[data-cpo-preview]').getAttribute('aria-disabled'),null);
+  assert.equal(await root.locator('[data-cpo-generate]').count(),0);
   assert.deepEqual(errors,[]);
+}));
+
+test('sharing media or a switch on a draft saves it first, then does the write',()=>withBrowser(async browser=>{
+  {
+    const {page,errors,root}=await setup(browser,{draft:true,photos:2});
+    await root.locator('[data-cpo-tile="m2"]').click();
+    await root.locator('[data-cpo-share]').click();
+    await page.waitForFunction(()=>calls.some(call=>call[0]==='shareMedia'));
+    const order=await page.evaluate(()=>calls.map(call=>call[0]).filter(name=>name!=='activity'));
+    assert.deepEqual(order,['ensureProject','ensure','shareMedia']);
+    assert.deepEqual(await page.evaluate(()=>calls.find(call=>call[0]==='shareMedia')[1]),['m2']);
+    await page.waitForFunction(()=>document.querySelector('[data-cpo-tile="m2"]')?.classList.contains('is-shared'));
+    assert.deepEqual(errors,[]);
+  }
+  {
+    // Without a window-provided ensureProject the tab uses the project window's tray path.
+    const {page,errors,root}=await setup(browser,{draft:true,photos:0});
+    await page.evaluate(()=>{
+      delete cpHost.ensureProject;
+      window.ensureDraftBaseProject=()=>{calls.push(['ensureDraftBaseProject']);window.currentProject=window.savedProject;return window.currentProject;};
+      Portal.ProjectStore={saveRemote:async project=>{calls.push(['saveRemote',project.id]);return project;}};
+    });
+    await root.locator('label.cpo-switch').first().click();
+    await page.waitForFunction(()=>calls.some(call=>call[0]==='update'));
+    assert.deepEqual(await page.evaluate(()=>calls.map(call=>call[0]).filter(name=>name!=='activity')),['ensureDraftBaseProject','saveRemote','ensure','update']);
+    assert.deepEqual(errors,[]);
+  }
 }));
 
 test('header is the coloured icon then the title, with no subtitle, sub-tabs or preview-link card',()=>withBrowser(async browser=>{
