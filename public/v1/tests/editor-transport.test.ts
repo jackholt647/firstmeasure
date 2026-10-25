@@ -25,6 +25,11 @@ test('feedback endpoint is independent of PDF state; streamed transport preserve
   const storage=await import('../firstmeasure/storage.js');
   const {buildApp}=await import('../src/app.js');const app=await buildApp();await app.ready();
   const id='editor177';
+  // The editor bundle is fetched by PHP for a signed-in staff member: a signed service request.
+  const security=await import('./helpers/security-fixture.js');
+  await security.ensureServiceSecretForTests();
+  const staff=await security.staffFixture({role:'qa'});
+  const get=async(url:string)=>app.inject({url,headers:await security.signedServiceHeaders('GET',url,staff.email)});
   const thread={id:'note',status:'open',history:[{role:'qa',by:'private',by_name:'Private QA',text:'Fix edge',images:['image.png']}]};
   try {
     await storage.saveManifest(id,{id,schema_version:2,status:'correction_needed',address:'Synthetic feedback',qa_threads:[thread],qa_thread_drafts:{qa:{threads:[thread]}},timestamps:{created_at:new Date().toISOString()}} as any);
@@ -32,17 +37,17 @@ test('feedback endpoint is independent of PDF state; streamed transport preserve
     // If the feedback route accidentally starts reading PDF state again, this
     // invalid snapshot makes it fail instead of silently passing a tiny fixture.
     await storage.saveArtifact(id,'pdf_state.json','not JSON: feedback must never read this artifact');
-    const feedback=await app.inject({url:`/v1/firstmeasure/projects/${id}/editor/feedback`});
+    const feedback=await get(`/v1/firstmeasure/projects/${id}/editor/feedback`);
     assert.equal(feedback.statusCode,200,feedback.body);
     assert.equal(feedback.json().manifest.qa_threads[0].id,'note');
     assert.equal(feedback.json().app_metadata.qa_thread_drafts.qa.threads[0].id,'note');
     assert.equal(feedback.json().pdf_state,undefined);
     const snapshot={geometry:{points:[{x:1,y:2}]},mainImage:'data:image/png;base64,abcdef',history:[{role:'qa',by:'private',by_name:'Private QA',text:'Keep annotation'}]};
     await storage.savePdfState(id,snapshot);
-    const admin=await app.inject({url:`/v1/firstmeasure/projects/${id}/editor?transport=php&blind_qa=0`});
+    const admin=await get(`/v1/firstmeasure/projects/${id}/editor?transport=php&blind_qa=0`);
     assert.equal(admin.statusCode,200,admin.body);
     assert.deepEqual(admin.json().pdf_state,snapshot);
-    const tech=await app.inject({url:`/v1/firstmeasure/projects/${id}/editor?transport=php&blind_qa=1`});
+    const tech=await get(`/v1/firstmeasure/projects/${id}/editor?transport=php&blind_qa=1`);
     assert.equal(tech.statusCode,200,tech.body);
     assert.equal(tech.json().manifest.qa_threads[0].history[0].by,null);
     assert.equal(tech.json().pdf_state.history[0].by,null);
@@ -52,5 +57,5 @@ test('feedback endpoint is independent of PDF state; streamed transport preserve
     const php=await readFile(new URL('../../measure/internal/editor.php',import.meta.url),'utf8');
     assert.match(php,/\$canViewIdentity = fm_editor_can_view_qa_identity\(\)/);
     assert.match(php,/project_feedback.*strpos\(\$editorAction, 'tutorial_project_'/);
-  } finally {await app.close();await(await import('../firstmeasure/project_index.js')).closeFirstMeasureProjectIndex();await rm(root,{recursive:true,force:true,maxRetries:3});}
+  } finally {await app.close();await(await import('./helpers/platform-fixture.js')).closePlatformFixtureStores();await rm(root,{recursive:true,force:true,maxRetries:3});}
 });

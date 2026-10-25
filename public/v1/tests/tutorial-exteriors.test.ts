@@ -66,7 +66,7 @@ test('exterior curriculum defaults, isolated PHP editing/resources, completion a
     assert.equal((await signed({operation:'source',tutorial_id:exterior,student_email:'student@example.test',name:'google.png'},'other@example.test')).statusCode,403);
     assert.equal((await signed({operation:'source',tutorial_id:exterior,name:'app_metadata.json'})).statusCode,403);
     assert.equal((await signed({operation:'source',tutorial_id:exterior,name:'google.png'})).body,'synthetic image');
-    assert.equal((await app.inject({url:`/v1/firstmeasure/projects/${source}/editor`})).statusCode,404,'source remains private outside training');
+    assert.equal((await app.inject({url:`/v1/firstmeasure/projects/${source}/editor`})).statusCode,401,'source remains private outside training: anonymous callers are refused by the route gate');
     entries[2]!.measurement_scope='full_house';await writeFile(curriculumFile,JSON.stringify({chapters:[{projects:entries}]}));
     assert.equal((await signed({operation:'start',source:incomplete,chapter_id:1,curriculum_project_id:'missing'})).statusCode,409,'explicit exterior selection cannot silently lose scope');
 
@@ -107,7 +107,9 @@ test('exterior curriculum defaults, isolated PHP editing/resources, completion a
     assert.deepEqual(teacherBundle.app_metadata.exteriorsWalls,saved.exteriorsWalls,'instructors can review saved exterior work');
     assert.deepEqual((await storage.getProjectDetail(source)).app_metadata,{geometry:{points:[{id:'answer-point'}]},exteriorsWalls:{answer:'not copied'}});
     assert.equal((await fetch(resources,{headers:{'X-Test-User':'other@example.test'}})).status,404);
-    const legacy = (action:string, course_id:string, extra:Record<string,unknown>={}, email='student@example.test') => app.inject({
+    // Staff console calls carry the session of the person they name (the body actor is ignored).
+    const {staffInjector}=await import('./helpers/security-fixture.js');const staffInject=staffInjector(app);
+    const legacy = (action:string, course_id:string, extra:Record<string,unknown>={}, email='student@example.test') => staffInject({
       method:'POST',url:'/v1/internal/legacy-action',payload:{action,course_id,...extra,actor:{email,role:email==='manager@example.test'?'admin':'trainee'}}
     });
     await saveInternalUser({email:'student@example.test',created_at:'2020-01-01'});

@@ -119,7 +119,10 @@ test("manager review is durable, blind to reviewers, and identity-gated for resu
 
     const app = await buildApp();
     await app.ready();
-    const legacy = (action: string, actor: string, extra: Record<string, unknown> = {}) => app.inject({
+    // Each person calls with their own staff session; body and query actors are ignored by the server.
+    const { staffInjector } = await import("./helpers/security-fixture.js");
+    const staffInject = staffInjector(app);
+    const legacy = (action: string, actor: string, extra: Record<string, unknown> = {}) => staffInject({
       method: "POST",
       url: "/v1/internal/legacy-action",
       payload: { action, actor: { email: actor }, ...extra }
@@ -284,22 +287,26 @@ test("manager review is durable, blind to reviewers, and identity-gated for resu
     assert.equal(adminSettingsSave.statusCode, 200);
     assert.equal(adminSettingsSave.json().settings.daily_target, 75);
 
-    const reviewerRawState = await app.inject({
+    const reviewerRawState = await staffInject({
+      as: "reviewer@example.test",
       method: "GET",
       url: "/v1/internal/state/manager_audit?actor_email=reviewer@example.test"
     });
     assert.equal(reviewerRawState.statusCode, 403);
-    const qaRawState = await app.inject({
+    const qaRawState = await staffInject({
+      as: "qa@example.test",
       method: "GET",
       url: "/v1/internal/state/manager_audit?actor_email=qa@example.test"
     });
     assert.equal(qaRawState.statusCode, 403);
-    const adminRawState = await app.inject({
+    const adminRawState = await staffInject({
+      as: "admin@example.test",
       method: "GET",
       url: "/v1/internal/state/manager_audit?actor_email=admin@example.test"
     });
     assert.equal(adminRawState.statusCode, 200);
-    const reviewerSampleState = await app.inject({
+    const reviewerSampleState = await staffInject({
+      as: "reviewer@example.test",
       method: "GET",
       url: "/v1/internal/state/manager_review_samples?actor_email=reviewer@example.test"
     });
@@ -330,7 +337,7 @@ test("manager review is durable, blind to reviewers, and identity-gated for resu
 
     await app.close();
   } finally {
-    await (await import("../firstmeasure/project_index.js")).closeFirstMeasureProjectIndex().catch(() => undefined);
+    await (await import("./helpers/platform-fixture.js")).closePlatformFixtureStores().catch(() => undefined);
     const resolved = path.resolve(root);
     if (!resolved.startsWith(path.resolve(os.tmpdir()) + path.sep) || !path.basename(resolved).startsWith("manager-review-test-")) {
       throw new Error(`Refusing to remove unexpected test path '${resolved}'.`);

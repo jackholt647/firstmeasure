@@ -27,7 +27,8 @@ test('Prices authorization, validation, concurrency, shared quote/charge setting
       const cookie = String(register.headers['set-cookie']).match(/fm_platform_session=[^;,]+/)?.[0] || '';
       const session = await app.inject({method:'GET',url:'/v1/platform/auth/session',headers:{cookie}});
       users[name!] = {cookie, 'x-platform-csrf':session.json().csrf_token};
-      if (name !== 'customer') await saveInternalUser({email,name,role,status:'active',permissions:role==='manager'?{manage_queue:true,manage_sales_users:true}:{}});
+      // Staff sign in to the staff organization and are identified by their internal user record.
+      if (name !== 'customer') users[name!] = (await (await import('./helpers/security-fixture.js')).staffFixture({email,name,role,status:'active',permissions:role==='manager'?{manage_queue:true,manage_sales_users:true}:{}})).headers;
     }
     assert.equal((await app.inject({method:'GET',url:endpoint,headers:{'x-internal-user-email':'admin@prices.example.test'}})).statusCode,401);
     for (const name of ['manager','qa','customer']) {
@@ -81,8 +82,10 @@ test('Prices authorization, validation, concurrency, shared quote/charge setting
     })));
     assert.deepEqual(isolated,[8,9],'overlapping async requests cannot leak pricing into each other');
     for (const collection of ['pricing_config','PRICING_CONFIG','%20pricing_config%20']) {
-      assert.equal((await app.inject({method:'GET',url:'/v1/internal/state/'+collection})).statusCode,403);
-      assert.equal((await app.inject({method:'PUT',url:'/v1/internal/state/'+collection+'/expedite',payload:{data:DEFAULT_EXPEDITE_PRICING}})).statusCode,403);
+      // Anonymous callers are refused by the route gate; even a full admin cannot reach prices through raw state.
+      assert.equal((await app.inject({method:'GET',url:'/v1/internal/state/'+collection})).statusCode,401);
+      assert.equal((await app.inject({method:'GET',url:'/v1/internal/state/'+collection,headers:users.admin})).statusCode,403);
+      assert.equal((await app.inject({method:'PUT',url:'/v1/internal/state/'+collection+'/expedite',headers:users.admin,payload:{data:DEFAULT_EXPEDITE_PRICING}})).statusCode,403);
     }
     const legacy = Object.fromEntries(Object.entries(config).filter(([key]) => !(key in DEFAULT_WORKLOAD)));
     assert.equal((await app.inject({method:'PUT',url:endpoint,headers:users.admin,payload:{config:legacy,revision:1}})).statusCode,400,'old browser must not reset workload fields');

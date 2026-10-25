@@ -136,9 +136,15 @@ test("only internal administrators can revise policy; stale orders fail and acce
   assert.equal((await us.raw("GET",endpoint)).statusCode,403);
   const internal=await import("../internal/storage.js");
   await internal.saveInternalUser({email:"us@regional.example.test",name:"Regional administrator",role:"admin",status:"active",permissions:{}});
-  const policy=await us.request("GET",endpoint);policy.config.multipliers.international=3;
-  const saved=await us.request("PUT",endpoint,{revision:policy.revision,config:policy.config});assert.ok(saved.revision>policy.revision);
-  assert.equal((await us.raw("PUT",endpoint,{revision:policy.revision,config:policy.config})).statusCode,409);
+  // An internal user record alone is not a staff login: the customer session is still refused.
+  assert.equal((await us.raw("GET",endpoint)).statusCode,403);
+  // The administrator signs in to the staff organization (docs/architecture/request-security.md#principals).
+  const staff=await (await import("./helpers/security-fixture.js")).staffFixture({email:"us@regional.example.test"});
+  const asStaff=async(method:string,url:string,payload?:any)=>app.inject({method,url,payload,headers:staff.headers});
+  const policy=(await asStaff("GET",endpoint)).json();policy.config.multipliers.international=3;
+  const savedResponse=await asStaff("PUT",endpoint,{revision:policy.revision,config:policy.config});assert.ok(savedResponse.statusCode<400,savedResponse.body);
+  const saved=savedResponse.json();assert.ok(saved.revision>policy.revision);
+  assert.equal((await asStaff("PUT",endpoint,{revision:policy.revision,config:policy.config})).statusCode,409);
   const view=await fr.request("GET",`/v1/platform/organizations/${fr.org}/commerce`);assert.equal(view.report_prices.residential,25);
   await profile.withOrganizationCommerce(fr.org,()=>assert.throws(()=>profile.assertCommercialRevision({commercial_pricing_revision:0}),{code:"pricing_changed"}));
   const billing=await import("../platform-billing/storage.js");

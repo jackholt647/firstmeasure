@@ -18,8 +18,32 @@ let originalFetch: typeof globalThis.fetch;
 const sentPostmarkPayloads: any[] = [];
 const rejectedPostmarkRecipients = new Set<string>();
 
+let staffInject: ((options: Record<string, any>) => Promise<any>) | null = null;
+
+/**
+ * Calls to /v1/firstmeasure are staff and service work: fixture projects are
+ * created by our own code (POST /projects is service-only) and everything
+ * else is sent with the staff session of the person the body names, else a
+ * full admin. A bare x-firstmeasure-internal header no longer proves anything.
+ */
+async function fmInject(options: Record<string, any>) {
+  const url = String(options.url ?? "");
+  if (!url.startsWith("/v1/firstmeasure/")) return await (app.inject as any)(options);
+  const { "x-firstmeasure-internal": _internal, authorization: _key, ...headers } = (options.headers ?? {}) as Record<string, string>;
+  if (String(options.method ?? "GET").toUpperCase() === "POST" && url === "/v1/firstmeasure/projects") {
+    const { serviceInject } = await import("../platform/security/service.js");
+    const { systemPrincipal } = await import("../platform/security/principal.js");
+    return await serviceInject(app, systemPrincipal("test fixture"), { ...options, headers });
+  }
+  if (!staffInject) {
+    const { staffInjector } = await import("./helpers/security-fixture.js");
+    staffInject = staffInjector(app, {}, { role: "admin", email: "fm-admin@firstmate.example.test" });
+  }
+  return await staffInject({ ...options, headers });
+}
+
 async function request(method: string, url: string, payload?: unknown, key = apiKey) {
-  const response = await (app.inject as any)({
+  const response = await fmInject({
     method,
     url,
     payload,
@@ -43,6 +67,7 @@ before(async () => {
   process.env.FIRSTMEASURE_INTERNAL_API_SECRET = "isolated-public-import-secret";
   process.env.PLATFORM_HEARTBEAT_DISABLED = "1";
   process.env.PLATFORM_STORAGE_ROOT = path.join(storageRoot, "platform");
+  process.env.INTERNAL_STORAGE_ROOT = path.join(storageRoot, "internal");
   process.env.FIRSTMEASURE_STORAGE_ROOT = path.join(storageRoot, "firstmeasure");
   process.env.FIRSTMEASURE_INDEX_DB_PATH = path.join(storageRoot, "firstmeasure", "projects_index.sqlite");
   process.env.PRICEBOOK_STORAGE_ROOT = path.join(storageRoot, "pricebook");
@@ -365,7 +390,7 @@ test("direct FirstMeasure coverage rejection refunds charged credits once", asyn
     }
   });
 
-  const created = await (app.inject as any)({
+  const created = await fmInject({
     method: "POST",
     url: "/v1/firstmeasure/projects",
     payload: {
@@ -387,7 +412,7 @@ test("direct FirstMeasure coverage rejection refunds charged credits once", asyn
     note: "Pin is not on the target structure",
     actor: { email: "qa-refunds@example.test", name: "QA Refunds" }
   };
-  const rejected = await (app.inject as any)({
+  const rejected = await fmInject({
     method: "POST",
     url: `/v1/firstmeasure/projects/${encodeURIComponent(projectId)}/coverage/reject`,
     payload: rejectPayload,
@@ -405,7 +430,7 @@ test("direct FirstMeasure coverage rejection refunds charged credits once", asyn
     /selected pin does not appear to be placed on a structure/
   );
 
-  const rejectedCardBucket = await (app.inject as any)({
+  const rejectedCardBucket = await fmInject({
     method: "POST",
     url: "/v1/firstmeasure/queue/bucket",
     payload: { group: "rejected", view: "card", limit: 10, include_all: true },
@@ -423,7 +448,7 @@ test("direct FirstMeasure coverage rejection refunds charged credits once", asyn
     /selected pin does not appear to be placed on a structure/
   );
 
-  const rejectedFullBucket = await (app.inject as any)({
+  const rejectedFullBucket = await fmInject({
     method: "POST",
     url: "/v1/firstmeasure/queue/bucket",
     payload: { group: "rejected", view: "full", limit: 10, include_all: true },
@@ -449,7 +474,7 @@ test("direct FirstMeasure coverage rejection refunds charged credits once", asyn
   assert.equal(ledger[0].reason, "rejection_refund");
   assert.equal(ledger[0].meta.project_id, projectId);
 
-  const rejectedAgain = await (app.inject as any)({
+  const rejectedAgain = await fmInject({
     method: "POST",
     url: `/v1/firstmeasure/projects/${encodeURIComponent(projectId)}/coverage/reject`,
     payload: rejectPayload,
@@ -516,7 +541,7 @@ test("FirstMeasure organization context refreshes stale cached branding defaults
     }
   }, { replace: true });
 
-  const created = await (app.inject as any)({
+  const created = await fmInject({
     method: "POST",
     url: "/v1/firstmeasure/projects",
     payload: {
@@ -550,7 +575,7 @@ test("FirstMeasure organization context refreshes stale cached branding defaults
   });
   assert.equal(created.statusCode, 201, created.body);
 
-  const editor = await (app.inject as any)({
+  const editor = await fmInject({
     method: "GET",
     url: `/v1/firstmeasure/projects/${encodeURIComponent(projectId)}/editor`
   });
@@ -564,7 +589,7 @@ test("FirstMeasure organization context refreshes stale cached branding defaults
   assert.equal(editorJson.organization.report_settings.cover_show_customer, false);
   assert.equal(editorJson.organization.report_settings.page_summary, true);
 
-  const refreshed = await (app.inject as any)({
+  const refreshed = await fmInject({
     method: "GET",
     url: `/v1/firstmeasure/projects/${encodeURIComponent(projectId)}`
   });
@@ -580,7 +605,7 @@ test("priority one completed projects are not bucketed as holding for release", 
   const suffix = Date.now();
   const scheduledReleaseAt = new Date(Date.now() + 60 * 60_000).toISOString();
   const createHeldProject = async (id: string, patch: Record<string, unknown>) => {
-    const created = await (app.inject as any)({
+    const created = await fmInject({
       method: "POST",
       url: "/v1/firstmeasure/projects",
       payload: {
@@ -596,7 +621,7 @@ test("priority one completed projects are not bucketed as holding for release", 
     });
     assert.equal(created.statusCode, 201, created.body);
 
-    const updated = await (app.inject as any)({
+    const updated = await fmInject({
       method: "PATCH",
       url: `/v1/firstmeasure/projects/${encodeURIComponent(id)}`,
       payload: {
@@ -623,7 +648,7 @@ test("priority one completed projects are not bucketed as holding for release", 
   await createHeldProject(standardId, { report_expedite_option: "standard_3_6" });
   await createHeldProject(priorityId, { qa_priority: true, report_expedite_option: "standard_3_6" });
 
-  const releaseHolding = await (app.inject as any)({
+  const releaseHolding = await fmInject({
     method: "POST",
     url: "/v1/firstmeasure/queue/bucket",
     payload: { group: "release_holding", view: "card", limit: 50, include_all: true },
@@ -634,7 +659,7 @@ test("priority one completed projects are not bucketed as holding for release", 
   assert.ok(releaseHoldingJson.projects.some((project: any) => project.id === standardId), releaseHolding.body);
   assert.equal(releaseHoldingJson.projects.some((project: any) => project.id === priorityId), false, releaseHolding.body);
 
-  const completed = await (app.inject as any)({
+  const completed = await fmInject({
     method: "POST",
     url: "/v1/firstmeasure/queue/bucket",
     payload: { group: "completed", view: "card", limit: 50, include_all: true },
@@ -649,7 +674,7 @@ test("legacy P2 expedited projects hold release even without explicit hold flag"
   const id = `legacy_p2_hold_${Date.now()}`;
   const createdAt = new Date(Date.now() - 20 * 60_000).toISOString();
   const queuedAt = createdAt.replace("T", " ").slice(0, 19);
-  const created = await (app.inject as any)({
+  const created = await fmInject({
     method: "POST",
     url: "/v1/firstmeasure/projects",
     payload: {
@@ -677,7 +702,7 @@ test("legacy P2 expedited projects hold release even without explicit hold flag"
   });
   assert.equal(created.statusCode, 201, created.body);
 
-  const sent = await (app.inject as any)({
+  const sent = await fmInject({
     method: "POST",
     url: `/v1/firstmeasure/projects/${encodeURIComponent(id)}/email/send-report`,
     payload: {},
@@ -688,7 +713,7 @@ test("legacy P2 expedited projects hold release even without explicit hold flag"
   assert.equal(sentJson.result.held, true, sent.body);
   assert.equal(sentJson.result.reason, "rush_1_3_release_window");
 
-  const held = await (app.inject as any)({
+  const held = await fmInject({
     method: "GET",
     url: `/v1/firstmeasure/projects/${encodeURIComponent(id)}`
   });
@@ -702,7 +727,7 @@ test("VIP P2 expedited projects keep P2 release hold behavior", async () => {
   const queuedMs = Date.now() - 20 * 60_000;
   const queuedAt = new Date(queuedMs).toISOString().replace("T", " ").slice(0, 19);
   const productionDeadlineAt = new Date(queuedMs + 120 * 60_000).toISOString();
-  const created = await (app.inject as any)({
+  const created = await fmInject({
     method: "POST",
     url: "/v1/firstmeasure/projects",
     payload: {
@@ -732,10 +757,11 @@ test("VIP P2 expedited projects keep P2 release hold behavior", async () => {
   });
   assert.equal(created.statusCode, 201, created.body);
 
-  const listed = await (app.inject as any)({
+  const listed = await fmInject({
     method: "POST",
     url: "/v1/firstmeasure/projects/list",
-    payload: { statuses: ["completed"], include_all: true, limit: 50 },
+    // A staff caller is now the verified actor, so it asks for every project the way the staff console does.
+    payload: { statuses: ["completed"], filter: "all", include_all: true, limit: 50 },
     headers: { "content-type": "application/json", "x-firstmeasure-internal": process.env.FIRSTMEASURE_INTERNAL_API_SECRET }
   });
   assert.equal(listed.statusCode, 200, listed.body);
@@ -746,7 +772,7 @@ test("VIP P2 expedited projects keep P2 release hold behavior", async () => {
   assert.equal(listedProject.is_expedited, true);
   assert.equal(listedProject.deadline_at, productionDeadlineAt);
 
-  const sent = await (app.inject as any)({
+  const sent = await fmInject({
     method: "POST",
     url: `/v1/firstmeasure/projects/${encodeURIComponent(id)}/email/send-report`,
     payload: {},
@@ -764,7 +790,7 @@ test("VIP standard projects use P2 release hold behavior", async () => {
   const standardDueStartMs = queuedMs + 180 * 60_000;
   const standardDueEndMs = queuedMs + 360 * 60_000;
   const queuedAt = new Date(queuedMs).toISOString().replace("T", " ").slice(0, 19);
-  const created = await (app.inject as any)({
+  const created = await fmInject({
     method: "POST",
     url: "/v1/firstmeasure/projects",
     payload: {
@@ -792,7 +818,7 @@ test("VIP standard projects use P2 release hold behavior", async () => {
   });
   assert.equal(created.statusCode, 201, created.body);
 
-  const sent = await (app.inject as any)({
+  const sent = await fmInject({
     method: "POST",
     url: `/v1/firstmeasure/projects/${encodeURIComponent(id)}/email/send-report`,
     payload: {},
@@ -803,7 +829,7 @@ test("VIP standard projects use P2 release hold behavior", async () => {
   assert.equal(sentJson.result.held, true, sent.body);
   assert.equal(sentJson.result.reason, "vip_p2_release_window");
 
-  const held = await (app.inject as any)({
+  const held = await fmInject({
     method: "GET",
     url: `/v1/firstmeasure/projects/${encodeURIComponent(id)}`
   });
@@ -824,7 +850,7 @@ test("P2 release hold uses SQL timestamps as UTC and releases between one and tw
   const dueStartMs = queuedMs + 60 * 60_000;
   const dueEndMs = queuedMs + 180 * 60_000;
   const queuedAt = new Date(queuedMs).toISOString().replace("T", " ").slice(0, 19);
-  const created = await (app.inject as any)({
+  const created = await fmInject({
     method: "POST",
     url: "/v1/firstmeasure/projects",
     payload: {
@@ -854,7 +880,7 @@ test("P2 release hold uses SQL timestamps as UTC and releases between one and tw
   });
   assert.equal(created.statusCode, 201, created.body);
 
-  const sent = await (app.inject as any)({
+  const sent = await fmInject({
     method: "POST",
     url: `/v1/firstmeasure/projects/${encodeURIComponent(id)}/email/send-report`,
     payload: {},
@@ -864,7 +890,7 @@ test("P2 release hold uses SQL timestamps as UTC and releases between one and tw
   const sentJson = JSON.parse(sent.body);
   assert.equal(sentJson.result.held, true, sent.body);
   assert.equal(sentJson.result.reason, "rush_1_3_release_window");
-  const held = await (app.inject as any)({
+  const held = await fmInject({
     method: "GET",
     url: `/v1/firstmeasure/projects/${encodeURIComponent(id)}`
   });
@@ -888,7 +914,7 @@ test("force release clears held project even when report email is rejected", asy
   const completedAt = new Date(Date.now() - 60 * 60_000).toISOString();
 
   try {
-    const created = await (app.inject as any)({
+    const created = await fmInject({
       method: "POST",
       url: "/v1/firstmeasure/projects",
       payload: {
@@ -917,7 +943,7 @@ test("force release clears held project even when report email is rejected", asy
     assert.equal(created.statusCode, 201, created.body);
 
     const fakePdf = Buffer.from("%PDF-1.4\n% Release failure test PDF\n%%EOF\n").toString("base64");
-    const uploadedPdf = await (app.inject as any)({
+    const uploadedPdf = await fmInject({
       method: "POST",
       url: `/v1/firstmeasure/projects/${encodeURIComponent(id)}/artifacts`,
       payload: { file_name: "Report.pdf", content_base64: fakePdf },
@@ -925,7 +951,7 @@ test("force release clears held project even when report email is rejected", asy
     });
     assert.equal(uploadedPdf.statusCode, 200, uploadedPdf.body);
 
-    const released = await (app.inject as any)({
+    const released = await fmInject({
       method: "POST",
       url: `/v1/firstmeasure/projects/${encodeURIComponent(id)}/release/force`,
       payload: {},
@@ -941,7 +967,7 @@ test("force release clears held project even when report email is rejected", asy
     assert.equal(releasedJson.result.email.http, 422, released.body);
     assert.equal(sentPostmarkPayloads.length, 1);
 
-    const status = await (app.inject as any)({
+    const status = await fmInject({
       method: "GET",
       url: `/v1/firstmeasure/projects/${encodeURIComponent(id)}/email/status`
     });
@@ -951,7 +977,7 @@ test("force release clears held project even when report email is rejected", asy
     assert.equal(statusJson.email_summary.report_email.attempts, 1, status.body);
     assert.equal(statusJson.email_summary.report_email.last_http, 422, status.body);
 
-    const detail = await (app.inject as any)({
+    const detail = await fmInject({
       method: "GET",
       url: `/v1/firstmeasure/projects/${encodeURIComponent(id)}`
     });
@@ -961,7 +987,7 @@ test("force release clears held project even when report email is rejected", asy
     assert.equal(detailJson.project.manifest.delivery.release_hold.status, "force_released", detail.body);
     assert.equal(detailJson.project.manifest.delivery_release_email_status, "failed", detail.body);
 
-    const bucket = await (app.inject as any)({
+    const bucket = await fmInject({
       method: "POST",
       url: "/v1/firstmeasure/queue/bucket",
       payload: { group: "release_holding", view: "card", limit: 50, include_all: true },
@@ -1018,7 +1044,7 @@ test("public FirstMeasure test mode is sandboxed and does not charge or create l
   assert.equal(gatedRush.json.error, "feature_not_enabled");
   assert.equal(gatedRush.json.details.feature, "firstmeasure.report_expedite_options");
 
-  const created = await (app.inject as any)({
+  const created = await fmInject({
     method: "POST",
     url: "/v1/public/firstmeasure/reports",
     payload: {
@@ -1062,13 +1088,13 @@ test("public FirstMeasure test mode is sandboxed and does not charge or create l
   assert.equal(record.mode, "test");
   assert.match(record.firstmeasure_project_id, /^test_fmr_/);
 
-  const liveProject = await (app.inject as any)({
+  const liveProject = await fmInject({
     method: "GET",
     url: `/v1/firstmeasure/projects/${encodeURIComponent(record.firstmeasure_project_id)}`
   });
   assert.equal(liveProject.statusCode, 404);
 
-  const replay = await (app.inject as any)({
+  const replay = await fmInject({
     method: "POST",
     url: "/v1/public/firstmeasure/reports",
     payload: {
@@ -1150,7 +1176,7 @@ test("first report delivery email omits bonus offer when app flag is off", async
   const record = records[0];
   assert.ok(record);
 
-  const stagedProject = await (app.inject as any)({
+  const stagedProject = await fmInject({
     method: "GET",
     url: `/v1/firstmeasure/projects/${encodeURIComponent(record.firstmeasure_project_id)}`
   });
@@ -1159,7 +1185,7 @@ test("first report delivery email omits bonus offer when app flag is off", async
   assert.equal(stagedProjectJson.project.manifest.report_release_hold_enabled, false);
 
   const fakePdf = Buffer.from("%PDF-1.4\n% Flag-off report email test PDF\n%%EOF\n").toString("base64");
-  const uploadedPdf = await (app.inject as any)({
+  const uploadedPdf = await fmInject({
     method: "POST",
     url: `/v1/firstmeasure/projects/${encodeURIComponent(record.firstmeasure_project_id)}/artifacts`,
     payload: { file_name: "Report.pdf", content_base64: fakePdf },
@@ -1167,7 +1193,7 @@ test("first report delivery email omits bonus offer when app flag is off", async
   });
   assert.equal(uploadedPdf.statusCode, 200, uploadedPdf.body);
 
-  const completed = await (app.inject as any)({
+  const completed = await fmInject({
     method: "POST",
     url: `/v1/firstmeasure/projects/${encodeURIComponent(record.firstmeasure_project_id)}/status`,
     payload: { status: "completed" },
@@ -1175,7 +1201,7 @@ test("first report delivery email omits bonus offer when app flag is off", async
   });
   assert.equal(completed.statusCode, 200, completed.body);
 
-  const sent = await (app.inject as any)({
+  const sent = await fmInject({
     method: "POST",
     url: `/v1/firstmeasure/projects/${encodeURIComponent(record.firstmeasure_project_id)}/email/send-report`,
     payload: {},
@@ -1239,7 +1265,7 @@ test("bonus campaign teaser is sent with the next report email once", async () =
     assert.ok(record);
 
     const fakePdf = Buffer.from(`%PDF-1.4\n% Campaign report email test PDF ${externalId}\n%%EOF\n`).toString("base64");
-    const uploadedPdf = await (app.inject as any)({
+    const uploadedPdf = await fmInject({
       method: "POST",
       url: `/v1/firstmeasure/projects/${encodeURIComponent(record.firstmeasure_project_id)}/artifacts`,
       payload: { file_name: "Report.pdf", content_base64: fakePdf },
@@ -1247,7 +1273,7 @@ test("bonus campaign teaser is sent with the next report email once", async () =
     });
     assert.equal(uploadedPdf.statusCode, 200, uploadedPdf.body);
 
-    const completed = await (app.inject as any)({
+    const completed = await fmInject({
       method: "POST",
       url: `/v1/firstmeasure/projects/${encodeURIComponent(record.firstmeasure_project_id)}/status`,
       payload: { status: "completed" },
@@ -1255,7 +1281,7 @@ test("bonus campaign teaser is sent with the next report email once", async () =
     });
     assert.equal(completed.statusCode, 200, completed.body);
 
-    const sent = await (app.inject as any)({
+    const sent = await fmInject({
       method: "POST",
       url: `/v1/firstmeasure/projects/${encodeURIComponent(record.firstmeasure_project_id)}/email/send-report`,
       payload: {},
@@ -1390,7 +1416,7 @@ test("public FirstMeasure API supports key auth, billing, report resources, and 
   const commercialRecords = await listPublicFirstMeasureReports({ orgId: "org_public_api", externalId: "job_commercial_pin_timing", limit: 1 });
   const commercialRecord = commercialRecords[0];
   assert.ok(commercialRecord);
-  const placedCommercialPins = await (app.inject as any)({
+  const placedCommercialPins = await fmInject({
     method: "PATCH",
     url: `/v1/firstmeasure/projects/${encodeURIComponent(commercialRecord.firstmeasure_project_id)}`,
     payload: {
@@ -1419,7 +1445,7 @@ test("public FirstMeasure API supports key auth, billing, report resources, and 
   assert.equal(listed.json.count, 1);
   assert.equal(listed.json.reports[0].external_id, "job_123");
 
-  const replay = await (app.inject as any)({
+  const replay = await fmInject({
     method: "POST",
     url: "/v1/public/firstmeasure/reports",
     payload: {
@@ -1437,7 +1463,7 @@ test("public FirstMeasure API supports key auth, billing, report resources, and 
   });
   assert.equal(replay.statusCode, 201);
 
-  const replayAgain = await (app.inject as any)({
+  const replayAgain = await fmInject({
     method: "POST",
     url: "/v1/public/firstmeasure/reports",
     payload: {
@@ -1460,7 +1486,7 @@ test("public FirstMeasure API supports key auth, billing, report resources, and 
   const fallbackRecords = await listPublicFirstMeasureReports({ orgId: "org_public_api", externalId: "job_123_replay", limit: 1 });
   const fallbackRecord = fallbackRecords[0];
   assert.ok(fallbackRecord);
-  const fallbackEditor = await (app.inject as any)({
+  const fallbackEditor = await fmInject({
     method: "GET",
     url: `/v1/firstmeasure/projects/${encodeURIComponent(fallbackRecord.firstmeasure_project_id)}/editor`
   });
@@ -1474,7 +1500,7 @@ test("public FirstMeasure API supports key auth, billing, report resources, and 
   const record = records[0];
   assert.ok(record);
 
-  const stagedProject = await (app.inject as any)({
+  const stagedProject = await fmInject({
     method: "GET",
     url: `/v1/firstmeasure/projects/${encodeURIComponent(record.firstmeasure_project_id)}`
   });
@@ -1502,7 +1528,7 @@ test("public FirstMeasure API supports key auth, billing, report resources, and 
   assert.equal(stagedProjectJson.project.branding_defaults.branding.colors.secondary, "#abcdef");
   assert.equal(stagedProjectJson.project.branding_defaults.report_settings.cover_show_customer, false);
 
-  const needsPinsBucket = await (app.inject as any)({
+  const needsPinsBucket = await fmInject({
     method: "POST",
     url: "/v1/firstmeasure/queue/bucket",
     payload: { group: "needs_structure_pins", view: "card", limit: 10, include_all: true },
@@ -1521,7 +1547,7 @@ test("public FirstMeasure API supports key auth, billing, report resources, and 
   assert.ok(sampleXml.includes("<DATA_EXPORT"));
 
   const fakePdf = Buffer.from("%PDF-1.4\n% Public FirstMeasure test PDF\n%%EOF\n").toString("base64");
-  const uploadedXml = await (app.inject as any)({
+  const uploadedXml = await fmInject({
     method: "POST",
     url: `/v1/firstmeasure/projects/${encodeURIComponent(record.firstmeasure_project_id)}/artifacts`,
     payload: { file_name: "model_data.xml", content_text: sampleXml },
@@ -1529,7 +1555,7 @@ test("public FirstMeasure API supports key auth, billing, report resources, and 
   });
   assert.equal(uploadedXml.statusCode, 200, uploadedXml.body);
 
-  const uploadedPdf = await (app.inject as any)({
+  const uploadedPdf = await fmInject({
     method: "POST",
     url: `/v1/firstmeasure/projects/${encodeURIComponent(record.firstmeasure_project_id)}/artifacts`,
     payload: { file_name: "Report.pdf", content_base64: fakePdf },
@@ -1570,7 +1596,7 @@ test("public FirstMeasure API supports key auth, billing, report resources, and 
   assert.deepEqual(webhook.json.body, { ping: "pong" });
 
   const cancelledProjectId = `cancelled_activity_${Date.now()}`;
-  const cancelledCreated = await (app.inject as any)({
+  const cancelledCreated = await fmInject({
     method: "POST",
     url: "/v1/firstmeasure/projects",
     payload: {
@@ -1585,7 +1611,7 @@ test("public FirstMeasure API supports key auth, billing, report resources, and 
   });
   assert.equal(cancelledCreated.statusCode, 201, cancelledCreated.body);
   const cancelledAt = new Date().toISOString();
-  const cancelledPatch = await (app.inject as any)({
+  const cancelledPatch = await fmInject({
     method: "PATCH",
     url: `/v1/firstmeasure/projects/${encodeURIComponent(cancelledProjectId)}`,
     payload: {
@@ -1595,7 +1621,7 @@ test("public FirstMeasure API supports key auth, billing, report resources, and 
     headers: { "content-type": "application/json", "x-firstmeasure-internal": process.env.FIRSTMEASURE_INTERNAL_API_SECRET }
   });
   assert.equal(cancelledPatch.statusCode, 200, cancelledPatch.body);
-  const cancelledBucket = await (app.inject as any)({
+  const cancelledBucket = await fmInject({
     method: "POST",
     url: "/v1/firstmeasure/queue/bucket",
     payload: {
@@ -1655,7 +1681,7 @@ test("public FirstMeasure API supports key auth, billing, report resources, and 
     { lat: 37.42254692090254, lng: -122.08558870271348 },
     { lat: 37.42167355643795, lng: -122.0856101603856 }
   ];
-  const patchedPins = await (app.inject as any)({
+  const patchedPins = await fmInject({
     method: "PATCH",
     url: `/v1/firstmeasure/projects/${encodeURIComponent(lowCreditRecord.firstmeasure_project_id)}`,
     payload: {
@@ -1669,7 +1695,7 @@ test("public FirstMeasure API supports key auth, billing, report resources, and 
   });
   assert.equal(patchedPins.statusCode, 200, patchedPins.body);
 
-  const acceptedProcess = await (app.inject as any)({
+  const acceptedProcess = await fmInject({
     method: "POST",
     url: `/v1/firstmeasure/projects/${encodeURIComponent(lowCreditRecord.firstmeasure_project_id)}/process/imagery`,
     payload: { process_async: true, actor: { email: "pins@example.test", name: "Pin Tester" } },
@@ -1681,7 +1707,7 @@ test("public FirstMeasure API supports key auth, billing, report resources, and 
 
   let rejectedProcessJson: any = null;
   for (let attempt = 0; attempt < 30; attempt += 1) {
-    const checkRejected = await (app.inject as any)({
+    const checkRejected = await fmInject({
       method: "GET",
       url: `/v1/firstmeasure/projects/${encodeURIComponent(lowCreditRecord.firstmeasure_project_id)}`
     });
@@ -1692,7 +1718,7 @@ test("public FirstMeasure API supports key auth, billing, report resources, and 
   assert.equal(rejectedProcessJson.project.manifest.status, "rejected");
   assert.equal(rejectedProcessJson.project.manifest.public_api.structure_pin_billing.delta_required, 36);
 
-  const rejectedProcess = await (app.inject as any)({
+  const rejectedProcess = await fmInject({
     method: "POST",
     url: `/v1/firstmeasure/projects/${encodeURIComponent(lowCreditRecord.firstmeasure_project_id)}/process/imagery`,
     payload: { actor: { email: "pins@example.test", name: "Pin Tester" } },

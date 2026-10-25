@@ -24,7 +24,10 @@ test("export includes all filtered pages and enforces the viewer's result access
     await storage.saveInternalDocument("manager_review_samples", "2026-09-01", { data: { sample_date: "2026-09-01", entries } }, { replace: true });
     await storage.saveInternalDocument("manager_review_samples", "2026-08-01", { data: { sample_date: "2026-08-01", entries: [{ project_id: "out-of-range", address: "Out of range", qa_email: "qa@example.test" }] } }, { replace: true });
     await storage.saveInternalDocument("manager_audit", "project-0", { data: { project_id: "project-0", status: "flagged", severity: "minor", note: "Minor issue", issue_categories: ["geometry"] } }, { replace: true });
-    const call = (email: string, extra = {}) => app.inject({ method: "POST", url: "/v1/internal/legacy-action", payload: { action: "manager_review_results_export", actor: { email }, date_start: "2026-09-01", date_end: "2026-09-01", page: 2, page_size: 10, ...extra } });
+    // Each reviewer calls with their own staff session (the body actor is ignored by the server).
+    const { staffInjector } = await import("./helpers/security-fixture.js");
+    const staffInject = staffInjector(app);
+    const call = (email: string, extra = {}) => staffInject({ method: "POST", url: "/v1/internal/legacy-action", payload: { action: "manager_review_results_export", actor: { email }, date_start: "2026-09-01", date_end: "2026-09-01", page: 2, page_size: 10, ...extra } });
     const admin = await call("admin@example.test");
     assert.equal(admin.statusCode, 200, admin.body);
     assert.equal(admin.json().count, 125);

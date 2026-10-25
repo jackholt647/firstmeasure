@@ -54,6 +54,16 @@ test("API key organization search is lightweight, searchable, and admin-only", a
 
     const app = await buildApp();
     await app.ready();
+    // Staff sign in; an email header names nobody.
+    const { staffFixture } = await import("./helpers/security-fixture.js");
+    const admin = await staffFixture({ email: "admin@example.test" });
+    const tech = await staffFixture({ email: "tech@example.test" });
+    const spoofed = await app.inject({
+      method: "GET",
+      url: "/v1/internal/admin/firstmeasure-api-key-organizations",
+      headers: { "x-internal-user-email": "admin@example.test" }
+    });
+    assert.equal(spoofed.statusCode, 401, "an identity header is not a credential");
 
     const missingActor = await app.inject({
       method: "GET",
@@ -64,14 +74,14 @@ test("API key organization search is lightweight, searchable, and admin-only", a
     const denied = await app.inject({
       method: "GET",
       url: "/v1/internal/admin/firstmeasure-api-key-organizations",
-      headers: { "x-internal-user-email": "tech@example.test" }
+      headers: tech.headers
     });
     assert.equal(denied.statusCode, 403);
 
     const response = await app.inject({
       method: "GET",
       url: "/v1/internal/admin/firstmeasure-api-key-organizations?q=integration&key_filter=active&page=1&per_page=1",
-      headers: { "x-internal-user-email": "admin@example.test" }
+      headers: admin.headers
     });
     assert.equal(response.statusCode, 200);
     const payload = response.json();
@@ -88,7 +98,7 @@ test("API key organization search is lightweight, searchable, and admin-only", a
     const sandbox = await app.inject({
       method: "GET",
       url: "/v1/internal/admin/firstmeasure-api-key-organizations?q=sandbox",
-      headers: { "x-internal-user-email": "admin@example.test" }
+      headers: admin.headers
     });
     assert.equal(sandbox.statusCode, 200);
     assert.equal(sandbox.json().organizations[0].id, "org_test");
@@ -97,13 +107,15 @@ test("API key organization search is lightweight, searchable, and admin-only", a
     const withoutKeys = await app.inject({
       method: "GET",
       url: "/v1/internal/admin/firstmeasure-api-key-organizations?key_filter=none",
-      headers: { "x-internal-user-email": "admin@example.test" }
+      headers: admin.headers
     });
     assert.equal(withoutKeys.statusCode, 200);
     assert.deepEqual(withoutKeys.json().organizations.map((organization: { id: string }) => organization.id), ["org_plain"]);
 
     await app.close();
   } finally {
+    // Close the platform SQLite stores so Windows can remove their files.
+    await (await import("./helpers/platform-fixture.js")).closePlatformFixtureStores();
     // SQLite can retain the index WAL briefly on Windows after Fastify closes.
     // The OS temp root is disposable, so clean the stores this test directly exercises.
     for (const directory of ["internal", "platform"]) {

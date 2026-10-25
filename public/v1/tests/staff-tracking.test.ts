@@ -50,8 +50,12 @@ test('tracking authorization, universal collection, bridge integrity, reviews an
       const email=name+'@tracking.example.test';
       const r=await app.inject({method:'POST',url:'/v1/platform/auth/register',payload:{email,name,password:'tracking-password-test-184',phone:'+1 555 184 210'+Object.keys(users).length}});
       assert.equal(r.statusCode,201,r.body);
-      const cookie=String(r.headers['set-cookie']).match(/fm_platform_session=[^;,]+/)?.[0]||'';
-      if(name!=='customer')await saveInternalUser({email,name,role,status:'active',training_complete:name==='qa',permissions:role==='manager'?{manage_users:true,manage_queue:true}:{}});
+      let cookie=String(r.headers['set-cookie']).match(/fm_platform_session=[^;,]+/)?.[0]||'';
+      if(name!=='customer'){
+        await saveInternalUser({email,name,role,status:'active',training_complete:name==='qa',permissions:role==='manager'?{manage_users:true,manage_queue:true}:{}});
+        // Staff sign in to the staff organization (docs/architecture/request-security.md#principals).
+        cookie=(await (await import('./helpers/security-fixture.js')).staffFixture({email})).cookie;
+      }
       const s=await app.inject({method:'GET',url:'/v1/platform/auth/session',headers:{cookie,'x-forwarded-for':'8.8.8.8'}});
       users[name!]={cookie,'x-platform-csrf':s.json().csrf_token};
     }
@@ -215,5 +219,5 @@ test('tracking authorization, universal collection, bridge integrity, reviews an
     assert.equal((await app.inject({url:endpoint+'events',headers:users.admin})).statusCode,403);
     process.env.STAFF_TRACKING_ENABLED='0';
     assert.equal((await app.inject({url:endpoint+'access',headers:users.qa})).statusCode,404);
-  } finally {await app.close();closeTrackingSqlite();await (await import('../firstmeasure/project_index.js')).closeFirstMeasureProjectIndex();await rm(root,{recursive:true,force:true,maxRetries:3});}
+  } finally {await app.close();closeTrackingSqlite();await (await import('./helpers/platform-fixture.js')).closePlatformFixtureStores();await rm(root,{recursive:true,force:true,maxRetries:3});}
 });

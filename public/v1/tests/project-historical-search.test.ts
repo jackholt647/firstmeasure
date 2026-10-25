@@ -16,8 +16,10 @@ test('address searches include old reports but retain explicit dates and actor v
   for(const [id,email] of [['old-visible','tech@example.test'],['old-other','other@example.test']]){
    await index.upsertProjectIndex({id,schema_version:2,status:'completed',address:'2900 S Jefferson Ave, Springfield, MO 65807, USA',workflow:{assigned_to:{email}},timestamps:{created_at:old,updated_at:old,completed_at:old}} as any,{fileNames:['report.pdf']});
   }
+  // Each search is sent with the staff session of the person its body names (the body actor is ignored).
+  const {staffInjector}=await import('./helpers/security-fixture.js');const staffInject=staffInjector(app);
   const query=async(extra:Record<string,unknown>={})=>{
-   const response=await app.inject({method:'POST',url:'/v1/firstmeasure/projects/list',payload:{filter:'all',actor:{email:'admin@example.test',roles:['admin']},view:'card',...extra}});
+   const response=await staffInject({method:'POST',url:'/v1/firstmeasure/projects/list',payload:{filter:'all',actor:{email:'admin@example.test',roles:['admin']},view:'card',...extra}});
    assert.equal(response.statusCode,200,response.body);return response.json();
   };
   assert.equal((await query()).pagination.total_count,0);
@@ -28,5 +30,5 @@ test('address searches include old reports but retain explicit dates and actor v
   assert.equal((await query({search:'absent-name@example.test'})).pagination.total_count,0);
   const scoped=await query({search,filter:'mine',actor:{email:'tech@example.test',roles:['technician']}});
   assert.equal(scoped.pagination.total_count,1);assert.equal(scoped.projects[0].id,'old-visible');
- }finally{await app.close();await index.closeFirstMeasureProjectIndex();if(pgUrl)await(await import('../src/database/postgres.js')).closePostgresPools();await rm(root,{recursive:true,force:true,maxRetries:3});}
+ }finally{await app.close();await(await import('./helpers/platform-fixture.js')).closePlatformFixtureStores();if(pgUrl)await(await import('../src/database/postgres.js')).closePostgresPools();await rm(root,{recursive:true,force:true,maxRetries:3});}
 });

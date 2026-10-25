@@ -33,9 +33,11 @@ test("FirstMeasure API keys support encrypted, expiring, one-time delivery links
 
   const app = await buildApp();
   await app.ready();
+  // The administrator signs in to the staff organization; identity headers no longer authenticate.
+  const { staffFixture } = await import("./helpers/security-fixture.js");
+  const admin = await staffFixture({ email: "admin@example.test" });
   const adminHeaders = {
-    "x-internal-user-email": "admin@example.test",
-    "x-internal-user-name": "API Administrator",
+    ...admin.headers,
     "x-forwarded-host": "app.1m8.ai",
     "x-forwarded-proto": "https"
   };
@@ -206,6 +208,8 @@ test("FirstMeasure API keys support encrypted, expiring, one-time delivery links
     assert.equal(historicalDelivery.json().error, "api_key_secret_unavailable");
   } finally {
     await app.close();
+    // Close the platform SQLite stores so Windows can remove their files.
+    await (await import("./helpers/platform-fixture.js")).closePlatformFixtureStores();
     // SQLite can retain its WAL briefly on Windows. Clean the stores this test
     // directly exercises; the OS temp root is disposable.
     for (const directory of ["internal", "platform"]) {

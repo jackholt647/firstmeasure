@@ -78,7 +78,7 @@ test('Full House ordering validates flags, references, prices and paid queue art
  assert.deepEqual(walls.json().measurements.wallNetArea,{value:450,unit:'ft2',source:'firstmeasure.exterior'});assert.equal(walls.json().measurements.wallTopLf.value,120);
  assert.ok([401,403].includes((await app.inject({method:'GET',url:wallsUrl(id)})).statusCode),'signed-out request refused');
  const other=await app.inject({method:'POST',url:'/v1/platform/auth/register',payload:{email:'exterior-other@test.example',name:'Other Org',password:'Local-only-test-123!',phone:'+15550103783'}});assert.equal(other.statusCode,201,other.body);
- assert.equal((await app.inject({method:'GET',url:wallsUrl(id),headers:{cookie:String(other.headers['set-cookie']).match(/fm_platform_session=[^;,]+/)![0]}})).statusCode,403,'another organization is refused');
+ assert.equal((await app.inject({method:'GET',url:wallsUrl(id),headers:{cookie:String(other.headers['set-cookie']).match(/fm_platform_session=[^;,]+/)![0]}})).statusCode,404,'another organization is refused: its project reads as not found');
  // A reference that cannot be copied cancels the new project and refunds the order; nothing is left awaiting references.
  const lost=await action('exteriors_upload',{project_type:'residential',__file:{filename:'lost.png',bytes_base64:png.toString('base64')}});assert.equal(lost.statusCode,200,lost.body);
  const lostId=lost.json().media_id,lostPath=String((await readMediaMetadata(orgId,lostId) as any).variants.original.path);

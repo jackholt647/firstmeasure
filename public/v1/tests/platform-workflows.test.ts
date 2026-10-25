@@ -91,13 +91,30 @@ function createSessionClient() {
   };
 }
 
-/** A signed-in FirstMate internal admin: the referral and campaign routes refuse anyone else. */
+/**
+ * A signed-in FirstMate internal admin: the referral and campaign routes refuse
+ * anyone else. Staff are members of the staff organization with an internal
+ * user record (docs/architecture/request-security.md#principals).
+ */
 async function internalStaffClient() {
-  const staff = createSessionClient();
-  const { email } = await register(staff, false);
-  const { saveInternalUser } = await import("../internal/storage.js");
-  await saveInternalUser({ email, name: "Campaign Admin", role: "admin", status: "active" });
-  return staff;
+  const { staffFixture } = await import("./helpers/security-fixture.js");
+  const staff = await staffFixture({ name: "Campaign Admin", role: "admin", status: "active" });
+  const raw = async (method: string, url: string, payload?: unknown, headers: Record<string, string> = {}) => {
+    const response = await (app.inject as any)({ method, url, payload, headers: { ...staff.headers, ...headers } });
+    let json: any = null;
+    try {
+      json = response.body ? JSON.parse(response.body) : null;
+    } catch {
+      json = null;
+    }
+    return { statusCode: response.statusCode, headers: response.headers, body: response.body, data: json };
+  };
+  const request = async (method: string, url: string, payload?: unknown, headers: Record<string, string> = {}) => {
+    const response = await raw(method, url, payload, headers);
+    assert.ok(response.statusCode < 400, `${method} ${url} failed: ${response.statusCode} ${response.body}`);
+    return response.data;
+  };
+  return { request, raw };
 }
 
 function readAttributionMetadata(attributionId: string) {
@@ -297,6 +314,9 @@ test("customer portal photo shares include markup by default with an API-only op
   const markedThumbnail = await client.raw("GET", `/v1/platform/organizations/${orgId}/media/${mediaId}/file?variant=thumb_320_markup`);
   assert.equal(markedThumbnail.statusCode, 200);
   assert.notEqual(markedThumbnail.body, "");
+  // The portal shows the top-down thumbnail only for a FirstMeasure report of its own organization.
+  const { createProject: createMeasurementProject } = await import("../firstmeasure/storage.js");
+  await createMeasurementProject({ id: "portal_roof", address: "12 Markup Way", organization_id: orgId, organization_ref: { id: orgId } } as any);
   await client.request("PUT", `/v1/platform/organizations/${orgId}/projects/${projectId}`, {
     data: {
       id: projectId,
@@ -1510,7 +1530,8 @@ test("Post-order report expedite upgrade includes gutter add-on cost", async () 
 
   const projectId = `post_order_gutter_expedite_${Date.now()}`;
   const queuedAt = new Date().toISOString();
-  const created = await (app.inject as any)({
+  // POST /v1/firstmeasure/projects is service-only: the fixture project is written as the platform's own code writes it.
+  const created = await (await import("../platform/security/service.js")).serviceInject(app, (await import("../platform/security/principal.js")).systemPrincipal("test fixture"), {
     method: "POST",
     url: "/v1/firstmeasure/projects",
     payload: {
@@ -1571,7 +1592,8 @@ test("Post-order commercial expedite upgrade applies additional structure time",
 
   const projectId = `post_order_commercial_expedite_${Date.now()}`;
   const queuedAt = new Date().toISOString();
-  const created = await (app.inject as any)({
+  // POST /v1/firstmeasure/projects is service-only: the fixture project is written as the platform's own code writes it.
+  const created = await (await import("../platform/security/service.js")).serviceInject(app, (await import("../platform/security/principal.js")).systemPrincipal("test fixture"), {
     method: "POST",
     url: "/v1/firstmeasure/projects",
     payload: {

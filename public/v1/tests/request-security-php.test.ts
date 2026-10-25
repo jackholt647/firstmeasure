@@ -99,7 +99,7 @@ test("every staff entry point under /measure/internal uses the Node-verified sta
 
 test("nginx templates refuse unknown hosts, retired code and dotfiles", () => {
   for (const name of ["nginx-web.conf.template", "nginx-legacy.conf", "nginx-development-web.conf", "nginx-development-legacy.conf"]) {
-    const config = readFileSync(path.join(deployRoot, name), "utf8");
+    const config = readFileSync(path.join(deployRoot, name), "utf8").replace(/\r\n/g, "\n"); // a Windows checkout has CRLF
     assert.match(config, /listen 80 default_server;\s*\n\s*server_name _;[\s\S]*?location \/ \{ return 444; \}/, `${name}: default server closes unknown hosts`);
     assert.equal((config.match(/default_server/g) ?? []).length, 1, `${name}: one default server`);
     assert.match(config, /location ~ \(\^\|\/\)unused\/ \{ return 404; \}/, `${name}: unused/`);
@@ -112,7 +112,7 @@ test("nginx templates refuse unknown hosts, retired code and dotfiles", () => {
     assert.ok(unusedDeny > 0 && php > unusedDeny, `${name}: deny rules come before the PHP handler`);
   }
   for (const name of ["nginx-web.conf.template", "nginx-legacy.conf"]) {
-    const config = readFileSync(path.join(deployRoot, name), "utf8");
+    const config = readFileSync(path.join(deployRoot, name), "utf8").replace(/\r\n/g, "\n"); // a Windows checkout has CRLF
     for (const tool of ["api.php", "ide.php", "add_user.php"]) assert.match(config, new RegExp(`location = /${tool.replace(".", "\\.")} \\{ return 404; \\}`), `${name}: production denies ${tool}`);
   }
 });

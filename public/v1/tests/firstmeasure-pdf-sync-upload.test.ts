@@ -13,6 +13,8 @@ test("multipart PDF sync uploads reassemble and enqueue the original snapshot", 
   process.env.FIRSTMEASURE_STORAGE_ROOT = root;
   process.env.FIRSTMEASURE_INDEX_DB_PATH = path.join(root, "projects-index.sqlite");
   process.env.FIRSTMEASURE_JOB_WORKERS = "0";
+  process.env.INTERNAL_STORAGE_ROOT = path.join(root, "internal");
+  process.env.PLATFORM_STORAGE_ROOT = path.join(root, "platform");
 
   const projectId = "multipart-pdf-sync-test";
   const uploadId = "pdf-multipart-test-upload";
@@ -33,6 +35,9 @@ test("multipart PDF sync uploads reassemble and enqueue the original snapshot", 
     } as unknown as import("../firstmeasure/storage.js").ProjectManifest);
 
     app = await buildApp();
+    // The editor syncs PDFs for a signed-in staff member.
+    const { staffFixture } = await import("./helpers/security-fixture.js");
+    const { headers } = await staffFixture({ role: "technician" });
     const payload = Buffer.from(JSON.stringify({
       source: "inline",
       snapshot: {
@@ -53,6 +58,7 @@ test("multipart PDF sync uploads reassemble and enqueue the original snapshot", 
     const init = await app.inject({
       method: "POST",
       url: `/v1/firstmeasure/projects/${projectId}/pdfs/sync/uploads`,
+      headers,
       payload: {
         upload_id: uploadId,
         chunk_count: chunks.length,
@@ -66,6 +72,7 @@ test("multipart PDF sync uploads reassemble and enqueue the original snapshot", 
       const response: { statusCode: number; body: string } = await app.inject({
         method: "POST",
         url: `/v1/firstmeasure/projects/${projectId}/pdfs/sync/uploads/${uploadId}/chunks/${index}`,
+        headers,
         payload: { chunk_base64: chunks[index]!.toString("base64") }
       });
       assert.equal(response.statusCode, 201, response.body);
@@ -74,6 +81,7 @@ test("multipart PDF sync uploads reassemble and enqueue the original snapshot", 
     const complete = await app.inject({
       method: "POST",
       url: `/v1/firstmeasure/projects/${projectId}/pdfs/sync/uploads/${uploadId}/complete`,
+      headers,
       payload: {}
     });
     assert.equal(complete.statusCode, 202, complete.body);
@@ -83,7 +91,8 @@ test("multipart PDF sync uploads reassemble and enqueue the original snapshot", 
     assert.equal(existsSync(path.join(storage.projectDir(projectId), ".pdf-sync-uploads", uploadId)), false);
   } finally {
     await app?.close();
-    await (await import("../firstmeasure/project_index.js")).closeFirstMeasureProjectIndex();
+    // Closes the platform SQLite stores (the staff session lives there) and the project index.
+    await (await import("./helpers/platform-fixture.js")).closePlatformFixtureStores();
     await rm(root, { recursive: true, force: true, maxRetries: 2, retryDelay: 50 });
   }
 });

@@ -4,6 +4,7 @@ import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import test, { after, before } from "node:test";
+import { staffFixture } from "./helpers/security-fixture.js";
 
 
 let app: any = null;
@@ -23,16 +24,18 @@ let staffCaller: Caller | null = null;
 async function platformCaller(label: string, internal?: Record<string, unknown>): Promise<Caller> {
   const suffix = Math.random().toString(36).slice(2, 10);
   const email = `${label}-${suffix}@example.test`;
+  if (internal) {
+    // Staff are members of the staff organization with an internal user record
+    // (docs/architecture/request-security.md#principals).
+    const staff = await staffFixture({ email, name: label, ...internal });
+    return { email: staff.email, cookie: staff.cookie, csrf: staff.csrf };
+  }
   const register = await app.inject({ method: "POST", url: "/v1/platform/auth/register", payload: {
     phone: nextTestPhone(), email, password: "correct horse battery staple", name: label, company: `${label} Co`, organization_id: `org_${label.replace(/\W+/g, "_")}_${suffix}`
   } });
   assert.equal(register.statusCode, 201, register.body);
   const cookie = String(register.headers["set-cookie"]).match(/fm_platform_session=[^;,]+/)?.[0] || "";
   const session = await app.inject({ method: "GET", url: "/v1/platform/auth/session", headers: { cookie } });
-  if (internal) {
-    const { saveInternalUser } = await import("../internal/storage.js");
-    await saveInternalUser({ email, name: label, status: "active", ...internal });
-  }
   return { email, cookie, csrf: String(session.json().csrf_token || "") };
 }
 
@@ -443,11 +446,13 @@ test("Referral routes refuse anonymous and non-staff callers and serve FirstMate
   const drafter = await platformCaller("gate-drafter", { role: "drafter", permissions: { manage_queue: true } });
   const turnedOff = await platformCaller("gate-sales-manager-off", { role: "sales_manager", permissions: { manage_sales_users: false } });
   const inactive = await platformCaller("gate-inactive", { role: "admin", status: "inactive" });
-  for (const caller of [customer, drafter, turnedOff, inactive]) {
+  // The route gate refuses callers who are not staff at all; staff without a
+  // sales-management permission reach the handler, which refuses them.
+  for (const [caller, error] of [[customer, "access_denied"], [inactive, "access_denied"], [drafter, "referral_staff_required"], [turnedOff, "referral_staff_required"]] as const) {
     for (const [method, url, payload] of routes) {
       const response = await callAs(caller, method, url, payload);
       assert.equal(response.statusCode, 403, `${method} ${url} non-staff: ${response.statusCode} ${response.body}`);
-      assert.equal(response.json().error, "referral_staff_required");
+      assert.equal(response.json().error, error, `${method} ${url}: ${response.body}`);
     }
   }
 

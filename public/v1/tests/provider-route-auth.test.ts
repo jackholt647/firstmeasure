@@ -26,13 +26,15 @@ test("provider-backed routes reject anonymous callers", async (t) => {
   assert.equal(response.statusCode, 401);
 });
 
-test("the private internal service secret passes the provider-route auth gate", async (t) => {
+test("a bare internal-secret header proves nothing; a signed service request passes the provider-route auth gate", async (t) => {
   const { buildApp, env } = await appAndEnv();
   assert.ok(env.firstMeasureInternalApiSecret, "test deployment must configure application.internal_api_secret");
   const app = await buildApp();
   t.after(async () => app.close());
 
-  const response = await app.inject({
+  // The old shortcut: the secret itself in a header. It is no longer a credential
+  // (docs/architecture/request-security.md#service-calls).
+  const bare = await app.inject({
     method: "POST",
     url: "/v1/firstmeasure/projects/queue",
     headers: {
@@ -41,5 +43,16 @@ test("the private internal service secret passes the provider-route auth gate", 
     },
     payload: {}
   });
-  assert.notEqual(response.statusCode, 401);
+  assert.equal(bare.statusCode, 401, bare.body);
+
+  // How PHP calls Node now: a request signed with the internal secret, here for unattended work.
+  const { signedServiceHeaders } = await import("./helpers/security-fixture.js");
+  const body = "{}";
+  const response = await app.inject({
+    method: "POST",
+    url: "/v1/firstmeasure/projects/queue",
+    headers: await signedServiceHeaders("POST", "/v1/firstmeasure/projects/queue", "system", body),
+    payload: body
+  });
+  assert.notEqual(response.statusCode, 401, response.body);
 });

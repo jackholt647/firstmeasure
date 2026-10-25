@@ -14,6 +14,7 @@ test("technician corrections return to the original QA within their priority", a
   process.env.FIRSTMEASURE_INDEX_DB_PATH = path.join(root, "projects-index.sqlite");
   process.env.FIRSTMEASURE_JOB_WORKERS = "0";
   process.env.INTERNAL_STORAGE_ROOT = path.join(root, "internal");
+  process.env.PLATFORM_STORAGE_ROOT = path.join(root, "platform");
 
   const originalQa = { email: "original-qa@example.test", name: "Original QA" };
   const otherQa = { email: "other-qa@example.test", name: "Other QA" };
@@ -67,23 +68,35 @@ test("technician corrections return to the original QA within their priority", a
 
     const app = await buildApp();
     await app.ready();
+    // Each call is sent with the staff session of the person its body names
+    // (the server ignores the body actor); the editor calls without one run as a QA.
+    const { staffInjector } = await import("./helpers/security-fixture.js");
+    const nightShiftQa = { email: "night-qa@example.test", name: "Night QA" };
+    const staffInject = staffInjector(app, {
+      [originalQa.email]: { role: "qa", name: originalQa.name },
+      [otherQa.email]: { role: "qa", name: otherQa.name },
+      // A QA user whose staff record puts them on a team (formerly sent as actor.team_id).
+      [nightShiftQa.email]: { role: "qa", name: nightShiftQa.name, team_id: "night-shift" },
+      "tech@example.test": { role: "technician", name: "Tech" },
+      "manager@example.test": { role: "manager", name: "Manager" }
+    }, { role: "qa", email: "editor-qa@example.test" });
     try {
       const qaDraftThread = { id: "draft-qa-1", status: "open", history: [{ text: "Missing ridge note" }] };
-      const saveQaDraft = await app.inject({
+      const saveQaDraft = await staffInject({
         method: "POST",
         url: "/v1/firstmeasure/projects/fresh-p1/editor/qa-thread-drafts",
         payload: { scope: "qa", threads: [qaDraftThread] }
       });
       assert.equal(saveQaDraft.statusCode, 200, saveQaDraft.body);
 
-      const staleEditorSave = await app.inject({
+      const staleEditorSave = await staffInject({
         method: "POST",
         url: "/v1/firstmeasure/projects/fresh-p1/editor/save",
         payload: { metadata: { geometry: { large_project_save: true }, qa_thread_drafts: {} } }
       });
       assert.equal(staleEditorSave.statusCode, 200, staleEditorSave.body);
 
-      const editorWithDurableDraft = await app.inject({
+      const editorWithDurableDraft = await staffInject({
         method: "GET",
         url: "/v1/firstmeasure/projects/fresh-p1/editor"
       });
@@ -91,18 +104,18 @@ test("technician corrections return to the original QA within their priority", a
       assert.deepEqual(editorWithDurableDraft.json().app_metadata.qa_thread_drafts.qa.threads, [qaDraftThread],
         "a slower full editor metadata save must not erase a newer QA feedback draft");
 
-      const clearQaDraft = await app.inject({
+      const clearQaDraft = await staffInject({
         method: "POST",
         url: "/v1/firstmeasure/projects/fresh-p1/editor/qa-thread-drafts",
         payload: { scope: "qa", clear: true }
       });
       assert.equal(clearQaDraft.statusCode, 409, "an unsubmitted feedback draft cannot be erased by a late clear request");
 
-      const rosterTeamBootstrap = await app.inject({
+      const rosterTeamBootstrap = await staffInject({
         method: "POST",
         url: "/v1/firstmeasure/qa/bootstrap",
         payload: {
-          actor: { ...otherQa, team_id: "night-shift", roles: ["qa"] },
+          actor: { ...nightShiftQa, team_id: "night-shift", roles: ["qa"] },
           can_do_qa: true
         }
       });
@@ -110,11 +123,11 @@ test("technician corrections return to the original QA within their priority", a
       assert.equal(rosterTeamBootstrap.json().stats.has_available_next, true,
         "a QA user's staff team must not implicitly hide the shared project queue");
 
-      const explicitlyScopedBootstrap = await app.inject({
+      const explicitlyScopedBootstrap = await staffInject({
         method: "POST",
         url: "/v1/firstmeasure/qa/bootstrap",
         payload: {
-          actor: { ...otherQa, team_id: "night-shift", roles: ["qa"] },
+          actor: { ...nightShiftQa, team_id: "night-shift", roles: ["qa"] },
           can_do_qa: true,
           team_id: "night-shift"
         }
@@ -123,7 +136,7 @@ test("technician corrections return to the original QA within their priority", a
       assert.equal(explicitlyScopedBootstrap.json().stats.has_available_next, false,
         "an explicitly requested project-team scope must still be honored");
 
-      const rejection = await app.inject({
+      const rejection = await staffInject({
         method: "POST",
         url: "/v1/firstmeasure/projects/returned-p3/qa/decision",
         payload: { actor: originalQa, status: "rejected", failures: [{ code: "test_failure" }], threads: [] }
@@ -158,7 +171,7 @@ test("technician corrections return to the original QA within their priority", a
           history: []
         }
       });
-      const onlineRejection = await app.inject({
+      const onlineRejection = await staffInject({
         method: "POST",
         url: "/v1/firstmeasure/projects/online-tech-return/qa/decision",
         payload: { actor: originalQa, status: "rejected", failures: [], threads: [] }
@@ -192,7 +205,7 @@ test("technician corrections return to the original QA within their priority", a
           history: []
         }
       });
-      const offlineRejection = await app.inject({
+      const offlineRejection = await staffInject({
         method: "POST",
         url: "/v1/firstmeasure/projects/explicitly-offline-return/qa/decision",
         payload: { actor: originalQa, status: "rejected", failures: [], threads: [] }
@@ -212,7 +225,7 @@ test("technician corrections return to the original QA within their priority", a
         (error: unknown) => (error as { code?: string }).code === "qa_feedback_unresolved"
       );
 
-      const submittedOpenFeedback = await app.inject({
+      const submittedOpenFeedback = await staffInject({
         method: "POST",
         url: "/v1/firstmeasure/projects/open-feedback-return/drafter/qa-response",
         payload: {
@@ -223,7 +236,7 @@ test("technician corrections return to the original QA within their priority", a
       assert.equal(submittedOpenFeedback.statusCode, 409, submittedOpenFeedback.body);
       assert.equal(submittedOpenFeedback.json().error, "qa_feedback_unresolved");
 
-      const handledFeedback = await app.inject({
+      const handledFeedback = await staffInject({
         method: "POST",
         url: "/v1/firstmeasure/projects/open-feedback-return/drafter/qa-response",
         payload: {
@@ -236,14 +249,14 @@ test("technician corrections return to the original QA within their priority", a
       assert.equal(handledFeedback.json().manifest.qa_threads[0].status, "fixed");
       await storage.updateStatus("open-feedback-return", "completed");
 
-      const p2Correction = await app.inject({
+      const p2Correction = await staffInject({
         method: "POST",
         url: "/v1/firstmeasure/projects/returned-p2/drafter/qa-response",
         payload: { actor: { email: "tech@example.test", name: "Tech" }, threads: [] }
       });
       assert.equal(p2Correction.statusCode, 200, p2Correction.body);
 
-      const correctionResponse = await app.inject({
+      const correctionResponse = await staffInject({
         method: "POST",
         url: "/v1/firstmeasure/projects/returned-p3/drafter/qa-response",
         payload: { actor: { email: "tech@example.test", name: "Tech" }, threads: [] }
@@ -257,7 +270,7 @@ test("technician corrections return to the original QA within their priority", a
       assert.equal(corrected.workflow.qa_claim.claim_reason, "correction_return");
       assert.ok(Date.parse(corrected.qa_return_hold_expires_at) > Date.now());
 
-      const blockedClaim = await app.inject({
+      const blockedClaim = await staffInject({
         method: "POST",
         url: "/v1/firstmeasure/projects/returned-p3/qa/claim",
         payload: { actor: otherQa }
@@ -274,7 +287,7 @@ test("technician corrections return to the original QA within their priority", a
         hidden_from_queue: false
       });
 
-      const peek = await app.inject({
+      const peek = await staffInject({
         method: "POST",
         url: "/v1/firstmeasure/qa/queue/peek",
         payload: { actor: originalQa, limit: 10 }
@@ -289,7 +302,7 @@ test("technician corrections return to the original QA within their priority", a
       assert.equal(returnedQueueRow.qa_available, false);
       assert.equal(returnedQueueRow.hidden_from_queue, true);
 
-      const pull = await app.inject({
+      const pull = await staffInject({
         method: "POST",
         url: "/v1/firstmeasure/qa/queue/pull",
         payload: { actor: originalQa, count: 4 }
@@ -308,7 +321,7 @@ test("technician corrections return to the original QA within their priority", a
         qa_return_to_email: originalQa.email,
         qa_return_to_name: originalQa.name
       });
-      const secondCorrection = await app.inject({
+      const secondCorrection = await staffInject({
         method: "POST",
         url: "/v1/firstmeasure/projects/expired-return/drafter/qa-response",
         payload: { actor: { email: "tech@example.test", name: "Tech" }, threads: [] }
@@ -318,7 +331,7 @@ test("technician corrections return to the original QA within their priority", a
         qa_return_hold_expires_at: new Date(Date.now() - 1_000).toISOString()
       });
 
-      const takeover = await app.inject({
+      const takeover = await staffInject({
         method: "POST",
         url: "/v1/firstmeasure/projects/expired-return/qa/claim",
         payload: { actor: otherQa }
@@ -327,14 +340,14 @@ test("technician corrections return to the original QA within their priority", a
       assert.equal(takeover.json().success, true);
       assert.equal(takeover.json().claimed_by, otherQa.email);
 
-      const repeatRejection = await app.inject({
+      const repeatRejection = await staffInject({
         method: "POST",
         url: "/v1/firstmeasure/projects/expired-return/qa/decision",
         payload: { actor: otherQa, status: "rejected", failures: [], threads: [] }
       });
       assert.equal(repeatRejection.statusCode, 200, repeatRejection.body);
       assert.equal(repeatRejection.json().manifest.qa_return_to_email, otherQa.email);
-      const repeatCorrection = await app.inject({
+      const repeatCorrection = await staffInject({
         method: "POST",
         url: "/v1/firstmeasure/projects/expired-return/drafter/qa-response",
         payload: { actor: { email: "tech@example.test", name: "Tech" }, threads: [] }
@@ -369,7 +382,7 @@ test("technician corrections return to the original QA within their priority", a
       await saveProject("history-return", "correction_needed", 3, {
         qa_history: [{ decision: "rejected", qa_email: originalQa.email, qa_name: originalQa.name }]
       });
-      const historyFallback = await app.inject({
+      const historyFallback = await staffInject({
         method: "POST",
         url: "/v1/firstmeasure/projects/history-return/drafter/qa-response",
         payload: { actor: { email: "tech@example.test", name: "Tech" }, threads: [] }
@@ -378,7 +391,7 @@ test("technician corrections return to the original QA within their priority", a
       assert.equal(historyFallback.json().manifest.qa_claimed_by_email, originalQa.email);
 
       await saveProject("ownerless-return", "correction_needed", 3);
-      const ownerless = await app.inject({
+      const ownerless = await staffInject({
         method: "POST",
         url: "/v1/firstmeasure/projects/ownerless-return/drafter/qa-response",
         payload: { actor: { email: "tech@example.test", name: "Tech" }, threads: [] }
@@ -396,7 +409,7 @@ test("technician corrections return to the original QA within their priority", a
         () => updateStatusForSubmission("manager-return", "awaiting_manager_review"),
         (error: unknown) => (error as { code?: string }).code === "qa_feedback_unresolved"
       );
-      const managerCorrection = await app.inject({
+      const managerCorrection = await staffInject({
         method: "POST",
         url: "/v1/firstmeasure/projects/manager-return/drafter/qa-response",
         payload: {
@@ -412,7 +425,7 @@ test("technician corrections return to the original QA within their priority", a
       await saveProject("concurrent-return", "correction_needed", 2, {
         correction_requested_by: originalQa.email
       });
-      const concurrentCorrection = await app.inject({
+      const concurrentCorrection = await staffInject({
         method: "POST",
         url: "/v1/firstmeasure/projects/concurrent-return/drafter/qa-response",
         payload: { actor: { email: "tech@example.test", name: "Tech" }, threads: [] }
@@ -422,12 +435,12 @@ test("technician corrections return to the original QA within their priority", a
         qa_return_hold_expires_at: new Date(Date.now() - 1_000).toISOString()
       });
       const concurrentClaims = await Promise.all([
-        app.inject({
+        staffInject({
           method: "POST",
           url: "/v1/firstmeasure/projects/concurrent-return/qa/claim",
           payload: { actor: { email: "race-a@example.test", name: "Race A" } }
         }),
-        app.inject({
+        staffInject({
           method: "POST",
           url: "/v1/firstmeasure/projects/concurrent-return/qa/claim",
           payload: { actor: { email: "race-b@example.test", name: "Race B" } }
@@ -451,7 +464,7 @@ test("technician corrections return to the original QA within their priority", a
           history: []
         }
       });
-      const forceRelease = await app.inject({
+      const forceRelease = await staffInject({
         method: "POST",
         url: "/v1/firstmeasure/projects/force-release-claimed/qa/release-claim",
         payload: {
@@ -481,7 +494,7 @@ test("technician corrections return to the original QA within their priority", a
         work_history: [{ ts: stableClaimedAt, event: "qa_claimed", qa_email: originalQa.email }]
       });
 
-      const repeatClaim = await app.inject({
+      const repeatClaim = await staffInject({
         method: "POST",
         url: "/v1/firstmeasure/projects/stable-qa-timer/qa/claim",
         payload: { actor: originalQa }
@@ -489,7 +502,7 @@ test("technician corrections return to the original QA within their priority", a
       assert.equal(repeatClaim.statusCode, 200, repeatClaim.body);
       assert.equal(repeatClaim.json().success, true);
 
-      const heartbeat = await app.inject({
+      const heartbeat = await staffInject({
         method: "POST",
         url: "/v1/firstmeasure/qa/session/heartbeat",
         payload: { actor: originalQa, current_folder: "stable-qa-timer", active: true }
@@ -532,7 +545,7 @@ test("technician corrections return to the original QA within their priority", a
         }
       });
 
-      const staleTakeover = await app.inject({
+      const staleTakeover = await staffInject({
         method: "POST",
         url: "/v1/firstmeasure/projects/general-activity-ghost/qa/claim",
         payload: { actor: otherQa }
@@ -563,7 +576,7 @@ test("technician corrections return to the original QA within their priority", a
           history: []
         }
       });
-      const cleanupBootstrap = await app.inject({
+      const cleanupBootstrap = await staffInject({
         method: "POST",
         url: "/v1/firstmeasure/qa/bootstrap",
         payload: { actor: otherQa, can_do_qa: true, release_stale: true }
@@ -613,7 +626,7 @@ test("technician corrections return to the original QA within their priority", a
         WHERE id = ?
       `).run(JSON.stringify(staleIndexManifest), "split-claim-index");
 
-      const indexedConflict = await app.inject({
+      const indexedConflict = await staffInject({
         method: "POST",
         url: "/v1/firstmeasure/projects/split-claim-index/qa/claim",
         payload: { actor: otherQa }
@@ -626,7 +639,7 @@ test("technician corrections return to the original QA within their priority", a
 
       await saveProject("claim-cache-refresh", "awaiting_review", 2);
       const overviewPayload = { view: "card", include: ["qa"], bucket_limit: 500 };
-      const overviewBeforeClaim = await app.inject({
+      const overviewBeforeClaim = await staffInject({
         method: "POST",
         url: "/v1/firstmeasure/queue/admin/overview/compat",
         payload: overviewPayload
@@ -635,7 +648,7 @@ test("technician corrections return to the original QA within their priority", a
       const beforeClaimRow = overviewBeforeClaim.json().qa.find((row: Record<string, unknown>) => row.id === "claim-cache-refresh");
       assert.equal(String(beforeClaimRow?.qa_claimed_by_email ?? ""), "");
 
-      const cacheRefreshClaim = await app.inject({
+      const cacheRefreshClaim = await staffInject({
         method: "POST",
         url: "/v1/firstmeasure/projects/claim-cache-refresh/qa/claim",
         payload: { actor: originalQa }
@@ -643,7 +656,7 @@ test("technician corrections return to the original QA within their priority", a
       assert.equal(cacheRefreshClaim.statusCode, 200, cacheRefreshClaim.body);
       assert.equal(cacheRefreshClaim.json().success, true);
 
-      const overviewAfterClaim = await app.inject({
+      const overviewAfterClaim = await staffInject({
         method: "POST",
         url: "/v1/firstmeasure/queue/admin/overview/compat",
         payload: overviewPayload
@@ -652,13 +665,13 @@ test("technician corrections return to the original QA within their priority", a
       assert.equal(afterClaimRow?.qa_claimed_by_email, originalQa.email,
         "claiming a project must invalidate the cached queue snapshot immediately");
 
-      const cacheRefreshRelease = await app.inject({
+      const cacheRefreshRelease = await staffInject({
         method: "POST",
         url: "/v1/firstmeasure/projects/claim-cache-refresh/qa/release-claim",
         payload: { actor: originalQa, reason: "test_release" }
       });
       assert.equal(cacheRefreshRelease.statusCode, 200, cacheRefreshRelease.body);
-      const overviewAfterRelease = await app.inject({
+      const overviewAfterRelease = await staffInject({
         method: "POST",
         url: "/v1/firstmeasure/queue/admin/overview/compat",
         payload: overviewPayload
@@ -670,7 +683,7 @@ test("technician corrections return to the original QA within their priority", a
       await saveProject("scoped-release-current", "awaiting_review", 2);
       await saveProject("scoped-release-other-tab", "awaiting_review", 2);
       for (const projectId of ["scoped-release-current", "scoped-release-other-tab"]) {
-        const claim = await app.inject({
+        const claim = await staffInject({
           method: "POST",
           url: `/v1/firstmeasure/projects/${projectId}/qa/claim`,
           payload: { actor: originalQa }
@@ -678,7 +691,7 @@ test("technician corrections return to the original QA within their priority", a
         assert.equal(claim.statusCode, 200, claim.body);
         assert.equal(claim.json().success, true);
       }
-      const scopedRelease = await app.inject({
+      const scopedRelease = await staffInject({
         method: "POST",
         url: "/v1/firstmeasure/qa/session/release",
         payload: {
@@ -710,7 +723,8 @@ test("technician corrections return to the original QA within their priority", a
       }
     } finally {
       await app.close();
-      await index.closeFirstMeasureProjectIndex();
+      // Closes the platform SQLite stores (the staff sessions live there) and the project index.
+      await (await import("./helpers/platform-fixture.js")).closePlatformFixtureStores();
     }
   } finally {
     const resolved = path.resolve(root);

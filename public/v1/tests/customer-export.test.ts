@@ -51,6 +51,9 @@ test('real export action preserves customer fields and never uses dashboard mini
  if(pgUrl)Object.assign(process.env,{DATABASE_URL:pgUrl,DATABASE_ADMIN_URL:pgUrl,POSTGRES_AUTO_MIGRATE:'true',POSTGRES_POOL_MAX:'1'});
  const storage=await import('../platform/storage.js');const {buildApp}=await import('../src/app.js');
  const app=await buildApp();await app.ready();
+ // Customer exports are a full-admin staff console action: a staff session, not an email header.
+ const {staffFixture}=await import('./helpers/security-fixture.js');
+ const admin=await staffFixture({role:'admin'});
  let lock:any;
  try{
   for(let i=0;i<27;i++){
@@ -62,7 +65,7 @@ test('real export action preserves customer fields and never uses dashboard mini
    const {default:pg}=await import('pg');lock=new pg.Client({connectionString:pgUrl});await lock.connect();
    await lock.query('BEGIN');await lock.query("SELECT document FROM platform_documents WHERE collection='global' FOR UPDATE");
   }
-  const page=async(after='')=>(await app.inject({method:'POST',url:'/v1/internal/legacy-action',headers:{'x-internal-user-email':'admin@example.test'},payload:{action:'customer_users_export_page',after}})).json();
+  const page=async(after='')=>(await app.inject({method:'POST',url:'/v1/internal/legacy-action',headers:admin.headers,payload:{action:'customer_users_export_page',after}})).json();
   const first=await page();assert.equal(first.success,true);assert.equal(first.organizations.length,25);assert.ok(first.next_cursor);
   const next=await page(first.next_cursor);assert.equal(next.organizations.length,2);assert.equal(next.next_cursor,null);
   for(const row of [...first.organizations,...next.organizations]){
@@ -70,10 +73,10 @@ test('real export action preserves customer fields and never uses dashboard mini
   }
   let cursor:any=null;const exported:string[]=[];
   do{
-   const result=(await app.inject({method:'POST',url:'/v1/internal/legacy-action',headers:{'x-internal-user-email':'admin@example.test'},payload:{action:'customer_credit_export_page',cursor}})).json();
+   const result=(await app.inject({method:'POST',url:'/v1/internal/legacy-action',headers:admin.headers,payload:{action:'customer_credit_export_page',cursor}})).json();
    assert.equal(result.success,true);assert.ok(result.rows.length<=500);
    exported.push(...result.rows.map((row:any)=>`${row.organization_id}:${row.ledger_ordinal}`));cursor=result.next_cursor;
   }while(cursor);
   assert.equal(exported.length,1027);assert.equal(new Set(exported).size,1027);
- }finally{if(lock){await lock.query('ROLLBACK');await lock.end();}await app.close();await(await import('../firstmeasure/project_index.js')).closeFirstMeasureProjectIndex();if(pgUrl)await(await import('../src/database/postgres.js')).closePostgresPools();await rm(root,{recursive:true,force:true,maxRetries:3});}
+ }finally{if(lock){await lock.query('ROLLBACK');await lock.end();}await app.close();await(await import('./helpers/platform-fixture.js')).closePlatformFixtureStores();if(pgUrl)await(await import('../src/database/postgres.js')).closePostgresPools();await rm(root,{recursive:true,force:true,maxRetries:3});}
 });

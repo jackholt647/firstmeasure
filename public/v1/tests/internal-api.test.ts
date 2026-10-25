@@ -10,6 +10,43 @@ let app: any = null;
 let storageRoot = "";
 let platformStorage: any = null;
 
+const CONSOLE_ADMIN = "console-admin@firstmate.example.test";
+const staffSessions = new Map<string, Promise<Record<string, string>>>();
+
+/**
+ * The staff session of `email` (docs/architecture/request-security.md): the
+ * person keeps the internal user record the test gave them; anyone without
+ * one is made a full admin, the staff console's usual operator (outside
+ * production, so the department listings below see only the test's users).
+ */
+function staffHeaders(email: string) {
+  const key = email.toLowerCase();
+  let headers = staffSessions.get(key);
+  if (!headers) {
+    headers = (async () => {
+      const { readInternalUser } = await import("../internal/storage.js");
+      const { staffFixture } = await import("./helpers/security-fixture.js");
+      const existing = await readInternalUser(key).catch(() => null);
+      return (await staffFixture({ ...(existing ? {} : { role: "admin", department: "administration", name: key === CONSOLE_ADMIN ? "Console Admin" : key }), email: key })).headers;
+    })();
+    staffSessions.set(key, headers);
+  }
+  return headers;
+}
+
+/**
+ * Staff console calls are sent with the session of the person they name (an
+ * old `x-internal-user-email` header or `actor_email`, which the server now
+ * ignores), else of a full admin.
+ */
+async function callerHeaders(url: string, payload: unknown, headers: Record<string, string> = {}) {
+  if (!/^\/v1\/(internal|firstmeasure)(\/|\?|$)/.test(url)) return headers;
+  const input = payload && typeof payload === "object" ? payload as Record<string, unknown> : {};
+  const { "x-internal-user-email": headerEmail, "x-internal-user-role": _role, ...rest } = headers;
+  const email = String(headerEmail || input.actor_email || CONSOLE_ADMIN);
+  return { ...(await staffHeaders(email)), ...rest };
+}
+
 async function inject(method: string, url: string, payload?: unknown, headers: Record<string, string> = {}) {
   const input = payload as Record<string, unknown> | undefined;
   const teamId = String(input?.team_id || input?.team || "");
@@ -17,7 +54,7 @@ async function inject(method: string, url: string, payload?: unknown, headers: R
     const { saveInternalDocument } = await import("../internal/storage.js");
     await saveInternalDocument("teams", teamId, { name: teamId, manager_user_ids: [], archived: false });
   }
-  const response = await app.inject({ method, url, payload, headers });
+  const response = await app.inject({ method, url, payload, headers: await callerHeaders(url, payload, headers) });
   let json: any = null;
   try {
     json = response.body ? JSON.parse(response.body) : null;
@@ -171,6 +208,7 @@ test("Shift editing is manager-only and statistics are full-admin-only", async (
   const deniedShift = await app.inject({
     method: "POST",
     url: "/v1/internal/legacy-action",
+    headers: await staffHeaders("permissions-tech@example.test"),
     payload: {
       action: "shift_save_schedule",
       actor_email: "permissions-tech@example.test",
@@ -179,32 +217,35 @@ test("Shift editing is manager-only and statistics are full-admin-only", async (
     }
   });
   assert.equal(deniedShift.statusCode, 403);
-  assert.equal(JSON.parse(deniedShift.body).error, "manager_required");
+  // The staff-level guard (LEGACY_ACTION_LEVELS) refuses before the handler's own manager check.
+  assert.equal(JSON.parse(deniedShift.body).error, "staff_level_required");
 
   const deniedDirectShift = await app.inject({
     method: "POST",
     url: "/v1/internal/shifts/schedules/permissions-tech%40example.test",
-    headers: { "x-internal-user-email": "permissions-tech@example.test" },
+    headers: await staffHeaders("permissions-tech@example.test"),
     payload: { recurring: { monday: [{ start: "09:00", end: "17:00", role: "technician" }] } }
   });
   assert.equal(deniedDirectShift.statusCode, 403);
-  assert.equal(JSON.parse(deniedDirectShift.body).error, "manager_required");
+  // The route is declared manager-only, so the route gate refuses a technician.
+  assert.equal(JSON.parse(deniedDirectShift.body).error, "access_denied");
 
   const deniedStats = await app.inject({
     method: "POST",
     url: "/v1/internal/legacy-action",
+    headers: await staffHeaders("tech@example.test"),
     payload: { action: "stats_data", actor_email: "tech@example.test" }
   });
   assert.equal(deniedStats.statusCode, 403);
-  assert.equal(JSON.parse(deniedStats.body).error, "admin_required");
+  assert.equal(JSON.parse(deniedStats.body).error, "staff_level_required");
 
   const deniedStatsOverview = await app.inject({
     method: "GET",
     url: "/v1/internal/stats/overview",
-    headers: { "x-internal-user-email": "tech@example.test" }
+    headers: await staffHeaders("tech@example.test")
   });
   assert.equal(deniedStatsOverview.statusCode, 403);
-  assert.equal(JSON.parse(deniedStatsOverview.body).error, "admin_required");
+  assert.equal(JSON.parse(deniedStatsOverview.body).error, "access_denied");
 
   const adminStats = await inject("POST", "/v1/internal/legacy-action", {
     action: "stats_data",
@@ -367,7 +408,10 @@ test("Internal API exposes organization dashboard/detail and credit adjustments 
       }
     }
   });
-  const indexedOnlyProject = await app.inject({
+  // Fixture projects are written the way the platform's own code writes them (POST /projects is service-only).
+  const { serviceInject } = await import("../platform/security/service.js");
+  const { systemPrincipal } = await import("../platform/security/principal.js");
+  const indexedOnlyProject = await serviceInject(app, systemPrincipal("test fixture"), {
     method: "POST",
     url: "/v1/firstmeasure/projects",
     payload: {
@@ -382,7 +426,7 @@ test("Internal API exposes organization dashboard/detail and credit adjustments 
     headers: { "content-type": "application/json" }
   });
   assert.equal(indexedOnlyProject.statusCode, 201, indexedOnlyProject.body);
-  const indexedDuplicateProject = await app.inject({
+  const indexedDuplicateProject = await serviceInject(app, systemPrincipal("test fixture"), {
     method: "POST",
     url: "/v1/firstmeasure/projects",
     payload: {

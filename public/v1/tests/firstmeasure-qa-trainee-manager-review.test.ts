@@ -14,6 +14,7 @@ test("VIP projects and projects approved by trainee QA both require manager revi
   process.env.FIRSTMEASURE_INDEX_DB_PATH = path.join(root, "firstmeasure", "projects-index.sqlite");
   process.env.FIRSTMEASURE_JOB_WORKERS = "0";
   process.env.INTERNAL_STORAGE_ROOT = path.join(root, "internal");
+  process.env.PLATFORM_STORAGE_ROOT = path.join(root, "platform");
 
   try {
     const storage = await import("../firstmeasure/storage.js");
@@ -59,8 +60,11 @@ test("VIP projects and projects approved by trainee QA both require manager revi
 
     const app = await buildApp();
     await app.ready();
+    // Each reviewer calls with their own staff session; their QA records above say who is a trainee.
+    const { staffInjector } = await import("./helpers/security-fixture.js");
+    const staffInject = staffInjector(app, { "manager@example.test": { role: "manager" } });
     try {
-      const approve = (id: string, actor: typeof trainee) => app.inject({
+      const approve = (id: string, actor: typeof trainee) => staffInject({
         method: "POST",
         url: `/v1/firstmeasure/projects/${id}/qa/decision`,
         payload: { actor, status: "approved", threads: [] }
@@ -82,7 +86,7 @@ test("VIP projects and projects approved by trainee QA both require manager revi
 
       // The approval response is not what the manager queue renders. Exercise
       // its compact bootstrap projection, which previously dropped the reasons.
-      const bootstrap = await app.inject({
+      const bootstrap = await staffInject({
         method: "POST", url: "/v1/firstmeasure/qa/bootstrap",
         payload: { actor: { email: "manager@example.test", roles: ["manager"] } }
       });

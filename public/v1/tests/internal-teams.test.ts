@@ -16,6 +16,26 @@ async function saveSyntheticReport(projectId: string) {
   await saveStoredPdf(projectId, "main", await pdf.save());
 }
 
+const staffSessions = new Map<string, Promise<Record<string, string>>>();
+
+/**
+ * The staff session of `email` (identity headers no longer authenticate): the
+ * internal user the test created, or a full admin for the console operator.
+ */
+function staffHeaders(email: string) {
+  let headers = staffSessions.get(email);
+  if (!headers) {
+    headers = (async () => {
+      const { readInternalUser } = await import("../internal/storage.js");
+      const { staffFixture } = await import("./helpers/security-fixture.js");
+      const existing = await readInternalUser(email).catch(() => null);
+      return (await staffFixture({ ...(existing ? {} : { role: "admin", name: "Console Admin" }), email })).headers;
+    })();
+    staffSessions.set(email, headers);
+  }
+  return headers;
+}
+
 async function request(
   method: "GET" | "POST" | "PUT" | "PATCH",
   url: string,
@@ -23,12 +43,10 @@ async function request(
   expectedStatus = 200,
   internalUserEmail = "admin@example.test"
 ) {
-  const response = await app.inject({
-    method,
-    url,
-    payload,
-    headers: { "x-internal-user-email": internalUserEmail }
-  });
+  // POST /v1/firstmeasure/projects is service-only: fixture projects are written as our own code writes them.
+  const response = method === "POST" && url === "/v1/firstmeasure/projects"
+    ? await (await import("../platform/security/service.js")).serviceInject(app, (await import("../platform/security/principal.js")).systemPrincipal("test fixture"), { method, url, payload })
+    : await app.inject({ method, url, payload, headers: await staffHeaders(internalUserEmail) });
   assert.equal(response.statusCode, expectedStatus, response.body);
   return response.json();
 }
@@ -52,6 +70,8 @@ before(async () => {
 
 after(async () => {
   await app?.close();
+  // Close the platform SQLite stores so Windows can remove their files.
+  await (await import("./helpers/platform-fixture.js")).closePlatformFixtureStores();
   // The FirstMeasure SQLite WAL can remain briefly locked on Windows after Fastify closes.
   // Clean the stores owned by this test and leave that OS-temporary directory for normal cleanup.
   if (root) {
@@ -74,7 +94,8 @@ test("internal teams persist names, managers, stats, and tracked assignments", a
   }, 400);
   assert.equal(invalidEmail.error, "invalid_email");
   const emptyUsers = await request("GET", "/v1/internal/users");
-  assert.equal(emptyUsers.count, 0);
+  // Only the signed-in admin exists: staff are identified by their own internal user record.
+  assert.deepEqual(emptyUsers.users.map((user: { email: string }) => user.email), ["admin@example.test"]);
 
   const manager = await request("POST", "/v1/internal/users", {
     email: "manager@example.test",
@@ -125,7 +146,8 @@ test("internal teams persist names, managers, stats, and tracked assignments", a
   assert.equal(teams.count, 1);
   assert.equal(teams.teams[0].name, "North Production");
   assert.deepEqual(teams.teams[0].stats, { members: 2, managers: 1, qas: 1, technicians: 0 });
-  assert.deepEqual(teams.unassigned_stats, { members: 1, managers: 0, qas: 0, technicians: 1 });
+  // The unassigned members are the technician and the signed-in admin.
+  assert.deepEqual(teams.unassigned_stats, { members: 2, managers: 0, qas: 0, technicians: 1 });
 
   await request("PATCH", `/v1/internal/users/${technician.user.id}`, { team_id: created.team.id });
   const otherTeam = await request("POST", "/v1/internal/teams", { name: "South Production" }, 201);

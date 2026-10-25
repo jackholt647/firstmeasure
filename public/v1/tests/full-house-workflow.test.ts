@@ -30,7 +30,11 @@ test('full-house qualifications, reviewed PDFs, QA and quality audits; roof comp
   assert.equal(await contracts.fullHouseEligible(tech.email, 'qa'), false);
   assert.equal(await contracts.fullHouseEligible(qa.email, 'draft'), false);
   const app = await buildApp();
-  const post = (route: string, payload: object) => app.inject({ method: 'POST', url: '/v1/firstmeasure/' + route, payload });
+  // Each call carries the staff session of the person its body names; status
+  // submissions (no actor) come from the drafting technician.
+  const { staffInjector } = await import('./helpers/security-fixture.js');
+  const staffInject = staffInjector(app, {}, { email: tech.email });
+  const post = (route: string, payload: object) => staffInject({ method: 'POST', url: '/v1/firstmeasure/' + route, payload });
   const id = 'exteriors_' + 'a'.repeat(32);
   const roofId = 'roof-compatibility-report';
   const create = async (projectId: string, full: boolean) => {
@@ -96,7 +100,7 @@ test('full-house qualifications, reviewed PDFs, QA and quality audits; roof comp
     assert.equal(delivery?.payload.pdf_sync_revision, revision);
     assert.deepEqual((await storage.readStoredPdf(id, 'main')).content, pdf);
     await users.saveInternalUser({ ...qa, permissions: { perform_manager_review: true } });
-    const audit = await app.inject({ method: 'POST', url: '/v1/internal/legacy-action', payload: { action: 'manager_audit_mark', actor: qa, folder: id, audit_status: 'flagged', issue_categories: ['missing_or_incorrect_gutters'], severity: 'major' } });
+    const audit = await staffInject({ method: 'POST', url: '/v1/internal/legacy-action', payload: { action: 'manager_audit_mark', actor: qa, folder: id, audit_status: 'flagged', issue_categories: ['missing_or_incorrect_gutters'], severity: 'major' } });
     assert.equal(audit.statusCode, 200, audit.body);
     const audited = await storage.readManifest(id);
     assert.equal(((audited.manager_audit_record as Record<string, unknown>).sample as Record<string, unknown>).measurement_scope, 'full_house');

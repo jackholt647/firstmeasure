@@ -40,8 +40,11 @@ test("cutover curriculum fallback preserves new progress and explicit primary cu
     await json(path.join(oldUser, "projects", projectId, "metadata.json"), { geometry: { points: [{ x: 42, y: 21 }] } });
     await json(path.join(oldUser, "projects", projectId, "artifacts", "proof.json"), { saved: true });
     const app = await buildApp();
+    // The student calls with their own staff session (the body actor is ignored by the server).
+    const { staffInjector } = await import("./helpers/security-fixture.js");
+    const staffInject = staffInjector(app);
     try {
-      const fetch = (course_id = "default") => app.inject({ method: "POST", url: "/v1/internal/legacy-action", payload: { action: "fetch_curriculum", course_id, actor: { email: "student@example.test" } } });
+      const fetch = (course_id = "default") => staffInject({ method: "POST", url: "/v1/internal/legacy-action", payload: { action: "fetch_curriculum", course_id, actor: { email: "student@example.test" } } });
       const restored = await fetch();
       assert.equal(restored.statusCode, 200);
       assert.equal(restored.json().curriculum.chapters[0].title, "Recovered course");
@@ -51,7 +54,7 @@ test("cutover curriculum fallback preserves new progress and explicit primary cu
       const recovered = JSON.parse(await readFile(path.join(recoveredUser, "progress.json"), "utf8"));
       assert.deepEqual(recovered.completed_videos, ["retained-video"]);
       assert.equal(recovered.test_attempts.exam[0].id, "attempt-1");
-      const listed = await app.inject({ method: "POST", url: "/v1/internal/legacy-action", payload: {
+      const listed = await staffInject({ method: "POST", url: "/v1/internal/legacy-action", payload: {
         action: "list_tutorial_projects", course_id: recoveryCourse, actor: { email: "student@example.test" }
       } });
       assert.equal(listed.statusCode, 200, listed.body);
@@ -79,7 +82,7 @@ test("cutover curriculum fallback preserves new progress and explicit primary cu
       const currentProject = path.resolve(recoveredUser, "projects", projectId);
       for (const target of [removedProject, currentProject]) assert.ok(target.startsWith(path.resolve(root) + path.sep));
       await rename(currentProject, removedProject);
-      const afterDeletion = await app.inject({ method: "POST", url: "/v1/internal/legacy-action", payload: {
+      const afterDeletion = await staffInject({ method: "POST", url: "/v1/internal/legacy-action", payload: {
         action: "list_tutorial_projects", course_id: recoveryCourse, actor: { email: "student@example.test" }
       } });
       assert.deepEqual(afterDeletion.json().projects, [], "completed recovery must not resurrect subsequently deleted projects");
@@ -87,7 +90,7 @@ test("cutover curriculum fallback preserves new progress and explicit primary cu
       assert.deepEqual((await fetch()).json().curriculum.chapters, []);
     } finally { await app.close(); }
   } finally {
-    await (await import("../firstmeasure/project_index.js")).closeFirstMeasureProjectIndex().catch(() => undefined);
+    await (await import("./helpers/platform-fixture.js")).closePlatformFixtureStores().catch(() => undefined);
     assert.ok(path.resolve(root).startsWith(path.resolve(os.tmpdir()) + path.sep));
     assert.ok(path.basename(root).startsWith("tutorial-cutover-"));
     await rm(root, { recursive: true, force: true });

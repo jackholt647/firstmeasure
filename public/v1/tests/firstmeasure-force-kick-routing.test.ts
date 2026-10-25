@@ -15,6 +15,9 @@ test("manual requeue holds work while force kick returns it to drafting", async 
   const { buildApp } = await import('../src/app.js');
   const storage = await import('../firstmeasure/storage.js');
   const app = await buildApp();
+  // Force kick is a manager's staff action: a staff session, not an actor in the body.
+  const { staffFixture } = await import('./helpers/security-fixture.js');
+  const manager = await staffFixture({ role: 'manager', email: 'manager@example.test' });
   try {
     for (const destination of ['requeue', 'queued']) {
       const id = `routing-${destination}`;
@@ -22,7 +25,7 @@ test("manual requeue holds work while force kick returns it to drafting", async 
       await storage.patchManifest(id, {
         workflow: { assigned_to: { email: 'tech@example.test' }, qa_claim: { email: 'qa@example.test' }, reserved_to: { email: 'tech@example.test' } }
       });
-      const response = await app.inject({ method: 'POST', url: `/v1/firstmeasure/projects/${id}/requeue/force`, payload: {
+      const response = await app.inject({ method: 'POST', url: `/v1/firstmeasure/projects/${id}/requeue/force`, headers: manager.headers, payload: {
         actor: { email: 'manager@example.test' }, ...(destination === 'requeue' ? { destination } : {})
       } });
       assert.equal(response.statusCode, 200, response.body);
@@ -34,19 +37,19 @@ test("manual requeue holds work while force kick returns it to drafting", async 
       assert.equal(manifest.workflow?.reserved_to, null);
       assert.equal((manifest as any).force_kick?.email, 'tech@example.test');
       if (destination === 'requeue') {
-        const release = await app.inject({ method: 'POST', url: `/v1/firstmeasure/projects/${id}/requeue/send-to-queue`, payload: { actor: { email: 'manager@example.test' } } });
+        const release = await app.inject({ method: 'POST', url: `/v1/firstmeasure/projects/${id}/requeue/send-to-queue`, headers: manager.headers, payload: { actor: { email: 'manager@example.test' } } });
         assert.equal(release.json().success, true);
         assert.equal((await storage.readManifest(id)).status, 'queued');
       }
     }
     await storage.createProject({ id: 'terminal-project', address: 'Synthetic completed fixture', status: 'completed' });
-    const rejected = await app.inject({ method: 'POST', url: '/v1/firstmeasure/projects/terminal-project/requeue/force', payload: { destination: 'requeue' } });
+    const rejected = await app.inject({ method: 'POST', url: '/v1/firstmeasure/projects/terminal-project/requeue/force', headers: manager.headers, payload: { destination: 'requeue' } });
     assert.equal(rejected.json().success, false);
     assert.equal((await storage.readManifest('terminal-project')).status, 'completed');
   } finally {
     await app.close();
-    const index = await import('../firstmeasure/project_index.js');
-    await index.closeFirstMeasureProjectIndex();
+    // Closes the platform SQLite stores too, so Windows can remove the directory.
+    await (await import('./helpers/platform-fixture.js')).closePlatformFixtureStores();
     await rm(root, { recursive: true, force: true });
   }
 });

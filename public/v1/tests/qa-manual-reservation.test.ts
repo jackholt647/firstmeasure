@@ -28,6 +28,9 @@ test("manual QA reservations persist, enforce ownership, and clear at terminal s
       const session = await app.inject({method:"GET",url:"/v1/platform/auth/session",headers:{cookie}});
       identities[name!] = {cookie,csrf:session.json().csrf_token};
       await internal.saveInternalUser({ email,name,role,status:"active",training_complete:true,permissions:role==="qa"?{manage_qa:true}:{} });
+      // Staff sign in to the staff organization (docs/architecture/request-security.md#principals).
+      const staff = await (await import("./helpers/security-fixture.js")).staffFixture({ email });
+      identities[name!] = {cookie:staff.cookie,csrf:staff.csrf};
     }
     const actor = (name:string) => ({email:name+"@example.test",name});
     const headers = (name:string) => ({cookie:identities[name]!.cookie,"x-platform-csrf":identities[name]!.csrf});
@@ -60,7 +63,8 @@ test("manual QA reservations persist, enforce ownership, and clear at terminal s
     await reserve("manager","qa");
     const claim = (name:string,claimedName=name) => app.inject({method:"POST",url:"/v1/firstmeasure/projects/reserved/qa/claim",headers:headers(name),payload:{actor:actor(claimedName)}});
     assert.equal((await claim("other")).json().error,"item_reserved_for_other_qa");
-    assert.equal((await claim("other","qa")).statusCode,403,"spoofed target identity blocked");
+    // A spoofed body actor is now ignored rather than refused: the claim runs as the signed-in QA and the reservation still holds.
+    assert.equal((await claim("other","qa")).json().error,"item_reserved_for_other_qa","spoofed target identity blocked");
     const anonClaim=await app.inject({method:"POST",url:"/v1/firstmeasure/projects/reserved/qa/claim",payload:{actor:actor("qa")}});
     assert.equal(anonClaim.statusCode,401);
     const pull=(name:string,claimedName=name)=>app.inject({method:"POST",url:"/v1/firstmeasure/qa/queue/pull",headers:headers(name),payload:{actor:actor(claimedName),count:1}});
@@ -70,7 +74,7 @@ test("manual QA reservations persist, enforce ownership, and clear at terminal s
     assert.equal(pulled.json().projects[0]?.id,"reserved",pulled.body);
     assert.equal((await reserve("manager","other")).statusCode,409,"active claim not hijacked");
     assert.equal((await pull("other","qa")).json().projects.some((p:any)=>p.id==="reserved"),false,"existing claims do not bypass authenticated reservation");
-    await app.inject({method:"POST",url:"/v1/firstmeasure/projects/reserved/qa/release-claim",payload:{actor:actor("qa"),reason:"manual"}});
+    await app.inject({method:"POST",url:"/v1/firstmeasure/projects/reserved/qa/release-claim",headers:headers("qa"),payload:{actor:actor("qa"),reason:"manual"}});
     manifest=await storage.readManifest("reserved");
     assert.equal(manifest.qa_reserved_to_email,"qa@example.test","break/release does not lose reservation");
     assert.equal((await claim("other")).json().error,"item_reserved_for_other_qa");
@@ -95,5 +99,5 @@ test("manual QA reservations persist, enforce ownership, and clear at terminal s
       await storage.patchManifest("terminal-"+status,{status});
       assert.equal((await storage.readManifest("terminal-"+status)).qa_reserved_to_email,null);
     }
-  } finally { await app.close(); await index.closeFirstMeasureProjectIndex(); await rm(root, { recursive: true, force: true }).catch((error: NodeJS.ErrnoException) => { if (error.code !== 'EBUSY' && error.code !== 'EPERM') throw error; }); }
+  } finally { await app.close(); await (await import("./helpers/platform-fixture.js")).closePlatformFixtureStores(); await rm(root, { recursive: true, force: true }).catch((error: NodeJS.ErrnoException) => { if (error.code !== 'EBUSY' && error.code !== 'EPERM') throw error; }); }
 });
