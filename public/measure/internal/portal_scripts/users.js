@@ -171,10 +171,13 @@
     const body = new FormData();
     body.append('action', action);
     Object.entries(fields).forEach(([key, value]) => body.append(key, value == null ? '' : String(value)));
+    // The console's per-session token; backend_login.php refuses these actions without it.
+    const csrfToken = String(cfg()?.csrf_token || '');
     diag('backendLoginAction:start', { action, fields: Object.keys(fields) });
     const res = await fetch('backend_login.php', {
       method: 'POST',
       credentials: 'include',
+      headers: { 'X-CSRF-Token': csrfToken },
       body
     });
     const text = await res.text();

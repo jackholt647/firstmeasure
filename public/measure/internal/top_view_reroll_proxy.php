@@ -1,7 +1,8 @@
 <?php
 require_once __DIR__ . '/_storage.php';
+require_once __DIR__ . '/_staff_session.php';
 
-if (session_status() !== PHP_SESSION_ACTIVE) session_start();
+fm_internal_session_start();
 
 header('Content-Type: application/json; charset=utf-8');
 header('X-Content-Type-Options: nosniff');
@@ -49,32 +50,16 @@ function tvp_origin_allowed() {
     return false;
 }
 
-function tvp_node_v1_base_url() {
-    $host = strtolower((string)($_SERVER['HTTP_HOST'] ?? ''));
-    if (strpos($host, '127.0.0.1') !== false || strpos($host, 'localhost') !== false) {
-        return 'http://127.0.0.1:3111/v1';
-    }
-    $scheme = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ? 'https' : 'http';
-    $hostname = (string)($_SERVER['HTTP_HOST'] ?? 'app.1m8.ai');
-    return $scheme . '://' . $hostname . '/v1';
-}
-
 function tvp_internal_config_value($key) {
     static $configs = null;
     if ($configs === null) {
         $configs = [];
-        if (function_exists('curl_init')) {
-            $ch = curl_init(rtrim(tvp_node_v1_base_url(), '/') . '/internal/server-config');
-            curl_setopt_array($ch, [
-                CURLOPT_RETURNTRANSFER => true,
-                CURLOPT_HTTPGET => true,
-                CURLOPT_HTTPHEADER => ['Accept: application/json'],
-                CURLOPT_CONNECTTIMEOUT => 2,
-                CURLOPT_TIMEOUT => 8,
-            ]);
-            $raw = curl_exec($ch);
-            curl_close($ch);
-            $decoded = is_string($raw) ? json_decode($raw, true) : null;
+        $url = fm_node_v1_url('internal/server-config');
+        if ($url !== '') {
+            // PHP reads its own provider configuration: signed as the system,
+            // never on behalf of the caller (the route is admin-only).
+            $res = fm_node_request('GET', $url, ['auth' => 'system', 'timeout' => 8, 'connect_timeout' => 2]);
+            $decoded = $res['ok'] ? $res['json'] : null;
             if (is_array($decoded)) {
                 foreach (($decoded['configs'] ?? []) as $entry) {
                     if (!is_array($entry)) continue;
@@ -173,7 +158,7 @@ function tvp_openai_request($body, $apiKey) {
     ];
 
     if (function_exists('curl_init')) {
-        $runCurl = function ($verifyTls = true) use ($url, $headers, $body) {
+        $runCurl = function () use ($url, $headers, $body) {
             $ch = curl_init($url);
             $opts = [
                 CURLOPT_RETURNTRANSFER => true,
@@ -181,11 +166,9 @@ function tvp_openai_request($body, $apiKey) {
                 CURLOPT_HTTPHEADER => $headers,
                 CURLOPT_POSTFIELDS => $body,
                 CURLOPT_TIMEOUT => 30,
+                CURLOPT_SSL_VERIFYPEER => true,
+                CURLOPT_SSL_VERIFYHOST => 2,
             ];
-            if (!$verifyTls) {
-                $opts[CURLOPT_SSL_VERIFYPEER] = false;
-                $opts[CURLOPT_SSL_VERIFYHOST] = 0;
-            }
             curl_setopt_array($ch, $opts);
             $resp = curl_exec($ch);
             $err = curl_error($ch);
@@ -194,20 +177,9 @@ function tvp_openai_request($body, $apiKey) {
             return ['resp' => (string)$resp, 'err' => (string)$err, 'status' => $status];
         };
 
-        $curlResult = $runCurl(true);
-        $certProblem = $curlResult['status'] === 0
-            && preg_match('/certificate|issuer|SSL/i', $curlResult['err']);
-        if ($certProblem) {
-            $retry = $runCurl(false);
-            if ($retry['status'] !== 0 || $retry['resp'] !== '') {
-                return [
-                    'resp' => $retry['resp'],
-                    'err' => $retry['err'],
-                    'status' => $retry['status'],
-                    'transport' => 'php-curl-no-verify',
-                ];
-            }
-        } elseif ($curlResult['status'] !== 0 || $curlResult['resp'] !== '') {
+        // TLS is always verified: the request carries the provider API key.
+        $curlResult = $runCurl();
+        if ($curlResult['status'] !== 0 || $curlResult['resp'] !== '') {
             return [
                 'resp' => $curlResult['resp'],
                 'err' => $curlResult['err'],
@@ -333,9 +305,10 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     tvp_json(405, ['success' => false, 'error' => 'POST required']);
 }
 
-if (!isset($_SESSION['user_email'])) {
+if (fm_staff_session_resolve() === '') {
     tvp_json(403, ['success' => false, 'error' => 'Not logged in']);
 }
+session_write_close();
 
 if (!tvp_origin_allowed()) {
     tvp_json(403, ['success' => false, 'error' => 'Same-origin requests only']);

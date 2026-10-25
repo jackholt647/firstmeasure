@@ -1,6 +1,7 @@
 <?php
 // Internal resource uploads use bounded chunks in the existing QA artifact store.
-session_start();
+require_once __DIR__ . '/_staff_session.php';
+fm_internal_session_start();
 require_once __DIR__ . '/_full_house.php';
 require_once dirname(__DIR__, 2) . '/includes/provider_keys.php';
 header('Cache-Control: private, no-store');
@@ -11,7 +12,7 @@ function resource_error($status, $message) {
     if (!headers_sent()) { http_response_code($status); header('Content-Type: application/json'); echo json_encode(['error'=>$message]); }
     exit;
 }
-if (empty($_SESSION['user_email'])) resource_error(401, 'Internal login required.');
+if (fm_staff_session_resolve() === '') resource_error(401, 'Internal login required.');
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_SERVER['HTTP_X_RESOURCE_REQUEST'] ?? '') !== '1') resource_error(403, 'Invalid resource request.');
 $resourceActor = ['email'=>(string)$_SESSION['user_email'], 'name'=>(string)($_SESSION['user_name'] ?? $_SESSION['user_email'])];
 $customerOrder = ($_SERVER['HTTP_X_RESOURCE_ORIGIN'] ?? '') === 'customer-order';
@@ -75,8 +76,12 @@ function resource_api($name = '', $body = null) {
         $headers[] = 'Content-Type: multipart/form-data; boundary=' . $boundary;
         $body = "--$boundary\r\nContent-Disposition: form-data; name=\"file\"; filename=\"$name\"\r\nContent-Type: application/octet-stream\r\n\r\n" . $body . "\r\n--$boundary--\r\n";
     }
-    $ch = curl_init($artifactBase . (!$upload && $name !== '' ? '/' . rawurlencode($name) : ''));
-    curl_setopt_array($ch, [CURLOPT_RETURNTRANSFER=>true, CURLOPT_CUSTOMREQUEST=>$upload?'POST':'GET', CURLOPT_HTTPHEADER=>$headers, CURLOPT_TIMEOUT=>180]);
+    $resourceUrl = $artifactBase . (!$upload && $name !== '' ? '/' . rawurlencode($name) : '');
+    if (strpos($resourceUrl, '/') === 0) resource_error(503, 'Resource storage is not configured.');
+    // Signed as the staff member; a multipart upload is signed without its body.
+    $headers = array_merge($headers, fm_node_identity_headers('session', $upload ? 'POST' : 'GET', $resourceUrl, null, $upload));
+    $ch = curl_init($resourceUrl);
+    curl_setopt_array($ch, fm_node_curl_options() + [CURLOPT_RETURNTRANSFER=>true, CURLOPT_CUSTOMREQUEST=>$upload?'POST':'GET', CURLOPT_HTTPHEADER=>$headers, CURLOPT_TIMEOUT=>180]);
     if ($upload) curl_setopt($ch, CURLOPT_POSTFIELDS, $body);
     $result = curl_exec($ch); $status = (int)curl_getinfo($ch, CURLINFO_HTTP_CODE); curl_close($ch);
     if ($result === false || !$status) resource_error(502, 'Resource storage is unavailable.');

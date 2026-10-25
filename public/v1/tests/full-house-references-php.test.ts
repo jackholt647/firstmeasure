@@ -26,7 +26,7 @@ test('customer reference uploads preserve view assignments and support video ran
   const temporary = await mkdtemp(path.join(os.tmpdir(), 'full-house-address-'));
   const target = path.resolve('../measure/internal/project_resources.php').replace(/\\/g, '/');
   const router = path.join(temporary, 'router.php');
-  await writeFile(router, `<?php session_save_path(${JSON.stringify(temporary.replace(/\\/g, '/'))}); session_id('address-test'); session_start(); $_SESSION=['user_email'=>'owner@example.test','full_house_csrf'=>'test-csrf']; session_write_close(); require ${JSON.stringify(target)};`);
+  await writeFile(router, `<?php session_save_path(${JSON.stringify(temporary.replace(/\\/g, '/'))}); session_id('address-test'); session_start(); $_SESSION=['user_email'=>'owner@example.test','fm_staff'=>['email'=>'owner@example.test','verified_at'=>time()],'full_house_csrf'=>'test-csrf']; session_write_close(); require ${JSON.stringify(target)};`);
   const binary = spawnSync('php', ['-r', 'echo PHP_BINARY;'], { encoding: 'utf8' }).stdout.trim();
   const extensions = process.platform === 'win32' ? ['-d', `extension_dir=${path.join(path.dirname(binary), 'ext')}`, '-d', 'extension=curl'] : [];
   const child = spawn(binary, [...extensions, '-S', `127.0.0.1:${phpPort}`, router], {

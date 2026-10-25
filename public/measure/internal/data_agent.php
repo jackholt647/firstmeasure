@@ -2,41 +2,30 @@
 require_once __DIR__ . '/_storage.php';
 require_once __DIR__ . '/_permission_options.php';
 
-if (session_status() !== PHP_SESSION_ACTIVE) session_start();
+require_once __DIR__ . '/_staff_session.php';
+fm_internal_session_start();
 
+// The PHP-to-Node /v1 base (configuration only, never the request's Host).
 function dataAgentNodeV1BaseUrl() {
-    $host = strtolower((string)($_SERVER['HTTP_HOST'] ?? ''));
-    if (strpos($host, '127.0.0.1') !== false || strpos($host, 'localhost') !== false) {
-        return 'http://127.0.0.1:3111/v1';
-    }
-    $scheme = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ? 'https' : 'http';
-    $hostname = (string)($_SERVER['HTTP_HOST'] ?? 'app.1m8.ai');
-    return $scheme . '://' . $hostname . '/v1';
+    return fm_node_v1_base_url('api', 3111);
+}
+
+// The /v1 base the browser uses: its own origin unless configured.
+function dataAgentBrowserV1BaseUrl() {
+    $configured = fm_node_config('FIRSTMEASURE_BROWSER_API_BASE');
+    if ($configured !== '') return fm_node_strip_suffix($configured, ['/firstmeasure']);
+    if (fm_node_request_is_local_dev()) return dataAgentNodeV1BaseUrl();
+    return '/v1';
 }
 
 function dataAgentNodeInternalUser($email) {
     $email = strtolower(trim((string)$email));
-    if ($email === '' || !function_exists('curl_init')) return null;
-    $url = rtrim(dataAgentNodeV1BaseUrl(), '/') . '/internal/users/' . rawurlencode($email);
-    $ch = curl_init($url);
-    curl_setopt_array($ch, [
-        CURLOPT_RETURNTRANSFER => true,
-        CURLOPT_HTTPHEADER => [
-            'Accept: application/json',
-            'X-Internal-User-Email: ' . $email,
-            'X-Internal-User-Name: ' . (string)($_SESSION['user_name'] ?? $email),
-        ],
-        CURLOPT_TIMEOUT => 8,
-        CURLOPT_CONNECTTIMEOUT => 3,
-        CURLOPT_SSL_VERIFYPEER => false,
-        CURLOPT_SSL_VERIFYHOST => false,
-    ]);
-    $raw = curl_exec($ch);
-    $status = (int)curl_getinfo($ch, CURLINFO_HTTP_CODE);
-    curl_close($ch);
-    if ($status < 200 || $status >= 300 || !is_string($raw) || $raw === '') return null;
-    $data = json_decode($raw, true);
-    return is_array($data['user'] ?? null) ? $data['user'] : null;
+    $url = $email === '' ? '' : fm_node_v1_url('internal/users/' . rawurlencode($email));
+    if ($url === '') return null;
+    // Signed as the Node-verified staff member (includes/node_api.php).
+    $res = fm_node_request('GET', $url, ['timeout' => 8]);
+    $data = $res['json'];
+    return ($res['ok'] && is_array($data['user'] ?? null)) ? $data['user'] : null;
 }
 
 function dataAgentStandaloneCanUse($userData) {
@@ -47,10 +36,7 @@ function dataAgentStandaloneCanUse($userData) {
     return $role === 'admin' || !empty($userData['is_admin']) || !empty($perms['is_admin_legacy']);
 }
 
-if (!isset($_SESSION['user_email'])) {
-    header("Location: backend_login.php?redirect=" . urlencode($_SERVER['REQUEST_URI']));
-    exit;
-}
+fm_internal_require_staff('html');
 
 $currentUserEmail = strtolower(trim((string)($_SESSION['user_email'] ?? '')));
 $currentUserName = (string)($_SESSION['user_name'] ?? '');
@@ -63,7 +49,7 @@ if (!dataAgentStandaloneCanUse($userData)) {
     exit;
 }
 
-$nodeInternalBase = rtrim(dataAgentNodeV1BaseUrl(), '/') . '/internal';
+$nodeInternalBase = rtrim(dataAgentBrowserV1BaseUrl(), '/') . '/internal';
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -85,7 +71,7 @@ $nodeInternalBase = rtrim(dataAgentNodeV1BaseUrl(), '/') . '/internal';
             endpoints: {
                 data_agent: <?php echo json_encode($nodeInternalBase . '/legacy-action'); ?>,
                 portal: <?php echo json_encode($nodeInternalBase . '/legacy-action'); ?>,
-                firstmeasure: <?php echo json_encode(rtrim(dataAgentNodeV1BaseUrl(), '/') . '/firstmeasure'); ?>
+                firstmeasure: <?php echo json_encode(rtrim(dataAgentBrowserV1BaseUrl(), '/') . '/firstmeasure'); ?>
             },
             flags: { can_data_agent: true },
             user: {

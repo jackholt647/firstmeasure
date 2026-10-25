@@ -11,27 +11,11 @@ function fm_editor_internal_base_url() {
 
 function fm_editor_node_internal_user($email) {
     $email = strtolower(trim((string)$email));
-    if ($email === '' || !function_exists('curl_init')) return null;
-    $headers = [
-        'Accept: application/json',
-        'X-Internal-User-Email: ' . strtolower(trim((string)($_SESSION['user_email'] ?? $email))),
-    ];
-    if (!empty($_SESSION['user_name'])) $headers[] = 'X-Internal-User-Name: ' . (string)$_SESSION['user_name'];
-    $ch = curl_init(rtrim(fm_editor_internal_base_url(), '/') . '/users/' . rawurlencode($email));
-    curl_setopt_array($ch, [
-        CURLOPT_RETURNTRANSFER => true,
-        CURLOPT_HTTPHEADER => $headers,
-        CURLOPT_TIMEOUT => 8,
-        CURLOPT_CONNECTTIMEOUT => 3,
-        CURLOPT_SSL_VERIFYPEER => false,
-        CURLOPT_SSL_VERIFYHOST => false,
-    ]);
-    $raw = curl_exec($ch);
-    $status = (int)curl_getinfo($ch, CURLINFO_HTTP_CODE);
-    curl_close($ch);
-    if ($status < 200 || $status >= 300 || !is_string($raw) || $raw === '') return null;
-    $data = json_decode($raw, true);
-    return is_array($data['user'] ?? null) ? $data['user'] : null;
+    if ($email === '' || fm_api_base_url() === '') return null;
+    // Signed as the Node-verified staff member (includes/node_api.php).
+    $res = fm_node_request('GET', rtrim(fm_editor_internal_base_url(), '/') . '/users/' . rawurlencode($email), ['timeout' => 8]);
+    $data = $res['json'];
+    return ($res['ok'] && is_array($data['user'] ?? null)) ? $data['user'] : null;
 }
 
 function fm_editor_user_permissions($email) {

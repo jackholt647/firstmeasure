@@ -2,7 +2,13 @@
 require_once __DIR__ . '/_storage.php';
 require_once dirname(__DIR__, 2) . '/includes/provider_keys.php';
 /* backend.php - Secured Version */
-session_start();
+require_once __DIR__ . '/_staff_session.php';
+// --- 1. LOGIN CHECK ---
+// Every action needs a Node-verified staff session, not merely a signed-in
+// PHP session (a customer's portal login shares it). JSON actions get 401.
+$editorAction = strtolower(trim((string)($_GET['action'] ?? $_POST['action'] ?? '')));
+$editorJsonAction = $editorAction === 'project_bundle' || $editorAction === 'project_feedback' || strpos($editorAction, 'tutorial_project_') === 0;
+fm_internal_require_staff($editorJsonAction ? 'json' : 'html');
 if (strpos((string)($_GET['folder'] ?? ''), 'fullhouse_') === 0 && empty($_SESSION['full_house_csrf'])) $_SESSION['full_house_csrf'] = bin2hex(random_bytes(32));
 // This page only reads session identity. Do not hold its lock while fetching
 // project data: a slow storage request would block the user's other staff tabs.
@@ -17,20 +23,6 @@ $GOOGLE_BROWSER_API_KEY = fm_google_provider_key('browser_internal');
 $AZURE_MAPS_SUBSCRIPTION_KEY = fm_azure_maps_provider_key();
 
 require_once __DIR__ . '/_tutorial_access.php';
-
-// --- 1. LOGIN CHECK ---
-// If the user email session is not set, redirect to the login page immediately.
-$editorAction = strtolower(trim((string)($_GET['action'] ?? $_POST['action'] ?? '')));
-if (!isset($_SESSION['user_email'])) {
-    if ($editorAction === 'project_bundle' || $editorAction === 'project_feedback' || strpos($editorAction, 'tutorial_project_') === 0) {
-        header('Content-Type: application/json');
-        http_response_code(401);
-        echo json_encode(['success' => false, 'error' => 'Unauthorized']);
-        exit;
-    }
-    header("Location: backend_login.php");
-    exit;
-}
 
 require_once __DIR__ . '/_full_house.php';
 $fmFullHouseEditor = fm_is_full_house_id($_GET['folder'] ?? $_POST['folder'] ?? '');
@@ -72,8 +64,9 @@ if (strpos($editorAction, 'tutorial_project_') === 0) {
             echo 'Not found';
             exit;
         }
-        $mime = function_exists('mime_content_type') ? (mime_content_type($path) ?: 'application/octet-stream') : 'application/octet-stream';
-        header('Content-Type: ' . $mime);
+        // Typed from the extension allowlist, never sniffed; only images and
+        // PDFs display inline and nothing can run script in this origin.
+        fm_send_uploaded_file_headers($name);
         header('Content-Length: ' . filesize($path));
         header('Cache-Control: no-store');
         readfile($path);
@@ -194,41 +187,16 @@ if (strpos($editorAction, 'tutorial_project_') === 0) {
     exit;
 }
 
-function fm_editor_node_v1_base_url() {
-    $host = strtolower((string)($_SERVER['HTTP_HOST'] ?? ''));
-    if (strpos($host, '127.0.0.1') !== false || strpos($host, 'localhost') !== false) {
-        return 'http://127.0.0.1:3111/v1';
-    }
-    $scheme = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ? 'https' : 'http';
-    $hostname = (string)($_SERVER['HTTP_HOST'] ?? 'app.1m8.ai');
-    return $scheme . '://' . $hostname . '/v1';
-}
-
 function fm_editor_internal_user() {
     static $cached = null;
     if ($cached !== null) return $cached;
     $cached = [];
-    $email = fm_norm_email($_SESSION['user_email'] ?? '');
-    if ($email === '' || !function_exists('curl_init')) return $cached;
+    if (fm_staff_session_email() === '' || !function_exists('curl_init')) return $cached;
 
-    $url = rtrim(fm_editor_node_v1_base_url(), '/') . '/internal/me';
-    $ch = curl_init($url);
-    curl_setopt_array($ch, [
-        CURLOPT_RETURNTRANSFER => true,
-        CURLOPT_HTTPGET => true,
-        CURLOPT_HTTPHEADER => [
-            'Accept: application/json',
-            'X-Internal-User-Email: ' . $email,
-            'X-Internal-User-Name: ' . (string)($_SESSION['user_name'] ?? ''),
-            'X-Internal-User-Role: ' . (string)($_SESSION['user_role'] ?? ($_SESSION['role'] ?? '')),
-        ],
-        CURLOPT_CONNECTTIMEOUT => 2,
-        CURLOPT_TIMEOUT => 8,
-    ]);
-    $raw = curl_exec($ch);
-    curl_close($ch);
-    $decoded = is_string($raw) ? json_decode($raw, true) : null;
-    if (is_array($decoded) && is_array($decoded['user'] ?? null)) {
+    // Signed as the verified staff member; Node answers with their record.
+    $res = fm_node_request('GET', fm_node_v1_url('internal/me'), ['timeout' => 8, 'connect_timeout' => 2]);
+    $decoded = $res['json'];
+    if ($res['ok'] && is_array($decoded) && is_array($decoded['user'] ?? null)) {
         $cached = $decoded['user'];
     }
     return $cached;

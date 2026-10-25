@@ -1,6 +1,7 @@
 <?php
 require_once __DIR__ . '/_storage.php';
-session_start();
+require_once __DIR__ . '/_staff_session.php';
+fm_internal_session_start();
 require_once __DIR__ . '/firstmeasure_node.php';
 require_once __DIR__ . '/_permission_options.php';
 require_once __DIR__ . '/_tutorials.php';
@@ -18,27 +19,11 @@ function ta_internal_base_url() {
 
 function ta_node_internal_user($email) {
     $email = strtolower(trim((string)$email));
-    if ($email === '' || !function_exists('curl_init')) return null;
-    $headers = [
-        'Accept: application/json',
-        'X-Internal-User-Email: ' . strtolower(trim((string)($_SESSION['user_email'] ?? $email))),
-    ];
-    if (!empty($_SESSION['user_name'])) $headers[] = 'X-Internal-User-Name: ' . (string)$_SESSION['user_name'];
-    $ch = curl_init(rtrim(ta_internal_base_url(), '/') . '/users/' . rawurlencode($email));
-    curl_setopt_array($ch, [
-        CURLOPT_RETURNTRANSFER => true,
-        CURLOPT_HTTPHEADER => $headers,
-        CURLOPT_TIMEOUT => 8,
-        CURLOPT_CONNECTTIMEOUT => 3,
-        CURLOPT_SSL_VERIFYPEER => false,
-        CURLOPT_SSL_VERIFYHOST => false,
-    ]);
-    $raw = curl_exec($ch);
-    $status = (int)curl_getinfo($ch, CURLINFO_HTTP_CODE);
-    curl_close($ch);
-    if ($status < 200 || $status >= 300 || !is_string($raw) || $raw === '') return null;
-    $data = json_decode($raw, true);
-    return is_array($data['user'] ?? null) ? $data['user'] : null;
+    if ($email === '' || fm_api_base_url() === '') return null;
+    // Signed as the Node-verified staff member (includes/node_api.php).
+    $res = fm_node_request('GET', rtrim(ta_internal_base_url(), '/') . '/users/' . rawurlencode($email), ['timeout' => 8]);
+    $data = $res['json'];
+    return ($res['ok'] && is_array($data['user'] ?? null)) ? $data['user'] : null;
 }
 
 function ta_course_id($courseId) {
@@ -79,10 +64,7 @@ function ta_value_html($value) {
     return ta_esc($value);
 }
 
-if (empty($_SESSION['user_email'])) {
-    header('Location: backend_login.php?redirect=' . urlencode($_SERVER['REQUEST_URI']));
-    exit;
-}
+fm_internal_require_staff('html');
 
 $currentUserEmail = strtolower(trim((string)$_SESSION['user_email']));
 $userData = ta_node_internal_user($currentUserEmail);
