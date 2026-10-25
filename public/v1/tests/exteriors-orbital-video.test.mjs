@@ -78,7 +78,7 @@ const uploaded=page=>page.waitForFunction(()=>Portal.test.files.size>0&&[...Port
 
 test('the capture step opens on the animated orbit explainer and asks for the camera only after Start',async t=>{
  const page=await setup(t);
- assert.equal(await page.locator('.ext-orbit-intro h3').textContent(),'Record an orbital video');
+ assert.equal(await page.locator('.ext-orbit-intro h3').textContent(),'Record a video walkaround');
  assert.equal(await page.locator('.ext-orbit-intro .ext-orbit .ext-orbit-arm .ext-orbit-walker').count(),1);
  assert.ok(await page.evaluate(()=>document.querySelector('.ext-orbit-arm').getAnimations().length>0),'the walker orbits the house');
  assert.equal(await page.locator('.ext-orbit-steps li').count(),3);
@@ -126,7 +126,7 @@ test('recording pauses, resumes and stops into segments that upload as the orbit
  const chooserPromise=page.waitForEvent('filechooser');await page.click('[data-extra-upload]');const chooser=await chooserPromise;
  assert.match(await chooser.element().getAttribute('accept'),/image\/jpeg.*video\/mp4/);await chooser.setFiles([]);
  await page.evaluate(()=>Portal.ExteriorOrder.setMobilePage('final'));
- assert.match(await page.locator('section[aria-label="Photos"]').textContent(),/Orbital video2 segments/);
+ assert.match(await page.locator('section[aria-label="Photos"]').textContent(),/Video walkaroundVideo segments: 2/);
  assert.equal(await page.locator('section[aria-label="Photos"] .ext-review-view').count(),0,'no empty eight-view grid on a video order');
  assert.equal(await page.evaluate(()=>Portal.ExteriorOrder.ready()),true);
  assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false);
@@ -183,7 +183,7 @@ test('the photo fallback explains the risk first, then runs the eight guided ang
  assert.equal(await page.locator('.ext-orbit .ext-path').count(),0,'the animation has no street label');
  assert.equal(await page.evaluate(()=>Portal.ExteriorOrder.mobileIntroShowing()),true,'Next is enabled on the photo intro');
  assert.equal(await page.evaluate(()=>Portal.ExteriorOrder.mobilePhotoBack()),true,'Back from the photo intro returns to the video intro');
- assert.equal(await page.locator('.ext-orbit-intro h3').textContent(),'Record an orbital video');
+ assert.equal(await page.locator('.ext-orbit-intro h3').textContent(),'Record a video walkaround');
  assert.equal(await page.evaluate(()=>Portal.ExteriorOrder.mobilePhotoBack()),false,'a second Back leaves the capture step');
  await page.click('[data-mode="photos"]');
  assert.equal(await page.evaluate(()=>cameraCalls),0);
@@ -195,9 +195,9 @@ test('the photo fallback explains the risk first, then runs the eight guided ang
  await page.click('[data-guide-back]');
  assert.equal(await page.locator('[data-photos-start]').count(),1,'Back from the first angle returns to the explanation');
  await page.click('[data-mode="video"]');
- assert.equal(await page.locator('.ext-orbit-intro h3').textContent(),'Record an orbital video');
+ assert.equal(await page.locator('.ext-orbit-intro h3').textContent(),'Record a video walkaround');
  await page.evaluate(()=>Portal.ExteriorOrder.explainMissingPhotos());
- assert.match(await page.locator('.ext-photo-toast').textContent(),/Add an orbital video/);
+ assert.match(await page.locator('.ext-photo-toast').textContent(),/Add a video walkaround/);
 });
 
 test('each structure is recorded separately',async t=>{

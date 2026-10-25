@@ -40,7 +40,7 @@ export async function validateExteriorOrder(orgId:string, body:Record<string,unk
   await requireExteriorAccess(orgId,String(body.project_type || "residential"));
   if (!Number.isInteger(count) || count<1 || count>10) throw new FirstMeasureError("invalid_structures",400,"Place a pin on each structure (up to 10).");
   let referenceInput=body.exterior_references;
-  if(typeof referenceInput==="string") {try{referenceInput=JSON.parse(referenceInput);}catch{throw new FirstMeasureError("invalid_references",400,"Add an orbital video or the eight required reference views.");}}
+  if(typeof referenceInput==="string") {try{referenceInput=JSON.parse(referenceInput);}catch{throw new FirstMeasureError("invalid_references",400,"Add a video walkaround or the eight required reference views.");}}
   const parsed=referenceSchema.parse(referenceInput);
   if(new Set(parsed.map(r=>r.media_id)).size!==parsed.length) throw new FirstMeasureError("duplicate_reference",400,"Use a separate photo for each required view.");
   // Each structure is covered by an orbital video, or by exactly one photo of every view.
@@ -48,7 +48,7 @@ export async function validateExteriorOrder(orgId:string, body:Record<string,unk
     const own=parsed.filter(r=>r.structure===structure);
     for(const view of EXTERIOR_VIEWS) if(own.filter(r=>r.view===view).length>1) throw new FirstMeasureError("duplicate_reference",400,"Use one primary photo for each view.");
     if(own.some(r=>r.view===EXTERIOR_ORBITAL_VIDEO)) continue;
-    if(!EXTERIOR_VIEWS.every(view=>own.some(r=>r.view===view))) throw new FirstMeasureError("missing_reference",400,"Add an orbital video or all eight reference views for every structure.");
+    if(!EXTERIOR_VIEWS.every(view=>own.some(r=>r.view===view))) throw new FirstMeasureError("missing_reference",400,"Add a video walkaround or all eight reference views for every structure.");
   }
   const references:Array<(typeof parsed)[number]&{kind:"image"|"video"}>=[];
   for(const ref of parsed){
@@ -57,7 +57,7 @@ export async function validateExteriorOrder(orgId:string, body:Record<string,unk
     if((media.metadata as any)?.source!=="exteriors_order_reference") throw new FirstMeasureError("invalid_reference",400,"Upload this reference through the full-house order form.");
     // The stored upload, never the client, decides whether a reference is a video.
     const kind=(media.metadata as any)?.reference_kind==="video" ? "video" : "image";
-    if(ref.view===EXTERIOR_ORBITAL_VIDEO && kind!=="video") throw new FirstMeasureError("invalid_reference",400,"The orbital video must be a video file.");
+    if(ref.view===EXTERIOR_ORBITAL_VIDEO && kind!=="video") throw new FirstMeasureError("invalid_reference",400,"The video walkaround must be a video file.");
     if(ref.view!==EXTERIOR_ORBITAL_VIDEO && ref.view!=="additional" && kind!=="image") throw new FirstMeasureError("invalid_reference",400,"Each required view must be a photo.");
     references.push({...ref,kind});
   }

@@ -2152,7 +2152,7 @@ export const registerFirstMeasureApi: FastifyPluginAsync = async (app) => {
 
           await saveArtifact(created.manifest.id,fileName,media.bytes);
 
-          referenceVideos.push({file_name:fileName,original_name:`Structure ${ref.structure+1} · ${ref.view==="orbital_video"?"orbital video":"additional video"}`,content_type:media.contentType,view:ref.view,structure:ref.structure});
+          referenceVideos.push({file_name:fileName,original_name:`Structure ${ref.structure+1} · ${ref.view==="orbital_video"?"video walkaround":"additional video"}`,content_type:media.contentType,view:ref.view,structure:ref.structure});
 
           continue;
 
