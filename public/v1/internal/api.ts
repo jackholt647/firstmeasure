@@ -99,6 +99,7 @@ import {
 } from "../public-firstmeasure/keys.js";
 import { createPublicFirstMeasureKeyDelivery } from "../public-firstmeasure/key_delivery.js";
 import { hasPublicFirstMeasureApiKeySecret } from "../public-firstmeasure/key_secret_vault.js";
+import { knownPrincipal, principalActor } from "../platform/security/principal.js";
 
 const objectSchema = z.object({}).passthrough();
 const userSaveSchema = objectSchema.extend({
@@ -1080,40 +1081,31 @@ function param(params: unknown, key: string) {
   return String(asObject(params)[key] ?? "").trim();
 }
 
+/**
+ * Who the request acts for, from the verified principal
+ * (docs/architecture/request-security.md). Only the system principal (our own
+ * service code) may name the actor in the body or query.
+ */
 function actorFromRequest(request: FastifyRequest) {
-  const headers = request.headers;
+  const principal = knownPrincipal(request);
+  const verified = principalActor(principal);
+  if (verified) return { email: verified.email, name: verified.name, role: verified.role, department: verified.department };
   const query = asObject(request.query);
   const body = asObject(request.body);
   const bodyActor = asObject(body.actor);
   return {
-    email: String(headers["x-internal-user-email"] ?? query.actor_email ?? query.email ?? bodyActor.email ?? body.actor_email ?? "").trim().toLowerCase(),
-    name: String(headers["x-internal-user-name"] ?? query.actor_name ?? query.name ?? bodyActor.name ?? body.actor_name ?? "").trim(),
-    role: String(headers["x-internal-user-role"] ?? query.actor_role ?? query.role ?? bodyActor.role ?? body.actor_role ?? "").trim(),
-    department: String(headers["x-internal-user-department"] ?? query.department ?? bodyActor.department ?? body.department ?? "").trim()
+    email: String(query.actor_email ?? bodyActor.email ?? body.actor_email ?? "").trim().toLowerCase(),
+    name: String(query.actor_name ?? bodyActor.name ?? body.actor_name ?? "").trim(),
+    role: String(query.actor_role ?? bodyActor.role ?? body.actor_role ?? "").trim(),
+    department: String(query.department ?? bodyActor.department ?? body.department ?? "").trim()
   };
 }
 
 function isDebugRequest(request: FastifyRequest) {
   const debugHeader = String(firstHeaderValue(request.headers["x-firstmeasure-debug"]) ?? "").trim().toLowerCase();
   if (debugHeader !== "1" && debugHeader !== "true") return false;
-  const body = asObject(request.body);
-  const bodyActor = asObject(body.actor);
-  const query = asObject(request.query);
-  const role = String(
-    bodyActor.role
-      ?? body.actor_role
-      ?? query.actor_role
-      ?? firstHeaderValue(request.headers["x-internal-user-role"])
-      ?? ""
-  ).trim().toLowerCase();
-  const email = String(
-    bodyActor.email
-      ?? body.actor_email
-      ?? query.actor_email
-      ?? firstHeaderValue(request.headers["x-internal-user-email"])
-      ?? ""
-  ).trim().toLowerCase();
-  return role === "admin" || role === "system_admin" || email.endsWith("@1m8.ai");
+  const principal = knownPrincipal(request);
+  return principal.kind === "staff" && principal.staff.debugger;
 }
 
 function firstHeaderValue(value: string | string[] | undefined) {

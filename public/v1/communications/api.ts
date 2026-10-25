@@ -3,6 +3,8 @@ import { z, ZodError } from "zod";
 
 import { PlatformError } from "../platform/errors.js";
 import { asObject, type JsonObject } from "../internal/storage.js";
+import { knownPrincipal, principalActor } from "../platform/security/principal.js";
+import { env } from "../src/config/env.js";
 import {
   beginGmailConnect,
   debugSnapshot,
@@ -108,24 +110,19 @@ export async function handleCommunicationsLegacyAction(action: string, body: Jso
   return await legacyGmailAction(action, body, actor.email);
 }
 
+/**
+ * The mailbox owner is the verified staff member
+ * (docs/architecture/request-security.md); only the system principal may
+ * name one in the body.
+ */
 function actorFromRequest(request: FastifyRequest, body: JsonObject = {}) {
-  const headers = request.headers;
-  const email = String(
-    body.actor_email
-      ?? headers["x-internal-user-email"]
-      ?? headers["x-platform-user-email"]
-      ?? headers["x-user-email"]
-      ?? ""
-  ).trim().toLowerCase();
-  return {
-    email,
-    name: String(body.actor_name ?? headers["x-internal-user-name"] ?? email),
-    role: String(body.actor_role ?? headers["x-internal-user-role"] ?? "user")
-  };
+  const verified = principalActor(knownPrincipal(request));
+  if (verified) return { email: verified.email, name: verified.name || verified.email, role: verified.role || "user" };
+  const email = String(body.actor_email ?? "").trim().toLowerCase();
+  return { email, name: String(body.actor_name ?? email), role: String(body.actor_role ?? "user") };
 }
 
-function publicBaseUrl(request: FastifyRequest) {
-  const proto = String(request.headers["x-forwarded-proto"] ?? (request.protocol || "http")).split(",")[0]?.trim() || "http";
-  const host = String(request.headers["x-forwarded-host"] ?? request.headers.host ?? `127.0.0.1:${process.env.V1_PORT ?? 3111}`).split(",")[0]?.trim();
-  return `${proto}://${host}/v1`;
+/** OAuth redirects go to the configured public address, never one built from the request's Host. */
+function publicBaseUrl(_request: FastifyRequest) {
+  return `${env.publicBaseUrl}/v1`;
 }

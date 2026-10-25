@@ -61,6 +61,9 @@ import { registerProposalsApi } from "../proposals/api.js";
 import { registerPublicFirstMeasureApi } from "../public-firstmeasure/api.js";
 import { registerWeatherApi } from "../weather/api.js";
 import { env } from "./config/env.js";
+import { installRouteAccess } from "../platform/security/route-access.js";
+import { corsDelegator, installBrowserProtections } from "../platform/security/browser.js";
+import "../platform/security/route-access-tables.js";
 import { devConsoleRoutes } from "./routes/dev_console.js";
 import { rootRoutes } from "./routes/root.js";
 
@@ -97,6 +100,9 @@ export async function buildApp() {
       level: env.logLevel
     }
   });
+  // First, so every covered route registered below is checked (docs/architecture/request-security.md).
+  installRouteAccess(app);
+  installBrowserProtections(app);
   installFullHouseAccess(app);
   void app.register(registerPlatformBillingApi, { prefix: "/v1/platform-billing" });
   installDiagnostics(app);
@@ -118,8 +124,8 @@ export async function buildApp() {
   }
 
   void app.register(cors, {
-    origin: true,
-    credentials: true,
+    // Credentials only for our own origins (platform/security/browser.ts).
+    delegator: corsDelegator,
     methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
     allowedHeaders: ["Content-Type", "Accept", "Authorization", "Idempotency-Key", "Cache-Control", "Pragma", "X-Requested-With", "X-Platform-CSRF", "X-CSRF-Token", "X-FirstMeasure-Debug", "X-Internal-User-Email", "X-Internal-User-Name", "X-Internal-User-Role", "X-Internal-User-Department"],
     exposedHeaders: ["X-FirstMeasure-Debug-Trace"]

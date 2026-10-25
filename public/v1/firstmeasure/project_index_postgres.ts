@@ -963,6 +963,10 @@ export async function searchPostgresProjectsForLegacyList(query: LegacyListQuery
   const values: unknown[] = [];
   if (query.ids) { values.push(query.ids); where.push(`p.id = ANY($${values.length}::text[])`); }
   if (!query.includeInstantOnly) where.push("p.instant_only = 0");
+  if (query.organizationScope !== undefined) {
+    values.push(query.organizationScope);
+    where.push(`(p.organization_id = $${values.length} AND p.organization_id <> '')`);
+  }
   appendLegacyVisibility(where, values, query.filter, query.actor);
   appendLegacyStatus(where, query.statusFilter);
   const complexity = String(query.complexityFilter ?? "").trim();

@@ -4,6 +4,7 @@ import { z } from "zod";
 import { badRequest, forbidden, notFound, unauthorized } from "../platform/errors.js";
 import { listDocuments, listOrganizations, type JsonObject } from "../platform/storage.js";
 import { readInternalUser } from "../internal/storage.js";
+import { requestPrincipal } from "../platform/security/principal.js";
 import {
   getMerchantConfigForOps,
   upsertMerchantConfig,
@@ -50,22 +51,6 @@ function getParam(params: unknown, key: string) {
   return cleanText(asObject(params)[key]);
 }
 
-function headerText(request: FastifyRequest, name: string) {
-  const value = request.headers[name];
-  return Array.isArray(value) ? cleanText(value[0]) : cleanText(value);
-}
-
-/** Actor identity supplied by the internal Staff Console shell. */
-function staffActorFromRequest(request: FastifyRequest) {
-  const query = asObject(request.query);
-  const body = asObject(request.body);
-  return {
-    email: (headerText(request, "x-internal-user-email") || cleanText(query.actor_email) || cleanText(body.actor_email)).toLowerCase(),
-    name: headerText(request, "x-internal-user-name") || cleanText(query.actor_name) || cleanText(body.actor_name),
-    role: headerText(request, "x-internal-user-role") || cleanText(query.actor_role) || cleanText(body.actor_role)
-  };
-}
-
 function isInternalStaffAdmin(user: JsonObject | null) {
   if (!user) return false;
   const role = cleanText(user.role).toLowerCase();
@@ -80,21 +65,20 @@ function isInternalStaffAdmin(user: JsonObject | null) {
 }
 
 /**
- * The strongest staff guard the platform has: resolve the console-supplied
- * actor email against the internal user store and require an internal admin.
- * The claimed role header is never trusted for authorization — only the
- * stored record decides. Org users (no internal record) get 403.
+ * Internal admins only, identified from the signed-in session
+ * (docs/architecture/request-security.md#principals); actor headers and
+ * body fields are never read. Org users get 403.
  */
 async function requireBoardingOpsStaff(request: FastifyRequest) {
-  const actor = staffActorFromRequest(request);
-  if (!actor.email) {
+  const principal = await requestPrincipal(request);
+  if (principal.kind === "anonymous") {
     throw unauthorized("missing_internal_actor", "An internal staff user is required for the boarding ops console.");
   }
-  const user = await readInternalUser(actor.email).catch(() => null);
-  if (!isInternalStaffAdmin(user)) {
+  const user = principal.kind === "staff" ? await readInternalUser(principal.staff.email).catch(() => null) : null;
+  if (principal.kind !== "staff" || !isInternalStaffAdmin(user)) {
     throw forbidden("staff_admin_required", "Only FirstMate internal admins can use the boarding ops console.");
   }
-  return { ...actor, user };
+  return { email: principal.staff.email, name: principal.staff.name, role: principal.staff.role, user };
 }
 
 /**

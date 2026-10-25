@@ -143,6 +143,11 @@ export type LegacyListQuery = {
   limit: number;
   search: string;
   actor: LegacyListActor;
+  /**
+   * Only projects of this organization, whatever the filter or actor says.
+   * Set for every customer request (docs/architecture/request-security.md#records).
+   */
+  organizationScope?: string;
   includeInstantOnly?: boolean;
   activityStartMs?: number | null;
   activityEndMs?: number | null;
@@ -764,6 +769,10 @@ export async function searchIndexedProjectsForLegacyList(query: LegacyListQuery)
   const searchTokens = tokenizeProjectSearch(query.search);
 
   appendInstantVisibilityClause(where, params, query.includeInstantOnly);
+  if (query.organizationScope !== undefined) {
+    where.push("(p.organization_id = $organizationScope AND p.organization_id <> '')");
+    params.organizationScope = query.organizationScope;
+  }
   appendLegacyVisibilityClause(where, params, query.filter, query.actor);
   appendLegacyStatusClause(where, params, query.statusFilter);
   appendLegacyComplexityClause(where, params, query.complexityFilter);

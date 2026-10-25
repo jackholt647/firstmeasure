@@ -4,6 +4,7 @@ import { monitorEventLoopDelay, performance } from "node:perf_hooks";
 import type { FastifyInstance, FastifyPluginAsync, FastifyReply, FastifyRequest } from "fastify";
 
 import { env } from "../src/config/env.js";
+import { knownPrincipal, principalActor } from "../platform/security/principal.js";
 import { getFirstMeasureJobRuntimeStatus, resolveFirstMeasureJobWorkerSizing } from "../firstmeasure/job_runtime.js";
 import {
   closeCapacityMonitor,
@@ -421,12 +422,10 @@ function actionForRequest(request: FastifyRequest) {
   return cleanShort(body.action ?? body._action ?? "", 80);
 }
 
+/** Attribution for request samples, from the verified principal only. */
 function actorValue(request: FastifyRequest, field: "email" | "org_id") {
-  const header = field === "email" ? "x-internal-user-email" : "x-internal-org-id";
-  const bodyKey = field === "email" ? "actor_email" : "actor_org_id";
-  const query = asObject(request.query);
-  const body = asObject(request.body);
-  return cleanShort(request.headers[header] ?? query[bodyKey] ?? body[bodyKey] ?? "", 120).toLowerCase();
+  const actor = principalActor(knownPrincipal(request));
+  return cleanShort(field === "email" ? actor?.email ?? "" : actor?.organization_id ?? "", 120).toLowerCase();
 }
 
 function shouldSkipUrl(url: string) {
