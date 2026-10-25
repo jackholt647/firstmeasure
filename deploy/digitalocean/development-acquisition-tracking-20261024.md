@@ -76,3 +76,31 @@ events returns 200 with `recorded: 7`, three more single events of that type ret
 Not changed. To release: compatibility (legacy) before the web nodes, because the web route calls the new
 `trackAcquisitionEvents` operation. The first compatibility open drops the index (222 rows; instant). Ship
 `public/portal/landing/shared/signup-widget.js` with the web nodes and compatibility; the websites need nothing.
+
+## Follow-up: failures after merging onto production (October 24)
+
+Merged onto `codex/hotfix-20261024u` as `codex/hotfix-20261024v` (`65c1fcca`), some browser tests failed. Fixed on
+`claude/acquisition-tracking-flaky-20261024` (from `65c1fcca`):
+
+- `98d2c05b` (the reported failure). The funnel case in `signup-embed-browser.test.mjs` registered `(415) 555-0195`,
+  the number the Meta bonus case from `b9f89a1d` uses later in the same file. Merged together, the second signup was
+  refused as a duplicate phone and never left the form (`waitForURL` timeout); alone, each passed. The funnel case now
+  uses `(415) 555-0196`.
+- `3d283459` (the language-suite failures, which also happen on production base `6fefe93c`: 1 of 5 runs there). On
+  Windows, `writeFileAtomic` (`platform/storage.ts`) removed a record after a failed rename-over-existing and retried.
+  Every request rewrites its session file, so after a signup the onboarding page's requests left windows where the
+  session file did not exist; a read in that window failed (`me/localization` 404 "platform record was not found";
+  captured) and the organization language, cookie or onboarding checks failed at random. It now retries the rename
+  over the existing record (12 tries, up to 100 ms apart) and never removes it. Linux renames atomically and never
+  takes this path, so development and production behave as before.
+- Not involved: the event limiter (the language suite sent 350 events in 27 batches and never came near it), the
+  batching timer and page-hide flush, and the ledger write transaction.
+
+Runs (this machine): each of acquisition-events, signup-widget-auth, referral-cluster, referral-ledger-reconcile,
+access-gates, signup-embed-browser and signup-language-browser 3 times in a row, all green (8, 2, 3, 4, 1, 14, 22
+pass); the seven together 3 times, 54 of 54 each; `tsc --noEmit` clean. Before the storage fix the language suite
+failed in about half of its runs.
+
+Rollout: `output/acquisition-flaky-20261024/` (commit-base `65c1fcca`), `storage.ts` and the embed test three-way
+merged onto live `6420a83a`; legacy and web activated and verified on `3d283459` at the first attempt; dev.1m8.ai is
+ready and records a two-event batch (200).
