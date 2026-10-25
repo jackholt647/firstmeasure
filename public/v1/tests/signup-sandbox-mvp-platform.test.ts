@@ -48,7 +48,7 @@ test('the MVP platform workflow is FirstMeasure plus projects, contacts, feed an
  const global=await storage.readGlobal(orgId);
  assert.deepEqual((global.data as any).app_placements,{'portal.channels':'hidden','portal.assistant':'hidden'});
  // Project tabs: Overview, Reports, Photos, Docs, Project (called Materials) and Customer Portal; Photos and Docs are New.
- const projectTabs={order:['project.map','project.measurements','project.photos','project.docs','project.materials','project.customer_portal'],pills:{'project.photos':'new','project.docs':'new'}};
+ const projectTabs={order:['project.map','project.measurements','project.photos','project.docs','project.materials','project.customer_portal'],pills:{'project.photos':'new','project.docs':'new','project.materials':'new','project.customer_portal':'new'}};
  assert.deepEqual((global.data as any).project_tabs,projectTabs);
  const {appFlagState}=await import('../platform/app_flags.js');
  assert.deepEqual((await appFlagState(orgId)).project_tabs,projectTabs);
@@ -63,7 +63,7 @@ test('the MVP platform workflow is FirstMeasure plus projects, contacts, feed an
  const roofing=await scopes.readScopeTemplate(orgId,'default','generic_roofing');
  assert.deepEqual((roofing as any).definition?.measurement_schema_ids ?? (roofing as any).measurement_schema_ids,['roofing']);
  assert.equal(String((await creation.creationScopeTemplate(orgId,'default')).id),'generic_roofing');
- assert.equal((workflow as any).dev_bar,false);assert.equal((workflow as any).configuration_revision,11);
+ assert.equal((workflow as any).dev_bar,false);assert.equal((workflow as any).configuration_revision,12);
  const resolved=(await capabilities.effectiveCapabilities(orgId)).values as any;
  assert.equal(resolved['platform.new_button_mode'],'selector');assert.equal(resolved['platform.new_button_items'],'report,project,contact');
  // Turned on as configuration even where this checkout's registry does not define it (dev's does).
