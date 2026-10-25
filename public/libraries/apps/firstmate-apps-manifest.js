@@ -332,7 +332,7 @@
       kind: 'project_modal_app',
       surfaces: ['project_modal'],
       requiresContext: ['project'],
-      bundles: [versionedBundle('../platform-qr/platform-qr.js', '20261024-qr-v1'), versionedBundle('customer-portal/project.js', '20261024-cover-as-media')]
+      bundles: [versionedBundle('../platform-qr/platform-qr.js', '20261024-qr-v1'), versionedBundle('customer-portal/project.js', '20261025-guest-links-listed')]
     },
     {
       id: 'project.schedule',

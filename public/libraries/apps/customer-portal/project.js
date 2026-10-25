@@ -856,7 +856,8 @@
     const guestCount = guests.length
       ? `<button type="button" class="cpo-guest-count" data-cpo-guests-toggle aria-expanded="${state.guestOpen ? 'true' : 'false'}" data-fm-tooltip="${H('cpo_tip_guest_list', 'Guest links that still work. Open the list to copy or revoke one.')}">${esc(guests.length === 1 ? L('cpo_guest_count_one', '1 active') : L('cpo_guest_count', '{n} active', { n: guests.length }))}<i class="fas fa-chevron-down"></i></button>`
       : '';
-    // Customer guest links are an organization feature: off hides the switch and the links (the server makes no new ones).
+    // Customer guest links are an organization feature: off hides the switch (the server makes no new ones); links that
+    // already exist stay listed so they can still be copied or revoked.
     const guestLinks = capabilityOn(GUEST_LINKS_CAPABILITY);
     const resched = capabilityOn(RESCHEDULING_CAPABILITY) ? `
         <label class="cpo-switch" data-cpo-resched-switch data-fm-tooltip="${H('cpo_tip_resched', 'Lets the customer pick a new time for an upcoming appointment from live availability, when that appointment’s scheduling rules also allow it. Off: only your team reschedules.')}">
@@ -866,11 +867,11 @@
       <div class="cpo-options">
         ${guestLinks ? `<label class="cpo-switch" data-cpo-guest-switch data-fm-tooltip="${H('cpo_tip_guests', 'Lets the customer make their own read-only links to share the portal with someone else, such as a family member or an adjuster. Guest links can expire, never include payments, signing, approvals or editing, and you can revoke any of them here. Turning this off stops new links; existing ones keep working until they expire or you revoke them.')}">
           <input type="checkbox" data-cpo-sharing${sharingOn ? ' checked' : ''}${disabled}><span class="cpo-track"></span><span>${H('cpo_guests_label', 'Customer can share guest links')}</span>
-        </label>
-        ${guestCount}` : ''}
+        </label>` : ''}
+        ${guestCount}
         ${resched}
       </div>
-      ${guestLinks && guests.length ? `<div class="cpo-reveal${state.guestOpen ? ' is-open' : ''}" data-cpo-guests><div><div class="cpo-guests">${guests.map(guestRowHtml).join('')}</div></div></div>` : ''}
+      ${guests.length ? `<div class="cpo-reveal${state.guestOpen ? ' is-open' : ''}" data-cpo-guests><div><div class="cpo-guests">${guests.map(guestRowHtml).join('')}</div></div></div>` : ''}
     `;
   }
 
