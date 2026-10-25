@@ -4,7 +4,9 @@
 // Includes auto-login and checks for existing verification.
 
 $emailParam = isset($_GET['email']) ? trim($_GET['email']) : '';
-$redirectParam = isset($_GET['redirect']) ? trim($_GET['redirect']) : './';
+require_once dirname(__DIR__) . '/includes/web_security.php';
+// Only a path on this site: ?redirect= is attacker-chosen.
+$redirectParam = fm_safe_redirect_path($_GET['redirect'] ?? '', './');
 $startParam = isset($_GET['start']) ? trim($_GET['start']) : '';
 
 // --- 1. CHECK IF ALREADY VERIFIED ---
@@ -182,7 +184,16 @@ function esc($s) { return htmlspecialchars($s ?? '', ENT_QUOTES, 'UTF-8'); }
 
 <script>
     const urlParams = new URLSearchParams(window.location.search);
-    const redirectTarget = urlParams.get('redirect') || <?php echo json_encode($redirectParam ?: './'); ?>;
+    function sameOriginPath(raw, fallback) {
+        try {
+            const url = new URL(String(raw || ''), window.location.href);
+            if (url.origin !== window.location.origin) return fallback;
+            return url.pathname + url.search + url.hash;
+        } catch (_) {
+            return fallback;
+        }
+    }
+    const redirectTarget = sameOriginPath(<?php echo json_encode($redirectParam ?: './'); ?>, './');
     const startParam = urlParams.get('start') || <?php echo json_encode($startParam); ?>;
 
     const formArea = document.querySelector('.form-area');

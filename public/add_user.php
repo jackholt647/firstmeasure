@@ -14,6 +14,13 @@ $myAccess = auth_get_access();
 
 // ── Handle POST actions ──────────────────────────────────────────────────────
 
+$ideCsrfToken = fm_csrf_token('ide');
+
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && !fm_csrf_valid('ide', $_POST['csrf_token'] ?? '')) {
+    http_response_code(403);
+    exit('Invalid or missing request token. Reload the page and try again.');
+}
+
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $formAction = $_POST['form_action'] ?? 'add';
 
@@ -254,6 +261,7 @@ $allUsers = $isRoot ? auth_load_users() : [];
                         <button class="btn btn-sm btn-green" onclick="openResetModal('<?= htmlspecialchars($uname, ENT_QUOTES) ?>')">Reset PW</button>
                         <?php if (!$isMe): ?>
                         <form method="post" style="display:inline" onsubmit="return confirm('Delete <?= htmlspecialchars($uname, ENT_QUOTES) ?>?');">
+                            <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($ideCsrfToken, ENT_QUOTES) ?>">
                             <input type="hidden" name="form_action" value="delete">
                             <input type="hidden" name="target_user" value="<?= htmlspecialchars($uname) ?>">
                             <button class="btn btn-sm btn-red" type="submit">Delete</button>
@@ -279,6 +287,7 @@ $allUsers = $isRoot ? auth_load_users() : [];
         </div>
 
         <form method="post" autocomplete="off">
+            <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($ideCsrfToken, ENT_QUOTES) ?>">
             <input type="hidden" name="form_action" value="add">
 
             <label for="username">Username</label>
@@ -315,6 +324,7 @@ $allUsers = $isRoot ? auth_load_users() : [];
     <div class="modal">
         <h3>Edit Access — <span id="editUser"></span></h3>
         <form method="post">
+            <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($ideCsrfToken, ENT_QUOTES) ?>">
             <input type="hidden" name="form_action" value="update">
             <input type="hidden" name="target_user" id="editTargetUser">
             <label>Access Level</label>
@@ -340,6 +350,7 @@ $allUsers = $isRoot ? auth_load_users() : [];
     <div class="modal">
         <h3>Reset Password — <span id="resetUser"></span></h3>
         <form method="post">
+            <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($ideCsrfToken, ENT_QUOTES) ?>">
             <input type="hidden" name="form_action" value="reset_password">
             <input type="hidden" name="target_user" id="resetTargetUser">
             <label>New Password</label>

@@ -765,7 +765,17 @@ src="https://www.facebook.com/tr?id=636685175264715&ev=PageView&noscript=1"
 <script>
     // --- HELPER: Parse URL params ---
     const urlParams = new URLSearchParams(window.location.search);
-    const redirectTarget = urlParams.get('redirect') || './'; // Default to browser
+    // ?redirect= is attacker-chosen: only a path on this site (never another origin or javascript:).
+    function sameOriginPath(raw, fallback) {
+        try {
+            const url = new URL(String(raw || ''), window.location.href);
+            if (url.origin !== window.location.origin) return fallback;
+            return url.pathname + url.search + url.hash;
+        } catch (_) {
+            return fallback;
+        }
+    }
+    const redirectTarget = sameOriginPath(urlParams.get('redirect') || './', './'); // Default to browser
     const referralCode = (urlParams.get('ref') || '').trim().toUpperCase();
     const campaignCode = (urlParams.get('cid') || urlParams.get('campaign') || urlParams.get('campaign_code') || urlParams.get('utm_campaign') || '').trim();
     let acquisitionCode = campaignCode;
