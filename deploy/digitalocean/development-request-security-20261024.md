@@ -94,3 +94,22 @@ from the index and working copy (it matched the base).
 - Production: the audit's release-baseline and secret-rotation steps apply before any production release.
 - Host nginx configuration from the templates (`security-php-nginx-20261024.md`).
 - Pool node: down.
+
+## Addendum: follow-up release `b6f6c951` (2026-10-25)
+
+Release `b6f6c951` (commits `3d6ed369` and `b6f6c951` on `claude/request-security-20261024`, commit-base `a55f4d66`)
+on worker, legacy and web, activated 04:27:24 to 04:27:40 UTC; the web standby followed at 04:27:50. Pool still down.
+Tooling: `output/request-security-followup-20261025/`.
+
+- `3d6ed369`: when a staff save adopts a login that is not staff, that login's password and sessions are cleared;
+  signup can no longer claim a verified email (`internal/api.ts`, `platform/api.ts`, `tests/route-access.test.ts`).
+- `b6f6c951`: `get_apple_key_info` is open to any staff member again (the editor reads it); writing the key stays
+  admin-only (`internal/staff-guards.ts`).
+
+All four files three-way merged onto each role's live copy without conflicts, and the route pre-flight was clean on
+every role. Verified: the anonymous probes answer as before (401 on the covered routes, 200 on the public pages,
+no credentialed CORS for a foreign origin). The editor load as fh-pilot-tech (technician) now gets 200 on
+`legacy-action` `get_apple_key_info`; before, it got 403 `staff_level_required`. No startup errors in the journals.
+Two 502s fell inside the restarts (legacy health probe at 04:27:31, a web poll at 04:27:50). One web "Premature
+close" at 04:44:31 on `legacy-action` came from the verification browser being stopped mid-request. Canonical moved
+from `a55f4d66` to `b6f6c951` by compare-and-swap; other sessions' edits to `platform/api.ts` were kept.
