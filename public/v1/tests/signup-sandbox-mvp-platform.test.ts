@@ -72,12 +72,14 @@ test('the MVP platform workflow is FirstMeasure plus projects, contacts, feed an
  const roofing=await scopes.readScopeTemplate(orgId,'default','generic_roofing');
  assert.deepEqual((roofing as any).definition?.measurement_schema_ids ?? (roofing as any).measurement_schema_ids,['roofing']);
  assert.equal(String((await creation.creationScopeTemplate(orgId,'default')).id),'generic_roofing');
- assert.equal((workflow as any).dev_bar,false);assert.equal((workflow as any).configuration_revision,17);
+ assert.equal((workflow as any).dev_bar,false);assert.equal((workflow as any).configuration_revision,18);
  const resolved=(await capabilities.effectiveCapabilities(orgId)).values as any;
  assert.equal(resolved['platform.new_button_mode'],'selector');assert.equal(resolved['platform.new_button_items'],'report,project,contact');
+ // The left column's footer is stacked: the account on its own row, named explicitly as well as being the default.
+ assert.equal((workflow!.defaults as any).app_flags['platform.sidebar_footer_layout'],'stacked');assert.equal(resolved['platform.sidebar_footer_layout'],'stacked');
  // Turned on as configuration even where this checkout's registry does not define it (dev's does).
  assert.equal((workflow!.defaults as any).app_flags['firstmeasure.roof_model_viewer'],true);
- assert.equal((workflow as any).sample_data,true);assert.deepEqual((workflow as any).setup_scripts,['mvp-platform']);assert.deepEqual((workflow as any).launch_sample_data,['projects','customers']);
+ assert.equal((workflow as any).sample_data,true);assert.deepEqual((workflow as any).setup_scripts,['mvp-platform']);assert.deepEqual((workflow as any).launch_sample_data,[]);
  // Generic Roofing's board follows the report and the documents: five stages, in order.
  const definition=(roofing as any).definition;
  assert.deepEqual(definition.work_plan.root_nodes[0].children.map((stage:any)=>stage.title),['New project','Measurements ordered','Measurements received','Proposal created','Materials created']);
@@ -90,8 +92,8 @@ test('the MVP platform workflow is FirstMeasure plus projects, contacts, feed an
  assert.equal(await stageAfter([{event:'measurement.report.ordered'},{event:'measurement.report.completed'},{event:'document.created',payload:{document_type:'invoice'}}]),'report_delivered');
  assert.equal(await stageAfter([{event:'document.created',payload:{document_type:'proposal'}}]),'proposal_created');
  assert.equal(await stageAfter([{event:'material.lines.created'},{event:'measurement.report.ordered'}]),'materials_created');
- // The launch's sample data queued work events that drain in the background; let them finish so the inline drains
- // below are not skipped while a background pass is still running.
+ // Any work events queued by the launch drain in the background; let them finish so the inline drains below are not
+ // skipped while a background pass is still running.
  const workStore=await import('../work/storage.js');
  for(let i=0;i<300;i++){
   const busy=(await Promise.all(['pending','processing'].map(status=>workStore.listEventRecords(orgId,{status,limit:1})))).some(rows=>rows.length);
@@ -151,10 +153,11 @@ test('the MVP platform workflow is FirstMeasure plus projects, contacts, feed an
  assert.deepEqual(tabs.filter((app:any)=>placements[app.id]!=='hidden'&&app.launcher!==false&&app.id!=='portal.pricebook').map((app:any)=>app.title).sort(),['Feed','My Contacts','My Projects']);
  assert.ok(tabs.some((app:any)=>app.id==='portal.pricebook'));
  assert.ok(!tabs.some((app:any)=>app.id==='portal.chat'),'no Communications or Call center');
- // A launched MVP test org starts with the sample projects (with map points) and customers.
+ // A launched MVP test org starts with no sample projects or customers: they come only from "Add sample data".
  const projects=await storage.listDocuments(orgId,'projects');
- assert.ok(projects.filter((row:any)=>String(row.id).startsWith('sample_')).length>=4,'sample projects');
- assert.ok(projects.filter((row:any)=>String(row.id).startsWith('sample_')).every((row:any)=>Number.isFinite((row.data as any).lat)));
+ assert.deepEqual(projects.filter((row:any)=>String(row.id).startsWith('sample_')).map((row:any)=>row.id),[],'no sample projects');
  const {listContacts}=await import('../contacts/records.js');
- assert.ok((await listContacts(orgId)).items.length>=5,'sample customers');
+ assert.deepEqual((await listContacts(orgId)).items.map((row:any)=>row.id),[],'no sample customers');
+ // The default FirstMeasure signup and Instant full org add none at launch either.
+ for(const id of ['swf_firstmate_default','swf_instant_full_org']) assert.deepEqual((await sandboxStore.readWorkflow(id) as any)?.launch_sample_data,[],id);
 });

@@ -1,8 +1,10 @@
 /**
  * public/libraries/apps/help/app.js
- * Self-contained floating help widget.
+ * Self-contained help & support card (support@1m8.ai).
  * Injects its own styles + markup; uses the app's CSS custom properties
  * (--primary, --primary-rgb, --on-primary, --primary-dark) for theming.
+ * It is opened by the sidebar's Help launcher (window.FirstMateHelp.toggle), which every
+ * customer has (1M8-243). Its old floating "?" button covered UI such as chat composers.
  */
 (function () {
   /* ── Prevent double-init ─────────────────────────────────── */
@@ -10,51 +12,12 @@
 
   /* ── Stylesheet ──────────────────────────────────────────── */
   const css = `
-    /* ----- Floating trigger button ----- */
-    #fmHelpBtn{
-      position:fixed;
-      bottom:24px;
-      right:24px;
-      z-index:9000;
-      width:48px;
-      height:48px;
-      border-radius:50%;
-      border:none;
-      cursor:pointer;
-      background:var(--primary,#d93025);
-      color:var(--on-primary,#fff);
-      box-shadow:0 4px 14px rgba(var(--primary-rgb,217,48,37),.35),
-                 0 1px 4px rgba(0,0,0,.12);
-      display:flex;
-      align-items:center;
-      justify-content:center;
-      transition:transform .22s cubic-bezier(.4,0,.2,1),
-                 box-shadow .22s ease,
-                 opacity .18s ease;
-    }
-    #fmHelpBtn:hover{
-      transform:scale(1.08);
-      box-shadow:0 6px 20px rgba(var(--primary-rgb,217,48,37),.45),
-                 0 2px 6px rgba(0,0,0,.1);
-    }
-    #fmHelpBtn:active{ transform:scale(.96); }
-    #fmHelpBtn.fm-hidden{
-      opacity:0;
-      pointer-events:none;
-      transform:scale(.5);
-    }
-    #fmHelpBtn svg{
-      width:22px;
-      height:22px;
-      fill:currentColor;
-    }
-
     /* ----- Popup card ----- */
     #fmHelpPopup{
       position:fixed;
       bottom:24px;
-      right:24px;
-      z-index:9001;
+      left:24px;
+      z-index:2147483600;
       width:320px;
       max-width:calc(100vw - 32px);
       background:#fff;
@@ -65,12 +28,14 @@
       /* start hidden */
       opacity:0;
       transform:translateY(12px) scale(.92);
-      transform-origin:bottom right;
+      transform-origin:bottom left;
+      visibility:hidden;
       pointer-events:none;
       transition:opacity .28s cubic-bezier(.4,0,.2,1),
                  transform .28s cubic-bezier(.4,0,.2,1);
     }
     #fmHelpPopup.fm-open{
+      visibility:visible;
       opacity:1;
       transform:translateY(0) scale(1);
       pointer-events:auto;
@@ -138,17 +103,9 @@
 
     /* ----- Mobile tweak ----- */
     @media(max-width:820px){
-      #fmHelpBtn{
-        bottom:calc(12px + var(--referral-mobile-inset,0px));
-        right:10px;
-        width:38px;
-        height:38px;
-      }
-      #fmHelpBtn:hover{ transform:scale(1.04); }
-      #fmHelpBtn svg{ width:18px; height:18px; }
       #fmHelpPopup{
         bottom:calc(12px + var(--referral-mobile-inset,0px));
-        right:10px;
+        left:10px;
         width:min(300px,calc(100vw - 20px));
         border-radius:14px;
       }
@@ -169,23 +126,9 @@
   const wrapper = document.createElement('div');
   wrapper.id = 'fmHelpWidget';
   wrapper.innerHTML = `
-    <!-- Trigger -->
-    <button id="fmHelpBtn" aria-label="${(globalThis.PlatformLanguage?.htmlText("help","m_67b289b34e4ca4","Help") ?? "Help")}">
-      <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-        <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48
-               10-10S17.52 2 12 2zm1 17h-2v-2h2v2zm2.07-7.75
-               l-.9.92C13.45 12.9 13 13.5 13 15h-2v-.5
-               c0-1.1.45-2.1 1.17-2.83l1.24-1.26
-               c.37-.36.59-.86.59-1.41 0-1.1-.9-2-2-2s-2
-               .9-2 2H8c0-2.21 1.79-4 4-4s4 1.79 4
-               4c0 .88-.36 1.68-.93 2.25z"/>
-      </svg>
-    </button>
-
-    <!-- Popup -->
-    <div id="fmHelpPopup">
+    <div id="fmHelpPopup" role="dialog" aria-labelledby="fmHelpTitle" aria-hidden="true">
       <div class="fmHelp-header">
-        <h3>${(globalThis.PlatformLanguage?.htmlText("help","m_0db6efc53ab2ed","Need a hand?") ?? "Need a hand?")}</h3>
+        <h3 id="fmHelpTitle">${(globalThis.PlatformLanguage?.htmlText("help","m_0db6efc53ab2ed","Need a hand?") ?? "Need a hand?")}</h3>
         <button class="fmHelp-close" id="fmHelpCloseBtn" aria-label="${(globalThis.PlatformLanguage?.htmlText("help","m_3742924668fb10","Close") ?? "Close")}">${(globalThis.PlatformLanguage?.htmlText("help","m_dd0c616953d455","&times;") ?? "&times;")}</button>
       </div>
       <div class="fmHelp-body">
@@ -200,30 +143,45 @@
   document.body.appendChild(wrapper);
 
   /* ── Behaviour ───────────────────────────────────────────── */
-  const btn   = document.getElementById('fmHelpBtn');
   const popup = document.getElementById('fmHelpPopup');
   const close = document.getElementById('fmHelpCloseBtn');
   let open = false;
+  let opener = null;
 
-  function show() {
+  /* Beside the launcher that opened it (the sidebar's bottom row); phones use the stylesheet's corner. */
+  function place(trigger) {
+    popup.style.left = popup.style.bottom = '';
+    if (!trigger || window.matchMedia('(max-width:820px)').matches) return;
+    const rect = trigger.getBoundingClientRect();
+    if (!rect.width && !rect.height) return;
+    const edge = trigger.closest('.sidebar')?.getBoundingClientRect().right ?? rect.right;
+    const width = popup.offsetWidth || 320;
+    popup.style.left = Math.max(12, Math.min(edge + 12, window.innerWidth - width - 12)) + 'px';
+    popup.style.bottom = Math.max(12, window.innerHeight - rect.bottom) + 'px';
+  }
+  function show(trigger) {
+    opener = trigger || null;
+    window.__mobileSidebar?.close?.();
+    place(opener);
     open = true;
-    btn.classList.add('fm-hidden');
     popup.classList.add('fm-open');
+    popup.setAttribute('aria-hidden', 'false');
+    opener?.setAttribute?.('aria-expanded', 'true');
   }
   function hide() {
+    if (!open) return;
     open = false;
     popup.classList.remove('fm-open');
-    /* wait for exit animation before re-showing button */
-    setTimeout(() => { if (!open) btn.classList.remove('fm-hidden'); }, 260);
+    popup.setAttribute('aria-hidden', 'true');
+    opener?.setAttribute?.('aria-expanded', 'false');
   }
 
-  btn.addEventListener('click', show);
   close.addEventListener('click', hide);
 
-  /* Close on outside click */
+  /* Close on outside click (the launcher toggles it itself) */
   document.addEventListener('mousedown', function (e) {
     if (!open) return;
-    if (popup.contains(e.target) || btn.contains(e.target)) return;
+    if (popup.contains(e.target) || e.target.closest?.('[data-fm-help-open]')) return;
     hide();
   });
 
@@ -231,4 +189,11 @@
   document.addEventListener('keydown', function (e) {
     if (e.key === 'Escape' && open) hide();
   });
+
+  window.FirstMateHelp = {
+    open: show,
+    close: hide,
+    toggle(trigger) { if (open) hide(); else show(trigger); },
+    isOpen: () => open
+  };
 })();

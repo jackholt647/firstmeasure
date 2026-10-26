@@ -150,7 +150,7 @@ const firstMeasureCapabilities = new Set([
   "mobile.app_download", "mobile.developer_downloads",
   "platform.expanded_access", "apps.projects", "apps.project_map", "apps.firstmeasure", "apps.billing", "apps.referrals",
   "platform.left_column_settings",
-  "platform.separate_user_section", "platform.cobrand_sidebar_logo",
+  "platform.sidebar_footer_layout", "platform.cobrand_sidebar_logo",
   "platform.new_button_mode", "platform.new_button_items",
   "platform.storage_limits", "platform.free_storage_gb", "platform.purchasable_storage",
   "permission.view_projects", "permission.manage_projects", "permission.view_reports",

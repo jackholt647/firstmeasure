@@ -950,12 +950,17 @@
     },
 
     {
-      key: 'platform.separate_user_section',
+      key: 'platform.sidebar_footer_layout',
       group: 'platform',
-      flag: 'separate_user_section',
-      defaultValue: false,
-      label: (globalThis.PlatformLanguage?.text("settings","m_f893f224c33918","Separate User Section") ?? "Separate User Section"),
-      description: (globalThis.PlatformLanguage?.text("settings","m_290c28d4fa9275","Keep the account switcher in its own section instead of the shared Settings, Apps, and User footer row.") ?? "Keep the account switcher in its own section instead of the shared Settings, Apps, and User footer row.")
+      flag: 'sidebar_footer_layout',
+      type: 'select',
+      defaultValue: 'stacked',
+      label: (globalThis.PlatformLanguage?.text("settings","sidebar_footer_layout_label","Sidebar Footer Layout") ?? "Sidebar Footer Layout"),
+      description: (globalThis.PlatformLanguage?.text("settings","sidebar_footer_layout_description","Stacked keeps the account on its own row at the bottom of the left column, with Settings, Apps and Help & support as icons above it. Inline shows all four as icons in one row.") ?? "Stacked keeps the account on its own row at the bottom of the left column, with Settings, Apps and Help & support as icons above it. Inline shows all four as icons in one row."),
+      options: [
+        ['stacked', (globalThis.PlatformLanguage?.text("settings","sidebar_footer_layout_stacked","Stacked (account on its own row)") ?? "Stacked (account on its own row)")],
+        ['inline', (globalThis.PlatformLanguage?.text("settings","sidebar_footer_layout_inline","Inline (one row of icons)") ?? "Inline (one row of icons)")]
+      ]
     },
     {
 

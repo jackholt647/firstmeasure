@@ -1404,12 +1404,15 @@ const definitions: CapabilityDefinition[] = [
   },
 
   {
-    key: "platform.separate_user_section",
+    // Replaces platform.separate_user_section (true was "stacked", false "inline"); stacked is now everyone's default.
+    key: "platform.sidebar_footer_layout",
     kind: "setting",
     category: "Platform & Appearance",
-    label: "Separate User Section",
-    description: "Keep the account switcher in its own labeled section below the sidebar app launchers. Turn this off to show Settings, More Apps, and User together as icons in one footer row.",
-    default: false
+    type: "select",
+    label: "Sidebar Footer Layout",
+    description: "Stacked keeps the account on its own row at the bottom of the left column, with Settings, Apps and Help & support as icons above it. Inline shows all four as icons in one row.",
+    default: "stacked",
+    options: [["stacked", "Stacked (account on its own row)"], ["inline", "Inline (one row of icons)"]]
   },
   {
     key: "platform.advanced_app_menu",

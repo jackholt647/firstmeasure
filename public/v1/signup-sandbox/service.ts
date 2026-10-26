@@ -1315,7 +1315,7 @@ export async function ensureSeedData() {
         app_flags: {
           ...existingFlags,
           "platform.cobrand_sidebar_logo": true,
-          "platform.separate_user_section": false,
+          "platform.sidebar_footer_layout": "stacked",
           "platform.custom_fields": false,
           "platform.terminology_settings": false
         }

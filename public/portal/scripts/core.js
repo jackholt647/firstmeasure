@@ -3565,10 +3565,13 @@
     const settingsTab = list.find((tab) => tab.id === settingsTabId && tab.placement === 'settings');
     const capabilities = window.Portal?.capabilities || window.PlatformAPI?.capabilities;
     const flags = window.Portal?.appFlags || window.PlatformAPI?.appFlags;
-    const separateUserSection = capabilities?.current?.()
-      ? capabilities.value?.('platform.separate_user_section', false) === true
-      : (flags?.current?.() && flags.value?.('platform', 'separate_user_section', false) === true);
-    const integratedUser = !separateUserSection && !!accountButton;
+    // The organization's sidebar footer layout (platform.sidebar_footer_layout): "stacked" keeps the account on its
+    // own full-width row at the bottom with the launchers in a row above it; "inline" puts the account in that row.
+    const footerLayout = capabilities?.current?.()
+      ? capabilities.value?.('platform.sidebar_footer_layout', 'stacked')
+      : (flags?.current?.() ? flags.value?.('platform', 'sidebar_footer_layout', 'stacked') : 'stacked');
+    const integratedUser = footerLayout === 'inline' && !!accountButton;
+    document.getElementById('mainSidebar')?.setAttribute('data-footer-layout', integratedUser ? 'inline' : 'stacked');
     if (accountButton && !accountButton.querySelector('.fm-account-launcher-user')) {
       accountButton.insertAdjacentHTML('afterbegin', '<i class="fas fa-user fm-account-launcher-user" aria-hidden="true"></i>');
     }
@@ -3777,11 +3780,46 @@
         container.append(settingsButton, divider, moreButton, popover);
       }
     }
+    // Help & support is offered to everyone, whatever their permissions or apps (1M8-243): it opens the help card
+    // (libraries/apps/help/app.js, support@1m8.ai). It sits with the launchers; a floating button covered chat composers.
+    const helpLabel = (globalThis.PlatformLanguage?.text("platform","help_and_support","Help & support") ?? "Help & support");
+    const helpButton = iconRow ? document.createElement('button') : makeSingleLink('fa-circle-question', '');
+    if (iconRow) {
+      helpButton.type = 'button';
+      helpButton.className = 'sidebar-launcher-icon';
+      helpButton.innerHTML = '<i class="fas fa-circle-question" aria-hidden="true"></i>';
+    } else {
+      helpButton.querySelector('.tx').textContent = helpLabel;
+    }
+    helpButton.dataset.launcher = 'help';
+    helpButton.dataset.fmHelpOpen = '';
+    helpButton.setAttribute('aria-label', helpLabel);
+    helpButton.setAttribute('aria-haspopup', 'dialog');
+    helpButton.title = helpLabel;
+    helpButton.addEventListener('click', () => {
+      closeMoreApps();
+      window.FirstMateHelp?.toggle?.(helpButton);
+    });
+    helpButton.addEventListener('keydown', (event) => {
+      if (!iconRow && (event.key === 'Enter' || event.key === ' ')) { event.preventDefault(); helpButton.click(); }
+    });
+    if (split && !integratedUser) {
+      const last = [...container.children].filter((node) => !node.classList.contains('fm-more-apps-popover')).pop();
+      if (last && !last.classList.contains('sidebar-launcher-divider')) {
+        const divider = document.createElement('span');
+        divider.className = 'sidebar-launcher-divider';
+        divider.setAttribute('aria-hidden', 'true');
+        container.appendChild(divider);
+      }
+      container.appendChild(helpButton);
+    } else if (!integratedUser) {
+      container.appendChild(helpButton);
+    }
     if (integratedUser && accountButton) {
       accountButton.setAttribute('aria-label', (globalThis.PlatformLanguage?.text("platform","m_5daff8195c98c2","User and accounts") ?? "User and accounts"));
       accountButton.title = (globalThis.PlatformLanguage?.text("platform","m_5daff8195c98c2","User and accounts") ?? "User and accounts");
       accountButton.addEventListener('click', closeMoreApps, { signal: launcherAbort.signal });
-      const launchers = [settingsButtonRef, moreButtonRef, accountButton].filter(Boolean);
+      const launchers = [settingsButtonRef, moreButtonRef, helpButton, accountButton].filter(Boolean);
       const row = [];
       launchers.forEach((launcher, index) => {
         if (index) {
@@ -3883,7 +3921,7 @@
         flex:0 0 auto;
         position:relative;
       }
-      #sidebarBottomLinks.sidebar-launchers-split{display:grid;grid-template-columns:minmax(0,1fr) 1px minmax(0,1fr);align-items:center;gap:0}
+      #sidebarBottomLinks.sidebar-launchers-split{display:grid;grid-template-columns:none;grid-auto-flow:column;grid-auto-columns:minmax(0,1fr) 1px;align-items:center;gap:0}
       .sidebar-scroll:has(#sidebarBottomLinks.sidebar-launchers-integrated){padding-bottom:var(--fm-sidebar-safe-bottom,env(safe-area-inset-bottom,0px))}
       #sidebarBottomLinks.sidebar-launchers-integrated{display:flex;flex-direction:row;align-items:center;gap:0;border-top:1px solid rgba(0,0,0,.06);padding:7px 0}
       #sidebarBottomLinks.sidebar-launchers-integrated>.sidebar-launcher-icon{flex:1 1 0;width:auto}
@@ -3940,7 +3978,7 @@
       .fm-more-apps-foot button{width:100%;border:0;border-radius:9px;background:transparent;padding:8px 6px;color:#475467;font:inherit;font-size:11px;font-weight:900;cursor:pointer;text-align:center}
       .fm-more-apps-foot button:hover,.fm-more-apps-foot button:focus-visible{background:#f5f6f8;color:var(--primary-readable,var(--primary,#d93025));outline:none}
       @media(prefers-reduced-motion:reduce){.fm-more-apps-popover:not([hidden]),.fm-more-apps-popover.closing{animation:none}}
-      .sidebar.sidebar-compact:not(.sidebar-hover-expanded):not(.sidebar-compact-edge-held):not(.sidebar-compact-expanded):not(.sidebar-advanced-apps-open:not(.sidebar-manual)) #sidebarBottomLinks.sidebar-launchers-split{grid-template-columns:1fr;grid-template-rows:auto 1px auto;gap:4px}
+      .sidebar.sidebar-compact:not(.sidebar-hover-expanded):not(.sidebar-compact-edge-held):not(.sidebar-compact-expanded):not(.sidebar-advanced-apps-open:not(.sidebar-manual)) #sidebarBottomLinks.sidebar-launchers-split{grid-template-columns:1fr;grid-template-rows:none;grid-auto-flow:row;grid-auto-rows:auto 1px;gap:4px}
       .sidebar.sidebar-compact:not(.sidebar-hover-expanded):not(.sidebar-compact-edge-held):not(.sidebar-compact-expanded):not(.sidebar-advanced-apps-open:not(.sidebar-manual)) #sidebarBottomLinks.sidebar-launchers-integrated{flex-direction:column;gap:4px;padding-bottom:15px}
       .sidebar.sidebar-compact:not(.sidebar-hover-expanded):not(.sidebar-compact-edge-held):not(.sidebar-compact-expanded):not(.sidebar-advanced-apps-open:not(.sidebar-manual)) #sidebarBottomLinks.sidebar-launchers-integrated>.sidebar-launcher-icon{flex:none;width:28px}
       .sidebar.sidebar-compact:not(.sidebar-hover-expanded):not(.sidebar-compact-edge-held):not(.sidebar-compact-expanded):not(.sidebar-advanced-apps-open:not(.sidebar-manual)) .sidebar-launcher-divider{justify-self:center;width:22px;height:1px;flex-basis:1px}

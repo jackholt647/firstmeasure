@@ -141,7 +141,7 @@ test('clicking a catalog app opens the detail modal with Add to Platform', () =>
 });
 
 test('compact sidebar stacks launcher buttons', () => {
-  assert.match(core, /sidebar-compact[^\n]+sidebarBottomLinks\.sidebar-launchers-split\{grid-template-columns:1fr;grid-template-rows:auto 1px auto/);
+  assert.match(core, /sidebar-compact[^\n]+sidebarBottomLinks\.sidebar-launchers-split\{grid-template-columns:1fr;grid-template-rows:none;grid-auto-flow:row;grid-auto-rows:auto 1px/);
   assert.match(core, /sidebar-compact[^\n]+sidebarBottomLinks\.sidebar-launchers-integrated\{flex-direction:column;gap:4px;padding-bottom:15px/);
 });
 
@@ -155,8 +155,8 @@ test('a single Settings control reuses the normal sidebar app row without launch
   assert.match(core, /#sidebarBottomLinks>\.fm-link\.active[^}]+color:#333/);
 });
 
-test('split launchers center Settings and More Apps in equal halves', () => {
-  assert.match(core, /grid-template-columns:minmax\(0,1fr\) 1px minmax\(0,1fr\)/);
+test('split launchers center Settings, More Apps and Help in equal parts', () => {
+  assert.match(core, /sidebar-launchers-split\{display:grid;grid-template-columns:none;grid-auto-flow:column;grid-auto-columns:minmax\(0,1fr\) 1px;/);
   assert.match(core, /container\.append\(settingsButton, divider, moreButton, popover\)/);
   assert.match(core, /sidebar-launcher-icon\{[^}]+justify-self:center[^}]+color:#6b7280/);
   assert.match(core, /sidebar-launchers-split \+ \.sidebar-footer\{margin-top:-6px;padding-top:7px\}/);
@@ -192,13 +192,13 @@ test('More Apps opens as an animated catalog with larger tiles and a Manage link
   assert.match(core, /settingsButton\.addEventListener\('click',[\s\S]{0,100}closeMoreApps\(\)/);
 });
 
-test('the optional integrated footer uses Settings, More Apps, and User icons with animated account chrome', () => {
-  assert.match(capabilityDefs, /key: "platform\.separate_user_section"[\s\S]{0,500}default: false/);
-  assert.match(core, /capabilities\.value\?\.\('platform\.separate_user_section', false\) === true/);
+test('the optional inline footer uses Settings, More Apps, and User icons with animated account chrome', () => {
+  assert.match(capabilityDefs, /key: "platform\.sidebar_footer_layout"[\s\S]{0,500}default: "stacked"/);
+  assert.match(core, /capabilities\.value\?\.\('platform\.sidebar_footer_layout', 'stacked'\)[\s\S]{0,200}const integratedUser = footerLayout === 'inline' && !!accountButton;/);
   assert.match(core, /if \(accountButton && accountFooter && container\.contains\(accountButton\)\) accountFooter\.appendChild\(accountButton\);[\s\S]{0,80}container\.innerHTML = ''/);
   assert.match(core, /if \(split && !integratedUser\) \{[\s\S]{0,120}sidebar-launcher-divider/);
   assert.match(core, /sidebar-launchers-integrated\{display:flex;flex-direction:row[^}]+border-top:/);
-  assert.match(core, /launchers = \[settingsButtonRef, moreButtonRef, accountButton\]\.filter\(Boolean\)/);
+  assert.match(core, /launchers = \[settingsButtonRef, moreButtonRef, helpButton, accountButton\]\.filter\(Boolean\)/);
   assert.match(core, /sidebar-scroll:has\(#sidebarBottomLinks\.sidebar-launchers-integrated\)\{padding-bottom:env\(safe-area-inset-bottom,0px\)/);
   assert.match(core, /sidebar-launchers-integrated\{[^}]+padding:7px 0/);
   assert.match(core, /sidebar-launcher-icon\{display:grid;place-items:center/);
@@ -252,9 +252,9 @@ test('Company Settings gates optional tabs and report branding behind capabiliti
   assert.doesNotMatch(mySettingsRenderer, /paneScopeTemplates|draftDefinition|scopeScheduling/);
 });
 
-test('co-branding defaults on while the separate user section defaults off', () => {
+test('co-branding defaults on while the sidebar footer defaults to stacked', () => {
   assert.match(capabilityDefs, /key: "platform\.cobrand_sidebar_logo"[\s\S]{0,400}default: true/);
-  assert.match(capabilityDefs, /key: "platform\.separate_user_section"[\s\S]{0,400}default: false/);
+  assert.match(capabilityDefs, /key: "platform\.sidebar_footer_layout"[\s\S]{0,500}default: "stacked"/);
 });
 
 test('Manage My Apps is a Features & Apps sub-tab rendered from the shared catalog', () => {

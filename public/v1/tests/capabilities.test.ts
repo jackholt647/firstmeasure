@@ -127,7 +127,7 @@ test("registry is structurally valid and includes every legacy flag plus new app
   }
   assert.equal(definitions.find((definition) => definition.key === "platform.cobrand_sidebar_logo")?.default, true);
   assert.equal(definitions.find((definition) => definition.key === "platform.project_assignments")?.default, true);
-  assert.equal(definitions.find((definition) => definition.key === "platform.separate_user_section")?.default, false);
+  assert.equal(definitions.find((definition) => definition.key === "platform.sidebar_footer_layout")?.default, "stacked");
   assert.equal(definitions.find((definition) => definition.key === "platform.custom_fields")?.default, true);
   assert.equal(definitions.find((definition) => definition.key === "platform.terminology_settings")?.default, true);
   const discoverableApps = definitions.filter((definition) => definition.kind === "app" && definition.discoverable);
