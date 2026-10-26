@@ -247,6 +247,56 @@ test("posts made before the project-free key keep their thread", async () => {
   assert.equal((await client.request("POST", `${feed}/posts/resolve`, { refs })).root.id, legacy.id, "no second post is made");
 });
 
+test("a stale whole-project save cannot drop a photo paired meanwhile, nor put back one returned to the Feed", async () => {
+  const { client, orgId, media, setPermissions } = await registerOwner();
+  const { upsertDocument, readDocument } = await import("../platform/storage.js");
+  const topDown = { id: "top_down_thumbnail", kind: "external_image", designator: "top_down_thumbnail", is_top_down_thumbnail: true, src: "https://example.test/google.png" };
+  const satellite = { id: "satellite_race", media_id: "satellite_race", kind: "media_reference", source: "satellite_top_down", media_type: "image" };
+  await upsertDocument(orgId, "projects", { id: "race_project", data: { title: "Race project", branch_id: "default", photos: [topDown, satellite] } });
+  const projectUrl = `/v1/platform/organizations/${orgId}/projects/race_project`;
+  const photoIds = async () => (((await readDocument(orgId, "projects", "race_project")).data as Json).photos as Json[]).map((p) => p.media_id || p.id);
+  // The project window's copy, read before the pairing, whose photo list has only the generated top-down image (as
+  // on dev, where every open of the window saved the whole project from such a copy, with no expected revision).
+  const stale = { ...(await client.request("GET", projectUrl)).document.data, photos: [topDown], title: "Renamed in the window" };
+  const photo = (await client.request("POST", media, upload({ owner_type: "organization", slot: "photos" }))).media;
+
+  const [paired] = await Promise.all([
+    client.request("POST", `${media}/assign`, { project_id: "race_project", media_ids: [photo.id] }),
+    client.request("PUT", projectUrl, { data: stale, metadata: { kind: "platform_project" } })
+  ]);
+  assert.deepEqual(paired.assigned, [photo.id]);
+  // The order seen on dev: the window's stale save lands right after the pairing.
+  await client.request("PUT", projectUrl, { data: stale, metadata: { kind: "platform_project" } });
+  await client.request("PATCH", projectUrl, { data: { photos: [topDown] }, metadata: {} });
+  assert.ok((await photoIds()).includes(photo.id), "the paired photo stays in photos[]");
+  assert.ok((await photoIds()).includes("satellite_race"), "so does the satellite photo the server saved");
+  const saved = (await readDocument(orgId, "projects", "race_project")).data as Json;
+  assert.equal(saved.title, "Renamed in the window", "the save's own changes are stored");
+  assert.equal(saved.thumbnail_photo_id, "satellite_race", "the thumbnail is derived from the kept list");
+  assert.equal((saved.photos as Json[]).filter((p) => p.is_thumbnail).length, 1);
+
+  // A copy read while it was paired does not put it back once it is returned to the Feed.
+  const withPhoto = (await client.request("GET", projectUrl)).document.data;
+  await client.request("POST", `${media}/unassign`, { project_id: "race_project", media_ids: [photo.id] });
+  await client.request("PUT", projectUrl, { data: withPhoto, metadata: { kind: "platform_project" } });
+  assert.equal((await photoIds()).includes(photo.id), false, "an unpaired photo is not re-added by a stale copy");
+
+  // The photo list endpoint (projectMedia.savePhotos) removes only what its caller took out.
+  const uploaded = (await client.request("POST", media, upload({ owner_type: "project", owner_id: "race_project", slot: "photos" }))).media;
+  const reference = { id: uploaded.id, media_id: uploaded.id, kind: "media_reference", media_type: "image" };
+  const added = await client.request("POST", `${projectUrl}/photos`, { photos: [topDown, reference], remove: [] });
+  assert.deepEqual(added.photos.map((p: Json) => p.media_id || p.id), ["top_down_thumbnail", uploaded.id, "satellite_race"], "photos the caller had not seen are kept");
+  const unchanged = await client.request("POST", `${projectUrl}/photos`, { photos: added.photos, remove: [] });
+  assert.equal(unchanged.project_revision, added.project_revision, "the same list writes nothing");
+  const removed = await client.request("POST", `${projectUrl}/photos`, { photos: [topDown], remove: [uploaded.id] });
+  assert.deepEqual(removed.photos.map((p: Json) => p.media_id || p.id), ["top_down_thumbnail", "satellite_race"]);
+  assert.ok(removed.document.revision > added.project_revision);
+  assert.equal((await client.raw("POST", `${projectUrl}/photos`, { photos: [], remove: [], project_id: "other" })).statusCode, 400, "the body names nothing else");
+  await setPermissions({ manage_projects: false });
+  assert.equal((await client.raw("POST", `${projectUrl}/photos`, { photos: [topDown], remove: ["satellite_race"] })).statusCode, 403);
+  assert.ok((await photoIds()).includes("satellite_race"));
+});
+
 test("the derived thumbnail follows the browser's order", async () => {
   const { withDerivedThumbnail } = await import("../projects/media-assignment.js");
   const photo = (id: string, extra: Json = {}) => ({ id, media_id: id, media_type: "image", ...extra });

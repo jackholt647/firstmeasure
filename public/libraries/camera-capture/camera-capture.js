@@ -37,7 +37,12 @@
 (function(root){
   'use strict';
   if (root.FirstMateCamera) return;
-  const T = (key, fallback, vars) => globalThis.PlatformLanguage?.text?.('camera-capture', key, fallback, vars) ?? fallback;
+  // PlatformLanguage returns the fallback as written when its catalog has no entry (or is not loaded), so the
+  // placeholders are filled here: "Zoom {level}" with { level: '2x' } reads "Zoom 2x".
+  const fill = (text, vars) => (vars && typeof text === 'string')
+    ? text.replace(/\{(\w+)\}/g, (match, name) => Object.prototype.hasOwnProperty.call(vars, name) ? String(vars[name]) : match)
+    : text;
+  const T = (key, fallback, vars) => fill(globalThis.PlatformLanguage?.text?.('camera-capture', key, fallback, vars) ?? fallback, vars);
   const esc = (value) => String(value ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
   const MOBILE = '(max-width: 760px)';
   let sequence = 0;
@@ -433,5 +438,5 @@
     };
   }
 
-  root.FirstMateCamera = { mount, open, version: '20261026-camera-v1' };
+  root.FirstMateCamera = { mount, open, version: '20261026-camera-v2' };
 })(window);

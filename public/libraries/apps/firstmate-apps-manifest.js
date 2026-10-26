@@ -164,7 +164,7 @@
       kind: 'project_modal_app',
       surfaces: ['project_modal'],
       requiresContext: ['project'],
-      bundles: [versionedBundle('../camera-capture/camera-capture.js', '20261026-camera-v1'), versionedBundle('photos/project.js', '20261026-mobile-photos')]
+      bundles: [versionedBundle('../camera-capture/camera-capture.js', '20261026-camera-v2'), versionedBundle('photos/project.js', '20261026-mobile-photos')]
     },
     {
       // DEPRECATED (2026-08): legacy Proposals project tab — hidden by its

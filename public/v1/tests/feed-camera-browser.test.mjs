@@ -89,6 +89,9 @@ test('phone Feed camera: a shot uploads unpaired, Done asks for a project, picki
     await page.waitForFunction(()=>window.server.uploads.length===1);
     await page.locator('[data-fmc-shutter]').click();
     await page.waitForFunction(()=>document.querySelectorAll('.fmc-tile').length===2);
+    assert.deepEqual((await page.locator('.fmc-tile img').evaluateAll(images=>images.map(image=>image.alt))).sort(),['Photo 1','Photo 2'],'thumbnail alt text has its number filled in');
+    const zoomLabels=await page.locator('[data-zoom]').evaluateAll(buttons=>buttons.map(button=>button.getAttribute('aria-label')));
+    assert.ok(zoomLabels.every(label=>/^Zoom \S+$/.test(label)&&!/[{}]/.test(label)),'zoom labels have their level filled in: '+JSON.stringify(zoomLabels));
     await shot(page,'phone-camera');
     await page.locator('[data-fmc-done]').click();
     await page.waitForSelector('.fmc-step [data-feed-assign]');

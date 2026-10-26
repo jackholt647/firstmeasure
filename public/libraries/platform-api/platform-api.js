@@ -2538,16 +2538,22 @@
     async listPhotos(orgId, projectId){
       return projectMedia.normalizePhotos((await readDocumentData(api.projects, orgId, projectId))?.photos || [], { orgId });
     },
+    // Writes only the photo list, in one conditional server write (never the whole project from this copy): the photos
+    // this copy took out leave, its photos are stored, and photos another writer added since it was read are kept.
     async savePhotos(orgId, projectId, project, photos, metadata = {}){
       const thumbnail = projectMedia.primaryPhoto({...project, photos}, {orgId});
       const normalized = projectMedia.ensureThumbnail(photos, photoIdentity(thumbnail));
-      return api.projects.save(orgId, projectId, {
-        ...(project || {}),
-        photos: normalized,
-        thumbnail_photo_id: photoIdentity(thumbnail),
-        thumbnail_photo: thumbnail || null,
-        updated_at: new Date().toISOString()
-      }, metadata);
+      const kept = new Set([...(Array.isArray(photos) ? photos : []), ...normalized].map((photo) => photoIdentity(photo)).filter(Boolean));
+      const remove = [...new Set((Array.isArray(project?.photos) ? project.photos : []).map((photo) => photoIdentity(photo)).filter((id) => id && !kept.has(id)))];
+      const result = await request(orgPath(orgId, `/projects/${enc(projectId)}/photos`), { method: 'POST', body: { photos: normalized, remove } }).catch((error) => {
+        if (isMissingRecord(error)) return { ok: true, document: localDocument(projectId, { ...(project || {}), photos: normalized }, metadata || {}), missing: true };
+        throw error;
+      });
+      if (result && !result.missing && Array.isArray(result.photos)) {
+        // Edit saves diff against the read they started from; the server wrote these fields since.
+        api.projects.advanceBaseline?.(projectId, { photos: result.photos, thumbnail_photo_id: result.thumbnail_photo_id, thumbnail_photo: result.thumbnail_photo });
+      }
+      return result;
     },
     async upsertPhoto(orgId, projectId, project, reference, metadata = {}){
       const current = projectMedia.normalizePhotos(project?.photos || [], { orgId });

@@ -9,6 +9,9 @@
 // owner and adds the photo to the project's `photos[]` in one conditional project write (never a whole-project PUT),
 // and the Feed post the photo already has keeps its comments and reactions. `unassignMediaFromProject` takes back
 // only photos that were paired this way.
+//
+// No other write can undo that: a whole-project save keeps every stored photo it does not mention
+// (`withPreservedPhotos`), and only the photos endpoint (`saveProjectPhotoList`) removes one, by name.
 import type { FastifyInstance, FastifyRequest } from "fastify";
 import { z } from "zod";
 import { requirePlatformAuth, type PlatformAuthContext } from "../platform/auth.js";
@@ -181,6 +184,96 @@ export function withDerivedThumbnail(data: Obj, photos: Obj[]): Obj {
   const flagged = photos.map((photo) => { const on = !!targetId && identity(photo) === targetId; return { ...photo, is_thumbnail: on, is_default_thumbnail: on }; });
   if (thumbnail === "top_down") return { ...data, photos: flagged };
   return { ...data, photos: flagged, thumbnail_photo_id: targetId, thumbnail_photo: thumbnail ? { ...thumbnail, is_thumbnail: true, is_default_thumbnail: true } : null };
+}
+
+// ── Every write of the photo list ─────────────────────────────────────────────────────────────────────────────
+//
+// `photos[]` has several writers: pairing and the satellite writer here on the server, and the browser, which saves
+// the list as the page last saw it, often as part of a whole-project save from a copy read before another writer's
+// change (the project window saved a copy without a just-paired photo and dropped it). So a write removes only the
+// photos it names in `remove`, and only the photos endpoint below names any: a whole-project save can add or change
+// photos but never drops one it does not mention.
+
+const isTransientPhoto = (photo: Obj) => /^(local|uploading)_/.test(identity(photo)) || clean(photo.src).startsWith("blob:");
+
+/** A photo a stale copy would put back after it was returned to the Feed (or paired with another project since). */
+async function leftThisProject(orgId: string, projectId: string, photo: Obj) {
+  const mediaId = clean(photo.media_id);
+  if (!mediaId) return false;
+  const media = await readMediaMetadata(orgId, mediaId).then(obj, () => null);
+  if (!media) return false;
+  if (isUnassignedPhoto(media)) return true;
+  return clean(obj(media.metadata).paired_from) === PAIRED_FROM && mediaProjectId(media) !== projectId;
+}
+
+/**
+ * The photo list a write leaves: the writer's photos in its order (each replaces the stored photo with its identity),
+ * then every stored photo it did not mention, except those in `remove`. `changed` says whether that differs from
+ * what the writer sent.
+ */
+export async function mergeProjectPhotos(orgId: string, projectId: string, storedValue: unknown, incomingValue: unknown, removeValue: Iterable<unknown> = []) {
+  const stored = (Array.isArray(storedValue) ? storedValue : []).map(obj);
+  const incoming = (Array.isArray(incomingValue) ? incomingValue : []).map(obj);
+  const remove = new Set([...removeValue].map(clean).filter(Boolean));
+  const storedIds = new Set(stored.map(identity));
+  const seen = new Set<string>();
+  const photos: Obj[] = [];
+  for (const photo of incoming) {
+    const id = identity(photo);
+    if (id && (seen.has(id) || remove.has(id))) continue;
+    if (id && !storedIds.has(id) && await leftThisProject(orgId, projectId, photo)) continue;
+    if (id) seen.add(id);
+    photos.push(photo);
+  }
+  for (const photo of stored) {
+    const id = identity(photo);
+    if (!id || seen.has(id) || remove.has(id) || isTransientPhoto(photo)) continue;
+    seen.add(id);
+    photos.push(photo);
+  }
+  const changed = photos.length !== incoming.length || photos.some((photo, index) => photo !== incoming[index]);
+  return { photos, changed };
+}
+
+/**
+ * The data a whole-project save (PUT, PATCH or POST of a project, platform/api.ts) stores: its own photo changes,
+ * never the loss of a photo another writer stored meanwhile. A PATCH that sends no photo list leaves it alone. When
+ * photos are kept back, the thumbnail fields are derived again from the kept list.
+ */
+export async function withPreservedPhotos(orgId: string, projectId: string, current: Obj, next: Obj, replace: boolean): Promise<Obj> {
+  if (!replace && !Object.prototype.hasOwnProperty.call(next, "photos")) return next;
+  const merged = await mergeProjectPhotos(orgId, projectId, current.photos, next.photos);
+  if (!merged.changed) return next;
+  const derived = withDerivedThumbnail({ ...current, ...next }, merged.photos);
+  return { ...next, photos: derived.photos, thumbnail_photo_id: derived.thumbnail_photo_id, thumbnail_photo: derived.thumbnail_photo };
+}
+
+/**
+ * The browser's photo list writes (uploads, markup, trash, restore, delete forever: `projectMedia.savePhotos`), as one
+ * conditional write of the photo list and the thumbnail fields only. `photos` are the photos as the caller has them
+ * now; `remove` the ones it took out. Photos another writer added since its copy are kept.
+ */
+export async function saveProjectPhotoList(ctx: PlatformAuthContext, projectIdValue: unknown, photosValue: unknown, removeValue: unknown) {
+  const { data: project } = await readProjectForMedia(ctx, projectIdValue, "manage_projects");
+  const projectId = clean(project.id);
+  const remove = Array.isArray(removeValue) ? removeValue : [];
+  const written = obj(await updateProjectData(ctx.orgId, projectId, async (data) => {
+    if (data.deleted_at || data.trashed_at || data.in_trash) throw notFound("project_not_found", "This project is not available.");
+    const merged = await mergeProjectPhotos(ctx.orgId, projectId, data.photos, photosValue, remove);
+    const next = withDerivedThumbnail(data, merged.photos);
+    const same = ["photos", "thumbnail_photo_id", "thumbnail_photo"].every((key) => JSON.stringify(next[key] ?? null) === JSON.stringify(data[key] ?? null));
+    return same ? null : { ...next, updated_at: new Date().toISOString() };
+  }));
+  const document = Object.keys(written).length ? written : obj(await readDocument(ctx.orgId, "projects", projectId));
+  const data = obj(document.data);
+  return {
+    project_id: projectId,
+    photos: Array.isArray(data.photos) ? data.photos as Obj[] : [],
+    thumbnail_photo_id: clean(data.thumbnail_photo_id),
+    thumbnail_photo: data.thumbnail_photo ?? null,
+    project_revision: Number(document.revision || 0),
+    document
+  };
 }
 
 // ── Pairing ─────────────────────────────────────────────────────────────────────────────────────────────────────
@@ -361,6 +454,11 @@ const assignmentBody = z.object({
   media_ids: z.array(z.string().trim().min(1).max(200)).min(1).max(MAX_ITEMS)
 }).strict();
 
+const photoListBody = z.object({
+  photos: z.array(z.record(z.string(), z.unknown())).max(5000),
+  remove: z.array(z.string().trim().min(1).max(2000)).max(5000).default([])
+}).strict();
+
 /** Browser routes, inside the /v1/platform plugin. */
 export function registerMediaAssignmentRoutes(app: FastifyInstance) {
   const auth = (request: FastifyRequest) => requirePlatformAuth(request, { app: MEDIA_APPS, orgId: clean(obj(request.params).orgId), csrf: true });
@@ -373,5 +471,11 @@ export function registerMediaAssignmentRoutes(app: FastifyInstance) {
     const ctx = await auth(request);
     const body = assignmentBody.parse(request.body ?? {});
     return { ok: true, ...(await unassignMediaFromProject(ctx, body.media_ids, body.project_id)) };
+  });
+  // The project's photo list, written alone (projectMedia.savePhotos in platform-api.js).
+  app.post("/organizations/:orgId/projects/:projectId/photos", async (request) => {
+    const ctx = await auth(request);
+    const body = photoListBody.parse(request.body ?? {});
+    return { ok: true, ...(await saveProjectPhotoList(ctx, clean(obj(request.params).projectId), body.photos, body.remove)) };
   });
 }

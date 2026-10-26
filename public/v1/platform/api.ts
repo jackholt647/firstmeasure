@@ -4567,11 +4567,14 @@ export async function upsertProjectDocumentPreservingEvents(
       mergedProjectData,
       currentData
     );
+    // A save never drops a photo another writer stored meanwhile (a pairing, the satellite image); only the photos
+    // endpoint removes one (projects/media-assignment.ts).
+    const savedProjectData = await (await import("../projects/media-assignment.js")).withPreservedPhotos(orgId, id, currentData, mergedProjectData, replace);
     const nextInput = {
       ...input,
       id,
       expected_revision: explicitExpectedRevision || Number(current.revision || 0),
-      data: mergedProjectData
+      data: savedProjectData
     };
     try {
       return await upsertDocument(orgId, "projects", nextInput, { replace });
