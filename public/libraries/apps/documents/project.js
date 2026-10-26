@@ -64,6 +64,14 @@
     if (diff < 7 * 86400000) return `${Math.round(diff / 86400000)}d ago`;
     return new Date(time).toLocaleDateString((globalThis.PlatformLanguage?.formatLocale?.("en-US") || "en-US"), { month: 'short', day: 'numeric', year: 'numeric' });
   }
+  // Phone: the platform's window breakpoint (window-manager mobileFullscreen,
+  // 760px on the top window; isPhone is with the modal kit). documents.css
+  // keys every phone rule off html[data-fm-doc-phone], so a desktop never
+  // takes a phone layout.
+  function syncPhoneFlag(){ document.documentElement.toggleAttribute('data-fm-doc-phone', isPhone()); }
+  syncPhoneFlag();
+  window.addEventListener('resize', syncPhoneFlag);
+  try { if (window.top !== window) window.top.addEventListener('resize', syncPhoneFlag); } catch (error) { /* another origin */ }
   let uidCounter = 0;
   function uid(prefix){ return `${prefix}_${Date.now().toString(36)}${(++uidCounter).toString(36)}${Math.random().toString(36).slice(2, 6)}`; }
 
@@ -327,6 +335,10 @@
   }
 
   // ------------------------------------------------------------ modal kit
+  function isPhone(){
+    try { return window.top.matchMedia('(max-width: 760px)').matches; }
+    catch (error) { return window.matchMedia('(max-width: 760px)').matches; }
+  }
   function openModal(contentHtml, options = {}){
     const back = document.createElement('div');
     back.className = 'fmdx-modal-back';
@@ -344,6 +356,23 @@
     const menu = document.createElement('div');
     menu.className = 'fmdx-menu';
     menu.innerHTML = contentHtml;
+    // On a phone a menu is a sheet from the bottom over a scrim; a tap on the
+    // scrim only closes it. The scrim leaves with the menu however it goes.
+    if (isPhone()) {
+      const scrim = document.createElement('div');
+      scrim.className = 'fmdx-menu-scrim';
+      document.body.appendChild(scrim);
+      scrim.addEventListener('mousedown', (event) => { event.preventDefault(); menu.remove(); });
+      // It fades out rather than vanishing, so the rest of the tap that closed
+      // the menu lands on the scrim, not on whatever is under it.
+      const watch = new MutationObserver(() => {
+        if (menu.isConnected) return;
+        watch.disconnect();
+        scrim.classList.add('leaving');
+        setTimeout(() => scrim.remove(), 260);
+      });
+      watch.observe(document.body, { childList: true });
+    }
     document.body.appendChild(menu);
     const rect = anchor.getBoundingClientRect();
     const menuWidth = Math.max(menu.offsetWidth, 240);
@@ -1073,7 +1102,8 @@
       saveTimer: 0,
       saveFailures: 0,
       saveState: 'idle',              // idle|dirty|saving|saved|error|conflict
-      dataPanelOpen: true,
+      // A phone opens documents on the page; the Data tray covers it, so it starts closed there.
+      dataPanelOpen: !isPhone(),
       previewCleanup: null,
       // workflow view (contracts §8)
       docWorkflow: null,              // { definition, state } for the open doc (null = none)
@@ -2408,11 +2438,15 @@
             ${departments().map((entry) => `<button type="button" class="fmdx-fchip ${selectedDepartments().has(entry.id) ? 'on' : ''}" data-pick-department="${esc(entry.id)}" aria-pressed="${selectedDepartments().has(entry.id)}">${esc(entry.label)}</button>`).join('')}
           </div>` : '';
         const focused = document.activeElement === body.querySelector('[data-tpl-search]');
+        // A host's own file upload (the Docs tab on a phone, where New is its
+        // only button): Upload beside Blank, and the paper intake says Scan.
+        const filesUpload = typeof options.onUploadFiles === 'function';
         body.innerHTML = `
           <div class="fmdx-create-top">
             <label class="fmdx-create-search"><i class="fas fa-magnifying-glass"></i><input type="search" data-tpl-search value="${esc(picker.query)}" placeholder="Search templates" autocomplete="off"></label>
             <button type="button" class="fmdx-btn" data-create-blank title="Start from an empty page"><i class="fas fa-file"></i> Blank</button>
-            <button type="button" class="fmdx-btn" data-create-upload title="Scan or photo of a paper document; add fields during review"><i class="fas fa-arrow-up-from-bracket"></i> Upload</button>
+            ${filesUpload ? '<button type="button" class="fmdx-btn fmdx-phone-only" data-create-files title="Add files to this project: PDFs, photos, spreadsheets"><i class="fas fa-file-arrow-up"></i> Upload</button>' : ''}
+            <button type="button" class="fmdx-btn" data-create-upload title="Scan or photo of a paper document; add fields during review"><i class="fas ${filesUpload ? 'fa-camera fmdx-phone-only' : 'fa-arrow-up-from-bracket'}"></i>${filesUpload ? '<i class="fas fa-arrow-up-from-bracket fmdx-desk-only"></i> <span class="fmdx-desk-only">Upload</span><span class="fmdx-phone-only">Scan paper</span>' : ' Upload'}</button>
           </div>
           ${pinned.length ? `
             <p class="fmdx-section-label">Pinned</p>
@@ -2462,6 +2496,8 @@
         };
         body.querySelector('[data-create-blank]').addEventListener('click', (event) => withType(event.currentTarget, (type) => { wizard.type = type; wizard.template = null; proceed(body.querySelector('[data-create-blank]')); }));
         body.querySelector('[data-create-upload]').addEventListener('click', (event) => withType(event.currentTarget, (type) => { wizard.type = type; wizard.template = '__upload__'; proceed(body.querySelector('[data-create-upload]')); }));
+        // The file picker opens inside the same tap, so the browser allows it.
+        body.querySelector('[data-create-files]')?.addEventListener('click', () => { modal.close(); options.onUploadFiles(); });
       }
 
       /** The organization edits its own types here: name, color, departments, order, and where each template is filed. */
@@ -3048,7 +3084,7 @@
               <span class="fmdx-top-total" title="${(globalThis.PlatformLanguage?.htmlText("documents","m_9403c7637d4905","Total") ?? "Total")}"><b data-card-total>—</b></span>
               <span class="fmdx-save-state" data-fmdx-save-state></span>
               <button type="button" class="fmdx-btn" data-fmdx-mode-toggle data-fmdx-mode="workflow" title="Go back to this document's steps" hidden><i class="fas fa-list-check"></i> Back to steps</button>
-              <div style="margin-left:auto;display:flex;gap:7px;align-items:center;flex-wrap:wrap">
+              <div class="fmdx-doc-actions" style="margin-left:auto;display:flex;gap:7px;align-items:center;flex-wrap:wrap">
                 ${String(readOnly ? '' : `<button type="button" class="fmdx-btn fmdx-btn-icon ${state.dataPanelOpen ? 'active' : ''}" data-fmdx-data-toggle title="Data"><i class="fas fa-database"></i></button>`)}
                 ${String(readOnly || !capabilityEnabled('documents.agent') ? '' : `<button type="button" class="fmdx-btn fmdx-btn-icon" data-fmdx-agent-btn title="Agent"><i class="fas fa-wand-magic-sparkles"></i></button>`)}
                 ${String(readOnly ? '' : `<button type="button" class="fmdx-btn fmdx-btn-icon" data-fmdx-theme title="Theme"><i class="fas fa-palette"></i></button>`)}
@@ -3114,7 +3150,8 @@
       // One preview: in a workflow it is the docked live preview (which has
       // its own full-screen button); elsewhere it opens full screen.
       root.querySelector('[data-fmdx-preview]')?.addEventListener('click', async () => {
-        if (state.docView === 'workflow' && state.workflowHandle?.togglePreview?.()) return;
+        // A phone has no room for the docked preview: it always opens full screen.
+        if (state.docView === 'workflow' && !isPhone() && state.workflowHandle?.togglePreview?.()) return;
         await flushAllWrites();
         openPreview(state.doc);
       });
@@ -3492,10 +3529,31 @@
       const readOnly = isReadOnlyStatus(doc.status);
       const isProposal = cleanText(doc.document_type).toLowerCase() === 'proposal';
       const multi = isProposal && isMultiOptionDoc(doc, objectValue(doc.params));
+      // A phone's top bar keeps Preview, Send and this menu; the rest of the
+      // bar's actions are here, each pressing the bar's own button.
+      const barButton = (selector) => {
+        const button = root.querySelector(`[data-fmdx-editor-screen] ${selector}`);
+        return button && !button.hidden && !button.disabled ? button : null;
+      };
+      const phoneItems = isPhone() ? [
+        ['[data-fmdx-data-toggle]', 'fa-database', (globalThis.PlatformLanguage?.text("documents","m_6b124d14be8596"," Setup") ?? " Setup").trim()],
+        ['[data-fmdx-agent-btn]', 'fa-wand-magic-sparkles', (globalThis.PlatformLanguage?.text("documents","m_6132f8a9f6606d"," Agent") ?? " Agent").trim()],
+        ['[data-fmdx-theme]', 'fa-palette', (globalThis.PlatformLanguage?.text("documents","m_e352b4d5acce2e","Theme") ?? "Theme")],
+        ['[data-fmdx-history]', 'fa-clock-rotate-left', (globalThis.PlatformLanguage?.text("documents","m_3fe33cd11f8a29","History") ?? "History")],
+        ['[data-fmdx-pdf]', 'fa-download', 'Download PDF'],
+        ['[data-fmdx-present]', 'fa-chalkboard-user', 'Present'],
+        ['[data-fmdx-amend]', 'fa-file-medical', (globalThis.PlatformLanguage?.text("documents","m_4986fc99e268e8"," Amend → Change Order") ?? " Amend → Change Order").trim()]
+      ].filter(([selector]) => barButton(selector)) : [];
       const menu = openMenu(anchor, `
+        ${phoneItems.map(([selector, icon, label]) => `<button type="button" class="fmdx-menu-item" data-more-bar="${esc(selector)}"><i class="fas ${icon}"></i> ${esc(label)}</button>`).join('')}
+        ${phoneItems.length ? '<span class="fmdx-menu-sep"></span>' : ''}
         ${!readOnly && multi ? `<button type="button" class="fmdx-menu-item" data-more-variant title="${multi ? 'Add another option to this proposal' : 'Turn this into a multi-option (Good/Better/Best) proposal'}"><i class="fas fa-code-branch"></i>${(globalThis.PlatformLanguage?.htmlText("documents","m_95299bfa43bab3"," Add variant") ?? " Add variant")}</button>` : ''}
         <button type="button" class="fmdx-menu-item" data-more-duplicate title="${(globalThis.PlatformLanguage?.htmlText("documents","m_eab1f6b49f7769","Create a draft copy of this document") ?? "Create a draft copy of this document")}"><i class="fas fa-copy"></i>${(globalThis.PlatformLanguage?.htmlText("documents","m_7eec37dfa2be3f"," Duplicate") ?? " Duplicate")}</button>
         ${!readOnly && state.canPresent ? `${window.FMPresentationEditorHost ? '<button type="button" class="fmdx-menu-item" data-more-edit-presentation title="Open this presentation in the visual editor"><i class="fas fa-chalkboard"></i> Edit presentation</button>' : ''}${arrayValue(objectValue(state.presentOptions).offers).includes('send_presentation') ? '<button type="button" class="fmdx-menu-item" data-more-send-presentation title="Email the customer a link to go through the presentation themselves"><i class="fas fa-share-from-square"></i> Email presentation link</button>' : ''}` : ''}`);
+      menu.el.querySelectorAll('[data-more-bar]').forEach((item) => item.addEventListener('click', () => {
+        menu.close();
+        barButton(item.dataset.moreBar)?.click();
+      }));
       menu.el.querySelector('[data-more-edit-presentation]')?.addEventListener('click', () => { menu.close(); editPresentation(objectValue(objectValue(state.presentOptions).presentation).moduleId); });
       menu.el.querySelector('[data-more-send-presentation]')?.addEventListener('click', () => { menu.close(); sendPresentation(); });
       menu.el.querySelector('[data-more-variant]')?.addEventListener('click', (event) => {
@@ -3655,6 +3713,7 @@
         ].join('');
         detailEl.innerHTML = `
           <div class="fmdx-hist-head">
+            <button type="button" class="fmdx-icon-btn fmdx-phone-only fmdx-hist-back" data-hist-back title="${esc((globalThis.PlatformLanguage?.text("documents","m_3fe33cd11f8a29","History") ?? "History"))}" aria-label="${esc((globalThis.PlatformLanguage?.text("documents","m_3fe33cd11f8a29","History") ?? "History"))}"><i class="fas fa-arrow-left"></i></button>
             <div><strong>#${revision.seq} · ${esc(historyTitle(revision))}</strong><span>${esc(historyActor(revision))} · ${esc(historyWhen(revision.updated_at))}${revision.edits > 1 ? ` · ${esc(String(revision.edits))} ${esc((globalThis.PlatformLanguage?.text("documents","m_e7d6a2abb9c654","saves") ?? "saves"))}` : ''}</span></div>
             <div class="fmdx-hist-actions">
               <button type="button" class="fmdx-btn" data-hist-view><i class="fas fa-eye"></i> ${esc((globalThis.PlatformLanguage?.text("documents","m_2b8e4c9b866e80","View") ?? "View"))}</button>
@@ -3664,6 +3723,8 @@
           ${options ? `<label class="fmdx-hist-compare">${esc((globalThis.PlatformLanguage?.text("documents","m_94754f592bcf0a","Changes since") ?? "Changes since"))} <select data-hist-compare>${options}</select></label>` : `<div class="fmdx-hist-note">${esc((globalThis.PlatformLanguage?.text("documents","m_44e85409fb9fb7","This is the first version in the history.") ?? "This is the first version in the history."))}</div>`}
           <div class="fmdx-hist-diff" data-hist-diff>${options ? '<div class="fmdx-hist-note"><div class="fmdx-spinner" style="width:16px;height:16px;border-width:2px"></div></div>' : ''}</div>`;
         detailEl.querySelector('[data-hist-compare]')?.addEventListener('change', (event) => { compareWith = event.currentTarget.value; showDetail(); });
+        // A phone shows the list or one version, not both: Back returns to the list.
+        detailEl.querySelector('[data-hist-back]')?.addEventListener('click', () => modal.body.classList.remove('show-detail'));
         detailEl.querySelector('[data-hist-view]').addEventListener('click', async () => {
           try {
             const view = objectValue(await api().revisions.view(orgId(), doc.id, revision.seq));
@@ -3707,6 +3768,7 @@
         listEl.querySelectorAll('[data-hist-seq]').forEach((button) => button.addEventListener('click', () => {
           selected = Number(button.dataset.histSeq);
           compareWith = '';
+          modal.body.classList.add('show-detail');
           renderList();
           showDetail();
         }));
@@ -5322,7 +5384,7 @@
 
     if (embedded) {
       embed.onReady?.({
-        openCreateModal: (prefill = {}) => openCreateModal(objectValue(prefill)),
+        openCreateModal: (prefill = {}, opts = {}) => openCreateModal(objectValue(prefill), { onUploadFiles: typeof opts?.onUploadFiles === 'function' ? opts.onUploadFiles : null }),
         openCreateInline: (host, prefill = {}, opts = {}) => openCreateModal(objectValue(prefill), { inlineHost: host, onClose: opts.onClose }),
         openDocument: (doc) => {
           // Standalone sessions track their documents locally (no server list)

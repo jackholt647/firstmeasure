@@ -95,7 +95,46 @@
 .fmse-chip{position:absolute;z-index:4;display:flex;gap:6px;align-items:center;background:#fffbeb;border:1px solid #f59e0b;color:#7c4a03;border-radius:7px;padding:4px 6px 4px 8px;font-size:12px;box-shadow:0 2px 8px rgba(0,0,0,.18)}
 .fmse-chip button{font:inherit;font-size:12px;border:1px solid #e0b354;background:#fff;border-radius:5px;padding:2px 7px;cursor:pointer;color:#7c4a03}
 .fmse-loading{color:#e7ecf5;text-align:center;margin:80px auto;font-size:14px}
+.fmse-phone-only{display:none!important}
+.fmse-menu{position:absolute;z-index:8;right:10px;top:calc(100% + 6px);min-width:210px;background:#fff;border:1px solid #dfe3ea;border-radius:12px;box-shadow:0 14px 36px rgba(15,23,42,.22);padding:6px;display:flex;flex-direction:column;gap:2px}
+.fmse-menu[hidden]{display:none}
+.fmse-menu button{display:flex;align-items:center;gap:10px;border:0;background:transparent;border-radius:9px;padding:11px 12px;font:inherit;font-size:14px;font-weight:600;color:#1f2733;text-align:left;cursor:pointer}
+.fmse-menu button:hover{background:#f3f5f8}
+.fmse-menu button i{width:18px;text-align:center;color:#647086}
+/* Phone (the platform's 760px window breakpoint): one header row, the key as
+   a help sheet, and values typed in a sheet that steps to the next one. */
+.fmse-overlay.fmse-phone .fmse-phone-only{display:inline-flex!important}
+.fmse-overlay.fmse-phone .fmse-top{position:relative;gap:8px;padding:max(8px,env(safe-area-inset-top)) 10px 8px 14px}
+.fmse-overlay.fmse-phone .fmse-top h2{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;font-size:15px}
+.fmse-overlay.fmse-phone .fmse-top .fmse-sub,.fmse-overlay.fmse-phone .fmse-top .fmse-spacer{display:none}
+.fmse-overlay.fmse-phone .fmse-state{font-size:11px;max-width:84px;overflow:hidden;text-overflow:ellipsis}
+.fmse-overlay.fmse-phone .fmse-btn{min-height:40px;border-radius:11px;font-size:13.5px}
+.fmse-overlay.fmse-phone .fmse-icon{width:40px;padding:0;justify-content:center;font-size:15px;color:#475467}
+.fmse-overlay.fmse-phone [data-fmse-actions]>.fmse-btn:not(.primary){display:none}
+.fmse-overlay.fmse-phone .fmse-legend{position:absolute;left:10px;right:10px;top:calc(100% + 6px);z-index:8;flex-direction:column;align-items:flex-start;gap:10px;padding:14px 16px;border:1px solid #dfe3ea;border-radius:14px;background:#fff;box-shadow:0 14px 36px rgba(15,23,42,.22);font-size:13px;line-height:1.4;animation:fmse-rise .2s ease}
+.fmse-overlay.fmse-phone .fmse-legend:not(.open){display:none}
+.fmse-overlay.fmse-phone .fmse-menu{animation:fmse-rise .2s ease}
+.fmse-overlay.fmse-phone .fmse-stage{margin:12px auto 96px}
+.fmse-overlay.fmse-phone .fmse-pop{position:fixed!important;left:0!important;right:0;top:auto!important;bottom:0;max-width:none;z-index:9;border:0;border-radius:18px 18px 0 0;padding:14px 16px max(14px,env(safe-area-inset-bottom));box-shadow:0 -12px 40px rgba(13,18,32,.28);font-size:14px;animation:fmse-rise .22s cubic-bezier(.2,.8,.2,1)}
+.fmse-overlay.fmse-phone .fmse-pop .fmse-pop-row{gap:8px}
+.fmse-overlay.fmse-phone .fmse-pop input{flex:1;min-width:0;width:auto;height:46px;font-size:17px;border-radius:11px;padding:0 12px}
+.fmse-overlay.fmse-phone .fmse-pop .fmse-btn{min-height:46px}
+.fmse-overlay.fmse-phone .fmse-pop .fmse-pop-note{font-size:12.5px}
+.fmse-overlay.fmse-phone .fmse-btn.primary{background:var(--fm-primary,var(--primary,#d62f2f))}
+.fmse-overlay.fmse-phone .fmse-stage .fmdoc-run[data-fmse-active]{background:rgba(37,99,235,.24);box-shadow:0 0 0 2px #2563eb;border-radius:2px}
+.fmse-overlay.fmse-phone .fmse-pop-label{display:block;margin:0 0 8px;font-size:11px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:#647086}
+.fmse-overlay.fmse-phone .fmse-tools{position:fixed!important;left:10px!important;right:10px;top:calc(max(8px,env(safe-area-inset-top)) + 56px)!important;flex-wrap:wrap;justify-content:center;padding:6px}
+.fmse-overlay.fmse-phone .fmse-tools button,.fmse-overlay.fmse-phone .fmse-tools select{min-height:36px;font-size:13.5px;padding:6px 10px}
+.fmse-overlay.fmse-phone .fmse-chip{position:fixed!important;left:10px!important;right:10px;top:auto!important;bottom:max(14px,env(safe-area-inset-bottom));flex-wrap:wrap;font-size:13px;padding:10px 12px}
+@keyframes fmse-rise{from{transform:translateY(14px);opacity:0}to{transform:none;opacity:1}}
+@media (prefers-reduced-motion:reduce){.fmse-overlay.fmse-phone .fmse-legend,.fmse-overlay.fmse-phone .fmse-menu,.fmse-overlay.fmse-phone .fmse-pop{animation:none}}
 `;
+
+  /** A phone: the platform's window breakpoint (760px on the top window). */
+  function isPhone() {
+    try { return root.top.matchMedia("(max-width: 760px)").matches; }
+    catch (e) { return !!(root.matchMedia && root.matchMedia("(max-width: 760px)").matches); }
+  }
 
   function ensureStyle() {
     if (!root.document || root.document.getElementById("fmse-style")) return;
@@ -296,15 +335,22 @@
         <span class="fmse-sub">${esc(opts.title || "")}</span>
         <span class="fmse-spacer"></span>
         <span class="fmse-state" data-fmse-state></span>
+        <button type="button" class="fmse-btn fmse-icon fmse-phone-only" data-fmse-key title="${esc(t("as_sent_key", "What the colours mean"))}" aria-label="${esc(t("as_sent_key", "What the colours mean"))}" aria-expanded="false"><i class="fas fa-circle-question"></i></button>
+        <button type="button" class="fmse-btn fmse-icon fmse-phone-only" data-fmse-more title="${esc(t("as_sent_more", "More"))}" aria-label="${esc(t("as_sent_more", "More"))}" aria-expanded="false" hidden><i class="fas fa-ellipsis"></i></button>
         <span data-fmse-actions style="display:flex;gap:8px"></span>
+        <div class="fmse-menu" data-fmse-menu hidden></div>
       </header>
-      <div class="fmse-legend">
+      <div class="fmse-legend" data-fmse-legend>
         <span>${esc(t("as_sent_legend_text", "Click any text to change it."))}</span>
         <span><i class="sw" style="background:rgba(37,99,235,.18);box-shadow:inset 0 -1px 0 rgba(37,99,235,.7)"></i>${esc(t("as_sent_legend_input", "Data: change it and everything that follows from it updates"))}</span>
         <span><i class="sw" style="background:rgba(100,112,134,.2)"></i>${esc(t("as_sent_legend_derived", "Calculated: follows the data"))}</span>
         <span><i class="sw" style="background:#fff;box-shadow:inset 0 -1px 0 rgba(100,112,134,.8)"></i>${esc(t("as_sent_legend_upstream", "From another record"))}</span>
       </div>
       <div class="fmse-scroll" data-fmse-scroll><div class="fmse-stage" data-fmse-stage><div class="fmse-loading">${esc(t("as_sent_loading", "Opening the document as it will be sent…"))}</div></div></div>`;
+    const phone = isPhone();
+    overlay.classList.toggle("fmse-phone", phone);
+    // On a phone the colour key opens from the header's ? button, under the header.
+    if (phone) overlay.querySelector(".fmse-top").appendChild(overlay.querySelector("[data-fmse-legend]"));
     doc.body.appendChild(overlay);
     const scroll = overlay.querySelector("[data-fmse-scroll]");
     const stage = overlay.querySelector("[data-fmse-stage]");
@@ -335,6 +381,44 @@
       });
       actionsEl.appendChild(button);
     });
+    // On a phone the primary action stays in the bar; the others are under the
+    // ellipsis, and the colour key opens from ? instead of taking a row.
+    const menuEl = overlay.querySelector("[data-fmse-menu]");
+    const moreEl = overlay.querySelector("[data-fmse-more]");
+    const keyEl = overlay.querySelector("[data-fmse-key]");
+    const legendEl = overlay.querySelector("[data-fmse-legend]");
+    const secondary = (opts.actions || []).filter((action) => !action.primary);
+    moreEl.hidden = !secondary.length;
+    secondary.forEach((action) => {
+      const item = h("button", { type: "button", title: action.title || "" }, `${action.icon ? `<i class="fas ${esc(action.icon)}"></i>` : ""}${esc(action.label)}`);
+      item.addEventListener("click", async () => {
+        menuEl.hidden = true;
+        moreEl.setAttribute("aria-expanded", "false");
+        await commitEditing();
+        action.run(api);
+      });
+      menuEl.appendChild(item);
+    });
+    moreEl.addEventListener("click", () => {
+      legendEl.classList.remove("open");
+      keyEl.setAttribute("aria-expanded", "false");
+      menuEl.hidden = !menuEl.hidden;
+      moreEl.setAttribute("aria-expanded", String(!menuEl.hidden));
+    });
+    keyEl.addEventListener("click", () => {
+      menuEl.hidden = true;
+      moreEl.setAttribute("aria-expanded", "false");
+      const open = legendEl.classList.toggle("open");
+      keyEl.setAttribute("aria-expanded", String(open));
+    });
+    const closeHeaderSheets = (event) => {
+      if (event.target.closest && event.target.closest("[data-fmse-menu],[data-fmse-more],[data-fmse-key],[data-fmse-legend]")) return;
+      menuEl.hidden = true;
+      moreEl.setAttribute("aria-expanded", "false");
+      legendEl.classList.remove("open");
+      keyEl.setAttribute("aria-expanded", "false");
+    };
+    overlay.addEventListener("pointerdown", closeHeaderSheets);
 
     function pageWidthPx() {
       const dims = (model() && model().paperDimensions && payload) ? model().paperDimensions(payload.resolved_definition) : { w_pt: 612 };
@@ -345,7 +429,7 @@
       if (!payload || !root.FMDocRenderer) return;
       closePop();
       const top = scroll.scrollTop;
-      scale = Math.min(1.5, Math.max(0.45, (scroll.clientWidth - 64) / pageWidthPx()));
+      scale = Math.min(1.5, Math.max(phone ? 0.3 : 0.45, (scroll.clientWidth - (phone ? 16 : 64)) / pageWidthPx()));
       try { handle && handle.destroy && handle.destroy(); } catch (e) { /* re-render */ }
       stage.innerHTML = "";
       nodes = indexNodes(payload.resolved_definition);
@@ -415,6 +499,7 @@
 
     function closePop() {
       if (pop) { pop.remove(); pop = null; }
+      stage.querySelectorAll("[data-fmse-active]").forEach((el) => el.removeAttribute("data-fmse-active"));
     }
 
     async function run(task, savingText) {
@@ -448,11 +533,16 @@
       if (!binding || busy) return;
       closePop();
       const M = model();
+      const spansNow = inputSpans();
+      const at = spansNow.indexOf(span);
+      const stepButton = (by, icon, label, enabled) => `<button type="button" class="fmse-btn fmse-icon" data-fmse-step="${by}" title="${esc(label)}" aria-label="${esc(label)}" ${enabled ? "" : "disabled"}><i class="fas ${icon}"></i></button>`;
       pop = h("div", { class: "fmse-pop", "data-fmse-ui": "" }, `
-        <div class="fmse-pop-row"><input type="text" data-fmse-input aria-label="${esc(bindingLabel(binding))}"><button type="button" class="fmse-btn primary" data-fmse-apply>${esc(t("as_sent_apply", "Apply"))}</button></div>
+        ${phone ? `<span class="fmse-pop-label">${esc(bindingLabel(binding) || t("as_sent_value", "Value"))}</span>` : ""}
+        <div class="fmse-pop-row">${phone ? stepButton(-1, "fa-chevron-left", t("as_sent_previous_value", "Previous value"), at > 0) : ""}<input type="text" data-fmse-input ${phone ? 'enterkeyhint="done"' : ""} aria-label="${esc(bindingLabel(binding))}">${phone ? stepButton(1, "fa-chevron-right", t("as_sent_next_value", "Next value"), at >= 0 && at < spansNow.length - 1) : ""}<button type="button" class="fmse-btn primary" data-fmse-apply>${esc(t("as_sent_apply", "Apply"))}</button></div>
         <div class="fmse-pop-note">${esc(t("as_sent_input_note", "Changes {label} in this document's data. Amounts and totals that follow from it recalculate.", { label: bindingLabel(binding) || t("as_sent_this_value", "this value") }))}</div>
         <div class="fmse-pop-err" data-fmse-err hidden></div>`);
       placeNear(pop, span, span.getBoundingClientRect().height + 4);
+      span.setAttribute("data-fmse-active", "");
       const input = pop.querySelector("[data-fmse-input]");
       input.value = M.boundInputText(binding);
       const original = input.value;
@@ -483,6 +573,10 @@
         else if (event.key === "Escape") { event.preventDefault(); event.stopPropagation(); closePop(); }
       });
       pop.querySelector("[data-fmse-apply]").addEventListener("click", () => commit(0));
+      // A phone has no Tab key: the arrows save this value and open the one before or after.
+      pop.querySelectorAll("[data-fmse-step]").forEach((button) => button.addEventListener("click", () => commit(Number(button.getAttribute("data-fmse-step")))));
+      // Bring the value into view above the sheet.
+      if (phone) { try { span.scrollIntoView({ block: "center", behavior: "smooth" }); } catch (e) { /* older engines */ } }
     }
 
     function focusSibling(span, moveBy) {
@@ -701,6 +795,7 @@
       closed = true;
       if (resize) resize.disconnect();
       doc.removeEventListener("keydown", onKey);
+      overlay.removeEventListener("pointerdown", closeHeaderSheets);
       try { handle && handle.destroy && handle.destroy(); } catch (e) { /* closing */ }
       overlay.remove();
       if (typeof opts.onClose === "function") opts.onClose(changed);
