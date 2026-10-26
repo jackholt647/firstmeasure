@@ -50,8 +50,7 @@ const TABS = {
 };
 
 let browser: Browser;
-let listDelay = 0;
-const listStarted: number[] = [];
+let serverDelay = 0;
 before(async () => {
   const s = await import("../platform/storage.js");
   await s.createOrganization({ id: ORG, name: "Tab tours" });
@@ -72,8 +71,8 @@ async function open(tab: { route: string; html: string }, userId: string, html =
     const url = new URL(route.request().url());
     const match = url.pathname.match(/^\/v1\/guided-experiences\/organizations\/[^/]+\/experiences(?:\/([^/]+)\/(events))?$/);
     if (!match) return route.fulfill({ contentType: "text/html", body: "<html></html>" });
-    // A slow server, when a test asks for one: the list (what may play, with progress) answers after `listDelay`.
-    if (!match[2]) { listStarted.push(Date.now()); if (listDelay) await new Promise((resolve) => setTimeout(resolve, listDelay)); }
+    // A slow server, when a test asks for one: every request (the list and each event) answers after `serverDelay`.
+    if (serverDelay) await new Promise((resolve) => setTimeout(resolve, serverDelay));
     try {
       const result = match[2]
         ? await service.recordGuidedEvent(person(userId), decodeURIComponent(match[1]!), JSON.parse(route.request().postData() || "{}"))
@@ -189,9 +188,9 @@ test("reports: with report follow-up off the Support step is never played, even 
   } finally { await page.close(); }
 });
 
-// Materials, then Docs straight after: Docs has no tour, and the Materials tour (a 900 ms tab_opened delay) must not
-// play there. A tab's trigger belongs to the visit it was armed in; leaving the tab cancels it, and a tour the tab
-// change interrupts ends quietly and plays again on the next visit.
+// Materials, then Docs straight after: Docs has no tour, and the Materials tour (started at once from the preload) must
+// never show there. A tab's trigger belongs to the visit it was armed in; leaving the tab cancels it, and a tour the tab
+// change interrupts ends quietly (also before the server confirmed it) and plays again on the next visit.
 test("materials: a tab's tour never plays on the tab the person moved on to, and plays on the next real visit", async () => {
   const userId = "user_materials_tab_race", TOUR = "materials.tab_tutorial";
   OVERRIDES[userId] = { "platform.materials": true };
@@ -217,23 +216,18 @@ test("materials: a tab's tour never plays on the tab the person moved on to, and
     const pops = () => page.locator(".gx-pop").count();
     const types = async () => { const { listEvents } = await import("../guided-experiences/store.js"); return (await listEvents(ORG, TOUR)).map((event: any) => event.type); };
 
-    // Docs within 300 ms of Materials: well past the delay, nothing has played.
+    // The tour was preloaded with the page. On a slow server, Materials shows it at once, and Docs 50 ms later ends it
+    // before the server has answered: nothing shows on Docs, and nothing was recorded, so it is still to play.
+    serverDelay = 1200;
     await show("materials");
-    await page.waitForTimeout(250);
+    assert.equal(await heading(page), "Welcome to Materials", "the preloaded tour shows at once on its own tab");
+    await page.waitForTimeout(50);
     await show("docs");
-    await page.waitForTimeout(2200);
-    assert.equal(await pops(), 0, "no tour on Docs after a quick switch");
-
-    // Docs after the delay, while the play is still reading progress from a slow server: still nothing.
-    listDelay = 1200;
-    const switchedAt = Date.now();
-    await show("materials");
-    await waitUntil(() => listStarted.some((at) => at > switchedAt + 800), "the delayed trigger asks the server before playing");
-    await show("docs");
+    assert.equal(await pops(), 0, "the tour ends the moment the tab changes");
     await page.waitForTimeout(2600);
-    listDelay = 0;
-    assert.equal(await pops(), 0, "no tour on Docs when the switch lands while progress loads");
-    assert.ok(!(await types()).includes("start"), "a dropped trigger never started the tour");
+    serverDelay = 0;
+    assert.equal(await pops(), 0, "the server's late answer does not bring it back on Docs");
+    assert.ok(!(await types()).includes("start"), "a tour ended before the server answered never started");
 
     // Back on Materials: the tour plays there.
     await show("materials");
@@ -258,13 +252,64 @@ test("materials: a tab's tour never plays on the tab the person moved on to, and
     await page.waitForFunction(() => !document.querySelector(".gx-pop"));
     assert.deepEqual(await page.evaluate(() => (window as any).wrongTab), [], "nothing ever showed on Docs");
     assert.deepEqual(errors, []);
-  } finally { listDelay = 0; await page.close(); }
+  } finally { serverDelay = 0; await page.close(); }
 });
 
-async function waitUntil(check: () => boolean, message: string, timeout = 8000) {
+/** Announces the tab and resolves how long, in the page, until the scrim and the first step's card are both up. */
+const timeToFirstFrame = (page: Page, app: string) => page.evaluate((appId) => new Promise<number>((resolve) => {
+  const started = performance.now();
+  const check = () => { if (document.querySelector(".gx-ov") && document.querySelector(".gx-pop:not([hidden]) h3")) resolve(performance.now() - started); else requestAnimationFrame(check); };
+  window.dispatchEvent(new CustomEvent("fm:project-tab:opened", { detail: { appId, tabId: appId, isActive: () => true } }));
+  check();
+}), app);
+
+// A tab's tour starts from the preload: the scrim and its first step are up at once, however slow the server, which
+// confirms it in the background. Its events wait for that answer and keep their order.
+test("photos: a preloaded tour shows its first frame within 150 ms on a slow server, and records once confirmed", async () => {
+  const userId = "user_photos_instant";
+  const { page, errors } = await open(TABS.photos, userId);
+  try {
+    await page.evaluate(() => (window as any).FirstMateGuides.preload("p1"));
+    serverDelay = 800;
+    const ms = await timeToFirstFrame(page, TABS.photos.app);
+    assert.ok(ms < 150, `first frame after ${Math.round(ms)} ms`);
+    assert.equal(await heading(page), "Welcome to Photos");
+    await page.click(".gx-pop [data-gx=close]");
+    await page.waitForFunction(() => !document.querySelector(".gx-pop"));
+    const { listEvents } = await import("../guided-experiences/store.js");
+    const types = async () => (await listEvents(ORG, TABS.photos.id)).filter((event: any) => event.user_id === userId).map((event: any) => event.type).reverse();
+    await waitUntilAsync(async () => (await types()).includes("dismiss"), "the close is recorded once the server confirms", 12000);
+    const recorded = await types();
+    assert.ok(recorded.indexOf("start") >= 0 && recorded.indexOf("start") < recorded.indexOf("dismiss"), JSON.stringify(recorded));
+    assert.deepEqual(errors, []);
+  } finally { serverDelay = 0; await page.close(); }
+});
+
+test("reports: a preloaded tour the server says is already done fades away and records nothing", async () => {
+  const userId = "user_reports_done_elsewhere";
+  const { page, errors } = await open(TABS.reports, userId);
+  try {
+    await page.evaluate(() => (window as any).FirstMateGuides.preload("p1"));
+    // Finished in another browser tab after this page preloaded.
+    const service = await import("../guided-experiences/service.js");
+    await service.recordGuidedEvent(person(userId), TABS.reports.id, { type: "dismiss", tab: TABS.reports.app, project_id: "p1" });
+    serverDelay = 800;
+    const ms = await timeToFirstFrame(page, TABS.reports.app);
+    assert.ok(ms < 150, `first frame after ${Math.round(ms)} ms`);
+    await page.waitForFunction(() => !document.querySelector(".gx-pop") && !document.querySelector(".gx-ov"), null, { timeout: 4000 });
+    await page.waitForTimeout(1500);
+    assert.equal(await page.locator(".gx-pop").count(), 0, "it does not come back");
+    const { listEvents } = await import("../guided-experiences/store.js");
+    const recorded = (await listEvents(ORG, TABS.reports.id)).filter((event: any) => event.user_id === userId).map((event: any) => event.type);
+    assert.deepEqual(recorded, ["dismiss"], "only the other tab's close");
+    assert.deepEqual(errors, []);
+  } finally { serverDelay = 0; await page.close(); }
+});
+
+async function waitUntilAsync(check: () => Promise<boolean>, message: string, timeout = 8000) {
   const started = Date.now();
-  while (!check()) {
+  while (!(await check())) {
     if (Date.now() - started > timeout) assert.fail(message);
-    await new Promise((resolve) => setTimeout(resolve, 25));
+    await new Promise((resolve) => setTimeout(resolve, 100));
   }
 }

@@ -206,6 +206,29 @@ which `tab-guides.js` `opened()` dispatches in the frame that shows the tab;
 route changes only refresh what is offered. `after_experience` is the `play` in
 `then`.
 
+**Preload and instant tab tours.** As soon as a frame knows its project (the
+first read, `fm:project-modal:hydrated`, or `FirstMateGuides.preload(projectId)`)
+it reads the list once and keeps it in memory, per organization, person and
+project (never browser storage). The list is the server's: only experiences this
+person may see, with step eligibility applied, their progress, triggers and copy
+overrides, for every tab. So when a tab is announced the runtime knows
+synchronously whether a tour is still to play there. A tour (overlay) then
+starts at once, with no `delay_ms` and no network wait: the scrim and its first
+step are drawn in the frame of the announcement (a first step with a target
+waits only for that target; the first targeted step of a tour gets the one
+`wait_ms` wait, so a centred intro does not use it up). The server confirms in
+the background: progress is read again and only then are `exposure` and `start`
+sent; every event the tour sends waits for that answer and keeps its order. If
+the server says the tour is no longer to play (finished in another tab, not
+offered any more) or the route by then names another tab, it fades away and
+nothing is recorded. A tour the tab change ended before the answer records
+nothing either. A setup (modal, agentic) never draws before the server confirms
+it, so it cannot flash: it uses the preload only to skip the list read, and
+keeps its `delay_ms` and the progress read before it draws. A tour finished in
+this frame is marked finished in the preload at once. Without a preload yet
+(the window opened straight on a tab), the tab waits for the project's list and
+then does the same.
+
 **A tab's trigger plays only on its tab.** A visit is one stretch on one tab of
 one project, from its `fm:project-tab:opened` until another tab or project is
 announced, or a route change finds the host's `isActive()` false (another tab,
@@ -216,7 +239,8 @@ still reading progress, which is asked again once the server answers. Every new
 visit arms again, so a dropped trigger plays on the next real visit of its tab.
 A tab's overlay tour that is playing when the tab changes ends quietly (status
 `ended`: no `dismiss`, no `complete`, progress stays `started`), so it plays
-again next time; this holds for a replay too. A setup (modal or agentic) covers
+again next time; this holds for a replay too. A tour already on the tab a
+frame's first announcement names (a replay started before it) carries on. A setup (modal or agentic) covers
 the page and writes for the organization, not the tab, so it carries on; only
 the tour after it is held to the tab.
 
@@ -224,10 +248,11 @@ the tour after it is held to the tab.
 the portal) load this library, so the lock and queue live on the top window
 (`__fmGuidedLock`): a second request waits, the same experience asked for again
 is ignored, and every play re-reads progress from the server first, so nothing
-finished replays. Events are sent in order in the background; nothing on screen
+finished replays (a preloaded tab tour re-reads it while it shows, and fades
+away if it was finished). Events are sent in order in the background; nothing on screen
 waits for them. In a setup, Next moves at once (only a step with `branches`
 waits for the server) and a burst of presses within 250 ms counts once; in a
-tour, only the first step waits for its target, later missing targets are
+tour, only the first step with a target waits for it, later missing targets are
 skipped at once, and a newer move cancels an older one. Back works at any time.
 `tab-guides.js` no longer plays its own tutorials when this library is present.
 

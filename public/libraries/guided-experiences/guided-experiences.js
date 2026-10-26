@@ -4,6 +4,7 @@
  *
  *   window.FirstMateGuides
  *     refresh()                     reload what this person may play for the current page
+ *     preload(projectId)            read once what may play on a project's tabs, so a tab's tour starts at once
  *     play(id, { replay })          play one now (a tutorial replay, a setup from a button)
  *     faqs(tab)                     the assistant's suggested questions for a project tab
  *     attachAssistant(drawer, api)  draws those questions above an assistant composer (platform-assistant.js)
@@ -89,13 +90,35 @@
     return { projectId: project, tab: projectTab ? (projectTab.includes('.') ? projectTab : `project.${projectTab}`) : '' };
   }
   let lastProject = '';
-  root.addEventListener?.('fm:project-modal:hydrated', (event) => { lastProject = clean(event?.detail?.projectId) || lastProject; });
+  // As soon as the project window knows its project, what may play on its tabs is read once (preload).
+  root.addEventListener?.('fm:project-modal:hydrated', (event) => { lastProject = clean(event?.detail?.projectId) || lastProject; if (lastProject) preload(lastProject); });
 
   // ── State ──────────────────────────────────────────────────────────────
   // `visit`: the project tab this frame shows now (see onTabOpened); `current`: the experience playing in this frame.
   const state = { reveals: null, experiences: new Map(), faqs: new Map(), loaded: '', loading: null, playing: null, bypass: new WeakSet(), tabTimers: new Set(),
     visit: { key: '', tab: '', projectId: '', generation: 0, armed: false, isActive: null }, current: null };
   const kinds = new Map();
+
+  /*
+   * Preload: the last list the server returned for a project, kept in memory (never browser storage) per organization,
+   * person and project. The list holds every experience the server says this person may see, wherever its tab is,
+   * with their progress, steps (step eligibility already applied) and copy, so when a tab opens the runtime knows at
+   * once whether a tour is still to play there. It only decides what to draw first: the server confirms every start.
+   */
+  const snapshots = new Map();
+  const userId = () => clean(APP().userId || root.Portal?.currentUser?.id);
+  const snapshotKey = (projectId) => `${orgId()}|${userId()}|${clean(projectId)}`;
+  /** Reads the project's list once if this frame has none for it yet; resolves the snapshot, or null. */
+  async function preload(projectId){
+    for (let attempt = 0; attempt < 2; attempt++) {
+      const snapshot = snapshots.get(snapshotKey(projectId));
+      if (snapshot) return snapshot;
+      // The list is read for the page's own project; another project's tabs are not showing here.
+      if (!clean(projectId) || where().projectId !== clean(projectId)) return null;
+      if (!(await refresh())) return null;
+    }
+    return snapshots.get(snapshotKey(projectId)) || null;
+  }
 
   async function refresh(force = false){
     if (!orgId() || !root.fetch) return null;
@@ -105,6 +128,7 @@
     if (state.loading && !force) return state.loading;
     state.loading = api.list(here.tab, here.projectId).then((result) => {
       state.experiences = new Map(array(result.experiences).map((entry) => [entry.id, entry]));
+      snapshots.set(snapshotKey(here.projectId), { experiences: state.experiences, at: Date.now() });
       Object.keys(overrides).forEach((key) => { delete overrides[key]; });
       Object.assign(overrides, object(result.copy_overrides));
       state.devExperiences = array(result.dev?.experiences);
@@ -172,8 +196,12 @@
     }
     const token = { id, frame: root };
     shared.active = token;
-    let experience = null;
+    let experience = null, outcome = null;
     try {
+      // A tab's tour from the preload draws at once; the server confirms it in the background (playInstant).
+      const preloaded = options.instant ? instantCandidate(id, options.bound) : null;
+      if (options.instant && !preloaded) return { status: 'dropped' };
+      if (preloaded) { experience = preloaded; outcome = await playInstant(preloaded, options, started); return outcome; }
       // Always from the server: another frame or tab may have finished it a moment ago.
       await refresh(true);
       experience = state.experiences.get(id);
@@ -191,15 +219,77 @@
       root.dispatchEvent?.(new CustomEvent('fm:guides:playing', { detail: { id: experience.id } }));
       track(experience, options.replay ? 'replay' : 'exposure');
       if (!options.replay) track(experience, 'start');
-      const outcome = await player({ experience, api, track: (type, extra) => track(experience, type, extra), where, L, esc, reducedMotion, options, control });
+      outcome = await player({ experience, api, track: (type, extra) => track(experience, type, extra), where, L, esc, reducedMotion, options, control });
       return outcome || { status: 'ended' };
     } finally {
       state.playing = null;
       state.current = null;
+      // Finished here: the preload says so at once, so a quick return to the tab does not start it again.
+      if (experience && ['completed', 'dismissed'].includes(outcome?.status) && !options.replay) markFinished(experience.id, outcome.status);
       if (shared.active === token) shared.active = null;
       if (experience) root.dispatchEvent?.(new CustomEvent('fm:guides:ended', { detail: { id: experience.id } }));
       refresh(true).finally(nextInQueue);
     }
+  }
+
+  /** The preloaded tour for an instant start: an overlay still to play, on the visit it was armed in. */
+  function instantCandidate(id, bound){
+    const experience = snapshots.get(snapshotKey(bound?.projectId ?? where().projectId))?.experiences.get(id);
+    if (!experience || experience.kind !== 'overlay' || !kinds.has('overlay')) return null;
+    if (experience.progress && experience.progress.status !== 'started') return null;
+    return startsHere(experience, bound) ? experience : null;
+  }
+  function markFinished(id, status){
+    for (const map of new Set([state.experiences, ...[...snapshots.values()].map((snapshot) => snapshot.experiences)])) {
+      const entry = map.get(id);
+      if (entry) entry.progress = { ...object(entry.progress), status };
+    }
+  }
+  /**
+   * Instant start of a preloaded tab tour: the scrim and first step go up now, and the server is asked in the
+   * background (progress read again, then `exposure` and `start`). Every event the tour sends waits for that answer
+   * and keeps its order. If the server says it is no longer to play (finished in another tab, no longer offered) or
+   * the route by then names another tab, the tour fades away and nothing is recorded. A tour the tab change ended
+   * before the answer records nothing either; one the person closed or finished first records its outcome once the
+   * server confirms. A failed read leaves it playing, as a failed read always has.
+   */
+  async function playInstant(experience, options, started){
+    const control = {};
+    state.playing = experience.id;
+    state.current = { experience, control };
+    started(experience);
+    root.dispatchEvent?.(new CustomEvent('fm:guides:playing', { detail: { id: experience.id } }));
+    let release;
+    const confirmed = new Promise((resolve) => { release = resolve; });
+    const record = async (type, extra) => (await confirmed) ? track(experience, type, extra) : null;
+    refresh(true).then((loaded) => {
+      const quiet = control.status === 'ended' || control.status === 'withdrawn';
+      if (!loaded) { if (!quiet) { track(experience, 'exposure'); track(experience, 'start'); } release(!quiet); return; }
+      const fresh = state.experiences.get(experience.id);
+      const pending = !!fresh && (!fresh.progress || fresh.progress.status === 'started');
+      if (!pending) { if (!control.status) control.withdraw?.(); release(false); return; }
+      if (quiet) { release(false); return; }
+      // Still showing: the route, written by now, must agree. Closed or finished already: that outcome is recorded.
+      if (!control.status && !onItsTab(fresh, options.bound)) { control.withdraw?.(); release(false); return; }
+      track(experience, 'exposure');
+      track(experience, 'start');
+      release(true);
+    }, () => release(false));
+    const outcome = await kinds.get('overlay')({ experience, api, track: record, where, L, esc, reducedMotion, options, control });
+    if (outcome?.status === 'withdrawn') return { status: 'done' };
+    return outcome || { status: 'ended' };
+  }
+  /**
+   * Whether a preloaded tour may be drawn at the moment its tab is announced: the same visit, the host still shows the
+   * tab and it is the tour's tab. The route is written just after the announcement, so it is checked when the server
+   * answers (onItsTab), not here.
+   */
+  function startsHere(experience, bound){
+    if (!bound || bound.generation !== state.visit.generation) return false;
+    try { if (bound.isActive && !bound.isActive()) return false; } catch (_) { return false; }
+    const tab = clean(experience?.tab);
+    if (tab && state.visit.tab !== tab) return false;
+    return where().projectId === clean(bound.projectId);
   }
 
   /**
@@ -264,25 +354,47 @@
     if (!tab) return;
     const projectId = where().projectId, key = `${projectId}|${tab}`;
     const isActive = typeof event.detail?.isActive === 'function' ? event.detail.isActive : null;
-    if (state.visit.key !== key) { leave(); Object.assign(state.visit, { key, tab, projectId, isActive }); }
+    if (state.visit.key !== key) { leave(tab, projectId); Object.assign(state.visit, { key, tab, projectId, isActive }); }
     else if (isActive) state.visit.isActive = isActive;
     // The host announces the same tab again when it redraws: one arming per visit.
     if (state.visit.armed) return;
     state.visit.armed = true;
     const bound = { generation: state.visit.generation, isActive, projectId };
-    refresh().then(() => {
-      if (bound.generation !== state.visit.generation) return;
-      for (const experience of state.experiences.values()) {
-        const trigger = array(experience.triggers).find((entry) => entry.kind === 'tab_opened' && entry.tab === tab);
-        if (!trigger || (experience.progress && experience.progress.status !== 'started')) continue;
-        const timer = setTimeout(() => { state.tabTimers.delete(timer); if (onItsTab(experience, bound)) play(experience.id, { bound }); }, Number(trigger.delay_ms || 700));
-        state.tabTimers.add(timer);
-        break;
-      }
-    });
+    // From the preload when this frame has it (synchronously), else once the project's list has been read.
+    const snapshot = snapshots.get(snapshotKey(projectId));
+    if (snapshot) { if (!arm(snapshot, tab, bound)) refresh(); }
+    else preload(projectId).then((loaded) => { if (loaded) arm(loaded, tab, bound); else refresh(); });
   }
-  /** Ends this frame's visit: pending triggers are cancelled, queued tab plays dropped and a tab's tour ends quietly. */
-  function leave(){
+  /**
+   * Starts what the tab's `tab_opened` trigger names, if it is still to play. A tour (overlay) starts now, with no
+   * delay and no network wait: its first step is drawn at once (a step with a target waits only for that target to
+   * be laid out) and the server confirms it in the background. A setup covers the page and writes for the
+   * organization, so it never draws before the server has confirmed it: it keeps its `delay_ms` and the progress
+   * read, and only skips the list read the preload already made. Returns whether a tour was started.
+   */
+  function arm(snapshot, tab, bound){
+    if (bound.generation !== state.visit.generation) return false;
+    for (const experience of snapshot.experiences.values()) {
+      const trigger = array(experience.triggers).find((entry) => entry.kind === 'tab_opened' && entry.tab === tab);
+      if (!trigger || (experience.progress && experience.progress.status !== 'started')) continue;
+      if (experience.kind === 'overlay' && kinds.has('overlay')) {
+        if (!startsHere(experience, bound)) return false;
+        play(experience.id, { bound, instant: true });
+        return true;
+      }
+      const timer = setTimeout(() => { state.tabTimers.delete(timer); if (onItsTab(experience, bound)) play(experience.id, { bound }); }, Number(trigger.delay_ms || 700));
+      state.tabTimers.add(timer);
+      break;
+    }
+    return false;
+  }
+  /**
+   * Ends this frame's visit: pending triggers are cancelled, queued tab plays dropped and a tab's tour ends quietly.
+   * With the next visit named (`nextTab`, `nextProject`), a tour already on that tab of that project (a replay started
+   * before the host's first announcement) is where it belongs and carries on.
+   */
+  function leave(nextTab = '', nextProject = ''){
+    const previous = state.visit;
     state.visit = { key: '', tab: '', projectId: '', generation: state.visit.generation + 1, armed: false, isActive: null };
     state.tabTimers.forEach((timer) => clearTimeout(timer));
     state.tabTimers.clear();
@@ -290,7 +402,9 @@
       const entry = shared.queue[i];
       if (entry.frame === root && entry.bound) { shared.queue.splice(i, 1); try { entry.drop?.(); } catch (_) {} }
     }
-    if (state.current?.experience?.tab) state.current.control?.end?.();
+    const playingTab = clean(state.current?.experience?.tab);
+    const stays = !!nextTab && playingTab === nextTab && (!previous.projectId || previous.projectId === nextProject);
+    if (playingTab && !stays) state.current.control?.end?.();
   }
   /**
    * Whether a play bound to a visit (`bound`: its generation, the host's isActive and the project) may start now: the
@@ -369,15 +483,23 @@
         const host = document.createElement('div'); host.className = 'gx-ov'; host.setAttribute('data-fmr-ignore', ''); host.setAttribute('data-gx-overlay', '');
         host.innerHTML = '<svg aria-hidden="true"><path class="gx-ov-dim"></path></svg><div class="gx-ov-ring" hidden></div>';
         const pop = document.createElement('div'); pop.className = 'gx-pop'; pop.setAttribute('data-gx-overlay', ''); pop.dataset.gxExperience = clean(options.experienceId); pop.setAttribute('role', 'dialog'); pop.setAttribute('aria-modal', 'false'); pop.setAttribute('data-fmr-ignore', ''); pop.tabIndex = -1;
+        // The card stays out of sight until its first step is drawn (the scrim is up at once).
+        pop.hidden = true;
         document.body.append(host, pop);
         const path = host.querySelector('path'), ring = host.querySelector('.gx-ov-ring');
-        let index = -1, shown = 0, ended = false, current = null, targets = [], holes = [], animation = 0, clickTarget = null;
-        if (options.control) options.control.end = () => finish('ended');
-        const finish = (status) => {
+        let index = -1, shown = 0, ended = false, current = null, targets = [], holes = [], animation = 0, clickTarget = null, waitedForPage = false;
+        // end(): the runtime stops it at once (the tab changed). withdraw(): the server said it is not to play; it fades.
+        if (options.control) { options.control.end = () => finish('ended'); options.control.withdraw = () => finish('withdrawn', true); }
+        const finish = (status, fade = false) => {
           if (ended) return; ended = true;
+          if (options.control) options.control.status = status;
           cancelAnimationFrame(animation); cancelAnimationFrame(trackFrame); root.removeEventListener('resize', redraw); root.removeEventListener('scroll', redraw, true); document.removeEventListener('keydown', key, true);
           clickTarget?.removeEventListener('click', onTargetClick, true);
-          host.remove(); pop.remove();
+          if (fade && !reducedMotion()) {
+            path.style.pointerEvents = 'none'; pop.style.pointerEvents = 'none';
+            host.style.transition = pop.style.transition = 'opacity .24s ease'; host.style.opacity = '0'; pop.style.opacity = '0';
+            setTimeout(() => { host.remove(); pop.remove(); }, 260);
+          } else { host.remove(); pop.remove(); }
           resolve({ status, shown, last: list[index]?.id || '' });
         };
         const rectOf = (el) => { const r = el.getBoundingClientRect(), pad = 6; return { x: r.left - pad, y: r.top - pad, w: r.width + pad * 2, h: r.height + pad * 2, r: Math.min(14, parseFloat(getComputedStyle(el).borderTopLeftRadius || '0') + 4) }; };
@@ -457,14 +579,16 @@
               ${!last ? `<button type="button" class="gx-b gx-link" data-gx="skip">${H('gx_ui_skip_step', 'Skip step')}</button>` : ''}
               ${step.advance === 'click' && targets.length ? '' : `<button type="button" class="gx-b gx-primary" data-gx="next">${last ? H('gx_ui_done', 'Done') : H('gx_ui_next', 'Next')}</button>`}</footer>
             ${targets.length && step.placement !== 'center' ? '<span class="gx-arrow" aria-hidden="true"></span>' : ''}`;
+          pop.hidden = false;
           pop.setAttribute('aria-label', L(step.title)); pop.dataset.gxStep = step.id;
           pop.classList.remove('gx-enter'); void pop.offsetWidth; pop.classList.add('gx-enter');
           setTimeout(() => pop.querySelector('[data-gx=next]')?.focus?.({ preventScroll: true }), 30);
         }
         /**
-         * Moves to the next step that can show. Only the first step waits for its target to appear (the page may
-         * still be drawing); after that a missing target is skipped at once, so Next and Back answer immediately.
-         * A newer move cancels an older one that is still looking, so fast clicks never pile up.
+         * Moves to the next step that can show. Only the first step with a target waits for it to appear (the tab
+         * may still be drawing: a tour starts the moment its tab opens, often on a centred intro); after that a
+         * missing target is skipped at once, so Next and Back answer immediately. A newer move cancels an older one
+         * that is still looking, so fast clicks never pile up.
          */
         let move = 0;
         async function go(to, direction){
@@ -476,7 +600,9 @@
             const selectors = array(step.targets);
             let found = [];
             if (selectors.length) {
-              const first = await waitFor(selectors, shown === 0 && direction > 0 ? Number(step.wait_ms ?? 1500) : 0);
+              const wait = !waitedForPage && direction > 0 ? Number(step.wait_ms ?? 1500) : 0;
+              waitedForPage = true;
+              const first = await waitFor(selectors, wait);
               if (ended || mine !== move) return;
               if (!first) { options.onStep?.({ type: 'step_skip', step: step.id, missing: true }); continue; }
               found = selectors.map(visible).filter(Boolean);
@@ -516,8 +642,9 @@
 
   kinds.set('overlay', async ({ experience, track: record, control }) => {
     const result = await overlay.run(experience.steps, { experienceId: experience.id, control, onStep: ({ type, step }) => { if (type !== 'dismiss') record(type, { step_id: step }); } });
-    // Stopped because the tab changed: progress stays started, so the tab's next visit plays it again.
-    if (result.status === 'ended') return result;
+    // Stopped because the tab changed, or withdrawn because the server said it is not to play: nothing is recorded,
+    // and progress stays as it was, so the tab's next visit plays it again when it is still to play.
+    if (result.status === 'ended' || result.status === 'withdrawn') return result;
     if (result.status === 'completed') await record('complete', { step_id: result.last, properties: { shown: result.shown } });
     else await record('dismiss', { step_id: result.last, properties: { shown: result.shown } });
     return result;
@@ -940,6 +1067,8 @@
     copyHtml: H, installDev, syncDevEditing: () => devDocs.forEach(syncEditing), isDevEditor: () => devState.editor,
     filterProjectTabs, projectFacts,
     refresh: () => refresh(true), play, faqs, attachAssistant, overlay, where, follow,
+    /** Reads what may play on a project's tabs once (in memory); resolves when this frame knows it. */
+    preload: (projectId) => preload(clean(projectId) || where().projectId),
     registerKind(kind, player){ kinds.set(kind, player); },
     experience: (id) => state.experiences.get(id) || null,
     experiences: () => [...state.experiences.values()],
