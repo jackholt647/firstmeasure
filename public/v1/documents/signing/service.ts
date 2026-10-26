@@ -124,7 +124,15 @@ export async function prepareSigning(access: SigningAccess) {
     const { pkg, document } = await activePackage(access);
     const sourceHash = digest(signingSource(document));
     if (Object.keys(pkg.receipts).length && sourceHash !== pkg.source_hash) throw conflict("signature_content_changed", "The accepted document no longer matches its retained revision. Signing is blocked.");
-    if (!pkg.content_hash || sourceHash !== pkg.source_hash) {
+    if (!pkg.content_hash || sourceHash !== pkg.source_hash) await refreshPackageContent(pkg, document, sourceHash);
+    else if (!pkg.source) pkg.source = signingSource(document);
+    const challenge = { id: token(), content_hash: pkg.content_hash, expires_at: new Date(Date.now() + 30 * 60000).toISOString() };
+    pkg.challenges[access.signer.id] = challenge; await savePackage(pkg);
+    return { package_id: pkg.id, content_hash: pkg.content_hash, challenge: challenge.id, disclosure: pkg.disclosure, signer: access.signer, fields: access.signer.fields, receipts: publicReceipts(pkg), expires_at: pkg.expires_at };
+  });
+}
+/** Renders the content a signer reviews and accepts; callers hold the signing lock. */
+async function refreshPackageContent(pkg: SigningPackage, document: JsonObject, sourceHash: string) {
       const { resolveDocumentInstance, documentCheckoutPricing } = await import("../service.js");
       const snapshot = await readDocumentSnapshot(pkg.organization_id, pkg.snapshot_id);
       const unsignedOutputs = Object.fromEntries(Object.entries(object(document.outputs)).filter(([key]) => !pkg.fields[key]));
@@ -143,12 +151,23 @@ export async function prepareSigning(access: SigningAccess) {
       }
       pkg.content = { ...content, html, signature_placements: rendered.signaturePlacements, review_pdf_sha256: createHash("sha256").update(rendered.bytes).digest("hex") }; pkg.source_hash = sourceHash;
       pkg.content_hash = digest({ content: pkg.content, signers: pkg.signers, fields: pkg.fields, disclosure: pkg.disclosure });
-      pkg.review_pdf = rendered.bytes.toString("base64"); pkg.challenges = {};
-    }
-    const challenge = { id: token(), content_hash: pkg.content_hash, expires_at: new Date(Date.now() + 30 * 60000).toISOString() };
-    pkg.challenges[access.signer.id] = challenge; await savePackage(pkg);
-    return { package_id: pkg.id, content_hash: pkg.content_hash, challenge: challenge.id, disclosure: pkg.disclosure, signer: access.signer, fields: access.signer.fields, receipts: publicReceipts(pkg), expires_at: pkg.expires_at };
-  });
+      pkg.review_pdf = rendered.bytes.toString("base64"); pkg.challenges = {}; pkg.source = signingSource(document);
+}
+/**
+ * True when the document moved since the signer's review only through the
+ * customer's own answers on this sent revision: outputs they record and the
+ * scope items an option or selection output solidifies (recordDocumentOutput).
+ * Anything the company changes (template, terms, other params) is not this.
+ */
+function changedOnlyByResponses(before: JsonObject | undefined, after: JsonObject) {
+  if (!before) return false;
+  const frame = (source: JsonObject) => ({ ...source, outputs: undefined, params: { ...object(source.params), scope_items: undefined } });
+  if (digest(frame(before)) !== digest(frame(after))) return false;
+  const defs = object(after.output_defs), was = object(before.outputs), now = object(after.outputs);
+  const changed = [...new Set([...Object.keys(was), ...Object.keys(now)])].filter(key => digest({ v: was[key] }) !== digest({ v: now[key] }));
+  if (changed.some(key => !defs[key])) return false;
+  const itemsChanged = digest({ v: object(before.params).scope_items }) !== digest({ v: object(after.params).scope_items });
+  return !itemsChanged || changed.some(key => key === "option_choice" || text(object(defs[key]).type) === "select");
 }
 function publicReceipts(pkg: SigningPackage) { return Object.fromEntries(Object.entries(pkg.receipts).map(([key, receipt]) => [key, { ...receipt.value, receipt_id: receipt.id, signer_id: receipt.signer_id, signed_at: receipt.signed_at, content_hash: receipt.content_hash }])); }
 
@@ -206,12 +225,21 @@ export async function acceptSigning(access: SigningAccess, field: string, input:
     if (!access.signer.fields.includes(field)) throw forbidden("signature_field_assignment", "This signature field belongs to another signer.");
     const challenge = pkg.challenges[access.signer.id], consent = object(input.consent);
     if (!challenge || challenge.id !== input.challenge || Date.parse(challenge.expires_at) <= Date.now() || input.content_hash !== pkg.content_hash || challenge.content_hash !== pkg.content_hash) throw conflict("signature_review_required", "Review the current document before signing.");
-    if (digest(signingSource(document)) !== pkg.source_hash) throw conflict("signature_content_changed", "The document changed. Review its new revision before signing.");
+    const sourceHash = digest(signingSource(document));
+    let reviewedHash = "";
+    if (sourceHash !== pkg.source_hash) {
+      // The signer's own option choice or selections changed what they are
+      // signing; they chose it on the page they are signing from, so the
+      // accepted content is re-rendered with it. A company change still stops here.
+      if (Object.keys(pkg.receipts).length || !changedOnlyByResponses(pkg.source, signingSource(document))) throw conflict("signature_content_changed", "The document changed. Review its new revision before signing.");
+      reviewedHash = pkg.content_hash;
+      await refreshPackageContent(pkg, document, sourceHash);
+    }
     if (consent.intent !== true || consent.electronic_records !== true || consent.can_access_and_retain !== true || consent.disclosure_hash !== pkg.disclosure.hash) throw badRequest("signature_consent_required", "Confirm your intent, electronic-record consent, and ability to access and retain the review copy.");
     if (access.authentication === "presenter_witnessed_in_person" && consent.presenter_witnessed !== true) throw badRequest("signature_witness_required", "The presenter must attest that the assigned signer personally reviewed and signed the agreement in their presence.");
     const now = new Date().toISOString();
     const receipt = { id: `sig_${randomUUID()}`, field, signer_id: access.signer.id, content_hash: pkg.content_hash, signed_at: now, value: { ...value, signed_at: now }, request_hash: requestHash,
-      evidence: { authentication: access.authentication, actor_user_id: access.userId, recipient_email: access.signer.email, capacity: access.signer.capacity, disclosure: pkg.disclosure, consent, server_received_at: now, ip_address: text(audit.ip_address), user_agent: text(audit.user_agent), request_id: text(audit.request_id) } };
+      evidence: { authentication: access.authentication, actor_user_id: access.userId, recipient_email: access.signer.email, capacity: access.signer.capacity, disclosure: pkg.disclosure, consent, server_received_at: now, ip_address: text(audit.ip_address), user_agent: text(audit.user_agent), request_id: text(audit.request_id), ...(reviewedHash ? { reviewed_before_own_responses_content_hash: reviewedHash } : {}) } };
     pkg.receipts[field] = receipt;
     if (signaturesComplete(pkg)) {
       // Stamp only signature rectangles on the retained PDF. Never re-evaluate contract

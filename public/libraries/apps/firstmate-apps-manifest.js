@@ -54,7 +54,7 @@
     // Same version string as crewBundles so the runtime's URL dedupe keeps a
     // single load; the field checkout resolves provider tokenization here.
     versionedBundle('../payments-api/payments-api.js', '20261019-forward-cert'),
-    versionedBundle('../doc-widgets/firstmate-doc-widgets.js', '20261019-forward-cert'),
+    versionedBundle('../doc-widgets/firstmate-doc-widgets.js', '20261026-sign-own-choices'),
     versionedBundle('../doc-renderer/firstmate-doc-renderer.js', '20261022-as-sent-inputs'),
     versionedBundle('../doc-workflow/firstmate-doc-workflow.js', '20261026-mobile-documents-2'),
     versionedBundle('signatures/project.js', '20261019-forward-cert')
@@ -79,7 +79,7 @@
   ];
 
   const apps = [
-    {id:'portal.partners',package:'partners',title:'Partners',terminologyKey:'partners.partners',kind:'portal_tab',surfaces:['portal_tab'],portalTabId:'partners',bundles:[versionedBundle('../payment-intake/payment-intake.js','20261026-forward-no-secure-line'),versionedBundle('../doc-widgets/firstmate-doc-widgets.js','20261019-forward-cert'),versionedBundle('partners/share-dialog.js','20261001-sharing-polish-v1'),versionedBundle('partners/app.js','20261019-forward-cert')]},
+    {id:'portal.partners',package:'partners',title:'Partners',terminologyKey:'partners.partners',kind:'portal_tab',surfaces:['portal_tab'],portalTabId:'partners',bundles:[versionedBundle('../payment-intake/payment-intake.js','20261026-forward-no-secure-line'),versionedBundle('../doc-widgets/firstmate-doc-widgets.js','20261026-sign-own-choices'),versionedBundle('partners/share-dialog.js','20261001-sharing-polish-v1'),versionedBundle('partners/app.js','20261019-forward-cert')]},
     {
       id: 'portal.viewer',
       package: 'projects',
@@ -209,7 +209,7 @@
       bundles: [
         versionedBundle('../documents-api/documents-api.js', '20261022-document-history'),
         versionedBundle('../doc-model/firstmate-doc-model.js', '20261022-as-sent-inputs'),
-        versionedBundle('../doc-widgets/firstmate-doc-widgets.js', '20261019-forward-cert'),
+        versionedBundle('../doc-widgets/firstmate-doc-widgets.js', '20261026-sign-own-choices'),
         versionedBundle('../doc-renderer/firstmate-doc-renderer.js', '20261022-as-sent-inputs'),
         versionedBundle('../doc-editor/firstmate-doc-editor.js', '20261022-document-history'),
         versionedBundle('../doc-sent-editor/firstmate-doc-sent-editor.js', '20261026-mobile-documents-2'),
@@ -238,7 +238,7 @@
       bundles: [
         versionedBundle('../documents-api/documents-api.js', '20261022-document-history'),
         versionedBundle('../doc-model/firstmate-doc-model.js', '20261022-as-sent-inputs'),
-        versionedBundle('../doc-widgets/firstmate-doc-widgets.js', '20261019-forward-cert'),
+        versionedBundle('../doc-widgets/firstmate-doc-widgets.js', '20261026-sign-own-choices'),
         versionedBundle('../doc-renderer/firstmate-doc-renderer.js', '20261022-as-sent-inputs'),
         versionedBundle('../doc-editor/firstmate-doc-editor.js', '20261022-document-history'),
         versionedBundle('photos/feed.js', '20261026-mobile-fixes-b'),
@@ -262,7 +262,7 @@
         versionedBundle('../websites-api/websites-api.js', '20260731-domains-v10'),
         versionedBundle('../domains-api/domains-api.js', '20260731-domains-v10'),
         versionedBundle('../doc-model/firstmate-doc-model.js', '20261022-as-sent-inputs'),
-        versionedBundle('../doc-widgets/firstmate-doc-widgets.js', '20261019-forward-cert'),
+        versionedBundle('../doc-widgets/firstmate-doc-widgets.js', '20261026-sign-own-choices'),
         versionedBundle('../doc-renderer/firstmate-doc-renderer.js', '20261022-as-sent-inputs'),
         versionedBundle('../web-widgets/firstmate-web-widgets.js', '20260728-web-editor-v1'),
         versionedBundle('../portal-widgets/firstmate-portal-widgets.js', '20260801-portal-builder-v1'),

@@ -24,6 +24,8 @@ export type SigningPackage = {
   id: string; organization_id: string; document_id: string; snapshot_id: string; status: "open" | "completed" | "void" | "superseded" | "declined" | "expired";
   signers: Signer[]; fields: Record<string, JsonObject>; receipts: Record<string, SigningReceipt>;
   created_at: string; expires_at: string; content_hash: string; source_hash: string; content: JsonObject;
+  /** signingSource as last rendered, to tell the signer's own responses from a company change. */
+  source?: JsonObject;
   review_pdf: string; final_pdf: string; final_pdf_hash: string; disclosure: { version: string; text: string; hash: string };
   challenges: Record<string, { id: string; content_hash: string; expires_at: string }>;
   completed_at?: string; retention_until?: string; legal_hold?: boolean;

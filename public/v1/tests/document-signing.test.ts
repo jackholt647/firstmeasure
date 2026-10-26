@@ -267,3 +267,39 @@ test("signing: assigned signers, immutable revisions, concurrent receipts, execu
 });
 
 
+
+test("signing: the signer's own option choice after review is signed; a company change still needs review", async () => {
+  const client = createSessionClient(), { orgId } = await registerOrg(client);
+  await createProject(client, orgId, "options_project");
+  const storage = await import("../documents/storage.js");
+  const options = [{ id: "opt_good", label: "Good", items: [{ id: "good", name: "Good roof", quantity: 1, unit: "job", unit_price: 10000 }] },
+    { id: "opt_best", label: "Best", items: [{ id: "best", name: "Best roof", quantity: 1, unit: "job", unit_price: 15000 }] }];
+  const create = async () => {
+    const created = await client.request("POST", `/v1/documents/organizations/${orgId}/projects/options_project/documents`, { document_type: "contract", params: { body: "Options agreement", proposal_options: options } });
+    const id = created.document.id;
+    await storage.saveDocumentInstance(orgId, id, { ...created.document, output_defs: { option_choice: { type: "select" }, sig_customer: { type: "signature", signer_id: "customer", required: true } } });
+    const sent = await client.request("POST", `/v1/documents/organizations/${orgId}/documents/${id}/send`, { recipients: [{ name: "Alice", email: "alice@example.test", role: "customer" }], consent_contact: "support@example.test" });
+    return { id, token: sent.signing.invitations[0].token };
+  };
+  const payload = (r: any) => ({ value: { type: "typed", signer_name: "Alice" }, challenge: r.challenge, content_hash: r.content_hash, consent: { intent: true, electronic_records: true, can_access_and_retain: true, disclosure_hash: r.disclosure.hash } });
+
+  // The dialog was prepared, then the customer picked an option: signing goes through on the content with the pick.
+  const own = await create();
+  const review = await client.request("POST", `/v1/documents/public/${own.token}/signing/prepare`, {});
+  await client.request("POST", `/v1/documents/public/${own.token}/outputs/option_choice`, { value: "opt_best" });
+  const signed = await client.request("POST", `/v1/documents/public/${own.token}/outputs/sig_customer`, payload(review));
+  assert.equal(signed.document.status, "completed");
+  const pkg = await (await import("../documents/signing/store.js")).packagesForDocument(orgId, own.id);
+  assert.notEqual(pkg[0]!.receipts.sig_customer!.content_hash, review.content_hash, "the accepted content carries the customer's pick");
+  assert.equal((pkg[0]!.content.params as any).scope_items[0].name, "Best roof");
+  assert.equal(pkg[0]!.receipts.sig_customer!.evidence.reviewed_before_own_responses_content_hash, review.content_hash);
+
+  // A company edit after review still stops the signature.
+  const edited = await create();
+  const editedReview = await client.request("POST", `/v1/documents/public/${edited.token}/signing/prepare`, {});
+  const current = await storage.readDocumentInstance(orgId, edited.id);
+  await storage.saveDocumentInstance(orgId, edited.id, { ...current, params: { ...(current.params as any), body: "Changed terms" } });
+  const refused = await client.raw("POST", `/v1/documents/public/${edited.token}/outputs/sig_customer`, payload(editedReview));
+  assert.equal(refused.statusCode, 409);
+  assert.equal(JSON.parse(refused.body).code ?? JSON.parse(refused.body).error, "signature_content_changed");
+});

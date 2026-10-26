@@ -1599,7 +1599,8 @@
 .fmdoc-modal.fmdoc-sign-modal{flex-direction:row;gap:0;padding:0;overflow:hidden;width:min(560px,100%);transition:width .32s cubic-bezier(.2,.8,.2,1)}
 .fmdoc-modal.fmdoc-sign-modal.with-disclosure{width:min(1040px,100%)}
 .fmdoc-sign-main{flex:0 0 auto;width:min(560px,100vw - 32px);max-height:calc(100vh - 32px);overflow:auto;padding:20px;display:flex;flex-direction:column;gap:12px;box-sizing:border-box}
-.fmdoc-sign-aside{flex:1 1 auto;min-width:0;max-height:calc(100vh - 32px);overflow:hidden;border-left:1px solid #eaecf0;background:#f9fafb;display:flex;flex-direction:column;opacity:0;transition:opacity .25s ease .08s}
+/* The disclosure never sets the dialog's height (its text loads after opening); it scrolls inside it. */
+.fmdoc-sign-aside{flex:1 1 auto;min-width:0;contain:size;max-height:calc(100vh - 32px);overflow:hidden;border-left:1px solid #eaecf0;background:#f9fafb;display:flex;flex-direction:column;opacity:0;transition:opacity .25s ease .08s}
 .fmdoc-sign-modal.with-disclosure .fmdoc-sign-aside{opacity:1}
 .fmdoc-sign-modal:not(.with-disclosure) .fmdoc-sign-aside{visibility:hidden;width:0;border:0}
 .fmdoc-sign-aside-head{display:flex;align-items:center;gap:10px;padding:16px 20px 10px;min-width:420px}
