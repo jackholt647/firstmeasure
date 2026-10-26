@@ -743,6 +743,18 @@
       html[data-fm-doc-phone] .fm-docs-gallery [data-gallery-toolbar-action="new_document"] span{display:inline}
       html[data-fm-doc-phone] .fm-docs-gallery .pf-upload{height:36px;font-size:0;gap:0;padding:0 11px}
       html[data-fm-doc-phone] .fm-docs-gallery .pf-upload i{font-size:13px}
+      /* The list: the count once (under the project's name), and each document a card across the width. */
+      html[data-fm-doc-phone] .fm-docs-gallery .pf-group-head .pf-uploaders{display:none}
+      html[data-fm-doc-phone] .fm-docs-gallery .pf-wrap:not([data-density="list"]) .pf-grid:has(>.fm-document-tile){grid-template-columns:minmax(0,1fr)!important;gap:10px}
+      html[data-fm-doc-phone] .fm-docs-gallery .pf-wrap:not([data-density="list"]) .pf-thumb.fm-document-tile{width:100%;height:118px;aspect-ratio:auto;border-radius:14px}
+      html[data-fm-doc-phone] .fm-docs-gallery .pf-wrap:not([data-density="list"]) .fm-document-tile .fm-doc-card{padding:38px 16px 13px}
+      html[data-fm-doc-phone] .fm-docs-gallery .pf-wrap:not([data-density="list"]) .fm-document-tile .fm-doc-card-mark{top:50%;right:18px;bottom:auto;transform:translateY(-50%);font-size:58px}
+      html[data-fm-doc-phone] .fm-docs-gallery .pf-wrap:not([data-density="list"]) .fm-document-tile .fm-doc-card-body{padding-right:72px}
+      html[data-fm-doc-phone] .fm-docs-gallery .pf-wrap:not([data-density="list"]) .fm-document-tile .fm-doc-card-title{-webkit-line-clamp:1;font-size:15px}
+      html[data-fm-doc-phone] .fm-docs-gallery .pf-wrap:not([data-density="list"]) .fm-document-tile .fm-doc-card-primary{font-size:21px}
+      html[data-fm-doc-phone] .fm-docs-gallery .pf-wrap:not([data-density="list"]) .fm-document-tile .fm-doc-card-facts{display:block;font-size:12px}
+      html[data-fm-doc-phone] .fm-docs-gallery .pf-wrap:not([data-density="list"]) .fm-document-tile .fm-doc-badges{left:12px;right:12px;top:11px}
+      html[data-fm-doc-phone] .fm-docs-gallery .pf-wrap:not([data-density="list"]) .fm-document-tile :is(.fm-doc-type-badge,.fm-doc-status-badge){display:inline-block;padding:4px 9px;font-size:10.5px}
       @media(prefers-reduced-motion:reduce){html[data-fm-doc-phone] .fm-docs-gallery .pf-search:focus-within{animation:none}}
     `);
   }

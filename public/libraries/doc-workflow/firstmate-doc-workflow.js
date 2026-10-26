@@ -3163,11 +3163,11 @@
           total = (total || 0) + scopeItemsTotal(value);
           let zeroQuantity = 0;
           let unpriced = 0;
-          const groups = new Set();
+          const groups = new Map();
           const walk = (list) => arr(list).forEach((raw) => {
             const line = obj(raw);
             const selection = obj(line.selection);
-            if (cleanText(selection.mode) === 'choice' && cleanText(selection.group_id)) groups.add(cleanText(selection.group_id));
+            if (cleanText(selection.mode) === 'choice' && cleanText(selection.group_id) && !groups.has(cleanText(selection.group_id))) groups.set(cleanText(selection.group_id), choiceGroupTitle(selection.group_title, cleanText(selection.group_id)));
             if (!scopeItemSelected(line)) return;
             const leaf = !arr(line.children).length;
             if (leaf && !(Number(line.quantity) > 0)) zeroQuantity += 1;
@@ -3177,7 +3177,15 @@
           walk(value);
           if (zeroQuantity) checks.push(`${zeroQuantity} line${zeroQuantity === 1 ? ' has' : 's have'} a quantity of 0. ${zeroQuantity === 1 ? 'It prints on the proposal and adds' : 'They print on the proposal and add'} nothing to the price — remove ${zeroQuantity === 1 ? 'it' : 'them'} or enter a quantity.`);
           if (unpriced) checks.push(`${unpriced} line${unpriced === 1 ? ' has' : 's have'} no unit price.`);
-          if (groups.size) checks.push(`${groups.size} choice group${groups.size === 1 ? '' : 's'}: the proposal prices and prints the option selected in each.`);
+          if (groups.size) {
+            // Plain words: which items have options, and that the price uses the one selected.
+            const names = [...groups.values()];
+            let list = names.join(', ');
+            try { list = new Intl.ListFormat(globalThis.PlatformLanguage?.formatLocale?.() || 'en-US', { style: 'long', type: 'conjunction' }).format(names); } catch (e) { /* keep the comma list */ }
+            checks.push(names.length === 1
+              ? (globalThis.PlatformLanguage?.text("doc-workflow", "review_options_priced_one", `${list} has options. The price uses the one selected.`, { list }) ?? `${list} has options. The price uses the one selected.`)
+              : (globalThis.PlatformLanguage?.text("doc-workflow", "review_options_priced_many", `${list} have options. The price uses the one selected for each.`, { list }) ?? `${list} have options. The price uses the one selected for each.`));
+          }
         }
         if (isEmptyValue(value) && typeof value !== 'number' && typeof value !== 'boolean') {
           if (obj(item).required && !hiddenHere) checks.push(`${itemLabel(obj(item))} is not filled in.`);
@@ -3606,6 +3614,9 @@
         const wide = ['measurements', 'payment_schedule', 'line_items_review', 'line_item_editor', 'review', 'content_blocks', 'piece_select', 'piece_picker', 'choice_group'].includes(cleanText(item.kind))
           || obj(item.presentation).multiline === true || ['cards', 'tiles'].includes(cleanText(obj(item.presentation).style));
         holder.className = `fmdw-item ${wide ? 'fmdw-item-wide' : ''} fmdw-enter-${firstText(itemTransition.type, 'fade').replace(/[^a-z-]/gi, '')}`;
+        // The step's only question, a whole-width one: the step title already names it, so a
+        // narrow host (the documents app on a phone) can leave out its own label.
+        if (wide && items.length === 1 && !sections.some((section) => cleanText(section.title))) holder.classList.add('fmdw-item-sole');
         holder.style.setProperty('--fmdw-enter-ms', `${Math.max(0, Number(itemTransition.duration_ms || 180))}ms`);
         if (item.disabled === true) {
           holder.classList.add('fmdw-capability-disabled');

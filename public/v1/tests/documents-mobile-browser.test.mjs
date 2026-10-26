@@ -323,7 +323,7 @@ async function sentEditor(page) {
 }
 const visible = (page, selector) => page.locator(selector).evaluateAll((list) => list.filter((el) => el.getClientRects().length && getComputedStyle(el).display !== 'none').map((el) => el.innerText.trim()));
 
-test('on a phone the as-sent editor keeps Done in view and types values in a sheet that steps through them', async () => {
+test('on a phone the as-sent editor lists the values by line, types them in a sheet that steps through them, and shows the page at a readable zoom', async () => {
   const browser = await launch();
   try {
     const { page, errors } = await pageFor(browser, PHONE);
@@ -337,12 +337,19 @@ test('on a phone the as-sent editor keeps Done in view and types values in a she
     assert.equal(await page.locator('.fmse-legend').isVisible(), false, 'one header sheet at a time');
     await page.locator('[data-fmse-menu] button', { hasText: 'Download PDF' }).tap();
     assert.deepEqual(await page.evaluate(() => window.calls), [['pdf']]);
-    // A value opens a sheet along the bottom with the value's name.
-    await page.locator('.fmdoc-run[data-binding-kind="input"]', { hasText: 'Shingles' }).tap();
+    // It opens on Values: every value from the data, once, under the line it is on.
+    assert.equal(await page.locator('.fmse-seg [aria-selected="true"]').innerText(), 'Values');
+    const groups = await page.locator('.fmse-vgroup').evaluateAll((list) => list.map((group) => ({ title: group.querySelector('h3')?.innerText.trim(), rows: [...group.querySelectorAll('.fmse-vrow')].map((row) => `${row.querySelector('.fmse-vlabel').innerText.trim()}=${row.querySelector('b').innerText.trim()}`) })));
+    assert.deepEqual(groups, [{ title: 'Shingles × 12', rows: ['Name=Shingles', 'Quantity=12'] }, { title: 'Vents × 3', rows: ['Name=Vents', 'Quantity=3'] }], 'grouped by line; totals are not offered');
+    const rows = await page.locator('.fmse-vrow').evaluateAll((list) => list.map((row) => { const r = row.getBoundingClientRect(); return { h: Math.round(r.height), font: parseFloat(getComputedStyle(row.querySelector('b')).fontSize) }; }));
+    assert.ok(rows.every((row) => row.h >= 44 && row.font >= 14), `thumb-sized rows in reading-size text: ${JSON.stringify(rows)}`);
+    // A value opens the sheet along the bottom with the value's name.
+    await page.locator('.fmse-vrow', { hasText: 'Shingles' }).tap();
     await page.waitForTimeout(350); // it rises in
     const sheet = await page.locator('.fmse-pop').boundingBox();
     assert.ok(Math.round(sheet.x) === 0 && Math.round(sheet.width) === 390 && Math.round(sheet.y + sheet.height) === 844, `a bottom sheet: ${JSON.stringify(sheet)}`);
     assert.equal(await page.locator('.fmse-pop-label').innerText(), 'NAME');
+    assert.equal(await page.locator('.fmse-vrow[data-fmse-active]').innerText().then((text) => text.includes('Shingles')), true, 'its row is marked');
     // The arrow goes to the next value without writing an unchanged one.
     await page.locator('.fmse-pop [data-fmse-step="1"]').tap();
     assert.equal(await page.locator('[data-fmse-input]').inputValue(), '12');
@@ -350,7 +357,45 @@ test('on a phone the as-sent editor keeps Done in view and types values in a she
     await page.locator('.fmse-pop [data-fmse-apply]').tap();
     await page.waitForFunction(() => window.calls.length === 2);
     assert.deepEqual(await page.evaluate(() => window.calls[1]), ['write', [{ path: 'params.items.0.quantity', text: '14' }]], 'the value is written as data through the same writer');
-    await page.waitForSelector('.fmdoc-run[data-binding-kind="input"]:text-is("14")');
+    await page.waitForSelector('.fmse-vrow:has-text("14")');
+    assert.equal(await page.locator('.fmse-vgroup h3').first().innerText(), 'Shingles × 14', 'the list follows the new value');
+    // A tap elsewhere in the list puts the sheet away.
+    await page.locator('.fmse-vrow', { hasText: 'Vents' }).tap();
+    await page.waitForSelector('.fmse-pop');
+    await page.locator('.fmse-values-hint').tap();
+    assert.equal(await page.locator('.fmse-pop').count(), 0);
+    // Page: the render at 100% (text at reading size), pannable, with − and +.
+    await page.locator('.fmse-seg [data-fmse-view="page"]').tap();
+    assert.equal(await page.locator('.fmse-values').isVisible(), false);
+    assert.equal(await page.locator('[data-fmse-zoom-fit]').innerText(), '100%');
+    const runFont = () => page.locator('.fmdoc-run[data-binding-kind="input"]').first().evaluate((el) => el.getBoundingClientRect().height);
+    assert.ok(await runFont() >= 16, 'a value on the page is a readable size');
+    assert.ok(await page.locator('[data-fmse-scroll]').evaluate((el) => el.scrollWidth > el.clientWidth), 'the page pans sideways at 100%');
+    await page.locator('[data-fmse-zoom-by="1"]').tap();
+    assert.equal(await page.locator('[data-fmse-zoom-fit]').innerText(), '125%');
+    await page.locator('[data-fmse-zoom-fit]').tap();
+    const fit = Number((await page.locator('[data-fmse-zoom-fit]').innerText()).replace('%', ''));
+    assert.ok(fit < 100 && fit > 30, `the percentage fits the page to the screen: ${fit}`);
+    assert.ok(await page.locator('[data-fmse-scroll]').evaluate((el) => el.scrollWidth <= el.clientWidth + 1), 'a fitted page does not pan sideways');
+    await page.locator('[data-fmse-zoom-fit]').tap();
+    assert.equal(await page.locator('[data-fmse-zoom-fit]').innerText(), '100%', 'and back to 100%');
+    // Two fingers zoom too: spreading them to twice the distance doubles it, about where they are.
+    const pinched = await page.evaluate(async () => {
+      const scroller = document.querySelector('[data-fmse-scroll]');
+      const touch = (id, x, y) => new Touch({ identifier: id, target: scroller, clientX: x, clientY: y });
+      const fire = (type, touches) => scroller.dispatchEvent(new TouchEvent(type, { bubbles: true, cancelable: true, touches, targetTouches: touches, changedTouches: touches }));
+      fire('touchstart', [touch(1, 150, 400), touch(2, 250, 400)]);
+      fire('touchmove', [touch(1, 100, 400), touch(2, 300, 400)]);
+      fire('touchend', []);
+      await new Promise((resolve) => setTimeout(resolve, 50));
+      return document.querySelector('[data-fmse-zoom-fit]').textContent;
+    });
+    assert.equal(pinched, '200%');
+    // A value on the page opens the same sheet.
+    await page.locator('[data-fmse-zoom-fit]').tap();
+    await page.locator('.fmdoc-run[data-binding-kind="input"]', { hasText: 'Vents' }).tap();
+    await page.waitForSelector('.fmse-pop');
+    assert.equal(await page.locator('.fmse-pop-label').innerText(), 'NAME');
     assert.deepEqual(errors, []);
   } finally { await browser.close(); }
 });
@@ -367,3 +412,156 @@ test('on a desktop the as-sent editor keeps its actions and colour key in view',
     assert.deepEqual(errors, []);
   } finally { await browser.close(); }
 });
+
+// The steps (doc-workflow inside the document screen) with the documents app's
+// phone dropdown, sliced from the app the way the dialogs above are.
+const selectMenuCode = between('  const SelectMenu=window.FirstMateSelectMenu', "  SelectMenu.install(");
+async function workflowSteps(page, { phone }) {
+  if (phone) await page.evaluate(() => document.documentElement.setAttribute('data-fm-doc-phone', ''));
+  await page.addStyleTag({ content: css });
+  await page.evaluate(() => { document.querySelector('#tab').innerHTML = '<div class="fmdx-shell"><div class="fmdx-workflow-host"><div class="fmdx-wfrun-main" id="wf"></div></div></div>'; });
+  for (const file of ['doc-markdown/firstmate-markdown.js', 'doc-model/firstmate-doc-model.js', 'doc-renderer/firstmate-doc-renderer.js', 'doc-workflow/firstmate-doc-workflow.js']) await page.addScriptTag({ url: '/libraries/' + file });
+  await page.evaluate((code) => {
+    window.FirstMateSelectMenu = undefined;
+    new Function(`${code}\nSelectMenu.install('html[data-fm-doc-phone] :is(.fmdx-workflow-host,.fmdx-history-modal)', 'all');`)();
+    window.writes = [];
+    const choice = (id, name, price, selected) => ({ id, name, quantity: 34, unit: 'sq', unit_price: price, selection: { mode: 'choice', group_id: 'shingle', group_title: 'Shingle', selected } });
+    const scope_items = [{ id: 'roof', name: 'Roof replacement', quantity: 1, unit: 'ea', children: [
+      { id: 'tear', name: 'Remove existing roofing', quantity: 35, unit: 'sq', unit_price: 85 },
+      choice('ns', 'GAF Timberline NS', 348, false), choice('hdz', 'GAF Timberline HDZ', 398, true)
+    ] }];
+    const workflow = { schema_version: 1, name: 'Proposal', contract: { params: {} }, steps: [
+      { id: 'lines', title: 'Line items', audience: ['internal'], items: [{ kind: 'line_items_review', writes: 'params.scope_items', label: 'Line items' }] },
+      { id: 'terms', title: 'Payment terms', audience: ['internal'], items: [{ kind: 'payment_schedule', writes: 'params.payment_schedule', label: 'Payment schedule', required: true }] },
+      { id: 'review', title: 'Review & send', audience: ['internal'], items: [{ kind: 'review', label: 'Before you send' }] }
+    ] };
+    window.handle = FMDocWorkflow.mount(document.querySelector('#wf'), { workflow, audience: 'internal', contract: workflow.contract, labels: { finish: 'Send' },
+      state: { params: { scope_items, payment_schedule: [{ id: 'deposit', label: 'Deposit', kind: 'percent', percent: 30, due_rule: 'on_signature' }, { id: 'final', label: 'Final payment', kind: 'percent', percent: 70, due_rule: 'project_completion' }] }, outputs: {}, current_step: 'lines', completed_steps: ['lines', 'terms'] },
+      onWrite: (path, value) => window.writes.push([path, value]), services: {} });
+  }, selectMenuCode);
+  await page.waitForSelector('.fmdw-lir-row');
+}
+const boxes = (page, selector) => page.locator(selector).evaluateAll((list) => list.filter((el) => el.getClientRects().length && getComputedStyle(el).display !== 'none').map((el) => { const r = el.getBoundingClientRect(); return { w: Math.round(r.width), h: Math.round(r.height), left: Math.round(r.left), right: Math.round(r.right), top: Math.round(r.top) }; }));
+
+test('on a phone the steps are one level of cards with thumb-sized fields, the step title once and the platform dropdown', async () => {
+  const browser = await launch();
+  try {
+    const { page, errors } = await pageFor(browser, PHONE);
+    await workflowSteps(page, { phone: true });
+    const chips = await boxes(page, '.fmdw-step');
+    assert.ok(chips.every((chip) => chip.h >= 44 && chip.w >= 44), `step chips are 44px: ${JSON.stringify(chips)}`);
+    // Line items: quantity and price a thumb tall, buttons 40px, nothing past the row.
+    const nums = await boxes(page, '.fmdw-lir-row:not(.fmdw-lir-group-head) .fmdw-lir-num');
+    assert.ok(nums.length && nums.every((box) => box.h >= 44), `quantity and price are 44px: ${JSON.stringify(nums)}`);
+    const buttons = await boxes(page, '.fmdw-lir-actions .fmdw-icon-btn');
+    assert.ok(buttons.every((box) => box.h >= 40 && box.w >= 40), `line buttons are 40px: ${JSON.stringify(buttons)}`);
+    const head = await page.locator('.fmdw-lir-choice-head').evaluate((el) => { const box = el.getBoundingClientRect(); return { right: Math.round(box.right), children: [...el.children].filter((c) => c.getClientRects().length).map((c) => { const r = c.getBoundingClientRect(); return { cls: c.className, right: Math.round(r.right), h: Math.round(r.height) }; }) }; });
+    assert.ok(head.children.every((child) => child.right <= head.right), `the choice line keeps everything inside it: ${JSON.stringify(head)}`);
+    assert.ok(head.right <= 390);
+    await page.screenshot({ path: process.env.MOBILE_SHOTS ? `${process.env.MOBILE_SHOTS}/test-steps-lines-390.png` : undefined }).catch(() => {});
+    // Payment terms: its only question does not repeat the step's name; no card in a card.
+    await page.locator('[data-fmdw-step="terms"]').tap();
+    await page.waitForSelector('.fmdw-sched-row');
+    assert.equal(await page.locator('.fmdw-step-head h2').innerText(), 'Payment terms');
+    assert.equal(await page.locator('.fmdw-item-sole .fmdw-field-label').isVisible(), false, 'the label under the title is gone');
+    const frames = await page.evaluate(() => ['.fmdw-section', '.fmdw-sched'].map((selector) => getComputedStyle(document.querySelector(selector)).borderTopWidth));
+    assert.deepEqual(frames, ['0px', '0px'], 'the section and the question card fall away');
+    const fields = await boxes(page, '.fmdw-sched-row :is(input,select)');
+    assert.ok(fields.every((box) => box.h >= 44) && fields.every((box) => box.right <= 390), `fields are 44px and fit: ${JSON.stringify(fields)}`);
+    const due = await boxes(page, '.fmdw-sched-row:first-child .fmdw-sched-due');
+    assert.ok(due[0].w >= 160, `when it is due has room: ${JSON.stringify(due)}`);
+    // When it is due opens the platform's dropdown and writes like the select.
+    await page.locator('.fmdw-sched-row').first().locator('.fmdw-sched-due').tap({ force: true });
+    await page.waitForSelector('[data-fm-select-menu]');
+    assert.deepEqual(await page.locator('[data-fm-select-menu] [role=option]').allTextContents(), ['On receipt', 'On signature', 'On completion', 'When invoiced', 'Specific date']);
+    if (process.env.MOBILE_SHOTS) await page.screenshot({ path: `${process.env.MOBILE_SHOTS}/test-steps-terms-menu-390.png` });
+    await page.locator('[data-fm-select-menu] [role=option]', { hasText: 'On receipt' }).tap();
+    const written = await page.evaluate(() => window.writes.filter(([path]) => path === 'params.payment_schedule').at(-1)?.[1]?.[0]?.due_rule);
+    assert.equal(written, 'on_receipt', 'the choice is written through the step');
+    // Review: options in plain words.
+    await page.locator('[data-fmdw-step="review"]').tap();
+    await page.waitForSelector('.fmdw-review-checks');
+    const check = await page.locator('.fmdw-review-checks').innerText();
+    assert.match(check, /Shingle has options\. The price uses the one selected\./);
+    assert.doesNotMatch(check, /choice group/);
+    assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth));
+    await page.setViewportSize({ width: 360, height: 740 });
+    await page.locator('[data-fmdw-step="lines"]').tap();
+    await page.waitForSelector('.fmdw-lir-row');
+    const narrow = await boxes(page, '.fmdw-lir-row, .fmdw-lir-choice-head, .fmdw-lir-num');
+    assert.ok(narrow.every((box) => box.right <= 360), `fits at 360: ${JSON.stringify(narrow)}`);
+    assert.deepEqual(errors, []);
+  } finally { await browser.close(); }
+});
+
+test('on a desktop the steps keep their cards, labels and browser selects', async () => {
+  const browser = await launch();
+  try {
+    const { page, errors } = await pageFor(browser, DESKTOP);
+    await workflowSteps(page, { phone: false });
+    await page.locator('[data-fmdw-step="terms"]').click();
+    await page.waitForSelector('.fmdw-sched-row');
+    assert.equal(await page.locator('.fmdw-item-sole .fmdw-field-label').isVisible(), true);
+    assert.equal(await page.evaluate(() => getComputedStyle(document.querySelector('.fmdw-section')).borderTopWidth), '1px');
+    assert.equal(await page.locator('.fmdw-sched-due').first().evaluate((el) => [getComputedStyle(el).pointerEvents, Math.round(el.getBoundingClientRect().height)].join(' ')), 'auto 34');
+    await page.locator('.fmdw-sched-due').first().click();
+    assert.equal(await page.locator('[data-fm-select-menu]').count(), 0);
+    assert.deepEqual(errors, []);
+  } finally { await browser.close(); }
+});
+
+// History, sliced from the documents app: automatic step versions in a row are one row with a count.
+const historyCode = between('    const HISTORY_CUTS = {', '    function updateSaveState(){');
+async function openHistory(page, { phone }) {
+  await page.setContent(`<meta name="viewport" content="width=device-width,initial-scale=1"><style>${css}</style><main></main>`);
+  if (phone) await page.evaluate(() => document.documentElement.setAttribute('data-fm-doc-phone', ''));
+  await page.evaluate(({ historyCode, modalCode }) => {
+    const helpers = `
+      function cleanText(value){ return String(value ?? '').trim(); }
+      function firstText(...values){ for (const value of values) { const text = cleanText(value); if (text) return text; } return ''; }
+      const esc = (value) => String(value ?? '').replace(/[&<>"']/g, (c) => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[c]));
+      function objectValue(value){ return value && typeof value === 'object' && !Array.isArray(value) ? value : {}; }
+      function arrayValue(value){ return Array.isArray(value) ? value : []; }
+      const isPhone = () => document.documentElement.hasAttribute('data-fm-doc-phone');
+      const state = { doc: { id: 'd1', status: 'draft', title: 'Proposal' } };
+      const orgId = () => 'org';
+      const flushAllWrites = async () => {};
+      const isReadOnlyStatus = () => false;
+      const showToast = () => {};
+      const errorMessage = (error, fallback) => fallback;
+      const openPreview = () => {};
+      const at = (minutes) => new Date(Date.UTC(2026, 9, 26, 14, minutes)).toISOString();
+      const revisions = [
+        ...Array.from({ length: 10 }, (_, i) => ({ seq: 13 - i, cut: 'workflow', actor_name: 'Sam Rivera', source: { kind: 'person' }, updated_at: at(40 - i), sections: ['workflow_state'] })),
+        { seq: 3, cut: 'edit', actor_name: 'Sam Rivera', source: { kind: 'person' }, updated_at: at(20), sections: ['params'] },
+        { seq: 2, cut: 'workflow', actor_name: 'Sam Rivera', source: { kind: 'person' }, updated_at: at(10), sections: ['workflow_state'] },
+        { seq: 1, cut: 'created', actor_name: 'Sam Rivera', source: { kind: 'person' }, updated_at: at(0), sections: [] }
+      ];
+      const api = () => ({ revisions: { list: async () => ({ revisions }), diff: async () => ({ diff: { fields: [] } }) } });
+    `;
+    window.openHistory = new Function(`${helpers}\n${modalCode}\n${historyCode}\nreturn openHistoryMenu;`)();
+    window.openHistory();
+  }, { historyCode, modalCode });
+  await page.waitForSelector('.fmdx-hist-row');
+}
+const historyRows = (page) => page.locator('[data-hist-list] > .fmdx-hist-row, [data-hist-list] .fmdx-hist-run-items > .fmdx-hist-row').evaluateAll((list) => list.filter((row) => row.getClientRects().length).map((row) => row.querySelector('strong').innerText.replace(/\s+/g, ' ').trim() + ' ' + row.querySelector('em').innerText.trim()));
+
+for (const device of [['phone', PHONE], ['desktop', DESKTOP]]) {
+  test(`on a ${device[0]} History shows a run of automatic step versions as one row with a count`, async () => {
+    const browser = await launch();
+    try {
+      const { page, errors } = await pageFor(browser, device[1]);
+      await openHistory(page, { phone: device[0] === 'phone' });
+      assert.deepEqual(await historyRows(page), ['Workflow step10 versions #4–13', 'Edited #3', 'Workflow step #2', 'Created #1'], 'ten in a row are one row; a single one stays itself');
+      assert.match(await page.locator('[data-hist-run] small').first().innerText(), /Sam Rivera · Oct 26, \d+:\d\d (AM|PM) – \d+:\d\d (AM|PM)/, 'who, and from when to when');
+      if (process.env.MOBILE_SHOTS && device[0] === 'phone') await page.screenshot({ path: `${process.env.MOBILE_SHOTS}/test-history-390.png` });
+      await page.locator('[data-hist-run]').click();
+      const open = await historyRows(page);
+      assert.equal(open.length, 14, 'it opens to every version');
+      assert.equal(await page.locator('[data-hist-run]').getAttribute('aria-expanded'), 'true');
+      await page.locator('[data-hist-seq="9"]').click();
+      assert.equal(await page.locator('.fmdx-hist-head strong').innerText(), '#9 · Workflow step', 'a version inside it opens like any other');
+      assert.deepEqual(errors, []);
+    } finally { await browser.close(); }
+  });
+}

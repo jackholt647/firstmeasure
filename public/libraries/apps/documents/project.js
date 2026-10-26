@@ -72,6 +72,94 @@
   syncPhoneFlag();
   window.addEventListener('resize', syncPhoneFlag);
   try { if (window.top !== window) window.top.addEventListener('resize', syncPhoneFlag); } catch (error) { /* another origin */ }
+  /* On a phone the steps' selects (payment terms, choices) and History's compare open the
+   * platform's dropdown (a listbox beside the field, as in Settings › Reports defaults) instead
+   * of the browser's picker. The select stays the source of truth: picking sets its value and
+   * fires input and change. The same copy is in the contacts app; whichever loads first defines it. */
+  const SelectMenu=window.FirstMateSelectMenu||(window.FirstMateSelectMenu=(()=>{
+    let current=null;
+    const esc=value=>String(value??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+    function styles(doc,rule){
+      let style=doc.getElementById('fm-selmenu-css');
+      if(!style){style=doc.createElement('style');style.id='fm-selmenu-css';style.textContent=`.fm-selmenu{position:fixed;z-index:2147483646;display:flex;flex-direction:column;box-sizing:border-box;min-width:200px;border:1px solid #e4e7ec;border-radius:12px;background:#fff;box-shadow:0 16px 40px rgba(16,24,40,.18),0 2px 6px rgba(16,24,40,.06);overflow:hidden;color:#101828;font-family:inherit;font-size:15px;animation:fm-selmenu-in .14s ease-out}@keyframes fm-selmenu-in{from{opacity:0;transform:translateY(-4px)}to{opacity:1;transform:none}}.fm-selmenu-title{padding:10px 14px 2px;font-size:11px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:#667085}.fm-selmenu input{flex:none;margin:8px 8px 4px;height:40px;padding:0 12px;border:1px solid #d0d5dd;border-radius:9px;font:inherit;font-size:16px;outline:none}.fm-selmenu input:focus{border-color:var(--primary,#d93025)}.fm-selmenu-list{overflow:auto;overscroll-behavior:contain;padding:4px}.fm-selmenu-opt{display:flex;align-items:center;gap:10px;width:100%;min-height:44px;box-sizing:border-box;padding:8px 12px;border:0;border-radius:8px;background:transparent;color:inherit;font:inherit;font-size:15px;text-align:left;cursor:pointer}.fm-selmenu-opt:hover,.fm-selmenu-opt:focus-visible{background:#f2f4f7;outline:none}.fm-selmenu-opt[aria-selected=true]{font-weight:700;color:var(--primary-readable,var(--primary,#d93025))}.fm-selmenu-opt:disabled{opacity:.45;cursor:default}.fm-selmenu-opt i{margin-left:auto;font-size:12px}.fm-selmenu-empty{padding:12px;color:#98a2b3;font-size:14px}@media(prefers-reduced-motion:reduce){.fm-selmenu{animation:none}}`;doc.head.append(style);}
+      if(rule&&!style.textContent.includes(rule))style.textContent+=rule;
+    }
+    function close(refocus){
+      if(!current)return;const {menu,select,cleanup}=current;current=null;cleanup();menu.remove();
+      if(refocus)select.focus({preventScroll:true});
+    }
+    function title(select){
+      return (select.labels?.[0]?.childNodes?.[0]?.textContent?.trim()||select.getAttribute('aria-label')||select.title||'').trim();
+    }
+    function show(select){
+      close();
+      const doc=select.ownerDocument,win=doc.defaultView||window;
+      // The empty choice ("Label…", "Add tag…") is only offered to clear a value.
+      const options=[...select.options].filter(option=>!option.hidden&&(option.value!==''||select.value!==''));
+      const search=options.length>12,name=title(select);
+      const menu=doc.createElement('div');
+      menu.className='fm-selmenu';menu.setAttribute('data-fm-select-menu','');menu.setAttribute('data-fmr-ignore','');
+      menu.innerHTML=`${name?`<div class="fm-selmenu-title">${esc(name)}</div>`:''}${search?`<input type="search" autocomplete="off" aria-label="${esc(name||'Search')}" placeholder="${esc(globalThis.PlatformLanguage?.text?.('documents','select_menu_find','Find')??'Find')}">`:''}<div class="fm-selmenu-list" role="listbox" aria-label="${esc(name)}"></div>`;
+      const list=menu.querySelector('.fm-selmenu-list'),input=menu.querySelector('input');
+      const draw=()=>{
+        const query=(input?.value||'').trim().toLowerCase();
+        const shown=options.filter(option=>!query||option.textContent.toLowerCase().includes(query));
+        list.innerHTML=shown.map(option=>`<button type="button" class="fm-selmenu-opt" role="option" data-value="${esc(option.value)}" aria-selected="${option.value===select.value}" ${option.disabled?'disabled':''}><span>${esc(option.textContent.trim())}</span>${option.value===select.value?'<i class="fas fa-check" aria-hidden="true"></i>':''}</button>`).join('')||`<div class="fm-selmenu-empty">${esc(globalThis.PlatformLanguage?.text?.('documents','select_menu_none','Nothing matches.')??'Nothing matches.')}</div>`;
+      };
+      draw();
+      doc.body.append(menu);
+      const place=()=>{
+        const box=select.getBoundingClientRect(),width=Math.min(Math.max(box.width,220),win.innerWidth-16);
+        const below=win.innerHeight-box.bottom-12,above=box.top-12,up=menu.scrollHeight>below&&above>below,room=Math.max(140,up?above:below);
+        menu.style.width=width+'px';menu.style.maxHeight=Math.min(room,420)+'px';
+        menu.style.left=Math.max(8,Math.min(box.left,win.innerWidth-width-8))+'px';
+        menu.style.top=(up?Math.max(8,box.top-6-Math.min(menu.offsetHeight,room,420)):box.bottom+6)+'px';
+      };
+      place();
+      menu.addEventListener('click',event=>{
+        const option=event.target.closest('.fm-selmenu-opt');if(!option)return;
+        close(true);
+        if(select.value===option.dataset.value)return;
+        select.value=option.dataset.value;
+        select.dispatchEvent(new Event('input',{bubbles:true}));select.dispatchEvent(new Event('change',{bubbles:true}));
+      });
+      input?.addEventListener('input',draw);
+      const onKey=event=>{
+        if(event.key==='Escape'){event.preventDefault();event.stopPropagation();close(true);return;}
+        if(event.key!=='ArrowDown'&&event.key!=='ArrowUp')return;
+        const items=[...list.querySelectorAll('.fm-selmenu-opt:not(:disabled)')];if(!items.length)return;
+        event.preventDefault();const at=items.indexOf(doc.activeElement);
+        items[(at+(event.key==='ArrowDown'?1:items.length-1)+items.length)%items.length].focus();
+      };
+      const onDown=event=>{if(!menu.contains(event.target))close();};
+      const onScroll=event=>{if(!menu.contains(event.target))close();};
+      win.addEventListener('keydown',onKey,true);doc.addEventListener('pointerdown',onDown,true);doc.addEventListener('scroll',onScroll,true);win.addEventListener('resize',close);
+      current={menu,select,cleanup(){win.removeEventListener('keydown',onKey,true);doc.removeEventListener('pointerdown',onDown,true);doc.removeEventListener('scroll',onScroll,true);win.removeEventListener('resize',close);}};
+      // No keyboard: the chosen option takes focus, not the search field.
+      (list.querySelector('[aria-selected="true"]')||list.querySelector('.fm-selmenu-opt:not(:disabled)'))?.focus({preventScroll:true});
+      list.querySelector('[aria-selected="true"]')?.scrollIntoView({block:'nearest'});
+    }
+    /** Selects inside `scope` use the dropdown while `media` matches. */
+    function install(scope,media,doc=document){
+      const win=doc.defaultView||window,key=scope+'|'+media;
+      doc.__fmSelectMenus=doc.__fmSelectMenus||new Set();
+      if(doc.__fmSelectMenus.has(key))return;doc.__fmSelectMenus.add(key);
+      // The browser's picker never opens from a tap: the tap reaches the field's parent and opens the dropdown.
+      styles(doc,`@media ${media}{${scope} select:not([multiple]):not([size]){pointer-events:none}}`);
+      doc.addEventListener('click',event=>{
+        if(!win.matchMedia(media).matches)return;
+        // Only taps inside the scope are looked at (the select under a tap is its parent's child).
+        if(!event.target?.closest?.(scope))return;
+        let select=event.target?.tagName==='SELECT'?event.target:null;
+        if(!select&&event.target?.querySelectorAll)for(const candidate of event.target.querySelectorAll('select')){const box=candidate.getBoundingClientRect();if(event.clientX>=box.left&&event.clientX<=box.right&&event.clientY>=box.top&&event.clientY<=box.bottom&&box.width){select=candidate;break;}}
+        if(!select||select.disabled||select.multiple||!select.matches(scope+' select'))return;
+        event.preventDefault();event.stopPropagation();
+        if(current?.select===select)close(true);else show(select);
+      },true);
+    }
+    return {install,open:show,close};
+  })());
+  SelectMenu.install('html[data-fm-doc-phone] :is(.fmdx-workflow-host,.fmdx-history-modal)', 'all');
   let uidCounter = 0;
   function uid(prefix){ return `${prefix}_${Date.now().toString(36)}${(++uidCounter).toString(36)}${Math.random().toString(36).slice(2, 6)}`; }
 
@@ -3754,17 +3842,58 @@
         } catch (error) { showError(diffEl, error); }
       }
 
-      function renderList(){
-        listEl.innerHTML = revisions.map((revision) => {
-          const [icon] = historyCut(revision.cut);
-          const sections = arrayValue(revision.sections).filter((key) => key !== '*').map(historySection);
-          const summary = [...new Set(sections)].slice(0, 4).join(' · ');
-          return `<button type="button" class="fmdx-hist-row ${revision.seq === selected ? 'active' : ''}" data-hist-seq="${revision.seq}">
+      // Steps the workflow saved on its own, one after another by the same person, read as one
+      // row with a count; it opens to list each version.
+      const openRuns = new Set();
+      function historyRuns(){
+        const runs = [];
+        for (const revision of revisions) {
+          const last = runs[runs.length - 1];
+          const auto = revision.cut === 'workflow';
+          if (auto && last?.auto && historyTitle(last.items[0]) === historyTitle(revision) && historyActor(last.items[0]) === historyActor(revision)) last.items.push(revision);
+          else runs.push({ auto, items: [revision] });
+        }
+        return runs;
+      }
+      function historySpan(newest, oldest){
+        const from = new Date(oldest.updated_at), to = new Date(newest.updated_at);
+        if (Number.isNaN(from.getTime()) || Number.isNaN(to.getTime())) return historyWhen(newest.updated_at);
+        const locale = globalThis.PlatformLanguage?.formatLocale?.();
+        const time = (date) => date.toLocaleTimeString(locale, { hour: 'numeric', minute: '2-digit' });
+        if (from.toDateString() !== to.toDateString()) return `${historyWhen(oldest.updated_at)} – ${historyWhen(newest.updated_at)}`;
+        const day = to.toLocaleDateString(locale, { month: 'short', day: 'numeric' });
+        return time(from) === time(to) ? `${day}, ${time(to)}` : `${day}, ${time(from)} – ${time(to)}`;
+      }
+      function historyRowHtml(revision){
+        const [icon] = historyCut(revision.cut);
+        const sections = arrayValue(revision.sections).filter((key) => key !== '*').map(historySection);
+        const summary = [...new Set(sections)].slice(0, 4).join(' · ');
+        return `<button type="button" class="fmdx-hist-row ${revision.seq === selected ? 'active' : ''}" data-hist-seq="${revision.seq}">
             <i class="fas ${icon}"></i>
             <span><strong>${esc(historyTitle(revision))}</strong><small>${esc(historyActor(revision))} · ${esc(historyWhen(revision.updated_at))}</small>${summary ? `<small class="fmdx-hist-sections">${esc(summary)}</small>` : ''}</span>
             <em>#${revision.seq}</em>
           </button>`;
+      }
+      function renderList(){
+        listEl.innerHTML = historyRuns().map((run) => {
+          if (!run.auto || run.items.length < 2) return run.items.map(historyRowHtml).join('');
+          const newest = run.items[0], oldest = run.items[run.items.length - 1];
+          const key = String(oldest.seq);
+          const open = openRuns.has(key);
+          const holdsSelected = run.items.some((revision) => revision.seq === selected);
+          const [icon] = historyCut(newest.cut);
+          const count = run.items.length;
+          return `<button type="button" class="fmdx-hist-row fmdx-hist-run ${!open && holdsSelected ? 'active' : ''}" data-hist-run="${esc(key)}" aria-expanded="${open}">
+            <i class="fas ${icon}"></i>
+            <span><strong>${esc(historyTitle(newest))}<b class="fmdx-hist-count">${esc(globalThis.PlatformLanguage?.text("documents", "history_run_count", `${count} versions`, { count }) ?? `${count} versions`)}</b></strong><small>${esc(historyActor(newest))} · ${esc(historySpan(newest, oldest))}</small></span>
+            <em>#${oldest.seq}–${newest.seq} <i class="fas fa-chevron-down fmdx-hist-chev" aria-hidden="true"></i></em>
+          </button>${open ? `<div class="fmdx-hist-run-items">${run.items.map(historyRowHtml).join('')}</div>` : ''}`;
         }).join('') || `<div class="fmdx-hist-note">${esc((globalThis.PlatformLanguage?.text("documents","m_e417a816d3eaee","No history yet.") ?? "No history yet."))}</div>`;
+        listEl.querySelectorAll('[data-hist-run]').forEach((button) => button.addEventListener('click', () => {
+          const key = button.dataset.histRun;
+          if (openRuns.has(key)) openRuns.delete(key); else openRuns.add(key);
+          renderList();
+        }));
         listEl.querySelectorAll('[data-hist-seq]').forEach((button) => button.addEventListener('click', () => {
           selected = Number(button.dataset.histSeq);
           compareWith = '';

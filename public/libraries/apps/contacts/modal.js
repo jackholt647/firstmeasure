@@ -29,8 +29,101 @@
     docsTab: false,
     mediaLoading: false,
     todoController: null,
-    secondaryPhoneOpen: false
+    secondaryPhoneOpen: false,
+    // Which views are open (the window shell's panes), and on a phone whether Details shows instead.
+    paneIds: [],
+    phoneView: 'details'
   };
+  // A phone (the window is full screen at the platform's 760px breakpoint).
+  const PHONE_QUERY='(max-width:760px)';
+  const isPhone=()=>{try{return !!window.matchMedia?.(PHONE_QUERY).matches;}catch(error){return false;}};
+  /* On a phone a select opens the platform's dropdown (a listbox beside the field, as in
+   * Settings › Reports defaults) instead of the browser's picker. The select stays the
+   * source of truth: picking sets its value and fires input and change. The same copy is in
+   * the contacts list (app.js), which can load without this file; whichever loads first defines it. */
+  const SelectMenu=window.FirstMateSelectMenu||(window.FirstMateSelectMenu=(()=>{
+    let current=null;
+    const esc=value=>String(value??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+    function styles(doc,rule){
+      let style=doc.getElementById('fm-selmenu-css');
+      if(!style){style=doc.createElement('style');style.id='fm-selmenu-css';style.textContent=`.fm-selmenu{position:fixed;z-index:2147483646;display:flex;flex-direction:column;box-sizing:border-box;min-width:200px;border:1px solid #e4e7ec;border-radius:12px;background:#fff;box-shadow:0 16px 40px rgba(16,24,40,.18),0 2px 6px rgba(16,24,40,.06);overflow:hidden;color:#101828;font-family:inherit;font-size:15px;animation:fm-selmenu-in .14s ease-out}@keyframes fm-selmenu-in{from{opacity:0;transform:translateY(-4px)}to{opacity:1;transform:none}}.fm-selmenu-title{padding:10px 14px 2px;font-size:11px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:#667085}.fm-selmenu input{flex:none;margin:8px 8px 4px;height:40px;padding:0 12px;border:1px solid #d0d5dd;border-radius:9px;font:inherit;font-size:16px;outline:none}.fm-selmenu input:focus{border-color:var(--primary,#d93025)}.fm-selmenu-list{overflow:auto;overscroll-behavior:contain;padding:4px}.fm-selmenu-opt{display:flex;align-items:center;gap:10px;width:100%;min-height:44px;box-sizing:border-box;padding:8px 12px;border:0;border-radius:8px;background:transparent;color:inherit;font:inherit;font-size:15px;text-align:left;cursor:pointer}.fm-selmenu-opt:hover,.fm-selmenu-opt:focus-visible{background:#f2f4f7;outline:none}.fm-selmenu-opt[aria-selected=true]{font-weight:700;color:var(--primary-readable,var(--primary,#d93025))}.fm-selmenu-opt:disabled{opacity:.45;cursor:default}.fm-selmenu-opt i{margin-left:auto;font-size:12px}.fm-selmenu-empty{padding:12px;color:#98a2b3;font-size:14px}@media(prefers-reduced-motion:reduce){.fm-selmenu{animation:none}}`;doc.head.append(style);}
+      if(rule&&!style.textContent.includes(rule))style.textContent+=rule;
+    }
+    function close(refocus){
+      if(!current)return;const {menu,select,cleanup}=current;current=null;cleanup();menu.remove();
+      if(refocus)select.focus({preventScroll:true});
+    }
+    function title(select){
+      return (select.labels?.[0]?.childNodes?.[0]?.textContent?.trim()||select.getAttribute('aria-label')||select.title||'').trim();
+    }
+    function show(select){
+      close();
+      const doc=select.ownerDocument,win=doc.defaultView||window;
+      // The empty choice ("Label…", "Add tag…") is only offered to clear a value.
+      const options=[...select.options].filter(option=>!option.hidden&&(option.value!==''||select.value!==''));
+      const search=options.length>12,name=title(select);
+      const menu=doc.createElement('div');
+      menu.className='fm-selmenu';menu.setAttribute('data-fm-select-menu','');menu.setAttribute('data-fmr-ignore','');
+      menu.innerHTML=`${name?`<div class="fm-selmenu-title">${esc(name)}</div>`:''}${search?`<input type="search" autocomplete="off" aria-label="${esc(name||'Search')}" placeholder="${esc(globalThis.PlatformLanguage?.text?.('contacts','select_menu_find','Find')??'Find')}">`:''}<div class="fm-selmenu-list" role="listbox" aria-label="${esc(name)}"></div>`;
+      const list=menu.querySelector('.fm-selmenu-list'),input=menu.querySelector('input');
+      const draw=()=>{
+        const query=(input?.value||'').trim().toLowerCase();
+        const shown=options.filter(option=>!query||option.textContent.toLowerCase().includes(query));
+        list.innerHTML=shown.map(option=>`<button type="button" class="fm-selmenu-opt" role="option" data-value="${esc(option.value)}" aria-selected="${option.value===select.value}" ${option.disabled?'disabled':''}><span>${esc(option.textContent.trim())}</span>${option.value===select.value?'<i class="fas fa-check" aria-hidden="true"></i>':''}</button>`).join('')||`<div class="fm-selmenu-empty">${esc(globalThis.PlatformLanguage?.text?.('contacts','select_menu_none','Nothing matches.')??'Nothing matches.')}</div>`;
+      };
+      draw();
+      doc.body.append(menu);
+      const place=()=>{
+        const box=select.getBoundingClientRect(),width=Math.min(Math.max(box.width,220),win.innerWidth-16);
+        const below=win.innerHeight-box.bottom-12,above=box.top-12,up=menu.scrollHeight>below&&above>below,room=Math.max(140,up?above:below);
+        menu.style.width=width+'px';menu.style.maxHeight=Math.min(room,420)+'px';
+        menu.style.left=Math.max(8,Math.min(box.left,win.innerWidth-width-8))+'px';
+        menu.style.top=(up?Math.max(8,box.top-6-Math.min(menu.offsetHeight,room,420)):box.bottom+6)+'px';
+      };
+      place();
+      menu.addEventListener('click',event=>{
+        const option=event.target.closest('.fm-selmenu-opt');if(!option)return;
+        close(true);
+        if(select.value===option.dataset.value)return;
+        select.value=option.dataset.value;
+        select.dispatchEvent(new Event('input',{bubbles:true}));select.dispatchEvent(new Event('change',{bubbles:true}));
+      });
+      input?.addEventListener('input',draw);
+      const onKey=event=>{
+        if(event.key==='Escape'){event.preventDefault();event.stopPropagation();close(true);return;}
+        if(event.key!=='ArrowDown'&&event.key!=='ArrowUp')return;
+        const items=[...list.querySelectorAll('.fm-selmenu-opt:not(:disabled)')];if(!items.length)return;
+        event.preventDefault();const at=items.indexOf(doc.activeElement);
+        items[(at+(event.key==='ArrowDown'?1:items.length-1)+items.length)%items.length].focus();
+      };
+      const onDown=event=>{if(!menu.contains(event.target))close();};
+      const onScroll=event=>{if(!menu.contains(event.target))close();};
+      win.addEventListener('keydown',onKey,true);doc.addEventListener('pointerdown',onDown,true);doc.addEventListener('scroll',onScroll,true);win.addEventListener('resize',close);
+      current={menu,select,cleanup(){win.removeEventListener('keydown',onKey,true);doc.removeEventListener('pointerdown',onDown,true);doc.removeEventListener('scroll',onScroll,true);win.removeEventListener('resize',close);}};
+      // No keyboard: the chosen option takes focus, not the search field.
+      (list.querySelector('[aria-selected="true"]')||list.querySelector('.fm-selmenu-opt:not(:disabled)'))?.focus({preventScroll:true});
+      list.querySelector('[aria-selected="true"]')?.scrollIntoView({block:'nearest'});
+    }
+    /** Selects inside `scope` use the dropdown while `media` matches. */
+    function install(scope,media,doc=document){
+      const win=doc.defaultView||window,key=scope+'|'+media;
+      doc.__fmSelectMenus=doc.__fmSelectMenus||new Set();
+      if(doc.__fmSelectMenus.has(key))return;doc.__fmSelectMenus.add(key);
+      // The browser's picker never opens from a tap: the tap reaches the field's parent and opens the dropdown.
+      styles(doc,`@media ${media}{${scope} select:not([multiple]):not([size]){pointer-events:none}}`);
+      doc.addEventListener('click',event=>{
+        if(!win.matchMedia(media).matches)return;
+        // Only taps inside the scope are looked at (the select under a tap is its parent's child).
+        if(!event.target?.closest?.(scope))return;
+        let select=event.target?.tagName==='SELECT'?event.target:null;
+        if(!select&&event.target?.querySelectorAll)for(const candidate of event.target.querySelectorAll('select')){const box=candidate.getBoundingClientRect();if(event.clientX>=box.left&&event.clientX<=box.right&&event.clientY>=box.top&&event.clientY<=box.bottom&&box.width){select=candidate;break;}}
+        if(!select||select.disabled||select.multiple||!select.matches(scope+' select'))return;
+        event.preventDefault();event.stopPropagation();
+        if(current?.select===select)close(true);else show(select);
+      },true);
+    }
+    return {install,open:show,close};
+  })());
   let contactWindow = null;
   let contactShell=null,contactPanes=null,contactTrays=null;
   let saveTimer=null, savePromise=null, revision=0, savedRevision=0;
@@ -378,6 +471,23 @@
         .fm-contact-sheet-panel button:active{background:#f2f4f7}
         .fm-contact-sheet-panel button i{width:22px;text-align:center;color:var(--primary-readable,var(--primary,#d93025));font-size:16px}
       }
+      /* Phone: Details is a tab like the others, so each tab shows only its own content. The
+         Call/Text/Email bar stays along the bottom in every tab. */
+      .fm-contact-details-tab{display:none!important}
+      @media(max-width:760px){
+        .fm-contact-overlay .fm-contact-win .fm-contact-tabs.fm-shell-tabs{display:flex!important;height:46px!important;min-height:46px!important;overflow-x:auto;overflow-y:hidden;scrollbar-width:none;border-top:1px solid #f2f4f7}
+        .fm-contact-overlay .fm-contact-win .fm-contact-tabs.fm-shell-tabs::-webkit-scrollbar{display:none}
+        .fm-contact-overlay .fm-contact-win .fm-contact-tabs.fm-shell-tabs>button{flex:1 0 auto;height:46px!important;min-height:46px!important;padding:0 8px!important;font-size:14px;font-weight:700;white-space:nowrap;transition:color .18s ease,box-shadow .2s ease}
+        .fm-contact-overlay .fm-contact-win .fm-contact-tabs.fm-shell-tabs>button[hidden]{display:none!important}
+        .fm-contact-overlay .fm-contact-details-tab{display:flex!important;align-items:center;justify-content:center}
+        .fm-contact-overlay[data-contact-view="details"] .fm-contact-right{display:none}
+        .fm-contact-overlay[data-contact-view="details"] .fm-contact-content{background:#fff}
+        .fm-contact-overlay[data-contact-view="details"] .fm-contact-left{border-bottom:0}
+        .fm-contact-overlay[data-contact-view="pane"] .fm-contact-left{padding:0;border-bottom:0}
+        .fm-contact-overlay[data-contact-view="pane"] .fm-contact-left>:not(.fm-contact-actions){display:none!important}
+        .fm-contact-overlay[data-contact-view="pane"] .fm-contact-right{min-height:100%}
+        .fm-contact-tag-input{height:40px;padding:0 14px}
+      }
       @media(prefers-reduced-motion:reduce){.fm-contact-sheet,.fm-contact-sheet-panel,.fm-contact-actions .fm-contact-btn{transition:none}}
     `;
     document.head.appendChild(style);
@@ -433,10 +543,9 @@
       const wasDocsVisible=state.docsTab;
       state.mediaTab=ids.includes('media');
       state.docsTab=ids.includes('docs');
+      state.paneIds=[...ids];
       $('#fmContactGallery').hidden=!state.mediaTab;$('#fmContactProjects').hidden=!ids.includes('projects');$('#fmContactNewProject').hidden=!ids.includes('projects');
-      for(const [id,tab] of [['fmContactProjectsTab','projects'],['fmContactMediaTab','media'],['fmContactDocsTab','docs']]){
-        const button=$('#'+id);button.setAttribute('aria-selected',String(ids.includes(tab)));button.classList.toggle('primary',ids.includes(tab));
-      }
+      syncContactTabs();
       if(state.mediaTab&&!wasMediaVisible)void mountContactGallery();
       if(state.docsTab&&!wasDocsVisible)void mountContactDocs();
     }});
@@ -444,6 +553,29 @@
     contactTrays=window.FirstMateWindowShell.trayHost({container:element.querySelector('.fm-contact-content'),header,getContext:()=>({contact:state.contact,orgId:orgId()})});
     contactShell=window.FirstMateWindowShell.mount({element,header,identity:element.querySelector('.fm-contact-window-identity'),tabs:element.querySelector('.fm-contact-tabs'),sidebar:element.querySelector('.fm-contact-left'),panes:contactPanes,trays:contactTrays,headerRows:2});
   }
+  /** The tabs' selected state. On a phone Details is selected in place of the open view. */
+  function syncContactTabs(){
+    const details=isPhone()&&state.phoneView==='details';
+    const detailsTab=$('#fmContactDetailsTab');
+    if(detailsTab){detailsTab.setAttribute('aria-selected',String(details));detailsTab.classList.toggle('primary',details);}
+    for(const [id,tab] of [['fmContactProjectsTab','projects'],['fmContactMediaTab','media'],['fmContactDocsTab','docs']]){
+      const button=$('#'+id);if(!button)continue;
+      const on=!details&&state.paneIds.includes(tab);
+      button.setAttribute('aria-selected',String(on));button.classList.toggle('primary',on);
+    }
+  }
+  /** Phone only: show the contact's details, or the open view (Projects, Photos & Media, Docs). */
+  function setPhoneView(view){
+    const next=view==='pane'?'pane':'details';
+    const overlay=$('#fmContactOverlay');
+    const changed=state.phoneView!==next;
+    state.phoneView=next;
+    if(overlay)overlay.dataset.contactView=next;
+    syncContactTabs();
+    if(changed&&isPhone()){const content=overlay?.querySelector('.fm-contact-content');if(content)content.scrollTop=0;}
+  }
+  /** A field that needs attention is in Details; a phone switches there before focusing it. */
+  function revealDetails(){ if(state.phoneView!=='details')setPhoneView('details'); }
   function ensureUI(){
     injectCSS();
     let overlay = $('#fmContactOverlay');
@@ -457,7 +589,7 @@
           <div class="fm-contact-window-identity"><i class="fas fa-address-card" aria-hidden="true"></i><span id="fmContactWindowTitle">${(globalThis.PlatformLanguage?.htmlText("contacts","m_90a1aa2fb77fc8","New Contact") ?? "New Contact")}</span></div>
           <button type="button" class="fm-contact-close" id="fmContactClose" data-fm-tooltip="Close"><i class="fas fa-times"></i></button>
            <div class="r-window-bar-actions"></div>
-           <div class="fm-contact-tabs" role="tablist" aria-label="Contact sections"><button type="button" role="tab" data-tab="projects" id="fmContactProjectsTab">Projects</button><button type="button" role="tab" data-tab="media" id="fmContactMediaTab">Photos &amp; Media</button><button type="button" role="tab" data-tab="docs" id="fmContactDocsTab">Docs</button></div>
+           <div class="fm-contact-tabs" role="tablist" aria-label="Contact sections"><button type="button" role="tab" class="fm-contact-details-tab" data-contact-details id="fmContactDetailsTab">${(globalThis.PlatformLanguage?.htmlText("contacts","contact_details_tab","Details") ?? "Details")}</button><button type="button" role="tab" data-tab="projects" id="fmContactProjectsTab">Projects</button><button type="button" role="tab" data-tab="media" id="fmContactMediaTab">Photos &amp; Media</button><button type="button" role="tab" data-tab="docs" id="fmContactDocsTab">Docs</button></div>
         </div>
         <div class="fm-contact-content">
         <section class="fm-contact-left">
@@ -506,6 +638,9 @@
       if (overlay.__downBackdrop && event.target === overlay) close();
       overlay.__downBackdrop = false;
     });
+    $('#fmContactDetailsTab', overlay)?.addEventListener('click',()=>setPhoneView('details'));
+    try{window.matchMedia(PHONE_QUERY).addEventListener('change',syncContactTabs);}catch(error){/* older engines keep the tabs as they were */}
+    SelectMenu.install('#fmContactOverlay',PHONE_QUERY);
     $('#fmContactProjectsTab', overlay)?.addEventListener('click',()=>showContactTab('projects'));
     $('#fmContactMediaTab', overlay)?.addEventListener('click',()=>showContactTab('media'));
     $('#fmContactDocsTab', overlay)?.addEventListener('click',()=>showContactTab('docs'));
@@ -584,8 +719,8 @@
     // The New Project button lives in the Projects view, so it is offered when that view is.
     const items = [
       ...(contactViewAllowed('projects') ? [{ icon:'fa-folder-plus', label:globalThis.PlatformLanguage?.text("contacts","m_0747045bf3d919","New Project") ?? "New Project", target:'#fmContactNewProject', tab:'projects' }] : []),
-      { icon:'fa-briefcase', label:'Add employer', target:'[data-add-relationship="employer"]' },
-      { icon:'fa-heart', label:'Add spouse', target:'[data-add-relationship="spouse"]' }
+      { icon:'fa-briefcase', label:'Add employer', target:'[data-add-relationship="employer"]', details:true },
+      { icon:'fa-heart', label:'Add spouse', target:'[data-add-relationship="spouse"]', details:true }
     ];
     const sheet = document.createElement('div');
     sheet.className = 'fm-contact-sheet';
@@ -600,6 +735,7 @@
       if (!button) return;
       const item = items[Number(button.dataset.sheetItem)];
       if (item.tab) showContactTab(item.tab);
+      if (item.details) revealDetails();
       $(item.target, overlay)?.click();
     });
     sheet.addEventListener('keydown', (event) => {
@@ -625,7 +761,7 @@
     setNameRequired(!valid);
     if (!valid) {
       setMeta('First name is required.');
-      if (options.focus) $('#fmContactFirstName')?.focus();
+      if (options.focus) { revealDetails(); $('#fmContactFirstName')?.focus(); }
     }
     return valid;
   }
@@ -1024,6 +1160,7 @@
     syncContactViews();
     const allowed=CONTACT_VIEWS.filter(contactViewAllowed);
     if(!allowed.length)return;
+    setPhoneView('pane');
     contactPanes.apply([{tab:allowed.includes(tab)?tab:allowed[0],weight:1}]);
   }
   function isContactDoc(item){
@@ -1071,6 +1208,7 @@
     let contact = readContactInputs();
     if(!validPhone(contact.phone) || !validPhone(contact.custom_field_values?.secondary_phone)){
       setMeta('Enter a valid phone number with 7 to 15 digits.');
+      revealDetails();
       (!validPhone(contact.phone)?$('#fmContactPhone'):$('#fmContactSecondaryPhone'))?.focus();
       return false;
     }
@@ -1079,6 +1217,7 @@
       const validation = window.FirstMateCustomFields.validateEditor?.(customFieldMount, contact, 'contact');
       if (validation && !validation.valid) {
         setMeta(validation.first?.message || 'Please check the custom fields.');
+        revealDetails();
         customFieldMount.querySelector(`[data-fm-cf-input="${CSS.escape(validation.first?.key || '')}"]`)?.focus?.();
         return false;
       }
@@ -1230,6 +1369,8 @@
     }
     syncContactWindowModalRegistration();
     state.mediaTab=false;state.docsTab=false;
+    // A phone opens on Details unless a view was asked for.
+    setPhoneView(options.tab&&contactViewAllowed(options.tab)?'pane':'details');
     contactShell.apply(layout);
     render();
     window.PlatformAPI?.contacts?.settings(orgId()).then(result=>{state.catalog=result.settings?.tags || [];state.trackTimeZones=result.settings?.track_time_zones===true;if(state.open){renderTags();renderTimeZone();}}).catch(error=>setMeta(error.message));
@@ -1247,7 +1388,8 @@
     setMeta('');
     setTimeout(() => {
       initAddressAutocomplete();
-      $('#fmContactFirstName')?.focus();
+      // A phone would raise its keyboard over the contact; it waits for a tap.
+      if (!isPhone()) $('#fmContactFirstName')?.focus();
     }, 40);
   }
   async function close(options = {}){

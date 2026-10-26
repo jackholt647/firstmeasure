@@ -12,6 +12,94 @@
     "'": '&#39;'
   }[match])));
   const showToast = Portal.ui?.showToast || (() => {});
+  /* On a phone a select opens the platform's dropdown (a listbox beside the field, as in
+   * Settings › Reports defaults) instead of the browser's picker. The select stays the
+   * source of truth: picking sets its value and fires input and change. The same copy is in
+   * the contact window (modal.js), which can load without this file; whichever loads first defines it. */
+  const SelectMenu=window.FirstMateSelectMenu||(window.FirstMateSelectMenu=(()=>{
+    let current=null;
+    const esc=value=>String(value??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+    function styles(doc,rule){
+      let style=doc.getElementById('fm-selmenu-css');
+      if(!style){style=doc.createElement('style');style.id='fm-selmenu-css';style.textContent=`.fm-selmenu{position:fixed;z-index:2147483646;display:flex;flex-direction:column;box-sizing:border-box;min-width:200px;border:1px solid #e4e7ec;border-radius:12px;background:#fff;box-shadow:0 16px 40px rgba(16,24,40,.18),0 2px 6px rgba(16,24,40,.06);overflow:hidden;color:#101828;font-family:inherit;font-size:15px;animation:fm-selmenu-in .14s ease-out}@keyframes fm-selmenu-in{from{opacity:0;transform:translateY(-4px)}to{opacity:1;transform:none}}.fm-selmenu-title{padding:10px 14px 2px;font-size:11px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:#667085}.fm-selmenu input{flex:none;margin:8px 8px 4px;height:40px;padding:0 12px;border:1px solid #d0d5dd;border-radius:9px;font:inherit;font-size:16px;outline:none}.fm-selmenu input:focus{border-color:var(--primary,#d93025)}.fm-selmenu-list{overflow:auto;overscroll-behavior:contain;padding:4px}.fm-selmenu-opt{display:flex;align-items:center;gap:10px;width:100%;min-height:44px;box-sizing:border-box;padding:8px 12px;border:0;border-radius:8px;background:transparent;color:inherit;font:inherit;font-size:15px;text-align:left;cursor:pointer}.fm-selmenu-opt:hover,.fm-selmenu-opt:focus-visible{background:#f2f4f7;outline:none}.fm-selmenu-opt[aria-selected=true]{font-weight:700;color:var(--primary-readable,var(--primary,#d93025))}.fm-selmenu-opt:disabled{opacity:.45;cursor:default}.fm-selmenu-opt i{margin-left:auto;font-size:12px}.fm-selmenu-empty{padding:12px;color:#98a2b3;font-size:14px}@media(prefers-reduced-motion:reduce){.fm-selmenu{animation:none}}`;doc.head.append(style);}
+      if(rule&&!style.textContent.includes(rule))style.textContent+=rule;
+    }
+    function close(refocus){
+      if(!current)return;const {menu,select,cleanup}=current;current=null;cleanup();menu.remove();
+      if(refocus)select.focus({preventScroll:true});
+    }
+    function title(select){
+      return (select.labels?.[0]?.childNodes?.[0]?.textContent?.trim()||select.getAttribute('aria-label')||select.title||'').trim();
+    }
+    function show(select){
+      close();
+      const doc=select.ownerDocument,win=doc.defaultView||window;
+      // The empty choice ("Label…", "Add tag…") is only offered to clear a value.
+      const options=[...select.options].filter(option=>!option.hidden&&(option.value!==''||select.value!==''));
+      const search=options.length>12,name=title(select);
+      const menu=doc.createElement('div');
+      menu.className='fm-selmenu';menu.setAttribute('data-fm-select-menu','');menu.setAttribute('data-fmr-ignore','');
+      menu.innerHTML=`${name?`<div class="fm-selmenu-title">${esc(name)}</div>`:''}${search?`<input type="search" autocomplete="off" aria-label="${esc(name||'Search')}" placeholder="${esc(globalThis.PlatformLanguage?.text?.('contacts','select_menu_find','Find')??'Find')}">`:''}<div class="fm-selmenu-list" role="listbox" aria-label="${esc(name)}"></div>`;
+      const list=menu.querySelector('.fm-selmenu-list'),input=menu.querySelector('input');
+      const draw=()=>{
+        const query=(input?.value||'').trim().toLowerCase();
+        const shown=options.filter(option=>!query||option.textContent.toLowerCase().includes(query));
+        list.innerHTML=shown.map(option=>`<button type="button" class="fm-selmenu-opt" role="option" data-value="${esc(option.value)}" aria-selected="${option.value===select.value}" ${option.disabled?'disabled':''}><span>${esc(option.textContent.trim())}</span>${option.value===select.value?'<i class="fas fa-check" aria-hidden="true"></i>':''}</button>`).join('')||`<div class="fm-selmenu-empty">${esc(globalThis.PlatformLanguage?.text?.('contacts','select_menu_none','Nothing matches.')??'Nothing matches.')}</div>`;
+      };
+      draw();
+      doc.body.append(menu);
+      const place=()=>{
+        const box=select.getBoundingClientRect(),width=Math.min(Math.max(box.width,220),win.innerWidth-16);
+        const below=win.innerHeight-box.bottom-12,above=box.top-12,up=menu.scrollHeight>below&&above>below,room=Math.max(140,up?above:below);
+        menu.style.width=width+'px';menu.style.maxHeight=Math.min(room,420)+'px';
+        menu.style.left=Math.max(8,Math.min(box.left,win.innerWidth-width-8))+'px';
+        menu.style.top=(up?Math.max(8,box.top-6-Math.min(menu.offsetHeight,room,420)):box.bottom+6)+'px';
+      };
+      place();
+      menu.addEventListener('click',event=>{
+        const option=event.target.closest('.fm-selmenu-opt');if(!option)return;
+        close(true);
+        if(select.value===option.dataset.value)return;
+        select.value=option.dataset.value;
+        select.dispatchEvent(new Event('input',{bubbles:true}));select.dispatchEvent(new Event('change',{bubbles:true}));
+      });
+      input?.addEventListener('input',draw);
+      const onKey=event=>{
+        if(event.key==='Escape'){event.preventDefault();event.stopPropagation();close(true);return;}
+        if(event.key!=='ArrowDown'&&event.key!=='ArrowUp')return;
+        const items=[...list.querySelectorAll('.fm-selmenu-opt:not(:disabled)')];if(!items.length)return;
+        event.preventDefault();const at=items.indexOf(doc.activeElement);
+        items[(at+(event.key==='ArrowDown'?1:items.length-1)+items.length)%items.length].focus();
+      };
+      const onDown=event=>{if(!menu.contains(event.target))close();};
+      const onScroll=event=>{if(!menu.contains(event.target))close();};
+      win.addEventListener('keydown',onKey,true);doc.addEventListener('pointerdown',onDown,true);doc.addEventListener('scroll',onScroll,true);win.addEventListener('resize',close);
+      current={menu,select,cleanup(){win.removeEventListener('keydown',onKey,true);doc.removeEventListener('pointerdown',onDown,true);doc.removeEventListener('scroll',onScroll,true);win.removeEventListener('resize',close);}};
+      // No keyboard: the chosen option takes focus, not the search field.
+      (list.querySelector('[aria-selected="true"]')||list.querySelector('.fm-selmenu-opt:not(:disabled)'))?.focus({preventScroll:true});
+      list.querySelector('[aria-selected="true"]')?.scrollIntoView({block:'nearest'});
+    }
+    /** Selects inside `scope` use the dropdown while `media` matches. */
+    function install(scope,media,doc=document){
+      const win=doc.defaultView||window,key=scope+'|'+media;
+      doc.__fmSelectMenus=doc.__fmSelectMenus||new Set();
+      if(doc.__fmSelectMenus.has(key))return;doc.__fmSelectMenus.add(key);
+      // The browser's picker never opens from a tap: the tap reaches the field's parent and opens the dropdown.
+      styles(doc,`@media ${media}{${scope} select:not([multiple]):not([size]){pointer-events:none}}`);
+      doc.addEventListener('click',event=>{
+        if(!win.matchMedia(media).matches)return;
+        // Only taps inside the scope are looked at (the select under a tap is its parent's child).
+        if(!event.target?.closest?.(scope))return;
+        let select=event.target?.tagName==='SELECT'?event.target:null;
+        if(!select&&event.target?.querySelectorAll)for(const candidate of event.target.querySelectorAll('select')){const box=candidate.getBoundingClientRect();if(event.clientX>=box.left&&event.clientX<=box.right&&event.clientY>=box.top&&event.clientY<=box.bottom&&box.width){select=candidate;break;}}
+        if(!select||select.disabled||select.multiple||!select.matches(scope+' select'))return;
+        event.preventDefault();event.stopPropagation();
+        if(current?.select===select)close(true);else show(select);
+      },true);
+    }
+    return {install,open:show,close};
+  })());
+
 
   const TILE_PROJECT_LIMIT = 6;
   const LS_VIEW_KEY = 'fm_contacts_view_v2';
@@ -456,7 +544,7 @@
               <button id="ctViewList" type="button" aria-label="List" class="${String(state.view === 'list' ? 'active' : '')}" data-fm-tooltip="List view"><i class="fas fa-list"></i><span>List</span></button>
             </div>
             <button type="button" class="ct-action" data-ct-open-import aria-label="${(globalThis.PlatformLanguage?.htmlText("contacts","contacts_import_tooltip","Import contacts") ?? "Import contacts")}" data-fm-tooltip="${(globalThis.PlatformLanguage?.htmlText("contacts","contacts_import_tooltip","Import contacts") ?? "Import contacts")}"><i class="fas fa-file-import"></i><span>${(globalThis.PlatformLanguage?.htmlText("contacts","m_f1f14ba348face","Import") ?? "Import")}</span></button>
-            <details class="fm-sharing-menu" data-ct-manage><summary class="ct-select" aria-label="Manage view" data-fm-tooltip="Manage view"><i class="fas fa-sliders" aria-hidden="true"></i> <span>Manage view</span></summary><div class="fm-sharing-popover"><label>Order by<select id="ctSort" class="ct-select" aria-label="${(globalThis.PlatformLanguage?.htmlText("contacts","m_05b258030f62ea","Sort contacts") ?? "Sort contacts")}">
+            <details class="fm-sharing-menu" data-ct-manage><summary class="ct-select" aria-label="Manage view" data-fm-tooltip="Manage view"><i class="fas fa-sliders" aria-hidden="true"></i> <span>Manage view</span></summary><div class="fm-sharing-popover"><div class="ct-sheet-head"><strong>${(globalThis.PlatformLanguage?.htmlText("contacts","contacts_manage_view_title","Manage view") ?? "Manage view")}</strong><button type="button" class="ct-sheet-done" data-ct-manage-done>${(globalThis.PlatformLanguage?.htmlText("contacts","contacts_manage_view_done","Done") ?? "Done")}</button></div><label>Order by<select id="ctSort" class="ct-select" aria-label="${(globalThis.PlatformLanguage?.htmlText("contacts","m_05b258030f62ea","Sort contacts") ?? "Sort contacts")}">
               <option value="name" ${String(state.sort === 'name' ? 'selected' : '')}>${(globalThis.PlatformLanguage?.htmlText("contacts","m_8cf345002184e5","Name") ?? "Name")}</option>
               <option value="recent" ${String(state.sort === 'recent' ? 'selected' : '')}>${(globalThis.PlatformLanguage?.htmlText("contacts","m_fec172c2f71d24","Recent") ?? "Recent")}</option>
               <option value="projects" ${String(state.sort === 'projects' ? 'selected' : '')}>${(globalThis.PlatformLanguage?.htmlText("contacts","m_6e3f0973d60412","Project count") ?? "Project count")}</option>
@@ -480,15 +568,19 @@
     const menu=state.root?.querySelector('[data-ct-manage]');
     menu?.addEventListener('change',event=>{if(sharingView()?.change(event)){render();const next=state.root?.querySelector('[data-ct-manage]');if(next){next.open=true;const selector=event.target.matches('[data-sharing-kind]')?`[data-sharing-kind="${event.target.dataset.sharingKind}"]`:'[data-sharing-owner]';next.querySelector(selector)?.focus();}}});
     menu?.addEventListener('keydown',event=>{if(event.key==='Escape'){menu.open=false;menu.querySelector('summary').focus();}});
+    menu?.querySelector('[data-ct-manage-done]')?.addEventListener('click',()=>{menu.open=false;menu.querySelector('summary').focus({preventScroll:true});});
+    SelectMenu.install('.ct-shell [data-ct-manage]',MOBILE_QUERY);
     state.root?.querySelector('#ctFilter')?.addEventListener('change', (event) => {
       state.filter = CONTACT_FILTERS[event.target.value] ? event.target.value : 'all';
       try { localStorage.setItem(LS_FILTER_KEY, state.filter); } catch (error) {}
       render();
+      keepManageOpen();
     });
     state.root?.querySelector('#ctSort')?.addEventListener('change', (event) => {
       state.sort = event.target.value || 'name';
       localStorage.setItem(LS_SORT_KEY, state.sort);
       render();
+      keepManageOpen();
     });
     state.root?.querySelector('#ctViewTiles')?.addEventListener('click', () => setView('tiles'));
     state.root?.querySelector('#ctViewList')?.addEventListener('click', () => setView('list'));
@@ -550,7 +642,7 @@
   let swallowNextClick = false;
   document.addEventListener('pointerdown', (event) => {
     const menu = state.root?.querySelector('[data-ct-manage][open]');
-    if (!menu || !isMobile() || menu.contains(event.target)) return;
+    if (!menu || !isMobile() || menu.contains(event.target) || event.target.closest?.('[data-fm-select-menu]')) return;
     menu.open = false;
     swallowNextClick = true;
     window.setTimeout(() => { swallowNextClick = false; }, 400);
@@ -561,6 +653,15 @@
     event.preventDefault();
     event.stopPropagation();
   }, true);
+
+  // On a phone the Manage view sheet stays up while its choices change, until Done or a tap outside.
+  function keepManageOpen(){
+    if (!isMobile()) return;
+    const menu = state.root?.querySelector('[data-ct-manage]');
+    if (!menu) return;
+    menu.setAttribute('data-ct-kept', '');
+    menu.open = true;
+  }
 
   function setView(view){
     state.view = view === 'list' ? 'list' : 'tiles';
@@ -757,7 +858,7 @@
         .ct-list-contact,.ct-list-projects{grid-column:1/-1}
         .ct-list-projects{flex-wrap:wrap}
       }
-      .ct-shell :is(.ct-mobile-count,.ct-row-quick,.ct-row-meta){display:none}
+      .ct-shell :is(.ct-mobile-count,.ct-row-quick,.ct-row-meta,.ct-sheet-head){display:none}
       /* Phone: the portal's mobile top bar carries the title, so the content starts with one compact control row. */
       @media(max-width:820px){
         .ct-shell .ct-top{flex-direction:row;align-items:center;gap:8px;padding:2px 0 12px}
@@ -773,6 +874,10 @@
         .ct-shell [data-ct-manage] .fm-sharing-popover{position:fixed;left:0;right:0;bottom:0;top:auto;width:auto;max-width:none;max-height:80vh;overflow:auto;z-index:2147483000;display:grid;gap:14px;padding:8px 18px calc(20px + env(safe-area-inset-bottom,0px));border:0;border-radius:20px 20px 0 0;box-shadow:0 0 0 100vmax rgba(15,23,42,.34),0 -14px 40px rgba(16,24,40,.22);animation:ctSheetUp .26s cubic-bezier(.2,.8,.2,1)}
         .ct-shell [data-ct-manage] .fm-sharing-popover::before{content:'';justify-self:center;width:38px;height:4px;margin:2px 0 4px;border-radius:2px;background:#d0d5dd}
         .ct-shell [data-ct-manage] .fm-sharing-popover>label{font-size:13px;font-weight:800;color:#344054}
+        .ct-shell [data-ct-manage] .ct-sheet-head{display:flex;align-items:center;justify-content:space-between;gap:12px;margin:-4px 0 -2px}
+        .ct-shell [data-ct-manage] .ct-sheet-head strong{font-size:17px;font-weight:900;color:#101828}
+        .ct-shell [data-ct-manage] .ct-sheet-done{min-height:40px;padding:0 16px;border:0;border-radius:12px;background:rgba(var(--primary-rgb,217,48,37),.1);color:var(--primary-readable,var(--primary,#d93025));font:inherit;font-size:15px;font-weight:800;cursor:pointer}
+        .ct-shell [data-ct-manage][data-ct-kept] .fm-sharing-popover{animation:none}
         .ct-shell [data-ct-manage] .fm-sharing-popover select{height:46px;width:100%;font-size:16px;font-weight:700;border-radius:12px}
         .ct-shell .ct-body{padding:0 0 calc(24px + env(safe-area-inset-bottom,0px))}
         .ct-shell .ct-table{min-width:0;padding:0;border:0;background:transparent;gap:8px}

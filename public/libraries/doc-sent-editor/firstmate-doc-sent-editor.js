@@ -126,6 +126,38 @@
 .fmse-overlay.fmse-phone .fmse-tools{position:fixed!important;left:10px!important;right:10px;top:calc(max(8px,env(safe-area-inset-top)) + 56px)!important;flex-wrap:wrap;justify-content:center;padding:6px}
 .fmse-overlay.fmse-phone .fmse-tools button,.fmse-overlay.fmse-phone .fmse-tools select{min-height:36px;font-size:13.5px;padding:6px 10px}
 .fmse-overlay.fmse-phone .fmse-chip{position:fixed!important;left:10px!important;right:10px;top:auto!important;bottom:max(14px,env(safe-area-inset-bottom));flex-wrap:wrap;font-size:13px;padding:10px 12px}
+/* Phone: the values typed from the document's data as a list grouped by line,
+   beside the page itself at a readable zoom (pinch, or − and +). */
+.fmse-views,.fmse-values{display:none}
+.fmse-body{flex:1;min-height:0;position:relative;display:flex;flex-direction:column}
+.fmse-overlay.fmse-phone .fmse-views{display:flex;align-items:center;gap:8px;padding:8px 10px;background:#fff;border-bottom:1px solid #dfe3ea}
+.fmse-seg{display:flex;flex:1;min-width:0;padding:3px;gap:3px;border-radius:12px;background:#eef1f5}
+.fmse-seg button{flex:1;min-width:0;min-height:38px;display:inline-flex;align-items:center;justify-content:center;gap:7px;border:0;border-radius:9px;background:transparent;color:#475467;font:inherit;font-size:14px;font-weight:700;cursor:pointer;transition:background-color .15s ease,color .15s ease}
+.fmse-seg button i{font-size:13px}
+.fmse-seg button[aria-selected=true]{background:#fff;color:#1f2733;box-shadow:0 1px 3px rgba(16,24,40,.14)}
+.fmse-zoom{display:flex;align-items:center;gap:4px}
+.fmse-overlay.fmse-phone[data-fmse-showing=values] .fmse-zoom{display:none}
+.fmse-zoom-pct{min-width:60px;height:40px;padding:0 6px;border:1px solid #cfd6e0;border-radius:11px;background:#fff;color:#1f2733;font:inherit;font-size:13px;font-weight:700;font-variant-numeric:tabular-nums;cursor:pointer}
+.fmse-overlay.fmse-phone .fmse-scroll{touch-action:pan-x pan-y;-webkit-overflow-scrolling:touch}
+.fmse-overlay.fmse-phone .fmse-values{display:block;position:absolute;inset:0;z-index:3;overflow:auto;overscroll-behavior:contain;-webkit-overflow-scrolling:touch;background:#f6f8fb;padding:12px 12px 240px}
+.fmse-overlay.fmse-phone[data-fmse-showing=page] .fmse-values{display:none}
+.fmse-values[data-fmse-busy]{opacity:.55}
+.fmse-values-hint{margin:2px 4px 12px;font-size:13px;line-height:1.45;color:#647086}
+.fmse-vgroup{margin:0 0 12px;border:1px solid #e4e7ec;border-radius:14px;background:#fff;overflow:hidden}
+.fmse-vgroup h3{margin:0;padding:12px 14px 6px;font-size:14px;font-weight:700;color:#1f2733;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.fmse-vrow{display:flex;align-items:center;gap:12px;width:100%;min-height:50px;padding:8px 12px 8px 14px;border:0;border-top:1px solid #f0f2f5;background:transparent;color:#1f2733;font:inherit;text-align:left;cursor:pointer;-webkit-tap-highlight-color:transparent}
+.fmse-vgroup h3+.fmse-vrow{border-top:0}
+.fmse-vlabel{display:block;flex:1;min-width:0;font-size:14px;color:#647086}
+.fmse-vlabel::first-letter{text-transform:uppercase}
+.fmse-vrow b{max-width:62%;font-size:15px;font-weight:700;color:#1d4ed8;text-align:right;overflow-wrap:anywhere}
+.fmse-vrow b.empty{color:#98a2b3;font-weight:600}
+.fmse-vrow>i{flex:none;font-size:11px;color:#98a2b3}
+.fmse-vrow:active,.fmse-vrow[data-fmse-active]{background:rgba(37,99,235,.08)}
+.fmse-vrow.long{flex-wrap:wrap;row-gap:2px}
+.fmse-vrow.long .fmse-vlabel{flex:1 1 calc(100% - 30px);font-size:12.5px}
+.fmse-vrow.long b{order:3;flex:1 1 100%;max-width:none;padding-right:24px;text-align:left;font-weight:600;font-size:14.5px;line-height:1.4}
+.fmse-vrow.long>i{order:2}
+.fmse-values-empty{display:flex;flex-direction:column;align-items:center;gap:12px;margin:48px 20px;text-align:center;font-size:14px;line-height:1.45;color:#647086}
 @keyframes fmse-rise{from{transform:translateY(14px);opacity:0}to{transform:none;opacity:1}}
 @media (prefers-reduced-motion:reduce){.fmse-overlay.fmse-phone .fmse-legend,.fmse-overlay.fmse-phone .fmse-menu,.fmse-overlay.fmse-phone .fmse-pop{animation:none}}
 `;
@@ -355,6 +387,33 @@
     const scroll = overlay.querySelector("[data-fmse-scroll]");
     const stage = overlay.querySelector("[data-fmse-stage]");
     const stateEl = overlay.querySelector("[data-fmse-state]");
+    // A phone has two views: Values (every value typed from the data, grouped by
+    // the line it is on) and Page (the render itself at a readable zoom). Both
+    // open the same value sheet, which writes through opts.writeInputs.
+    let view = "values";
+    let zoom = 1;
+    const ZOOM_MAX = 2.5;
+    let valuesEl = null;
+    let valueEntries = [];
+    if (phone) {
+      const views = h("div", { class: "fmse-views" }, `
+        <div class="fmse-seg" role="tablist" aria-label="${esc(t("as_sent_views", "View"))}">
+          <button type="button" role="tab" data-fmse-view="values" aria-selected="true"><i class="fas fa-list-ul" aria-hidden="true"></i>${esc(t("as_sent_view_values", "Values"))}</button>
+          <button type="button" role="tab" data-fmse-view="page" aria-selected="false"><i class="fas fa-file-lines" aria-hidden="true"></i>${esc(t("as_sent_view_page", "Page"))}</button>
+        </div>
+        <div class="fmse-zoom">
+          <button type="button" class="fmse-btn fmse-icon" data-fmse-zoom-by="-1" title="${esc(t("as_sent_zoom_out", "Zoom out"))}" aria-label="${esc(t("as_sent_zoom_out", "Zoom out"))}"><i class="fas fa-minus"></i></button>
+          <button type="button" class="fmse-zoom-pct" data-fmse-zoom-fit title="${esc(t("as_sent_zoom_fit", "Fit to the screen or 100%"))}">100%</button>
+          <button type="button" class="fmse-btn fmse-icon" data-fmse-zoom-by="1" title="${esc(t("as_sent_zoom_in", "Zoom in"))}" aria-label="${esc(t("as_sent_zoom_in", "Zoom in"))}"><i class="fas fa-plus"></i></button>
+        </div>`);
+      const body = h("div", { class: "fmse-body" });
+      valuesEl = h("div", { class: "fmse-values", "data-fmse-values": "" });
+      overlay.insertBefore(views, scroll);
+      overlay.insertBefore(body, scroll);
+      body.appendChild(scroll);
+      body.appendChild(valuesEl);
+      overlay.setAttribute("data-fmse-showing", view);
+    }
     let payload = null;
     let nodes = new Map();
     let handle = null;
@@ -425,11 +484,16 @@
       return dims.w_pt * (96 / 72);
     }
 
+    function fitScale() {
+      return Math.min(1.5, Math.max(phone ? 0.3 : 0.45, (scroll.clientWidth - (phone ? 16 : 64)) / pageWidthPx()));
+    }
+
     function render() {
       if (!payload || !root.FMDocRenderer) return;
       closePop();
       const top = scroll.scrollTop;
-      scale = Math.min(1.5, Math.max(phone ? 0.3 : 0.45, (scroll.clientWidth - (phone ? 16 : 64)) / pageWidthPx()));
+      // A phone draws the page at its zoom (100% to start: text at reading size); never smaller than the screen's width.
+      scale = phone ? Math.min(ZOOM_MAX, Math.max(fitScale(), zoom)) : fitScale();
       try { handle && handle.destroy && handle.destroy(); } catch (e) { /* re-render */ }
       stage.innerHTML = "";
       nodes = indexNodes(payload.resolved_definition);
@@ -443,7 +507,93 @@
         scale
       }) || {};
       decorate();
+      renderValues();
+      updateZoomLabel();
       scroll.scrollTop = top;
+    }
+
+    // ------------------------------------------------------ phone: values
+    function firstLine(el) {
+      const text = String((el && (el.innerText || el.textContent)) || "").split("\n").map((line) => line.trim()).find(Boolean) || "";
+      return text.length > 80 ? text.slice(0, 79) + "…" : text;
+    }
+    function valueKey(span) {
+      const nodeEl = span.closest("[data-node-id]");
+      const blockEl = span.closest("[data-block-index]");
+      return [nodeEl && nodeEl.getAttribute("data-node-id"), blockEl && blockEl.getAttribute("data-block-index"), span.getAttribute("data-run-index")].join("|");
+    }
+    /** Every value from the data, once each (a value split over two pages is one), grouped by the line or text it is on. */
+    function renderValues() {
+      if (!valuesEl) return;
+      const top = valuesEl.scrollTop;
+      const seen = new Set();
+      const groups = [];
+      valueEntries = [];
+      inputSpans().forEach((span) => {
+        const binding = bindingOf(span);
+        if (!binding) return;
+        const key = valueKey(span);
+        if (seen.has(key)) return;
+        seen.add(key);
+        const holder = span.closest("[data-repeater-index]") || span.closest("[data-node-id]");
+        let group = groups[groups.length - 1];
+        if (!group || group.holder !== holder) { group = { holder, title: firstLine(holder), items: [] }; groups.push(group); }
+        valueEntries.push({ span, key, binding });
+        group.items.push(valueEntries.length - 1);
+      });
+      if (!valueEntries.length) {
+        valuesEl.innerHTML = `<div class="fmse-values-empty"><span>${esc(t("as_sent_values_empty", "Nothing on this document is typed from its data. Open the page to change its text."))}</span><button type="button" class="fmse-btn" data-fmse-view="page"><i class="fas fa-file-lines"></i>${esc(t("as_sent_view_page", "Page"))}</button></div>`;
+        return;
+      }
+      valuesEl.innerHTML = `<p class="fmse-values-hint">${esc(t("as_sent_values_hint", "Tap a value to change it. Amounts and totals that follow from it recalculate."))}</p>` + groups.map((group) => `
+        <section class="fmse-vgroup">${group.title ? `<h3>${esc(group.title)}</h3>` : ""}${group.items.map((index) => {
+          const entry = valueEntries[index];
+          const shown = String(entry.span.textContent || "").trim();
+          // Text that would wrap under a short label reads better beneath it.
+          return `<button type="button" class="fmse-vrow ${shown.length > 26 ? "long" : ""}" data-fmse-value="${index}"><span class="fmse-vlabel">${esc(bindingLabel(entry.binding) || t("as_sent_value", "Value"))}</span><b class="${shown ? "" : "empty"}">${esc(shown || "—")}</b><i class="fas fa-chevron-right" aria-hidden="true"></i></button>`;
+        }).join("")}</section>`).join("");
+      valuesEl.scrollTop = top;
+    }
+    function markValueRow(span) {
+      if (!valuesEl) return;
+      valuesEl.querySelectorAll("[data-fmse-active]").forEach((el) => el.removeAttribute("data-fmse-active"));
+      const key = span ? valueKey(span) : "";
+      const index = valueEntries.findIndex((entry) => entry.key === key);
+      const row = index >= 0 ? valuesEl.querySelector(`[data-fmse-value="${index}"]`) : null;
+      if (!row) return;
+      row.setAttribute("data-fmse-active", "");
+      if (view === "values") { try { row.scrollIntoView({ block: "center", behavior: "smooth" }); } catch (e) { /* older engines */ } }
+    }
+    function setView(next) {
+      if (!phone || (next !== "values" && next !== "page")) return;
+      if (editing) commitEditing();
+      closePop();
+      view = next;
+      overlay.setAttribute("data-fmse-showing", view);
+      overlay.querySelectorAll(".fmse-seg [data-fmse-view]").forEach((button) => button.setAttribute("aria-selected", String(button.getAttribute("data-fmse-view") === view)));
+    }
+
+    // -------------------------------------------------------- phone: zoom
+    function updateZoomLabel() {
+      const label = overlay.querySelector("[data-fmse-zoom-fit]");
+      if (label) label.textContent = Math.round(scale * 100) + "%";
+    }
+    /** Zoom the page, keeping the point under `anchor` (screen x/y and stage x/y at the old zoom) where it was. */
+    function setZoom(next, anchor) {
+      if (!payload) return;
+      const before = scale;
+      const box = scroll.getBoundingClientRect();
+      const stageBox = stage.getBoundingClientRect();
+      const ax = anchor ? anchor.clientX - box.left : scroll.clientWidth / 2;
+      const ay = anchor ? anchor.clientY - box.top : scroll.clientHeight / 2;
+      const cx = anchor ? anchor.x : box.left + ax - stageBox.left;
+      const cy = anchor ? anchor.y : box.top + ay - stageBox.top;
+      zoom = Math.min(ZOOM_MAX, Math.max(fitScale(), next));
+      render();
+      const k = scale / before;
+      const after = stage.getBoundingClientRect();
+      scroll.scrollLeft = after.left - box.left + scroll.scrollLeft + cx * k - ax;
+      scroll.scrollTop = after.top - box.top + scroll.scrollTop + cy * k - ay;
     }
 
     /** Mark editable text and data values on the fresh render. */
@@ -500,6 +650,7 @@
     function closePop() {
       if (pop) { pop.remove(); pop = null; }
       stage.querySelectorAll("[data-fmse-active]").forEach((el) => el.removeAttribute("data-fmse-active"));
+      if (valuesEl) valuesEl.querySelectorAll("[data-fmse-active]").forEach((el) => el.removeAttribute("data-fmse-active"));
     }
 
     async function run(task, savingText) {
@@ -507,6 +658,7 @@
       busy = true;
       setState(savingText || t("as_sent_saving", "Saving…"));
       stage.setAttribute("data-fmse-busy", "");
+      if (valuesEl) valuesEl.setAttribute("data-fmse-busy", "");
       try {
         const next = await task();
         if (next && next.resolved_definition) payload = next;
@@ -520,6 +672,7 @@
       } finally {
         busy = false;
         stage.removeAttribute("data-fmse-busy");
+        if (valuesEl) valuesEl.removeAttribute("data-fmse-busy");
       }
     }
 
@@ -575,8 +728,9 @@
       pop.querySelector("[data-fmse-apply]").addEventListener("click", () => commit(0));
       // A phone has no Tab key: the arrows save this value and open the one before or after.
       pop.querySelectorAll("[data-fmse-step]").forEach((button) => button.addEventListener("click", () => commit(Number(button.getAttribute("data-fmse-step")))));
-      // Bring the value into view above the sheet.
-      if (phone) { try { span.scrollIntoView({ block: "center", behavior: "smooth" }); } catch (e) { /* older engines */ } }
+      // Bring the value into view above the sheet: its row in Values, or the value itself on the page.
+      markValueRow(span);
+      if (phone && view === "page") { try { span.scrollIntoView({ block: "center", inline: "center", behavior: "smooth" }); } catch (e) { /* older engines */ } }
     }
 
     function focusSibling(span, moveBy) {
@@ -741,7 +895,57 @@
     // ----------------------------------------------------------- events
     // The renderer lays pages out (and paginates) after render() returns;
     // mark the final DOM when it says it is ready.
-    stage.addEventListener("fmdoc:ready", () => { if (!editing) decorate(); });
+    stage.addEventListener("fmdoc:ready", () => { if (!editing) { decorate(); if (!pop) renderValues(); } });
+    if (phone) {
+      overlay.addEventListener("click", (event) => {
+        const target = event.target instanceof Element ? event.target : null;
+        if (!target) return;
+        const viewButton = target.closest("[data-fmse-view]");
+        if (viewButton) { setView(viewButton.getAttribute("data-fmse-view")); return; }
+        const zoomBy = target.closest("[data-fmse-zoom-by]");
+        if (zoomBy) { setZoom(scale * (Number(zoomBy.getAttribute("data-fmse-zoom-by")) > 0 ? 1.25 : 0.8)); return; }
+        // The percentage switches between the whole page width and 100%.
+        if (target.closest("[data-fmse-zoom-fit]")) { setZoom(Math.abs(scale - fitScale()) < 0.01 ? 1 : fitScale()); return; }
+        const row = target.closest("[data-fmse-value]");
+        if (row) {
+          const entry = valueEntries[Number(row.getAttribute("data-fmse-value"))];
+          if (entry && entry.span.isConnected) openInput(entry.span);
+          return;
+        }
+        // A tap elsewhere in the list puts the value sheet away.
+        if (pop && valuesEl.contains(target)) closePop();
+      });
+      // Two fingers zoom the page around the point between them; the page re-draws at the new size when they lift.
+      let pinch = null;
+      const spread = (a, b) => Math.hypot(a.clientX - b.clientX, a.clientY - b.clientY);
+      scroll.addEventListener("touchstart", (event) => {
+        if (event.touches.length !== 2 || editing || !payload) return;
+        const a = event.touches[0];
+        const b = event.touches[1];
+        const box = stage.getBoundingClientRect();
+        const mx = (a.clientX + b.clientX) / 2;
+        const my = (a.clientY + b.clientY) / 2;
+        pinch = { d0: spread(a, b) || 1, from: scale, ratio: 1, x: mx - box.left, y: my - box.top, clientX: mx, clientY: my };
+        stage.style.transformOrigin = pinch.x + "px " + pinch.y + "px";
+        closePop();
+      }, { passive: true });
+      scroll.addEventListener("touchmove", (event) => {
+        if (!pinch || event.touches.length !== 2) return;
+        event.preventDefault();
+        pinch.ratio = Math.min(ZOOM_MAX / pinch.from, Math.max(fitScale() / pinch.from, spread(event.touches[0], event.touches[1]) / pinch.d0));
+        stage.style.transform = "scale(" + pinch.ratio + ")";
+      }, { passive: false });
+      const endPinch = () => {
+        if (!pinch) return;
+        const done = pinch;
+        pinch = null;
+        stage.style.transform = "";
+        stage.style.transformOrigin = "";
+        if (Math.abs(done.ratio - 1) >= 0.02) setZoom(done.from * done.ratio, done);
+      };
+      scroll.addEventListener("touchend", (event) => { if (event.touches.length < 2) endPinch(); });
+      scroll.addEventListener("touchcancel", endPinch);
+    }
     stage.addEventListener("click", (event) => {
       const target = event.target;
       if (!(target instanceof Element) || target.closest("[data-fmse-ui]")) return;

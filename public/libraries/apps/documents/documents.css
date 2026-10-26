@@ -588,6 +588,12 @@
 .fmdx-hist-row small{display:block;font-size:11px;font-weight:700;color:var(--fmdx-muted,#667085)}
 .fmdx-hist-row small.fmdx-hist-sections{margin-top:2px;font-weight:800}
 .fmdx-hist-row em{font-style:normal;font-size:10.5px;font-weight:850;color:var(--fmdx-muted,#667085)}
+/* Automatic step versions in a row: one row with a count that opens to list them. */
+.fmdx-hist-count{display:inline-block;margin-left:7px;padding:1px 7px;border-radius:999px;background:#eef1f6;color:#475467;font-size:10.5px;font-weight:850;vertical-align:1px}
+.fmdx-hist-run em{display:inline-flex;align-items:center;gap:6px;white-space:nowrap}
+.fmdx-hist-run .fmdx-hist-chev{margin:0;font-size:9px;color:var(--fmdx-muted,#667085);transition:transform .16s ease}
+.fmdx-hist-run[aria-expanded="true"] .fmdx-hist-chev{transform:rotate(180deg)}
+.fmdx-hist-run-items{display:flex;flex-direction:column;gap:4px;margin:0 0 4px 20px;padding-left:8px;border-left:2px solid var(--fmdx-line,#e4e7ec)}
 .fmdx-hist-detail{min-height:0;overflow:auto;border:1px solid var(--fmdx-line,#e4e7ec);border-radius:16px;padding:14px 16px;display:flex;flex-direction:column;gap:12px}
 .fmdx-hist-head{display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;align-items:flex-start}
 .fmdx-hist-head strong{display:block;font-size:14px;font-weight:950}
@@ -738,6 +744,77 @@ html[data-fm-doc-phone] .fmdx-workflow-host .fmdw-sched-due{padding:0 6px 0 9px}
 html[data-fm-doc-phone] .fmdx-workflow-host .fmdw-sched-cents{font-size:12px}
 html[data-fm-doc-phone] .fmdx-workflow-host [data-fmdw-sched-date]{grid-column:2/5;grid-row:3}
 html[data-fm-doc-phone] .fmdx-workflow-host .fmdw-sched-row :is(input,select){height:40px}
+/* One level of cards: the step is the page and its question sits on it, so the
+   section and the question's own card fall away and only real groups (structures,
+   review totals) keep a card. The step's title is said once: a step's only
+   question drops its own label. Fields and line controls are a thumb tall. */
+html[data-fm-doc-phone] .fmdx-workflow-host .fmdw .fmdw-step{min-width:44px;min-height:44px;justify-content:center}
+html[data-fm-doc-phone] .fmdx-workflow-host .fmdw .fmdw-step-dot{width:28px;height:28px;font-size:12px}
+html[data-fm-doc-phone] .fmdx-workflow-host .fmdw-step-actions .fmdw-btn{min-height:44px}
+html[data-fm-doc-phone] .fmdx-workflow-host .fmdw-section{padding:0;border:0;border-radius:0;background:transparent;box-shadow:none;gap:14px}
+html[data-fm-doc-phone] .fmdx-workflow-host .fmdw-item-sole>.fmdw-field>.fmdw-field-label{display:none}
+html[data-fm-doc-phone] .fmdx-workflow-host .fmdw-field>.fmdw-card:not(.fmdw-review-total):not(.fmdw-review-checks):not(.fmdw-review):not(.fmdw-status-card){padding:0;border:0;border-radius:0;background:transparent;gap:14px}
+html[data-fm-doc-phone] .fmdx-workflow-host .fmdw-field :is(input:not([type=checkbox]):not([type=radio]):not([type=color]),select){max-width:none;min-height:44px}
+html[data-fm-doc-phone] .fmdx-workflow-host .fmdw-btn{min-height:44px}
+html[data-fm-doc-phone] .fmdx-workflow-host .fmdw-icon-btn{width:40px;height:40px;border-radius:11px;font-size:13px}
+/* Measurements: two to a row, each input the width of its column with the unit inside it. */
+html[data-fm-doc-phone] .fmdx-workflow-host .fmdw-meas-grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+html[data-fm-doc-phone] .fmdx-workflow-host .fmdw-meas-field span{font-size:11px}
+html[data-fm-doc-phone] .fmdx-workflow-host .fmdw-meas-input{position:relative}
+html[data-fm-doc-phone] .fmdx-workflow-host .fmdw-meas-input input{width:100%;height:46px;padding-right:38px}
+html[data-fm-doc-phone] .fmdx-workflow-host .fmdw-meas-input i{position:absolute;right:12px;top:50%;transform:translateY(-50%);min-width:0;font-size:13px;pointer-events:none}
+html[data-fm-doc-phone] .fmdx-workflow-host .fmdw-structs{padding:4px 14px 8px;border-radius:14px;background:#fff}
+html[data-fm-doc-phone] .fmdx-workflow-host .fmdw-structs-head{padding-top:10px}
+html[data-fm-doc-phone] .fmdx-workflow-host .fmdw-struct{padding:10px 0;border:0;border-top:1px solid #f0f2f7;border-radius:0;background:transparent}
+html[data-fm-doc-phone] .fmdx-workflow-host .fmdw-structs-head+.fmdw-struct{border-top:0}
+html[data-fm-doc-phone] .fmdx-workflow-host .fmdw-struct-title{flex-wrap:wrap;gap:4px 8px}
+html[data-fm-doc-phone] .fmdx-workflow-host .fmdw-field .fmdw-struct-name{flex:1 1 100%;min-height:40px;margin-left:-8px;padding:4px 8px;font-size:16px}
+html[data-fm-doc-phone] .fmdx-workflow-host .fmdw-struct-switch{width:44px;height:26px}
+html[data-fm-doc-phone] .fmdx-workflow-host .fmdw-struct-switch::after{width:22px;height:22px}
+html[data-fm-doc-phone] .fmdx-workflow-host .fmdw-struct-toggle input:checked+.fmdw-struct-switch::after{transform:translateX(18px)}
+html[data-fm-doc-phone] .fmdx-workflow-host .fmdw-structs .fmdw-row-actions .fmdw-btn{padding-left:0}
+/* Line items: name and its two buttons on top, then quantity × price = amount across the row. */
+html[data-fm-doc-phone] .fmdx-workflow-host .fmdw-lir-bar{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+html[data-fm-doc-phone] .fmdx-workflow-host .fmdw-lir-bar .fmdw-btn{min-width:0;padding:0 8px}
+html[data-fm-doc-phone] .fmdx-workflow-host .fmdw-lir-children{margin-left:8px}
+html[data-fm-doc-phone] .fmdx-workflow-host .fmdw-lir-row{grid-template-columns:minmax(0,1fr) auto;gap:8px;padding:10px 10px 10px 12px;border-radius:13px}
+html[data-fm-doc-phone] .fmdx-workflow-host .fmdw-lir-row.pick{grid-template-columns:28px minmax(0,1fr) auto}
+html[data-fm-doc-phone] .fmdx-workflow-host .fmdw-lir-pick{grid-row:1;align-self:center}
+html[data-fm-doc-phone] .fmdx-workflow-host .fmdw-lir-pick input{width:22px;height:22px}
+html[data-fm-doc-phone] .fmdx-workflow-host .fmdw-lir-name strong{font-size:14px;line-height:1.3}
+html[data-fm-doc-phone] .fmdx-workflow-host .fmdw-lir-row:not(.fmdw-lir-group-head) .fmdw-lir-nums{grid-row:2;grid-column:1/-1;display:grid;grid-template-columns:minmax(0,1fr) auto minmax(0,1.15fr) minmax(78px,auto);gap:6px;justify-content:stretch}
+html[data-fm-doc-phone] .fmdx-workflow-host .fmdw-lir-row:not(.fmdw-lir-group-head) .fmdw-lir-actions{grid-row:1;grid-column:-2}
+html[data-fm-doc-phone] .fmdx-workflow-host .fmdw-lir-row.pick:not(.fmdw-lir-group-head) .fmdw-lir-nums{grid-column:1/-1}
+html[data-fm-doc-phone] .fmdx-workflow-host .fmdw-lir-num{height:44px;min-width:0;padding:0 10px;border-radius:11px;gap:6px}
+html[data-fm-doc-phone] .fmdx-workflow-host .fmdw-lir-num input{flex:1;width:auto;min-width:0;height:100%;font-size:16px}
+html[data-fm-doc-phone] .fmdx-workflow-host .fmdw-lir-num i{font-size:12px}
+html[data-fm-doc-phone] .fmdx-workflow-host .fmdw-lir-x{align-self:center}
+html[data-fm-doc-phone] .fmdx-workflow-host .fmdw-lir-amount{align-self:center;min-width:0;font-size:14px}
+html[data-fm-doc-phone] .fmdx-workflow-host .fmdw-lir-actions{gap:6px}
+html[data-fm-doc-phone] .fmdx-workflow-host .fmdw-lir-row .fmdw-lir-desc{display:none}
+html[data-fm-doc-phone] .fmdx-workflow-host .fmdw-lir-name:has(.fmdw-lir-desc) .fmdw-lir-name-line{transform:none}
+html[data-fm-doc-phone] .fmdx-workflow-host .fmdw-lir-fold{width:32px;height:32px;margin-left:-8px;font-size:11px}
+html[data-fm-doc-phone] .fmdx-workflow-host .fmdw-lir-variant-chip{min-height:32px;padding:3px 10px 3px 5px;font-size:12px}
+/* A choice group's line: its name over who chooses, then Add option and List or Compare as icons. */
+html[data-fm-doc-phone] .fmdx-workflow-host .fmdw-lir-choice-head{display:grid;grid-template-columns:minmax(0,1fr) auto auto;align-items:center;gap:2px 6px;padding:7px 6px 7px 12px;border-radius:13px}
+html[data-fm-doc-phone] .fmdx-workflow-host .fmdw-lir-choice-head strong{grid-column:1;grid-row:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:14px}
+html[data-fm-doc-phone] .fmdx-workflow-host .fmdw-lir-choice-head .fmdw-li-flag{grid-column:1;grid-row:2;justify-self:start;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+html[data-fm-doc-phone] .fmdx-workflow-host .fmdw-lir-choice-head .fmdw-lir-add-option{grid-column:2;grid-row:1/3;width:40px;height:40px;margin:0;padding:0;font-size:0;border-radius:10px}
+html[data-fm-doc-phone] .fmdx-workflow-host .fmdw-lir-choice-head .fmdw-lir-add-option i{font-size:14px}
+html[data-fm-doc-phone] .fmdx-workflow-host .fmdw-lir-choice-head .fmdw-lir-view{grid-column:3;grid-row:1/3;margin:0;border-radius:10px}
+html[data-fm-doc-phone] .fmdx-workflow-host .fmdw-lir-choice-head .fmdw-lir-view button{width:40px;height:38px;padding:0;justify-content:center;font-size:0}
+html[data-fm-doc-phone] .fmdx-workflow-host .fmdw-lir-choice-head .fmdw-lir-view button i{font-size:13px}
+/* Payment terms: the milestone's name, amount and remove on one line; when it is due, % or $ and how much beneath. */
+html[data-fm-doc-phone] .fmdx-workflow-host .fmdw-sched-row,html[data-fm-doc-phone] .fmdx-workflow-host .fmdw-sched-row:has([data-fmdw-sched-date]){grid-template-columns:22px minmax(0,1fr) auto 40px;row-gap:8px;column-gap:8px;padding-bottom:12px}
+html[data-fm-doc-phone] .fmdx-workflow-host .fmdw-sched-row :is(input,select){height:44px;border-radius:11px}
+html[data-fm-doc-phone] .fmdx-workflow-host .fmdw-sched-amount{gap:6px}
+html[data-fm-doc-phone] .fmdx-workflow-host .fmdw-sched-amount select{width:58px;padding:0 6px 0 12px}
+html[data-fm-doc-phone] .fmdx-workflow-host .fmdw-sched-amount input{width:72px;padding:0 10px}
+html[data-fm-doc-phone] .fmdx-workflow-host .fmdw-sched-cents{font-size:14px}
+html[data-fm-doc-phone] .fmdx-workflow-host .fmdw-sched-grip{height:44px}
+html[data-fm-doc-phone] .fmdx-workflow-host .fmdw-sched-pill{height:40px;padding:0 16px;font-size:13px}
+html[data-fm-doc-phone] .fmdx-workflow-host .fmdw-sched-presets{margin-left:0}
+html[data-fm-doc-phone] .fmdx-workflow-host .fmdw-sched .fmdw-row-actions{gap:10px}
 html[data-fm-doc-phone] .fmdx-workflow-host .fmdw-foot{flex-wrap:wrap;gap:8px;padding:10px 12px max(10px,env(safe-area-inset-bottom))}
 html[data-fm-doc-phone] .fmdx-workflow-host .fmdw-foot .fmdw-btn{min-height:44px;justify-content:center}
 html[data-fm-doc-phone] .fmdx-workflow-host .fmdw-foot [data-fmdw-back]{width:46px;padding:0;font-size:0;gap:0}

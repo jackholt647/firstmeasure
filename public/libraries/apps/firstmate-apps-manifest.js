@@ -56,7 +56,7 @@
     versionedBundle('../payments-api/payments-api.js', '20261019-forward-cert'),
     versionedBundle('../doc-widgets/firstmate-doc-widgets.js', '20261019-forward-cert'),
     versionedBundle('../doc-renderer/firstmate-doc-renderer.js', '20261022-as-sent-inputs'),
-    versionedBundle('../doc-workflow/firstmate-doc-workflow.js', '20261023-estimate-structures-after-signing'),
+    versionedBundle('../doc-workflow/firstmate-doc-workflow.js', '20261026-mobile-documents-2'),
     versionedBundle('signatures/project.js', '20261019-forward-cert')
   ];
   const crewBundles = [
@@ -120,7 +120,7 @@
       surfaces: ['portal_tab'],
       portalTabId: 'contacts',
       settingsTabId: 'contacts',
-      bundles: [versionedBundle('partners/shared-list.js','20261001-sharing-polish-v1'), versionedBundle('contacts/modal.js', '20261026-mobile-contacts'), versionedBundle('settings/crm.js', '20261019-payroll-closeout-v1'), versionedBundle('settings/contacts.js', '20261009-contact-settings-v1'), versionedBundle('contacts/app.js', '20261026-mobile-contacts')]
+      bundles: [versionedBundle('partners/shared-list.js','20261001-sharing-polish-v1'), versionedBundle('contacts/modal.js', '20261026-mobile-contacts-2'), versionedBundle('settings/crm.js', '20261019-payroll-closeout-v1'), versionedBundle('settings/contacts.js', '20261009-contact-settings-v1'), versionedBundle('contacts/app.js', '20261026-mobile-contacts-2')]
     },
     {
       id: 'portal.photos_feed',
@@ -189,7 +189,7 @@
       kind: 'project_modal_app',
       surfaces: ['project_modal'],
       requiresContext: ['project'],
-      bundles: [versionedBundle('docs/project.js', '20261026-mobile-documents')]
+      bundles: [versionedBundle('docs/project.js', '20261026-mobile-documents-2')]
     },
     {
       id: 'project.documents',
@@ -212,12 +212,12 @@
         versionedBundle('../doc-widgets/firstmate-doc-widgets.js', '20261019-forward-cert'),
         versionedBundle('../doc-renderer/firstmate-doc-renderer.js', '20261022-as-sent-inputs'),
         versionedBundle('../doc-editor/firstmate-doc-editor.js', '20261022-document-history'),
-        versionedBundle('../doc-sent-editor/firstmate-doc-sent-editor.js', '20261026-mobile-documents'),
+        versionedBundle('../doc-sent-editor/firstmate-doc-sent-editor.js', '20261026-mobile-documents-2'),
         versionedBundle('photos/feed.js', '20261026-feed-camera'),
         bundle('../agents-api/agents-api.js'),
         versionedBundle('../agent-chat/agent-chat.js', '20261002-widget-controls'),
         versionedBundle('../doc-agent/doc-agent.js', '20260812-agent-command-actions'),
-        versionedBundle('documents/project.js', '20261026-mobile-documents')
+        versionedBundle('documents/project.js', '20261026-mobile-documents-2')
       ]
     },
     {
