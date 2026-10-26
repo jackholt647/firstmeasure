@@ -50,7 +50,9 @@
 
   function showNotificationMenu(menu, bell){
     if (!menu || !bell) return;
-    const rect = bell.getBoundingClientRect();
+    let rect = bell.getBoundingClientRect();
+    // On phones these bells are folded into the More button; open under it.
+    if (!rect.width && !rect.height) rect = $('#mobilePlatformMoreBtn')?.getBoundingClientRect() || rect;
     Object.assign(menu.style, {position:'fixed', margin:'0', inset:'auto', top:`${Math.min(rect.bottom + 8, innerHeight - 100)}px`, right:'12px', left:'auto', width:'min(380px, calc(100vw - 24px))', maxHeight:`${Math.max(90, innerHeight - rect.bottom - 24)}px`, zIndex:'2147483647'});
     menu.classList.add('visible');
     // The browser's top layer escapes every app/window stacking context.
@@ -60,7 +62,7 @@
   document.addEventListener('pointerdown', event => {
     if (!event.target.closest('#platformNotificationMenu,#mobilePlatformNotificationMenu,#platformBell,#mobilePlatformBell,#mobilePlatformMoreNotifications')) closeNotificationMenus();
   });
-  document.addEventListener('keydown', event => { if (event.key === 'Escape') { closeNotificationMenus(); closeMessagesMenus(); } });
+  document.addEventListener('keydown', event => { if (event.key === 'Escape') { closeNotificationMenus(); closeMessagesMenus(); closeMoreMenu(); } });
 
   function setMobileNotificationsVisible(visible){
     const mobileTopbar = $('.mobile-topbar');
@@ -71,19 +73,131 @@
     if (more) more.hidden = !visible;
   }
 
-  // --- Mobile consolidated "More" menu --------------------------------------
-  // On phones the assistant, messages, and notifications actions collapse into
-  // a single topbar button whose menu proxies to the real controls.
+  // --- Mobile consolidated "More" sheet -------------------------------------
+  // On phones every desktop top bar action (assistant, to-do, phone, messages,
+  // notifications, development tools) collapses into one button whose bottom
+  // sheet proxies to the real controls. Each item is shown exactly when its
+  // desktop control is, so phone and desktop offer the same entries.
+  // Scripts that add an item prepend a `.ptb-more-item` to the menu; it is
+  // filed into the group named by its `data-more-group` (default "tools").
+
+  const MORE_GROUPS = { mobilePlatformMoreAssistant:'work', mobilePlatformMoreTodos:'work', mobilePlatformMoreMessages:'inbox', mobilePlatformMoreNotifications:'inbox', mobilePlatformMorePhone:'inbox' };
+  const MORE_ORDER = ['mobilePlatformMoreAssistant', 'mobilePlatformMoreTodos', 'mobilePlatformMoreMessages', 'mobilePlatformMoreNotifications', 'mobilePlatformMorePhone'];
+  let moreCloseTimer = null;
+  let moreReturnFocus = null;
+
+  function fileMoreItems(){
+    const menu = $('#mobilePlatformMoreMenu');
+    if (!menu) return;
+    menu.querySelectorAll(':scope > .ptb-more-item, :scope > .ptb-sheet > .ptb-more-item').forEach((item) => {
+      const group = menu.querySelector(`[data-more-group="${item.dataset.moreGroup || MORE_GROUPS[item.id] || 'tools'}"]`)
+        || menu.querySelector('[data-more-group="tools"]');
+      if (!group) return;
+      const rank = MORE_ORDER.indexOf(item.id);
+      const before = rank < 0 ? null : [...group.children].find((other) => MORE_ORDER.indexOf(other.id) > rank || MORE_ORDER.indexOf(other.id) < 0);
+      group.insertBefore(item, before || null);
+    });
+  }
+
+  function moreMenuOpen(){
+    return $('#mobilePlatformMoreMenu')?.classList.contains('visible') === true;
+  }
+
+  function openMoreMenu(){
+    const menu = $('#mobilePlatformMoreMenu');
+    if (!menu) return;
+    clearTimeout(moreCloseTimer);
+    fileMoreItems();
+    syncMoreMenu();
+    menu.style.removeProperty('--ptb-sheet-drag');
+    // The browser's top layer escapes every app/window stacking context.
+    if (menu.showPopover && !menu.matches(':popover-open')) { menu.popover = 'manual'; menu.showPopover(); }
+    void menu.offsetHeight;
+    menu.classList.add('visible');
+    moreReturnFocus = $('#mobilePlatformMoreBtn');
+    moreReturnFocus?.setAttribute('aria-expanded', 'true');
+    menu.querySelector('.ptb-more-item:not([hidden])')?.focus({ preventScroll:true });
+  }
+
+  // Other scripts close the sheet by removing `visible` (todo-tray.js); the
+  // observer below finishes that close the same way.
+  function finishMoreClose(){
+    const menu = $('#mobilePlatformMoreMenu');
+    if (!menu) return;
+    clearTimeout(moreCloseTimer);
+    const button = $('#mobilePlatformMoreBtn');
+    button?.setAttribute('aria-expanded', 'false');
+    if (menu.contains(document.activeElement)) button?.focus({ preventScroll:true });
+    const reduced = window.matchMedia?.('(prefers-reduced-motion: reduce)')?.matches;
+    moreCloseTimer = setTimeout(() => {
+      if (menu.classList.contains('visible')) return;
+      menu.style.removeProperty('--ptb-sheet-drag');
+      if (menu.hidePopover && menu.matches(':popover-open')) menu.hidePopover();
+    }, reduced ? 0 : 320);
+  }
 
   function closeMoreMenu(){
     $('#mobilePlatformMoreMenu')?.classList.remove('visible');
   }
 
+  function installMoreSheet(){
+    const menu = $('#mobilePlatformMoreMenu');
+    if (!menu || menu.dataset.sheetReady) return;
+    menu.dataset.sheetReady = '1';
+    fileMoreItems();
+    new MutationObserver((records) => {
+      if (records.some((record) => record.type === 'childList')) fileMoreItems();
+      const wasOpen = records.some((record) => record.type === 'attributes' && /(^|\s)visible(\s|$)/.test(record.oldValue || ''));
+      if (wasOpen && !menu.classList.contains('visible')) finishMoreClose();
+    }).observe(menu, { childList:true, attributes:true, attributeFilter:['class'], attributeOldValue:true });
+    // Item visibility follows the desktop controls whenever they change.
+    const mirrored = ['#mobilePlatformAssistantSlot', '#mobilePlatformMessagesSlot', '#platformPhoneSlot'].map($).filter(Boolean);
+    const mirror = new MutationObserver(() => syncMoreMenu());
+    mirrored.forEach((slot) => mirror.observe(slot, { attributes:true, attributeFilter:['hidden'] }));
+    menu.addEventListener('click', (event) => {
+      if (event.target.closest('[data-more-close]')) { event.stopPropagation(); closeMoreMenu(); }
+    });
+    // Drag the sheet down to dismiss it.
+    const sheet = menu.querySelector('.ptb-sheet');
+    let drag = null;
+    let suppressClick = false;
+    sheet?.addEventListener('pointerdown', (event) => {
+      if (event.button !== 0 || (sheet.scrollTop > 0 && !event.target.closest('.ptb-sheet-grip'))) return;
+      drag = { id:event.pointerId, y:event.clientY, dy:0, moved:false };
+    });
+    sheet?.addEventListener('pointermove', (event) => {
+      if (!drag || event.pointerId !== drag.id) return;
+      drag.dy = Math.max(0, event.clientY - drag.y);
+      if (!drag.moved && drag.dy > 8) { drag.moved = true; menu.classList.add('is-dragging'); try { sheet.setPointerCapture(event.pointerId); } catch (_) {} }
+      if (drag.moved) menu.style.setProperty('--ptb-sheet-drag', `${drag.dy}px`);
+    });
+    const endDrag = (event) => {
+      if (!drag || event.pointerId !== drag.id) return;
+      const { dy, moved } = drag;
+      drag = null;
+      menu.classList.remove('is-dragging');
+      if (!moved) return;
+      suppressClick = true;
+      setTimeout(() => { suppressClick = false; }, 0);
+      if (dy > Math.min(120, sheet.offsetHeight * 0.3)) closeMoreMenu();
+      else menu.style.removeProperty('--ptb-sheet-drag');
+    };
+    sheet?.addEventListener('pointerup', endDrag);
+    sheet?.addEventListener('pointercancel', endDrag);
+    // A drag that moved must not also tap the item under the finger.
+    sheet?.addEventListener('click', (event) => {
+      if (suppressClick) { event.stopPropagation(); event.preventDefault(); }
+    }, true);
+    window.addEventListener('resize', () => { if (moreMenuOpen() && window.matchMedia?.('(min-width: 821px)')?.matches) closeMoreMenu(); }, { passive:true });
+  }
+
   function syncMoreMenu(){
     const assistantItem = $('#mobilePlatformMoreAssistant');
     const messagesItem = $('#mobilePlatformMoreMessages');
+    const phoneItem = $('#mobilePlatformMorePhone');
     if (assistantItem) assistantItem.hidden = $('#mobilePlatformAssistantSlot')?.hidden === true;
     if (messagesItem) messagesItem.hidden = $('#mobilePlatformMessagesSlot')?.hidden === true;
+    if (phoneItem) phoneItem.hidden = $('#platformPhoneSlot')?.hidden !== false;
     const messagesCount = Number(messagesInbox.unread_total || 0);
     const notificationText = cleanText($('#mobilePlatformNotificationCount')?.textContent);
     const notificationVisible = $('#mobilePlatformNotificationCount')?.classList.contains('visible') === true;
@@ -147,6 +261,8 @@
   window.Portal.topbar = {
     ...(window.Portal.topbar || {}),
     isVisible: isTopbarVisible,
+    // The organization has the top bar on (desktop row or the phone bar's More sheet).
+    isEnabled: () => lastTopbarVisible,
     mountLeft: mountTopbarLeft,
     releaseLeft: releaseTopbarLeft,
     leftOwner: () => leftSlotOwner
@@ -1058,12 +1174,11 @@
     });
     $('#mobilePlatformMoreBtn')?.addEventListener('click', (event) => {
       event.stopPropagation();
-      const menu = $('#mobilePlatformMoreMenu');
-      const opening = !menu?.classList.contains('visible');
+      const opening = !moreMenuOpen();
       closeMessagesMenus();
       closeNotificationMenus();
-      syncMoreMenu();
-      menu?.classList.toggle('visible', opening);
+      if (opening) openMoreMenu();
+      else closeMoreMenu();
     });
     $('#mobilePlatformMoreAssistant')?.addEventListener('click', (event) => {
       event.stopPropagation();
@@ -1082,6 +1197,12 @@
       closeMoreMenu();
       $('#mobilePlatformBell')?.click();
     });
+    $('#mobilePlatformMorePhone')?.addEventListener('click', (event) => {
+      event.stopPropagation();
+      closeMoreMenu();
+      $('#platformPhoneBtn')?.click();
+    });
+    installMoreSheet();
     [
       { button: '#platformMessagesBtn', menu: '#platformMessagesMenu' },
       { button: '#mobilePlatformMessagesBtn', menu: '#mobilePlatformMessagesMenu' }

@@ -112,6 +112,37 @@ renderer full screen. Its manifest entry says `placement: 'more'` and
 `placementWithoutAppsMenu: 'settings'`, so without the apps overlay it is only
 in Settings.
 
+## The mobile top bar
+
+On a phone (the portal at 820px or narrower) the bar above search shows the
+open app's icon and title. Both come from the app's registry and manifest
+entry, the same `icon`, `title` and `terminologyKey` its left-column link
+uses (`renderMobileHeader` in `portal/scripts/core.js`), so every portal tab
+gets them with no code of its own. An app therefore does not repeat its icon
+and title at the top of its content on phones. While it is open, an app may
+change what the bar shows:
+
+```js
+Portal.mobileHeader?.set('portal.viewer', { title, icon, actions });
+Portal.mobileHeader?.clear('portal.viewer');
+```
+
+The key is the app id or the tab id. `title` and `icon` replace the registry
+values (`icon: ''` shows none), and `actions` is a node of compact icon
+buttons shown beside the title. A setting stays with its app and applies
+whenever that app is the open one.
+
+The More (⋯) button opens a bottom sheet with every desktop top bar action:
+the assistant, To Do, messages, notifications, the phone and development
+tools. Each entry is shown exactly when its desktop control is, so a phone and
+a desktop offer the same actions, all decided by the organization's switches
+(`topbar.todos`, `apps.assistant`, `apps.channels`, the phone's calling
+setup) and never by a configuration. A script that adds a top bar action adds
+its phone entry as a `.ptb-more-item` in `#mobilePlatformMoreMenu`, naming its
+group with `data-more-group` (`work`, `inbox`, or the default `tools`), and
+hides it with `hidden` whenever its desktop control is hidden. Run
+`tests/mobile-shell-browser.test.mjs` for changes here.
+
 ## Left-column pins
 
 Whether a whole app sits in the left column is the organization's placement

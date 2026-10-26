@@ -1054,8 +1054,18 @@ session_write_close();
       .mobile-topbar .mob-logo img{
         display:none!important;
       }
+      /* The bar shows the open app's icon and title (core.js renderMobileHeader),
+         so apps do not repeat them at the top of their content on phones. */
+      .mobile-topbar .mob-logo{gap:8px}
+      .mobile-topbar .mob-tab-heading{display:flex;align-items:center;gap:9px;min-width:0;max-width:100%}
+      .mobile-topbar .mob-tab-heading[hidden]{display:none}
+      .mobile-topbar .mob-tab-heading.is-changing{animation:mobTabHeadingIn .26s cubic-bezier(.22,1,.36,1)}
+      @keyframes mobTabHeadingIn{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:none}}
+      .mobile-topbar .mob-tab-icon{display:grid;place-items:center;flex:none;width:28px;height:28px;border-radius:8px;background:var(--primary,#d93025);color:var(--on-primary,#fff);font-size:13px;box-shadow:0 2px 6px rgba(var(--primary-rgb,217,48,37),.22)}
+      .mobile-topbar .mob-tab-icon[hidden]{display:none}
       .mobile-topbar .mob-tab-title{
         display:block;
+        min-width:0;
         max-width:100%;
         overflow:hidden;
         text-overflow:ellipsis;
@@ -1065,6 +1075,12 @@ session_write_close();
         font-weight:1000;
         line-height:1.1;
       }
+      .mobile-topbar .mob-tab-actions{display:flex;align-items:center;gap:4px;flex:none}
+      .mobile-topbar .mob-tab-actions[hidden]{display:none}
+      .mobile-topbar .mob-logo.has-tab-actions{justify-content:space-between}
+      .mobile-topbar .mob-tab-actions :is(button,a){display:grid;place-items:center;min-width:36px;height:36px;padding:0 8px;border:0;border-radius:10px;background:transparent;color:#344054;font:inherit;font-size:16px;cursor:pointer}
+      .mobile-topbar .mob-tab-actions :is(button,a):active{background:rgba(0,0,0,.06)}
+      @media (prefers-reduced-motion: reduce){.mobile-topbar .mob-tab-heading.is-changing{animation:none}}
       /* Branding belongs in the opened mobile menu; the fixed bar owns the page title. */
       .mobile-topbar .mob-logo.default-firstmeasure-logo::before{display:none!important}
       html[data-fm-assigned-only="true"] .mobile-topbar .mob-new-req{display:none!important}
@@ -1102,11 +1118,52 @@ session_write_close();
       .mobile-topbar .platform-messages .ptb-bell,
       .mobile-topbar .platform-notifications .ptb-bell{display:none}
       .mobile-topbar .mob-notifications.platform-more{position:relative}
-      .mobile-topbar .ptb-menu--more{height:auto;max-height:none;width:236px;padding:6px}
-      .mobile-topbar .ptb-more-item{display:flex;align-items:center;gap:10px;width:100%;border:0;background:transparent;padding:11px 12px;border-radius:10px;font:inherit;font-size:13px;font-weight:800;color:#202124;cursor:pointer;text-align:left}
-      .mobile-topbar .ptb-more-item:hover{background:rgba(0,0,0,.05)}
-      .mobile-topbar .ptb-more-item i{width:20px;text-align:center;color:#475467}
-      .mobile-topbar .ptb-more-item .ptb-more-count{margin-left:auto;background:var(--primary,#d93025);color:var(--on-primary,#fff);border-radius:999px;font-size:10px;font-weight:900;padding:2px 7px;font-style:normal}
+      .mobile-topbar #mobilePlatformMoreBtn{display:grid;place-items:center;border-radius:12px;position:relative;transition:background-color .16s ease}
+      .mobile-topbar #mobilePlatformMoreBtn[aria-expanded="true"]{background:rgba(0,0,0,.06)}
+      /* The More sheet: a bottom sheet in the top layer (topbar.js opens it as a popover). */
+      .mobile-topbar #mobilePlatformMoreMenu.ptb-menu--more{
+        position:fixed;inset:0;top:0;right:0;width:auto;height:auto;max-width:none;max-height:none;margin:0;padding:0;
+        border:0;border-radius:0;background:transparent;box-shadow:none;overflow:hidden;
+        opacity:1;transform:none;z-index:2147483300;
+        transition:visibility 0s linear .3s;
+      }
+      .mobile-topbar #mobilePlatformMoreMenu.ptb-menu--more.visible{transition:visibility 0s}
+      .mobile-topbar .ptb-sheet-scrim{position:absolute;inset:0;background:rgba(15,23,42,.42);opacity:0;transition:opacity .26s ease}
+      .mobile-topbar .ptb-menu--more.visible .ptb-sheet-scrim{opacity:1}
+      .mobile-topbar .ptb-sheet{
+        position:absolute;left:0;right:0;bottom:0;box-sizing:border-box;
+        max-height:calc(var(--fm-visual-vh, 100dvh) - 56px);overflow:auto;overscroll-behavior:contain;
+        display:flex;flex-direction:column;gap:12px;
+        padding:6px 14px calc(18px + env(safe-area-inset-bottom, 0px));
+        background:#f2f4f7;border-radius:22px 22px 0 0;
+        box-shadow:0 -12px 40px rgba(15,23,42,.18);
+        transform:translateY(100%);
+        transition:transform .26s cubic-bezier(.4,0,1,1);
+        touch-action:pan-y;
+      }
+      .mobile-topbar .ptb-menu--more.visible .ptb-sheet{transform:translateY(var(--ptb-sheet-drag,0px));transition:transform .34s cubic-bezier(.22,1,.36,1)}
+      .mobile-topbar .ptb-menu--more.is-dragging .ptb-sheet{transition:none}
+      .mobile-topbar .ptb-sheet-grip{flex:none;align-self:center;width:40px;height:5px;margin:4px 0 2px;border-radius:999px;background:#d0d5dd}
+      .mobile-topbar .ptb-sheet-group{display:flex;flex-direction:column;background:#fff;border-radius:16px;overflow:hidden;box-shadow:0 1px 2px rgba(16,24,40,.05)}
+      .mobile-topbar .ptb-sheet-group:not(:has(.ptb-more-item:not([hidden]))){display:none}
+      .mobile-topbar .ptb-more-item{position:relative;display:flex;align-items:center;gap:14px;width:100%;min-height:58px;border:0;background:#fff;padding:9px 16px;font:inherit;font-size:16px;font-weight:700;color:#101828;cursor:pointer;text-align:left;-webkit-tap-highlight-color:transparent;transition:background-color .12s ease}
+      .mobile-topbar .ptb-more-item[hidden]{display:none}
+      .mobile-topbar .ptb-more-item:active{background:#f2f4f7}
+      .mobile-topbar .ptb-more-item:focus-visible{outline:2px solid var(--primary-readable,var(--primary,#d93025));outline-offset:-3px;border-radius:12px}
+      .mobile-topbar .ptb-more-item:not([hidden]) ~ .ptb-more-item:not([hidden])::before{content:"";position:absolute;top:0;left:66px;right:0;height:1px;background:#eaecf0}
+      .mobile-topbar .ptb-more-item>i{display:grid;place-items:center;flex:none;width:36px;height:36px;border-radius:10px;background:#667085;color:#fff;font-size:16px}
+      .mobile-topbar .ptb-more-item>span{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+      .mobile-topbar .ptb-more-item::after{content:"\f054";font-family:"Font Awesome 6 Free";font-weight:900;font-size:12px;color:#98a2b3;flex:none}
+      .mobile-topbar #mobilePlatformMoreAssistant>i{background:linear-gradient(135deg,#7c3aed,#c026d3)}
+      .mobile-topbar #mobilePlatformMoreTodos>i{background:#16a34a}
+      .mobile-topbar #mobilePlatformMoreMessages>i{background:#2563eb}
+      .mobile-topbar #mobilePlatformMoreNotifications>i{background:#f59e0b}
+      .mobile-topbar #mobilePlatformMorePhone>i{background:#0d9488}
+      .mobile-topbar .ptb-more-item .ptb-more-count{flex:none;min-width:22px;box-sizing:border-box;text-align:center;background:var(--primary,#d93025);color:var(--on-primary,#fff);border-radius:999px;font-size:12px;font-weight:900;padding:3px 8px;font-style:normal;line-height:16px}
+      .mobile-topbar .ptb-more-item .ptb-more-count[hidden]{display:none}
+      @media (prefers-reduced-motion: reduce){
+        .mobile-topbar .ptb-sheet,.mobile-topbar .ptb-menu--more.visible .ptb-sheet,.mobile-topbar .ptb-sheet-scrim{transition:none}
+      }
       .mobile-topbar.topbar-enabled .mobile-platform-search{
         display:block;
         grid-column:1 / -1;
@@ -1963,7 +2020,11 @@ session_write_close();
     </button>
     <div class="mob-logo">
       <img id="mobLogoImg" alt="Logo" style="display:none">
-      <span class="mob-tab-title" id="mobTabTitle"></span>
+      <span class="mob-tab-heading" id="mobTabHeading">
+        <i class="mob-tab-icon fas" id="mobTabIcon" aria-hidden="true" hidden></i>
+        <span class="mob-tab-title" id="mobTabTitle"></span>
+      </span>
+      <span class="mob-tab-actions" id="mobTabActions" hidden></span>
     </div>
     <button class="mob-new-req" id="mobNewReqBtn" aria-label="New" data-fm-tooltip="New" data-fm-track="new_project_clicked" data-fm-track-source="mobile_topbar">
       <i class="fas fa-plus"></i>
@@ -2000,14 +2061,26 @@ session_write_close();
       </div>
     </div>
     <div class="mob-notifications platform-more" id="mobilePlatformMoreSlot" hidden>
-      <button type="button" class="ptb-bell" id="mobilePlatformMoreBtn" aria-label="More">
+      <button type="button" class="ptb-bell" id="mobilePlatformMoreBtn" aria-label="More" aria-haspopup="dialog" aria-expanded="false" aria-controls="mobilePlatformMoreMenu">
         <i class="fas fa-ellipsis-vertical"></i>
         <span class="ptb-count" id="mobilePlatformMoreCount">0</span>
       </button>
-      <div class="ptb-menu ptb-menu--more" id="mobilePlatformMoreMenu">
-        <button type="button" class="ptb-more-item" id="mobilePlatformMoreAssistant"><i class="fas fa-wand-magic-sparkles"></i><span>AI Assistant</span></button>
-        <button type="button" class="ptb-more-item" id="mobilePlatformMoreMessages"><i class="fas fa-comments"></i><span>Messages</span><b class="ptb-more-count" id="mobilePlatformMoreMessagesCount" hidden>0</b></button>
-        <button type="button" class="ptb-more-item" id="mobilePlatformMoreNotifications"><i class="fas fa-bell"></i><span>Notifications</span><b class="ptb-more-count" id="mobilePlatformMoreNotificationCount" hidden>0</b></button>
+      <!-- Items mirror the desktop top bar. topbar.js files items other scripts
+           add into a group (data-more-group, default "tools"). -->
+      <div class="ptb-menu ptb-menu--more" id="mobilePlatformMoreMenu" role="dialog" aria-modal="true" aria-label="More">
+        <div class="ptb-sheet-scrim" data-more-close></div>
+        <div class="ptb-sheet">
+          <div class="ptb-sheet-grip" aria-hidden="true"></div>
+          <div class="ptb-sheet-group" data-more-group="work">
+            <button type="button" class="ptb-more-item" id="mobilePlatformMoreAssistant"><i class="fas fa-wand-magic-sparkles"></i><span>AI Assistant</span></button>
+          </div>
+          <div class="ptb-sheet-group" data-more-group="inbox">
+            <button type="button" class="ptb-more-item" id="mobilePlatformMoreMessages"><i class="fas fa-comments"></i><span>Messages</span><b class="ptb-more-count" id="mobilePlatformMoreMessagesCount" hidden>0</b></button>
+            <button type="button" class="ptb-more-item" id="mobilePlatformMoreNotifications"><i class="fas fa-bell"></i><span>Notifications</span><b class="ptb-more-count" id="mobilePlatformMoreNotificationCount" hidden>0</b></button>
+            <button type="button" class="ptb-more-item" id="mobilePlatformMorePhone" hidden><i class="fas fa-phone"></i><span>Phone</span></button>
+          </div>
+          <div class="ptb-sheet-group" data-more-group="tools"></div>
+        </div>
       </div>
     </div>
   </div>

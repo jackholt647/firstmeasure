@@ -2863,14 +2863,97 @@
 
   window.Portal.sidebarModes = { activate:setSidebarPanel, agentsEnabled:sidebarAgentsFeatureEnabled };
 
-  function updateMobileTabTitle(tab){
+  // --- Mobile header -------------------------------------------------------
+  // On phones the bar above search shows the open app's icon and title, read
+  // from the same registry/manifest entry as its left-column link (`icon`,
+  // `title`, `terminologyKey`), so apps do not repeat them in their content.
+  // While it is open, an app may change what the bar shows:
+  //   Portal.mobileHeader.set(appOrTabId, { title, icon, actions })
+  //   Portal.mobileHeader.clear(appOrTabId)
+  // `title` and `icon` replace the registry values (icon:'' shows none) and
+  // `actions` is a node of compact icon buttons shown beside the title.
+  // Settings are kept per app and apply whenever that app is the open one.
+  const mobileHeaderOverrides = new Map();
+  let mobileHeaderTab = null;
+  let mobileHeaderKey = '';
+
+  function mobileHeaderTabId(key){
+    const id = cleanText(key);
+    if (!id) return '';
+    if (TabRegistry.tabs.has(id)) return id;
+    for (const tab of TabRegistry.tabs.values()) if (tab.appId === id) return tab.id;
+    return id.replace(/^portal\./, '');
+  }
+
+  function mobileHeaderIcon(value){
+    return String(value || '').split(/\s+/).filter((token) => /^fa-[a-z0-9-]+$/.test(token) && token !== 'fa-circle').join(' ');
+  }
+
+  function renderMobileHeader(){
     const topbar = document.querySelector('.mobile-topbar');
     const title = document.getElementById('mobTabTitle');
     if (!topbar || !title) return;
-    const text = terminologyLabel(tab?.terminologyKey, tab?.title || '');
+    const tab = mobileHeaderTab;
+    const override = (tab && mobileHeaderOverrides.get(tab.id)) || {};
+    const text = cleanText(override.title) || terminologyLabel(tab?.terminologyKey, tab?.title || '');
+    const iconName = Object.prototype.hasOwnProperty.call(override, 'icon') && !cleanText(override.icon)
+      ? ''
+      : mobileHeaderIcon(cleanText(override.icon) || tab?.icon);
     title.textContent = text;
+    const icon = document.getElementById('mobTabIcon');
+    if (icon) {
+      icon.className = `mob-tab-icon fas ${iconName}`.trim();
+      icon.hidden = !iconName || !text;
+    }
+    const heading = document.getElementById('mobTabHeading');
+    if (heading) {
+      heading.hidden = !text;
+      const key = `${tab?.id || ''}|${text}|${iconName}`;
+      if (text && key !== mobileHeaderKey) {
+        heading.classList.remove('is-changing');
+        void heading.offsetWidth;
+        heading.classList.add('is-changing');
+      }
+      mobileHeaderKey = key;
+    }
+    const actions = document.getElementById('mobTabActions');
+    if (actions) {
+      const node = override.actions instanceof Node ? override.actions : null;
+      if (node) { if (actions.firstChild !== node || actions.childNodes.length !== 1) actions.replaceChildren(node); }
+      else if (actions.childNodes.length) actions.replaceChildren();
+      actions.hidden = !node;
+      actions.closest('.mob-logo')?.classList.toggle('has-tab-actions', !!node);
+    }
     topbar.classList.toggle('has-tab-title', !!text);
   }
+
+  function updateMobileTabTitle(tab){
+    mobileHeaderTab = tab || null;
+    renderMobileHeader();
+  }
+
+  window.Portal.mobileHeader = {
+    set(key, patch = {}){
+      const id = mobileHeaderTabId(key);
+      if (!id || !patch || typeof patch !== 'object') return false;
+      mobileHeaderOverrides.set(id, { ...(mobileHeaderOverrides.get(id) || {}), ...patch });
+      if (mobileHeaderTab?.id === id) renderMobileHeader();
+      return true;
+    },
+    clear(key){
+      const id = mobileHeaderTabId(key);
+      if (!id || !mobileHeaderOverrides.delete(id)) return false;
+      if (mobileHeaderTab?.id === id) renderMobileHeader();
+      return true;
+    },
+    current(){
+      return {
+        tabId: mobileHeaderTab?.id || '',
+        title: document.getElementById('mobTabTitle')?.textContent || '',
+        icon: mobileHeaderIcon(document.getElementById('mobTabIcon')?.className)
+      };
+    }
+  };
 
   function defaultPortalTab(list = []){
     // With no explicit route, the sidebar order is the navigation contract.

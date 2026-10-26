@@ -6,7 +6,9 @@
   let shell,win,controller,visible=false,identity='',lastButton;
   const org=()=>String(Portal.cfg?.userOrgId||Portal.cfg?.orgId||window.__APP?.userOrgId||window.__APP?.orgId||'').trim();
   const branch=()=>Portal.branchModules?.currentBranchId?.()||Portal.cfg?.userBranchId||Portal.cfg?.branchId||'default';
-  const enabled=()=>!!org()&&Portal.can?.('topbar.todos')===true&&Portal.topbar?.isVisible?.()!==false;
+  // Whether the organization has the top bar on, not whether its desktop row is laid out: on phones the
+  // same entry lives in the More sheet, so both follow topbar.todos alike.
+  const enabled=()=>!!org()&&Portal.can?.('topbar.todos')===true&&(Portal.topbar?.isEnabled||Portal.topbar?.isVisible)?.()!==false;
   const style=document.createElement('style');style.textContent=`
     .fm-todo-tray{display:flex;flex-direction:column;min-height:0;background:var(--panel,#fff);color:var(--text,#202124);border:1px solid var(--border,#dadce0);border-radius:var(--radius-lg,12px);box-shadow:var(--shadow,0 10px 30px #00000014);overflow:hidden}
     .fm-todo-tray[hidden]{display:none!important}
