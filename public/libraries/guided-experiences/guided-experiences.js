@@ -631,6 +631,25 @@
     .gx-dev-row button:hover{background:#f9fafb}
     .gx-dev-history small{display:block;color:#667085}
     .gx-dev-empty{color:#667085;padding:6px 4px}
+    /* Phones: no floating pill; the tools open from the shell's ⋯ sheet (Development tools group) as a bottom sheet. */
+    @media (max-width:820px){body:has(#mobilePlatformMoreSlot:not([hidden])) .gx-dev[data-in-more=true]{display:none!important}}
+    .gx-dev-sheet{position:fixed;inset:0;z-index:2147483600;display:flex;flex-direction:column;justify-content:flex-end;font:14px/1.4 system-ui,-apple-system,Segoe UI,Roboto,sans-serif;color:#101828}
+    .gx-dev-sheet[hidden]{display:none}
+    .gx-dev-sheet-scrim{position:absolute;inset:0;background:rgba(15,23,42,.42)}
+    .gx-dev-sheet-card{position:relative;display:flex;flex-direction:column;max-height:82vh;background:#fff;border-radius:18px 18px 0 0;box-shadow:0 -12px 40px rgba(16,24,40,.22);padding:6px 14px calc(14px + env(safe-area-inset-bottom,0px))}
+    .gx-dev-sheet-grip{align-self:center;width:40px;height:5px;margin:4px 0 8px;border-radius:999px;background:#d0d5dd}
+    .gx-dev-sheet-head{display:flex;align-items:center;gap:10px;min-height:44px}
+    .gx-dev-sheet-head h3{flex:1;margin:0;font-size:17px;font-weight:750}
+    .gx-dev-sheet-head button{width:40px;height:40px;border:0;border-radius:999px;background:#f2f4f7;color:#344054;font-size:20px;line-height:1;cursor:pointer}
+    .gx-dev-sheet-switch{display:flex;align-items:center;gap:12px;min-height:48px;padding:4px 2px;border-top:1px solid #f2f4f7;font-weight:650}
+    .gx-dev-sheet-switch span{flex:1}
+    .gx-dev-sheet-switch input{width:22px;height:22px;accent-color:var(--primary,#d93025)}
+    .gx-dev-sheet .gx-dev-status{display:block;min-height:0;color:#667085;font-size:13px;padding:0 2px}
+    .gx-dev-sheet .gx-dev-status:empty{display:none}
+    .gx-dev-sheet .gx-dev-panel{position:static;width:auto;max-height:none;flex:1;min-height:0;overflow:auto;border:0;box-shadow:none;padding:0}
+    .gx-dev-sheet .gx-dev-row{flex-wrap:wrap;padding:8px 2px}
+    .gx-dev-sheet .gx-dev-row span{flex:1 1 100%}
+    .gx-dev-sheet .gx-dev-row button{min-height:40px;padding:6px 12px;font-size:13px}
   `;
   const EDIT_KEY = 'fm-gx-edit-copy';
   // Copy editing is off until a development editor turns it on (the pill's switch), in each browser.
@@ -740,6 +759,7 @@
       await devAction(action.dataset, () => renderDevPanel(panel));
     });
     host.hidden = false;
+    mountDevMoreItem(doc, host);
     // Beside the portal sidebar's footer rather than over its settings button: just right of the sidebar, following
     // its width as it expands and collapses.
     // When something covers the sidebar (the project window), it sits small in the very corner of the screen, clear of
@@ -761,6 +781,47 @@
     if (side && doc.defaultView?.ResizeObserver) new doc.defaultView.ResizeObserver(dock).observe(side);
     doc.defaultView?.addEventListener('resize', dock);
     setInterval(dock, 1000);
+  }
+  /**
+   * Phones: the pill would cover primary controls, so where the shell has its ⋯ sheet (the portal at 820px or narrower)
+   * the tools are an entry in its Development tools group and open as a bottom sheet; the pill is hidden there by CSS.
+   * Desktop keeps the pill.
+   */
+  function mountDevMoreItem(doc, host){
+    const menu = doc.getElementById('mobilePlatformMoreMenu');
+    if (!menu || doc.getElementById('mobilePlatformMoreGuides')) return;
+    const item = doc.createElement('button');
+    // Filed into the sheet's default "tools" group (Development tools). No data-more-group of its own: topbar.js finds
+    // the group with [data-more-group="tools"], which would match a prepended item first.
+    item.type = 'button'; item.id = 'mobilePlatformMoreGuides'; item.className = 'ptb-more-item';
+    item.setAttribute('data-fmr-ignore', '');
+    item.innerHTML = `<i class="fas fa-route" aria-hidden="true"></i><span>${esc(L('gx_dev_section', 'Guided experiences'))}</span>`;
+    item.addEventListener('click', () => { menu.classList.remove('visible'); openDevSheet(doc); });
+    menu.prepend(item);
+    host.dataset.inMore = 'true';
+  }
+  function openDevSheet(doc){
+    let sheet = doc.querySelector('.gx-dev-sheet');
+    if (!sheet) {
+      sheet = doc.createElement('div'); sheet.className = 'gx-dev-sheet'; sheet.setAttribute('data-fmr-ignore', '');
+      sheet.setAttribute('role', 'dialog'); sheet.setAttribute('aria-modal', 'true'); sheet.setAttribute('aria-label', L('gx_dev_section', 'Guided experiences'));
+      sheet.innerHTML = `<div class="gx-dev-sheet-scrim" data-gxd-close></div><div class="gx-dev-sheet-card"><div class="gx-dev-sheet-grip" aria-hidden="true"></div><div class="gx-dev-sheet-head"><h3>${esc(L('gx_dev_section', 'Guided experiences'))}</h3><button type="button" data-gxd-close aria-label="${esc(L('gx_dev_sheet_close', 'Close'))}">&times;</button></div><label class="gx-dev-sheet-switch"><span>${esc(L('gx_dev_editing', 'Editing copy'))}</span><input type="checkbox" role="switch" data-gxd-edit></label><span class="gx-dev-status" role="status"></span><div class="gx-dev-panel"></div></div>`;
+      (doc.body || doc.documentElement).appendChild(sheet);
+      const panel = sheet.querySelector('.gx-dev-panel');
+      const close = () => { sheet.hidden = true; };
+      sheet.addEventListener('click', (event) => {
+        if (event.target.closest?.('[data-gxd-close]')) { close(); return; }
+        const action = event.target.closest?.('[data-gxd]');
+        if (action) devAction(action.dataset, () => renderDevPanel(panel));
+      });
+      sheet.querySelector('[data-gxd-edit]').addEventListener('change', (event) => { try { root.localStorage?.setItem(EDIT_KEY, event.target.checked ? 'on' : 'off'); } catch (_) {} devDocs.forEach(syncEditing); projectFrameGuides()?.syncDevEditing?.(); });
+      doc.addEventListener('keydown', (event) => { if (event.key === 'Escape' && !sheet.hidden) close(); });
+    }
+    sheet.querySelector('[data-gxd-edit]').checked = editing();
+    sheet.querySelector('.gx-dev-status').textContent = devStatus;
+    sheet.hidden = false;
+    renderDevPanel(sheet.querySelector('.gx-dev-panel'));
+    sheet.querySelector('[data-gxd-close]:not(.gx-dev-sheet-scrim)')?.focus({ preventScroll: true });
   }
   async function devAction(data, rerender){
     const kind = data.gxd, id = data.gxdId;

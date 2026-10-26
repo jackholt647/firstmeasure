@@ -2110,3 +2110,25 @@ button, input { font: inherit; }
   overflow-y: auto;
 }
 
+
+/* Phones: a compact top. The read-only preview banner is one line, the header is the logo and company on one
+   row (a single project is named once, by the summary title, not again in the header), and the tabs stick just
+   under the banner instead of sliding beneath it. */
+.cp-preview-banner-short { display: none; }
+@media (max-width: 760px) {
+  .cp-preview-banner { box-sizing: border-box; min-height: 28px; padding: 6px 12px; font-size: 12px; line-height: 16px; letter-spacing: 0; text-transform: none; }
+  .cp-preview-banner-full { display: none; }
+  .cp-preview-banner-short { display: block; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .cp-shell.preview .cp-tabs { top: 28px; }
+  .cp-header-inner { padding: 10px 16px; gap: 10px; }
+  .cp-header-actions.cp-single-project { display: none; }
+  .cp-brand { gap: 10px; }
+  .cp-logo { max-width: 110px; max-height: 34px; }
+  .cp-logo-fallback { width: 34px; height: 34px; border-radius: 9px; font-size: 14px; }
+  .cp-brand strong { font-size: 15px; }
+  .cp-brand span { font-size: 12px; }
+  .cp-project-summary { padding: 16px 0 0; margin-bottom: 16px; }
+  .cp-project-summary .cp-title { font-size: 22px; line-height: 1.2; }
+  .cp-project-summary .cp-address { margin-top: 4px; font-size: 14px; }
+  .cp-project-summary .cp-customer-card { margin-top: 12px; padding: 10px 12px; }
+}

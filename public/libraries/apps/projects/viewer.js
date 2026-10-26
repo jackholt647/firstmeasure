@@ -409,6 +409,7 @@
     .v-manage-panel{position:absolute;right:0;top:46px;z-index:30;width:min(390px,calc(100vw - 32px));max-height:min(720px,calc(100vh - 130px));overflow-y:auto;box-sizing:border-box;padding:18px;border:1px solid #e4e7ec;border-radius:16px;background:#fff;box-shadow:0 24px 70px rgba(15,23,42,.22);display:grid;gap:13px}
     .v-manage-panel[hidden]{display:none}
     .v-manage-title{font-size:15px;font-weight:1000;color:#101828}
+    .v-manage-close{display:none}
     .v-manage-info{margin-left:8px;color:#98a2b3;font-size:13px;cursor:help;outline:none}
     .v-manage-info:hover,.v-manage-info:focus-visible{color:var(--primary-readable,var(--primary,#d93025))}
     .v-manage-field{display:grid;gap:6px;font-size:12px;font-weight:900;color:#344054}
@@ -1184,6 +1185,50 @@
       .v-card-end{display:inline-flex;align-items:center;gap:10px}
       .v-stage-card-foot{align-items:center}
       .v-foot{align-items:center}
+      /* List: stages with no projects fold into one line after the ones that have some. */
+      .v-list-empty-groups{margin-top:8px}
+      .v-list-empty-toggle{width:100%;display:flex;align-items:center;gap:10px;min-height:44px;box-sizing:border-box;padding:8px 12px;border:1px dashed #d0d5dd;border-radius:10px;background:#f8fafc;color:#475467;font-family:inherit;font-size:13px;font-weight:1000;line-height:1.2;text-align:left;cursor:pointer}
+      .v-list-empty-toggle i{flex:0 0 auto;font-size:11px;transition:transform .16s ease}
+      .v-list-empty-toggle[aria-expanded="false"] i{transform:rotate(-90deg)}
+      .v-list-empty-label{flex:0 0 auto}
+      .v-list-empty-names{flex:1 1 auto;min-width:0;color:#98a2b3;font-size:11px;font-weight:850;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+      .v-list-empty-toggle .v-list-group-count{flex:0 0 auto;margin-left:auto;padding:3px 8px;border-radius:999px;background:#fff;color:#475467;font-size:11px}
+      .v-list-empty-body{padding-top:8px}
+      .v-list-empty-body[hidden]{display:none}
+      /* Tiles: a project with no picture is a compact card, its badges in a row above the name. */
+      .v-tile-compact .v-thumb{height:auto;min-height:0;display:flex;flex-wrap:wrap;align-items:center;justify-content:flex-start;gap:6px;padding:12px 12px 0;background:none;animation:none}
+      .v-tile-compact .v-thumb::after{content:none}
+      .v-tile-compact .v-thumb:not(:has(>:not(img))){padding:0}
+      .v-tile-compact .v-thumb>*{position:static;box-shadow:none}
+      /* The picture keeps loading out of sight (a lazy image must stay rendered); a loaded one opens the card. */
+      .v-tile-compact .v-thumb img{display:block;position:absolute;left:0;top:0;width:1px;height:1px;opacity:0;pointer-events:none}
+      .v-tile-compact .v-badge{padding:4px 9px;font-size:10px}
+      .v-tile-compact .v-body{padding-top:10px}
+      /* Manage view: a bottom sheet (a popover in the top layer) with our own dropdowns. */
+      .v-manage-panel:popover-open{position:fixed;inset:auto 0 0 0;margin:0;width:auto;max-width:none;max-height:min(82vh,680px);overflow-y:auto;overscroll-behavior:contain;box-sizing:border-box;padding:8px 18px calc(20px + env(safe-area-inset-bottom,0px));border:0;border-radius:20px 20px 0 0;background:#fff;color:#101828;box-shadow:0 -14px 40px rgba(16,24,40,.22);gap:14px;animation:vManageSheetUp .26s cubic-bezier(.2,.8,.2,1)}
+      .v-manage-panel:popover-open::backdrop{background:rgba(15,23,42,.34)}
+      .v-manage-panel:popover-open::before{content:'';justify-self:center;width:38px;height:4px;margin-top:2px;border-radius:2px;background:#d0d5dd}
+      @keyframes vManageSheetUp{from{transform:translateY(100%)}to{transform:none}}
+      .v-manage-panel:popover-open .v-manage-title{display:flex;align-items:center;min-height:40px;font-size:17px}
+      .v-manage-close{display:inline-flex;align-items:center;justify-content:center;flex:0 0 auto;width:40px;height:40px;margin-left:auto;border:0;border-radius:12px;background:#f2f4f7;color:#475467;font-size:16px;cursor:pointer}
+      .v-manage-panel:popover-open .v-manage-field{gap:8px;font-size:13px}
+      .v-manage-panel:popover-open .v-btn{height:48px;justify-content:center;border-radius:12px;font-size:15px}
+      .v-manage-panel:popover-open .v-manage-columns label{min-height:48px;font-size:13px}
+      .v-manage-panel:popover-open .v-manage-note{font-size:12px}
+      .v-dd-native{display:none!important}
+      .v-dd{display:grid;gap:6px;min-width:0}
+      .v-dd-trigger{display:flex;align-items:center;justify-content:space-between;gap:10px;width:100%;min-height:48px;box-sizing:border-box;padding:0 14px;border:1px solid #d0d5dd;border-radius:12px;background:#fff;color:#101828;font-family:inherit;font-size:16px;font-weight:800;text-align:left;cursor:pointer}
+      .v-dd-trigger i{flex:0 0 auto;color:#667085;font-size:13px;transition:transform .16s ease}
+      .v-dd-trigger[aria-expanded="true"]{border-color:rgba(var(--primary-rgb,217,48,37),.45);box-shadow:0 0 0 3px rgba(var(--primary-rgb,217,48,37),.12)}
+      .v-dd-trigger[aria-expanded="true"] i{transform:rotate(180deg)}
+      .v-dd-value{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+      .v-dd-list{display:grid;gap:2px;padding:6px;border:1px solid #e4e7ec;border-radius:12px;background:#fff;box-shadow:0 10px 24px rgba(15,23,42,.10);max-height:min(46vh,320px);overflow-y:auto}
+      .v-dd-list[hidden]{display:none}
+      .v-dd-option{display:flex;align-items:center;justify-content:space-between;gap:10px;min-height:44px;padding:0 12px;border:0;border-radius:9px;background:transparent;color:#263442;font-family:inherit;font-size:15px;font-weight:800;text-align:left;cursor:pointer}
+      .v-dd-option i{visibility:hidden;flex:0 0 auto;color:var(--primary-readable,var(--primary,#d93025));font-size:13px}
+      .v-dd-option[aria-selected="true"]{background:rgba(var(--primary-rgb,217,48,37),.08);color:#101828}
+      .v-dd-option[aria-selected="true"] i{visibility:visible}
+      .v-dd-option:focus-visible{outline:2px solid rgba(var(--primary-rgb,217,48,37),.45);outline-offset:-2px}
     }
 
     /* ==========================================================
@@ -1249,6 +1294,13 @@
   let workDepartmentId = "";
   let activeWorkBoardId = '';
   let activeMobileStageId = '';
+  // On a phone Stages opens on the first stage that has projects until the person picks one.
+  let mobileStageChosen = false;
+  // On a phone the List folds stages (or boards) with no projects into one line; this is whether it is open.
+  let listEmptyGroupsOpen = false;
+  // The phone's Manage view sheet (see mount): whether it is open, and closing it.
+  let manageSheet = null;
+  let manageSheetDismissBound = false;
   let workBoardsLoaded = false;
   let workBoardsPromise = null;
   let manualStageDragPayload = null;
@@ -4982,6 +5034,19 @@
     if (!name || nameIsAddress(name, line1, displayAddressLine2(p))) return line1 || name || String(p.address || '');
     return name;
   }
+  // A phone (the same 820px breakpoint as the CSS): List and Tiles are rendered for it.
+  function isPhoneLayout(){
+    try { return window.matchMedia('(max-width: 820px)').matches; } catch (error) { return false; }
+  }
+  // On a phone every view names a project the same way (as the map, its tray and the
+  // Stages cards do): the project's name, then its address on the line beneath.
+  function projectNameLines(p){
+    const line1 = displayAddressLine1(p) === '—' ? '' : displayAddressLine1(p);
+    const line2 = displayAddressLine2(p);
+    const title = projectCameraTitle(p);
+    const namedByAddress = !title || title === line1 || nameIsAddress(title, line1, line2);
+    return { title:title || line1, address:namedByAddress ? line2 : [line1, line2].filter(Boolean).join(', '), namedByAddress };
+  }
   function openProjectCamera(projectId){
     const id = String(projectId || '');
     const known = lastProjectsById.get(id) || allProjects.find((item) => String(item?.id || '') === id);
@@ -5009,6 +5074,7 @@
     if (current && !current.startsWith('data:') && img.complete && img.naturalWidth > 0) return;
     img.src = url;
     img.style.display = '';
+    tile.classList.remove('v-tile-compact');
     tile.querySelector('.v-thumb')?.classList.remove('loading');
   }
   function bindProjectCamera(panel){
@@ -5271,6 +5337,7 @@
     if (!projectBoardsEnabled()) return false;
     const value = String(boardId || '').trim();
     if (!(value === 'all' && workBoardPickerOffered() && (viewMode === 'list' || viewMode === 'map')) && !projectBoards().some((board) => String(board?.id || '') === value)) return false;
+    if (activeWorkBoardId !== value) mobileStageChosen = false;
     activeWorkBoardId = value;
     listGrouping = value === 'all' ? 'board' : 'stage';
     syncProjectColumnChoices();
@@ -5385,10 +5452,15 @@
     const switcher = $('#vMobileStageSwitcher', panelEl);
     if (!switcher || !board) return;
     const available = columns.filter((column) => String(column?.id || ''));
-    if (!available.some((column) => String(column.id) === activeMobileStageId)) activeMobileStageId = String(available[0]?.id || '');
+    const current = available.find((column) => String(column.id) === activeMobileStageId);
+    // Until the person picks a stage, the phone shows the first stage that has projects.
+    if (!current || (!mobileStageChosen && !current.items?.length)) {
+      activeMobileStageId = String((available.find((column) => column.items?.length) || available[0])?.id || '');
+    }
     const signature = JSON.stringify(available.map((column) => [String(column.id), column.title || '', column.color || '', column.items?.length || 0]));
-    const applySelection = (stageId, { focus = false } = {}) => {
+    const applySelection = (stageId, { focus = false, chosen = false } = {}) => {
       activeMobileStageId = String(stageId || '');
+      if (chosen) mobileStageChosen = true;
       board.querySelectorAll(':scope > .v-stage-col').forEach((column) => {
         column.classList.toggle('is-mobile-active', String(column.dataset.stage || '') === activeMobileStageId);
       });
@@ -5397,6 +5469,11 @@
         option.setAttribute('aria-selected', String(active));
         option.tabIndex = active ? 0 : -1;
         if (active && focus) option.focus();
+        // Keep the chosen chip in sight when the view opens on a later stage.
+        if (active && !focus && switcher.scrollWidth > switcher.clientWidth) {
+          const bar = switcher.getBoundingClientRect(), chip = option.getBoundingClientRect();
+          if (chip.left < bar.left || chip.right > bar.right) switcher.scrollLeft += chip.left - bar.left - 8;
+        }
       });
     };
     if (switcher.__stageSignature !== signature) {
@@ -5407,7 +5484,7 @@
       }).join('');
       switcher.__stageSignature = signature;
       switcher.querySelectorAll('.v-mobile-stage-option').forEach((option) => {
-        option.addEventListener('click', () => applySelection(option.dataset.stage));
+        option.addEventListener('click', () => applySelection(option.dataset.stage, { chosen:true }));
         option.addEventListener('keydown', (event) => {
           if (!["ArrowLeft", "ArrowRight", "Home", "End"].includes(event.key)) return;
           const options = Array.from(switcher.querySelectorAll('.v-mobile-stage-option'));
@@ -5416,7 +5493,7 @@
             : event.key === "End" ? options.length - 1
               : (current + (event.key === "ArrowRight" ? 1 : -1) + options.length) % options.length;
           event.preventDefault();
-          applySelection(options[next]?.dataset.stage, { focus:true });
+          applySelection(options[next]?.dataset.stage, { focus:true, chosen:true });
         });
       });
     }
@@ -5840,6 +5917,70 @@
     hideDrafts = true;
   }
   function renderManageViewPanel(){
+    renderManageViewPanelContent();
+    const panel=$('#vManageViewPanel',panelEl);
+    if (panel && panel.innerHTML && isPhoneLayout()) enhanceManageViewSheet(panel);
+  }
+  // On a phone Manage view is a bottom sheet: a close button, and each choice is our own
+  // dropdown (a button that opens its options in the sheet) in place of a native select.
+  // The select stays in the sheet, hidden, and a choice sets it and sends its change event,
+  // so the sheet's existing change handling does the work.
+  function enhanceManageViewSheet(panel){
+    const closeLabel = (globalThis.PlatformLanguage?.htmlText("projects","projects_manage_view_close","Close") ?? "Close");
+    panel.querySelector('.v-manage-title')?.insertAdjacentHTML('beforeend', `<button type="button" class="v-manage-close" data-v-manage-close aria-label="${closeLabel}"><i class="fas fa-xmark" aria-hidden="true"></i></button>`);
+    panel.querySelectorAll('select').forEach((select, index) => {
+      if (select.dataset.vDropdown) return;
+      select.dataset.vDropdown = 'native';
+      select.classList.add('v-dd-native');
+      select.tabIndex = -1;
+      select.setAttribute('aria-hidden', 'true');
+      const listId = `vManageDropdown${index}`;
+      const label = select.getAttribute('aria-label') || select.closest('label')?.firstChild?.textContent?.trim() || '';
+      const options = Array.from(select.options);
+      const current = options.find((option) => option.selected) || options[0];
+      const wrap = document.createElement('div');
+      wrap.className = 'v-dd';
+      wrap.innerHTML = `<button type="button" class="v-dd-trigger" aria-haspopup="listbox" aria-expanded="false" aria-controls="${listId}"${label ? ` aria-label="${escapeHtml(label)}: ${escapeHtml(current?.textContent || '')}"` : ''}><span class="v-dd-value">${escapeHtml(current?.textContent || '')}</span><i class="fas fa-chevron-down" aria-hidden="true"></i></button><div class="v-dd-list" id="${listId}" role="listbox"${label ? ` aria-label="${escapeHtml(label)}"` : ''} hidden>${options.map((option) => `<button type="button" class="v-dd-option" role="option" data-value="${escapeHtml(option.value)}" aria-selected="${option === current}"><span>${escapeHtml(option.textContent || '')}</span><i class="fas fa-check" aria-hidden="true"></i></button>`).join('')}</div>`;
+      select.insertAdjacentElement('afterend', wrap);
+      const trigger = wrap.querySelector('.v-dd-trigger');
+      const list = wrap.querySelector('.v-dd-list');
+      const setOpen = (open) => {
+        list.hidden = !open;
+        trigger.setAttribute('aria-expanded', String(open));
+        if (open) (list.querySelector('[aria-selected="true"]') || list.querySelector('.v-dd-option'))?.focus();
+      };
+      trigger.addEventListener('click', (event) => {
+        event.stopPropagation();
+        // One open at a time.
+        panel.querySelectorAll('.v-dd-trigger[aria-expanded="true"]').forEach((other) => { if (other !== trigger) { other.setAttribute('aria-expanded', 'false'); other.nextElementSibling.hidden = true; } });
+        setOpen(list.hidden);
+      });
+      list.addEventListener('click', (event) => {
+        const option = event.target.closest('.v-dd-option');
+        if (!option) return;
+        // The change re-renders the sheet; the click must not reach the outside-click close.
+        event.stopPropagation();
+        setOpen(false);
+        if (select.value === option.dataset.value) { trigger.focus(); return; }
+        select.value = option.dataset.value;
+        select.dispatchEvent(new Event('change', { bubbles:true }));
+        panel.querySelector(`.v-dd-trigger[aria-controls="${listId}"]`)?.focus();
+      });
+      list.addEventListener('keydown', (event) => {
+        const items = Array.from(list.querySelectorAll('.v-dd-option'));
+        const at = items.indexOf(document.activeElement);
+        if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
+          event.preventDefault();
+          items[(at + (event.key === 'ArrowDown' ? 1 : -1) + items.length) % items.length]?.focus();
+        } else if (event.key === 'Escape') {
+          event.stopPropagation();
+          setOpen(false);
+          trigger.focus();
+        }
+      });
+    });
+  }
+  function renderManageViewPanelContent(){
     const panel=$('#vManageViewPanel',panelEl);
     if (!panel) return;
     if (!projectBoardsEnabled()) { panel.hidden = true; panel.innerHTML = ''; return; }
@@ -5909,7 +6050,11 @@
       else button.removeAttribute('data-fm-tooltip');
     });
   }
-  compactQuery?.addEventListener?.('change', () => syncCompactTooltips());
+  compactQuery?.addEventListener?.('change', () => {
+    syncCompactTooltips();
+    // List and Tiles are rendered for a phone or a desktop; crossing the breakpoint redraws them.
+    if (panelEl && (viewMode === 'list' || viewMode === 'tiles')) renderResults();
+  });
   function setView(mode, options = {}){
     const previousMode = viewMode;
     if (!options.followDefault) { viewModeChosen = true; if (VIEW_MODES.has(mode)) chosenViewMode = mode; }
@@ -6037,12 +6182,22 @@
     const typeBadge = (tm !== PROJECT_TYPE_META.residential) ? `<div class="v-type-badge ${tm.cls}${deliveryBadge ? '' : ' no-delivery'}"><i class="fas ${tm.icon}"></i> ${escapeHtml(tm.short)}</div>` : '';
     const statusBadge = s ? `<div class="v-badge ${s.cls}">${statusBadgeContent(s)}</div>` : '';
     const contact = resolveResidentFields(p);
-    div.innerHTML = `<div class="v-thumb${String((!hasThumbnail && isProcessing) ? ' loading' : '')}"><img src="${String(escapeHtml(thumbSrc))}" loading="lazy" alt="">${String(typeBadge)}${String(deliveryBadge)}${String(gutterThumbBadgeHtml(p))}${String(statusBadge)}</div><div class="v-body"><div class="v-addr">${String(displayAddress(p))}</div><div class="v-meta"><i class="fas fa-user"></i> ${String(escapeHtml(contact.displayName || contact.name || (globalThis.PlatformLanguage?.text('projects','fm_contact_unavailable','Not provided') ?? 'Not provided')))}</div><div class="v-foot"><span>${String(escapeHtml(formatDate(p.created_at)))}</span><span class="v-card-end">${cameraButtonHtml(id)}<span class="cta">${(globalThis.PlatformLanguage?.htmlText("projects","m_589c6431619da0","View ") ?? "View ")}<i class="fas fa-chevron-right"></i></span></span></div></div>`;
+    // A phone: a project with no picture is a compact card (its badges in a row, no empty image area),
+    // and the card is named like every other view: the project's name, its address beneath.
+    const phone = isPhoneLayout();
+    if (phone && !thumbnailCandidates.length) div.classList.add('v-tile-compact');
+    const named = phone ? projectNameLines(p) : null;
+    const contactName = contact.displayName || contact.name || '';
+    const addressHtml = named ? `<div>${escapeHtml(named.title || '—')}</div>${named.address ? `<div class="l2">${escapeHtml(named.address)}</div>` : ''}` : displayAddress(p);
+    const contactHtml = named && contactName && contactName === named.title ? '' : `<div class="v-meta"><i class="fas fa-user"></i> ${String(escapeHtml(contactName || (globalThis.PlatformLanguage?.text('projects','fm_contact_unavailable','Not provided') ?? 'Not provided')))}</div>`;
+    div.innerHTML = `<div class="v-thumb${String((!hasThumbnail && isProcessing) ? ' loading' : '')}"><img src="${String(escapeHtml(thumbSrc))}" loading="lazy" alt="">${String(typeBadge)}${String(deliveryBadge)}${String(gutterThumbBadgeHtml(p))}${String(statusBadge)}</div><div class="v-body"><div class="v-addr">${String(addressHtml)}</div>${contactHtml}<div class="v-foot"><span>${String(escapeHtml(formatDate(p.created_at)))}</span><span class="v-card-end">${cameraButtonHtml(id)}<span class="cta">${(globalThis.PlatformLanguage?.htmlText("projects","m_589c6431619da0","View ") ?? "View ")}<i class="fas fa-chevron-right"></i></span></span></div></div>`;
     div.querySelector('.v-body')?.insertAdjacentHTML('beforeend', projectSharingView()?.badge(p) || '');
     div.addEventListener('click', ()=>openModal(lastProjectsById.get(id) || p));
 
     const img = div.querySelector('.v-thumb img');
     const thumb = div.querySelector('.v-thumb');
+    // A phone card whose picture candidates all fail becomes compact; a picture that loads later opens it again.
+    if (phone && img) img.addEventListener('load', () => { if (!String(img.currentSrc || img.src || '').startsWith('data:')) div.classList.remove('v-tile-compact'); });
 
     /* Thumbnail polling: check availability without downloading image bodies. */
     if (img && thumb) {
@@ -6082,6 +6237,7 @@
             img.src = thumbnailCandidates[activeCandidateIndex];
             return;
           }
+          if (phone) div.classList.add('v-tile-compact');
           startPolling();
         });
       }
@@ -6099,10 +6255,15 @@
     const expediteTag = projectIsExpedited(p) ? `<span class="v-meta-tag v-meta-tag-expedite"><i class="fas fa-bolt"></i>${(globalThis.PlatformLanguage?.htmlText("projects","m_54ba2332f79022"," Expedited") ?? " Expedited")}</span>` : '';
     const rowTags = `${groupedByStage ? '' : stageChipsHtml(p)}${instantMetaTagHtml(p)}${expediteTag}${projectIncludesGutters(p) ? `<span class="v-meta-tag v-meta-tag-addon" data-role="gutter-meta-row"><i class="fas fa-water"></i>${(globalThis.PlatformLanguage?.htmlText("projects","m_7aebd8c2405a7e"," Roof + Gutters") ?? " Roof + Gutters")}</span>` : ''}`;
     const reportStatus = statusBadgeClasses(p);
+    // A phone names the row as every other view does: the project's name, its address beneath.
+    // The desktop table keeps its Address and Primary contact columns.
+    const named = isPhoneLayout() ? projectNameLines(p) : null;
+    const nameLine = named ? named.title : a1, addressLine = named ? named.address : a2;
+    const residentShown = !!resident.name && !(named && resident.name === named.title);
     const cells={
       status:`<div class="v-lcell" data-col="status"${reportStatus ? '' : ' data-empty'}>${reportStatus ? `<span class="v-statuspill ${reportStatus.pill}">${statusBadgeContent(reportStatus, true)}</span>` : '&mdash;'}</div>`,
-      address:`<div class="v-lcell" data-col="address" style="min-width:0;"><div class="v-laddr"><div class="v-laddr1">${escapeHtml(a1)}</div><div class="v-laddr2">${escapeHtml(a2)}</div>${rowTags ? `<div class="v-meta-tags">${rowTags}</div>` : ''}</div></div>`,
-      resident:`<div class="v-lcell" data-col="resident" style="min-width:0;"${resident.name ? '' : ' data-empty'}><div style="font-weight:1000; font-size:13px; line-height:1.2;">${escapeHtml(resident.name || '\u2014')}</div></div>`
+      address:`<div class="v-lcell" data-col="address" style="min-width:0;"><div class="v-laddr"><div class="v-laddr1">${escapeHtml(nameLine)}</div><div class="v-laddr2">${escapeHtml(addressLine)}</div>${rowTags ? `<div class="v-meta-tags">${rowTags}</div>` : ''}</div></div>`,
+      resident:`<div class="v-lcell" data-col="resident" style="min-width:0;"${residentShown ? '' : ' data-empty'}><div style="font-weight:1000; font-size:13px; line-height:1.2;">${escapeHtml(resident.name || '\u2014')}</div></div>`
     };
     row.innerHTML=availableProjectColumns().filter((column)=>listVisibleColumns.has(column.key)).map((column)=>{
       if (cells[column.key]) return cells[column.key];
@@ -6159,7 +6320,32 @@
     });
     for (const project of visibleItems) rows.appendChild(createListRow(project, !!dropStageId, kind === 'stage'));
     if (dropStageId && !String(dropStageId).startsWith('__no_')) bindStageColumnDrop(group, dropStageId);
+    if (!visibleItems.length) group.dataset.empty = '';
     scroll.appendChild(group);
+  }
+  // A phone lists the stages (or boards) that have projects first; the empty ones fold
+  // into one line at the end that opens to show them.
+  function foldEmptyListGroups(scroll, kind){
+    if (!isPhoneLayout()) return;
+    const groups = Array.from(scroll.querySelectorAll(':scope > .v-list-group'));
+    const empty = groups.filter((group) => group.hasAttribute('data-empty'));
+    if (!empty.length || empty.length === groups.length) return;
+    const fold = document.createElement('section');
+    fold.className = 'v-list-empty-groups';
+    const label = kind === 'board'
+      ? (globalThis.PlatformLanguage?.text("projects","projects_list_empty_boards","Empty boards") ?? "Empty boards")
+      : (globalThis.PlatformLanguage?.text("projects","projects_list_empty_stages","Empty stages") ?? "Empty stages");
+    const names = empty.map((group) => group.querySelector('.v-list-group-header > span')?.textContent || '').filter(Boolean).join(' · ');
+    fold.innerHTML = `<button type="button" class="v-list-empty-toggle" aria-expanded="${listEmptyGroupsOpen}" aria-controls="vListEmptyGroups"><i class="fas fa-chevron-down" aria-hidden="true"></i><span class="v-list-empty-label">${escapeHtml(label)}</span><span class="v-list-empty-names">${escapeHtml(names)}</span><span class="v-list-group-count">${empty.length}</span></button><div class="v-list-empty-body" id="vListEmptyGroups" ${listEmptyGroupsOpen ? '' : 'hidden'}></div>`;
+    const body = fold.querySelector('.v-list-empty-body');
+    empty.forEach((group) => body.appendChild(group));
+    const toggle = fold.querySelector('.v-list-empty-toggle');
+    toggle.addEventListener('click', () => {
+      listEmptyGroupsOpen = toggle.getAttribute('aria-expanded') !== 'true';
+      toggle.setAttribute('aria-expanded', String(listEmptyGroupsOpen));
+      body.hidden = !listEmptyGroupsOpen;
+    });
+    scroll.appendChild(fold);
   }
   function renderGroupedList(){
     const scroll = $('#vListScroll', panelEl);
@@ -6200,11 +6386,27 @@
         const unassigned = filteredProjects.filter((project) => !assigned.has(String(project.id)));
         if (unassigned.length) appendListGroup(scroll, { id:'unassigned', title:(globalThis.PlatformLanguage?.text("projects","m_0c8087b7a76bdd","No board") ?? "No board"), color:'#667085', items:unassigned, kind:'board' }, order);
       }
+      foldEmptyListGroups(scroll, 'board');
       return;
     }
     for (const column of selectedBoardColumns(selected)) {
       appendListGroup(scroll, { ...column, kind:'stage', dropStageId:column.id }, order);
     }
+    foldEmptyListGroups(scroll, 'stage');
+  }
+  // A project in a catch-all column (No board, No stage) keeps the colour of a stage it
+  // is in when one can be found: its work instance's stage, or a board stage with its
+  // stage id. With neither it stays grey, as the List and Stages show it.
+  function projectOwnStageColor(p){
+    const instance = primaryProjectInstance(p);
+    const instanceColor = instance ? firstNonEmptyString(instance.stage_color, instance.color) : '';
+    if (instanceColor) return instanceColor;
+    const stageId = String(p?.stage_id || p?.stage || '').trim();
+    if (!stageId || stageId.startsWith('__')) return '';
+    for (const board of projectBoards()) for (const column of board.columns || []) {
+      if (String(column.id) === stageId && column.color) return column.color;
+    }
+    return '';
   }
   // The map draws the same projects the list would: the selected board's stages
   // (coloured by stage), every board (coloured by board), or derived stages when
@@ -6255,7 +6457,7 @@
         point:projectThumbnailPoint(p) || projectThumbnailPoint(entry.project),
         groupId:String(entry.group.id),
         groupTitle:entry.group.title || '',
-        color:entry.group.color || '#667085',
+        color:(String(entry.group.id || '').startsWith('__no_') && projectOwnStageColor(p)) || entry.group.color || '#667085',
         project:p
       };
     });
@@ -7867,13 +8069,49 @@
     const manageWrap=$('#vManageViewWrap',panelEl);
     const manageButton=$('#vManageView',panelEl);
     const managePanel=$('#vManageViewPanel',panelEl);
-    const closeManage=()=>{ managePanel.hidden=true; manageButton.setAttribute('aria-expanded','false'); };
+    // On a phone the panel is a bottom sheet in the top layer (a popover), above the
+    // portal's bars, with a dimmed backdrop; a tap on the backdrop closes it.
+    const sheetOpen=()=>{ try { return managePanel.matches(':popover-open'); } catch(error) { return false; } };
+    const closeManage=()=>{
+      if (sheetOpen()) { try { managePanel.hidePopover(); } catch(error) {} }
+      managePanel.removeAttribute('popover');
+      managePanel.hidden=true;
+      manageButton.setAttribute('aria-expanded','false');
+    };
     manageButton.addEventListener('click',()=>{
       const opening=managePanel.hidden;
-      managePanel.hidden=!opening;
-      manageButton.setAttribute('aria-expanded',String(opening));
-      if (opening) renderManageViewPanel();
+      if (!opening) { closeManage(); return; }
+      managePanel.hidden=false;
+      manageButton.setAttribute('aria-expanded','true');
+      renderManageViewPanel();
+      if (isPhoneLayout() && typeof managePanel.showPopover === 'function') {
+        managePanel.setAttribute('popover','manual');
+        try { managePanel.showPopover(); } catch(error) { managePanel.removeAttribute('popover'); }
+        managePanel.querySelector('.v-dd-trigger, button, select, input')?.focus({ preventScroll:true });
+      }
     });
+    managePanel.addEventListener('click',(event)=>{
+      if (event.target.closest('[data-v-manage-close]')) { closeManage(); manageButton.focus({ preventScroll:true }); }
+    });
+    // A popover's backdrop lets taps through, so a tap outside the sheet closes it and
+    // its click is swallowed before it reaches the card, row or map underneath.
+    manageSheet = { open:sheetOpen, panel:managePanel, close:closeManage };
+    if (!manageSheetDismissBound) {
+      manageSheetDismissBound = true;
+      let swallowClick = false;
+      document.addEventListener('pointerdown',(event)=>{
+        if (!manageSheet?.open() || manageSheet.panel.contains(event.target)) return;
+        manageSheet.close();
+        swallowClick = true;
+        setTimeout(()=>{ swallowClick = false; }, 450);
+      }, true);
+      document.addEventListener('click',(event)=>{
+        if (!swallowClick) return;
+        swallowClick = false;
+        event.preventDefault();
+        event.stopPropagation();
+      }, true);
+    }
     document.addEventListener('click',(event)=>{ if (!manageWrap.contains(event.target)) closeManage(); });
     managePanel.addEventListener('keydown',(event)=>{ if (event.key==="Escape"){ closeManage(); manageButton.focus(); } });
     managePanel.addEventListener('change',(event)=>{

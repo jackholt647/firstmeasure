@@ -326,6 +326,12 @@
         .cpo-link-actions .cpo-btn{padding:0 8px}
         .cpo-seg button{padding:0 8px}
       }
+      /* Phones: every control in the tab is a full 40px touch target. */
+      @media (max-width: 760px){
+        .cpo-btn,.cpo-btn.quiet,.cpo-head-action,.cpo-selbar .cpo-btn,.cpo-link-field{height:40px}
+        .cpo-btn.icon{width:40px}
+        .cpo-seg button{height:38px}
+      }
       @keyframes cpoIn{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
       @keyframes cpoPop{from{opacity:0;transform:scale(.6)}to{opacity:1;transform:none}}
       @keyframes cpoSpin{to{transform:rotate(360deg)}}
@@ -333,10 +339,10 @@
       /* Preview sheet (phones): the customer's portal preview, full screen, above the project window (z-index 2147483200). */
       .cpo-pv{position:fixed;inset:0;z-index:2147483400;display:flex;flex-direction:column;background:#fff;color:#101828;opacity:0;transform:translateY(32px);transition:opacity .2s ease,transform .3s cubic-bezier(.22,1,.36,1)}
       .cpo-pv.is-open{opacity:1;transform:none}
-      .cpo-pv-head{flex:0 0 auto;display:flex;align-items:center;gap:10px;padding:calc(6px + env(safe-area-inset-top,0px)) 6px 6px 16px;border-bottom:1px solid #eaecf0;background:#fff}
-      .cpo-pv-head strong{flex:1 1 auto;min-width:0;display:flex;align-items:center;gap:9px;font-size:15px;font-weight:1000;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+      .cpo-pv-head{flex:0 0 auto;display:flex;align-items:center;gap:8px;padding:calc(4px + env(safe-area-inset-top,0px)) 4px 4px 14px;border-bottom:1px solid #eaecf0;background:#fff}
+      .cpo-pv-head strong{flex:1 1 auto;min-width:0;display:flex;align-items:center;gap:8px;font-size:14px;font-weight:1000;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
       .cpo-pv-head strong i{color:var(--primary-readable,var(--primary,#d93025))}
-      .cpo-pv-close{flex:0 0 auto;width:44px;height:44px;border:0;border-radius:12px;background:#f2f4f7;color:#344054;font-size:18px;display:flex;align-items:center;justify-content:center;cursor:pointer;transition:background .16s ease,transform .16s ease}
+      .cpo-pv-close{flex:0 0 auto;width:40px;height:40px;border:0;border-radius:10px;background:#f2f4f7;color:#344054;font-size:18px;display:flex;align-items:center;justify-content:center;cursor:pointer;transition:background .16s ease,transform .16s ease}
       .cpo-pv-close:active{transform:scale(.94)}
       .cpo-pv-close:focus-visible{outline:none;box-shadow:0 0 0 4px rgba(var(--primary-rgb,217,48,37),.16)}
       .cpo-pv-body{flex:1 1 auto;min-height:0;position:relative;background:#f8fafc}
@@ -811,13 +817,36 @@
       : L('cpo_tip_tile_hidden', '{label}\nHidden from the customer. Click to select it.', { label });
   }
 
+  // A library photo can arrive as a stored media reference with no src or thumb (the satellite photo
+  // from ensureSatelliteMedia is one): its file address is built from its media id, as
+  // PlatformAPI.projectMedia.normalizePhoto does, so the tile never sits on the grey fallback.
+  function mediaFileUrl(photo, variant){
+    const id = firstText(photo?.media_id, photo?.mediaId);
+    const oid = orgId();
+    const media = window.PlatformAPI?.media;
+    if (!id || !oid || !media) return '';
+    if (typeof media.fileUrl === 'function') return String(media.fileUrl(oid, id, variant) || '');
+    if (/^thumb_\d+$/.test(variant) && typeof media.thumbnailUrl === 'function') return String(media.thumbnailUrl(oid, id, parseInt(variant.slice(6), 10)) || '');
+    return '';
+  }
+
+  function tileSources(photo = {}){
+    const metadata = photo?.metadata && typeof photo.metadata === 'object' ? photo.metadata : {};
+    const original = firstText(photo?.src, photo?.url, mediaFileUrl(photo, firstText(photo?.variant, 'original')));
+    // A video's poster is built only when the reference names one; otherwise the video itself is the tile.
+    const variant = firstText(metadata.thumbnail_variant, isVideo(photo) ? '' : 'thumb_320');
+    const thumb = firstText(photo?.thumb, photo?.thumbnail, variant ? mediaFileUrl(photo, variant) : '');
+    return { thumb, original: original || thumb };
+  }
+
   function mediaTileHtml(photo, shared, pending, cover = false){
     const id = photoId(photo);
     const label = firstText(photo?.label, photo?.alt, L('cpo_media_untitled', 'Project media'));
     const video = isVideo(photo);
-    const imageSrc = String(photo?.thumb || photo?.src || '').trim();
-    const videoThumbSrc = String(photo?.thumb || '').trim();
-    const originalSrc = String(photo?.src || photo?.thumb || '').trim();
+    const sources = tileSources(photo);
+    const imageSrc = sources.thumb || sources.original;
+    const videoThumbSrc = sources.thumb;
+    const originalSrc = sources.original;
     let media = '';
     if (video) {
       if (videoThumbSrc) media = `<img src="${esc(videoThumbSrc)}" alt="" loading="lazy" decoding="async" data-cp-thumb-img data-cp-base-src="${esc(videoThumbSrc)}" data-cp-original-src="${esc(originalSrc)}" data-cp-media-kind="video">`;
@@ -959,7 +988,7 @@
 
   // Which tiles exist; shared state is synced in place so it can animate.
   function mediaSignature(){
-    return [`cover|${coverMediaId()}`, ...libraryMedia().map((photo) => `${photoId(photo)}|${photo?.thumb || photo?.src || ''}`)].join('\n');
+    return [`cover|${coverMediaId()}`, ...libraryMedia().map((photo) => { const sources = tileSources(photo); return `${photoId(photo)}|${sources.thumb || sources.original}`; })].join('\n');
   }
 
   function skeletonHtml(){

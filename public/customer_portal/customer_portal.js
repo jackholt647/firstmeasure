@@ -366,7 +366,7 @@
     const activeIndex = Math.max(0, bundles.findIndex((bundle) => cleanText(bundle.project?.id) === state.activeProjectId));
     const active = bundles[activeIndex] || bundles[0];
     const label = projectTabLabel(active, activeIndex, bundles);
-    const address = cleanText(active.project?.address);
+    const address = sameText(active.project?.address, label) ? '' : cleanText(active.project?.address);
     if (bundles.length === 1) {
       return `
         <div class="cp-project-id">
@@ -395,7 +395,7 @@
                 <li role="option" aria-selected="${isActive ? 'true' : 'false'}">
                   <button type="button" class="${isActive ? 'active' : ''}" data-project-tab="${escapeHtml(projectId)}">
                     <strong>${escapeHtml(projectTabLabel(bundle, index, bundles))}</strong>
-                    ${cleanText(bundle.project?.address) ? `<span>${escapeHtml(cleanText(bundle.project?.address))}</span>` : ''}
+                    ${cleanText(bundle.project?.address) && !sameText(bundle.project?.address, projectTabLabel(bundle, index, bundles)) ? `<span>${escapeHtml(cleanText(bundle.project?.address))}</span>` : ''}
                     ${isActive ? '<i class="fa-solid fa-check" aria-hidden="true"></i>' : ''}
                   </button>
                 </li>
@@ -1793,17 +1793,23 @@
   }
   function isGenericCustomerName(value){
     const text = cleanText(value).toLowerCase();
-    if (text === 'customer' || text === 'project' || text === 'new project') return true;
+    // "Customer Portal" is the server's stand-in name for a project with no contact and no title of its own
+    // (platform/api.ts portalDisplayName); it names nothing.
+    if (text === 'customer' || text === 'project' || text === 'new project' || text === 'customer portal') return true;
     if (/^project[_-][a-z0-9_-]{6,}$/i.test(text)) return true;
     if (/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(text)) return true;
     return false;
   }
+  // The first real name, or '' when there is none: a contact without a name is not called "Customer Portal".
   function firstDisplayName(...values){
     for (const value of values) {
       const text = cleanText(value);
       if (text && !isGenericCustomerName(text)) return text;
     }
-    return 'Customer Portal';
+    return '';
+  }
+  function sameText(a, b){
+    return !!cleanText(a) && cleanText(a).toLowerCase() === cleanText(b).toLowerCase();
   }
   function projectCustomer(payload = activeProjectPayload()){
     const project = payload?.project || {};
@@ -3159,7 +3165,7 @@
       <section class="cp-project-summary">
         <div>
           <h1 class="cp-title">${escapeHtml(displayName)}</h1>
-          ${address ? `<div class="cp-address">${escapeHtml(address)}</div>` : ''}
+          ${address && !sameText(address, displayName) ? `<div class="cp-address">${escapeHtml(address)}</div>` : ''}
         </div>
         ${contactRows ? `<aside class="cp-customer-card">${contactRows}</aside>` : ''}
       </section>
@@ -3386,8 +3392,8 @@
     const media = Array.isArray(payload.media) ? payload.media : [];
     const appointment = portalAppointment(payload);
     const customerName = isGenericCustomerName(customer.name) ? '' : cleanText(customer.name);
-    const displayName = firstDisplayName(project.project_title, project.title, project.display_name, project.name, 'Project');
     const address = cleanText(project.address);
+    const displayName = firstDisplayName(project.project_title, project.title, project.display_name, project.name) || address || (globalThis.PlatformLanguage?.text("customer-portal","m_aaebd7ccba0b30","Project") ?? "Project");
     const orgName = cleanText(org.name || 'Company');
     const email = cleanText(customer.email);
     const phone = formatPhone(customer.phone);
@@ -3449,7 +3455,7 @@
       `;
     })();
     mount.innerHTML = `${!guestAccess && (state.payload?.notifications||[]).length ? `<section class="cp-card" aria-label="Notifications">${state.payload.notifications.map(n=>`<article><strong>${escapeHtml(n.title)}</strong><p>${escapeHtml(n.body)}</p></article>`).join('')}</section>` : ''}
-      ${isPreviewMode() ? `<div class="cp-preview-banner" role="status">${(globalThis.PlatformLanguage?.htmlText("customer-portal","preview_banner_read_only","Preview: what your customer sees. Nothing can be signed, accepted or paid here.") ?? "Preview: what your customer sees. Nothing can be signed, accepted or paid here.")}</div>` : ''}
+      ${isPreviewMode() ? `<div class="cp-preview-banner" role="status"><span class="cp-preview-banner-full">${(globalThis.PlatformLanguage?.htmlText("customer-portal","preview_banner_read_only","Preview: what your customer sees. Nothing can be signed, accepted or paid here.") ?? "Preview: what your customer sees. Nothing can be signed, accepted or paid here.")}</span><span class="cp-preview-banner-short">${(globalThis.PlatformLanguage?.htmlText("customer-portal","preview_banner_read_only_short","Preview: nothing can be signed, accepted or paid") ?? "Preview: nothing can be signed, accepted or paid")}</span></div>` : ''}
       ${guestAccess ? `<div class="cp-guest-banner"><i class="fa-solid fa-eye" aria-hidden="true"></i><span><strong>${(globalThis.PlatformLanguage?.htmlText("customer-portal","m_7090eed673e7f9","Shared read-only view") ?? "Shared read-only view")}</strong>${state.payload?.access?.label ? ` for ${escapeHtml(state.payload.access.label)}` : ''}</span></div>` : ''}
       <header class="cp-header">
         <div class="cp-header-inner">
@@ -3460,7 +3466,7 @@
               <span>${(globalThis.PlatformLanguage?.htmlText("customer-portal","m_46ba04ea07c935","Customer portal") ?? "Customer portal")}</span>
             </div>
           </div>
-          <div class="cp-header-actions">
+          <div class="cp-header-actions${projectBundles(payload).length === 1 ? ' cp-single-project' : ''}">
             ${projectSwitcherHtml(payload)}
           </div>
         </div>

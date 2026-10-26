@@ -13,7 +13,7 @@ const PREVIEW='https://portal.test/p/preview/prev-456';
 
 const PHONE_UA='Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1';
 
-async function setup(browser,{width=1280,height=860,reducedMotion='no-preference',photos=3,activity=true,draft=false,runtime=false,caps=['scheduling.customer_rescheduling','customer_portal.guest_links'],cover='',satellite=false,topDownInList=false,savedSatellite=false,serverSatellite=false,phone=false}={}){
+async function setup(browser,{width=1280,height=860,reducedMotion='no-preference',photos=3,activity=true,draft=false,runtime=false,caps=['scheduling.customer_rescheduling','customer_portal.guest_links'],cover='',satellite=false,topDownInList=false,savedSatellite=false,serverSatellite=false,rawSatellite=false,phone=false}={}){
   const page=await browser.newPage({viewport:{width,height},reducedMotion,...(phone?{userAgent:PHONE_UA,isMobile:true,hasTouch:true}:{})});
   // The portal preview page, for the phone preview frame and the desktop new tab.
   await page.context().route('https://portal.test/**',route=>route.fulfill({contentType:'text/html; charset=utf-8',body:'<!doctype html><html><body><h1>Customer portal preview page</h1></body></html>'}));
@@ -27,7 +27,7 @@ async function setup(browser,{width=1280,height=860,reducedMotion='no-preference
     return route.fulfill({contentType:'text/html; charset=utf-8',body:'<!doctype html><html><head><meta name="viewport" content="width=device-width, initial-scale=1"></head><body style="margin:0;font-family:Arial"><div id="stage" style="height:100vh"><div id="panel" style="height:100%"></div></div></body></html>'});
   });
   await page.goto('http://cp.test/');
-  await page.evaluate(({LIVE,PREVIEW,photos,activity,draft,caps,cover,satellite,topDownInList,savedSatellite,serverSatellite})=>{
+  await page.evaluate(({LIVE,PREVIEW,photos,activity,draft,caps,cover,satellite,topDownInList,savedSatellite,serverSatellite,rawSatellite})=>{
     const now=Date.now();
     window.calls=[];window.toasts=[];
     window.Portal={util:{},ui:{showToast:(...args)=>toasts.push(args)},modules:{},capabilities:{can:key=>caps.includes(key)}};
@@ -66,9 +66,11 @@ async function setup(browser,{width=1280,height=860,reducedMotion='no-preference
       googleStaticMapPhoto:()=>({src:'/img/static-map.svg'}),
       savedSatellitePhoto:(list)=>(list||[]).find(item=>item.media_id&&item.metadata?.source==='satellite_top_down')||null,
       withSavedSatellite:(list,result)=>[...list,...(result.photos||[]).filter(item=>!list.some(own=>own.id===item.id))],
-      ...(serverSatellite?{ensureSatelliteMedia:async(org,project)=>{calls.push(['ensureSatelliteMedia',org,project]);return {status:'saved',media_id:'sat',photos:[{id:'sat',media_id:'sat',label:'Top-down satellite',thumb:'/img/sat.svg',metadata:{source:'satellite_top_down'}}],custom_field_values:{cover_photo:{media_id:'sat'}}};}}:{})
+      ...(serverSatellite?{ensureSatelliteMedia:async(org,project)=>{calls.push(['ensureSatelliteMedia',org,project]);return {status:'saved',media_id:'sat',photos:[{id:'sat',media_id:'sat',label:'Top-down satellite',thumb:'/img/sat.svg',metadata:{source:'satellite_top_down'}}],custom_field_values:{cover_photo:{media_id:'sat'}}};}}:{}),
+      // What the server really returns: the stored media reference, with no src or thumb (projects/satellite-media.ts photoReference).
+      ...(rawSatellite?{ensureSatelliteMedia:async(org,project)=>{calls.push(['ensureSatelliteMedia',org,project]);return {status:'saved',media_id:'sat',photos:[{id:'sat',photo_id:'sat',media_id:'sat',kind:'media_reference',variant:'original',media_type:'image',label:'Top-down satellite',source:'satellite_top_down',metadata:{source:'satellite_top_down',thumbnail_variant:'thumb_320'}}],custom_field_values:{cover_photo:{media_id:'sat'}}};}}:{})
     };
-    window.PlatformAPI.media={thumbnailUrl:(org,id)=>'/img/'+id+'-320.svg'};
+    window.PlatformAPI.media={thumbnailUrl:(org,id)=>'/img/'+id+'-320.svg',fileUrl:(org,id,variant)=>'/img/'+org+'/'+id+'/'+variant+'.svg'};
     Object.defineProperty(navigator,'clipboard',{configurable:true,value:{writeText:async text=>{calls.push(['clipboard',text]);}}});
     window.mediaList=Array.from({length:photos},(_,index)=>({id:'m'+(index+1),label:'Photo '+(index+1),thumb:'/img/'+(index+1)+'.svg'}));
     if(topDownInList)mediaList.unshift({id:'top_down_thumbnail',is_top_down_thumbnail:true,thumb:'/img/sat.svg'});
@@ -85,7 +87,7 @@ async function setup(browser,{width=1280,height=860,reducedMotion='no-preference
     window.cpHost.getProject=()=>window.currentProject;
     window.savedProject={id:'p1',contacts:[{id:'c1',primary:true,name:'Pat',email:'pat@example.com'}]};
     window.cpHost.ensureProject=async()=>{calls.push(['ensureProject']);await new Promise(resolve=>setTimeout(resolve,60));window.currentProject=window.savedProject;return window.currentProject;};
-  },{LIVE,PREVIEW,photos,activity,draft,caps,cover,satellite,topDownInList,savedSatellite,serverSatellite});
+  },{LIVE,PREVIEW,photos,activity,draft,caps,cover,satellite,topDownInList,savedSatellite,serverSatellite,rawSatellite});
   await page.addScriptTag({url:'/libraries/platform-qr/platform-qr.js'});
   if(runtime)await page.addScriptTag({url:'/libraries/app-runtime/firstmate-embeddable-apps.js'});
   await page.addScriptTag({url:'/libraries/apps/customer-portal/project.js'});
@@ -528,4 +530,151 @@ test('with both portal options off and no guest links there is no empty options 
   assert.equal(await root.locator('.cpo-options').count(),0);
   assert.equal(await root.locator('[data-cpo-link]').inputValue(),LIVE);
   assert.deepEqual(errors,[]);
+}));
+
+// The real customer portal page (customer_portal.js and .css) behind the preview address, with the payload the
+// server sends for a project that has no contact and whose title is its address: the server's stand-in name for
+// it is "Customer Portal" (platform/api.ts portalDisplayName).
+const portalDir=new URL('../../customer_portal/',import.meta.url);
+const ADDRESS='2205 Mimosa Pl, Wilmington, NC 28403, USA';
+function portalPayload({contact=''}={}){
+  const pixel='data:image/svg+xml,'+encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="40" height="30"><rect width="40" height="30" fill="#9ab"/></svg>');
+  const project={id:'p1',display_name:contact||'Customer Portal',title:contact||'Customer Portal',name:contact||'Customer Portal',project_title:ADDRESS,address:ADDRESS};
+  const customer={name:contact,email:'',phone:''};
+  return {
+    preview:true,access:{mode:'staff_preview',read_only:true},
+    organization:{id:'org1',name:'Acme Roofing',branding:{}},
+    portal:{id:'cp1',customer,active_project_id:'p1'},
+    project,
+    media:Array.from({length:12},(_,index)=>({id:'m'+index,media_id:'m'+index,kind:'image',media_type:'image',src:pixel,thumb:pixel,label:'Photo '+index})),
+    resources:{documents:[]},
+    tabs:[{id:'summary',label:'Summary'},{id:'schedule',label:'Schedule'},{id:'photos',label:'Photos'},{id:'payments',label:'Payments'}],
+    contact_portal:{customer,active_project_id:'p1',projects:[]}
+  };
+}
+async function servePortalPage(page,payload){
+  await page.context().route('https://portal.test/cp/**',async route=>{
+    const name=new URL(route.request().url()).pathname.split('/').pop();
+    return route.fulfill({contentType:name.endsWith('.css')?'text/css':'application/javascript; charset=utf-8',body:await readFile(new URL(name,portalDir))});
+  });
+  const boot=`window.__CUSTOMER_PORTAL={id:'prev-456',preview:true};const payload=${JSON.stringify(payload)};window.PlatformAPI={customerPortals:{publicGet:async()=>JSON.parse(JSON.stringify(payload))}};`;
+  await page.context().route('https://portal.test/p/preview/**',route=>route.fulfill({contentType:'text/html; charset=utf-8',body:'<!doctype html><html><head><meta name="viewport" content="width=device-width, initial-scale=1"><link rel="stylesheet" href="/cp/customer_portal.css"><script>'+boot+'</script><script defer src="/cp/customer_portal.js"></script></head><body style="margin:0"><main id="customerPortalApp" class="cp-shell preview"></main></body></html>'}));
+}
+// What the portal page shows of the project: its names, how often the address is on screen, and the top's sizes.
+const portalFacts=()=>{
+  const q=selector=>document.querySelector(selector);
+  const box=selector=>{const node=q(selector);if(!node||!node.getClientRects().length)return null;const r=node.getBoundingClientRect();return {top:Math.round(r.top),height:Math.round(r.height),bottom:Math.round(r.bottom)};};
+  const address='2205 Mimosa Pl, Wilmington, NC 28403, USA';
+  return {
+    text:document.body.innerText,
+    banner:box('.cp-preview-banner'),bannerText:q('.cp-preview-banner')?.innerText||'',
+    header:box('.cp-header'),tabs:box('.cp-tabs'),tabsTop:q('.cp-tabs')&&getComputedStyle(q('.cp-tabs')).top,
+    title:q('.cp-title')?.textContent||'',titleSize:q('.cp-title')?parseFloat(getComputedStyle(q('.cp-title')).fontSize):0,
+    addressLine:!!q('.cp-address'),contact:q('.cp-customer-card')?.innerText||'',
+    projectId:box('.cp-project-id')?q('.cp-project-id').innerText:'',
+    addressShown:[...document.querySelectorAll('body *')].filter(node=>node.children.length===0&&node.textContent.trim()===address&&node.getClientRects().length).length
+  };
+};
+
+test('on a phone the preview is compact: one-line banner, a one-row header, tabs under the banner, and the address once',()=>withBrowser(async browser=>{
+  const {page,errors,root}=await setup(browser,{width:390,height:844,phone:true});
+  await servePortalPage(page,portalPayload());
+  await root.locator('[data-cpo-preview]').click();
+  const modal=page.locator('[data-cpo-preview-modal]');
+  await modal.waitFor();
+  const head=await modal.locator('.cpo-pv-head').boundingBox();
+  assert.ok(head.height<=50,`the sheet's own header is compact (${head.height}px)`);
+  const closeBox=await modal.locator('[data-cpo-preview-close]').boundingBox();
+  assert.ok(closeBox.width>=40&&closeBox.height>=40,'X stays a full touch target');
+  await page.frameLocator('[data-cpo-preview-frame]').locator('.cp-title').waitFor();
+  await page.waitForFunction(()=>document.querySelector('[data-cpo-preview-modal]')?.classList.contains('is-loaded'));
+  const portalFrame=page.frames().find(item=>item.url().startsWith(PREVIEW));
+  await portalFrame.evaluate(()=>new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve))));
+  const facts=await portalFrame.evaluate(portalFacts);
+  const seen=JSON.stringify({...facts,text:undefined});
+  assert.doesNotMatch(facts.text,/Customer Portal/,'no project or contact is called "Customer Portal"');
+  assert.equal(facts.contact,'','a contact with no name gets no Contact card');
+  assert.equal(facts.title,ADDRESS,'the project is named by its title (here its address)');
+  assert.equal(facts.addressLine,false,'the address is not repeated under a title that is the address');
+  assert.equal(facts.addressShown,1,'the address is on screen once '+seen);
+  assert.ok(facts.titleSize>=18&&facts.titleSize<=24,`a sensible title size (${facts.titleSize}px)`);
+  assert.ok(facts.banner.height<=30,`one-line banner ${seen}`);
+  assert.match(facts.bannerText,/nothing can be signed, accepted or paid/i);
+  assert.ok(facts.header.height<=64,`one-row header ${seen}`);
+  assert.ok(facts.tabs.bottom<=150,`the content starts within 150px of the frame top ${seen}`);
+  assert.equal(facts.tabsTop,facts.banner.height+'px','the tabs stick just under the banner '+seen);
+  await portalFrame.evaluate(()=>window.scrollTo(0,600));
+  await portalFrame.waitForFunction(()=>window.scrollY>=300);
+  const scrolled=await portalFrame.evaluate(portalFacts);
+  assert.ok(scrolled.banner.top===0&&scrolled.tabs.top===scrolled.banner.height,`scrolled, the banner then the tabs stay on top ${JSON.stringify({...scrolled,text:undefined})}`);
+  assert.deepEqual(errors,[]);
+}));
+
+test('the preview names a real contact once and keeps the desktop header',()=>withBrowser(async browser=>{
+  // Phone: a named contact is shown in its card.
+  {
+    const {page,errors,root}=await setup(browser,{width:360,height:740,phone:true});
+    await servePortalPage(page,portalPayload({contact:'Pat Lee'}));
+    await root.locator('[data-cpo-preview]').click();
+    await page.frameLocator('[data-cpo-preview-frame]').locator('.cp-title').waitFor();
+    const facts=await page.frames().find(item=>item.url().startsWith(PREVIEW)).evaluate(portalFacts);
+    assert.match(facts.contact,/Contact\s+Pat Lee/);
+    assert.doesNotMatch(facts.text,/Customer Portal/);
+    assert.equal(facts.addressShown,1);
+    assert.deepEqual(errors,[]);
+  }
+  // Desktop (the preview's own tab): the full banner, the header's project block with the project's name, a large title.
+  {
+    const page=await browser.newPage({viewport:{width:1600,height:1000}});
+    const errors=[];page.on('pageerror',error=>errors.push(error.message));
+    await servePortalPage(page,portalPayload());
+    await page.goto(PREVIEW);
+    await page.locator('.cp-title').waitFor();
+    const facts=await page.evaluate(portalFacts);
+    assert.match(facts.bannerText,/^PREVIEW: WHAT YOUR CUSTOMER SEES/);
+    assert.match(facts.projectId,/Project\s+2205 Mimosa Pl/i,'the header names the project, not "Customer Portal"');
+    assert.doesNotMatch(facts.text,/Customer Portal/);
+    assert.equal(facts.addressShown,2,'header and title; the title is not followed by the same address again');
+    assert.ok(facts.titleSize>=40,`desktop title size is unchanged (${facts.titleSize}px)`);
+    assert.equal(facts.tabsTop,'auto','desktop tabs are not sticky');
+    assert.deepEqual(errors,[]);
+    await page.close();
+  }
+}));
+
+test('a satellite photo the server returns as a bare media reference gets a real thumbnail, not the grey fallback',()=>withBrowser(async browser=>{
+  const {page,errors,root}=await setup(browser,{photos:1,rawSatellite:true});
+  await page.evaluate(()=>Portal.modules.customerPortalProject.activate({}));
+  const tile=root.locator('[data-cpo-tile="sat"]');
+  await tile.waitFor();
+  assert.equal(await tile.locator('img').getAttribute('src'),'/img/org1/sat/thumb_320.svg','the thumbnail address is built from the media id');
+  await page.waitForFunction(()=>document.querySelector('[data-cpo-tile="sat"] .cpo-thumb').classList.contains('loaded'));
+  assert.equal(await tile.locator('.cpo-thumb').evaluate(node=>node.classList.contains('failed')),false);
+  assert.equal(await tile.locator('[data-cpo-tile-cover]').count(),1);
+  assert.deepEqual(errors,[]);
+}));
+
+test('on a phone every link, media and history control is at least 40px; a computer keeps the old sizes',()=>withBrowser(async browser=>{
+  const selectors=['[data-cpo-refresh]','[data-cpo-copy]','[data-cpo-email]','[data-cpo-qr]','[data-cpo-preview]','[data-cpo-select-all]','[data-cpo-link]'];
+  // The app sizes every box border-box (as on dev), so heights are the declared ones.
+  const sizes=root=>root.evaluate((node,selectors)=>{if(!document.getElementById('bb')){const style=document.createElement('style');style.id='bb';style.textContent='*,*::before,*::after{box-sizing:border-box}';document.head.appendChild(style);}return Object.fromEntries(selectors.map(selector=>{const r=node.querySelector(selector).getBoundingClientRect();return [selector,[Math.round(r.width),Math.round(r.height)]];}));},selectors);
+  {
+    const {errors,root}=await setup(browser,{width:390,height:844,phone:true});
+    const phone=await sizes(root);
+    for(const [selector,[width,height]] of Object.entries(phone))assert.ok(height>=40&&width>=40,`${selector} ${width}x${height}`);
+    const seg=await root.locator('.cpo-seg').boundingBox();
+    assert.ok(seg.height>=40,`media filter ${seg.height}px`);
+    assert.deepEqual(errors,[]);
+  }
+  {
+    const {errors,root}=await setup(browser,{width:1600,height:1000});
+    const desktop=await sizes(root);
+    assert.deepEqual(desktop['[data-cpo-refresh]'],[32,30],'desktop refresh unchanged');
+    for(const selector of ['[data-cpo-copy]','[data-cpo-email]','[data-cpo-qr]'])assert.equal(desktop[selector][1],36,`desktop ${selector} unchanged`);
+    assert.deepEqual(desktop['[data-cpo-select-all]'],[32,36]);
+    assert.equal(desktop['[data-cpo-preview]'][1],38);
+    assert.equal(desktop['[data-cpo-link]'][1],38);
+    assert.equal(Math.round((await root.locator('.cpo-seg').boundingBox()).height),34);
+    assert.deepEqual(errors,[]);
+  }
 }));

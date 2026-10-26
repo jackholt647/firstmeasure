@@ -165,13 +165,20 @@
       .pm-root:not(.is-tray-open) .pm-tray-toggle{transform:rotate(90deg)}
       .pm-reopen{display:none}
       .pm-controls{right:10px;top:calc(var(--pm-top,0px) + 10px)}
-      .pm-preview-card{width:230px;left:-115px}
+      /* The preview is as wide as the phone allows, so a project's name fits; it is
+         kept on screen near the edges (positionPreview sets --pm-shift). */
+      .pm-preview-card{--pm-card-w:min(340px,calc(100cqw - 24px));width:var(--pm-card-w);left:calc(var(--pm-card-w) / -2);margin-left:var(--pm-shift,0px)}
+      .pm-preview-card::after{left:calc(50% - var(--pm-shift,0px))}
+      .pm-preview-body{padding:12px 12px 12px 14px}
+      .pm-preview-close{right:4px;top:4px;width:40px;height:40px;border-radius:10px;font-size:15px}
+      .pm-preview-title{padding-right:38px;font-size:15px;line-height:1.25;white-space:normal;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
+      .pm-preview-addr{padding-right:6px}
     }
     /* A phone: Open project is an icon, and the camera takes photos for the project. */
     @media (max-width: 820px){
-      .pm-preview-foot .pm-open{width:34px;height:34px;padding:0;justify-content:center;border-radius:10px}
+      .pm-preview-foot .pm-open{width:40px;height:40px;padding:0;justify-content:center;border-radius:10px}
       .pm-open-label{display:none}
-      .pm-camera{display:inline-flex;align-items:center;justify-content:center;width:34px;height:34px;box-sizing:border-box;border:1px solid #e4e7ec;border-radius:10px;background:#fff;color:#475467;font-size:13px;cursor:pointer;transition:transform .14s ease,background .14s ease,color .14s ease}
+      .pm-camera{display:inline-flex;align-items:center;justify-content:center;width:40px;height:40px;box-sizing:border-box;border:1px solid #e4e7ec;border-radius:10px;background:#fff;color:#475467;font-size:14px;cursor:pointer;transition:transform .14s ease,background .14s ease,color .14s ease}
       .pm-camera:active{transform:scale(.9);background:#f2f4f7}
       .pm-open:active{transform:scale(.94)}
     }
@@ -898,6 +905,16 @@
     if (!px || clusterContaining(state.selectedId)) { state.previewEl.style.visibility = 'hidden'; return; }
     state.previewEl.style.visibility = '';
     state.previewEl.style.transform = `translate(${px.x}px, ${px.y}px)`;
+    // On a phone the wide preview slides sideways to stay on screen; its arrow keeps pointing at the pin.
+    const card = state.previewEl.firstElementChild;
+    if (!card || !isSheet()) { card?.style.removeProperty('--pm-shift'); return; }
+    const root = state.root.getBoundingClientRect();
+    const pinX = state.previewEl.getBoundingClientRect().left - root.left;
+    const half = card.offsetWidth / 2;
+    const reach = Math.max(0, half - 22);
+    const want = Math.min(Math.max(pinX, 10 + half), root.width - 10 - half) - pinX;
+    const shift = Math.round(Math.max(-reach, Math.min(reach, want)));
+    card.style.setProperty('--pm-shift', `${shift}px`);
   }
 
   function openItem(item){

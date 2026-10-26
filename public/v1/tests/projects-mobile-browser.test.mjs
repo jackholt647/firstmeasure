@@ -8,16 +8,19 @@ import { chromium } from 'playwright-core';
 const source = (path) => readFile(new URL(`../../libraries/apps/projects/${path}`, import.meta.url), 'utf8');
 const MOBILE_UA = 'Mozilla/5.0 (Linux; Android 14; Pixel 8) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Mobile Safari/537.36';
 
-async function setup({ mobile = true, view = 'stages', camera = true } = {}){
+// scenario 'mixed': the board's first and last stages are empty, p2 has a picture and p4 is a
+// named project on no board whose stage id is one of the board's stages.
+async function setup({ mobile = true, view = 'stages', camera = true, scenario = '', size = null } = {}){
   const browser = await chromium.launch({ executablePath:process.env.CHROME_PATH || 'C:/Program Files/Google/Chrome/Application/chrome.exe', headless:true });
   const context = await browser.newContext(mobile
-    ? { viewport:{ width:390, height:844 }, userAgent:MOBILE_UA, isMobile:true, hasTouch:true }
-    : { viewport:{ width:1280, height:800 } });
+    ? { viewport:size || { width:390, height:844 }, userAgent:MOBILE_UA, isMobile:true, hasTouch:true }
+    : { viewport:size || { width:1280, height:800 } });
   const page = await context.newPage();
   const errors = [];
   page.on('pageerror', (error) => errors.push(error.message));
+  await page.route('https://photos.test/**', (route) => route.fulfill({ contentType:'image/gif', body:Buffer.from('R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7', 'base64') }));
   await page.setContent('<meta name="viewport" content="width=device-width, initial-scale=1"><style>html,body{margin:0;height:100%;font:14px Arial,sans-serif}.main-panels{height:100%;box-sizing:border-box;padding:12px;overflow:auto}</style><div class="main-panels" id="mainPanels"><div class="fm-tabpanel active" id="tab_viewer" style="height:100%"></div></div>');
-  await page.evaluate(({ view, camera }) => {
+  await page.evaluate(({ view, camera, scenario }) => {
     const projects = [
       { id:'p1', address:'1 Main St, Austin, TX 78701', title:'1 Main St, Austin, TX 78701', lat:30.26, lng:-97.74, created_at:'2026-10-01 10:00:00', status:'project' },
       { id:'p2', address:'2 Oak Ave, Austin, TX 78702', title:'Ada Lovelace', customer_name:'Ada Lovelace', lat:30.27, lng:-97.73, created_at:'2026-10-02 10:00:00', status:'project' },
@@ -27,6 +30,12 @@ async function setup({ mobile = true, view = 'stages', camera = true } = {}){
       { id:'lead', title:'Lead', color:'#f59e0b', cards:[{ project_id:'p1' }, { project_id:'p2' }] },
       { id:'won', title:'Won', color:'#16a34a', cards:[{ project_id:'p3' }] }
     ] };
+    if (scenario === 'mixed') {
+      projects[1].thumbnail = 'https://photos.test/p2/thumbnail';
+      projects.push({ id:'p4', address:'4 Pine Ct, Austin, TX 78704', title:'Pine Court roof repair', stage_id:'won', lat:30.31, lng:-97.71, created_at:'2026-10-04 10:00:00', status:'project' });
+      board.columns.unshift({ id:'new', title:'New lead', color:'#667085', cards:[] });
+      board.columns.push({ id:'lost', title:'Lost', color:'#ef4444', cards:[] });
+    }
     const flags = { platform:{ project_boards:true, project_stages_view:true, expanded_access:true }, apps:{ project_map:true } };
     window.opened = [];
     window.cameraCalls = [];
@@ -57,7 +66,7 @@ async function setup({ mobile = true, view = 'stages', camera = true } = {}){
       modules:{ request:{ openProject:(project) => window.opened.push(project.id) } }
     };
     window.PlatformAPI = { work:{ boards:async () => ({ boards:[board] }) } };
-  }, { view, camera });
+  }, { view, camera, scenario });
   await page.addScriptTag({ content:await source('map-view.js') });
   await page.addScriptTag({ content:await source('viewer.js') });
   await page.evaluate(() => window.viewerApp.mount(document.querySelector('#tab_viewer')));
@@ -146,7 +155,7 @@ test('the map pin preview on a phone: Open project is an icon, the camera sits b
     assert.equal(await page.locator('.pm-camera').getAttribute('aria-label'), 'Take photos');
     const [camera, open] = await Promise.all([page.locator('.pm-camera').evaluate((el) => getComputedStyle(el).display), page.locator('.pm-open').evaluate((el) => el.getBoundingClientRect().width)]);
     assert.notEqual(camera, 'none', 'the camera shows on a phone');
-    assert.ok(open <= 36, 'Open project is an icon button');
+    assert.ok(open <= 40, 'Open project is an icon button');
     await page.locator('.pm-camera').evaluate((el) => el.click());
     assert.deepEqual((await cameraIds(page)).map(([id]) => id), ['p2']);
     assert.deepEqual(await page.evaluate(() => window.opened), []);
@@ -186,6 +195,189 @@ test('on a desktop the title stays, cameras are hidden and the map is the backgr
     assert.equal(await page.locator('[data-v-camera]').first().isVisible(), false, 'no camera on a desktop');
     assert.equal(await page.evaluate(() => getComputedStyle(document.querySelector('#mainPanels')).paddingTop), '12px', 'other views keep the page padding');
     assert.equal(await page.locator('.v-wrap.is-map').count(), 0);
+    assert.deepEqual(errors, []);
+  } finally { await browser.close(); }
+});
+
+// ---- Phone QA fixes (2026-10-26): each item on a phone, and the desktop left as it was. ----
+
+// The box once the opening animations (the sheet sliding up, the preview popping in) have finished.
+const rect = (page, selector) => page.locator(selector).first().evaluate(async (el) => {
+  await Promise.all(document.getAnimations().filter((animation) => animation.effect?.getComputedTiming().iterations !== Infinity).map((animation) => animation.finished.catch(() => null)));
+  const r = el.getBoundingClientRect();
+  return { x:r.x, y:r.y, width:r.width, height:r.height, bottom:r.bottom, right:r.right };
+});
+
+test('a phone opens Stages on the first stage that has projects, and keeps a stage the person picks', async () => {
+  const { browser, page, errors } = await setup({ view:'stages', scenario:'mixed' });
+  try {
+    await page.locator('.v-stage-col.is-mobile-active .v-stage-card[data-id="p1"]').waitFor();
+    assert.equal(await page.locator('.v-stage-col.is-mobile-active').getAttribute('data-stage'), 'lead', 'not the empty New lead stage');
+    assert.equal(await page.locator('.v-mobile-stage-option[aria-selected="true"]').getAttribute('data-stage'), 'lead');
+    // A stage the person picks stays picked, even an empty one.
+    await page.locator('.v-mobile-stage-option[data-stage="new"]').click();
+    await page.locator('#vViewList').click();
+    await page.locator('#vViewStages').click();
+    await page.locator('.v-stage-col.is-mobile-active').waitFor();
+    assert.equal(await page.locator('.v-stage-col.is-mobile-active').getAttribute('data-stage'), 'new');
+    assert.deepEqual(errors, []);
+  } finally { await browser.close(); }
+});
+
+test('a phone List shows the stages with projects first and folds the empty ones into one line', async () => {
+  const { browser, page, errors } = await setup({ view:'list', scenario:'mixed' });
+  try {
+    await page.locator('.v-lrow[data-id="p1"]').waitFor();
+    const order = await page.locator('#vListScroll > *').evaluateAll((els) => els.map((el) => el.dataset.stage || el.className));
+    assert.deepEqual(order, ['lead', 'won', '__no_board__', 'v-list-empty-groups'], 'stages with projects, then one line for the rest');
+    const toggle = page.locator('.v-list-empty-toggle');
+    assert.equal(await toggle.getAttribute('aria-expanded'), 'false');
+    assert.match(await toggle.innerText(), /Empty stages[\s\S]*New lead · Lost[\s\S]*2/);
+    assert.equal(await page.locator('.v-list-group[data-stage="new"]').isVisible(), false);
+    const line = await rect(page, '.v-list-empty-toggle');
+    assert.ok(line.height <= 48, 'one line');
+    await toggle.click();
+    assert.equal(await page.locator('.v-list-group[data-stage="new"]').isVisible(), true, 'the empty stages can still be opened');
+    assert.deepEqual(errors, []);
+  } finally { await browser.close(); }
+});
+
+test('a phone names every project the same way: its name, then its address beneath (List, Tiles, Map)', async () => {
+  const { browser, page, errors } = await setup({ view:'list', scenario:'mixed' });
+  try {
+    await page.locator('.v-lrow[data-id="p4"]').waitFor();
+    const listNames = (id) => page.locator(`.v-lrow[data-id="${id}"]`).evaluate((row) => [row.querySelector('.v-laddr1').textContent, row.querySelector('.v-laddr2').textContent]);
+    assert.deepEqual(await listNames('p4'), ['Pine Court roof repair', '4 Pine Ct, Austin, TX 78704']);
+    assert.deepEqual(await listNames('p2'), ['Ada Lovelace', '2 Oak Ave, Austin, TX 78702']);
+    assert.deepEqual(await listNames('p1'), ['1 Main St', 'Austin, TX 78701'], 'a project named by its address shows it once');
+    assert.equal(await page.locator('.v-lrow[data-id="p2"] [data-col="resident"]').isVisible(), false, 'the contact is not repeated under its own name');
+    await page.locator('#vViewTiles').click();
+    await page.locator('.v-tile[data-id="p4"]').waitFor();
+    const tileNames = (id) => page.locator(`.v-tile[data-id="${id}"] .v-addr`).evaluate((el) => Array.from(el.children).map((line) => line.textContent));
+    assert.deepEqual(await tileNames('p4'), ['Pine Court roof repair', '4 Pine Ct, Austin, TX 78704']);
+    assert.deepEqual(await tileNames('p2'), ['Ada Lovelace', '2 Oak Ave, Austin, TX 78702']);
+    assert.deepEqual(await tileNames('p1'), ['1 Main St', 'Austin, TX 78701']);
+    await page.locator('#vViewMap').click();
+    await page.locator('.pm-row[data-id="p4"]').waitFor({ state:'attached' });
+    const mapNames = (id) => page.locator(`.pm-row[data-id="${id}"]`).evaluate((row) => [row.querySelector('.pm-row-title').textContent, row.querySelector('.pm-row-addr').textContent]);
+    assert.deepEqual(await mapNames('p4'), ['Pine Court roof repair', '4 Pine Ct, Austin, TX 78704']);
+    assert.deepEqual(await mapNames('p2'), ['Ada Lovelace', '2 Oak Ave, Austin, TX 78702']);
+    assert.deepEqual(errors, []);
+  } finally { await browser.close(); }
+});
+
+test('a phone Tile with no picture is a compact card; one with a picture keeps its image', async () => {
+  const { browser, page, errors } = await setup({ view:'tiles', scenario:'mixed' });
+  try {
+    await page.locator('.v-tile[data-id="p1"]').waitFor();
+    // Its picture candidates are guesses that all fail: the card becomes compact.
+    await page.waitForFunction(() => document.querySelector('.v-tile[data-id="p1"]').classList.contains('v-tile-compact'));
+    const compact = await rect(page, '.v-tile[data-id="p1"]');
+    assert.ok(compact.height < 200, `no blank image area (${compact.height}px)`);
+    // What was the image area is only the row of badges (here Processing).
+    assert.ok((await rect(page, '.v-tile[data-id="p1"] .v-thumb')).height <= 40, 'the image area takes no room');
+    assert.equal(await page.locator('.v-tile[data-id="p1"] .v-thumb .v-badge').isVisible(), true, 'its badge still shows');
+    // A picture that loads opens the card's image area.
+    await page.waitForFunction(() => !document.querySelector('.v-tile[data-id="p2"]').classList.contains('v-tile-compact'));
+    const pictured = await rect(page, '.v-tile[data-id="p2"] .v-thumb');
+    assert.ok(pictured.height >= 120, 'a picture still shows');
+    assert.deepEqual(errors, []);
+  } finally { await browser.close(); }
+});
+
+test('the phone map colours a pin by its stage, and its preview is wide with 40px close and camera', async () => {
+  const { browser, page, errors } = await setup({ view:'map', scenario:'mixed' });
+  try {
+    await page.locator('.pm-row[data-id="p4"]').waitFor({ state:'attached' });
+    const color = (id) => page.locator(`.pm-row[data-id="${id}"]`).evaluate((el) => el.style.getPropertyValue('--pin-color'));
+    assert.equal(await color('p1'), '#f59e0b', 'by the board stage, as the List and Stages show it');
+    assert.equal(await color('p4'), '#16a34a', 'a project on no board with a board stage id takes that stage colour');
+    await page.locator('.pm-tray-toggle').click();
+    await page.locator('.pm-row[data-id="p4"]').click();
+    await page.locator('.pm-preview-card').waitFor({ state:'attached' });
+    const card = await rect(page, '.pm-preview-card');
+    assert.ok(card.width >= 300 && card.width <= 366, `the preview is wide (${card.width}px)`);
+    for (const selector of ['.pm-preview-close', '.pm-camera', '.pm-open']) {
+      const box = await rect(page, selector);
+      assert.deepEqual([box.width, box.height], [40, 40], selector);
+    }
+    assert.equal(await page.locator('.pm-preview-title').evaluate((el) => getComputedStyle(el).whiteSpace), 'normal', 'a long name wraps instead of being cut');
+    assert.deepEqual(errors, []);
+  } finally { await browser.close(); }
+});
+
+test('a phone Manage view is a bottom sheet with our own dropdowns', async () => {
+  const { browser, page, errors } = await setup({ view:'tiles', scenario:'mixed' });
+  try {
+    await page.locator('.v-tile[data-id="p1"]').waitFor();
+    await page.locator('#vManageView').click();
+    const panel = page.locator('#vManageViewPanel');
+    await panel.waitFor({ state:'visible' });
+    assert.equal(await panel.evaluate((el) => el.matches(':popover-open')), true, 'in the top layer');
+    const sheet = await rect(page, '#vManageViewPanel');
+    assert.deepEqual([sheet.x, sheet.width, Math.round(sheet.bottom)], [0, 390, 844], 'full width, on the bottom edge');
+    assert.equal(await page.locator('#vManageViewPanel select').evaluateAll((els) => els.filter((el) => el.getClientRects().length).length), 0, 'no native selects');
+    assert.equal(await page.locator('#vManageViewPanel .v-dd-trigger').count(), 2, 'Stage and Order by');
+    const close = await rect(page, '.v-manage-close');
+    assert.deepEqual([close.width, close.height], [40, 40]);
+    // Choosing from a dropdown changes the view and the sheet stays open.
+    const orderBy = page.locator('#vManageViewPanel .v-dd-trigger').nth(1);
+    await orderBy.click();
+    assert.equal(await orderBy.getAttribute('aria-expanded'), 'true');
+    assert.ok((await rect(page, '#vManageViewPanel .v-dd-list:not([hidden]) .v-dd-option')).height >= 44);
+    await page.locator('#vManageViewPanel .v-dd-list:not([hidden]) .v-dd-option[data-value="resident"]').click();
+    assert.equal(await page.locator('.v-tile').first().getAttribute('data-id'), 'p2', 'sorted by contact');
+    assert.equal(await panel.evaluate((el) => el.matches(':popover-open')), true, 'still open');
+    assert.match(await page.locator('#vManageViewPanel .v-dd-trigger').nth(1).innerText(), /Primary contact/);
+    // A tap on the dimmed backdrop closes it and reaches nothing underneath.
+    await page.mouse.click(195, 60);
+    assert.equal(await panel.isVisible(), false);
+    assert.equal(await page.locator('#vManageView').getAttribute('aria-expanded'), 'false');
+    assert.deepEqual(await page.evaluate(() => window.opened), []);
+    // The close button closes it too.
+    await page.locator('#vManageView').click();
+    await panel.waitFor({ state:'visible' });
+    await page.locator('.v-manage-close').click();
+    assert.equal(await panel.isVisible(), false);
+    assert.deepEqual(errors, []);
+  } finally { await browser.close(); }
+});
+
+test('a desktop (1600x1000) is unchanged: every List group in order, address rows, image tiles, the Manage view dropdown and the map preview', async () => {
+  const { browser, page, errors } = await setup({ mobile:false, view:'list', scenario:'mixed', size:{ width:1600, height:1000 } });
+  try {
+    await page.locator('.v-lrow[data-id="p1"]').waitFor();
+    const order = await page.locator('#vListScroll > *').evaluateAll((els) => els.map((el) => el.dataset.stage || el.className));
+    assert.deepEqual(order, ['new', 'lead', 'won', 'lost', '__no_board__']);
+    assert.equal(await page.locator('.v-list-empty-groups').count(), 0);
+    assert.deepEqual(await page.locator('.v-lrow[data-id="p4"]').evaluate((row) => [row.querySelector('.v-laddr1').textContent, row.querySelector('.v-laddr2').textContent]), ['4 Pine Ct', 'Austin, TX 78704']);
+    assert.equal(await page.locator('.v-lhead').isVisible(), true);
+    await page.locator('#vManageView').click();
+    const panel = page.locator('#vManageViewPanel');
+    await panel.waitFor({ state:'visible' });
+    assert.equal(await panel.evaluate((el) => el.hasAttribute('popover') || getComputedStyle(el).position), 'absolute', 'a dropdown panel, not a sheet');
+    await page.locator('#vManageView').click();
+    await page.locator('#vViewTiles').click();
+    await page.locator('.v-tile[data-id="p1"]').waitFor();
+    assert.equal(await page.locator('.v-tile-compact').count(), 0);
+    assert.equal((await rect(page, '.v-tile[data-id="p1"] .v-thumb')).height, 168, 'the image area stays');
+    assert.deepEqual(await page.locator('.v-tile[data-id="p4"] .v-addr').evaluate((el) => Array.from(el.children).map((line) => line.textContent)), ['4 Pine Ct', 'Austin, TX 78704']);
+    await page.locator('#vManageView').click();
+    await panel.waitFor({ state:'visible' });
+    assert.equal(await page.locator('#vManageViewPanel select').evaluateAll((els) => els.filter((el) => el.getClientRects().length).length), 2, 'native selects');
+    assert.equal(await page.locator('#vManageViewPanel .v-dd, #vManageViewPanel .v-manage-close').evaluateAll((els) => els.filter((el) => el.getClientRects().length).length), 0);
+    await page.locator('#vManageView').click();
+    await page.locator('#vViewStages').click();
+    await page.locator('.v-stage-col[data-stage="new"]').waitFor();
+    assert.equal(await page.locator('.v-stage-col').evaluateAll((cols) => cols.filter((col) => col.getClientRects().length).length), 5, 'every stage column shows');
+    await page.locator('#vViewMap').click();
+    await page.locator('.pm-row[data-id="p2"]').waitFor();
+    await page.locator('.pm-row[data-id="p2"]').click();
+    await page.locator('.pm-preview-card').waitFor({ state:'attached' });
+    assert.equal((await rect(page, '.pm-preview-card')).width, 260);
+    const close = await rect(page, '.pm-preview-close');
+    assert.deepEqual([close.width, close.height], [26, 26]);
+    assert.equal(await page.locator('.pm-camera').evaluate((el) => getComputedStyle(el).display), 'none');
     assert.deepEqual(errors, []);
   } finally { await browser.close(); }
 });

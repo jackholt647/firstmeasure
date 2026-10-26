@@ -47,7 +47,7 @@ function server(){
     const request=route.request(),url=new URL(request.url()),body=request.postDataBuffer()?JSON.parse(request.postDataBuffer().toString('utf8')):null;
     const json=data=>route.fulfill({contentType:'application/json',body:JSON.stringify({ok:true,...data})});
     if(url.pathname.startsWith('/libraries/'))return route.fulfill({contentType:'text/javascript',body:await lib(url.pathname.slice(11))});
-    if(url.pathname==='/portal/')return route.fulfill({contentType:'text/html',body:page('portal')});
+    if(url.pathname==='/portal/')return route.fulfill({contentType:'text/html',body:page('portal','p1',false,url.searchParams.has('more'))});
     if(url.pathname.startsWith('/project/'))return route.fulfill({contentType:'text/html',body:page('project',url.pathname.split('/')[2],url.searchParams.has('silent'))});
     // As the server: until the tour is finished, Materials shows only on projects with a report.
     if(url.pathname.endsWith('/dev/copy')&&request.method()==='PUT'){state.copySaves.push(body);state.overrides[body.key]=body.text;return json({saved:{revision:state.copySaves.length}});}
@@ -79,7 +79,7 @@ function server(){
 }
 
 // p1 has a delivered report, p2 has none, draft is a project not saved yet. `silent` skips announcing the tab.
-function page(kind,project='p1',silent=false){
+function page(kind,project='p1',silent=false,more=false){
   const boot=`window.__APP={userOrgId:'o',platformApiBase:'https://fm.test/v1/platform'};
     window.project=${JSON.stringify(project==='draft'?{}:{id:project,...(project==='p1'?{report_url:'https://fm.test/report.pdf'}:{})})};
     window.route={project:${JSON.stringify(kind==='project'&&project!=='draft'?project:'')},projectTab:${JSON.stringify(kind==='project'?'materials':'')}};
@@ -88,7 +88,7 @@ function page(kind,project='p1',silent=false){
     const thread={id:'t1',subject_id:'project:p1'},get=async p=>(await fetch(p)).json(),post=async(p,b)=>(await fetch(p,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(b)})).json();
     window.AssistantAPI={context:async()=>({main_thread:{id:'main'},threads:[],agents:[],dashboard:[]}),projectConversation:async()=>({thread}),thread:async()=>get('/mock-assistant/thread'),send:async(o,t,b)=>post('/mock-assistant/send',b)};`;
   const scripts=LIBS.map(file=>`<script src="/libraries/${file}"></script>`).join('');
-  if(kind==='portal')return `<!doctype html><html><head><style>body{margin:0;font:14px Arial}iframe{position:fixed;inset:0;width:100%;height:100%;border:0}</style></head><body><main class="main"><div id="mainPanels"></div></main><script>${boot}</script>${scripts}<iframe id="project"></iframe><script>const q=new URLSearchParams(location.search);document.querySelector('#project').src='/project/'+(q.get('project')||'p1')+(q.has('silent')?'?silent=1':'');</script></body></html>`;
+  if(kind==='portal')return `<!doctype html><html><head><style>body{margin:0;font:14px Arial}iframe{position:fixed;inset:0;width:100%;height:100%;border:0}</style></head><body>${more?'<div class="mobile-topbar"><div class="platform-more" id="mobilePlatformMoreSlot"><button type="button" id="mobilePlatformMoreBtn">More</button></div><div class="ptb-menu ptb-menu--more" id="mobilePlatformMoreMenu"><div class="ptb-sheet"><div class="ptb-sheet-group" data-more-group="work"></div><div class="ptb-sheet-group" data-more-group="tools"></div></div></div></div>':''}<main class="main"><div id="mainPanels"></div></main><script>${boot}</script>${scripts}<iframe id="project"></iframe><script>const q=new URLSearchParams(location.search);document.querySelector('#project').src='/project/'+(q.get('project')||'p1')+(q.has('silent')?'?silent=1':'');</script></body></html>`;
   return `<!doctype html><html><head><style>body{margin:0;font:14px Arial}#rOverlay{position:fixed;inset:0;display:flex;flex-direction:column}.fm-project-tray-tabs{display:flex;justify-content:flex-end}.fm-project-content{flex:1;display:grid;grid-template-columns:1fr 380px}.mt{padding:20px;display:flex;gap:12px;align-items:flex-start}.mt-resource-column{width:240px;height:160px;border:1px solid #ccc}.fm-project-tray{display:flex;flex-direction:column;min-height:0}</style></head><body>
     <div id="rOverlay"><nav id="tabs"></nav><nav class="fm-project-tray-tabs"><button type="button" data-tray="agent" aria-selected="false">Agent</button></nav>
     <div class="fm-project-content"><div class="mt"><button type="button" data-mt-generate-materials>Generate</button><div class="mt-resource-column">Materials</div></div><aside class="fm-project-tray"></aside></div></div>
@@ -106,11 +106,11 @@ function page(kind,project='p1',silent=false){
     </script></body></html>`;
 }
 
-async function open(browser,srv,{width=1280,height=800,project='p1',silent=false}={}){
+async function open(browser,srv,{width=1280,height=800,project='p1',silent=false,more=false}={}){
   const tab=await browser.newPage({viewport:{width,height}}),errors=[];
   tab.on('pageerror',error=>errors.push(error.message));
   await tab.route('https://fm.test/**',route=>srv.handle(route).catch(error=>{console.log('HANDLE',error);return route.abort();}));
-  await tab.goto(`https://fm.test/portal/?project=${project}${silent?'&silent=1':''}`);
+  await tab.goto(`https://fm.test/portal/?project=${project}${silent?'&silent=1':''}${more?'&more=1':''}`);
   const frame=()=>tab.frames().find(f=>f.url().includes('/project/'));
   await tab.waitForFunction(()=>document.querySelector('#project')?.contentWindow?.FirstMateGuides?.experiences().length>0);
   return {tab,errors,frame};
@@ -372,5 +372,41 @@ test('development: copy is editable in place, saves as you type, shows for every
     assert.equal(await other.frame().locator('.gx-dev').count(),0);
     assert.equal(await other.tab.locator('.gx-dev').count(),0);
     assert.deepEqual(other.errors,[]);
+  } finally { await browser.close(); }
+});
+
+test('development on a phone: no floating pill; the tools are a Guided experiences entry in the shell More sheet that opens a bottom sheet; desktop keeps the pill',async()=>{
+  const browser=await launch(),srv=server();
+  srv.state.progress[SETUP.id]='completed';srv.state.dev=true;
+  try{
+    const phone=await open(browser,srv,{width:390,height:844,project:'p1',silent:true,more:true});
+    const {tab,errors}=phone;
+    await tab.waitForSelector('#mobilePlatformMoreGuides');
+    assert.equal(await tab.locator('.gx-dev').isVisible(),false,'nothing floats over the page');
+    assert.equal(await tab.locator('#mobilePlatformMoreMenu > .ptb-more-item#mobilePlatformMoreGuides').count(),1,'an entry the shell files into its default (Development tools) group');
+    assert.equal(await tab.locator('#mobilePlatformMoreGuides').getAttribute('data-more-group'),null);
+    assert.equal(await tab.locator('#mobilePlatformMoreGuides').innerText(),'Guided experiences');
+    await tab.locator('#mobilePlatformMoreMenu').evaluate(menu=>menu.classList.add('visible'));
+    // This page has no shell styles, so the project frame covers the menu; press the entry directly.
+    await tab.locator('#mobilePlatformMoreGuides').evaluate(button=>button.click());
+    await tab.waitForSelector('.gx-dev-sheet:not([hidden]) [data-gxd="reset-me"][data-gxd-id="materials.tab_tutorial"]');
+    assert.equal(await tab.locator('#mobilePlatformMoreMenu').evaluate(menu=>menu.classList.contains('visible')),false,'the More sheet closes behind it');
+    const card=await tab.locator('.gx-dev-sheet-card').boundingBox();
+    assert.ok(Math.round(card.y+card.height)===844&&Math.round(card.width)===390,'a bottom sheet across the phone');
+    assert.ok(await tab.locator('.gx-dev-sheet button').evaluateAll(list=>list.every(b=>b.getBoundingClientRect().height>=40)),'thumb-sized buttons');
+    // Editing copy from the sheet.
+    await tab.check('.gx-dev-sheet [data-gxd-edit]');
+    assert.equal(await phone.frame().evaluate(()=>document.documentElement.classList.contains('gx-editing')),true);
+    await tab.click('.gx-dev-sheet [data-gxd="reset-me"][data-gxd-id="materials.tab_tutorial"]');
+    await tab.waitForFunction(()=>/Reset/.test(document.querySelector('.gx-dev-sheet .gx-dev-status')?.textContent||''));
+    assert.deepEqual(srv.state.resets.at(-1),{experience_id:'materials.tab_tutorial',scope:'me'});
+    await tab.click('.gx-dev-sheet-head [data-gxd-close]');
+    assert.equal(await tab.locator('.gx-dev-sheet').isHidden(),true);
+    assert.deepEqual(errors,[]);
+    // The same page on a desktop: the pill, as before.
+    const desk=await open(browser,srv,{project:'p1',silent:true,more:true});
+    await desk.tab.waitForSelector('.gx-dev .gx-dev-handle');
+    assert.equal(await desk.tab.locator('.gx-dev').isVisible(),true);
+    assert.deepEqual(desk.errors,[]);
   } finally { await browser.close(); }
 });

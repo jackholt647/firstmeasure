@@ -454,22 +454,96 @@
     if (['project.event_scheduled','project.event.started','project.event.completed'].includes(cleanText(event.type))) return firstText(payload.event?.title, payload.title);
     return firstText(payload.title, payload.document_title, payload.proposal_title, payload.invoice_number, payload.file_name, payload.contact_name);
   }
+  // What happened, in plain words, for a Feed entry. Copy is keyed (feed_act_*) so it can be translated and edited.
+  // An event with no person behind it (an automation, a sample) reads in the passive voice rather than "System …".
+  // The project's own title or address is not repeated after the action: the entry shows the project on its own line.
+  const FEED_AREA_WORDS = { payments:['feed_area_payments','Payment update'], expenses:['feed_area_expenses','Expense update'], payroll:['feed_area_payroll','Pay update'], signatures:['feed_area_signatures','Signature update'], documents:['feed_area_documents','Document update'], files:['feed_area_files','File update'], messages:['feed_area_messages','Message update'], feedback:['feed_area_feedback','Feedback update'], scheduling:['feed_area_scheduling','Schedule update'], scopes:['feed_area_scopes','Work update'], tasks:['feed_area_tasks','Work update'], materials:['feed_area_materials','Materials update'], field_work:['feed_area_field_work','Field work update'], measurements:['feed_area_measurements','Measurements update'], checklists:['feed_area_checklists','Checklist update'], leads:['feed_area_leads','Lead update'], projects:['feed_area_projects','Project update'], notes:['feed_area_notes','Note update'], portal:['feed_area_portal','Customer portal update'], organization:['feed_area_organization','Company update'], websites:['feed_area_websites','Website update'], mentions:['feed_area_mentions','Mention'] };
+  function feedActorKnown(event = {}){
+    const name = feedActor(event);
+    return !!name && name !== 'System';
+  }
   function feedActivitySummary(event = {}){
     const actor = feedActor(event);
-    const object = activityObjectLabel(event);
+    const known = feedActorKnown(event);
     const type = cleanText(event.type);
+    const payload = activityPayload(event);
     const noun = (key, fallback) => window.PlatformTerminology?.get?.(key, fallback) || window.Portal?.terminology?.get?.(key, fallback) || fallback;
-    const payloadType = cleanText(activityPayload(event).document_type);
-    const documentType = firstText(activityPayload(event).document_type_label, payloadType === 'proposal' ? noun('proposals.proposal','proposal') : payloadType ? noun('documents.document','document') : '');
+    // Mid-sentence nouns from the terminology system are capitalized there ("Project"); a sentence reads an ordinary
+    // capitalized word in lower case. Anything else (an acronym, a brand) is kept as the organization wrote it.
+    const word = (key, fallback) => {
+      const plain = cleanText(noun(key, fallback));
+      return /^[A-Z][a-z]+(?: [a-z]+)*$/.test(plain) ? plain.toLowerCase() : plain || fallback;
+    };
+    const article = (text) => `${/^[aeiou]/i.test(text) ? 'an' : 'a'} ${text}`;
+    const project = findActivityProject(event);
+    const rawObject = activityObjectLabel(event);
+    const sameAsProject = (text) => {
+      const value = cleanText(text).toLowerCase();
+      if (!value) return false;
+      const names = [project ? projectTitle(project) : '', project ? savedProjectTitle(project) : '', project ? projectAddress(project) : '', cleanText(payload.address), activityProjectLabel(event)].map((entry) => cleanText(entry).toLowerCase()).filter(Boolean);
+      return names.includes(value);
+    };
+    const object = sameAsProject(rawObject) ? '' : rawObject;
+    const withObject = (text, value = object) => value ? `${text}: ${value}` : text;
+    // say(key, active, passive, vars): the active line names the person; the passive one is for events with none.
+    const say = (key, active, passive, vars = {}) => known
+      ? feedText(key, active, { actor, ...vars })
+      : feedText(`${key}_auto`, passive, vars);
+    const payloadType = cleanText(payload.document_type);
+    const documentType = firstText(payload.document_type_label, payloadType === 'proposal' ? word('proposals.proposal','proposal') : payloadType ? word('documents.document','document') : '');
     const presentation = event.feed_presentation || {};
-    const scope = firstText(presentation.scope_title, activityPayload(event).scope_title, noun('scope.scope','Scope'));
-    const task = firstText(presentation.node_title, activityPayload(event).node_title, activityPayload(event).title, 'work item');
+    const scope = firstText(presentation.scope_title, payload.scope_title, noun('scope.scope','Scope'));
+    const task = firstText(presentation.node_title, payload.node_title, payload.title, '');
+    const customer = word('contacts.customer','customer');
+    const Customer = customer.charAt(0).toUpperCase() + customer.slice(1);
     if (type === 'work.plan.started') return `${scope} started`;
     if (type === 'work.plan.completed') return `${scope} completed`;
-    if (type === 'work.node.completed') return `${actor} completed ${task}${presentation.scope_title ? ` · ${scope}` : ''}`;
-    if (type === 'document.signed') return `${actor} had ${documentType || noun('documents.document','document')} signed${object ? `: ${object}` : ''}`;
+    if (type === 'work.node.completed') {
+      if (!task) return say('feed_act_step_done', '{actor} finished a step in {scope}', 'A step in {scope} is done', { scope });
+      return presentation.scope_title
+        ? say('feed_act_step_done_in', '{actor} finished “{task}” in {scope}', '“{task}” is done in {scope}', { task, scope })
+        : say('feed_act_step_done_task', '{actor} finished “{task}”', '“{task}” is done', { task });
+    }
+    if (type === 'project.created') {
+      const project = word('projects.project','project');
+      return withObject(say('feed_act_project_created', '{actor} created {a_project}', 'New {project} created', { project, a_project:article(project) }));
+    }
+    if (type === 'document.created') {
+      const document = documentType || word('documents.document','document');
+      return withObject(say('feed_act_document_created', '{actor} started {a_document}', 'New {document} started', { document, a_document:article(document) }));
+    }
+    if (type === 'material.lines.created') {
+      const count = Number(payload.line_count) || 0;
+      const title = cleanText(payload.title);
+      return withObject(count
+        ? say('feed_act_materials_listed', '{actor} listed {count} materials', '{count} materials listed', { count })
+        : say('feed_act_materials_started', '{actor} started a material list', 'Material list started'), title);
+    }
+    if (type === 'contact.created') return withObject(say('feed_act_contact_added', '{actor} added a contact', 'New contact added'), cleanText(payload.contact_name || payload.name));
+    if (type === 'lead.received') return withObject(feedText('feed_act_lead_received', 'New lead received'), object);
+    if (type === 'opportunity.won') return say('feed_act_sale_won', '{actor} marked the sale won', 'Sale won');
+    if (type === 'opportunity.lost') return say('feed_act_sale_lost', '{actor} marked the sale lost', 'Sale lost');
+    if (type === 'measurement.report.ordered') return say('feed_act_measurements_ordered', '{actor} ordered a measurement report', 'Measurement report ordered');
+    if (type === 'measurement.report.completed') return feedText('feed_act_measurements_ready', 'Measurement report ready');
+    if (type === 'media.uploaded') {
+      const contentType = cleanText(payload.content_type);
+      const isDocument = contentType && !/^(image|video)\//.test(contentType);
+      const isVideo = /^video\//.test(contentType) || cleanText(payload.kind) === 'video';
+      if (isDocument) return withObject(say('feed_act_file_added', '{actor} uploaded a file', 'File added'), cleanText(payload.file_name));
+      return isVideo ? say('feed_act_video_added', '{actor} added a video', 'Video added') : say('feed_act_photo_added', '{actor} added a photo', 'Photo added');
+    }
+    if (['proposal.viewed','document.viewed','document.opened','contract.opened','contract.viewed'].includes(type)) {
+      const what = type.startsWith('proposal') ? word('proposals.proposal','proposal') : documentType || word('documents.document','document');
+      return withObject(feedText('feed_act_customer_opened', '{Customer} opened {a_document}', { Customer, a_document:article(what) }));
+    }
+    if (['proposal.signed','document.signed','contract.signed'].includes(type)) {
+      const what = type.startsWith('proposal') ? word('proposals.proposal','proposal') : documentType || word('documents.document','document');
+      return withObject(feedText('feed_act_customer_signed', '{Customer} signed {a_document}', { Customer, a_document:article(what) }));
+    }
+    if (type === 'document.declined') return withObject(feedText('feed_act_customer_declined', '{Customer} declined {a_document}', { Customer, a_document:article(documentType || word('documents.document','document')) }));
+    if (type === 'portal.visited') return feedText('feed_act_customer_portal', '{Customer} opened their portal', { Customer });
+    if (type === 'communication.received') return feedText('feed_act_customer_message', '{Customer} sent a message', { Customer });
     if (type === 'project.event.started' || type === 'project.event.completed') {
-      const payload = activityPayload(event);
       if (type === 'project.event.completed' && payload.event?.completed_emitted_at && !firstText(event.actor_user_id,activityContext(event).actor_user_id)) return `Scheduled event ended${object ? `: ${object}` : ''}`;
       const eventType = firstText(payload.event_type_label,payload.event?.type_label);
       const verb = type === 'project.event.started' ? 'started' : 'completed';
@@ -477,12 +551,11 @@
       return `${actor} ${verb} ${eventLabel}${object ? `: ${object}` : ''}`;
     }
     if (type === 'work.plan.stage_manually_set') {
-      const stage = firstText(activityPayload(event).to_stage_title, activityPayload(event).stage_title);
-      return `${actor} moved the ${noun('projects.project','project')} to ${stage || noun('projects.stage','Stage')}${presentation.scope_title ? ` · ${scope}` : ''}`;
+      const stage = firstText(payload.to_stage_title, payload.stage_title);
+      return `${actor} moved the ${word('projects.project','project')} to ${stage || noun('projects.stage','Stage')}${presentation.scope_title ? ` · ${scope}` : ''}`;
     }
-    if (documentType && type === 'document.sent') return `${actor} sent a ${documentType} to the customer${object ? `: ${object}` : ''}`;
-    if (documentType && type === 'document.viewed') return `${actor} had a ${documentType} viewed by the customer${object ? `: ${object}` : ''}`;
-    const scheduledType=firstText(activityPayload(event).event_type_label,activityPayload(event).event?.type_label,activityPayload(event).event_type_default_id,activityPayload(event).event_kind,activityPayload(event).event?.event_type_default_id,activityPayload(event).event?.kind).replace(/_/g,' ');
+    if (documentType && type === 'document.sent') return `${actor} sent ${article(documentType)} to the ${customer}${object ? `: ${object}` : ''}`;
+    const scheduledType=firstText(payload.event_type_label,payload.event?.type_label,payload.event_type_default_id,payload.event_kind,payload.event?.event_type_default_id,payload.event?.kind).replace(/_/g,' ');
     const action = ({
       'payment.received':'took a payment',
       'proposal.payment.received':'took a proposal payment',
@@ -494,25 +567,13 @@
       'expense.recorded':'recorded an expense',
       'proposal.created':'created a proposal',
       'proposal.sent':'sent a proposal to the customer',
-      'proposal.viewed':'had a proposal viewed by the customer',
-      'proposal.signed':'had a proposal signed',
       'document.sent':'sent a document to the customer',
-      'document.opened':'had a document opened by the customer',
-      'document.viewed':'had a document viewed by the customer',
-      'document.signed':'had a document signed',
       'document.completed':'completed a document',
-      'document.declined':'had a document declined',
       'document.ingested':'uploaded a document',
-      'contract.opened':'had a contract opened by the customer',
-      'contract.viewed':'had a contract viewed by the customer',
-      'contract.signed':'had a contract signed',
       'call.completed':'made a call',
       'communication.sent':'sent a message',
-      'communication.received':'received a customer message',
       'communication.auto_replied':'sent an automatic reply',
-      'media.uploaded':cleanText(activityPayload(event).content_type) && !/^(image|video)\//.test(cleanText(activityPayload(event).content_type)) ? 'uploaded a document' : 'uploaded media',
       'media.shared':'shared media with the customer',
-      'project.created':'created a project',
       'project.contact.attached':'attached a contact',
       'project.event_scheduled':`scheduled ${scheduledType && scheduledType!=='custom' ? `${/^[aeiou]/i.test(scheduledType)?'an':'a'} ${scheduledType}` : 'an event'}`,
       'material.delivery.completed':'completed a material delivery',
@@ -520,15 +581,16 @@
       'crew.clock.in':'clocked in',
       'crew.clock.out':'clocked out',
       'crew.checklist.completed':'completed a checklist',
-      'measurement.report.ordered':'ordered a measurement report',
-      'measurement.report.completed':'completed a measurement report',
       'note.created':'added a note',
-      'portal.visited':'had the customer open their portal',
       'feedback.request.sent':'sent a feedback request'
     })[type];
-    if (!action) return `${presentation.description || 'Activity recorded'}${object ? `: ${object}` : ''}`;
+    // An event with no wording of its own says which part of the work changed, never the event's internal description.
+    if (!action) {
+      const area = FEED_AREA_WORDS[cleanText(presentation.group)] || ['feed_area_other','Update'];
+      return withObject(feedText(area[0], area[1]));
+    }
     const names = {project:['projects.project','project'],proposal:['proposals.proposal','proposal'],document:['documents.document','document'],contract:['documents.document','document'],customer:['contacts.customer','customer'],invoice:['money.invoice','invoice'],receipt:['receipts.receipt','receipt'],material:['materials.material','material']};
-    const wording = action.replace(/\b(project|proposal|document|contract|customer|invoice|receipt|material)\b/g, word => noun(...names[word]));
+    const wording = action.replace(/\b(?:(a|an) )?(project|proposal|document|contract|customer|invoice|receipt|material)\b/g, (match, a, entry) => { const value = word(...names[entry]); return a ? article(value) : value; });
     return `${actor} ${wording}${object ? `: ${object}` : ''}`;
   }
   function isPhotoTrashed(photo = {}){
@@ -1156,6 +1218,15 @@
     await Promise.all(workers);
     return results;
   }
+  // The project file list (GET projects/:id/documents) is the Project Docs app and refuses an organization that has it
+  // off. Without it the Feed keeps the documents the catalog already sent for each project instead of asking for each
+  // project's list and being refused once per project.
+  function projectDocsListEnabled(){
+    const flags = window.Portal?.appFlags || window.PlatformAPI?.appFlags;
+    const current = flags?.current?.();
+    if (!current) return true;
+    return current.raw?.platform?.project_docs === true || current.effective?.platform?.project_docs === true || flags.value?.('platform', 'project_docs', undefined) === true;
+  }
   async function loadFeedDocuments(){
     if (state.documentsLoading || state.documentsLoaded) return;
     if (!window.PlatformAPI?.projectDocuments?.list) {
@@ -1165,11 +1236,13 @@
     state.documentsLoading = true;
     render();
     const oid = orgId();
+    const docsList = projectDocsListEnabled();
     const results = await mapWithConcurrency(state.projects, 4, async (project) => {
       const pid = projectRouteId(project);
       if (!pid) return [];
+      const catalogDocuments = { documents:Array.isArray(project.documents) ? project.documents : [] };
       const [docsResult, invoiceResult, receiptResult] = await Promise.all([
-        window.PlatformAPI.projectDocuments.list(oid, pid).catch(() => ({ documents:Array.isArray(project.documents) ? project.documents : [] })),
+        docsList ? window.PlatformAPI.projectDocuments.list(oid, pid).catch(() => catalogDocuments) : Promise.resolve(catalogDocuments),
         window.PaymentsAPI?.invoices?.list
           ? window.PaymentsAPI.invoices.list(oid, pid).catch(() => ({ invoices:[] }))
           : Promise.resolve({ invoices:[] }),
@@ -1853,19 +1926,76 @@
         .pf-wrap[data-pf-page="feed"][data-density] .pf-shown-wrap .pf-toolbar-action{width:40px;height:40px;padding:0;justify-content:center;border-radius:12px;font-size:14px}
         .pf-wrap[data-pf-page="feed"][data-density] .pf-shown-wrap .pf-toolbar-action span{display:none}
         .pf-wrap[data-pf-page="feed"][data-density] .pf-create-post{min-height:40px;border-radius:12px;flex:0 0 auto}
+        /* Phones: a "Write a post" row at the top of List and Tiles opens the composer (the Posts view is not offered). */
+        .pf-wrap[data-pf-page="feed"] .pf-mobile-post{display:flex;align-items:center;gap:10px;width:100%;min-height:52px;margin:0 0 14px;padding:7px 8px 7px 7px;box-sizing:border-box;border:1px solid #e4e7ec;border-radius:14px;background:#fff;color:#667085;font:inherit;font-size:15px;text-align:left;cursor:pointer;box-shadow:0 1px 2px rgba(16,24,40,.04);-webkit-tap-highlight-color:transparent}
+        .pf-wrap[data-pf-page="feed"] .pf-mobile-post:active{background:#f9fafb}
+        .pf-wrap[data-pf-page="feed"] .pf-mobile-post .pf-post-avatar{width:36px;height:36px;flex:0 0 36px;font-size:14px}
+        .pf-wrap[data-pf-page="feed"] .pf-mobile-post>span:not(.pf-post-avatar){flex:1;min-width:0}
+        .pf-wrap[data-pf-page="feed"] .pf-mobile-post>i{width:38px;height:38px;flex:0 0 38px;display:grid;place-items:center;border-radius:11px;background:rgba(var(--primary-rgb,217,48,37),.09);color:var(--primary-readable,var(--primary,#d93025));font-size:15px}
+        /* The post composer on a phone is a full-screen sheet. */
+        .pf-wrap[data-pf-page="feed"] .pf-overlay:has(>[data-feed-compose]){padding:0;place-items:stretch;background:#fff;animation:pfFeedSheetUp .24s cubic-bezier(.2,.8,.2,1)}
+        .pf-wrap[data-pf-page="feed"] .pf-dialog[data-feed-compose]{width:100%;height:100dvh;max-height:none;border:0;border-radius:0;box-shadow:none;padding:0 14px calc(14px + env(safe-area-inset-bottom,0px));gap:12px;align-content:start;grid-template-rows:auto auto minmax(0,1fr)}
+        .pf-wrap[data-pf-page="feed"] .pf-dialog[data-feed-compose] header{position:sticky;top:0;z-index:2;align-items:center;margin:0 -14px;padding:8px 8px 8px 16px;background:#fff}
+        .pf-wrap[data-pf-page="feed"] .pf-dialog[data-feed-compose] header strong{font-size:17px}
+        .pf-wrap[data-pf-page="feed"] .pf-dialog[data-feed-compose] header button{width:40px;height:40px;border-radius:999px;background:#f2f4f7;font-size:22px;color:#344054}
+        .pf-wrap[data-pf-page="feed"] .pf-dialog[data-feed-compose] .pf-compose-message{display:flex;flex-direction:column;min-height:0}
+        .pf-wrap[data-pf-page="feed"] .pf-dialog[data-feed-compose] [data-feed-compose-editor-mount]{flex:1 1 auto;min-height:30vh}
+        .pf-wrap[data-pf-page="feed"] .pf-dialog[data-feed-compose] [data-feed-compose-editor-mount]>*{min-height:30vh;font-size:16px}
         .pf-wrap[data-pf-page="feed"][data-density] .pf-shown-menu.pf-sheet-enter{animation:pfFeedSheetUp .26s cubic-bezier(.2,.8,.2,1)}
         .pf-wrap[data-pf-page="feed"][data-density] :is(.pf-shown-menu,.pf-feed-scope-menu){position:fixed;left:0;right:0;bottom:0;top:auto;width:auto;max-width:none;max-height:78vh;overflow:auto;overscroll-behavior:contain;box-sizing:border-box;z-index:2147483000;border:0;border-radius:20px 20px 0 0;padding:6px 10px calc(14px + env(safe-area-inset-bottom,0px));background:#fff;box-shadow:0 0 0 100vmax rgba(15,23,42,.34),0 -14px 40px rgba(16,24,40,.22)}
         .pf-wrap[data-pf-page="feed"][data-density] .pf-feed-scope-menu{animation:pfFeedSheetUp .26s cubic-bezier(.2,.8,.2,1)}
         .pf-wrap[data-pf-page="feed"][data-density] :is(.pf-shown-menu,.pf-feed-scope-menu)::before{content:'';display:block;width:38px;height:4px;margin:4px auto 8px;border-radius:2px;background:#d0d5dd}
-        .pf-wrap[data-pf-page="feed"][data-density] .pf-shown-options{grid-template-columns:1fr;gap:6px}
-        .pf-wrap[data-pf-page="feed"][data-density] .pf-shown-options>button{height:48px;font-size:14px;font-weight:800;border-radius:12px;padding:0 14px}
+        .pf-wrap[data-pf-page="feed"][data-density] .pf-shown-menu{display:flex;flex-direction:column;padding-bottom:0}
+        .pf-wrap[data-pf-page="feed"][data-density] .pf-shown-head{padding:4px 6px 8px}
+        .pf-wrap[data-pf-page="feed"][data-density] .pf-shown-head strong{font-size:17px}
+        .pf-wrap[data-pf-page="feed"][data-density] .pf-shown-head button{width:40px;height:40px;border-radius:999px}
+        /* Filters on a phone: a plain list (icon, name, a round check on the right), no tinted or bordered rows. */
+        .pf-wrap[data-pf-page="feed"][data-density] .pf-shown-options{grid-template-columns:1fr;gap:0;padding:0 2px}
+        .pf-wrap[data-pf-page="feed"][data-density] .pf-shown-options>button{position:relative;height:52px;grid-template-columns:22px minmax(0,1fr) 24px;gap:14px;font-size:15px;font-weight:600;color:#344054;border:0;border-radius:10px;background:transparent;padding:0 8px}
+        .pf-wrap[data-pf-page="feed"][data-density] .pf-shown-options>button+button::before{content:'';position:absolute;top:0;left:44px;right:8px;height:1px;background:#f2f4f7}
+        .pf-wrap[data-pf-page="feed"][data-density] .pf-shown-options>button>i{color:#667085;font-size:15px;text-align:center}
+        .pf-wrap[data-pf-page="feed"][data-density] .pf-shown-options>button.active{border:0;background:transparent;color:#101828}
+        .pf-wrap[data-pf-page="feed"][data-density] .pf-shown-options>button:active{background:#f9fafb}
+        .pf-wrap[data-pf-page="feed"][data-density] .pf-shown-options .pf-shown-check{order:3;width:22px;height:22px;border:1.5px solid #d0d5dd;border-radius:50%;justify-self:end}
+        .pf-wrap[data-pf-page="feed"][data-density] .pf-shown-options .pf-shown-check i{font-size:10px}
+        .pf-wrap[data-pf-page="feed"][data-density] .pf-shown-options>button.active .pf-shown-check{border-color:#344054;background:#344054}
+        .pf-wrap[data-pf-page="feed"][data-density] .pf-shown-foot{position:sticky;bottom:0;display:grid;grid-template-columns:1fr 2fr;gap:10px;margin:8px -10px 0;padding:10px 12px calc(12px + env(safe-area-inset-bottom,0px));background:#fff;border-top:1px solid #f2f4f7}
+        .pf-wrap[data-pf-page="feed"][data-density] .pf-shown-foot button{height:46px;border-radius:12px;font:inherit;font-size:15px;font-weight:700;cursor:pointer}
+        .pf-wrap[data-pf-page="feed"][data-density] .pf-shown-reset{border:1px solid #d0d5dd;background:#fff;color:#344054}
+        .pf-wrap[data-pf-page="feed"][data-density] .pf-shown-reset:disabled{color:#98a2b3;cursor:default}
+        .pf-wrap[data-pf-page="feed"][data-density] .pf-shown-done{border:0;background:var(--primary,#d93025);color:var(--on-primary,#fff)}
         .pf-wrap[data-pf-page="feed"][data-density] .pf-shown-sort{padding:2px 10px 10px}
         .pf-wrap[data-pf-page="feed"][data-density] .pf-shown-sort .pf-list-segment{display:grid;grid-template-columns:1fr 1fr;gap:4px;border-radius:12px}
         .pf-wrap[data-pf-page="feed"][data-density] .pf-shown-sort .pf-list-segment button{min-height:40px;display:flex;align-items:center;justify-content:center;gap:8px;font-size:14px;border-radius:9px;transition:background-color .18s ease,color .18s ease}
         .pf-wrap[data-pf-page="feed"][data-density] .pf-feed-scope-menu>button,.pf-wrap[data-pf-page="feed"][data-density] .pf-feed-scope-departments button{min-height:48px;font-size:15px;border-radius:12px}
         .pf-wrap[data-pf-page="feed"][data-density] .pf-feed-scope-search input{height:44px;font-size:16px}
         .pf-wrap[data-pf-page="feed"][data-density] .pf-feed-scope-departments{max-height:none}
+        /* Tiles on a phone: text entries are one compact full-width card each (avatar, what happened, project, time);
+           photos and documents stay a two-column grid, and the last of an odd run takes the full width. */
+        .pf-wrap[data-pf-page="feed"][data-density="large"] .pf-feed-grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+        .pf-wrap[data-pf-page="feed"][data-density="large"] .pf-feed-activity{grid-column:1/-1;display:grid;grid-template-columns:36px minmax(0,1fr);align-items:start;gap:2px 11px;min-height:0;padding:11px 12px;border-radius:12px}
+        .pf-wrap[data-pf-page="feed"][data-density="large"] .pf-feed-activity>.pf-actor-avatar{grid-row:1/span 2;width:36px;height:36px;flex-basis:36px;font-size:14px}
+        .pf-wrap[data-pf-page="feed"][data-density="large"] .pf-feed-activity .pf-actor-badge{width:17px;height:17px;font-size:8px;right:-4px;bottom:-4px}
+        .pf-wrap[data-pf-page="feed"][data-density="large"] .pf-feed-activity-copy{display:grid;gap:2px;min-width:0}
+        .pf-wrap[data-pf-page="feed"][data-density="large"] .pf-feed-activity-copy>strong{font-size:14px;line-height:1.3;font-weight:650;color:#101828;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;overflow-wrap:anywhere}
+        .pf-wrap[data-pf-page="feed"][data-density="large"] .pf-feed-activity-copy .pf-feed-list-project{margin-top:0;font-size:12.5px}
+        .pf-wrap[data-pf-page="feed"][data-density="large"] .pf-feed-list-project .pf-project-identity{display:block;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;text-align:left;color:#475467;font-weight:600}
+        .pf-wrap[data-pf-page="feed"][data-density="large"] .pf-feed-list-project .pf-project-identity>span{display:inline}
+        .pf-wrap[data-pf-page="feed"][data-density="large"] .pf-feed-list-project .pf-feed-list-address{font-weight:500;color:#667085}
+        .pf-wrap[data-pf-page="feed"][data-density="large"] .pf-feed-activity>time{grid-column:2;font-size:12px;color:#667085;white-space:nowrap}
+        .pf-wrap[data-pf-page="feed"][data-density="large"] .pf-feed-note-card .pf-note,.pf-wrap[data-pf-page="feed"][data-density="large"] .pf-manual-tile .pf-manual-text{font-size:13.5px}
+        .pf-wrap[data-pf-page="feed"][data-density="large"] .pf-feed-card{border-radius:12px}
+        .pf-wrap[data-pf-page="feed"][data-density="large"] .pf-feed-card .pf-thumb,.pf-wrap[data-pf-page="feed"][data-density="large"] .pf-document-preview{aspect-ratio:4/3;max-height:none}
+        .pf-wrap[data-pf-page="feed"][data-density="large"] .pf-feed-card.pf-tile-wide{grid-column:1/-1}
+        .pf-wrap[data-pf-page="feed"][data-density="large"] .pf-feed-card.pf-tile-wide .pf-thumb,.pf-wrap[data-pf-page="feed"][data-density="large"] .pf-feed-card.pf-tile-wide .pf-document-preview{aspect-ratio:16/9}
+        .pf-wrap[data-pf-page="feed"][data-density="large"] .pf-feed-card-body{padding:8px 10px 10px}
+        .pf-wrap[data-pf-page="feed"][data-density="large"] .pf-tile-actor{margin-bottom:4px}
+        .pf-wrap[data-pf-page="feed"][data-density="large"] .pf-tile-actor strong{font-size:12.5px}
+        .pf-wrap[data-pf-page="feed"][data-density="large"] .pf-tile-actor time{display:block;font-size:11.5px}
+        .pf-wrap[data-pf-page="feed"][data-density="large"] .pf-feed-card .pf-feed-list-project{font-size:12px}
+        .pf-wrap[data-pf-page="feed"][data-density="list"] .pf-list-time-row .pf-project-identity{display:block;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;text-align:left}
       }
+      .pf-actor-avatar.pf-actor-system{background:#eef2f6;color:#475467}
       @keyframes pfFeedSheetUp{from{opacity:0;transform:translateY(32px)}}
       @media(prefers-reduced-motion:reduce){.pf-wrap[data-pf-page="feed"][data-density] :is(.pf-shown-menu,.pf-feed-scope-menu){animation:none!important}}
     `);
@@ -1971,8 +2101,11 @@
     if(mime && !mime.startsWith('image/')) return 'document';
     return 'photo';
   }
-  function mediaThumbHtml(item){
+  // options.eager: a small thumbnail in a List row. A lazy image there was fetched but left unpainted until the row
+  // had been on screen a while (a blank grey square on phones), and each page of rows renders them again.
+  function mediaThumbHtml(item, options = {}){
     const kind=galleryMediaType(item.photo);
+    const loading = options.eager ? 'loading="eager" decoding="sync"' : 'loading="lazy"';
     if(kind==='document' || kind==='audio') return documentPreviewHtml({...item.photo,url:photoOriginal(item),title:item.photo.label,type_label:kind==='audio'?'Audio':'File',icon:kind==='audio'?'fa-headphones':'fa-file-lines'});
     const thumb = photoThumb(item);
     const original = photoOriginal(item);
@@ -1980,10 +2113,10 @@
     const alt = escapeHtml(item.photo?.alt || item.projectTitle || (isVideo ? 'Video' : 'Photo'));
     const originalAttr = original ? ` data-original-src="${escapeHtml(original)}"` : '';
     if (isVideo) {
-      return `${thumb ? `<img loading="lazy" draggable="false" data-media-kind="video" src="${escapeHtml(thumb)}" alt="${alt}"${originalAttr}>` : (original ? `<video muted playsinline preload="metadata" src="${escapeHtml(original)}"></video>` : '<span class="pf-video-placeholder"><i class="fas fa-video"></i></span>')}<span class="pf-video-badge"><i class="fas fa-play"></i></span>`;
+      return `${thumb ? `<img ${loading} draggable="false" data-media-kind="video" src="${escapeHtml(thumb)}" alt="${alt}"${originalAttr}>` : (original ? `<video muted playsinline preload="metadata" src="${escapeHtml(original)}"></video>` : '<span class="pf-video-placeholder"><i class="fas fa-video"></i></span>')}<span class="pf-video-badge"><i class="fas fa-play"></i></span>`;
     }
     const mediaId = cleanText(item.photo?.media_id);
-    return `<img loading="lazy" draggable="false"${mediaId ? ` data-markup-thumbnail-media-id="${escapeHtml(mediaId)}"` : ''} src="${escapeHtml(thumb)}" alt="${alt}"${originalAttr}>`;
+    return `<img ${loading} draggable="false"${mediaId ? ` data-markup-thumbnail-media-id="${escapeHtml(mediaId)}"` : ''} src="${escapeHtml(thumb)}" alt="${alt}"${originalAttr}>`;
   }
   // Library records carry their media id as `id` and no URL; project photo
   // references carry `media_id`. Without this every library tile was blank.
@@ -2321,13 +2454,13 @@
     const author = postAuthor({ kind:'media', media:item.photo, source:{ author:firstText(item.photo?.uploaded_by_user_id,item.photo?.metadata?.uploaded_by_user_id,up.id) } });
     const selected = state.selected.has(item.id);
     return `
-      <article class="pf-feed-card pf-feed-media-card">
+      <article class="pf-feed-card pf-feed-media-card" data-feed-open-photo="${escapeHtml(item.id)}">
         <button type="button" class="pf-thumb${selected ? ' selected' : ''}${item.photo?.uploading ? ' uploading' : ''}${['audio','document'].includes(galleryMediaType(item.photo)) || (isVideoMedia(item.photo) && !photoThumb(item) && !photoOriginal(item)) ? ' loaded video-placeholder' : ''}" data-photo-feed-id="${escapeHtml(item.id)}" aria-pressed="${selected ? 'true' : 'false'}">
           <span class="pf-select" data-photo-select="${escapeHtml(item.id)}"><i class="fas fa-check"></i></span>
           ${mediaThumbHtml(item)}
         </button>
         <div class="pf-feed-card-body">
-          <div class="pf-tile-actor">${actorAvatarHtml(author,isVideoMedia(item.photo)?'fa-video':'fa-image')}<span><strong title="${escapeHtml(author.name)} uploaded a ${isVideoMedia(item.photo)?'video':'photo'}">${escapeHtml(author.name)} uploaded a ${isVideoMedia(item.photo)?'video':'photo'}</strong><time>${escapeHtml(feedListTime(entry.timestamp))}</time></span></div>
+          <div class="pf-tile-actor">${actorAvatarHtml(author,isVideoMedia(item.photo)?'fa-video':'fa-image')}<span><strong title="${escapeHtml(author.system?mediaAddedText([entry]):`${author.name} uploaded a ${isVideoMedia(item.photo)?'video':'photo'}`)}">${escapeHtml(author.system?mediaAddedText([entry]):`${author.name} uploaded a ${isVideoMedia(item.photo)?'video':'photo'}`)}</strong><time>${escapeHtml(feedListTime(entry.timestamp))}</time></span></div>
           <div class="pf-feed-list-project">${feedProjectLinkHtml(entry.project,entry.projectId)}</div>
           ${pairedActivityHtml(entry.pairedEvent)}
         </div>
@@ -2437,11 +2570,21 @@
       || (documentUploader ? state.users.find(u=>cleanText(u.id || u.user_id)===documentUploader) : null);
     const up=post.kind==='media'?uploader(post.media):{};
     const profile=person?.profile && typeof person.profile==='object' ? person.profile : {};
-    return {id:firstText(person?.id,person?.user_id,post.note?.author?.id,documentUploader,post.source?.author,post.event?.actor_user_id),name:firstText(person?.name,person?.display_name,post.note?.author?.name,up.name,up.email,post.kind==='activity'?feedActor(post.event):'', 'System activity'),
+    const name=firstText(person?.name,person?.display_name,post.note?.author?.name,up.name,up.email,post.kind==='activity'&&feedActorKnown(post.event)?feedActor(post.event):'');
+    // No person behind it (a satellite image, an automation): titles read in the passive and the avatar is an icon.
+    return {system:!name,id:firstText(person?.id,person?.user_id,post.note?.author?.id,documentUploader,post.source?.author,post.event?.actor_user_id),name:name || 'System activity',
       avatar:firstText(person?.profile_photo_url,person?.profile_photo,profile.profile_photo,profile.profile_photo_url,person?.avatar_url,person?.avatar,post.note?.author?.avatar,up.avatar)};
   }
   function postIcon(post){
     return post.kind==='manual' ? 'fa-pen-to-square' : post.kind==='media' ? 'fa-images' : post.kind==='document' ? 'fa-file-contract' : post.kind==='note' ? 'fa-note-sticky' : feedActivityIcon(post.event);
+  }
+  function isSatelliteMedia(photo = {}){
+    return /satellite/i.test(firstText(photo.source, objectValue(photo.metadata).source, photo.label, photo.alt));
+  }
+  // Media with no person behind it says what was added, not who: "Satellite image added", "2 photos added".
+  function mediaAddedText(entries = []){
+    if (entries.length === 1 && isSatelliteMedia(entries[0].media || entries[0].mediaItem?.photo)) return feedText('feed_media_satellite_added','Satellite image added');
+    return feedText('feed_media_added_auto','{media} added',{media:uploadCountLabel(entries)}).replace(/^./,(c)=>c.toUpperCase());
   }
   function uploadCountLabel(entries){
     const videos=entries.filter((entry)=>isVideoMedia(entry.media)).length;
@@ -2450,6 +2593,7 @@
   }
   function actorAvatarHtml(author, icon){
     const avatar=cleanText(author.avatar);
+    if(author.system)return `<span class="pf-actor-avatar pf-actor-system" aria-hidden="true"><i class="fas ${escapeHtml(icon)}"></i></span>`;
     const image=/^(https?:\/\/|\/)/.test(avatar)
       ? `<img src="${escapeHtml(avatar)}" alt="${escapeHtml(author.name)}">`
       : `<span aria-hidden="true">${escapeHtml(author.name.slice(0,1).toUpperCase())}</span>`;
@@ -2466,8 +2610,10 @@
       const coverUrl = cover ? photoThumb({photo:cover}) : '';
       return `<button type="button" class="pf-project-identity pf-project-card" data-feed-project-id="${escapeHtml(projectId)}" data-fm-summary-type="summary.project" data-fm-summary-project="${escapeHtml(projectId)}" aria-label="Open project: ${escapeHtml(label)}"><span class="pf-project-card-cover" aria-hidden="true"><i class="fas fa-image"></i>${coverUrl ? `<img loading="lazy" src="${escapeHtml(coverUrl)}" alt="">` : ''}</span><span class="pf-project-card-details"><span class="pf-project-card-name">${escapeHtml(title)}</span>${address && address.toLowerCase() !== title.toLowerCase() ? `<span class="pf-project-card-address">${escapeHtml(address)}</span>` : ''}</span></button>`;
     }
+    // An entry with no project (a contact added on its own) shows no project line rather than "Untitled project".
+    if (!projectId && !savedProjectTitle(project) && !projectAddress(project)) return '';
     return projectId
-      ? `<button type="button" class="pf-project-identity" data-feed-project-id="${escapeHtml(projectId)}" data-fm-summary-type="summary.project" data-fm-summary-project="${escapeHtml(projectId)}" aria-label="Open project: ${escapeHtml(label)}"><span>${escapeHtml(title)}</span>${address && address.toLowerCase() !== title.toLowerCase() ? `<span class="pf-feed-list-separator" aria-hidden="true">·</span><span class="pf-feed-list-address">${escapeHtml(address)}</span>` : ''}</button>`
+      ? `<button type="button" class="pf-project-identity" data-feed-project-id=""${escapeHtml(projectId)}" data-fm-summary-type="summary.project" data-fm-summary-project="${escapeHtml(projectId)}" aria-label="Open project: ${escapeHtml(label)}"><span>${escapeHtml(title)}</span>${address && address.toLowerCase() !== title.toLowerCase() ? `<span class="pf-feed-list-separator" aria-hidden="true">·</span><span class="pf-feed-list-address">${escapeHtml(address)}</span>` : ''}</button>`
       : `<span>${escapeHtml(label)}</span>`;
   }
   function feedNoteHtml(note = {}, listNote = false){
@@ -2477,7 +2623,7 @@
   }
   function feedListMediaHtml(photos = [], projectId = ''){
     if (!photos.length) return '';
-    const thumbnails = photos.map((entry,index) => `<button type="button" class="pf-thumb" data-photo-feed-id="${escapeHtml(entry.mediaItem.id)}" aria-label="Open ${isVideoMedia(entry.media) ? 'video' : 'photo'} ${index+1} in gallery">${mediaThumbHtml(entry.mediaItem)}</button>`).join('');
+    const thumbnails = photos.map((entry,index) => `<button type="button" class="pf-thumb" data-photo-feed-id="${escapeHtml(entry.mediaItem.id)}" aria-label="Open ${isVideoMedia(entry.media) ? 'video' : 'photo'} ${index+1} in gallery">${mediaThumbHtml(entry.mediaItem,{eager:index<6})}</button>`).join('');
     const more = projectId ? `<button type="button" class="pf-feed-list-more" data-feed-more-project-id="${escapeHtml(projectId)}" aria-label="See all ${photos.length} uploads in project Photos" hidden>Show more</button>` : '';
     return `<div class="pf-feed-list-media" aria-label="Uploaded media previews">${thumbnails}${more}</div>`;
   }
@@ -2526,7 +2672,7 @@
     }
     const author=postAuthor(post),photos=post.entries.filter((entry)=>entry.kind==='media');
     const action=photos.length
-      ? `${author.name} uploaded ${uploadCountLabel(photos)}`
+      ? (author.system ? mediaAddedText(photos) : `${author.name} uploaded ${uploadCountLabel(photos)}`)
       : post.kind==='note' ? `${author.name} added a note:`
       : post.kind==='activity' ? feedActivitySummary(post.event)
       : post.pairedEvent && !['media.uploaded','document.ingested','receipt.uploaded'].includes(cleanText(post.pairedEvent.type)) ? feedActivitySummary(post.pairedEvent)
@@ -2534,7 +2680,9 @@
     const documentEntry=post.entries.find((entry)=>entry.kind==='document');
     const fallback=`${post.kind==='note' ? feedNoteHtml(post.note,true) : ''}${feedListMediaHtml(photos,post.projectId)}${post.kind==='document' ? feedListDocumentHtml(post.document,documentEntry?.id) : ''}`;
     const actionActor=post.kind==='activity' ? feedActor(post.event) : post.pairedEvent && action.startsWith(feedActor(post.pairedEvent)) ? feedActor(post.pairedEvent) : author.name;
-    return `<article class="pf-feed-list-row${showProject?' pf-list-time-row':''}${fallback?'':' pf-no-preview'}" data-feed-entry="${escapeHtml(post.id)}">${actorAvatarHtml(author,postIcon(post))}<div class="pf-feed-list-copy">${feedListTitleHtml(post.timestamp,action,actionActor,!showProject)}${showProject?`<div class="pf-feed-list-project">${feedProjectLinkHtml(post.project,post.projectId,false,true)}</div>`:''}${fallback?`<div class="pf-feed-list-preview">${fallback}</div>`:''}</div>${showProject?`<time class="pf-feed-list-time" datetime="${escapeHtml(post.timestamp)}">${escapeHtml(feedDayTime(post.timestamp))}</time>`:''}</article>`;
+    const photoOpen=photos.length ? ` data-feed-open-photo="${escapeHtml(photos[0].mediaItem.id)}"` : '';
+    const projectLink=feedProjectLinkHtml(post.project,post.projectId,false,true);
+    return `<article class="pf-feed-list-row${showProject?' pf-list-time-row':''}${fallback?'':' pf-no-preview'}" data-feed-entry="${escapeHtml(post.id)}"${photoOpen}>${actorAvatarHtml(author,postIcon(post))}<div class="pf-feed-list-copy">${feedListTitleHtml(post.timestamp,action,actionActor,!showProject)}${showProject?`<div class="pf-feed-list-project">${photos.length?projectLink.replace('data-feed-project-id=','data-feed-project-tab="photos" data-feed-project-id='):projectLink}</div>`:''}${fallback?`<div class="pf-feed-list-preview">${fallback}</div>`:''}</div>${showProject?`<time class="pf-feed-list-time" datetime="${escapeHtml(post.timestamp)}">${escapeHtml(feedDayTime(post.timestamp))}</time>`:''}</article>`;
   }
   function feedProjectGroupsHtml(entries){
     const projects=new Map();
@@ -2854,11 +3002,35 @@
       </div>` : ''}
       <div class="pf-scroll" data-feed-scroll data-feed-view="${escapeHtml(feedScrollViewKey())}">
         ${state.loading && !state.loaded ? `<div class="pf-loading">${(globalThis.PlatformLanguage?.htmlText("photos","m_d9f4b62b1c74a0","Loading your feed...") ?? "Loading your feed...")}</div>` : ''}
+        ${feedMobilePostHtml()}
         ${unassignedGroupHtml()}
         ${!state.loading && state.loaded && !entries.length && !visibleUnassigned().length ? `<div class="pf-empty"><i class="fas fa-filter-circle-xmark"></i><strong>${(globalThis.PlatformLanguage?.htmlText("photos","m_1a6a017a3c3609","Nothing matches what is shown") ?? "Nothing matches what is shown")}</strong><div>${(globalThis.PlatformLanguage?.htmlText("photos","m_e66cd5073679a3","Adjust the Shown menu or search to bring more items into your feed.") ?? "Adjust the Shown menu or search to bring more items into your feed.")}</div></div>` : ''}
-        ${dayGroups.map(([key, list]) => `<div class="pf-day"><h2 class="pf-day-title">${escapeHtml(dateLabel(key))}</h2><div class="pf-feed-grid">${state.density==='list' && state.listOrganize==='project' ? feedProjectGroupsHtml(list) : list.map((entry) => state.density === 'posts' ? feedPostHtml(entry) : state.density === 'list' ? feedListEntryHtml(entry) : entry.kind === 'manual' ? feedManualEntryHtml(entry) : entry.kind === 'media' ? feedMediaEntryHtml(entry) : entry.kind === 'document' ? feedDocumentEntryHtml(entry) : entry.kind === 'note' ? feedNoteEntryHtml(entry) : feedActivityEntryHtml(entry)).join('')}</div></div>`).join('')}
+        ${dayGroups.map(([key, list]) => `<div class="pf-day"><h2 class="pf-day-title">${escapeHtml(dateLabel(key))}</h2><div class="pf-feed-grid">${state.density==='list' && state.listOrganize==='project' ? feedProjectGroupsHtml(list) : state.density === 'posts' ? list.map(feedPostHtml).join('') : state.density === 'list' ? list.map((entry) => feedListEntryHtml(entry)).join('') : feedTileEntriesHtml(list)}</div></div>`).join('')}
         ${entries.length > state.visible ? '<div class="pf-sentinel" data-feed-sentinel></div>' : state.loaded && !state.loading && !state.documentsLoading && entries.length ? '<div class="pf-feed-end" data-feed-end role="status">You’ve reached the end of the available activity.</div>' : ''}
       </div>`;
+  }
+  // A phone has no Posts view (List and Tiles only), so List and Tiles start with a "Write a post" row that opens the
+  // composer full screen.
+  function feedMobilePostHtml(){
+    if (!feedIsMobile() || state.density === 'posts' || !state.canPost || !state.views.includes('posts') || state.trashMode) return '';
+    const me = state.users.find((user) => user.id === APP.userId) || {};
+    return `<button type="button" class="pf-mobile-post" data-feed-compose-open>${avatarHtml({ name:firstText(me.name,'You'), avatar:me.profile_photo_url })}<span>${escapeHtml(feedText('feed_post_prompt','Write a post…'))}</span><i class="fas fa-pen-to-square" aria-hidden="true"></i></button>`;
+  }
+  // Tiles: one card per entry. On a phone, photos and documents pair up in two columns between full-width text cards;
+  // the last card of an odd run of them takes the full width rather than leaving a hole.
+  function feedTileEntriesHtml(list = []){
+    const tileKinds = ['media','document'];
+    const wide = new Set();
+    if (feedIsMobile() && state.density === 'large') {
+      let run = [];
+      const close = () => { if (run.length % 2) wide.add(run[run.length - 1]); run = []; };
+      list.forEach((entry) => { if (tileKinds.includes(entry.kind)) run.push(entry); else close(); });
+      close();
+    }
+    return list.map((entry) => {
+      const html = entry.kind === 'manual' ? feedManualEntryHtml(entry) : entry.kind === 'media' ? feedMediaEntryHtml(entry) : entry.kind === 'document' ? feedDocumentEntryHtml(entry) : entry.kind === 'note' ? feedNoteEntryHtml(entry) : feedActivityEntryHtml(entry);
+      return wide.has(entry) ? html.replace('class="pf-feed-card ', 'class="pf-feed-card pf-tile-wide ') : html;
+    }).join('');
   }
   async function openFeedViewerAt(index, options = {}){
     const items = filteredItems();
@@ -3003,6 +3175,7 @@
         <div class="pf-shown-head"><div><strong>Filters</strong></div><button type="button" data-feed-shown-close aria-label="Close"><i class="fas fa-xmark"></i></button></div>
         ${state.density==='list'&&feedIsMobile()?`<div class="pf-shown-sort"><div class="pf-list-segment" role="group" aria-label="Sort feed by"><button type="button" data-feed-list-organize="time" aria-pressed="${state.listOrganize==='time'}" class="${state.listOrganize==='time'?'active':''}"><i class="fas fa-clock" aria-hidden="true"></i>Time</button><button type="button" data-feed-list-organize="project" aria-pressed="${state.listOrganize==='project'}" class="${state.listOrganize==='project'?'active':''}"><i class="fas fa-folder" aria-hidden="true"></i>Project</button></div></div>`:''}
         <div class="pf-shown-options pf-activity-options">${ACTIVITY_FILTERS.map(item=>`<button type="button" class="${state.visibleActivity.has(item.id)?'active':''}" data-feed-filter-group="activity" data-feed-filter-id="${escapeHtml(item.id)}" aria-pressed="${state.visibleActivity.has(item.id)}"><span class="pf-shown-check"><i class="fas fa-check"></i></span><i class="fas ${escapeHtml(item.icon)}"></i><span>${escapeHtml(feedFilterLabel(item,'activity'))}</span></button>`).join('')}</div>
+        ${feedIsMobile()?`<div class="pf-shown-foot"><button type="button" class="pf-shown-reset" data-feed-shown-reset${state.visibleActivity.size===DEFAULT_ACTIVITY_FILTERS.length&&DEFAULT_ACTIVITY_FILTERS.every(id=>state.visibleActivity.has(id))?' disabled':''}>${escapeHtml(feedText('feed_filters_reset','Reset'))}</button><button type="button" class="pf-shown-done" data-feed-shown-done>${escapeHtml(feedText('feed_filters_done','Done'))}</button></div>`:''}
       </div>`;
   }
   function feedScopeControlHtml(){
@@ -3492,12 +3665,16 @@
     if (saved) showToast?.(feedText('feed_camera_saved_title','Saved to Unassigned'), feedText('feed_camera_saved','{photos} saved. Add them to a project from the Unassigned group.',{photos:photoCountText(saved)}), true);
     refreshFeed();
   }
+  // The bar is there from the first render, so it never appears late over a loaded list. Until the catalog says
+  // whether the person may pair photos it has no "Add to a project?" step; it is mounted again with one if so.
   function ensureFeedCamera(){
     const host = state.root;
-    if (!host?.isConnected || !window.FirstMateCamera?.mount || !state.loaded) return;
-    const next = state.canAssignMedia === true;
+    if (!host?.isConnected || !window.FirstMateCamera?.mount) return;
+    const next = state.loaded && state.canAssignMedia === true;
     if (state.camera?.bar?.parentElement === host && state.cameraNext === next) return;
     if (state.camera?.isOpen?.()) return;
+    // Mounted again (the step changed): the new bar takes the old one's place without fading in a second time.
+    if (state.camera) host.classList.add('pf-feed-camera-again');
     state.camera?.destroy?.();
     host.classList.add('pf-feed-camera-host');
     state.cameraNext = next;
@@ -3557,7 +3734,8 @@
         .pf-wrap[data-pf-page="feed"] .pf-selection-actions:has([data-selection-assign]) [data-selection-download] i{font-size:15px}
         .pf-feed-camera-host>.fmc-bar{left:0;right:0;bottom:env(safe-area-inset-bottom,0px)}
         .pf-feed-camera-host>.fmc-shell{position:fixed;top:var(--pf-feed-camera-top,0px);left:0;right:0;bottom:0}
-        .pf-feed-camera-host.fmc-host .pf-wrap>[data-photo-feed-dynamic]>.pf-scroll{padding-bottom:64px}
+        .pf-feed-camera-host.fmc-host .pf-wrap>[data-photo-feed-dynamic]>.pf-scroll{padding-bottom:calc(76px + env(safe-area-inset-bottom,0px))}
+        .pf-feed-camera-host:not(.pf-feed-camera-again)>.fmc-bar{animation:pfFeedBarIn .28s ease both}
         .pf-feed-camera-host:is(:has(.pf-shown-menu),:has(.pf-feed-scope-menu),:has(.pf-overlay),:has(.pf-selectionbar))>.fmc-bar{transform:translateY(calc(100% + 24px));opacity:0;pointer-events:none}
       }
       .pf-assign{display:flex;flex-direction:column;gap:10px;min-height:100%;color:#101828;font-size:14px}
@@ -3609,9 +3787,10 @@
         .pf-assign-sheet{width:100%;height:min(88vh,calc(100dvh - 32px));border-radius:18px 18px 0 0;animation:pfAssignUp .26s cubic-bezier(.2,.8,.2,1)}
       }
       @keyframes pfAssignSpin{to{transform:rotate(360deg)}}
+      @keyframes pfFeedBarIn{from{opacity:0}}
       @keyframes pfAssignFade{from{opacity:0}}
       @keyframes pfAssignUp{from{transform:translateY(40px);opacity:.4}}
-      @media(prefers-reduced-motion:reduce){.pf-assign-overlay,.pf-assign-sheet{animation:none}}
+      @media(prefers-reduced-motion:reduce){.pf-assign-overlay,.pf-assign-sheet,.pf-feed-camera-host>.fmc-bar{animation:none}}
     `);
   }
   function render(){
@@ -3685,7 +3864,7 @@
     rootEl.querySelectorAll('[data-feed-scope-option]').forEach(button=>button.addEventListener('click',()=>{state.feedScope=button.dataset.feedScopeOption;state.scopeMenuOpen=false;state.visible=PAGE_SIZE;writeFeedPreferences();render();}));
     rootEl.querySelector('[data-feed-scope-search]')?.addEventListener('input',event=>{const query=event.target.value.trim().toLowerCase();rootEl.querySelectorAll('.pf-feed-scope-departments [data-feed-scope-option]').forEach(button=>{button.hidden=!button.textContent.toLowerCase().includes(query);});});
     rootEl.querySelectorAll('[data-feed-list-organize]').forEach(button=>button.addEventListener('click',()=>{state.listOrganize=button.dataset.feedListOrganize==='project'?'project':'time';writeFeedPreferences();render();}));
-    rootEl.querySelector('[data-feed-compose-open]')?.addEventListener('click',()=>{state.composerOpen=true;render();rootEl.querySelector('[data-feed-compose-text]')?.focus();});
+    rootEl.querySelector('.pf-create-post[data-feed-compose-open]')?.addEventListener('click',()=>{state.composerOpen=true;render();rootEl.querySelector('[data-feed-compose-text]')?.focus();});
     rootEl.querySelectorAll('[data-feed-compose-close]').forEach(button=>button.addEventListener('click',()=>{if(!state.composerBusy){state.composerOpen=false;render();}}));
     const composerWidgets=window.FirstMateChannels?.composerWidgets;
     const editorMount=rootEl.querySelector('[data-feed-compose-editor-mount]');
@@ -3800,8 +3979,15 @@
       state.shownMenuOpen = !state.shownMenuOpen;
       render();
     });
-    rootEl.querySelector('[data-feed-shown-close]')?.addEventListener('click', () => {
+    rootEl.querySelectorAll('[data-feed-shown-close],[data-feed-shown-done]').forEach((button) => button.addEventListener('click', () => {
       state.shownMenuOpen = false;
+      render();
+    }));
+    // Reset shows every kind of activity again (the default) and keeps the sheet open.
+    rootEl.querySelector('[data-feed-shown-reset]')?.addEventListener('click', () => {
+      state.visibleActivity = new Set(DEFAULT_ACTIVITY_FILTERS);
+      state.visible = PAGE_SIZE;
+      writeFeedPreferences();
       render();
     });
     rootEl.querySelectorAll('[data-feed-filter-id]').forEach((button) => button.addEventListener('click', () => {
@@ -3957,6 +4143,15 @@
         openFeedViewerAt(index);
       });
     });
+    rootEl.querySelector('.pf-mobile-post')?.addEventListener('click',()=>{state.composerOpen=true;render();state.root?.querySelector('[data-feed-compose-text]')?.focus();});
+    // Tapping a photo entry anywhere but its own controls opens the photo, not the project.
+    rootEl.querySelectorAll('[data-feed-open-photo]').forEach((row) => row.addEventListener('click', (event) => {
+      if (state.selectionMode || state.trashMode) return;
+      if (event.target.closest('button,a,input,select,textarea,[role="button"],[data-fm-summary-type],.pf-note')) return;
+      const items = filteredItems();
+      const index = items.findIndex((item) => item.id === row.dataset.feedOpenPhoto);
+      if (index >= 0) openFeedViewerAt(index);
+    }));
     rootEl.querySelectorAll('[data-feed-more-project-id]').forEach((btn) => btn.addEventListener('click', () => {
       const id=cleanText(btn.dataset.feedMoreProjectId);
       openProject(projectForId(id),{groupKey:id,tab:'photos'}).catch((error)=>{
@@ -3970,7 +4165,7 @@
         event.stopPropagation();
         const id = cleanText(btn.dataset.feedProjectId);
         const project = projectForId(id);
-        openProject(project, { groupKey:id, tab:state.density==='list'?'map':'photos' }).catch((error) => {
+        openProject(project, { groupKey:id, tab:cleanText(btn.dataset.feedProjectTab) || (state.density==='list'?'map':'photos') }).catch((error) => {
           console.warn('Could not open project from Feed', error);
           showToast?.((globalThis.PlatformLanguage?.text("photos","m_3d2585ab4e8b80","Project issue") ?? "Project issue"), error?.message || 'Could not open that project.', false);
         });
