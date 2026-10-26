@@ -115,7 +115,8 @@
             "hd-hdz-listing",
             "library-2026-10-12"
           ],
-          "popular": true
+          "popular": true,
+          "setup_flagship": true
         },
         {
           "id": "lib-shingle-gaf-uhdz",
@@ -489,7 +490,8 @@
           "price_confidence": "observed",
           "sources": [
             "library-2026-10-12"
-          ]
+          ],
+          "setup_default": true
         },
         {
           "id": "lib-iws-gaf-weatherwatch",
@@ -689,6 +691,102 @@
             "hd-gaf-startermatch",
             "superarbor-gaf-startermatch"
           ]
+        },
+        {
+          "id": "lib-boot-gaf-masterflow",
+          "role": "pipe_boot",
+          "name": "Master Flow Pipe Boot (1-1/2 to 3 in)",
+          "unit": "ea",
+          "default_price": 14,
+          "price_confidence": "estimate",
+          "provisional": true,
+          "provisional_note": "Provisional (2026-10-25): added for the price book setup from general product knowledge, not a live listing. Check the name, size and price before relying on it.",
+          "sources": []
+        },
+        {
+          "id": "lib-intake-gaf-cobra-intakepro",
+          "role": "intake_vent",
+          "name": "Cobra IntakePro Roof Deck Intake Vent (4 ft)",
+          "unit": "pc",
+          "coverage": {
+            "lf": 4
+          },
+          "default_price": 16,
+          "price_confidence": "estimate",
+          "provisional": true,
+          "provisional_note": "Provisional (2026-10-25): added for the price book setup from general product knowledge, not a live listing. Check the name, size and price before relying on it.",
+          "sources": []
+        },
+        {
+          "id": "lib-boxvent-gaf-masterflow-slantback",
+          "role": "box_vent",
+          "name": "Master Flow Slant Back Roof Louver",
+          "unit": "ea",
+          "default_price": 24,
+          "price_confidence": "estimate",
+          "provisional": true,
+          "provisional_note": "Provisional (2026-10-25): added for the price book setup from general product knowledge, not a live listing. Check the name, size and price before relying on it.",
+          "sources": []
+        },
+        {
+          "id": "lib-lowslope-gaf-everguard-tpo-60",
+          "role": "low_slope_membrane",
+          "system": "tpo",
+          "name": "EverGuard TPO 60 mil membrane (10 x 100 ft)",
+          "unit": "roll",
+          "coverage": {
+            "squares_gross": 10
+          },
+          "default_price": 560,
+          "price_confidence": "estimate",
+          "provisional": true,
+          "provisional_note": "Provisional (2026-10-25): added for the price book setup from general product knowledge, not a live listing. Check the name, size and price before relying on it.",
+          "sources": []
+        },
+        {
+          "id": "lib-lowslope-gaf-everguard-pvc-50",
+          "role": "low_slope_membrane",
+          "system": "pvc",
+          "name": "EverGuard PVC 50 mil membrane (10 x 100 ft)",
+          "unit": "roll",
+          "coverage": {
+            "squares_gross": 10
+          },
+          "default_price": 720,
+          "price_confidence": "estimate",
+          "provisional": true,
+          "provisional_note": "Provisional (2026-10-25): added for the price book setup from general product knowledge, not a live listing. Check the name, size and price before relying on it.",
+          "sources": []
+        },
+        {
+          "id": "lib-lowslope-gaf-ruberoid-20",
+          "role": "low_slope_base",
+          "system": "mod_bit",
+          "name": "Ruberoid 20 SBS base sheet",
+          "unit": "roll",
+          "coverage": {
+            "squares_gross": 2
+          },
+          "default_price": 95,
+          "price_confidence": "estimate",
+          "provisional": true,
+          "provisional_note": "Provisional (2026-10-25): added for the price book setup from general product knowledge, not a live listing. Check the name, size and price before relying on it.",
+          "sources": []
+        },
+        {
+          "id": "lib-lowslope-gaf-ruberoid-torch-granule",
+          "role": "low_slope_cap",
+          "system": "mod_bit",
+          "name": "Ruberoid Torch Granule cap sheet",
+          "unit": "roll",
+          "coverage": {
+            "squares_gross": 1
+          },
+          "default_price": 115,
+          "price_confidence": "estimate",
+          "provisional": true,
+          "provisional_note": "Provisional (2026-10-25): added for the price book setup from general product knowledge, not a live listing. Check the name, size and price before relying on it.",
+          "sources": []
         }
       ],
       "warranty_system": {
@@ -814,7 +912,8 @@
             "roofingbrief-oc-2026",
             "library-2026-10-12"
           ],
-          "popular": true
+          "popular": true,
+          "setup_flagship": true
         },
         {
           "id": "lib-shingle-oc-duration-flex",
@@ -1232,6 +1331,31 @@
             "hd-oc-weatherlock-mat",
             "oc-weatherlock-mat-page"
           ]
+        },
+        {
+          "id": "lib-intake-oc-ventsure-inflow",
+          "role": "intake_vent",
+          "name": "VentSure InFlow Intake Vent (4 ft)",
+          "unit": "pc",
+          "coverage": {
+            "lf": 4
+          },
+          "default_price": 15,
+          "price_confidence": "estimate",
+          "provisional": true,
+          "provisional_note": "Provisional (2026-10-25): added for the price book setup from general product knowledge, not a live listing. Check the name, size and price before relying on it.",
+          "sources": []
+        },
+        {
+          "id": "lib-boxvent-oc-ventsure-slantback",
+          "role": "box_vent",
+          "name": "VentSure Slant Back Static Roof Vent",
+          "unit": "ea",
+          "default_price": 22,
+          "price_confidence": "estimate",
+          "provisional": true,
+          "provisional_note": "Provisional (2026-10-25): added for the price book setup from general product knowledge, not a live listing. Check the name, size and price before relying on it.",
+          "sources": []
         }
       ],
       "warranty_system": {
@@ -1331,7 +1455,8 @@
             "malarkey-vista-tds",
             "library-2026-10-12"
           ],
-          "popular": true
+          "popular": true,
+          "setup_flagship": true
         },
         {
           "id": "lib-shingle-malarkey-legacy",
@@ -1656,7 +1781,8 @@
             "library-2026-10-12",
             "ringsend-landmark"
           ],
-          "popular": true
+          "popular": true,
+          "setup_flagship": true
         },
         {
           "id": "lib-shingle-ct-landmark-pro",
@@ -2036,6 +2162,61 @@
             "certainteed-high-performance-starter-page",
             "superarbor-ct-high-performance-starter"
           ]
+        },
+        {
+          "id": "lib-intake-ct-airvent-edge",
+          "role": "intake_vent",
+          "name": "Air Vent The Edge Vent intake (4 ft)",
+          "unit": "pc",
+          "coverage": {
+            "lf": 4
+          },
+          "default_price": 15,
+          "price_confidence": "estimate",
+          "provisional": true,
+          "provisional_note": "Provisional (2026-10-25): added for the price book setup from general product knowledge, not a live listing. Check the name, size and price before relying on it.",
+          "sources": []
+        },
+        {
+          "id": "lib-boxvent-ct-airvent-slantback",
+          "role": "box_vent",
+          "name": "Air Vent Slant Back Static Vent",
+          "unit": "ea",
+          "default_price": 21,
+          "price_confidence": "estimate",
+          "provisional": true,
+          "provisional_note": "Provisional (2026-10-25): added for the price book setup from general product knowledge, not a live listing. Check the name, size and price before relying on it.",
+          "sources": []
+        },
+        {
+          "id": "lib-lowslope-ct-flintlastic-nailbase",
+          "role": "low_slope_base",
+          "system": "mod_bit",
+          "name": "Flintlastic SA NailBase base sheet",
+          "unit": "roll",
+          "coverage": {
+            "squares_gross": 2
+          },
+          "default_price": 110,
+          "price_confidence": "estimate",
+          "provisional": true,
+          "provisional_note": "Provisional (2026-10-25): added for the price book setup from general product knowledge, not a live listing. Check the name, size and price before relying on it.",
+          "sources": []
+        },
+        {
+          "id": "lib-lowslope-ct-flintlastic-sa-cap",
+          "role": "low_slope_cap",
+          "system": "mod_bit",
+          "name": "Flintlastic SA Cap sheet",
+          "unit": "roll",
+          "coverage": {
+            "squares_gross": 1
+          },
+          "default_price": 125,
+          "price_confidence": "estimate",
+          "provisional": true,
+          "provisional_note": "Provisional (2026-10-25): added for the price book setup from general product knowledge, not a live listing. Check the name, size and price before relying on it.",
+          "sources": []
         }
       ],
       "warranty_system": {
@@ -2142,7 +2323,8 @@
             "iko-superarbor-cambridge",
             "iko-bundles-blog"
           ],
-          "popular": true
+          "popular": true,
+          "setup_flagship": true
         },
         {
           "id": "lib-shingle-iko-dynasty",
@@ -2409,6 +2591,36 @@
           "sources": [
             "iko-goldshield-page"
           ]
+        },
+        {
+          "id": "lib-lowslope-iko-torchflex-base",
+          "role": "low_slope_base",
+          "system": "mod_bit",
+          "name": "Torchflex TP-180-FF base sheet",
+          "unit": "roll",
+          "coverage": {
+            "squares_gross": 1
+          },
+          "default_price": 80,
+          "price_confidence": "estimate",
+          "provisional": true,
+          "provisional_note": "Provisional (2026-10-25): added for the price book setup from general product knowledge, not a live listing. Check the name, size and price before relying on it.",
+          "sources": []
+        },
+        {
+          "id": "lib-lowslope-iko-torchflex-cap",
+          "role": "low_slope_cap",
+          "system": "mod_bit",
+          "name": "Torchflex TP-250-CAP sheet",
+          "unit": "roll",
+          "coverage": {
+            "squares_gross": 1
+          },
+          "default_price": 105,
+          "price_confidence": "estimate",
+          "provisional": true,
+          "provisional_note": "Provisional (2026-10-25): added for the price book setup from general product knowledge, not a live listing. Check the name, size and price before relying on it.",
+          "sources": []
         }
       ],
       "ridge_vent_note": "IKO's North American residential accessories page lists no ridge vent or other ventilation product (starters, hip & ridge, synthetic underlayment, ice & water, GoldSeam tape only). Use a third-party ridge vent; IKO's ROOFPRO extended warranty does not require one.",
@@ -2491,7 +2703,8 @@
             "atlas-menards-pristine",
             "atlas-hd-pristine-3bdsq"
           ],
-          "popular": true
+          "popular": true,
+          "setup_flagship": true
         },
         {
           "id": "lib-shingle-atlas-pinnacle-impact",
@@ -2886,7 +3099,8 @@
             "thepricer-tamko-cost",
             "fixr-tamko-buyers-guide"
           ],
-          "popular": true
+          "popular": true,
+          "setup_flagship": true
         },
         {
           "id": "lib-shingle-tamko-titan-xt",
@@ -3284,7 +3498,8 @@
             "roofcalc-pabco-2023",
             "abc-pabco-increase-2026"
           ],
-          "popular": true
+          "popular": true,
+          "setup_flagship": true
         },
         {
           "id": "lib-shingle-pabco-premier-radiance",
@@ -3908,6 +4123,76 @@
       "sources": [
         "library-2026-10-12"
       ]
+    },
+    {
+      "id": "lib-pipe-boot-lead-3",
+      "name": "Lead pipe boot (3 in)",
+      "category": "penetrations",
+      "rule_id": "pipe_boots",
+      "unit": "ea",
+      "default_price": 28,
+      "setup_default": true,
+      "price_confidence": "estimate",
+      "provisional": true,
+      "provisional_note": "Provisional (2026-10-25): added for the price book setup from general product knowledge, not a live listing. Check the name, size and price before relying on it.",
+      "sources": []
+    },
+    {
+      "id": "lib-iws-generic",
+      "name": "Ice and water barrier (generic, 2 sq roll)",
+      "category": "underlayment",
+      "rule_id": "ice_water",
+      "unit": "roll",
+      "coverage": {
+        "squares_gross": 2
+      },
+      "default_price": 95,
+      "price_confidence": "estimate",
+      "provisional": true,
+      "provisional_note": "Provisional (2026-10-25): added for the price book setup from general product knowledge, not a live listing. Check the name, size and price before relying on it.",
+      "sources": []
+    },
+    {
+      "id": "lib-ridge-vent-generic",
+      "name": "Ridge vent, rigid (generic, 4 ft)",
+      "category": "ventilation",
+      "rule_id": "ridge_vent",
+      "unit": "pc",
+      "coverage": {
+        "lf": 4
+      },
+      "default_price": 13,
+      "price_confidence": "estimate",
+      "provisional": true,
+      "provisional_note": "Provisional (2026-10-25): added for the price book setup from general product knowledge, not a live listing. Check the name, size and price before relying on it.",
+      "sources": []
+    },
+    {
+      "id": "lib-intake-generic",
+      "name": "Intake vent strip (generic, 4 ft)",
+      "category": "ventilation",
+      "rule_id": "intake_vent",
+      "unit": "pc",
+      "coverage": {
+        "lf": 4
+      },
+      "default_price": 12,
+      "price_confidence": "estimate",
+      "provisional": true,
+      "provisional_note": "Provisional (2026-10-25): added for the price book setup from general product knowledge, not a live listing. Check the name, size and price before relying on it.",
+      "sources": []
+    },
+    {
+      "id": "lib-boxvent-generic",
+      "name": "Box vent, aluminum slant back (generic)",
+      "category": "ventilation",
+      "rule_id": "box_vents",
+      "unit": "ea",
+      "default_price": 18,
+      "price_confidence": "estimate",
+      "provisional": true,
+      "provisional_note": "Provisional (2026-10-25): added for the price book setup from general product knowledge, not a live listing. Check the name, size and price before relying on it.",
+      "sources": []
     }
   ],
   "labor_items": [
@@ -4778,6 +5063,44 @@
       "sources": [
         "homeguide-replacement"
       ]
+    },
+    {
+      "id": "intake_vent",
+      "order": 10,
+      "show_in_setup": false,
+      "group": "ventilation",
+      "label": "Intake vent",
+      "explanation": "Continuous intake runs along the eaves, so air drawn in low leaves at the ridge. Most intake vents come in 4-foot pieces.",
+      "formula": "eavesLf",
+      "pricebook_formula": "eavesLf",
+      "include_waste": false,
+      "unit": "lf",
+      "order_unit": "pc",
+      "order_packaging": {
+        "units_per_package": 4
+      },
+      "provisional": true,
+      "provisional_note": "Provisional (2026-10-25): full eave length is a starting point; balanced ventilation sizing needs attic area, which the dictionary does not carry.",
+      "measurements": [
+        "eavesLf"
+      ],
+      "sources": []
+    },
+    {
+      "id": "box_vents",
+      "order": 11,
+      "show_in_setup": false,
+      "group": "ventilation",
+      "label": "Box vents",
+      "explanation": "Static vents are counted on the roof, which the measurement report does not do, so they are entered on each job.",
+      "formula": null,
+      "pricebook_formula": null,
+      "include_waste": false,
+      "unit": "ea",
+      "provisional": true,
+      "provisional_note": "Entered by hand: the dictionary has no vent count.",
+      "measurements": [],
+      "sources": []
     }
   ],
   "regions": [
@@ -6755,5 +7078,87 @@
       "accessed": "2026-10-24",
       "kind": "manufacturer"
     }
-  ]
+  ],
+  "roof_types": [
+    {
+      "id": "shingle",
+      "label": "Shingle",
+      "systems": [
+        "asphalt_shingle"
+      ],
+      "catalog": true
+    },
+    {
+      "id": "shake",
+      "label": "Shake",
+      "systems": [
+        "wood_shake"
+      ]
+    },
+    {
+      "id": "metal",
+      "label": "Metal",
+      "systems": [
+        "metal_standing_seam",
+        "metal_exposed_fastener",
+        "stone_coated_steel"
+      ]
+    },
+    {
+      "id": "tile",
+      "label": "Tile",
+      "systems": [
+        "tile_concrete_clay"
+      ]
+    },
+    {
+      "id": "slate",
+      "label": "Slate",
+      "systems": [
+        "slate"
+      ]
+    },
+    {
+      "id": "tpo",
+      "label": "TPO",
+      "systems": [
+        "tpo"
+      ],
+      "low_slope": {
+        "cap": "membrane"
+      }
+    },
+    {
+      "id": "pvc",
+      "label": "PVC",
+      "systems": [
+        "pvc"
+      ],
+      "low_slope": {
+        "cap": "membrane"
+      }
+    },
+    {
+      "id": "epdm",
+      "label": "EPDM",
+      "systems": [
+        "epdm"
+      ],
+      "low_slope": {
+        "cap": "membrane"
+      }
+    },
+    {
+      "id": "mod_bit",
+      "label": "Torch-down / modified bitumen",
+      "systems": [
+        "modified_bitumen"
+      ],
+      "low_slope": {
+        "cap": "cap_sheet",
+        "base": "base_sheet"
+      }
+    }
+  ],
+  "roof_types_note": "The roof types the price book setup asks about (Jack, 2026-10-25). PVC is its own membrane, not TPO. Each names the component systems in roof-type-components-2026.json; low_slope names the components a shingle roof\u2019s low-slope default uses."
 }

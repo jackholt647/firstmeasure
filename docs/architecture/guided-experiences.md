@@ -166,13 +166,22 @@ selection patch and gives the plain summary the agent repeats in the person's
 words (an empty summary posts nothing). `actions` is the step's title row, for a
 control such as "Use all". A widget declared `fill: true` gets the step's height
 (the logo grid, supplier columns); other steps scroll with a fade at the bottom
-while there is more. `hint()` says why Continue is disabled, as its tooltip. The
-finished screen is centred and waits for its one button ("See my materials")
-before the hand-off. First ones:
-`brand-cards` (logos only), `product-lines` (two columns, tiers, search),
-`measurement-rules` (one row per material), `supplier-columns`, `price-review`
-(costs only, by `options.kinds`). A step's `upload` puts an upload control in one
-of its `say` lines; its `agent_note` is added to the model's context on that step.
+while there is more. `hint()` says why Continue is disabled, as its tooltip.
+Steps can branch: the player follows a step's fixed `next` itself, waits for the
+server's answer only after a step with `branches`, remembers the way taken (Back
+returns along it) and draws the progress bar over that way. The finished screen
+is centred and waits for one of its two buttons: "Start generating materials"
+(closes, hands off, and the outcome's `generate` makes the runtime press the
+tab's Generate when no click was held) and "View the price book", which shows the
+price book renderer (`FirstMatePricebook.mount`, as Materials settings mounts it,
+read again first, with `itemFilter` keeping the items the setup returned in
+`item_ids`) in the sheet, widened, with the agent still beside it. Closing the
+finish generates nothing. Widgets: `roof-types` (a drawing and a name per
+kind), `brand-cards` (logos only, numbered in the order picked),
+`material-defaults` (the defaults on one page), `default-material` (one system
+of the kinds picked), `supplier-columns`, `labor-assignees`. A step's `upload`
+puts an upload control in one of its `say` lines; its `agent_note` is added to
+the model's context on that step.
 
 **Supplier columns** (`supplier-columns.js`, reusable). `window.FirstMateSupplierColumns.mount(el,
 { suppliers, items, onChange, onPriceSheet })` draws one thin column per supplier
@@ -229,13 +238,17 @@ question.
   draft: on a draft it plays as a modal, since there is no project conversation,
   and its write is organization-level, so nothing saves the project), and the
   Generate buttons for anyone the first view missed. Variants: `agentic` (assistant on),
-  `agentic_express` (weight 0, no rules walkthrough), `modal` (assistant off).
-  Steps: brands, lines, rules (how a roof becomes a list), suppliers (who
-  provides your materials, where material costs are set per supplier) and labor
-  (who does your labor; optional, and only where groups of users and outside
-  companies are on). There are no separate material or labor prices steps. Completion:
-  `pricebook.setup.apply` with `trade: roofing`, then hand-off, the held Generate,
-  and the tour.
+  `agentic_express` (weight 0, no labor step), `modal` (assistant off).
+  Steps: roof types ("What kinds of roofs do you install?", nine kinds, PVC apart
+  from TPO), then a branch decided on the server. With shingle: manufacturers
+  ("What roofing manufacturers do you use?", in the order picked) and the defaults
+  ("Set your default materials", skippable). Without: the default material ("What's
+  your default roofing material?", one of the systems of the kinds picked). Both
+  then go to suppliers (who provides your materials, where costs are set per
+  supplier) and labor (who does your labor; optional, and only where groups of
+  users and outside companies are on). Completion: `pricebook.setup.apply` with
+  `trade: roofing`, then the finish's two buttons, hand-off, the held (or
+  requested) Generate, and the tour.
 - `materials.tab_tutorial` (overlay, person, replayable): after the setup, or on
   first opening the tab once the organization has finished the setup (or straight
   away for someone not asked to set it up: `person.eligible`). Its `reveal`
@@ -243,33 +256,58 @@ question.
   through it (or closed it); then Materials shows on every project, drafts too.
 - FAQs for Materials, Photos, Docs, Reports, Customer Portal and Overview.
 
-**Price book setup** (`pricebook/setups/roofing.ts`). Products, rules and regions
-come from `materials/roofing-research/roofing-catalog-2026.json`, read in its own
-schema, with the roofing library as the fallback. Every manufacturer in the catalog is offered,
+**Price book setup** (`pricebook/setups/roofing.ts`). Products, rules, regions and
+the kinds of roof (`roof_types`, each naming its component systems) come from
+`materials/roofing-research/roofing-catalog-2026.json`, read in its own schema, with
+the roofing library as the fallback. Every manufacturer in the catalog is offered,
 the four most installed first; a manufacturer's `logo` (a path under
-`public/images/brands/roofing/`, checked by `logoPath`) shows in a common box on its card, and the
-wordmark shows when there is none or it fails to load. The selections become:
+`public/images/brands/roofing/`, checked by `logoPath`) shows in a common box on its
+card, and the wordmark shows when there is none or it fails to load.
 
-- price book items for the chosen lines, the default line's brand's system
-  accessories (another chosen brand fills a gap), the common items, and labor and
-  service lines when included. Each quantity formula comes from the research rule's
-  `pricebook_formula`, uses dictionary keys only (`roofSquares - flatRoofSquares`,
-  never `shingleSquares`) and is divided by that product's own coverage (an Owens
-  Corning bundle covers 32.8 sq ft; a WeatherWatch roll 2 squares). The ice and
-  water eave width (6, 3 or 0 ft) is the company's. A rule that reads something the
-  dictionary does not hold (pipe boots, stories, decking sheets) gets no formula and
-  is marked `quantity: entered_by_hand`.
-- the measurement defaults (`materials/measurement-defaults.ts`) with each rule
-  naming its product and package; shingle waste is the company's (worked out per
-  roof, or a fixed percent).
+**With shingle**, every product of every picked manufacturer is written (all lines
+and accessories, so it is searchable), with the common items and, when included,
+labor and service lines. The defaults (`defaults`) are what generation uses when
+no document has said otherwise, each a product from a dropdown:
 
-Lines carry `setup_visibility` in the catalog: `default` lines are ticked,
-`visible` ones shown, `more` ones behind More. A designer line that shows its
-starter course has `reveals_starter: true`; it is written as the item's
-`attributes`, and the starter rule gets an `alternatives` entry (measurement
-defaults: when the `shingles` rule's product has that attribute, use the
-coloured starter). Quantity formulas still read only measurements; an item's
-attributes are read by the defaults, not by formulas.
+- shingle: the first picked brand's flagship (`setup_flagship` in the catalog);
+- underlayment, ice and water, ridge vent, intake vent, box vents: the first
+  picked brand that makes one, its `setup_default` accessory else its first
+  (another picked brand fills a gap, then a generic item); pipe boot: the generic
+  lead boot first (`DEFAULT_SLOTS`, `slotDefault`);
+- how far ice and water runs (`ICE_COVERAGE`): 18 in at eaves and rakes plus
+  valleys (default), 36 in or 72 in at the eaves plus valleys, 36 in at the eaves
+  only, valleys only, or none. The measurement rule counts 3 ft courses (half a
+  course along eaves and rakes at 18 in, one down each valley); the price book
+  formula the same widths in square feet, plus the 2/12 to 4/12 squares;
+- the low-slope system: TPO unless they install other membranes and not TPO,
+  from the first picked brand that makes one, else the generic membrane from
+  the roof-type components; modified bitumen is a base and a cap sheet from the
+  same company (`low_slope_cap` labelled membrane or cap sheet, `low_slope_base`
+  off for a single ply). "None" switches both off;
+- starter, drip edge and hip and ridge need no question: they follow the shingle's
+  manufacturer as before, and the coloured starter is the starter rule's
+  `alternatives` entry when the shingle has `reveals_starter`.
+
+The step asks no waste or formulas. Pipe boots and box vents are counted on the
+roof, which no dictionary measurement holds, so their default is recorded on the
+item (`metadata.default_for`) and entered by hand on each job; intake vents run
+along the eaves (`intake_vent` rule, added beside the ridge vent). Each quantity
+formula comes from the research rule's `pricebook_formula`, uses dictionary keys
+only and is divided by that product's own coverage (an Owens Corning bundle
+covers 32.8 sq ft; a WeatherWatch roll 2 squares).
+
+**Without shingle** there is no manufacturer catalog. The roof-type components
+(`materials/roofing-research/roof-type-components-2026.json`, `status:
+provisional`: per system, components with a group, `standard`, dictionary `terms`,
+`waste_percent`, a unit and its coverage, or `entered_by_hand`) are written as
+price book items (`rtc-<system>-<key>`, cost 0 until a price sheet sets it) for
+every system of every kind picked, standard or not, so they are searchable. The
+default material's standard, measured components become its measurement-default
+rules (`<system>_<key>`, the same rule model as shingles); the other rules stay,
+switched off, and a later shingle setup starts from the industry rules again.
+Components of the other kinds picked with shingle are written as items only.
+Every step carries the whole options object; that is a known cost in the
+[optimization backlog](../optimization-backlog.md#the-price-book-setup-sends-its-options-once-per-step).
 
 Both are written through their own writers (`saveOrganizationCatalog`,
 `saveMeasurementDefaults`). Prices are costs: research cost x the region's
@@ -287,15 +325,21 @@ is kept when the setup is finished again.
 model, the setup saves what is chosen so far through the completion action (the
 draft), so the agent finds the items. The agent reads them with
 `pricebook.prices.list` and applies a checked list with `pricebook.prices.update`
-(costs, never a markup; it asks before an uncertain match). A sheet that names a
-supplier also sets that supplier's costs (`suppliers.prices.update`).
+(costs, never a markup; it asks before an uncertain match). Lines that match
+nothing (usual for metal, tile, slate and flat roofs) are added, once the person
+agrees, with `pricebook.items.add` (merged by name with an item already there,
+`metadata.added_from: price_sheet`, entered by hand until a rule names them), and
+the apply's `item_ids` include them. A sheet that names a supplier also sets that
+supplier's costs (`suppliers.prices.update`).
 
-**Suppliers.** The suppliers step offers the researched suppliers in
+**Suppliers.** With shingle, the suppliers step offers the researched suppliers in
 `materials/roofing-research/roofing-suppliers-2026.json` (which manufacturers each
 stocks, `full_range` or `retail_core`, a brand colour, observed library prices)
 as pills, and any typed supplier as a tag. A researched supplier starts with the
-chosen products of the brands it stocks (a big-box store only default lines and
-plain accessories); a typed one starts empty. On finish each supplier is saved
+picked brands' products it stocks (a big-box store only default lines and
+plain accessories); a typed one starts empty. Without shingle nothing is
+suggested: suppliers are typed, and each column keeps its own price sheet upload,
+as that is how their items arrive. On finish each supplier is saved
 through `suppliers.supplier.save`, invoked as the person, merged by name with a
 supplier already saved: of the setup's items it carries the ticked ones; prices
 are a typed cost, else one already saved (a price sheet), else the observed
@@ -384,6 +428,7 @@ Materials tab audit (October 24), button to published action:
 | Pay out, reopen, close out | `labor.list.finalize`, `labor.list.reopen`, `project-closeout.*` |
 | Set up the price book | `pricebook.setup.apply` (new) |
 | Apply a supplier price sheet to the price book | `pricebook.prices.list`, `pricebook.prices.update` (new) |
+| Add a price sheet's items the price book does not have | `pricebook.items.add` (new) |
 | Set a supplier's costs from its price sheet | `suppliers.prices.update` (new) |
 | Older (non-calculus) lists: add list, rename, delete, add or edit lines, mark ordered, mark delivered | missing: plain routes in `materials/api.ts` |
 | Email a supplier order, share a shopping list, PO PDF, schedule a list's delivery, work order document, labor preview/compare | missing |

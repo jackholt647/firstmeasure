@@ -11,12 +11,15 @@ const lib=file=>readFile(new URL('../../libraries/'+file,import.meta.url),'utf8'
 const LIBS=['window-manager/window-manager.js','doc-markdown/firstmate-markdown.js','platform-assistant/platform-assistant.js','tab-guides/tab-guides.js','guided-experiences/guided-experiences.js','guided-experiences/guided-setup.js'];
 const t=(key,text)=>({key,text});
 const line=(id,name)=>({id,name,kind:'line',role:'field_shingles',unit:'bundle',price:55,tier:'architectural',popular:true,coverage:0.3333,rule:'field_shingles'});
-const OPTIONS={markup:35,region:{id:'south',label:'South'},brands:[{id:'gaf',name:'GAF',color:'#d71920',tagline:'Timberline',lines:[line('lib-shingle-gaf-hdz','GAF Timberline HDZ')],accessories:[]},{id:'iko',name:'IKO',color:'#344054',tagline:'',lines:[line('lib-shingle-iko','IKO Cambridge')],accessories:[]}],generic:[],labor:[],rules:[],waste:{default:'roof',options:[10]},ice_eave_width:{default:6,options:[6]},sample:{roofSquares:28}};
-const SAY={brands:['Let\u2019s set up your price book.','Which shingle manufacturers do you use?'],lines:['Here are the lines.'],prices:['Last step.'],done:['Your price book is ready.']};
+const OPTIONS={region:{id:'south',label:'South'},roof_types:[{id:'shingle',label:'Shingle',catalog:true,systems:[]},{id:'metal',label:'Metal',catalog:false,systems:[{id:'metal_standing_seam',label:'Standing seam metal',components:20,standard:19,parts:['Panels']}]}],
+  brands:[{id:'gaf',name:'GAF',color:'#d71920',tagline:'Timberline',lines:[{...line('lib-shingle-gaf-hdz','GAF Timberline HDZ'),flagship:true}],accessories:[]},{id:'iko',name:'IKO',color:'#344054',tagline:'',lines:[line('lib-shingle-iko','IKO Cambridge')],accessories:[]}],generic:[],labor:[],low_slope:{},
+  ice_coverage:{default:'perimeter_18_valleys',options:['perimeter_18_valleys','none']},suppliers:[]};
+const SAY={roof_types:['Let’s set up your price book.','What kinds of roofs do you install?'],brands:['Which roofing manufacturers do you use?'],defaults:['Here’s what I’ll use by default.'],done:['Your price book is ready.']};
+// The setup's shingle path, cut down: the roof types branch to the manufacturers (the server's answer, else the first branch), then the defaults.
 const SETUP={id:'materials.pricebook_setup.roofing',version:1,kind:'agentic',scope:'organization',title:t('gx_mps_title','Set up your price book'),tab:'project.materials',replayable:false,variant:{id:'agentic',bucket:0.2,unit:'organization:o'},
-  steps:[{id:'brands',widget:'brand-cards',title:t('gx_mps_brands_title','Which shingle manufacturers do you use?'),say:SAY.brands.map((text,i)=>t('gx_s'+i,text)),options:{...OPTIONS,allow_all:true},required:true},
-    {id:'lines',widget:'product-lines',title:t('gx_mps_lines_title','What shingles do you usually use?'),say:SAY.lines.map((text,i)=>t('gx_l'+i,text)),options:OPTIONS,required:true},
-    {id:'prices',widget:'price-review',title:t('gx_mps_prices_title','Check your prices'),say:SAY.prices.map((text,i)=>t('gx_p'+i,text)),options:OPTIONS,required:false}],
+  steps:[{id:'roof_types',widget:'roof-types',title:t('gx_mps_types_title','What kinds of roofs do you install?'),say:SAY.roof_types.map((text,i)=>t('gx_s'+i,text)),options:OPTIONS,required:true,next:{branches:[{when:{field:'selections.roof_types',operator:'contains',value:'shingle'},to:'brands'}],otherwise:'material'}},
+    {id:'brands',widget:'brand-cards',title:t('gx_mps_makers_title','What roofing manufacturers do you use?'),say:SAY.brands.map((text,i)=>t('gx_b'+i,text)),options:{...OPTIONS,allow_all:true},required:true},
+    {id:'defaults',widget:'material-defaults',title:t('gx_mps_defaults_title','Set your default materials'),say:SAY.defaults.map((text,i)=>t('gx_p'+i,text)),options:{...OPTIONS,skip_sets:{defaults:{}}},required:false}],
   completion:{action:{id:'pricebook.setup.apply',target:'organization'},say:SAY.done.map((text,i)=>t('gx_d'+i,text)),then:[{handoff:'assistant_tray'},{resume:true},{play:'materials.tab_tutorial'}]}};
 const TOUR={id:'materials.tab_tutorial',version:1,kind:'overlay',scope:'person',title:t('gx_mt_title','Materials tour'),tab:'project.materials',replayable:true,variant:{id:'tour',bucket:0.1,unit:'person'},
   steps:[{id:'intro',targets:[],placement:'center',title:t('gx_a','Welcome to Materials'),body:t('gx_b','A quick look.'),wait_ms:300},
@@ -126,30 +129,40 @@ test('one experience at a time, fast Next and Back, close mid-tour, reopen, relo
     assert.equal(srv.state.generated,0);
     // Spamming Continue before choosing does nothing; after choosing it moves one step at a time, at once.
     for(let i=0;i<6;i++)await frame().click('[data-gxs=next]',{force:true});
-    assert.equal(await frame().locator('.gxs-step:not(.gxs-above) h2').innerText(),'Which shingle manufacturers do you use?');
-    await frame().click('[data-all]');
-    const started=Date.now();
+    assert.equal(await frame().locator('.gxs-step:not(.gxs-above) h2').innerText(),'What kinds of roofs do you install?');
+    await frame().click('[data-type=shingle]');
+    await frame().waitForTimeout(300);
     await frame().click('[data-gxs=next]');
-    await frame().waitForFunction(()=>document.querySelector('.gxs-step:not(.gxs-above) h2')?.textContent==='What shingles do you usually use?');
-    assert.ok(Date.now()-started<900,`Continue answers at once (${Date.now()-started} ms)`);
+    await frame().waitForFunction(()=>document.querySelector('.gxs-step:not(.gxs-above) h2')?.textContent==='What roofing manufacturers do you use?');
+    await frame().click('[data-all]');
+    await frame().waitForTimeout(400);
+    const started=Date.now();
+    await frame().click('[data-gxs=back]');
+    await frame().waitForFunction(()=>document.querySelector('.gxs-step:not(.gxs-above) h2')?.textContent==='What kinds of roofs do you install?');
+    assert.ok(Date.now()-started<900,`Back answers at once (${Date.now()-started} ms)`);
+    await frame().waitForTimeout(400);
+    await frame().click('[data-gxs=next]');
+    await frame().waitForFunction(()=>document.querySelector('.gxs-step:not(.gxs-above) h2')?.textContent==='What roofing manufacturers do you use?');
     // A burst of presses counts once, so it cannot skip steps.
     await frame().waitForTimeout(400);
     await frame().evaluate(()=>{for(let i=0;i<8;i++)document.querySelector('[data-gxs=next]').click();});
-    await frame().waitForFunction(()=>document.querySelector('.gxs-step:not(.gxs-above) h2')?.textContent==='Check your prices');
-    assert.equal(await frame().locator('.gxs-step:not(.gxs-above) h2').innerText(),'Check your prices','one step per burst, never past the last');
+    await frame().waitForFunction(()=>document.querySelector('.gxs-step:not(.gxs-above) h2')?.textContent==='Set your default materials');
+    assert.equal(await frame().locator('.gxs-step:not(.gxs-above) h2').innerText(),'Set your default materials','one step per burst, never past the last');
     await frame().click('[data-gxs=back]');
-    await frame().waitForFunction(()=>document.querySelector('.gxs-step:not(.gxs-above) h2')?.textContent==='What shingles do you usually use?');
+    await frame().waitForFunction(()=>document.querySelector('.gxs-step:not(.gxs-above) h2')?.textContent==='What roofing manufacturers do you use?');
     await frame().waitForTimeout(500);
     await frame().click('[data-gxs=next]');
-    await frame().waitForFunction(()=>document.querySelector('.gxs-step:not(.gxs-above) h2')?.textContent==='Check your prices');
-    // Every scripted line is in the setup's assistant once, even though the lines step was shown twice.
-    await frame().waitForFunction(()=>[...document.querySelectorAll('.gxs-assistant .fma-msg.assistant')].some(el=>el.textContent.includes('Last step.')));
+    await frame().waitForFunction(()=>document.querySelector('.gxs-step:not(.gxs-above) h2')?.textContent==='Set your default materials');
+    // Every scripted line is in the setup's assistant once, even though the manufacturers step was shown twice.
+    await frame().waitForFunction(()=>[...document.querySelectorAll('.gxs-assistant .fma-msg.assistant')].some(el=>el.textContent.includes('use by default')));
     const setupLines=await frame().locator('.gxs-assistant .fma-msg.assistant').allInnerTexts();
-    assert.equal(setupLines.filter(text=>text.includes('Here are the lines.')).length,1,JSON.stringify(setupLines));
+    assert.equal(setupLines.filter(text=>text.includes('Which roofing manufacturers')).length,1,JSON.stringify(setupLines));
     await frame().waitForTimeout(500);
     await frame().click('[data-gxs=next]');
-    await frame().waitForSelector('[data-gxs=done]');
-    await frame().click('[data-gxs=done]');
+    // The finish waits for one of its two buttons; closing it there generates nothing.
+    await frame().waitForSelector('[data-gxs=generate]');
+    assert.deepEqual(await frame().evaluate(()=>[...document.querySelectorAll('.gxs-foot button')].filter(b=>b.offsetParent).map(b=>b.dataset.gxs)),['view','generate']);
+    await frame().click('[data-gxs=close]');
     // Hand-off to the tray, the held Generate, then the tour: one overlay, in the project window.
     await frame().waitForSelector('.gx-pop',{timeout:10000});
     await tab.waitForTimeout(800);
@@ -158,8 +171,8 @@ test('one experience at a time, fast Next and Back, close mid-tour, reopen, relo
     // The tray holds the conversation, each line once, drawn like any other assistant message.
     await frame().waitForSelector('.fm-project-tray .fma-msg.assistant',{state:'attached'});
     const trayLines=await frame().locator('.fm-project-tray .fma-msg.assistant').allInnerTexts();
-    for(const text of [...SAY.brands,...SAY.lines,...SAY.prices,...SAY.done])assert.equal(trayLines.filter(entry=>entry.trim()===text).length,1,`"${text}" once in the tray: ${JSON.stringify(trayLines)}`);
-    assert.equal(srv.state.thread.filter(m=>m.content==='Here are the lines.').length,1,'stored once');
+    for(const text of [...SAY.roof_types,...SAY.brands,...SAY.defaults,...SAY.done])assert.equal(trayLines.filter(entry=>entry.trim()===text).length,1,`"${text}" once in the tray: ${JSON.stringify(trayLines)}`);
+    assert.equal(srv.state.thread.filter(m=>m.content==='Which roofing manufacturers do you use?').length,1,'stored once');
     // The tray's questions are styled chips in the project window's document.
     await frame().waitForSelector('.fm-project-tray .gx-faq');
     const chip=await frame().locator('.fm-project-tray .gx-faq').first().evaluate(el=>{const s=getComputedStyle(el);return {radius:s.borderTopLeftRadius,height:el.getBoundingClientRect().height,bg:s.backgroundColor};});
@@ -258,14 +271,15 @@ test('on a draft the first view plays the setup without saving a project, and Ge
     assert.equal(await frame().locator('.gxs').getAttribute('data-kind'),'modal','no project, so no project conversation: the steps play as a modal');
     // A person's pace: a press a little after the step appears.
     const next=async()=>{await frame().waitForTimeout(300);await frame().click('[data-gxs=next]');};
+    await frame().click('[data-type=shingle]');
+    await next();
+    await frame().waitForFunction(()=>document.querySelector('.gxs-step:not(.gxs-above) h2')?.textContent==='What roofing manufacturers do you use?');
     await frame().click('[data-all]');
     await next();
-    await frame().waitForFunction(()=>document.querySelector('.gxs-step:not(.gxs-above) h2')?.textContent==='What shingles do you usually use?');
+    await frame().waitForFunction(()=>document.querySelector('.gxs-step:not(.gxs-above) h2')?.textContent==='Set your default materials');
     await next();
-    await frame().waitForFunction(()=>document.querySelector('.gxs-step:not(.gxs-above) h2')?.textContent==='Check your prices');
-    await next();
-    await frame().waitForSelector('[data-gxs=done]');
-    await frame().click('[data-gxs=done]');
+    await frame().waitForSelector('[data-gxs=generate]');
+    await frame().click('[data-gxs=close]');
     await frame().waitForFunction(()=>!document.querySelector('.gxs'),null,{timeout:8000});
     assert.equal(srv.state.completes.length,1);
     assert.equal(srv.state.completes[0].project_id,'','the price book is written for the organization, with no project');

@@ -193,9 +193,13 @@
     }
   }
 
-  /** After an experience: hand off, let a held click through, then play what follows. */
+  /**
+   * After an experience: hand off, let a held click through, then play what follows. An outcome that asks to
+   * generate (the price book setup's "Start generating materials") presses the tab's own Generate when no click was held.
+   */
   async function follow(experience, outcome, held, selector = ''){
     let resumed = false;
+    if (outcome.generate && !held) { held = document.querySelector('[data-mt-generate-materials]'); selector = '[data-mt-generate-materials]'; }
     for (const step of array(experience.completion?.then)) {
       if (step.resume && held && !resumed) { resumed = true; letThrough(held, selector); }
       if (step.play && outcome.status === 'completed') {

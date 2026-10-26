@@ -1327,13 +1327,15 @@
     return CATEGORY_OPTIONS.map((category) => {
       const items = state.items.filter((item) => {
         if (item.category !== category.value) return false;
+        // A host can show part of the price book (the price book setup shows the items it wrote).
+        if (typeof activeOptions?.itemFilter === 'function' && !activeOptions.itemFilter(item)) return false;
         if (!itemMatchesCategoryFilter(item, category.value)) return false;
         if (!needle) return true;
         const hay = `${item.name} ${item.type || ''} ${item.itemTypeName || ''} ${item.variantName || ''} ${item.variantGroupName || ''} ${item.externalDescription || item.description} ${item.internalDescription || ''} ${item.unit} ${item.category} ${item.manufacturer || ''} ${item.segment || ''} ${formulaToHumanText(item.formulaConfig)}`.toLowerCase();
         return hay.includes(needle);
       });
       return { ...category, items };
-    }).filter((category) => category.items.length || !needle);
+    }).filter((category) => category.items.length || (!needle && typeof activeOptions?.itemFilter !== 'function'));
   }
 
   function lineItemFromPricebook(itemId, measurements, overrides = {}){

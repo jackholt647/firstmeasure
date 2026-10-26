@@ -44,8 +44,8 @@ export function registerPricebookSetupPublication() {
   const input = z.object({ trade: z.string().max(40) }).passthrough();
   registerAction({
     id: "pricebook.setup.apply", version: "1", domain: "pricebook", implementation: backendImplementationDigest(),
-    description: "Set up the organization's price book for a trade from what it uses: for roofing, the shingle manufacturers and lines (brands, lines, default_line), which measurement rules are on and their waste (rules), typed prices (prices) and the price region. Writes price book items whose quantity formulas use the measurement dictionary, and the measurement defaults that generate a project's materials. Items with the same ids are replaced; other items are kept.",
-    inputSchema: { ...(zodToJsonSchema(input, { $refStrategy: "none" }) as Record<string, unknown>), description: "trade plus that trade's selections. Roofing: { trade:'roofing', brands:['gaf'], lines:['lib-shingle-gaf-hdz'], default_line?, rules?:{ <rule key>:{ enabled?, waste?: number|'roof' } }, prices?:{ <item id>: number }, region?:'national'|'northeast'|'midwest'|'south'|'west' }" },
+    description: "Set up the organization's price book for a trade from what it uses. Roofing: the kinds of roof it installs (roof_types), for shingle the manufacturers in the order picked (brands; every product they make is written) and the defaults generation uses (defaults), otherwise the default material (default_material, a roof-type component system), plus suppliers, typed costs (prices) and the price region. Writes price book items whose quantity formulas use the measurement dictionary, and the measurement defaults that generate a project's materials. Items with the same ids are replaced; other items are kept.",
+    inputSchema: { ...(zodToJsonSchema(input, { $refStrategy: "none" }) as Record<string, unknown>), description: "trade plus that trade's selections. Roofing: { trade:'roofing', roof_types:['shingle','metal',...], brands:['gaf'], defaults?:{ shingle?, underlayment?, ice_water?, ice_coverage?:'perimeter_18_valleys'|'eaves_36_valleys'|'eaves_72_valleys'|'eaves_36'|'valleys'|'none', pipe_boot?, ridge_vent?, intake_vent?, box_vent?, low_slope_system?:'tpo'|'pvc'|'epdm'|'mod_bit'|'none', low_slope? } (product ids), default_material?: a system id such as 'metal_standing_seam' when shingle is not installed, rules?:{ <rule key>:{ source?, waste?: number|'roof', coverage? } }, prices?:{ <item id>: number }, region?:'national'|'northeast'|'midwest'|'south'|'west' }" },
     outputSchema: { type: "object" },
     policy: { scopes: ["organization"], permissions: ["manage_company_settings"] },
     effect: "write", executionKinds: ["api", "agent", "module"], idempotency: "required",
@@ -78,6 +78,51 @@ function registerPriceActions() {
         .slice(0, 400)
         .map((item) => ({ id: String(item.id), name: String(item.name || ""), code: String(item.code || ""), manufacturer: String(item.manufacturer || ""), type: String(item.type || ""), unit: String(item.unit || ""), internal_cost: Number(item.internal_cost || 0), unit_price: Number(item.unit_price || 0) }));
       return { items };
+    }
+  });
+  // Items read from a supplier's price sheet that the price book does not have yet (the agent, after the setup's
+  // suppliers step or any time). Merged by name with an item already there, whose cost it sets.
+  const newItem = z.object({
+    name: z.string().trim().min(1).max(200), unit: z.string().trim().min(1).max(40), internal_cost: z.number().finite().min(0).max(1e6),
+    category: z.enum(["misc", "shingle_roofs", "leak_barriers", "underlayments", "flashing", "accessories", "gutters", "flat_roofs", "flat_roof_accessories"]).default("misc"),
+    type: z.string().trim().max(120).default(""), manufacturer: z.string().trim().max(120).default(""), code: z.string().trim().max(120).default(""),
+    description: z.string().trim().max(500).default(""), source: z.string().max(200).optional()
+  }).strict();
+  const addInput = z.object({ items: z.array(newItem).min(1).max(300), note: z.string().max(500).optional() }).strict();
+  registerAction({
+    id: "pricebook.items.add", version: "1", domain: "pricebook", implementation: backendImplementationDigest(),
+    description: "Add items read from a supplier price sheet to the organization's price book: name, unit, cost (internal_cost, what the company pays; never a markup), and optionally category, type (such as 'Standing seam metal'), manufacturer, code and description. An item whose name matches one already in the price book is not added again; its cost is set. Quantities are entered on each job until a measurement rule is set up. Returns each item's id (added or matched), to set that supplier's costs with suppliers.prices.update. Show the person the list before adding.",
+    inputSchema: zodToJsonSchema(addInput, { $refStrategy: "none" }) as Record<string, unknown>, outputSchema: { type: "object" },
+    policy: { scopes: ["organization"], permissions: ["manage_company_settings"] },
+    effect: "write", executionKinds: ["api", "agent", "module"], idempotency: "required",
+    validateInput: (value) => { addInput.parse(value); },
+    execute: async (ctx, _target, value) => {
+      const { getOrganizationPricebook, saveOrganizationCatalog } = await import("../storage.js");
+      const { items: incoming } = addInput.parse(value);
+      const book = await getOrganizationPricebook(ctx.organizationId);
+      const items = [...(book.catalog.items as Record<string, unknown>[])];
+      const byName = new Map(items.map((item, index) => [String(item.name || "").trim().toLowerCase(), index]));
+      const slug = (text: string) => text.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 60) || "item";
+      const added: { item_id: string; name: string }[] = [], matched: { item_id: string; name: string; before: number | null; after: number }[] = [];
+      for (const entry of incoming) {
+        const at = byName.get(entry.name.toLowerCase());
+        if (at !== undefined) {
+          const item = items[at]!;
+          matched.push({ item_id: String(item.id), name: String(item.name), before: Number.isFinite(Number(item.internal_cost)) ? Number(item.internal_cost) : null, after: entry.internal_cost });
+          items[at] = { ...item, internal_cost: entry.internal_cost, metadata: { ...((item.metadata || {}) as Record<string, unknown>), price_source: "price_sheet" } };
+          continue;
+        }
+        let id = `ps-${slug(entry.name)}`;
+        for (let n = 2; items.some((item) => String(item.id) === id); n += 1) id = `ps-${slug(entry.name)}-${n}`;
+        items.push({ id, kind: "atomic", name: entry.name, code: entry.code, type: entry.type, category: entry.category, segment: ["flat_roofs", "flat_roof_accessories"].includes(entry.category) ? "flat" : "sloped",
+          manufacturer: entry.manufacturer, unit: entry.unit, internal_cost: entry.internal_cost, unit_price: entry.internal_cost, unitPrice: entry.internal_cost, base_price: entry.internal_cost,
+          description: entry.description, external_description: "", autoAdd: false,
+          metadata: { source: "price_sheet", added_from: "price_sheet", price_source: "price_sheet", quantity: "entered_by_hand", ...(entry.source ? { price_sheet_line: entry.source } : {}) } });
+        byName.set(entry.name.toLowerCase(), items.length - 1);
+        added.push({ item_id: id, name: entry.name });
+      }
+      await saveOrganizationCatalog(ctx.organizationId, { ...book.catalog, items }, Number(book.manifest.revision));
+      return { added, matched };
     }
   });
   const change = z.object({ item_id: z.string().min(1).max(160), internal_cost: z.number().finite().min(0).max(1e6).optional(), unit_price: z.number().finite().min(0).max(1e6).optional(), source: z.string().max(200).optional() }).strict()

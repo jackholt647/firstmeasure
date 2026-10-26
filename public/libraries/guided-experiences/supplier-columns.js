@@ -10,6 +10,7 @@
  *     items:     [{ id, name, unit, price, group }]   price book items a supplier can carry
  *     onChange(suppliers)       after a supplier gains or drops an item, or a price is typed
  *     onPriceSheet(supplier)    the column's "Price sheet" button
+ *     emptyText                 what a column with no items says (default "No products yet.")
  *   -> { update(suppliers), destroy() }
  *
  *   window.FirstMateSupplierTools.mount(host, { orgId, pricebook, toast, reload, colors })
@@ -70,6 +71,8 @@
     .gxsc-tools-head strong{font-size:13px;color:#101828}.gxsc-tools-head small{font-size:11.5px;color:#667085}
     .gxsc-tools-cols{height:min(60vh,520px);padding:0 30px}
     .gxsc-empty{color:#98a2b3;font-size:12px;padding:10px 4px}
+    .gxsc-body:has(>.gxsc-empty:only-child){display:flex}
+    .gxsc-body>.gxsc-empty:only-child{margin:auto;max-width:30ch;text-align:center;font-size:12.5px;line-height:1.5;color:#667085}
     /* Side controls in the gutter beside the columns, never over them. */
     .gxsc-arrow{position:absolute;top:calc(50% - 4px);transform:translateY(-50%);width:24px;height:64px;border-radius:9px;border:1px solid #d0d5dd;background:#fff;box-shadow:0 4px 12px rgba(16,24,40,.12);cursor:pointer;display:grid;place-items:center;font-size:14px;color:#344054;z-index:2;transition:opacity .2s,transform .2s,background .15s}
     .gxsc-arrow[data-dir=prev]{left:-28px}
@@ -104,7 +107,7 @@
       const carried = new Set(supplier.item_ids);
       return `<section class="gxsc-col" data-supplier="${esc(supplier.key)}" style="--supplier:${esc(supplier.color || '#344054')}" aria-label="${esc(supplier.name)}">
         <header class="gxsc-head"><span class="gxsc-badge" aria-hidden="true">${supplier.logo && /^(data:image\/|https?:|\/)/.test(String(supplier.logo)) ? `<img src="${esc(supplier.logo)}" alt="">` : esc(initials(supplier.name))}</span><strong title="${esc(supplier.name)}">${esc(supplier.name)}</strong></header>
-        <div class="gxsc-body">${items.length ? groups().map(([group, entries]) => `<div class="gxsc-group">${esc(group)}</div>${entries.map((item) => `<label class="gxsc-item" data-carried="${carried.has(item.id)}"><input type="checkbox" data-carry="${esc(item.id)}" ${carried.has(item.id) ? 'checked' : ''} aria-label="${esc(supplier.name)}: ${esc(item.name)}"><span title="${esc(item.name)}">${esc(item.label || item.name)}</span><span class="gxsc-price"><span aria-hidden="true">$</span><input type="number" min="0" step="0.01" inputmode="decimal" data-cost="${esc(item.id)}" value="${esc(supplier.prices[item.id] ?? supplier.base_prices?.[item.id] ?? item.price ?? '')}" aria-label="${esc(L('gx_sc_cost', 'Cost'))}: ${esc(item.name)}${item.unit ? ` / ${esc(item.unit)}` : ''}">${item.unit ? `<small>/ ${esc(item.unit)}</small>` : ''}</span></label>`).join('')}`).join('') : `<div class="gxsc-empty">${H('gx_sc_no_items', 'No products yet.')}</div>`}</div>
+        <div class="gxsc-body">${items.length ? groups().map(([group, entries]) => `<div class="gxsc-group">${esc(group)}</div>${entries.map((item) => `<label class="gxsc-item" data-carried="${carried.has(item.id)}"><input type="checkbox" data-carry="${esc(item.id)}" ${carried.has(item.id) ? 'checked' : ''} aria-label="${esc(supplier.name)}: ${esc(item.name)}"><span title="${esc(item.name)}">${esc(item.label || item.name)}</span><span class="gxsc-price"><span aria-hidden="true">$</span><input type="number" min="0" step="0.01" inputmode="decimal" data-cost="${esc(item.id)}" value="${esc(supplier.prices[item.id] ?? supplier.base_prices?.[item.id] ?? item.price ?? '')}" aria-label="${esc(L('gx_sc_cost', 'Cost'))}: ${esc(item.name)}${item.unit ? ` / ${esc(item.unit)}` : ''}">${item.unit ? `<small>/ ${esc(item.unit)}</small>` : ''}</span></label>`).join('')}`).join('') : `<div class="gxsc-empty">${options.emptyText ? esc(options.emptyText) : H('gx_sc_no_items', 'No products yet.')}</div>`}</div>
         ${options.onPriceSheet && !(options.singleSheetElsewhere && suppliers.length === 1) ? `<div class="gxsc-foot"><button type="button" class="gxsc-sheet" data-sheet="${esc(supplier.key)}" title="${esc(L('gx_sc_sheet_title', 'Do you have a supplier price sheet?'))}"><i class="fas fa-file-arrow-up" aria-hidden="true"></i>${H('gx_sc_sheet_upload', 'Upload price sheet')}</button></div>` : ''}
       </section>`;
     };

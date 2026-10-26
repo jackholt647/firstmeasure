@@ -23,7 +23,7 @@ export function registerMaterialsGuidedExperiences() {
   registerExperience({
     id: MATERIALS_SETUP, version: 1, kind: "agentic", scope: "organization", salt: "2026-10",
     title: t("gx_mps_title", "Set up your price book"),
-    description: t("gx_mps_description", "Pick the shingles you install and see how a roof's measurements become a materials list."),
+    description: t("gx_mps_description_2", "Tell us what kinds of roofs you install and the materials you use, and new materials lists start from them."),
     tab: "project.materials",
     eligibility: {
       capabilities: ["platform.materials"],
@@ -39,49 +39,56 @@ export function registerMaterialsGuidedExperiences() {
     variants: [
       // The agent beside the setup, where the assistant is on for the organization.
       { id: "agentic", weight: 1, when: { field: "organization.flags.assistant", operator: "equals", value: true } },
-      // Ready for an experiment: the same setup without the walkthrough of rules. Weight 0 until someone turns it on.
-      { id: "agentic_express", weight: 0, when: { field: "organization.flags.assistant", operator: "equals", value: true }, steps: ["brands", "lines", "suppliers"] },
+      // Ready for an experiment: the same setup without the labor step. Weight 0 until someone turns it on.
+      { id: "agentic_express", weight: 0, when: { field: "organization.flags.assistant", operator: "equals", value: true }, steps: ["roof_types", "brands", "defaults", "material", "suppliers"] },
       // Without the assistant the same steps play as a modal.
       { id: "modal", kind: "modal", weight: 1, when: { field: "organization.flags.assistant", operator: "not_equals", value: true } }
     ],
+    // Two paths. Shingle: manufacturers, then the defaults generation uses. Anything else: the default material, whose
+    // components (roof-type components, provisional) are the defaults. Both then go on to suppliers and labor.
     steps: [
       {
-        id: "brands", widget: "brand-cards", source: "pricebook.roofing_setup", selects: ["brands", "region", "state"],
-        title: t("gx_mps_brands_title", "Which shingle manufacturers do you use?"),
-        subtitle: t("gx_mps_brands_subtitle", "Pick every brand you install. You can change this any time."),
+        id: "roof_types", widget: "roof-types", source: "pricebook.roofing_setup", selects: ["roof_types", "region", "state"],
+        title: t("gx_mps_types_title", "What kinds of roofs do you install?"),
+        subtitle: t("gx_mps_types_subtitle", "Pick every kind you install. You can change this any time."),
         say: [
-          t("gx_mps_brands_say_1", "Before I build your first materials list, let's set up your price book so it uses the products you actually install. It takes about a minute."),
-          t("gx_mps_brands_say_2", "First: which shingle manufacturers do you use? Pick as many as you like, or use them all.")
+          t("gx_mps_types_say_1", "Before I build your first materials list, let's set up your price book so it uses what you actually install. It takes about a minute."),
+          t("gx_mps_types_say_2", "First: what kinds of roofs do you install? Pick as many as you like.")
         ],
+        next: { branches: [{ when: { field: "selections.roof_types", operator: "contains", value: "shingle" }, to: "brands" }], otherwise: "material" }
+      },
+      {
+        id: "brands", widget: "brand-cards", source: "pricebook.roofing_setup", selects: ["brands"],
+        title: t("gx_mps_makers_title", "What roofing manufacturers do you use?"),
+        subtitle: t("gx_mps_makers_subtitle", "Pick every brand you use. Everything they make goes in your price book so you can find it, and your defaults come from the first one you pick."),
+        say: [t("gx_mps_makers_say_1", "Which roofing manufacturers do you use? Pick as many as you like. Your defaults come from the first one you pick.")],
         options: { allow_all: true }
       },
       {
-        id: "lines", widget: "product-lines", source: "pricebook.roofing_setup", selects: ["lines", "default_line"],
-        title: t("gx_mps_lines_title", "What shingles do you usually use?"),
-        subtitle: t("gx_mps_lines_subtitle", "Tick the lines you install. The starred one is what a new materials list starts with."),
-        say: [t("gx_mps_lines_say_1", "Here are the shingle lines for the brands you picked. Tick the ones you install, and star the one you use most.")],
-        options: { allow_all: true }
+        // What generation uses when there is no document. No waste or formulas: those stay in Settings.
+        id: "defaults", widget: "material-defaults", source: "pricebook.roofing_setup", selects: ["defaults"], required: false, next: "suppliers",
+        options: { skip_sets: { defaults: {} } },
+        title: t("gx_mps_defaults_title", "Set your default materials"),
+        subtitle: t("gx_mps_defaults_subtitle", "What a new materials list uses when there's no document yet. Change any of them, or skip this to use these."),
+        say: [t("gx_mps_defaults_say_1", "Here's what I'll use by default, from the brands you picked. Change anything that isn't what you use, or skip this step.")]
       },
       {
-        id: "rules", widget: "measurement-rules", source: "pricebook.roofing_setup", selects: ["waste", "ice_eave_width"], required: false,
-        title: t("gx_mps_rules_title", "How a roof becomes a materials list"),
-        subtitle: t("gx_mps_rules_subtitle", "Every roof report comes with measurements. Each material is worked out from them, plus a little extra for waste."),
-        say: [
-          t("gx_mps_rules_say_1", "This is the part that saves you time. Shingles come from the roof's squares, starter from the eaves and rakes, ridge cap from the hips and ridges."),
-          t("gx_mps_rules_say_3", "Hover over a material to see how it's worked out, or click it to change that. Most people only change two things: how much waste they allow, and how far up from the eaves the ice and water barrier goes.")
-        ]
+        id: "material", widget: "default-material", source: "pricebook.roofing_setup", selects: ["default_material"],
+        title: t("gx_mps_material_title", "What's your default roofing material?"),
+        subtitle: t("gx_mps_material_subtitle", "A new materials list starts with this: the roof in squares, plus the parts that kind of roof needs."),
+        say: [t("gx_mps_material_say_1", "Which of these do you install most? New materials lists will start with it.")]
       },
       {
         id: "suppliers", widget: "supplier-columns", source: "pricebook.roofing_setup", selects: ["suppliers"], required: false,
         title: t("gx_mps_suppliers_title", "Who provides your materials?"),
-        subtitle: t("gx_mps_suppliers_subtitle", "Pick every supplier you buy from, or type your own. Each one starts with the brands it stocks; change what it carries any time."),
+        subtitle: t("gx_mps_suppliers_subtitle_2", "Pick or type every supplier you buy from. Each column shows what that supplier carries, and a price sheet sets its costs."),
         say: [
-          t("gx_mps_suppliers_say_1", "Who do you buy from? Pick your suppliers. I'll load each one with the products it usually stocks, and you can change that."),
+          t("gx_mps_suppliers_say_2", "Who do you buy your materials from? Pick your suppliers, or type your own and press Enter."),
           t("gx_mps_price_sheet_say", "If you have a price sheet from your supplier, you can upload it here and I'll set it up for you.")
         ],
         // Costs are set here, per supplier; a cost typed in a column (or the price seen there) becomes the price book cost.
         upload: { line: "gx_mps_price_sheet_say", button: t("gx_mps_price_sheet_button", "Upload a price sheet"), message: t("gx_mps_price_sheet_message", "Here's my supplier price sheet. Please update my material prices from it."), accept: ".csv,.xlsx,.xls,.pdf,.txt" },
-        agent_note: t("gx_mps_suppliers_agent_2", "Price sheets. A sheet for a named supplier (its id is in the message): read it, match each line to their price book items (pricebook.prices.list) and that supplier's items (suppliers.catalog), show the matches and cost changes as a short list, ask before applying any uncertain match, then set that supplier's costs with suppliers.prices.update (cents), and offer to update the price book costs too (pricebook.prices.update). A sheet with no supplier named: match it to price book items and apply the confirmed costs with pricebook.prices.update; if it is clearly from one of their suppliers, offer to set that supplier's costs too. Costs only, never a markup. The setup's columns refresh when they continue.")
+        agent_note: t("gx_mps_suppliers_agent_3", "Price sheets. A sheet for a named supplier (its id is in the message): read it and match each line to their price book items (pricebook.prices.list) and that supplier's items (suppliers.catalog). Lines that match nothing are new items (common for metal, tile, slate and flat roofs, which have no manufacturer catalog): list them with their unit and cost and, once the person agrees, add them with pricebook.items.add (category and type from the kind of roof). Show the matches and cost changes as a short list, ask before applying any uncertain match, then set that supplier's costs with suppliers.prices.update (cents) for the matched and added items, and offer to update the price book costs too (pricebook.prices.update). A sheet with no supplier named: the same against the price book only. Costs only, never a markup. The setup's columns refresh when they continue.")
       },
       {
         // Who does the labor: groups of users (employees) and outside companies (subcontractors), and how each is paid,
@@ -101,7 +108,7 @@ export function registerMaterialsGuidedExperiences() {
     ],
     completion: {
       action: { id: "pricebook.setup.apply", target: "organization", input: { trade: "roofing" } },
-      say: [t("gx_mps_done_say_1", "Your price book is ready. I'm building this project's materials list from it now, then I'll show you around the tab.")],
+      say: [t("gx_mps_done_say_2", "Your price book is ready. Start generating this project's materials, or have a look at your price book first.")],
       then: [{ handoff: "assistant_tray" }, { resume: true }, { play: MATERIALS_TUTORIAL }]
     }
   });

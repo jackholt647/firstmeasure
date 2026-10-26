@@ -7,6 +7,20 @@ optimization here must return exactly the same results.
 Add an entry when you knowingly ship something that reads more than it needs, repeats work, or will not scale, and
 link the entry from the architecture doc's "Not built" section. Remove an entry when it is done.
 
+## The price book setup sends its options once per step
+
+**Today.** The roofing price book setup's steps share one guided source (`pricebook.roofing_setup`,
+`public/v1/guided-experiences/definitions/materials.ts`), and `resolve` in `guided-experiences/service.ts` fills each
+step's `options` with its own copy: about 58 KB (every manufacturer's products, the generic items, the kinds of roof and
+the suppliers) five times in the experiences list, about 290 KB, each time the list is fetched while the setup is
+unfinished.
+
+**Where the change goes.** Resolve each source once per response and let steps name it (`options_ref`), or send the
+source once beside the steps; the widgets read the same data.
+
+**Why it can wait.** The list is fetched only while the setup is unfinished for someone who may run it, which is once
+or twice per organization, and the payload compresses well.
+
 ## The Labor column reads every material list when nobody does labor
 
 **Today.** For an organization whose Labor column waits for someone to do labor (`shown: with_assignees`, saved when the

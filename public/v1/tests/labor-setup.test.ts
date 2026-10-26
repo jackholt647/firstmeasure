@@ -110,6 +110,6 @@ test("where groups are off, labor is plain lines: the column always shows and th
   assert.equal(await laborShown(org), true, "with groups off, labor is plain lines and always shows");
   const service = await import("../guided-experiences/service.js");
   const stepsFor = async (ctx: any) => (await service.availableExperiences(ctx, { tab: "project.materials" })).experiences.find((entry: any) => entry.id === "materials.pricebook_setup.roofing")?.steps.map((step: any) => step.id);
-  assert.deepEqual(await stepsFor(owner(org, { ...flags, "apps.crew": false })), ["brands", "lines", "rules", "suppliers"]);
-  assert.deepEqual(await stepsFor(owner(ORG)), ["brands", "lines", "rules", "suppliers", "labor"]);
+  assert.deepEqual(await stepsFor(owner(org, { ...flags, "apps.crew": false })), ["roof_types", "brands", "defaults", "material", "suppliers"]);
+  assert.deepEqual(await stepsFor(owner(ORG)), ["roof_types", "brands", "defaults", "material", "suppliers", "labor"]);
 });

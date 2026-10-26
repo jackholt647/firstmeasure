@@ -10,7 +10,9 @@
  *   agent tray, which holds the same conversation.
  *
  * Step widgets are registered by id (`registerWidget`) and are given the step's options (data from the server) and
- * the selections so far; they report a selection patch, whether it is complete, and a plain summary of it.
+ * the selections so far; they report a selection patch, whether it is complete, and a plain summary of it. Steps can
+ * branch (a step's `next`, decided on the server); Back returns along the way taken and the progress bar shows it.
+ * The finish offers "Start generating materials" and "View the price book" (the price book renderer, in the sheet).
  */
 (function(root){
   'use strict';
@@ -36,6 +38,9 @@
     .gxs-scrim{position:absolute;inset:0;background:rgba(16,24,40,.55);backdrop-filter:blur(3px);animation:gxsFade .35s ease both}
     .gxs-sheet{position:relative;display:grid;grid-template-columns:minmax(0,1fr) 360px;width:min(1120px,calc(100vw - 32px));height:min(760px,calc(100vh - 32px));background:#fff;border-radius:20px;box-shadow:0 40px 100px rgba(16,24,40,.45);overflow:hidden;animation:gxsRise .5s cubic-bezier(.22,1,.36,1) both}
     .gxs[data-kind=modal] .gxs-sheet{grid-template-columns:minmax(0,1fr);width:min(820px,calc(100vw - 32px))}
+    /* The price book after the finish needs room for its list and an item side by side: the sheet widens to show it. */
+    .gxs-sheet{transition:width .45s cubic-bezier(.22,1,.36,1),height .45s cubic-bezier(.22,1,.36,1)}
+    .gxs.gxs-wide .gxs-sheet{width:min(1480px,calc(100vw - 32px));height:min(880px,calc(100vh - 32px))}
     .gxs[data-kind=modal] .gxs-chat{display:none}
     @keyframes gxsFade{from{opacity:0}to{opacity:1}}
     @keyframes gxsRise{from{opacity:0;transform:translateY(24px) scale(.98)}to{opacity:1;transform:none}}
@@ -103,56 +108,11 @@
     .gxs-close .gxs-x{font-size:24px;line-height:1;font-weight:400}
     @keyframes gxsMsg{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
     /* Widgets */
-    .gxs-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(168px,1fr));grid-auto-rows:1fr;gap:14px}
-    .gxs-grid .gxs-card{display:flex;flex-direction:column;align-items:stretch;min-height:150px}
-    .gxs-logo{display:flex;align-items:center;height:64px;padding-right:28px}
-    .gxs-logo img{display:block;max-width:100%;max-height:48px;width:auto;height:auto;object-fit:contain}
-    .gxs-card .gxs-meta{margin-top:auto}
-    .gxs-card{position:relative;text-align:left;border:1.5px solid #eaecf0;border-radius:16px;background:#fff;padding:18px;cursor:pointer;font:inherit;color:inherit;transition:border-color .2s,box-shadow .2s,transform .2s;animation:gxsMsg .4s cubic-bezier(.22,1,.36,1) both}
-    .gxs-card:hover{transform:translateY(-2px);box-shadow:0 10px 24px rgba(16,24,40,.08)}
-    .gxs-card[aria-pressed=true]{border-color:var(--brand,var(--primary,#d93025));box-shadow:0 0 0 3px color-mix(in srgb,var(--brand,#d93025) 18%,transparent)}
     .gxs-wordmark{display:flex;align-items:center;min-height:64px;font-weight:900;font-size:clamp(20px,2.2vw,27px);line-height:1.05;letter-spacing:-.03em;color:var(--brand,#101828);padding-right:26px}
-    .gxs-card small{display:block;color:#667085;font-size:12.5px}
     .gxs-tick{position:absolute;top:12px;right:12px;width:24px;height:24px;border-radius:50%;border:1.5px solid #d0d5dd;display:grid;place-items:center;color:#fff;font-size:12px;transition:background .2s,border-color .2s,transform .25s cubic-bezier(.34,1.56,.64,1)}
-    .gxs-card[aria-pressed=true] .gxs-tick,.gxs-row[aria-checked=true] .gxs-tick{background:var(--brand,var(--primary,#d93025));border-color:var(--brand,var(--primary,#d93025));transform:scale(1.08)}
-    .gxs-allbar{display:flex;align-items:center;gap:10px;margin:0 0 14px}
     .gxs-chip{height:30px;padding:0 12px;border-radius:999px;border:1px solid #d0d5dd;background:#fff;font:inherit;font-size:12.5px;font-weight:650;color:#344054;cursor:pointer}
     .gxs-chip[aria-pressed=true]{background:#101828;border-color:#101828;color:#fff}
-    .gxs-brand{margin:0 0 18px}
-    .gxs-brand h3{display:flex;align-items:center;gap:10px;margin:0 0 8px;font-size:15px}
-    .gxs-brand h3 b{color:var(--brand);font-weight:900;letter-spacing:-.02em}
-    .gxs-brand h3 .gxs-chip{margin-left:auto}
-    .gxs-row{position:relative;display:flex;align-items:center;gap:12px;width:100%;text-align:left;border:1.5px solid #eaecf0;border-radius:12px;background:#fff;padding:10px 44px 10px 12px;margin:0 0 8px;font:inherit;color:inherit;cursor:pointer;transition:border-color .2s,background .2s}
-    .gxs-row[aria-checked=true]{border-color:var(--brand,var(--primary,#d93025));background:color-mix(in srgb,var(--brand,#d93025) 4%,#fff)}
-    .gxs-row .gxs-tick{top:50%;margin-top:-12px}
-    .gxs-row strong{font-weight:650}.gxs-row em{font-style:normal;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:#667085;background:#f2f4f7;border-radius:6px;padding:2px 6px}
-    .gxs-row .gxs-price{margin-left:auto;color:#475467;font-variant-numeric:tabular-nums}
-    .gxs-star{border:0;background:transparent;color:#d0d5dd;font-size:16px;cursor:pointer;padding:2px}
-    .gxs-star[aria-pressed=true]{color:#f59e0b}
-    .gxs-rule{border:1px solid #eaecf0;border-radius:14px;background:#fff;margin:0 0 10px;overflow:hidden;animation:gxsMsg .4s cubic-bezier(.22,1,.36,1) both}
-    .gxs-rule>button{display:flex;align-items:center;gap:12px;width:100%;border:0;background:transparent;padding:14px 16px;font:inherit;text-align:left;cursor:pointer;color:inherit}
-    .gxs-rule>button strong{flex:1}
-    .gxs-rule .gxs-qty{font-variant-numeric:tabular-nums;font-weight:700;color:#101828}
-    .gxs-rule .gxs-caret{transition:transform .3s;color:#98a2b3}
-    .gxs-rule[open-rule=true] .gxs-caret{transform:rotate(90deg)}
-    .gxs-rule-body{display:grid;grid-template-rows:0fr;transition:grid-template-rows .35s cubic-bezier(.22,1,.36,1)}
-    .gxs-rule[open-rule=true] .gxs-rule-body{grid-template-rows:1fr}
-    .gxs-rule-body>div{overflow:hidden;padding:0 16px}
-    .gxs-rule[open-rule=true] .gxs-rule-body>div{padding:0 16px 16px}
-    .gxs-eq{display:flex;flex-wrap:wrap;align-items:center;gap:6px;margin:10px 0}
-    .gxs-pill{display:inline-flex;align-items:center;gap:6px;padding:4px 10px;border-radius:999px;background:#eef4ff;color:#3538cd;font-size:12.5px;font-weight:650}
-    .gxs-pill b{font-variant-numeric:tabular-nums;color:#101828}
-    .gxs-op{color:#98a2b3;font-weight:700}
     .gxs-seg{display:inline-flex;flex-wrap:wrap;gap:6px;margin-top:6px}
-    .gxs-manual{font-size:11px;font-weight:700;color:#b54708;background:#fffaeb;border-radius:6px;padding:2px 7px}
-    .gxs-table{width:100%;border-collapse:collapse;font-size:13px}
-    .gxs-table th{text-align:left;color:#667085;font-weight:600;font-size:11.5px;text-transform:uppercase;letter-spacing:.04em;padding:14px 6px 6px}
-    .gxs-table td{padding:7px 6px;border-top:1px solid #f2f4f7}
-    .gxs-table td:last-child{text-align:right}
-    .gxs-table input{width:96px;height:32px;border:1px solid #d0d5dd;border-radius:8px;padding:0 8px;text-align:right;font:inherit;font-variant-numeric:tabular-nums}
-    .gxs-table input:focus{outline:none;border-color:var(--primary,#d93025)}
-    .gxs-inline{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:0 0 6px}
-    .gxs-inline input[type=number]{width:72px;height:32px;border:1px solid #d0d5dd;border-radius:8px;padding:0 8px;font:inherit}
     .gxs-done-step{justify-content:center}
     .gxs-done{display:grid;place-items:center;text-align:center;padding:24px 10px;gap:10px;margin:auto 0}
     .gxs-done p{margin:0;color:#475467;max-width:44ch}
@@ -160,6 +120,14 @@
     .gxs-done circle{stroke:var(--primary,#d93025);stroke-width:4;fill:none;stroke-dasharray:240;stroke-dashoffset:240;animation:gxsDraw .7s ease forwards}
     .gxs-done path{stroke:var(--primary,#d93025);stroke-width:5;fill:none;stroke-linecap:round;stroke-linejoin:round;stroke-dasharray:60;stroke-dashoffset:60;animation:gxsDraw .45s .55s ease forwards}
     @keyframes gxsDraw{to{stroke-dashoffset:0}}
+    /* The price book, shown in the sheet after the finish. */
+    .gxs-book-step .gxs-body{display:flex}
+    .gxs-book{flex:1 1 auto;min-height:0;display:flex;flex-direction:column}
+    .gxs-book.pb-embed>.pb-win{flex:1 1 auto;min-height:0;height:100%;border:1px solid #eaecf0;border-radius:14px;overflow:hidden;box-shadow:none}
+    .gxs-book .pb-top{display:none}
+    .gxs-book .pb-body{grid-template-columns:minmax(340px,44%) minmax(0,1fr)}
+    .gxs-book-count{font-size:12px;font-weight:650;color:#475467;background:#f2f4f7;border-radius:999px;padding:4px 10px;white-space:nowrap}
+    .gxs-book-loading,.gxs-book-missing{margin:auto;display:flex;align-items:center;gap:8px;color:#667085}
     .gxs-flying{position:fixed!important;overflow:hidden;background:#fff;box-shadow:0 30px 80px rgba(16,24,40,.35);display:flex;flex-direction:column}
     .gxs.gxs-leaving .gxs-scrim{opacity:0;transition:opacity .45s}
     .gxs.gxs-leaving .gxs-widget{opacity:0;transform:translateX(-30px);transition:opacity .35s,transform .45s}
@@ -175,8 +143,6 @@
       .gxs-step{padding:6px 16px 20px}
       .gxs-head{padding:12px 12px 6px}
       .gxs-badge span{display:none}
-      .gxs-grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
-      .gxs-card{padding:12px}.gxs-grid .gxs-card{min-height:124px}.gxs-wordmark{min-height:46px;font-size:19px}.gxs-logo{height:48px}.gxs-logo img{max-height:36px}
       .gxs-foot{padding:10px 12px}
     }
     @media(prefers-reduced-motion:reduce){.gxs *,.gxs{animation:none!important;transition:none!important}}
@@ -199,6 +165,19 @@
       let index = Math.max(0, steps.findIndex((step) => step.id === experience.progress?.step_id));
       if (index >= steps.length) index = 0;
       let mounted = null, busy = false, closed = false, assistant = null, doneWaiter = null;
+      // The way through: the steps visited (Back returns along them) and each branch the server decided.
+      const visited = [], decided = {};
+      const indexOf = (id) => steps.findIndex((entry) => entry.id === id);
+      /** The step after `at` as far as is known here: a decided branch, a fixed next, the first branch, else the next in order. */
+      function after(at){
+        const step = steps[at], n = step?.next;
+        if (step && decided[step.id] !== undefined) return decided[step.id];
+        const target = typeof n === 'string' ? n : n && typeof n === 'object' ? (array(n.branches)[0]?.to || n.otherwise) : '';
+        const found = target ? indexOf(target) : -1;
+        return found > at ? found : at + 1;
+      }
+      /** The steps on the way through, for the progress bar: those visited, this one, then the rest as far as is known. */
+      function path(){ const out = [...visited, index]; let at = index; while ((at = after(at)) < steps.length && out.length < steps.length) out.push(at); return out; }
 
       const host = document.createElement('div');
       host.className = 'gxs'; host.dataset.kind = agentic ? 'agentic' : 'modal'; host.setAttribute('data-fmr-ignore', ''); host.setAttribute('data-gx-setup', experience.id);
@@ -318,11 +297,15 @@
       $('[data-gxs=toggleChat]').addEventListener('click', () => { const open = chat.dataset.open !== 'true'; chat.dataset.open = String(open); $('[data-gxs=toggleChat]').setAttribute('aria-expanded', String(open)); });
 
       // Steps
-      function progress(){ host.querySelectorAll('.gxs-progress li').forEach((li, i) => { li.classList.toggle('done', i < index); li.classList.toggle('on', i === index); }); }
+      function progress(){
+        const way = path(), at = way.indexOf(index), list = $('.gxs-progress');
+        if (list.children.length !== way.length) list.innerHTML = way.map(() => '<li><i></i></li>').join('');
+        [...list.children].forEach((li, i) => { li.classList.toggle('done', i < at); li.classList.toggle('on', i === at); });
+      }
       function footer(){
         const step = steps[index];
-        const last = index === steps.length - 1;
-        $('[data-gxs=back]').hidden = index === 0;
+        const last = after(index) >= steps.length;
+        $('[data-gxs=back]').hidden = !visited.length && index === 0;
         // An optional last page (labor prices) can be skipped too; skipping it finishes without its part.
         $('[data-gxs=skip]').hidden = step.required !== false || (last && !Object.keys(object(step.options?.skip_sets)).length);
         const next = $('[data-gxs=next]');
@@ -405,16 +388,16 @@
         // An optional step skipped leaves its part out (the labor prices page: no labor lines).
         if (skip) Object.assign(selections, object(step.options?.skip_sets));
         const sent = track(skip ? 'step_skip' : 'step_done', { step_id: step.id, selections });
-        if (index === steps.length - 1) return finish(choice);
-        let to = index + 1;
+        let to = after(index);
         if (step.next && typeof step.next === 'object') {
           busy = true; footer();
           const target = clean((await sent)?.next_step);
           busy = false;
-          const found = steps.findIndex((entry) => entry.id === target);
-          if (found > index) to = found;
+          const found = indexOf(target);
+          if (found > index) { to = found; decided[step.id] = found; }
         }
-        if (!closed) enter(to, 1, choice);
+        if (to >= steps.length) return finish(choice);
+        if (!closed) { visited.push(index); enter(to, 1, choice); }
       }
       async function finish(choice){
         busy = true; footer(); status.textContent = ''; status.classList.remove('err');
@@ -423,30 +406,68 @@
           const value = object(result.result);
           stage.querySelectorAll('.gxs-step').forEach((el) => el.remove());
           mounted?.destroy?.(); mounted = null;
-          const done = document.createElement('div'); done.className = 'gxs-step gxs-done-step';
-          done.innerHTML = `<div class="gxs-done"><svg viewBox="0 0 84 84" aria-hidden="true"><circle cx="42" cy="42" r="38"/><path d="M26 43l11 11 21-23"/></svg><h2>${H('gx_ui_done_title', 'Your price book is ready')}</h2><p>${H('gx_ui_done_body', 'New materials lists will use your products and your costs.')}</p></div>`;
+          const done = document.createElement('div'); done.className = 'gxs-step gxs-done-step'; done.dataset.gxStep = 'done';
+          done.innerHTML = `<div class="gxs-done"><svg viewBox="0 0 84 84" aria-hidden="true"><circle cx="42" cy="42" r="38"/><path d="M26 43l11 11 21-23"/></svg><h2>${H('gx_ui_done_title', 'Your price book is ready')}</h2><p>${H('gx_ui_done_body_2', 'New materials lists start from your defaults, and everything else is in your price book to search.')}</p></div>`;
           stage.appendChild(done);
+          currentPane = done; finished = value;
           host.querySelectorAll('.gxs-progress li').forEach((li) => { li.classList.add('done'); li.classList.remove('on'); });
-          // The footer keeps one button, which closes the setup.
+          // Two ways on: look at the price book here first, or close and generate this project's materials.
           const foot = $('.gxs-foot');
           [...foot.children].forEach((child) => { child.hidden = true; });
-          const finishButton = document.createElement('button'); finishButton.type = 'button'; finishButton.className = 'gxs-btn primary'; finishButton.dataset.gxs = 'done';
-          finishButton.innerHTML = H('gx_ui_done_button', 'See my materials');
-          finishButton.style.marginLeft = 'auto';
-          foot.append(finishButton);
-          finishButton.focus({ preventScroll: true });
+          const button = (kind, action, html) => { const el = document.createElement('button'); el.type = 'button'; el.className = kind; el.dataset.gxs = action; el.innerHTML = html; return el; };
+          const bookBack = button('gxs-btn ghost', 'book-back', `<i class="fas fa-arrow-left" aria-hidden="true"></i>${H('gx_ui_back', 'Back')}`); bookBack.hidden = true;
+          const view = button('gxs-btn', 'view', `<i class="fas fa-book-open" aria-hidden="true"></i>${H('gx_ui_done_view', 'View the price book')}`);
+          const generate = button('gxs-btn primary', 'generate', H('gx_ui_done_generate', 'Start generating materials'));
+          view.style.marginLeft = 'auto'; bookBack.style.marginRight = 'auto';
+          foot.append(bookBack, view, generate);
+          generate.focus({ preventScroll: true });
           const lines = array(experience.completion?.say).map((copy) => L(copy));
           persist({ phase: 'done', choice: choice || '' });
           say(lines, choice, 'done');
-          await new Promise((resolveDone) => { doneWaiter = resolveDone; });
+          const how = await new Promise((resolveDone) => { doneWaiter = resolveDone; });
+          book?.destroy?.(); book = null;
           const handoff = agentic && array(experience.completion?.then).some((entry) => entry.handoff === 'assistant_tray');
           await close(handoff ? 'handoff' : 'plain');
-          resolve({ status: 'completed', result: value });
+          resolve({ status: 'completed', result: value, ...(how === 'generate' ? { generate: true } : {}) });
         } catch (error) {
           busy = false; footer();
           status.classList.add('err');
           status.textContent = clean(error?.message) || L('gx_ui_finish_failed', 'That didn’t save. Try again.');
         }
+      }
+      /**
+       * The price book that was just set up, in the sheet in place of the finish, with the agent still beside it: the
+       * price book renderer (the one Materials settings mounts), showing only the items this setup wrote.
+       */
+      let finished = null, book = null, bookPane = null;
+      function showPricebook(open){
+        const done = stage.querySelector('[data-gx-step=done]'), foot = $('.gxs-foot');
+        foot.querySelector('[data-gxs=view]').hidden = open; foot.querySelector('[data-gxs=book-back]').hidden = !open;
+        host.classList.toggle('gxs-wide', open);
+        if (!open) {
+          if (bookPane) { const pane = bookPane; bookPane = null; pane.classList.add('gxs-below'); setTimeout(() => { book?.destroy?.(); book = null; pane.remove(); }, reduced() ? 0 : 420); }
+          done?.classList.remove('gxs-above'); if (done) { done.inert = false; done.removeAttribute('aria-hidden'); }
+          foot.querySelector('[data-gxs=view]').focus({ preventScroll: true });
+          return;
+        }
+        if (bookPane) return;
+        const ids = new Set(array(finished?.item_ids).map(String));
+        const pane = document.createElement('div'); pane.className = 'gxs-step gxs-book-step' + (reduced() ? '' : ' gxs-below'); pane.dataset.fill = ''; pane.dataset.gxStep = 'pricebook';
+        pane.innerHTML = `<div class="gxs-titlebar"><h2>${H('gx_ui_book_title', 'Your price book')}</h2><div class="gxs-title-actions"><span class="gxs-book-count">${ids.size} ${H('gx_ui_book_items', 'items set up')}</span></div></div><div class="gxs-body"><div class="gxs-book"></div></div>`;
+        stage.appendChild(pane); bookPane = pane;
+        if (done) { done.classList.add('gxs-above'); done.inert = true; done.setAttribute('aria-hidden', 'true'); }
+        requestAnimationFrame(() => requestAnimationFrame(() => pane.classList.remove('gxs-below')));
+        const shelf = pane.querySelector('.gxs-book');
+        const library = root.FirstMatePricebook || root.Portal?.modules?.pricebook;
+        if (!library?.mount) { shelf.innerHTML = `<p class="gxs-book-missing">${H('gx_ui_book_missing', 'The price book opens from Materials settings.')}</p>`; return; }
+        shelf.innerHTML = `<div class="gxs-book-loading"><span class="gxs-spin" aria-hidden="true"></span>${H('gx_ui_book_loading', 'Opening your price book…')}</div>`;
+        library.configure?.({ currentOrganizationId: () => orgId });
+        // The setup has just written the price book: read it again before drawing.
+        Promise.resolve(library.loadState?.(true)).catch(() => null).then(() => {
+          if (bookPane !== pane) return;
+          shelf.innerHTML = '';
+          book = library.mount(shelf, { title: L('gx_ui_book_title', 'Your price book'), itemFilter: ids.size ? (item) => ids.has(String(item.id)) : null });
+        });
       }
       /**
        * The X asks in a small dialog over the setup (inside the sheet, where the person is looking): Keep going is
@@ -482,13 +503,16 @@
         const action = event.target.closest?.('[data-gxs]')?.dataset.gxs;
         if (action === 'next') next(false);
         else if (action === 'skip') next(true);
-        else if (action === 'back' && index > 0) { track('back', { step_id: steps[index].id }); show(index - 1, -1); }
+        else if (action === 'back' && !doneWaiter && (visited.length || index > 0)) { track('back', { step_id: steps[index].id }); show(visited.length ? visited.pop() : index - 1, -1); }
+        else if (action === 'generate' && doneWaiter) { const go = doneWaiter; doneWaiter = null; go('generate'); }
+        else if (action === 'view' && doneWaiter) showPricebook(true);
+        else if (action === 'book-back' && doneWaiter) showPricebook(false);
         else if (action === 'done' || (action === 'close' && doneWaiter)) { const go = doneWaiter; doneWaiter = null; go?.(); }
         else if (action === 'close') confirmSkip();
         else if (action === 'keep') keepGoing();
         else if (action === 'dismiss' && !host.dataset.dismissing) { host.dataset.dismissing = 'true'; (async () => { await track('dismiss', { step_id: steps[index]?.id, selections }); await close('plain'); resolve({ status: 'dismissed' }); })(); }
       });
-      const onKey = (event) => { if (event.key === 'Escape' && !closed) { event.preventDefault(); event.stopPropagation(); if (doneWaiter) { const go = doneWaiter; doneWaiter = null; go(); } else if (host.querySelector('.gxs-ask')) keepGoing(); else confirmSkip(); } };
+      const onKey = (event) => { if (event.key === 'Escape' && !closed) { event.preventDefault(); event.stopPropagation(); if (doneWaiter && bookPane) showPricebook(false); else if (doneWaiter) { const go = doneWaiter; doneWaiter = null; go(); } else if (host.querySelector('.gxs-ask')) keepGoing(); else confirmSkip(); } };
       document.addEventListener('keydown', onKey, true);
 
       /** Closes the sheet. `handoff` flies the conversation to the project's agent tray, which opens with it. */
@@ -585,20 +609,6 @@
     .gxs-tools{display:flex;align-items:center;gap:8px;margin:0 0 10px;flex-wrap:wrap}
     .gxs-search{flex:1 1 200px;min-width:0;height:34px;border:1px solid #d0d5dd;border-radius:9px;padding:0 10px;font:inherit}
     .gxs-search:focus{outline:none;border-color:var(--primary,#d93025);box-shadow:0 0 0 3px rgba(var(--primary-rgb,217,48,37),.12)}
-    .gxs-cols{columns:2 280px;column-gap:18px}
-    .gxs-cols>section{break-inside:avoid;margin:0 0 12px}
-    .gxs-cols h3{display:flex;align-items:center;gap:8px;margin:0 0 6px;font-size:13px}
-    .gxs-cols h3 b{color:var(--brand);font-weight:900}
-    .gxs-cols h3 .gxs-chip{margin-left:auto;height:24px;padding:0 9px;font-size:11.5px}
-    .gxs-line{position:relative;display:flex;align-items:center;gap:8px;width:100%;text-align:left;border:1px solid #eaecf0;border-radius:10px;background:#fff;padding:6px 34px 6px 8px;margin:0 0 5px;font:inherit;font-size:13px;color:inherit;cursor:pointer;transition:border-color .2s,background .2s}
-    .gxs-line[aria-checked=true]{border-color:var(--brand,var(--primary,#d93025));background:color-mix(in srgb,var(--brand,#d93025) 5%,#fff)}
-    .gxs-line .gxs-tick{top:50%;margin-top:-11px;right:8px;width:22px;height:22px}
-    .gxs-line[aria-checked=true] .gxs-tick{background:var(--brand,var(--primary,#d93025));border-color:var(--brand,var(--primary,#d93025))}
-    .gxs-line strong{font-weight:650;flex:1;min-width:0}
-    .gxs-line em{font-style:normal;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:#667085}
-    .gxs-more{border:0;background:transparent;color:var(--primary,#d93025);font:inherit;font-size:12px;font-weight:650;cursor:pointer;padding:2px 2px 6px}
-    .gxs-mats{display:flex;gap:10px;align-items:flex-start}
-    .gxs-mat-col{flex:1 1 0;min-width:0;display:flex;flex-direction:column;gap:6px}
     .gxs-form{display:grid;gap:6px}
     .gxs-frow{display:flex;align-items:center;gap:8px;flex-wrap:wrap;font-size:12.5px;min-height:30px}
     .gxs-frow>span:first-child{width:62px;flex:none;font-weight:650;color:#344054}
@@ -612,35 +622,8 @@
     .gxs-num input{width:52px;height:28px;border:0;background:transparent;padding:0 4px 0 8px;text-align:right;font:inherit;outline:none;-moz-appearance:textfield;appearance:textfield}
     .gxs-num input::-webkit-outer-spin-button,.gxs-num input::-webkit-inner-spin-button{-webkit-appearance:none;margin:0}
     .gxs-num i{font-style:normal;color:#667085;padding-left:2px}
-    .gxs-legend{display:inline-flex;align-items:center;gap:5px;font-size:12px;color:#667085;cursor:help;white-space:nowrap}
-    .gxs-legend-star{color:#f59e0b;font-size:14px}
-    .gxs-mat{border:1px solid #eaecf0;border-radius:12px;background:#fff;overflow:visible}
-    .gxs-mat>button{position:relative;display:flex;align-items:center;gap:10px;width:100%;border:0;background:transparent;padding:10px 12px;font:inherit;text-align:left;cursor:pointer;color:inherit;border-radius:12px}
-    .gxs-mat>button:hover{background:#f9fafb}
-    .gxs-mat>button strong{flex:1;min-width:0;font-weight:650}
-    .gxs-source{font-size:11px;font-weight:700;border-radius:999px;padding:3px 9px;white-space:nowrap}
-    .gxs-source[data-source=report]{background:#ecfdf3;color:#067647}
-    .gxs-source[data-source=hand]{background:#fffaeb;color:#b54708}
-    .gxs-mat .gxs-caret{color:#98a2b3;transition:transform .3s}
-    .gxs-mat[data-open=true] .gxs-caret{transform:rotate(90deg)}
-    .gxs-mat-edit{display:grid;grid-template-rows:0fr;transition:grid-template-rows .3s cubic-bezier(.22,1,.36,1)}
-    .gxs-mat[data-open=true] .gxs-mat-edit{grid-template-rows:1fr}
-    .gxs-mat .gxs-caret{width:10px;flex:none;text-align:center}
-    .gxs-mat-edit>div{overflow:hidden;padding:0 12px 0 32px}
-    .gxs-mat[data-open=true] .gxs-mat-edit>div{padding:2px 12px 12px 32px}
-    .gxs-mat-edit p{margin:0 0 10px;color:#344054}
-    .gxs-field{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin:0 0 8px;font-size:12.5px;color:#475467}
-    .gxs-field>span:first-child{min-width:110px;font-weight:650;color:#344054}
-    .gxs-field input[type=number]{width:84px;height:30px;border:1px solid #d0d5dd;border-radius:8px;padding:0 8px;font:inherit}
     .gxs-tip{position:fixed;z-index:2147483700;max-width:300px;background:#101828;color:#fff;font-size:12.5px;line-height:1.45;border-radius:10px;padding:8px 11px;box-shadow:0 12px 30px rgba(16,24,40,.3);pointer-events:none;opacity:0;transform:translateY(4px);transition:opacity .15s,transform .15s}
     .gxs-tip[data-show=true]{opacity:1;transform:none}
-    .gxs-prices>section{margin:0 0 12px}
-    .gxs-price-rows{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));column-gap:24px}
-    .gxs-prices h3{margin:0 0 4px;font-size:11.5px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:#667085}
-    .gxs-price-row{display:flex;align-items:center;gap:8px;padding:4px 0;border-top:1px solid #f2f4f7;font-size:12.5px}
-    .gxs-price-row span{flex:1;min-width:0}
-    .gxs-price-row small{color:#98a2b3}
-    .gxs-price-row input{width:84px;height:28px;border:1px solid #d0d5dd;border-radius:7px;padding:0 7px;text-align:right;font:inherit;font-variant-numeric:tabular-nums}
     .gxs-supplier-picks{gap:6px}
     .gxs-supplier-pill .gxs-dot{width:8px;height:8px;border-radius:50%;background:var(--brand);display:inline-block;margin-right:6px}
     .gxs-supplier-pill[aria-pressed=true]{border-color:var(--brand);background:var(--brand);color:#fff}
@@ -652,6 +635,40 @@
     .gxs-supplier-empty{flex:1 1 auto;min-height:220px;margin:8px 0 0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;border:1.5px dashed #e4e7ec;border-radius:14px;background:#fcfcfd;color:#667085;font-size:13.5px;text-align:center;padding:24px}
     .gxs-supplier-empty[hidden]{display:none}
     .gxs-supplier-empty .gxs-empty-icon{width:48px;height:48px;border-radius:14px;background:#f2f4f7;display:grid;place-items:center;color:#98a2b3;font-size:20px}
+    /* Roof types and the default material: a drawing and a name per tile, ticked like the logos. */
+    .gxs-types{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));grid-auto-rows:minmax(104px,1fr);gap:12px;flex:1 1 auto;min-height:0;padding-bottom:20px}
+    .gxs-types.gxs-materials{grid-auto-rows:minmax(104px,170px);align-content:start}
+    .gxs-type{position:relative;display:flex;flex-direction:column;min-height:0;padding:0;border:0;border-radius:14px;background:#f9fafb;cursor:pointer;overflow:hidden;text-align:left;font:inherit;color:inherit;transition:box-shadow .25s,transform .2s,background .2s;animation:gxsMsg .4s cubic-bezier(.22,1,.36,1) both}
+    .gxs-type:hover{transform:translateY(-1px);background:#f2f4f7}
+    .gxs-swatch{display:block;width:100%;flex:1 1 auto;min-height:0;filter:saturate(.75) brightness(1.03);transition:filter .25s}
+    .gxs-type:hover .gxs-swatch,.gxs-type[aria-pressed=true] .gxs-swatch{filter:none}
+    .gxs-type-name{flex:none;padding:8px 12px 9px;font-weight:700;font-size:13.5px;line-height:1.25;color:#101828;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+    .gxs-type-meta{position:absolute;left:8px;top:8px;font-size:11px;font-weight:700;color:#344054;background:rgba(255,255,255,.9);border-radius:999px;padding:2px 8px;box-shadow:0 1px 2px rgba(16,24,40,.12)}
+    .gxs-type[aria-pressed=true]{background:color-mix(in srgb,var(--primary,#d93025) 6%,#fff);box-shadow:0 0 0 2px var(--primary,#d93025)}
+    .gxs-type .gxs-badge-check{background:var(--primary,#d93025);box-shadow:0 2px 6px rgba(16,24,40,.2)}
+    .gxs-type[aria-pressed=true] .gxs-badge-check{transform:scale(1);opacity:1}
+    .gxs-badge-check{font-weight:800;font-variant-numeric:tabular-nums}
+    /* Default materials: four groups in two columns, one compact row each. */
+    .gxs-pd{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px 16px;align-items:start}
+    .gxs-pd-col{display:flex;flex-direction:column;gap:12px;min-width:0}
+    .gxs-pd-section{border:1px solid #eaecf0;border-radius:14px;background:#fff;padding:4px 14px 6px;animation:gxsMsg .4s cubic-bezier(.22,1,.36,1) both}
+    .gxs-pd-col:last-child .gxs-pd-section{animation-delay:60ms}
+    .gxs-pd-section h3{display:flex;align-items:center;gap:8px;margin:6px 0 2px;font-size:11px;font-weight:750;text-transform:uppercase;letter-spacing:.06em;color:#667085}
+    .gxs-pd-section h3 i{color:var(--primary,#d93025);font-size:11.5px;width:14px;text-align:center}
+    .gxs-pd-row{display:flex;flex-direction:column;gap:4px;padding:7px 0 8px;border-top:1px solid #f2f4f7}
+    .gxs-pd-section h3+.gxs-pd-row{border-top:0;padding-top:4px}
+    .gxs-pd-label{display:flex;align-items:center;gap:6px;font-size:12.5px;font-weight:650;color:#344054;min-width:0;white-space:nowrap}
+    .gxs-pd-label .gxs-pd-hand{margin-left:auto}
+    .gxs-pd-info{flex:none;width:16px;height:16px;border-radius:50%;border:1px solid #d0d5dd;background:#fff;color:#667085;font:italic 700 9.5px/1 Georgia,serif;cursor:help;display:inline-grid;place-items:center}
+    .gxs-pd-info:hover,.gxs-pd-info:focus-visible{border-color:#98a2b3;color:#344054;outline:none}
+    .gxs-pd-control{min-width:0;display:flex}
+    .gxs-pd-select{width:100%;min-width:0;height:32px;border:1px solid #d0d5dd;border-radius:9px;background:#fff url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 10 6'%3E%3Cpath d='M1 1l4 4 4-4' fill='none' stroke='%23667085' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") no-repeat right 10px center/10px 6px;padding:0 28px 0 10px;font:inherit;font-size:13px;color:#101828;-webkit-appearance:none;appearance:none;text-overflow:ellipsis;white-space:nowrap;overflow:hidden;cursor:pointer;transition:border-color .15s,box-shadow .15s}
+    .gxs-pd-select:hover{border-color:#98a2b3}
+    .gxs-pd-select:focus{outline:none;border-color:var(--primary,#d93025);box-shadow:0 0 0 3px rgba(var(--primary-rgb,217,48,37),.12)}
+    .gxs-pd-select:disabled{color:#98a2b3;background-color:#f9fafb;cursor:default}
+    .gxs-pd-hand{font-size:10.5px;font-weight:700;color:#b54708;background:#fffaeb;border-radius:999px;padding:2px 8px;white-space:nowrap;cursor:help}
+    .gxs-pd-note{display:flex;align-items:center;gap:7px;margin:12px 2px 0;color:#667085;font-size:12.5px}
+    .gxs-pd-note i{color:#12b76a}
     .gxs-lab-add{gap:8px}
     .gxs-lab-toggle{display:inline-flex;gap:4px}
     .gxs-lab-name{flex:1 1 180px}
@@ -676,7 +693,7 @@
     .gxs-lab .gxs-frow>span:first-child{width:auto;min-width:40px}
     .gxs-lab-empty{grid-column:1/-1;color:#667085;margin:8px 0}
     @media(max-width:760px){.gxs-labs{grid-template-columns:minmax(0,1fr)}}
-    @media(max-width:760px){.gxs-logos{grid-template-columns:repeat(2,minmax(0,1fr));grid-auto-rows:minmax(84px,1fr);max-height:none}.gxs-logo-tile{padding:10px 12px}.gxs-mats{flex-direction:column;align-items:stretch}}
+    @media(max-width:760px){.gxs-logos{grid-template-columns:repeat(2,minmax(0,1fr));grid-auto-rows:minmax(84px,1fr);max-height:none}.gxs-logo-tile{padding:10px 12px}.gxs-types{grid-template-columns:repeat(2,minmax(0,1fr));grid-auto-rows:minmax(96px,1fr)}.gxs-pd{grid-template-columns:minmax(0,1fr)}}
   `;
   const injectWidgetCss = () => G()?.injectCss?.('gx-setup-widgets-css', widgetCss);
   /** One shared tooltip: plain text, positioned beside the element it explains. */
@@ -712,10 +729,13 @@
     render(el, { options, selections, change, L, actions }){
       injectWidgetCss();
       const brands = array(options.brands);
+      // In the order picked: defaults come from the first one that makes each thing, so its badge says 1.
       const picked = new Set(array(selections.brands).filter((id) => brands.some((brand) => brand.id === id)));
-      const summary = () => picked.size === brands.length ? L('gx_ui_all_brands', 'All of them') : brands.filter((brand) => picked.has(brand.id)).map((brand) => brand.name).join(', ');
-      const report = () => change({ brands: brands.filter((brand) => picked.has(brand.id)).map((brand) => brand.id), region: clean(options.region?.id) }, summary());
-      const sync = () => { el.querySelectorAll('[data-brand]').forEach((tile) => tile.setAttribute('aria-pressed', String(picked.has(tile.dataset.brand)))); actions?.querySelector('[data-all]')?.setAttribute('aria-pressed', String(picked.size === brands.length)); report(); };
+      const named = () => [...picked].map((id) => brands.find((brand) => brand.id === id)?.name).filter(Boolean);
+      const summary = () => picked.size === brands.length ? L('gx_ui_all_brands', 'All of them') : named().join(', ');
+      const report = () => change({ brands: [...picked], region: clean(options.region?.id) }, summary());
+      const order = () => [...picked];
+      const sync = () => { el.querySelectorAll('[data-brand]').forEach((tile) => { const at = order().indexOf(tile.dataset.brand); tile.setAttribute('aria-pressed', String(at >= 0)); const badge = tile.querySelector('.gxs-badge-check'); if (badge) badge.textContent = at >= 0 ? String(at + 1) : ''; if (at === 0) tile.title = `${tile.getAttribute('aria-label')}: ${L('gx_ui_first_brand', 'your defaults come from this one first')}`; else tile.title = tile.getAttribute('aria-label'); }); actions?.querySelector('[data-all]')?.setAttribute('aria-pressed', String(picked.size === brands.length)); report(); };
       if (actions && options.allow_all !== false) {
         actions.innerHTML = `<button type="button" class="gxs-chip" data-all aria-pressed="false">${H('gx_ui_use_all', 'Use all')}</button>`;
         actions.querySelector('[data-all]').addEventListener('click', () => { if (picked.size === brands.length) picked.clear(); else brands.forEach((brand) => picked.add(brand.id)); sync(); });
@@ -740,224 +760,215 @@
     }
   });
 
-  const TIER = { '3_tab': ['gx_tier_3tab', '3-tab'], architectural: ['gx_tier_arch', 'Architectural'], premium_architectural: ['gx_tier_premium', 'Premium'], impact_rated: ['gx_tier_impact', 'Impact rated'], designer: ['gx_tier_designer', 'Designer'] };
-  // Shingle lines in two columns: the usual ones ticked, the rest of the common range shown, specialty lines behind
-  // More; a search across all. One way to take a whole brand: its own "All" beside its name. A legend says what the star does.
-  registerWidget('product-lines', {
-    render(el, { options, selections, change, L, actions }){
-      injectWidgetCss();
-      const brands = array(options.brands).filter((brand) => array(selections.brands).includes(brand.id));
-      const all = brands.flatMap((brand) => array(brand.lines));
-      const known = new Set(all.map((line) => line.id));
-      const chosen = new Set(array(selections.lines).filter((id) => known.has(id)));
-      if (!chosen.size) all.filter((line) => (line.visibility || (line.popular ? 'default' : 'visible')) === 'default').forEach((line) => chosen.add(line.id));
-      if (!chosen.size && all[0]) chosen.add(all[0].id);
-      let star = known.has(selections.default_line) && chosen.has(selections.default_line) ? selections.default_line : [...chosen][0] || '';
-      const expanded = new Set(); let query = '';
-      const summary = () => all.filter((line) => chosen.has(line.id)).map((line) => line.name + (line.id === star ? ' ★' : '')).join(', ');
-      const report = () => { if (!chosen.has(star)) star = [...chosen][0] || ''; change({ lines: all.filter((line) => chosen.has(line.id)).map((line) => line.id), default_line: star }, summary()); };
-      const shown = (brand, line) => query ? `${brand.name} ${line.name}`.toLowerCase().includes(query) : (line.visibility || 'visible') !== 'more' || expanded.has(brand.id) || chosen.has(line.id);
-      const starTip = L('gx_ui_star_tip', 'Your usual shingle: a new materials list starts with it. Click a star to change it.');
-      const row = (brand, line) => `<div class="gxs-line" role="checkbox" tabindex="0" aria-checked="${chosen.has(line.id)}" data-line="${esc(line.id)}" style="--brand:${esc(brand.color)}"><button type="button" class="gxs-star" data-star="${esc(line.id)}" aria-pressed="${line.id === star}" aria-label="${esc(starTip)}" title="${esc(starTip)}">&#9733;</button><strong>${esc(String(line.name).replace(brand.name + ' ', ''))}</strong>${TIER[line.tier] ? `<em>${H(TIER[line.tier][0], TIER[line.tier][1])}</em>` : ''}<span class="gxs-tick" aria-hidden="true">&#10003;</span></div>`;
-      const listHtml = () => brands.map((brand) => {
-        const lines = array(brand.lines), visible = lines.filter((line) => shown(brand, line)), hidden = lines.filter((line) => (line.visibility || 'visible') === 'more' && !shown(brand, line));
-        if (!visible.length && query) return '';
-        return `<section style="--brand:${esc(brand.color)}"><h3><b>${esc(brand.name)}</b><button type="button" class="gxs-chip" data-brand-all="${esc(brand.id)}" aria-pressed="${lines.every((line) => chosen.has(line.id))}" title="${esc(L('gx_ui_brand_all_tip', 'Tick every line from this brand'))}">${H('gx_ui_all_short', 'All')}</button></h3>${visible.map((line) => row(brand, line)).join('')}${!query && hidden.length ? `<button type="button" class="gxs-more" data-more="${esc(brand.id)}">${H('gx_ui_more_lines', 'More')} (${hidden.length})</button>` : ''}</section>`;
-      }).join('') || `<p class="gxs-sub">${H('gx_ui_no_lines', 'No shingle line matches that.')}</p>`;
-      if (actions) actions.innerHTML = `<span class="gxs-legend" title="${esc(starTip)}"><span class="gxs-legend-star" aria-hidden="true">&#9733;</span>${H('gx_ui_star_legend', 'Your usual shingle')}</span>`;
-      el.innerHTML = `<div class="gxs-tools"><input type="search" class="gxs-search" placeholder="${esc(L('gx_ui_search_lines', 'Search shingle lines'))}" aria-label="${esc(L('gx_ui_search_lines', 'Search shingle lines'))}"></div><div class="gxs-cols"></div>`;
-      const cols = el.querySelector('.gxs-cols');
-      const draw = () => { cols.innerHTML = listHtml(); report(); };
-      const toggle = (id) => { if (chosen.has(id)) chosen.delete(id); else chosen.add(id); draw(); };
-      el.querySelector('.gxs-search').addEventListener('input', (event) => { query = clean(event.target.value).toLowerCase(); draw(); });
-      el.addEventListener('click', (event) => {
-        const starred = event.target.closest('[data-star]');
-        if (starred) { event.stopPropagation(); star = starred.dataset.star; chosen.add(star); draw(); return; }
-        const more = event.target.closest('[data-more]')?.dataset.more; if (more) { expanded.add(more); draw(); return; }
-        const brandAll = event.target.closest('[data-brand-all]')?.dataset.brandAll;
-        if (brandAll) { const lines = array(brands.find((brand) => brand.id === brandAll)?.lines); const every = lines.every((line) => chosen.has(line.id)); lines.forEach((line) => every ? chosen.delete(line.id) : chosen.add(line.id)); if (!every) expanded.add(brandAll); draw(); return; }
-        const line = event.target.closest('[data-line]'); if (line) toggle(line.dataset.line);
-      });
-      el.addEventListener('keydown', (event) => { const line = event.target.closest('[data-line]'); if (line && (event.key === ' ' || event.key === 'Enter')) { event.preventDefault(); toggle(line.dataset.line); el.querySelector(`[data-line="${CSS.escape(line.dataset.line)}"]`)?.focus(); } });
-      draw();
-      return { valid: () => chosen.size > 0, summary, hint: () => L('gx_ui_hint_line', 'Tick at least one shingle line to continue.') };
-    }
-  });
-
+  // ── Roof types, defaults and the default material ─────────────────────
   /**
-   * A material's rule in plain words, from its parts: what is measured, how much one package covers, the waste.
-   * Never a sample roof's amount.
+   * A small drawing of each kind of roof, so the choice reads at a glance. Plain shapes in the material's colours;
+   * a kind the drawings do not know gets a neutral swatch.
    */
-  function plainRule(row, edit, L){
-    if (edit.source === 'hand') return row.explanation ? `${L('gx_mr_by_hand', 'Entered by hand on each job.')} ${row.explanation}` : L('gx_mr_by_hand', 'Entered by hand on each job.');
-    const unitWord = { roofing_square: L('gx_unit_square', 'square'), ft: L('gx_unit_foot', 'foot'), ft2: L('gx_unit_sqft', 'square foot') };
-    const terms = array(row.terms).filter((term) => !(row.key === 'ice_water' && term.measurement === 'roof.eave_length' && !edit.eave_width));
-    const flatAdjusted = terms.some((term) => term.measurement === 'roof.squares') && terms.some((term) => term.measurement === 'roof.flat_squares' && term.factor < 0);
-    const measured = flatAdjusted ? L('gx_mr_roof_above_flat', 'every square of roof steeper than 2/12')
-      : terms.map((term, i) => `${i ? (term.factor < 0 ? L('gx_mr_minus', 'minus') + ' ' : L('gx_mr_plus', 'plus') + ' ') : ''}${row.key === 'ice_water' && term.measurement === 'roof.eave_length' ? `${edit.eave_width} ${L('gx_mr_ft_up_from', 'ft up from')} ` : Math.abs(term.factor) !== 1 ? `${Math.abs(term.factor)} × ` : ''}${String(term.label).toLowerCase()}`).join(' ');
-    const unit = unitWord[array(row.terms)[0]?.unit] || L('gx_unit_unit', 'unit');
-    const pack = row.package ? clean(row.package.unit) : '';
-    const coverage = Number(edit.coverage || row.package?.coverage || 0);
-    let amount;
-    if (row.key === 'ice_water') amount = `${L('gx_mr_ice_rows', 'Rows of barrier along the eaves and down every valley:')} ${measured}${pack ? `, ${L('gx_mr_one', 'one')} ${pack} ${L('gx_mr_per', 'per')} ${Math.round(coverage)} ${L('gx_mr_ft_of_row', 'ft of row')}` : ''}`;
-    else if (pack && coverage > 0 && coverage < 1) amount = `${Math.round(1 / coverage * 10) / 10} ${pack}s ${L('gx_mr_for_every', 'for every')} ${measured.startsWith(L('gx_mr_every', 'every')) ? measured.replace(/^every /, '') : `${unit} ${L('gx_mr_of', 'of')} ${measured}`}`;
-    else if (pack && coverage > 0) amount = `${L('gx_mr_one', 'One')} ${pack} ${L('gx_mr_for_every', 'for every')} ${Math.round(coverage * 100) / 100} ${unit === L('gx_unit_square', 'square') ? `${unit}s` : `${unit === L('gx_unit_foot', 'foot') ? 'ft' : unit}`} ${L('gx_mr_of', 'of')} ${measured}`;
-    else amount = `${L('gx_mr_one', 'One')} ${unit} ${L('gx_mr_for_every', 'for every')} ${unit} ${L('gx_mr_of', 'of')} ${measured}`;
-    const waste = edit.waste === 'roof' ? L('gx_mr_waste_measured', 'plus waste from the measurements') : Number(edit.waste) ? `${L('gx_mr_plus', 'plus')} ${edit.waste}% ${L('gx_mr_extra', 'extra')}` : '';
-    const reveal = row.reveal_note ? ` ${L('gx_mr_reveal', 'When the job’s shingle shows its starter course (designer lines such as Presidential or Grand Sequoia), a coloured starter is used instead.')}` : '';
-    return `${amount.charAt(0).toUpperCase()}${amount.slice(1)}${waste ? `, ${waste}` : ''}.${reveal}`;
-  }
-  // The materials list: one row per material and where its amount comes from, in two independent stacks. Hover for
-  // the rule in plain words; click to open one compact editor (one at a time).
-  registerWidget('measurement-rules', {
+  const SWATCH = {
+    shingle: '<rect width="96" height="56" fill="#4b5563"/>' + [0, 1, 2, 3].map((r) => [0, 1, 2, 3, 4, 5].map((c) => `<rect x="${c * 18 - (r % 2) * 9 + 1}" y="${r * 14 + 1}" width="16" height="12" rx="1.5" fill="${['#6b7280', '#5f6672', '#727a87'][(r + c) % 3]}"/>`).join('')).join(''),
+    shake: '<rect width="96" height="56" fill="#7a5530"/>' + [0, 1, 2].map((r) => [0, 1, 2, 3, 4, 5, 6, 7].map((c) => { const w = [10, 13, 9, 12, 11, 14, 10, 12][(c + r * 3) % 8]; return `<rect x="${c * 12.5 - (r % 2) * 6 + 0.5}" y="${r * 19 + 0.5}" width="${w}" height="18" rx="1" fill="${['#b07d4b', '#a26f3f', '#bd8a57'][(r + c) % 3]}"/>`; }).join('')).join(''),
+    metal: '<rect width="96" height="56" fill="#5d7189"/>' + [0, 1, 2, 3, 4, 5, 6].map((c) => `<rect x="${c * 14 + 4}" y="0" width="2.5" height="56" fill="#8ea3bb"/><rect x="${c * 14 + 6.5}" y="0" width="1.2" height="56" fill="#45566b"/>`).join(''),
+    tile: '<rect width="96" height="56" fill="#9a4a2c"/>' + [0, 1, 2, 3].map((r) => [0, 1, 2, 3, 4, 5, 6].map((c) => `<path d="M${c * 15 - (r % 2) * 7} ${r * 14 + 13} q7.5 -12 15 0" fill="${['#c8673f', '#d17549', '#bd5d37'][(r + c) % 3]}" stroke="#8a3f24" stroke-width="1"/>`).join('')).join(''),
+    slate: '<rect width="96" height="56" fill="#2e3742"/>' + [0, 1, 2, 3].map((r) => [0, 1, 2, 3, 4, 5, 6, 7].map((c) => `<rect x="${c * 12.5 - (r % 2) * 6 + 0.6}" y="${r * 14 + 0.6}" width="11.4" height="12.8" rx="0.8" fill="${['#48525e', '#3e4752', '#545f6c'][(r + c * 2) % 3]}"/>`).join('')).join(''),
+    tpo: '<rect width="96" height="56" fill="#eef2f6"/>' + [14, 28, 42].map((y) => `<rect x="0" y="${y}" width="96" height="1.6" fill="#cbd3dd"/>`).join('') + '<rect x="0" y="0" width="96" height="56" fill="url(#gxsSheen)" opacity=".5"/>',
+    pvc: '<rect width="96" height="56" fill="#e3ebf3"/>' + [18, 38].map((y) => `<rect x="0" y="${y}" width="96" height="2" fill="#b9c6d4"/>` + [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11].map((c) => `<circle cx="${c * 8 + 4}" cy="${y + 4.5}" r="0.9" fill="#9aabbe"/>`).join('')).join(''),
+    metal_exposed_fastener: '<rect width="96" height="56" fill="#7d8b99"/>' + [...Array(16)].map((_, c) => `<rect x="${c * 6}" y="0" width="3" height="56" fill="${c % 4 === 0 ? '#aebbc8' : '#95a3b1'}"/>`).join(''),
+    stone_coated_steel: '<rect width="96" height="56" fill="#5a3d2b"/>' + [0, 1, 2, 3].map((r) => [0, 1, 2, 3, 4, 5].map((c) => `<path d="M${c * 18 - (r % 2) * 9} ${r * 14} h17 v11 q-8.5 4 -17 0z" fill="${['#7b5640', '#6f4c37', '#86604a'][(r + c) % 3]}"/>`).join('')).join('') + [...Array(50)].map((_, i) => `<circle cx="${(i * 41) % 96}" cy="${(i * 29) % 56}" r="0.6" fill="#a98468"/>`).join(''),
+    epdm: '<rect width="96" height="56" fill="#23272e"/><rect x="0" y="27" width="96" height="2" fill="#3b414b"/><rect x="0" y="0" width="96" height="56" fill="url(#gxsSheen)" opacity=".18"/>',
+    mod_bit: '<rect width="96" height="56" fill="#55524c"/>' + [0, 1, 2, 3].map((r) => `<rect x="-4" y="${r * 15 - 2}" width="104" height="13" fill="${['#6f6b63', '#67635b'][r % 2]}"/><rect x="-4" y="${r * 15 + 10}" width="104" height="1.4" fill="#45423d"/>`).join('') + [...Array(40)].map((_, i) => `<circle cx="${(i * 37) % 96}" cy="${(i * 23) % 56}" r="0.7" fill="#8d887e"/>`).join('')
+  };
+  const swatch = (id) => `<svg class="gxs-swatch" viewBox="0 0 96 56" preserveAspectRatio="xMidYMid slice" aria-hidden="true"><defs><linearGradient id="gxsSheen" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#fff"/><stop offset=".5" stop-color="#fff" stop-opacity="0"/></linearGradient></defs>${SWATCH[id] || '<rect width="96" height="56" fill="#98a2b3"/>'}</svg>`;
+  const ROOF_WORDS = { shingle: ['gx_rt_shingle', 'Shingle'], shake: ['gx_rt_shake', 'Shake'], metal: ['gx_rt_metal', 'Metal'], tile: ['gx_rt_tile', 'Tile'], slate: ['gx_rt_slate', 'Slate'], tpo: ['gx_rt_tpo', 'TPO'], pvc: ['gx_rt_pvc', 'PVC'], epdm: ['gx_rt_epdm', 'EPDM'], mod_bit: ['gx_rt_mod_bit', 'Torch-down / mod-bit'] };
+  const ROOF_TIPS = { shingle: ['gx_rt_shingle_tip', 'Asphalt shingles, from the manufacturers you pick next'], shake: ['gx_rt_shake_tip', 'Cedar shakes'], metal: ['gx_rt_metal_tip', 'Standing seam, exposed-fastener panels and stone-coated steel'], tile: ['gx_rt_tile_tip', 'Concrete and clay tile'], slate: ['gx_rt_slate_tip', 'Natural slate'], tpo: ['gx_rt_tpo_tip', 'Single-ply TPO membrane for low-slope roofs'], pvc: ['gx_rt_pvc_tip', 'Single-ply PVC membrane, welded like TPO but a different material'], epdm: ['gx_rt_epdm_tip', 'Single-ply EPDM rubber membrane'], mod_bit: ['gx_rt_mod_bit_tip', 'Modified bitumen base and cap sheets, torched or self-adhered'] };
+  const roofWord = (type) => ROOF_WORDS[type.id] ? L(ROOF_WORDS[type.id][0], ROOF_WORDS[type.id][1]) : clean(type.label);
+  const roofWordHtml = (type) => ROOF_WORDS[type.id] ? H(ROOF_WORDS[type.id][0], ROOF_WORDS[type.id][1]) : esc(type.label);
+  const roofTip = (type) => ROOF_TIPS[type.id] ? L(ROOF_TIPS[type.id][0], ROOF_TIPS[type.id][1]) : clean(type.label);
+
+  // What kinds of roof: one tile each, a drawing and a name, ticked like the manufacturers' logos.
+  registerWidget('roof-types', {
+    fill: true,
     render(el, { options, selections, change, L }){
       injectWidgetCss();
-      const rows = array(options.materials);
-      const tip = tooltip();
-      const iceDefault = Number(object(options.ice_eave_width).default ?? 6);
-      const defaults = Object.fromEntries(rows.map((row) => [row.key, { source: row.source, waste: row.waste, coverage: row.package?.coverage ?? null, eave_width: row.eave_width ? iceDefault : null }]));
-      const edits = Object.fromEntries(rows.map((row) => [row.key, {
-        source: object(selections.rules)[row.key]?.source || row.source,
-        waste: object(selections.rules)[row.key]?.waste ?? (row.key === 'shingles' ? selections.waste ?? row.waste : row.waste),
-        coverage: object(selections.rules)[row.key]?.coverage ?? row.package?.coverage ?? null,
-        eave_width: row.eave_width ? Number(selections.ice_eave_width ?? iceDefault) : null
-      }]));
-      let open = null;
-      const sourceLabel = (edit) => edit.source === 'hand' ? L('gx_mr_source_hand', 'Entered by hand') : L('gx_mr_source_measured', 'From measurements');
-      const squares = (row) => String(array(row.terms)[0]?.unit) === 'roofing_square';
-      const seg = (attr, value, items) => `<div class="gxs-seg" role="radiogroup">${items.map(([v, label]) => `<button type="button" role="radio" ${attr}="${esc(v)}" aria-checked="${String(v) === String(value)}">${label}</button>`).join('')}</div>`;
-      const editor = (row) => {
-        const edit = edits[row.key];
-        const pack = clean(row.package?.unit);
-        const fields = [`<div class="gxs-frow"><span>${H('gx_mr_amount', 'Amount')}</span>${row.can_report ? seg('data-source', edit.source === 'hand' ? 'hand' : 'report', [['report', H('gx_mr_seg_measured_short', 'Measured')], ['hand', H('gx_mr_seg_hand', 'By hand')]]) : `<em>${H('gx_mr_source_hand', 'Entered by hand')}</em>`}</div>`];
-        if (edit.source !== 'hand') {
-          const fixed = edit.waste !== 'roof';
-          fields.push(`<div class="gxs-frow"><span>${H('gx_mr_waste', 'Waste')}</span>${row.key === 'shingles' ? seg('data-waste-mode', fixed ? 'fixed' : 'roof', [['roof', H('gx_mr_seg_waste_measured_short', 'Measured')], ['fixed', H('gx_mr_seg_fixed', 'Fixed')]]) : ''}${fixed ? `<label class="gxs-num"><input type="number" min="0" max="40" step="1" inputmode="numeric" data-waste-input value="${esc(edit.waste ?? 0)}" aria-label="${esc(L('gx_mr_waste_percent', 'Waste percent'))}"><i>%</i></label>` : ''}</div>`);
-          if (row.package && pack) {
-            const coverage = Number(edit.coverage || row.package.coverage || 0);
-            fields.push(squares(row) && coverage > 0 && coverage < 1
-              ? `<div class="gxs-frow"><span>${H('gx_mr_package', 'Package')}</span><label class="gxs-num"><input type="number" min="0.1" step="0.1" inputmode="decimal" data-per-square value="${esc(Math.round(1 / coverage * 100) / 100)}" aria-label="${esc(pack)}"></label><em>${esc(pack)}s ${H('gx_mr_per_square', 'per square')}</em></div>`
-              : `<div class="gxs-frow"><span>${H('gx_mr_package', 'Package')}</span><em>1 ${esc(pack)} ${H('gx_mr_covers', 'covers')}</em><label class="gxs-num"><input type="number" min="0.01" step="any" inputmode="decimal" data-coverage value="${esc(Math.round(coverage * 100) / 100)}" aria-label="${esc(L('gx_mr_covers_aria', 'How much one package covers'))}"><i>${squares(row) ? esc(L('gx_mr_squares', 'squares')) : 'ft'}</i></label></div>`);
-          }
-          if (row.eave_width) fields.push(`<div class="gxs-frow"><span>${H('gx_mr_up_from_eaves', 'Up from eaves')}</span>${seg('data-width', Number(edit.eave_width), [[6, '6 ft'], [3, '3 ft'], [0, H('gx_ui_ice_0', 'None')]])}</div>`);
-        }
-        return `<div class="gxs-form">${fields.join('')}</div>`;
-      };
-      const rowHtml = (row) => `<div class="gxs-mat" data-mat="${esc(row.key)}" data-open="${open === row.key}"><button type="button" data-mat-toggle aria-expanded="${open === row.key}"><i class="fas fa-chevron-right gxs-caret" aria-hidden="true"></i><strong>${esc(row.label)}</strong><span class="gxs-source" data-source="${edits[row.key].source}">${esc(sourceLabel(edits[row.key]))}</span></button><div class="gxs-mat-edit"><div>${open === row.key ? editor(row) : ''}</div></div></div>`;
-      // Two independent stacks, so opening a row in one never stretches the other.
-      el.innerHTML = `<div class="gxs-mats">${[0, 1].map((side) => `<div class="gxs-mat-col">${rows.filter((_, i) => i % 2 === side).map(rowHtml).join('')}</div>`).join('')}</div>`;
-      const redraw = (key) => { const node = el.querySelector(`[data-mat="${CSS.escape(key)}"]`); const row = rows.find((entry) => entry.key === key); if (!node || !row) return; const fresh = document.createElement('div'); fresh.innerHTML = rowHtml(row); node.replaceWith(fresh.firstElementChild); };
-      // What changed, in the words someone would say; nothing when they changed nothing.
-      const said = () => {
-        const parts = [];
-        for (const row of rows) {
-          const edit = edits[row.key], base = defaults[row.key], name = String(row.label).toLowerCase();
-          if (edit.source !== base.source) parts.push(edit.source === 'hand' ? `${row.label} ${L('gx_mr_said_by_hand', 'by hand')}` : `${row.label} ${L('gx_mr_said_measured', 'from the measurements')}`);
-          if (edit.source !== 'hand' && String(edit.waste) !== String(base.waste)) parts.push(edit.waste === 'roof' ? `${L('gx_mr_said_waste_measured', 'waste from the measurements on')} ${name}` : `${edit.waste}% ${L('gx_mr_said_waste_on', 'waste on')} ${name}`);
-          if (edit.source !== 'hand' && edit.coverage && base.coverage && Number(edit.coverage) !== Number(base.coverage)) parts.push(squares(row) && edit.coverage < 1 ? `${Math.round(1 / edit.coverage * 100) / 100} ${clean(row.package?.unit)}s ${L('gx_mr_said_per_square', 'per square of')} ${name}` : `${L('gx_mr_said_one', 'one')} ${clean(row.package?.unit)} ${L('gx_mr_said_per', 'per')} ${edit.coverage} ${L('gx_mr_said_of', 'of')} ${name}`);
-          if (row.eave_width && Number(edit.eave_width) !== Number(base.eave_width)) parts.push(Number(edit.eave_width) ? `${name} ${edit.eave_width} ft ${L('gx_mr_said_up', 'up from the eaves')}` : `${L('gx_mr_said_no', 'no')} ${name} ${L('gx_mr_said_at_eaves', 'at the eaves')}`);
-        }
-        const text = parts.join(', ');
-        return text ? text.charAt(0).toUpperCase() + text.slice(1) : '';
-      };
-      const report = () => {
-        const rules = {};
-        for (const row of rows) { const edit = edits[row.key], base = defaults[row.key]; const diff = {}; if (edit.source !== base.source) diff.source = edit.source; if (String(edit.waste) !== String(base.waste)) diff.waste = edit.waste; if (edit.coverage && Number(edit.coverage) !== Number(base.coverage)) diff.coverage = Number(edit.coverage); if (Object.keys(diff).length && row.can_report) rules[row.key] = diff; }
-        const ice = rows.find((row) => row.eave_width);
-        change({ rules, waste: edits.shingles?.waste ?? 'roof', ...(ice ? { ice_eave_width: Number(edits[ice.key].eave_width) } : {}) }, said());
-      };
-      // The open row's editor is right under its header, so its rule is not shown over it.
-      const headTip = (head) => { const key = head.closest('[data-mat]').dataset.mat; if (key === open) return; tip.show(head, plainRule(rows.find((row) => row.key === key), edits[key], L)); };
-      el.addEventListener('click', (event) => {
-        const mat = event.target.closest('[data-mat]'); if (!mat) return;
-        const key = mat.dataset.mat, edit = edits[key];
-        if (event.target.closest('[data-mat-toggle]')) { const before = open; open = open === key ? null : key; tip.hide(); if (before && before !== key) redraw(before); redraw(key); return; }
-        const source = event.target.closest('[data-source]')?.dataset.source; if (source) { edit.source = source; redraw(key); report(); return; }
-        const mode = event.target.closest('[data-waste-mode]')?.dataset.wasteMode; if (mode) { edit.waste = mode === 'roof' ? 'roof' : (defaults[key].waste === 'roof' ? 10 : defaults[key].waste); redraw(key); report(); return; }
-        const width = event.target.closest('[data-width]')?.dataset.width; if (width !== undefined) { edit.eave_width = Number(width); redraw(key); report(); }
-      });
-      el.addEventListener('change', (event) => {
-        const mat = event.target.closest('[data-mat]'); if (!mat) return;
-        const edit = edits[mat.dataset.mat], value = Number(event.target.value);
-        if (event.target.matches('[data-waste-input]') && Number.isFinite(value) && value >= 0 && value <= 40) edit.waste = value;
-        if (event.target.matches('[data-coverage]') && value > 0) edit.coverage = value;
-        if (event.target.matches('[data-per-square]') && value > 0) edit.coverage = Math.round(1 / value * 1e6) / 1e6;
-        mat.querySelector('.gxs-source').textContent = sourceLabel(edit);
-        report();
-      });
-      el.addEventListener('pointerover', (event) => { const head = event.target.closest('[data-mat-toggle]'); if (head) headTip(head); });
-      el.addEventListener('pointerout', (event) => { if (event.target.closest('[data-mat-toggle]') && !event.relatedTarget?.closest?.('[data-mat-toggle]')) tip.hide(); });
-      el.addEventListener('focusin', (event) => { const head = event.target.closest('[data-mat-toggle]'); if (head) headTip(head); });
-      el.addEventListener('focusout', () => tip.hide());
-      report();
-      return { valid: () => true, summary: said, destroy(){ tip.hide(); } };
+      const types = array(options.roof_types);
+      const picked = new Set(array(selections.roof_types).filter((id) => types.some((type) => type.id === id)));
+      const summary = () => types.filter((type) => picked.has(type.id)).map(roofWord).join(', ');
+      const report = () => change({ roof_types: types.filter((type) => picked.has(type.id)).map((type) => type.id), region: clean(options.region?.id) }, summary());
+      el.innerHTML = `<div class="gxs-types">${types.map((type, i) => `<button type="button" class="gxs-type" data-type="${esc(type.id)}" aria-pressed="false" title="${esc(roofTip(type))}" style="animation-delay:${i * 35}ms">${swatch(type.id)}<span class="gxs-type-name">${roofWordHtml(type)}</span><span class="gxs-badge-check" aria-hidden="true">&#10003;</span></button>`).join('')}</div>`;
+      const sync = () => { el.querySelectorAll('[data-type]').forEach((tile) => tile.setAttribute('aria-pressed', String(picked.has(tile.dataset.type)))); report(); };
+      el.addEventListener('click', (event) => { const id = event.target.closest('[data-type]')?.dataset.type; if (!id) return; if (picked.has(id)) picked.delete(id); else picked.add(id); sync(); });
+      sync();
+      return { valid: () => picked.size > 0, summary, hint: () => L('gx_ui_hint_type', 'Pick at least one kind of roof to continue.') };
     }
   });
 
   /**
-   * The products the chosen brands and lines put in the price book, grouped by kind: the chosen shingle lines, the main
-   * brand's accessories (plus coloured starters when a chosen line shows its starter), common items and labor.
+   * The picked brands in the order they were picked, and what each default slot can be: the picked brands' products of
+   * its role, then the generic ones of its rule. The server resolves the same way (pricebook/setups/roofing.ts).
    */
-  function chosenProducts(options, selections, L){
-      const brands = array(options.brands).filter((brand) => array(selections.brands).includes(brand.id));
-      const lines = brands.flatMap((brand) => array(brand.lines)).filter((line) => array(selections.lines).includes(line.id));
-      const star = selections.default_line && lines.some((line) => line.id === selections.default_line) ? selections.default_line : lines[0]?.id;
-      const primary = brands.find((brand) => array(brand.lines).some((line) => line.id === star)) || brands[0];
-      const plainOf = (entry) => !entry.colored_starter;
-      const accessory = (role) => array(primary?.accessories).find((entry) => entry.role === role && plainOf(entry)) || brands.flatMap((brand) => array(brand.accessories)).find((entry) => entry.role === role && plainOf(entry));
-      const accessories = ['starter', 'hip_ridge', 'underlayment', 'ice_water', 'ridge_vent'].map(accessory).filter(Boolean);
-      const revealing = lines.filter((line) => line.reveals_starter);
-      const colored = [...new Set(revealing.map((line) => array(brands.find((brand) => brand.id === line.brand)?.accessories).find((entry) => entry.colored_starter) || array(primary?.accessories).find((entry) => entry.colored_starter)).filter(Boolean))];
-      const seen = new Set(); const generic = array(options.generic).filter((entry) => { if (seen.has(entry.rule)) return false; seen.add(entry.rule); return true; });
-      return { brands, lines, accessories: [...accessories, ...colored], generic, groups: [
-        ['line', L('gx_ui_group_shingles', 'Shingles'), lines],
-        ['accessory', L('gx_ui_group_accessories', 'Accessories') + (primary ? ` (${primary.name})` : ''), [...accessories, ...colored].map((entry) => ({ ...entry, brand: entry.brand || brands.find((brand) => array(brand.accessories).includes(entry))?.id }))],
-        ['generic', L('gx_ui_group_common', 'Common items'), generic],
-        ['labor', L('gx_ui_group_labor', 'Labor and services'), array(options.labor)]
-      ] };
+  const SLOTS = { underlayment: { role: 'underlayment', rule: 'underlayment' }, ice_water: { role: 'ice_water', rule: 'ice_water' }, pipe_boot: { role: 'pipe_boot', rule: 'pipe_boots', genericFirst: true }, ridge_vent: { role: 'ridge_vent', rule: 'ridge_vent' }, intake_vent: { role: 'intake_vent', rule: 'intake_vent' }, box_vent: { role: 'box_vent', rule: 'box_vents' } };
+  function pickedBrands(options, selections){ const brands = array(options.brands); return array(selections.brands).map((id) => brands.find((brand) => brand.id === id)).filter(Boolean); }
+  const plainOf = (entry) => !entry.colored_starter;
+  function slotOptions(options, brands, slot){
+    const { role, rule, genericFirst } = SLOTS[slot];
+    const branded = brands.flatMap((brand) => array(brand.accessories).filter((entry) => entry.role === role && plainOf(entry)).map((entry) => ({ ...entry, brandName: brand.name })));
+    const generic = array(options.generic).filter((entry) => entry.rule === rule);
+    return genericFirst ? [...generic, ...branded] : [...branded, ...generic];
   }
-  // Costs only, grouped by kind, rows across the full width. The kinds come from the step (labor on its own page).
-  registerWidget('price-review', {
-    render(el, { step, options, selections, change, L }){
+  function slotDefault(options, brands, slot){
+    const { role, rule, genericFirst } = SLOTS[slot];
+    const generic = array(options.generic).filter((entry) => entry.rule === rule);
+    if (genericFirst && generic.length) return generic.find((entry) => entry.setup_default) || generic[0];
+    for (const brand of brands) { const own = array(brand.accessories).filter((entry) => entry.role === role && plainOf(entry)); if (own.length) return own.find((entry) => entry.setup_default) || own[0]; }
+    return generic.find((entry) => entry.setup_default) || generic[0] || null;
+  }
+  const flagship = (brand) => array(brand?.lines).find((line) => line.flagship) || array(brand?.lines).find((line) => line.visibility === 'default') || array(brand?.lines)[0] || null;
+  function lowSlopeOptions(options, brands, system){
+    const branded = brands.flatMap((brand) => array(brand.accessories).filter((entry) => entry.system === system && (entry.role === 'low_slope_membrane' || entry.role === 'low_slope_cap')).map((entry) => ({ ...entry, brandName: brand.name })));
+    const generic = object(object(options.low_slope)[system]).cap;
+    return [...branded, ...(generic ? [generic] : [])];
+  }
+  const shortName = (entry, brandName) => brandName && String(entry.name).startsWith(brandName + ' ') ? String(entry.name).slice(brandName.length + 1) : String(entry.name);
+
+  /**
+   * The defaults generation uses, on one page: each a compact row with the product preselected and a dropdown to
+   * change it, in four groups across two columns. No waste or formulas; how each is worked out is in its tooltip.
+   */
+  registerWidget('material-defaults', {
+    render(el, { options, selections, change, L }){
       injectWidgetCss();
-      const kinds = array(options.kinds).length ? array(options.kinds) : ['line', 'accessory', 'generic', 'labor'];
-      const prices = { ...object(selections.prices) };
-      const groups = chosenProducts(options, selections, L).groups.filter(([kind, , items]) => kinds.includes(kind) && items.length);
-      const priceOf = (item) => prices[item.id] ?? item.price;
-      el.innerHTML = `<div class="gxs-prices">${groups.map(([, title, items]) => `<section><h3>${esc(title)}</h3><div class="gxs-price-rows">${items.map((item) => `<label class="gxs-price-row"><span>${esc(item.name)} <small>/ ${esc(item.unit)}</small></span><input type="number" min="0" step="0.01" inputmode="decimal" data-price="${esc(item.id)}" value="${esc(priceOf(item))}" aria-label="${esc(item.name)}"></label>`).join('')}</div></section>`).join('')}</div>`;
-      const count = groups.reduce((sum, [, , items]) => sum + items.length, 0);
-      const report = () => change({ prices, ...(kinds.includes('labor') ? { include_labor: true } : {}) }, `${count} ${L('gx_ui_products', 'products')}`);
-      el.addEventListener('change', (event) => { const input = event.target.closest('[data-price]'); if (!input) return; const value = Number(input.value); if (Number.isFinite(value) && value >= 0) prices[input.dataset.price] = value; report(); });
-      report();
-      return { valid: () => true };
+      const brands = pickedBrands(options, selections);
+      const chosen = { ...object(selections.defaults) };
+      const types = array(selections.roof_types);
+      const membranes = array(options.roof_types).filter((type) => type.low_slope).map((type) => type.id);
+      const installed = types.filter((id) => membranes.includes(id));
+      const startSystem = installed.length && !installed.includes('tpo') ? installed[0] : 'tpo';
+      const lines = brands.flatMap((brand) => array(brand.lines).map((line) => ({ ...line, brandName: brand.name })));
+      const value = {
+        shingle: lines.find((line) => line.id === chosen.shingle)?.id || flagship(brands[0])?.id || '',
+        ice_coverage: object(options.ice_coverage).options?.includes?.(chosen.ice_coverage) ? chosen.ice_coverage : clean(object(options.ice_coverage).default) || 'perimeter_18_valleys',
+        low_slope_system: ['tpo', 'pvc', 'epdm', 'mod_bit', 'none'].includes(chosen.low_slope_system) ? chosen.low_slope_system : startSystem
+      };
+      for (const slot of Object.keys(SLOTS)) { const offered = slotOptions(options, brands, slot); value[slot] = offered.find((entry) => entry.id === chosen[slot])?.id || slotDefault(options, brands, slot)?.id || ''; }
+      const lowOffered = () => value.low_slope_system === 'none' ? [] : lowSlopeOptions(options, brands, value.low_slope_system);
+      value.low_slope = lowOffered().find((entry) => entry.id === chosen.low_slope)?.id || lowOffered()[0]?.id || '';
+      const ICE = [['perimeter_18_valleys', 'gx_pd_ice_perimeter', '18 in at eaves and rakes, plus valleys'], ['eaves_36_valleys', 'gx_pd_ice_36', '36 in at the eaves, plus valleys'], ['eaves_72_valleys', 'gx_pd_ice_72', '72 in at the eaves, plus valleys'], ['eaves_36', 'gx_pd_ice_36_only', '36 in at the eaves only'], ['valleys', 'gx_pd_ice_valleys', 'Valleys only'], ['none', 'gx_pd_ice_none', 'None']];
+      const SYSTEMS = [['tpo', 'gx_rt_tpo', 'TPO'], ['pvc', 'gx_rt_pvc', 'PVC'], ['epdm', 'gx_rt_epdm', 'EPDM'], ['mod_bit', 'gx_rt_mod_bit', 'Torch-down / mod-bit'], ['none', 'gx_pd_low_none', 'None']];
+      // A select of products grouped by maker, each named without its maker's name; generic items under their own heading.
+      const productSelect = (key, entries, label) => {
+        const groups = new Map();
+        for (const entry of entries) { const group = entry.brandName || L('gx_pd_generic', 'Any brand'); if (!groups.has(group)) groups.set(group, []); groups.get(group).push(entry); }
+        const optionsHtml = [...groups].map(([group, rows]) => `<optgroup label="${esc(group)}">${rows.map((entry) => `<option value="${esc(entry.id)}" ${entry.id === value[key] ? 'selected' : ''}>${esc(shortName(entry, entry.brandName))}</option>`).join('')}</optgroup>`).join('');
+        return `<select class="gxs-pd-select" data-slot="${esc(key)}" aria-label="${esc(label)}" ${entries.length ? '' : 'disabled'}>${optionsHtml || `<option value="">${esc(L('gx_pd_none_offered', 'None from these brands'))}</option>`}</select>`;
+      };
+      const choiceSelect = (key, choices, label) => `<select class="gxs-pd-select" data-slot="${esc(key)}" aria-label="${esc(label)}">${choices.map(([id, copy, text]) => `<option value="${esc(id)}" ${id === value[key] ? 'selected' : ''}>${esc(L(copy, text))}</option>`).join('')}</select>`;
+      // How each is worked out, in the shared tooltip (fixed to the page, so a column's edge never clips it).
+      const tipIcon = (text) => `<span class="gxs-pd-info" role="img" tabindex="0" aria-label="${esc(text)}" data-tip="${esc(text)}">i</span>`;
+      const hand = `<span class="gxs-pd-hand" tabindex="0" data-tip="${esc(L('gx_pd_hand_tip', 'The roof report doesn’t count these, so you enter how many on each job.'))}">${H('gx_pd_hand', 'By hand')}</span>`;
+      const tip = tooltip();
+      const row = (label, tip, control, extra = '') => `<div class="gxs-pd-row"><span class="gxs-pd-label">${esc(label)}${tip ? tipIcon(tip) : ''}${extra}</span><span class="gxs-pd-control">${control}</span></div>`;
+      const section = (icon, title, rows) => `<section class="gxs-pd-section"><h3><i class="fas ${icon}" aria-hidden="true"></i>${esc(title)}</h3>${rows.join('')}</section>`;
+      const draw = () => {
+        const shingleLabel = L('gx_pd_shingle', 'Shingle'), lowLabel = value.low_slope_system === 'mod_bit' ? L('gx_pd_cap_sheet', 'Cap sheet') : L('gx_pd_membrane', 'Membrane');
+        el.innerHTML = `<div class="gxs-pd">
+          <div class="gxs-pd-col">
+            ${section('fa-house-chimney', L('gx_pd_group_shingle', 'Shingle roof'), [
+              row(shingleLabel, L('gx_pd_shingle_tip', 'Every square of roof steeper than 2/12, plus waste worked out from the roof.'), productSelect('shingle', lines, shingleLabel)),
+              row(L('gx_pd_underlayment', 'Underlayment'), L('gx_pd_underlayment_tip', 'Covers the whole shingled deck.'), productSelect('underlayment', slotOptions(options, brands, 'underlayment'), L('gx_pd_underlayment', 'Underlayment'))),
+              row(L('gx_pd_ice', 'Ice and water'), L('gx_pd_ice_tip', 'A self-adhered leak barrier at the roof’s edges and down every valley.'), productSelect('ice_water', slotOptions(options, brands, 'ice_water'), L('gx_pd_ice', 'Ice and water'))),
+              row(L('gx_pd_ice_where', 'Runs along'), L('gx_pd_ice_where_tip', 'How far up from each edge it goes. The amount ordered follows this.'), choiceSelect('ice_coverage', ICE, L('gx_pd_ice_where', 'Runs along')))
+            ])}
+            ${section('fa-toolbox', L('gx_pd_group_accessories', 'Accessories'), [
+              row(L('gx_pd_pipe', 'Pipe boot'), '', productSelect('pipe_boot', slotOptions(options, brands, 'pipe_boot'), L('gx_pd_pipe', 'Pipe boot')), hand)
+            ])}
+          </div>
+          <div class="gxs-pd-col">
+            ${section('fa-wind', L('gx_pd_group_vent', 'Ventilation'), [
+              row(L('gx_pd_ridge', 'Ridge vent'), L('gx_pd_ridge_tip', 'Runs along the ridges, under the ridge cap.'), productSelect('ridge_vent', slotOptions(options, brands, 'ridge_vent'), L('gx_pd_ridge', 'Ridge vent'))),
+              row(L('gx_pd_intake', 'Intake vent'), L('gx_pd_intake_tip', 'Runs along the eaves, so air comes in low and leaves at the ridge.'), productSelect('intake_vent', slotOptions(options, brands, 'intake_vent'), L('gx_pd_intake', 'Intake vent'))),
+              row(L('gx_pd_box', 'Box vents'), '', productSelect('box_vent', slotOptions(options, brands, 'box_vent'), L('gx_pd_box', 'Box vents')), hand)
+            ])}
+            ${section('fa-layer-group', L('gx_pd_group_low', 'Low slope'), [
+              row(L('gx_pd_system', 'System'), L('gx_pd_system_tip', 'For the parts of a roof at 2/12 or flatter. Modified bitumen uses a base and a cap sheet from the same company.'), choiceSelect('low_slope_system', SYSTEMS, L('gx_pd_system', 'System'))),
+              ...(value.low_slope_system === 'none' ? [] : [row(lowLabel, '', productSelect('low_slope', lowOffered(), lowLabel))])
+            ])}
+          </div>
+        </div>
+        <p class="gxs-pd-note"><i class="fas fa-circle-check" aria-hidden="true"></i>${H('gx_pd_note', 'Starter strip, drip edge and hip and ridge cap follow your shingle.')}</p>`;
+      };
+      const nameOf = (id) => { for (const entry of [...lines, ...Object.keys(SLOTS).flatMap((slot) => slotOptions(options, brands, slot)), ...lowOffered()]) if (entry.id === id) return shortName(entry, entry.brandName); return ''; };
+      const baseline = { ...value };
+      // What changed, as someone would say it; the defaults as they stand when nothing did.
+      const ORDER = ['shingle', 'underlayment', 'ice_water', 'ice_coverage', 'pipe_boot', 'ridge_vent', 'intake_vent', 'box_vent', 'low_slope_system', 'low_slope'];
+      const summary = () => {
+        const changed = ORDER.filter((key) => value[key] !== baseline[key]);
+        if (!changed.length) return '';
+        return changed.map((key) => key === 'ice_coverage' ? `${L('gx_pd_ice', 'Ice and water')}: ${L(...ICE.find(([id]) => id === value[key]).slice(1))}` : key === 'low_slope_system' ? `${L('gx_pd_group_low', 'Low slope')}: ${L(...SYSTEMS.find(([id]) => id === value[key]).slice(1))}` : nameOf(value[key])).filter(Boolean).join(', ');
+      };
+      const report = () => change({ defaults: { ...value } }, summary());
+      el.addEventListener('change', (event) => {
+        const select = event.target.closest('[data-slot]'); if (!select) return;
+        value[select.dataset.slot] = select.value;
+        if (select.dataset.slot === 'low_slope_system') { value.low_slope = lowOffered()[0]?.id || ''; draw(); el.querySelector('[data-slot=low_slope_system]')?.focus(); }
+        report();
+      });
+      el.addEventListener('pointerover', (event) => { const at = event.target.closest('[data-tip]'); if (at) tip.show(at, at.dataset.tip); });
+      el.addEventListener('pointerout', (event) => { if (event.target.closest('[data-tip]') && !event.relatedTarget?.closest?.('[data-tip]')) tip.hide(); });
+      el.addEventListener('focusin', (event) => { const at = event.target.closest('[data-tip]'); if (at) tip.show(at, at.dataset.tip); else tip.hide(); });
+      el.addEventListener('focusout', () => tip.hide());
+      draw(); report();
+      return { valid: () => true, summary, destroy(){ tip.hide(); } };
     }
   });
+
+  // The default material where shingle is not installed: one of the systems of the kinds picked (metal has three).
+  registerWidget('default-material', {
+    fill: true,
+    render(el, { options, selections, change, L }){
+      injectWidgetCss();
+      const types = array(options.roof_types).filter((type) => array(selections.roof_types).includes(type.id) && !type.catalog);
+      const systems = types.flatMap((type) => array(type.systems).map((system) => ({ ...system, type })));
+      let picked = systems.find((system) => system.id === selections.default_material)?.id || systems[0]?.id || '';
+      const label = (system) => array(system.type.systems).length > 1 ? clean(system.label).replace(/\s*\(.*\)\s*$/, '') : roofWord(system.type);
+      const summary = () => { const system = systems.find((entry) => entry.id === picked); return system ? label(system) : ''; };
+      const partsTip = (system) => `${L('gx_dm_parts_tip', 'What a new materials list includes')}: ${array(system.parts).slice(0, 12).join(', ')}${array(system.parts).length > 12 ? '…' : ''}`;
+      el.innerHTML = `<div class="gxs-types gxs-materials" role="radiogroup" aria-label="${esc(L('gx_dm_aria', 'Default roofing material'))}">${systems.map((system, i) => `<button type="button" class="gxs-type" role="radio" data-system="${esc(system.id)}" aria-checked="false" aria-pressed="false" title="${esc(`${clean(system.label)}. ${partsTip(system)}`)}" style="animation-delay:${i * 35}ms">${swatch(SWATCH[system.id] ? system.id : system.type.id)}<span class="gxs-type-name">${esc(label(system))}</span><span class="gxs-type-meta">${esc(String(system.standard || 0))} ${H('gx_dm_parts', 'parts')}</span><span class="gxs-badge-check" aria-hidden="true">&#10003;</span></button>`).join('')}</div>`;
+      const sync = () => { el.querySelectorAll('[data-system]').forEach((tile) => { const on = tile.dataset.system === picked; tile.setAttribute('aria-pressed', String(on)); tile.setAttribute('aria-checked', String(on)); }); change({ default_material: picked }, summary()); };
+      el.addEventListener('click', (event) => { const id = event.target.closest('[data-system]')?.dataset.system; if (!id) return; picked = id; sync(); });
+      sync();
+      return { valid: () => !!picked, summary, hint: () => L('gx_ui_hint_material', 'Pick your default roofing material to continue.') };
+    }
+  });
+
+  /**
+   * What the suppliers can carry: with shingle, every product of the picked brands (grouped by brand) and the common
+   * items. Without, nothing is suggested: there is no catalog to suggest from, and a supplier's price sheet says what it sells.
+   */
+  function supplierItems(options, selections, L){
+    const shingle = array(selections.roof_types).length ? array(options.roof_types).some((type) => type.catalog && array(selections.roof_types).includes(type.id)) : true;
+    if (!shingle) return { shingle, items: [] };
+    const brands = pickedBrands(options, selections);
+    const items = [];
+    for (const brand of brands) for (const entry of [...array(brand.lines), ...array(brand.accessories)]) items.push({ id: entry.id, name: entry.name, label: shortName(entry, brand.name), unit: entry.unit, price: entry.price, group: brand.name, kind: entry.kind === 'line' ? 'line' : 'accessory', brand: brand.id, visibility: entry.visibility, colored: !!entry.colored_starter });
+    for (const entry of array(options.generic)) items.push({ id: entry.id, name: entry.name, label: entry.name, unit: entry.unit, price: entry.price, group: L('gx_ui_group_common', 'Common items'), kind: 'generic', brand: '' });
+    return { shingle, items };
+  }
 
   /**
    * Who provides the materials: the researched suppliers as pills and any typed one as a tag; the chosen ones as
-   * columns (supplier-columns.js) with what each carries and costs. A researched supplier starts with the chosen
-   * products of the brands it stocks (a big-box store only the mainstream lines and plain accessories) at the prices
-   * seen there; a typed one starts empty. Each column takes a price sheet, which goes to the agent.
+   * columns (supplier-columns.js) with what each carries and costs. A researched supplier starts with the picked
+   * brands' products it stocks (a big-box store only the mainstream lines and plain accessories) at the prices seen
+   * there; a typed one starts empty. Without shingle only typed suppliers are offered, each with its own price sheet.
    */
   registerWidget('supplier-columns', {
     fill: true,
     render(el, { options, selections, change, L, priceSheet }){
       injectWidgetCss();
-      const presets = array(options.suppliers);
-      const products = chosenProducts(options, selections, L);
-      const groups = products.groups.filter(([kind, , items]) => kind !== 'labor' && items.length);
-      const brandOf = (item) => item.brand || array(options.brands).find((brand) => array(brand.lines).some((line) => line.id === item.id))?.id;
-      // Inside a column, products sit under their brand, named without it, so names fit; common items last.
-      const brandName = (id) => clean(array(options.brands).find((brand) => brand.id === id)?.name);
-      const items = groups.flatMap(([kind, title, entries]) => entries.map((entry) => {
-        const brand = kind === 'generic' ? '' : brandOf({ id: entry.id, brand: entry.brand });
-        const maker = brandName(brand);
-        const label = maker && String(entry.name).startsWith(maker + ' ') ? String(entry.name).slice(maker.length + 1) : entry.name;
-        return { id: entry.id, name: entry.name, label, unit: entry.unit, price: entry.price, group: maker || title, kind, brand, visibility: entry.visibility, colored: !!entry.colored_starter };
-      })).sort((a, b) => (a.kind === 'generic') - (b.kind === 'generic'));
+      const { shingle, items } = supplierItems(options, selections, L);
+      const presets = shingle ? array(options.suppliers) : [];
       const carriedBy = (preset) => items.filter((item) => {
         if (item.kind === 'generic') return true;
-        if (!array(preset.manufacturers).includes(brandOf(item))) return false;
+        if (!array(preset.manufacturers).includes(item.brand)) return false;
         if (preset.line_scope !== 'retail_core') return true;
         return item.kind === 'line' ? (item.visibility || 'default') === 'default' : !item.colored;
       }).map((item) => item.id);
@@ -966,8 +977,10 @@
       let chosen = array(selections.suppliers).map((entry) => {
         const preset = presets.find((candidate) => candidate.id === entry.preset);
         return { key: preset ? preset.id : `custom:${slug(entry.name)}`, preset: preset?.id, name: clean(entry.name) || preset?.name, color: preset?.color || '#475467', kind: preset?.kind || 'custom', item_ids: array(entry.item_ids).filter((id) => known.has(id)), prices: { ...object(entry.prices) }, base_prices: object(preset?.prices) };
-      }).filter((entry) => entry.name);
-      el.innerHTML = `<div class="gxs-tools gxs-supplier-picks">${presets.map((preset) => `<button type="button" class="gxs-chip gxs-supplier-pill" data-preset="${esc(preset.id)}" style="--brand:${esc(preset.color)}" aria-pressed="false" title="${esc(preset.regions || '')}"><span class="gxs-dot" aria-hidden="true"></span>${esc(preset.name)}</button>`).join('')}<span class="gxs-supplier-custom"></span><input type="text" class="gxs-search gxs-supplier-input" maxlength="200" placeholder="${esc(L('gx_sup_type_own', 'Another supplier? Type it and press Enter'))}" aria-label="${esc(L('gx_sup_type_own', 'Another supplier? Type it and press Enter'))}"></div><div class="gxs-supplier-cols"></div><div class="gxs-supplier-empty"><span class="gxs-empty-icon" aria-hidden="true"><i class="fas fa-truck-ramp-box"></i></span><span>${H('gx_sup_none_2', 'Pick the suppliers you buy from above, and each one’s products appear here.')}</span></div>`;
+      }).filter((entry) => entry.name && (shingle || !entry.preset));
+      const typePlaceholder = shingle ? L('gx_sup_type_own', 'Another supplier? Type it and press Enter') : L('gx_sup_type_first', 'Type your supplier’s name and press Enter');
+      const emptyText = shingle ? H('gx_sup_none_2', 'Pick the suppliers you buy from above, and each one’s products appear here.') : H('gx_sup_none_custom', 'Add the suppliers you buy from. Each one can take a price sheet, and the agent turns it into price book items.');
+      el.innerHTML = `<div class="gxs-tools gxs-supplier-picks">${presets.map((preset) => `<button type="button" class="gxs-chip gxs-supplier-pill" data-preset="${esc(preset.id)}" style="--brand:${esc(preset.color)}" aria-pressed="false" title="${esc(preset.regions || '')}"><span class="gxs-dot" aria-hidden="true"></span>${esc(preset.name)}</button>`).join('')}<span class="gxs-supplier-custom"></span><input type="text" class="gxs-search gxs-supplier-input" maxlength="200" placeholder="${esc(typePlaceholder)}" aria-label="${esc(typePlaceholder)}">${shingle ? '' : `<button type="button" class="gxs-chip" data-add-supplier>${H('gx_sup_add', 'Add')}</button>`}</div><div class="gxs-supplier-cols"></div><div class="gxs-supplier-empty"><span class="gxs-empty-icon" aria-hidden="true"><i class="fas fa-truck-ramp-box"></i></span><span>${emptyText}</span></div>`;
       const colsEl = el.querySelector('.gxs-supplier-cols');
       let columns = null;
       const summary = () => chosen.map((entry) => entry.name).join(', ');
@@ -978,15 +991,25 @@
         el.querySelector('.gxs-supplier-empty').hidden = chosen.length > 0;
         colsEl.hidden = !chosen.length;
         if (!root.FirstMateSupplierColumns) { colsEl.textContent = ''; report(); return; }
-        // With one supplier the agent's own upload line covers its price sheet, so the column does not repeat it.
-        if (!columns) columns = root.FirstMateSupplierColumns.mount(colsEl, { suppliers: chosen, items, singleSheetElsewhere: true, onChange: (next) => { chosen = next; report(); }, ...(priceSheet ? { onPriceSheet: (supplier) => priceSheet(supplier) } : {}) });
+        // With one supplier the agent's own upload line covers its price sheet, so the column does not repeat it;
+        // without a catalog every column keeps its own upload, as that is how its items arrive.
+        if (!columns) columns = root.FirstMateSupplierColumns.mount(colsEl, { suppliers: chosen, items, singleSheetElsewhere: shingle, emptyText: shingle ? '' : L('gx_sc_no_items_sheet', 'Upload this supplier’s price sheet and the agent adds what it sells to your price book.'), onChange: (next) => { chosen = next; report(); }, ...(priceSheet ? { onPriceSheet: (supplier) => priceSheet(supplier) } : {}) });
         else columns.update(chosen);
         report();
       };
       const add = (entry) => { if (chosen.some((existing) => existing.key === entry.key || existing.name.toLowerCase() === entry.name.toLowerCase()) || chosen.length >= 12) return; chosen.push(entry); sync(); };
+      const addTyped = () => {
+        const input = el.querySelector('.gxs-supplier-input');
+        const name = clean(input.value); if (!name) return;
+        input.value = '';
+        const preset = presets.find((candidate) => candidate.name.toLowerCase() === name.toLowerCase());
+        if (preset) { if (!chosen.some((entry) => entry.preset === preset.id)) el.querySelector(`[data-preset="${CSS.escape(preset.id)}"]`)?.click(); return; }
+        add({ key: `custom:${slug(name)}`, name, color: '#475467', kind: 'custom', item_ids: [], prices: {}, base_prices: {} });
+      };
       el.addEventListener('click', (event) => {
         const remove = event.target.closest('[data-remove]')?.dataset.remove;
         if (remove) { chosen = chosen.filter((entry) => entry.key !== remove); sync(); return; }
+        if (event.target.closest('[data-add-supplier]')) { addTyped(); return; }
         const id = event.target.closest('[data-preset]')?.dataset.preset; if (!id) return;
         if (chosen.some((entry) => entry.preset === id)) { chosen = chosen.filter((entry) => entry.preset !== id); sync(); return; }
         const preset = presets.find((candidate) => candidate.id === id);
@@ -995,11 +1018,7 @@
       el.querySelector('.gxs-supplier-input').addEventListener('keydown', (event) => {
         if (event.key !== 'Enter' && event.key !== ',') return;
         event.preventDefault();
-        const name = clean(event.target.value); if (!name) return;
-        event.target.value = '';
-        const preset = presets.find((candidate) => candidate.name.toLowerCase() === name.toLowerCase());
-        if (preset) { if (!chosen.some((entry) => entry.preset === preset.id)) el.querySelector(`[data-preset="${CSS.escape(preset.id)}"]`)?.click(); return; }
-        add({ key: `custom:${slug(name)}`, name, color: '#475467', kind: 'custom', item_ids: [], prices: {}, base_prices: {} });
+        addTyped();
       });
       sync();
       return { valid: () => true, summary, destroy(){ columns?.destroy?.(); } };
@@ -1088,5 +1107,5 @@
     return true;
   }
   if (!register()) root.addEventListener?.('DOMContentLoaded', register, { once: true });
-  root.FirstMateGuidedSetup = { registerWidget, widgets: () => [...widgets.keys()], plainRule };
+  root.FirstMateGuidedSetup = { registerWidget, widgets: () => [...widgets.keys()] };
 })(window);

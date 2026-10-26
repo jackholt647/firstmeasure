@@ -129,6 +129,15 @@ test("the Materials setup and tour are valid data, offered by eligibility, with 
   const brands = (offered.steps[0] as any).options.brands.map((brand: any) => brand.id).sort();
   for (const id of ["certainteed", "gaf", "malarkey", "owens_corning"]) assert.ok(brands.includes(id), `${id} is offered`);
   assert.equal((offered.steps[0] as any).options.region.id, "south", "Texas prices");
+  // Two paths from the roof types: shingle goes to the manufacturers and defaults, anything else to the default
+  // material; both then go to suppliers.
+  const variant = setup.variants.find((entry) => entry.id === "modal")!;
+  assert.deepEqual(offered.steps.map((step: any) => step.id), ["roof_types", "brands", "defaults", "material", "suppliers"]);
+  assert.equal(service.nextStep(setup, variant, "roof_types", { roof_types: ["metal", "shingle"] }), "brands");
+  assert.equal(service.nextStep(setup, variant, "roof_types", { roof_types: ["metal", "tpo"] }), "material");
+  assert.equal(service.nextStep(setup, variant, "brands", {}), "defaults");
+  assert.equal(service.nextStep(setup, variant, "defaults", {}), "suppliers", "the shingle path skips the default material");
+  assert.equal(service.nextStep(setup, variant, "material", {}), "suppliers");
   assert.ok(listed.faqs!.questions.length >= 4);
   const crew = person("crew", { role: "member", permissions: { view_projects: true }, accessProfile: { roles: [], app_restrictions: [] } });
   assert.equal((await service.availableExperiences(crew, {})).experiences.some((entry) => entry.id === "materials.pricebook_setup.roofing"), false, "only someone who may change company settings is asked");

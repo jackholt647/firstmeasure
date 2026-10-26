@@ -30,34 +30,34 @@ test("development tools: who may use them, copy for everyone, history, revert, e
   assert.deepEqual(await dev.guidedDevAccess(sandboxOwner), { editor: true, admin: false }, "the development tools audience");
   assert.deepEqual(await dev.guidedDevAccess(admin), { editor: true, admin: true }, "a platform administrator");
   assert.deepEqual(await dev.guidedDevAccess(plainOwner), { editor: false, admin: false }, "an ordinary organization owner is not");
-  await assert.rejects(() => dev.saveCopy(plainOwner, { key: "gx_mps_brands_title", text: "Nope" }), /development/i);
+  await assert.rejects(() => dev.saveCopy(plainOwner, { key: "gx_mps_makers_title", text: "Nope" }), /development/i);
   assert.equal((await service.availableExperiences(plainOwner, {})).dev, undefined);
   assert.ok((await service.availableExperiences(admin, {})).dev?.experiences.some((entry: any) => entry.id === "materials.tab_tutorial"));
 
   // An edit is plain text, saved with its place, and shown to everyone (another person, another organization).
-  await assert.rejects(() => dev.saveCopy(admin, { key: "gx_mps_brands_title", text: "<b>Bold</b>" }), /plain text/);
-  await dev.saveCopy(sandboxOwner, { key: "gx_mps_brands_title", text: "  Which   shingle brands do you install?  ", experience_id: "materials.pricebook_setup.roofing", step_id: "brands", field: "title" });
+  await assert.rejects(() => dev.saveCopy(admin, { key: "gx_mps_makers_title", text: "<b>Bold</b>" }), /plain text/);
+  await dev.saveCopy(sandboxOwner, { key: "gx_mps_makers_title", text: "  Which   shingle brands do you install?  ", experience_id: "materials.pricebook_setup.roofing", step_id: "brands", field: "title" });
   await dev.saveCopy(admin, { key: "gx_mt_intro_body", text: "Your lists come from the roof report.", experience_id: "materials.tab_tutorial", step_id: "intro", field: "body" });
   const seen = await service.availableExperiences(plainOwner, { tab: "project.materials" });
   const setup = seen.experiences.find((entry) => entry.id === "materials.pricebook_setup.roofing")!;
-  assert.equal((setup.steps[0] as any).title.text, "Which shingle brands do you install?", "applied over the definition, whitespace tidied");
-  assert.equal((setup.steps[0] as any).title.key, "gx_mps_brands_title", "the language key stays");
+  assert.equal((setup.steps.find((step) => step.id === "brands") as any).title.text, "Which shingle brands do you install?", "applied over the definition, whitespace tidied");
+  assert.equal((setup.steps.find((step) => step.id === "brands") as any).title.key, "gx_mps_makers_title", "the language key stays");
   assert.equal((seen as any).copy_overrides.gx_mt_intro_body, "Your lists come from the roof report.");
   // History and revert.
-  await dev.saveCopy(admin, { key: "gx_mps_brands_title", text: "Which brands?" });
-  const history = await dev.copyFieldHistory(admin, "gx_mps_brands_title");
+  await dev.saveCopy(admin, { key: "gx_mps_makers_title", text: "Which brands?" });
+  const history = await dev.copyFieldHistory(admin, "gx_mps_makers_title");
   assert.deepEqual(history.map((entry) => [entry.revision, entry.text, entry.author]), [[2, "Which brands?", "admin@1m8.test"], [1, "Which shingle brands do you install?", "owner@sandbox.test"]]);
-  await dev.revertCopy(admin, { key: "gx_mps_brands_title", revision: 1 });
-  assert.equal((await dev.copyOverrideMap()).gx_mps_brands_title, "Which shingle brands do you install?");
+  await dev.revertCopy(admin, { key: "gx_mps_makers_title", revision: 1 });
+  assert.equal((await dev.copyOverrideMap()).gx_mps_makers_title, "Which shingle brands do you install?");
   await dev.revertCopy(admin, { key: "gx_mt_intro_body", revision: 0 });
   assert.equal((await dev.copyOverrideMap()).gx_mt_intro_body, undefined, "back to the code's own text");
   // The export finds the source line for each override.
   const exported = await dev.exportCopy(admin);
-  const edit = exported.edits.find((entry) => entry.key === "gx_mps_brands_title")!;
+  const edit = exported.edits.find((entry) => entry.key === "gx_mps_makers_title")!;
   assert.equal(edit.file, "public/v1/guided-experiences/definitions/materials.ts");
-  assert.match(edit.from, /Which shingle manufacturers do you use\?/);
-  assert.equal(edit.to, `"gx_mps_brands_title", "Which shingle brands do you install?"`);
-  assert.equal(exported.catalog["guided-experiences"].gx_mps_brands_title, "Which shingle brands do you install?");
+  assert.match(edit.from, /What roofing manufacturers do you use\?/);
+  assert.equal(edit.to, `"gx_mps_makers_title", "Which shingle brands do you install?"`);
+  assert.equal(exported.catalog["guided-experiences"].gx_mps_makers_title, "Which shingle brands do you install?");
 
   // Reset: progress (and so reveal), exposures and the scripted lines, for me or for the organization.
   await service.recordGuidedEvent(admin, "materials.tab_tutorial", { type: "exposure" });
@@ -67,7 +67,7 @@ test("development tools: who may use them, copy for everyone, history, revert, e
   await store.writeProgress(PLAIN, "", "materials.pricebook_setup.roofing", { status: "completed", userId: "admin" });
   const agents = await import("../agents/storage.js");
   const thread = await agents.createAgentThread({ agent_id: "assistant", organization_id: PLAIN, branch_id: "default", subject_id: "project:p1", title: "p1", created_by_user_id: "admin" }) as any;
-  await agents.appendAgentMessage("assistant", PLAIN, thread.id, { role: "assistant", content: "Which shingle manufacturers do you use?", data: { source: "guided_experience", line_key: "materials.pricebook_setup.roofing:brands:say:1" } });
+  await agents.appendAgentMessage("assistant", PLAIN, thread.id, { role: "assistant", content: "Which roofing manufacturers do you use?", data: { source: "guided_experience", line_key: "materials.pricebook_setup.roofing:brands:say:1" } });
   await agents.appendAgentMessage("assistant", PLAIN, thread.id, { role: "assistant", content: "An ordinary answer.", data: {} });
   assert.equal((await service.availableExperiences(admin, {})).reveals.length, 0, "the tour was finished, so Materials shows everywhere");
   await assert.rejects(() => dev.resetExperience(plainOwner, { experience_id: "materials.tab_tutorial" }), /development/i);
@@ -87,11 +87,11 @@ test("development tools: who may use them, copy for everyone, history, revert, e
   (env as any).dataEnvironment = "production";
   try {
     assert.deepEqual(await dev.guidedDevAccess(admin), { editor: false, admin: false });
-    await assert.rejects(() => dev.saveCopy(admin, { key: "gx_mps_brands_title", text: "Prod" }), /Not found/);
+    await assert.rejects(() => dev.saveCopy(admin, { key: "gx_mps_makers_title", text: "Prod" }), /Not found/);
     await assert.rejects(() => dev.resetExperience(admin, { experience_id: "materials.tab_tutorial" }), /Not found/);
     await assert.rejects(() => dev.exportCopy(admin), /Not found/);
     assert.deepEqual(await dev.copyOverrideMap(), {});
     const prod = await service.availableExperiences(plainOwner, {});
-    assert.equal((prod.experiences.find((entry) => entry.id === "materials.pricebook_setup.roofing")!.steps[0] as any).title.text, "Which shingle manufacturers do you use?", "production shows the code's copy");
+    assert.equal((prod.experiences.find((entry) => entry.id === "materials.pricebook_setup.roofing")!.steps.find((step) => step.id === "brands") as any).title.text, "What roofing manufacturers do you use?", "production shows the code's copy");
   } finally { (env as any).dataEnvironment = was; }
 });
