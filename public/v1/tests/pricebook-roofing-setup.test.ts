@@ -84,6 +84,13 @@ test("selections become price book items whose formulas use only dictionary keys
   assert.deepEqual(rule("shingles").package, { unit: "bundle", coverage: 0.328 });
   assert.equal(rule("starter").product_id, "lib-starter-oc-starter-strip");
   assert.equal(rule("starter").package?.coverage, 105, "Owens Corning starter runs 105 ft a bundle");
+  // A product's coverage in another unit than the rule's line is not copied onto it: cap nails were written as one pail
+  // a square, and step flashing as 100 ft a bundle (its 100 pieces).
+  assert.deepEqual(rule("cap_nails").package, { unit: "pail", coverage: 20 }, "a pail does about 20 squares");
+  assert.deepEqual(rule("step_flashing").package, { unit: "bundle", coverage: 46 }, "a bundle of 100 pieces runs about 46 ft of wall");
+  assert.deepEqual(rule("coil_nails").package, { unit: "box", coverage: 22.5 }, "the research's 7,200 box at 320 nails a square");
+  const caps = built.items.find((item) => item.id === "lib-cap-nails-1")! as any;
+  assert.equal(caps.formulaConfig.tokens.map((token: any) => token.value).join(" "), "( roofSquares - flatRoofSquares ) / 20", "the price book item counts the same pails");
   assert.deepEqual(rule("ice_water").terms, [{ measurement: "roof.eave_length", factor: 1 }, { measurement: "roof.valley_length", factor: 1 }], "one 3 ft row at the eaves");
   for (const entry of settings.materials.rules.filter((r) => r.enabled && r.product_id)) assert.ok(ids.includes(entry.product_id) || !entry.product_id.startsWith("lib-"), `${entry.key} names a written product`);
 

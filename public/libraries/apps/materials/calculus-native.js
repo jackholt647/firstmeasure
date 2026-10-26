@@ -1,5 +1,8 @@
 /* Adapt document requirements to the existing material grid; the ledger remains
  * the only mutable source. No second material-list records are created. */
+// What a line costs, as materials/calculus.ts lineCost: a packaged line is bought in whole packages, so it costs what
+// its packages cover (31 squares of cap nails at 20 a pail is 2 pails); unpriced, it has no total.
+const lineCost = l => l.unit_cost == null ? undefined : Math.round((l.packaging ? l.order_quantity * l.packaging.coverage : l.quantity) * l.unit_cost * 100) / 100;
 export function nativeCalculusAPI(base, currentProject) {
   let ledger = { revision: 0, sets: [], orders: [], deliveries: [] }, project = '', org = '';
   const path = () => `/organizations/${encodeURIComponent(org)}/projects/${encodeURIComponent(project)}/calculus`;
@@ -14,7 +17,7 @@ export function nativeCalculusAPI(base, currentProject) {
   const item = l => ({...l.presentation,id:l.id,name:l.name,quantity:l.quantity,unit:l.unit,order_quantity:l.order_quantity,order_unit:l.order_unit,
     section_id:l.group || 'materials',section:l.group || 'materials',structure_name:l.structure,variant_id:l.presentation?.variant_id || '',
     selected_options:{...(l.variant?{color:l.variant}:{}),...l.presentation?.selected_options},
-    projected_unit_price:l.unit_cost, currency:l.currency,
+    projected_unit_price:l.unit_cost, projected_total:lineCost(l), currency:l.currency,
     pricebook_ref:{...l.presentation?.pricebook_ref,item_id:l.product_id},
     ...(l.packaging?{order_packaging:{order_unit:l.packaging.unit,units_per_package:l.packaging.coverage}}:{}),
     metadata:{...l.presentation?.metadata,calculus_line_id:l.id,explanation:l.explanation}});

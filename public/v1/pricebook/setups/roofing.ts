@@ -4,7 +4,7 @@ import { z } from "zod";
 import { badRequest } from "../../platform/errors.js";
 import { definitionForKey, listMeasurementDefinitions } from "../../platform/publication/measurement-schemas.js";
 import { ROOFING_LIBRARY_ITEMS } from "../../materials/roofing-library-data.js";
-import { industryMeasurementDefaults, readMeasurementDefaults, saveMeasurementDefaults, type MeasurementDefaults } from "../../materials/measurement-defaults.js";
+import { industryMeasurementDefaults, readMeasurementDefaults, ruleLineUnit, saveMeasurementDefaults, type MeasurementDefaults } from "../../materials/measurement-defaults.js";
 import { getOrganizationPricebook, saveOrganizationCatalog } from "../storage.js";
 import type { TradeSetup } from "./index.js";
 import type { PublicationContext } from "../../platform/publication/contracts.js";
@@ -363,7 +363,9 @@ export function buildRoofingSetup(selections: RoofingSelections, current: Measur
       // One 3 ft roll's length runs along the eaves for every 3 ft of width, and once down each valley.
       rule.terms = [...(selections.ice_eave_width ? [{ measurement: "roof.eave_length", factor: selections.ice_eave_width / 3 }] : []), { measurement: "roof.valley_length", factor: 1 }];
       if (product) rule.package = { unit: product.unit, coverage: round2(product.coverage * 100 / 3) };
-    } else if (product && product.coverage > 0) rule.package = { unit: product.unit, coverage: product.coverage };
+      // A product's coverage is in its research rule's unit. Where that is not the line's (step flashing counts pieces,
+      // cap nails count pails), it says nothing about this rule, so the rule keeps its own.
+    } else if (product && product.coverage > 0 && rules.get(product.rule)?.unit === ruleLineUnit(rule)) rule.package = { unit: product.unit, coverage: product.coverage };
     if (product) { rule.product_id = product.id; rule.product_type = ""; }
     if (own?.coverage && rule.package) rule.package = { ...rule.package, coverage: own.coverage };
     // The starter buys the coloured starter when the job's shingle shows its starter course.

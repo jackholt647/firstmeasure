@@ -133,3 +133,42 @@ test("a document that has published a scope overrides the defaults completely", 
   assert.deepEqual((await projectScope(ORG, "report_only")).sets.map((set) => [set.origin, set.work.map((entry) => entry.item)]), [["document", ["roofing.install"]]], "the document's scope is the whole scope: the defaults no longer count");
   assert.equal((await d.generateFromMeasurementDefaults(ctx, "report_only")).status, "document", "and they are not generated again");
 });
+
+test("a packaged rule is bought and priced in whole packages: 31 squares of cap nails is 2 pails, not 31", async () => {
+  // The bug on dev: cap nails came out as 31 pails at $39 ($1,209) on a 31 square roof, and coil nails were priced for
+  // 34.57 squares' worth ($77) rather than the two boxes bought.
+  const d = await import("../materials/measurement-defaults.js"), calculus = await import("../materials/calculus.js"), { userPublicationContext, systemPublicationContext } = await import("../platform/publication/context.js");
+  const s = await import("../platform/storage.js"), ds = await import("../platform/publication/datasets.js"), pricebook = await import("../pricebook/storage.js");
+  const book = await pricebook.getOrganizationPricebook(ORG);
+  await pricebook.saveOrganizationCatalog(ORG, { ...book.catalog, items: [...book.catalog.items,
+    { id: "lib-cap-nails-1", kind: "atomic", name: "Plastic cap nails 1 in (about 3,000 per pail)", type: "fasteners", category: "accessories", unit: "pail", unit_price: 39, internal_cost: 39 },
+    { id: "lib-coil-nails-1.25", kind: "atomic", name: "Coil roofing nails 1-1/4 in, 7,200 per box", type: "fasteners", category: "accessories", unit: "box", unit_price: 49.98, internal_cost: 49.98 }] }, Number(book.manifest.revision));
+  const industry = d.industryMeasurementDefaults(), rule = (key: string) => industry.materials.rules.find((entry) => entry.key === key)!;
+  assert.deepEqual(rule("cap_nails").package, { unit: "pail", coverage: 20 }, "a pail of about 3,000 caps at roughly 150 a square");
+  assert.deepEqual(rule("coil_nails").package, { unit: "box", coverage: 20 }, "a box of 7,200 at about 320 nails a square");
+  await d.saveMeasurementDefaults(ORG, { settings: industry });
+  const id = "packaged_31";
+  await s.upsertDocument(ORG, "projects", { id, data: { title: id } });
+  const writer = systemPublicationContext({ kind: "module", organizationId: ORG, projectId: id, operations: ["datasets.save", "datasets.select", "datasets.value"], mode: "command" }), target = { scope: "project" as const, organizationId: ORG, projectId: id };
+  // 35 squares with 4 flat: 31 shingled squares, a plain roof with the base 10% waste.
+  const dataset = await ds.importMeasurementDataset(writer, target, { name: "Report", value: { measurements: { roofSquares: unit(35, "roofing_square"), flatRoofSquares: unit(4, "roofing_square"), eavesLf: unit(150, "ft"), ridgesLf: unit(40, "ft") } } });
+  await ds.selectProjectDataset(writer, target, "measurements", dataset.id, Number((await s.readDocument(ORG, "projects", id)).revision));
+  const ctx = userPublicationContext(owner, { projectId: id });
+  await d.generateFromMeasurementDefaults(ctx, id);
+  const set = ((await calculus.readMaterialsLedger(ctx, id)).sets as any[]).find((entry) => entry.origin.type === "defaults");
+  const line = (key: string) => set.lines.find((entry: any) => entry.key === key);
+  const cap = line("cap_nails"), coil = line("coil_nails");
+  assert.deepEqual([cap.quantity, cap.unit, cap.order_quantity, cap.order_unit, cap.unit_cost, calculus.lineCost(cap)], [31, "sq", 2, "pail", 1.95, 78], "31 squares at 20 a pail: 2 pails at $39");
+  assert.deepEqual([coil.quantity, coil.order_quantity, coil.order_unit, calculus.lineCost(coil)], [34.1, 2, "box", 99.96], "31 squares plus 10% waste at 20 a box: 2 boxes at $49.98");
+  // The Materials tab shows the same totals.
+  const { nativeCalculusAPI } = await import("../../libraries/apps/materials/calculus-native.js" as string);
+  const native = nativeCalculusAPI({ projects: { list: async () => ({ material_lists: [] }) }, lists: {}, orders: {}, request: async () => ({ ledger: await calculus.readMaterialsLedger(ctx, id) }) }, () => id);
+  const grid = (await native.projects.list(ORG, id)).material_lists.find((list: any) => list.id === set.id).current_items;
+  assert.deepEqual(grid.filter((item: any) => /nails/.test(item.name)).map((item: any) => [item.order_quantity, item.order_unit, item.projected_total]), [[2, "box", 99.96], [2, "pail", 78]]);
+  assert.equal(calculus.lineCost({ quantity: 10, unit_cost: 4 } as any), 40, "an unpackaged line costs its own quantity");
+  assert.equal(calculus.lineCost({ quantity: 10 } as any), null, "an unpriced line has no cost, not zero");
+  // An order is in whole packages, so it is priced per package.
+  const ledger = await calculus.readMaterialsLedger(ctx, id);
+  const ordered = await calculus.materialsCommand(ctx, id, { key: "order_nails", expected_revision: ledger.revision, operation: "order", input: { supplier: "ABC Supply", lines: [{ set_id: set.id, line_id: cap.id, quantity: 2 }, { set_id: set.id, line_id: coil.id, quantity: 2 }] } });
+  assert.deepEqual((ordered.ledger.orders.at(-1) as any).lines.map((allocation: any) => allocation.unit_cost), [39, 49.98]);
+});

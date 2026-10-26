@@ -9,7 +9,7 @@
   let refreshTimer;
   const draftText = (key, fallback) => globalThis.PlatformLanguage?.text("materials", key, fallback) ?? fallback;
   const scopeWorkspaceUrl = new URL('./scope-of-work.js?v=20261025-rail-split', document.currentScript?.src || `${location.origin}/libraries/apps/materials/project.js`).href;
-  const calculusAdapterUrl = new URL('./calculus-native.js?v=20261022-retire', document.currentScript?.src || `${location.origin}/libraries/apps/materials/project.js`).href;
+  const calculusAdapterUrl = new URL('./calculus-native.js?v=20261026-package-cost', document.currentScript?.src || `${location.origin}/libraries/apps/materials/project.js`).href;
   const closeoutUrl = new URL('./closeout.js?v=20261019-closeout-partial', document.currentScript?.src || `${location.origin}/libraries/apps/materials/project.js`).href;
   const runtime = window.FirstMateEmbeddableApps;
   const Portal = window.Portal;
@@ -3348,14 +3348,18 @@
       ? (wholeUnits ? integerQuantity(patch.quantity, current.quantity) : preciseQuantity(patch.quantity, current.quantity))
       : (wholeUnits ? integerQuantity(current.quantity, 0) : preciseQuantity(current.quantity, 0));
     const unitPrice = patch.projected_unit_price != null ? number(patch.projected_unit_price, current.projected_unit_price) : number(current.projected_unit_price, NaN);
+    const orderFields = discreteMaterial ? orderFieldsForLine({ ...current, ...patch }, quantity) : {};
+    // A generated packaged line costs the whole packages bought, as the ledger totals it (calculus-native.js lineCost).
+    const perPackage = number(current.order_packaging?.units_per_package, 0);
+    const pricedQuantity = current.metadata?.calculus_line_id && perPackage > 0 && orderFields.order_quantity != null ? orderFields.order_quantity * perPackage : quantity;
     const nextPatch = {
       ...patch,
       id: itemId,
       ...(patch.name != null || patch.metadata ? { metadata: { ...(current.metadata || {}), ...(patch.metadata || {}), ...(patch.name != null ? { name_overridden: true } : {}) } } : {}),
       quantity,
-      ...(discreteMaterial ? orderFieldsForLine({ ...current, ...patch }, quantity) : {}),
+      ...orderFields,
       projected_unit_price: Number.isFinite(unitPrice) ? unitPrice : undefined,
-      projected_total: Number.isFinite(unitPrice) ? Math.round(quantity * unitPrice * 100) / 100 : current.projected_total
+      projected_total: Number.isFinite(unitPrice) ? Math.round(pricedQuantity * unitPrice * 100) / 100 : current.projected_total
     };
     replaceListItems(targetList.id, baseItems.map((item) => item.id === itemId ? { ...item, ...nextPatch } : item));
     syncLineRow(itemId, targetList.id);
@@ -4613,7 +4617,10 @@
     const unit = cleanText(item.unit);
     const variantName = cleanText(item.product_selection?.variant_name || item.pricebook_snapshot?.variant?.name);
     // Rows are one line; the hover summary carries whatever the pane is too narrow to show.
-    const summary = [name, `${quantity || 0}${unit ? ` ${unit}` : ''}${Number.isFinite(unitPrice) ? ` × ${money(unitPrice)}` : ''}${Number.isFinite(lineTotal) ? ` = ${money(lineTotal)}` : ''}`, [variantName !== name ? variantName : '', secondary !== variantName ? secondary : ''].filter(Boolean).join(' · ')].filter(Boolean).join('\n');
+    // A generated packaged line is priced for the whole packages bought (calculus-native.js lineCost), so its sum is told in packages.
+    const packed = item.metadata?.calculus_line_id && number(item.order_packaging?.units_per_package, 0) > 0 && Number.isFinite(unitPrice) ? { count: number(item.order_quantity, 0), unit: cleanText(item.order_unit), price: Math.round(unitPrice * number(item.order_packaging.units_per_package, 0) * 100) / 100 } : null;
+    const reckoning = packed ? `${quantity || 0}${unit ? ` ${unit}` : ''}: ${packed.count} ${packed.unit} × ${money(packed.price)}${Number.isFinite(lineTotal) ? ` = ${money(lineTotal)}` : ''}` : `${quantity || 0}${unit ? ` ${unit}` : ''}${Number.isFinite(unitPrice) ? ` × ${money(unitPrice)}` : ''}${Number.isFinite(lineTotal) ? ` = ${money(lineTotal)}` : ''}`;
+    const summary = [name, reckoning, [variantName !== name ? variantName : '', secondary !== variantName ? secondary : ''].filter(Boolean).join(' · ')].filter(Boolean).join('\n');
     const fit = (value, minimum) => `style="width:calc(${Math.max(minimum, String(value ?? '').length)}ch + 10px)" data-mt-fit="${minimum}"`;
     // Whole dollars with separators; cents only survive on small fractional prices, where rounding would misstate them.
     const priceText = Number.isFinite(unitPrice) ? unitPrice.toLocaleString('en-US', unitPrice < 100 && !Number.isInteger(unitPrice) ? { minimumFractionDigits: 2, maximumFractionDigits: 2 } : { maximumFractionDigits: 0 }) : '';

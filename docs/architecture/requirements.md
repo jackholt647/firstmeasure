@@ -90,7 +90,13 @@ What a project requires is `requiredWork(sets, context)` over its artifacts.
   has the industry defaults with both on). Generating (`POST
   projects/:projectId/calculus/defaults`, the Materials column's wand) publishes
   them as one ledger set with origin `defaults` and evaluates and applies it as
-  the `materials.calculus` generator. The calculation only interprets what it is
+  the `materials.calculus` generator. A packaged line keeps its measured amount
+  and cost per measured unit, and is bought and priced in whole packages: its
+  order quantity rounds up, and it costs what those packages cover
+  (`materials/calculus.ts` `lineCost`; an order is priced per package). A
+  package's coverage is in the rule's own unit, so the price book setup copies a
+  product's coverage onto a rule only when its research rule measures the same
+  unit. The calculation only interprets what it is
   given: the rules, and the measured amounts read on the server (the selected
   dataset, else the Project tab's `legacy_measurements`). Work is named without
   amounts, so the scope set sizes it; an optional item is named only where the

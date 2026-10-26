@@ -136,6 +136,22 @@ export function lineBalance(ledger: MaterialsLedger, set: SetRecord, line: Line)
   const received = allocations.reduce((n, a) => n + a.received - a.returned, 0);
   return { committed, received, outstanding: Math.max(0, line.order_quantity - committed), excess: Math.max(0, committed - line.order_quantity) };
 }
+/**
+ * What a line costs. `unit_cost` is per unit of the line (a square, a foot); a packaged line is bought in whole
+ * packages, so it costs the amount its packages cover: 31 squares of cap nails at 20 squares a pail is 2 pails, or 40
+ * squares' worth. Unpriced, it is null, never zero. The Materials tab's adapter (libraries/apps/materials/
+ * calculus-native.js) totals lines the same way; it is not a stored or viewed field, as clients send view lines back
+ * as requirements.
+ */
+export function lineCost(line: Pick<Line, "quantity" | "unit_cost" | "packaging" | "order_quantity">) {
+  if (line.unit_cost === undefined) return null;
+  const covered = line.packaging ? line.order_quantity * line.packaging.coverage : line.quantity;
+  return Math.round(covered * line.unit_cost * 100) / 100;
+}
+/** A line's cost per ordering unit: its package's cost when it is packaged. */
+function orderUnitCost(line: Line) {
+  return line.unit_cost === undefined ? undefined : line.packaging ? Math.round(line.unit_cost * line.packaging.coverage * 100) / 100 : line.unit_cost;
+}
 function ledgerView(ledger: MaterialsLedger) {
   const { receipts: _receipts, ...view } = ledger;
   const unallocated = ledger.orders.flatMap(o => o.lines).filter(a => !ledger.sets.some(s => s.id === a.set_id && s.lines.some(l => l.lineage.includes(a.line_id) && compatible(l, a.line)))).map(a => ({ ...a, excess: a.quantity - a.cancelled - a.returned }));
@@ -410,7 +426,8 @@ async function execute(ctx: PublicationContext, ledger: MaterialsLedger, command
       if (!line || seen.has(line.id)) throw badRequest("order_line", "Select distinct active material lines in this project."); seen.add(line.id);
       if (line.packaging && !Number.isInteger(item.quantity)) throw badRequest("order_package", "Order whole packages.");
       if (item.quantity > lineBalance(ledger, set, line).outstanding + 1e-9) throw conflict("order_excess", "The requested quantity exceeds the uncommitted requirement.");
-      const unitCost = item.unit_cost ?? line.unit_cost;
+      // An allocation is in ordering units (whole packages), so it is priced per package.
+      const unitCost = item.unit_cost ?? orderUnitCost(line);
       return { id: identity("allocation", [key, index]), set_id: set.id, line_id: line.id, line: jsonClone(line), quantity: item.quantity, cancelled: 0, received: 0, returned: 0, ...(unitCost !== undefined ? { unit_cost: unitCost } : {}), currency: line.currency };
     });
     const order = { presentation: parsed.presentation, id: identity("order", key), supplier: parsed.supplier, reference: parsed.reference, at, lines };

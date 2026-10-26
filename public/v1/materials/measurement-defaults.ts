@@ -66,6 +66,11 @@ type Rule = z.infer<typeof ruleSchema>;
 
 const UNIT_WORDS: Record<string, string> = { roofing_square: "sq", ft: "lf", ft2: "sq ft" };
 const definitions = () => new Map(listMeasurementDefinitions().map((definition) => [definition.id, definition]));
+/**
+ * The unit a rule's line is in: its measurements' unit ("sq", "lf"). A package's coverage is in this unit, so a coverage
+ * written in another (pieces, or packages already) must not be copied onto the rule.
+ */
+export function ruleLineUnit(rule: Pick<Rule, "terms">) { return UNIT_WORDS[definitions().get(rule.terms[0]?.measurement || "")?.unit || ""] || "ea"; }
 const roofingMeasurements = () => new Set(measurementSchema(SCHEMA_ID).measurements.map((entry) => entry.definition));
 const roofingWork = () => listWorkSchemas().find((schema) => schema.id === SCHEMA_ID)?.items || [];
 
@@ -126,8 +131,13 @@ export function industryMeasurementDefaults(): MeasurementDefaults {
         rule("step_flashing", "Step flashing", "Flashing", [term("roof.side_wall_length"), term("roof.chimney_step_length")], 10, { unit: "bundle", coverage: 46 }, "lib-step-flashing"),
         rule("headwall_flashing", "Headwall and counter flashing", "Flashing", [term("roof.head_wall_length"), term("roof.chimney_apron_length")], 5, { unit: "pc", coverage: 10 }, "lib-counter-flashing"),
         rule("ridge_vent", "Ridge vent", "Ventilation", [term("roof.ridge_length")], 0, { unit: "pc", coverage: 4 }, "lib-ridge-vent-cobra-rigid"),
+        // About 320 nails a square at 4 a shingle with starter and ridge, so a 7,200 box does 22.5 squares; 20 leaves room
+        // for six-nail courses at the rakes and eaves.
         rule("coil_nails", "Coil roofing nails", "Fasteners", shingled, "roof", { unit: "box", coverage: 20 }, "lib-coil-nails-1.25"),
-        rule("cap_nails", "Plastic cap nails", "Fasteners", shingled, 0, { unit: "pail", coverage: 10 }, "lib-cap-nails-1"),
+        // Synthetic underlayment takes roughly 150 to 300 caps a square, by its maker's pattern, so a pail of about 3,000
+        // does 10 to 20 squares. 20 assumes the lighter pattern, as the shingles hold it once they are on; a company that
+        // fastens to the full pattern sets 10 in Settings.
+        rule("cap_nails", "Plastic cap nails", "Fasteners", shingled, 0, { unit: "pail", coverage: 20 }, "lib-cap-nails-1"),
         rule("low_slope_base", "Low-slope base sheet", "Low slope", [term("roof.flat_squares")], 10, { unit: "roll", coverage: 2 }, "lib-modbit-base-sheet"),
         rule("low_slope_cap", "Low-slope cap sheet", "Low slope", [term("roof.flat_squares")], 10, { unit: "roll", coverage: 1 }, "lib-modbit-cap-sheet")
       ]
@@ -196,17 +206,21 @@ return { outputs: { lines, warnings, work: v.work || [] } };`;
 
 type PricebookItem = { id: string; name: string; type: string; unit: string; cost: number; attributes?: Record<string, unknown> };
 const lower = (value: unknown) => String(value ?? "").trim().toLowerCase();
-/** The price book product a rule names, its cost per unit of the line where its own unit is the package's. */
+/**
+ * The price book product a rule names, its cost per unit of the line where its own unit is the package's. Kept to six
+ * places, not cents, so whole packages are priced at the package's own cost (calculus.ts `lineCost`): a $49.98 box of
+ * 22.5 squares is 2.221333 a square, and two boxes are $99.96.
+ */
 function product(rule: Rule, items: PricebookItem[]) {
   const found = (rule.product_id && items.find((item) => item.id === rule.product_id))
     || (rule.product_type && (items.find((item) => lower(item.type) === lower(rule.product_type) && (!rule.package || lower(item.unit) === lower(rule.package.unit))) || items.find((item) => lower(item.type) === lower(rule.product_type))));
   if (!found) return null;
   const perPackage = rule.package && lower(found.unit) === lower(rule.package.unit) && found.cost > 0 ? found.cost / rule.package.coverage : null;
-  return { id: found.id, name: found.name, ...(perPackage !== null ? { unit_cost: Math.round(perPackage * 100) / 100 } : {}) };
+  return { id: found.id, name: found.name, ...(perPackage !== null ? { unit_cost: Math.round(perPackage * 1e6) / 1e6 } : {}) };
 }
 /** The artifact's definition for these settings, with each rule's product looked up in the price book now. */
 export function measurementDefaultsCalculus(settings: MeasurementDefaults, items: PricebookItem[]) {
-  const known = definitions(), missing: string[] = [];
+  const missing: string[] = [];
   const enabled = (settings.materials.enabled ? settings.materials.rules : []).filter((entry) => entry.enabled);
   // Each rule's own product first, so an alternative can read the attributes of the product another rule buys.
   const chosen = new Map(enabled.map((entry) => [entry.key, product(entry, items)]));
@@ -216,7 +230,7 @@ export function measurementDefaultsCalculus(settings: MeasurementDefaults, items
     const entry = alternative ? { ...rawEntry, product_id: alternative.product_id, product_type: "", ...(alternative.package ? { package: alternative.package } : {}) } : rawEntry;
     const found = alternative ? product(entry, items) : chosen.get(entry.key) ?? null;
     if (!found && (entry.product_id || entry.product_type)) missing.push(entry.label);
-    return { key: entry.key, label: entry.label, group: entry.group, terms: entry.terms, waste: entry.waste, unit: UNIT_WORDS[known.get(entry.terms[0]!.measurement)?.unit || ""] || "ea", ...(entry.package ? { package: entry.package } : {}), ...(found ? { product: found } : {}) };
+    return { key: entry.key, label: entry.label, group: entry.group, terms: entry.terms, waste: entry.waste, unit: ruleLineUnit(entry), ...(entry.package ? { package: entry.package } : {}), ...(found ? { product: found } : {}) };
   });
   const notes = [
     ...(rules.length ? ["Pipe boots, vents and other penetrations are not in the measurement report. Add them by hand."] : []),

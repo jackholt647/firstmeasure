@@ -4513,12 +4513,16 @@
       "show_in_setup": false,
       "group": "fasteners",
       "label": "Cap nails for underlayment",
-      "explanation": "Synthetic underlayment is held down with plastic-cap nails. Plan on one pail for about every 10 squares.",
-      "formula": "(roofSquares - flatRoofSquares) / 10",
-      "pricebook_formula": "(roofSquares - flatRoofSquares) / 10",
+      "explanation": "Synthetic underlayment is held down with plastic-cap nails, roughly 150 to 300 a square by the maker's pattern. A pail of about 3,000 does about 20 squares at the lighter pattern, which holds it until the shingles go on.",
+      "formula": "(roofSquares - flatRoofSquares) / 20",
+      "pricebook_formula": "roofSquares - flatRoofSquares",
       "include_waste": false,
-      "unit": "ea",
+      "unit": "sq",
       "order_unit": "pail",
+      "order_packaging": {
+        "units_per_package": 20,
+        "note": "squares per pail of about 3,000 at 150 caps per square; use 10 to fasten to the full pattern"
+      },
       "confidence": "estimate",
       "measurements": [
         "roofSquares",
