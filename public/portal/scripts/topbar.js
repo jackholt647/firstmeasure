@@ -40,16 +40,22 @@
     return new Promise((resolve) => setTimeout(resolve, ms));
   }
 
+  // A phone sheet slides away first (its observer then leaves the top layer); a dropdown hides at once.
+  function hideMenu(menu){
+    menu.classList.remove('visible');
+    if (menu.classList.contains('ptb-menu--sheet')) return;
+    if (menu.hidePopover && menu.matches(':popover-open')) menu.hidePopover();
+  }
+
   function closeNotificationMenus(){
-    notificationMenus().forEach((menu) => {
-      menu.classList.remove('visible');
-      if (menu.hidePopover && menu.matches(':popover-open')) menu.hidePopover();
-    });
+    notificationMenus().forEach(hideMenu);
     document.body.classList.remove('mobile-notifications-open');
   }
 
   function showNotificationMenu(menu, bell){
     if (!menu || !bell) return;
+    // On phones messages and notifications are bottom sheets, like the project window's trays.
+    if (menu.classList.contains('ptb-menu--sheet')) { presentSheet(menu); return; }
     let rect = bell.getBoundingClientRect();
     // On phones these bells are folded into the More button; open under it.
     if (!rect.width && !rect.height) rect = $('#mobilePlatformMoreBtn')?.getBoundingClientRect() || rect;
@@ -62,7 +68,7 @@
   document.addEventListener('pointerdown', event => {
     if (!event.target.closest('#platformNotificationMenu,#mobilePlatformNotificationMenu,#platformBell,#mobilePlatformBell,#mobilePlatformMoreNotifications')) closeNotificationMenus();
   });
-  document.addEventListener('keydown', event => { if (event.key === 'Escape') { closeNotificationMenus(); closeMessagesMenus(); closeMoreMenu(); } });
+  document.addEventListener('keydown', event => { if (event.key === 'Escape') { closeNotificationMenus(); closeMessagesMenus(); closeMoreMenu(); closePhoneSheets(); closePhoneAgent(); } });
 
   function setMobileNotificationsVisible(visible){
     const mobileTopbar = $('.mobile-topbar');
@@ -83,7 +89,6 @@
 
   const MORE_GROUPS = { mobilePlatformMoreAssistant:'work', mobilePlatformMoreTodos:'work', mobilePlatformMoreMessages:'inbox', mobilePlatformMoreNotifications:'inbox', mobilePlatformMorePhone:'inbox' };
   const MORE_ORDER = ['mobilePlatformMoreAssistant', 'mobilePlatformMoreTodos', 'mobilePlatformMoreMessages', 'mobilePlatformMoreNotifications', 'mobilePlatformMorePhone'];
-  let moreCloseTimer = null;
   let moreReturnFocus = null;
 
   function fileMoreItems(){
@@ -103,37 +108,41 @@
     return $('#mobilePlatformMoreMenu')?.classList.contains('visible') === true;
   }
 
+  // Where the More menu opens on phones is the organization's topbar.phone_menu: "bottom" (the default) is a
+  // sheet from the bottom, "top" a dropdown at the top right. What it opens slides up from the bottom either way.
+  function moreMenuPlacement(){
+    const capabilities = window.Portal?.capabilities || window.PlatformAPI?.capabilities;
+    const flags = window.Portal?.appFlags || window.PlatformAPI?.appFlags;
+    const value = capabilities?.current?.()
+      ? capabilities.value?.('topbar.phone_menu', 'bottom')
+      : (flags?.current?.() ? flags.value?.('topbar', 'phone_menu', 'bottom') : 'bottom');
+    return value === 'top' ? 'top' : 'bottom';
+  }
+
   function openMoreMenu(){
     const menu = $('#mobilePlatformMoreMenu');
     if (!menu) return;
-    clearTimeout(moreCloseTimer);
     fileMoreItems();
     syncMoreMenu();
-    menu.style.removeProperty('--ptb-sheet-drag');
-    // The browser's top layer escapes every app/window stacking context.
-    if (menu.showPopover && !menu.matches(':popover-open')) { menu.popover = 'manual'; menu.showPopover(); }
-    void menu.offsetHeight;
-    menu.classList.add('visible');
+    const placement = moreMenuPlacement();
+    menu.dataset.placement = placement;
+    if (placement === 'top') {
+      const rect = $('#mobilePlatformMoreBtn')?.getBoundingClientRect();
+      menu.style.setProperty('--ptb-more-top', `${Math.round((rect?.bottom || 52) + 6)}px`);
+    }
+    presentSheet(menu);
     moreReturnFocus = $('#mobilePlatformMoreBtn');
     moreReturnFocus?.setAttribute('aria-expanded', 'true');
     menu.querySelector('.ptb-more-item:not([hidden])')?.focus({ preventScroll:true });
   }
 
-  // Other scripts close the sheet by removing `visible` (todo-tray.js); the
-  // observer below finishes that close the same way.
-  function finishMoreClose(){
+  // Other scripts close the sheet by removing `visible` (todo-tray.js); its
+  // observer finishes that close the same way.
+  function moreClosing(){
     const menu = $('#mobilePlatformMoreMenu');
-    if (!menu) return;
-    clearTimeout(moreCloseTimer);
     const button = $('#mobilePlatformMoreBtn');
     button?.setAttribute('aria-expanded', 'false');
-    if (menu.contains(document.activeElement)) button?.focus({ preventScroll:true });
-    const reduced = window.matchMedia?.('(prefers-reduced-motion: reduce)')?.matches;
-    moreCloseTimer = setTimeout(() => {
-      if (menu.classList.contains('visible')) return;
-      menu.style.removeProperty('--ptb-sheet-drag');
-      if (menu.hidePopover && menu.matches(':popover-open')) menu.hidePopover();
-    }, reduced ? 0 : 320);
+    if (menu?.contains(document.activeElement)) button?.focus({ preventScroll:true });
   }
 
   function closeMoreMenu(){
@@ -142,27 +151,87 @@
 
   function installMoreSheet(){
     const menu = $('#mobilePlatformMoreMenu');
-    if (!menu || menu.dataset.sheetReady) return;
-    menu.dataset.sheetReady = '1';
+    if (!menu || menu.dataset.moreReady) return;
+    menu.dataset.moreReady = '1';
+    menu.classList.add('ptb-menu--sheet');
     fileMoreItems();
     new MutationObserver((records) => {
       if (records.some((record) => record.type === 'childList')) fileMoreItems();
-      const wasOpen = records.some((record) => record.type === 'attributes' && /(^|\s)visible(\s|$)/.test(record.oldValue || ''));
-      if (wasOpen && !menu.classList.contains('visible')) finishMoreClose();
-    }).observe(menu, { childList:true, attributes:true, attributeFilter:['class'], attributeOldValue:true });
+    }).observe(menu, { childList:true });
     // Item visibility follows the desktop controls whenever they change.
     const mirrored = ['#mobilePlatformAssistantSlot', '#mobilePlatformMessagesSlot', '#platformPhoneSlot'].map($).filter(Boolean);
     const mirror = new MutationObserver(() => syncMoreMenu());
     mirrored.forEach((slot) => mirror.observe(slot, { attributes:true, attributeFilter:['hidden'] }));
+    installSheet(menu, { onClosing:moreClosing });
+  }
+
+  // --- Phone sheets -----------------------------------------------------------
+  // On a phone (the portal at 820px or narrower) the More sheet and everything it
+  // opens (messages, notifications, To Do, development tools) are bottom sheets in
+  // the browser's top layer, one at a time, as the project window's trays are; the
+  // assistant is the project window's agent bar (below). A sheet is a
+  // `.ptb-menu--sheet` whose `.ptb-sheet` slides up while it has `visible`.
+  // Removing `visible`, here or from another script, slides it away and then takes
+  // it out of the top layer. Other scripts get one from Portal.topbar.phoneSheet.
+
+  const SHEET_LEAVE_MS = 320;
+  const sheetTimers = new WeakMap();
+  const phoneLayout = () => window.matchMedia?.('(max-width: 820px)')?.matches === true;
+  const reducedMotion = () => window.matchMedia?.('(prefers-reduced-motion: reduce)')?.matches === true;
+  const phrase = (key, fallback) => globalThis.PlatformLanguage?.text?.('platform', key, fallback) ?? fallback;
+
+  function phoneSheets(){
+    return Array.from(document.querySelectorAll('.ptb-menu--sheet'));
+  }
+
+  function closePhoneSheets(except){
+    phoneSheets().forEach((menu) => { if (menu !== except) menu.classList.remove('visible'); });
+  }
+
+  function presentSheet(menu){
+    if (!menu) return;
+    closePhoneSheets(menu);
+    // Another tray puts the assistant bar away, as in the project window; the More menu sits over it, and a
+    // live voice conversation keeps it.
+    if (menu.classList.contains('ptb-menu--panel') && !phoneAgent?.voice) closePhoneAgent();
+    clearTimeout(sheetTimers.get(menu));
+    menu.style.removeProperty('--ptb-sheet-drag');
+    // The browser's top layer escapes every app/window stacking context.
+    if (menu.showPopover && !menu.matches(':popover-open')) { menu.popover = 'manual'; menu.showPopover(); }
+    void menu.offsetHeight;
+    menu.classList.add('visible');
+    if (menu.classList.contains('ptb-menu--panel')) menu.querySelector('.ptb-sheet-close')?.focus({ preventScroll:true });
+  }
+
+  function installSheet(menu, options = {}){
+    if (!menu || menu.dataset.sheetReady) return;
+    menu.dataset.sheetReady = '1';
+    new MutationObserver((records) => {
+      const wasOpen = records.some((record) => /(^|\s)visible(\s|$)/.test(record.oldValue || ''));
+      if (!wasOpen || menu.classList.contains('visible')) return;
+      clearTimeout(sheetTimers.get(menu));
+      // Focus leaves a closing panel for the More button it was opened from.
+      if (menu.classList.contains('ptb-menu--panel') && menu.contains(document.activeElement)) $('#mobilePlatformMoreBtn')?.focus({ preventScroll:true });
+      options.onClosing?.();
+      sheetTimers.set(menu, setTimeout(() => {
+        if (menu.classList.contains('visible')) return;
+        menu.style.removeProperty('--ptb-sheet-drag');
+        if (menu.hidePopover && menu.matches(':popover-open')) menu.hidePopover();
+        options.onClosed?.();
+      }, reducedMotion() ? 0 : SHEET_LEAVE_MS));
+    }).observe(menu, { attributes:true, attributeFilter:['class'], attributeOldValue:true });
     menu.addEventListener('click', (event) => {
-      if (event.target.closest('[data-more-close]')) { event.stopPropagation(); closeMoreMenu(); }
+      if (event.target.closest('[data-more-close]')) { event.stopPropagation(); menu.classList.remove('visible'); }
     });
-    // Drag the sheet down to dismiss it.
+    // Drag the sheet down to dismiss it: anywhere on a menu that is not scrolled,
+    // by its grip or title on a panel (whose body scrolls). A dropdown is not dragged.
     const sheet = menu.querySelector('.ptb-sheet');
+    const panel = menu.classList.contains('ptb-menu--panel');
     let drag = null;
     let suppressClick = false;
     sheet?.addEventListener('pointerdown', (event) => {
-      if (event.button !== 0 || (sheet.scrollTop > 0 && !event.target.closest('.ptb-sheet-grip'))) return;
+      if (event.button !== 0 || menu.dataset.placement === 'top' || event.target.closest('.ptb-sheet-close')) return;
+      if (panel ? !event.target.closest('.ptb-sheet-grip,.ptb-sheet-head') : (sheet.scrollTop > 0 && !event.target.closest('.ptb-sheet-grip'))) return;
       drag = { id:event.pointerId, y:event.clientY, dy:0, moved:false };
     });
     sheet?.addEventListener('pointermove', (event) => {
@@ -179,7 +248,7 @@
       if (!moved) return;
       suppressClick = true;
       setTimeout(() => { suppressClick = false; }, 0);
-      if (dy > Math.min(120, sheet.offsetHeight * 0.3)) closeMoreMenu();
+      if (dy > Math.min(120, sheet.offsetHeight * 0.3)) menu.classList.remove('visible');
       else menu.style.removeProperty('--ptb-sheet-drag');
     };
     sheet?.addEventListener('pointerup', endDrag);
@@ -188,7 +257,148 @@
     sheet?.addEventListener('click', (event) => {
       if (suppressClick) { event.stopPropagation(); event.preventDefault(); }
     }, true);
-    window.addEventListener('resize', () => { if (moreMenuOpen() && window.matchMedia?.('(min-width: 821px)')?.matches) closeMoreMenu(); }, { passive:true });
+  }
+
+  // Turns a top bar menu (a `.ptb-menu-head` and its list) into a panel sheet:
+  // a grip, the head beside a Close button, and the rest in a scrolling body.
+  function sheetify(menu, options = {}){
+    if (!menu) return null;
+    if (!menu.classList.contains('ptb-menu--sheet')) {
+      let head = menu.querySelector(':scope > .ptb-menu-head');
+      if (!head) { head = document.createElement('div'); head.className = 'ptb-menu-head'; head.textContent = cleanText(options.label); }
+      const rest = [...menu.childNodes].filter((node) => node !== head);
+      const scrim = document.createElement('div'); scrim.className = 'ptb-sheet-scrim'; scrim.dataset.moreClose = '';
+      const grip = document.createElement('div'); grip.className = 'ptb-sheet-grip'; grip.setAttribute('aria-hidden', 'true');
+      const close = document.createElement('button'); close.type = 'button'; close.className = 'ptb-sheet-close'; close.dataset.moreClose = '';
+      close.setAttribute('aria-label', phrase('ptb_sheet_close', 'Close'));
+      close.innerHTML = '<i class="fas fa-xmark" aria-hidden="true"></i>';
+      const top = document.createElement('div'); top.className = 'ptb-sheet-head'; top.append(head, close);
+      const body = document.createElement('div'); body.className = 'ptb-sheet-body'; body.append(...rest);
+      const sheet = document.createElement('div'); sheet.className = 'ptb-sheet'; sheet.append(grip, top, body);
+      menu.replaceChildren(scrim, sheet);
+      menu.classList.add('ptb-menu--sheet', 'ptb-menu--panel');
+      menu.setAttribute('role', 'dialog');
+      menu.setAttribute('aria-modal', 'true');
+      menu.setAttribute('aria-label', cleanText(options.label) || cleanText(head.textContent));
+    }
+    installSheet(menu, options);
+    return menu;
+  }
+
+  // A bottom sheet for something else in the top bar on a phone (To Do, development tools):
+  // { element, body, open(), close(), isOpen() }. onClosing runs as it starts to slide away,
+  // onClosed once it has. Null without the phone top bar.
+  function phoneSheet({ id, label:title, onClosing, onClosed } = {}){
+    const host = $('.mobile-topbar');
+    const key = cleanText(id);
+    if (!host || !key) return null;
+    let menu = document.getElementById(key);
+    if (!menu) { menu = document.createElement('div'); menu.id = key; menu.className = 'ptb-menu'; host.append(menu); }
+    sheetify(menu, { label:title, onClosing, onClosed });
+    return {
+      element: menu,
+      body: menu.querySelector('.ptb-sheet-body'),
+      open: () => presentSheet(menu),
+      close: () => menu.classList.remove('visible'),
+      isOpen: () => menu.classList.contains('visible')
+    };
+  }
+
+  function installPhoneSheets(){
+    sheetify($('#mobilePlatformMessagesMenu'));
+    sheetify($('#mobilePlatformNotificationMenu'));
+    window.addEventListener('resize', () => {
+      if (phoneLayout()) return;
+      closePhoneSheets();
+      closePhoneAgent();
+    }, { passive:true });
+  }
+
+  // --- Phone assistant: the project window's agent bar ------------------------
+  // On a phone the assistant slides up from the bottom as the project window's
+  // Agent does: the same bar (FirstMateAgentBar, project-trays.js) with its
+  // conversation folded above the input, in the person's main conversation.
+  // Desktop keeps the assistant window.
+  let phoneAgent = null;
+
+  function phoneAgentAvailable(){
+    return !!window.FirstMateAgentBar?.create && !!window.FirstMateAgentBar.css && typeof window.PlatformAssistant?.mountSurface === 'function';
+  }
+
+  function phoneAgentOpen(){
+    return phoneAgent?.host.dataset.trayOpen === 'true';
+  }
+
+  function phoneAgentBar(){
+    if (phoneAgent) return phoneAgent;
+    if (!phoneAgentAvailable()) return null;
+    const style = document.createElement('style');
+    style.id = 'ptbAgentBarStyle';
+    style.textContent = `.ptb-agent-host{position:fixed;left:0;right:0;top:0;height:var(--fm-visual-vh,100dvh);z-index:2147483000;pointer-events:none}
+.ptb-agent-host>.ptb-agent-bar{display:flex;flex-direction:column;pointer-events:auto}
+.ptb-agent-panel{display:flex;flex-direction:column;min-height:0}
+@media (min-width:821px){.ptb-agent-host{display:none}}
+${window.FirstMateAgentBar.css({ host:'.ptb-agent-host', bar:'.ptb-agent-bar', panel:'.ptb-agent-panel' })}`;
+    document.head.append(style);
+    const host = document.createElement('div');
+    host.className = 'ptb-agent-host';
+    host.dataset.agentCompact = 'true';
+    host.dataset.trayOpen = 'false';
+    const element = document.createElement('aside');
+    element.className = 'ptb-agent-bar';
+    element.dataset.agentCompact = 'true';
+    element.setAttribute('aria-label', phrase('ptb_agent_bar', 'AI Assistant'));
+    element.inert = true;
+    const panel = document.createElement('div');
+    panel.className = 'ptb-agent-panel';
+    element.append(panel);
+    host.append(element);
+    document.body.append(host);
+    const agent = { host, element, panel, surface:null, voice:false, controller:null };
+    agent.sync = () => agent.controller?.update(element, { open:host.dataset.trayOpen === 'true', voice:agent.voice });
+    agent.controller = window.FirstMateAgentBar.create({ drawer:() => panel.querySelector('.fma-drawer'), sync:agent.sync });
+    phoneAgent = agent;
+    return agent;
+  }
+
+  function openPhoneAgent(){
+    const agent = phoneAgentBar();
+    if (!agent) return false;
+    closePhoneSheets();
+    if (!agent.surface) {
+      agent.surface = window.PlatformAssistant.mountSurface(agent.panel, {
+        orgId:orgId(),
+        onClose:closePhoneAgent,
+        onTurn:(phase) => agent.controller.turn(phase),
+        onState:(state) => { agent.voice = !!state?.voice; agent.sync(); }
+      });
+      Promise.resolve(agent.surface?.ready).then(() => agent.sync()).catch(() => null);
+    } else {
+      agent.surface.refresh?.();
+    }
+    agent.element.inert = false;
+    agent.host.dataset.trayOpen = 'true';
+    agent.sync();
+    return true;
+  }
+
+  function closePhoneAgent(){
+    if (!phoneAgentOpen()) return;
+    // As the assistant window's Close does, putting it away ends a voice conversation.
+    phoneAgent.surface?.endVoice?.();
+    phoneAgent.host.dataset.trayOpen = 'false';
+    phoneAgent.element.inert = true;
+    phoneAgent.sync();
+  }
+
+  // `reveal` (the More menu's entry) only opens it; the top bar button toggles it.
+  function toggleAssistant({ reveal = false } = {}){
+    if (phoneLayout() && phoneAgentAvailable()) {
+      if (phoneAgentOpen() && !reveal) closePhoneAgent();
+      else if (!phoneAgentOpen()) openPhoneAgent();
+      return;
+    }
+    window.PlatformAssistant?.toggle?.();
   }
 
   function syncMoreMenu(){
@@ -265,7 +475,10 @@
     isEnabled: () => lastTopbarVisible,
     mountLeft: mountTopbarLeft,
     releaseLeft: releaseTopbarLeft,
-    leftOwner: () => leftSlotOwner
+    leftOwner: () => leftSlotOwner,
+    // Phones: whether the portal is in its phone layout, and a bottom sheet for a top bar action.
+    isPhone: phoneLayout,
+    phoneSheet
   };
 
   // --- Messages dropdown (personal channels inbox) --------------------------
@@ -292,7 +505,7 @@
   }
 
   function closeMessagesMenus(){
-    messagesMenus().forEach((menu) => { menu.classList.remove('visible'); if (menu.hidePopover && menu.matches(':popover-open')) menu.hidePopover(); });
+    messagesMenus().forEach(hideMenu);
   }
 
   function renderMessagesBadge(){
@@ -445,6 +658,7 @@
     const mobile = $('#mobilePlatformAssistantSlot');
     if (desktop) desktop.hidden = !allowed;
     if (mobile) mobile.hidden = !allowed;
+    if (!allowed) closePhoneAgent();
   }
 
   async function topbarEnabled(){
@@ -1191,7 +1405,7 @@
       closeMoreMenu();
       closeMessagesMenus();
       closeNotificationMenus();
-      window.PlatformAssistant?.toggle?.();
+      toggleAssistant({ reveal:true });
     });
     $('#mobilePlatformMoreMessages')?.addEventListener('click', (event) => {
       event.stopPropagation();
@@ -1209,6 +1423,7 @@
       $('#platformPhoneBtn')?.click();
     });
     installMoreSheet();
+    installPhoneSheets();
     [
       { button: '#platformMessagesBtn', menu: '#platformMessagesMenu' },
       { button: '#mobilePlatformMessagesBtn', menu: '#mobilePlatformMessagesMenu' }
@@ -1240,7 +1455,7 @@
         closeNotificationMenus();
         closeMessagesMenus();
         if (opening) showNotificationMenu(targetMenu, $(bell));
-        document.body.classList.toggle('mobile-notifications-open', opening && menu === '#mobilePlatformNotificationMenu');
+        document.body.classList.toggle('mobile-notifications-open', opening && menu === '#mobilePlatformNotificationMenu' && !targetMenu?.classList.contains('ptb-menu--sheet'));
         if (opening) await window.PlatformNotifications?.load(orgId(), notificationLoadOptions()).catch(() => null);
       });
     });
@@ -1249,7 +1464,8 @@
         event.stopPropagation();
         closeMessagesMenus();
         closeNotificationMenus();
-        window.PlatformAssistant?.toggle?.();
+        if (selector === '#mobilePlatformAssistantBtn') toggleAssistant();
+        else window.PlatformAssistant?.toggle?.();
       });
     });
     updateAssistantVisibility(true);

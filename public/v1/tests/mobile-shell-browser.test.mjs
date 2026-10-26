@@ -142,7 +142,7 @@ test('the More sheet is a grouped bottom sheet with large targets that opens and
       });
       await page.getByRole('button', { name: 'More' }).click();
       const sheet = page.locator('#mobilePlatformMoreMenu .ptb-sheet');
-      await page.waitForFunction(() => { const r = document.querySelector('.ptb-sheet').getBoundingClientRect(); return Math.abs(r.bottom - innerHeight) < 1; });
+      await page.waitForFunction(() => { const r = document.querySelector('#mobilePlatformMoreMenu .ptb-sheet').getBoundingClientRect(); return Math.abs(r.bottom - innerHeight) < 1; });
       assert.equal(await page.getByRole('button', { name: 'More' }).getAttribute('aria-expanded'), 'true');
       assert.equal(await page.evaluate(() => document.getElementById('mobilePlatformMoreMenu').matches(':popover-open')), true, 'the sheet is in the top layer');
       const box = await sheet.boundingBox();
@@ -176,12 +176,12 @@ test('the More sheet is a grouped bottom sheet with large targets that opens and
       assert.equal(await page.evaluate(() => window.assistantToggles), 1);
       await page.waitForFunction(() => !document.getElementById('mobilePlatformMoreMenu').matches(':popover-open'));
 
-      // Messages opens beneath the More button, not over the bar.
+      // Messages slides up from the bottom too (tests/mobile-topbar-trays-browser.test.mjs covers every sheet).
       await page.getByRole('button', { name: 'More' }).click();
       await page.locator('#mobilePlatformMoreMessages').click();
-      const messages = await page.locator('#mobilePlatformMessagesMenu').boundingBox();
-      const more = await page.getByRole('button', { name: 'More' }).boundingBox();
-      assert.ok(messages.y >= more.y + more.height, JSON.stringify({ messages, more }));
+      await page.waitForFunction(() => { const r = document.querySelector('#mobilePlatformMessagesMenu .ptb-sheet').getBoundingClientRect(); return Math.abs(r.bottom - innerHeight) < 1; });
+      const messages = await page.locator('#mobilePlatformMessagesMenu .ptb-sheet').boundingBox();
+      assert.ok(messages.x === 0 && Math.round(messages.width) === viewport.width, JSON.stringify(messages));
       assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
       assert.deepEqual(errors, []);
       await context.close();

@@ -3,7 +3,7 @@
   'use strict';
   const Portal=window.Portal=window.Portal||{};
   if(Portal.TodoTray)return;
-  let shell,win,controller,visible=false,identity='',lastButton;
+  let shell,win,controller,visible=false,identity='',lastButton,todoBody,sheet=null,inSheet=false;
   const org=()=>String(Portal.cfg?.userOrgId||Portal.cfg?.orgId||window.__APP?.userOrgId||window.__APP?.orgId||'').trim();
   const branch=()=>Portal.branchModules?.currentBranchId?.()||Portal.cfg?.userBranchId||Portal.cfg?.branchId||'default';
   // Whether the organization has the top bar on, not whether its desktop row is laid out: on phones the
@@ -16,8 +16,27 @@
     .fm-todo-body{flex:1;min-height:0;padding:12px;box-sizing:border-box;overflow:hidden;display:flex;flex-direction:column}.fm-todo-body>.pai-today-list{flex:1;min-height:0}
   `;document.head.append(style);
   function buttons(){return document.querySelectorAll('#platformTodoBtn,#mobilePlatformMoreTodos');}
-  function setVisible(value){visible=value;win?.setVisible(value);buttons().forEach(button=>button.setAttribute('aria-expanded',String(value)));}
+  // On a phone the same list opens as a bottom sheet from the portal's top bar (Portal.topbar.phoneSheet), like the
+  // project window's trays; its body moves into the sheet and back into the window when the sheet has slid away.
+  const phone=()=>typeof Portal.topbar?.phoneSheet==='function'&&Portal.topbar.isPhone?.()===true;
+  let home=null;
+  function returnBody(){if(!todoBody||!home)return;if(home.parent.isConnected)home.parent.insertBefore(todoBody,home.next?.parentNode===home.parent?home.next:null);else todoBody.remove();home=null;}
+  function todoSheet(){
+    sheet||=Portal.topbar.phoneSheet({id:'mobilePlatformTodoSheet',label:'To Do',onClosing:()=>{if(!inSheet)return;inSheet=false;visible=false;buttons().forEach(button=>button.setAttribute('aria-expanded','false'));},onClosed:()=>{if(!inSheet)returnBody();}});
+    return sheet;
+  }
+  function setVisible(value){
+    if(!value&&inSheet){sheet?.close();return;}
+    visible=value;win?.setVisible(value);buttons().forEach(button=>button.setAttribute('aria-expanded',String(value)));
+  }
   function close(){setVisible(false);lastButton?.focus({preventScroll:true});}
+  function openSheet(){
+    const target=todoSheet();if(!target?.body)return false;
+    if(!home)home={parent:todoBody.parentNode,next:todoBody.nextSibling};
+    target.body.append(todoBody);inSheet=true;visible=true;
+    buttons().forEach(button=>button.setAttribute('aria-expanded','true'));
+    target.open();return true;
+  }
   function mount(){
     const key=org()+':'+branch();
     if(shell&&identity===key)return true;
@@ -27,6 +46,7 @@
     shell=document.createElement('aside');shell.id='platformTodoTray';shell.className='fm-todo-tray';shell.setAttribute('aria-label','To Do');shell.hidden=true;
     const header=document.createElement('header'),title=document.createElement('div'),body=document.createElement('div');
     title.className='fm-todo-title fm-window-minimized-identity';title.innerHTML='<i class="fas fa-list-check" aria-hidden="true"></i><span>To Do</span>';title.tabIndex=0;body.className='fm-todo-body';header.append(title);shell.append(header,body);host.append(shell);
+    if(inSheet)sheet?.close();todoBody?.remove();home=null;todoBody=body;
     const tray=window.FirstMateWindowShell.trayWindow({element:shell,header,title,body,label:'To Do tabs',tabs:[{id:'today',label:'Today',element:body}]});
     win=window.FirstMateWindows.attach({element:shell,header,title,body:tray.body,host,contentTarget:host.querySelector(':scope > #mainPanels'),name:'todos',label:'To Do',mode:'docked',resetOnHide:true,width:380,height:600,minWidth:300,minHeight:300,dockWidth:380,mobileFullDock:true,topInset:()=>document.getElementById('platformTopbar')?.offsetHeight||0,onClose:close});
     controller=window.PlatformActionItems.renderTodayList(body,{orgId:org(),branchId:branch(),userId:String(Portal.cfg?.userId||window.__APP?.userId||Portal.currentUser?.id||''),completedOpen:true,showProjectContext:true,showUpcoming:true,showFuture:true,scrollItemsOnly:true,query:{includeFuture:true}});
@@ -38,6 +58,8 @@
     document.getElementById('mobilePlatformMoreMenu')?.classList.remove('visible');
     if(visible){close();return;}
     if(!mount())return;
+    if(phone()&&openSheet()){controller?.load?.({quiet:true})?.catch(()=>null);return;}
+    returnBody();
     if(win.state?.mode==='minimized')win.restore();
     setVisible(true);controller?.load?.({quiet:true})?.catch(()=>null);
   }

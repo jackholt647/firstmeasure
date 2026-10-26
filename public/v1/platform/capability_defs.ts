@@ -1202,6 +1202,16 @@ const definitions: CapabilityDefinition[] = [
     description: "The notifications bell and menu in the platform header.",
     default: true
   },
+  {
+    key: "topbar.phone_menu",
+    kind: "setting",
+    parent: "platform.top_bar",
+    type: "select",
+    label: "Phone More Menu",
+    description: "On phones, whether the top bar's More menu opens as a sheet from the bottom or as a dropdown at the top right. What it opens slides up from the bottom either way.",
+    default: "bottom",
+    options: [["bottom", "Bottom sheet"], ["top", "Dropdown at the top right"]]
+  },
 
   // --- Web Editor (website builder) ----------------------------------------
   {

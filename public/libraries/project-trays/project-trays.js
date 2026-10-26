@@ -263,6 +263,77 @@
     return {refresh,adoptProject,setVisible(value){const changed=visible!==!!value;visible=!!value;if(!visible)closeFilter();else if(changed)scheduleUpdate();},destroy(){dead=true;stopRealtime?.();clearTimeout(updateTimer);menuResize.disconnect();ownerDocument.removeEventListener('pointerdown',outside,true);clearInterval(poll);root.removeEventListener('fm:project-notes:refreshed',onChange);root.removeEventListener('fm:projects:refresh',onChange);style.remove();shell.remove();}};
   }
 
+  // The phone agent bar: the assistant's input bar sliding up from the bottom, its conversation folded above it
+  // behind a Conversation control, under an edge in the organization's colours. The project window's Agent tray
+  // and the portal's top bar on phones (portal/scripts/topbar.js) both use it. `host` positions the bar and carries
+  // data-agent-compact and data-tray-open; `bar` is what slides; `panel` holds the assistant's drawer.
+  function agentBarCss({host,bar,panel}) {
+    const H=host+'[data-agent-compact=true]',B=bar+':not([data-pin-only=true])',C=bar+'[data-agent-compact=true]';
+    return `.fm-project-agent-history{display:none}
+${H}>${B}{position:absolute;inset:auto 0 0 0;width:auto;height:auto;max-height:calc(100% - 8px);z-index:70;border-left:0;background:#fff;border-radius:18px 18px 0 0;box-shadow:0 -12px 34px #10182830,0 -1px 0 #10182814;overflow:hidden;opacity:0;visibility:hidden;transform:translateY(calc(100% + 18px));transition:transform .44s cubic-bezier(.4,0,.2,1),opacity .34s ease .06s,visibility 0s linear .44s}
+${H}[data-tray-open=true]>${B}{opacity:1;visibility:visible;transform:none;transition:transform .44s cubic-bezier(.16,1,.3,1),opacity .2s ease}
+${H}>${B}::before{content:'';position:absolute;z-index:3;left:0;right:0;top:0;height:3px;background:linear-gradient(90deg,var(--primary,#175cd3),var(--secondary,var(--primary,#175cd3)),var(--primary,#175cd3),var(--secondary,var(--primary,#175cd3)),var(--primary,#175cd3));background-size:200% 100%;animation:fmAgentEdge 5s linear infinite;pointer-events:none}
+${C}>${panel}{flex:0 0 auto;overflow:visible}
+${C}>${panel}>*{height:auto!important;flex:0 0 auto!important;overflow:visible!important}
+${C} .fma-drawer.fma-embedded{height:auto;flex:0 0 auto}
+${C} .fma-drawer .fma-body{flex:0 0 auto}${C} .fma-content{flex:1 1 auto;min-width:0}
+${C} .fma-stage{flex:0 0 auto;height:0;overflow:hidden;transition:height .36s cubic-bezier(.16,1,.3,1)}
+${C}[data-agent-history=open] .fma-stage{height:min(52vh,460px);border-bottom:1px solid #eef0f3}
+${C} :is(.fma-sidebar,.fma-thread-bar,[data-fma=history],[data-fma=visualsToggle],[data-fma=boardSide]){display:none!important}
+${C}:not([data-agent-history=open]) .gx-faqs-wrap{display:none!important}
+${C} .fma-head{min-height:44px;padding:7px 8px 3px 16px;border-bottom:0;gap:6px}
+${C} .fma-tray-identity{display:flex;align-items:center;gap:7px;font-weight:650;font-size:14px;color:#101828}
+${C} .fma-tray-identity>i{color:var(--primary-readable,var(--primary,#175cd3))}
+${C}:not([data-voice=true]) .fma-head-title:empty::before{content:"Agent"}
+${C} .fma-composer{padding:4px 10px calc(12px + var(--fm-safe-bottom,env(safe-area-inset-bottom,0px)));border-top:0}
+${C} .fm-project-agent-history{display:inline-flex;align-items:center;gap:6px;position:relative;margin-left:auto;height:30px;padding:0 11px;border:0;border-radius:999px;background:#f2f4f7;color:#344054;font:inherit;font-size:12.5px;font-weight:600;cursor:pointer}
+.fm-project-agent-history i{font-size:11px;transition:transform .3s cubic-bezier(.16,1,.3,1)}
+.fm-project-agent-history[aria-expanded=true] i{transform:rotate(180deg)}
+.fm-project-agent-history[data-face=working]{color:var(--primary-readable,var(--primary,#175cd3));background:rgba(var(--primary-rgb,23,92,211),.1)}
+.fm-project-agent-history[data-unread=true]::after{content:'';position:absolute;top:3px;right:3px;width:8px;height:8px;border-radius:50%;background:var(--primary,#175cd3);box-shadow:0 0 0 2px #fff}
+.fm-project-agent-history:focus-visible{outline:2px solid var(--primary,#175cd3);outline-offset:2px}
+${C} [data-fma=closeSurface]{width:34px;height:34px;border-radius:10px}
+@keyframes fmAgentEdge{to{background-position:-200% 0}}
+@media(prefers-reduced-motion:reduce){${H}>${bar},${C} .fma-stage{transition:none!important}${H}>${bar}::before{animation:none!important}}`;
+  }
+  // The bar's state: whether the conversation is unfolded, and a request asked from the folded bar (which shows
+  // Working, then unfolds when the answer arrives; the assistant reports turns through its surface's onTurn).
+  // `sync` is the host's own sync, which ends by calling update(bar,{open,voice}).
+  function createAgentBar({drawer,sync}) {
+    let open=false, history=false, unread=false, folded=false;
+    function scrollHistory(){const msgs=drawer()?.querySelector('[data-fma=msgs]');if(msgs)msgs.scrollTop=msgs.scrollHeight;}
+    function setHistory(value){history=!!value;if(history)unread=false;sync();if(history)setTimeout(scrollHistory,40);}
+    function turn(phase){
+      if(phase==='sent'){folded=open && !history;sync();return;}
+      if(phase!=='done' || !folded)return;
+      folded=false;sync();
+      // The person asked from the bar alone: show the answer (and any confirmation it asks for).
+      if(open && !history)setHistory(true);else if(!open){unread=true;sync();}
+    }
+    function update(element,{open:next,voice}){
+      // Every opening starts folded.
+      if(next && !open)history=false;
+      open=!!next;
+      element.dataset.agentHistory=open && history?'open':'closed';
+      element.dataset.voice=String(!!voice);
+      const head=drawer()?.querySelector('.fma-head');
+      if(!head)return;
+      let button=head.querySelector('.fm-project-agent-history');
+      if(!button){
+        button=document.createElement('button');button.type='button';button.className='fm-project-agent-history';
+        button.onclick=()=>setHistory(!history);
+        head.insertBefore(button,head.querySelector('[data-fma=closeSurface]'));
+      }
+      // While a request asked from the folded bar runs, the control says so; the answer unfolds it.
+      const working=folded && !history, face=working?'working':'idle';
+      if(button.dataset.face!==face){button.dataset.face=face;button.innerHTML=working?'<span>Working</span><i class="fas fa-circle-notch fa-spin" aria-hidden="true"></i>':'<span>Conversation</span><i class="fas fa-chevron-up" aria-hidden="true"></i>';}
+      button.setAttribute('aria-expanded',String(open && history));
+      button.setAttribute('aria-label',history?'Hide conversation':'Show conversation');
+      button.dataset.unread=String(unread && !history);
+    }
+    return {update,turn,setHistory,isOpen:()=>open};
+  }
+
   function mount(shell, options = {}) {
     const preview = options.content || shell.querySelector('.r-preview'), header = options.header || shell.querySelector('.r-modal-header') || shell.closest('.r-overlay')?.querySelector('.r-modal-header');
     if (!preview || !header) throw Error('Project shell content is unavailable.');
@@ -365,7 +436,8 @@
     // On a phone the agent is not a full tray: the same assistant (same conversation, voice
     // and auto-pin) slides up from the bottom as its input bar, with the conversation folded
     // above it. Desktop never sets data-agent-compact, so none of this applies there.
-    let agentCompactOpen=false, agentHistory=false, agentUnread=false, agentTurnFolded=false, agentResize=0;
+    let agentResize=0;
+    const agentBar=createAgentBar({drawer:agentDrawer,sync:syncAgentCompact});
     // Phone footer bar and bottom sheets. Colours are the organization's (--primary/--secondary).
     const phoneStyle=document.createElement('style');
     phoneStyle.textContent=`.fm-project-tray-grip,.fm-project-tray-scrim{display:none}
@@ -433,73 +505,25 @@
     scrim.onclick=()=>{interactionVersion++;close();};
     syncGrip();
     const agentStyle=document.createElement('style');
-    agentStyle.textContent=`.fm-project-agent-history{display:none}
-.fm-project-content[data-agent-compact=true]{grid-template-columns:minmax(0,1fr) 0px!important}
-.fm-project-content[data-agent-compact=true]>.fm-project-tray:not([data-pin-only=true]){position:absolute;inset:auto 0 0 0;width:auto;height:auto;max-height:calc(100% - 8px);z-index:70;border-left:0;background:#fff;border-radius:18px 18px 0 0;box-shadow:0 -12px 34px #10182830,0 -1px 0 #10182814;overflow:hidden;opacity:0;visibility:hidden;transform:translateY(calc(100% + 18px));transition:transform .44s cubic-bezier(.4,0,.2,1),opacity .34s ease .06s,visibility 0s linear .44s}
-.fm-project-content[data-agent-compact=true][data-tray-open=true]>.fm-project-tray:not([data-pin-only=true]){opacity:1;visibility:visible;transform:none;transition:transform .44s cubic-bezier(.16,1,.3,1),opacity .2s ease}
-.fm-project-content[data-agent-compact=true]>.fm-project-tray:not([data-pin-only=true])::before{content:'';position:absolute;z-index:3;left:0;right:0;top:0;height:3px;background:linear-gradient(90deg,var(--primary,#175cd3),var(--secondary,var(--primary,#175cd3)),var(--primary,#175cd3),var(--secondary,var(--primary,#175cd3)),var(--primary,#175cd3));background-size:200% 100%;animation:fmAgentEdge 5s linear infinite;pointer-events:none}
-.fm-project-tray[data-agent-compact=true]>.fm-project-tray-panel{flex:0 0 auto;overflow:visible}
-.fm-project-tray[data-agent-compact=true]>.fm-project-tray-panel>*{height:auto!important;flex:0 0 auto!important;overflow:visible!important}
-.fm-project-tray[data-agent-compact=true] .fma-drawer.fma-embedded{height:auto;flex:0 0 auto}
-.fm-project-tray[data-agent-compact=true] .fma-drawer .fma-body{flex:0 0 auto}.fm-project-tray[data-agent-compact=true] .fma-content{flex:1 1 auto;min-width:0}
-.fm-project-tray[data-agent-compact=true] .fma-stage{flex:0 0 auto;height:0;overflow:hidden;transition:height .36s cubic-bezier(.16,1,.3,1)}
-.fm-project-tray[data-agent-compact=true][data-agent-history=open] .fma-stage{height:min(52vh,460px);border-bottom:1px solid #eef0f3}
-.fm-project-tray[data-agent-compact=true] :is(.fma-sidebar,.fma-thread-bar,[data-fma=history],[data-fma=visualsToggle],[data-fma=boardSide]){display:none!important}
-.fm-project-tray[data-agent-compact=true]:not([data-agent-history=open]) .gx-faqs-wrap{display:none!important}
-.fm-project-tray[data-agent-compact=true] .fma-head{min-height:44px;padding:7px 8px 3px 16px;border-bottom:0;gap:6px}
-.fm-project-tray[data-agent-compact=true] .fma-tray-identity{display:flex;align-items:center;gap:7px;font-weight:650;font-size:14px;color:#101828}
-.fm-project-tray[data-agent-compact=true] .fma-tray-identity>i{color:var(--primary-readable,var(--primary,#175cd3))}
-.fm-project-tray[data-agent-compact=true]:not([data-voice=true]) .fma-head-title:empty::before{content:"Agent"}
-.fm-project-tray[data-agent-compact=true] .fma-composer{padding:4px 10px calc(12px + var(--fm-safe-bottom,env(safe-area-inset-bottom,0px)));border-top:0}
-.fm-project-tray[data-agent-compact=true] .fm-project-agent-history{display:inline-flex;align-items:center;gap:6px;position:relative;margin-left:auto;height:30px;padding:0 11px;border:0;border-radius:999px;background:#f2f4f7;color:#344054;font:inherit;font-size:12.5px;font-weight:600;cursor:pointer}
-.fm-project-agent-history i{font-size:11px;transition:transform .3s cubic-bezier(.16,1,.3,1)}
-.fm-project-agent-history[aria-expanded=true] i{transform:rotate(180deg)}
-.fm-project-agent-history[data-face=working]{color:var(--primary-readable,var(--primary,#175cd3));background:rgba(var(--primary-rgb,23,92,211),.1)}
-.fm-project-agent-history[data-unread=true]::after{content:'';position:absolute;top:3px;right:3px;width:8px;height:8px;border-radius:50%;background:var(--primary,#175cd3);box-shadow:0 0 0 2px #fff}
-.fm-project-agent-history:focus-visible{outline:2px solid var(--primary,#175cd3);outline-offset:2px}
-.fm-project-tray[data-agent-compact=true] [data-fma=closeSurface]{width:34px;height:34px;border-radius:10px}
-@keyframes fmAgentEdge{to{background-position:-200% 0}}
-@keyframes fmAgentGlow{0%,100%{box-shadow:0 0 0 3px rgba(var(--primary-rgb,23,92,211),.16),0 3px 12px rgba(var(--primary-rgb,23,92,211),.38)}50%{box-shadow:0 0 0 5px rgba(var(--primary-rgb,23,92,211),.1),0 3px 18px rgba(var(--primary-rgb,23,92,211),.55)}}
-@media(prefers-reduced-motion:reduce){.fm-project-content[data-agent-compact=true]>.fm-project-tray,.fm-project-tray[data-agent-compact=true] .fma-stage{transition:none!important}.fm-project-content[data-agent-compact=true]>.fm-project-tray::before{animation:none!important}}`;
+    // The bar itself is shared with the portal's phone top bar (agentBarCss, createAgentBar); the grid column,
+    // the footer button's glow and which tray shows stay here.
+    agentStyle.textContent=`.fm-project-content[data-agent-compact=true]{grid-template-columns:minmax(0,1fr) 0px!important}
+${agentBarCss({host:'.fm-project-content',bar:'.fm-project-tray',panel:'.fm-project-tray-panel'})}
+@keyframes fmAgentGlow{0%,100%{box-shadow:0 0 0 3px rgba(var(--primary-rgb,23,92,211),.16),0 3px 12px rgba(var(--primary-rgb,23,92,211),.38)}50%{box-shadow:0 0 0 5px rgba(var(--primary-rgb,23,92,211),.1),0 3px 18px rgba(var(--primary-rgb,23,92,211),.55)}}`;
     document.head.append(agentStyle);
     function agentDrawer(){return handles.has('agent') ? panels.get('agent')?.querySelector('.fma-drawer') : null;}
-    function scrollAgentHistory(){const msgs=agentDrawer()?.querySelector('[data-fma=msgs]');if(msgs)msgs.scrollTop=msgs.scrollHeight;}
-    function setAgentHistory(open){agentHistory=!!open;if(agentHistory)agentUnread=false;syncAgentCompact();if(agentHistory)setTimeout(scrollAgentHistory,40);}
-    function agentTurn(phase){
-      if(phase==='sent'){agentTurnFolded=agentCompactOpen && !agentHistory;syncAgentCompact();return;}
-      if(phase!=='done' || !agentTurnFolded)return;
-      agentTurnFolded=false;syncAgentCompact();
-      // The person asked from the bar alone: show the answer (and any confirmation it asks for).
-      if(agentCompactOpen && !agentHistory)setAgentHistory(true);else if(!agentCompactOpen){agentUnread=true;syncAgentCompact();}
-    }
+    function agentTurn(phase){agentBar.turn(phase);}
     function syncAgentCompact(){
       if(disposed)return;
       const phone=trayPhone(), open=phone && selected==='agent';
-      if(open && !agentCompactOpen)agentHistory=false;
-      agentCompactOpen=open;
       // Kept after closing so the bar slides back down; another tray (or a wider screen) clears it.
       const compact=phone && (open || (!selected && content.dataset.agentCompact==='true'));
       content.dataset.agentCompact=tray.dataset.agentCompact=String(compact);
-      tray.dataset.agentHistory=open && agentHistory?'open':'closed';
-      tray.dataset.voice=String(!!agentState.voice);
       tabs.dataset.agentCompact=String(open);
       // A phone's other trays are bottom sheets over the app; one shows at a time.
       const shown=selected || lingering;
       if(phone && shown && shown!=='agent')content.dataset.trayMode='sheet';else delete content.dataset.trayMode;
-      const head=agentDrawer()?.querySelector('.fma-head');
-      if(!head)return;
-      let button=head.querySelector('.fm-project-agent-history');
-      if(!button){
-        button=document.createElement('button');button.type='button';button.className='fm-project-agent-history';
-        button.onclick=()=>setAgentHistory(!agentHistory);
-        head.insertBefore(button,head.querySelector('[data-fma=closeSurface]'));
-      }
-      // While a request asked from the folded bar runs, the control says so; the answer unfolds it.
-      const working=agentTurnFolded && !agentHistory, face=working?'working':'idle';
-      if(button.dataset.face!==face){button.dataset.face=face;button.innerHTML=working?'<span>Working</span><i class="fas fa-circle-notch fa-spin" aria-hidden="true"></i>':'<span>Conversation</span><i class="fas fa-chevron-up" aria-hidden="true"></i>';}
-      button.setAttribute('aria-expanded',String(open && agentHistory));
-      button.setAttribute('aria-label',agentHistory?'Hide conversation':'Show conversation');
-      button.dataset.unread=String(agentUnread && !agentHistory);
+      agentBar.update(tray,{open,voice:agentState.voice});
     }
     const agentViewport=()=>{cancelAnimationFrame(agentResize);agentResize=requestAnimationFrame(()=>{if(!disposed){syncPlacement();syncAgentCompact();}});};
     root.addEventListener('resize',agentViewport);
@@ -556,5 +580,6 @@
     return {requestClose,update,close,open,available,interactionVersion:()=>interactionVersion,select(key){if(key===null){close();return;}if(!available().includes(key))throw Error('Unavailable project tray: '+key);update();return selected===key?Promise.resolve():open(key);},destroy() {disposed = true;agentCleanup();root.removeEventListener('fm:route-state:updated',contextChanged);root.removeEventListener('fm:project-window:placement',contextChanged);closeMenu?.remove();pinStyle.remove();clearTimeout(activityTimer);handles.forEach(handle => handle.destroy?.());root.removeEventListener('fm:project-trays:updated',changed); root.removeEventListener('fm:capabilities:updated',changed);root.removeEventListener('fm:project-notes:refreshed',activityChanged);root.removeEventListener('fm:projects:refresh',activityChanged);content.before(preview);content.remove();tabs.remove();tabsAnchor.remove();style.remove();}};
   }
   root.FirstMateProjectTrays = {mount,definitions,register,mountWidget,registerWidgets};
+  root.FirstMateAgentBar = {css:agentBarCss,create:createAgentBar};
   registerWidgets();
 })(window);

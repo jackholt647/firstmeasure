@@ -7,17 +7,29 @@ export async function mount() {
  const anchor = document.getElementById('platformAssistantSlot');
  if (!anchor) return;
  mounted = true;
- const style = document.createElement('link');style.rel='stylesheet';style.href='/libraries/development-tools/development-tools.css?v=20261006-tree4-layers';document.head.append(style);
+ const style = document.createElement('link');style.rel='stylesheet';style.href='/libraries/development-tools/development-tools.css?v=20261026-phone-sheet';document.head.append(style);
  const slot=document.createElement('div');slot.className='fm-dev-slot';
  slot.innerHTML='<button type="button" class="ptb-bell" aria-label="Development tools" aria-haspopup="dialog" aria-expanded="false" data-dev-open><i class="fas fa-code" aria-hidden="true"></i></button>';
  anchor.before(slot);
  const button=slot.querySelector('[data-dev-open]');
- let frame,busy=false,requestId,activeAnchor=button,suppressHover=false,hoverTimer;
+ let frame,busy=false,requestId,activeAnchor=button,suppressHover=false,hoverTimer,sheet=null;
  const isOpen=()=>!!frame&&!frame.hidden;
- function position(){if(!isOpen())return;const fontHost=document.querySelector(window.matchMedia('(max-width:820px)').matches?'.mobile-topbar':'#platformTopbar')||anchor;frame.style.fontFamily=getComputedStyle(fontHost).fontFamily;if(frame.classList.contains('fm-dev-fullscreen')){frame.style.top='8px';frame.style.right='8px';frame.style.maxHeight='calc(100dvh - 16px)';return;}const mobile=window.matchMedia('(max-width:820px)').matches;const bar=document.querySelector(mobile?'.mobile-topbar':'#platformTopbar');const bounds=bar?.getBoundingClientRect()||activeAnchor.getBoundingClientRect();frame.style.top=Math.max(8,bounds.bottom+8)+'px';frame.style.right='12px';frame.style.maxHeight=Math.max(160,window.innerHeight-bounds.bottom-24)+'px';}
- function close(){clearTimeout(hoverTimer);if(frame)frame.hidden=true;suppressHover=true;slot.classList.remove('fm-dev-open');button.setAttribute('aria-expanded','false');}
+ // On a phone the tools open as a bottom sheet from the portal's top bar (Portal.topbar.phoneSheet), like the
+ // project window's trays; the window moves into the sheet and back out once the sheet has slid away.
+ const inSheet=()=>!!frame&&frame.classList.contains('fm-dev-in-sheet');
+ const phone=()=>typeof window.Portal?.topbar?.phoneSheet==='function'&&window.Portal.topbar.isPhone?.()===true;
+ function devSheet(){
+  sheet||=window.Portal.topbar.phoneSheet({id:'mobilePlatformDevSheet',label:'Development tools',onClosing:()=>{if(inSheet())close();},onClosed:()=>{if(frame&&frame.hidden&&inSheet()){frame.classList.remove('fm-dev-in-sheet');document.body.append(frame);}}});
+  return sheet;
+ }
+ function openInSheet(){
+  const target=devSheet();if(!target?.body)return false;
+  open();frame.classList.add('fm-dev-in-sheet');target.body.append(frame);target.open();return true;
+ }
+ function position(){if(!isOpen()||inSheet())return;const fontHost=document.querySelector(window.matchMedia('(max-width:820px)').matches?'.mobile-topbar':'#platformTopbar')||anchor;frame.style.fontFamily=getComputedStyle(fontHost).fontFamily;if(frame.classList.contains('fm-dev-fullscreen')){frame.style.top='8px';frame.style.right='8px';frame.style.maxHeight='calc(100dvh - 16px)';return;}const mobile=window.matchMedia('(max-width:820px)').matches;const bar=document.querySelector(mobile?'.mobile-topbar':'#platformTopbar');const bounds=bar?.getBoundingClientRect()||activeAnchor.getBoundingClientRect();frame.style.top=Math.max(8,bounds.bottom+8)+'px';frame.style.right='12px';frame.style.maxHeight=Math.max(160,window.innerHeight-bounds.bottom-24)+'px';}
+ function close(){clearTimeout(hoverTimer);if(frame)frame.hidden=true;suppressHover=true;slot.classList.remove('fm-dev-open');button.setAttribute('aria-expanded','false');if(inSheet()&&sheet?.isOpen())sheet.close();}
  function toggle(){if(isOpen())close();else open();}
- document.addEventListener('pointerdown',event=>{if(isOpen()&&!frame.contains(event.target)&&!slot.contains(event.target)&&!event.target.closest('[data-dev-mobile]'))close();});
+ document.addEventListener('pointerdown',event=>{if(isOpen()&&!frame.contains(event.target)&&!slot.contains(event.target)&&!event.target.closest('[data-dev-mobile],#mobilePlatformDevSheet'))close();});
  document.addEventListener('keydown',event=>{if(event.key==='Escape'&&isOpen()){close();activeAnchor.focus();}});
  window.addEventListener('resize',position);window.addEventListener('scroll',position,true);
  function open(){
@@ -66,6 +78,6 @@ export async function mount() {
  button.onclick=()=>{clearTimeout(hoverTimer);activeAnchor=button;toggle();};
  slot.addEventListener('pointerenter',event=>{if(event.pointerType==='mouse'&&!suppressHover)hoverTimer=setTimeout(()=>{activeAnchor=button;open();},350);});slot.addEventListener('pointerleave',()=>{clearTimeout(hoverTimer);suppressHover=false;});
  const more=document.getElementById('mobilePlatformMoreMenu');
- if(more){const mobile=document.createElement('button');mobile.type='button';mobile.className='ptb-more-item';mobile.dataset.devMobile='';mobile.innerHTML='<i class="fas fa-code" aria-hidden="true"></i><span>Development tools</span>';more.prepend(mobile);mobile.onclick=()=>{activeAnchor=document.getElementById('mobilePlatformMoreBtn');activeAnchor?.click();toggle();};}
+ if(more){const mobile=document.createElement('button');mobile.type='button';mobile.className='ptb-more-item';mobile.dataset.devMobile='';mobile.innerHTML='<i class="fas fa-code" aria-hidden="true"></i><span>Development tools</span>';more.prepend(mobile);mobile.onclick=()=>{activeAnchor=document.getElementById('mobilePlatformMoreBtn');if(phone()){more.classList.remove('visible');if(!inSheet()||!isOpen())openInSheet();return;}activeAnchor?.click();toggle();};}
 
 }

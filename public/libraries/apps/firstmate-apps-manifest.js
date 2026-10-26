@@ -44,7 +44,7 @@
     versionedBundle('../channels-ui/channels-ui.js', '20261012-shared-polish-v1'),
     versionedBundle('../project-notes/project-notes.js', '20261024-note-audience-sections-v1'),
     versionedBundle('../project-trays/activity-presenter.js', '20261012-notes-separation-v1'),
-    versionedBundle('../project-trays/project-trays.js', '20261026-mobile-trays')
+    versionedBundle('../project-trays/project-trays.js', '20261026-shared-agent-bar')
   ];
   const fieldApprovalBundles = [
     versionedBundle('../crew-api/crew-api.js', '20261019-forward-cert'),

@@ -140,8 +140,23 @@ a desktop offer the same actions, all decided by the organization's switches
 setup) and never by a configuration. A script that adds a top bar action adds
 its phone entry as a `.ptb-more-item` in `#mobilePlatformMoreMenu`, naming its
 group with `data-more-group` (`work`, `inbox`, or the default `tools`), and
-hides it with `hidden` whenever its desktop control is hidden. Run
-`tests/mobile-shell-browser.test.mjs` for changes here.
+hides it with `hidden` whenever its desktop control is hidden.
+
+Where the More menu opens is the organization's `topbar.phone_menu` setting:
+`bottom` (the default) is the sheet, `top` a dropdown at the top right. What
+it opens comes from the bottom either way, as the project window's trays do
+([project content layout](project-content-layout.md#phone-trays)). Messages,
+notifications, To Do and development tools are bottom sheets in the top
+layer, one at a time, each with a drag handle, a title with Close, and an
+animated open and close. The assistant is the project window's agent bar
+(`FirstMateAgentBar` in `project-trays.js`) on the person's main conversation
+([global assistant](global-assistant.md#portal-window-and-app-entry)). A
+script with another top bar action opens it on a phone with
+`Portal.topbar.phoneSheet({ id, label, onClosing, onClosed })`, which returns
+the sheet's `body`, `open` and `close`; removing `visible` from a sheet closes
+it the same way. Desktop keeps its dropdowns and windows. Run
+`tests/mobile-shell-browser.test.mjs` and
+`tests/mobile-topbar-trays-browser.test.mjs` for changes here.
 
 ## Left-column pins
 

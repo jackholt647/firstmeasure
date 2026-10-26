@@ -75,8 +75,11 @@ The top-bar assistant and `portal.assistant` app use the same
 The assistant starts as a right dock. The shared maximize control opens the
 full workspace and activates the Assistant tab; Dock returns it to
 the right. Close hides the assistant while preserving its conversation and draft.
-The assistant has no minimize button. On phones, its dock occupies the workspace width and uses the same
-compact layout. Channels conversations and the assistant both use
+The assistant has no minimize button. On phones the top bar opens it as the project window's agent bar
+(`FirstMateAgentBar`, shared from `project-trays.js`): an embedded surface (`mountSurface`) on the person's
+main conversation slides up from the bottom with the conversation folded above the input, and its Close ends a
+voice conversation as the window's does. Elsewhere on phones its dock occupies the workspace width and uses the
+same compact layout. Channels conversations and the assistant both use
 `libraries/window-manager/window-manager.js`; the assistant no longer has a
 separate fixed drawer implementation.
 

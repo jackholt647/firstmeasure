@@ -1120,16 +1120,17 @@ session_write_close();
       .mobile-topbar .mob-notifications.platform-more{position:relative}
       .mobile-topbar #mobilePlatformMoreBtn{display:grid;place-items:center;border-radius:12px;position:relative;transition:background-color .16s ease}
       .mobile-topbar #mobilePlatformMoreBtn[aria-expanded="true"]{background:rgba(0,0,0,.06)}
-      /* The More sheet: a bottom sheet in the top layer (topbar.js opens it as a popover). */
-      .mobile-topbar #mobilePlatformMoreMenu.ptb-menu--more{
+      /* Phone sheets: the More sheet and what it opens (messages, notifications, To Do, development tools),
+         bottom sheets in the top layer, one at a time (topbar.js opens them as popovers). */
+      .mobile-topbar .ptb-menu.ptb-menu--sheet{
         position:fixed;inset:0;top:0;right:0;width:auto;height:auto;max-width:none;max-height:none;margin:0;padding:0;
         border:0;border-radius:0;background:transparent;box-shadow:none;overflow:hidden;
         opacity:1;transform:none;z-index:2147483300;
         transition:visibility 0s linear .3s;
       }
-      .mobile-topbar #mobilePlatformMoreMenu.ptb-menu--more.visible{transition:visibility 0s}
+      .mobile-topbar .ptb-menu.ptb-menu--sheet.visible{transition:visibility 0s}
       .mobile-topbar .ptb-sheet-scrim{position:absolute;inset:0;background:rgba(15,23,42,.42);opacity:0;transition:opacity .26s ease}
-      .mobile-topbar .ptb-menu--more.visible .ptb-sheet-scrim{opacity:1}
+      .mobile-topbar .ptb-menu--sheet.visible .ptb-sheet-scrim{opacity:1}
       .mobile-topbar .ptb-sheet{
         position:absolute;left:0;right:0;bottom:0;box-sizing:border-box;
         max-height:calc(var(--fm-visual-vh, 100dvh) - 56px);overflow:auto;overscroll-behavior:contain;
@@ -1141,9 +1142,30 @@ session_write_close();
         transition:transform .26s cubic-bezier(.4,0,1,1);
         touch-action:pan-y;
       }
-      .mobile-topbar .ptb-menu--more.visible .ptb-sheet{transform:translateY(var(--ptb-sheet-drag,0px));transition:transform .34s cubic-bezier(.22,1,.36,1)}
-      .mobile-topbar .ptb-menu--more.is-dragging .ptb-sheet{transition:none}
+      .mobile-topbar .ptb-menu--sheet.visible .ptb-sheet{transform:translateY(var(--ptb-sheet-drag,0px));transition:transform .34s cubic-bezier(.22,1,.36,1)}
+      .mobile-topbar .ptb-menu--sheet.is-dragging .ptb-sheet{transition:none}
       .mobile-topbar .ptb-sheet-grip{flex:none;align-self:center;width:40px;height:5px;margin:4px 0 2px;border-radius:999px;background:#d0d5dd}
+      /* A panel sheet: a title with Close over a scrolling body. */
+      .mobile-topbar .ptb-menu--panel .ptb-sheet{height:min(74%,calc(100% - 48px));max-height:none;gap:0;padding:6px 0 0;background:#fff;overflow:hidden}
+      .mobile-topbar .ptb-sheet-head{display:flex;align-items:center;gap:10px;flex:none;padding:4px 10px 10px 16px;border-bottom:1px solid #eaecf0;touch-action:none;cursor:grab}
+      .mobile-topbar .ptb-sheet-head .ptb-menu-head{flex:1;min-width:0;padding:0;border:0;font-size:16px;font-weight:900;justify-content:flex-start;gap:10px}
+      .mobile-topbar .ptb-sheet-head .ptb-menu-head small{font-size:12px;font-weight:700}
+      .mobile-topbar .ptb-sheet-close{flex:none;display:grid;place-items:center;width:34px;height:34px;padding:0;border:0;border-radius:10px;background:#f2f4f7;color:#475467;font:inherit;font-size:15px;cursor:pointer}
+      .mobile-topbar .ptb-sheet-close:focus-visible{outline:2px solid var(--primary-readable,var(--primary,#d93025));outline-offset:2px}
+      .mobile-topbar .ptb-sheet-body{display:flex;flex-direction:column;flex:1;min-height:0;overflow:auto;overscroll-behavior:contain;padding-bottom:env(safe-area-inset-bottom,0px)}
+      .mobile-topbar .ptb-sheet-body .ptb-msg-row{border-radius:0;padding:12px 16px}
+      .mobile-topbar .ptb-sheet-body .ptb-note{padding:14px 16px}
+      /* topbar.phone_menu "top": the More menu is a dropdown at the top right instead. */
+      .mobile-topbar .ptb-menu--sheet[data-placement=top] .ptb-sheet-scrim{background:rgba(15,23,42,.08)}
+      .mobile-topbar .ptb-menu--sheet[data-placement=top] .ptb-sheet{
+        top:var(--ptb-more-top,56px);bottom:auto;left:auto;right:10px;width:min(300px,calc(100vw - 20px));
+        max-height:calc(var(--fm-visual-vh, 100dvh) - var(--ptb-more-top,56px) - 12px);
+        gap:8px;padding:8px;border-radius:18px;box-shadow:0 18px 48px rgba(15,23,42,.22),0 0 0 1px rgba(15,23,42,.06);
+        transform-origin:top right;transform:translateY(-6px) scale(.96);opacity:0;transition:transform .16s ease,opacity .14s ease;
+      }
+      .mobile-topbar .ptb-menu--sheet[data-placement=top].visible .ptb-sheet{transform:none;opacity:1;transition:transform .2s cubic-bezier(.22,1,.36,1),opacity .16s ease}
+      .mobile-topbar .ptb-menu--sheet[data-placement=top] .ptb-sheet-grip{display:none}
+      .mobile-topbar .ptb-menu--sheet[data-placement=top] .ptb-more-item{min-height:50px;font-size:15px}
       .mobile-topbar .ptb-sheet-group{display:flex;flex-direction:column;background:#fff;border-radius:16px;overflow:hidden;box-shadow:0 1px 2px rgba(16,24,40,.05)}
       .mobile-topbar .ptb-sheet-group:not(:has(.ptb-more-item:not([hidden]))){display:none}
       .mobile-topbar .ptb-more-item{position:relative;display:flex;align-items:center;gap:14px;width:100%;min-height:58px;border:0;background:#fff;padding:9px 16px;font:inherit;font-size:16px;font-weight:700;color:#101828;cursor:pointer;text-align:left;-webkit-tap-highlight-color:transparent;transition:background-color .12s ease}
@@ -1162,7 +1184,7 @@ session_write_close();
       .mobile-topbar .ptb-more-item .ptb-more-count{flex:none;min-width:22px;box-sizing:border-box;text-align:center;background:var(--primary,#d93025);color:var(--on-primary,#fff);border-radius:999px;font-size:12px;font-weight:900;padding:3px 8px;font-style:normal;line-height:16px}
       .mobile-topbar .ptb-more-item .ptb-more-count[hidden]{display:none}
       @media (prefers-reduced-motion: reduce){
-        .mobile-topbar .ptb-sheet,.mobile-topbar .ptb-menu--more.visible .ptb-sheet,.mobile-topbar .ptb-sheet-scrim{transition:none}
+        .mobile-topbar .ptb-sheet,.mobile-topbar .ptb-menu--sheet.visible .ptb-sheet,.mobile-topbar .ptb-sheet-scrim{transition:none!important}
       }
       .mobile-topbar.topbar-enabled .mobile-platform-search{
         display:block;
@@ -2067,7 +2089,7 @@ session_write_close();
       </button>
       <!-- Items mirror the desktop top bar. topbar.js files items other scripts
            add into a group (data-more-group, default "tools"). -->
-      <div class="ptb-menu ptb-menu--more" id="mobilePlatformMoreMenu" role="dialog" aria-modal="true" aria-label="More">
+      <div class="ptb-menu ptb-menu--more ptb-menu--sheet" id="mobilePlatformMoreMenu" role="dialog" aria-modal="true" aria-label="More">
         <div class="ptb-sheet-scrim" data-more-close></div>
         <div class="ptb-sheet">
           <div class="ptb-sheet-grip" aria-hidden="true"></div>
