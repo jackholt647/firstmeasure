@@ -177,7 +177,7 @@ test('the map module loads before the viewer, reuses the portal Google map and o
   assert.match(mapView, /prefers-reduced-motion/);
 });
 
-function resultsContext({ viewMode, allProjects = [], filteredProjects = [], hideDrafts = false, totalUnfilteredCount = 0, workBoards = [] }){
+function resultsContext({ viewMode, allProjects = [], filteredProjects = [], hideDrafts = false, totalUnfilteredCount = 0, workBoards = [], camera = false }){
   const updates = [];
   const stagesRendered = [];
   const results = { innerHTML:'' };
@@ -187,12 +187,13 @@ function resultsContext({ viewMode, allProjects = [], filteredProjects = [], hid
     sharedProjectRecords:() => [], renderSearchCreate:() => {}, canStartProject:() => false,
     workBoards, projectBoardsEnabled:() => true, renderStagesView:() => stagesRendered.push(true),
     mapViewModel:() => ({ items:[], groups:[], groupLabel:'stage', scopeKey:'board:sales' }),
+    cameraAvailable:() => camera, openProjectCamera:(id) => updates.push({ cameraFor:id }),
     window:{ FirstMateProjectsMap:{ update:(container, model) => updates.push(model) } },
     globalThis:{}
   });
   vm.runInContext(slice('  function renderMapView(', '  function upsertProjectForViewer('), context);
   vm.runInContext('renderResults()', context);
-  return { updates:updates.map((model) => JSON.parse(JSON.stringify(model))), results, stagesRendered:stagesRendered.length };
+  return { updates:updates.map((model) => JSON.parse(JSON.stringify(model))), raw:updates, results, stagesRendered:stagesRendered.length };
 }
 
 test('with no projects the map view still draws the map and its tray says there are none yet', () => {
@@ -227,4 +228,35 @@ test('the map tray has its own empty state with new language keys', () => {
     assert.match(mapView, new RegExp(`"projects","${key}"`));
   }
   assert.match(mapView, /\.pm-empty\.is-view\{[^}]*animation:pm-row-in/);
+});
+
+test('the map preview offers the camera only when the camera library is loaded', () => {
+  assert.equal(resultsContext({ viewMode:'map' }).raw[0].camera, undefined);
+  const { raw } = resultsContext({ viewMode:'map', camera:true });
+  raw[0].camera({ id:'p7' });
+  assert.deepEqual(raw[1], { cameraFor:'p7' });
+});
+
+test('the map fills the content area under a floating header and frames pins below it', () => {
+  // The viewer marks its tab panel and wrap; the portal padding goes only while the map shows.
+  assert.match(viewer, /\.main-panels:has\(>\.fm-tabpanel\.active\.v-map-bleed\)\{padding:0!important;overflow:hidden!important\}/);
+  assert.match(viewer, /panelEl\.classList\.toggle\('v-map-bleed', map\)/);
+  assert.match(viewer, /wrap\.style\.setProperty\('--pm-top'/);
+  // The tray, the controls and the camera framing start below the header.
+  assert.match(mapView, /\.pm-tray\{position:absolute;left:12px;top:calc\(var\(--pm-top,0px\) \+ 12px\)/);
+  assert.match(mapView, /\.pm-controls\{position:absolute;right:12px;top:calc\(var\(--pm-top,0px\) \+ 12px\)/);
+  assert.match(mapView, /const insets = \{ top:56 \+ headerInset\(\)/);
+  // On a phone Open project is an icon and the camera sits beside it; on a desktop neither changes.
+  assert.match(mapView, /\.pm-camera\{display:none\}/);
+  assert.match(mapView, /@media \(max-width: 820px\)\{\s*\.pm-preview-foot \.pm-open\{width:34px;[^}]*\}\s*\.pm-open-label\{display:none\}/);
+});
+
+test('on a phone the content has no second title; the camera never shows on a desktop', () => {
+  assert.match(viewer, /\.v-camera\{display:none\}/);
+  const phone = viewer.slice(viewer.indexOf('PHONE CONTROL ROW'), viewer.indexOf('MAP, FULL-BLEED'));
+  assert.match(phone, /\.v-title\{display:none\}/);
+  assert.match(phone, /\.v-camera\{display:inline-flex;/);
+  // A stage card is a button, so its camera is a span with the button role; the panel stops its click.
+  assert.match(viewer, /<span class="v-camera" role="button" tabindex="0" data-v-camera=/);
+  assert.match(viewer, /panel\.addEventListener\('click', \(event\) => \{ const button = pick\(event\); if \(button\) openProjectCamera\(button\.dataset\.vCamera\); \}, true\);/);
 });

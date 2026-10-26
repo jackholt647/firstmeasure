@@ -4,7 +4,9 @@
  * board when every board is shown), with a collapsible tray listing all of them.
  *
  * The viewer owns filtering and opening a project; this file only draws what it
- * is given. Locations come from the project record (pins or lat/lng); a project
+ * is given. The map fills the viewer's whole content area: the viewer's header
+ * floats over its top and sets --pm-top to the height it covers, so the tray,
+ * the controls and the camera framing start below it. Locations come from the project record (pins or lat/lng); a project
  * without one is geocoded in this browser and cached in localStorage (see
  * docs/optimization-backlog.md, "Projects map geocodes addresses in the browser").
  */
@@ -38,7 +40,7 @@
   }
 
   const STYLES = `
-    .pm-root{--pm-tray-w:340px;position:relative;height:100%;min-height:320px;box-sizing:border-box;border:1px solid #eaecf0;border-radius:13px;overflow:hidden;background:#e9edf1;box-shadow:0 1px 2px rgba(16,24,40,.04);container:pm/inline-size;isolation:isolate}
+    .pm-root{--pm-tray-w:340px;--pm-glass:rgba(242,244,247,.86);position:relative;height:100%;min-height:320px;box-sizing:border-box;border:1px solid #eaecf0;border-radius:13px;overflow:hidden;background:#e9edf1;box-shadow:0 1px 2px rgba(16,24,40,.04);container:pm/inline-size;isolation:isolate}
     .pm-canvas{position:absolute;inset:0}
     .pm-canvas .gm-style{font-family:inherit}
     .pm-status{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;pointer-events:none;z-index:1}
@@ -82,19 +84,21 @@
     .pm-preview-foot{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-top:10px}
     .pm-stage-pill{display:block;flex:0 1 auto;min-width:0;max-width:100%;box-sizing:border-box;padding:5px 10px;border-radius:999px;background:color-mix(in srgb,var(--pin-color,${FALLBACK_COLOR}) 11%,#fff);border:1px solid color-mix(in srgb,var(--pin-color,${FALLBACK_COLOR}) 28%,#e3e7ec);color:color-mix(in srgb,var(--pin-color,${FALLBACK_COLOR}) 78%,#17212b);font-size:10px;font-weight:1000;line-height:1.2;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
     .pm-preview-foot .pm-open{flex:none}
+    .pm-preview-actions{flex:none;display:inline-flex;align-items:center;gap:6px}
+    .pm-camera{display:none}
     .pm-open{display:inline-flex;align-items:center;gap:7px;height:32px;padding:0 12px;border:0;border-radius:9px;background:var(--primary,#d93025);color:var(--on-primary,#fff);font:900 12px/1 inherit;cursor:pointer;white-space:nowrap;transition:transform .16s ease,box-shadow .16s ease}
     .pm-open:hover{transform:translateY(-1px);box-shadow:0 8px 18px rgba(var(--primary-rgb,217,48,37),.28)}
     @keyframes pm-pop{from{opacity:0;transform:translateY(8px) scale(.92)}to{opacity:1;transform:none}}
 
-    .pm-controls{position:absolute;right:12px;top:12px;z-index:3;display:flex;flex-direction:column;gap:8px}
-    .pm-ctl-group{display:flex;flex-direction:column;border-radius:10px;background:#fff;box-shadow:0 6px 18px rgba(15,23,42,.16),0 0 0 1px rgba(15,23,42,.06);overflow:hidden}
-    .pm-ctl{width:38px;height:38px;border:0;background:#fff;color:#475467;font-size:13px;cursor:pointer;transition:background .16s ease,color .16s ease}
-    .pm-ctl+.pm-ctl{border-top:1px solid #eaecf0}
-    .pm-ctl:hover{background:#f8fafc;color:var(--primary-readable,var(--primary,#d93025))}
+    .pm-controls{position:absolute;right:12px;top:calc(var(--pm-top,0px) + 12px);z-index:3;display:flex;flex-direction:column;gap:8px}
+    .pm-ctl-group{display:flex;flex-direction:column;border-radius:12px;background:var(--pm-glass);-webkit-backdrop-filter:blur(14px) saturate(1.3);backdrop-filter:blur(14px) saturate(1.3);box-shadow:0 8px 22px rgba(15,23,42,.16),0 0 0 1px rgba(15,23,42,.07);overflow:hidden}
+    .pm-ctl{width:38px;height:38px;border:0;background:transparent;color:#475467;font-size:13px;cursor:pointer;transition:background .16s ease,color .16s ease}
+    .pm-ctl+.pm-ctl{border-top:1px solid rgba(15,23,42,.07)}
+    .pm-ctl:hover{background:rgba(255,255,255,.7);color:var(--primary-readable,var(--primary,#d93025))}
     .pm-ctl[aria-pressed="true"]{color:var(--primary-readable,var(--primary,#d93025));background:rgba(var(--primary-rgb,217,48,37),.08)}
     .pm-ctl:focus-visible{outline:2px solid rgba(var(--primary-rgb,217,48,37),.45);outline-offset:-2px}
 
-    .pm-tray{position:absolute;left:12px;top:12px;bottom:12px;z-index:4;width:var(--pm-tray-w);max-width:calc(100% - 90px);box-sizing:border-box;display:flex;flex-direction:column;border-radius:14px;background:rgba(255,255,255,.95);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);box-shadow:0 18px 44px rgba(15,23,42,.18),0 0 0 1px rgba(15,23,42,.06);overflow:hidden;transition:transform .34s cubic-bezier(.2,.8,.2,1),opacity .26s ease}
+    .pm-tray{position:absolute;left:12px;top:calc(var(--pm-top,0px) + 12px);bottom:12px;z-index:4;width:var(--pm-tray-w);max-width:calc(100% - 90px);box-sizing:border-box;display:flex;flex-direction:column;border-radius:16px;background:var(--pm-glass);-webkit-backdrop-filter:blur(16px) saturate(1.3);backdrop-filter:blur(16px) saturate(1.3);box-shadow:0 18px 44px rgba(15,23,42,.18),0 0 0 1px rgba(15,23,42,.07);overflow:hidden;transition:transform .34s cubic-bezier(.2,.8,.2,1),opacity .26s ease}
     .pm-root:not(.is-tray-open) .pm-tray{transform:translateX(calc(-100% - 20px));opacity:0;pointer-events:none}
     .pm-tray-head{flex:0 0 auto;display:flex;align-items:center;gap:10px;padding:12px 10px 10px 14px;border-bottom:1px solid rgba(15,23,42,.07);cursor:default}
     .pm-tray-grip{display:none}
@@ -115,7 +119,7 @@
     .pm-chip[aria-pressed="false"] .pm-chip-dot{background:#d0d5dd;box-shadow:none;transform:scale(.8)}
     .pm-chip-reset{border-style:dashed;--chip-color:#667085}
     .pm-list{flex:1 1 auto;min-height:0;overflow-y:auto;padding:6px;-webkit-overflow-scrolling:touch;scrollbar-width:thin}
-    .pm-section{position:sticky;top:-6px;z-index:1;margin:6px 2px 4px;padding:6px 8px;border-radius:8px;background:rgba(242,244,247,.96);color:#667085;font-size:10px;font-weight:1000;letter-spacing:.04em;text-transform:uppercase}
+    .pm-section{position:sticky;top:-6px;z-index:1;margin:6px 2px 4px;padding:6px 8px;border-radius:8px;background:rgba(228,231,236,.96);color:#667085;font-size:10px;font-weight:1000;letter-spacing:.04em;text-transform:uppercase}
     .pm-row{position:relative;width:100%;display:grid;grid-template-columns:10px minmax(0,1fr) auto;align-items:center;gap:10px;padding:8px 10px;border:0;border-radius:9px;background:transparent;text-align:left;font-family:inherit;cursor:pointer;transition:background .18s ease,box-shadow .18s ease}
     .pm-row+.pm-row{margin-top:2px}
     .pm-row::before{content:'';position:absolute;left:0;top:8px;bottom:8px;width:3px;border-radius:3px;background:var(--pin-color,${FALLBACK_COLOR});opacity:0;transform:scaleY(.3);transition:opacity .2s ease,transform .2s ease}
@@ -146,13 +150,13 @@
     .pm-empty-create:active{transform:translateY(1px)}
     .pm-empty-create i{display:inline;width:auto;height:auto;margin:0;font-size:11px;color:inherit}
 
-    .pm-reopen{position:absolute;left:12px;top:12px;z-index:3;display:inline-flex;align-items:center;gap:8px;height:38px;padding:0 13px;border:0;border-radius:10px;background:#fff;box-shadow:0 6px 18px rgba(15,23,42,.16),0 0 0 1px rgba(15,23,42,.06);color:#344054;font:900 12px/1 inherit;cursor:pointer;transition:transform .3s cubic-bezier(.2,.8,.2,1),opacity .24s ease}
+    .pm-reopen{position:absolute;left:12px;top:calc(var(--pm-top,0px) + 12px);z-index:3;display:inline-flex;align-items:center;gap:8px;height:38px;padding:0 13px;border:0;border-radius:12px;background:var(--pm-glass);-webkit-backdrop-filter:blur(14px) saturate(1.3);backdrop-filter:blur(14px) saturate(1.3);box-shadow:0 8px 22px rgba(15,23,42,.16),0 0 0 1px rgba(15,23,42,.07);color:#344054;font:900 12px/1 inherit;cursor:pointer;transition:transform .3s cubic-bezier(.2,.8,.2,1),opacity .24s ease}
     .pm-reopen:hover{color:var(--primary-readable,var(--primary,#d93025))}
-    .pm-reopen-count{padding:3px 7px;border-radius:999px;background:#eef1f4;color:#667085;font-size:10px}
+    .pm-reopen-count{padding:3px 7px;border-radius:999px;background:rgba(255,255,255,.8);color:#667085;font-size:10px}
     .pm-root.is-tray-open .pm-reopen{opacity:0;transform:translateX(-12px);pointer-events:none}
 
     @container pm (max-width: 700px){
-      .pm-tray{left:8px;right:8px;top:auto;bottom:8px;width:auto;max-width:none;height:min(56%,440px);border-radius:16px;transform:none}
+      .pm-tray{left:8px;right:8px;top:auto;bottom:8px;width:auto;max-width:none;height:min(56%,440px);max-height:calc(100% - var(--pm-top,0px) - 20px);border-radius:18px;transform:none}
       .pm-root:not(.is-tray-open) .pm-tray{transform:translateY(calc(100% - 62px));opacity:1;pointer-events:auto}
       .pm-root:not(.is-tray-open) .pm-legend,.pm-root:not(.is-tray-open) .pm-list{visibility:hidden;transition:visibility 0s linear .34s}
       .pm-tray-head{position:relative;padding-top:16px;cursor:pointer;touch-action:none}
@@ -160,8 +164,16 @@
       .pm-tray-toggle{transform:rotate(-90deg)}
       .pm-root:not(.is-tray-open) .pm-tray-toggle{transform:rotate(90deg)}
       .pm-reopen{display:none}
-      .pm-controls{right:8px;top:8px}
+      .pm-controls{right:10px;top:calc(var(--pm-top,0px) + 10px)}
       .pm-preview-card{width:230px;left:-115px}
+    }
+    /* A phone: Open project is an icon, and the camera takes photos for the project. */
+    @media (max-width: 820px){
+      .pm-preview-foot .pm-open{width:34px;height:34px;padding:0;justify-content:center;border-radius:10px}
+      .pm-open-label{display:none}
+      .pm-camera{display:inline-flex;align-items:center;justify-content:center;width:34px;height:34px;box-sizing:border-box;border:1px solid #e4e7ec;border-radius:10px;background:#fff;color:#475467;font-size:13px;cursor:pointer;transition:transform .14s ease,background .14s ease,color .14s ease}
+      .pm-camera:active{transform:scale(.9);background:#f2f4f7}
+      .pm-open:active{transform:scale(.94)}
     }
     @media (prefers-reduced-motion: reduce){
       .pm-root *,.pm-root *::before,.pm-root *::after{animation:none!important;transition:none!important}
@@ -865,9 +877,17 @@
     el.className = 'pm-preview';
     const shown = displayLines(item);
     el.style.setProperty('--pin-color', item.color);
-    el.innerHTML = `<div class="pm-preview-card" role="dialog" aria-label="${escapeHtml(item.title || item.line1 || '')}"><div class="pm-preview-stripe"></div><div class="pm-preview-body"><button type="button" class="pm-preview-close" aria-label="${(globalThis.PlatformLanguage?.htmlText("projects","m_20f1b0df4fe241","Close preview") ?? "Close preview")}"><i class="fas fa-xmark" aria-hidden="true"></i></button><div class="pm-preview-title">${escapeHtml(shown.title)}</div>${shown.lines.length ? `<div class="pm-preview-addr">${shown.lines.length > 1 ? `${escapeHtml(shown.lines[0])}<span>${escapeHtml(shown.lines[1])}</span>` : `<span>${escapeHtml(shown.lines[0])}</span>`}</div>` : ''}<div class="pm-preview-foot"><span class="pm-stage-pill">${escapeHtml(item.groupTitle || '')}</span><button type="button" class="pm-open">${(globalThis.PlatformLanguage?.htmlText("projects","m_27136d1254783a","Open project") ?? "Open project")}<i class="fas fa-arrow-right" aria-hidden="true"></i></button></div></div></div>`;
+    const openLabel = (globalThis.PlatformLanguage?.htmlText("projects","m_27136d1254783a","Open project") ?? "Open project");
+    // The viewer offers the camera only where it is loaded; the CSS shows it on a phone.
+    const cameraLabel = (globalThis.PlatformLanguage?.htmlText("projects","projects_camera_take_photos","Take photos") ?? "Take photos");
+    const camera = typeof state.model?.camera === 'function' ? `<button type="button" class="pm-camera" aria-label="${cameraLabel}" data-fm-tooltip="${cameraLabel}"><i class="fas fa-camera" aria-hidden="true"></i></button>` : '';
+    el.innerHTML = `<div class="pm-preview-card" role="dialog" aria-label="${escapeHtml(item.title || item.line1 || '')}"><div class="pm-preview-stripe"></div><div class="pm-preview-body"><button type="button" class="pm-preview-close" aria-label="${(globalThis.PlatformLanguage?.htmlText("projects","m_20f1b0df4fe241","Close preview") ?? "Close preview")}"><i class="fas fa-xmark" aria-hidden="true"></i></button><div class="pm-preview-title">${escapeHtml(shown.title)}</div>${shown.lines.length ? `<div class="pm-preview-addr">${shown.lines.length > 1 ? `${escapeHtml(shown.lines[0])}<span>${escapeHtml(shown.lines[1])}</span>` : `<span>${escapeHtml(shown.lines[0])}</span>`}</div>` : ''}<div class="pm-preview-foot"><span class="pm-stage-pill">${escapeHtml(item.groupTitle || '')}</span><span class="pm-preview-actions">${camera}<button type="button" class="pm-open" aria-label="${openLabel}"><span class="pm-open-label">${openLabel}</span><i class="fas fa-arrow-right" aria-hidden="true"></i></button></span></div></div></div>`;
     el.querySelector('.pm-preview-close').addEventListener('click', (event) => { event.stopPropagation(); select('', { pan:false }); });
     el.querySelector('.pm-open').addEventListener('click', (event) => { event.stopPropagation(); openItem(item); });
+    el.querySelector('.pm-camera')?.addEventListener('click', (event) => {
+      event.stopPropagation();
+      try { state.model?.camera?.(item.project, item); } catch (error) { console.warn('The camera could not be opened from the map', error); }
+    });
     el.addEventListener('click', (event) => event.stopPropagation());
     state.layer.div.appendChild(el);
     state.previewEl = el;
@@ -885,8 +905,14 @@
   }
 
   /* ---------- Camera ---------- */
+  // How much of the map's top the viewer's floating header covers.
+  function headerInset(){
+    if (!state.root) return 0;
+    const value = parseFloat(getComputedStyle(state.root).getPropertyValue('--pm-top'));
+    return Number.isFinite(value) && value > 0 ? value : 0;
+  }
   function trayInsets(){
-    const insets = { top:56, right:64, bottom:56, left:56 };
+    const insets = { top:56 + headerInset(), right:64, bottom:56, left:56 };
     if (!state.trayOpen || !state.root) return insets;
     const tray = state.root.querySelector('.pm-tray');
     const rootRect = state.root.getBoundingClientRect();

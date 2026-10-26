@@ -384,6 +384,8 @@
     .v-search-create i{flex:0 0 auto;width:26px;height:26px;display:inline-flex;align-items:center;justify-content:center;border-radius:8px;background:rgba(var(--primary-rgb,217,48,37),.1);color:var(--primary-readable,var(--primary,#d93025));font-size:12px}
     .v-search-create span{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
     .v-head{display:flex; align-items:center; justify-content:space-between; gap:14px; padding-bottom:14px; flex:0 0 auto}
+    .v-chrome{display:contents}
+    .v-camera{display:none}
     .v-title{display:flex;align-items:center;gap:11px;min-width:0}
     .v-title>i{width:36px;height:36px;border-radius:10px;background:var(--primary,#d93025);color:#fff;display:flex;align-items:center;justify-content:center;flex:0 0 auto}
     .v-title h1{margin:0;font-size:26px;line-height:36px;font-weight:1000;letter-spacing:-.3px}
@@ -407,6 +409,8 @@
     .v-manage-panel{position:absolute;right:0;top:46px;z-index:30;width:min(390px,calc(100vw - 32px));max-height:min(720px,calc(100vh - 130px));overflow-y:auto;box-sizing:border-box;padding:18px;border:1px solid #e4e7ec;border-radius:16px;background:#fff;box-shadow:0 24px 70px rgba(15,23,42,.22);display:grid;gap:13px}
     .v-manage-panel[hidden]{display:none}
     .v-manage-title{font-size:15px;font-weight:1000;color:#101828}
+    .v-manage-info{margin-left:8px;color:#98a2b3;font-size:13px;cursor:help;outline:none}
+    .v-manage-info:hover,.v-manage-info:focus-visible{color:var(--primary-readable,var(--primary,#d93025))}
     .v-manage-field{display:grid;gap:6px;font-size:12px;font-weight:900;color:#344054}
     .v-manage-field select{width:100%;min-height:38px;border:1px solid #d0d5dd;border-radius:9px;background:#fff;padding:7px 10px;font:inherit;color:#17212b}
     .v-manage-columns{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px}
@@ -1142,6 +1146,82 @@
         grid-template-columns:1fr !important;
       }
       .v-thumb{height:120px}
+    }
+
+    /* ==========================================================
+       PHONE CONTROL ROW. The portal's mobile top bar carries the app's title
+       and icon, so the content starts with one compact row: the board picker
+       (when there is one), the view switcher as icons and Manage view.
+       ========================================================== */
+    @media (max-width: 820px){
+      .v-wrap{column-gap:8px}
+      .v-title{display:none}
+      .v-head{grid-column:1 / -1;grid-row:1;justify-content:flex-end;padding:0;min-width:0}
+      .v-wrap:has(.v-stages-summary.visible) .v-head{grid-column:2}
+      .v-wrap .v-stages-summary.visible{grid-column:1;grid-row:1;width:auto;min-width:0;height:38px;margin:0}
+      .v-actions{gap:6px;flex-wrap:nowrap;margin-left:auto}
+      .v-actions .v-btn{height:38px;font-size:12px}
+      .v-view-switch{border-radius:11px}
+      .v-view-switch .v-btn{width:40px;height:36px;padding:0;justify-content:center;font-size:14px;transition:background .18s ease,color .18s ease}
+      .v-view-switch .v-btn .btn-label,#vManageView .btn-label{display:none}
+      .v-actions #vManageView{width:38px;padding:0;justify-content:center;font-size:14px;border-radius:11px}
+      .v-stage-card[draggable="true"] .v-stage-drag-handle{display:none}
+      .v-manage-panel{top:44px;width:min(390px,calc(100vw - 24px))}
+      #vResults:has(.v-stages-shell){padding-top:10px;box-sizing:border-box}
+      .v-mobile-stage-option{min-height:34px;padding:6px 10px;border-radius:10px}
+      .v-stages-shell{gap:8px}
+      /* List: dense rows that read top to bottom; empty cells say nothing. */
+      .v-list-group-header{padding:10px 12px;font-size:13px;border-left-width:4px}
+      .v-lrow{position:relative;align-items:stretch;text-align:left;gap:4px!important;padding:10px 12px!important}
+      .v-lrow .v-lcell[data-empty]{display:none}
+      .v-lrow .v-laddr1{font-size:13px}
+      .v-lrow:has(>.v-camera){padding-right:54px!important}
+      .v-lrow>.v-camera{position:absolute;right:10px;top:50%;margin-top:-17px}
+      /* Take photos: on a phone every card offers the camera for its project. */
+      .v-camera{display:inline-flex;align-items:center;justify-content:center;width:34px;height:34px;flex:0 0 auto;box-sizing:border-box;border:1px solid #e4e7ec;border-radius:10px;background:#fff;color:#475467;font-size:14px;cursor:pointer;-webkit-tap-highlight-color:transparent;transition:transform .14s ease,background .14s ease,color .14s ease}
+      .v-camera:hover,.v-camera:focus-visible{color:var(--primary-readable,var(--primary,#d93025));outline:none;border-color:rgba(var(--primary-rgb,217,48,37),.35)}
+      .v-camera:active{transform:scale(.9);background:#f2f4f7}
+      .v-card-end{display:inline-flex;align-items:center;gap:10px}
+      .v-stage-card-foot{align-items:center}
+      .v-foot{align-items:center}
+    }
+
+    /* ==========================================================
+       MAP, FULL-BLEED. The map is the background of the whole content
+       area; the header floats over it in a rounded glass panel, and the
+       map's tray and controls float below it (map-view.js reads --pm-top).
+       ========================================================== */
+    .main-panels:has(>.fm-tabpanel.active.v-map-bleed){padding:0!important;overflow:hidden!important}
+    .fm-tabpanel.v-map-bleed{height:100%;min-height:0;overflow:hidden}
+    .v-wrap.is-map{position:relative;max-width:none;--v-glass:rgba(242,244,247,.86)}
+    .v-wrap.is-map #vResults{position:absolute;inset:0;z-index:0;padding:0}
+    .v-wrap.is-map .pm-root{border:0;border-radius:0;box-shadow:none;min-height:0}
+    .v-wrap.is-map .v-pagination{display:none}
+    .v-wrap.is-map .v-chrome{position:absolute;left:12px;right:12px;top:12px;z-index:6;display:grid;grid-template-columns:auto auto minmax(0,1fr) auto;align-items:center;gap:12px;padding:9px 10px 9px 12px;border-radius:16px;background:var(--v-glass);-webkit-backdrop-filter:blur(14px) saturate(1.3);backdrop-filter:blur(14px) saturate(1.3);box-shadow:0 14px 36px rgba(15,23,42,.16),0 0 0 1px rgba(15,23,42,.07);animation:v-chrome-in .34s cubic-bezier(.2,.8,.2,1) both}
+    .v-wrap.is-map .v-head,.v-wrap.is-map .v-bar,.v-wrap.is-map .v-leftbar{display:contents}
+    .v-wrap.is-map .v-title{grid-column:1;grid-row:1}
+    .v-wrap.is-map .v-title h1{font-size:22px;line-height:34px}
+    .v-wrap.is-map .v-title>i{width:34px;height:34px}
+    .v-wrap.is-map .v-stages-summary{grid-column:2;grid-row:1}
+    .v-wrap.is-map .v-search{grid-column:3;grid-row:1;width:100%;max-width:440px}
+    .v-wrap.is-map .v-report-search{padding:8px 12px;font-size:14px;border-radius:10px}
+    .v-wrap.is-map .v-actions{grid-column:4;grid-row:1;flex-wrap:nowrap}
+    @keyframes v-chrome-in{from{opacity:0;transform:translateY(-8px)}to{opacity:1;transform:none}}
+    @media (max-width: 820px){
+      .v-wrap.is-map{display:block;--v-glass:rgba(242,244,247,.92)}
+      .v-wrap.is-map .v-chrome{left:10px;right:10px;top:10px;grid-template-columns:minmax(0,1fr) auto;gap:8px;padding:0;border-radius:0;background:none;-webkit-backdrop-filter:none;backdrop-filter:none;box-shadow:none;pointer-events:none}
+      .v-wrap.is-map .v-title{display:none}
+      .v-wrap.is-map .v-actions,.v-wrap.is-map .v-stages-summary,.v-wrap.is-map .v-search{pointer-events:auto}
+      .v-wrap.is-map .v-stages-summary.visible{grid-column:1;grid-row:1}
+      .v-wrap.is-map .v-actions{grid-column:2;grid-row:1}
+      .v-wrap.is-map .v-search{grid-column:1 / -1;grid-row:2;margin:0;max-width:none}
+      .v-wrap.is-map .v-view-switch,.v-wrap.is-map #vManageView,.v-wrap.is-map .v-stages-summary,.v-wrap.is-map .v-report-search{border-color:rgba(15,23,42,.08);background:var(--v-glass);-webkit-backdrop-filter:blur(14px) saturate(1.3);backdrop-filter:blur(14px) saturate(1.3);box-shadow:0 8px 22px rgba(15,23,42,.16)}
+      .v-wrap.is-map .v-view-switch .v-btn{background:transparent}
+      .v-wrap.is-map .v-view-switch .v-btn+.v-btn{border-left-color:rgba(15,23,42,.07)}
+      .v-wrap.is-map .v-view-switch .v-btn.active{background:rgba(var(--primary-rgb,217,48,37),.12)}
+    }
+    @media (prefers-reduced-motion: reduce){
+      .v-wrap.is-map .v-chrome{animation:none}
     }
   `;
 
@@ -4882,6 +4962,72 @@
     const n = addressCompareText(name), l1 = addressCompareText(line1), full = addressCompareText([line1, line2].filter(Boolean).join(' '));
     return !!n && !!l1 && (n === l1 || n === full || full.startsWith(n));
   }
+  // Take photos: on a phone every project card, list row and map preview offers the
+  // shared camera (window.FirstMateCamera) for its project; on a desktop the CSS hides it.
+  // The button never opens the project: the panel's capture listener stops the click.
+  function cameraAvailable(){ return typeof window.FirstMateCamera?.open === 'function'; }
+  function cameraButtonHtml(id, { inButton = false } = {}){
+    if (!cameraAvailable() || !id || String(id).startsWith('__optimistic_')) return '';
+    const label = (globalThis.PlatformLanguage?.htmlText("projects","projects_camera_take_photos","Take photos") ?? "Take photos");
+    // A stage card is itself a button, so its camera is a span with the button role.
+    return inButton
+      ? `<span class="v-camera" role="button" tabindex="0" data-v-camera="${escapeHtml(String(id))}" aria-label="${label}" data-fm-tooltip="${label}"><i class="fas fa-camera" aria-hidden="true"></i></span>`
+      : `<button type="button" class="v-camera" data-v-camera="${escapeHtml(String(id))}" aria-label="${label}" data-fm-tooltip="${label}"><i class="fas fa-camera" aria-hidden="true"></i></button>`;
+  }
+  // The name a card shows: the contact, else the project title; a title that is the address shows its first line.
+  function projectCameraTitle(p){
+    const resident = resolveResidentFields(p);
+    const line1 = displayAddressLine1(p) === '\u2014' ? '' : displayAddressLine1(p);
+    const name = String(resident.name || p.customer_name || p.primary_contact_name || p.title || '');
+    if (!name || nameIsAddress(name, line1, displayAddressLine2(p))) return line1 || name || String(p.address || '');
+    return name;
+  }
+  function openProjectCamera(projectId){
+    const id = String(projectId || '');
+    const known = lastProjectsById.get(id) || allProjects.find((item) => String(item?.id || '') === id);
+    if (!known || !cameraAvailable()) return null;
+    const p = normalizeProjectRecord(known);
+    try {
+      return window.FirstMateCamera.open({
+        orgId:String(window.__APP?.userOrgId || window.Portal?.cfg?.orgId || ''),
+        projectId:id,
+        projectTitle:projectCameraTitle(p),
+        onDone:(files) => projectPhotosAdded(id, files)
+      });
+    } catch (error) { console.warn('The camera could not be opened', error); return null; }
+  }
+  // The views show no photo count; a tile that has no picture yet shows the first new photo.
+  function projectPhotosAdded(projectId, files){
+    const list = Array.isArray(files) ? files.filter(Boolean) : [];
+    if (!list.length || !panelEl) return;
+    const photo = list[0] || {};
+    const url = [photo.thumb, photo.thumbnail, photo.thumb_url, photo.thumbnail_url, photo.url, photo.src].find((value) => typeof value === 'string' && /^(https?:|\/|blob:|data:image\/)/i.test(value));
+    const tile = panelEl.querySelector(`.v-tile[data-id="${CSS.escape(String(projectId))}"]`);
+    const img = tile?.querySelector('.v-thumb img');
+    if (!img || !url) return;
+    const current = img.getAttribute('src') || '';
+    if (current && !current.startsWith('data:') && img.complete && img.naturalWidth > 0) return;
+    img.src = url;
+    img.style.display = '';
+    tile.querySelector('.v-thumb')?.classList.remove('loading');
+  }
+  function bindProjectCamera(panel){
+    const pick = (event) => {
+      const button = event.target?.closest?.('[data-v-camera]');
+      if (!button || !panel.contains(button)) return null;
+      event.preventDefault();
+      event.stopPropagation();
+      return button;
+    };
+    panel.addEventListener('click', (event) => { const button = pick(event); if (button) openProjectCamera(button.dataset.vCamera); }, true);
+    panel.addEventListener('keydown', (event) => {
+      if (event.key !== 'Enter' && event.key !== ' ') return;
+      const button = pick(event);
+      if (button) openProjectCamera(button.dataset.vCamera);
+    }, true);
+    // A press on the camera must not start dragging its card.
+    panel.addEventListener('dragstart', (event) => { if (event.target?.closest?.('[data-v-camera]')) event.preventDefault(); }, true);
+  }
   function createStageCard(p){
     p = normalizeProjectRecord(p);
     const id = String(p.id);
@@ -4907,7 +5053,7 @@
         ${namedByAddress ? '' : String(escapeHtml(addressLine1))}
         <span class="l2">${String(escapeHtml(addressLine2 || '\u00a0'))}</span>
       </div>
-      <div class="v-stage-card-foot"><span>${String(p.manual_stage_override ? `<span class="v-stage-manual-badge"><i class="fas fa-hand"></i>${(globalThis.PlatformLanguage?.htmlText("projects","m_5ee37aecb582b4"," Manual") ?? " Manual")}</span>` : escapeHtml(formatStageDate(p.created_at)))}</span><span>${(globalThis.PlatformLanguage?.htmlText("projects","m_4e1cba76df8f1d","Open ") ?? "Open ")}<i class="fas fa-chevron-right"></i></span></div>
+      <div class="v-stage-card-foot"><span>${String(p.manual_stage_override ? `<span class="v-stage-manual-badge"><i class="fas fa-hand"></i>${(globalThis.PlatformLanguage?.htmlText("projects","m_5ee37aecb582b4"," Manual") ?? " Manual")}</span>` : escapeHtml(formatStageDate(p.created_at)))}</span><span class="v-card-end">${cameraButtonHtml(id, { inButton:true })}<span>${(globalThis.PlatformLanguage?.htmlText("projects","m_4e1cba76df8f1d","Open ") ?? "Open ")}<i class="fas fa-chevron-right"></i></span></span></div>
     `;
     card.__stageSignature = card.innerHTML;
     card.__stageProject = p;
@@ -5705,7 +5851,7 @@
     }
     if (viewMode === 'map') {
       const mapSort=getActiveSort();
-      panel.innerHTML=`<div class="v-manage-title">${(globalThis.PlatformLanguage?.htmlText("projects","m_c5b289c72361c1","Map view") ?? "Map view")}</div><label class="v-manage-field">${(globalThis.PlatformLanguage?.htmlText("projects","m_63261a6895811f","List order") ?? "List order")}<select id="vManageSortKey">${[{key:'created_at',label:(globalThis.PlatformLanguage?.htmlText("projects","m_db1fe336bd1deb","Project created date") ?? "Project created date")}, ...LIST_COLUMNS].map(column => `<option value="${escapeHtml(column.key)}" ${mapSort.key===column.key?'selected':''}>${escapeHtml(column.label)}</option>`).join('')}</select></label><button type="button" class="v-btn" id="vManageSortDirection" aria-label="${(globalThis.PlatformLanguage?.htmlText("projects","m_82049078ca088b","Switch sort direction") ?? "Switch sort direction")}"><i class="fas fa-arrow-${mapSort.dir==='asc'?'up':'down'}"></i><span>${mapSort.dir==='asc'?(globalThis.PlatformLanguage?.htmlText('projects','m_2a925f101cbd18',"Ascending") ?? "Ascending"):(globalThis.PlatformLanguage?.htmlText('projects','m_760cf1fac61b3d',"Descending") ?? "Descending")}</span></button>${sharingFields}<div class="v-manage-note">${(globalThis.PlatformLanguage?.htmlText("projects","m_05a97c3490fbb9","Pins are coloured by stage, or by board when all boards are shown. Use the chips above the map's list to show only some stages.") ?? "Pins are coloured by stage, or by board when all boards are shown. Use the chips above the map's list to show only some stages.")}</div>`;
+      panel.innerHTML=`<div class="v-manage-title">${(globalThis.PlatformLanguage?.htmlText("projects","m_c5b289c72361c1","Map view") ?? "Map view")}<i class="fas fa-circle-info v-manage-info" tabindex="0" role="img" aria-label="${(globalThis.PlatformLanguage?.htmlText("projects","m_05a97c3490fbb9","Pins are coloured by stage, or by board when all boards are shown. Use the chips above the map's list to show only some stages.") ?? "Pins are coloured by stage, or by board when all boards are shown. Use the chips above the map's list to show only some stages.")}" data-fm-tooltip="${(globalThis.PlatformLanguage?.htmlText("projects","m_05a97c3490fbb9","Pins are coloured by stage, or by board when all boards are shown. Use the chips above the map's list to show only some stages.") ?? "Pins are coloured by stage, or by board when all boards are shown. Use the chips above the map's list to show only some stages.")}"></i></div><label class="v-manage-field">${(globalThis.PlatformLanguage?.htmlText("projects","m_63261a6895811f","List order") ?? "List order")}<select id="vManageSortKey">${[{key:'created_at',label:(globalThis.PlatformLanguage?.htmlText("projects","m_db1fe336bd1deb","Project created date") ?? "Project created date")}, ...LIST_COLUMNS].map(column => `<option value="${escapeHtml(column.key)}" ${mapSort.key===column.key?'selected':''}>${escapeHtml(column.label)}</option>`).join('')}</select></label><button type="button" class="v-btn" id="vManageSortDirection" aria-label="${(globalThis.PlatformLanguage?.htmlText("projects","m_82049078ca088b","Switch sort direction") ?? "Switch sort direction")}"><i class="fas fa-arrow-${mapSort.dir==='asc'?'up':'down'}"></i><span>${mapSort.dir==='asc'?(globalThis.PlatformLanguage?.htmlText('projects','m_2a925f101cbd18',"Ascending") ?? "Ascending"):(globalThis.PlatformLanguage?.htmlText('projects','m_760cf1fac61b3d',"Descending") ?? "Descending")}</span></button>${sharingFields}`;
       return;
     }
     const sort=getActiveSort();
@@ -5729,8 +5875,41 @@
     if (boardSummary) boardSummary.classList.toggle('visible', projectBoardsEnabled() && (viewMode === 'stages' || viewMode === 'list' || viewMode === 'map') && workBoardsLoaded && workBoardSummaryOffered());
     const manageWrap = $('#vManageViewWrap', panelEl);
     if (manageWrap) manageWrap.hidden = !projectBoardsEnabled();
+    syncMapBleed();
     renderManageViewPanel();
   }
+  // The Map is the background of the whole content area (desktop and phone); the
+  // header floats over it. --pm-top tells the map how much of its top the header covers.
+  let chromeObserver = null;
+  function syncMapBleed(){
+    if (!panelEl) return;
+    const map = viewMode === 'map';
+    panelEl.classList.toggle('v-map-bleed', map);
+    const wrap = $('.v-wrap', panelEl);
+    const chrome = $('.v-chrome', panelEl);
+    if (!wrap || !chrome) return;
+    wrap.classList.toggle('is-map', map);
+    const measure = () => {
+      if (!wrap.classList.contains('is-map')) { wrap.style.removeProperty('--pm-top'); return; }
+      wrap.style.setProperty('--pm-top', `${Math.round(chrome.offsetTop + chrome.offsetHeight)}px`);
+    };
+    measure();
+    if (!chromeObserver && typeof ResizeObserver === 'function') {
+      chromeObserver = new ResizeObserver(measure);
+      chromeObserver.observe(chrome);
+    }
+    syncCompactTooltips();
+  }
+  // On a phone the view buttons are icons; their names become tooltips.
+  const compactQuery = (() => { try { return window.matchMedia('(max-width: 820px)'); } catch (error) { return null; } })();
+  function syncCompactTooltips(){
+    const compact = !!compactQuery?.matches;
+    panelEl?.querySelectorAll('.v-view-switch .v-btn, #vManageView').forEach((button) => {
+      if (compact) button.setAttribute('data-fm-tooltip', button.getAttribute('aria-label') || '');
+      else button.removeAttribute('data-fm-tooltip');
+    });
+  }
+  compactQuery?.addEventListener?.('change', () => syncCompactTooltips());
   function setView(mode, options = {}){
     const previousMode = viewMode;
     if (!options.followDefault) { viewModeChosen = true; if (VIEW_MODES.has(mode)) chosenViewMode = mode; }
@@ -5858,7 +6037,7 @@
     const typeBadge = (tm !== PROJECT_TYPE_META.residential) ? `<div class="v-type-badge ${tm.cls}${deliveryBadge ? '' : ' no-delivery'}"><i class="fas ${tm.icon}"></i> ${escapeHtml(tm.short)}</div>` : '';
     const statusBadge = s ? `<div class="v-badge ${s.cls}">${statusBadgeContent(s)}</div>` : '';
     const contact = resolveResidentFields(p);
-    div.innerHTML = `<div class="v-thumb${String((!hasThumbnail && isProcessing) ? ' loading' : '')}"><img src="${String(escapeHtml(thumbSrc))}" loading="lazy" alt="">${String(typeBadge)}${String(deliveryBadge)}${String(gutterThumbBadgeHtml(p))}${String(statusBadge)}</div><div class="v-body"><div class="v-addr">${String(displayAddress(p))}</div><div class="v-meta"><i class="fas fa-user"></i> ${String(escapeHtml(contact.displayName || contact.name || (globalThis.PlatformLanguage?.text('projects','fm_contact_unavailable','Not provided') ?? 'Not provided')))}</div><div class="v-foot"><span>${String(escapeHtml(formatDate(p.created_at)))}</span><span class="cta">${(globalThis.PlatformLanguage?.htmlText("projects","m_589c6431619da0","View ") ?? "View ")}<i class="fas fa-chevron-right"></i></span></div></div>`;
+    div.innerHTML = `<div class="v-thumb${String((!hasThumbnail && isProcessing) ? ' loading' : '')}"><img src="${String(escapeHtml(thumbSrc))}" loading="lazy" alt="">${String(typeBadge)}${String(deliveryBadge)}${String(gutterThumbBadgeHtml(p))}${String(statusBadge)}</div><div class="v-body"><div class="v-addr">${String(displayAddress(p))}</div><div class="v-meta"><i class="fas fa-user"></i> ${String(escapeHtml(contact.displayName || contact.name || (globalThis.PlatformLanguage?.text('projects','fm_contact_unavailable','Not provided') ?? 'Not provided')))}</div><div class="v-foot"><span>${String(escapeHtml(formatDate(p.created_at)))}</span><span class="v-card-end">${cameraButtonHtml(id)}<span class="cta">${(globalThis.PlatformLanguage?.htmlText("projects","m_589c6431619da0","View ") ?? "View ")}<i class="fas fa-chevron-right"></i></span></span></div></div>`;
     div.querySelector('.v-body')?.insertAdjacentHTML('beforeend', projectSharingView()?.badge(p) || '');
     div.addEventListener('click', ()=>openModal(lastProjectsById.get(id) || p));
 
@@ -5921,17 +6100,17 @@
     const rowTags = `${groupedByStage ? '' : stageChipsHtml(p)}${instantMetaTagHtml(p)}${expediteTag}${projectIncludesGutters(p) ? `<span class="v-meta-tag v-meta-tag-addon" data-role="gutter-meta-row"><i class="fas fa-water"></i>${(globalThis.PlatformLanguage?.htmlText("projects","m_7aebd8c2405a7e"," Roof + Gutters") ?? " Roof + Gutters")}</span>` : ''}`;
     const reportStatus = statusBadgeClasses(p);
     const cells={
-      status:`<div class="v-lcell" data-col="status">${reportStatus ? `<span class="v-statuspill ${reportStatus.pill}">${statusBadgeContent(reportStatus, true)}</span>` : '&mdash;'}</div>`,
+      status:`<div class="v-lcell" data-col="status"${reportStatus ? '' : ' data-empty'}>${reportStatus ? `<span class="v-statuspill ${reportStatus.pill}">${statusBadgeContent(reportStatus, true)}</span>` : '&mdash;'}</div>`,
       address:`<div class="v-lcell" data-col="address" style="min-width:0;"><div class="v-laddr"><div class="v-laddr1">${escapeHtml(a1)}</div><div class="v-laddr2">${escapeHtml(a2)}</div>${rowTags ? `<div class="v-meta-tags">${rowTags}</div>` : ''}</div></div>`,
-      resident:`<div class="v-lcell" data-col="resident" style="min-width:0;"><div style="font-weight:1000; font-size:13px; line-height:1.2;">${escapeHtml(resident.name || '\u2014')}</div></div>`
+      resident:`<div class="v-lcell" data-col="resident" style="min-width:0;"${resident.name ? '' : ' data-empty'}><div style="font-weight:1000; font-size:13px; line-height:1.2;">${escapeHtml(resident.name || '\u2014')}</div></div>`
     };
     row.innerHTML=availableProjectColumns().filter((column)=>listVisibleColumns.has(column.key)).map((column)=>{
       if (cells[column.key]) return cells[column.key];
       if (p.board_field_errors?.[column.key]) return `<div class="v-lcell" data-col="${escapeHtml(column.key)}">${(globalThis.PlatformLanguage?.htmlText("projects","m_ce86fe78082565","Unavailable") ?? "Unavailable")}</div>`;
       const value = projectColumnValue(p, column.key);
       const text = value != null && ['date','datetime'].includes(column.type) ? formatStageDate(value) : columnValueText(value);
-      return `<div class="v-lcell" data-col="${escapeHtml(column.key)}">${escapeHtml(text)}</div>`;
-    }).join('');
+      return `<div class="v-lcell" data-col="${escapeHtml(column.key)}"${text === '\u2014' ? ' data-empty' : ''}>${escapeHtml(text)}</div>`;
+    }).join('') + cameraButtonHtml(id);
     row.querySelector('.v-laddr')?.insertAdjacentHTML('beforeend', projectSharingView()?.badge(p) || '');
     const movable = allowDrag && manualStageMovementEnabled() && canManageProjectStages() && !!p.plan_id && !!p.stage_id;
     row.draggable = movable;
@@ -6112,7 +6291,7 @@
   // says why: no projects yet, or none that match the filters.
   function renderMapView(results, empty = ''){
     if (!window.FirstMateProjectsMap) { results.innerHTML = ''; return; }
-    window.FirstMateProjectsMap.update(results, { ...mapViewModel(), empty, ...(empty === 'none' && canStartProject() ? { create:() => startNewProject() } : {}) });
+    window.FirstMateProjectsMap.update(results, { ...mapViewModel(), empty, ...(empty === 'none' && canStartProject() ? { create:() => startNewProject() } : {}), ...(cameraAvailable() ? { camera:(project) => openProjectCamera(project?.id) } : {}) });
   }
   function renderResults(){
     const results = $('#vResults', panelEl); if (!results) return;
@@ -6225,16 +6404,17 @@
           if (pill.innerHTML !== html) pill.innerHTML = html;
         } else if (pill && !s) {
           const statusCell = row.querySelector('[data-col="status"]');
-          if (statusCell) statusCell.textContent = String.fromCharCode(8212); else pill.remove();
+          if (statusCell) { statusCell.textContent = String.fromCharCode(8212); statusCell.setAttribute('data-empty', ''); } else pill.remove();
         } else if (!pill && s) {
           const target = row.querySelector('[data-col="status"]') || row.querySelector('.v-lcell');
-          if (target?.dataset.col === 'status') target.innerHTML = `<span class="v-statuspill ${s.pill}">${statusBadgeContent(s, true)}</span>`;
+          if (target?.dataset.col === 'status') { target.innerHTML = `<span class="v-statuspill ${s.pill}">${statusBadgeContent(s, true)}</span>`; target.removeAttribute('data-empty'); }
           else target?.insertAdjacentHTML('afterbegin', `<span class="v-statuspill ${s.pill}">${statusBadgeContent(s, true)}</span>`);
         }
         const d = row.querySelector('[data-col="created_at"]');
         if (d) d.textContent = formatDate(project.created_at);
         const residentCols = row.querySelector('[data-col="resident"]')?.querySelectorAll('div');
         if (residentCols?.[0]) residentCols[0].textContent = resident.displayName || resident.name || '\u2014';
+        row.querySelector('[data-col="resident"]')?.toggleAttribute('data-empty', !(resident.displayName || resident.name));
         if (residentCols?.[1]) residentCols[1].textContent = (resident.displayDetail || '').toString();
         const addr = row.querySelector('.v-laddr');
         if (addr){
@@ -7567,6 +7747,7 @@
 
   function mount(panel){
     panelEl = panel;
+    chromeObserver?.disconnect(); chromeObserver = null;
     listColumnsBoardKey = '';
     injectCSS('viewer', ViewerCSS);
     injectSidebarLogout();
@@ -7580,14 +7761,15 @@
 
     panelEl.innerHTML = `
       <div class="v-wrap">
+        <div class="v-chrome">
         <div class="v-head" data-app-header>
           <div class="v-title"><i class="fas fa-folder-open" aria-hidden="true"></i><h1>${(globalThis.PlatformLanguage?.htmlText("projects","m_1a8d3340c06415","My Projects") ?? "My Projects")}</h1></div>
           <div class="v-actions">
             <div class="v-view-switch" role="group" aria-label="${(globalThis.PlatformLanguage?.htmlText("projects","m_200131262770e4","Project view") ?? "Project view")}">
-            <button class="v-btn v-pill" id="vViewStages" data-app-subview="portal.viewer:stages" hidden><i class="fas fa-table-columns"></i><span class="btn-label">${(globalThis.PlatformLanguage?.htmlText("projects","m_1fae2f2aa8a59c"," Stages") ?? " Stages")}</span></button>
-            <button class="v-btn v-pill" id="vViewList" data-app-subview="portal.viewer:list"><i class="fas fa-list"></i><span class="btn-label">${(globalThis.PlatformLanguage?.htmlText("projects","m_d9f8d11bfbd0a9"," List") ?? " List")}</span></button>
-            <button class="v-btn v-pill" id="vViewTiles" data-app-subview="portal.viewer:tiles"><i class="fas fa-grip"></i><span class="btn-label">${(globalThis.PlatformLanguage?.htmlText("projects","m_073de0eb54464f"," Tiles") ?? " Tiles")}</span></button>
-            <button class="v-btn v-pill" id="vViewMap" data-app-subview="portal.viewer:map" hidden><i class="fas fa-map-location-dot"></i><span class="btn-label">${(globalThis.PlatformLanguage?.htmlText("projects","m_9afd0eccc8e530","Map") ?? "Map")}</span></button>
+            <button class="v-btn v-pill" id="vViewStages" aria-label="${String((globalThis.PlatformLanguage?.htmlText("projects","m_1fae2f2aa8a59c"," Stages") ?? " Stages")).trim()}" data-app-subview="portal.viewer:stages" hidden><i class="fas fa-table-columns"></i><span class="btn-label">${(globalThis.PlatformLanguage?.htmlText("projects","m_1fae2f2aa8a59c"," Stages") ?? " Stages")}</span></button>
+            <button class="v-btn v-pill" id="vViewList" aria-label="${String((globalThis.PlatformLanguage?.htmlText("projects","m_d9f8d11bfbd0a9"," List") ?? " List")).trim()}" data-app-subview="portal.viewer:list"><i class="fas fa-list"></i><span class="btn-label">${(globalThis.PlatformLanguage?.htmlText("projects","m_d9f8d11bfbd0a9"," List") ?? " List")}</span></button>
+            <button class="v-btn v-pill" id="vViewTiles" aria-label="${String((globalThis.PlatformLanguage?.htmlText("projects","m_073de0eb54464f"," Tiles") ?? " Tiles")).trim()}" data-app-subview="portal.viewer:tiles"><i class="fas fa-grip"></i><span class="btn-label">${(globalThis.PlatformLanguage?.htmlText("projects","m_073de0eb54464f"," Tiles") ?? " Tiles")}</span></button>
+            <button class="v-btn v-pill" id="vViewMap" aria-label="${String((globalThis.PlatformLanguage?.htmlText("projects","m_9afd0eccc8e530","Map") ?? "Map")).trim()}" data-app-subview="portal.viewer:map" hidden><i class="fas fa-map-location-dot"></i><span class="btn-label">${(globalThis.PlatformLanguage?.htmlText("projects","m_9afd0eccc8e530","Map") ?? "Map")}</span></button>
             </div>
             <div class="v-manage-wrap" id="vManageViewWrap"><button type="button" class="v-btn v-pill" id="vManageView" aria-label="${(globalThis.PlatformLanguage?.htmlText("projects","m_f8e16243e0f91c","Manage view") ?? "Manage view")}" aria-expanded="false" aria-controls="vManageViewPanel"><i class="fas fa-sliders" aria-hidden="true"></i><span class="btn-label">${(globalThis.PlatformLanguage?.htmlText("projects","m_f8e16243e0f91c","Manage view") ?? "Manage view")}</span></button><div class="v-manage-panel" id="vManageViewPanel" hidden></div></div>
           </div>
@@ -7598,6 +7780,7 @@
             <div class="v-stages-summary" id="vWorkBoardSummary" aria-label="${(globalThis.PlatformLanguage?.htmlText("projects","m_b87462801059df","Active work board") ?? "Active work board")}"></div>
           </div>
 
+        </div>
         </div>
         <div id="vResults"><div class="v-grid" id="vGrid"><div style="grid-column:1/-1; text-align:center; color:#999; padding:40px 0; font-weight:900;"><i class="fas fa-spinner fa-spin" style="font-size:22px; margin-bottom:10px;"></i><br>${(globalThis.PlatformLanguage?.htmlText("projects","m_63e5f4717baad3","Loading projects…") ?? "Loading projects…")}</div></div></div>
         <div id="vPagination" class="v-pagination"></div>
@@ -7664,6 +7847,7 @@
       </div>
     `;
 
+    if (!panelEl.__vCameraBound) { panelEl.__vCameraBound = true; bindProjectCamera(panelEl); }
     const reportSearch = $('#vReportSearch', panelEl);
     if (reportSearch) {
       reportSearch.value = reportSearchQuery;
