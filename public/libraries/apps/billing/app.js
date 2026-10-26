@@ -467,8 +467,17 @@ window.PlatformCommerce.onReady(function(){
     }
   `;
 
+  /* A pending order belongs to the organization and person who placed it; another account signed in on this
+     browser never sees or submits it, and an order that does not say whose it is is ignored. */
   function readPending(){
-    try{ const raw = localStorage.getItem(PENDING_ORDER_KEY); return raw ? JSON.parse(raw) : null; }catch(e){ return null; }
+    try{
+      const pending = JSON.parse(localStorage.getItem(PENDING_ORDER_KEY) || 'null');
+      const app = window.__APP || {};
+      const orgId = String(app.userOrgId || '').trim();
+      const userId = String(app.userId || '').trim() || String(app.userEmail || '').trim().toLowerCase();
+      if (!pending || !orgId || !userId) return null;
+      return String(pending.organization_id || '') === orgId && String(pending.user_id || '') === userId ? pending : null;
+    }catch(e){ return null; }
   }
   function clearPending(){ try{ localStorage.removeItem(PENDING_ORDER_KEY); }catch(e){} }
   function hasPendingOrder(){

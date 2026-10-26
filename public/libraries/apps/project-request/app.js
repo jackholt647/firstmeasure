@@ -10451,6 +10451,9 @@ window.PlatformCommerce.onReady(async function(){
     const obj = {
       v: 3,
       ts: Date.now(),
+      // Whose order it is: another account signed in on this browser must never see or submit it (billing readPending).
+      organization_id: String(window.__APP?.userOrgId || '').trim(),
+      user_id: String(window.__APP?.userId || '').trim() || String(window.__APP?.userEmail || '').trim().toLowerCase(),
       fields: {
         address: ($('#rAddress').value || '').trim(),
         residentName: primary.name || '',

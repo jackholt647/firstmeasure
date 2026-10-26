@@ -137,24 +137,43 @@
 
   window.Portal.ProjectViewer = ProjectViewer;
 
+  /* One cache per organization and person: one browser may be signed in to several accounts in turn, and
+   * one account's projects (and their contacts) must never be offered to another. The cache records whose it
+   * is and is ignored on any mismatch; with no known organization and person nothing is read or written.
+   * The old browser-wide cache is dropped unread. */
   const STORE_KEY = 'fm_platform_project_store_v1';
+  try { localStorage.removeItem(STORE_KEY); } catch (e) {}
+  const storeOwner = () => {
+    const app = window.__APP || {};
+    const orgId = String(app.userOrgId || app.orgId || '').trim();
+    const userId = String(app.userId || '').trim() || String(app.userEmail || '').trim().toLowerCase();
+    return orgId && userId ? { orgId, userId, key: `${STORE_KEY}:${orgId}:${userId}` } : null;
+  };
 
   const readStore = () => {
+    const empty = { projects: {}, measurementIndex: {} };
+    const owner = storeOwner();
+    if (!owner) return empty;
     try {
-      const parsed = JSON.parse(localStorage.getItem(STORE_KEY) || '{}');
+      const parsed = JSON.parse(localStorage.getItem(owner.key) || '{}');
+      if (!parsed || parsed.org_id !== owner.orgId || parsed.user_id !== owner.userId) return empty;
       return {
         projects: parsed && typeof parsed.projects === 'object' ? parsed.projects : {},
         measurementIndex: parsed && typeof parsed.measurementIndex === 'object' ? parsed.measurementIndex : {}
       };
     } catch (e) {
-      return { projects: {}, measurementIndex: {} };
+      return empty;
     }
   };
 
   const writeStore = (store) => {
+    const owner = storeOwner();
+    if (!owner) return;
     try {
-      localStorage.setItem(STORE_KEY, JSON.stringify({
+      localStorage.setItem(owner.key, JSON.stringify({
         version: 1,
+        org_id: owner.orgId,
+        user_id: owner.userId,
         projects: store.projects || {},
         measurementIndex: store.measurementIndex || {}
       }));

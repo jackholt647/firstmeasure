@@ -2394,6 +2394,10 @@ export const registerFirstMeasureApi: FastifyPluginAsync = async (app) => {
         team_id: String(auth.user.team_id || auth.branchId || ''), roles: [] };
       input.filter = ['mine', 'org', 'team'].includes(String(input.filter)) ? input.filter : 'org';
       input.refresh_authority = { user: auth.userId, org: auth.orgId, permissions: auth.permissions, role: auth.role };
+      // The portal's list is the session organization's, whoever asks: a staff member signed in to a customer
+      // organization must not be shown (nor have the portal import) reports another organization ordered under
+      // their email, which the `org` and `mine` filters would otherwise match.
+      return buildProjectsListResponse(input, request, auth.orgId);
     }
     return buildProjectsListResponse(input, request, organizationScope(request));
 

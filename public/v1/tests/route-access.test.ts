@@ -138,6 +138,38 @@ test("a customer reaches only their own organization's projects", async () => {
   assert.equal((await inject("GET", "/v1/internal/users", { cookie: b.cookie })).statusCode, 403);
 });
 
+test("the portal's project list is the session organization's, even for a staff member", async () => {
+  const storage = await import("../platform/storage.js");
+  const internal = await import("../internal/storage.js");
+  const a = await customer("foxtrot");
+  const portal = await customer("golf");
+  // A staff member who also belongs to golf, signed in to golf's portal, ordered a report for foxtrot.
+  const staffOrg = "legacy_internal";
+  await storage.createOrganization({ id: staffOrg, name: "Internal Staff" }).catch(() => undefined);
+  const email = `golf-staff-${randomUUID()}@firstmate.example.test`;
+  const identity = await storage.createIdentity({ email, name: "Golf staff", memberships: [{ organization_id: staffOrg, user_id: "golf_staff" }, { organization_id: portal.orgId, user_id: "golf_staff" }] });
+  for (const orgId of [staffOrg, portal.orgId]) {
+    await storage.upsertDocument(orgId, "users", { id: "golf_staff", data: { identity_id: identity.id, email, name: "Golf staff", status: "active", org_permissions: { level: "owner", items: {} } } });
+  }
+  await internal.saveInternalUser({ email, name: "Golf staff", role: "admin", status: "active", account_type: "employee" });
+  const session = await storage.createAuthSession({ identity_id: identity.id, organization_id: portal.orgId, user_id: "golf_staff", role: "owner" });
+  const cookie = cookieFor(session.sessionId);
+  const { createProject } = await import("../firstmeasure/storage.js");
+  const created: any = await createProject({ address: "6 Foxtrot Street, Mobile, AL", organization_id: a.orgId, organization_ref: { id: a.orgId }, owner_email: email, issuer: { email }, amount_charged: 12 } as any);
+  const foreignProject = String(created.manifest?.id ?? created.id);
+  const ownProject = await project(portal.orgId, "7 Golf Lane, Mobile, AL");
+
+  for (const filter of ["org", "mine", "all", undefined]) {
+    const listed = await inject("POST", "/v1/firstmeasure/projects/list", { cookie }, { refresh: true, filter, page: 1, limit: 100, include_all: true, include_instant_only: true });
+    assert.equal(listed.statusCode, 200, listed.body);
+    const body = listed.json();
+    const ids = [...(body.projects ?? []), ...(body.refresh?.projects ?? [])].map((row: any) => String(row.id ?? row.project?.manifest?.id ?? row.folder ?? ""));
+    const order = (body.refresh?.order ?? []).map(String);
+    assert.ok(!ids.includes(foreignProject) && !order.includes(foreignProject), `the golf portal listed foxtrot's report with filter ${filter}`);
+    if (filter !== "mine") assert.ok(ids.includes(ownProject) || order.includes(ownProject), `the golf portal lost its own report with filter ${filter}`);
+  }
+});
+
 test("a customer's project changes are limited to the customer info fields", async () => {
   const a = await customer("charlie");
   const id = await project(a.orgId, "3 Charlie Court, Mobile, AL");

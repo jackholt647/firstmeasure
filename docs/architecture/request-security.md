@@ -184,7 +184,17 @@ change this project*:
 
 Listing and search routes take the organization and actor from the principal
 and narrow `filter` to what the caller holds; a customer's `filter` is one of
-`mine`, `team` or `org`, inside their own organization.
+`mine`, `team` or `org`, inside their own organization. The portal's list
+(`projects/list` with `refresh: true`) is limited to the session's
+organization for every caller, staff included, so reports another
+organization ordered under a staff member's email are never listed in (or
+imported into) the organization they are signed in to.
+
+**Browser caches.** One browser may be signed in to several accounts in turn.
+Anything a page keeps in `localStorage` about projects or orders is filed
+under the organization and person (`fm_platform_project_store_v1:<org>:<user>`,
+the pending order's `organization_id` and `user_id`), is ignored on any
+mismatch, and is not kept at all when the page does not know both.
 
 Customer writes to a project accept an explicit list of fields
 (`CUSTOMER_PROJECT_PATCH_FIELDS`, today the Customer info card's `resident`).
