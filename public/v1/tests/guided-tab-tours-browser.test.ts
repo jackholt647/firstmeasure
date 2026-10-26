@@ -15,9 +15,13 @@ const dir = await mkdtemp(path.join(os.tmpdir(), "guided-tab-tours-browser-"));
 Object.assign(process.env, { NODE_ENV: "test", PLATFORM_STORAGE_ROOT: path.join(dir, "platform"), PRICEBOOK_STORAGE_ROOT: path.join(dir, "pricebook"), FIRSTMEASURE_STORAGE_ROOT: path.join(dir, "firstmeasure"), FIRSTMEASURE_INDEX_DB_PATH: path.join(dir, "index.sqlite"), PLATFORM_HEARTBEAT_DISABLED: "1" });
 
 const ORG = "org_tab_tours_browser";
-const CAPABILITIES = { "platform.project_photos": true, "apps.firstmeasure": true, "platform.customer_portal": true };
+// The tabs, and the features their gated steps name (step eligibility), all on.
+const CAPABILITIES = { "platform.project_photos": true, "apps.firstmeasure": true, "platform.customer_portal": true,
+  "firstmeasure.measurement_report_summary": true, "firstmeasure.report_followup": true, "scheduling.customer_rescheduling": true, "customer_portal.guest_links": true, "platform.customer_portal_media": true };
 const core = await readFile(new URL("../../libraries/guided-experiences/guided-experiences.js", import.meta.url), "utf8");
-const person = (userId: string) => ({ orgId: ORG, userId, role: "member", permissions: { view_projects: true }, branchId: "default", organization: { data: {} }, capabilities: { effectiveByKey: CAPABILITIES } }) as any;
+/** Per-person capability changes over CAPABILITIES. */
+const OVERRIDES: Record<string, Record<string, boolean>> = {};
+const person = (userId: string) => ({ orgId: ORG, userId, role: "member", permissions: { view_projects: true }, branchId: "default", organization: { data: {} }, capabilities: { effectiveByKey: { ...CAPABILITIES, ...OVERRIDES[userId] } } }) as any;
 
 const TABS = {
   photos: {
@@ -167,6 +171,16 @@ test("reports: a report without its model or support yet skips those steps", asy
   try {
     await opened(page, TABS.reports.app);
     assert.deepEqual(await walk(page, TABS.reports.id), ["Welcome to Reports", "The full report", "Customer version", "Summary", "You're all set"]);
+    assert.deepEqual(errors, []);
+  } finally { await page.close(); }
+});
+
+test("reports: with report follow-up off the Support step is never played, even with its button on the page", async () => {
+  OVERRIDES.user_reports_no_support = { "firstmeasure.report_followup": false };
+  const { page, errors } = await open(TABS.reports, "user_reports_no_support");
+  try {
+    await opened(page, TABS.reports.app);
+    assert.deepEqual(await walk(page, TABS.reports.id), ["Welcome to Reports", "The full report", "Customer version", "3D model", "Summary", "You're all set"]);
     assert.deepEqual(errors, []);
   } finally { await page.close(); }
 });

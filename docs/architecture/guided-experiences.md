@@ -47,7 +47,11 @@ An **experience** (`experienceSchema`):
   `subtitle`, `say` (the agent's lines, programmatic), `options` (fixed data) or
   `source` (filled on the server), `selects` (the keys it writes), `required`.
   Either kind may have `next`: a step id, or `branches` whose `when` reads
-  `selections.*`, decided on the server with `work/conditions.ts`.
+  `selections.*`, decided on the server with `work/conditions.ts`. Either kind
+  may have `eligibility` (`capabilities`, `permissions`, each required, `a|b`
+  either), checked like an experience's when it is resolved: a step the person
+  cannot have is never sent, so a setup plays without it and a tour never points
+  at a feature the organization has off.
 - `completion`: `action` (a published action run as the person with the
   selections as input, plus fixed `input`), `say`, and `then`: `handoff:
   assistant_tray`, `resume` (let the held click through), `play` (another
@@ -400,7 +404,13 @@ page, such as a report's model before it is ready, is skipped) and an outro
 pointing at "Show me the tutorial again". That replay question is added to the
 tab's existing questions with `addTabFaqs`, which merges with
 `registerTabFaqs` in either order and keeps the limit of eight; a file never
-edits another file's questions. There is no Docs tour yet: the Documents tab
+edits another file's questions. A step on a feature the organization can
+switch off names its capability in its `eligibility`, so it is never sent where
+the feature is off rather than relying on the control being missing: Reports'
+Summary (`firstmeasure.measurement_report_summary`) and Support
+(`firstmeasure.report_followup`), the portal's customer options
+(`scheduling.customer_rescheduling|customer_portal.guest_links`) and the photos
+the customer sees (`platform.customer_portal_media`). There is no Docs tour yet: the Documents tab
 is being reworked first. `tests/guided-tab-tours.test.ts` checks the data and
 that every target's hooks are in the tab's source;
 `tests/guided-tab-tours-browser.test.ts` plays each tour against the real
@@ -439,7 +449,9 @@ Materials tab audit (October 24), button to published action:
    register it from `ensureGuidedDefinitions` in `service.ts`.
 2. Copy: new `gx_…` keys for every text.
 3. Overlay targets: stable attributes (`data-…`), never generated classes. A step
-   whose target is missing is skipped, so a tour survives a hidden button.
+   whose target is missing is skipped, so a tour survives a hidden button; a step
+   about a feature that can be switched off also names its capability in the
+   step's `eligibility`.
 4. Setups: a widget per step; data from a `registerGuidedSource` on the server;
    what is written is a published action named in `completion.action`.
 5. Pick eligibility (capabilities and permissions, not configurations) and

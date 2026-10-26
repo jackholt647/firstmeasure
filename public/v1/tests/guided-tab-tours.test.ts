@@ -108,6 +108,48 @@ test("a fresh organization's people get each tour on first view where the tab is
   }
 });
 
+// Steps on features an organization can switch off, and the capability each names (step eligibility, checked on the
+// server). `a|b` is either.
+const GATED = [
+  { tour: "reports.tab_tutorial", tab: "project.measurements", step: "support", capability: "firstmeasure.report_followup" },
+  { tour: "reports.tab_tutorial", tab: "project.measurements", step: "summary", capability: "firstmeasure.measurement_report_summary" },
+  { tour: "customer_portal.tab_tutorial", tab: "project.customer_portal", step: "options", capability: "scheduling.customer_rescheduling|customer_portal.guest_links" },
+  { tour: "customer_portal.tab_tutorial", tab: "project.customer_portal", step: "media", capability: "platform.customer_portal_media" }
+];
+
+test("a step on a feature that can be switched off names a registered capability", async () => {
+  const service = await import("../guided-experiences/service.js"), { experience } = await import("../guided-experiences/registry.js"), { capabilityDefinition } = await import("../platform/capabilities.js");
+  service.ensureGuidedDefinitions();
+  for (const entry of TOURS) for (const step of experience(entry.id)!.steps as any[]) {
+    const gate = GATED.find((item) => item.tour === entry.id && item.step === step.id);
+    assert.deepEqual(step.eligibility?.capabilities ?? [], gate ? [gate.capability] : [], `${entry.id}/${step.id} eligibility`);
+    for (const key of (gate?.capability || "").split("|").filter(Boolean)) assert.ok(capabilityDefinition(key), `${key} is a registered capability`);
+  }
+});
+
+test("a tour is served without a step whose feature is off, and with it when it is on", async () => {
+  const service = await import("../guided-experiences/service.js");
+  const stepsFor = async (userId: string, tour: string, tab: string, capabilities: Record<string, boolean>) => {
+    const listed = await service.availableExperiences(person(userId, capabilities), { tab, projectId: "p1" });
+    return listed.experiences.find((item) => item.id === tour)!.steps.map((step: any) => step.id);
+  };
+  const everyGate = Object.fromEntries(GATED.flatMap((gate) => gate.capability.split("|")).map((key) => [key, true]));
+  for (const gate of GATED) {
+    const off = { ...ALL_ON, ...everyGate, ...Object.fromEntries(gate.capability.split("|").map((key) => [key, false])) };
+    assert.equal((await stepsFor("gate_off", gate.tour, gate.tab, off)).includes(gate.step), false, `${gate.tour}/${gate.step} is not sent without ${gate.capability}`);
+    assert.ok((await stepsFor("gate_on", gate.tour, gate.tab, { ...ALL_ON, ...everyGate })).includes(gate.step), `${gate.tour}/${gate.step} is sent with ${gate.capability}`);
+    for (const key of gate.capability.split("|")) {
+      const one = { ...off, [key]: true };
+      assert.ok((await stepsFor("gate_one", gate.tour, gate.tab, one)).includes(gate.step), `${gate.tour}/${gate.step} is sent with ${key} alone`);
+    }
+  }
+  // Reports with Support off (the default, and the MVP platform's): every other step still plays, in order.
+  assert.deepEqual(await stepsFor("support_off", "reports.tab_tutorial", "project.measurements", { ...ALL_ON, "firstmeasure.measurement_report_summary": true, "firstmeasure.report_followup": false }), ["intro", "standard", "customer", "model", "summary", "outro"]);
+  assert.deepEqual(await stepsFor("support_on", "reports.tab_tutorial", "project.measurements", { ...ALL_ON, "firstmeasure.measurement_report_summary": true, "firstmeasure.report_followup": true }), ["intro", "standard", "customer", "model", "summary", "support", "outro"]);
+  // A fresh organization resolves its own capabilities: report follow-up is off by default, so there is no Support step.
+  assert.equal((await service.availableExperiences(person("fresh_reports", null), { tab: "project.measurements" })).experiences.find((item) => item.id === "reports.tab_tutorial")!.steps.some((step: any) => step.id === "support"), false);
+});
+
 test("finishing a tour disarms its first-view trigger; the replay chip still plays it", async () => {
   const service = await import("../guided-experiences/service.js");
   const ann = person("ann", ALL_ON);

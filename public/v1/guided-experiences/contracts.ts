@@ -22,6 +22,18 @@ const next = z.union([id, z.object({ branches: z.array(z.object({ when: conditio
 export const KINDS = ["overlay", "modal", "agentic"] as const;
 export type ExperienceKind = (typeof KINDS)[number];
 
+/**
+ * Who gets a step, like an experience's eligibility, checked on the server when the experience is resolved: a person
+ * without these capabilities or permissions is never sent the step, so a setup plays without it (the labor step needs
+ * groups of users or outside companies) and a tour never points at a feature the organization has off. Never a
+ * configuration check.
+ */
+const stepEligibility = z.object({
+  capabilities: z.array(z.string().max(120)).max(12).default([]),
+  /** Each entry is required; an entry may be a|b; a capability entry may be a|b too. */
+  permissions: z.array(z.string().max(200)).max(8).default([])
+}).strict().optional();
+
 const overlayStep = z.object({
   id,
   title: copySchema,
@@ -33,6 +45,8 @@ const overlayStep = z.object({
   advance: z.enum(["next", "click"]).default("next"),
   /** How long to wait for a target to appear before the step is skipped. */
   wait_ms: z.number().int().min(0).max(10000).default(1500),
+  /** A step about a feature that can be switched off names its capability here (Reports' Support view). */
+  eligibility: stepEligibility,
   next: next.optional()
 }).strict();
 
@@ -54,15 +68,7 @@ const setupStep = z.object({
   agent_note: copySchema.optional(),
   /** An upload offered inside one of the step's agent lines (`line` names its copy key); the file goes to the real assistant. */
   upload: z.object({ line: z.string().regex(/^gx_[a-z0-9_]{2,90}$/), button: copySchema, message: copySchema, accept: z.string().max(200).default("") }).strict().optional(),
-  /**
-   * Who gets this step, like an experience's eligibility: a person without these capabilities or permissions plays
-   * the setup without it (the labor step needs groups of users or outside companies). Never a configuration check.
-   */
-  eligibility: z.object({
-    capabilities: z.array(z.string().max(120)).max(12).default([]),
-    /** Each entry is required; an entry may be a|b; a capability entry may be a|b too. */
-    permissions: z.array(z.string().max(200)).max(8).default([])
-  }).strict().optional(),
+  eligibility: stepEligibility,
   next: next.optional()
 }).strict();
 

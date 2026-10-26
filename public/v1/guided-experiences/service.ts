@@ -89,8 +89,8 @@ async function resolve(definition: ExperienceDefinition, ctx: PlatformAuthContex
   const steps = [];
   for (const stepId of order) {
     const step = definition.steps.find((entry) => entry.id === stepId)!;
-    // A step the person cannot have is left out of their setup (and so is its source).
-    if (!(await allowed(ctx, (step as { eligibility?: { capabilities?: string[]; permissions?: string[] } }).eligibility))) continue;
+    // A step the person cannot have is left out of their setup or tour (and so is its source): it is never sent.
+    if (!(await allowed(ctx, step.eligibility))) continue;
     let options: Record<string, unknown> = { ...object((step as { options?: unknown }).options), ...object(variant.content[step.id]) };
     const sourceId = (step as { source?: string }).source;
     if (sourceId) {
