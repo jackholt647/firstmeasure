@@ -21,7 +21,7 @@ for(const [width,height] of [[320,568],[390,844],[720,500],[740,900],[760,900],[
  if(process.env.EVIDENCE_DIR)await page.screenshot({path:process.env.EVIDENCE_DIR+'/first-'+width+'.png'});
  if(width<=760){
   assert.deepEqual(first,{x:0,y:0,width,height});
-  assert.deepEqual(await page.evaluate(rect,'.fm-pr-close'),{x:width-52,y:8,width:44,height:44});
+  assert.deepEqual(await page.evaluate(rect,'.fm-pr-close'),{x:width-44,y:6,width:36,height:36});
   assert.equal(await page.locator('.fm-pr-tabs').evaluate(e=>getComputedStyle(e).visibility),'hidden');
   assert.equal(await page.locator('.fm-pr-content').evaluate(e=>getComputedStyle(e).backgroundColor),'rgb(255, 255, 255)');
  }else{assert.ok(first.y>0);assert.ok(first.width<width);}
@@ -35,7 +35,7 @@ for(const [width,height] of [[320,568],[390,844],[720,500],[740,900],[760,900],[
   assert.deepEqual(await page.evaluate(rect,'.fm-project-frame'),first);
   assert.equal((await page.evaluate(rect,'.fm-project-loading-header')).y,0);
   assert.equal(await page.locator('.fm-project-window-loading').evaluate(e=>getComputedStyle(e).gap),'0px');
-  assert.deepEqual(await page.evaluate(rect,'[data-window-action=close]'),{x:width-52,y:8,width:44,height:44});
+  assert.deepEqual(await page.evaluate(rect,'[data-window-action=close]'),{x:width-44,y:6,width:36,height:36});
   assert.equal(await page.locator('[data-window-action=minimize]').isVisible(),false);
  }
  await page.setViewportSize({width:390,height:600});

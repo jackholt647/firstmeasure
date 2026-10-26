@@ -1880,15 +1880,15 @@ session_write_close();
         /* Match the mobile window from first paint, before project capabilities arrive. */
         #fmProjectRoutePrecover{align-items:stretch!important;justify-content:stretch!important;padding:0!important;background:#fff!important;backdrop-filter:none!important}
         #fmProjectRoutePrecover .fm-pr-shell{position:relative;width:100%;height:100%;border-radius:0;box-shadow:none}
-        #fmProjectRoutePrecover .fm-pr-title{order:-1;box-sizing:content-box;height:60px;min-height:60px;padding:var(--fm-window-safe-top,env(safe-area-inset-top,0px)) 64px 0 16px;border:0;display:flex;align-items:center;background:#fff;font-size:18px;font-weight:800;color:#101828}
+        #fmProjectRoutePrecover .fm-pr-title{order:-1;box-sizing:content-box;height:48px;min-height:48px;padding:var(--fm-window-safe-top,env(safe-area-inset-top,0px)) 96px 0 14px;border:0;display:flex;align-items:center;background:#fff;font-size:16px;font-weight:800;color:#101828}
         #fmProjectRoutePrecover .fm-pr-current{display:none}
         #fmProjectRoutePrecover .fm-pr-project{display:flex;align-items:center;gap:8px;min-width:0;overflow:hidden;white-space:nowrap}
         #fmProjectRoutePrecover .fm-pr-project:before{content:'\f07c';font-family:'Font Awesome 6 Free';font-weight:900;color:var(--primary,#d93025)}
         #fmProjectRoutePrecover .fm-pr-project i{display:none}
-        #fmProjectRoutePrecover .fm-pr-header{height:32px;min-height:32px;border:0;border-bottom:1px solid #e4e7ec}
+        #fmProjectRoutePrecover .fm-pr-header{height:42px;min-height:42px;border:0;border-top:1px solid #f2f4f7;border-bottom:1px solid #e4e7ec}
         /* Do not flash a fabricated eight-tab menu before permissions/configuration load. */
         #fmProjectRoutePrecover .fm-pr-tabs{visibility:hidden}
-        #fmProjectRoutePrecover .fm-pr-close{position:absolute;top:calc(var(--fm-window-safe-top,env(safe-area-inset-top,0px)) + 8px);right:8px;box-sizing:border-box;width:44px;height:44px;border:1px solid #e4e7ec;border-radius:14px;background:#fff;color:#101828;font-size:24px;cursor:pointer}
+        #fmProjectRoutePrecover .fm-pr-close{position:absolute;top:calc(var(--fm-window-safe-top,env(safe-area-inset-top,0px)) + 6px);right:8px;box-sizing:border-box;width:36px;height:36px;border:1px solid #e4e7ec;border-radius:11px;background:#fff;color:#101828;font-size:20px;cursor:pointer}
         #fmProjectRoutePrecover .fm-pr-body{display:block;background:#fff}
         #fmProjectRoutePrecover .fm-pr-left{display:none}
         #fmProjectRoutePrecover .fm-pr-content{height:100%;padding:0;background:#fff}
@@ -2360,6 +2360,7 @@ session_write_close();
   <script src="../libraries/apps/projects/map-view.js?v=<?= portalAssetVersion('../libraries/apps/projects/map-view.js') ?>"></script>
   <script src="../libraries/apps/projects/viewer.js?v=<?= portalAssetVersion('../libraries/apps/projects/viewer.js') ?>"></script>
   <script src="../libraries/apps/photos/feed.js?v=<?= portalAssetVersion('../libraries/apps/photos/feed.js') ?>"></script>
+  <script src="../libraries/camera-capture/camera-capture.js?v=<?= portalAssetVersion('../libraries/camera-capture/camera-capture.js') ?>"></script>
   <?php if ($platformExpandedAssets): ?>
   <script src="../libraries/apps/receipts/app.js?v=<?= portalAssetVersion('../libraries/apps/receipts/app.js') ?>"></script>
   <?php endif; ?>

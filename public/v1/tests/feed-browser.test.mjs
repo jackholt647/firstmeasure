@@ -496,10 +496,12 @@ test('feed layouts, upload collages, comments, reactions and mobile controls',as
   assert.ok(await page.locator('.pf-feed-list-row').first().evaluate(e=>e.querySelector('.pf-feed-list-time').getBoundingClientRect().left>=e.querySelector('.pf-feed-list-copy').getBoundingClientRect().right-1),'medium viewport keeps time on the right');
   assert.equal(await page.locator('.pf-feed-list-row .pf-project-card-cover').count(),0);
   await page.setViewportSize({width:390,height:844});
-  for(const name of ['Small tiles','Large tiles','List','Mosaic','Posts']){
+  // A phone offers List and Tiles (large tiles) only; contacts-feed-mobile-browser covers the rest.
+  assert.deepEqual(await page.locator('.pf-density [data-density]').evaluateAll(b=>b.map(e=>e.getAttribute('aria-label'))),['List','Tiles']);
+  for(const name of ['Tiles','List']){
    await page.getByRole('button',{name,exact:true}).click();
    assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),'no mobile overflow in '+name);
-   if(['Small tiles','Large tiles','Mosaic'].includes(name))await assertTileBounds(`mobile ${name}`);
+   if(name==='Tiles')await assertTileBounds('mobile Tiles');
    if(name==='List'){
     const row=page.locator('.pf-feed-list-row').first();
     assert.ok(await row.evaluate(e=>Math.abs(e.querySelector('.pf-feed-list-time').getBoundingClientRect().top-e.querySelector('.pf-feed-list-head').getBoundingClientRect().top)<3),'time and activity begin on the same line');
@@ -510,7 +512,6 @@ test('feed layouts, upload collages, comments, reactions and mobile controls',as
     assert.equal(await responsiveNote.locator('.pf-note-plain:visible').count() + await responsiveNote.locator('[data-feed-note-toggle]:visible').count(),1);
     assert.ok(await noteRow.locator('.pf-note-preview-text').evaluate(e=>e.getBoundingClientRect().height <= parseFloat(getComputedStyle(e).lineHeight)*2+1),'mobile preview stays within two lines');
    }
-   if(name==='Posts')assert.equal(await page.locator('[data-feed-manual-only]').count(),0);
   }
   await page.evaluate(()=>{
     const previous=window.ChannelsAPI.feed.catalog;

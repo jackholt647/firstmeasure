@@ -17,6 +17,9 @@
   const LS_VIEW_KEY = 'fm_contacts_view_v2';
   const LS_SORT_KEY = 'fm_contacts_sort_v1';
   const LS_FILTER_KEY = 'fm_contacts_filter_v1';
+  // The portal shows its mobile top bar (with this tab's title) at this width.
+  const MOBILE_QUERY = '(max-width: 820px)';
+  const isMobile = () => { try { return !!window.matchMedia?.(MOBILE_QUERY).matches; } catch (error) { return false; } };
   const initialRoute = Portal.navigation?.read?.() || {};
   const state = {
     root: null,
@@ -24,7 +27,6 @@
     settingsHandle: null,
     projects: [],
     contacts: [],
-    query: '',
     view: localStorage.getItem(LS_VIEW_KEY) === 'tiles' ? 'tiles' : 'list',
     sort: localStorage.getItem(LS_SORT_KEY) || 'name',
     filter: (() => { try { return localStorage.getItem(LS_FILTER_KEY) || 'all'; } catch (error) { return 'all'; } })(),
@@ -220,24 +222,15 @@
       contact.projects.sort((a, b) => (b.dateMs || 0) - (a.dateMs || 0) || a.title.localeCompare(b.title));
       contact.projectCount = contact.projects.length;
       contact.latestDateLabel = dateLabel(new Date(contact.latestDateMs || 0));
-      contact.searchText = [
-        contact.name,
-        contact.email,
-        contact.phone,
-        contact.address,
-        ...contact.tags.map(tagLabel),
-        ...contact.projects.flatMap((project) => [project.title, project.address, project.stage])
-      ].join(' ').toLowerCase();
       return contact;
     });
   }
 
   let contactSharing;
   const sharingView = () => contactSharing ||= window.FirstMateSharedList?.create('contact', orgId);
-  function sortedFilteredContacts(){
-    const query=normalizeKey(state.query);
-    const show=CONTACT_FILTERS[state.filter] || CONTACT_FILTERS.all;
-    const filtered=state.contacts.filter(c=>show(c) && (!query || String(c.searchText || [c.name,c.email,c.phone,c.address].join(' ')).toLowerCase().includes(query)) && (!sharingView() || sharingView().matches(c,c.id)));
+  function sortedContacts(){
+    const show = CONTACT_FILTERS[state.filter] || CONTACT_FILTERS.all;
+    const filtered = state.contacts.filter(c => show(c) && (!sharingView() || sharingView().matches(c,c.id)));
     if (state.sort === 'recent') {
       filtered.sort((a, b) => (b.latestDateMs || 0) - (a.latestDateMs || 0) || a.name.localeCompare(b.name));
     } else if (state.sort === 'projects') {
@@ -313,6 +306,25 @@
     return items.length ? items.join('<span class="ct-dot"></span>') : `<span>${(globalThis.PlatformLanguage?.htmlText("contacts","m_c0b046415d9560","No email or phone") ?? "No email or phone")}</span>`;
   }
 
+  // Phone-only: one-tap call and email on a list row, and the count and date as one line.
+  function mobileQuickActions(contact = {}){
+    const name = escapeHtml(contact.name);
+    const callLabel = globalThis.PlatformLanguage?.htmlText("contacts","m_8d4eaa0da004be","Call") ?? "Call";
+    const emailLabel = globalThis.PlatformLanguage?.htmlText("contacts","m_5d2b9327181e33","Email") ?? "Email";
+    const call = contact.phone ? `<a class="ct-quick" href="tel:${escapeHtml(phoneDigits(contact.phone))}" aria-label="${callLabel} ${name}" data-fm-tooltip="${callLabel}"><i class="fas fa-phone" aria-hidden="true"></i></a>` : '';
+    const email = contact.email ? `<a class="ct-quick" href="mailto:${escapeHtml(contact.email)}" aria-label="${emailLabel} ${name}" data-fm-tooltip="${emailLabel}"><i class="fas fa-envelope" aria-hidden="true"></i></a>` : '';
+    return `<div class="ct-row-quick">${call}${email}<i class="fas fa-chevron-right ct-row-chevron" aria-hidden="true"></i></div>`;
+  }
+
+  function mobileRowMeta(contact = {}){
+    if (contact._shared) return '';
+    const count = Number(contact.projectCount || 0);
+    const projects = count
+      ? ((v5,v6) => globalThis.PlatformLanguage?.htmlText("contacts","m_b51be3af96e69d",`${v5} project${v6}`,{v5,v6}) ?? `${v5} project${v6}`)(escapeHtml(String(count)), count === 1 ? '' : 's')
+      : (globalThis.PlatformLanguage?.htmlText("contacts","contacts_filter_no_projects","No projects") ?? "No projects");
+    return `<small class="ct-row-meta"><i class="fas fa-folder-open" aria-hidden="true"></i><span>${projects}</span>${count ? `<span class="ct-dot"></span><span>${escapeHtml(contact.latestDateLabel)}</span>` : ''}</small>`;
+  }
+
   function renderTile(contact){
     if (contact._shared) return `<article class="ct-card" data-ct-contact="${escapeHtml(contact.key)}"><div class="ct-card-head">${contactAvatar(contact)}<div class="ct-contact-title"><h3>${escapeHtml(contact.name)}</h3><div class="ct-contact-line">${contactLine(contact)}</div>${sharingView().badge(contact)}</div><button type="button" class="ct-open-contact" data-ct-open-contact="${escapeHtml(contact.key)}" aria-label="Open ${escapeHtml(contact.name)}"><i class="fas fa-address-card"></i></button></div></article>`;
     return `
@@ -349,8 +361,10 @@
             <strong>${escapeHtml(contact.name)}</strong>
             <small>${contactLine(contact)}</small>
             ${tagChips(contact, 3)}${sharingView()?.badge(contact,contact.id) || ''}
+            ${mobileRowMeta(contact)}
           </span>
         </button>
+        ${mobileQuickActions(contact)}
         <div class="ct-list-projects">
           ${projects.map((project) => `
             <button type="button" class="ct-chip" data-ct-project="${escapeHtml(project.id)}">
@@ -377,7 +391,7 @@
       root.innerHTML = `<div class="ct-state error"><i class="fas fa-triangle-exclamation"></i><span>${escapeHtml(state.error)}</span></div>`;
       return;
     }
-    const contacts = sortedFilteredContacts();
+    const contacts = sortedContacts();
     if (!contacts.length) {
       root.innerHTML = `<div class="ct-state"><i class="fas fa-address-book"></i><span>${sharingView()?.filtered?'No contacts match these sharing filters.':'No contacts found yet.'}</span></div>`;
       return;
@@ -404,7 +418,7 @@
       state.root.innerHTML = `
         <div class="ct-shell">
           <header class="ct-workspace-head">
-            <button class="ct-back" type="button" data-ct-workspace-back><i class="fas fa-arrow-left"></i><span>${(globalThis.PlatformLanguage?.htmlText("contacts","m_41f0654d7535f1","Back to contacts") ?? "Back to contacts")}</span></button>
+            <button class="ct-back" type="button" data-ct-workspace-back aria-label="Back to contacts" data-fm-tooltip="Back to contacts"><i class="fas fa-arrow-left"></i><span>${(globalThis.PlatformLanguage?.htmlText("contacts","m_41f0654d7535f1","Back to contacts") ?? "Back to contacts")}</span></button>
             <div><h2>${String(isImport ? 'Import contacts' : 'Contact settings')}</h2><p>${String(isImport ? 'Bring contacts into FirstMate without leaving your contact list.' : 'Manage contact imports and review their history.')}</p></div>
           </header>
           <main class="ct-body ct-workspace-body"><div data-ct-settings-host></div></main>
@@ -425,7 +439,7 @@
       }) || null;
       return;
     }
-    const visibleCount = sortedFilteredContacts().length;
+    const visibleCount = sortedContacts().length;
     state.root.innerHTML = `
       <div class="ct-shell">
         <header class="ct-top" data-app-header>
@@ -436,17 +450,13 @@
             </div>
           </div>
           <div class="ct-tools">
-            <label class="ct-search">
-              <i class="fas fa-search"></i>
-              <input id="ctSearch" type="search" value="${String(escapeHtml(state.query))}" placeholder="${(globalThis.PlatformLanguage?.htmlText("contacts","m_978eee3aa943f8","Search contacts or projects") ?? "Search contacts or projects")}">
-              ${String(state.query ? `<button id="ctClearSearch" type="button" class="ct-clear" data-fm-tooltip="Clear search"><i class="fas fa-xmark"></i></button>` : '')}
-            </label>
+            <span class="ct-mobile-count">${((v0,v1) => globalThis.PlatformLanguage?.htmlText("contacts","contacts_mobile_count",`${v0} contact${v1}`,{v0,v1}) ?? `${v0} contact${v1}`)(escapeHtml(String(visibleCount)),visibleCount === 1 ? '' : 's')}</span>
             <div class="ct-segment" aria-label="${(globalThis.PlatformLanguage?.htmlText("contacts","m_0a1d4f60d2434b","View mode") ?? "View mode")}">
-              <button id="ctViewTiles" type="button" class="${String(state.view === 'tiles' ? 'active' : '')}" data-fm-tooltip="Tile view"><i class="fas fa-grip"></i><span>Tiles</span></button>
-              <button id="ctViewList" type="button" class="${String(state.view === 'list' ? 'active' : '')}" data-fm-tooltip="List view"><i class="fas fa-list"></i><span>List</span></button>
+              <button id="ctViewTiles" type="button" aria-label="Tiles" class="${String(state.view === 'tiles' ? 'active' : '')}" data-fm-tooltip="Tile view"><i class="fas fa-grip"></i><span>Tiles</span></button>
+              <button id="ctViewList" type="button" aria-label="List" class="${String(state.view === 'list' ? 'active' : '')}" data-fm-tooltip="List view"><i class="fas fa-list"></i><span>List</span></button>
             </div>
-            <button type="button" class="ct-action" data-ct-open-import><i class="fas fa-file-import"></i><span>${(globalThis.PlatformLanguage?.htmlText("contacts","m_f1f14ba348face","Import") ?? "Import")}</span></button>
-            <details class="fm-sharing-menu" data-ct-manage><summary class="ct-select"><i class="fas fa-sliders" aria-hidden="true"></i> Manage view</summary><div class="fm-sharing-popover"><label>Order by<select id="ctSort" class="ct-select" aria-label="${(globalThis.PlatformLanguage?.htmlText("contacts","m_05b258030f62ea","Sort contacts") ?? "Sort contacts")}">
+            <button type="button" class="ct-action" data-ct-open-import aria-label="${(globalThis.PlatformLanguage?.htmlText("contacts","contacts_import_tooltip","Import contacts") ?? "Import contacts")}" data-fm-tooltip="${(globalThis.PlatformLanguage?.htmlText("contacts","contacts_import_tooltip","Import contacts") ?? "Import contacts")}"><i class="fas fa-file-import"></i><span>${(globalThis.PlatformLanguage?.htmlText("contacts","m_f1f14ba348face","Import") ?? "Import")}</span></button>
+            <details class="fm-sharing-menu" data-ct-manage><summary class="ct-select" aria-label="Manage view" data-fm-tooltip="Manage view"><i class="fas fa-sliders" aria-hidden="true"></i> <span>Manage view</span></summary><div class="fm-sharing-popover"><label>Order by<select id="ctSort" class="ct-select" aria-label="${(globalThis.PlatformLanguage?.htmlText("contacts","m_05b258030f62ea","Sort contacts") ?? "Sort contacts")}">
               <option value="name" ${String(state.sort === 'name' ? 'selected' : '')}>${(globalThis.PlatformLanguage?.htmlText("contacts","m_8cf345002184e5","Name") ?? "Name")}</option>
               <option value="recent" ${String(state.sort === 'recent' ? 'selected' : '')}>${(globalThis.PlatformLanguage?.htmlText("contacts","m_fec172c2f71d24","Recent") ?? "Recent")}</option>
               <option value="projects" ${String(state.sort === 'projects' ? 'selected' : '')}>${(globalThis.PlatformLanguage?.htmlText("contacts","m_6e3f0973d60412","Project count") ?? "Project count")}</option>
@@ -467,14 +477,6 @@
   }
 
   function bindChrome(){
-    const search = state.root?.querySelector('#ctSearch');
-    search?.addEventListener('input', (event) => {
-      state.query = event.target.value || '';
-      render();
-      const next = state.root?.querySelector('#ctSearch');
-      next?.focus();
-      try { next?.setSelectionRange(state.query.length, state.query.length); } catch (error) {}
-    });
     const menu=state.root?.querySelector('[data-ct-manage]');
     menu?.addEventListener('change',event=>{if(sharingView()?.change(event)){render();const next=state.root?.querySelector('[data-ct-manage]');if(next){next.open=true;const selector=event.target.matches('[data-sharing-kind]')?`[data-sharing-kind="${event.target.dataset.sharingKind}"]`:'[data-sharing-owner]';next.querySelector(selector)?.focus();}}});
     menu?.addEventListener('keydown',event=>{if(event.key==='Escape'){menu.open=false;menu.querySelector('summary').focus();}});
@@ -487,13 +489,6 @@
       state.sort = event.target.value || 'name';
       localStorage.setItem(LS_SORT_KEY, state.sort);
       render();
-    });
-    state.root?.querySelector('#ctClearSearch')?.addEventListener('click', (event) => {
-      event.preventDefault();
-      event.stopPropagation();
-      state.query = '';
-      render();
-      state.root?.querySelector('#ctSearch')?.focus();
     });
     state.root?.querySelector('#ctViewTiles')?.addEventListener('click', () => setView('tiles'));
     state.root?.querySelector('#ctViewList')?.addEventListener('click', () => setView('list'));
@@ -541,7 +536,31 @@
         openProjectById(button.dataset.ctProject || '');
       });
     });
+    // On a phone the whole row or card is the target; its links and buttons keep their own action.
+    root.querySelectorAll('[data-ct-contact]').forEach((row) => {
+      row.addEventListener('click', (event) => {
+        if (!isMobile() || event.target.closest('a,button,summary,select,input,label')) return;
+        openContact(row.dataset.ctContact || '');
+      });
+    });
   }
+
+  // A phone shows Manage view as a bottom sheet; a tap outside it closes it without
+  // reaching the row underneath.
+  let swallowNextClick = false;
+  document.addEventListener('pointerdown', (event) => {
+    const menu = state.root?.querySelector('[data-ct-manage][open]');
+    if (!menu || !isMobile() || menu.contains(event.target)) return;
+    menu.open = false;
+    swallowNextClick = true;
+    window.setTimeout(() => { swallowNextClick = false; }, 400);
+  }, true);
+  document.addEventListener('click', (event) => {
+    if (!swallowNextClick) return;
+    swallowNextClick = false;
+    event.preventDefault();
+    event.stopPropagation();
+  }, true);
 
   function setView(view){
     state.view = view === 'list' ? 'list' : 'tiles';
@@ -667,11 +686,6 @@
       .ct-title h2{margin:0;color:#101828;font-size:18px;font-weight:1000;letter-spacing:0;line-height:1.2}
       .ct-title span{font-size:12px;font-weight:400;color:#667085;white-space:nowrap}
       .ct-tools{display:flex;flex-wrap:wrap;justify-content:flex-end;align-items:center;gap:10px;min-width:0}
-      .ct-search{box-sizing:border-box;height:38px;width:min(360px,34vw);min-width:170px;display:flex;align-items:center;gap:8px;padding:0 12px;border:1px solid #d0d5dd;border-radius:10px;background:#fff;color:#98a2b3}
-      .ct-search:focus-within{border-color:var(--primary-readable,var(--primary,#d93025));box-shadow:0 0 0 3px rgba(var(--primary-rgb,217,48,37),.10)}
-      .ct-search input{border:0;outline:0;background:transparent;color:#101828;font:inherit;font-size:13px;font-weight:850;width:100%;min-width:0}
-      .ct-clear{appearance:none;border:0;background:transparent;color:#98a2b3;width:24px;height:24px;border-radius:7px;display:grid;place-items:center;cursor:pointer;flex:0 0 auto}
-      .ct-clear:hover{background:#f2f4f7;color:#344054}
       .ct-select{height:38px;border:1px solid #d0d5dd;border-radius:10px;background:#fff;color:#344054;font:inherit;font-size:12px;font-weight:900;padding:0 10px}
       .ct-segment{height:38px;display:flex;border:1px solid #d0d5dd;border-radius:10px;background:#fff;overflow:hidden;flex:0 0 auto}
       .ct-segment button,.ct-icon,.ct-open-contact{appearance:none;border:0;background:#fff;color:#475467;display:grid;place-items:center;cursor:pointer}
@@ -731,11 +745,10 @@
       .ct-state.error{color:#b42318}
       .ct-workspace-head{flex:0 0 auto;display:flex;align-items:center;gap:16px;padding:14px 22px;border-bottom:1px solid #e5e7eb;background:#fbfcfd}.ct-workspace-head h2{margin:0;font-size:18px;font-weight:1000}.ct-workspace-head p{margin:3px 0 0;color:#667085;font-size:11px;font-weight:800}.ct-back{height:36px;border:1px solid #d0d5dd;border-radius:8px;background:#fff;color:#344054;padding:0 11px;display:inline-flex;align-items:center;gap:7px;font:inherit;font-size:11px;font-weight:950;cursor:pointer}.ct-back:hover{color:var(--primary-readable,var(--primary,#d93025));border-color:rgba(var(--primary-rgb,217,48,37),.3)}.ct-workspace-body{background:#f6f7f9}.ct-workspace-body>[data-ct-settings-host]{width:min(1120px,100%);margin:0 auto}
       @media(max-width:360px){.ct-tools.ct-tools{grid-template-columns:minmax(0,1fr) auto}.ct-select{grid-column:1/-1}}
-      @media(max-width:760px){.ct-tools{display:grid;grid-template-columns:minmax(0,1fr) auto auto}.ct-search{grid-column:1/-1}.ct-select{width:100%;min-width:0}}
+      @media(max-width:760px){.ct-tools{display:grid;grid-template-columns:minmax(0,1fr) auto auto}.ct-select{width:100%;min-width:0}}
       @media(max-width:960px){
         .ct-top{align-items:stretch;flex-direction:column;padding:0 0 14px}
         .ct-tools{flex-wrap:wrap;justify-content:flex-start}
-        .ct-search{min-width:0;flex:1 1 240px}
         .ct-body{padding:0 2px 16px}
         .ct-grid{grid-template-columns:1fr}
         .ct-table{min-width:0}
@@ -743,8 +756,64 @@
         .ct-table-row{grid-template-columns:1fr auto;gap:12px}
         .ct-list-contact,.ct-list-projects{grid-column:1/-1}
         .ct-list-projects{flex-wrap:wrap}
-        .ct-search{width:100%}
       }
+      .ct-shell :is(.ct-mobile-count,.ct-row-quick,.ct-row-meta){display:none}
+      /* Phone: the portal's mobile top bar carries the title, so the content starts with one compact control row. */
+      @media(max-width:820px){
+        .ct-shell .ct-top{flex-direction:row;align-items:center;gap:8px;padding:2px 0 12px}
+        .ct-shell .ct-title{display:none}
+        .ct-shell .ct-tools{display:flex;flex-wrap:nowrap;justify-content:flex-end;align-items:center;gap:8px;width:100%}
+        .ct-shell .ct-mobile-count{display:block;margin-right:auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:#667085;font-size:13px;font-weight:800}
+        .ct-shell .ct-segment{height:40px;border-radius:12px}
+        .ct-shell .ct-segment button{width:42px;padding:0;justify-content:center;transition:background-color .18s ease,color .18s ease}
+        .ct-shell .ct-segment button span,.ct-shell .ct-action span,.ct-shell summary.ct-select>span{display:none}
+        .ct-shell .ct-action{width:40px;height:40px;padding:0;justify-content:center;border-radius:12px;flex:0 0 auto}
+        .ct-shell summary.ct-select{width:40px;height:40px;padding:0;justify-content:center;border-radius:12px;font-size:14px}
+        .ct-shell [data-ct-manage][open]>summary{border-color:rgba(var(--primary-rgb,217,48,37),.35);color:var(--primary-readable,var(--primary,#d93025));background:rgba(var(--primary-rgb,217,48,37),.08)}
+        .ct-shell [data-ct-manage] .fm-sharing-popover{position:fixed;left:0;right:0;bottom:0;top:auto;width:auto;max-width:none;max-height:80vh;overflow:auto;z-index:2147483000;display:grid;gap:14px;padding:8px 18px calc(20px + env(safe-area-inset-bottom,0px));border:0;border-radius:20px 20px 0 0;box-shadow:0 0 0 100vmax rgba(15,23,42,.34),0 -14px 40px rgba(16,24,40,.22);animation:ctSheetUp .26s cubic-bezier(.2,.8,.2,1)}
+        .ct-shell [data-ct-manage] .fm-sharing-popover::before{content:'';justify-self:center;width:38px;height:4px;margin:2px 0 4px;border-radius:2px;background:#d0d5dd}
+        .ct-shell [data-ct-manage] .fm-sharing-popover>label{font-size:13px;font-weight:800;color:#344054}
+        .ct-shell [data-ct-manage] .fm-sharing-popover select{height:46px;width:100%;font-size:16px;font-weight:700;border-radius:12px}
+        .ct-shell .ct-body{padding:0 0 calc(24px + env(safe-area-inset-bottom,0px))}
+        .ct-shell .ct-table{min-width:0;padding:0;border:0;background:transparent;gap:8px}
+        .ct-shell .ct-table-row{grid-template-columns:minmax(0,1fr) auto;align-items:center;gap:8px 10px;padding:12px;border:1px solid #eaecf0;border-radius:14px;background:#fff;box-shadow:0 1px 2px rgba(16,24,40,.04);cursor:pointer;-webkit-tap-highlight-color:transparent;transition:transform .14s ease,background-color .14s ease;animation:ctRiseIn .32s cubic-bezier(.2,.8,.2,1) both}
+        .ct-shell .ct-table-row:hover{background:#fff}
+        .ct-shell .ct-table-row:active{transform:scale(.985);background:#f8fafc}
+        .ct-shell .ct-list-contact{grid-column:1;gap:12px}
+        .ct-shell .ct-list-contact .ct-avatar{width:42px;height:42px;border-radius:50%;font-size:15px}
+        .ct-shell .ct-list-contact strong{font-size:15px}
+        .ct-shell .ct-list-contact small{font-size:12px;font-weight:700}
+        .ct-shell .ct-list-contact small{white-space:nowrap;align-items:center}
+        .ct-shell .ct-list-contact small a{pointer-events:none;color:#667085;flex:0 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+        .ct-shell .ct-row-meta{display:flex;align-items:center;gap:6px;color:#98a2b3;font-size:11px;font-weight:800}
+        .ct-shell .ct-row-meta i{font-size:10px}
+        .ct-shell .ct-row-quick{grid-column:2;grid-row:1;display:flex;align-items:center;gap:6px}
+        .ct-shell .ct-quick{width:38px;height:38px;border-radius:50%;display:grid;place-items:center;background:rgba(var(--primary-rgb,217,48,37),.09);color:var(--primary-readable,var(--primary,#d93025));text-decoration:none;font-size:14px;transition:transform .14s ease}
+        .ct-shell .ct-quick:active{transform:scale(.9)}
+        .ct-shell .ct-row-chevron{color:#c0c7d2;font-size:12px;margin-left:2px}
+        .ct-shell .ct-list-projects{grid-column:1/-1;flex-wrap:nowrap;overflow-x:auto;scrollbar-width:none;scroll-snap-type:x proximity;margin:0 -12px;padding:0 12px}
+        .ct-shell .ct-list-projects:empty{display:none}
+        .ct-shell .ct-list-projects::-webkit-scrollbar{display:none}
+        .ct-shell .ct-chip{flex:0 0 auto;max-width:72%;scroll-snap-align:start;padding:7px 10px;border-radius:10px}
+        .ct-shell .ct-list-count,.ct-shell .ct-list-date{display:none}
+        .ct-shell .ct-grid{grid-template-columns:1fr;gap:10px}
+        .ct-shell .ct-card{padding:14px;gap:12px;border-radius:16px;cursor:pointer;-webkit-tap-highlight-color:transparent;transition:transform .14s ease;animation:ctRiseIn .32s cubic-bezier(.2,.8,.2,1) both}
+        .ct-shell .ct-card:active{transform:scale(.985)}
+        .ct-shell .ct-card .ct-avatar{width:42px;height:42px;border-radius:50%}
+        .ct-shell .ct-open-contact{width:40px;height:40px;border-radius:12px}
+        .ct-shell .ct-project-list{grid-template-columns:repeat(2,minmax(0,1fr));grid-auto-rows:64px}
+        .ct-shell .ct-project-slot.empty{display:none}
+        .ct-shell .ct-project-list:not(:has(.ct-project-row,.ct-more)){display:none}
+        .ct-shell .ct-workspace-head{padding:10px 12px;gap:10px}
+        .ct-shell .ct-workspace-head h2{font-size:16px}
+        .ct-shell .ct-workspace-head p{display:none}
+        .ct-shell .ct-back{height:40px;width:40px;padding:0;justify-content:center;border-radius:12px}
+        .ct-shell .ct-back span{display:none}
+      }
+      @media(max-width:820px){.ct-shell .ct-table-row:nth-child(2){animation-delay:.02s}.ct-shell .ct-table-row:nth-child(3),.ct-shell .ct-card:nth-child(2){animation-delay:.05s}.ct-shell .ct-table-row:nth-child(4),.ct-shell .ct-card:nth-child(3){animation-delay:.08s}.ct-shell .ct-table-row:nth-child(n+5),.ct-shell .ct-card:nth-child(n+4){animation-delay:.1s}}
+      @keyframes ctRiseIn{from{opacity:0;transform:translateY(8px)}}
+      @keyframes ctSheetUp{from{opacity:0;transform:translateY(32px)}}
+      @media(prefers-reduced-motion:reduce){.ct-shell .ct-table-row,.ct-shell .ct-card,.ct-shell [data-ct-manage] .fm-sharing-popover{animation:none;transition:none}}
     `;
     if (util.injectCSS) util.injectCSS('contacts_tab', css);
     else {

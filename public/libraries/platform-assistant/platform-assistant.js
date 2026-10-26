@@ -2288,6 +2288,8 @@
     state.pending = true;
     els.send.disabled = true;
     renderMessages({ animateLast:true });
+    // A host that shows only the composer (the phone project agent) uses this to reveal the reply; nothing else passes it.
+    surface.onTurn?.('sent');
     let threadId = '';
     let knownMessages = -1;
     try {
@@ -2355,6 +2357,7 @@
     } finally {
       state.pending = false;
       if (els.send) els.send.disabled = false;
+      surface.onTurn?.('done');
       renderHistory();
       syncLayout();
       if (agentId && state.agentId === agentId) {
@@ -2545,7 +2548,7 @@
     try {await window.AssistantAPI.transferProject(orgId(),state.threadId);} catch(error){transferring=false;releaseTransfer();throw error;}
     promoted=true; projectId=''; embedded=false;
     surface.getContext=()=>({surface:'global',transferredFromProject:previousProjectId,projectOpen:false});
-    surface.onState=null; surface.onPin=null; surface.onClose=null; surface.openTray=null;
+    surface.onState=null; surface.onPin=null; surface.onClose=null; surface.openTray=null; surface.onTurn=null;
     document=window.document; injectCss();
     els.drawer.classList.remove('fma-embedded','fma-pinned');
     els.drawer.querySelector('[data-fma="closeSurface"]')?.remove();

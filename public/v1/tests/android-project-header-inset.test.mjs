@@ -23,13 +23,13 @@ for(const native of [true,false])for(const workflow of ['existing','new'])test(`
   await page.addStyleTag({content:precoverCSS});
   const inset=native?0:47;
   assert.equal(await page.locator('.fm-pr-title').evaluate(e=>parseFloat(getComputedStyle(e).paddingTop)),inset);
-  assert.equal(await page.locator('.fm-pr-close').evaluate(e=>e.getBoundingClientRect().y),inset+8);
+  assert.equal(await page.locator('.fm-pr-close').evaluate(e=>e.getBoundingClientRect().y),inset+6);
   await page.evaluate(()=>{window.Portal={modules:{request:{openingHeader:()=>({title:'Project',identityHtml:'Project',pillsHtml:''})}}};});
   for(const f of ['window-manager.js','window-shell.js','project-windows.js'])await page.addScriptTag({content:await read('public/libraries/window-manager/'+f)});
   await page.evaluate(workflow=>{window.record=FirstMateProjectWindows.open(workflow==='existing'?{id:'project_test'}:null,workflow==='new'?{workflow:'report'}:{});},workflow);
   assert.equal(await page.locator('.fm-project-loading-header').evaluate(e=>parseFloat(getComputedStyle(e).paddingTop)),inset);
   assert.equal(await page.locator('.fm-shell-identity').evaluate(e=>e.getBoundingClientRect().y),inset);
-  assert.equal(await page.locator('[data-window-action=close]').evaluate(e=>e.getBoundingClientRect().y),inset+8);
+  assert.equal(await page.locator('[data-window-action=close]').evaluate(e=>e.getBoundingClientRect().y),inset+6);
   // The embedded document receives the same early bootstrap and shared shell styles.
   const frame=page.frames().find(f=>f!==page.mainFrame());
   await frame.waitForLoadState('domcontentloaded');

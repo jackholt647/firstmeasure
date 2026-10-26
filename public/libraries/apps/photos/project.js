@@ -113,6 +113,7 @@
       state.mediaHydrationRetryTimer = null;
       closeActiveViewer();
       setProjectPhotoFocus(false);
+      if (state.camera?.isOpen?.()) state.camera.close();
     }
     else {
       ensureMounted(context);
@@ -703,6 +704,23 @@
     }, true);
   }
 
+  // The phone camera (FirstMateCamera) lives beside the gallery, not in it, so gallery re-renders (one per
+  // finished upload) never stop the camera. Photos go through addPhotoFiles, the tab's upload pipeline.
+  function mountProjectCamera(galleryRoot){
+    const host = galleryRoot?.parentElement;
+    if (!host || !window.FirstMateCamera?.mount) return;
+    if (state.camera?.bar?.isConnected && state.camera.bar.parentElement === host) return;
+    state.camera?.destroy?.();
+    state.camera = window.FirstMateCamera.mount(host, {
+      label: globalThis.PlatformLanguage?.text("photos","camera_bar","Take photos") ?? "Take photos",
+      upload: async (file) => {
+        const [photo] = await addPhotoFiles([file], { rethrow: true });
+        if (!photo) throw new Error(globalThis.PlatformLanguage?.text("photos","camera_not_uploaded","This photo was not uploaded.") ?? "This photo was not uploaded.");
+        return photo;
+      }
+    });
+  }
+
   function injectCoverCss(){
     const css = `
       .r-photo-cover-chip{position:absolute;top:7px;right:7px;z-index:3;display:inline-flex;align-items:center;gap:5px;height:24px;padding:0 9px;border-radius:999px;background:rgba(15,23,42,.62);color:#fff;font-size:10px;font-weight:1000;white-space:nowrap;backdrop-filter:blur(10px);box-shadow:0 6px 14px rgba(15,23,42,.16);cursor:pointer;opacity:0;transform:translateY(-3px);transition:opacity .16s ease,transform .16s ease,background .16s ease}
@@ -713,6 +731,13 @@
       .pf-wrap.selection-mode .r-photo-cover-chip:not(.is-cover){display:none}
       @keyframes rPhotoCoverIn{from{opacity:0;transform:scale(.96)}to{opacity:1;transform:none}}
       @media(prefers-reduced-motion:reduce){.r-photo-cover-chip{animation:none;transition:none}}
+      @media(max-width:760px){
+        #rPhotoGallery.r-photo-wrap{padding:0;background:#fff}
+        .fmc-host>#rPhotoGallery .pf-scroll{padding-bottom:68px}
+        .fmc-host:is(:has(.pf-has-seldock),:has(.pf-shown-menu))>.fmc-bar{transform:translateY(calc(100% + 24px));opacity:0;pointer-events:none}
+        .pf-wrap[data-mobile-grid=dense] .r-photo-cover-chip{top:5px;right:5px;height:20px;padding:0 7px;gap:4px;font-size:9px}
+        .pf-wrap[data-mobile-grid=dense] .r-photo-cover-chip:not(.is-cover){display:none}
+      }
     `;
     if (typeof util.injectCSS === 'function') util.injectCSS('project-photos-cover', css);
     else if (!document.getElementById('project-photos-cover')) {
@@ -815,6 +840,7 @@
         photos,
         title: '',
         uploadLabel: 'Upload',
+        mobileGrid: 'dense',
         enableProjectLinks: false,
         projectLinkEnabled: false,
         boundsTarget: root,
@@ -859,6 +885,7 @@
         },
         onUpload: () => input?.click()
       });
+      mountProjectCamera(root);
       return;
     }
 
@@ -1079,10 +1106,14 @@
     return false;
   }
 
-  async function addPhotoFiles(fileList){
+  // options.rethrow: a failed upload is removed and thrown (the camera shows Retry) instead of kept as a local preview.
+  async function addPhotoFiles(fileList, options = {}){
     const files = [...(fileList || [])].filter(isAcceptedProjectMediaFile);
     if (!files.length) return [];
-    if (!(await ensurePhotoStorageCapacity(files))) return [];
+    if (!(await ensurePhotoStorageCapacity(files))) {
+      if (options.rethrow) throw new Error(globalThis.PlatformLanguage?.text("photos","camera_storage_full","There is no storage space left for photos.") ?? "There is no storage space left for photos.");
+      return [];
+    }
     window.ensureDraftBaseProject?.();
     const hadPhotos = projectPhotosList().length > 0;
     let added = [];
@@ -1140,6 +1171,11 @@
             renderPhotoGallery();
           }
         } catch (error) {
+          if (options.rethrow) {
+            removeUploadPlaceholder(placeholder.id);
+            renderPhotoGallery();
+            throw error;
+          }
           console.warn('Project photo upload failed; using local preview photo instead.', error);
           const local = normalizePhoto(file, projectPhotosList().length + added.length);
           replaceUploadPlaceholder(placeholder.id, local);

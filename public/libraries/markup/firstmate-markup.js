@@ -538,6 +538,53 @@
       .fm-photo-modal .r-proposal-markup-color.custom{position:relative;background:conic-gradient(#ff6b6b,#ffd166,#06d6a0,#118ab2,#9b5de5,#ff6b6b)}
       .fm-photo-modal .r-proposal-markup-color input{position:absolute;inset:0;opacity:0;cursor:pointer}
       @media(max-width:900px){.fm-photo-modal-shell{grid-template-columns:1fr}.fm-photo-side{position:absolute;right:0;top:0;bottom:0;width:min(360px,92vw);box-shadow:-20px 0 44px rgba(0,0,0,.28)}}
+      .fm-photo-mobile-bar,.fm-photo-sheet-handle,.fm-photo-sheet-scrim{display:none}
+      .fm-photo-modal.is-mobile{background:#000;animation:fmPhotoViewerIn .2s ease-out}
+      .fm-photo-modal.is-mobile .fm-photo-modal-shell{grid-template-columns:1fr;background:#000}
+      .fm-photo-modal.is-mobile .fm-photo-stage{background:#000;touch-action:none}
+      .fm-photo-modal.is-mobile .fm-photo-stage img{transform-origin:center center}
+      .fm-photo-modal.is-mobile .fm-photo-top{top:calc(env(safe-area-inset-top,0px) + 8px);left:12px;right:8px;gap:8px;align-items:center;transition:opacity .2s ease,transform .24s ease}
+      .fm-photo-modal.is-mobile .fm-photo-title strong{max-width:100%;font-size:14px}
+      .fm-photo-modal.is-mobile .fm-photo-title span{font-size:11px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+      .fm-photo-modal.is-mobile .fm-photo-iconbtn{width:40px;height:40px;background:rgba(15,23,42,.55)}
+      .fm-photo-modal.is-mobile .fm-photo-actions-menu{position:fixed;left:8px;right:8px;top:auto;bottom:calc(8px + env(safe-area-inset-bottom,0px));width:auto;border-radius:16px;padding:8px;z-index:90;animation:fmPhotoSheetIn .22s cubic-bezier(.2,.8,.2,1)}
+      .fm-photo-modal.is-mobile .fm-photo-top:has(.fm-photo-actions-menu.visible){z-index:95}
+      .fm-photo-modal.is-mobile .fm-photo-actions-menu.visible{box-shadow:0 0 0 100vmax rgba(0,0,0,.45),0 18px 44px rgba(0,0,0,.32)}
+      .fm-photo-modal.is-mobile .fm-photo-meta .fm-photo-meta-row{display:none}
+      .fm-photo-modal.is-mobile .fm-photo-actions-menu button{padding:13px 12px;font-size:14px;font-weight:700;gap:12px}
+      .fm-photo-modal.is-mobile .fm-photo-nav{width:36px;height:48px;border-radius:12px;background:rgba(15,23,42,.38);transition:opacity .2s ease}
+      .fm-photo-modal.is-mobile .fm-photo-nav.prev{left:6px}.fm-photo-modal.is-mobile .fm-photo-nav.next{right:6px}
+      .fm-photo-modal.is-mobile.is-single .fm-photo-nav{display:none}
+      .fm-photo-modal.is-mobile .fm-photo-mobile-bar{position:absolute;left:12px;bottom:calc(env(safe-area-inset-bottom,0px) + 14px);z-index:60;display:flex;align-items:center;gap:8px;transition:opacity .2s ease,transform .24s ease}
+      .fm-photo-modal.is-mobile .fm-photo-details-btn{height:42px;display:inline-flex;align-items:center;gap:8px;padding:0 15px;border:1px solid rgba(255,255,255,.16);border-radius:999px;background:rgba(15,23,42,.62);backdrop-filter:blur(12px);color:#fff;font:inherit;font-size:13px;font-weight:700;cursor:pointer}
+      .fm-photo-modal.is-mobile .fm-photo-details-btn i{font-size:15px}.fm-photo-modal.is-mobile .fm-photo-details-btn span{font-variant-numeric:tabular-nums;color:rgba(255,255,255,.75);font-weight:600}.fm-photo-modal.is-mobile .fm-photo-details-btn span:empty{display:none}
+      .fm-photo-modal.is-mobile .r-proposal-markupdock.dock-bottom-right,.fm-photo-modal.is-mobile .fm-video-editdock{right:12px;bottom:calc(env(safe-area-inset-bottom,0px) + 14px);transition:opacity .2s ease}
+      .fm-photo-modal.is-mobile .r-proposal-markupdock.expand-left .r-proposal-markup-tools{top:auto;right:0;bottom:52px;flex-direction:column-reverse}
+      .fm-photo-modal.is-mobile .r-proposal-markupdock.expand-left .r-proposal-markup-pop{right:52px;left:auto;top:auto;bottom:0;transform:translateX(8px) scale(.96)}
+      .fm-photo-modal.is-mobile .r-proposal-markupdock.expand-left .r-proposal-markup-pop.visible{transform:none}
+      .fm-photo-modal.is-mobile .fm-photo-markup-layer{touch-action:none}
+      .fm-photo-modal.is-mobile.markup-active .fm-photo-mobile-bar,.fm-photo-modal.is-mobile.markup-active .fm-photo-nav{opacity:0;pointer-events:none}
+      .fm-photo-modal.is-mobile.chrome-hidden:not(.markup-active) :is(.fm-photo-top,.fm-photo-mobile-bar,.fm-photo-nav,.r-proposal-markupdock,.fm-video-editdock){opacity:0;pointer-events:none}
+      .fm-photo-modal.is-mobile.chrome-hidden:not(.markup-active) .fm-photo-top{transform:translateY(-8px)}
+      .fm-photo-modal.is-mobile.chrome-hidden:not(.markup-active) .fm-photo-mobile-bar{transform:translateY(8px)}
+      .fm-photo-modal.is-mobile .fm-photo-sheet-scrim{display:block;position:absolute;inset:0;z-index:68;background:rgba(0,0,0,.42);opacity:0;pointer-events:none;transition:opacity .24s ease}
+      .fm-photo-modal.is-mobile.sheet-open .fm-photo-sheet-scrim{opacity:1;pointer-events:auto}
+      .fm-photo-modal.is-mobile .fm-photo-side{position:absolute;left:0;right:0;top:auto;bottom:0;z-index:70;width:auto;height:min(78%,680px);border:0;border-radius:18px 18px 0 0;box-shadow:0 -18px 48px rgba(0,0,0,.32);overflow:hidden;transform:translateY(calc(100% + 24px));visibility:hidden;transition:transform .32s cubic-bezier(.2,.8,.2,1),visibility 0s linear .32s;padding-bottom:env(safe-area-inset-bottom,0px);box-sizing:border-box}
+      .fm-photo-modal.is-mobile.sheet-open .fm-photo-side{transform:translateY(var(--fm-sheet-drag,0px));visibility:visible;transition:transform .32s cubic-bezier(.2,.8,.2,1)}
+      .fm-photo-modal.is-mobile.sheet-dragging .fm-photo-side{transition:none}
+      .fm-photo-modal.is-mobile .fm-photo-sheet-handle{display:flex;align-items:center;justify-content:center;position:relative;flex:none;height:30px;touch-action:none;cursor:grab}
+      .fm-photo-modal.is-mobile .fm-photo-sheet-handle>span{width:38px;height:4px;border-radius:2px;background:#d0d5dd}
+      .fm-photo-modal.is-mobile .fm-photo-sheet-handle>button{position:absolute;right:8px;top:2px;width:32px;height:28px;border:0;border-radius:8px;background:transparent;color:#667085;cursor:pointer}
+      .fm-photo-modal.is-mobile .fm-photo-meta{padding:0 16px 12px}
+      .fm-photo-modal.is-mobile .fm-photo-indicators{flex-direction:row;flex-wrap:wrap;gap:6px;margin-top:10px}
+      .fm-photo-modal.is-mobile .fm-photo-indicator{grid-template-columns:24px auto;gap:7px;padding:5px 10px 5px 5px;border-radius:999px}
+      .fm-photo-modal.is-mobile .fm-photo-indicator-icon{width:24px;height:24px;font-size:10px}
+      .fm-photo-modal.is-mobile .fm-photo-indicator span{display:none}
+      .fm-photo-modal.is-mobile .fm-photo-tag-input{width:120px;height:30px;font-size:13px}
+      .fm-photo-modal.is-mobile .fm-photo-tag-add{width:30px;height:30px}
+      @keyframes fmPhotoSheetIn{from{opacity:0;transform:translateY(20px)}}
+      @keyframes fmPhotoViewerIn{from{opacity:0;transform:scale(.985)}}
+      @media(prefers-reduced-motion:reduce){.fm-photo-modal.is-mobile,.fm-photo-modal.is-mobile .fm-photo-side,.fm-photo-modal.is-mobile .fm-photo-actions-menu{animation:none;transition:none}}
     `);
   }
   function svgPath(points = []){
@@ -1440,6 +1487,7 @@
       if (this.layoutSettleTimer) clearTimeout(this.layoutSettleTimer);
       this.el?.remove();
       window.removeEventListener('keydown', this.keyHandler);
+      this.mobileQuery?.removeEventListener?.('change', this.mobileChange);
       window.removeEventListener('resize', this.boundResize);
       root.visualViewport?.removeEventListener?.('resize', this.boundResize);
       document.removeEventListener('fullscreenchange', this.boundResize);
@@ -1656,6 +1704,10 @@
       this.el.querySelector('[data-photo-uploader]').textContent = up.name || 'Unknown uploader';
       this.el.querySelector('[data-photo-uploaded]').textContent = up.at ? formatDateTime(up.at) : 'Unknown time';
       this.el.querySelector('[data-photo-counter]').textContent = `${this.index + 1} / ${this.photos.length}`;
+      const mobileCounter = this.el.querySelector('[data-photo-mobile-counter]');
+      if (mobileCounter) mobileCounter.textContent = this.photos.length > 1 ? `${this.index + 1} / ${this.photos.length}` : '';
+      this.el.classList.toggle('is-single', this.photos.length < 2);
+      this.resetZoom?.(false);
       this.el.querySelector('[data-photo-avatar]').textContent = (up.name || up.email || '?').slice(0, 1).toUpperCase();
       const userBtn = this.el.querySelector('[data-photo-user-open]');
       if (userBtn) {
@@ -1760,11 +1812,14 @@
             </div>
             <button type="button" class="fm-photo-nav prev" data-photo-prev aria-label="${(globalThis.PlatformLanguage?.htmlText("markup","m_ff93a3105bd290","Previous photo") ?? "Previous photo")}"><i class="fas fa-chevron-left"></i></button>
             <button type="button" class="fm-photo-nav next" data-photo-next aria-label="${(globalThis.PlatformLanguage?.htmlText("markup","m_289ae0bcddeebf","Next photo") ?? "Next photo")}"><i class="fas fa-chevron-right"></i></button>
+            <div class="fm-photo-mobile-bar"><button type="button" class="fm-photo-details-btn" data-photo-details aria-expanded="false" aria-label="${(globalThis.PlatformLanguage?.htmlText("markup","m_mobile_details_label","Details and comments") ?? "Details and comments")}"><i class="fas fa-circle-info"></i>${(globalThis.PlatformLanguage?.htmlText("markup","m_mobile_details","Details") ?? "Details")}<span data-photo-mobile-counter></span></button></div>
             <div class="fm-video-editdock" data-video-editdock>
               <button type="button" class="r-proposal-markup-btn" data-video-edit data-fm-tooltip="Edit Video" aria-label="${(globalThis.PlatformLanguage?.htmlText("markup","m_297d0c5325cbc2","Edit video") ?? "Edit video")}"><i class="fas fa-scissors"></i></button>
             </div>
           </div>
+          <div class="fm-photo-sheet-scrim" data-photo-sheet-scrim></div>
           <aside class="fm-photo-side">
+            <div class="fm-photo-sheet-handle" data-photo-sheet-handle><span></span><button type="button" data-photo-sheet-close aria-label="${(globalThis.PlatformLanguage?.htmlText("markup","m_mobile_hide_details","Hide details") ?? "Hide details")}"><i class="fas fa-chevron-down"></i></button></div>
             <div class="fm-photo-meta">
               ${String(this.projectLinkEnabled ? `<button type="button" class="fm-photo-project-link" data-photo-project>${escapeHtml(this.project.title || this.project.address || `Project ${this.itemNoun}`)}</button>` : `<div class="fm-photo-project-link is-static" data-photo-project>${escapeHtml(this.project.title || this.project.address || `Project ${this.itemNoun}`)}</div>`)}
               <button type="button" class="fm-photo-user-row" data-photo-user-open><span class="fm-photo-avatar" data-photo-avatar>?</span><span><strong data-photo-uploader></strong><br><span data-photo-uploaded></span></span></button>
@@ -1802,6 +1857,7 @@
         }
       });
       this.bindLayoutObserver();
+      this.bindMobile();
       this.scheduleLayoutRefresh();
       this.el.querySelector('[data-photo-img]')?.addEventListener('load', () => this.scheduleLayoutRefresh());
       this.el.querySelector('[data-photo-close]').addEventListener('click', () => this.close());
@@ -1862,6 +1918,176 @@
         }
       };
       window.addEventListener('keydown', this.keyHandler);
+    }
+    // Phone presentation: the item full screen, swipe or arrows between items, pinch and double-tap zoom, a tap
+    // hides the controls, and the details (tags, indicators, comments) in a bottom sheet. Desktop never enters it.
+    bindMobile(){
+      const el = this.el, stage = el.querySelector('[data-photo-stage]'), img = el.querySelector('[data-photo-img]');
+      this.mobileQuery = this.embedded ? null : (root.matchMedia?.('(max-width: 760px)') || null);
+      this.zoom = { s: 1, x: 0, y: 0 };
+      const layerNodes = () => [img, this.markup?.layer].filter(Boolean);
+      const reduced = () => !!root.matchMedia?.('(prefers-reduced-motion: reduce)')?.matches;
+      const clampPan = () => {
+        const z = this.zoom, w = img.offsetWidth * z.s, h = img.offsetHeight * z.s;
+        const mx = Math.max(0, (w - stage.clientWidth) / 2), my = Math.max(0, (h - stage.clientHeight) / 2);
+        z.x = clamp(z.x, -mx, mx); z.y = clamp(z.y, -my, my);
+      };
+      const apply = (animate) => {
+        const z = this.zoom, zoomed = z.s > 1.001;
+        const transform = zoomed ? `translate(${z.x}px,${z.y}px) scale(${z.s})` : '';
+        layerNodes().forEach((node) => { node.style.transition = animate && !reduced() ? 'transform .24s cubic-bezier(.2,.8,.2,1)' : ''; node.style.transform = transform; });
+        el.classList.toggle('is-zoomed', zoomed);
+      };
+      this.resetZoom = (animate = true) => {
+        if (!this.zoom) return;
+        const was = this.zoom.s !== 1;
+        this.zoom = { s: 1, x: 0, y: 0 };
+        if (!was) return;
+        apply(animate);
+        requestAnimationFrame(() => this.updateMarkupLayerBounds());
+      };
+      const sync = () => {
+        this.mobile = !!this.mobileQuery?.matches;
+        el.classList.toggle('is-mobile', this.mobile);
+        if (!this.mobile) { this.setSheet(false); el.classList.remove('chrome-hidden'); this.resetZoom(false); }
+        else this.setSheet(el.classList.contains('sheet-open'));
+        this.scheduleLayoutRefresh();
+      };
+      this.mobileChange = sync;
+      this.mobileQuery?.addEventListener?.('change', sync);
+      // Drawing starts from the fitted photo, never a zoomed one.
+      if (this.markup) {
+        const setActive = this.markup.setActive.bind(this.markup);
+        this.markup.setActive = (active) => { if (active && this.mobile) { this.resetZoom(false); this.setSheet(false); el.classList.remove('chrome-hidden'); } return setActive(active); };
+      }
+      const pointers = new Map();
+      let gesture = null, lastTap = null, tapTimer = 0;
+      const ignore = (target) => !!target?.closest?.('button,a,input,textarea,select,video,audio,iframe,.fm-photo-top,.fm-photo-mobile-bar,.r-proposal-markupdock,.fm-video-editdock,.fm-photo-markup-text,.fm-media-file-fallback');
+      const usable = () => this.mobile && !el.classList.contains('markup-active') && !el.classList.contains('sheet-open') && mediaKind(this.current()) === 'image';
+      const center = (x, y) => { const r = stage.getBoundingClientRect(); return { x: x - r.left - r.width / 2, y: y - r.top - r.height / 2 }; };
+      const zoomAt = (scale, point, animate) => {
+        const z = this.zoom, next = clamp(scale, 1, 5), ratio = next / z.s;
+        z.x = point.x - (point.x - z.x) * ratio; z.y = point.y - (point.y - z.y) * ratio; z.s = next;
+        if (next === 1) { z.x = 0; z.y = 0; }
+        clampPan(); apply(animate);
+      };
+      const handleTap = (x, y) => {
+        const now = Date.now(), point = center(x, y);
+        if (lastTap && now - lastTap.t < 300 && Math.hypot(point.x - lastTap.x, point.y - lastTap.y) < 40) {
+          clearTimeout(tapTimer); lastTap = null;
+          if (this.zoom.s > 1) this.resetZoom(true); else zoomAt(2.5, point, true);
+          return;
+        }
+        lastTap = { t: now, x: point.x, y: point.y };
+        clearTimeout(tapTimer);
+        tapTimer = setTimeout(() => { lastTap = null; el.classList.toggle('chrome-hidden'); }, 300);
+      };
+      stage.addEventListener('pointerdown', (event) => {
+        if (!usable() || ignore(event.target)) return;
+        pointers.set(event.pointerId, { x: event.clientX, y: event.clientY });
+        try { stage.setPointerCapture(event.pointerId); } catch (_) {}
+        const pts = [...pointers.values()];
+        if (pts.length === 2) {
+          gesture = { type: 'pinch', dist: Math.hypot(pts[0].x - pts[1].x, pts[0].y - pts[1].y) || 1, s: this.zoom.s, x: this.zoom.x, y: this.zoom.y, mid: center((pts[0].x + pts[1].x) / 2, (pts[0].y + pts[1].y) / 2) };
+        } else if (pts.length === 1) {
+          gesture = { type: 'one', x: event.clientX, y: event.clientY, zx: this.zoom.x, zy: this.zoom.y, dx: 0, dy: 0, moved: false };
+        }
+      });
+      stage.addEventListener('pointermove', (event) => {
+        if (!gesture || !pointers.has(event.pointerId)) return;
+        pointers.set(event.pointerId, { x: event.clientX, y: event.clientY });
+        const pts = [...pointers.values()];
+        if (gesture.type === 'pinch' && pts.length >= 2) {
+          const dist = Math.hypot(pts[0].x - pts[1].x, pts[0].y - pts[1].y), mid = center((pts[0].x + pts[1].x) / 2, (pts[0].y + pts[1].y) / 2);
+          const next = clamp(gesture.s * dist / gesture.dist, 1, 5), ratio = next / gesture.s;
+          this.zoom = { s: next, x: mid.x - (gesture.mid.x - gesture.x) * ratio, y: mid.y - (gesture.mid.y - gesture.y) * ratio };
+          clampPan(); apply(false);
+          return;
+        }
+        if (gesture.type !== 'one') return;
+        gesture.dx = event.clientX - gesture.x; gesture.dy = event.clientY - gesture.y;
+        if (Math.hypot(gesture.dx, gesture.dy) > 8) gesture.moved = true;
+        if (this.zoom.s > 1) { this.zoom.x = gesture.zx + gesture.dx; this.zoom.y = gesture.zy + gesture.dy; clampPan(); apply(false); return; }
+        if (gesture.moved && this.photos.length > 1 && Math.abs(gesture.dx) > Math.abs(gesture.dy)) {
+          img.style.transition = 'none';
+          img.style.transform = `translateX(${gesture.dx}px)`;
+          img.style.opacity = String(Math.max(.4, 1 - Math.abs(gesture.dx) / Math.max(1, stage.clientWidth)));
+          if (this.markup?.layer) this.markup.layer.style.opacity = '0';
+        }
+      });
+      const end = (event) => {
+        if (!pointers.has(event.pointerId)) return;
+        pointers.delete(event.pointerId);
+        if (!gesture) return;
+        if (gesture.type === 'pinch') {
+          if (!pointers.size) { gesture = null; if (this.zoom.s < 1.06) { this.zoom.s = 1.0001; this.resetZoom(true); } }
+          else { const [p] = [...pointers.values()]; gesture = { type: 'one', x: p.x, y: p.y, zx: this.zoom.x, zy: this.zoom.y, dx: 0, dy: 0, moved: true }; }
+          return;
+        }
+        const g = gesture; gesture = null;
+        const restore = (animate) => {
+          img.style.transition = animate && !reduced() ? 'transform .22s cubic-bezier(.2,.8,.2,1),opacity .22s ease' : '';
+          img.style.transform = ''; img.style.opacity = '';
+          if (this.markup?.layer) this.markup.layer.style.opacity = '';
+        };
+        if (this.zoom.s > 1) { if (!g.moved) handleTap(event.clientX, event.clientY); return; }
+        if (g.moved && this.photos.length > 1 && Math.abs(g.dx) > 56 && Math.abs(g.dx) > Math.abs(g.dy) * 1.2 && event.type !== 'pointercancel') {
+          const dir = g.dx < 0 ? 1 : -1;
+          restore(false);
+          this.show(this.index + dir);
+          if (!reduced()) img.animate?.([{ transform: `translateX(${dir * 48}px)`, opacity: 0 }, { transform: 'none', opacity: 1 }], { duration: 240, easing: 'cubic-bezier(.2,.8,.2,1)' });
+          return;
+        }
+        restore(true);
+        if (!g.moved && event.type !== 'pointercancel') handleTap(event.clientX, event.clientY);
+      };
+      ['pointerup', 'pointercancel'].forEach((name) => stage.addEventListener(name, end));
+      // The details sheet: the Details button opens it; the handle (or dragging it down), the scrim or Escape closes it.
+      el.querySelector('[data-photo-details]')?.addEventListener('click', () => this.setSheet(!el.classList.contains('sheet-open')));
+      el.querySelector('[data-photo-sheet-close]')?.addEventListener('click', () => this.setSheet(false));
+      el.querySelector('[data-photo-sheet-scrim]')?.addEventListener('click', () => this.setSheet(false));
+      const handle = el.querySelector('[data-photo-sheet-handle]');
+      let sheetDrag = null;
+      handle?.addEventListener('pointerdown', (event) => {
+        if (!this.mobile || event.target.closest('button')) return;
+        sheetDrag = { id: event.pointerId, y: event.clientY, dy: 0 };
+        try { handle.setPointerCapture(event.pointerId); } catch (_) {}
+        el.classList.add('sheet-dragging');
+      });
+      handle?.addEventListener('pointermove', (event) => {
+        if (sheetDrag?.id !== event.pointerId) return;
+        sheetDrag.dy = Math.max(0, event.clientY - sheetDrag.y);
+        el.style.setProperty('--fm-sheet-drag', `${sheetDrag.dy}px`);
+      });
+      const dropSheet = (event) => {
+        if (sheetDrag?.id !== event.pointerId) return;
+        const close = sheetDrag.dy > 90;
+        sheetDrag = null;
+        el.classList.remove('sheet-dragging');
+        el.style.removeProperty('--fm-sheet-drag');
+        if (close) this.setSheet(false);
+      };
+      handle?.addEventListener('pointerup', dropSheet);
+      handle?.addEventListener('pointercancel', dropSheet);
+      el.addEventListener('keydown', (event) => {
+        if (event.key === 'Escape' && el.classList.contains('sheet-open')) { event.preventDefault(); event.stopPropagation(); this.setSheet(false); }
+      }, true);
+      // The actions sheet closes on a tap anywhere outside it.
+      el.addEventListener('pointerdown', (event) => {
+        const menu = el.querySelector('[data-photo-actions-menu]');
+        if (!this.mobile || !menu?.classList.contains('visible') || event.target.closest?.('.fm-photo-actions-wrap')) return;
+        event.preventDefault(); event.stopPropagation();
+        menu.classList.remove('visible');
+      }, true);
+      sync();
+    }
+    setSheet(open){
+      if (!this.el) return;
+      const next = !!open && !!this.mobile;
+      this.el.classList.toggle('sheet-open', next);
+      this.el.querySelector('[data-photo-details]')?.setAttribute('aria-expanded', String(next));
+      const side = this.el.querySelector('.fm-photo-side');
+      if (side) side.inert = !!this.mobile && !next;
     }
     refreshActions(){
       const host = this.el?.querySelector?.('[data-photo-custom-actions]');
@@ -1975,6 +2201,11 @@
     }
     updateBounds(){
       if (!this.el) return;
+      // A phone shows the item full screen, over the project window's header.
+      if (this.mobile) {
+        Object.assign(this.el.style, { top: '0px', left: '0px', width: `${window.innerWidth}px`, height: `${window.innerHeight}px` });
+        return;
+      }
       const target = this.layoutTarget();
       const rect = target.getBoundingClientRect();
       const top = Math.max(0, rect.top);
@@ -1993,6 +2224,7 @@
       const img = this.el?.querySelector?.('[data-photo-img]');
       const layer = this.markup?.layer;
       if (!stage || !img || !layer) return;
+      if (this.zoom && this.zoom.s !== 1) return;
       const stageRect = stage.getBoundingClientRect();
       const imgRect = img.getBoundingClientRect();
       if (!stageRect.width || !stageRect.height || !imgRect.width || !imgRect.height) return;

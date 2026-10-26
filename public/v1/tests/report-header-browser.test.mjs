@@ -70,7 +70,7 @@ test('mobile opening header has final tabs and no desktop pills before child boo
  assert.equal(await page.locator('.fm-project-loading-header .fa-file-pdf').count(),2);
  assert.equal(await page.locator('.fm-project-loading-header [data-tab=customer] .fa-user').count(),1);
  const sizes=await page.locator('.fm-project-loading-header [data-tab]').evaluateAll(nodes=>nodes.map(e=>e.getBoundingClientRect()));
- assert.ok(sizes.every(r=>Math.abs(r.width-sizes[0].width)<1&&r.height===32));
+ assert.ok(sizes.every(r=>Math.abs(r.width-sizes[0].width)<1&&r.height===42));
  assert.equal(await page.locator('.fm-project-loading-header [data-window-action=close]').isVisible(),true);
  assert.equal(await page.locator('.fm-project-loading-header [data-window-action=minimize]').isVisible(),false);
  await page.locator('.fm-project-loading-header [data-tab="project:map"]').click();
@@ -109,12 +109,14 @@ test('mobile title and dropdown geometry match before and after content boot',as
  await page.addStyleTag({url:'https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css'});await page.evaluate(()=>document.fonts.ready);
  const opening=await page.evaluate(readGeometry);
  if(process.env.EVIDENCE_DIR)await page.screenshot({path:process.env.EVIDENCE_DIR+'/opening.png'});
- assert.equal(opening.font,'18px');assert.equal(opening.maxWidth,'100%');assert.equal(opening.border,'0px');
+ assert.equal(opening.font,'16px');assert.equal(opening.maxWidth,'100%');assert.equal(opening.border,'0px');
  await page.evaluate(()=>{
   const header=document.querySelector('.fm-project-loading-header').cloneNode(true);
   FirstMateProjectWindows.close(record.token);
   header.className='r-window-bar r-modal-header fm-shell-header';
   header.querySelector('.r-project-identity-trigger').id='rProjectIdentityTrigger';header.querySelector('.r-window-project-title').id='rWindowProjectTitle';
+  // project-trays puts its phone tray control on the title row, where the opening header reserves its place.
+  const trayToggle=document.createElement('button');trayToggle.type='button';trayToggle.className='fm-project-tray-toggle';header.querySelector('.fm-project-tray-tabs')?.before(trayToggle);
   const overlay=document.createElement('div');overlay.className='r-overlay active window-managed project-layout-prototype';overlay.style.cssText='display:block;position:fixed;inset:0';
   const win=document.createElement('div');win.className='r-win fm-entity-window';win.style.cssText='position:absolute;inset:0;width:100%;height:100%;padding:0;max-width:none;max-height:none;border:0';win.append(header);overlay.append(win);document.body.append(overlay);
  });

@@ -24,6 +24,38 @@
     return item.label;
   }
   const PAGE_SIZE = 14;
+  // Feed page on a phone (the portal's mobile top bar width): the top bar carries the
+  // title, and the views are List and Tiles (large tiles). A saved dense, mosaic or
+  // posts choice shows as Tiles and is kept for wider screens. An organization whose
+  // feed has neither keeps what it has.
+  const FEED_MOBILE_QUERY = '(max-width: 820px)';
+  function feedIsMobile(){ try { return !!window.matchMedia?.(FEED_MOBILE_QUERY).matches; } catch (error) { return false; } }
+  function feedDeviceViews(){
+    if (!feedIsMobile()) return state.views;
+    const views = [
+      ...(state.views.includes('list') ? ['list'] : []),
+      ...(state.views.some((view) => ['small','large','mosaic'].includes(view)) ? ['large'] : [])
+    ];
+    return views.length ? views : state.views;
+  }
+  // Anything that sets state.density (route, click, load, mount) is the person's choice;
+  // the page then shows the nearest view this device offers.
+  function syncFeedDeviceDensity(){
+    if (state.density !== state.deviceDensity || !state.densityChoice) state.densityChoice = state.density;
+    const views = feedDeviceViews();
+    const shown = views.includes(state.densityChoice) ? state.densityChoice : (views.includes('large') ? 'large' : views[0]);
+    state.density = state.deviceDensity = shown;
+  }
+  if (window.matchMedia) {
+    // Crossing the phone width re-renders the views, unless someone is writing in the feed
+    // (an open post composer or a focused comment); the next render catches up.
+    try { window.matchMedia(FEED_MOBILE_QUERY).addEventListener('change', () => {
+      if (!state.root?.isConnected || state.composerOpen) return;
+      const active = document.activeElement;
+      if (active && state.root.contains(active) && active.matches('input,textarea,select,[contenteditable],[contenteditable] *')) return;
+      render();
+    }); } catch (error) {}
+  }
   const DEFAULT_MEDIA_FILTERS = ['photo', 'video'];
   const DEFAULT_ACTIVITY_FILTERS = ['payments', 'documents', 'engagement', 'calls', 'messages', 'uploads', 'project', 'scheduling', 'field'];
   const DOCUMENT_FILTERS = [
@@ -1360,7 +1392,7 @@
   function writeFeedPreferences(){
     if (window.Portal?.navigation?.applying) return;
     window.Portal?.navigation?.replace?.({
-      feedDensity:state.density,
+      feedDensity:state.densityChoice || state.density,
       feedListOrganize:state.listOrganize,
       feedShown:serializeFeedShown()
     }, { source:'feed-preferences', ownedKeys:['feedDensity','feedListOrganize','feedShown'] });
@@ -1750,7 +1782,79 @@
       .pf-image-lightbox{background:#101828ba;backdrop-filter:blur(4px)}.pf-image-lightbox-panel header button{position:static;width:34px;height:34px;flex:none;border-radius:8px;color:#344054;font-size:24px}
       .pf-post-image-viewer{z-index:10015}.pf-post-image-stage{display:flex;align-items:center;justify-content:center;min-height:160px;min-width:0}.pf-post-image-stage img{max-width:calc(100% - 96px);max-height:calc(92vh - 70px)}.pf-post-image-stage button{position:static;flex:0 0 48px;height:64px;border:0;background:transparent;color:#344054;font-size:42px;cursor:pointer}.pf-post-image-stage button:hover{background:#f2f4f7}.pf-post-image-stage button[hidden]{visibility:hidden}
       @media(max-width:760px){.pf-wrap[data-density="posts"] .pf-toolbar{flex-wrap:wrap}.pf-wrap[data-density="posts"] .pf-tools{flex:1 1 100%;justify-content:flex-end;flex-wrap:wrap}.pf-feed-scope-menu{left:auto;right:0}.pf-list-controls{width:auto;order:0}.pf-list-segment button{padding:6px 9px}}
+      @media(max-width:760px){
+        .pf-wrap[data-mobile-grid=dense]>.pf-toolbar{margin:0!important;padding:8px 10px!important;gap:8px;background:#fff;border-bottom:1px solid #eaecf0}
+        .pf-wrap[data-mobile-grid=dense] .pf-title{display:none}
+        .pf-wrap[data-mobile-grid=dense] .pf-tools{gap:6px}
+        .pf-wrap[data-mobile-grid=dense] .pf-search input{height:36px;font-size:13px;background:#f8fafc}
+        .pf-wrap[data-mobile-grid=dense] .pf-toolbar-action{height:36px;width:38px;padding:0;justify-content:center;flex:none}
+        .pf-wrap[data-mobile-grid=dense] .pf-upload{flex:none;width:38px;height:36px;padding:0;justify-content:center;font-size:0;border:0;background:var(--primary,#d93025);color:#fff}.pf-wrap[data-mobile-grid=dense] .pf-upload i{font-size:15px}
+        .pf-wrap[data-mobile-grid=dense] .pf-scroll{padding:0 0 16px}
+        .pf-wrap[data-mobile-grid=dense] .pf-day{display:grid;grid-template-columns:auto minmax(0,1fr);align-items:center;margin:0}
+        .pf-wrap[data-mobile-grid=dense] .pf-day-heading{grid-column:1;position:sticky;top:0;z-index:3;align-self:stretch;margin:0;padding:9px 12px 7px;background:rgba(255,255,255,.96)}
+        .pf-wrap[data-mobile-grid=dense] .pf-day-title{font-size:12px!important;font-weight:800!important;color:#101828!important}
+        .pf-wrap[data-mobile-grid=dense] .pf-day-summary{display:none}
+        .pf-wrap[data-mobile-grid=dense] .pf-day>.pf-group{display:contents}
+        .pf-wrap[data-mobile-grid=dense] .pf-group-head{grid-column:1 / -1;flex-direction:row!important;align-items:center;justify-content:flex-end;gap:5px;min-width:0;padding:7px 12px;border:0;background:rgba(255,255,255,.96);color:#98a2b3;font-size:11px;white-space:nowrap}
+        .pf-wrap[data-mobile-grid=dense] .pf-day-heading+.pf-group>.pf-group-head{grid-column:2;position:sticky;top:0;z-index:3;align-self:stretch;padding-left:0}
+        .pf-wrap[data-mobile-grid=dense] .pf-group-head>div:first-child{display:flex;flex:none;min-width:0}
+        .pf-wrap[data-mobile-grid=dense] .pf-group-head :is(.pf-project-link,strong){display:none}
+        .pf-wrap[data-mobile-grid=dense] .pf-group-head>div:first-child>span{margin:0;font-size:11px;color:#667085}
+        .pf-wrap[data-mobile-grid=dense] .pf-uploaders{flex:0 1 auto;min-width:0;max-width:none;overflow:hidden;text-overflow:ellipsis;font-size:11px;color:#98a2b3;text-align:right}
+        .pf-wrap[data-mobile-grid=dense] .pf-uploaders::before{content:'·';margin-right:5px}.pf-wrap[data-mobile-grid=dense] .pf-uploaders>i{display:none}
+        .pf-wrap[data-mobile-grid=dense] .pf-uploaders .pf-user-link{font-size:11px;font-weight:600;color:#98a2b3}
+        .pf-wrap[data-mobile-grid=dense] .pf-uploaders :is(span,button){display:inline;margin:0;font-size:11px;line-height:1.3}
+        .pf-wrap[data-mobile-grid=dense] .pf-grid{grid-column:1 / -1;grid-template-columns:repeat(3,minmax(0,1fr))!important;gap:2px!important;padding:0!important;margin-bottom:2px}
+        .pf-wrap[data-mobile-grid=dense] .pf-thumb{border:0;border-radius:0;-webkit-tap-highlight-color:transparent;-webkit-touch-callout:none}
+        .pf-wrap[data-mobile-grid=dense] .pf-thumb:hover img,.pf-wrap[data-mobile-grid=dense] .pf-thumb:hover video{transform:none}
+        .pf-wrap[data-mobile-grid=dense] .pf-thumb:active{filter:brightness(.92)}
+        .pf-wrap[data-mobile-grid=dense] .pf-thumb.selected{outline:3px solid var(--primary,#d93025);outline-offset:-3px;box-shadow:none}
+        .pf-wrap[data-mobile-grid=dense] .pf-select{top:6px;left:6px;width:22px;height:22px;border-radius:999px}
+        .pf-wrap[data-mobile-grid=dense] .pf-thumb-meta{display:none}
+        .pf-wrap[data-mobile-grid=dense] .pf-video-badge{right:5px;bottom:5px;width:24px;height:24px;font-size:9px}
+        .pf-wrap[data-mobile-grid=dense] .pf-empty{margin:40px auto;padding:0 24px}
+        .pf-wrap[data-mobile-grid=dense] .pf-shown-menu{position:fixed!important;left:0!important;right:0!important;top:auto!important;bottom:0!important;width:auto!important;max-height:72vh!important;border:0;border-radius:18px 18px 0 0!important;padding:6px 6px calc(10px + env(safe-area-inset-bottom,0px))!important;box-shadow:0 0 0 100vmax rgba(15,23,42,.32),0 -12px 40px rgba(16,24,40,.2)!important;animation:pfSheetUp .24s cubic-bezier(.2,.8,.2,1)}
+        .pf-wrap[data-mobile-grid=dense]>.pf-toolbar:has(.pf-shown-menu){z-index:50}
+        .pf-wrap[data-mobile-grid=dense] .pf-shown-menu::before{content:'';display:block;width:36px;height:4px;margin:4px auto 2px;border-radius:2px;background:#d0d5dd}
+        .pf-gallery-host:has(>.pf-wrap[data-mobile-grid=dense]) .pf-seldock{bottom:calc(10px + env(safe-area-inset-bottom,0px))}
+      }
+      @media(min-width:560px) and (max-width:760px){.pf-wrap[data-mobile-grid=dense] .pf-grid{grid-template-columns:repeat(4,minmax(0,1fr))!important}}
+      @keyframes pfSheetUp{from{opacity:0;transform:translateY(28px)}}
+      @media(prefers-reduced-motion:reduce){.pf-wrap[data-mobile-grid=dense] .pf-shown-menu{animation:none}}
       @media(prefers-reduced-motion:reduce){.pf-note-toggle .pf-note-preview,.pf-note-toggle i,.pf-note-expanded{transition:none}}
+    `);
+    // Feed page on a phone only (data-pf-page="feed" is never set on the project gallery).
+    injectCSS('photos_feed_page_mobile', `
+      @media(max-width:820px){
+        .pf-wrap[data-pf-page="feed"][data-density] .pf-title{display:none}
+        .pf-wrap[data-pf-page="feed"][data-density]>.pf-toolbar{flex-direction:row;flex-wrap:nowrap;align-items:center;gap:8px}
+        .pf-wrap[data-pf-page="feed"][data-density] .pf-tools{flex:1 1 auto;width:auto;min-width:0;flex-wrap:nowrap;justify-content:flex-end;gap:8px}
+        .pf-wrap[data-pf-page="feed"][data-density] .pf-feed-scope-control{flex:1 1 auto;min-width:0;margin-right:auto}
+        .pf-wrap[data-pf-page="feed"][data-density] .pf-feed-scope-trigger{width:100%;max-width:100%;min-height:40px;padding:0 12px;border:1px solid #d0d5dd;border-radius:12px;background:#fff;transition:border-color .15s ease,box-shadow .15s ease}
+        .pf-wrap[data-pf-page="feed"][data-density] .pf-feed-scope-trigger[aria-expanded="true"]{border-color:rgba(var(--primary-rgb,217,48,37),.45);box-shadow:0 0 0 3px rgba(var(--primary-rgb,217,48,37),.1)}
+        .pf-wrap[data-pf-page="feed"][data-density] .pf-feed-scope-trigger>span{display:none}
+        .pf-wrap[data-pf-page="feed"][data-density] .pf-feed-scope-trigger strong{flex:1 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;text-align:left;font-size:13px}
+        .pf-wrap[data-pf-page="feed"][data-density] .pf-density{display:flex;flex:0 0 auto;height:40px;border-radius:12px}
+        .pf-wrap[data-pf-page="feed"][data-density] .pf-density button{width:44px;height:100%;font-size:14px;transition:background-color .18s ease,color .18s ease}
+        .pf-wrap[data-pf-page="feed"][data-density] .pf-shown-wrap{flex:0 0 auto}
+        .pf-wrap[data-pf-page="feed"][data-density] .pf-shown-wrap .pf-toolbar-action{width:40px;height:40px;padding:0;justify-content:center;border-radius:12px;font-size:14px}
+        .pf-wrap[data-pf-page="feed"][data-density] .pf-shown-wrap .pf-toolbar-action span{display:none}
+        .pf-wrap[data-pf-page="feed"][data-density] .pf-create-post{min-height:40px;border-radius:12px;flex:0 0 auto}
+        .pf-wrap[data-pf-page="feed"][data-density] .pf-shown-menu.pf-sheet-enter{animation:pfFeedSheetUp .26s cubic-bezier(.2,.8,.2,1)}
+        .pf-wrap[data-pf-page="feed"][data-density] :is(.pf-shown-menu,.pf-feed-scope-menu){position:fixed;left:0;right:0;bottom:0;top:auto;width:auto;max-width:none;max-height:78vh;overflow:auto;overscroll-behavior:contain;box-sizing:border-box;z-index:2147483000;border:0;border-radius:20px 20px 0 0;padding:6px 10px calc(14px + env(safe-area-inset-bottom,0px));background:#fff;box-shadow:0 0 0 100vmax rgba(15,23,42,.34),0 -14px 40px rgba(16,24,40,.22)}
+        .pf-wrap[data-pf-page="feed"][data-density] .pf-feed-scope-menu{animation:pfFeedSheetUp .26s cubic-bezier(.2,.8,.2,1)}
+        .pf-wrap[data-pf-page="feed"][data-density] :is(.pf-shown-menu,.pf-feed-scope-menu)::before{content:'';display:block;width:38px;height:4px;margin:4px auto 8px;border-radius:2px;background:#d0d5dd}
+        .pf-wrap[data-pf-page="feed"][data-density] .pf-shown-options{grid-template-columns:1fr;gap:6px}
+        .pf-wrap[data-pf-page="feed"][data-density] .pf-shown-options>button{height:48px;font-size:14px;font-weight:800;border-radius:12px;padding:0 14px}
+        .pf-wrap[data-pf-page="feed"][data-density] .pf-shown-sort{padding:2px 10px 10px}
+        .pf-wrap[data-pf-page="feed"][data-density] .pf-shown-sort .pf-list-segment{display:grid;grid-template-columns:1fr 1fr;gap:4px;border-radius:12px}
+        .pf-wrap[data-pf-page="feed"][data-density] .pf-shown-sort .pf-list-segment button{min-height:40px;display:flex;align-items:center;justify-content:center;gap:8px;font-size:14px;border-radius:9px;transition:background-color .18s ease,color .18s ease}
+        .pf-wrap[data-pf-page="feed"][data-density] .pf-feed-scope-menu>button,.pf-wrap[data-pf-page="feed"][data-density] .pf-feed-scope-departments button{min-height:48px;font-size:15px;border-radius:12px}
+        .pf-wrap[data-pf-page="feed"][data-density] .pf-feed-scope-search input{height:44px;font-size:16px}
+        .pf-wrap[data-pf-page="feed"][data-density] .pf-feed-scope-departments{max-height:none}
+      }
+      @keyframes pfFeedSheetUp{from{opacity:0;transform:translateY(32px)}}
+      @media(prefers-reduced-motion:reduce){.pf-wrap[data-pf-page="feed"][data-density] :is(.pf-shown-menu,.pf-feed-scope-menu){animation:none!important}}
     `);
   }
   async function load(options = {}){
@@ -2865,10 +2969,14 @@
       </section>`;
   }
   function shownMenuHtml(){
-    if (!state.shownMenuOpen) return '';
+    if (!state.shownMenuOpen) { state.shownMenuEntered = false; return ''; }
+    // The sheet slides in when it opens, not again on each re-render while it is open.
+    const enter = !state.shownMenuEntered;
+    state.shownMenuEntered = true;
     return `
-      <div class="pf-shown-menu" data-feed-shown-menu>
+      <div class="pf-shown-menu${enter ? ' pf-sheet-enter' : ''}" data-feed-shown-menu>
         <div class="pf-shown-head"><div><strong>Filters</strong></div><button type="button" data-feed-shown-close aria-label="Close"><i class="fas fa-xmark"></i></button></div>
+        ${state.density==='list'&&feedIsMobile()?`<div class="pf-shown-sort"><div class="pf-list-segment" role="group" aria-label="Sort feed by"><button type="button" data-feed-list-organize="time" aria-pressed="${state.listOrganize==='time'}" class="${state.listOrganize==='time'?'active':''}"><i class="fas fa-clock" aria-hidden="true"></i>Time</button><button type="button" data-feed-list-organize="project" aria-pressed="${state.listOrganize==='project'}" class="${state.listOrganize==='project'?'active':''}"><i class="fas fa-folder" aria-hidden="true"></i>Project</button></div></div>`:''}
         <div class="pf-shown-options pf-activity-options">${ACTIVITY_FILTERS.map(item=>`<button type="button" class="${state.visibleActivity.has(item.id)?'active':''}" data-feed-filter-group="activity" data-feed-filter-id="${escapeHtml(item.id)}" aria-pressed="${state.visibleActivity.has(item.id)}"><span class="pf-shown-check"><i class="fas fa-check"></i></span><i class="fas ${escapeHtml(item.icon)}"></i><span>${escapeHtml(feedFilterLabel(item,'activity'))}</span></button>`).join('')}</div>
       </div>`;
   }
@@ -2900,15 +3008,17 @@
     state.composerMentionApi?.destroy?.();
     state.composerMentionApi=null;
     for(const current of state.posts.values()){current.mentionApi?.destroy?.();current.mentionApi=null;}
+    syncFeedDeviceDensity();
+    const mobile=feedIsMobile();
     const visibleCount = ['posts','list'].includes(state.density) ? groupedPosts(feedEntries()).length : feedEntries().length;
     state.root.innerHTML = `
-      <div class="pf-wrap${String(state.selectionMode ? ' selection-mode' : '')}" data-density="${String(escapeHtml(state.density))}">
+      <div class="pf-wrap${String(state.selectionMode ? ' selection-mode' : '')}" data-pf-page="feed" data-density="${String(escapeHtml(state.density))}">
         <div class="pf-toolbar" data-app-header>
           <div class="pf-title"><i class="fas ${String(escapeHtml(state.icon || 'fa-layer-group'))}"></i><div><strong>${String(escapeHtml(state.title || (globalThis.PlatformLanguage?.text("photos","m_3eea4dfd8e947d","Feed") ?? "Feed")))}</strong><span>${String(escapeHtml(state.subtitle || `${visibleCount} item${visibleCount === 1 ? '' : 's'} shown`))}</span></div></div>
           <div class="pf-tools">
             ${feedScopeControlHtml()}
             ${state.density==='posts'&&state.canPost?'<button type="button" class="pf-action primary pf-create-post" data-feed-compose-open><i class="fas fa-pen-to-square"></i> Post</button>':''}
-            ${state.density==='list'?`<div class="pf-list-controls"><span>Sort by</span><div class="pf-list-segment" role="group" aria-label="Sort feed by"><button type="button" data-feed-list-organize="time" aria-pressed="${state.listOrganize==='time'}" class="${state.listOrganize==='time'?'active':''}">Time</button><button type="button" data-feed-list-organize="project" aria-pressed="${state.listOrganize==='project'}" class="${state.listOrganize==='project'?'active':''}">Project</button></div></div>`:''}
+            ${state.density==='list'&&!mobile?`<div class="pf-list-controls"><span>Sort by</span><div class="pf-list-segment" role="group" aria-label="Sort feed by"><button type="button" data-feed-list-organize="time" aria-pressed="${state.listOrganize==='time'}" class="${state.listOrganize==='time'?'active':''}">Time</button><button type="button" data-feed-list-organize="project" aria-pressed="${state.listOrganize==='project'}" class="${state.listOrganize==='project'?'active':''}">Project</button></div></div>`:''}
             <div class="pf-density">
               ${String([
                 {id:'list',label:'List',icon:'list'},
@@ -2916,10 +3026,10 @@
                 {id:'large',label:'Large tiles',icon:'border-all'},
                 {id:'mosaic',label:'Mosaic',icon:'shapes'},
                 {id:'posts',label:'Posts',icon:'newspaper'}
-              ].filter(mode=>state.views.includes(mode.id)).map((mode) => `<button type="button" class="${state.density === mode.id ? 'active' : ''}" data-density="${mode.id}" aria-label="${mode.label}" aria-pressed="${state.density === mode.id}" data-fm-tooltip="${mode.label}"><i class="fas fa-${mode.icon}"></i></button>`).join(''))}
+              ].filter(mode=>feedDeviceViews().includes(mode.id)).map((mode)=>mobile&&mode.id==='large'?{...mode,label:'Tiles'}:mode).map((mode) => `<button type="button" class="${state.density === mode.id ? 'active' : ''}" data-density="${mode.id}" aria-label="${mode.label}" aria-pressed="${state.density === mode.id}" data-fm-tooltip="${mode.label}"><i class="fas fa-${mode.icon}"></i></button>`).join(''))}
             </div>
             <div class="pf-shown-wrap">
-              <button type="button" class="pf-toolbar-action${String(state.shownMenuOpen || state.visibleActivity.size < DEFAULT_ACTIVITY_FILTERS.length ? ' active' : '')}" data-feed-shown aria-expanded="${String(state.shownMenuOpen ? 'true' : 'false')}"><i class="fas fa-sliders"></i><span>Filter</span></button>
+              <button type="button" class="pf-toolbar-action${String(state.shownMenuOpen || state.visibleActivity.size < DEFAULT_ACTIVITY_FILTERS.length ? ' active' : '')}" data-feed-shown aria-label="Filter" aria-expanded="${String(state.shownMenuOpen ? 'true' : 'false')}"><i class="fas fa-sliders"></i><span>Filter</span></button>
               ${String(shownMenuHtml())}
             </div>
             ${String(state.uploadLabel ? `<button type="button" class="pf-upload" data-photo-feed-upload><i class="fas fa-plus"></i> ${escapeHtml(state.uploadLabel)}</button>` : '')}
@@ -2958,7 +3068,7 @@
         if(state.shownMenuOpen){state.shownMenuOpen=false;state.root?.querySelector('[data-feed-shown-menu]')?.remove();const trigger=state.root?.querySelector('[data-feed-shown]');trigger?.setAttribute('aria-expanded','false');trigger?.classList.toggle('active',state.visibleActivity.size<DEFAULT_ACTIVITY_FILTERS.length);}
       });
     }
-    rootEl.querySelector('[data-feed-scope]')?.addEventListener('click',()=>{state.scopeMenuOpen=!state.scopeMenuOpen;render();if(state.scopeMenuOpen)rootEl.querySelector('[data-feed-scope-search]')?.focus();});
+    rootEl.querySelector('[data-feed-scope]')?.addEventListener('click',()=>{state.scopeMenuOpen=!state.scopeMenuOpen;render();if(state.scopeMenuOpen&&!feedIsMobile())rootEl.querySelector('[data-feed-scope-search]')?.focus();});
     rootEl.querySelectorAll('[data-feed-scope-option]').forEach(button=>button.addEventListener('click',()=>{state.feedScope=button.dataset.feedScopeOption;state.scopeMenuOpen=false;state.visible=PAGE_SIZE;writeFeedPreferences();render();}));
     rootEl.querySelector('[data-feed-scope-search]')?.addEventListener('input',event=>{const query=event.target.value.trim().toLowerCase();rootEl.querySelectorAll('.pf-feed-scope-departments [data-feed-scope-option]').forEach(button=>{button.hidden=!button.textContent.toLowerCase().includes(query);});});
     rootEl.querySelectorAll('[data-feed-list-organize]').forEach(button=>button.addEventListener('click',()=>{state.listOrganize=button.dataset.feedListOrganize==='project'?'project':'time';writeFeedPreferences();render();}));
@@ -3069,7 +3179,7 @@
       if (typeof state.onUpload === 'function') state.onUpload();
     });
     rootEl.querySelectorAll('.pf-density [data-density]').forEach((btn) => btn.addEventListener('click', () => {
-      state.density = btn.dataset.density || 'comfortable';
+      state.density = state.densityChoice = btn.dataset.density || 'comfortable';
       writeFeedPreferences();
       render();
     }));
@@ -4050,6 +4160,24 @@
         btn.addEventListener('pointerdown', (event) => {
           if (options.selectionEnabled === false) return;
           if (!btn.dataset.photoFeedId || event.button > 0) return;
+          // Touch scrolls the grid, so it never drag-selects; a long press starts (or extends) the selection instead.
+          if (event.pointerType === 'touch') {
+            const id = btn.dataset.photoFeedId, x = event.clientX, y = event.clientY;
+            const cancel = () => { window.clearTimeout(timer); btn.removeEventListener('pointermove', moved); btn.removeEventListener('pointerup', cancel); btn.removeEventListener('pointercancel', cancel); };
+            const moved = (move) => { if (Math.hypot(move.clientX - x, move.clientY - y) > 8) cancel(); };
+            const timer = window.setTimeout(() => {
+              cancel();
+              local.suppressClickId = id;
+              window.setTimeout(() => { if (local.suppressClickId === id) local.suppressClickId = ''; }, 700);
+              if (!local.selected.has(id)) toggle(id, {});
+              navigator.vibrate?.(12);
+              renderLocal();
+            }, 450);
+            btn.addEventListener('pointermove', moved);
+            btn.addEventListener('pointerup', cancel);
+            btn.addEventListener('pointercancel', cancel);
+            return;
+          }
           local.dragSelecting = true;
           local.dragStartId = btn.dataset.photoFeedId;
           local.dragStartX = event.clientX || 0;
@@ -4059,6 +4187,8 @@
           local.dragLeftStartTile = false;
           local.dragPreview.clear();
         });
+        // A long press on a phone selects; it must not also open the browser's image menu.
+        btn.addEventListener('contextmenu', (event) => { if (window.matchMedia?.('(pointer:coarse)')?.matches) event.preventDefault(); });
         btn.draggable = typeof options.onItemDragStart === 'function';
         if (btn.draggable) btn.style.webkitUserDrag = 'element';
         btn.addEventListener('dragstart', (event) => {
@@ -4132,6 +4262,8 @@
           if (id && panel.contains(thumb)) previewRange(id);
         });
         window.addEventListener('pointerup', (event) => {
+          // Touch never drag-selects (a long press selects), so its release must not clear the long press's click guard.
+          if (event.pointerType === 'touch' && !local.dragSelecting) return;
           const moved = local.dragMoved;
           const releasedTile = moved ? localTileAtPoint(event) : null;
           const releasedId = releasedTile?.dataset?.photoFeedId || '';
@@ -4186,7 +4318,7 @@
       }).join('');
       const scrollTop = panel.querySelector('[data-feed-scroll]')?.scrollTop || 0;
       panel.innerHTML = `
-        <div class="pf-wrap${String(local.selectionMode ? ' selection-mode' : '')}" data-density="${String(escapeHtml(local.density))}">
+        <div class="pf-wrap${String(local.selectionMode ? ' selection-mode' : '')}" data-density="${String(escapeHtml(local.density))}"${options.mobileGrid === 'dense' ? ' data-mobile-grid="dense"' : ''}>
           <div class="pf-toolbar" data-app-header>
             <div class="pf-title"><i class="fas ${String(escapeHtml(icon))}"></i><div><strong>${String(escapeHtml(titleLabel))}</strong>${String(subtitleLabel ? `<span>${escapeHtml(subtitleLabel)}</span>` : '')}</div></div>
             <div class="pf-tools">
@@ -4231,6 +4363,19 @@
         local.tagMenuOpen = false;
         renderLocal();
       });
+      // On a phone the tag filter is a bottom sheet: tapping outside it closes it.
+      if (local.tagMenuOpen && options.mobileGrid === 'dense' && window.matchMedia?.('(max-width:760px)')?.matches) {
+        const sheet = panel.querySelector('[data-local-tag-menu]'), trigger = panel.querySelector('[data-local-tags]');
+        const outside = (event) => {
+          if (!sheet?.isConnected) { document.removeEventListener('pointerdown', outside, true); return; }
+          if (sheet.contains(event.target) || trigger?.contains(event.target)) return;
+          event.preventDefault(); event.stopPropagation();
+          document.removeEventListener('pointerdown', outside, true);
+          local.tagMenuOpen = false;
+          renderLocal();
+        };
+        document.addEventListener('pointerdown', outside, true);
+      }
       panel.querySelectorAll('[data-feed-filter-group="local-types"][data-feed-filter-id]').forEach(button=>button.addEventListener('click',()=>{
         const id=button.dataset.feedFilterId;if(local.visibleTypes.has(id))local.visibleTypes.delete(id);else local.visibleTypes.add(id);renderLocal();
       }));

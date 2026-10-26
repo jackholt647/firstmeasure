@@ -342,6 +342,43 @@
         .fm-contact-projects{grid-template-columns:1fr;padding:0 0 66px}
         .fm-contact-overlay.window-managed .fm-window-controls button{width:28px;min-height:39px}
       }
+      .fm-contact-actions .fm-contact-more{display:none}
+      /* Phone (the window is full screen): one scrolling column, thumb-sized fields and a fixed action bar; secondary actions sit in More. */
+      @media(max-width:760px){
+        .fm-contact-content{overflow-y:auto;overscroll-behavior:contain;-webkit-overflow-scrolling:touch;padding-bottom:calc(76px + env(safe-area-inset-bottom,0px))}
+        .fm-contact-left{height:auto;flex:0 0 auto;overflow:visible;padding:14px 16px 16px;gap:10px}
+        .fm-contact-fields{overflow:visible;padding-right:0;gap:10px;scrollbar-gutter:auto}
+        .fm-contact-right{flex:1 0 auto;min-height:280px}
+        .fm-contact-profile{margin:0}
+        .fm-contact-photo-tile,.fm-contact-profile-image{width:76px;height:76px;border-radius:50%}
+        .fm-contact-field label{font-size:11px}
+        .fm-contact-input{min-height:46px;font-size:16px;font-weight:700;border-radius:12px;padding:8px 12px}
+        .fm-contact-phone-controls{grid-template-columns:minmax(0,1fr) 112px}
+        .fm-contact-phone-add,.fm-contact-phone-actions button{min-height:32px;font-size:13px}
+        .fm-contact-tag{font-size:12px;padding:5px 10px}
+        .fm-contact-tag-input{min-height:34px;font-size:14px}
+        .fm-contact-relationship-actions{display:none}
+        #fmContactRelationships:not(:has(.fm-contact-relationship-match,.fm-contact-relationship-panel:not([hidden]))){display:none}
+        .fm-contact-actions{position:fixed;left:0;right:0;bottom:0;z-index:6;gap:6px;padding:8px 10px calc(8px + env(safe-area-inset-bottom,0px));background:rgba(255,255,255,.96);backdrop-filter:blur(14px);border-top:1px solid rgba(15,23,42,.08);box-shadow:0 -8px 24px rgba(16,24,40,.08)}
+        .fm-contact-actions .fm-contact-btn{min-height:54px;flex-direction:column;gap:4px;border:0;border-radius:12px;background:transparent;color:var(--primary-readable,var(--primary,#d93025));font-size:11px;font-weight:900;transition:background-color .15s ease,transform .12s ease}
+        .fm-contact-actions .fm-contact-btn i{font-size:17px}
+        .fm-contact-actions .fm-contact-btn:active:not(:disabled){transform:scale(.94);background:rgba(var(--primary-rgb,217,48,37),.08)}
+        .fm-contact-actions .fm-contact-btn:disabled{color:#98a2b3;opacity:.7}
+        .fm-contact-actions .fm-contact-more{display:inline-flex;color:#475467;flex:0 0 64px}
+        .fm-contact-new-project{display:none!important}
+        .fm-contact-projects{padding:0 0 12px}
+        .fm-contact-project{min-height:0;padding:14px 16px;border-radius:14px;box-shadow:0 1px 2px rgba(16,24,40,.05)}
+        .fm-contact-project:active{transform:scale(.985)}
+        .fm-contact-sheet{position:absolute;inset:0;z-index:20;background:rgba(15,23,42,0);transition:background-color .2s ease}
+        .fm-contact-sheet.open{background:rgba(15,23,42,.34)}
+        .fm-contact-sheet-panel{position:absolute;left:0;right:0;bottom:0;display:grid;gap:2px;padding:10px 10px calc(14px + env(safe-area-inset-bottom,0px));background:#fff;border-radius:20px 20px 0 0;box-shadow:0 -14px 40px rgba(16,24,40,.22);transform:translateY(100%);transition:transform .24s cubic-bezier(.2,.8,.2,1)}
+        .fm-contact-sheet-panel::before{content:'';justify-self:center;width:38px;height:4px;margin:0 0 8px;border-radius:2px;background:#d0d5dd}
+        .fm-contact-sheet.open .fm-contact-sheet-panel{transform:none}
+        .fm-contact-sheet-panel button{display:flex;align-items:center;gap:14px;min-height:52px;padding:0 14px;border:0;border-radius:12px;background:transparent;color:#101828;font:inherit;font-size:15px;font-weight:800;text-align:left;cursor:pointer}
+        .fm-contact-sheet-panel button:active{background:#f2f4f7}
+        .fm-contact-sheet-panel button i{width:22px;text-align:center;color:var(--primary-readable,var(--primary,#d93025));font-size:16px}
+      }
+      @media(prefers-reduced-motion:reduce){.fm-contact-sheet,.fm-contact-sheet-panel,.fm-contact-actions .fm-contact-btn{transition:none}}
     `;
     document.head.appendChild(style);
   }
@@ -450,6 +487,7 @@
             <button type="button" class="fm-contact-btn" id="fmContactCall"><i class="fas fa-phone"></i><span>${(globalThis.PlatformLanguage?.htmlText("contacts","m_8d4eaa0da004be","Call") ?? "Call")}</span></button>
             <button type="button" class="fm-contact-btn" id="fmContactText"><i class="fas fa-comment-sms"></i><span>Text</span></button>
             <button type="button" class="fm-contact-btn" id="fmContactEmailAction"><i class="fas fa-envelope"></i><span>Email</span></button>
+            <button type="button" class="fm-contact-btn fm-contact-more" data-fm-contact-more aria-haspopup="menu" aria-expanded="false" aria-label="More actions" data-fm-tooltip="More actions"><i class="fas fa-ellipsis"></i><span>More</span></button>
           </div>
         </section>
         <section class="fm-contact-right">
@@ -483,6 +521,7 @@
     $('#fmContactText',overlay)?.addEventListener('click',()=>{const number=cleanText(state.contact.phone).replace(/[^+0-9*#,;]/g,'');if(number)window.location.href='sms:'+number;});
     $('#fmContactEmailAction',overlay)?.addEventListener('click',()=>{const email=cleanText(state.contact.email);if(email)window.location.href='mailto:'+encodeURIComponent(email);});
     $('#fmContactNewProject', overlay)?.addEventListener('click', createProjectForContact);
+    $('[data-fm-contact-more]', overlay)?.addEventListener('click', () => openMoreSheet(overlay));
     ['fmContactFirstName','fmContactLastName','fmContactPhone','fmContactSecondaryPhone','fmContactEmail','fmContactAddress'].forEach((id) => {
       $(`#${id}`, overlay)?.addEventListener('input', () => {
         if(id==='fmContactPhone'||id==='fmContactSecondaryPhone')formatPhoneInput($(`#${id}`,overlay));
@@ -527,6 +566,48 @@
       if (project) openProject(project);
     });
     return overlay;
+  }
+  // Phone only (the More button is hidden on wider screens): secondary actions whose
+  // inline controls the phone layout hides. Each item presses the existing control.
+  function closeMoreSheet(overlay, options = {}){
+    const sheet = overlay?.querySelector('.fm-contact-sheet');
+    const more = overlay?.querySelector('[data-fm-contact-more]');
+    more?.setAttribute('aria-expanded', 'false');
+    if (!sheet) return;
+    sheet.classList.remove('open');
+    window.setTimeout(() => sheet.remove(), 220);
+    if (options.focus !== false) more?.focus();
+  }
+  function openMoreSheet(overlay){
+    if (!overlay || overlay.querySelector('.fm-contact-sheet.open')) return;
+    overlay.querySelector('.fm-contact-sheet')?.remove();
+    // The New Project button lives in the Projects view, so it is offered when that view is.
+    const items = [
+      ...(contactViewAllowed('projects') ? [{ icon:'fa-folder-plus', label:globalThis.PlatformLanguage?.text("contacts","m_0747045bf3d919","New Project") ?? "New Project", target:'#fmContactNewProject', tab:'projects' }] : []),
+      { icon:'fa-briefcase', label:'Add employer', target:'[data-add-relationship="employer"]' },
+      { icon:'fa-heart', label:'Add spouse', target:'[data-add-relationship="spouse"]' }
+    ];
+    const sheet = document.createElement('div');
+    sheet.className = 'fm-contact-sheet';
+    sheet.innerHTML = `<div class="fm-contact-sheet-panel" role="menu" aria-label="More actions">${items.map((item, index) => `<button type="button" role="menuitem" data-sheet-item="${index}"><i class="fas ${item.icon}" aria-hidden="true"></i><span>${escapeHtml(item.label)}</span></button>`).join('')}</div>`;
+    overlay.querySelector('.fm-contact-win')?.append(sheet);
+    overlay.querySelector('[data-fm-contact-more]')?.setAttribute('aria-expanded', 'true');
+    requestAnimationFrame(() => sheet.classList.add('open'));
+    sheet.addEventListener('click', (event) => {
+      const button = event.target.closest('[data-sheet-item]');
+      if (!button && event.target.closest('.fm-contact-sheet-panel')) return;
+      closeMoreSheet(overlay, { focus:!button });
+      if (!button) return;
+      const item = items[Number(button.dataset.sheetItem)];
+      if (item.tab) showContactTab(item.tab);
+      $(item.target, overlay)?.click();
+    });
+    sheet.addEventListener('keydown', (event) => {
+      if (event.key !== 'Escape') return;
+      event.stopPropagation();
+      closeMoreSheet(overlay);
+    });
+    sheet.querySelector('button')?.focus();
   }
   function setMeta(message){
     const meta = $('#fmContactMeta');
@@ -1177,6 +1258,7 @@
     state.open = false;
     contactTrays?.reset();
     destroyTodoController();
+    $('#fmContactOverlay .fm-contact-sheet')?.remove();
     $('#fmContactOverlay')?.classList.remove('active');
     contactWindow?.setVisible(false);
     if (!options.skipHistory && !options.fromRoute) {

@@ -41,7 +41,8 @@ test('feed posts show up to four recent comment photos without a timestamp',asyn
   assert.equal(await summary.locator('img').count(),3);
   assert.match(await summary.innerText(),/1 comment/);
   assert.doesNotMatch(await summary.innerText(),/Last reply|Last comment| at /);
-  await page.setViewportSize({width:390,height:844});
-  assert.ok(await summary.evaluate(element=>element.getBoundingClientRect().right <= innerWidth),'summary fits on mobile');
+  // Phones offer List and Tiles only, so Posts is narrowest just above the phone width.
+  await page.setViewportSize({width:830,height:844});
+  assert.ok(await summary.evaluate(element=>element.getBoundingClientRect().right <= innerWidth),'summary fits the narrowest Posts width');
  }finally{await browser.close();}
 });

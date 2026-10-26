@@ -267,7 +267,7 @@
     const preview = options.content || shell.querySelector('.r-preview'), header = options.header || shell.querySelector('.r-modal-header') || shell.closest('.r-overlay')?.querySelector('.r-modal-header');
     if (!preview || !header) throw Error('Project shell content is unavailable.');
     const style = document.createElement('style');
-    style.textContent = `.fm-project-tray-tabs{display:flex;justify-content:flex-end;gap:2px;flex:none;min-height:32px;background:white;border-bottom:1px solid #e4e7ec;padding-right:5px}.r-overlay.project-layout-prototype .r-window-bar:has(>.fm-project-tray-tabs){grid-template-columns:minmax(0,1fr) auto auto auto}.r-overlay.project-layout-prototype .r-window-bar>.fm-project-tray-tabs{grid-row:2;grid-column:4;align-self:stretch;border-bottom:0;min-height:0;padding:0 4px;background:#fff}.r-window-bar>.fm-project-tray-tabs{margin-left:auto;align-items:center}.fm-project-tray-tabs button{width:32px;height:30px;border:0;border-radius:5px;background:none;color:#667085;cursor:pointer}.fm-project-tray-tabs button[aria-selected=true]{background:var(--primary-light,#eef2ff);color:var(--primary,#175cd3)}.fm-project-content{display:grid;grid-template-columns:minmax(0,1fr) 0px;flex:1;min-height:0;position:relative;transition:grid-template-columns .32s cubic-bezier(.22,1,.36,1)}.fm-window[data-window=minimized]>.fm-project-content{display:none!important}.fm-project-content[data-tray-open=true]{grid-template-columns:minmax(0,1fr) min(380px,45%)}.fm-project-content>.r-project-body,.fm-project-content>.r-preview{min-width:0;min-height:0;height:100%}.fm-project-tray{min-width:0;overflow:hidden;background:#fff;border-left:1px solid #e4e7ec;display:flex;flex-direction:column;opacity:0;transform:translateX(16px);transition:opacity .25s,transform .32s cubic-bezier(.22,1,.36,1)}[data-tray-open=true]>.fm-project-tray{opacity:1;transform:none}.fm-project-tray>header{display:flex;align-items:center;justify-content:space-between;padding:8px 12px;border-bottom:1px solid #e4e7ec;flex:none}.fm-project-tray>header[hidden]{display:none}.fm-project-tray button{cursor:pointer}.fm-project-tray-close{border:0;background:none;color:#667085;padding:5px}.fm-project-tray-panel{flex:1;min-height:0;overflow:hidden;display:flex;flex-direction:column}.fm-project-tray-panel[hidden]{display:none!important}@media(max-width:700px){.fm-project-content[data-tray-open=true]{grid-template-columns:minmax(0,1fr) 0px}.fm-project-tray{position:absolute;inset:0 0 0 auto;width:min(100%,380px);z-index:70;box-shadow:-8px 0 24px #10182820}.fm-project-content:not([data-tray-open=true])>.fm-project-tray{visibility:hidden}}@media(prefers-reduced-motion:reduce){.fm-project-content,.fm-project-tray{transition:none}}`;
+    style.textContent = `.fm-project-tray-tabs{display:flex;justify-content:flex-end;gap:2px;flex:none;min-height:32px;background:white;border-bottom:1px solid #e4e7ec;padding-right:5px}.r-overlay.project-layout-prototype .r-window-bar:has(>.fm-project-tray-tabs){grid-template-columns:minmax(0,1fr) auto auto auto}.r-overlay.project-layout-prototype .r-window-bar>.fm-project-tray-tabs{grid-row:2;grid-column:4;align-self:stretch;border-bottom:0;min-height:0;padding:0 4px;background:#fff}.r-window-bar>.fm-project-tray-tabs{margin-left:auto;align-items:center}.fm-project-tray-tabs button{width:32px;height:30px;border:0;border-radius:5px;background:none;color:#667085;cursor:pointer}.fm-project-tray-tabs button[aria-selected=true]{background:var(--primary-light,#eef2ff);color:var(--primary,#175cd3)}.fm-project-content{display:grid;grid-template-columns:minmax(0,1fr) 0px;flex:1;min-height:0;position:relative;transition:grid-template-columns .32s cubic-bezier(.22,1,.36,1)}.fm-window[data-window=minimized]>.fm-project-content{display:none!important}.fm-project-content[data-tray-open=true]{grid-template-columns:minmax(0,1fr) min(380px,45%)}.fm-project-content>.r-project-body,.fm-project-content>.r-preview{min-width:0;min-height:0;height:100%}.fm-project-tray{min-width:0;overflow:hidden;background:#fff;border-left:1px solid #e4e7ec;display:flex;flex-direction:column;opacity:0;transform:translateX(16px);transition:opacity .25s,transform .32s cubic-bezier(.22,1,.36,1)}[data-tray-open=true]>.fm-project-tray{opacity:1;transform:none}.fm-project-tray>header{display:flex;align-items:center;justify-content:space-between;padding:8px 12px;border-bottom:1px solid #e4e7ec;flex:none}.fm-project-tray>header[hidden]{display:none}.fm-project-tray button{cursor:pointer}.fm-project-tray-close{border:0;background:none;color:#667085;padding:5px}.fm-project-tray-panel{flex:1;min-height:0;overflow:hidden;display:flex;flex-direction:column}.fm-project-tray-panel[hidden]{display:none!important}@media(max-width:700px){.fm-project-content[data-tray-open=true]{grid-template-columns:minmax(0,1fr) 0px}.fm-project-tray{position:absolute;inset:0 0 0 auto;width:min(100%,380px);z-index:70;box-shadow:-8px 0 24px #10182820}.fm-project-content:not([data-tray-open=true])>.fm-project-tray{visibility:hidden}}[data-window-mobile=true] .fm-project-content>.fm-project-tray{width:100%;border-left:0;box-shadow:none;transform:translateY(12px)}[data-window-mobile=true] .fm-project-content[data-tray-open=true]>.fm-project-tray{transform:none}@media(prefers-reduced-motion:reduce){.fm-project-content,.fm-project-tray{transition:none}}`;
     document.head.append(style);
     const tabs = document.createElement('nav'); tabs.className = 'fm-project-tray-tabs'; tabs.setAttribute('aria-label','Project trays'); tabs.setAttribute('role','tablist'); header.append(tabs);
     const content = document.createElement('div'); content.className = 'fm-project-content'; preview.before(content); content.append(preview);
@@ -289,8 +289,31 @@
     function renderTabs() {
       const allowed = definitions().map(item=>[item.id,item.label,item.icon]);
       if (selected && !allowed.some(([key]) => key === selected)) close();
-      tabs.innerHTML = allowed.map(([key,title,icon]) => `<button type="button" role="tab" data-tray="${key}" aria-label="${title}" title="${title}" aria-selected="${selected === key}"><i class="fas ${icon}" aria-hidden="true"></i></button>`).join('');
+      tabs.innerHTML = allowed.map(([key,title,icon]) => `<button type="button" role="tab" data-tray="${key}" aria-label="${title}" title="${title}" aria-selected="${selected === key}"><i class="fas ${icon}" aria-hidden="true"></i><span class="fm-tray-label" aria-hidden="true">${esc(title)}</span></button>`).join('');
+      syncToggle(allowed);
     }
+    // A phone header has no room for a row of tray icons: one control opens them as a menu (window-shell styles it).
+    const toggle = document.createElement('button'); toggle.type = 'button'; toggle.className = 'fm-project-tray-toggle';
+    toggle.setAttribute('aria-haspopup','true'); toggle.setAttribute('aria-expanded','false');
+    header.insertBefore(toggle,tabs);
+    function syncToggle(allowed = definitions().map(item=>[item.id,item.label,item.icon])) {
+      const open = allowed.find(([key]) => key === selected), label = open ? open[1] : allowed.map(([,title]) => title).join(', ');
+      toggle.hidden = !allowed.length;
+      toggle.dataset.trayOpen = String(!!open);
+      toggle.setAttribute('aria-label', open ? 'Project trays: '+open[1]+' open' : 'Project trays');
+      toggle.setAttribute('data-fm-tooltip', label);
+      toggle.innerHTML = `<i class="fas ${open ? open[2] : 'fa-ellipsis'}" aria-hidden="true"></i>`;
+    }
+    function setMenu(open) {
+      const next = !!open && !toggle.hidden;
+      tabs.dataset.menuOpen = String(next); toggle.setAttribute('aria-expanded', String(next));
+      if (next) (tabs.querySelector('[aria-selected=true]') || tabs.querySelector('button'))?.focus({preventScroll:true});
+    }
+    toggle.onclick = event => {event.stopPropagation(); setMenu(tabs.dataset.menuOpen !== 'true');};
+    const menuOutside = event => {if (tabs.dataset.menuOpen === 'true' && !tabs.contains(event.target) && !toggle.contains(event.target)) setMenu(false);};
+    // Escape closes the menu before the window's own Escape (which closes the project) sees it.
+    const menuKey = event => {if (event.key === 'Escape' && tabs.dataset.menuOpen === 'true') {event.preventDefault(); event.stopPropagation(); setMenu(false); toggle.focus();}};
+    document.addEventListener('pointerdown',menuOutside,true); root.addEventListener('keydown',menuKey,true);
     function panel(key) {
       if (!panels.has(key)) { const node = document.createElement('div'); node.className = 'fm-project-tray-panel'; node.hidden = true; node.setAttribute('role','tabpanel'); node.setAttribute('aria-label',registry.get(key).label); tray.insertBefore(node,pin); panels.set(key,node); }
       return panels.get(key);
@@ -309,7 +332,7 @@
       try {
         const pending = {}; handles.set(key,pending);
         const handle = await mountWidget(node,key,{orgId:oid,projectId:mountingProject,getProject,ensureProject,
-          agentOptions:{orgId:oid, projectId, onClose:close, openTray:key=>selected===key?Promise.resolve():open(key), onState:state=>{agentState=state;queueMicrotask(syncAgentPin);}, getContext:()=>({surface:'project',projectId,trays:available(),tab:options.getActiveTab?.() || '',tray:selected || '',minimized:options.isMinimized?.() || false})}});
+          agentOptions:{orgId:oid, projectId, onClose:close, openTray:key=>selected===key?Promise.resolve():open(key), onState:state=>{agentState=state;queueMicrotask(syncAgentPin);}, onTurn:agentTurn, getContext:()=>({surface:'project',projectId,trays:available(),tab:options.getActiveTab?.() || '',tray:selected || '',minimized:options.isMinimized?.() || false})}});
         if (disposed || mountingProject !== projectId || handles.get(key)!==pending) {handle.destroy?.();return;}
         handles.set(key,handle); handle.setVisible?.(selected===key);
         syncAgentPin();
@@ -327,7 +350,87 @@
       tray.querySelector('header').hidden=!selected || selected==='agent';
       root.dispatchEvent(new CustomEvent('fm:project-agent:state',{detail:{...agentState,pinned:manualPin || agentState.voice}}));
       agent?.setWorkspaceContext?.();
+      syncAgentCompact();
     }
+    // On a phone the agent is not a full tray: the same assistant (same conversation, voice
+    // and auto-pin) slides up from the bottom as its input bar, with the conversation folded
+    // above it. Desktop never sets data-agent-compact, so none of this applies there.
+    let agentCompactOpen=false, agentHistory=false, agentUnread=false, agentTurnFolded=false, agentResize=0;
+    const agentPhone=()=>{const flag=header.dataset.windowMobile;if(flag)return flag==='true';try{return root.top.matchMedia('(max-width: 760px)').matches;}catch(_){return root.matchMedia('(max-width: 760px)').matches;}};
+    const agentStyle=document.createElement('style');
+    agentStyle.textContent=`.fm-project-agent-history{display:none}
+.fm-project-content[data-agent-compact=true]{grid-template-columns:minmax(0,1fr) 0px!important}
+.fm-project-content[data-agent-compact=true]>.fm-project-tray:not([data-pin-only=true]){position:absolute;inset:auto 0 0 0;width:auto;height:auto;max-height:calc(100% - 8px);z-index:70;border-left:0;background:#fff;border-radius:18px 18px 0 0;box-shadow:0 -12px 34px #10182830,0 -1px 0 #10182814;overflow:hidden;opacity:0;visibility:hidden;transform:translateY(calc(100% + 18px));transition:transform .44s cubic-bezier(.16,1,.3,1),opacity .2s ease,visibility 0s linear .44s}
+.fm-project-content[data-agent-compact=true][data-tray-open=true]>.fm-project-tray:not([data-pin-only=true]){opacity:1;visibility:visible;transform:none;transition:transform .44s cubic-bezier(.16,1,.3,1),opacity .2s ease}
+.fm-project-content[data-agent-compact=true]>.fm-project-tray:not([data-pin-only=true])::before{content:'';position:absolute;z-index:3;left:0;right:0;top:0;height:3px;background:linear-gradient(90deg,var(--primary,#175cd3),#8b5cf6,#ec4899,#8b5cf6,var(--primary,#175cd3));background-size:200% 100%;animation:fmAgentEdge 5s linear infinite;pointer-events:none}
+.fm-project-tray[data-agent-compact=true]>.fm-project-tray-panel{flex:0 0 auto;overflow:visible}
+.fm-project-tray[data-agent-compact=true]>.fm-project-tray-panel>*{height:auto!important;flex:0 0 auto!important;overflow:visible!important}
+.fm-project-tray[data-agent-compact=true] .fma-drawer.fma-embedded{height:auto;flex:0 0 auto}
+.fm-project-tray[data-agent-compact=true] .fma-drawer .fma-body{flex:0 0 auto}.fm-project-tray[data-agent-compact=true] .fma-content{flex:1 1 auto;min-width:0}
+.fm-project-tray[data-agent-compact=true] .fma-stage{flex:0 0 auto;height:0;overflow:hidden;transition:height .36s cubic-bezier(.16,1,.3,1)}
+.fm-project-tray[data-agent-compact=true][data-agent-history=open] .fma-stage{height:min(52vh,460px);border-bottom:1px solid #eef0f3}
+.fm-project-tray[data-agent-compact=true] :is(.fma-sidebar,.fma-thread-bar,[data-fma=history],[data-fma=visualsToggle],[data-fma=boardSide]){display:none!important}
+.fm-project-tray[data-agent-compact=true]:not([data-agent-history=open]) .gx-faqs-wrap{display:none!important}
+.fm-project-tray[data-agent-compact=true] .fma-head{min-height:44px;padding:7px 8px 3px 16px;border-bottom:0;gap:6px}
+.fm-project-tray[data-agent-compact=true] .fma-tray-identity{display:flex;align-items:center;gap:7px;font-weight:650;font-size:14px;color:#101828}
+.fm-project-tray[data-agent-compact=true] .fma-tray-identity>i{color:#7c3aed}
+.fm-project-tray[data-agent-compact=true]:not([data-voice=true]) .fma-head-title:empty::before{content:"Agent"}
+.fm-project-tray[data-agent-compact=true] .fma-composer{padding:4px 10px calc(12px + env(safe-area-inset-bottom,0px));border-top:0}
+.fm-project-tray[data-agent-compact=true] .fm-project-agent-history{display:inline-flex;align-items:center;gap:6px;position:relative;margin-left:auto;height:30px;padding:0 11px;border:0;border-radius:999px;background:#f2f4f7;color:#344054;font:inherit;font-size:12.5px;font-weight:600;cursor:pointer}
+.fm-project-agent-history i{font-size:11px;transition:transform .3s cubic-bezier(.16,1,.3,1)}
+.fm-project-agent-history[aria-expanded=true] i{transform:rotate(180deg)}
+.fm-project-agent-history[data-face=working]{color:#6d28d9;background:#f3e8ff}
+.fm-project-agent-history[data-unread=true]::after{content:'';position:absolute;top:3px;right:3px;width:8px;height:8px;border-radius:50%;background:#ec4899;box-shadow:0 0 0 2px #fff}
+.fm-project-agent-history:focus-visible{outline:2px solid var(--primary,#175cd3);outline-offset:2px}
+.fm-project-tray[data-agent-compact=true] [data-fma=closeSurface]{width:34px;height:34px;border-radius:10px}
+[data-agent-compact=true][data-agent-compact=true]>.fm-project-tray-toggle,[data-agent-compact=true][data-agent-compact=true]>.fm-project-tray-tabs>button[data-tray=agent][aria-selected=true]{color:#fff!important;background:linear-gradient(135deg,var(--primary,#175cd3),#8b5cf6 60%,#ec4899)!important;box-shadow:0 0 0 3px #8b5cf62e,0 4px 16px #7c3aed59;animation:fmAgentGlow 2.6s ease-in-out infinite}
+[data-agent-compact=true][data-agent-compact=true]>.fm-project-tray-tabs>button[data-tray=agent][aria-selected=true] i{color:#fff!important}
+@keyframes fmAgentEdge{to{background-position:-200% 0}}
+@keyframes fmAgentGlow{0%,100%{box-shadow:0 0 0 3px #8b5cf62e,0 4px 16px #7c3aed59}50%{box-shadow:0 0 0 5px #8b5cf61f,0 4px 22px #7c3aed80}}
+@media(prefers-reduced-motion:reduce){.fm-project-content[data-agent-compact=true]>.fm-project-tray,.fm-project-tray[data-agent-compact=true] .fma-stage{transition:none!important}.fm-project-content[data-agent-compact=true]>.fm-project-tray::before,[data-agent-compact=true]>.fm-project-tray-toggle,[data-agent-compact=true]>.fm-project-tray-tabs>button{animation:none!important}}`;
+    document.head.append(agentStyle);
+    function agentDrawer(){return handles.has('agent') ? panels.get('agent')?.querySelector('.fma-drawer') : null;}
+    function scrollAgentHistory(){const msgs=agentDrawer()?.querySelector('[data-fma=msgs]');if(msgs)msgs.scrollTop=msgs.scrollHeight;}
+    function setAgentHistory(open){agentHistory=!!open;if(agentHistory)agentUnread=false;syncAgentCompact();if(agentHistory)setTimeout(scrollAgentHistory,40);}
+    function agentTurn(phase){
+      if(phase==='sent'){agentTurnFolded=agentCompactOpen && !agentHistory;syncAgentCompact();return;}
+      if(phase!=='done' || !agentTurnFolded)return;
+      agentTurnFolded=false;syncAgentCompact();
+      // The person asked from the bar alone: show the answer (and any confirmation it asks for).
+      if(agentCompactOpen && !agentHistory)setAgentHistory(true);else if(!agentCompactOpen){agentUnread=true;syncAgentCompact();}
+    }
+    function syncAgentCompact(){
+      if(disposed)return;
+      const phone=agentPhone(), open=phone && selected==='agent';
+      if(open && !agentCompactOpen)agentHistory=false;
+      agentCompactOpen=open;
+      // Kept after closing so the bar slides back down; another tray (or a wider screen) clears it.
+      const compact=phone && (open || (!selected && content.dataset.agentCompact==='true'));
+      content.dataset.agentCompact=tray.dataset.agentCompact=String(compact);
+      tray.dataset.agentHistory=open && agentHistory?'open':'closed';
+      tray.dataset.voice=String(!!agentState.voice);
+      header.dataset.agentCompact=String(open);
+      const head=agentDrawer()?.querySelector('.fma-head');
+      if(!head)return;
+      let button=head.querySelector('.fm-project-agent-history');
+      if(!button){
+        button=document.createElement('button');button.type='button';button.className='fm-project-agent-history';
+        button.onclick=()=>setAgentHistory(!agentHistory);
+        head.insertBefore(button,head.querySelector('[data-fma=closeSurface]'));
+      }
+      // While a request asked from the folded bar runs, the control says so; the answer unfolds it.
+      const working=agentTurnFolded && !agentHistory, face=working?'working':'idle';
+      if(button.dataset.face!==face){button.dataset.face=face;button.innerHTML=working?'<span>Working</span><i class="fas fa-circle-notch fa-spin" aria-hidden="true"></i>':'<span>Conversation</span><i class="fas fa-chevron-up" aria-hidden="true"></i>';}
+      button.setAttribute('aria-expanded',String(open && agentHistory));
+      button.setAttribute('aria-label',agentHistory?'Hide conversation':'Show conversation');
+      button.dataset.unread=String(agentUnread && !agentHistory);
+    }
+    // While the bar is up, the glowing tray control in the phone header puts it away.
+    const agentToggleTap=event=>{if(agentCompactOpen){event.preventDefault();event.stopImmediatePropagation();interactionVersion++;close();}};
+    toggle.addEventListener('click',agentToggleTap,true);
+    const agentViewport=()=>{cancelAnimationFrame(agentResize);agentResize=requestAnimationFrame(()=>{if(!disposed)syncAgentCompact();});};
+    root.addEventListener('resize',agentViewport);
+    const agentCleanup=()=>{cancelAnimationFrame(agentResize);root.removeEventListener('resize',agentViewport);toggle.removeEventListener('click',agentToggleTap,true);delete header.dataset.agentCompact;agentStyle.remove();};
     function requestClose(done){
       const agent=handles.get('agent');
       if(!agentState.voice && !agentState.pending && !manualPin)return true;
@@ -368,7 +471,7 @@
       }
       renderTabs();
     }
-    tabs.onclick = event => {const button = event.target.closest('[data-tray]'); if (button) {interactionVersion++;open(button.dataset.tray);}};
+    tabs.onclick = event => {const button = event.target.closest('[data-tray]'); if (button) {interactionVersion++;setMenu(false);open(button.dataset.tray);}};
     tray.querySelector('.fm-project-tray-close').onclick = () => {interactionVersion++;const key = selected; close(); tabs.querySelector(`[data-tray="${key}"]`)?.focus();};
     tray.onkeydown = event => {if (event.key === 'Escape') {event.stopPropagation(); interactionVersion++;close();}};
     const contextChanged = () => handles.get('agent')?.setWorkspaceContext?.();
@@ -377,7 +480,7 @@
     const activityChanged = () => {clearTimeout(activityTimer); activityTimer = setTimeout(() => {if (selected === 'activity') handles.get('activity')?.refresh?.();},400);};
     root.addEventListener('fm:project-trays:updated',changed); root.addEventListener('fm:capabilities:updated',changed); root.addEventListener('fm:project-notes:refreshed',activityChanged); root.addEventListener('fm:projects:refresh',activityChanged);
     update();
-    return {requestClose,update,close,open,available,interactionVersion:()=>interactionVersion,select(key){if(key===null){close();return;}if(!available().includes(key))throw Error('Unavailable project tray: '+key);update();return selected===key?Promise.resolve():open(key);},destroy() {disposed = true;root.removeEventListener('fm:route-state:updated',contextChanged);root.removeEventListener('fm:project-window:placement',contextChanged);closeMenu?.remove();pinStyle.remove();clearTimeout(activityTimer);handles.forEach(handle => handle.destroy?.());root.removeEventListener('fm:project-trays:updated',changed); root.removeEventListener('fm:capabilities:updated',changed);root.removeEventListener('fm:project-notes:refreshed',activityChanged);root.removeEventListener('fm:projects:refresh',activityChanged);content.before(preview);content.remove();tabs.remove();style.remove();}};
+    return {requestClose,update,close,open,available,interactionVersion:()=>interactionVersion,select(key){if(key===null){close();return;}if(!available().includes(key))throw Error('Unavailable project tray: '+key);update();return selected===key?Promise.resolve():open(key);},destroy() {disposed = true;agentCleanup();root.removeEventListener('fm:route-state:updated',contextChanged);root.removeEventListener('fm:project-window:placement',contextChanged);closeMenu?.remove();pinStyle.remove();clearTimeout(activityTimer);handles.forEach(handle => handle.destroy?.());root.removeEventListener('fm:project-trays:updated',changed); root.removeEventListener('fm:capabilities:updated',changed);root.removeEventListener('fm:project-notes:refreshed',activityChanged);root.removeEventListener('fm:projects:refresh',activityChanged);document.removeEventListener('pointerdown',menuOutside,true);root.removeEventListener('keydown',menuKey,true);content.before(preview);content.remove();tabs.remove();toggle.remove();style.remove();}};
   }
   root.FirstMateProjectTrays = {mount,definitions,register,mountWidget,registerWidgets};
   registerWidgets();
