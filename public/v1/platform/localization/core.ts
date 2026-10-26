@@ -63,22 +63,35 @@ export function createLanguage(initial: LanguageContext = resolveContext(), miss
     if (entry === undefined || (!context.locale.startsWith("en-") && localized === undefined)) {
       const id = `${context.locale}:${namespace}:${key}`;
       if (!reported.has(id)) { reported.add(id); missing?.(`${namespace}.${key}`, context.locale); }
-      if (entry === undefined) return fallback;
+      if (entry === undefined) return interpolateFallback(namespace, key, fallback, values);
     }
     if (typeof entry === "string") return namespace==='terminology'?entry:literal(namespace,entry,html);
-    const id = `${context.locale}:${namespace}:${key}:${html}:${entry.message}`;
+    return format(namespace, key, entry.message, fallback, values, html, true);
+  }
+  /** One ICU formatting path for catalog messages and for fallbacks, so `{name}`
+   * placeholders, plurals and missing values behave the same either way.
+   * Catalog literals are composed with terminology; a fallback is not, because
+   * callers may have built user values into it. */
+  function format(namespace: string, key: string, message: string, fallback: string, values: Record<string, unknown>, html: boolean, compose: boolean): string {
+    const id = `${context.locale}:${namespace}:${key}:${html}:${compose}:${message}`;
     let formatter = formatters.get(id);
     if (!formatter) {
-      const original = new IntlMessageFormat(entry.message, context.locale, undefined, { ignoreTag: true });
-      const compose=(nodes:any[]):any[]=>nodes.map(node=>node.type===0?{...node,value:literal(namespace,node.value,html)}:node.options?{...node,options:Object.fromEntries(Object.entries(node.options).map(([key,option]:[string,any])=>[key,{...option,value:compose(option.value)}]))}:node.children?{...node,children:compose(node.children)}:node);
-      formatter = new IntlMessageFormat(compose(original.getAst()), context.locale, undefined, { ignoreTag:true });
+      const original = new IntlMessageFormat(message, context.locale, undefined, { ignoreTag: true });
+      const composeNodes=(nodes:any[]):any[]=>nodes.map(node=>node.type===0?{...node,value:literal(namespace,node.value,html)}:node.options?{...node,options:Object.fromEntries(Object.entries(node.options).map(([key,option]:[string,any])=>[key,{...option,value:composeNodes(option.value)}]))}:node.children?{...node,children:composeNodes(node.children)}:node);
+      formatter = compose ? new IntlMessageFormat(composeNodes(original.getAst()), context.locale, undefined, { ignoreTag:true }) : original;
       if (formatters.size > 2000) formatters.clear();
       formatters.set(id, formatter);
     }
     // Template-literal migration preserves JavaScript string coercion exactly.
     const parameters = key.startsWith("m_") ? Object.fromEntries(Object.entries(values).map(([name, value]) => [name, String(value)])) : values;
-    try { return String(formatter.format(parameters)); }
+    try { return String(formatter.format(parameters as any)); }
     catch { missing?.(`${namespace}.${key}:format`, context.locale); return fallback; }
+  }
+  function interpolateFallback(namespace: string, key: string, fallback: string, values: unknown): string {
+    if (typeof fallback !== "string" || !fallback.includes("{") || !values || typeof values !== "object" || !Object.keys(values).length) return fallback;
+    // A fallback that is not a valid message (stray braces) stays as written.
+    try { return format(namespace, key, fallback, fallback, values as Record<string, unknown>, false, false); }
+    catch { return fallback; }
   }
   function term(key: string, fallback: string, mappings: Terminology = terminology) {
     const [namespace, name] = key.split(".");

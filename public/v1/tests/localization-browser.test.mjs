@@ -28,6 +28,11 @@ test('browser loads shared and disabled-app catalogs, retries failures, and gate
   await language.ensure(['equipment','crew','payroll','settings']);
   assert.ok(language.namespaces().includes('equipment'));assert.ok(language.namespaces().includes('crew'));assert.ok(language.namespaces().includes('payroll'));
   assert.equal(language.text('settings','m_6bb25348173069','Color palette'),'Colour palette');
+  // A key with no catalog entry still fills its placeholders, through every entry point.
+  assert.equal(language.text('settings','fixture_absent_zoom','Zoom {level}',{level:'2x'}),'Zoom 2x');
+  assert.equal(language.htmlText('settings','fixture_absent_zoom','Zoom {level}',{level:'2x'}),'Zoom 2x');
+  assert.equal(language.forApp('settings').text('fixture_absent_photo','Photo {number}',{number:3}),'Photo 3');
+  assert.equal(context.FMText('settings','fixture_absent_photo','Photo {number}',{number:3}),'Photo 3');
   handlers.get('fm:user-preferences:updated')({detail:{preferences:{interface_locale:'en-US',language:'es'}}});
   assert.equal(language.context().locale,'en-US');assert.equal(language.context().measurement_system,'metric');
   enabled=false;await language.refresh();

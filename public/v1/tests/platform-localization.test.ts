@@ -26,6 +26,53 @@ test("ICU plurals, values, fallback and tenant isolation", () => {
   assert.equal(gb.text("shared","count","safe fallback"),"safe fallback");
 });
 
+test("a fallback is interpolated exactly as the same catalog message would be", () => {
+  const message="Create a new project for {address}";
+  const withCatalog=createLanguage(),withoutCatalog=createLanguage();
+  withCatalog.register({version:"0123456789abcdef",namespaces:{projects:{"en-US":{create_for:{format:"icu",message},photo_count:{format:"icu",message:"{count, plural, one {# photo} other {# photos}}"},m_saved:{format:"icu",message:"Saved {value}"}}}}});
+  const cases:[string,string,Record<string,any>][]=[
+    ["create_for",message,{address:"12 O'Brien St {unit}"}],
+    ["photo_count","{count, plural, one {# photo} other {# photos}}",{count:1}],
+    ["photo_count","{count, plural, one {# photo} other {# photos}}",{count:1200}],
+    ["m_saved","Saved {value}",{value:1200}],
+    ["create_for",message,{}],
+    ["create_for",message,{other:"x"}]
+  ];
+  for(const [key,fallback,values] of cases){
+    assert.equal(withoutCatalog.text("projects",key,fallback,values),withCatalog.text("projects",key,fallback,values),`text ${key} ${JSON.stringify(values)}`);
+    assert.equal(withoutCatalog.htmlText("projects",key,fallback,values),withCatalog.htmlText("projects",key,fallback,values),`htmlText ${key} ${JSON.stringify(values)}`);
+  }
+  assert.equal(withoutCatalog.text("projects","create_for",message,{address:"12 Main St"}),"Create a new project for 12 Main St");
+  assert.equal(withoutCatalog.text("projects","photo_count","{count, plural, one {# photo} other {# photos}}",{count:3}),"3 photos");
+  assert.equal(withoutCatalog.text("projects","m_saved","Saved {value}",{value:1200}),"Saved 1200");
+  // A missing value leaves the message as written on both paths.
+  assert.equal(withoutCatalog.text("projects","create_for",message,{other:"x"}),message);
+  // No values, or a fallback that is not a message, is returned unchanged.
+  assert.equal(withoutCatalog.text("projects","absent","Use {braces"),"Use {braces");
+  assert.equal(withoutCatalog.text("projects","absent","Use {braces",{braces:1}),"Use {braces");
+  assert.equal(withoutCatalog.text("projects","absent","Zoom {level}"),"Zoom {level}");
+  assert.equal(withoutCatalog.text("projects","absent","Zoom {level}",{level:"2x"}),"Zoom 2x");
+});
+
+test("htmlText escapes terminology, never supplied values, on both paths", () => {
+  const terms={localized_labels:{"en-US":{projects:{project:"R&D <Job>"}}}};
+  const withCatalog=createLanguage(),withoutCatalog=createLanguage();
+  for(const language of [withCatalog,withoutCatalog]){
+    language.register({version:"t",namespaces:{terminology:{"en-US":{"projects.project":"Project"}}}});
+    language.setTerminology(terms);
+  }
+  withCatalog.register({version:"t",namespaces:{projects:{"en-US":{for:{format:"icu",message:"For {name}"}}}}});
+  // Values are inserted as given: an HTML caller escapes them, and they are never escaped twice.
+  for(const language of [withCatalog,withoutCatalog]){
+    assert.equal(language.htmlText("projects","for","For {name}",{name:"&lt;b&gt;Ann &amp; Co"}),"For &lt;b&gt;Ann &amp; Co");
+    assert.equal(language.text("projects","for","For {name}",{name:"<b>Ann & Co"}),"For <b>Ann & Co");
+  }
+  withCatalog.register({version:"t2",namespaces:{projects:{"en-US":{name_project:{format:"icu",message:"Project {name}"}}}}});
+  assert.equal(withCatalog.htmlText("projects","name_project","",{name:"North"}),"R&amp;D &lt;Job&gt; North");
+  // A fallback may carry caller-built text, so it is not rewritten by terminology.
+  assert.equal(withoutCatalog.htmlText("projects","name_project","Project {name}",{name:"North"}),"Project North");
+});
+
 test("non-English catalog gaps are reported once while retaining English fallback", () => {
   const missing:string[]=[];
   const ja=createLanguage(resolveContext({locale:"ja-JP"}), key=>missing.push(key));
