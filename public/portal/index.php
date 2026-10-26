@@ -2325,8 +2325,9 @@ session_write_close();
   <?php endif; ?>
   <script src="../libraries/apps/canvassing/app.js?v=<?= portalAssetVersion('../libraries/apps/canvassing/app.js') ?>"></script>
   <script src="../libraries/apps/billing/app.js?v=<?= portalAssetVersion('../libraries/apps/billing/app.js') ?>"></script>
-  <!-- Floating help widget disabled 2026-07-22: low value and it covered UI (e.g. chat composers). Re-enable by restoring this tag.
-  <script src="../libraries/apps/help/app.js?v=<?= portalAssetVersion('../libraries/apps/help/app.js') ?>"></script> -->
+  <!-- Help & support card (support@1m8.ai), opened from the sidebar's Help launcher for every customer (1M8-243).
+       Its floating button stays gone: it covered UI such as chat composers. -->
+  <script src="../libraries/apps/help/app.js?v=<?= portalAssetVersion('../libraries/apps/help/app.js') ?>"></script>
   <!--<script src="../libraries/apps/tutorial/app.js?v=<?= portalAssetVersion('../libraries/apps/tutorial/app.js') ?>"></script>-->
   <?php if ($platformExpandedAssets): ?>
   <script src="../libraries/apps/settings/crm.js?v=<?= portalAssetVersion('../libraries/apps/settings/crm.js') ?>"></script>

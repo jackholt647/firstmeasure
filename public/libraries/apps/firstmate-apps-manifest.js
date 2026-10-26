@@ -822,7 +822,7 @@
       title: (globalThis.PlatformLanguage?.text("firstmate-apps-manifest","m_67b289b34e4ca4","Help") ?? "Help"),
       kind: 'ambient_app',
       surfaces: ['ambient', 'service'],
-      bundles: [bundle('help/app.js')]
+      bundles: [versionedBundle('help/app.js', '20261026-support-entry-v1')]
     },
     {
       id: 'onboarding.wizard',
