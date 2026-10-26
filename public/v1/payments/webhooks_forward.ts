@@ -174,6 +174,9 @@ async function markForwardEvent(orgId: string, svixId: string, patch: JsonObject
 
 async function handleApplicationEvent(orgId: string, eventType: string, event: JsonObject) {
   const data = asObject(event.data);
+  const occurredAt = cleanText(event.timestamp || data.updated_at || event.created_at);
+  const previous = cleanText((await getMerchantConfigForOps(orgId).catch(() => null))?.forward.application_event_at);
+  if (occurredAt && previous && Date.parse(occurredAt) < Date.parse(previous)) return;
   // Sandbox approvals arrive as MANUALLY_APPROVED — store the normalized
   // APPROVED the rest of the platform keys on.
   const rawStatus = cleanText(data.status).toUpperCase();
@@ -183,6 +186,7 @@ async function handleApplicationEvent(orgId: string, eventType: string, event: J
       ...(status ? { boarding_status: status } : {}),
       ...(cleanText(data.id).startsWith("aapp_") || cleanText(data.id).startsWith("app_") ? { application_id: cleanText(data.id) } : {}),
       ...(cleanText(data.processing_plan_id) ? { processing_plan_id: cleanText(data.processing_plan_id) } : {}),
+      ...(occurredAt && Number.isFinite(Date.parse(occurredAt)) ? { application_event_at: new Date(occurredAt).toISOString() } : {}),
       last_event_at: new Date().toISOString()
     }
   }, { skipFlag: true });
@@ -294,7 +298,7 @@ async function handlePaymentIntentEvent(orgId: string, eventType: string, data: 
   }
 }
 
-async function handleRefundCreatedEvent(orgId: string, event: JsonObject) {
+async function handleRefundCreatedEvent(orgId: string, event: JsonObject, eventType = "v2.refund.created") {
   const data = asObject(event.data);
   const providerRefundId = cleanText(data.id);
   if (!providerRefundId) return;
@@ -309,6 +313,19 @@ async function handleRefundCreatedEvent(orgId: string, event: JsonObject) {
   const original = await findTransactionForPaymentEvent(orgId, { ...data, id: cleanText(data.payment_id || data.payment) });
   if (!original || cleanText(original.direction) !== "inbound") return;
   if (refundInFlight(original)) return;
+  // A reversal of a whole bank payment is an ACH return: the debit failed
+  // after the fact. It is recorded as a returned payment (allocations and
+  // ledger reversed, `payment.failed` raised), not as a refund we issued.
+  const bankPayment = cleanText(asObject(original.processor).rail) === "bank" || ["ach", "saved_ach", "bank"].includes(cleanText(asObject(original.method).type));
+  const reversedCents = Math.max(0, cents(data.amount ?? data.amount_cents));
+  if (eventType === "v2.reversal.created" && bankPayment && (!reversedCents || reversedCents >= cents(original.amount_cents))) {
+    await failRecordedPayment(orgId, cleanText(original.id), {
+      status: "returned",
+      reason: cleanText(data.reason || data.return_reason || data.return_code) || "Returned by the bank.",
+      processor: { provider_reversal_id: providerRefundId }
+    });
+    return;
+  }
   // Provider-originated refund (e.g. issued from the processor dashboard):
   // mirror it through the existing refund flow so allocations reverse and the
   // original transaction's refunded state stays truthful.
@@ -328,7 +345,7 @@ async function handleRefundCreatedEvent(orgId: string, event: JsonObject) {
 async function handlePaymentEvent(orgId: string, eventType: string, event: JsonObject) {
   const data = asObject(event.data);
   if (eventType.startsWith("v2.payment_intent.")) return handlePaymentIntentEvent(orgId, eventType, data);
-  if (eventType === "v2.refund.created" || eventType === "v2.reversal.created") return handleRefundCreatedEvent(orgId, event);
+  if (eventType === "v2.refund.created" || eventType === "v2.reversal.created") return handleRefundCreatedEvent(orgId, event, eventType);
   if (!eventType.startsWith("v2.payment.")) return;
 
   const providerStatus = cleanText(data.status).toLowerCase() || cleanText(eventType.split(".").pop());

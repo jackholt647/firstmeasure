@@ -565,3 +565,38 @@ test("a live-shaped Forward delivery (Standard Webhooks headers, CloudEvents bod
   assert.equal(unsigned.statusCode, 401, "a bad signature on the standard headers is still refused");
 });
 
+test("application events that arrive out of order never roll an approval back", async () => {
+  const client = createSessionClient();
+  const { orgId } = await register(client, { approved: false });
+  const suffix = orgId.replace(/^org_fwdco_/, "");
+  const { upsertMerchantConfig, getMerchantConfigForOps } = await import("../payments/merchant_config.js");
+  await upsertMerchantConfig(orgId, { provider: "forward", forward: { business_id: `bus_${suffix}`, application_id: `aapp_${suffix}`, boarding_status: "DRAFT" } }, { skipFlag: true });
+  const app = (id: string, type: string, status: string, at: string) => signedWebhook({
+    data: { object: { id: `aapp_${suffix}`, entity: "application", status, business_id: `bus_${suffix}`, external_account_id: orgId } }, id: `evt_${id}`, timestamp: at, type
+  }, `msg_${id}`, "webhook");
+  assert.equal((await app("approved", "application.manually_approved", "MANUALLY_APPROVED", "2026-10-26T18:50:02Z")).statusCode, 200);
+  // Replayed later: an older update still saying DRAFT.
+  assert.equal((await app("older", "application.updated", "DRAFT", "2026-10-26T18:50:01Z")).statusCode, 200);
+  assert.equal((await getMerchantConfigForOps(orgId))?.forward.boarding_status, "APPROVED");
+});
+
+test("Forward reversing a whole bank payment is recorded as a returned payment, not a refund", async () => {
+  const client = createSessionClient();
+  const { orgId, accountId, projectId } = await register(client);
+  const prepared = await client.request("POST", `/v1/payments/organizations/${orgId}/payment-checkouts`, { amount_cents: 555, method: "bank", project_id: projectId });
+  await client.request("POST", `/v1/payments/organizations/${orgId}/payments`, {
+    project_id: projectId, amount_cents: 555, kind: "customer_payment", direction: "inbound", method: { type: "ach", label: "Bank" },
+    payment_method_id: "pm_bank_return_1", checkout_id: prepared.checkout.id
+  });
+  const recorded = (await projectPayments(client, orgId, projectId)).find((payment) => payment.direction === "inbound");
+  const reversal = await signedWebhook({
+    data: { object: { id: "revsl_return_1", entity: "reversal", amount: 555, payment_id: recorded.processor.provider_payment_id, account_id: accountId, reason: "R01: Insufficient funds" } },
+    id: "evt_return_1", timestamp: new Date().toISOString(), type: "reversal.created"
+  }, "msg_return_1", "webhook");
+  assert.equal(reversal.statusCode, 200, reversal.body);
+  const after = (await projectPayments(client, orgId, projectId)).find((payment) => payment.id === recorded.id);
+  assert.equal(after.status, "returned");
+  assert.equal(after.processor.provider_reversal_id, "revsl_return_1");
+  assert.equal((await projectPayments(client, orgId, projectId)).filter((payment) => payment.kind === "customer_refund").length, 0, "no refund is booked for a return");
+});
+

@@ -68,6 +68,8 @@ export type ForwardMerchantConfig = {
   account_status: string;
   gateway_mid: string;
   gateway_updated_at: string;
+  /** When the newest application event happened at Forward (older redeliveries are ignored). */
+  application_event_at: string;
   last_event_at: string;
 };
 
@@ -108,6 +110,7 @@ function normalizeForward(value: unknown): ForwardMerchantConfig {
     account_status: cleanText(forward.account_status),
     gateway_mid: cleanText(forward.gateway_mid),
     gateway_updated_at: cleanText(forward.gateway_updated_at),
+    application_event_at: cleanText(forward.application_event_at),
     last_event_at: cleanText(forward.last_event_at)
   };
 }
