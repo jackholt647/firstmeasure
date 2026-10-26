@@ -1053,21 +1053,229 @@ ${window.FirstMateAgentBar.css({ host:'.ptb-agent-host', bar:'.ptb-agent-bar', p
     }));
   }
 
+  // A search with no matching project offers, under No matches: order a report
+  // for what was typed, a new project for it and a new contact for it. Each is
+  // offered only to people who can use it where the organization has it on
+  // (permissions and feature switches; never a configuration). Nothing is saved
+  // until the person saves: the project window opens an unsaved draft and the
+  // contact window a new, unsaved contact.
+  const ADDRESS_MATCH_SRC = '/libraries/address-match/address-match.js?v=20261026-search-order-v1';
+  let addressMatchLoading = null;
+
+  function searchFeatureOn(group, flag, fallback){
+    const flags = window.Portal?.appFlags || window.PlatformAPI?.appFlags;
+    if (!flags?.current?.()) return fallback;
+    if (flags.has?.(group, flag)) return true;
+    const value = flags.value?.(group, flag, undefined);
+    return typeof value === 'boolean' ? value : fallback;
+  }
+
+  function searchCanCreate(){
+    return document.documentElement.dataset.fmAssignedOnly !== 'true';
+  }
+
   // Whoever can use the New button can start a project from a search that found none.
   function canStartProjectFromSearch(){
     return typeof window.Portal?.modules?.request?.open === 'function'
       && window.Portal?.util?.hasPerm?.('order_reports') === true
-      && document.documentElement.dataset.fmAssignedOnly !== 'true';
+      && searchCanCreate();
   }
 
-  function createProjectRowHtml(query){
-    const label = globalThis.PlatformLanguage?.text("platform","search_create_project_for","Create a new project for {address}",{address:query}) ?? `Create a new project for ${query}`;
+  function canOrderReportFromSearch(){
+    return canStartProjectFromSearch() && searchFeatureOn('firstmeasure', 'report_orders', true);
+  }
+
+  function canCreateContactFromSearch(){
+    return typeof window.Portal?.modules?.contacts?.open === 'function'
+      && searchFeatureOn('platform', 'contacts', false)
+      && window.Portal?.util?.hasPerm?.('manage_projects') === true
+      && searchCanCreate();
+  }
+
+
+  function searchOfferRowHtml(kind, icon, label){
     return `
-        <button type="button" class="ptb-search-item project-create" data-search-create-project>
-          <i class="fas fa-plus ptb-search-kind" aria-hidden="true" style="background:rgba(var(--primary-rgb,217,48,37),.1);color:var(--primary-readable,var(--primary,#d93025))"></i>
+        <button type="button" class="ptb-search-item ptb-search-offer" data-search-offer="${escapeHtml(kind)}">
+          <i class="fas ${escapeHtml(icon)} ptb-search-kind" aria-hidden="true"></i>
           <span><strong>${escapeHtml(label)}</strong></span>
         </button>
       `;
+  }
+
+  function searchOffersHtml(query){
+    const rows = [];
+    if (canOrderReportFromSearch()) rows.push(searchOfferRowHtml('report', 'fa-file-lines', ((v0) => globalThis.PlatformLanguage?.text("platform","search_offer_order_report",`Order a new report for "${v0}"`,{v0}) ?? `Order a new report for "${v0}"`)(query)));
+    if (canStartProjectFromSearch()) rows.push(searchOfferRowHtml('project', 'fa-folder-plus', ((v0) => globalThis.PlatformLanguage?.text("platform","search_offer_new_project",`New project for "${v0}"`,{v0}) ?? `New project for "${v0}"`)(query)));
+    if (canCreateContactFromSearch()) rows.push(searchOfferRowHtml('contact', 'fa-address-book', ((v0) => globalThis.PlatformLanguage?.text("platform","search_offer_new_contact",`New contact for "${v0}"`,{v0}) ?? `New contact for "${v0}"`)(query)));
+    return rows.join('');
+  }
+
+  function ensureSearchOfferStyles(){
+    if (document.getElementById('ptbSearchOfferStyles')) return;
+    const style = document.createElement('style');
+    style.id = 'ptbSearchOfferStyles';
+    style.textContent = `
+      .ptb-search-offers-label{padding:10px 12px 4px;font-size:11px;font-weight:900;color:#667085}
+      .ptb-search-item.ptb-search-offer .ptb-search-kind{background:rgba(var(--primary-rgb,217,48,37),.1);color:var(--primary-readable,var(--primary,#d93025))}
+      .ptb-search-item.ptb-search-offer strong{white-space:normal;overflow-wrap:anywhere}
+      .ptb-search-item:focus-visible{outline:2px solid var(--primary,#d93025);outline-offset:-2px;background:#f8fafc}
+      .ptb-search-item.ptb-search-offer[aria-busy="true"]{opacity:.65;cursor:progress}
+      .mobile-platform-search .ptb-search-item.ptb-search-offer{min-height:52px;padding:12px 14px;gap:12px}
+      .mobile-platform-search .ptb-search-item.ptb-search-offer strong{font-size:14px}
+      .mobile-platform-search .ptb-search-item.ptb-search-offer .ptb-search-kind{width:34px;height:34px;flex-basis:34px;font-size:14px}
+    `;
+    document.head.append(style);
+  }
+
+  function addressMatchLibrary(){
+    if (window.FirstMateAddressMatch) return Promise.resolve(window.FirstMateAddressMatch);
+    if (!addressMatchLoading) addressMatchLoading = new Promise((resolve) => {
+      const script = document.createElement('script');
+      script.src = ADDRESS_MATCH_SRC;
+      script.onload = () => resolve(window.FirstMateAddressMatch || null);
+      script.onerror = () => { addressMatchLoading = null; resolve(null); };
+      document.head.append(script);
+    });
+    return addressMatchLoading;
+  }
+
+  // Google's first answer for the typed text, or null (no Maps, no answer, an error).
+  function geocodeSearchText(text){
+    const Geocoder = window.google?.maps?.Geocoder;
+    if (typeof Geocoder !== 'function') return Promise.resolve(null);
+    return new Promise((resolve) => {
+      const timer = setTimeout(() => resolve(null), 8000);
+      try {
+        new Geocoder().geocode({ address:text }, (results, status) => {
+          clearTimeout(timer);
+          resolve(status === 'OK' && Array.isArray(results) && results[0]?.geometry?.location ? results[0] : null);
+        });
+      } catch (error) {
+        clearTimeout(timer);
+        resolve(null);
+      }
+    });
+  }
+
+  function placeLiteral(place){
+    const location = place.geometry.location;
+    const lat = typeof location.lat === 'function' ? location.lat() : Number(location.lat);
+    const lng = typeof location.lng === 'function' ? location.lng() : Number(location.lng);
+    return {
+      formatted_address:cleanText(place.formatted_address),
+      lat, lng,
+      address_components:(Array.isArray(place.address_components) ? place.address_components : []).map((part) => ({
+        long_name:part.long_name, short_name:part.short_name, types:Array.isArray(part.types) ? [...part.types] : []
+      }))
+    };
+  }
+
+  // A project this person can see at the address Google gave.
+  async function projectAtAddress(place, library){
+    const street = library.streetLine(place);
+    if (!street) return null;
+    let candidates = [];
+    if (window.PlatformAPI?.search?.projectsAndContacts) {
+      const result = await window.PlatformAPI.search.projectsAndContacts(orgId(), { query:street, types:'project', limit:20 }).catch(() => null);
+      candidates = Array.isArray(result?.results) ? result.results.filter((row) => cleanText(row.type || 'project') === 'project') : [];
+    } else {
+      await loadSearchData();
+      candidates = searchData.projects
+        .filter((project) => library.sameAddress(firstText(project.address), place))
+        .map((project) => ({ type:'project', id:project.id, project_id:project.id, title:project.title || '', subtitle:project.address || '' }));
+    }
+    for (const candidate of candidates.slice(0, 8)) {
+      const project = await projectForSearchResult(candidate).catch(() => null);
+      if (project?.id && library.sameAddress(firstText(project.address, candidate.subtitle), place)) return project;
+    }
+    return null;
+  }
+
+  // Order a report for the typed text. Google's answer is used only when it is
+  // the typed address completed (FirstMateAddressMatch); then a project already
+  // there opens on its order (or on Reports when it has a report), and otherwise
+  // the order opens as a new draft with the address filled in. Anything else
+  // opens a new draft with the text typed and Google's suggestions open.
+  async function orderReportFromSearch(query, button){
+    const request = window.Portal?.modules?.request;
+    if (!request?.open) return;
+    if (button) {
+      button.setAttribute('aria-busy', 'true');
+      button.disabled = true;
+    }
+    const [library, place] = await Promise.all([addressMatchLibrary(), geocodeSearchText(query)]);
+    const clean = !!(library && place && library.matchesTyped(query, place));
+    const existing = clean ? await projectAtAddress(place, library).catch(() => null) : null;
+    closeSearchResults();
+    if (button) {
+      button.removeAttribute('aria-busy');
+      button.disabled = false;
+    }
+    if (existing) {
+      const ordered = request.hasReportOrder?.(existing) === true;
+      openProject(existing, ordered ? { tab:'measurements' } : { workflow:'report', tab:'map', forceRefresh:true });
+      return;
+    }
+    if (clean) {
+      const resolved = placeLiteral(place);
+      request.open(null, { workflow:'report', reportProject:'new', address:resolved.formatted_address || query, resolvedAddress:resolved });
+      return;
+    }
+    request.open(null, { workflow:'report', reportProject:'new', address:query, addressSuggest:true });
+  }
+
+  // What the typed text most likely is, for the new contact's first field.
+  function contactPrefill(query){
+    const text = cleanText(query);
+    if (/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(text)) return { email:text };
+    const digits = text.replace(/\D/g, '');
+    if (/^[\d\s()+.\-]+$/.test(text) && digits.length >= 7) return { phone:text };
+    if (/^\d+[a-z]?\s+\S+/i.test(text)) return { address:text };
+    return { name:text };
+  }
+
+  function runSearchOffer(kind, query, button){
+    if (kind === 'report') {
+      orderReportFromSearch(query, button).catch((error) => console.warn('Order from search failed', error));
+      return;
+    }
+    closeSearchResults();
+    if (kind === 'project') window.Portal?.modules?.request?.open?.(null, { workflow:'project', address:query });
+    if (kind === 'contact') window.Portal?.modules?.contacts?.open?.(contactPrefill(query), { projects:[] });
+  }
+
+  // Arrow keys move from the search box through the results; Enter opens the focused one.
+  function moveSearchFocus(input, step){
+    const box = searchBoxForInput(input);
+    if (!box?.classList.contains('visible')) return false;
+    const items = [...box.querySelectorAll('.ptb-search-item:not([disabled])')];
+    if (!items.length) return false;
+    const at = items.indexOf(document.activeElement);
+    if (at < 0) {
+      if (step < 0) return false;
+      items[0].focus();
+      return true;
+    }
+    const next = at + step;
+    if (next < 0) input.focus();
+    else items[Math.min(next, items.length - 1)].focus();
+    return true;
+  }
+
+  function bindSearchKeyboard(box, input){
+    if (box.dataset.searchKeys === '1') return;
+    box.dataset.searchKeys = '1';
+    box.addEventListener('keydown', (event) => {
+      if (!event.target.closest?.('.ptb-search-item')) return;
+      if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
+        event.preventDefault();
+        moveSearchFocus(input, event.key === 'ArrowDown' ? 1 : -1);
+      } else if (event.key === 'Escape') {
+        event.preventDefault();
+        closeSearchResults();
+        input.focus();
+      }
+    });
   }
 
   function renderSearchResults(input, box, results = []){
@@ -1075,8 +1283,7 @@ ${window.FirstMateAgentBar.css({ host:'.ptb-agent-host', bar:'.ptb-agent-bar', p
     searchResultCache.clear();
     const query = cleanText(input?.value);
     const offerCreate = !!query && enabledSearchTypes.has('project')
-      && !results.some((result) => cleanText(result.type || 'project') === 'project')
-      && canStartProjectFromSearch();
+      && !results.some((result) => cleanText(result.type || 'project') === 'project');
     const html = results.map((result, index) => {
       const requestedType = cleanText(result.type);
       const type = window.FirstMateArtifactSearch?.type?.(requestedType) ? requestedType : 'project';
@@ -1089,15 +1296,20 @@ ${window.FirstMateAgentBar.css({ host:'.ptb-agent-host', bar:'.ptb-agent-bar', p
         </button>
       `;
     }).join('');
-    const empty = enabledSearchTypes.size ? 'No matches' : 'Select at least one result type';
-    const create = offerCreate ? createProjectRowHtml(query) : '';
-    box.innerHTML = `${searchFiltersHtml()}<div class="ptb-search-result-list">${create}${html || (create ? '' : `<div class="ptb-empty">${empty}</div>`)}</div>`;
+    const empty = enabledSearchTypes.size ? (globalThis.PlatformLanguage?.htmlText("platform","search_no_matches","No matches") ?? "No matches") : 'Select at least one result type';
+    const offers = offerCreate ? searchOffersHtml(query) : '';
+    if (offers) ensureSearchOfferStyles();
+    const offerBlock = offers
+      ? `${html ? '' : `<div class="ptb-search-offers-label">${empty}</div>`}<div class="ptb-search-offers" role="group" aria-label="${(globalThis.PlatformLanguage?.htmlText("platform","search_offers_label","Start something new") ?? "Start something new")}">${offers}</div>`
+      : '';
+    box.innerHTML = `${searchFiltersHtml()}<div class="ptb-search-result-list">${html}${offerBlock}${html || offers ? '' : `<div class="ptb-empty">${empty}</div>`}</div>`;
     box.classList.add('visible');
     bindSearchFilters(box, input);
-    box.querySelector('[data-search-create-project]')?.addEventListener('click', () => {
-      closeSearchResults();
-      window.Portal?.modules?.request?.open?.(null, { workflow:'project', address:query });
-    });
+    bindSearchKeyboard(box, input);
+    box.querySelectorAll('[data-search-offer]').forEach((button) => button.addEventListener('click', (event) => {
+      event.preventDefault();
+      runSearchOffer(button.dataset.searchOffer, query, button);
+    }));
     box.querySelectorAll('[data-search-result]').forEach((btn) => {
       btn.addEventListener('click', () => {
         const result = searchResultCache.get(btn.dataset.searchResult);
@@ -1384,6 +1596,7 @@ ${window.FirstMateAgentBar.css({ host:'.ptb-agent-host', bar:'.ptb-agent-bar', p
           search.value = '';
           closeSearchResults();
         }
+        if (event.key === 'ArrowDown' && moveSearchFocus(search, 1)) event.preventDefault();
       });
     });
     document.addEventListener('click', (event) => {

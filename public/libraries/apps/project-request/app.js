@@ -11467,6 +11467,8 @@ window.PlatformCommerce.onReady(async function(){
     requestedWorkflow = nextRequestedWorkflow;
     overviewWorkflowMode = requestedWorkflow === 'report' ? 'report' : (!baseProject && requestedWorkflow === 'project' ? 'project' : '');
     reportProjectChoice = initialReportProjectChoice(overviewWorkflowMode, baseProject);
+    // A report ordered for an address typed in the search starts its own project.
+    if (!baseProject && overviewWorkflowMode === 'report' && options.reportProject === 'new') reportProjectChoice = 'new';
     const trayGeneration = ++projectTrayOpenGeneration;
     requestedDocumentType = baseProject ? '' : String(options.documentType || '').trim().toLowerCase();
     requestedDocumentResume = baseProject ? null : (options.resumeDocument && typeof options.resumeDocument === 'object' ? options.resumeDocument : null);
@@ -11553,12 +11555,14 @@ window.PlatformCommerce.onReady(async function(){
         if (!firstContactName) $('#rAddress')?.select?.();
       }
     }, 40);
-    // A project started from a typed address (a My Projects search) looks it up straight away.
+    // A project started from a typed address (a search with no match) looks it up straight away;
+    // the top-bar search may pass Google's checked answer (resolvedAddress) or ask for the suggestions.
     const typedAddress = baseProject ? '' : String(options.address || '').trim();
     if (typedAddress) {
       const addressInput = $('#rAddress');
       if (addressInput) addressInput.value = typedAddress;
-      setTimeout(() => projectMapInvoke('lookupTypedAddress', [typedAddress]), 60);
+      const lookup = { resolved: options.resolvedAddress || null, suggest: options.addressSuggest === true };
+      setTimeout(() => projectMapInvoke('lookupTypedAddress', [typedAddress, lookup]), 60);
     }
     window.dispatchEvent(new CustomEvent('fm:modal:open', { detail: { open: true, id: 'request' } }));
   }
@@ -12163,6 +12167,8 @@ window.PlatformCommerce.onReady(async function(){
     if (event?.detail?.source !== 'device') refreshProjectModalForAppFlags();
   });
   window.addEventListener('fm:device:updated', () => refreshProjectModalForAppFlags());
+  // Whether a project already has a report ordered (the top-bar search opens such a project on Reports).
+  window.Portal.modules.request.hasReportOrder = (project) => projectHasReportOrder(project || {});
   projectWindowBridge?.ready(projectWindowToken, window, window.Portal.modules.request);
   window.setTimeout(() => restoreRouteState(), 0);
   window.setTimeout(() => restoreRouteState(), 900);

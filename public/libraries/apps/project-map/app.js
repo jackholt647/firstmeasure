@@ -1134,7 +1134,10 @@
     });
   }
 
-  function loadPlaceResult(location, addressComponents, formattedAddress){
+  // options.preload: an address filled in for the person (a typed address
+  // Google completed); it is shown and pinned but not saved until they act.
+  function loadPlaceResult(location, addressComponents, formattedAddress, options = {}){
+    const preload = options.preload === true;
     state.placeLoadGen += 1;
     clearTimeout(state.initRetryTimer);
     clearTimeout(state.deferredInitTimer);
@@ -1146,15 +1149,17 @@
     setAddressSelected(true);
     callHost('setTypePickerExpanded', false);
     setLocationConfirmed(false);
-    addPin(location, true);
+    if (preload) {
+      if (addPin(location, true, { silent: true })) notifyPinsChanged({ persist: false });
+    } else addPin(location, true);
     setCoords(location.lat(), location.lng(), false);
     state.focusedPinSignature = state.markerSignature;
     focusMapOnLocation(location, viewingExistingProject() ? 18 : 20);
-    callHost('persistProject');
+    if (!preload) callHost('persistProject');
     callHost('renderConfirm');
     callHost('renderWorkflowState');
     callHost('revealInLeftColumnIfBelow', '#rStepType');
-    callHost('autosaveSoon');
+    if (!preload) callHost('autosaveSoon');
   }
 
   function forwardGeocode(addressText){
@@ -1175,34 +1180,67 @@
     });
   }
 
-  // A new project started from a typed address (a My Projects search) looks it
-  // up at once: a match is taken as if it had been picked from the suggestions;
-  // otherwise the address stays typed with Google's suggestions open under it.
-  function lookupTypedAddress(addressText, attempt = 0){
+  // A new project started from a typed address (a search with no match) looks
+  // it up at once. Google's answer is filled in only when it is the typed
+  // address completed (FirstMateAddressMatch: a city, state, ZIP or country
+  // added, the street line unchanged); otherwise the text stays typed with
+  // Google's suggestions open under it. Either way nothing is saved until the
+  // person acts. options.resolved is an answer the caller already checked;
+  // options.suggest opens the suggestions without asking Google again.
+  const ADDRESS_MATCH_SRC = '/libraries/address-match/address-match.js?v=20261026-search-order-v1';
+  let addressMatchLoading = null;
+  function addressMatchLibrary(){
+    if (window.FirstMateAddressMatch) return Promise.resolve(window.FirstMateAddressMatch);
+    if (!addressMatchLoading) addressMatchLoading = new Promise((resolve) => {
+      const script = document.createElement('script');
+      script.src = ADDRESS_MATCH_SRC;
+      script.onload = () => resolve(window.FirstMateAddressMatch || null);
+      script.onerror = () => { addressMatchLoading = null; resolve(null); };
+      document.head.append(script);
+    });
+    return addressMatchLoading;
+  }
+
+  function lookupTypedAddress(addressText, options = {}){
     const text = String(addressText || '').trim();
     if (!text) return;
+    const attempt = Number(options.attempt) || 0;
     const input = $('#rAddress');
     const ready = input && googleMapsReady() && (state.addressAutocompleteInput === input || !window.google?.maps?.places?.Autocomplete || attempt >= 40);
     if (!ready) {
       if (input && !input.value.trim()) input.value = text;
-      if (attempt < 100) setTimeout(() => lookupTypedAddress(text, attempt + 1), 150);
+      if (attempt < 100) setTimeout(() => lookupTypedAddress(text, { ...options, attempt: attempt + 1 }), 150);
       return;
     }
     if (input.value.trim() && input.value.trim() !== text) return;
     input.value = text;
+    if (options.suggest) {
+      openAddressSuggestions(input);
+      return;
+    }
+    const resolved = options.resolved && typeof options.resolved === 'object' ? options.resolved : null;
+    const lat = Number(resolved?.lat), lng = Number(resolved?.lng);
+    if (resolved && Number.isFinite(lat) && Number.isFinite(lng) && google.maps.LatLng) {
+      loadPlaceResult(new google.maps.LatLng(lat, lng), resolved.address_components || null, resolved.formatted_address || text, { preload: true });
+      return;
+    }
     const placeGen = state.placeLoadGen;
+    const unchanged = () => state.placeLoadGen === placeGen && input.value.trim() === text;
     if (!state.geocoder) state.geocoder = new google.maps.Geocoder();
     input.classList.add('loading');
     state.geocoder.geocode({ address: text }, (results, status) => {
-      input.classList.remove('loading');
       // The person typed or picked something meanwhile.
-      if (state.placeLoadGen !== placeGen || input.value.trim() !== text) return;
+      if (!unchanged()) { input.classList.remove('loading'); return; }
       const best = status === 'OK' && Array.isArray(results) ? results[0] : null;
-      if (best?.geometry?.location && !best.partial_match) {
-        loadPlaceResult(best.geometry.location, best.address_components, best.formatted_address);
-        return;
-      }
-      openAddressSuggestions(input);
+      addressMatchLibrary().then((library) => {
+        input.classList.remove('loading');
+        if (!unchanged()) return;
+        if (best?.geometry?.location && library?.matchesTyped?.(text, best)) {
+          loadPlaceResult(best.geometry.location, best.address_components, best.formatted_address, { preload: true });
+          return;
+        }
+        openAddressSuggestions(input);
+      });
     });
   }
 
