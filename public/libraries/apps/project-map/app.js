@@ -942,6 +942,24 @@
     notifyPinsChanged();
   }
 
+  // On a touch screen one stray tap must not remove the property's location: a
+  // tap on a pin asks first. A mouse click still removes it at once.
+  function touchPinRemoval(){
+    try { return !!window.matchMedia?.('(hover: none) and (pointer: coarse)')?.matches; } catch (error) { return false; }
+  }
+
+  async function confirmTouchPinRemoval(marker){
+    if (state.confirmingPinRemoval) return;
+    state.confirmingPinRemoval = true;
+    try {
+      const prompt = globalThis.PlatformLanguage?.text("project-map","pin_remove_confirm","Remove this pin from the map?") ?? "Remove this pin from the map?";
+      const confirmed = window.Portal?.ui?.confirm ? await window.Portal.ui.confirm(prompt) : window.confirm(prompt);
+      if (confirmed && state.markers.includes(marker)) removePin(marker);
+    } finally {
+      state.confirmingPinRemoval = false;
+    }
+  }
+
   function addPin(latLng, draggable = true, options = {}){
     if (!state.map || !window.google?.maps) return null;
     const type = normalizedProjectType(selectedType());
@@ -955,9 +973,14 @@
       position: latLng,
       draggable,
       icon: { url: buildPinIcon(), scaledSize: new google.maps.Size(42, 56), anchor: new google.maps.Point(21, 54) },
-      title: (globalThis.PlatformLanguage?.text("project-map","m_0b0b3f02f03802","Click to remove. Drag to reposition.") ?? "Click to remove. Drag to reposition."),
+      title: touchPinRemoval()
+        ? (globalThis.PlatformLanguage?.text("project-map","pin_title_touch","Drag to move this pin. Tap it to remove it.") ?? "Drag to move this pin. Tap it to remove it.")
+        : (globalThis.PlatformLanguage?.text("project-map","m_0b0b3f02f03802","Click to remove. Drag to reposition.") ?? "Click to remove. Drag to reposition."),
     });
-    marker.addListener('click', () => removePin(marker));
+    marker.addListener('click', () => {
+      if (!touchPinRemoval()) { removePin(marker); return; }
+      void confirmTouchPinRemoval(marker);
+    });
     marker.addListener('dragend', () => {
       state.markerSignature = pinsSignature(getMarkersData());
       setLocationConfirmed(false);
@@ -1290,8 +1313,42 @@
     });
   }
 
+  // Pins this close together are one property: focus on it rather than fit a
+  // tiny bounds box.
+  function pinsSpanMeters(pins){
+    const lats = pins.map((pin) => Number(pin.lat)), lngs = pins.map((pin) => Number(pin.lng));
+    const dLat = Math.max(...lats) - Math.min(...lats), dLng = Math.max(...lngs) - Math.min(...lngs);
+    const meanLat = lats.reduce((sum, lat) => sum + lat, 0) / lats.length;
+    return Math.hypot(dLat * 111320, dLng * 111320 * Math.cos(meanLat * Math.PI / 180));
+  }
+
+  // fitBounds on a map that has no size yet (a panel still laying out, as on a
+  // phone's first paint) zooms out to the whole country; wait until it has one.
+  function whenMapHasSize(run){
+    const div = state.map?.getDiv?.();
+    state.mapSizeWaiter?.disconnect?.();
+    state.mapSizeWaiter = null;
+    if (!div || (div.offsetWidth && div.offsetHeight) || typeof ResizeObserver !== 'function') { run(); return; }
+    const observer = new ResizeObserver(() => {
+      if (!div.offsetWidth || !div.offsetHeight) return;
+      observer.disconnect();
+      if (state.mapSizeWaiter === observer) state.mapSizeWaiter = null;
+      run();
+    });
+    state.mapSizeWaiter = observer;
+    observer.observe(div);
+  }
+
   function fitMapToPins(pins){
     if (!state.map || !pins.length) return;
+    if (pins.length > 1) {
+      const div = state.map.getDiv?.();
+      if (div && !(div.offsetWidth && div.offsetHeight)) { whenMapHasSize(() => fitMapToPins(pins)); return; }
+      if (pinsSpanMeters(pins) < 120) {
+        const center = { lat: pins.reduce((sum, pin) => sum + Number(pin.lat), 0) / pins.length, lng: pins.reduce((sum, pin) => sum + Number(pin.lng), 0) / pins.length };
+        pins = [center];
+      }
+    }
     applyMapControlsForMode();
     state.map.setMapTypeId('hybrid');
     state.map.setTilt(viewingExistingProject() ? 45 : 0);

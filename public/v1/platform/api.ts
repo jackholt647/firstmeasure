@@ -4514,6 +4514,14 @@ export async function upsertProjectDocumentPreservingEvents(
     input = { ...input };
     delete input.require_existing;
   }
+  // `create_only`: the caller never read this project (a project window with no
+  // server copy), so its whole-project save may create the project but never
+  // replace a stored one with what it holds.
+  const createOnly = input.create_only === true;
+  if (Object.prototype.hasOwnProperty.call(input, "create_only")) {
+    input = { ...input };
+    delete input.create_only;
+  }
   // A write that creates a project starts its scope (projects/create.ts): the one
   // it names in `scope_template_id`, or the branch's manual default.
   const creation = await import("../projects/create.js");
@@ -4554,6 +4562,7 @@ export async function upsertProjectDocumentPreservingEvents(
         throw error;
       }
     }
+    if (createOnly) throw conflict("project_exists", "This project already exists. Open it again before saving changes.", { project_id: id });
     const currentData = asObject(current.data);
     before = currentData;
     const incomingData = asObject(input.data);

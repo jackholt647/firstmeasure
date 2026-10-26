@@ -825,11 +825,17 @@
     if (deletedProjectIds.has(id)) throw projectDeletedError(id);
     const baseline = typeof projects.baseline === 'function' ? projects.baseline(id) : null;
     if (!baseline || typeof projects.patch !== 'function') {
-      const saved = await projects.save(orgId, id, withoutProjectContacts(next), metadata);
+      // This page never read the project, so the save can only create it: the
+      // server refuses it (project_exists) rather than replace a stored project
+      // with whatever this page holds. Once created, the saved copy is the
+      // baseline and later saves are PATCHes of the fields that changed.
+      const saved = await projects.save(orgId, id, withoutProjectContacts(next), metadata, { createOnly: true });
+      if (saved?.document && !saved.missing) projects.rebaseline?.(id, saved.document.data, saved.document.revision);
       if (!Array.isArray(next.contacts) || !next.contacts.length || saved?.missing) return saved;
       // The project exists now; link its contacts, then return it with the contact service's projection.
       await window.PlatformAPI.contacts.setProjectContacts(orgId, id, next.contacts);
       const linked = typeof projects.get === 'function' ? await projects.get(orgId, id) : null;
+      if (linked?.document) projects.rebaseline?.(id, linked.document.data, linked.document.revision);
       return linked?.document ? linked : saved;
     }
     try {

@@ -65,6 +65,19 @@
 .fm-entity-window .fm-shell-header:is(.r-window-bar,.fm-project-loading-header)[data-window-mobile=true]>.fm-shell-tabs>button i{font-size:17px}
 .fm-entity-window .fm-shell-header.r-window-bar[data-window-mobile=true] :is(#rMeasureTabs,#rOpeningReportTabs){height:42px!important;min-height:42px!important;border-top:1px solid #f2f4f7}
 .fm-entity-window .fm-shell-header.r-window-bar[data-window-mobile=true] :is(#rMeasureTabs,#rOpeningReportTabs) .r-measure-tab{height:42px!important;min-height:42px!important}
+/* Phone project window (2026-10-26): tabs that name themselves, a tiny label under each icon. The 48px title row stays: the
+   route precover in portal/index.php paints the same geometry before scripts load. */
+.fm-entity-window .fm-shell-header:is(.r-window-bar,.fm-project-loading-header)[data-window-mobile=true]>.fm-shell-tabs{height:42px!important;min-height:42px!important}
+.fm-entity-window .fm-shell-header:is(.r-window-bar,.fm-project-loading-header)[data-window-mobile=true]>.fm-shell-tabs>button{position:relative;flex-direction:column;gap:2px!important;height:42px!important;min-height:42px!important;padding:3px 2px 2px!important}
+.fm-entity-window .fm-shell-header:is(.r-window-bar,.fm-project-loading-header)[data-window-mobile=true]>.fm-shell-tabs>button i{font-size:15px;line-height:16px}
+.fm-entity-window .fm-shell-header:is(.r-window-bar,.fm-project-loading-header)[data-window-mobile=true]>.fm-shell-tabs>button .pv-tab-label{display:block!important;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:10px!important;line-height:12px;font-weight:600;letter-spacing:0}
+.fm-entity-window .fm-shell-header:is(.r-window-bar,.fm-project-loading-header)[data-window-mobile=true]>.fm-shell-tabs>button .pv-tab-badge{position:absolute;top:2px;right:3px;margin:0;font-size:8px;line-height:12px;padding:0 4px}
+.fm-entity-window .fm-shell-header.r-window-bar[data-window-mobile=true] :is(#rMeasureTabs,#rOpeningReportTabs){height:40px!important;min-height:40px!important}
+.fm-entity-window .fm-shell-header.r-window-bar[data-window-mobile=true] :is(#rMeasureTabs,#rOpeningReportTabs) .r-measure-tab{height:40px!important;min-height:40px!important;flex-direction:column;gap:2px!important}
+.fm-entity-window .fm-shell-header.r-window-bar[data-window-mobile=true] :is(#rMeasureTabs,#rOpeningReportTabs) .r-measure-tab i{font-size:14px!important}
+.fm-entity-window .fm-shell-header.r-window-bar[data-window-mobile=true] :is(#rMeasureTabs,#rOpeningReportTabs) .r-measure-tab .pv-tab-label{display:block!important;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:10px!important;line-height:12px;font-weight:600}
+/* The loading header's trays placeholder belongs in the title row, not over the last tab. */
+.fm-entity-window .fm-project-loading-header[data-window-mobile=true]>.fm-project-tray-tabs{grid-row:1!important;grid-column:3!important}
 /* The trays (notes, to-dos, activity, agent) collapse into one control on a phone; the tray list drops down from it. */
 .fm-project-tray-toggle{display:none}
 .fm-shell-header[data-window-mobile=true]>.fm-project-tray-toggle{position:relative;display:inline-flex;align-items:center;justify-content:center;width:38px;height:36px;margin:0;padding:0;border:0;border-radius:10px;background:none;color:#475467;font-size:17px;cursor:pointer;transition:background .16s ease,color .16s ease}

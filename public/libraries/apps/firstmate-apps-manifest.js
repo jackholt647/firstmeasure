@@ -27,7 +27,7 @@
   const bookingBundle = versionedBundle('../appointment-booking/booking.js', '20261005-appointment-picker-v1');
   const priorityFieldsBundle = versionedBundle('../priority-fields/priority-fields.js', '20261015-ready-event');
   const gifDisplayBundle=versionedBundle('../platform-widgets/gifs.js','20261012-composer-media-fixes-v1');
-  const widgetBundles = [gifDisplayBundle,...['scope-data','runtime','project-widgets'].map(name=>versionedBundle('../platform-widgets/'+name+'.js',name==='runtime'?'20261012-composer-media-fixes-v1':name==='project-widgets'?'20261024-roof-shingles':'20261003-project-widgets-v1'))];
+  const widgetBundles = [gifDisplayBundle,...['scope-data','runtime','project-widgets'].map(name=>versionedBundle('../platform-widgets/'+name+'.js',name==='runtime'?'20261012-composer-media-fixes-v1':name==='project-widgets'?'20261026-touch-key':'20261003-project-widgets-v1'))];
   const channelsLibBundles = [
     ...widgetBundles, bookingBundle, priorityFieldsBundle,
     versionedBundle('../platform-realtime/platform-realtime.js', '20260929-presence-controls-v3'),
@@ -35,7 +35,7 @@
     versionedBundle('../audio-notes/audio-notes.js', '20260929-presence-controls-v3'),
     versionedBundle('../audio-structure/audio-structure.js', '20260725-checklist-voice-v1'),
     versionedBundle('../window-manager/window-manager.js', '20261006-firstmeasure-localization-v1'),
-    versionedBundle('../window-manager/window-shell.js', '20261026-mobile-header'),
+    versionedBundle('../window-manager/window-shell.js', '20261026-phone-tab-labels'),
     versionedBundle('../agent-chat/agent-chat.js', '20261002-widget-controls'),
     versionedBundle('../assistant-api/assistant-api.js', '20261002-agent-persistence-v1'),
     versionedBundle('../platform-assistant/platform-assistant.js', '20261026-mobile-agent'),
@@ -303,7 +303,7 @@
       kind: 'modal_app',
       surfaces: ['modal', 'project_modal'],
       dependencies: ['firstmeasure.order', 'project.map', 'project.photos', 'project.proposal', 'project.materials', 'project.money', 'project.customer_portal', 'project.schedule', 'project.measurements', 'project.checklists'],
-      bundles: [...channelsLibBundles, versionedBundle('../window-manager/project-windows.js', '20261010-priority-owners-v2'), versionedBundle('project-request/app.js', '20261026-phone-default-tray')]
+      bundles: [...channelsLibBundles, versionedBundle('../window-manager/project-windows.js', '20261026-open-link-safe'), versionedBundle('project-request/app.js', '20261026-open-link-safe')]
     },
     {
       id: 'firstmeasure.order',
@@ -322,7 +322,7 @@
       kind: 'project_modal_app',
       surfaces: ['project_modal'],
       requiresContext: ['project'],
-      bundles: [versionedBundle('project-map/app.js', '20261024-typed-address-v1')]
+      bundles: [versionedBundle('project-map/app.js', '20261026-touch-pin')]
     },
     {
       id: 'project.customer_portal',
@@ -353,7 +353,7 @@
       kind: 'project_modal_app',
       surfaces: ['project_modal'],
       requiresContext: ['project'],
-      bundles: [versionedBundle('../comms-api/comms-api.js', '20261011-phone-second-pass-v1'), versionedBundle('../window-manager/window-shell.js', '20261026-mobile-header'), versionedBundle('../agent-chat/agent-chat.js', '20261002-widget-controls'), versionedBundle('comms/communications-ui.js', '20261011-voicemail-download-v2'), versionedBundle('comms/phone-tray.js', '20261011-phone-second-pass-v1'), versionedBundle('comms/calling-runtime.js', '20261011-conference-history-v2'), versionedBundle('comms/phone-modal.js', '20261011-phone-second-pass-v1'), versionedBundle('comms/workspace.js', '20261008-voicemail-settings-v1'), versionedBundle('comms/project.js', '20261002-dropdown-polish-v1')]
+      bundles: [versionedBundle('../comms-api/comms-api.js', '20261011-phone-second-pass-v1'), versionedBundle('../window-manager/window-shell.js', '20261026-phone-tab-labels'), versionedBundle('../agent-chat/agent-chat.js', '20261002-widget-controls'), versionedBundle('comms/communications-ui.js', '20261011-voicemail-download-v2'), versionedBundle('comms/phone-tray.js', '20261011-phone-second-pass-v1'), versionedBundle('comms/calling-runtime.js', '20261011-conference-history-v2'), versionedBundle('comms/phone-modal.js', '20261011-phone-second-pass-v1'), versionedBundle('comms/workspace.js', '20261008-voicemail-settings-v1'), versionedBundle('comms/project.js', '20261002-dropdown-polish-v1')]
     },
     {
       id: 'project.measurements',
@@ -363,7 +363,7 @@
       kind: 'project_modal_app',
       surfaces: ['project_modal'],
       requiresContext: ['project'],
-      bundles: [...widgetBundles, versionedBundle('measurements/roof-viewer.js', '20261024-roof-shingles'), versionedBundle('measurements/project.js', '20261022-projected-design')]
+      bundles: [...widgetBundles, versionedBundle('measurements/roof-viewer.js', '20261026-touch-key'), versionedBundle('measurements/project.js', '20261026-phone-refresh')]
     },
     {
       id: 'project.checklists',
@@ -518,7 +518,7 @@
         bundle('../agents-api/agents-api.js'),
         versionedBundle('../agent-chat/agent-chat.js', '20261002-widget-controls'),
         versionedBundle('comms/communications-ui.js', '20261011-voicemail-download-v2'),
-        versionedBundle('../window-manager/window-shell.js', '20261026-mobile-header'),
+        versionedBundle('../window-manager/window-shell.js', '20261026-phone-tab-labels'),
         versionedBundle('comms/phone-tray.js', '20261011-phone-second-pass-v1'), versionedBundle('comms/calling-runtime.js', '20261011-conference-history-v2'), versionedBundle('comms/phone-modal.js', '20261011-phone-second-pass-v1'),
         versionedBundle('comms/workspace.js', '20261008-voicemail-settings-v1'),
         versionedBundle('chat/app.js', '20260930-phone-tray-v1')
@@ -540,7 +540,7 @@
         versionedBundle('../channels-api/channels-api.js', '20261012-shared-polish-v1'),
         versionedBundle('../audio-notes/audio-notes.js', '20260929-presence-controls-v3'),
         versionedBundle('../window-manager/window-manager.js', '20261006-firstmeasure-localization-v1'),
-        versionedBundle('../window-manager/window-shell.js', '20261026-mobile-header'),
+        versionedBundle('../window-manager/window-shell.js', '20261026-phone-tab-labels'),
         versionedBundle('../assistant-api/assistant-api.js', '20261002-agent-persistence-v1'),
         ...widgetBundles, bookingBundle, priorityFieldsBundle, versionedBundle('../platform-assistant/platform-assistant.js', '20261026-mobile-agent'),
         versionedBundle('photos/feed.js', '20261026-mobile-fixes-b'),
@@ -564,7 +564,7 @@
       order: 45,
       placement: 'more',
       fullBleed: true,
-      bundles: [...widgetBundles, bookingBundle, priorityFieldsBundle, bundle('../assistant-api/assistant-api.js'), bundle('../window-manager/window-manager.js'), versionedBundle('../window-manager/window-shell.js', '20261026-mobile-header'), versionedBundle('../platform-assistant/platform-assistant.js', '20261026-mobile-agent')]
+      bundles: [...widgetBundles, bookingBundle, priorityFieldsBundle, bundle('../assistant-api/assistant-api.js'), bundle('../window-manager/window-manager.js'), versionedBundle('../window-manager/window-shell.js', '20261026-phone-tab-labels'), versionedBundle('../platform-assistant/platform-assistant.js', '20261026-mobile-agent')]
     },
     {
       id: 'portal.canvassing',

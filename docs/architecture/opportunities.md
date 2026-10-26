@@ -56,6 +56,17 @@ exist yet. Project writes elsewhere pass `mustExist` or an
 `expected_revision`. Before this, a project made by hand entered the default
 sales scope; set `manual_template_id` to the sales scope to keep that.
 
+The project window never saves a project it has not read. Opening one by a
+link (route, feed, notification, share) reads it by its id whatever the id
+looks like (`sample_` and imported ids included); a project that cannot be
+read is not hydrated and nothing autosaves. A browser save without a server
+copy to diff against is a creation: `PlatformAPI.projects.save(..., {
+createOnly: true })` sends `create_only`, and the server refuses it with 409
+`project_exists` when the id is stored. Once created, the saved copy is the
+baseline and later saves are PATCHes (must exist) of the changed fields.
+`tests/project-open-no-overwrite.test.ts` and
+`tests/project-window-phone-browser.test.mjs` cover this.
+
 ## New leads
 
 A project is a **new lead** while it arrived as a lead (`receiveLead`

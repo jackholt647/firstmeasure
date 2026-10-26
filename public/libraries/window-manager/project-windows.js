@@ -311,7 +311,11 @@
       if(!records.has(token))return;
       record.controller?.rebindChrome({header:record.loading.querySelector('header'),title:record.loading.querySelector('.fm-project-loading-title'),controlsHost:record.loading.querySelector('.r-window-bar-actions')});
       record.element.append(record.loading);
-      record.loading.hidden=false;record.loading.classList.add('failed');record.loading.querySelector('[role=status]').textContent='Unable to load this project. Close this window and try again.';
+      record.loading.hidden=false;record.loading.classList.add('failed');
+      // A link to a project that cannot be read says so; the window holds no stand-in ("New Project") that could be saved.
+      const unreadable=['project_not_found','project_load_failed'].includes(error?.code);
+      if(unreadable){const title=record.loading.querySelector('.fm-project-loading-title');if(title)title.textContent=(globalThis.PlatformLanguage?.text("window-manager","project","Project") ?? "Project");}
+      record.loading.querySelector('[role=status]').textContent=unreadable && error?.message ? error.message : 'Unable to load this project. Close this window and try again.';
     });
   }
   function attach(token, child, options, loadingShell=false){

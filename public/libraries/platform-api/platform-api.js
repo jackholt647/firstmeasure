@@ -1138,14 +1138,22 @@
           throw error;
         });
       },
-      save(orgId, id, data, metadata = {}) {
+      // options.createOnly: the caller never read this record, so the save may
+      // only create it; the server answers 409 project_exists instead of
+      // replacing a stored project.
+      save(orgId, id, data, metadata = {}, options = {}) {
         return request(collectionPath(orgId, normalizedCollection, id), {
           method: 'PUT',
           body: {
             data: writable(data),
-            metadata: { kind: metadataKind || normalizedCollection, ...(metadata || {}) }
+            metadata: { kind: metadataKind || normalizedCollection, ...(metadata || {}) },
+            ...(options?.createOnly ? { create_only: true } : {})
           }
         }).catch((error) => {
+          if (cleanText(error?.data?.error || error?.data?.code) === 'project_exists') {
+            error.code = 'project_exists';
+            throw error;
+          }
           if (isMissingRecord(error)) return { ok: true, document: localDocument(id, data || {}, { kind: metadataKind || normalizedCollection, ...(metadata || {}) }), missing: true };
           throw error;
         });

@@ -1453,6 +1453,10 @@ window.PlatformCommerce.onReady(function(){
       .r-report-summary-download{appearance:none;border:1px solid rgba(15,23,42,.10);border-radius:7px;background:#fff;color:#344054;display:inline-flex;align-items:center;gap:6px;padding:6px 9px;font:inherit;font-size:11px;font-weight:1000;line-height:1;cursor:pointer;transition:.16s ease}
       .r-report-summary-download:hover{border-color:rgba(var(--primary-rgb,217,48,37),.30);color:var(--primary-readable,var(--primary,#d93025));background:rgba(var(--primary-rgb,217,48,37),.04)}
       .r-report-summary-download i{color:currentColor}
+      .r-report-summary-phone-icon{display:none}
+      /* Phone: Refresh reads as a button (icon, centred, tinted), not a text field. */
+      .r-overlay:has(.r-modal-header[data-window-mobile=true]) .r-report-summary-download[data-import-project-measurements]{justify-content:center;gap:8px;min-height:40px;padding:8px 14px;border-radius:10px;border-color:rgba(var(--primary-rgb,217,48,37),.28);background:rgba(var(--primary-rgb,217,48,37),.07);color:var(--primary-readable,var(--primary,#d93025));font-size:13px}
+      .r-overlay:has(.r-modal-header[data-window-mobile=true]) .r-report-summary-download[data-import-project-measurements] .r-report-summary-phone-icon{display:inline-block}
       .r-report-summary-list{display:grid}
       .r-report-summary-row{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:12px;align-items:center;padding:12px 15px;border-top:1px solid rgba(15,23,42,.06)}
       .r-report-summary-row:first-child{border-top:0}
@@ -2335,7 +2339,7 @@ window.PlatformCommerce.onReady(function(){
             <p>${String(escapeHtml(orderParts.join(' + ')))}${String(orderedAt ? ` · ${escapeHtml((globalThis.PlatformLanguage?.text("measurements","ordered_at",`Ordered ${formatDate(orderedAt)}`,{date:formatDate(orderedAt)}) ?? `Ordered ${formatDate(orderedAt)}`))}` : '')}</p>
           </div>
           <div class="r-report-summary-status"><i class="fas fa-ruler-combined"></i>${String(escapeHtml(status))}</div>
-          ${reportComplete && window.FirstMeasureAPI?.roofMeasurements?.import ? `<button type="button" class="r-report-summary-download" data-import-project-measurements>${(globalThis.PlatformLanguage?.htmlText("measurements","m_ac054a09eee4ed","Refresh project measurements") ?? "Refresh project measurements")}</button>` : ''}
+          ${reportComplete && window.FirstMeasureAPI?.roofMeasurements?.import ? `<button type="button" class="r-report-summary-download" data-import-project-measurements><i class="fas fa-rotate r-report-summary-phone-icon" aria-hidden="true"></i>${(globalThis.PlatformLanguage?.htmlText("measurements","m_ac054a09eee4ed","Refresh project measurements") ?? "Refresh project measurements")}</button>` : ''}
         </div>
         <div class="r-report-summary-grid">
           <section class="r-report-summary-section">

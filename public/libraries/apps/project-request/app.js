@@ -5,7 +5,7 @@
   const contactsModuleUrl = new URL('../contacts/modal.js?v=20261009-contact-window-v3', document.currentScript.src);
   const registryUrl = new URL('../../window-manager/project-windows.js?v=20261010-priority-fields-v1', document.currentScript.src);
   const layoutUrl = new URL('../../window-manager/project-layout.js?v=20261025-split-close-width-v1', document.currentScript.src);
-  const shellUrl = new URL('../../window-manager/window-shell.js?v=20261006-firstmeasure-localization-v1', document.currentScript.src);
+  const shellUrl = new URL('../../window-manager/window-shell.js?v=20261026-phone-tab-labels', document.currentScript.src);
   const registryReady = Promise.all([window.FirstMateWindowShell ? Promise.resolve() : import(shellUrl.href), window.FirstMateProjectWindows ? Promise.resolve() : import(registryUrl.href), window.FirstMateProjectLayout ? Promise.resolve() : import(layoutUrl.href)]);
 window.PlatformCommerce.onReady(async function(){
   await registryReady;
@@ -3065,6 +3065,28 @@ window.PlatformCommerce.onReady(async function(){
       .project-window-embedded #rOverlay{inset:0!important;width:100%!important;height:100%!important;background:transparent!important}
       .project-window-embedded #rOverlay .r-win{position:fixed!important;inset:0!important;width:100%!important;height:100%!important;max-width:none!important;max-height:none!important;border:0!important;border-radius:0!important;box-shadow:none!important}
     `);
+    // Phone only: the window manager marks the header data-window-mobile on a phone, never on a desktop or a narrow dock.
+    injectCSS('project-window-phone', `
+      .r-overlay:has(.r-modal-header[data-window-mobile=true]).report-ordered:not(.mobile-order) .r-measure-tabs{height:40px}
+      .r-overlay:has(.r-modal-header[data-window-mobile=true]).report-ordered:not(.mobile-order) .r-measure-tab{min-height:40px;flex-direction:column;gap:2px}
+      .r-overlay:has(.r-modal-header[data-window-mobile=true]).report-ordered:not(.mobile-order) .r-measure-tab i{font-size:14px}
+      .r-overlay:has(.r-modal-header[data-window-mobile=true]).report-ordered:not(.mobile-order) .r-measure-tab .pv-tab-label{display:block;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:10px;line-height:12px;font-weight:600}
+      .r-overlay:has(.r-modal-header[data-window-mobile=true]).report-ordered:not(.mobile-order) .r-measure-body{inset:40px 0 0}
+      .r-overlay:has(.r-modal-header[data-window-mobile=true]).report-tabs-in-header.report-ordered:not(.mobile-order) .r-measure-body{inset:0}
+      .r-overlay:has(.r-modal-header[data-window-mobile=true]) .r-overview-details .r-overview-initial-actions:not(:has(*)){display:none}
+      .r-overlay:has(.r-modal-header[data-window-mobile=true]) .r-overview-details #rStepCustomer .r-step-body{padding-bottom:0}
+      .r-overlay:has(.r-modal-header[data-window-mobile=true]) .r-overview-details .r-left-bottom{padding-top:0;border-top:0}
+      .r-overlay:has(.r-modal-header[data-window-mobile=true]) :is(.r-overview-details,.r-project-identity-popover) [data-contact-shortcut]{min-width:36px;width:36px;height:36px;display:inline-flex;align-items:center;justify-content:center;border-radius:10px;font-size:15px}
+      .r-overlay:has(.r-modal-header[data-window-mobile=true]) :is(.r-overview-details,.r-project-identity-popover) :is(.r-contact-primary,.r-contact-menu-btn){width:36px;height:36px}
+      .r-project-identity-popover.r-project-identity-sheet{left:0!important;right:0!important;top:auto!important;bottom:0!important;width:auto!important;max-width:none!important;max-height:min(72vh,calc(100% - 96px))!important;border-width:1px 0 0;border-radius:16px 16px 0 0;padding-bottom:env(safe-area-inset-bottom,0px);box-shadow:0 0 0 100vmax rgba(16,24,40,.32),0 -12px 34px rgba(16,24,40,.18);animation:rIdentitySheetIn .26s cubic-bezier(.16,1,.3,1);outline:none}
+      .r-project-identity-popover.r-project-identity-sheet>header{position:sticky;top:0;z-index:1;display:flex;align-items:center;justify-content:space-between;gap:10px;padding:8px 8px 8px 16px;background:#fff;border-bottom:1px solid #f2f4f7}
+      .r-project-identity-popover.r-project-identity-sheet>header strong{font-size:14px;font-weight:700;color:#101828;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+      .r-project-identity-popover.r-project-identity-sheet>header button{display:inline-flex;align-items:center;justify-content:center;width:36px;height:36px;padding:0;border:0;border-radius:10px;background:#f2f4f7;color:#475467;font-size:15px;cursor:pointer}
+      .r-project-identity-popover.r-project-identity-sheet .r-project-identity-fields{padding:12px 16px 16px;gap:10px}
+      .r-project-identity-popover.r-project-identity-sheet [data-identity-source-id="rProjectCustomFields"] img{max-height:96px;width:auto}
+      @keyframes rIdentitySheetIn{from{transform:translateY(100%)}to{transform:none}}
+      @media(prefers-reduced-motion:reduce){.r-project-identity-sheet{animation:none}}
+    `);
     if (projectWindowBridge) { document.documentElement.classList.add('project-window-embedded'); element.classList.add('fm-window'); element.dataset.window=projectModalWindow.state.mode; }
     overlay.classList.add('window-managed');
     observeProjectHeaderFit(overlay);
@@ -4571,12 +4593,27 @@ window.PlatformCommerce.onReady(async function(){
       if(event.key!=='Enter')return;event.preventDefault();const generation=placeGeneration;
       setTimeout(()=>{if(projectIdentityPopover?.menu===menu && generation===placeGeneration && address.value.trim())forwardGeocode(address.value.trim());},220);
     },{signal:listeners.signal});
+    // A phone gets a compact sheet from the bottom that leaves the header and tabs
+    // in view, with a close control, and no field is focused (no keyboard pops up).
+    const phoneSheet=isMobileProjectOrder();
+    if(phoneSheet){
+      menu.classList.add('r-project-identity-sheet');menu.tabIndex=-1;
+      const head=document.createElement('header');
+      const heading=document.createElement('strong');heading.textContent=(globalThis.PlatformLanguage?.text("project-request","project_identity","Project contact and address") ?? "Project contact and address");
+      const closeButton=document.createElement('button');closeButton.type='button';closeButton.dataset.identitySheetClose='';
+      closeButton.setAttribute('aria-label',(globalThis.PlatformLanguage?.text("project-request","project_identity_sheet_close","Close contact and address") ?? "Close contact and address"));
+      closeButton.innerHTML='<i class="fas fa-xmark" aria-hidden="true"></i>';
+      closeButton.addEventListener('click',event=>{event.preventDefault();event.stopPropagation();closeProjectIdentityPopover(true);},{signal:listeners.signal});
+      head.append(heading,closeButton);menu.prepend(head);
+    }
     document.getElementById('rOverlay').append(menu);
     projectIdentityPopover={menu,trigger,sync,dispose(){observer.disconnect();listeners.abort();if(autocomplete)google.maps.event.clearInstanceListeners(autocomplete);copies.clear();}};
-    trigger.setAttribute('aria-expanded','true');positionProjectHeaderPopover(menu,trigger,420);
+    trigger.setAttribute('aria-expanded','true');
+    if(!phoneSheet)positionProjectHeaderPopover(menu,trigger,420);
     decorateProjectContactActions(menu);
     menu.addEventListener('click',handleProjectContactAction);
-    menu.querySelector('input,button')?.focus({preventScroll:true});
+    if(phoneSheet)menu.focus({preventScroll:true});
+    else menu.querySelector('input,button')?.focus({preventScroll:true});
   }
   function decorateProjectContactActions(menu){
     for(const card of menu.querySelectorAll('.r-contact-card')){
@@ -11416,6 +11453,7 @@ window.PlatformCommerce.onReady(async function(){
     projectWindowShell?.reset();
     setMobileProjectNotesOpen(false, { fromRoute:true });
     const overlay = $('#rOverlay');
+    overlay?.querySelector('.r-project-open-failure')?.remove();
 
     // Build the final state and presentation before exposing the overlay. The
     // mobile bottom-sheet class depends on viewingExistingProject, which used
@@ -11777,22 +11815,73 @@ window.PlatformCommerce.onReady(async function(){
     };
   }
 
-  async function hydratePlatformProjectForOpen(project = {}){
+  /* A project named by a link (route, feed, notification, share) is read from
+   * the server whatever its id looks like (sample_, imported and older ids
+   * included). One that cannot be read is not opened: the window must never
+   * hydrate a blank or cached stand-in that a later autosave would write over
+   * the stored project, or save as a new one. */
+  function projectOpenFailure(id, cause, missing){
+    const error = new Error(missing
+      ? (globalThis.PlatformLanguage?.text("project-request","project_open_missing","This project could not be found. It may have been deleted.") ?? "This project could not be found. It may have been deleted.")
+      : (globalThis.PlatformLanguage?.text("project-request","project_open_failed","This project could not be loaded. Nothing was changed.") ?? "This project could not be loaded. Nothing was changed."));
+    error.code = missing ? 'project_not_found' : 'project_load_failed';
+    error.projectId = id;
+    if (cause) error.cause = cause;
+    return error;
+  }
+
+  // A bare id that is no project's may still be a FirstMeasure report's: open
+  // the project that already holds that report. This never creates one.
+  async function existingProjectForMeasurementId(project = {}){
+    const store = window.Portal?.ProjectStore;
+    const local = store?.findByMeasurement?.(project) || null;
+    if (local && platformProjectId(local) !== platformProjectId(project)) return local;
+    const remote = await Promise.resolve(store?.findByMeasurementRemote?.(project)).catch(() => null);
+    return remote && platformProjectId(remote) !== platformProjectId(project) ? remote : null;
+  }
+
+  async function hydratePlatformProjectForOpen(project = {}, options = {}){
     const id = platformProjectId(project);
-    if (!localIsPlatformProjectId(id) || !window.PlatformAPI?.projects?.get) return project;
+    if (!id || !window.PlatformAPI?.projects?.get) return project;
     const oid = projectOrgId();
     if (!oid) return project;
     const earlyRead = projectWindowBridge?.takeProjectRead?.(projectWindowToken, window, oid, id);
+    let readError = null;
     const result = (earlyRead ? await earlyRead : null)
-      || await window.PlatformAPI.projects.get(oid, id).catch(() => null);
+      || await window.PlatformAPI.projects.get(oid, id).catch((error) => { readError = error; return null; });
     const remote = projectFromPlatformDocument(result?.document);
-    if (!remote) return project;
+    if (!remote) {
+      // Only this page's own project, still being saved, may open from its local copy.
+      const pendingStore = window.Portal?.ProjectStore;
+      if (typeof pendingStore?.hasPendingSave === 'function' && pendingStore.hasPendingSave(id)) return project;
+      if (result?.missing && !options.linked) {
+        const linked = await existingProjectForMeasurementId(project);
+        if (linked) return hydratePlatformProjectForOpen(linked, { linked: true });
+      }
+      throw projectOpenFailure(id, readError, !!result?.missing);
+    }
     const merged = mergeProjectForViewing(remote, project);
     // Schedule items are saved straight to the server's event endpoints, so
     // the stored copies (with their current revisions) win over a cached or
     // route-seed copy, which may be stale and would get every later save of
     // that item refused as "changed by someone else".
     if (merged && merged !== remote && Array.isArray(remote.events)) merged.events = remote.events;
+    // R4-EQ-1: the browser's cached copy (or a list/route seed) only paints
+    // the window until the server answers; after that the server's copy wins
+    // for every field it stores â€” otherwise the next edit would save the
+    // stale title/contacts over someone else's change. Only while this page
+    // still has its own edit queued is its cached copy ahead of the server.
+    // Fields the server copy lacks (measurement enrichment) stay merged.
+    const store = window.Portal?.ProjectStore;
+    const localEditPending = typeof store?.hasPendingSave === 'function' && store.hasPendingSave(id);
+    if (merged && merged !== remote && !localEditPending) {
+      const mergedOnly = new Set(['measurement', 'measurement_project', 'manifest', 'artifacts']);
+      Object.keys(remote).forEach((key) => { if (!mergedOnly.has(key)) merged[key] = remote[key]; });
+    }
+    // The form is hydrated from this server copy, so it is also the base
+    // Overview saves diff against: untouched (possibly stale-cached) values
+    // are never sent as edits.
+    if (!localEditPending) window.PlatformAPI.projects.rebaseline?.(projectText(result?.document?.id, id), remote, result?.document?.revision);
     return merged;
   }
 
@@ -11824,7 +11913,8 @@ window.PlatformCommerce.onReady(async function(){
       ? project.measurement_project
       : ((project.measurement && typeof project.measurement === 'object') ? project.measurement : project);
     return [
-      measurement.id,
+      // A bare id (a link's seed) is not report data; it names a stored project.
+      measurement === project ? '' : measurement.id,
       measurement.project_id,
       measurement.folder,
       measurement.measurement_project_id,
@@ -11885,10 +11975,28 @@ window.PlatformCommerce.onReady(async function(){
       }
       return hydrated;
     } catch (error) {
-      // A record that never loaded stays provisional: it must not be saved.
-      if (generation === projectOpenGeneration) setProjectShellLoading(false);
+      // A record that never loaded stays provisional and inert: the shell keeps
+      // loading (so nothing autosaves) and says why instead of showing a blank form.
+      if (generation === projectOpenGeneration) showProjectOpenFailure(error);
       throw error;
     }
+  }
+
+  function showProjectOpenFailure(error){
+    projectRecordPending = true;
+    const overlay = $('#rOverlay');
+    const pane = overlay?.querySelector('.r-right');
+    if (!pane) return;
+    pane.querySelector('.r-project-open-failure')?.remove();
+    const notice = document.createElement('div');
+    notice.className = 'r-project-open-failure';
+    notice.setAttribute('role', 'alert');
+    notice.style.cssText = 'display:flex;align-items:center;gap:8px;margin:8px 12px 0;padding:9px 12px;border:1px solid #fecdca;border-radius:10px;background:#fef3f2;color:#b42318;font-size:12px;font-weight:800;line-height:1.35';
+    const message = String(error?.message || '').trim() || (globalThis.PlatformLanguage?.text("project-request","project_open_failed","This project could not be loaded. Nothing was changed.") ?? "This project could not be loaded. Nothing was changed.");
+    notice.innerHTML = `<i class="fas fa-triangle-exclamation" aria-hidden="true"></i><span>${escapeHtml(message)}</span>`;
+    const header = pane.querySelector('.r-modal-header');
+    if (header?.parentNode === pane) header.after(notice);
+    else pane.prepend(notice);
   }
 
   async function restoreRouteState(){
