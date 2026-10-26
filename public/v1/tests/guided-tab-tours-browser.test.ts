@@ -50,6 +50,8 @@ const TABS = {
 };
 
 let browser: Browser;
+let listDelay = 0;
+const listStarted: number[] = [];
 before(async () => {
   const s = await import("../platform/storage.js");
   await s.createOrganization({ id: ORG, name: "Tab tours" });
@@ -59,7 +61,7 @@ before(async () => {
 after(async () => { await browser?.close(); await closePlatformFixtureStores(); await rm(dir, { recursive: true, force: true }).catch(() => {}); });
 
 /** The tab's markup, the guides library, and its API answered by the real service as `userId`. */
-async function open(tab: (typeof TABS)[keyof typeof TABS], userId: string, html = tab.html): Promise<{ page: Page; errors: string[] }> {
+async function open(tab: { route: string; html: string }, userId: string, html = tab.html): Promise<{ page: Page; errors: string[] }> {
   const service = await import("../guided-experiences/service.js");
   const page = await browser.newPage({ viewport: { width: 1280, height: 800 } }), errors: string[] = [];
   await page.emulateMedia({ reducedMotion: "reduce" });
@@ -70,6 +72,8 @@ async function open(tab: (typeof TABS)[keyof typeof TABS], userId: string, html 
     const url = new URL(route.request().url());
     const match = url.pathname.match(/^\/v1\/guided-experiences\/organizations\/[^/]+\/experiences(?:\/([^/]+)\/(events))?$/);
     if (!match) return route.fulfill({ contentType: "text/html", body: "<html></html>" });
+    // A slow server, when a test asks for one: the list (what may play, with progress) answers after `listDelay`.
+    if (!match[2]) { listStarted.push(Date.now()); if (listDelay) await new Promise((resolve) => setTimeout(resolve, listDelay)); }
     try {
       const result = match[2]
         ? await service.recordGuidedEvent(person(userId), decodeURIComponent(match[1]!), JSON.parse(route.request().postData() || "{}"))
@@ -184,3 +188,83 @@ test("reports: with report follow-up off the Support step is never played, even 
     assert.deepEqual(errors, []);
   } finally { await page.close(); }
 });
+
+// Materials, then Docs straight after: Docs has no tour, and the Materials tour (a 900 ms tab_opened delay) must not
+// play there. A tab's trigger belongs to the visit it was armed in; leaving the tab cancels it, and a tour the tab
+// change interrupts ends quietly and plays again on the next visit.
+test("materials: a tab's tour never plays on the tab the person moved on to, and plays on the next real visit", async () => {
+  const userId = "user_materials_tab_race", TOUR = "materials.tab_tutorial";
+  OVERRIDES[userId] = { "platform.materials": true };
+  const html = `<div data-pane="materials" hidden><button type="button" data-mt-generate-materials>Generate</button><div class="mt-resource-column">Materials</div><button type="button" data-mt-open-pricebook>Price book</button></div>
+    <div data-pane="docs"><section>Documents</section></div>`;
+  const { page, errors } = await open({ route: "docs", html }, userId);
+  try {
+    await page.evaluate(() => {
+      const w = window as any;
+      w.activeTab = "docs"; w.wrongTab = [];
+      // As project-request/app.js: the tab shows, is announced (with the host's isActive), and then the route is written.
+      w.show = (name: string) => {
+        w.activeTab = name;
+        document.querySelectorAll<HTMLElement>("[data-pane]").forEach((pane) => { pane.hidden = pane.dataset.pane !== name; });
+        window.dispatchEvent(new CustomEvent("fm:project-tab:opened", { detail: { appId: `project.${name}`, tabId: name, isActive: () => w.activeTab === name } }));
+        w.route = { ...w.route, projectTab: name };
+        window.dispatchEvent(new CustomEvent("fm:route-state:updated", { detail: w.route }));
+      };
+      // Any popover that shows while the person is not on Materials.
+      new MutationObserver(() => { const pop = document.querySelector(".gx-pop"); if (pop && w.activeTab !== "materials") w.wrongTab.push(`${w.activeTab}: ${pop.querySelector("h3")?.textContent || ""}`); }).observe(document.body, { childList: true });
+    });
+    const show = (name: string) => page.evaluate((tab) => (window as any).show(tab), name);
+    const pops = () => page.locator(".gx-pop").count();
+    const types = async () => { const { listEvents } = await import("../guided-experiences/store.js"); return (await listEvents(ORG, TOUR)).map((event: any) => event.type); };
+
+    // Docs within 300 ms of Materials: well past the delay, nothing has played.
+    await show("materials");
+    await page.waitForTimeout(250);
+    await show("docs");
+    await page.waitForTimeout(2200);
+    assert.equal(await pops(), 0, "no tour on Docs after a quick switch");
+
+    // Docs after the delay, while the play is still reading progress from a slow server: still nothing.
+    listDelay = 1200;
+    const switchedAt = Date.now();
+    await show("materials");
+    await waitUntil(() => listStarted.some((at) => at > switchedAt + 800), "the delayed trigger asks the server before playing");
+    await show("docs");
+    await page.waitForTimeout(2600);
+    listDelay = 0;
+    assert.equal(await pops(), 0, "no tour on Docs when the switch lands while progress loads");
+    assert.ok(!(await types()).includes("start"), "a dropped trigger never started the tour");
+
+    // Back on Materials: the tour plays there.
+    await show("materials");
+    await page.waitForSelector(".gx-pop h3", { timeout: 8000 });
+    assert.equal(await heading(page), "Welcome to Materials");
+
+    // Docs mid-tour: the tour ends at once, recorded as neither done nor dismissed, and stays gone.
+    await page.click(".gx-pop [data-gx=next]");
+    await page.waitForFunction(() => document.querySelector(".gx-pop h3")?.textContent?.trim() === "Generate");
+    await show("docs");
+    assert.equal(await pops(), 0, "the tour ends when the tab changes");
+    await page.waitForTimeout(1800);
+    assert.equal(await pops(), 0);
+    const afterSwitch = await types();
+    assert.ok(afterSwitch.includes("start") && !afterSwitch.includes("dismiss") && !afterSwitch.includes("complete"), JSON.stringify(afterSwitch));
+
+    // The next visit to Materials plays it again, from the start.
+    await show("materials");
+    await page.waitForSelector(".gx-pop h3", { timeout: 8000 });
+    assert.equal(await heading(page), "Welcome to Materials");
+    await page.click(".gx-pop [data-gx=close]");
+    await page.waitForFunction(() => !document.querySelector(".gx-pop"));
+    assert.deepEqual(await page.evaluate(() => (window as any).wrongTab), [], "nothing ever showed on Docs");
+    assert.deepEqual(errors, []);
+  } finally { listDelay = 0; await page.close(); }
+});
+
+async function waitUntil(check: () => boolean, message: string, timeout = 8000) {
+  const started = Date.now();
+  while (!check()) {
+    if (Date.now() - started > timeout) assert.fail(message);
+    await new Promise((resolve) => setTimeout(resolve, 25));
+  }
+}

@@ -206,6 +206,20 @@ which `tab-guides.js` `opened()` dispatches in the frame that shows the tab;
 route changes only refresh what is offered. `after_experience` is the `play` in
 `then`.
 
+**A tab's trigger plays only on its tab.** A visit is one stretch on one tab of
+one project, from its `fm:project-tab:opened` until another tab or project is
+announced, or a route change finds the host's `isActive()` false (another tab,
+the window closed). A `tab_opened` trigger, and the `after_experience` play that
+follows a setup, belong to the visit they were armed in (`onItsTab`): leaving
+cancels the delay's timer, takes the play off the shared queue, and drops a play
+still reading progress, which is asked again once the server answers. Every new
+visit arms again, so a dropped trigger plays on the next real visit of its tab.
+A tab's overlay tour that is playing when the tab changes ends quietly (status
+`ended`: no `dismiss`, no `complete`, progress stays `started`), so it plays
+again next time; this holds for a replay too. A setup (modal or agentic) covers
+the page and writes for the organization, not the tab, so it carries on; only
+the tour after it is held to the tab.
+
 **One experience at a time.** The portal and every project window (an iframe of
 the portal) load this library, so the lock and queue live on the top window
 (`__fmGuidedLock`): a second request waits, the same experience asked for again

@@ -92,7 +92,9 @@
   root.addEventListener?.('fm:project-modal:hydrated', (event) => { lastProject = clean(event?.detail?.projectId) || lastProject; });
 
   // ── State ──────────────────────────────────────────────────────────────
-  const state = { reveals: null, experiences: new Map(), faqs: new Map(), loaded: '', loading: null, playing: null, bypass: new WeakSet(), tabTimers: new Set(), openedTabs: new Set() };
+  // `visit`: the project tab this frame shows now (see onTabOpened); `current`: the experience playing in this frame.
+  const state = { reveals: null, experiences: new Map(), faqs: new Map(), loaded: '', loading: null, playing: null, bypass: new WeakSet(), tabTimers: new Set(),
+    visit: { key: '', tab: '', projectId: '', generation: 0, armed: false, isActive: null }, current: null };
   const kinds = new Map();
 
   async function refresh(force = false){
@@ -165,7 +167,8 @@
     // The same experience asked for again (a second trigger, a double click) is ignored, never stacked.
     if (shared.active?.id === id || shared.queue.some((entry) => entry.id === id)) return { status: 'busy' };
     if (shared.active) {
-      return new Promise((resolve) => shared.queue.push({ id, run: () => { playOne(id, options, started).then(resolve, () => resolve({ status: 'failed' })); } }));
+      // A play bound to a tab visit (`options.bound`) is taken off the queue when this frame leaves that tab (leave()).
+      return new Promise((resolve) => shared.queue.push({ id, frame: root, bound: !!options.bound, drop: () => resolve({ status: 'dropped' }), run: () => { playOne(id, options, started).then(resolve, () => resolve({ status: 'failed' })); } }));
     }
     const token = { id, frame: root };
     shared.active = token;
@@ -176,17 +179,23 @@
       experience = state.experiences.get(id);
       if (!experience) return { status: 'unavailable' };
       if (experience.progress && experience.progress.status !== 'started' && !options.replay && !options.force) return { status: 'done' };
+      // Asked again after the server answered: the person may have changed tab while the delay ran or this loaded.
+      if (!onItsTab(experience, options.bound)) return { status: 'dropped' };
       const player = kinds.get(experience.kind);
       if (!player) return { status: 'unavailable' };
       state.playing = experience.id;
+      // A player that can stop quietly sets control.end (the overlay); leave() calls it when the tab changes.
+      const control = {};
+      state.current = { experience, control };
       started(experience);
       root.dispatchEvent?.(new CustomEvent('fm:guides:playing', { detail: { id: experience.id } }));
       track(experience, options.replay ? 'replay' : 'exposure');
       if (!options.replay) track(experience, 'start');
-      const outcome = await player({ experience, api, track: (type, extra) => track(experience, type, extra), where, L, esc, reducedMotion, options });
+      const outcome = await player({ experience, api, track: (type, extra) => track(experience, type, extra), where, L, esc, reducedMotion, options, control });
       return outcome || { status: 'ended' };
     } finally {
       state.playing = null;
+      state.current = null;
       if (shared.active === token) shared.active = null;
       if (experience) root.dispatchEvent?.(new CustomEvent('fm:guides:ended', { detail: { id: experience.id } }));
       refresh(true).finally(nextInQueue);
@@ -203,9 +212,11 @@
     for (const step of array(experience.completion?.then)) {
       if (step.resume && held && !resumed) { resumed = true; letThrough(held, selector); }
       if (step.play && outcome.status === 'completed') {
+        // Bound to the tab showing now: if the person moves on while this waits, the next one is left for its own trigger.
+        const bound = { generation: state.visit.generation, isActive: state.visit.isActive, projectId: where().projectId };
         // Wait for the held action's own screen to settle before the next experience looks for its targets.
         await new Promise((resolve) => setTimeout(resolve, 900));
-        await play(step.play);
+        await play(step.play, { bound });
       }
     }
     if (!resumed && held) letThrough(held, selector);
@@ -238,25 +249,70 @@
   }, true);
   function safeMatches(element, selector){ try { return !!element.closest(selector); } catch (_) { return false; } }
 
-  // tab_opened: the project window says which tab became active (tab-guides.js `opened`), in the frame that shows it.
+  /*
+   * tab_opened: the project window says which tab became active (tab-guides.js `opened`), in the frame that shows it.
+   * A visit is one stretch on one tab of one project, from its announcement until another tab or project is announced
+   * or the host's isActive() says the tab is no longer showing. A trigger belongs to the visit it was armed in, and
+   * leaving that visit cancels it everywhere it could still start: the delay's timer, a play queued behind another
+   * experience (in any frame's shared queue) and a play still reading progress (onItsTab after the server answers).
+   * A tab's tour that is playing ends quietly, recorded as neither done nor dismissed, so the next real visit of its
+   * tab plays it again. A setup (modal or agentic) covers the whole page and its write is the organization's, not the
+   * tab's, so it carries on; only the tour that would follow it is held to the tab.
+   */
   function onTabOpened(event){
     const tab = clean(event?.detail?.appId);
-    const key = `${where().projectId}|${tab}`;
-    if (!tab || state.openedTabs.has(key)) return;
-    state.openedTabs.add(key);
+    if (!tab) return;
+    const projectId = where().projectId, key = `${projectId}|${tab}`;
+    const isActive = typeof event.detail?.isActive === 'function' ? event.detail.isActive : null;
+    if (state.visit.key !== key) { leave(); Object.assign(state.visit, { key, tab, projectId, isActive }); }
+    else if (isActive) state.visit.isActive = isActive;
+    // The host announces the same tab again when it redraws: one arming per visit.
+    if (state.visit.armed) return;
+    state.visit.armed = true;
+    const bound = { generation: state.visit.generation, isActive, projectId };
     refresh().then(() => {
+      if (bound.generation !== state.visit.generation) return;
       for (const experience of state.experiences.values()) {
         const trigger = array(experience.triggers).find((entry) => entry.kind === 'tab_opened' && entry.tab === tab);
         if (!trigger || (experience.progress && experience.progress.status !== 'started')) continue;
-        const timer = setTimeout(() => { state.tabTimers.delete(timer); if (!event.detail?.isActive || event.detail.isActive()) play(experience.id); }, Number(trigger.delay_ms || 700));
+        const timer = setTimeout(() => { state.tabTimers.delete(timer); if (onItsTab(experience, bound)) play(experience.id, { bound }); }, Number(trigger.delay_ms || 700));
         state.tabTimers.add(timer);
         break;
       }
     });
   }
+  /** Ends this frame's visit: pending triggers are cancelled, queued tab plays dropped and a tab's tour ends quietly. */
+  function leave(){
+    state.visit = { key: '', tab: '', projectId: '', generation: state.visit.generation + 1, armed: false, isActive: null };
+    state.tabTimers.forEach((timer) => clearTimeout(timer));
+    state.tabTimers.clear();
+    for (let i = shared.queue.length - 1; i >= 0; i--) {
+      const entry = shared.queue[i];
+      if (entry.frame === root && entry.bound) { shared.queue.splice(i, 1); try { entry.drop?.(); } catch (_) {} }
+    }
+    if (state.current?.experience?.tab) state.current.control?.end?.();
+  }
+  /**
+   * Whether a play bound to a visit (`bound`: its generation, the host's isActive and the project) may start now: the
+   * same visit, the host still shows the tab, it is the experience's tab, and the route, when it names a project tab,
+   * agrees. A draft has no route, so the announced tab stands for it. Unbound plays (a replay, a held click) always may.
+   */
+  function onItsTab(experience, bound){
+    if (!bound) return true;
+    if (bound.generation !== state.visit.generation) return false;
+    try { if (bound.isActive && !bound.isActive()) return false; } catch (_) { return false; }
+    const tab = clean(experience?.tab), here = where();
+    if (tab && state.visit.tab && state.visit.tab !== tab) return false;
+    if (tab && here.tab && here.tab !== tab) return false;
+    return here.projectId === clean(bound.projectId);
+  }
   root.addEventListener?.('fm:project-tab:opened', onTabOpened);
-  // The route only refreshes what is offered (questions for the tab); it never starts anything.
-  root.addEventListener?.('fm:route-state:updated', () => { refresh(); });
+  // The route only refreshes what is offered (questions for the tab); it never starts anything. When the host says
+  // the announced tab is no longer showing (another tab, the project window closed), that visit is over.
+  root.addEventListener?.('fm:route-state:updated', () => {
+    if (state.visit.key && state.visit.isActive) { let showing = true; try { showing = !!state.visit.isActive(); } catch (_) { showing = false; } if (!showing) leave(); }
+    refresh();
+  });
 
   // ── Overlay tutorials ──────────────────────────────────────────────────
   const overlayCss = `
@@ -303,7 +359,8 @@
     /**
      * Plays overlay steps: { id, title, body, targets[], placement, advance, wait_ms }. Every target found is left
      * undimmed; the first is highlighted with the popover beside it. A step whose targets never appear is skipped.
-     * Resolves { status: 'completed' | 'dismissed', shown, last }.
+     * Resolves { status: 'completed' | 'dismissed' | 'ended', shown, last }; 'ended' is `options.control.end()`, the
+     * runtime stopping it (the tab changed), which is neither done nor dismissed.
      */
     run(steps, options = {}){
       injectCss('gx-overlay-css', overlayCss);
@@ -315,6 +372,7 @@
         document.body.append(host, pop);
         const path = host.querySelector('path'), ring = host.querySelector('.gx-ov-ring');
         let index = -1, shown = 0, ended = false, current = null, targets = [], holes = [], animation = 0, clickTarget = null;
+        if (options.control) options.control.end = () => finish('ended');
         const finish = (status) => {
           if (ended) return; ended = true;
           cancelAnimationFrame(animation); cancelAnimationFrame(trackFrame); root.removeEventListener('resize', redraw); root.removeEventListener('scroll', redraw, true); document.removeEventListener('keydown', key, true);
@@ -456,8 +514,10 @@
     }
   };
 
-  kinds.set('overlay', async ({ experience, track: record }) => {
-    const result = await overlay.run(experience.steps, { experienceId: experience.id, onStep: ({ type, step }) => { if (type !== 'dismiss') record(type, { step_id: step }); } });
+  kinds.set('overlay', async ({ experience, track: record, control }) => {
+    const result = await overlay.run(experience.steps, { experienceId: experience.id, control, onStep: ({ type, step }) => { if (type !== 'dismiss') record(type, { step_id: step }); } });
+    // Stopped because the tab changed: progress stays started, so the tab's next visit plays it again.
+    if (result.status === 'ended') return result;
     if (result.status === 'completed') await record('complete', { step_id: result.last, properties: { shown: result.shown } });
     else await record('dismiss', { step_id: result.last, properties: { shown: result.shown } });
     return result;
