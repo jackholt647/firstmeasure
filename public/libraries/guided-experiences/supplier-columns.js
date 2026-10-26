@@ -38,41 +38,45 @@
   const initials = (name) => clean(name).split(/\s+/).filter((word) => /^[A-Za-z0-9]/.test(word)).slice(0, 2).map((word) => word[0].toUpperCase()).join('') || '?';
 
   const css = `
-    .gxsc{position:relative;--gxsc-gap:12px;padding:0 16px}
-    .gxsc-viewport{overflow-x:auto;overflow-y:hidden;scroll-snap-type:x mandatory;scroll-behavior:smooth;overscroll-behavior-x:contain;padding-bottom:8px;scrollbar-width:thin;scrollbar-color:#c4c9d2 transparent}
+    .gxsc{position:relative;--gxsc-gap:12px;display:flex;flex-direction:column;height:100%;min-height:0}
+    .gxsc-viewport{flex:1 1 auto;min-height:0;overflow-x:auto;overflow-y:hidden;scroll-snap-type:x mandatory;scroll-behavior:smooth;overscroll-behavior-x:contain;padding-bottom:8px;scrollbar-width:thin;scrollbar-color:#c4c9d2 transparent}
     .gxsc-viewport::-webkit-scrollbar{height:6px}
     .gxsc-viewport::-webkit-scrollbar-track{background:transparent}
     .gxsc-viewport::-webkit-scrollbar-thumb{background:#c4c9d2;border-radius:999px}
     .gxsc-viewport::-webkit-scrollbar-thumb:hover{background:#98a2b3}
-    .gxsc-track{display:flex;gap:var(--gxsc-gap)}
-    .gxsc-col{flex:0 0 calc((100% - var(--gxsc-gap)) / 2);min-width:0;scroll-snap-align:start;border:1px solid #eaecf0;border-top:4px solid var(--supplier,#344054);border-radius:12px;background:#fff;display:flex;flex-direction:column;max-height:min(46vh,400px)}
-    .gxsc-head{display:flex;align-items:center;gap:8px;padding:9px 10px 7px;border-bottom:1px solid #f2f4f7}
+    .gxsc-track{display:flex;gap:var(--gxsc-gap);height:100%}
+    .gxsc-col{flex:0 0 calc((100% - var(--gxsc-gap)) / 2);min-width:0;height:100%;scroll-snap-align:start;border:1px solid #eaecf0;border-top:4px solid var(--supplier,#344054);border-radius:12px;background:#fff;display:flex;flex-direction:column}
+    .gxsc-head{display:flex;align-items:center;gap:8px;padding:9px 10px 8px;border-bottom:1px solid #f2f4f7}
     .gxsc-badge{flex:none;width:26px;height:26px;border-radius:7px;background:var(--supplier,#344054);color:#fff;display:grid;place-items:center;font:800 11px/1 system-ui,sans-serif;letter-spacing:.02em}
     .gxsc-badge img{width:100%;height:100%;object-fit:contain;background:#fff;border-radius:7px}
-    .gxsc-head strong{flex:1;min-width:0;font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-    .gxsc-head small{color:#667085;font-size:11px;white-space:nowrap}
-    .gxsc-sheet{flex:none;border:1px solid #d0d5dd;border-radius:999px;background:#fff;color:#344054;font:inherit;font-size:11px;font-weight:650;padding:3px 8px;cursor:pointer;white-space:nowrap}
-    .gxsc-sheet:hover{background:#f9fafb}
-    .gxsc-body{overflow:auto;padding:4px 8px 8px;min-height:0}
-    .gxsc-group{margin:6px 2px 2px;font-size:10.5px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:#98a2b3}
-    .gxsc-item{display:flex;align-items:center;gap:7px;padding:3px 2px;font-size:12px;border-radius:6px}
+    .gxsc-head strong{flex:1;min-width:0;font-size:13.5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+    .gxsc-body{flex:1 1 auto;overflow:auto;padding:2px 8px 8px;min-height:0}
+    .gxsc-foot{flex:none;padding:8px 10px;border-top:1px solid #f2f4f7}
+    .gxsc-sheet{width:100%;height:32px;display:inline-flex;align-items:center;justify-content:center;gap:7px;border:1px solid #d0d5dd;border-radius:9px;background:#fff;color:#344054;font:inherit;font-size:12.5px;font-weight:650;cursor:pointer;white-space:nowrap;transition:background .15s,border-color .15s}
+    .gxsc-sheet:hover{background:#f9fafb;border-color:#98a2b3}
+    .gxsc-group{position:sticky;top:0;z-index:1;background:#fff;margin:0 -2px;padding:7px 4px 3px;font-size:11px;font-weight:750;color:#344054;letter-spacing:.01em}
+    .gxsc-item{display:flex;align-items:center;gap:7px;padding:3px 2px;font-size:12.5px;border-radius:6px}
     .gxsc-item:hover{background:#f9fafb}
     .gxsc-item input[type=checkbox]{accent-color:var(--supplier,#344054);margin:0;flex:none}
-    .gxsc-item span{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-    .gxsc-item[data-carried=false] span{color:#98a2b3}
-    .gxsc-item input[type=number]{width:66px;height:24px;border:1px solid #e4e7ec;border-radius:6px;padding:0 5px;text-align:right;font:inherit;font-size:11.5px}
-    .gxsc-item[data-carried=false] input[type=number]{visibility:hidden}
+    .gxsc-item>span{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+    .gxsc-item[data-carried=false]>span{color:#98a2b3}
+    .gxsc-price{flex:none;display:inline-flex;align-items:center;height:26px;border:1px solid #e4e7ec;border-radius:7px;background:#fff;padding:0 6px;font-size:12px;color:#667085;gap:2px}
+    .gxsc-price:focus-within{border-color:var(--supplier,#344054)}
+    .gxsc-price input{width:48px;border:0;padding:0;text-align:right;font:inherit;font-size:12px;color:#101828;background:transparent;outline:none}
+    .gxsc-price small{font-size:11px;color:#98a2b3;white-space:nowrap}
+    .gxsc-item[data-carried=false] .gxsc-price{visibility:hidden}
     .gxsc-tools-head{display:flex;flex-direction:column;gap:2px;margin:0 0 8px}
     .gxsc-tools-head strong{font-size:13px;color:#101828}.gxsc-tools-head small{font-size:11.5px;color:#667085}
-    .gxsc-tools-cols{}
+    .gxsc-tools-cols{height:min(60vh,520px);padding:0 30px}
     .gxsc-empty{color:#98a2b3;font-size:12px;padding:10px 4px}
-    .gxsc-arrow{position:absolute;top:calc(50% - 4px);transform:translateY(-50%);width:32px;height:32px;border-radius:50%;border:1px solid #d0d5dd;background:#fff;box-shadow:0 6px 16px rgba(16,24,40,.15);cursor:pointer;display:grid;place-items:center;font-size:15px;color:#344054;z-index:2;transition:opacity .2s,transform .2s}
-    .gxsc-arrow[data-dir=prev]{left:0}
-    .gxsc-arrow[data-dir=next]{right:0}
-    .gxsc-arrow:hover{transform:translateY(-50%) scale(1.06)}
-    .gxsc-arrow[data-off=true]{opacity:0;pointer-events:none;transform:translateY(-50%) scale(.85)}
+    /* Side controls in the gutter beside the columns, never over them. */
+    .gxsc-arrow{position:absolute;top:calc(50% - 4px);transform:translateY(-50%);width:24px;height:64px;border-radius:9px;border:1px solid #d0d5dd;background:#fff;box-shadow:0 4px 12px rgba(16,24,40,.12);cursor:pointer;display:grid;place-items:center;font-size:14px;color:#344054;z-index:2;transition:opacity .2s,transform .2s,background .15s}
+    .gxsc-arrow[data-dir=prev]{left:-28px}
+    .gxsc-arrow[data-dir=next]{right:-28px}
+    .gxsc-arrow:hover{background:#f9fafb}
+    .gxsc-arrow[data-off=true]{opacity:0;pointer-events:none}
     .gxsc-arrow:focus-visible,.gxsc-sheet:focus-visible{outline:2px solid var(--primary,#d93025);outline-offset:2px}
-    @media(max-width:560px){.gxsc-col{max-height:300px}}
+    @media(max-width:560px){.gxsc-arrow[data-dir=prev]{left:-14px}.gxsc-arrow[data-dir=next]{right:-14px}.gxsc-arrow{width:20px}}
     @media(prefers-reduced-motion:reduce){.gxsc-viewport{scroll-behavior:auto}.gxsc-arrow{transition:none}}
   `;
   function injectCss(doc){
@@ -93,8 +97,9 @@
     const column = (supplier) => {
       const carried = new Set(supplier.item_ids);
       return `<section class="gxsc-col" data-supplier="${esc(supplier.key)}" style="--supplier:${esc(supplier.color || '#344054')}" aria-label="${esc(supplier.name)}">
-        <header class="gxsc-head"><span class="gxsc-badge" aria-hidden="true">${supplier.logo && /^(data:image\/|https?:|\/)/.test(String(supplier.logo)) ? `<img src="${esc(supplier.logo)}" alt="">` : esc(initials(supplier.name))}</span><strong title="${esc(supplier.name)}">${esc(supplier.name)}</strong><small>${carried.size}</small>${options.onPriceSheet ? `<button type="button" class="gxsc-sheet" data-sheet="${esc(supplier.key)}" title="${esc(L('gx_sc_sheet_title', 'Do you have a supplier price sheet?'))}">${H('gx_sc_sheet', 'Price sheet')}</button>` : ''}</header>
-        <div class="gxsc-body">${items.length ? groups().map(([group, entries]) => `<div class="gxsc-group">${esc(group)}</div>${entries.map((item) => `<label class="gxsc-item" data-carried="${carried.has(item.id)}"><input type="checkbox" data-carry="${esc(item.id)}" ${carried.has(item.id) ? 'checked' : ''} aria-label="${esc(supplier.name)}: ${esc(item.name)}"><span title="${esc(item.name)}">${esc(item.name)}</span><input type="number" min="0" step="0.01" inputmode="decimal" data-cost="${esc(item.id)}" value="${esc(supplier.prices[item.id] ?? supplier.base_prices?.[item.id] ?? item.price ?? '')}" aria-label="${esc(L('gx_sc_cost', 'Cost'))}: ${esc(item.name)}"></label>`).join('')}`).join('') : `<div class="gxsc-empty">${H('gx_sc_no_items', 'No products yet.')}</div>`}</div>
+        <header class="gxsc-head"><span class="gxsc-badge" aria-hidden="true">${supplier.logo && /^(data:image\/|https?:|\/)/.test(String(supplier.logo)) ? `<img src="${esc(supplier.logo)}" alt="">` : esc(initials(supplier.name))}</span><strong title="${esc(supplier.name)}">${esc(supplier.name)}</strong></header>
+        <div class="gxsc-body">${items.length ? groups().map(([group, entries]) => `<div class="gxsc-group">${esc(group)}</div>${entries.map((item) => `<label class="gxsc-item" data-carried="${carried.has(item.id)}"><input type="checkbox" data-carry="${esc(item.id)}" ${carried.has(item.id) ? 'checked' : ''} aria-label="${esc(supplier.name)}: ${esc(item.name)}"><span title="${esc(item.name)}">${esc(item.label || item.name)}</span><span class="gxsc-price"><span aria-hidden="true">$</span><input type="number" min="0" step="0.01" inputmode="decimal" data-cost="${esc(item.id)}" value="${esc(supplier.prices[item.id] ?? supplier.base_prices?.[item.id] ?? item.price ?? '')}" aria-label="${esc(L('gx_sc_cost', 'Cost'))}: ${esc(item.name)}${item.unit ? ` / ${esc(item.unit)}` : ''}">${item.unit ? `<small>/ ${esc(item.unit)}</small>` : ''}</span></label>`).join('')}`).join('') : `<div class="gxsc-empty">${H('gx_sc_no_items', 'No products yet.')}</div>`}</div>
+        ${options.onPriceSheet && !(options.singleSheetElsewhere && suppliers.length === 1) ? `<div class="gxsc-foot"><button type="button" class="gxsc-sheet" data-sheet="${esc(supplier.key)}" title="${esc(L('gx_sc_sheet_title', 'Do you have a supplier price sheet?'))}"><i class="fas fa-file-arrow-up" aria-hidden="true"></i>${H('gx_sc_sheet_upload', 'Upload price sheet')}</button></div>` : ''}
       </section>`;
     };
     /** The arrows follow the scroll position, however it got there: each shows while there is more that way. */
@@ -118,7 +123,6 @@
         if (carry.checked) set.add(carry.dataset.carry); else set.delete(carry.dataset.carry);
         supplier.item_ids = [...set];
         carry.closest('.gxsc-item').dataset.carried = String(carry.checked);
-        col.querySelector('.gxsc-head small').textContent = String(set.size);
       }
       const cost = event.target.closest('[data-cost]');
       if (cost) { const value = Number(cost.value); if (Number.isFinite(value) && value >= 0) supplier.prices[cost.dataset.cost] = value; }
@@ -134,8 +138,20 @@
     resize?.observe(el);
     draw();
     return {
-      // A supplier just added is scrolled into view.
-      update(list){ const before = suppliers.length; suppliers = array(list).map((supplier) => ({ ...supplier, item_ids: [...new Set(array(supplier.item_ids))], prices: { ...(supplier.prices || {}) } })); const left = viewport.scrollLeft; draw(); viewport.scrollLeft = left; if (suppliers.length > before) viewport.scrollTo({ left: viewport.scrollWidth, behavior: reduced() ? 'auto' : 'smooth' }); syncArrow(); },
+      // The row stays where it was; a supplier just added is scrolled just into view when it is out of sight.
+      update(list){
+        const keys = new Set(suppliers.map((supplier) => supplier.key));
+        suppliers = array(list).map((supplier) => ({ ...supplier, item_ids: [...new Set(array(supplier.item_ids))], prices: { ...(supplier.prices || {}) } }));
+        const left = viewport.scrollLeft; draw(); viewport.scrollLeft = left;
+        const added = suppliers.find((supplier) => !keys.has(supplier.key));
+        const col = added && track.querySelector(`[data-supplier="${CSS.escape(added.key)}"]`);
+        if (col) {
+          const start = col.offsetLeft - track.offsetLeft, end = start + col.offsetWidth;
+          if (end > viewport.scrollLeft + viewport.clientWidth + 1) viewport.scrollTo({ left: end - viewport.clientWidth, behavior: reduced() ? 'auto' : 'smooth' });
+          else if (start < viewport.scrollLeft - 1) viewport.scrollTo({ left: start, behavior: reduced() ? 'auto' : 'smooth' });
+        }
+        syncArrow();
+      },
       suppliers: () => suppliers,
       destroy(){ resize?.disconnect(); el.innerHTML = ''; el.classList.remove('gxsc'); }
     };
@@ -156,7 +172,7 @@
         try { saved = (await before?.(files, supplier)) || supplier; } catch (error) { console.warn('Supplier could not be saved before its price sheet.', error); }
         const name = clean(saved?.name) || L('gx_sc_this_supplier', 'this supplier');
         const id = clean(saved?.id);
-        const message = `${L('gx_sc_sheet_message', 'Here is my price sheet from')} ${name}${id ? ` (supplier id ${id})` : ''}. ${L('gx_sc_sheet_ask', 'Please set this supplier’s costs from it. These are costs, not sell prices, so no markup.')}`;
+        const message = sheetMessage({ id, name });
         const target = assistant || root.PlatformAssistant;
         if (!assistant) root.PlatformAssistant?.open?.();
         resolve(await target?.sendWithFiles?.(message, files));
@@ -165,7 +181,11 @@
     });
   }
 
-  root.FirstMateSupplierColumns = { mount, priceSheet };
+  /** What is said to the agent with a supplier's price sheet: the supplier, its id when it is saved, and that these are costs. */
+  function sheetMessage({ id, name }){
+    return `${L('gx_sc_sheet_message', 'Here is my price sheet from')} ${clean(name) || L('gx_sc_this_supplier', 'this supplier')}${clean(id) ? ` (supplier id ${clean(id)})` : ''}. ${L('gx_sc_sheet_ask', 'Please set this supplier\u2019s costs from it. These are costs, not sell prices, so no markup.')}`;
+  }
+  root.FirstMateSupplierColumns = { mount, priceSheet, sheetMessage };
 
   // Column accents for well-known suppliers (the brand colours in materials/roofing-research/roofing-suppliers-2026.json).
   const KNOWN_COLORS = { 'abc supply': '#C8102E', 'srs distribution': '#E35205', 'srs building products': '#E35205', 'beacon (qxo)': '#003A70', 'beacon': '#003A70', 'the home depot': '#F96302', 'home depot': '#F96302', "lowe's": '#004990', 'lowe’s': '#004990', 'gulfeagle supply': '#00539B', 'convoy supply': '#D2232A' };
@@ -184,7 +204,7 @@
     function columnsFrom(){
       const book = new Map(itemsOf().map((item) => [String(item.id), item]));
       const carried = new Set(suppliers.flatMap((supplier) => array(supplier.offerings).map((row) => row.item_id)));
-      const items = [...carried].map((id) => { const item = book.get(id) || { id, name: id }; return { id, name: clean(item.name) || id, unit: item.unit, price: item.internal_cost ?? item.unit_price ?? '', group: clean(item.category || item.type) || L('gx_sc_items', 'Items') }; })
+      const items = [...carried].map((id) => { const item = book.get(id) || { id, name: id }; const name = clean(item.name) || id, maker = clean(item.manufacturer); return { id, name, label: maker && name.toLowerCase().startsWith(maker.toLowerCase() + ' ') ? name.slice(maker.length + 1) : name, unit: item.unit, price: item.internal_cost ?? item.unit_price ?? '', group: maker || clean(item.category || item.type) || L('gx_sc_items', 'Items') }; })
         .sort((a, b) => a.group.localeCompare(b.group) || a.name.localeCompare(b.name));
       const cols = suppliers.map((supplier) => ({ key: supplier.id, id: supplier.id, name: supplier.name, logo: supplier.logo, color: (options.colors || {})[supplier.id] || KNOWN_COLORS[clean(supplier.name).toLowerCase()] || '#344054',
         item_ids: array(supplier.offerings).map((row) => row.item_id), prices: {}, base_prices: Object.fromEntries(array(supplier.offerings).filter((row) => row.price_cents != null).map((row) => [row.item_id, row.price_cents / 100])) }));

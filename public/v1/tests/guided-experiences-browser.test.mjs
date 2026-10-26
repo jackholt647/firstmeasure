@@ -60,7 +60,9 @@ const FAQS={'project.materials':{tab:'project.materials',questions:[{id:'materia
   'project.photos':{tab:'project.photos',questions:[{id:'photos.add',text:t('gx_faq_photos_add','How do I add photos to this project?'),action:'ask'}]},
   'project.docs':{tab:'project.docs',questions:[...['How do I make a proposal for this project?','How does the customer sign?','Can I send a document by text message?','What happens after the customer signs?','How do I change a price on a sent proposal?','Where do signed documents go?'].map((text,i)=>({id:'docs.q'+i,text:t('gx_faq_docs_'+i,text),action:'ask'})),{id:'docs.tour',text:t('gx_faq_mat_tour','Show me the tutorial again'),action:'play',experience:'materials.tab_tutorial'}]}};
 
-async function load(browser,{width=1280,height=800,reduced=false}={}){
+// GX_SIZE=1600x1000 plays the walkthrough at another size (screenshots for review).
+const [SIZE_W,SIZE_H]=(process.env.GX_SIZE||'1280x800').split('x').map(Number);
+async function load(browser,{width=SIZE_W,height=SIZE_H,reduced=false}={}){
   const page=await browser.newPage({viewport:{width,height}}),errors=[];
   if(reduced)await page.emulateMedia({reducedMotion:'reduce'});
   page.on('pageerror',error=>errors.push(error.message));
@@ -147,9 +149,14 @@ test('the setup: logo grid, lines in tiers, materials list, costs and a price sh
     assert.equal(tiles.border,'0px');
     assert.equal(tiles.heights.length,1);
     // The logo fills the tile: a square logo is most of its height.
-    const logo=await page.evaluate(()=>{const tile=document.querySelector('[data-brand=gaf]'),img=tile.querySelector('img');return {img:img.getBoundingClientRect().height,tile:tile.getBoundingClientRect().height};});
-    assert.ok(logo.img>=90&&logo.img>=logo.tile*0.7,`logo ${logo.img}px in a ${logo.tile}px tile`);
+    // Logos are sized by area: a square mark fills a good share of its tile, whatever its own pixel size (GAF's is 50 by 50).
+    const logo=await page.evaluate(()=>{const tile=document.querySelector('[data-brand=gaf]'),img=tile.querySelector('img'),r=img.getBoundingClientRect(),t=tile.getBoundingClientRect();return {w:r.width,h:r.height,share:(r.width*r.height)/((t.width-28)*(t.height-28))};});
+    assert.ok(logo.h>=80&&logo.w>=80,`logo ${logo.w}x${logo.h}`);
+    assert.ok(logo.share>0.4&&logo.share<0.6,`a balanced share of the tile (${logo.share})`);
     assert.equal(await page.locator('[data-gxs=next]').isDisabled(),true,'a brand is needed first');
+    assert.match(await page.locator('.gxs-next-wrap').getAttribute('title'),/Pick at least one manufacturer/,'and says why');
+    assert.equal(await page.evaluate(()=>!!document.querySelector('.gxs-title-actions [data-all]')),true,'Use all sits in the title row');
+    await shot(page,'1a-brands');
     await page.click('[data-brand=gaf]');
     await page.waitForFunction(()=>getComputedStyle(document.querySelector('[data-brand=gaf] .gxs-badge-check')).opacity==='1');
     await page.click('[data-brand=owens_corning]');
@@ -177,31 +184,46 @@ test('the setup: logo grid, lines in tiers, materials list, costs and a price sh
     await page.waitForFunction(()=>document.querySelector('.gxs-assistant .fma-msgs').innerText.includes('carry on with the step'));
     await press(page);
     await onStep(page,'How a roof becomes a materials list');
-    // One row per material and where its amount comes from.
+    await page.waitForTimeout(500);await shot(page,'3a-materials');
+    // One row per material and where its amount comes from, in two independent stacks.
     const rows=await page.evaluate(()=>[...document.querySelectorAll('.gxs-mat')].map(row=>[row.querySelector('strong').textContent,row.querySelector('.gxs-source').textContent]));
     assert.equal(await page.evaluate(()=>new Set([...document.querySelectorAll('.gxs-mat')].map(row=>Math.round(row.getBoundingClientRect().left))).size),2,'two columns');
-    assert.deepEqual(rows,[['Architectural shingles','From measurement report'],['Starter strip','From measurement report'],['Ice and water shield','From measurement report'],['Pipe boots','Entered by hand'],['Decking replacement','Entered by hand']]);
+    assert.deepEqual(rows.map(r=>r[0]).sort(),['Architectural shingles','Decking replacement','Ice and water shield','Pipe boots','Starter strip']);
+    assert.deepEqual(Object.fromEntries(rows),{'Architectural shingles':'From measurements','Starter strip':'From measurements','Ice and water shield':'From measurements','Pipe boots':'Entered by hand','Decking replacement':'Entered by hand'});
     // Hover: the rule in plain words, never a sample roof's amount.
-    await page.hover('[data-mat=shingles] [data-mat-toggle]');
-    await page.waitForFunction(()=>document.querySelector('.gxs-tip')?.dataset.show==='true');
-    const plain=await page.locator('.gxs-tip').innerText();
-    assert.match(plain,/3 bundles for every square of roof steeper than 2\/12, plus waste from the measurement report\./);
+    const tipOf=async key=>{await page.mouse.move(5,5);await page.hover(`[data-mat=${key}] [data-mat-toggle]`);await page.waitForFunction(()=>document.querySelector('.gxs-tip')?.dataset.show==='true');return page.locator('.gxs-tip').innerText();};
+    const plain=await tipOf('shingles');
+    assert.match(plain,/3 bundles for every square of roof steeper than 2\/12, plus waste from the measurements\./);
     assert.doesNotMatch(plain,/28/);
-    // Click to edit: waste from the report by default, or by hand.
-    await page.click('[data-mat=starter] [data-mat-toggle]');
-    await page.waitForSelector('[data-mat=starter][data-open=true] [data-plain]');
-    assert.match(await page.locator('[data-mat=starter] [data-plain]').innerText(),/One bundle for every 120 ft of eaves plus rakes, plus 5% extra\. When the job.s shingle shows its starter course .* a coloured starter is used instead\./);
+    assert.match(await tipOf('starter'),/One bundle for every 120 ft of eaves plus rakes, plus 5% extra\. When the job.s shingle shows its starter course .* a coloured starter is used instead\./);
+    // Opening a row in one stack leaves the other stack where it was; one row is open at a time.
+    const otherTop=()=>page.evaluate(()=>document.querySelector('[data-mat=starter]').getBoundingClientRect().top);
+    const starterBefore=await otherTop();
     await page.click('[data-mat=shingles] [data-mat-toggle]');
-    assert.equal(await page.locator('[data-mat=shingles] [data-waste=roof]').getAttribute('aria-pressed'),'true','waste comes from the report by default');
+    await page.waitForSelector('[data-mat=shingles][data-open=true] .gxs-form');
+    await page.waitForTimeout(400);
+    assert.ok(Math.abs(await otherTop()-starterBefore)<1,'the other column does not move');
+    // A tight form: segmented controls, waste from the measurements by default, the package as bundles per square.
+    assert.equal(await page.locator('[data-mat=shingles] [data-waste-mode=roof]').getAttribute('aria-checked'),'true','waste comes from the measurements by default');
+    assert.equal(await page.locator('[data-mat=shingles] [data-plain]').count(),0,'the description is the hover, not repeated');
+    assert.equal(await page.locator('[data-mat=shingles] [data-per-square]').inputValue(),'3');
+    assert.match(await page.locator('[data-mat=shingles] .gxs-form').innerText(),/bundles per square/);
+    const segRows=await page.evaluate(()=>[...document.querySelectorAll('[data-mat=shingles] .gxs-seg')].map(seg=>{const tops=new Set([...seg.children].map(b=>Math.round(b.getBoundingClientRect().top)));return tops.size;}));
+    assert.ok(segRows.every(n=>n===1),'segments stay on one line');
+    await page.click('[data-mat=shingles] [data-waste-mode=fixed]');
     await page.fill('[data-mat=shingles] [data-waste-input]','15');
     await page.locator('[data-mat=shingles] [data-waste-input]').dispatchEvent('change');
-    assert.match(await page.locator('[data-mat=shingles] [data-plain]').innerText(),/plus 15% extra/);
+    assert.equal(await page.locator('[data-mat=shingles] [data-waste-input]').getAttribute('placeholder'),null,'no placeholder beside the % sign');
+    await page.mouse.move(5,5);await page.waitForTimeout(200);await shot(page,'3b-materials-editor');
+    assert.match(await tipOf('shingles'),/plus 15% extra/);
     await page.click('[data-mat=ice_water] [data-mat-toggle]');
+    await page.waitForSelector('[data-mat=ice_water][data-open=true] .gxs-form');
+    assert.equal(await page.locator('.gxs-mat[data-open=true]').count(),1,'one open at a time');
     await page.click('[data-mat=ice_water] [data-width="3"]');
-    assert.match(await page.locator('[data-mat=ice_water] [data-plain]').innerText(),/3 ft up from eaves/);
+    assert.match(await tipOf('ice_water'),/3 ft up from eaves/);
     await page.click('[data-mat=pipe_boots] [data-mat-toggle]');
     assert.equal(await page.locator('[data-mat=pipe_boots] [data-source=report]').count(),0,'the report does not count pipe boots');
-    await shot(page,'3-materials');
+    await page.mouse.move(5,5);await page.waitForTimeout(200);await shot(page,'3-materials');
     await press(page);
     await onStep(page,'Who provides your materials?');
     // Researched suppliers as pills, your own as a tag; one brand-coloured column each, two at a time.
@@ -273,7 +295,7 @@ test('the setup: logo grid, lines in tiers, materials list, costs and a price sh
     await onStep(page,'Who does your labor?');
     await page.waitForTimeout(600);
     // Their groups and subcontractors as cards in two columns, each with how it is paid; the explanation is a tooltip.
-    const labs=await page.evaluate(()=>[...document.querySelectorAll('.gxs-step:not(.gxs-above) .gxs-lab')].map(card=>({name:card.querySelector('strong').textContent,kind:card.querySelector('.gxs-lab-kind').textContent,left:Math.round(card.getBoundingClientRect().left),pressed:[...card.querySelectorAll('[data-method][aria-pressed=true]')].map(b=>b.dataset.method),note:card.querySelector('.gxs-lab-note')?.textContent||''})));
+    const labs=await page.evaluate(()=>[...document.querySelectorAll('.gxs-step:not(.gxs-above) .gxs-lab')].map(card=>({name:card.querySelector('strong').textContent,kind:card.querySelector('.gxs-lab-kind').textContent,left:Math.round(card.getBoundingClientRect().left),pressed:[...card.querySelectorAll('[data-method][aria-checked=true]')].map(b=>b.dataset.method),note:card.querySelector('.gxs-lab-note')?.textContent||''})));
     assert.deepEqual(labs.map(c=>c.name),['North crew','Summit Roofing']);
     assert.equal(new Set(labs.map(c=>c.left)).size,2,'two columns');
     assert.deepEqual(labs[0].pressed,['hourly'],'paid as its pay sheet says');
@@ -305,20 +327,14 @@ test('the setup: logo grid, lines in tiers, materials list, costs and a price sh
     await shot(page,'5-labor');
     assert.equal(await page.locator('[data-gxs=skip]').isVisible(),true,'an optional page has a clear Skip');
     await page.waitForTimeout(300);
-    // Record the hand-off frame by frame.
-    await page.evaluate(()=>{
-      window.frames=[];
-      const tick=()=>{const card=document.querySelector('.gxs-flying'),scrim=document.querySelector('.gxs-scrim'),tray=document.querySelector('.fm-project-tray'),drawer=tray?.querySelector('.fma-drawer'),mt=document.querySelector('.mt-resource-column');
-        window.frames.push({t:performance.now(),card:card?card.getBoundingClientRect().toJSON():null,cardOpacity:card?Number(getComputedStyle(card).opacity):null,scrim:scrim?.isConnected?Number(getComputedStyle(scrim).opacity):null,tray:tray.getBoundingClientRect().width,trayReady:!!(drawer&&drawer.getBoundingClientRect().width>0&&drawer.querySelector('.fma-msg')),content:mt.getBoundingClientRect().right,setup:!!document.querySelector('.gxs')});
-        if(window.frames.length<400)requestAnimationFrame(tick);};
-      requestAnimationFrame(tick);
-    });
     await page.click('[data-gxs=next]');
     await page.waitForSelector('.gxs-done');
     const complete=await page.evaluate(()=>window.calls.find(c=>c.path.endsWith('/complete')));
     assert.deepEqual(complete.body.selections.brands,['gaf','owens_corning']);
     assert.equal(complete.body.selections.default_line,'lib-shingle-gaf-grand-sequoia');
     assert.equal(complete.body.selections.rules.shingles.waste,15);
+    // What the person said about the rules is in their words, not a count.
+    assert.ok(await page.evaluate(()=>[...document.querySelectorAll('.fm-project-tray .fma-msg.user, .gxs-assistant .fma-msg.user')].some(el=>/15% waste on architectural shingles/.test(el.textContent))||window.thread.some(m=>m.role==='user'&&/15% waste on architectural shingles/.test(m.content))),'the rules step is summarised in words');
     assert.equal(complete.body.selections.ice_eave_width,3);
     assert.equal(complete.body.selections.suppliers.find(entry=>entry.preset==='home_depot').prices['lib-shingle-gaf-uhdz'],39.5,'the cost typed for that supplier');
     assert.equal(complete.body.selections.markup,undefined,'no markup is sent');
@@ -327,6 +343,24 @@ test('the setup: logo grid, lines in tiers, materials list, costs and a price sh
     assert.deepEqual(complete.body.selections.suppliers.find(entry=>!entry.preset),{name:'Smith Roofing Supply',item_ids:[],prices:{}});
     assert.deepEqual(complete.body.selections.labor.assignees.map(entry=>[entry.kind,entry.name,entry.ref?.id||null,entry.type_id||null]),[['resource_group','North crew','g1','crew'],['resource_group','South crew',null,'crew'],['organization_connection','Ridge Co',null,'work_provider']]);
     assert.equal(complete.body.selections.labor.assignees.some(entry=>entry.name==='Summit Roofing'),false,'an untouched one is not sent');
+    // Done: centred in the stage, in plain words, with one button that closes it; it waits for that button.
+    await page.waitForTimeout(800);
+    const done=await page.evaluate(()=>{const stage=document.querySelector('.gxs-stage').getBoundingClientRect(),box=document.querySelector('.gxs-done').getBoundingClientRect();return {offset:Math.abs((box.top+box.bottom)/2-(stage.top+stage.bottom)/2),text:document.querySelector('.gxs-done').innerText,buttons:[...document.querySelectorAll('.gxs-foot button')].filter(b=>!b.hidden&&b.offsetParent).map(b=>b.textContent.trim()),composer:!!document.querySelector('.gxs-assistant [data-fma=input]')?.offsetParent};});
+    assert.ok(done.offset<20,`centred (${done.offset})`);
+    assert.doesNotMatch(done.text,/Products added/);
+    assert.deepEqual(done.buttons,['See my materials']);
+    assert.equal(done.composer,true,'the conversation keeps its composer');
+    assert.equal(await page.evaluate(()=>window.trayOpened),0,'nothing closes until they press it');
+    await shot(page,'6-done');
+    // Record the hand-off frame by frame.
+    await page.evaluate(()=>{
+      window.frames=[];
+      const tick=()=>{const card=document.querySelector('.gxs-flying'),scrim=document.querySelector('.gxs-scrim'),tray=document.querySelector('.fm-project-tray'),drawer=tray?.querySelector('.fma-drawer'),mt=document.querySelector('.mt-resource-column');
+        window.frames.push({t:performance.now(),card:card?card.getBoundingClientRect().toJSON():null,cardOpacity:card?Number(getComputedStyle(card).opacity):null,scrim:scrim?.isConnected?Number(getComputedStyle(scrim).opacity):null,tray:tray.getBoundingClientRect().width,trayReady:!!(drawer&&drawer.getBoundingClientRect().width>0&&drawer.querySelector('.fma-msg')),content:mt.getBoundingClientRect().right,setup:!!document.querySelector('.gxs')});
+        if(window.frames.length<400)requestAnimationFrame(tick);};
+      requestAnimationFrame(tick);
+    });
+    await page.click('[data-gxs=done]');
     await page.waitForFunction(()=>window.trayOpened===1,null,{timeout:8000});
     await page.waitForFunction(()=>!document.querySelector('.gxs')&&!document.querySelector('.gxs-flying'),null,{timeout:8000});
     await page.waitForTimeout(400);
@@ -433,6 +467,7 @@ test('the labor step can be skipped, which leaves labor off until someone does i
     await page.waitForTimeout(300);
     await page.click('[data-gxs=skip]');
     await page.waitForSelector('.gxs-done');
+    await page.click('[data-gxs=done]');
     assert.equal((await page.evaluate(()=>window.calls.find(c=>c.path.endsWith('/complete')))).body.selections.include_labor,false,'skipped: no labor lines');
     assert.deepEqual((await page.evaluate(()=>window.calls.find(c=>c.path.endsWith('/complete')))).body.selections.labor,{assignees:[],skipped:true},'skipped: the Labor column waits for someone to do labor');
     assert.deepEqual(errors,[]);
@@ -536,6 +571,35 @@ test('the tour draws an arrow only against a target, pointing at it',async()=>{
     const arrow=await page.evaluate(()=>{const a=document.querySelector('.gx-pop .gx-arrow').getBoundingClientRect(),b=document.querySelector('[data-mt-generate-materials]').getBoundingClientRect();return {ax:a.left+a.width/2,ay:a.top+a.height/2,left:b.left,right:b.right,bottom:b.bottom};});
     assert.ok(arrow.ax>=arrow.left-2&&arrow.ax<=arrow.right+2,'the arrow sits under the button it points at');
     assert.ok(Math.abs(arrow.ay-arrow.bottom)<30,'right by it');
+    await page.click('.gx-pop [data-gx=close]');
+    assert.deepEqual(errors,[]);
+  } finally { await browser.close(); }
+});
+
+test('a tour step follows its target when the page moves it, and becomes a centred card when it goes',async()=>{
+  const browser=await launch();
+  try{
+    const {page,errors}=await load(browser);
+    await page.evaluate(()=>{window.FirstMateGuides.play('materials.tab_tutorial',{replay:true});});
+    await page.waitForSelector('.gx-pop');
+    await page.click('.gx-pop [data-gx=next]');
+    await page.waitForFunction(()=>document.querySelector('.gx-pop h3')?.textContent==='Generate');
+    await page.waitForTimeout(600);
+    const at=()=>page.evaluate(()=>{const ring=document.querySelector('.gx-ov-ring').getBoundingClientRect(),target=document.querySelector('[data-mt-generate-materials]')?.getBoundingClientRect(),arrow=document.querySelector('.gx-pop .gx-arrow')?.getBoundingClientRect();return {ringTop:ring.top,ringLeft:ring.left,targetTop:target?.top,targetLeft:target?.left,arrowY:arrow?arrow.top+arrow.height/2:null,targetBottom:target?.bottom,center:document.querySelector('.gx-pop').classList.contains('gx-center')};});
+    const before=await at();
+    assert.ok(Math.abs(before.ringTop-(before.targetTop-6))<2);
+    // The person's action shows a bar above it (as ticking a photo shows the selection bar) and the layout shifts.
+    await page.evaluate(()=>{const bar=document.createElement('div');bar.id='selbar';bar.style.cssText='height:140px;flex:0 0 100%;background:#eef';document.querySelector('.mt').prepend(bar);});
+    await page.waitForTimeout(120);
+    const moved=await at();
+    assert.ok(moved.targetTop>before.targetTop+100,'the layout moved');
+    assert.ok(Math.abs(moved.ringTop-(moved.targetTop-6))<2&&Math.abs(moved.ringLeft-(moved.targetLeft-6))<2,`the spotlight followed (${moved.ringTop} vs ${moved.targetTop})`);
+    assert.ok(Math.abs(moved.arrowY-moved.targetBottom)<30,'so did the popover');
+    // The target goes away: the step stays as a centred card instead of pointing at something else.
+    await page.evaluate(()=>document.querySelector('[data-mt-generate-materials]').remove());
+    await page.waitForFunction(()=>document.querySelector('.gx-pop').classList.contains('gx-center'));
+    assert.equal(await page.locator('.gx-pop h3').innerText(),'Generate');
+    assert.equal(await page.locator('.gx-pop .gx-arrow').count(),0);
     await page.click('.gx-pop [data-gx=close]');
     assert.deepEqual(errors,[]);
   } finally { await browser.close(); }

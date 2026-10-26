@@ -68,7 +68,7 @@ export function registerMaterialsGuidedExperiences() {
         subtitle: t("gx_mps_rules_subtitle", "Every roof report comes with measurements. Each material is worked out from them, plus a little extra for waste."),
         say: [
           t("gx_mps_rules_say_1", "This is the part that saves you time. Shingles come from the roof's squares, starter from the eaves and rakes, ridge cap from the hips and ridges."),
-          t("gx_mps_rules_say_2", "Tap any card to see the maths on a sample roof. Only two things are up to you: how much waste you allow, and how far up from the eaves your ice and water barrier goes.")
+          t("gx_mps_rules_say_3", "Hover over a material to see how it's worked out, or click it to change that. Most people only change two things: how much waste they allow, and how far up from the eaves the ice and water barrier goes.")
         ]
       },
       {

@@ -113,6 +113,10 @@ hole over each target; the hole slides between steps, a ring pulses on the
 highlighted element, and the popover sits beside it with an arrow at the target (a
 bottom sheet under 640px; a centred card with no arrow when a step has no target). Back, Next, Skip step, Skip tutorial
 (the X), Escape and arrow keys. A step whose target never appears is skipped.
+While a step shows, its target is followed every frame: when the person's action
+moves it (a selection bar appears above it), the spotlight, ring and popover move
+with it at once; when it goes away and its selectors match nothing, the step stays
+as a centred card instead of pointing at whatever took its place.
 The highlighted element can still be pressed; everything else is blocked. Above
 the project window (`z-index` 2147483300) and `data-fmr-ignore`.
 
@@ -157,8 +161,14 @@ after `workflow.onUpload(files)` has run (the setup saves its draft there). A li
 twice when the conversation reloads. A workflow surface gets no tab questions.
 
 Widgets are registered with `FirstMateGuidedSetup.registerWidget(id, { render(el,
-{ step, options, selections, change }) })`. `change(patch, summary)` merges a
-selection patch and gives the plain summary the agent repeats. First ones:
+{ step, options, selections, change, actions }) })`. `change(patch, summary)` merges a
+selection patch and gives the plain summary the agent repeats in the person's
+words (an empty summary posts nothing). `actions` is the step's title row, for a
+control such as "Use all". A widget declared `fill: true` gets the step's height
+(the logo grid, supplier columns); other steps scroll with a fade at the bottom
+while there is more. `hint()` says why Continue is disabled, as its tooltip. The
+finished screen is centred and waits for its one button ("See my materials")
+before the hand-off. First ones:
 `brand-cards` (logos only), `product-lines` (two columns, tiers, search),
 `measurement-rules` (one row per material), `supplier-columns`, `price-review`
 (costs only, by `options.kinds`). A step's `upload` puts an upload control in one
@@ -431,8 +441,10 @@ route refuses elsewhere with 404, whoever asks.
   `node public/v1/scripts/guided-copy-apply.mjs export.json --write`, review the
   diff, commit; then revert the overrides on dev to the code's text. A key whose
   English the catalog already carries needs the catalog entry updated too.
-- **Seeing it:** editable copy has a dashed outline; a pill at the bottom left
-  says "Editing copy" (press to see the clean view; remembered per browser) and
+- **Seeing it:** copy editing is off until the editor turns it on in the pill
+  (remembered per browser); then editable copy has a dashed outline. The pill sits
+  at the bottom left of the screen, just right of the portal sidebar, folds to a
+  "GX" handle, says "Editing copy" and
   its menu holds the last field's history and each experience's Replay or
   Restart, Reset me and Reset org. The development tools window gets the same
   section. Everything is `data-fmr-ignore`.

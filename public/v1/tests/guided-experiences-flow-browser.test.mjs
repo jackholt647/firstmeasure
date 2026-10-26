@@ -148,6 +148,8 @@ test('one experience at a time, fast Next and Back, close mid-tour, reopen, relo
     assert.equal(setupLines.filter(text=>text.includes('Here are the lines.')).length,1,JSON.stringify(setupLines));
     await frame().waitForTimeout(500);
     await frame().click('[data-gxs=next]');
+    await frame().waitForSelector('[data-gxs=done]');
+    await frame().click('[data-gxs=done]');
     // Hand-off to the tray, the held Generate, then the tour: one overlay, in the project window.
     await frame().waitForSelector('.gx-pop',{timeout:10000});
     await tab.waitForTimeout(800);
@@ -262,6 +264,8 @@ test('on a draft the first view plays the setup without saving a project, and Ge
     await next();
     await frame().waitForFunction(()=>document.querySelector('.gxs-step:not(.gxs-above) h2')?.textContent==='Check your prices');
     await next();
+    await frame().waitForSelector('[data-gxs=done]');
+    await frame().click('[data-gxs=done]');
     await frame().waitForFunction(()=>!document.querySelector('.gxs'),null,{timeout:8000});
     assert.equal(srv.state.completes.length,1);
     assert.equal(srv.state.completes[0].project_id,'','the price book is written for the organization, with no project');
@@ -290,6 +294,13 @@ test('development: copy is editable in place, saves as you type, shows for every
   srv.state.progress[SETUP.id]='completed';srv.state.dev=true;
   try{
     const {tab,errors,frame}=await open(browser,srv,{project:'p1',silent:true});
+    // Copy editing is off until the editor turns it on.
+    assert.equal(await frame().evaluate(()=>document.documentElement.classList.contains('gx-editing')),false,'off by default');
+    await tab.waitForSelector('.gx-dev .gx-dev-handle');
+    assert.equal(await tab.locator('.gx-dev [data-gxd=toggle]').getAttribute('aria-pressed'),'false');
+    await tab.click('.gx-dev [data-gxd=collapse]');
+    await tab.click('.gx-dev [data-gxd=toggle]');
+    await tab.click('.gx-dev [data-gxd=collapse]');
     await frame().evaluate(()=>{FirstMateGuides.play('materials.tab_tutorial');});
     await frame().waitForSelector('.gx-pop [data-gx-copy]');
     // Obvious: editable text is outlined and the pill says so.

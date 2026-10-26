@@ -50,7 +50,17 @@
     .gxs-icon{width:34px;height:34px;border:0;border-radius:10px;background:transparent;color:#667085;cursor:pointer;font-size:18px;display:inline-grid;place-items:center}
     .gxs-icon:hover{background:#f2f4f7;color:#101828}
     .gxs-stage{position:relative;flex:1;min-height:0;overflow:hidden}
-    .gxs-step{position:absolute;inset:0;overflow:auto;padding:8px 28px 24px;transition:transform .55s cubic-bezier(.22,1,.36,1),opacity .4s ease}
+    .gxs-step{position:absolute;inset:0;overflow:auto;padding:8px 28px 24px;display:flex;flex-direction:column;transition:transform .55s cubic-bezier(.22,1,.36,1),opacity .4s ease}
+    .gxs-body{flex:0 0 auto}
+    .gxs-step[data-fill]{overflow:hidden}
+    .gxs-step[data-fill] .gxs-body{flex:1 1 auto;min-height:0;display:flex;flex-direction:column}
+    .gxs-step.gxs-more-below{-webkit-mask-image:linear-gradient(to bottom,#000 calc(100% - 48px),transparent);mask-image:linear-gradient(to bottom,#000 calc(100% - 48px),transparent)}
+    .gxs-titlebar{display:flex;align-items:center;gap:10px;margin:4px 0 12px;padding-right:44px;flex:none}
+    .gxs[data-kind=agentic] .gxs-titlebar{padding-right:0}
+    .gxs-titlebar h2{margin:0!important;padding-right:0!important;flex:1;min-width:0}
+    .gxs-title-actions{display:flex;align-items:center;gap:8px;flex:none}
+    .gxs-title-actions:empty{display:none}
+    .gxs-next-wrap{display:inline-flex}
     .gxs-step.gxs-below{transform:translateY(48px);opacity:0}
     .gxs-step.gxs-above{transform:translateY(-48px);opacity:0;pointer-events:none}
     .gxs-step h2{display:flex;align-items:center;gap:8px;margin:4px 0 12px;padding-right:44px;font-size:clamp(18px,2vw,22px);line-height:1.2;letter-spacing:-.02em;font-weight:780}
@@ -143,7 +153,9 @@
     .gxs-table input:focus{outline:none;border-color:var(--primary,#d93025)}
     .gxs-inline{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:0 0 6px}
     .gxs-inline input[type=number]{width:72px;height:32px;border:1px solid #d0d5dd;border-radius:8px;padding:0 8px;font:inherit}
-    .gxs-done{display:grid;place-items:center;text-align:center;padding:40px 10px;gap:10px}
+    .gxs-done-step{justify-content:center}
+    .gxs-done{display:grid;place-items:center;text-align:center;padding:24px 10px;gap:10px;margin:auto 0}
+    .gxs-done p{margin:0;color:#475467;max-width:44ch}
     .gxs-done svg{width:84px;height:84px}
     .gxs-done circle{stroke:var(--primary,#d93025);stroke-width:4;fill:none;stroke-dasharray:240;stroke-dashoffset:240;animation:gxsDraw .7s ease forwards}
     .gxs-done path{stroke:var(--primary,#d93025);stroke-width:5;fill:none;stroke-linecap:round;stroke-linejoin:round;stroke-dasharray:60;stroke-dashoffset:60;animation:gxsDraw .45s .55s ease forwards}
@@ -186,7 +198,7 @@
       const summaries = {};
       let index = Math.max(0, steps.findIndex((step) => step.id === experience.progress?.step_id));
       if (index >= steps.length) index = 0;
-      let mounted = null, busy = false, closed = false, assistant = null;
+      let mounted = null, busy = false, closed = false, assistant = null, doneWaiter = null;
 
       const host = document.createElement('div');
       host.className = 'gxs'; host.dataset.kind = agentic ? 'agentic' : 'modal'; host.setAttribute('data-fmr-ignore', ''); host.setAttribute('data-gx-setup', experience.id);
@@ -200,7 +212,7 @@
             <footer class="gxs-foot"><span class="gxs-status" role="status"></span>
               <button type="button" class="gxs-btn ghost" data-gxs="back">${H('gx_ui_back', 'Back')}</button>
               <button type="button" class="gxs-btn ghost" data-gxs="skip">${H('gx_ui_skip_step', 'Skip step')}</button>
-              <button type="button" class="gxs-btn primary" data-gxs="next"></button></footer>
+              <span class="gxs-next-wrap"><button type="button" class="gxs-btn primary" data-gxs="next"></button></span></footer>
           </div>
           <aside class="gxs-chat" aria-label="${esc(L('gx_ui_agent', 'Agent'))}">
             <button type="button" class="gxs-chat-handle" data-gxs="toggleChat" aria-expanded="false"><i class="fas fa-sparkles" aria-hidden="true"></i>${H('gx_ui_agent', 'Agent')}<i class="fas fa-chevron-up gxs-chevron" aria-hidden="true"></i></button>
@@ -224,7 +236,17 @@
               onReply: () => { if (!closed) say([L('gx_ui_back_to_step', 'Whenever you’re ready, carry on with the step on the left.')], '', ''); },
               onChoice: (id) => { if (id === 'continue' && !closed) next(false); },
               // A price sheet changes the price book: what is chosen so far is saved first, so the agent has items to price.
-              onUpload: async (files) => { track('question', { step_id: steps[index]?.id, properties: { upload: true, files: files.length } }); await saveDraft(); }
+              onUpload: async (files) => {
+                track('question', { step_id: steps[index]?.id, properties: { upload: true, files: files.length } });
+                const saved = await saveDraft();
+                // With exactly one supplier chosen, a price sheet is that supplier's: say so, naming it.
+                const chosenSuppliers = array(selections.suppliers);
+                if (steps[index]?.widget === 'supplier-columns' && chosenSuppliers.length === 1 && root.FirstMateSupplierColumns?.sheetMessage) {
+                  const match = array(saved?.suppliers).find((entry) => clean(entry.name).toLowerCase() === clean(chosenSuppliers[0].name).toLowerCase());
+                  return root.FirstMateSupplierColumns.sheetMessage({ id: match?.id, name: chosenSuppliers[0].name });
+                }
+                return undefined;
+              }
             }
           });
         } catch (error) {
@@ -305,13 +327,24 @@
         $('[data-gxs=skip]').hidden = step.required !== false || (last && !Object.keys(object(step.options?.skip_sets)).length);
         const next = $('[data-gxs=next]');
         next.innerHTML = busy ? `<span class="gxs-spin" aria-hidden="true"></span>${H('gx_ui_building', 'Building…')}` : (last ? H('gx_ui_finish', 'Build my price book') : H('gx_ui_continue', 'Continue'));
-        next.disabled = busy || (step.required !== false && mounted?.valid?.() === false);
+        const blocked = step.required !== false && mounted?.valid?.() === false;
+        next.disabled = busy || blocked;
+        // A disabled button shows no tooltip of its own, so its wrapper says why.
+        const hint = blocked ? clean(mounted?.hint?.()) || L('gx_ui_hint_choose', 'Make a choice to continue.') : '';
+        const wrap = next.parentElement;
+        if (wrap?.classList.contains('gxs-next-wrap')) { if (hint) wrap.title = hint; else wrap.removeAttribute('title'); }
       }
       /**
        * One owner for step changes: each change takes a new generation, removes every pane but the one on screen at
        * once, and its animation callbacks do nothing once a newer change has started. Fast clicks never stack panes.
        */
       let paneGeneration = 0, currentPane = null;
+      function watchFade(pane){
+        const update = () => pane.classList.toggle('gxs-more-below', !pane.hasAttribute('data-fill') && pane.scrollHeight - pane.scrollTop - pane.clientHeight > 4);
+        pane.addEventListener('scroll', update, { passive: true });
+        const observer = root.ResizeObserver ? new root.ResizeObserver(update) : null;
+        requestAnimationFrame(() => { const body = pane.querySelector('.gxs-body'); if (body) observer?.observe(body); observer?.observe(pane); update(); });
+      }
       function show(to, direction = 1){
         const step = steps[to];
         const generation = ++paneGeneration;
@@ -322,12 +355,16 @@
         el.className = 'gxs-step' + (old && !reduced() ? (direction > 0 ? ' gxs-below' : ' gxs-above') : ''); el.dataset.gxStep = step.id;
         // A compact header: the title, and its explanation in a tooltip. A copy editor edits it in the tooltip, which
         // stays open while it has focus.
-        el.innerHTML = `<h2>${H(step.title)}${step.subtitle ? ` <span class="gxs-info" role="button" tabindex="0" data-gxs-info aria-label="${esc(L(step.subtitle))}"><span aria-hidden="true">i</span><span class="gxs-info-tip" role="tooltip">${H(step.subtitle)}</span></span>` : ''}</h2><div class="gxs-body"></div>`;
+        el.innerHTML = `<div class="gxs-titlebar"><h2>${H(step.title)}${step.subtitle ? ` <span class="gxs-info" role="button" tabindex="0" data-gxs-info aria-label="${esc(L(step.subtitle))}"><span aria-hidden="true">i</span><span class="gxs-info-tip" role="tooltip">${H(step.subtitle)}</span></span>` : ''}</h2><div class="gxs-title-actions"></div></div><div class="gxs-body"></div>`;
         stage.appendChild(el);
         currentPane = el;
         index = to;
         const widget = widgets.get(step.widget);
-        mounted = widget ? widget.render(el.querySelector('.gxs-body'), { step, options: object(step.options), selections, L, esc, money, priceSheet: assistant ? supplierPriceSheet : null, paySheet: assistant ? laborPaySheet : null, change(patch, summary){ Object.assign(selections, patch); if (summary !== undefined) summaries[step.id] = summary; status.textContent = ''; footer(); } }) : null;
+        // A widget that fills the step (logos, supplier columns) gets its height; others scroll, with a fade at the
+        // bottom while there is more below.
+        if (widget?.fill) el.dataset.fill = '';
+        watchFade(el);
+        mounted = widget ? widget.render(el.querySelector('.gxs-body'), { step, options: object(step.options), selections, L, esc, money, actions: el.querySelector('.gxs-title-actions'), priceSheet: assistant ? supplierPriceSheet : null, paySheet: assistant ? laborPaySheet : null, change(patch, summary){ Object.assign(selections, patch); if (summary !== undefined) summaries[step.id] = summary; status.textContent = ''; footer(); } }) : null;
         if (!widget) el.querySelector('.gxs-body').textContent = L('gx_ui_widget_missing', 'This step cannot be shown here.');
         if (old) {
           old.classList.remove('gxs-below', 'gxs-above');
@@ -386,15 +423,22 @@
           const value = object(result.result);
           stage.querySelectorAll('.gxs-step').forEach((el) => el.remove());
           mounted?.destroy?.(); mounted = null;
-          const done = document.createElement('div'); done.className = 'gxs-step';
-          done.innerHTML = `<div class="gxs-done"><svg viewBox="0 0 84 84" aria-hidden="true"><circle cx="42" cy="42" r="38"/><path d="M26 43l11 11 21-23"/></svg><h2>${H('gx_ui_done_title', 'Your price book is ready')}</h2><p class="gxs-sub">${esc(value.items ? L('gx_ui_done_items', 'Products added') + ': ' + value.items : '')}</p></div>`;
+          const done = document.createElement('div'); done.className = 'gxs-step gxs-done-step';
+          done.innerHTML = `<div class="gxs-done"><svg viewBox="0 0 84 84" aria-hidden="true"><circle cx="42" cy="42" r="38"/><path d="M26 43l11 11 21-23"/></svg><h2>${H('gx_ui_done_title', 'Your price book is ready')}</h2><p>${H('gx_ui_done_body', 'New materials lists will use your products and your costs.')}</p></div>`;
           stage.appendChild(done);
           host.querySelectorAll('.gxs-progress li').forEach((li) => { li.classList.add('done'); li.classList.remove('on'); });
-          $('.gxs-foot').style.visibility = 'hidden';
+          // The footer keeps one button, which closes the setup.
+          const foot = $('.gxs-foot');
+          [...foot.children].forEach((child) => { child.hidden = true; });
+          const finishButton = document.createElement('button'); finishButton.type = 'button'; finishButton.className = 'gxs-btn primary'; finishButton.dataset.gxs = 'done';
+          finishButton.innerHTML = H('gx_ui_done_button', 'See my materials');
+          finishButton.style.marginLeft = 'auto';
+          foot.append(finishButton);
+          finishButton.focus({ preventScroll: true });
           const lines = array(experience.completion?.say).map((copy) => L(copy));
           persist({ phase: 'done', choice: choice || '' });
-          await say(lines, choice, 'done');
-          await wait(900);
+          say(lines, choice, 'done');
+          await new Promise((resolveDone) => { doneWaiter = resolveDone; });
           const handoff = agentic && array(experience.completion?.then).some((entry) => entry.handoff === 'assistant_tray');
           await close(handoff ? 'handoff' : 'plain');
           resolve({ status: 'completed', result: value });
@@ -439,11 +483,12 @@
         if (action === 'next') next(false);
         else if (action === 'skip') next(true);
         else if (action === 'back' && index > 0) { track('back', { step_id: steps[index].id }); show(index - 1, -1); }
+        else if (action === 'done' || (action === 'close' && doneWaiter)) { const go = doneWaiter; doneWaiter = null; go?.(); }
         else if (action === 'close') confirmSkip();
         else if (action === 'keep') keepGoing();
         else if (action === 'dismiss' && !host.dataset.dismissing) { host.dataset.dismissing = 'true'; (async () => { await track('dismiss', { step_id: steps[index]?.id, selections }); await close('plain'); resolve({ status: 'dismissed' }); })(); }
       });
-      const onKey = (event) => { if (event.key === 'Escape' && !closed) { event.preventDefault(); event.stopPropagation(); if (host.querySelector('.gxs-ask')) keepGoing(); else confirmSkip(); } };
+      const onKey = (event) => { if (event.key === 'Escape' && !closed) { event.preventDefault(); event.stopPropagation(); if (doneWaiter) { const go = doneWaiter; doneWaiter = null; go(); } else if (host.querySelector('.gxs-ask')) keepGoing(); else confirmSkip(); } };
       document.addEventListener('keydown', onKey, true);
 
       /** Closes the sheet. `handoff` flies the conversation to the project's agent tray, which opens with it. */
@@ -482,13 +527,16 @@
         const tray = content?.querySelector(':scope > .fm-project-tray');
         const restore = [[content, content?.style.transition], [tray, tray?.style.transition]];
         // The card: the agent column at its final size, placed and clipped to where it is now.
-        const W = Math.max(from.width, to.width), Hh = Math.max(from.height, to.height);
+        // The card is laid out once at the tray's size. It starts aligned to the column's bottom right edge, clipped at
+        // the top only, so the composer and right-aligned bubbles stay in view; nothing is clipped at the sides.
+        const W = to.width, Hh = to.height;
         document.body.appendChild(chat);
         chat.classList.add('gxs-flying');
         Object.assign(chat.style, { position: 'fixed', left: `${to.left}px`, top: `${to.top}px`, width: `${W}px`, height: `${Hh}px`, maxHeight: 'none', margin: '0', zIndex: '2147483260', transformOrigin: '0 0', willChange: 'transform, clip-path', borderRadius: '0', transition: 'none' });
-        const clip = (rect) => `inset(0px ${W - rect.width}px ${Hh - rect.height}px 0px round ${rect === from ? 20 : 0}px)`;
+        const startX = from.right - W - to.left, startY = from.bottom - Hh - to.top;
+        const clip = (rect) => rect === from ? `inset(${Math.max(0, Hh - from.height)}px 0px 0px 0px round 20px)` : 'inset(0px 0px 0px 0px round 0px)';
         // Placed where it is now before the first frame paints, so nothing jumps while the timeline starts.
-        chat.style.transform = `translate(${from.left - to.left}px, ${from.top - to.top}px)`;
+        chat.style.transform = `translate(${startX}px, ${startY}px)`;
         chat.style.clipPath = clip(from);
         const frames = await new Promise((resolve) => requestAnimationFrame(() => {
           // Everything starts on this frame.
@@ -497,7 +545,7 @@
           openTray();
           const options = { duration: D, easing: EASE, fill: 'forwards' };
           resolve([
-            chat.animate([{ transform: `translate(${from.left - to.left}px, ${from.top - to.top}px)`, clipPath: clip(from) }, { transform: 'translate(0px, 0px)', clipPath: clip(to) }], options),
+            chat.animate([{ transform: `translate(${startX}px, ${startY}px)`, clipPath: clip(from) }, { transform: 'translate(0px, 0px)', clipPath: clip(to) }], options),
             sheet.animate([{ clipPath: 'inset(0px round 20px)', opacity: 1 }, { clipPath: `inset(${from.top - box.top}px ${box.right - from.right}px ${box.bottom - from.bottom}px ${from.left - box.left}px round 20px)`, opacity: 0 }], options),
             scrim.animate([{ opacity: getComputedStyle(scrim).opacity }, { opacity: 0 }], options)
           ]);
@@ -523,11 +571,12 @@
   // ── Widgets ────────────────────────────────────────────────────────────
   function registerWidget(id, widget){ widgets.set(id, widget); }
   const widgetCss = `
-    .gxs-logos{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px}
-    .gxs-logo-tile{position:relative;display:grid;place-items:center;height:128px;padding:12px 16px;border:0;border-radius:14px;background:#f9fafb;cursor:pointer;transition:background .2s,box-shadow .25s,transform .2s;animation:gxsMsg .4s cubic-bezier(.22,1,.36,1) both}
+    /* The grid takes the step's height; its rows stay a tile's shape and sit in the middle of it. */
+    .gxs-logos{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));grid-auto-rows:minmax(108px,150px);align-content:center;gap:12px;flex:1 1 auto;min-height:0;padding-bottom:24px}
+    .gxs-logo-tile{position:relative;display:grid;place-items:center;min-height:0;padding:14px;container-type:inline-size;border:0;border-radius:14px;background:#f9fafb;cursor:pointer;transition:background .2s,box-shadow .25s,transform .2s;animation:gxsMsg .4s cubic-bezier(.22,1,.36,1) both}
     .gxs-logo-tile:hover{background:#f2f4f7;transform:translateY(-1px)}
-    .gxs-logo-tile img{display:block;max-width:100%;max-height:100px;width:auto;height:auto;object-fit:contain;transition:transform .25s cubic-bezier(.34,1.56,.64,1),filter .2s}
-    .gxs-logo-tile .gxs-wordmark{min-height:0;padding:0;font-size:22px;line-height:1.1;max-width:100%;overflow-wrap:anywhere;justify-content:center;text-align:center}
+    .gxs-logo-tile img{display:block;width:60%;height:50%;max-width:none;max-height:none;object-fit:contain;transition:transform .25s cubic-bezier(.34,1.56,.64,1),filter .2s}
+    .gxs-logo-tile .gxs-wordmark{min-height:0;padding:0;font-size:clamp(13px,11cqi,24px);line-height:1.1;max-width:100%;white-space:nowrap;justify-content:center;text-align:center}
     .gxs-logo-tile[aria-pressed=true]{background:color-mix(in srgb,var(--brand,#d93025) 7%,#fff);box-shadow:0 0 0 2px var(--brand,#d93025)}
     .gxs-logo-tile[aria-pressed=true] img{transform:scale(1.04)}
     .gxs-logo-tile[aria-pressed=false] img{filter:saturate(.85)}
@@ -548,9 +597,23 @@
     .gxs-line strong{font-weight:650;flex:1;min-width:0}
     .gxs-line em{font-style:normal;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:#667085}
     .gxs-more{border:0;background:transparent;color:var(--primary,#d93025);font:inherit;font-size:12px;font-weight:650;cursor:pointer;padding:2px 2px 6px}
-    .gxs-mats{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px 10px;align-items:start}
-    .gxs-mats .gxs-field{row-gap:4px}
-    .gxs-mats .gxs-field>span:first-child{flex-basis:100%;min-width:0}
+    .gxs-mats{display:flex;gap:10px;align-items:flex-start}
+    .gxs-mat-col{flex:1 1 0;min-width:0;display:flex;flex-direction:column;gap:6px}
+    .gxs-form{display:grid;gap:6px}
+    .gxs-frow{display:flex;align-items:center;gap:8px;flex-wrap:wrap;font-size:12.5px;min-height:30px}
+    .gxs-frow>span:first-child{width:62px;flex:none;font-weight:650;color:#344054}
+    .gxs-frow em{font-style:normal;color:#475467}
+    .gxs-seg{display:inline-flex;border:1px solid #d0d5dd;border-radius:9px;padding:2px;background:#f2f4f7;gap:2px}
+    .gxs-seg button{border:0;background:transparent;border-radius:7px;padding:3px 10px;font:inherit;font-size:12px;font-weight:650;color:#475467;cursor:pointer;white-space:nowrap;transition:background .15s,color .15s,box-shadow .15s}
+    .gxs-seg button[aria-checked=true]{background:#fff;color:#101828;box-shadow:0 1px 3px rgba(16,24,40,.14)}
+    .gxs-seg button:focus-visible{outline:2px solid var(--primary,#d93025);outline-offset:1px}
+    .gxs-num{display:inline-flex;align-items:center;height:30px;border:1px solid #d0d5dd;border-radius:8px;background:#fff;padding-right:8px}
+    .gxs-num:focus-within{border-color:var(--primary,#d93025);box-shadow:0 0 0 3px rgba(var(--primary-rgb,217,48,37),.12)}
+    .gxs-num input{width:52px;height:28px;border:0;background:transparent;padding:0 4px 0 8px;text-align:right;font:inherit;outline:none;-moz-appearance:textfield;appearance:textfield}
+    .gxs-num input::-webkit-outer-spin-button,.gxs-num input::-webkit-inner-spin-button{-webkit-appearance:none;margin:0}
+    .gxs-num i{font-style:normal;color:#667085;padding-left:2px}
+    .gxs-legend{display:inline-flex;align-items:center;gap:5px;font-size:12px;color:#667085;cursor:help;white-space:nowrap}
+    .gxs-legend-star{color:#f59e0b;font-size:14px}
     .gxs-mat{border:1px solid #eaecf0;border-radius:12px;background:#fff;overflow:visible}
     .gxs-mat>button{position:relative;display:flex;align-items:center;gap:10px;width:100%;border:0;background:transparent;padding:10px 12px;font:inherit;text-align:left;cursor:pointer;color:inherit;border-radius:12px}
     .gxs-mat>button:hover{background:#f9fafb}
@@ -562,8 +625,9 @@
     .gxs-mat[data-open=true] .gxs-caret{transform:rotate(90deg)}
     .gxs-mat-edit{display:grid;grid-template-rows:0fr;transition:grid-template-rows .3s cubic-bezier(.22,1,.36,1)}
     .gxs-mat[data-open=true] .gxs-mat-edit{grid-template-rows:1fr}
-    .gxs-mat-edit>div{overflow:hidden;padding:0 12px}
-    .gxs-mat[data-open=true] .gxs-mat-edit>div{padding:0 12px 12px}
+    .gxs-mat .gxs-caret{width:10px;flex:none;text-align:center}
+    .gxs-mat-edit>div{overflow:hidden;padding:0 12px 0 32px}
+    .gxs-mat[data-open=true] .gxs-mat-edit>div{padding:2px 12px 12px 32px}
     .gxs-mat-edit p{margin:0 0 10px;color:#344054}
     .gxs-field{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin:0 0 8px;font-size:12.5px;color:#475467}
     .gxs-field>span:first-child{min-width:110px;font-weight:650;color:#344054}
@@ -584,7 +648,7 @@
     .gxs-supplier-custom{display:contents}
     .gxs-supplier-tag button{border:0;background:transparent;margin-left:4px;cursor:pointer;font-size:14px;line-height:1;color:#667085;padding:0}
     .gxs-supplier-input{flex:1 1 220px}
-    .gxs-supplier-cols{margin-top:6px}
+    .gxs-supplier-cols{margin-top:8px;flex:1 1 auto;min-height:260px}
     .gxs-lab-add{gap:8px}
     .gxs-lab-toggle{display:inline-flex;gap:4px}
     .gxs-lab-name{flex:1 1 180px}
@@ -596,19 +660,20 @@
     .gxs-lab-kind{flex:none;font-size:10.5px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;border-radius:999px;padding:3px 8px;background:#eff8ff;color:#175cd3}
     .gxs-lab-kind[data-kind=organization_connection]{background:#fdf2fa;color:#c11574}
     .gxs-lab-remove{border:0;background:transparent;color:#98a2b3;font-size:16px;cursor:pointer;padding:0 2px}
-    .gxs-lab-methods{display:flex;gap:4px;flex-wrap:wrap}
-    .gxs-lab-methods .gxs-chip{height:26px;padding:0 10px;font-size:12px}
+    .gxs-lab-methods{align-self:flex-start}
     .gxs-lab-rate{display:flex;align-items:center;gap:6px;flex-wrap:wrap;max-height:0;opacity:0;overflow:hidden;transition:max-height .3s cubic-bezier(.22,1,.36,1),opacity .2s}
     .gxs-lab-rate[data-open=true]{max-height:60px;opacity:1}
     .gxs-lab-rate label{display:inline-flex;align-items:center;gap:4px;color:#475467}
-    .gxs-lab-rate input{width:84px;height:28px;border:1px solid #d0d5dd;border-radius:7px;padding:0 7px;text-align:right;font:inherit}
+    .gxs-lab-rate .gxs-num{padding-right:6px}
     .gxs-lab-rate select,.gxs-lab select{height:28px;border:1px solid #d0d5dd;border-radius:7px;padding:0 6px;font:inherit;font-size:12.5px;max-width:100%}
     .gxs-lab-rate em{font-style:normal;color:#475467;font-size:12.5px}
     .gxs-lab-note{margin:0;color:#475467;font-size:12.5px}
-    .gxs-lab-sheet{align-self:flex-start;border:1px solid #d0d5dd;border-radius:999px;background:#fff;color:#344054;font:inherit;font-size:11px;font-weight:650;padding:3px 9px;cursor:pointer}
+    .gxs-lab .gxs-lab-sheet{display:inline-flex;align-items:center;gap:6px;width:auto;align-self:flex-start;height:30px;padding:0 12px;border:1px solid #d0d5dd;border-radius:9px;background:#fff;color:#344054;font:inherit;font-size:12.5px;font-weight:650;cursor:pointer}
+    .gxs-lab .gxs-lab-sheet:hover{background:#f9fafb;border-color:#98a2b3}
+    .gxs-lab .gxs-frow>span:first-child{width:auto;min-width:40px}
     .gxs-lab-empty{grid-column:1/-1;color:#667085;margin:8px 0}
     @media(max-width:760px){.gxs-labs{grid-template-columns:minmax(0,1fr)}}
-    @media(max-width:760px){.gxs-logos{grid-template-columns:repeat(2,minmax(0,1fr))}.gxs-logo-tile{height:92px;padding:10px 12px}.gxs-logo-tile img{max-height:70px}.gxs-mats{grid-template-columns:minmax(0,1fr)}}
+    @media(max-width:760px){.gxs-logos{grid-template-columns:repeat(2,minmax(0,1fr));grid-auto-rows:minmax(84px,1fr);max-height:none}.gxs-logo-tile{padding:10px 12px}.gxs-mats{flex-direction:column;align-items:stretch}}
   `;
   const injectWidgetCss = () => G()?.injectCss?.('gx-setup-widgets-css', widgetCss);
   /** One shared tooltip: plain text, positioned beside the element it explains. */
@@ -621,35 +686,62 @@
     };
   }
 
-  // Manufacturers: logos only, compact tiles, a check badge on the chosen ones. The wordmark only when a logo is missing.
+  // Manufacturers: logos only, a check badge on the chosen ones; "Use all" in the title row. Each logo is sized by its
+  // area, not its height, so a square mark and a wide wordmark look equally weighted; the wordmark text only when a
+  // logo is missing. The grid grows to fill the step.
+  function fitLogos(el){
+    el.querySelectorAll('.gxs-logo-tile').forEach((tile) => {
+      const img = tile.querySelector('img'); if (!img || !img.naturalWidth || !img.naturalHeight) return;
+      const style = getComputedStyle(tile);
+      const innerW = tile.clientWidth - parseFloat(style.paddingLeft) - parseFloat(style.paddingRight);
+      const innerH = tile.clientHeight - parseFloat(style.paddingTop) - parseFloat(style.paddingBottom);
+      if (innerW <= 0 || innerH <= 0) return;
+      const aspect = img.naturalWidth / img.naturalHeight;
+      const area = innerW * innerH * 0.5;
+      let width = Math.sqrt(area * aspect), height = width / aspect;
+      if (width > innerW * 0.92) { width = innerW * 0.92; height = width / aspect; }
+      if (height > innerH * 0.8) { height = innerH * 0.8; width = height * aspect; }
+      img.style.width = `${Math.round(width)}px`; img.style.height = `${Math.round(height)}px`;
+    });
+  }
   registerWidget('brand-cards', {
-    render(el, { options, selections, change, L }){
+    fill: true,
+    render(el, { options, selections, change, L, actions }){
       injectWidgetCss();
       const brands = array(options.brands);
       const picked = new Set(array(selections.brands).filter((id) => brands.some((brand) => brand.id === id)));
       const summary = () => picked.size === brands.length ? L('gx_ui_all_brands', 'All of them') : brands.filter((brand) => picked.has(brand.id)).map((brand) => brand.name).join(', ');
       const report = () => change({ brands: brands.filter((brand) => picked.has(brand.id)).map((brand) => brand.id), region: clean(options.region?.id) }, summary());
-      const sync = () => { el.querySelectorAll('[data-brand]').forEach((tile) => tile.setAttribute('aria-pressed', String(picked.has(tile.dataset.brand)))); const all = el.querySelector('[data-all]'); if (all) all.setAttribute('aria-pressed', String(picked.size === brands.length)); report(); };
-      el.innerHTML = `${options.allow_all !== false ? `<div class="gxs-tools"><button type="button" class="gxs-chip" data-all aria-pressed="false">${H('gx_ui_use_all', 'Use all')}</button></div>` : ''}
-        <div class="gxs-logos">${brands.map((brand, i) => `<button type="button" class="gxs-logo-tile" style="--brand:${esc(brand.color)};animation-delay:${i * 40}ms" aria-pressed="false" aria-label="${esc(brand.name)}" title="${esc(brand.name)}" data-brand="${esc(brand.id)}">${brand.logo ? `<img src="${esc(brand.logo)}" alt="${esc(brand.name)}" decoding="async" data-gxs-logo>` : `<span class="gxs-wordmark">${esc(brand.name)}</span>`}<span class="gxs-badge-check" aria-hidden="true">&#10003;</span></button>`).join('')}</div>`;
-      el.querySelectorAll('img[data-gxs-logo]').forEach((img) => img.addEventListener('error', () => { const mark = document.createElement('span'); mark.className = 'gxs-wordmark'; mark.textContent = img.alt; img.replaceWith(mark); }, { once: true }));
+      const sync = () => { el.querySelectorAll('[data-brand]').forEach((tile) => tile.setAttribute('aria-pressed', String(picked.has(tile.dataset.brand)))); actions?.querySelector('[data-all]')?.setAttribute('aria-pressed', String(picked.size === brands.length)); report(); };
+      if (actions && options.allow_all !== false) {
+        actions.innerHTML = `<button type="button" class="gxs-chip" data-all aria-pressed="false">${H('gx_ui_use_all', 'Use all')}</button>`;
+        actions.querySelector('[data-all]').addEventListener('click', () => { if (picked.size === brands.length) picked.clear(); else brands.forEach((brand) => picked.add(brand.id)); sync(); });
+      }
+      el.innerHTML = `<div class="gxs-logos">${brands.map((brand, i) => `<button type="button" class="gxs-logo-tile" style="--brand:${esc(brand.color)};animation-delay:${i * 40}ms" aria-pressed="false" aria-label="${esc(brand.name)}" title="${esc(brand.name)}" data-brand="${esc(brand.id)}">${brand.logo ? `<img src="${esc(brand.logo)}" alt="${esc(brand.name)}" decoding="async" data-gxs-logo>` : `<span class="gxs-wordmark">${esc(brand.name)}</span>`}<span class="gxs-badge-check" aria-hidden="true">&#10003;</span></button>`).join('')}</div>`;
+      el.querySelectorAll('img[data-gxs-logo]').forEach((img) => {
+        img.addEventListener('error', () => { const mark = document.createElement('span'); mark.className = 'gxs-wordmark'; mark.textContent = img.alt; img.replaceWith(mark); }, { once: true });
+        img.addEventListener('load', () => fitLogos(el), { once: true });
+      });
+      const resize = root.ResizeObserver ? new root.ResizeObserver(() => fitLogos(el)) : null;
+      resize?.observe(el);
       el.addEventListener('click', (event) => {
-        if (event.target.closest('[data-all]')) { if (picked.size === brands.length) picked.clear(); else brands.forEach((brand) => picked.add(brand.id)); sync(); return; }
         const id = event.target.closest('[data-brand]')?.dataset.brand;
         if (!id) return;
         if (picked.has(id)) picked.delete(id); else picked.add(id);
         sync();
       });
       sync();
+      requestAnimationFrame(() => fitLogos(el));
       setTimeout(() => el.classList.add('gxs-settled'), 900);
-      return { valid: () => picked.size > 0, summary };
+      return { valid: () => picked.size > 0, summary, hint: () => L('gx_ui_hint_brand', 'Pick at least one manufacturer to continue.'), destroy(){ resize?.disconnect(); } };
     }
   });
 
   const TIER = { '3_tab': ['gx_tier_3tab', '3-tab'], architectural: ['gx_tier_arch', 'Architectural'], premium_architectural: ['gx_tier_premium', 'Premium'], impact_rated: ['gx_tier_impact', 'Impact rated'], designer: ['gx_tier_designer', 'Designer'] };
-  // Shingle lines in two columns: the usual ones ticked, the rest of the common range shown, specialty lines behind More; a search across all.
+  // Shingle lines in two columns: the usual ones ticked, the rest of the common range shown, specialty lines behind
+  // More; a search across all. One way to take a whole brand: its own "All" beside its name. A legend says what the star does.
   registerWidget('product-lines', {
-    render(el, { options, selections, change, L }){
+    render(el, { options, selections, change, L, actions }){
       injectWidgetCss();
       const brands = array(options.brands).filter((brand) => array(selections.brands).includes(brand.id));
       const all = brands.flatMap((brand) => array(brand.lines));
@@ -662,21 +754,22 @@
       const summary = () => all.filter((line) => chosen.has(line.id)).map((line) => line.name + (line.id === star ? ' ★' : '')).join(', ');
       const report = () => { if (!chosen.has(star)) star = [...chosen][0] || ''; change({ lines: all.filter((line) => chosen.has(line.id)).map((line) => line.id), default_line: star }, summary()); };
       const shown = (brand, line) => query ? `${brand.name} ${line.name}`.toLowerCase().includes(query) : (line.visibility || 'visible') !== 'more' || expanded.has(brand.id) || chosen.has(line.id);
-      const row = (brand, line) => `<div class="gxs-line" role="checkbox" tabindex="0" aria-checked="${chosen.has(line.id)}" data-line="${esc(line.id)}" style="--brand:${esc(brand.color)}"><button type="button" class="gxs-star" data-star="${esc(line.id)}" aria-pressed="${line.id === star}" aria-label="${esc(L('gx_ui_make_default', 'Use first on new lists'))}" title="${esc(L('gx_ui_make_default', 'Use first on new lists'))}">&#9733;</button><strong>${esc(String(line.name).replace(brand.name + ' ', ''))}</strong>${TIER[line.tier] ? `<em>${H(TIER[line.tier][0], TIER[line.tier][1])}</em>` : ''}<span class="gxs-tick" aria-hidden="true">&#10003;</span></div>`;
+      const starTip = L('gx_ui_star_tip', 'Your usual shingle: a new materials list starts with it. Click a star to change it.');
+      const row = (brand, line) => `<div class="gxs-line" role="checkbox" tabindex="0" aria-checked="${chosen.has(line.id)}" data-line="${esc(line.id)}" style="--brand:${esc(brand.color)}"><button type="button" class="gxs-star" data-star="${esc(line.id)}" aria-pressed="${line.id === star}" aria-label="${esc(starTip)}" title="${esc(starTip)}">&#9733;</button><strong>${esc(String(line.name).replace(brand.name + ' ', ''))}</strong>${TIER[line.tier] ? `<em>${H(TIER[line.tier][0], TIER[line.tier][1])}</em>` : ''}<span class="gxs-tick" aria-hidden="true">&#10003;</span></div>`;
       const listHtml = () => brands.map((brand) => {
         const lines = array(brand.lines), visible = lines.filter((line) => shown(brand, line)), hidden = lines.filter((line) => (line.visibility || 'visible') === 'more' && !shown(brand, line));
         if (!visible.length && query) return '';
-        return `<section style="--brand:${esc(brand.color)}"><h3><b>${esc(brand.name)}</b><button type="button" class="gxs-chip" data-brand-all="${esc(brand.id)}" aria-pressed="${lines.every((line) => chosen.has(line.id))}">${H('gx_ui_include_all', 'Include all')}</button></h3>${visible.map((line) => row(brand, line)).join('')}${!query && hidden.length ? `<button type="button" class="gxs-more" data-more="${esc(brand.id)}">${H('gx_ui_more_lines', 'More')} (${hidden.length})</button>` : ''}</section>`;
+        return `<section style="--brand:${esc(brand.color)}"><h3><b>${esc(brand.name)}</b><button type="button" class="gxs-chip" data-brand-all="${esc(brand.id)}" aria-pressed="${lines.every((line) => chosen.has(line.id))}" title="${esc(L('gx_ui_brand_all_tip', 'Tick every line from this brand'))}">${H('gx_ui_all_short', 'All')}</button></h3>${visible.map((line) => row(brand, line)).join('')}${!query && hidden.length ? `<button type="button" class="gxs-more" data-more="${esc(brand.id)}">${H('gx_ui_more_lines', 'More')} (${hidden.length})</button>` : ''}</section>`;
       }).join('') || `<p class="gxs-sub">${H('gx_ui_no_lines', 'No shingle line matches that.')}</p>`;
-      el.innerHTML = `<div class="gxs-tools"><input type="search" class="gxs-search" placeholder="${esc(L('gx_ui_search_lines', 'Search shingle lines'))}" aria-label="${esc(L('gx_ui_search_lines', 'Search shingle lines'))}"><button type="button" class="gxs-chip" data-all aria-pressed="false">${H('gx_ui_include_all', 'Include all')}</button></div><div class="gxs-cols"></div>`;
+      if (actions) actions.innerHTML = `<span class="gxs-legend" title="${esc(starTip)}"><span class="gxs-legend-star" aria-hidden="true">&#9733;</span>${H('gx_ui_star_legend', 'Your usual shingle')}</span>`;
+      el.innerHTML = `<div class="gxs-tools"><input type="search" class="gxs-search" placeholder="${esc(L('gx_ui_search_lines', 'Search shingle lines'))}" aria-label="${esc(L('gx_ui_search_lines', 'Search shingle lines'))}"></div><div class="gxs-cols"></div>`;
       const cols = el.querySelector('.gxs-cols');
-      const draw = () => { cols.innerHTML = listHtml(); el.querySelector('[data-all]').setAttribute('aria-pressed', String(chosen.size === all.length)); report(); };
+      const draw = () => { cols.innerHTML = listHtml(); report(); };
       const toggle = (id) => { if (chosen.has(id)) chosen.delete(id); else chosen.add(id); draw(); };
       el.querySelector('.gxs-search').addEventListener('input', (event) => { query = clean(event.target.value).toLowerCase(); draw(); });
       el.addEventListener('click', (event) => {
         const starred = event.target.closest('[data-star]');
         if (starred) { event.stopPropagation(); star = starred.dataset.star; chosen.add(star); draw(); return; }
-        if (event.target.closest('[data-all]')) { if (chosen.size === all.length) chosen.clear(); else all.forEach((line) => chosen.add(line.id)); draw(); return; }
         const more = event.target.closest('[data-more]')?.dataset.more; if (more) { expanded.add(more); draw(); return; }
         const brandAll = event.target.closest('[data-brand-all]')?.dataset.brandAll;
         if (brandAll) { const lines = array(brands.find((brand) => brand.id === brandAll)?.lines); const every = lines.every((line) => chosen.has(line.id)); lines.forEach((line) => every ? chosen.delete(line.id) : chosen.add(line.id)); if (!every) expanded.add(brandAll); draw(); return; }
@@ -684,7 +777,7 @@
       });
       el.addEventListener('keydown', (event) => { const line = event.target.closest('[data-line]'); if (line && (event.key === ' ' || event.key === 'Enter')) { event.preventDefault(); toggle(line.dataset.line); el.querySelector(`[data-line="${CSS.escape(line.dataset.line)}"]`)?.focus(); } });
       draw();
-      return { valid: () => chosen.size > 0, summary };
+      return { valid: () => chosen.size > 0, summary, hint: () => L('gx_ui_hint_line', 'Tick at least one shingle line to continue.') };
     }
   });
 
@@ -707,48 +800,76 @@
     else if (pack && coverage > 0 && coverage < 1) amount = `${Math.round(1 / coverage * 10) / 10} ${pack}s ${L('gx_mr_for_every', 'for every')} ${measured.startsWith(L('gx_mr_every', 'every')) ? measured.replace(/^every /, '') : `${unit} ${L('gx_mr_of', 'of')} ${measured}`}`;
     else if (pack && coverage > 0) amount = `${L('gx_mr_one', 'One')} ${pack} ${L('gx_mr_for_every', 'for every')} ${Math.round(coverage * 100) / 100} ${unit === L('gx_unit_square', 'square') ? `${unit}s` : `${unit === L('gx_unit_foot', 'foot') ? 'ft' : unit}`} ${L('gx_mr_of', 'of')} ${measured}`;
     else amount = `${L('gx_mr_one', 'One')} ${unit} ${L('gx_mr_for_every', 'for every')} ${unit} ${L('gx_mr_of', 'of')} ${measured}`;
-    const waste = edit.waste === 'roof' ? L('gx_mr_waste_report', 'plus waste from the measurement report') : Number(edit.waste) ? `${L('gx_mr_plus', 'plus')} ${edit.waste}% ${L('gx_mr_extra', 'extra')}` : '';
+    const waste = edit.waste === 'roof' ? L('gx_mr_waste_measured', 'plus waste from the measurements') : Number(edit.waste) ? `${L('gx_mr_plus', 'plus')} ${edit.waste}% ${L('gx_mr_extra', 'extra')}` : '';
     const reveal = row.reveal_note ? ` ${L('gx_mr_reveal', 'When the job’s shingle shows its starter course (designer lines such as Presidential or Grand Sequoia), a coloured starter is used instead.')}` : '';
     return `${amount.charAt(0).toUpperCase()}${amount.slice(1)}${waste ? `, ${waste}` : ''}.${reveal}`;
   }
-  // The materials list: one row per material and where its amount comes from; hover for the rule in plain words, click to edit it.
+  // The materials list: one row per material and where its amount comes from, in two independent stacks. Hover for
+  // the rule in plain words; click to open one compact editor (one at a time).
   registerWidget('measurement-rules', {
     render(el, { options, selections, change, L }){
       injectWidgetCss();
       const rows = array(options.materials);
       const tip = tooltip();
+      const iceDefault = Number(object(options.ice_eave_width).default ?? 6);
+      const defaults = Object.fromEntries(rows.map((row) => [row.key, { source: row.source, waste: row.waste, coverage: row.package?.coverage ?? null, eave_width: row.eave_width ? iceDefault : null }]));
       const edits = Object.fromEntries(rows.map((row) => [row.key, {
         source: object(selections.rules)[row.key]?.source || row.source,
         waste: object(selections.rules)[row.key]?.waste ?? (row.key === 'shingles' ? selections.waste ?? row.waste : row.waste),
         coverage: object(selections.rules)[row.key]?.coverage ?? row.package?.coverage ?? null,
-        eave_width: row.eave_width ? Number(selections.ice_eave_width ?? object(options.ice_eave_width).default ?? 6) : null
+        eave_width: row.eave_width ? Number(selections.ice_eave_width ?? iceDefault) : null
       }]));
-      const open = new Set();
-      const sourceLabel = (edit) => edit.source === 'hand' ? L('gx_mr_source_hand', 'Entered by hand') : L('gx_mr_source_report', 'From measurement report');
+      let open = null;
+      const sourceLabel = (edit) => edit.source === 'hand' ? L('gx_mr_source_hand', 'Entered by hand') : L('gx_mr_source_measured', 'From measurements');
+      const squares = (row) => String(array(row.terms)[0]?.unit) === 'roofing_square';
+      const seg = (attr, value, items) => `<div class="gxs-seg" role="radiogroup">${items.map(([v, label]) => `<button type="button" role="radio" ${attr}="${esc(v)}" aria-checked="${String(v) === String(value)}">${label}</button>`).join('')}</div>`;
       const editor = (row) => {
         const edit = edits[row.key];
-        const wasteControl = row.source !== 'hand' || row.can_report ? `<div class="gxs-field"><span>${H('gx_mr_waste', 'Waste')}</span>${row.key === 'shingles' ? `<button type="button" class="gxs-chip" data-waste="roof" aria-pressed="${edit.waste === 'roof'}">${H('gx_mr_waste_from_report', 'From measurement report')}</button>` : ''}<label><input type="number" min="0" max="40" step="1" data-waste-input value="${edit.waste === 'roof' ? '' : esc(edit.waste ?? 0)}" placeholder="%"> %</label></div>` : '';
-        return `<p data-plain>${esc(plainRule(row, edit, L))}</p>
-          <div class="gxs-field"><span>${H('gx_mr_source', 'Amount')}</span>${row.can_report ? `<button type="button" class="gxs-chip" data-source="report" aria-pressed="${edit.source !== 'hand'}">${H('gx_mr_source_report', 'From measurement report')}</button>` : ''}<button type="button" class="gxs-chip" data-source="hand" aria-pressed="${edit.source === 'hand'}">${H('gx_mr_source_hand', 'Entered by hand')}</button></div>
-          ${edit.source !== 'hand' ? wasteControl : ''}
-          ${edit.source !== 'hand' && row.package ? `<div class="gxs-field"><span>${H('gx_mr_coverage', 'One package covers')}</span><input type="number" min="0.01" step="any" data-coverage value="${esc(edit.coverage ?? '')}"> ${esc(String(array(row.terms)[0]?.unit) === 'roofing_square' ? L('gx_mr_squares', 'squares') : L('gx_mr_feet', 'ft'))} <small>(${esc(row.package.unit)})</small></div>` : ''}
-          ${edit.source !== 'hand' && row.eave_width ? `<div class="gxs-field"><span>${H('gx_ui_ice_label', 'How far up from the eaves')}</span>${[6, 3, 0].map((value) => `<button type="button" class="gxs-chip" data-width="${value}" aria-pressed="${Number(edit.eave_width) === value}">${value ? `${value} ft` : H('gx_ui_ice_0', 'None')}</button>`).join('')}</div>` : ''}`;
+        const pack = clean(row.package?.unit);
+        const fields = [`<div class="gxs-frow"><span>${H('gx_mr_amount', 'Amount')}</span>${row.can_report ? seg('data-source', edit.source === 'hand' ? 'hand' : 'report', [['report', H('gx_mr_seg_measured_short', 'Measured')], ['hand', H('gx_mr_seg_hand', 'By hand')]]) : `<em>${H('gx_mr_source_hand', 'Entered by hand')}</em>`}</div>`];
+        if (edit.source !== 'hand') {
+          const fixed = edit.waste !== 'roof';
+          fields.push(`<div class="gxs-frow"><span>${H('gx_mr_waste', 'Waste')}</span>${row.key === 'shingles' ? seg('data-waste-mode', fixed ? 'fixed' : 'roof', [['roof', H('gx_mr_seg_waste_measured_short', 'Measured')], ['fixed', H('gx_mr_seg_fixed', 'Fixed')]]) : ''}${fixed ? `<label class="gxs-num"><input type="number" min="0" max="40" step="1" inputmode="numeric" data-waste-input value="${esc(edit.waste ?? 0)}" aria-label="${esc(L('gx_mr_waste_percent', 'Waste percent'))}"><i>%</i></label>` : ''}</div>`);
+          if (row.package && pack) {
+            const coverage = Number(edit.coverage || row.package.coverage || 0);
+            fields.push(squares(row) && coverage > 0 && coverage < 1
+              ? `<div class="gxs-frow"><span>${H('gx_mr_package', 'Package')}</span><label class="gxs-num"><input type="number" min="0.1" step="0.1" inputmode="decimal" data-per-square value="${esc(Math.round(1 / coverage * 100) / 100)}" aria-label="${esc(pack)}"></label><em>${esc(pack)}s ${H('gx_mr_per_square', 'per square')}</em></div>`
+              : `<div class="gxs-frow"><span>${H('gx_mr_package', 'Package')}</span><em>1 ${esc(pack)} ${H('gx_mr_covers', 'covers')}</em><label class="gxs-num"><input type="number" min="0.01" step="any" inputmode="decimal" data-coverage value="${esc(Math.round(coverage * 100) / 100)}" aria-label="${esc(L('gx_mr_covers_aria', 'How much one package covers'))}"><i>${squares(row) ? esc(L('gx_mr_squares', 'squares')) : 'ft'}</i></label></div>`);
+          }
+          if (row.eave_width) fields.push(`<div class="gxs-frow"><span>${H('gx_mr_up_from_eaves', 'Up from eaves')}</span>${seg('data-width', Number(edit.eave_width), [[6, '6 ft'], [3, '3 ft'], [0, H('gx_ui_ice_0', 'None')]])}</div>`);
+        }
+        return `<div class="gxs-form">${fields.join('')}</div>`;
       };
-      const rowHtml = (row) => `<div class="gxs-mat" data-mat="${esc(row.key)}" data-open="${open.has(row.key)}"><button type="button" data-mat-toggle aria-expanded="${open.has(row.key)}"><i class="fas fa-chevron-right gxs-caret" aria-hidden="true"></i><strong>${esc(row.label)}</strong><span class="gxs-source" data-source="${edits[row.key].source}">${esc(sourceLabel(edits[row.key]))}</span></button><div class="gxs-mat-edit"><div>${open.has(row.key) ? editor(row) : ''}</div></div></div>`;
-      el.innerHTML = `<div class="gxs-mats">${rows.map(rowHtml).join('')}</div>`;
-      const redraw = (key) => { const node = el.querySelector(`[data-mat="${CSS.escape(key)}"]`); const row = rows.find((entry) => entry.key === key); const fresh = document.createElement('div'); fresh.innerHTML = rowHtml(row); node.replaceWith(fresh.firstElementChild); };
+      const rowHtml = (row) => `<div class="gxs-mat" data-mat="${esc(row.key)}" data-open="${open === row.key}"><button type="button" data-mat-toggle aria-expanded="${open === row.key}"><i class="fas fa-chevron-right gxs-caret" aria-hidden="true"></i><strong>${esc(row.label)}</strong><span class="gxs-source" data-source="${edits[row.key].source}">${esc(sourceLabel(edits[row.key]))}</span></button><div class="gxs-mat-edit"><div>${open === row.key ? editor(row) : ''}</div></div></div>`;
+      // Two independent stacks, so opening a row in one never stretches the other.
+      el.innerHTML = `<div class="gxs-mats">${[0, 1].map((side) => `<div class="gxs-mat-col">${rows.filter((_, i) => i % 2 === side).map(rowHtml).join('')}</div>`).join('')}</div>`;
+      const redraw = (key) => { const node = el.querySelector(`[data-mat="${CSS.escape(key)}"]`); const row = rows.find((entry) => entry.key === key); if (!node || !row) return; const fresh = document.createElement('div'); fresh.innerHTML = rowHtml(row); node.replaceWith(fresh.firstElementChild); };
+      // What changed, in the words someone would say; nothing when they changed nothing.
+      const said = () => {
+        const parts = [];
+        for (const row of rows) {
+          const edit = edits[row.key], base = defaults[row.key], name = String(row.label).toLowerCase();
+          if (edit.source !== base.source) parts.push(edit.source === 'hand' ? `${row.label} ${L('gx_mr_said_by_hand', 'by hand')}` : `${row.label} ${L('gx_mr_said_measured', 'from the measurements')}`);
+          if (edit.source !== 'hand' && String(edit.waste) !== String(base.waste)) parts.push(edit.waste === 'roof' ? `${L('gx_mr_said_waste_measured', 'waste from the measurements on')} ${name}` : `${edit.waste}% ${L('gx_mr_said_waste_on', 'waste on')} ${name}`);
+          if (edit.source !== 'hand' && edit.coverage && base.coverage && Number(edit.coverage) !== Number(base.coverage)) parts.push(squares(row) && edit.coverage < 1 ? `${Math.round(1 / edit.coverage * 100) / 100} ${clean(row.package?.unit)}s ${L('gx_mr_said_per_square', 'per square of')} ${name}` : `${L('gx_mr_said_one', 'one')} ${clean(row.package?.unit)} ${L('gx_mr_said_per', 'per')} ${edit.coverage} ${L('gx_mr_said_of', 'of')} ${name}`);
+          if (row.eave_width && Number(edit.eave_width) !== Number(base.eave_width)) parts.push(Number(edit.eave_width) ? `${name} ${edit.eave_width} ft ${L('gx_mr_said_up', 'up from the eaves')}` : `${L('gx_mr_said_no', 'no')} ${name} ${L('gx_mr_said_at_eaves', 'at the eaves')}`);
+        }
+        const text = parts.join(', ');
+        return text ? text.charAt(0).toUpperCase() + text.slice(1) : '';
+      };
       const report = () => {
         const rules = {};
-        for (const row of rows) { const edit = edits[row.key], base = { source: row.source, waste: row.waste, coverage: row.package?.coverage ?? null }; const diff = {}; if (edit.source !== base.source) diff.source = edit.source; if (String(edit.waste) !== String(base.waste)) diff.waste = edit.waste; if (edit.coverage && Number(edit.coverage) !== Number(base.coverage)) diff.coverage = Number(edit.coverage); if (Object.keys(diff).length && row.can_report) rules[row.key] = diff; }
+        for (const row of rows) { const edit = edits[row.key], base = defaults[row.key]; const diff = {}; if (edit.source !== base.source) diff.source = edit.source; if (String(edit.waste) !== String(base.waste)) diff.waste = edit.waste; if (edit.coverage && Number(edit.coverage) !== Number(base.coverage)) diff.coverage = Number(edit.coverage); if (Object.keys(diff).length && row.can_report) rules[row.key] = diff; }
         const ice = rows.find((row) => row.eave_width);
-        change({ rules, waste: edits.shingles?.waste ?? 'roof', ...(ice ? { ice_eave_width: Number(edits[ice.key].eave_width) } : {}) }, `${rows.filter((row) => edits[row.key].source !== 'hand').length} ${L('gx_mr_from_report_count', 'from the measurement report')}, ${rows.filter((row) => edits[row.key].source === 'hand').length} ${L('gx_mr_by_hand_count', 'by hand')}`);
+        change({ rules, waste: edits.shingles?.waste ?? 'roof', ...(ice ? { ice_eave_width: Number(edits[ice.key].eave_width) } : {}) }, said());
       };
+      const headTip = (head) => { const key = head.closest('[data-mat]').dataset.mat; tip.show(head, plainRule(rows.find((row) => row.key === key), edits[key], L)); };
       el.addEventListener('click', (event) => {
         const mat = event.target.closest('[data-mat]'); if (!mat) return;
         const key = mat.dataset.mat, edit = edits[key];
-        if (event.target.closest('[data-mat-toggle]')) { if (open.has(key)) open.delete(key); else open.add(key); tip.hide(); redraw(key); return; }
+        if (event.target.closest('[data-mat-toggle]')) { const before = open; open = open === key ? null : key; tip.hide(); if (before && before !== key) redraw(before); redraw(key); return; }
         const source = event.target.closest('[data-source]')?.dataset.source; if (source) { edit.source = source; redraw(key); report(); return; }
-        if (event.target.closest('[data-waste]')) { edit.waste = 'roof'; redraw(key); report(); return; }
+        const mode = event.target.closest('[data-waste-mode]')?.dataset.wasteMode; if (mode) { edit.waste = mode === 'roof' ? 'roof' : (defaults[key].waste === 'roof' ? 10 : defaults[key].waste); redraw(key); report(); return; }
         const width = event.target.closest('[data-width]')?.dataset.width; if (width !== undefined) { edit.eave_width = Number(width); redraw(key); report(); }
       });
       el.addEventListener('change', (event) => {
@@ -756,16 +877,16 @@
         const edit = edits[mat.dataset.mat], value = Number(event.target.value);
         if (event.target.matches('[data-waste-input]') && Number.isFinite(value) && value >= 0 && value <= 40) edit.waste = value;
         if (event.target.matches('[data-coverage]') && value > 0) edit.coverage = value;
-        mat.querySelector('[data-plain]').textContent = plainRule(rows.find((row) => row.key === mat.dataset.mat), edit, L);
+        if (event.target.matches('[data-per-square]') && value > 0) edit.coverage = Math.round(1 / value * 1e6) / 1e6;
         mat.querySelector('.gxs-source').textContent = sourceLabel(edit);
         report();
       });
-      el.addEventListener('pointerover', (event) => { const head = event.target.closest('[data-mat-toggle]'); if (!head) return; const key = head.closest('[data-mat]').dataset.mat; if (!open.has(key)) tip.show(head, plainRule(rows.find((row) => row.key === key), edits[key], L)); });
+      el.addEventListener('pointerover', (event) => { const head = event.target.closest('[data-mat-toggle]'); if (head) headTip(head); });
       el.addEventListener('pointerout', (event) => { if (event.target.closest('[data-mat-toggle]') && !event.relatedTarget?.closest?.('[data-mat-toggle]')) tip.hide(); });
-      el.addEventListener('focusin', (event) => { const head = event.target.closest('[data-mat-toggle]'); if (head) { const key = head.closest('[data-mat]').dataset.mat; if (!open.has(key)) tip.show(head, plainRule(rows.find((row) => row.key === key), edits[key], L)); } });
+      el.addEventListener('focusin', (event) => { const head = event.target.closest('[data-mat-toggle]'); if (head) headTip(head); });
       el.addEventListener('focusout', () => tip.hide());
       report();
-      return { valid: () => true, destroy(){ tip.hide(); } };
+      return { valid: () => true, summary: said, destroy(){ tip.hide(); } };
     }
   });
 
@@ -815,13 +936,21 @@
    * seen there; a typed one starts empty. Each column takes a price sheet, which goes to the agent.
    */
   registerWidget('supplier-columns', {
+    fill: true,
     render(el, { options, selections, change, L, priceSheet }){
       injectWidgetCss();
       const presets = array(options.suppliers);
       const products = chosenProducts(options, selections, L);
       const groups = products.groups.filter(([kind, , items]) => kind !== 'labor' && items.length);
-      const items = groups.flatMap(([kind, title, entries]) => entries.map((entry) => ({ id: entry.id, name: entry.name, unit: entry.unit, price: entry.price, group: title, kind, brand: entry.brand, visibility: entry.visibility, colored: !!entry.colored_starter })));
       const brandOf = (item) => item.brand || array(options.brands).find((brand) => array(brand.lines).some((line) => line.id === item.id))?.id;
+      // Inside a column, products sit under their brand, named without it, so names fit; common items last.
+      const brandName = (id) => clean(array(options.brands).find((brand) => brand.id === id)?.name);
+      const items = groups.flatMap(([kind, title, entries]) => entries.map((entry) => {
+        const brand = kind === 'generic' ? '' : brandOf({ id: entry.id, brand: entry.brand });
+        const maker = brandName(brand);
+        const label = maker && String(entry.name).startsWith(maker + ' ') ? String(entry.name).slice(maker.length + 1) : entry.name;
+        return { id: entry.id, name: entry.name, label, unit: entry.unit, price: entry.price, group: maker || title, kind, brand, visibility: entry.visibility, colored: !!entry.colored_starter };
+      })).sort((a, b) => (a.kind === 'generic') - (b.kind === 'generic'));
       const carriedBy = (preset) => items.filter((item) => {
         if (item.kind === 'generic') return true;
         if (!array(preset.manufacturers).includes(brandOf(item))) return false;
@@ -844,7 +973,8 @@
         el.querySelector('.gxs-supplier-custom').innerHTML = chosen.filter((entry) => !entry.preset).map((entry) => `<span class="gxs-chip gxs-supplier-tag" aria-pressed="true">${esc(entry.name)}<button type="button" data-remove="${esc(entry.key)}" aria-label="${esc(L('gx_sup_remove', 'Remove'))} ${esc(entry.name)}">&times;</button></span>`).join('');
         el.querySelector('.gxs-supplier-empty').hidden = chosen.length > 0;
         if (!root.FirstMateSupplierColumns) { colsEl.textContent = ''; report(); return; }
-        if (!columns) columns = root.FirstMateSupplierColumns.mount(colsEl, { suppliers: chosen, items, onChange: (next) => { chosen = next; report(); }, ...(priceSheet ? { onPriceSheet: (supplier) => priceSheet(supplier) } : {}) });
+        // With one supplier the agent's own upload line covers its price sheet, so the column does not repeat it.
+        if (!columns) columns = root.FirstMateSupplierColumns.mount(colsEl, { suppliers: chosen, items, singleSheetElsewhere: true, onChange: (next) => { chosen = next; report(); }, ...(priceSheet ? { onPriceSheet: (supplier) => priceSheet(supplier) } : {}) });
         else columns.update(chosen);
         report();
       };
@@ -899,18 +1029,18 @@
       const changed = (row) => !row.existing || (!!row.pay && JSON.stringify(row.pay) !== JSON.stringify(row.original)) || false;
       const summary = () => rows.length ? rows.map((row) => `${row.name}${row.pay ? ` (${row.pay.rate ? `$${row.pay.rate} ` : ''}${unitOf(row.pay)})` : ''}`).join(', ') : L('gx_lab_nobody', 'Nobody yet');
       const report = () => change({ include_labor: true, labor: { assignees: rows.filter((row) => changed(row) || (row.existing && row.type_id && row.type_id !== array(options.assignees).find((entry) => keyOf(entry) === row.key)?.type_id)).map((row) => ({ ...(row.ref ? { ref: row.ref } : {}), kind: row.kind, name: row.name, ...(row.type_id ? { type_id: row.type_id } : {}), ...(row.pay && row.pay.rate > 0 && changed(row) ? { pay: row.pay } : {}) })) } }, summary());
-      const methodChip = (row, method, label) => `<button type="button" class="gxs-chip" data-method="${method}" aria-pressed="${row.pay?.method === method}">${label}</button>`;
+      const methodChip = (row, method, label) => `<button type="button" role="radio" data-method="${method}" aria-checked="${row.pay?.method === method}">${label}</button>`;
       const card = (row, i) => {
         const types = typesOf(row.kind);
         const pay = row.pay;
         // Only the first drawing and a card just added come in; redrawing after a change does not animate.
         return `<article class="gxs-lab${firstDraw || fresh.has(row.key) ? ' gxs-lab-in' : ''}" data-lab="${esc(row.key)}" style="animation-delay:${firstDraw ? i * 40 : 0}ms">
           <header><span class="gxs-lab-kind" data-kind="${row.kind}" title="${esc(row.kind === 'resource_group' ? L('gx_lab_group_tip', 'People who work for you, paid through you') : L('gx_lab_company_tip', 'Another company that does the work and bills you'))}">${esc(kindLabel(row.kind))}</span><strong title="${esc(row.name)}">${esc(row.name)}</strong>${!row.existing ? `<button type="button" class="gxs-lab-remove" data-remove aria-label="${esc(L('gx_lab_remove', 'Remove'))} ${esc(row.name)}">&times;</button>` : ''}</header>
-          ${types.length > 1 ? `<label class="gxs-field"><span>${H('gx_lab_type', 'Type')}</span><select data-type>${types.map((type) => `<option value="${esc(type.id)}" ${type.id === row.type_id ? 'selected' : ''}>${esc(type.name)}</option>`).join('')}</select></label>` : ''}
+          ${types.length > 1 ? `<label class="gxs-frow"><span>${H('gx_lab_type', 'Type')}</span><select data-type>${types.map((type) => `<option value="${esc(type.id)}" ${type.id === row.type_id ? 'selected' : ''}>${esc(type.name)}</option>`).join('')}</select></label>` : ''}
           ${row.locked ? `<p class="gxs-lab-note">${H('gx_lab_locked', 'Paid by its own pay sheet')} (${row.lines} ${L('gx_lab_lines', 'lines')}). ${H('gx_lab_locked_where', 'Change it in People.')}</p>` : `
-          <div class="gxs-lab-methods" role="group" aria-label="${esc(L('gx_lab_how_paid', 'How they are paid'))}">${methodChip(row, 'per_measurement', L('gx_lab_piece', 'Piece rate'))}${methodChip(row, 'hourly', L('gx_lab_hourly', 'Hourly'))}${methodChip(row, 'per_job', L('gx_lab_job', 'Per job'))}</div>
-          <div class="gxs-lab-rate" data-open="${!!pay}">${pay ? `<label><span>$</span><input type="number" min="0" step="0.01" inputmode="decimal" data-rate value="${esc(pay.rate ?? '')}" aria-label="${esc(L('gx_lab_rate', 'Rate'))}"></label>${pay.method === 'per_measurement' ? `<select data-measurement aria-label="${esc(L('gx_lab_paid_on', 'Paid on'))}">${measurements.map((entry) => `<option value="${esc(entry.id)}" ${entry.id === (pay.measurement || 'roof.squares') ? 'selected' : ''}>${esc(entry.label)}</option>`).join('')}</select>` : `<em>${esc(unitOf(pay))}</em>`}` : ''}</div>`}
-          ${paySheet ? `<button type="button" class="gxsc-sheet gxs-lab-sheet" data-sheet title="${esc(L('gx_lab_sheet_tip', 'Upload their pay sheet or rate card and the agent sets up their pay from it'))}">${H('gx_lab_sheet', 'Pay sheet')}</button>` : ''}
+          <div class="gxs-seg gxs-lab-methods" role="radiogroup" aria-label="${esc(L('gx_lab_how_paid', 'How they are paid'))}">${methodChip(row, 'per_measurement', L('gx_lab_piece', 'Piece rate'))}${methodChip(row, 'hourly', L('gx_lab_hourly', 'Hourly'))}${methodChip(row, 'per_job', L('gx_lab_job', 'Per job'))}</div>
+          <div class="gxs-lab-rate" data-open="${!!pay}">${pay ? `<label class="gxs-num"><i>&nbsp;$</i><input type="number" min="0" step="0.01" inputmode="decimal" data-rate value="${esc(pay.rate ?? '')}" aria-label="${esc(L('gx_lab_rate', 'Rate'))}"></label>${pay.method === 'per_measurement' ? `<select data-measurement aria-label="${esc(L('gx_lab_paid_on', 'Paid on'))}">${measurements.map((entry) => `<option value="${esc(entry.id)}" ${entry.id === (pay.measurement || 'roof.squares') ? 'selected' : ''}>${esc(entry.label)}</option>`).join('')}</select>` : `<em>${esc(unitOf(pay))}</em>`}` : ''}</div>`}
+          ${paySheet ? `<button type="button" class="gxs-lab-sheet" data-sheet title="${esc(L('gx_lab_sheet_tip', 'Upload their pay sheet or rate card and the agent sets up their pay from it'))}"><i class="fas fa-file-arrow-up" aria-hidden="true"></i>${H('gx_lab_sheet_upload', 'Upload pay sheet')}</button>` : ''}
         </article>`;
       };
       el.innerHTML = `<div class="gxs-tools gxs-lab-add"><div class="gxs-lab-toggle" role="group" aria-label="${esc(L('gx_lab_add_as', 'Add as'))}"><button type="button" class="gxs-chip" data-add-kind="resource_group" aria-pressed="true" title="${esc(L('gx_lab_group_tip', 'People who work for you, paid through you'))}">${esc(groupWord)}</button><button type="button" class="gxs-chip" data-add-kind="organization_connection" aria-pressed="false" title="${esc(L('gx_lab_company_tip', 'Another company that does the work and bills you'))}">${esc(companyWord)}</button></div><input type="text" class="gxs-search gxs-lab-name" maxlength="300" placeholder="${esc(L('gx_lab_add_placeholder', 'Name, then Enter'))}" aria-label="${esc(L('gx_lab_add_placeholder', 'Name, then Enter'))}"><button type="button" class="gxs-chip" data-add>${H('gx_lab_add', 'Add')}</button></div><div class="gxs-labs"></div>`;

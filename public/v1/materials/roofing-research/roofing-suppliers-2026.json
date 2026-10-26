@@ -10,7 +10,7 @@
     "line_scope \"full_range\": a roofing distributor that stocks or orders every line of a brand it carries. \"retail_core\": a big-box store that stocks a brand's mainstream lines (the setup's default lines) and its common accessories, not designer or specialty lines.",
     "library_supplier names the supplier in materials/roofing-library-data.ts whose observed SKUs and shelf prices (2026-10-12) are used as that supplier's starting costs. A supplier without one starts from the price book's typical costs.",
     "Carriage is by manufacturer at the national level; branches vary. Every list is a starting point the organization edits.",
-    "Colours are approximations of each company's brand colour for the setup's column accent, not a logo. No supplier logo is shipped: a supplier's logo needs that company's permission (the same caveat as the manufacturer logos)."
+    "Colours are approximations of each company's brand colour for the setup's column accent, not a logo; where two would look alike side by side (SRS and The Home Depot are both orange), one is shifted so the columns stay distinct. No supplier logo is shipped: a supplier's logo needs that company's permission (the same caveat as the manufacturer logos)."
   ],
   "suppliers": [
     {
@@ -21,7 +21,7 @@
       "sources": ["ibisworld-roofing-siding-insulation-wholesaling", "abc-supply-brands-page"]
     },
     {
-      "id": "srs", "name": "SRS Distribution", "kind": "distributor", "color": "#E35205",
+      "id": "srs", "name": "SRS Distribution", "kind": "distributor", "color": "#0F766E",
       "manufacturers": ["gaf", "owens_corning", "certainteed", "atlas", "iko", "malarkey", "tamko"], "line_scope": "full_range", "library_supplier": "SRS Building Products",
       "regions": "United States (Home Depot company since 2024), including Roofing Supply Group branches", "confidence": "observed",
       "note": "The library's 2026-10-12 research saw SRS branches list GAF, Owens Corning, CertainTeed, Atlas, IKO and Malarkey items (prices behind a contractor login).",

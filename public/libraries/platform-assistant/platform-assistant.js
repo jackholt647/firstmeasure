@@ -1245,8 +1245,10 @@
         if (!picker.files?.length) return;
         const files = [...picker.files];
         // The host may need to save what the conversation will refer to before the model reads the file.
-        try { await surface.workflow?.onUpload?.(files); } catch (error) { console.warn('[assistant] workflow upload hook failed', error); }
-        sendWithFiles(clean(offer.message), files);
+        // It may also return the message to send instead (the setup names the one supplier there is).
+        let message = clean(offer.message);
+        try { const replaced = await surface.workflow?.onUpload?.(files); if (typeof replaced === 'string' && clean(replaced)) message = clean(replaced); } catch (error) { console.warn('[assistant] workflow upload hook failed', error); }
+        sendWithFiles(message, files);
       }, { once:true });
       picker.click();
       return;
@@ -2629,14 +2631,20 @@
     sayChain = sayChain.then(async () => {
       for (const line of list) {
         if (disposed) return;
+        // A line already in the conversation (said before, or stored and reloaded) is not "typed" again.
+        const lineKey = clean(object(line.data).line_key);
+        if (lineKey && state.messages.some((m) => clean(object(m.data).line_key) === lineKey)) continue;
+        // Already brought in by a reload of the stored thread: claim it without typing it again.
+        if (state.messages.some((m) => !claimedWorkflowMessages.has(m.id) && !String(m.id).startsWith('script_') && !String(m.id).startsWith('local_') && clean(m.role) === 'assistant' && String(m.content) === String(line.content))) { workflowPost({ role:'assistant', ...line }); continue; }
         if (!reduce && options.typing !== false) {
           state.scriptTyping = true; renderMessages();
           await new Promise((resolve) => setTimeout(resolve, Math.min(1100, 350 + String(line.content).length * 9)));
-          state.scriptTyping = false;
+          // Cleared and drawn now: a line the thread already holds is not posted again, so nothing else redraws.
+          state.scriptTyping = false; renderMessages();
         }
         workflowPost({ role:'assistant', ...line });
       }
-    }).catch((error) => { state.scriptTyping = false; console.warn('[assistant] workflow line failed', error); });
+    }).catch((error) => { state.scriptTyping = false; renderMessages(); console.warn('[assistant] workflow line failed', error); });
     return sayChain;
   }
 

@@ -313,7 +313,7 @@
         let index = -1, shown = 0, ended = false, current = null, targets = [], holes = [], animation = 0, clickTarget = null;
         const finish = (status) => {
           if (ended) return; ended = true;
-          cancelAnimationFrame(animation); root.removeEventListener('resize', redraw); root.removeEventListener('scroll', redraw, true); document.removeEventListener('keydown', key, true);
+          cancelAnimationFrame(animation); cancelAnimationFrame(trackFrame); root.removeEventListener('resize', redraw); root.removeEventListener('scroll', redraw, true); document.removeEventListener('keydown', key, true);
           clickTarget?.removeEventListener('click', onTargetClick, true);
           host.remove(); pop.remove();
           resolve({ status, shown, last: list[index]?.id || '' });
@@ -359,6 +359,32 @@
           }
         }
         function redraw(){ if (ended) return; holes = targets.map(rectOf); draw(holes); place(); }
+        /**
+         * Follows the target while a step shows: what the person does can move it (a bar appearing above it, a list
+         * growing), so its box is compared every frame and the spotlight, ring and popover follow it. A target that
+         * goes away is looked for again by its selectors; when nothing matches, the step stays as a centred card
+         * rather than pointing at whatever took its place.
+         */
+        let trackFrame = 0, trackedKey = '', lastSearch = 0;
+        const boxKey = () => targets.map((el) => { const r = el.getBoundingClientRect(); return `${Math.round(r.left)},${Math.round(r.top)},${Math.round(r.width)},${Math.round(r.height)}`; }).join('|');
+        function follow(now){
+          if (ended) return;
+          trackFrame = requestAnimationFrame(follow);
+          if (!current || !targets.length) return;
+          if (targets.some((el) => !el.isConnected || !el.getClientRects().length)) {
+            if (now - lastSearch < 150) return;
+            lastSearch = now;
+            const again = array(current.targets).map(visible).filter(Boolean);
+            clickTarget?.removeEventListener('click', onTargetClick, true); clickTarget = null;
+            targets = again;
+            if (current.advance === 'click' && targets[0]) { clickTarget = targets[0]; clickTarget.addEventListener('click', onTargetClick, true); }
+            if (!targets.length) { cancelAnimationFrame(animation); holes = []; draw(holes); render(current); place(); trackedKey = ''; return; }
+            trackedKey = '';
+          }
+          const key = boxKey();
+          // Following is immediate: the ring and popover jump with the target instead of easing after it.
+          if (key !== trackedKey) { if (trackedKey) { cancelAnimationFrame(animation); ring.style.transition = 'none'; pop.style.transition = 'none'; redraw(); requestAnimationFrame(() => { ring.style.transition = ''; pop.style.transition = ''; }); } trackedKey = key; }
+        }
         function onTargetClick(){ setTimeout(() => go(index + 1, 1), 60); }
         function render(step){
           const total = list.length, position = index + 1, last = position >= total;
@@ -396,7 +422,7 @@
               first.scrollIntoView?.({ block: 'nearest', inline: 'nearest', behavior: reducedMotion() ? 'auto' : 'smooth' });
             }
             if (mine !== move) return;
-            index = i; current = step; targets = found; shown += 1;
+            index = i; current = step; targets = found; shown += 1; trackedKey = '';
             render(step);
             animateTo(targets.map(rectOf));
             requestAnimationFrame(place);
@@ -419,6 +445,7 @@
           else if (action === 'close') { options.onStep?.({ type: 'dismiss', step: current?.id }); finish('dismissed'); }
         });
         root.addEventListener('resize', redraw); root.addEventListener('scroll', redraw, true); document.addEventListener('keydown', key, true);
+        trackFrame = requestAnimationFrame(follow);
         draw([]);
         go(0, 1);
       });
@@ -599,7 +626,8 @@
     .gx-dev-empty{color:#667085;padding:6px 4px}
   `;
   const EDIT_KEY = 'fm-gx-edit-copy';
-  const editing = () => { try { return root.localStorage?.getItem(EDIT_KEY) !== 'off'; } catch (_) { return true; } };
+  // Copy editing is off until a development editor turns it on (the pill's switch), in each browser.
+  const editing = () => { try { return root.localStorage?.getItem(EDIT_KEY) === 'on'; } catch (_) { return false; } };
   const devApi = {
     save: (body) => request('/dev/copy', { method:'PUT', body }),
     history: (key) => request(`/dev/copy/history?key=${encodeURIComponent(key)}`),
@@ -705,6 +733,13 @@
       await devAction(action.dataset, () => renderDevPanel(panel));
     });
     host.hidden = false;
+    // Beside the portal sidebar's footer rather than over its settings button: just right of the sidebar, following
+    // its width as it expands and collapses.
+    const dock = () => { const side = doc.querySelector('.sidebar'); const box = side?.getBoundingClientRect(); host.style.left = box && box.width > 0 && box.left < 8 && getComputedStyle(side).display !== 'none' ? `${Math.round(box.right + 12)}px` : '12px'; };
+    dock();
+    const side = doc.querySelector('.sidebar');
+    if (side && doc.defaultView?.ResizeObserver) new doc.defaultView.ResizeObserver(dock).observe(side);
+    doc.defaultView?.addEventListener('resize', dock);
   }
   async function devAction(data, rerender){
     const kind = data.gxd, id = data.gxdId;
