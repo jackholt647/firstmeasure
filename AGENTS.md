@@ -33,6 +33,16 @@ scale). Add an entry when you knowingly ship one, link it from the relevant
 architecture doc, and remove it when it is done. An optimization must return
 exactly the same results.
 
+## Live frontend iteration on dev
+
+Read [frontend bridge](docs/architecture/frontend-bridge.md) before changing
+`tools/frontend-bridge` or driving dev.1m8.ai with it (skill: `frontend-czar`).
+The bridge serves only browser files under `public/` that differ from what dev
+serves, from your own checkout, through the FirstMate Dev Bridge extension's
+folder; it never touches production and needs nothing on the server. Server
+code, PHP and HTML pages still need a rollout. Run
+`node --test tests/frontend-bridge.test.mjs` for changes here.
+
 ## Canonical source
 
 The active combined platform checkout is `C:/Users/jackh/Code/2026/FirstMate Platform`

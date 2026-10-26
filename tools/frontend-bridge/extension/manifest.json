@@ -1,0 +1,75 @@
+{
+  "manifest_version": 3,
+  "name": "FirstMate Dev Bridge",
+  "version": "1.0.0",
+  "description": "Runs the browser files you change locally on dev.1m8.ai, and lets a local Claude Code session inspect the page.",
+  "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEA3bzTMcOhcX3P0gR9vQdJUBzrFHoOO3S2ieJlgfa1vHFqC0PAQZLcRStzcG5URF8qAuPgCBLl4ryABTbMiiZQ4S/Zzp9UQZG8NLuNvGmr7LsO8OiiLkb+B20nXEv7GRlUBJYvXa1omoB0hv9cRSJ0yPIGann2A/QlXvKKrN+b7DpBvBZN2HcGp3oQqzm8g+g3uaD/NBU5ExdvMlHUtZBK0o6yls093Y2t8FC0lw0bCXvWJ4X88+a/n1thGQaFqBOuII9KNaEYNzjcWs0iQXKto27DWGQezhJfhaKseEYHl4Ksuj/KdtUcEO+lFx5F36EqJoYyt88G5sHSJhHWp5+VSwIDAQAB",
+  "minimum_chrome_version": "121",
+  "permissions": [
+    "declarativeNetRequestWithHostAccess",
+    "declarativeNetRequestFeedback",
+    "scripting",
+    "storage",
+    "tabs",
+    "alarms",
+    "webNavigation"
+  ],
+  "host_permissions": [
+    "https://dev.1m8.ai/*",
+    "http://127.0.0.1/*"
+  ],
+  "optional_host_permissions": [
+    "<all_urls>"
+  ],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "action": {
+    "default_popup": "popup.html",
+    "default_title": "FirstMate Dev Bridge",
+    "default_icon": {
+      "16": "icons/icon-16.png",
+      "32": "icons/icon-32.png",
+      "48": "icons/icon-48.png"
+    }
+  },
+  "icons": {
+    "16": "icons/icon-16.png",
+    "32": "icons/icon-32.png",
+    "48": "icons/icon-48.png",
+    "128": "icons/icon-128.png"
+  },
+  "content_scripts": [
+    {
+      "matches": [
+        "https://dev.1m8.ai/*"
+      ],
+      "js": [
+        "page-console.js"
+      ],
+      "run_at": "document_start",
+      "all_frames": true,
+      "world": "MAIN"
+    },
+    {
+      "matches": [
+        "https://dev.1m8.ai/*"
+      ],
+      "js": [
+        "content.js"
+      ],
+      "run_at": "document_start",
+      "all_frames": false
+    }
+  ],
+  "web_accessible_resources": [
+    {
+      "resources": [
+        "overrides/*"
+      ],
+      "matches": [
+        "https://dev.1m8.ai/*"
+      ]
+    }
+  ]
+}
