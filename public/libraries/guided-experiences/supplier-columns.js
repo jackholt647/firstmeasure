@@ -58,12 +58,13 @@
     .gxsc-item{display:flex;align-items:center;gap:7px;padding:3px 2px;font-size:12.5px;border-radius:6px}
     .gxsc-item:hover{background:#f9fafb}
     .gxsc-item input[type=checkbox]{accent-color:var(--supplier,#344054);margin:0;flex:none}
-    .gxsc-item>span{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-    .gxsc-item[data-carried=false]>span{color:#98a2b3}
-    .gxsc-price{flex:none;display:inline-flex;align-items:center;height:26px;border:1px solid #e4e7ec;border-radius:7px;background:#fff;padding:0 6px;font-size:12px;color:#667085;gap:2px}
+    .gxsc-item>span:first-of-type{flex:1;min-width:0;overflow:hidden;display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2;line-height:1.25;white-space:normal;overflow-wrap:anywhere}
+    .gxsc-item[data-carried=false]>span:first-of-type{color:#98a2b3}
+    .gxsc-price{flex:none;display:inline-flex;align-items:center;height:26px;border:1px solid #e4e7ec;border-radius:7px;background:#fff;padding:0 5px;font-size:12px;color:#667085;gap:1px}
     .gxsc-price:focus-within{border-color:var(--supplier,#344054)}
-    .gxsc-price input{width:48px;border:0;padding:0;text-align:right;font:inherit;font-size:12px;color:#101828;background:transparent;outline:none}
-    .gxsc-price small{font-size:11px;color:#98a2b3;white-space:nowrap}
+    .gxsc-price input{width:6ch!important;min-width:0;border:0;padding:0;text-align:right;font:inherit;font-size:12px;color:#101828;background:transparent;outline:none;-moz-appearance:textfield;appearance:textfield}
+    .gxsc-price input::-webkit-outer-spin-button,.gxsc-price input::-webkit-inner-spin-button{-webkit-appearance:none;margin:0}
+    .gxsc-price small{font-size:10.5px;color:#98a2b3;white-space:nowrap;padding-left:2px}
     .gxsc-item[data-carried=false] .gxsc-price{visibility:hidden}
     .gxsc-tools-head{display:flex;flex-direction:column;gap:2px;margin:0 0 8px}
     .gxsc-tools-head strong{font-size:13px;color:#101828}.gxsc-tools-head small{font-size:11.5px;color:#667085}
@@ -75,6 +76,11 @@
     .gxsc-arrow[data-dir=next]{right:-28px}
     .gxsc-arrow:hover{background:#f9fafb}
     .gxsc-arrow[data-off=true]{opacity:0;pointer-events:none}
+    .gxsc-arrow{flex-direction:column;gap:2px}
+    .gxsc-arrow b{font:700 10px/1 system-ui,sans-serif;color:#475467}
+    .gxsc-arrow b:empty{display:none}
+    .gxsc-arrow.gxsc-nudge{animation:gxscNudge .6s cubic-bezier(.22,1,.36,1)}
+    @keyframes gxscNudge{0%,100%{transform:translateY(-50%)}40%{transform:translateY(-50%) translateX(3px);background:#eff8ff;border-color:#84caff}}
     .gxsc-arrow:focus-visible,.gxsc-sheet:focus-visible{outline:2px solid var(--primary,#d93025);outline-offset:2px}
     @media(max-width:560px){.gxsc-arrow[data-dir=prev]{left:-14px}.gxsc-arrow[data-dir=next]{right:-14px}.gxsc-arrow{width:20px}}
     @media(prefers-reduced-motion:reduce){.gxsc-viewport{scroll-behavior:auto}.gxsc-arrow{transition:none}}
@@ -90,7 +96,7 @@
     let suppliers = array(options.suppliers).map((supplier) => ({ ...supplier, item_ids: [...new Set(array(supplier.item_ids))], prices: { ...(supplier.prices || {}) } }));
     const items = array(options.items);
     el.classList.add('gxsc');
-    el.innerHTML = `<div class="gxsc-viewport" tabindex="-1"><div class="gxsc-track"></div></div><button type="button" class="gxsc-arrow" data-dir="prev" data-off="true" aria-label="${esc(L('gx_sc_prev', 'Previous supplier'))}">&#8592;</button><button type="button" class="gxsc-arrow" data-dir="next" data-off="true" aria-label="${esc(L('gx_sc_next', 'Next supplier'))}">&#8594;</button>`;
+    el.innerHTML = `<div class="gxsc-viewport" tabindex="-1"><div class="gxsc-track"></div></div><button type="button" class="gxsc-arrow" data-dir="prev" data-off="true" aria-label="${esc(L('gx_sc_prev', 'Previous supplier'))}">&#8592;<b></b></button><button type="button" class="gxsc-arrow" data-dir="next" data-off="true" aria-label="${esc(L('gx_sc_next', 'Next supplier'))}">&#8594;<b></b></button>`;
     const viewport = el.querySelector('.gxsc-viewport'), track = el.querySelector('.gxsc-track');
     const prev = el.querySelector('[data-dir=prev]'), next = el.querySelector('[data-dir=next]');
     const groups = () => { const out = new Map(); for (const item of items) { const key = clean(item.group) || L('gx_sc_items', 'Items'); if (!out.has(key)) out.set(key, []); out.get(key).push(item); } return [...out]; };
@@ -108,6 +114,13 @@
       const set = (arrow, off) => { arrow.dataset.off = String(off); arrow.tabIndex = off ? -1 : 0; arrow.setAttribute('aria-hidden', String(off)); };
       set(prev, viewport.scrollLeft <= 1);
       set(next, viewport.scrollLeft >= max - 1);
+      // How many columns are out of sight each way, on the arrow: "+1".
+      const view = viewport.getBoundingClientRect();
+      const cols = [...track.querySelectorAll('.gxsc-col')].map((col) => col.getBoundingClientRect());
+      const left = cols.filter((box) => box.left < view.left - 2).length, right = cols.filter((box) => box.right > view.right + 2).length;
+      prev.querySelector('b').textContent = left ? `+${left}` : ''; next.querySelector('b').textContent = right ? `+${right}` : '';
+      prev.setAttribute('aria-label', left ? `${L('gx_sc_prev', 'Previous supplier')} (${left} ${L('gx_sc_more', 'more')})` : L('gx_sc_prev', 'Previous supplier'));
+      next.setAttribute('aria-label', right ? `${L('gx_sc_next', 'Next supplier')} (${right} ${L('gx_sc_more', 'more')})` : L('gx_sc_next', 'Next supplier'));
     }
     const columnStep = () => { const col = track.querySelector('.gxsc-col'); return col ? col.getBoundingClientRect().width + (parseFloat(getComputedStyle(track).columnGap) || 12) : viewport.clientWidth / 2; };
     const scrollColumns = (count) => viewport.scrollBy({ left: count * columnStep(), behavior: reduced() ? 'auto' : 'smooth' });
@@ -138,19 +151,20 @@
     resize?.observe(el);
     draw();
     return {
-      // The row stays where it was; a supplier just added is scrolled just into view when it is out of sight.
+      // The row stays where it was, so the first supplier stays in view. A supplier added out of sight is counted on
+      // its arrow ("+1"), which nudges, rather than scrolling the first one away.
       update(list){
         const keys = new Set(suppliers.map((supplier) => supplier.key));
         suppliers = array(list).map((supplier) => ({ ...supplier, item_ids: [...new Set(array(supplier.item_ids))], prices: { ...(supplier.prices || {}) } }));
         const left = viewport.scrollLeft; draw(); viewport.scrollLeft = left;
+        syncArrow();
         const added = suppliers.find((supplier) => !keys.has(supplier.key));
         const col = added && track.querySelector(`[data-supplier="${CSS.escape(added.key)}"]`);
-        if (col) {
-          const start = col.offsetLeft - track.offsetLeft, end = start + col.offsetWidth;
-          if (end > viewport.scrollLeft + viewport.clientWidth + 1) viewport.scrollTo({ left: end - viewport.clientWidth, behavior: reduced() ? 'auto' : 'smooth' });
-          else if (start < viewport.scrollLeft - 1) viewport.scrollTo({ left: start, behavior: reduced() ? 'auto' : 'smooth' });
+        if (col && !reduced()) {
+          const box = col.getBoundingClientRect(), view = viewport.getBoundingClientRect();
+          const arrow = box.left >= view.right - 2 ? next : box.right <= view.left + 2 ? prev : null;
+          if (arrow) { arrow.classList.remove('gxsc-nudge'); void arrow.offsetWidth; arrow.classList.add('gxsc-nudge'); }
         }
-        syncArrow();
       },
       suppliers: () => suppliers,
       destroy(){ resize?.disconnect(); el.innerHTML = ''; el.classList.remove('gxsc'); }

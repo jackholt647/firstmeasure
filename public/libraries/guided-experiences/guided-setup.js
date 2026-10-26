@@ -571,8 +571,8 @@
   // ── Widgets ────────────────────────────────────────────────────────────
   function registerWidget(id, widget){ widgets.set(id, widget); }
   const widgetCss = `
-    /* The grid takes the step's height; its rows stay a tile's shape and sit in the middle of it. */
-    .gxs-logos{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));grid-auto-rows:minmax(108px,150px);align-content:center;gap:12px;flex:1 1 auto;min-height:0;padding-bottom:24px}
+    /* The grid takes the step's height from the top; its rows stay a tile's shape and leftover space falls below. */
+    .gxs-logos{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));grid-auto-rows:minmax(108px,150px);align-content:start;gap:12px;flex:1 1 auto;min-height:0;padding-bottom:24px}
     .gxs-logo-tile{position:relative;display:grid;place-items:center;min-height:0;padding:14px;container-type:inline-size;border:0;border-radius:14px;background:#f9fafb;cursor:pointer;transition:background .2s,box-shadow .25s,transform .2s;animation:gxsMsg .4s cubic-bezier(.22,1,.36,1) both}
     .gxs-logo-tile:hover{background:#f2f4f7;transform:translateY(-1px)}
     .gxs-logo-tile img{display:block;width:60%;height:50%;max-width:none;max-height:none;object-fit:contain;transition:transform .25s cubic-bezier(.34,1.56,.64,1),filter .2s}
@@ -649,6 +649,9 @@
     .gxs-supplier-tag button{border:0;background:transparent;margin-left:4px;cursor:pointer;font-size:14px;line-height:1;color:#667085;padding:0}
     .gxs-supplier-input{flex:1 1 220px}
     .gxs-supplier-cols{margin-top:8px;flex:1 1 auto;min-height:260px}
+    .gxs-supplier-empty{flex:1 1 auto;min-height:220px;margin:8px 0 0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;border:1.5px dashed #e4e7ec;border-radius:14px;background:#fcfcfd;color:#667085;font-size:13.5px;text-align:center;padding:24px}
+    .gxs-supplier-empty[hidden]{display:none}
+    .gxs-supplier-empty .gxs-empty-icon{width:48px;height:48px;border-radius:14px;background:#f2f4f7;display:grid;place-items:center;color:#98a2b3;font-size:20px}
     .gxs-lab-add{gap:8px}
     .gxs-lab-toggle{display:inline-flex;gap:4px}
     .gxs-lab-name{flex:1 1 180px}
@@ -863,7 +866,8 @@
         const ice = rows.find((row) => row.eave_width);
         change({ rules, waste: edits.shingles?.waste ?? 'roof', ...(ice ? { ice_eave_width: Number(edits[ice.key].eave_width) } : {}) }, said());
       };
-      const headTip = (head) => { const key = head.closest('[data-mat]').dataset.mat; tip.show(head, plainRule(rows.find((row) => row.key === key), edits[key], L)); };
+      // The open row's editor is right under its header, so its rule is not shown over it.
+      const headTip = (head) => { const key = head.closest('[data-mat]').dataset.mat; if (key === open) return; tip.show(head, plainRule(rows.find((row) => row.key === key), edits[key], L)); };
       el.addEventListener('click', (event) => {
         const mat = event.target.closest('[data-mat]'); if (!mat) return;
         const key = mat.dataset.mat, edit = edits[key];
@@ -963,7 +967,7 @@
         const preset = presets.find((candidate) => candidate.id === entry.preset);
         return { key: preset ? preset.id : `custom:${slug(entry.name)}`, preset: preset?.id, name: clean(entry.name) || preset?.name, color: preset?.color || '#475467', kind: preset?.kind || 'custom', item_ids: array(entry.item_ids).filter((id) => known.has(id)), prices: { ...object(entry.prices) }, base_prices: object(preset?.prices) };
       }).filter((entry) => entry.name);
-      el.innerHTML = `<div class="gxs-tools gxs-supplier-picks">${presets.map((preset) => `<button type="button" class="gxs-chip gxs-supplier-pill" data-preset="${esc(preset.id)}" style="--brand:${esc(preset.color)}" aria-pressed="false" title="${esc(preset.regions || '')}"><span class="gxs-dot" aria-hidden="true"></span>${esc(preset.name)}</button>`).join('')}<span class="gxs-supplier-custom"></span><input type="text" class="gxs-search gxs-supplier-input" maxlength="200" placeholder="${esc(L('gx_sup_type_own', 'Another supplier? Type it and press Enter'))}" aria-label="${esc(L('gx_sup_type_own', 'Another supplier? Type it and press Enter'))}"></div><div class="gxs-supplier-cols"></div><p class="gxs-sub gxs-supplier-empty">${H('gx_sup_none', 'Pick a supplier to see what it carries.')}</p>`;
+      el.innerHTML = `<div class="gxs-tools gxs-supplier-picks">${presets.map((preset) => `<button type="button" class="gxs-chip gxs-supplier-pill" data-preset="${esc(preset.id)}" style="--brand:${esc(preset.color)}" aria-pressed="false" title="${esc(preset.regions || '')}"><span class="gxs-dot" aria-hidden="true"></span>${esc(preset.name)}</button>`).join('')}<span class="gxs-supplier-custom"></span><input type="text" class="gxs-search gxs-supplier-input" maxlength="200" placeholder="${esc(L('gx_sup_type_own', 'Another supplier? Type it and press Enter'))}" aria-label="${esc(L('gx_sup_type_own', 'Another supplier? Type it and press Enter'))}"></div><div class="gxs-supplier-cols"></div><div class="gxs-supplier-empty"><span class="gxs-empty-icon" aria-hidden="true"><i class="fas fa-truck-ramp-box"></i></span><span>${H('gx_sup_none_2', 'Pick the suppliers you buy from above, and each one’s products appear here.')}</span></div>`;
       const colsEl = el.querySelector('.gxs-supplier-cols');
       let columns = null;
       const summary = () => chosen.map((entry) => entry.name).join(', ');
@@ -972,6 +976,7 @@
         el.querySelectorAll('[data-preset]').forEach((pill) => pill.setAttribute('aria-pressed', String(chosen.some((entry) => entry.preset === pill.dataset.preset))));
         el.querySelector('.gxs-supplier-custom').innerHTML = chosen.filter((entry) => !entry.preset).map((entry) => `<span class="gxs-chip gxs-supplier-tag" aria-pressed="true">${esc(entry.name)}<button type="button" data-remove="${esc(entry.key)}" aria-label="${esc(L('gx_sup_remove', 'Remove'))} ${esc(entry.name)}">&times;</button></span>`).join('');
         el.querySelector('.gxs-supplier-empty').hidden = chosen.length > 0;
+        colsEl.hidden = !chosen.length;
         if (!root.FirstMateSupplierColumns) { colsEl.textContent = ''; report(); return; }
         // With one supplier the agent's own upload line covers its price sheet, so the column does not repeat it.
         if (!columns) columns = root.FirstMateSupplierColumns.mount(colsEl, { suppliers: chosen, items, singleSheetElsewhere: true, onChange: (next) => { chosen = next; report(); }, ...(priceSheet ? { onPriceSheet: (supplier) => priceSheet(supplier) } : {}) });

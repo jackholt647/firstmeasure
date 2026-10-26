@@ -614,6 +614,9 @@
     .gx-dev-status{opacity:.75;padding-right:6px;min-width:42px}
     .gx-dev-pill .gx-dev-handle{width:26px;height:26px;padding:0;display:grid;place-items:center;font-size:10px;font-weight:800;letter-spacing:.02em}
     .gx-dev[data-collapsed=true] .gx-dev-pill{padding:3px}
+    .gx-dev[data-corner=true]{left:2px;bottom:2px}
+    .gx-dev[data-corner=true][data-collapsed=true] .gx-dev-pill{padding:2px}
+    .gx-dev[data-corner=true][data-collapsed=true] .gx-dev-handle{width:22px;height:22px;font-size:9px}
     .gx-dev[data-collapsed=true] .gx-dev-pill>:not(.gx-dev-handle),.gx-dev[data-collapsed=true] .gx-dev-panel{display:none}
     .gx-dev-panel{position:absolute;left:0;bottom:44px;width:min(340px,calc(100vw - 24px));max-height:min(60vh,520px);overflow:auto;background:#fff;border:1px solid #e4e7ec;border-radius:12px;box-shadow:0 18px 50px rgba(16,24,40,.25);padding:10px}
     .gx-dev-panel[hidden]{display:none}
@@ -735,11 +738,25 @@
     host.hidden = false;
     // Beside the portal sidebar's footer rather than over its settings button: just right of the sidebar, following
     // its width as it expands and collapses.
-    const dock = () => { const side = doc.querySelector('.sidebar'); const box = side?.getBoundingClientRect(); host.style.left = box && box.width > 0 && box.left < 8 && getComputedStyle(side).display !== 'none' ? `${Math.round(box.right + 12)}px` : '12px'; };
+    // When something covers the sidebar (the project window), it sits small in the very corner of the screen, clear of
+    // that window's frame. Checked again as windows open and close.
+    const dock = () => {
+      const side = doc.querySelector('.sidebar'), box = side?.getBoundingClientRect(), win = doc.defaultView;
+      const shown = box && box.width > 0 && box.left < 8 && getComputedStyle(side).display !== 'none';
+      let covered = false;
+      if (shown && win) {
+        const x = Math.max(1, Math.min(box.right - 4, box.left + 24)), y = Math.max(1, win.innerHeight - 24);
+        const hit = doc.elementsFromPoint(x, y).find((el) => !host.contains(el));
+        covered = !!hit && !side.contains(hit);
+      }
+      host.dataset.corner = String(!shown || covered);
+      host.style.left = shown && !covered ? `${Math.round(box.right + 12)}px` : '';
+    };
     dock();
     const side = doc.querySelector('.sidebar');
     if (side && doc.defaultView?.ResizeObserver) new doc.defaultView.ResizeObserver(dock).observe(side);
     doc.defaultView?.addEventListener('resize', dock);
+    setInterval(dock, 1000);
   }
   async function devAction(data, rerender){
     const kind = data.gxd, id = data.gxdId;
