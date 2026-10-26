@@ -5477,12 +5477,14 @@ async function upsertPlatformOrgUserDocument(orgId: string, documentId: string, 
   if (!Object.hasOwn(dataInput,"custom_field_values") && Object.hasOwn(dataInput,"custom_fields")) dataInput.custom_field_values = dataInput.custom_fields;
   if ('scoped_access_assignments' in dataInput) throw badRequest('scoped_access_profile_required', 'Assign scoped roles through the workforce user profile endpoint.');
   const metadata = asObject(body.metadata);
-  const current = replace ? null : await readDocument(orgId, "users", documentId).catch(() => null);
+  const stored = await readDocument(orgId, "users", documentId).catch(() => null);
+  const current = replace ? null : stored;
   const data = {
     ...(replace ? {} : withoutRemovedUserTypeFields(current?.data)),
     ...dataInput,
     ...organizationUserProfileFields(dataInput, { includeDefaults: replace })
   };
+  if (stored) await reconcileOrgUserSignInEmail(orgId, documentId, stored, data);
   const permissionState = platformOrgUserPermissionState(data);
   return await upsertDocument(
     orgId,
@@ -5500,6 +5502,32 @@ async function upsertPlatformOrgUserDocument(orgId: string, documentId: string, 
     },
     { replace }
   );
+}
+
+/**
+ * A user's email is the email they sign in with: their identity's. Changing only the user record (1M8-244) left
+ * the identity on the old address, so password reset and impersonation could not find the person and the portal
+ * saw two accounts. An invitation nobody has used yet, held only by this user, moves with the record; an
+ * account someone signs in to keeps its sign-in email, so an organization cannot redirect a person's login.
+ */
+async function reconcileOrgUserSignInEmail(orgId: string, documentId: string, stored: JsonObject, next: JsonObject) {
+  const storedData = asObject(stored.data);
+  const email = cleanText(next.email).toLowerCase();
+  if (!email || email === cleanText(storedData.email).toLowerCase()) return;
+  const identityId = cleanText(storedData.identity_id || asObject(stored.metadata).identity_id || next.identity_id);
+  if (!identityId) return;
+  const identity = await readIdentity(identityId).catch(() => null);
+  if (!identity || cleanText(identity.email).toLowerCase() === email) return;
+  const memberships = Array.isArray(identity.memberships) ? identity.memberships.map(asObject) : [];
+  const onlyThisUser = memberships.every((entry) => cleanText(entry.organization_id) === orgId && cleanText(entry.user_id) === documentId);
+  const signedIn = Boolean(cleanText(identity.password_hash) || cleanText(identity.last_login_at) || Object.keys(asObject(asObject(identity.metadata).auth_providers)).length);
+  if (!onlyThisUser || signedIn) {
+    throw conflict("sign_in_email_locked", `${cleanText(storedData.name) || "This person"} signs in as ${cleanText(identity.email)}, so this email cannot be changed here.`);
+  }
+  await patchIdentity(identityId, { email, metadata: { email_changes: [
+    ...(Array.isArray(asObject(identity.metadata).email_changes) ? asObject(identity.metadata).email_changes as unknown[] : []),
+    { from: cleanText(identity.email).toLowerCase(), to: email, at: new Date().toISOString(), source: "organization_user" }
+  ] } });
 }
 
 function platformOrgUserPermissionState(data: JsonObject) {

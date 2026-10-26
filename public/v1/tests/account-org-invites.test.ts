@@ -205,3 +205,35 @@ test("the owner and the last active super admin cannot be suspended, archived or
   await assert.rejects(assertOrganizationKeepsAdmin("admin_guard_org", ownerId, { disabled: true }), /at least one/);
   await assert.rejects(assertOrganizationKeepsAdmin("admin_guard_org", ownerId, { level: "admin" }), /at least one/);
 });
+
+test("a user's email stays their sign-in email: invitations move with it, signed-in accounts refuse (1M8-244)", async () => {
+  const owner = browser();
+  const registered = await register(owner, "signin.owner@example.test", "signin_email_org");
+  const ownerId = registered.user?.id || registered.membership?.user_id;
+  assert.ok(ownerId);
+  const forgot = (email: string) => browser().request("POST", "/v1/platform/auth/legacy-action", { action: "forgot_password", email });
+
+  // An account someone signs in to keeps its email: changing only the record left reset and impersonation on the old one.
+  const ownEmail = await owner.request("PATCH", `/v1/platform/organizations/signin_email_org/users/${ownerId}`, { data: { email: "signin.renamed@example.test" } });
+  assert.equal(ownEmail.data.error, "sign_in_email_locked", ownEmail.response.body);
+  assert.equal((await forgot("signin.owner@example.test")).data.message, "Password reset code sent.");
+  const users = await owner.request("GET", "/v1/platform/organizations/signin_email_org/users");
+  assert.ok((users.data.documents || []).some((doc: any) => doc.data?.email === "signin.owner@example.test"));
+
+  // An invitation nobody has used moves with the corrected email, so the activation and reset lookups find it.
+  const invited = await owner.request("POST", "/v1/platform/organizations/signin_email_org/users", { data: { email: "signin.typo@example.test", name: "Typo", send_invite: false } });
+  assert.equal(invited.response.statusCode, 201, invited.response.body);
+  const fixed = await owner.request("PATCH", `/v1/platform/organizations/signin_email_org/users/${invited.data.document.id}`, { data: { email: "signin.fixed@example.test" } });
+  assert.equal(fixed.response.statusCode, 200, fixed.response.body);
+  assert.equal((await forgot("signin.fixed@example.test")).data.message, "Password reset code sent.");
+  assert.notEqual((await forgot("signin.typo@example.test")).response.statusCode, 200);
+  const { findIdentityByEmail } = await import("../platform/storage.js");
+  assert.equal((await findIdentityByEmail("signin.fixed@example.test")).id, invited.data.document.data.identity_id);
+
+  // Someone who also belongs to another organization keeps their email too.
+  await register(browser(), "signin.elsewhere@example.test", "signin_email_other");
+  const added = await owner.request("POST", "/v1/platform/organizations/signin_email_org/users", { data: { email: "signin.elsewhere@example.test", name: "Elsewhere" } });
+  assert.equal(added.response.statusCode, 201, added.response.body);
+  const moved = await owner.request("PATCH", `/v1/platform/organizations/signin_email_org/users/${added.data.document.id}`, { data: { email: "signin.hijack@example.test" } });
+  assert.equal(moved.data.error, "sign_in_email_locked", moved.response.body);
+});
