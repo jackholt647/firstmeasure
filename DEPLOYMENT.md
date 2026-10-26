@@ -1,5 +1,7 @@
 # FirstMeasure: local development and production deployment
 
+October 26 production hotfix `fe807b75`: [1M8-244 sign-in email kept equal to the user record and 1M8-245 adding a person never replaces a member or the owner](deploy/digitalocean/production-hotfix-20261026y.md) on all roles; rollback is `3c2c21da`.
+
 October 26 1M8-245 on dev: [adding a person never replaces a member, and whole-record user writes keep the owner and the last super admin; What The Hail Roofing's owner restored on production (data only)](deploy/digitalocean/development-admin-guard-20261026.md) records `ef1e3db5` on `claude/admin-guard-20261026` (from `codex/hotfix-20261026x`). Code not on production.
 
 October 26 1M8-244 sign-in email: [Proven Roofing's owner identity repaired in production (identity email matched to the user record); the users PATCH now keeps a user's email equal to their sign-in email](deploy/digitalocean/development-identity-email-20261026.md) records branch `claude/identity-mismatch-1m8-244` (`de3d8c6d`, on `codex/hotfix-20261026x`), the production data repair and its backup, 50 other affected users, and the development rollout. Code not on production.
