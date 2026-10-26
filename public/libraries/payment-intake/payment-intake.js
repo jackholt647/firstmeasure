@@ -204,6 +204,9 @@
       container.id = mountId;
       const unmount = element.mount(`#${mountId}`, {
         style: forwardStyle(ctx),
+        // Forward's card form keeps Pay disabled until a country is chosen;
+        // start it on the business's country (US unless a host says otherwise).
+        billingCountry: cleanText(ctx.options.billingCountry) || 'US',
         onChange: (event) => {
           ctx.forwardElementComplete = event?.ready === true;
           if (ctx.error && !event?.errors) setForwardError(ctx, '');
