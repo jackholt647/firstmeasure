@@ -370,19 +370,21 @@ test('customer rescheduling shows only when its capability is on',()=>withBrowse
   }
 }));
 
-test('customer guest links show only when their capability is on, and follow it without a reload',()=>withBrowser(async browser=>{
+test('the guest link switch shows only when its capability is on, and follows it without a reload; existing guest links stay listed',()=>withBrowser(async browser=>{
   {
     const {page,errors,root}=await setup(browser,{caps:['scheduling.customer_rescheduling']});
     assert.equal(await root.locator('[data-cpo-guest-switch],[data-cpo-sharing]').count(),0,'no switch without customer_portal.guest_links');
-    assert.equal(await root.locator('[data-cpo-guests-toggle]').count(),0,'no active-links pill');
-    assert.equal(await root.locator('[data-cpo-guests],[data-cpo-guest]').count(),0,'no list');
+    assert.match(await root.locator('[data-cpo-guests-toggle]').textContent(),/1 active/,'a link that already exists is still counted');
+    assert.equal(await root.locator('[data-cpo-guests] [data-cpo-guest]').count(),1,'and listed');
+    assert.equal(await root.locator('[data-cpo-guest] [data-cpo-revoke]').count(),1,'so it can still be revoked');
     assert.equal(await root.locator('[data-cpo-rescheduling]').count(),1,'the other switch stays');
     await page.evaluate(()=>{Portal.capabilities.can=key=>['scheduling.customer_rescheduling','customer_portal.guest_links'].includes(key);window.dispatchEvent(new CustomEvent('fm:capabilities:updated'));});
     await root.locator('[data-cpo-sharing]').waitFor({state:'attached'});
     assert.match(await root.locator('[data-cpo-guests-toggle]').textContent(),/1 active/);
     await page.evaluate(()=>{Portal.capabilities.can=key=>key==='scheduling.customer_rescheduling';window.dispatchEvent(new CustomEvent('fm:capabilities:updated'));});
     await page.waitForFunction(()=>!document.querySelector('[data-cpo-sharing]'));
-    assert.equal(await root.locator('[data-cpo-guests-toggle]').count(),0);
+    assert.equal(await root.locator('[data-cpo-guests-toggle]').count(),1,'turning the feature off hides only the switch');
+    assert.equal(await root.locator('[data-cpo-guests] [data-cpo-guest]').count(),1);
     assert.deepEqual(errors,[]);
   }
   {

@@ -923,15 +923,56 @@
     delete entry.angleKey;
     assign(from,what==='tray'?'tray:'+id:what==='walk'?i+':video-'+id:what==='extra'?i+':additional-'+id:i+':'+what);
   }
+  // What a file can be used as: [{value, label, short, group}] in plain text. With several structures each label names
+  // its structure, so the closed control says where the file goes; the open list groups them under the structure.
   function deskRoleOptions(key,f){
     const video=f.kind==='video',role=deskRole(key),angles=!video&&(captureMode==='photos'||(role!=='tray'&&views.includes(role.split(':')[1])));
-    const walk=(globalThis.PlatformLanguage?.htmlText("firstmeasure","ext_video_walkaround","Video walkaround") ?? "Video walkaround"),closeUp=(globalThis.PlatformLanguage?.htmlText("firstmeasure","ext_desk_role_closeup","Close-up") ?? "Close-up");
-    // With several structures each choice names its structure, so the closed menu says where the file goes.
-    const named=(i,text)=>ctx.count>1?((v0,v1) => globalThis.PlatformLanguage?.htmlText("firstmeasure","ext_desk_role_in_structure",`${v0} · ${v1}`,{v0,v1}) ?? `${v0} · ${v1}`)(esc(deskStructureName(i)),text):text;
-    const walkShort=ctx.count>1?(globalThis.PlatformLanguage?.htmlText("firstmeasure","ext_desk_role_walkaround","Walkaround") ?? "Walkaround"):walk;
-    const groups=Array.from({length:ctx.count},(_,i)=>{const options=[...(video?[[i+':walk',walkShort]]:[]),...(angles?views.map(v=>[i+':'+v,esc(label(v))]):[]),[i+':extra',closeUp]];return options.map(([value,text])=>`<option value="${value}">${named(i,text)}</option>`).join('');});
-    const choose=role==='tray'?`<option value="tray">${(globalThis.PlatformLanguage?.htmlText("firstmeasure","ext_desk_choose_angle","Choose an angle…") ?? "Choose an angle…")}</option>`:'';
-    return choose+groups.join('');
+    const walk=(globalThis.PlatformLanguage?.text("firstmeasure","ext_video_walkaround","Video walkaround") ?? "Video walkaround"),closeUp=(globalThis.PlatformLanguage?.text("firstmeasure","ext_desk_role_closeup","Close-up") ?? "Close-up");
+    const several=ctx.count>1,named=(i,text)=>several?((v0,v1) => globalThis.PlatformLanguage?.text("firstmeasure","ext_desk_role_in_structure",`${v0} · ${v1}`,{v0,v1}) ?? `${v0} · ${v1}`)(deskStructureName(i),text):text;
+    const walkShort=several?(globalThis.PlatformLanguage?.text("firstmeasure","ext_desk_role_walkaround","Walkaround") ?? "Walkaround"):walk;
+    const options=Array.from({length:ctx.count},(_,i)=>[...(video?[[i+':walk',walkShort]]:[]),...(angles?views.map(v=>[i+':'+v,label(v)]):[]),[i+':extra',closeUp]].map(([value,text])=>({value,label:named(i,text),short:text,group:several?deskStructureName(i):''}))).flat();
+    return role==='tray'?[{value:'tray',label:(globalThis.PlatformLanguage?.text("firstmeasure","ext_desk_choose_angle","Choose an angle…") ?? "Choose an angle…"),short:'',group:'',placeholder:true},...options]:options;
+  }
+  // "Use as" is the platform's dropdown: a button that opens a listbox under it. It keeps a select's keys: Enter, Space
+  // or the arrows open it; the arrows, Home and End move; Enter or Space picks; Escape or Tab closes.
+  let deskMenu=null;
+  function closeDeskMenu(focus=false){
+    if(!deskMenu)return;const {pop,button,cleanup}=deskMenu;deskMenu=null;cleanup();pop.remove();button.setAttribute('aria-expanded','false');button.removeAttribute('aria-activedescendant');
+    if(focus&&button.isConnected)button.focus({preventScroll:true});
+  }
+  function openDeskMenu(button){
+    if(deskMenu?.button===button){closeDeskMenu(true);return;}
+    closeDeskMenu();const options=(button.__roleOptions||[]).filter(o=>!o.placeholder),from=button.dataset.deskRole,current=button.dataset.value;if(!options.length||button.disabled)return;
+    const pop=document.createElement('div');pop.className='ext-desk-role-pop';pop.setAttribute('data-fmr-ignore','');
+    pop.style.setProperty('--ext-role-font',getComputedStyle(button).fontFamily);
+    const list=document.createElement('div');list.className='ext-desk-role-list';list.setAttribute('role','listbox');list.id='extRoleList';list.setAttribute('aria-label',button.getAttribute('aria-label')||'');
+    let group=null;
+    list.innerHTML=options.map((o,i)=>{const head=o.group&&o.group!==group?`<div class="ext-desk-role-group" role="presentation">${esc(o.group)}</div>`:'';group=o.group||group;
+      return `${head}<div class="ext-desk-role-opt" role="option" id="extRoleOpt${i}" data-value="${esc(o.value)}" aria-selected="${o.value===current}">${esc(o.group?o.short:o.label)}${o.value===current?'<i class="fas fa-check" aria-hidden="true"></i>':''}</div>`;}).join('');
+    pop.append(list);document.body.append(pop);
+    const opts=[...list.querySelectorAll('[role=option]')];let active=Math.max(0,opts.findIndex(o=>o.dataset.value===current));
+    const show=i=>{active=(i+opts.length)%opts.length;opts.forEach((o,n)=>o.classList.toggle('is-active',n===active));button.setAttribute('aria-activedescendant',opts[active].id);const o=opts[active];if(o.offsetTop<list.scrollTop)list.scrollTop=o.offsetTop-4;else if(o.offsetTop+o.offsetHeight>list.scrollTop+list.clientHeight)list.scrollTop=o.offsetTop+o.offsetHeight-list.clientHeight+4;};
+    const place=()=>{const box=button.getBoundingClientRect(),height=pop.offsetHeight,below=innerHeight-box.bottom-8;
+      pop.style.minWidth=Math.max(box.width,200)+'px';pop.style.left=Math.max(8,Math.min(box.right-pop.offsetWidth,innerWidth-pop.offsetWidth-8))+'px';
+      pop.style.top=(below>=Math.min(height,180)?box.bottom+4:Math.max(8,box.top-height-4))+'px';};
+    place();button.setAttribute('aria-expanded','true');button.setAttribute('aria-controls',list.id);show(active);
+    const pick=value=>{closeDeskMenu(true);if(value&&value!==current&&files.has(from))deskReassign(from,value);};
+    pop.addEventListener('pointerdown',e=>e.preventDefault());
+    pop.addEventListener('click',e=>{const o=e.target.closest('[role=option]');if(o)pick(o.dataset.value);});
+    const onKey=e=>{
+      if(e.key==='Escape'){e.preventDefault();e.stopPropagation();closeDeskMenu(true);}
+      else if(e.key==='Tab')closeDeskMenu();
+      else if(e.key==='ArrowDown'||e.key==='ArrowUp'){e.preventDefault();e.stopPropagation();show(active+(e.key==='ArrowDown'?1:-1));}
+      else if(e.key==='Home'||e.key==='End'){e.preventDefault();show(e.key==='Home'?0:opts.length-1);}
+      // Space picks on keydown; its keyup would click the button again, so that one click is ignored.
+      else if(e.key==='Enter'||e.key===' '){e.preventDefault();e.stopPropagation();if(e.key===' ')button.__spacePicked=Date.now();pick(opts[active]?.dataset.value);}
+    };
+    const onDown=e=>{if(!pop.contains(e.target)&&!button.contains(e.target))closeDeskMenu();};
+    // A scroll around it moves it with its button; once the button leaves the screen it closes.
+    const onScroll=e=>{if(pop.contains(e.target))return;const box=button.getBoundingClientRect();if(!button.isConnected||box.bottom<0||box.top>innerHeight)closeDeskMenu();else place();};
+    const onResize=()=>closeDeskMenu();
+    document.addEventListener('keydown',onKey,true);document.addEventListener('pointerdown',onDown,true);document.addEventListener('scroll',onScroll,true);window.addEventListener('resize',onResize);
+    deskMenu={pop,button,cleanup(){document.removeEventListener('keydown',onKey,true);document.removeEventListener('pointerdown',onDown,true);document.removeEventListener('scroll',onScroll,true);window.removeEventListener('resize',onResize);}};
   }
   function deskStatus(f){
     if(f.error)return ['failed',f.error];
@@ -942,7 +983,7 @@
   }
   function deskRow(){
     const row=document.createElement('div');row.className='ext-desk-file';row.setAttribute('role','listitem');row.draggable=true;
-    row.innerHTML=`<button type="button" class="ext-desk-thumb" data-desk-preview><img alt=""><span class="ext-desk-play" hidden><i class="fas fa-play" aria-hidden="true"></i><b></b></span></button><div class="ext-desk-file-info"><div class="ext-desk-file-top"><strong data-desk-name></strong><span data-desk-status></span></div><select data-desk-role aria-label="${(globalThis.PlatformLanguage?.htmlText("firstmeasure","ext_desk_use_as","Use this file as") ?? "Use this file as")}"></select></div><div class="ext-desk-file-actions"><button type="button" class="ext-desk-iconbtn" data-desk-retry data-fm-tooltip="${(globalThis.PlatformLanguage?.htmlText("firstmeasure","m_0dd87f826c8c39","Retry upload") ?? "Retry upload")}" aria-label="${(globalThis.PlatformLanguage?.htmlText("firstmeasure","m_0dd87f826c8c39","Retry upload") ?? "Retry upload")}"><i class="fas fa-rotate" aria-hidden="true"></i></button><button type="button" class="ext-desk-iconbtn" data-desk-remove data-fm-tooltip="${(globalThis.PlatformLanguage?.htmlText("firstmeasure","ext_desk_remove","Remove") ?? "Remove")}">×</button></div><small class="ext-desk-file-error" data-desk-error role="alert" hidden></small><div class="ext-desk-bar" aria-hidden="true"><i></i></div>`;
+    row.innerHTML=`<button type="button" class="ext-desk-thumb" data-desk-preview><img alt=""><span class="ext-desk-play" hidden><i class="fas fa-play" aria-hidden="true"></i><b></b></span></button><div class="ext-desk-file-info"><div class="ext-desk-file-top"><strong data-desk-name></strong><span data-desk-status></span></div><button type="button" class="ext-desk-role" data-desk-role aria-haspopup="listbox" aria-expanded="false" aria-label="${(globalThis.PlatformLanguage?.htmlText("firstmeasure","ext_desk_use_as","Use this file as") ?? "Use this file as")}"><span data-desk-role-label></span><i class="fas fa-chevron-down" aria-hidden="true"></i></button></div><div class="ext-desk-file-actions"><button type="button" class="ext-desk-iconbtn" data-desk-retry data-fm-tooltip="${(globalThis.PlatformLanguage?.htmlText("firstmeasure","m_0dd87f826c8c39","Retry upload") ?? "Retry upload")}" aria-label="${(globalThis.PlatformLanguage?.htmlText("firstmeasure","m_0dd87f826c8c39","Retry upload") ?? "Retry upload")}"><i class="fas fa-rotate" aria-hidden="true"></i></button><button type="button" class="ext-desk-iconbtn" data-desk-remove data-fm-tooltip="${(globalThis.PlatformLanguage?.htmlText("firstmeasure","ext_desk_remove","Remove") ?? "Remove")}">×</button></div><small class="ext-desk-file-error" data-desk-error role="alert" hidden></small><div class="ext-desk-bar" aria-hidden="true"><i></i></div>`;
     if(!reduceCaptureMotion())row.animate([{opacity:0,transform:'translateY(-8px)'},{opacity:1,transform:'none'}],{duration:280,easing:'cubic-bezier(.22,1,.36,1)'});
     return row;
   }
@@ -960,8 +1001,9 @@
     // A reason that only repeats "Upload failed" adds nothing; the retry button says what to do.
     const reason=row.querySelector('[data-desk-error]');reason.hidden=state!=='failed'||String(text).toLowerCase().startsWith(String(shown).toLowerCase());reason.textContent=state==='failed'?text:'';if(state==='failed')reason.dataset.fmTooltip=text;else delete reason.dataset.fmTooltip;
     const bar=row.querySelector('.ext-desk-bar');bar.hidden=state!=='busy';bar.classList.toggle('is-indeterminate',state==='busy'&&(f.progress==null||!!f.encoding));bar.firstElementChild.style.width=Math.round((f.progress||0)*100)+'%';
-    const select=row.querySelector('[data-desk-role]'),options=deskRoleOptions(key,f);if(select.__options!==options){select.__options=options;select.innerHTML=options;}
-    select.value=deskRole(key);select.dataset.deskRole=key;select.classList.toggle('needs-choice',key.startsWith('tray:'));select.disabled=busy;
+    const role=row.querySelector('[data-desk-role]'),options=deskRoleOptions(key,f),value=deskRole(key),chosen=options.find(o=>o.value===value);
+    role.__roleOptions=options;role.dataset.deskRole=key;role.dataset.value=chosen?value:'';role.querySelector('[data-desk-role-label]').textContent=chosen?.label||'';
+    role.classList.toggle('needs-choice',key.startsWith('tray:'));role.disabled=busy;if(busy&&deskMenu?.button===role)closeDeskMenu();
     const retry=row.querySelector('[data-desk-retry]');retry.hidden=!(f.error&&f.file);retry.dataset.deskRetry=key;
     const remove=row.querySelector('[data-desk-remove]');remove.dataset.deskRemove=key;remove.disabled=busy;remove.setAttribute('aria-label',((v0) => globalThis.PlatformLanguage?.text("firstmeasure","ext_desk_remove_file",`Remove ${v0}`,{v0}) ?? `Remove ${v0}`)(name));
   }
@@ -1053,7 +1095,8 @@
   function deskListEdge(strip){if(!strip)return;strip.style.setProperty('--fade-top',strip.scrollTop>2?'20px':'0px');strip.style.setProperty('--fade-bottom',strip.scrollHeight-strip.scrollTop-strip.clientHeight>2?'32px':'0px');}
   function deskClick(e){
     const target=e.target.closest('button');if(!target||!deskNode?.contains(target)||target.disabled)return;const d=target.dataset;
-    if('deskPins' in d){confirmedPins=null;ctx.setPinConfirmed?.(false);ctx.locationConfirmed=false;ctx.refresh?.();render();}
+    if('deskRole' in d){if(!(e.detail===0&&Date.now()-(target.__spacePicked||0)<500))openDeskMenu(target);}
+    else if('deskPins' in d){confirmedPins=null;ctx.setPinConfirmed?.(false);ctx.locationConfirmed=false;ctx.refresh?.();render();}
     else if(d.deskMode)switchMode(d.deskMode);
     else if('deskPick' in d)deskPick();
     else if('deskRecord' in d){structure=deskTarget();photoSummary=false;videoStage='record';cameraFallback=false;render();}
@@ -1074,7 +1117,7 @@
     node.innerHTML=`<div class="ext-desk-mid" data-desk-reveal><header class="ext-desk-head" data-desk-head></header><div data-desk-alert></div><div class="ext-desk-guide" data-desk-guide></div><div class="ext-desk-rec" data-guide-mount></div><div class="ext-desk-drop" data-desk-drop></div><div data-desk-chips role="status"></div><div class="ext-desk-list" data-desk-list role="list" aria-label="${(globalThis.PlatformLanguage?.htmlText("firstmeasure","ext_desk_uploads","Your uploads") ?? "Your uploads")}"></div></div><aside class="ext-desk-side" data-desk-side data-desk-reveal></aside><div class="ext-desk-dropping" aria-hidden="true"><span><i class="fas fa-cloud-arrow-up"></i>${(globalThis.PlatformLanguage?.htmlText("firstmeasure","ext_desk_drop_to_upload","Drop to upload") ?? "Drop to upload")}</span></div>`;
     node.addEventListener('click',deskClick);
     node.querySelector('[data-desk-list]').addEventListener('scroll',e=>deskListEdge(e.currentTarget),{passive:true});
-    node.addEventListener('change',e=>{const select=e.target.closest('[data-desk-role]');if(select)deskReassign(select.dataset.deskRole,select.value);});
+    node.addEventListener('keydown',e=>{const role=e.target.closest?.('[data-desk-role]');if(!role||deskMenu?.button===role||role.disabled)return;if(e.key==='ArrowDown'||e.key==='ArrowUp'){e.preventDefault();openDeskMenu(role);}});
     node.addEventListener('dragstart',e=>{const row=e.target.closest?.('.ext-desk-file');if(!row||busy)return;e.dataTransfer.setData('application/x-exterior-reference',row.dataset.key);e.dataTransfer.effectAllowed='move';});
     const spotOf=e=>e.target.closest?.('[data-desk-angle],[data-desk-drop-structure],[data-desk-drop-extra]');
     const clear=()=>{node.classList.remove('is-dragging');node.querySelectorAll('.is-drop-target').forEach(el=>el.classList.remove('is-drop-target'));};
@@ -1227,8 +1270,25 @@
     .ext-desk-file-top>span{min-width:0;font-size:12px;color:#667085;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-variant-numeric:tabular-nums}
     .ext-desk-file.is-done .ext-desk-file-top>span{color:#067647}.ext-desk-file.is-done .ext-desk-file-top>span::before{content:'✓ ';font-weight:700}
     .ext-desk-file.is-failed .ext-desk-file-top>span{color:#b42318;font-weight:600}
-    .ext-desk-file-info select{flex:none;field-sizing:content;max-width:58%;height:30px;padding:0 6px;border:1px solid #e4e7ec;border-radius:8px;background:#fff;color:#344054;font:inherit;font-size:12px;cursor:pointer}
-    .ext-desk-file-info select.needs-choice{border-color:#fdb022;background:#fffaeb;color:#93370d;font-weight:600}
+    .ext-desk .ext-desk-role{flex:none;display:inline-flex;align-items:center;gap:7px;max-width:58%;height:30px;padding:0 9px 0 10px;border:1px solid #e4e7ec;border-radius:8px;background:#fff;color:#344054;font:inherit;font-size:12px;cursor:pointer;text-align:left;transition:border-color .15s,box-shadow .15s}
+    .ext-desk .ext-desk-role>span{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+    .ext-desk .ext-desk-role>i{flex:none;font-size:9px;color:#98a2b3;transition:transform .15s}
+    .ext-desk .ext-desk-role:hover{border-color:#98a2b3}
+    .ext-desk .ext-desk-role:focus-visible{outline:none;border-color:var(--primary,#d93025);box-shadow:0 0 0 3px color-mix(in srgb,var(--primary,#d93025) 14%,transparent)}
+    .ext-desk .ext-desk-role[aria-expanded="true"]{border-color:var(--primary,#d93025);box-shadow:0 0 0 3px color-mix(in srgb,var(--primary,#d93025) 10%,transparent)}
+    .ext-desk .ext-desk-role[aria-expanded="true"]>i{transform:rotate(180deg)}
+    .ext-desk .ext-desk-role:disabled{cursor:default;opacity:.6}
+    .ext-desk .ext-desk-role.needs-choice{border-color:#fdb022;background:#fffaeb;color:#93370d;font-weight:600}
+    .ext-desk .ext-desk-role.needs-choice>i{color:#93370d}
+    .ext-desk-role-pop{position:fixed;z-index:2147483600;max-width:320px;max-height:300px;display:flex;flex-direction:column;border:1px solid #e4e7ec;border-radius:10px;background:#fff;box-shadow:0 16px 40px rgba(16,24,40,.16),0 2px 6px rgba(16,24,40,.06);overflow:hidden;color:#101828;font-family:var(--ext-role-font,inherit);font-size:12.5px;animation:extRolePop .14s ease-out}
+    @keyframes extRolePop{from{opacity:0;transform:translateY(-4px)}to{opacity:1;transform:none}}
+    .ext-desk-role-list{overflow:auto;padding:4px;scrollbar-width:thin}
+    .ext-desk-role-group{padding:8px 8px 3px;font-size:10.5px;font-weight:650;color:#98a2b3;letter-spacing:.03em;text-transform:uppercase}
+    .ext-desk-role-opt{display:flex;align-items:center;gap:8px;min-height:30px;padding:5px 8px;border-radius:7px;cursor:pointer;white-space:nowrap}
+    .ext-desk-role-opt:hover,.ext-desk-role-opt.is-active{background:#f2f4f7}
+    .ext-desk-role-opt[aria-selected="true"]{font-weight:600}
+    .ext-desk-role-opt i{margin-left:auto;padding-left:10px;font-size:10px;color:var(--primary,#d93025)}
+    @media(prefers-reduced-motion:reduce){.ext-desk-role-pop{animation:none}.ext-desk .ext-desk-role>i{transition:none}}
     .ext-desk-file-error{grid-column:2/-1;font-size:12px;line-height:1.35;color:#b42318;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
     .ext-desk-sr{position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap}
     .ext-desk-file-actions{display:flex;gap:0}

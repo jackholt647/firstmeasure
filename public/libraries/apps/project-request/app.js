@@ -11472,7 +11472,8 @@ window.PlatformCommerce.onReady(async function(){
       loadBranchProjectConfig().then(() => {
         if (trayInteraction!==projectTrays?.interactionVersion() || trayGeneration !== projectTrayOpenGeneration || !overlay.classList.contains('active')) return;
         const key = branchProjectConfig.default_project_tray ?? 'notes';
-        if (key && key !== 'off' && projectTrays?.available().includes(key)) projectTrays.select(key);
+        // A tray on a phone covers the whole project, so phones open none by default; desktop keeps the branch setting.
+        if (key && key !== 'off' && !isMobileProjectOrder() && projectTrays?.available().includes(key)) projectTrays.select(key);
       });
     }
     try { if (options.layout) projectWindowShell?.apply(options.layout); }

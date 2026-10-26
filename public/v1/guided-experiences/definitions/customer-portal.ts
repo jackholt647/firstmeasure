@@ -24,7 +24,7 @@ export function registerCustomerPortalGuidedExperiences() {
     steps: [
       { id: "intro", targets: [], placement: "center", title: t("gx_cpt_intro_title", "Welcome to the Customer Portal"), body: t("gx_cpt_intro_body", "Your customer gets their own private page for this project. This tab is where you set it up. Here's a quick look around.") },
       { id: "link", targets: ["[data-cpo-link-card]"], title: t("gx_cpt_link_title", "The customer's link"), body: t("gx_cpt_link_body", "Make their private link here, then copy it, email it or download a QR code. Nothing is sent until you send it.") },
-      { id: "preview", targets: ["[data-cpo-preview]"], title: t("gx_cpt_preview_title", "Preview"), body: t("gx_cpt_preview_body", "See exactly what the customer sees, in a new tab.") },
+      { id: "preview", targets: ["[data-cpo-preview]"], title: t("gx_cpt_preview_title", "Preview"), body: t("gx_cpt_preview_see", "See exactly what the customer sees.") },
       { id: "options", targets: ["[data-cpo-resched-switch]", "[data-cpo-guest-switch]"], title: t("gx_cpt_options_title", "What the customer can do"), body: t("gx_cpt_options_body", "Choose whether the customer can pick a new appointment time or share a read-only link with someone else.") },
       { id: "media", targets: ["[data-cpo-media]"], title: t("gx_cpt_media_title", "Photos they see"), body: t("gx_cpt_media_body", "Choose which photos and videos from the Photos tab show in their portal.") },
       { id: "history", targets: ["[data-cpo-history]"], title: t("gx_cpt_history_title", "History"), body: t("gx_cpt_history_body", "When the customer visited and what they opened. Your own previews don't count.") },

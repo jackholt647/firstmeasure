@@ -48,6 +48,14 @@ async function setup(t,{width=1600,height=1000,count=1,mobileOrder=false,fail=()
  return {page,uploads,confirm,settle,hold:()=>{let open;release=new Promise(r=>open=r);return ()=>{release=null;open();};}};
 }
 
+// "Use as" is the platform dropdown: a button that opens a listbox. Pick by clicking an option.
+const role=page=>page.locator('.ext-desk-file [data-desk-role]');
+async function chooseRole(page,control,value){
+ await control.click();
+ const option=page.locator(`.ext-desk-role-pop [role=option][data-value="${value}"]`);await option.waitFor();await option.click();
+ await page.waitForFunction(()=>!document.querySelector('.ext-desk-role-pop'));
+}
+
 const layout=page=>page.evaluate(()=>{
  const desk=document.querySelector('.ext-desk'),box=el=>el?.getBoundingClientRect();
  const clipped=[...desk.querySelectorAll('.ext-desk-mid > :not(.ext-desk-list),.ext-desk-mid > :not(.ext-desk-list) *,.ext-desk-side,.ext-desk-side *')].filter(el=>el.offsetParent&&el.scrollHeight>el.clientHeight+2&&getComputedStyle(el).overflowY!=='visible'&&!el.closest('.ext-orbit,.ext-model-scene,.ext-desk-house,.ext-desk-cell,.ext-camera,.ext-capture-heading')&&!el.matches('select,.ext-desk-sr')).map(el=>el.className);
@@ -114,12 +122,28 @@ test('several clips upload at once with per-file status, retry, remove and reass
  assert.equal(await page.locator('.ext-desk-order').isDisabled(),true,'a failed upload blocks ordering');
  await failed.locator('[data-desk-retry]').click();
  await page.waitForFunction(()=>document.querySelectorAll('.ext-desk-file.is-done').length===3);
- assert.deepEqual(await page.locator('.ext-desk-file select').evaluateAll(s=>s.map(e=>e.value)),['0:walk','0:walk','0:extra'],'clips are walkarounds and photos are close-ups');
+ assert.deepEqual(await role(page).evaluateAll(s=>s.map(e=>e.dataset.value)),['0:walk','0:walk','0:extra'],'clips are walkarounds and photos are close-ups');
+ assert.equal(await page.locator('.ext-desk-file select').count(),0,'no native select');
+ assert.equal(await role(page).first().getAttribute('aria-haspopup'),'listbox');
  assert.equal(await page.locator('.ext-desk-order').isDisabled(),false);
  // Moving both clips to close-ups leaves no walkaround: ordering stops and says why.
- for(let i=0;i<2;i++)await page.locator('.ext-desk-file select').nth(i).selectOption('0:extra');
+ for(let i=0;i<2;i++)await chooseRole(page,role(page).nth(i),'0:extra');
  assert.equal(await page.locator('.ext-desk-order').isDisabled(),true);assert.match(await page.locator('.ext-desk-status').innerText(),/video walkaround/i);
- await page.locator('.ext-desk-file select').nth(0).selectOption('0:walk');
+ // The keyboard works as on a select: an arrow opens the list on the current choice, arrows move, Enter picks.
+ await role(page).nth(0).focus();await page.keyboard.press('ArrowDown');
+ await page.locator('.ext-desk-role-pop').waitFor();
+ assert.equal(await role(page).nth(0).getAttribute('aria-expanded'),'true');
+ assert.deepEqual(await page.locator('.ext-desk-role-pop [role=option]').evaluateAll(o=>o.map(e=>[e.dataset.value,e.getAttribute('aria-selected')])),[['0:walk','false'],['0:extra','true']]);
+ await page.keyboard.press('Escape');
+ await page.waitForFunction(()=>!document.querySelector('.ext-desk-role-pop'));
+ assert.equal(await page.evaluate(()=>document.activeElement?.matches('[data-desk-role]')),true,'Escape closes and keeps focus on the control');
+ await page.keyboard.press('Enter');await page.locator('.ext-desk-role-pop').waitFor();
+ await page.keyboard.press('ArrowUp');await page.keyboard.press('Enter');
+ await page.waitForFunction(()=>!document.querySelector('.ext-desk-role-pop'));
+ assert.deepEqual(await role(page).evaluateAll(s=>s.map(e=>e.dataset.value)).then(v=>v.sort()),['0:extra','0:extra','0:walk'],'Enter picks the highlighted choice');
+ await page.keyboard.press('Space');await page.locator('.ext-desk-role-pop').waitFor();
+ await page.keyboard.press('Space');await page.waitForTimeout(150);
+ assert.equal(await page.locator('.ext-desk-role-pop').count(),0,'Space picks and the list stays closed');
  await page.locator('.ext-desk-file').nth(1).locator('[data-desk-remove]').click();
  assert.equal(await page.locator('.ext-desk-file').count(),2);
  assert.equal(await page.evaluate(()=>Portal.ExteriorOrder.ready()),true);
@@ -139,8 +163,11 @@ test('two structures: a drop on a row goes to that structure, and the photo fall
  assert.match(await page.locator('.ext-desk-drop-label').innerText(),/Structure 1/);
  await page.evaluate(()=>{const data=new DataTransfer();data.items.add(new File([new Uint8Array(5000)],'garage.mp4',{type:'video/mp4'}));const row=document.querySelector('[data-desk-drop-structure="1"]');for(const type of ['dragenter','dragover','drop'])row.dispatchEvent(new DragEvent(type,{bubbles:true,cancelable:true,dataTransfer:data}));});
  await page.waitForFunction(()=>document.querySelector('.ext-desk-file.is-done'));
- assert.equal(await page.locator('.ext-desk-file select').inputValue(),'1:walk');
- assert.equal(await page.locator('.ext-desk-file select').evaluate(s=>s.selectedOptions[0].textContent),'Structure 2 · Walkaround','with several structures the closed menu names the structure');
+ assert.equal(await role(page).getAttribute('data-value'),'1:walk');
+ assert.equal(await role(page).innerText(),'Structure 2 · Walkaround','with several structures the closed menu names the structure');
+ await role(page).click();
+ assert.deepEqual(await page.locator('.ext-desk-role-pop .ext-desk-role-group').allInnerTexts().then(t=>t.map(x=>x.toLowerCase())),['structure 1','structure 2'],'the open list groups the choices by structure');
+ await page.keyboard.press('Escape');
  assert.match(await page.locator('.ext-desk-total').innerText(),/2 structures/);
  await page.locator('[data-desk-mode=photos]').click();
  assert.equal(await page.locator('.ext-desk-cell').count(),8);
@@ -149,9 +176,9 @@ test('two structures: a drop on a row goes to that structure, and the photo fall
  const box=await layout(page);assert.equal(box.pageScrolls,false);assert.deepEqual(box.clipped,[]);
  const chooser=page.waitForEvent('filechooser');await page.locator('[data-desk-pick]').click();
  await (await chooser).setFiles([{name:'IMG_2001.JPG',mimeType:'image/jpeg',buffer:Buffer.alloc(9000,4)}]);
- await page.waitForFunction(()=>document.querySelector('.ext-desk-file select.needs-choice'));
+ await page.waitForFunction(()=>document.querySelector('.ext-desk-file [data-desk-role].needs-choice'));
  assert.match(await page.locator('.ext-desk-status').innerText(),/unassigned/,'a loose photo needs an angle before ordering');
- await page.locator('.ext-desk-file select.needs-choice').selectOption('0:front');
+ await chooseRole(page,page.locator('.ext-desk-file [data-desk-role].needs-choice'),'0:front');
  assert.equal(await page.locator('[data-desk-angle="0:front"].has-file').count(),1);
 });
 

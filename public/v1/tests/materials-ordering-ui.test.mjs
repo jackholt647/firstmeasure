@@ -149,7 +149,7 @@ test('purchase order lines are priced per order unit from the chosen supplier', 
     orderRequestRows: () => [{ name: 'Shingles', details: [{ label: 'SKU', value: 'SH-30' }, { label: 'Color', value: 'Charcoal' }], quantity: 10, unit: 'bundle' }]
   };
   vm.createContext(ctx);
-  vm.runInContext(fn('purchaseOrderLines'), ctx);
+  ['packagedOrderQuantity', 'supplierQuantity', 'purchaseOrderLines'].forEach((name) => vm.runInContext(fn(name), ctx));
   const [line] = ctx.purchaseOrderLines({ choice: { target: { key: 'abc' } }, lists: [{ id: 'list_a' }] });
   assert.equal(line.total_cents, 36000, '30 squares at $12');
   assert.equal(line.quantity, 10);
@@ -159,6 +159,42 @@ test('purchase order lines are priced per order unit from the chosen supplier', 
   const [estimated] = ctx.purchaseOrderLines({ choice: { target: null }, lists: [{ id: 'list_a' }] });
   assert.equal(estimated.total_cents, 90000, 'with no supplier the list\'s own price is used');
   assert.equal(estimated.sku, 'SH-30', 'with no supplier, the item\'s own code');
+});
+
+function supplierPricing(items, offers) {
+  const ctx = {
+    cleanText, Number, Math, Set, Map,
+    number: (value, fallback = 0) => Number.isFinite(Number(value)) ? Number(value) : fallback,
+    orderableItems: (list) => list.items, linePricebookItemId: (item) => item.pricebook_ref.item_id,
+    supplierOffer: (target, itemId) => offers[itemId] ? { carried: true, sku: `SKU-${itemId}`, price_cents: offers[itemId] } : { carried: false, price_cents: null },
+    orderRequestRows: (list) => list.items.map((item) => ({ name: item.name, details: [], quantity: item.order_quantity ?? item.quantity, unit: item.order_unit || item.unit }))
+  };
+  vm.createContext(ctx);
+  ['packagedOrderQuantity', 'supplierQuantity', 'supplierQuote', 'purchaseOrderLines'].forEach((name) => vm.runInContext(fn(name), ctx));
+  return ctx;
+}
+
+test('a supplier prices a generated packaged line by the packages bought, not the measured quantity', () => {
+  // 34.57 squares of coil nails at 22.5 squares a box is 2 boxes; the supplier charges $49.98 a box.
+  const nails = { id: 'nails', name: 'Coil nails', quantity: 34.57, unit: 'sq', order_quantity: 2, order_unit: 'box', projected_unit_price: 2.221333,
+    order_packaging: { order_unit: 'box', units_per_package: 22.5 }, pricebook_ref: { item_id: 'pb_nails' }, metadata: { calculus_line_id: 'line_nails' } };
+  // A line added by hand is priced in its own unit, packaged or not.
+  const drip = { id: 'drip', name: 'Drip edge', quantity: 120, unit: 'lf', order_quantity: 12, order_unit: 'piece',
+    order_packaging: { order_unit: 'piece', units_per_package: 10 }, pricebook_ref: { item_id: 'pb_drip' }, metadata: {} };
+  const ctx = supplierPricing([nails, drip], { pb_nails: 4998, pb_drip: 150 });
+  const target = { key: 'abc', supplier: { delivery_fee: { amount_cents: 7500, free_above_cents: 25000 } }, location: null };
+  const lists = [{ id: 'roof', items: [nails, drip] }];
+  const quote = ctx.supplierQuote(target, lists, true);
+  assert.equal(quote.subtotal, 2 * 4998 + 120 * 150, 'two boxes of nails and 120 feet of drip edge');
+  assert.equal(quote.delivery, 0, 'free delivery is judged on the package total');
+  assert.equal(quote.total, 27996);
+  assert.equal(ctx.supplierQuote(target, [{ id: 'roof', items: [nails] }], true).total, 9996 + 7500, 'below the free-delivery threshold the fee applies');
+  const [nailLine, dripLine] = ctx.purchaseOrderLines({ choice: { target }, lists });
+  assert.equal(nailLine.total_cents, 9996);
+  assert.equal(nailLine.unit_price_cents, 4998, 'per box');
+  assert.equal(dripLine.total_cents, 18000);
+  const [estimated] = ctx.purchaseOrderLines({ choice: { target: null }, lists: [{ id: 'roof', items: [nails] }] });
+  assert.equal(estimated.total_cents, Math.round(222 * 45), 'with no supplier, its own price a square for the 45 squares the boxes cover');
 });
 
 test('every material list can be deleted, including a generated one and the last one', () => {

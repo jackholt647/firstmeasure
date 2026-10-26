@@ -67,8 +67,10 @@
     .gxsc-price input::-webkit-outer-spin-button,.gxsc-price input::-webkit-inner-spin-button{-webkit-appearance:none;margin:0}
     .gxsc-price small{font-size:10.5px;color:#98a2b3;white-space:nowrap;padding-left:2px}
     .gxsc-item[data-carried=false] .gxsc-price{visibility:hidden}
-    .gxsc-tools-head{display:flex;flex-direction:column;gap:2px;margin:0 0 8px}
-    .gxsc-tools-head strong{font-size:13px;color:#101828}.gxsc-tools-head small{font-size:11.5px;color:#667085}
+    .gxsc-tools-head{display:flex;align-items:center;gap:6px;margin:0 0 8px}
+    .gxsc-tools-head strong{font-size:13px;color:#101828}
+    .gxsc-info{display:inline-grid;place-items:center;width:20px;height:20px;border-radius:50%;color:#98a2b3;font-size:12px;cursor:help;transition:color .15s,background .15s}
+    .gxsc-info:hover,.gxsc-info:focus-visible{color:#475467;background:#f2f4f7;outline:none}
     .gxsc-tools-cols{height:min(60vh,520px);padding:0 30px}
     .gxsc-empty{color:#98a2b3;font-size:12px;padding:10px 4px}
     .gxsc-body:has(>.gxsc-empty:only-child){display:flex}
@@ -213,15 +215,33 @@
     const orgId = clean(options.orgId || root.__APP?.userOrgId);
     const api = () => root.MaterialsAPI?.suppliers;
     const toast = (message, kind) => { try { options.toast?.(message, kind); } catch (_) {} };
-    host.innerHTML = `<div class="gxsc-tools-head"><strong>${H('gx_sc_tools_title', 'What each supplier carries')}</strong><small>${H('gx_sc_tools_hint', 'Costs are what you pay, not what you charge. Upload a supplier price sheet and the agent sets that supplier’s costs.')}</small></div><div class="gxsc-tools-cols"></div>`;
+    // The explanation is a tooltip on an info icon beside the title, not a line under it.
+    const hint = esc(L('gx_sc_tools_hint', 'Costs are what you pay, not what you charge. Upload a supplier price sheet and the agent sets that supplier’s costs.'));
+    host.innerHTML = `<div class="gxsc-tools-head"><strong>${H('gx_sc_tools_title', 'What each supplier carries')}</strong><span class="gxsc-info" tabindex="0" role="img" aria-label="${hint}" data-fm-tooltip="${hint}"><i class="fas fa-circle-info" aria-hidden="true"></i></span></div><div class="gxsc-tools-cols"></div>`;
     const colsEl = host.querySelector('.gxsc-tools-cols');
     let suppliers = [], columns = null, destroyed = false;
     const timers = new Map(), saving = new Map();
     const itemsOf = () => { const state = options.pricebook?.getState?.(); return array(state?.items); };
+    // A group heading is the item's manufacturer, else its category, by the price book's own labels ("gaf" is "GAF",
+    // "accessories" is "Accessories"); an id the price book does not know reads as words ("Flat roof accessories").
+    const labelOf = (kind, value) => {
+      const raw = clean(value);
+      if (!raw) return '';
+      let known = '';
+      try { known = clean(kind === 'maker' ? options.pricebook?.manufacturerLabel?.(raw) : options.pricebook?.categoryLabel?.(raw)); } catch (_) {}
+      if (known && known !== raw) return known;
+      if (!/^[a-z0-9]+(?:[_-][a-z0-9]+)*$/.test(raw)) return raw;
+      const words = raw.replace(/[_-]+/g, ' ');
+      return words.charAt(0).toUpperCase() + words.slice(1);
+    };
     function columnsFrom(){
       const book = new Map(itemsOf().map((item) => [String(item.id), item]));
       const carried = new Set(suppliers.flatMap((supplier) => array(supplier.offerings).map((row) => row.item_id)));
-      const items = [...carried].map((id) => { const item = book.get(id) || { id, name: id }; const name = clean(item.name) || id, maker = clean(item.manufacturer); return { id, name, label: maker && name.toLowerCase().startsWith(maker.toLowerCase() + ' ') ? name.slice(maker.length + 1) : name, unit: item.unit, price: item.internal_cost ?? item.unit_price ?? '', group: maker || clean(item.category || item.type) || L('gx_sc_items', 'Items') }; })
+      const items = [...carried].map((id) => {
+        const item = book.get(id) || { id, name: id }; const name = clean(item.name) || id, maker = labelOf('maker', item.manufacturer);
+        const prefix = [maker, clean(item.manufacturer)].find((text) => text && name.toLowerCase().startsWith(text.toLowerCase() + ' '));
+        return { id, name, label: prefix ? name.slice(prefix.length + 1) : name, unit: item.unit, price: item.internal_cost ?? item.unit_price ?? '', group: maker || labelOf('category', item.category || item.type) || L('gx_sc_items', 'Items') };
+      })
         .sort((a, b) => a.group.localeCompare(b.group) || a.name.localeCompare(b.name));
       const cols = suppliers.map((supplier) => ({ key: supplier.id, id: supplier.id, name: supplier.name, logo: supplier.logo, color: (options.colors || {})[supplier.id] || KNOWN_COLORS[clean(supplier.name).toLowerCase()] || '#344054',
         item_ids: array(supplier.offerings).map((row) => row.item_id), prices: {}, base_prices: Object.fromEntries(array(supplier.offerings).filter((row) => row.price_cents != null).map((row) => [row.item_id, row.price_cents / 100])) }));

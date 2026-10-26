@@ -970,7 +970,7 @@
           <div class="cpo-title"><i class="fas ${APP_ICON}" data-fm-tooltip="${H('cpo_tip_app', 'The customer’s private page for this project. They see the media you share here, plus the documents, schedule and payments their portal includes.')}"></i><strong>${esc(title)}</strong></div>
           <div class="cpo-head-tools">
             <span class="cpo-sync" data-cpo-sync aria-live="polite"><i class="fas fa-rotate"></i><span>${H('cpo_syncing', 'Syncing')}</span></span>
-            <a class="cpo-btn primary cpo-head-action" data-cpo-preview aria-disabled="true" aria-label="${H('cpo_preview_button', 'Preview customer portal')}" data-fm-tooltip="${H('cpo_tip_preview', 'Opens exactly what the customer sees, in a new tab. Nothing can be signed, accepted or paid there, and your visit is not recorded in History.')}"><i class="fas fa-eye"></i><span>${H('cpo_preview_label', 'Preview')}</span></a>
+            <a class="cpo-btn primary cpo-head-action" data-cpo-preview aria-disabled="true" aria-label="${H('cpo_preview_button', 'Preview customer portal')}" data-fm-tooltip="${H('cpo_tip_preview_open', 'Opens exactly what the customer sees. Nothing can be signed, accepted or paid there, and your visit is not recorded in History.')}"><i class="fas fa-eye"></i><span>${H('cpo_preview_label', 'Preview')}</span></a>
           </div>
         </div>
         <div data-cpo-error></div>
@@ -1138,7 +1138,7 @@
       button.setAttribute('target', '_blank');
       button.setAttribute('rel', 'noopener');
       button.removeAttribute('aria-disabled');
-      button.setAttribute('data-fm-tooltip', L('cpo_tip_preview', 'Opens exactly what the customer sees, in a new tab. Nothing can be signed, accepted or paid there, and your visit is not recorded in History.'));
+      button.setAttribute('data-fm-tooltip', L('cpo_tip_preview_open', 'Opens exactly what the customer sees. Nothing can be signed, accepted or paid there, and your visit is not recorded in History.'));
     } else {
       button.removeAttribute('href');
       button.setAttribute('aria-disabled', 'true');

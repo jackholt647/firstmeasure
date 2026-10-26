@@ -2667,6 +2667,9 @@
     formulaFields: () => clone([...MEASUREMENT_FIELDS, ...customFormulaFields()]),
     formulaToHumanText,
     loadState,
+    // Display labels for a category or manufacturer id ("accessories" -> "Accessories"); an unknown id comes back as is.
+    categoryLabel: getCategoryLabel,
+    manufacturerLabel: getBrandLabel,
   };
 
   root.FirstMatePricebook = api;

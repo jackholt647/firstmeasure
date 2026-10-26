@@ -578,6 +578,17 @@
   function orderableItems(list){
     return listItems(list).filter((item) => item.metadata?.delivery_fee !== true);
   }
+  // The packages a generated packaged line buys, or null for any other line. Its product, and so a supplier's price
+  // for it, is priced per package, and it is bought in whole packages (materials/calculus.ts lineCost).
+  function packagedOrderQuantity(item){
+    if (!item?.metadata?.calculus_line_id || !(number(item.order_packaging?.units_per_package, 0) > 0)) return null;
+    const packages = item.order_quantity == null || item.order_quantity === '' ? NaN : Number(item.order_quantity);
+    return Number.isFinite(packages) ? Math.max(0, packages) : null;
+  }
+  // How many of the units a supplier prices a line in: packages for a generated packaged line, otherwise its quantity.
+  function supplierQuantity(item){
+    return packagedOrderQuantity(item) ?? Math.max(0, number(item?.quantity, 0));
+  }
   // Prices lists as one delivery from one supplier or location. A line that is not a price book item cannot be
   // matched to a catalogue and counts as not carried. Subtotal and total are unknown while any carried line is unpriced.
   function supplierQuote(target, lists, delivery = true){
@@ -588,7 +599,7 @@
       const offer = itemId ? supplierOffer(target, itemId) : { carried: false, price_cents: null };
       if (!offer.carried) missing.add(item.id);
       else if (offer.price_cents == null) unpriced.add(item.id);
-      else { prices.set(item.id, offer.price_cents); subtotal += Math.round(offer.price_cents * Math.max(0, number(item.quantity, 0))); }
+      else { prices.set(item.id, offer.price_cents); subtotal += Math.round(offer.price_cents * supplierQuantity(item)); }
     }));
     const fee = target.location?.delivery_fee || target.supplier.delivery_fee || null;
     const priced = !unpriced.size;
@@ -5440,7 +5451,10 @@
       const items = orderableItems(list), rows = orderRequestRows(list);
       return items.map((item, index) => {
         const row = rows[index] || {};
-        const quantity = Math.max(0, number(item.quantity, 0));
+        // A supplier prices a generated packaged line per package; its own price is per measured unit, for the
+        // whole packages bought (calculus-native.js lineCost).
+        const packages = packagedOrderQuantity(item);
+        const quantity = quote ? supplierQuantity(item) : packages != null ? packages * number(item.order_packaging.units_per_package, 0) : Math.max(0, number(item.quantity, 0));
         const listCents = item.projected_unit_price == null || item.projected_unit_price === '' ? NaN : Math.round(Number(item.projected_unit_price) * 100);
         const cents = quote ? quote.prices.get(item.id) : listCents;
         const total = Number.isFinite(cents) ? Math.round(cents * quantity) : null;
