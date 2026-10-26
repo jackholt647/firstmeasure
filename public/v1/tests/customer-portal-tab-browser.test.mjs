@@ -11,8 +11,12 @@ const chrome=process.env.CHROME_PATH||'C:/Program Files/Google/Chrome/Applicatio
 const LIVE='https://portal.test/p/live-123';
 const PREVIEW='https://portal.test/p/preview/prev-456';
 
-async function setup(browser,{width=1280,height=860,reducedMotion='no-preference',photos=3,activity=true,draft=false,runtime=false,caps=['scheduling.customer_rescheduling','customer_portal.guest_links'],cover='',satellite=false,topDownInList=false,savedSatellite=false,serverSatellite=false}={}){
-  const page=await browser.newPage({viewport:{width,height},reducedMotion});
+const PHONE_UA='Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1';
+
+async function setup(browser,{width=1280,height=860,reducedMotion='no-preference',photos=3,activity=true,draft=false,runtime=false,caps=['scheduling.customer_rescheduling','customer_portal.guest_links'],cover='',satellite=false,topDownInList=false,savedSatellite=false,serverSatellite=false,phone=false}={}){
+  const page=await browser.newPage({viewport:{width,height},reducedMotion,...(phone?{userAgent:PHONE_UA,isMobile:true,hasTouch:true}:{})});
+  // The portal preview page, for the phone preview frame and the desktop new tab.
+  await page.context().route('https://portal.test/**',route=>route.fulfill({contentType:'text/html; charset=utf-8',body:'<!doctype html><html><body><h1>Customer portal preview page</h1></body></html>'}));
   const errors=[];page.on('pageerror',error=>errors.push(error.message));
   const offsite=[];page.on('request',request=>{const url=new URL(request.url());if(!['data:','blob:'].includes(url.protocol)&&url.host!=='cp.test')offsite.push(request.url());});
   await page.route('http://cp.test/**',async route=>{
@@ -20,7 +24,7 @@ async function setup(browser,{width=1280,height=860,reducedMotion='no-preference
     if(pathname.startsWith('/libraries/'))return route.fulfill({contentType:'application/javascript; charset=utf-8',body:await readFile(new URL(pathname.slice('/libraries/'.length),libraries))});
     if(pathname.includes('missing'))return route.fulfill({status:404,body:''});
     if(pathname.startsWith('/img/'))return route.fulfill({contentType:'image/svg+xml',body:'<svg xmlns="http://www.w3.org/2000/svg" width="40" height="30"><rect width="40" height="30" fill="#9ab"/></svg>'});
-    return route.fulfill({contentType:'text/html; charset=utf-8',body:'<!doctype html><html><body style="margin:0;font-family:Arial"><div id="stage" style="height:100vh"><div id="panel" style="height:100%"></div></div></body></html>'});
+    return route.fulfill({contentType:'text/html; charset=utf-8',body:'<!doctype html><html><head><meta name="viewport" content="width=device-width, initial-scale=1"></head><body style="margin:0;font-family:Arial"><div id="stage" style="height:100vh"><div id="panel" style="height:100%"></div></div></body></html>'});
   });
   await page.goto('http://cp.test/');
   await page.evaluate(({LIVE,PREVIEW,photos,activity,draft,caps,cover,satellite,topDownInList,savedSatellite,serverSatellite})=>{
@@ -460,5 +464,66 @@ test('Download QR makes the PNG in the page: no request leaves for another host'
     return code && code.size>=21 && code.modules[0].slice(0,7).every(Boolean) && code.modules[6].slice(0,7).every(Boolean);
   },LIVE);
   assert.equal(matches,true,'finder pattern in the corner');
+  assert.deepEqual(errors,[]);
+}));
+
+test('on a phone, Preview opens the customer portal preview full screen in a frame, and X closes it',()=>withBrowser(async browser=>{
+  const {page,errors,root}=await setup(browser,{width:390,height:844,phone:true});
+  const preview=root.locator('[data-cpo-preview]');
+  assert.equal((await preview.innerText()).trim(),'Preview','the eye is labelled on a phone');
+  const box=await preview.boundingBox();
+  assert.ok(box.x+box.width<=390&&box.width>60,`labelled button fits the phone (${box.width}px)`);
+  await preview.click();
+  const modal=page.locator('[data-cpo-preview-modal]');
+  await modal.waitFor();
+  assert.equal(page.context().pages().length,1,'no new browser tab');
+  assert.equal(await modal.getAttribute('role'),'dialog');
+  assert.equal(await modal.getAttribute('aria-modal'),'true');
+  const frame=modal.locator('iframe[data-cpo-preview-frame]');
+  assert.equal(await frame.getAttribute('src'),PREVIEW,'the same preview address');
+  await page.frameLocator('[data-cpo-preview-frame]').locator('h1').waitFor();
+  assert.equal(await page.frameLocator('[data-cpo-preview-frame]').locator('h1').innerText(),'Customer portal preview page');
+  await page.waitForFunction(()=>{const style=getComputedStyle(document.querySelector('[data-cpo-preview-modal]'));return style.opacity==='1'&&style.transform==='none';});
+  const sheet=await modal.boundingBox();
+  assert.deepEqual([sheet.x,sheet.y,sheet.width,sheet.height],[0,0,390,844],'full screen');
+  const frameBox=await frame.boundingBox();
+  assert.ok(frameBox.height>700&&frameBox.width===390,`the preview fills the sheet (${frameBox.width}x${frameBox.height})`);
+  assert.notEqual(await modal.evaluate(node=>getComputedStyle(node).transitionDuration),'0s','it animates');
+  const close=modal.locator('[data-cpo-preview-close]');
+  assert.equal(await close.getAttribute('aria-label'),'Close preview');
+  assert.equal(await close.evaluate(node=>node===document.activeElement),true,'focus moves to X');
+  const closeBox=await close.boundingBox();
+  assert.ok(closeBox.x+closeBox.width>=380&&closeBox.y<=12&&closeBox.width>=40,'X in the top right corner, a full touch target');
+  await close.click();
+  assert.equal(await modal.evaluate(node=>node.classList.contains('is-open')),false,'animates out');
+  await modal.waitFor({state:'detached'});
+  assert.equal(await preview.evaluate(node=>node===document.activeElement),true,'focus returns to Preview');
+  // Escape closes it too, and it opens again.
+  await preview.click();
+  await modal.waitFor();
+  await page.keyboard.press('Escape');
+  await modal.waitFor({state:'detached'});
+  assert.deepEqual(await page.evaluate(()=>[...new Set(calls.map(call=>call[0]))].sort()),['activity','ensure'],'previewing writes nothing');
+  assert.deepEqual(errors,[]);
+}));
+
+test('on a computer, Preview is labelled and still opens a new tab',()=>withBrowser(async browser=>{
+  const {page,errors,root}=await setup(browser,{width:1600,height:1000});
+  const preview=root.locator('[data-cpo-preview]');
+  assert.equal((await preview.innerText()).trim(),'Preview');
+  assert.equal(await preview.getAttribute('aria-label'),'Preview customer portal');
+  assert.equal(await preview.getAttribute('target'),'_blank');
+  const [popup]=await Promise.all([page.waitForEvent('popup'),preview.click()]);
+  assert.equal(popup.url(),PREVIEW);
+  assert.equal(await page.locator('[data-cpo-preview-modal]').count(),0,'no sheet on a computer');
+  assert.deepEqual(errors,[]);
+}));
+
+test('with both portal options off and no guest links there is no empty options row',()=>withBrowser(async browser=>{
+  const {page,errors,root}=await setup(browser,{caps:[]});
+  await page.evaluate(async()=>{portalRecord.guest_links=[];await Portal.modules.customerPortalProject.load({silent:true});});
+  await page.waitForFunction(()=>!document.querySelector('[data-cpo-guests-toggle]'));
+  assert.equal(await root.locator('.cpo-options').count(),0);
+  assert.equal(await root.locator('[data-cpo-link]').inputValue(),LIVE);
   assert.deepEqual(errors,[]);
 }));

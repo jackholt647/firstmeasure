@@ -8,6 +8,11 @@
  *
  * Nothing here sends anything: Email opens the user's own mail app with the
  * link filled in, and every change is an explicit click.
+ *
+ * Preview opens the customer's portal preview in a new tab on a computer and
+ * in a full-screen sheet (an iframe of the same preview address) on a phone.
+ * The preview address is on the app's own origin and its page sends no
+ * X-Frame-Options or frame-ancestors, so the frame needs no server change.
  */
 (function(){
   const runtime = window.FirstMateEmbeddableApps;
@@ -46,7 +51,8 @@
     guestOpen: false,
     historyLimit: HISTORY_PAGE,
     mediaSignature: '',
-    busy: ''
+    busy: '',
+    preview: null
   };
 
   function hostFor(context = {}){
@@ -312,8 +318,10 @@
         .cpo-link-actions .cpo-btn{flex:1 1 0}
       }
       @container cpo (max-width: 420px){
-        .cpo-head-action{width:38px;padding:0}
-        .cpo-head-action span{display:none}
+        .cpo-head-action{padding:0 12px}
+        .cpo-head-tools{flex:0 0 auto;gap:6px}
+        .cpo-sync{width:28px;padding:0;justify-content:center}
+        .cpo-sync span{display:none}
         .cpo-link-actions .cpo-btn i{display:none}
         .cpo-link-actions .cpo-btn{padding:0 8px}
         .cpo-seg button{padding:0 8px}
@@ -322,8 +330,22 @@
       @keyframes cpoPop{from{opacity:0;transform:scale(.6)}to{opacity:1;transform:none}}
       @keyframes cpoSpin{to{transform:rotate(360deg)}}
       @keyframes cpoShimmer{from{background-position:200% 0}to{background-position:-200% 0}}
+      /* Preview sheet (phones): the customer's portal preview, full screen, above the project window (z-index 2147483200). */
+      .cpo-pv{position:fixed;inset:0;z-index:2147483400;display:flex;flex-direction:column;background:#fff;color:#101828;opacity:0;transform:translateY(32px);transition:opacity .2s ease,transform .3s cubic-bezier(.22,1,.36,1)}
+      .cpo-pv.is-open{opacity:1;transform:none}
+      .cpo-pv-head{flex:0 0 auto;display:flex;align-items:center;gap:10px;padding:calc(6px + env(safe-area-inset-top,0px)) 6px 6px 16px;border-bottom:1px solid #eaecf0;background:#fff}
+      .cpo-pv-head strong{flex:1 1 auto;min-width:0;display:flex;align-items:center;gap:9px;font-size:15px;font-weight:1000;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+      .cpo-pv-head strong i{color:var(--primary-readable,var(--primary,#d93025))}
+      .cpo-pv-close{flex:0 0 auto;width:44px;height:44px;border:0;border-radius:12px;background:#f2f4f7;color:#344054;font-size:18px;display:flex;align-items:center;justify-content:center;cursor:pointer;transition:background .16s ease,transform .16s ease}
+      .cpo-pv-close:active{transform:scale(.94)}
+      .cpo-pv-close:focus-visible{outline:none;box-shadow:0 0 0 4px rgba(var(--primary-rgb,217,48,37),.16)}
+      .cpo-pv-body{flex:1 1 auto;min-height:0;position:relative;background:#f8fafc}
+      .cpo-pv-body iframe{position:absolute;inset:0;width:100%;height:100%;border:0;background:transparent}
+      .cpo-pv-wait{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;color:#98a2b3;font-size:20px;transition:opacity .2s ease}
+      .cpo-pv-wait i{animation:cpoSpin 1s linear infinite}
+      .cpo-pv.is-loaded .cpo-pv-wait{opacity:0;pointer-events:none}
       @media (prefers-reduced-motion: reduce){
-        .cpo-panel *,.cpo-panel *::before,.cpo-panel *::after{animation:none!important;transition:none!important}
+        .cpo-panel *,.cpo-panel *::before,.cpo-panel *::after,.cpo-pv,.cpo-pv *{animation:none!important;transition:none!important}
       }
     `;
     if (typeof util.injectCSS === 'function') util.injectCSS('project-customer-portal', css);
@@ -859,6 +881,8 @@
     // Customer guest links are an organization feature: off hides the switch (the server makes no new ones); links that
     // already exist stay listed so they can still be copied or revoked.
     const guestLinks = capabilityOn(GUEST_LINKS_CAPABILITY);
+    // Nothing to offer (both features off, no links left): no empty row under the link.
+    if (!guestLinks && !guests.length && !capabilityOn(RESCHEDULING_CAPABILITY)) return '';
     const resched = capabilityOn(RESCHEDULING_CAPABILITY) ? `
         <label class="cpo-switch" data-cpo-resched-switch data-fm-tooltip="${H('cpo_tip_resched', 'Lets the customer pick a new time for an upcoming appointment from live availability, when that appointment’s scheduling rules also allow it. Off: only your team reschedules.')}">
           <input type="checkbox" data-cpo-rescheduling${reschedulingOn ? ' checked' : ''}${disabled}><span class="cpo-track"></span><span>${H('cpo_resched_label', 'Customer can reschedule')}</span>
@@ -946,7 +970,7 @@
           <div class="cpo-title"><i class="fas ${APP_ICON}" data-fm-tooltip="${H('cpo_tip_app', 'The customer’s private page for this project. They see the media you share here, plus the documents, schedule and payments their portal includes.')}"></i><strong>${esc(title)}</strong></div>
           <div class="cpo-head-tools">
             <span class="cpo-sync" data-cpo-sync aria-live="polite"><i class="fas fa-rotate"></i><span>${H('cpo_syncing', 'Syncing')}</span></span>
-            <a class="cpo-btn primary cpo-head-action" data-cpo-preview aria-disabled="true" aria-label="${H('cpo_preview_button', 'Preview customer portal')}" data-fm-tooltip="${H('cpo_tip_preview', 'Opens exactly what the customer sees, in a new tab. Nothing can be signed, accepted or paid there, and your visit is not recorded in History.')}"><i class="fas fa-eye"></i><span>${H('cpo_preview_button', 'Preview customer portal')}</span></a>
+            <a class="cpo-btn primary cpo-head-action" data-cpo-preview aria-disabled="true" aria-label="${H('cpo_preview_button', 'Preview customer portal')}" data-fm-tooltip="${H('cpo_tip_preview', 'Opens exactly what the customer sees, in a new tab. Nothing can be signed, accepted or paid there, and your visit is not recorded in History.')}"><i class="fas fa-eye"></i><span>${H('cpo_preview_label', 'Preview')}</span></a>
           </div>
         </div>
         <div data-cpo-error></div>
@@ -1122,6 +1146,60 @@
     }
   }
 
+  // A phone: a narrow screen used by touch. A narrow window on a computer keeps the new tab.
+  function phoneLayout(){
+    const narrow = !!window.matchMedia?.('(max-width: 760px)').matches;
+    const touch = !!window.matchMedia?.('(pointer: coarse)').matches || /Mobi|Android|iPhone|iPad|iPod/i.test(navigator.userAgent || '');
+    return narrow && touch;
+  }
+
+  // The preview, full screen, in a frame of the same preview address (same origin as the app).
+  function openPreview(url, opener){
+    if (state.preview) return;
+    const doc = opener?.ownerDocument || document;
+    const title = L('cpo_preview_title', 'Customer portal preview');
+    const modal = doc.createElement('div');
+    modal.className = 'cpo-pv';
+    modal.setAttribute('data-cpo-preview-modal', '');
+    modal.setAttribute('role', 'dialog');
+    modal.setAttribute('aria-modal', 'true');
+    modal.setAttribute('aria-label', title);
+    modal.innerHTML = `
+      <div class="cpo-pv-head">
+        <strong><i class="fas fa-eye"></i><span>${esc(title)}</span></strong>
+        <button type="button" class="cpo-pv-close" data-cpo-preview-close aria-label="${H('cpo_preview_close', 'Close preview')}"><i class="fas fa-xmark"></i></button>
+      </div>
+      <div class="cpo-pv-body">
+        <div class="cpo-pv-wait" aria-hidden="true"><i class="fas fa-rotate"></i></div>
+        <iframe data-cpo-preview-frame title="${esc(title)}" src="${esc(url)}"></iframe>
+      </div>`;
+    const onKey = (event) => { if (event.key === 'Escape') { event.preventDefault(); closePreview(); } };
+    modal.querySelector('[data-cpo-preview-close]').addEventListener('click', () => closePreview());
+    modal.querySelector('iframe').addEventListener('load', () => modal.classList.add('is-loaded'), { once: true });
+    doc.addEventListener('keydown', onKey, true);
+    doc.body.appendChild(modal);
+    state.preview = { modal, opener, onKey, doc };
+    void modal.offsetWidth;
+    modal.classList.add('is-open');
+    modal.querySelector('[data-cpo-preview-close]').focus({ preventScroll: true });
+  }
+
+  function closePreview(){
+    const open = state.preview;
+    if (!open) return;
+    state.preview = null;
+    open.doc.removeEventListener('keydown', open.onKey, true);
+    const { modal } = open;
+    const remove = () => modal.remove();
+    modal.classList.remove('is-open');
+    if (reducedMotion()) remove();
+    else {
+      modal.addEventListener('transitionend', (event) => { if (event.target === modal && event.propertyName === 'transform') remove(); });
+      window.setTimeout(remove, 400);
+    }
+    if (open.opener?.isConnected) open.opener.focus({ preventScroll: true });
+  }
+
   function bindRoot(root){
     // The page can load this file twice (a script tag and the app bundle);
     // only the instance that last rendered the panel handles its events.
@@ -1133,7 +1211,11 @@
       if (!target || !root.contains(target)) return;
       const links = portalLinks();
       if (target.matches('[data-cpo-preview],[data-cpo-email]')) {
-        if (target.getAttribute('aria-disabled') === 'true') event.preventDefault();
+        if (target.getAttribute('aria-disabled') === 'true') { event.preventDefault(); return; }
+        if (target.matches('[data-cpo-preview]') && links.preview && phoneLayout()) {
+          event.preventDefault();
+          openPreview(links.preview, target);
+        }
         return;
       }
       if (target.matches('[data-cpo-link]')) { target.select(); return; }
@@ -1292,6 +1374,7 @@
   }
 
   function reset(){
+    closePreview();
     setPortal({ loading: false, portal: null, activity: [], error: '' });
     state.selection = new Set();
     state.guestOpen = false;
