@@ -8,20 +8,20 @@ Everything below ran on the development stack (`https://dev.1m8.ai`) against
 Forward's **sandbox**, through the real UI wherever a person would do it, on
 October 19, 2026. A filled copy of Forward's sheet is kept outside the
 repository (it includes Forward's sandbox keys):
-`output/forward-cert-20261019/FirstMate Certification Script - filled.xlsx`.
+`output/forward-cert-20261019/FirstMate Certification Script - filled v2.xlsx`.
 
 ## Status
 
 | Module | Status |
 | --- | --- |
 | Must Dos (partner data, idempotency, ref id, MIT/CIT, L1/L2, error handling) | Done in code and verified at Forward |
-| Must Dos (CNAMEs, static IPs, logos, brand color) | Decisions and an email for Jack, below |
+| Must Dos (CNAMEs, static IPs, logos, brand color) | Static IPs sent-ready (dev `24.199.76.5`, production `209.38.5.201`); brand package sent; CNAMEs `apply.1m8.ai` / `payments.1m8.ai` wait on Forward's records |
 | Boarding AP00–AP04 | Done (real UI) |
 | Boarding AP05 (video of the boarding flow) | Jack records |
-| Webhooks WH00 (mandatory), WH01 | Blocked: the dev webhook endpoint is not registered at Forward and dev has no signing secret |
+| Webhooks WH00 (mandatory), WH01 | Done: endpoint registered in Forward's sandbox portal for all events, signed and processed on dev |
 | Card not present CNP00–CNP07 | Done (real UI, staff and customer portal) |
 | ACH00 | Done (real UI, staff Take a payment; also paid a deposit by ACH in the customer portal) |
-| ACH01 | $5.55 ACH payment made; Forward triggers the failure (a return) from its payment id, which needs the webhook to reach our books |
+| ACH01 | Done: Forward reversed the $5.55 debit; recorded as a returned payment (release `264b2841`) |
 | MIT and CIT RC00–RC07 | Done |
 | Refunds R00 (full), R01 (partial $9.00) | Done (October 25, on settled payments) |
 | Void V00 | Done |
@@ -65,7 +65,7 @@ account picker; Forward then creates the bank payment method):
 | Case | Amount | Payment method | Payment intent | Payment | Result |
 | --- | --- | --- | --- | --- | --- |
 | ACH00 | $10.00 | `pm_3Kvpwr8ErDBoNE2Nl3FmuOT7xjh` | `pi_3KvppJdsX7QA0kWW75pOKtsn861` | `pmt_3KvpwzVV9R1YaVb7JhCh6OQ6e1m` | captured (rail `us_bank_ach`, unsettled) |
-| ACH01 | $5.55 | `pm_3KvrP20bb5gF6WSqkybiRFgma4N` | `pi_3KvrHKqwYb3unLt7NymKcK9igKh` | `pmt_3KvrPADpeurKfkJ8ZhwhGkkvzoi` | captured; ask Forward to fail it (return) |
+| ACH01 | $5.55 | `pm_3KvrP20bb5gF6WSqkybiRFgma4N` | `pi_3KvrHKqwYb3unLt7NymKcK9igKh` | `pmt_3KvrPADpeurKfkJ8ZhwhGkkvzoi` | returned: reversal `revsl_3LFGJkMn0k0GI1IMkwza00BtDzh`, event `evt_3LFGJkAXKJPDhkyEDGH5OTUPETV` |
 
 A $10.00 deposit was also paid by ACH from a document in the customer portal
 (the path the checkout video uses).
@@ -124,6 +124,21 @@ and the other `v2.account.*` events, `v2.application.*`, `v2.payment.*`,
 `v2.payment_intent.*`, `v2.refund.*`, `v2.reversal.*`, `v2.payout.*`,
 `v2.dispute.*`.
 
+Webhook evidence, sandbox account `acct_3LFBxI0nDfry5GQaK06fbMTZBwk` (dev
+organization `org_0f66b40a02cdb604`):
+
+- WH01 `v2.account.created`: `evt_3LFBxKfyXamo5hm1arY6ppKPCCP`.
+- WH00 `v2.account.gateway_updated`: `evt_3LFKTKhUSTicQJ9asapIpxBBQPx`, sent
+  when the account was boarded to the Mock gateway in Forward's sandbox
+  partner portal (Boarding › Board to Gateway, a made-up MID).
+
+Found while running webhooks, fixed (releases `c9dffa5f`, `264b2841`): Forward
+signs with Standard Webhooks headers (`webhook-*`, not `svix-*`) and sends a
+CloudEvents envelope (`type` without `v2.`, the record under `data.object`);
+a replay can deliver application events out of order, so an older event no
+longer overwrites a newer status; a reversal of a whole bank payment is an ACH
+return, recorded as a returned payment rather than a refund.
+
 ## Must Dos
 
 - **Partner data**: sent on every application, hosted or API-created.
@@ -159,20 +174,15 @@ and the other `v2.account.*` events, `v2.application.*`, `v2.payment.*`,
 
 ## What Jack needs to do
 
-1. **Webhooks (WH00, and ACH settlement):** in Forward's sandbox dashboard add
-   the endpoint `https://dev.1m8.ai/v1/payments/webhooks/forward` for all
-   events, and put its signing secret (`whsec_…`) on the dev web and pool hosts
-   as `FORWARD_WEBHOOK_SECRET`. Then boarding a sandbox account produces
-   `v2.account.gateway_updated`; its event id goes in WH00.
-2. **ACH01:** ask Forward to fail (return) ACH payment
-   `pmt_3KvrPADpeurKfkJ8ZhwhGkkvzoi`; with the webhook set up, FirstMate
-   reverses it and records `payment.failed`.
-4. **Videos:** AP05 (Settings › Payments › Set up payments on a fresh sandbox
+1. **Webhooks:** done on dev web. The dev pool (down) still needs
+   `FORWARD_WEBHOOK_SECRET` when it returns; production needs its own endpoint
+   and secret.
+2. **Videos:** AP05 (Settings › Payments › Set up payments on a fresh sandbox
    organization, through Forward's application) and the checkout video (a
    document's Pay button in the customer portal: the address bar shows the
    https link; pay by card, then by ACH; screenshot the refund policy line).
-5. **Ops decisions above:** CNAMEs, fixed egress IPs, and the brand email.
-6. **Dev worker and compatibility hosts** have no Forward keys
+3. **CNAMEs:** add Forward's records for `apply.1m8.ai` and `payments.1m8.ai` in DigitalOcean DNS once Forward sends them.
+4. **Dev worker and compatibility hosts** have no Forward keys
    (`/etc/firstmeasure/development-forward.env` is loaded only by web and
    pool), so scheduled autopay on the worker treats payments as not set up and
    charges nothing; the autopay cases ran through `POST /autopay/run` on web.
