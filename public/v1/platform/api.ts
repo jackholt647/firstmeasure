@@ -5389,6 +5389,7 @@ async function createPlatformOrgUser(orgId: string, body: Record<string, unknown
   if ('scoped_access_assignments' in dataInput) throw badRequest('scoped_access_profile_required', 'Assign scoped roles through the workforce user profile endpoint.');
   const email = cleanEmail(dataInput.email);
   const userId = normalizeDocumentId(body.id || dataInput.id, `user_${stableHash(email).slice(0, 16)}`);
+  await assertNewOrganizationUser(orgId, userId, email);
   let identityId = String(dataInput.identity_id || "");
   const identityStatus = identityStatusForOrgUserInput(dataInput);
   if (!identityId) {
@@ -5486,6 +5487,7 @@ async function upsertPlatformOrgUserDocument(orgId: string, documentId: string, 
   };
   if (stored) await reconcileOrgUserSignInEmail(orgId, documentId, stored, data);
   const permissionState = platformOrgUserPermissionState(data);
+  await assertOrgUserWriteKeepsAdmin(orgId, documentId, { ...data, role: permissionState.level, org_permissions: { level: permissionState.level, items: permissionState.items }, org_permission_level: permissionState.level, permissions: permissionState.permissions });
   return await upsertDocument(
     orgId,
     "users",
@@ -5594,6 +5596,30 @@ export async function assertOrganizationKeepsAdmin(orgId: string, userId: string
   if (!orgUserIsActive(data) || !orgUserIsSuperAdmin(data)) return;
   const others = (users as JsonObject[]).filter((doc) => String(doc.id) !== userId && orgUserIsActive(asObject(doc.data)) && orgUserIsSuperAdmin(asObject(doc.data)));
   if (!others.length) throw forbidden("last_admin_protected", "Make someone else a super admin first: an account needs at least one.");
+}
+/* The same rule for a write that stores a member's whole record: next is the data that will be stored, null when the
+   record is removed. The owner may only become a super admin; the last active super admin may not stop being one. */
+export async function assertOrgUserWriteKeepsAdmin(orgId: string, userId: string, next: JsonObject | null) {
+  if (next && orgUserIsActive(next) && orgUserIsSuperAdmin(next)) return;
+  const users = await listDocuments(orgId, "users").catch(() => [] as JsonObject[]);
+  const target = (users as JsonObject[]).find((doc) => String(doc.id) === userId);
+  if (!target) return;
+  const data = asObject(target.data);
+  if (orgUserIsOwner(data)) throw forbidden("owner_protected", "The account owner cannot be suspended, archived or given a lower level.");
+  if (!orgUserIsActive(data) || !orgUserIsSuperAdmin(data)) return;
+  const others = (users as JsonObject[]).filter((doc) => String(doc.id) !== userId && orgUserIsActive(asObject(doc.data)) && orgUserIsSuperAdmin(asObject(doc.data)));
+  if (!others.length) throw forbidden("last_admin_protected", "Make someone else a super admin first: an account needs at least one.");
+}
+/* Adding a person never replaces someone already in the account. A member's record id comes from their email, so adding
+   an existing member's email (the owner's own, in 1M8-245) used to re-create them as a new viewer. An archived member
+   may be added again. */
+async function assertNewOrganizationUser(orgId: string, userId: string, email: string) {
+  const users = await listDocuments(orgId, "users").catch(() => [] as JsonObject[]);
+  const existing = (users as JsonObject[]).find((doc) => {
+    const data = asObject(doc.data);
+    return data.deleted !== true && (String(doc.id) === userId || (!!email && cleanEmail(data.email) === email));
+  });
+  if (existing) throw conflict("org_user_exists", "That person is already in this account. Change their level in People instead.");
 }
 
 function platformOrgUserPermissionMutation(body: JsonObject) {
@@ -9868,6 +9894,7 @@ async function portalAddOrgUser(orgId: string, body: JsonObject, request?: Fasti
   }
   const level = cleanText(body.perm_level) || "viewer";
   const items = asObject(tryParseJsonField(body.perm_items_json, {}));
+  await assertNewOrganizationUser(orgId, `user_${stableHash(email).slice(0, 16)}`, email);
   const user = await upsertDocument(orgId, "users", {
     id: `user_${stableHash(email).slice(0, 16)}`,
     data: {

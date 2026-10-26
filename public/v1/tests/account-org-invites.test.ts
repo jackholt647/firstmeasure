@@ -237,3 +237,44 @@ test("a user's email stays their sign-in email: invitations move with it, signed
   const moved = await owner.request("PATCH", `/v1/platform/organizations/signin_email_org/users/${added.data.document.id}`, { data: { email: "signin.hijack@example.test" } });
   assert.equal(moved.data.error, "sign_in_email_locked", moved.response.body);
 });
+
+test("adding a person who is already in the account never replaces them, and no whole-record write leaves it without its owner (1M8-245)", async () => {
+  const owner = browser();
+  const registered = await register(owner, "readd.owner@example.test", "readd_guard_org");
+  const ownerId = registered.user?.id || registered.membership?.user_id;
+  assert.ok(ownerId);
+  const ownerRecord = async () => (await owner.request("GET", "/v1/platform/organizations/readd_guard_org/users")).data.documents.find((doc: any) => doc.id === ownerId)?.data;
+  const add = (email: string) => owner.request("POST", "/v1/platform/organizations/readd_guard_org/users", { data: { email, name: email, role: "viewer", status: "invited", permissions: {} } });
+
+  // People's Invite with the owner's own email (any case) is refused, and the owner stays the owner.
+  for (const email of ["readd.owner@example.test", " Readd.Owner@Example.test "]) {
+    const own = await add(email);
+    assert.equal(own.response.statusCode, 409, own.response.body);
+    assert.equal(own.data.error, "org_user_exists");
+  }
+  const portalOwn = await owner.request("POST", "/v1/platform/portal-action", { action: "org_users_add_my", email: "readd.owner@example.test", name: "Me", perm_level: "viewer" });
+  assert.equal(portalOwn.data.error, "org_user_exists", JSON.stringify(portalOwn.data));
+  assert.equal((await ownerRecord()).role, "owner");
+  assert.equal((await owner.request("GET", "/v1/platform/organizations/readd_guard_org/global")).response.statusCode, 200, "the owner keeps their access");
+
+  // Another member's email is refused too; once they are archived they can be added again.
+  const member = await add("readd.member@example.test");
+  assert.equal(member.response.statusCode, 201, member.response.body);
+  assert.equal((await add("readd.member@example.test")).data.error, "org_user_exists");
+  const archived = await owner.request("DELETE", `/v1/platform/organizations/readd_guard_org/users/${member.data.document.id}`);
+  assert.equal(archived.response.statusCode, 200, archived.response.body);
+  assert.equal((await add("readd.member@example.test")).response.statusCode, 201);
+
+  // Whole-record writers (PUT, the canvassing invite) keep the owner and the last super admin.
+  const { assertOrgUserWriteKeepsAdmin } = await import("../platform/api.js");
+  await assert.rejects(assertOrgUserWriteKeepsAdmin("readd_guard_org", ownerId, { email: "readd.owner@example.test", role: "viewer" }), /account owner/);
+  await assert.rejects(assertOrgUserWriteKeepsAdmin("readd_guard_org", ownerId, null), /account owner/);
+  await assert.doesNotReject(assertOrgUserWriteKeepsAdmin("readd_guard_org", ownerId, { role: "owner", permissions: { "*": true } }));
+  await assert.doesNotReject(assertOrgUserWriteKeepsAdmin("readd_guard_org", member.data.document.id, { role: "viewer" }));
+  const { upsertDocument } = await import("../platform/storage.js");
+  await upsertDocument("readd_guard_org", "users", { id: ownerId, data: { role: "super_admin", org_permissions: { level: "super_admin", items: {} } } }, { replace: false });
+  await assert.rejects(assertOrgUserWriteKeepsAdmin("readd_guard_org", ownerId, { role: "manager", org_permissions: { level: "manager", items: {} } }), /at least one/);
+  const { createOrInviteCanvassingUser } = await import("../canvassing/service.js");
+  await assert.rejects(createOrInviteCanvassingUser("readd_guard_org", "default", { email: "readd.owner@example.test", role: "canvasser" }), /at least one/);
+  assert.equal((await ownerRecord()).org_permissions.level, "super_admin");
+});
