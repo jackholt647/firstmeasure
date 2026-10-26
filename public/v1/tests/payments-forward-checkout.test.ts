@@ -256,7 +256,7 @@ async function register(client: ReturnType<typeof createSessionClient>, options:
   return { orgId, accountId, projectId };
 }
 
-function signedWebhook(body: any, id: string) {
+function signedWebhook(body: any, id: string, headerPrefix: "svix" | "webhook" = "svix") {
   const text = JSON.stringify(body);
   const timestamp = String(Math.floor(Date.now() / 1000));
   const signature = `v1,${createHmac("sha256", WEBHOOK_SECRET_BYTES).update(`${id}.${timestamp}.${text}`).digest("base64")}`;
@@ -264,7 +264,7 @@ function signedWebhook(body: any, id: string) {
     method: "POST",
     url: "/v1/payments/webhooks/forward",
     payload: text,
-    headers: { "content-type": "application/json", "svix-id": id, "svix-timestamp": timestamp, "svix-signature": signature }
+    headers: { "content-type": "application/json", [`${headerPrefix}-id`]: id, [`${headerPrefix}-timestamp`]: timestamp, [`${headerPrefix}-signature`]: signature }
   });
 }
 
@@ -547,3 +547,21 @@ test("an organization approved at Forward is ready as soon as anyone asks, even 
     Date.now = realNow;
   }
 });
+
+test("a live-shaped Forward delivery (Standard Webhooks headers, CloudEvents body) is verified and applied", async () => {
+  const client = createSessionClient();
+  const { orgId, accountId } = await register(client);
+  // What Forward sent dev on 2026-10-26: unprefixed type, record under data.object.
+  const delivery = (id: string, type: string, object: any) => signedWebhook({
+    data: { object }, datacontenttype: "application/json", id: `evt_${id}`, specversion: "1.1", subject: object.id, timestamp: new Date().toISOString(), type
+  }, `msg_${id}`, "webhook");
+  const gateway = await delivery("gateway_1", "account.gateway_updated", { id: accountId, entity: "account", status: "ACTIVE", mid: "MID-LIVE-1", processing_enabled: true, payouts_enabled: true });
+  assert.equal(gateway.statusCode, 200, gateway.body);
+  const { getMerchantConfigForOps } = await import("../payments/merchant_config.js");
+  const config = await getMerchantConfigForOps(orgId);
+  assert.equal(config?.forward.gateway_mid, "MID-LIVE-1", "the gateway MID from data.object is recorded");
+  assert.ok(config?.forward.gateway_updated_at, "v2.account.gateway_updated is recognized from the unprefixed type");
+  const unsigned = await (app.inject as any)({ method: "POST", url: "/v1/payments/webhooks/forward", payload: "{}", headers: { "content-type": "application/json", "webhook-id": "msg_x", "webhook-timestamp": String(Math.floor(Date.now() / 1000)), "webhook-signature": "v1,AAAA" } });
+  assert.equal(unsigned.statusCode, 401, "a bad signature on the standard headers is still refused");
+});
+

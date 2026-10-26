@@ -108,6 +108,20 @@ function eventDocumentId(svixId: string) {
   return cleanText(svixId).toLowerCase().replace(/[^a-z0-9_-]+/g, "-").replace(/-+/g, "-").replace(/^-|-$/g, "").slice(0, 120);
 }
 
+/**
+ * Forward's live deliveries are CloudEvents: `type` without the `v2.` prefix
+ * (`payment.failed`) and the record under `data.object`. Handlers read the
+ * `v2.` event names and the record's fields on `data`, so the envelope is
+ * normalized once here; `data.object` stays for anything that looks there.
+ */
+export function normalizeForwardEvent(raw: JsonObject): JsonObject {
+  const data = asObject(raw.data);
+  const object = asObject(data.object);
+  const flattened = Object.keys(object).length && !cleanText(data.id) ? { ...object, ...data, object } : data;
+  const type = cleanText(raw.type || raw.event_type);
+  return { ...raw, type: type && !type.startsWith("v2.") ? `v2.${type}` : type, data: flattened };
+}
+
 function forwardEventIds(event: JsonObject) {
   const data = asObject(event.data);
   const nested = asObject(data.object);
@@ -469,12 +483,16 @@ export const registerForwardWebhooks: FastifyPluginAsync = async (app) => {
   app.post("/webhooks/forward", { bodyLimit: 512 * 1024 }, async (request, reply) => {
     const rawBody = Buffer.isBuffer(request.body) ? request.body : Buffer.from(String(request.body ?? ""));
     const headers = asObject(request.headers);
-    const svixId = headerValue(headers, "svix-id");
+    // Forward signs with the Standard Webhooks headers (webhook-id,
+    // webhook-timestamp, webhook-signature); Svix's own names are the same
+    // scheme and are accepted too.
+    const signed = (name: string) => headerValue(headers, `webhook-${name}`) || headerValue(headers, `svix-${name}`);
+    const svixId = signed("id");
     const verification = verifyForwardWebhookSignature({
       id: svixId,
-      timestamp: headerValue(headers, "svix-timestamp"),
+      timestamp: signed("timestamp"),
       body: rawBody,
-      signatureHeader: headerValue(headers, "svix-signature")
+      signatureHeader: signed("signature")
     });
     if (!verification.ok) {
       reply.code(401);
@@ -482,7 +500,7 @@ export const registerForwardWebhooks: FastifyPluginAsync = async (app) => {
     }
     let event: JsonObject;
     try {
-      event = asObject(JSON.parse(rawBody.toString("utf8")));
+      event = normalizeForwardEvent(asObject(JSON.parse(rawBody.toString("utf8"))));
     } catch {
       reply.code(400);
       return { ok: false, error: "invalid_json" };
