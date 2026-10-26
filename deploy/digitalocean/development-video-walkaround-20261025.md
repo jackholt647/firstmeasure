@@ -15,3 +15,11 @@ Release `9d833486`.
   re-audited on `5ee7eceb` and finished. Verify passed, and dev serves the new text. Scripts:
   `output/fh-walkaround-20261025/`.
 - **Production.** Not on production.
+
+## Follow-up: "one full loop", release `03389af3`
+
+Every "circle" in the walkaround copy now says loop, under new catalog keys: the animation label, the "Full loop"
+badge, the recorder status and hints, the intro, the upload lead and the size limit. The step under "Walk one full
+loop." now opens with "Any path works, it does not need to be a circle." This is so owners of rectangular lots do not
+think the path must be a perfect circle. `orbital-intro-layout`, `exteriors-orbital-video` and
+`exteriors-guided-camera` pass (33/33). Rolled out to legacy and web; dev serves the new text. Not on production.
