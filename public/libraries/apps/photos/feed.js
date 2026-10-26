@@ -162,7 +162,15 @@
     openingProjectFromFeedViewer: false,
     noteObserver: null,
     mediaResizeObserver: null,
-    activeUserModal: null
+    activeUserModal: null,
+    // Photos with no project (catalog.unassigned_media) and the phone camera that takes them.
+    unassigned: [],
+    unassignedAll: false,
+    canAssignMedia: false,
+    camera: null,
+    cameraNext: false,
+    cameraBatchId: '',
+    reloadAfterLoad: false
   };
 
   function cleanText(value){ return String(value ?? '').trim(); }
@@ -1298,7 +1306,10 @@
           search
         };
       });
+    // An unpaired photo's upload is shown by the Unassigned group, not again as an activity with no project.
+    const unassignedIds = new Set((state.unassigned || []).map((item) => item.mediaId));
     const activityEntries = state.activity
+      .filter((event) => !(unassignedIds.size && unassignedIds.has(activityMediaId(event)) && !activityProjectId(event)))
       .filter((event) => !(cleanText(event.type) === 'note.created' && activityPayload(event).synthetic && !activityPayload(event).message_id))
       .filter((event) => !(cleanText(event.type) === 'document.signed' && activityPayload(event).synthetic && !firstText(activityPayload(event).document_id, activityPayload(event).id)))
       .filter((event) => state.visibleActivity.has(feedActivityCategory(event)))
@@ -1403,8 +1414,10 @@
       .filter((item) => state.trashMode ? isPhotoTrashed(item.photo) : !isPhotoTrashed(item.photo))
       .filter((item) => state.trashMode || state.visibleMedia.has(isVideoMedia(item.photo) ? 'video' : 'photo'))
       .filter((item) => state.trashMode || !state.visibleTags.size || itemTags(item).some((tag) => state.visibleTags.has(normalizeMediaTags([tag])[0])));
-    if (!query) return modeItems;
-    return modeItems.filter((item) => item.search.includes(query) || itemTags(item).some((tag) => tag.toLowerCase().includes(query.replace(/^#/, ''))));
+    // Unpaired photos lead the list (their group is at the top), so selection and the viewer reach them too.
+    const unassigned = visibleUnassigned();
+    if (!query) return [...unassigned, ...modeItems];
+    return [...unassigned, ...modeItems.filter((item) => item.search.includes(query) || itemTags(item).some((tag) => tag.toLowerCase().includes(query.replace(/^#/, ''))))];
   }
   function selectedItems(){
     const selected = state.selected || new Set();
@@ -1896,6 +1909,8 @@
       state.projects = attachOwnedMedia(projects, Array.isArray(mediaResult?.media) ? mediaResult.media : []);
       state.items = buildItems(state.projects);
       state.groups = buildGroups(state.items);
+      state.canAssignMedia = catalog.can_assign_media === true;
+      state.unassigned = buildUnassignedItems(Array.isArray(catalog.unassigned_media) ? catalog.unassigned_media : []);
       state.activity = Array.isArray(activityResult?.events) ? activityResult.events : [];
       const directoryUsers = (Array.isArray(userResult?.documents) ? userResult.documents : []).map((entry) => objectValue(entry.data && typeof entry.data === 'object' ? { ...entry.data, id:firstText(entry.data.id, entry.id) } : entry));
       const memberResult = window.PlatformAPI?.users?.list ? await window.PlatformAPI.users.list(oid).catch(() => null) : null;
@@ -1918,6 +1933,7 @@
       render();
       restoreFeedPhotoRoute();
       restoreUserRoute();
+      if (state.reloadAfterLoad) { state.reloadAfterLoad = false; void load(); }
     }
   }
   function rebuildProjectDisplayLabels(){
@@ -2814,9 +2830,14 @@
     const visibleEntries = entries.slice(0, state.visible);
     const dayGroups = groupedFeedEntries(visibleEntries);
     const selectedCount = state.selected.size;
+    // Selected unpaired photos can be added to a project; Delete is for project photos only.
+    const selectedUnassigned = state.trashMode ? [] : visibleUnassigned().filter((item) => state.selected.has(item.id));
+    const assignAction = selectedUnassigned.length && state.canAssignMedia
+      ? `<button type="button" class="pf-action primary" data-selection-assign><i class="fas fa-folder-plus" aria-hidden="true"></i> ${escapeHtml(selectedUnassigned.length === selectedCount ? feedText('feed_unassigned_add','Add to project') : feedText('feed_selection_assign_some','Add {count} to a project',{count:selectedUnassigned.length}))}</button>`
+      : '';
     const selectionActions = state.trashMode
       ? `<button type="button" class="pf-action" data-selection-restore><i class="fas fa-rotate-left"></i>${(globalThis.PlatformLanguage?.htmlText("photos","m_d55efd8791e299"," Restore") ?? " Restore")}</button><button type="button" class="pf-action danger" data-selection-hard-delete><i class="fas fa-trash"></i>${(globalThis.PlatformLanguage?.htmlText("photos","m_4e4c97a39c03c8"," Delete Forever") ?? " Delete Forever")}</button>`
-      : `<button type="button" class="pf-action danger" data-selection-delete><i class="fas fa-trash"></i>${(globalThis.PlatformLanguage?.htmlText("photos","m_90e27d705bee80"," Delete") ?? " Delete")}</button><div class="pf-download-wrap">
+      : `${assignAction}${selectedUnassigned.length === selectedCount ? '' : `<button type="button" class="pf-action danger" data-selection-delete><i class="fas fa-trash"></i>${(globalThis.PlatformLanguage?.htmlText("photos","m_90e27d705bee80"," Delete") ?? " Delete")}</button>`}<div class="pf-download-wrap">
           <button type="button" class="pf-action primary" data-selection-download><i class="fas fa-download"></i>${(globalThis.PlatformLanguage?.htmlText("photos","m_f3ad10eaad3ccf"," Download") ?? " Download")}</button>
           <div class="pf-download-menu${String(state.downloadMenuOpen ? ' visible' : '')}" data-selection-download-menu>
             <button type="button" data-download-selected-plain>${(globalThis.PlatformLanguage?.htmlText("photos","m_c94e82190b64cc","Without markup") ?? "Without markup")}</button>
@@ -2833,7 +2854,8 @@
       </div>` : ''}
       <div class="pf-scroll" data-feed-scroll data-feed-view="${escapeHtml(feedScrollViewKey())}">
         ${state.loading && !state.loaded ? `<div class="pf-loading">${(globalThis.PlatformLanguage?.htmlText("photos","m_d9f4b62b1c74a0","Loading your feed...") ?? "Loading your feed...")}</div>` : ''}
-        ${!state.loading && state.loaded && !entries.length ? `<div class="pf-empty"><i class="fas fa-filter-circle-xmark"></i><strong>${(globalThis.PlatformLanguage?.htmlText("photos","m_1a6a017a3c3609","Nothing matches what is shown") ?? "Nothing matches what is shown")}</strong><div>${(globalThis.PlatformLanguage?.htmlText("photos","m_e66cd5073679a3","Adjust the Shown menu or search to bring more items into your feed.") ?? "Adjust the Shown menu or search to bring more items into your feed.")}</div></div>` : ''}
+        ${unassignedGroupHtml()}
+        ${!state.loading && state.loaded && !entries.length && !visibleUnassigned().length ? `<div class="pf-empty"><i class="fas fa-filter-circle-xmark"></i><strong>${(globalThis.PlatformLanguage?.htmlText("photos","m_1a6a017a3c3609","Nothing matches what is shown") ?? "Nothing matches what is shown")}</strong><div>${(globalThis.PlatformLanguage?.htmlText("photos","m_e66cd5073679a3","Adjust the Shown menu or search to bring more items into your feed.") ?? "Adjust the Shown menu or search to bring more items into your feed.")}</div></div>` : ''}
         ${dayGroups.map(([key, list]) => `<div class="pf-day"><h2 class="pf-day-title">${escapeHtml(dateLabel(key))}</h2><div class="pf-feed-grid">${state.density==='list' && state.listOrganize==='project' ? feedProjectGroupsHtml(list) : list.map((entry) => state.density === 'posts' ? feedPostHtml(entry) : state.density === 'list' ? feedListEntryHtml(entry) : entry.kind === 'manual' ? feedManualEntryHtml(entry) : entry.kind === 'media' ? feedMediaEntryHtml(entry) : entry.kind === 'document' ? feedDocumentEntryHtml(entry) : entry.kind === 'note' ? feedNoteEntryHtml(entry) : feedActivityEntryHtml(entry)).join('')}</div></div>`).join('')}
         ${entries.length > state.visible ? '<div class="pf-sentinel" data-feed-sentinel></div>' : state.loaded && !state.loading && !state.documentsLoading && entries.length ? '<div class="pf-feed-end" data-feed-end role="status">You’ve reached the end of the available activity.</div>' : ''}
       </div>`;
@@ -2861,9 +2883,12 @@
       state.closingFeedViewerFromRoute = true;
       state.activeFeedViewer.close?.();
     }
+    // An unpaired photo opens among the other unpaired photos, with "Add to project" and no Delete.
+    const pool = items.filter((entry) => !!entry.unassigned === !!item.unassigned);
     state.activeFeedViewer = window.FirstMateMarkup?.openPhotoViewer?.({
-      photos: items.map((entry) => ({ ...entry.photo, __project: entry.project })),
-      index: safeIndex,
+      photos: pool.map((entry) => ({ ...entry.photo, __project: entry.project })),
+      index: Math.max(0, pool.indexOf(item)),
+      ...(item.unassigned ? unassignedViewerOptions() : {}),
       project: item.project || {},
       onOpenProject: async (project) => {
         state.openingProjectFromFeedViewer = true;
@@ -3002,6 +3027,593 @@
       ${previews?`<div class="pf-dialog-files">${previews}</div>`:''}
     </form>${enlarged?.type.startsWith('image/')?`<div class="pf-image-lightbox" data-feed-image-lightbox role="dialog" aria-modal="true" aria-label="Image preview"><div class="pf-image-lightbox-panel"><header><strong>${escapeHtml(enlarged.name)}</strong><button type="button" data-feed-preview-close aria-label="Close image preview">×</button></header><img src="${escapeHtml(state.composerPreviewUrls.get(enlarged) || '')}" alt="${escapeHtml(enlarged.name)}"></div></div>`:''}</div>`;
   }
+  // ── Photos with no project: the Unassigned group, pairing, and the phone camera (Feed page only) ──
+  // Unpaired photos are organization media in the photos slot (catalog.unassigned_media). They show in one group at
+  // the top of the Feed on every device, open and select like any Feed photo, and are paired with a project by
+  // POST media/assign (projects/media-assignment.ts); the catalog is then fetched again so they join the project.
+  // On a phone the Feed has the shared camera bar (FirstMateCamera); its photos upload unpaired, one batch per
+  // camera session, and the step after Done asks for a project.
+  const ASSIGN_BATCH_LIMIT = 100;
+  const UNASSIGNED_BATCHES_SHOWN = 5;
+  // A catalogued message gets `vars`; an uncatalogued key returns its fallback as given, so it is filled in first.
+  function feedText(key, fallback, vars){
+    const english = vars ? String(fallback).replace(/\{(\w+)\}/g, (match, name) => String(vars[name] ?? match)) : String(fallback);
+    const text = globalThis.PlatformLanguage?.text?.('photos', key, english, vars);
+    return text != null ? String(text) : english;
+  }
+  function photoCountText(count){
+    return Number(count) === 1 ? feedText('feed_photo_count_one','1 photo') : feedText('feed_photo_count','{count} photos',{count});
+  }
+  function unassignedBatchKey(photo = {}){
+    const meta = objectValue(photo.metadata);
+    const author = firstText(meta.uploaded_by_user_id, photo.uploaded_by_user_id, 'someone');
+    const batch = firstText(meta.upload_batch_id, meta.batch_id, photo.upload_batch_id);
+    if (batch) return `${author}:${batch}`;
+    const at = Date.parse(photoUploadedAt(photo));
+    return `${author}:${Number.isFinite(at) ? Math.floor(at / 300000) : photoIdentity(photo)}`;
+  }
+  function buildUnassignedItems(media = []){
+    const departments = new Map();
+    const references = media.map((entry) => {
+      const reference = mediaReferenceFromItem(entry);
+      if (reference) departments.set(firstText(reference.media_id, reference.id), Array.isArray(entry.department_ids) ? entry.department_ids.map(cleanText).filter(Boolean) : []);
+      return reference;
+    }).filter(Boolean);
+    return normalizePhotos({ photos:references })
+      .filter((photo) => !isPhotoTrashed(photo))
+      .map((photo) => {
+        const mediaId = firstText(photo.media_id, photo.id);
+        const uploadedAt = photoUploadedAt(photo);
+        const item = { id:`unassigned::${mediaId}`, unassigned:true, mediaId, project:{}, projectId:'', projectTitle:feedText('feed_unassigned_title','Unassigned'), projectAddress:'', projectSubtitle:'', photo, uploadedAt, dateKey:dateKey(uploadedAt), batchKey:unassignedBatchKey(photo), departmentIds:departments.get(mediaId) || [], search:'' };
+        return { ...item, search:searchableText(item) };
+      })
+      .filter((item) => item.mediaId)
+      .sort((a, b) => String(b.uploadedAt).localeCompare(String(a.uploadedAt)));
+  }
+  function visibleUnassigned(){
+    if (state.trashMode || !Array.isArray(state.unassigned)) return [];
+    const query = cleanText(state.query).toLowerCase();
+    return state.unassigned
+      .filter((item) => feedEntryInScope({ kind:'media', media:item.departmentIds.length ? { ...item.photo, department_ids:item.departmentIds } : item.photo }))
+      .filter((item) => !query || item.search.includes(query));
+  }
+  function unassignedTileHtml(item, index){
+    const selected = state.selected.has(item.id);
+    return `<button type="button" class="pf-thumb${selected ? ' selected' : ''}" data-photo-feed-id="${escapeHtml(item.id)}" aria-pressed="${selected ? 'true' : 'false'}" aria-label="${escapeHtml(feedText('feed_unassigned_open','Open unassigned photo {number}',{number:index + 1}))}"><span class="pf-select" data-photo-select="${escapeHtml(item.id)}"><i class="fas fa-check"></i></span>${mediaThumbHtml(item)}</button>`;
+  }
+  function unassignedGroupHtml(){
+    const items = visibleUnassigned();
+    if (!items.length) return '';
+    const batches = new Map();
+    items.forEach((item) => {
+      if (!batches.has(item.batchKey)) batches.set(item.batchKey, []);
+      batches.get(item.batchKey).push(item);
+    });
+    const all = [...batches.entries()];
+    const shown = state.unassignedAll ? all : all.slice(0, UNASSIGNED_BATCHES_SHOWN);
+    let index = 0;
+    return `<section class="pf-unassigned" data-feed-unassigned aria-labelledby="pfUnassignedTitle">
+      <div class="pf-unassigned-head"><span class="pf-unassigned-icon" aria-hidden="true"><i class="fas fa-inbox"></i></span><div><h2 id="pfUnassignedTitle">${escapeHtml(feedText('feed_unassigned_title','Unassigned'))}</h2><span>${escapeHtml(feedText('feed_unassigned_count','{photos} not in a project yet',{photos:photoCountText(items.length)}))}</span></div></div>
+      ${shown.map(([key, list]) => {
+        const first = list[0];
+        const author = postAuthor({ kind:'media', media:first.photo, source:{ author:firstText(first.photo?.metadata?.uploaded_by_user_id, first.photo?.uploaded_by_user_id, uploader(first.photo).id) } });
+        return `<article class="pf-unassigned-batch" data-feed-unassigned-batch="${escapeHtml(key)}">
+          <div class="pf-unassigned-batch-head">${actorAvatarHtml(author,'fa-camera')}<div class="pf-unassigned-batch-copy"><strong>${escapeHtml(feedText('feed_unassigned_batch','{name} took {photos}',{name:author.name, photos:photoCountText(list.length)}))}</strong><time datetime="${escapeHtml(first.uploadedAt)}">${escapeHtml(feedListTime(first.uploadedAt))}</time></div>${state.canAssignMedia ? `<button type="button" class="pf-action primary pf-unassigned-assign" data-feed-unassigned-assign="${escapeHtml(key)}"><i class="fas fa-folder-plus" aria-hidden="true"></i><span>${escapeHtml(feedText('feed_unassigned_add','Add to project'))}</span></button>` : ''}</div>
+          <div class="pf-unassigned-strip">${list.map((item) => unassignedTileHtml(item, index++)).join('')}</div>
+        </article>`;
+      }).join('')}
+      ${all.length > UNASSIGNED_BATCHES_SHOWN ? `<button type="button" class="pf-unassigned-all" data-feed-unassigned-all aria-expanded="${state.unassignedAll}">${escapeHtml(state.unassignedAll ? feedText('feed_unassigned_fewer','Show fewer') : feedText('feed_unassigned_all','Show all {count} uploads',{count:all.length}))}</button>` : ''}
+    </section>`;
+  }
+  function unassignedItemForPhoto(photo = {}){
+    const id = photoIdentity(photo);
+    return (state.unassigned || []).find((item) => item.mediaId === id || photoIdentity(item.photo) === id) || null;
+  }
+  function unassignedViewerOptions(){
+    return {
+      canDelete: false,
+      actions: [{
+        id: 'feed_add_to_project',
+        label: feedText('feed_unassigned_add','Add to project'),
+        icon: 'folder-plus',
+        visible: ({ photo }) => state.canAssignMedia && !!unassignedItemForPhoto(photo),
+        onClick: async ({ photo, viewer }) => {
+          const item = unassignedItemForPhoto(photo);
+          if (!item) return;
+          (viewer || state.activeFeedViewer)?.close?.();
+          await openAssignSheet([item]);
+        }
+      }]
+    };
+  }
+
+  // The project picker: the person's recent and nearby projects, a search, and one tap to pair.
+  const RECENT_PROJECTS_KEY = () => `fm:recent-projects:${orgId()}:${window.Portal?.cfg?.userId || APP.userId || window.__APP?.userId || 'session'}`;
+  function recentProjectIds(){
+    try { return JSON.parse(sessionStorage.getItem(RECENT_PROJECTS_KEY()) || '[]').map(cleanText).filter(Boolean); } catch (error) { return []; }
+  }
+  function rememberRecentProject(id){
+    // The same list the shared project selector keeps, so a project picked here is offered there too.
+    try { sessionStorage.setItem(RECENT_PROJECTS_KEY(), JSON.stringify([id, ...recentProjectIds().filter((entry) => entry !== id)].slice(0, 6))); } catch (error) {}
+  }
+  function projectCoords(project = {}){
+    const location = objectValue(project.location), geo = objectValue(project.geo);
+    const lat = Number(project.lat ?? project.latitude ?? location.lat ?? location.latitude ?? geo.lat);
+    const lng = Number(project.lng ?? project.longitude ?? project.lon ?? location.lng ?? location.longitude ?? geo.lng);
+    return Number.isFinite(lat) && Number.isFinite(lng) && !(lat === 0 && lng === 0) && Math.abs(lat) <= 90 && Math.abs(lng) <= 180 ? { lat, lng } : null;
+  }
+  function projectChoice(project = {}){
+    const id = cleanText(project.id || project.platform_project_id || project.base_project_id);
+    const cover = normalizePhotos(project).find((photo) => galleryMediaType(photo) === 'photo' && !isPhotoTrashed(photo));
+    return { id, title:projectTitle(project) || id, subtitle:projectSubtitle(project), cover:cover ? photoThumb({ photo:cover }) : '', coords:projectCoords(project) };
+  }
+  function localProjectChoice(id){
+    const project = (state.projects || []).find((entry) => sameProjectId(entry, id));
+    return project ? projectChoice(project) : null;
+  }
+  function searchProjectChoices(result = {}){
+    return (Array.isArray(result?.results) ? result.results : [])
+      .filter((row) => !row.type || row.type === 'project')
+      .map((row) => {
+        const id = cleanText(row.project_id || row.id);
+        const local = localProjectChoice(id);
+        return local ? { ...local, title:local.title || cleanText(row.title) } : { id, title:firstText(row.title, id), subtitle:cleanText(row.subtitle), cover:'', coords:null };
+      })
+      .filter((row) => row.id);
+  }
+  function uniqueChoices(rows = []){
+    const seen = new Set();
+    return rows.filter((row) => row && row.id && !seen.has(row.id) && seen.add(row.id));
+  }
+  function distanceBetween(a, b){
+    const rad = (value) => value * Math.PI / 180;
+    const dLat = rad(b.lat - a.lat), dLng = rad(b.lng - a.lng);
+    const h = Math.sin(dLat / 2) ** 2 + Math.cos(rad(a.lat)) * Math.cos(rad(b.lat)) * Math.sin(dLng / 2) ** 2;
+    return 6371000 * 2 * Math.atan2(Math.sqrt(h), Math.sqrt(1 - h));
+  }
+  function distanceText(meters){
+    const imperial = /^en-(US|LR|MM)$/i.test(navigator.language || 'en-US');
+    if (imperial) {
+      const miles = meters / 1609.344;
+      return miles < 0.1 ? feedText('feed_assign_here','Here') : feedText('feed_assign_miles','{distance} mi',{distance:miles < 10 ? miles.toFixed(1) : Math.round(miles)});
+    }
+    const km = meters / 1000;
+    return km < 0.15 ? feedText('feed_assign_here','Here') : feedText('feed_assign_km','{distance} km',{distance:km < 10 ? km.toFixed(1) : Math.round(km)});
+  }
+  async function currentPosition(ask){
+    if (!navigator.geolocation) return null;
+    if (!ask) {
+      const permission = await navigator.permissions?.query?.({ name:'geolocation' }).catch(() => null);
+      if (permission?.state !== 'granted') return null;
+    }
+    return new Promise((resolve) => navigator.geolocation.getCurrentPosition(
+      (position) => resolve({ lat:position.coords.latitude, lng:position.coords.longitude }),
+      (error) => resolve(ask ? { error } : null),
+      { enableHighAccuracy:false, timeout:8000, maximumAge:300000 }
+    ));
+  }
+  function assignMediaRequest(projectId, mediaIds){
+    if (!window.PlatformAPI?.request) return Promise.reject(new Error(feedText('feed_assign_unavailable','Adding photos to a project is not available here.')));
+    return window.PlatformAPI.request(`/organizations/${encodeURIComponent(orgId())}/media/assign`, { method:'POST', body:{ project_id:projectId, media_ids:mediaIds } });
+  }
+  async function stillUnassignedIds(ids = []){
+    const result = await window.PlatformAPI.request(`/organizations/${encodeURIComponent(orgId())}/media?unassigned=true`);
+    const open = new Set((Array.isArray(result?.media) ? result.media : []).map((item) => cleanText(item.id || item.media_id)));
+    return ids.filter((id) => open.has(id));
+  }
+  function assignErrorText(code, error, project = {}){
+    if (code === 'project_manage_denied') return feedText('feed_assign_error_denied','You can’t add photos to {project}. Pick another project, or ask someone who manages it.',{project:project.title || ''});
+    if (code === 'project_not_found') return feedText('feed_assign_error_project','That project isn’t available any more. Pick another one.');
+    if (code === 'media_write_denied') return feedText('feed_assign_error_write','You can’t move one of these photos.');
+    if (code === 'media_assigned_elsewhere') return feedText('feed_assign_error_elsewhere','One of these photos is already in another project.');
+    if (code === 'media_not_found') return feedText('feed_assign_error_missing','One of these photos is no longer available.');
+    if (!error?.status) return feedText('feed_assign_error_network','Couldn’t reach FirstMate. Check your connection and try again.');
+    return feedText('feed_assign_error','The photos weren’t added. {reason}',{reason:cleanText(error?.message) || feedText('feed_assign_try_again','Try again.')});
+  }
+  /*
+   * Renders the picker into `host` and resolves { kind:'assigned', project, ids } once photos are paired, or
+   * { kind:'left' } when the person keeps them unassigned. config: mediaIds(say) → ids to pair (may wait for
+   * uploads), thumbnails, describe() → the summary line, hint, leaveLabel, leaveIcon, warning() → a standing note.
+   */
+  function mountAssignPicker(host, config = {}){
+    let ids = Array.isArray(config.ids) ? config.ids.slice() : null;
+    let query = '', searchRows = null, searchFailed = false, recentRows = null, position = null, locating = false;
+    let busy = false, settled = false, ticket = 0, timer = 0, rows = new Map();
+    const dropped = new Set();
+    const thumbs = (config.thumbnails || []).filter(Boolean).slice(0, 4);
+    host.innerHTML = `<div class="pf-assign" data-feed-assign>
+      <div class="pf-assign-summary">${thumbs.length ? `<span class="pf-assign-thumbs" aria-hidden="true">${thumbs.map((src) => `<img src="${escapeHtml(src)}" alt="">`).join('')}</span>` : ''}<div><strong data-assign-count></strong><span>${escapeHtml(config.hint || feedText('feed_assign_hint','Pick the project these belong to.'))}</span></div></div>
+      <label class="pf-assign-search"><i class="fas fa-magnifying-glass" aria-hidden="true"></i><input type="search" data-assign-search placeholder="${escapeHtml(feedText('feed_assign_search','Search projects'))}" aria-label="${escapeHtml(feedText('feed_assign_search','Search projects'))}" autocomplete="off" enterkeyhint="search"></label>
+      <div class="pf-assign-status" data-assign-status aria-live="polite"></div>
+      <div class="pf-assign-list" data-assign-list></div>
+      <div class="pf-assign-foot"><button type="button" class="pf-assign-leave" data-assign-leave><i class="fas ${escapeHtml(config.leaveIcon || 'fa-inbox')}" aria-hidden="true"></i><span>${escapeHtml(config.leaveLabel || feedText('feed_assign_leave','Leave unassigned'))}</span></button></div>
+    </div>`;
+    const list = host.querySelector('[data-assign-list]'), status = host.querySelector('[data-assign-status]');
+    const input = host.querySelector('[data-assign-search]'), leave = host.querySelector('[data-assign-leave]'), count = host.querySelector('[data-assign-count]');
+    let resolveOutcome;
+    const outcome = new Promise((resolve) => { resolveOutcome = resolve; });
+    const summary = () => { count.textContent = config.describe?.(ids) || photoCountText(ids?.length || 0); };
+    const summaryTimer = typeof config.describe === 'function' ? setInterval(() => { if (!host.isConnected) clearInterval(summaryTimer); else summary(); }, 400) : 0;
+    summary();
+    function finish(value){
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      clearInterval(summaryTimer);
+      resolveOutcome(value);
+    }
+    function say(text, tone = ''){
+      status.className = `pf-assign-status${tone ? ` ${tone}` : ''}`;
+      status.setAttribute('aria-live', tone === 'error' ? 'assertive' : 'polite');
+      status.innerHTML = text ? `${tone === 'busy' ? '<span class="pf-assign-spin" aria-hidden="true"></span>' : tone ? `<i class="fas ${tone === 'error' ? 'fa-circle-exclamation' : 'fa-triangle-exclamation'}" aria-hidden="true"></i>` : ''}<span>${escapeHtml(text)}</span>` : '';
+    }
+    const standing = () => { const note = config.warning?.(); if (note) say(note, 'warn'); else if (!busy) say(''); };
+    const section = (title, items, extra = '') => `<div class="pf-assign-section"><span>${escapeHtml(title)}</span>${extra}</div>${items.map(rowHtml).join('')}`;
+    function rowHtml(row){
+      rows.set(row.id, row);
+      const distance = position && !position.error && row.coords ? distanceText(distanceBetween(position, row.coords)) : '';
+      const subtitle = [distance, row.subtitle].filter(Boolean).join(' · ');
+      return `<button type="button" class="pf-assign-row" data-assign-project="${escapeHtml(row.id)}"${busy ? ' disabled' : ''}><span class="pf-assign-cover" aria-hidden="true">${row.cover ? `<img loading="lazy" src="${escapeHtml(row.cover)}" alt="">` : '<i class="fas fa-house"></i>'}</span><span class="pf-assign-copy"><strong>${escapeHtml(row.title)}</strong>${subtitle ? `<small>${escapeHtml(subtitle)}</small>` : ''}</span><span class="pf-assign-go" aria-hidden="true"><i class="fas fa-chevron-right"></i></span></button>`;
+    }
+    function nearbyRows(){
+      if (!position || position.error) return [];
+      return (state.projects || []).map((project) => ({ project, coords:projectCoords(project) })).filter((entry) => entry.coords)
+        .map((entry) => ({ ...entry, meters:distanceBetween(position, entry.coords) }))
+        .filter((entry) => entry.meters <= 3200)
+        .sort((a, b) => a.meters - b.meters).slice(0, 3).map((entry) => projectChoice(entry.project)).filter((row) => row.id);
+    }
+    function renderList(){
+      rows = new Map();
+      const empty = (text) => `<div class="pf-assign-empty">${escapeHtml(text)}</div>`;
+      if (query) {
+        if (searchRows === null) { list.innerHTML = `<div class="pf-assign-empty"><span class="pf-assign-spin" aria-hidden="true"></span> ${escapeHtml(feedText('feed_assign_searching','Searching…'))}</div>`; return; }
+        if (searchFailed) { list.innerHTML = empty(feedText('feed_assign_search_failed','Search isn’t working right now. Try again in a moment.')); return; }
+        list.innerHTML = searchRows.length ? section(feedText('feed_assign_results','Projects'), searchRows) : empty(feedText('feed_assign_no_match','No projects match “{query}”.',{query}));
+        return;
+      }
+      const nearby = nearbyRows();
+      const canLocate = !!navigator.geolocation && !position && (state.projects || []).some((project) => projectCoords(project));
+      const locate = canLocate ? `<button type="button" data-assign-locate${locating ? ' disabled' : ''}><i class="fas fa-location-crosshairs" aria-hidden="true"></i> ${escapeHtml(locating ? feedText('feed_assign_locating','Finding you…') : feedText('feed_assign_nearby_button','Show nearby'))}</button>` : '';
+      const recent = (recentRows || []).filter((row) => !nearby.some((entry) => entry.id === row.id));
+      list.innerHTML = `${nearby.length ? section(feedText('feed_assign_nearby','Nearby'), nearby) : ''}${recentRows === null
+        ? `<div class="pf-assign-section"><span>${escapeHtml(feedText('feed_assign_recent','Recent projects'))}</span>${locate}</div><div class="pf-assign-empty"><span class="pf-assign-spin" aria-hidden="true"></span> ${escapeHtml(feedText('feed_assign_loading','Loading projects…'))}</div>`
+        : recent.length ? section(feedText('feed_assign_recent','Recent projects'), recent, locate) : `<div class="pf-assign-section"><span>${escapeHtml(feedText('feed_assign_recent','Recent projects'))}</span>${locate}</div>${empty(feedText('feed_assign_no_recent','No recent projects. Search for one above.'))}`}`;
+    }
+    async function loadRecent(){
+      const mine = cleanText(APP.userId || window.__APP?.userId);
+      const uploadedTo = (state.items || []).filter((item) => mine && firstText(item.photo?.metadata?.uploaded_by_user_id, item.photo?.uploaded_by_user_id, uploader(item.photo).id) === mine).map((item) => item.projectId);
+      const local = uniqueChoices([...recentProjectIds(), ...uploadedTo].map(localProjectChoice));
+      let server = [];
+      try {
+        if (window.PlatformAPI?.search?.projectsAndContacts) server = searchProjectChoices(await window.PlatformAPI.search.projectsAndContacts(orgId(), { types:'projects', limit:15 }));
+      } catch (error) { console.warn('Feed project picker: recent projects', error); }
+      if (!server.length) server = [...(state.projects || [])].sort((a, b) => String(b.updated_at || '').localeCompare(String(a.updated_at || ''))).slice(0, 15).map(projectChoice);
+      recentRows = uniqueChoices([...local, ...server]).slice(0, 15);
+      if (!query && !settled) renderList();
+    }
+    async function runSearch(){
+      const mine = ++ticket;
+      const text = query;
+      try {
+        const result = window.PlatformAPI?.search?.projectsAndContacts
+          ? searchProjectChoices(await window.PlatformAPI.search.projectsAndContacts(orgId(), { query:text, types:'projects', limit:20 }))
+          : (state.projects || []).filter((project) => [projectTitle(project), projectAddress(project)].join(' ').toLowerCase().includes(text.toLowerCase())).map(projectChoice);
+        if (mine !== ticket || settled) return;
+        searchRows = result; searchFailed = false;
+      } catch (error) {
+        if (mine !== ticket || settled) return;
+        console.warn('Feed project picker: search', error);
+        searchRows = []; searchFailed = true;
+      }
+      renderList();
+    }
+    async function locate(ask){
+      locating = true; renderList();
+      const found = await currentPosition(ask);
+      locating = false;
+      if (settled) return;
+      if (found?.error) say(feedText('feed_assign_location_off','Location is off for this site, so nearby projects can’t be shown.'), 'warn');
+      position = found?.error ? null : found;
+      if (!query) renderList();
+    }
+    function setBusy(button){
+      busy = !!button;
+      list.querySelectorAll('[data-assign-project],[data-assign-locate]').forEach((node) => { node.disabled = busy; });
+      leave.disabled = busy;
+      input.readOnly = busy;
+      list.querySelectorAll('.pf-assign-row.busy').forEach((node) => { node.classList.remove('busy'); node.querySelector('.pf-assign-go').innerHTML = '<i class="fas fa-chevron-right"></i>'; });
+      if (button) { button.classList.add('busy'); button.querySelector('.pf-assign-go').innerHTML = '<span class="pf-assign-spin"></span>'; }
+    }
+    async function assign(row, button){
+      if (busy || settled || !row) return;
+      setBusy(button);
+      try {
+        if (!ids) ids = await config.mediaIds((text) => say(text, 'busy'));
+        if (!ids.length) {
+          setBusy(null);
+          say(feedText('feed_assign_nothing','None of these photos uploaded, so there is nothing to add yet.'), 'error');
+          ids = null;
+          return;
+        }
+        say(feedText('feed_assign_progress','Adding {photos} to {project}…',{photos:photoCountText(ids.length), project:row.title}), 'busy');
+        const results = [];
+        for (let index = 0; index < ids.length; index += ASSIGN_BATCH_LIMIT) results.push(await assignMediaRequest(row.id, ids.slice(index, index + ASSIGN_BATCH_LIMIT)));
+        rememberRecentProject(row.id);
+        finish({ kind:'assigned', project:row, ids:ids.slice(), dropped:[...dropped], results });
+      } catch (error) {
+        setBusy(null);
+        const code = cleanText(error?.data?.error || error?.data?.code || error?.code);
+        if ((code === 'media_assigned_elsewhere' || code === 'media_not_found') && ids?.length) {
+          const still = await stillUnassignedIds(ids).catch(() => null);
+          if (still) {
+            const gone = ids.length - still.length;
+            ids.filter((id) => !still.includes(id)).forEach((id) => dropped.add(id));
+            ids = still;
+            summary();
+            if (!still.length) {
+              say(feedText('feed_assign_all_gone','These photos were already added to a project, so there is nothing left to add.'), 'error');
+              leave.querySelector('span').textContent = feedText('feed_assign_close','Close');
+              return;
+            }
+            if (gone) {
+              say(gone === 1
+                ? feedText('feed_assign_gone_one','1 of these photos is already in another project. Pick a project for the remaining {photos}.',{photos:photoCountText(still.length)})
+                : feedText('feed_assign_gone_many','{gone} of these photos are already in another project. Pick a project for the remaining {photos}.',{gone, photos:photoCountText(still.length)}), 'warn');
+              return;
+            }
+          }
+        }
+        say(assignErrorText(code, error, row), 'error');
+      }
+    }
+    list.addEventListener('click', (event) => {
+      const project = event.target.closest('[data-assign-project]');
+      if (project) { void assign(rows.get(project.dataset.assignProject), project); return; }
+      if (event.target.closest('[data-assign-locate]') && !locating) void locate(true);
+    });
+    input.addEventListener('input', () => {
+      if (busy) return;
+      query = cleanText(input.value);
+      clearTimeout(timer);
+      searchRows = null;
+      if (!query) { ++ticket; renderList(); return; }
+      renderList();
+      timer = setTimeout(runSearch, 220);
+    });
+    input.addEventListener('keydown', (event) => {
+      if (event.key !== 'Enter') return;
+      event.preventDefault();
+      list.querySelector('[data-assign-project]')?.click();
+    });
+    leave.addEventListener('click', () => { if (!busy) finish({ kind:'left' }); });
+    renderList();
+    standing();
+    void loadRecent();
+    void locate(false);
+    return Object.assign(outcome, { cancel:() => finish({ kind:'cancelled' }), say });
+  }
+  // The same picker as a sheet over the Feed (bottom sheet on a phone, a dialog on a desktop).
+  async function openAssignSheet(items = []){
+    const chosen = items.filter((item) => item?.unassigned && item.mediaId);
+    if (!chosen.length || !state.canAssignMedia || document.querySelector('[data-feed-assign-sheet]')) return null;
+    injectUnassignedStyles();
+    const opener = document.activeElement;
+    const overlay = document.createElement('div');
+    overlay.className = 'pf-assign-overlay';
+    overlay.dataset.feedAssignSheet = '';
+    overlay.innerHTML = `<div class="pf-assign-sheet" role="dialog" aria-modal="true" aria-labelledby="pfAssignSheetTitle"><header class="pf-assign-sheet-head"><strong id="pfAssignSheetTitle">${escapeHtml(feedText('feed_assign_title','Add to a project'))}</strong><button type="button" data-assign-close aria-label="${escapeHtml(feedText('feed_assign_close','Close'))}"><i class="fas fa-xmark" aria-hidden="true"></i></button></header><div class="pf-assign-sheet-body"></div></div>`;
+    document.body.append(overlay);
+    const picker = mountAssignPicker(overlay.querySelector('.pf-assign-sheet-body'), {
+      ids: chosen.map((item) => item.mediaId),
+      thumbnails: chosen.map((item) => photoThumb(item)),
+      leaveLabel: feedText('feed_assign_keep','Keep unassigned'),
+      leaveIcon: 'fa-inbox'
+    });
+    const close = () => picker.cancel();
+    overlay.querySelector('[data-assign-close]').onclick = close;
+    overlay.addEventListener('click', (event) => { if (event.target === overlay) close(); });
+    const onKey = (event) => { if (event.key === 'Escape') { event.preventDefault(); event.stopPropagation(); close(); } };
+    window.addEventListener('keydown', onKey, true);
+    // A desktop starts in the search; a phone keeps its keyboard down so the list stays in reach.
+    if (!feedIsMobile()) overlay.querySelector('[data-assign-search]')?.focus({ preventScroll:true });
+    else overlay.querySelector('[data-assign-close]')?.focus({ preventScroll:true });
+    const outcome = await picker;
+    window.removeEventListener('keydown', onKey, true);
+    overlay.remove();
+    if (opener?.isConnected) opener.focus?.({ preventScroll:true });
+    if (outcome?.kind === 'assigned') afterAssigned(outcome);
+    return outcome;
+  }
+  function refreshFeed(){
+    if (state.loading) { state.reloadAfterLoad = true; return; }
+    void load();
+  }
+  function afterAssigned(outcome = {}){
+    const ids = new Set(outcome.ids || []);
+    // Photos found to be in another project while picking leave the group too (the refetch confirms it).
+    const gone = new Set([...ids, ...(outcome.dropped || [])]);
+    state.unassigned = (state.unassigned || []).filter((item) => !gone.has(item.mediaId));
+    for (const id of [...state.selected]) if (id.startsWith('unassigned::') && gone.has(id.slice('unassigned::'.length))) state.selected.delete(id);
+    if (!state.selected.size) setSelectionMode(false);
+    showToast?.(feedText('feed_assign_done_title','Added to project'), feedText('feed_assign_done','{photos} added to {project}.',{photos:photoCountText(ids.size), project:outcome.project?.title || ''}), true);
+    if (state.root?.isConnected) render();
+    refreshFeed();
+  }
+
+  // The phone camera: a bar along the bottom of the Feed (hidden on a desktop by the camera library's own CSS).
+  function newFeedBatchId(){
+    const random = (globalThis.crypto?.randomUUID?.() || Math.random().toString(36).slice(2) + Math.random().toString(36).slice(2)).replace(/-/g, '').slice(0, 12);
+    return `feed_${Date.now().toString(36)}_${random}`;
+  }
+  async function uploadFeedCameraPhoto(file){
+    const media = window.PlatformAPI?.media;
+    if (!media?.upload) throw new Error(feedText('feed_camera_upload_unavailable','Uploading is not available here.'));
+    if (!state.cameraBatchId) state.cameraBatchId = newFeedBatchId();
+    // An unpaired photo: owned by the organization, in the photos slot, naming no project. The server records who
+    // took it and their branch. One batch id per camera session makes the burst one Feed post.
+    const result = await media.upload(orgId(), file, {
+      ownerType:'organization', slot:'photos', replaceSlot:false, thumbnails:true,
+      compression:{ quality:0.88, max_width:2400, max_height:2400 },
+      metadata:{ field:'photos', source:'feed_camera_capture', media_type:'image', mime_type:file.type || 'image/jpeg', upload_batch_id:state.cameraBatchId, uploaded_at:new Date().toISOString() }
+    });
+    const item = result?.media || result;
+    if (!cleanText(item?.id)) throw new Error(feedText('feed_camera_not_uploaded','This photo was not uploaded.'));
+    return item;
+  }
+  async function cameraMediaIds(entries, say){
+    const open = () => entries.filter((entry) => entry.status === 'pending' || entry.status === 'uploading').length;
+    for (let left = open(); left; left = open()) {
+      say(feedText('feed_camera_finishing','Finishing uploads ({done} of {total})…',{done:entries.length - left, total:entries.length}));
+      await new Promise((resolve) => setTimeout(resolve, 200));
+    }
+    return entries.filter((entry) => entry.status === 'done').map((entry) => cleanText(entry.result?.id || entry.result?.media_id)).filter(Boolean);
+  }
+  function feedCameraNextStep(entries, step){
+    step.setTitle(feedText('feed_camera_step_title','Add to a project?'));
+    const failed = () => entries.filter((entry) => entry.status === 'failed').length;
+    return mountAssignPicker(step.body, {
+      thumbnails: entries.map((entry) => entry.thumbnail),
+      hint: feedText('feed_camera_step_hint','Pick a project, or leave them unassigned and add them later from the Feed.'),
+      describe: () => {
+        const uploading = entries.filter((entry) => entry.status === 'pending' || entry.status === 'uploading').length;
+        return [photoCountText(entries.length), uploading ? feedText('feed_camera_uploading','{count} uploading',{count:uploading}) : '', failed() ? feedText('feed_camera_failed_count','{count} not uploaded',{count:failed()}) : ''].filter(Boolean).join(' · ');
+      },
+      warning: () => failed() ? feedText('feed_camera_failed','{photos} didn’t upload. Go back to the camera and tap it to retry.',{photos:photoCountText(failed())}) : '',
+      leaveLabel: feedText('feed_assign_leave','Leave unassigned'),
+      leaveIcon: 'fa-inbox',
+      mediaIds: (say) => cameraMediaIds(entries, say)
+    });
+  }
+  function feedCameraDone(entries = [], outcome){
+    state.cameraBatchId = '';
+    if (!entries.length) return;
+    if (outcome?.kind === 'assigned') { afterAssigned(outcome); return; }
+    const saved = entries.filter((entry) => entry.status === 'done').length;
+    if (saved) showToast?.(feedText('feed_camera_saved_title','Saved to Unassigned'), feedText('feed_camera_saved','{photos} saved. Add them to a project from the Unassigned group.',{photos:photoCountText(saved)}), true);
+    refreshFeed();
+  }
+  function ensureFeedCamera(){
+    const host = state.root;
+    if (!host?.isConnected || !window.FirstMateCamera?.mount || !state.loaded) return;
+    const next = state.canAssignMedia === true;
+    if (state.camera?.bar?.parentElement === host && state.cameraNext === next) return;
+    if (state.camera?.isOpen?.()) return;
+    state.camera?.destroy?.();
+    host.classList.add('pf-feed-camera-host');
+    state.cameraNext = next;
+    state.camera = window.FirstMateCamera.mount(host, {
+      label: feedText('feed_camera_bar','Take photos'),
+      upload: uploadFeedCameraPhoto,
+      onOpen: () => {
+        state.cameraBatchId = newFeedBatchId();
+        host.style.setProperty('--pf-feed-camera-top', `${Math.max(0, Math.round(host.getBoundingClientRect().top))}px`);
+      },
+      ...(next ? { next:feedCameraNextStep } : {}),
+      onDone: feedCameraDone
+    });
+  }
+  // render() rewrites the page but leaves the camera's own nodes in place, so a re-render never stops the camera.
+  function setFeedRootHtml(html){
+    const keep = [state.camera?.bar, state.camera?.element].filter((node) => node && node.parentElement === state.root);
+    if (!keep.length) { state.root.innerHTML = html; return; }
+    [...state.root.childNodes].forEach((node) => { if (!keep.includes(node)) node.remove(); });
+    state.root.insertAdjacentHTML('afterbegin', html);
+  }
+  function injectUnassignedStyles(){
+    injectCSS('photos_feed_unassigned', `
+      .pf-unassigned{margin:0 0 22px;border:1px solid #e4e7ec;border-radius:14px;background:#fff;box-shadow:0 1px 2px rgba(16,24,40,.04);overflow:hidden}
+      .pf-wrap[data-density="posts"] .pf-unassigned{max-width:700px;margin:0 auto 18px}
+      .pf-unassigned-head{display:flex;align-items:center;gap:11px;padding:12px 14px;border-bottom:1px solid #f2f4f7;background:#fcfcfd}
+      .pf-unassigned-icon{width:34px;height:34px;flex:0 0 34px;border-radius:10px;display:grid;place-items:center;background:#fef0c7;color:#b54708;font-size:15px}
+      .pf-unassigned-head h2{margin:0;font-size:15px;line-height:1.25;color:#101828;font-weight:750}
+      .pf-unassigned-head>div>span{display:block;margin-top:1px;font-size:12px;color:#667085}
+      .pf-unassigned-batch{padding:12px 14px 14px}
+      .pf-unassigned-batch+.pf-unassigned-batch{border-top:1px solid #f2f4f7}
+      .pf-unassigned-batch-head{display:flex;align-items:center;gap:10px;min-width:0;margin-bottom:10px}
+      .pf-unassigned-batch-head .pf-actor-avatar{width:36px;height:36px;flex:0 0 36px;font-size:14px}
+      .pf-unassigned-batch-copy{flex:1;min-width:0;display:flex;flex-direction:column}
+      .pf-unassigned-batch-copy strong{font-size:13px;font-weight:700;color:#101828;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+      .pf-unassigned-batch-copy time{font-size:12px;color:#667085}
+      .pf-action.pf-unassigned-assign{flex:none;display:inline-flex;align-items:center;gap:7px;height:36px;padding:0 13px}
+      .pf-unassigned-strip{display:flex;flex-wrap:wrap;gap:8px}
+      .pf-unassigned-strip .pf-thumb{width:112px;height:112px;flex:0 0 112px;aspect-ratio:auto}
+      .pf-unassigned-all{display:block;width:100%;min-height:40px;border:0;border-top:1px solid #f2f4f7;background:#fcfcfd;color:var(--primary,#d93025);font:inherit;font-size:13px;font-weight:700;cursor:pointer}
+      @media(hover:none){.pf-unassigned .pf-select{opacity:1}}
+      .pf-wrap[data-pf-page="feed"]>[data-photo-feed-dynamic]>.pf-selectionbar{top:0;flex:none}
+      @media(max-width:760px){
+        .pf-unassigned{margin:0 0 16px;border-radius:12px}
+        .pf-unassigned-head{padding:10px 12px}
+        .pf-unassigned-batch{padding:10px 12px 12px}
+        .pf-unassigned-batch-copy strong{white-space:normal;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;line-height:1.3}
+        .pf-unassigned-strip{flex-wrap:nowrap;overflow-x:auto;margin:0 -12px;padding:0 12px 2px;scroll-snap-type:x proximity;scroll-padding:0 12px;scrollbar-width:none;overscroll-behavior-x:contain}
+        .pf-unassigned-strip::-webkit-scrollbar{display:none}
+        .pf-unassigned-strip .pf-thumb{width:84px;height:84px;flex:0 0 84px;scroll-snap-align:start}
+        .pf-action.pf-unassigned-assign{height:38px}
+        .pf-wrap[data-pf-page="feed"]>[data-photo-feed-dynamic]>.pf-selectionbar{display:grid;grid-template-columns:minmax(0,1fr);gap:8px;padding:9px 10px}
+        .pf-wrap[data-pf-page="feed"] .pf-selection-actions{gap:6px;min-width:0}
+        .pf-wrap[data-pf-page="feed"] .pf-selection-actions .pf-action{height:40px;padding:0 12px;white-space:nowrap}
+        .pf-wrap[data-pf-page="feed"] .pf-selection-actions [data-selection-assign]{flex:1 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis}
+        .pf-wrap[data-pf-page="feed"] .pf-selection-actions:has([data-selection-assign]) [data-selection-download]{width:44px;padding:0;font-size:0}
+        .pf-wrap[data-pf-page="feed"] .pf-selection-actions:has([data-selection-assign]) [data-selection-download] i{font-size:15px}
+        .pf-feed-camera-host>.fmc-bar{left:0;right:0;bottom:env(safe-area-inset-bottom,0px)}
+        .pf-feed-camera-host>.fmc-shell{position:fixed;top:var(--pf-feed-camera-top,0px);left:0;right:0;bottom:0}
+        .pf-feed-camera-host.fmc-host .pf-wrap>[data-photo-feed-dynamic]>.pf-scroll{padding-bottom:64px}
+        .pf-feed-camera-host:is(:has(.pf-shown-menu),:has(.pf-feed-scope-menu),:has(.pf-overlay),:has(.pf-selectionbar))>.fmc-bar{transform:translateY(calc(100% + 24px));opacity:0;pointer-events:none}
+      }
+      .pf-assign{display:flex;flex-direction:column;gap:10px;min-height:100%;color:#101828;font-size:14px}
+      .pf-assign-summary{display:flex;align-items:center;gap:11px;min-width:0}
+      .pf-assign-summary>div{min-width:0}
+      .pf-assign-thumbs{display:flex;flex:none}
+      .pf-assign-thumbs img{width:42px;height:42px;border-radius:10px;object-fit:cover;border:2px solid #fff;box-shadow:0 1px 3px rgba(16,24,40,.2);background:#f2f4f7}
+      .pf-assign-thumbs img+img{margin-left:-18px}
+      .pf-assign-summary strong{display:block;font-size:14px;font-weight:700}
+      .pf-assign-summary>div>span{display:block;font-size:12px;line-height:1.35;color:#667085}
+      .pf-assign-search{position:relative;display:block}
+      .pf-assign-search i{position:absolute;left:14px;top:50%;transform:translateY(-50%);color:#98a2b3;font-size:14px;pointer-events:none}
+      .pf-assign-search input{box-sizing:border-box;width:100%;height:46px;padding:0 12px 0 40px;border:1px solid #d0d5dd;border-radius:12px;background:#fff;color:#101828;font:inherit;font-size:16px}
+      .pf-assign-search input:focus{outline:none;border-color:var(--primary,#d93025);box-shadow:0 0 0 3px rgba(16,24,40,.08)}
+      .pf-assign-status{display:flex;align-items:flex-start;gap:8px;padding:9px 12px;border-radius:10px;background:#f2f4f7;color:#344054;font-size:13px;line-height:1.4}
+      .pf-assign-status:empty{display:none}
+      .pf-assign-status>i{margin-top:2px}
+      .pf-assign-status.error{background:#fef3f2;color:#b42318}
+      .pf-assign-status.warn{background:#fffaeb;color:#b54708}
+      .pf-assign-list{flex:1;display:flex;flex-direction:column;gap:2px;min-height:96px}
+      .pf-assign-section{display:flex;align-items:center;justify-content:space-between;gap:8px;min-height:32px;padding:4px 4px 2px;font-size:12px;font-weight:700;color:#667085}
+      .pf-assign-section button{display:inline-flex;align-items:center;gap:6px;min-height:32px;padding:0 6px;border:0;border-radius:8px;background:none;color:var(--primary,#d93025);font:inherit;font-weight:700;cursor:pointer}
+      .pf-assign-section button:disabled{color:#98a2b3;cursor:default}
+      .pf-assign-row{display:flex;align-items:center;gap:12px;width:100%;min-height:62px;padding:8px 8px;border:0;border-radius:12px;background:#fff;color:inherit;font:inherit;text-align:left;cursor:pointer;-webkit-tap-highlight-color:transparent}
+      .pf-assign-row:hover,.pf-assign-row:focus-visible{background:#f2f4f7;outline:none}
+      .pf-assign-row:active{background:#eaecf0}
+      .pf-assign-row:disabled{cursor:default;opacity:.5}
+      .pf-assign-row.busy{opacity:1;background:#f2f4f7}
+      .pf-assign-cover{width:46px;height:46px;flex:0 0 46px;display:grid;place-items:center;overflow:hidden;border-radius:10px;background:#eef2f6;color:#667085;font-size:16px}
+      .pf-assign-cover img{width:100%;height:100%;object-fit:cover;display:block}
+      .pf-assign-copy{flex:1;min-width:0}
+      .pf-assign-copy strong{display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;font-size:15px;font-weight:650;line-height:1.3;overflow-wrap:anywhere}
+      .pf-assign-copy small{display:block;margin-top:2px;font-size:12px;color:#667085;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+      .pf-assign-go{flex:none;width:20px;display:grid;place-items:center;color:#98a2b3;font-size:13px}
+      .pf-assign-empty{display:flex;align-items:center;justify-content:center;gap:8px;padding:18px 8px;color:#667085;font-size:13px;text-align:center}
+      .pf-assign-foot{position:sticky;bottom:0;margin:0 -12px -12px;padding:12px 12px calc(12px + env(safe-area-inset-bottom,0px));background:linear-gradient(rgba(255,255,255,0),#fff 12px)}
+      .pf-assign-leave{display:flex;align-items:center;justify-content:center;gap:8px;width:100%;height:50px;border:1px solid #d0d5dd;border-radius:12px;background:#fff;color:#344054;font:inherit;font-size:15px;font-weight:700;cursor:pointer;-webkit-tap-highlight-color:transparent}
+      .pf-assign-leave:active{background:#f2f4f7}
+      .pf-assign-leave:disabled{opacity:.5;cursor:default}
+      .pf-assign-spin{display:inline-block;flex:none;width:16px;height:16px;border:2px solid #d0d5dd;border-top-color:var(--primary,#d93025);border-radius:50%;animation:pfAssignSpin .8s linear infinite}
+      .pf-assign-overlay{position:fixed;inset:0;z-index:10000;display:grid;place-items:center;padding:20px;background:rgba(16,24,40,.55);animation:pfAssignFade .18s ease}
+      .pf-assign-sheet{display:flex;flex-direction:column;width:min(480px,100%);height:min(640px,calc(100vh - 40px));overflow:hidden;border-radius:16px;background:#fff;box-shadow:0 24px 60px rgba(16,24,40,.28)}
+      .pf-assign-sheet-head{display:flex;align-items:center;gap:8px;min-height:56px;padding:6px 8px 6px 16px;border-bottom:1px solid #eaecf0}
+      .pf-assign-sheet-head strong{flex:1;font-size:16px}
+      .pf-assign-sheet-head button{width:40px;height:40px;border:0;border-radius:50%;background:#f2f4f7;color:#344054;font-size:16px;cursor:pointer}
+      .pf-assign-sheet-body{flex:1;min-height:0;overflow:auto;padding:12px}
+      @media(max-width:760px){
+        .pf-assign-overlay{place-items:end stretch;padding:0}
+        .pf-assign-sheet{width:100%;height:min(88vh,calc(100dvh - 32px));border-radius:18px 18px 0 0;animation:pfAssignUp .26s cubic-bezier(.2,.8,.2,1)}
+      }
+      @keyframes pfAssignSpin{to{transform:rotate(360deg)}}
+      @keyframes pfAssignFade{from{opacity:0}}
+      @keyframes pfAssignUp{from{transform:translateY(40px);opacity:.4}}
+      @media(prefers-reduced-motion:reduce){.pf-assign-overlay,.pf-assign-sheet{animation:none}}
+    `);
+  }
   function render(){
     if (!state.root) return;
     const scrollSnapshot=captureFeedScroll();
@@ -3011,7 +3623,7 @@
     syncFeedDeviceDensity();
     const mobile=feedIsMobile();
     const visibleCount = ['posts','list'].includes(state.density) ? groupedPosts(feedEntries()).length : feedEntries().length;
-    state.root.innerHTML = `
+    setFeedRootHtml(`
       <div class="pf-wrap${String(state.selectionMode ? ' selection-mode' : '')}" data-pf-page="feed" data-density="${String(escapeHtml(state.density))}">
         <div class="pf-toolbar" data-app-header>
           <div class="pf-title"><i class="fas ${String(escapeHtml(state.icon || 'fa-layer-group'))}"></i><div><strong>${String(escapeHtml(state.title || (globalThis.PlatformLanguage?.text("photos","m_3eea4dfd8e947d","Feed") ?? "Feed")))}</strong><span>${String(escapeHtml(state.subtitle || `${visibleCount} item${visibleCount === 1 ? '' : 's'} shown`))}</span></div></div>
@@ -3037,9 +3649,10 @@
         </div>
         <div data-photo-feed-dynamic>${String(dynamicHtml())}</div>
         ${feedComposerHtml()}
-      </div>`;
+      </div>`);
     bind();
     restoreFeedScroll(scrollSnapshot);
+    ensureFeedCamera();
   }
   function bind(){
     const rootEl = state.root;
@@ -3275,9 +3888,21 @@
       render();
     });
     rootEl.querySelector('[data-selection-delete]')?.addEventListener('click', async () => {
-      await trashItems(selectedItems());
+      await trashItems(selectedItems().filter((item) => !item.unassigned));
       setSelectionMode(false);
       render();
+    });
+    rootEl.querySelector('[data-selection-assign]')?.addEventListener('click', () => {
+      void openAssignSheet(visibleUnassigned().filter((item) => state.selected.has(item.id)));
+    });
+    rootEl.querySelectorAll('[data-feed-unassigned-assign]').forEach((button) => button.addEventListener('click', (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      void openAssignSheet(visibleUnassigned().filter((item) => item.batchKey === button.dataset.feedUnassignedAssign));
+    }));
+    rootEl.querySelector('[data-feed-unassigned-all]')?.addEventListener('click', () => {
+      state.unassignedAll = !state.unassignedAll;
+      renderDynamic();
     });
     rootEl.querySelector('[data-selection-restore]')?.addEventListener('click', async () => {
       await restoreItems(selectedItems());
@@ -3447,6 +4072,19 @@
         } else if (shouldRender) render();
         if (moved) setTimeout(() => { state.suppressClickId = ''; }, 120);
         else state.suppressClickId = '';
+      });
+      // A touch that turns into a scroll is cancelled: it must not leave a drag selection waiting for the next tap.
+      window.addEventListener('pointercancel', () => {
+        if (!state.dragSelecting) return;
+        state.dragPreview.forEach((id) => setTilePreview(id, state.selected.has(id)));
+        state.dragPreview.clear();
+        state.dragSelecting = false;
+        state.dragStartId = '';
+        state.dragMoved = false;
+        state.dragLeftStartTile = false;
+        state.suppressClickId = '';
+        state.selectionMode = state.selected.size > 0;
+        state.root?.querySelector?.('.pf-wrap')?.classList.toggle('selection-mode', state.selectionMode);
       });
     }
     const sentinel = rootEl.querySelector('[data-feed-sentinel]');
@@ -3772,8 +4410,12 @@
   }
   function mount(panel){
     injectStyles();
+    injectUnassignedStyles();
     state.observer?.disconnect?.();
     state.root = panel;
+    state.unassigned = [];
+    state.unassignedAll = false;
+    state.canAssignMedia = false;
     state.projects = [];
     state.items = [];
     state.groups = [];
@@ -4422,7 +5064,7 @@
         if (!state.loaded) load();
         startFeedPolling();
       },
-      onHide:()=>{clearInterval(state.feedTimer);state.mosaicObserver?.disconnect();state.noteObserver?.disconnect();state.mediaResizeObserver?.disconnect();if(state.mosaicResizeHandler)window.removeEventListener('resize',state.mosaicResizeHandler);}
+      onHide:()=>{if(state.camera?.isOpen?.()){state.camera.destroy();state.camera=null;state.cameraBatchId='';refreshFeed();}clearInterval(state.feedTimer);state.mosaicObserver?.disconnect();state.noteObserver?.disconnect();state.mediaResizeObserver?.disconnect();if(state.mosaicResizeHandler)window.removeEventListener('resize',state.mosaicResizeHandler);}
     });
     window.Portal.tabs.renderTabs?.();
     if (window.Portal?.routeState?.get?.().tab === TAB_ID) {
