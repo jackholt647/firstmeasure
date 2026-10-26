@@ -50,14 +50,13 @@
 .fm-entity-window .fm-shell-header[data-window-mobile=true] .fm-window-controls button[data-window-action=close]{width:44px!important;height:44px!important;min-height:44px!important;border:1px solid #e4e7ec!important;border-radius:14px!important}
 .fm-entity-window .fm-shell-header[data-window-mobile=true]>.fm-shell-tabs{grid-row:2;grid-column:1 / -1}
 .fm-entity-window .fm-shell-header[data-window-mobile=true]>.fm-project-tray-tabs{grid-column:2;grid-row:2}
-/* Phone project window: one tight title row (identity, header action, trays menu, close) over tabs that use the full width. */
-.fm-entity-window .fm-shell-header:is(.r-window-bar,.fm-project-loading-header)[data-window-mobile=true]{grid-template-columns:minmax(0,1fr) auto auto auto!important;grid-template-rows:48px auto!important;min-height:48px!important}
+/* Phone project window: one tight title row (identity, header action, close) over tabs that use the full width; the trays are a footer bar. */
+.fm-entity-window .fm-shell-header:is(.r-window-bar,.fm-project-loading-header)[data-window-mobile=true]{grid-template-columns:minmax(0,1fr) auto auto!important;grid-template-rows:48px auto!important;min-height:48px!important}
 .fm-entity-window .fm-shell-header:is(.r-window-bar,.fm-project-loading-header)[data-window-mobile=true]>.fm-shell-identity{grid-column:1!important;grid-row:1!important;padding:0 2px 0 14px!important;gap:7px;font-size:16px!important}
 .fm-entity-window .fm-shell-header:is(.r-window-bar,.fm-project-loading-header)[data-window-mobile=true]>.fm-shell-identity>i{font-size:15px}
 .fm-entity-window .fm-shell-header:is(.r-window-bar,.fm-project-loading-header)[data-window-mobile=true] :is(#rWindowProjectTitle,.r-window-project-title){font-size:16px!important}
 .fm-entity-window .fm-shell-header:is(.r-window-bar,.fm-project-loading-header)[data-window-mobile=true]>.modal-shell-actions{grid-column:2!important;grid-row:1!important;align-self:center;border-left:0!important}
-.fm-entity-window .fm-shell-header:is(.r-window-bar,.fm-project-loading-header)[data-window-mobile=true]>.fm-project-tray-toggle{grid-column:3;grid-row:1;align-self:center}
-.fm-entity-window .fm-shell-header:is(.r-window-bar,.fm-project-loading-header)[data-window-mobile=true]>.r-window-bar-actions{grid-column:4!important;grid-row:1!important;position:static!important;align-self:center}
+.fm-entity-window .fm-shell-header:is(.r-window-bar,.fm-project-loading-header)[data-window-mobile=true]>.r-window-bar-actions{grid-column:3!important;grid-row:1!important;position:static!important;align-self:center}
 .fm-entity-window .fm-shell-header:is(.r-window-bar,.fm-project-loading-header)[data-window-mobile=true] .fm-window-controls{height:48px!important;padding:0 8px 0 2px!important}
 .fm-entity-window .fm-shell-header:is(.r-window-bar,.fm-project-loading-header)[data-window-mobile=true] .fm-window-controls button[data-window-action=close]{width:36px!important;height:36px!important;min-height:36px!important;border-radius:11px!important;font-size:16px}
 .fm-entity-window .fm-shell-header:is(.r-window-bar,.fm-project-loading-header)[data-window-mobile=true]>.fm-shell-tabs{grid-row:2!important;grid-column:1 / -1!important;display:grid!important;grid-auto-flow:column;grid-auto-columns:minmax(0,1fr);width:100%;height:42px!important;min-height:42px!important;border-top:1px solid #f2f4f7;overflow:hidden}
@@ -76,25 +75,13 @@
 .fm-entity-window .fm-shell-header.r-window-bar[data-window-mobile=true] :is(#rMeasureTabs,#rOpeningReportTabs) .r-measure-tab{height:40px!important;min-height:40px!important;flex-direction:column;gap:2px!important}
 .fm-entity-window .fm-shell-header.r-window-bar[data-window-mobile=true] :is(#rMeasureTabs,#rOpeningReportTabs) .r-measure-tab i{font-size:14px!important}
 .fm-entity-window .fm-shell-header.r-window-bar[data-window-mobile=true] :is(#rMeasureTabs,#rOpeningReportTabs) .r-measure-tab .pv-tab-label{display:block!important;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:10px!important;line-height:12px;font-weight:600}
-/* The loading header's trays placeholder belongs in the title row, not over the last tab. */
-.fm-entity-window .fm-project-loading-header[data-window-mobile=true]>.fm-project-tray-tabs{grid-row:1!important;grid-column:3!important}
-/* The trays (notes, to-dos, activity, agent) collapse into one control on a phone; the tray list drops down from it. */
-.fm-project-tray-toggle{display:none}
-.fm-shell-header[data-window-mobile=true]>.fm-project-tray-toggle{position:relative;display:inline-flex;align-items:center;justify-content:center;width:38px;height:36px;margin:0;padding:0;border:0;border-radius:10px;background:none;color:#475467;font-size:17px;cursor:pointer;transition:background .16s ease,color .16s ease}
-.fm-shell-header[data-window-mobile=true]>.fm-project-tray-toggle:is([aria-expanded=true],[data-tray-open=true]){background:var(--primary-light,#eef2ff);color:var(--primary,#175cd3)}
-.fm-shell-header[data-window-mobile=true]>.fm-project-tray-toggle:focus-visible{outline:2px solid var(--primary,#175cd3);outline-offset:-2px}
-.fm-project-tray-toggle .fm-tray-toggle-dot{position:absolute;top:6px;right:6px;width:7px;height:7px;border-radius:50%;background:var(--primary,#175cd3);box-shadow:0 0 0 2px #fff}.fm-project-tray-toggle .fm-tray-toggle-dot[hidden]{display:none}
+/* On a phone the trays are a footer bar along the bottom of the window (project-trays.js). The loading
+   window paints the same bar from its placeholder buttons so nothing moves when the project arrives. */
+.fm-entity-window .fm-project-loading-header[data-window-mobile=true]>.fm-project-tray-tabs{position:fixed!important;left:0;right:0;bottom:0;top:auto;z-index:5;display:flex!important;align-items:stretch;justify-content:space-around;gap:0;height:auto;min-height:0!important;margin:0;padding:0 6px env(safe-area-inset-bottom,0px)!important;background:#fff!important;border:0!important;border-top:1px solid #e4e7ec!important;box-shadow:0 -1px 2px #1018280a}
+.fm-entity-window .fm-project-loading-header[data-window-mobile=true]>.fm-project-tray-tabs>button{display:flex!important;flex:1 1 0;flex-direction:column;align-items:center;justify-content:center;gap:2px;min-width:0;max-width:112px;width:auto!important;height:52px!important;padding:5px 2px 4px!important;border:0;background:none!important;color:#98a2b3!important;opacity:1}
+.fm-entity-window .fm-project-loading-header[data-window-mobile=true]>.fm-project-tray-tabs>button>i{display:grid;place-items:center;width:48px;height:26px;font-size:16px}
+.fm-entity-window .fm-project-loading-header[data-window-mobile=true]>.fm-project-tray-tabs>button::after{content:attr(aria-label);display:block;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:10.5px;line-height:13px;font-weight:600}
 .fm-project-tray-tabs .fm-tray-label{display:none}
-.fm-shell-header[data-window-mobile=true]>.fm-project-tray-tabs{position:absolute!important;top:calc(var(--fm-window-safe-top,0px) + 44px);right:52px;left:auto;z-index:80;display:flex!important;flex-direction:column;align-items:stretch;gap:2px;min-width:188px;min-height:0!important;padding:6px!important;margin:0;border:1px solid #e4e7ec!important;border-radius:12px;background:#fff!important;box-shadow:0 14px 36px #1018282e;opacity:0;visibility:hidden;transform:translateY(-6px) scale(.97);transform-origin:top right;pointer-events:none;transition:opacity .14s ease,transform .18s cubic-bezier(.2,.8,.2,1),visibility 0s linear .18s}
-.fm-shell-header[data-window-mobile=true]>.fm-project-tray-tabs[data-menu-open=true]{opacity:1;visibility:visible;transform:none;pointer-events:auto;transition:opacity .14s ease,transform .18s cubic-bezier(.2,.8,.2,1)}
-.fm-shell-header[data-window-mobile=true]>.fm-project-tray-tabs>button{display:flex!important;align-items:center;justify-content:flex-start;gap:12px;width:100%!important;height:42px!important;padding:0 12px!important;border-radius:8px!important;color:#344054!important;font-family:inherit;font-size:14px!important;font-weight:600!important;text-align:left}
-.fm-shell-header[data-window-mobile=true]>.fm-project-tray-tabs>button i{width:18px;text-align:center;color:#667085;font-size:15px}
-.fm-shell-header[data-window-mobile=true]>.fm-project-tray-tabs>button[aria-selected=true]{background:var(--primary-light,#eef2ff)!important;color:var(--primary,#175cd3)!important}.fm-shell-header[data-window-mobile=true]>.fm-project-tray-tabs>button[aria-selected=true] i{color:inherit}
-.fm-shell-header[data-window-mobile=true]>.fm-project-tray-tabs .fm-tray-label{display:inline}
-.fm-project-loading-header[data-window-mobile=true]>.fm-project-tray-tabs{position:static!important;grid-column:3;grid-row:1;align-self:center;width:38px;min-width:0;height:36px;padding:0!important;border:0!important;box-shadow:none;opacity:1;visibility:visible;transform:none;overflow:hidden}
-.fm-project-loading-header[data-window-mobile=true]>.fm-project-tray-tabs>button{display:none!important}
-.fm-project-loading-header[data-window-mobile=true]>.fm-project-tray-tabs::before{content:'\\f141';margin:auto;font:900 17px 'Font Awesome 6 Free';color:#d0d5dd}
-@media(prefers-reduced-motion:reduce){.fm-shell-header[data-window-mobile=true]>.fm-project-tray-tabs{transition:none}}
 @media(max-width:760px){.fm-shell-tray{position:absolute;right:0;top:36px;bottom:0;width:min(380px,100%);background:white;z-index:5}}
 `;document.head.append(style);
   }

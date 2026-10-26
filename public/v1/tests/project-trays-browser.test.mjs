@@ -14,19 +14,19 @@ test('project trays reuse Notes, Channels and the global agent and preserve draf
     await page.evaluate(() => {
       window.__APP={userOrgId:'org',userId:'user',userName:'Alex'};
       window.split=false; window.project={id:'project',title:'Roofing'};window.sent=[];window.notePosts=[];
-      window.Portal={can:key => key === 'channels.separate_project_notes' ? window.split : true};
+      window.Portal={can:key => key === 'channels.separate_project_notes' || key === 'channels.project_messages_tray' ? window.split : true};
       window.rows=[{id:'old',text:'Pinned '+ 'long content '.repeat(90),pinned_at:'2026-09-29',seq:1,author:{id:'user',name:'Alex'},created_at:'2026-09-29T10:00:00Z',can_edit:true,can_delete:true,metadata:{project_note:true},audience:[],attachments:[]}];
       const channel=() => ({id:'channel',type:'project',project_id:'project',name:'Roofing',display_name:'Roofing',separate_notes:window.split,can_post:true,members:[],settings:{}});
       window.ChannelsAPI={
         channels:{ensureProject:async () => ({channel:channel()}),list:async () => ({channels:[channel()]}),get:async () => ({channel:channel()})},
         messages:{list:async (_org,_channel,params={}) => ({channel:channel(),messages:window.rows.filter(row=>params.view==='all'||params.view==='notes'||!window.split||!row.metadata.project_note)}),post:async (_org,_channel,body)=>{window.notePosts.push(body);const row={id:'new'+window.rows.length,seq:window.rows.length+1,author:{id:'user',name:'Alex'},created_at:new Date().toISOString(),can_edit:true,can_delete:true,attachments:[],...body,metadata:{...body.metadata,project_note:body.project_note===true},pinned_at:body.pin?new Date().toISOString():null};window.rows.push(row);return {message:row};},pin:async (_org,id)=>{window.rows.find(row=>row.id===id).pinned_at=new Date().toISOString();},unpin:async (_org,id)=>{window.rows.find(row=>row.id===id).pinned_at=null;},shareNote:async (_org,id)=>{window.rows.find(row=>row.id===id).metadata.note_shared={message_id:'shared'};},revisions:async()=>({revisions:[]})},
-        pins:{list:async()=>({messages:window.rows.filter(row=>row.pinned_at)})},readState:{markRead:async()=>({})},saved:{add:async()=>({})},preferences:{get:async()=>({}),collaboration:async()=>({})},typing:{set:async()=>({})}
+        pins:{list:async()=>({messages:window.rows.filter(row=>row.pinned_at)})},directory:{list:async()=>({})},readState:{markRead:async()=>({})},saved:{add:async()=>({})},preferences:{get:async()=>({}),collaboration:async()=>({})},typing:{set:async()=>({})}
       };
       window.PlatformAPI={work:{activity:async()=>({events:[{id:'event',type:'project.scope.created',payload:{summary:'Scope created'},created_at:'2026-09-29T10:00:00Z'}]})},userActivity:{listForProject:async()=>({events:[]})}};
       window.histories=new Map();
       window.AssistantAPI={projectConversation:async (_org,pid)=>{const id='thread-'+pid;if(!window.histories.has(id))window.histories.set(id,[]);return {thread:{id}};},thread:async (_org,id)=>({thread:{id},messages:window.histories.get(id)}),send:async (_org,id,body)=>{window.sent.push({id,...body});window.histories.get(id).push({id:'u',role:'user',content:body.message},{id:'a',role:'assistant',content:'**Project scope** reviewed.'});return {thread:{id},assistant_message:{role:'assistant',content:'**Project scope** reviewed.'}};}};
     });
-    for (const file of ['window-manager/project-layout.js','agent-chat/agent-chat.js','platform-assistant/platform-assistant.js','channels-ui/channels-ui.js','project-notes/project-notes.js','project-trays/project-trays.js','platform-widgets/runtime.js'])
+    for (const file of ['doc-markdown/firstmate-markdown.js','window-manager/project-layout.js','agent-chat/agent-chat.js','platform-assistant/platform-assistant.js','channels-ui/channels-ui.js','project-notes/project-notes.js','project-trays/project-trays.js','platform-widgets/runtime.js'])
       await page.addScriptTag({url:'/libraries/'+file});
     const portal = await readFile(new URL('../../portal/index.php',import.meta.url),'utf8');
     assert.ok(portal.indexOf('project-trays/project-trays.js') > 0 && portal.indexOf('project-trays/project-trays.js') < portal.indexOf('apps/project-request/app.js'),'the static portal loader includes trays before the project app');
@@ -38,7 +38,7 @@ test('project trays reuse Notes, Channels and the global agent and preserve draf
     await page.getByRole('tab',{name:'Notes',exact:true}).click();
     await page.waitForSelector('.pn-pinned .pn-card');
     assert.equal(await page.locator('.pn-pinned .pn-card').count(),1);
-    await page.getByRole('button',{name:'Show More',exact:true}).click();
+    await page.getByRole('button',{name:/^Show more$/i}).click();
     assert.equal(await page.locator('.pn-card-content.expanded').count(),1);
     await page.getByRole('textbox',{name:'New project note'}).fill('Keep this draft');
     await page.getByRole('tab',{name:'Agent',exact:true}).click();

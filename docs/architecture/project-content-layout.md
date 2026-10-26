@@ -212,6 +212,24 @@ content width beside the right tray, rather than only the browser viewport.
 
 To Do is registered immediately after Notes and reuses `PlatformActionItems.renderTodayList` with a project filter, including its future and completed sections. The legacy project to-do dock is suppressed when this tray is available. The agent's compact pin occupies 100px below an open tray or floats at the bottom right when no tray is selected. Pinning moves the same renderer and preserves the conversation; session ownership and global transfer are described in [global assistant architecture](global-assistant.md#project-tray-session-lifetime).
 
+### Phone trays
+
+On a phone (the window manager's `data-window-mobile`, else a 760px top-window
+query) the header has no tray control. The same tray buttons, from the same
+`definitions()` list (so a module's `register()`ed tray is there too), move
+into a footer bar along the bottom of the project window, under the app and
+any bar it draws at its bottom (Take photos), with an icon and a small label
+each; the open tray's button is highlighted. Every tray but the Agent opens as
+a bottom sheet over the app, above the footer: about 62% of the content height,
+a drag handle (also a button that toggles full height), dragged up to grow or
+down to close, closed by its ×, Escape or a tap on the dimmed app, one at a
+time. Closing slides the sheet away with its content in place. The Agent is the
+compact input bar described in [global assistant architecture](global-assistant.md#project-tray-session-lifetime).
+The content sets `--fm-safe-bottom: 0px` while the footer is shown, so bars
+inside it (the Take photos bar, the agent composer) leave the device's bottom
+inset to the footer. Desktop keeps the header icons and right-hand trays.
+Test: `tests/project-trays-footer-browser.test.mjs`.
+
 Scheduling uses its full tab width, with one + Appointment button opening the shared booking widget. It declares no content sidebar; department, delivery and recurrence configuration belongs to the booking form. See [appointment planning](appointment-planning.md).
 
 The global header also offers an independent dockable To Do tray through

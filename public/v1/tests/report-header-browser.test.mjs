@@ -115,8 +115,8 @@ test('mobile title and dropdown geometry match before and after content boot',as
   FirstMateProjectWindows.close(record.token);
   header.className='r-window-bar r-modal-header fm-shell-header';
   header.querySelector('.r-project-identity-trigger').id='rProjectIdentityTrigger';header.querySelector('.r-window-project-title').id='rWindowProjectTitle';
-  // project-trays puts its phone tray control on the title row, where the opening header reserves its place.
-  const trayToggle=document.createElement('button');trayToggle.type='button';trayToggle.className='fm-project-tray-toggle';header.querySelector('.fm-project-tray-tabs')?.before(trayToggle);
+  // On a phone project-trays moves the tray buttons out of the header into a footer bar.
+  if(header.dataset.windowMobile==='true')header.querySelector('.fm-project-tray-tabs')?.remove();
   const overlay=document.createElement('div');overlay.className='r-overlay active window-managed project-layout-prototype';overlay.style.cssText='display:block;position:fixed;inset:0';
   const win=document.createElement('div');win.className='r-win fm-entity-window';win.style.cssText='position:absolute;inset:0;width:100%;height:100%;padding:0;max-width:none;max-height:none;border:0';win.append(header);overlay.append(win);document.body.append(overlay);
  });

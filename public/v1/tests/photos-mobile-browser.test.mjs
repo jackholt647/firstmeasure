@@ -4,7 +4,7 @@ import {readFile} from 'node:fs/promises';
 import {chromium} from 'playwright-core';
 
 // The project window on a phone (390x844, a mobile user agent): the header tabs use the full width with the trays
-// behind one control, the Photos grid is dense, a photo opens full screen with its details in a bottom sheet, and
+// in a footer bar along the bottom (see project-trays-footer-browser), the Photos grid is dense, a photo opens full screen with its details in a bottom sheet, and
 // the camera bar expands into a live camera (Chrome's fake camera) whose shots upload and line up above the shutter.
 // Each test also checks the desktop layout is the one it was.
 const libraries=new URL('../../libraries/',import.meta.url);
@@ -40,14 +40,14 @@ const headerHtml=`<div class="r-overlay project-layout-prototype"><div class="r-
   <div class="r-modal-header r-window-bar fm-shell-header" data-header-rows="2" id="head"><div class="r-window-identity fm-shell-identity"><i class="fas fa-folder-open"></i><span>2205 Mimosa Pl, Wilmington, NC 28403, USA</span></div>
   <div class="r-tabbar fm-shell-tabs" data-tab-style="underline">${['Overview','Reports','Photos','Docs','Materials','Portal'].map((t,i)=>`<button class="r-tab" data-tab="t${i}" aria-selected="${i===2}"><i class="fas fa-image"></i></button>`).join('')}</div>
   <div class="modal-shell-actions"></div><div class="r-window-bar-actions"><div class="fm-window-controls"><button data-window-action="close" aria-label="Close">x</button></div></div></div>
-  <div id="shell" style="flex:1;display:flex;min-height:0"><div class="r-preview" style="flex:1">content</div></div></div></div>`;
+  <div id="shell" style="flex:1;display:flex;flex-direction:column;min-height:0"><div class="r-preview" style="flex:1">content</div></div></div></div>`;
 async function mountHeader(page,mobile){
   await page.evaluate(m=>{for(const n of [document.querySelector('#win'),document.querySelector('#head')])n.dataset.windowMobile=String(m);},mobile);
   for(const file of ['window-manager/window-shell.js','project-trays/project-trays.js'])await page.addScriptTag({url:'/libraries/'+file});
   await page.evaluate(()=>{FirstMateWindowShell.ensureStyles();window.trays=FirstMateProjectTrays.mount(document.querySelector('#shell'),{orgId:'org',header:document.querySelector('#head'),getProject:()=>({id:'project'})});});
 }
 
-test('phone header: full-width tabs, one tray control with a menu; desktop keeps the tray icons in the tab row',async()=>{
+test('phone header: full-width tabs and no tray control, the trays in a footer bar; desktop keeps the tray icons in the tab row',async()=>{
   const browser=await launch();
   try{
     const {page,errors}=await pageFor(browser,PHONE,headerHtml);
@@ -56,24 +56,18 @@ test('phone header: full-width tabs, one tray control with a menu; desktop keeps
     assert.equal(Math.round((await rect(page,'.fm-shell-tabs')).width),390,'the tab row spans the screen');
     assert.ok(tabs.every(w=>w===tabs[0]&&w>=60),'six equal tabs: '+tabs);
     assert.ok((await rect(page,'.fm-shell-identity')).height<=48,'a tight title row');
-    const toggle=page.locator('.fm-project-tray-toggle');
-    assert.equal(await toggle.isVisible(),true);
-    const t=await rect(page,'.fm-project-tray-toggle');
-    assert.ok(t.y<48,'the tray control is on the title row');
-    assert.equal(await page.locator('.fm-project-tray-tabs').evaluate(n=>getComputedStyle(n).visibility),'hidden','trays are tucked away');
-    await toggle.click();
-    await page.waitForFunction(()=>getComputedStyle(document.querySelector('.fm-project-tray-tabs')).visibility==='visible');
-    assert.equal(await toggle.getAttribute('aria-expanded'),'true');
+    assert.equal(await page.locator('.fm-project-tray-toggle').count(),0,'no tray control in the header');
+    assert.equal(await page.locator('#head .fm-project-tray-tabs').count(),0,'no tray buttons in the header');
+    const footer=await rect(page,'.fm-project-tray-tabs');
+    assert.ok(footer.y+footer.height>=843&&footer.width===390,'the trays are a footer bar: '+JSON.stringify(footer));
     const labels=await page.locator('.fm-project-tray-tabs .fm-tray-label').allInnerTexts();
-    for(const name of ['Notes','To Do','Activity','Agent'])assert.ok(labels.includes(name),'the menu names each tray: '+labels);
-    await page.keyboard.press('Escape');
-    assert.equal(await toggle.getAttribute('aria-expanded'),'false','Escape closes the menu only');
+    for(const name of ['Notes','To Do','Activity','Agent'])assert.ok(labels.includes(name),'the footer names each tray: '+labels);
     assert.deepEqual(errors,[]);
 
     const desk=await pageFor(browser,DESKTOP,headerHtml);
     await mountHeader(desk.page,false);
-    assert.equal(await desk.page.locator('.fm-project-tray-toggle').isVisible(),false,'no tray control on desktop');
-    assert.equal(await desk.page.locator('.fm-project-tray-tabs [data-tray]').count(),5);
+    assert.equal(await desk.page.locator('.fm-project-tray-toggle').count(),0);
+    assert.equal(await desk.page.locator('#head .fm-project-tray-tabs [data-tray]').count(),5,'the tray icons stay in the header');
     for(const b of await desk.page.locator('.fm-project-tray-tabs [data-tray]').all()){assert.equal(await b.isVisible(),true);assert.equal((await b.boundingBox()).width,32,'icon buttons as before');}
     assert.equal(await desk.page.locator('.fm-tray-label').first().isVisible(),false,'labels stay hidden on desktop');
     assert.deepEqual(desk.errors,[]);

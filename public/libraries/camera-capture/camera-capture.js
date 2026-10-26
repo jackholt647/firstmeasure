@@ -1,5 +1,7 @@
 /* FirstMate camera capture: a phone camera for taking photos into the platform, in the look of the
  * FirstMeasure exteriors capture (dark viewport, round shutter, the photos just taken in a strip above it).
+ * The bar that opens it is drawn in the organization's colours (--primary, with a --secondary accent),
+ * and keeps above whatever the host puts at the bottom of the screen (--fm-safe-bottom, see project-trays).
  *
  * Two entry points, both phone-only (desktop never shows them):
  *
@@ -56,11 +58,12 @@
 .fmc-shell{display:none}
 @media ${MOBILE}{
   .fmc-host-bar{padding-bottom:0}
-  .fmc-bar{position:absolute;left:10px;right:10px;bottom:calc(10px + env(safe-area-inset-bottom,0px));z-index:40;display:flex;align-items:center;justify-content:center;gap:9px;height:44px;border:0;border-radius:14px;background:#101828;color:#fff;font:inherit;font-size:14px;font-weight:700;box-shadow:0 10px 28px rgba(16,24,40,.28);cursor:pointer;transition:transform .24s cubic-bezier(.2,.8,.2,1),opacity .2s ease;-webkit-tap-highlight-color:transparent}
-  .fmc-bar i{width:26px;height:26px;border-radius:50%;display:grid;place-items:center;background:var(--primary,#d93025);font-size:14px}
-  .fmc-bar:active{transform:scale(.98)}
+  .fmc-bar{--fmc-safe:var(--fm-safe-bottom,env(safe-area-inset-bottom,0px));position:absolute;left:10px;right:10px;bottom:calc(10px + var(--fmc-safe));z-index:40;display:flex;align-items:center;justify-content:center;gap:9px;height:44px;border:0;border-radius:14px;background:var(--fmc-bar-bg,var(--primary,#d93025));color:var(--fmc-bar-fg,var(--on-primary,#fff));font:inherit;font-size:14px;font-weight:700;box-shadow:0 8px 22px rgba(var(--primary-rgb,217,48,37),.32),0 2px 6px rgba(16,24,40,.12);cursor:pointer;transition:transform .24s cubic-bezier(.2,.8,.2,1),opacity .2s ease,filter .16s ease;-webkit-tap-highlight-color:transparent}
+  .fmc-bar i{width:26px;height:26px;border-radius:50%;display:grid;place-items:center;background:var(--fmc-accent-bg,rgba(255,255,255,.22));color:var(--fmc-accent-fg,currentColor);box-shadow:0 0 0 2px var(--fmc-accent-ring,transparent);font-size:13px}
+  .fmc-bar:active{transform:scale(.98);filter:brightness(.94)}
+  .fmc-bar:focus-visible{outline:3px solid var(--fmc-accent-bg,var(--primary,#d93025));outline-offset:2px}
   .fmc-bar[hidden],.fmc-host.fmc-open>.fmc-bar{display:none}
-  .fmc-shell{position:absolute;inset:0;z-index:60;display:flex;flex-direction:column;background:#000;color:#fff;overflow:hidden;clip-path:inset(calc(100% - 54px - env(safe-area-inset-bottom,0px)) 10px calc(10px + env(safe-area-inset-bottom,0px)) 10px round 16px);opacity:0;pointer-events:none;transition:clip-path .36s cubic-bezier(.2,.8,.2,1),opacity .18s ease}
+  .fmc-shell{--fmc-safe:var(--fm-safe-bottom,env(safe-area-inset-bottom,0px));position:absolute;inset:0;z-index:60;display:flex;flex-direction:column;background:#000;color:#fff;overflow:hidden;clip-path:inset(calc(100% - 54px - var(--fmc-safe)) 10px calc(10px + var(--fmc-safe)) 10px round 16px);opacity:0;pointer-events:none;transition:clip-path .36s cubic-bezier(.2,.8,.2,1),opacity .18s ease}
   .fmc-shell.open{clip-path:inset(0 0 0 0 round 0);opacity:1;pointer-events:auto}
 }
 .fmc-shell.fullscreen{position:fixed;inset:0;z-index:2147483300;display:flex;flex-direction:column;background:#000;color:#fff;overflow:hidden;clip-path:none;opacity:0;transform:translateY(28px);pointer-events:none;transition:opacity .2s ease,transform .32s cubic-bezier(.2,.8,.2,1)}
@@ -85,7 +88,8 @@
 .fmc-idle p{margin:0;max-width:280px;font-size:14px;line-height:1.45}
 .fmc-stage.live .fmc-idle{display:none}
 .fmc-pick{height:44px;padding:0 18px;border:0;border-radius:12px;background:#fff;color:#101828;font:inherit;font-size:14px;font-weight:700;display:inline-flex;align-items:center;gap:8px;cursor:pointer}
-.fmc-tools{position:relative;z-index:4;flex:none;display:flex;flex-direction:column;gap:10px;padding:10px 12px calc(env(safe-area-inset-bottom,0px) + 14px);background:#000}
+.fmc-tools{position:relative;z-index:4;flex:none;display:flex;flex-direction:column;gap:10px;padding:10px 12px calc(var(--fmc-safe,env(safe-area-inset-bottom,0px)) + 14px);background:#000}
+.fmc-shell.fullscreen{--fmc-safe:env(safe-area-inset-bottom,0px)}
 .fmc-strip{display:flex;gap:8px;min-height:0;overflow-x:auto;overflow-y:hidden;padding:2px 2px 2px 2px;scrollbar-width:none;overscroll-behavior-x:contain}
 .fmc-strip::-webkit-scrollbar{display:none}
 .fmc-strip:empty{display:none}
@@ -396,6 +400,42 @@
     };
   }
 
+  // The bar's colours come from the organization: primary for the bar, secondary for the camera badge.
+  // Text and icon colours are picked for contrast; a secondary too close to the primary falls back to a
+  // translucent badge in the bar's text colour.
+  function rgbOf(value){
+    if (!value || !document.body) return null;
+    const probe = document.createElement('span');
+    probe.style.cssText = 'display:none';
+    probe.style.color = value;
+    if (!probe.style.color) return null;
+    document.body.append(probe);
+    const parts = getComputedStyle(probe).color.match(/[\d.]+/g);
+    probe.remove();
+    return parts && parts.length >= 3 ? parts.slice(0, 3).map(Number) : null;
+  }
+  const luminance = (rgb) => { const [r, g, b] = rgb.map((c) => { c /= 255; return c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4; }); return 0.2126 * r + 0.7152 * g + 0.0722 * b; };
+  const contrast = (a, b) => { const [x, y] = [luminance(a), luminance(b)].sort((p, q) => q - p); return (x + 0.05) / (y + 0.05); };
+  const WHITE = [255, 255, 255], INK = [16, 24, 40];
+  const textOn = (rgb) => contrast(rgb, WHITE) >= contrast(rgb, INK) ? '#fff' : '#101828';
+  function paintBar(bar){
+    const css = getComputedStyle(bar);
+    const primary = rgbOf(css.getPropertyValue('--primary').trim()) || [217, 48, 37];
+    const secondary = rgbOf(css.getPropertyValue('--secondary').trim());
+    const fg = textOn(primary);
+    bar.style.setProperty('--fmc-bar-bg', `rgb(${primary.join(',')})`);
+    bar.style.setProperty('--fmc-bar-fg', fg);
+    if (secondary && contrast(secondary, primary) >= 1.6) {
+      bar.style.setProperty('--fmc-accent-bg', `rgb(${secondary.join(',')})`);
+      bar.style.setProperty('--fmc-accent-fg', textOn(secondary));
+      bar.style.setProperty('--fmc-accent-ring', fg === '#fff' ? 'rgba(255,255,255,.28)' : 'rgba(16,24,40,.16)');
+    } else {
+      bar.style.setProperty('--fmc-accent-bg', fg === '#fff' ? 'rgba(255,255,255,.22)' : 'rgba(16,24,40,.12)');
+      bar.style.setProperty('--fmc-accent-fg', fg);
+      bar.style.setProperty('--fmc-accent-ring', 'transparent');
+    }
+  }
+
   function mount(host, options = {}){
     if (!host) throw new Error('FirstMateCamera.mount needs a host element.');
     styles();
@@ -409,13 +449,17 @@
     const session = createSession({ ...options, onOpen: () => { host.classList.add('fmc-open'); options.onOpen?.(); }, onClose: () => { host.classList.remove('fmc-open'); bar.focus({ preventScroll: true }); options.onClose?.(); } });
     host.append(bar, session.shell);
     bar.onclick = () => session.show();
+    const repaint = () => paintBar(bar);
+    repaint();
+    root.addEventListener('fm:theme:updated', repaint);
     return {
       element: session.shell, bar,
       open: () => session.show(),
       close: () => session.finish(),
       isOpen: () => session.active,
       entries: () => session.entries(),
-      destroy(){ session.destroy(); bar.remove(); host.classList.remove('fmc-host', 'fmc-open'); }
+      repaint,
+      destroy(){ root.removeEventListener('fm:theme:updated', repaint); session.destroy(); bar.remove(); host.classList.remove('fmc-host', 'fmc-open'); }
     };
   }
 
@@ -438,5 +482,5 @@
     };
   }
 
-  root.FirstMateCamera = { mount, open, version: '20261026-camera-v2' };
+  root.FirstMateCamera = { mount, open, version: '20261026-mobile-trays' };
 })(window);

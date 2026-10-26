@@ -269,10 +269,14 @@
     const style = document.createElement('style');
     style.textContent = `.fm-project-tray-tabs{display:flex;justify-content:flex-end;gap:2px;flex:none;min-height:32px;background:white;border-bottom:1px solid #e4e7ec;padding-right:5px}.r-overlay.project-layout-prototype .r-window-bar:has(>.fm-project-tray-tabs){grid-template-columns:minmax(0,1fr) auto auto auto}.r-overlay.project-layout-prototype .r-window-bar>.fm-project-tray-tabs{grid-row:2;grid-column:4;align-self:stretch;border-bottom:0;min-height:0;padding:0 4px;background:#fff}.r-window-bar>.fm-project-tray-tabs{margin-left:auto;align-items:center}.fm-project-tray-tabs button{width:32px;height:30px;border:0;border-radius:5px;background:none;color:#667085;cursor:pointer}.fm-project-tray-tabs button[aria-selected=true]{background:var(--primary-light,#eef2ff);color:var(--primary,#175cd3)}.fm-project-content{display:grid;grid-template-columns:minmax(0,1fr) 0px;flex:1;min-height:0;position:relative;transition:grid-template-columns .32s cubic-bezier(.22,1,.36,1)}.fm-window[data-window=minimized]>.fm-project-content{display:none!important}.fm-project-content[data-tray-open=true]{grid-template-columns:minmax(0,1fr) min(380px,45%)}.fm-project-content>.r-project-body,.fm-project-content>.r-preview{min-width:0;min-height:0;height:100%}.fm-project-tray{min-width:0;overflow:hidden;background:#fff;border-left:1px solid #e4e7ec;display:flex;flex-direction:column;opacity:0;transform:translateX(16px);transition:opacity .25s,transform .32s cubic-bezier(.22,1,.36,1)}[data-tray-open=true]>.fm-project-tray{opacity:1;transform:none}.fm-project-tray>header{display:flex;align-items:center;justify-content:space-between;padding:8px 12px;border-bottom:1px solid #e4e7ec;flex:none}.fm-project-tray>header[hidden]{display:none}.fm-project-tray button{cursor:pointer}.fm-project-tray-close{border:0;background:none;color:#667085;padding:5px}.fm-project-tray-panel{flex:1;min-height:0;overflow:hidden;display:flex;flex-direction:column}.fm-project-tray-panel[hidden]{display:none!important}@media(max-width:700px){.fm-project-content[data-tray-open=true]{grid-template-columns:minmax(0,1fr) 0px}.fm-project-tray{position:absolute;inset:0 0 0 auto;width:min(100%,380px);z-index:70;box-shadow:-8px 0 24px #10182820}.fm-project-content:not([data-tray-open=true])>.fm-project-tray{visibility:hidden}}[data-window-mobile=true] .fm-project-content>.fm-project-tray{width:100%;border-left:0;box-shadow:none;transform:translateY(12px)}[data-window-mobile=true] .fm-project-content[data-tray-open=true]>.fm-project-tray{transform:none}@media(prefers-reduced-motion:reduce){.fm-project-content,.fm-project-tray{transition:none}}`;
     document.head.append(style);
-    const tabs = document.createElement('nav'); tabs.className = 'fm-project-tray-tabs'; tabs.setAttribute('aria-label','Project trays'); tabs.setAttribute('role','tablist'); header.append(tabs);
+    const tabs = document.createElement('nav'); tabs.className = 'fm-project-tray-tabs'; tabs.setAttribute('aria-label','Project trays'); tabs.setAttribute('role','tablist');
+    // Where the tray buttons live in the header; on a phone they move to a footer bar under the window.
+    const tabsAnchor = document.createComment('project trays'); header.append(tabsAnchor); tabsAnchor.after(tabs);
     const content = document.createElement('div'); content.className = 'fm-project-content'; preview.before(content); content.append(preview);
+    const scrim = document.createElement('div'); scrim.className = 'fm-project-tray-scrim'; scrim.setAttribute('aria-hidden','true'); content.append(scrim);
     const tray = document.createElement('aside'); tray.className = 'fm-project-tray'; tray.inert = true; tray.setAttribute('aria-hidden','true');
     tray.innerHTML = '<header><strong></strong><button type="button" class="fm-project-tray-close" aria-label="Close project tray"><i class="fas fa-xmark"></i></button></header>';
+    const grip = document.createElement('button'); grip.type = 'button'; grip.className = 'fm-project-tray-grip'; tray.prepend(grip);
     content.append(tray);
     const pin = document.createElement('div'); pin.className='fm-project-agent-pin'; pin.hidden=true; tray.append(pin);
     const pinStyle=document.createElement('style');pinStyle.textContent=`.fm-project-agent-pin{height:100px;flex:0 0 100px;min-height:0;border-top:1px solid #e4e7ec}.fm-project-agent-pin[hidden]{display:none}.fm-project-content:has(>.fm-project-tray[data-pin-only=true]){grid-template-columns:minmax(0,1fr) 0px}.fm-project-tray[data-pin-only=true]{position:absolute;right:0;bottom:0;top:auto;height:100px;width:min(380px,100%);z-index:70;justify-content:flex-end;background:transparent;border-left:0;pointer-events:none}.fm-project-tray[data-pin-only=true]>.fm-project-agent-pin{background:white;pointer-events:auto;border:1px solid #e4e7ec;border-radius:10px 0 0 0}.fma-pinned .fma-stage,.fma-pinned .fma-sidebar,.fma-pinned .fma-attachments,.fma-pinned [data-fma=history],.fma-pinned [data-fma=boardSide],.fma-pinned [data-fma=visualsToggle],.fma-pinned [data-fma=closeSurface]{display:none!important}.fma-pinned:not([data-voice=true]) .fma-head-title:empty::before{content:"Agent"}.fma-pinned .fma-head{min-height:32px;padding:4px 8px}.fma-pinned .fma-composer{padding:6px 8px}.fma-pinned .fma-body,.fma-pinned .fma-content{min-height:0}.fm-project-agent-close-menu{position:absolute;right:8px;top:4px;z-index:10000;background:white;border:1px solid #d0d5dd;border-radius:9px;padding:6px;box-shadow:0 8px 24px #10182830;display:flex;gap:6px}.fm-project-agent-close-menu button{padding:8px;border:0;border-radius:6px;background:#f2f4f7;color:#344054;cursor:pointer}.fm-project-agent-close-menu [role=status]{max-width:240px;font-size:12px}`;document.head.append(pinStyle);
@@ -285,35 +289,39 @@
     let draftSave = null;
     const ensureProject = typeof options.ensureProject === 'function' ? () => (draftSave ||= Promise.resolve().then(() => options.ensureProject()).then(project => {if (!disposed) update(); return project;}).finally(() => {draftSave = null;})) : undefined;
     const available = () => definitions().map(item=>item.id);
-    function close() {selected = ''; handles.forEach(handle=>handle.setVisible?.(false)); panels.forEach(node=>node.hidden=true); renderTabs(); syncAgentPin();}
+    // On a phone a closing tray keeps its panel showing while it slides away (`lingering`).
+    let lingering = '', lingerTimer = 0;
+    const reducedMotion = () => {try {return root.matchMedia('(prefers-reduced-motion: reduce)').matches;} catch (_) {return false;}};
+    function close() {
+      const was = selected; selected = ''; handles.forEach(handle=>handle.setVisible?.(false));
+      clearTimeout(lingerTimer); lingering = '';
+      // A voice call pins the agent instead, so its bar has nothing left to slide away.
+      const pins = was === 'agent' && handles.has('agent') && (manualPin || agentState.voice);
+      if (was && panels.has(was) && trayPhone() && !pins && !reducedMotion()) {
+        lingering = was;
+        lingerTimer = setTimeout(() => {if (disposed || selected) return; lingering = ''; panels.forEach(node=>node.hidden=true); setSheetSize(''); syncAgentPin();}, 460);
+      }
+      panels.forEach((node,key)=>node.hidden=key!==lingering); renderTabs(); syncAgentPin();
+    }
     function renderTabs() {
       const allowed = definitions().map(item=>[item.id,item.label,item.icon]);
       if (selected && !allowed.some(([key]) => key === selected)) close();
       tabs.innerHTML = allowed.map(([key,title,icon]) => `<button type="button" role="tab" data-tray="${key}" aria-label="${title}" title="${title}" aria-selected="${selected === key}"><i class="fas ${icon}" aria-hidden="true"></i><span class="fm-tray-label" aria-hidden="true">${esc(title)}</span></button>`).join('');
-      syncToggle(allowed);
     }
-    // A phone header has no room for a row of tray icons: one control opens them as a menu (window-shell styles it).
-    const toggle = document.createElement('button'); toggle.type = 'button'; toggle.className = 'fm-project-tray-toggle';
-    toggle.setAttribute('aria-haspopup','true'); toggle.setAttribute('aria-expanded','false');
-    header.insertBefore(toggle,tabs);
-    function syncToggle(allowed = definitions().map(item=>[item.id,item.label,item.icon])) {
-      const open = allowed.find(([key]) => key === selected), label = open ? open[1] : allowed.map(([,title]) => title).join(', ');
-      toggle.hidden = !allowed.length;
-      toggle.dataset.trayOpen = String(!!open);
-      toggle.setAttribute('aria-label', open ? 'Project trays: '+open[1]+' open' : 'Project trays');
-      toggle.setAttribute('data-fm-tooltip', label);
-      toggle.innerHTML = `<i class="fas ${open ? open[2] : 'fa-ellipsis'}" aria-hidden="true"></i>`;
+    // A phone (the window manager's data-window-mobile, else a 760px top-window query) has no
+    // header room for the trays: the same buttons, from the same list, become a footer bar
+    // along the bottom of the window, under the app, and trays open above it.
+    const trayPhone=()=>{const flag=header.dataset.windowMobile;if(flag)return flag==='true';try{return root.top.matchMedia('(max-width: 760px)').matches;}catch(_){return root.matchMedia('(max-width: 760px)').matches;}};
+    function syncPlacement() {
+      if (disposed) return;
+      const phone = trayPhone();
+      if (phone) {if (tabs.previousElementSibling !== content) content.after(tabs); tabs.dataset.placement = 'footer';}
+      else {if (tabsAnchor.parentNode && tabsAnchor.nextSibling !== tabs) tabsAnchor.after(tabs); delete tabs.dataset.placement;}
+      content.dataset.phone = String(phone);
     }
-    function setMenu(open) {
-      const next = !!open && !toggle.hidden;
-      tabs.dataset.menuOpen = String(next); toggle.setAttribute('aria-expanded', String(next));
-      if (next) (tabs.querySelector('[aria-selected=true]') || tabs.querySelector('button'))?.focus({preventScroll:true});
-    }
-    toggle.onclick = event => {event.stopPropagation(); setMenu(tabs.dataset.menuOpen !== 'true');};
-    const menuOutside = event => {if (tabs.dataset.menuOpen === 'true' && !tabs.contains(event.target) && !toggle.contains(event.target)) setMenu(false);};
-    // Escape closes the menu before the window's own Escape (which closes the project) sees it.
-    const menuKey = event => {if (event.key === 'Escape' && tabs.dataset.menuOpen === 'true') {event.preventDefault(); event.stopPropagation(); setMenu(false); toggle.focus();}};
-    document.addEventListener('pointerdown',menuOutside,true); root.addEventListener('keydown',menuKey,true);
+    syncPlacement();
+    const placementObserver = new MutationObserver(() => {syncPlacement(); syncAgentPin();});
+    placementObserver.observe(header,{attributes:true,attributeFilter:['data-window-mobile']});
     function panel(key) {
       if (!panels.has(key)) { const node = document.createElement('div'); node.className = 'fm-project-tray-panel'; node.hidden = true; node.setAttribute('role','tabpanel'); node.setAttribute('aria-label',registry.get(key).label); tray.insertBefore(node,pin); panels.set(key,node); }
       return panels.get(key);
@@ -321,6 +329,7 @@
     async function open(key) {
       update(); if (!available().includes(key)) throw Error('Unavailable project tray: '+key);
       if (selected === key) {close(); return;}
+      clearTimeout(lingerTimer); if (lingering && lingering !== key) setSheetSize(''); lingering = '';
       selected = key; content.dataset.trayOpen = 'true'; tray.inert = false; tray.setAttribute('aria-hidden','false');
       tray.querySelector('header').hidden = key === 'agent';
       tray.querySelector('strong').textContent = registry.get(key).label;
@@ -347,7 +356,8 @@
       const visible=!!selected || pinned;
       content.dataset.trayOpen=String(visible);tray.dataset.pinOnly=String(pinned && !selected);
       tray.inert=!visible;tray.setAttribute('aria-hidden',String(!visible));
-      tray.querySelector('header').hidden=!selected || selected==='agent';
+      const shown=selected || lingering;
+      tray.querySelector('header').hidden=!shown || shown==='agent';
       root.dispatchEvent(new CustomEvent('fm:project-agent:state',{detail:{...agentState,pinned:manualPin || agentState.voice}}));
       agent?.setWorkspaceContext?.();
       syncAgentCompact();
@@ -356,13 +366,78 @@
     // and auto-pin) slides up from the bottom as its input bar, with the conversation folded
     // above it. Desktop never sets data-agent-compact, so none of this applies there.
     let agentCompactOpen=false, agentHistory=false, agentUnread=false, agentTurnFolded=false, agentResize=0;
-    const agentPhone=()=>{const flag=header.dataset.windowMobile;if(flag)return flag==='true';try{return root.top.matchMedia('(max-width: 760px)').matches;}catch(_){return root.matchMedia('(max-width: 760px)').matches;}};
+    // Phone footer bar and bottom sheets. Colours are the organization's (--primary/--secondary).
+    const phoneStyle=document.createElement('style');
+    phoneStyle.textContent=`.fm-project-tray-grip,.fm-project-tray-scrim{display:none}
+.fm-project-tray-tabs[data-placement=footer]{position:relative;z-index:75;display:flex;align-items:stretch;justify-content:space-around;flex:none;gap:0;min-height:0;height:auto;margin:0;padding:0 6px env(safe-area-inset-bottom,0px);background:#fff;border:0;border-top:1px solid #e4e7ec;box-shadow:0 -1px 2px #1018280a}
+.fm-project-tray-tabs[data-placement=footer]:empty,.fm-window[data-window=minimized]>.fm-project-tray-tabs[data-placement=footer]{display:none!important}
+.fm-project-tray-tabs[data-placement=footer]>button{position:relative;display:flex;flex:1 1 0;flex-direction:column;align-items:center;justify-content:center;gap:2px;min-width:0;max-width:112px;width:auto;height:52px;margin:0;padding:5px 2px 4px;border:0;border-radius:0;background:none;color:#667085;font-family:inherit;cursor:pointer;-webkit-tap-highlight-color:transparent;transition:color .18s ease}
+.fm-project-tray-tabs[data-placement=footer]>button>i{display:grid;place-items:center;width:48px;height:26px;border-radius:999px;font-size:16px;line-height:1;transition:background .2s ease,color .2s ease,box-shadow .2s ease,transform .12s ease}
+.fm-project-tray-tabs[data-placement=footer]>button:active>i{transform:scale(.94)}
+.fm-project-tray-tabs[data-placement=footer] .fm-tray-label{display:block;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:10.5px;line-height:13px;font-weight:600;letter-spacing:0}
+.fm-project-tray-tabs[data-placement=footer]>button[aria-selected=true]{color:var(--primary-readable,var(--primary,#175cd3))}
+.fm-project-tray-tabs[data-placement=footer]>button[aria-selected=true]>i{background:rgba(var(--primary-rgb,23,92,211),.13)}
+.fm-project-tray-tabs[data-placement=footer]>button:focus-visible{outline:none}.fm-project-tray-tabs[data-placement=footer]>button:focus-visible>i{outline:2px solid var(--primary,#175cd3);outline-offset:1px}
+.fm-project-tray-tabs[data-placement=footer][data-agent-compact=true]>button[data-tray=agent][aria-selected=true]>i{color:var(--on-primary,#fff);background:linear-gradient(135deg,var(--primary,#175cd3),var(--secondary,var(--primary,#175cd3)));box-shadow:0 0 0 3px rgba(var(--primary-rgb,23,92,211),.16),0 3px 12px rgba(var(--primary-rgb,23,92,211),.38);animation:fmAgentGlow 2.6s ease-in-out infinite}
+.fm-project-content[data-phone=true]:has(+.fm-project-tray-tabs[data-placement=footer]:not(:empty)){--fm-safe-bottom:0px}
+.fm-project-content[data-tray-mode=sheet]{grid-template-columns:minmax(0,1fr) 0px!important}
+.fm-project-content[data-tray-mode=sheet]>.fm-project-tray-scrim{display:block;position:absolute;inset:0;z-index:71;background:rgba(16,24,40,.3);opacity:0;pointer-events:none;transition:opacity .3s ease}
+.fm-project-content[data-tray-mode=sheet][data-tray-open=true]>.fm-project-tray-scrim{opacity:1;pointer-events:auto}
+.fm-project-content.fm-project-content[data-tray-mode=sheet]>.fm-project-tray:not([data-pin-only=true]){position:absolute;inset:auto 0 0 0;width:auto;height:var(--fm-sheet-px,var(--fm-sheet-height,62%));max-height:calc(100% - 12px);z-index:72;border:0;border-radius:18px 18px 0 0;background:#fff;box-shadow:0 -12px 34px #10182833,0 -1px 0 #10182814;overflow:hidden;opacity:1;visibility:hidden;transform:translateY(calc(100% + 24px));transition:transform .38s cubic-bezier(.4,0,.2,1),height .34s cubic-bezier(.16,1,.3,1),visibility 0s linear .38s}
+.fm-project-content.fm-project-content[data-tray-mode=sheet][data-tray-open=true]>.fm-project-tray:not([data-pin-only=true]){visibility:visible;transform:translateY(var(--fm-sheet-drag,0px));transition:transform .42s cubic-bezier(.16,1,.3,1),height .34s cubic-bezier(.16,1,.3,1)}
+.fm-project-tray[data-sheet-size=full]{--fm-sheet-height:calc(100% - 12px)}
+.fm-project-content.fm-project-content[data-tray-mode=sheet]>.fm-project-tray[data-dragging=true]{transition:none!important}
+.fm-project-content[data-tray-mode=sheet]>.fm-project-tray>.fm-project-tray-grip{display:block;position:relative;flex:none;width:100%;height:22px;margin:0;padding:0;border:0;background:none;cursor:grab;touch-action:none;-webkit-tap-highlight-color:transparent}
+.fm-project-tray-grip::before{content:'';position:absolute;left:50%;top:9px;width:40px;height:5px;margin-left:-20px;border-radius:999px;background:#d0d5dd;transition:background .16s ease}
+.fm-project-tray-grip:focus-visible{outline:none}.fm-project-tray-grip:focus-visible::before,.fm-project-tray[data-dragging=true]>.fm-project-tray-grip::before{background:var(--primary,#175cd3)}
+.fm-project-content[data-tray-mode=sheet]>.fm-project-tray>header{padding:0 10px 8px 16px;touch-action:none;cursor:grab}
+.fm-project-content[data-tray-mode=sheet]>.fm-project-tray>header strong{font-size:15px;color:#101828}
+.fm-project-content[data-tray-mode=sheet] .fm-project-tray-close{display:grid;place-items:center;width:34px;height:34px;padding:0;border-radius:10px;background:#f2f4f7;font-size:15px}
+@media(prefers-reduced-motion:reduce){.fm-project-content.fm-project-content[data-tray-mode=sheet]>.fm-project-tray,.fm-project-tray-scrim{transition:none!important}.fm-project-tray-tabs[data-placement=footer]>button>i{animation:none!important;transition:none}}`;
+    document.head.append(phoneStyle);
+    let drag=null, dragEnded=0;
+    const T=(key,fallback)=>globalThis.PlatformLanguage?.text?.('project-trays',key,fallback) ?? fallback;
+    const sheetOpen=()=>content.dataset.trayMode==='sheet' && !!selected;
+    function syncGrip(){const full=tray.dataset.sheetSize==='full';grip.setAttribute('aria-label',full?T('tray_sheet_shrink','Shrink tray'):T('tray_sheet_expand','Expand tray'));grip.setAttribute('aria-expanded',String(full));}
+    function setSheetSize(size){if(size==='full')tray.dataset.sheetSize='full';else delete tray.dataset.sheetSize;syncGrip();}
+    // The handle is also a button (tap or keyboard) that toggles the height; the click that ends a drag is not a tap.
+    grip.onclick=()=>{if(sheetOpen() && Date.now()-dragEnded>400)setSheetSize(tray.dataset.sheetSize==='full'?'':'full');};
+    // Drag the grip or the sheet's title: down puts it away, up makes it taller.
+    tray.addEventListener('pointerdown',event=>{
+      if(!sheetOpen() || event.button>0 || !event.target.closest?.('.fm-project-tray-grip,.fm-project-tray>header') || event.target.closest('.fm-project-tray-close'))return;
+      drag={id:event.pointerId,y:event.clientY,height:tray.getBoundingClientRect().height,max:content.getBoundingClientRect().height-12,dy:0,speed:0,last:[event.clientY,event.timeStamp],moved:false};
+      // The pointer leaves the handle as soon as it moves up, so the document follows it.
+      document.addEventListener('pointermove',moveDrag,{passive:false});document.addEventListener('pointerup',endDrag);document.addEventListener('pointercancel',endDrag);
+    });
+    function moveDrag(event){
+      if(!drag || event.pointerId!==drag.id)return;
+      const dy=event.clientY-drag.y;
+      if(!drag.moved){if(Math.abs(dy)<6)return;drag.moved=true;tray.dataset.dragging='true';}
+      drag.speed=(event.clientY-drag.last[0])/Math.max(1,event.timeStamp-drag.last[1]);drag.last=[event.clientY,event.timeStamp];drag.dy=dy;
+      if(dy>=0){tray.style.setProperty('--fm-sheet-drag',dy+'px');tray.style.removeProperty('--fm-sheet-px');}
+      else{tray.style.removeProperty('--fm-sheet-drag');tray.style.setProperty('--fm-sheet-px',Math.min(drag.max,drag.height-dy)+'px');}
+      event.preventDefault();
+    }
+    function endDrag(event){
+      if(!drag || event.pointerId!==drag.id)return;
+      document.removeEventListener('pointermove',moveDrag);document.removeEventListener('pointerup',endDrag);document.removeEventListener('pointercancel',endDrag);
+      const d=drag;drag=null;if(!d.moved)return;
+      dragEnded=Date.now();
+      delete tray.dataset.dragging;tray.style.removeProperty('--fm-sheet-drag');tray.style.removeProperty('--fm-sheet-px');
+      if(event.type==='pointercancel')return;
+      const full=tray.dataset.sheetSize==='full';
+      if(d.dy>0 && (d.speed>.6 || d.dy>(full?d.height*.55:Math.min(140,d.height*.3)))){interactionVersion++;close();return;}
+      if(d.dy>70 && full){setSheetSize('');return;}
+      if(d.dy<0)setSheetSize(full || d.height-d.dy>(d.height+d.max)/2?'full':'');
+    }
+    scrim.onclick=()=>{interactionVersion++;close();};
+    syncGrip();
     const agentStyle=document.createElement('style');
     agentStyle.textContent=`.fm-project-agent-history{display:none}
 .fm-project-content[data-agent-compact=true]{grid-template-columns:minmax(0,1fr) 0px!important}
-.fm-project-content[data-agent-compact=true]>.fm-project-tray:not([data-pin-only=true]){position:absolute;inset:auto 0 0 0;width:auto;height:auto;max-height:calc(100% - 8px);z-index:70;border-left:0;background:#fff;border-radius:18px 18px 0 0;box-shadow:0 -12px 34px #10182830,0 -1px 0 #10182814;overflow:hidden;opacity:0;visibility:hidden;transform:translateY(calc(100% + 18px));transition:transform .44s cubic-bezier(.16,1,.3,1),opacity .2s ease,visibility 0s linear .44s}
+.fm-project-content[data-agent-compact=true]>.fm-project-tray:not([data-pin-only=true]){position:absolute;inset:auto 0 0 0;width:auto;height:auto;max-height:calc(100% - 8px);z-index:70;border-left:0;background:#fff;border-radius:18px 18px 0 0;box-shadow:0 -12px 34px #10182830,0 -1px 0 #10182814;overflow:hidden;opacity:0;visibility:hidden;transform:translateY(calc(100% + 18px));transition:transform .44s cubic-bezier(.4,0,.2,1),opacity .34s ease .06s,visibility 0s linear .44s}
 .fm-project-content[data-agent-compact=true][data-tray-open=true]>.fm-project-tray:not([data-pin-only=true]){opacity:1;visibility:visible;transform:none;transition:transform .44s cubic-bezier(.16,1,.3,1),opacity .2s ease}
-.fm-project-content[data-agent-compact=true]>.fm-project-tray:not([data-pin-only=true])::before{content:'';position:absolute;z-index:3;left:0;right:0;top:0;height:3px;background:linear-gradient(90deg,var(--primary,#175cd3),#8b5cf6,#ec4899,#8b5cf6,var(--primary,#175cd3));background-size:200% 100%;animation:fmAgentEdge 5s linear infinite;pointer-events:none}
+.fm-project-content[data-agent-compact=true]>.fm-project-tray:not([data-pin-only=true])::before{content:'';position:absolute;z-index:3;left:0;right:0;top:0;height:3px;background:linear-gradient(90deg,var(--primary,#175cd3),var(--secondary,var(--primary,#175cd3)),var(--primary,#175cd3),var(--secondary,var(--primary,#175cd3)),var(--primary,#175cd3));background-size:200% 100%;animation:fmAgentEdge 5s linear infinite;pointer-events:none}
 .fm-project-tray[data-agent-compact=true]>.fm-project-tray-panel{flex:0 0 auto;overflow:visible}
 .fm-project-tray[data-agent-compact=true]>.fm-project-tray-panel>*{height:auto!important;flex:0 0 auto!important;overflow:visible!important}
 .fm-project-tray[data-agent-compact=true] .fma-drawer.fma-embedded{height:auto;flex:0 0 auto}
@@ -373,21 +448,19 @@
 .fm-project-tray[data-agent-compact=true]:not([data-agent-history=open]) .gx-faqs-wrap{display:none!important}
 .fm-project-tray[data-agent-compact=true] .fma-head{min-height:44px;padding:7px 8px 3px 16px;border-bottom:0;gap:6px}
 .fm-project-tray[data-agent-compact=true] .fma-tray-identity{display:flex;align-items:center;gap:7px;font-weight:650;font-size:14px;color:#101828}
-.fm-project-tray[data-agent-compact=true] .fma-tray-identity>i{color:#7c3aed}
+.fm-project-tray[data-agent-compact=true] .fma-tray-identity>i{color:var(--primary-readable,var(--primary,#175cd3))}
 .fm-project-tray[data-agent-compact=true]:not([data-voice=true]) .fma-head-title:empty::before{content:"Agent"}
-.fm-project-tray[data-agent-compact=true] .fma-composer{padding:4px 10px calc(12px + env(safe-area-inset-bottom,0px));border-top:0}
+.fm-project-tray[data-agent-compact=true] .fma-composer{padding:4px 10px calc(12px + var(--fm-safe-bottom,env(safe-area-inset-bottom,0px)));border-top:0}
 .fm-project-tray[data-agent-compact=true] .fm-project-agent-history{display:inline-flex;align-items:center;gap:6px;position:relative;margin-left:auto;height:30px;padding:0 11px;border:0;border-radius:999px;background:#f2f4f7;color:#344054;font:inherit;font-size:12.5px;font-weight:600;cursor:pointer}
 .fm-project-agent-history i{font-size:11px;transition:transform .3s cubic-bezier(.16,1,.3,1)}
 .fm-project-agent-history[aria-expanded=true] i{transform:rotate(180deg)}
-.fm-project-agent-history[data-face=working]{color:#6d28d9;background:#f3e8ff}
-.fm-project-agent-history[data-unread=true]::after{content:'';position:absolute;top:3px;right:3px;width:8px;height:8px;border-radius:50%;background:#ec4899;box-shadow:0 0 0 2px #fff}
+.fm-project-agent-history[data-face=working]{color:var(--primary-readable,var(--primary,#175cd3));background:rgba(var(--primary-rgb,23,92,211),.1)}
+.fm-project-agent-history[data-unread=true]::after{content:'';position:absolute;top:3px;right:3px;width:8px;height:8px;border-radius:50%;background:var(--primary,#175cd3);box-shadow:0 0 0 2px #fff}
 .fm-project-agent-history:focus-visible{outline:2px solid var(--primary,#175cd3);outline-offset:2px}
 .fm-project-tray[data-agent-compact=true] [data-fma=closeSurface]{width:34px;height:34px;border-radius:10px}
-[data-agent-compact=true][data-agent-compact=true]>.fm-project-tray-toggle,[data-agent-compact=true][data-agent-compact=true]>.fm-project-tray-tabs>button[data-tray=agent][aria-selected=true]{color:#fff!important;background:linear-gradient(135deg,var(--primary,#175cd3),#8b5cf6 60%,#ec4899)!important;box-shadow:0 0 0 3px #8b5cf62e,0 4px 16px #7c3aed59;animation:fmAgentGlow 2.6s ease-in-out infinite}
-[data-agent-compact=true][data-agent-compact=true]>.fm-project-tray-tabs>button[data-tray=agent][aria-selected=true] i{color:#fff!important}
 @keyframes fmAgentEdge{to{background-position:-200% 0}}
-@keyframes fmAgentGlow{0%,100%{box-shadow:0 0 0 3px #8b5cf62e,0 4px 16px #7c3aed59}50%{box-shadow:0 0 0 5px #8b5cf61f,0 4px 22px #7c3aed80}}
-@media(prefers-reduced-motion:reduce){.fm-project-content[data-agent-compact=true]>.fm-project-tray,.fm-project-tray[data-agent-compact=true] .fma-stage{transition:none!important}.fm-project-content[data-agent-compact=true]>.fm-project-tray::before,[data-agent-compact=true]>.fm-project-tray-toggle,[data-agent-compact=true]>.fm-project-tray-tabs>button{animation:none!important}}`;
+@keyframes fmAgentGlow{0%,100%{box-shadow:0 0 0 3px rgba(var(--primary-rgb,23,92,211),.16),0 3px 12px rgba(var(--primary-rgb,23,92,211),.38)}50%{box-shadow:0 0 0 5px rgba(var(--primary-rgb,23,92,211),.1),0 3px 18px rgba(var(--primary-rgb,23,92,211),.55)}}
+@media(prefers-reduced-motion:reduce){.fm-project-content[data-agent-compact=true]>.fm-project-tray,.fm-project-tray[data-agent-compact=true] .fma-stage{transition:none!important}.fm-project-content[data-agent-compact=true]>.fm-project-tray::before{animation:none!important}}`;
     document.head.append(agentStyle);
     function agentDrawer(){return handles.has('agent') ? panels.get('agent')?.querySelector('.fma-drawer') : null;}
     function scrollAgentHistory(){const msgs=agentDrawer()?.querySelector('[data-fma=msgs]');if(msgs)msgs.scrollTop=msgs.scrollHeight;}
@@ -401,7 +474,7 @@
     }
     function syncAgentCompact(){
       if(disposed)return;
-      const phone=agentPhone(), open=phone && selected==='agent';
+      const phone=trayPhone(), open=phone && selected==='agent';
       if(open && !agentCompactOpen)agentHistory=false;
       agentCompactOpen=open;
       // Kept after closing so the bar slides back down; another tray (or a wider screen) clears it.
@@ -409,7 +482,10 @@
       content.dataset.agentCompact=tray.dataset.agentCompact=String(compact);
       tray.dataset.agentHistory=open && agentHistory?'open':'closed';
       tray.dataset.voice=String(!!agentState.voice);
-      header.dataset.agentCompact=String(open);
+      tabs.dataset.agentCompact=String(open);
+      // A phone's other trays are bottom sheets over the app; one shows at a time.
+      const shown=selected || lingering;
+      if(phone && shown && shown!=='agent')content.dataset.trayMode='sheet';else delete content.dataset.trayMode;
       const head=agentDrawer()?.querySelector('.fma-head');
       if(!head)return;
       let button=head.querySelector('.fm-project-agent-history');
@@ -425,12 +501,9 @@
       button.setAttribute('aria-label',agentHistory?'Hide conversation':'Show conversation');
       button.dataset.unread=String(agentUnread && !agentHistory);
     }
-    // While the bar is up, the glowing tray control in the phone header puts it away.
-    const agentToggleTap=event=>{if(agentCompactOpen){event.preventDefault();event.stopImmediatePropagation();interactionVersion++;close();}};
-    toggle.addEventListener('click',agentToggleTap,true);
-    const agentViewport=()=>{cancelAnimationFrame(agentResize);agentResize=requestAnimationFrame(()=>{if(!disposed)syncAgentCompact();});};
+    const agentViewport=()=>{cancelAnimationFrame(agentResize);agentResize=requestAnimationFrame(()=>{if(!disposed){syncPlacement();syncAgentCompact();}});};
     root.addEventListener('resize',agentViewport);
-    const agentCleanup=()=>{cancelAnimationFrame(agentResize);root.removeEventListener('resize',agentViewport);toggle.removeEventListener('click',agentToggleTap,true);delete header.dataset.agentCompact;agentStyle.remove();};
+    const agentCleanup=()=>{cancelAnimationFrame(agentResize);clearTimeout(lingerTimer);drag=null;document.removeEventListener('pointermove',moveDrag);document.removeEventListener('pointerup',endDrag);document.removeEventListener('pointercancel',endDrag);placementObserver.disconnect();root.removeEventListener('resize',agentViewport);agentStyle.remove();phoneStyle.remove();scrim.remove();};
     function requestClose(done){
       const agent=handles.get('agent');
       if(!agentState.voice && !agentState.pending && !manualPin)return true;
@@ -471,7 +544,7 @@
       }
       renderTabs();
     }
-    tabs.onclick = event => {const button = event.target.closest('[data-tray]'); if (button) {interactionVersion++;setMenu(false);open(button.dataset.tray);}};
+    tabs.onclick = event => {const button = event.target.closest('[data-tray]'); if (button) {interactionVersion++;open(button.dataset.tray);}};
     tray.querySelector('.fm-project-tray-close').onclick = () => {interactionVersion++;const key = selected; close(); tabs.querySelector(`[data-tray="${key}"]`)?.focus();};
     tray.onkeydown = event => {if (event.key === 'Escape') {event.stopPropagation(); interactionVersion++;close();}};
     const contextChanged = () => handles.get('agent')?.setWorkspaceContext?.();
@@ -480,7 +553,7 @@
     const activityChanged = () => {clearTimeout(activityTimer); activityTimer = setTimeout(() => {if (selected === 'activity') handles.get('activity')?.refresh?.();},400);};
     root.addEventListener('fm:project-trays:updated',changed); root.addEventListener('fm:capabilities:updated',changed); root.addEventListener('fm:project-notes:refreshed',activityChanged); root.addEventListener('fm:projects:refresh',activityChanged);
     update();
-    return {requestClose,update,close,open,available,interactionVersion:()=>interactionVersion,select(key){if(key===null){close();return;}if(!available().includes(key))throw Error('Unavailable project tray: '+key);update();return selected===key?Promise.resolve():open(key);},destroy() {disposed = true;agentCleanup();root.removeEventListener('fm:route-state:updated',contextChanged);root.removeEventListener('fm:project-window:placement',contextChanged);closeMenu?.remove();pinStyle.remove();clearTimeout(activityTimer);handles.forEach(handle => handle.destroy?.());root.removeEventListener('fm:project-trays:updated',changed); root.removeEventListener('fm:capabilities:updated',changed);root.removeEventListener('fm:project-notes:refreshed',activityChanged);root.removeEventListener('fm:projects:refresh',activityChanged);document.removeEventListener('pointerdown',menuOutside,true);root.removeEventListener('keydown',menuKey,true);content.before(preview);content.remove();tabs.remove();toggle.remove();style.remove();}};
+    return {requestClose,update,close,open,available,interactionVersion:()=>interactionVersion,select(key){if(key===null){close();return;}if(!available().includes(key))throw Error('Unavailable project tray: '+key);update();return selected===key?Promise.resolve():open(key);},destroy() {disposed = true;agentCleanup();root.removeEventListener('fm:route-state:updated',contextChanged);root.removeEventListener('fm:project-window:placement',contextChanged);closeMenu?.remove();pinStyle.remove();clearTimeout(activityTimer);handles.forEach(handle => handle.destroy?.());root.removeEventListener('fm:project-trays:updated',changed); root.removeEventListener('fm:capabilities:updated',changed);root.removeEventListener('fm:project-notes:refreshed',activityChanged);root.removeEventListener('fm:projects:refresh',activityChanged);content.before(preview);content.remove();tabs.remove();tabsAnchor.remove();style.remove();}};
   }
   root.FirstMateProjectTrays = {mount,definitions,register,mountWidget,registerWidgets};
   registerWidgets();

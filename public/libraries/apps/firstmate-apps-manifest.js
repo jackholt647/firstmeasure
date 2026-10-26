@@ -35,7 +35,7 @@
     versionedBundle('../audio-notes/audio-notes.js', '20260929-presence-controls-v3'),
     versionedBundle('../audio-structure/audio-structure.js', '20260725-checklist-voice-v1'),
     versionedBundle('../window-manager/window-manager.js', '20261006-firstmeasure-localization-v1'),
-    versionedBundle('../window-manager/window-shell.js', '20261026-phone-tab-labels'),
+    versionedBundle('../window-manager/window-shell.js', '20261026-mobile-trays'),
     versionedBundle('../agent-chat/agent-chat.js', '20261002-widget-controls'),
     versionedBundle('../assistant-api/assistant-api.js', '20261002-agent-persistence-v1'),
     versionedBundle('../platform-assistant/platform-assistant.js', '20261026-mobile-agent'),
@@ -44,7 +44,7 @@
     versionedBundle('../channels-ui/channels-ui.js', '20261012-shared-polish-v1'),
     versionedBundle('../project-notes/project-notes.js', '20261024-note-audience-sections-v1'),
     versionedBundle('../project-trays/activity-presenter.js', '20261012-notes-separation-v1'),
-    versionedBundle('../project-trays/project-trays.js', '20261026-mobile-agent')
+    versionedBundle('../project-trays/project-trays.js', '20261026-mobile-trays')
   ];
   const fieldApprovalBundles = [
     versionedBundle('../crew-api/crew-api.js', '20261019-forward-cert'),
@@ -164,7 +164,7 @@
       kind: 'project_modal_app',
       surfaces: ['project_modal'],
       requiresContext: ['project'],
-      bundles: [versionedBundle('../camera-capture/camera-capture.js', '20261026-camera-v2'), versionedBundle('photos/project.js', '20261026-mobile-photos')]
+      bundles: [versionedBundle('../camera-capture/camera-capture.js', '20261026-mobile-trays'), versionedBundle('photos/project.js', '20261026-mobile-photos')]
     },
     {
       // DEPRECATED (2026-08): legacy Proposals project tab — hidden by its
@@ -353,7 +353,7 @@
       kind: 'project_modal_app',
       surfaces: ['project_modal'],
       requiresContext: ['project'],
-      bundles: [versionedBundle('../comms-api/comms-api.js', '20261011-phone-second-pass-v1'), versionedBundle('../window-manager/window-shell.js', '20261026-phone-tab-labels'), versionedBundle('../agent-chat/agent-chat.js', '20261002-widget-controls'), versionedBundle('comms/communications-ui.js', '20261011-voicemail-download-v2'), versionedBundle('comms/phone-tray.js', '20261011-phone-second-pass-v1'), versionedBundle('comms/calling-runtime.js', '20261011-conference-history-v2'), versionedBundle('comms/phone-modal.js', '20261011-phone-second-pass-v1'), versionedBundle('comms/workspace.js', '20261008-voicemail-settings-v1'), versionedBundle('comms/project.js', '20261002-dropdown-polish-v1')]
+      bundles: [versionedBundle('../comms-api/comms-api.js', '20261011-phone-second-pass-v1'), versionedBundle('../window-manager/window-shell.js', '20261026-mobile-trays'), versionedBundle('../agent-chat/agent-chat.js', '20261002-widget-controls'), versionedBundle('comms/communications-ui.js', '20261011-voicemail-download-v2'), versionedBundle('comms/phone-tray.js', '20261011-phone-second-pass-v1'), versionedBundle('comms/calling-runtime.js', '20261011-conference-history-v2'), versionedBundle('comms/phone-modal.js', '20261011-phone-second-pass-v1'), versionedBundle('comms/workspace.js', '20261008-voicemail-settings-v1'), versionedBundle('comms/project.js', '20261002-dropdown-polish-v1')]
     },
     {
       id: 'project.measurements',
@@ -518,7 +518,7 @@
         bundle('../agents-api/agents-api.js'),
         versionedBundle('../agent-chat/agent-chat.js', '20261002-widget-controls'),
         versionedBundle('comms/communications-ui.js', '20261011-voicemail-download-v2'),
-        versionedBundle('../window-manager/window-shell.js', '20261026-phone-tab-labels'),
+        versionedBundle('../window-manager/window-shell.js', '20261026-mobile-trays'),
         versionedBundle('comms/phone-tray.js', '20261011-phone-second-pass-v1'), versionedBundle('comms/calling-runtime.js', '20261011-conference-history-v2'), versionedBundle('comms/phone-modal.js', '20261011-phone-second-pass-v1'),
         versionedBundle('comms/workspace.js', '20261008-voicemail-settings-v1'),
         versionedBundle('chat/app.js', '20260930-phone-tray-v1')
@@ -540,7 +540,7 @@
         versionedBundle('../channels-api/channels-api.js', '20261012-shared-polish-v1'),
         versionedBundle('../audio-notes/audio-notes.js', '20260929-presence-controls-v3'),
         versionedBundle('../window-manager/window-manager.js', '20261006-firstmeasure-localization-v1'),
-        versionedBundle('../window-manager/window-shell.js', '20261026-phone-tab-labels'),
+        versionedBundle('../window-manager/window-shell.js', '20261026-mobile-trays'),
         versionedBundle('../assistant-api/assistant-api.js', '20261002-agent-persistence-v1'),
         ...widgetBundles, bookingBundle, priorityFieldsBundle, versionedBundle('../platform-assistant/platform-assistant.js', '20261026-mobile-agent'),
         versionedBundle('photos/feed.js', '20261026-mobile-fixes-b'),
@@ -564,7 +564,7 @@
       order: 45,
       placement: 'more',
       fullBleed: true,
-      bundles: [...widgetBundles, bookingBundle, priorityFieldsBundle, bundle('../assistant-api/assistant-api.js'), bundle('../window-manager/window-manager.js'), versionedBundle('../window-manager/window-shell.js', '20261026-phone-tab-labels'), versionedBundle('../platform-assistant/platform-assistant.js', '20261026-mobile-agent')]
+      bundles: [...widgetBundles, bookingBundle, priorityFieldsBundle, bundle('../assistant-api/assistant-api.js'), bundle('../window-manager/window-manager.js'), versionedBundle('../window-manager/window-shell.js', '20261026-mobile-trays'), versionedBundle('../platform-assistant/platform-assistant.js', '20261026-mobile-agent')]
     },
     {
       id: 'portal.canvassing',

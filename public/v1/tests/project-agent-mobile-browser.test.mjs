@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFile} from 'node:fs/promises';
 import {chromium} from 'playwright-core';
-// On a phone the project Agent is the assistant's input bar sliding up over the app, not a full tray.
+// On a phone the project Agent is the assistant's input bar sliding up over the app (above the trays footer bar), not a full tray.
 const asset=async f=>readFile(new URL('../../libraries/'+f,import.meta.url),'utf8');
 const phoneAgent='Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.0 Mobile/15E148 Safari/604.1';
 async function project(browser,{width,height,mobile}){
@@ -35,17 +35,18 @@ async function project(browser,{width,height,mobile}){
 const box=(frame,selector)=>frame.locator(selector).evaluate(e=>{const r=e.getBoundingClientRect();return{top:r.top,bottom:r.bottom,left:r.left,width:r.width,height:r.height};});
 const settled=frame=>frame.waitForTimeout(520);
 
-test('on a phone the project agent is a compact input bar with folded history, a glowing icon and the same voice pin',async()=>{
+test('on a phone the project agent is a compact input bar with folded history, a glowing footer button and the same voice pin',async()=>{
   const browser=await chromium.launch({channel:'chrome',headless:true});
   try{
     const {page,frame,errors}=await project(browser,{width:390,height:844,mobile:true});
     await frame.getByRole('tab',{name:'Agent',exact:true}).click();
     await frame.waitForSelector('.fma-msg',{state:'attached'});await settled(frame);
     assert.equal(await frame.locator('.fm-project-content').getAttribute('data-agent-compact'),'true');
-    assert.equal(await frame.locator('.r-modal-header').getAttribute('data-agent-compact'),'true','the agent control glows');
-    assert.match(await frame.locator('[data-tray=agent]').evaluate(e=>getComputedStyle(e).backgroundImage),/gradient/);
-    const bar=await box(frame,'.fm-project-tray'),content=await box(frame,'.fm-project-content');
-    assert.ok(Math.abs(bar.bottom-content.bottom)<1 && bar.width===content.width,'the bar spans the bottom of the project window');
+    assert.equal(await frame.locator('.fm-project-tray-tabs').getAttribute('data-agent-compact'),'true','the agent footer button glows');
+    assert.match(await frame.locator('[data-tray=agent] > i').evaluate(e=>getComputedStyle(e).backgroundImage),/gradient/);
+    const bar=await box(frame,'.fm-project-tray'),content=await box(frame,'.fm-project-content'),footer=await box(frame,'.fm-project-tray-tabs');
+    assert.ok(Math.abs(bar.bottom-content.bottom)<1 && bar.width===content.width,'the bar spans the bottom of the project content');
+    assert.ok(Math.abs(bar.bottom-footer.top)<1,'and sits on the trays footer bar');
     assert.ok(bar.height<150,'only the input bar shows: '+bar.height);
     for(const name of ['Message']) assert.equal(await frame.getByRole('textbox',{name,exact:true}).isVisible(),true);
     for(const name of ['Add files or camera photo','Dictate','Start voice conversation','Close assistant']) assert.equal(await frame.getByRole('button',{name,exact:true}).isVisible(),true,name);
@@ -66,22 +67,20 @@ test('on a phone the project agent is a compact input bar with folded history, a
     await page.evaluate(()=>window.release());
     await frame.waitForFunction(()=>document.querySelector('.fm-project-tray').dataset.agentHistory==='open');
     await frame.getByText('Measured the roof',{exact:true}).waitFor();
-    // Close control hides the bar; it slides away and the icon stops glowing.
+    // Close control hides the bar; it slides away and the button stops glowing.
     await frame.getByRole('button',{name:'Close assistant',exact:true}).click();await settled(frame);
     assert.equal(await frame.locator('.fm-project-tray').isVisible(),false);
-    assert.equal(await frame.locator('.r-modal-header').getAttribute('data-agent-compact'),'false');
-    // Opening again starts folded; tapping the agent icon again hides it; the phone tray control does too.
+    assert.equal(await frame.locator('.fm-project-tray-tabs').getAttribute('data-agent-compact'),'false');
+    // Opening again starts folded; tapping the agent button again hides it.
     await frame.getByRole('tab',{name:'Agent',exact:true}).click();await settled(frame);
     assert.equal(await frame.getByRole('button',{name:'Show conversation',exact:true}).getAttribute('aria-expanded'),'false');
     await frame.getByRole('tab',{name:'Agent',exact:true}).click();await settled(frame);
     assert.equal(await frame.locator('.fm-project-tray').isVisible(),false);
-    await frame.getByRole('tab',{name:'Agent',exact:true}).click();await settled(frame);
-    await frame.locator('.fm-project-tray-toggle').click();await settled(frame);
-    assert.equal(await frame.locator('.fm-project-tray').isVisible(),false);
-    assert.equal(await frame.locator('.fm-project-tray-tabs').getAttribute('data-menu-open')==='true',false);
-    // Other trays still open as full trays.
+    assert.equal(await frame.locator('.fm-project-tray-toggle').count(),0,'no header tray control on a phone');
+    // Other trays open as bottom sheets.
     await frame.getByRole('tab',{name:'Notes',exact:true}).click();await settled(frame);
     assert.equal(await frame.locator('.fm-project-content').getAttribute('data-agent-compact'),'false');
+    assert.equal(await frame.locator('.fm-project-content').getAttribute('data-tray-mode'),'sheet');
     assert.equal(await frame.getByRole('textbox',{name:'Note',exact:true}).isVisible(),true);
     // A voice call still pins the agent when its bar is put away.
     await frame.getByRole('tab',{name:'Agent',exact:true}).click();await settled(frame);
@@ -105,7 +104,8 @@ test('on desktop the project agent stays a full tray',async()=>{
     await frame.getByRole('tab',{name:'Agent',exact:true}).click();
     await frame.waitForSelector('.fma-msg');await settled(frame);
     assert.equal(await frame.locator('.fm-project-content').getAttribute('data-agent-compact'),'false');
-    assert.equal(await frame.locator('.r-modal-header').getAttribute('data-agent-compact'),'false');
+    assert.equal(await frame.locator('.fm-project-tray-tabs').getAttribute('data-agent-compact'),'false');
+    assert.equal(await frame.locator('.r-modal-header .fm-project-tray-tabs').count(),1,'the tray buttons stay in the header');
     const tray=await box(frame,'.fm-project-tray'),content=await box(frame,'.fm-project-content');
     assert.equal(tray.width,380);assert.equal(tray.height,content.height);
     assert.equal(await frame.getByText('Earlier answer',{exact:true}).isVisible(),true,'history shows as before');
