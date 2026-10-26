@@ -23,7 +23,7 @@ repository (it includes Forward's sandbox keys):
 | ACH00 | Done (real UI, staff Take a payment; also paid a deposit by ACH in the customer portal) |
 | ACH01 | $5.55 ACH payment made; Forward triggers the failure (a return) from its payment id, which needs the webhook to reach our books |
 | MIT and CIT RC00–RC07 | Done |
-| Refunds R00 (full), R01 (partial $9.00) | Run after Forward settles the payments (refunding an unsettled payment voids it, which is V00) |
+| Refunds R00 (full), R01 (partial $9.00) | Done (October 25, on settled payments) |
 | Void V00 | Done |
 | Video of the checkout (card, ACH, refund policy screenshot) | Jack records |
 
@@ -85,6 +85,13 @@ Two things for Forward or Jack, not bugs in FirstMate:
   FirstMate records it as received and a later return reverses it. If Jack
   wants ACH shown as "processing" until it settles, that is a product
   decision and a small change.
+
+Refunds, on payments Forward had settled (run October 25):
+
+| Case | Payment | Payment intent | Refund | Result |
+| --- | --- | --- | --- | --- |
+| R00 | $11.00 (CNP02) | `pi_3Kvl0CnjsprxjLh2SCGf9nrWpeb` | `ref_3LD9mWyPwwPge9CjAfmuOzo9yfv`, $11.00 | refunded in full |
+| R01 | $12.00 (CNP04) | `pi_3Kvl5W1ojGLW4i4W77DauGBgYG6` | `ref_3LD9mh3YXmPLntUCSZI3fpD62H4`, $9.00 | partially refunded |
 
 Boarding, through Settings › Payments › Set up payments on a fresh dev sandbox
 organization (`org_5fc5b06045060cdc`):
@@ -160,8 +167,6 @@ and the other `v2.account.*` events, `v2.application.*`, `v2.payment.*`,
 2. **ACH01:** ask Forward to fail (return) ACH payment
    `pmt_3KvrPADpeurKfkJ8ZhwhGkkvzoi`; with the webhook set up, FirstMate
    reverses it and records `payment.failed`.
-3. **R00/R01** after the card payments settle (next business day): run
-   `node scripts/forward-certification-run.mjs refunds` (see below).
 4. **Videos:** AP05 (Settings › Payments › Set up payments on a fresh sandbox
    organization, through Forward's application) and the checkout video (a
    document's Pay button in the customer portal: the address bar shows the
