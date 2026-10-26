@@ -384,6 +384,16 @@ widgets. The form editor's AI tab uses `PlatformAssistant.mountSurface` in a
 private `form:<id>` conversation; its context names the form and states that the
 preview is already beside the chat. See [forms](forms.md).
 
+## Materials settings
+
+Materials settings (the gear on a project's Materials tab, and Settings › Materials;
+`libraries/apps/materials/settings.js`) dock the assistant on the right of every
+sub-tab with `PlatformAssistant.mountSurface`, in the person's private
+`materials-settings` conversation (`POST /v1/materials/organizations/:orgId/settings/conversation`,
+`materials/settings-assistant.ts`). Its context names the sub-tabs and says the
+settings are already on screen; the page context carries the open sub-tab. After
+a turn the open panels reload. It can be collapsed.
+
 ## Widget-owned presentation (October 6)
 
 Assistant panel hosts provide layout without a visible card, padding, duplicate title or timestamp. Registered widgets own their visual card and header. The host supplies an accessible X outside the content by default in side and inline views, reserving a narrow close gutter on small screens. Inline dismissal leaves a chip that reopens the panel; dashboard close uses the existing dashboard removal. Text, tables and charts own their visualization card and title. Inline Expand is hidden when widget content already fits its preview.

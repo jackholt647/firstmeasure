@@ -45,6 +45,9 @@ test('the MVP platform workflow is FirstMeasure plus projects, contacts, feed an
  for(const key of on) assert.equal(effectiveByKey[key],true,key);
  const off=['customer_portal.guest_links','platform.project_assignments','topbar.todos','channels.project_messages_tray','platform.scheduling','scheduling.gantt','equipment.scheduling','apps.crm','apps.stats','apps.payroll','apps.training','apps.sales','platform.money','apps.comms','apps.live_chat','assistant.actions','apps.checklists','apps.equipment'];
  for(const key of off) assert.notEqual(effectiveByKey[key],true,key);
+ // Materials settings has no Resource categories sub-tab in the MVP; the capability is on by default elsewhere.
+ assert.equal((workflow!.defaults as any).app_flags['materials.resource_categories'],false);
+ assert.equal(effectiveByKey['materials.resource_categories'],false);
  // apps.crew and platform.people_access are on for testing for now (mvp-platform.ts).
  const global=await storage.readGlobal(orgId);
  assert.deepEqual((global.data as any).app_placements,{'portal.channels':'hidden','portal.assistant':'hidden'});
@@ -64,7 +67,7 @@ test('the MVP platform workflow is FirstMeasure plus projects, contacts, feed an
  const roofing=await scopes.readScopeTemplate(orgId,'default','generic_roofing');
  assert.deepEqual((roofing as any).definition?.measurement_schema_ids ?? (roofing as any).measurement_schema_ids,['roofing']);
  assert.equal(String((await creation.creationScopeTemplate(orgId,'default')).id),'generic_roofing');
- assert.equal((workflow as any).dev_bar,false);assert.equal((workflow as any).configuration_revision,15);
+ assert.equal((workflow as any).dev_bar,false);assert.equal((workflow as any).configuration_revision,16);
  const resolved=(await capabilities.effectiveCapabilities(orgId)).values as any;
  assert.equal(resolved['platform.new_button_mode'],'selector');assert.equal(resolved['platform.new_button_items'],'report,project,contact');
  // Turned on as configuration even where this checkout's registry does not define it (dev's does).

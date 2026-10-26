@@ -2,6 +2,7 @@ import { terminologyAssistantTools } from './terminology.js';
 import { connectionTools, connectionInstructions, connectionContext } from '../../integrations/assistant.js';
 import { leadTools } from '../../leads/assistant.js';
 import { formsTools, formsInstructions, formConversationContext } from '../../forms/assistant.js';
+import { materialsSettingsConversationContext } from '../../materials/settings-assistant.js';
 import { projectConversationContext } from '../project-context.js';
 import { channelConversationContext } from '../channel-context.js';
 import { notificationAssistantInstructions, notificationAssistantTools } from './notifications.js';
@@ -696,6 +697,7 @@ registerAgent({
   async prepare(run) {
     run.scratch.connectionContext = await connectionContext(run.ctx, cleanText(run.scratch.threadSubjectId || run.subjectId));
     run.scratch.formContext = await formConversationContext(run.ctx, cleanText(run.scratch.threadSubjectId || run.subjectId));
+    run.scratch.materialsSettingsContext = await materialsSettingsConversationContext(run.ctx, cleanText(run.scratch.threadSubjectId || run.subjectId));
     run.scratch.projectContext = await projectConversationContext(run.ctx, cleanText(run.scratch.threadSubjectId || run.subjectId));
     run.scratch.channelContext = await channelConversationContext(run.ctx, cleanText(run.scratch.threadSubjectId || run.subjectId));
     // A guided setup open beside this conversation (docs/architecture/guided-experiences.md).
@@ -733,6 +735,7 @@ ${connectionInstructions}
 ${run.scratch.connectionContext || ''}
 ${formsInstructions}
 ${run.scratch.formContext || ''}
+${run.scratch.materialsSettingsContext || ''}
 ${notificationAssistantInstructions}
 ${run.subjectId === "notifications" ? "The user is in Notification settings. Help them configure notifications through this conversation." : ""}
 ${run.scratch.channelContext || ""}

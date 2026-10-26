@@ -14,6 +14,7 @@ import {commitLaborList,listCommitments,listDeliverySettings,saveDeliverySetting
 import type { FastifyPluginAsync } from "fastify";
 import { registerCalculusApi } from "./calculus-api.js";
 import { registerMaterialOrderingApi } from "./ordering-api.js";
+import { registerMaterialsSettingsAssistantApi } from "./settings-assistant.js";
 import { ZodError } from "zod";
 
 import { requirePlatformAuth } from "../platform/auth.js";
@@ -53,6 +54,7 @@ import {
 export const registerMaterialsApi: FastifyPluginAsync = async (app) => {
   registerCalculusApi(app);
   registerMaterialOrderingApi(app);
+  registerMaterialsSettingsAssistantApi(app);
   app.setErrorHandler((error, _request, reply) => {
     if (error instanceof ZodError) {
       reply.code(400);

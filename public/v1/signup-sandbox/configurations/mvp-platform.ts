@@ -75,12 +75,18 @@ const ENABLED = [
   "platform.people_access"
 ];
 
+// Off for the MVP although on by default: Materials settings has no Resource categories sub-tab (Jack, 2026-10-25).
+const DISABLED = [
+  "materials.resource_categories"
+];
+
 export function appFlags(): JsonObject {
   const overrides: JsonObject = {};
   for (const capability of valueCapabilities()) {
     if (capability.type === "boolean" && capability.requires.includes("platform.expanded_access")) overrides[capability.key] = false;
   }
   for (const key of ENABLED) overrides[key] = true;
+  for (const key of DISABLED) overrides[key] = false;
   // The New button opens a menu: Report first, then Project and Contact.
   overrides["platform.new_button_mode"] = "selector";
   overrides["platform.new_button_items"] = "report,project,contact";
@@ -93,7 +99,7 @@ export const workflow: JsonObject = {
   description: "The FirstMeasure default signup plus the MVP platform: My Projects (with the project map), My Contacts and Feed; project tabs Overview, Reports, Photos (New), Docs (New), Materials and Customer Portal; Agent, Notes, Activity and To Do trays. No Scheduling or calendar. Every project is a generic roof job.",
   entry_mode: "landing_first",
   // Raise when this file changes: the saved workflow is replaced with it on the next seed.
-  configuration_revision: 15,
+  configuration_revision: 16,
   sample_data: true,
   // A launched test instance starts with the sample projects (they carry map points) and customers.
   launch_sample_data: ["projects", "customers"],

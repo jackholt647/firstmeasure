@@ -1153,6 +1153,14 @@ const definitions: CapabilityDefinition[] = [
     default: true
   },
   {
+    key: "materials.resource_categories",
+    kind: "feature",
+    parent: "platform.materials",
+    label: "Resource Categories",
+    description: "Edit the columns on every project's Materials tab (names, icons, colors and line item sources) from Materials settings.",
+    default: true
+  },
+  {
     key: "customer_portal.payments",
     kind: "feature",
     parent: "platform.customer_portal",

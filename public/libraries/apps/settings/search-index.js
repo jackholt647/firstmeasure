@@ -4,11 +4,15 @@ window.FirstMateSettingsIndex = {
   "inputs": [
     [
       "libraries/apps/settings/company.js",
-      "48451f8b5c46a9d48e6839a5db3fe089f37db32cbfbf3ba62c9ed4cd2a77ece2"
+      "6c6a0b61e9eb79c34cc68b2496e60a552d77ec9f7301e13afb6b76343265ce20"
     ],
     [
       "libraries/appointment-booking/settings.js",
       "534c552e3d6de9ddc4556323ef4261e6eed4a239b3df790eb391fbc9a3be91e2"
+    ],
+    [
+      "libraries/apps/materials/settings.js",
+      "a6c97b1bd05e23cf662dfb9513c2090118a6aeb2b3130d5bac9e314d2cfb120e"
     ],
     [
       "libraries/apps/people/app-grid.js",
@@ -144,7 +148,7 @@ window.FirstMateSettingsIndex = {
     ],
     [
       "libraries/apps/settings/feedback.js",
-      "2fdda23a7fa570f7b0a365313e5b4c09399670a495af6122eb2a1d7c43c54321"
+      "8a63c4a29844f825df3ae1cb48617618c209895fc2ae0b25977d6b29b6114399"
     ],
     [
       "libraries/apps/settings/forms.js",
@@ -153,6 +157,10 @@ window.FirstMateSettingsIndex = {
     [
       "libraries/apps/settings/live_chat.js",
       "858bdaafc38892a0445b54b6be74e09e67f5cfaa106862e1e010efcc40f640ec"
+    ],
+    [
+      "libraries/apps/settings/measurement-defaults.js",
+      "aacf45a6a9b4c901e027af97198e16b9ceea49aa27c5c9e9adffda884f2b577a"
     ],
     [
       "libraries/apps/settings/payroll.js",
@@ -168,7 +176,7 @@ window.FirstMateSettingsIndex = {
     ],
     [
       "libraries/apps/settings/report-preview.js",
-      "dff5b7ccd8bc1780272ee766fe1aac305314040d9fecaa37f97e53e35890cd9d"
+      "5d8274eb720ac1d08870219a1c3b115d6fbdccc6eab68a85c06ce3b19c297692"
     ],
     [
       "libraries/apps/settings/scope-artifacts.js",
@@ -188,7 +196,7 @@ window.FirstMateSettingsIndex = {
     ],
     [
       "libraries/custom-fields/firstmate-custom-fields.js",
-      "2711ae99c0a51b5fa4ede8947f5adf908905980235041fdb4f151ac99e56f133"
+      "92c46ed3141e0e97048f44a20261cc1c5da520dcba3ea5d6027c9806b7b17002"
     ],
     [
       "libraries/insights/firstmate-insights.js",
@@ -3599,36 +3607,6 @@ window.FirstMateSettingsIndex = {
       "tab": "Feedback",
       "view": "",
       "source": "libraries/apps/settings/feedback.js",
-      "title": "After crew closeout",
-      "description": "",
-      "kind": "control",
-      "selector": "[data-key=\"crew_completed\"]",
-      "translation": [
-        "settings",
-        "m_7e8f49260656d9",
-        "After crew closeout"
-      ]
-    },
-    {
-      "section": "feedback",
-      "tab": "Feedback",
-      "view": "",
-      "source": "libraries/apps/settings/feedback.js",
-      "title": "After final payment",
-      "description": "",
-      "kind": "control",
-      "selector": "[data-key=\"final_payment\"]",
-      "translation": [
-        "settings",
-        "m_db9237afcc561c",
-        "After final payment"
-      ]
-    },
-    {
-      "section": "feedback",
-      "tab": "Feedback",
-      "view": "",
-      "source": "libraries/apps/settings/feedback.js",
       "title": "All Needs attention Awaiting reply",
       "description": "",
       "kind": "control",
@@ -3664,16 +3642,6 @@ window.FirstMateSettingsIndex = {
       "tab": "Feedback",
       "view": "",
       "source": "libraries/apps/settings/feedback.js",
-      "title": "Choose when and where the request is delivered",
-      "description": "",
-      "kind": "heading",
-      "selector": ""
-    },
-    {
-      "section": "feedback",
-      "tab": "Feedback",
-      "view": "",
-      "source": "libraries/apps/settings/feedback.js",
       "title": "Closing message — the customer only ever sees one of these",
       "description": "",
       "kind": "heading",
@@ -3694,6 +3662,16 @@ window.FirstMateSettingsIndex = {
       "tab": "Feedback",
       "view": "",
       "source": "libraries/apps/settings/feedback.js",
+      "title": "Configure delivery copy",
+      "description": "",
+      "kind": "heading",
+      "selector": ""
+    },
+    {
+      "section": "feedback",
+      "tab": "Feedback",
+      "view": "",
+      "source": "libraries/apps/settings/feedback.js",
       "title": "Custom link",
       "description": "",
       "kind": "control",
@@ -3703,16 +3681,6 @@ window.FirstMateSettingsIndex = {
         "m_cb6d9694bc5c14",
         "Custom link"
       ]
-    },
-    {
-      "section": "feedback",
-      "tab": "Feedback",
-      "view": "",
-      "source": "libraries/apps/settings/feedback.js",
-      "title": "Customer portal Show a feedback card inside their project portal.",
-      "description": "",
-      "kind": "control",
-      "selector": "[data-fb-channel=\"portal\"]"
     },
     {
       "section": "feedback",
@@ -3789,10 +3757,20 @@ window.FirstMateSettingsIndex = {
       "tab": "Feedback",
       "view": "",
       "source": "libraries/apps/settings/feedback.js",
-      "title": "Email Send a branded request to their inbox.",
+      "title": "Email message",
       "description": "",
       "kind": "control",
-      "selector": "[data-fb-channel=\"email\"]"
+      "selector": "[data-fb-send-copy=\"email_body\"]"
+    },
+    {
+      "section": "feedback",
+      "tab": "Feedback",
+      "view": "",
+      "source": "libraries/apps/settings/feedback.js",
+      "title": "Email subject",
+      "description": "",
+      "kind": "control",
+      "selector": "[data-fb-send-copy=\"email_subject\"]"
     },
     {
       "section": "feedback",
@@ -3888,21 +3866,6 @@ window.FirstMateSettingsIndex = {
       "tab": "Feedback",
       "view": "",
       "source": "libraries/apps/settings/feedback.js",
-      "title": "Manually only",
-      "description": "",
-      "kind": "control",
-      "selector": "[data-key=\"manual\"]",
-      "translation": [
-        "settings",
-        "m_5832abd7cf0637",
-        "Manually only"
-      ]
-    },
-    {
-      "section": "feedback",
-      "tab": "Feedback",
-      "view": "",
-      "source": "libraries/apps/settings/feedback.js",
       "title": "Message",
       "description": "",
       "kind": "heading",
@@ -3933,10 +3896,40 @@ window.FirstMateSettingsIndex = {
       "tab": "Feedback",
       "view": "",
       "source": "libraries/apps/settings/feedback.js",
+      "title": "Project",
+      "description": "",
+      "kind": "control",
+      "selector": "[name=\"project\"]"
+    },
+    {
+      "section": "feedback",
+      "tab": "Feedback",
+      "view": "",
+      "source": "libraries/apps/settings/feedback.js",
       "title": "Question",
       "description": "",
       "kind": "control",
       "selector": "[data-fb-set=\"survey\\.question\"]"
+    },
+    {
+      "section": "feedback",
+      "tab": "Feedback",
+      "view": "",
+      "source": "libraries/apps/settings/feedback.js",
+      "title": "Send again if this project already received a request",
+      "description": "",
+      "kind": "control",
+      "selector": "[name=\"resend\"]"
+    },
+    {
+      "section": "feedback",
+      "tab": "Feedback",
+      "view": "",
+      "source": "libraries/apps/settings/feedback.js",
+      "title": "Send through",
+      "description": "",
+      "kind": "heading",
+      "selector": ""
     },
     {
       "section": "feedback",
@@ -3983,25 +3976,10 @@ window.FirstMateSettingsIndex = {
       "tab": "Feedback",
       "view": "",
       "source": "libraries/apps/settings/feedback.js",
-      "title": "Text message Send a short link to their mobile phone.",
+      "title": "Text message",
       "description": "",
       "kind": "control",
-      "selector": "[data-fb-channel=\"sms\"]"
-    },
-    {
-      "section": "feedback",
-      "tab": "Feedback",
-      "view": "",
-      "source": "libraries/apps/settings/feedback.js",
-      "title": "When work is completed",
-      "description": "",
-      "kind": "control",
-      "selector": "[data-key=\"project_completed\"]",
-      "translation": [
-        "settings",
-        "m_db872e4acca3f4",
-        "When work is completed"
-      ]
+      "selector": "[data-fb-send-copy=\"sms_text\"]"
     },
     {
       "section": "feedback",
@@ -5425,6 +5403,126 @@ window.FirstMateSettingsIndex = {
       "description": "",
       "kind": "view",
       "selector": "[data-subtab=\"widget\"]"
+    },
+    {
+      "section": "materials",
+      "tab": "Materials",
+      "view": "",
+      "source": "libraries/apps/materials/settings.js",
+      "title": "Agent",
+      "description": "Show or hide the agent Show or hide the agent",
+      "kind": "control",
+      "selector": "[data-mts-agent-toggle=\"\"]"
+    },
+    {
+      "section": "materials",
+      "tab": "Materials",
+      "view": "",
+      "source": "libraries/apps/materials/settings.js",
+      "title": "Calculations",
+      "description": "",
+      "kind": "control",
+      "selector": ""
+    },
+    {
+      "section": "materials",
+      "tab": "Materials",
+      "view": "",
+      "source": "libraries/apps/materials/settings.js",
+      "title": "Category name",
+      "description": "Icon and color Where this column’s suggested lines come from Remove from every project",
+      "kind": "control",
+      "selector": "[data-mts-cat-name=\"\"]"
+    },
+    {
+      "section": "materials",
+      "tab": "Materials",
+      "view": "",
+      "source": "libraries/apps/materials/settings.js",
+      "title": "Equipment",
+      "description": "",
+      "kind": "control",
+      "selector": ""
+    },
+    {
+      "section": "materials",
+      "tab": "Materials",
+      "title": "Materials",
+      "description": "Price book, suppliers, calculations and resource categories for materials.",
+      "view": "",
+      "kind": "section",
+      "selector": ""
+    },
+    {
+      "section": "materials",
+      "tab": "Materials",
+      "view": "",
+      "source": "libraries/apps/materials/settings.js",
+      "title": "Materials settings",
+      "description": "",
+      "kind": "heading",
+      "selector": "[id=\"mtsTitle\"]"
+    },
+    {
+      "section": "materials",
+      "tab": "Materials",
+      "view": "",
+      "source": "libraries/apps/materials/settings.js",
+      "title": "New category",
+      "description": "",
+      "kind": "control",
+      "selector": "[name=\"name\"]"
+    },
+    {
+      "section": "materials",
+      "tab": "Materials",
+      "view": "",
+      "source": "libraries/apps/materials/settings.js",
+      "title": "Price book",
+      "description": "",
+      "kind": "control",
+      "selector": "",
+      "terminology": "pricebook.pricebook"
+    },
+    {
+      "section": "materials",
+      "tab": "Materials",
+      "view": "",
+      "source": "libraries/apps/materials/settings.js",
+      "title": "Resource categories",
+      "description": "",
+      "kind": "control",
+      "selector": ""
+    },
+    {
+      "section": "materials",
+      "tab": "Materials",
+      "view": "",
+      "source": "libraries/apps/materials/settings.js",
+      "title": "SKU only",
+      "description": "Leave out price book items kept only for estimating, which have no SKU to order.",
+      "kind": "control",
+      "selector": "[data-mts-cat-sku=\"\"]"
+    },
+    {
+      "section": "materials",
+      "tab": "Materials",
+      "view": "",
+      "source": "libraries/apps/materials/settings.js",
+      "title": "Suppliers",
+      "description": "",
+      "kind": "control",
+      "selector": ""
+    },
+    {
+      "section": "materials",
+      "tab": "Materials",
+      "view": "",
+      "source": "libraries/apps/materials/settings.js",
+      "title": "Suppliers, locations and delivery",
+      "description": "",
+      "kind": "heading",
+      "selector": ""
     },
     {
       "section": "money",
@@ -10344,6 +10442,16 @@ window.FirstMateSettingsIndex = {
       "section": "reports",
       "tab": "Reports",
       "view": "",
+      "source": "libraries/apps/settings/measurement-defaults.js",
+      "title": "Base %",
+      "description": "Every roof gets at least this much",
+      "kind": "control",
+      "selector": "[data-md-waste=\"base_percent\"]"
+    },
+    {
+      "section": "reports",
+      "tab": "Reports",
+      "view": "",
       "source": "libraries/apps/settings/company.js",
       "title": "Breakdown",
       "description": "Show line lengths (eave, ridge, valley and the rest) on the cover.",
@@ -10399,11 +10507,86 @@ window.FirstMateSettingsIndex = {
       "section": "reports",
       "tab": "Reports",
       "view": "",
+      "source": "libraries/apps/settings/measurement-defaults.js",
+      "title": "Default labor",
+      "description": "",
+      "kind": "control",
+      "selector": "[data-md-switch=\"labor\"]"
+    },
+    {
+      "section": "reports",
+      "tab": "Reports",
+      "view": "",
+      "source": "libraries/apps/settings/measurement-defaults.js",
+      "title": "Default materials",
+      "description": "",
+      "kind": "control",
+      "selector": "[data-md-switch=\"materials\"]"
+    },
+    {
+      "section": "reports",
+      "tab": "Reports",
+      "view": "defaults",
       "source": "libraries/apps/settings/company.js",
-      "title": "Customer Report Settings",
+      "title": "Default materials and labor",
+      "description": "",
+      "kind": "view",
+      "selector": "[data-rp-subtab=\"defaults\"]"
+    },
+    {
+      "section": "reports",
+      "tab": "Reports",
+      "view": "",
+      "source": "libraries/apps/settings/measurement-defaults.js",
+      "title": "Default materials and labor",
       "description": "",
       "kind": "heading",
       "selector": ""
+    },
+    {
+      "section": "reports",
+      "tab": "Reports",
+      "view": "",
+      "source": "libraries/apps/settings/company.js",
+      "title": "Elevation Pages",
+      "description": "The front, back, left and right elevations with every wall face, and faces hidden behind other walls.",
+      "kind": "control",
+      "selector": "[data-key=\"ext_page_elevations\"]",
+      "translation": [
+        "settings",
+        "rp_ext_page_elevations",
+        "Elevation Pages"
+      ]
+    },
+    {
+      "section": "reports",
+      "tab": "Reports",
+      "view": "",
+      "source": "libraries/apps/settings/company.js",
+      "title": "Exterior Quantities",
+      "description": "Measured lengths, trim by kind and net wall area by material.",
+      "kind": "control",
+      "selector": "[data-key=\"ext_page_quantities\"]",
+      "translation": [
+        "settings",
+        "rp_ext_page_quantities",
+        "Exterior Quantities"
+      ]
+    },
+    {
+      "section": "reports",
+      "tab": "Reports",
+      "view": "",
+      "source": "libraries/apps/settings/company.js",
+      "title": "Exterior Summary Page",
+      "description": "Wall area, openings and the other exterior totals.",
+      "kind": "control",
+      "selector": "[data-key=\"ext_page_summary\"]",
+      "translation": [
+        "settings",
+        "rp_ext_page_summary",
+        "Exterior Summary Page"
+      ]
     },
     {
       "section": "reports",
@@ -10424,11 +10607,101 @@ window.FirstMateSettingsIndex = {
       "section": "reports",
       "tab": "Reports",
       "view": "",
+      "source": "libraries/apps/settings/measurement-defaults.js",
+      "title": "Factor",
+      "description": "Times this much. 1 is the measurement as it is. Times this much. 1 is the measurement as it is. Remove this measurement",
+      "kind": "control",
+      "selector": "[data-md-term-field=\"factor\"]"
+    },
+    {
+      "section": "reports",
+      "tab": "Reports",
+      "view": "",
+      "source": "libraries/apps/settings/measurement-defaults.js",
+      "title": "Find",
+      "description": "",
+      "kind": "control",
+      "selector": ""
+    },
+    {
+      "section": "reports",
+      "tab": "Reports",
+      "view": "",
+      "source": "libraries/apps/settings/company.js",
+      "title": "Full Exterior reports",
+      "description": "Page orientation of Full Exterior reports. Landscape unless you choose portrait.",
+      "kind": "control",
+      "selector": "[data-key=\"exterior_report_orientation\"]",
+      "translation": [
+        "settings",
+        "rp_layout_exterior",
+        "Full Exterior reports"
+      ]
+    },
+    {
+      "section": "reports",
+      "tab": "Reports",
+      "view": "",
+      "source": "libraries/apps/settings/measurement-defaults.js",
+      "title": "Generate {name}",
+      "description": "",
+      "kind": "control",
+      "selector": "[data-md-field=\"enabled\"]"
+    },
+    {
+      "section": "reports",
+      "tab": "Reports",
+      "view": "",
+      "source": "libraries/apps/settings/measurement-defaults.js",
+      "title": "Group",
+      "description": "The heading this line sits under on the materials list.",
+      "kind": "control",
+      "selector": "[data-md-field=\"group\"]"
+    },
+    {
+      "section": "reports",
+      "tab": "Reports",
+      "view": "",
       "source": "libraries/apps/settings/report-preview.js",
       "title": "Gutters",
       "description": "",
       "kind": "control",
       "selector": "[data-key=\"gutters\"]"
+    },
+    {
+      "section": "reports",
+      "tab": "Reports",
+      "view": "",
+      "source": "libraries/apps/settings/measurement-defaults.js",
+      "title": "Highest %",
+      "description": "",
+      "kind": "control",
+      "selector": "[data-md-waste=\"max_percent\"]"
+    },
+    {
+      "section": "reports",
+      "tab": "Reports",
+      "view": "",
+      "source": "libraries/apps/settings/measurement-defaults.js",
+      "title": "Hips and valleys %",
+      "description": "+ % per ft of hip and valley per square",
+      "kind": "control",
+      "selector": "[data-md-waste=\"per_cut_foot_percent\"]"
+    },
+    {
+      "section": "reports",
+      "tab": "Reports",
+      "view": "",
+      "source": "libraries/apps/settings/company.js",
+      "title": "House context",
+      "description": "Each wall dimension drawing shows the rest of the house, dimmed, behind the measured face. Off draws the face alone.",
+      "kind": "control",
+      "selector": "[data-key=\"exterior_dimension_context\"]",
+      "translation": [
+        "settings",
+        "rp_house_context",
+        "House context"
+      ]
     },
     {
       "section": "reports",
@@ -10449,6 +10722,16 @@ window.FirstMateSettingsIndex = {
       "section": "reports",
       "tab": "Reports",
       "view": "",
+      "source": "libraries/apps/settings/measurement-defaults.js",
+      "title": "Item type",
+      "description": "With no item chosen, the line uses the first price book item of this type. Not found, it uses this rule’s name.",
+      "kind": "control",
+      "selector": "[data-md-field=\"product_type\"]"
+    },
+    {
+      "section": "reports",
+      "tab": "Reports",
+      "view": "",
       "source": "libraries/apps/settings/company.js",
       "title": "Layers Page",
       "description": "One page per drawing layer, for roofs measured in layers.",
@@ -10458,6 +10741,31 @@ window.FirstMateSettingsIndex = {
         "settings",
         "m_432bc7ebc20bc1",
         "Layers Page"
+      ]
+    },
+    {
+      "section": "reports",
+      "tab": "Reports",
+      "view": "",
+      "source": "libraries/apps/settings/measurement-defaults.js",
+      "title": "Lowest %",
+      "description": "",
+      "kind": "control",
+      "selector": "[data-md-waste=\"min_percent\"]"
+    },
+    {
+      "section": "reports",
+      "tab": "Reports",
+      "view": "",
+      "source": "libraries/apps/settings/company.js",
+      "title": "Material Allowances",
+      "description": "Wall material areas and squares with waste allowances.",
+      "kind": "control",
+      "selector": "[data-key=\"ext_page_allowances\"]",
+      "translation": [
+        "settings",
+        "rp_ext_page_allowances",
+        "Material Allowances"
       ]
     },
     {
@@ -10474,6 +10782,51 @@ window.FirstMateSettingsIndex = {
         "m_e9ee0bad870418",
         "Materials Page"
       ]
+    },
+    {
+      "section": "reports",
+      "tab": "Reports",
+      "view": "",
+      "source": "libraries/apps/settings/measurement-defaults.js",
+      "title": "Measured from",
+      "description": "",
+      "kind": "heading",
+      "selector": ""
+    },
+    {
+      "section": "reports",
+      "tab": "Reports",
+      "view": "",
+      "source": "libraries/apps/settings/measurement-defaults.js",
+      "title": "Name",
+      "description": "",
+      "kind": "control",
+      "selector": "[data-md-field=\"label\"]"
+    },
+    {
+      "section": "reports",
+      "tab": "Reports",
+      "view": "",
+      "source": "libraries/apps/settings/company.js",
+      "title": "Opening Schedule",
+      "description": "Every window, door and garage door with its size and trim.",
+      "kind": "control",
+      "selector": "[data-key=\"ext_page_openings\"]",
+      "translation": [
+        "settings",
+        "rp_ext_page_openings",
+        "Opening Schedule"
+      ]
+    },
+    {
+      "section": "reports",
+      "tab": "Reports",
+      "view": "",
+      "source": "libraries/apps/settings/measurement-defaults.js",
+      "title": "Package",
+      "description": "",
+      "kind": "control",
+      "selector": "[data-md-field=\"package_unit\"]"
     },
     {
       "section": "reports",
@@ -10508,11 +10861,66 @@ window.FirstMateSettingsIndex = {
     {
       "section": "reports",
       "tab": "Reports",
+      "view": "",
+      "source": "libraries/apps/settings/measurement-defaults.js",
+      "title": "Price book item",
+      "description": "",
+      "kind": "control",
+      "selector": "[data-md-field=\"product_id\"]"
+    },
+    {
+      "section": "reports",
+      "tab": "Reports",
+      "view": "report",
+      "source": "libraries/apps/settings/company.js",
+      "title": "Report settings",
+      "description": "",
+      "kind": "view",
+      "selector": "[data-rp-subtab=\"report\"]"
+    },
+    {
+      "section": "reports",
+      "tab": "Reports",
+      "view": "",
+      "source": "libraries/apps/settings/company.js",
+      "title": "Report Settings",
+      "description": "",
+      "kind": "heading",
+      "selector": ""
+    },
+    {
+      "section": "reports",
+      "tab": "Reports",
       "title": "Reports",
       "description": "Set defaults for measurement and customer reports.",
       "view": "",
       "kind": "section",
       "selector": ""
+    },
+    {
+      "section": "reports",
+      "tab": "Reports",
+      "view": "",
+      "source": "libraries/apps/settings/company.js",
+      "title": "Roof reports",
+      "description": "Page orientation of roof-only reports.",
+      "kind": "control",
+      "selector": "[data-key=\"report_orientation\"]",
+      "translation": [
+        "settings",
+        "rp_layout_roof",
+        "Roof reports"
+      ]
+    },
+    {
+      "section": "reports",
+      "tab": "Reports",
+      "view": "",
+      "source": "libraries/apps/settings/measurement-defaults.js",
+      "title": "Steep %",
+      "description": "+ % for a roof all over 8/12",
+      "kind": "control",
+      "selector": "[data-md-waste=\"steep_percent\"]"
     },
     {
       "section": "reports",
@@ -10579,6 +10987,36 @@ window.FirstMateSettingsIndex = {
       "tab": "Reports",
       "view": "",
       "source": "libraries/apps/settings/company.js",
+      "title": "Wall Dimension Pages",
+      "description": "Each wall face and trim face drawn with its dimensions.",
+      "kind": "control",
+      "selector": "[data-key=\"ext_page_dimensions\"]",
+      "translation": [
+        "settings",
+        "rp_ext_page_dimensions",
+        "Wall Dimension Pages"
+      ]
+    },
+    {
+      "section": "reports",
+      "tab": "Reports",
+      "view": "",
+      "source": "libraries/apps/settings/company.js",
+      "title": "Wall Notes Page",
+      "description": "The elevations with the report's wall notes.",
+      "kind": "control",
+      "selector": "[data-key=\"ext_page_notes\"]",
+      "translation": [
+        "settings",
+        "rp_ext_page_notes",
+        "Wall Notes Page"
+      ]
+    },
+    {
+      "section": "reports",
+      "tab": "Reports",
+      "view": "",
+      "source": "libraries/apps/settings/company.js",
       "title": "Waste",
       "description": "Show the suggested waste percentage and count it in the squares total.",
       "kind": "control",
@@ -10588,6 +11026,26 @@ window.FirstMateSettingsIndex = {
         "m_c9111123c18496",
         "Waste"
       ]
+    },
+    {
+      "section": "reports",
+      "tab": "Reports",
+      "view": "",
+      "source": "libraries/apps/settings/measurement-defaults.js",
+      "title": "Waste percent",
+      "description": "",
+      "kind": "control",
+      "selector": "[data-md-field=\"waste\"]"
+    },
+    {
+      "section": "reports",
+      "tab": "Reports",
+      "view": "",
+      "source": "libraries/apps/settings/measurement-defaults.js",
+      "title": "What one package covers",
+      "description": "",
+      "kind": "control",
+      "selector": "[data-md-field=\"package_coverage\"]"
     },
     {
       "section": "scheduling",

@@ -1353,6 +1353,9 @@
     const leadFlags = leadImportFlagState();
     const canForms = canCompany && (leadFlags.forms || leadFlags.email);
     const canPricebook = canCompany && appFlag('platform', 'pricebook');
+    // Settings › Materials: the same sub-tabs as a project's Materials settings (materials/settings.js, mountInline),
+    // each by its own capability and permission; the section shows when at least one is allowed.
+    const canMaterials = (window.FirstMateMaterialsSettings?.sections?.({ surface:'settings' }) || []).length > 0;
     const companyFontsEnabled = appFlag('platform', 'documents');
     const canDocuments = canCompany && appFlag('platform', 'project_docs') && appBelongsInSettings('documents.studio');
     const canConfiguration = canCompany && appFlag('platform', 'configuration');
@@ -1401,6 +1404,7 @@
       { id:'domains', allowed:canDomains, icon:'fas fa-globe', term:'settings.domains_tab', title:(globalThis.PlatformLanguage?.text("settings","m_7e6427ce4061f4","Domains & Hosting") ?? "Domains & Hosting"), subtitle:(globalThis.PlatformLanguage?.text("settings","m_c02d45f8191c42","Register, connect, and manage website domains.") ?? "Register, connect, and manage website domains."), tabId:'csTabDomains', paneId:'csPaneDomains' },
       { id:'app_flags', allowed:canAppFlags, icon:'fas fa-code', term:'settings.developer_settings_tab', title:(globalThis.PlatformLanguage?.text("settings","developer_settings_title","Developer Settings") ?? "Developer Settings"), subtitle:(globalThis.PlatformLanguage?.text("settings","developer_settings_subtitle","Developer tools, feature flags, and app configuration.") ?? "Developer tools, feature flags, and app configuration."), tabId:'csTabAppFlags', paneId:'csPaneAppFlags' },
       { id:'pricebook', allowed:canPricebook, icon:'fas fa-book', term:'pricebook.settings_tab', title:(globalThis.PlatformLanguage?.text("settings","m_f574625863d5b7","Pricebook") ?? "Pricebook"), subtitle:(globalThis.PlatformLanguage?.text("settings","m_c23b3b22698ba1","Manage the organization price book, global references, variants, and artifact pricing rules.") ?? "Manage the organization price book, global references, variants, and artifact pricing rules."), tabId:'csTabPricebook', paneId:'csPanePricebook' },
+      { id:'materials', allowed:canMaterials, icon:'fas fa-boxes-stacked', title:(globalThis.PlatformLanguage?.text("settings","materials_settings_section","Materials") ?? "Materials"), subtitle:(globalThis.PlatformLanguage?.text("settings","materials_settings_section_subtitle","Price book, suppliers, calculations and resource categories for materials.") ?? "Price book, suppliers, calculations and resource categories for materials."), tabId:'csTabMaterials', paneId:'csPaneMaterials' },
       { id:'forms', allowed:canForms, icon:'fas fa-clipboard-list', term:'leads.settings_tab', title:(globalThis.PlatformLanguage?.text("settings","m_1399dd735044f0","Forms and Leads") ?? "Forms and Leads"), subtitle:(globalThis.PlatformLanguage?.text("settings","m_3f2edc28d5ce68","Configure lead capture forms and inbound lead sources.") ?? "Configure lead capture forms and inbound lead sources."), tabId:'csTabForms', paneId:'csPaneForms' },
       { id:'billing', allowed:canBilling || canPlatformBilling, icon:'fas fa-credit-card', term:'billing.settings_tab', title:(globalThis.PlatformLanguage?.text("settings","m_831d8d28763333","Billing") ?? "Billing"), subtitle:(globalThis.PlatformLanguage?.text("settings","m_15b15ae2348691","Manage plan billing, balance, and automatic top-ups.") ?? "Manage plan billing, balance, and automatic top-ups."), tabId:'csTabBilling', paneId:'csPaneBilling' },
       { id:'app_download', allowed:appFlag('mobile','app_download'), icon:'fas fa-mobile-alt', title:(globalThis.PlatformLanguage?.text("settings","m_547bfda0c7f70d","App download") ?? "App download"), subtitle:(globalThis.PlatformLanguage?.text("settings","m_18f3026e47ac02","FirstMeasure on your phone.") ?? "FirstMeasure on your phone."), tabId:'csTabAppDownload', paneId:'csPaneAppDownload' }
@@ -1536,6 +1540,8 @@
       @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800;900&family=Lato:wght@400;700;900&family=Montserrat:wght@400;600;700;800;900&family=Open+Sans:wght@400;700;800&family=Poppins:wght@400;600;700;800;900&family=Roboto:wght@400;700;900&family=Source+Sans+3:wght@400;700;900&display=swap');
       .cs-wrap{max-width:none;width:100%;margin:0;padding:0;box-sizing:border-box}
       .cs-wrap.pricebook-wide{max-width:none}
+      .cs-wrap.materials-wide{max-width:none}
+      .cs-wrap.materials-wide .cs-main>.cs-card{padding:0;border:0;background:transparent;box-shadow:none}
       .cs-wrap.pricebook-wide .cs-main>.cs-card{padding:0;overflow:hidden}
       .cs-wrap.pricebook-wide #csPanePricebook.active{display:flex;flex-direction:column;height:calc(100vh - 150px);min-height:680px;overflow:hidden}
       .cs-wrap.pricebook-wide .cs-pb-tabs{flex:0 0 auto;margin:12px 14px}
@@ -3834,7 +3840,7 @@
     const sectionTabHtml = (section) => `<button class="cs-tab ${navSelected(section.id, activeTab) ? 'active' : ''}" id="${section.tabId}" type="button" role="tab" aria-selected="${navSelected(section.id, activeTab)}" data-settings-section="${section.id}"><i class="${section.icon}" aria-hidden="true"></i><span ${section.term ? `data-settings-terminology-key="${escapeHtml(section.term)}"` : ''}>${escapeHtml(sectionTitle(section))}</span></button>`;
     const sectionPaneHtml = (section) => `<div class="cs-pane ${activeTab === section.id ? 'active' : ''}" id="${section.paneId}" role="tabpanel" data-settings-pane="${section.id}"></div>`;
     const headerHtml = `
-      <div class="cs-wrap ${String(embeddedSettings ? 'embedded-tab-only' : '')} ${String(activeTab === 'pricebook' ? 'pricebook-wide' : '')} ${String(activeTab === 'forms' ? 'forms-wide' : '')}">
+      <div class="cs-wrap ${String(embeddedSettings ? 'embedded-tab-only' : '')} ${String(activeTab === 'pricebook' ? 'pricebook-wide' : '')} ${String(activeTab === 'forms' ? 'forms-wide' : '')} ${String(activeTab === 'materials' ? 'materials-wide' : '')}">
         <div class="cs-layout no-subtabs">
           <header class="cs-heading">
             <h2 class="cs-title" data-settings-title ${String(activeSection?.term ? `data-settings-terminology-key="${escapeHtml(activeSection.term)}"` : '')}>${String(escapeHtml(sectionTitle(activeSection)))}</h2>
@@ -6109,7 +6115,7 @@ By opting in, you agree to receive ${purposes}. Message frequency varies. Messag
         <div class="cs-pb-tabs">
           <button type="button" class="cs-pb-tab active" data-pb-view="editor"><i class="fas fa-list"></i>${(globalThis.PlatformLanguage?.htmlText("settings","m_2e3cdf6cfab114"," Organization Price Book") ?? " Organization Price Book")}</button>
           <button type="button" class="cs-pb-tab" data-pb-view="generate"><i class="fas fa-wand-magic-sparkles"></i>${(globalThis.PlatformLanguage?.htmlText("settings","m_859223eac49af9"," Generate from proposals") ?? " Generate from proposals")}</button>
-          <button type="button" class="cs-pb-tab" data-pb-view="suppliers"><i class="fas fa-truck-field"></i> Suppliers</button>
+          <button type="button" class="cs-pb-tab" data-pb-view="suppliers"><i class="fas fa-truck"></i> Suppliers</button>
           <button type="button" class="cs-pb-tab" data-pb-reset style="margin-left:auto"><i class="fas fa-rotate-left"></i>${(globalThis.PlatformLanguage?.htmlText("settings","m_7c7b14aaccaafb"," Reset to global") ?? " Reset to global")}</button>
         </div>`);
       panePricebook.insertAdjacentHTML('beforeend', '<div data-pb-pane="generate" hidden></div><div data-pb-pane="suppliers" hidden style="flex:1 1 auto;min-height:0"></div>');
@@ -6121,7 +6127,7 @@ By opting in, you agree to receive ${purposes}. Message frequency varies. Messag
       const openSuppliers = () => {
         if (suppliersRequested) return;
         suppliersRequested = true;
-        const start = () => window.FirstMateSupplierSettings.mount(suppliersPane, { orgId:() => currentOrgId, pricebook, toast:showToast });
+        const start = () => window.FirstMateSupplierSettings.mount(suppliersPane, { orgId:() => currentOrgId(), pricebook, toast:showToast });
         if (window.FirstMateSupplierSettings) { start(); return; }
         suppliersPane.textContent = 'Loading suppliers…';
         const base = document.querySelector('script[src*="apps/settings/company.js"]')?.src || `${location.origin}/libraries/apps/settings/company.js`;
@@ -11941,6 +11947,7 @@ By opting in, you agree to receive ${purposes}. Message frequency varies. Messag
       if (options.updateRoute !== false && !window.Portal?.navigation?.applying) writeSettingsRoute({ sub:which, settingsView:'', settingsEntity:'', scopeTemplateView:'', terminologyQuery:'', terminologySection:'', terminologyStatus:'', workflow:'', workflow_step:'' }, { history:options.history || 'push', source:'settings-tab' });
       if (settingsWrap) settingsWrap.classList.toggle('pricebook-wide', which === 'pricebook');
       if (settingsWrap) settingsWrap.classList.toggle('forms-wide', which === 'forms');
+      if (settingsWrap) settingsWrap.classList.toggle('materials-wide', which === 'materials');
       if (settingsWrap) settingsWrap.classList.toggle('notifications-wide', which === 'notifications');
       panel.querySelectorAll('[data-settings-section]').forEach((button) => {
         const selected = navSelected(button.dataset.settingsSection, which);
@@ -11980,6 +11987,7 @@ By opting in, you agree to receive ${purposes}. Message frequency varies. Messag
       if (which === 'domains' && canDomains) renderDomainsSettings();
       if (which === 'app_flags' && canAppFlags) renderAppFlags();
       if (which === 'pricebook' && canPricebook) renderPricebook();
+      if (which === 'materials' && canMaterials) renderMaterialsSettings();
       if (which === 'forms' && canForms) renderForms();
       if (which === 'billing' && canBilling) renderBilling();
       if (which === 'billing') renderPlatformBilling();
@@ -12919,6 +12927,15 @@ By opting in, you agree to receive ${purposes}. Message frequency varies. Messag
       });
     }
 
+    // Settings › Materials: the Materials settings sub-tabs, mounted once into the page (materials/settings.js).
+    let materialsSettingsHandle = null;
+    function renderMaterialsSettings(){
+      const host = panel.querySelector('#csPaneMaterials');
+      if (!host) return;
+      if (materialsSettingsHandle && host.firstElementChild) { materialsSettingsHandle.refit?.(); return; }
+      materialsSettingsHandle = window.FirstMateMaterialsSettings?.mountInline?.(host, { orgId:() => currentOrgId(), toast:typeof showToast === 'function' ? showToast : undefined }) || null;
+      if (!materialsSettingsHandle) host.innerHTML = `<div class="cs-note">${(globalThis.PlatformLanguage?.htmlText("settings","materials_settings_unavailable","Materials settings are unavailable.") ?? "Materials settings are unavailable.")}</div>`;
+    }
     async function renderFeedSettings(){
       if (!paneFeed || paneFeed.dataset.feedMounted === '1') return;
       paneFeed.dataset.feedMounted = '1';
@@ -13210,7 +13227,7 @@ ${String(companyBusinessAddress ? `                  <div class="cs-field wide">
         defaultsPane.textContent = settingsText("rp_defaults_loading", "Loading default materials and labor…");
         const base = document.querySelector('script[src*="apps/settings/company.js"]')?.src || `${location.origin}/libraries/apps/settings/company.js`;
         const script = document.createElement('script');
-        script.src = new URL('./measurement-defaults.js?v=20261022-measurement-defaults-2', base).href;
+        script.src = new URL('./measurement-defaults.js?v=20261025-calculations', base).href;
         script.onload = start;
         script.onerror = () => { defaultsRequested = false; defaultsPane.textContent = settingsText("rp_defaults_failed", "Default materials and labor could not load."); };
         document.head.append(script);
@@ -15273,6 +15290,7 @@ ${String(companyBusinessAddress ? `                  <div class="cs-field wide">
       if (canDomains && activeTab === 'domains') renderDomainsSettings();
       if (canAppFlags && activeTab === 'app_flags') renderAppFlags();
       if (canPricebook && activeTab === 'pricebook') renderPricebook();
+      if (canMaterials && activeTab === 'materials') renderMaterialsSettings();
       if (canForms && activeTab === 'forms') renderForms();
       if (canBilling) renderBilling();
       if (activeTab === 'billing') renderPlatformBilling();
