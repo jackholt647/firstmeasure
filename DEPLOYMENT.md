@@ -1,5 +1,7 @@
 # FirstMeasure: local development and production deployment
 
+October 26 1M8-244 sign-in email: [Proven Roofing's owner identity repaired in production (identity email matched to the user record); the users PATCH now keeps a user's email equal to their sign-in email](deploy/digitalocean/development-identity-email-20261026.md) records branch `claude/identity-mismatch-1m8-244` (`de3d8c6d`, on `codex/hotfix-20261026x`), the production data repair and its backup, 50 other affected users, and the development rollout. Code not on production.
+
 October 23 Signup form embeddable on dev: [the app's own signup form runs on the websites from one script tag, with an exact-origin allowlist on /v1/platform/auth/*](deploy/digitalocean/development-signup-embed-20261023.md) records `c17c3797` (1M8-240); websites not switched yet.
 
 October 23 Signup language on dev: [No Country or Language dropdowns, signups never refused, and the visitor's language handed from landing page (?lang + fm_lang cookie) through login, signup, onboarding and the organization in all 17 packs](deploy/digitalocean/development-signup-language-20261023.md) records `e7144481` and `52df0758` (1M8-240) on worker, legacy and web; the website droplets still need handoff.js.
