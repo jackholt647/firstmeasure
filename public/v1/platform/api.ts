@@ -1599,8 +1599,12 @@ app.get("/auth/google/config", async () => ({
     if(contactId){await requirePlatformAuth(request,{orgId,permission:"view_contacts"});await resolveContact(orgId,{contact_id:contactId});}
     const tags = normalizeMediaTags(query.tags || query.tag);
     const tagMode = cleanText(query.tag_mode || query.tagMode).toLowerCase() === "all" ? "all" : "any";
+    // ?unassigned=true lists only photos that belong to no project (canReadReceiptMedia applies who may see those).
+    const { isUnassignedPhoto } = await import("./media_access.js");
+    const onlyUnassigned = ["1", "true", "yes"].includes(cleanText(query.unassigned).toLowerCase());
     const media = (await listMedia(orgId))
       .filter((item) => canReadReceiptMedia(item, ctx))
+      .filter((item) => !onlyUnassigned || isUnassignedPhoto(item))
       .filter(item=>!contactId || cleanText(asObject(item.owner).type)==="contact" && cleanText(asObject(item.owner).id)===contactId)
       .filter((item) => {
         if (!projectId) return true;
@@ -1640,7 +1644,8 @@ app.get("/auth/google/config", async () => ({
       if(upload.slot==="profile")await (await import("../contacts/photo-import.js")).validateContactPhoto(upload);
       upload.metadata={...metadata,uploaded_by_user_id:ctx.userId};
     }
-    const media = await storeMediaUpload(orgId, upload);
+    // Uploader and branch come from the session; a project the upload names must be one the caller can see.
+    const media = await storeMediaUpload(orgId, await (await import("../projects/media-assignment.js")).authorizeMediaUpload(ctx, upload));
     const mediaOwner = asObject(media.owner);
     const mediaProjectId = cleanText(mediaOwner.type) === "project" ? cleanText(mediaOwner.id) : "";
     await emitWorkEvent({
@@ -1661,6 +1666,8 @@ app.get("/auth/google/config", async () => ({
     reply.code(201);
     return { ok: true, media };
   });
+  // POST .../media/assign and .../media/unassign: pairing photos with a project (projects/media-assignment.ts).
+  (await import("../projects/media-assignment.js")).registerMediaAssignmentRoutes(app);
 
   app.get("/organizations/:orgId/media/storage", async (request) => {
     const orgId = getParam(request.params, "orgId");

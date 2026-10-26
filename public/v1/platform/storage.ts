@@ -1572,6 +1572,36 @@ export async function reassignMediaOwner(orgId: string, mediaId: string, ownerId
   }));
 }
 
+/**
+ * Pairs a photo with a project (`projectId`) or returns it to the organization (`null`). Only the owner and the
+ * project fields of its metadata change; files stay where they are (their path comes from the media id).
+ * `guard` sees the current record inside the write lock and throws to refuse, so a check and the change are one step;
+ * `metadata` is merged into the metadata (undefined removes a key).
+ * Callers: projects/media-assignment.ts, which also writes the project's `photos[]`.
+ */
+export async function setMediaProjectOwner(orgId: string, mediaId: string, projectId: string | null, options: { guard?: (media: JsonObject) => void; metadata?: Record<string, unknown> } = {}) {
+  const normalizedOrgId = sanitizeId(orgId, "organization_id");
+  const normalizedMediaId = sanitizeId(mediaId, "media_id");
+  const project = projectId ? sanitizeId(projectId, "project_id") : "";
+  return await mutateMediaMetadata(normalizedOrgId, normalizedMediaId, (media) => {
+    options.guard?.(media);
+    const owner = asObject(media.owner);
+    const { project_id: _project, document_collection: _collection, document_id: _document, ...kept } = asObject(media.metadata);
+    // A patch value of undefined removes that key.
+    const rest = Object.fromEntries(Object.entries({ ...kept, ...(options.metadata || {}) }).filter(([, value]) => value !== undefined)) as JsonObject;
+    return {
+      ...media,
+      owner: project
+        ? { ...owner, type: "project", id: project, slot: String(owner.slot || "photos") }
+        : { ...owner, type: "organization", id: normalizedOrgId, slot: "photos" },
+      metadata: project
+        ? { ...rest, project_id: project, field: "photos", document_collection: "projects", document_id: project }
+        : rest,
+      updated_at: nowIso()
+    };
+  });
+}
+
 /* Renames a media item for display. The stored file path is derived from the
  * media id, so only the human-facing name changes; the extension is preserved
  * from the existing file name so downloads keep opening in the right app. */

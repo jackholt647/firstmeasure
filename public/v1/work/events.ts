@@ -342,6 +342,8 @@ registerWorkEvents([
   // ── Media, notes & portal ───────────────────────────────────────────────
   { name: "media.uploaded", notification: { group: "files", source: "media", tab: "general" }, description: "A photo or video was added to the project.", visibility: "activity" },
   { name: "media.tags_updated", notification: { group: "files", source: "media", tab: "general" }, description: "Tags on a photo, video, or file were updated.", visibility: "system" },
+  { name: "media.assigned", notification: { group: "files", source: "media", tab: "general" }, description: "A photo taken without a project was paired with the project.", visibility: "system" },
+  { name: "media.unassigned", notification: { group: "files", source: "media", tab: "general" }, description: "A photo paired from the Feed was returned to unassigned.", visibility: "system" },
   { name: "media.shared", notification: { group: "files", source: "media", tab: "general" }, description: "Media was shared to the customer portal.", visibility: "activity" },
   { name: "note.created", notification: { group: "notes", source: "projects", tab: "general" }, description: "A note was added to the project.", visibility: "activity" },
   { name: "portal.visited", notification: { group: "portal", source: "portal", tab: "general" }, description: "The customer opened their portal.", visibility: "activity" },

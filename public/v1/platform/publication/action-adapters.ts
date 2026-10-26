@@ -48,7 +48,8 @@ async function authorizeDomainTarget(action: string, ctx: PublicationContext, ta
     const settings = await (await import("../storage.js")).readBranchModule(ctx.organizationId,ctx.branchId || "default","canvassing").catch(() => null);
     if (settings?.data?.enabled === false) throw forbidden("canvassing_disabled","Canvassing is disabled for this branch.");
   }
-  if (action.startsWith("media.")) {
+  // Pairing checks each photo and the project itself (projects/media-assignment.ts).
+  if (action.startsWith("media.") && action !== "media.item.assign" && action !== "media.item.unassign") {
     const media = await (await import("../storage.js")).readMediaMetadata(ctx.organizationId,id(target));
     const access = await import("../media_access.js");
     const allowed = action === "media.item.read" ? access.canReadReceiptMedia(media,principal) : access.canWriteReceiptMedia(media,principal);
@@ -239,6 +240,11 @@ export function registerDomainActions() {
     await (await import("../../work/engine.js")).emitWorkEvent({organization_id:c.organizationId,branch_id:c.branchId || "default",...(projectId?{project_id:projectId}:{}),type:"media.renamed",idempotency_key:`media.renamed:${id(t)}:${media.updated_at}`,payload:{media_id:id(t),file_name:media.file_name,previous_file_name:old.file_name},context:{actor_user_id:auth(c).userId}});
     return access.publicMediaMetadata(media);
   } });
+  // Photos that belong to no project yet (taken from the Feed camera) are paired with the target project. The target id,
+  // when given, is one photo; media_ids adds more. The project writer adds them to photos[] with its revision.
+  const pairingIds=(t:TargetRef,i:Input)=>[...(t.id?[t.id]:[]),...(Array.isArray(i.media_ids)?i.media_ids.map(String):[])];
+  publish({ id:"media.item.assign",description:"Pair unassigned photos with the target project: the photo moves into the project's photos and keeps its Feed post.",permission:"manage_projects",scopes:["project"],properties:{media_ids:{type:"array",items:string,minItems:1,maxItems:100}},execute:async(c,t,i)=>(await import("../../projects/media-assignment.js")).assignMediaToProject(auth(c),pairingIds(t,i),project(t)) });
+  publish({ id:"media.item.unassign",description:"Return photos that were paired from the Feed to unassigned; photos uploaded into the project are refused.",permission:"manage_projects",scopes:["project"],properties:{media_ids:{type:"array",items:string,minItems:1,maxItems:100}},execute:async(c,t,i)=>(await import("../../projects/media-assignment.js")).unassignMediaFromProject(auth(c),pairingIds(t,i),project(t)) });
   publish({ id:"projects.search",description:"Search accessible projects and customer contacts within the current project context when present.",permission:view,effect:"read",properties:{query:{type:"string",maxLength:500},types:{type:"string",enum:["projects","contacts","all"]},limit:{type:"integer",minimum:1,maximum:100}},execute:async(c,_t,i)=>(await import("../api.js")).searchPlatformProjectsAndContacts(c.organizationId,{query:String(i.query || ""),types:i.types === "all" ? "" : String(i.types || ""),limit:Number(i.limit || 25),...(c.projectId?{projectIds:new Set([c.projectId])}:{})}) });
   publish({ id:"projects.lead.create",description:"Create a project lead through canonical lead intake, including contacts and workflow events.",permission:manage,properties:{address:string,title:string,summary:{type:"string",maxLength:10000},contacts:{type:"array",items:object,maxItems:30}},required:["address"],execute:async(c,_t,i)=>(await import("../../leads/receive.js")).receiveLead(c.organizationId,{branch_id:c.branchId || "default",source:{kind:"publication"},address:String(i.address),title:String(i.title || i.address),summary:String(i.summary || ""),contacts:(i.contacts || []) as never}) });
   publish({ id:"customerPortal.ensure",description:"Create or retrieve a project's customer portal using the canonical portal service.",permission:manage,scopes:["project"],execute:async(c,t)=>(await import("../api.js")).ensureCustomerPortalRecord(c.organizationId,project(t),{actor_user_id:auth(c).userId}) });

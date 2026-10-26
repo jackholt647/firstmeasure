@@ -913,6 +913,17 @@ export async function readMessageRecord(orgId: string, messageId: string) {
   return row ? messageFromRow(row) : null;
 }
 
+/** Rewrites the sources an automated Feed post names (a paired photo's project). Only feed posts; nothing else changes. */
+export async function updateFeedPostSourceRecord(orgId: string, messageId: string, feedSource: JsonObject[]) {
+  return getChannelsDatabase().transaction(async () => {
+    const message = await readMessageRecord(orgId, messageId);
+    if (!message || message.metadata.feed_post !== true || message.parent_id) throw notFound("message_not_found", "This post does not exist.");
+    await getChannelsDatabase().prepare("UPDATE messages SET metadata_json = ? WHERE organization_id = ? AND id = ?")
+      .run(JSON.stringify({ ...message.metadata, feed_source: feedSource }), orgId, message.id);
+    return (await readMessageRecord(orgId, message.id))!;
+  });
+}
+
 export async function readMessageBySequence(orgId: string, channelId: string, seq: number) {
   const row = (await getChannelsDatabase()
     .prepare("SELECT * FROM messages WHERE organization_id = ? AND channel_id = ? AND seq = ?")

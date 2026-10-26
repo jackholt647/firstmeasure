@@ -200,6 +200,8 @@ test("media files are served with byte ranges so video seeking works", async () 
   const client = createSessionClient();
   const { orgId } = await register(client);
   const projectId = "project_media_ranges";
+  // The upload route checks that the project exists and is visible to the caller.
+  await (await import("../platform/storage.js")).upsertDocument(orgId, "projects", { id: projectId, data: { title: "Media project" } });
   const payload = Buffer.from(Array.from({ length: 512 }, (_, index) => index % 251));
   const upload = await client.request("POST", `/v1/platform/organizations/${orgId}/media`, {
     owner_type: "project",
@@ -244,6 +246,8 @@ test("media can be renamed without disturbing tags or stored bytes", async () =>
   const client = createSessionClient();
   const { orgId } = await register(client);
   const projectId = "project_media_rename";
+  // The upload route checks that the project exists and is visible to the caller.
+  await (await import("../platform/storage.js")).upsertDocument(orgId, "projects", { id: projectId, data: { title: "Media project" } });
   const upload = await client.request("POST", `/v1/platform/organizations/${orgId}/media`, {
     owner_type: "project",
     owner_id: projectId,
@@ -292,6 +296,8 @@ test("customer portal photo shares include markup by default with an API-only op
   const client = createSessionClient();
   const { orgId } = await register(client);
   const projectId = "project_portal_markup_policy";
+  // The upload route checks that the project exists and is visible to the caller.
+  await (await import("../platform/storage.js")).upsertDocument(orgId, "projects", { id: projectId, data: { title: "Media project" } });
   const upload = await client.request("POST", `/v1/platform/organizations/${orgId}/media`, {
     owner_type: "project",
     owner_id: projectId,

@@ -4,14 +4,14 @@ import type { FastifyInstance } from "fastify";
 import { requirePlatformAuth, hasPermission, can, type PlatformAuthContext } from "../platform/auth.js";
 import { badRequest, forbidden, notFound } from "../platform/errors.js";
 import { listDocuments, listMedia, readDocument, readMediaMetadata, storeMediaUpload } from "../platform/storage.js";
-import { canReadReceiptMedia } from "../platform/media_access.js";
+import { canReadReceiptMedia, canSeeUnassignedPhoto, isUnassignedPhoto } from "../platform/media_access.js";
 import { readEventRecord, listEventRecords } from "../work/storage.js";
 import { grantFeedRoot } from "./feed-access.js";
 import * as store from "./storage.js";
 import * as channels from "./service.js";
 import { postMessageSchema, reactionSchema, editMessageSchema, giphyMessageSchema, polishDraftSchema } from "./schemas.js";
 import { polishDraft } from '../platform/draft-polish.js';
-import {canAccessDepartmentResource,hasResourcePermission,matchesDepartmentFilter,relevantDepartmentContext} from '../workforce/department-access.js';
+import {canAccessDepartmentResource,canUseScopedPermission,hasResourcePermission,matchesDepartmentFilter,relevantDepartmentContext} from '../workforce/department-access.js';
 import { canManageFeed, canViewAllFeedDepartments, canViewFeedActivity, feedDepartmentContext, matchesFeedDepartment } from "./feed-permissions.js";
 import { defaultFeedPostActivityTypes, allowedFeedDepartments, configuredFeedActivityOptions, feedGroupDirectory, readFeedPostSettings, requireFeedDepartment, saveFeedPostSettings } from "./feed-groups.js";
 import { feedEventPresentation } from "./feed-presentation.js";
@@ -50,8 +50,31 @@ async function projectAccess(ctx:PlatformAuthContext,id:string) {
   if (!hasResourcePermission(ctx,"view_projects",p) || !canAccessDepartmentResource(ctx,p,"view_projects")) throw notFound("feed_source_missing","This project is not available.");
   return p;
 }
+/**
+ * A media post's identity: who uploaded it and in which batch (or five-minute bucket). It does not name the project,
+ * so pairing an unpaired photo with a project keeps its post. Posts made before that carried the project in the key;
+ * `legacyKey` finds them, and is tried first so their comments and reactions stay where they are.
+ */
+function mediaFeedIdentity(data:Obj,mediaId:string,projectId:string) {
+  const meta=obj(data.metadata);
+  const author=str(meta.uploaded_by_user_id || meta.uploaded_by || data.uploaded_by_user_id || data.uploaded_by || data.created_by || "system");
+  const at=str(meta.uploaded_at || data.uploaded_at || data.created_at);
+  const batch=str(meta.upload_batch_id || meta.batch_id || data.upload_batch_id);
+  const bucket=Number.isFinite(Date.parse(at)) ? Math.floor(Date.parse(at)/300000) : mediaId;
+  return {author,at,key:`media:${author}:${batch || bucket}`,legacyKey:projectId?`media:${projectId}:${author}:${batch || bucket}`:""};
+}
+const clientId=(key:string)=>createHash("sha256").update(key).digest("hex");
+/** The post a source already has: under its legacy key first, then its key. */
+async function findFeedRoot(channelId:string,source:{author:string;key:string;legacyKey?:string}) {
+  for(const key of [source.legacyKey,source.key]){
+    if(!key)continue;
+    const root=await store.findMessageByClientId(channelId,source.author,clientId(key));
+    if(root)return root;
+  }
+  return null;
+}
 export async function resolveFeedSource(ctx:PlatformAuthContext,ref:Ref) {
-  let data:Obj, projectId="", author="system", at="", key="";
+  let data:Obj, projectId="", author="system", at="", key="", legacyKey="";
   if (ref.kind === "media") {
     data=obj(await readMediaMetadata(ctx.orgId,ref.id).catch(()=>null));
     if (!data.id && ref.project_id) {
@@ -59,16 +82,18 @@ export async function resolveFeedSource(ctx:PlatformAuthContext,ref:Ref) {
       data=obj((project?.photos || []).find((p:Obj)=>[p.id,p.media_id,p.src].map(str).includes(ref.id)));
     }
     const meta=obj(data.metadata),owner=obj(data.owner);
-    projectId=str(meta.project_id || (owner.type === "project" ? owner.id : "") || ref.project_id);
-    if (!Object.keys(data).length || data.deleted_at || data.trashed_at || !canReadReceiptMedia(data,ctx) || !hasResourcePermission(ctx,"view_media",{...data,...obj(data.metadata)})) throw notFound("feed_source_missing","This media is not available.");
-    // A non-project owner must not be rebound to a caller-selected project.
-    if (owner.type && owner.type !== "project") throw notFound("feed_source_missing","This media is not a project feed artifact.");
-    await projectAccess(ctx,projectId);
-    author=str(meta.uploaded_by_user_id || meta.uploaded_by || data.uploaded_by_user_id || data.uploaded_by || data.created_by || "system");
-    at=str(meta.uploaded_at || data.uploaded_at || data.created_at);
-    const batch=str(meta.upload_batch_id || meta.batch_id || data.upload_batch_id);
-    const bucket=Number.isFinite(Date.parse(at)) ? Math.floor(Date.parse(at)/300000) : ref.id;
-    key=`media:${projectId}:${author}:${batch || bucket}`;
+    if (data.id && isUnassignedPhoto(data)) {
+      // An unpaired photo names no project, and the caller's project_id is ignored: it is never rebound to one.
+      if (!canSeeUnassignedPhoto(ctx,data)) throw notFound("feed_source_missing","This media is not available.");
+      projectId="";
+    } else {
+      projectId=str(meta.project_id || (owner.type === "project" ? owner.id : "") || ref.project_id);
+      if (!Object.keys(data).length || data.deleted_at || data.trashed_at || !canReadReceiptMedia(data,ctx) || !hasResourcePermission(ctx,"view_media",{...data,...obj(data.metadata)})) throw notFound("feed_source_missing","This media is not available.");
+      // Any other non-project owner must not be rebound to a caller-selected project.
+      if (owner.type && owner.type !== "project") throw notFound("feed_source_missing","This media is not a project feed artifact.");
+      await projectAccess(ctx,projectId);
+    }
+    ({author,at,key,legacyKey}=mediaFeedIdentity(data,ref.id,projectId));
   } else if (ref.kind === "activity") {
     data=obj(await readEventRecord(ctx.orgId,ref.id));
     if (!data.id || data.visibility !== "activity" || !hasResourcePermission(ctx,permissionForType(str(data.type)),{...data,...obj(data.payload)})) throw notFound("feed_source_missing","This event is not available.");
@@ -103,7 +128,7 @@ export async function resolveFeedSource(ctx:PlatformAuthContext,ref:Ref) {
   const resource={...data,department_ids,department_access:str(data.department_access||metadata.department_access)};
   if(!canAccessDepartmentResource(ctx,resource,ref.kind==="media"?"view_media":ref.kind==="activity"?permissionForType(str(data.type)):"view_documents|view_proposals|view_financials"))throw notFound('feed_source_missing','This source is not available.');
   if (!matchesFeedDepartment(ctx,{department_ids})) throw notFound('feed_source_missing','This source is outside your feed departments.');
-  return {ref:{...ref,project_id:projectId},key,author,at,department_ids};
+  return {ref:{...ref,project_id:projectId},key,legacyKey,author,at,department_ids};
 }
 async function authorizeRefs(ctx:PlatformAuthContext,refs:Ref[]) {
   const resolved=await Promise.all(refs.map(ref=>resolveFeedSource(ctx,ref)));
@@ -121,8 +146,7 @@ async function createRootRecord(input:Parameters<typeof store.createMessageRecor
 async function ensureRoot(ctx:PlatformAuthContext,refs:Ref[]) {
   const sources=await authorizeRefs(ctx,refs),source=sources[0]!;
   const channel=await feedChannel(ctx.orgId);
-  const clientId=createHash("sha256").update(source.key).digest("hex");
-  const root=await createRootRecord({organization_id:ctx.orgId,channel_id:channel.id,author_id:source.author,client_msg_id:clientId,text:"",created_at:source.at || undefined,metadata:{feed_post:true,feed_source:sources.map(s=>s.ref),feed_key:source.key}});
+  const root=await findFeedRoot(channel.id,source) || await createRootRecord({organization_id:ctx.orgId,channel_id:channel.id,author_id:source.author,client_msg_id:clientId(source.key),text:"",created_at:source.at || undefined,metadata:{feed_post:true,feed_source:sources.map(s=>s.ref),feed_key:source.key}});
   await authorizedRoot(ctx,root.id);
   return root;
 }
@@ -175,19 +199,34 @@ export async function recordFeedEvent(event:Obj) {
   const {isCapabilityEnabled}=await import("../platform/capabilities.js");
   const orgId=str(event.organization_id);
   if(!await isCapabilityEnabled(orgId,"platform.photos_feed"))return;
-  let ref:Ref={kind:"activity",id:str(event.id),project_id:str(event.project_id)},key=`activity:${event.id}`,author=str(event.actor_user_id || obj(event.context).actor_user_id || "system"),at=str(event.created_at);
+  let ref:Ref={kind:"activity",id:str(event.id),project_id:str(event.project_id)},key=`activity:${event.id}`,legacyKey="",author=str(event.actor_user_id || obj(event.context).actor_user_id || "system"),at=str(event.created_at);
   const mediaId=str(obj(event.payload).media_id);
   if(event.type==="media.uploaded" && mediaId){
     const data=obj(await readMediaMetadata(orgId,mediaId)),meta=obj(data.metadata),owner=obj(data.owner);
-    if(owner.type!=="project")return;
-    ref={kind:"media",id:mediaId,project_id:str(meta.project_id || owner.id)};
-    author=str(meta.uploaded_by_user_id || meta.uploaded_by || data.uploaded_by_user_id || data.uploaded_by || data.created_by || "system");
-    at=str(meta.uploaded_at || data.uploaded_at || data.created_at);
-    const batch=str(meta.upload_batch_id || meta.batch_id || data.upload_batch_id),bucket=Number.isFinite(Date.parse(at))?Math.floor(Date.parse(at)/300000):mediaId;
-    key=`media:${ref.project_id}:${author}:${batch || bucket}`;
+    const unassigned=isUnassignedPhoto(data);
+    if(owner.type!=="project" && !unassigned)return;
+    ref={kind:"media",id:mediaId,project_id:unassigned?"":str(meta.project_id || owner.id)};
+    ({author,at,key,legacyKey}=mediaFeedIdentity(data,mediaId,ref.project_id));
   }
   const channel=await feedChannel(orgId);
-  await createRootRecord({organization_id:orgId,channel_id:channel.id,author_id:author,client_msg_id:createHash("sha256").update(key).digest("hex"),text:"",created_at:at || undefined,metadata:{feed_post:true,feed_source:[ref],feed_key:key}});
+  if(await findFeedRoot(channel.id,{author,key,legacyKey}))return;
+  await createRootRecord({organization_id:orgId,channel_id:channel.id,author_id:author,client_msg_id:clientId(key),text:"",created_at:at || undefined,metadata:{feed_post:true,feed_source:[ref],feed_key:key}});
+}
+/**
+ * After a photo is paired with a project (or returned to the organization), its post keeps its thread and the post's
+ * source names the photo's project as it is now. Called by projects/media-assignment.ts; reads only server records.
+ */
+export async function relinkFeedMedia(orgId:string,mediaId:string) {
+  const channel=await store.findChannelByDmKey(orgId,"company-feed");
+  if(!channel)return null;
+  const data=obj(await readMediaMetadata(orgId,mediaId)),meta=obj(data.metadata),owner=obj(data.owner);
+  const projectId=isUnassignedPhoto(data)?"":str(meta.project_id || (owner.type==="project"?owner.id:""));
+  // The post was made under the project-free key (the usual case) or, for an older one, the project's legacy key.
+  const root=await findFeedRoot(channel.id,mediaFeedIdentity(data,mediaId,projectId));
+  if(!root || root.organization_id!==orgId)return null;
+  const refs=Array.isArray(root.metadata.feed_source)?root.metadata.feed_source as Obj[]:[];
+  if(!refs.some(ref=>ref.kind==="media" && str(ref.id)===mediaId && str(ref.project_id)!==projectId))return root;
+  return store.updateFeedPostSourceRecord(orgId,root.id,refs.map(ref=>ref.kind==="media" && str(ref.id)===mediaId?{...ref,project_id:projectId}:ref));
 }
 export function registerFeedRoutes(app:FastifyInstance) {
   const prefix="/organizations/:orgId/feed";
@@ -231,6 +270,9 @@ export function registerFeedRoutes(app:FastifyInstance) {
     const media=allMedia.filter(m=>{const d=obj(m),o=obj(d.owner);return hasResourcePermission(ctx,"view_media",{...d,...obj(d.metadata)}) && canReadReceiptMedia(m,ctx) && projectIds.has(str(obj(d.metadata).project_id || (o.type==="project"?o.id:"")));});
     const permittedEvents:Obj[]=[],permittedMedia:Obj[]=[];
     for(const item of media){try{const d=obj(item),o=obj(d.owner);const source=await resolveFeedSource(ctx,{kind:'media',id:str(d.id),project_id:str(obj(d.metadata).project_id||(o.type==='project'?o.id:''))});if(relevant(source))permittedMedia.push({...d,department_ids:source.department_ids});}catch{}}
+    // Photos that belong to no project yet: the Feed's "Unassigned" group. Each is checked like a post source.
+    const unassignedMedia:Obj[]=[];
+    for(const item of allMedia){if(!isUnassignedPhoto(item))continue;try{const d=obj(item);const source=await resolveFeedSource(ctx,{kind:'media',id:str(d.id),project_id:''});if(relevant(source))unassignedMedia.push({...d,project_id:'',branch_id:str(obj(d.metadata).branch_id)||'default',department_ids:source.department_ids});}catch{}}
     for (const event of events) {try {const source=await resolveFeedSource(ctx,{kind:"activity",id:str(event.id),project_id:str(event.project_id)});if(relevant(source))permittedEvents.push({...event,department_ids:source.department_ids,feed_presentation:await feedEventPresentation(ctx,event)});}catch{}}
     const memberDepartments=allowedFeedDepartments(groups,ctx.userId);
     const visibleDepartmentIds=canViewAllFeedDepartments(ctx) ? groups.departments.map(department=>department.id) : memberDepartments;
@@ -240,7 +282,7 @@ export function registerFeedRoutes(app:FastifyInstance) {
     const manualPosts=channel ? await channels.hydrateMessages(ctx,channel,manualRecords) : [];
     const visibleDepartments=groups.departments.filter(department=>visibleDepartmentIds.includes(department.id));
     const visibleSettings={...settings,department_activity_types:Object.fromEntries(visibleDepartmentIds.map(id=>[id,settings.department_activity_types[id] ?? null]))};
-    return {ok:true,projects,media:permittedMedia,events:permittedEvents,department_context:feedDepartmentContext(ctx),users:[...directory.values()],views:allowedViews,can_comment:feedPermission(ctx,"comment_feed"),can_react:feedPermission(ctx,"react_feed"),can_post:feedPermission(ctx,"comment_feed"),manual_posts:manualPosts,departments:visibleDepartments,user_departments:groups.user_departments,member_department_ids:memberDepartments,post_settings:visibleSettings,activity_options:await configuredFeedActivityOptions(ctx,permittedEvents.map(event=>str(event.type)),[...(settings.company_activity_types || []),...Object.values(visibleSettings.department_activity_types).flatMap(types=>types || [])]),can_manage_post_settings:canManageFeed(ctx),can_manage_feed:canManageFeed(ctx),can_view_all_departments:canViewAllFeedDepartments(ctx),post_departments:groups.departments.filter(department=>memberDepartments.includes(department.id)),default_activity_types:defaultFeedPostActivityTypes};
+    return {ok:true,projects,media:permittedMedia,unassigned_media:unassignedMedia,can_assign_media:canUseScopedPermission(ctx,"manage_projects"),events:permittedEvents,department_context:feedDepartmentContext(ctx),users:[...directory.values()],views:allowedViews,can_comment:feedPermission(ctx,"comment_feed"),can_react:feedPermission(ctx,"react_feed"),can_post:feedPermission(ctx,"comment_feed"),manual_posts:manualPosts,departments:visibleDepartments,user_departments:groups.user_departments,member_department_ids:memberDepartments,post_settings:visibleSettings,activity_options:await configuredFeedActivityOptions(ctx,permittedEvents.map(event=>str(event.type)),[...(settings.company_activity_types || []),...Object.values(visibleSettings.department_activity_types).flatMap(types=>types || [])]),can_manage_post_settings:canManageFeed(ctx),can_manage_feed:canManageFeed(ctx),can_view_all_departments:canViewAllFeedDepartments(ctx),post_departments:groups.departments.filter(department=>memberDepartments.includes(department.id)),default_activity_types:defaultFeedPostActivityTypes};
   });
   app.get(prefix+"/settings",async request=>{
     const ctx=await auth(request);
@@ -281,7 +323,7 @@ export function registerFeedRoutes(app:FastifyInstance) {
     const ctx=await auth(request,true);requirePermission(ctx,"view_feed_posts");
     const sources=await authorizeRefs(ctx,refsSchema.parse(request.body).refs);
     const channel=await store.findChannelByDmKey(ctx.orgId,"company-feed");
-    const root=channel?await store.findMessageByClientId(channel.id,sources[0]!.author,createHash("sha256").update(sources[0]!.key).digest("hex")):null;
+    const root=channel?await findFeedRoot(channel.id,sources[0]!):null;
     if(!root)return {ok:true,root:null,replies:[]};
     await authorizedRoot(ctx,root.id);
     return {ok:true,...await channels.listThread(ctx,root.id,{})};
