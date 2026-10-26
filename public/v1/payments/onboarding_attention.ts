@@ -3,7 +3,8 @@ import { registerAttentionSource } from "../platform/attention.js";
 import type { JsonObject } from "../platform/storage.js";
 import { env } from "../src/config/env.js";
 
-import { getMerchantConfigForOps } from "./merchant_config.js";
+import { refreshBoardingForReadiness, syncBoardingFromProvider } from "./boarding_sync.js";
+import { getMerchantConfigForOps, type MerchantConfig } from "./merchant_config.js";
 import { forwardConfigured } from "./providers/forward.js";
 import { getBoardingProvider } from "./providers/index.js";
 import type { ProviderApplication } from "./providers/types.js";
@@ -32,9 +33,12 @@ import type { ProviderApplication } from "./providers/types.js";
  *  - UNDER_REVIEW (and the other in-flight underwriting statuses)
  *                         -> waiting, notification surface only, lands on the
  *                            Payments pane status tracker (no workflow keys).
- *  - APPROVED, payouts_enabled false
- *                         -> waiting, notification only.
- *  - APPROVED + payouts_enabled true -> no entries.
+ *  - APPROVED, processing or payouts off at Forward
+ *                         -> waiting, notification only, saying which.
+ *  - APPROVED + processing and payouts on -> no entries (the one-time
+ *                            "payments are on" notification says it).
+ * Whatever Forward reports is recorded first (syncBoardingFromProvider), so
+ * the feed and the stored config never disagree.
  * DECLINED/CANCELLED intentionally emit nothing (the status card carries the
  * explanation; a nagging banner cannot fix a declined application).
  */
@@ -99,25 +103,45 @@ export async function computeMoneyOnboardingEntries(orgId: string): Promise<Json
   ]);
   if (!moneyOn || !processingOn) return [];
 
-  const config = await getMerchantConfigForOps(orgId);
+  let config = await getMerchantConfigForOps(orgId);
   const hostedSandbox = config?.provider === "forward" && forwardConfigured() && env.forwardApiBase.includes("sandbox");
   const setupAction = (route: JsonObject) => hostedSandbox
     ? { kind: "open_payment_setup", route }
     : { route };
+  const applicationId = cleanText(config?.forward.application_id);
+  const settled = (forward: MerchantConfig["forward"] | undefined) => cleanText(forward?.boarding_status).toUpperCase() === "APPROVED"
+    && forward?.processing_enabled === true && forward?.payouts_enabled === true;
+  // A hosted submission or an approval can precede webhook delivery (or have
+  // no webhook at all, as on development). Record what Forward says — the
+  // sync stores it and sends the "payments are on" notification — so this
+  // feed never shows a state our stored config and notifications disagree with.
+  if (applicationId && !settled(config?.forward) && !["DECLINED", "CANCELLED"].includes(cleanText(config?.forward.boarding_status).toUpperCase())) {
+    try {
+      if (await refreshBoardingForReadiness(orgId)) config = await getMerchantConfigForOps(orgId);
+    } catch { /* retain the tracked status when Forward is unavailable */ }
+  }
   const forward = config?.forward;
   let status = cleanText(forward?.boarding_status).toUpperCase();
-  const applicationId = cleanText(forward?.application_id);
   let application: ProviderApplication | null = null;
-  // A hosted submission can precede webhook delivery. Check Forward before
-  // offering a draft-only Continue action, even if our stored status is stale.
+  // The sync above runs at most once a minute; between runs, check Forward
+  // before offering a draft-only Continue action, even if our stored status is stale.
   if (applicationId && (!status || status === "DRAFT" || status === "NEED_INFORMATION")) {
     try {
       const boarding = await getBoardingProvider(orgId);
       application = boarding ? await boarding.getApplication(applicationId) : null;
       status = cleanText(application?.status || status).toUpperCase();
     } catch { /* retain the tracked status when Forward is unavailable */ }
+    if (status === "APPROVED" && cleanText(forward?.boarding_status).toUpperCase() !== "APPROVED") {
+      // Approved since the last sync: record it now rather than guessing at
+      // processing and payouts from a config that predates the approval.
+      try {
+        await syncBoardingFromProvider(orgId);
+        config = await getMerchantConfigForOps(orgId);
+      } catch { /* fall through with what we have */ }
+    }
   }
-  const approved = status === "APPROVED" || (!!cleanText(forward?.account_id) && !status);
+  const live = config?.forward;
+  const approved = status === "APPROVED" || (!!cleanText(live?.account_id) && !status);
 
   const base = {
     id: MONEY_ONBOARDING_ATTENTION_ID,
@@ -129,15 +153,30 @@ export async function computeMoneyOnboardingEntries(orgId: string): Promise<Json
   };
 
   if (approved) {
-    if (forward?.payouts_enabled === true) return [];
+    // Only what Forward reports: the "payments are on" notification covers
+    // the finished case, so nothing shows once processing and payouts are on.
+    if (live?.processing_enabled !== true) {
+      return [{
+        ...base,
+        priority: 60,
+        surfaces: ["notification"],
+        state: "waiting",
+        tone: "orange",
+        title: "Approved — processing isn't on yet",
+        body: "Your merchant account is approved, but Forward hasn't turned on processing yet. You can take payments as soon as it does.",
+        cta_label: "View status",
+        frontend_action: { route: { ...PAYMENTS_PANE_ROUTE } }
+      }];
+    }
+    if (live?.payouts_enabled === true) return [];
     return [{
       ...base,
       priority: 60,
       surfaces: ["notification"],
       state: "waiting",
       tone: "orange",
-      title: "Almost there — payouts are being enabled",
-      body: "Your merchant account is approved. Payouts to your bank account are being switched on.",
+      title: "Payouts aren't on yet",
+      body: "You can take payments now. Forward hasn't turned on payouts to your bank account yet. We'll update this when it does.",
       cta_label: "View status",
       frontend_action: { route: { ...PAYMENTS_PANE_ROUTE } }
     }];

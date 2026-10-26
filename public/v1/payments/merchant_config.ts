@@ -1,6 +1,7 @@
 import { isAppFlagEnabled } from "../platform/app_flags.js";
 import { forbidden } from "../platform/errors.js";
 import {
+  listDocuments,
   listOrganizations,
   readDocument,
   upsertDocument,
@@ -208,27 +209,47 @@ export async function upsertMerchantConfig(orgId: string, patch: JsonObject, opt
 }
 
 /**
- * Fires the one-time org-facing "payments approved" notification. Called from
- * every path that can learn about an approval (application webhook, account
- * webhook, and the webhookless GET-application sync) — the
- * `approval_notified_at` stamp keeps it to exactly one notification. The
- * notification's frontend_action mints a fresh merchant-portal magic link on
- * click (bank-account linking is portal-only at Forward).
+ * Fires the one-time org-facing "payments are on" notification once the
+ * application is approved AND Forward has processing enabled on the account
+ * (an approval without processing cannot take a payment yet). Called from
+ * every path that can learn about either (application webhook, account
+ * webhook, and the webhookless sync) — the `approval_notified_at` stamp keeps
+ * it to exactly one notification. Payouts are not mentioned: they can still
+ * be switching on, and the money onboarding attention entry says so while
+ * Forward reports them off. The click lands on Settings › Money › Payments.
+ *
+ * It goes to everyone who can manage company settings (who set payments up),
+ * one notification per branch: a notification with no recipients reaches
+ * nobody, which is how earlier approvals went unseen.
  */
 export async function maybeNotifyMerchantApproved(orgId: string) {
   const config = await getMerchantConfigForOps(orgId);
-  if (!config || config.forward.boarding_status !== "APPROVED" || config.forward.approval_notified_at) return;
+  if (!config || config.forward.boarding_status !== "APPROVED" || !config.forward.processing_enabled || config.forward.approval_notified_at) return;
+  const { backgroundAuthContext, hasPermission } = await import("../platform/auth.js");
+  const audiences = new Map<string, string[]>();
+  for (const user of await listDocuments(orgId, "users")) {
+    const data = asObject(user.data);
+    if (data.disabled === true || data.deleted === true || ["disabled", "inactive", "removed"].includes(cleanText(data.status))) continue;
+    const auth = await backgroundAuthContext(orgId, user.id).catch(() => null);
+    if (!auth || !hasPermission(auth, "manage_company_settings")) continue;
+    const branch = auth.branchId || "default";
+    audiences.set(branch, [...(audiences.get(branch) || []), user.id]);
+  }
   await upsertMerchantConfig(orgId, { forward: { approval_notified_at: nowIso() } }, { skipFlag: true });
   const { createPlatformNotification } = await import("../platform/api.js");
-  await createPlatformNotification(orgId, {
-    id: "merchant_processing_approved",
-    title: "Payments approved",
-    body: "Your merchant account is active and ready to take customer payments. Open the merchant portal to link your bank account so payouts have somewhere to land.",
-    kind: "merchant_approved",
-    source: "payments",
-    push: true,
-    frontend_action: { kind: "open_merchant_portal" }
-  });
+  for (const [branch, users] of audiences) {
+    await createPlatformNotification(orgId, {
+      id: branch === "default" ? "merchant_processing_approved" : `merchant_processing_approved_${branch}`,
+      title: "Payments are on — you can take card and bank payments.",
+      body: "Your merchant account is approved. Customers can now pay you online.",
+      kind: "merchant_approved",
+      source: "payments",
+      target_user_ids: users,
+      branch_id: branch,
+      push: true,
+      frontend_action: { kind: "open_payment_settings" }
+    });
+  }
 }
 
 /**

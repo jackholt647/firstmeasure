@@ -280,19 +280,18 @@ test("money_onboarding attention source walks all five states", async (t) => {
     assert.deepEqual(entry.frontend_action.route, { tab: "company_settings", sub: "money", settingsView: "payments" });
   });
 
-  await t.test("state 4: approved with payouts pending -> waiting, notification only", async () => {
-    await client.request("POST", `/v1/payments/organizations/${orgId}/merchant-mock/advance`, { op: "underwriting", to: "APPROVED" });
-    // Mock approval enables payouts; simulate the enablement gap explicitly.
-    await setMerchantConfigForTest(orgId, { forward: { payouts_enabled: false } });
+  await t.test("state 4: approved with payouts off at the processor -> waiting, notification only", async () => {
+    await client.request("POST", `/v1/payments/organizations/${orgId}/merchant-mock/advance`, { op: "underwriting", to: "APPROVED", payouts_enabled: false });
     const entry = moneyEntry(await client.request("GET", attentionUrl));
     assert.ok(entry);
     assert.equal(entry.state, "waiting");
     assert.deepEqual(entry.surfaces, ["notification"]);
-    assert.match(entry.title, /Almost there/);
+    assert.match(entry.title, /Payouts aren't on yet/);
+    assert.match(entry.body, /You can take payments now/);
     assert.deepEqual(entry.frontend_action.route, { tab: "company_settings", sub: "money", settingsView: "payments" });
   });
 
-  await t.test("state 5: approved with payouts enabled -> no entries", async () => {
+  await t.test("state 5: approved with processing and payouts on -> no entries", async () => {
     await setMerchantConfigForTest(orgId, { forward: { payouts_enabled: true } });
     const feed = await client.request("GET", attentionUrl);
     assert.equal(moneyEntry(feed), null);
@@ -495,10 +494,11 @@ test("application GET shim backfills the merchant account on approval (webhookle
   assert.match(synced.merchant_config.forward.account_id, /^acct_mock_/, "account id rediscovered from the provider's account list");
 });
 
-test("approval fires the one-time merchant-approved notification with the portal action", async () => {
+test("approval fires the one-time \"payments are on\" notification, landing on the Payments pane", async () => {
   const client = createSessionClient();
   const { orgId } = await register(client);
   const boardingBase = `/v1/payments/organizations/${orgId}/merchant-boarding`;
+  await (await import("../platform/capabilities.js")).saveCapabilityValues(orgId, { "apps.notifications": true });
   await client.request("POST", `${boardingBase}/hosted-signup`, { business_name: "Notify Co" });
   await client.request("POST", `/v1/payments/organizations/${orgId}/merchant-mock/advance`, { op: "hosted_submit" });
   await client.request("POST", `/v1/payments/organizations/${orgId}/merchant-mock/advance`, { op: "underwriting", to: "APPROVED" });
@@ -511,8 +511,16 @@ test("approval fires the one-time merchant-approved notification with the portal
     .filter((note: any) => note.id === "merchant_processing_approved");
   const approved = await approvalNotes();
   assert.equal(approved.length, 1, "exactly one approval notification");
-  assert.equal(approved[0].frontend_action?.kind, "open_merchant_portal");
-  assert.match(approved[0].body, /bank account/i);
+  assert.equal(approved[0].title, "Payments are on — you can take card and bank payments.");
+  assert.equal(approved[0].frontend_action?.kind, "open_payment_settings");
+  assert.equal(approved[0].target_user_ids.length, 1, "addressed to the person who manages settings");
+
+  // The bell counts it: a real notification, unread until seen.
+  await (await import("../platform/notifications/delivery.js")).drainNotifications(100);
+  const bell = await client.request("GET", `/v1/platform/organizations/${orgId}/notifications`);
+  const note = bell.notifications.find((item: any) => item.id === "merchant_processing_approved");
+  assert.ok(note, "approval notification is in the bell");
+  assert.ok(bell.unread_count >= 1, "and counts as unread");
 
   // Re-syncing an already-approved org must not duplicate it.
   const config = await client.request("GET", `/v1/payments/organizations/${orgId}/merchant-config`);
@@ -536,4 +544,45 @@ test("hosted-first signup harness: concurrent calls share ONE link generation (F
   assert.equal(a.application.id, b.application.id);
   assert.equal(a.link.url, b.link.url, "concurrent calls receive the SAME link");
   assert.ok(a.shared_in_flight === true || b.shared_in_flight === true, "one of the two calls was deduped onto the other's in-flight work");
+});
+
+test("an approval the processor reports before any webhook is recorded by the attention feed and notified as unread", async () => {
+  const client = createSessionClient();
+  const { orgId } = await register(client);
+  const boardingBase = `/v1/payments/organizations/${orgId}/merchant-boarding`;
+  await client.request("POST", `${boardingBase}/hosted-signup`, { business_name: "Instant Approval Co" });
+  await client.request("POST", `/v1/payments/organizations/${orgId}/merchant-mock/advance`, { op: "hosted_submit" });
+  await client.request("POST", `/v1/payments/organizations/${orgId}/merchant-mock/advance`, { op: "underwriting", to: "APPROVED" });
+  // Instant underwriting with no webhook delivered: we still hold the draft
+  // and know nothing of the account or the notification.
+  await setMerchantConfigForTest(orgId, {
+    forward: { boarding_status: "DRAFT", account_id: "", processing_enabled: false, payouts_enabled: false, approval_notified_at: "" }
+  });
+
+  const feed = await client.request("GET", `/v1/platform/organizations/${orgId}/attention`);
+  assert.equal(moneyEntry(feed), null, "approved with processing and payouts on: no interim entry");
+
+  const config = await client.request("GET", `/v1/payments/organizations/${orgId}/merchant-config`);
+  assert.equal(config.merchant_config.forward.boarding_status, "APPROVED");
+  assert.match(config.merchant_config.forward.account_id, /^acct_mock_/);
+  assert.equal(config.merchant_config.forward.processing_enabled, true);
+  assert.equal(config.merchant_config.forward.payouts_enabled, true);
+  assert.ok(config.merchant_config.forward.approval_notified_at, "the approval notification went out");
+
+  const readiness = await client.request("GET", `/v1/payments/organizations/${orgId}/payments-readiness`);
+  assert.equal(readiness.readiness.ready, true);
+
+});
+
+test("approval without processing on does not notify yet", async () => {
+  const client = createSessionClient();
+  const { orgId } = await register(client);
+  const boardingBase = `/v1/payments/organizations/${orgId}/merchant-boarding`;
+  await client.request("POST", `${boardingBase}/hosted-signup`, { business_name: "Processing Gap Co" });
+  await client.request("POST", `/v1/payments/organizations/${orgId}/merchant-mock/advance`, { op: "hosted_submit" });
+  await setMerchantConfigForTest(orgId, { forward: { boarding_status: "APPROVED", account_id: "acct_pending", processing_enabled: false, payouts_enabled: false } });
+  const { maybeNotifyMerchantApproved } = await import("../payments/merchant_config.js");
+  await maybeNotifyMerchantApproved(orgId);
+  const { readDocument } = await import("../platform/storage.js");
+  assert.equal(await readDocument(orgId, "notifications", "merchant_processing_approved").catch(() => null), null, "no notification before processing is on");
 });

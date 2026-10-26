@@ -206,6 +206,8 @@ export const merchantMockAdvanceSchema = jsonObjectSchema.extend({
   provider_payment_id: z.string().trim().max(200).optional(),
   application_id: z.string().trim().max(200).optional(),
   to: z.enum(["APPROVED", "NEED_INFORMATION", "DECLINED"]).optional(),
+  // op: "underwriting" to APPROVED — false approves with payouts still off.
+  payouts_enabled: z.boolean().optional(),
   documents_requested: z.array(jsonObjectSchema).max(20).optional(),
   payment_id: z.string().trim().max(200).optional(),
   amount_cents: z.number().int().min(0).optional(),

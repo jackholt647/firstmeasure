@@ -43,6 +43,27 @@ Who may change the merchant account: Forward (webhooks and boarding sync) and
 FirstMate staff (Boarding Ops). An organization's own `PATCH /merchant-config`
 can only choose its rails.
 
+## Boarding: from application to "payments are on"
+
+Merchants apply on Forward's hosted application, opened in the payment setup
+window (`payments-setup/payments-setup.js`, a full-height iframe with the title
+and Close floating over it). Forward redirects to
+`/portal/payments-setup-complete.html`, which asks the parent window
+(`FirstMatePaymentsSetup.outcome`) for Forward's answer: reading the
+application (`syncBoardingFromProvider`) records status, account, processing
+and payouts even when no webhook has arrived. Instant underwriting can approve
+at once, so the page says "approved, you can take payments now" when Forward
+says so and "under review" otherwise, checking again for about a minute.
+Settings › Money refreshes on `fm:payments-setup-updated`.
+
+Once the application is approved and Forward has processing on, everyone who
+can manage company settings gets one notification ("Payments are on", unread
+in the bell; `maybeNotifyMerchantApproved`, stamped `approval_notified_at`).
+A notification must name its recipients: one with no targets reaches nobody.
+The money onboarding attention entry (`onboarding_attention.ts`) records what
+Forward says before choosing what to show, and shows an interim entry only
+while Forward reports processing or payouts off.
+
 ## The checkout: one attempt to take one payment
 
 Forward's secure element (card or bank) pays a payment intent that already

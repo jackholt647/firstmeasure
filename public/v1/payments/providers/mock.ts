@@ -1152,6 +1152,9 @@ async function advanceUnderwriting(orgId: string, input: JsonObject) {
     application.updated_at = nowIso();
     let account: JsonObject | null = null;
     let bankAccount: JsonObject | null = null;
+    // `payouts_enabled: false` approves with payouts still off at the
+    // processor (the gap the onboarding attention entry reports).
+    const payoutsOn = input.payouts_enabled !== false;
     if (to === "APPROVED") {
       account = Object.values(state.accounts).find((entry) => cleanText(entry.application_id) === cleanText(application.id)) || null;
       if (!account) {
@@ -1164,7 +1167,7 @@ async function advanceUnderwriting(orgId: string, input: JsonObject) {
           external_account_id: cleanText(application.external_account_id),
           processing_plan_id: cleanText(application.processing_plan_id),
           processing_enabled: true,
-          payouts_enabled: true,
+          payouts_enabled: payoutsOn,
           bank_account_id: bankAccountId,
           created_at: nowIso()
         };
@@ -1186,10 +1189,10 @@ async function advanceUnderwriting(orgId: string, input: JsonObject) {
         state.bank_accounts[bankAccountId] = bankAccount;
       }
     }
-    return { application, account, bankAccount };
+    return { application, account, bankAccount, payoutsOn };
   });
 
-  const { application, account } = result;
+  const { application, account, payoutsOn } = result;
   const applicationEventType = to === "APPROVED" ? "v2.application.approved"
     : to === "NEED_INFORMATION" ? "v2.application.need_information"
       : "v2.application.manually_declined";
@@ -1210,7 +1213,7 @@ async function advanceUnderwriting(orgId: string, input: JsonObject) {
       processing_enabled: true,
       payouts_enabled: false
     });
-    await emitMockEvent(orgId, "v2.account.payouts_enabled", {
+    if (payoutsOn) await emitMockEvent(orgId, "v2.account.payouts_enabled", {
       id: cleanText(account.id),
       processing_enabled: true,
       payouts_enabled: true

@@ -12,6 +12,22 @@
     root.PlatformAssistant.openPaymentSetup();
     return Promise.resolve(true);
   }
+  // Settings › Money and anything else showing payment state refresh on this.
+  function announce(orgId){root.dispatchEvent(new CustomEvent('fm:payments-setup-updated',{detail:{orgId}}));}
+  /* What Forward says now, for the finishing page: reading the application
+     records it (status, account, processing, payouts, the "payments are on"
+     notification) even when no webhook has arrived. */
+  async function outcome(options={}){
+    const orgId=String(options.orgId||currentOrgId()),api=root.PaymentsAPI;
+    if(!orgId||!api?.merchantConfig)throw new Error('Payments API is unavailable.');
+    let forward=(await api.merchantConfig.get(orgId))?.merchant_config?.forward||{};
+    if(forward.application_id){const synced=await api.merchantBoarding.getApplication(orgId,forward.application_id).catch(()=>null);if(synced?.merchant_config?.forward)forward=synced.merchant_config.forward;}
+    const readiness=(await api.intake.readiness(orgId).catch(()=>null))?.readiness||null;
+    const status=String(forward.boarding_status||'').toUpperCase();
+    const result={status,ready:readiness?.ready===true,processing_enabled:forward.processing_enabled===true,payouts_enabled:(readiness?.payouts_enabled??forward.payouts_enabled)===true,rails:readiness?.rails||null};
+    announce(orgId);root.PlatformBanners?.load?.(orgId);
+    return result;
+  }
   let modal=null;
   async function open(options={}){
     if(modal){modal.dialog.focus();return true;}
@@ -26,7 +42,7 @@
     const previousOverflow=document.body.style.overflow;document.body.style.overflow='hidden';
     const dialog=overlay.querySelector('[role=dialog]'),frame=overlay.querySelector('iframe'),status=overlay.querySelector('[role=status]'),testPanel=overlay.querySelector('details'),evidence=overlay.querySelector('[data-evidence]');
     let closed=false,busy=false;
-    function close(){closed=true;root.removeEventListener('message',returned);document.removeEventListener('keydown',keydown);overlay.remove();background.forEach(([node,inert])=>{node.inert=inert;});document.body.style.overflow=previousOverflow;modal=null;previousFocus?.focus?.();root.PlatformBanners?.load?.(orgId);}
+    function close(){closed=true;root.removeEventListener('message',returned);document.removeEventListener('keydown',keydown);overlay.remove();background.forEach(([node,inert])=>{node.inert=inert;});document.body.style.overflow=previousOverflow;modal=null;previousFocus?.focus?.();root.PlatformBanners?.load?.(orgId);announce(orgId);}
     function returned(event){if(event.origin===root.location.origin&&event.source===frame.contentWindow&&event.data?.type==='firstmate:payments-setup-return')close();}
     function keydown(event){if(event.key==='Escape'){event.preventDefault();close();}else if(event.key==='Tab'&&event.target===dialog){event.preventDefault();overlay.querySelector('[data-close]').focus();}}
     root.addEventListener('message',returned);document.addEventListener('keydown',keydown);
@@ -163,5 +179,5 @@
     find('[data-close]').onclick=()=>void close();
     active={container,dispose,close};void connect();return active;
   }
-  root.FirstMatePaymentsSetup={open,openLink:open,openAgent,mount,get active(){return active;}};
+  root.FirstMatePaymentsSetup={open,openLink:open,openAgent,mount,outcome,get active(){return active;}};
 })(window);

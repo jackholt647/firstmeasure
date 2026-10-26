@@ -7,17 +7,80 @@
   <style>
     *{box-sizing:border-box}body{min-height:100vh;margin:0;display:grid;place-items:center;padding:24px;background:#f8fafc;color:#101828;font:16px/1.5 system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}
     main{width:min(100%,520px);padding:40px 32px;border:1px solid #e4e7ec;border-radius:18px;background:#fff;text-align:center;box-shadow:0 16px 48px rgba(16,24,40,.08)}
-    .mark{display:grid;place-items:center;width:64px;height:64px;margin:0 auto 20px;border-radius:50%;background:#ecfdf3;color:#039855;font-size:34px}h1{margin:0 0 10px;font-size:27px;line-height:1.2}p{margin:0 0 26px;color:#475467}button,a{display:inline-block;padding:12px 20px;border:0;border-radius:9px;background:#101828;color:white;font:inherit;font-weight:600;text-decoration:none;cursor:pointer}button:hover,a:hover{background:#344054}
+    .mark{display:grid;place-items:center;width:64px;height:64px;margin:0 auto 20px;border-radius:50%;background:#ecfdf3;color:#039855;font-size:34px}.mark[data-tone=wait]{background:#fffaeb;color:#dc6803;font-size:28px}
+    h1{margin:0 0 10px;font-size:27px;line-height:1.2}p{margin:0 0 12px;color:#475467}#detail{margin-bottom:26px}#detail:empty{display:none}#message{margin-bottom:26px}#message:has(+ #detail:not(:empty)){margin-bottom:12px}
+    button{display:inline-block;padding:12px 20px;border:0;border-radius:9px;background:#101828;color:white;font:inherit;font-weight:600;cursor:pointer}button:hover{background:#344054}
+    @keyframes spin{to{transform:rotate(360deg)}}.spinner{width:28px;height:28px;border:3px solid #fedf89;border-top-color:#dc6803;border-radius:50%;animation:spin .9s linear infinite}@media(prefers-reduced-motion:reduce){.spinner{animation:none}}
   </style>
 </head>
 <body>
-  <main>
-    <div class="mark" aria-hidden="true">&#10003;</div>
-    <h1>Payment application submitted</h1>
-    <p>Your application is under review. We will notify you once it has been processed.</p>
+  <main aria-live="polite">
+    <div class="mark" id="mark" data-tone="wait" aria-hidden="true"><span class="spinner"></span></div>
+    <h1 id="title">Payment application submitted</h1>
+    <p id="message">Checking your application with Forward…</p>
+    <p id="detail"></p>
     <button id="close" type="button">Close window</button>
   </main>
   <script>
+    // Shown inside FirstMate's payment setup window after Forward's hosted
+    // application is submitted. The parent window's FirstMatePaymentsSetup
+    // reads Forward's answer (instant underwriting may approve at once) and
+    // records it; standalone, the page can only say the application is in.
+    const view = {
+      mark: document.getElementById('mark'), title: document.getElementById('title'),
+      message: document.getElementById('message'), detail: document.getElementById('detail')
+    };
+    function show(state, outcome = {}){
+      const approved = state === 'approved';
+      view.mark.dataset.tone = approved || state === 'review' ? '' : 'wait';
+      view.mark.innerHTML = approved ? '&#10003;' : state === 'review' ? '&#10003;' : state === 'declined' ? '!' : '<span class="spinner"></span>';
+      if (approved) {
+        view.title.textContent = 'You’re approved — you can take payments now';
+        const rails = outcome.rails || { card: true, bank: true };
+        view.message.textContent = 'Your merchant account is active. ' + (rails.card && rails.bank ? 'Customers can pay by card or bank transfer.' : rails.bank ? 'Customers can pay by bank transfer.' : 'Customers can pay by card.');
+        view.detail.textContent = outcome.payouts_enabled
+          ? 'Payouts to your bank account are on.'
+          : 'Payouts to your bank account aren’t on yet. Forward turns them on separately; we’ll let you know when they are.';
+      } else if (state === 'information') {
+        view.title.textContent = 'Forward needs more information';
+        view.message.textContent = 'The underwriter asked for documents. Settings › Money › Payments shows what to send.';
+        view.detail.textContent = '';
+      } else if (state === 'declined') {
+        view.title.textContent = 'Your application wasn’t approved';
+        view.message.textContent = 'Settings › Money › Payments has the details.';
+        view.detail.textContent = '';
+      } else if (state === 'pending') {
+        view.title.textContent = 'You’re approved';
+        view.message.textContent = 'Forward is turning on payment processing for your account. You can take payments as soon as it does; we’ll let you know.';
+        view.detail.textContent = '';
+      } else {
+        view.title.textContent = 'Payment application submitted';
+        view.message.textContent = 'Your application is under review. We will notify you once it has been processed.';
+        view.detail.textContent = '';
+      }
+    }
+    function stateOf(outcome){
+      if (outcome.status === 'APPROVED') return outcome.processing_enabled || outcome.ready ? 'approved' : 'pending';
+      if (outcome.status === 'NEED_INFORMATION') return 'information';
+      if (outcome.status === 'DECLINED' || outcome.status === 'CANCELLED') return 'declined';
+      return 'review';
+    }
+    let setup = null;
+    try { setup = window.parent !== window ? window.parent.FirstMatePaymentsSetup : null; } catch (error) { setup = null; }
+    if (!setup?.outcome) show('review');
+    else {
+      // Instant underwriting can take a few seconds after submission: keep
+      // checking for about a minute while the answer is still "in review".
+      let checks = 0;
+      const check = async () => {
+        checks += 1;
+        let state = 'review';
+        try { const outcome = await setup.outcome(); state = stateOf(outcome); show(state, outcome); }
+        catch (error) { show('review'); }
+        if ((state === 'review' || state === 'pending') && checks < 12) setTimeout(check, checks < 4 ? 2500 : 6000);
+      };
+      check();
+    }
     document.getElementById('close').addEventListener('click', () => {
       if (window.parent !== window) {
         window.parent.postMessage({ type:'firstmate:payments-setup-return' }, window.location.origin);

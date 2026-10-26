@@ -1066,10 +1066,16 @@
     return true;
   }
 
+  function openPaymentSettingsNotification(item){
+    if (item?.frontend_action?.kind !== 'open_payment_settings' || !window.Portal?.navigation?.navigate) return false;
+    window.Portal.navigation.navigate({tab:'company_settings',sub:'money',settingsView:'payments'}, {source:'notification-payment-settings'});
+    return true;
+  }
+
   async function openNotificationItem(item){
     if (!item) return;
     window.PlatformNotifications?.markSeen(orgId(), item.id, notificationLoadOptions({ reload:true })).catch(() => null);
-    if (openSmsRegistrationNotification(item) || openAssistantNotification(item) || openChatNotification(item) || openMerchantPortalNotification(item) || await openCommsNotification(item) || openChannelMessageNotification(item) || openMentionNotification(item) || await openMeasurementReportNotification(item)) {
+    if (openSmsRegistrationNotification(item) || openPaymentSettingsNotification(item) || openAssistantNotification(item) || openChatNotification(item) || openMerchantPortalNotification(item) || await openCommsNotification(item) || openChannelMessageNotification(item) || openMentionNotification(item) || await openMeasurementReportNotification(item)) {
       closeNotificationMenus();
     } else if (notificationOpensProject(item) || (!item.frontend_action?.kind && (item.context?.project_id || item.data?.project_id))) {
       await openNotificationProject(item);

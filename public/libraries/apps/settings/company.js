@@ -8993,6 +8993,15 @@ By opting in, you agree to receive ${purposes}. Message frequency varies. Messag
         }
       };
       if (panePayments) panePayments.__moneyWorkflowOpen = openMoneyWorkflowFromRoute;
+      // The payment setup window read Forward (its finishing page, or closing
+      // it): show what it recorded, e.g. the approved card, without a reload.
+      if (window.__fmPaymentsSetupUpdated) window.removeEventListener('fm:payments-setup-updated', window.__fmPaymentsSetupUpdated);
+      window.__fmPaymentsSetupUpdated = async (event) => {
+        if (!document.contains(container) || (event?.detail?.orgId && event.detail.orgId !== orgId)) return;
+        try { await loadConfig(); await loadApplication(); } catch (error) { return; }
+        if (document.contains(container)) renderSection();
+      };
+      window.addEventListener('fm:payments-setup-updated', window.__fmPaymentsSetupUpdated);
       container.innerHTML = `<div class="cs-section"><h3 style="margin:18px 0 0">${(globalThis.PlatformLanguage?.htmlText("settings","m_9776f89b963442","Payment processing") ?? "Payment processing")}</h3><p class="cs-note"><i class="fas fa-spinner fa-spin"></i>${(globalThis.PlatformLanguage?.htmlText("settings","m_f1ec6b17835429"," Loading merchant status...") ?? " Loading merchant status...")}</p></div>`;
       try {
         await loadConfig();
