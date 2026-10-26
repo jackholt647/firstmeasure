@@ -50,8 +50,8 @@ async function setup(t,{width=1600,height=1000,count=1,mobileOrder=false,fail=()
 
 const layout=page=>page.evaluate(()=>{
  const desk=document.querySelector('.ext-desk'),box=el=>el?.getBoundingClientRect();
- const clipped=[...desk.querySelectorAll('.ext-desk-main,.ext-desk-main *,.ext-desk-foot,.ext-desk-foot *,.ext-desk-head *')].filter(el=>el.offsetParent&&el.scrollHeight>el.clientHeight+2&&getComputedStyle(el).overflowY!=='visible'&&!el.closest('.ext-orbit,.ext-model-scene,.ext-desk-house,.ext-desk-cell,.ext-camera,.ext-capture-heading')&&!el.matches('select,.ext-desk-sr')).map(el=>el.className);
- return {desk:box(desk),host:box(desk.parentElement),foot:box(desk.querySelector('.ext-desk-foot')),order:box(desk.querySelector('.ext-desk-order')),pageScrolls:document.scrollingElement.scrollHeight>innerHeight+1||document.scrollingElement.scrollWidth>innerWidth+1,clipped,innerHeight};
+ const clipped=[...desk.querySelectorAll('.ext-desk-mid > :not(.ext-desk-list),.ext-desk-mid > :not(.ext-desk-list) *,.ext-desk-side,.ext-desk-side *')].filter(el=>el.offsetParent&&el.scrollHeight>el.clientHeight+2&&getComputedStyle(el).overflowY!=='visible'&&!el.closest('.ext-orbit,.ext-model-scene,.ext-desk-house,.ext-desk-cell,.ext-camera,.ext-capture-heading')&&!el.matches('select,.ext-desk-sr')).map(el=>el.className);
+ return {desk:box(desk),host:box(desk.parentElement),side:box(desk.querySelector('.ext-desk-side')),order:box(desk.querySelector('.ext-desk-order')),pageScrolls:document.scrollingElement.scrollHeight>innerHeight+1||document.scrollingElement.scrollWidth>innerWidth+1,clipped,innerHeight};
 });
 
 for(const [width,height] of [[1600,1000],[1280,800]])test(`confirming the pins turns the map into the capture panel without scrolling at ${width}x${height}`,async t=>{
@@ -66,13 +66,33 @@ for(const [width,height] of [[1600,1000],[1280,800]])test(`confirming the pins t
  const box=await layout(page);
  assert.ok(box.desk.width>=box.host.width-1&&box.desk.width>800,JSON.stringify(box));
  assert.equal(box.pageScrolls,false);assert.deepEqual(box.clipped,[],'no section of the panel is cut off or scrolls');
- assert.ok(box.foot.bottom<=box.innerHeight+1&&box.order.bottom<=box.innerHeight,'the order button is on screen');
+ assert.ok(box.order.bottom<=box.innerHeight,'the order button is on screen');
  assert.equal(await page.locator('.ext-desk [data-desk-pick]').count(),1,'upload is the main action');
  assert.equal(await page.locator('.ext-desk [data-desk-record]').count(),1,'recording is still offered');
- assert.equal(await page.locator('.ext-desk-opt').count(),3,'delivery choices are in the panel');
+ assert.equal(await page.locator('.ext-desk-side .r-expedite-btn').count(),3,'delivery choices sit in the ordering column');
+ assert.ok(box.side.width>=300&&box.side.x>box.desk.x+box.desk.width/2,'ordering is its own right-hand column');
+ assert.equal(await page.locator('.ext-desk-foot').count(),0,'there is no footer bar');
+ assert.equal(await page.locator('.ext-desk-mid .ext-orbit').count(),1,'the walkaround animation and steps lead the middle column');
+ assert.equal(await page.locator('.ext-desk-drop').count(),1,'one upload strip');
+ assert.equal(await page.locator('.ext-desk-drop').evaluate(e=>/MB/.test(e.innerText)),false,'limits live in a tooltip');
+ assert.match(await page.locator('.ext-desk-drop .ext-desk-tip').getAttribute('data-fm-tooltip'),/120 MB/);
+ assert.ok((await page.locator('.ext-desk-drop').boundingBox()).height<70,'the upload strip is thin');
+ // Middle column: title, one-line lead, then the animation and steps, then the upload strip, with no headings between.
+ assert.equal(await page.locator('.ext-desk-title h2').innerText(),'Add a video walkaround');
+ assert.equal(await page.locator('.ext-desk-title p').innerText(),'Record one full loop around the house on your phone or tablet, then upload it here.');
+ const mid=await page.evaluate(()=>{const m=document.querySelector('.ext-desk-mid');return {order:[...m.children].filter(e=>e.offsetParent&&e.getBoundingClientRect().height>0).map(e=>e.className.split(' ')[0]),headings:[...m.querySelectorAll('h3,h4,h5,h6')].filter(e=>e.offsetParent).map(e=>e.innerText),text:m.innerText};});
+ assert.deepEqual(mid.order.slice(0,3),['ext-desk-head','ext-desk-guide','ext-desk-drop'],JSON.stringify(mid.order));
+ assert.deepEqual(mid.headings,[],'no section headings in the middle column');
+ assert.doesNotMatch(mid.text,/FirstMate app|How to film|What we need|Your uploads/i);
+ assert.equal(await page.locator('.ext-desk [data-add-walk], .ext-desk [data-add-closeup], .ext-desk-need').count(),0,'no separate walkaround and close-up rows');
+ assert.equal(await page.locator('.ext-desk [data-desk-record]').getAttribute('aria-label'),'Record','recording keeps its name when the strip is narrow');
+ // Right column, top to bottom: what is ordered, delivery, total, what is missing, the order button.
+ const side=await page.evaluate(()=>['.ext-desk-what','.r-expedite-options','.ext-desk-total','.ext-desk-status','.ext-desk-order'].map(sel=>Math.round(document.querySelector('.ext-desk-side '+sel).getBoundingClientRect().top)));
+ assert.deepEqual(side,side.slice().sort((a,b)=>a-b),'the ordering column reads top to bottom: '+side);
+ assert.equal(await page.locator('.ext-desk-side .r-expedite-btn').evaluateAll(b=>new Set(b.map(e=>Math.round(e.getBoundingClientRect().left))).size),1,'delivery choices are stacked');
  assert.equal(await page.locator('.ext-desk-order').isDisabled(),true);
  assert.match(await page.locator('.ext-desk-status').innerText(),/video walkaround/i,'what is missing is said next to the order button');
- assert.match(await page.locator('.ext-desk-need').first().innerText(),/Needed/);
+ assert.match(await page.locator('.ext-desk-chip').first().innerText(),/Needs a video walkaround/);
  assert.equal(await page.evaluate(()=>Portal.ExteriorOrder.ready()),false);
 });
 
@@ -85,7 +105,7 @@ test('several clips upload at once with per-file status, retry, remove and reass
  await page.waitForFunction(()=>document.querySelectorAll('.ext-desk-file').length===3);
  assert.equal(await page.locator('.ext-desk-file.is-busy').count(),3,'each file shows its own progress');
  assert.match(await page.locator('.ext-desk-status').innerText(),/Waiting for/);
- assert.match(await page.locator('[data-desk-count]').innerText(),/3 files · 3 uploading/);
+ assert.match(await page.locator('.ext-desk-chip').first().innerText(),/uploading/i);
  open();
  await page.waitForFunction(()=>!document.querySelector('.ext-desk-file.is-busy'));
  assert.deepEqual(uploads.slice().sort(),['IMG_0001.MOV','IMG_0002.MOV','IMG_0003.JPG']);
@@ -105,7 +125,7 @@ test('several clips upload at once with per-file status, retry, remove and reass
  assert.equal(await page.evaluate(()=>Portal.ExteriorOrder.ready()),true);
  const refs=await page.evaluate(()=>JSON.parse(Portal.ExteriorOrder.payload().exterior_references).map(r=>r.view));
  assert.deepEqual(refs.sort(),['additional','orbital_video']);
- await page.locator('.ext-desk-opt').nth(2).click();
+ await page.locator('.ext-desk-side .r-expedite-btn').nth(2).click();
  assert.match(await page.locator('.ext-desk-total').innerText(),/\$35/);
  await page.locator('.ext-desk-order').click();
  assert.equal(await page.evaluate(()=>window.submitted),1);
@@ -114,14 +134,17 @@ test('several clips upload at once with per-file status, retry, remove and reass
 test('two structures: a drop on a row goes to that structure, and the photo fallback keeps its angle grid in the panel',async t=>{
  const {page,confirm,settle}=await setup(t,{count:2,width:1280,height:800});
  await confirm();await settle();
- assert.equal(await page.locator('.ext-desk-need[data-desk-drop-structure]').count(),2);
- assert.match(await page.locator('.ext-desk-target').innerText(),/Structure 1/);
+ assert.equal(await page.locator('.ext-desk-chip[data-desk-drop-structure]').count(),2);
+ assert.match(await page.locator('.ext-desk-chip.is-target').innerText(),/Structure 1 needs a walkaround/);
+ assert.match(await page.locator('.ext-desk-drop-label').innerText(),/Structure 1/);
  await page.evaluate(()=>{const data=new DataTransfer();data.items.add(new File([new Uint8Array(5000)],'garage.mp4',{type:'video/mp4'}));const row=document.querySelector('[data-desk-drop-structure="1"]');for(const type of ['dragenter','dragover','drop'])row.dispatchEvent(new DragEvent(type,{bubbles:true,cancelable:true,dataTransfer:data}));});
  await page.waitForFunction(()=>document.querySelector('.ext-desk-file.is-done'));
  assert.equal(await page.locator('.ext-desk-file select').inputValue(),'1:walk');
+ assert.equal(await page.locator('.ext-desk-file select').evaluate(s=>s.selectedOptions[0].textContent),'Structure 2 · Walkaround','with several structures the closed menu names the structure');
  assert.match(await page.locator('.ext-desk-total').innerText(),/2 structures/);
  await page.locator('[data-desk-mode=photos]').click();
  assert.equal(await page.locator('.ext-desk-cell').count(),8);
+ assert.ok((await page.locator('.ext-desk-grid').boundingBox()).width>300,'the angle grid uses the column width');
  assert.equal(await page.locator('.ext-desk-pills .ext-structure-pill').count(),2);
  const box=await layout(page);assert.equal(box.pageScrolls,false);assert.deepEqual(box.clipped,[]);
  const chooser=page.waitForEvent('filechooser');await page.locator('[data-desk-pick]').click();
@@ -130,6 +153,18 @@ test('two structures: a drop on a row goes to that structure, and the photo fall
  assert.match(await page.locator('.ext-desk-status').innerText(),/unassigned/,'a loose photo needs an angle before ordering');
  await page.locator('.ext-desk-file select.needs-choice').selectOption('0:front');
  assert.equal(await page.locator('[data-desk-angle="0:front"].has-file').count(),1);
+});
+
+test('a long upload list scrolls on its own and keeps the newest file in view at 1280x800',async t=>{
+ const {page,confirm,settle}=await setup(t,{width:1280,height:800});
+ await confirm();await settle();
+ const chooser=page.waitForEvent('filechooser');await page.locator('[data-desk-pick]').click();
+ await (await chooser).setFiles(Array.from({length:8},(_,i)=>({name:`IMG_10${i}.JPG`,mimeType:'image/jpeg',buffer:Buffer.alloc(4000,i)})));
+ await page.waitForFunction(()=>document.querySelectorAll('.ext-desk-file.is-done').length===8);
+ const view=await page.evaluate(()=>{const list=document.querySelector('.ext-desk-list'),last=[...list.children].at(-1),order=document.querySelector('.ext-desk-order');return {scrolls:list.scrollHeight>list.clientHeight,lastBottom:last.getBoundingClientRect().bottom,listBottom:list.getBoundingClientRect().bottom,orderBottom:order.getBoundingClientRect().bottom,page:document.scrollingElement.scrollHeight>innerHeight+1};});
+ assert.equal(view.scrolls,true);assert.equal(view.page,false,'only the list scrolls');
+ assert.ok(view.lastBottom<=view.listBottom+1,'the newest file is in view');
+ assert.ok(view.orderBottom<=800,'the order button stays on screen');
 });
 
 test('unconfirming folds the panel away and gives the tray back; mobile never sees the panel',async t=>{

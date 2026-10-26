@@ -926,9 +926,12 @@
   function deskRoleOptions(key,f){
     const video=f.kind==='video',role=deskRole(key),angles=!video&&(captureMode==='photos'||(role!=='tray'&&views.includes(role.split(':')[1])));
     const walk=(globalThis.PlatformLanguage?.htmlText("firstmeasure","ext_video_walkaround","Video walkaround") ?? "Video walkaround"),closeUp=(globalThis.PlatformLanguage?.htmlText("firstmeasure","ext_desk_role_closeup","Close-up") ?? "Close-up");
-    const groups=Array.from({length:ctx.count},(_,i)=>{const options=[...(video?[[i+':walk',walk]]:[]),...(angles?views.map(v=>[i+':'+v,esc(label(v))]):[]),[i+':extra',closeUp]];return options.map(([value,text])=>`<option value="${value}">${text}</option>`).join('');});
+    // With several structures each choice names its structure, so the closed menu says where the file goes.
+    const named=(i,text)=>ctx.count>1?((v0,v1) => globalThis.PlatformLanguage?.htmlText("firstmeasure","ext_desk_role_in_structure",`${v0} · ${v1}`,{v0,v1}) ?? `${v0} · ${v1}`)(esc(deskStructureName(i)),text):text;
+    const walkShort=ctx.count>1?(globalThis.PlatformLanguage?.htmlText("firstmeasure","ext_desk_role_walkaround","Walkaround") ?? "Walkaround"):walk;
+    const groups=Array.from({length:ctx.count},(_,i)=>{const options=[...(video?[[i+':walk',walkShort]]:[]),...(angles?views.map(v=>[i+':'+v,esc(label(v))]):[]),[i+':extra',closeUp]];return options.map(([value,text])=>`<option value="${value}">${named(i,text)}</option>`).join('');});
     const choose=role==='tray'?`<option value="tray">${(globalThis.PlatformLanguage?.htmlText("firstmeasure","ext_desk_choose_angle","Choose an angle…") ?? "Choose an angle…")}</option>`:'';
-    return choose+(ctx.count>1?groups.map((html,i)=>`<optgroup label="${esc(deskStructureName(i))}">${html}</optgroup>`).join(''):groups[0]);
+    return choose+groups.join('');
   }
   function deskStatus(f){
     if(f.error)return ['failed',f.error];
@@ -939,7 +942,7 @@
   }
   function deskRow(){
     const row=document.createElement('div');row.className='ext-desk-file';row.setAttribute('role','listitem');row.draggable=true;
-    row.innerHTML=`<button type="button" class="ext-desk-thumb" data-desk-preview><img alt=""><span class="ext-desk-play" hidden><i class="fas fa-play" aria-hidden="true"></i><b></b></span></button><div class="ext-desk-file-info"><div class="ext-desk-file-top"><strong data-desk-name></strong><span data-desk-status></span></div><select data-desk-role aria-label="${(globalThis.PlatformLanguage?.htmlText("firstmeasure","ext_desk_use_as","Use this file as") ?? "Use this file as")}"></select><small class="ext-desk-file-error" data-desk-error role="alert" hidden></small></div><div class="ext-desk-file-actions"><button type="button" class="ext-desk-iconbtn" data-desk-retry data-fm-tooltip="${(globalThis.PlatformLanguage?.htmlText("firstmeasure","m_0dd87f826c8c39","Retry upload") ?? "Retry upload")}" aria-label="${(globalThis.PlatformLanguage?.htmlText("firstmeasure","m_0dd87f826c8c39","Retry upload") ?? "Retry upload")}"><i class="fas fa-rotate" aria-hidden="true"></i></button><button type="button" class="ext-desk-iconbtn" data-desk-remove data-fm-tooltip="${(globalThis.PlatformLanguage?.htmlText("firstmeasure","ext_desk_remove","Remove") ?? "Remove")}">×</button></div><div class="ext-desk-bar" aria-hidden="true"><i></i></div>`;
+    row.innerHTML=`<button type="button" class="ext-desk-thumb" data-desk-preview><img alt=""><span class="ext-desk-play" hidden><i class="fas fa-play" aria-hidden="true"></i><b></b></span></button><div class="ext-desk-file-info"><div class="ext-desk-file-top"><strong data-desk-name></strong><span data-desk-status></span></div><select data-desk-role aria-label="${(globalThis.PlatformLanguage?.htmlText("firstmeasure","ext_desk_use_as","Use this file as") ?? "Use this file as")}"></select></div><div class="ext-desk-file-actions"><button type="button" class="ext-desk-iconbtn" data-desk-retry data-fm-tooltip="${(globalThis.PlatformLanguage?.htmlText("firstmeasure","m_0dd87f826c8c39","Retry upload") ?? "Retry upload")}" aria-label="${(globalThis.PlatformLanguage?.htmlText("firstmeasure","m_0dd87f826c8c39","Retry upload") ?? "Retry upload")}"><i class="fas fa-rotate" aria-hidden="true"></i></button><button type="button" class="ext-desk-iconbtn" data-desk-remove data-fm-tooltip="${(globalThis.PlatformLanguage?.htmlText("firstmeasure","ext_desk_remove","Remove") ?? "Remove")}">×</button></div><small class="ext-desk-file-error" data-desk-error role="alert" hidden></small><div class="ext-desk-bar" aria-hidden="true"><i></i></div>`;
     if(!reduceCaptureMotion())row.animate([{opacity:0,transform:'translateY(-8px)'},{opacity:1,transform:'none'}],{duration:280,easing:'cubic-bezier(.22,1,.36,1)'});
     return row;
   }
@@ -954,7 +957,8 @@
     const status=row.querySelector('[data-desk-status]'),done=state==='done'?(globalThis.PlatformLanguage?.text("firstmeasure","ext_desk_uploaded","Uploaded") ?? "Uploaded"):'';
     const shown=state==='failed'?(globalThis.PlatformLanguage?.text("firstmeasure","ext_6efc5d27f30b20","Upload failed") ?? "Upload failed"):text;
     status.innerHTML=(done&&done!==text?`<span class="ext-desk-sr">${esc(done)} </span>`:'')+esc(shown);
-    const reason=row.querySelector('[data-desk-error]');reason.hidden=state!=='failed'||text===shown;reason.textContent=state==='failed'?text:'';if(state==='failed')reason.dataset.fmTooltip=text;else delete reason.dataset.fmTooltip;
+    // A reason that only repeats "Upload failed" adds nothing; the retry button says what to do.
+    const reason=row.querySelector('[data-desk-error]');reason.hidden=state!=='failed'||String(text).toLowerCase().startsWith(String(shown).toLowerCase());reason.textContent=state==='failed'?text:'';if(state==='failed')reason.dataset.fmTooltip=text;else delete reason.dataset.fmTooltip;
     const bar=row.querySelector('.ext-desk-bar');bar.hidden=state!=='busy';bar.classList.toggle('is-indeterminate',state==='busy'&&(f.progress==null||!!f.encoding));bar.firstElementChild.style.width=Math.round((f.progress||0)*100)+'%';
     const select=row.querySelector('[data-desk-role]'),options=deskRoleOptions(key,f);if(select.__options!==options){select.__options=options;select.innerHTML=options;}
     select.value=deskRole(key);select.dataset.deskRole=key;select.classList.toggle('needs-choice',key.startsWith('tray:'));select.disabled=busy;
@@ -965,57 +969,66 @@
     const row=deskRows.get(entry),key=row&&[...files].find(([,f])=>f===entry)?.[0];
     if(key&&row.isConnected)deskFillRow(row,key,entry);
   }
+  const deskModeLink=mode=>`<button type="button" class="ext-desk-link" data-desk-mode="${mode}" ${busy?'disabled':''}>${mode==='photos'?(globalThis.PlatformLanguage?.htmlText("firstmeasure","m_cab762c293af5c","Can’t take a video? Order from photos instead") ?? "Can’t take a video? Order from photos instead"):(globalThis.PlatformLanguage?.htmlText("firstmeasure","ext_switch_to_video_walkaround","Have a video? Switch to video walkaround (recommended)") ?? "Have a video? Switch to video walkaround (recommended)")}</button>`;
   function deskHeadUI(){
     const video=captureMode==='video';
-    return `<div class="ext-desk-title"><h2>${video?(globalThis.PlatformLanguage?.htmlText("firstmeasure","ext_add_a_video_walkaround","Add a video walkaround") ?? "Add a video walkaround"):(globalThis.PlatformLanguage?.htmlText("firstmeasure","m_1cb496d81d0d8a","Order from photos") ?? "Order from photos")}</h2><p>${video?(globalThis.PlatformLanguage?.htmlText("firstmeasure","ext_loop_upload_lead","Record one full loop around the house on your phone, then upload it here. Ordering from the FirstMate app records it for you.") ?? "Record one full loop around the house on your phone, then upload it here. Ordering from the FirstMate app records it for you."):(globalThis.PlatformLanguage?.htmlText("firstmeasure","ext_photo_intro_lead","No video? Simply provide eight photos for eight angles of the house and we will use those instead.") ?? "No video? Simply provide eight photos for eight angles of the house and we will use those instead.")}</p>${video?'':`<button type="button" class="ext-desk-link" data-desk-mode="video" ${busy?'disabled':''}>${(globalThis.PlatformLanguage?.htmlText("firstmeasure","ext_switch_to_video_walkaround","Have a video? Switch to video walkaround (recommended)") ?? "Have a video? Switch to video walkaround (recommended)")}</button>`}</div><div class="ext-desk-head-actions"><button type="button" class="ext-desk-info" data-details="full_house" aria-label="${(globalThis.PlatformLanguage?.htmlText("firstmeasure","ext_full_exterior_info","Full Exterior report information") ?? "Full Exterior report information")}"><i class="fas fa-circle-info" aria-hidden="true"></i>${(globalThis.PlatformLanguage?.htmlText("firstmeasure","m_76a7f763084e05"," What’s included") ?? " What’s included")}</button><button type="button" class="ext-desk-map" data-desk-pins ${busy?'disabled':''} data-fm-tooltip="${(globalThis.PlatformLanguage?.htmlText("firstmeasure","ext_desk_map_tip","Back to the map to move or add pins") ?? "Back to the map to move or add pins")}"><i class="fas fa-map-location-dot" aria-hidden="true"></i><span>${(globalThis.PlatformLanguage?.htmlText("firstmeasure","ext_desk_map","Map") ?? "Map")}</span></button></div>`;
+    return `<div class="ext-desk-title"><h2>${video?(globalThis.PlatformLanguage?.htmlText("firstmeasure","ext_add_a_video_walkaround","Add a video walkaround") ?? "Add a video walkaround"):(globalThis.PlatformLanguage?.htmlText("firstmeasure","m_1cb496d81d0d8a","Order from photos") ?? "Order from photos")}</h2><p>${video?(globalThis.PlatformLanguage?.htmlText("firstmeasure","ext_desk_loop_upload_lead","Record one full loop around the house on your phone or tablet, then upload it here.") ?? "Record one full loop around the house on your phone or tablet, then upload it here."):(globalThis.PlatformLanguage?.htmlText("firstmeasure","ext_photo_intro_lead","No video? Simply provide eight photos for eight angles of the house and we will use those instead.") ?? "No video? Simply provide eight photos for eight angles of the house and we will use those instead.")}</p></div><button type="button" class="ext-desk-map" data-desk-pins ${busy?'disabled':''} data-fm-tooltip="${(globalThis.PlatformLanguage?.htmlText("firstmeasure","ext_desk_map_tip","Back to the map to move or add pins") ?? "Back to the map to move or add pins")}"><i class="fas fa-map-location-dot" aria-hidden="true"></i><span>${(globalThis.PlatformLanguage?.htmlText("firstmeasure","ext_desk_map","Map") ?? "Map")}</span></button>`;
   }
-  function deskNeedsUI(){
+  // The walkaround guidance: the loop animation beside the three steps (the eight-angle grid when ordering from photos).
+  function deskGuideUI(){
     if(captureMode==='photos')return deskAnglesUI();
-    const rows=Array.from({length:ctx.count},(_,i)=>{
-      const takes=orbitVideos(i).map(([,f])=>f),done=takes.filter(f=>f.media_id&&!f.error),moving=takes.filter(f=>f.uploading||f.encoding),failed=takes.filter(f=>f.error);
-      const state=moving.length?'busy':failed.length?'failed':done.length?'done':'needed',seconds=done.reduce((sum,f)=>sum+(f.duration||0),0);
-      const meta=state==='busy'?(moving.length===1?(globalThis.PlatformLanguage?.htmlText("firstmeasure","ext_desk_clip_uploading","Uploading 1 clip…") ?? "Uploading 1 clip…"):((v0) => globalThis.PlatformLanguage?.htmlText("firstmeasure","ext_desk_clips_uploading",`Uploading ${v0} clips…`,{v0}) ?? `Uploading ${v0} clips…`)(moving.length))
-        :state==='failed'?(globalThis.PlatformLanguage?.htmlText("firstmeasure","ext_desk_clips_failed","A clip did not upload. Retry or remove it.") ?? "A clip did not upload. Retry or remove it.")
-        :state==='done'?(done.length===1?(globalThis.PlatformLanguage?.htmlText("firstmeasure","ext_desk_clip_ready","1 clip uploaded") ?? "1 clip uploaded"):((v0) => globalThis.PlatformLanguage?.htmlText("firstmeasure","ext_desk_clips_ready",`${v0} clips uploaded`,{v0}) ?? `${v0} clips uploaded`)(done.length))+(seconds?' · '+clock(seconds*1000):'')
-        :(globalThis.PlatformLanguage?.htmlText("firstmeasure","ext_desk_needs_loop","Needed · one full loop") ?? "Needed · one full loop");
-      const icon=state==='done'?'<i class="fas fa-check"></i>':state==='busy'?'<i class="ext-desk-spin"></i>':state==='failed'?'<i class="fas fa-triangle-exclamation"></i>':'<i class="fas fa-video"></i>';
-      const title=ctx.count>1?((v0) => globalThis.PlatformLanguage?.htmlText("firstmeasure","ext_desk_walkaround_structure",`Video walkaround · Structure ${v0}`,{v0}) ?? `Video walkaround · Structure ${v0}`)(i+1):(globalThis.PlatformLanguage?.htmlText("firstmeasure","ext_desk_walkaround_house","Video walkaround of the house") ?? "Video walkaround of the house");
-      return `<div class="ext-desk-need is-${state}" data-desk-drop-structure="${i}"><span class="ext-desk-dot" aria-hidden="true">${icon}</span><span class="ext-desk-need-text"><strong>${title}</strong><small>${meta}</small></span><button type="button" class="ext-desk-add" data-desk-add="${i}" aria-label="${(globalThis.PlatformLanguage?.htmlText("firstmeasure","ext_desk_add_walkaround","Add walkaround videos") ?? "Add walkaround videos")}"><i class="fas fa-plus" aria-hidden="true"></i>${(globalThis.PlatformLanguage?.htmlText("firstmeasure","ext_desk_add","Add") ?? "Add")}</button></div>`;
-    });
-    const extras=[...files.keys()].filter(k=>k.includes(':additional')).length;
-    rows.push(`<div class="ext-desk-need is-optional" data-desk-drop-extra><span class="ext-desk-dot" aria-hidden="true"><i class="fas fa-images"></i></span><span class="ext-desk-need-text"><strong>${(globalThis.PlatformLanguage?.htmlText("firstmeasure","ext_desk_closeups","Close-ups") ?? "Close-ups")} <i class="fas fa-circle-info ext-desk-tip" tabindex="0" data-fm-tooltip="${(globalThis.PlatformLanguage?.htmlText("firstmeasure","m_27b7e868698f63","Add close-ups of anything the video does not show well, like dormers, additions or tight side yards.") ?? "Add close-ups of anything the video does not show well, like dormers, additions or tight side yards.")}" aria-label="${(globalThis.PlatformLanguage?.htmlText("firstmeasure","m_27b7e868698f63","Add close-ups of anything the video does not show well, like dormers, additions or tight side yards.") ?? "Add close-ups of anything the video does not show well, like dormers, additions or tight side yards.")}"></i></strong><small>${extras?((v0) => globalThis.PlatformLanguage?.htmlText("firstmeasure","ext_desk_optional_added",`Optional · ${v0} added`,{v0}) ?? `Optional · ${v0} added`)(extras):(globalThis.PlatformLanguage?.htmlText("firstmeasure","ext_desk_optional","Optional") ?? "Optional")}</small></span><button type="button" class="ext-desk-add" data-desk-extra aria-label="${(globalThis.PlatformLanguage?.htmlText("firstmeasure","ext_desk_add_closeups","Add close-ups") ?? "Add close-ups")}"><i class="fas fa-plus" aria-hidden="true"></i>${(globalThis.PlatformLanguage?.htmlText("firstmeasure","ext_desk_add","Add") ?? "Add")}</button></div>`);
-    return `<section class="ext-desk-needs"><h3>${(globalThis.PlatformLanguage?.htmlText("firstmeasure","ext_desk_needed","What we need") ?? "What we need")}</h3>${rows.join('')}</section>`;
+    return `<div class="ext-desk-film">${orbitScene()}</div><div class="ext-desk-steps">${ORBIT_STEPS}${deskModeLink('photos')}</div>`;
   }
   function deskAnglesUI(){
     const i=Math.max(0,Math.min(structure,ctx.count-1)),ready=n=>views.filter(v=>files.get(n+':'+v)?.media_id).length;
-    const pills=ctx.count>1?`<div class="ext-desk-pills" role="group" aria-label="${(globalThis.PlatformLanguage?.htmlText("firstmeasure","m_0dc366a939cb1d","Structure") ?? "Structure")}">${Array.from({length:ctx.count},(_,n)=>`<button type="button" class="ext-structure-pill" data-desk-pill="${n}" aria-pressed="${n===i}">${esc(deskStructureName(n))} · ${ready(n)}/8</button>`).join('')}</div>`:'';
+    const pills=ctx.count>1?`<div class="ext-desk-pills" role="group" aria-label="${(globalThis.PlatformLanguage?.htmlText("firstmeasure","m_0dc366a939cb1d","Structure") ?? "Structure")}">${Array.from({length:ctx.count},(_,n)=>`<button type="button" class="ext-structure-pill" data-desk-pill="${n}" aria-pressed="${n===i}">${esc(deskStructureName(n))}</button>`).join('')}</div>`:'';
     const layout=['back-left','back','back-right','left',null,'right','front-left','front','front-right'];
     const cells=layout.map(v=>{
-      if(!v)return `<div class="ext-desk-house" aria-hidden="true">${houseModel()}</div>`;
+      if(!v)return `<div class="ext-desk-house"><svg viewBox="0 0 80 60" aria-label="${(globalThis.PlatformLanguage?.htmlText("firstmeasure","m_9e22418c14100e","House viewed from above, front at bottom") ?? "House viewed from above, front at bottom")}" role="img"><rect x="14" y="7" width="52" height="42" rx="4" fill="currentColor" opacity=".12"/><path d="M14 7L40 18L66 7M40 18V38M14 49L40 38L66 49" fill="none" stroke="currentColor" stroke-width="2"/><rect x="32" y="45" width="16" height="10" rx="2" fill="currentColor"/></svg><strong>${(globalThis.PlatformLanguage?.htmlText("firstmeasure","m_4042bd99ed30d1","FRONT ↓") ?? "FRONT ↓")}</strong></div>`;
       const key=i+':'+v,f=files.get(key),name=esc(label(v));
       return `<div class="ext-desk-cell ${f?'has-file':''} ${f?.media_id?'is-done':''} ${f?.error?'is-failed':''}" data-desk-angle="${key}">${f?`<button type="button" class="ext-desk-cell-thumb" data-desk-preview="${key}" aria-label="${(globalThis.PlatformLanguage?.htmlText("firstmeasure","select_angle_photo","Select {angle} photo",{angle:label(v)}) ?? `Select ${name} photo`)}"><img src="${esc(referenceThumbnail(f))}" alt=""></button><button type="button" class="ext-desk-cell-remove" data-desk-remove="${key}" aria-label="${((v1) => globalThis.PlatformLanguage?.htmlText("firstmeasure","m_94fef39d56d52f",`Remove ${v1} photo`,{v1}) ?? `Remove ${v1} photo`)(name)}">×</button>`:`<button type="button" class="ext-desk-cell-add" data-desk-angle-pick="${key}" aria-label="${(globalThis.PlatformLanguage?.htmlText("firstmeasure","upload_angle_photo","Upload {angle} photo",{angle:label(v)}) ?? `Upload ${name} photo`)}"><span aria-hidden="true">+</span></button>`}<span class="ext-desk-cell-label">${name}${f&&(f.uploading||f.encoding)?' · <i class="ext-desk-spin"></i>':f?.error?' · !':''}</span></div>`;
     });
-    return `<section class="ext-desk-needs is-angles"><h3>${(globalThis.PlatformLanguage?.htmlText("firstmeasure","ext_desk_needed","What we need") ?? "What we need")}<span>${orbitVideos(i).some(([,f])=>f.media_id)?(globalThis.PlatformLanguage?.htmlText("firstmeasure","ext_desk_covered_by_video","Covered by your video walkaround") ?? "Covered by your video walkaround"):((v2) => globalThis.PlatformLanguage?.htmlText("firstmeasure","m_cbe79335d5c117",`${v2} of 8 ready`,{v2}) ?? `${v2} of 8 ready`)(ready(i))}</span></h3>${pills}<div class="ext-desk-grid">${cells.join('')}</div><p class="ext-desk-risk" tabindex="0" data-fm-tooltip="${esc(PHOTO_RISK)}"><i class="fas fa-triangle-exclamation" aria-hidden="true"></i>${(globalThis.PlatformLanguage?.htmlText("firstmeasure","ext_desk_photo_risk","Photos alone may not be enough to model the house.") ?? "Photos alone may not be enough to model the house.")}</p></section>`;
+    return `${pills}<div class="ext-desk-grid">${cells.join('')}</div><div class="ext-desk-angles-foot"><span class="ext-desk-risk" tabindex="0" data-fm-tooltip="${esc(PHOTO_RISK)}"><i class="fas fa-triangle-exclamation" aria-hidden="true"></i>${(globalThis.PlatformLanguage?.htmlText("firstmeasure","ext_desk_photo_risk","Photos alone may not be enough to model the house.") ?? "Photos alone may not be enough to model the house.")}</span>${deskModeLink('video')}</div>`;
   }
+  // One thin upload strip: drop, choose files, or record. Formats and limits live in its tooltip.
   function deskDropUI(){
-    const video=captureMode==='video';
-    const target=video&&ctx.count>1?`<span class="ext-desk-target">${((v0) => globalThis.PlatformLanguage?.htmlText("firstmeasure","ext_desk_adding_to",`Adding to Structure ${v0}`,{v0}) ?? `Adding to Structure ${v0}`)(deskTarget()+1)}</span>`:'';
-    return `<span class="ext-desk-drop-icon" aria-hidden="true"><i class="fas fa-cloud-arrow-up"></i></span><strong>${video?(globalThis.PlatformLanguage?.htmlText("firstmeasure","ext_desk_drop_videos","Drag your walkaround videos here") ?? "Drag your walkaround videos here"):(globalThis.PlatformLanguage?.htmlText("firstmeasure","ext_desk_drop_photos","Drag your photos here") ?? "Drag your photos here")}</strong><div class="ext-desk-drop-actions"><button type="button" class="ext-desk-btn primary" data-desk-pick><i class="fas fa-arrow-up-from-bracket" aria-hidden="true"></i>${(globalThis.PlatformLanguage?.htmlText("firstmeasure","ext_desk_choose_files","Choose files") ?? "Choose files")}</button>${video&&deskCanRecord()?`<span class="ext-desk-or">${(globalThis.PlatformLanguage?.htmlText("firstmeasure","ext_desk_or","or") ?? "or")}</span><button type="button" class="ext-desk-btn ghost" data-desk-record data-fm-tooltip="${(globalThis.PlatformLanguage?.htmlText("firstmeasure","ext_desk_record_tip","Record with this computer’s camera") ?? "Record with this computer’s camera")}"><i class="fas fa-video" aria-hidden="true"></i>${(globalThis.PlatformLanguage?.htmlText("firstmeasure","ext_desk_record","Record") ?? "Record")}</button>`:''}</div><small tabindex="0" data-fm-tooltip="${video?(globalThis.PlatformLanguage?.htmlText("firstmeasure","ext_desk_video_limit_tip","Shot in 4K? Record at 1080p, or in shorter segments, so each video stays under 120 MB.") ?? "Shot in 4K? Record at 1080p, or in shorter segments, so each video stays under 120 MB."):(globalThis.PlatformLanguage?.htmlText("firstmeasure","ext_2eb9e35e8239cf","Use JPG, PNG or WebP photos up to 8 MB, or MP4, MOV or WebM videos.") ?? "Use JPG, PNG or WebP photos up to 8 MB, or MP4, MOV or WebM videos.")}">${video?(globalThis.PlatformLanguage?.htmlText("firstmeasure","ext_desk_video_limits","MP4, MOV or WebM · up to 120 MB each") ?? "MP4, MOV or WebM · up to 120 MB each"):(globalThis.PlatformLanguage?.htmlText("firstmeasure","ext_desk_photo_limits","JPG, PNG or WebP · up to 8 MB each") ?? "JPG, PNG or WebP · up to 8 MB each")}<i class="fas fa-circle-info" aria-hidden="true"></i></small>${target}${video?`<button type="button" class="ext-desk-link" data-desk-mode="photos" ${busy?'disabled':''}>${(globalThis.PlatformLanguage?.htmlText("firstmeasure","m_cab762c293af5c","Can’t take a video? Order from photos instead") ?? "Can’t take a video? Order from photos instead")}</button>`:''}`;
+    const video=captureMode==='video',target=deskTarget()+1;
+    const text=!video?(globalThis.PlatformLanguage?.htmlText("firstmeasure","ext_desk_drop_photos_or","Drag your photos here, or") ?? "Drag your photos here, or"):ctx.count>1?((v0) => globalThis.PlatformLanguage?.htmlText("firstmeasure","ext_desk_drop_structure_or",`Drag videos for Structure ${v0} here, or`,{v0}) ?? `Drag videos for Structure ${v0} here, or`)(target):(globalThis.PlatformLanguage?.htmlText("firstmeasure","ext_desk_drop_videos_or","Drag your videos here, or") ?? "Drag your videos here, or");
+    const tip=video?(globalThis.PlatformLanguage?.htmlText("firstmeasure","ext_desk_video_limits","MP4, MOV or WebM · up to 120 MB each") ?? "MP4, MOV or WebM · up to 120 MB each")+'. '+(globalThis.PlatformLanguage?.htmlText("firstmeasure","ext_desk_video_limit_tip","Shot in 4K? Record at 1080p, or in shorter segments, so each video stays under 120 MB.") ?? "Shot in 4K? Record at 1080p, or in shorter segments, so each video stays under 120 MB."):(globalThis.PlatformLanguage?.htmlText("firstmeasure","ext_2eb9e35e8239cf","Use JPG, PNG or WebP photos up to 8 MB, or MP4, MOV or WebM videos.") ?? "Use JPG, PNG or WebP photos up to 8 MB, or MP4, MOV or WebM videos.");
+    return `<i class="fas fa-cloud-arrow-up ext-desk-drop-icon" aria-hidden="true"></i><span class="ext-desk-drop-label">${text}</span><button type="button" class="ext-desk-btn primary" data-desk-pick><i class="fas fa-arrow-up-from-bracket" aria-hidden="true"></i>${(globalThis.PlatformLanguage?.htmlText("firstmeasure","ext_desk_choose_files","Choose files") ?? "Choose files")}</button>${video&&deskCanRecord()?`<button type="button" class="ext-desk-btn ghost" data-desk-record aria-label="${(globalThis.PlatformLanguage?.htmlText("firstmeasure","ext_desk_record","Record") ?? "Record")}" data-fm-tooltip="${(globalThis.PlatformLanguage?.htmlText("firstmeasure","ext_desk_record_tip","Record with this computer’s camera") ?? "Record with this computer’s camera")}"><i class="fas fa-video" aria-hidden="true"></i><span class="ext-desk-btn-text">${(globalThis.PlatformLanguage?.htmlText("firstmeasure","ext_desk_record","Record") ?? "Record")}</span></button>`:''}<i class="fas fa-circle-info ext-desk-tip" tabindex="0" role="img" aria-label="${tip}" data-fm-tooltip="${tip}"></i>`;
   }
-  function deskHowToUI(){
-    if(captureMode==='photos')return `<h4>${(globalThis.PlatformLanguage?.htmlText("firstmeasure","ext_desk_howto_photos","How to take the eight photos") ?? "How to take the eight photos")}</h4>${orbitScene(true)}<ol class="ext-orbit-steps"><li><span><b>${(globalThis.PlatformLanguage?.htmlText("firstmeasure","m_18eb50539ad3c5","Take all eight angles.") ?? "Take all eight angles.")}</b>${(globalThis.PlatformLanguage?.htmlText("firstmeasure","m_6e5fce959cdaef"," Each side and each corner, with the whole house in the frame.") ?? " Each side and each corner, with the whole house in the frame.")}</span></li><li><span><b>${(globalThis.PlatformLanguage?.htmlText("firstmeasure","ext_photo_step_hard_title","Anything hard to see?") ?? "Anything hard to see?")}</b>${(globalThis.PlatformLanguage?.htmlText("firstmeasure","ext_photo_step_hard_body"," Add extra photos or a video to show any details that are missed or hidden in the eight photos.") ?? " Add extra photos or a video to show any details that are missed or hidden in the eight photos.")}</span></li></ol>`;
-    return `<h4>${(globalThis.PlatformLanguage?.htmlText("firstmeasure","ext_desk_howto_video","How to film the walkaround") ?? "How to film the walkaround")}</h4>${orbitScene()}${ORBIT_STEPS}`;
+  // What is still needed, one chip per structure; a chip also takes dropped files for its structure.
+  function deskChipsUI(){
+    const many=ctx.count>1,video=captureMode==='video',target=deskTarget();
+    const chips=Array.from({length:ctx.count},(_,i)=>{
+      const takes=orbitVideos(i).map(([,f])=>f),done=takes.some(f=>f.media_id&&!f.error),moving=takes.some(f=>f.uploading||f.encoding),failed=takes.some(f=>f.error);
+      const angles=views.filter(v=>files.get(i+':'+v)?.media_id).length;
+      let state,text;
+      if(moving){state='busy';text=many?((v0) => globalThis.PlatformLanguage?.text("firstmeasure","ext_desk_chip_busy_structure",`Structure ${v0} uploading`,{v0}) ?? `Structure ${v0} uploading`)(i+1):(globalThis.PlatformLanguage?.text("firstmeasure","ext_desk_chip_busy","Walkaround uploading") ?? "Walkaround uploading");}
+      else if(failed&&!done){state='failed';text=many?((v0) => globalThis.PlatformLanguage?.text("firstmeasure","ext_desk_chip_failed_structure",`Structure ${v0}: upload failed`,{v0}) ?? `Structure ${v0}: upload failed`)(i+1):(globalThis.PlatformLanguage?.text("firstmeasure","ext_desk_chip_failed","Walkaround upload failed") ?? "Walkaround upload failed");}
+      else if(done||angles===8){state='done';text=many?deskStructureName(i):video||done?(globalThis.PlatformLanguage?.text("firstmeasure","ext_desk_chip_done","Walkaround uploaded") ?? "Walkaround uploaded"):(globalThis.PlatformLanguage?.text("firstmeasure","ext_desk_chip_angles_done","All eight angles") ?? "All eight angles");}
+      else if(!video){state='needed';text=many?((v0,v1) => globalThis.PlatformLanguage?.text("firstmeasure","ext_desk_chip_angles_structure",`Structure ${v0} · ${v1} of 8 angles`,{v0,v1}) ?? `Structure ${v0} · ${v1} of 8 angles`)(i+1,angles):((v0) => globalThis.PlatformLanguage?.text("firstmeasure","ext_desk_chip_angles",`${v0} of 8 angles`,{v0}) ?? `${v0} of 8 angles`)(angles);}
+      else{state='needed';text=many?((v0) => globalThis.PlatformLanguage?.text("firstmeasure","ext_desk_chip_need_structure",`Structure ${v0} needs a walkaround`,{v0}) ?? `Structure ${v0} needs a walkaround`)(i+1):(globalThis.PlatformLanguage?.text("firstmeasure","ext_desk_chip_need","Needs a video walkaround") ?? "Needs a video walkaround");}
+      const icon=state==='done'?'<i class="fas fa-check" aria-hidden="true"></i>':state==='busy'?'<i class="ext-desk-spin" aria-hidden="true"></i>':state==='failed'?'<i class="fas fa-triangle-exclamation" aria-hidden="true"></i>':'<i class="ext-desk-dot" aria-hidden="true"></i>';
+      return `<span class="ext-desk-chip is-${state}${video&&many&&i===target?' is-target':''}" data-desk-drop-structure="${i}">${icon}${esc(text)}</span>`;
+    });
+    const extras=[...files.keys()].filter(k=>k.includes(':additional')).length;
+    if(extras)chips.push(`<span class="ext-desk-chip is-extra" data-desk-drop-extra tabindex="0" data-fm-tooltip="${(globalThis.PlatformLanguage?.htmlText("firstmeasure","m_27b7e868698f63","Add close-ups of anything the video does not show well, like dormers, additions or tight side yards.") ?? "Add close-ups of anything the video does not show well, like dormers, additions or tight side yards.")}"><i class="fas fa-images" aria-hidden="true"></i>${extras===1?(globalThis.PlatformLanguage?.htmlText("firstmeasure","ext_desk_one_closeup","1 close-up") ?? "1 close-up"):((v0) => globalThis.PlatformLanguage?.htmlText("firstmeasure","ext_desk_closeup_count",`${v0} close-ups`,{v0}) ?? `${v0} close-ups`)(extras)}</span>`);
+    return chips.join('');
   }
-  // Ordering stays blocked by an upload error until it is dismissed; the footer names what else is missing.
+  // Ordering is a column of its own, styled like the roof report's: what you're ordering, delivery, total and the button.
   function deskBlocker(){const saved=error;error='';try{return orderBlocker();}finally{error=saved;}}
-  function deskFootUI(){
-    const q=option(),blocker=deskBlocker(),hours=quote?Math.round(quote.estimated_wait_minutes/60):0;
-    const choices=quote?`<div class="ext-desk-options" role="group" aria-label="${(globalThis.PlatformLanguage?.htmlText("firstmeasure","m_b73185deef6d79","Delivery") ?? "Delivery")}">${quote.options.map(o=>`<button type="button" class="ext-desk-opt" data-delivery="${o.key}" aria-pressed="${o.key===delivery}" ${(o.key!=='exteriors_standard'&&closed())||busy?'disabled':''}><span>${esc(deliveryLabel(o))}</span><b>${o.key!=='exteriors_standard'?'+':''}${money(o.key==='exteriors_standard'?o.unit_price:o.fee)}</b></button>`).join('')}</div><span class="ext-desk-busy" tabindex="0" data-fm-tooltip="${esc(deliveryBusyLabel())} · ${(globalThis.PlatformLanguage?.htmlText("firstmeasure","m_484b63459c1357","Estimated wait time right now") ?? "Estimated wait time right now")}"><i class="fas fa-clock" aria-hidden="true"></i><span>${((v2) => globalThis.PlatformLanguage?.htmlText("firstmeasure","m_7b8bab306cc5c2",`${v2} hr estimate`,{v2}) ?? `${v2} hr estimate`)(hours)}</span></span>${closed()?`<span class="ext-desk-closed">${(globalThis.PlatformLanguage?.htmlText("firstmeasure","closed_expedite","Expediting unavailable while closed") ?? "Expediting unavailable while closed")}</span>`:''}`
+  function deskSideUI(){
+    const q=option(),blocker=deskBlocker(),many=ctx.count>1;
+    const structures=many?((v0) => globalThis.PlatformLanguage?.htmlText("firstmeasure","ext_desk_structure_count",`${v0} structures`,{v0}) ?? `${v0} structures`)(ctx.count):(globalThis.PlatformLanguage?.htmlText("firstmeasure","ext_desk_one_structure","1 structure") ?? "1 structure");
+    const summary=`<div class="ext-desk-what"><span class="ext-desk-what-icon" aria-hidden="true">${scopeIcon('full_house')}</span><div class="ext-desk-what-text"><strong>${(globalThis.PlatformLanguage?.htmlText("firstmeasure","ext_full_exterior","Full Exterior") ?? "Full Exterior")}</strong><small>${structures}</small></div></div><p class="ext-desk-includes"><span>${(globalThis.PlatformLanguage?.htmlText("firstmeasure","m_ecc15b597e6d14","Includes") ?? "Includes")}</span>${(globalThis.PlatformLanguage?.htmlText("firstmeasure","m_65d8712cd3229f","Roof, walls, windows,") ?? "Roof, walls, windows,")} ${(globalThis.PlatformLanguage?.htmlText("firstmeasure","m_649ceb7c3b77e9","doors + gutters") ?? "doors + gutters")} <button type="button" class="ext-desk-info" data-details="full_house" aria-label="${(globalThis.PlatformLanguage?.htmlText("firstmeasure","ext_full_exterior_info","Full Exterior report information") ?? "Full Exterior report information")}"><i class="fas fa-circle-info" aria-hidden="true"></i>${(globalThis.PlatformLanguage?.htmlText("firstmeasure","m_76a7f763084e05"," What’s included") ?? " What’s included")}</button></p>`;
+    const choices=quote?`<div class="r-expedite-wait"><div class="r-expedite-default-head"><div class="r-expedite-status"><strong>${esc(deliveryBusyLabel())}</strong><span>${(globalThis.PlatformLanguage?.htmlText("firstmeasure","m_484b63459c1357","Estimated wait time right now") ?? "Estimated wait time right now")}</span></div><div class="r-expedite-eta">${((v2) => globalThis.PlatformLanguage?.htmlText("firstmeasure","m_7b8bab306cc5c2",`${v2} hr estimate`,{v2}) ?? `${v2} hr estimate`)(Math.round(quote.estimated_wait_minutes/60))}</div></div><div class="r-expedite-bar" style="--wait-position:${Math.max(0,Math.min(98,(quote.estimated_wait_minutes/60-18)/6*98))}%"><span class="r-expedite-marker" aria-hidden="true"></span></div><div class="r-expedite-bar-labels"><span>${(globalThis.PlatformLanguage?.htmlText("firstmeasure","m_1d63663ae56e2a","18 hrs") ?? "18 hrs")}</span><span>${(globalThis.PlatformLanguage?.htmlText("firstmeasure","m_e731322b674a97","24 hrs") ?? "24 hrs")}</span></div></div><div class="r-expedite-options" role="group" aria-label="${(globalThis.PlatformLanguage?.htmlText("firstmeasure","m_b73185deef6d79","Delivery") ?? "Delivery")}">${quote.options.map(o=>`<button type="button" class="r-expedite-btn ${o.key==='exteriors_standard'?'r-expedite-default':''} ${o.key===delivery?'selected':''}" data-delivery="${o.key}" aria-pressed="${o.key===delivery}" ${(o.key!=='exteriors_standard'&&closed())||busy?'disabled':''}><span class="r-expedite-copy"><span class="r-expedite-name">${esc(deliveryLabel(o))}</span>${o.key!=='exteriors_standard'?`<span class="r-expedite-pill">${(globalThis.PlatformLanguage?.htmlText("firstmeasure","m_b51f2220e8185c","Expedited") ?? "Expedited")}</span>`:''}</span><span class="r-expedite-price">${o.key!=='exteriors_standard'?'+':''}${money(o.key==='exteriors_standard'?o.unit_price:o.fee)}</span></button>`).join('')}</div>${closed()?`<p class="ext-desk-closed">${(globalThis.PlatformLanguage?.htmlText("firstmeasure","closed_expedite","Expediting unavailable while closed") ?? "Expediting unavailable while closed")}</p>`:''}`
       :quoteError?`<p class="ext-desk-quote" role="alert">${esc(quoteError)} <button type="button" data-reload>${(globalThis.PlatformLanguage?.htmlText("firstmeasure","ext_942087cc2d41e0","Retry") ?? "Retry")}</button></p>`
       :`<p class="ext-desk-quote">${(globalThis.PlatformLanguage?.htmlText("firstmeasure","m_29ee01b139b644","Loading prices…") ?? "Loading prices…")}</p>`;
     const status=blocker||error?`<p class="ext-desk-status is-blocked" role="status"><i class="fas fa-circle-exclamation" aria-hidden="true"></i><span>${esc(blocker||error)}</span></p>`:`<p class="ext-desk-status is-ready" role="status"><i class="fas fa-circle-check" aria-hidden="true"></i><span>${(globalThis.PlatformLanguage?.htmlText("firstmeasure","ext_desk_ready","Everything we need is here.") ?? "Everything we need is here.")}</span></p>`;
-    const per=ctx.count>1?`<span>${((v0) => globalThis.PlatformLanguage?.htmlText("firstmeasure","ext_desk_total_structures",`Total · ${v0} structures`,{v0}) ?? `Total · ${v0} structures`)(ctx.count)}</span>`:`<span>${(globalThis.PlatformLanguage?.htmlText("firstmeasure","m_9403c7637d4905","Total") ?? "Total")}</span>`;
-    return `<div class="ext-desk-delivery"><span class="ext-desk-label">${(globalThis.PlatformLanguage?.htmlText("firstmeasure","m_b73185deef6d79","Delivery") ?? "Delivery")}</span>${choices}</div><div class="ext-desk-submit">${status}<div class="ext-desk-total">${per}<strong>${q?money(q.amount):'—'}</strong></div><button type="button" class="ext-desk-order" data-desk-order ${busy||blocker||error?'disabled':''} data-fm-tooltip="${(globalThis.PlatformLanguage?.htmlText("firstmeasure","ext_8a958b5d470770","Delivery timing starts when your order is submitted.") ?? "Delivery timing starts when your order is submitted.")}">${busy?(globalThis.PlatformLanguage?.htmlText("firstmeasure","ext_desk_ordering","Ordering…") ?? "Ordering…"):(globalThis.PlatformLanguage?.htmlText("firstmeasure","ext_desk_order","Order Full Exterior") ?? "Order Full Exterior")}</button></div>`;
+    const total=`<div class="ext-desk-total"><span>${many?((v0) => globalThis.PlatformLanguage?.htmlText("firstmeasure","ext_desk_total_structures",`Total · ${v0} structures`,{v0}) ?? `Total · ${v0} structures`)(ctx.count):(globalThis.PlatformLanguage?.htmlText("firstmeasure","m_9403c7637d4905","Total") ?? "Total")}</span><strong>${q?money(q.amount):'—'}</strong></div>`;
+    const button=`<button type="button" class="r-btn primary r-report-submit ext-desk-order" data-desk-order ${busy||blocker||error?'disabled':''} data-fm-tooltip="${(globalThis.PlatformLanguage?.htmlText("firstmeasure","ext_8a958b5d470770","Delivery timing starts when your order is submitted.") ?? "Delivery timing starts when your order is submitted.")}">${busy?(globalThis.PlatformLanguage?.htmlText("firstmeasure","ext_desk_ordering","Ordering…") ?? "Ordering…"):(globalThis.PlatformLanguage?.htmlText("firstmeasure","ext_desk_order","Order Full Exterior") ?? "Order Full Exterior")}</button>`;
+    return `${summary}<div class="r-expedite-panel visible ext-desk-pay ${closed()?'is-closed':''}">${choices}${total}${status}${button}</div>`;
   }
   function updateDesk(){
     if(!deskNode||!ctx)return;
@@ -1023,25 +1036,27 @@
     deskNode.classList.toggle('is-photos',!video);deskNode.classList.toggle('is-recording',recordingNow);deskNode.classList.toggle('has-files',list.length>0);deskNode.setAttribute('aria-busy',String(busy));
     deskHTML(deskNode.querySelector('[data-desk-head]'),deskHeadUI());
     deskHTML(deskNode.querySelector('[data-desk-alert]'),error?`<div class="ext-desk-alert" role="alert"><i class="fas fa-circle-exclamation" aria-hidden="true"></i><span>${esc(error)}</span><button type="button" data-desk-dismiss>${(globalThis.PlatformLanguage?.htmlText("firstmeasure","ext_48845bff334a50","Dismiss") ?? "Dismiss")}</button></div>`:'');
-    deskHTML(deskNode.querySelector('[data-desk-needs]'),deskNeedsUI());deskNode.querySelector('[data-desk-needs]').classList.toggle('is-grow',!video);
-    const drop=deskNode.querySelector('[data-desk-drop]');deskHTML(drop,deskDropUI());drop.classList.toggle('is-compact',!video);
+    const guide=deskNode.querySelector('[data-desk-guide]');deskHTML(guide,deskGuideUI());guide.classList.toggle('is-angles',!video);
+    deskHTML(deskNode.querySelector('[data-desk-drop]'),deskDropUI());
+    deskHTML(deskNode.querySelector('[data-desk-chips]'),deskChipsUI());
     if(recordingNow)mountRecorder();else if(recNode&&deskNode.contains(recNode)){stopCamera();recNode.remove();}
     const strip=deskNode.querySelector('[data-desk-list]'),keep=new Set();
-    list.forEach(([key,f],index)=>{let row=deskRows.get(f);if(!row){row=deskRow();deskRows.set(f,row);}keep.add(f);deskFillRow(row,key,f);if(strip.children[index]!==row)strip.insertBefore(row,strip.children[index]||null);});
+    let reveal=null;
+    list.forEach(([key,f],index)=>{let row=deskRows.get(f);const added=!row;if(!row){row=deskRow();deskRows.set(f,row);}keep.add(f);const wasFailed=row.classList.contains('is-failed');deskFillRow(row,key,f);if(strip.children[index]!==row)strip.insertBefore(row,strip.children[index]||null);if(added||(!wasFailed&&row.classList.contains('is-failed')))reveal=row;});
     for(const [f,row] of deskRows)if(!keep.has(f)){row.remove();deskRows.delete(f);}
-    const moving=list.filter(([,f])=>f.uploading||f.encoding).length;
-    deskNode.querySelector('[data-desk-count]').textContent=list.length?(list.length===1?(globalThis.PlatformLanguage?.text("firstmeasure","ext_desk_one_file","1 file") ?? "1 file"):((v0) => globalThis.PlatformLanguage?.text("firstmeasure","ext_desk_file_count",`${v0} files`,{v0}) ?? `${v0} files`)(list.length))+(moving?' · '+((v0) => globalThis.PlatformLanguage?.text("firstmeasure","ext_desk_uploading_count",`${v0} uploading`,{v0}) ?? `${v0} uploading`)(moving):''):'';
-    deskHTML(deskNode.querySelector('[data-desk-howto]'),list.length?'':deskHowToUI());
-    deskHTML(deskNode.querySelector('[data-desk-foot]'),deskFootUI());
+    // A new file, or one that just failed, is scrolled into view inside the list (never the page).
+    if(reveal){const bottom=reveal.offsetTop+reveal.offsetHeight-strip.clientHeight;if(bottom>strip.scrollTop)strip.scrollTop=bottom;else if(reveal.offsetTop<strip.scrollTop)strip.scrollTop=reveal.offsetTop;}
+    deskListEdge(strip);
+    deskHTML(deskNode.querySelector('[data-desk-side]'),deskSideUI());
   }
+  // A long upload list scrolls on its own; an edge fades while more rows sit beyond it.
+  function deskListEdge(strip){if(!strip)return;strip.style.setProperty('--fade-top',strip.scrollTop>2?'20px':'0px');strip.style.setProperty('--fade-bottom',strip.scrollHeight-strip.scrollTop-strip.clientHeight>2?'32px':'0px');}
   function deskClick(e){
     const target=e.target.closest('button');if(!target||!deskNode?.contains(target)||target.disabled)return;const d=target.dataset;
     if('deskPins' in d){confirmedPins=null;ctx.setPinConfirmed?.(false);ctx.locationConfirmed=false;ctx.refresh?.();render();}
     else if(d.deskMode)switchMode(d.deskMode);
     else if('deskPick' in d)deskPick();
     else if('deskRecord' in d){structure=deskTarget();photoSummary=false;videoStage='record';cameraFallback=false;render();}
-    else if(d.deskAdd!=null)deskPick({at:Number(d.deskAdd)},VIDEO_TYPES);
-    else if('deskExtra' in d)deskPick({extra:true});
     else if(d.deskAnglePick)pickGuided(d.deskAnglePick);
     else if(d.deskPill!=null){structure=Number(d.deskPill);render();}
     else if(d.deskRetry)void send(files.get(d.deskRetry));
@@ -1056,8 +1071,9 @@
   async function deskOrder(){if(busy||orderBlocker())return;busy=true;render();try{await ctx.submit();}finally{busy=false;render();}}
   function buildDesk(){
     const node=document.createElement('section');node.className='ext-order ext-desk';node.setAttribute('aria-label',(globalThis.PlatformLanguage?.text("firstmeasure","ext_desk_label","Footage and order") ?? "Footage and order"));
-    node.innerHTML=`<header class="ext-desk-head" data-desk-head data-desk-reveal></header><div data-desk-alert></div><div class="ext-desk-body"><div class="ext-desk-main" data-desk-reveal><div class="ext-desk-needs-slot" data-desk-needs></div><div class="ext-desk-drop" data-desk-drop></div><div class="ext-desk-rec" data-guide-mount></div></div><aside class="ext-desk-files" data-desk-reveal aria-labelledby="extDeskUploads"><header><h3 id="extDeskUploads">${(globalThis.PlatformLanguage?.htmlText("firstmeasure","ext_desk_uploads","Your uploads") ?? "Your uploads")}</h3><span data-desk-count role="status"></span></header><div class="ext-desk-list" data-desk-list role="list"></div><div class="ext-desk-howto" data-desk-howto></div></aside></div><footer class="ext-desk-foot" data-desk-foot data-desk-reveal></footer><div class="ext-desk-dropping" aria-hidden="true"><span><i class="fas fa-cloud-arrow-up"></i>${(globalThis.PlatformLanguage?.htmlText("firstmeasure","ext_desk_drop_to_upload","Drop to upload") ?? "Drop to upload")}</span></div>`;
+    node.innerHTML=`<div class="ext-desk-mid" data-desk-reveal><header class="ext-desk-head" data-desk-head></header><div data-desk-alert></div><div class="ext-desk-guide" data-desk-guide></div><div class="ext-desk-rec" data-guide-mount></div><div class="ext-desk-drop" data-desk-drop></div><div data-desk-chips role="status"></div><div class="ext-desk-list" data-desk-list role="list" aria-label="${(globalThis.PlatformLanguage?.htmlText("firstmeasure","ext_desk_uploads","Your uploads") ?? "Your uploads")}"></div></div><aside class="ext-desk-side" data-desk-side data-desk-reveal></aside><div class="ext-desk-dropping" aria-hidden="true"><span><i class="fas fa-cloud-arrow-up"></i>${(globalThis.PlatformLanguage?.htmlText("firstmeasure","ext_desk_drop_to_upload","Drop to upload") ?? "Drop to upload")}</span></div>`;
     node.addEventListener('click',deskClick);
+    node.querySelector('[data-desk-list]').addEventListener('scroll',e=>deskListEdge(e.currentTarget),{passive:true});
     node.addEventListener('change',e=>{const select=e.target.closest('[data-desk-role]');if(select)deskReassign(select.dataset.deskRole,select.value);});
     node.addEventListener('dragstart',e=>{const row=e.target.closest?.('.ext-desk-file');if(!row||busy)return;e.dataTransfer.setData('application/x-exterior-reference',row.dataset.key);e.dataTransfer.effectAllowed='move';});
     const spotOf=e=>e.target.closest?.('[data-desk-angle],[data-desk-drop-structure],[data-desk-drop-extra]');
@@ -1139,155 +1155,133 @@
     if(key&&!workspaceSuspended&&!document.querySelector('.fm-project-tray-tabs [data-tray][aria-selected="true"]'))document.querySelector(`.fm-project-tray-tabs [data-tray="${key}"]`)?.click();
   }
   P.util.injectCSS('exterior-desk-capture',`
-    .ext-desk{position:absolute;inset:0;z-index:12;margin:0!important;display:flex;flex-direction:column;background:#fff;color:#344054;font-size:13px;line-height:1.45;container:ext-desk/inline-size;overflow:hidden;box-shadow:inset 1px 0 0 #eaecf0}
+    .ext-desk{position:absolute;inset:0;z-index:12;margin:0!important;display:grid;grid-template-columns:minmax(0,1fr) clamp(320px,36%,390px);background:#fff;color:#344054;font-size:13px;line-height:1.45;container:ext-desk/inline-size;overflow:hidden}
     .ext-desk [hidden]{display:none!important}
-    .ext-desk .ext-desk-head{flex:none;display:flex;align-items:flex-start;justify-content:space-between;gap:20px;padding:22px 28px 0}
+    .ext-desk-mid{min-width:0;min-height:0;display:flex;flex-direction:column;gap:16px;padding:24px 28px 20px;container:ext-mid/inline-size}
+    @container ext-mid (max-width:540px){.ext-desk-drop{gap:8px;padding-left:12px}.ext-desk-drop-icon{display:none}.ext-desk .ext-desk-drop .ext-desk-btn{padding:0 11px}.ext-desk .ext-desk-drop [data-desk-record]{width:36px;padding:0;justify-content:center}.ext-desk [data-desk-record] .ext-desk-btn-text{display:none}.ext-desk-drop-label{font-size:12.5px}.ext-desk .ext-desk-mid .ext-desk-guide{grid-template-columns:136px minmax(0,1fr);gap:16px}.ext-desk .ext-desk-mid .ext-desk-film .ext-orbit-world{scale:.82}.ext-desk .ext-desk-mid .ext-desk-link{font-size:12px}.ext-desk .ext-desk-mid .ext-orbit-rec{left:8px;top:8px}.ext-desk .ext-desk-mid .ext-orbit-done{top:auto;right:8px;bottom:8px;white-space:nowrap}}
+    .ext-desk-side{min-width:0;min-height:0;display:flex;flex-direction:column;gap:14px;padding:24px 24px 20px;border-left:1px solid #eaecf0;background:#fcfcfd;overflow:auto;scrollbar-width:thin;container:ext-side/inline-size}
+    @container ext-side (max-width:370px){.ext-desk-side .r-expedite-options{grid-template-columns:minmax(0,1fr)}.ext-desk-side .r-expedite-btn{min-height:52px}.ext-desk-side .r-expedite-copy{flex-direction:row;align-items:center;flex-wrap:wrap;gap:6px}.ext-desk-side .r-expedite-pill{margin:0;align-self:center}.ext-desk-side .r-expedite-status span{display:none}.ext-desk-side .r-expedite-price{font-size:21px}}
+    .ext-desk .ext-desk-head{flex:none;display:flex;align-items:flex-start;gap:16px}
     .ext-desk-title{flex:1;min-width:0}
-    .ext-desk-title .ext-desk-link{margin:4px 0 0 -8px}
     .ext-desk .ext-desk-title h2{margin:0;font-size:21px;line-height:1.25;letter-spacing:-.4px;color:#101828;font-weight:700}
-    .ext-desk .ext-desk-title p{margin:5px 0 0;font-size:13px;line-height:1.5;color:#667085;max-width:70ch}
-    .ext-desk-head-actions{display:flex;align-items:center;gap:6px;flex:none}
-    .ext-desk .ext-desk-link{border:0;background:none;color:#475467;font:inherit;font-size:12.5px;text-decoration:underline;text-underline-offset:3px;padding:6px 8px;cursor:pointer;border-radius:8px}
-    .ext-desk .ext-desk-link:hover{color:#101828}
-    .ext-desk .ext-desk-map{display:inline-flex;align-items:center;gap:7px;height:34px;padding:0 12px;border:1px solid #d0d5dd;border-radius:10px;background:#fff;color:#344054;font:inherit;font-weight:600;cursor:pointer;transition:background .15s,border-color .15s}
+    .ext-desk .ext-desk-title p{margin:4px 0 0;font-size:13px;line-height:1.45;color:#667085}
+    .ext-desk .ext-desk-map{flex:none;display:inline-flex;align-items:center;gap:7px;height:34px;padding:0 12px;border:1px solid #d0d5dd;border-radius:10px;background:#fff;color:#344054;font:inherit;font-weight:600;cursor:pointer;transition:background .15s,border-color .15s}
     .ext-desk .ext-desk-map:hover{background:#f9fafb;border-color:#98a2b3}
-    .ext-desk-alert{margin:14px 28px 0;display:flex;align-items:center;gap:10px;padding:10px 14px;border:1px solid #fecdca;background:#fef3f2;color:#b42318;border-radius:12px;animation:extDeskIn .24s ease-out}
+    .ext-desk .ext-desk-link{border:0;background:none;color:#475467;font:inherit;font-size:12.5px;text-decoration:underline;text-underline-offset:3px;padding:4px 0;cursor:pointer;text-align:left}
+    .ext-desk .ext-desk-link:hover{color:#101828}
+    .ext-desk-alert{flex:none;display:flex;align-items:center;gap:10px;padding:9px 12px;background:#fef3f2;color:#b42318;border-radius:10px;animation:extDeskIn .24s ease-out}
     .ext-desk-alert span{flex:1;min-width:0}
     .ext-desk .ext-desk-alert button{border:0;background:none;color:inherit;font:inherit;font-weight:600;text-decoration:underline;cursor:pointer;padding:4px}
-    .ext-desk-body{flex:1;min-height:0;display:grid;grid-template-columns:minmax(0,1.1fr) minmax(0,1fr);gap:20px;padding:18px 28px}
-    .ext-desk-main{min-height:0;display:flex;flex-direction:column;gap:14px}
-    .ext-desk-needs-slot{flex:none;min-height:0;display:flex;flex-direction:column}.ext-desk-needs-slot.is-grow{flex:1}
+    .ext-desk [data-desk-alert]:empty{display:none}
+    .ext-desk-guide{flex:none;display:grid;grid-template-columns:minmax(150px,36%) minmax(0,1fr);gap:22px;align-items:center}
+    .ext-desk .ext-desk-film .ext-orbit{height:clamp(150px,21vh,210px)}
+    .ext-desk .ext-desk-film .ext-orbit-world{scale:.92}
+    .ext-desk-steps{min-width:0;display:flex;flex-direction:column;gap:6px}
+    .ext-desk .ext-desk-steps .ext-orbit-steps{gap:10px}
+    .ext-desk .ext-desk-steps .ext-orbit-steps li{font-size:13px;line-height:1.45}
+    .ext-desk-guide.is-angles{flex:1 0 230px;min-height:0;display:flex;flex-direction:column;align-items:stretch;gap:10px}
+    .ext-desk.is-photos .ext-desk-list{flex:0 1 auto;min-height:56px}
     .ext-desk-rec{display:none}
-    .ext-desk.is-recording .ext-desk-main>:not(.ext-desk-rec){display:none}
+    .ext-desk.is-recording .ext-desk-guide,.ext-desk.is-recording .ext-desk-drop,.ext-desk.is-recording .ext-desk-list{display:none}
     .ext-desk.is-recording .ext-desk-rec{display:flex;flex-direction:column;flex:1;min-height:0}
     .ext-desk .ext-rec{flex:1;min-height:0;display:grid;grid-template-rows:auto minmax(0,1fr) auto;gap:10px}
     .ext-desk .ext-rec .ext-camera{height:100%;min-height:0}
     .ext-desk .ext-rec .ext-capture-heading h3{font-size:19px}
     .ext-desk .ext-rec .ext-guide-footer{padding:0!important}
-    .ext-desk-needs{flex:1;min-height:0;display:flex;flex-direction:column;gap:8px}
-    .ext-desk .ext-desk-needs h3,.ext-desk .ext-desk-files h3{margin:0;display:flex;align-items:baseline;justify-content:space-between;gap:8px;font-size:11.5px;font-weight:700;letter-spacing:.07em;text-transform:uppercase;color:#667085}
-    .ext-desk .ext-desk-needs h3 span{text-transform:none;letter-spacing:0;font-size:12px;font-weight:600;color:var(--primary-readable,var(--primary,#d93025))}
-    .ext-desk-need{display:grid;grid-template-columns:34px minmax(0,1fr) auto;align-items:center;gap:12px;padding:10px 10px 10px 12px;border:1px solid #e4e7ec;border-radius:14px;background:#fff;transition:border-color .2s,box-shadow .2s,background .2s}
-    .ext-desk-dot{width:34px;height:34px;border-radius:50%;display:grid;place-items:center;font-size:13px;background:#f2f4f7;color:#667085}
-    .ext-desk-need.is-needed .ext-desk-dot{background:color-mix(in srgb,var(--primary,#d93025) 10%,white);color:var(--primary-readable,var(--primary,#d93025))}
-    .ext-desk-need.is-busy .ext-desk-dot{color:var(--primary-readable,var(--primary,#d93025))}
-    .ext-desk-need.is-done{border-color:#abefc6;background:#f6fef9}.ext-desk-need.is-done .ext-desk-dot{background:#dcfae6;color:#067647}
-    .ext-desk-need.is-failed{border-color:#fecdca;background:#fffbfa}.ext-desk-need.is-failed .ext-desk-dot{background:#fee4e2;color:#b42318}
-    .ext-desk-need-text{min-width:0}
-    .ext-desk-need strong{display:flex;align-items:center;gap:6px;font-size:14px;font-weight:600;color:#101828;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-    .ext-desk-need small{display:block;margin-top:1px;font-size:12px;color:#667085;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-    .ext-desk-need.is-needed small{color:var(--primary-readable,var(--primary,#d93025));font-weight:600}
-    .ext-desk-need.is-failed small{color:#b42318}.ext-desk-need.is-done small{color:#067647}
-    .ext-desk-tip{font-size:12px;color:#98a2b3;cursor:help}
-    .ext-desk .ext-desk-add{display:inline-flex;align-items:center;gap:6px;height:32px;padding:0 12px;border:1px solid #d0d5dd;border-radius:9px;background:#fff;color:#344054;font:inherit;font-size:12.5px;font-weight:600;cursor:pointer;transition:background .15s,border-color .15s}
-    .ext-desk .ext-desk-add:hover{background:#f9fafb;border-color:#98a2b3}
-    .ext-desk .is-drop-target{border-color:var(--primary,#d93025)!important;box-shadow:0 0 0 3px color-mix(in srgb,var(--primary,#d93025) 18%,transparent)}
-    .ext-desk-spin{display:inline-block;width:14px;height:14px;border:2px solid currentColor;border-right-color:transparent;border-radius:50%;animation:extPhotoUploadSpin .8s linear infinite;vertical-align:-2px}
-    .ext-desk-drop{flex:1;min-height:150px;container:ext-drop/size;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;padding:20px;border:2px dashed color-mix(in srgb,var(--primary,#d93025) 32%,#d0d5dd);border-radius:18px;background:color-mix(in srgb,var(--primary,#d93025) 3%,white);text-align:center;transition:background .2s,border-color .2s}
-    .ext-desk.is-dragging .ext-desk-drop{border-color:var(--primary,#d93025);background:color-mix(in srgb,var(--primary,#d93025) 8%,white)}
-    .ext-desk-drop-icon{width:56px;height:56px;border-radius:50%;display:grid;place-items:center;background:#fff;color:var(--primary-readable,var(--primary,#d93025));font-size:23px;box-shadow:0 1px 3px #1018281a,0 0 0 7px color-mix(in srgb,var(--primary,#d93025) 7%,transparent);transition:transform .25s cubic-bezier(.22,1,.36,1)}
-    .ext-desk.is-dragging .ext-desk-drop-icon{transform:translateY(-4px) scale(1.06)}
-    .ext-desk-drop>strong{font-size:17px;font-weight:650;color:#101828;letter-spacing:-.2px}
-    .ext-desk-drop-actions{display:flex;align-items:center;gap:10px;flex-wrap:wrap;justify-content:center}
-    .ext-desk-or{color:#98a2b3;font-size:12px}
-    .ext-desk .ext-desk-btn{display:inline-flex;align-items:center;gap:8px;height:42px;padding:0 18px;border-radius:11px;font:inherit;font-size:14px;font-weight:650;cursor:pointer;transition:transform .15s,box-shadow .15s,background .15s}
-    .ext-desk .ext-desk-btn.primary{border:0;background:var(--primary,#d93025);color:#fff;box-shadow:0 1px 2px #10182814}
+    .ext-desk-drop{flex:none;display:flex;align-items:center;gap:10px;padding:9px 10px 9px 16px;border:1.5px dashed color-mix(in srgb,var(--primary,#d93025) 35%,#d0d5dd);border-radius:14px;background:color-mix(in srgb,var(--primary,#d93025) 3%,white);transition:background .2s,border-color .2s}
+    .ext-desk.is-dragging .ext-desk-drop{border-color:var(--primary,#d93025);background:color-mix(in srgb,var(--primary,#d93025) 9%,white)}
+    .ext-desk-drop-icon{font-size:18px;color:var(--primary-readable,var(--primary,#d93025));transition:transform .25s cubic-bezier(.22,1,.36,1)}
+    .ext-desk.is-dragging .ext-desk-drop-icon{transform:translateY(-2px) scale(1.12)}
+    .ext-desk-drop-label{flex:1;min-width:0;font-size:13.5px;font-weight:600;line-height:1.3;color:#344054;text-wrap:balance}
+    .ext-desk .ext-desk-btn{flex:none;display:inline-flex;align-items:center;gap:8px;height:36px;padding:0 14px;border-radius:10px;font:inherit;font-size:13px;font-weight:650;cursor:pointer;white-space:nowrap;transition:transform .15s,box-shadow .15s,background .15s}
+    .ext-desk .ext-desk-btn.primary{border:0;background:var(--primary,#d93025);color:#fff}
     .ext-desk .ext-desk-btn.primary:hover{transform:translateY(-1px);box-shadow:0 6px 14px color-mix(in srgb,var(--primary,#d93025) 28%,transparent)}
     .ext-desk .ext-desk-btn.ghost{border:1px solid #d0d5dd;background:#fff;color:#344054}
     .ext-desk .ext-desk-btn.ghost:hover{background:#f9fafb;border-color:#98a2b3}
-    .ext-desk-drop small{display:inline-flex;align-items:center;gap:6px;font-size:12px;color:#667085;cursor:help}
-    .ext-desk-drop small i{color:#98a2b3}
-    .ext-desk-target{font-size:12px;font-weight:600;color:var(--primary-readable,var(--primary,#d93025));background:color-mix(in srgb,var(--primary,#d93025) 8%,white);padding:3px 10px;border-radius:999px}
-    .ext-desk-drop.is-compact{flex:none;min-height:0;container-type:normal;display:grid;grid-template-columns:auto minmax(0,1fr) auto;grid-template-areas:"icon title actions" "icon note actions";align-items:center;gap:2px 14px;padding:12px 16px;text-align:left}
-    .ext-desk-drop.is-compact .ext-desk-drop-icon{grid-area:icon;width:38px;height:38px;font-size:17px;box-shadow:0 1px 3px #1018281a}
-    .ext-desk-drop.is-compact>strong{grid-area:title;font-size:14px}
-    .ext-desk-drop.is-compact .ext-desk-drop-actions{grid-area:actions}
-    .ext-desk-drop.is-compact small{grid-area:note;justify-self:start;white-space:nowrap}
-    .ext-desk-drop.is-compact .ext-desk-btn{height:36px;padding:0 14px;font-size:13px}
-    .ext-desk-drop .ext-desk-link{margin-top:4px}
-    @container ext-drop (max-height:250px){.ext-desk-drop:not(.is-compact){gap:8px}.ext-desk-drop-icon{width:42px;height:42px;font-size:18px}.ext-desk-drop>strong{font-size:15px}.ext-desk-drop .ext-desk-link{margin-top:0;padding-top:2px;padding-bottom:2px}}
-    @container ext-drop (max-height:178px){.ext-desk-drop:not(.is-compact) .ext-desk-drop-icon{display:none}}
-    @container ext-drop (max-height:136px){.ext-desk-drop:not(.is-compact) small{display:none}}
-    .ext-desk-edge{position:absolute;top:0;bottom:0;left:-28px;width:28px;z-index:13;pointer-events:none;background:linear-gradient(to left,rgba(16,24,40,.16),rgba(16,24,40,0))}
-    .ext-desk-files{min-height:0;display:flex;flex-direction:column;border:1px solid #e4e7ec;border-radius:18px;background:#fcfcfd;overflow:hidden}
-    .ext-desk-files>header{flex:none;display:flex;align-items:center;gap:10px;padding:14px 16px 12px;border-bottom:1px solid #eaecf0;background:#fff}
-    .ext-desk-files>header span{margin-left:auto;font-size:12px;color:#667085}
-    .ext-desk-list{flex:1;min-height:0;overflow:auto;padding:10px;display:flex;flex-direction:column;gap:8px;scrollbar-width:thin;overscroll-behavior:contain}
-    .ext-desk:not(.has-files) .ext-desk-list,.ext-desk.has-files .ext-desk-howto{display:none}
-    .ext-desk-howto{flex:1;min-height:0;display:flex;flex-direction:column;gap:12px;padding:16px 18px;overflow:auto}
-    .ext-desk .ext-desk-howto h4{margin:0;font-size:14px;font-weight:650;color:#101828}
-    .ext-desk .ext-desk-howto .ext-orbit{height:clamp(96px,16vh,170px);flex:none}
-    .ext-desk .ext-desk-howto .ext-orbit-steps{gap:8px}
-    .ext-desk .ext-desk-howto .ext-orbit-steps li{font-size:12.5px;line-height:1.45}
-    .ext-desk-file{position:relative;flex:none;display:grid;grid-template-columns:72px minmax(0,1fr) auto;align-items:center;gap:12px;padding:8px;border:1px solid #eaecf0;border-radius:14px;background:#fff;overflow:hidden;cursor:grab;transition:border-color .2s,background .2s}
+    .ext-desk-tip{flex:none;font-size:14px;color:#98a2b3;cursor:help;padding:4px}
+    .ext-desk [data-desk-chips]{flex:none;display:flex;flex-wrap:wrap;gap:6px}
+    .ext-desk [data-desk-chips]:empty{display:none}
+    .ext-desk-chip{display:inline-flex;align-items:center;gap:6px;height:26px;padding:0 10px;border-radius:999px;font-size:12px;font-weight:600;background:#f2f4f7;color:#475467;transition:box-shadow .15s,background .15s}
+    .ext-desk-chip.is-done{background:#ecfdf3;color:#067647}
+    .ext-desk-chip.is-needed{background:color-mix(in srgb,var(--primary,#d93025) 8%,white);color:var(--primary-readable,var(--primary,#d93025))}
+    .ext-desk-chip.is-failed{background:#fef3f2;color:#b42318}
+    .ext-desk-chip.is-target{box-shadow:inset 0 0 0 1.5px currentColor}
+    .ext-desk-chip.is-extra{cursor:help}
+    .ext-desk-chip i{font-size:11px}
+    .ext-desk-dot{display:inline-block;width:6px;height:6px;border-radius:50%;background:currentColor}
+    .ext-desk-chip .ext-desk-spin{width:11px;height:11px}
+    .ext-desk .is-drop-target{box-shadow:0 0 0 3px color-mix(in srgb,var(--primary,#d93025) 22%,transparent)!important}
+    .ext-desk-spin{display:inline-block;width:14px;height:14px;border:2px solid currentColor;border-right-color:transparent;border-radius:50%;animation:extPhotoUploadSpin .8s linear infinite;vertical-align:-2px}
+    .ext-desk-list{position:relative;flex:1;min-height:0;overflow:auto;display:flex;flex-direction:column;gap:2px;margin:-6px -8px 0;padding:2px 8px 0;scrollbar-width:thin;overscroll-behavior:contain}
+    .ext-desk-list{-webkit-mask-image:linear-gradient(to bottom,transparent,#000 var(--fade-top,0px),#000 calc(100% - var(--fade-bottom,0px)),transparent);mask-image:linear-gradient(to bottom,transparent,#000 var(--fade-top,0px),#000 calc(100% - var(--fade-bottom,0px)),transparent)}
+    .ext-desk-file{position:relative;flex:none;display:grid;grid-template-columns:56px minmax(0,1fr) auto;align-items:center;gap:12px;padding:6px 6px 6px 6px;border-radius:12px;overflow:hidden;cursor:grab;transition:background .15s}
+    .ext-desk-file:hover{background:#f9fafb}
     .ext-desk-file:active{cursor:grabbing}
-    .ext-desk-file.is-failed{border-color:#fecdca;background:#fffbfa}
-    .ext-desk .ext-desk-thumb{position:relative;width:72px;height:54px;padding:0;border:0;border-radius:9px;overflow:hidden;background:#1d2939;cursor:zoom-in}
+    .ext-desk-file.is-failed{background:#fffbfa}
+    .ext-desk .ext-desk-thumb{position:relative;width:56px;height:42px;padding:0;border:0;border-radius:8px;overflow:hidden;background:#1d2939;cursor:zoom-in}
     .ext-desk-thumb img{width:100%;height:100%;object-fit:cover;display:block}
-    .ext-desk-play{position:absolute;left:4px;bottom:4px;display:flex;align-items:center;gap:4px;padding:1px 6px;border-radius:999px;background:#101828cc;color:#fff;font-size:10px;font-weight:700;line-height:1.5}.ext-desk-play i{font-size:7px}
-    .ext-desk-file-info{min-width:0;display:flex;flex-direction:column;align-items:flex-start;gap:6px}
-    .ext-desk-file-top{width:100%;min-width:0;display:flex;align-items:baseline;gap:10px}
-    .ext-desk-file-top strong{flex:1;min-width:0;font-size:13px;font-weight:600;color:#101828;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-    .ext-desk-file-top>span{flex:none;max-width:58%;font-size:12px;color:#667085;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-variant-numeric:tabular-nums}
+    .ext-desk-play{position:absolute;left:3px;bottom:3px;display:flex;align-items:center;gap:3px;padding:0 5px;border-radius:999px;background:#101828cc;color:#fff;font-size:9px;font-weight:700;line-height:1.6}.ext-desk-play i{font-size:6px}
+    .ext-desk-file-info{min-width:0;display:flex;align-items:center;gap:12px}
+    .ext-desk-file-top{flex:1;min-width:0;display:flex;flex-direction:column;gap:1px}
+    .ext-desk-file-top strong{min-width:0;font-size:13px;font-weight:600;color:#101828;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+    .ext-desk-file-top>span{min-width:0;font-size:12px;color:#667085;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-variant-numeric:tabular-nums}
     .ext-desk-file.is-done .ext-desk-file-top>span{color:#067647}.ext-desk-file.is-done .ext-desk-file-top>span::before{content:'✓ ';font-weight:700}
     .ext-desk-file.is-failed .ext-desk-file-top>span{color:#b42318;font-weight:600}
-    .ext-desk-file-error{font-size:12px;line-height:1.35;color:#b42318;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
-    .ext-desk-file-info select{field-sizing:content;max-width:100%;height:28px;padding:0 6px;border:1px solid #d0d5dd;border-radius:8px;background:#fff;color:#344054;font:inherit;font-size:12px;cursor:pointer}
+    .ext-desk-file-info select{flex:none;field-sizing:content;max-width:58%;height:30px;padding:0 6px;border:1px solid #e4e7ec;border-radius:8px;background:#fff;color:#344054;font:inherit;font-size:12px;cursor:pointer}
     .ext-desk-file-info select.needs-choice{border-color:#fdb022;background:#fffaeb;color:#93370d;font-weight:600}
+    .ext-desk-file-error{grid-column:2/-1;font-size:12px;line-height:1.35;color:#b42318;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
     .ext-desk-sr{position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap}
-    .ext-desk-file-actions{display:flex;gap:2px}
-    .ext-desk .ext-desk-iconbtn{width:32px;height:32px;border:0;border-radius:8px;background:none;color:#667085;font:inherit;font-size:18px;line-height:1;display:grid;place-items:center;cursor:pointer;transition:background .15s,color .15s}
-    .ext-desk .ext-desk-iconbtn i{font-size:13px}
+    .ext-desk-file-actions{display:flex;gap:0}
+    .ext-desk .ext-desk-iconbtn{width:30px;height:30px;border:0;border-radius:8px;background:none;color:#98a2b3;font:inherit;font-size:18px;line-height:1;display:grid;place-items:center;cursor:pointer;transition:background .15s,color .15s}
+    .ext-desk .ext-desk-iconbtn i{font-size:12px}
     .ext-desk .ext-desk-iconbtn:hover{background:#f2f4f7;color:#101828}
-    .ext-desk-bar{position:absolute;left:0;right:0;bottom:0;height:3px;background:#f2f4f7;overflow:hidden}
+    .ext-desk-bar{position:absolute;left:68px;right:6px;bottom:2px;height:3px;border-radius:3px;background:#eaecf0;overflow:hidden}
     .ext-desk-bar i{display:block;height:100%;width:0;background:var(--primary,#d93025);transition:width .3s ease}
     .ext-desk-bar.is-indeterminate i{width:30%!important;animation:extDeskIndeterminate 1.1s ease-in-out infinite}
+    .ext-desk-pills{display:flex;gap:6px;flex-wrap:wrap}
+    .ext-desk-grid{flex:1;min-height:0;width:100%;max-width:620px;align-self:center;display:grid;grid-template-columns:repeat(3,minmax(0,1fr));grid-template-rows:repeat(3,minmax(52px,1fr));gap:8px}
     .ext-desk-cell{position:relative;min-height:0;border:1.5px dashed #d0d5dd;border-radius:12px;background:#f9fafb;overflow:hidden;transition:border-color .15s,box-shadow .15s}
     .ext-desk-cell.has-file{border-style:solid;border-color:#e4e7ec}.ext-desk-cell.is-done{border-color:#75e0a7}.ext-desk-cell.is-failed{border-color:#fda29b}
-    .ext-desk .ext-desk-cell-add{position:absolute;inset:0;width:100%;border:0;background:none;color:var(--primary-readable,var(--primary,#d93025));font:inherit;font-size:22px;cursor:pointer;display:grid;place-items:center;padding:0 0 18px}
+    .ext-desk .ext-desk-cell-add{position:absolute;inset:0;width:100%;border:0;background:none;color:var(--primary-readable,var(--primary,#d93025));font:inherit;font-size:20px;cursor:pointer;display:grid;place-items:center;padding:0 0 16px}
     .ext-desk .ext-desk-cell-add:hover{background:color-mix(in srgb,var(--primary,#d93025) 5%,white)}
     .ext-desk .ext-desk-cell-thumb{position:absolute;inset:0;border:0;padding:0;cursor:zoom-in;background:#1d2939}
     .ext-desk-cell-thumb img{width:100%;height:100%;object-fit:cover;display:block}
     .ext-desk-cell-label{position:absolute;left:0;right:0;bottom:0;padding:3px 6px;font-size:11px;font-weight:600;text-align:center;color:#475467;pointer-events:none;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
     .ext-desk-cell.has-file .ext-desk-cell-label{background:#101828b8;color:#fff}
     .ext-desk .ext-desk-cell-remove{position:absolute;top:4px;right:4px;width:24px;height:24px;border:0;border-radius:50%;background:#fff;color:#344054;font:inherit;font-size:16px;line-height:1;cursor:pointer;box-shadow:0 1px 3px #0003;display:grid;place-items:center;padding:0}
-    .ext-desk-grid{flex:1;min-height:0;display:grid;grid-template-columns:repeat(3,minmax(0,1fr));grid-template-rows:repeat(3,minmax(60px,1fr));gap:8px}
-    .ext-desk-house{display:grid;place-items:center;overflow:hidden;min-height:0}.ext-desk-house .ext-model-scene{scale:.6}
-    .ext-desk-pills{display:flex;gap:6px;flex-wrap:wrap}
-    .ext-desk .ext-desk-risk{margin:0;display:flex;gap:8px;align-items:center;font-size:12px;color:#93370d;cursor:help;width:max-content;max-width:100%}
-    .ext-desk-foot{flex:none;display:flex;flex-direction:column;gap:14px;padding:16px 28px 20px;border-top:1px solid #eaecf0;background:#fff}
-    .ext-desk-delivery{display:flex;align-items:center;gap:8px 10px;flex-wrap:wrap;min-height:44px}
-    .ext-desk-label{font-size:14px;font-weight:700;color:#101828;margin-right:6px}
-    .ext-desk-options{display:flex;gap:8px;flex-wrap:wrap}
-    .ext-desk .ext-desk-opt{display:inline-flex;align-items:center;gap:12px;height:44px;padding:0 14px;border:1px solid #d0d5dd;border-radius:12px;background:#fff;color:#344054;font:inherit;font-size:13px;cursor:pointer;white-space:nowrap;transition:border-color .15s,background .15s,box-shadow .15s}
-    .ext-desk .ext-desk-opt:hover:not(:disabled){border-color:#98a2b3}
-    .ext-desk-opt b{font-weight:700;color:#101828}
-    .ext-desk .ext-desk-opt[aria-pressed=true]{border-color:var(--primary,#d93025);background:color-mix(in srgb,var(--primary,#d93025) 6%,white);box-shadow:inset 0 0 0 1px var(--primary,#d93025)}
-    .ext-desk-opt[aria-pressed=true] b{color:var(--primary-readable,var(--primary,#d93025))}
-    .ext-desk-busy{display:inline-flex;align-items:center;gap:6px;font-size:12px;color:#667085;margin-left:auto;cursor:help}
-    .ext-desk-closed{font-size:12px;color:#b54708}
-    .ext-desk .ext-desk-quote{margin:0;font-size:13px;color:#667085}.ext-desk .ext-desk-quote[role=alert]{color:#b42318}
+    .ext-desk-house{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;overflow:hidden;min-height:0;color:var(--primary-readable,var(--primary,#d93025))}.ext-desk-house svg{width:56px;max-width:70%;height:auto;max-height:70%}.ext-desk-house strong{font-size:9px;letter-spacing:.08em}
+    .ext-desk-angles-foot{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}
+    .ext-desk-risk{display:inline-flex;gap:8px;align-items:center;font-size:12px;color:#93370d;cursor:help}
+    .ext-desk-what{display:flex;align-items:center;gap:12px}
+    .ext-desk-what-icon{width:42px;height:42px;flex:none;border-radius:12px;display:grid;place-items:center;background:color-mix(in srgb,var(--primary,#d93025) 9%,white);color:var(--primary-readable,var(--primary,#d93025))}
+    .ext-desk-what-icon .ext-scope-icon{width:20px;height:20px}
+    .ext-desk-what-text{flex:1;min-width:0;display:flex;flex-direction:column}
+    .ext-desk-what-text strong{font-size:16px;font-weight:700;color:#101828;line-height:1.25}
+    .ext-desk-what-text small{font-size:12.5px;color:#667085}
+    .ext-desk .ext-desk-info{border:0;background:none;color:var(--primary-readable,var(--primary,#d93025));font:inherit;font-size:12.5px;font-weight:600;cursor:pointer;display:inline-flex;gap:5px;align-items:center;padding:0 2px;border-radius:6px;white-space:nowrap}
+    .ext-desk .ext-desk-includes{margin:-4px 0 0;font-size:12.5px;line-height:1.45;color:#475467}
+    .ext-desk-includes span{display:block;font-size:11px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:#98a2b3;margin-bottom:1px}
+    .ext-desk-side .ext-desk-pay{flex:none;gap:10px;padding:12px;margin:0}
+    .ext-desk .ext-desk-closed,.ext-desk .ext-desk-quote{margin:0;font-size:12px;color:#667085}.ext-desk .ext-desk-quote[role=alert]{color:#b42318}
     .ext-desk .ext-desk-quote button{border:0;background:none;color:var(--primary,#d93025);font:inherit;font-weight:600;text-decoration:underline;cursor:pointer}
-    .ext-desk .ext-desk-info{border:0;background:none;color:var(--primary-readable,var(--primary,#d93025));font:inherit;font-size:12.5px;font-weight:600;cursor:pointer;display:inline-flex;gap:6px;align-items:center;padding:6px;border-radius:8px}
-    .ext-desk-submit{display:flex;align-items:center;gap:20px}
-    .ext-desk .ext-desk-status{flex:1;min-width:0;margin:0;display:flex;align-items:center;gap:8px;font-size:13px;line-height:1.4}
+    .ext-desk-total{display:flex;align-items:baseline;justify-content:space-between;gap:12px;padding:10px 4px 0;border-top:1px solid rgba(15,23,42,.08)}
+    .ext-desk-total span{font-size:12.5px;font-weight:600;color:#475467}
+    .ext-desk-total strong{font-size:24px;font-weight:800;color:#101828;letter-spacing:-.4px}
+    .ext-desk .ext-desk-status{margin:0;display:flex;align-items:flex-start;gap:8px;padding:0 4px;font-size:12.5px;line-height:1.4}
+    .ext-desk .ext-desk-status i{margin-top:2px}
     .ext-desk .ext-desk-status.is-blocked{color:#b54708}.ext-desk .ext-desk-status.is-ready{color:#067647;font-weight:600}
-    .ext-desk-total{display:flex;flex-direction:column;align-items:flex-end;line-height:1.15;flex:none}
-    .ext-desk-total span{font-size:12px;color:#667085}
-    .ext-desk-total strong{font-size:22px;font-weight:700;color:#101828;letter-spacing:-.4px}
-    .ext-desk .ext-desk-order{flex:none;height:48px;padding:0 26px;border:0;border-radius:12px;background:var(--primary,#d93025);color:#fff;font:inherit;font-size:15px;font-weight:700;cursor:pointer;white-space:nowrap;transition:transform .15s,box-shadow .15s,opacity .2s}
-    .ext-desk .ext-desk-order:not(:disabled):hover{transform:translateY(-1px);box-shadow:0 6px 16px color-mix(in srgb,var(--primary,#d93025) 30%,transparent)}
-    .ext-desk .ext-desk-order:disabled{opacity:.42}
-    .ext-desk-dropping{position:absolute;inset:8px;border:2px dashed var(--primary,#d93025);border-radius:20px;pointer-events:none;opacity:0;transition:opacity .15s;display:flex;align-items:flex-start;justify-content:center;padding-top:10px;z-index:20}
+    .ext-desk .ext-desk-order{flex:none;min-height:48px;font:inherit;font-size:15px;font-weight:800}
+    .ext-desk-dropping{position:absolute;top:8px;bottom:8px;left:8px;width:calc(100% - clamp(320px,36%,390px) - 16px);border:2px dashed var(--primary,#d93025);border-radius:18px;pointer-events:none;opacity:0;transition:opacity .15s;display:flex;align-items:flex-start;justify-content:center;padding-top:10px;z-index:20}
     .ext-desk-dropping span{display:inline-flex;align-items:center;gap:8px;padding:7px 14px;border-radius:999px;background:var(--primary,#d93025);color:#fff;font-weight:700;box-shadow:0 6px 18px #10182833}
     .ext-desk.is-dragging .ext-desk-dropping{opacity:1}
+    .ext-desk-edge{position:absolute;top:0;bottom:0;left:-28px;width:28px;z-index:13;pointer-events:none;background:linear-gradient(to left,rgba(16,24,40,.16),rgba(16,24,40,0))}
     .ext-desk button:focus-visible,.ext-desk select:focus-visible,.ext-desk [tabindex]:focus-visible{outline:2px solid var(--primary,#d93025);outline-offset:2px}
     .ext-video-preview img{max-width:100%;max-height:calc(100dvh - 32px);border-radius:12px;background:#000}
     @keyframes extDeskIndeterminate{from{transform:translateX(-100%)}to{transform:translateX(340%)}}
     @keyframes extDeskIn{from{opacity:0;transform:translateY(-4px)}to{opacity:1;transform:none}}
-    @container ext-desk (max-width:900px){.ext-desk .ext-desk-head{padding:18px 20px 0}.ext-desk-body{padding:14px 20px;gap:14px}.ext-desk-foot{padding:14px 20px 16px}.ext-desk-alert{margin:12px 20px 0}.ext-desk .ext-desk-opt{padding:0 10px;gap:8px}.ext-desk-busy>span{display:none}.ext-desk-busy{margin-left:4px}}
-    @container ext-desk (max-width:640px){.ext-desk-body{grid-template-columns:minmax(0,1fr);overflow:auto}.ext-desk-files{min-height:220px}.ext-desk .ext-desk-head{flex-wrap:wrap}.ext-desk-submit{flex-wrap:wrap}.ext-desk-status{flex-basis:100%}}
-    @media(max-height:760px){.ext-desk .ext-desk-head{padding-top:16px}.ext-desk-body{padding-top:12px;padding-bottom:12px}.ext-desk-foot{gap:10px;padding-top:12px;padding-bottom:14px}.ext-desk-need{padding-top:7px;padding-bottom:7px}}
+    @container ext-desk (max-width:900px){.ext-desk-mid{padding:20px 20px 16px;gap:14px}.ext-desk-side{padding:20px 18px 16px}.ext-desk-guide{gap:16px}.ext-desk .ext-desk-steps .ext-orbit-steps li{font-size:12.5px}.ext-desk-drop-label{font-size:13px}}
+    @container ext-desk (max-width:640px){.ext-desk{grid-template-columns:minmax(0,1fr);overflow:auto}.ext-desk-side{border-left:0;border-top:1px solid #eaecf0}.ext-desk-guide{grid-template-columns:minmax(0,1fr)}}
+    @media(max-height:820px){.ext-desk-mid{padding-top:18px;gap:12px}.ext-desk-side{padding-top:18px;gap:12px}.ext-desk .ext-desk-film .ext-orbit{height:150px}}
     @media(prefers-reduced-motion:reduce){.ext-desk *{transition:none!important}.ext-desk-bar.is-indeterminate i{animation:none}.ext-desk-alert{animation:none}}
   `);
   P.ExteriorOrder={active,reset,render,renderPhotos:renderPhotoWorkspace,offersChoice:type=>allowed(type),selectedScope:type=>['commercial','multifamily'].includes(type)?'roof':ctx?.type===type?scope:null,
