@@ -150,7 +150,135 @@
     bankLinkWatch = new MutationObserver((records) => records.forEach((record) => record.addedNodes.forEach(liftBankLink)));
     bankLinkWatch.observe(document.body, { childList: true });
   }
+  // While the bank link is open it stands in for this form: ours is hidden so
+  // the customer sees one window. When it closes, the form waits, locked, until
+  // Forward hands back the linked account and the payment is charged or fails;
+  // closing in between could abandon an ACH payment halfway. GrailPay hides its
+  // window with a class rather than removing it, so visibility is polled; its
+  // own callbacks (wrapped as Forward initializes it) tell a cancel from a link.
+  let grailPayValue;
+  let bankLinkSignal = null;
+  function watchGrailPayCallbacks(){
+    const existing = Object.getOwnPropertyDescriptor(window, 'grailpay');
+    if (existing && (existing.get || !existing.configurable)) return;
+    grailPayValue = wrapGrailPay(window.grailpay);
+    try {
+      Object.defineProperty(window, 'grailpay', {
+        configurable: true,
+        enumerable: true,
+        get: () => grailPayValue,
+        set: (value) => { grailPayValue = wrapGrailPay(value); }
+      });
+    } catch {}
+  }
+  function wrapGrailPay(gp){
+    if (!gp || typeof gp.init !== 'function' || gp.init.fmpiWrapped) return gp;
+    const init = gp.init;
+    const signal = (name, value) => { try { bankLinkSignal?.(name, value); } catch {} };
+    const pass = (fn, name, read) => function(...args){
+      signal(name, read ? read(...args) : '');
+      return typeof fn === 'function' ? fn.apply(this, args) : undefined;
+    };
+    const wrapped = function(options = {}){
+      return init.call(this, {
+        ...options,
+        onLinkedDefaultAccount: pass(options.onLinkedDefaultAccount, 'linked'),
+        onLinkExit: pass(options.onLinkExit, 'exit', (event) => cleanText(event?.status) || 'unknown')
+      });
+    };
+    wrapped.fmpiWrapped = true;
+    try { gp.init = wrapped; } catch {}
+    return gp;
+  }
+  function shownOnPage(node){
+    const style = getComputedStyle(node);
+    return style.display !== 'none' && style.visibility !== 'hidden' && style.opacity !== '0' && node.getClientRects().length > 0;
+  }
+  function bankLinkVisible(){
+    if (!document.body) return false;
+    const overlay = [...document.querySelectorAll('.gp__modal-overlay')].some((node) => !node.classList.contains('gp__modal-overlay--hidden') && shownOnPage(node));
+    return overlay || [...document.querySelectorAll('iframe')].some((node) => {
+      let frameHost = '';
+      try { frameHost = new URL(node.src).hostname; } catch {}
+      return (node.id === 'moneykit-connect-frame' || /(^|\.)moneykit\.com$/i.test(frameHost)) && shownOnPage(node);
+    });
+  }
+  function watchBankLink(ctx){
+    stopBankLinkWatch(ctx);
+    watchGrailPayCallbacks();
+    const link = { open: false, linked: false, exit: '' };
+    ctx.bankLink = link;
+    bankLinkSignal = (name, value) => {
+      if (ctx.bankLink !== link) return;
+      if (name === 'linked') link.linked = true;
+      if (name !== 'exit') return;
+      link.exit = value;
+      if (link.open) bankLinkClosed(ctx);
+      else if (ctx.bankConfirming && value === 'ACTION_ABANDONED' && !link.linked && !ctx.forwardSubmitting) setBankConfirming(ctx, false);
+    };
+    ctx.bankLinkTimer = setInterval(() => {
+      const visible = bankLinkVisible();
+      if (visible && !link.open) {
+        link.open = true;
+        link.linked = false;
+        link.exit = '';
+        setBankLinkOpen(ctx, true);
+      } else if (!visible && link.open) {
+        bankLinkClosed(ctx);
+      }
+    }, 250);
+  }
+  function stopBankLinkWatch(ctx){
+    clearInterval(ctx.bankLinkTimer);
+    ctx.bankLinkTimer = null;
+    if (ctx.bankLink?.open) setBankLinkOpen(ctx, false);
+    ctx.bankLink = null;
+  }
+  function setBankLinkOpen(ctx, open){
+    host(ctx).querySelector('.fmpi-host')?.classList.toggle('fmpi-bank-linking', open);
+  }
+  function bankLinkClosed(ctx){
+    const link = ctx.bankLink;
+    if (!link || !link.open) return;
+    link.open = false;
+    setBankLinkOpen(ctx, false);
+    if (link.exit === 'ACTION_ABANDONED' && !link.linked) return;
+    // Forward is now creating the bank payment method; onSuccess charges it.
+    // If nothing arrives, nothing was charged: give the form back.
+    setBankConfirming(ctx, true, link.linked || link.exit === 'SUCCESS' ? 90000 : 20000);
+  }
+  function setBankConfirming(ctx, confirming, timeoutMs = 0){
+    ctx.bankConfirming = confirming;
+    clearTimeout(ctx.bankConfirmTimer);
+    const modal = host(ctx).querySelector('.fmpi-modal');
+    modal?.querySelector('[data-fmpi-wait]')?.remove();
+    modal?.classList.toggle('fmpi-waiting', !!(confirming && modal));
+    if (confirming && modal) {
+      modal.scrollTop = 0;
+      modal.insertAdjacentHTML('beforeend', `<div class="fmpi-wait" data-fmpi-wait role="status" aria-live="polite"><span class="fmpi-spinner"></span><strong>Confirming your bank payment…</strong><p>This takes a few seconds. Please keep this window open.</p></div>`);
+      ctx.bankConfirmTimer = setTimeout(() => {
+        if (!ctx.bankConfirming || ctx.forwardSubmitting) return;
+        setBankConfirming(ctx, false);
+        setForwardError(ctx, 'The bank account could not be confirmed, and nothing was charged. Choose "Provide bank account details" to try again.');
+      }, timeoutMs);
+    }
+    updateLock(ctx);
+  }
+  // A payment in progress (card being charged, bank account being confirmed)
+  // cannot be closed: no close button, and leaving the page asks first.
+  const lockedPayments = new Set();
+  function updateLock(ctx){
+    const locked = !!(ctx.forwardProcessing || ctx.bankConfirming);
+    host(ctx).querySelector('.fmpi-modal')?.classList.toggle('fmpi-locked', locked);
+    if (locked) lockedPayments.add(ctx); else lockedPayments.delete(ctx);
+  }
+  window.addEventListener('beforeunload', (event) => {
+    if (!lockedPayments.size) return;
+    event.preventDefault();
+    event.returnValue = '';
+  });
   function unmountForwardElement(ctx){
+    stopBankLinkWatch(ctx);
     try { ctx.forwardUnmount?.(); } catch {}
     ctx.forwardUnmount = null;
     ctx.forwardTokenize = null;
@@ -228,6 +356,7 @@
         }
       });
       ctx.forwardUnmount = typeof unmount === 'function' ? unmount : null;
+      if (kind === 'bank') watchBankLink(ctx);
       updateSubmitState(ctx);
     } catch (error) {
       container.dataset.fmpiForwardMounted = '';
@@ -243,6 +372,9 @@
       button.textContent = processing ? 'Processing payment…' : ctx.options.submitLabel;
     }
     host(ctx).querySelector('.fmpi-modal')?.classList.toggle('fmpi-busy', processing);
+    // A failure ends the wait for a bank account too; its message shows in the form.
+    if (!processing && ctx.bankConfirming) setBankConfirming(ctx, false);
+    updateLock(ctx);
   }
   // The token goes to our server, which charges the checkout. A decline
   // keeps the form (and the same checkout) so the customer can try again.
@@ -313,7 +445,7 @@
 .fmpi-pane{display:grid;gap:12px;animation:fmpiFade .22s ease-out both}.fmpi-pane h3,.fmpi-form h3{margin:0;color:var(--fmpi-secondary)}.fmpi-details{display:grid;gap:8px}.fmpi-detail{display:flex;justify-content:space-between;gap:12px;border:1px solid #e4e7ec;border-radius:8px;background:#fff;padding:12px}.fmpi-detail span{color:#667085;font-size:12px;font-weight:900;text-transform:uppercase}.fmpi-detail strong{text-align:right}
 .fmpi-form{display:grid;gap:14px;border:1px solid #e4e7ec;border-radius:8px;background:#fff;padding:14px}.fmpi-fields{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}.fmpi-field{display:grid;gap:6px}.fmpi-field.wide{grid-column:1/-1}.fmpi-field span,.fmpi-check span{color:#667085;font-size:12px;font-weight:900;text-transform:uppercase}.fmpi-field input,.fmpi-field select{width:100%;border:1px solid #d0d5dd;border-radius:7px;background:#fff;color:#111827;padding:10px 11px;font:inherit}.fmpi-field input:focus,.fmpi-field select:focus{outline:0;border-color:rgba(var(--fmpi-primary-rgb),.48);box-shadow:0 0 0 3px rgba(var(--fmpi-primary-rgb),.10)}.fmpi-expiry{display:grid;grid-template-columns:1fr 1fr;gap:8px}.fmpi-check{display:grid;grid-template-columns:auto minmax(0,1fr);gap:8px;align-items:start;color:#475467;font-size:13px;line-height:1.35}.fmpi-check span{text-transform:none;font-weight:700}.fmpi-error{border:1px solid rgba(220,38,38,.24);border-radius:8px;background:#fef2f2;color:#991b1b;padding:10px 12px;font-size:13px;font-weight:800}.fmpi-actions{display:flex;justify-content:flex-end;gap:10px}.fmpi-primary,.fmpi-secondary{border-radius:8px;padding:10px 13px;font-size:13px;font-weight:900;cursor:pointer}.fmpi-primary{border:1px solid var(--fmpi-secondary);background:var(--fmpi-secondary);color:#fff}.fmpi-primary:disabled{opacity:.5;cursor:not-allowed;background:#98a2b3;border-color:#98a2b3}.fmpi-secondary{border:1px solid #d0d5dd;background:#fff;color:#344054}.fmpi-success{text-align:center;padding:30px 0;display:grid;gap:10px;justify-items:center}.fmpi-success svg{width:68px;height:68px;color:#10b981}.fmpi-success circle{fill:rgba(16,185,129,.10);stroke:currentColor;stroke-width:3}.fmpi-success path{fill:none;stroke:currentColor;stroke-width:4;stroke-linecap:round;stroke-linejoin:round}.fmpi-spinner{width:32px;height:32px;border:4px solid rgba(var(--fmpi-primary-rgb),.18);border-top-color:var(--fmpi-primary);border-radius:999px;animation:fmpiSpin .7s linear infinite}
 .fmpi-surcharge{display:flex;justify-content:space-between;gap:12px;border:1px solid rgba(var(--fmpi-primary-rgb),.18);border-radius:8px;background:rgba(var(--fmpi-primary-rgb),.04);padding:10px 12px;font-size:13px;color:#475467}.fmpi-surcharge strong{color:#111827}.fmpi-surcharge small{display:block;color:#667085;font-size:11px;margin-top:2px}
-.fmpi-provider-element{min-height:44px}.fmpi-element-note{display:flex;align-items:center;gap:8px;color:#667085;font-size:13px;padding:10px 0}.fmpi-spinner.small{width:16px;height:16px;border-width:3px}.fmpi-busy .fmpi-side{pointer-events:none;opacity:.75}.fmpi-policy{margin:0;color:#667085;font-size:12px;line-height:1.45}.fmpi-policy strong{color:#475467}.fmpi-secure{display:flex;align-items:center;gap:6px;color:#667085;font-size:12px}.fmpi-notice{border:1px solid #e4e7ec;border-radius:8px;background:#f9fafb;color:#475467;padding:12px;font-size:13px;line-height:1.45}
+.fmpi-provider-element{min-height:44px}.fmpi-element-note{display:flex;align-items:center;gap:8px;color:#667085;font-size:13px;padding:10px 0}.fmpi-spinner.small{width:16px;height:16px;border-width:3px}.fmpi-busy .fmpi-side{pointer-events:none;opacity:.75}.fmpi-modal{position:relative}.fmpi-locked .fmpi-close{visibility:hidden}.fmpi-host.fmpi-bank-linking .fmpi-modal{visibility:hidden}.fmpi-modal.fmpi-waiting{overflow:hidden}.fmpi-wait{position:absolute;inset:0;z-index:3;display:grid;place-content:center;justify-items:center;gap:10px;padding:24px;text-align:center;background:#fff;border-radius:inherit}.fmpi-wait p{margin:0;color:#667085;font-size:14px}.fmpi-policy{margin:0;color:#667085;font-size:12px;line-height:1.45}.fmpi-policy strong{color:#475467}.fmpi-secure{display:flex;align-items:center;gap:6px;color:#667085;font-size:12px}.fmpi-notice{border:1px solid #e4e7ec;border-radius:8px;background:#f9fafb;color:#475467;padding:12px;font-size:13px;line-height:1.45}
 @keyframes fmpiFade{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}@keyframes fmpiSpin{to{transform:rotate(360deg)}}@media(max-width:760px){.fmpi-grid{grid-template-columns:1fr}.fmpi-fields{grid-template-columns:1fr}.fmpi-modal{width:100%;padding:18px}#rOverlay .mn-mobile-payment-intake-view .fmpi-modal{padding:14px 12px;gap:12px}#rOverlay .mn-mobile-payment-intake-view .fmpi-head{gap:8px}#rOverlay .mn-mobile-payment-intake-view .fmpi-head strong{font-size:18px}#rOverlay .mn-mobile-payment-intake-view .fmpi-head span{margin-top:2px;font-size:12px}#rOverlay .mn-mobile-payment-intake-view .fmpi-grid{gap:12px}#rOverlay .mn-mobile-payment-intake-view .fmpi-main,#rOverlay .mn-mobile-payment-intake-view .fmpi-side{gap:10px}#rOverlay .mn-mobile-payment-intake-view .fmpi-amount{padding:12px;border-radius:10px}#rOverlay .mn-mobile-payment-intake-view .fmpi-custom-amount{gap:5px}#rOverlay .mn-mobile-payment-intake-view .fmpi-custom-amount input{padding:10px 11px;font-size:18px}#rOverlay .mn-mobile-payment-intake-view .fmpi-saved,#rOverlay .mn-mobile-payment-intake-view .fmpi-methods{grid-template-columns:repeat(2,minmax(0,1fr));gap:7px}#rOverlay .mn-mobile-payment-intake-view .fmpi-saved>.fmpi-label{grid-column:1/-1}#rOverlay .mn-mobile-payment-intake-view .fmpi-saved-method,#rOverlay .mn-mobile-payment-intake-view .fmpi-method{min-width:0;min-height:66px;padding:8px;gap:7px;border-radius:10px}#rOverlay .mn-mobile-payment-intake-view .fmpi-saved-method>span,#rOverlay .mn-mobile-payment-intake-view .fmpi-method>span{min-width:0}#rOverlay .mn-mobile-payment-intake-view .fmpi-saved-method strong,#rOverlay .mn-mobile-payment-intake-view .fmpi-method strong{display:block;font-size:11px;line-height:1.2}#rOverlay .mn-mobile-payment-intake-view .fmpi-saved-method small,#rOverlay .mn-mobile-payment-intake-view .fmpi-method small{font-size:10px;line-height:1.2}#rOverlay .mn-mobile-payment-intake-view .fmpi-icon{width:28px;height:28px;border-radius:7px}#rOverlay .mn-mobile-payment-intake-view .fmpi-form{padding:12px;gap:10px}#rOverlay .mn-mobile-payment-intake-view .fmpi-form h3{font-size:16px}.fmpi-actions .fmpi-primary{min-height:40px}}
 `;
     document.head.appendChild(style);
@@ -478,6 +610,9 @@
     const opts = ctx.options;
     // Replacing the markup removes Forward's iframe; it is mounted again below.
     unmountForwardElement(ctx);
+    clearTimeout(ctx.bankConfirmTimer);
+    ctx.bankConfirming = false;
+    lockedPayments.delete(ctx);
     const style = `--fmpi-primary:${opts.primaryColor};--fmpi-primary-rgb:${opts.primaryRgb};--fmpi-secondary:${opts.secondaryColor};`;
     const closeButton = ctx.inline ? '' : ("<button type=\"button\" class=\"fmpi-close\" data-fmpi-close aria-label=\"" + (globalThis.PlatformLanguage?.text("payment-intake","m_3742924668fb10","Close") ?? "Close") + "\">x</button>");
     const checkoutHtml = opts.detailsOnly ? `<div class="fmpi-details-only">${formHtml(ctx)}</div>` : `<div class="fmpi-grid"><div class="fmpi-main">${amountHtml(ctx)}${surchargeHtml(ctx)}${savedHtml(ctx)}${methodHtml(ctx)}</div><aside class="fmpi-side">${formHtml(ctx)}</aside></div>`;
@@ -686,7 +821,10 @@
   }
   function bind(ctx){
     const hostNode = host(ctx);
-    hostNode.querySelectorAll('[data-fmpi-close]').forEach((btn) => btn.addEventListener('click', () => close(ctx)));
+    hostNode.querySelectorAll('[data-fmpi-close]').forEach((btn) => btn.addEventListener('click', () => {
+      if (ctx.forwardProcessing || ctx.bankConfirming) return;
+      close(ctx);
+    }));
     hostNode.querySelectorAll('[data-fmpi-method]').forEach((btn) => btn.addEventListener('click', () => {
       if (ctx.forwardProcessing) return;
       ctx.method = cleanText(btn.dataset.fmpiMethod);
@@ -841,7 +979,11 @@
     };
   }
   function close(ctx = state.active){
-    if (ctx) unmountForwardElement(ctx);
+    if (ctx) {
+      unmountForwardElement(ctx);
+      clearTimeout(ctx.bankConfirmTimer);
+      lockedPayments.delete(ctx);
+    }
     host(ctx).innerHTML = '';
     if (!ctx || state.active === ctx) state.active = null;
   }

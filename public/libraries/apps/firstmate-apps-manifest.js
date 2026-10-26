@@ -50,7 +50,7 @@
     versionedBundle('../crew-api/crew-api.js', '20261019-forward-cert'),
     versionedBundle('../field-visit/field-visit.js', '20260803-compact-arrival-v13'),
     versionedBundle('../doc-model/firstmate-doc-model.js', '20261022-as-sent-inputs'),
-    versionedBundle('../payment-intake/payment-intake.js', '20261026-forward-no-secure-line'),
+    versionedBundle('../payment-intake/payment-intake.js', '20261026-ach-link-wait'),
     // Same version string as crewBundles so the runtime's URL dedupe keeps a
     // single load; the field checkout resolves provider tokenization here.
     versionedBundle('../payments-api/payments-api.js', '20261019-forward-cert'),
@@ -79,7 +79,7 @@
   ];
 
   const apps = [
-    {id:'portal.partners',package:'partners',title:'Partners',terminologyKey:'partners.partners',kind:'portal_tab',surfaces:['portal_tab'],portalTabId:'partners',bundles:[versionedBundle('../payment-intake/payment-intake.js','20261026-forward-no-secure-line'),versionedBundle('../doc-widgets/firstmate-doc-widgets.js','20261026-sign-own-choices'),versionedBundle('partners/share-dialog.js','20261001-sharing-polish-v1'),versionedBundle('partners/app.js','20261019-forward-cert')]},
+    {id:'portal.partners',package:'partners',title:'Partners',terminologyKey:'partners.partners',kind:'portal_tab',surfaces:['portal_tab'],portalTabId:'partners',bundles:[versionedBundle('../payment-intake/payment-intake.js','20261026-ach-link-wait'),versionedBundle('../doc-widgets/firstmate-doc-widgets.js','20261026-sign-own-choices'),versionedBundle('partners/share-dialog.js','20261001-sharing-polish-v1'),versionedBundle('partners/app.js','20261019-forward-cert')]},
     {
       id: 'portal.viewer',
       package: 'projects',

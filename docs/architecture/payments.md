@@ -103,6 +103,17 @@ Outcomes:
   GrailPay and MoneyKit, which add their windows to the page at z-index
   999999; `payment-intake.js` lifts them above FirstMate's windows while a bank
   element is mounted, or the bank link opens hidden behind the project window.
+  While the bank link is open our form is hidden, so the customer sees one
+  window. When it closes, Forward still needs a few seconds to create the bank
+  payment method, so the form shows a locked "Confirming your bank payment"
+  state (no close button; leaving the page asks first) until the payment is
+  recorded or fails. A cancelled link (GrailPay's `ACTION_ABANDONED`, read by
+  wrapping `grailpay.init` as Forward calls it) returns to the form at once; if
+  no account arrives, the form comes back after a timeout saying nothing was
+  charged. A card charge in progress is locked the same way.
+- **Forward's "Provide bank account details" button** is inside Forward's
+  iframe and has no pointer cursor; no style option reaches it, so that is
+  Forward's to fix.
 - **Declined** (Forward answers 200 with `status: failed` and
   `decline_category_text`) → nothing is recorded; the customer sees Forward's
   reason; the checkout stays open for another card (next attempt, new key).
