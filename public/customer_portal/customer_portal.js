@@ -676,7 +676,8 @@
   }
   // The organization can take online payments right now (server answer).
   function onlinePaymentsAvailable(){
-    return activeProjectPayload()?.online_payments !== false;
+    // The flag rides on the top-level payload; project bundles do not repeat it.
+    return (activeProjectPayload()?.online_payments ?? state.payload?.online_payments) !== false;
   }
   async function openDocumentPayment(token, options = {}){
     if (blockPreviewAction('payment')) return false;
@@ -1481,6 +1482,13 @@
       // no extra fetches.
       views: portalWidgetViews(payload),
       openTab: (tabId) => setActiveTab(cleanText(tabId)),
+      // Opens a next step where it is resolved: its document, on the Pay task for a payment.
+      openStep: (step) => {
+        const token = cleanText(step?.document_token);
+        if (token) state.activeDocumentToken = token;
+        if (token && step?.pay === true) state.pendingDocumentTaskFocus = 'fa-credit-card';
+        setActiveTab(cleanText(step?.tab) || 'summary');
+      },
       refreshPayload: () => refreshPortalPayload()
     };
   }
@@ -1509,7 +1517,9 @@
         detail: cleanText(step.detail),
         complete: step.complete === true,
         disabled: step.disabled === true,
-        tab: cleanText(step.tab)
+        tab: cleanText(step.tab),
+        document_token: cleanText(step.documentToken),
+        pay: step.pay === true
       })),
       appointments: {
         next: upcoming[0] || null,
@@ -2896,6 +2906,27 @@
       documentToken: token
     };
   }
+  // A payment still due on a document. The server prices it the way the
+  // document's Pay button charges; when the organization cannot take online
+  // payments the step only tells the customer what is due and whom to pay.
+  function paymentStep(doc, orgName){
+    const token = cleanText(doc?.public_token);
+    const due = doc?.payment_due && typeof doc.payment_due === 'object' ? doc.payment_due : null;
+    const amountCents = Math.max(0, Math.round(Number(due?.amount_cents) || 0));
+    if (!token || !amountCents) return null;
+    const amount = `${moneyFormat(amountCents / 100)} due`;
+    const online = onlinePaymentsAvailable() && state.payload?.access?.can_pay !== false;
+    return {
+      id: `payment:${cleanText(doc?.id) || token}`,
+      label: 'Make payment',
+      detail: online ? amount : `${amount} · ${orgName ? `Contact ${orgName} to pay` : 'Contact the company to pay'}`,
+      complete: false,
+      disabled: !online,
+      tab: online ? documentTabId(doc) : '',
+      documentToken: online ? token : '',
+      pay: online
+    };
+  }
   function overviewSteps(payload, orgName){
     const appointment = portalAppointment(payload);
     const steps = [{
@@ -2905,7 +2936,7 @@
       complete: appointmentComplete(appointment),
       tab: 'schedule'
     }];
-    const documentSteps = documentList(payload).map(documentStep).filter(Boolean);
+    const documentSteps = documentList(payload).flatMap((doc) => [documentStep(doc), paymentStep(doc, orgName)]).filter(Boolean);
     if (!documentSteps.length) {
       steps.push({
         id: 'clear',
@@ -2939,7 +2970,7 @@
         </div>
         <div class="cp-step-list">
           ${steps.map((step) => `
-            <button type="button" class="cp-step ${step.complete ? 'complete' : ''} ${step.id === firstOpen ? 'current' : ''}" data-step-id="${escapeHtml(step.id)}" data-step-target="${escapeHtml(step.tab || '')}" data-step-document="${escapeHtml(step.documentToken || '')}" ${step.disabled ? 'disabled' : ''}>
+            <button type="button" class="cp-step ${step.complete ? 'complete' : ''} ${step.id === firstOpen ? 'current' : ''}" data-step-id="${escapeHtml(step.id)}" data-step-target="${escapeHtml(step.tab || '')}" data-step-document="${escapeHtml(step.documentToken || '')}"${step.pay ? ' data-step-pay="1"' : ''} ${step.disabled ? 'disabled' : ''}>
               <span class="cp-step-indicator" aria-hidden="true"></span>
               <span class="cp-step-copy">
                 <strong>${escapeHtml(step.label)}</strong>
@@ -3486,6 +3517,8 @@
       btn.addEventListener('click', () => {
         const documentToken = cleanText(btn.dataset.stepDocument);
         if (documentToken) state.activeDocumentToken = documentToken;
+        // A payment step opens the document on its Pay task, like the Payments tab.
+        if (documentToken && btn.dataset.stepPay) state.pendingDocumentTaskFocus = 'fa-credit-card';
         setActiveTab(btn.dataset.stepTarget || 'summary');
         track('workflow_step_opened', { step: btn.textContent.trim().replace(/\s+/g, ' ') });
       });

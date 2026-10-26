@@ -740,7 +740,9 @@
       if (cleanText(step.detail)) copy.appendChild(h("small", null, cleanText(step.detail)));
       row.appendChild(copy);
       // Steps deep-link into the tab that actually resolves them.
-      if (cleanText(step.tab) && ctx.portal && typeof ctx.portal.openTab === "function" && ctx.mode === "interactive") {
+      if (cleanText(step.tab) && ctx.portal && typeof ctx.portal.openStep === "function" && ctx.mode === "interactive") {
+        row.addEventListener("click", () => ctx.portal.openStep(step));
+      } else if (cleanText(step.tab) && ctx.portal && typeof ctx.portal.openTab === "function" && ctx.mode === "interactive") {
         row.addEventListener("click", () => ctx.portal.openTab(cleanText(step.tab)));
       } else {
         row.disabled = true;

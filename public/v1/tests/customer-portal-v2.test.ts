@@ -801,3 +801,85 @@ test('public portal sends only public label namespaces in its company language',
  const portal=await portalFor(client,orgId,'terminology_portal');const payload=await client.request('GET',`/v1/platform/customer-portals/${portal.public_uuid}`);
  assert.equal(payload.language.context.locale,'en-US');assert.equal(payload.language.terminology.localized_labels['en-US'].projects.project,'Job');assert.equal(payload.language.terminology.localized_labels['en-GB'],undefined);assert.equal(payload.language.terminology.labels.internal,undefined);assert.equal(payload.language.terminology.localized_labels['en-US'].workforce.worker_singular,'Technician');assert.equal(payload.language.terminology.localized_labels['en-US'].workforce.internal_secret,undefined);
 });
+
+test("portal documents carry the payment still due, priced by the server, until it is paid", async () => {
+  const client = createSessionClient();
+  const { orgId } = await registerOrg(client);
+  await seedProject(orgId, "proj_payment_due");
+  const portal = await portalFor(client, orgId, "proj_payment_due");
+  const { upsertDocument } = await import("../platform/storage.js");
+  const document = (id: string, outputs: Json) => ({
+    id,
+    data: {
+      project_id: "proj_payment_due",
+      document_type: "proposal",
+      title: `Proposal ${id}`,
+      status: "signed",
+      delivery: { public_token: `tok_${id}`, sent_at: "2026-10-20T12:00:00.000Z" },
+      params: { deposit_cents: 626632 },
+      output_defs: { payment: { type: "payment", label: "Deposit" } },
+      outputs
+    },
+    metadata: { kind: "document" }
+  });
+  await upsertDocument(orgId, "documents", document("doc_due", {}), { replace: true });
+  await upsertDocument(orgId, "documents", document("doc_paid", { payment: { amount_cents: 626632, payment_method: "card", value: { payment_id: "pay_1" } } }), { replace: true });
+
+  const payload = await client.request("GET", `/v1/platform/customer-portals/${portal.public_uuid}`);
+  const docs = (payload.resources?.documents || payload.projects?.[0]?.resources?.documents || []) as Json[];
+  const due = docs.find((doc) => doc.id === "doc_due");
+  const paid = docs.find((doc) => doc.id === "doc_paid");
+  assert.ok(due && paid, "both documents reach the portal");
+  assert.deepEqual(due.payment_due, { output_key: "payment", label: "Deposit", amount_cents: 626632 }, "the deposit the Pay button would charge");
+  assert.equal(paid.payment_due, null, "a paid document owes nothing");
+  assert.equal(typeof payload.online_payments, "boolean", "the portal is told whether online payment is offered");
+});
+
+test("portal next steps ask for a payment due and never call the documents complete", async () => {
+  const vm = await import("node:vm");
+  const source = await readFile(new URL("../../customer_portal/customer_portal.js", import.meta.url), "utf8");
+  const from = source.indexOf("  function documentStep(");
+  const to = source.indexOf("  function overviewPanel(", from);
+  assert.ok(from > 0 && to > from, "next-steps source found");
+  const run = (docs: Json[], payload: Json) => {
+    const ctx = vm.createContext({
+      Math, Number, Object, Array,
+      state: { payload },
+      cleanText: (value: unknown) => (value == null ? "" : String(value).trim()),
+      moneyFormat: (value: number) => `$${value.toFixed(2)}`,
+      onlinePaymentsAvailable: () => payload.online_payments !== false,
+      documentList: () => docs,
+      documentTabId: () => "documents",
+      documentTypeLabel: () => "Proposal",
+      documentStatusLabel: (status: string) => status,
+      portalAppointment: () => null,
+      appointmentSummary: () => "To be scheduled",
+      appointmentComplete: () => false
+    });
+    vm.runInContext(source.slice(from, to), ctx);
+    return vm.runInContext(`overviewSteps({}, "Acme Roofing")`, ctx) as Json[];
+  };
+  const signed = { id: "doc_1", public_token: "tok_1", status: "signed", title: "Proposal", signature_requirement: { required: true, pending_count: 0 } };
+  const owing = { ...signed, payment_due: { output_key: "payment", label: "Deposit", amount_cents: 626632 } };
+
+  const online = run([owing], { online_payments: true });
+  const pay = online.find((step) => step.id === "payment:doc_1");
+  assert.equal(pay?.label, "Make payment");
+  assert.equal(pay?.detail, "$6266.32 due");
+  assert.equal(pay?.complete, false);
+  assert.equal(pay?.disabled, false);
+  assert.equal(pay?.pay, true, "the step opens the document's Pay flow");
+  assert.equal(pay?.documentToken, "tok_1");
+  assert.equal(online.some((step) => step.id === "documents_complete"), false);
+
+  const offline = run([owing], { online_payments: false });
+  const contact = offline.find((step) => step.id === "payment:doc_1");
+  assert.equal(contact?.detail, "$6266.32 due · Contact Acme Roofing to pay");
+  assert.equal(contact?.disabled, true, "no Pay flow without online payments");
+  assert.equal(contact?.pay, false);
+  assert.equal(offline.some((step) => step.id === "documents_complete"), false);
+
+  const settled = run([{ ...signed, payment_due: null }], { online_payments: true });
+  assert.equal(settled.some((step) => step.id.startsWith("payment:")), false);
+  assert.equal(settled.some((step) => step.id === "documents_complete"), true);
+});

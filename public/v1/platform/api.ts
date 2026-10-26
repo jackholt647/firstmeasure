@@ -6890,6 +6890,22 @@ async function publicProjectEngineDocuments(orgId: string, projectId: string, pr
         status: "paid"
       }];
     });
+    // What the customer still owes on the document, priced on the server the
+    // same way its Pay button charges, so the portal never calls a document
+    // finished while a payment on it is due.
+    const paidKeys = new Set(payments.map((payment) => payment.output_key));
+    const unpaidKey = Object.keys(outputDefs).find((outputKey) => cleanText(asObject(outputDefs[outputKey]).type) === "payment"
+      && !paidKeys.has(outputKey)
+      && !cleanText(asObject(asObject(outputs[outputKey]).value).payment_id));
+    let paymentDue: JsonObject | null = null;
+    if (unpaidKey) {
+      const { documentPaymentDue } = await import("../documents/service.js");
+      const due = await documentPaymentDue(orgId, cleanText(record.id), { id: cleanText(record.id), ...data }, asObject(data.params), {}).catch(() => null);
+      if (due && due.amount_cents > 0) {
+        const definition = asObject(outputDefs[unpaidKey]);
+        paymentDue = { output_key: unpaidKey, label: cleanText(definition.label || definition.obligation) || "Payment", amount_cents: due.amount_cents };
+      }
+    }
     out.push({
       id: cleanText(record.id),
       document_type: cleanText(data.document_type),
@@ -6900,6 +6916,7 @@ async function publicProjectEngineDocuments(orgId: string, projectId: string, pr
       has_workflow: !!cleanText(asObject(data.workflow_ref).workflow_id),
       public_token: publicToken,
       payments,
+      payment_due: paymentDue,
       sent_at: cleanText(delivery.sent_at),
       updated_at: cleanText(record.updated_at)
     });
