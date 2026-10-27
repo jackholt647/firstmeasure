@@ -18,23 +18,33 @@ const only = args.flatMap((arg, index) => (arg === "--kind" ? [args[index + 1]!]
 const checkOnly = args.includes("--check");
 registerAllLibraryKinds();
 const generatedAt = new Date().toISOString();
-const entries = [];
+const { applyLibraryChange } = await import("../config-library/library.js");
+const { contentHash } = await import("../config-library/canonical.js");
+// Every generator runs first and its entries are put into this process's library, so an entry that names another
+// (a workflow naming a template, a step naming a setup step) is checked against the whole generated set.
+const generated: Array<{ kind: string; id: string; data: unknown }> = [];
 const assets = [];
 const problems: string[] = [];
 for (const generator of await allGenerators()) {
   if (only.length && !only.includes(generator.kind)) continue;
-  const kind = libraryKind(generator.kind);
-  if (!kind) { problems.push(`${generator.kind}: no kind is registered for this generator.`); continue; }
+  if (!libraryKind(generator.kind)) { problems.push(`${generator.kind}: no kind is registered for this generator.`); continue; }
   const seen = new Set<string>();
   for (const item of await generator.run()) {
     if (seen.has(item.id)) problems.push(`${generator.kind}/${item.id}: generated twice.`);
     seen.add(item.id);
-    const checked = checkEntry(generator.kind, item.id, item.data, null);
-    if (checked.errors.length) { problems.push(...checked.errors.map((error) => `${generator.kind}/${item.id}: ${error}`)); continue; }
-    entries.push({ kind: generator.kind, id: item.id, revision: 1, title: String(kind.titleOf?.(checked.data, item.id) || item.id).trim() || item.id, updated_at: generatedAt, updated_by: "generator", data: checked.data! });
+    generated.push({ kind: generator.kind, id: item.id, data: item.data });
+    const data = JSON.parse(JSON.stringify(item.data ?? null));
+    applyLibraryChange({ kind: generator.kind, id: item.id, revision: 1, sha256: contentHash(data), title: item.id, data, updated_at: generatedAt, updated_by: "generator" });
   }
   assets.push(...(generator.assets || []));
   console.log(`${generator.kind}: ${seen.size} entries`);
+}
+const entries = [];
+for (const item of generated) {
+  const kind = libraryKind(item.kind)!;
+  const checked = checkEntry(item.kind, item.id, item.data, null);
+  if (checked.errors.length) { problems.push(...checked.errors.map((error) => `${item.kind}/${item.id}: ${error}`)); continue; }
+  entries.push({ kind: item.kind, id: item.id, revision: 1, title: String(kind.titleOf?.(checked.data, item.id) || item.id).trim() || item.id, updated_at: generatedAt, updated_by: "generator", data: checked.data! });
 }
 if (problems.length) {
   console.error(problems.join("\n"));
