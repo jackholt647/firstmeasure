@@ -39,10 +39,10 @@
     versionedBundle('../agent-chat/agent-chat.js', '20261002-widget-controls'),
     versionedBundle('../assistant-api/assistant-api.js', '20261002-agent-persistence-v1'),
     versionedBundle('../platform-assistant/platform-assistant.js', '20261026-mobile-agent'),
-    versionedBundle('photos/feed.js', '20261026-mobile-fixes-b'),
-    versionedBundle('../markup/firstmate-markup.js', '20261026-mobile-viewer'),
+    versionedBundle('photos/feed.js', '20261027-viewer'),
+    versionedBundle('../markup/firstmate-markup.js', '20261027-viewer'),
     versionedBundle('../channels-ui/channels-ui.js', '20261012-shared-polish-v1'),
-    versionedBundle('../project-notes/project-notes.js', '20261024-note-audience-sections-v1'),
+    versionedBundle('../project-notes/project-notes.js', '20261027-viewer'),
     versionedBundle('../project-trays/activity-presenter.js', '20261012-notes-separation-v1'),
     versionedBundle('../project-trays/project-trays.js', '20261026-shared-agent-bar')
   ];
@@ -130,7 +130,7 @@
       kind: 'portal_tab',
       surfaces: ['portal_tab'],
       portalTabId: 'photos_feed',
-      bundles: [gifDisplayBundle,versionedBundle('../payments-api/payments-api.js', '20261019-forward-cert'), versionedBundle('../channels-ui/channels-ui.js', '20261012-shared-polish-v1'), versionedBundle('photos/feed.js', '20261026-mobile-fixes-b')]
+      bundles: [gifDisplayBundle,versionedBundle('../payments-api/payments-api.js', '20261019-forward-cert'), versionedBundle('../channels-ui/channels-ui.js', '20261012-shared-polish-v1'), versionedBundle('photos/feed.js', '20261027-viewer')]
     },
     {
       id: 'portal.receipts',
@@ -141,7 +141,7 @@
       kind: 'portal_tab',
       surfaces: ['portal_tab'],
       portalTabId: 'receipts',
-      bundles: [gifDisplayBundle,versionedBundle('../payments-api/payments-api.js', '20261019-forward-cert'), versionedBundle('photos/feed.js', '20261026-mobile-fixes-b'), versionedBundle('receipts/app.js', '20260714-receipt-pdf-preview')]
+      bundles: [gifDisplayBundle,versionedBundle('../payments-api/payments-api.js', '20261019-forward-cert'), versionedBundle('photos/feed.js', '20261027-viewer'), versionedBundle('receipts/app.js', '20260714-receipt-pdf-preview')]
     },
     {
       // DEPRECATED (2026-08): legacy proposals surface — hidden by its bundle
@@ -164,7 +164,7 @@
       kind: 'project_modal_app',
       surfaces: ['project_modal'],
       requiresContext: ['project'],
-      bundles: [versionedBundle('../camera-capture/camera-capture.js', '20261026-mobile-trays'), versionedBundle('photos/project.js', '20261026-mobile-photos')]
+      bundles: [versionedBundle('../camera-capture/camera-capture.js', '20261027-viewer'), versionedBundle('photos/project.js', '20261026-mobile-photos')]
     },
     {
       // DEPRECATED (2026-08): legacy Proposals project tab — hidden by its
@@ -189,7 +189,7 @@
       kind: 'project_modal_app',
       surfaces: ['project_modal'],
       requiresContext: ['project'],
-      bundles: [versionedBundle('docs/project.js', '20261026-mobile-documents-2')]
+      bundles: [versionedBundle('docs/project.js', '20261027-viewer')]
     },
     {
       id: 'project.documents',
@@ -213,7 +213,7 @@
         versionedBundle('../doc-renderer/firstmate-doc-renderer.js', '20261022-as-sent-inputs'),
         versionedBundle('../doc-editor/firstmate-doc-editor.js', '20261022-document-history'),
         versionedBundle('../doc-sent-editor/firstmate-doc-sent-editor.js', '20261026-mobile-documents-2'),
-        versionedBundle('photos/feed.js', '20261026-mobile-fixes-b'),
+        versionedBundle('photos/feed.js', '20261027-viewer'),
         bundle('../agents-api/agents-api.js'),
         versionedBundle('../agent-chat/agent-chat.js', '20261002-widget-controls'),
         versionedBundle('../doc-agent/doc-agent.js', '20260812-agent-command-actions'),
@@ -241,7 +241,7 @@
         versionedBundle('../doc-widgets/firstmate-doc-widgets.js', '20261026-sign-own-choices'),
         versionedBundle('../doc-renderer/firstmate-doc-renderer.js', '20261022-as-sent-inputs'),
         versionedBundle('../doc-editor/firstmate-doc-editor.js', '20261022-document-history'),
-        versionedBundle('photos/feed.js', '20261026-mobile-fixes-b'),
+        versionedBundle('photos/feed.js', '20261027-viewer'),
         bundle('../agents-api/agents-api.js'),
         versionedBundle('../agent-chat/agent-chat.js', '20261002-widget-controls'),
         versionedBundle('../doc-agent/doc-agent.js', '20260812-agent-command-actions'),
@@ -282,7 +282,7 @@
       surfaces: ['project_modal'],
       requiresContext: ['project'],
       dependencies: ['pricebook.bridge'],
-    bundles: [...channelsLibBundles, versionedBundle('../materials-api/materials-api.js', '20261022-ordering'), versionedBundle('../payments-api/payments-api.js', '20261019-forward-cert'), bundle('../comms-api/comms-api.js'), versionedBundle('../equipment-api/equipment-api.js', '20261013-functions'), versionedBundle('materials/settings.js', '20261026-materials-settings-agent'), versionedBundle('materials/project.js', '20261026-supplier-packages')]
+    bundles: [...channelsLibBundles, versionedBundle('../materials-api/materials-api.js', '20261022-ordering'), versionedBundle('../payments-api/payments-api.js', '20261019-forward-cert'), bundle('../comms-api/comms-api.js'), versionedBundle('../equipment-api/equipment-api.js', '20261013-functions'), versionedBundle('materials/settings.js', '20261026-materials-settings-agent'), versionedBundle('materials/project.js', '20261027-viewer')]
     },
     {
       id: 'project.money',
@@ -294,7 +294,7 @@
       surfaces: ['project_modal'],
       requiresContext: ['project'],
       dependencies: ['project.proposal', 'project.materials'],
-      bundles: [gifDisplayBundle,versionedBundle('../payments-api/payments-api.js', '20261019-forward-cert'), versionedBundle('../payroll-api/payroll-api.js', '20261019-payroll-closeout-v1'), versionedBundle('../documents-api/documents-api.js', '20261022-document-history'), versionedBundle('payroll/project.js', '20260714-money-commissions'), versionedBundle('photos/feed.js', '20261026-mobile-fixes-b'), versionedBundle('receipts/app.js', '20260714-receipt-pdf-preview'), versionedBundle('money/project.js', '20261019-forward-cert')]
+      bundles: [gifDisplayBundle,versionedBundle('../payments-api/payments-api.js', '20261019-forward-cert'), versionedBundle('../payroll-api/payroll-api.js', '20261019-payroll-closeout-v1'), versionedBundle('../documents-api/documents-api.js', '20261022-document-history'), versionedBundle('payroll/project.js', '20260714-money-commissions'), versionedBundle('photos/feed.js', '20261027-viewer'), versionedBundle('receipts/app.js', '20260714-receipt-pdf-preview'), versionedBundle('money/project.js', '20261019-forward-cert')]
     },
     {
       id: 'project.request',
@@ -303,7 +303,7 @@
       kind: 'modal_app',
       surfaces: ['modal', 'project_modal'],
       dependencies: ['firstmeasure.order', 'project.map', 'project.photos', 'project.proposal', 'project.materials', 'project.money', 'project.customer_portal', 'project.schedule', 'project.measurements', 'project.checklists'],
-      bundles: [...channelsLibBundles, versionedBundle('../window-manager/project-windows.js', '20261026-open-link-safe'), versionedBundle('project-request/app.js', '20261026-search-order-v1')]
+      bundles: [...channelsLibBundles, versionedBundle('../window-manager/project-windows.js', '20261026-open-link-safe'), versionedBundle('project-request/app.js', '20261027-viewer')]
     },
     {
       id: 'firstmeasure.order',
@@ -322,7 +322,7 @@
       kind: 'project_modal_app',
       surfaces: ['project_modal'],
       requiresContext: ['project'],
-      bundles: [versionedBundle('project-map/app.js', '20261026-search-order-v1')]
+      bundles: [versionedBundle('project-map/app.js', '20261027-viewer')]
     },
     {
       id: 'project.customer_portal',
@@ -543,10 +543,10 @@
         versionedBundle('../window-manager/window-shell.js', '20261026-mobile-trays'),
         versionedBundle('../assistant-api/assistant-api.js', '20261002-agent-persistence-v1'),
         ...widgetBundles, bookingBundle, priorityFieldsBundle, versionedBundle('../platform-assistant/platform-assistant.js', '20261026-mobile-agent'),
-        versionedBundle('photos/feed.js', '20261026-mobile-fixes-b'),
-    versionedBundle('../markup/firstmate-markup.js', '20261026-mobile-viewer'),
+        versionedBundle('photos/feed.js', '20261027-viewer'),
+    versionedBundle('../markup/firstmate-markup.js', '20261027-viewer'),
     versionedBundle('../channels-ui/channels-ui.js', '20261012-shared-polish-v1'),
-    versionedBundle('../project-notes/project-notes.js', '20261024-note-audience-sections-v1'),
+    versionedBundle('../project-notes/project-notes.js', '20261027-viewer'),
         versionedBundle('partners/shared-list.js','20261001-sharing-polish-v1'),
         versionedBundle('partners/share-dialog.js','20261001-sharing-polish-v1'),versionedBundle('channels/app.js', '20260930-native-sharing-v2')
       ]
