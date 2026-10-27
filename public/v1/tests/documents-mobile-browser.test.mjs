@@ -227,7 +227,7 @@ test('document covers use PDF page one, module pages and a consistent icon fallb
     assert.ok(badge.badge.left>badge.main.left+badge.main.width/2,JSON.stringify(badge));
     for(const width of [1600,390]){
       await page.setViewportSize({width,height:900});
-      const metrics=await page.locator('.fm-doc-card-body').evaluateAll(nodes=>nodes.map(node=>{const title=node.querySelector('.fm-doc-card-title'),icon=node.querySelector('.fm-doc-title-icon'),t=title.getBoundingClientRect(),i=icon.getBoundingClientRect();return {height:node.getBoundingClientRect().height,whiteSpace:getComputedStyle(title).whiteSpace,ellipsis:getComputedStyle(title).textOverflow,center:Math.abs(i.top+i.height/2-t.top-t.height/2)};}));
+      const metrics=await page.locator('.fm-doc-card-body').evaluateAll(nodes=>nodes.map(node=>{const title=node.querySelector('.fm-doc-card-title'),icon=node.querySelector('.fm-doc-title-icon'),t=title.getBoundingClientRect(),i=icon.getBoundingClientRect();return {height:node.getBoundingClientRect().height,whiteSpace:getComputedStyle(title).whiteSpace,ellipsis:getComputedStyle(title).textOverflow,center:Math.abs(i.top+i.height/2-node.getBoundingClientRect().top-node.getBoundingClientRect().height/2)};}));
       assert.ok(metrics.every(m=>m.height===54 && m.whiteSpace==='nowrap' && m.ellipsis==='ellipsis' && m.center<2),JSON.stringify(metrics));
       const preview=await page.locator('[data-doc-preview-id="pdf"]').evaluate(node=>({width:node.clientWidth,canvas:node.querySelector('canvas').getBoundingClientRect().width}));
       assert.ok(Math.abs(preview.width-preview.canvas)<1,'PDF cover fills the available width');

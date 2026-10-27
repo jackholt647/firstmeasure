@@ -685,15 +685,15 @@
       .fm-doc-preview{position:relative;display:block;flex:1;min-height:0;overflow:hidden;background:#edf0f4;pointer-events:none}
       .fm-doc-preview>img,.fm-doc-preview>canvas{position:absolute;top:0;left:0;width:100%;height:auto;min-height:100%;object-fit:cover;object-position:top center;background:#fff}
       .fm-docs-gallery .fm-doc-card-mark{top:50%;left:50%;right:auto;bottom:auto;transform:translate(-50%,-50%);font-size:clamp(28px,30cqw,70px);opacity:.65}
-      .fm-docs-gallery .fm-doc-card-body{flex:none;height:54px;box-sizing:border-box;padding:8px 9px;background:#fff;border-top:1px solid #e4e7ec;gap:3px;justify-content:center}
+      .fm-docs-gallery .fm-doc-card-body{flex:none;height:54px;box-sizing:border-box;padding:8px 9px;background:#fff;border-top:1px solid #e4e7ec;display:grid;grid-template-columns:20px minmax(0,1fr);grid-template-rows:18px 14px;gap:3px 8px;align-content:center}
       .fm-doc-detail-pills{position:absolute;bottom:61px;left:6px;right:6px;display:flex;flex-wrap:wrap;gap:4px;pointer-events:none;max-height:48px;overflow:hidden}
       .fm-doc-detail-pills>span{border-radius:999px;padding:3px 7px;background:rgba(255,255,255,.94);border:1px solid #d0d5dd;color:#344054;font-size:10px;font-weight:800;white-space:nowrap;max-width:100%;overflow:hidden;text-overflow:ellipsis}
       .fm-docs-gallery .pf-wrap[data-density="list"] .fm-doc-detail-pills{display:none}
-      .fm-doc-card-heading{display:flex;align-items:center;gap:8px;min-width:0;min-height:24px}
-      .fm-doc-title-icon{flex:none;color:var(--doc-color,#64748b);font-size:15px;width:20px;text-align:center}
-      .fm-doc-card-heading .fm-doc-card-title{display:block;flex:1;min-width:0;font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+      .fm-doc-card-heading{display:contents}
+      .fm-doc-title-icon{flex:none;color:var(--doc-color,#64748b);font-size:15px;width:20px;text-align:center;grid-column:1;grid-row:1 / 3;align-self:center}
+      .fm-doc-card-heading .fm-doc-card-title{display:block;grid-column:2;grid-row:1;min-width:0;font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
       .fm-docs-gallery .fm-doc-card-primary{font-size:14px;margin-left:28px}
-      .fm-docs-gallery .fm-doc-card-facts{margin-left:28px;font-size:10px}
+      .fm-docs-gallery .fm-doc-card-facts{margin-left:0;font-size:10px;grid-column:2;grid-row:2;display:block}
       .fm-docs-gallery .fm-doc-badges{top:5px;left:5px;right:5px}
       .fm-doc-page-stage{position:absolute;top:0;left:0;pointer-events:none;background:#fff;overflow:hidden}
       .fm-doc-preview.has-preview>.fm-doc-card-mark{display:none}
