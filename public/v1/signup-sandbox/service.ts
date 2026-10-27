@@ -597,6 +597,8 @@ export async function createTestInstance(workflowId: string, input: JsonObject =
       : stageSurfaceUrl(workflowId, instanceId, startStage, runContext.start_stage);
   // Seed demo content before offers mask the operational apps; viewing a tab never consumes an offer.
   await saveGlobal(String(organization.id), { data: { app_offers: [...(workflowOffers ?? NEW_ORGANIZATION_APP_OFFERS)] } });
+  // The dev console restores this starting state in one click (docs/architecture/config-library.md, "Test organizations").
+  await (await import("../config-library/initial-state.js")).captureInitialState(String(organization.id), "created");
   const { buildAuthContext } = await import('../platform/auth.js');
   return { testOrg, authContext: await buildAuthContext(ctx.sessionId, ctx.session), redirect };
 }
