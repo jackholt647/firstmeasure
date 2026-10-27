@@ -6,6 +6,7 @@
 #   lane-host.sh status
 #   lane-host.sh deploy <payload dir>     payload/lane-manifest.json + payload/public/measure/internal/...
 #   lane-host.sh rollback [<sha>]         previous release, or the named one
+#   lane-host.sh follow                   serve the platform release's editor through the lane path
 #   lane-host.sh install                  serve /measure/internal/ from the lane (nginx)
 #   lane-host.sh uninstall                serve it from the platform release again
 set -euo pipefail
@@ -15,6 +16,7 @@ PLATFORM=/opt/firstmeasure/current
 SITE=/etc/nginx/sites-available/firstmeasure-development
 LANE_CONF=/etc/nginx/conf.d/firstmeasure-lanes.conf
 KEEP=12
+FOLLOW=platform-follow
 HOST_HEADER=dev.1m8.ai
 
 say() { printf '%s\n' "$*" >&2; }
@@ -38,6 +40,7 @@ swap_link() { # swap_link <name> <target>: atomic rename over the old link
 # libraries, storage, ...) point into whatever platform release is current.
 link_siblings() {
   local pub=$1/public e name
+  [ -L "$pub/measure" ] && return 0   # a follow release links measure/ itself; never write through it
   for e in "$PLATFORM"/public/* "$PLATFORM"/public/.[!.]*; do
     [ -e "$e" ] || continue
     name=$(basename "$e")
@@ -92,7 +95,7 @@ prune() {
   local cur prev keep=0 d
   cur=$(current_sha); prev=$(previous_sha)
   for d in $(ls -1t "$LANE/releases"); do
-    case "$d" in *.building) continue;; esac
+    case "$d" in *.building|"$FOLLOW") continue;; esac
     keep=$((keep+1))
     [ "$d" = "$cur" ] || [ "$d" = "$prev" ] || [ $keep -le $KEEP ] || rm -rf "${LANE:?}/releases/$d"
   done
@@ -123,7 +126,7 @@ cmd_deploy() {
   # for the rest, then every file is checked against the commit's hashes.
   local build=$LANE/releases/$sha.building
   rm -rf "$build"; mkdir -p "$build/public/measure"
-  if [ -n "$cur" ] && [ -d "$LANE/releases/$cur/public/measure/internal" ]; then
+  if [[ "$cur" =~ ^[0-9a-f]{40}$ ]] && [ -d "$LANE/releases/$cur/public/measure/internal" ] && [ ! -L "$LANE/releases/$cur/public/measure/internal" ]; then
     cp -al "$LANE/releases/$cur/public/measure/internal" "$build/public/measure/internal"
   else
     mkdir -p "$build/public/measure/internal"
@@ -264,6 +267,27 @@ cmd_install() {
   say "measure-internal is served from the lane ($cur)"
 }
 
+# Follow: the lane path serves whatever the platform release has (old per-task
+# rollouts included). public/ is real so $realpath_root stays in the lane; every
+# entry under it, measure/ included, is a symlink into the platform release.
+cmd_follow() {
+  local cur rel=$LANE/releases/$FOLLOW e; cur=$(current_sha)
+  rm -rf "$rel.building"; mkdir -p "$rel.building/public"
+  for e in "$PLATFORM"/public/* "$PLATFORM"/public/.[!.]*; do
+    [ -e "$e" ] || continue
+    ln -sfn "$PLATFORM/public/$(basename "$e")" "$rel.building/public/$(basename "$e")"
+  done
+  rm -rf "$rel"; mv "$rel.building" "$rel"
+  [ "$cur" = "$FOLLOW" ] || { [ -n "$cur" ] && swap_link previous "releases/$cur"; }
+  swap_link current "releases/$FOLLOW"
+  local status; status=$(probe /measure/internal/audio/ding.mp3 | cut -d' ' -f1)
+  if [ "$status" != 200 ]; then
+    [ -n "$cur" ] && [ "$cur" != "$FOLLOW" ] && swap_link current "releases/$cur"
+    die "follow not ready ($status); back on ${cur:-nothing}"
+  fi
+  record "{\"lane\":\"measure-internal\",\"sha\":\"$FOLLOW\",\"status\":\"live\",\"previous\":\"$cur\",\"platform_release\":\"$(basename "$(readlink -f "$PLATFORM")")\",\"activated_at\":\"$(date -u +%FT%TZ)\"}" "$FOLLOW"
+}
+
 cmd_uninstall() {
   [ -f "$LANE_CONF" ] || die "lane not installed"
   write_lane_conf platform
@@ -273,9 +297,10 @@ cmd_uninstall() {
 
 case "${1:-}" in
   status) cmd_status;;
+  follow) cmd_follow; cmd_status;;
   deploy) cmd_deploy "$2";;
   rollback) cmd_rollback "${2:-}"; cmd_status;;
   install) cmd_install; cmd_status;;
   uninstall) cmd_uninstall; cmd_status;;
-  *) die "usage: lane-host.sh status|deploy <payload>|rollback [sha]|install|uninstall";;
+  *) die "usage: lane-host.sh status|deploy <payload>|rollback [sha]|follow|install|uninstall";;
 esac

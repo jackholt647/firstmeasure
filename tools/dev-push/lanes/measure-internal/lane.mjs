@@ -1,17 +1,20 @@
 // measure-internal dev lane: ships public/measure/internal/** from one commit to
-// the dev legacy host in about a minute (docs/architecture/dev-lanes.md).
+// dev in seconds (docs/architecture/dev-lanes.md).
 //
-//   import { deploy } from "./lane.mjs";
-//   const record = await deploy(sha, { tests: "mapped" });
+// Two ways in:
+// - The dev push router imports the default export (gates, deploy, current;
+//   docs/architecture/dev-lanes.md "The router") and reaches hosts only through
+//   its `hosts` (fm-release). The release goes to dev legacy (served) and dev web
+//   (server-rendered PDFs read editor_scripts/pdf.js from it).
+// - Until the router owns the lane, ship.mjs calls deploy(sha) below, which
+//   ships to dev legacy over SSH with lane-host.sh.
 //
-// deploy() builds the release from the commit only (git blobs, never host
-// files), runs the lane gates (the editor's dev/*.test.cjs that the change maps
-// to, PHP lint of changed PHP on the host), switches the lane's `current` link
-// atomically, checks readiness and rolls back on failure. It does not move any
-// branch: ship.mjs (and later the dev push router) advances lane/measure-internal.
+// Every ship runs the quick checks (PHP lint and `node --check` of the changed
+// files, seconds). The editor's regression tests (dev/*.test.cjs) run only when
+// asked for, on the server, never on a laptop (runRegression).
 import { spawn, spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
-import { existsSync, mkdtempSync, mkdirSync, readFileSync, realpathSync, rmSync, writeFileSync, symlinkSync } from "node:fs";
+import { existsSync, mkdtempSync, mkdirSync, readdirSync, readFileSync, readlinkSync, realpathSync, rmSync, statSync, writeFileSync, symlinkSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -44,6 +47,8 @@ export function sshTarget() {
 export function ownsPath(file) {
   return LANE.owns.some((prefix) => file.startsWith(prefix));
 }
+
+const skipCheck = (rel) => rel.startsWith("unused/") || rel.startsWith("editor_scripts/vendor/");
 
 function git(args, { cwd = process.cwd(), input, encoding = "utf8", env } = {}) {
   const r = spawnSync("git", ["-c", "core.autocrlf=false", "-c", "core.eol=lf", ...args],
@@ -214,7 +219,21 @@ function extract(sha, cwd, files) {
   if (!existsSync(modules)) throw new Error(`gates need ${modules} (junction it from a checkout that has it)`);
   mkdirSync(path.join(dir, "public", "v1"), { recursive: true });
   symlinkSync(realpathSync(modules), path.join(dir, "public", "v1", "node_modules"), "junction");
+  // Several editor tests name only the Windows Chrome path. Off Windows that path
+  // is relative to the test's cwd, so a link there points them at the server's browser.
+  const browser = linuxBrowser();
+  if (browser) {
+    const fake = path.join(dir, "C:", "Program Files", "Google", "Chrome", "Application");
+    mkdirSync(fake, { recursive: true });
+    symlinkSync(browser, path.join(fake, "chrome.exe"));
+  }
   return dir;
+}
+
+function linuxBrowser() {
+  if (process.platform === "win32") return null;
+  return [process.env.CHROME_PATH, process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH, "/usr/bin/chromium", "/usr/bin/chromium-browser", "/usr/bin/google-chrome"]
+    .find((candidate) => candidate && existsSync(candidate)) || null;
 }
 
 function removeTree(dir) {
@@ -235,7 +254,9 @@ function runFiles(dir, files, concurrency) {
         running++;
         const began = Date.now();
         // A parent test runner's NODE_TEST_CONTEXT would make the child report to it and exit 0.
-        const { NODE_TEST_CONTEXT, ...env } = process.env;
+        const { NODE_TEST_CONTEXT, ...rest } = process.env;
+        const browser = linuxBrowser();
+        const env = browser ? { ...rest, CHROME_PATH: browser, PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH: browser } : rest;
         const child = spawn(process.execPath, ["--test", file], { cwd: dir, env, stdio: ["ignore", "pipe", "pipe"] });
         let out = "";
         child.stdout.on("data", (d) => { out += d; });
@@ -255,11 +276,62 @@ function runFiles(dir, files, concurrency) {
   });
 }
 
-// A test that also fails on the release now live is known, not a regression.
-export async function runGates({ sha, base, cwd, tests = "mapped", log = () => {} }) {
+// ---- quick checks (every ship) ---------------------------------------------------
+
+function hasPhp() {
+  return spawnSync("php", ["-v"], { encoding: "utf8" }).status === 0;
+}
+
+/**
+ * PHP lint and `node --check` of the deployed files `sha` changes against `base`
+ * (every file when there is no base). Seconds. PHP is skipped with a note when
+ * php is not installed here; lane-host.sh lints on the host as well.
+ */
+export async function quickChecks({ sha, base, cwd, log = () => {} }) {
   const began = Date.now();
-  if (tests === "none") return { tests: "none", ran: [], failed: [], known: [], ms: 0 };
-  const files = tests === "full" ? mappedTests(null, sha, cwd) : mappedTests(base, sha, cwd);
+  const changed = changedPaths(base, sha, cwd, [LANE.deploys]);
+  const rels = (changed ?? Object.keys(manifest(sha, cwd)).map((rel) => `${LANE.deploys}/${rel}`))
+    .filter((file) => file.startsWith(`${LANE.deploys}/`) && spawnSync("git", ["cat-file", "-e", `${sha}:${file}`], { cwd }).status === 0)
+    .filter((file) => !skipCheck(file.slice(LANE.deploys.length + 1)));
+  const php = rels.filter((file) => file.endsWith(".php"));
+  const js = rels.filter((file) => file.endsWith(".js"));
+  const failures = [];
+  const notes = [];
+  const phpReady = php.length && hasPhp();
+  if (php.length && !phpReady) notes.push(`php not installed here: ${php.length} PHP file(s) not linted`);
+  const work = mkdtempSync(path.join(os.tmpdir(), "fm-lane-check-"));
+  try {
+    const jobs = [...(phpReady ? php : []), ...js].map((file) => () => new Promise((resolve) => {
+      const blob = git(["show", `${sha}:${file}`], { cwd, encoding: "buffer" });
+      const local = path.join(work, file.replace(/[\/]/g, "__"));
+      writeFileSync(local, blob);
+      const [cmd, args] = file.endsWith(".php") ? ["php", ["-l", local]] : [process.execPath, ["--check", local]];
+      const child = spawn(cmd, args, { stdio: ["ignore", "pipe", "pipe"] });
+      let out = "";
+      child.stdout.on("data", (d) => { out += d; });
+      child.stderr.on("data", (d) => { out += d; });
+      child.on("close", (code) => {
+        if (code !== 0) failures.push({ id: `${file.endsWith(".php") ? "php-lint" : "node-check"}:${file}`, output: out.split(local).join(file).slice(-2000) });
+        resolve();
+      });
+    }));
+    let next = 0;
+    await Promise.all(Array.from({ length: Math.min(8, jobs.length) }, async () => { while (next < jobs.length) await jobs[next++](); }));
+  } finally {
+    rmSync(work, { recursive: true, force: true });
+  }
+  const ms = Date.now() - began;
+  log(`checks: ${phpReady ? php.length : 0} PHP, ${js.length} JS file(s) in ${ms} ms${failures.length ? `; ${failures.length} failed` : ""}`);
+  for (const failure of failures) log(`  FAILED ${failure.id}\n${failure.output}`);
+  return { ok: failures.length === 0, failures, notes, php: phpReady ? php.length : 0, js: js.length, ms };
+}
+
+// ---- regression tests (on request, on the server) ----------------------------------
+
+// A test that also fails on the release now live is known, not a regression.
+export async function runRegression({ sha, base, cwd, tests = "mapped", log = () => {} }) {
+  const began = Date.now();
+  const files = tests === "all" ? mappedTests(null, sha, cwd) : mappedTests(base, sha, cwd);
   if (files.length === 0) return { tests, ran: [], failed: [], known: [], ms: 0 };
   const concurrency = Math.max(2, Math.min(12, Math.floor(os.cpus().length / 2)));
   log(`gates: ${files.length} test file(s), ${concurrency} at a time`);
@@ -291,19 +363,20 @@ export async function runGates({ sha, base, cwd, tests = "mapped", log = () => {
   for (const f of known) log(`gates: ${f} also fails on the live release (known, not blocking)`);
   for (const f of failed) log(`gates: FAILED ${f}\n${results[f].tail}`);
   const times = Object.fromEntries(files.map((f) => [f, results[f].ms]));
-  return { tests, ran: files, failed, known, times, ms: Date.now() - began };
+  return { tests, ran: files, failed, known, times, ms: Date.now() - began, tails: Object.fromEntries(failed.map((f) => [f, results[f].tail])) };
 }
+export const runGates = runRegression;
 
 // ---- deploy ------------------------------------------------------------------
 
 /**
  * Ship one commit's public/measure/internal to dev legacy.
  * @param {string} ref  commit (any ref git resolves)
- * @param {{cwd?: string, tests?: "mapped"|"full"|"none", log?: (line: string) => void, host?: object}} [options]
+ * @param {{cwd?: string, log?: (line: string) => void, host?: object}} [options]
  *   host: a status() result read just before, to save a round trip
  * @returns {Promise<object>} release record; throws an Error with .record when not live
  */
-export async function deploy(ref, { cwd = repoRoot(), tests = "mapped", log = (l) => console.error(l), host: hostStatus } = {}) {
+export async function deploy(ref, { cwd = repoRoot(), log = (l) => console.error(l), host: hostStatus } = {}) {
   const began = Date.now();
   const sha = git(["rev-parse", `${ref}^{commit}`], { cwd }).trim();
   const host = hostStatus || await status({ log });
@@ -314,10 +387,10 @@ export async function deploy(ref, { cwd = repoRoot(), tests = "mapped", log = (l
     return { lane: LANE.name, sha, status: "unchanged", previous: host.previous, serving: host.serving };
   }
 
-  const gates = await runGates({ sha, base, cwd, tests, log });
-  if (gates.failed.length) {
-    const error = new Error(`lane gates failed: ${gates.failed.join(", ")}`);
-    error.record = { lane: LANE.name, sha, status: "rejected", reason: "tests", gates };
+  const gates = await quickChecks({ sha, base, cwd, log });
+  if (!gates.ok) {
+    const error = new Error(`lane checks failed: ${gates.failures.map((failure) => failure.id).join(", ")}`);
+    error.record = { lane: LANE.name, sha, status: "rejected", reason: "checks", gates };
     throw error;
   }
 
@@ -379,8 +452,158 @@ export async function install({ log = (l) => console.error(l) } = {}) {
   return marker(r.stdout, "LANE-STATUS");
 }
 
+export async function follow({ log = (l) => console.error(l) } = {}) {
+  const r = await hostCommand("follow", log);
+  if (r.code !== 0) throw new Error(`follow failed: ${r.stderr.trim()}`);
+  return marker(r.stdout, "LANE-STATUS");
+}
+
 export async function uninstall({ log = (l) => console.error(l) } = {}) {
   const r = await hostCommand("uninstall", log);
   if (r.code !== 0) throw new Error(`uninstall failed: ${r.stderr.trim()}`);
   return marker(r.stdout, "LANE-STATUS");
 }
+
+// ---- dev push router lane module ----------------------------------------------------
+
+const PLATFORM_PUBLIC = "/opt/firstmeasure/current/public";
+const PUBLIC_URL = process.env.DEV_PUSH_PUBLIC_URL || "https://dev.1m8.ai";
+const ROLES = ["legacy", "web"]; // legacy serves the editor; web's Node renders shared PDFs from it
+
+/**
+ * The lane's release tree for `sha` in `out`: public/measure/internal from the
+ * commit, every sibling of it a symlink into the platform release that is
+ * current on the host, so the editor's relative includes and storage resolve as
+ * they do in the platform release. Built from git only.
+ */
+export function buildTree(sha, cwd, out) {
+  mkdirSync(out, { recursive: true });
+  const archive = spawnSync("git", ["-c", "core.autocrlf=false", "-c", "core.eol=lf", "archive", "--format=tar", sha, "--", LANE.deploys],
+    { cwd, maxBuffer: 2 ** 31 });
+  if (archive.status !== 0) throw new Error(`git archive: ${archive.stderr}`);
+  const untar = spawnSync("tar", ["-x"], { cwd: out, input: archive.stdout, maxBuffer: 1 << 20 });
+  if (untar.status !== 0) throw new Error(`tar: ${untar.stderr}`);
+  const entries = (dir) => git(["ls-tree", "--name-only", sha, `${dir}/`], { cwd }).split("\n").filter(Boolean).map((p) => path.posix.basename(p));
+  const top = new Set([...entries("public"), "storage"]);
+  top.delete("measure");
+  for (const name of top) symlinkSync(`${PLATFORM_PUBLIC}/${name}`, path.join(out, "public", name));
+  for (const name of entries("public/measure")) {
+    if (name !== "internal") symlinkSync(`${PLATFORM_PUBLIC}/measure/${name}`, path.join(out, "public", "measure", name));
+  }
+  return out;
+}
+
+/** Same shape and digest as the router's treeManifest (lanes/platform/lane.mjs) and fm-release. */
+export function treeManifest(root) {
+  const files = {}, links = {};
+  const walk = (dir, prefix) => {
+    for (const entry of readdirSync(dir, { withFileTypes: true })) {
+      const rel = prefix + entry.name;
+      const full = path.join(dir, entry.name);
+      if (entry.isSymbolicLink()) { links[rel] = readlinkSync(full); continue; }
+      if (entry.isDirectory()) { walk(full, `${rel}/`); continue; }
+      const stat = statSync(full);
+      files[rel] = [createHash("sha256").update(readFileSync(full)).digest("hex"), stat.size, stat.mode & 0o777];
+    }
+  };
+  walk(root, "");
+  const digest = createHash("sha256");
+  for (const rel of Object.keys(files).sort()) digest.update(`f ${rel} ${files[rel][0]}\n`);
+  for (const rel of Object.keys(links).sort()) digest.update(`l ${rel} ${links[rel]}\n`);
+  return { files, links, tree_sha256: digest.digest("hex") };
+}
+
+/** dev.1m8.ai serves `rel` with the release's bytes and lane header. */
+async function servedReady(sha, rel, want, seconds = 30) {
+  let last = "";
+  for (let i = 0; i < seconds; i++) {
+    try {
+      const response = await fetch(`${PUBLIC_URL}/measure/internal/${rel}`, { signal: AbortSignal.timeout(8000), headers: { "cache-control": "no-cache" } });
+      const body = Buffer.from(await response.arrayBuffer());
+      const header = response.headers.get("x-firstmate-lane") || "";
+      const got = createHash("sha256").update(body).digest("hex");
+      if (response.ok && header === `${LANE.name} ${sha}` && got === want) return null;
+      last = `${response.status} '${header}' sha256 ${got.slice(0, 12)}`;
+    } catch (error) { last = error.message; }
+    await new Promise((resolve) => setTimeout(resolve, 1000));
+  }
+  return `${PUBLIC_URL}/measure/internal/${rel} did not serve ${sha.slice(0, 10)}: ${last}`;
+}
+
+const regressionScope = (tests = []) => tests.includes("regression:all") ? "all" : tests.includes("regression") ? "mapped" : null;
+
+export default {
+  name: LANE.name,
+  branch: LANE.branch,
+  batchMax: 8,
+  owns: ownsPath,
+
+  // Quick checks always; the editor's regression tests only when a submission
+  // names `regression` (mapped tests) or `regression:all` in its tests.
+  async gates({ dir, sha, baseSha, tests = [], only, log = () => {} }) {
+    const want = (id) => !only || only.some((item) => item === id || id.startsWith(`${item}:`));
+    const checks = await quickChecks({ sha, base: baseSha, cwd: dir, log });
+    const failures = checks.failures.filter((failure) => want(failure.id));
+    const notes = [...checks.notes];
+    const scope = regressionScope(tests);
+    if (scope && want("regression")) {
+      if (!existsSync(path.join(dir, "public", "v1", "node_modules"))) {
+        const { ensureModules } = await import("../platform/lane.mjs");
+        await ensureModules(dir, log);
+      }
+      if (!linuxBrowser() && process.platform !== "win32") notes.push("no Chromium on this host: the editor's browser tests will fail");
+      const result = await runRegression({ sha, base: baseSha, cwd: dir, tests: scope, log });
+      for (const file of result.failed) failures.push({ id: `regression:${file}`, output: result.tails[file] || "" });
+      if (result.known.length) notes.push(`known failures (also on ${String(baseSha).slice(0, 10)}): ${result.known.join(", ")}`);
+      notes.push(`regression ${scope}: ${result.ran.length} file(s) in ${Math.round(result.ms / 1000)} s`);
+    }
+    return { ok: failures.length === 0, failures, notes };
+  },
+
+  // Stages the tree on legacy and web, activates both, checks dev.1m8.ai serves
+  // it, and puts both back if anything fails.
+  async deploy({ dir, sha, hosts, log = () => {} }) {
+    const roles = ROLES.filter((role) => hosts.roles.includes(role));
+    const before = Object.fromEntries(await Promise.all(roles.map(async (role) => [role, await hosts.status(role, LANE.name)])));
+    const broken = roles.filter((role) => !before[role].ok);
+    if (broken.length) return { ok: false, error: `status failed: ${broken.map((role) => `${role}: ${before[role].error}`).join("; ")}`, rolledBack: true, infrastructure: true };
+    const previous = Object.fromEntries(roles.map((role) => [role, before[role].lanes?.[LANE.name]?.current || null]));
+    const build = mkdtempSync(path.join(os.tmpdir(), `fm-lane-tree-${sha.slice(0, 8)}-`));
+    try {
+      buildTree(sha, dir, build);
+      const tree = treeManifest(build);
+      log(`staging ${sha.slice(0, 10)} on ${roles.join(", ")} (${Object.keys(tree.files).length} files, tree ${tree.tree_sha256.slice(0, 12)})`);
+      const staged = await Promise.all(roles.map((role) => hosts.stage(role, { lane: LANE.name, sha, dir: build, manifest: tree, releases: before[role].lanes?.[LANE.name]?.releases })));
+      const stageErrors = roles.filter((_, index) => !staged[index].ok);
+      if (stageErrors.length) return { ok: false, error: `staging failed: ${stageErrors.map((role) => `${role}: ${staged[roles.indexOf(role)].error}`).join("; ")}`, rolledBack: true, infrastructure: true };
+
+      const activated = [];
+      for (const role of roles) activated.push(await hosts.activate(role, { lane: LANE.name, sha, expect: previous[role] }));
+      let error = roles.filter((_, index) => !activated[index].ok).map((role) => `${role}: ${activated[roles.indexOf(role)].error}`).join("; ");
+      if (!error) {
+        const changed = changedPaths(previous.legacy && commitExists(previous.legacy, dir) ? previous.legacy : null, sha, dir, [LANE.deploys]) || [];
+        const probe = changed.map((file) => file.slice(LANE.deploys.length + 1)).find((rel) => tree.files[`${LANE.deploys}/${rel}`] && !rel.endsWith(".php") && !skipCheck(rel)) || LANE.probe;
+        error = await servedReady(sha, probe, tree.files[`${LANE.deploys}/${probe}`][0]) || "";
+      }
+      if (error) {
+        log(`not ready, rolling back: ${error}`);
+        const back = await Promise.all(roles.map(async (role, index) => {
+          if (!activated[index]?.ok || !previous[role] || previous[role] === sha) return { role, ok: true };
+          return { role, ...(await hosts.rollback(role, { lane: LANE.name, sha: previous[role] })) };
+        }));
+        const notBack = back.filter((item) => !item.ok);
+        return { ok: false, error: error + (notBack.length ? `\nROLLBACK FAILED on ${notBack.map((item) => `${item.role}: ${item.error}`).join("; ")}` : ""), rolledBack: notBack.length === 0 };
+      }
+      Promise.all(roles.map((role) => hosts.prune(role, { lane: LANE.name }))).catch(() => {});
+      return { ok: true, name: sha, roles: Object.fromEntries(roles.map((role, index) => [role, { previous: previous[role], tree_sha256: staged[index].tree_sha256 || tree.tree_sha256 }])) };
+    } finally {
+      rmSync(build, { recursive: true, force: true });
+    }
+  },
+
+  async current({ hosts }) {
+    const roles = ROLES.filter((role) => hosts.roles.includes(role));
+    const statuses = await Promise.all(roles.map((role) => hosts.status(role, LANE.name)));
+    return Object.fromEntries(roles.map((role, index) => [role, statuses[index].lanes?.[LANE.name]?.current || null]));
+  }
+};
