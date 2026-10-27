@@ -8,7 +8,7 @@
   let draftSave = null;
   let refreshTimer;
   const draftText = (key, fallback) => globalThis.PlatformLanguage?.text("materials", key, fallback) ?? fallback;
-  const scopeWorkspaceUrl = new URL('./scope-of-work.js?v=20261027-ops-phone', document.currentScript?.src || `${location.origin}/libraries/apps/materials/project.js`).href;
+  const scopeWorkspaceUrl = new URL('./scope-of-work.js?v=20261027-order-status', document.currentScript?.src || `${location.origin}/libraries/apps/materials/project.js`).href;
   const calculusAdapterUrl = new URL('./calculus-native.js?v=20261026-package-cost', document.currentScript?.src || `${location.origin}/libraries/apps/materials/project.js`).href;
   const closeoutUrl = new URL('./closeout.js?v=20261019-closeout-partial', document.currentScript?.src || `${location.origin}/libraries/apps/materials/project.js`).href;
   const runtime = window.FirstMateEmbeddableApps;
