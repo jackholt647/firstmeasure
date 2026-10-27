@@ -1,5 +1,9 @@
 # FirstMeasure: local development and production deployment
 
+October 27 Messages fallback: [independent Messages switch, bell fallback for tags, and Operations report prefill/copy fixes](deploy/digitalocean/development-messages-fallback-20261027.md) records verified development release `943d9542`.
+
+October 27 Operations setup: [shared scope/proposal workflow, optional setup checklist, global Equipment offer and tutorial](deploy/digitalocean/development-operations-setup-20261027.md) records verified development release `1b28c1df` on worker, compatibility and web.
+
 October 23 tutorial artifact uploads on dev: [the API takes over tutorial projects PHP created, so artifact uploads and editor saves into them stop failing with EACCES](deploy/digitalocean/development-tutorial-storage-20261023.md) records branch `claude/gracious-goldberg-157f74` commit `865ee7bf` on production `6e8093f7`; not on production.
 
 October 27 production hotfix `71bf98a2`: [1M8-248 Customers tab Impersonate follows the user record, not the profile email](deploy/digitalocean/production-hotfix-20261027aa.md) on all roles; no production data changed; rollback is `fc31553b`.

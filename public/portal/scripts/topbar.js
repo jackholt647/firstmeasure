@@ -484,10 +484,11 @@ ${window.FirstMateAgentBar.css({ host:'.ptb-agent-host', bar:'.ptb-agent-bar', p
   // --- Messages dropdown (personal channels inbox) --------------------------
 
   let messagesInbox = { entries: [], unread_total: 0 };
+  let messagesGeneration = 0;
 
   function messagesAllowed(){
     try {
-      if (window.Portal?.can && window.Portal?.capabilities?.can) return window.Portal.can('apps.channels') !== false;
+      if (window.Portal?.can && window.Portal?.capabilities?.can) return window.Portal.can('apps.channels') !== false && window.Portal.can('topbar.messages') !== false;
     } catch (_) {}
     return true;
   }
@@ -498,6 +499,14 @@ ${window.FirstMateAgentBar.css({ host:'.ptb-agent-host', bar:'.ptb-agent-bar', p
     const mobile = $('#mobilePlatformMessagesSlot');
     if (desktop) desktop.hidden = !allowed;
     if (mobile) mobile.hidden = !allowed;
+    if (!allowed) {
+      messagesGeneration++;
+      closeMessagesMenus();
+      messagesInbox = { entries: [], unread_total: 0 };
+      renderMessagesBadge();
+      renderMessagesList();
+    }
+    syncMoreMenu();
   }
 
   function messagesMenus(){
@@ -569,7 +578,10 @@ ${window.FirstMateAgentBar.css({ host:'.ptb-agent-host', bar:'.ptb-agent-bar', p
     closeMessagesMenus();
     renderMessagesList();
     try {
-      if (entry.channel_type === 'project' && cleanText(entry.project_id)) {
+      if (cleanText(entry.photo_id) && cleanText(entry.project_id)) {
+        window.Portal?.navigation?.navigate?.({project:cleanText(entry.project_id),projectTab:'photos',projectNote:null,photo:cleanText(entry.photo_id),photoScope:'project'}, {source:'messages-inbox',ownedKeys:['project','projectTab','projectNote','photo','photoScope']});
+        await window.Portal?.navigation?.applyCurrent?.();
+      } else if (entry.channel_type === 'project' && cleanText(entry.project_id)) {
         window.Portal?.navigation?.navigate?.({project:cleanText(entry.project_id), projectTab:'materials', projectNote:cleanText(entry.kind === 'activity' ? entry.related_message_id : entry.message_id) || null}, {source:'messages-inbox'});
         await window.Portal?.navigation?.applyCurrent?.();
       } else {
@@ -635,8 +647,10 @@ ${window.FirstMateAgentBar.css({ host:'.ptb-agent-host', bar:'.ptb-agent-bar', p
 
   async function loadMessagesInbox(){
     if (!window.ChannelsAPI?.readState?.inbox || !orgId() || !messagesAllowed()) return;
+    const generation = messagesGeneration;
     try {
       const data = await window.ChannelsAPI.readState.inbox(orgId());
+      if (generation !== messagesGeneration || !messagesAllowed()) return;
       const entries = (data.entries || []).filter(entry => !openedMessageEntries.has(entry.entry_id));
       messagesInbox = { entries, unread_total: entries.reduce((sum, entry) => sum + (entry.unread ? Math.max(1, Number(entry.count || 1)) : 0), 0) };
       renderMessagesBadge();
@@ -1643,6 +1657,7 @@ ${window.FirstMateAgentBar.css({ host:'.ptb-agent-host', bar:'.ptb-agent-bar', p
     ].forEach(({ button, menu }) => {
       $(button)?.addEventListener('click', async (event) => {
         event.stopPropagation();
+        if (!messagesAllowed()) return;
         const targetMenu = $(menu);
         const opening = !targetMenu?.classList.contains('visible');
         closeMessagesMenus();
@@ -1682,7 +1697,9 @@ ${window.FirstMateAgentBar.css({ host:'.ptb-agent-host', bar:'.ptb-agent-bar', p
       });
     });
     updateAssistantVisibility(true);
-    window.addEventListener('fm:capabilities:updated', () => { updateAssistantVisibility(); updateMessagesVisibility(); });
+    const refreshMessagesAccess = () => { updateAssistantVisibility(); updateMessagesVisibility(); loadMessagesInbox().catch(() => null); };
+    window.addEventListener('fm:capabilities:updated', refreshMessagesAccess);
+    window.addEventListener('fm:app-flags:updated', refreshMessagesAccess);
     window.PlatformNotifications?.subscribe(renderNotifications);
     window.PlatformRealtime?.subscribe?.(orgId(), "channels.", event => {
       if (['channels.read.updated','channels.read_state.updated','channels.unreads.changed','channels.message.created','channels.reaction.updated'].includes(event.topic)) loadMessagesInbox().catch(() => null);

@@ -2432,9 +2432,29 @@
       : (flags?.current?.() && flags.value?.('platform', 'advanced_app_menu', false) === true);
   }
 
+  function portalAppPill(appId){
+    const pill = window.FirstMateTabGuides?.pill?.(appId);
+    if (pill) return pill;
+    const entitlements = window.Portal?.currentUser?.appEntitlements || [];
+    return entitlements.some?.(app => app.id === appId && app.offered)
+      ? {kind:'new',label:window.PlatformLanguage?.text?.('tab-guides','tg_pill_new','New') || 'New'} : null;
+  }
+
+  function announcePortalTab(t, panelEl){
+    if (!t || t.entitlement?.offered || TabRegistry.activeId !== t.id || TabRegistry.handles.get(t.id)?.offered) return;
+    window.FirstMateTabGuides?.opened?.({ appId:t.appId, tabId:t.id, container:panelEl,
+      isActive:() => TabRegistry.activeId === t.id && !!panelEl?.isConnected });
+  }
+
   function setPortalTabEntry(def){
     if (!def || !def.id) throw new Error('setPortalTabEntry: missing id');
     const runtimeAppId = def.appId || `portal.${def.id}`;
+    const previous = TabRegistry.tabs.get(def.id);
+    if (previous && (previous.entitlement?.offered === true) !== (def.entitlement?.offered === true)) {
+      try { TabRegistry.handles.get(def.id)?.destroy?.(); } catch (error) { console.warn('App offer remount failed', error); }
+      TabRegistry.handles.delete(def.id);
+      TabRegistry.mounted.delete(def.id);
+    }
     TabRegistry.tabs.set(def.id, {
       id: def.id,
       appId: runtimeAppId,
@@ -3331,7 +3351,8 @@
           pinnable: true,
           pinned: tab.placement === 'sidebar',
           enabled: true,
-          statusPills: normalizeAppStatusPills(window.PlatformAPI?.capabilities?.current?.()?.definitions_by_key?.[capability]?.status_pills, runtimeApp.statusPills),
+          offered: tab.entitlement?.offered === true,
+          statusPills: [...normalizeAppStatusPills(window.PlatformAPI?.capabilities?.current?.()?.definitions_by_key?.[capability]?.status_pills, runtimeApp.statusPills), ...(portalAppPill(tab.appId) ? [{id:'new',tone:'new',label:portalAppPill(tab.appId).label}] : [])],
           setup: capability ? appSetupDescription(capability) : null
         };
       });
@@ -3342,7 +3363,7 @@
   // stays in Settings and the add-apps catalog.
   function launcherSetupPending(entry){
     const setup = entry?.setup;
-    return !!(setup && setup.launchable && setup.mode === 'required' && setup.status !== 'complete');
+    return !!(!entry?.offered && setup && setup.launchable && setup.mode === 'required' && setup.status !== 'complete');
   }
 
   function openLauncherEntry(entry){
@@ -3925,6 +3946,8 @@
     }
 
     injectCSS('sidebar_links', `
+      .fm-global-app-new{display:inline-block;margin-left:7px;padding:2px 6px;border-radius:99px;background:#e8f5ee;color:#0f6b3a;font-size:9px;font-weight:800;line-height:1.4;vertical-align:middle}
+      .fm-advanced-app-status-pill.is-new{background:#e8f5ee;color:#0f6b3a}
       #sidebarLinks{
         margin-top: 0;
         display:flex;
@@ -4082,7 +4105,7 @@
       item.innerHTML = `
         ${advancedAppMenuEnabled() && t.placement === 'sidebar' ? `<button type="button" class="fm-sidebar-app-pin is-pinned" data-sidebar-app-pin="${String(escapeHtml(t.appId))}" aria-label="${((v1) => globalThis.PlatformLanguage?.htmlText("platform","m_db4217ef113961",`Unpin ${v1} from the sidebar`,{v1}) ?? `Unpin ${v1} from the sidebar`)(escapeHtml(title))}" title="${(globalThis.PlatformLanguage?.htmlText("platform","m_faf31575fe991d","Unpin from sidebar") ?? "Unpin from sidebar")}"><i class="fas fa-thumbtack" aria-hidden="true"></i></button>` : ''}
         <div class="ic"><i class="fas ${escapeHtml(t.icon)}"></i></div>
-        <div class="tx">${escapeHtml(title)}</div>
+        <div class="tx">${escapeHtml(title)}${portalAppPill(t.appId) ? `<span class="fm-global-app-new">${escapeHtml(portalAppPill(t.appId).label)}</span>` : ''}</div>
       `;
       item.addEventListener('click', ()=>activateTab(t.id, false, { history:'push', source:'portal-tab' }));
       item.querySelector('[data-sidebar-app-pin]')?.addEventListener('click', async (event) => {
@@ -4189,7 +4212,7 @@
     const prevId = TabRegistry.activeId;
     if (prevId && prevId !== id){
       const prev = TabRegistry.tabs.get(prevId);
-      prev?.onHide && prev.onHide();
+      if (!prev?.entitlement?.offered) prev?.onHide && prev.onHide();
       try { TabRegistry.handles.get(prevId)?.setActive?.(false); }
       catch (error) { console.warn(`Embeddable portal tab deactivation failed: ${prevId}`, error); }
     }
@@ -4235,11 +4258,12 @@
           })
         }).then((handle) => {
           TabRegistry.handles.set(id, handle);
+          if (handle && !handle.offered) announcePortalTab(t, panelEl);
         }).catch((error) => {
           console.warn(`Embeddable portal tab mount failed: ${id}`, error);
-          if (t.mount) t.mount(panelEl);
+          if (t.mount && !t.entitlement?.offered) t.mount(panelEl);
         });
-      } else if (t.mount) t.mount(panelEl);
+      } else if (t.mount && !t.entitlement?.offered) t.mount(panelEl);
     } else if (panelEl && TabRegistry.mounted.has(id)) {
       const handle = TabRegistry.handles.get(id);
       try {
@@ -4263,7 +4287,8 @@
       source: options.source || (isInitial ? 'portal-initial' : 'portal-tab'),
       ownedKeys: ['tab']
     });
-    if (!options.skipOnShow) t?.onShow && t.onShow(isInitial);
+    if (!options.skipOnShow && !t?.entitlement?.offered) t?.onShow && t.onShow(isInitial);
+    if (TabRegistry.handles.has(id)) announcePortalTab(t, panelEl);
     // Overlays riding on top of the viewport (e.g. the channels conversation
     // pop-over) listen for this: choosing an app must bring that app forward.
     window.dispatchEvent(new CustomEvent('fm:portal-tab:activated', {
@@ -5101,6 +5126,10 @@
   window.addEventListener('fm:left-column-pins:updated', () => insertSidebarSubviewLinks());
   window.addEventListener('fm:perms:updated', () => renderTabs());
   window.addEventListener('fm:app-flags:updated', () => renderTabs());
+  window.addEventListener('fm:guides:updated', () => {
+    const id=TabRegistry.activeId;
+    if (id && TabRegistry.handles.has(id)) announcePortalTab(TabRegistry.tabs.get(id),document.getElementById(`tab_${id}`));
+  });
   window.addEventListener('fm:app-placements:updated', () => renderTabs());
   window.addEventListener('fm:capabilities:updated', () => {
     const expanded = window.Portal?.capabilities?.value?.('platform.expanded_access', false) === true;

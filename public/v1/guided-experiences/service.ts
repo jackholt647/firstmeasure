@@ -1,3 +1,4 @@
+import { registerOperationsGuidedExperiences } from './definitions/operations.js';
 import { can, hasPermission, type PlatformAuthContext } from "../platform/auth.js";
 import { badRequest, forbidden, notFound } from "../platform/errors.js";
 import { invokeAction } from "../platform/publication/actions.js";
@@ -11,6 +12,7 @@ import { EVENT_TYPES, selectionsSchema, type Copy, type ExperienceDefinition, ty
 import { experience, guidedSource, listExperiences, tabFaqs } from "./registry.js";
 import { listProgress, readProgress, recordEvent, wasExposed, writeProgress, type Progress } from "./store.js";
 import { registerMaterialsGuidedExperiences } from "./definitions/materials.js";
+import { registerEquipmentGuidedExperiences } from "./definitions/equipment.js";
 import { registerPhotosGuidedExperiences } from "./definitions/photos.js";
 import { registerReportsGuidedExperiences } from "./definitions/reports.js";
 import { registerCustomerPortalGuidedExperiences } from "./definitions/customer-portal.js";
@@ -22,7 +24,7 @@ import { registerCustomerPortalGuidedExperiences } from "./definitions/customer-
  * conversation) and the context the real assistant gets when the person types during one.
  */
 
-export function ensureGuidedDefinitions() { registerMaterialsGuidedExperiences(); registerPhotosGuidedExperiences(); registerReportsGuidedExperiences(); registerCustomerPortalGuidedExperiences(); }
+export function ensureGuidedDefinitions() { registerOperationsGuidedExperiences(); registerMaterialsGuidedExperiences(); registerPhotosGuidedExperiences(); registerReportsGuidedExperiences(); registerCustomerPortalGuidedExperiences(); registerEquipmentGuidedExperiences(); }
 
 const text = (value: unknown) => String(value ?? "").trim();
 const object = (value: unknown): Record<string, unknown> => value && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : {};

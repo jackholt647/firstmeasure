@@ -313,3 +313,16 @@ async function waitUntilAsync(check: () => Promise<boolean>, message: string, ti
     await new Promise((resolve) => setTimeout(resolve, 100));
   }
 }
+
+
+test("Equipment's global tour preloads without a project and explains scope requirements", async () => {
+  OVERRIDES.equipment_global={'apps.equipment':true};
+  const {page,errors}=await open({route:'equipment',html:'<div id="tab_equipment"><button data-eq-add-unit>Add unit</button></div>'},'equipment_global');
+  try {
+    await page.evaluate(async()=>{(window as any).route={tab:'equipment'};await (window as any).FirstMateGuides.refresh();await (window as any).FirstMateGuides.preload('');});
+    await opened(page,'portal.equipment');
+    const titles=await walk(page,'equipment.tab_tutorial');
+    assert.deepEqual(titles,['Equipment that fits the work','Add what you use','Say what it can do','Bring it into Operations','Start with one unit']);
+    assert.deepEqual(errors,[]);
+  } finally {await page.close();}
+});

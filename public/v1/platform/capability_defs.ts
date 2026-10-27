@@ -1205,6 +1205,15 @@ const definitions: CapabilityDefinition[] = [
     default: true
   },
   {
+    key: "topbar.messages",
+    kind: "setting",
+    parent: "platform.top_bar",
+    requires: ["apps.channels"],
+    label: "Messages Notifications",
+    description: "Show a separate Messages inbox in the header. When off, mentions and message notifications appear in the notification bell instead.",
+    default: true
+  },
+  {
     key: "topbar.notifications",
     kind: "setting",
     parent: "platform.top_bar",

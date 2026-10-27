@@ -7,6 +7,13 @@ workflows they are made from. The history is recorded by the documents engine,
 on the server, for every save, with who or what made it. It is on for every
 organization and has no switch.
 
+Operations uses the native document workflow and normal document writers for both
+proposals and the `scope_of_work` type. `operations.scope.complete` retains an
+`operations_scope` snapshot and publishes its materials deliverable as an explicit
+internal plan. The scope-only document becomes completed; a proposal remains in its
+ordinary lifecycle and acquires no signature, acceptance or payment receipt. Readiness
+requires an actual ledger publication, not just a browser flag or snapshot metadata.
+
 Read this page before adding a writer that changes a document, a lifecycle step
 (anything like send, present, sign or an "Edit manually" override), or a new
 kind of document asset.

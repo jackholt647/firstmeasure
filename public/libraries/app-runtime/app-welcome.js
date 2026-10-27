@@ -8,12 +8,13 @@ const icons = {
   photos:'<rect x="3" y="6" width="18" height="15" rx="3"/><path d="m8 6 2-3h4l2 3"/><circle cx="12" cy="13" r="4"/>',
   documents:'<path d="M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9zM14 3v6h6M8 13h8M8 17h5"/>',
   portal:'<path d="m3 11 9-8 9 8M5 10v11h14V10M9 21v-7h6v7"/>',
+  equipment:'<path d="M3 6h11v11H3zM14 10h4l3 4v3h-7M6 17v1m12-1v1"/><circle cx="6" cy="18" r="2"/><circle cx="18" cy="18" r="2"/>',
   materials:'<path d="m3 7 9-4 9 4-9 4zM3 7v10l9 4 9-4V7M12 11v10M7 5l10 5"/>'
 };
 const icon = theme => `<svg viewBox="0 0 24 24" aria-hidden="true">${icons[theme] || icons.documents}</svg>`;
 const css = `
 .fm-app-welcome{--offer-accent:#d93025;--offer-tint:#fff0eb;container-type:inline-size;overflow:auto;overscroll-behavior:contain;height:100%;min-height:0;background:#faf9f6;color:#202124;text-align:left;font-family:Montserrat,Arial,sans-serif}
-.fm-app-welcome *{box-sizing:border-box}.fm-app-welcome[data-theme=photos]{--offer-accent:#287471;--offer-tint:#e9f5f1}.fm-app-welcome[data-theme=portal]{--offer-accent:#5367a8;--offer-tint:#eff1fb}.fm-app-welcome[data-theme=materials]{--offer-accent:#9d6636;--offer-tint:#f7eddd}
+.fm-app-welcome *{box-sizing:border-box}.fm-app-welcome[data-theme=photos]{--offer-accent:#287471;--offer-tint:#e9f5f1}.fm-app-welcome[data-theme=portal]{--offer-accent:#5367a8;--offer-tint:#eff1fb}.fm-app-welcome[data-theme=equipment],.fm-app-welcome[data-theme=materials]{--offer-accent:#9d6636;--offer-tint:#f7eddd}
 .faw-wrap{max-width:1120px;margin:auto;padding:clamp(22px,4cqw,46px);min-height:100%;display:flex;flex-direction:column;justify-content:center;gap:26px}
 .faw-top{display:flex;justify-content:space-between;align-items:center;gap:12px;font-size:12px;font-weight:800}.faw-brand{display:flex;align-items:center;gap:8px}.faw-brand img{width:23px;height:23px;object-fit:contain}.faw-free{font-size:10px;letter-spacing:.03em;color:#285743;background:#e6f2e9;padding:7px 10px;border-radius:99px;white-space:nowrap}
 .faw-hero{display:grid;grid-template-columns:minmax(0,1.1fr) minmax(0,1fr);align-items:center;gap:36px}.faw-copy{min-width:0}.faw-eyebrow{font-size:10px;font-weight:850;letter-spacing:.12em;text-transform:uppercase;color:var(--offer-accent);margin:0 0 13px!important}
@@ -36,6 +37,7 @@ function illustration(theme){
   if (theme === 'photos') body = `<div class="faw-photo-grid">${['Before','Details','In progress','Finished'].map((label,i)=>`<div class="faw-photo"><span>${t('photo_label_'+i,label)}</span></div>`).join('')}</div>`;
   else if (theme === 'documents') body = `<div class="faw-doc-title">${t('demo_proposal','Project proposal')}</div><div class="faw-demo-small">${t('demo_prepared','PREPARED FOR YOUR CUSTOMER')}</div><div class="faw-line"></div><div class="faw-line"></div><div class="faw-line short"></div><div class="faw-signature">${t('demo_signature','A great first impression.')}</div>`;
   else if (theme === 'portal') body = `<div class="faw-portal-cover">${icon(theme)}</div>${row(t('demo_welcome','Welcome to your project'),t('demo_portal_sub','The details, right at your fingertips'),'')}${row(t('demo_shared','Shared with you'),t('demo_shared_sub','Your project information'),'↗')}`;
+  else if (theme === 'equipment') body = row(t('demo_equipment_trailer','Dump trailer'),t('demo_equipment_trailer_sub','Hauling & debris removal'),'✓')+row(t('demo_equipment_lift','Material lift'),t('demo_equipment_lift_sub','Lifting & roof access'),'✓')+row(t('demo_equipment_project','Project requirements'),t('demo_equipment_project_sub','Match the equipment to the work'),'↗');
   else body = row(t('demo_shingles','Roofing shingles'),t('demo_shingles_sub','Selected product & color'),'24')+row(t('demo_underlay','Underlayment'),t('demo_underlay_sub','Ready for the next step'),'3')+row(t('demo_trim','Drip edge'),t('demo_trim_sub','The details are on the list'),'18');
   return `<div class="faw-art" aria-hidden="true"><div class="faw-demo">${head}${body}<div class="faw-stamp">${check}${t('demo_connected','Connected to your project')}</div></div></div>`;
 }

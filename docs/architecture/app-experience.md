@@ -270,6 +270,15 @@ Accept a deliberate change with `UPDATE_ACCESS_GATES=1`.
 
 ## Rules
 
+Operations uses the existing `project.materials` app id. Its welcome advertisement
+activates the organization offer only after Get Started, then opens the shared
+Operations guide. The guide can offer Equipment globally as `portal.equipment`
+without activating `apps.equipment`; that sidebar entry retains New until its
+Get Started action activates it for the organization. A resource column is
+separate from app visibility: initial Operations setup keeps Labor hidden until
+configured and Equipment hidden until its capability is active. Existing saved
+column settings and existing labor work remain visible.
+
 - Do not add an application id, an office or field flag, or a role
   "application". Show different apps to different roles in App experience.
 - Do not hide an app because of a permission. Check the permission in the app

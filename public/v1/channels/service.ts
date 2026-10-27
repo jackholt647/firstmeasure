@@ -342,6 +342,37 @@ function inboxSeenKey(orgId: string, userId: string) {
   return `inbox_seen:${orgId}:${userId}`;
 }
 
+/** Current domain authorization and read/mute state for a retained message notification, on either surface. */
+export async function messageNotificationVisible(ctx: PlatformAuthContext, note: JsonObject, options: { bell?: boolean } = {}) {
+  const action = asObject(note.frontend_action), context = asObject(note.context), payload = asObject(context.payload), event = asObject(note.inbox_event);
+  const channelId = cleanText(action.channel_id || context.channel_id || payload.channel_id || event.channel_id);
+  if (!channelId) return false;
+  let access;
+  try { access = await requireChannelAccess(ctx, channelId); } catch { return false; }
+  if (!options.bell && access.channel.type === 'feed') return false;
+  const preferences = await collaboration.readCollaborationPreferences(ctx.orgId, ctx.userId);
+  if (asObject(preferences.dnd).enabled === true || cleanText(access.membership?.notify_level || preferences.default_notify_level) === 'muted') return false;
+  const messageId = cleanText(action.message_id || context.message_id || payload.message_id || event.message_id);
+  const messageNotification = ['channel_message','channel_reply','mention'].includes(cleanText(note.kind)) || cleanText(note.preference_key) === 'event.channels.message.posted' || event.type === 'channels.message.posted';
+  const message = messageId ? await readMessageRecord(ctx.orgId, messageId) : null;
+  if (messageNotification && (!message || message.deleted_at)) return false;
+  if (message) {
+    const groups = viewerAudienceGroups(ctx);
+    if (message.channel_id !== channelId || message.deleted_at || !messageVisibleTo(message, ctx, groups)) return false;
+    if (await separateProjectNotes(ctx) && message.metadata.project_note === true && !access.channel.settings.photo_media_id && note.kind !== 'mention') return false;
+    if (message.parent_id) {
+      const root = await readMessageRecord(ctx.orgId, message.parent_id);
+      if (!root || root.channel_id !== channelId || root.deleted_at || !messageVisibleTo(root, ctx, groups)) return false;
+      const thread = await collaboration.threadSubscriptionRecord(message.parent_id, ctx.userId);
+      if (thread?.notify_level === 'muted' || messageNotification && Number(thread?.last_read_reply_seq || 0) >= message.seq) return false;
+    }
+    if (messageNotification && message.seq <= (await readStateFor(channelId, ctx.userId)).last_read_seq) return false;
+  }
+  const entryId = createHash('sha256').update(JSON.stringify(['activity',channelId,note.id,'','',note.created_at])).digest('hex');
+  const readEntries = JSON.parse(await readChannelsMeta(`inbox_read:${ctx.orgId}:${ctx.userId}`) || '{}');
+  return !readEntries[entryId];
+}
+
 export async function personalInbox(ctx: PlatformAuthContext, options: { limit?: number } = {}) {
   const limit = Math.min(80, Math.max(10, Number(options.limit || 40)));
   const seenAt = (await readChannelsMeta(inboxSeenKey(ctx.orgId, ctx.userId)));
@@ -368,7 +399,7 @@ export async function personalInbox(ctx: PlatformAuthContext, options: { limit?:
         : channel.type === "project"
           ? "Project notes"
           : `#${cleanText(channel.name) || "untitled"}`,
-      project_id: channel.project_id || null
+      project_id: entry.project_id || channel.project_id || null
     });
   };
 
@@ -515,16 +546,16 @@ export async function personalInbox(ctx: PlatformAuthContext, options: { limit?:
     if (channelId && !channelById.has(channelId)) {
       try {
         const { channel } = await requireChannelAccess(ctx, channelId);
-        if (channel.archived_at) channelById.set(channelId, await channelView(ctx, channel));
+        if (channel.archived_at || channel.settings.photo_media_id || channel.type === 'project' && note.kind === 'mention') channelById.set(channelId, await channelView(ctx, channel));
       } catch { /* Removed members cannot see an old private-channel alert. */ }
     }
     const messageId = cleanText(action.message_id || context.message_id || payload.message_id || event.message_id);
     const duplicateMessage = ["channel_message","channel_reply","mention"].includes(cleanText(note.kind)) || cleanText(note.preference_key) === "event.channels.message.posted" || event.type === "channels.message.posted";
     if (messageId && nativeMessageIds.has(messageId) && duplicateMessage) continue;
     const activity: JsonObject = {kind:"activity", channel_id:channelId, message_id:note.id, related_message_id:messageId,
-      parent_id:action.parent_id, text:note.body, title:note.title, notification_id:note.id, huddle_id:action.huddle_id, message_notification:duplicateMessage,
+      parent_id:action.parent_id, photo_id:action.photo_id, project_id:action.project_id, text:note.body, title:note.title, notification_id:note.id, huddle_id:action.huddle_id, message_notification:duplicateMessage,
       at:note.created_at, unread:!asObject(note.user_state).seen_at, author:{id:"",name:"Channels"}};
-    if (await allowed(activity, true)) pushEntry(activity);
+    if (await messageNotificationVisible(ctx, note)) pushEntry(activity);
   }
   const mentions = new Set(native.filter(entry => entry.kind === "mention").map(entry => cleanText(entry.channel_id)));
   const mentionedMessages = new Set(native.filter(entry => entry.kind === "mention").map(entry => cleanText(entry.message_id)));
@@ -1322,8 +1353,8 @@ export async function postMessage(ctx: PlatformAuthContext, channelId: string, i
   const attentionTargets = hiddenNote ? new Map<string, unknown>() : (await collaboration.recordAttentionForMessage(channel, message));
   (await publishMessageEvent("channels.message.created", channel, message, hydrated));
   await messageWorkEvent(ctx, channel, message, "posted", message.created_at);
+  await notifyMentions(ctx, channel, message);
   if (!hiddenNote) {
-    await notifyMentions(ctx, channel, message);
     await notifyMessageSubscribers(ctx, channel, message);
   }
   if (attentionTargets.size) {
@@ -1512,7 +1543,7 @@ export async function editMessage(ctx: PlatformAuthContext, messageId: string, i
   const [hydrated] = await hydrateMessages(ctx, channel, [updated]);
   (await publishMessageEvent("channels.message.updated", channel, updated, hydrated));
   await messageWorkEvent(ctx, channel, updated, "edited", updated.edited_at ?? nowIso());
-  if (!(updated.metadata.project_note === true && await separateProjectNotes(ctx))) await notifyMentions(ctx, channel, updated, previousMentions);
+  await notifyMentions(ctx, channel, updated, previousMentions);
   if (!(updated.metadata.project_note === true && await separateProjectNotes(ctx)) && channel.type === "project" && channelTags.length) await postChannelTagNotices(ctx, channelTags, "project_note", {project_id:channel.project_id,note_id:message.id}, {id:message.id});
   return hydrated;
 }
@@ -2746,7 +2777,10 @@ async function notifyMentions(ctx: PlatformAuthContext, channel: ChannelRow, mes
   try {
     const { createPlatformNotification } = await import("../platform/api.js");
     const actorName = cleanText(ctx.identity.name || ctx.identity.display_name || ctx.identity.email) || "A teammate";
-    const frontendAction = channel.type === "project"
+    const photo = channel.settings.photo_media_id ? await (await import("../platform/storage.js")).readMediaMetadata(ctx.orgId, cleanText(channel.settings.photo_media_id)) : null;
+    const frontendAction = channel.settings.photo_media_id
+      ? { kind: "open_project_photo", project_id: asObject(photo?.owner).id, photo_id: channel.settings.photo_media_id, channel_id: channel.id, message_id: message.id, parent_id: message.parent_id }
+      : channel.type === "project"
       ? { kind: "open_project_message", project_id: channel.project_id, channel_id: channel.id, message_id: message.id, parent_id: message.parent_id }
       : { kind: "open_channel_message", channel_id: channel.id, message_id: message.id, parent_id: message.parent_id };
     for (const [branchId, targets] of branchTargets) {
@@ -2762,7 +2796,7 @@ async function notifyMentions(ctx: PlatformAuthContext, channel: ChannelRow, mes
       kind: "mention",
       ...(reply ? { preference_key: "channel_replies" } : {}),
       push: true,
-      passive: reply,
+      passive: true,
       manual_dismissible: true,
       target_user_ids: audience,
       branch_id: branchId,

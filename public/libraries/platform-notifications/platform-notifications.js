@@ -43,12 +43,6 @@
       && completedAt - createdAt <= 2000;
   }
 
-  // Older persisted payloads and saved Bell=true never put Channels back under the bell.
-  function isMessageInboxNotification(item){
-    const source=String(item?.source||''), key=String(item?.preference_key||'');
-    return ['channels','channels_agent','channel_message','project_message'].includes(source) || key==='channel_replies' || key.startsWith('event.channels.') || String(item?.event||item?.inbox_event?.type||'').startsWith('channels.') || item?.kind==='channel_message' || ['open_channel_message','open_project_message'].includes(String(item?.frontend_action?.kind||''));
-  }
-
   async function load(orgId, options = {}){
     if (!PlatformAPI?.notifications || !orgId) return state;
     const data = await PlatformAPI.notifications.list(orgId, options);
@@ -57,7 +51,7 @@
     const visibleNotifications = [];
     const dismissedNotifications = [];
     for (const item of nextNotifications) {
-      const bellAllowed = !isMessageInboxNotification(item);
+      const bellAllowed = item.presentation?.bell !== false;
       if (item.delivery_version === 2) {
         const claim = async method => {
           const delivery = item.deliveries?.methods?.[method];

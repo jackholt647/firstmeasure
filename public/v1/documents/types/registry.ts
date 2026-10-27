@@ -258,6 +258,12 @@ registerDocumentType("shopping_list", {
   seeded_templates: ["tpl_shopping_list_default"]
 });
 
+registerDocumentType("scope_of_work", {
+  label: "Scope of work", icon: "fa-list-check",
+  param_schema: { project: { type: "entity", entity: "project" }, scope_items: { type: "list", items: { type: "pricebook_line" } } },
+  output_schema: {}, default_theme_id: "thm_clean"
+});
+
 registerDocumentType("generic", {
   label: "Document",
   icon: "fa-file-lines",

@@ -1,3 +1,4 @@
+import { registerOperationsSetupPublication } from '../../operations/onboarding.js';
 import {registerPhoneMarketingPublication} from '../../comms/phone/marketing-publication.js';
 import {registerPhonePublication} from '../../comms/phone/publication.js';
 import {registerResourceTypePublication} from '../../materials/resource-types-publication.js';
@@ -12,6 +13,7 @@ import { registerMaterialsCalculusPublication } from '../../materials/calculus-p
 import { registerMaterialOrderingPublication } from '../../materials/ordering-publication.js';
 import { registerMaterialsGeneratePublication } from '../../materials/generate-publication.js';
 import { registerPricebookSetupPublication } from '../../pricebook/setups/index.js';
+import { registerOperationsDocumentPublication } from '../../operations/documents.js';
 import { registerSupplierPricesPublication } from '../../materials/supplier-prices-publication.js';
 import { registerLaborSetupPublication } from '../../labor/labor-setup.js';
 import { registerMaterialsInputs } from '../../materials/calculus-inputs.js';
@@ -73,7 +75,9 @@ export function initializePublication() {
   registerProjectHistoryPublication();
   registerMaterialsGeneratePublication();
   registerPricebookSetupPublication();
+  registerOperationsDocumentPublication();
   registerSupplierPricesPublication();
   registerLaborSetupPublication();
+  registerOperationsSetupPublication();
   initialized = true;
 }
