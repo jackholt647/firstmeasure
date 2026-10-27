@@ -39,7 +39,7 @@ test('project identity and overview share compact contact controls on mobile and
     const card = `<div class="r-contact-card primary" data-localized-heading="Primary Contact"><div class="r-inline"><div class="r-group"><input class="r-inp" value="Name"></div><div class="r-group"><input class="r-inp" value="Phone"></div></div><div class="r-contact-actions"><button class="r-contact-primary">★</button><button class="r-contact-menu-btn">⋯</button></div></div>`;
     await page.setContent(`<!doctype html><meta name="viewport" content="width=device-width,initial-scale=1"><div class="r-overlay active"><div class="r-modal-header" data-window-mobile="${width<760}"></div><div class="r-overview-details">${card}</div><div class="r-project-identity-popover ${width<760?'r-project-identity-sheet':''}"><header><strong>Contact and address</strong><button>Close</button></header><div class="r-project-identity-fields">${card}</div></div></div>`);
     await page.addStyleTag({content:css+windowCss});
-    await page.waitForTimeout(400);
+    await page.evaluate(() => Promise.all(document.getAnimations().map(animation => animation.finished.catch(() => {}))));
     const measures = await page.evaluate(()=>{
       const metrics = root=>{
         const card=root.querySelector('.r-contact-card'), button=root.querySelector('.r-contact-primary');
