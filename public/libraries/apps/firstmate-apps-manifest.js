@@ -189,7 +189,7 @@
       kind: 'project_modal_app',
       surfaces: ['project_modal'],
       requiresContext: ['project'],
-      bundles: [versionedBundle('docs/project.js', '20261026-mobile-documents-2')]
+      bundles: [versionedBundle('docs/project.js', '20261026-consolidated')]
     },
     {
       id: 'project.documents',
