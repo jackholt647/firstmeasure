@@ -2372,7 +2372,7 @@
         <td>${fmtDate(u.created_at)}</td>
         <td style="text-align:right;">
           <button class="btn-impersonate"
-                  onclick="event.stopPropagation(); Customers.impersonateUser('${esc(u.email)}', '${esc(u.name||u.email)}')"
+                  onclick="event.stopPropagation(); Customers.impersonateUser('${esc(u.email)}', '${esc(u.name||u.email)}', '${esc(u.id||'')}')"
                   title="Login as this user">
             <i class="fas fa-user-secret"></i> Impersonate
           </button>
@@ -2383,7 +2383,7 @@
 
   /* ───────────── IMPERSONATE USER ───────────── */
 
-  async function impersonateUser(email, displayName){
+  async function impersonateUser(email, displayName, userId){
     if (!confirm(
       'Switch to "' + displayName + '" (' + email + ')?\n\n' +
       'A new tab will open with the customer portal as this user.\n' +
@@ -2401,6 +2401,7 @@
       const body = {
         action: 'admin_impersonate_user',
         email,
+        user_id: userId || '',
         org_id: (currentOrg && currentOrg.id) ? currentOrg.id : '',
         actor_email: actor.email || actor.user_email || '',
         actor_name: actor.name || actor.user_name || '',

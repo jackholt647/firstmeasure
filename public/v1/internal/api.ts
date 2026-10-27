@@ -61,6 +61,8 @@ import {
   patchIdentity,
   readGlobal,
   mutateGlobal,
+  readDocument,
+  readIdentity,
   readOrganization,
   saveGlobal,
   upsertDocument
@@ -1528,15 +1530,19 @@ async function startCustomerImpersonation(request: FastifyRequest, reply: Fastif
 
   const email = cleanText(body.email || body.user_email).toLowerCase();
   const requestedOrgId = cleanText(body.org_id || body.organization_id);
-  if (!email) return { ok: false, success: false, status_code: 400, error: "missing_user_email" };
+  const requestedUserId = cleanText(body.user_id);
+  if (!email && !(requestedOrgId && requestedUserId)) return { ok: false, success: false, status_code: 400, error: "missing_user_email" };
 
-  const identity = await findIdentityByEmailOrNull(email);
+  // The user record's own identity link comes first: its email can differ from the sign-in email (1M8-248).
+  const identity = await impersonationIdentityForUser(requestedOrgId, requestedUserId) ?? (email ? await findIdentityByEmailOrNull(email) : null);
   if (!identity) return { ok: false, success: false, status_code: 404, error: "identity_not_found" };
 
   const memberships = await listIdentityMemberships(String(identity.id ?? "")).catch(() => []);
   const selected = memberships.find((entry) => {
     const organization = asObject(asObject(entry).organization);
-    return requestedOrgId ? cleanText(organization.id) === requestedOrgId : cleanText(organization.id) !== internalPlatformOrgId();
+    if (!requestedOrgId) return cleanText(organization.id) !== internalPlatformOrgId();
+    const user = asObject(asObject(entry).user);
+    return cleanText(organization.id) === requestedOrgId && (!requestedUserId || cleanText(user.id) === requestedUserId);
   }) ?? (requestedOrgId ? undefined : memberships[0]);
   if (!selected) return { ok: false, success: false, status_code: 404, error: "membership_not_found" };
 
@@ -1580,6 +1586,14 @@ async function startCustomerImpersonation(request: FastifyRequest, reply: Fastif
     admin_email: actorEmail,
     redirect_url: "/portal/"
   };
+}
+
+async function impersonationIdentityForUser(orgId: string, userId: string) {
+  if (!orgId || !userId) return null;
+  const document = await readDocument(orgId, "users", userId).catch(() => null);
+  if (!document) return null;
+  const identityId = cleanText(documentData(document).identity_id || asObject(document.metadata).identity_id);
+  return identityId ? await readIdentity(identityId).catch(() => null) : null;
 }
 
 async function adminRestorePlatformSessionId(request: FastifyRequest, adminUser: JsonObject, actor: JsonObject) {
@@ -7182,6 +7196,8 @@ function organizationUserView(document: JsonObject, projects: JsonObject[] = [])
   const orderCount = Number.isFinite(storedOrderCount) ? Math.max(storedOrderCount, countedOrders) : countedOrders;
   return {
     ...data,
+    // The record id, which the Customers tab sends to impersonate this user (1M8-248).
+    id: cleanText(data.id) || cleanText(document.id),
     org_permissions: { level, items },
     org_permission_level: level,
     permission_level: level,
