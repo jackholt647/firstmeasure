@@ -915,8 +915,8 @@ window.PlatformCommerce.onReady(async function(){
     .r-details-tray :is(#rProjectCustomFields,#rCustomerPortalLinkMount,#rInlineNotesMount):empty{display:none}
     /* Photo custom fields (the cover photo among them) are pinned photos in the Photos tab, not tray fields. They stay
        in the form, only hidden, so saving the other fields keeps their values. */
-    .r-details-tray [data-custom-field-path]:has([data-fm-cf-type="photo"]),
-    .r-details-tray #rProjectCustomFields:not(:has([data-custom-field-path]:not(:has([data-fm-cf-type="photo"])))){display:none!important}
+    .r-details-tray [data-custom-field-path]:has([data-fm-cf-type="photo"]){display:none!important}
+    .r-details-tray #rProjectCustomFields.r-fields-photos-only{display:none!important}
     .r-tray-measurements{margin:6px 0 6px;padding-top:14px;border-top:1px solid #eaecf0}
     .r-tray-measurements[hidden]{display:none!important}
     .r-tray-measurements>header{display:flex;align-items:center;justify-content:space-between;margin:0 0 10px;font-size:12px;color:#344054;font-weight:600}
@@ -9382,8 +9382,14 @@ window.PlatformCommerce.onReady(async function(){
       // An empty cover shows the photo the project shows without one, its satellite image.
       defaultMedia:{ cover_photo:projectCoverDefaultImage() }
     });
-    rendered?.then?.(() => renderProjectStageBar());
+    rendered?.then?.(() => {renderProjectStageBar();markPhotoOnlyCustomFields(mount);});
     return rendered;
+  }
+
+  // With only photo fields (shown in the Photos tab), the fields block would be an empty bordered box in the tray.
+  function markPhotoOnlyCustomFields(mount){
+    const fields=[...(mount?.querySelectorAll?.('[data-custom-field-path]') || [])];
+    mount?.classList?.toggle('r-fields-photos-only',!!fields.length && fields.every(field=>field.querySelector('[data-fm-cf-type="photo"]')));
   }
 
   function projectCoverDefaultImage(){
