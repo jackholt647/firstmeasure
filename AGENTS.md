@@ -57,6 +57,11 @@ folder; it never touches production and needs nothing on the server. Server
 code, PHP and HTML pages still need a rollout. Run
 `node --test tests/frontend-bridge.test.mjs` for changes here.
 
+The [live layer](docs/architecture/live-layer.md) is the shared variant: browser
+files saved in the dev sync droplet's checkout are served by dev.1m8.ai at once
+and swapped into every open dev page (`tools/live-layer/live-sync.mjs` there).
+Run `node --test tests/live-layer.test.mjs` for changes to it.
+
 ## Canonical source
 
 The active combined platform checkout is `C:/Users/jackh/Code/2026/FirstMate Platform`

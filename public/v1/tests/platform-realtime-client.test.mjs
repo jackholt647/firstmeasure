@@ -36,3 +36,23 @@ test('SSE failure immediately polls, refreshes every second and recovers SSE wit
   assert.ok(sources[1].closed);
   assert.equal(timers.size,0);
 });
+
+test('only a page on dev.1m8.ai watches the live layer, on the same stream as presence', async () => {
+  const run = async (hostname) => {
+    const timers=[], sources=[];
+    class EventSource { constructor(url){this.url=url;this.listeners={};sources.push(this);} addEventListener(name,fn){this.listeners[name]=fn;} close(){this.closed=true;} }
+    const window={EventSource,location:{origin:`https://${hostname}`,hostname},dispatchEvent(){},addEventListener(){},__APP:{userOrgId:'org1'}};
+    const context=vm.createContext({window,EventSource,console,location:window.location,document:{hidden:false,addEventListener(){},cookie:''},CustomEvent:class {},
+      setTimeout:(fn,ms)=>{timers.push(fn);return timers.length;},clearTimeout(){},fetch:async()=>({ok:true,json:async()=>({})})});
+    vm.runInContext(await readFile(new URL('../../libraries/platform-realtime/platform-realtime.js',import.meta.url),'utf8'),context);
+    timers.splice(0).forEach(fn=>fn());
+    return sources.map(source=>decodeURIComponent(source.url));
+  };
+  const dev = await run('dev.1m8.ai');
+  assert.equal(dev.length, 1, 'presence and the live layer share one connection');
+  assert.match(dev[0], /watch=presence:online/);
+  assert.match(dev[0], /watch=live-assets/);
+  const production = await run('app.1m8.ai');
+  assert.equal(production.length, 1);
+  assert.doesNotMatch(production[0], /live-assets/);
+});

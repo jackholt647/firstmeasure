@@ -186,6 +186,7 @@ import {
 } from "./storage.js";
 import { badRequest, conflict, forbidden, notFound } from "./errors.js";
 import { attachRealtimeConnection, pollRealtimeEvents, realtimeWatchList, registerRealtimeChannelKind, resolveRealtimeChannels } from "./realtime.js";
+import { registerLiveAssetsChannel } from "./live_assets.js";
 import { organizationUserProfileFields, organizationUserProfileView } from "./user_profile.js";
 import { runTerminologyAgent } from "./terminology_agent.js";
 import { activeResourceGroupIdsForUser, assignedProjectIdsForUser } from "../workforce/assignment_scope.js";
@@ -2717,6 +2718,9 @@ app.get("/auth/google/config", async () => ({
       ...(Number.isFinite(age) && age >= 0 ? { activityAgeMs: Math.min(604800000, age) } : {}) },
       (event, data) => { if (event !== "heartbeat") send(event, data); }, () => ended("presence_ended"));
   });
+
+  // `watch=live-assets`: development only, files from the live layer (docs/architecture/live-layer.md).
+  registerLiveAssetsChannel();
 
   app.get("/organizations/:orgId/events/stream", async (request, reply) => {
     const orgId = getParam(request.params, "orgId");

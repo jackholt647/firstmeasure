@@ -10,6 +10,12 @@ bridge serves your checkout's changed browser files to that Chrome; the page rel
 save. Read `docs/architecture/frontend-bridge.md` once, and the architecture doc AGENTS.md names for the area
 you touch (guided experiences, forms, app experience, realtime, ...).
 
+**On the dev sync droplet** (`/home/dev/code/firstmeasure`) use the shared live layer instead of the bridge
+(`docs/architecture/live-layer.md`): run `node tools/live-layer/live-sync.mjs` in the background and every save
+is served by dev.1m8.ai at once and swapped into every open dev page, for everyone. `live-sync.mjs status` lists
+what is live. A `REFUSED ... dev-differs` line means the checkout is older than dev for that file: update it.
+Commit and roll out as below to make it permanent; the layer then retires those files by itself.
+
 ## Start
 
 1. Work in your own checkout, never the shared one (other sessions' uncommitted edits would be served too).

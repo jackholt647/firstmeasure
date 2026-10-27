@@ -30,7 +30,7 @@
   const widgetBundles = [gifDisplayBundle,...['scope-data','runtime','project-widgets'].map(name=>versionedBundle('../platform-widgets/'+name+'.js',name==='runtime'?'20261012-composer-media-fixes-v1':name==='project-widgets'?'20261026-touch-key':'20261003-project-widgets-v1'))];
   const channelsLibBundles = [
     ...widgetBundles, bookingBundle, priorityFieldsBundle,
-    versionedBundle('../platform-realtime/platform-realtime.js', '20260929-presence-controls-v3'),
+    versionedBundle('../platform-realtime/platform-realtime.js', '20261026-live-layer'),
     versionedBundle('../channels-api/channels-api.js', '20261012-shared-polish-v1'),
     versionedBundle('../audio-notes/audio-notes.js', '20260929-presence-controls-v3'),
     versionedBundle('../audio-structure/audio-structure.js', '20260725-checklist-voice-v1'),
@@ -536,7 +536,7 @@
       settingsTabId: 'channels',
       order: 44,
       bundles: [
-        versionedBundle('../platform-realtime/platform-realtime.js', '20260929-presence-controls-v3'),
+        versionedBundle('../platform-realtime/platform-realtime.js', '20261026-live-layer'),
         versionedBundle('../channels-api/channels-api.js', '20261012-shared-polish-v1'),
         versionedBundle('../audio-notes/audio-notes.js', '20260929-presence-controls-v3'),
         versionedBundle('../window-manager/window-manager.js', '20261006-firstmeasure-localization-v1'),

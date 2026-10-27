@@ -418,8 +418,19 @@
     entry.listeners.add(onChange);onChange(entry.users);
     return ()=>{entry.listeners.delete(onChange);if(!entry.listeners.size && presenceWatches.get(key)===entry){presenceWatches.delete(key);entry.stop();}};
   }
+  // dev.1m8.ai only: browser files written to the live layer reach this page and its project frames as soon
+  // as they are saved (docs/architecture/live-layer.md). The code that applies them loads on first use.
+  let liveStop=null, liveOrg='';
+  function startLiveAssets(orgId){
+    orgId=cleanText(orgId);if(root.location?.hostname!=='dev.1m8.ai'||orgId===liveOrg)return;
+    liveStop?.();liveOrg=orgId;root.__fmLiveAssets=true;
+    liveStop=orgId?watchChannel(orgId,'live-assets',{onEvent(event,data){
+      import('/libraries/live-assets/live-assets.js').then(module=>module.receive(event,data)).catch(error=>console.warn('[PlatformRealtime] live assets',error));
+    }}):null;
+  }
   const api = { configure, subscribe, watchChannel, diagnostics, watchPresence, startPresence, recordActivity };
   root.PlatformRealtime = api;
   startPresence(APP.userOrgId);
-  root.addEventListener('fm:platform-session:updated',event=>startPresence(event.detail?.orgId));
+  startLiveAssets(APP.userOrgId);
+  root.addEventListener('fm:platform-session:updated',event=>{startPresence(event.detail?.orgId);startLiveAssets(event.detail?.orgId);});
 })();
