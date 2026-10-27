@@ -48,7 +48,8 @@ export const ALWAYS = new Set([
   "v1:tests/crm-rescission.test.ts", // 0.52 s
   "v1:tests/schedule-events.test.ts", // 0.54 s
   "v1:tests/assignee-roster.test.ts", // 0.74 s
-  "v1:tests/view-presence-client.test.mjs" // 0.78 s
+  "v1:tests/view-presence-client.test.mjs", // 0.78 s
+  "root:tests/frontend-bridge.test.mjs" // 1.6 s
 ]);
 
 /** Cheap checks that need no test file: what `cmd:` ids run, from public/v1. */
