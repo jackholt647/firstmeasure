@@ -366,14 +366,17 @@ function preserveFilledFace(face,state){
   if(visibleParts(face,candidate).reduce((sum,f)=>sum+measure(f),0)<original-1e-8)face.joinedChimneys=[...(face.joinedChimneys||[]),c.id];
  }
 }
+let fitMemo={key:null,fitted:new Map()};
 function alignRoofContacts(state){
  const edits=state?.wallEdits;if(!edits)return;const cs=definitions(state);if(!cs.length)return;
  const W=root.WallSolidGeometry||(typeof module!=='undefined'&&module.exports?require('./wall_solid_geometry.js'):null);if(!W)return;
  const fitPoint=p=>{for(const c of cs){if(!c.points.some((a,i)=>G.onEdge(p,a,c.points[(i+1)%c.points.length],K.CONTACT)))continue;const anchor=c.points.find(a=>dist(a,p)<1e-5),q=anchor?{...p,x:anchor.x,y:anchor.y}:p,old=capHeight(c,q),fit=fittedRoofContact(c,q,state),z=roofContact(c,q,state);if(Math.abs(p.z-old)<K.CONTACT||Math.abs(p.z-fit)<K.CONTACT)return {...q,z};}return p;};
  // A corner recurs in faces, sketch nodes and outlines, and its fit depends only
- // on its coordinates: fit each exact position once per pass. A fitted point is
- // always a new object, even when its values are unchanged, as before.
- const fitted=new Map(),fit=p=>{const key=p.x+','+p.y+','+p.z;let r=fitted.get(key);if(r===undefined){const q=fitPoint(p);r=q===p?null:{x:q.x,y:q.y,z:q.z};fitted.set(key,r);}return r?{...p,x:r.x,y:r.y,z:r.z}:p;};
+ // on its coordinates, the chimney definitions and the roof. A drag republishes
+ // the model every move with the same chimneys and roof, so fits are kept while
+ // those are equal by value. A fitted point is always a new object, as before.
+ const memoKey=JSON.stringify([cs,state.roof?.faces||[]]);if(fitMemo.key!==memoKey||fitMemo.fitted.size>200000)fitMemo={key:memoKey,fitted:new Map()};
+ const fitted=fitMemo.fitted,fit=p=>{const key=p.x+','+p.y+','+p.z;let r=fitted.get(key);if(r===undefined){const q=fitPoint(p);r=q===p?null:{x:q.x,y:q.y,z:q.z};fitted.set(key,r);}return r?{...p,x:r.x,y:r.y,z:r.z}:p;};
  for(const f of edits.$surfaces||[]){if(f.deleted||f.curvedSurface)continue;const n=W.normal(f.points);if(!n||Math.abs(n.z)>1e-5)continue;f.points=f.points.map(fit);if(f.holes)f.holes=f.holes.map(r=>r.map(fit));if(f.retainedPoints)f.retainedPoints=f.retainedPoints.map(fit);}
  for(const d of Object.values(edits.$drafts||{})){if(d.frame&&Math.abs(d.frame.n.z)>1e-5)continue;const fix=p=>{const w=d.frame?W.fromFrame(d.frame,p):{x:d.origin.x+d.u.x*p.x,y:d.origin.y+d.u.y*p.x,z:p.y},q=fit(w);if(q===w)return p;return {...p,...(d.frame?W.inFrame(d.frame,q):{x:p.x,y:q.z,z:0})};};
   for(const f of d.faces||[]){f.points=f.points.map(fix);if(f.holes)f.holes=f.holes.map(r=>r.map(fix));}if(d.sketch){d.sketch.nodes=d.sketch.nodes.map(fix);d.sketch.outlines=d.sketch.outlines.map(r=>r.map(fix));}

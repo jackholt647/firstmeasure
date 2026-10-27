@@ -738,14 +738,17 @@ function perf_render2DContent() {
         // While a tool or drag runs in the 3D view, the 2D plan is a passive pane: during that gesture it redraws at
     // most every PASSIVE_2D_MS and always once more afterwards, so the active view keeps the frame budget. Full
     // renders (placement, undo, selection, mode changes) and gestures in the 2D view redraw it immediately.
-    const PASSIVE_2D_MS=100;let pointerView=null,last2D=0,passive2DTimer=null;
+    // A slow plan waits PASSIVE_2D_SHARE times its own last cost instead, so it never takes more than that
+    // share of a 3D gesture's main thread (a large house's plan costs ~100 ms per redraw).
+    const PASSIVE_2D_MS=100,PASSIVE_2D_SHARE=4;let pointerView=null,last2D=0,passive2DTimer=null,cost2D=0;
     function trackPointerView(e){const target=e.target;if(!target?.closest)return;if(target.closest('#three-view-wrapper'))pointerView='3d';else if(target.closest('#geoSvg,#canvas-container,#viewport'))pointerView='2d';}
     function passive2D(){return pointerView==='3d'&&!!(wallEditor?.busy?.()||baseEditor?.busy?.());}
     function settle2D(){clearTimeout(passive2DTimer);passive2DTimer=null;last2D=typeof performance!=='undefined'?performance.now():Date.now();}
+    function timed2D(){const start=typeof performance!=='undefined'?performance.now():Date.now();render2D();cost2D=(typeof performance!=='undefined'?performance.now():Date.now())-start;}
     function preview2D(){
-        const now=typeof performance!=='undefined'?performance.now():Date.now();
-        if(!passive2D()||now-last2D>=PASSIVE_2D_MS){settle2D();render2D();return;}
-        if(passive2DTimer===null)passive2DTimer=setTimeout(()=>{passive2DTimer=null;if(!enabled)return;last2D=typeof performance!=='undefined'?performance.now():Date.now();render2D();},PASSIVE_2D_MS-(now-last2D));
+        const now=typeof performance!=='undefined'?performance.now():Date.now(),interval=Math.max(PASSIVE_2D_MS,PASSIVE_2D_SHARE*cost2D);
+        if(!passive2D()||now-last2D>=interval){settle2D();timed2D();return;}
+        if(passive2DTimer===null)passive2DTimer=setTimeout(()=>{passive2DTimer=null;if(!enabled)return;last2D=typeof performance!=='undefined'?performance.now():Date.now();timed2D();},interval-(now-last2D));
     }
 function requestEditorRender(full=false,overlay=false){
         editorRenderFull ||= full;
