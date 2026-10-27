@@ -8,7 +8,7 @@
   let draftSave = null;
   let refreshTimer;
   const draftText = (key, fallback) => globalThis.PlatformLanguage?.text("materials", key, fallback) ?? fallback;
-  const scopeWorkspaceUrl = new URL('./scope-of-work.js?v=20261027-viewer', document.currentScript?.src || `${location.origin}/libraries/apps/materials/project.js`).href;
+  const scopeWorkspaceUrl = new URL('./scope-of-work.js?v=20261027-ops-phone', document.currentScript?.src || `${location.origin}/libraries/apps/materials/project.js`).href;
   const calculusAdapterUrl = new URL('./calculus-native.js?v=20261026-package-cost', document.currentScript?.src || `${location.origin}/libraries/apps/materials/project.js`).href;
   const closeoutUrl = new URL('./closeout.js?v=20261019-closeout-partial', document.currentScript?.src || `${location.origin}/libraries/apps/materials/project.js`).href;
   const runtime = window.FirstMateEmbeddableApps;
@@ -1179,6 +1179,59 @@
       .mt-shop-share{min-height:0;overflow:auto;display:flex;flex-direction:column;gap:12px;padding:12px;border:1px solid #e4e7ec;border-radius:11px;background:#f9fafb}.mt-shop-share section{display:flex;flex-direction:column;gap:8px}.mt-shop-share h4{margin:0;font-size:11px;text-transform:uppercase;letter-spacing:.03em;color:#667085}.mt-shop-share .mt-btn{min-height:34px;padding:0 12px}.mt-shop-share-actions{display:flex;gap:8px}.mt-shop-share-actions .mt-btn{flex:1}.mt-shop-link{margin:0;font-size:12px}.mt-shop-link a{color:var(--primary-readable,var(--primary,#d93025));font-weight:600}.mt-shop-progress{margin:0}.mt-link-btn{border:0;background:none;padding:0;color:var(--primary-readable,var(--primary,#d93025));font:inherit;font-weight:600;cursor:pointer}
       @media (max-width:900px){.mt-po-layout,.mt-shop-panel{grid-template-columns:1fr;overflow:auto}.mt-po-preview{min-height:420px}.mt-supplier-cards{overflow:visible}}
       .mt-autofill strong{flex:1 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:12px;font-weight:600}.mt-autofill em{flex:none;font-style:normal;font-size:10px;color:#98a2b3;white-space:nowrap}.mt-autofill span{flex:none;min-width:84px;text-align:right;font-size:11px;font-variant-numeric:tabular-nums;color:#344054;white-space:nowrap}
+      /* Phones: the Operations tab as one set of tabs, its lists a carousel (syncPhoneLists). */
+      .sw-tabs [data-scope-view="lists"]{display:none}
+      @media(max-width:760px){
+        .r-overlay.materials-workspace .r-tab-sidebar.mt-widget-sidebar{flex:1 1 auto!important;max-height:none;height:auto;border-right:0}
+        .r-overlay.materials-workspace .r-tab-sidebar.mt-widget-sidebar:has([data-scope-shown="lists"]){flex:0 0 auto!important}
+        .r-overlay.materials-workspace .r-tab-sidebar.mt-widget-sidebar [data-scope-shown="lists"]>:not(.sw-tabs){display:none!important}
+        .r-overlay.materials-workspace :has(> .r-tab-sidebar.mt-widget-sidebar [data-scope-shown]:not([data-scope-shown="lists"])) > .r-tab-main{display:none!important}
+        .sw-tabs{order:-1;flex:0 0 42px;border-top:0;border-bottom:1px solid #eaecf0}
+        .sw-tabs [data-scope-view="lists"]{display:flex}
+        .sw-tabs button{flex-direction:column;gap:2px;min-height:42px;padding:3px 2px 2px;font-size:10px;line-height:12px;font-weight:600;transition:color .18s ease,box-shadow .2s ease}
+        .sw-tabs button span{display:block;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+        .sw-tabs i{font-size:15px;line-height:16px}
+        .sw-tabs button[aria-selected=true]{background:none}
+        .mt-phone-lists .mt-main{padding:8px 0 0;gap:8px}
+        .mt-phone-lists .mt-workspace-header{flex-wrap:nowrap;padding:0 10px}
+        .mt-phone-lists .mt-workspace-actions{flex:0 1 auto;min-width:0;overflow-x:auto;scrollbar-width:none}
+        .mt-phone-lists .mt-workspace-actions::-webkit-scrollbar{display:none}
+        .mt-phone-lists .mt-workspace-actions button,.mt-phone-lists .mt-workspace-actions .mt-icon-toggles button{min-height:36px;min-width:36px}
+        .mt-phone-lists .mt-collapsed-pills [data-mt-restore-type]{display:none}
+        .mt-phone-lists .mt-material-scroll{touch-action:pan-y;padding:0 10px;overflow:hidden}
+        .mt-phone-lists .mt-material-grid{overflow:visible;gap:12px;height:100%;transform:translate3d(calc(var(--mt-phone-index,0) * (-100% - 12px) + var(--mt-phone-drag,0px)),0,0);transition:transform .34s cubic-bezier(.22,1,.36,1);will-change:transform}
+        .mt-phone-lists.is-phone-dragging .mt-material-grid{transition:none}
+        .mt-phone-lists.is-phone-dragging{user-select:none;-webkit-user-select:none}
+        .mt-phone-lists .mt-material-grid>.mt-column-divider{display:none}
+        .mt-phone-lists .mt-material-grid>.mt-resource-column,.mt-phone-lists .mt-material-grid:has(.mt-resource-column~.mt-resource-column~.mt-resource-column~.mt-resource-column)>.mt-resource-column{flex:0 0 100%!important;width:100%}
+        .mt-phone-lists .mt-resource-scroll .mt-section{min-width:0}
+        .mt-phone-lists .mt-resource-heading{padding:4px 6px 4px 9px;font-size:13px}
+        .mt-phone-lists .mt-resource-heading [data-mt-minimize-type],.mt-phone-lists .mt-resource-heading [data-mt-minimize]{display:none}
+        .mt-phone-lists .mt-category-tools button,.mt-phone-lists .mt-resource-heading>.mt-resource-tool{min-width:36px;min-height:36px;font-size:12px}
+        .mt-phone-lists .mt-cell-input{height:36px;min-height:36px;font-size:13px}
+        .mt-phone-lists .mt-expand{width:30px;height:36px;font-size:10px}
+        .mt-phone-lists .mt-drag{width:22px;height:36px}
+        .mt-phone-lists .mt-list-head{min-height:40px}
+        .mt-phone-lists .mt-list-head button{width:36px;height:36px;font-size:12px}
+        .mt-phone-lists .mt-list-head>input{min-height:36px;font-size:13px}
+        .mt-phone-lists .mt-list-add-item,.mt-phone-lists .mt-resource-add{min-height:36px;font-size:12px}
+        .mt-phone-lists .mt-material-grid>.mt-req-tray{flex:0 0 100%;width:100%;margin-left:0}
+        .mt-phone-lists .mt-req-tray .mt-req-bar{display:none}
+        .mt-phone-lists .mt-req-tray .mt-req-panel{flex:1;width:auto;opacity:1;transition:none}
+        .mt-phone-lists .mt-req-tray .mt-req-panel-inner{width:100%}
+        .mt-phone-strip{position:relative;flex:0 0 auto;display:flex;align-items:center;gap:4px;padding:2px 50%;overflow-x:auto;scrollbar-width:none;border-top:1px solid #eaecf0;background:#fff;-webkit-mask-image:linear-gradient(90deg,transparent,#000 24%,#000 76%,transparent);mask-image:linear-gradient(90deg,transparent,#000 24%,#000 76%,transparent)}
+        .mt-phone-strip::-webkit-scrollbar{display:none}
+        .mt-phone-pill{flex:none;display:flex;align-items:center;min-height:36px;padding:0;border:0;background:none;font:inherit;cursor:pointer;-webkit-tap-highlight-color:transparent}
+        .mt-phone-pill>span{display:inline-flex;align-items:center;gap:6px;max-width:58vw;height:28px;padding:0 12px;border-radius:999px;background:#f2f4f7;color:#667085;font-size:12px;font-weight:700;white-space:nowrap;transition:background-color .2s ease,color .2s ease,box-shadow .2s ease}
+        .mt-phone-pill b{min-width:0;overflow:hidden;text-overflow:ellipsis;font-weight:inherit}
+        .mt-phone-pill i{font-size:11px;color:var(--pill-color,currentColor)}
+        .mt-phone-pill em{min-width:16px;height:16px;padding:0 4px;box-sizing:border-box;border-radius:999px;background:#d92d20;color:#fff;font-size:10px;font-style:normal;line-height:16px;text-align:center}
+        .mt-phone-pill[aria-current=true]>span{background:var(--primary,#d93025);color:var(--on-primary,#fff);box-shadow:0 4px 12px rgba(var(--primary-rgb,217,48,37),.24)}
+        .mt-phone-pill[aria-current=true] i{color:inherit}
+        .mt-phone-pill[aria-current=true] em{background:#fff;color:#d92d20}
+        .mt-phone-pill:focus-visible{outline:none}.mt-phone-pill:focus-visible>span{outline:2px solid var(--primary,#d93025);outline-offset:2px}
+      }
+      @media(max-width:760px) and (prefers-reduced-motion:reduce){.mt-phone-lists .mt-material-grid{transition:none}}
     `;
   }
 
@@ -4241,6 +4294,7 @@
     bindLeft(root);
     bindResourceActions(root);
     bindRequirements(root);
+    syncPhoneLists(root);
     restoreResourceScroll(root, previousResourceScroll);
     timingMark('render:bindMain', { items: listItems().length }, bindStart);
     if (options.preserveScroll) {
@@ -4558,7 +4612,8 @@
     minimizeIdleWorkOrder();
     const items = filteredItems();
     // Labor and the equipment it takes are one work order: who does the work, what they are paid and what they use.
-    const types = resourceCategories().map(row=>row.id).filter(type=>!state.minimizedTypes?.has(type)&&!(type==='equipment'&&workOrderMerged()));
+    // On a phone every category is a list in the carousel; minimizing a column is a desktop arrangement.
+    const types = resourceCategories().map(row=>row.id).filter(type=>(!!globalThis.matchMedia?.('(max-width:760px)')?.matches||!state.minimizedTypes?.has(type))&&!(type==='equipment'&&workOrderMerged()));
     const allEmpty = !items.length;
     return types.map((type) => {
       const merged=type==='labor'&&workOrderMerged(),members=merged?['labor','equipment']:[type];
@@ -4926,6 +4981,7 @@
     bindLeft(grid);
     bindResourceActions(grid);
     bindRequirements(grid);
+    syncPhoneLists(root);
     syncResourceHeader();
     syncFooterTotals();
     scheduleArrange(root);
@@ -6244,7 +6300,7 @@
       label.hidden = true;
     }
     disposeScopeWidgets();
-    if(scopeWorkspace)scopeWorkspace.mountSidebar(target,state.scopeDocuments,state.scopeDocumentsError,`${orgId()}:${projectId()}`,{draft:!projectId(),canOrderMeasurements:callHost('canOrderMeasurements')===true,reportPending:state.context?.reportOrderPending===true,onOrderMeasurements:()=>callHost('orderMeasurements'),scheduling:schedulingOn(),widgetContext:scopeWidgetContext(),scheduleContext:state.context,measurementOverrides:state.measurementOverrides,onMeasurementChange:(key,value)=>{state.measurementOverrides={...state.measurementOverrides,[key]:value};syncMaterialsGrid();}});
+    if(scopeWorkspace)scopeWorkspace.mountSidebar(target,state.scopeDocuments,state.scopeDocumentsError,`${orgId()}:${projectId()}`,{draft:!projectId(),canOrderMeasurements:callHost('canOrderMeasurements')===true,reportPending:state.context?.reportOrderPending===true,onOrderMeasurements:()=>callHost('orderMeasurements'),scheduling:schedulingOn(),listsView:typeof phoneListsView==='undefined'?undefined:phoneListsView,widgetContext:scopeWidgetContext(),scheduleContext:state.context,measurementOverrides:state.measurementOverrides,onMeasurementChange:(key,value)=>{state.measurementOverrides={...state.measurementOverrides,[key]:value};syncMaterialsGrid();}});
     else renderRailState(target);
     scopeWorkspace?.installDivider(state.sidebarRoot, railLayout());
     timingMark('renderLeft:end', { active: state.active }, timingStart);
@@ -6989,7 +7045,162 @@
     const scroller = next.querySelector('.mt-req-scroll');
     if (scroller) scroller.scrollTop = scroll;
     bindRequirements(next.parentElement || next);
+    if (typeof syncPhoneLists === 'function') syncPhoneLists();
   }
+
+  // Phones (the project window at most 760px wide, the platform's mobile width): the Operations tab is one set of tabs.
+  // The rail's tabs gain Lists, and while it is chosen the lists fill the window as a carousel: one list (or the
+  // requirements) at a time, a strip of their names beneath, swiped or tapped between. Nothing here applies at wider
+  // widths. See docs/architecture/project-content-layout.md.
+  const PHONE_QUERY = '(max-width:760px)';
+  const phoneListKeys = new Map();
+  function phoneLayout(){ return !!rootWindow.matchMedia?.('(max-width:760px)')?.matches; }
+  const phoneListsView = {
+    get label(){ return draftText('mt_phone_lists_tab', 'Lists'); },
+    icon: 'fa-layer-group',
+    phone: phoneLayout,
+    setVisible(visible){
+      state.phoneListsShown = !!visible;
+      const root = visible ? materialRoot() : null;
+      if (root) { syncPhoneLists(root); requestAnimationFrame(() => centerPhoneStrip(root, false)); }
+    }
+  };
+  const phoneProjectKey = () => `${orgId()}:${projectId()}`;
+  function phoneListItems(root){
+    const grid = root?.querySelector?.('[data-mt-material-grid]');
+    return [...(grid?.children || [])].filter((el) => el.matches('.mt-resource-column,[data-mt-req-tray]')).map((el) => {
+      if (el.matches('[data-mt-req-tray]')) return { el, key: 'requirements', label: draftText('mt_phone_requirements', 'Requirements'), icon: 'fa-list-check', badge: cleanText(el.querySelector('.mt-req-badge.is-open')?.textContent) };
+      const type = el.dataset.resourceType, category = resourceCategories().find((row) => row.id === type) || {};
+      return { el, key: `type:${type}`, label: cleanText(el.querySelector('.mt-column-title')?.textContent) || cleanText(category.name) || draftText('mt_phone_untitled', 'Untitled'), icon: category.icon || 'fa-list', color: category.color || '' };
+    });
+  }
+  function syncPhoneLists(root = materialRoot()){
+    if (!root?.querySelector) return;
+    const scroll = root.querySelector('[data-mt-material-scroll]');
+    let strip = root.querySelector('[data-mt-phone-strip]');
+    if (!phoneLayout() || !scroll) {
+      strip?.remove();
+      root.classList?.remove('mt-phone-lists', 'is-phone-dragging');
+      root.querySelectorAll('[data-mt-phone-item]').forEach((el) => { el.removeAttribute('data-mt-phone-item'); el.inert = false; el.removeAttribute('aria-hidden'); });
+      return;
+    }
+    root.classList.add('mt-phone-lists');
+    const items = phoneListItems(root);
+    const index = Math.max(0, items.findIndex((item) => item.key === phoneListKeys.get(phoneProjectKey())));
+    state.phoneListIndex = index;
+    root.style.setProperty('--mt-phone-index', String(index));
+    // Only the list on screen takes focus; the others are off to the side.
+    items.forEach((item, i) => { item.el.dataset.mtPhoneItem = item.key; item.el.inert = i !== index; item.el.setAttribute('aria-hidden', String(i !== index)); });
+    const html = items.map((item, i) => `<button type="button" role="tab" class="mt-phone-pill" data-mt-carousel-to="${i}" aria-selected="${i === index}" aria-current="${i === index}" tabindex="${i === index ? 0 : -1}"${item.color ? ` style="--pill-color:${escapeHtml(item.color)}"` : ''}><span><i class="fas ${escapeHtml(item.icon)}" aria-hidden="true"></i><b>${escapeHtml(item.label)}</b>${item.badge ? `<em>${escapeHtml(item.badge)}</em>` : ''}</span></button>`).join('');
+    if (!strip) {
+      strip = document.createElement('nav');
+      strip.className = 'mt-phone-strip';
+      strip.dataset.mtPhoneStrip = '';
+      strip.setAttribute('role', 'tablist');
+      strip.setAttribute('aria-label', draftText('mt_phone_lists_label', 'Lists'));
+    }
+    if (scroll.nextElementSibling !== strip) scroll.after(strip);
+    if (strip.__html !== html) { strip.innerHTML = html; strip.__html = html; if (state.phoneListsShown) centerPhoneStrip(root, false); }
+    bindPhoneLists(root);
+  }
+  function phoneStripLeft(strip, index){
+    const pill = strip.children[index];
+    return pill ? pill.offsetLeft + pill.offsetWidth / 2 - strip.clientWidth / 2 : strip.scrollLeft;
+  }
+  function centerPhoneStrip(root, smooth){
+    const strip = root?.querySelector?.('[data-mt-phone-strip]');
+    if (!strip?.clientWidth) return;
+    const left = phoneStripLeft(strip, state.phoneListIndex || 0);
+    if (smooth && !rootWindow.matchMedia?.('(prefers-reduced-motion: reduce)')?.matches) strip.scrollTo({ left, behavior: 'smooth' });
+    else strip.scrollLeft = left;
+  }
+  function goPhoneList(root, index){
+    const items = phoneListItems(root);
+    if (!items.length) return;
+    const next = Math.max(0, Math.min(items.length - 1, index));
+    phoneListKeys.set(phoneProjectKey(), items[next].key);
+    root.classList.remove('is-phone-dragging');
+    root.style.setProperty('--mt-phone-drag', '0px');
+    syncPhoneLists(root);
+    centerPhoneStrip(root, true);
+  }
+  // Swiping: a mostly sideways drag over the lists moves them with the finger; letting go past a quarter of the width,
+  // or with a flick, rolls to the neighbour. An upward or downward drag is left to the list's own scrolling.
+  function bindPhoneLists(root){
+    if (root.__mtPhoneBound) return;
+    root.__mtPhoneBound = true;
+    let drag = null;
+    root.addEventListener('click', (event) => {
+      if (performance.now() < (root.__mtPhoneSuppressUntil || 0)) { event.preventDefault(); event.stopPropagation(); }
+    }, true);
+    root.addEventListener('click', (event) => {
+      const pill = event.target.closest?.('[data-mt-carousel-to]');
+      if (pill && root.contains(pill)) goPhoneList(root, Number(pill.dataset.mtCarouselTo));
+    });
+    root.addEventListener('keydown', (event) => {
+      const pill = event.target.closest?.('[data-mt-carousel-to]');
+      if (!pill || !['ArrowLeft', 'ArrowRight'].includes(event.key)) return;
+      event.preventDefault();
+      goPhoneList(root, Number(pill.dataset.mtCarouselTo) + (event.key === 'ArrowRight' ? 1 : -1));
+      root.querySelector('[data-mt-carousel-to][aria-current="true"]')?.focus();
+    });
+    root.addEventListener('pointerdown', (event) => {
+      drag = null;
+      if (!phoneLayout() || !event.isPrimary || event.button > 0) return;
+      const scroll = event.target.closest?.('[data-mt-material-scroll]');
+      if (!scroll || event.target.closest('.mt-drag,[data-mt-no-swipe]')) return;
+      drag = { id: event.pointerId, x: event.clientX, y: event.clientY, width: scroll.clientWidth || 1, axis: '', offset: 0, samples: [[event.timeStamp, event.clientX]] };
+    });
+    root.addEventListener('pointermove', (event) => {
+      if (!drag || event.pointerId !== drag.id) return;
+      const dx = event.clientX - drag.x, dy = event.clientY - drag.y;
+      if (!drag.axis) {
+        if (Math.abs(dx) < 8 && Math.abs(dy) < 8) return;
+        if (Math.abs(dx) <= Math.abs(dy) * 1.2) { drag = null; return; }
+        drag.axis = 'x';
+        drag.count = phoneListItems(root).length;
+        root.classList.add('is-phone-dragging');
+        try { root.setPointerCapture(event.pointerId); } catch (_) {}
+      }
+      const index = state.phoneListIndex || 0, atEdge = (index === 0 && dx > 0) || (index >= drag.count - 1 && dx < 0);
+      drag.offset = atEdge ? dx * 0.3 : dx;
+      drag.samples.push([event.timeStamp, event.clientX]);
+      if (drag.samples.length > 8) drag.samples.shift();
+      root.style.setProperty('--mt-phone-drag', `${drag.offset}px`);
+      // The strip rolls along with the lists.
+      const strip = root.querySelector('[data-mt-phone-strip]');
+      if (strip) {
+        const progress = Math.max(-1, Math.min(1, -drag.offset / drag.width)), neighbour = Math.max(0, Math.min(drag.count - 1, index + Math.sign(progress)));
+        const from = phoneStripLeft(strip, index);
+        strip.scrollLeft = from + Math.abs(progress) * (phoneStripLeft(strip, neighbour) - from);
+      }
+    });
+    const end = (event) => {
+      if (!drag || event.pointerId !== drag.id) return;
+      const finished = drag;
+      drag = null;
+      if (finished.axis !== 'x') return;
+      root.__mtPhoneSuppressUntil = performance.now() + 400;
+      let step = 0;
+      if (event.type !== 'pointercancel') {
+        const [time, x] = finished.samples.find(([t]) => event.timeStamp - t < 120) || finished.samples[0];
+        const velocity = (event.clientX - x) / Math.max(1, event.timeStamp - time);
+        if (Math.abs(velocity) > 0.35 && Math.sign(velocity) === Math.sign(finished.offset)) step = velocity < 0 ? 1 : -1;
+        else if (Math.abs(finished.offset) > finished.width * 0.25) step = finished.offset < 0 ? 1 : -1;
+      }
+      goPhoneList(root, (state.phoneListIndex || 0) + step);
+    };
+    root.addEventListener('pointerup', end);
+    root.addEventListener('pointercancel', end);
+  }
+  // Turning a phone, or resizing the window across the mobile width, redraws the lists for the other arrangement; the
+  // Lists view exists only on a phone, so a wider window goes back to Measurements.
+  rootWindow.matchMedia?.(PHONE_QUERY)?.addEventListener?.('change', () => {
+    if (!state.active || !state.panelRoot) return;
+    const rail = leftContentRoot();
+    if (!phoneLayout() && rail?.dataset?.scopeShown === 'lists') scopeWorkspace?.showSidebarView?.(rail, 'roof');
+    if (!syncMaterialsGrid()) syncPhoneLists();
+  });
   // Taking work off a work order, or giving it back, builds that list again from its pay sheet without or with it.
   async function setWorkExcluded(listId, requirement, excluded){
     const list = materialListById(listId);

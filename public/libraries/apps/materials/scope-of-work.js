@@ -120,22 +120,31 @@ async function renderer() {
   })().catch(error=>{rendererReady=null;throw error;});
   await rendererReady;
 }
-const VIEWS=[['roof','fa-ruler-combined','Measurements'],['documents','fa-file-signature','Documents'],['aerial','fa-images','Photos'],['schedule','fa-calendar-days','Schedule']];
+// 'lists' exists only when the host passes options.listsView: on a phone the host's lists are this rail's Lists view
+// (its tab is hidden at desktop widths, where the lists sit beside the rail).
+const VIEWS=[['roof','fa-ruler-combined','Measurements'],['documents','fa-file-signature','Documents'],['aerial','fa-images','Photos'],['lists','fa-layer-group','Lists'],['schedule','fa-calendar-days','Schedule']];
+// The view last shown for each project, restored on a phone when the rail is drawn again this session (memory only).
+const phoneViews=new Map();
 export function mountSidebar(root,documents,error,contextKey,options={}) {
   let state=sidebars.get(root);
   // An organization with scheduling off has no Schedule view here at all.
   // The project details tray shows the Measurements view alone (options.measurementsOnly): no tabs, documents, photos or schedule.
   const only=options.measurementsOnly===true;
   const scheduling=options.scheduling!==false&&!only;
-  if(!state || state.contextKey!==contextKey || state.scheduling!==scheduling || state.only!==only){
+  const lists=only?null:(options.listsView||null);
+  if(!state || state.contextKey!==contextKey || state.scheduling!==scheduling || state.only!==only || !!state.lists!==!!lists){
     disposeSidebar(root);
-    state={contextKey,scheduling,only,views:VIEWS.filter(([key])=>only?key==='roof':scheduling||key!=='schedule'),selected:null,handle:null,view:'roof',widgets:{},visible:true,generation:0};sidebars.set(root,state);
+    const views=VIEWS.filter(([key])=>only?key==='roof':(scheduling||key!=='schedule')&&(lists||key!=='lists')).map(([key,icon,title])=>key==='lists'?[key,lists.icon||icon,lists.label||title]:[key,icon,title]);
+    const remembered=lists?.phone?.()&&phoneViews.get(contextKey);
+    state={contextKey,scheduling,only,lists,views,selected:null,handle:null,view:views.some(([key])=>key===remembered)?remembered:'roof',widgets:{},visible:true,generation:0};sidebars.set(root,state);
     root.innerHTML=`<div class="sw-viewport"><div class="sw-panel" data-scope-panel="roof"></div><div class="sw-panel sw-manual" data-scope-manual hidden></div><button type="button" class="smm-flip" data-scope-manual-flip hidden><i class="fas fa-pen-ruler" aria-hidden="true"></i><span>${esc(text('mm_flip_entries','Your entries'))}</span></button>${only?'':'<div class="sw-panel" data-scope-panel="documents" hidden></div><div class="sw-panel" data-scope-panel="aerial" hidden></div>'}${scheduling?'<div class="sw-panel sw-schedule" data-scope-panel="schedule" hidden></div>':''}</div>${only?'':`<nav class="sw-tabs" role="tablist" aria-label="Project views">${state.views.map(([key,icon,title])=>`<button type="button" role="tab" aria-label="${title}" aria-selected="${state.view===key}" tabindex="${state.view===key?0:-1}" data-scope-view="${key}" title="${title}"><i class="fas ${icon}" aria-hidden="true"></i><span>${title}</span></button>`).join('')}</nav>`}`;
     const tabs=[...root.querySelectorAll('[data-scope-view]')];
     tabs.forEach((tab,index)=>{
       tab.onclick=()=>{state.view=tab.dataset.scopeView;showViews(root,state);tab.focus();};
-      tab.onkeydown=event=>{if(['ArrowLeft','ArrowRight','Home','End'].includes(event.key)){event.preventDefault();tabs[event.key==='Home'?0:event.key==='End'?tabs.length-1:(index+(event.key==='ArrowRight'?1:tabs.length-1))%tabs.length].click();}};
+      tab.onkeydown=event=>{if(['ArrowLeft','ArrowRight','Home','End'].includes(event.key)){event.preventDefault();const shown=tabs.filter(t=>t===tab||t.getClientRects().length),at=shown.indexOf(tab);shown[event.key==='Home'?0:event.key==='End'?shown.length-1:(at+(event.key==='ArrowRight'?1:shown.length-1))%shown.length].click();}};
     });
+    // The host's lists are not a panel here: the host shows them while this view is chosen and the rail keeps only its tabs.
+    if(lists)state.widgets.lists={setVisible(value){(state.options||options).listsView?.setVisible?.(value);}};
     root.querySelectorAll('[data-scope-panel]').forEach(panel=>panel.setAttribute('role','tabpanel'));
     state.measurementViewers=new Set();
     // Photos and Documents are the shared media carousel (rail-media.js), given the project window's host for its tabs and uploads.
@@ -275,7 +284,8 @@ function showViews(root,state,manualChanged=false){
   const start=root.querySelector('[data-scope-measurement-start]'),startOn=state.view==='roof'&&!!state.measurementStartShown;
   if(start)start.hidden=!startOn;
   if(startOn)root.querySelector('[data-scope-panel="roof"]').hidden=true;
-  state.shown=state.view;
+  state.shown=state.view;root.dataset.scopeShown=state.view;
+  if(state.lists)phoneViews.set(state.contextKey,state.view);
   root.querySelectorAll('[data-scope-view]').forEach(tab=>{const active=tab.dataset.scopeView===state.view;tab.setAttribute('aria-selected',String(active));tab.tabIndex=active?0:-1;});
   for(const [key,widget] of Object.entries(state.widgets))widget?.setVisible?.(state.visible&&state.view===key&&!(key==='roof'&&(manualOn||startOn)));
   window.dispatchEvent(new Event('resize'));
