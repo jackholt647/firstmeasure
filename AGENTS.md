@@ -505,4 +505,4 @@ nothing else. Run `tests/session-replay-insights-browser.test.mjs` and
 
 ## Project window content ownership
 
-Read [project content layout](docs/architecture/project-content-layout.md) before changing project modal tabs or sidebars. Overview owns the project-details column inside its tab content. Other apps own their own content rails. There is no configurable shared modal left region or left-column override API; do not recreate one.
+Read [project content layout](docs/architecture/project-content-layout.md) before changing project modal tabs or sidebars. The project details tray (`#rDetailsTray`) owns the project-details form and measurements; Overview is just the overview. Other apps own their own content rails. There is no configurable shared modal left region or left-column override API; do not recreate one.

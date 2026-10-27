@@ -2,9 +2,11 @@
 
 The project window owns the title, tabs, display controls, and split-pane lifetime. It does not provide a shared mutable left column.
 
-Overview (`map`) owns the project-details form inside its `.r-tab-content`, beside its map/overview content. Contacts, address, notes and existing report-order controls remain in this form. Project custom fields show on the right of Overview, in the Overview app's fields slot (`[data-overview-fields]`, below the summary cards, and a card over the map when the map fills the tab); the project window keeps the `#rProjectCustomFields` node and places it there through the `placeProjectCustomFields` host call, returning it to the details form whenever the slot is not mounted. Project identity and tags/stages appear in the window header. Its identity dropdown presents a synchronized second view with unique IDs while the original controls stay mounted in Overview. Edits and actions route through the original handlers; structural changes and field values reconcile into the dropdown without replacing focused inputs. The dropdown address autocomplete uses the same map domain operations. This does not introduce a shared content rail.
+The **project details tray** owns the project-details form (contacts, address, notes, the report order and the new-project picker) and the project's measurements. It is the one place project details live; Overview is just the overview (map and summary cards). The tray is a fixed part of the project window (`#rDetailsTray`, built by `project-request/app.js`), not a configurable region: no app mounts into it and there is no left-region API. The header's project title toggles it. Open on a desktop it is `--r-details-tray-w` wide (300 to 400px), joins the header's left end into one white surface (its divider starts under the header), and pushes the header tabs and the content right rather than covering them; the header's title and icon animate into the tray's larger title. On a phone it is a full-height sheet from the left over a dimmed window. A new project, an order in progress and the New Report picker open it; otherwise the person's last choice is kept in this browser. On a phone while the report order's pages show, the form goes back into Overview so the mobile order flow is unchanged.
 
-`firstmeasure/order/app.js` supplies the Overview details component. Its definition is `overview_details`, not a general modal region app. The form stays mounted across tab changes and panel rebuilds to preserve values, handlers and drafts. A hidden storage element retains the form only while its Overview panel is being rebuilt or unavailable; it is not an app mounting surface.
+Under the address the tray shows **Measurements**: the Operations Measurements view in its measurements-only form (`mountSidebar(..., {measurementsOnly:true})` in `materials/scope-of-work.js`: the 3D report model with its key, or entries made by hand), filling the column's remaining height. With no measurements it shows the **measurement ordering widget** (`mountMeasurementStart`): No measurements, Order measurement report and Add measurements manually. This widget is how a report order is launched; Overview's initial actions no longer offer Order report. Ordering itself (`startMeasurementOrder`) is unchanged and runs in the tray's form. Measurements are hidden while an order is in progress. Project custom fields show on the right of Overview, in the Overview app's fields slot (`[data-overview-fields]`, below the summary cards, and a card over the map when the map fills the tab); the project window keeps the `#rProjectCustomFields` node and places it there through the `placeProjectCustomFields` host call, returning it to the details form whenever the slot is not mounted. Project identity and tags/stages appear in the window header. The identity dropdown is replaced by the tray.
+
+`firstmeasure/order/app.js` supplies the Overview details component. Its definition is `overview_details`, not a general modal region app. The form stays mounted across tab changes and panel rebuilds to preserve values, handlers and drafts. A hidden storage element retains the form only while panels are being rebuilt; it is not an app mounting surface.
 
 Scope, Money and legacy Proposals receive a private `.r-tab-sidebar` beneath their own tab panel. Their main renderer receives `.r-tab-main`; their context's `sidebarRoot` is confined to that same tab. These apps cannot replace Overview's details or another tab's rail. Ordinary tab switching and docked tabs use the same content layout.
 
@@ -178,10 +180,10 @@ Projects and Contacts share the [entity window shell](window-shell.md). Its opti
 
 The Operations Measurements view starts with **No measurements.** when there is
 no report or entered dataset. **Order measurement report** enters the same
-configured FirstMeasure order session as Overview, preserving the project and
-asking for its address when missing; it does not submit an order. Overview keeps
-its entry point. **Add measurements manually** opens the existing schema-based
-editor; a project without measurement schemas explains that a scope is needed.
+configured FirstMeasure order session as the project details tray, preserving the project and
+asking for its address when missing; it does not submit an order. The tray's measurement ordering widget is the
+same entry point. **Add measurements manually** opens the existing schema-based
+editor; without measurement schemas it is disabled, with no explanatory line.
 Existing manual values open in the editor, and completed reports keep their model.
 
 The project's main Documents gallery also lists the delivered Customer Roof

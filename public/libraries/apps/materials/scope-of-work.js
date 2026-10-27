@@ -124,11 +124,13 @@ const VIEWS=[['roof','fa-ruler-combined','Measurements'],['documents','fa-file-s
 export function mountSidebar(root,documents,error,contextKey,options={}) {
   let state=sidebars.get(root);
   // An organization with scheduling off has no Schedule view here at all.
-  const scheduling=options.scheduling!==false;
-  if(!state || state.contextKey!==contextKey || state.scheduling!==scheduling){
+  // The project details tray shows the Measurements view alone (options.measurementsOnly): no tabs, documents, photos or schedule.
+  const only=options.measurementsOnly===true;
+  const scheduling=options.scheduling!==false&&!only;
+  if(!state || state.contextKey!==contextKey || state.scheduling!==scheduling || state.only!==only){
     disposeSidebar(root);
-    state={contextKey,scheduling,views:VIEWS.filter(([key])=>scheduling||key!=='schedule'),selected:null,handle:null,view:'roof',widgets:{},visible:true,generation:0};sidebars.set(root,state);
-    root.innerHTML=`<div class="sw-viewport"><div class="sw-panel" data-scope-panel="roof"></div><div class="sw-panel sw-manual" data-scope-manual hidden></div><button type="button" class="smm-flip" data-scope-manual-flip hidden><i class="fas fa-pen-ruler" aria-hidden="true"></i><span>${esc(text('mm_flip_entries','Your entries'))}</span></button><div class="sw-panel" data-scope-panel="documents" hidden></div><div class="sw-panel" data-scope-panel="aerial" hidden></div>${scheduling?'<div class="sw-panel sw-schedule" data-scope-panel="schedule" hidden></div>':''}</div><nav class="sw-tabs" role="tablist" aria-label="Project views">${state.views.map(([key,icon,title])=>`<button type="button" role="tab" aria-label="${title}" aria-selected="${state.view===key}" tabindex="${state.view===key?0:-1}" data-scope-view="${key}" title="${title}"><i class="fas ${icon}" aria-hidden="true"></i><span>${title}</span></button>`).join('')}</nav>`;
+    state={contextKey,scheduling,only,views:VIEWS.filter(([key])=>only?key==='roof':scheduling||key!=='schedule'),selected:null,handle:null,view:'roof',widgets:{},visible:true,generation:0};sidebars.set(root,state);
+    root.innerHTML=`<div class="sw-viewport"><div class="sw-panel" data-scope-panel="roof"></div><div class="sw-panel sw-manual" data-scope-manual hidden></div><button type="button" class="smm-flip" data-scope-manual-flip hidden><i class="fas fa-pen-ruler" aria-hidden="true"></i><span>${esc(text('mm_flip_entries','Your entries'))}</span></button>${only?'':'<div class="sw-panel" data-scope-panel="documents" hidden></div><div class="sw-panel" data-scope-panel="aerial" hidden></div>'}${scheduling?'<div class="sw-panel sw-schedule" data-scope-panel="schedule" hidden></div>':''}</div>${only?'':`<nav class="sw-tabs" role="tablist" aria-label="Project views">${state.views.map(([key,icon,title])=>`<button type="button" role="tab" aria-label="${title}" aria-selected="${state.view===key}" tabindex="${state.view===key?0:-1}" data-scope-view="${key}" title="${title}"><i class="fas ${icon}" aria-hidden="true"></i><span>${title}</span></button>`).join('')}</nav>`}`;
     const tabs=[...root.querySelectorAll('[data-scope-view]')];
     tabs.forEach((tab,index)=>{
       tab.onclick=()=>{state.view=tab.dataset.scopeView;showViews(root,state);tab.focus();};
@@ -138,7 +140,7 @@ export function mountSidebar(root,documents,error,contextKey,options={}) {
     state.measurementViewers=new Set();
     // Mount both report views once, before the user selects them. Their DOM,
     // network results and viewer state survive all local tab changes.
-    for(const key of ['roof','aerial']){
+    for(const key of only?['roof']:['roof','aerial']){
       const stage=root.querySelector(`[data-scope-panel="${key}"]`);
       if(key==='aerial'){
         let handle,disposed=false,visible=false;
@@ -163,6 +165,7 @@ export function mountSidebar(root,documents,error,contextKey,options={}) {
   // Documents: the selected accepted document fills the viewer and every accepted document sits in the strip beneath it.
   const drawDocuments=()=>{
     const panel=root.querySelector('[data-scope-panel="documents"]'),accepted=state.documents.filter(d=>['document','report_asset'].includes(d.source));
+    if(!panel)return;
     const selected=accepted.find(d=>d.id===state.selected)||accepted[0]||null,key=JSON.stringify([accepted,selected?.id,state.error]);
     if(state.documentsKey===key)return;
     state.documentsKey=key;state.selected=selected?.id||null;state.stageObserver?.disconnect();state.handle?.destroy?.();state.handle=null;const generation=++state.generation;
@@ -197,6 +200,16 @@ export function manualMeasurementMode(form,reportReady){
   if(!form.available||form.in_use?.source==='other')return 'none';
   return 'edit';
 }
+/**
+ * The measurement ordering widget: No measurements, Order measurement report and Add measurements manually. The
+ * Operations Measurements view and the project details tray both start a report order here; ordering itself is the
+ * host's existing order session (onOrder) and is unchanged.
+ */
+export function mountMeasurementStart(node,{canOrder=false,pending=false,canEnter=false,onOrder,onEnter}={}){
+  node.innerHTML=`<div class="sw-doc-empty sw-measurement-start" role="status" data-measurement-start><i class="fas fa-ruler-combined" aria-hidden="true"></i><strong>${esc(text('measurement_start_empty','No measurements.'))}</strong>${pending?`<span>${esc(text('measurement_start_pending','Your measurement report is on order. You can enter measurements while you wait.'))}</span>`:''}${canOrder?`<button type="button" class="smm-btn primary" data-scope-order>${esc(text('measurement_start_order','Order measurement report'))}</button>`:''}<button type="button" class="smm-btn" data-scope-enter ${canEnter?'':'disabled'}>${esc(text('measurement_start_manual','Add measurements manually'))}</button></div>`;
+  node.querySelector('[data-scope-order]')?.addEventListener('click',()=>onOrder?.());
+  node.querySelector('[data-scope-enter]')?.addEventListener('click',()=>onEnter?.());
+}
 // Resolved when first needed: a test may load this module from a data: URL, against which nothing resolves.
 const manualEditorUrl=()=>new URL('./manual-measurements.js?v=20261025-intro-tooltip',import.meta.url).href;
 function drawManual(root,state,contextKey){
@@ -209,11 +222,8 @@ function drawManual(root,state,contextKey){
   if(!start){start=document.createElement('div');start.className='sw-panel';start.dataset.scopeMeasurementStart='';start.hidden=true;root.querySelector('.sw-viewport').append(start);}
   state.measurementStartShown=!!empty&&!state.manualEntryRequested;
   if(state.measurementStartShown){
-    const canOrder=state.options?.canOrderMeasurements===true, pending=state.options?.reportPending===true;
-    const canEnter=mode==='edit';
-    start.innerHTML=`<div class="sw-doc-empty sw-measurement-start" role="status"><i class="fas fa-ruler-combined" aria-hidden="true"></i><strong>${esc(text('measurement_start_empty','No measurements.'))}</strong>${pending?`<span>${esc(text('measurement_start_pending','Your measurement report is on order. You can enter measurements while you wait.'))}</span>`:''}${canOrder?`<button type="button" class="smm-btn primary" data-scope-order>${esc(text('measurement_start_order','Order measurement report'))}</button>`:''}<button type="button" class="smm-btn" data-scope-enter ${canEnter?'':'disabled'}>${esc(text('measurement_start_manual','Add measurements manually'))}</button>${!canEnter?`<span>${esc(text('measurement_start_scope','Add a scope with a measurement schema to enter its measurements manually.'))}</span>`:''}</div>`;
-    start.querySelector('[data-scope-order]')?.addEventListener('click',()=>state.options?.onOrderMeasurements?.());
-    start.querySelector('[data-scope-enter]')?.addEventListener('click',()=>{state.manualEntryRequested=true;drawManual(root,state,contextKey);});
+    mountMeasurementStart(start,{canOrder:state.options?.canOrderMeasurements===true,pending:state.options?.reportPending===true,canEnter:mode==='edit',
+      onOrder:()=>state.options?.onOrderMeasurements?.(),onEnter:()=>{state.manualEntryRequested=true;drawManual(root,state,contextKey);}});
     if(!state.manualStyled){state.manualStyled=true;import(manualEditorUrl()).then(module=>module.ensureStyles?.()).catch(()=>{state.manualStyled=false;});}
   }
   if(mode!=='compare')state.manualOpen=false;
