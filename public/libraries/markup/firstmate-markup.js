@@ -309,7 +309,7 @@
         ctx.fillStyle = 'rgba(255,255,255,.72)';
         ctx.fillRect(x, y, width, height);
         ctx.fillStyle = item.color || '#111';
-        ctx.font = `700 ${fontSize}px Arial, sans-serif`;
+        ctx.font = `${item.italic ? 'italic ' : ''}${item.bold === false ? '400' : '700'} ${fontSize}px Arial, sans-serif`;
         ctx.textBaseline = 'top';
         ctx.beginPath(); ctx.rect(x,y,width,height); ctx.clip();
         drawWrappedText(ctx, item.text || '', x + 5, y + 4, Math.max(20, width - 10), fontSize * 1.14);
@@ -500,9 +500,14 @@
       .fm-photo-markup-text-size{position:absolute;width:21px;height:21px;border-radius:5px;background:#fff;border:2px solid var(--primary,#d93025);box-shadow:0 6px 12px rgba(15,23,42,.14);display:none;cursor:nwse-resize;z-index:12;opacity:.5;transition:opacity .14s ease,transform .14s ease}
       .fm-photo-markup-handle:hover,.fm-photo-markup-handle:focus-visible,.fm-photo-markup-text-size:hover,.fm-photo-markup-text-size:focus-visible{opacity:1}
       .fm-photo-modal.markup-active .fm-photo-markup-handle,.fm-photo-modal.markup-active .fm-photo-markup-text-size{display:block}
+      .fm-photo-markup-format{position:absolute;display:flex;align-items:center;gap:2px;padding:3px;background:#fff;color:#344054;border:1px solid #d0d5dd;border-radius:0 0 8px 8px;box-shadow:0 3px 8px #10182824;z-index:14;white-space:nowrap}
+      .fm-photo-markup-format button{width:28px;height:28px;padding:0;border:0;border-radius:4px;background:transparent;color:inherit;cursor:pointer;font:16px Arial}
+      .fm-photo-markup-format button[aria-pressed=true]{background:var(--primary,#147d45);color:#fff}
+      .fm-photo-markup-format input{width:48px;height:28px;box-sizing:border-box;border:1px solid #d0d5dd;border-radius:4px;background:#fff;color:#344054;font:12px Arial;text-align:center}
+      .fm-photo-markup-format :focus-visible{outline:2px solid var(--primary,#147d45);outline-offset:1px}
       .fm-photo-markup-text-delete{position:absolute;width:21px;height:21px;border-radius:50%;background:#fff;border:1px solid #d0d5dd;color:#475467;font:700 18px/18px sans-serif;padding:0;z-index:13;cursor:pointer}
-      .fm-photo-markup-layer :is([data-markup-handle^="text-"],[data-markup-delete]){opacity:0;pointer-events:none;visibility:hidden}
-      .fm-photo-modal.markup-active .fm-photo-markup-layer :is([data-markup-handle^="text-"],[data-markup-delete]).text-control-visible{opacity:1;pointer-events:auto;visibility:visible}
+      .fm-photo-markup-layer :is([data-markup-handle^="text-"],[data-markup-delete],[data-markup-format]){opacity:0;pointer-events:none;visibility:hidden}
+      .fm-photo-modal.markup-active .fm-photo-markup-layer :is([data-markup-handle^="text-"],[data-markup-delete],[data-markup-format]).text-control-visible{opacity:1;pointer-events:auto;visibility:visible}
       .fm-photo-modal:not(.markup-active) .fm-photo-markup-text-delete{display:none}
       .fm-photo-markup-path{fill:none;stroke:#111;stroke-width:2.2;stroke-linecap:round;stroke-linejoin:round}
       .fm-photo-markup-arrow{fill:none;stroke-linecap:round}
@@ -937,6 +942,8 @@
       target.style.width = `${(width * 100).toFixed(4)}%`;
       target.style.height = height != null ? `${(height * 100).toFixed(4)}%` : '';
       target.style.maxWidth = `${(Math.max(0.12, 0.98 - Number(item.x || 0)) * 100).toFixed(3)}%`;
+      const format=this.layer.querySelector(`[data-markup-format][data-markup-id="${item.id}"]`);
+      if(format){format.style.left=`${item.x*100}%`;format.style.top=`${(item.y+height)*100}%`;}
       target.style.fontSize = `${fontSize.toFixed(1)}px`;
       target.style.padding = `${padding.y.toFixed(1)}px ${padding.x.toFixed(1)}px`;
       if (remove) remove.style.left = `calc(${((Number(item.x || 0) + width) * 100).toFixed(4)}% - 10.5px)`;
@@ -1143,7 +1150,12 @@
       this.layer.addEventListener('focusin', (event) => {
         if (root.matchMedia?.('(hover: none)').matches) this.showTextControls(event.target.closest?.('[data-markup-id]')?.dataset.markupId || '');
       });
+      this.layer.addEventListener('change', event => {
+        if(event.target.matches('[data-text-font-size]')) this.formatText(event.target, 'size', Number(event.target.value));
+      });
       this.layer.addEventListener('click', (event) => {
+        const format=event.target.closest?.('[data-text-format]');
+        if(format && this.active){event.preventDefault();event.stopPropagation();this.formatText(format,format.dataset.textFormat);return;}
         const button=event.target.closest?.('[data-markup-delete]');
         if(button && this.active){event.preventDefault();event.stopPropagation();this.deleteItem(button.dataset.markupId);}
       });
@@ -1229,13 +1241,28 @@
       this.layer?.remove();
       this.dock?.remove();
     }
+    formatText(control, kind, value){
+      if(!this.active)return;
+      const id=control.closest('[data-markup-id]')?.dataset.markupId;
+      const item=this.items.find(entry=>entry.id===id && entry.type==='text');
+      if(!item || (kind==='size' && (!Number.isFinite(value)||value<=0)))return;
+      this.pushHistory();
+      if(kind==='bold')item.bold=item.bold===false;
+      if(kind==='italic')item.italic=!item.italic;
+      if(kind==='size'){
+        item.fontPx=clamp(value,8,160);
+        item.fontWidthRatio=item.fontPx/Math.max(1,this.layer.getBoundingClientRect().width);
+      }
+      this.hoveredTextId=id;
+      this.renderLayer();this.pushHistory();this.emitChange();
+    }
     showTextControls(id = ''){
       this.hoveredTextId = id;
-      this.layer.querySelectorAll('[data-markup-handle^="text-"],[data-markup-delete]').forEach(control => control.classList.toggle('text-control-visible',control.dataset.markupId===id));
+      this.layer.querySelectorAll('[data-markup-handle^="text-"],[data-markup-delete],[data-markup-format]').forEach(control => control.classList.toggle('text-control-visible',control.dataset.markupId===id));
     }
     onDown(event){
       if (!this.active) return;
-      if (event.target.closest?.('[data-markup-delete]')) return;
+      if (event.target.closest?.('[data-markup-delete],[data-markup-format]')) return;
       const textEl = event.target.closest?.('.fm-photo-markup-text');
       if (textEl && this.tool !== 'eraser') {
         if (event.pointerType === 'touch') this.showTextControls(textEl.dataset.markupId);
@@ -1412,7 +1439,7 @@
         const style = `stroke:${escapeHtml(item.color || '#111')};stroke-width:${escapeHtml(String(item.size || 2.8))}`;
         return Object.values(parts).map((part) => `<line class="fm-photo-markup-arrow" data-markup-id="${escapeHtml(item.id)}" x1="${(part.x1 * 100).toFixed(3)}" y1="${(part.y1 * 100).toFixed(3)}" x2="${(part.x2 * 100).toFixed(3)}" y2="${(part.y2 * 100).toFixed(3)}" style="${style}"></line>`).join('');
       }).join('') + eraserPath;
-      this.layer.querySelectorAll('.fm-photo-markup-text,.fm-photo-markup-handle,.fm-photo-markup-text-size,.fm-photo-markup-text-delete').forEach((node) => node.remove());
+      this.layer.querySelectorAll('.fm-photo-markup-text,.fm-photo-markup-handle,.fm-photo-markup-text-size,.fm-photo-markup-text-delete,.fm-photo-markup-format').forEach((node) => node.remove());
       this.items.filter((item) => item.type === 'text').forEach((item) => {
         const metrics = this.textMetrics(item);
         const { width, height } = this.textBoxRenderBox(item);
@@ -1420,7 +1447,7 @@
         const padding = this.textPadding(fontSize);
         const heightStyle = height != null ? `height:${(height * 100).toFixed(3)}%;` : '';
         const content = item.html ? sanitizeMarkupHtml(item.html) : escapeMarkupText(item.text || '');
-        this.layer.insertAdjacentHTML('beforeend', `<div class="fm-photo-markup-text" data-markup-id="${escapeHtml(item.id)}" contenteditable="true" spellcheck="true" style="left:${(item.x * 100).toFixed(3)}%;top:${(item.y * 100).toFixed(3)}%;width:${(width * 100).toFixed(3)}%;${heightStyle}max-width:${(Math.max(0.12, 0.98 - item.x) * 100).toFixed(3)}%;color:${escapeHtml(item.color || '#111')};font-size:${fontSize.toFixed(1)}px;padding:${padding.y.toFixed(1)}px ${padding.x.toFixed(1)}px">${content}</div>`);
+        this.layer.insertAdjacentHTML('beforeend', `<div class="fm-photo-markup-text" data-markup-id="${escapeHtml(item.id)}" contenteditable="true" spellcheck="true" style="left:${(item.x * 100).toFixed(3)}%;top:${(item.y * 100).toFixed(3)}%;width:${(width * 100).toFixed(3)}%;${heightStyle}max-width:${(Math.max(0.12, 0.98 - item.x) * 100).toFixed(3)}%;color:${escapeHtml(item.color || '#111')};font-weight:${item.bold === false ? 400 : 700};font-style:${item.italic ? 'italic' : 'normal'};font-size:${fontSize.toFixed(1)}px;padding:${padding.y.toFixed(1)}px ${padding.x.toFixed(1)}px">${content}</div>`);
       });
       const layerRect = this.layer.getBoundingClientRect();
       this.layer.querySelectorAll('.fm-photo-markup-text').forEach((el) => {
@@ -1441,6 +1468,11 @@
         this.layer.insertAdjacentHTML('beforeend', `
           <div class="fm-photo-markup-handle" data-markup-id="${escapeHtml(item.id)}" data-markup-handle="text-move" style="left:${(Number(item.x || 0) * 100).toFixed(3)}%;top:${(Number(item.y || 0) * 100).toFixed(3)}%"></div>
           <button type="button" class="fm-photo-markup-text-delete" data-markup-delete data-markup-id="${escapeHtml(item.id)}" aria-label="Delete text box" style="left:calc(${((Number(item.x || 0) + width) * 100).toFixed(3)}% - 10.5px);top:calc(${(Number(item.y || 0) * 100).toFixed(3)}% - 10.5px)">×</button>
+          <div class="fm-photo-markup-format" data-markup-format data-markup-id="${escapeHtml(item.id)}" role="toolbar" aria-label="Text formatting" style="left:${(Number(item.x || 0)*100).toFixed(3)}%;top:${((Number(item.y || 0)+height)*100).toFixed(3)}%">
+            <button type="button" data-text-format="bold" aria-label="Bold" aria-pressed="${item.bold !== false}"><b>B</b></button>
+            <button type="button" data-text-format="italic" aria-label="Italic" aria-pressed="${!!item.italic}"><i>I</i></button>
+            <input type="number" data-text-font-size aria-label="Text size" min="8" max="160" step="1" value="${Math.round(Number(item.fontPx)||this.textFontPx(item.size||1.5))}">
+          </div>
           <div class="fm-photo-markup-text-size" data-markup-id="${escapeHtml(item.id)}" data-markup-handle="text-size" style="left:calc(${((Number(item.x || 0) + width) * 100).toFixed(3)}% - 10.5px);top:calc(${((Number(item.y || 0) + height) * 100).toFixed(3)}% - 10.5px)"></div>
         `);
       });

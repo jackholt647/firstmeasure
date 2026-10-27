@@ -47,3 +47,23 @@ test('text controls reveal on hover or touch focus, delete is undoable, and Done
  await page.close();
  }}finally{await browser.close();}
 });
+
+test('hover formatting tag changes text style and size without resizing, with undo',async()=>{
+ const browser=await chromium.launch({channel:'chrome',headless:true});
+ try{
+ const page=await fixture(browser);await page.mouse.click(200,200);await page.keyboard.type('Format this');
+ await page.mouse.move(10,10);const tag=page.locator('[data-markup-format]');assert.equal(await tag.isVisible(),false);
+ await page.locator('.fm-photo-markup-text').hover();assert.ok(await tag.isVisible());
+ const before=await page.evaluate(()=>({...markup.items[0]}));
+ await tag.getByRole('button',{name:'Bold',exact:true}).click();
+ assert.equal(await page.locator('.fm-photo-markup-text').evaluate(el=>getComputedStyle(el).fontWeight),'400');
+ await tag.getByRole('button',{name:'Italic',exact:true}).click();
+ assert.equal(await page.locator('.fm-photo-markup-text').evaluate(el=>getComputedStyle(el).fontStyle),'italic');
+ await tag.getByRole('spinbutton',{name:'Text size'}).fill('32');await page.keyboard.press('Enter');
+ assert.equal(await page.evaluate(()=>markup.items[0].fontPx),32);
+ assert.deepEqual(await page.evaluate(()=>[markup.items[0].width,markup.items[0].height]),[before.width,before.height]);
+ await page.evaluate(()=>markup.undo());assert.equal(await page.evaluate(()=>markup.items[0].fontPx),before.fontPx);
+ await page.mouse.move(10,10);assert.equal(await tag.isVisible(),false);
+ await page.evaluate(()=>markup.setActive(false));assert.equal(await tag.isVisible(),false);
+ }finally{await browser.close();}
+});
