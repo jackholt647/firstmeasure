@@ -2086,8 +2086,13 @@ async function generatePDFFromState(state, mode = 'full', updateStatusCallback, 
     const { jsPDF } = window.jspdf;
     const pdfOrientation = resolvePdfOrientation(state, orgSettings, pageConfigOverride);
     const doc = new jsPDF(pdfOrientation === 'landscape' ? 'l' : 'p', 'mm', 'letter');
+    const hasExterior = mode === 'full' && state.exteriorReport?.walls?.length && (isCustomerFullHousePdf(state) || state.exteriorSettings?.include !== false);
+    // A report with Full Exterior pages, and a full-house customer summary, is titled Full Exterior Report
+    // on its cover and in the PDF's title.
+    const exteriorCover = hasExterior || (mode === 'summary' && isCustomerFullHousePdf(state) && !!state.exteriorReport?.walls?.length);
     const metadataAddress = String(state.address || '').replace(/\s+/g, ' ').trim();
-    const metadataTitle = runtimeOptions.coverTitle
+    const metadataTitle = (exteriorCover ? pdfLabel('Full Exterior Report') + (metadataAddress ? ` - ${metadataAddress}` : '') : '')
+        || runtimeOptions.coverTitle
         || `${mode === 'summary' ? 'FirstMate FirstMeasure Summary' : 'FirstMate FirstMeasure Report'}${metadataAddress ? ` - ${metadataAddress}` : ''}`;
     if (typeof doc.setDocumentProperties === 'function') {
         doc.setDocumentProperties({
@@ -2249,7 +2254,6 @@ async function generatePDFFromState(state, mode = 'full', updateStatusCallback, 
         state.manualTotalFacets = countRealFacets(state);
     }
     let outlineImg = null;
-    const hasExterior = mode === 'full' && state.exteriorReport?.walls?.length && (isCustomerFullHousePdf(state) || state.exteriorSettings?.include !== false);
     // Roof-only reports keep the original section titles and page order. The Full House layout (roof-prefixed
     // titles, summary and materials ahead of the diagrams) applies only to a report with Full House pages.
     // Other report languages keep the translated Full House titles: those reports never had the original ones.
@@ -2273,12 +2277,11 @@ async function generatePDFFromState(state, mode = 'full', updateStatusCallback, 
     beginReportPage(coverTitle, true);
     // A Full Exterior report opens with the house on its cover in the customer PDF too; the customer cover's
     // boxes stay the customer ones (drawDynamicCoverPage, Company > Reports > Cover).
-    const exteriorCover = hasExterior || (mode === 'summary' && isCustomerFullHousePdf(state) && !!state.exteriorReport?.walls?.length);
     if (exteriorCover) {
         doc.setFont('Montserrat', 'bold');
         doc.setFontSize(14);
         doc.setTextColor(44, 51, 60);
-        doc.text(pdfLabel('Property Measurement Report'), marginLeft, 32);
+        doc.text(pdfLabel('Full Exterior Report'), marginLeft, 32);
     }
 
     // Portrait: the drawing above two summary boxes side by side. Landscape: the drawing on the

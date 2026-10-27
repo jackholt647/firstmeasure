@@ -210,10 +210,6 @@ function writer(doc,colors){
  const x=25,w=doc.internal.pageSize.getWidth()-40,bottom=doc.internal.pageSize.getHeight()-22,accent=colors?.primary||{r:200,g:40,b:40};
  const text=(value,px,py,size=9,bold=false,color=[44,51,60])=>{doc.setFont('Montserrat',bold?'bold':'normal');doc.setFontSize(size);doc.setTextColor(...color);doc.text(Array.isArray(value)?value:String(value),px,py);};
  const note=(value,y,width=w,px=x)=>{doc.setFont('Montserrat','normal');doc.setFontSize(8);const lines=doc.splitTextToSize(String(value),width);text(lines,px,y,8);return y+lines.length*4;};
- // A page's fine print at the bottom, just above the footer address, styled like the note under the
- // roof ventilation page (pdf.js drawVentilationPage): 6 pt grey, full width, its last line 7 mm
- // above the footer address as that note's is. Returns the top of the note.
- const footnote=value=>{const H=doc.internal.pageSize.getHeight(),lineH=6*1.15*.352778;doc.setFont('Montserrat','normal');doc.setFontSize(6);const lines=doc.splitTextToSize(String(value),w),y=H-FOOTER_BASELINE-7-(lines.length-1)*lineH;text(lines,x,y,6,false,[90,90,90]);return y-2.2;};
  // Every exterior table is a full-width boxed table (boxTable below) with the same columns and values;
  // columns whose values are all numbers are right-aligned. `rowsFit(y)` is how many rows fit from y down.
  const table=(headers,rows,y,widths)=>boxTable(headers.map(h=>reportText(h)),rows,x,y,w,widths,numericColumns(headers,rows));
@@ -285,7 +281,7 @@ function writer(doc,colors){
  // Otherwise one full-width box per page. Either way `more()` starts a continuation page and returns its top.
  const autoTable=(headers,rows,y,widths,more)=>{headers=headers.map(h=>reportText(h));const right=numericColumns(headers,rows);if(headers.length<=3&&rows.length>LONG_TABLE)return columns(headers,rows,y,widths,null,more,right);
   let end=y;for(let i=0;i<rows.length;){const count=rowsFit(y);end=boxTable(headers,rows.slice(i,i+count),x,y,w,widths,right);i+=count;if(i<rows.length)y=more();}return end;};
- return {x,w,bottom,accent,text,note,footnote,table,paginate,panel,fit,boxTable,columns,autoTable,rowsFit,boxHeight,totalHeight,totalBox,sideTable,sideWidth,numericColumns};
+ return {x,w,bottom,accent,text,note,table,paginate,panel,fit,boxTable,columns,autoTable,rowsFit,boxHeight,totalHeight,totalBox,sideTable,sideWidth,numericColumns};
 }
 const DENSITY=8,LONG_TABLE=10;
 // Room under a wall dimension drawing for its size and material lines.
@@ -373,16 +369,16 @@ function drawStatGrid(doc,stats,x,y,w,colors,perRow=stats.length){
  doc.setTextColor(0,0,0);return y+rows*STAT_H+(rows-1)*STAT_GAP;
 }
 function drawExteriorSummaryPage(doc,model,settings,begin,colors){
- const {x,w,footnote}=writer(doc,colors);
+ const {x,w}=writer(doc,colors);
  begin(reportText('Exterior Summary'));
  // Seven figures across the top (one row in landscape, four then three in portrait, every cell the
- // same size), the house under them at full width and the note about wall IDs at the foot of the page.
+ // same size) and the house under them at full width, ending as far above the footer address as the
+ // address is above the page edge (evenBottom).
  // The figures are whole numbers ("4,374 sq ft"); the tables keep their one decimal.
  const first=[[reportText('Net wall area'),whole(model.totals.net,'sf')],[reportText('Gross wall area'),whole(model.totals.gross,'sf')],[reportText('Openings'),String(model.openings.length)]];
  const second=[[reportText('Wall regions'),String(model.walls.length)],[reportText('Opening area'),whole(model.totals.openingArea,'sf')],[reportText('Opening perimeter'),whole(model.totals.openingPerimeter,'ft')],[reportText('Horizontal returns'),whole(model.totals.returns,'sf')]];
  const top=drawStatGrid(doc,[...first,...second],x,35,w,colors,isLandscape(doc)?7:4)+5;
- const noteTop=footnote(reportText('Wall IDs connect the diagrams, dimensions, opening schedule and notes. Each wall face is counted once, on one of the four elevations (front, back, left, right) or as a hidden face, so those totals add up to the gross wall area.'));
- drawDiagram(doc,houseFaces(model),{x,y:top,w,h:noteTop-4-top},coverView(settings),{iso:true});
+ drawDiagram(doc,houseFaces(model),{x,y:top,w,h:evenBottom(doc)-top},coverView(settings),{iso:true});
 }
 /* There are four elevations: Front, Back, Left and Right, looking from the configured front bearing
  and from it turned by 180, 90 and -90 degrees. Which elevation counts each wall face: a face is
@@ -465,7 +461,7 @@ function drawExteriorReportPages(doc,model,settings,begin,colors,pages={}){
   if(landscape)sideTable(headers,rows,x+drawW+sideGap,33,side.pw,side.widths,totalRow(all),more);
   else columns(headers,rows,even?blockTop:drawing.y+drawing.h+4,widths,totalRow(all),more);
  }
- if(plan.hidden.length&&want('elevations')){const hidden=plan.hidden.map(id=>byId.get(id)).sort((a,b)=>a.id.localeCompare(b.id)),heading=reportText('Hidden Wall Faces'),intro=reportText('These faces are not visible in any elevation drawing because other walls or the roof cover them. They are listed here so every face is counted once.');
+ if(plan.hidden.length&&want('elevations')){const hidden=plan.hidden.map(id=>byId.get(id)).sort((a,b)=>a.id.localeCompare(b.id)),heading=reportText('Hidden Wall Faces'),intro=reportText('These faces are not visible in any elevation drawing because other walls or the roof cover them.');
   begin(heading);columns(headers,hidden.map(a=>[a.id,material(a),area(a.gross),openings(a.openingArea)]),note(intro,38)+4,widths,totalRow(hidden),()=>{begin(heading+reportText(' - continued'));return 38;});}
  const house=dimensionContext(settings)?houseFaces(model):null;
  for(const [heading,faces]of want('dimensions')?[['Wall Dimensions',model.walls.filter(a=>!isTrim(a))],['Trim Dimensions',model.walls.filter(isTrim)]]:[]){
@@ -497,7 +493,6 @@ function drawExteriorReportPages(doc,model,settings,begin,colors,pages={}){
   if(divisor===1){begin(reportText('Material Allowances'));y=38;}if(y+22+rows.length*5.5>bottom&&y>38){begin(reportText('Material Allowances - continued'));y=38;}
   text(label,x,y,12,true);y+=7;y=autoTable([reportText('Material'),...waste.map(v=>v+'%')],rows,y,[2,1,1,1,1,1],()=>{begin(reportText('Material Allowances - continued'));return 38;})+14;
  }
- if(y+12>bottom){begin(reportText('Material Allowances - continued'));y=38;}note(reportText('Waste percentages are comparison allowances applied to net wall area. Horizontal returns are measured separately.'),y);
 }
 /* The Wall Notes page has the Roof Notes page's layout and notes card (pdf.js pdfNotesLayout and
  drawPdfNotesCard): the four elevations as reference images (2 x 2) on the left, the ruled notes card

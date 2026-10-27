@@ -240,9 +240,9 @@ test('every exterior table uses the boxed roof-table style with unchanged values
  const allowX=new Set(allowances.flatMap(p=>p.text.filter(isMaterial).map(t=>t.x)));assert.equal(allowX.size,1,'the wide allowance table keeps one column');assert.ok(allowances.length>1,'allowances continue on another page');
  for(const p of long)assert.ok(p.text.every(t=>t.y<=bottom+.01),p.title+' stays above the footer');
 });
-test('the Exterior Summary shows its seven figures as equal compact header-stat cells (one row in landscape, four then three in portrait) and the wall ID note at the foot',()=>{
+test('the Exterior Summary shows its seven figures as equal compact header-stat cells (one row in landscape, four then three in portrait) and the house under them down to the even bottom, with no note',()=>{
  for(const [W,H,layout]of [[210,297,[4,3]],[279.4,215.9,[7]]]){
-  const pages=[];let page;const ctx=loadPDF(),doc=new Proxy({internal:{pageSize:{getWidth:()=>W,getHeight:()=>H}},getTextWidth:s=>String(s).length*.9,splitTextToSize:s=>[s],text:(value,x,y)=>page.text.push({value:String(value),x,y}),lines:(l,x,y)=>page.bars.push({x,y}),roundedRect:(...a)=>page.rounded.push(a),addImage:(...a)=>page.images.push(a)},{get:(o,k)=>k in o?o[k]:()=>{}});
+  const pages=[];let page;const ctx=loadPDF({document:{createElement:()=>({getContext:()=>({createImageData:(w,h)=>({data:new Uint8Array(w*h*4)}),putImageData(){}}),toDataURL:()=>'data:image/png,test'})}}),doc=new Proxy({internal:{pageSize:{getWidth:()=>W,getHeight:()=>H}},getTextWidth:s=>String(s).length*.9,splitTextToSize:s=>[s],text:(value,x,y)=>page.text.push({value:String(value),x,y}),lines:(l,x,y)=>page.bars.push({x,y}),roundedRect:(...a)=>page.rounded.push(a),addImage:(...a)=>page.images.push(a)},{get:(o,k)=>k in o?o[k]:()=>{}});
   ctx.ExteriorPDF.drawExteriorSummaryPage(doc,boxHouse(),{},title=>{page={title,text:[],bars:[],rounded:[],images:[]};pages.push(page);},{});
   const p=pages[0],at=v=>p.text.find(t=>t.value===v);
   assert.equal(p.bars.length,7,'seven accent-bar cards');
@@ -252,7 +252,8 @@ test('the Exterior Summary shows its seven figures as equal compact header-stat 
   const columns=[...new Set(cards.map(r=>r[0].toFixed(6)))];assert.equal(columns.length,layout[0],'a short last row stays on the grid');
   for(const [label,value]of [['NET WALL AREA',null],['GROSS WALL AREA',null],['OPENINGS','0'],['WALL REGIONS','7'],['OPENING AREA',null],['OPENING PERIMETER',null],['HORIZONTAL RETURNS',null]]){const t=at(label);assert.ok(t,label);if(value)assert.ok(p.text.some(v=>v.value===value&&Math.abs(v.x-t.x)<1e-9&&v.y>t.y),label+' has its value under it');}
   assert.ok(!p.text.some(t=>t.value==='Measurement'||t.value==='Quantity'),'no measurement table');
-  const note=p.text.find(t=>/^Wall IDs connect/.test(t.value)),footer=H-16;assert.ok(note.y>footer-10&&note.y<footer-5,'the note sits just above the footer address: '+note.y);
+  assert.ok(!p.text.some(t=>/Wall IDs|counted once/.test(t.value)),'no note about wall IDs');
+  const house=p.images.at(-1);assert.ok(Math.abs(house[3]+house[5]-(H-16-2.2-16))<1e-9,'the house ends as far above the footer address as the address is above the page edge: '+(house[3]+house[5]));
  }
 });
 

@@ -1,4 +1,4 @@
-/* Textured render for the PDF's first cover page (Property Measurement Report) only; the Exterior Summary and the
+/* Textured render for the PDF's first cover page (Full Exterior Report) only; the Exterior Summary and the
  elevations keep their line drawings. capture() draws it exactly as Textured mode does (ExteriorRendered) once its
  assets load; render() is the synchronous procedural fallback. The image travels in the report snapshot as
  exteriorReport.coverRender, set by attach() before the snapshot is built. */
