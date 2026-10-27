@@ -1,5 +1,27 @@
 # Development project reports and measurement ordering — October 26, 2026
 
+## Follow-up: independent document sources
+
+Release `17d6a18ed3146fe4277a7c355126d20c126f367d` corrects a missing-report
+case found on `project_mvqa1qau_mw3x74u9`. Request logs confirmed that its
+legacy `/v1/platform/.../documents` list returned 403 while the report PDF and
+customer PDF were accessible (200). The shared Promise.all previously threw
+away the report asset results when that independent list failed.
+
+Documents now handles a legacy list failure within that source and waits for
+the independent report, invoice and receipt results. No access gates changed.
+The new browser regression reproduced the failure before the fix and passed
+afterward, along with the delivered-report/deduplication/hold and desktop-header
+checks (three tests). Only Docs JavaScript and its gzip companion changed on
+web and legacy; their backend digests remained unchanged. The prior release
+for this follow-up is `a730ce84c08cd841c944ee67de53295d62845efe`.
+
+The browser session available to the agent belongs to a different sandbox
+organization, so the exact project was diagnosed through read-only development
+record/request-log inspection rather than a claimed live visual verification.
+
+## Initial rollout
+
 Activated release `a730ce84c08cd841c944ee67de53295d62845efe` on development web
 and legacy, replacing `943d95420d8fb9fdd2e9982c7f85e33e9aeb1bd3` on both.
 The worker and production were not changed.

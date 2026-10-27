@@ -561,7 +561,12 @@
     try {
       if (!oid || !pid || !window.PlatformAPI?.projectDocuments?.list) throw new Error('Project documents API is unavailable.');
       const [result, invoiceResult, receiptResult] = await Promise.all([
-        window.PlatformAPI.projectDocuments.list(oid, pid),
+        // Legacy uploaded documents have their own access gate. A failure here
+        // must not discard independently authorized reports, invoices or receipts.
+        window.PlatformAPI.projectDocuments.list(oid, pid).catch((error) => {
+          if (options.quiet !== true) console.warn('Unable to load legacy project documents', error);
+          return { documents:uploadedProjectDocs(), uploaded_documents:uploadedProjectDocs() };
+        }),
         window.PaymentsAPI?.invoices?.list
           ? window.PaymentsAPI.invoices.list(oid, pid).catch((error) => {
             console.warn('Unable to load project invoices for Docs', error);
