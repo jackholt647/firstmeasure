@@ -918,8 +918,8 @@ window.PlatformCommerce.onReady(async function(){
     /* Measurements take whatever height the column has left (never less than a usable model and key). */
     #rOverlay .r-details-tray .r-scroll{display:flex;flex-direction:column}
     #rOverlay .r-details-tray .r-scroll>*{flex:none}
-    #rOverlay .r-details-tray .r-scroll>.r-tray-measurements{flex:1 0 auto;display:flex;flex-direction:column;margin-bottom:10px}
-    .r-tray-measure-root{position:relative;display:flex;flex-direction:column;flex:1 1 auto;height:auto;min-height:clamp(380px,62vh,620px);border:1px solid #eaecf0;border-radius:12px;overflow:hidden;background:#f8fafc}
+    #rOverlay .r-details-tray .r-scroll>.r-tray-measurements{flex:1 1 0;min-height:max-content;display:flex;flex-direction:column;margin-bottom:10px}
+    .r-tray-measure-root{position:relative;display:flex;flex-direction:column;flex:1 1 0;height:auto;min-height:280px;border:1px solid #eaecf0;border-radius:12px;overflow:hidden;background:#f8fafc}
     .r-tray-measurements.is-start .r-tray-measure-root{flex:none;height:auto;min-height:220px;background:#fff}
     #rOverlay .r-details-tray .r-scroll>.r-tray-measurements.is-start{flex:none}
     .r-tray-measure-root .sw-viewport{position:relative;flex:1;min-height:0;overflow:hidden}
