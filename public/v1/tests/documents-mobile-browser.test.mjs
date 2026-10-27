@@ -219,6 +219,7 @@ test('document covers use PDF page one, module pages and a consistent icon fallb
     assert.deepEqual(await page.evaluate(()=>previewPages),[['cover']]);
     assert.equal(await page.locator('.fm-doc-card-heading .fm-doc-title-icon').count(),4);
     assert.ok(await page.locator('.fm-doc-detail-pills').filter({hasText:'28.5 squares'}).first().isVisible());
+    assert.equal(await page.locator('.fm-doc-detail-pills').filter({hasText:'sq ft'}).count(),0,'squares do not repeat as square feet');
     assert.equal(await page.locator('.fm-doc-card-body').filter({hasText:'squares'}).count(),0);
     await page.evaluate(()=>document.documentElement.style.setProperty('--primary','#7c3aed'));
     assert.ok((await page.locator('.fm-doc-type-badge').evaluateAll(nodes=>nodes.map(node=>({background:getComputedStyle(node).backgroundColor,color:getComputedStyle(node).color})))).every(style=>style.background==='rgb(124, 58, 237)' && style.color==='rgb(255, 255, 255)'));

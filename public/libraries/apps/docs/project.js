@@ -281,7 +281,7 @@
         const round = (value) => (Math.round(value * 10) / 10).toLocaleString();
         return {
           primary: squares > 0 ? `${round(squares)} squares` : `${Math.round(area).toLocaleString()} sq ft`,
-          facts: [squares > 0 && area > 0 ? `${Math.round(area).toLocaleString()} sq ft` : '', date]
+          facts: [date]
         };
       }
     },
