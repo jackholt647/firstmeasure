@@ -913,6 +913,10 @@ window.PlatformCommerce.onReady(async function(){
     @keyframes rDetailsTrayRise{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:none}}
     .r-details-tray-scrim{display:none}
     .r-details-tray :is(#rProjectCustomFields,#rCustomerPortalLinkMount,#rInlineNotesMount):empty{display:none}
+    /* Photo custom fields (the cover photo among them) are pinned photos in the Photos tab, not tray fields. They stay
+       in the form, only hidden, so saving the other fields keeps their values. */
+    .r-details-tray [data-custom-field-path]:has([data-fm-cf-type="photo"]),
+    .r-details-tray #rProjectCustomFields:not(:has([data-custom-field-path]:not(:has([data-fm-cf-type="photo"])))){display:none!important}
     .r-tray-measurements{margin:6px 0 6px;padding-top:14px;border-top:1px solid #eaecf0}
     .r-tray-measurements[hidden]{display:none!important}
     .r-tray-measurements>header{display:flex;align-items:center;justify-content:space-between;margin:0 0 10px;font-size:12px;color:#344054;font-weight:600}
@@ -4908,21 +4912,26 @@ window.PlatformCommerce.onReady(async function(){
     if(trayMeasurements.loading){trayMeasurements.again=true;return;}
     const loadDocs=projectId && Date.now()-trayMeasurements.loadedAt>60000;
     trayMeasurements.loading=import(scopeWorkspaceModuleUrl).then(async module=>{
+      const root=section.querySelector('[data-tray-measure-root]');
+      const mount=loaded=>{
+        const documents=trayMeasurements.documents.filter(doc=>['measurement','manual'].includes(doc.source));
+        module.mountSidebar(root,documents,trayMeasurements.error,key,{measurementsOnly:true,draft:!projectId,documentsLoaded:loaded,
+          canOrderMeasurements:firstMeasureReportOrdersEnabled() && hasPerm('order_reports') && !hasReportOrdered(),
+          reportPending:reportOrderIsActivelyPending(),onOrderMeasurements:()=>startMeasurementOrder(),
+          widgetContext:{surface:'project',target:{scope:'project',organizationId:orgId,projectId}},
+          measurementOverrides:trayMeasurements.overrides,onMeasurementChange:(name,value)=>{trayMeasurements.overrides={...trayMeasurements.overrides,[name]:value};}});
+        const startShown=!!root.querySelector('[data-scope-measurement-start]:not([hidden])') || !!root.querySelector('[data-scope-draft-empty]');
+        section.classList.toggle('is-start',startShown);
+      };
+      // Until the project's first read finishes, the widget is a skeleton, not an empty or "no report" state.
+      if(loadDocs && !trayMeasurements.loadedAt)mount(false);
       if(loadDocs){
         const result=await module.loadDocuments(orgId,projectId,{loadReportAssets:async()=>null}).catch(error=>({documents:[],error:error.message||'Measurements could not load.'}));
         if(trayMeasurements.key!==key)return;
         trayMeasurements.documents=result.documents||[];trayMeasurements.error=result.error||'';trayMeasurements.loadedAt=Date.now();
       }
       if(trayMeasurements.key!==key || !section.isConnected)return;
-      const root=section.querySelector('[data-tray-measure-root]');
-      const documents=trayMeasurements.documents.filter(doc=>['measurement','manual'].includes(doc.source));
-      module.mountSidebar(root,documents,trayMeasurements.error,key,{measurementsOnly:true,draft:!projectId,
-        canOrderMeasurements:firstMeasureReportOrdersEnabled() && hasPerm('order_reports') && !hasReportOrdered(),
-        reportPending:reportOrderIsActivelyPending(),onOrderMeasurements:()=>startMeasurementOrder(),
-        widgetContext:{surface:'project',target:{scope:'project',organizationId:orgId,projectId}},
-        measurementOverrides:trayMeasurements.overrides,onMeasurementChange:(name,value)=>{trayMeasurements.overrides={...trayMeasurements.overrides,[name]:value};}});
-      const startShown=!!root.querySelector('[data-scope-measurement-start]:not([hidden])') || !!root.querySelector('[data-scope-draft-empty]');
-      section.classList.toggle('is-start',startShown);
+      mount(true);
     }).catch(()=>{}).finally(()=>{trayMeasurements.loading=null;if(trayMeasurements.again){trayMeasurements.again=false;syncTrayMeasurements();}});
   }
 

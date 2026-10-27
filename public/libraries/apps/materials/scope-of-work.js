@@ -1,5 +1,7 @@
 const esc = value => String(value ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const dividers = new WeakMap(), sidebars = new WeakMap();
+// Document lists loadDocuments returned: anything else (a host's initial empty list) means the read has not finished.
+const loadedDocumentLists = new WeakSet();
 const number = value => typeof value === 'number' && Number.isFinite(value) ? value.toLocaleString(undefined,{maximumFractionDigits:2}) : 'Unavailable';
 const label = value => String(value || '').replace(/([a-z])([A-Z])/g,'$1 $2').replace(/[_.-]/g,' ').replace(/^./,c=>c.toUpperCase());
 const money = (value,currency='USD') => {try{return new Intl.NumberFormat(undefined,{style:'currency',currency}).format(value);}catch{return `${number(value)} ${currency}`;}};
@@ -80,6 +82,7 @@ export async function loadDocuments(orgId, projectId, options = {}) {
   }catch{}
   if(results[3]?.status==='fulfilled')documents.push(...reportDocuments(results[3].value));
   documents.sort((a,b)=>a.source.localeCompare(b.source)||String(a.title).localeCompare(String(b.title))||a.id.localeCompare(b.id));
+  loadedDocumentLists.add(documents);
   return {documents,error:failures.length?'Some published scope data could not load.':''};
 }
 
@@ -176,9 +179,10 @@ export function mountSidebar(root,documents,error,contextKey,options={}) {
     showViews(root,state);
   }
   state.options=options;
-  const fingerprint=JSON.stringify([documents,error,options.measurementOverrides,options.canOrderMeasurements,options.reportPending]);
+  const loading=!options.draft && !error && options.documentsLoaded!==true && !loadedDocumentLists.has(documents);
+  const fingerprint=JSON.stringify([documents,error,loading,options.measurementOverrides,options.canOrderMeasurements,options.reportPending]);
   if(state.fingerprint===fingerprint)return;
-  state.fingerprint=fingerprint;state.documents=documents;state.error=error;
+  state.fingerprint=fingerprint;state.documents=documents;state.error=error;state.loading=loading;
   // Documents: the selected accepted document fills the viewer and every accepted document sits in the strip beneath it.
   const drawDocuments=()=>{
     if(state.widgets.documents&&!state.widgets.documents.legacy)return state.widgets.documents.update();
@@ -219,6 +223,16 @@ export function manualMeasurementMode(form,reportReady){
   if(!form.available||form.in_use?.source==='other')return 'none';
   return 'edit';
 }
+// While the project's measurements are still being read: a quiet placeholder, never an empty or "no report" state.
+function measurementSkeletonHtml(){
+  return `<div class="sw-measure-skeleton" role="status" aria-busy="true" aria-label="${esc(text('measurement_loading','Loading measurements'))}"><span></span><span></span><span></span></div>`;
+}
+function ensureSkeletonStyles(){
+  if(document.getElementById('sw-measure-skeleton-styles'))return;
+  const style=document.createElement('style');style.id='sw-measure-skeleton-styles';
+  style.textContent='.sw-measure-skeleton{box-sizing:border-box;width:100%;padding:18px;display:flex;flex-direction:column;gap:10px}.sw-measure-skeleton span{display:block;height:12px;border-radius:6px;background:linear-gradient(90deg,#eef1f5 0%,#f7f9fb 50%,#eef1f5 100%);background-size:200% 100%;animation:sw-measure-shimmer 1.2s ease-in-out infinite}.sw-measure-skeleton span:first-child{width:46%;height:14px}.sw-measure-skeleton span:nth-child(2){width:100%;height:96px;border-radius:10px}.sw-measure-skeleton span:last-child{width:72%}@keyframes sw-measure-shimmer{from{background-position:100% 0}to{background-position:-100% 0}}@media(prefers-reduced-motion:reduce){.sw-measure-skeleton span{animation:none}}';
+  document.head.append(style);
+}
 /**
  * The measurement ordering widget: No measurements, Order measurement report and Add measurements manually. The
  * Operations Measurements view and the project details tray both start a report order here; ordering itself is the
@@ -239,13 +253,19 @@ const manualEditorUrl=()=>new URL('./manual-measurements.js?v=20261025-intro-too
 function drawManual(root,state,contextKey){
   const doc=(state.documents||[]).find(d=>d.source==='manual');
   const mode=manualMeasurementMode(doc?.form,doc?.reportReady);
-  const empty=!doc?.reportReady && (doc || state.options?.draft) && !Object.keys(doc?.form?.manual?.values||{}).length
-    && !Object.keys(doc?.form?.in_use?.values||{}).length && doc?.form?.in_use?.source!=='other'
-    && !(state.documents||[]).some(entry=>entry.source==='measurement');
+  // One state at a time: still reading (a skeleton), measurements (the model, or entries made by hand), or none, which
+  // is the order status once a report is ordered and the launcher before that. The model is never shown without a
+  // completed report or measurements, so its "no completed report" message cannot appear here.
+  const hasMeasurements=!!doc?.reportReady || ['report','other'].includes(doc?.form?.in_use?.source)
+    || !!Object.keys(doc?.form?.manual?.values||{}).length || !!Object.keys(doc?.form?.in_use?.values||{}).length
+    || (state.documents||[]).some(entry=>entry.source==='measurement');
   let start=root.querySelector('[data-scope-measurement-start]');
   if(!start){start=document.createElement('div');start.className='sw-panel';start.dataset.scopeMeasurementStart='';start.hidden=true;root.querySelector('.sw-viewport').append(start);}
-  state.measurementStartShown=!!empty&&!state.manualEntryRequested;
-  if(state.measurementStartShown){
+  state.measurementStartShown=!!state.loading || (!hasMeasurements&&!state.manualEntryRequested);
+  if(state.loading){
+    start.__orderStatus?.destroy?.();start.__orderStatus=null;
+    start.innerHTML=measurementSkeletonHtml();ensureSkeletonStyles();
+  }else if(state.measurementStartShown){
     mountMeasurementStart(start,{canOrder:state.options?.canOrderMeasurements===true,pending:state.options?.reportPending===true,canEnter:mode==='edit',
       onOrder:()=>state.options?.onOrderMeasurements?.(),onEnter:()=>{state.manualEntryRequested=true;drawManual(root,state,contextKey);}});
     if(!state.manualStyled){state.manualStyled=true;import(manualEditorUrl()).then(module=>module.ensureStyles?.()).catch(()=>{state.manualStyled=false;});}
