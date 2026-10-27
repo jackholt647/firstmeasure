@@ -11,7 +11,7 @@ import os from "node:os";
 import path from "node:path";
 import { createRequire } from "node:module";
 import { LANES, laneOf, run } from "../../lib/common.mjs";
-import { COMMANDS, AREAS, testsFor } from "./test-map.mjs";
+import { ALWAYS, COMMANDS, AREAS, testsFor } from "./test-map.mjs";
 import { buildDist as transpileDist, transpileSource } from "./transpile.mjs";
 
 const HOME = process.env.DEV_PUSH_HOME || path.join(os.homedir(), "dev-push");
@@ -133,16 +133,18 @@ export default {
       timings.transpile_ts = since(at);
     }
 
-    // Opt-in: the type check and the suites the changed areas map to (or every AGENTS.md suite).
-    if (regression && server.length + tests.length > 0) {
+    // Suites under two seconds (ALWAYS) run whenever the change maps to them; the type check and every other suite
+    // only on request (the mapped ones, or every AGENTS.md suite with "all").
+    const mapped = testsFor(server, tests);
+    if (regression || mapped.some((id) => ALWAYS.has(id))) {
       await ensureModules(dir, log);
-      if (want("typecheck") && (regression === "all" || server.some((file) => file.startsWith("public/v1/")))) {
+      if (regression && want("typecheck") && (regression === "all" || server.some((file) => file.startsWith("public/v1/")))) {
         at = Date.now();
         const output = await typeCheck(dir);
         timings.typecheck = since(at);
         if (output) failures.push({ id: "typecheck", output });
       }
-      const ids = regression === "all" ? [...new Set(AREAS.flatMap(([, list]) => list))].sort() : testsFor(server, tests);
+      const ids = regression === "all" ? [...new Set(AREAS.flatMap(([, list]) => list))].sort() : regression ? mapped : mapped.filter((id) => ALWAYS.has(id));
       const runnable = [];
       for (const id of ids.filter(want)) {
         const command = testCommand(dir, id);
@@ -151,7 +153,7 @@ export default {
         if (command.file && needsBrowser(command.file) && !process.env.CHROME_PATH) { notes.push(`${id}: skipped (needs a browser, none on the router host)`); continue; }
         runnable.push([id, command]);
       }
-      log(`regression ${sha.slice(0, 10)}: ${runnable.length} suite(s)`);
+      log(`${regression ? `regression (${regression})` : "quick suites"} ${sha.slice(0, 10)}: ${runnable.length} suite(s)`);
       const results = await pool(runnable, 2, async ([id, command]) => {
         const started = Date.now();
         const result = await run(command.args[0], command.args.slice(1), { cwd: command.cwd, timeout: TEST_TIMEOUT_MS, env: TEST_ENV });

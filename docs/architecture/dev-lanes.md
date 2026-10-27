@@ -31,94 +31,197 @@ anything else is `platform`.
 
 ## Submitting code (platform and measure-internal)
 
-1. Commit on your own branch, in your own worktree or clone (Codex or Claude,
-   any machine), rebased on the lane tip (`git fetch origin && git rebase
-   origin/<lane branch>`).
+The router's own repository on the dev sync droplet,
+`dev-sync-droplet:/home/dev/router/firstmeasure.git`, is the source of truth
+for canonical, the lane branches, the live shadow branches and the queue.
+`submit.mjs` adds it to a checkout as the remote `devpush`. GitHub
+(`origin`) is a backup mirror: after every submission `submit.mjs` starts
+`tools/dev-push/mirror.mjs` in the background, which pushes the router's
+branches to GitHub with the PC's own login and is never waited for. The
+droplet holds no GitHub credential.
+
+1. Commit on your own branch, in your own worktree or clone (Codex or Claude),
+   rebased on the lane tip: `git fetch devpush && git rebase
+   devpush/<lane branch>`.
 2. `node tools/dev-push/submit.mjs [--lane platform|measure-internal] [--title ...]
-   [--tests a,b] [--wait]` pushes a *submission commit* to
-   `refs/heads/queue/<lane>/<agent>-<slug>` on origin. It has the same tree as
-   `HEAD`, exactly one parent (`HEAD`, your work) and the manifest (lane, agent,
-   title, tests, session, lane tip seen) as its message; the router merges the
-   parent, so manifests never reach a lane branch. The lane is picked from the
-   changed paths when `--lane` is omitted; a submission spanning two code lanes
-   is refused. Submitting the same slug again replaces the queued entry.
-   `<agent>` is the Claude or Codex session id (`DEV_PUSH_AGENT` overrides).
+   [--regression[=all]] [--wait]` pushes a *submission commit* to
+   `refs/heads/queue/<lane>/<agent>-<slug>` in the router's repository. It has
+   the same tree as `HEAD`, exactly one parent (`HEAD`, your work) and the
+   manifest (lane, agent, title, regression, session, lane tip seen) as its
+   message; the router merges the parent, so manifests never reach a lane
+   branch. The lane is picked from the changed paths when `--lane` is omitted;
+   a submission spanning two code lanes is refused. Submitting the same slug
+   again replaces the queued entry. `<agent>` is the Claude or Codex session id
+   (`DEV_PUSH_AGENT` overrides).
 3. The router answers in its status document: `queued`, `merging`, `testing`,
    `rolling-out`, `live <release>`, or `rejected <reason>` (`conflict`,
-   `gate-failed`, `out-of-lane`, `deploy-failed`, `unrelated-history`) with the
-   conflicting files or the failing gate's output. `--wait` blocks until `live`
-   or `rejected` (exit 0 / 1); `submit.mjs status [--mine]`, `submit.mjs wait
-   [<slug>]` and `submit.mjs withdraw [<slug>]` do what they say.
+   `gate-failed`, `out-of-lane`, `policy`, `deploy-failed`,
+   `unrelated-history`) with the conflicting files or the failing check's
+   output, what to do next, and the time each stage took. `--wait` blocks until
+   `live` or `rejected` (exit 0 / 1). `submit.mjs status [--mine]`,
+   `submit.mjs wait [<slug>]` and `submit.mjs withdraw [<slug>]` do what they
+   say.
+
+The repository's hook accepts only queue refs from agents; everything else is
+moved by the router (locally, `DEV_PUSH_ROUTER=1`). A push of canonical or a
+lane branch is refused with a pointer to `submit.mjs`.
 
 Status document (v1): `https://dev.1m8.ai/__dev-push/status.json`, also
 `/opt/firstmeasure/dev-push/status.json` on dev web (for the dev console's
 server route) and `~/dev-push/state/status.json` on the droplet. It holds the
 router (`paused`, version), each lane (`state`, `tip`, current `release`,
-`batch`, `note`), the last 200 submissions and the last 50 releases.
+`batch`, `note`), the last 200 submissions and the last 50 releases (with
+per-stage `timings` in ms).
 
-Agents never push canonical or a lane branch directly, never SSH to activate a
-release, never write a per-task rollout script and never commit a rollout
-record to canonical. Rejected? Rebase onto the lane tip and submit again.
+Agents never push canonical or a lane branch, never SSH to activate a release,
+never write a per-task rollout script and never commit a rollout record
+(`deploy/digitalocean/development-*.md`; the router refuses them).
+
+### Checks: always on, or opt-in regression
+
+Jack's rule: a check runs on every submission only if its whole run takes a
+second or two. Anything with a real time or CPU cost is **opt-in regression**:
+`submit.mjs --regression` (the suites the changed areas map to;
+`--regression=all` for every suite) or `submit.mjs regression [--all]`, which
+runs them on the server without shipping. It runs once, on the server, never on
+a PC; agents do not run suites locally first. Ask for it only when you suspect
+a bug, when Jack asks, or when the work behind the submission took about 20
+minutes or more. Browser files (`public/` outside `public/v1`, not PHP or HTML),
+templates and live overlays get no checks beyond a syntax parse of changed
+JavaScript; a live save gets none at all.
+
+Measured on the droplet (2 vCPU, 2026-10-27):
+
+| Check | Time | When |
+|---|---|---|
+| Dependencies when `package-lock.json` and Node are unchanged (hash + link) | 0.02 s | always (when needed) |
+| `npm ci`, cold | 10 s | only when the lockfile or Node changed |
+| `node --check` of a changed script | 0.03 s per file | always |
+| Per-file transpile of a changed `.ts` | 0.3 s per file | always (platform) |
+| `php -l` of changed PHP (on a dev host, the droplet has no PHP) | < 1 s | always |
+| Type check (`npm run check`, `tsc --noEmit`) | 51 s full; 57 s incremental after a one-file change | regression |
+| Release `dist` (per-file transpile, cached by content) | seconds; 0 s when `public/v1` is unchanged | every platform release |
+| Each suite AGENTS.md names under "Run ... for changes here" | 0.3 s to 50 s each (table below) | regression, except those under 2 s |
+| Measure editor `dev/*.test.cjs` | ~100 s on a 22-core PC, much longer on the droplet | regression |
+
+Suites under two seconds on the droplet run whenever a change maps to them;
+every other suite is regression only. The list is `ALWAYS` in
+`tools/dev-push/lanes/platform/test-map.mjs` (re-measure with
+`tools/dev-push/router/measure.sh` on the droplet).
+
+| Suite (droplet, one at a time) | Time | Exit | Runs |
+|---|---|---|---|
+| `tests/route-access.test.ts` | 7.2 s | fails on the droplet | regression |
+| `tests/document-as-sent-editing.test.ts` | 11.0 s | ok | regression |
+| `tests/app-experience.test.ts` | 11.4 s | ok | regression |
+| `tests/app-experience-registry.test.ts` | 0.3 s | ok | always |
+| `tests/access-gates.test.ts` | 49.7 s | ok | regression |
+| `tests/contacts-store.test.ts` | 3.4 s | ok | regression |
+| `tests/contact-merge.test.ts` | 5.4 s | ok | regression |
+| `tests/lead-receive.test.ts` | 4.6 s | ok | regression |
+| `tests/new-leads.test.ts` | 6.5 s | ok | regression |
+| `tests/project-entry.test.ts` | 0.5 s | ok | always |
+| `tests/publication-measurement-schemas.test.ts` | 2.9 s | ok | regression |
+| `tests/crm-views.test.ts` | 13.2 s | ok | regression |
+| `tests/crm-rescission.test.ts` | 0.5 s | ok | always |
+| `tests/labor-completion.test.ts` | 5.7 s | ok | regression |
+| `tests/labor-pay-sheets.test.ts` | 4.3 s | ok | regression |
+| `tests/pay-rules.test.ts` | 8.1 s | ok | regression |
+| `tests/pay-sources.test.ts` | 9.1 s | ok | regression |
+| `tests/labor-commitments.test.ts` | 6.7 s | ok | regression |
+| `tests/assignee-base.test.ts` | 6.2 s | ok | regression |
+| `tests/assignee-roster.test.ts` | 0.7 s | ok | always |
+| `tests/assignee-base-store.test.ts` | 2.9 s | ok | regression |
+| `tests/branches.test.ts` | 5.7 s | ok | regression |
+| `tests/organization-structure.test.ts` | 2.7 s | ok | regression |
+| `tests/work-requirements.test.ts` | 7.0 s | ok | regression |
+| `tests/project-history.test.ts` | 4.1 s | ok | regression |
+| `tests/documents-versions.test.ts` | 16.6 s | fails on the droplet | regression |
+| `tests/document-signing.test.ts` | 10.5 s | fails on the droplet | regression |
+| `tests/schedule-events.test.ts` | 0.5 s | ok | always |
+| `tests/scheduling-event-writes.test.ts` | 46.7 s | fails on the droplet | regression |
+| `tests/automation-contracts.test.ts` | 16.6 s | ok | regression |
+| `tests/agent-how-to-index.test.ts` | 8.1 s | ok | regression |
+| `tests/guided-experiences.test.ts` | 3.2 s | ok | regression |
+| `tests/guided-experiences-dev.test.ts` | 3.2 s | ok | regression |
+| `tests/pricebook-roofing-setup.test.ts` | 4.9 s | ok | regression |
+| `tests/guided-tab-tours.test.ts` | 3.3 s | ok | regression |
+| `tests/realtime-single-stream.test.ts` | 11.6 s | fails on the droplet | regression |
+| `tests/session-replay.test.ts` | 13.3 s | ok | regression |
+| `tests/session-replay-archive.test.ts` | 7.6 s | ok | regression |
+| `tests/session-replay-agent-access.test.ts` | 7.0 s | ok | regression |
+| `tests/forms-api.test.ts` | 34.4 s | ok | regression |
+| `tests/view-presence-client.test.mjs` | 0.8 s | ok | always |
+
+A suite marked "fails on the droplet" also fails on canonical there (no Chrome, no PHP, or a
+pre-existing failure); the router does not count a failure the lane tip already has.
 
 ## The router
 
 `tools/dev-push/router/` on the dev sync droplet, user `dev`, state in
-`~/dev-push` (`repo.git` bare clone, `state/`, `cache/`, `builds/`, `app/` = the
-router's own code). Cron starts it every minute unless the running one holds
-its lock (`router/install-droplet.sh`; the account has no lingering systemd
-session), so a reboot costs at most a minute. It fetches over HTTPS and pushes
-with its own deploy key (`~/.ssh/dev_push_router_ed25519`, write access to this
-repository only).
+`~/dev-push` (`repo.git` working clone, `state/`, `cache/`, `builds/`, `app/` =
+the router's own code); its repository is `/home/dev/router/firstmeasure.git`
+(`router/install-repo.sh`). Cron starts it every minute unless the running one
+holds its lock (`router/install-droplet.sh`; the account has no lingering
+systemd session), so a reboot costs at most a minute.
 
 Each lane runs its own loop; inside a lane, submissions are taken in submission
 order, up to `batchMax` at a time (`router/router.mjs`):
 
-1. Reject what cannot go: work sharing no history with the lane, or touching a
-   path another lane owns (`lib/common.mjs` `LANES`). Work already in the lane
-   is marked live.
+1. Reject what cannot go: work sharing no history with the lane, touching a
+   path another lane owns (`lib/common.mjs` `LANES`), or adding a rollout
+   record. Work already in the lane is marked live.
 2. Merge each onto the lane tip (`--no-ff`, one merge commit per submission). A
    conflict rejects that submission with its files; the rest continue.
-3. Gates on the merged tree. On failure the batch is bisected so only a
+3. Checks on the merged tree. On failure the batch is bisected so only a
    submission that fails on its own is rejected; a failure the lane tip itself
-   already has is not the submitter's (the tip is re-run for just those gates).
+   already has is not the submitter's (the tip is re-run for just those checks).
 4. Platform only: merge the live overlays (below).
 5. Check the lane branch has not moved, deploy (the lane module), fast-forward
    the lane branch to the released commit, record the release
    (`state/releases/<id>.json`, the status document), retire the queue refs.
+   If the branch cannot be advanced, the lane holds until it can, so the next
+   release cannot drop this one's work.
+
+Every stage is timed (queue wait, merge, each check, dependencies, dist, tree
+build, transfer and activation per role, public readiness, push) into the
+release record and each submission's status entry; `submit.mjs --wait` prints
+them.
 
 A deploy that fails for a single submission and rolls back rejects it
 (`deploy-failed`); any other deploy failure pauses the lane with the reason in
 its `note`, keeps the queue, and waits for a person
-(`node tools/dev-push/router/server.mjs resume <lane>`). Diagnostics that touch
-no queue: `server.mjs gate <ref> --changed a,b`, `server.mjs build <ref>`;
-also `server.mjs once [<lane>]` and `server.mjs pause <lane>`.
+(`node tools/dev-push/router/server.mjs resume <lane>`). Regression runs
+(`queue/regression/*`) are taken one at a time beside the lanes and end
+`passed` or `failed`; they never ship. Diagnostics that touch no queue:
+`server.mjs gate <ref> --changed a,b`, `server.mjs build <ref>`,
+`server.mjs stage <ref>` (build and stage on every role, no activation),
+`server.mjs release [<lane>]` (deploy the lane tip as it stands), `server.mjs
+once [<lane>]`, `server.mjs pause|resume <lane>`.
 
 ### Platform lane
 
-`lanes/platform/lane.mjs`. **Gates:** a full `tsc -p tsconfig.json` build of
-`public/v1` (type check and the `dist` that ships, cached per git tree),
-`node --check` on changed browser scripts, and the tests the changed paths map
-to (`lanes/platform/test-map.mjs`, kept in step with AGENTS.md; test files
-that changed and tests named with `--tests` run too; at most 40). Tests that
-need a browser are skipped on the droplet (no Chromium; run them before you
-submit) and PHP is not linted there. A typical gate takes about two minutes.
-
-**Release:** one immutable tree per lane commit: `git archive` of the merged
-commit, `public/v1/dist` from the gate's build, `public/v1/node_modules` from
-`npm ci` (cached per `package-lock.json`), `release.env`
-(`RELEASE_ID`/`RELEASE_COMMIT` = the commit, `DEV_PUSH_RELEASE` = the router's
-release id). Nothing comes from a host's current files. Every file's sha256
-goes in a manifest whose digest is the release's full-tree hash.
+`lanes/platform/lane.mjs`. **Release:** one immutable tree per lane commit:
+`git archive` of the merged commit, `public/v1/dist` (every TypeScript file
+transpiled on its own, as dev has always shipped, cached by content and by the
+`public/v1` tree), `public/v1/node_modules` (cached per lockfile and Node
+version), `release.env` (`RELEASE_ID` = the release directory name: the commit,
+or `<commit>-dp` beside a directory of that name made by the old tooling;
+`RELEASE_COMMIT`; `DEV_PUSH_RELEASE`; and
+`FIRSTMEASURE_EDITOR_RUNTIME_ROOT`, which points every role's PDF runtime at
+the measure-internal lane). Nothing comes from a host's current files. Every
+file's sha256 goes in a manifest whose digest is the release's full-tree hash.
 
 **Activation:** the same tree goes to web, worker and legacy at once
-(`router/hosts.mjs`): `rsync` into `<releases root>/<commit>.staging`
-(owned by `firstmeasure` like every release before it; unchanged files hard-linked to the running release), `fm-release finish`
-checks the staged tree is exactly the manifest and carries the running
-release's runtime data (`public/storage`, `public/v1/storage`), then
+(`router/hosts.mjs`): `rsync` into `<releases root>/<release>.staging` (owned
+by `firstmeasure` like every release before it; unchanged files hard-linked to
+the running release), `fm-release finish` checks the staged tree is exactly the
+manifest and carries the running release's runtime data (`public/storage`,
+`public/v1/storage`), changed PHP is linted on legacy (`fm-release check`), then
 `fm-release activate` runs on every role together: switch `current`, restart
 the role's services (web; worker, platform worker, payment browser; legacy)
 and reload PHP, wait for readiness (the old deploy script's checks), and
-finally `https://dev.1m8.ai/v1/health/ready` must report the commit twice. Any
+finally `https://dev.1m8.ai/v1/health/ready` must report the release twice. Any
 role not ready rolls every role back. Old release directories are pruned
 (newest 10 and anything under 3 days kept).
 
@@ -126,16 +229,17 @@ role not ready rolls every role back. Old release directories are pruned
 installed as `/usr/local/sbin/fm-release` on each role (`host/install.sh`); the
 router's key is in root's `authorized_keys` with
 `restrict,command="/usr/local/sbin/fm-release ssh"`, so it can upload into a
-staging directory and run fm-release, nothing else. After the re-baseline,
-`/opt/firstmeasure` is immutable (`fm-release seal on`): only fm-release
-switches `current`, and the old per-task scripts fail at their first upload.
+staging directory and run fm-release, nothing else. After the re-baseline
+`fm-release guard on` seals `/opt/firstmeasure` (only fm-release switches
+`current`; the old per-task scripts fail at their first upload) and shows
+every SSH client a banner naming `submit.mjs`.
 
 ### Adding a lane
 
 A lane is `tools/dev-push/lanes/<lane>/lane.mjs` plus an entry in `LANES`
 (`lib/common.mjs`: its branch and the paths it owns). The module default-exports
 `{ name, branch, batchMax, owns(path), gates({ dir, sha, baseSha, changed,
-tests, only, log }) -> { ok, failures: [{ id, output }] }, deploy({ dir, sha,
+tests, regression, only, log }) -> { ok, failures: [{ id, output }] }, deploy({ dir, sha,
 releaseId, previous, hosts, log }) -> { ok, roles } | { ok: false, error,
 rolledBack }, current({ hosts }) }`. `dir` is a clean worktree of the merged
 commit. `hosts` (`router/hosts.mjs`) stages a tree on a role
