@@ -1,5 +1,7 @@
 # FirstMeasure: local development and production deployment
 
+October 26 production hotfix `fc31553b`: [1M8-246 onboarding asks for the person's and the company's name again](deploy/digitalocean/production-hotfix-20261026z.md) on all roles; no production data changed; rollback is `fe807b75`.
+
 October 26 1M8-246 on dev: [onboarding asks for the person's and the company's name again (every signup since October 20 was "Your Company")](deploy/digitalocean/development-company-name-20261026.md) records `66c4d0c4` on `claude/company-name-20261026` (from `production-live`). Code not on production; production repair is a dry run only.
 
 October 26 production hotfix `fe807b75`: [1M8-244 sign-in email kept equal to the user record and 1M8-245 adding a person never replaces a member or the owner](deploy/digitalocean/production-hotfix-20261026y.md) on all roles; rollback is `3c2c21da`.
