@@ -181,6 +181,26 @@ test('Documents shows delivered roof PDFs and XML once, defaults to loose tiles,
   } finally { await browser.close(); }
 });
 
+test('Documents keeps delivered reports when the legacy document list is unavailable', async () => {
+  const browser = await launch();
+  try {
+    const { page, errors } = await pageFor(browser, DESKTOP);
+    await mountDocsTab(page);
+    await page.evaluate(() => {
+      window.PlatformAPI.projectDocuments.list = async () => { throw Object.assign(new Error('Access denied'), {status:403}); };
+      window.Portal.ProjectDocsTab.mount({panelRoot:document.querySelector('#tab'),active:true,host:{
+        getProject:()=>({id:'completed-project',measurement:{status:'completed'}}),projectOrgId:()=> 'org',
+        loadReportDocumentAssets:async()=>{ await new Promise(resolve=>setTimeout(resolve,50)); return {reportUrl:'/report.pdf',summaryUrl:'/summary.pdf',xmlUrl:'/model_data.xml'}; }
+      }});
+    });
+    await page.getByText('Roof Report XML',{exact:true}).first().waitFor({timeout:3000});
+    assert.equal(await page.locator('.fm-document-tile').count(),3);
+    assert.ok(await page.getByText('Customer Roof Report',{exact:true}).first().isVisible());
+    assert.ok(await page.getByText('Roof Measurement Report',{exact:true}).first().isVisible());
+    assert.deepEqual(errors,[]);
+  } finally { await browser.close(); }
+});
+
 test('on a phone New fills the screen and offers Upload beside Blank', async () => {
   const browser = await launch();
   try {
