@@ -18,6 +18,32 @@ Preserve unrelated changes in the existing workspace. A fresh worktree may lack 
 
 Production deployment requires user authorization; honor authorization already given in the current conversation without requesting it again. Preparing documentation or a release does not itself authorize activation.
 
+## Shipping code to dev: one way
+
+Code reaches dev.1m8.ai only through the dev push router
+([dev lanes](docs/architecture/dev-lanes.md)). Commit on your branch, rebased
+on the lane tip, then:
+
+```
+node tools/dev-push/submit.mjs --wait
+```
+
+It picks the lane from your changed paths, queues `HEAD` and waits until it is
+live (exit 0) or rejected with the conflicting files or the failing gate (exit
+1: rebase, fix, submit again). `submit.mjs status --mine` shows your queue.
+Lanes: **config** is data in the config library (never code), **live** is a
+browser file you are tuning (live layer below), **measure-internal** is
+`public/measure/internal/**`, **platform** is everything else. One submission
+holds one lane's files.
+
+Never write or copy per-task rollout scripts (`output/<task>/rollout.py`,
+`deploy.py`, `ship.sh`, `integrate.py`, ...), never SSH to a dev host to stage
+or activate a release, never push canonical or a lane branch directly, and
+never commit a "Record the ... development rollout" file or a DEPLOYMENT.md
+pointer line for a dev release: the router keeps release records outside
+canonical. The router fast-forwards canonical with your merged work; it is your
+integration. Production is unchanged and still needs the user's authorization.
+
 ## Request security
 
 Read [request security](docs/architecture/request-security.md) before adding a
@@ -56,7 +82,7 @@ widgets, CSS, images), use the **instant iteration system**, the
 way to ship frontend work. A file you save is served by dev.1m8.ai within about
 a second, to everyone, and every open dev page swaps it in (stylesheets and
 images in place; a changed script reloads the frame that ran it). The release
-itself is untouched until you commit and roll out as usual.
+itself is untouched until you commit and submit as usual.
 
 1. **Checkout.** Work in your own clean checkout at the canonical tip: a session
    worktree, or `/home/dev/code/firstmeasure` on the dev sync droplet. Never the
@@ -74,9 +100,11 @@ itself is untouched until you commit and roll out as usual.
 4. **Check** in the page: open dev.1m8.ai (Chrome tools, or the frontend
    bridge's `eval`/`console`/`screenshot`); `curl -sI https://dev.1m8.ai/<path>`
    shows `X-FirstMate-Live: 1` for a layer file.
-5. **Finish.** When the user is happy, commit, roll out to dev (DEPLOYMENT.md
-   and the dev rollout tooling) and integrate into canonical; the layer retires
-   those files by itself within 20 seconds. To abandon, revert the files (or
+5. **Finish.** When the user is happy, commit and submit
+   (`node tools/dev-push/submit.mjs --wait`); the release carries the files and
+   the layer retires them as `released`. Saves you never submit are not lost
+   either: the router bakes every live overlay into the next platform release
+   (dev lanes, "Live layer bake-down"). To abandon, revert the files (or
    `live-sync.mjs clear`) and stop the sync.
 
 Everyone on dev sees your saves at once, so do not leave a broken state live.

@@ -126,7 +126,7 @@ const sourceOf = (args, root) => String(args.source || `${os.hostname()}:${root.
 
 /** Sends what changed since the receiver's manifest. Files it refused or the release already has are not resent until they change. */
 export async function reconcile(root, baseRef, receiver, memo, log = console.log, source = "default") {
-  const { files, rollout } = await desiredFiles(root, baseRef);
+  const { base: commit, files, rollout } = await desiredFiles(root, baseRef);
   const current = (await receiver.request({ op: "list" })).files || {};
   const ops = [];
   for (const [rel, entry] of Object.entries(files)) {
@@ -134,7 +134,7 @@ export async function reconcile(root, baseRef, receiver, memo, log = console.log
     if (current[rel]?.sha === entry.sha || (memo.has(key) && !(memo.get(key).until < Date.now()))) continue;
     const data = fs.readFileSync(path.join(root, entry.repoPath));
     if (liveHash(rel, data) !== entry.sha) continue; // written again since it was hashed; the next pass sends it
-    ops.push({ op: "put", path: rel, sha: entry.sha, base: entry.base, data: data.toString("base64"), key });
+    ops.push({ op: "put", path: rel, sha: entry.sha, base: entry.base, commit, data: data.toString("base64"), key });
   }
   for (const [rel, entry] of Object.entries(current)) if (!files[rel] && entry.source === source) ops.push({ op: "remove", path: rel });
   const results = [];
@@ -186,7 +186,10 @@ async function serve(args) {
   });
   setInterval(run, REFRESH_MS);
   setInterval(() => receiver.request({ op: "check" }).then((result) => {
-    for (const [rel, reason] of Object.entries(result.retired || {})) console.log(`${reason.padEnd(8)} ${rel} left the layer (${reason === "released" ? "the release has it now" : "the release changed it under this edit"})`);
+    for (const [rel, reason] of Object.entries(result.retired || {})) {
+      if (reason === "parked") console.log(`parked   ${rel}: the release changed this file under your edit; the router merges your version into the next release`);
+      else console.log(`${reason.padEnd(8)} ${rel} left the layer (${reason === "released" ? "the release has it now" : "the release changed it under this edit"})`);
+    }
   }).catch(() => {}), CHECK_MS);
   console.log(`live-sync: ${root} -> ${receiverCommand(args).at(-2)} as ${source} (base ${baseRef}). Saves under public/ are live on dev.1m8.ai.`);
   process.on("SIGINT", () => { receiver.stop(); process.exit(0); });
@@ -205,7 +208,9 @@ async function status(args) {
     const owner = entry.source === source ? "" : `  from ${entry.source || "unknown"}`;
     console.log(`  ${rel}  ${entry.sha.slice(0, 12)}${owner}${mine && entry.source === source && mine.sha !== entry.sha ? "  (this checkout has newer bytes; is live-sync running?)" : ""}`);
   }
-  for (const rel of Object.keys(desired.files).filter((rel) => !files[rel]).sort()) console.log(`  not live: ${rel} (released already, refused, or live-sync not running)`);
+  const parked = Object.entries(listed.parked || {}).filter(([, entry]) => entry.source === source).sort();
+  for (const [rel, entry] of parked) console.log(`  parked: ${rel}  ${entry.sha.slice(0, 12)} (the release changed it under this edit; the router merges this version into the next release)`);
+  for (const rel of Object.keys(desired.files).filter((rel) => !files[rel] && !listed.parked?.[rel]).sort()) console.log(`  not live: ${rel} (released already, refused, or live-sync not running)`);
   if (desired.rollout.length) console.log(`Needs a rollout: ${desired.rollout.join(", ")}`);
 }
 
@@ -214,12 +219,17 @@ async function clear(args) {
   const receiver = new Receiver(receiverCommand(args));
   const source = sourceOf(args, root);
   const named = args._.slice(1).map((rel) => rel.replace(/^\/?(public\/)?/, ""));
-  const files = (await receiver.request({ op: "list" })).files || {};
+  const listed = await receiver.request({ op: "list" });
+  const files = listed.files || {};
   const paths = named.length ? named : Object.keys(files).filter((rel) => files[rel].source === source);
+  // This checkout's parked saves go too (a named path's forced remove takes its parked save with it).
+  const parked = named.length ? [] : Object.keys(listed.parked || {}).filter((rel) => listed.parked[rel].source === source && !paths.includes(rel));
   const response = await receiver.request({ op: "batch", source, ops: paths.map((rel) => ({ op: "remove", path: rel, force: Boolean(named.length) })) });
+  const unparked = [];
+  for (const rel of parked) unparked.push(await receiver.request({ op: "unpark", path: rel }));
   receiver.stop();
-  for (const result of response.results || []) console.log(`${result.ok ? result.state : `REFUSED (${result.error})`}  ${result.path}`);
-  if (!paths.length) console.log("Nothing of this checkout's is live.");
+  for (const result of [...(response.results || []), ...unparked]) console.log(`${result.ok ? result.state : `REFUSED (${result.error})`}  ${result.path}`);
+  if (!paths.length && !parked.length) console.log("Nothing of this checkout's is live.");
   if (args._.length === 1 && !named.length) console.log("A running live-sync puts this checkout's changed files back within 5 s; stop it first to keep them out.");
 }
 

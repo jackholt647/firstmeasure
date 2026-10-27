@@ -209,3 +209,17 @@ test('test map: areas, changed tests and requested tests', () => {
   assert.equal(laneOf('public/measure/internal/editor_scripts/a.js'), 'measure-internal');
   assert.equal(laneOf('public/measure/sales/a.js'), 'platform');
 });
+
+test('a dev rollout record in the submission is refused', async () => {
+  const s = scratch();
+  try {
+    const a = s.clone('alice');
+    a.edit('a.txt', 'a\n'); a.edit('deploy/digitalocean/development-a-20261027.md', 'record\n');
+    a.submit('--slug', 'with-record');
+    const router = s.makeRouter();
+    await drain(router);
+    const entry = byRef(router, 'alice-with-record');
+    assert.equal(entry.state, 'rejected'); assert.equal(entry.reason, 'policy');
+    assert.equal(s.deployed.length, 0);
+  } finally { s.cleanup(); }
+});

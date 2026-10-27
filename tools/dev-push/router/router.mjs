@@ -277,6 +277,9 @@ export class Router {
     for (const entry of batch) {
       const files = await this.changedBy(entry.work, tip);
       if (!files) { await this.reject(entry, "unrelated-history", `${entry.work} shares no history with ${module.branch}.`); continue; }
+      const added = (await this.git(["-c", "core.quotepath=off", "diff", "--name-only", "--diff-filter=A", "--no-renames", (await this.git(["merge-base", tip, entry.work])).trim(), entry.work])).split("\n").filter(Boolean);
+      const records = added.filter((file) => /^deploy\/digitalocean\/development-[^/]+\.md$/.test(file));
+      if (records.length) { await this.reject(entry, "policy", `Dev rollout records are no longer committed (the router records releases):\n${records.join("\n")}\nDrop them from your branch and submit again.`); continue; }
       const outside = files.filter((file) => laneOf(file) !== lane);
       if (outside.length) { await this.reject(entry, "out-of-lane", `Lane ${lane} does not own:\n${outside.join("\n")}\nSubmit those files on their own lane.`); continue; }
       if ((await this.git(["merge-base", "--is-ancestor", entry.work, tip], { allowFail: true })).code === 0) {
