@@ -91,6 +91,8 @@ import {
   type PlatformAuthContext
 } from "./auth.js";
 import { PlatformError } from "./errors.js";
+import { NEW_ORGANIZATION_APP_OFFERS, offeredAppIds } from './app-experience/offers.js';
+import { startOfferedApp } from './app-experience/activation.js';
 import { requestPrincipal, systemPrincipal, type Principal } from "./security/principal.js";
 import { serviceInject } from "./security/service.js";
 import { safeFetch, SafeFetchError } from "./security/safe-fetch.js";
@@ -482,6 +484,18 @@ function googleWorkspaceWebsite(hostedDomain: string) {
   return domain;
 }
 export const registerPlatformApi: FastifyPluginAsync<PlatformApiOptions> = async (app, options) => {
+  app.post('/organizations/:orgId/app-offers/:appId/start', { config: { access: 'customer_or_staff' } }, async request => {
+    const ctx = await requirePlatformAuth(request, { orgId: getParam(request.params, 'orgId'), csrf: true });
+    return startOfferedApp(ctx, getParam(request.params, 'appId'));
+  });
+  // Development operators can put a sandbox organization back into its welcome state for testing.
+  app.put('/organizations/:orgId/app-offers', { config: { access: 'customer_or_staff' } }, async request => {
+    const ctx = await requirePlatformAuth(request, { orgId: getParam(request.params, 'orgId'), csrf: true });
+    if (env.dataEnvironment !== 'development' || !canManageOrgAppFlags(ctx)) throw forbidden('app_offer_reset_denied', 'Only a development operator can reset app welcomes.');
+    const body = z.object({ apps: z.array(z.enum(['project.photos', 'project.docs', 'project.customer_portal', 'project.materials'])).max(4) }).strict().parse(request.body);
+    await mutateGlobal(ctx.orgId, () => ({ data: { app_offers: offeredAppIds(body.apps) } }));
+    return { ok: true };
+  });
   app.addHook("preClose", async () => closePresenceStreams());
 app.post("/auth/google", async (request, reply) => {
     const body = googleAuthSchema.parse(request.body ?? {});
@@ -583,7 +597,8 @@ app.post("/auth/google", async (request, reply) => {
           report_settings: {},
           ...requestedGlobal,
           commercial_profile: commercialProfile,
-          app_flags: defaultAppFlags
+          app_flags: defaultAppFlags,
+          app_offers: [...NEW_ORGANIZATION_APP_OFFERS]
         }
       });
       transaction.createdOrganization(organization);
@@ -763,7 +778,7 @@ app.get("/auth/google/config", async () => ({
     requirePublicRegistration();
     await requirePlatformAuth(request, { app: ["portal.company_settings"], csrf: true });
     const body = createOrganizationSchema.parse(request.body ?? {});
-    const organization = await createOrganization(body);
+    const organization = await createOrganization({ ...body, global: { ...asObject(body.global), app_offers: [...NEW_ORGANIZATION_APP_OFFERS] } });
     reply.code(201);
     return { ok: true, organization };
   });
@@ -1068,7 +1083,8 @@ app.get("/auth/google/config", async () => ({
           report_settings: {},
           ...requestedGlobal,
           commercial_profile: commercialProfile,
-          app_flags: defaultAppFlags
+          app_flags: defaultAppFlags,
+          app_offers: [...NEW_ORGANIZATION_APP_OFFERS]
         }
       });
       transaction.createdOrganization(organization);
@@ -9229,6 +9245,7 @@ async function handleAuthLegacyAction(request: FastifyRequest, reply: FastifyRep
         global: {
           commercial_profile: commercialProfile,
           app_flags: defaultAppFlags,
+          app_offers: [...NEW_ORGANIZATION_APP_OFFERS],
           credits_balance: 0,
           credits_ledger: [],
           billing: {

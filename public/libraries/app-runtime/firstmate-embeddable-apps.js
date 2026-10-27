@@ -4,6 +4,7 @@
  */
 (function(){
   const root = window;
+  const runtimeScriptUrl = document.currentScript?.src || new URL('/libraries/app-runtime/firstmate-embeddable-apps.js', location.href).href;
   const apps = new Map();
   const manifests = new Map();
   const extensions = new Map();
@@ -639,6 +640,7 @@
     const entitlement = entitlementFor(definition, context, access);
     const entitlementValue = entitlement.value;
     const entitlementRecord = objectValue(entitlementValue);
+    const offered = entitlementRecord.offered === true && !!entitlementRecord.welcome;
     const entitlementState = cleanText(entitlementRecord.state || entitlementRecord.access || entitlementRecord.visibility).toLowerCase();
 
     const surface = cleanText(context.surface);
@@ -689,14 +691,14 @@
 
     const featureFlags = arrayValue(access.featureFlags || access.feature_flags || access.flags);
     const featureFlagsAny = arrayValue(access.featureFlagsAny || access.feature_flags_any || access.flagsAny);
-    if (featureFlags.length && !featureFlags.every((rule) => flagValue(context, rule))) reasons.push('feature_flag');
-    if (featureFlagsAny.length && !featureFlagsAny.some((rule) => flagValue(context, rule))) reasons.push('feature_flag');
+    if (!offered && featureFlags.length && !featureFlags.every((rule) => flagValue(context, rule))) reasons.push('feature_flag');
+    if (!offered && featureFlagsAny.length && !featureFlagsAny.some((rule) => flagValue(context, rule))) reasons.push('feature_flag');
 
-    if (!capabilityAllowsApp(definition, access)) reasons.push('capability');
+    if (!offered && !capabilityAllowsApp(definition, access)) reasons.push('capability');
 
     if (typeof access.when === 'function' && !access.when(context)) reasons.push('access_condition');
-    if (typeof definition.enabled === 'function' && !definition.enabled(context)) reasons.push('enabled');
-    if (definition.enabled === false) reasons.push('enabled');
+    if (!offered && typeof definition.enabled === 'function' && !definition.enabled(context)) reasons.push('enabled');
+    if (!offered && definition.enabled === false) reasons.push('enabled');
 
     const presentation = resolvePresentation(definition, context, entitlementValue);
     const definitionParams = typeof definition.params === 'function' ? definition.params(context) : definition.params;
@@ -894,7 +896,11 @@
     if(loading)await opening.wait(loading.painted,loading.signal);
     if(!isCurrent())return null;
     const manifest = manifests.get(id);
-    const ready=ensureAppReady(id);
+    const candidate = apps.get(id) || manifest;
+    const candidateContext = createContext({ ...options, appId: id }, candidate, roots);
+    const candidatePolicy = candidate && evaluateDefinition(candidate, candidateContext);
+    // Offered apps must not load their operational bundles or run their lifecycle.
+    const ready = candidatePolicy?.entitlement?.offered ? Promise.resolve(candidate) : ensureAppReady(id);
     const app = await (loading?opening.wait(ready,loading.signal):ready) || apps.get(id);
     if(!isCurrent())return null;
     if (!app) {
@@ -930,7 +936,9 @@
       dispatch('fm:embeddable-apps:app-denied', { appId: id, context, reasons: policy.reasons });
       return denied;
     }
-    const handle = await (typeof app.mount === 'function'
+    const handle = policy.entitlement?.offered
+      ? await (await import(new URL('./app-welcome.js?v=20261027-offers', runtimeScriptUrl).href)).mountWelcome(context)
+      : await (typeof app.mount === 'function'
       ? app.mount(context)
       : (typeof app.render === 'function' ? app.render(context) : null)) || {};
     if(!isCurrent()){handle.destroy?.();return null;}

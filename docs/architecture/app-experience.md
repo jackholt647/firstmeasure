@@ -77,6 +77,44 @@ on joining (`member_role_ids`), and those roles bring their apps
 
 ## The browser
 
+### Offered apps
+
+Photos, Documents, Customer Portal and Materials begin as pending offers in new
+organizations (`global.data.app_offers`). The configured organization switches
+are still the ceiling: an off or commercially unavailable app is not advertised.
+Existing organizations without this field retain their current active apps.
+The welcome definitions and capability groups live in `app-experience/offers.ts`.
+
+`capabilityAccessState` resolves offered discovery and operational capabilities
+from the same organization snapshot. Pending capability groups are masked before
+dependency resolution, so integrations and dependent features remain off. Exact
+offered app IDs join the entitlement catalog, then follow the usual role,
+department, group, user and device visibility rules. Their entitlement carries
+`offered` and `welcome`. Discovery never grants operational app access.
+
+The embeddable runtime mounts the shared `app-runtime/app-welcome.js`
+advertisement instead of loading an offered app's bundle. It has designed HTML
+and CSS, real localized copy and a Get Started button; it is not a new guide
+engine. Opening it neither records `seen_tabs` nor launches a guide, and New
+remains visible regardless of personal seen history.
+
+`POST /v1/platform/organizations/:orgId/app-offers/:appId/start` requires a
+verified organization session, CSRF, and an app the caller can see. Anyone with
+that visibility can currently activate it; `mayStartOfferedApp` is the single
+policy point for later permissions. The writer atomically removes only that
+offer and records who started it. It never enables a configured-off switch.
+Repeated or concurrent acceptance is harmless. Session/capability refresh then
+mounts the real app and lets the existing guided-experience runtime run its setup
+or tour. Other sessions see the organization state on their next refresh.
+
+Public signup initializes pending offers; sandbox signup does so after seeding
+sample content. Development operators may reset selected welcome screens with
+`PUT /v1/platform/organizations/:orgId/app-offers` and `{ apps: [...] }`; this
+reset endpoint refuses production. It does not erase any app data.
+
+Tests: `app-offers.test.ts`, `app-experience.test.ts`, and
+`app-welcome-browser.test.mjs`.
+
 The session (`GET /v1/platform/auth/session`) returns `app_entitlements` and
 `app_experience: { device_types, app_ids }`. The runtime
 (`app-runtime/firstmate-embeddable-apps.js`) sorts the browser into one device
