@@ -190,10 +190,13 @@
     if (wasMapOnly !== forceExpanded) callHost('placeProjectCustomFields');
     const toggle = overview.querySelector('[data-overview-map-toggle]');
     if (toggle) {
-      toggle.hidden = forceExpanded;
-      toggle.disabled = forceExpanded;
-      toggle.setAttribute('aria-label', expanded ? 'Shrink map' : 'Expand map');
-      toggle.innerHTML = expanded
+      const ordering = !!callHost('isMobileReportOrdering');
+      toggle.hidden = forceExpanded && !ordering;
+      toggle.disabled = forceExpanded && !ordering;
+      toggle.setAttribute('aria-label', ordering ? (globalThis.PlatformLanguage?.text('project-map','order_back_to_project','Back to project') ?? 'Back to project') : expanded ? 'Shrink map' : 'Expand map');
+      toggle.innerHTML = ordering
+        ? `<i class="fas fa-arrow-left"></i><span>${(globalThis.PlatformLanguage?.htmlText('project-map','order_back','Back') ?? 'Back')}</span>`
+        : expanded
         ? `<i class="fas fa-compress"></i><span>${(globalThis.PlatformLanguage?.htmlText("project-map","m_85092cc71d4661","Shrink") ?? "Shrink")}</span>`
         : `<i class="fas fa-expand"></i><span>${(globalThis.PlatformLanguage?.htmlText("project-map","m_1d2b8e27aecc0c","Expand") ?? "Expand")}</span>`;
     }
@@ -368,11 +371,13 @@
       .r-overview.is-map-expanded .r-overview-map-copy{display:none}
       .r-overview.is-map-expanded .r-overview-map-toggle{height:38px;border-radius:10px;background:rgba(255,255,255,.94);backdrop-filter:blur(12px)}
       .r-overview.is-map-expanded .r-overview-map-frame{height:100%;min-height:0;flex:1}
+      @media(max-width:760px){.r-overlay.mobile-order .r-overview.is-map-expanded .r-overview-map-head{top:18px}.r-overlay.mobile-order:not(.mobile-scope-pending) .r-overview.is-map-expanded:has(#rMapHint[style*="display: block"]) .r-overview-map-head{top:33px}}
       .r-overview.is-map-expanded .r-overview-panel{display:none}
       .r-overview-fields{padding:12px 15px 15px;border-top:1px solid rgba(15,23,42,.08)}
       .r-overview-fields:not(:has(> :not(:empty):not([hidden]))){display:none}
       .r-overview.is-map-expanded{position:relative}
       .r-overview.is-map-only .r-overview-map-toggle{display:none}
+      .r-overlay.overview-order-focused .r-overview.is-map-only .r-overview-map-toggle{display:inline-flex}
       @container overview (max-width:780px){.r-overview-shell{grid-template-columns:minmax(0,1fr)}.r-overview-map-section{position:relative}.r-overview-map-frame{height:320px}}
       @container overview (max-width:390px){.r-overview-grid{grid-template-columns:minmax(0,1fr)}.r-overview-map-head{flex-wrap:wrap}.r-overview-map-section,.r-overview-panel{min-height:0}}
       @media(max-width:980px){.r-overview-shell{grid-template-columns:1fr}.r-overview-map-section{position:relative}.r-overview-grid{grid-template-columns:1fr}.r-overview-map-frame{height:380px}}
@@ -769,6 +774,7 @@
       if (toggle) {
         event.preventDefault();
         event.stopPropagation();
+        if (callHost('isMobileReportOrdering')) { callHost('cancelMobileReportOrdering'); return; }
         setOverviewMapExpanded(!overviewMapExpanded());
         return;
       }
@@ -942,22 +948,9 @@
     notifyPinsChanged();
   }
 
-  // On a touch screen one stray tap must not remove the property's location: a
-  // tap on a pin asks first. A mouse click still removes it at once.
+  // The pin's hint follows the input device; both a tap and a click remove it directly.
   function touchPinRemoval(){
     try { return !!window.matchMedia?.('(hover: none) and (pointer: coarse)')?.matches; } catch (error) { return false; }
-  }
-
-  async function confirmTouchPinRemoval(marker){
-    if (state.confirmingPinRemoval) return;
-    state.confirmingPinRemoval = true;
-    try {
-      const prompt = globalThis.PlatformLanguage?.text("project-map","pin_remove_confirm","Remove this pin from the map?") ?? "Remove this pin from the map?";
-      const confirmed = window.Portal?.ui?.confirm ? await window.Portal.ui.confirm(prompt) : window.confirm(prompt);
-      if (confirmed && state.markers.includes(marker)) removePin(marker);
-    } finally {
-      state.confirmingPinRemoval = false;
-    }
   }
 
   function addPin(latLng, draggable = true, options = {}){
@@ -977,10 +970,7 @@
         ? (globalThis.PlatformLanguage?.text("project-map","pin_title_touch","Drag to move this pin. Tap it to remove it.") ?? "Drag to move this pin. Tap it to remove it.")
         : (globalThis.PlatformLanguage?.text("project-map","m_0b0b3f02f03802","Click to remove. Drag to reposition.") ?? "Click to remove. Drag to reposition."),
     });
-    marker.addListener('click', () => {
-      if (!touchPinRemoval()) { removePin(marker); return; }
-      void confirmTouchPinRemoval(marker);
-    });
+    marker.addListener('click', () => removePin(marker));
     marker.addListener('dragend', () => {
       state.markerSignature = pinsSignature(getMarkersData());
       setLocationConfirmed(false);

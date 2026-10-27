@@ -919,10 +919,14 @@ window.PlatformCommerce.onReady(async function(){
     .r-overview-details #rStepCustomer>.r-step-shell>.r-step-inner>.r-step-body{gap:14px}
     .r-overview-details #rStepCustomer>.r-step-shell>.r-step-inner>.r-step-body>.r-group{margin:0}
     .r-overview-details .r-contact-list{gap:14px}
-    .r-overlay:has(.r-window-bar[data-window-mobile=false]) .r-overview-details .r-contact-card::before{min-height:16px;margin-bottom:8px}
     .r-overlay:has(.r-window-bar[data-window-mobile=false]):not(.firstmeasure-unordered-overview) .r-overview-details:has(.r-contact-card) #rStepAddress{border-top:0!important;padding-top:20px!important}
     .r-overlay :is(.r-project-identity-popover,.r-overview-details) .r-contact-list .r-contact-card{padding-left:0;padding-right:0}
     .r-overlay :is(.r-project-identity-popover,.r-overview-details) .r-contact-card .r-inp{box-sizing:border-box;height:32px;min-height:32px;padding:5px 8px;line-height:20px;font-size:12px;font-weight:600}
+    .r-overlay :is(.r-overview-details,.r-project-identity-popover) :is(.r-contact-primary,.r-contact-menu-btn){width:30px;height:30px;min-width:30px;border-radius:9px;font-size:11px}
+    .r-overlay :is(.r-overview-details,.r-project-identity-popover) .r-contact-actions{top:2px}
+    .r-overlay :is(.r-overview-details,.r-project-identity-popover) .r-contact-card+.r-contact-card .r-contact-actions{top:16px}
+    .r-overlay :is(.r-overview-details,.r-project-identity-popover) .r-contact-card::before{min-height:34px;display:flex;align-items:center;font-size:12px;margin-bottom:9px}
+
     .r-overview-details:has(.r-overview-initial-actions:not([hidden])) #rOrderMeasurements{display:none!important}
     .r-overlay.firstmeasure-unordered-overview .r-overview-details :is(#rStepCustomer,.r-left-bottom,#rInlineNotesMount,#rCustomerPortalLinkMount,#rProjectCustomFields,#rWorkflowDock,#rAfterHours,#rProjectionCard,#rViewerSummary){display:none!important}
     .r-overlay.firstmeasure-unordered-overview .r-overview-details #rStepAddress{border-top:0!important;padding-top:0!important}
@@ -2265,9 +2269,15 @@ window.PlatformCommerce.onReady(async function(){
       .r-photo-title{font-size:22px}
       .r-overlay.mobile-order{--r-mobile-pager-height:calc(47px + env(safe-area-inset-bottom,0px))}
       html[data-native-app="android"] .r-overlay.mobile-order{--r-mobile-pager-height:47px}
-      .r-overlay.mobile-order .r-win{padding-bottom:var(--r-mobile-pager-height);box-sizing:border-box;animation:none}
-      .r-overlay.mobile-order.mobile-order-location .r-win{padding-bottom:0}
+      .r-overlay.mobile-order .r-win{box-sizing:border-box;animation:none}
       .r-overlay.mobile-order .r-modal-header{display:none}
+      /* Make room for the ordering workspace by folding away the bars, without moving the title. */
+      .r-overlay.window-managed .fm-shell-header.r-window-bar[data-window-mobile=true]{grid-template-rows:48px 42px!important;transition:grid-template-rows .34s cubic-bezier(.22,1,.36,1)}
+      .r-overlay.window-managed .r-win>.fm-project-tray-tabs[data-placement=footer]{box-sizing:border-box;height:calc(53px + env(safe-area-inset-bottom,0px));overflow:hidden;transition:height .34s cubic-bezier(.22,1,.36,1),padding .34s cubic-bezier(.22,1,.36,1),opacity .22s ease}
+      .r-overlay.overview-order-focused .fm-shell-header.r-window-bar[data-window-mobile=true]{display:grid!important;grid-template-rows:48px 0px!important;min-height:48px!important}
+      .r-overlay.overview-order-focused .fm-shell-header.r-window-bar[data-window-mobile=true]>.fm-shell-tabs{height:0!important;min-height:0!important;overflow:hidden;visibility:hidden;pointer-events:none}
+      .r-overlay.overview-order-focused .r-win>.fm-project-tray-tabs[data-placement=footer]{height:0!important;min-height:0!important;padding:0!important;border:0!important;opacity:0;visibility:hidden;pointer-events:none}
+      @media(prefers-reduced-motion:reduce){.r-overlay.window-managed .fm-shell-header.r-window-bar[data-window-mobile=true],.r-overlay.window-managed .r-win>.fm-project-tray-tabs[data-placement=footer]{transition:none!important}}
       .r-overlay.mobile-order,
       .r-overlay.mobile-order .r-win,
       .r-overlay.mobile-order .r-overview-details,
@@ -2281,7 +2291,6 @@ window.PlatformCommerce.onReady(async function(){
       .r-overlay.mobile-order .r-preview{padding:0}
       .r-overlay.mobile-order .r-preview-stage{border:0;border-radius:0;box-shadow:none;background:transparent;overflow:hidden}
       .r-overlay.mobile-order .r-preview-panel{border:0;border-radius:0;box-shadow:none}
-      .r-overlay.mobile-order .r-preview-panel:not([data-panel="map"]):not(:has(#rMeasurementMap)){display:none!important}
       .r-overlay.mobile-order [data-panel="measurements"]:has(#rMeasurementMap){display:flex!important}
       .r-overlay.mobile-order #rMeasureTabs{display:none!important}
       .r-overlay.mobile-order .r-measure-body{inset:0}
@@ -2297,16 +2306,17 @@ window.PlatformCommerce.onReady(async function(){
       .r-overlay.mobile-order #rExpediteSubmit{display:none!important}
       .r-overlay.mobile-order .r-mobile-close{display:flex;position:fixed;top:calc(env(safe-area-inset-top,0px) + 8px);right:8px;width:38px;height:38px;border-radius:12px;background:rgba(255,255,255,.88);backdrop-filter:blur(14px);border:1px solid rgba(15,23,42,.08);z-index:96;align-items:center;justify-content:center;cursor:pointer;font-size:15px;color:#344054}
       html[data-native-app="android"] .r-overlay.mobile-order .r-mobile-close{top:8px}
-      .r-overlay.mobile-order .r-mobile-pager{height:var(--r-mobile-pager-height);position:fixed;left:0;right:0;bottom:0;z-index:95;display:flex;align-items:center;justify-content:space-between;gap:8px;padding:6px max(10px,env(safe-area-inset-left)) calc(6px + env(safe-area-inset-bottom)) max(10px,env(safe-area-inset-left));background:rgba(255,255,255,.96);border-top:1px solid rgba(15,23,42,.10);box-shadow:0 -8px 22px rgba(15,23,42,.10);box-sizing:border-box}
-      html[data-native-app="android"] .r-overlay.mobile-order .r-mobile-pager{padding-bottom:6px}
+      .r-overlay.mobile-order .r-preview-panel[data-panel="map"]>.r-mobile-pager{height:var(--r-mobile-pager-height);position:absolute;left:0;right:0;bottom:0;z-index:5;display:flex;align-items:center;justify-content:space-between;gap:8px;padding:6px max(10px,env(safe-area-inset-left)) calc(6px + env(safe-area-inset-bottom)) max(10px,env(safe-area-inset-left));background:rgba(255,255,255,.96);border-top:1px solid rgba(15,23,42,.10);box-shadow:0 -8px 22px rgba(15,23,42,.10);box-sizing:border-box}
+      .r-overlay.mobile-order:not(.mobile-order-location) .r-preview-panel[data-panel="map"]>.r-tab-content{box-sizing:border-box;padding-bottom:var(--r-mobile-pager-height)}
+      html[data-native-app="android"] .r-overlay.mobile-order .r-preview-panel[data-panel="map"]>.r-mobile-pager{padding-bottom:6px}
       .r-overlay.mobile-order.mobile-order-location .r-mobile-pager{justify-content:flex-end;background:transparent;border:0;box-shadow:none;pointer-events:none}
-      .r-overlay.mobile-order.mobile-order-location .r-mobile-pager{display:none}
+      .r-overlay.mobile-order.mobile-order-location .r-preview-panel[data-panel="map"]>.r-mobile-pager{display:none}
       .r-overlay.mobile-order.mobile-order-location .r-mobile-pager .r-mobile-page-btn{pointer-events:auto;box-shadow:0 4px 18px rgba(15,23,42,.2)}
       .r-mobile-page-btn{height:34px;border-radius:11px;border:1px solid rgba(15,23,42,.12);background:#fff;color:#344054;padding:0 12px;font-size:12px;font-weight:1000;display:inline-flex;align-items:center;justify-content:center;gap:6px;cursor:pointer}
       .r-mobile-page-btn.primary{flex:0 0 auto;min-width:96px;border-color:var(--primary,#d93025);background:var(--primary,#d93025);color:var(--on-primary,#fff);box-shadow:0 8px 18px rgba(var(--primary-rgb,217,48,37),.18)}
       .r-mobile-page-btn:disabled,.r-mobile-page-btn[aria-disabled="true"]{background:#e5e7eb;border-color:#d1d5db;color:#667085;box-shadow:none;cursor:not-allowed}
       .r-overlay.mobile-order.mobile-order-location .r-overview-details{flex:0 1 auto;gap:8px;max-height:calc(var(--fm-visual-vh,100dvh) - 180px);border-bottom:0;padding-bottom:8px}
-      .r-overlay.mobile-order.mobile-order-location .r-tab-main{display:flex;flex:1 1 auto;min-height:160px}
+      .r-overlay.mobile-order.mobile-order-location [data-panel="map"] .r-tab-main{display:flex;flex:1 1 auto;min-height:160px}
       .r-overlay.mobile-order.mobile-order-location .r-form{gap:8px}
       .r-overlay.mobile-order.mobile-order-location .r-scroll{flex:0 1 auto;scrollbar-gutter:auto}
       .r-overlay.mobile-order.mobile-order-location #rStepAddress .r-step-body{padding:0 0 6px}
@@ -2323,6 +2333,7 @@ window.PlatformCommerce.onReady(async function(){
       .r-overlay.mobile-order.mobile-order-location.mobile-scope-pending .r-map-hint{display:none!important}
       .r-overlay.mobile-order.mobile-order-location #rMobilePinStage{display:flex;flex-direction:column;gap:9px}
       .r-overlay.mobile-order.mobile-order-location #rMobilePinNext{width:100%;min-height:52px;border:0;border-radius:13px;background:var(--primary,#d93025);color:var(--on-primary,#fff);font:inherit;font-weight:800;display:flex;align-items:center;justify-content:center;gap:10px;cursor:pointer}
+      .r-overlay.mobile-order.mobile-order-location #rMobilePinNext:not([hidden]){margin-top:11px}
       .r-overlay.mobile-order.mobile-order-location #rMobilePinNext[hidden]{display:none!important}
       @media(prefers-reduced-motion:reduce){.r-overlay.mobile-order.mobile-order-location #rMobilePinStage.pin-stage-entering,.r-overlay.mobile-order.mobile-order-location #rStepType.is-type-collapsing #rTypeGroup{animation:none}}
       .r-overlay.mobile-order.mobile-order-location #rStepTypeLabel{display:none!important}
@@ -2384,9 +2395,9 @@ window.PlatformCommerce.onReady(async function(){
       .r-overlay.mobile-order.mobile-order-details .r-overview-details,
       .r-overlay.mobile-order.mobile-order-photos .r-overview-details,
       .r-overlay.mobile-order.mobile-order-final .r-overview-details{flex:1 1 auto;height:100%;max-height:none;border-bottom:0}
-      .r-overlay.mobile-order.mobile-order-details .r-tab-main,
-      .r-overlay.mobile-order.mobile-order-photos .r-tab-main,
-      .r-overlay.mobile-order.mobile-order-final .r-tab-main{display:none}
+      .r-overlay.mobile-order.mobile-order-details [data-panel="map"] .r-tab-main,
+      .r-overlay.mobile-order.mobile-order-photos [data-panel="map"] .r-tab-main,
+      .r-overlay.mobile-order.mobile-order-final [data-panel="map"] .r-tab-main{display:none}
       .r-overlay.mobile-order.mobile-order-details .r-scroll,
       .r-overlay.mobile-order.mobile-order-photos .r-scroll,
       .r-overlay.mobile-order.mobile-order-final .r-scroll{height:100%;overflow:auto}
@@ -2442,9 +2453,9 @@ window.PlatformCommerce.onReady(async function(){
       @keyframes rMobilePageInForward{from{opacity:.2;transform:translateX(26px)}to{opacity:1;transform:translateX(0)}}
       @keyframes rMobilePageInBack{from{opacity:.2;transform:translateX(-26px)}to{opacity:1;transform:translateX(0)}}
       .r-overlay.mobile-order.mobile-page-anim-forward .r-overview-details,
-      .r-overlay.mobile-order.mobile-page-anim-forward .r-tab-main{animation:rMobilePageInForward .24s cubic-bezier(.22,1,.36,1)}
+      .r-overlay.mobile-order.mobile-page-anim-forward [data-panel="map"] .r-tab-main{animation:rMobilePageInForward .24s cubic-bezier(.22,1,.36,1)}
       .r-overlay.mobile-order.mobile-page-anim-back .r-overview-details,
-      .r-overlay.mobile-order.mobile-page-anim-back .r-tab-main{animation:rMobilePageInBack .24s cubic-bezier(.22,1,.36,1)}
+      .r-overlay.mobile-order.mobile-page-anim-back [data-panel="map"] .r-tab-main{animation:rMobilePageInBack .24s cubic-bezier(.22,1,.36,1)}
       /* Existing-project details are available from the title drawer, so tabs
          can use the complete workspace instead of stacking the default column. */
       .r-overlay.mobile-info-navigation:not(.mobile-order) .r-modal-header{height:48px}
@@ -2521,9 +2532,9 @@ window.PlatformCommerce.onReady(async function(){
       .r-proposal-preview-empty .r-proposal-preview-create i,.r-proposal-preview-empty .r-proposal-preview-create span{font:inherit;color:inherit;line-height:1}
       @media (prefers-reduced-motion:reduce){
         .r-overlay.mobile-order.mobile-page-anim-forward .r-overview-details,
-        .r-overlay.mobile-order.mobile-page-anim-forward .r-tab-main,
+        .r-overlay.mobile-order.mobile-page-anim-forward [data-panel="map"] .r-tab-main,
         .r-overlay.mobile-order.mobile-page-anim-back .r-overview-details,
-        .r-overlay.mobile-order.mobile-page-anim-back .r-tab-main{animation:none}
+        .r-overlay.mobile-order.mobile-page-anim-back [data-panel="map"] .r-tab-main{animation:none}
         .r-overlay.mobile-project-notes-open .r-mobile-project-notes-workspace{animation:none}
       }
     }
@@ -2548,6 +2559,19 @@ window.PlatformCommerce.onReady(async function(){
       && !hasReportOrdered()
       && !proposalWorkspaceOpen
       && actionAvailable('roof');
+  }
+
+  // Leave the ordering UI without submitting, deleting, or replacing the project or its fields.
+  function cancelMobileReportOrdering(){
+    if (!shouldUseMobileOrderPagination() || orderSubmissionPending) return false;
+    requestedWorkflow = 'project';
+    overviewWorkflowMode = '';
+    reportProjectChoice = '';
+    reportSelection = null;
+    mobileOrderPage = 'location';
+    setActivePreviewTab('map');
+    renderWorkflowState();
+    return true;
   }
 
   function mobileProjectInfoTabEnabled(){
@@ -2735,6 +2759,7 @@ window.PlatformCommerce.onReady(async function(){
 
   function handleMobileOrderSwipeStart(event){
     if (!shouldUseMobileOrderPagination() || event.touches?.length !== 1) return;
+    if (activePreviewTab !== 'map' || !event.target?.closest?.('[data-panel="map"]')) return;
     if (event.target?.closest?.('input,textarea,select,button,a,[contenteditable="true"]')) return;
     const touch = event.touches[0];
     mobileSwipeStart = { x: touch.clientX, y: touch.clientY, t: Date.now() };
@@ -2775,6 +2800,7 @@ window.PlatformCommerce.onReady(async function(){
     overlay.classList.toggle('mobile-order-details', mobile && mobileOrderPage === 'details');
     overlay.classList.toggle('mobile-order-photos', mobile && mobileOrderPage === 'photos');
     overlay.classList.toggle('mobile-order-final', mobile && mobileOrderPage === 'final');
+    overlay.classList.toggle('overview-order-focused', mobile && activePreviewTab === 'map');
     if (mobile && window.Portal.ExteriorOrder?.active()) window.Portal.ExteriorOrder.setMobilePage(mobileOrderPage);
     renderAfterHoursNotice();
     syncMobileProjectNotes();
@@ -3076,7 +3102,7 @@ window.PlatformCommerce.onReady(async function(){
       .r-overlay:has(.r-modal-header[data-window-mobile=true]) .r-overview-details #rStepCustomer .r-step-body{padding-bottom:0}
       .r-overlay:has(.r-modal-header[data-window-mobile=true]) .r-overview-details .r-left-bottom{padding-top:0;border-top:0}
       .r-overlay:has(.r-modal-header[data-window-mobile=true]) :is(.r-overview-details,.r-project-identity-popover) [data-contact-shortcut]{min-width:36px;width:36px;height:36px;display:inline-flex;align-items:center;justify-content:center;border-radius:10px;font-size:15px}
-      .r-overlay:has(.r-modal-header[data-window-mobile=true]) :is(.r-overview-details,.r-project-identity-popover) :is(.r-contact-primary,.r-contact-menu-btn){width:36px;height:36px}
+      .r-overlay:has(.r-modal-header[data-window-mobile=true]) .r-overview-details{padding-top:7px}
       .r-project-identity-popover.r-project-identity-sheet{left:0!important;right:0!important;top:auto!important;bottom:0!important;width:auto!important;max-width:none!important;max-height:min(72vh,calc(100% - 96px))!important;border-width:1px 0 0;border-radius:16px 16px 0 0;padding-bottom:env(safe-area-inset-bottom,0px);box-shadow:0 0 0 100vmax rgba(16,24,40,.32),0 -12px 34px rgba(16,24,40,.18);animation:rIdentitySheetIn .26s cubic-bezier(.16,1,.3,1);outline:none}
       .r-project-identity-popover.r-project-identity-sheet>header{position:sticky;top:0;z-index:1;display:flex;align-items:center;justify-content:space-between;gap:10px;padding:8px 8px 8px 16px;background:#fff;border-bottom:1px solid #f2f4f7}
       .r-project-identity-popover.r-project-identity-sheet>header strong{font-size:14px;font-weight:700;color:#101828;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
@@ -7093,6 +7119,7 @@ window.PlatformCommerce.onReady(async function(){
     // deprecated Proposals tab both land on the unified Docs tab.
     if (!allowed.includes(tab) && ['documents', 'proposal'].includes(tab) && allowed.includes('docs')) tab = 'docs';
     activePreviewTab = allowed.includes(tab) ? tab : projectDefaultPreviewTab();
+    $('#rOverlay')?.classList.toggle('overview-order-focused', shouldUseMobileOrderPagination() && activePreviewTab === 'map');
     proposalWorkspaceOpen = proposalsEnabled() && activePreviewTab === 'proposal';
     if (activePreviewTab !== 'proposal') proposalSettingsPanelOpen = false;
     if (!proposalWorkspaceOpen) {
@@ -7248,6 +7275,8 @@ window.PlatformCommerce.onReady(async function(){
         return reportSelection;
       },
       shouldUseExpandedOverviewMap: () => shouldUseExpandedOverviewMap(),
+      isMobileReportOrdering: () => shouldUseMobileOrderPagination() && activePreviewTab === 'map',
+      cancelMobileReportOrdering: () => cancelMobileReportOrdering(),
       getIncludeGutterMeasurements: () => includeGutterMeasurements,
       setIncludeGutterMeasurements: (value) => {
         includeGutterMeasurements = !!value;
@@ -7507,8 +7536,17 @@ window.PlatformCommerce.onReady(async function(){
     }
     const overview=document.querySelector('#rOverlay [data-panel="map"] > .r-tab-content');
     if(details && overview && details.parentElement!==overview)overview.prepend(details);
+    placeMobileOrderPager();
     placeProjectCustomFields();
     return restored;
+  }
+  // The pager belongs to Overview and moves with its panel; preserve the same buttons and handlers on rebuild.
+  function placeMobileOrderPager(){
+    const pager=document.getElementById('rMobilePager');
+    const panel=document.querySelector('#rOverlay .r-preview-panel[data-panel="map"]');
+    const store=document.getElementById('rOverviewDetailsStore');
+    const target=panel || store;
+    if(pager && target && pager.parentElement!==target)target.append(pager);
   }
   // Project custom fields show on the right of Overview, in the Overview app's fields slot. They rest in the
   // details form whenever that slot is not mounted, so they survive tab rebuilds and the hidden details store.
@@ -7657,7 +7695,11 @@ window.PlatformCommerce.onReady(async function(){
     const validPanels = new Set(projectModalApps().map((app) => app.id).filter(Boolean));
     stage.querySelectorAll('.r-preview-panel[data-panel]').forEach((panel) => {
       const panelId = panel.dataset.panel || '';
-      if (!validPanels.has(panelId)) panel.remove();
+      if (!validPanels.has(panelId)) {
+        const pager=panelId==='map' ? document.getElementById('rMobilePager') : null;
+        if(pager)document.getElementById('rOverviewDetailsStore')?.append(pager);
+        panel.remove();
+      }
     });
   }
 
@@ -7671,6 +7713,8 @@ window.PlatformCommerce.onReady(async function(){
     const details=document.querySelector('#rOverlay .r-overview-details');
     returnProjectCustomFields(details);
     if(details)document.getElementById('rOverviewDetailsStore')?.append(details);
+    const pager=document.getElementById('rMobilePager');
+    if(pager)document.getElementById('rOverviewDetailsStore')?.append(pager);
     stage.innerHTML = projectModalAppPanelsHtml();
     ensureOverviewDetails();
   }
@@ -7678,6 +7722,8 @@ window.PlatformCommerce.onReady(async function(){
   function renderProjectModalTabError(tab, phase, error){
     const panelRoot = document.querySelector(`#rOverlay .r-preview-panel[data-panel="${cssEscape(tab?.id || '')}"]`);
     if (!panelRoot || tab?.id !== activePreviewTab) return;
+    const pager=tab.id==='map' ? document.getElementById('rMobilePager') : null;
+    if(pager)document.getElementById('rOverviewDetailsStore')?.append(pager);
     panelRoot.innerHTML = `
       <div class="r-report-pending">
         <div class="r-report-pending-card">
@@ -11586,9 +11632,10 @@ window.PlatformCommerce.onReady(async function(){
       const trayInteraction=projectTrays?.interactionVersion();
       loadBranchProjectConfig().then(() => {
         if (trayInteraction!==projectTrays?.interactionVersion() || trayGeneration !== projectTrayOpenGeneration || !overlay.classList.contains('active')) return;
-        const key = branchProjectConfig.default_project_tray ?? 'notes';
-        // A tray on a phone covers the whole project, so phones open none by default; desktop keeps the branch setting.
-        if (key && key !== 'off' && !isMobileProjectOrder() && projectTrays?.available().includes(key)) projectTrays.select(key);
+        const key = branchProjectConfig.default_project_tray ?? 'off';
+        // Notes open only when requested by the person, across every project/report entry path.
+        // Phones keep all trays closed; desktop may still use another configured default.
+        if (key && key !== 'off' && key !== 'notes' && !isMobileProjectOrder() && projectTrays?.available().includes(key)) projectTrays.select(key);
       });
     }
     try { if (options.layout) projectWindowShell?.apply(options.layout); }
