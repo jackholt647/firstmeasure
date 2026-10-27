@@ -81,6 +81,7 @@ test('1M8-246: a new signup names itself and its company on the welcome page bef
     assert.equal(await name.getAttribute('aria-invalid'), 'false');
 
     await company.fill('  Reyes Roofing LLC ');
+    assert.deepEqual(await page.locator('.ob-prev-orgname').allInnerTexts(), ['Reyes Roofing LLC'], 'the sample report shows the name as typed');
     await skipToEnd(page);
     assert.notEqual(await currentPage(page), 0);
     const saved = (await updates(page)).filter(p => 'name' in p);
@@ -88,6 +89,8 @@ test('1M8-246: a new signup names itself and its company on the welcome page bef
     assert.equal(saved[0].name, 'Reyes Roofing LLC');
     assert.equal(saved[0].full_name, 'Dana Reyes');
     assert.equal(await page.evaluate(() => window.__APP.orgName), 'Reyes Roofing LLC');
+    // The team page lists the owner by the name just given.
+    assert.equal(await page.locator('.ob-user-name').first().innerText(), 'Dana Reyes');
     assert.deepEqual(errors, []);
   } finally { await browser.close(); }
 });

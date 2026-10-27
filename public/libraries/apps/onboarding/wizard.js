@@ -42,7 +42,7 @@
   const { showToast } = window.Portal.ui;
   const APP = window.__APP || {};
   const ME_EMAIL = String(APP.userEmail || '').toLowerCase().trim();
-  const ME_NAME  = String(APP.userName || APP.userEmail || '').trim();
+  let ME_NAME  = String(APP.userName || APP.userEmail || '').trim();
   const DEFAULT_LOGO = '/images/logo_red.png';
   const SAMPLE_DIAGRAM = 'media/sample_diagram_cropped.png';
 
@@ -1897,6 +1897,8 @@
     return name && name.toLowerCase() !== ME_EMAIL ? name : '';
   };
   let profileState = { fullName: '', companyName: '' };
+  /* The sample report shows the company name as it is typed. */
+  const previewOrgName = () => (isPlaceholderOrgName(ORG_NAME) && profileState.companyName) || ORG_NAME || 'Your Company';
 
   /* Branding state */
   let brandState = {
@@ -2929,7 +2931,7 @@
             <div class="ob-prev-info">
               <div class="ob-prev-box left" style="border-left-color:${String(esc(brandState.primary))}">
                 <div class="ob-prev-label">${(globalThis.PlatformLanguage?.htmlText("onboarding","m_bad7dada05af1a","Prepared for") ?? "Prepared for")}</div>
-                <div class="ob-prev-value ob-prev-orgname">${String(esc(ORG_NAME || 'Your Company'))}</div>
+                <div class="ob-prev-value ob-prev-orgname">${String(esc(previewOrgName()))}</div>
               </div>
               <div class="ob-prev-box right" style="border-left-color:${String(esc(brandState.primary))}">
                 <div class="ob-prev-label">${(globalThis.PlatformLanguage?.htmlText("onboarding","m_ae873abaa56707","Measurements") ?? "Measurements")}</div>
@@ -3017,7 +3019,7 @@
           <div class="ob-preview-logo"><img class="ob-preview-logo-img" src="${String(esc(brandState.logoUrl || DEFAULT_LOGO))}" alt="${(globalThis.PlatformLanguage?.htmlText("onboarding","m_a63c5a4c25569b","Logo") ?? "Logo")}"></div>
           <div class="ob-prev-diagram"><img id="obSampleDiagram" src="${String(esc(SAMPLE_DIAGRAM))}" alt="${(globalThis.PlatformLanguage?.htmlText("onboarding","m_77fc722124c288","Sample report") ?? "Sample report")}"></div>
           <div class="ob-prev-info">
-            <div class="ob-prev-box left"><div class="ob-prev-label">${(globalThis.PlatformLanguage?.htmlText("onboarding","m_bad7dada05af1a","Prepared for") ?? "Prepared for")}</div><div class="ob-prev-value ob-prev-orgname">${String(esc(ORG_NAME || 'Your Company'))}</div></div>
+            <div class="ob-prev-box left"><div class="ob-prev-label">${(globalThis.PlatformLanguage?.htmlText("onboarding","m_bad7dada05af1a","Prepared for") ?? "Prepared for")}</div><div class="ob-prev-value ob-prev-orgname">${String(esc(previewOrgName()))}</div></div>
             <div class="ob-prev-box right"><div class="ob-prev-label">${(globalThis.PlatformLanguage?.htmlText("onboarding","m_ae873abaa56707","Measurements") ?? "Measurements")}</div><div class="ob-prev-value">${(globalThis.PlatformLanguage?.htmlText("onboarding","m_8658b6cca50dd1","Squares") ?? "Squares")}</div><div class="ob-prev-big">23.5</div></div>
           </div>
         </div>
@@ -3107,6 +3109,7 @@
       const input = document.getElementById(id);
       input?.addEventListener('input', () => {
         profileState[id === 'obFullName' ? 'fullName' : 'companyName'] = String(input.value || '').trim();
+        if (id === 'obCompanyName') document.querySelectorAll('.ob-prev-orgname').forEach((el) => { el.textContent = previewOrgName(); });
         input.classList.remove('ob-input-invalid');
         input.removeAttribute('aria-invalid');
         saveState();
@@ -3675,7 +3678,11 @@
             APP.orgName = companyName;
             APP.userCompany = companyName;
           }
-          if (fullName) APP.userName = fullName;
+          if (fullName) {
+            APP.userName = fullName;
+            ME_NAME = fullName;
+            renderPage1();
+          }
         }
       } catch(e){ /* silent */ }
       applyLiveTheme(brandState.primary, brandState.secondary);
