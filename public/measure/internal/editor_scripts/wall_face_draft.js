@@ -2060,7 +2060,10 @@ function faceSlideTargets(t){
  const targets=[...t.snapGeometry.points.filter(q=>!t.face.points.some((p,i)=>onSegment(q,p,t.face.points[(i+1)%t.face.points.length]))),...(t.face.feature?[...W.stickerAlignmentTargets(t.scene||[],t.moveFrame,t.face.points),...stickerFaceCenter(t.face.points,t.moveFrame,t.scene||[])]:[])];
  t.slideTargets={frame:t.moveFrame,graph:t.snapGeometry,targets};return targets;
 }
-function perf_previewFaceSlide(e,full=false){const t=tool;if(t.face.feature)faceSlideTargets(t); t.pathSnap=null;const frame=t.moveFrame,raw=rayPoint({frame},e);if(!raw||!t.planeStart){t.invalid=true;host.message('Turn toward the face to move along it.');return;}let dx=t.moveMode===2?0:raw.x-t.planeStart.x,dy=t.moveMode===1?0:raw.y-t.planeStart.y;if(t.numeric!=null){if(t.moveMode===1)dx=t.numeric;else dy=t.numeric;}t.amount=t.moveMode===1?dx:dy;
+// A light slide reads the published model's composed walls once: the model is
+// not republished until the click, and each read otherwise re-keys the composition.
+function perf_previewFaceSlide(e,full=false){const prior=renderWalls;try{if(!full&&overlayGestures())renderWalls=renderWalls||host.walls();return previewFaceSlideBody(e,full,prior);}finally{renderWalls=prior;}}
+function previewFaceSlideBody(e,full,priorWalls){const t=tool;if(t.face.feature)faceSlideTargets(t); t.pathSnap=null;const frame=t.moveFrame,raw=rayPoint({frame},e);if(!raw||!t.planeStart){t.invalid=true;host.message('Turn toward the face to move along it.');return;}let dx=t.moveMode===2?0:raw.x-t.planeStart.x,dy=t.moveMode===1?0:raw.y-t.planeStart.y;if(t.numeric!=null){if(t.moveMode===1)dx=t.numeric;else dy=t.numeric;}t.amount=t.moveMode===1?dx:dy;
   if(t.numeric==null&&!(typeof isFreeMove!=='undefined'&&isFreeMove)){const axes=t.moveMode===1?['u']:t.moveMode===2?['v']:['u','v'],targets=faceSlideTargets(t),points=t.face.points.map(p=>({x:p.x+frame.u.x*dx+frame.v.x*dy,y:p.y+frame.u.y*dx+frame.v.y*dy,z:p.z+frame.u.z*dx+frame.v.z*dy})),aligned=W.planeAlignment(points,targets,frame,p=>host.screen(p,'3d'),12,axes,t.face.feature?window.ExteriorGeometry.world(frame,raw):null);dx+=aligned.x;dy+=aligned.y;t.amount=t.moveMode===1?dx:dy;}
 
   const owner=t.sceneDrafts[t.moveReference.key],moving=owner.faces.find(f=>f.id===t.moveReference.id),regions=owner.sketch.outlines.map(r=>({points:r.map(p=>window.ExteriorGeometry.local(frame,world(owner,p)))})),obstacles=owner.faces.filter(f=>f!==moving&&(f.feature||f.boundaryHole)&&!f.solidId&&!deleted(owner,f));
@@ -2072,6 +2075,7 @@ function perf_previewFaceSlide(e,full=false){const t=tool;if(t.face.feature)face
     catch(error){selectedRegion=priorSelection;t.invalid=true;t.light||={key,draft:null};host.message(error.message+' Shift the pointer or press Escape.');}});
    if(first)host.redraw();else host.redrawOverlay();return;
   }
+  renderWalls=priorWalls;
   // The published edits are replaced below, never changed, so a failed move restores them as they were without a copy.
   const previous=host.state().wallEdits,priorSelection=selectedRegion&&copy(selectedRegion);host.state().wallEdits=copyWithDrafts(t.before,t.sceneDrafts);
   try{const d=all()[t.moveReference.key],f=d.faces.find(f=>f.id===t.moveReference.id),points=t.face.points.map(p=>toLocal(d,{x:p.x+frame.u.x*dx+frame.v.x*dy,y:p.y+frame.u.y*dx+frame.v.y*dy,z:p.z+frame.u.z*dx+frame.v.z*dy})),next=editRegion(d,f,points);t.changed=Math.hypot(dx,dy)>1e-7;t.invalid=false;t.previewCap={...t.face,points:next.points.map(p=>world(d,p))};host.state().wallEdits=window.ExteriorModel.prepareEdits(host.state(),host.state().wallEdits,t.before);moveModeStatus();}catch(error){host.state().wallEdits=previous;selectedRegion=priorSelection;t.invalid=true;host.message(error.message+' Shift the pointer or press Escape.');}host.redraw();
