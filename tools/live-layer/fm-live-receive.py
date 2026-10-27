@@ -7,11 +7,15 @@ which tells open pages what changed). Development only: install-web.sh puts it o
   serve   JSON lines on stdin/stdout, one request per line. The droplet's live-sync runs it over SSH as the
           forced command of a key that can do nothing else.
             {"op":"list"}
-            {"op":"batch","ops":[{"op":"put","path","sha","base","data"(base64)}, {"op":"remove","path"}]}
+            {"op":"batch","source":"<host:checkout>","ops":[{"op":"put","path","sha","base","data"(base64)},
+                                                           {"op":"remove","path","force"?}]}
             {"op":"check"}
   check   Retires files the release now has ("released") or changed under them ("conflict"). A timer runs it,
           so a rollout ends or guards the layer even when no sync is connected.
   list    Prints the manifest.
+
+Several syncs may share the layer: each file belongs to the sync that put it live, and another sync's put or
+remove of it is refused ("owned-by-other") unless the remove says force.
 
 A put is refused with "dev-differs" when the release's copy is neither the base it was edited from nor the
 new bytes: the editor's checkout is older than dev there, and serving it would revert someone's release.
@@ -120,7 +124,7 @@ class Locked:
         self.handle.close()
 
 
-def put(manifest, op):
+def put(manifest, op, source):
     path, sha, base = op.get("path"), op.get("sha"), op.get("base")
     if not valid_path(path):
         return {"path": path, "ok": False, "error": "not-a-browser-file"}
@@ -134,10 +138,13 @@ def put(manifest, op):
     if release != base:
         retire(manifest, path, "conflict")
         return {"path": path, "ok": False, "error": "dev-differs", "release": release, "base": base}
-    if manifest["files"].get(path, {}).get("sha") == sha:
+    current = manifest["files"].get(path, {})
+    if current.get("sha") == sha:
         return {"path": path, "ok": True, "state": "live"}
+    if current and current.get("source") != source:
+        return {"path": path, "ok": False, "error": "owned-by-other", "owner": current.get("source")}
     write_atomic(os.path.join(LIVE, "public", path), data)
-    manifest["files"][path] = {"sha": sha, "base": base, "at": int(time.time())}
+    manifest["files"][path] = {"sha": sha, "base": base, "source": source, "at": int(time.time())}
     manifest["retired"].pop(path, None)
     return {"path": path, "ok": True, "state": "live"}
 
@@ -166,10 +173,16 @@ def handle(request):
             result = {"ok": True, "retired": check(manifest)}
         elif op == "batch":
             results = []
+            # Each sync names itself; it may replace or remove only the files it put live (or any, with force).
+            source = str(request.get("source") or "unknown")[:200]
             for item in request.get("ops") or []:
                 if item.get("op") == "put":
-                    results.append(put(manifest, item))
+                    results.append(put(manifest, item, source))
                 elif item.get("op") == "remove" and valid_path(item.get("path")):
+                    owner = manifest["files"].get(item["path"], {}).get("source")
+                    if owner and owner != source and not item.get("force"):
+                        results.append({"path": item["path"], "ok": False, "error": "owned-by-other", "owner": owner})
+                        continue
                     retire(manifest, item["path"], "reverted")
                     results.append({"path": item["path"], "ok": True, "state": "removed"})
                 else:

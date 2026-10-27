@@ -49,18 +49,49 @@ exactly the same results.
 
 ## Live frontend iteration on dev
 
-Read [frontend bridge](docs/architecture/frontend-bridge.md) before changing
-`tools/frontend-bridge` or driving dev.1m8.ai with it (skill: `frontend-czar`).
-The bridge serves only browser files under `public/` that differ from what dev
-serves, from your own checkout, through the FirstMate Dev Bridge extension's
-folder; it never touches production and needs nothing on the server. Server
-code, PHP and HTML pages still need a rollout. Run
-`node --test tests/frontend-bridge.test.mjs` for changes here.
+For frontend development where you need fast iteration and feedback on quick
+changes (predominantly browser code: libraries, apps, tutorial players and
+widgets, CSS, images), use the **instant iteration system**, the
+[live layer](docs/architecture/live-layer.md). It is the fast loop, not the only
+way to ship frontend work. A file you save is served by dev.1m8.ai within about
+a second, to everyone, and every open dev page swaps it in (stylesheets and
+images in place; a changed script reloads the frame that ran it). The release
+itself is untouched until you commit and roll out as usual.
 
-The [live layer](docs/architecture/live-layer.md) is the shared variant: browser
-files saved in the dev sync droplet's checkout are served by dev.1m8.ai at once
-and swapped into every open dev page (`tools/live-layer/live-sync.mjs` there).
-Run `node --test tests/live-layer.test.mjs` for changes to it.
+1. **Checkout.** Work in your own clean checkout at the canonical tip: a session
+   worktree, or `/home/dev/code/firstmeasure` on the dev sync droplet. Never the
+   shared checkout: other sessions' uncommitted edits there would go live too.
+2. **Key.** This PC and the droplet each hold a restricted key,
+   `~/.ssh/fm_live_ed25519` (here `C:\Users\jackh\.ssh\fm_live_ed25519`). It can
+   do one thing: write browser files into dev web's live folder through
+   `fm-live-receive`. Never print or transmit it. Another machine gets access by
+   copying that key pair into its `~/.ssh/`, or by authorizing its own key with
+   `tools/live-layer/install-web.sh` on dev web.
+3. **Run.** From the checkout root, start
+   `node tools/live-layer/live-sync.mjs` in the background and leave it running.
+   Edit files under `public/` (not `public/v1`). `live-sync.mjs status` lists
+   what is live and which checkout owns each file.
+4. **Check** in the page: open dev.1m8.ai (Chrome tools, or the frontend
+   bridge's `eval`/`console`/`screenshot`); `curl -sI https://dev.1m8.ai/<path>`
+   shows `X-FirstMate-Live: 1` for a layer file.
+5. **Finish.** When the user is happy, commit, roll out to dev (DEPLOYMENT.md
+   and the dev rollout tooling) and integrate into canonical; the layer retires
+   those files by itself within 20 seconds. To abandon, revert the files (or
+   `live-sync.mjs clear`) and stop the sync.
+
+Everyone on dev sees your saves at once, so do not leave a broken state live.
+Each live file belongs to the checkout that put it there: another agent's save
+of the same file is refused (`owned-by-other`; coordinate, or
+`live-sync.mjs clear <path>`). `REFUSED ... dev-differs` means dev's release
+changed that file since your base: update your checkout. PHP and HTML pages and
+server code (`public/v1/**`) still need a rollout. Development only; production
+has no layer. Run `node --test tests/live-layer.test.mjs` for changes to it.
+
+For private experiments only your own Chrome should see, use the
+[frontend bridge](docs/architecture/frontend-bridge.md) instead (skill:
+`frontend-czar`): it serves your checkout's changed browser files to your Chrome
+through the FirstMate Dev Bridge extension and touches nothing on the server.
+Run `node --test tests/frontend-bridge.test.mjs` for changes to it.
 
 ## Canonical source
 

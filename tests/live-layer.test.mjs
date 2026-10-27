@@ -109,3 +109,33 @@ test('the receiver writes only browser files inside the layer', { skip: !python 
     assert.equal((await put('libraries/z/z.js', 'x')).state, 'live');
   } finally { rmSync(s.dir, { recursive: true, force: true }); }
 });
+
+test('two checkouts share the layer: each keeps its own files and cannot overwrite each other', { skip: !python && 'needs Python 3' }, async () => {
+  const one = scratch();
+  try {
+    const log = [];
+    const other = path.join(one.dir, 'other');
+    spawnSync('git', ['clone', '-q', one.repo, other]);
+    spawnSync('git', ['branch', '-q', 'canonical', 'origin/canonical'], { cwd: other });
+    one.write('public/libraries/a/a.css', '.a{color:blue}\n');
+    await reconcile(one.repo, 'canonical', one.receiver, new Map(), () => {}, 'pc');
+    mkdirSync(path.join(other, 'public/libraries/c'), { recursive: true });
+    writeFileSync(path.join(other, 'public/libraries/c/c.svg'), '<svg/>');
+    writeFileSync(path.join(other, 'public/libraries/a/a.css'), '.a{color:green}\n');
+    const { results } = await reconcile(other, 'canonical', one.receiver, new Map(), (line) => log.push(line), 'droplet');
+    assert.equal(results.find((r) => r.path === 'libraries/a/a.css').error, 'owned-by-other');
+    assert.ok(log.some((line) => line.includes('pc has its own copy live')));
+    const files = one.manifest().files;
+    assert.deepEqual(Object.keys(files).sort(), ['libraries/a/a.css', 'libraries/c/c.svg']);
+    assert.equal(files['libraries/a/a.css'].source, 'pc');
+    assert.equal(files['libraries/c/c.svg'].source, 'droplet');
+    assert.equal(readFileSync(path.join(one.live, 'public/libraries/a/a.css'), 'utf8'), '.a{color:blue}\n');
+    // The pc's next pass leaves the droplet's file alone; a forced remove takes the pc's out.
+    await reconcile(one.repo, 'canonical', one.receiver, new Map(), () => {}, 'pc');
+    assert.ok(one.manifest().files['libraries/c/c.svg']);
+    assert.equal((await one.receiver.request({ op: 'batch', source: 'droplet', ops: [{ op: 'remove', path: 'libraries/a/a.css' }] })).results[0].error, 'owned-by-other');
+    assert.equal((await one.receiver.request({ op: 'batch', source: 'droplet', ops: [{ op: 'remove', path: 'libraries/a/a.css', force: true }] })).results[0].state, 'removed');
+    await reconcile(other, 'canonical', one.receiver, new Map(), () => {}, 'droplet');
+    assert.equal(one.manifest().files['libraries/a/a.css'].source, 'droplet');
+  } finally { rmSync(one.dir, { recursive: true, force: true }); }
+});

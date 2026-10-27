@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Sets up the live layer on the DEVELOPMENT web host (docs/architecture/live-layer.md). Run as root:
-#   install-web.sh <fm-live-receive.py> "<the droplet's fm_live_ed25519.pub line>"
-# Idempotent. Never run it on a production host: it refuses unless the web service is the development one.
+#   install-web.sh <fm-live-receive.py> "<a machine's fm_live_ed25519.pub line>"
+# Idempotent: run it again with another machine's public key to let that machine push too. Never run it on a production host: it refuses unless the web service is the development one.
 set -euo pipefail
 RECEIVER_SRC=$1
 PUBKEY=$2
@@ -16,8 +16,12 @@ passwd -l fmlive >/dev/null
 install -d -o fmlive -g fmlive -m 0755 /opt/firstmeasure/live /opt/firstmeasure/live/public
 install -o root -g root -m 0755 "$RECEIVER_SRC" /usr/local/bin/fm-live-receive
 install -d -o fmlive -g fmlive -m 0700 /var/lib/fmlive/.ssh
-printf 'restrict,command="/usr/local/bin/fm-live-receive serve" %s\n' "$PUBKEY" > /var/lib/fmlive/.ssh/authorized_keys
-chown fmlive:fmlive /var/lib/fmlive/.ssh/authorized_keys
+# One line per machine that may push (the droplet, each PC); every one can only run the receiver.
+KEYS=/var/lib/fmlive/.ssh/authorized_keys
+touch "$KEYS"
+key_body=$(echo "$PUBKEY" | awk '{print $2}')
+grep -qF "$key_body" "$KEYS" || printf 'restrict,command="/usr/local/bin/fm-live-receive serve" %s\n' "$PUBKEY" >> "$KEYS"
+chown fmlive:fmlive "$KEYS"
 chmod 0600 /var/lib/fmlive/.ssh/authorized_keys
 
 cat > /etc/systemd/system/fm-live-check.service <<'UNIT'

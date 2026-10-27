@@ -1,6 +1,6 @@
 ---
 name: frontend-czar
-description: Iterate live on FirstMate browser code (libraries, apps, tutorial players, CSS) running on dev.1m8.ai through the frontend bridge and the FirstMate Dev Bridge Chrome extension; edit, see it in the page, check it, commit and roll out when the user is happy. Use when asked to act as the frontend czar, to change what a dev.1m8.ai page looks like or does in real time, or to start the bridge.
+description: Iterate live on FirstMate browser code (libraries, apps, tutorial players, CSS) running on dev.1m8.ai, privately through the frontend bridge and the FirstMate Dev Bridge Chrome extension or for everyone through the instant iteration system (live layer); edit, see it in the page, check it, commit and roll out when the user is happy. Use when asked to act as the frontend czar, to change what a dev.1m8.ai page looks like or does in real time, for fast frontend iteration, or to start the bridge or live-sync.
 ---
 
 # Frontend czar
@@ -10,11 +10,15 @@ bridge serves your checkout's changed browser files to that Chrome; the page rel
 save. Read `docs/architecture/frontend-bridge.md` once, and the architecture doc AGENTS.md names for the area
 you touch (guided experiences, forms, app experience, realtime, ...).
 
-**On the dev sync droplet** (`/home/dev/code/firstmeasure`) use the shared live layer instead of the bridge
-(`docs/architecture/live-layer.md`): run `node tools/live-layer/live-sync.mjs` in the background and every save
-is served by dev.1m8.ai at once and swapped into every open dev page, for everyone. `live-sync.mjs status` lists
-what is live. A `REFUSED ... dev-differs` line means the checkout is older than dev for that file: update it.
-Commit and roll out as below to make it permanent; the layer then retires those files by itself.
+**Shared and instant: the instant iteration system.** When the user wants changes everyone on dev sees at once
+(their phone, another browser, other people), use the live layer instead of the bridge (AGENTS.md "Live frontend
+iteration on dev", `docs/architecture/live-layer.md`). This PC and the droplet hold its restricted key
+(`~/.ssh/fm_live_ed25519`). Start `node tools/live-layer/live-sync.mjs` in the background from your clean
+checkout; every save is served by dev.1m8.ai within about a second and swapped into every open dev page.
+`live-sync.mjs status` lists what is live and who owns it. `REFUSED ... dev-differs` means your checkout is older
+than dev for that file (update it); `owned-by-other` means another checkout has that file live (coordinate, or
+`clear <path>`). The page commands below (`eval`, `console`, `screenshot`) still work for checking. Commit and
+roll out as below to make it permanent; the layer then retires those files by itself.
 
 ## Start
 
