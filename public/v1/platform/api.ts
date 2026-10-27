@@ -8910,7 +8910,7 @@ function collectionWritePermission(collection: string, operation: "create" | "re
 }
 
 function branchModuleWritePermission(moduleId: string) {
-  if (moduleId === "pricebook" || moduleId === "presentation_style" || moduleId === 'variable_mappings' || moduleId === 'contact_settings' || moduleId === 'custom_fields') return "manage_company_settings";
+  if (moduleId === "pricebook" || moduleId === "presentation_style" || moduleId === 'variable_mappings' || moduleId === 'contact_settings' || moduleId === 'custom_fields' || moduleId === 'company_profile') return "manage_company_settings";
   // Scheduling configuration (event types, availability/unavailability,
   // routing, confirmations) changes who can be booked when: schedule editors
   // and company-settings admins only.

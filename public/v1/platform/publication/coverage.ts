@@ -41,7 +41,7 @@ export const applicationPublication = {
   signatures: { providers: ["documents"], domains: ["documents"] },
   billing: { providers: ["billing", "payments"], domains: ["payments"], note: "Credit balance and project billing publications; organization subscription checkout retains its dedicated authenticated flow." },
   help: { providers: [], domains: [], note: "Presentation shell; owns no project data or business actions." },
-  onboarding: { providers: ["organization"], domains: [], note: "Uses organization profile; account and credential setup retains its dedicated flow." },
+  onboarding: { providers: ["organization", "company-profile", "setup-steps"], domains: ["organization"], note: "Uses organization profile; account and credential setup retains its dedicated flow. Setup steps (guided-experiences/setup-steps.ts) are published as the setup-steps catalog and status; the company type and services they ask are the company-profile provider, saved with company-profile.save." },
   "promo-inject": { providers: [], domains: [], note: "Presentation injection; owns no project data or business actions." },
   referrals: { providers: ["referrals", "customers"], domains: ["referrals"], note: "Eligibility and explicit referral initialization action; referral setup is not a side effect of a data read." },
   pricebook: { providers: ["pricebook", "suppliers"], domains: ["pricebook", "materials"] },

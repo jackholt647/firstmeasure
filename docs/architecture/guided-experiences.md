@@ -25,6 +25,9 @@ eligibility and its chooser.
 | `public/libraries/guided-experiences/supplier-columns.js` | `window.FirstMateSupplierColumns`: supplier columns and the supplier price sheet hand-off, mountable anywhere. |
 | `public/v1/materials/supplier-prices-publication.ts` | `suppliers.prices.update`: one supplier's costs from its price sheet (agent). |
 
+Setup steps, questions answered once and required by any setup ("What kind of company are you?"),
+are part of this runtime: see [setup steps](setup-steps.md).
+
 ## Data model
 
 An **experience** (`experienceSchema`):
@@ -173,7 +176,9 @@ control such as "Use all". A widget declared `fill: true` gets the step's height
 while there is more. `hint()` says why Continue is disabled, as its tooltip.
 Steps can branch: the player follows a step's fixed `next` itself, waits for the
 server's answer only after a step with `branches`, remembers the way taken (Back
-returns along it) and draws the progress bar over that way. The finished screen
+returns along it). There is no step count or progress bar: a setup's length is not
+known ahead ([setup steps](setup-steps.md) it requires are asked only while
+unanswered), so the frame only goes on to the next step. The finished screen
 is centred and waits for one of its two buttons: "Start generating materials"
 (closes, hands off, and the outcome's `generate` makes the runtime press the
 tab's Generate when no click was held) and "View the price book", which shows the

@@ -26,7 +26,10 @@ export function registerOperationsGuidedExperiences() {
         body: t('workflow_tour_continue_body', 'Use Next when you’re ready. Finishing saves your scope of work, so Operations can generate materials from the choices you made.') }
     ]
   });
+  // Before the project's own question, the company: what kind of company it is and the work it does. Asked only when
+  // the organization has not answered it yet (signup, another setup), through the global setup steps.
   const documentStep = { id: 'document', widget: 'operations-document', title: t('document_title', 'What does this project need?'),
+    requires: ['company.services'],
     selects: ['operation_path', 'operations_document_id', 'operations_scope_ready', 'operations_project_id'], options: {}, required: true };
   registerExperience({
     id: 'operations.setup', version: 1, kind: 'modal', scope: 'organization', salt: 'operations-v1', replayable: true,

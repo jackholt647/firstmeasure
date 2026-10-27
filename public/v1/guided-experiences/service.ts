@@ -16,6 +16,9 @@ import { registerEquipmentGuidedExperiences } from "./definitions/equipment.js";
 import { registerPhotosGuidedExperiences } from "./definitions/photos.js";
 import { registerReportsGuidedExperiences } from "./definitions/reports.js";
 import { registerCustomerPortalGuidedExperiences } from "./definitions/customer-portal.js";
+import { registerGlobalSetupSteps } from "./steps/index.js";
+import { checkSetupStepGraph, injectedStep, missingSetupSteps, setupStep, type SatisfactionCache } from "./setup-steps.js";
+import { readCompanyProfile } from "../company-profile/profile.js";
 
 /**
  * The guided-experience runtime on the server: which experiences a person may play now (eligibility, the chooser,
@@ -24,7 +27,31 @@ import { registerCustomerPortalGuidedExperiences } from "./definitions/customer-
  * conversation) and the context the real assistant gets when the person types during one.
  */
 
-export function ensureGuidedDefinitions() { registerOperationsGuidedExperiences(); registerMaterialsGuidedExperiences(); registerPhotosGuidedExperiences(); registerReportsGuidedExperiences(); registerCustomerPortalGuidedExperiences(); registerEquipmentGuidedExperiences(); }
+let requirementsChecked = false;
+export function ensureGuidedDefinitions() {
+  registerGlobalSetupSteps(); registerOperationsGuidedExperiences(); registerMaterialsGuidedExperiences(); registerPhotosGuidedExperiences(); registerReportsGuidedExperiences(); registerCustomerPortalGuidedExperiences(); registerEquipmentGuidedExperiences();
+  if (requirementsChecked) return;
+  requirementsChecked = true;
+  // Every setup step an experience or its steps require exists, and none of them is also one of its own step ids.
+  const roots: { from: string; requires: string[] }[] = [];
+  for (const definition of listExperiences()) {
+    const own = new Set(definition.steps.map((step) => step.id));
+    for (const stepId of requiredBy(definition)) if (own.has(stepId)) throw new Error(`${definition.id} has a step called ${stepId}, which is also a setup step it requires.`);
+    roots.push({ from: definition.id, requires: requiredBy(definition) });
+  }
+  checkSetupStepGraph(roots);
+}
+/** Every setup step an experience may inject: the ones it names and, transitively, what they require. */
+function requiredClosure(definition: ExperienceDefinition) {
+  const out = new Set<string>();
+  const walk = (stepId: string) => { if (out.has(stepId)) return; out.add(stepId); for (const next of setupStep(stepId)?.requires || []) walk(next); };
+  requiredBy(definition).forEach(walk);
+  return out;
+}
+/** The setup steps an experience names, on itself and on its steps. */
+function requiredBy(definition: ExperienceDefinition) {
+  return [...new Set([...definition.requires, ...definition.steps.flatMap((step) => (step as { requires?: string[] }).requires || [])])];
+}
 
 const text = (value: unknown) => String(value ?? "").trim();
 const object = (value: unknown): Record<string, unknown> => value && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : {};
@@ -40,8 +67,11 @@ export async function chooserContext(ctx: PlatformAuthContext, surface: { tab?: 
   const timezone = await resolveOrganizationTimezone(ctx.orgId, ctx.branchId).catch(() => "");
   const [assistant, materials] = await Promise.all([can(ctx, "apps.assistant").catch(() => false), can(ctx, "platform.materials").catch(() => false)]);
   const finished = (await listProgress(ctx.orgId, [""])).filter((row) => row.status !== "started").map((row) => row.experience_id);
+  // What the company said it is (the company.type setup step) comes first; an older organization field is the fallback.
+  const profile = await readCompanyProfile(ctx.orgId).catch(() => null);
   return {
-    organization: { id: ctx.orgId, region: regionForState(state), state, timezone, size: { users, tier: sizeTierFor(users) }, industry: text(industryRaw).toLowerCase(),
+    organization: { id: ctx.orgId, region: regionForState(state), state, timezone, size: { users, tier: sizeTierFor(users) }, industry: text(profile?.industry || industryRaw).toLowerCase(),
+      company_type: profile?.company_type || "", services: (profile?.services || []).map((entry) => entry.id),
       capabilities: { assistant, materials }, ...{ flags: { assistant, materials }, finished } } as ChooserContext["organization"],
     person: { id: ctx.userId, role: text(ctx.role), permissions: {} },
     surface: { tab: text(surface.tab).slice(0, 80), project_id: text(surface.projectId).slice(0, 160) }
@@ -82,7 +112,7 @@ export function nextStep(definition: ExperienceDefinition, variant: ExperienceDe
 }
 
 /** One experience as this person plays it: its variant, steps in the variant's order with their options filled, armed triggers and progress. */
-async function resolve(definition: ExperienceDefinition, ctx: PlatformAuthContext, chooser: ChooserContext, progress: Progress | null) {
+async function resolve(definition: ExperienceDefinition, ctx: PlatformAuthContext, chooser: ChooserContext, progress: Progress | null, answered: SatisfactionCache = new Map()) {
   const choice = chooseVariant(definition, chooser, progress?.variant_id || undefined);
   if (!choice) return null;
   const { variant, bucket, unit } = choice;
@@ -103,6 +133,18 @@ async function resolve(definition: ExperienceDefinition, ctx: PlatformAuthContex
     }
     steps.push({ ...step, options, next: nextOf(step) });
   }
+  // Setup steps (setup-steps.ts) this experience or its steps require and that are not answered yet, each asked just
+  // before the step that needs it, its own requirements first. An answered step, or one this person may not answer,
+  // is left out, so the same setup is shorter for a company that already said.
+  const may = (rules: { capabilities?: string[]; permissions?: string[] }) => allowed(ctx, rules);
+  const seen = new Set<string>();
+  const withRequired: Record<string, unknown>[] = [];
+  for (const [at, step] of steps.entries()) {
+    const needs = [...(at === 0 ? definition.requires : []), ...((step as { requires?: string[] }).requires || [])];
+    if (needs.length) for (const missing of await missingSetupSteps(ctx, needs, may, seen, answered)) withRequired.push(injectedStep(missing, step.id));
+    withRequired.push(step);
+  }
+  if (!steps.length && definition.requires.length) for (const missing of await missingSetupSteps(ctx, definition.requires, may, seen, answered)) withRequired.push(injectedStep(missing, ""));
   const finished = !!progress && progress.status !== "started";
   const armed = definition.triggers.filter((trigger) => {
     if (finished && trigger.kind !== "manual" && (trigger as { once?: boolean }).once !== false) return false;
@@ -112,8 +154,8 @@ async function resolve(definition: ExperienceDefinition, ctx: PlatformAuthContex
   return {
     id: definition.id, version: definition.version, kind: variant.kind || definition.kind, scope: definition.scope, title: definition.title, description: definition.description || null,
     tab: definition.tab || "", replayable: definition.replayable, variant: { id: variant.id, bucket, unit },
-    triggers: armed, steps,
-    completion: { action: definition.completion.action ? { id: definition.completion.action.id, target: definition.completion.action.target, input: definition.completion.action.input || {} } : null, say: definition.completion.say, then: definition.completion.then },
+    triggers: armed, steps: withRequired,
+    completion: { action: definition.completion.action ? { id: definition.completion.action.id, target: definition.completion.action.target, input: definition.completion.action.input || {} } : null, screen: definition.completion.screen, say: definition.completion.say, then: definition.completion.then },
     progress: progress ? { status: progress.status, step_id: progress.step_id, data: progress.data, variant_id: progress.variant_id, finished_at: progress.finished_at } : null
   };
 }
@@ -125,6 +167,8 @@ export async function availableExperiences(ctx: PlatformAuthContext, surface: { 
   const chooser = await chooserContext(ctx, surface);
   const rows = await listProgress(ctx.orgId, ["", ctx.userId]);
   const out: ResolvedExperience[] = [];
+  // One read per setup step for the whole list, however many experiences require it.
+  const answered: SatisfactionCache = new Map();
   // Which experiences this person could play, so a condition can say "only when they are not asked to set this up".
   const able: ExperienceDefinition[] = [];
   for (const definition of listExperiences()) if (await eligible(definition, ctx, chooser)) able.push(definition);
@@ -141,7 +185,7 @@ export async function availableExperiences(ctx: PlatformAuthContext, surface: { 
   for (const definition of able) {
     const progress = rows.find((row) => row.experience_id === definition.id && row.subject_id === subjectFor(definition, ctx)) || null;
     if (progress && progress.status !== "started" && !definition.replayable) continue;
-    const resolved = await resolve(definition, ctx, chooser, progress);
+    const resolved = await resolve(definition, ctx, chooser, progress, answered);
     if (resolved) out.push(resolved);
   }
   const playable = new Set(out.map((entry) => entry.id));
@@ -181,7 +225,9 @@ export async function recordGuidedEvent(ctx: PlatformAuthContext, experienceId: 
   const surface = { tab: text(body.tab), projectId: text(body.project_id) };
   const { definition, choice } = await load(ctx, experienceId, surface);
   const stepId = text(body.step_id).slice(0, 120);
-  if (stepId && !definition.steps.some((step) => step.id === stepId)) throw badRequest("guided_step_unknown", "That step is not part of this experience.");
+  const own = !!stepId && definition.steps.some((step) => step.id === stepId);
+  // A setup step it requires (directly or through another) is part of it too: those steps are injected when resolved.
+  if (stepId && !own && !requiredClosure(definition).has(stepId)) throw badRequest("guided_step_unknown", "That step is not part of this experience.");
   const data = body.selections === undefined ? undefined : selectionsSchema.parse(body.selections);
   const properties = object(body.properties);
   if (JSON.stringify(properties).length > 2000) throw badRequest("guided_event_properties", "Event properties are limited to 2 KB.");
@@ -196,7 +242,7 @@ export async function recordGuidedEvent(ctx: PlatformAuthContext, experienceId: 
   else if (type === "dismiss") progress = await writeProgress(ctx.orgId, subject, definition.id, { ...base, status: "dismissed", step_id: stepId, userId: ctx.userId, ...(data ? { data } : {}) });
   else if (type === "complete") progress = await writeProgress(ctx.orgId, subject, definition.id, { ...base, status: "completed", step_id: stepId, userId: ctx.userId, ...(data ? { data } : {}) });
   await recordEvent(ctx.orgId, { ...base, experience_id: definition.id, unit_id: choice.unit, user_id: ctx.userId, type, step_id: stepId, properties: { ...properties, ...(surface.tab ? { tab: surface.tab } : {}) } });
-  return { progress, recorded: true, ...(type === "step_done" && stepId ? { next_step: nextStep(definition, choice.variant, stepId, progress?.data || {}) } : {}) };
+  return { progress, recorded: true, ...(type === "step_done" && own ? { next_step: nextStep(definition, choice.variant, stepId, progress?.data || {}) } : {}) };
 }
 
 /** Finishes an experience: runs its published action as the person with their selections, then marks it complete. */

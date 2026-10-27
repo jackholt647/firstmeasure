@@ -50,10 +50,29 @@ const overlayStep = z.object({
   next: next.optional()
 }).strict();
 
+/**
+ * Where a step's code comes from: a widget registered in guided-setup.js, or `module` (widget `module`), a browser ES
+ * module under /libraries/ that the player loads when the step shows and mounts in the standard step frame
+ * (docs/architecture/setup-steps.md, the module contract). A module brings its own behaviour: it reads what it needs
+ * through the publication layer and hands its answer back to the player.
+ */
+/** Served from this site's /libraries/ only, with an optional cache key (`?v=`) to bump when the module changes. */
+const modulePath = z.string().regex(/^\/libraries\/[a-z0-9][a-z0-9/_.-]{1,160}\.js(\?v=[a-z0-9-]{1,40})?$/).refine((value) => !value.includes(".."), "A module path stays under /libraries/.");
+export const setupStepModuleSchema = z.object({
+  widget: z.string().regex(/^[a-z][a-z0-9_.-]{1,60}$/).default("module"),
+  module: modulePath.optional()
+}).strict().superRefine((value, context) => {
+  if (value.widget === "module" && !value.module) context.addIssue({ code: z.ZodIssueCode.custom, message: "A module step names its module." });
+});
+
 const setupStep = z.object({
   id,
-  /** The browser renderer for the widget side of this step (guided-setup.js `registerWidget`). */
+  /** The browser renderer for the widget side of this step (guided-setup.js `registerWidget`), or `module`. */
   widget: z.string().regex(/^[a-z][a-z0-9_.-]{1,60}$/),
+  /** For widget `module`: the browser module with this step's own code. */
+  module: modulePath.optional(),
+  /** Setup steps (setup-steps.ts) this step needs answered first: each unanswered one is asked just before it. */
+  requires: z.array(id).max(8).default([]),
   title: copySchema,
   subtitle: copySchema.optional(),
   /** What the agent says when the step opens. Programmatic, never a model call. */
@@ -118,10 +137,17 @@ export const experienceSchema = z.object({
   }).strict().default({}),
   triggers: z.array(trigger).max(8).default([]),
   variants: z.array(variant).min(1).max(12),
-  steps: z.array(z.union([overlayStep, setupStep])).min(1).max(40),
+  /** Setup steps (setup-steps.ts) the whole experience needs: each unanswered one is asked before its first step. */
+  requires: z.array(id).max(8).default([]),
+  steps: z.array(z.union([overlayStep, setupStep])).max(40),
   completion: z.object({
     /** A published action (platform/publication/actions.ts) run as the person with the selections as input. */
     action: z.object({ id: z.string().max(160), target: z.enum(["organization", "project"]), input: z.record(z.unknown()).default({}) }).strict().optional(),
+    /**
+     * What the setup shows when it finishes: `pricebook`, the price book screen and its two buttons; `none`, it
+     * closes at once (a setup that only asks setup steps, or one whose own widget finishes it).
+     */
+    screen: z.enum(["pricebook", "none"]).default("pricebook"),
     /** What the agent says once it is done. */
     say: z.array(copySchema).max(4).default([]),
     /** What happens next, in order: hand the conversation to the project's agent tray, let a held click through, play another experience. */
@@ -148,7 +174,10 @@ export const experienceSchema = z.object({
   }).strict()).max(4).default([])
 }).strict().superRefine((value, context) => {
   const ids = new Set<string>();
+  if (!value.steps.length && !value.requires.length) context.addIssue({ code: z.ZodIssueCode.custom, message: "An experience needs a step, or a setup step it requires." });
+  if (value.requires.length && value.kind === "overlay") context.addIssue({ code: z.ZodIssueCode.custom, message: "A tour cannot require setup steps." });
   for (const step of value.steps) {
+    if ("widget" in step && step.widget === "module" && !step.module) context.addIssue({ code: z.ZodIssueCode.custom, message: `Step ${step.id} is a module step without a module.` });
     if (ids.has(step.id)) context.addIssue({ code: z.ZodIssueCode.custom, message: `Two steps are called ${step.id}.` });
     ids.add(step.id);
     const overlay = "targets" in step;

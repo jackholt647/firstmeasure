@@ -289,7 +289,12 @@ Accept a deliberate change with `UPDATE_ACCESS_GATES=1`.
 
 ## Rules
 
-Operations uses the existing `project.materials` app id. Its welcome advertisement
+Operations uses the existing `project.materials` app id. Its welcome is
+`layout: page` (`offers.ts`): one full-width page, the copy centred above the
+illustration, instead of the default two sides. While any welcome shows, the
+project window's side rail for that app (Operations, Money and Proposals keep one)
+is hidden and the welcome takes the width; the rail returns when the app mounts.
+The welcome advertisement
 activates the organization offer only after Get Started, then opens the shared
 Operations guide. The guide can offer Equipment globally as `portal.equipment`
 without activating `apps.equipment`; that sidebar entry retains New until its

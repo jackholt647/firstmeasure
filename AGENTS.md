@@ -452,7 +452,11 @@ Do not add another tutorial engine, a per-app onboarding modal or progress in
 browser storage. Who sees one is eligibility (capabilities, permissions,
 conditions), never a configuration check. What a setup writes is a published
 action run as the person. Scripted agent lines are programmatic; the real
-assistant answers only when the person types. Run
+assistant answers only when the person types. A question asked once for the
+organization (what kind of company it is) is a [setup step](docs/architecture/setup-steps.md):
+declared once, answered through a published action, read as published data and
+`requires`d by any setup, which asks it only while unanswered; setups show no
+step count. Run `tests/setup-steps.test.ts`, `tests/setup-steps-browser.test.mjs`,
 `tests/guided-experiences.test.ts`, `tests/guided-experiences-dev.test.ts`,
 `tests/pricebook-roofing-setup.test.ts` and
 `tests/guided-experiences-browser.test.mjs`,
