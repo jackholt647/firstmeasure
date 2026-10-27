@@ -138,6 +138,8 @@ export function mountSidebar(root,documents,error,contextKey,options={}) {
     });
     root.querySelectorAll('[data-scope-panel]').forEach(panel=>panel.setAttribute('role','tabpanel'));
     state.measurementViewers=new Set();
+    // Photos and Documents are the shared media carousel (rail-media.js), given the project window's host for its tabs and uploads.
+    const railMedia=()=>import(new URL('./rail-media.js?v=20261027-rail-media',import.meta.url).href),railHost=options.scheduleContext?.projectWorkspace||options.scheduleContext?.host||null;
     // Mount both report views once, before the user selects them. Their DOM,
     // network results and viewer state survive all local tab changes.
     for(const key of only?['roof']:['roof','aerial']){
@@ -146,7 +148,7 @@ export function mountSidebar(root,documents,error,contextKey,options={}) {
         let handle,disposed=false,visible=false;
         state.widgets[key]={setVisible(value){visible=value;handle?.setVisible?.(value);},destroy(){disposed=true;handle?.destroy?.();},serialize(){return handle?.serialize?.();}};
         stage.textContent='Loading photos…';
-        import('/libraries/image-viewer/photo-gallery.js?v=20261010-project-photos').then(module=>{if(disposed)return;handle=module.mount(stage,{context:options.widgetContext||{}});handle.setVisible(visible);}).catch(()=>{if(!disposed)stage.textContent='The photo viewer could not load.';});
+        railMedia().then(module=>{if(disposed)return;handle=module.mountRailPhotos(stage,{context:options.widgetContext||{},host:railHost});handle.setVisible(visible);}).catch(()=>{if(!disposed)stage.textContent='The photo viewer could not load.';});
       // A project that is not saved yet has no report and no scope to ask for measurements: say so, read nothing.
       }else if(options.draft)stage.innerHTML=`<div class="sw-doc-empty" role="status" data-scope-draft-empty><i class="fas fa-ruler-combined" aria-hidden="true"></i><strong>${esc(text('sw_draft_measurements_title','No measurements yet'))}</strong><span>${esc(text('sw_draft_measurements_body','A measurement report or measurements entered by hand show here once the project is saved.'))}</span></div>`;
       else if(window.FirstMateWidgets)state.widgets[key]=window.FirstMateWidgets.mount(stage,{id:'reports.roof',version:'1',config:{}},{...options.widgetContext,getMeasurements:()=>Object.assign({},...(state.documents||[]).filter(d=>d.source==='measurement').map(d=>d.value?.measurements||{}),Object.fromEntries(Object.entries(state.options.measurementOverrides||{}).map(([key,value])=>[key,{value}]))),onMeasurementChange:(key,value)=>state.editMeasurement?.(key,value),subscribeMeasurements:listener=>{state.measurementViewers.add(listener);return ()=>state.measurementViewers.delete(listener);},read:options.widgetContext?.read||((source,target)=>window.PlatformAPI.publication.read(target.organizationId,{...source,target}))});
@@ -156,6 +158,12 @@ export function mountSidebar(root,documents,error,contextKey,options={}) {
     // this view is showing and handed back when the view, the tab or the window goes away.
     const scheduleStage=root.querySelector('[data-scope-panel="schedule"]');
     if(scheduleStage)state.widgets.schedule={setVisible(value){const app=window.Portal?.ProjectScheduleApp;if(!app?.mountWidget){if(value)scheduleStage.innerHTML='<div class="sw-doc-empty" role="status"><i class="fas fa-calendar-days" aria-hidden="true"></i><strong>Schedule unavailable</strong><span>The schedule could not load here.</span></div>';return;}if(value)app.mountWidget(scheduleStage,state.options?.scheduleContext||null);else app.releaseWidget(scheduleStage);},destroy(){window.Portal?.ProjectScheduleApp?.releaseWidget?.(scheduleStage);}};
+    // Documents: every project document as the Docs tab lists it; an accepted document keeps its published materials.
+    // Without the module, the documents are drawn as before.
+    const documentsStage=root.querySelector('[data-scope-panel="documents"]');
+    {let handle,disposed=false,visible=false,legacy=false;
+      state.widgets.documents={setVisible(value){visible=value;handle?.setVisible?.(value);},destroy(){disposed=true;handle?.destroy?.();},serialize(){return handle?.serialize?.();},update(){handle?.update?.(state.documents,state.error);},get legacy(){return legacy;}};
+      railMedia().then(module=>{if(disposed)return;handle=module.mountRailDocuments(documentsStage,{context:options.widgetContext||{},host:railHost,documents:state.documents||documents||[]});handle.setVisible(visible);}).catch(()=>{legacy=true;if(!disposed)state.redrawDocuments?.();});}
     showViews(root,state);
   }
   state.options=options;
@@ -164,6 +172,7 @@ export function mountSidebar(root,documents,error,contextKey,options={}) {
   state.fingerprint=fingerprint;state.documents=documents;state.error=error;
   // Documents: the selected accepted document fills the viewer and every accepted document sits in the strip beneath it.
   const drawDocuments=()=>{
+    if(state.widgets.documents&&!state.widgets.documents.legacy)return state.widgets.documents.update();
     const panel=root.querySelector('[data-scope-panel="documents"]'),accepted=state.documents.filter(d=>['document','report_asset'].includes(d.source));
     if(!panel)return;
     const selected=accepted.find(d=>d.id===state.selected)||accepted[0]||null,key=JSON.stringify([accepted,selected?.id,state.error]);
@@ -181,6 +190,7 @@ export function mountSidebar(root,documents,error,contextKey,options={}) {
       paint();state.stageObserver=new ResizeObserver(()=>{if(stage.isConnected)paint();});state.stageObserver.observe(stage);
     }).catch(e=>{if(stage.isConnected)stage.textContent=e.message;});}
   };
+  state.redrawDocuments=drawDocuments;
   // Measurement edits come from the roof key; its open viewers re-read the merged values.
   const draw=()=>{for(const listener of state.measurementViewers||[])listener();drawDocuments();drawManual(root,state,contextKey);};
   state.editMeasurement=(key,value)=>{state.options={...state.options,measurementOverrides:{...state.options.measurementOverrides,[key]:value}};state.options.onMeasurementChange?.(key,value);draw();};
