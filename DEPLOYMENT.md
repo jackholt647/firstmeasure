@@ -1,5 +1,7 @@
 # FirstMeasure: local development and production deployment
 
+October 27 1M8-248 on dev: [Customers tab impersonation finds the sign-in identity through the user record, so users whose profile email differs from their sign-in email no longer fail with identity_not_found](deploy/digitalocean/development-impersonate-user-20261027.md) records `b49136e1` on `claude/impersonate-by-user-1m8-248` (from `production-live`). Not a regression; code not on production; no production data changed.
+
 October 26 production hotfix `fc31553b`: [1M8-246 onboarding asks for the person's and the company's name again](deploy/digitalocean/production-hotfix-20261026z.md) on all roles; no production data changed; rollback is `fe807b75`.
 
 October 26 1M8-246 on dev: [onboarding asks for the person's and the company's name again (every signup since October 20 was "Your Company")](deploy/digitalocean/development-company-name-20261026.md) records `66c4d0c4` on `claude/company-name-20261026` (from `production-live`). Code not on production; production repair is a dry run only.
