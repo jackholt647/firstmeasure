@@ -636,8 +636,8 @@
          so the card rearranges with the tile's own width in every density. */
       .fm-docs-gallery .pf-thumb{container-type:inline-size;isolation:isolate}
       .fm-doc-card{position:absolute;inset:0;display:flex;flex-direction:column;justify-content:flex-end;overflow:hidden;padding:36px 12px 11px;background:linear-gradient(165deg,#fff 0%,color-mix(in srgb,var(--doc-color,#64748b) 8%,#f8fafc) 100%);text-align:left}
-      .fm-doc-card-mark{position:absolute;right:9%;top:20%;font-size:clamp(30px,34cqw,96px);color:var(--doc-color,#64748b);opacity:.13;pointer-events:none;transition:opacity .16s ease}
-      .pf-thumb:hover .fm-doc-card-mark{opacity:.2}
+      .fm-doc-card-mark{position:absolute;right:9%;top:20%;font-size:clamp(30px,34cqw,96px);color:var(--doc-color,#64748b);opacity:1;pointer-events:none}
+      .pf-thumb:hover .fm-doc-card-mark{opacity:1}
       .fm-doc-symbol{position:relative;display:inline-block;line-height:1}
       .fm-doc-symbol-badge{position:absolute;right:-.3em;top:-.2em;font-size:.36em;background:#f8fafc;border-radius:50%;padding:.2em;box-shadow:0 0 0 .08em #f8fafc}
       .fm-doc-card-body{position:relative;display:flex;flex-direction:column;gap:2px;min-width:0}
@@ -684,7 +684,7 @@
       .fm-docs-gallery .fm-doc-card{padding:0;background:#fff;justify-content:flex-start}
       .fm-doc-preview{position:relative;display:block;flex:1;min-height:0;overflow:hidden;background:#edf0f4;pointer-events:none}
       .fm-doc-preview>img,.fm-doc-preview>canvas{position:absolute;top:0;left:0;width:100%;height:auto;min-height:100%;object-fit:cover;object-position:top center;background:#fff}
-      .fm-docs-gallery .fm-doc-card-mark{top:50%;left:50%;right:auto;bottom:auto;transform:translate(-50%,-50%);font-size:clamp(28px,30cqw,70px);opacity:.65}
+      .fm-docs-gallery .fm-doc-card-mark{top:50%;left:50%;right:auto;bottom:auto;transform:translate(-50%,-50%);font-size:clamp(28px,30cqw,70px);opacity:1}
       .fm-docs-gallery .fm-doc-card-body{flex:none;height:54px;box-sizing:border-box;padding:8px 9px;background:#fff;border-top:1px solid #e4e7ec;display:grid;grid-template-columns:20px minmax(0,1fr);grid-template-rows:18px 14px;gap:3px 8px;align-content:center}
       .fm-doc-badges .fm-doc-type-badge{background:var(--primary,#d93025);border-color:var(--primary,#d93025);color:#fff}
       .fm-doc-badges .fm-doc-status-badge{background:#667085;border-color:#667085;color:#fff}
