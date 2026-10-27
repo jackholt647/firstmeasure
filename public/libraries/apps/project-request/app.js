@@ -3000,7 +3000,7 @@ window.PlatformCommerce.onReady(async function(){
       title:element.querySelector('#rWindowProjectTitle'),
       controlsHost:element.querySelector('.r-window-bar-actions'),
       contentTarget:document.getElementById('mainPanels'),
-      customChrome:true, titleMenu:false, animateGeometry:true, presentationModes:true, mobileFullscreen:true, allowFullscreen:false, viewportCoordinates:true, nativeModalLayout:true,
+      customChrome:true, titleMenu:false, animateGeometry:true, presentationModes:true, allowFullscreen:false, viewportCoordinates:true, nativeModalLayout:true,
       name:'project', label:(globalThis.PlatformLanguage?.text("project-request","m_aaebd7ccba0b30","Project") ?? "Project"), mode:'modal', width:1200, height:800,
       dockWidth:900, minWidth:360, minimizedHeight:32,
       topInset:() => document.getElementById('platformTopbar')?.offsetHeight || 0,
@@ -3058,7 +3058,6 @@ window.PlatformCommerce.onReady(async function(){
       .r-overlay.window-managed .r-win[data-window="minimized"] .r-window-identity{display:flex;flex:1;min-width:0;max-width:none;padding:0;border:0;font-size:12px;gap:6px}
       .r-overlay.window-managed .r-win[data-window="minimized"] .fm-window-controls button:not([data-window-action="minimize"]):not([data-window-action="close"]){display:none}
       @media(max-width:1080px){.r-overlay.window-managed .r-win{flex-direction:column;padding-top:0}}
-      @media(max-width:760px){.r-overlay.window-managed .r-window-bar-actions{flex-basis:90px;width:90px}.r-overlay.window-managed .fm-window-controls button{height:48px;min-height:48px}}
       @media(max-width:760px){.r-overlay.window-managed.entitlement-hide-fullscreen .fm-window-controls [data-window-action="fullscreen"]{display:none}}
       .project-window-embedded body{margin:0!important;overflow:hidden!important}
       .project-window-embedded .fm-attention-topbar,.project-window-embedded .mobile-topbar,.project-window-embedded #platformTopbar,.project-window-embedded .main,.project-window-embedded #mainSidebar,.project-window-embedded #sidebarBackdrop,.project-window-embedded #fmProjectRoutePrecover{display:none!important}
@@ -3087,10 +3086,10 @@ window.PlatformCommerce.onReady(async function(){
       @keyframes rIdentitySheetIn{from{transform:translateY(100%)}to{transform:none}}
       @media(prefers-reduced-motion:reduce){.r-project-identity-sheet{animation:none}}
     `);
-    if (projectWindowBridge) { document.documentElement.classList.add('project-window-embedded'); element.classList.add('fm-window'); element.dataset.window=projectModalWindow.state.mode; }
+    if (projectWindowBridge) { document.documentElement.classList.add('project-window-embedded'); element.classList.add('fm-window'); element.dataset.window='modal'; }
     overlay.classList.add('window-managed');
     observeProjectHeaderFit(overlay);
-    overlay.dataset.windowMode = projectModalWindow.state.mode;
+    overlay.dataset.windowMode = 'modal';
     projectLayout = window.FirstMateProjectLayout?.mount({ overlay, pane:projectContentPane, getProject:() => activeBaseProject, getTab:() => activePreviewTab, setTab:tab => setActivePreviewTab(tab) });
     if (!projectContentPane) projectWindowShell = window.FirstMateWindowShell.mount({
       element, header:element.querySelector('.r-window-bar'), identity:element.querySelector('.r-window-identity'),
@@ -3101,10 +3100,10 @@ window.PlatformCommerce.onReady(async function(){
   }
   function setProjectModalFullscreen(enabled, options = {}){
     enabled = false; // Entire-screen presentation is disabled for project windows.
+    projectModalFullscreen = !!enabled;
     projectModalWindow?.setMode(enabled ? 'fullscreen' : 'modal', {silent:true});
-    projectModalFullscreen = projectModalWindow ? projectModalWindow.state.mode === 'fullscreen' : !!enabled;
     const managedOverlay = $('#rOverlay');
-    if (managedOverlay && projectModalWindow) { managedOverlay.dataset.windowMode = projectModalWindow.state.mode; managedOverlay.querySelector('.r-win').dataset.window = projectModalWindow.state.mode; }
+    if (managedOverlay && projectModalWindow) { managedOverlay.dataset.windowMode = enabled ? 'fullscreen' : 'modal'; managedOverlay.querySelector('.r-win').dataset.window = enabled ? 'fullscreen' : 'modal'; }
     const overlay = $('#rOverlay');
     clearTimeout(projectModalFullscreenTimer);
     if (overlay) {
@@ -5832,6 +5831,16 @@ window.PlatformCommerce.onReady(async function(){
     return `<span class="r-info-tip r-addon-info-trigger" data-addon-info-trigger="${String(escapeHtml(key))}" role="button" tabindex="0" aria-label="${((v1) => globalThis.PlatformLanguage?.htmlText("project-request","m_6e4ba38fa02b85",`${v1} information`,{v1}) ?? `${v1} information`)(escapeHtml(info.title))}"><i class="fas fa-info"></i></span>`;
   }
 
+  /** A type card's price: this property's quote once known. "VAT included" is shown only where credit is added
+   * (billing, the signup load step and Stripe checkout), not on report prices (1M8-241). */
+  function typePriceLabel(type){
+    const price = fmtCredit(reportDisplayedBasePrice(type));
+    const text = type === 'residential'
+      ? (globalThis.PlatformLanguage?.text("project-request","price_flat_rate","{price} flat rate",{price}) ?? `${price} flat rate`)
+      : (globalThis.PlatformLanguage?.text("project-request","price_per_structure","{price} / structure",{price}) ?? `${price} / structure`);
+    return text;
+  }
+
   // The first order page puts the address under the map on phones, so Google's suggestions open above the field,
   // never over it or under the keyboard. Google moves and resizes the list whenever results change, so each list is
   // watched itself (style, rows and size) and put back; its height is capped to the room above the field.
@@ -7198,6 +7207,14 @@ window.PlatformCommerce.onReady(async function(){
       },
       getBranchProjectConfig: () => branchProjectConfig,
       getReportOrderState: () => reportOrderState,
+      loadReportDocumentAssets: async () => {
+        const app = mountProjectMeasurementsApp({active:false});
+        if (!app) return null;
+        const id = activeMeasurementProjectId();
+        return (id ? await app.invoke('loadMeasurementAssets',[id]) : null) || app.invoke('reportOrderKnownAssetUrls',[]);
+      },
+      canOrderMeasurements: () => firstMeasureReportOrdersEnabled() && hasPerm('order_reports') && !hasReportOrdered(),
+      orderMeasurements: () => startMeasurementOrder(),
       setReportOrderState: (nextState) => {
         reportOrderState = nextState || null;
         return reportOrderState;
@@ -9655,6 +9672,16 @@ window.PlatformCommerce.onReady(async function(){
     }
   }
 
+  // Both Overview and the Operations measurements rail enter the same order
+  // session. Opening it never submits an order or creates another project.
+  function startMeasurementOrder(){
+    if (!firstMeasureReportOrdersEnabled() || !hasPerm('order_reports') || hasReportOrdered()) return false;
+    requestedWorkflow='report';overviewWorkflowMode='report';reportProjectChoice=activeBaseProject?'existing':'new';reportSelection='roof';locationConfirmed=false;
+    preloadFirstReportCheckoutEligibility();setActivePreviewTab('map');renderWorkflowState();queueAutosaveNotice();
+    if (!addressSelected) $('#rAddress')?.focus();
+    return true;
+  }
+
   function syncOverviewWorkflow(){
     const overlay=$('#rOverlay'),details=overlay?.querySelector('.r-overview-details');
     if (!details) return;
@@ -9679,9 +9706,7 @@ window.PlatformCommerce.onReady(async function(){
       for (const [key,label] of choices) {const button=document.createElement('button');button.type='button';button.className='r-toggle-btn';const icon=document.createElement('i');icon.className='fas '+({roof:'fa-ruler-combined',proposal:'fa-file-signature',schedule:'fa-calendar-days'}[key]);icon.setAttribute('aria-hidden','true');button.append(icon,document.createTextNode(label));
         button.onclick=()=>{
           if (key==='roof') {
-            if (hasReportOrdered()) applyReorderPrefillState(activeBaseProject || {});
-            requestedWorkflow='report';overviewWorkflowMode='report';reportProjectChoice=activeBaseProject?'existing':'new';reportSelection='roof';locationConfirmed=false;
-            preloadFirstReportCheckoutEligibility();setActivePreviewTab('map');renderWorkflowState();queueAutosaveNotice();
+            startMeasurementOrder();
           } else document.querySelector('.r-toggle-btn[data-report-choice="'+key+'"]')?.click();
         };actions.append(button);
       }
@@ -10505,6 +10530,8 @@ window.PlatformCommerce.onReady(async function(){
       // Whose order it is: another account signed in on this browser must never see or submit it (billing readPending).
       organization_id: String(window.__APP?.userOrgId || '').trim(),
       user_id: String(window.__APP?.userId || '').trim() || String(window.__APP?.userEmail || '').trim().toLowerCase(),
+      // The account that placed it: another account signed in on this browser must never submit it (1M8-204).
+      organization_id: String(window.__APP?.userOrgId || '').trim(),
       fields: {
         address: ($('#rAddress').value || '').trim(),
         residentName: primary.name || '',

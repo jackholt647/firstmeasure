@@ -27,6 +27,7 @@
   ];
 
   const TYPE_META = {
+    roof_report_xml: { label: (globalThis.PlatformLanguage?.text('docs','roof_report_xml','Roof Report XML') ?? 'Roof Report XML'), icon: 'fa-file-code', color: '#059669' },
     proposal: { label: (globalThis.PlatformLanguage?.text("docs","m_1d8655e967c464","Proposal") ?? "Proposal"), icon: 'fa-file-signature', color: '#2563eb' },
     change_order: { label: (globalThis.PlatformLanguage?.text("docs","m_4c17910c74a05e","Change Order") ?? "Change Order"), icon: 'fa-file-contract', color: '#7c3aed' },
     roof_report: { label: (globalThis.PlatformLanguage?.text("docs","m_51ac44c5f2e0fc","Roof Report") ?? "Roof Report"), icon: 'fa-ruler-combined', color: '#059669' },
@@ -59,7 +60,7 @@
     visibleDocumentCategories: new Set(['receipt', 'invoice', 'proposal_report', 'other']),
     categoryMenuOpen: false,
     viewMode: 'tiles',
-    galleryDensity: 'comfortable',
+    galleryDensity: 'loose',
     tileSize: 128,
     viewerOpen: false,
     viewerIndex: 0,
@@ -77,6 +78,7 @@
     engineEntries: [],
     receiptsById: new Map(),
     measurements: null,
+    reportAssets: null,
     // Inline create surface (doc-first flows): the wizard rendered into the
     // right panel instead of a floating modal.
     createHost: null
@@ -116,6 +118,9 @@
   }
   function branchId(){
     return firstText(state.context?.branchId, window.Portal?.branchModules?.currentBranchId?.(), window.__APP?.userBranchId, project()?.branch_id, 'default') || 'default';
+  }
+  function densityPreferenceKey(){
+    return `firstmate.documents.density.${orgId()}.${firstText(Portal.cfg?.userId,window.__APP?.userId)}`;
   }
   function projectDocsEnabled(context = state.context || {}){
     if (context.projectDocsEnabled === false) return false;
@@ -547,6 +552,7 @@
     if (state.loadedForProjectId && state.loadedForProjectId !== pid) {
       state.visibleDocumentCategories = new Set(['receipt', 'invoice', 'proposal_report', 'other']);
       state.categoryMenuOpen = false;
+      state.reportAssets = null;
     }
     state.loading = true;
     render();
@@ -569,7 +575,11 @@
         // Report tiles show the project's measurements.
         window.PlatformAPI?.publication?.measurements
           ? window.PlatformAPI.publication.measurements(oid, pid).catch(() => null)
-          : Promise.resolve(null)
+          : Promise.resolve(null),
+        Promise.resolve(callHost('loadReportDocumentAssets')).catch((error) => {
+          console.warn('Unable to load report documents',error);
+          return {};
+        })
       ]).then((results) => {
         const measured = {};
         Object.entries(Object(Object(results[3]?.value).measurements)).forEach(([key, entry]) => {
@@ -577,6 +587,7 @@
           if (Number.isFinite(value)) measured[key] = value;
         });
         state.measurements = measured;
+        state.reportAssets = results[4] || null;
         return results;
       });
       state.receiptsById = new Map((Array.isArray(receiptResult?.receipts) ? receiptResult.receipts : []).map((receipt) => [cleanText(receipt.id), receipt]));
@@ -717,26 +728,16 @@
       @media(max-width:760px){.fm-docs-toolbar{display:flex;align-items:stretch;flex-direction:column}.fm-docs-controls{justify-content:flex-start}.fm-doc-special-row{grid-auto-columns:minmax(112px,132px)}}
       @media(max-width:720px){.fm-docs-wrap,.fm-docs-wrap.shared-media{padding:20px}}
       /* Phone (html[data-fm-doc-phone]): the header is one row like Photos —
-         the tab icon, search as an icon that opens over the row, Tags, Shown
+         the tab icon, a flexible search that opens over the row, Tags, Shown
          and one New (its dialog holds Upload). */
       html[data-fm-doc-phone] .fm-docs-wrap,html[data-fm-doc-phone] .fm-docs-wrap.shared-media{padding:0 12px 12px}
       html[data-fm-doc-phone] .fm-docs-gallery .pf-toolbar{flex-wrap:nowrap;gap:8px;margin:0 -12px 12px;padding:10px 12px}
       html[data-fm-doc-phone] .fm-docs-gallery .pf-title{flex:0 0 32px}
       html[data-fm-doc-phone] .fm-docs-gallery .pf-title>div{display:none}
       html[data-fm-doc-phone] .fm-docs-gallery .pf-title i{width:32px;height:32px}
-      html[data-fm-doc-phone] .fm-docs-gallery .pf-tools{position:relative;flex:1 1 auto;flex-wrap:nowrap;justify-content:flex-end;gap:6px;min-width:0}
+      html[data-fm-doc-phone] .fm-docs-gallery .pf-tools{position:static;flex:1 1 auto;flex-wrap:nowrap;justify-content:flex-end;gap:6px;min-width:0}
       html[data-fm-doc-phone] .fm-docs-gallery .pf-density,html[data-fm-doc-phone] .fm-docs-gallery .pf-tools:has([data-gallery-toolbar-action="new_document"]) .pf-upload{display:none}
-      html[data-fm-doc-phone] .fm-docs-gallery .pf-search{order:0;flex:0 0 36px;width:36px;min-width:36px;max-width:none;margin-right:auto}
-      html[data-fm-doc-phone] .fm-docs-gallery .pf-search input{height:36px;padding:0 0 0 34px;border-radius:10px;font-size:16px;cursor:pointer;color:transparent;transition:box-shadow .15s ease}
-      html[data-fm-doc-phone] .fm-docs-gallery .pf-search input::placeholder{color:transparent}
-      html[data-fm-doc-phone] .fm-docs-gallery .pf-search i{left:11px;pointer-events:none;transition:color .15s ease}
-      html[data-fm-doc-phone] .fm-docs-gallery .pf-search:has(input:not(:placeholder-shown)) i{color:var(--primary-readable,var(--primary,#d93025))}
-      html[data-fm-doc-phone] .fm-docs-gallery .pf-search:has(input:not(:placeholder-shown))::after{content:'';position:absolute;right:5px;top:5px;width:7px;height:7px;border-radius:50%;background:var(--primary,#d93025);box-shadow:0 0 0 2px #fff}
-      html[data-fm-doc-phone] .fm-docs-gallery .pf-search:focus-within{position:absolute;left:0;right:0;top:50%;z-index:5;width:auto;transform:translateY(-50%);animation:fm-docs-search-open .24s cubic-bezier(.2,.8,.2,1)}
-      html[data-fm-doc-phone] .fm-docs-gallery .pf-search:focus-within::after{display:none}
-      html[data-fm-doc-phone] .fm-docs-gallery .pf-search:focus-within input{cursor:text;color:#101828;padding-right:12px;box-shadow:0 0 0 4px rgba(var(--primary-rgb,217,48,37),.12),0 8px 22px rgba(16,24,40,.12)}
-      html[data-fm-doc-phone] .fm-docs-gallery .pf-search:focus-within input::placeholder{color:#98a2b3}
-      @keyframes fm-docs-search-open{from{clip-path:inset(0 calc(100% - 36px) 0 0 round 10px)}to{clip-path:inset(0 0 0 0 round 10px)}}
+      /* Search sizing and expansion are shared with Photos in photos/feed.js. */
       html[data-fm-doc-phone] .fm-docs-gallery .pf-toolbar-action{height:36px;min-width:36px;padding:0 10px;justify-content:center}
       html[data-fm-doc-phone] .fm-docs-gallery .pf-toolbar-action:not([data-gallery-toolbar-action="new_document"]) span{display:none}
       html[data-fm-doc-phone] .fm-docs-gallery [data-gallery-toolbar-action="new_document"]{padding:0 14px;gap:6px}
@@ -755,7 +756,6 @@
       html[data-fm-doc-phone] .fm-docs-gallery .pf-wrap:not([data-density="list"]) .fm-document-tile .fm-doc-card-facts{display:block;font-size:12px}
       html[data-fm-doc-phone] .fm-docs-gallery .pf-wrap:not([data-density="list"]) .fm-document-tile .fm-doc-badges{left:12px;right:12px;top:11px}
       html[data-fm-doc-phone] .fm-docs-gallery .pf-wrap:not([data-density="list"]) .fm-document-tile :is(.fm-doc-type-badge,.fm-doc-status-badge){display:inline-block;padding:4px 9px;font-size:10.5px}
-      @media(prefers-reduced-motion:reduce){html[data-fm-doc-phone] .fm-docs-gallery .pf-search:focus-within{animation:none}}
     `);
   }
 
@@ -779,6 +779,13 @@
     state.panelRoot = context.panelRoot || context.roots?.main || state.panelRoot;
     state.mounted = !!resolveRoot(state.panelRoot);
     state.active = context.active === true;
+    try {
+      const density = localStorage.getItem(densityPreferenceKey());
+      if (['loose','comfortable','compact','list'].includes(density)) {
+        state.galleryDensity = density;
+        state.viewMode = density === 'list' ? 'list' : 'tiles';
+      }
+    } catch {}
     const routedView = window.Portal?.navigation?.read?.().documentView;
     if (['tiles','list'].includes(routedView)) state.viewMode = routedView;
     render();
@@ -886,7 +893,29 @@
     return allViewableDocs().filter((doc) => state.visibleDocumentCategories.has(documentCategory(doc)));
   }
   function allViewableDocs(){
-    return state.docs.filter((doc) => doc.interactive !== false && (doc.url || doc.media_id));
+    return reportDocuments(state.docs).filter((doc) => doc.interactive !== false && (doc.url || doc.media_id));
+  }
+  // These are references to the delivered report, not copies in the document
+  // engine. Reuse Reports' resolution of manifest URLs and release holds.
+  function reportDocuments(docs){
+    const assets = state.reportAssets;
+    if (!assets) return docs;
+    const measured = project().measurement_project || project().measurement || {};
+    const producedAt = firstText(measured.completed_at, measured.raw?.completed_at);
+    const reports = [
+      ['roof_report_pdf','roof_report','roof_measurements_report','Roof Measurement Report','reportUrl','application/pdf','roof-measurements.pdf'],
+      ['customer_report_pdf','customer_report','customer_roof_report','Customer Roof Report','summaryUrl','application/pdf','customer-roof-report.pdf'],
+      ['roof_report_xml','roof_report_xml','roof_report_xml','Roof Report XML','xmlUrl','application/xml','roof-report.xml']
+    ];
+    const ids = new Set(reports.map(row => row[0]));
+    return normalizeList([...docs.filter(doc => !ids.has(docId(doc))), ...reports.flatMap(([id,type,key,title,asset,contentType,fileName]) => {
+      const url = cleanText(assets[asset]);
+      if (!url) return [];
+      const stored = docs.find(doc => docId(doc) === id) || {};
+      return [{...stored,id,document_type:type,title:globalThis.PlatformLanguage?.text('docs',key,title) ?? title,
+        url,content_type:contentType,file_name:fileName,special:true,source:'report',
+        uploaded_at:firstText(producedAt,stored.uploaded_at),related:{tab:'measurements',label:relatedActionLabel({document_type:type})}}];
+    })]);
   }
   // Everything the gallery shows: engine documents (opened through the engine
   // editor/preview, never the media viewer) + viewable media references.
@@ -1095,7 +1124,7 @@
       icon:'fa-folder-open',
       itemNoun:'document',
       uploadLabel:'Upload',
-      initialDensity:state.viewMode === 'list' ? 'list' : (state.galleryDensity === 'list' ? 'comfortable' : state.galleryDensity),
+      initialDensity:state.viewMode === 'list' ? 'list' : (state.galleryDensity === 'list' ? 'loose' : state.galleryDensity),
       extraDensityModes:[{ id:'list', label:(globalThis.PlatformLanguage?.text("docs","m_db473980ea71b2","List") ?? "List"), icon:'list' }],
       // Documents are few: tiles sit together with their dates on them; only
       // the list view splits them into days.
@@ -1147,6 +1176,7 @@
       }] : [])],
       onDensityChange:(density) => {
         state.galleryDensity = density;
+        try { localStorage.setItem(densityPreferenceKey(),density); } catch {}
         setDocumentView(density === 'list' ? 'list' : 'tiles', { render:false });
       }
     });
@@ -1208,6 +1238,7 @@
     closeViewer(false, { fromRoute:true });
     destroyEngine();
     state.docs = [];
+    state.reportAssets = null;
     state.uploadedDocs = [];
     state.invoices = [];
     state.visibleDocumentCategories = new Set(DOCUMENT_CATEGORIES.map((category) => category.id));

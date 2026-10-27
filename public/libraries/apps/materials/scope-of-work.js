@@ -75,7 +75,7 @@ export async function loadDocuments(orgId, projectId) {
   // the view they had, so a failure here is not reported as missing scope data.
   try {
     const manual=await api.publication.read(orgId,{provider:'measurement-schemas',export:'manual',target});
-    if(manual.status==='ready'&&(manual.value?.available||Object.keys(manual.value?.manual?.values||{}).length))documents.push({id:'manual-measurements',source:'manual',form:manual.value,reportReady:completedReport?.status==='ready'});
+    if(manual.status==='ready')documents.push({id:'manual-measurements',source:'manual',form:manual.value,reportReady:completedReport?.status==='ready'});
   }catch{}
   documents.sort((a,b)=>a.source.localeCompare(b.source)||String(a.title).localeCompare(String(b.title))||a.id.localeCompare(b.id));
   return {documents,error:failures.length?'Some published scope data could not load.':''};
@@ -137,7 +137,7 @@ export function mountSidebar(root,documents,error,contextKey,options={}) {
     showViews(root,state);
   }
   state.options=options;
-  const fingerprint=JSON.stringify([documents,error,options.measurementOverrides]);
+  const fingerprint=JSON.stringify([documents,error,options.measurementOverrides,options.canOrderMeasurements,options.reportPending]);
   if(state.fingerprint===fingerprint)return;
   state.fingerprint=fingerprint;state.documents=documents;state.error=error;
   // Documents: the selected accepted document fills the viewer and every accepted document sits in the strip beneath it.
@@ -182,8 +182,22 @@ const manualEditorUrl=()=>new URL('./manual-measurements.js?v=20261025-intro-too
 function drawManual(root,state,contextKey){
   const doc=(state.documents||[]).find(d=>d.source==='manual');
   const mode=manualMeasurementMode(doc?.form,doc?.reportReady);
+  const empty=!doc?.reportReady && (doc || state.options?.draft) && !Object.keys(doc?.form?.manual?.values||{}).length
+    && !Object.keys(doc?.form?.in_use?.values||{}).length && doc?.form?.in_use?.source!=='other'
+    && !(state.documents||[]).some(entry=>entry.source==='measurement');
+  let start=root.querySelector('[data-scope-measurement-start]');
+  if(!start){start=document.createElement('div');start.className='sw-panel';start.dataset.scopeMeasurementStart='';start.hidden=true;root.querySelector('.sw-viewport').append(start);}
+  state.measurementStartShown=!!empty&&!state.manualEntryRequested;
+  if(state.measurementStartShown){
+    const canOrder=state.options?.canOrderMeasurements===true, pending=state.options?.reportPending===true;
+    const canEnter=mode==='edit';
+    start.innerHTML=`<div class="sw-doc-empty sw-measurement-start" role="status"><i class="fas fa-ruler-combined" aria-hidden="true"></i><strong>${esc(text('measurement_start_empty','No measurements.'))}</strong>${pending?`<span>${esc(text('measurement_start_pending','Your measurement report is on order. You can enter measurements while you wait.'))}</span>`:''}${canOrder?`<button type="button" class="smm-btn primary" data-scope-order>${esc(text('measurement_start_order','Order measurement report'))}</button>`:''}<button type="button" class="smm-btn" data-scope-enter ${canEnter?'':'disabled'}>${esc(text('measurement_start_manual','Add measurements manually'))}</button>${!canEnter?`<span>${esc(text('measurement_start_scope','Add a scope with a measurement schema to enter its measurements manually.'))}</span>`:''}</div>`;
+    start.querySelector('[data-scope-order]')?.addEventListener('click',()=>state.options?.onOrderMeasurements?.());
+    start.querySelector('[data-scope-enter]')?.addEventListener('click',()=>{state.manualEntryRequested=true;drawManual(root,state,contextKey);});
+    if(!state.manualStyled){state.manualStyled=true;import(manualEditorUrl()).then(module=>module.ensureStyles?.()).catch(()=>{state.manualStyled=false;});}
+  }
   if(mode!=='compare')state.manualOpen=false;
-  const shown=mode==='edit'||(mode==='compare'&&!!state.manualOpen);
+  const shown=(mode==='edit'&&!state.measurementStartShown)||(mode==='compare'&&!!state.manualOpen);
   const changed=shown!==!!state.manualShown;state.manualShown=shown;state.manualMode=mode;
   const panel=root.querySelector('[data-scope-manual]'),flip=root.querySelector('[data-scope-manual-flip]');
   if(flip&&!flip.onclick)flip.onclick=()=>{state.manualOpen=true;drawManual(root,state,contextKey);state.manualHandle?.focus?.();};
@@ -204,8 +218,7 @@ function drawManual(root,state,contextKey){
   }
   // The flip control and the editor share the editor's styles; load them as soon as either can show.
   if(mode!=='none'&&!state.manualStyled){state.manualStyled=true;import(manualEditorUrl()).then(module=>module.ensureStyles?.()).catch(()=>{state.manualStyled=false;});}
-  const flipHidden=!(state.view==='roof'&&mode==='compare'&&!shown);
-  if(changed||(flip&&flip.hidden!==flipHidden))showViews(root,state,changed);
+  showViews(root,state,changed);
 }
 function showViews(root,state,manualChanged=false){
   // A view that replaces another slides in from the side its tab sits on. The first view shown does not move.
@@ -219,9 +232,12 @@ function showViews(root,state,manualChanged=false){
     if(appearing&&(moving||manualChanged)){void manual.offsetWidth;manual.classList.add(forward||!moving?'sw-enter-forward':'sw-enter-back');}
   }
   if(flip)flip.hidden=!(state.view==='roof'&&state.manualMode==='compare'&&!state.manualShown);
+  const start=root.querySelector('[data-scope-measurement-start]'),startOn=state.view==='roof'&&!!state.measurementStartShown;
+  if(start)start.hidden=!startOn;
+  if(startOn)root.querySelector('[data-scope-panel="roof"]').hidden=true;
   state.shown=state.view;
   root.querySelectorAll('[data-scope-view]').forEach(tab=>{const active=tab.dataset.scopeView===state.view;tab.setAttribute('aria-selected',String(active));tab.tabIndex=active?0:-1;});
-  for(const [key,widget] of Object.entries(state.widgets))widget?.setVisible?.(state.visible&&state.view===key&&!(key==='roof'&&manualOn));
+  for(const [key,widget] of Object.entries(state.widgets))widget?.setVisible?.(state.visible&&state.view===key&&!(key==='roof'&&(manualOn||startOn)));
   window.dispatchEvent(new Event('resize'));
 }
 export function disposeSidebar(root){const state=sidebars.get(root);state?.observer?.disconnect();state?.stageObserver?.disconnect();state?.handle?.destroy?.();state?.manualHandle?.destroy?.();if(state)for(const widget of Object.values(state.widgets))widget?.destroy?.();sidebars.delete(root);}

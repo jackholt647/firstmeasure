@@ -176,6 +176,21 @@ Projects and Contacts share the [entity window shell](window-shell.md). Its opti
 
 ## Overview entry workflows and project trays
 
+The Operations Measurements view starts with **No measurements.** when there is
+no report or entered dataset. **Order measurement report** enters the same
+configured FirstMeasure order session as Overview, preserving the project and
+asking for its address when missing; it does not submit an order. Overview keeps
+its entry point. **Add measurements manually** opens the existing schema-based
+editor; a project without measurement schemas explains that a scope is needed.
+Existing manual values open in the editor, and completed reports keep their model.
+
+The project's main Documents gallery also lists the delivered Customer Roof
+Report, Roof Measurement Report and Roof Report XML. These are file references,
+not new document instances. It uses Reports' asset resolution and release-hold
+handling, replacing older PDF references by identity rather than duplicating
+them. The default gallery density is Loose (large tiles); an explicit choice is
+remembered for the current organization and user in this browser.
+
 Overview also owns the focused New Report project picker and the map-first New Project
 form. The same mounted details form provides contacts, address, property type, custom
 fields, and initial actions. `firstmeasure.new_report_project` defaults to `auto`:

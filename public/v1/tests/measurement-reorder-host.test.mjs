@@ -3,6 +3,29 @@ import { readFile } from 'node:fs/promises';
 import test from 'node:test';
 import vm from 'node:vm';
 const source = await readFile(new URL('../../libraries/apps/measurements/project.js', import.meta.url), 'utf8');
+const hostSource = await readFile(new URL('../../libraries/apps/project-request/app.js', import.meta.url), 'utf8');
+
+test('the shared order entry keeps the current project and asks for a missing address without purchasing', () => {
+  const start = hostSource.indexOf('  function startMeasurementOrder(');
+  const body = hostSource.slice(start,hostSource.indexOf('\n  }',start)+4);
+  const calls=[];
+  const project={id:'project-existing'};
+  const context={firstMeasureReportOrdersEnabled:()=>true,hasPerm:()=>true,hasReportOrdered:()=>false,
+    activeBaseProject:project,addressSelected:false,preloadFirstReportCheckoutEligibility:()=>calls.push('eligibility'),
+    setActivePreviewTab:tab=>calls.push(tab),renderWorkflowState:()=>calls.push('render'),queueAutosaveNotice:()=>calls.push('autosave'),
+    $:()=>({focus:()=>calls.push('address')})};
+  vm.createContext(context);vm.runInContext(body,context);
+  assert.equal(context.startMeasurementOrder(),true);
+  assert.equal(context.activeBaseProject,project);
+  assert.equal(context.reportProjectChoice,'existing');
+  assert.equal(context.requestedWorkflow,'report');
+  assert.equal(context.reportSelection,'roof');
+  assert.deepEqual(calls,['eligibility','map','render','autosave','address']);
+  calls.length=0;context.hasPerm=()=>false;
+  assert.equal(context.startMeasurementOrder(),false);assert.deepEqual(calls,[]);
+  context.hasPerm=()=>true;context.hasReportOrdered=()=>true;
+  assert.equal(context.startMeasurementOrder(),false);assert.deepEqual(calls,[]);
+});
 function functionSource(name) {
   const start = source.search(new RegExp(`  (?:async )?function ${name}\\(`));
   assert.ok(start >= 0);

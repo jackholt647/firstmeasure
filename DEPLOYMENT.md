@@ -1,5 +1,7 @@
 # FirstMeasure: local development and production deployment
 
+October 26 Project reports and ordering: [Documents includes roof PDFs and XML, defaults to loose gallery icons, and empty Measurements offers the shared report ordering workflow](deploy/digitalocean/development-project-reports-20261026.md) records release `a730ce84` on development legacy and web.
+
 October 27 Messages fallback: [independent Messages switch, bell fallback for tags, and Operations report prefill/copy fixes](deploy/digitalocean/development-messages-fallback-20261027.md) records verified development release `943d9542`.
 
 October 27 Operations setup: [shared scope/proposal workflow, optional setup checklist, global Equipment offer and tutorial](deploy/digitalocean/development-operations-setup-20261027.md) records verified development release `1b28c1df` on worker, compatibility and web.

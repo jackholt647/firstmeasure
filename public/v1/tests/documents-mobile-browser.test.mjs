@@ -13,7 +13,7 @@ import { chromium } from 'playwright-core';
 const libraries = new URL('../../libraries/', import.meta.url);
 const read = (path) => readFile(new URL(path, libraries), 'utf8');
 const css = await read('apps/documents/documents.css');
-const documentsSource = await read('apps/documents/project.js');
+const documentsSource = (await read('apps/documents/project.js')).replace(/\r\n/g,'\n');
 const PHONE = { viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true, deviceScaleFactor: 2, userAgent: 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.5 Mobile/15E148 Safari/604.1' };
 const DESKTOP = { viewport: { width: 1600, height: 1000 } };
 const launch = () => chromium.launch({ executablePath: process.env.CHROME_PATH || 'C:/Program Files/Google/Chrome/Application/chrome.exe', headless: true });
@@ -150,6 +150,36 @@ async function openNewDialog(page, { phone = false } = {}) {
   }, { typeCode, modalCode, createCode });
   await page.waitForSelector('[data-tpl-search]');
 }
+
+test('Documents shows delivered roof PDFs and XML once, defaults to loose tiles, and remembers the chosen size', async () => {
+  const browser = await launch();
+  try {
+    const { page, errors } = await pageFor(browser, DESKTOP);
+    await mountDocsTab(page);
+    await page.evaluate(async () => {
+      window.PlatformAPI.projectDocuments.list = async () => ({documents:[{id:'roof_report_pdf',title:'Old report title',document_type:'roof_report',url:'/old.pdf'}],uploaded_documents:[]});
+      window.reportAssets={reportUrl:'/report.pdf',summaryUrl:'/summary.pdf',xmlUrl:'/model_data.xml'};
+      window.docContext={panelRoot:document.querySelector('#tab'),active:true,host:{getProject:()=>({id:'p1',measurement:{completed_at:'2026-10-26T12:00:00Z'}}),projectOrgId:()=> 'org',loadReportDocumentAssets:async()=>window.reportAssets}};
+      window.Portal.ProjectDocsTab.mount(window.docContext);
+    });
+    await page.getByText('Roof Report XML',{exact:true}).first().waitFor();
+    assert.equal(await page.locator('.fm-document-tile').count(),3,'existing PDF entries are not duplicated');
+    assert.ok(await page.getByText('Customer Roof Report',{exact:true}).first().isVisible());
+    assert.ok(await page.getByText('Roof Measurement Report',{exact:true}).first().isVisible());
+    assert.equal(await page.locator('.fm-docs-gallery .pf-wrap').getAttribute('data-density'),'loose');
+    await page.evaluate(()=>{window.FirstMateMarkup={openMediaViewer:options=>{window.openedDocument=options.photos[options.index].__document;window.closeDocument=options.onClose;return {close(){},updateBounds(){},updateMarkupLayerBounds(){}};}};});
+    await page.getByText('Roof Report XML',{exact:true}).first().click();
+    assert.deepEqual(await page.evaluate(()=>({url:openedDocument.url,type:openedDocument.content_type})),{url:'/model_data.xml',type:'application/xml'});
+    await page.evaluate(()=>window.closeDocument());
+    await page.locator('.pf-density [data-density="compact"]').click();
+    await page.evaluate(()=>window.Portal.ProjectDocsTab.mount(window.docContext));
+    assert.equal(await page.locator('.fm-docs-gallery .pf-wrap').getAttribute('data-density'),'compact');
+    await page.evaluate(()=>{window.reportAssets={reportUrl:'',summaryUrl:'',xmlUrl:''};window.Portal.ProjectDocsTab.setActive(true,window.docContext);});
+    await page.waitForFunction(()=>document.querySelectorAll('.fm-document-tile').length===0);
+    assert.equal(await page.getByText('Old report title',{exact:true}).count(),0,'a withheld report is not revived from the older project references');
+    assert.deepEqual(errors,[]);
+  } finally { await browser.close(); }
+});
 
 test('on a phone New fills the screen and offers Upload beside Blank', async () => {
   const browser = await launch();
