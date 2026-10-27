@@ -115,9 +115,9 @@ test('a draft shows the whole tab with empty states, reads nothing about the pro
     assert.equal(view.generate, true, 'Generate is offered on a draft');
     assert.equal(view.loadingCard, false);
     await page.locator('[data-scope-view="documents"]').click();
-    assert.match(await page.locator('[data-scope-panel="documents"]').textContent(), /No documents yet/);
+    await page.locator('[data-scope-panel="documents"]').getByText('No documents yet', { exact: true }).first().waitFor();
     await page.locator('[data-scope-view="aerial"]').click();
-    await page.locator('[data-scope-panel="aerial"]').getByText('No project photos yet.').waitFor();
+    await page.locator('[data-scope-panel="aerial"]').getByText('No photos yet', { exact: true }).first().waitFor();
     // Opening the tab and looking around read nothing about the project and saved nothing.
     assert.deepEqual(projectCalls(await page.evaluate(() => window.calls)), []);
     assert.equal(await page.evaluate(() => window.calls.filter(([kind]) => kind === 'roof-widget').length), 0, 'no report viewer reads for a draft');

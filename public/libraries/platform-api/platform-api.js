@@ -2274,6 +2274,25 @@
     }
   };
 
+  // Markup on a project document that is not a media file (a delivered report PDF), kept per project and
+  // document key (`[a-z0-9_:.-]{1,100}`, lower-cased by the server). Media files keep theirs with media.getMarkup / saveMarkup.
+  // Both resolve to { ok, layer }, layer being null or { doc_key, data, revision, updated_at, updated_by_name? };
+  // data is { schema: 1, pages: { "1": [items], ... } }. Pass options.expected_revision (0 for a first save)
+  // to be refused with 409 instead of overwriting a newer save.
+  const projectDocumentMarkup = {
+    get(orgId, projectId, docKey){
+      return request(orgPath(orgId, `/projects/${enc(projectId)}/document-markup/${enc(docKey)}`));
+    },
+    save(orgId, projectId, docKey, data = {}, options = {}){
+      const body = { data: data || {} };
+      if (Number.isInteger(options?.expected_revision)) body.expected_revision = options.expected_revision;
+      return request(orgPath(orgId, `/projects/${enc(projectId)}/document-markup/${enc(docKey)}`), {
+        method: 'PUT',
+        body
+      });
+    }
+  };
+
   const projectMedia = {
     // Cloned manifests can contain absolute URLs from a different environment.
     // Rebase only our authenticated artifact route, never arbitrary external media.
@@ -3276,6 +3295,7 @@
     labor,
     dashboard,
     projectDocuments,
+    projectDocumentMarkup,
     projectMedia,
     branchModules: {
       async list(orgId, branchId){

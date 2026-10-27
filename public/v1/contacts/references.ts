@@ -172,6 +172,8 @@ export function projectReferenceAdapters(): ReferenceAdapter[] {
     sqlAdapter("project-comms", communications, ["customer_calls", "communication_conversations", "communication_messages"], "project_id"),
     sqlAdapter("project-appointments", async () => (await import("../appointments/storage.js")).getAppointmentsDatabase(), ["appointment_confirmations", "appointment_reschedule_sessions"], "project_id"),
     documentsAdapter("project", async () => PROJECT_DOCUMENT_COLLECTIONS_MOVED),
+    // Markup on report PDFs and other non-media documents is keyed by project, so it moves to the survivor's key.
+    { id: "project-document-markup", async repoint(org, fromId, toId) { return (await import("../projects/document-markup.js")).projectDocumentMarkupAdapter().repoint(org, fromId, toId); } },
     mediaAdapter("project")
   ];
 }

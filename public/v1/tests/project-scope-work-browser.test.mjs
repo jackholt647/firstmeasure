@@ -140,16 +140,14 @@ test('resource panes keep independent scroll, stable equal columns, and a dragga
     });
     assert.equal(await page.getByRole('tab',{name:'Measurements',exact:true}).getAttribute('aria-selected'),'true');assert.ok(await page.getByText('Cached reports.roof').isVisible());
     await page.getByRole('tab',{name:'Documents',exact:true}).click();
-    const tile=page.locator('[data-scope-document="contract"]');assert.equal(await tile.getAttribute('aria-pressed'),'true');
-    await page.getByText('Rendered accepted roof contract').waitFor();
-    assert.equal(await page.getByRole('dialog').count(),0);assert.equal(await page.evaluate(()=>renderedSnapshot.id),'captured-definition');assert.deepEqual(await page.evaluate(()=>renderedContext),{params:{contract_value:12345},outputs:{signed:true}});
-    assert.ok(await page.locator('aside table').getByText('Shingles',{exact:true}).isVisible());assert.equal(await page.getByRole('button',{name:'Back',exact:false}).count(),0);
+    // Documents is the shared media carousel (rail-media-browser.test.mjs covers what it lists and does).
+    await page.locator('[data-scope-panel="documents"] .fm-rail-media').waitFor();
     assert.equal(await page.locator('[data-scope-document="report"]').count(),0);assert.equal(await page.locator('aside [data-scope-measure],aside details').count(),0);
     for(let i=0;i<3;i++){await page.getByRole('tab',{name:'Documents',exact:true}).click();await page.getByRole('tab',{name:'Photos',exact:true}).click();await page.getByRole('tab',{name:'Measurements',exact:true}).click();}
     await page.evaluate(()=>helper.mountSidebar(document.querySelector('aside'),scopeDocs,'','org:project',{measurementOverrides:{roofArea:1500},onMeasurementChange:(key,value)=>window.edited={key,value}}));
     assert.equal(await page.evaluate(()=>roofContext.getMeasurements().roofArea.value),1500);await page.evaluate(()=>roofContext.onMeasurementChange('roofArea',1750));assert.deepEqual(await page.evaluate(()=>edited),{key:'roofArea',value:1750});assert.equal(await page.evaluate(()=>roofContext.getMeasurements().roofArea.value),1750);
     await page.evaluate(()=>helper.mountSidebar(document.querySelector('aside'),scopeDocs.filter(doc=>doc.source!=='document'),'','org:empty'));await page.getByRole('tab',{name:'Documents',exact:true}).click();
-    assert.ok(await page.getByText('No document selected',{exact:true}).isVisible());assert.ok(await page.getByText('No documents yet',{exact:true}).isVisible());const emptyViewer=await page.locator('.sw-doc-viewer').boundingBox(),emptyStrip=await page.locator('.sw-doc-strip').boundingBox();assert.ok(emptyViewer.height>emptyStrip.height*3&&emptyStrip.y>=emptyViewer.y+emptyViewer.height-1);
+    await page.locator('[data-scope-panel="documents"]').getByText('No documents yet',{exact:true}).first().waitFor();
     await page.evaluate(()=>helper.mountSidebar(document.querySelector('aside'),scopeDocs,'','org:project',{measurementOverrides:{roofArea:1750}}));
     assert.deepEqual(await page.evaluate(()=>widgetMounts),['reports.roof','reports.roof','reports.roof']);
     assert.equal(await page.getByRole('tab').count(),4);assert.deepEqual(await page.getByRole('tab').allInnerTexts(),['Measurements','Documents','Photos','Schedule']);

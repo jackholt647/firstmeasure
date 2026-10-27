@@ -633,3 +633,16 @@ versions. The count, and so the offered types, stay the same.
 
 **Why it can wait.** The top bar asks once per page load (and after a switch changes), and organizations have a handful
 of scope templates. (docs/architecture/app-experience.md, "Global search")
+
+## A project merge reads every document markup record
+
+**Today.** The merge adapter for markup on project documents (`projectDocumentMarkupAdapter`,
+`public/v1/projects/document-markup.ts`) lists the organization's whole `project_document_markup` collection to find
+the merged project's records, because their ids are derived from the project and the document key and the store has no
+query by field.
+
+**Where the change goes.** Read the merged project's records by an indexed `project_id` (a SQL store or a JSON-path
+index on `platform_documents`), or keep a per-project list of its document keys; the records moved stay the same.
+
+**Why it can wait.** Merges are rare and done by hand, and an organization has at most a few records per project. The
+generic document adapter beside it already reads its collections the same way. (docs/architecture/document-markup.md)

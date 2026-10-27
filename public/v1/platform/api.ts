@@ -1846,6 +1846,9 @@ app.get("/auth/google/config", async () => ({
     };
   });
 
+  // Markup on project documents that are not media (delivered reports): projects/document-markup.ts.
+  (await import("../projects/document-markup.js")).registerProjectDocumentMarkupRoutes(app);
+
   app.put("/organizations/:orgId/global", async (request) => {
     const orgId = getParam(request.params, "orgId");
     await requirePlatformAuth(request, { app: ["portal.company_settings"], orgId, csrf: true, permission: "manage_billing" });
