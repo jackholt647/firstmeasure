@@ -511,7 +511,8 @@
       .fm-photo-modal .r-proposal-markupdock.expanded{width:42px}
       .fm-photo-modal .r-proposal-markup-btn{position:relative;width:42px;height:42px;border-radius:14px;border:1px solid rgba(15,23,42,.08);background:rgba(255,255,255,.92);backdrop-filter:blur(14px);color:#475467;display:flex;align-items:center;justify-content:center;cursor:pointer;box-shadow:0 18px 34px rgba(15,23,42,.12);transition:.18s ease}
       .fm-photo-modal .r-proposal-markup-btn:hover{transform:translateY(-1px);background:#fff;color:#101828}
-      .fm-photo-modal .r-proposal-markup-btn.active{background:var(--primary,#d93025);border-color:var(--primary,#d93025);color:#fff}
+      .fm-photo-modal .r-proposal-markup-btn.active{background:var(--primary,#d93025);border-color:var(--primary,#d93025);color:#fff;transform:scale(1.12);font-size:18px}
+      @media(prefers-reduced-motion:reduce){.fm-photo-modal .r-proposal-markup-btn{transition:none}}
       .fm-photo-modal .r-proposal-markup-tools{position:absolute;top:52px;right:0;display:flex;flex-direction:column;gap:10px;pointer-events:none}
       .fm-photo-modal .r-proposal-markupdock.expand-left .r-proposal-markup-tools{top:0;right:52px;flex-direction:row-reverse}
       .fm-photo-modal .r-proposal-markupdock.expand-up .r-proposal-markup-tools{top:auto;bottom:52px}
@@ -519,8 +520,8 @@
       .fm-photo-modal .r-proposal-markup-tool{width:42px;height:42px;border-radius:14px;border:1px solid rgba(15,23,42,.08);background:rgba(255,255,255,.94);backdrop-filter:blur(14px);color:#475467;display:flex;align-items:center;justify-content:center;cursor:pointer;box-shadow:0 18px 34px rgba(15,23,42,.12);opacity:0;transform:translateY(-14px) scale(.88);transition:opacity .2s ease,transform .26s cubic-bezier(.22,1,.36,1),background .18s ease,color .18s ease,border-color .18s ease}
       .fm-photo-modal .r-proposal-markupdock.expanded .r-proposal-markup-tool{opacity:1;transform:translateY(0) scale(1)}
       .fm-photo-modal .r-proposal-markup-tool:hover{transform:translateY(0) scale(1.04);background:#fff;color:#101828}
-      .fm-photo-modal .r-proposal-markup-tool:disabled{cursor:not-allowed;transform:translateY(-14px) scale(.88);background:rgba(255,255,255,.74);color:#98a2b3}
-      .fm-photo-modal .r-proposal-markupdock.expanded .r-proposal-markup-tool:disabled{opacity:.36;transform:translateY(0) scale(.96)}
+      .fm-photo-modal .r-proposal-markup-tool:disabled{cursor:not-allowed;transform:translateY(-14px) scale(.88);background:#f2f4f7;color:#98a2b3}
+      .fm-photo-modal .r-proposal-markupdock.expanded .r-proposal-markup-tool:disabled{opacity:1;transform:translateY(0) scale(1)}
       .fm-photo-modal .r-proposal-markup-tool.active{background:var(--primary,#d93025);border-color:var(--primary,#d93025);color:#fff}
       .fm-photo-modal .r-proposal-markup-tool.swatch{position:relative;overflow:hidden}
       .fm-photo-modal .r-proposal-markup-tool-swatch{position:absolute;inset:10px;border-radius:10px;border:1px solid rgba(255,255,255,.35)}
@@ -734,6 +735,12 @@
       this.root.closest('.fm-photo-modal')?.classList.toggle('markup-active', this.active);
       this.dock?.classList.toggle('expanded', this.active);
       this.toggleBtn?.classList.toggle('active', this.active);
+      const label = this.active ? 'Done with markup' : 'Markup';
+      this.toggleBtn?.setAttribute('aria-label', label);
+      this.toggleBtn?.setAttribute('aria-expanded', String(this.active));
+      this.toggleBtn?.setAttribute('data-fm-tooltip', label);
+      const icon = this.toggleBtn?.querySelector('i');
+      if (icon) icon.className = this.active ? 'fas fa-check' : 'fas fa-pen';
       if (!this.active) this.closePops();
     }
     point(event){
@@ -1070,7 +1077,7 @@
       const dock = this.options.dock || {};
       this.dock.className = `r-proposal-markupdock ${dock.position || 'dock-top-right'} ${dock.expand || 'expand-down'}`;
       this.dock.innerHTML = `
-        <button type="button" class="r-proposal-markup-btn" data-markup-toggle data-fm-tooltip="Markup"><i class="fas fa-pen"></i></button>
+        <button type="button" class="r-proposal-markup-btn" data-markup-toggle aria-label="Markup" aria-expanded="false" data-fm-tooltip="Markup"><i class="fas fa-pen"></i></button>
         <div class="r-proposal-markup-tools">
           <button type="button" class="r-proposal-markup-tool active" data-markup-tool="pen" data-fm-tooltip="Pen"><i class="fas fa-pen"></i></button>
           <button type="button" class="r-proposal-markup-tool" data-markup-tool="arrow" data-fm-tooltip="Arrow"><i class="fas fa-arrow-right"></i></button>
