@@ -42,6 +42,9 @@ test('the MVP platform workflow is FirstMeasure plus projects, contacts, feed an
  const orgId=String(instance.testOrg.org_id);
  const offered=await storage.readGlobal(orgId);
  assert.deepEqual((offered.data as any).app_offers,['project.photos','project.docs','project.customer_portal','project.materials']);
+ const beforeStart=await capabilities.effectiveCapabilities(orgId);
+ assert.equal(beforeStart.effectiveByKey['platform.photos_feed'],true,'Feed is available at MVP launch');
+ assert.equal(beforeStart.effectiveByKey['platform.project_photos'],false,'project Photos waits for Get Started');
  // The remainder exercises the configured apps after the organization has opted in.
  await storage.mutateGlobal(orgId,current=>{current.data={...current.data,app_offers:[]};return current;});
  instance.authContext=await (await import('../platform/auth.js')).buildAuthContext(instance.authContext.sessionId,instance.authContext.session);

@@ -84,6 +84,8 @@ organizations (`global.data.app_offers`). The configured organization switches
 are still the ceiling: an off or commercially unavailable app is not advertised.
 Existing organizations without this field retain their current active apps.
 The welcome definitions and capability groups live in `app-experience/offers.ts`.
+Feed (`platform.photos_feed`) is an independent app: an offered project Photos
+app never disables the organization Feed.
 
 `capabilityAccessState` resolves offered discovery and operational capabilities
 from the same organization snapshot. Pending capability groups are masked before
