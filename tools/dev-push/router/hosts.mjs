@@ -36,7 +36,7 @@ export function makeHosts({ inventory = INVENTORY, key = path.join(os.homedir(),
       const dest = `${releases}/${sha}.staging/`;
       const linkDest = lane === "platform" ? "/opt/firstmeasure/current/" : `/opt/firstmeasure/lanes/${lane}/current/`;
       const rsync = await run("rsync", [
-        "-a", "--checksum", "--delete", "--chown=root:root", `--link-dest=${linkDest}`, "--exclude=/public/storage/", "--exclude=/public/v1/storage/", "--exclude=/public/v1/output/",
+        "-a", "--checksum", "--delete", "--chown=root:root", `--link-dest=${linkDest}`, "--exclude=/.manifest.json", "--exclude=/public/storage/", "--exclude=/public/v1/storage/", "--exclude=/public/v1/output/",
         "-e", ["ssh", ...sshOptions].join(" "), `${dir.replace(/\/?$/, "/")}`, `${address(role)}:${dest}`
       ], { timeout: 30 * 60_000 });
       if (rsync.code !== 0) return { ok: false, error: `rsync to ${role}: ${rsync.stderr.trim().slice(-800)}` };
