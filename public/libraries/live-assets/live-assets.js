@@ -45,8 +45,9 @@ async function sha1(bytes) {
   return [...new Uint8Array(digest)].map((byte) => byte.toString(16).padStart(2, '0')).join('');
 }
 
+/** The bytes' hash as the browser has them: `force-cache` gives the cached copy the page most likely ran. */
 async function served(url, path) {
-  const response = await fetch(url, { cache: 'reload', credentials: 'same-origin' });
+  const response = await fetch(url, { cache: 'force-cache', credentials: 'same-origin' });
   if (!response.ok) return null;
   if (!TEXT.has(extOf(path))) return sha1(await response.arrayBuffer());
   return sha1(new TextEncoder().encode((await response.text()).replace(/\r\n/g, '\n')));
@@ -109,8 +110,8 @@ export async function apply(changes) {
 }
 
 /**
- * On connect: a frame that ran a cached copy of a layer file (the browser kept the release's copy) refetches
- * it and reloads once for that version.
+ * On connect: a frame that ran a cached copy of a layer file (the release's copy is cached for up to an hour
+ * under its ?v= URL) refetches it past the cache and reloads once for that version.
  */
 async function verify() {
   const stale = [];
