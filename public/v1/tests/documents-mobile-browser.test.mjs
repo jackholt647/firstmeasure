@@ -220,6 +220,8 @@ test('document covers use PDF page one, module pages and a consistent icon fallb
     assert.equal(await page.locator('.fm-doc-card-heading .fm-doc-title-icon').count(),4);
     assert.ok(await page.locator('.fm-doc-detail-pills').filter({hasText:'28.5 squares'}).first().isVisible());
     assert.equal(await page.locator('.fm-doc-card-body').filter({hasText:'squares'}).count(),0);
+    await page.evaluate(()=>document.documentElement.style.setProperty('--primary','#7c3aed'));
+    assert.ok((await page.locator('.fm-doc-detail-pills>span,.fm-doc-type-badge').evaluateAll(nodes=>nodes.map(node=>({background:getComputedStyle(node).backgroundColor,color:getComputedStyle(node).color})))).every(style=>style.background==='rgb(124, 58, 237)' && style.color==='rgb(255, 255, 255)'));
     assert.ok(await page.locator('[data-doc-preview-id="engine:workflow"] .fm-doc-card-mark').isVisible());
     assert.ok(await page.locator('[data-doc-preview-id="xml"] .fm-doc-card-mark').isVisible());
     const badge=await page.locator('[data-doc-preview-id="xml"] .fm-doc-symbol').evaluate(node=>{const main=node.firstElementChild.getBoundingClientRect(),badge=node.lastElementChild.getBoundingClientRect();return {main,badge};});
