@@ -80,6 +80,7 @@ const ENABLED = [
 // Report follow-up (the Reports tab's Support view) is off by default too; it is named here so the MVP keeps it off
 // whatever the default becomes, as the FirstMeasure signup does (Jack, 2026-10-26).
 const DISABLED = [
+  "topbar.messages",
   "materials.resource_categories",
   "firstmeasure.report_followup"
 ];
@@ -105,7 +106,7 @@ export const workflow: JsonObject = {
   description: "The FirstMeasure default signup plus the MVP platform: My Projects (with the project map), My Contacts and Feed; project tabs Overview, Reports, Photos (New), Docs (New), Operations and Customer Portal; Agent, Notes, Activity and To Do trays. No Scheduling or calendar. Every project is a generic roof job.",
   entry_mode: "landing_first",
   // Raise when this file changes: the saved workflow is replaced with it on the next seed.
-  configuration_revision: 20,
+  configuration_revision: 21,
   sample_data: true,
   // A launched test instance starts empty: sample projects and customers come only from "Add sample data" in the
   // development tools (Jack, 2026-10-26). An empty list, not a missing one, so the revision replaces a saved list.

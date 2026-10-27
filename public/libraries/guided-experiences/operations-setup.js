@@ -17,6 +17,31 @@ async function workflowRuntime(){
   if(!window.FMDocWorkflow)await loadScript('/libraries/doc-workflow/firstmate-doc-workflow.js');
   return window.FMDocWorkflow;
 }
+// Opening the setup reads the report; it never imports a dataset or changes the selected source.
+export async function loadOperationsMeasurements(env){
+  const result=await window.PlatformAPI.publication.measurements(env.orgId,env.projectId);
+  const dataset=object(result.result||result),data=object(dataset.value);
+  if(dataset.status==='ready'){
+    const values={};
+    for(const [key,entry] of Object.entries(object(data.measurements))){
+      const raw=typeof entry==='number'?entry:entry?.value;
+      if(raw==null||!Number.isFinite(Number(raw)))continue;
+      values[key]=Number(raw);
+    }
+    return {values,source:copy('gx_ops_measurement_source','Project measurements'),...object(window.FMDocWorkflow?.structures?.fromDataset?.(dataset))};
+  }
+  // Only an explicitly missing dataset permits the legacy report fallback. A denied or unavailable
+  // selected source must not silently be replaced with another report.
+  if(dataset.status!=='missing')throw Error('Project measurement dataset is unavailable.');
+  if(!window.FirstMeasureAPI?.roofMeasurements?.load)await loadScript('/libraries/firstmeasure-api/firstmeasure-api.js');
+  const saved=await window.PlatformAPI.projects.get(env.orgId,env.projectId);
+  const project={...object(object(saved.document).data),id:env.projectId,organization_id:env.orgId};
+  const loaded=await window.FirstMeasureAPI.roofMeasurements.load(project,{force:true});
+  const values=Object.fromEntries(Object.entries(object(loaded.measurements)).filter(([,value])=>typeof value==='number'&&Number.isFinite(value)));
+  // A legacy report does not supply a waste percentage. Keep the workflow's default instead.
+  if(!(values.wastePercent>0))delete values.wastePercent;
+  return {values,source:copy('gx_ops_measurement_source','Project measurements'),...(loaded.origin==='project_measurement_dataset'?object(window.FMDocWorkflow?.structures?.fromDataset?.(loaded.source)): {})};
+}
 function installStyle(){
   if(document.getElementById('gx-operations-style'))return;
   const style=document.createElement('style');style.id='gx-operations-style';style.textContent=`
@@ -54,7 +79,7 @@ function documentWidget(el,ctx){
   const env=environment(ctx),path=ctx.options.path||ctx.selections.operation_path||'scope';
   let alive=true,documentRecord=null,handle=null,saving=null,timer=null,changed=0,saved=0,busy=false,stepState={},documentEngine=null,documentEngineHost=null;
   let values={params:{},outputs:{}};
-  el.innerHTML=`<div class="ops-setup"><p class="ops-notice">${esc(path==='proposal'?copy('gx_ops_proposal_hint','Your answers build the proposal beside you. You can review it before sharing it.'):copy('gx_ops_scope_hint','Choose the work, confirm the measurements, then review what this project needs. No signature or payment is needed.'))}</p><div class="ops-workflow"><div class="ops-loading">${esc(copy('gx_operations_loading','Opening Operations…'))}</div></div><p class="ops-error" role="alert"></p><p class="ops-status" role="status"></p></div>`;
+  el.innerHTML=`<div class="ops-setup"><p class="ops-notice">${esc(path==='proposal'?copy('gx_ops_proposal_hint','Your answers build the proposal beside you. You can review it before sharing it.'):copy('gx_ops_scope_work_hint','Choose the work, confirm the measurements, then review what this project needs.'))}</p><div class="ops-workflow"><div class="ops-loading">${esc(copy('gx_operations_loading','Opening Operations…'))}</div></div><p class="ops-error" role="alert"></p><p class="ops-status" role="status"></p></div>`;
   const host=el.querySelector('.ops-workflow'),error=el.querySelector('.ops-error'),status=el.querySelector('.ops-status');
   const fail=exception=>{if(alive){error.textContent=exception?.message||copy('gx_ops_save_error','Could not save. Please try again.');status.textContent='';}};
   async function flush(){
@@ -125,7 +150,7 @@ function documentWidget(el,ctx){
         ]}:{}),
         pieceCatalog:async()=>prepared.piece_catalog||prepared.pieces||[],
         measurementKeysForSelection:async selection=>[...new Set(array(selection).flatMap(piece=>array(fields[piece.template_id||piece.id]).map(field=>typeof field==='string'?field:field.key||field.id)))],
-        projectMeasurements:async()=>{const result=await window.PlatformAPI.publication.measurements(env.orgId,env.projectId),data=object(result.value||result.result?.value);return {values:Object.fromEntries(Object.entries(object(data.measurements)).map(([key,entry])=>[key,Number(typeof entry==='number'?entry:entry?.value)]).filter(([,value])=>Number.isFinite(value))),source:copy('gx_ops_measurement_source','Project measurements')};},
+        projectMeasurements:()=>loadOperationsMeasurements(env),
         generateScopeItems:async(selection,measurements)=>array((await env.invoke('operations.scope.generate',{selection,measurements})).items),
         scopeCandidates:async(templateId,group,measurements)=>{const result=await window.PlatformAPI.publication.invoke(env.orgId,'pricebook.scope.candidates',{scope:'organization',organizationId:env.orgId},{templateId,group,measurements});return array(result.value);}
       }

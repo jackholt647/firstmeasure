@@ -641,3 +641,13 @@ of scope templates. (docs/architecture/app-experience.md, "Global search")
 **Where the change goes.** Add indexed existence/count queries to the supplier and equipment domain readers, preserving their authorization and exactly the same completion criteria.
 
 **Why it can wait.** The checklist is opened during initial setup, when these collections are small. Revisit before large organizations use the hub frequently.
+
+
+### Message notification bell fallback authorization
+
+`platform/notifications/view.ts` rechecks each retained message through
+`channels/service.ts:messageNotificationVisible`. This repeats channel, message,
+read-state and collaboration preference reads for the same viewer. A future
+request-scoped cache/batch must preserve media/project access, per-message audience,
+thread/channel mute, deletion and read-sequence results exactly. See
+[notifications](architecture/notifications.md).

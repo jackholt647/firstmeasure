@@ -41,13 +41,17 @@ export function preferenceKeyForNotification(note: Json): string {
 }
 
 export const notificationPresentationSurfaces = ["in_app_sound", "in_app_badge", "in_app_bell"] as const;
-export function notificationPresentation(raw: unknown, note: Json) {
+export function notificationPresentation(raw: unknown, note: Json, options: { messagesInboxEnabled?: boolean } = {}) {
   const preferences = object(raw), key = preferenceKeyForNotification(note);
   const enabled = notificationPreferenceEnabled(raw, note, "in_app");
+  const separateMessages = options.messagesInboxEnabled !== false;
+  const messageFallback = !separateMessages && (isMessageInboxNotification(note) || key === 'messages');
+  const bellPreference = object(preferences.in_app_bell)[key];
   return {
     sound: enabled && object(preferences.in_app_sound)[key] !== false,
     badge: enabled && object(preferences.in_app_badge)[key] !== false,
-    bell: enabled && !isMessageInboxNotification(note) && (typeof object(preferences.in_app_bell)[key] === "boolean" ? object(preferences.in_app_bell)[key] === true : key !== "messages" && !isMessageInboxNotification(note))
+    // A message's old inbox-placement preference cannot strand it when that surface is disabled.
+    bell: enabled && !(separateMessages && isMessageInboxNotification(note)) && (messageFallback || (typeof bellPreference === "boolean" ? bellPreference : key !== "messages"))
   };
 }
 export function isMessageInboxNotification(note: Json) {

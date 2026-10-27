@@ -53,7 +53,7 @@ test('the MVP platform workflow is FirstMeasure plus projects, contacts, feed an
  const {effectiveByKey}=await capabilities.effectiveCapabilities(orgId);
  const on=['platform.more_apps','platform.advanced_app_menu','firstmeasure.exteriors','platform.top_bar','topbar.global_search','topbar.notifications','platform.expanded_access','apps.projects','apps.project_map','platform.project_stages_view','platform.contacts','platform.photos_feed','platform.project_photos','platform.customer_portal','platform.materials','platform.documents','apps.firstmeasure','firstmeasure.report_orders','apps.assistant','channels.project_notes','apps.equipment'];
  for(const key of on) assert.equal(effectiveByKey[key],true,key);
- const off=['customer_portal.guest_links','platform.project_assignments','topbar.todos','channels.project_messages_tray','platform.scheduling','scheduling.gantt','apps.crm','apps.stats','apps.payroll','apps.training','apps.sales','platform.money','apps.comms','apps.live_chat','assistant.actions','apps.checklists'];
+ const off=['topbar.messages','customer_portal.guest_links','platform.project_assignments','topbar.todos','channels.project_messages_tray','platform.scheduling','scheduling.gantt','apps.crm','apps.stats','apps.payroll','apps.training','apps.sales','platform.money','apps.comms','apps.live_chat','assistant.actions','apps.checklists'];
  for(const key of off) assert.notEqual(effectiveByKey[key],true,key);
  // Accepting Equipment enables its standard fixed feature set; the main Scheduling app remains off.
  assert.equal(effectiveByKey['equipment.scheduling'],true);
@@ -84,7 +84,7 @@ test('the MVP platform workflow is FirstMeasure plus projects, contacts, feed an
  const roofing=await scopes.readScopeTemplate(orgId,'default','generic_roofing');
  assert.deepEqual((roofing as any).definition?.measurement_schema_ids ?? (roofing as any).measurement_schema_ids,['roofing']);
  assert.equal(String((await creation.creationScopeTemplate(orgId,'default')).id),'generic_roofing');
- assert.equal((workflow as any).dev_bar,false);assert.equal((workflow as any).configuration_revision,20);
+ assert.equal((workflow as any).dev_bar,false);assert.equal((workflow as any).configuration_revision,21);
  const resolved=(await capabilities.effectiveCapabilities(orgId)).values as any;
  assert.equal(resolved['platform.new_button_mode'],'selector');assert.equal(resolved['platform.new_button_items'],'report,project,contact');
  // The left column's footer is stacked: the account on its own row, named explicitly as well as being the default.

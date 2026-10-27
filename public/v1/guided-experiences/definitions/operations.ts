@@ -20,7 +20,7 @@ export function registerOperationsGuidedExperiences() {
         body: t('workflow_tour_work_body', 'Roofing, gutters, siding—or a combination. Choose everything this project includes. You can select more than one.'), wait_ms: 5000 },
       { id: 'steps', targets: ['.ops-workflow [data-fmdw-steps]'], placement: 'right', advance: 'next',
         title: t('workflow_tour_steps_title', 'Build it one step at a time'),
-        body: t('workflow_tour_steps_body', 'Next you’ll check measurements and review the products and work. You can go back to change an answer. A proposal also includes payment terms and a preview.') },
+        body: t('workflow_tour_scope_steps_body', 'Next you’ll check measurements and review the products and work. You can go back to change an answer.') },
       { id: 'continue', targets: ['.ops-workflow [data-fmdw-continue]'], placement: 'top', advance: 'next',
         title: t('workflow_tour_continue_title', 'Your choices build your scope'),
         body: t('workflow_tour_continue_body', 'Use Next when you’re ready. Finishing saves your scope of work, so Operations can generate materials from the choices you made.') }

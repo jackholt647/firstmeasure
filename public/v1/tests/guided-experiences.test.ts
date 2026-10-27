@@ -165,6 +165,8 @@ test("Operations uses the shared document workflow and optional setup hub before
  const {experienceSchema}=await import('../guided-experiences/contracts.js');
  service.ensureGuidedDefinitions();
  const setup=experience('operations.setup')!;
+ const walkthrough=experience('operations.workflow_tutorial')!;
+ assert.doesNotMatch(JSON.stringify(walkthrough.steps),/proposal|payment|signature/i,'the shared scope walkthrough focuses on the work, without proposal concepts');
  assert.equal(experienceSchema.safeParse(setup).success,true);
  assert.equal(setup.kind,'modal');assert.equal(setup.scope,'organization');
  assert.deepEqual(setup.triggers.map(trigger=>trigger.kind),['tab_opened']);

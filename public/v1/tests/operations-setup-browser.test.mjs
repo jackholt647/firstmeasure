@@ -43,6 +43,7 @@ test('the quick scope uses the native workflow, saves before publishing, and doe
     await page.evaluate(()=>window.widget=operations.mountWidget('operations-document',document.getElementById('host'),widgetContext));
     await page.locator('[data-fmdw-piece-type=roof_replacement]').click();
     await page.locator('[data-fmdw-piece-type=gutters]').click();
+    assert.doesNotMatch(await page.locator('#host').innerText(),/proposal|payment|signature/i,'active quick scope only explains building the scope');
     assert.equal(await page.locator('[data-fmdw-preview]').count(),0);
     await page.locator('[data-fmdw-continue]').click();
     await page.waitForFunction(()=>advanced===1);
