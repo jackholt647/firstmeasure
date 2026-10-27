@@ -7,13 +7,15 @@ import fs from "node:fs";
 import path from "node:path";
 import { createRequire } from "node:module";
 
-const SKIP_DIRS = new Set(["node_modules", "dist", ".tmp", "storage", "output", ".git"]);
+// Runtime data and build output at the top of public/v1 (src/storage is code); node_modules and .git anywhere.
+const SKIP_TOP = new Set(["dist", ".tmp", "storage", "output"]);
+const SKIP_ANYWHERE = new Set(["node_modules", ".git"]);
 const SKIP_JSON = new Set(["package.json", "package-lock.json", "tsconfig.json"]);
 
 function* sources(v1, rel = "") {
   for (const entry of fs.readdirSync(path.join(v1, rel), { withFileTypes: true })) {
     const child = rel ? `${rel}/${entry.name}` : entry.name;
-    if (entry.isDirectory()) { if (!SKIP_DIRS.has(entry.name) && child !== "firstmeasure/dist") yield* sources(v1, child); continue; }
+    if (entry.isDirectory()) { if (!SKIP_ANYWHERE.has(entry.name) && !(rel === "" && SKIP_TOP.has(entry.name)) && child !== "firstmeasure/dist") yield* sources(v1, child); continue; }
     if (!entry.isFile()) continue;
     if (entry.name.endsWith(".ts") && !entry.name.endsWith(".d.ts")) yield { rel: child, kind: "ts" };
     else if (entry.name.endsWith(".json") && !SKIP_JSON.has(entry.name) && !/^tsconfig\..*\.json$/.test(entry.name)) yield { rel: child, kind: "json" };
@@ -53,5 +55,27 @@ export function buildDist(v1, out, cacheDir) {
     }
     fs.linkSync(cached, target);
   }
+  if (!errors.length) errors.push(...unresolvedImports(out));
   return { ok: errors.length === 0, errors, files, transpiled };
+}
+
+/** Relative imports in `out` (tests aside) that point inside it at a file that is not there. */
+export function unresolvedImports(out) {
+  const missing = [];
+  const pattern = /(?:\bfrom\s*|\bimport\s*\(\s*|\bimport\s+)["'](\.{1,2}\/[^"'\n]+)["']/g;
+  const walk = (dir, rel) => {
+    for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+      const child = path.join(dir, entry.name);
+      const childRel = rel ? `${rel}/${entry.name}` : entry.name;
+      if (entry.isDirectory()) { if (!(rel === "" && entry.name === "tests")) walk(child, childRel); continue; }
+      if (!entry.name.endsWith(".js")) continue;
+      for (const match of fs.readFileSync(child, "utf8").matchAll(pattern)) {
+        const target = path.resolve(dir, match[1]);
+        if (!target.startsWith(path.resolve(out) + path.sep)) continue;
+        if (!fs.existsSync(target)) missing.push(`${childRel}: import ${match[1]} has no file in dist`);
+      }
+    }
+  };
+  walk(out, "");
+  return missing;
 }
