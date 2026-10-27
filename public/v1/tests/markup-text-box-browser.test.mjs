@@ -54,6 +54,9 @@ test('hover formatting tag changes text style and size without resizing, with un
  const page=await fixture(browser);await page.mouse.click(200,200);await page.keyboard.type('Format this');
  await page.mouse.move(10,10);const tag=page.locator('[data-markup-format]');assert.equal(await tag.isVisible(),false);
  await page.locator('.fm-photo-markup-text').hover();assert.ok(await tag.isVisible());
+ const surfaces=await page.evaluate(()=>{const box=document.querySelector('.fm-photo-markup-text'),tag=document.querySelector('[data-markup-format]'),a=getComputedStyle(box),b=getComputedStyle(tag);return {box:a.backgroundColor,tag:b.backgroundColor,radius:a.borderBottomLeftRadius,gap:tag.getBoundingClientRect().top-box.getBoundingClientRect().bottom};});
+ assert.equal(surfaces.box,surfaces.tag);assert.equal(surfaces.radius,'0px');assert.ok(Math.abs(surfaces.gap)<1);
+
  const before=await page.evaluate(()=>({...markup.items[0]}));
  await tag.getByRole('button',{name:'Bold',exact:true}).click();
  assert.equal(await page.locator('.fm-photo-markup-text').evaluate(el=>getComputedStyle(el).fontWeight),'400');

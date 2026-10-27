@@ -500,10 +500,14 @@
       .fm-photo-markup-text-size{position:absolute;width:21px;height:21px;border-radius:5px;background:#fff;border:2px solid var(--primary,#d93025);box-shadow:0 6px 12px rgba(15,23,42,.14);display:none;cursor:nwse-resize;z-index:12;opacity:.5;transition:opacity .14s ease,transform .14s ease}
       .fm-photo-markup-handle:hover,.fm-photo-markup-handle:focus-visible,.fm-photo-markup-text-size:hover,.fm-photo-markup-text-size:focus-visible{opacity:1}
       .fm-photo-modal.markup-active .fm-photo-markup-handle,.fm-photo-modal.markup-active .fm-photo-markup-text-size{display:block}
-      .fm-photo-markup-format{position:absolute;display:flex;align-items:center;gap:2px;padding:3px;background:#fff;color:#344054;border:1px solid #d0d5dd;border-radius:0 0 8px 8px;box-shadow:0 3px 8px #10182824;z-index:14;white-space:nowrap}
-      .fm-photo-markup-format button{width:28px;height:28px;padding:0;border:0;border-radius:4px;background:transparent;color:inherit;cursor:pointer;font:16px Arial}
-      .fm-photo-markup-format button[aria-pressed=true]{background:var(--primary,#147d45);color:#fff}
-      .fm-photo-markup-format input{width:48px;height:28px;box-sizing:border-box;border:1px solid #d0d5dd;border-radius:4px;background:#fff;color:#344054;font:12px Arial;text-align:center}
+      .fm-photo-markup-text.text-format-visible{border-bottom-left-radius:0}
+      .fm-photo-markup-format{position:absolute;display:flex;align-items:center;gap:3px;padding:5px 6px;background:rgba(255,255,255,.72);color:#344054;border:0;border-radius:0 0 8px 8px;box-shadow:0 6px 12px rgba(15,23,42,.08);z-index:14;white-space:nowrap;box-sizing:border-box}
+      .fm-photo-markup-format button{display:grid;place-items:center;width:30px;height:30px;padding:0;border:0;border-radius:5px;background:transparent;color:inherit;cursor:pointer;font:16px Arial;transition:background .12s,color .12s}
+      .fm-photo-markup-format button:hover{background:rgba(255,255,255,.6)}
+      .fm-photo-markup-format button[aria-pressed=true]{background:rgba(52,64,84,.13);color:#101828;box-shadow:inset 0 0 0 1px rgba(52,64,84,.08)}
+      .fm-photo-markup-format .fm-markup-font-size{display:flex;align-items:center;gap:1px;margin-left:3px;padding-left:7px;border-left:1px solid rgba(52,64,84,.2);font:10px Arial;color:#667085}
+      .fm-photo-markup-format input{width:45px;height:30px;box-sizing:border-box;padding:0 2px;border:0;border-radius:5px;background:transparent;color:#344054;font:500 14px Arial;text-align:center;transition:background .12s}
+      .fm-photo-markup-format input:hover,.fm-photo-markup-format input:focus{background:rgba(255,255,255,.6)}
       .fm-photo-markup-format :focus-visible{outline:2px solid var(--primary,#147d45);outline-offset:1px}
       .fm-photo-markup-text-delete{position:absolute;width:21px;height:21px;border-radius:50%;background:#fff;border:1px solid #d0d5dd;color:#475467;font:700 18px/18px sans-serif;padding:0;z-index:13;cursor:pointer}
       .fm-photo-markup-layer :is([data-markup-handle^="text-"],[data-markup-delete],[data-markup-format]){opacity:0;pointer-events:none;visibility:hidden}
@@ -1258,6 +1262,7 @@
     }
     showTextControls(id = ''){
       this.hoveredTextId = id;
+      this.layer.querySelectorAll('.fm-photo-markup-text').forEach(el=>el.classList.toggle('text-format-visible',this.active && el.dataset.markupId===id));
       this.layer.querySelectorAll('[data-markup-handle^="text-"],[data-markup-delete],[data-markup-format]').forEach(control => control.classList.toggle('text-control-visible',control.dataset.markupId===id));
     }
     onDown(event){
@@ -1471,7 +1476,7 @@
           <div class="fm-photo-markup-format" data-markup-format data-markup-id="${escapeHtml(item.id)}" role="toolbar" aria-label="Text formatting" style="left:${(Number(item.x || 0)*100).toFixed(3)}%;top:${((Number(item.y || 0)+height)*100).toFixed(3)}%">
             <button type="button" data-text-format="bold" aria-label="Bold" aria-pressed="${item.bold !== false}"><b>B</b></button>
             <button type="button" data-text-format="italic" aria-label="Italic" aria-pressed="${!!item.italic}"><i>I</i></button>
-            <input type="number" data-text-font-size aria-label="Text size" min="8" max="160" step="1" value="${Math.round(Number(item.fontPx)||this.textFontPx(item.size||1.5))}">
+            <label class="fm-markup-font-size"><input type="number" data-text-font-size aria-label="Text size" min="8" max="160" step="1" value="${Math.round(Number(item.fontPx)||this.textFontPx(item.size||1.5))}"><span aria-hidden="true">px</span></label>
           </div>
           <div class="fm-photo-markup-text-size" data-markup-id="${escapeHtml(item.id)}" data-markup-handle="text-size" style="left:calc(${((Number(item.x || 0) + width) * 100).toFixed(3)}% - 10.5px);top:calc(${((Number(item.y || 0) + height) * 100).toFixed(3)}% - 10.5px)"></div>
         `);
