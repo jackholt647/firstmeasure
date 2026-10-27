@@ -34,8 +34,9 @@ export async function api(path, options = {}) {
   const text = await response.text();
   let data = null; try { data = text ? JSON.parse(text) : null; } catch (_) {}
   if (!response.ok || data?.ok === false) {
-    const error = new Error(String(data?.error || data?.message || `Request failed (${response.status})`));
-    Object.assign(error, { status: response.status, code: String(data?.code || ''), body: data });
+    // Platform errors carry { error: code, message }; the signup sandbox's carry { code, error: message }.
+    const error = new Error(String(data?.message || data?.error || `Request failed (${response.status})`));
+    Object.assign(error, { status: response.status, code: String(data?.code || (data?.message ? data?.error : '') || ''), body: data });
     throw error;
   }
   return data || {};

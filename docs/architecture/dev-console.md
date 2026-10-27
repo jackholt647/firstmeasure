@@ -39,17 +39,17 @@ library's editor flag); `readAccess` in `dev-console.js` says so.
 | Section | What | Where it came from |
 |---|---|---|
 | Test run | the sandbox workflow's stages, the showing one, Open, the workflow builder | the bottom test-run bar (`portal/signup-sandbox/devbar.js` still runs the stages and exposes `window.SignupSandboxRun`) |
-| Flags and settings | this organization's flags and settings beside what it started with; Restore one, or **Restore initial state** | new; the config library's `GET/PATCH /v1/config-library/org-state`, `POST …/restore` |
+| Flags and settings | this test organization's flags, scope flags and settings beside what it started with; flip one, Restore one, or **Restore initial state** (which also replays every Get Started tour and setup); record a start when none was | new; the config library's `/v1/config-library/organizations/:orgId/state` (`PATCH`, `/restore`, `/capture`) |
 | Guided experiences | Editing copy, the last field's history, Replay/Restart, Reset me, Reset org | the GX pill and its phone sheet; drawn by `FirstMateGuides.devPanel` |
-| Config library | entries by kind, edit (validated by the server), revisions and revert, reset this organization's copy | new; the config library's `/v1/config-library/*` ([dev lanes](dev-lanes.md), "Config lane") |
+| Config library | entries by kind, recent changes, edit (checked by the server; Check without saving), revisions and revert, reset this organization's copy | new; the config library's `/v1/config-library/*` ([config library](config-library.md)) |
 | Synthetic data | add sample records to a sandbox organization | the Development dropdown |
 | Test users | turn users off, Solo one, turn everyone on; never the person using the console | the hidden developer overlay (Ctrl+Alt+Shift+D) |
 | Software layers | declared contracts ([development software layers](development-software-layers.md)) | the Development dropdown |
 | Live layer | files dev serves ahead of its release, the checkout that put each there, recent retirements | `live-sync.mjs status` ([live layer](live-layer.md)); `GET …/development/console/live` reads the receiver's manifest |
-| Dev push queue | placeholder for the dev push router's lane status | new |
+| Dev push queue | each lane's state and last release, each submission's state and why it was rejected | new; the router's `/__dev-push/status.json`, read when opened and every 15 s while showing |
 
 Flags and settings and the config library show "not on dev yet" until the config
-library's API answers; the push queue waits for the router's status.
+library's API answers on the host.
 
 ## Rules
 
@@ -57,7 +57,8 @@ library's API answers; the push queue waits for the router's status.
 - Copy goes through `PlatformLanguage.text('dev-console', 'dc_…', English)`; a reworded
   string gets a new key.
 - No stream of its own ([realtime](realtime.md)): Flags and settings refreshes on the
-  `org_state.` platform events and the config library on `config_library.`; the Live
+  `org_state.` platform events and the config library on `config_library.` (and reads
+  again when opened: edits from other organizations do not reach this page); the Live
   layer section redraws on the `fm:live-assets` window event the live-assets library
   dispatches for each change on the `live-assets` channel.
 - The tray is above the project window (2147483200) and the sandbox stage overlay
