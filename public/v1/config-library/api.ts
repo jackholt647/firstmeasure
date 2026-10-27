@@ -124,6 +124,19 @@ export async function registerConfigLibraryApi(app: FastifyInstance) {
     const checked = checkEntry(body.kind, body.id, body.data);
     return { ok: checked.errors.length === 0, errors: checked.errors };
   });
+  /** Slow checks a kind offers (rendering, running a module), only when asked: never on save. */
+  app.post("/deep-check", async (request) => {
+    await requireLibraryEditor(request, { csrf: true });
+    const body = z.object({ kind: z.string().max(60), id: z.string().max(160).optional() }).strict().parse(request.body ?? {});
+    const kind = libraryKind(body.kind);
+    if (!kind) throw notFound("config_library_kind_unknown", `There is no config library kind called ${body.kind}.`);
+    if (!kind.deepCheck) return { ok: true, available: false, results: [] };
+    await refreshLibrary();
+    const entries = body.id ? [libraryEntry(kind.kind, body.id)].filter((entry) => !!entry) : libraryEntries(kind.kind);
+    const results = [];
+    for (const entry of entries) results.push({ id: entry!.id, revision: entry!.revision, errors: await kind.deepCheck(entry!.data, entry!.id).catch((error) => [`The check failed: ${(error as Error).message}`]) });
+    return { ok: results.every((result) => !result.errors.length), available: true, results };
+  });
   app.get("/changes", async (request) => {
     await requireLibraryEditor(request);
     const q = query(request);

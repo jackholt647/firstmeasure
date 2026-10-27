@@ -242,7 +242,12 @@ export async function buildApp() {
   void app.register(registerGuidedExperiencesApi, { prefix: "/v1/guided-experiences" });
   void app.register(registerConfigLibraryApi, { prefix: "/v1/config-library" });
   // Development: read defaults from the live config library store (docs/architecture/config-library.md).
-  app.addHook("onReady", async () => { await (await import("../config-library/library.js")).startLibrarySync().catch((error) => app.log.warn({ err: error }, "Config library sync did not start; serving the snapshot.")); });
+  app.addHook("onReady", async () => {
+    const library = await import("../config-library/library.js");
+    await library.startLibrarySync().catch((error) => app.log.warn({ err: error }, "Config library sync did not start; serving the snapshot."));
+    // Library saves check entries against the registries; load them now so the first save takes milliseconds too.
+    if (library.libraryWritable()) setImmediate(() => { void import("../config-library/registries.js").then((module) => module.warmRegistryChecks()).catch(() => undefined); });
+  });
   void app.register(registerSignupSandboxApi, { prefix: "/v1/signup-sandbox" });
   void app.register(registerStatsApi, { prefix: "/v1/stats" });
   void app.register(registerTrainingApi, { prefix: "/v1/training" });

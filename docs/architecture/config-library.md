@@ -88,6 +88,16 @@ nothing in history is edited or removed. A save:
 4. requires every `asset:<sha256>` the entry names to exist;
 5. takes `expected_revision` to refuse a lost update (409).
 
+**Saves are as fast as possible: even seconds matter.** No tests of any kind
+run on a save, and save-time checks are only those that cost milliseconds:
+the shape, the append-only dictionary rule, and references to what the
+running code registers (in-memory lookups; the registries load once per
+process, at boot on dev). Nothing that takes longer (rendering a template,
+running a module, cross-checking organizations) runs on save; a kind that
+wants such a check declares `deepCheck`, run only on request
+(`POST /deep-check {kind, id?}`). A save is one short transaction (about
+2 ms locally).
+
 Saving identical content records nothing. **Revert** saves an earlier
 revision's data again as a new revision, checked again against the running
 code. Deleting is a revision too, and can be reverted.
@@ -115,7 +125,8 @@ library entries and assets only.
 | `DELETE /entries/:kind/:id?expected_revision=` | delete (not append-only kinds) |
 | `GET /entries/:kind/:id/revisions[/:n]` | history, newest first |
 | `POST /entries/:kind/:id/revert` `{revision}` | back to a revision |
-| `POST /check` `{kind, id, data}` | check without saving |
+| `POST /check` `{kind, id, data}` | the save-time checks, without saving |
+| `POST /deep-check` `{kind, id?}` | a kind's slow on-demand checks (never run on save) |
 | `GET /changes?kind=&limit=` | recent revisions across the library |
 | `GET /assets`, `POST /assets` `{file_name, data_base64}` | assets |
 | `GET /export` | the whole store (for the snapshot script) |

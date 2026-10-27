@@ -9,10 +9,16 @@ import { validateConditions } from "../work/conditions.js";
 import { libraryEntry } from "./library.js";
 import type { RegistryChecks } from "./contracts.js";
 
-/** What the running code registers, read when an entry is saved. Registries are initialized first. */
+/**
+ * What the running code registers, read when an entry is saved: in-memory lookups only, so a save's checks take
+ * milliseconds. The registries load once per process (`warmRegistryChecks` at boot on dev, so the first save is fast too).
+ */
+let checks: RegistryChecks | undefined;
+export function warmRegistryChecks() { return registryChecks(); }
 export function registryChecks(): RegistryChecks {
+  if (checks) return checks;
   initializePublication();
-  return {
+  return checks = {
     provider: (id, version) => !!describeDataProvider(id, version),
     providerExport: (id, exportName) => !!(describeDataProvider(id) as { exports?: Record<string, unknown> } | null)?.exports?.[exportName],
     action: (id, version) => !!describeAction(id, version),

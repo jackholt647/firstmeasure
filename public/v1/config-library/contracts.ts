@@ -73,8 +73,13 @@ export type LibraryKind<T = any> = {
   idPattern?: RegExp;
   /** Structure of an entry's data. Parsing may fill defaults; what is stored is the parsed value. */
   schema: z.ZodType<T>;
-  /** References to what the running code registers (providers, actions, widgets, measurement keys, conditions). */
+  /** References to what the running code registers (providers, actions, widgets, measurement keys, conditions).
+   * Runs on every save, so it must cost milliseconds: in-memory lookups only, never rendering, running a module or
+   * reading organizations. Anything slower belongs in `deepCheck`. */
   validate?(data: T, ctx: ValidationContext): string[];
+  /** An on-demand check that may be slow (render a template, run a module): never run on save; the dev console or an
+   * agent asks for it with POST /v1/config-library/deep-check. Returns problems found. */
+  deepCheck?(data: T, id: string): Promise<string[]>;
   /** A dictionary: entries are only ever added. Never deleted; `compatible` says what an edit may change. */
   appendOnly?: boolean;
   /** Errors when `next` is not an allowed change of `previous` (for an append-only kind, its meaning, unit or key). */
