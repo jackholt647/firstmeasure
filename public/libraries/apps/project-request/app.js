@@ -932,6 +932,27 @@ window.PlatformCommerce.onReady(async function(){
     .r-tray-measure-root .sw-measurement-start .smm-btn{width:100%;max-width:280px;min-height:40px}
     .r-tray-measure-root .sw-measurement-start .smm-btn:disabled{opacity:.55;cursor:default}
     .r-tray-measure-root .sw-measurement-start>span{max-width:300px;line-height:1.5}
+    /* The order status card from the Reports tab, compressed to a rail's width: flat, left-aligned, one column of expedite choices when narrow. */
+    .r-measure-order-status{box-sizing:border-box;width:100%;padding:14px;display:flex;flex-direction:column;gap:8px;text-align:left;container-type:inline-size}
+    .r-measure-order-status .r-report-pending{height:auto;padding:0;display:block;text-align:left}
+    .r-measure-order-status .r-report-pending-card{width:100%;box-sizing:border-box;padding:0;gap:8px;border:0;border-radius:0;box-shadow:none;background:none}
+    .r-measure-order-status .r-report-pending-card{display:grid;grid-template-columns:auto minmax(0,1fr);align-items:center;column-gap:8px}
+    .r-measure-order-status .r-report-pending-card>*{grid-column:1 / -1}
+    .r-measure-order-status .r-report-pending-card>i{grid-column:1;font-size:15px;line-height:1}
+    .r-measure-order-status .r-report-pending-card>i+h3{grid-column:2}
+    .r-measure-order-status .r-report-pending-card h3{font-size:14px;line-height:1.3}
+    .r-measure-order-status .r-report-pending-card p{font-size:12px;line-height:1.45}
+    .r-measure-order-status .r-pending-detail{padding:7px 10px;border-radius:10px;gap:2px}
+    .r-measure-order-status .r-pending-detail strong{font-size:10px}
+    .r-measure-order-status .r-pending-actions{gap:6px;margin-top:2px}
+    .r-measure-order-status :is(.r-pending-action,.r-pending-cancel,.r-pending-reorder,.r-pending-expedite-confirm){border-radius:10px;padding:9px 10px}
+    .r-measure-order-status .r-pending-action-price{font-size:17px}
+    .r-measure-order-status .r-pending-note{font-size:11px;line-height:1.4}
+    @container (max-width:300px){.r-measure-order-status .r-pending-action-row{grid-template-columns:minmax(0,1fr)}}
+    .r-measure-order-manual{align-self:center;margin-top:2px;border:0;background:none;padding:4px 6px;font:inherit;font-size:12px;font-weight:600;color:var(--primary-readable,var(--primary,#d93025));cursor:pointer;border-radius:6px}
+    .r-measure-order-manual:hover{text-decoration:underline}
+    .r-measure-order-manual:focus-visible{outline:2px solid var(--primary,#d93025);outline-offset:1px}
+    .r-tray-measure-root [data-scope-measurement-start]:has([data-measure-order-status]){overflow:auto}
     /* Phones: a full-height sheet from the left over the window, closed by its control or the dimmed window. */
     #rOverlay.details-tray-sheet{--r-details-tray-w:min(420px,calc(100% - 44px))}
     #rOverlay.details-tray-sheet .r-details-tray{z-index:2147483300;box-shadow:0 0 40px rgba(16,24,40,.22);border-right:0}
@@ -4911,6 +4932,50 @@ window.PlatformCommerce.onReady(async function(){
       section.classList.toggle('is-start',startShown);
     }).catch(()=>{}).finally(()=>{trayMeasurements.loading=null;if(trayMeasurements.again){trayMeasurements.again=false;syncTrayMeasurements();}});
   }
+
+  // The measurement widget's order status (between Order measurement report and the finished model): the Reports
+  // tab's processing card, drawn and acted on by the measurements app (status, delivery, expedite and cancel within
+  // their windows, reorder after a cancellation), so it does not depend on the Reports tab being present.
+  // scope-of-work.js mounts it through window.Portal.MeasurementOrderStatus, in the tray and in Operations alike.
+  function measurementOrderStatusApplies(){
+    return hasReportOrdered() && !reportOrderHasReadyAssets();
+  }
+  function mountMeasurementOrderStatus(node,{onEnter}={}){
+    let timer=0,busy=false,disposed=false;
+    const stop=()=>{disposed=true;clearTimeout(timer);node.removeEventListener('click',onClick);};
+    const draw=()=>{
+      clearTimeout(timer);
+      if(disposed)return;
+      if(!node.isConnected){stop();return;}
+      const card=projectMeasurementsInvoke('pendingReportHtml',['standard']) || '';
+      const manual=onEnter ? `<button type="button" class="r-measure-order-manual" data-measure-order-manual>${escapeHtml(detailsTrayText('measurement_status_manual','Add measurements manually'))}</button>` : '';
+      node.innerHTML=`<div class="r-measure-order-status" data-measure-order-status>${card}${manual}</div>`;
+      // The cancellation countdown ticks every second in its last five minutes; otherwise the card refreshes twice a minute.
+      const cancel=projectMeasurementsInvoke('reportOrderCancelState',[]) || {};
+      timer=setTimeout(draw,cancel.allowed && cancel.remainingSeconds>0 && cancel.remainingSeconds<=300 ? 1000 : 30000);
+    };
+    async function onClick(event){
+      const button=event.target.closest('button');
+      if(!button || button.disabled || busy || !node.contains(button))return;
+      const data=button.dataset;let action;
+      if('measureOrderManual' in data){onEnter?.();return;}
+      if('selectUpgradeExpedite' in data)action=['selectPendingReportExpedite',[data.selectUpgradeExpedite]];
+      else if('confirmUpgradeExpedite' in data)action=['upgradePendingReportExpedite',[data.confirmUpgradeExpedite,button]];
+      else if('cancelReportOrder' in data)action=['cancelPendingReportOrder',[button]];
+      else if('reorderReportOrder' in data)action=['reorderCancelledReportOrder',[]];
+      else if('reorderRejectedReport' in data)action=['reorderRejectedReportOrder',[]];
+      if(!action)return;
+      busy=true;
+      try{await projectMeasurementsInvoke(action[0],action[1]);}
+      catch(error){window.Portal?.ui?.showToast?.(detailsTrayText('measurement_status_failed','Could not update the report order'),error?.message || '',false);}
+      finally{busy=false;draw();syncTrayMeasurements();}
+    }
+    node.addEventListener('click',onClick);
+    draw();
+    return {update:draw,destroy:stop};
+  }
+  window.Portal=window.Portal || {};
+  window.Portal.MeasurementOrderStatus={applies:measurementOrderStatusApplies,mount:mountMeasurementOrderStatus};
   document.addEventListener('pointerdown',event=>{
     if(projectIdentityPopover && !projectIdentityPopover.menu.contains(event.target) && !projectIdentityPopover.trigger.contains(event.target) && !event.target.closest('.pac-container,.r-contact-suggestions,.r-contact-action-menu,.r-contact-picker'))closeProjectIdentityPopover();
     const stage=document.querySelector('.r-header-stage-popover');

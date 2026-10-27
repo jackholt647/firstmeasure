@@ -225,6 +225,11 @@ export function manualMeasurementMode(form,reportReady){
  * host's existing order session (onOrder) and is unchanged.
  */
 export function mountMeasurementStart(node,{canOrder=false,pending=false,canEnter=false,onOrder,onEnter}={}){
+  // Once a report is ordered, the widget is its order status (the project window's processing card, with expedite
+  // and cancel), until the finished measurements replace it.
+  const status=window.Portal?.MeasurementOrderStatus;
+  node.__orderStatus?.destroy?.();node.__orderStatus=null;
+  if(status?.applies?.()){node.__orderStatus=status.mount(node,{onEnter:canEnter?onEnter:null});return;}
   node.innerHTML=`<div class="sw-doc-empty sw-measurement-start" role="status" data-measurement-start><i class="fas fa-ruler-combined" aria-hidden="true"></i><strong>${esc(text('measurement_start_empty','No measurements.'))}</strong>${pending?`<span>${esc(text('measurement_start_pending','Your measurement report is on order. You can enter measurements while you wait.'))}</span>`:''}${canOrder?`<button type="button" class="smm-btn primary" data-scope-order>${esc(text('measurement_start_order','Order measurement report'))}</button>`:''}<button type="button" class="smm-btn" data-scope-enter ${canEnter?'':'disabled'}>${esc(text('measurement_start_manual','Add measurements manually'))}</button></div>`;
   node.querySelector('[data-scope-order]')?.addEventListener('click',()=>onOrder?.());
   node.querySelector('[data-scope-enter]')?.addEventListener('click',()=>onEnter?.());
