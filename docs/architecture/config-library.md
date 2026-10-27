@@ -122,9 +122,15 @@ library entries and assets only.
 | `GET/POST /keys`, `DELETE /keys/:id` | access keys (signed-in administrator) |
 | `GET /organizations/:orgId/copies?kind=` | how the organization's copies stand |
 | `POST /organizations/:orgId/copies/:kind/:id/reset` | reset a copy to the library |
-| `GET /organizations/:orgId/initial-state` | a test organization's starting state and what changed |
-| `POST /organizations/:orgId/initial-state/restore` | put it back |
-| `POST /organizations/:orgId/initial-state/capture` | record the current state as the start |
+| `GET /organizations/:orgId/state` | a test organization's flags (flat), settings, scope flags, its start and every changed path |
+| `PATCH /organizations/:orgId/state` `{path, value}` | flip one `flags.<key>`, `settings.<key>` or `scope_flags.<id>` |
+| `POST /organizations/:orgId/state/restore` `{paths?}` | put the listed paths, or everything, back to the start |
+| `POST /organizations/:orgId/state/capture` | record the current state as the start |
+
+Realtime (the one platform event stream): `org_state.changed` `{changed_count}`
+to the organization after a state change, and `config_library.changed`
+`{kind, id, revision}` to the editor's organization after a library edit
+(a library edit is platform-wide; other open trays read `GET /changes`).
 
 For a coding agent on dev:
 
@@ -139,8 +145,9 @@ curl -s -X PUT -H "Authorization: Bearer $FM_CONFIG_LIBRARY_KEY" -H "Content-Typ
 A sandbox test organization records its **starting state** when it is
 created (`config-library/initial-state.ts`): its global settings (flags, app
 offers and activations, placements, project tabs, settings; never credits or
-billing) and its scope flags. Restore puts all of that back (settings added
-since are removed), and clears the organization's guided experience progress
+billing) and its scope flags. The dev console lists every changed path, flips one, and
+restores some paths or all of them. A full restore puts everything back (settings added
+since are removed) and clears the organization's guided experience progress
 and exposures so every Get Started tour and setup plays as new. Projects,
 documents and other records are untouched. Test organizations made before
 this existed record their start with `capture`.

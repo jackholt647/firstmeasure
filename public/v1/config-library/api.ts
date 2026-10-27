@@ -7,7 +7,7 @@ import { listAssets, putAsset, readAsset } from "./assets.js";
 import { listLibraryKinds, libraryKind } from "./kinds.js";
 import { registerAllLibraryKinds } from "./kinds/index.js";
 import { libraryEntries, libraryEntry, librarySource, libraryVersion, refreshLibrary } from "./library.js";
-import { captureInitialState, initialStateDiff, readInitialState, restoreInitialState } from "./initial-state.js";
+import { captureInitialState, organizationState, restoreInitialState, setOrganizationState } from "./initial-state.js";
 import { checkEntry, deleteEntry, listRevisions, readRevision, recentChanges, revertEntry, saveEntry, storeEntries } from "./writes.js";
 
 /**
@@ -28,6 +28,13 @@ const saveBody = z.object({ data: z.unknown(), expected_revision: z.number().int
 const revertBody = z.object({ revision: z.number().int().min(1), expected_revision: z.number().int().min(0).optional(), note: z.string().max(2000).optional() }).strict();
 const checkBody = z.object({ kind: z.string().max(60), id: z.string().max(160), data: z.unknown() }).strict();
 const assetBody = z.object({ file_name: z.string().max(200).optional(), data_base64: z.string().min(4).max(8 * 1024 * 1024) }).strict();
+
+/** A library edit is platform-wide; the editor's own organization hears it at once, other trays read GET /changes. */
+async function libraryChanged(orgId: string | undefined, entry: { kind: string; id: string; revision: number }) {
+  if (!orgId) return;
+  const { publishRealtimeEvent } = await import("../platform/realtime.js");
+  await publishRealtimeEvent({ organization_id: orgId, topic: "config_library.changed", payload: { kind: entry.kind, id: entry.id, revision: entry.revision } }).catch(() => undefined);
+}
 
 export async function registerConfigLibraryApi(app: FastifyInstance) {
   registerAllLibraryKinds();
@@ -80,6 +87,7 @@ export async function registerConfigLibraryApi(app: FastifyInstance) {
     const body = saveBody.parse(request.body ?? {});
     const result = await saveEntry({ kind: text(kind), id: text(id), data: body.data, expected_revision: body.expected_revision, note: body.note }, caller.author);
     request.log.info({ config_library: `${kind}/${id}`, revision: result.entry.revision, changed: result.changed, author: caller.author.id }, "Config library entry saved");
+    if (result.changed) await libraryChanged(caller.ctx?.orgId, result.entry);
     return { ok: true, changed: result.changed, entry: result.entry };
   });
   app.delete("/entries/:kind/:id", async (request) => {
@@ -88,6 +96,7 @@ export async function registerConfigLibraryApi(app: FastifyInstance) {
     const q = query(request);
     const result = await deleteEntry({ kind: text(kind), id: text(id), expected_revision: q.expected_revision === undefined ? undefined : Number(q.expected_revision), note: text(q.note) }, caller.author);
     request.log.info({ config_library: `${kind}/${id}`, author: caller.author.id }, "Config library entry deleted");
+    if (result.changed) await libraryChanged(caller.ctx?.orgId, { kind: text(kind), id: text(id), revision: 0 });
     return { ok: true, ...result };
   });
   app.get("/entries/:kind/:id/revisions", async (request) => {
@@ -104,7 +113,9 @@ export async function registerConfigLibraryApi(app: FastifyInstance) {
     const caller = await requireLibraryEditor(request, { csrf: true });
     const { kind, id } = params(request);
     const body = revertBody.parse(request.body ?? {});
-    return { ok: true, ...(await revertEntry({ kind: text(kind), id: text(id), ...body }, caller.author)) };
+    const result = await revertEntry({ kind: text(kind), id: text(id), ...body }, caller.author);
+    if (result.entry) await libraryChanged(caller.ctx?.orgId, result.entry);
+    return { ok: true, ...result };
   });
   /** Checks an entry against its kind and the running code without saving it. */
   app.post("/check", { bodyLimit: 16 * 1024 * 1024 }, async (request) => {
@@ -179,25 +190,41 @@ export async function registerConfigLibraryApi(app: FastifyInstance) {
     return { ok: true, result, status: (await definition.orgCopies.status(text(orgId), [text(id)]))[0] || null };
   });
 
-  // A sandbox test organization's starting state.
-  app.get("/organizations/:orgId/initial-state", async (request) => {
+  // A sandbox test organization's flags and settings, its starting state, and restore. Open trays hear
+  // `org_state.changed` on the platform event stream.
+  const stateChanged = async (orgId: string, changed: number) => {
+    const { publishRealtimeEvent } = await import("../platform/realtime.js");
+    await publishRealtimeEvent({ organization_id: orgId, topic: "org_state.changed", payload: { changed_count: changed } }).catch(() => undefined);
+  };
+  app.get("/organizations/:orgId/state", async (request) => {
     const { orgId } = params(request);
     await requireLibraryEditor(request, { orgId, keys: false });
-    const state = await readInitialState(text(orgId));
-    return { ok: true, recorded: !!state, captured_at: state?.captured_at || "", captured_by: state?.captured_by || "", restored_at: state?.restored_at || "", restores: state?.restores || 0, changed: state ? await initialStateDiff(text(orgId)) : null };
+    return { ok: true, ...(await organizationState(text(orgId))) };
   });
-  app.post("/organizations/:orgId/initial-state/restore", async (request) => {
+  app.patch("/organizations/:orgId/state", async (request) => {
     const { orgId } = params(request);
     const caller = await requireLibraryEditor(request, { orgId, csrf: true, keys: false });
-    const result = await restoreInitialState(text(orgId), caller.author.id);
-    request.log.info({ organization_id: orgId, by: caller.author.id, restored: result.restored }, "Test organization restored to its starting state");
+    const body = z.object({ path: z.string().min(3).max(200), value: z.unknown() }).strict().parse(request.body ?? {});
+    const state = await setOrganizationState(text(orgId), body.path, body.value ?? null);
+    request.log.info({ organization_id: orgId, path: body.path, by: caller.author.id }, "Test organization state changed");
+    await stateChanged(text(orgId), state.changed.length);
+    return { ok: true, ...state };
+  });
+  app.post("/organizations/:orgId/state/restore", async (request) => {
+    const { orgId } = params(request);
+    const caller = await requireLibraryEditor(request, { orgId, csrf: true, keys: false });
+    const body = z.object({ paths: z.array(z.string().min(3).max(200)).max(500).optional() }).strict().parse(request.body ?? {});
+    const result = await restoreInitialState(text(orgId), caller.author.id, body.paths);
+    request.log.info({ organization_id: orgId, by: caller.author.id, paths: body.paths?.length ?? "all" }, "Test organization restored to its starting state");
+    await stateChanged(text(orgId), result.changed.length);
     return { ok: true, ...result };
   });
-  app.post("/organizations/:orgId/initial-state/capture", async (request) => {
+  app.post("/organizations/:orgId/state/capture", async (request) => {
     const { orgId } = params(request);
     const caller = await requireLibraryEditor(request, { orgId, csrf: true, keys: false });
-    const state = await captureInitialState(text(orgId), caller.author.id);
-    return { ok: true, captured_at: state.captured_at };
+    await captureInitialState(text(orgId), caller.author.id);
+    await stateChanged(text(orgId), 0);
+    return { ok: true, ...(await organizationState(text(orgId))) };
   });
 }
 
