@@ -101,10 +101,10 @@ export function appFlags(): JsonObject {
 export const workflow: JsonObject = {
   id: MVP_PLATFORM_WORKFLOW_ID,
   title: "MVP platform",
-  description: "The FirstMeasure default signup plus the MVP platform: My Projects (with the project map), My Contacts and Feed; project tabs Overview, Reports, Photos (New), Docs (New), Materials and Customer Portal; Agent, Notes, Activity and To Do trays. No Scheduling or calendar. Every project is a generic roof job.",
+  description: "The FirstMeasure default signup plus the MVP platform: My Projects (with the project map), My Contacts and Feed; project tabs Overview, Reports, Photos (New), Docs (New), Operations and Customer Portal; Agent, Notes, Activity and To Do trays. No Scheduling or calendar. Every project is a generic roof job.",
   entry_mode: "landing_first",
   // Raise when this file changes: the saved workflow is replaced with it on the next seed.
-  configuration_revision: 18,
+  configuration_revision: 19,
   sample_data: true,
   // A launched test instance starts empty: sample projects and customers come only from "Add sample data" in the
   // development tools (Jack, 2026-10-26). An empty list, not a missing one, so the revision replaces a saved list.
@@ -127,8 +127,8 @@ export const PROJECT_TABS = {
   order: ["project.map", "project.measurements", "project.photos", "project.docs", "project.materials", "project.customer_portal"],
   pills: { "project.photos": "new", "project.docs": "new", "project.materials": "new", "project.customer_portal": "new" }
 };
-// The Project tab (scope.project_tab) is called Materials here, and the Customer Portal tab Portal.
-export const TERMINOLOGY = { scope: { project_tab: "Materials" }, customer_portal: { project_tab: "Portal" } };
+// The Project tab (scope.project_tab) is called Operations here, and the Customer Portal tab Portal.
+export const TERMINOLOGY = { scope: { project_tab: "Operations" }, customer_portal: { project_tab: "Portal" } };
 
 export function defaults(): JsonObject {
   return {

@@ -6,6 +6,7 @@ import { env } from "../src/config/env.js";
 import { badRequest, notFound } from "./errors.js";
 import { OTHER_PERMISSION_CATEGORY, PERMISSION_CATEGORIES, WILDCARD_PERMISSION, permissionSubcategory } from "./permission_categories.js";
 import { readGlobal, mutateGlobal, readPlatformConfiguration, mutatePlatformConfiguration, type JsonObject } from "./storage.js";
+import { APP_OFFERS, maskOfferedCapabilities, offeredAppIds } from "./app-experience/offers.js";
 
 /**
  * Central capability registry.
@@ -582,6 +583,10 @@ export function flattenGroupedValues(grouped: JsonObject) {
 /** Raw stored org overrides (normalized, defaults filled in), flat keyed. */
 export async function rawCapabilityValues(orgId: string) {
   const globalDoc = await readGlobal(orgId);
+  return capabilityValuesFromGlobal(globalDoc);
+}
+
+function capabilityValuesFromGlobal(globalDoc: JsonObject) {
   const data = asObject(globalDoc.data);
   const stored = flattenGroupedValues(asObject(data.app_flags || data.feature_flags));
   return withEquipmentSimpleCapabilities({ ...capabilityDefaultValues(), ...stored });
@@ -670,15 +675,33 @@ async function withCountryRules(orgId: string, values: Record<string, Capability
   return applyCapabilityCountryRules(values, await organizationCountryCode(orgId), rules);
 }
 
-export async function capabilityValuesForUser(orgId: string, userId?: string, raw?: Record<string, CapabilityValue>) {
-  let values = await withCountryRules(orgId, raw || await rawCapabilityValues(orgId));
+export async function capabilityValuesForUser(orgId: string, userId?: string, raw?: Record<string, CapabilityValue>, includeOffered = false) {
+  const global = includeOffered && raw ? null : await readGlobal(orgId);
+  let values = await withCountryRules(orgId, raw || capabilityValuesFromGlobal(global!));
   if (values["platform.expanded_access"] === true) {
     values = await (await import("../platform-billing/service.js")).applyEntitlements(orgId, values);
   }
-  if (!userId || values["platform.expanded_access"] !== true) return values;
-  const rollout = await readPlatformRollout(orgId);
-  return rollout.mode === "selected" && !rollout.user_ids.includes(userId)
-    ? { ...values, "platform.expanded_access": false } : values;
+  if (userId && values["platform.expanded_access"] === true) {
+    const rollout = await readPlatformRollout(orgId);
+    if (rollout.mode === "selected" && !rollout.user_ids.includes(userId)) values = { ...values, "platform.expanded_access": false };
+  }
+  if (includeOffered) return values;
+  return maskOfferedCapabilities(values, asObject(global?.data).app_offers);
+}
+
+/** Resolve visibility and operational features from the same organization snapshot. */
+export async function capabilityAccessState(orgId: string, userId?: string) {
+  const global = await readGlobal(orgId);
+  const values = await capabilityValuesForUser(orgId, userId, capabilityValuesFromGlobal(global), true);
+  const pending = offeredAppIds(asObject(global.data).app_offers);
+  const ceiling = pending.length ? resolveCapabilities(values).effectiveByKey : {};
+  return { capabilities: resolveCapabilities(maskOfferedCapabilities(values, pending)),
+    offeredAppIds: pending.filter(id => APP_OFFERS[id].some(key => ceiling[key] === true)) };
+}
+
+/** Only configured and commercially available offers may be shown. */
+export async function availableOfferedApps(orgId: string, userId?: string) {
+  return (await capabilityAccessState(orgId, userId)).offeredAppIds;
 }
 
 export async function effectiveCapabilities(orgId: string, userId?: string) {

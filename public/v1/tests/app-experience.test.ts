@@ -281,6 +281,34 @@ async function seedProject(orgId: string, id: string, title: string, assignedUse
 
 const APP_DENIED = "403 app_access_denied";
 
+test('offered apps stay new for the organization until an eligible person starts them', async () => {
+  const owner=createSessionClient();
+  const {orgId,suffix}=await registerOwner(owner);
+  const person=await createPerson(owner,orgId,suffix,'offer-reader',['viewer']);
+  const {saveGlobal,readGlobal,upsertDocument}=await import('../platform/storage.js');
+  const {effectiveCapabilities}=await import('../platform/capabilities.js');
+  await saveGlobal(orgId,{data:{app_offers:['project.docs','project.materials']}});
+  const base=`/v1/platform/organizations/${orgId}`;
+  const session=await person.client.request('GET','/v1/platform/auth/session');
+  assert.equal(session.app_entitlements.find((app:any)=>app.id==='project.docs').offered,true);
+  assert.equal((await effectiveCapabilities(orgId)).effectiveByKey['platform.documents'],false);
+  assert.ok(((await readGlobal(orgId)).data.app_offers as string[]).includes('project.docs'),'a session read does not consume the offer');
+  const anonymous=await app.inject({method:'POST',url:`${base}/app-offers/project.docs/start`,payload:{}});
+  assert.equal(anonymous.statusCode,401);
+  await upsertDocument(orgId,'users',{id:person.userId,data:{app_access_overrides:{'project.docs':{visible:{desktop:false,mobile:false}}}}},{replace:false});
+  assert.equal((await person.client.raw('POST',`${base}/app-offers/project.docs/start`,{})).statusCode,403);
+  await upsertDocument(orgId,'users',{id:person.userId,data:{app_access_overrides:{}}},{replace:false});
+  await Promise.all([person.client.request('POST',`${base}/app-offers/project.docs/start`,{}),owner.request('POST',`${base}/app-offers/project.docs/start`,{})]);
+  const global=await readGlobal(orgId);
+  assert.deepEqual(global.data.app_offers,['project.materials']);
+  assert.ok((global.data.app_activations as Json)['project.docs'].started_at);
+  assert.equal((await effectiveCapabilities(orgId)).effectiveByKey['platform.documents'],true);
+  assert.equal((await effectiveCapabilities(orgId)).effectiveByKey['platform.materials'],false);
+  const fresh=await owner.request('GET','/v1/platform/auth/session');
+  assert.notEqual(fresh.app_entitlements.find((app:any)=>app.id==='project.docs').offered,true);
+  assert.equal((await person.client.raw('POST',`${base}/app-offers/portal.company_settings/start`,{})).statusCode,404);
+});
+
 test("the server gives each person their apps and gates routes by them", async (t) => {
   const owner = createSessionClient();
   const { orgId, suffix } = await registerOwner(owner);

@@ -304,7 +304,7 @@
     "kind": "status"
   },
   "scope.project_tab": {
-    "label": "Project",
+    "label": "Operations",
     "kind": "navigation"
   },
   "scope.templates_settings_tab": {

@@ -5,6 +5,7 @@ import { gatedAccounts } from "./admin.js";
 import { randomBytes } from "node:crypto";
 
 import { newOrganizationAppFlagDefaults } from "../platform/app_flags.js";
+import { NEW_ORGANIZATION_APP_OFFERS } from '../platform/app-experience/offers.js';
 import { CONFIGURATIONS, SETUP_SCRIPTS } from "./configurations/index.js";
 import { valueCapabilities } from "../platform/capabilities.js";
 import {
@@ -591,7 +592,10 @@ export async function createTestInstance(workflowId: string, input: JsonObject =
     : (startRole === "landing" || startRole === "signup")
       ? "/portal/"
       : stageSurfaceUrl(workflowId, instanceId, startStage, runContext.start_stage);
-  return { testOrg, authContext: ctx, redirect };
+  // Seed demo content before offers mask the operational apps; viewing a tab never consumes an offer.
+  await saveGlobal(String(organization.id), { data: { app_offers: [...NEW_ORGANIZATION_APP_OFFERS] } });
+  const { buildAuthContext } = await import('../platform/auth.js');
+  return { testOrg, authContext: await buildAuthContext(ctx.sessionId, ctx.session), redirect };
 }
 
 // Applies a stage's declared literal effects to a test org's global doc, so a

@@ -294,9 +294,8 @@ question.
   requested) Generate, and the tour.
 - `materials.tab_tutorial` (overlay, person, replayable): after the setup, or on
   first opening the tab once the organization has finished the setup (or straight
-  away for someone not asked to set it up: `person.eligible`). Its `reveal`
-  keeps Materials to projects with a delivered report until the person has been
-  through it (or closed it); then Materials shows on every project, drafts too.
+  away for someone not asked to set it up: `person.eligible`). Operations is visible on every project, including before measurements and on
+  drafts; the tutorial never gates tab visibility.
 - FAQs for Materials, Photos, Docs, Reports, Customer Portal and Overview.
 
 **Price book setup** (`pricebook/setups/roofing.ts`). Products, rules, regions and

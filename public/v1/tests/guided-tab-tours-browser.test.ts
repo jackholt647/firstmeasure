@@ -220,7 +220,7 @@ test("materials: a tab's tour never plays on the tab the person moved on to, and
     // before the server has answered: nothing shows on Docs, and nothing was recorded, so it is still to play.
     serverDelay = 1200;
     await show("materials");
-    assert.equal(await heading(page), "Welcome to Materials", "the preloaded tour shows at once on its own tab");
+    assert.equal(await heading(page), "Welcome to Operations", "the preloaded tour shows at once on its own tab");
     await page.waitForTimeout(50);
     await show("docs");
     assert.equal(await pops(), 0, "the tour ends the moment the tab changes");
@@ -232,7 +232,7 @@ test("materials: a tab's tour never plays on the tab the person moved on to, and
     // Back on Materials: the tour plays there.
     await show("materials");
     await page.waitForSelector(".gx-pop h3", { timeout: 8000 });
-    assert.equal(await heading(page), "Welcome to Materials");
+    assert.equal(await heading(page), "Welcome to Operations");
 
     // Docs mid-tour: the tour ends at once, recorded as neither done nor dismissed, and stays gone.
     await page.click(".gx-pop [data-gx=next]");
@@ -247,7 +247,7 @@ test("materials: a tab's tour never plays on the tab the person moved on to, and
     // The next visit to Materials plays it again, from the start.
     await show("materials");
     await page.waitForSelector(".gx-pop h3", { timeout: 8000 });
-    assert.equal(await heading(page), "Welcome to Materials");
+    assert.equal(await heading(page), "Welcome to Operations");
     await page.click(".gx-pop [data-gx=close]");
     await page.waitForFunction(() => !document.querySelector(".gx-pop"));
     assert.deepEqual(await page.evaluate(() => (window as any).wrongTab), [], "nothing ever showed on Docs");

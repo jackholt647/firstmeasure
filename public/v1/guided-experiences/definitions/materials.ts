@@ -115,7 +115,7 @@ export function registerMaterialsGuidedExperiences() {
 
   registerExperience({
     id: MATERIALS_TUTORIAL, version: 1, kind: "overlay", scope: "person", salt: "2026-10", replayable: true,
-    title: t("gx_mt_title", "Materials tour"),
+    title: t("gx_operations_tour_title", "Operations tour"),
     tab: "project.materials",
     eligibility: { capabilities: ["platform.materials"] },
     triggers: [
@@ -126,12 +126,10 @@ export function registerMaterialsGuidedExperiences() {
         { field: "person.eligible", operator: "not_contains", value: MATERIALS_SETUP }
       ] } }
     ],
-    // Onboarding sequencing: until this person has been through the tour (or closed it), Materials shows only on
-    // projects with a delivered report, where it has something to show. Afterwards it shows on every project.
-    reveal: [{ tab: "project.materials", until: "finished", when: { "project.has_report": true } }],
+    // Operations is available before measurements, including on a new project's first visit.
     variants: [{ id: "tour", weight: 1 }],
     steps: [
-      { id: "intro", targets: [], placement: "center", title: t("gx_mt_intro_title", "Welcome to Materials"), body: t("gx_mt_intro_body", "Every list here is built from the roof's measurements and your price book. Here's a quick look around.") },
+      { id: "intro", targets: [], placement: "center", title: t("gx_operations_intro_title", "Welcome to Operations"), body: t("gx_operations_intro_body", "Plan your materials, labor and equipment here. Start a list now, or generate one from measurements when they're ready. Here's a quick look around.") },
       { id: "generate", targets: ["[data-mt-generate-materials]"], title: t("gx_mt_generate_title", "Generate"), body: t("gx_mt_generate_body", "Builds the lists again from the measurements and your price book. Lists you've ordered are never touched.") },
       { id: "lists", targets: [".mt-resource-column"], title: t("gx_mt_lists_title", "Your lists"), body: t("gx_mt_lists_body", "Materials, labor and equipment each get a column. Click any quantity or price to change it.") },
       { id: "pricebook", targets: ["[data-mt-open-pricebook]"], title: t("gx_mt_pricebook_title", "Price book"), body: t("gx_mt_pricebook_body", "Add anything from your price book to a list.") },

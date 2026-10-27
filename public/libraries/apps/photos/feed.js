@@ -616,8 +616,7 @@
     return next;
   }
   function featureEnabled(){
-    return !!window.Portal?.appFlags?.has?.('platform', 'project_photos')
-      && !!window.Portal?.appFlags?.has?.('platform', 'photos_feed');
+    return !!window.Portal?.appFlags?.has?.('platform', 'photos_feed');
   }
   function photoLibrary(){ return window.PlatformAPI?.projectMedia || null; }
   function firstMeasurePhotoOptions(){

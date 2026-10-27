@@ -5,6 +5,9 @@ export function nextTestPhone() {
   return `20255501${String(phoneIndex++).padStart(2, "0")}`;
 }
 export async function enableExpandedPlatformFixture(orgId: string, values: Record<string, unknown> = {}) {
+  // These fixtures exercise active apps; offer lifecycle tests deliberately keep the pending state.
+  const { mutateGlobal } = await import('../../platform/storage.js');
+  await mutateGlobal(orgId, () => ({ data: { app_offers: [] } }));
   const { saveCapabilityValues } = await import("../../platform/capabilities.js");
   return saveCapabilityValues(orgId, { ...values, "platform.expanded_access": true });
 }
