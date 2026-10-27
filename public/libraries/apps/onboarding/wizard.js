@@ -670,7 +670,7 @@
   }
   .ob-input::placeholder{ color:rgba(0,0,0,0.3); }
   .ob-input.ob-input-invalid{ border-color:#d93025; box-shadow:0 0 0 3px rgba(217,48,37,0.12); }
-  .ob-profile-row{ display:grid; grid-template-columns:repeat(auto-fit, minmax(200px, 1fr)); gap:12px; margin-bottom:8px; }
+  .ob-profile-row{ display:grid; grid-template-columns:repeat(auto-fit, minmax(200px, 1fr)); gap:12px; margin:16px 0 8px; }
   .ob-input:focus{
     border-color:var(--primary, #d93025);
     box-shadow:0 0 0 3px rgba(var(--primary-rgb, 217,48,37),0.1);
