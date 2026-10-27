@@ -1,5 +1,7 @@
 # FirstMeasure: local development and production deployment
 
+October 27 Messages fallback: [independent Messages switch, bell fallback for tags, and Operations report prefill/copy fixes](deploy/digitalocean/development-messages-fallback-20261027.md) records verified development release `943d9542`.
+
 October 27 Operations setup: [shared scope/proposal workflow, optional setup checklist, global Equipment offer and tutorial](deploy/digitalocean/development-operations-setup-20261027.md) records verified development release `1b28c1df` on worker, compatibility and web.
 
 October 26 Live layer: [browser files saved on the dev sync droplet are served by dev.1m8.ai at once and swapped into every open dev page; NGINX live folder, restricted receiver and check timer on dev web](deploy/digitalocean/development-live-layer-20261026.md) records release `d74f3b99` on the development worker, legacy and web and the host changes.
