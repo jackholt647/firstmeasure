@@ -13,7 +13,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
-import { ORIGIN_URL, parseArgs, run } from "../lib/common.mjs";
+import { ROUTER_REPO_PATH, parseArgs, run } from "../lib/common.mjs";
 import { makeHosts } from "./hosts.mjs";
 import { Router } from "./router.mjs";
 import { liveOverlays } from "./live.mjs";
@@ -54,10 +54,12 @@ async function main() {
   const lanes = await loadLanes(names);
   const hosts = makeHosts({ knownHosts: path.join(HOME, "known_hosts"), key: KEY });
   // Fetch over HTTPS (public repository); push with the router's deploy key.
-  process.env.GIT_SSH_COMMAND = `ssh -i ${KEY} -o IdentitiesOnly=yes -o BatchMode=yes -o StrictHostKeyChecking=accept-new -o UserKnownHostsFile=${path.join(HOME, "known_hosts")}`;
+  // The router's repository (tools/dev-push/router/install-repo.sh) is on this machine; its hook lets only the
+  // router move branches, recognised by this variable on local pushes. GitHub is mirrored from PCs (mirror.mjs).
+  process.env.DEV_PUSH_ROUTER = "1";
   const version = (await run("git", ["rev-parse", "--short", "HEAD"], { cwd: here })).stdout.trim() || null;
   const router = new Router({
-    repo: path.join(HOME, "repo.git"), remote: config.remote || ORIGIN_URL, stateDir: STATE, lanes, hosts, version,
+    repo: path.join(HOME, "repo.git"), remote: config.remote || ROUTER_REPO_PATH, stateDir: STATE, lanes, hosts, version,
     host: os.hostname(),
     publish: config.publish === false ? null : async (doc) => {
       const result = await hosts.call("web", ["publish"], { input: JSON.stringify(doc), timeoutMs: 60_000 });
@@ -66,7 +68,7 @@ async function main() {
     ...(lanes.platform && config.live !== false ? liveOverlays({ hosts, home: HOME, log: (line) => console.log(`[live] ${line}`) }) : {})
   });
   await router.init();
-  await router.git(["config", "remote.origin.pushurl", config.pushurl || "git@github.com:jackholt647/firstmeasure.git"]);
+  await router.git(["remote", "set-url", "origin", config.remote || ROUTER_REPO_PATH]);
   if (command === "gate" || command === "build" || command === "stage") {
     // Diagnostics: run a lane's gates, build its release tree, or build and stage it on every role (no activation),
     // for any commit without touching the queue.

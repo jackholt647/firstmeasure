@@ -3,7 +3,13 @@ import fs from "node:fs";
 import os from "node:os";
 import { execFile } from "node:child_process";
 
-export const ORIGIN_URL = "https://github.com/jackholt647/firstmeasure.git";
+export const GITHUB_URL = "https://github.com/jackholt647/firstmeasure.git"; // backup mirror, pushed from PCs (mirror.mjs)
+/** The router's repository on the dev sync droplet: the source of truth for canonical, the lane branches and the queue. */
+export const ROUTER_REPO_PATH = "/home/dev/router/firstmeasure.git";
+export const ROUTER_REPO_SSH = `dev-sync-droplet:${ROUTER_REPO_PATH}`;
+export const ROUTER_REMOTE = "devpush"; // the remote name submit.mjs keeps in every checkout
+/** Where a checkout reaches the router's repository: DEV_PUSH_URL, the path on the droplet itself, else SSH. */
+export const routerUrl = () => process.env.DEV_PUSH_URL || (fs.existsSync(ROUTER_REPO_PATH) ? ROUTER_REPO_PATH : ROUTER_REPO_SSH);
 export const STATUS_URL = "https://dev.1m8.ai/__dev-push/status.json";
 export const STATUS_SSH = "dev-sync-droplet";
 export const STATUS_FILE = "dev-push/state/status.json"; // under the router account's home on the droplet
@@ -15,7 +21,7 @@ const laneBuilt = (name) => (process.env.DEV_PUSH_LANES ? process.env.DEV_PUSH_L
 export const LANES = {
   platform: { branch: "codex/consolidated-firstmeasure-20260923", owns: () => true },
   // A lane owns its paths once its module is in the checkout; until then platform carries them.
-  "measure-internal": { branch: "lane/measure-internal", owns: (file) => file.startsWith("public/measure/internal/") && laneBuilt("measure-internal") }
+  "measure-internal": { branch: "lane/measure-internal", owns: (file) => (file.startsWith("public/measure/internal/") || file.startsWith("dev/")) && laneBuilt("measure-internal") }
 };
 
 /** The most specific lane that owns a path (anything not claimed by another lane is platform). */
@@ -84,4 +90,4 @@ export function parseArgs(argv) {
   return args;
 }
 
-export const TERMINAL = new Set(["live", "rejected", "superseded", "withdrawn"]);
+export const TERMINAL = new Set(["live", "rejected", "superseded", "withdrawn", "passed", "failed"]);

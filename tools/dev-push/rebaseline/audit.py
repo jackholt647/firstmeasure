@@ -25,10 +25,14 @@ Classes for a file in the release tree (release root == repository root):
     object-only               blob is in the object database but no ref reaches it
     novel                     blob is in no git object: host-only content (captured + diff)
 Host-only paths (not in canonical's tree) are grouped as code (public/, deploy/,
-tools/, tests/, dev/, docs/), junk (release-root rollout manifests) or other,
-each with the same committed/object-only/novel status. Paths in canonical but
-absent on the host are listed as missing-on-host. The dev web live layer
-(/opt/firstmeasure/live) is captured whole and compared the same way.
+tools/, tests/, dev/, docs/), junk (release-root rollout records such as
+*-release.json, release.env, .release-artifact.json; __pycache__, *.orig) or
+other, each with the same committed/object-only/novel status. Paths in canonical
+but absent on the host are listed as missing-on-host. The dev web live layer
+(/opt/firstmeasure/live) is captured whole and compared the same way, and each
+path lane (/opt/firstmeasure/lanes/<name>/current, e.g. legacy's measure-internal)
+is audited like a release under the key <role>/lane:<name>. Skipped (built or
+data, not source): public/v1/node_modules, public/v1/dist, storage, output.
 
 Outputs: <out>/audit-<timestamp>.json, <out>/audit-<timestamp>.md, captured
 bytes under <out>/<role>/<path> with <path>.diff next to each novel file.
@@ -59,7 +63,9 @@ LANES_ROOT = "/opt/firstmeasure/lanes"  # per-path lanes nginx serves ahead of t
 SKIP_PREFIXES = ("public/v1/node_modules", "public/v1/dist", "public/storage", "public/v1/storage", "public/v1/output")
 SKIP_NAMES = ("node_modules", ".git")
 CODE_PREFIXES = ("public/", "deploy/", "tools/", "tests/", "dev/", "docs/")
-JUNK_ROOT_RE = re.compile(r"(-release\.json|-manifest\.json|\.sha256|-release\.txt|\.release)$")
+# Rollout records the old tooling left in the release root, plus build/merge debris anywhere.
+JUNK_ROOT_RE = re.compile(r"(\.json|\.sha256|\.txt|\.env|\.release)$")
+JUNK_ANY_RE = re.compile(r"(/__pycache__/|\.pyc$|\.orig$|\.rej$|\.bak$)")
 GENERATED_HINT_RE = re.compile(
     r"(\.min\.(js|css)$|bundle|/lang/|/i18n/|/locales?/|catalog|manifest|\.map$|/generated/|/build/|lock\.json$)", re.I)
 
@@ -271,7 +277,7 @@ def skipped(path):
 
 
 def host_only_group(path):
-    if "/" not in path and JUNK_ROOT_RE.search(path):
+    if ("/" not in path and JUNK_ROOT_RE.search(path)) or JUNK_ANY_RE.search(path):
         return "junk"
     if path.startswith(CODE_PREFIXES):
         return "code"

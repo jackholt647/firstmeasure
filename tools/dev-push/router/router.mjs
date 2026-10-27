@@ -133,7 +133,7 @@ export class Router {
         const parents = (await this.git(["log", "-1", "--format=%P", sha])).trim().split(" ").filter(Boolean);
         const manifest = parseManifest(message) || {};
         entry = this.submissions[sha] = {
-          ref: parsed.ref, lane, agent: manifest.agent || parsed.name, title: manifest.title || parsed.name, tests: manifest.tests || [],
+          ref: parsed.ref, lane, target: manifest.target || lane, regression: manifest.regression || null, agent: manifest.agent || parsed.name, title: manifest.title || parsed.name, tests: manifest.tests || [],
           session: manifest.session || null, submission: sha, work: parents.length === 1 && manifest.v ? parents[0] : sha,
           submitted_at: manifest.submitted_at || date, updated_at: new Date().toISOString(), state: "queued"
         };
@@ -164,14 +164,43 @@ export class Router {
 
   // ---------------------------------------------------------------- merging
 
-  async worktree(lane) {
+  async worktree(lane, start = `refs/lanes/${lane}`) {
     const dir = path.join(this.stateDir, "work", lane);
     if (!fs.existsSync(path.join(dir, ".git"))) {
       await this.git(["worktree", "prune"]);
       fs.mkdirSync(path.dirname(dir), { recursive: true });
-      await this.git(["worktree", "add", "--detach", "--force", dir, `refs/lanes/${lane}`]);
+      await this.git(["worktree", "add", "--detach", "--force", dir, start]);
     }
     return dir;
+  }
+
+  // ---------------------------------------------------------------- regression runs (ship nothing)
+
+  /** One `submit.mjs regression` request: its work merged onto its lane's tip, the lane's gates with regression on. */
+  async processRegression() {
+    await this.git(["fetch", "--quiet", "--prune", "--no-tags", "origin", "+refs/heads/queue/regression/*:refs/queue/regression/*"]);
+    const [entry] = await this.pending("regression");
+    if (!entry) return false;
+    const target = this.lanes[entry.target] ? entry.target : "platform";
+    const tip = await this.fetch(target);
+    const dir = await this.worktree("regression", tip);
+    const started = Date.now();
+    await this.update(entry, { state: "testing" });
+    const { sha, conflicts } = await this.mergeOnto(dir, tip, [entry]);
+    if (conflicts.length) {
+      await this.update(entry, { state: "failed", reason: "conflict", details: `Conflicts with ${this.lanes[target].branch} ${tip.slice(0, 10)} in:\n${conflicts[0].files.join("\n")}` });
+      await this.retire(entry);
+      return true;
+    }
+    const gate = await this.runGates(target, dir, sha, tip, [{ ...entry, regression: entry.regression || "mapped" }]);
+    const report = [
+      ...gate.failures.map((failure) => `## FAILED ${failure.id}\n${trim(failure.output, 4000)}`),
+      ...(gate.notes || []).map((note) => `note: ${note}`)
+    ].join("\n\n");
+    await this.update(entry, { state: gate.ok ? "passed" : "failed", reason: gate.ok ? null : "tests-failed", details: report || null, timings: { ...gate.timings, total: Date.now() - started } });
+    this.log("regression", `${entry.ref} ${gate.ok ? "passed" : "failed"}`);
+    await this.retire(entry);
+    return true;
   }
 
   /** Files the work changes relative to where it left the lane. */
@@ -214,8 +243,12 @@ export class Router {
   async runGates(lane, dir, sha, tip, entries, only) {
     const changed = [...new Set((await Promise.all(entries.map((entry) => this.changedBy(entry.work, tip)))).flat().filter(Boolean))];
     const tests = [...new Set(entries.flatMap((entry) => entry.tests || []))];
-    const result = await this.lanes[lane].gates({ dir, sha, baseSha: tip, changed, tests, only, log: (line) => this.log(lane, line) });
-    return { ok: Boolean(result.ok), failures: result.failures || (result.ok ? [] : [{ id: result.gate || "gate", output: result.output || "" }]), changed, tests };
+    // Regression suites run only when a submission asks (submit.mjs --regression): "all" beats "mapped".
+    const asked = entries.map((entry) => entry.regression).filter(Boolean);
+    const regression = asked.includes("all") ? "all" : asked.length ? "mapped" : null;
+    const started = Date.now();
+    const result = await this.lanes[lane].gates({ dir, sha, baseSha: tip, changed, tests, regression, only, log: (line) => this.log(lane, line) });
+    return { ok: Boolean(result.ok), failures: result.failures || (result.ok ? [] : [{ id: result.gate || "gate", output: result.output || "" }]), changed, tests, notes: result.notes || [], timings: { ...(result.timings || {}), gates_total: Date.now() - started } };
   }
 
   /** Failures that the lane tip itself also has are not the submission's fault. */
@@ -284,6 +317,10 @@ export class Router {
     if (!queue.length && !overlays.some((overlay) => overlay.parked)) return false;
     const batch = queue.slice(0, module.batchMax || 8);
     const dir = await this.worktree(lane);
+    // Every stage is timed; the timings go into the release record and each submission's status entry.
+    const batchStarted = Date.now();
+    const timings = {};
+    const timed = async (stage, work) => { const at = Date.now(); try { return await work(); } finally { timings[stage] = (timings[stage] || 0) + Date.now() - at; } };
 
     // Lane ownership and nothing-to-do checks before anything is merged.
     const candidates = [];
@@ -306,7 +343,7 @@ export class Router {
 
     await this.setLane(lane, { state: "merging", batch: candidates.map((entry) => entry.ref) });
     await this.update(candidates, { state: "merging" });
-    let { conflicts } = await this.mergeOnto(dir, tip, candidates);
+    let { conflicts } = await timed("merge", () => this.mergeOnto(dir, tip, candidates));
     for (const { entry, files } of conflicts) {
       await this.reject(entry, "conflict", `Conflicts with ${module.branch} ${tip.slice(0, 10)} (or with work merged ahead of it in this batch) in:\n${files.join("\n")}\n\nRebase onto the lane tip and submit again:\n  git fetch origin && git rebase origin/${module.branch}\n  node tools/dev-push/submit.mjs --lane ${lane}`);
     }
@@ -315,18 +352,19 @@ export class Router {
     if (accepted.length) {
       await this.setLane(lane, { state: "testing" });
       await this.update(accepted, { state: "testing" });
-      const { sha } = await this.mergeOnto(dir, tip, accepted);
-      const gate = await this.runGates(lane, dir, sha, tip, accepted);
+      const { sha } = await timed("merge", () => this.mergeOnto(dir, tip, accepted));
+      const gate = await timed("gates", () => this.runGates(lane, dir, sha, tip, accepted));
+      for (const [stage, ms] of Object.entries(gate.timings || {})) if (stage !== "gates_total") timings[`gate:${stage}`] = ms;
       if (!gate.ok) {
         this.log(lane, `batch of ${accepted.length} failed ${gate.failures.map((failure) => failure.id).join(", ")}; bisecting`);
-        accepted = await this.bisect(lane, dir, tip, accepted, [], accepted.length > 1);
+        accepted = await timed("bisect", () => this.bisect(lane, dir, tip, accepted, [], accepted.length > 1));
       }
     }
 
     // Final tree: accepted work plus live overlays (platform), merged once more so the release is exactly what was gated.
-    const final = await this.mergeOnto(dir, tip, accepted, overlays);
+    const final = await timed("merge", () => this.mergeOnto(dir, tip, accepted, overlays));
     if (final.overlaysMerged.length) {
-      const gate = await this.runGates(lane, dir, final.sha, tip, accepted);
+      const gate = await timed("overlay_gates", () => this.runGates(lane, dir, final.sha, tip, accepted));
       if (!gate.ok) {
         const own = await this.preexisting(lane, dir, tip, accepted, gate.failures);
         if (own.length) {
@@ -358,8 +396,9 @@ export class Router {
     this.log(lane, `deploying ${releaseId} (${accepted.length} submission(s), ${final.overlaysMerged.length} overlay(s))`);
     let deployed;
     try {
-      deployed = await module.deploy({ dir, sha: final.sha, releaseId, previous: this.laneState[lane].release, hosts: this.options.hosts, ssh: this.ssh, log: (line) => this.log(lane, line) });
+      deployed = await timed("deploy", () => module.deploy({ dir, sha: final.sha, releaseId, previous: this.laneState[lane].release, hosts: this.options.hosts, ssh: this.ssh, log: (line) => this.log(lane, line) }));
     } catch (error) { deployed = { ok: false, error: error.stack || error.message, rolledBack: false }; }
+    for (const [stage, ms] of Object.entries(deployed.timings || {})) timings[`deploy:${stage}`] = ms;
     if (!deployed.ok) {
       this.log(lane, `deploy ${releaseId} failed: ${deployed.error}`);
       if (accepted.length === 1 && deployed.rolledBack) {
@@ -374,7 +413,9 @@ export class Router {
       return true;
     }
 
-    const push = await this.git(["push", "--quiet", "origin", `${final.sha}:refs/heads/${module.branch}`], { allowFail: true });
+    const push = await timed("push", () => this.git(["push", "--quiet", "origin", `${final.sha}:refs/heads/${module.branch}`], { allowFail: true }));
+    timings.batch_total = Date.now() - batchStarted;
+    timings.queue_wait_max = Math.max(0, ...accepted.map((entry) => batchStarted - Date.parse(entry.submitted_at)).filter(Number.isFinite));
     if (push.code !== 0) {
       // Dev now runs work the branch lacks: hold the lane until the push succeeds (retried at the top of every pass).
       this.log(lane, `WARNING: ${releaseId} is live but ${module.branch} could not be fast-forwarded: ${push.stderr.trim()}`);
@@ -383,11 +424,11 @@ export class Router {
     const release = {
       id: releaseId, lane, sha: final.sha, at: new Date().toISOString(), base: tip, branch_pushed: push.code === 0,
       submissions: accepted.map((entry) => entry.ref), works: accepted.map((entry) => entry.work),
-      overlays: final.overlaysMerged.map((overlay) => overlay.ref), roles: deployed.roles || {}
+      overlays: final.overlaysMerged.map((overlay) => overlay.ref), roles: deployed.roles || {}, timings
     };
     this.releases.unshift(release);
     fs.writeFileSync(path.join(this.stateDir, "releases", `${releaseId}.json`), JSON.stringify(release, null, 1));
-    await this.update(accepted, { state: "live", release: releaseId, details: null });
+    await this.update(accepted, { state: "live", release: releaseId, details: null, timings });
     await this.setLane(lane, { state: "idle", batch: [], tip: push.code === 0 ? final.sha : tip, release: { id: releaseId, sha: final.sha, at: release.at }, note: final.overlayConflicts.length ? `${final.overlayConflicts.length} live overlay(s) need review` : null });
     for (const entry of accepted) await this.retire(entry);
     if (this.options.afterRelease) await this.options.afterRelease({ lane, release, overlays: final.overlaysMerged }).catch((error) => this.log(lane, `afterRelease: ${error.message}`));
@@ -424,10 +465,10 @@ export class Router {
       let busy = false;
       this.paused = new Set(this.readJson("paused.json", []));
       if (!this.paused.has(lane)) {
-        try { busy = await this.processLane(lane); }
+        try { busy = lane === "regression" ? await this.processRegression() : await this.processLane(lane); }
         catch (error) {
           this.log(lane, `error: ${error.stack || error.message}`);
-          await this.setLane(lane, { state: "idle", batch: [], note: `router error: ${trim(error.message, 300)}` }).catch(() => {});
+          if (this.lanes[lane]) await this.setLane(lane, { state: "idle", batch: [], note: `router error: ${trim(error.message, 300)}` }).catch(() => {});
         }
       }
       if (!busy) await new Promise((resolve) => { this.wake = resolve; setTimeout(resolve, intervalMs); });
@@ -438,6 +479,6 @@ export class Router {
     this.startedAt = new Date().toISOString();
     await this.init();
     await this.saveStatus();
-    return Promise.all(Object.keys(this.lanes).map((lane) => this.laneLoop(lane, intervalMs)));
+    return Promise.all([...Object.keys(this.lanes), "regression"].map((lane) => this.laneLoop(lane, intervalMs)));
   }
 }

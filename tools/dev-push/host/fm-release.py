@@ -12,6 +12,8 @@ only this (forced command `fm-release ssh`), so a dev host activates nothing but
   fm-release tree <lane>                                JSON: every file of the current release with its sha256
   fm-release prune <lane> [--keep N] [--days D]         delete old release directories (never current or previous)
   fm-release seal on|off                                make /opt/firstmeasure immutable (only this helper switches `current`)
+  fm-release guard on|off                               seal + an SSH banner naming submit.mjs (root only; at cutover)
+  fm-release check <lane> <name>      < paths.json      php -l / node --check of files in a release
   fm-release publish                  < status.json     web only: the router status document, served at /__dev-push/status.json
 
 Lanes: `platform` switches /opt/firstmeasure/current (the role's releases root holds the releases); any other lane
@@ -387,6 +389,53 @@ def cmd_publish():
     out({"ok": True, "bytes": len(data)})
 
 
+def cmd_check(lane, name):
+    """php -l / node --check on files of a staged or active release; the paths (a JSON list) come on stdin."""
+    if not SHA.match(name):
+        fail("bad release name")
+    releases, _ = lane_dirs(lane)
+    root = releases / name
+    if not root.is_dir():
+        fail(f"no release {root}")
+    problems = []
+    for rel in json.load(sys.stdin)[:500]:
+        target = (root / rel).resolve()
+        if not str(target).startswith(str(root.resolve()) + "/") or not target.is_file():
+            continue
+        command = ["php", "-l", str(target)] if rel.endswith(".php") else ["node", "--check", str(target)] if rel.endswith((".js", ".mjs", ".cjs")) else None
+        if not command:
+            continue
+        result = subprocess.run(command, capture_output=True, text=True, timeout=60)
+        if result.returncode != 0:
+            problems.append(f"{rel}: {(result.stdout + result.stderr).strip()[-800:]}")
+    out({"ok": not problems, "output": "\n".join(problems)}, 0 if not problems else 1)
+
+
+GUARD_BANNER = pathlib.Path("/etc/ssh/dev-push-banner")
+GUARD_SSHD = pathlib.Path("/etc/ssh/sshd_config.d/60-dev-push-banner.conf")
+GUARD_TEXT = """\
+This development host takes releases only from the dev push router.
+Ship with:  node tools/dev-push/submit.mjs --wait   (docs/architecture/dev-lanes.md)
+Per-task rollout scripts (prepare/rollout/deploy/ship) no longer work here: /opt/firstmeasure is sealed.
+"""
+
+
+def cmd_guard(on):
+    """Root only (not the router key): seal /opt/firstmeasure and show every SSH client the one way to ship, or undo it."""
+    if on:
+        GUARD_BANNER.write_text(GUARD_TEXT)
+        GUARD_SSHD.write_text(f"Banner {GUARD_BANNER}\n")
+    else:
+        GUARD_SSHD.unlink(missing_ok=True)
+    check = subprocess.run(["sshd", "-t"], capture_output=True, text=True)
+    if check.returncode != 0:
+        GUARD_SSHD.unlink(missing_ok=True)
+        fail(f"sshd -t failed; banner not installed: {check.stderr.strip()}")
+    subprocess.run(["systemctl", "reload", "ssh"], check=False)
+    seal(on)
+    out({"ok": True, "guard": on})
+
+
 def cmd_ssh():
     """Forced command for the router key: rsync into a staging directory, or one of the commands above."""
     original = os.environ.get("SSH_ORIGINAL_COMMAND", "")
@@ -409,7 +458,7 @@ def cmd_ssh():
         os.execvp("rsync", argv)
     if argv[0] in ("fm-release", "/usr/local/sbin/fm-release"):
         argv = argv[1:]
-    if not argv or argv[0] not in ("finish", "activate", "rollback", "status", "tree", "prune", "publish"):
+    if not argv or argv[0] not in ("finish", "activate", "rollback", "status", "tree", "prune", "publish", "check"):
         fail(f"command not allowed: {original[:80]}")
     main(argv)
 
@@ -448,6 +497,10 @@ def main(argv):
         return cmd_prune(rest[0] if rest else "platform", keep, days)
     if command == "publish":
         return cmd_publish()
+    if command == "check":
+        return cmd_check(rest[0], rest[1])
+    if command == "guard":
+        return cmd_guard(rest[0] == "on")
     if command == "seal":
         seal(rest[0] == "on")
         out({"ok": True, "sealed": rest[0] == "on"})

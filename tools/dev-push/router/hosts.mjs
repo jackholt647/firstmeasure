@@ -43,6 +43,7 @@ export function makeHosts({ inventory = INVENTORY, key = path.join(os.homedir(),
       return call(role, ["finish", lane, sha], { input: JSON.stringify(manifest), timeoutMs: 10 * 60_000 });
     },
     activate: (role, { lane, sha, expect = "-", waitJobs = 600 }) => call(role, ["activate", lane, sha, "--expect", expect || "-", "--wait-jobs", String(waitJobs)], { timeoutMs: 20 * 60_000 }),
+    check: (role, { lane, sha, paths }) => call(role, ["check", lane, sha], { input: JSON.stringify(paths), timeoutMs: 10 * 60_000 }),
     rollback: (role, { lane, sha }) => call(role, ["rollback", lane, sha], { timeoutMs: 10 * 60_000 }),
     prune: (role, { lane, keep = 10, days = 3 }) => call(role, ["prune", lane, "--keep", String(keep), "--days", String(days)], { timeoutMs: 30 * 60_000 }),
     tree: (role, lane = "platform") => call(role, ["tree", lane], { timeoutMs: 10 * 60_000 })

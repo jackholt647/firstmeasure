@@ -44,7 +44,7 @@ function scratch() {
         sh(target, 'add', '-A'); sh(target, 'commit', '-q', '-m', message);
       },
       submit(...args) {
-        const run = spawnSync(process.execPath, [SUBMIT, ...args], { cwd: target, encoding: 'utf8', env: { ...process.env, DEV_PUSH_AGENT: name, DEV_PUSH_STATUS_FILE: path.join(dir, 'state', 'status.json'), CLAUDE_CODE_HOST_SESSION_ID: '', CLAUDE_CODE_SESSION_ID: '' } });
+        const run = spawnSync(process.execPath, [SUBMIT, ...args], { cwd: target, encoding: 'utf8', env: { ...process.env, DEV_PUSH_AGENT: name, DEV_PUSH_URL: origin, DEV_PUSH_NO_MIRROR: '1', DEV_PUSH_STATUS_FILE: path.join(dir, 'state', 'status.json'), CLAUDE_CODE_HOST_SESSION_ID: '', CLAUDE_CODE_SESSION_ID: '' } });
         return { code: run.status, out: run.stdout + run.stderr };
       }
     };
@@ -53,8 +53,9 @@ function scratch() {
   // Stand-in lane: a tree fails the gate while it holds a file named bad-<id>.txt.
   const lane = {
     name: 'platform', branch: BRANCH, batchMax: 6, owns: (file) => laneOf(file) === 'platform',
-    async gates({ dir: tree, only }) {
-      const bad = spawnSync('git', ['ls-files', 'bad-*.txt'], { cwd: tree, encoding: 'utf8' }).stdout.split('\n').filter(Boolean).map((file) => `bad:${file}`);
+    async gates({ dir: tree, only, regression }) {
+      // A tree fails while it holds bad-*.txt; with regression asked, also while it holds slow-bug.txt.
+      const bad = spawnSync('git', ['ls-files', 'bad-*.txt', ...(regression ? ['slow-bug.txt'] : [])], { cwd: tree, encoding: 'utf8' }).stdout.split('\n').filter(Boolean).map((file) => `bad:${file}`);
       const failures = bad.filter((id) => !only || only.includes(id)).map((id) => ({ id, output: `${id} is in the tree` }));
       return { ok: failures.length === 0, failures };
     },
@@ -275,5 +276,29 @@ test('a parked overlay that cannot merge is reported once, not retried in a loop
     assert.equal(problems.length, 1);
     assert.equal(s.deployed.length, 0);
     assert.match(router.laneState.platform.note, /need review/);
+  } finally { s.cleanup(); }
+});
+
+test('regression runs on the server, ships nothing, and reports passed or failed', async () => {
+  const s = scratch();
+  try {
+    const a = s.clone('alice'), b = s.clone('bob');
+    a.edit('slow-bug.txt', 'only the regression suites see this\n');
+    b.edit('b.txt', 'b\n'); b.submit('--slug', 'b');
+    assert.equal(a.submit('regression', '--slug', 'check').code, 0);
+    const router = s.makeRouter();
+    await router.init();
+    while (await router.processRegression()) { /* drain */ }
+    const run = byRef(router, 'alice-check');
+    assert.equal(run.state, 'failed'); assert.equal(run.reason, 'tests-failed');
+    assert.match(run.details, /bad:slow-bug\.txt/);
+    assert.equal(s.deployed.length, 0, 'a regression run ships nothing');
+    assert.equal(s.originFile('slow-bug.txt'), '');
+    assert.equal(a.submit('wait', 'queue/regression/alice-check').code, 1);
+    // A normal submission does not run the regression suites; it ships.
+    await drain(router);
+    assert.equal(byRef(router, 'bob-b').state, 'live');
+    assert.ok(router.releases[0].timings.batch_total >= 0, 'stage timings recorded');
+    assert.deepEqual(s.queueRefs(), []);
   } finally { s.cleanup(); }
 });
