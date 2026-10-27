@@ -101,7 +101,14 @@ test('phone Photos and Docs expanded searches retain the icon and focus-ring mar
     for(const kind of ['Photos','Docs'])for(const width of [320,390,430]){
       const {page}=await pageFor(browser,{...PHONE,viewport:{width,height:844}});
       await mountDocsTab(page);
-      if(kind==='Photos')await page.evaluate(()=>{document.querySelector('#tab').innerHTML='<div id="photos" style="height:100%;padding:0 12px"></div>';Portal.PhotoFeed.mountProjectGallery(document.querySelector('#photos'),{project:{id:'p1'},photos:[],title:'Photos',icon:'fa-images',selectionEnabled:false});});
+      if(kind==='Photos')await page.evaluate(()=>{document.querySelector('#tab').innerHTML='<div id="photos" style="height:100%;padding:0 12px"></div>';Portal.PhotoFeed.mountProjectGallery(document.querySelector('#photos'),{project:{id:'p1'},photos:[],title:'Photos',icon:'fa-images',uploadLabel:'Upload photos',onUpload:()=>{window.uploadRequested=true;},selectionEnabled:false});});
+      if(kind==='Photos'){
+        const upload=page.locator('[data-photo-feed-upload]');
+        assert.equal(await upload.locator('.fa-arrow-up-from-bracket').count(),1);
+        const centered=await upload.evaluate(button=>{const b=button.getBoundingClientRect(),i=button.querySelector('i').getBoundingClientRect();return Math.abs(b.x+b.width/2-i.x-i.width/2)<1;});
+        assert.ok(centered,'upload icon is centered');
+        await upload.click();assert.equal(await page.evaluate(()=>window.uploadRequested),true);
+      }
       const field=page.locator('.pf-search input').first();await field.focus();
       await page.evaluate(()=>Promise.all(document.getAnimations().map(animation=>animation.finished.catch(()=>{}))));
       const boxes=await field.evaluate(input=>{const bar=input.closest('.pf-toolbar'),icon=bar.querySelector('.pf-title i');const rect=node=>{const r=node.getBoundingClientRect();return {left:r.left,right:r.right};};return {input:rect(input),icon:rect(icon),bar:rect(bar),screen:innerWidth};});

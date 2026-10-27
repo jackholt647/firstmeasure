@@ -616,8 +616,7 @@
     return next;
   }
   function featureEnabled(){
-    return !!window.Portal?.appFlags?.has?.('platform', 'project_photos')
-      && !!window.Portal?.appFlags?.has?.('platform', 'photos_feed');
+    return !!window.Portal?.appFlags?.has?.('platform', 'photos_feed');
   }
   function photoLibrary(){ return window.PlatformAPI?.projectMedia || null; }
   function firstMeasurePhotoOptions(){
@@ -1874,7 +1873,7 @@
         .pf-wrap[data-mobile-grid=dense] .pf-tools{gap:6px}
         .pf-wrap[data-mobile-grid=dense] .pf-search input{height:36px;font-size:13px;background:#f8fafc}
         .pf-wrap[data-mobile-grid=dense] .pf-toolbar-action{height:36px;width:38px;padding:0;justify-content:center;flex:none}
-        .pf-wrap[data-mobile-grid=dense] .pf-upload{flex:none;width:38px;height:36px;padding:0;justify-content:center;font-size:0;border:0;background:var(--primary,#d93025);color:#fff}.pf-wrap[data-mobile-grid=dense] .pf-upload i{font-size:15px}
+        .pf-wrap[data-mobile-grid=dense] .pf-upload{flex:none;width:38px;height:36px;padding:0;justify-content:center;font-size:0;border:0;background:var(--primary,#d93025);color:#fff}.pf-wrap[data-mobile-grid=dense] .pf-upload{gap:0}.pf-wrap[data-mobile-grid=dense] .pf-upload i{font-size:15px}
         .pf-wrap[data-mobile-grid=dense] .pf-scroll{padding:0 0 16px}
         .pf-wrap[data-mobile-grid=dense] .pf-day{display:grid;grid-template-columns:auto minmax(0,1fr);align-items:center;margin:0}
         .pf-wrap[data-mobile-grid=dense] .pf-day-heading{grid-column:1;position:sticky;top:0;z-index:3;align-self:stretch;margin:0;padding:9px 12px 7px;background:rgba(255,255,255,.96)}
@@ -1906,6 +1905,7 @@
       }
       /* Shared project gallery header: Photos and Docs use one search surface. */
       @media(max-width:760px){
+        .pf-gallery-host .pf-toolbar .pf-upload{gap:0;flex:none;width:38px;height:36px;padding:0;justify-content:center;font-size:0}.pf-gallery-host .pf-toolbar .pf-upload i{font-size:15px}
         .pf-gallery-host .pf-toolbar .pf-title{display:flex;flex:0 0 32px;min-width:32px;gap:0}
         .pf-gallery-host .pf-toolbar .pf-title>div{display:none}
         .pf-gallery-host .pf-toolbar .pf-title>i{width:32px;height:32px;border-radius:9px;font-size:14px;flex:none}
@@ -1985,24 +1985,22 @@
         .pf-wrap[data-pf-page="feed"][data-density] .pf-feed-scope-menu>button,.pf-wrap[data-pf-page="feed"][data-density] .pf-feed-scope-departments button{min-height:48px;font-size:15px;border-radius:12px}
         .pf-wrap[data-pf-page="feed"][data-density] .pf-feed-scope-search input{height:44px;font-size:16px}
         .pf-wrap[data-pf-page="feed"][data-density] .pf-feed-scope-departments{max-height:none}
-        /* Tiles on a phone: text entries are one compact full-width card each (avatar, what happened, project, time);
-           photos and documents stay a two-column grid, and the last of an odd run takes the full width. */
+        /* Mobile Tiles: every entry occupies one of two columns, including text and odd photo counts. */
         .pf-wrap[data-pf-page="feed"][data-density="large"] .pf-feed-grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
-        .pf-wrap[data-pf-page="feed"][data-density="large"] .pf-feed-activity{grid-column:1/-1;display:grid;grid-template-columns:36px minmax(0,1fr);align-items:start;gap:2px 11px;min-height:0;padding:11px 12px;border-radius:12px}
-        .pf-wrap[data-pf-page="feed"][data-density="large"] .pf-feed-activity>.pf-actor-avatar{grid-row:1/span 2;width:36px;height:36px;flex-basis:36px;font-size:14px}
+        .pf-wrap[data-pf-page="feed"][data-density="large"] .pf-feed-activity{grid-column:auto;display:grid;grid-template-columns:minmax(0,1fr);grid-template-rows:auto 1fr auto;align-items:start;gap:10px;min-height:180px;padding:12px;border-radius:12px}
+        .pf-wrap[data-pf-page="feed"][data-density="large"] .pf-feed-activity>.pf-actor-avatar{grid-row:auto;width:36px;height:36px;flex-basis:36px;font-size:14px}
         .pf-wrap[data-pf-page="feed"][data-density="large"] .pf-feed-activity .pf-actor-badge{width:17px;height:17px;font-size:8px;right:-4px;bottom:-4px}
         .pf-wrap[data-pf-page="feed"][data-density="large"] .pf-feed-activity-copy{display:grid;gap:2px;min-width:0}
-        .pf-wrap[data-pf-page="feed"][data-density="large"] .pf-feed-activity-copy>strong{font-size:14px;line-height:1.3;font-weight:650;color:#101828;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;overflow-wrap:anywhere}
+        .pf-wrap[data-pf-page="feed"][data-density="large"] .pf-feed-activity-copy>strong{font-size:13px;line-height:1.4;font-weight:650;color:#101828;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden;overflow-wrap:anywhere}
         .pf-wrap[data-pf-page="feed"][data-density="large"] .pf-feed-activity-copy .pf-feed-list-project{margin-top:0;font-size:12.5px}
         .pf-wrap[data-pf-page="feed"][data-density="large"] .pf-feed-list-project .pf-project-identity{display:block;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;text-align:left;color:#475467;font-weight:600}
         .pf-wrap[data-pf-page="feed"][data-density="large"] .pf-feed-list-project .pf-project-identity>span{display:inline}
         .pf-wrap[data-pf-page="feed"][data-density="large"] .pf-feed-list-project .pf-feed-list-address{font-weight:500;color:#667085}
-        .pf-wrap[data-pf-page="feed"][data-density="large"] .pf-feed-activity>time{grid-column:2;font-size:12px;color:#667085;white-space:nowrap}
+        .pf-wrap[data-pf-page="feed"][data-density="large"] .pf-feed-activity>time{grid-column:1;font-size:11px;color:#667085;white-space:normal}
         .pf-wrap[data-pf-page="feed"][data-density="large"] .pf-feed-note-card .pf-note,.pf-wrap[data-pf-page="feed"][data-density="large"] .pf-manual-tile .pf-manual-text{font-size:13.5px}
         .pf-wrap[data-pf-page="feed"][data-density="large"] .pf-feed-card{border-radius:12px}
         .pf-wrap[data-pf-page="feed"][data-density="large"] .pf-feed-card .pf-thumb,.pf-wrap[data-pf-page="feed"][data-density="large"] .pf-document-preview{aspect-ratio:4/3;max-height:none}
-        .pf-wrap[data-pf-page="feed"][data-density="large"] .pf-feed-card.pf-tile-wide{grid-column:1/-1}
-        .pf-wrap[data-pf-page="feed"][data-density="large"] .pf-feed-card.pf-tile-wide .pf-thumb,.pf-wrap[data-pf-page="feed"][data-density="large"] .pf-feed-card.pf-tile-wide .pf-document-preview{aspect-ratio:16/9}
+        .pf-wrap[data-pf-page="feed"][data-density="large"] .pf-manual-tile .pf-manual-images{grid-template-columns:repeat(3,minmax(0,1fr))}
         .pf-wrap[data-pf-page="feed"][data-density="large"] .pf-feed-card-body{padding:8px 10px 10px}
         .pf-wrap[data-pf-page="feed"][data-density="large"] .pf-tile-actor{margin-bottom:4px}
         .pf-wrap[data-pf-page="feed"][data-density="large"] .pf-tile-actor strong{font-size:12.5px}
@@ -3031,21 +3029,9 @@
     const me = state.users.find((user) => user.id === APP.userId) || {};
     return `<button type="button" class="pf-mobile-post" data-feed-compose-open>${avatarHtml({ name:firstText(me.name,'You'), avatar:me.profile_photo_url })}<span>${escapeHtml(feedText('feed_post_prompt','Write a post…'))}</span><i class="fas fa-pen-to-square" aria-hidden="true"></i></button>`;
   }
-  // Tiles: one card per entry. On a phone, photos and documents pair up in two columns between full-width text cards;
-  // the last card of an odd run of them takes the full width rather than leaving a hole.
+  // One card per entry; the responsive grid keeps all mobile tiles in two columns.
   function feedTileEntriesHtml(list = []){
-    const tileKinds = ['media','document'];
-    const wide = new Set();
-    if (feedIsMobile() && state.density === 'large') {
-      let run = [];
-      const close = () => { if (run.length % 2) wide.add(run[run.length - 1]); run = []; };
-      list.forEach((entry) => { if (tileKinds.includes(entry.kind)) run.push(entry); else close(); });
-      close();
-    }
-    return list.map((entry) => {
-      const html = entry.kind === 'manual' ? feedManualEntryHtml(entry) : entry.kind === 'media' ? feedMediaEntryHtml(entry) : entry.kind === 'document' ? feedDocumentEntryHtml(entry) : entry.kind === 'note' ? feedNoteEntryHtml(entry) : feedActivityEntryHtml(entry);
-      return wide.has(entry) ? html.replace('class="pf-feed-card ', 'class="pf-feed-card pf-tile-wide ') : html;
-    }).join('');
+    return list.map((entry) => entry.kind === 'manual' ? feedManualEntryHtml(entry) : entry.kind === 'media' ? feedMediaEntryHtml(entry) : entry.kind === 'document' ? feedDocumentEntryHtml(entry) : entry.kind === 'note' ? feedNoteEntryHtml(entry) : feedActivityEntryHtml(entry)).join('');
   }
   async function openFeedViewerAt(index, options = {}){
     const items = filteredItems();
@@ -3838,7 +3824,7 @@
               <button type="button" class="pf-toolbar-action${String(state.shownMenuOpen || state.visibleActivity.size < DEFAULT_ACTIVITY_FILTERS.length ? ' active' : '')}" data-feed-shown aria-label="Filter" aria-expanded="${String(state.shownMenuOpen ? 'true' : 'false')}"><i class="fas fa-sliders"></i><span>Filter</span></button>
               ${String(shownMenuHtml())}
             </div>
-            ${String(state.uploadLabel ? `<button type="button" class="pf-upload" data-photo-feed-upload><i class="fas fa-plus"></i> ${escapeHtml(state.uploadLabel)}</button>` : '')}
+            ${String(state.uploadLabel ? `<button type="button" class="pf-upload" data-photo-feed-upload aria-label="Upload photos"><i class="fas fa-arrow-up-from-bracket"></i> ${escapeHtml(state.uploadLabel)}</button>` : '')}
           </div>
         </div>
         <div data-photo-feed-dynamic>${String(dynamicHtml())}</div>
@@ -5186,7 +5172,7 @@
                 ${String(localTagMenuHtml())}
               </div>
               ${String(toolbarActions)}
-              ${String(options.uploadLabel ? `<button type="button" class="pf-upload" data-photo-feed-upload><i class="fas fa-plus"></i> ${escapeHtml(options.uploadLabel)}</button>` : '')}
+              ${String(options.uploadLabel ? `<button type="button" class="pf-upload" data-photo-feed-upload aria-label="Upload photos"><i class="fas fa-arrow-up-from-bracket"></i> ${escapeHtml(options.uploadLabel)}</button>` : '')}
             </div>
           </div>
           ${String(options.layoutAsideHtml ? `<div class="pf-content-layout">
