@@ -352,6 +352,7 @@ export async function isAppFlagEnabled(orgId: string, groupValue: string, flagVa
 
 export function containsAppFlagMutation(input: JsonObject = {}) {
   const data = asObject(input.data);
+  if (['app_offers', 'app_activations'].some(key => Object.prototype.hasOwnProperty.call(data, key) || Object.prototype.hasOwnProperty.call(input, key))) return true;
   return Object.prototype.hasOwnProperty.call(data, "app_flags")
     || Object.prototype.hasOwnProperty.call(data, "feature_flags")
     || Object.prototype.hasOwnProperty.call(data, "app_variants")

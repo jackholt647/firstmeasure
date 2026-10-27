@@ -1,5 +1,9 @@
 # FirstMeasure: local development and production deployment
 
+October 27 Messages fallback: [independent Messages switch, bell fallback for tags, and Operations report prefill/copy fixes](deploy/digitalocean/development-messages-fallback-20261027.md) records verified development release `943d9542`.
+
+October 27 Operations setup: [shared scope/proposal workflow, optional setup checklist, global Equipment offer and tutorial](deploy/digitalocean/development-operations-setup-20261027.md) records verified development release `1b28c1df` on worker, compatibility and web.
+
 October 27 Visual recovery: [committed Docs, Photos upload/search, Operations badges, camera and markup; live conflict audit and permanent development activation](deploy/digitalocean/development-visual-recovery-20261027.md) records release `c9d694e1` on development legacy and web.
 
 October 27 Project details tray: [project contact, address and measurements move into a left tray that launches report orders](deploy/digitalocean/development-project-details-tray-20261027.md) records release `0bf560cd` on development legacy and web.

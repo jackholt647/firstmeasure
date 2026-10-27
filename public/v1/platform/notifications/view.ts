@@ -3,6 +3,7 @@ import { resolveOrganizationStructure, departmentIdsForUser } from "../../workfo
 import { readEventRecord } from "../../work/storage.js";
 // Shared recipient/effective-preference view. Reads do not materialize or replay occurrences.
 import type { PlatformAuthContext } from "../auth.js";
+import { backgroundAuthContext } from "../auth.js";
 import { isAppFlagEnabled } from "../app_flags.js";
 import { readDocument, listDocuments } from "../storage.js";
 import { categoryForNotification, isMessageInboxNotification, notificationPreferenceEnabled, notificationPresentation } from "../notification_delivery.js";
@@ -24,6 +25,8 @@ export async function listMessageInboxNotifications(ctx: PlatformAuthContext): P
 export async function listVisibleNotifications(orgId: string, userId: string, options: { includeDismissed?: boolean; branchId?: string; ignorePreferences?: boolean; includeMessageAlerts?: boolean } = {}) {
   if (!options.includeMessageAlerts && !await isAppFlagEnabled(orgId, "apps", "notifications")) return { notifications: [], unread_count: 0, active_count: 0 };
   const measurementsEnabled = await isAppFlagEnabled(orgId, "apps", "firstmeasure");
+  // Resolve placement on each read so retained deliveries follow the current surface without being sent twice.
+  const messagesInboxEnabled = await isAppFlagEnabled(orgId, "topbar", "messages") && await isAppFlagEnabled(orgId, "apps", "channels");
   const [userDoc, notificationDocs] = await Promise.all([
     readDocument(orgId, "users", userId),
     listDocuments(orgId, NOTIFICATION_COLLECTION)
@@ -66,10 +69,20 @@ export async function listVisibleNotifications(orgId: string, userId: string, op
     })
     .map(({ document, data }) => {
       const state = asObject(states[String(data.id || document.id)]);
-      return { ...data, id: String(data.id || document.id), user_state: state, presentation: (() => { const p = notificationPresentation(rawPreferences, data), d = deliveryRecords.get(String(data.id || document.id)); if (!d) return p; const m = asObject(d.methods); return {...p, bell: p.bell && ["available","presented"].includes(String(asObject(m.in_app).state)), sound: asObject(m.audio).state === "available" && baselinePlan(data,rawPreferences).audio?.decision !== "suppress", celebration: asObject(m.celebration).state === "available" && baselinePlan(data,rawPreferences).celebration?.decision !== "suppress", toast: asObject(m.toast).state === "available" && baselinePlan(data,rawPreferences).toast?.decision !== "suppress"}; })(), deliveries: deliveryRecords.get(String(data.id || document.id)), document_revision: document.revision };
+      return { ...data, id: String(data.id || document.id), user_state: state, presentation: (() => { const p = notificationPresentation(rawPreferences, data, { messagesInboxEnabled }), d = deliveryRecords.get(String(data.id || document.id)); if (!d) return p; const m = asObject(d.methods); return {...p, bell: p.bell && ["available","presented"].includes(String(asObject(m.in_app).state)), sound: asObject(m.audio).state === "available" && baselinePlan(data,rawPreferences).audio?.decision !== "suppress", celebration: asObject(m.celebration).state === "available" && baselinePlan(data,rawPreferences).celebration?.decision !== "suppress", toast: asObject(m.toast).state === "available" && baselinePlan(data,rawPreferences).toast?.decision !== "suppress"}; })(), deliveries: deliveryRecords.get(String(data.id || document.id)), document_revision: document.revision };
     })
     .filter((item) => options.includeDismissed || !item.user_state.dismissed_at && !item.user_state.completed_at)
     .sort((a, b) => String((b as Record<string, unknown>).created_at).localeCompare(String((a as Record<string, unknown>).created_at)));
+  if (!messagesInboxEnabled && !options.includeMessageAlerts) {
+    const messages = notifications.filter(item => isMessageInboxNotification(item));
+    if (messages.length) {
+      const ctx = await backgroundAuthContext(orgId, userId);
+      const { messageNotificationVisible } = await import('../../channels/service.js');
+      const allowed = new Set<string>();
+      for (const item of messages) if (await messageNotificationVisible(ctx, item, { bell: true })) allowed.add(item.id);
+      for (let i = notifications.length - 1; i >= 0; i--) if (isMessageInboxNotification(notifications[i]!) && !allowed.has(notifications[i]!.id)) notifications.splice(i, 1);
+    }
+  }
   return {
     notifications: notifications.filter(item => options.includeMessageAlerts || item.presentation.bell),
     in_app_alerts: options.includeMessageAlerts ? [] : notifications.filter(item => !item.presentation.bell),

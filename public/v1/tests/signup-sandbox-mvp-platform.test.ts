@@ -40,11 +40,23 @@ test('the MVP platform workflow is FirstMeasure plus projects, contacts, feed an
 
  const instance=await service.createTestInstance('swf_mvp_platform',{label:'MVP platform fixture'});
  const orgId=String(instance.testOrg.org_id);
+ const offered=await storage.readGlobal(orgId);
+ assert.deepEqual((offered.data as any).app_offers,['project.photos','project.docs','project.customer_portal','project.materials','portal.equipment']);
+ const beforeStart=await capabilities.effectiveCapabilities(orgId);
+ assert.equal(beforeStart.effectiveByKey['platform.photos_feed'],true,'Feed is available at MVP launch');
+ assert.equal(beforeStart.effectiveByKey['platform.project_photos'],false,'project Photos waits for Get Started');
+ assert.equal(beforeStart.effectiveByKey['apps.equipment'],false,'Equipment is only offered until setup is chosen');
+ assert.equal(beforeStart.effectiveByKey['equipment.scheduling'],false,'offered Equipment exposes no scheduling integration');
+ // The remainder exercises the configured apps after the organization has opted in.
+ await storage.mutateGlobal(orgId,current=>{current.data={...(current.data as Record<string,unknown>),app_offers:[]};return current;});
+ instance.authContext=await (await import('../platform/auth.js')).buildAuthContext(instance.authContext.sessionId,instance.authContext.session);
  const {effectiveByKey}=await capabilities.effectiveCapabilities(orgId);
- const on=['platform.more_apps','platform.advanced_app_menu','firstmeasure.exteriors','platform.top_bar','topbar.global_search','topbar.notifications','platform.expanded_access','apps.projects','apps.project_map','platform.project_stages_view','platform.contacts','platform.photos_feed','platform.project_photos','platform.customer_portal','platform.materials','platform.documents','apps.firstmeasure','firstmeasure.report_orders','apps.assistant','channels.project_notes'];
+ const on=['platform.more_apps','platform.advanced_app_menu','firstmeasure.exteriors','platform.top_bar','topbar.global_search','topbar.notifications','platform.expanded_access','apps.projects','apps.project_map','platform.project_stages_view','platform.contacts','platform.photos_feed','platform.project_photos','platform.customer_portal','platform.materials','platform.documents','apps.firstmeasure','firstmeasure.report_orders','apps.assistant','channels.project_notes','apps.equipment'];
  for(const key of on) assert.equal(effectiveByKey[key],true,key);
- const off=['customer_portal.guest_links','platform.project_assignments','topbar.todos','channels.project_messages_tray','platform.scheduling','scheduling.gantt','equipment.scheduling','apps.crm','apps.stats','apps.payroll','apps.training','apps.sales','platform.money','apps.comms','apps.live_chat','assistant.actions','apps.checklists','apps.equipment'];
+ const off=['topbar.messages','customer_portal.guest_links','platform.project_assignments','topbar.todos','channels.project_messages_tray','platform.scheduling','scheduling.gantt','apps.crm','apps.stats','apps.payroll','apps.training','apps.sales','platform.money','apps.comms','apps.live_chat','assistant.actions','apps.checklists'];
  for(const key of off) assert.notEqual(effectiveByKey[key],true,key);
+ // Accepting Equipment enables its standard fixed feature set; the main Scheduling app remains off.
+ assert.equal(effectiveByKey['equipment.scheduling'],true);
  // Materials settings has no Resource categories sub-tab in the MVP; the capability is on by default elsewhere.
  assert.equal((workflow!.defaults as any).app_flags['materials.resource_categories'],false);
  assert.equal(effectiveByKey['materials.resource_categories'],false);
@@ -62,7 +74,7 @@ test('the MVP platform workflow is FirstMeasure plus projects, contacts, feed an
  const {appFlagState}=await import('../platform/app_flags.js');
  assert.deepEqual((await appFlagState(orgId)).project_tabs,projectTabs);
  const {readTerminologyMappings}=await import('../platform/localization/terminology-settings.js');
- assert.equal((await readTerminologyMappings(orgId,'default') as any).labels.scope.project_tab,'Materials');
+ assert.equal((await readTerminologyMappings(orgId,'default') as any).labels.scope.project_tab,'Operations');
  // The configuration's setup script: Generic Roofing installed, every new project starts it, other presets off.
  const router=await import('../scopes/router.js');const scopes=await import('../scopes/storage.js');const creation=await import('../projects/create.js');
  const routing=await router.readIntakeRouting(orgId);
@@ -72,7 +84,7 @@ test('the MVP platform workflow is FirstMeasure plus projects, contacts, feed an
  const roofing=await scopes.readScopeTemplate(orgId,'default','generic_roofing');
  assert.deepEqual((roofing as any).definition?.measurement_schema_ids ?? (roofing as any).measurement_schema_ids,['roofing']);
  assert.equal(String((await creation.creationScopeTemplate(orgId,'default')).id),'generic_roofing');
- assert.equal((workflow as any).dev_bar,false);assert.equal((workflow as any).configuration_revision,18);
+ assert.equal((workflow as any).dev_bar,false);assert.equal((workflow as any).configuration_revision,21);
  const resolved=(await capabilities.effectiveCapabilities(orgId)).values as any;
  assert.equal(resolved['platform.new_button_mode'],'selector');assert.equal(resolved['platform.new_button_items'],'report,project,contact');
  // The left column's footer is stacked: the account on its own row, named explicitly as well as being the default.
@@ -146,11 +158,11 @@ test('the MVP platform workflow is FirstMeasure plus projects, contacts, feed an
  const profile=await access.resolveAccessProfile(orgId,{...owner.data,id:owner.id});
  assert.deepEqual(profile.access_role_ids,['super_admin']);
  assert.equal(profile.app_entitlements_by_id['portal.viewer']?.option_values.map_first,true);
- // Their main view is My Projects, My Contacts and Feed: the portal tabs they have, less those hidden by placement,
+ // After accepting the offers, their main view includes Equipment, My Projects, My Contacts and Feed: the portal tabs they have, less those hidden by placement,
  // Settings (its own control) and Pricebook (opened full screen from the Apps overlay and Settings).
  const placements=(global.data as any).app_placements||{};
  const tabs=profile.app_entitlements.filter((app:any)=>app.surface==='portal_tab'&&app.allowed);
- assert.deepEqual(tabs.filter((app:any)=>placements[app.id]!=='hidden'&&app.launcher!==false&&app.id!=='portal.pricebook').map((app:any)=>app.title).sort(),['Feed','My Contacts','My Projects']);
+ assert.deepEqual(tabs.filter((app:any)=>placements[app.id]!=='hidden'&&app.launcher!==false&&app.id!=='portal.pricebook').map((app:any)=>app.title).sort(),['Equipment','Feed','My Contacts','My Projects']);
  assert.ok(tabs.some((app:any)=>app.id==='portal.pricebook'));
  assert.ok(!tabs.some((app:any)=>app.id==='portal.chat'),'no Communications or Call center');
  // A launched MVP test org starts with no sample projects or customers: they come only from "Add sample data".

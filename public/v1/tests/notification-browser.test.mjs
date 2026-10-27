@@ -4,6 +4,15 @@ import { readFileSync } from 'node:fs';
 import { runInNewContext } from 'node:vm';
 
 const source = readFileSync(new URL('../../libraries/platform-notifications/platform-notifications.js', import.meta.url), 'utf8');
+test('message fallback follows server bell presentation for retained and current deliveries', async () => {
+  let bell = true;
+  const window = { PlatformAPI: { notifications: { list: async () => ({ notifications: [1,2].map(version => ({ id:String(version), source:'channels', delivery_version:version, presentation:{bell,badge:true,sound:false} })) }) } } };
+  runInNewContext(source, {window,setTimeout});
+  let state=await window.PlatformNotifications.load('org');
+  assert.equal(state.notifications.length,2);assert.equal(state.unread_count,2);
+  bell=false;state=await window.PlatformNotifications.load('org');
+  assert.equal(state.notifications.length,0);assert.equal(state.unread_count,0);
+});
 test('silent deliveries remain visible without alerts; hidden bell items can still alert', async () => {
   let response = { notifications: [] }, sounds = 0, celebrations = 0;
   const window = {

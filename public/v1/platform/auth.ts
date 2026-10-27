@@ -64,7 +64,7 @@ import type { FastifyReply, FastifyRequest } from "fastify";
 
 import { env } from "../src/config/env.js";
 import "./capability_defs.js";
-import { capabilityDefinition, effectiveCapabilities, type CapabilityResolution } from "./capabilities.js";
+import { capabilityAccessState, capabilityDefinition, effectiveCapabilities, type CapabilityResolution } from "./capabilities.js";
 import { forbidden, unauthorized } from "./errors.js";
 import { organizationUserProfileView } from "./user_profile.js";
 import { notificationAccessPermissions, resolveAccessProfile, resolveAppEntitlements, type EffectiveAppEntitlement, type ResolvedAccessProfile } from "../workforce/access.js";
@@ -604,9 +604,9 @@ export async function buildAuthContext(sessionId: string, session: JsonObject): 
   if (identityStatusBlocksLogin(identity)) throw unauthorized("identity_inactive", "This account is not active.");
   if (String(user.status || "active") === "disabled") throw forbidden("user_disabled", "This organization user is disabled.");
   const permissionState = orgUserPermissionState(user);
-  const capabilities = await effectiveCapabilities(orgId, userId);
+  const { capabilities, offeredAppIds } = await capabilityAccessState(orgId, userId);
   const accessProfile = capabilities.effectiveByKey["platform.expanded_access"] === true
-    ? (await resolveAccessProfile(orgId, { ...userDocument, data: user }, { effectiveByKey: capabilities.effectiveByKey }))
+    ? (await resolveAccessProfile(orgId, { ...userDocument, data: user }, { effectiveByKey: capabilities.effectiveByKey, offeredAppIds }))
     : undefined;
   const permissions = accessProfile?.effective_permissions || permissionState.permissions || asObject(session.permissions_snapshot);
   const organizationStructure = accessProfile?.organization_structure || await resolveOrganizationStructure(orgId);
@@ -629,7 +629,7 @@ export async function buildAuthContext(sessionId: string, session: JsonObject): 
     capabilities,
     // Without expanded access nobody has roles: every person gets each app's default.
     appEntitlements: accessProfile?.app_entitlements
-      || resolveAppEntitlements({ effectiveByKey: capabilities.effectiveByKey, permissions: permissions as Record<string, boolean> }),
+      || resolveAppEntitlements({ effectiveByKey: capabilities.effectiveByKey, offeredAppIds, permissions: permissions as Record<string, boolean> }),
     csrfToken: String(session.csrf_token || "")
   };
 }
@@ -716,7 +716,7 @@ export function hasAppEntitlement(ctx: PlatformAuthContext, appId: string) {
   const normalize=(id:string)=>id.replace(/^(portal|project|apps|settings|platform)\./,'');
   if ((ctx.accessProfile?.app_restrictions || []).some(id=>normalize(id)===normalize(appId))) return false;
   return !(ctx.appEntitlements || []).some(entry =>
-    (entry.id === appId || entry.portal_tab_id === appId || normalize(entry.id) === normalize(appId)) && entry.restricted);
+    (entry.id === appId || entry.portal_tab_id === appId || normalize(entry.id) === normalize(appId)) && (entry.restricted || entry.offered));
 }
 
 /**
@@ -726,16 +726,17 @@ export function hasAppEntitlement(ctx: PlatformAuthContext, appId: string) {
  * Without expanded access nobody has roles, so the route's own checks decide.
  */
 export function hasAppAccess(ctx: PlatformAuthContext, appIds: string | string[]) {
-  if (!ctx.accessProfile) return true;
   const ids = Array.isArray(appIds) ? appIds : [appIds];
   const entries = (ctx.appEntitlements || []).filter((entry) => ids.includes(entry.id));
-  return !entries.length || entries.some((entry) => entry.allowed);
+  if (entries.length && entries.every(entry => entry.offered)) return false;
+  if (!ctx.accessProfile) return true;
+  return !entries.length || entries.some((entry) => entry.allowed && !entry.offered);
 }
 
 /** An option of an app (docs/architecture/app-experience.md), such as Today's time clock, as this person gets it. */
 export function appOptionEnabled(ctx: PlatformAuthContext, appId: string, optionKey: string) {
   const entry = (ctx.appEntitlements || []).find((app) => app.id === appId);
-  return entry?.allowed === true && entry.option_values[optionKey] === true;
+  return entry?.allowed === true && !entry.offered && entry.option_values[optionKey] === true;
 }
 
 /**

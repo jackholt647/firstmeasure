@@ -23,7 +23,7 @@ or twice per organization, and the payload compresses well.
 
 ## The Labor column reads every material list when nobody does labor
 
-**Today.** For an organization whose Labor column waits for someone to do labor (`shown: with_assignees`, saved when the
+**Today.** For an organization whose Labor column waits for someone to do labor (`shown: when_configured` in Operations setup, or legacy `shown: with_assignees`, saved when the
 price book setup's labor step is skipped) and that has no group, outside company or pay sheet yet,
 `laborColumnShown` (`public/v1/materials/resource-types.ts`) reads every material list to see whether a labor list
 exists, each time the resource types are listed (opening the Materials tab, generating).
@@ -633,6 +633,24 @@ versions. The count, and so the offered types, stay the same.
 
 **Why it can wait.** The top bar asks once per page load (and after a switch changes), and organizations have a handful
 of scope templates. (docs/architecture/app-experience.md, "Global search")
+
+## Operations setup checklist lists suppliers and equipment
+
+**Today.** `operationsSetupStatus` in `public/v1/operations/onboarding.ts` lists the organization's suppliers and fleet to derive completion each time the hub refreshes. This is read-only and reports the same existing records users can open; the guide keeps no second setup-completion boolean for those resources.
+
+**Where the change goes.** Add indexed existence/count queries to the supplier and equipment domain readers, preserving their authorization and exactly the same completion criteria.
+
+**Why it can wait.** The checklist is opened during initial setup, when these collections are small. Revisit before large organizations use the hub frequently.
+
+
+### Message notification bell fallback authorization
+
+`platform/notifications/view.ts` rechecks each retained message through
+`channels/service.ts:messageNotificationVisible`. This repeats channel, message,
+read-state and collaboration preference reads for the same viewer. A future
+request-scoped cache/batch must preserve media/project access, per-message audience,
+thread/channel mute, deletion and read-sequence results exactly. See
+[notifications](architecture/notifications.md).
 
 ## A project merge reads every document markup record
 

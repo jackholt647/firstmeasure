@@ -294,9 +294,8 @@ question.
   requested) Generate, and the tour.
 - `materials.tab_tutorial` (overlay, person, replayable): after the setup, or on
   first opening the tab once the organization has finished the setup (or straight
-  away for someone not asked to set it up: `person.eligible`). Its `reveal`
-  keeps Materials to projects with a delivered report until the person has been
-  through it (or closed it); then Materials shows on every project, drafts too.
+  away for someone not asked to set it up: `person.eligible`). Operations is visible on every project, including before measurements and on
+  drafts; the tutorial never gates tab visibility.
 - FAQs for Materials, Photos, Docs, Reports, Customer Portal and Overview.
 
 **Price book setup** (`pricebook/setups/roofing.ts`). Products, rules, regions and
@@ -544,6 +543,29 @@ route refuses elsewhere with 404, whoever asks.
   its menu holds the last field's history and each experience's Replay or
   Restart, Reset me and Reset org. The development tools window gets the same
   section. Everything is `data-fmr-ignore`.
+
+## Operations setup
+
+`operations.setup` plays in the shared guide runtime over Operations. It offers a
+proposal or a quick scope of work; both use `FMDocWorkflow`, native document
+templates and retained instances. Both select roofing, gutters and/or siding,
+capture measurements and review scope lines. The quick path hides the document
+preview and has no payment or signing step. The proposal keeps its ordinary
+preview, payment terms and customer lifecycle. Completion publishes an explicit
+internal planning scope; it does not claim customer acceptance. The hub requires
+that retained artifact before allowing materials generation.
+
+The hub offers optional supplier, equipment, workforce and proposal setup with
+estimates of 5, 3, 5 and 10 minutes. Each writer is a published action run as the
+person. Labor defaults to `shown: when_configured`, which waits for assignees,
+pay sheets or existing labor lists even when the workforce app is off; explicit
+existing configuration is preserved. Equipment remains offered until activation.
+Optional setup returns to the hub; skipping it does not mark it complete.
+The hub derives supplier and fleet completion from their domain readers; the
+current collection reads are recorded in the [optimization backlog](../optimization-backlog.md#operations-setup-checklist-lists-suppliers-and-equipment).
+
+This Labor visibility check shares the existing full material-list scan recorded
+in the [optimization backlog](../optimization-backlog.md#the-labor-column-reads-every-material-list-when-nobody-does-labor).
 
 ## Limits (prototype)
 

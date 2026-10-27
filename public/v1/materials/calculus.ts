@@ -250,6 +250,42 @@ export function scopeMaterialRequirements(items: JsonObject[]) {
   });
 }
 
+/** An explicit internal Operations plan. The trusted document writer has retained the snapshot and linked it
+ * on the document before calling this; this never creates a signing receipt or customer acceptance. */
+export async function hasPublishedDocumentScope(org:string,project:string,documentId:string,snapshotId:string){
+  return (await rawLedger(org,project)).sets.some(set=>set.origin.document_id===documentId&&(set.origin.snapshot_id===snapshotId||set.origin.supersedes_planning_snapshot===snapshotId));
+}
+export async function publishInternalDocumentScope(ctx: PublicationContext, documentId: string, snapshotId: string) {
+  const { readDocumentSnapshot, readDocumentInstance } = await import('../documents/storage.js');
+  const doc=await readDocumentInstance(ctx.organizationId,documentId), project=String(doc.project_id||'');
+  await authorize(ctx,project,true);
+  (await import('../documents/service.js')).requireDocumentDepartmentAccess(ctx.auth!,doc);
+  const snapshot=await readDocumentSnapshot(ctx.organizationId,snapshotId), state=object(object(doc.metadata).operations_scope);
+  if(snapshot.document_id!==documentId||snapshot.project_id!==project||snapshot.reason!=='operations_scope'||state.snapshot_id!==snapshotId||!state.internal_plan)throw forbidden('materials_internal_scope','A retained internal scope snapshot is required.');
+  const definitions=validateDeliverables(snapshot.materials_deliverables);
+  for(let attempt=0;attempt<8;attempt++){
+    const ledger=await rawLedger(ctx.organizationId,project),revision=ledger.revision;
+    let changed=false;
+    for(const definition of definitions){
+      const id=identity('set',[documentId,'planning',definition.key]);
+      if((ledger.retired_sets||[]).some(s=>s.id===id))continue;
+      const existing=ledger.sets.find(s=>s.id===id);
+      if(existing&&!existing.origin.planning)throw conflict('materials_scope_accepted','The customer has already accepted this scope; use a change order to change it.');
+      if(existing?.origin.snapshot_id===snapshotId)continue;
+      const next=setFromDefinition(project,definition,id,{params:object(snapshot.params),outputs:object(snapshot.outputs)},{type:'document',document_id:documentId,snapshot_id:snapshotId,content_hash:contentHash(snapshot),title:snapshot.title,planning:true,at:new Date().toISOString()},ctx.organizationId,String(doc.branch_id||'default'));
+      if(existing){existing.definition=next.definition;existing.document=next.document;existing.origin=next.origin;existing.evaluations=[];delete existing.applied_evaluation;existing.revision++;}
+      else ledger.sets.push(next);
+      changed=true;
+    }
+    if(!changed)return;
+    try{
+      await saveLedger(ctx.organizationId,ledger,revision);
+      await recordProjectChange(ctx.organizationId,{project_id:project,domain:'scope',subject_type:'document_scope',subject_id:documentId,op:'published',summary:'Published internal scope of work',diff:{snapshot_id:snapshotId},before:{},after:{snapshot_id:snapshotId,planning:true},source:currentChangeSource(ctx.auth?.userId||'')});
+      return;
+    }catch(error){if((error as {statusCode?:number}).statusCode!==409||attempt===7)throw error;}
+  }
+}
+
 /** Called only with the retained completed signing package, never client-provided acceptance. */
 export async function publishAcceptedMaterials(org: string, project: string, documentId: string, snapshotId: string) {
   const { packageForSnapshot } = await import("../documents/signing/store.js");
@@ -263,6 +299,15 @@ export async function publishAcceptedMaterials(org: string, project: string, doc
     const ledger = await rawLedger(org, project); const revision = ledger.revision;
     let changed = false;
     for (const definition of definitions) {
+      // A proposal used for internal planning keeps one set when it is later signed. Replace its evidence,
+      // never its existing orders or manually edited lines; generation explicitly reconciles the new source.
+      if((ledger.retired_sets||[]).some(s=>s.origin.document_id===documentId&&s.definition.key===definition.key&&s.origin.planning===true))continue;
+      const planned=ledger.sets.find(s=>s.origin.document_id===documentId&&s.definition.key===definition.key&&s.origin.planning===true);
+      if(planned){
+        const next=setFromDefinition(project,definition,planned.id,{params:object(pkg.content.params),outputs:object(pkg.content.outputs)},{type:'document',document_id:documentId,snapshot_id:snapshotId,content_hash:pkg.content_hash,title:pkg.content.title,at:pkg.completed_at,planning:false,supersedes_planning_snapshot:planned.origin.snapshot_id},org,String(doc.data.branch_id||'default'));
+        planned.definition=next.definition;planned.document=next.document;planned.origin=next.origin;planned.evaluations=[];delete planned.applied_evaluation;planned.revision++;changed=true;continue;
+      }
+      if(ledger.sets.some(s=>s.origin.document_id===documentId&&s.origin.snapshot_id===snapshotId&&s.definition.key===definition.key))continue;
       const id = identity("set", [documentId, snapshotId, definition.key]);
       if (ledger.sets.some(s => s.id === id) || (ledger.retired_sets || []).some(s => s.id === id)) continue;
       changed = true;

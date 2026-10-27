@@ -58,6 +58,19 @@ updates preserve other keys, including temporarily hidden or retired definitions
 Legacy category opt-outs are inherited until a workflow-specific choice is made.
 Turning off a notification never disables the underlying workflow or its effects.
 
+## Messages inbox and bell fallback
+
+`topbar.messages` controls the separate Messages notification inbox on desktop and
+mobile. It requires Channels because that inbox is built from Channels attention;
+turning it off does not disable project notes or comments. The MVP configuration
+leaves Channels available for Notes, hides its app, and disables this separate inbox.
+
+When the Messages inbox is unavailable, enabled message notifications and mentions
+appear in the regular bell. Routing is evaluated when reading notifications, so
+retained entries follow the switch without copying or redelivering them. Recipient,
+branch, expiry, delivery opt-outs and unread state still apply. Turning Messages
+back on restores the separate inbox.
+
 ## Settings and mobile
 
 The preferences GET endpoint returns `catalog` and effective `preferences`; it is
@@ -295,3 +308,16 @@ toggles. Per-notification advanced controls expose protection and readable lock 
 The organization protection API snapshots the manager's current configuration when
 Save protection is used; editing their personal copy alone does not silently republish
 that policy. Default and protection mutations use revision checks and audit history.
+
+
+### Messages surface and bell fallback
+
+`topbar.messages` controls the separate Messages surface (and requires Channels).
+When unavailable, retained message notifications use the regular bell; switching
+surfaces does not create deliveries or reset read state. Message inbox-placement
+preferences do not hide those fallback entries, but in-app delivery opt-outs, badge
+choices, quiet/delivery decisions, membership, media access, audience, thread/channel
+mutes and read state still apply. Explicit mentions in separate project notes and
+photo discussions use the same authorized occurrence path; ordinary hidden-note
+activity is unchanged. Photo entries retain their project/photo route. Per-entry
+authorization reads are tracked in the [optimization backlog](../optimization-backlog.md).

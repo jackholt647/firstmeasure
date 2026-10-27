@@ -4,6 +4,7 @@
  */
 (function(){
   const root = window;
+  const runtimeScriptUrl = document.currentScript?.src || new URL('/libraries/app-runtime/firstmate-embeddable-apps.js', location.href).href;
   const apps = new Map();
   const manifests = new Map();
   const extensions = new Map();
@@ -11,6 +12,7 @@
   const mounted = new WeakMap();
   const mounting = new WeakMap();
   const loadedBundles = new Set();
+  const preparingApps = new Map();
   let instanceCounter = 0;
 
   const noop = () => {};
@@ -639,6 +641,7 @@
     const entitlement = entitlementFor(definition, context, access);
     const entitlementValue = entitlement.value;
     const entitlementRecord = objectValue(entitlementValue);
+    const offered = entitlementRecord.offered === true && !!entitlementRecord.welcome;
     const entitlementState = cleanText(entitlementRecord.state || entitlementRecord.access || entitlementRecord.visibility).toLowerCase();
 
     const surface = cleanText(context.surface);
@@ -689,14 +692,14 @@
 
     const featureFlags = arrayValue(access.featureFlags || access.feature_flags || access.flags);
     const featureFlagsAny = arrayValue(access.featureFlagsAny || access.feature_flags_any || access.flagsAny);
-    if (featureFlags.length && !featureFlags.every((rule) => flagValue(context, rule))) reasons.push('feature_flag');
-    if (featureFlagsAny.length && !featureFlagsAny.some((rule) => flagValue(context, rule))) reasons.push('feature_flag');
+    if (!offered && featureFlags.length && !featureFlags.every((rule) => flagValue(context, rule))) reasons.push('feature_flag');
+    if (!offered && featureFlagsAny.length && !featureFlagsAny.some((rule) => flagValue(context, rule))) reasons.push('feature_flag');
 
-    if (!capabilityAllowsApp(definition, access)) reasons.push('capability');
+    if (!offered && !capabilityAllowsApp(definition, access)) reasons.push('capability');
 
     if (typeof access.when === 'function' && !access.when(context)) reasons.push('access_condition');
-    if (typeof definition.enabled === 'function' && !definition.enabled(context)) reasons.push('enabled');
-    if (definition.enabled === false) reasons.push('enabled');
+    if (!offered && typeof definition.enabled === 'function' && !definition.enabled(context)) reasons.push('enabled');
+    if (!offered && definition.enabled === false) reasons.push('enabled');
 
     const presentation = resolvePresentation(definition, context, entitlementValue);
     const definitionParams = typeof definition.params === 'function' ? definition.params(context) : definition.params;
@@ -823,7 +826,7 @@
   async function ensureBundle(src){
     const bundle = cleanText(src);
     if (!bundle || loadedBundles.has(bundle)) return true;
-    if (scriptAlreadyPresent(bundle)) {
+    if (scriptAlreadyPresent(bundle) && !document.querySelector(`script[data-embeddable-app-bundle="${CSS.escape(bundle)}"]`)) {
       loadedBundles.add(bundle);
       return true;
     }
@@ -839,7 +842,7 @@
       script.async = false;
       script.dataset.embeddableAppBundle = bundle;
       script.onload = resolve;
-      script.onerror = reject;
+      script.onerror = (error) => { script.remove(); reject(error); };
       document.head.appendChild(script);
     });
     loadedBundles.add(bundle);
@@ -873,6 +876,14 @@
     return app;
   }
 
+  function prepareApp(appId){
+    if (!preparingApps.has(appId)) {
+      const promise = ensureAppReady(appId).finally(() => preparingApps.delete(appId));
+      preparingApps.set(appId, promise);
+    }
+    return preparingApps.get(appId);
+  }
+
   async function mount(target, appId, options = {}){
     const id = cleanText(appId);
     const roots = normalizeRoots(target);
@@ -894,7 +905,11 @@
     if(loading)await opening.wait(loading.painted,loading.signal);
     if(!isCurrent())return null;
     const manifest = manifests.get(id);
-    const ready=ensureAppReady(id);
+    const candidate = apps.get(id) || manifest;
+    const candidateContext = createContext({ ...options, appId: id }, candidate, roots);
+    const candidatePolicy = candidate && evaluateDefinition(candidate, candidateContext);
+    // Offered apps may prepare code, but never mount or fetch operational data before activation.
+    const ready = candidatePolicy?.entitlement?.offered ? Promise.resolve(candidate) : prepareApp(id);
     const app = await (loading?opening.wait(ready,loading.signal):ready) || apps.get(id);
     if(!isCurrent())return null;
     if (!app) {
@@ -930,7 +945,10 @@
       dispatch('fm:embeddable-apps:app-denied', { appId: id, context, reasons: policy.reasons });
       return denied;
     }
-    const handle = await (typeof app.mount === 'function'
+    if (policy.entitlement?.offered) context.preload = () => prepareApp(id);
+    const handle = policy.entitlement?.offered
+      ? await (await import(new URL('./app-welcome.js?v=20261027-offers', runtimeScriptUrl).href)).mountWelcome(context)
+      : await (typeof app.mount === 'function'
       ? app.mount(context)
       : (typeof app.render === 'function' ? app.render(context) : null)) || {};
     if(!isCurrent()){handle.destroy?.();return null;}

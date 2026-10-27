@@ -102,6 +102,45 @@ const openFromMore = async (page, item) => {
   await page.locator(item).click();
 };
 
+test('Messages can be disabled independently of Channels, clearing menus and stale inbox responses', async () => {
+  const browser=await launch();
+  try {
+    for(const mobile of [true,false]){
+      const {context,page}=await openShell(browser,mobile?{width:390,height:844}:{width:1280,height:900},{mobile});
+      const button=mobile?'#mobilePlatformMessagesBtn':'#platformMessagesBtn';
+      const menu=mobile?'#mobilePlatformMessagesMenu':'#platformMessagesMenu';
+      await page.evaluate(()=>{window.inboxCalls=0;window.ChannelsAPI.readState.inbox=()=>{window.inboxCalls++;return new Promise(resolve=>window.resolveInbox=resolve);};});
+      await page.locator(button).evaluate(el=>el.click());
+      await page.waitForFunction(()=>!!window.resolveInbox);
+      await page.evaluate(()=>{flags['topbar.messages']=false;window.dispatchEvent(new Event('fm:capabilities:updated'));resolveInbox({entries:[{entry_id:'late',unread:true,count:9}]});});
+      assert.equal(await page.locator(menu).evaluate(el=>el.classList.contains('visible')),false);
+      for(const slot of ['#platformMessagesSlot','#mobilePlatformMessagesSlot','#mobilePlatformMoreMessages'])assert.equal(await page.locator(slot).evaluate(el=>el.hidden),true);
+      await page.locator(button).evaluate(el=>el.click());
+      assert.equal(await page.evaluate(()=>inboxCalls),1,'hidden Messages never fetches');
+      assert.equal(await page.locator('#mobilePlatformMessagesCount').evaluate(el=>el.classList.contains('visible')),false,'late responses cannot restore badges');
+      await page.evaluate(()=>{ChannelsAPI.readState.inbox=async()=>({entries:[]});flags['topbar.messages']=true;window.dispatchEvent(new Event('fm:capabilities:updated'));});
+      assert.equal(await page.locator('#platformMessagesSlot').evaluate(el=>el.hidden),false);
+      await context.close();
+    }
+  }finally{await browser.close();}
+});
+
+test('a photo mention in Messages opens that project photo rather than its Notes tray',async()=>{
+  const browser=await launch();
+  try{
+    const {context,page}=await openShell(browser,{width:1280,height:900},{mobile:false});
+    await page.evaluate(()=>{
+      window.photoRoutes=[];Portal.navigation={navigate:route=>photoRoutes.push(route),applyCurrent:async()=>{}};
+      ChannelsAPI.readState.inboxRead=async()=>({});
+      ChannelsAPI.readState.inbox=async()=>({entries:[{entry_id:'photo-mention',kind:'mention',channel_type:'project',project_id:'project1',photo_id:'photo1',channel_id:'discussion1',message_id:'comment1',author:{name:'Jane'},text:'Check this flashing'}]});
+    });
+    await page.locator('#platformMessagesBtn').click();
+    await page.locator('#platformMessagesList [data-message-entry]').click();
+    assert.deepEqual(await page.evaluate(()=>photoRoutes),[{project:'project1',projectTab:'photos',projectNote:null,photo:'photo1',photoScope:'project'}]);
+    await context.close();
+  }finally{await browser.close();}
+});
+
 test('phone: the More menu opens at the top right with separate primary-colored actions and Close', async () => {
   const browser = await launch();
   try {

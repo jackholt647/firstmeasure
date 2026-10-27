@@ -12,7 +12,7 @@ export const applicationPublication = {
   docs: { providers: ["documents"], domains: ["documents"] },
   documents: { providers: ["documents", "document-modules"], domains: ["documents"] },
   "web-editor": { providers: ["websites"], domains: ["websites"] },
-  materials: { providers: ["material-resource-types", "suppliers", "pay-sheets", "labor-commitments", "assignees", "materials", "materials-calculus", "materials-inputs", "project-widgets"], domains: ["materials"] },
+  materials: { providers: ["material-resource-types", "suppliers", "pay-sheets", "labor-commitments", "assignees", "materials", "materials-calculus", "materials-inputs", "project-widgets", "documents"], domains: ["materials", "operations"] },
   money: { providers: ["payments"], domains: ["payments"] },
   "project-request": { providers: ["projects"], domains: ["projects"] },
   "firstmeasure/order": { providers: ["firstmeasure"], domains: ["firstmeasure"] },
