@@ -5,7 +5,7 @@ import { gatedAccounts } from "./admin.js";
 import { randomBytes } from "node:crypto";
 
 import { newOrganizationAppFlagDefaults } from "../platform/app_flags.js";
-import { NEW_ORGANIZATION_APP_OFFERS } from '../platform/app-experience/offers.js';
+import { NEW_ORGANIZATION_APP_OFFERS, offeredAppIds } from '../platform/app-experience/offers.js';
 import { CONFIGURATIONS, SETUP_SCRIPTS } from "./configurations/index.js";
 import { valueCapabilities } from "../platform/capabilities.js";
 import {
@@ -460,6 +460,9 @@ export async function createTestInstance(workflowId: string, input: JsonObject =
   for (const [path, value] of Object.entries(asObject(workflowDefaults.settings))) {
     if (value !== USER_CHOICE) setDeepPath(globalData, path, value);
   }
+  // A workflow may name the apps it offers (settings.app_offers); they are written after the demo content is seeded.
+  const workflowOffers = Array.isArray(globalData.app_offers) ? offeredAppIds(globalData.app_offers) : null;
+  delete globalData.app_offers;
   if (workflowId === 'swf_instant_full_org') {
     globalData.roofing_setup = { template: 'roofing', completed: true, services: ['roofing', 'gutters', 'siding'], job_types: ['roof_replacement', 'roof_repair', 'gutter_replacement', 'siding'], test_document_pack: 1 };
   }
@@ -593,7 +596,7 @@ export async function createTestInstance(workflowId: string, input: JsonObject =
       ? "/portal/"
       : stageSurfaceUrl(workflowId, instanceId, startStage, runContext.start_stage);
   // Seed demo content before offers mask the operational apps; viewing a tab never consumes an offer.
-  await saveGlobal(String(organization.id), { data: { app_offers: [...NEW_ORGANIZATION_APP_OFFERS] } });
+  await saveGlobal(String(organization.id), { data: { app_offers: [...(workflowOffers ?? NEW_ORGANIZATION_APP_OFFERS)] } });
   const { buildAuthContext } = await import('../platform/auth.js');
   return { testOrg, authContext: await buildAuthContext(ctx.sessionId, ctx.session), redirect };
 }

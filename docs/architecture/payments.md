@@ -62,7 +62,12 @@ in the bell; `maybeNotifyMerchantApproved`, stamped `approval_notified_at`).
 A notification must name its recipients: one with no targets reaches nobody.
 The money onboarding attention entry (`onboarding_attention.ts`) records what
 Forward says before choosing what to show, and shows an interim entry only
-while Forward reports processing or payouts off.
+while Forward reports processing or payouts off. It shows nothing until
+`money.merchant_processing` is on, and only Money's setup turns that on when
+someone starts it (`core.js`, the `platform.money` setup handler), so an
+organization that has Money but has not started its setup gets no payments
+onboarding banner, card or notification. A configuration that offers Money keeps
+merchant processing off (the MVP platform names it in `DISABLED`).
 
 ## The checkout: one attempt to take one payment
 

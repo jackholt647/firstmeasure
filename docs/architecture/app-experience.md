@@ -31,7 +31,11 @@ for itself.
   about an app the organization does not use.
 - `default_visible`: what a person whose layers say nothing gets.
 - `options`: settings of the app that are not permissions, such as Today's
-  time clock (`time_clock`, passed to the app as `time_clock_enabled`). Whether
+  time clock (`time_clock`, passed to the app as `time_clock_enabled`). Overview
+  and Reports have a "Project window tab" option (`tab`, passed as
+  `show_as_tab`): off, the person keeps the app (its routes, Overview's map as a
+  report order's pin canvas) but it is not a tab; anything asking for it lands
+  on the first tab, with Reports' measurements in the project details tray. Whether
   someone clocks in is about how they are paid, not about what they are
   allowed to do.
 - `parameter_permissions`: app parameters that carry one of the viewer's
@@ -86,6 +90,20 @@ Existing organizations without this field retain their current active apps.
 The welcome definitions and capability groups live in `app-experience/offers.ts`.
 Feed (`platform.photos_feed`) is an independent app: an offered project Photos
 app never disables the organization Feed.
+
+Money (its project tab `project.money` and its Financials page
+`portal.financials`) and Checklists (`project.checklists`) can also be offered,
+but no new organization starts with them (`NEW_ORGANIZATION_APP_OFFERS`). A
+signup sandbox configuration names its own offers as data
+(`settings.app_offers`, written after the demo content is seeded); the MVP
+platform offers both. Offers with the same switches are one app: starting
+either Money offer starts both. A welcome may name a `setup` switch (Money:
+`platform.money`); Get Started then continues into that switch's required
+setup workflow (`Portal.appSetup.run`, mode `post_add`), which for Money starts
+with payments onboarding. Its welcome says "Setup required". Once started, an
+app whose required setup (its switch's, or the nearest parent switch's, so
+Financials follows Money) is not complete shows a "Setup required" pill on its
+project tab and left-column link (`Portal.appSetup.pendingFor`, `tab-guides.js`).
 
 `capabilityAccessState` resolves offered discovery and operational capabilities
 from the same organization snapshot. Pending capability groups are masked before

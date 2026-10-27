@@ -99,7 +99,7 @@ import {
   type PlatformAuthContext
 } from "./auth.js";
 import { PlatformError } from "./errors.js";
-import { NEW_ORGANIZATION_APP_OFFERS, offeredAppIds } from './app-experience/offers.js';
+import { APP_OFFERS, NEW_ORGANIZATION_APP_OFFERS, offeredAppIds, type OfferedAppId } from './app-experience/offers.js';
 import { startOfferedApp } from './app-experience/activation.js';
 import { requestPrincipal, systemPrincipal, type Principal } from "./security/principal.js";
 import { serviceInject } from "./security/service.js";
@@ -500,7 +500,7 @@ export const registerPlatformApi: FastifyPluginAsync<PlatformApiOptions> = async
   app.put('/organizations/:orgId/app-offers', { config: { access: 'customer_or_staff' } }, async request => {
     const ctx = await requirePlatformAuth(request, { orgId: getParam(request.params, 'orgId'), csrf: true });
     if (env.dataEnvironment !== 'development' || !canManageOrgAppFlags(ctx)) throw forbidden('app_offer_reset_denied', 'Only a development operator can reset app welcomes.');
-    const body = z.object({ apps: z.array(z.enum(['project.photos', 'project.docs', 'project.customer_portal', 'project.materials', 'portal.equipment'])).max(5) }).strict().parse(request.body);
+    const body = z.object({ apps: z.array(z.enum(Object.keys(APP_OFFERS) as [OfferedAppId, ...OfferedAppId[]])).max(Object.keys(APP_OFFERS).length) }).strict().parse(request.body);
     await mutateGlobal(ctx.orgId, () => ({ data: { app_offers: offeredAppIds(body.apps) } }));
     return { ok: true };
   });

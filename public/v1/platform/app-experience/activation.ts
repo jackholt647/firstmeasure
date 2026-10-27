@@ -1,4 +1,4 @@
-import { APP_OFFERS, offeredAppIds } from './offers.js';
+import { APP_OFFERS, offerSiblings, offeredAppIds } from './offers.js';
 import { capabilityDefaultValues, capabilityValuesForUser, flattenGroupedValues, resolveCapabilities } from '../capabilities.js';
 import { forbidden, notFound } from '../errors.js';
 import { mutateGlobal, readGlobal, type JsonObject } from '../storage.js';
@@ -28,8 +28,11 @@ export async function startOfferedApp(ctx: PlatformAuthContext, appId: string) {
     const pending = offeredAppIds(data.app_offers);
     if (!pending.includes(id)) return { data: {} }; // Another person may already have started it.
     if (!ctx.appEntitlements.some(app => app.id === id && app.offered)) throw forbidden('app_offer_changed', 'The app offer changed. Open the tab again to continue.');
-    return { data: { app_offers: pending.filter(value => value !== id), app_activations: {
-      ...object(data.app_activations), [id]: { started_at: new Date().toISOString(), user_id: ctx.userId }
+    // An app offered in more than one place (Money's tab and its Financials page) starts everywhere at once.
+    const starting = offerSiblings(id).filter(value => pending.includes(value));
+    const startedAt = new Date().toISOString();
+    return { data: { app_offers: pending.filter(value => !starting.includes(value)), app_activations: {
+      ...object(data.app_activations), ...Object.fromEntries(starting.map(value => [value, { started_at: startedAt, user_id: ctx.userId }]))
     } } };
   });
   return { ok: true, app_id: id };

@@ -3032,6 +3032,24 @@
     };
   }
 
+  // The required setup an app waits on: its switch's setup workflow, or the nearest parent switch's (Financials is
+  // part of Money, so Money's setup is its setup). Only a switch the organization has on counts.
+  function appSetupForApp(appId){
+    const runtimeApp = window.FirstMateEmbeddableApps?.getApp?.(cleanText(appId)) || {};
+    const capabilities = window.PlatformAPI?.capabilities?.current?.() || {};
+    const byKey = capabilities.definitions_by_key || {};
+    let key = cleanText(runtimeApp.access?.capability);
+    const seen = new Set();
+    while (key && !seen.has(key)) {
+      seen.add(key);
+      if (capabilities.effective_by_key?.[key] !== true) return null;
+      const setup = appSetupDefinitions.has(key) ? appSetupDescription(key) : null;
+      if (setup?.mode === 'required') return setup;
+      key = cleanText(byKey[key]?.parent);
+    }
+    return null;
+  }
+
   function manifestAppForCapability(capabilityKey){
     const apps = window.FirstMateAppsManifest?.apps || [];
     const matches = apps.filter((app) => app?.access?.capability === capabilityKey);
@@ -3352,7 +3370,7 @@
           pinned: tab.placement === 'sidebar',
           enabled: true,
           offered: tab.entitlement?.offered === true,
-          statusPills: [...normalizeAppStatusPills(window.PlatformAPI?.capabilities?.current?.()?.definitions_by_key?.[capability]?.status_pills, runtimeApp.statusPills), ...(portalAppPill(tab.appId) ? [{id:'new',tone:'new',label:portalAppPill(tab.appId).label}] : [])],
+          statusPills: [...normalizeAppStatusPills(window.PlatformAPI?.capabilities?.current?.()?.definitions_by_key?.[capability]?.status_pills, runtimeApp.statusPills), ...(portalAppPill(tab.appId) ? [portalAppPill(tab.appId).kind === 'setup' ? {id:'setup',tone:'warning',label:portalAppPill(tab.appId).label} : {id:'new',tone:'new',label:portalAppPill(tab.appId).label}] : [])],
           setup: capability ? appSetupDescription(capability) : null
         };
       });
@@ -3947,6 +3965,7 @@
 
     injectCSS('sidebar_links', `
       .fm-global-app-new{display:inline-block;margin-left:7px;padding:2px 6px;border-radius:99px;background:#e8f5ee;color:#0f6b3a;font-size:9px;font-weight:800;line-height:1.4;vertical-align:middle}
+      .fm-global-app-new.fm-global-app-pill--setup{background:#fff0cb;color:#794c00}
       .fm-advanced-app-status-pill.is-new{background:#e8f5ee;color:#0f6b3a}
       #sidebarLinks{
         margin-top: 0;
@@ -4105,7 +4124,7 @@
       item.innerHTML = `
         ${advancedAppMenuEnabled() && t.placement === 'sidebar' ? `<button type="button" class="fm-sidebar-app-pin is-pinned" data-sidebar-app-pin="${String(escapeHtml(t.appId))}" aria-label="${((v1) => globalThis.PlatformLanguage?.htmlText("platform","m_db4217ef113961",`Unpin ${v1} from the sidebar`,{v1}) ?? `Unpin ${v1} from the sidebar`)(escapeHtml(title))}" title="${(globalThis.PlatformLanguage?.htmlText("platform","m_faf31575fe991d","Unpin from sidebar") ?? "Unpin from sidebar")}"><i class="fas fa-thumbtack" aria-hidden="true"></i></button>` : ''}
         <div class="ic"><i class="fas ${escapeHtml(t.icon)}"></i></div>
-        <div class="tx">${escapeHtml(title)}${portalAppPill(t.appId) ? `<span class="fm-global-app-new">${escapeHtml(portalAppPill(t.appId).label)}</span>` : ''}</div>
+        <div class="tx">${escapeHtml(title)}${portalAppPill(t.appId) ? `<span class="fm-global-app-new fm-global-app-pill--${escapeHtml(portalAppPill(t.appId).kind || 'new')}">${escapeHtml(portalAppPill(t.appId).label)}</span>` : ''}</div>
       `;
       item.addEventListener('click', ()=>activateTab(t.id, false, { history:'push', source:'portal-tab' }));
       item.querySelector('[data-sidebar-app-pin]')?.addEventListener('click', async (event) => {
@@ -5010,6 +5029,13 @@
     unregister: (key) => appSetupHandlers.delete(cleanText(key)),
     has: (key) => appSetupHandlers.has(cleanText(key)),
     describe: (key) => appSetupDescription(key),
+    forApp: (appId) => appSetupForApp(appId),
+    // An app someone has started whose required setup is not finished yet ("Setup required" on its tab and link).
+    pendingFor: (appId) => {
+      if ((window.Portal?.currentUser?.appEntitlements || []).some?.((app) => app.id === cleanText(appId) && app.offered)) return null;
+      const setup = appSetupForApp(appId);
+      return setup && setup.status !== 'complete' ? setup : null;
+    },
     list: () => [...new Set([...appSetupDefinitions.keys(), ...appSetupHandlers.keys()])].map(appSetupDescription),
     run: (key, context = {}) => {
       const handler = appSetupHandlers.get(cleanText(key));
@@ -5150,6 +5176,14 @@
   });
   window.addEventListener('fm:app-entitlements:updated', (event) => {
     if (event?.detail?.source === 'session') TabRegistry.preferDefaultHome = true;
+    renderTabs();
+  });
+  // A setup's status arrived or changed: the "Setup required" pills follow it.
+  let appSetupPillSignature = '';
+  window.addEventListener('fm:app-setup:updated', () => {
+    const signature = [...TabRegistry.tabs.values()].map((tab) => `${tab.appId}:${portalAppPill(tab.appId)?.kind || ''}`).join('|');
+    if (signature === appSetupPillSignature) return;
+    appSetupPillSignature = signature;
     renderTabs();
   });
 })();

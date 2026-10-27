@@ -22,10 +22,11 @@ import type { JsonObject } from "../storage.js";
 export const MVP_PLATFORM_WORKFLOW_ID = "swf_mvp_platform";
 export const GENERIC_ROOFING_TEMPLATE_ID = "generic_roofing";
 
-// Main view: My Projects (stages, boards, project map), My Contacts, Feed.
-// Project window: Photos, Customer Portal, Materials, Documents and Reports tabs;
-// Agent, Notes, Activity and To Do trays. No Scheduling. Every other capability
-// that needs expanded access is off; FirstMeasure's own keep their signup defaults.
+// Main view: My Projects (stages, boards, project map), My Contacts, Feed, and Financials (offered).
+// Project window: Photos, Docs, Operations and Customer Portal tabs, with Money and Checklists offered; no Overview or
+// Reports tab (the project details tray holds the project and its measurements). Agent, Notes, Activity and To Do
+// trays. No Scheduling. Every other capability that needs expanded access is off; FirstMeasure's own keep their
+// signup defaults.
 const ENABLED = [
   "platform.expanded_access",
   "apps.projects",
@@ -46,6 +47,18 @@ const ENABLED = [
   "platform.documents",
   "documents.esign",
   "documents.agent",
+  // Money and Checklists are configured on and start as offers (APP_OFFERS below): each tab shows its advertisement
+  // until someone chooses Get Started. Money's Get Started continues into its setup, which begins with payments
+  // onboarding. Merchant processing stays off (DISABLED) until that setup starts it, so no payments onboarding banner
+  // or notification appears before then (payments/onboarding_attention.ts).
+  "platform.money",
+  "money.profitability",
+  "money.payment_schedules",
+  "money.take_payment",
+  "money.expenses",
+  "apps.checklists",
+  "checklists.templates",
+  "checklists.supervision",
   // Agent tray.
   "apps.assistant",
   // Notes tray: project notes run on channels. The Channels and Assistant
@@ -80,6 +93,7 @@ const ENABLED = [
 // Report follow-up (the Reports tab's Support view) is off by default too; it is named here so the MVP keeps it off
 // whatever the default becomes, as the FirstMeasure signup does (Jack, 2026-10-26).
 const DISABLED = [
+  "money.merchant_processing",
   "topbar.messages",
   "materials.resource_categories",
   "firstmeasure.report_followup"
@@ -103,10 +117,10 @@ export function appFlags(): JsonObject {
 export const workflow: JsonObject = {
   id: MVP_PLATFORM_WORKFLOW_ID,
   title: "MVP platform",
-  description: "The FirstMeasure default signup plus the MVP platform: My Projects (with the project map), My Contacts and Feed; project tabs Overview, Reports, Photos (New), Docs (New), Operations and Customer Portal; Agent, Notes, Activity and To Do trays. No Scheduling or calendar. Every project is a generic roof job.",
+  description: "The FirstMeasure default signup plus the MVP platform: My Projects (with the project map), My Contacts, Feed and Financials (offered); project tabs Photos, Docs, Operations and Customer Portal, with Money and Checklists offered (no Overview or Reports tab: the project details tray holds them); Agent, Notes, Activity and To Do trays. No Scheduling or calendar. Every project is a generic roof job.",
   entry_mode: "landing_first",
   // Raise when this file changes: the saved workflow is replaced with it on the next seed.
-  configuration_revision: 21,
+  configuration_revision: 22,
   sample_data: true,
   // A launched test instance starts empty: sample projects and customers come only from "Add sample data" in the
   // development tools (Jack, 2026-10-26). An empty list, not a missing one, so the revision replaces a saved list.
@@ -124,24 +138,38 @@ export const workflow: JsonObject = {
 };
 
 // The project window's tabs, in order; Photos and Docs carry a "New" pill until each person first opens them
-// (docs/architecture/project-tab-guides.md).
+// (docs/architecture/project-tab-guides.md). The window opens on the first tab, Photos. Overview and Reports are not
+// tabs here (ROLE_APP_OPTIONS); offered apps show "New" while offered.
 export const PROJECT_TABS = {
-  order: ["project.map", "project.measurements", "project.photos", "project.docs", "project.materials", "project.customer_portal"],
+  order: ["project.photos", "project.docs", "project.materials", "project.customer_portal", "project.money", "project.checklists"],
   pills: { "project.photos": "new", "project.docs": "new", "project.materials": "new", "project.customer_portal": "new" }
 };
 // The Project tab (scope.project_tab) is called Operations here, and the Customer Portal tab Portal.
 export const TERMINOLOGY = { scope: { project_tab: "Operations" }, customer_portal: { project_tab: "Portal" } };
 
+// The apps this configuration starts as offers: the platform's own new-organization offers plus Money (its project tab
+// and Financials page, one app) and Checklists. Written after the demo content is seeded (signup-sandbox/service.ts).
+export const APP_OFFERS = [
+  "project.photos", "project.docs", "project.customer_portal", "project.materials", "portal.equipment",
+  "project.money", "portal.financials", "project.checklists"
+];
+
 export function defaults(): JsonObject {
   return {
     app_flags: appFlags(),
     // Channels and the Assistant are on for the Notes and Agent trays only.
-    settings: { app_placements: { "portal.channels": "hidden", "portal.assistant": "hidden" }, project_tabs: PROJECT_TABS }
+    settings: { app_placements: { "portal.channels": "hidden", "portal.assistant": "hidden" }, project_tabs: PROJECT_TABS, app_offers: APP_OFFERS }
   };
 }
 
-// App options every role gets here: My Projects opens on the map, with Map first among its views.
-export const ROLE_APP_OPTIONS: Record<string, Record<string, boolean>> = { "portal.viewer": { map_first: true } };
+// App options every role gets here: My Projects opens on the map, with Map first among its views; Overview and Reports
+// are not project window tabs (the project details tray holds the project and its measurements, and Overview's map is
+// still where a report order's pins are placed).
+export const ROLE_APP_OPTIONS: Record<string, Record<string, boolean>> = {
+  "portal.viewer": { map_first: true },
+  "project.map": { tab: false },
+  "project.measurements": { tab: false }
+};
 
 /** Adds this configuration's app options to every active role, keeping anything a role already sets. */
 async function applyRoleAppOptions(orgId: string) {

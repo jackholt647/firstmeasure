@@ -314,6 +314,18 @@ test('offered apps stay new for the organization until an eligible person starts
   assert.notEqual(equipmentSession.app_entitlements.find((app:any)=>app.id==='portal.equipment').offered,true);
   assert.equal((await effectiveCapabilities(orgId)).effectiveByKey['apps.equipment'],true);
   assert.deepEqual((await readGlobal(orgId)).data.app_offers,['project.materials']);
+  // Money's project tab and its Financials page are one app: starting either starts both.
+  await (await import('../platform/capabilities.js')).saveCapabilityValues(orgId,{'platform.money':true});
+  await saveGlobal(orgId,{data:{app_offers:['project.materials','project.money','portal.financials']}});
+  const moneySession=await owner.request('GET','/v1/platform/auth/session');
+  assert.equal(moneySession.app_entitlements.find((app:any)=>app.id==='portal.financials')?.offered,true);
+  assert.equal(moneySession.app_entitlements.find((app:any)=>app.id==='project.money')?.welcome?.setup,'platform.money');
+  assert.equal((await effectiveCapabilities(orgId)).effectiveByKey['money.profitability'],false);
+  await owner.request('POST',`${base}/app-offers/project.money/start`,{});
+  const afterMoney=await readGlobal(orgId);
+  assert.deepEqual(afterMoney.data.app_offers,['project.materials']);
+  for(const id of ['project.money','portal.financials']) assert.ok((afterMoney.data.app_activations as Json)[id].started_at,id);
+  assert.equal((await effectiveCapabilities(orgId)).effectiveByKey['money.profitability'],true);
 
   assert.equal((await person.client.raw('POST',`${base}/app-offers/portal.company_settings/start`,{})).statusCode,404);
 });
