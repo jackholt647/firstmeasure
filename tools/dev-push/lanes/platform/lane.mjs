@@ -21,6 +21,8 @@ const PUBLIC_URL = process.env.DEV_PUSH_PUBLIC_URL || "https://dev.1m8.ai";
 const TEST_TIMEOUT_MS = 6 * 60_000;
 const TEST_ENV = { FIRSTMEASURE_INTERNAL_API_SECRET: "ci-test-internal-service-secret", CI: "1", NODE_OPTIONS: "--max-old-space-size=3072" };
 /** Where every role's PDF runtime reads the measure editor's scripts (the measure-internal lane), if present. */
+/** Bump when transpile.mjs changes what it emits, so cached dists are rebuilt. */
+const DIST_BUILDER = 2;
 const EDITOR_RUNTIME_ROOT = "/opt/firstmeasure/lanes/measure-internal/current/public/measure/internal";
 
 const tail = (text, max = 4000) => { const value = String(text || ""); return value.length > max ? `...${value.slice(-max)}` : value; };
@@ -57,7 +59,7 @@ export async function ensureModules(dir, log = () => {}) {
 /** dist for a public/v1 tree (cached by that tree's git id, so a release that does not touch public/v1 reuses it). */
 export async function distFor(dir, sha, log = () => {}) {
   const v1Tree = (await run("git", ["rev-parse", `${sha}:public/v1`], { cwd: dir })).stdout.trim();
-  const out = path.join(CACHE, "dist", v1Tree);
+  const out = path.join(CACHE, "dist", `${v1Tree}-b${DIST_BUILDER}`);
   if (fs.existsSync(path.join(out, "src", "server.js"))) return { ok: true, dist: out, cached: true };
   const tmp = `${out}.tmp-${process.pid}`;
   const started = Date.now();
