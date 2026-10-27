@@ -400,40 +400,13 @@
     };
   }
 
-  // The bar's colours come from the organization: primary for the bar, secondary for the camera badge.
-  // Text and icon colours are picked for contrast; a secondary too close to the primary falls back to a
-  // translucent badge in the bar's text colour.
-  function rgbOf(value){
-    if (!value || !document.body) return null;
-    const probe = document.createElement('span');
-    probe.style.cssText = 'display:none';
-    probe.style.color = value;
-    if (!probe.style.color) return null;
-    document.body.append(probe);
-    const parts = getComputedStyle(probe).color.match(/[\d.]+/g);
-    probe.remove();
-    return parts && parts.length >= 3 ? parts.slice(0, 3).map(Number) : null;
-  }
-  const luminance = (rgb) => { const [r, g, b] = rgb.map((c) => { c /= 255; return c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4; }); return 0.2126 * r + 0.7152 * g + 0.0722 * b; };
-  const contrast = (a, b) => { const [x, y] = [luminance(a), luminance(b)].sort((p, q) => q - p); return (x + 0.05) / (y + 0.05); };
-  const WHITE = [255, 255, 255], INK = [16, 24, 40];
-  const textOn = (rgb) => contrast(rgb, WHITE) >= contrast(rgb, INK) ? '#fff' : '#101828';
+  // Keep the camera action's brand treatment stable across organization themes.
   function paintBar(bar){
-    const css = getComputedStyle(bar);
-    const primary = rgbOf(css.getPropertyValue('--primary').trim()) || [217, 48, 37];
-    const secondary = rgbOf(css.getPropertyValue('--secondary').trim());
-    const fg = textOn(primary);
-    bar.style.setProperty('--fmc-bar-bg', `rgb(${primary.join(',')})`);
-    bar.style.setProperty('--fmc-bar-fg', fg);
-    if (secondary && contrast(secondary, primary) >= 1.6) {
-      bar.style.setProperty('--fmc-accent-bg', `rgb(${secondary.join(',')})`);
-      bar.style.setProperty('--fmc-accent-fg', textOn(secondary));
-      bar.style.setProperty('--fmc-accent-ring', fg === '#fff' ? 'rgba(255,255,255,.28)' : 'rgba(16,24,40,.16)');
-    } else {
-      bar.style.setProperty('--fmc-accent-bg', fg === '#fff' ? 'rgba(255,255,255,.22)' : 'rgba(16,24,40,.12)');
-      bar.style.setProperty('--fmc-accent-fg', fg);
-      bar.style.setProperty('--fmc-accent-ring', 'transparent');
-    }
+    bar.style.setProperty('--fmc-bar-bg', 'var(--primary,#d93025)');
+    bar.style.setProperty('--fmc-bar-fg', '#fff');
+    bar.style.setProperty('--fmc-accent-bg', '#fff');
+    bar.style.setProperty('--fmc-accent-fg', 'var(--primary,#d93025)');
+    bar.style.setProperty('--fmc-accent-ring', 'transparent');
   }
 
   function mount(host, options = {}){

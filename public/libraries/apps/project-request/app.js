@@ -919,10 +919,14 @@ window.PlatformCommerce.onReady(async function(){
     .r-overview-details #rStepCustomer>.r-step-shell>.r-step-inner>.r-step-body{gap:14px}
     .r-overview-details #rStepCustomer>.r-step-shell>.r-step-inner>.r-step-body>.r-group{margin:0}
     .r-overview-details .r-contact-list{gap:14px}
-    .r-overlay:has(.r-window-bar[data-window-mobile=false]) .r-overview-details .r-contact-card::before{min-height:16px;margin-bottom:8px}
     .r-overlay:has(.r-window-bar[data-window-mobile=false]):not(.firstmeasure-unordered-overview) .r-overview-details:has(.r-contact-card) #rStepAddress{border-top:0!important;padding-top:20px!important}
     .r-overlay :is(.r-project-identity-popover,.r-overview-details) .r-contact-list .r-contact-card{padding-left:0;padding-right:0}
     .r-overlay :is(.r-project-identity-popover,.r-overview-details) .r-contact-card .r-inp{box-sizing:border-box;height:32px;min-height:32px;padding:5px 8px;line-height:20px;font-size:12px;font-weight:600}
+    .r-overlay :is(.r-overview-details,.r-project-identity-popover) :is(.r-contact-primary,.r-contact-menu-btn){width:30px;height:30px;min-width:30px;border-radius:9px;font-size:11px}
+    .r-overlay :is(.r-overview-details,.r-project-identity-popover) .r-contact-actions{top:2px}
+    .r-overlay :is(.r-overview-details,.r-project-identity-popover) .r-contact-card+.r-contact-card .r-contact-actions{top:16px}
+    .r-overlay :is(.r-overview-details,.r-project-identity-popover) .r-contact-card::before{min-height:34px;display:flex;align-items:center;font-size:12px;margin-bottom:9px}
+
     .r-overview-details:has(.r-overview-initial-actions:not([hidden])) #rOrderMeasurements{display:none!important}
     .r-overlay.firstmeasure-unordered-overview .r-overview-details :is(#rStepCustomer,.r-left-bottom,#rInlineNotesMount,#rCustomerPortalLinkMount,#rProjectCustomFields,#rWorkflowDock,#rAfterHours,#rProjectionCard,#rViewerSummary){display:none!important}
     .r-overlay.firstmeasure-unordered-overview .r-overview-details #rStepAddress{border-top:0!important;padding-top:0!important}
@@ -2265,9 +2269,15 @@ window.PlatformCommerce.onReady(async function(){
       .r-photo-title{font-size:22px}
       .r-overlay.mobile-order{--r-mobile-pager-height:calc(47px + env(safe-area-inset-bottom,0px))}
       html[data-native-app="android"] .r-overlay.mobile-order{--r-mobile-pager-height:47px}
-      .r-overlay.mobile-order .r-win{padding-bottom:var(--r-mobile-pager-height);box-sizing:border-box;animation:none}
-      .r-overlay.mobile-order.mobile-order-location .r-win{padding-bottom:0}
+      .r-overlay.mobile-order .r-win{box-sizing:border-box;animation:none}
       .r-overlay.mobile-order .r-modal-header{display:none}
+      /* Make room for the ordering workspace by folding away the bars, without moving the title. */
+      .r-overlay.window-managed .fm-shell-header.r-window-bar[data-window-mobile=true]{grid-template-rows:48px 42px!important;transition:grid-template-rows .34s cubic-bezier(.22,1,.36,1)}
+      .r-overlay.window-managed .r-win>.fm-project-tray-tabs[data-placement=footer]{box-sizing:border-box;height:calc(53px + env(safe-area-inset-bottom,0px));overflow:hidden;transition:height .34s cubic-bezier(.22,1,.36,1),padding .34s cubic-bezier(.22,1,.36,1),opacity .22s ease}
+      .r-overlay.overview-order-focused .fm-shell-header.r-window-bar[data-window-mobile=true]{display:grid!important;grid-template-rows:48px 0px!important;min-height:48px!important}
+      .r-overlay.overview-order-focused .fm-shell-header.r-window-bar[data-window-mobile=true]>.fm-shell-tabs{height:0!important;min-height:0!important;overflow:hidden;visibility:hidden;pointer-events:none}
+      .r-overlay.overview-order-focused .r-win>.fm-project-tray-tabs[data-placement=footer]{height:0!important;min-height:0!important;padding:0!important;border:0!important;opacity:0;visibility:hidden;pointer-events:none}
+      @media(prefers-reduced-motion:reduce){.r-overlay.window-managed .fm-shell-header.r-window-bar[data-window-mobile=true],.r-overlay.window-managed .r-win>.fm-project-tray-tabs[data-placement=footer]{transition:none!important}}
       .r-overlay.mobile-order,
       .r-overlay.mobile-order .r-win,
       .r-overlay.mobile-order .r-overview-details,
@@ -2281,7 +2291,6 @@ window.PlatformCommerce.onReady(async function(){
       .r-overlay.mobile-order .r-preview{padding:0}
       .r-overlay.mobile-order .r-preview-stage{border:0;border-radius:0;box-shadow:none;background:transparent;overflow:hidden}
       .r-overlay.mobile-order .r-preview-panel{border:0;border-radius:0;box-shadow:none}
-      .r-overlay.mobile-order .r-preview-panel:not([data-panel="map"]):not(:has(#rMeasurementMap)){display:none!important}
       .r-overlay.mobile-order [data-panel="measurements"]:has(#rMeasurementMap){display:flex!important}
       .r-overlay.mobile-order #rMeasureTabs{display:none!important}
       .r-overlay.mobile-order .r-measure-body{inset:0}
@@ -2297,16 +2306,17 @@ window.PlatformCommerce.onReady(async function(){
       .r-overlay.mobile-order #rExpediteSubmit{display:none!important}
       .r-overlay.mobile-order .r-mobile-close{display:flex;position:fixed;top:calc(env(safe-area-inset-top,0px) + 8px);right:8px;width:38px;height:38px;border-radius:12px;background:rgba(255,255,255,.88);backdrop-filter:blur(14px);border:1px solid rgba(15,23,42,.08);z-index:96;align-items:center;justify-content:center;cursor:pointer;font-size:15px;color:#344054}
       html[data-native-app="android"] .r-overlay.mobile-order .r-mobile-close{top:8px}
-      .r-overlay.mobile-order .r-mobile-pager{height:var(--r-mobile-pager-height);position:fixed;left:0;right:0;bottom:0;z-index:95;display:flex;align-items:center;justify-content:space-between;gap:8px;padding:6px max(10px,env(safe-area-inset-left)) calc(6px + env(safe-area-inset-bottom)) max(10px,env(safe-area-inset-left));background:rgba(255,255,255,.96);border-top:1px solid rgba(15,23,42,.10);box-shadow:0 -8px 22px rgba(15,23,42,.10);box-sizing:border-box}
-      html[data-native-app="android"] .r-overlay.mobile-order .r-mobile-pager{padding-bottom:6px}
+      .r-overlay.mobile-order .r-preview-panel[data-panel="map"]>.r-mobile-pager{height:var(--r-mobile-pager-height);position:absolute;left:0;right:0;bottom:0;z-index:5;display:flex;align-items:center;justify-content:space-between;gap:8px;padding:6px max(10px,env(safe-area-inset-left)) calc(6px + env(safe-area-inset-bottom)) max(10px,env(safe-area-inset-left));background:rgba(255,255,255,.96);border-top:1px solid rgba(15,23,42,.10);box-shadow:0 -8px 22px rgba(15,23,42,.10);box-sizing:border-box}
+      .r-overlay.mobile-order:not(.mobile-order-location) .r-preview-panel[data-panel="map"]>.r-tab-content{box-sizing:border-box;padding-bottom:var(--r-mobile-pager-height)}
+      html[data-native-app="android"] .r-overlay.mobile-order .r-preview-panel[data-panel="map"]>.r-mobile-pager{padding-bottom:6px}
       .r-overlay.mobile-order.mobile-order-location .r-mobile-pager{justify-content:flex-end;background:transparent;border:0;box-shadow:none;pointer-events:none}
-      .r-overlay.mobile-order.mobile-order-location .r-mobile-pager{display:none}
+      .r-overlay.mobile-order.mobile-order-location .r-preview-panel[data-panel="map"]>.r-mobile-pager{display:none}
       .r-overlay.mobile-order.mobile-order-location .r-mobile-pager .r-mobile-page-btn{pointer-events:auto;box-shadow:0 4px 18px rgba(15,23,42,.2)}
       .r-mobile-page-btn{height:34px;border-radius:11px;border:1px solid rgba(15,23,42,.12);background:#fff;color:#344054;padding:0 12px;font-size:12px;font-weight:1000;display:inline-flex;align-items:center;justify-content:center;gap:6px;cursor:pointer}
       .r-mobile-page-btn.primary{flex:0 0 auto;min-width:96px;border-color:var(--primary,#d93025);background:var(--primary,#d93025);color:var(--on-primary,#fff);box-shadow:0 8px 18px rgba(var(--primary-rgb,217,48,37),.18)}
       .r-mobile-page-btn:disabled,.r-mobile-page-btn[aria-disabled="true"]{background:#e5e7eb;border-color:#d1d5db;color:#667085;box-shadow:none;cursor:not-allowed}
       .r-overlay.mobile-order.mobile-order-location .r-overview-details{flex:0 1 auto;gap:8px;max-height:calc(var(--fm-visual-vh,100dvh) - 180px);border-bottom:0;padding-bottom:8px}
-      .r-overlay.mobile-order.mobile-order-location .r-tab-main{display:flex;flex:1 1 auto;min-height:160px}
+      .r-overlay.mobile-order.mobile-order-location [data-panel="map"] .r-tab-main{display:flex;flex:1 1 auto;min-height:160px}
       .r-overlay.mobile-order.mobile-order-location .r-form{gap:8px}
       .r-overlay.mobile-order.mobile-order-location .r-scroll{flex:0 1 auto;scrollbar-gutter:auto}
       .r-overlay.mobile-order.mobile-order-location #rStepAddress .r-step-body{padding:0 0 6px}
@@ -2323,6 +2333,7 @@ window.PlatformCommerce.onReady(async function(){
       .r-overlay.mobile-order.mobile-order-location.mobile-scope-pending .r-map-hint{display:none!important}
       .r-overlay.mobile-order.mobile-order-location #rMobilePinStage{display:flex;flex-direction:column;gap:9px}
       .r-overlay.mobile-order.mobile-order-location #rMobilePinNext{width:100%;min-height:52px;border:0;border-radius:13px;background:var(--primary,#d93025);color:var(--on-primary,#fff);font:inherit;font-weight:800;display:flex;align-items:center;justify-content:center;gap:10px;cursor:pointer}
+      .r-overlay.mobile-order.mobile-order-location #rMobilePinNext:not([hidden]){margin-top:11px}
       .r-overlay.mobile-order.mobile-order-location #rMobilePinNext[hidden]{display:none!important}
       @media(prefers-reduced-motion:reduce){.r-overlay.mobile-order.mobile-order-location #rMobilePinStage.pin-stage-entering,.r-overlay.mobile-order.mobile-order-location #rStepType.is-type-collapsing #rTypeGroup{animation:none}}
       .r-overlay.mobile-order.mobile-order-location #rStepTypeLabel{display:none!important}
@@ -2384,9 +2395,9 @@ window.PlatformCommerce.onReady(async function(){
       .r-overlay.mobile-order.mobile-order-details .r-overview-details,
       .r-overlay.mobile-order.mobile-order-photos .r-overview-details,
       .r-overlay.mobile-order.mobile-order-final .r-overview-details{flex:1 1 auto;height:100%;max-height:none;border-bottom:0}
-      .r-overlay.mobile-order.mobile-order-details .r-tab-main,
-      .r-overlay.mobile-order.mobile-order-photos .r-tab-main,
-      .r-overlay.mobile-order.mobile-order-final .r-tab-main{display:none}
+      .r-overlay.mobile-order.mobile-order-details [data-panel="map"] .r-tab-main,
+      .r-overlay.mobile-order.mobile-order-photos [data-panel="map"] .r-tab-main,
+      .r-overlay.mobile-order.mobile-order-final [data-panel="map"] .r-tab-main{display:none}
       .r-overlay.mobile-order.mobile-order-details .r-scroll,
       .r-overlay.mobile-order.mobile-order-photos .r-scroll,
       .r-overlay.mobile-order.mobile-order-final .r-scroll{height:100%;overflow:auto}
@@ -2442,9 +2453,9 @@ window.PlatformCommerce.onReady(async function(){
       @keyframes rMobilePageInForward{from{opacity:.2;transform:translateX(26px)}to{opacity:1;transform:translateX(0)}}
       @keyframes rMobilePageInBack{from{opacity:.2;transform:translateX(-26px)}to{opacity:1;transform:translateX(0)}}
       .r-overlay.mobile-order.mobile-page-anim-forward .r-overview-details,
-      .r-overlay.mobile-order.mobile-page-anim-forward .r-tab-main{animation:rMobilePageInForward .24s cubic-bezier(.22,1,.36,1)}
+      .r-overlay.mobile-order.mobile-page-anim-forward [data-panel="map"] .r-tab-main{animation:rMobilePageInForward .24s cubic-bezier(.22,1,.36,1)}
       .r-overlay.mobile-order.mobile-page-anim-back .r-overview-details,
-      .r-overlay.mobile-order.mobile-page-anim-back .r-tab-main{animation:rMobilePageInBack .24s cubic-bezier(.22,1,.36,1)}
+      .r-overlay.mobile-order.mobile-page-anim-back [data-panel="map"] .r-tab-main{animation:rMobilePageInBack .24s cubic-bezier(.22,1,.36,1)}
       /* Existing-project details are available from the title drawer, so tabs
          can use the complete workspace instead of stacking the default column. */
       .r-overlay.mobile-info-navigation:not(.mobile-order) .r-modal-header{height:48px}
@@ -2521,9 +2532,9 @@ window.PlatformCommerce.onReady(async function(){
       .r-proposal-preview-empty .r-proposal-preview-create i,.r-proposal-preview-empty .r-proposal-preview-create span{font:inherit;color:inherit;line-height:1}
       @media (prefers-reduced-motion:reduce){
         .r-overlay.mobile-order.mobile-page-anim-forward .r-overview-details,
-        .r-overlay.mobile-order.mobile-page-anim-forward .r-tab-main,
+        .r-overlay.mobile-order.mobile-page-anim-forward [data-panel="map"] .r-tab-main,
         .r-overlay.mobile-order.mobile-page-anim-back .r-overview-details,
-        .r-overlay.mobile-order.mobile-page-anim-back .r-tab-main{animation:none}
+        .r-overlay.mobile-order.mobile-page-anim-back [data-panel="map"] .r-tab-main{animation:none}
         .r-overlay.mobile-project-notes-open .r-mobile-project-notes-workspace{animation:none}
       }
     }
@@ -2548,6 +2559,19 @@ window.PlatformCommerce.onReady(async function(){
       && !hasReportOrdered()
       && !proposalWorkspaceOpen
       && actionAvailable('roof');
+  }
+
+  // Leave the ordering UI without submitting, deleting, or replacing the project or its fields.
+  function cancelMobileReportOrdering(){
+    if (!shouldUseMobileOrderPagination() || orderSubmissionPending) return false;
+    requestedWorkflow = 'project';
+    overviewWorkflowMode = '';
+    reportProjectChoice = '';
+    reportSelection = null;
+    mobileOrderPage = 'location';
+    setActivePreviewTab('map');
+    renderWorkflowState();
+    return true;
   }
 
   function mobileProjectInfoTabEnabled(){
@@ -2735,6 +2759,7 @@ window.PlatformCommerce.onReady(async function(){
 
   function handleMobileOrderSwipeStart(event){
     if (!shouldUseMobileOrderPagination() || event.touches?.length !== 1) return;
+    if (activePreviewTab !== 'map' || !event.target?.closest?.('[data-panel="map"]')) return;
     if (event.target?.closest?.('input,textarea,select,button,a,[contenteditable="true"]')) return;
     const touch = event.touches[0];
     mobileSwipeStart = { x: touch.clientX, y: touch.clientY, t: Date.now() };
@@ -2775,6 +2800,7 @@ window.PlatformCommerce.onReady(async function(){
     overlay.classList.toggle('mobile-order-details', mobile && mobileOrderPage === 'details');
     overlay.classList.toggle('mobile-order-photos', mobile && mobileOrderPage === 'photos');
     overlay.classList.toggle('mobile-order-final', mobile && mobileOrderPage === 'final');
+    overlay.classList.toggle('overview-order-focused', mobile && activePreviewTab === 'map');
     if (mobile && window.Portal.ExteriorOrder?.active()) window.Portal.ExteriorOrder.setMobilePage(mobileOrderPage);
     renderAfterHoursNotice();
     syncMobileProjectNotes();
@@ -3000,7 +3026,7 @@ window.PlatformCommerce.onReady(async function(){
       title:element.querySelector('#rWindowProjectTitle'),
       controlsHost:element.querySelector('.r-window-bar-actions'),
       contentTarget:document.getElementById('mainPanels'),
-      customChrome:true, titleMenu:false, animateGeometry:true, presentationModes:true, mobileFullscreen:true, allowFullscreen:false, viewportCoordinates:true, nativeModalLayout:true,
+      customChrome:true, titleMenu:false, animateGeometry:true, presentationModes:true, allowFullscreen:false, viewportCoordinates:true, nativeModalLayout:true,
       name:'project', label:(globalThis.PlatformLanguage?.text("project-request","m_aaebd7ccba0b30","Project") ?? "Project"), mode:'modal', width:1200, height:800,
       dockWidth:900, minWidth:360, minimizedHeight:32,
       topInset:() => document.getElementById('platformTopbar')?.offsetHeight || 0,
@@ -3058,7 +3084,6 @@ window.PlatformCommerce.onReady(async function(){
       .r-overlay.window-managed .r-win[data-window="minimized"] .r-window-identity{display:flex;flex:1;min-width:0;max-width:none;padding:0;border:0;font-size:12px;gap:6px}
       .r-overlay.window-managed .r-win[data-window="minimized"] .fm-window-controls button:not([data-window-action="minimize"]):not([data-window-action="close"]){display:none}
       @media(max-width:1080px){.r-overlay.window-managed .r-win{flex-direction:column;padding-top:0}}
-      @media(max-width:760px){.r-overlay.window-managed .r-window-bar-actions{flex-basis:90px;width:90px}.r-overlay.window-managed .fm-window-controls button{height:48px;min-height:48px}}
       @media(max-width:760px){.r-overlay.window-managed.entitlement-hide-fullscreen .fm-window-controls [data-window-action="fullscreen"]{display:none}}
       .project-window-embedded body{margin:0!important;overflow:hidden!important}
       .project-window-embedded .fm-attention-topbar,.project-window-embedded .mobile-topbar,.project-window-embedded #platformTopbar,.project-window-embedded .main,.project-window-embedded #mainSidebar,.project-window-embedded #sidebarBackdrop,.project-window-embedded #fmProjectRoutePrecover{display:none!important}
@@ -3077,7 +3102,7 @@ window.PlatformCommerce.onReady(async function(){
       .r-overlay:has(.r-modal-header[data-window-mobile=true]) .r-overview-details #rStepCustomer .r-step-body{padding-bottom:0}
       .r-overlay:has(.r-modal-header[data-window-mobile=true]) .r-overview-details .r-left-bottom{padding-top:0;border-top:0}
       .r-overlay:has(.r-modal-header[data-window-mobile=true]) :is(.r-overview-details,.r-project-identity-popover) [data-contact-shortcut]{min-width:36px;width:36px;height:36px;display:inline-flex;align-items:center;justify-content:center;border-radius:10px;font-size:15px}
-      .r-overlay:has(.r-modal-header[data-window-mobile=true]) :is(.r-overview-details,.r-project-identity-popover) :is(.r-contact-primary,.r-contact-menu-btn){width:36px;height:36px}
+      .r-overlay:has(.r-modal-header[data-window-mobile=true]) .r-overview-details{padding-top:7px}
       .r-project-identity-popover.r-project-identity-sheet{left:0!important;right:0!important;top:auto!important;bottom:0!important;width:auto!important;max-width:none!important;max-height:min(72vh,calc(100% - 96px))!important;border-width:1px 0 0;border-radius:16px 16px 0 0;padding-bottom:env(safe-area-inset-bottom,0px);box-shadow:0 0 0 100vmax rgba(16,24,40,.32),0 -12px 34px rgba(16,24,40,.18);animation:rIdentitySheetIn .26s cubic-bezier(.16,1,.3,1);outline:none}
       .r-project-identity-popover.r-project-identity-sheet>header{position:sticky;top:0;z-index:1;display:flex;align-items:center;justify-content:space-between;gap:10px;padding:8px 8px 8px 16px;background:#fff;border-bottom:1px solid #f2f4f7}
       .r-project-identity-popover.r-project-identity-sheet>header strong{font-size:14px;font-weight:700;color:#101828;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
@@ -3087,10 +3112,10 @@ window.PlatformCommerce.onReady(async function(){
       @keyframes rIdentitySheetIn{from{transform:translateY(100%)}to{transform:none}}
       @media(prefers-reduced-motion:reduce){.r-project-identity-sheet{animation:none}}
     `);
-    if (projectWindowBridge) { document.documentElement.classList.add('project-window-embedded'); element.classList.add('fm-window'); element.dataset.window=projectModalWindow.state.mode; }
+    if (projectWindowBridge) { document.documentElement.classList.add('project-window-embedded'); element.classList.add('fm-window'); element.dataset.window='modal'; }
     overlay.classList.add('window-managed');
     observeProjectHeaderFit(overlay);
-    overlay.dataset.windowMode = projectModalWindow.state.mode;
+    overlay.dataset.windowMode = 'modal';
     projectLayout = window.FirstMateProjectLayout?.mount({ overlay, pane:projectContentPane, getProject:() => activeBaseProject, getTab:() => activePreviewTab, setTab:tab => setActivePreviewTab(tab) });
     if (!projectContentPane) projectWindowShell = window.FirstMateWindowShell.mount({
       element, header:element.querySelector('.r-window-bar'), identity:element.querySelector('.r-window-identity'),
@@ -3101,10 +3126,10 @@ window.PlatformCommerce.onReady(async function(){
   }
   function setProjectModalFullscreen(enabled, options = {}){
     enabled = false; // Entire-screen presentation is disabled for project windows.
+    projectModalFullscreen = !!enabled;
     projectModalWindow?.setMode(enabled ? 'fullscreen' : 'modal', {silent:true});
-    projectModalFullscreen = projectModalWindow ? projectModalWindow.state.mode === 'fullscreen' : !!enabled;
     const managedOverlay = $('#rOverlay');
-    if (managedOverlay && projectModalWindow) { managedOverlay.dataset.windowMode = projectModalWindow.state.mode; managedOverlay.querySelector('.r-win').dataset.window = projectModalWindow.state.mode; }
+    if (managedOverlay && projectModalWindow) { managedOverlay.dataset.windowMode = enabled ? 'fullscreen' : 'modal'; managedOverlay.querySelector('.r-win').dataset.window = enabled ? 'fullscreen' : 'modal'; }
     const overlay = $('#rOverlay');
     clearTimeout(projectModalFullscreenTimer);
     if (overlay) {
@@ -5832,6 +5857,16 @@ window.PlatformCommerce.onReady(async function(){
     return `<span class="r-info-tip r-addon-info-trigger" data-addon-info-trigger="${String(escapeHtml(key))}" role="button" tabindex="0" aria-label="${((v1) => globalThis.PlatformLanguage?.htmlText("project-request","m_6e4ba38fa02b85",`${v1} information`,{v1}) ?? `${v1} information`)(escapeHtml(info.title))}"><i class="fas fa-info"></i></span>`;
   }
 
+  /** A type card's price: this property's quote once known. "VAT included" is shown only where credit is added
+   * (billing, the signup load step and Stripe checkout), not on report prices (1M8-241). */
+  function typePriceLabel(type){
+    const price = fmtCredit(reportDisplayedBasePrice(type));
+    const text = type === 'residential'
+      ? (globalThis.PlatformLanguage?.text("project-request","price_flat_rate","{price} flat rate",{price}) ?? `${price} flat rate`)
+      : (globalThis.PlatformLanguage?.text("project-request","price_per_structure","{price} / structure",{price}) ?? `${price} / structure`);
+    return text;
+  }
+
   // The first order page puts the address under the map on phones, so Google's suggestions open above the field,
   // never over it or under the keyboard. Google moves and resizes the list whenever results change, so each list is
   // watched itself (style, rows and size) and put back; its height is capped to the room above the field.
@@ -5874,7 +5909,7 @@ window.PlatformCommerce.onReady(async function(){
     window.addEventListener('resize',()=>close());document.addEventListener('scroll',event=>{if(menu&&!menu.contains(event.target))close();},true);}
 
   function buildTypeButtons(){
-    const pricingLabels = Object.fromEntries(['residential','commercial','multifamily'].map(type => [type, globalThis.PlatformLanguage?.text('project-request', type === 'residential' ? 'price_flat_rate' : 'price_per_structure', fmtCredit(reportDisplayedBasePrice(type)) + (type === 'residential' ? ' flat rate' : ' / structure'), {price:fmtCredit(reportDisplayedBasePrice(type))})]));
+    const pricingLabels = Object.fromEntries(['residential','commercial','multifamily'].map(type => [type, escapeHtml(typePriceLabel(type))]));
     return Object.entries(TYPE_META).map(([key, meta]) => `
       <button type="button" class="r-type-btn" data-type="${key}">
         <div class="r-type-icon"><i class="fas ${meta.icon}"></i></div>
@@ -6088,13 +6123,23 @@ window.PlatformCommerce.onReady(async function(){
     return 240;
   }
 
+  // The wait bar spans the standard turnaround window the server is configured with. Its end labels and
+  // its marker both come from this range, so a wait near the end of the window sits near the right end.
+  function reportExpediteWaitRange(option){
+    const start = Number(option?.waitRangeStartMinutes ?? option?.baseStartMinutes ?? option?.base_start_minutes ?? 240);
+    const end = Number(option?.waitRangeEndMinutes ?? option?.baseEndMinutes ?? option?.base_end_minutes ?? 420);
+    return Number.isFinite(start) && Number.isFinite(end) && end > start ? { start, end } : { start:240, end:420 };
+  }
+
   function reportExpediteWaitPosition(option){
-    const isStandard = option?.key === 'standard_3_6';
-    const start = isStandard ? 180 : Number(option?.baseStartMinutes ?? option?.base_start_minutes ?? option?.startMinutes ?? 180);
-    const end = isStandard ? 360 : Number(option?.baseEndMinutes ?? option?.base_end_minutes ?? option?.endMinutes ?? 360);
+    const { start, end } = reportExpediteWaitRange(option);
     const wait = reportExpediteEstimatedWaitMinutes(option);
-    const range = Math.max(1, end - start);
-    return Math.max(0, Math.min(100, Math.round(((wait - start) / range) * 100)));
+    return Math.max(0, Math.min(100, Math.round(((wait - start) / (end - start)) * 100)));
+  }
+
+  function reportExpediteWaitRangeLabel(minutes){
+    const hours = Number((Number(minutes) / 60).toFixed(1));
+    return (globalThis.PlatformLanguage?.text("project-request","wait_range_hours",`${hours} hrs`,{hours}) ?? `${hours} hrs`);
   }
 
   function reportExpediteEstimatedWaitLabel(option){
@@ -6257,6 +6302,8 @@ window.PlatformCommerce.onReady(async function(){
         endMinutes: useUiWindow ? fallbackEndMinutes : (option.end_minutes ?? option.endMinutes ?? fallback.endMinutes ?? null),
         baseStartMinutes: useUiWindow ? (fallback.startMinutes ?? null) : (option.base_start_minutes ?? option.baseStartMinutes ?? fallback.startMinutes ?? null),
         baseEndMinutes: useUiWindow ? (fallback.endMinutes ?? null) : (option.base_end_minutes ?? option.baseEndMinutes ?? fallback.endMinutes ?? null),
+        waitRangeStartMinutes: option.base_start_minutes ?? option.baseStartMinutes ?? fallback.startMinutes ?? null,
+        waitRangeEndMinutes: option.base_end_minutes ?? option.baseEndMinutes ?? fallback.endMinutes ?? null,
         structureCount: Number(option.structure_count ?? option.structureCount ?? structureCount) || structureCount,
         additionalStructureMinutes,
         productionDeadlineMinutes: useUiWindow && fallback.productionDeadlineMinutes != null
@@ -6285,26 +6332,28 @@ window.PlatformCommerce.onReady(async function(){
   }
 
   function loadReportExpediteOptions(force = false){
-    if (!selectedType || !fmJson || !addressSelected) return;
+    if (!fmJson || !addressSelected) return;
     const currentSlot = Math.floor(Date.now() / 600000);
-    const structureCount = reportExpediteStructureCount(selectedType);
     const propertyKey = reportPropertyKey();
-    if (!force && reportExpeditePropertyKey === propertyKey && reportExpediteOptionsProjectType === selectedType && reportExpediteOptionsStructureCount === structureCount && reportExpediteOptionsSlot === currentSlot && reportExpediteOptions.length) return;
+    // Before a type is chosen, quote residential: the response carries this property's
+    // prices for every type, so the type cards show them instead of the account's base prices.
+    if (!selectedType && reportExpeditePropertyKey === propertyKey) return;
+    const requestType = selectedType || 'residential';
+    const structureCount = reportExpediteStructureCount(requestType);
+    if (!force && selectedType && reportExpeditePropertyKey === propertyKey && reportExpediteOptionsProjectType === selectedType && reportExpediteOptionsStructureCount === structureCount && reportExpediteOptionsSlot === currentSlot && reportExpediteOptions.length) return;
     if (reportExpediteOptionsLoading) return;
     reportExpediteOptionsLoading = true;
-    reportExpediteOptionsAuthoritative = false;
+    if (selectedType) reportExpediteOptionsAuthoritative = false;
     const quotedType = selectedType;
-    fmJson(`report-expedite-options?address=${encodeURIComponent($("#rAddress")?.value || "")}&lat=${encodeURIComponent($("#rLat")?.value || "")}&lng=${encodeURIComponent($("#rLng")?.value || "")}&project_type=${encodeURIComponent(selectedType)}&structure_count=${encodeURIComponent(String(structureCount))}`)
+    fmJson(`report-expedite-options?address=${encodeURIComponent($("#rAddress")?.value || "")}&lat=${encodeURIComponent($("#rLat")?.value || "")}&lng=${encodeURIComponent($("#rLng")?.value || "")}&project_type=${encodeURIComponent(requestType)}&structure_count=${encodeURIComponent(String(structureCount))}`)
       .then((data) => {
-        if (propertyKey !== reportPropertyKey() || quotedType !== selectedType) return;
+        if (propertyKey !== reportPropertyKey()) return;
         reportExpeditePropertyKey = propertyKey;
         reportPropertyPrices = data.report_prices || null;
         document.querySelectorAll('.r-type-btn[data-type] .r-type-price').forEach(label => {
-          const type = label.closest('[data-type]').dataset.type;
-          label.textContent = type === 'residential'
-            ? (globalThis.PlatformLanguage?.text("project-request","price_flat_rate","{price} flat rate",{price:fmtCredit(reportDisplayedBasePrice(type))}) ?? `${fmtCredit(reportDisplayedBasePrice(type))} flat rate`)
-            : (globalThis.PlatformLanguage?.text("project-request","price_per_structure","{price} / structure",{price:fmtCredit(reportDisplayedBasePrice(type))}) ?? `${fmtCredit(reportDisplayedBasePrice(type))} / structure`);
+          label.textContent = typePriceLabel(label.closest('[data-type]').dataset.type);
         });
+        if (!quotedType || quotedType !== selectedType) return;
         const options = normalizeReportExpediteOptionsResponse(data, selectedType, structureCount);
         if (options.length) {
           reportExpediteOptions = options;
@@ -6317,8 +6366,11 @@ window.PlatformCommerce.onReady(async function(){
         }
       })
       .catch((error) => {
-        if (propertyKey !== reportPropertyKey() || quotedType !== selectedType) return;
+        if (propertyKey !== reportPropertyKey()) return;
+        // Remember the failed property so renders do not retry it in a loop; its cards keep base prices.
+        if (reportExpeditePropertyKey !== propertyKey) reportPropertyPrices = null;
         reportExpeditePropertyKey = propertyKey;
+        if (!quotedType || quotedType !== selectedType) return;
         console.warn('Report prices unavailable; ordering waits for a verified quote.', error);
         const options = buildLocalReportExpediteOptions(selectedType, new Date(), structureCount);
         if (options.length) {
@@ -6473,6 +6525,7 @@ window.PlatformCommerce.onReady(async function(){
       waitMount.innerHTML = '';
     } else if (waitMount && defaultOption) {
       const position = reportExpediteWaitPosition(defaultOption);
+      const waitRange = reportExpediteWaitRange(defaultOption);
       waitMount.innerHTML = `
         <div class="r-expedite-default-head">
           <div class="r-expedite-status">
@@ -6482,7 +6535,7 @@ window.PlatformCommerce.onReady(async function(){
           <div class="r-expedite-eta">${String(escapeHtml(reportExpediteEstimatedWaitLabel(defaultOption)))}</div>
         </div>
         <div class="r-expedite-bar" style="--wait-position:${String(position)}%"><span class="r-expedite-marker" aria-hidden="true"></span></div>
-        <div class="r-expedite-bar-labels"><span>${(globalThis.PlatformLanguage?.htmlText("project-request","m_c025d9e87eaacd","4 hrs") ?? "4 hrs")}</span><span>${(globalThis.PlatformLanguage?.htmlText("project-request","m_ed52be56a2ea6c","7 hrs") ?? "7 hrs")}</span></div>`;
+        <div class="r-expedite-bar-labels"><span>${String(escapeHtml(reportExpediteWaitRangeLabel(waitRange.start)))}</span><span>${String(escapeHtml(reportExpediteWaitRangeLabel(waitRange.end)))}</span></div>`;
     } else if (waitMount) {
       waitMount.innerHTML = '';
     }
@@ -7066,6 +7119,7 @@ window.PlatformCommerce.onReady(async function(){
     // deprecated Proposals tab both land on the unified Docs tab.
     if (!allowed.includes(tab) && ['documents', 'proposal'].includes(tab) && allowed.includes('docs')) tab = 'docs';
     activePreviewTab = allowed.includes(tab) ? tab : projectDefaultPreviewTab();
+    $('#rOverlay')?.classList.toggle('overview-order-focused', shouldUseMobileOrderPagination() && activePreviewTab === 'map');
     proposalWorkspaceOpen = proposalsEnabled() && activePreviewTab === 'proposal';
     if (activePreviewTab !== 'proposal') proposalSettingsPanelOpen = false;
     if (!proposalWorkspaceOpen) {
@@ -7170,6 +7224,14 @@ window.PlatformCommerce.onReady(async function(){
       },
       getBranchProjectConfig: () => branchProjectConfig,
       getReportOrderState: () => reportOrderState,
+      loadReportDocumentAssets: async () => {
+        const app = mountProjectMeasurementsApp({active:false});
+        if (!app) return null;
+        const id = activeMeasurementProjectId();
+        return (id ? await app.invoke('loadMeasurementAssets',[id]) : null) || app.invoke('reportOrderKnownAssetUrls',[]);
+      },
+      canOrderMeasurements: () => firstMeasureReportOrdersEnabled() && hasPerm('order_reports') && !hasReportOrdered(),
+      orderMeasurements: () => startMeasurementOrder(),
       setReportOrderState: (nextState) => {
         reportOrderState = nextState || null;
         return reportOrderState;
@@ -7213,6 +7275,8 @@ window.PlatformCommerce.onReady(async function(){
         return reportSelection;
       },
       shouldUseExpandedOverviewMap: () => shouldUseExpandedOverviewMap(),
+      isMobileReportOrdering: () => shouldUseMobileOrderPagination() && activePreviewTab === 'map',
+      cancelMobileReportOrdering: () => cancelMobileReportOrdering(),
       getIncludeGutterMeasurements: () => includeGutterMeasurements,
       setIncludeGutterMeasurements: (value) => {
         includeGutterMeasurements = !!value;
@@ -7259,7 +7323,7 @@ window.PlatformCommerce.onReady(async function(){
       isMobileReportOrder: () => shouldUseMobileOrderPagination(),
       mobileOrderPinsLocked: () => shouldUseMobileOrderPagination() && !mobileOrderScopeReady(),
       inlineProjectMapWithReports: () => projectModalAppsShouldInlineMap(),
-      reportNavigationContext: () => ({ordered:hasReportOrdered(),tabs:projectViewerTabs(),activeTab:activePreviewTab}),
+      reportNavigationContext: () => ({ordered:reportOrderExists(),tabs:projectViewerTabs(),activeTab:activePreviewTab}),
       showStructurePinLimitNotice: () => showStructurePinLimitNotice(),
       invalidateReportExpediteOptions: () => invalidateReportExpediteOptions(),
       renderPinInfo: () => renderPinInfo(),
@@ -7472,8 +7536,17 @@ window.PlatformCommerce.onReady(async function(){
     }
     const overview=document.querySelector('#rOverlay [data-panel="map"] > .r-tab-content');
     if(details && overview && details.parentElement!==overview)overview.prepend(details);
+    placeMobileOrderPager();
     placeProjectCustomFields();
     return restored;
+  }
+  // The pager belongs to Overview and moves with its panel; preserve the same buttons and handlers on rebuild.
+  function placeMobileOrderPager(){
+    const pager=document.getElementById('rMobilePager');
+    const panel=document.querySelector('#rOverlay .r-preview-panel[data-panel="map"]');
+    const store=document.getElementById('rOverviewDetailsStore');
+    const target=panel || store;
+    if(pager && target && pager.parentElement!==target)target.append(pager);
   }
   // Project custom fields show on the right of Overview, in the Overview app's fields slot. They rest in the
   // details form whenever that slot is not mounted, so they survive tab rebuilds and the hidden details store.
@@ -7622,7 +7695,11 @@ window.PlatformCommerce.onReady(async function(){
     const validPanels = new Set(projectModalApps().map((app) => app.id).filter(Boolean));
     stage.querySelectorAll('.r-preview-panel[data-panel]').forEach((panel) => {
       const panelId = panel.dataset.panel || '';
-      if (!validPanels.has(panelId)) panel.remove();
+      if (!validPanels.has(panelId)) {
+        const pager=panelId==='map' ? document.getElementById('rMobilePager') : null;
+        if(pager)document.getElementById('rOverviewDetailsStore')?.append(pager);
+        panel.remove();
+      }
     });
   }
 
@@ -7636,6 +7713,8 @@ window.PlatformCommerce.onReady(async function(){
     const details=document.querySelector('#rOverlay .r-overview-details');
     returnProjectCustomFields(details);
     if(details)document.getElementById('rOverviewDetailsStore')?.append(details);
+    const pager=document.getElementById('rMobilePager');
+    if(pager)document.getElementById('rOverviewDetailsStore')?.append(pager);
     stage.innerHTML = projectModalAppPanelsHtml();
     ensureOverviewDetails();
   }
@@ -7643,6 +7722,8 @@ window.PlatformCommerce.onReady(async function(){
   function renderProjectModalTabError(tab, phase, error){
     const panelRoot = document.querySelector(`#rOverlay .r-preview-panel[data-panel="${cssEscape(tab?.id || '')}"]`);
     if (!panelRoot || tab?.id !== activePreviewTab) return;
+    const pager=tab.id==='map' ? document.getElementById('rMobilePager') : null;
+    if(pager)document.getElementById('rOverviewDetailsStore')?.append(pager);
     panelRoot.innerHTML = `
       <div class="r-report-pending">
         <div class="r-report-pending-card">
@@ -7829,15 +7910,30 @@ window.PlatformCommerce.onReady(async function(){
     return tabs;
   }
 
+  // A report order exists once the project carries a report, an order status or a measurement id,
+  // cancelled and rejected orders included. The opening header and the hydrated header share this
+  // rule, so a cancelled order keeps the report layout instead of flipping to the full tab set.
+  function projectReportOrderExists(project){
+    const measurement=project?.measurement_project || project?.measurement || {};
+    const manifest=project?.manifest || measurement.raw?.manifest || {};
+    const rows=[project || {},measurement,measurement.raw || {},manifest];
+    return rows.some(row=>row.has_report || row.report_url || row.pdf_url || row.summary_url || row.xml_url || ['measurement_ordered','submitted','processing','in_progress','completed','complete','queued'].includes(String(row.workflow_state || row.status || '').toLowerCase())) || !!(project?.measurement_project_id || project?.firstmeasure_project_id || measurement.id || measurement.project_id);
+  }
+  function reportOrderExists(){
+    if (reorderMeasurementProjectId) return false;
+    return hasReportOrdered() || projectReportOrderExists(activeBaseProject);
+  }
+
   function openingProjectTabs(project, options = {}){
     if (!project && normalizeWorkflow(options.workflow || options.createWorkflow || options.intent)!=='project') return [];
     const tabs=projectViewerTabs({opening:true,project});
     const measurement=project?.measurement_project || project?.measurement || {};
     const manifest=project?.manifest || measurement.raw?.manifest || {};
     const rows=[project || {},measurement,measurement.raw || {},manifest];
-    const ordered=rows.some(row=>row.has_report || row.report_url || row.pdf_url || row.summary_url || row.xml_url || ['measurement_ordered','submitted','processing','in_progress','completed','complete','queued'].includes(String(row.workflow_state || row.status || '').toLowerCase())) || !!(project?.measurement_project_id || project?.firstmeasure_project_id || measurement.id || measurement.project_id);
+    const ordered=projectReportOrderExists(project);
     if(!ordered || weatherReportsEnabled() || reportFollowupEnabled() || !appFeatureEnabled('firstmeasure','measurement_report_summary',false) || rows.some(row=>row.include_inspection || row.include_instant || row.include_instant_preview || row.report_mode === 'both'))return tabs;
     const reportTabs=[{id:'summary',label:(globalThis.PlatformLanguage?.text("project-request","m_9b03ccb29ba168","Summary") ?? "Summary")},{id:'standard',label:window.Portal?.terminology?.get?.('reports.standard_view','Standard Report') || 'Standard Report'},{id:'customer',label:window.Portal?.terminology?.get?.('reports.customer_view','Customer Report') || 'Customer Report'}];
+    if(rows.some(row=>row.xml_url))reportTabs.push({id:'xml',label:(globalThis.PlatformLanguage?.text("project-request","m_8efb983a491620","XML") ?? "XML")});
     return window.Portal.ProjectViewer.reportHeaderTabs(tabs,reportTabs,true) || tabs;
   }
 
@@ -7845,15 +7941,19 @@ window.PlatformCommerce.onReady(async function(){
     const header=$('#rOverlay .r-modal-header');
     if(!header || header.querySelector('#rMeasureTabs'))return;
     const tabs=openingProjectTabs(activeBaseProject,{workflow:requestedWorkflow});
+    // This strip stands in only until the report app draws its own tabs (in the header or its panel).
+    const reportTabsDrawn=!!$('#rOverlay #rMeasureTabs [data-tab]');
+    if(reportTabsDrawn){header.querySelector('#rOpeningReportTabs')?.remove();return;}
     if(!tabs.some(tab=>tab.id==='project:map')){const pending=header.querySelector('#rOpeningReportTabs');if(pending){pending.remove();$('#rOverlay')?.classList.remove('flat-report-navigation','report-tabs-in-header');}return;}
     let nav=header.querySelector('#rOpeningReportTabs');
     if(!nav){nav=document.createElement('nav');nav.id='rOpeningReportTabs';nav.className='r-measure-tabs';header.append(nav);}
     $('#rOverlay')?.classList.add('flat-report-navigation','report-tabs-in-header');
-    const reportView=window.Portal?.navigation?.read?.().reportView || 'standard';
+    const reportView=projectMeasurementsModule()?.activeTab?.() || window.Portal?.navigation?.read?.().reportView || 'standard';
     const selected=activePreviewTab==='measurements' ? reportView : 'project:'+activePreviewTab;
     window.Portal.ProjectViewer.renderTabs(nav,tabs.map(tab=>({...tab,active:tab.id===selected})),{tabClass:'r-measure-tab',iconOnly:true,onTabClick:tab=>{
       if(tab.id.startsWith('project:'))setActivePreviewTab(tab.id.slice(8),{history:'push'});
-      else {setActivePreviewTab('measurements',{history:'push'});setActiveMeasurementTab(tab.id);}
+      else {setActivePreviewTab('measurements',{history:'push'});setActiveMeasurementTab(tab.id,{user:true});}
+      renderOpeningReportTabs();
     }});
   }
 
@@ -7966,6 +8066,7 @@ window.PlatformCommerce.onReady(async function(){
   }
 
   function measurementTabs(...args){ return projectMeasurementsInvoke('measurementTabs', args); }
+  function selectInitialMeasurementTab(...args){ return projectMeasurementsInvoke('selectInitialMeasurementTab', args); }
   function isPlatformProjectId(...args){ return projectMeasurementsInvoke('isPlatformProjectId', args); }
   function normalizedStatusList(values = []){
     return values.map((value) => projectText(value).toLowerCase()).filter(Boolean);
@@ -8871,7 +8972,9 @@ window.PlatformCommerce.onReady(async function(){
     if (activeBaseProject?.__projectShellLoading) return;
     if (!activeBaseProject && requestedWorkflow === 'contact') ensureContactDraftBaseProject();
     if (!activeBaseProject && requestedWorkflow === 'document' && docPickerDismissed) ensureDocumentBaseProject();
-    if (!activeBaseProject && addressSelected) ensureDraftBaseProject();
+    // Only a new project starts a draft here. A window opened for an existing project (an order whose record has not
+    // loaded yet, or failed to) must not save a new draft over the order's address (1M8-234).
+    if (!activeBaseProject && addressSelected && !viewingExistingProject) ensureDraftBaseProject();
     if (!activeBaseProject || !window.Portal.ProjectStore) return;
     syncProjectPhotosFromLibrary();
     // Without the Overview details form there are no edited values to read;
@@ -9558,7 +9661,7 @@ window.PlatformCommerce.onReady(async function(){
     if (activeBaseProject) syncProjectPhotosFromLibrary();
     setProjectionMode(true);
     refreshProjectModalAppsForOrderTransition();
-    setActiveMeasurementTab(data?.development_report ? 'model' : (reportOrderState.includeInspection ? 'instant' : 'standard'));
+    selectInitialMeasurementTab(reportOrderState.includeInspection ? 'instant' : 'standard', { model:data?.development_report === true });
     projectViewer?.setActiveTab('measurements');
     renderMeasurementsPanel();
     refreshProjectModalAppsForOrderTransition('measurements');
@@ -9605,6 +9708,16 @@ window.PlatformCommerce.onReady(async function(){
     }
   }
 
+  // Both Overview and the Operations measurements rail enter the same order
+  // session. Opening it never submits an order or creates another project.
+  function startMeasurementOrder(){
+    if (!firstMeasureReportOrdersEnabled() || !hasPerm('order_reports') || hasReportOrdered()) return false;
+    requestedWorkflow='report';overviewWorkflowMode='report';reportProjectChoice=activeBaseProject?'existing':'new';reportSelection='roof';locationConfirmed=false;
+    preloadFirstReportCheckoutEligibility();setActivePreviewTab('map');renderWorkflowState();queueAutosaveNotice();
+    if (!addressSelected) $('#rAddress')?.focus();
+    return true;
+  }
+
   function syncOverviewWorkflow(){
     const overlay=$('#rOverlay'),details=overlay?.querySelector('.r-overview-details');
     if (!details) return;
@@ -9629,9 +9742,7 @@ window.PlatformCommerce.onReady(async function(){
       for (const [key,label] of choices) {const button=document.createElement('button');button.type='button';button.className='r-toggle-btn';const icon=document.createElement('i');icon.className='fas '+({roof:'fa-ruler-combined',proposal:'fa-file-signature',schedule:'fa-calendar-days'}[key]);icon.setAttribute('aria-hidden','true');button.append(icon,document.createTextNode(label));
         button.onclick=()=>{
           if (key==='roof') {
-            if (hasReportOrdered()) applyReorderPrefillState(activeBaseProject || {});
-            requestedWorkflow='report';overviewWorkflowMode='report';reportProjectChoice=activeBaseProject?'existing':'new';reportSelection='roof';locationConfirmed=false;
-            preloadFirstReportCheckoutEligibility();setActivePreviewTab('map');renderWorkflowState();queueAutosaveNotice();
+            startMeasurementOrder();
           } else document.querySelector('.r-toggle-btn[data-report-choice="'+key+'"]')?.click();
         };actions.append(button);
       }
@@ -9679,6 +9790,7 @@ window.PlatformCommerce.onReady(async function(){
   }
 
   function renderWorkflowStateBody(options = {}){
+    if (addressSelected && !selectedType) loadReportExpediteOptions();
     ensureOrderContactFields();
     syncOverviewWorkflow();
     syncDevelopmentReportControls();
@@ -10454,6 +10566,8 @@ window.PlatformCommerce.onReady(async function(){
       // Whose order it is: another account signed in on this browser must never see or submit it (billing readPending).
       organization_id: String(window.__APP?.userOrgId || '').trim(),
       user_id: String(window.__APP?.userId || '').trim() || String(window.__APP?.userEmail || '').trim().toLowerCase(),
+      // The account that placed it: another account signed in on this browser must never submit it (1M8-204).
+      organization_id: String(window.__APP?.userOrgId || '').trim(),
       fields: {
         address: ($('#rAddress').value || '').trim(),
         residentName: primary.name || '',
@@ -10485,6 +10599,10 @@ window.PlatformCommerce.onReady(async function(){
         reorder_project_id: reorderSourceCanReopenInPlace && reorderMeasurementProjectId ? reorderMeasurementProjectId : '',
         source_project_id: reorderSourceCanReopenInPlace && reorderMeasurementProjectId ? reorderMeasurementProjectId : '',
         ...(window.Portal.ExteriorOrder?.payload() || {}),
+        // The quote shown here; the billing page tops up and resubmits
+        // against it instead of recomputing prices.
+        order_original_amount: window.Portal.ExteriorOrder?.active() ? '' : String(currentPriceQuote().original_amount ?? ''),
+        order_quoted_amount: String(currentPrice() ?? ''),
       }
     };
     try { localStorage.setItem(PENDING_ORDER_KEY, JSON.stringify(obj)); } catch (e) {}
@@ -11115,7 +11233,7 @@ window.PlatformCommerce.onReady(async function(){
           || !!summaryUrl
         ),
       };
-      setActiveMeasurementTab(cancelledMeasurement ? 'standard' : (reportOrderState.hasReadyReport ? 'model' : (reportOrderState.includeInspection ? 'instant' : 'standard')));
+      selectInitialMeasurementTab(!cancelledMeasurement && reportOrderState.includeInspection ? 'instant' : 'standard', { model:!cancelledMeasurement && reportOrderState.hasReadyReport });
       setProjectionMode(true);
       if (!options.preferredTab) setActivePreviewTab('measurements');
     }
@@ -11514,9 +11632,10 @@ window.PlatformCommerce.onReady(async function(){
       const trayInteraction=projectTrays?.interactionVersion();
       loadBranchProjectConfig().then(() => {
         if (trayInteraction!==projectTrays?.interactionVersion() || trayGeneration !== projectTrayOpenGeneration || !overlay.classList.contains('active')) return;
-        const key = branchProjectConfig.default_project_tray ?? 'notes';
-        // A tray on a phone covers the whole project, so phones open none by default; desktop keeps the branch setting.
-        if (key && key !== 'off' && !isMobileProjectOrder() && projectTrays?.available().includes(key)) projectTrays.select(key);
+        const key = branchProjectConfig.default_project_tray ?? 'off';
+        // Notes open only when requested by the person, across every project/report entry path.
+        // Phones keep all trays closed; desktop may still use another configured default.
+        if (key && key !== 'off' && key !== 'notes' && !isMobileProjectOrder() && projectTrays?.available().includes(key)) projectTrays.select(key);
       });
     }
     try { if (options.layout) projectWindowShell?.apply(options.layout); }
@@ -11662,6 +11781,11 @@ window.PlatformCommerce.onReady(async function(){
     });
     window.addEventListener('fm:new-project-workflow', (event) => {
       const workflow = event?.detail?.workflow || 'project';
+      // Someone who may not order reports gets a reason instead of an order window that cannot load (1M8-227).
+      if (workflow === 'report' && Object.keys(window.Portal?.currentUser?.permissions || {}).length && !hasPerm('order_reports')) {
+        window.Portal?.ui?.showToast?.(globalThis.PlatformLanguage?.text('project-request', 'order_reports_denied_title', 'You cannot order reports') ?? 'You cannot order reports', globalThis.PlatformLanguage?.text('project-request', 'order_reports_denied_detail', 'Ask an admin on your account to give you permission to order reports.') ?? 'Ask an admin on your account to give you permission to order reports.', false);
+        return;
+      }
       if (workflow === 'contact' && window.Portal?.modules?.contacts?.open) {
         window.Portal.modules.contacts.open();
         return;

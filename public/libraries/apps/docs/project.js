@@ -27,10 +27,11 @@
   ];
 
   const TYPE_META = {
+    roof_report_xml: { label: (globalThis.PlatformLanguage?.text('docs','roof_report_xml','Roof Report XML') ?? 'Roof Report XML'), icon: 'fa-ruler-combined', badgeIcon:'fa-code', reportFamily:true, color: 'var(--primary,#d93025)' },
     proposal: { label: (globalThis.PlatformLanguage?.text("docs","m_1d8655e967c464","Proposal") ?? "Proposal"), icon: 'fa-file-signature', color: '#2563eb' },
     change_order: { label: (globalThis.PlatformLanguage?.text("docs","m_4c17910c74a05e","Change Order") ?? "Change Order"), icon: 'fa-file-contract', color: '#7c3aed' },
-    roof_report: { label: (globalThis.PlatformLanguage?.text("docs","m_51ac44c5f2e0fc","Roof Report") ?? "Roof Report"), icon: 'fa-ruler-combined', color: '#059669' },
-    customer_report: { label: (globalThis.PlatformLanguage?.text("docs","m_d7e9bec617183b","Customer Report") ?? "Customer Report"), icon: 'fa-file-lines', color: '#0891b2' },
+    roof_report: { label: (globalThis.PlatformLanguage?.text("docs","m_51ac44c5f2e0fc","Roof Report") ?? "Roof Report"), icon: 'fa-ruler-combined', reportFamily:true, color: 'var(--primary,#d93025)' },
+    customer_report: { label: (globalThis.PlatformLanguage?.text("docs","m_d7e9bec617183b","Customer Report") ?? "Customer Report"), icon: 'fa-ruler-combined', badgeIcon:'fa-user', reportFamily:true, color: 'var(--primary,#d93025)' },
     instant_report: { label: (globalThis.PlatformLanguage?.text("docs","m_f8f58e81f3e5f9","Instant Report") ?? "Instant Report"), icon: 'fa-bolt', color: '#ca8a04' },
     weather_report: { label: (globalThis.PlatformLanguage?.text("docs","m_e2f688300156b9","Weather Report") ?? "Weather Report"), icon: 'fa-cloud-sun-rain', color: '#0d9488' },
     invoice: { label: (globalThis.PlatformLanguage?.text("docs","m_1d5ea39cc421fc","Invoice") ?? "Invoice"), icon: 'fa-file-invoice-dollar', color: '#175cd3' },
@@ -59,7 +60,7 @@
     visibleDocumentCategories: new Set(['receipt', 'invoice', 'proposal_report', 'other']),
     categoryMenuOpen: false,
     viewMode: 'tiles',
-    galleryDensity: 'comfortable',
+    galleryDensity: 'loose',
     tileSize: 128,
     viewerOpen: false,
     viewerIndex: 0,
@@ -77,6 +78,7 @@
     engineEntries: [],
     receiptsById: new Map(),
     measurements: null,
+    reportAssets: null,
     // Inline create surface (doc-first flows): the wizard rendered into the
     // right panel instead of a floating modal.
     createHost: null
@@ -116,6 +118,9 @@
   }
   function branchId(){
     return firstText(state.context?.branchId, window.Portal?.branchModules?.currentBranchId?.(), window.__APP?.userBranchId, project()?.branch_id, 'default') || 'default';
+  }
+  function densityPreferenceKey(){
+    return `firstmate.documents.density.${orgId()}.${firstText(Portal.cfg?.userId,window.__APP?.userId)}`;
   }
   function projectDocsEnabled(context = state.context || {}){
     if (context.projectDocsEnabled === false) return false;
@@ -171,8 +176,8 @@
       document_type: type,
       type,
       type_label: firstText(doc.type_label, meta.label),
-      icon: firstText(doc.icon, meta.icon),
-      color: firstText(doc.color, meta.color),
+      icon: meta.reportFamily ? meta.icon : firstText(doc.icon, meta.icon),
+      color: meta.reportFamily ? meta.color : firstText(doc.color, meta.color),
       title: firstText(doc.title, doc.label, doc.file_name, doc.name, meta.label),
       label: firstText(doc.label, doc.title, doc.file_name, doc.name, meta.label),
       url: fileUrl(doc),
@@ -276,7 +281,7 @@
         const round = (value) => (Math.round(value * 10) / 10).toLocaleString();
         return {
           primary: squares > 0 ? `${round(squares)} squares` : `${Math.round(area).toLocaleString()} sq ft`,
-          facts: [squares > 0 && area > 0 ? `${Math.round(area).toLocaleString()} sq ft` : '', date]
+          facts: [date]
         };
       }
     },
@@ -547,6 +552,7 @@
     if (state.loadedForProjectId && state.loadedForProjectId !== pid) {
       state.visibleDocumentCategories = new Set(['receipt', 'invoice', 'proposal_report', 'other']);
       state.categoryMenuOpen = false;
+      state.reportAssets = null;
     }
     state.loading = true;
     render();
@@ -555,7 +561,12 @@
     try {
       if (!oid || !pid || !window.PlatformAPI?.projectDocuments?.list) throw new Error('Project documents API is unavailable.');
       const [result, invoiceResult, receiptResult] = await Promise.all([
-        window.PlatformAPI.projectDocuments.list(oid, pid),
+        // Legacy uploaded documents have their own access gate. A failure here
+        // must not discard independently authorized reports, invoices or receipts.
+        window.PlatformAPI.projectDocuments.list(oid, pid).catch((error) => {
+          if (options.quiet !== true) console.warn('Unable to load legacy project documents', error);
+          return { documents:uploadedProjectDocs(), uploaded_documents:uploadedProjectDocs() };
+        }),
         window.PaymentsAPI?.invoices?.list
           ? window.PaymentsAPI.invoices.list(oid, pid).catch((error) => {
             console.warn('Unable to load project invoices for Docs', error);
@@ -569,7 +580,11 @@
         // Report tiles show the project's measurements.
         window.PlatformAPI?.publication?.measurements
           ? window.PlatformAPI.publication.measurements(oid, pid).catch(() => null)
-          : Promise.resolve(null)
+          : Promise.resolve(null),
+        Promise.resolve(callHost('loadReportDocumentAssets')).catch((error) => {
+          console.warn('Unable to load report documents',error);
+          return {};
+        })
       ]).then((results) => {
         const measured = {};
         Object.entries(Object(Object(results[3]?.value).measurements)).forEach(([key, entry]) => {
@@ -577,6 +592,7 @@
           if (Number.isFinite(value)) measured[key] = value;
         });
         state.measurements = measured;
+        state.reportAssets = results[4] || null;
         return results;
       });
       state.receiptsById = new Map((Array.isArray(receiptResult?.receipts) ? receiptResult.receipts : []).map((receipt) => [cleanText(receipt.id), receipt]));
@@ -620,8 +636,10 @@
          so the card rearranges with the tile's own width in every density. */
       .fm-docs-gallery .pf-thumb{container-type:inline-size;isolation:isolate}
       .fm-doc-card{position:absolute;inset:0;display:flex;flex-direction:column;justify-content:flex-end;overflow:hidden;padding:36px 12px 11px;background:linear-gradient(165deg,#fff 0%,color-mix(in srgb,var(--doc-color,#64748b) 8%,#f8fafc) 100%);text-align:left}
-      .fm-doc-card-mark{position:absolute;right:9%;top:20%;font-size:clamp(30px,34cqw,96px);color:var(--doc-color,#64748b);opacity:.13;pointer-events:none;transition:opacity .16s ease}
-      .pf-thumb:hover .fm-doc-card-mark{opacity:.2}
+      .fm-doc-card-mark{position:absolute;right:9%;top:20%;font-size:clamp(30px,34cqw,96px);color:var(--doc-color,#64748b);opacity:1;pointer-events:none}
+      .pf-thumb:hover .fm-doc-card-mark{opacity:1}
+      .fm-doc-symbol{position:relative;display:inline-block;line-height:1}
+      .fm-doc-symbol-badge{position:absolute;right:-.3em;top:-.2em;font-size:.36em;background:#f8fafc;border-radius:50%;padding:.2em;box-shadow:0 0 0 .08em #f8fafc}
       .fm-doc-card-body{position:relative;display:flex;flex-direction:column;gap:2px;min-width:0}
       .fm-doc-card-title{overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;color:#101828;font-size:clamp(11px,6.4cqw,14px);font-weight:800;line-height:1.28}
       .fm-doc-card-primary{overflow:hidden;white-space:nowrap;text-overflow:ellipsis;color:#101828;font-size:clamp(14px,10cqw,23px);font-weight:900;letter-spacing:-.015em;line-height:1.15}
@@ -662,6 +680,27 @@
       .fm-docs-gallery .pf-wrap[data-density="list"] .fm-doc-badges{left:78px;right:10px;top:9px}
       .fm-docs-gallery .pf-wrap[data-density="list"] .fm-doc-amount-pill{display:none}
       .fm-docs-gallery .pf-wrap[data-density="list"] .pf-thumb-meta{left:68px;top:0;bottom:0;padding:30px 10px 6px;background:#fff;color:#344054;opacity:1}
+      .fm-docs-gallery .pf-wrap[data-density="loose"] .pf-grid{grid-template-columns:repeat(auto-fill,minmax(185px,1fr))}
+      .fm-docs-gallery .fm-doc-card{padding:0;background:#fff;justify-content:flex-start}
+      .fm-doc-preview{position:relative;display:block;flex:1;min-height:0;overflow:hidden;background:#edf0f4;pointer-events:none}
+      .fm-doc-preview>img,.fm-doc-preview>canvas{position:absolute;top:0;left:0;width:100%;height:auto;min-height:100%;object-fit:cover;object-position:top center;background:#fff}
+      .fm-docs-gallery .fm-doc-card-mark{top:50%;left:50%;right:auto;bottom:auto;transform:translate(-50%,-50%);font-size:clamp(28px,30cqw,70px);opacity:1}
+      .fm-docs-gallery .fm-doc-card-body{flex:none;height:54px;box-sizing:border-box;padding:8px 9px;background:#fff;border-top:1px solid #e4e7ec;display:grid;grid-template-columns:20px minmax(0,1fr);grid-template-rows:18px 14px;gap:3px 8px;align-content:center}
+      .fm-doc-badges .fm-doc-type-badge{background:var(--primary,#d93025);border-color:var(--primary,#d93025);color:#fff}
+      .fm-doc-badges .fm-doc-status-badge{background:#667085;border-color:#667085;color:#fff}
+      .fm-doc-detail-pills{position:absolute;bottom:61px;left:6px;right:6px;display:flex;flex-wrap:wrap;gap:4px;pointer-events:none;max-height:48px;overflow:hidden}
+      .fm-doc-detail-pills>span{border-radius:999px;padding:3px 7px;background:#667085;border:1px solid #667085;color:#fff;font-size:10px;font-weight:800;white-space:nowrap;max-width:100%;overflow:hidden;text-overflow:ellipsis}
+      .fm-docs-gallery .pf-wrap[data-density="list"] .fm-doc-detail-pills{display:none}
+      .fm-doc-card-heading{display:contents}
+      .fm-doc-title-icon{flex:none;color:var(--doc-color,#64748b);font-size:15px;width:20px;text-align:center;grid-column:1;grid-row:1 / 3;align-self:center}
+      .fm-doc-card-heading .fm-doc-card-title{display:block;grid-column:2;grid-row:1;min-width:0;font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+      .fm-docs-gallery .fm-doc-card-primary{font-size:14px;margin-left:28px}
+      .fm-docs-gallery .fm-doc-card-facts{margin-left:0;font-size:10px;grid-column:2;grid-row:2;display:block}
+      .fm-docs-gallery .fm-doc-badges{top:5px;left:5px;right:5px}
+      .fm-doc-page-stage{position:absolute;top:0;left:0;pointer-events:none;background:#fff;overflow:hidden}
+      .fm-doc-preview.has-preview>.fm-doc-card-mark{display:none}
+      .fm-docs-gallery .pf-wrap[data-density="list"] .fm-doc-preview{width:68px;height:68px;flex:none}
+      .fm-docs-gallery .pf-wrap[data-density="list"] .fm-doc-card-mark{position:absolute;transform:translate(-50%,-50%);font-size:24px}
       /* Toolbar: the search narrows first, then labels give way to icons, and
          only on a phone-width panel does it take its own row. */
       .fm-docs-gallery{container:fm-docs / inline-size}
@@ -717,45 +756,38 @@
       @media(max-width:760px){.fm-docs-toolbar{display:flex;align-items:stretch;flex-direction:column}.fm-docs-controls{justify-content:flex-start}.fm-doc-special-row{grid-auto-columns:minmax(112px,132px)}}
       @media(max-width:720px){.fm-docs-wrap,.fm-docs-wrap.shared-media{padding:20px}}
       /* Phone (html[data-fm-doc-phone]): the header is one row like Photos —
-         the tab icon, search as an icon that opens over the row, Tags, Shown
+         the tab icon, a flexible search that opens over the row, Tags, Shown
          and one New (its dialog holds Upload). */
       html[data-fm-doc-phone] .fm-docs-wrap,html[data-fm-doc-phone] .fm-docs-wrap.shared-media{padding:0 12px 12px}
       html[data-fm-doc-phone] .fm-docs-gallery .pf-toolbar{flex-wrap:nowrap;gap:8px;margin:0 -12px 12px;padding:10px 12px}
       html[data-fm-doc-phone] .fm-docs-gallery .pf-title{flex:0 0 32px}
       html[data-fm-doc-phone] .fm-docs-gallery .pf-title>div{display:none}
       html[data-fm-doc-phone] .fm-docs-gallery .pf-title i{width:32px;height:32px}
-      html[data-fm-doc-phone] .fm-docs-gallery .pf-tools{position:relative;flex:1 1 auto;flex-wrap:nowrap;justify-content:flex-end;gap:6px;min-width:0}
+      html[data-fm-doc-phone] .fm-docs-gallery .pf-tools{position:static;flex:1 1 auto;flex-wrap:nowrap;justify-content:flex-end;gap:6px;min-width:0}
       html[data-fm-doc-phone] .fm-docs-gallery .pf-density,html[data-fm-doc-phone] .fm-docs-gallery .pf-tools:has([data-gallery-toolbar-action="new_document"]) .pf-upload{display:none}
-      html[data-fm-doc-phone] .fm-docs-gallery .pf-search{order:0;flex:0 0 36px;width:36px;min-width:36px;max-width:none;margin-right:auto}
-      html[data-fm-doc-phone] .fm-docs-gallery .pf-search input{height:36px;padding:0 0 0 34px;border-radius:10px;font-size:16px;cursor:pointer;color:transparent;transition:box-shadow .15s ease}
-      html[data-fm-doc-phone] .fm-docs-gallery .pf-search input::placeholder{color:transparent}
-      html[data-fm-doc-phone] .fm-docs-gallery .pf-search i{left:11px;pointer-events:none;transition:color .15s ease}
-      html[data-fm-doc-phone] .fm-docs-gallery .pf-search:has(input:not(:placeholder-shown)) i{color:var(--primary-readable,var(--primary,#d93025))}
-      html[data-fm-doc-phone] .fm-docs-gallery .pf-search:has(input:not(:placeholder-shown))::after{content:'';position:absolute;right:5px;top:5px;width:7px;height:7px;border-radius:50%;background:var(--primary,#d93025);box-shadow:0 0 0 2px #fff}
-      html[data-fm-doc-phone] .fm-docs-gallery .pf-search:focus-within{position:absolute;left:0;right:0;top:50%;z-index:5;width:auto;transform:translateY(-50%);animation:fm-docs-search-open .24s cubic-bezier(.2,.8,.2,1)}
-      html[data-fm-doc-phone] .fm-docs-gallery .pf-search:focus-within::after{display:none}
-      html[data-fm-doc-phone] .fm-docs-gallery .pf-search:focus-within input{cursor:text;color:#101828;padding-right:12px;box-shadow:0 0 0 4px rgba(var(--primary-rgb,217,48,37),.12),0 8px 22px rgba(16,24,40,.12)}
-      html[data-fm-doc-phone] .fm-docs-gallery .pf-search:focus-within input::placeholder{color:#98a2b3}
-      @keyframes fm-docs-search-open{from{clip-path:inset(0 calc(100% - 36px) 0 0 round 10px)}to{clip-path:inset(0 0 0 0 round 10px)}}
+      /* Search sizing and expansion are shared with Photos in photos/feed.js. */
       html[data-fm-doc-phone] .fm-docs-gallery .pf-toolbar-action{height:36px;min-width:36px;padding:0 10px;justify-content:center}
       html[data-fm-doc-phone] .fm-docs-gallery .pf-toolbar-action:not([data-gallery-toolbar-action="new_document"]) span{display:none}
       html[data-fm-doc-phone] .fm-docs-gallery [data-gallery-toolbar-action="new_document"]{padding:0 14px;gap:6px}
       html[data-fm-doc-phone] .fm-docs-gallery [data-gallery-toolbar-action="new_document"] span{display:inline}
       html[data-fm-doc-phone] .fm-docs-gallery .pf-upload{height:36px;font-size:0;gap:0;padding:0 11px}
       html[data-fm-doc-phone] .fm-docs-gallery .pf-upload i{font-size:13px}
-      /* The list: the count once (under the project's name), and each document a card across the width. */
+      /* Phone covers use the same tile structure as desktop; never squeeze the
+         preview into the former 118px full-width document row. */
       html[data-fm-doc-phone] .fm-docs-gallery .pf-group-head .pf-uploaders{display:none}
-      html[data-fm-doc-phone] .fm-docs-gallery .pf-wrap:not([data-density="list"]) .pf-grid:has(>.fm-document-tile){grid-template-columns:minmax(0,1fr)!important;gap:10px}
-      html[data-fm-doc-phone] .fm-docs-gallery .pf-wrap:not([data-density="list"]) .pf-thumb.fm-document-tile{width:100%;height:118px;aspect-ratio:auto;border-radius:14px}
-      html[data-fm-doc-phone] .fm-docs-gallery .pf-wrap:not([data-density="list"]) .fm-document-tile .fm-doc-card{padding:38px 16px 13px}
-      html[data-fm-doc-phone] .fm-docs-gallery .pf-wrap:not([data-density="list"]) .fm-document-tile .fm-doc-card-mark{top:50%;right:18px;bottom:auto;transform:translateY(-50%);font-size:58px}
-      html[data-fm-doc-phone] .fm-docs-gallery .pf-wrap:not([data-density="list"]) .fm-document-tile .fm-doc-card-body{padding-right:72px}
-      html[data-fm-doc-phone] .fm-docs-gallery .pf-wrap:not([data-density="list"]) .fm-document-tile .fm-doc-card-title{-webkit-line-clamp:1;font-size:15px}
-      html[data-fm-doc-phone] .fm-docs-gallery .pf-wrap:not([data-density="list"]) .fm-document-tile .fm-doc-card-primary{font-size:21px}
-      html[data-fm-doc-phone] .fm-docs-gallery .pf-wrap:not([data-density="list"]) .fm-document-tile .fm-doc-card-facts{display:block;font-size:12px}
-      html[data-fm-doc-phone] .fm-docs-gallery .pf-wrap:not([data-density="list"]) .fm-document-tile .fm-doc-badges{left:12px;right:12px;top:11px}
-      html[data-fm-doc-phone] .fm-docs-gallery .pf-wrap:not([data-density="list"]) .fm-document-tile :is(.fm-doc-type-badge,.fm-doc-status-badge){display:inline-block;padding:4px 9px;font-size:10.5px}
-      @media(prefers-reduced-motion:reduce){html[data-fm-doc-phone] .fm-docs-gallery .pf-search:focus-within{animation:none}}
+      html[data-fm-doc-phone] .fm-docs-gallery .pf-wrap:not([data-density="list"]) .pf-grid:has(>.fm-document-tile){grid-template-columns:repeat(2,minmax(0,1fr))!important;gap:10px;padding:8px}
+      html[data-fm-doc-phone] .fm-docs-gallery .pf-wrap:not([data-density="list"]) .pf-thumb.fm-document-tile{width:100%;height:auto;aspect-ratio:1;border-radius:12px}
+      html[data-fm-doc-phone] .fm-docs-gallery .fm-doc-card{padding:0}
+      html[data-fm-doc-phone] .fm-docs-gallery .fm-doc-card-body{padding:7px 8px;grid-template-columns:18px minmax(0,1fr);column-gap:6px}
+      html[data-fm-doc-phone] .fm-docs-gallery .fm-doc-card-title{font-size:12px}
+      html[data-fm-doc-phone] .fm-docs-gallery .fm-doc-card-facts{font-size:10px}
+      html[data-fm-doc-phone] .fm-docs-gallery .fm-doc-card-mark{left:50%;right:auto;top:50%;transform:translate(-50%,-50%);font-size:42px}
+      html[data-fm-doc-phone] .fm-docs-gallery .fm-doc-title-icon{font-size:15px;width:18px}
+      html[data-fm-doc-phone] .fm-docs-gallery .fm-doc-badges{top:6px;left:6px;right:6px;flex-wrap:wrap;gap:3px}
+      html[data-fm-doc-phone] .fm-docs-gallery :is(.fm-doc-type-badge,.fm-doc-status-badge){font-size:9px;padding:4px 6px}
+      html[data-fm-doc-phone] .fm-docs-gallery .fm-doc-detail-pills{bottom:60px;max-height:22px}
+      html[data-fm-doc-phone] .fm-docs-gallery .fm-doc-detail-pills>span{font-size:9px;padding:3px 6px}
+
     `);
   }
 
@@ -779,6 +811,13 @@
     state.panelRoot = context.panelRoot || context.roots?.main || state.panelRoot;
     state.mounted = !!resolveRoot(state.panelRoot);
     state.active = context.active === true;
+    try {
+      const density = localStorage.getItem(densityPreferenceKey());
+      if (['loose','comfortable','compact','list'].includes(density)) {
+        state.galleryDensity = density;
+        state.viewMode = density === 'list' ? 'list' : 'tiles';
+      }
+    } catch {}
     const routedView = window.Portal?.navigation?.read?.().documentView;
     if (['tiles','list'].includes(routedView)) state.viewMode = routedView;
     render();
@@ -886,7 +925,29 @@
     return allViewableDocs().filter((doc) => state.visibleDocumentCategories.has(documentCategory(doc)));
   }
   function allViewableDocs(){
-    return state.docs.filter((doc) => doc.interactive !== false && (doc.url || doc.media_id));
+    return reportDocuments(state.docs).filter((doc) => doc.interactive !== false && (doc.url || doc.media_id));
+  }
+  // These are references to the delivered report, not copies in the document
+  // engine. Reuse Reports' resolution of manifest URLs and release holds.
+  function reportDocuments(docs){
+    const assets = state.reportAssets;
+    if (!assets) return docs;
+    const measured = project().measurement_project || project().measurement || {};
+    const producedAt = firstText(measured.completed_at, measured.raw?.completed_at);
+    const reports = [
+      ['roof_report_pdf','roof_report','roof_measurements_report','Roof Measurement Report','reportUrl','application/pdf','roof-measurements.pdf'],
+      ['customer_report_pdf','customer_report','customer_roof_report','Customer Roof Report','summaryUrl','application/pdf','customer-roof-report.pdf'],
+      ['roof_report_xml','roof_report_xml','roof_report_xml','Roof Report XML','xmlUrl','application/xml','roof-report.xml']
+    ];
+    const ids = new Set(reports.map(row => row[0]));
+    return normalizeList([...docs.filter(doc => !ids.has(docId(doc))), ...reports.flatMap(([id,type,key,title,asset,contentType,fileName]) => {
+      const url = cleanText(assets[asset]);
+      if (!url) return [];
+      const stored = docs.find(doc => docId(doc) === id) || {};
+      return [{...stored,id,document_type:type,title:globalThis.PlatformLanguage?.text('docs',key,title) ?? title,
+        url,content_type:contentType,file_name:fileName,special:true,source:'report',
+        uploaded_at:firstText(producedAt,stored.uploaded_at),related:{tab:'measurements',label:relatedActionLabel({document_type:type})}}];
+    })]);
   }
   // Everything the gallery shows: engine documents (opened through the engine
   // editor/preview, never the media viewer) + viewable media references.
@@ -985,6 +1046,11 @@
     const name = firstText(doc.file_name, doc.fileName, doc.title, url).toLowerCase();
     return contentType.startsWith('image/') || /\.(?:png|jpe?g|gif|webp|avif|heic)(?:$|[?#])/i.test(name);
   }
+  function documentIconHtml(doc, className = ''){
+    const meta = typeMeta(doc.document_type);
+    const icon = meta.reportFamily ? meta.icon : (doc.icon || meta.icon);
+    return `<span class="${escapeHtml(className)}" style="color:${escapeHtml(doc.color || meta.color)}" aria-hidden="true"><span class="fm-doc-symbol"><i class="fas ${escapeHtml(icon)}"></i>${meta.badgeIcon ? `<i class="fas ${escapeHtml(meta.badgeIcon)} fm-doc-symbol-badge"></i>` : ''}</span></span>`;
+  }
   function documentThumbnailHtml(item = {}){
     const doc = documentFromItem(item);
     const meta = typeMeta(doc.document_type);
@@ -997,20 +1063,92 @@
     const dated = tileDate(doc);
     const facts = summary?.facts?.length ? summary.facts : (dated ? [dated] : []);
     const badges = `<span class="fm-doc-badges"><span class="fm-doc-type-badge" style="--doc-color:${color}">${escapeHtml(doc.type_label || meta.label)}</span>${summary?.statusLabel ? `<span class="fm-doc-status-badge tone-${summary.tone}">${escapeHtml(summary.statusLabel)}</span>` : ''}</span>`;
-    if (isImageDoc(doc, url) && thumb) {
-      return `<img loading="lazy" draggable="false" src="${escapeHtml(thumb)}" alt="${escapeHtml(doc.title || (globalThis.PlatformLanguage?.text("docs","m_9c9b98b1f4e8c9","Document") ?? "Document"))}">
-      ${badges}
-      ${summary?.amount ? `<span class="fm-doc-amount-pill">${escapeHtml(summary.amount)}</span>` : ''}`;
-    }
     return `<span class="fm-doc-card" style="--doc-color:${color}">
-        <i class="fas ${escapeHtml(doc.icon || meta.icon)} fm-doc-card-mark" aria-hidden="true"></i>
+        <span class="fm-doc-preview" data-doc-preview-id="${escapeHtml(docId(doc))}">
+          ${documentIconHtml(doc,'fm-doc-card-mark')}
+          ${isImageDoc(doc, url) && thumb ? `<img loading="lazy" draggable="false" src="${escapeHtml(thumb)}" alt="">` : ''}
+        </span>
         <span class="fm-doc-card-body">
-          <span class="fm-doc-card-title">${escapeHtml(doc.title || meta.label)}</span>
-          ${summary?.amount ? `<strong class="fm-doc-card-primary">${escapeHtml(summary.amount)}</strong>` : ''}
-          ${facts.length ? `<span class="fm-doc-card-facts">${facts.map(escapeHtml).join(' · ')}</span>` : ''}
+          <span class="fm-doc-card-heading">${documentIconHtml(doc,'fm-doc-title-icon')}<span class="fm-doc-card-title" title="${escapeHtml(doc.title || meta.label)}">${escapeHtml(doc.title || meta.label)}</span></span>
+          <span class="fm-doc-card-facts">${escapeHtml(dated || doc.type_label || meta.label)}</span>
         </span>
       </span>
-      ${badges}`;
+      ${badges}
+      <span class="fm-doc-detail-pills">${[summary?.amount,...facts.filter(fact=>fact!==dated)].filter(Boolean).map(fact=>`<span>${escapeHtml(fact)}</span>`).join('')}</span>`;
+  }
+
+  let previewCleanup = () => {};
+  let pdfPreviewLibrary;
+  function loadPdfPreviewLibrary(){
+    if (window.pdfjsLib) return Promise.resolve(window.pdfjsLib);
+    return pdfPreviewLibrary ||= new Promise((resolve,reject) => {
+      const script=document.createElement('script');
+      script.src='https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js';
+      script.onload=()=>{ window.pdfjsLib.GlobalWorkerOptions.workerSrc='https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js'; resolve(window.pdfjsLib); };
+      script.onerror=()=>{pdfPreviewLibrary=null;script.remove();reject(new Error('PDF preview unavailable'));};
+      document.head.appendChild(script);
+    });
+  }
+  // Only visible covers are loaded, two at a time. The viewer remains the authority
+  // for opening documents; covers never generate PDFs or save document records.
+  function mountDocumentPreviews(root){
+    previewCleanup();
+    const gallery=root.querySelector('[data-doc-gallery]');
+    if (!gallery) return;
+    const organization=orgId(), seen=new WeakSet(), queue=[], cleanups=new Map();
+    let disposed=false, running=0;
+    const release=(node)=>{try{cleanups.get(node)?.();}catch{}cleanups.delete(node);};
+    const renderCover=async(node)=>{
+      if(disposed || !node.isConnected)return;
+      const doc=galleryEntries().find(entry=>docId(entry)===node.dataset.docPreviewId);
+      if(!doc)return;
+      const image=node.querySelector('img');
+      if(image){image.addEventListener('error',()=>image.remove(),{once:true});if(image.complete && !image.naturalWidth)image.remove();return;}
+      const record=doc.__engineDoc;
+      const pdfMedia=record?.pdf?.latest_media_id;
+      const documents=window.DocumentsAPI?.documents;
+      const url=pdfMedia ? documents?.pdfUrl(organization,record.id,{media_id:pdfMedia}) : fileUrl(doc);
+      if(url && (pdfMedia || isPdfDoc(doc,url))){
+        const lib=await loadPdfPreviewLibrary();
+        if(disposed || !node.isConnected)return;
+        const task=lib.getDocument({url,withCredentials:true,isEvalSupported:false});
+        cleanups.set(node,()=>task.destroy());
+        try {
+          const pdf=await task.promise, page=await pdf.getPage(1), natural=page.getViewport({scale:1});
+          const viewport=page.getViewport({scale:Math.min(640/natural.width,640/natural.height)});
+          const canvas=document.createElement('canvas');canvas.width=Math.ceil(viewport.width);canvas.height=Math.ceil(viewport.height);
+          await page.render({canvasContext:canvas.getContext('2d'),viewport}).promise;
+          if(!disposed && node.isConnected){node.appendChild(canvas);node.classList.add('has-preview');}
+        } finally {release(node);}
+        return;
+      }
+      if(!record || !documents?.resolve || !window.FMDocRenderer?.render)return;
+      const resolved=await documents.resolve(organization,record.id);
+      if(disposed || !node.isConnected)return;
+      const definition=resolved?.resolved_definition;
+      if(!Array.isArray(definition?.pages) || !definition.pages.length)return;
+      const cover={...definition,pages:definition.pages.slice(0,1)};
+      const paper=window.FMDocModel?.paperDimensions(cover) || {w_pt:612,h_pt:792};
+      const stage=document.createElement('span');stage.className='fm-doc-page-stage';node.appendChild(stage);
+      const handle=window.FMDocRenderer.render(stage,{document:cover,mode:'static',widgetData:resolved.widget_data || {},widgetContext:{preview:true},theme:resolved.theme,
+        themeContext:{branding:window.__APP?.orgBranding || window.Portal?.cfg?.branding || {},overrides:resolved.theme_vars || {}},
+        mediaUrl:(ref,variant)=>window.PlatformAPI?.media?.fileUrl?.(organization,typeof ref==='string'?ref:ref?.media_id,variant || 'original'),scale:.2});
+      const fit=()=>{const scale=node.clientWidth/(paper.w_pt*4/3);handle.setScale?.(Math.max(.02,scale));stage.style.left=Math.max(0,(node.clientWidth-paper.w_pt*4/3*scale)/2)+'px';};
+      const resize=new ResizeObserver(fit);resize.observe(node);
+      cleanups.set(node,()=>{resize.disconnect();handle.destroy?.();});
+      await handle.ready?.();
+      if(!disposed && node.isConnected){fit();node.classList.add('has-preview');}
+    };
+    const pump=()=>{
+      while(!disposed && running<2 && queue.length){const node=queue.shift();running++;renderCover(node).catch(()=>{release(node);node.querySelector('.fm-doc-page-stage')?.remove();}).finally(()=>{running--;pump();});}
+    };
+    const visible=new IntersectionObserver(entries=>{for(const entry of entries)if(entry.isIntersecting){visible.unobserve(entry.target);queue.push(entry.target);}pump();},{root:gallery,rootMargin:'120px'});
+    const scan=()=>{
+      for(const node of cleanups.keys())if(!node.isConnected)release(node);
+      gallery.querySelectorAll('[data-doc-preview-id]').forEach(node=>{if(!seen.has(node)){seen.add(node);visible.observe(node);}});
+    };
+    const mutations=new MutationObserver(scan);mutations.observe(gallery,{childList:true,subtree:true});scan();
+    previewCleanup=()=>{disposed=true;queue.length=0;visible.disconnect();mutations.disconnect();for(const node of cleanups.keys())release(node);};
   }
   function documentTileMeta(item = {}){
     const doc = documentFromItem(item);
@@ -1023,7 +1161,7 @@
       doc.size_bytes ? formatBytes(doc.size_bytes) : '',
       !summary && date ? (window.FirstMateMarkup?.formatDateTime?.(date) || '') : ''
     ].filter(Boolean).join(' · ');
-    return `${escapeHtml(doc.title || (globalThis.PlatformLanguage?.text("docs","m_9c9b98b1f4e8c9","Document") ?? "Document"))}${detail ? `<br>${escapeHtml(detail)}` : ''}`;
+    return `${documentIconHtml(doc,'fm-doc-title-icon')} ${escapeHtml(doc.title || (globalThis.PlatformLanguage?.text("docs","m_9c9b98b1f4e8c9","Document") ?? "Document"))}${detail ? `<br>${escapeHtml(detail)}` : ''}`;
   }
   function setDocumentView(view, options = {}){
     const nextView = view === 'list' ? 'list' : 'tiles';
@@ -1038,7 +1176,7 @@
     const disabled = doc.interactive === false || (!doc.url && !doc.media_id);
     return `
       <button type="button" class="fm-doc-tile ${doc.special ? 'special' : ''} ${doc.required ? 'required' : ''}" data-doc-index="${index}" ${disabled ? 'aria-disabled="true"' : ''} style="--doc-color:${escapeHtml(doc.color || meta.color)}">
-        <span class="fm-doc-icon"><i class="fas ${escapeHtml(doc.icon || meta.icon)}"></i></span>
+        ${documentIconHtml(doc,'fm-doc-icon')}
         <span class="fm-doc-title">${escapeHtml(doc.title)}</span>
         <span class="fm-doc-meta">${escapeHtml(doc.type_label || meta.label)}${doc.size_bytes ? ` · ${escapeHtml(formatBytes(doc.size_bytes))}` : ''}</span>
         ${doc.required && disabled ? `<span class="fm-doc-required">${(globalThis.PlatformLanguage?.htmlText("docs","m_a9849df346c95d","Needed") ?? "Needed")}</span>` : ''}
@@ -1052,7 +1190,7 @@
     return `
       <div class="fm-doc-row" data-doc-index="${index}" style="--doc-color:${escapeHtml(doc.color || meta.color)}">
         <button type="button" class="fm-doc-row-main">
-          <span class="fm-doc-icon"><i class="fas ${escapeHtml(doc.icon || meta.icon)}"></i></span>
+          ${documentIconHtml(doc,'fm-doc-icon')}
           <span><strong>${escapeHtml(doc.title)}</strong><em>${escapeHtml(doc.type_label || meta.label)}${doc.size_bytes ? ` · ${escapeHtml(formatBytes(doc.size_bytes))}` : ''}</em></span>
         </button>
         ${doc.related ? `<button type="button" class="fm-doc-row-action" data-doc-related>${escapeHtml(relatedLabel)}</button>` : ''}
@@ -1095,7 +1233,7 @@
       icon:'fa-folder-open',
       itemNoun:'document',
       uploadLabel:'Upload',
-      initialDensity:state.viewMode === 'list' ? 'list' : (state.galleryDensity === 'list' ? 'comfortable' : state.galleryDensity),
+      initialDensity:state.viewMode === 'list' ? 'list' : (state.galleryDensity === 'list' ? 'loose' : state.galleryDensity),
       extraDensityModes:[{ id:'list', label:(globalThis.PlatformLanguage?.text("docs","m_db473980ea71b2","List") ?? "List"), icon:'list' }],
       // Documents are few: tiles sit together with their dates on them; only
       // the list view splits them into days.
@@ -1147,6 +1285,7 @@
       }] : [])],
       onDensityChange:(density) => {
         state.galleryDensity = density;
+        try { localStorage.setItem(densityPreferenceKey(),density); } catch {}
         setDocumentView(density === 'list' ? 'list' : 'tiles', { render:false });
       }
     });
@@ -1203,11 +1342,13 @@
     if (state.activeViewer) return;
     renderGrid(root);
     bind(root);
+    mountDocumentPreviews(root);
   }
   function reset(){
     closeViewer(false, { fromRoute:true });
     destroyEngine();
     state.docs = [];
+    state.reportAssets = null;
     state.uploadedDocs = [];
     state.invoices = [];
     state.visibleDocumentCategories = new Set(DOCUMENT_CATEGORIES.map((category) => category.id));
@@ -1216,6 +1357,7 @@
     render();
   }
   function unmount(){
+    previewCleanup();
     closeViewer(false, { fromRoute:true });
     destroyEngine();
     state.mounted = false;

@@ -28,7 +28,7 @@ of one that does not. Measurements is the default and is the 3D roof viewer with
 (line types, pitches and summary); the rail has no separate list of every
 published measurement, and one must not be added back.
 Documents mirrors Photos with a document viewer in place of the image viewer:
-the selected accepted document is rendered by FMDocRenderer above its published
+delivered roof measurement PDFs, customer PDFs and XML appear alongside accepted documents. These report entries reuse the authorized project report-asset loader and do not create material publications. PDFs open in the viewer; XML offers a download. All three use the organization-primary ruler icon, with customer/code badges where appropriate. For accepted documents, the selected document is rendered by FMDocRenderer above its published
 materials, and a strip beneath lists every accepted document, with the first
 selected. With no accepted documents the same viewer-above-strip layout stays,
 showing No document selected and No documents yet. There is no Scope of Work tab and no tile-then-Back navigation. Document membership comes from persisted
@@ -176,6 +176,21 @@ Projects and Contacts share the [entity window shell](window-shell.md). Its opti
 
 ## Overview entry workflows and project trays
 
+The Operations Measurements view starts with **No measurements.** when there is
+no report or entered dataset. **Order measurement report** enters the same
+configured FirstMeasure order session as Overview, preserving the project and
+asking for its address when missing; it does not submit an order. Overview keeps
+its entry point. **Add measurements manually** opens the existing schema-based
+editor; a project without measurement schemas explains that a scope is needed.
+Existing manual values open in the editor, and completed reports keep their model.
+
+The project's main Documents gallery also lists the delivered Customer Roof
+Report, Roof Measurement Report and Roof Report XML. These are file references,
+not new document instances. It uses Reports' asset resolution and release-hold
+handling, replacing older PDF references by identity rather than duplicating
+them. The default gallery density is Loose (large tiles); an explicit choice is
+remembered for the current organization and user in this browser.
+
 Overview also owns the focused New Report project picker and the map-first New Project
 form. The same mounted details form provides contacts, address, property type, custom
 fields, and initial actions. `firstmeasure.new_report_project` defaults to `auto`:
@@ -249,3 +264,9 @@ Measurements section. Compact type names retain full-name tooltips. Selecting a
 type highlights all matching model edges. A top-left Pitch labels control toggles
 face-mounted labels; each anchor maximizes interior clearance from the outer
 boundary and all openings, avoiding concave voids and penetration holes.
+
+## Document gallery covers
+
+The Docs gallery uses slightly smaller square tiles. Every tile has a fixed-height footer with a single-line ellipsized title, its small type icon, and a date (or type label when no date exists). Document-specific values such as roof squares, area, amounts and milestones appear as pills over the preview, not extra footer rows. Report-family badges occupy the ruler icon's upper-right space.
+
+The preview fits the page width and crops the bottom. Images use their existing thumbnail; PDFs render page one with pdf.js, and engine documents use an existing PDF when available or the resolved first page through the static document renderer. Modules with no page retain the large icon as well as the title icon. Only visible covers load, at most two concurrently, and renderer/PDF resources are released when tiles disappear. Preview reads do not generate PDFs or save document records.

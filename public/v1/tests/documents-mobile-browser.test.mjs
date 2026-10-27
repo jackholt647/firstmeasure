@@ -13,7 +13,7 @@ import { chromium } from 'playwright-core';
 const libraries = new URL('../../libraries/', import.meta.url);
 const read = (path) => readFile(new URL(path, libraries), 'utf8');
 const css = await read('apps/documents/documents.css');
-const documentsSource = await read('apps/documents/project.js');
+const documentsSource = (await read('apps/documents/project.js')).replace(/\r\n/g,'\n');
 const PHONE = { viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true, deviceScaleFactor: 2, userAgent: 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.5 Mobile/15E148 Safari/604.1' };
 const DESKTOP = { viewport: { width: 1600, height: 1000 } };
 const launch = () => chromium.launch({ executablePath: process.env.CHROME_PATH || 'C:/Program Files/Google/Chrome/Application/chrome.exe', headless: true });
@@ -43,7 +43,7 @@ async function mountDocsTab(page) {
     window.PlatformAPI = { media: { fileUrl: () => '', thumbnailUrl: () => '' }, projectDocuments: { list: async () => ({ documents: [], uploaded_documents: [] }) } };
     window.created = [];
     const engineApi = { openCreateModal: (prefill, opts) => window.created.push({ prefill, opts }), openDocument() {}, openPreview() {}, getDocs: () => [], refresh() {} };
-    window.FirstMateEmbeddableApps = { escapeHtml, registerApp() {}, unregisterApp() {}, mount: async (host, id, context) => { context.params.embed.onReady(engineApi); return { destroy() {}, setActive() {} }; } };
+    window.FirstMateEmbeddableApps = { escapeHtml, registerApp() {}, unregisterApp() {}, mount: async (host, id, context) => { window.docsEmbed=context.params.embed; context.params.embed.onReady(engineApi); return { destroy() {}, setActive() {} }; } };
   });
   await page.addScriptTag({ url: '/libraries/apps/photos/feed.js' });
   await page.addScriptTag({ url: '/libraries/apps/docs/project.js' });
@@ -72,17 +72,19 @@ test('on a phone the Docs header is one row, search opens over it, and New holds
     assert.ok(Math.max(...tops) - Math.min(...tops) < 6, `one row: ${JSON.stringify(controls)}`);
     assert.ok(bar.scrollWidth <= bar.clientWidth && Object.values(controls).filter(Boolean).every((entry) => entry.right <= 390), 'nothing runs off the screen');
     assert.ok(bar.height <= 64, `a single header row: ${bar.height}`);
-    assert.ok(controls.search.width <= 40, 'search is an icon until it is used');
+    assert.ok(controls.search.width > 36, 'search starts as an inline field');
     await page.locator('.fm-docs-gallery .pf-search').tap();
     await page.waitForTimeout(350);
     const open = await headerControls(page);
-    assert.ok(open.controls.search.width >= 300, `search opens across the row: ${open.controls.search.width}`);
+    assert.ok(open.controls.search.width > controls.search.width, 'search expands to the right');
+    assert.ok(open.controls.search.left >= open.controls.icon.right+6, 'left icon remains clear of the focus ring');
+    assert.ok(open.controls.search.right+4 <= bar.right-8, 'focus ring keeps the outer margin');
     await page.locator('.fm-docs-gallery .pf-search input').fill('roof');
-    // Leaving the field folds it back to its icon, marked as in use, and New is there again.
+    // Leaving the field restores its inline width, retaining the query.
     await page.locator('.fm-docs-gallery .pf-search input').evaluate((input) => input.blur());
     await page.waitForTimeout(100);
     const folded = await headerControls(page);
-    assert.ok(folded.controls.search.width <= 40 && folded.controls.new, 'search folds back with its words kept');
+    assert.equal(folded.controls.search.width,controls.search.width,'search restores its inline width');
     assert.equal(await page.locator('.fm-docs-gallery .pf-search input').inputValue(), 'roof');
     await page.locator('[data-gallery-toolbar-action="new_document"]').tap();
     const created = await page.evaluate(() => window.created.map((entry) => typeof entry.opts?.onUploadFiles));
@@ -91,6 +93,30 @@ test('on a phone the Docs header is one row, search opens over it, and New holds
     assert.equal(picked, true, 'Upload in the dialog opens the same file picker');
     assert.deepEqual(errors, []);
   } finally { await browser.close(); }
+});
+
+test('phone Photos and Docs expanded searches retain the icon and focus-ring margins',async()=>{
+  const browser=await launch();
+  try {
+    for(const kind of ['Photos','Docs'])for(const width of [320,390,430]){
+      const {page}=await pageFor(browser,{...PHONE,viewport:{width,height:844}});
+      await mountDocsTab(page);
+      if(kind==='Photos')await page.evaluate(()=>{document.querySelector('#tab').innerHTML='<div id="photos" style="height:100%;padding:0 12px"></div>';Portal.PhotoFeed.mountProjectGallery(document.querySelector('#photos'),{project:{id:'p1'},photos:[],title:'Photos',icon:'fa-images',uploadLabel:'Upload photos',onUpload:()=>{window.uploadRequested=true;},selectionEnabled:false});});
+      if(kind==='Photos'){
+        const upload=page.locator('[data-photo-feed-upload]');
+        assert.equal(await upload.locator('.fa-arrow-up-from-bracket').count(),1);
+        const centered=await upload.evaluate(button=>{const b=button.getBoundingClientRect(),i=button.querySelector('i').getBoundingClientRect();return Math.abs(b.x+b.width/2-i.x-i.width/2)<1;});
+        assert.ok(centered,'upload icon is centered');
+        await upload.click();assert.equal(await page.evaluate(()=>window.uploadRequested),true);
+      }
+      const field=page.locator('.pf-search input').first();await field.focus();
+      await page.evaluate(()=>Promise.all(document.getAnimations().map(animation=>animation.finished.catch(()=>{}))));
+      const boxes=await field.evaluate(input=>{const bar=input.closest('.pf-toolbar'),icon=bar.querySelector('.pf-title i');const rect=node=>{const r=node.getBoundingClientRect();return {left:r.left,right:r.right};};return {input:rect(input),icon:rect(icon),bar:rect(bar),screen:innerWidth};});
+      assert.ok(boxes.input.left>=boxes.icon.right+6,`${kind} ${width}: icon stays visible ${JSON.stringify(boxes)}`);
+      assert.ok(boxes.input.right+4<=Math.min(boxes.screen,boxes.bar.right)-8,`${kind} ${width}: right focus margin ${JSON.stringify(boxes)}`);
+      await page.close();
+    }
+  }finally{await browser.close();}
 });
 
 test('on a desktop the Docs header keeps its search field, New and Upload', async () => {
@@ -150,6 +176,122 @@ async function openNewDialog(page, { phone = false } = {}) {
   }, { typeCode, modalCode, createCode });
   await page.waitForSelector('[data-tpl-search]');
 }
+
+test('Documents shows delivered roof PDFs and XML once, defaults to loose tiles, and remembers the chosen size', async () => {
+  const browser = await launch();
+  try {
+    const { page, errors } = await pageFor(browser, DESKTOP);
+    await mountDocsTab(page);
+    await page.evaluate(async () => {
+      window.PlatformAPI.projectDocuments.list = async () => ({documents:[{id:'roof_report_pdf',title:'Old report title',document_type:'roof_report',url:'/old.pdf'}],uploaded_documents:[]});
+      window.reportAssets={reportUrl:'/report.pdf',summaryUrl:'/summary.pdf',xmlUrl:'/model_data.xml'};
+      window.docContext={panelRoot:document.querySelector('#tab'),active:true,host:{getProject:()=>({id:'p1',measurement:{completed_at:'2026-10-26T12:00:00Z'}}),projectOrgId:()=> 'org',loadReportDocumentAssets:async()=>window.reportAssets}};
+      window.Portal.ProjectDocsTab.mount(window.docContext);
+    });
+    await page.getByText('Roof Report XML',{exact:true}).first().waitFor();
+    assert.equal(await page.locator('.fm-document-tile').count(),3,'existing PDF entries are not duplicated');
+    assert.ok(await page.getByText('Customer Roof Report',{exact:true}).first().isVisible());
+    assert.ok(await page.getByText('Roof Measurement Report',{exact:true}).first().isVisible());
+    assert.equal(await page.locator('.fm-doc-card-mark .fa-ruler-combined').count(),3);
+    assert.equal(await page.locator('.fm-doc-card-mark .fm-doc-symbol-badge.fa-user').count(),1);
+    assert.equal(await page.locator('.fm-doc-card-mark .fm-doc-symbol-badge.fa-code').count(),1);
+    await page.evaluate(()=>document.documentElement.style.setProperty('--primary','#7c3aed'));
+    assert.deepEqual(await page.locator('.fm-doc-card-mark').evaluateAll(nodes=>nodes.map(node=>getComputedStyle(node).color)),Array(3).fill('rgb(124, 58, 237)'));
+    if (process.env.REPORT_ICONS_SHOT) {
+      await page.addStyleTag({url:'https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css'});
+      await page.evaluate(()=>document.fonts.ready);
+      await page.screenshot({path:process.env.REPORT_ICONS_SHOT});
+    }
+    assert.equal(await page.locator('.fm-docs-gallery .pf-wrap').getAttribute('data-density'),'loose');
+    await page.evaluate(()=>{window.FirstMateMarkup={openMediaViewer:options=>{window.openedDocument=options.photos[options.index].__document;window.closeDocument=options.onClose;return {close(){},updateBounds(){},updateMarkupLayerBounds(){}};}};});
+    await page.getByText('Roof Report XML',{exact:true}).first().click();
+    assert.deepEqual(await page.evaluate(()=>({url:openedDocument.url,type:openedDocument.content_type})),{url:'/model_data.xml',type:'application/xml'});
+    await page.evaluate(()=>window.closeDocument());
+    await page.locator('.pf-density [data-density="compact"]').click();
+    await page.evaluate(()=>window.Portal.ProjectDocsTab.mount(window.docContext));
+    assert.equal(await page.locator('.fm-docs-gallery .pf-wrap').getAttribute('data-density'),'compact');
+    await page.evaluate(()=>{window.reportAssets={reportUrl:'',summaryUrl:'',xmlUrl:''};window.Portal.ProjectDocsTab.setActive(true,window.docContext);});
+    await page.waitForFunction(()=>document.querySelectorAll('.fm-document-tile').length===0);
+    assert.equal(await page.getByText('Old report title',{exact:true}).count(),0,'a withheld report is not revived from the older project references');
+    assert.deepEqual(errors,[]);
+  } finally { await browser.close(); }
+});
+
+for (const device of [DESKTOP,PHONE]) test(`document covers use PDF page one, module pages and a consistent icon fallback on ${device===PHONE?'phone':'desktop'}`, async () => {
+  const browser=await launch();
+  try {
+    const {page,errors}=await pageFor(browser,device);
+    // A real one-page PDF exercises pdf.js rather than a canvas stand-in.
+    let pdf='%PDF-1.4\n';const offsets=[0];
+    const stream='BT /F1 30 Tf 45 700 Td (Roof Measurement Report) Tj 0 -55 Td /F1 14 Tf (2205 Mimosa Place) Tj ET';
+    const objects=['<< /Type /Catalog /Pages 2 0 R >>','<< /Type /Pages /Kids [3 0 R] /Count 1 >>','<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 4 0 R >> >> /Contents 5 0 R >>','<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>',`<< /Length ${stream.length} >>\nstream\n${stream}\nendstream`];
+    objects.forEach((body,i)=>{offsets.push(Buffer.byteLength(pdf));pdf+=`${i+1} 0 obj\n${body}\nendobj\n`;});
+    const xref=Buffer.byteLength(pdf);pdf+=`xref\n0 6\n0000000000 65535 f \n${offsets.slice(1).map(n=>String(n).padStart(10,'0')+' 00000 n \n').join('')}trailer\n<< /Size 6 /Root 1 0 R >>\nstartxref\n${xref}\n%%EOF`;
+    await page.route('http://docs.test/cover.pdf',route=>route.fulfill({contentType:'application/pdf',body:pdf}));
+    await mountDocsTab(page);
+    await page.evaluate(async()=>{
+      window.previewPages=[];window.PlatformAPI.publication={measurements:async()=>({value:{measurements:{roofSquares:{value:28.5},roofArea:{value:2850}}}})};
+      window.DocumentsAPI={documents:{resolve:async(org,id)=>({resolved_definition:{pages:id==='workflow'?[]:[{id:'cover'},{id:'second'}]},widget_data:{}})}};
+      window.FMDocModel={paperDimensions:()=>({w_pt:612,h_pt:792})};
+      window.FMDocRenderer={render:(stage,options)=>{previewPages.push(options.document.pages.map(p=>p.id));stage.innerHTML='<div style="width:816px;height:1056px;background:white;padding:60px;box-sizing:border-box;font-size:40px">Presentation cover</div>';return {setScale(scale){stage.style.transform=`scale(${scale})`;stage.style.transformOrigin='top left';},ready:async()=>{},destroy(){stage.remove();}};}};
+      window.PlatformAPI.projectDocuments.list=async()=>({documents:[{id:'pdf',title:'Roof Measurement Report',document_type:'roof_report',url:'/cover.pdf'},{id:'xml',title:'Roof Report XML',document_type:'roof_report_xml',url:'/measurements.xml'}],uploaded_documents:[]});
+      window.Portal.ProjectDocsTab.mount({panelRoot:document.querySelector('#tab'),active:true,host:{getProject:()=>({id:'covers'}),projectOrgId:()=> 'org'}});
+    });
+    await page.waitForFunction(()=>!!window.docsEmbed);
+    await page.evaluate(()=>docsEmbed.onDocsChanged([{id:'presentation',title:'Presentation',document_type:'presentation'},{id:'workflow',title:'Workflow',document_type:'workflow'}]));
+    await page.locator('[data-doc-preview-id="pdf"] canvas').waitFor({timeout:20000});
+    await page.locator('[data-doc-preview-id="engine:presentation"].has-preview').waitFor();
+    await page.addStyleTag({url:'https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css'});await page.evaluate(()=>document.fonts.ready);
+    assert.deepEqual(await page.evaluate(()=>previewPages),[['cover']]);
+    assert.equal(await page.locator('.fm-doc-card-heading .fm-doc-title-icon').count(),4);
+    assert.ok(await page.locator('.fm-doc-detail-pills').filter({hasText:'28.5 squares'}).first().isVisible());
+    assert.equal(await page.locator('.fm-doc-detail-pills').filter({hasText:'sq ft'}).count(),0,'squares do not repeat as square feet');
+    assert.equal(await page.locator('.fm-doc-card-body').filter({hasText:'squares'}).count(),0);
+    await page.evaluate(()=>document.documentElement.style.setProperty('--primary','#7c3aed'));
+    assert.ok((await page.locator('.fm-doc-type-badge').evaluateAll(nodes=>nodes.map(node=>({background:getComputedStyle(node).backgroundColor,color:getComputedStyle(node).color})))).every(style=>style.background==='rgb(124, 58, 237)' && style.color==='rgb(255, 255, 255)'));
+    assert.ok((await page.locator('.fm-doc-detail-pills>span').evaluateAll(nodes=>nodes.map(node=>({background:getComputedStyle(node).backgroundColor,color:getComputedStyle(node).color})))).every(style=>style.background==='rgb(102, 112, 133)' && style.color==='rgb(255, 255, 255)'));
+    assert.ok(await page.locator('[data-doc-preview-id="engine:workflow"] .fm-doc-card-mark').isVisible());
+    assert.ok(await page.locator('[data-doc-preview-id="xml"] .fm-doc-card-mark').isVisible());
+    const badge=await page.locator('[data-doc-preview-id="xml"] .fm-doc-symbol').evaluate(node=>{const main=node.firstElementChild.getBoundingClientRect(),badge=node.lastElementChild.getBoundingClientRect();return {main,badge};});
+    assert.ok(badge.badge.top<badge.main.top+badge.main.height/2,'code sits at the upper right');
+    assert.ok(badge.badge.left>badge.main.left+badge.main.width/2,JSON.stringify(badge));
+    for(const width of [1600,390]){
+      await page.setViewportSize({width,height:900});
+      const metrics=await page.locator('.fm-doc-card-body').evaluateAll(nodes=>nodes.map(node=>{const title=node.querySelector('.fm-doc-card-title'),icon=node.querySelector('.fm-doc-title-icon'),t=title.getBoundingClientRect(),i=icon.getBoundingClientRect();return {height:node.getBoundingClientRect().height,whiteSpace:getComputedStyle(title).whiteSpace,ellipsis:getComputedStyle(title).textOverflow,center:Math.abs(i.top+i.height/2-node.getBoundingClientRect().top-node.getBoundingClientRect().height/2)};}));
+      assert.ok(metrics.every(m=>m.height===54 && m.whiteSpace==='nowrap' && m.ellipsis==='ellipsis' && m.center<2),JSON.stringify(metrics));
+      const preview=await page.locator('[data-doc-preview-id="pdf"]').evaluate(node=>({width:node.clientWidth,canvas:node.querySelector('canvas').getBoundingClientRect().width}));
+      assert.ok(Math.abs(preview.width-preview.canvas)<1,'PDF cover fills the available width');
+      if(device===PHONE && width===390){
+        const layout=await page.locator('.fm-document-tile').evaluateAll(tiles=>tiles.map(tile=>{const preview=tile.querySelector('.fm-doc-preview').getBoundingClientRect(),box=tile.getBoundingClientRect();return {x:box.x,y:box.y,width:box.width,height:box.height,preview:preview.height};}));
+        assert.equal(layout[0].y,layout[1].y,'phone has two tiles per row');
+        assert.ok(layout.every(tile=>tile.preview>=85 && Math.abs(tile.width-tile.height)<2),JSON.stringify(layout));
+      }
+    }
+    await page.setViewportSize(device.viewport);
+    assert.deepEqual(errors,[]);
+    if(process.env.DOC_COVERS_SHOT){await page.addStyleTag({url:'https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css'});await page.evaluate(()=>document.fonts.ready);await page.screenshot({path:process.env.DOC_COVERS_SHOT.replace('.png',device===PHONE?'-phone.png':'-desktop.png')});}
+  } finally {await browser.close();}
+});
+
+test('Documents keeps delivered reports when the legacy document list is unavailable', async () => {
+  const browser = await launch();
+  try {
+    const { page, errors } = await pageFor(browser, DESKTOP);
+    await mountDocsTab(page);
+    await page.evaluate(() => {
+      window.PlatformAPI.projectDocuments.list = async () => { throw Object.assign(new Error('Access denied'), {status:403}); };
+      window.Portal.ProjectDocsTab.mount({panelRoot:document.querySelector('#tab'),active:true,host:{
+        getProject:()=>({id:'completed-project',measurement:{status:'completed'}}),projectOrgId:()=> 'org',
+        loadReportDocumentAssets:async()=>{ await new Promise(resolve=>setTimeout(resolve,50)); return {reportUrl:'/report.pdf',summaryUrl:'/summary.pdf',xmlUrl:'/model_data.xml'}; }
+      }});
+    });
+    await page.getByText('Roof Report XML',{exact:true}).first().waitFor({timeout:3000});
+    assert.equal(await page.locator('.fm-document-tile').count(),3);
+    assert.ok(await page.getByText('Customer Roof Report',{exact:true}).first().isVisible());
+    assert.ok(await page.getByText('Roof Measurement Report',{exact:true}).first().isVisible());
+    assert.deepEqual(errors,[]);
+  } finally { await browser.close(); }
+});
 
 test('on a phone New fills the screen and offers Upload beside Blank', async () => {
   const browser = await launch();

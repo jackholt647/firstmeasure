@@ -8,7 +8,7 @@
   let draftSave = null;
   let refreshTimer;
   const draftText = (key, fallback) => globalThis.PlatformLanguage?.text("materials", key, fallback) ?? fallback;
-  const scopeWorkspaceUrl = new URL('./scope-of-work.js?v=20261025-rail-split', document.currentScript?.src || `${location.origin}/libraries/apps/materials/project.js`).href;
+  const scopeWorkspaceUrl = new URL('./scope-of-work.js?v=20261026-report-documents', document.currentScript?.src || `${location.origin}/libraries/apps/materials/project.js`).href;
   const calculusAdapterUrl = new URL('./calculus-native.js?v=20261026-package-cost', document.currentScript?.src || `${location.origin}/libraries/apps/materials/project.js`).href;
   const closeoutUrl = new URL('./closeout.js?v=20261019-closeout-partial', document.currentScript?.src || `${location.origin}/libraries/apps/materials/project.js`).href;
   const runtime = window.FirstMateEmbeddableApps;
@@ -831,7 +831,8 @@
       .mt-resource-add{margin:6px;padding:7px;border:1px dashed #d0d5dd;border-radius:6px;background:#fff;color:#475467;cursor:pointer;font-size:11px;text-align:left}
       .mt-resource-column[data-empty="true"] .mt-resource-add{white-space:normal}
       .mt-resource-scroll .mt-empty{padding:12px 2px}
-      .sw-viewport{position:relative;flex:1;min-height:0;overflow:hidden}.sw-panel{position:absolute;inset:0;overflow:hidden}.sw-viewport>.sw-panel.fm-widget{position:absolute;inset:0;height:100%;min-height:0;aspect-ratio:auto}.sw-docs{height:100%;min-height:0;display:flex;flex-direction:column;background:#f7f9fc}.sw-doc-viewer.sw-detail{flex:1 1 0;height:auto;min-height:0}.sw-doc-viewer.sw-detail h2{font-size:16px;margin:2px 0 4px}.sw-doc-viewer .sw-total{font-size:15px}.sw-doc-viewer .sw-document-stage{margin-top:10px;border:1px solid #e4e9ef;border-radius:6px}.sw-doc-viewer.sw-detail section{margin-top:16px}.sw-doc-strip{flex:none;display:flex;align-items:center;gap:8px;min-height:62px;box-sizing:border-box;overflow-x:auto;scrollbar-width:thin;padding:8px 12px;border-top:1px solid #d5deeb;background:#f8fafc}.sw-doc-strip-empty{margin:auto;font-size:12px;color:#98a2b3}.sw-doc-empty{height:100%;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;text-align:center;color:#667085;font-size:12px}.sw-doc-empty i{font-size:28px;color:#c0c8d4}.sw-doc-empty strong{font-size:13px;color:#475467}.sw-doc-thumb{flex:0 0 auto;max-width:230px;display:flex;align-items:center;gap:8px;padding:6px 10px;border:1px solid #cbd8ec;border-radius:8px;background:#fff;color:#243956;text-align:left;cursor:pointer}.sw-doc-thumb:hover{border-color:#98a2b3}.sw-doc-thumb[aria-pressed=true]{border-color:var(--primary,#d93025);box-shadow:0 0 0 1px var(--primary,#d93025)}.sw-doc-thumb i{color:#4879cb}.sw-doc-thumb span{min-width:0}.sw-doc-thumb strong,.sw-doc-thumb small{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.sw-doc-thumb strong{font-size:12px}.sw-doc-thumb small{margin-top:1px;font-size:10px;color:#667085}.sw-panel[hidden]{display:none}.sw-tabs{display:flex;flex:0 0 36px;gap:0;border-top:1px solid #d5deeb;background:#fff}.sw-tabs button{flex:1;min-width:0;border:0;border-radius:0;background:none;cursor:pointer;color:#62718a;display:flex;align-items:center;justify-content:center;gap:6px;font-size:10px;padding:6px 2px}.sw-tabs button[aria-selected=true]{color:var(--primary-readable,var(--primary,#d93025));background:rgba(var(--primary-rgb,217,48,37),.1);box-shadow:inset 0 -2px var(--primary,#d93025)}.sw-tabs i{font-size:13px}.sw-tabs button:focus-visible{outline:2px solid var(--primary,#d93025);outline-offset:-2px}.sw-home,.sw-detail{height:100%;overflow:auto;padding:12px;box-sizing:border-box;color:#263349;background:#f7f9fc}
+      .sw-report-icon{position:relative;display:inline-block;line-height:1;color:var(--primary,#d93025);font-size:22px;flex:none;margin-right:6px}.sw-doc-thumb .sw-report-icon i{color:inherit}.sw-report-icon-badge{position:absolute;right:-.3em;top:-.2em;font-size:.36em;background:#fff;border-radius:50%;padding:.2em;box-shadow:0 0 0 .08em #fff}.sw-report-preview{display:block;width:100%;height:calc(100% - 64px);min-height:200px;border:0;margin-top:10px}.sw-report-file{height:calc(100% - 64px);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:20px}.sw-report-file .sw-report-icon{font-size:64px}.sw-doc-viewer a{color:var(--primary-readable,var(--primary,#d93025))}
+      .sw-viewport{position:relative;flex:1;min-height:0;overflow:hidden}.sw-panel{position:absolute;inset:0;overflow:hidden}.sw-viewport>.sw-panel.fm-widget{position:absolute;inset:0;height:100%;min-height:0;aspect-ratio:auto}.sw-docs{height:100%;min-height:0;display:flex;flex-direction:column;background:#f7f9fc}.sw-doc-viewer.sw-detail{flex:1 1 0;height:auto;min-height:0}.sw-doc-viewer.sw-detail h2{font-size:16px;margin:2px 0 4px}.sw-doc-viewer .sw-total{font-size:15px}.sw-doc-viewer .sw-document-stage{margin-top:10px;border:1px solid #e4e9ef;border-radius:6px}.sw-doc-viewer.sw-detail section{margin-top:16px}.sw-doc-strip{flex:none;display:flex;align-items:center;gap:8px;min-height:62px;box-sizing:border-box;overflow-x:auto;scrollbar-width:thin;padding:8px 12px;border-top:1px solid #d5deeb;background:#f8fafc}.sw-doc-strip-empty{margin:auto;font-size:12px;color:#98a2b3}.sw-doc-empty{height:100%;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;text-align:center;color:#667085;font-size:12px}.sw-doc-empty i{font-size:28px;color:#c0c8d4}.sw-doc-empty strong{font-size:13px;color:#475467}.sw-measurement-start{box-sizing:border-box;padding:24px;gap:12px;overflow:auto}.sw-measurement-start .smm-btn{width:100%;max-width:260px;min-height:44px}.sw-measurement-start .smm-btn:disabled{opacity:.55;cursor:default}.sw-measurement-start>span{max-width:300px;line-height:1.5}.sw-doc-thumb{flex:0 0 auto;max-width:230px;display:flex;align-items:center;gap:8px;padding:6px 10px;border:1px solid #cbd8ec;border-radius:8px;background:#fff;color:#243956;text-align:left;cursor:pointer}.sw-doc-thumb:hover{border-color:#98a2b3}.sw-doc-thumb[aria-pressed=true]{border-color:var(--primary,#d93025);box-shadow:0 0 0 1px var(--primary,#d93025)}.sw-doc-thumb i{color:#4879cb}.sw-doc-thumb span{min-width:0}.sw-doc-thumb strong,.sw-doc-thumb small{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.sw-doc-thumb strong{font-size:12px}.sw-doc-thumb small{margin-top:1px;font-size:10px;color:#667085}.sw-panel[hidden]{display:none}.sw-tabs{display:flex;flex:0 0 36px;gap:0;border-top:1px solid #d5deeb;background:#fff}.sw-tabs button{flex:1;min-width:0;border:0;border-radius:0;background:none;cursor:pointer;color:#62718a;display:flex;align-items:center;justify-content:center;gap:6px;font-size:10px;padding:6px 2px}.sw-tabs button[aria-selected=true]{color:var(--primary-readable,var(--primary,#d93025));background:rgba(var(--primary-rgb,217,48,37),.1);box-shadow:inset 0 -2px var(--primary,#d93025)}.sw-tabs i{font-size:13px}.sw-tabs button:focus-visible{outline:2px solid var(--primary,#d93025);outline-offset:-2px}.sw-home,.sw-detail{height:100%;overflow:auto;padding:12px;box-sizing:border-box;color:#263349;background:#f7f9fc}
       .sw-home section+section,.sw-detail section{margin-top:24px}.sw-home h3,.sw-detail h3{font-size:13px;letter-spacing:.02em;margin:0 0 12px;color:#475467}
       .sw-summary{display:flex;flex-direction:column;gap:6px;margin:16px 0}.sw-summary strong,.sw-total{font-size:21px;color:#172f50}.sw-summary span,.sw-tile-footer{font-size:11px;color:#52647e;line-height:1.5}.sw-tile-footer{display:flex;justify-content:space-between;gap:8px;margin-top:14px}
       .sw-empty{font-size:12px;line-height:1.6;color:#667085}
@@ -1182,7 +1183,7 @@
   }
 
   function panelHtml(){
-    return `<div class="mt-app" data-materials-root><div class="mt-empty">${(globalThis.PlatformLanguage?.htmlText("materials","m_9d3e82ecfd10ec","Scope") ?? "Scope")}</div></div>`;
+    return `<div class="mt-app" data-materials-root><div class="mt-empty">${(globalThis.PlatformLanguage?.htmlText("materials","project_operations_title","Operations") ?? "Operations")}</div></div>`;
   }
 
   function defaultSections(){
@@ -2281,7 +2282,7 @@
     try {
       const [result, documents] = await Promise.all([
         materialsAPI.projects.list(operation.orgId, operation.projectId),
-        scopeWorkspace.loadDocuments(operation.orgId, operation.projectId)
+        scopeWorkspace.loadDocuments(operation.orgId, operation.projectId, {loadReportAssets:()=>callHost('loadReportDocumentAssets')})
       ]);
       if (!projectOperationIsCurrent(operation) || !state.active || workspaceIsEditing()) return;
       const lists = result.material_lists || [];
@@ -2315,7 +2316,7 @@
   async function loadScopeDocuments(loadContext){
     try {
       await ensureScopeWorkspace();
-      const result = await scopeWorkspace.loadDocuments(loadContext.orgId, loadContext.projectId);
+      const result = await scopeWorkspace.loadDocuments(loadContext.orgId, loadContext.projectId, {loadReportAssets:()=>callHost('loadReportDocumentAssets')});
       if (!loadContextIsCurrent(loadContext)) return;
       state.scopeDocuments = result.documents;
       state.scopeDocumentsError = result.error;
@@ -6239,11 +6240,11 @@
     state.sidebarRoot.classList.remove('mode-list', 'mode-send');
     const label = state.sidebarRoot.querySelector('#mtSidebarLabel');
     if (label) {
-      label.textContent = (globalThis.PlatformLanguage?.text("materials","m_9d3e82ecfd10ec","Scope") ?? "Scope");
+      label.textContent = (globalThis.PlatformLanguage?.text("materials","project_operations_title","Operations") ?? "Operations");
       label.hidden = true;
     }
     disposeScopeWidgets();
-    if(scopeWorkspace)scopeWorkspace.mountSidebar(target,state.scopeDocuments,state.scopeDocumentsError,`${orgId()}:${projectId()}`,{draft:!projectId(),scheduling:schedulingOn(),widgetContext:scopeWidgetContext(),scheduleContext:state.context,measurementOverrides:state.measurementOverrides,onMeasurementChange:(key,value)=>{state.measurementOverrides={...state.measurementOverrides,[key]:value};syncMaterialsGrid();}});
+    if(scopeWorkspace)scopeWorkspace.mountSidebar(target,state.scopeDocuments,state.scopeDocumentsError,`${orgId()}:${projectId()}`,{draft:!projectId(),canOrderMeasurements:callHost('canOrderMeasurements')===true,reportPending:state.context?.reportOrderPending===true,onOrderMeasurements:()=>callHost('orderMeasurements'),scheduling:schedulingOn(),widgetContext:scopeWidgetContext(),scheduleContext:state.context,measurementOverrides:state.measurementOverrides,onMeasurementChange:(key,value)=>{state.measurementOverrides={...state.measurementOverrides,[key]:value};syncMaterialsGrid();}});
     else renderRailState(target);
     scopeWorkspace?.installDivider(state.sidebarRoot, railLayout());
     timingMark('renderLeft:end', { active: state.active }, timingStart);
@@ -6368,7 +6369,7 @@
     const customFieldsOpen = state.leftSections.custom_fields !== false;
     return `
       <div class="mt-left">
-        <div class="mt-left-head"><strong>${(globalThis.PlatformLanguage?.htmlText("materials","m_9d3e82ecfd10ec","Scope") ?? "Scope")}</strong>${String(state.activeList ? `<em class="mt-status ${statusClass(state.activeList.status)}">${escapeHtml(resourceTerms(resourceType(state.activeList), state.activeList).plural)}</em>` : '')}</div>
+        <div class="mt-left-head"><strong>${(globalThis.PlatformLanguage?.htmlText("materials","project_operations_title","Operations") ?? "Operations")}</strong>${String(state.activeList ? `<em class="mt-status ${statusClass(state.activeList.status)}">${escapeHtml(resourceTerms(resourceType(state.activeList), state.activeList).plural)}</em>` : '')}</div>
         <div class="mt-left-body">
           <section class="mt-left-group ${String(listsOpen ? '' : 'collapsed')}">
             <button type="button" class="mt-left-group-head" data-mt-left-toggle="lists" aria-expanded="${String(listsOpen ? 'true' : 'false')}"><strong>${(globalThis.PlatformLanguage?.htmlText("materials","m_aee5caa035aefc","Lists") ?? "Lists")}</strong><span>${String(state.lists.length)} <i class="fas fa-chevron-${String(listsOpen ? 'up' : 'down')}"></i></span></button>
@@ -7911,8 +7912,8 @@
   runtime?.registerApp?.({
     id: 'project.materials',
     kind: 'project_modal_app',
-    title: (globalThis.PlatformLanguage?.text("materials","m_9d3e82ecfd10ec","Scope") ?? "Scope"),
-    label: (globalThis.PlatformLanguage?.text("materials","m_9d3e82ecfd10ec","Scope") ?? "Scope"),
+    title: (globalThis.PlatformLanguage?.text("materials","project_operations_title","Operations") ?? "Operations"),
+    label: (globalThis.PlatformLanguage?.text("materials","project_operations_title","Operations") ?? "Operations"),
     icon: 'fa-clipboard-list',
     order: 55,
     visible: true,

@@ -5,7 +5,7 @@ const label = value => String(value || '').replace(/([a-z])([A-Z])/g,'$1 $2').re
 const money = (value,currency='USD') => {try{return new Intl.NumberFormat(undefined,{style:'currency',currency}).format(value);}catch{return `${number(value)} ${currency}`;}};
 
 // Membership comes from persisted publications, never a document type or module draft.
-export async function loadDocuments(orgId, projectId) {
+export async function loadDocuments(orgId, projectId, options = {}) {
   const api = window.PlatformAPI, base = api.baseUrl().replace(/\/platform\/?$/, '');
   const org = encodeURIComponent(orgId), project = encodeURIComponent(projectId);
   const target = {scope:'project',organizationId:orgId,projectId};
@@ -13,7 +13,8 @@ export async function loadDocuments(orgId, projectId) {
   const results = await Promise.allSettled([
     api.request(`${base}/materials/organizations/${org}/projects/${project}/calculus`),
     api.request(`${base}/documents/organizations/${org}/projects/${project}/documents`),
-    (async()=>{const rows=[];let cursor;do {const page=await api.publication.list(orgId,source,{limit:200,...(cursor?{cursor}:{})});rows.push(...page.items);cursor=page.nextCursor;}while(cursor);return rows;})()
+    (async()=>{const rows=[];let cursor;do {const page=await api.publication.list(orgId,source,{limit:200,...(cursor?{cursor}:{})});rows.push(...page.items);cursor=page.nextCursor;}while(cursor);return rows;})(),
+    Promise.resolve().then(()=>options.loadReportAssets?.())
   ]);
   const documents = [], failures = results.filter(r=>r.status==='rejected');
   const ledger = results[0].status==='fulfilled' ? results[0].value.ledger : null;
@@ -75,15 +76,34 @@ export async function loadDocuments(orgId, projectId) {
   // the view they had, so a failure here is not reported as missing scope data.
   try {
     const manual=await api.publication.read(orgId,{provider:'measurement-schemas',export:'manual',target});
-    if(manual.status==='ready'&&(manual.value?.available||Object.keys(manual.value?.manual?.values||{}).length))documents.push({id:'manual-measurements',source:'manual',form:manual.value,reportReady:completedReport?.status==='ready'});
+    if(manual.status==='ready')documents.push({id:'manual-measurements',source:'manual',form:manual.value,reportReady:completedReport?.status==='ready'});
   }catch{}
+  if(results[3]?.status==='fulfilled')documents.push(...reportDocuments(results[3].value));
   documents.sort((a,b)=>a.source.localeCompare(b.source)||String(a.title).localeCompare(String(b.title))||a.id.localeCompare(b.id));
   return {documents,error:failures.length?'Some published scope data could not load.':''};
 }
 
-// One selectable entry per accepted document, like the Photos thumbnail row.
+// Report references are files, not accepted scope publications or material origins.
+export function reportDocuments(assets = {}) {
+  return [
+    ['roof_report_pdf','Roof Measurement Report','reportUrl',''],
+    ['customer_report_pdf','Customer Roof Report','summaryUrl','fa-user'],
+    ['roof_report_xml','Roof Report XML','xmlUrl','fa-code']
+  ].flatMap(([id,title,key,badge])=>assets?.[key] ? [{id,source:'report_asset',title,url:assets[key],badge,xml:key==='xmlUrl'}] : []);
+}
+function reportIcon(doc) {
+  return `<span class="sw-report-icon" aria-hidden="true"><i class="fas fa-ruler-combined"></i>${doc.badge?`<i class="fas ${esc(doc.badge)} sw-report-icon-badge"></i>`:''}</span>`;
+}
 export function renderDocumentStrip(documents=[],selectedId='') {
-  return documents.filter(d=>d.source==='document').map(doc=>{const count=doc.sets?.reduce((n,s)=>n+s.lines.length,0) || 0;return `<button type="button" class="sw-doc-thumb" data-scope-document="${esc(doc.id)}" aria-pressed="${doc.id===selectedId}" title="${esc(doc.title)}"><i class="fas fa-file-signature" aria-hidden="true"></i><span><strong>${esc(doc.title)}</strong><small>${esc([doc.total,'Accepted '+label(doc.document_type).toLowerCase(),count?`${count} material${count===1?'':'s'}`:''].filter(Boolean).join(' · '))}</small></span></button>`;}).join('');
+  return documents.filter(d=>['document','report_asset'].includes(d.source)).map(doc=>{
+    const report=doc.source==='report_asset',count=doc.sets?.reduce((n,s)=>n+s.lines.length,0) || 0;
+    const summary=report ? (doc.xml?'XML':'PDF') : [doc.total,'Accepted '+label(doc.document_type).toLowerCase(),count?`${count} material${count===1?'':'s'}`:''].filter(Boolean).join(' · ');
+    return `<button type="button" class="sw-doc-thumb" data-scope-document="${esc(doc.id)}" aria-pressed="${doc.id===selectedId}" title="${esc(doc.title)}">${report?reportIcon(doc):'<i class="fas fa-file-signature" aria-hidden="true"></i>'}<span><strong>${esc(doc.title)}</strong><small>${esc(summary)}</small></span></button>`;
+  }).join('');
+}
+function reportDetail(doc) {
+  const link=`<a href="${esc(doc.url)}" target="_blank" rel="noopener" ${doc.xml?'download="roof-report.xml"':''}>${doc.xml?'Download XML':'Open PDF'}</a>`;
+  return `<header><h2 tabindex="-1">${esc(doc.title)}</h2>${link}</header>${doc.xml?`<div class="sw-report-file">${reportIcon(doc)}<span>Roof measurements XML</span></div>`:`<iframe class="sw-report-preview" title="${esc(doc.title)}" src="${esc(doc.url)}#view=FitH"></iframe>`}`;
 }
 function detail(doc) {
   const materials=(doc.sets || []).map(set=>`<section><h3>${esc(set.title)}</h3>${set.lines.length?`<div class="sw-table-wrap"><table><thead><tr><th>Material</th><th>Required</th><th>Order quantity</th><th>Unit cost</th></tr></thead><tbody>${set.lines.map(line=>`<tr><td><strong>${esc(line.name)}</strong>${line.variant?`<small>${esc(line.variant)}</small>`:''}${line.explanation?`<small>${esc(line.explanation)}</small>`:''}${line.group||line.structure?`<small>${esc([line.group,line.structure].filter(Boolean).join(' · '))}</small>`:''}</td><td>${esc(number(line.quantity))} ${esc(line.unit)}</td><td>${esc(number(line.order_quantity))} ${esc(line.order_unit)}</td><td>${line.unit_cost==null?'—':esc(money(line.unit_cost,line.currency))}</td></tr>`).join('')}</tbody></table></div>`:'<p class="sw-empty">This accepted document published a material calculation. Quantities have not been generated yet.</p>'}${set.evaluations?.find(e=>e.id===set.applied_evaluation)?.warnings?.map(w=>`<p class="sw-empty">${esc(w)}</p>`).join('') || ''}</section>`).join('');
@@ -137,16 +157,16 @@ export function mountSidebar(root,documents,error,contextKey,options={}) {
     showViews(root,state);
   }
   state.options=options;
-  const fingerprint=JSON.stringify([documents,error,options.measurementOverrides]);
+  const fingerprint=JSON.stringify([documents,error,options.measurementOverrides,options.canOrderMeasurements,options.reportPending]);
   if(state.fingerprint===fingerprint)return;
   state.fingerprint=fingerprint;state.documents=documents;state.error=error;
   // Documents: the selected accepted document fills the viewer and every accepted document sits in the strip beneath it.
   const drawDocuments=()=>{
-    const panel=root.querySelector('[data-scope-panel="documents"]'),accepted=state.documents.filter(d=>d.source==='document');
+    const panel=root.querySelector('[data-scope-panel="documents"]'),accepted=state.documents.filter(d=>['document','report_asset'].includes(d.source));
     const selected=accepted.find(d=>d.id===state.selected)||accepted[0]||null,key=JSON.stringify([accepted,selected?.id,state.error]);
     if(state.documentsKey===key)return;
     state.documentsKey=key;state.selected=selected?.id||null;state.stageObserver?.disconnect();state.handle?.destroy?.();state.handle=null;const generation=++state.generation;
-    panel.innerHTML=`<div class="sw-docs"><div class="sw-detail sw-doc-viewer">${selected?detail(selected):`<div class="sw-doc-empty" role="status"><i class="fas fa-file-lines" aria-hidden="true"></i><strong>No document selected</strong><span>${esc(state.error || 'Signed proposals and contracts for this project open here.')}</span></div>`}</div><div class="sw-doc-strip" aria-label="Accepted documents">${accepted.length?renderDocumentStrip(accepted,selected.id):'<span class="sw-doc-strip-empty">No documents yet</span>'}</div></div>`;
+    panel.innerHTML=`<div class="sw-docs"><div class="sw-detail sw-doc-viewer">${selected?(selected.source==='report_asset'?reportDetail(selected):detail(selected)):`<div class="sw-doc-empty" role="status"><i class="fas fa-file-lines" aria-hidden="true"></i><strong>No document selected</strong><span>${esc(state.error || 'Reports, signed proposals and contracts for this project open here.')}</span></div>`}</div><div class="sw-doc-strip" aria-label="Project documents">${accepted.length?renderDocumentStrip(accepted,selected.id):'<span class="sw-doc-strip-empty">No documents yet</span>'}</div></div>`;
     panel.querySelectorAll('[data-scope-document]').forEach(button=>button.onclick=()=>{state.selected=button.dataset.scopeDocument;drawDocuments();[...panel.querySelectorAll('[data-scope-document]')].find(b=>b.dataset.scopeDocument===state.selected)?.focus();});
     const stage=panel.querySelector('[data-scope-stage]');
     if(stage){stage.textContent='Loading accepted document…';renderer().then(()=>{
@@ -182,8 +202,22 @@ const manualEditorUrl=()=>new URL('./manual-measurements.js?v=20261025-intro-too
 function drawManual(root,state,contextKey){
   const doc=(state.documents||[]).find(d=>d.source==='manual');
   const mode=manualMeasurementMode(doc?.form,doc?.reportReady);
+  const empty=!doc?.reportReady && (doc || state.options?.draft) && !Object.keys(doc?.form?.manual?.values||{}).length
+    && !Object.keys(doc?.form?.in_use?.values||{}).length && doc?.form?.in_use?.source!=='other'
+    && !(state.documents||[]).some(entry=>entry.source==='measurement');
+  let start=root.querySelector('[data-scope-measurement-start]');
+  if(!start){start=document.createElement('div');start.className='sw-panel';start.dataset.scopeMeasurementStart='';start.hidden=true;root.querySelector('.sw-viewport').append(start);}
+  state.measurementStartShown=!!empty&&!state.manualEntryRequested;
+  if(state.measurementStartShown){
+    const canOrder=state.options?.canOrderMeasurements===true, pending=state.options?.reportPending===true;
+    const canEnter=mode==='edit';
+    start.innerHTML=`<div class="sw-doc-empty sw-measurement-start" role="status"><i class="fas fa-ruler-combined" aria-hidden="true"></i><strong>${esc(text('measurement_start_empty','No measurements.'))}</strong>${pending?`<span>${esc(text('measurement_start_pending','Your measurement report is on order. You can enter measurements while you wait.'))}</span>`:''}${canOrder?`<button type="button" class="smm-btn primary" data-scope-order>${esc(text('measurement_start_order','Order measurement report'))}</button>`:''}<button type="button" class="smm-btn" data-scope-enter ${canEnter?'':'disabled'}>${esc(text('measurement_start_manual','Add measurements manually'))}</button>${!canEnter?`<span>${esc(text('measurement_start_scope','Add a scope with a measurement schema to enter its measurements manually.'))}</span>`:''}</div>`;
+    start.querySelector('[data-scope-order]')?.addEventListener('click',()=>state.options?.onOrderMeasurements?.());
+    start.querySelector('[data-scope-enter]')?.addEventListener('click',()=>{state.manualEntryRequested=true;drawManual(root,state,contextKey);});
+    if(!state.manualStyled){state.manualStyled=true;import(manualEditorUrl()).then(module=>module.ensureStyles?.()).catch(()=>{state.manualStyled=false;});}
+  }
   if(mode!=='compare')state.manualOpen=false;
-  const shown=mode==='edit'||(mode==='compare'&&!!state.manualOpen);
+  const shown=(mode==='edit'&&!state.measurementStartShown)||(mode==='compare'&&!!state.manualOpen);
   const changed=shown!==!!state.manualShown;state.manualShown=shown;state.manualMode=mode;
   const panel=root.querySelector('[data-scope-manual]'),flip=root.querySelector('[data-scope-manual-flip]');
   if(flip&&!flip.onclick)flip.onclick=()=>{state.manualOpen=true;drawManual(root,state,contextKey);state.manualHandle?.focus?.();};
@@ -204,8 +238,7 @@ function drawManual(root,state,contextKey){
   }
   // The flip control and the editor share the editor's styles; load them as soon as either can show.
   if(mode!=='none'&&!state.manualStyled){state.manualStyled=true;import(manualEditorUrl()).then(module=>module.ensureStyles?.()).catch(()=>{state.manualStyled=false;});}
-  const flipHidden=!(state.view==='roof'&&mode==='compare'&&!shown);
-  if(changed||(flip&&flip.hidden!==flipHidden))showViews(root,state,changed);
+  showViews(root,state,changed);
 }
 function showViews(root,state,manualChanged=false){
   // A view that replaces another slides in from the side its tab sits on. The first view shown does not move.
@@ -219,9 +252,12 @@ function showViews(root,state,manualChanged=false){
     if(appearing&&(moving||manualChanged)){void manual.offsetWidth;manual.classList.add(forward||!moving?'sw-enter-forward':'sw-enter-back');}
   }
   if(flip)flip.hidden=!(state.view==='roof'&&state.manualMode==='compare'&&!state.manualShown);
+  const start=root.querySelector('[data-scope-measurement-start]'),startOn=state.view==='roof'&&!!state.measurementStartShown;
+  if(start)start.hidden=!startOn;
+  if(startOn)root.querySelector('[data-scope-panel="roof"]').hidden=true;
   state.shown=state.view;
   root.querySelectorAll('[data-scope-view]').forEach(tab=>{const active=tab.dataset.scopeView===state.view;tab.setAttribute('aria-selected',String(active));tab.tabIndex=active?0:-1;});
-  for(const [key,widget] of Object.entries(state.widgets))widget?.setVisible?.(state.visible&&state.view===key&&!(key==='roof'&&manualOn));
+  for(const [key,widget] of Object.entries(state.widgets))widget?.setVisible?.(state.visible&&state.view===key&&!(key==='roof'&&(manualOn||startOn)));
   window.dispatchEvent(new Event('resize'));
 }
 export function disposeSidebar(root){const state=sidebars.get(root);state?.observer?.disconnect();state?.stageObserver?.disconnect();state?.handle?.destroy?.();state?.manualHandle?.destroy?.();if(state)for(const widget of Object.values(state.widgets))widget?.destroy?.();sidebars.delete(root);}
