@@ -861,6 +861,8 @@
       .ct-shell :is(.ct-mobile-count,.ct-row-quick,.ct-row-meta,.ct-sheet-head){display:none}
       /* Phone: the portal's mobile top bar carries the title, so the content starts with one compact control row. */
       @media(max-width:820px){
+        .main-panels:has(#tab_contacts.active .ct-workspace-body){padding:0;background:#fff}
+        #tab_contacts:has(.ct-workspace-body){background:#fff}
         .ct-shell .ct-top{flex-direction:row;align-items:center;gap:8px;padding:2px 0 12px}
         .ct-shell .ct-title{display:none}
         .ct-shell .ct-tools{display:flex;flex-wrap:nowrap;justify-content:flex-end;align-items:center;gap:8px;width:100%}
@@ -901,15 +903,30 @@
         .ct-shell .ct-list-projects::-webkit-scrollbar{display:none}
         .ct-shell .ct-chip{flex:0 0 auto;max-width:72%;scroll-snap-align:start;padding:7px 10px;border-radius:10px}
         .ct-shell .ct-list-count,.ct-shell .ct-list-date{display:none}
-        .ct-shell .ct-grid{grid-template-columns:1fr;gap:10px}
-        .ct-shell .ct-card{padding:14px;gap:12px;border-radius:16px;cursor:pointer;-webkit-tap-highlight-color:transparent;transition:transform .14s ease;animation:ctRiseIn .32s cubic-bezier(.2,.8,.2,1) both}
+        .ct-shell .ct-grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;align-items:stretch}
+        .ct-shell .ct-card{position:relative;min-height:224px;padding:16px 10px 12px;gap:10px;border-radius:16px;cursor:pointer;-webkit-tap-highlight-color:transparent;transition:transform .14s ease;animation:ctRiseIn .32s cubic-bezier(.2,.8,.2,1) both}
+        .ct-shell .ct-card-head{display:flex;flex-direction:column;align-items:center;gap:12px;width:100%;text-align:center}
+        .ct-shell .ct-card .ct-avatar{width:56px;height:56px;border-radius:50%;font-size:21px}
+        .ct-shell .ct-card .ct-profile-photo{display:none}
+        .ct-shell .ct-card .ct-contact-title{width:100%;flex:none;gap:6px}
+        .ct-shell .ct-card .ct-contact-title h3{font-size:14px;font-weight:700;line-height:1.35;white-space:normal;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow-wrap:anywhere}
+        .ct-shell .ct-card .ct-contact-line{flex-direction:column;align-items:center;gap:4px;font-size:11px;font-weight:400;line-height:1.4}
+        .ct-shell .ct-card .ct-contact-line a{max-width:100%}
+        .ct-shell .ct-card .ct-dot{display:none}
+        .ct-shell .ct-card .ct-open-contact{position:absolute;right:2px;top:2px;width:36px;height:36px;padding:0;border:0;background:transparent;color:#98a2b3;font-size:12px}
+        .ct-shell .ct-card .ct-card-meta{margin-top:auto;flex-direction:column;align-items:center;gap:4px;font-size:11px;font-weight:500;text-align:center}
+        .ct-shell .ct-card .ct-card-meta span:empty{display:none}
+        .ct-shell .ct-card .ct-tags{justify-content:center;max-height:46px;overflow:hidden}
+        .ct-shell .ct-card .ct-tag{max-width:100%;font-size:10px;font-weight:500}
+        .ct-shell .ct-card .ct-project-list{display:none}
         .ct-shell .ct-card:active{transform:scale(.985)}
-        .ct-shell .ct-card .ct-avatar{width:42px;height:42px;border-radius:50%}
         .ct-shell .ct-open-contact{width:40px;height:40px;border-radius:12px}
         .ct-shell .ct-project-list{grid-template-columns:repeat(2,minmax(0,1fr));grid-auto-rows:64px}
         .ct-shell .ct-project-slot.empty{display:none}
         .ct-shell .ct-project-list:not(:has(.ct-project-row,.ct-more)){display:none}
-        .ct-shell .ct-workspace-head{padding:10px 12px;gap:10px}
+        .ct-shell .ct-workspace-head{padding:8px 12px;gap:10px;background:#fff;border:0}
+        .ct-shell .ct-workspace-body{background:#fff;padding:0 0 env(safe-area-inset-bottom,0px)}
+        .ct-shell .ct-workspace-body>[data-ct-settings-host]{padding:0;border:0;border-radius:0;background:transparent}
         .ct-shell .ct-workspace-head h2{font-size:16px}
         .ct-shell .ct-workspace-head p{display:none}
         .ct-shell .ct-back{height:40px;width:40px;padding:0;justify-content:center;border-radius:12px}
