@@ -480,6 +480,34 @@ window.PlatformCommerce.onReady(function(){
     }catch(e){ return null; }
   }
   function clearPending(){ try{ localStorage.removeItem(PENDING_ORDER_KEY); }catch(e){} }
+  function pendingOrderProjectId(pending){
+    const f = pending?.fields || {};
+    return String(f.platform_project_id || f.base_project_id || '').trim();
+  }
+  /* A Stripe return lands on a page that has not read the ordered project. Read it before linking the
+     report so the link is an edit of the stored project (a PATCH of what changed), never a create-only
+     save, which the server refuses for a project that exists (project_exists) and which lost the link. */
+  async function readOrderedProject(projectId){
+    const api = window.PlatformAPI?.projects;
+    const orgId = String(window.__APP?.userOrgId || '').trim();
+    if (!projectId || !orgId || typeof api?.get !== 'function') return;
+    try {
+      const stored = (await api.get(orgId, projectId))?.document;
+      if (!stored?.data) return;
+      api.rebaseline?.(projectId, stored.data, stored.revision);
+      window.Portal.ProjectStore?.cache?.({ ...stored.data, id: projectId });
+    } catch (error) {
+      console.warn('Ordered project could not be read before linking the report', error);
+    }
+  }
+  // Back from Stripe: reopen the project window the order was placed from.
+  async function reopenOrderProject(projectId){
+    if (!projectId) return;
+    // The project app loads after billing; a canceled checkout returns before it is ready.
+    for (let waited = 0; !window.Portal.modules?.request?.openProject && waited < 20000; waited += 250) await wait(250);
+    try { await window.Portal.modules?.request?.openProject?.({ id: projectId }); }
+    catch (error) { console.warn('Ordered project could not be reopened', error); }
+  }
   function hasPendingOrder(){
     const pending = readPending();
     return !!pending?.fields?.address;
@@ -1447,6 +1475,8 @@ window.PlatformCommerce.onReady(function(){
       // The charge and order already succeeded. Never repeat them if saving
       // the platform link fails; keep the successful result in the project cache.
       clearPending();
+      const linkedProjectId = pendingOrderProjectId(po);
+      await readOrderedProject(linkedProjectId);
       const orderedProject = window.Portal.ProjectStore?.fromQueue?.({
         ...f, project_notes: f.projectNotes || f.project_notes || ''
       }, data, { persist:false });
@@ -1460,7 +1490,8 @@ window.PlatformCommerce.onReady(function(){
       renderPendingSafe();
       close();
 
-      if (pendingReportMode(f) === 'both') {
+      // An order placed from a project goes back to that project's window (reopenOrderProject).
+      if (pendingReportMode(f) === 'both' && !linkedProjectId) {
         window.dispatchEvent(new CustomEvent('fm:projects:open', {
           detail: {
             project: data?.project || data?.manifest || { id: data?.project?.id || data?.folder || null },
@@ -1516,6 +1547,8 @@ window.PlatformCommerce.onReady(function(){
     if (paid !== '1' && paid !== '0') return false;
     if (stripeReconcilePromise) return await stripeReconcilePromise;
     const initialPending = readStripeCheckoutPending(sid);
+    // Read before any await: the boot auto-submit may clear the pending order first.
+    const orderProjectId = reason === 'stripe_return' ? pendingOrderProjectId(readPending()) : '';
     stripeReconcilePromise = (async () => {
       let reconciled = false;
       let fulfillData = null;
@@ -1566,6 +1599,8 @@ window.PlatformCommerce.onReady(function(){
         if (clearReturnUrl) {
           window.Portal?.navigation?.replace?.({ paid:null, session_id:null }, { source:'billing-stripe-return' });
         }
+        // Paid, canceled or unconfirmed, the person returns to the project they ordered from.
+        if (orderProjectId) void reopenOrderProject(orderProjectId);
         setStripeReconcileActive(false, {
           paid,
           session_id: sid || initialPending?.session_id || '',

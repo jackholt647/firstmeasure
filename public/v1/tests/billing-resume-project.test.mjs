@@ -4,11 +4,14 @@ import test from 'node:test';
 import vm from 'node:vm';
 const source = await readFile(new URL('../../libraries/apps/billing/app.js', import.meta.url), 'utf8');
 const start = source.indexOf('  async function tryAutoSubmitPending(');
-const body = source.slice(start, source.indexOf('\n  function setStripeReconcileActive', start));
+const helpersStart = source.indexOf('  function pendingOrderProjectId(');
+const helpers = source.slice(helpersStart, source.indexOf('  async function reopenOrderProject(', helpersStart));
+const body = helpers + source.slice(start, source.indexOf('\n  function setStripeReconcileActive', start));
 for (const failSave of [false, true]) test(`checkout resume links the existing project and never resubmits after save ${failSave ? 'failure' : 'success'}`, async () => {
   let pending = { fields: { address:'123 Preview Lane', platform_project_id:'project-1', projectNotes:'Keep this note', pins:'[{"lat":47,"lng":-122}]', cc_emails:'["fictional@example.test"]' } };
   let queues = 0, saves = 0;
-  const updates = [];
+  const updates = [], calls = [];
+  const cache = {};
   const context = {
     inFlightAutoSubmit:false, autoSubmitSuppressed:() => false, readPending:() => pending,
     pendingOrderAmount:() => 7, showToast:() => {}, pendingIncludesGutters:() => false,
@@ -17,8 +20,15 @@ for (const failSave of [false, true]) test(`checkout resume links the existing p
     clearPending:() => { pending = null; }, renderPendingSafe:() => {}, close:() => {},
     CustomEvent:class { constructor(type, options) { this.type=type; this.detail=options.detail; } },
     console:{ warn() {} },
-    window:{ dispatchEvent:event => updates.push(event), Portal:{ credits:{lastCredits:35, refreshCredits:async () => {}}, ProjectStore:{
-      fromQueue(payload, data, options) { assert.equal(options.persist,false); assert.equal(payload.project_notes,'Keep this note'); return { id:payload.platform_project_id, measurement:{id:data.folder} }; },
+    window:{ dispatchEvent:event => updates.push(event), __APP:{ userOrgId:'org-1' },
+      // The Stripe return page never read the project: it is read (and becomes the diff base) before the link is saved.
+      PlatformAPI:{ projects:{
+        async get(orgId, id) { calls.push(`get ${orgId} ${id}`); return { document:{ id, revision:4, data:{ id, title:'Stored title', photos:[{id:'p1'}] } } }; },
+        rebaseline(id, data, revision) { calls.push(`rebaseline ${id} ${revision}`); }
+      } },
+      Portal:{ credits:{lastCredits:35, refreshCredits:async () => {}}, ProjectStore:{
+      cache(project) { calls.push(`cache ${project.id}`); cache[project.id] = project; return project; },
+      fromQueue(payload, data, options) { calls.push('fromQueue'); assert.equal(options.persist,false); assert.equal(payload.project_notes,'Keep this note'); assert.equal(cache['project-1'].photos.length,1); return { id:payload.platform_project_id, measurement:{id:data.folder} }; },
       async saveRemote(project) { saves++; assert.equal(project.measurement.id,'new-report'); if (failSave) throw Error('Unavailable'); }
     } } },
   };
@@ -26,5 +36,21 @@ for (const failSave of [false, true]) test(`checkout resume links the existing p
   assert.equal(await context.tryAutoSubmitPending('stripe_return'),true);
   assert.equal(await context.tryAutoSubmitPending('stripe_return'),false);
   assert.equal(queues,1); assert.equal(saves,1);
+  assert.deepEqual(calls, ['get org-1 project-1', 'rebaseline project-1 4', 'cache project-1', 'fromQueue']);
   assert.equal(updates.find(event => event.type==='fm:projects:optimistic-update').detail.project.id,'project-1');
+});
+
+test('a Stripe return reopens the project window the order was placed from', async () => {
+  const start = source.indexOf('  async function reopenOrderProject(');
+  const fn = source.slice(start, source.indexOf('  function hasPendingOrder(', start));
+  const opened = [];
+  const context = { console:{ warn() {} }, wait:async () => { context.window.Portal.modules.request = { openProject:async (project) => { opened.push(project); } }; }, window:{ Portal:{ modules:{} } } };
+  vm.createContext(context); vm.runInContext(fn, context);
+  await context.reopenOrderProject('project-1');
+  await context.reopenOrderProject('');
+  assert.deepEqual(opened.map(project => project.id), ['project-1']);
+  // The project is taken from the pending order before any await, then reopened on paid, canceled and unconfirmed returns.
+  const reconcile = source.slice(source.indexOf('  async function reconcileStripeCheckout('), source.indexOf('  async function handleStripeReturn('));
+  assert.ok(reconcile.indexOf('pendingOrderProjectId(readPending())') < reconcile.indexOf('stripeReconcilePromise = (async'));
+  assert.match(reconcile, /finally \{[\s\S]*reopenOrderProject\(orderProjectId\)/);
 });
