@@ -886,6 +886,60 @@ window.PlatformCommerce.onReady(async function(){
     :is(#rProjectIdentityTrigger,.r-project-identity-trigger)::after{content:'';width:6px;height:6px;flex:none;border-right:1.5px solid #8491a3;border-bottom:1.5px solid #8491a3;transform:translateY(-2px) rotate(45deg)}
     #rProjectIdentityTrigger[aria-expanded=true]::after{transform:translateY(2px) rotate(225deg)}
     .r-window-identity .r-project-tag i{color:inherit;flex:none}
+    /* Project details tray: the one owner of the project's contact, address and measurements. Open, it joins the
+       header's left end into one white column, and the tabs and content slide right (pushed, not covered). */
+    #rOverlay{--r-details-tray-w:clamp(300px,30%,400px);--r-details-tray-ease:cubic-bezier(.22,1,.36,1)}
+    .r-details-tray{position:absolute;z-index:80;left:0;top:0;bottom:0;width:var(--r-details-tray-w);display:flex;flex-direction:column;min-height:0;box-sizing:border-box;background:#fff;transform:translateX(-101%);visibility:hidden;transition:transform .34s var(--r-details-tray-ease),visibility 0s linear .34s}
+    /* The divider starts under the header, so the header and the tray read as one white surface. */
+    .r-details-tray::after{content:'';position:absolute;right:0;top:var(--r-details-tray-top,69px);bottom:0;width:1px;background:#e4e7ec;pointer-events:none}
+    #rOverlay.details-tray-sheet .r-details-tray::after{display:none}
+    .r-overview-initial-actions:empty{display:none!important}
+    #rOverlay.details-tray-open .r-details-tray{transform:none;visibility:visible;transition:transform .34s var(--r-details-tray-ease),visibility 0s}
+    #rOverlay .fm-shell-header{transition:padding-left .34s var(--r-details-tray-ease)}
+    #rOverlay .fm-project-content{transition:grid-template-columns .32s var(--r-details-tray-ease),margin-left .34s var(--r-details-tray-ease)}
+    #rOverlay.details-tray-open:not(.details-tray-sheet) .fm-shell-header{padding-left:var(--r-details-tray-w)}
+    #rOverlay.details-tray-open:not(.details-tray-sheet) .fm-project-content{margin-left:var(--r-details-tray-w)}
+    #rOverlay.details-tray-open:not(.details-tray-sheet) .fm-shell-identity>i:first-child,#rOverlay.details-tray-open:not(.details-tray-sheet) #rProjectIdentityTrigger{display:none}
+    .r-details-tray-head{flex:none;display:flex;align-items:flex-start;gap:10px;padding:16px 12px 6px 18px}
+    .r-details-tray-head>i{flex:none;font-size:21px;line-height:26px;transform-origin:left center}
+    .r-details-tray-title{flex:1;min-width:0;margin:0;font-size:17px;line-height:26px;font-weight:800;color:#1d2939;overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow-wrap:anywhere;transform-origin:left top}
+    .r-details-tray-close{flex:none;width:28px;height:28px;margin-top:-1px;border:0;border-radius:8px;background:none;color:#98a2b3;cursor:pointer;display:grid;place-items:center;font-size:12px;transition:background .16s ease,color .16s ease}
+    .r-details-tray-close:hover{background:rgba(var(--primary-rgb,217,48,37),.08);color:var(--primary-readable,var(--primary,#d93025))}
+    .r-details-tray-close:focus-visible{outline:2px solid var(--primary,#d93025);outline-offset:1px}
+    .r-details-tray-body{flex:1;min-height:0;display:flex;flex-direction:column}
+    #rOverlay .r-details-tray-body>.r-overview-details{order:0;flex:1 1 auto;width:auto;min-width:0;max-width:none;height:auto;min-height:0;max-height:none;padding:4px 18px 12px;border:0;box-shadow:none}
+    #rOverlay.details-tray-open .r-details-tray-body>.r-overview-details>.r-form{animation:rDetailsTrayRise .42s var(--r-details-tray-ease) both}
+    @keyframes rDetailsTrayRise{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:none}}
+    .r-details-tray-scrim{display:none}
+    .r-details-tray :is(#rProjectCustomFields,#rCustomerPortalLinkMount,#rInlineNotesMount):empty{display:none}
+    .r-tray-measurements{margin:6px 0 6px;padding-top:14px;border-top:1px solid #eaecf0}
+    .r-tray-measurements[hidden]{display:none!important}
+    .r-tray-measurements>header{display:flex;align-items:center;justify-content:space-between;margin:0 0 10px;font-size:12px;color:#344054;font-weight:600}
+    /* Measurements take whatever height the column has left (never less than a usable model and key). */
+    #rOverlay .r-details-tray .r-scroll{display:flex;flex-direction:column}
+    #rOverlay .r-details-tray .r-scroll>*{flex:none}
+    #rOverlay .r-details-tray .r-scroll>.r-tray-measurements{flex:1 1 0;min-height:max-content;display:flex;flex-direction:column;margin-bottom:10px}
+    .r-tray-measure-root{position:relative;display:flex;flex-direction:column;flex:1 1 0;height:auto;min-height:280px;border:1px solid #eaecf0;border-radius:12px;overflow:hidden;background:#f8fafc}
+    .r-tray-measurements.is-start .r-tray-measure-root{flex:none;height:auto;min-height:220px;background:#fff}
+    #rOverlay .r-details-tray .r-scroll>.r-tray-measurements.is-start{flex:none}
+    .r-tray-measure-root .sw-viewport{position:relative;flex:1;min-height:0;overflow:hidden}
+    .r-tray-measure-root .sw-panel{position:absolute;inset:0;overflow:hidden}.r-tray-measure-root .sw-panel[hidden]{display:none}
+    .r-tray-measurements.is-start .sw-viewport{overflow:visible}.r-tray-measurements.is-start [data-scope-measurement-start]{position:relative;inset:auto}
+    .r-tray-measure-root .sw-viewport>.sw-panel.fm-widget{position:absolute;inset:0;height:100%;min-height:0;aspect-ratio:auto}
+    .r-tray-measure-root .sw-doc-empty{height:100%;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;text-align:center;color:#667085;font-size:12px}
+    .r-tray-measure-root .sw-doc-empty i{font-size:24px;color:#c0c8d4}.r-tray-measure-root .sw-doc-empty strong{font-size:13px;color:#475467}
+    .r-tray-measure-root .sw-measurement-start{box-sizing:border-box;padding:22px 18px;gap:10px}
+    .r-tray-measure-root .sw-measurement-start .smm-btn{width:100%;max-width:280px;min-height:40px}
+    .r-tray-measure-root .sw-measurement-start .smm-btn:disabled{opacity:.55;cursor:default}
+    .r-tray-measure-root .sw-measurement-start>span{max-width:300px;line-height:1.5}
+    /* Phones: a full-height sheet from the left over the window, closed by its control or the dimmed window. */
+    #rOverlay.details-tray-sheet{--r-details-tray-w:min(420px,calc(100% - 44px))}
+    #rOverlay.details-tray-sheet .r-details-tray{z-index:2147483300;box-shadow:0 0 40px rgba(16,24,40,.22);border-right:0}
+    #rOverlay.details-tray-sheet .r-details-tray-head{padding-top:max(16px,env(safe-area-inset-top))}
+    #rOverlay.details-tray-sheet .r-details-tray-body{overflow:auto;padding-bottom:env(safe-area-inset-bottom)}
+    #rOverlay.details-tray-sheet .r-details-tray-scrim{display:block;position:absolute;inset:0;z-index:2147483299;border:0;padding:0;background:rgba(16,24,40,.32);opacity:0;pointer-events:none;transition:opacity .28s ease}
+    #rOverlay.details-tray-sheet.details-tray-open .r-details-tray-scrim{opacity:1;pointer-events:auto}
+    @media(prefers-reduced-motion:reduce){.r-details-tray,#rOverlay .fm-shell-header,#rOverlay .fm-project-content,.r-details-tray-scrim{transition:none!important}#rOverlay .r-details-tray-body>.r-overview-details>.r-form{animation:none!important}}
     .r-project-identity-fields{padding:14px;gap:14px}
     :is(.r-project-identity-popover,.r-overview-details) .r-contact-card,:is(.r-project-identity-popover,.r-overview-details) .r-contact-list.has-multiple .r-contact-card{border:0;border-radius:0;box-shadow:none;background:none;padding:0;margin:0}
     :is(.r-project-identity-popover,.r-overview-details) .r-contact-card+.r-contact-card{border-top:1px solid #e4e7ec;padding-top:14px}
@@ -919,10 +973,14 @@ window.PlatformCommerce.onReady(async function(){
     .r-overview-details #rStepCustomer>.r-step-shell>.r-step-inner>.r-step-body{gap:14px}
     .r-overview-details #rStepCustomer>.r-step-shell>.r-step-inner>.r-step-body>.r-group{margin:0}
     .r-overview-details .r-contact-list{gap:14px}
-    .r-overlay:has(.r-window-bar[data-window-mobile=false]) .r-overview-details .r-contact-card::before{min-height:16px;margin-bottom:8px}
     .r-overlay:has(.r-window-bar[data-window-mobile=false]):not(.firstmeasure-unordered-overview) .r-overview-details:has(.r-contact-card) #rStepAddress{border-top:0!important;padding-top:20px!important}
     .r-overlay :is(.r-project-identity-popover,.r-overview-details) .r-contact-list .r-contact-card{padding-left:0;padding-right:0}
     .r-overlay :is(.r-project-identity-popover,.r-overview-details) .r-contact-card .r-inp{box-sizing:border-box;height:32px;min-height:32px;padding:5px 8px;line-height:20px;font-size:12px;font-weight:600}
+    .r-overlay :is(.r-overview-details,.r-project-identity-popover) :is(.r-contact-primary,.r-contact-menu-btn){width:30px;height:30px;min-width:30px;border-radius:9px;font-size:11px}
+    .r-overlay :is(.r-overview-details,.r-project-identity-popover) .r-contact-actions{top:2px}
+    .r-overlay :is(.r-overview-details,.r-project-identity-popover) .r-contact-card+.r-contact-card .r-contact-actions{top:16px}
+    .r-overlay :is(.r-overview-details,.r-project-identity-popover) .r-contact-card::before{min-height:34px;display:flex;align-items:center;font-size:12px;margin-bottom:9px}
+
     .r-overview-details:has(.r-overview-initial-actions:not([hidden])) #rOrderMeasurements{display:none!important}
     .r-overlay.firstmeasure-unordered-overview .r-overview-details :is(#rStepCustomer,.r-left-bottom,#rInlineNotesMount,#rCustomerPortalLinkMount,#rProjectCustomFields,#rWorkflowDock,#rAfterHours,#rProjectionCard,#rViewerSummary){display:none!important}
     .r-overlay.firstmeasure-unordered-overview .r-overview-details #rStepAddress{border-top:0!important;padding-top:0!important}
@@ -2265,9 +2323,15 @@ window.PlatformCommerce.onReady(async function(){
       .r-photo-title{font-size:22px}
       .r-overlay.mobile-order{--r-mobile-pager-height:calc(47px + env(safe-area-inset-bottom,0px))}
       html[data-native-app="android"] .r-overlay.mobile-order{--r-mobile-pager-height:47px}
-      .r-overlay.mobile-order .r-win{padding-bottom:var(--r-mobile-pager-height);box-sizing:border-box;animation:none}
-      .r-overlay.mobile-order.mobile-order-location .r-win{padding-bottom:0}
+      .r-overlay.mobile-order .r-win{box-sizing:border-box;animation:none}
       .r-overlay.mobile-order .r-modal-header{display:none}
+      /* Make room for the ordering workspace by folding away the bars, without moving the title. */
+      .r-overlay.window-managed .fm-shell-header.r-window-bar[data-window-mobile=true]{grid-template-rows:48px 42px!important;transition:grid-template-rows .34s cubic-bezier(.22,1,.36,1)}
+      .r-overlay.window-managed .r-win>.fm-project-tray-tabs[data-placement=footer]{box-sizing:border-box;height:calc(53px + env(safe-area-inset-bottom,0px));overflow:hidden;transition:height .34s cubic-bezier(.22,1,.36,1),padding .34s cubic-bezier(.22,1,.36,1),opacity .22s ease}
+      .r-overlay.overview-order-focused .fm-shell-header.r-window-bar[data-window-mobile=true]{display:grid!important;grid-template-rows:48px 0px!important;min-height:48px!important}
+      .r-overlay.overview-order-focused .fm-shell-header.r-window-bar[data-window-mobile=true]>.fm-shell-tabs{height:0!important;min-height:0!important;overflow:hidden;visibility:hidden;pointer-events:none}
+      .r-overlay.overview-order-focused .r-win>.fm-project-tray-tabs[data-placement=footer]{height:0!important;min-height:0!important;padding:0!important;border:0!important;opacity:0;visibility:hidden;pointer-events:none}
+      @media(prefers-reduced-motion:reduce){.r-overlay.window-managed .fm-shell-header.r-window-bar[data-window-mobile=true],.r-overlay.window-managed .r-win>.fm-project-tray-tabs[data-placement=footer]{transition:none!important}}
       .r-overlay.mobile-order,
       .r-overlay.mobile-order .r-win,
       .r-overlay.mobile-order .r-overview-details,
@@ -2281,7 +2345,6 @@ window.PlatformCommerce.onReady(async function(){
       .r-overlay.mobile-order .r-preview{padding:0}
       .r-overlay.mobile-order .r-preview-stage{border:0;border-radius:0;box-shadow:none;background:transparent;overflow:hidden}
       .r-overlay.mobile-order .r-preview-panel{border:0;border-radius:0;box-shadow:none}
-      .r-overlay.mobile-order .r-preview-panel:not([data-panel="map"]):not(:has(#rMeasurementMap)){display:none!important}
       .r-overlay.mobile-order [data-panel="measurements"]:has(#rMeasurementMap){display:flex!important}
       .r-overlay.mobile-order #rMeasureTabs{display:none!important}
       .r-overlay.mobile-order .r-measure-body{inset:0}
@@ -2297,16 +2360,17 @@ window.PlatformCommerce.onReady(async function(){
       .r-overlay.mobile-order #rExpediteSubmit{display:none!important}
       .r-overlay.mobile-order .r-mobile-close{display:flex;position:fixed;top:calc(env(safe-area-inset-top,0px) + 8px);right:8px;width:38px;height:38px;border-radius:12px;background:rgba(255,255,255,.88);backdrop-filter:blur(14px);border:1px solid rgba(15,23,42,.08);z-index:96;align-items:center;justify-content:center;cursor:pointer;font-size:15px;color:#344054}
       html[data-native-app="android"] .r-overlay.mobile-order .r-mobile-close{top:8px}
-      .r-overlay.mobile-order .r-mobile-pager{height:var(--r-mobile-pager-height);position:fixed;left:0;right:0;bottom:0;z-index:95;display:flex;align-items:center;justify-content:space-between;gap:8px;padding:6px max(10px,env(safe-area-inset-left)) calc(6px + env(safe-area-inset-bottom)) max(10px,env(safe-area-inset-left));background:rgba(255,255,255,.96);border-top:1px solid rgba(15,23,42,.10);box-shadow:0 -8px 22px rgba(15,23,42,.10);box-sizing:border-box}
-      html[data-native-app="android"] .r-overlay.mobile-order .r-mobile-pager{padding-bottom:6px}
+      .r-overlay.mobile-order .r-preview-panel[data-panel="map"]>.r-mobile-pager{height:var(--r-mobile-pager-height);position:absolute;left:0;right:0;bottom:0;z-index:5;display:flex;align-items:center;justify-content:space-between;gap:8px;padding:6px max(10px,env(safe-area-inset-left)) calc(6px + env(safe-area-inset-bottom)) max(10px,env(safe-area-inset-left));background:rgba(255,255,255,.96);border-top:1px solid rgba(15,23,42,.10);box-shadow:0 -8px 22px rgba(15,23,42,.10);box-sizing:border-box}
+      .r-overlay.mobile-order:not(.mobile-order-location) .r-preview-panel[data-panel="map"]>.r-tab-content{box-sizing:border-box;padding-bottom:var(--r-mobile-pager-height)}
+      html[data-native-app="android"] .r-overlay.mobile-order .r-preview-panel[data-panel="map"]>.r-mobile-pager{padding-bottom:6px}
       .r-overlay.mobile-order.mobile-order-location .r-mobile-pager{justify-content:flex-end;background:transparent;border:0;box-shadow:none;pointer-events:none}
-      .r-overlay.mobile-order.mobile-order-location .r-mobile-pager{display:none}
+      .r-overlay.mobile-order.mobile-order-location .r-preview-panel[data-panel="map"]>.r-mobile-pager{display:none}
       .r-overlay.mobile-order.mobile-order-location .r-mobile-pager .r-mobile-page-btn{pointer-events:auto;box-shadow:0 4px 18px rgba(15,23,42,.2)}
       .r-mobile-page-btn{height:34px;border-radius:11px;border:1px solid rgba(15,23,42,.12);background:#fff;color:#344054;padding:0 12px;font-size:12px;font-weight:1000;display:inline-flex;align-items:center;justify-content:center;gap:6px;cursor:pointer}
       .r-mobile-page-btn.primary{flex:0 0 auto;min-width:96px;border-color:var(--primary,#d93025);background:var(--primary,#d93025);color:var(--on-primary,#fff);box-shadow:0 8px 18px rgba(var(--primary-rgb,217,48,37),.18)}
       .r-mobile-page-btn:disabled,.r-mobile-page-btn[aria-disabled="true"]{background:#e5e7eb;border-color:#d1d5db;color:#667085;box-shadow:none;cursor:not-allowed}
       .r-overlay.mobile-order.mobile-order-location .r-overview-details{flex:0 1 auto;gap:8px;max-height:calc(var(--fm-visual-vh,100dvh) - 180px);border-bottom:0;padding-bottom:8px}
-      .r-overlay.mobile-order.mobile-order-location .r-tab-main{display:flex;flex:1 1 auto;min-height:160px}
+      .r-overlay.mobile-order.mobile-order-location [data-panel="map"] .r-tab-main{display:flex;flex:1 1 auto;min-height:160px}
       .r-overlay.mobile-order.mobile-order-location .r-form{gap:8px}
       .r-overlay.mobile-order.mobile-order-location .r-scroll{flex:0 1 auto;scrollbar-gutter:auto}
       .r-overlay.mobile-order.mobile-order-location #rStepAddress .r-step-body{padding:0 0 6px}
@@ -2323,6 +2387,7 @@ window.PlatformCommerce.onReady(async function(){
       .r-overlay.mobile-order.mobile-order-location.mobile-scope-pending .r-map-hint{display:none!important}
       .r-overlay.mobile-order.mobile-order-location #rMobilePinStage{display:flex;flex-direction:column;gap:9px}
       .r-overlay.mobile-order.mobile-order-location #rMobilePinNext{width:100%;min-height:52px;border:0;border-radius:13px;background:var(--primary,#d93025);color:var(--on-primary,#fff);font:inherit;font-weight:800;display:flex;align-items:center;justify-content:center;gap:10px;cursor:pointer}
+      .r-overlay.mobile-order.mobile-order-location #rMobilePinNext:not([hidden]){margin-top:11px}
       .r-overlay.mobile-order.mobile-order-location #rMobilePinNext[hidden]{display:none!important}
       @media(prefers-reduced-motion:reduce){.r-overlay.mobile-order.mobile-order-location #rMobilePinStage.pin-stage-entering,.r-overlay.mobile-order.mobile-order-location #rStepType.is-type-collapsing #rTypeGroup{animation:none}}
       .r-overlay.mobile-order.mobile-order-location #rStepTypeLabel{display:none!important}
@@ -2384,9 +2449,9 @@ window.PlatformCommerce.onReady(async function(){
       .r-overlay.mobile-order.mobile-order-details .r-overview-details,
       .r-overlay.mobile-order.mobile-order-photos .r-overview-details,
       .r-overlay.mobile-order.mobile-order-final .r-overview-details{flex:1 1 auto;height:100%;max-height:none;border-bottom:0}
-      .r-overlay.mobile-order.mobile-order-details .r-tab-main,
-      .r-overlay.mobile-order.mobile-order-photos .r-tab-main,
-      .r-overlay.mobile-order.mobile-order-final .r-tab-main{display:none}
+      .r-overlay.mobile-order.mobile-order-details [data-panel="map"] .r-tab-main,
+      .r-overlay.mobile-order.mobile-order-photos [data-panel="map"] .r-tab-main,
+      .r-overlay.mobile-order.mobile-order-final [data-panel="map"] .r-tab-main{display:none}
       .r-overlay.mobile-order.mobile-order-details .r-scroll,
       .r-overlay.mobile-order.mobile-order-photos .r-scroll,
       .r-overlay.mobile-order.mobile-order-final .r-scroll{height:100%;overflow:auto}
@@ -2442,9 +2507,9 @@ window.PlatformCommerce.onReady(async function(){
       @keyframes rMobilePageInForward{from{opacity:.2;transform:translateX(26px)}to{opacity:1;transform:translateX(0)}}
       @keyframes rMobilePageInBack{from{opacity:.2;transform:translateX(-26px)}to{opacity:1;transform:translateX(0)}}
       .r-overlay.mobile-order.mobile-page-anim-forward .r-overview-details,
-      .r-overlay.mobile-order.mobile-page-anim-forward .r-tab-main{animation:rMobilePageInForward .24s cubic-bezier(.22,1,.36,1)}
+      .r-overlay.mobile-order.mobile-page-anim-forward [data-panel="map"] .r-tab-main{animation:rMobilePageInForward .24s cubic-bezier(.22,1,.36,1)}
       .r-overlay.mobile-order.mobile-page-anim-back .r-overview-details,
-      .r-overlay.mobile-order.mobile-page-anim-back .r-tab-main{animation:rMobilePageInBack .24s cubic-bezier(.22,1,.36,1)}
+      .r-overlay.mobile-order.mobile-page-anim-back [data-panel="map"] .r-tab-main{animation:rMobilePageInBack .24s cubic-bezier(.22,1,.36,1)}
       /* Existing-project details are available from the title drawer, so tabs
          can use the complete workspace instead of stacking the default column. */
       .r-overlay.mobile-info-navigation:not(.mobile-order) .r-modal-header{height:48px}
@@ -2521,9 +2586,9 @@ window.PlatformCommerce.onReady(async function(){
       .r-proposal-preview-empty .r-proposal-preview-create i,.r-proposal-preview-empty .r-proposal-preview-create span{font:inherit;color:inherit;line-height:1}
       @media (prefers-reduced-motion:reduce){
         .r-overlay.mobile-order.mobile-page-anim-forward .r-overview-details,
-        .r-overlay.mobile-order.mobile-page-anim-forward .r-tab-main,
+        .r-overlay.mobile-order.mobile-page-anim-forward [data-panel="map"] .r-tab-main,
         .r-overlay.mobile-order.mobile-page-anim-back .r-overview-details,
-        .r-overlay.mobile-order.mobile-page-anim-back .r-tab-main{animation:none}
+        .r-overlay.mobile-order.mobile-page-anim-back [data-panel="map"] .r-tab-main{animation:none}
         .r-overlay.mobile-project-notes-open .r-mobile-project-notes-workspace{animation:none}
       }
     }
@@ -2548,6 +2613,19 @@ window.PlatformCommerce.onReady(async function(){
       && !hasReportOrdered()
       && !proposalWorkspaceOpen
       && actionAvailable('roof');
+  }
+
+  // Leave the ordering UI without submitting, deleting, or replacing the project or its fields.
+  function cancelMobileReportOrdering(){
+    if (!shouldUseMobileOrderPagination() || orderSubmissionPending) return false;
+    requestedWorkflow = 'project';
+    overviewWorkflowMode = '';
+    reportProjectChoice = '';
+    reportSelection = null;
+    mobileOrderPage = 'location';
+    setActivePreviewTab('map');
+    renderWorkflowState();
+    return true;
   }
 
   function mobileProjectInfoTabEnabled(){
@@ -2735,6 +2813,7 @@ window.PlatformCommerce.onReady(async function(){
 
   function handleMobileOrderSwipeStart(event){
     if (!shouldUseMobileOrderPagination() || event.touches?.length !== 1) return;
+    if (activePreviewTab !== 'map' || !event.target?.closest?.('[data-panel="map"]')) return;
     if (event.target?.closest?.('input,textarea,select,button,a,[contenteditable="true"]')) return;
     const touch = event.touches[0];
     mobileSwipeStart = { x: touch.clientX, y: touch.clientY, t: Date.now() };
@@ -2775,6 +2854,8 @@ window.PlatformCommerce.onReady(async function(){
     overlay.classList.toggle('mobile-order-details', mobile && mobileOrderPage === 'details');
     overlay.classList.toggle('mobile-order-photos', mobile && mobileOrderPage === 'photos');
     overlay.classList.toggle('mobile-order-final', mobile && mobileOrderPage === 'final');
+    overlay.classList.toggle('overview-order-focused', mobile && activePreviewTab === 'map');
+    placeOverviewDetails();
     if (mobile && window.Portal.ExteriorOrder?.active()) window.Portal.ExteriorOrder.setMobilePage(mobileOrderPage);
     renderAfterHoursNotice();
     syncMobileProjectNotes();
@@ -3076,7 +3157,7 @@ window.PlatformCommerce.onReady(async function(){
       .r-overlay:has(.r-modal-header[data-window-mobile=true]) .r-overview-details #rStepCustomer .r-step-body{padding-bottom:0}
       .r-overlay:has(.r-modal-header[data-window-mobile=true]) .r-overview-details .r-left-bottom{padding-top:0;border-top:0}
       .r-overlay:has(.r-modal-header[data-window-mobile=true]) :is(.r-overview-details,.r-project-identity-popover) [data-contact-shortcut]{min-width:36px;width:36px;height:36px;display:inline-flex;align-items:center;justify-content:center;border-radius:10px;font-size:15px}
-      .r-overlay:has(.r-modal-header[data-window-mobile=true]) :is(.r-overview-details,.r-project-identity-popover) :is(.r-contact-primary,.r-contact-menu-btn){width:36px;height:36px}
+      .r-overlay:has(.r-modal-header[data-window-mobile=true]) .r-overview-details{padding-top:7px}
       .r-project-identity-popover.r-project-identity-sheet{left:0!important;right:0!important;top:auto!important;bottom:0!important;width:auto!important;max-width:none!important;max-height:min(72vh,calc(100% - 96px))!important;border-width:1px 0 0;border-radius:16px 16px 0 0;padding-bottom:env(safe-area-inset-bottom,0px);box-shadow:0 0 0 100vmax rgba(16,24,40,.32),0 -12px 34px rgba(16,24,40,.18);animation:rIdentitySheetIn .26s cubic-bezier(.16,1,.3,1);outline:none}
       .r-project-identity-popover.r-project-identity-sheet>header{position:sticky;top:0;z-index:1;display:flex;align-items:center;justify-content:space-between;gap:10px;padding:8px 8px 8px 16px;background:#fff;border-bottom:1px solid #f2f4f7}
       .r-project-identity-popover.r-project-identity-sheet>header strong{font-size:14px;font-weight:700;color:#101828;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
@@ -4674,7 +4755,161 @@ window.PlatformCommerce.onReady(async function(){
   function bindProjectIdentityHeader(){
     const trigger=document.getElementById('rProjectIdentityTrigger');
     if(!trigger)return;
-    trigger.onclick=event=>{event.stopPropagation();openProjectIdentityPopover(trigger);};
+    trigger.setAttribute('aria-haspopup','false');trigger.setAttribute('aria-controls','rDetailsTray');
+    trigger.onclick=event=>{event.stopPropagation();ensureOrderContactFields();setDetailsTrayOpen(!detailsTrayOpen,{user:true});};
+  }
+
+  // The project details tray is the one owner of the project's contacts, address and measurements (the Overview
+  // details form lives here). A new project, or one whose report order or picker is in progress, opens it; otherwise
+  // it keeps the person's last choice in this browser.
+  const detailsTrayText=(key,fallback)=>globalThis.PlatformLanguage?.text('project-request',key,fallback) ?? fallback;
+  const DETAILS_TRAY_PREF='firstmate.project.detailsTray';
+  let detailsTrayOpen=false,detailsTrayProjectKey=null,detailsTrayUserChoice=false;
+  function detailsTraySheet(){
+    return document.querySelector('#rOverlay .r-window-bar')?.dataset.windowMobile==='true' || isMobileProjectOrder();
+  }
+  function ensureDetailsTray(){
+    const win=document.querySelector('#rOverlay > .r-win');
+    if(!win)return null;
+    let tray=document.getElementById('rDetailsTray');
+    if(tray)return tray;
+    tray=document.createElement('aside');tray.id='rDetailsTray';tray.className='r-details-tray';
+    tray.setAttribute('aria-label',detailsTrayText('details_tray_label','Project details'));
+    tray.innerHTML=`<header class="r-details-tray-head"><i class="fas fa-folder-open" aria-hidden="true" data-details-tray-icon></i><h2 class="r-details-tray-title" data-details-tray-title></h2><button type="button" class="r-details-tray-close" data-details-tray-close></button></header><div class="r-details-tray-body" data-details-tray-body></div>`;
+    const close=tray.querySelector('[data-details-tray-close]'),hide=detailsTrayText('details_tray_hide','Hide project details');
+    close.setAttribute('aria-label',hide);close.dataset.fmTooltip=hide;close.innerHTML='<i class="fas fa-angles-left" aria-hidden="true"></i>';
+    close.onclick=()=>{setDetailsTrayOpen(false,{user:true});document.getElementById('rProjectIdentityTrigger')?.focus({preventScroll:true});};
+    const scrim=document.createElement('button');scrim.type='button';scrim.className='r-details-tray-scrim';scrim.tabIndex=-1;
+    scrim.setAttribute('aria-label',hide);scrim.onclick=()=>setDetailsTrayOpen(false,{user:true});
+    win.append(scrim,tray);
+    syncDetailsTrayTitle();
+    const title=document.getElementById('rWindowProjectTitle');
+    if(title)new MutationObserver(syncDetailsTrayTitle).observe(title,{childList:true,subtree:true,characterData:true});
+    return tray;
+  }
+  function syncDetailsTrayTitle(){
+    const tray=document.getElementById('rDetailsTray');if(!tray)return;
+    const source=document.getElementById('rWindowProjectTitle'),text=(source?.querySelector('strong')?.textContent || source?.textContent || '').trim();
+    const title=tray.querySelector('[data-details-tray-title]');
+    if(title.textContent!==text){title.textContent=text;title.title=text;}
+    const icon=document.querySelector('#rOverlay .fm-shell-identity>i:first-child,#rOverlay .r-window-identity>i:first-child'),mirror=tray.querySelector('[data-details-tray-icon]');
+    if(icon && mirror){mirror.className=icon.className;mirror.style.color=getComputedStyle(icon).color;}
+  }
+  // The project details form's home: the tray, except on a phone while the report order's pages are showing, which
+  // keep it in Overview exactly as before.
+  function placeOverviewDetails(details=document.querySelector('#rOverlay .r-overview-details')){
+    if(!details)return;
+    const overlay=document.getElementById('rOverlay');
+    const inOrderPages=overlay?.classList.contains('mobile-order') && detailsTraySheet();
+    const home=inOrderPages ? document.querySelector('#rOverlay [data-panel="map"] > .r-tab-content') : ensureDetailsTray()?.querySelector('[data-details-tray-body]');
+    if(home && details.parentElement!==home)home.prepend(details);
+    if(inOrderPages && detailsTrayOpen)setDetailsTrayOpen(false);
+  }
+  function setDetailsTrayOpen(open,options={}){
+    const overlay=document.getElementById('rOverlay'),tray=ensureDetailsTray();
+    if(!overlay || !tray)return;
+    if(options.user){detailsTrayUserChoice=true;try{localStorage.setItem(DETAILS_TRAY_PREF,open?'open':'closed');}catch{}}
+    const sheet=detailsTraySheet();overlay.classList.toggle('details-tray-sheet',sheet);
+    syncDetailsTrayTop();
+    if(open)placeOverviewDetails();
+    if(open===detailsTrayOpen && overlay.classList.contains('details-tray-open')===open)return;
+    const motion=!window.matchMedia?.('(prefers-reduced-motion: reduce)').matches && overlay.isConnected && overlay.offsetWidth>0;
+    const headerTitle=document.querySelector('#rWindowProjectTitle strong') || document.getElementById('rWindowProjectTitle');
+    const trayTitle=tray.querySelector('[data-details-tray-title]'),headerIcon=document.querySelector('#rOverlay .fm-shell-identity>i:first-child'),trayIcon=tray.querySelector('[data-details-tray-icon]');
+    const before=open ? [headerTitle?.getBoundingClientRect(),headerIcon?.getBoundingClientRect()] : null;
+    detailsTrayOpen=open;
+    overlay.classList.toggle('details-tray-open',open);
+    document.getElementById('rProjectIdentityTrigger')?.setAttribute('aria-expanded',String(open));
+    tray.toggleAttribute('inert',!open);
+    // The header's title and icon grow into the tray's: animate each from where the header drew it. The tray
+    // slides in with the same easing, so the offset it is still carrying is added to the starting position.
+    if(open && motion && !sheet){
+      syncDetailsTrayTitle();
+      const width=tray.offsetWidth,animation={duration:340,easing:'cubic-bezier(.22,1,.36,1)'};
+      const flip=(node,from)=>{
+        if(!node || !from?.width)return;
+        const saved=tray.style.transform;tray.style.transition='none';tray.style.transform='none';
+        const to=node.getBoundingClientRect();tray.style.transform=saved;void tray.offsetWidth;tray.style.transition='';
+        if(!to.width)return;
+        const scale=Math.min(1,from.height/to.height);
+        node.animate([{transform:`translate(${from.left-to.left+width}px,${from.top-to.top}px) scale(${scale})`},{transform:'none'}],animation);
+      };
+      flip(trayTitle,before[0]);flip(trayIcon,before[1]);
+    }
+    if(open && sheet)tray.querySelector('[data-details-tray-close]')?.focus({preventScroll:true});
+    if(open)syncTrayMeasurements();
+    setTimeout(()=>window.dispatchEvent(new Event('resize')),360);
+  }
+  // Runs with the Overview workflow render: applies the default for a project the window has just shown.
+  function syncDetailsTray(){
+    if(!ensureDetailsTray())return;
+    syncDetailsTrayTitle();
+    const key=String(projectOpenId() || (activeBaseProject ? 'unsaved' : 'new'));
+    const workflow=!!overviewWorkflowMode || (requestedWorkflow==='report' && !hasReportOrdered());
+    if(key!==detailsTrayProjectKey){
+      const fresh=detailsTrayProjectKey===null || !projectOpenId();
+      detailsTrayProjectKey=key;detailsTrayUserChoice=false;
+      let remembered='';try{remembered=localStorage.getItem(DETAILS_TRAY_PREF)||'';}catch{}
+      setDetailsTrayOpen(!projectOpenId() || workflow || (fresh && remembered==='open') || remembered==='open');
+    }else if(workflow && !detailsTrayOpen && !detailsTrayUserChoice)setDetailsTrayOpen(true);
+    placeOverviewDetails();
+    syncTrayMeasurements();
+  }
+  // The tray's divider begins where the header's bottom edge is.
+  function syncDetailsTrayTop(){
+    const overlay=document.getElementById('rOverlay'),header=overlay?.querySelector('.fm-shell-header,.r-modal-header');
+    if(header?.offsetHeight)overlay.style.setProperty('--r-details-tray-top',header.offsetHeight+'px');
+  }
+  window.addEventListener('resize',()=>{
+    const overlay=document.getElementById('rOverlay');if(!overlay?.querySelector('#rDetailsTray'))return;
+    syncDetailsTrayTop();
+    const sheet=detailsTraySheet();
+    if(sheet!==overlay.classList.contains('details-tray-sheet')){overlay.classList.toggle('details-tray-sheet',sheet);placeOverviewDetails();}
+  });
+  window.addEventListener('keydown',event=>{
+    if(event.key==='Escape' && detailsTrayOpen && document.getElementById('rOverlay')?.classList.contains('details-tray-sheet')){event.preventDefault();event.stopImmediatePropagation();setDetailsTrayOpen(false,{user:true});}
+  },true);
+
+  // Measurements under the address: the Operations Measurements view in its measurements-only form (the 3D
+  // report model and entries made by hand), or the measurement ordering widget when there are none. Hidden while
+  // a report order or the new-project picker is using the form.
+  const trayMeasurements={key:'',loadedAt:0,loading:null,documents:[],error:'',overrides:{}};
+  const scopeWorkspaceModuleUrl='/libraries/apps/materials/scope-of-work.js?v=20261027-details-tray';
+  function syncTrayMeasurements(){
+    const details=document.querySelector('#rOverlay .r-overview-details');
+    if(!details)return;
+    let section=details.querySelector('#rTrayMeasurements');
+    if(!section){
+      section=document.createElement('section');section.id='rTrayMeasurements';section.className='r-tray-measurements';
+      section.innerHTML=`<header><span>${escapeHtml(detailsTrayText('details_tray_measurements','Measurements'))}</span></header><div class="r-tray-measure-root" data-tray-measure-root></div>`;
+    }
+    const anchor=details.querySelector('#rOrderMeasurements') || details.querySelector('#rStepType') || details.querySelector('#rStepAddress');
+    if(anchor && anchor.nextElementSibling!==section)anchor.after(section);
+    const orgId=projectOrgId(),projectId=projectOpenId();
+    const busy=requestedWorkflow==='report' && !hasReportOrdered();
+    section.hidden=busy || !orgId || !detailsTrayOpen;
+    if(section.hidden)return;
+    const key=orgId+':'+(projectId || 'draft');
+    if(key!==trayMeasurements.key){Object.assign(trayMeasurements,{key,loadedAt:0,loading:null,documents:[],error:'',overrides:{}});}
+    if(trayMeasurements.loading){trayMeasurements.again=true;return;}
+    const loadDocs=projectId && Date.now()-trayMeasurements.loadedAt>60000;
+    trayMeasurements.loading=import(scopeWorkspaceModuleUrl).then(async module=>{
+      if(loadDocs){
+        const result=await module.loadDocuments(orgId,projectId,{loadReportAssets:async()=>null}).catch(error=>({documents:[],error:error.message||'Measurements could not load.'}));
+        if(trayMeasurements.key!==key)return;
+        trayMeasurements.documents=result.documents||[];trayMeasurements.error=result.error||'';trayMeasurements.loadedAt=Date.now();
+      }
+      if(trayMeasurements.key!==key || !section.isConnected)return;
+      const root=section.querySelector('[data-tray-measure-root]');
+      const documents=trayMeasurements.documents.filter(doc=>['measurement','manual'].includes(doc.source));
+      module.mountSidebar(root,documents,trayMeasurements.error,key,{measurementsOnly:true,draft:!projectId,
+        canOrderMeasurements:firstMeasureReportOrdersEnabled() && hasPerm('order_reports') && !hasReportOrdered(),
+        reportPending:reportOrderIsActivelyPending(),onOrderMeasurements:()=>startMeasurementOrder(),
+        widgetContext:{surface:'project',target:{scope:'project',organizationId:orgId,projectId}},
+        measurementOverrides:trayMeasurements.overrides,onMeasurementChange:(name,value)=>{trayMeasurements.overrides={...trayMeasurements.overrides,[name]:value};}});
+      const startShown=!!root.querySelector('[data-scope-measurement-start]:not([hidden])') || !!root.querySelector('[data-scope-draft-empty]');
+      section.classList.toggle('is-start',startShown);
+    }).catch(()=>{}).finally(()=>{trayMeasurements.loading=null;if(trayMeasurements.again){trayMeasurements.again=false;syncTrayMeasurements();}});
   }
   document.addEventListener('pointerdown',event=>{
     if(projectIdentityPopover && !projectIdentityPopover.menu.contains(event.target) && !projectIdentityPopover.trigger.contains(event.target) && !event.target.closest('.pac-container,.r-contact-suggestions,.r-contact-action-menu,.r-contact-picker'))closeProjectIdentityPopover();
@@ -7103,6 +7338,7 @@ window.PlatformCommerce.onReady(async function(){
     // deprecated Proposals tab both land on the unified Docs tab.
     if (!allowed.includes(tab) && ['documents', 'proposal'].includes(tab) && allowed.includes('docs')) tab = 'docs';
     activePreviewTab = allowed.includes(tab) ? tab : projectDefaultPreviewTab();
+    $('#rOverlay')?.classList.toggle('overview-order-focused', shouldUseMobileOrderPagination() && activePreviewTab === 'map');
     proposalWorkspaceOpen = proposalsEnabled() && activePreviewTab === 'proposal';
     if (activePreviewTab !== 'proposal') proposalSettingsPanelOpen = false;
     if (!proposalWorkspaceOpen) {
@@ -7258,6 +7494,8 @@ window.PlatformCommerce.onReady(async function(){
         return reportSelection;
       },
       shouldUseExpandedOverviewMap: () => shouldUseExpandedOverviewMap(),
+      isMobileReportOrdering: () => shouldUseMobileOrderPagination() && activePreviewTab === 'map',
+      cancelMobileReportOrdering: () => cancelMobileReportOrdering(),
       getIncludeGutterMeasurements: () => includeGutterMeasurements,
       setIncludeGutterMeasurements: (value) => {
         includeGutterMeasurements = !!value;
@@ -7515,10 +7753,18 @@ window.PlatformCommerce.onReady(async function(){
       restored=!!details?.children.length;
       if(restored)bindProjectModalFormControls();
     }
-    const overview=document.querySelector('#rOverlay [data-panel="map"] > .r-tab-content');
-    if(details && overview && details.parentElement!==overview)overview.prepend(details);
+    placeOverviewDetails(details);
+    placeMobileOrderPager();
     placeProjectCustomFields();
     return restored;
+  }
+  // The pager belongs to Overview and moves with its panel; preserve the same buttons and handlers on rebuild.
+  function placeMobileOrderPager(){
+    const pager=document.getElementById('rMobilePager');
+    const panel=document.querySelector('#rOverlay .r-preview-panel[data-panel="map"]');
+    const store=document.getElementById('rOverviewDetailsStore');
+    const target=panel || store;
+    if(pager && target && pager.parentElement!==target)target.append(pager);
   }
   // Project custom fields show on the right of Overview, in the Overview app's fields slot. They rest in the
   // details form whenever that slot is not mounted, so they survive tab rebuilds and the hidden details store.
@@ -7667,7 +7913,11 @@ window.PlatformCommerce.onReady(async function(){
     const validPanels = new Set(projectModalApps().map((app) => app.id).filter(Boolean));
     stage.querySelectorAll('.r-preview-panel[data-panel]').forEach((panel) => {
       const panelId = panel.dataset.panel || '';
-      if (!validPanels.has(panelId)) panel.remove();
+      if (!validPanels.has(panelId)) {
+        const pager=panelId==='map' ? document.getElementById('rMobilePager') : null;
+        if(pager)document.getElementById('rOverviewDetailsStore')?.append(pager);
+        panel.remove();
+      }
     });
   }
 
@@ -7681,6 +7931,8 @@ window.PlatformCommerce.onReady(async function(){
     const details=document.querySelector('#rOverlay .r-overview-details');
     returnProjectCustomFields(details);
     if(details)document.getElementById('rOverviewDetailsStore')?.append(details);
+    const pager=document.getElementById('rMobilePager');
+    if(pager)document.getElementById('rOverviewDetailsStore')?.append(pager);
     stage.innerHTML = projectModalAppPanelsHtml();
     ensureOverviewDetails();
   }
@@ -7688,6 +7940,8 @@ window.PlatformCommerce.onReady(async function(){
   function renderProjectModalTabError(tab, phase, error){
     const panelRoot = document.querySelector(`#rOverlay .r-preview-panel[data-panel="${cssEscape(tab?.id || '')}"]`);
     if (!panelRoot || tab?.id !== activePreviewTab) return;
+    const pager=tab.id==='map' ? document.getElementById('rMobilePager') : null;
+    if(pager)document.getElementById('rOverviewDetailsStore')?.append(pager);
     panelRoot.innerHTML = `
       <div class="r-report-pending">
         <div class="r-report-pending-card">
@@ -9678,6 +9932,8 @@ window.PlatformCommerce.onReady(async function(){
     if (!firstMeasureReportOrdersEnabled() || !hasPerm('order_reports') || hasReportOrdered()) return false;
     requestedWorkflow='report';overviewWorkflowMode='report';reportProjectChoice=activeBaseProject?'existing':'new';reportSelection='roof';locationConfirmed=false;
     preloadFirstReportCheckoutEligibility();setActivePreviewTab('map');renderWorkflowState();queueAutosaveNotice();
+    // The order is the details form's work, so the project details tray shows it.
+    if (!(isMobileProjectOrder() && $('#rOverlay')?.classList.contains('mobile-order'))) setDetailsTrayOpen(true);
     if (!addressSelected) $('#rAddress')?.focus();
     return true;
   }
@@ -9699,7 +9955,8 @@ window.PlatformCommerce.onReady(async function(){
     if(actionAnchor && actionAnchor.nextElementSibling!==actions)actionAnchor.after(actions);
     overlay.classList.toggle('firstmeasure-unordered-overview',requestedWorkflow==='project' && !expandedPlatformEnabled() && !hasReportOrdered());
     actions.hidden=requestedWorkflow!=='project' || !addressSelected || !selectedType;
-    const choices=[['roof',(globalThis.PlatformLanguage?.text('project-request','overview_order_report','Order report') ?? 'Order report'),firstMeasureReportOrdersEnabled() && !hasReportOrdered()],['proposal',(globalThis.PlatformLanguage?.text('project-request','overview_build_proposal','Build proposal') ?? 'Build proposal'),actionAvailable('proposal')],['schedule',(globalThis.PlatformLanguage?.text('project-request','overview_schedule_appointment','Schedule appointment') ?? 'Schedule appointment'),actionAvailable('schedule')]].filter(item=>item[2]);
+    // A report order starts from the measurement ordering widget beneath these fields, not from here.
+    const choices=[['roof',(globalThis.PlatformLanguage?.text('project-request','overview_order_report','Order report') ?? 'Order report'),false],['proposal',(globalThis.PlatformLanguage?.text('project-request','overview_build_proposal','Build proposal') ?? 'Build proposal'),actionAvailable('proposal')],['schedule',(globalThis.PlatformLanguage?.text('project-request','overview_schedule_appointment','Schedule appointment') ?? 'Schedule appointment'),actionAvailable('schedule')]].filter(item=>item[2]);
     const signature=choices.map(item=>item[0]+':'+item[1]).join(',');
     if (actions.dataset.choices!==signature) {
       actions.dataset.choices=signature;actions.replaceChildren();
@@ -9747,6 +10004,7 @@ window.PlatformCommerce.onReady(async function(){
     }
     picker.hidden=!selecting;
     updateModalTitle();
+    syncDetailsTray();
     if(reveal && !window.matchMedia('(prefers-reduced-motion: reduce)').matches){
       overlay.querySelector('.r-window-identity')?.animate([{opacity:.4,transform:'translateY(9px)'},{opacity:1,transform:'none'}],{duration:240,easing:'cubic-bezier(.22,1,.36,1)'});
       overlay.querySelectorAll('#rProjectViewerTabs button').forEach((button,index)=>button.animate([{opacity:0,transform:'translateX(-18px)'},{opacity:1,transform:'none'}],{duration:240,delay:Math.min(index,8)*22,easing:'cubic-bezier(.22,1,.36,1)',fill:'backwards'}));
@@ -11596,9 +11854,10 @@ window.PlatformCommerce.onReady(async function(){
       const trayInteraction=projectTrays?.interactionVersion();
       loadBranchProjectConfig().then(() => {
         if (trayInteraction!==projectTrays?.interactionVersion() || trayGeneration !== projectTrayOpenGeneration || !overlay.classList.contains('active')) return;
-        const key = branchProjectConfig.default_project_tray ?? 'notes';
-        // A tray on a phone covers the whole project, so phones open none by default; desktop keeps the branch setting.
-        if (key && key !== 'off' && !isMobileProjectOrder() && projectTrays?.available().includes(key)) projectTrays.select(key);
+        const key = branchProjectConfig.default_project_tray ?? 'off';
+        // Notes open only when requested by the person, across every project/report entry path.
+        // Phones keep all trays closed; desktop may still use another configured default.
+        if (key && key !== 'off' && key !== 'notes' && !isMobileProjectOrder() && projectTrays?.available().includes(key)) projectTrays.select(key);
       });
     }
     try { if (options.layout) projectWindowShell?.apply(options.layout); }

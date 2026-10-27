@@ -33,6 +33,27 @@ node tools/live-layer/live-sync.mjs clear      # take this checkout's files out 
 
 ## Parts
 
+### Rollout preflight: preserve the served version
+
+Before a rollout changes any browser file, inspect `live-sync.mjs status` and
+the live manifest for **every changed path**, including recent `retired` entries.
+The immutable release alone is not the current frontend source: a live overlay
+may contain additional user changes. Capture and merge the active served file
+onto the release payload, or reconcile its owner checkout if it was retired as
+`conflict`. Recheck the live hashes immediately before activation; stop and
+reconcile if an owner edited them while the release was being prepared.
+
+`conflict` means the release changed under an overlay. It does **not** mean the
+overlay's behavior was incorporated. The timer removes that overlay to avoid
+mixing incompatible code, which can expose an older UI. A successful health
+check or released-file hash does not verify preservation. Verify the affected
+workflow and commit the recovered source and regression test before finishing.
+
+The October 26 mobile ordering regression occurred because a rollout included
+the release's project-request script but omitted its live overlay. The map
+overlay survived while its host callbacks disappeared. See the
+[recovery record](../../deploy/digitalocean/development-mobile-order-recovery-20261026.md).
+
 | Where | What |
 |---|---|
 | `tools/live-layer/live-sync.mjs` | Runs beside a checkout (droplet or PC). Sends every changed browser file to the receiver; `status` lists the layer, `clear` takes files out. |

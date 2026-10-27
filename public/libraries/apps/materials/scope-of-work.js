@@ -5,7 +5,7 @@ const label = value => String(value || '').replace(/([a-z])([A-Z])/g,'$1 $2').re
 const money = (value,currency='USD') => {try{return new Intl.NumberFormat(undefined,{style:'currency',currency}).format(value);}catch{return `${number(value)} ${currency}`;}};
 
 // Membership comes from persisted publications, never a document type or module draft.
-export async function loadDocuments(orgId, projectId) {
+export async function loadDocuments(orgId, projectId, options = {}) {
   const api = window.PlatformAPI, base = api.baseUrl().replace(/\/platform\/?$/, '');
   const org = encodeURIComponent(orgId), project = encodeURIComponent(projectId);
   const target = {scope:'project',organizationId:orgId,projectId};
@@ -13,7 +13,8 @@ export async function loadDocuments(orgId, projectId) {
   const results = await Promise.allSettled([
     api.request(`${base}/materials/organizations/${org}/projects/${project}/calculus`),
     api.request(`${base}/documents/organizations/${org}/projects/${project}/documents`),
-    (async()=>{const rows=[];let cursor;do {const page=await api.publication.list(orgId,source,{limit:200,...(cursor?{cursor}:{})});rows.push(...page.items);cursor=page.nextCursor;}while(cursor);return rows;})()
+    (async()=>{const rows=[];let cursor;do {const page=await api.publication.list(orgId,source,{limit:200,...(cursor?{cursor}:{})});rows.push(...page.items);cursor=page.nextCursor;}while(cursor);return rows;})(),
+    Promise.resolve().then(()=>options.loadReportAssets?.())
   ]);
   const documents = [], failures = results.filter(r=>r.status==='rejected');
   const ledger = results[0].status==='fulfilled' ? results[0].value.ledger : null;
@@ -77,13 +78,32 @@ export async function loadDocuments(orgId, projectId) {
     const manual=await api.publication.read(orgId,{provider:'measurement-schemas',export:'manual',target});
     if(manual.status==='ready')documents.push({id:'manual-measurements',source:'manual',form:manual.value,reportReady:completedReport?.status==='ready'});
   }catch{}
+  if(results[3]?.status==='fulfilled')documents.push(...reportDocuments(results[3].value));
   documents.sort((a,b)=>a.source.localeCompare(b.source)||String(a.title).localeCompare(String(b.title))||a.id.localeCompare(b.id));
   return {documents,error:failures.length?'Some published scope data could not load.':''};
 }
 
-// One selectable entry per accepted document, like the Photos thumbnail row.
+// Report references are files, not accepted scope publications or material origins.
+export function reportDocuments(assets = {}) {
+  return [
+    ['roof_report_pdf','Roof Measurement Report','reportUrl',''],
+    ['customer_report_pdf','Customer Roof Report','summaryUrl','fa-user'],
+    ['roof_report_xml','Roof Report XML','xmlUrl','fa-code']
+  ].flatMap(([id,title,key,badge])=>assets?.[key] ? [{id,source:'report_asset',title,url:assets[key],badge,xml:key==='xmlUrl'}] : []);
+}
+function reportIcon(doc) {
+  return `<span class="sw-report-icon" aria-hidden="true"><i class="fas fa-ruler-combined"></i>${doc.badge?`<i class="fas ${esc(doc.badge)} sw-report-icon-badge"></i>`:''}</span>`;
+}
 export function renderDocumentStrip(documents=[],selectedId='') {
-  return documents.filter(d=>d.source==='document').map(doc=>{const count=doc.sets?.reduce((n,s)=>n+s.lines.length,0) || 0;return `<button type="button" class="sw-doc-thumb" data-scope-document="${esc(doc.id)}" aria-pressed="${doc.id===selectedId}" title="${esc(doc.title)}"><i class="fas fa-file-signature" aria-hidden="true"></i><span><strong>${esc(doc.title)}</strong><small>${esc([doc.total,'Accepted '+label(doc.document_type).toLowerCase(),count?`${count} material${count===1?'':'s'}`:''].filter(Boolean).join(' · '))}</small></span></button>`;}).join('');
+  return documents.filter(d=>['document','report_asset'].includes(d.source)).map(doc=>{
+    const report=doc.source==='report_asset',count=doc.sets?.reduce((n,s)=>n+s.lines.length,0) || 0;
+    const summary=report ? (doc.xml?'XML':'PDF') : [doc.total,'Accepted '+label(doc.document_type).toLowerCase(),count?`${count} material${count===1?'':'s'}`:''].filter(Boolean).join(' · ');
+    return `<button type="button" class="sw-doc-thumb" data-scope-document="${esc(doc.id)}" aria-pressed="${doc.id===selectedId}" title="${esc(doc.title)}">${report?reportIcon(doc):'<i class="fas fa-file-signature" aria-hidden="true"></i>'}<span><strong>${esc(doc.title)}</strong><small>${esc(summary)}</small></span></button>`;
+  }).join('');
+}
+function reportDetail(doc) {
+  const link=`<a href="${esc(doc.url)}" target="_blank" rel="noopener" ${doc.xml?'download="roof-report.xml"':''}>${doc.xml?'Download XML':'Open PDF'}</a>`;
+  return `<header><h2 tabindex="-1">${esc(doc.title)}</h2>${link}</header>${doc.xml?`<div class="sw-report-file">${reportIcon(doc)}<span>Roof measurements XML</span></div>`:`<iframe class="sw-report-preview" title="${esc(doc.title)}" src="${esc(doc.url)}#view=FitH"></iframe>`}`;
 }
 function detail(doc) {
   const materials=(doc.sets || []).map(set=>`<section><h3>${esc(set.title)}</h3>${set.lines.length?`<div class="sw-table-wrap"><table><thead><tr><th>Material</th><th>Required</th><th>Order quantity</th><th>Unit cost</th></tr></thead><tbody>${set.lines.map(line=>`<tr><td><strong>${esc(line.name)}</strong>${line.variant?`<small>${esc(line.variant)}</small>`:''}${line.explanation?`<small>${esc(line.explanation)}</small>`:''}${line.group||line.structure?`<small>${esc([line.group,line.structure].filter(Boolean).join(' · '))}</small>`:''}</td><td>${esc(number(line.quantity))} ${esc(line.unit)}</td><td>${esc(number(line.order_quantity))} ${esc(line.order_unit)}</td><td>${line.unit_cost==null?'—':esc(money(line.unit_cost,line.currency))}</td></tr>`).join('')}</tbody></table></div>`:'<p class="sw-empty">This accepted document published a material calculation. Quantities have not been generated yet.</p>'}${set.evaluations?.find(e=>e.id===set.applied_evaluation)?.warnings?.map(w=>`<p class="sw-empty">${esc(w)}</p>`).join('') || ''}</section>`).join('');
@@ -104,11 +124,13 @@ const VIEWS=[['roof','fa-ruler-combined','Measurements'],['documents','fa-file-s
 export function mountSidebar(root,documents,error,contextKey,options={}) {
   let state=sidebars.get(root);
   // An organization with scheduling off has no Schedule view here at all.
-  const scheduling=options.scheduling!==false;
-  if(!state || state.contextKey!==contextKey || state.scheduling!==scheduling){
+  // The project details tray shows the Measurements view alone (options.measurementsOnly): no tabs, documents, photos or schedule.
+  const only=options.measurementsOnly===true;
+  const scheduling=options.scheduling!==false&&!only;
+  if(!state || state.contextKey!==contextKey || state.scheduling!==scheduling || state.only!==only){
     disposeSidebar(root);
-    state={contextKey,scheduling,views:VIEWS.filter(([key])=>scheduling||key!=='schedule'),selected:null,handle:null,view:'roof',widgets:{},visible:true,generation:0};sidebars.set(root,state);
-    root.innerHTML=`<div class="sw-viewport"><div class="sw-panel" data-scope-panel="roof"></div><div class="sw-panel sw-manual" data-scope-manual hidden></div><button type="button" class="smm-flip" data-scope-manual-flip hidden><i class="fas fa-pen-ruler" aria-hidden="true"></i><span>${esc(text('mm_flip_entries','Your entries'))}</span></button><div class="sw-panel" data-scope-panel="documents" hidden></div><div class="sw-panel" data-scope-panel="aerial" hidden></div>${scheduling?'<div class="sw-panel sw-schedule" data-scope-panel="schedule" hidden></div>':''}</div><nav class="sw-tabs" role="tablist" aria-label="Project views">${state.views.map(([key,icon,title])=>`<button type="button" role="tab" aria-label="${title}" aria-selected="${state.view===key}" tabindex="${state.view===key?0:-1}" data-scope-view="${key}" title="${title}"><i class="fas ${icon}" aria-hidden="true"></i><span>${title}</span></button>`).join('')}</nav>`;
+    state={contextKey,scheduling,only,views:VIEWS.filter(([key])=>only?key==='roof':scheduling||key!=='schedule'),selected:null,handle:null,view:'roof',widgets:{},visible:true,generation:0};sidebars.set(root,state);
+    root.innerHTML=`<div class="sw-viewport"><div class="sw-panel" data-scope-panel="roof"></div><div class="sw-panel sw-manual" data-scope-manual hidden></div><button type="button" class="smm-flip" data-scope-manual-flip hidden><i class="fas fa-pen-ruler" aria-hidden="true"></i><span>${esc(text('mm_flip_entries','Your entries'))}</span></button>${only?'':'<div class="sw-panel" data-scope-panel="documents" hidden></div><div class="sw-panel" data-scope-panel="aerial" hidden></div>'}${scheduling?'<div class="sw-panel sw-schedule" data-scope-panel="schedule" hidden></div>':''}</div>${only?'':`<nav class="sw-tabs" role="tablist" aria-label="Project views">${state.views.map(([key,icon,title])=>`<button type="button" role="tab" aria-label="${title}" aria-selected="${state.view===key}" tabindex="${state.view===key?0:-1}" data-scope-view="${key}" title="${title}"><i class="fas ${icon}" aria-hidden="true"></i><span>${title}</span></button>`).join('')}</nav>`}`;
     const tabs=[...root.querySelectorAll('[data-scope-view]')];
     tabs.forEach((tab,index)=>{
       tab.onclick=()=>{state.view=tab.dataset.scopeView;showViews(root,state);tab.focus();};
@@ -118,7 +140,7 @@ export function mountSidebar(root,documents,error,contextKey,options={}) {
     state.measurementViewers=new Set();
     // Mount both report views once, before the user selects them. Their DOM,
     // network results and viewer state survive all local tab changes.
-    for(const key of ['roof','aerial']){
+    for(const key of only?['roof']:['roof','aerial']){
       const stage=root.querySelector(`[data-scope-panel="${key}"]`);
       if(key==='aerial'){
         let handle,disposed=false,visible=false;
@@ -142,11 +164,12 @@ export function mountSidebar(root,documents,error,contextKey,options={}) {
   state.fingerprint=fingerprint;state.documents=documents;state.error=error;
   // Documents: the selected accepted document fills the viewer and every accepted document sits in the strip beneath it.
   const drawDocuments=()=>{
-    const panel=root.querySelector('[data-scope-panel="documents"]'),accepted=state.documents.filter(d=>d.source==='document');
+    const panel=root.querySelector('[data-scope-panel="documents"]'),accepted=state.documents.filter(d=>['document','report_asset'].includes(d.source));
+    if(!panel)return;
     const selected=accepted.find(d=>d.id===state.selected)||accepted[0]||null,key=JSON.stringify([accepted,selected?.id,state.error]);
     if(state.documentsKey===key)return;
     state.documentsKey=key;state.selected=selected?.id||null;state.stageObserver?.disconnect();state.handle?.destroy?.();state.handle=null;const generation=++state.generation;
-    panel.innerHTML=`<div class="sw-docs"><div class="sw-detail sw-doc-viewer">${selected?detail(selected):`<div class="sw-doc-empty" role="status"><i class="fas fa-file-lines" aria-hidden="true"></i><strong>No document selected</strong><span>${esc(state.error || 'Signed proposals and contracts for this project open here.')}</span></div>`}</div><div class="sw-doc-strip" aria-label="Accepted documents">${accepted.length?renderDocumentStrip(accepted,selected.id):'<span class="sw-doc-strip-empty">No documents yet</span>'}</div></div>`;
+    panel.innerHTML=`<div class="sw-docs"><div class="sw-detail sw-doc-viewer">${selected?(selected.source==='report_asset'?reportDetail(selected):detail(selected)):`<div class="sw-doc-empty" role="status"><i class="fas fa-file-lines" aria-hidden="true"></i><strong>No document selected</strong><span>${esc(state.error || 'Reports, signed proposals and contracts for this project open here.')}</span></div>`}</div><div class="sw-doc-strip" aria-label="Project documents">${accepted.length?renderDocumentStrip(accepted,selected.id):'<span class="sw-doc-strip-empty">No documents yet</span>'}</div></div>`;
     panel.querySelectorAll('[data-scope-document]').forEach(button=>button.onclick=()=>{state.selected=button.dataset.scopeDocument;drawDocuments();[...panel.querySelectorAll('[data-scope-document]')].find(b=>b.dataset.scopeDocument===state.selected)?.focus();});
     const stage=panel.querySelector('[data-scope-stage]');
     if(stage){stage.textContent='Loading accepted document…';renderer().then(()=>{
@@ -177,6 +200,16 @@ export function manualMeasurementMode(form,reportReady){
   if(!form.available||form.in_use?.source==='other')return 'none';
   return 'edit';
 }
+/**
+ * The measurement ordering widget: No measurements, Order measurement report and Add measurements manually. The
+ * Operations Measurements view and the project details tray both start a report order here; ordering itself is the
+ * host's existing order session (onOrder) and is unchanged.
+ */
+export function mountMeasurementStart(node,{canOrder=false,pending=false,canEnter=false,onOrder,onEnter}={}){
+  node.innerHTML=`<div class="sw-doc-empty sw-measurement-start" role="status" data-measurement-start><i class="fas fa-ruler-combined" aria-hidden="true"></i><strong>${esc(text('measurement_start_empty','No measurements.'))}</strong>${pending?`<span>${esc(text('measurement_start_pending','Your measurement report is on order. You can enter measurements while you wait.'))}</span>`:''}${canOrder?`<button type="button" class="smm-btn primary" data-scope-order>${esc(text('measurement_start_order','Order measurement report'))}</button>`:''}<button type="button" class="smm-btn" data-scope-enter ${canEnter?'':'disabled'}>${esc(text('measurement_start_manual','Add measurements manually'))}</button></div>`;
+  node.querySelector('[data-scope-order]')?.addEventListener('click',()=>onOrder?.());
+  node.querySelector('[data-scope-enter]')?.addEventListener('click',()=>onEnter?.());
+}
 // Resolved when first needed: a test may load this module from a data: URL, against which nothing resolves.
 const manualEditorUrl=()=>new URL('./manual-measurements.js?v=20261025-intro-tooltip',import.meta.url).href;
 function drawManual(root,state,contextKey){
@@ -189,11 +222,8 @@ function drawManual(root,state,contextKey){
   if(!start){start=document.createElement('div');start.className='sw-panel';start.dataset.scopeMeasurementStart='';start.hidden=true;root.querySelector('.sw-viewport').append(start);}
   state.measurementStartShown=!!empty&&!state.manualEntryRequested;
   if(state.measurementStartShown){
-    const canOrder=state.options?.canOrderMeasurements===true, pending=state.options?.reportPending===true;
-    const canEnter=mode==='edit';
-    start.innerHTML=`<div class="sw-doc-empty sw-measurement-start" role="status"><i class="fas fa-ruler-combined" aria-hidden="true"></i><strong>${esc(text('measurement_start_empty','No measurements.'))}</strong>${pending?`<span>${esc(text('measurement_start_pending','Your measurement report is on order. You can enter measurements while you wait.'))}</span>`:''}${canOrder?`<button type="button" class="smm-btn primary" data-scope-order>${esc(text('measurement_start_order','Order measurement report'))}</button>`:''}<button type="button" class="smm-btn" data-scope-enter ${canEnter?'':'disabled'}>${esc(text('measurement_start_manual','Add measurements manually'))}</button>${!canEnter?`<span>${esc(text('measurement_start_scope','Add a scope with a measurement schema to enter its measurements manually.'))}</span>`:''}</div>`;
-    start.querySelector('[data-scope-order]')?.addEventListener('click',()=>state.options?.onOrderMeasurements?.());
-    start.querySelector('[data-scope-enter]')?.addEventListener('click',()=>{state.manualEntryRequested=true;drawManual(root,state,contextKey);});
+    mountMeasurementStart(start,{canOrder:state.options?.canOrderMeasurements===true,pending:state.options?.reportPending===true,canEnter:mode==='edit',
+      onOrder:()=>state.options?.onOrderMeasurements?.(),onEnter:()=>{state.manualEntryRequested=true;drawManual(root,state,contextKey);}});
     if(!state.manualStyled){state.manualStyled=true;import(manualEditorUrl()).then(module=>module.ensureStyles?.()).catch(()=>{state.manualStyled=false;});}
   }
   if(mode!=='compare')state.manualOpen=false;
