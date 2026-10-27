@@ -94,7 +94,9 @@ function organization() {
     const storage = await import("../platform/storage.js");
     const signup = await import("../signup-sandbox/service.js");
     await signup.ensureSeedData();
-    const { authContext: ctx } = await signup.createTestInstance("swf_instant_full_org");
+    const { authContext } = await signup.createTestInstance("swf_instant_full_org");
+    await (await import("../platform/app-experience/activation.js")).startOfferedApp(authContext, "project.docs");
+    const ctx = await (await import("../platform/auth.js")).buildAuthContext(authContext.sessionId, authContext.session);
     const project = await (await import("./helpers/project-contacts.js")).upsertProjectWithContacts(ctx.orgId, { id: "project_sales_docs", data: { title: "Whitfield residence", branch_id: "default", address: "68 Northfield Rd", contacts: [{ name: "Dana Whitfield", email: "dana@example.test", primary: true }] } });
     const publication = await import("../platform/publication/context.js");
     (await import("../platform/publication/bootstrap.js")).initializePublication();

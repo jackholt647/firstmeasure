@@ -55,6 +55,8 @@ before(async () => {
   await signup.ensureSeedData();
   const instance = await signup.createTestInstance("swf_instant_full_org");
   auth = instance.authContext as PlatformAuthContext; orgId = auth.orgId;
+  await (await import("../platform/app-experience/activation.js")).startOfferedApp(auth, "project.docs");
+  auth = await (await import("../platform/auth.js")).buildAuthContext(auth.sessionId, auth.session);
   await (await import("../signup-sandbox/roofing-documents.js")).seedInstantRoofingDocuments(orgId, auth);
   documents = await import("../documents/service.js");
   documentStore = await import("../documents/storage.js");

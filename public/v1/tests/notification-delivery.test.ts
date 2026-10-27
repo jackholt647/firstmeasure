@@ -50,3 +50,11 @@ test("in-app sound, bell and badge remain independent of push", () => {
   assert.equal(notificationPresentation({ in_app_bell: { messages: true } }, { source: "channels", kind: "huddle_invite" }).bell, false);
   assert.equal(notificationPresentation({ in_app_bell: { system: true } }, { source: "calls", category: "system" }).bell, true);
 });
+
+
+test('message bell fallback preserves delivery opt-outs and badge choices', () => {
+ const note={kind:'channel_message',category:'messages'};
+ assert.deepEqual(notificationPresentation({in_app_bell:{messages:false},in_app_badge:{messages:false}},note,{messagesInboxEnabled:false}),{sound:true,bell:true,badge:false});
+ assert.deepEqual(notificationPresentation({in_app:{messages:false}},note,{messagesInboxEnabled:false}),{sound:false,bell:false,badge:false});
+ assert.equal(notificationPresentation({in_app_bell:{system:false}},{category:'system'},{messagesInboxEnabled:false}).bell,false);
+});

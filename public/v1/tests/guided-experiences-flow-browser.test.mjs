@@ -53,7 +53,7 @@ function server(){
     if(url.pathname.endsWith('/dev/copy')&&request.method()==='PUT'){state.copySaves.push(body);state.overrides[body.key]=body.text;return json({saved:{revision:state.copySaves.length}});}
     if(url.pathname.endsWith('/dev/copy/history'))return json({history:[]});
     if(url.pathname.endsWith('/dev/reset')){state.resets.push(body);delete state.progress[body.experience_id];return json({experience_id:body.experience_id,scope:body.scope,progress:1,exposures:0,conversation_lines:0});}
-    if(url.pathname.endsWith('/experiences'))return json(applyCopy({...(state.dev?{dev:{editor:true,experiences:[SETUP,TOUR].map(e=>({id:e.id,title:e.title,kind:e.kind,scope:e.scope}))}}:{}),copy_overrides:state.overrides,experiences:list(),reveals:finished(TOUR.id)?[]:[{tab:'project.materials',when:{'project.has_report':true},experience:TOUR.id}],faqs:url.searchParams.get('tab')==='project.materials'?FAQS:null}));
+    if(url.pathname.endsWith('/experiences'))return json(applyCopy({...(state.dev?{dev:{editor:true,experiences:[SETUP,TOUR].map(e=>({id:e.id,title:e.title,kind:e.kind,scope:e.scope}))}}:{}),copy_overrides:state.overrides,experiences:list(),reveals:[],faqs:url.searchParams.get('tab')==='project.materials'?FAQS:null}));
     const id=decodeURIComponent(url.pathname.split('/experiences/')[1]?.split('/')[0]||'');
     if(url.pathname.endsWith('/events')){
       state.events.push({id,...body,at:Date.now()});
@@ -236,17 +236,17 @@ test('the tour after the setup and the tab trigger never stack',async()=>{
 
 const tabsOf=frame=>frame().evaluate(()=>[...document.querySelectorAll('#tabs [data-tab]')].map(b=>b.dataset.tab));
 
-test('Materials shows only on projects with a report until the tour is done, then everywhere, live and in order',async()=>{
+test('Operations shows before measurements and before the tour, on saved projects and drafts',async()=>{
   const browser=await launch(),srv=server();
   srv.state.progress[SETUP.id]='completed';
   try{
-    // No report, tour not done: no Materials tab. The organization's order is kept for the rest.
+    // No report, tour not done: Operations is still present. The organization's order is kept for the rest.
     let {tab,errors,frame}=await open(browser,srv,{project:'p2',silent:true});
-    await frame().waitForFunction(()=>window.tabRenders>=1);
-    assert.deepEqual(await tabsOf(frame),['project.photos','project.map','project.customer_portal']);
+    await frame().waitForFunction(()=>document.querySelectorAll('#tabs [data-tab]').length===4);
+    assert.deepEqual(await tabsOf(frame),['project.photos','project.materials','project.map','project.customer_portal']);
     // A project with a report shows it.
     const second=await open(browser,srv,{project:'p1',silent:true});
-    await second.frame().waitForFunction(()=>window.tabRenders>=1);
+    await second.frame().waitForFunction(()=>document.querySelectorAll('#tabs [data-tab]').length===4);
     assert.deepEqual(await tabsOf(second.frame),['project.photos','project.materials','project.map','project.customer_portal']);
     await second.tab.close();
     // Going through the tour (here, closing it) shows Materials on this project too, without a reload.

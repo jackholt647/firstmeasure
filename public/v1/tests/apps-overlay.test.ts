@@ -43,7 +43,7 @@ function manifestApps() {
   return registered;
 }
 
-const OVERLAY_FUNCTIONS = ["cleanText", "advancedAppMenuEnabled", "portalAppPlacement", "appSetupDescription", "normalizeAppStatusPills", "launcherAppInExperience", "appLauncherEntries", "launcherSetupPending", "openLauncherEntry"];
+const OVERLAY_FUNCTIONS = ["cleanText", "advancedAppMenuEnabled", "portalAppPlacement", "appSetupDescription", "normalizeAppStatusPills", "portalAppPill", "launcherAppInExperience", "appLauncherEntries", "launcherSetupPending", "openLauncherEntry"];
 
 type Org = { capabilities: Record<string, unknown>; placements: Record<string, string> };
 
@@ -204,4 +204,28 @@ test("the Pricebook page mounts the shared renderer and draws it again when show
   app.onShow();
   handle.destroy();
   assert.deepEqual(mounts, [["configure", "org_1"], ["mount", "fm-pricebook-page"], ["destroy"], ["configure", "org_1"], ["mount", "fm-pricebook-page"], ["destroy"]]);
+});
+
+
+test("offered global apps keep a New badge in the app launcher", () => {
+  const { context, calls, declareSetup } = portal({ capabilities: { "apps.equipment": true }, placements: {} });
+  context.TabRegistry.tabs.get('equipment').entitlement={offered:true};
+  context.window.FirstMateTabGuides = { pill:(id:string) => id === 'portal.equipment' ? {kind:'new',label:'New'} : null };
+  const equipment = context.appLauncherEntries().find((entry:any) => entry.appId === 'portal.equipment');
+  assert.equal(equipment.statusPills.some((pill:any) => pill.label === 'New'), true);
+  declareSetup('apps.equipment','required','not_started');
+  context.openLauncherEntry({...equipment,setup:context.appSetupDescription('apps.equipment')});
+  assert.deepEqual(calls.splice(0),[['close'],['open','equipment']],'offered apps open their welcome before any setup');
+  context.window.FirstMateTabGuides.pill = () => null;
+  assert.equal(context.appLauncherEntries().find((entry:any) => entry.appId === 'portal.equipment').statusPills.some((pill:any) => pill.label === 'New'), false);
+});
+
+test("activating a global offer destroys its welcome so the host mounts the real app", () => {
+  let destroyed=0;
+  const context:any=vm.createContext({window:{},console,cleanText:(value:any)=>String(value||''),TabRegistry:{tabs:new Map([['equipment',{entitlement:{offered:true}}]]),handles:new Map([['equipment',{destroy(){destroyed++;}}]]),mounted:new Set(['equipment'])}});
+  vm.runInContext(coreFunction('setPortalTabEntry'),context);
+  context.setPortalTabEntry({id:'equipment',appId:'portal.equipment',entitlement:{offered:false}});
+  assert.equal(destroyed,1);
+  assert.equal(context.TabRegistry.mounted.has('equipment'),false);
+  assert.equal(context.TabRegistry.handles.has('equipment'),false);
 });

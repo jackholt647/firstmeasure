@@ -4,7 +4,8 @@ import { badRequest, conflict, notFound } from "../platform/errors.js";
 import { getWorkforceDatabase } from "./storage.js";
 import { resolveOrganizationStructure, type OrganizationStructure } from './organization-structure.js';
 import { resolveScopedAccessGrants, type ScopedAccessGrant } from './department-access.js';
-import { effectiveCapabilities } from '../platform/capabilities.js';
+import { availableOfferedApps, effectiveCapabilities } from '../platform/capabilities.js';
+import { APP_WELCOMES, type OfferedAppId } from '../platform/app-experience/offers.js';
 import { appDefinitions, canonicalAppId, type AppDefinition, type AppSurface } from "../platform/app-experience/registry.js";
 import { deviceTypeIds, isDeviceTypeId, type DeviceId } from "../platform/app-experience/devices.js";
 import { CREW_PERMISSION_KEYS, PAYROLL_PERMISSION_KEYS, SALES_PERMISSION_KEYS } from "./permission-keys.js";
@@ -83,6 +84,9 @@ export type AppSettingSource = "app_default" | "role_default" | "department_defa
 
 /** One app as one person gets it. */
 export type EffectiveAppEntitlement = AppDefinition & {
+  /** Discoverable but not yet operational for the organization. */
+  offered?: boolean;
+  welcome?: typeof APP_WELCOMES[OfferedAppId];
   /** Device type -> shown, for every device the app exists on. */
   visible: Record<DeviceId, boolean>;
   visible_devices: DeviceId[];
@@ -903,6 +907,7 @@ export type MembershipAppLayer = { source: "department_default" | "group_default
  */
 export function resolveAppEntitlements(input: {
   effectiveByKey: Record<string, unknown>;
+  offeredAppIds?: readonly string[];
   roles?: AccessRole[];
   membership?: MembershipAppLayer[];
   overrides?: Record<string, AppSetting>;
@@ -912,7 +917,8 @@ export function resolveAppEntitlements(input: {
   const membership = input.membership || [];
   const overrides = input.overrides || {};
   const permissions = input.permissions || {};
-  return organizationAppCatalog(input.effectiveByKey).map((app): EffectiveAppEntitlement => {
+  const offered = new Set(input.offeredAppIds || []);
+  return appDefinitions().filter(app => appEnabledForOrganization(app, input.effectiveByKey) || offered.has(app.id)).map((app): EffectiveAppEntitlement => {
     const visible: Record<DeviceId, boolean> = {};
     const deviceSources: Record<DeviceId, AppSettingSource> = {};
     const roleSettings = roles.flatMap((role) => {
@@ -989,6 +995,7 @@ export function resolveAppEntitlements(input: {
     else if (!visibleDevices.length) reasons.push("app_not_selected");
     return {
       ...app,
+      ...(offered.has(app.id) ? { offered: true, welcome: APP_WELCOMES[app.id as OfferedAppId] } : {}),
       visible,
       visible_devices: visibleDevices,
       allowed: visibleDevices.length > 0,
@@ -1016,7 +1023,7 @@ export function resolveAppEntitlements(input: {
 export async function resolveAccessProfile(
   orgIdValue: string,
   userDataValue: unknown,
-  options: { effectiveByKey?: Record<string, unknown> } = {}
+  options: { effectiveByKey?: Record<string, unknown>; offeredAppIds?: readonly string[] } = {}
 ): Promise<ResolvedAccessProfile> {
   const orgId = (await ensureAccessDefaults(orgIdValue));
   const user = unwrappedUserData(userDataValue);
@@ -1050,6 +1057,7 @@ export async function resolveAccessProfile(
   const effectiveByKey = options.effectiveByKey || (await effectiveCapabilities(orgId, cleanText(user.id || user.user_id) || undefined)).effectiveByKey;
   const entitlements = resolveAppEntitlements({
     effectiveByKey,
+    offeredAppIds: options.offeredAppIds || await availableOfferedApps(orgId, cleanText(user.id || user.user_id) || undefined),
     roles: [...roles, ...scopedRoles.filter((role) => !roles.includes(role))],
     membership,
     overrides: normalizeAppDefaults(user.app_access_overrides),

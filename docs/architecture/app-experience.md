@@ -77,6 +77,49 @@ on joining (`member_role_ids`), and those roles bring their apps
 
 ## The browser
 
+### Offered apps
+
+Photos, Documents, Customer Portal and Materials begin as pending offers in new
+organizations (`global.data.app_offers`). The configured organization switches
+are still the ceiling: an off or commercially unavailable app is not advertised.
+Existing organizations without this field retain their current active apps.
+The welcome definitions and capability groups live in `app-experience/offers.ts`.
+Feed (`platform.photos_feed`) is an independent app: an offered project Photos
+app never disables the organization Feed.
+
+`capabilityAccessState` resolves offered discovery and operational capabilities
+from the same organization snapshot. Pending capability groups are masked before
+dependency resolution, so integrations and dependent features remain off. Exact
+offered app IDs join the entitlement catalog, then follow the usual role,
+department, group, user and device visibility rules. Their entitlement carries
+`offered` and `welcome`. Discovery never grants operational app access.
+
+The embeddable runtime mounts the shared `app-runtime/app-welcome.js`
+advertisement while preparing the offered app's bundles in the background. Code
+registration does not mount the app or read its operational data. Get Started
+activates the app, refreshes guide eligibility before the host redraw, and
+crossfades into the mounted app. The explicit start skips the normal setup delay. It has designed HTML
+and CSS, real localized copy and a Get Started button; it is not a new guide
+engine. Opening it neither records `seen_tabs` nor launches a guide, and New
+remains visible regardless of personal seen history.
+
+`POST /v1/platform/organizations/:orgId/app-offers/:appId/start` requires a
+verified organization session, CSRF, and an app the caller can see. Anyone with
+that visibility can currently activate it; `mayStartOfferedApp` is the single
+policy point for later permissions. The writer atomically removes only that
+offer and records who started it. It never enables a configured-off switch.
+Repeated or concurrent acceptance is harmless. Session/capability refresh then
+mounts the real app and lets the existing guided-experience runtime run its setup
+or tour. Other sessions see the organization state on their next refresh.
+
+Public signup initializes pending offers; sandbox signup does so after seeding
+sample content. Development operators may reset selected welcome screens with
+`PUT /v1/platform/organizations/:orgId/app-offers` and `{ apps: [...] }`; this
+reset endpoint refuses production. It does not erase any app data.
+
+Tests: `app-offers.test.ts`, `app-experience.test.ts`, and
+`app-welcome-browser.test.mjs`.
+
 The session (`GET /v1/platform/auth/session`) returns `app_entitlements` and
 `app_experience: { device_types, app_ids }`. The runtime
 (`app-runtime/firstmate-embeddable-apps.js`) sorts the browser into one device
@@ -227,6 +270,15 @@ and every app's devices and switches, in `tests/access-gates.snapshot.json`.
 Accept a deliberate change with `UPDATE_ACCESS_GATES=1`.
 
 ## Rules
+
+Operations uses the existing `project.materials` app id. Its welcome advertisement
+activates the organization offer only after Get Started, then opens the shared
+Operations guide. The guide can offer Equipment globally as `portal.equipment`
+without activating `apps.equipment`; that sidebar entry retains New until its
+Get Started action activates it for the organization. A resource column is
+separate from app visibility: initial Operations setup keeps Labor hidden until
+configured and Equipment hidden until its capability is active. Existing saved
+column settings and existing labor work remain visible.
 
 - Do not add an application id, an office or field flag, or a role
   "application". Show different apps to different roles in App experience.

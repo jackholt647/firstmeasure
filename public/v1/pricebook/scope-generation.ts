@@ -418,7 +418,9 @@ const GUTTER_REPLACEMENT: PieceRecipe = {
 };
 
 // Keyed by the scope template the piece sells, so signing starts that scope.
-const RECIPES: Record<string, PieceRecipe> = { roof_replacement: ROOF_REPLACEMENT, gutters: GUTTER_REPLACEMENT };
+const RECIPES: Record<string, PieceRecipe> = { roof_replacement: ROOF_REPLACEMENT, gutters: GUTTER_REPLACEMENT, siding_replacement: {
+  root:{name:'Siding replacement',description:'Wall covering and trim.'},ensure:['siding_panel','siding_trim'],addons:[],choices:[]
+} };
 /** Other ways to price the same piece: "options" offers it as Good / Better / Best. */
 const VARIANTS: Record<string, Record<string, PieceRecipe>> = { roof_replacement: { options: ROOF_REPLACEMENT_OPTIONS } };
 

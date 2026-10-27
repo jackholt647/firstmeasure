@@ -277,11 +277,14 @@ const definitions: CapabilityDefinition[] = [
   },
   {
     key: "platform.photos_feed",
-    kind: "feature",
-    parent: "platform.project_photos",
+    kind: "app",
+    icon: "fa-layer-group",
+    category: "Project Delivery",
     label: "Feed",
     description: "The organization-wide media, document, and activity feed, including photo comments and markup review workflows.",
-    default: false
+    catalog_stub: "Company posts, media, and activity.",
+    default: false,
+    runtime_app_id: "photos_feed"
   },
   {
     key: "platform.project_docs",
@@ -1191,6 +1194,15 @@ const definitions: CapabilityDefinition[] = [
     parent: "platform.top_bar",
     label: "To Do Menu",
     description: "Show the global to-do list in a dockable header tray, independently of the left column.",
+    default: true
+  },
+  {
+    key: "topbar.messages",
+    kind: "setting",
+    parent: "platform.top_bar",
+    requires: ["apps.channels"],
+    label: "Messages Notifications",
+    description: "Show a separate Messages inbox in the header. When off, mentions and message notifications appear in the notification bell instead.",
     default: true
   },
   {

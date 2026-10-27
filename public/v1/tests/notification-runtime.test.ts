@@ -377,3 +377,76 @@ test('scope registration derives scope identity from its actual work plan within
  const children=await notificationStore().prepare('SELECT event_json FROM notification_recipients WHERE organization_id=? AND user_id=?').all(orgId,userId);
  assert.equal(children.length,1);assert.equal(JSON.parse(String(children[0]!.event_json)).payload.scope_template_id,'roofing-scope');assert.equal(JSON.parse(String(children[0]!.event_json)).payload.work_plan_id,'right-plan');
 });
+
+
+test('disabling the Messages surface routes retained messages, mentions and replies to the bell with recipient preferences and state intact', async () => {
+ const client=createSessionClient(),{orgId,userId}=await register(client);
+ const {saveCapabilityValues}=await import('../platform/capabilities.js');
+ const {upsertDocument,readDocument}=await import('../platform/storage.js');
+ const {listVisibleNotifications}=await import('../platform/notifications/view.js');
+ await saveCapabilityValues(orgId,{'platform.top_bar':true,'apps.channels':true,'topbar.messages':true});
+ const channels=await import('../channels/storage.js');
+ const channel=await channels.createChannelRecord({organization_id:orgId,type:'private',name:'Private messages',created_by:userId});
+ await channels.upsertChannelMember({organization_id:orgId,channel_id:channel.id,user_id:userId});
+ const message=await channels.createMessageRecord({organization_id:orgId,channel_id:channel.id,author_id:'teammate',text:'A message'});
+ const notes=[
+  {id:'fallback-dm',kind:'channel_message',category:'messages'},
+  {id:'fallback-mention',kind:'mention',category:'mentions',source:'channels'},
+  {id:'fallback-reply',source:'channels',preference_key:'channel_replies'},
+  {id:'fallback-other',source:'channels',category:'messages',target_user_ids:['someone-else']},
+  {id:'fallback-branch',source:'channels',category:'messages',branch_id:'other'},
+  {id:'fallback-expired',source:'channels',category:'messages',expires_at:'2000-01-01T00:00:00Z'}
+ ];
+ for(const note of notes)await upsertDocument(orgId,'notifications',{id:note.id,data:{title:'Message',context:{channel_id:channel.id,message_id:message.id},created_at:new Date().toISOString(),target_user_ids:[userId],branch_id:'default',...note}});
+ // A materialized default inbox placement must not strand messages when there is no Messages surface.
+ await upsertDocument(orgId,'users',{id:userId,data:{notification_preferences:{in_app_bell:{messages:false},in_app_badge:{mentions:false}},notification_state:{'fallback-dm':{seen_at:new Date().toISOString()}}}},{replace:false});
+ const before=await readDocument(orgId,'notifications','fallback-dm');
+ assert.equal((await listVisibleNotifications(orgId,userId)).notifications.length,0);
+ await saveCapabilityValues(orgId,{'topbar.messages':false});
+ const fallback=await listVisibleNotifications(orgId,userId);
+ assert.deepEqual(fallback.notifications.map(n=>n.id).sort(),['fallback-dm','fallback-mention','fallback-reply']);
+ assert.equal(fallback.unread_count,1,'seen DM and badge-disabled mention do not count');
+ assert.equal(fallback.active_count,3);
+ await channels.removeChannelMember(channel.id,userId);
+ assert.equal((await listVisibleNotifications(orgId,userId)).notifications.length,0,'removed private-channel members cannot see retained bell entries');
+ await channels.upsertChannelMember({organization_id:orgId,channel_id:channel.id,user_id:userId});
+ assert.deepEqual(await readDocument(orgId,'notifications','fallback-dm'),before,'surface switching does not rewrite or redeliver');
+ await upsertDocument(orgId,'users',{id:userId,data:{notification_preferences:{in_app:{messages:false,mentions:false,channel_replies:false}},notification_state:{'fallback-dm':{seen_at:new Date().toISOString()}}}},{replace:false});
+ assert.equal((await listVisibleNotifications(orgId,userId)).notifications.length,0,'delivery opt-outs still win');
+ await upsertDocument(orgId,'users',{id:userId,data:{notification_preferences:{},notification_state:{'fallback-dm':{dismissed_at:new Date().toISOString()},'fallback-mention':{completed_at:new Date().toISOString()}}}},{replace:false});
+ assert.deepEqual((await listVisibleNotifications(orgId,userId)).notifications.map(n=>n.id),['fallback-reply']);
+ await saveCapabilityValues(orgId,{'topbar.messages':true});
+ assert.equal((await listVisibleNotifications(orgId,userId)).notifications.length,0,'restoring Messages restores the split for retained entries');
+});
+
+
+test('actual photo and separate project-note tags reach Messages or the bell and recheck photo access', async () => {
+ const client=createSessionClient(),{orgId,userId}=await register(client);
+ const storage=await import('../platform/storage.js');
+ const {saveCapabilityValues}=await import('../platform/capabilities.js');
+ await saveCapabilityValues(orgId,{'platform.top_bar':true,'apps.channels':true,'channels.project_notes':true,'channels.separate_project_notes':true,'topbar.messages':true});
+ const identity=await storage.createIdentity({email:`author-${orgId}@example.test`,name:'Author'});
+ await storage.addIdentityMembership(String(identity.id),orgId,'author','owner');
+ await storage.upsertDocument(orgId,'users',{id:'author',data:{identity_id:identity.id,name:'Author',status:'active',role:'owner',org_permissions:{level:'owner',items:{}}}});
+ const {backgroundAuthContext}=await import('../platform/auth.js');
+ const author=await backgroundAuthContext(orgId,'author'),recipient=await backgroundAuthContext(orgId,userId);
+ await storage.storeMediaUpload(orgId,{id:'tag-photo',ownerType:'project',ownerId:'tag-project',fileName:'roof.jpg',contentType:'image/jpeg',bytes:Buffer.from('fixture')});
+ await createProject(client,orgId,'tag-project');
+ const domain=await import('../channels/service.js');
+ const photo=await (await import('../channels/photo-comments.js')).ensurePhotoDiscussion(author,'tag-photo');
+ const photoPost=await domain.postMessage(author,String(photo.id),{text:'Please check this photo',project_note:true,mention_users:[{id:userId,name:'Owner'}]});
+ const project=await (await import('../channels/storage.js')).createChannelRecord({organization_id:orgId,type:'project',name:'Project notes',project_id:'tag-project',created_by:'author'});
+ const notePost=await domain.postMessage(author,project.id,{text:'Please check this note',project_note:true,mention_users:[{id:userId,name:'Owner'}]});
+ const {listVisibleNotifications}=await import('../platform/notifications/view.js');
+ assert.equal((await listVisibleNotifications(orgId,userId)).notifications.length,0);
+ const inbox=await domain.personalInbox(recipient);
+ for(const post of [photoPost,notePost])assert.ok(inbox.entries.some(e=>e.related_message_id===post.message!.id),'tag occurrence is available in Messages');
+ await saveCapabilityValues(orgId,{'topbar.messages':false});
+ const bell=await listVisibleNotifications(orgId,userId);
+ assert.equal(bell.notifications.length,2);
+ assert.ok(bell.notifications.some(n=>(n as any).frontend_action.kind==='open_project_photo'));
+ await domain.markRead(recipient,String(photo.id),Number(photoPost.message!.seq));
+ assert.equal((await listVisibleNotifications(orgId,userId)).notifications.length,1,'reading the photo discussion clears its retained notification');
+ await domain.deleteMessage(author,String(notePost.message!.id));
+ assert.equal((await listVisibleNotifications(orgId,userId)).notifications.length,0,'deleted note cannot leak retained text');
+});

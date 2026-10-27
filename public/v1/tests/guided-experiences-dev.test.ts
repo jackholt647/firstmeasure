@@ -73,7 +73,7 @@ test("development tools: who may use them, copy for everyone, history, revert, e
   await assert.rejects(() => dev.resetExperience(plainOwner, { experience_id: "materials.tab_tutorial" }), /development/i);
   const mine = await dev.resetExperience(admin, { experience_id: "materials.tab_tutorial", scope: "me" });
   assert.equal(mine.progress, 1);
-  assert.equal((await service.availableExperiences(admin, {})).reveals.length, 1, "reset, so the reveal applies again");
+  assert.equal((await service.availableExperiences(admin, {})).reveals.length, 0, "resetting a tour never hides Operations");
   assert.equal((await service.availableExperiences(plainOwner, {})).reveals.length, 0, "only mine");
   assert.equal(await store.wasExposed(PLAIN, "materials.tab_tutorial", `person:${PLAIN}:admin`), false, "counted as new");
   assert.equal((await service.availableExperiences(admin, {})).experiences.some((entry) => entry.id === "materials.pricebook_setup.roofing"), false, "the setup is done");

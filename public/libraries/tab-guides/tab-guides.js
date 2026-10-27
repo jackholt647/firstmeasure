@@ -112,8 +112,18 @@
     return saveChain;
   }
 
+  function offered(appId){
+    const user = root.Portal?.currentUser || {};
+    for (const value of [user.appEntitlements, user.entitlements, user.accessProfile?.app_entitlements]) {
+      const entry = Array.isArray(value) ? value.find(app => app.id === appId) : value?.[appId];
+      if (entry?.offered === true) return true;
+    }
+    return false;
+  }
+
   function pill(appId){
     const id = lower(appId);
+    if (offered(id)) return { kind:'new', label:text('tg_pill_new', 'New') };
     const kind = lower(settings().pills[id]).replace(/[\s-]+/g, '_');
     if (kind === 'new') return hasSeen(SEEN_TABS, id) ? null : { kind:'new', label:text('tg_pill_new', 'New') };
     if (kind === 'coming_soon') return { kind:'coming_soon', label:text('tg_pill_coming_soon', 'Coming soon') };
@@ -231,6 +241,7 @@
     const id = lower(appId);
     if (!id) return false;
     injectStyles();
+    if (offered(id)) { container?.querySelector?.(':scope > .fm-tab-help')?.remove(); return false; }
     // Guided experiences (docs/architecture/guided-experiences.md) play tab tours; this hook only announces the tab.
     root.dispatchEvent?.(new CustomEvent('fm:project-tab:opened', { detail:{ appId:id, tabId, isActive } }));
     if (root.FirstMateGuides) { container?.querySelector?.(':scope > .fm-tab-help')?.remove(); }

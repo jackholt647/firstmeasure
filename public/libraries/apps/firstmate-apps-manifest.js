@@ -275,7 +275,7 @@
     {
       id: 'project.materials',
       package: 'materials',
-      title: (globalThis.PlatformLanguage?.text("firstmate-apps-manifest","m_9d3e82ecfd10ec","Scope") ?? "Scope"),
+      title: (globalThis.PlatformLanguage?.text("firstmate-apps-manifest","project_operations_title","Operations") ?? "Operations"),
       terminologyKey: 'scope.project_tab',
       icon: 'fa-clipboard-list',
       kind: 'project_modal_app',

@@ -148,6 +148,10 @@ work("roofing.ridge_cap", "Hip and ridge cap", "ft", "Cap the hips and ridges.")
 work("roofing.valleys", "Valleys", "ft", "Line and finish the valleys.");
 work("roofing.wall_flashing", "Wall flashing", "ft", "Flash where the roof meets a wall.");
 work("roofing.cleanup", "Clean up", "job", "Clear the site and sweep for nails.");
+work("gutters.remove", "Remove existing gutters", "ft", "Take down the gutter runs being replaced.");
+work("gutters.install", "Install gutters", "ft", "Hang the replacement gutter runs.");
+work("siding.remove", "Remove existing siding", "ft2", "Remove the wall covering being replaced.");
+work("siding.install", "Install siding", "ft2", "Install replacement wall covering.");
 // A function is a capacity the job needs, whoever supplies it. It is not specific to one trade.
 registerWorkItem({ id: "disposal.debris", label: "Debris disposal", kind: "function", unit: "yd3", per_load_default: true, description: "Somewhere for the torn-off material to go: a dumpster, a dump trailer or truck, or a company that hauls it away." });
 

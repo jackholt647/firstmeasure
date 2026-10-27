@@ -85,6 +85,8 @@
   /** The open project and project tab, from the route (portal core.js): `project` and `projectTab`. */
   function where(){
     const route = object(root.Portal?.navigation?.read?.());
+    const portalTab = clean(route.tab);
+    if (portalTab && portalTab !== 'viewer') return { projectId: '', tab: portalTab.includes('.') ? portalTab : `portal.${portalTab}` };
     const projectTab = clean(route.projectTab);
     const project = clean(route.project) || lastProject;
     return { projectId: project, tab: projectTab ? (projectTab.includes('.') ? projectTab : `project.${projectTab}`) : '' };
@@ -114,7 +116,7 @@
       const snapshot = snapshots.get(snapshotKey(projectId));
       if (snapshot) return snapshot;
       // The list is read for the page's own project; another project's tabs are not showing here.
-      if (!clean(projectId) || where().projectId !== clean(projectId)) return null;
+      if (where().projectId !== clean(projectId)) return null;
       if (!(await refresh())) return null;
     }
     return snapshots.get(snapshotKey(projectId)) || null;
@@ -219,7 +221,7 @@
       root.dispatchEvent?.(new CustomEvent('fm:guides:playing', { detail: { id: experience.id } }));
       track(experience, options.replay ? 'replay' : 'exposure');
       if (!options.replay) track(experience, 'start');
-      outcome = await player({ experience, api, track: (type, extra) => track(experience, type, extra), where, L, esc, reducedMotion, options, control });
+      outcome = await player({ experience, api, track: (type, extra) => track(experience, type, extra), where, L, esc, reducedMotion, options, control, playChild });
       return outcome || { status: 'ended' };
     } finally {
       state.playing = null;
@@ -229,6 +231,31 @@
       if (shared.active === token) shared.active = null;
       if (experience) root.dispatchEvent?.(new CustomEvent('fm:guides:ended', { detail: { id: experience.id } }));
       refresh(true).finally(nextInQueue);
+    }
+  }
+
+  // A setup may open another existing guide and return to its checklist. The page's lock
+  // stays with the parent: unrelated tab triggers cannot interrupt either experience.
+  async function playChild(id,childOptions={}){
+    if (!shared.active || shared.active.frame !== root || !state.current) return { status:'unavailable' };
+    const parent = state.current, parentPlaying = state.playing;
+    await refresh(true);
+    const experience = state.experiences.get(clean(id));
+    if (!experience || experience.id === parent.experience.id) return { status:'unavailable' };
+    const replay=!!experience.progress && experience.progress.status !== 'started';
+    if (replay && (!experience.replayable || childOptions.replay===false)) return { status:'done' };
+    const player = kinds.get(experience.kind);
+    if (!player) return { status:'unavailable' };
+    const control = {};
+    state.current = { experience, control }; state.playing = experience.id;
+    try {
+      track(experience, replay?'replay':'exposure'); if(!replay)track(experience, 'start');
+      const outcome = await player({ experience, api, track:(type, extra)=>track(experience,type,extra), where, L, esc, reducedMotion, options:{ nested:true,replay }, control, playChild });
+      if (['completed','dismissed'].includes(outcome?.status)) markFinished(experience.id,outcome.status);
+      return outcome || { status:'ended' };
+    } finally {
+      state.current = parent; state.playing = parentPlaying;
+      await refresh(true);
     }
   }
 
@@ -349,6 +376,8 @@
    * tab plays it again. A setup (modal or agentic) covers the whole page and its write is the organization's, not the
    * tab's, so it carries on; only the tour that would follow it is held to the tab.
    */
+  const activatedTabs = new Set();
+  root.addEventListener('fm:app-offer:starting', event => { if (event.detail?.appId) activatedTabs.add(event.detail.appId); });
   function onTabOpened(event){
     const tab = clean(event?.detail?.appId);
     if (!tab) return;
@@ -359,7 +388,7 @@
     // The host announces the same tab again when it redraws: one arming per visit.
     if (state.visit.armed) return;
     state.visit.armed = true;
-    const bound = { generation: state.visit.generation, isActive, projectId };
+    const bound = { generation: state.visit.generation, isActive, projectId, activated: activatedTabs.delete(tab) };
     // From the preload when this frame has it (synchronously), else once the project's list has been read.
     const snapshot = snapshots.get(snapshotKey(projectId));
     if (snapshot) { if (!arm(snapshot, tab, bound)) refresh(); }
@@ -382,7 +411,7 @@
         play(experience.id, { bound, instant: true });
         return true;
       }
-      const timer = setTimeout(() => { state.tabTimers.delete(timer); if (onItsTab(experience, bound)) play(experience.id, { bound }); }, Number(trigger.delay_ms || 700));
+      const timer = setTimeout(() => { state.tabTimers.delete(timer); if (onItsTab(experience, bound)) play(experience.id, { bound }); }, bound.activated ? 0 : Number(trigger.delay_ms || 700));
       state.tabTimers.add(timer);
       break;
     }
