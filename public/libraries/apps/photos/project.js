@@ -112,6 +112,7 @@
       clearTimeout(state.mediaHydrationRetryTimer);
       state.mediaHydrationRetryTimer = null;
       closeActiveViewer();
+      closePinnedMenu();
       setProjectPhotoFocus(false);
       if (state.camera?.isOpen?.()) state.camera.close();
     }
@@ -120,6 +121,7 @@
       renderPhotoGallery();
       hydrateOwnedProjectMedia();
       ensureSavedSatellite();
+      loadPinnedFields();
     }
   }
 
@@ -147,11 +149,15 @@
     setProjectPhotosList(next);
     project.photos = next.filter((photo) => !photo?.uploading).map(serializablePhoto);
     if (result.satellite_media) project.satellite_media = result.satellite_media;
-    const cover = result.custom_field_values?.cover_photo;
-    if (cover?.media_id && !coverPhotoId()) {
-      const photo = next.find((entry) => projectPhotoId(entry) === cover.media_id) || null;
-      updateLocalCover({ media_id: cover.media_id }, photo);
-    }
+    // The server may have filled an empty field with the saved photo (the cover, when none was chosen).
+    const current = projectFieldValues(project);
+    Object.entries(result.custom_field_values || {}).forEach(([path, value]) => {
+      const refs = (Array.isArray(value) ? value : [value]).filter((ref) => ref?.media_id);
+      const existing = current[path];
+      if (!refs.length || (existing != null && existing !== '' && !(Array.isArray(existing) && !existing.length))) return;
+      const ids = refs.map((ref) => String(ref.media_id));
+      updateLocalPhotoField(path, value, next.filter((entry) => ids.includes(projectPhotoId(entry))));
+    });
   }
 
   function activeProject(){
@@ -573,135 +579,415 @@
     viewer?.refreshIndicators?.();
   }
 
-  function coverPhotoId(){
-    const project = activeProject() || {};
-    return String((project.custom_field_values || project.custom_fields || {}).cover_photo?.media_id || '');
+  // ---- Pinned photos ----
+  // Every photo-type custom field on the project is a pinned photo. The cover is one of them, not a special case.
+  // Each field is a tile in the row at the top of the gallery, labelled with the field's name, and the viewer
+  // offers "Pin as <field>" for each. The value is the field's ordinary media reference ({media_id}, or a list for
+  // cardinality many), written by writePhotoField through the field's revision-checked writer. Everything else
+  // that reads a field (project tiles, map pins, the portal, documents) reads the same value.
+  const pinned = { projectId:'', fields:null, loading:null, menu:null, menuCleanup:null };
+
+  function pinText(key, fallback, vars){
+    return (vars ? globalThis.PlatformLanguage?.text('photos', key, fallback, vars) : globalThis.PlatformLanguage?.text('photos', key, fallback)) ?? fallback;
   }
 
-  function updateLocalCover(value, photo){
+  function projectFieldValues(project = activeProject() || {}){
+    return project.custom_field_values || project.custom_fields || {};
+  }
+
+  function fieldPathValue(values, path){
+    const cf = window.FirstMateCustomFields;
+    if (typeof cf?.valueAtPath === 'function') return cf.valueAtPath(values, path);
+    return String(path || '').split('.').reduce((current, segment) => (
+      current && typeof current === 'object' && !Array.isArray(current) ? current[segment] : undefined
+    ), values);
+  }
+
+  function withFieldPathValue(values, path, value){
+    const cf = window.FirstMateCustomFields;
+    if (typeof cf?.setValueAtPath === 'function') return cf.setValueAtPath(values, path, value);
+    const result = JSON.parse(JSON.stringify(values || {}));
+    const segments = String(path || '').split('.');
+    let cursor = result;
+    segments.slice(0, -1).forEach((segment) => {
+      if (!cursor[segment] || typeof cursor[segment] !== 'object' || Array.isArray(cursor[segment])) cursor[segment] = {};
+      cursor = cursor[segment];
+    });
+    cursor[segments[segments.length - 1]] = value;
+    return result;
+  }
+
+  // The media ids a field holds, in order.
+  function pinnedIds(field, project){
+    const value = fieldPathValue(projectFieldValues(project), field?.path);
+    return (Array.isArray(value) ? value : [value]).map((ref) => String(ref?.media_id || '').trim()).filter(Boolean);
+  }
+
+  // Only a library image can be pinned (the value is a media reference to an image).
+  function pinEligible(photo){
+    const id = projectPhotoId(photo);
+    return !!id && !photo?.uploading && !id.startsWith('local_') && String(photo?.content_type || photo?.mime_type || photo?.mime || '').startsWith('image/');
+  }
+
+  function isTrashedPhoto(photo = {}){
+    const meta = photo.metadata || {};
+    return !!(photo.in_trash || photo.trashed_at || photo.deleted_at || meta.in_trash || meta.trashed_at || meta.deleted_at);
+  }
+
+  const isPhotoDefinition = (def) => !!def && String(def.type || '') === 'photo' && def.enabled !== false && def.background_only !== true && def.retired !== true;
+
+  // The project's photo field definitions as the browser knows them (the cover is built in; others come from
+  // the organization's custom field settings once loaded). Used until the server's contract says which apply.
+  function clientPhotoDefinitions(project = activeProject() || {}){
+    const cf = window.FirstMateCustomFields;
+    if (typeof cf?.fieldsFor !== 'function') return [];
+    try { return cf.fieldsFor('project', project, { location:'all', orgId:firstMeasurePhotoOptions().orgId }).filter(isPhotoDefinition); } catch (_) { return []; }
+  }
+
+  function pinField(def, writable){
+    return { path:String(def.path || def.key || ''), label:String(def.label || def.path || ''), many:def.cardinality === 'many', writable };
+  }
+
+  // The photo fields of the active project: the server's contract once read (which fields apply, and whether this
+  // person may write each), until then the browser's definitions.
+  function pinnedFields(){
+    const project = activeProject() || {};
+    const projectId = activeProjectId(project);
+    if (pinned.fields && pinned.projectId === projectId) return pinned.fields;
+    return clientPhotoDefinitions(project).map((def) => pinField(def, def.read_only ? false : null)).filter((field) => field.path);
+  }
+
+  async function readFieldContract(orgId, projectId){
+    const response = await window.PlatformAPI.publication.read(orgId, { provider:'custom-fields-project', export:'contract', target:{ scope:'project', organizationId:orgId, projectId } });
+    const contract = response?.result || response;
+    if (contract?.status !== 'ready') throw new Error(contract?.message || pinText('pinned_fields_unavailable', 'This project\'s photo fields are not available.'));
+    return contract.value || {};
+  }
+
+  async function loadPinnedFields(){
+    const project = activeProject();
+    const projectId = activeProjectId(project);
+    const orgId = firstMeasurePhotoOptions().orgId;
+    if (!projectId || !orgId || typeof window.PlatformAPI?.publication?.read !== 'function') return null;
+    if (pinned.loading?.projectId === projectId) return pinned.loading.promise;
+    const promise = (async () => {
+      const contract = await readFieldContract(orgId, projectId).catch(() => null);
+      if (!contract || activeProjectId() !== projectId) return null;
+      const known = new Map(clientPhotoDefinitions(project).map((def) => [def.path, def]));
+      pinned.projectId = projectId;
+      pinned.fields = (Array.isArray(contract.fields) ? contract.fields : [])
+        .map((field) => ({ ...(known.get(field.path) || {}), ...field, type:field.type || known.get(field.path)?.type }))
+        .filter(isPhotoDefinition)
+        .map((field) => pinField(field, field.writable === true))
+        .filter((field) => field.path);
+      syncPinViewerActions();
+      refreshPinnedSurfaces();
+      return pinned.fields;
+    })();
+    pinned.loading = { projectId, promise };
+    try { return await promise; }
+    finally { if (pinned.loading?.promise === promise) pinned.loading = null; }
+  }
+
+  function pinnedLabelsFor(photoId){
+    const id = String(photoId || '').trim();
+    if (!id) return [];
+    return pinnedFields().filter((field) => pinnedIds(field).includes(id)).map((field) => field.label);
+  }
+
+  // Writes one photo field through the custom field's own writer, with the same permission as editing the field.
+  async function writePhotoField(path, value, photos = [], viewer = null){
+    const project = activeProject(), projectId = activeProjectId(project), orgId = firstMeasurePhotoOptions().orgId;
+    if (!projectId || !orgId) throw new Error(pinText('pinned_save_first', 'Save the project before pinning photos.'));
+    const target = { scope:'project', organizationId:orgId, projectId };
+    const contract = await readFieldContract(orgId, projectId);
+    const field = (contract.fields || []).find((entry) => entry.path === path);
+    if (!field?.writable) throw new Error(pinText('pinned_not_writable', 'You cannot change this photo.'));
+    const written = await window.PlatformAPI.publication.invoke(orgId, 'custom-fields.project.write', target, { values:{ [path]:value }, expectedRevision:contract.recordRevision }, { idempotencyKey:crypto.randomUUID() });
+    const result = written?.result || written;
+    if (result?.status && result.status !== 'succeeded') throw new Error(result.message || pinText('pinned_not_saved', 'The photo could not be saved.'));
+    // Synchronize mounted controls so a later autosave cannot restore the old selection.
+    updateLocalPhotoField(path, value, photos);
+    viewer?.refreshActions?.();
+    viewer?.refreshIndicators?.({ pulseId:'pinned_fields' });
+  }
+
+  function updateLocalPhotoField(path, value, photos = []){
     const project = activeProject();
     if (!project) return;
-    project.custom_field_values = {...(project.custom_field_values || project.custom_fields || {}),cover_photo:value};
-    project.custom_fields = project.custom_field_values;
+    const values = withFieldPathValue(projectFieldValues(project), path, value);
+    project.custom_field_values = values;
+    project.custom_fields = values;
     const hydrated = projectPhotoLibrary()?.hydrateProjectPhotos?.(project, firstMeasurePhotoOptions());
     if (hydrated) {
       project.thumbnail_photo_id = hydrated.thumbnail_photo_id;
       project.thumbnail_photo = hydrated.thumbnail_photo;
     }
     window.Portal?.ProjectStore?.cache?.(project);
-    window.dispatchEvent(new CustomEvent('fm:projects:optimistic-update', {detail:{project}}));
-    document.querySelectorAll('[data-fm-cf-input="cover_photo"]').forEach(input=>{
-      if (window.FirstMateCustomFields?.setMediaValue?.(input, value, photo ? {media_id:value?.media_id, label:photo.file_name, content_type:photo.content_type || photo.mime_type} : null)) return;
-      const encoded = value ? JSON.stringify(value) : '';
-      if(encoded && ![...input.options].some(option=>option.value===encoded)) input.add(new Option(photo?.file_name || 'Cover photo',encoded));
-      input.value = encoded;
+    window.dispatchEvent(new CustomEvent('fm:projects:optimistic-update', { detail:{ project } }));
+    const choices = photos.filter(Boolean).map((photo) => ({ media_id:projectPhotoId(photo), label:photo.file_name || photo.label, content_type:photo.content_type || photo.mime_type }));
+    document.querySelectorAll('[data-fm-cf-input]').forEach((input) => {
+      if (input.dataset.fmCfInput === path) window.FirstMateCustomFields?.setMediaValue?.(input, value, choices);
     });
-    refreshCoverDecorations();
+    refreshPinnedSurfaces();
   }
 
-  async function setProjectCover(photo, viewer){
-    const project = activeProject(), projectId = activeProjectId(project), oid = firstMeasurePhotoOptions().orgId;
-    if (!projectId || !oid) throw new Error('Save the project before choosing a cover.');
-    const target = {scope:'project',organizationId:oid,projectId};
-    const response = await window.PlatformAPI.publication.read(oid,{provider:'custom-fields-project',export:'contract',target});
-    const contract = response.result || response;
-    const field = contract.value?.fields?.find(f=>f.path==='cover_photo');
-    if(contract.status !== 'ready' || !field?.writable) throw new Error('You cannot change this project cover.');
-    const value = photo ? {media_id:projectPhotoId(photo)} : null;
-    const written = await window.PlatformAPI.publication.invoke(oid,'custom-fields.project.write',target,{values:{cover_photo:value},expectedRevision:contract.value.recordRevision},{idempotencyKey:crypto.randomUUID()});
-    const result = written.result || written;
-    if(result.status && result.status !== 'succeeded') throw new Error(result.message || 'The cover could not be saved.');
-    // Synchronize mounted controls so a later autosave cannot restore the old selection.
-    updateLocalCover(value, photo);
-    viewer?.refreshActions?.();
-    viewer?.refreshIndicators?.({pulseId:'project_cover'});
-    showToast('Cover photo',value ? 'Project cover updated.' : 'Project cover removed.',true);
+  // Reads the photo fields' stored values again (after media is trashed the server may have cleared one).
+  async function refreshPinnedValues(){
+    const project = activeProject(), projectId = activeProjectId(project), orgId = firstMeasurePhotoOptions().orgId;
+    if (!projectId || !orgId || typeof window.PlatformAPI?.publication?.read !== 'function') return;
+    const response = await window.PlatformAPI.publication.read(orgId, { provider:'custom-fields-project', export:'values', target:{ scope:'project', organizationId:orgId, projectId } }).catch(() => null);
+    const result = response?.result || response;
+    if (result?.status !== 'ready' || activeProjectId() !== projectId) return;
+    pinnedFields().forEach((field) => {
+      const next = fieldPathValue(result.value || {}, field.path) ?? null;
+      if (JSON.stringify(next) !== JSON.stringify(fieldPathValue(projectFieldValues(project), field.path) ?? null)) updateLocalPhotoField(field.path, next);
+    });
   }
 
-  function coverText(key, fallback){
-    return globalThis.PlatformLanguage?.text('photos', key, fallback) ?? fallback;
+  function pinNotChanged(error){
+    showToast(pinText('pinned_not_changed', 'Pinned photo not changed'), error?.message || '', false);
   }
 
-  // Only a library image can be the cover (the value is a media reference).
-  function coverEligible(photo){
-    return !!projectPhotoId(photo) && String(photo?.content_type || photo?.mime_type || photo?.mime || '').startsWith('image/');
-  }
-
-  // The photo the project shows as its cover: the chosen one, else the saved satellite photo.
-  function effectiveCoverId(){
-    const chosen = coverPhotoId();
-    if (chosen) return chosen;
-    const saved = projectPhotoLibrary()?.savedSatellitePhoto?.(projectPhotosList());
-    return saved ? projectPhotoId(saved) : '';
-  }
-
-  // Removing a cover falls back to the saved satellite photo, so the satellite photo itself has nothing to remove.
-  function coverRemovable(photo){
+  async function pinPhoto(field, photo, viewer){
     const id = projectPhotoId(photo);
-    return !!id && coverPhotoId() === id && !projectPhotoLibrary()?.isSatelliteMedia?.(photo);
+    const value = field.many ? [...new Set([...pinnedIds(field), id])].map((media_id) => ({ media_id })) : { media_id:id };
+    try {
+      await writePhotoField(field.path, value, [photo], viewer);
+      showToast(field.label, pinText('pinned_saved', 'Photo pinned.'), true);
+    } catch (error) { pinNotChanged(error); }
   }
 
-  function coverViewerActions(){
-    const eligible = ({photo}) => coverEligible(photo);
-    return [
-      {id:'set_project_cover',label:coverText('cover_set_action','Set as cover photo'),icon:'image',visible:context=>eligible(context) && effectiveCoverId()!==projectPhotoId(context.photo),onClick:({photo,viewer})=>setProjectCover(photo,viewer)},
-      {id:'remove_project_cover',label:coverText('cover_remove_action','Remove cover photo'),icon:'image',visible:({photo})=>coverRemovable(photo),onClick:({viewer})=>setProjectCover(null,viewer)}
-    ];
+  async function unpinPhoto(field, photoId, viewer){
+    const kept = photoId ? pinnedIds(field).filter((id) => id !== photoId) : [];
+    const value = field.many ? kept.map((media_id) => ({ media_id })) : null;
+    try {
+      await writePhotoField(field.path, value, [], viewer);
+      showToast(field.label, pinText('pinned_removed', 'Photo unpinned.'), true);
+    } catch (error) { pinNotChanged(error); }
   }
 
-  // ---- The cover in the Photos tab ----
-  // The cover is the project's `cover_photo` custom field (one media reference), written by setProjectCover; with
-  // none chosen it is the saved satellite photo. It is an ordinary tile in the gallery with a small "Cover" pill;
-  // every other image tile offers "Set as cover" on hover.
-  function coverChipHtml(photoId){
+  // "Pin as <field>" and "Unpin from <field>" for each photo field. They live in the viewer's action list, which
+  // the viewer keeps by reference, so syncPinViewerActions can swap them in place once the fields are known.
+  function pinViewerActions(){
+    return pinnedFields().flatMap((field) => [
+      {
+        id:`pin_field:${field.path}`,
+        pinField:true,
+        label:pinText('pinned_pin_as', `Pin as ${field.label}`, { v0:field.label }),
+        icon:'thumbtack',
+        visible:({ photo }) => field.writable !== false && pinEligible(photo) && !pinnedIds(field).includes(projectPhotoId(photo)),
+        onClick:({ photo, viewer }) => pinPhoto(field, photo, viewer)
+      },
+      {
+        id:`unpin_field:${field.path}`,
+        pinField:true,
+        label:pinText('pinned_unpin_from', `Unpin from ${field.label}`, { v0:field.label }),
+        icon:'xmark',
+        visible:({ photo }) => field.writable !== false && pinnedIds(field).includes(projectPhotoId(photo)),
+        onClick:({ photo, viewer }) => unpinPhoto(field, projectPhotoId(photo), viewer)
+      }
+    ]);
+  }
+
+  function syncPinViewerActions(){
+    [state.viewerActionList, state.fallbackViewerActionList].forEach((list) => {
+      if (!Array.isArray(list)) return;
+      for (let index = list.length - 1; index >= 0; index -= 1) if (list[index]?.pinField) list.splice(index, 1);
+      list.unshift(...pinViewerActions());
+    });
+    state.activeViewer?.refreshActions?.();
+    state.activeViewer?.refreshIndicators?.();
+  }
+
+  function pinnedIndicator(){
+    return {
+      id:'pinned_fields',
+      label:({ photo }) => pinnedLabelsFor(projectPhotoId(photo)).join(', '),
+      detail:pinText('pinned_indicator_detail', 'Pinned photo'),
+      icon:'thumbtack',
+      tone:'info',
+      visible:({ photo }) => pinnedLabelsFor(projectPhotoId(photo)).length > 0
+    };
+  }
+
+  // The gallery tile of a pinned photo carries a small pill naming its field. Every image tile has the (hidden)
+  // pill so a pin can be shown or cleared in place, without rebuilding the gallery.
+  function pinnedChipHtml(photoId){
     const id = String(photoId || '').trim();
     if (!id) return '';
-    if (id === effectiveCoverId()) {
-      return `<span class="r-photo-cover-chip is-cover" data-project-cover-chip="${escapeHtml(id)}" data-project-cover-current><i class="fas fa-image" aria-hidden="true"></i>${escapeHtml(coverText('cover_badge','Cover'))}</span>`;
-    }
-    const label = coverText('cover_set_action','Set as cover photo');
-    return `<span class="r-photo-cover-chip" data-project-cover-chip="${escapeHtml(id)}" data-project-cover-set="${escapeHtml(id)}" role="button" title="${escapeHtml(label)}" aria-label="${escapeHtml(label)}"><i class="fas fa-image" aria-hidden="true"></i>${escapeHtml(coverText('cover_set_chip','Set as cover'))}</span>`;
+    const labels = pinnedLabelsFor(id);
+    if (!labels.length) return `<span class="r-photo-pin-chip" data-pinned-chip="${escapeHtml(id)}" hidden></span>`;
+    const more = labels.length > 1 ? ` +${labels.length - 1}` : '';
+    return `<span class="r-photo-pin-chip" data-pinned-chip="${escapeHtml(id)}" title="${escapeHtml(labels.join(', '))}"><i class="fas fa-thumbtack" aria-hidden="true"></i><span>${escapeHtml(labels[0])}${escapeHtml(more)}</span></span>`;
   }
 
-  function renderCoverTileBadge(item){
+  function renderPinnedTileBadge(item){
     const photo = item?.photo || {};
-    return coverEligible(photo) && !photo.uploading ? coverChipHtml(projectPhotoId(photo)) : '';
+    return pinEligible(photo) ? pinnedChipHtml(projectPhotoId(photo)) : '';
   }
 
-  // Repaints the tile pills in place after the cover changes, without rebuilding the gallery.
-  function refreshCoverDecorations(){
+  function pinnedPhotoFor(id){
+    return projectPhotosList().find((photo) => projectPhotoId(photo) === id && !isTrashedPhoto(photo)) || null;
+  }
+
+  function pinnedThumbSrc(id){
+    const photo = pinnedPhotoFor(id);
+    const src = String(photo?.thumb || photo?.thumbnail || photo?.src || '').trim();
+    if (src) return src;
+    try { return String(window.PlatformAPI?.media?.thumbnailUrl?.(firstMeasurePhotoOptions().orgId, id, 320) || ''); } catch (_) { return ''; }
+  }
+
+  function pinnedTileHtml(field){
+    const ids = pinnedIds(field);
+    const shown = ids.find((id) => pinnedPhotoFor(id)) || '';
+    const path = escapeHtml(field.path);
+    const label = escapeHtml(field.label);
+    const canWrite = field.writable !== false;
+    const src = shown ? pinnedThumbSrc(shown) : '';
+    const count = ids.filter((id) => pinnedPhotoFor(id)).length;
+    const face = shown
+      ? `<button type="button" class="r-pinned-face" data-pinned-open="${path}" aria-label="${escapeHtml(pinText('pinned_open', `Open ${field.label}`, { v0:field.label }))}">${src ? `<img src="${escapeHtml(src)}" alt="" loading="lazy" draggable="false">` : '<i class="fas fa-image" aria-hidden="true"></i>'}${count > 1 ? `<span class="r-pinned-count">${count}</span>` : ''}</button>`
+      : canWrite
+        ? `<button type="button" class="r-pinned-face is-empty" data-pinned-choose="${path}"><i class="fas fa-image" aria-hidden="true"></i><span>${escapeHtml(pinText('pinned_choose', 'Choose photo'))}</span></button>`
+        : `<span class="r-pinned-face is-empty"><i class="fas fa-image" aria-hidden="true"></i><span>${escapeHtml(pinText('pinned_none', 'No photo'))}</span></span>`;
+    const more = shown && canWrite
+      ? `<button type="button" class="r-pinned-more" data-pinned-menu="${path}" aria-haspopup="menu" aria-label="${escapeHtml(pinText('pinned_options', `${field.label} options`, { v0:field.label }))}"><i class="fas fa-ellipsis" aria-hidden="true"></i></button>`
+      : '';
+    return `<div class="r-pinned-tile${shown ? '' : ' is-empty'}" data-pinned-field="${path}" role="listitem">${face}<div class="r-pinned-foot"><span class="r-pinned-label" title="${label}">${label}</span>${more}</div></div>`;
+  }
+
+  // The row above the gallery groups; nothing when the project has no photo fields.
+  function pinnedRowHtml(){
+    if (!activeProjectId()) return '<div data-pinned-photos hidden></div>';
+    const fields = pinnedFields();
+    if (!fields.length) return '<div data-pinned-photos hidden></div>';
+    return `<section class="r-pinned" data-pinned-photos aria-label="${escapeHtml(pinText('pinned_row_label', 'Pinned photos'))}"><div class="r-pinned-strip" role="list">${fields.map(pinnedTileHtml).join('')}</div></section>`;
+  }
+
+  // Repaints the pinned row and the tile pills in place after a field or its value changes.
+  function refreshPinnedSurfaces(){
     const root = state.panelRoot;
     if (!root?.isConnected) return;
-    root.querySelectorAll('[data-project-cover-chip]').forEach((chip) => {
-      chip.outerHTML = coverChipHtml(chip.dataset.projectCoverChip);
+    const row = root.querySelector('[data-pinned-photos]');
+    if (row) row.outerHTML = pinnedRowHtml();
+    root.querySelectorAll('[data-pinned-chip]').forEach((chip) => { chip.outerHTML = pinnedChipHtml(chip.dataset.pinnedChip); });
+    state.activeViewer?.refreshActions?.();
+    state.activeViewer?.refreshIndicators?.();
+  }
+
+  // Opens a pinned photo in the gallery's own viewer (same actions, routing and indicators); the gallery tile may
+  // be hidden by a search, so fall back to a viewer over the pinned photos.
+  function openPinnedPhoto(field){
+    const root = state.panelRoot;
+    const photos = pinnedIds(field).map(pinnedPhotoFor).filter(Boolean);
+    if (!photos.length) return;
+    const tile = [...(root?.querySelectorAll?.('[data-photo-feed-id]') || [])].find((node) => String(node.dataset.photoFeedId || '').endsWith(`::${projectPhotoId(photos[0])}`));
+    if (tile && !tile.closest('.selection-mode')) { tile.click(); return; }
+    if (!window.FirstMateMarkup?.openPhotoViewer) return;
+    const actions = state.fallbackViewerActionList = portalViewerActions();
+    const viewer = window.FirstMateMarkup.openPhotoViewer({
+      photos,
+      index:0,
+      project:activeProject() || {},
+      boundsTarget:root,
+      projectLinkEnabled:false,
+      actions,
+      indicators:portalViewerIndicators(),
+      onClose:() => {
+        setActiveViewer(null);
+        setProjectPhotoFocus(false);
+      }
+    });
+    setActiveViewer(viewer);
+    setProjectPhotoFocus(true, viewer);
+  }
+
+  function choosePinnedPhoto(field){
+    const feed = Portal.PhotoFeed;
+    if (typeof feed?.openProjectMediaPicker !== 'function') return null;
+    closePinnedMenu();
+    return feed.openProjectMediaPicker({
+      id:'pinned-photo-picker',
+      projectId:activeProjectId(),
+      title:field.label,
+      subtitle:pinText('pinned_picker_subtitle', 'Choose from this project’s photos.'),
+      photos:projectPhotosList().filter((photo) => pinEligible(photo) && !isTrashedPhoto(photo)),
+      selectedIds:pinnedIds(field),
+      multiple:field.many,
+      imageOnly:true,
+      accept:'image/*',
+      onUpload:async (files) => {
+        const added = (await addPhotoFiles(files)) || [];
+        return { photos:added, selectedIds:added.map((photo) => projectPhotoId(photo)).filter(Boolean) };
+      },
+      onConfirm:(chosen) => {
+        const picked = (chosen || []).filter(pinEligible);
+        // An upload still in progress has no library id yet; keep the picker open until it does.
+        if (!picked.length) return false;
+        const value = field.many ? picked.map((photo) => ({ media_id:projectPhotoId(photo) })) : { media_id:projectPhotoId(picked[0]) };
+        writePhotoField(field.path, value, picked)
+          .then(() => showToast(field.label, pinText('pinned_saved', 'Photo pinned.'), true))
+          .catch(pinNotChanged);
+      }
     });
   }
 
-  function bindCoverControls(root){
-    if (!root || root.__fmProjectCoverBound) return;
-    root.__fmProjectCoverBound = true;
-    // The chip sits on a gallery tile: keep its press from opening the viewer or starting a drag selection.
-    root.addEventListener('pointerdown', (event) => {
-      if (event.target?.closest?.('[data-project-cover-set]')) event.stopPropagation();
-    }, true);
-    root.addEventListener('click', async (event) => {
-      const set = event.target?.closest?.('[data-project-cover-set]');
-      if (!set) return;
+  function closePinnedMenu(){
+    pinned.menu?.remove();
+    pinned.menu = null;
+    pinned.menuCleanup?.();
+    pinned.menuCleanup = null;
+  }
+
+  // The tile's ⋯ menu: change or remove. A small custom menu, placed beside the button.
+  function openPinnedMenu(field, button){
+    closePinnedMenu();
+    const menu = document.createElement('div');
+    menu.className = 'r-pinned-menu';
+    menu.setAttribute('role', 'menu');
+    menu.innerHTML = `
+      <button type="button" role="menuitem" data-pinned-menu-change><i class="fas fa-images" aria-hidden="true"></i>${escapeHtml(field.many ? pinText('pinned_change_many', 'Change photos') : pinText('pinned_change', 'Change photo'))}</button>
+      <button type="button" role="menuitem" class="danger" data-pinned-menu-remove><i class="fas fa-xmark" aria-hidden="true"></i>${escapeHtml(field.many ? pinText('pinned_remove_many', 'Remove all') : pinText('pinned_remove', 'Remove'))}</button>`;
+    document.body.appendChild(menu);
+    const rect = button.getBoundingClientRect();
+    const width = menu.offsetWidth, height = menu.offsetHeight;
+    const left = Math.max(8, Math.min(rect.right - width, window.innerWidth - width - 8));
+    const below = rect.bottom + 6;
+    menu.style.left = `${left}px`;
+    menu.style.top = `${below + height > window.innerHeight - 8 ? Math.max(8, rect.top - height - 6) : below}px`;
+    menu.querySelector('[data-pinned-menu-change]').addEventListener('click', () => choosePinnedPhoto(field));
+    menu.querySelector('[data-pinned-menu-remove]').addEventListener('click', () => { closePinnedMenu(); unpinPhoto(field, '', state.activeViewer); });
+    const outside = (event) => { if (!menu.contains(event.target) && event.target !== button && !button.contains(event.target)) closePinnedMenu(); };
+    const key = (event) => { if (event.key === 'Escape') { event.stopPropagation(); closePinnedMenu(); button.focus(); } };
+    document.addEventListener('pointerdown', outside, true);
+    document.addEventListener('keydown', key, true);
+    window.addEventListener('resize', closePinnedMenu);
+    pinned.menu = menu;
+    pinned.menuCleanup = () => {
+      document.removeEventListener('pointerdown', outside, true);
+      document.removeEventListener('keydown', key, true);
+      window.removeEventListener('resize', closePinnedMenu);
+    };
+    menu.querySelector('button')?.focus();
+  }
+
+  function bindPinnedControls(root){
+    if (!root || root.__fmPinnedBound) return;
+    root.__fmPinnedBound = true;
+    root.addEventListener('click', (event) => {
+      const control = event.target?.closest?.('[data-pinned-open],[data-pinned-choose],[data-pinned-menu]');
+      if (!control || !root.contains(control)) return;
       event.preventDefault();
       event.stopPropagation();
-      if (set.classList.contains('is-pending')) return;
-      const id = String(set.dataset.projectCoverSet || '');
-      const photo = projectPhotosList().find((entry) => projectPhotoId(entry) === id);
-      if (!photo) return;
-      set.classList.add('is-pending');
-      try {
-        await setProjectCover(photo, state.activeViewer);
-      } catch (error) {
-        showToast(coverText('cover_not_changed','Cover photo not changed'), error?.message || '', false);
-      } finally {
-        set.classList.remove('is-pending');
-      }
-    }, true);
+      const path = control.dataset.pinnedOpen || control.dataset.pinnedChoose || control.dataset.pinnedMenu;
+      const field = pinnedFields().find((entry) => entry.path === path);
+      if (!field) return;
+      if (control.dataset.pinnedOpen) openPinnedPhoto(field);
+      else if (control.dataset.pinnedChoose) choosePinnedPhoto(field);
+      else if (pinned.menu) closePinnedMenu();
+      else openPinnedMenu(field, control);
+    });
   }
 
   // The phone camera (FirstMateCamera) lives beside the gallery, not in it, so gallery re-renders (one per
@@ -721,28 +1007,55 @@
     });
   }
 
-  function injectCoverCss(){
+  function injectPinnedCss(){
     const css = `
-      .r-photo-cover-chip{position:absolute;top:7px;right:7px;z-index:3;display:inline-flex;align-items:center;gap:5px;height:24px;padding:0 9px;border-radius:999px;background:rgba(15,23,42,.62);color:#fff;font-size:10px;font-weight:1000;white-space:nowrap;backdrop-filter:blur(10px);box-shadow:0 6px 14px rgba(15,23,42,.16);cursor:pointer;opacity:0;transform:translateY(-3px);transition:opacity .16s ease,transform .16s ease,background .16s ease}
-      .r-photo-cover-chip:hover{background:var(--primary,#d93025)}
-      .pf-thumb:hover .r-photo-cover-chip,.pf-thumb:focus-visible .r-photo-cover-chip{opacity:1;transform:none}
-      .r-photo-cover-chip.is-cover{opacity:1;transform:none;background:var(--primary,#d93025);cursor:default;animation:rPhotoCoverIn .32s ease}
-      .r-photo-cover-chip.is-pending{opacity:1;transform:none;pointer-events:none;background:rgba(15,23,42,.42)}
-      .pf-wrap.selection-mode .r-photo-cover-chip:not(.is-cover){display:none}
-      @keyframes rPhotoCoverIn{from{opacity:0;transform:scale(.96)}to{opacity:1;transform:none}}
-      @media(prefers-reduced-motion:reduce){.r-photo-cover-chip{animation:none;transition:none}}
+      .r-pinned{margin:0 0 18px}
+      .r-pinned-strip{display:flex;flex-wrap:wrap;gap:12px}
+      .r-pinned-tile{position:relative;flex:0 0 auto;width:132px;min-width:0}
+      .r-pinned-face{position:relative;display:flex;align-items:center;justify-content:center;flex-direction:column;gap:6px;width:100%;height:92px;margin:0;padding:0;border:1px solid #eaecf0;border-radius:10px;background:#f2f4f7;overflow:hidden;cursor:pointer;font:inherit;color:#667085;box-shadow:0 1px 2px rgba(16,24,40,.05)}
+      .r-pinned-face img{display:block;width:100%;height:100%;object-fit:cover;transition:transform .2s ease}
+      .r-pinned-face:hover img{transform:scale(1.03)}
+      .r-pinned-face:focus-visible,.r-pinned-more:focus-visible{outline:2px solid var(--primary,#d93025);outline-offset:2px}
+      .r-pinned-face.is-empty{border:1.5px dashed color-mix(in srgb,var(--primary,#d93025) 38%,#d0d5dd);background:color-mix(in srgb,var(--primary,#d93025) 5%,#fff);color:var(--primary-readable,var(--primary,#d93025));box-shadow:none;font-size:12px;font-weight:700}
+      .r-pinned-face.is-empty i{font-size:18px;opacity:.75}
+      span.r-pinned-face.is-empty{cursor:default;border-color:#d0d5dd;background:#f9fafb;color:#98a2b3}
+      button.r-pinned-face.is-empty:hover{background:color-mix(in srgb,var(--primary,#d93025) 10%,#fff)}
+      .r-pinned-count{position:absolute;right:6px;bottom:6px;min-width:22px;height:20px;padding:0 6px;border-radius:999px;background:rgba(15,23,42,.62);color:#fff;font-size:11px;font-weight:800;line-height:20px;text-align:center;backdrop-filter:blur(8px)}
+      .r-pinned-foot{display:flex;align-items:center;gap:4px;min-width:0;height:26px;margin-top:4px}
+      .r-pinned-label{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:12px;font-weight:700;color:#344054}
+      .r-pinned-more{flex:none;width:24px;height:24px;border:0;border-radius:7px;background:transparent;color:#667085;display:inline-flex;align-items:center;justify-content:center;cursor:pointer;font-size:13px}
+      .r-pinned-more:hover{background:#f2f4f7;color:#101828}
+      .r-pinned-menu{position:fixed;z-index:2147483600;min-width:168px;padding:5px;border:1px solid #e4e7ec;border-radius:10px;background:#fff;box-shadow:0 12px 32px rgba(16,24,40,.16),0 2px 6px rgba(16,24,40,.06);display:flex;flex-direction:column;gap:2px}
+      .r-pinned-menu button{display:flex;align-items:center;gap:9px;height:34px;padding:0 10px;border:0;border-radius:7px;background:transparent;color:#101828;font:inherit;font-size:13px;font-weight:600;text-align:left;cursor:pointer;white-space:nowrap}
+      .r-pinned-menu button i{width:14px;color:#667085;text-align:center}
+      .r-pinned-menu button:hover,.r-pinned-menu button:focus-visible{background:#f2f4f7;outline:none}
+      .r-pinned-menu button.danger,.r-pinned-menu button.danger i{color:#b42318}
+      .r-pinned-menu button.danger:hover{background:#fef3f2}
+      .r-photo-pin-chip{position:absolute;top:7px;right:7px;z-index:3;display:inline-flex;align-items:center;gap:5px;max-width:calc(100% - 44px);height:24px;padding:0 9px;border-radius:999px;background:var(--primary,#d93025);color:#fff;font-size:10px;font-weight:800;white-space:nowrap;box-shadow:0 6px 14px rgba(15,23,42,.16);pointer-events:none;animation:rPinnedIn .28s ease}
+      .r-photo-pin-chip[hidden]{display:none}
+      .r-photo-pin-chip>span{overflow:hidden;text-overflow:ellipsis}
+      .r-photo-pin-chip i{font-size:9px}
+      @keyframes rPinnedIn{from{opacity:0;transform:scale(.96)}to{opacity:1;transform:none}}
+      @media(prefers-reduced-motion:reduce){.r-photo-pin-chip{animation:none}.r-pinned-face img{transition:none}}
       @media(max-width:760px){
         #rPhotoGallery.r-photo-wrap{padding:0;background:#fff}
         .fmc-host>#rPhotoGallery .pf-scroll{padding-bottom:68px}
         .fmc-host:is(:has(.pf-has-seldock),:has(.pf-shown-menu))>.fmc-bar{transform:translateY(calc(100% + 24px));opacity:0;pointer-events:none}
-        .pf-wrap[data-mobile-grid=dense] .r-photo-cover-chip{top:5px;right:5px;height:20px;padding:0 7px;gap:4px;font-size:9px}
-        .pf-wrap[data-mobile-grid=dense] .r-photo-cover-chip:not(.is-cover){display:none}
+        .r-pinned{margin:0;padding:10px 0 4px;border-bottom:1px solid #f2f4f7}
+        .r-pinned-strip{flex-wrap:nowrap;gap:8px;overflow-x:auto;padding:0 12px;scroll-snap-type:x proximity;scrollbar-width:none;-webkit-overflow-scrolling:touch}
+        .r-pinned-strip::-webkit-scrollbar{display:none}
+        .r-pinned-tile{width:104px;scroll-snap-align:start}
+        .r-pinned-face{height:72px;border-radius:9px}
+        .r-pinned-foot{height:24px;margin-top:2px}
+        .r-pinned-label{font-size:11px}
+        .r-pinned-more{width:26px;height:26px}
+        .pf-wrap[data-mobile-grid=dense] .r-photo-pin-chip{top:5px;right:5px;height:20px;padding:0 7px;gap:4px;font-size:9px}
       }
     `;
-    if (typeof util.injectCSS === 'function') util.injectCSS('project-photos-cover', css);
-    else if (!document.getElementById('project-photos-cover')) {
+    if (typeof util.injectCSS === 'function') util.injectCSS('project-photos-pinned', css);
+    else if (!document.getElementById('project-photos-pinned')) {
       const style = document.createElement('style');
-      style.id = 'project-photos-cover';
+      style.id = 'project-photos-pinned';
       style.textContent = css;
       document.head.appendChild(style);
     }
@@ -757,7 +1070,7 @@
       tone:'info',
       visible:({ photo }) => String(photo?.metadata?.source || '').toLowerCase() === 'project_notes'
     }];
-    indicators.push({id:'project_cover',label:coverText('cover_badge','Cover'),detail:coverText('cover_card_kicker','Cover photo'),icon:'image',tone:'info',visible:({photo})=>!!effectiveCoverId() && effectiveCoverId()===projectPhotoId(photo)});
+    indicators.push(pinnedIndicator());
     if (!window.customerPortalMediaEnabled?.()) return indicators;
     indicators.push({
       id: 'customer_portal_shared',
@@ -790,10 +1103,10 @@
         }));
       }
     };
-    if (!window.customerPortalMediaEnabled?.()) return [...coverViewerActions(),conversationAction];
+    if (!window.customerPortalMediaEnabled?.()) return [...pinViewerActions(),conversationAction];
     const available = ({ photo }) => !!projectPhotoId(photo) && !!window.customerPortalProjectId?.();
     return [
-      ...coverViewerActions(),
+      ...pinViewerActions(),
       conversationAction,
       {
         id: 'share_customer_portal',
@@ -833,8 +1146,10 @@
         await addPhotoFiles(input.files);
         input.value = '';
       });
-      injectCoverCss();
-      bindCoverControls(root);
+      injectPinnedCss();
+      bindPinnedControls(root);
+      closePinnedMenu();
+      const viewerActions = state.viewerActionList = portalViewerActions();
       Portal.PhotoFeed.mountProjectGallery(root.querySelector('#rPhotoFeedMount'), {
         project,
         photos,
@@ -847,17 +1162,18 @@
         routeScope: 'project',
         initialPhotoId: window.pendingRoutePhotoId,
         selectionActions: portalSelectionActions(),
-        renderTileBadge: renderCoverTileBadge,
-        viewerActions: portalViewerActions(),
+        introHtml: pinnedRowHtml,
+        renderTileBadge: renderPinnedTileBadge,
+        viewerActions,
         viewerIndicators: portalViewerIndicators(),
         onProjectPhotosChanged: (photos) => {
-          const cover = coverPhotoId();
-          const selected = photos.find(photo=>projectPhotoId(photo)===cover);
-          const meta = selected?.metadata || {};
-          if(cover && (!selected || selected.in_trash || selected.trashed_at || selected.deleted_at || meta.in_trash || meta.trashed_at || meta.deleted_at)) updateLocalCover(null);
           setProjectPhotosList(photos);
           const project = activeProject();
           if(project) project.photos = photos;
+          // A pinned photo that was trashed or removed: the server decides what its field keeps, so read it again.
+          const available = new Set(photos.filter((photo) => !isTrashedPhoto(photo)).map((photo) => projectPhotoId(photo)));
+          if (pinnedFields().some((field) => pinnedIds(field).some((id) => !available.has(id)))) refreshPinnedValues();
+          refreshPinnedSurfaces();
         },
         onTagsChange: async ({ photo, tags }) => {
           const mediaId = projectPhotoId(photo);
@@ -934,7 +1250,7 @@
               project: window.activeBaseProject || {},
               boundsTarget: root,
               projectLinkEnabled: false,
-              actions: portalViewerActions(),
+              actions: (state.fallbackViewerActionList = portalViewerActions()),
               indicators: portalViewerIndicators(),
               onClose: () => {
                 setActiveViewer(null);
@@ -1333,6 +1649,16 @@
     unmount,
     context
   };
+
+  // Field settings loaded or saved elsewhere: show the new photo fields, and ask the server again after a save.
+  window.addEventListener('fm:custom-fields:definitions-loaded', () => {
+    if (!state.active) return;
+    syncPinViewerActions();
+    refreshPinnedSurfaces();
+  });
+  window.addEventListener('fm:custom-fields:definitions-updated', () => {
+    if (state.active) loadPinnedFields();
+  });
 
   window.addEventListener('fm:media-renamed', (event) => {
     const mediaId = String(event?.detail?.mediaId || '').trim();

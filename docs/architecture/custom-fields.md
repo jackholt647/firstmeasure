@@ -168,9 +168,25 @@ Every project has the built-in optional `cover_photo` field, typed as `photo`
 with cardinality `one`. Settings may adjust its presentation, label, and field
 access, while its path, image type, availability, and single selection remain
 fixed. It uses ordinary `custom_field_values` / `custom_fields` values and the
-existing custom-field provider and revision-checked write action. Photos offers
-Set as project cover, Remove project cover, and a Cover viewer badge; Overview
-provides the same field editor. Choosing another photo replaces the reference.
+existing custom-field provider and revision-checked write action. Choosing
+another photo replaces the reference.
+
+### Pinned photos in the Photos tab
+
+Every `photo` field on a project is a **pinned photo**; the cover is one of
+them and nothing in Photos names it. The row above the gallery groups has one
+tile per field the project's `custom-fields-project` contract lists (enabled,
+not background-only), labelled with the field's name: a filled field shows its
+photo and opens it in the viewer; an empty one offers "Choose photo" (the
+project media picker, with upload); a small ⋯ changes or removes it. On a phone
+the row is a horizontal strip. The viewer offers "Pin as <field>" and "Unpin
+from <field>" for each field, and a pinned tile in the gallery carries a pill
+with the field's name. All of it writes the field's ordinary value through
+`custom-fields.project.write` with the field's `writable` permission
+(`apps/photos/project.js`, `writePhotoField`), so project tiles, map pins, the
+portal and documents read the same value. A `cardinality: many` field adds to
+its list. When a pinned photo is trashed, Photos reads the `values` export again
+rather than guessing what the server kept.
 Trashing or removing the selected photo clears the cover during storage
 preparation on both backends; restoring a photo does not reselect it. Other
 reference fields retain unavailable values for recovery. Changed references to
@@ -207,8 +223,8 @@ source, and `satellite_media[source]` on the project records the save, so a repe
 writes nothing and a satellite photo someone removed is not put back. It becomes
 `cover_photo` when no cover is chosen. A project that does not exist is never
 created. After the save the photo is library media like any other: Photos shows
-it as a normal tile with a "Cover" pill (there is no cover row and no "Use
-satellite image"), the Customer Portal tab shares or hides it like any photo, and
+it as a normal tile (pinned as Cover photo when the field holds it; there is no
+"Use satellite image"), the Customer Portal tab shares or hides it like any photo, and
 the customer's portal never treats a cover specially. A cleared cover falls back
 to the saved satellite photo. The generated satellite image remains only as the
 stand-in until the photo can be saved (no completed report, no coordinates).
