@@ -1,6 +1,6 @@
 # Development software layers
 
-The Development dropdown has Synthetic data and Software layers views. The expand control fills the browser viewport; restoring keeps the selected view and filters.
+Software layers and Synthetic data are sections of the [dev console](dev-console.md).
 
 Software layers is a read-only declaration inventory behind the existing development sandbox organization and company-settings gates. Its session-scoped endpoint is `GET /v1/signup-sandbox/development/software-layers`, optionally with `projectId`. It does not execute actions, create domain records, evaluate module code, fetch external resources or return instance values.
 

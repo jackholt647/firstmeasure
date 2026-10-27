@@ -89,6 +89,15 @@ export const registerSignupSandboxApi: FastifyPluginAsync = async (app) => {
     const tools = await import("../development/synthetic-data.js");
     return { ok: true, ...(await tools.generateSyntheticData(ctx, request.body)) };
   });
+  // The dev console tray (libraries/dev-console): who sees it, which sections apply, and the live layer's files.
+  app.get("/development/console", async (request) => {
+    const ctx = await requirePlatformAuth(request);
+    return (await import("../development/console.js")).devConsoleAccess(ctx);
+  });
+  app.get("/development/console/live", async (request) => {
+    const ctx = await requirePlatformAuth(request);
+    return (await import("../development/console.js")).devConsoleLive(ctx);
+  });
   app.get("/development/software-layers", async (request) => {
     const ctx = await requirePlatformAuth(request, { permission: "manage_company_settings" });
     return (await import("../development/software-layers.js")).softwareLayers(ctx, request.query);

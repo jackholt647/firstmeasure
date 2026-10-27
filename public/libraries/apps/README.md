@@ -53,7 +53,6 @@ public/libraries/apps/photos/project.js
 core.js
 topbar.js
 project_viewer.js
-dev_overlay.js
 ```
 
 Do not add new app bodies to `public/portal/scripts`. Put them in this directory and register embeddable apps with `FirstMateEmbeddableApps.registerApp` or the portal convenience wrapper `Portal.apps.registerPortalApp`. The portal shell discovers `portal_tab` apps from the embeddable runtime; apps must not register themselves through the shell tab renderer. Project modal apps are discovered through the same runtime and must not use a separate tab registry.
