@@ -64,6 +64,10 @@ test('hover formatting tag changes text style and size without resizing, with un
  assert.equal(await page.locator('.fm-photo-markup-text').evaluate(el=>getComputedStyle(el).fontStyle),'italic');
  await tag.getByRole('spinbutton',{name:'Text size'}).fill('32');await page.keyboard.press('Enter');
  assert.equal(await page.evaluate(()=>markup.items[0].fontPx),32);
+ await tag.getByRole('button',{name:'Increase text size'}).click();assert.equal(await page.evaluate(()=>markup.items[0].fontPx),33);
+ await tag.getByRole('button',{name:'Decrease text size'}).click();assert.equal(await page.evaluate(()=>markup.items[0].fontPx),32);
+ await page.evaluate(()=>{markup.undo();markup.undo();});
+
  assert.deepEqual(await page.evaluate(()=>[markup.items[0].width,markup.items[0].height]),[before.width,before.height]);
  await page.evaluate(()=>markup.undo());assert.equal(await page.evaluate(()=>markup.items[0].fontPx),before.fontPx);
  await page.mouse.move(10,10);assert.equal(await tag.isVisible(),false);

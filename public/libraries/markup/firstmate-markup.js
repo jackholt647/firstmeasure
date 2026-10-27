@@ -501,14 +501,20 @@
       .fm-photo-markup-handle:hover,.fm-photo-markup-handle:focus-visible,.fm-photo-markup-text-size:hover,.fm-photo-markup-text-size:focus-visible{opacity:1}
       .fm-photo-modal.markup-active .fm-photo-markup-handle,.fm-photo-modal.markup-active .fm-photo-markup-text-size{display:block}
       .fm-photo-markup-text.text-format-visible{border-bottom-left-radius:0}
-      .fm-photo-markup-format{position:absolute;display:flex;align-items:center;gap:3px;padding:5px 6px;background:rgba(255,255,255,.72);color:#344054;border:0;border-radius:0 0 8px 8px;box-shadow:0 6px 12px rgba(15,23,42,.08);z-index:14;white-space:nowrap;box-sizing:border-box}
-      .fm-photo-markup-format button{display:grid;place-items:center;width:30px;height:30px;padding:0;border:0;border-radius:5px;background:transparent;color:inherit;cursor:pointer;font:16px Arial;transition:background .12s,color .12s}
-      .fm-photo-markup-format button:hover{background:rgba(255,255,255,.6)}
-      .fm-photo-markup-format button[aria-pressed=true]{background:rgba(52,64,84,.13);color:#101828;box-shadow:inset 0 0 0 1px rgba(52,64,84,.08)}
-      .fm-photo-markup-format .fm-markup-font-size{display:flex;align-items:center;gap:1px;margin-left:3px;padding-left:7px;border-left:1px solid rgba(52,64,84,.2);font:10px Arial;color:#667085}
-      .fm-photo-markup-format input{width:45px;height:30px;box-sizing:border-box;padding:0 2px;border:0;border-radius:5px;background:transparent;color:#344054;font:500 14px Arial;text-align:center;transition:background .12s}
-      .fm-photo-markup-format input:hover,.fm-photo-markup-format input:focus{background:rgba(255,255,255,.6)}
-      .fm-photo-markup-format :focus-visible{outline:2px solid var(--primary,#147d45);outline-offset:1px}
+      .fm-photo-markup-format{position:absolute;display:flex;align-items:center;gap:5px;padding:7px;background:rgba(255,255,255,.72);color:#182230;border:0;border-radius:0 0 10px 10px;box-shadow:0 7px 16px rgba(15,23,42,.16);z-index:14;white-space:nowrap;box-sizing:border-box}
+      .fm-photo-markup-format button{display:grid;place-items:center;width:32px;height:32px;padding:0;border:1px solid rgba(16,24,40,.14);border-radius:6px;background:#fff;color:#182230;box-shadow:0 1px 2px rgba(16,24,40,.08);cursor:pointer;transition:background .12s,color .12s,box-shadow .12s}
+      .fm-photo-markup-format button:hover{background:#eef2f6;border-color:#98a2b3}
+      .fm-photo-markup-format button[aria-pressed=true]{background:#243449;border-color:#243449;color:#fff;box-shadow:0 1px 3px rgba(16,24,40,.2)}
+      .fm-photo-markup-format button:active{box-shadow:inset 0 1px 3px rgba(16,24,40,.2)}
+      .fm-photo-markup-format svg{position:static;inset:auto;width:18px;height:18px;overflow:visible;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;pointer-events:none}
+      .fm-photo-markup-format .fm-markup-font-size{display:flex;align-items:center;margin-left:3px;border:1px solid rgba(16,24,40,.18);border-radius:6px;background:#fff;box-shadow:0 1px 2px rgba(16,24,40,.08);overflow:hidden}
+      .fm-photo-markup-format .fm-markup-font-size button{width:28px;height:30px;border:0;border-radius:0;box-shadow:none;background:#f2f4f7}
+      .fm-photo-markup-format .fm-markup-font-size button:hover{background:#e4e7ec}
+      .fm-photo-markup-format .fm-markup-font-size svg{width:14px;height:14px}
+      .fm-photo-markup-format input{appearance:textfield;-moz-appearance:textfield;width:42px;height:30px;box-sizing:border-box;padding:0 2px;border:0;border-left:1px solid #e4e7ec;border-right:1px solid #e4e7ec;border-radius:0;background:#fff;color:#101828;font:600 14px/1 system-ui,sans-serif;font-variant-numeric:tabular-nums;text-align:center}
+      .fm-photo-markup-format input::-webkit-inner-spin-button,.fm-photo-markup-format input::-webkit-outer-spin-button{-webkit-appearance:none;margin:0}
+      .fm-photo-markup-format input:focus{background:#f0f5ff}
+      .fm-photo-markup-format :focus-visible{outline:2px solid var(--primary,#147d45);outline-offset:-2px}
       .fm-photo-markup-text-delete{position:absolute;width:21px;height:21px;border-radius:50%;background:#fff;border:1px solid #d0d5dd;color:#475467;font:700 18px/18px sans-serif;padding:0;z-index:13;cursor:pointer}
       .fm-photo-markup-layer :is([data-markup-handle^="text-"],[data-markup-delete],[data-markup-format]){opacity:0;pointer-events:none;visibility:hidden}
       .fm-photo-modal.markup-active .fm-photo-markup-layer :is([data-markup-handle^="text-"],[data-markup-delete],[data-markup-format]).text-control-visible{opacity:1;pointer-events:auto;visibility:visible}
@@ -1251,6 +1257,7 @@
       const item=this.items.find(entry=>entry.id===id && entry.type==='text');
       if(!item || (kind==='size' && (!Number.isFinite(value)||value<=0)))return;
       this.pushHistory();
+      if(kind==='smaller'||kind==='larger'){value=(Number(item.fontPx)||this.textFontPx(item.size||1.5))+(kind==='larger'?1:-1);kind='size';}
       if(kind==='bold')item.bold=item.bold===false;
       if(kind==='italic')item.italic=!item.italic;
       if(kind==='size'){
@@ -1474,9 +1481,9 @@
           <div class="fm-photo-markup-handle" data-markup-id="${escapeHtml(item.id)}" data-markup-handle="text-move" style="left:${(Number(item.x || 0) * 100).toFixed(3)}%;top:${(Number(item.y || 0) * 100).toFixed(3)}%"></div>
           <button type="button" class="fm-photo-markup-text-delete" data-markup-delete data-markup-id="${escapeHtml(item.id)}" aria-label="Delete text box" style="left:calc(${((Number(item.x || 0) + width) * 100).toFixed(3)}% - 10.5px);top:calc(${(Number(item.y || 0) * 100).toFixed(3)}% - 10.5px)">×</button>
           <div class="fm-photo-markup-format" data-markup-format data-markup-id="${escapeHtml(item.id)}" role="toolbar" aria-label="Text formatting" style="left:${(Number(item.x || 0)*100).toFixed(3)}%;top:${((Number(item.y || 0)+height)*100).toFixed(3)}%">
-            <button type="button" data-text-format="bold" aria-label="Bold" aria-pressed="${item.bold !== false}"><b>B</b></button>
-            <button type="button" data-text-format="italic" aria-label="Italic" aria-pressed="${!!item.italic}"><i>I</i></button>
-            <label class="fm-markup-font-size"><input type="number" data-text-font-size aria-label="Text size" min="8" max="160" step="1" value="${Math.round(Number(item.fontPx)||this.textFontPx(item.size||1.5))}"><span aria-hidden="true">px</span></label>
+            <button type="button" data-text-format="bold" aria-label="Bold" aria-pressed="${item.bold !== false}"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 4h7a4 4 0 0 1 0 8H6V4Zm0 8h8a4 4 0 0 1 0 8H6v-8Z"/></svg></button>
+            <button type="button" data-text-format="italic" aria-label="Italic" aria-pressed="${!!item.italic}"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M10 4h9M5 20h9M15 4 9 20"/></svg></button>
+            <div class="fm-markup-font-size" role="group" aria-label="Text size"><button type="button" data-text-format="smaller" aria-label="Decrease text size"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h14"/></svg></button><input type="number" data-text-font-size aria-label="Text size" min="8" max="160" step="1" value="${Math.round(Number(item.fontPx)||this.textFontPx(item.size||1.5))}"><button type="button" data-text-format="larger" aria-label="Increase text size"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h14M12 5v14"/></svg></button></div>
           </div>
           <div class="fm-photo-markup-text-size" data-markup-id="${escapeHtml(item.id)}" data-markup-handle="text-size" style="left:calc(${((Number(item.x || 0) + width) * 100).toFixed(3)}% - 10.5px);top:calc(${((Number(item.y || 0) + height) * 100).toFixed(3)}% - 10.5px)"></div>
         `);
