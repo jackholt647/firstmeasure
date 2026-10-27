@@ -1,4 +1,5 @@
 // Shared by submit.mjs and the router (docs/architecture/dev-lanes.md): lanes, queue ref names, manifests.
+import fs from "node:fs";
 import os from "node:os";
 import { execFile } from "node:child_process";
 
@@ -8,10 +9,13 @@ export const STATUS_SSH = "dev-sync-droplet";
 export const STATUS_FILE = "dev-push/state/status.json"; // under the router account's home on the droplet
 export const MANIFEST_SUBJECT = "dev-push: ";
 
+const laneBuilt = (name) => (process.env.DEV_PUSH_LANES ? process.env.DEV_PUSH_LANES.split(",").includes(name) : fs.existsSync(new URL(`../lanes/${name}/lane.mjs`, import.meta.url)));
+
 /** Code lanes the router serves. `owns` decides which lane a changed path belongs to; platform owns the rest. */
 export const LANES = {
   platform: { branch: "codex/consolidated-firstmeasure-20260923", owns: () => true },
-  "measure-internal": { branch: "lane/measure-internal", owns: (file) => file.startsWith("public/measure/internal/") }
+  // A lane owns its paths once its module is in the checkout; until then platform carries them.
+  "measure-internal": { branch: "lane/measure-internal", owns: (file) => file.startsWith("public/measure/internal/") && laneBuilt("measure-internal") }
 };
 
 /** The most specific lane that owns a path (anything not claimed by another lane is platform). */

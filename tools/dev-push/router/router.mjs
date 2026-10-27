@@ -379,6 +379,27 @@ export class Router {
     return true;
   }
 
+  /** Releases the lane tip as it stands (the re-baseline, or redeploying after a host was rebuilt). */
+  async releaseTip(lane, { force = false } = {}) {
+    const module = this.lanes[lane];
+    const tip = await this.fetch(lane);
+    const dir = await this.worktree(lane);
+    await this.git(["reset", "--quiet", "--hard", tip], { cwd: dir });
+    const gate = await this.runGates(lane, dir, tip, tip, []);
+    if (!gate.ok && !force) throw new Error(`${module.branch} ${tip.slice(0, 10)} fails ${gate.failures.map((failure) => failure.id).join(", ")}; pass --force to release it anyway`);
+    const releaseId = `${lane}-${stamp()}-${tip.slice(0, 8)}`;
+    await this.setLane(lane, { state: "rolling-out", tip });
+    this.log(lane, `releasing the lane tip ${tip.slice(0, 10)} as ${releaseId}`);
+    const deployed = await module.deploy({ dir, sha: tip, releaseId, previous: this.laneState[lane].release, hosts: this.options.hosts, ssh: this.ssh, log: (line) => this.log(lane, line) });
+    if (!deployed.ok) { await this.setLane(lane, { state: "idle", note: `release of the tip failed: ${trim(deployed.error, 400)}` }); throw new Error(deployed.error); }
+    const release = { id: releaseId, lane, sha: tip, at: new Date().toISOString(), base: tip, branch_pushed: true, submissions: [], works: [], overlays: [], roles: deployed.roles || {} };
+    this.releases.unshift(release);
+    fs.writeFileSync(path.join(this.stateDir, "releases", `${releaseId}.json`), JSON.stringify(release, null, 1));
+    await this.setLane(lane, { state: "idle", release: { id: releaseId, sha: tip, at: release.at }, note: null });
+    this.log(lane, `live ${releaseId}`);
+    return release;
+  }
+
   // ---------------------------------------------------------------- loops
 
   async laneLoop(lane, intervalMs) {

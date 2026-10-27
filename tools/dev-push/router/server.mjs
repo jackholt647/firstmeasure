@@ -4,6 +4,8 @@
 //   node tools/dev-push/router/server.mjs                 run every lane forever
 //   node tools/dev-push/router/server.mjs once [<lane>]   one pass over each lane's queue, then exit
 //   node tools/dev-push/router/server.mjs pause|resume <lane>
+//   node tools/dev-push/router/server.mjs release [<lane>] [--force]   deploy the lane tip as it stands (re-baseline)
+//   node tools/dev-push/router/server.mjs gate|build <ref> [--changed a,b]   diagnostics, no queue
 //
 // State lives in ~/dev-push (repo.git, state/, cache/, builds/). Settings: ~/dev-push/config.json
 // { "lanes": ["platform", "measure-internal"], "intervalMs": 15000 }.
@@ -83,6 +85,10 @@ async function main() {
       const result = await lanes[lane].deploy({ dir, sha, releaseId: `${lane}-diagnose-${sha.slice(0, 8)}`, hosts: { roles: [], status: async () => ({ ok: true }) }, log: console.log, buildOnly: true });
       console.log(JSON.stringify({ ...result, seconds: Math.round((Date.now() - started) / 1000) }, null, 1));
     }
+    return;
+  }
+  if (command === "release") {
+    console.log(JSON.stringify(await router.releaseTip(args._[1] || "platform", { force: Boolean(args.force) }), null, 1));
     return;
   }
   if (command === "once") {

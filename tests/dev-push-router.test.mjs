@@ -158,8 +158,12 @@ test('a failure the lane tip already has does not reject a submission', async ()
   } finally { s.cleanup(); }
 });
 
+const measureLaneBuilt = laneOf('public/measure/internal/x.js') === 'measure-internal';
+
 test('lanes: submit refuses mixed lanes; the router rejects out-of-lane work', async () => {
   const s = scratch();
+  const saved = process.env.DEV_PUSH_LANES;
+  process.env.DEV_PUSH_LANES = 'platform,measure-internal'; // as once lanes/measure-internal/lane.mjs exists
   try {
     const a = s.clone('alice');
     a.edit('public/measure/internal/editor.js', 'x\n'); a.edit('public/v1/other.ts', 'y\n');
@@ -174,7 +178,7 @@ test('lanes: submit refuses mixed lanes; the router rejects out-of-lane work', a
     const entry = byRef(router, 'alice-by-hand');
     assert.equal(entry.state, 'rejected'); assert.equal(entry.reason, 'out-of-lane');
     assert.match(entry.details, /public\/measure\/internal\/editor\.js/);
-  } finally { s.cleanup(); }
+  } finally { if (saved === undefined) delete process.env.DEV_PUSH_LANES; else process.env.DEV_PUSH_LANES = saved; s.cleanup(); }
 });
 
 test('live overlays are merged into the release and reported back', async () => {
@@ -206,7 +210,7 @@ test('test map: areas, changed tests and requested tests', () => {
   assert.ok(ids.includes('root:tests/live-layer.test.mjs'));
   assert.ok(ids.includes('root:tests/dev-push-router.test.mjs'));
   assert.ok(ids.includes('any:tests/bar.test.ts'));
-  assert.equal(laneOf('public/measure/internal/editor_scripts/a.js'), 'measure-internal');
+  assert.equal(laneOf('public/measure/internal/editor_scripts/a.js'), measureLaneBuilt ? 'measure-internal' : 'platform');
   assert.equal(laneOf('public/measure/sales/a.js'), 'platform');
 });
 
