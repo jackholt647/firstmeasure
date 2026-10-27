@@ -264,3 +264,9 @@ Measurements section. Compact type names retain full-name tooltips. Selecting a
 type highlights all matching model edges. A top-left Pitch labels control toggles
 face-mounted labels; each anchor maximizes interior clearance from the outer
 boundary and all openings, avoiding concave voids and penetration holes.
+
+## Document gallery covers
+
+The Docs gallery uses slightly smaller square tiles. Every tile has a fixed-height footer with a single-line ellipsized title, its small type icon, and a date (or type label when no date exists). Document-specific values such as roof squares, area, amounts and milestones appear as pills over the preview, not extra footer rows. Report-family badges occupy the ruler icon's upper-right space.
+
+The preview fits the page width and crops the bottom. Images use their existing thumbnail; PDFs render page one with pdf.js, and engine documents use an existing PDF when available or the resolved first page through the static document renderer. Modules with no page retain the large icon as well as the title icon. Only visible covers load, at most two concurrently, and renderer/PDF resources are released when tiles disappear. Preview reads do not generate PDFs or save document records.

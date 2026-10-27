@@ -43,7 +43,7 @@ async function mountDocsTab(page) {
     window.PlatformAPI = { media: { fileUrl: () => '', thumbnailUrl: () => '' }, projectDocuments: { list: async () => ({ documents: [], uploaded_documents: [] }) } };
     window.created = [];
     const engineApi = { openCreateModal: (prefill, opts) => window.created.push({ prefill, opts }), openDocument() {}, openPreview() {}, getDocs: () => [], refresh() {} };
-    window.FirstMateEmbeddableApps = { escapeHtml, registerApp() {}, unregisterApp() {}, mount: async (host, id, context) => { context.params.embed.onReady(engineApi); return { destroy() {}, setActive() {} }; } };
+    window.FirstMateEmbeddableApps = { escapeHtml, registerApp() {}, unregisterApp() {}, mount: async (host, id, context) => { window.docsEmbed=context.params.embed; context.params.embed.onReady(engineApi); return { destroy() {}, setActive() {} }; } };
   });
   await page.addScriptTag({ url: '/libraries/apps/photos/feed.js' });
   await page.addScriptTag({ url: '/libraries/apps/docs/project.js' });
@@ -167,8 +167,8 @@ test('Documents shows delivered roof PDFs and XML once, defaults to loose tiles,
     assert.ok(await page.getByText('Customer Roof Report',{exact:true}).first().isVisible());
     assert.ok(await page.getByText('Roof Measurement Report',{exact:true}).first().isVisible());
     assert.equal(await page.locator('.fm-doc-card-mark .fa-ruler-combined').count(),3);
-    assert.equal(await page.locator('.fm-doc-symbol-badge.fa-user').count(),1);
-    assert.equal(await page.locator('.fm-doc-symbol-badge.fa-code').count(),1);
+    assert.equal(await page.locator('.fm-doc-card-mark .fm-doc-symbol-badge.fa-user').count(),1);
+    assert.equal(await page.locator('.fm-doc-card-mark .fm-doc-symbol-badge.fa-code').count(),1);
     await page.evaluate(()=>document.documentElement.style.setProperty('--primary','#7c3aed'));
     assert.deepEqual(await page.locator('.fm-doc-card-mark').evaluateAll(nodes=>nodes.map(node=>getComputedStyle(node).color)),Array(3).fill('rgb(124, 58, 237)'));
     if (process.env.REPORT_ICONS_SHOT) {
@@ -189,6 +189,53 @@ test('Documents shows delivered roof PDFs and XML once, defaults to loose tiles,
     assert.equal(await page.getByText('Old report title',{exact:true}).count(),0,'a withheld report is not revived from the older project references');
     assert.deepEqual(errors,[]);
   } finally { await browser.close(); }
+});
+
+test('document covers use PDF page one, module pages and a consistent icon fallback', async () => {
+  const browser=await launch();
+  try {
+    const {page,errors}=await pageFor(browser,DESKTOP);
+    // A real one-page PDF exercises pdf.js rather than a canvas stand-in.
+    let pdf='%PDF-1.4\n';const offsets=[0];
+    const stream='BT /F1 30 Tf 45 700 Td (Roof Measurement Report) Tj 0 -55 Td /F1 14 Tf (2205 Mimosa Place) Tj ET';
+    const objects=['<< /Type /Catalog /Pages 2 0 R >>','<< /Type /Pages /Kids [3 0 R] /Count 1 >>','<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 4 0 R >> >> /Contents 5 0 R >>','<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>',`<< /Length ${stream.length} >>\nstream\n${stream}\nendstream`];
+    objects.forEach((body,i)=>{offsets.push(Buffer.byteLength(pdf));pdf+=`${i+1} 0 obj\n${body}\nendobj\n`;});
+    const xref=Buffer.byteLength(pdf);pdf+=`xref\n0 6\n0000000000 65535 f \n${offsets.slice(1).map(n=>String(n).padStart(10,'0')+' 00000 n \n').join('')}trailer\n<< /Size 6 /Root 1 0 R >>\nstartxref\n${xref}\n%%EOF`;
+    await page.route('http://docs.test/cover.pdf',route=>route.fulfill({contentType:'application/pdf',body:pdf}));
+    await mountDocsTab(page);
+    await page.evaluate(async()=>{
+      window.previewPages=[];window.PlatformAPI.publication={measurements:async()=>({value:{measurements:{roofSquares:{value:28.5},roofArea:{value:2850}}}})};
+      window.DocumentsAPI={documents:{resolve:async(org,id)=>({resolved_definition:{pages:id==='workflow'?[]:[{id:'cover'},{id:'second'}]},widget_data:{}})}};
+      window.FMDocModel={paperDimensions:()=>({w_pt:612,h_pt:792})};
+      window.FMDocRenderer={render:(stage,options)=>{previewPages.push(options.document.pages.map(p=>p.id));stage.innerHTML='<div style="width:816px;height:1056px;background:white;padding:60px;box-sizing:border-box;font-size:40px">Presentation cover</div>';return {setScale(scale){stage.style.transform=`scale(${scale})`;stage.style.transformOrigin='top left';},ready:async()=>{},destroy(){stage.remove();}};}};
+      window.PlatformAPI.projectDocuments.list=async()=>({documents:[{id:'pdf',title:'Roof Measurement Report',document_type:'roof_report',url:'/cover.pdf'},{id:'xml',title:'Roof Report XML',document_type:'roof_report_xml',url:'/measurements.xml'}],uploaded_documents:[]});
+      window.Portal.ProjectDocsTab.mount({panelRoot:document.querySelector('#tab'),active:true,host:{getProject:()=>({id:'covers'}),projectOrgId:()=> 'org'}});
+    });
+    await page.waitForFunction(()=>!!window.docsEmbed);
+    await page.evaluate(()=>docsEmbed.onDocsChanged([{id:'presentation',title:'Presentation',document_type:'presentation'},{id:'workflow',title:'Workflow',document_type:'workflow'}]));
+    await page.locator('[data-doc-preview-id="pdf"] canvas').waitFor({timeout:20000});
+    await page.locator('[data-doc-preview-id="engine:presentation"].has-preview').waitFor();
+    await page.addStyleTag({url:'https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css'});await page.evaluate(()=>document.fonts.ready);
+    assert.deepEqual(await page.evaluate(()=>previewPages),[['cover']]);
+    assert.equal(await page.locator('.fm-doc-card-heading .fm-doc-title-icon').count(),4);
+    assert.ok(await page.locator('.fm-doc-detail-pills').filter({hasText:'28.5 squares'}).first().isVisible());
+    assert.equal(await page.locator('.fm-doc-card-body').filter({hasText:'squares'}).count(),0);
+    assert.ok(await page.locator('[data-doc-preview-id="engine:workflow"] .fm-doc-card-mark').isVisible());
+    assert.ok(await page.locator('[data-doc-preview-id="xml"] .fm-doc-card-mark').isVisible());
+    const badge=await page.locator('[data-doc-preview-id="xml"] .fm-doc-symbol').evaluate(node=>{const main=node.firstElementChild.getBoundingClientRect(),badge=node.lastElementChild.getBoundingClientRect();return {main,badge};});
+    assert.ok(badge.badge.top<badge.main.top+badge.main.height/2,'code sits at the upper right');
+    assert.ok(badge.badge.left>badge.main.left+badge.main.width/2,JSON.stringify(badge));
+    for(const width of [1600,390]){
+      await page.setViewportSize({width,height:900});
+      const metrics=await page.locator('.fm-doc-card-body').evaluateAll(nodes=>nodes.map(node=>{const title=node.querySelector('.fm-doc-card-title'),icon=node.querySelector('.fm-doc-title-icon'),t=title.getBoundingClientRect(),i=icon.getBoundingClientRect();return {height:node.getBoundingClientRect().height,whiteSpace:getComputedStyle(title).whiteSpace,ellipsis:getComputedStyle(title).textOverflow,center:Math.abs(i.top+i.height/2-t.top-t.height/2)};}));
+      assert.ok(metrics.every(m=>m.height===54 && m.whiteSpace==='nowrap' && m.ellipsis==='ellipsis' && m.center<2),JSON.stringify(metrics));
+      const preview=await page.locator('[data-doc-preview-id="pdf"]').evaluate(node=>({width:node.clientWidth,canvas:node.querySelector('canvas').getBoundingClientRect().width}));
+      assert.ok(Math.abs(preview.width-preview.canvas)<1,'PDF cover fills the available width');
+    }
+    await page.setViewportSize({width:1600,height:1000});
+    assert.deepEqual(errors,[]);
+    if(process.env.DOC_COVERS_SHOT){await page.addStyleTag({url:'https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css'});await page.evaluate(()=>document.fonts.ready);await page.screenshot({path:process.env.DOC_COVERS_SHOT});}
+  } finally {await browser.close();}
 });
 
 test('Documents keeps delivered reports when the legacy document list is unavailable', async () => {

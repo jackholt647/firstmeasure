@@ -639,7 +639,7 @@
       .fm-doc-card-mark{position:absolute;right:9%;top:20%;font-size:clamp(30px,34cqw,96px);color:var(--doc-color,#64748b);opacity:.13;pointer-events:none;transition:opacity .16s ease}
       .pf-thumb:hover .fm-doc-card-mark{opacity:.2}
       .fm-doc-symbol{position:relative;display:inline-block;line-height:1}
-      .fm-doc-symbol-badge{position:absolute;right:-.3em;bottom:-.2em;font-size:.43em;background:#f8fafc;border-radius:50%;padding:.2em;box-shadow:0 0 0 .08em #f8fafc}
+      .fm-doc-symbol-badge{position:absolute;right:-.3em;top:-.2em;font-size:.36em;background:#f8fafc;border-radius:50%;padding:.2em;box-shadow:0 0 0 .08em #f8fafc}
       .fm-doc-card-body{position:relative;display:flex;flex-direction:column;gap:2px;min-width:0}
       .fm-doc-card-title{overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;color:#101828;font-size:clamp(11px,6.4cqw,14px);font-weight:800;line-height:1.28}
       .fm-doc-card-primary{overflow:hidden;white-space:nowrap;text-overflow:ellipsis;color:#101828;font-size:clamp(14px,10cqw,23px);font-weight:900;letter-spacing:-.015em;line-height:1.15}
@@ -680,6 +680,25 @@
       .fm-docs-gallery .pf-wrap[data-density="list"] .fm-doc-badges{left:78px;right:10px;top:9px}
       .fm-docs-gallery .pf-wrap[data-density="list"] .fm-doc-amount-pill{display:none}
       .fm-docs-gallery .pf-wrap[data-density="list"] .pf-thumb-meta{left:68px;top:0;bottom:0;padding:30px 10px 6px;background:#fff;color:#344054;opacity:1}
+      .fm-docs-gallery .pf-wrap[data-density="loose"] .pf-grid{grid-template-columns:repeat(auto-fill,minmax(185px,1fr))}
+      .fm-docs-gallery .fm-doc-card{padding:0;background:#fff;justify-content:flex-start}
+      .fm-doc-preview{position:relative;display:block;flex:1;min-height:0;overflow:hidden;background:#edf0f4;pointer-events:none}
+      .fm-doc-preview>img,.fm-doc-preview>canvas{position:absolute;top:0;left:0;width:100%;height:auto;min-height:100%;object-fit:cover;object-position:top center;background:#fff}
+      .fm-docs-gallery .fm-doc-card-mark{top:50%;left:50%;right:auto;bottom:auto;transform:translate(-50%,-50%);font-size:clamp(28px,30cqw,70px);opacity:.65}
+      .fm-docs-gallery .fm-doc-card-body{flex:none;height:54px;box-sizing:border-box;padding:8px 9px;background:#fff;border-top:1px solid #e4e7ec;gap:3px;justify-content:center}
+      .fm-doc-detail-pills{position:absolute;bottom:61px;left:6px;right:6px;display:flex;flex-wrap:wrap;gap:4px;pointer-events:none;max-height:48px;overflow:hidden}
+      .fm-doc-detail-pills>span{border-radius:999px;padding:3px 7px;background:rgba(255,255,255,.94);border:1px solid #d0d5dd;color:#344054;font-size:10px;font-weight:800;white-space:nowrap;max-width:100%;overflow:hidden;text-overflow:ellipsis}
+      .fm-docs-gallery .pf-wrap[data-density="list"] .fm-doc-detail-pills{display:none}
+      .fm-doc-card-heading{display:flex;align-items:center;gap:8px;min-width:0;min-height:24px}
+      .fm-doc-title-icon{flex:none;color:var(--doc-color,#64748b);font-size:15px;width:20px;text-align:center}
+      .fm-doc-card-heading .fm-doc-card-title{display:block;flex:1;min-width:0;font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+      .fm-docs-gallery .fm-doc-card-primary{font-size:14px;margin-left:28px}
+      .fm-docs-gallery .fm-doc-card-facts{margin-left:28px;font-size:10px}
+      .fm-docs-gallery .fm-doc-badges{top:5px;left:5px;right:5px}
+      .fm-doc-page-stage{position:absolute;top:0;left:0;pointer-events:none;background:#fff;overflow:hidden}
+      .fm-doc-preview.has-preview>.fm-doc-card-mark{display:none}
+      .fm-docs-gallery .pf-wrap[data-density="list"] .fm-doc-preview{width:68px;height:68px;flex:none}
+      .fm-docs-gallery .pf-wrap[data-density="list"] .fm-doc-card-mark{position:absolute;transform:translate(-50%,-50%);font-size:24px}
       /* Toolbar: the search narrows first, then labels give way to icons, and
          only on a phone-width panel does it take its own row. */
       .fm-docs-gallery{container:fm-docs / inline-size}
@@ -1024,7 +1043,7 @@
   function documentIconHtml(doc, className = ''){
     const meta = typeMeta(doc.document_type);
     const icon = meta.reportFamily ? meta.icon : (doc.icon || meta.icon);
-    return `<span class="${escapeHtml(className)}" aria-hidden="true"><span class="fm-doc-symbol"><i class="fas ${escapeHtml(icon)}"></i>${meta.badgeIcon ? `<i class="fas ${escapeHtml(meta.badgeIcon)} fm-doc-symbol-badge"></i>` : ''}</span></span>`;
+    return `<span class="${escapeHtml(className)}" style="color:${escapeHtml(doc.color || meta.color)}" aria-hidden="true"><span class="fm-doc-symbol"><i class="fas ${escapeHtml(icon)}"></i>${meta.badgeIcon ? `<i class="fas ${escapeHtml(meta.badgeIcon)} fm-doc-symbol-badge"></i>` : ''}</span></span>`;
   }
   function documentThumbnailHtml(item = {}){
     const doc = documentFromItem(item);
@@ -1038,20 +1057,92 @@
     const dated = tileDate(doc);
     const facts = summary?.facts?.length ? summary.facts : (dated ? [dated] : []);
     const badges = `<span class="fm-doc-badges"><span class="fm-doc-type-badge" style="--doc-color:${color}">${escapeHtml(doc.type_label || meta.label)}</span>${summary?.statusLabel ? `<span class="fm-doc-status-badge tone-${summary.tone}">${escapeHtml(summary.statusLabel)}</span>` : ''}</span>`;
-    if (isImageDoc(doc, url) && thumb) {
-      return `<img loading="lazy" draggable="false" src="${escapeHtml(thumb)}" alt="${escapeHtml(doc.title || (globalThis.PlatformLanguage?.text("docs","m_9c9b98b1f4e8c9","Document") ?? "Document"))}">
-      ${badges}
-      ${summary?.amount ? `<span class="fm-doc-amount-pill">${escapeHtml(summary.amount)}</span>` : ''}`;
-    }
     return `<span class="fm-doc-card" style="--doc-color:${color}">
-        ${documentIconHtml(doc,'fm-doc-card-mark')}
+        <span class="fm-doc-preview" data-doc-preview-id="${escapeHtml(docId(doc))}">
+          ${documentIconHtml(doc,'fm-doc-card-mark')}
+          ${isImageDoc(doc, url) && thumb ? `<img loading="lazy" draggable="false" src="${escapeHtml(thumb)}" alt="">` : ''}
+        </span>
         <span class="fm-doc-card-body">
-          <span class="fm-doc-card-title">${escapeHtml(doc.title || meta.label)}</span>
-          ${summary?.amount ? `<strong class="fm-doc-card-primary">${escapeHtml(summary.amount)}</strong>` : ''}
-          ${facts.length ? `<span class="fm-doc-card-facts">${facts.map(escapeHtml).join(' · ')}</span>` : ''}
+          <span class="fm-doc-card-heading">${documentIconHtml(doc,'fm-doc-title-icon')}<span class="fm-doc-card-title" title="${escapeHtml(doc.title || meta.label)}">${escapeHtml(doc.title || meta.label)}</span></span>
+          <span class="fm-doc-card-facts">${escapeHtml(dated || doc.type_label || meta.label)}</span>
         </span>
       </span>
-      ${badges}`;
+      ${badges}
+      <span class="fm-doc-detail-pills">${[summary?.amount,...facts.filter(fact=>fact!==dated)].filter(Boolean).map(fact=>`<span>${escapeHtml(fact)}</span>`).join('')}</span>`;
+  }
+
+  let previewCleanup = () => {};
+  let pdfPreviewLibrary;
+  function loadPdfPreviewLibrary(){
+    if (window.pdfjsLib) return Promise.resolve(window.pdfjsLib);
+    return pdfPreviewLibrary ||= new Promise((resolve,reject) => {
+      const script=document.createElement('script');
+      script.src='https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js';
+      script.onload=()=>{ window.pdfjsLib.GlobalWorkerOptions.workerSrc='https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js'; resolve(window.pdfjsLib); };
+      script.onerror=()=>{pdfPreviewLibrary=null;script.remove();reject(new Error('PDF preview unavailable'));};
+      document.head.appendChild(script);
+    });
+  }
+  // Only visible covers are loaded, two at a time. The viewer remains the authority
+  // for opening documents; covers never generate PDFs or save document records.
+  function mountDocumentPreviews(root){
+    previewCleanup();
+    const gallery=root.querySelector('[data-doc-gallery]');
+    if (!gallery) return;
+    const organization=orgId(), seen=new WeakSet(), queue=[], cleanups=new Map();
+    let disposed=false, running=0;
+    const release=(node)=>{try{cleanups.get(node)?.();}catch{}cleanups.delete(node);};
+    const renderCover=async(node)=>{
+      if(disposed || !node.isConnected)return;
+      const doc=galleryEntries().find(entry=>docId(entry)===node.dataset.docPreviewId);
+      if(!doc)return;
+      const image=node.querySelector('img');
+      if(image){image.addEventListener('error',()=>image.remove(),{once:true});if(image.complete && !image.naturalWidth)image.remove();return;}
+      const record=doc.__engineDoc;
+      const pdfMedia=record?.pdf?.latest_media_id;
+      const documents=window.DocumentsAPI?.documents;
+      const url=pdfMedia ? documents?.pdfUrl(organization,record.id,{media_id:pdfMedia}) : fileUrl(doc);
+      if(url && (pdfMedia || isPdfDoc(doc,url))){
+        const lib=await loadPdfPreviewLibrary();
+        if(disposed || !node.isConnected)return;
+        const task=lib.getDocument({url,withCredentials:true,isEvalSupported:false});
+        cleanups.set(node,()=>task.destroy());
+        try {
+          const pdf=await task.promise, page=await pdf.getPage(1), natural=page.getViewport({scale:1});
+          const viewport=page.getViewport({scale:Math.min(640/natural.width,640/natural.height)});
+          const canvas=document.createElement('canvas');canvas.width=Math.ceil(viewport.width);canvas.height=Math.ceil(viewport.height);
+          await page.render({canvasContext:canvas.getContext('2d'),viewport}).promise;
+          if(!disposed && node.isConnected){node.appendChild(canvas);node.classList.add('has-preview');}
+        } finally {release(node);}
+        return;
+      }
+      if(!record || !documents?.resolve || !window.FMDocRenderer?.render)return;
+      const resolved=await documents.resolve(organization,record.id);
+      if(disposed || !node.isConnected)return;
+      const definition=resolved?.resolved_definition;
+      if(!Array.isArray(definition?.pages) || !definition.pages.length)return;
+      const cover={...definition,pages:definition.pages.slice(0,1)};
+      const paper=window.FMDocModel?.paperDimensions(cover) || {w_pt:612,h_pt:792};
+      const stage=document.createElement('span');stage.className='fm-doc-page-stage';node.appendChild(stage);
+      const handle=window.FMDocRenderer.render(stage,{document:cover,mode:'static',widgetData:resolved.widget_data || {},widgetContext:{preview:true},theme:resolved.theme,
+        themeContext:{branding:window.__APP?.orgBranding || window.Portal?.cfg?.branding || {},overrides:resolved.theme_vars || {}},
+        mediaUrl:(ref,variant)=>window.PlatformAPI?.media?.fileUrl?.(organization,typeof ref==='string'?ref:ref?.media_id,variant || 'original'),scale:.2});
+      const fit=()=>{const scale=node.clientWidth/(paper.w_pt*4/3);handle.setScale?.(Math.max(.02,scale));stage.style.left=Math.max(0,(node.clientWidth-paper.w_pt*4/3*scale)/2)+'px';};
+      const resize=new ResizeObserver(fit);resize.observe(node);
+      cleanups.set(node,()=>{resize.disconnect();handle.destroy?.();});
+      await handle.ready?.();
+      if(!disposed && node.isConnected){fit();node.classList.add('has-preview');}
+    };
+    const pump=()=>{
+      while(!disposed && running<2 && queue.length){const node=queue.shift();running++;renderCover(node).catch(()=>{release(node);node.querySelector('.fm-doc-page-stage')?.remove();}).finally(()=>{running--;pump();});}
+    };
+    const visible=new IntersectionObserver(entries=>{for(const entry of entries)if(entry.isIntersecting){visible.unobserve(entry.target);queue.push(entry.target);}pump();},{root:gallery,rootMargin:'120px'});
+    const scan=()=>{
+      for(const node of cleanups.keys())if(!node.isConnected)release(node);
+      gallery.querySelectorAll('[data-doc-preview-id]').forEach(node=>{if(!seen.has(node)){seen.add(node);visible.observe(node);}});
+    };
+    const mutations=new MutationObserver(scan);mutations.observe(gallery,{childList:true,subtree:true});scan();
+    previewCleanup=()=>{disposed=true;queue.length=0;visible.disconnect();mutations.disconnect();for(const node of cleanups.keys())release(node);};
   }
   function documentTileMeta(item = {}){
     const doc = documentFromItem(item);
@@ -1064,7 +1155,7 @@
       doc.size_bytes ? formatBytes(doc.size_bytes) : '',
       !summary && date ? (window.FirstMateMarkup?.formatDateTime?.(date) || '') : ''
     ].filter(Boolean).join(' · ');
-    return `${escapeHtml(doc.title || (globalThis.PlatformLanguage?.text("docs","m_9c9b98b1f4e8c9","Document") ?? "Document"))}${detail ? `<br>${escapeHtml(detail)}` : ''}`;
+    return `${documentIconHtml(doc,'fm-doc-title-icon')} ${escapeHtml(doc.title || (globalThis.PlatformLanguage?.text("docs","m_9c9b98b1f4e8c9","Document") ?? "Document"))}${detail ? `<br>${escapeHtml(detail)}` : ''}`;
   }
   function setDocumentView(view, options = {}){
     const nextView = view === 'list' ? 'list' : 'tiles';
@@ -1245,6 +1336,7 @@
     if (state.activeViewer) return;
     renderGrid(root);
     bind(root);
+    mountDocumentPreviews(root);
   }
   function reset(){
     closeViewer(false, { fromRoute:true });
@@ -1259,6 +1351,7 @@
     render();
   }
   function unmount(){
+    previewCleanup();
     closeViewer(false, { fromRoute:true });
     destroyEngine();
     state.mounted = false;
