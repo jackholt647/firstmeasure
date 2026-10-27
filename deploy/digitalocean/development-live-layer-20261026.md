@@ -47,3 +47,18 @@ From the droplet, in Jack's open dev tab (phone layout, My Projects):
 `tests/live-layer.test.mjs`, `public/v1/tests/live-assets.test.ts` and `platform-realtime-client.test.mjs` pass;
 `tsc --noEmit` is clean. `realtime-single-stream.test.ts` fails on `v1/src/server.ts` (an `Accept:
 text/event-stream` check from 33acbd4a), as it did before this release.
+
+## Follow-ups the same evening
+
+- `ea798ec4` (tooling and instructions, no release): several checkouts share the layer, each file owned by the
+  checkout that put it live (`owned-by-other`, `live-sync.mjs clear`); this PC got its own restricted key
+  (`C:\Users\jackh\.ssh\fm_live_ed25519`), authorized beside the droplet's; the receiver on dev web was updated;
+  AGENTS.md tells agents to use the instant iteration system for fast frontend iteration.
+- Release `ea3ae136` (`public/libraries/live-assets/live-assets.js` only) on development legacy and web:
+  - A page compares the copy its browser cached (`force-cache`), not a fresh download, so a release copy cached
+    under its `?v=` URL for up to an hour is noticed and the frame reloads once.
+  - A script edit that only changes the CSS it injects swaps that `<style>` in place (the template's `${...}`
+    values kept; re-renders that write the old CSS back are corrected before paint); anything else reloads.
+  - Verified in Jack's tab before release, through the layer from this PC: the My Projects map tray's border and
+    title colour changed green to blue in about 0.4 s with no reload and held through a forced re-render; the
+    demo revert also applied in place. Both fixes were served by the layer until this release retired them.
