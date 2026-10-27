@@ -699,14 +699,23 @@ function perf_render2DContent() {
     }
     const sceneParts=window.ExteriorSceneCache?new window.ExteriorSceneCache():null;
     function renderChunk(key,input,parent,build){return sceneParts?.pending?sceneParts.part(key,input,parent,build):build(parent);}
-    function disposeGroup() {clearNudgePreview();sceneParts?.clear();window.ExteriorRendered?.stop();if(group3D){disposeObject3D(group3D);group3D.parent?.remove(group3D);group3D=null;}lastScene=null;}
+    function disposeGroup() {clearNudgePreview();clearEditorOverlay();sceneParts?.clear();window.ExteriorRendered?.stop();if(group3D){disposeObject3D(group3D);group3D.parent?.remove(group3D);group3D=null;}lastScene=null;}
     function roofTrimVisible(){return enabled&&roofVisible;}
     function persistRoofTrim(){const value=state?.roofTrim||roofTrimOnly;value.savedAt=Date.now();if(projectId)try{localStorage.setItem(key(projectId)+':roof-trim',JSON.stringify(value));}catch(e){} }
     function roofTrimPickGroup(){return {traverse(fn){roofTrimGroup?.traverse(fn);if(typeof facesGroup!=='undefined')facesGroup?.traverse(o=>{if(o.isMesh){o.userData.pickLayer='roof';}fn(o);});}};}
     function drawRoofTrim(group,roof,vector){if(!window.RoofTrim)return;const panels=roofTrimEditor?.refresh(roof)||RoofTrim.panels(roof,state?.roofTrim||roofTrimOnly);for(const f of panels){if(f.deleted)continue;const geometry=new THREE.BufferGeometry().setFromPoints(f.points.map(vector));geometry.setIndex([0,1,2,0,2,3]);const mesh=new THREE.Mesh(geometry,new THREE.MeshBasicMaterial({color:roofTrimEditor?.selected(f.id)?'#ffd84d':f.finishColor||'#b9b6ae',side:THREE.DoubleSide,transparent:false,opacity:1,depthWrite:true,polygonOffset:true,polygonOffsetFactor:-2,polygonOffsetUnits:-2}));mesh.renderOrder=2;mesh.userData.pickLayer='roof';mesh.userData.roofTrimId=f.id;window.ExteriorFinishes?.prepare(mesh,f,f.points);group.add(mesh);}}
     // Compatibility hook for the roof renderer: exterior trim only renders in wall mode.
     function renderRoofTrim3D(){if(roofTrimGroup){roofTrimGroup.parent?.remove(roofTrimGroup);disposeObject3D(roofTrimGroup);roofTrimGroup=null;}roofTrimEditor?.update();}
-    let editorRenderFrame=null,editorRenderFull=false,nudgeSettleTimer=null,nudgeBackupPending=false,nudgePreviewGroup=null,pendingNudge=null,nudgeInputFrame=null;
+    let editorRenderFrame=null,editorRenderFull=false,editorRenderOverlay=false,overlayGroup=null,nudgeSettleTimer=null,nudgeBackupPending=false,nudgePreviewGroup=null,pendingNudge=null,nudgeInputFrame=null;
+    // A pointer-only preview (placing a sticker) never changes the model. It is drawn as its own group, after
+    // every full rebuild and alone while the pointer moves, instead of rebuilding the whole scene per move.
+    function clearEditorOverlay(){if(overlayGroup){overlayGroup.parent?.remove(overlayGroup);disposeObject3D(overlayGroup);overlayGroup=null;}}
+    function drawEditorOverlay(...args){if(!window.ExteriorPerf?.enabled)return perf_drawEditorOverlay.apply(this,args);return window.ExteriorPerf.measure('Preview overlay',()=>perf_drawEditorOverlay.apply(this,args));}
+    function perf_drawEditorOverlay(){
+        const had=!!overlayGroup;clearEditorOverlay();if(typeof scene==='undefined'||!scene||!window.THREE?.Group||!enabled)return;
+        const group=new THREE.Group();group.name='exteriors-wall-overlay';withWallScene(()=>wallEditor?.drawOverlay?.(group,p=>getVector3(toPixel(p))));
+        if(group.children.length){overlayGroup=group;scene.add(group);}if(had||overlayGroup)window.invalidateScene3D?.();
+    }
     function clearNudgePreview(){if(nudgePreviewGroup){nudgePreviewGroup.parent?.remove(nudgePreviewGroup);disposeObject3D(nudgePreviewGroup);nudgePreviewGroup=null;}}
     function drawNudgePreview(){
         clearNudgePreview();if(typeof scene==='undefined'||!scene||!window.THREE?.Group)return;
@@ -738,15 +747,19 @@ function perf_render2DContent() {
         if(!passive2D()||now-last2D>=PASSIVE_2D_MS){settle2D();render2D();return;}
         if(passive2DTimer===null)passive2DTimer=setTimeout(()=>{passive2DTimer=null;if(!enabled)return;last2D=typeof performance!=='undefined'?performance.now():Date.now();render2D();},PASSIVE_2D_MS-(now-last2D));
     }
-function requestEditorRender(full=false){
+function requestEditorRender(full=false,overlay=false){
         editorRenderFull ||= full;
-        if(editorRenderFrame!==null)return;
-        const flush=()=>{editorRenderFrame=null;const full=editorRenderFull;if(nudgeSettleTimer!==null){preview2D();drawNudgePreview();return;}editorRenderFull=false;withWallScene(()=>{if(full)render();else{preview2D();render3D();}});};
+        // An overlay request is upgraded by any other request in the same frame.
+        if(editorRenderFrame!==null){if(!overlay)editorRenderOverlay=false;return;}
+        editorRenderOverlay=overlay;
+        const flush=()=>{editorRenderFrame=null;const full=editorRenderFull,overlayOnly=editorRenderOverlay;editorRenderOverlay=false;if(nudgeSettleTimer!==null){preview2D();drawNudgePreview();return;}editorRenderFull=false;
+            if(overlayOnly&&!full&&group3D&&lastScene===scene&&group3D.userData.selectionLayer===editingLayer){drawEditorOverlay();return;}
+            withWallScene(()=>{if(full)render();else{preview2D();render3D();}});};
         if(window.ExteriorFramePipeline){editorRenderFrame=true;window.ExteriorFramePipeline.enqueue('wall-view',flush,20);return;}
         if(typeof requestAnimationFrame==='undefined'){flush();return;}
         editorRenderFrame=requestAnimationFrame(flush);
     }
-    function render3D(){window.ExteriorFramePipeline?.retainPrograms?.();if(nudgeSettleTimer!==null){drawNudgePreview();return;}clearNudgePreview();return withWallScene(render3DFrame);}
+    function render3D(){window.ExteriorFramePipeline?.retainPrograms?.();if(nudgeSettleTimer!==null){drawNudgePreview();return;}clearNudgePreview();const result=withWallScene(render3DFrame);drawEditorOverlay();return result;}
     function render3DFrame(...args){if(!window.ExteriorPerf?.enabled)return perf_render3DFrame.apply(this,args);return window.ExteriorPerf.measure('3D scene rebuild',()=>perf_render3DFrame.apply(this,args));}
 function perf_render3DFrame() {
         if(typeof scene==='undefined'||!scene||!window.THREE)return;
@@ -952,7 +965,7 @@ function perf_render3DFrame() {
             for(const marker of document.querySelectorAll('[data-wall-point-key]')){const on=keys.has(marker.dataset.wallPointKey);marker.setAttribute('fill',on?'#fff':marker.dataset.wallPointColor);marker.setAttribute('r',Number(marker.dataset.wallPointRadius)*(on?1.5:1));}
             window.invalidateScene3D?.();return true;
         },pickVisible:p=>!['textured','match-textured'].includes(surfaceMode())&&window.wallPointPickVisible(group3D,getVector3(toPixel(p))),pickLineVisible:(pair,e)=>!['textured','match-textured'].includes(surfaceMode())&&window.wallLinePickVisible(group3D,...pair.map(p=>getVector3(toPixel(p))),e),pickSoffitVisible:(pair,e)=>window.wallLinePickVisible(group3D,...pair.map(p=>getVector3(toPixel(p))),e,Math.max(.03,state.context.mpp*.2)/state.context.mpp),pasteHost:e=>{const hit=window.wallNearestSurface?.(group3D,e);if(hit?.layer==='base'){const f=(state.wallEdits?.$base||state.base)?.faces.find(f=>f.id===hit.object.userData.baseId);if(f)return {f,points:f.points};}return null;},startBaseLine:points=>baseEditor?.startLine(points),selectBaseEntities:(points,pairs,add,subtract)=>{setLayer('base');baseEditor?.selectEntities(points,pairs,add,subtract);},message:text=>{document.getElementById('base-status').textContent=text||'Walls selected';},setLayer,state:()=>state,enabled:()=>enabled,layer:()=>editingLayer,visible:()=>wallsVisible,roofVisible:()=>roofVisible,walls:currentWalls,toPixel,
-            position:(...args)=>groundEditor.position(...args),floorHeight:p=>GroundGeometry.height(wallFloor(),p),recordHistory:before=>recordEdit({wallEdits:before}),changed:()=>{finishEdit();persist();requestEditorRender(true);},redraw:()=>requestEditorRender()});
+            position:(...args)=>groundEditor.position(...args),floorHeight:p=>GroundGeometry.height(wallFloor(),p),recordHistory:before=>recordEdit({wallEdits:before}),changed:()=>{finishEdit();persist();requestEditorRender(true);},redraw:()=>requestEditorRender(),redrawOverlay:()=>requestEditorRender(false,true)});
         const resetWall=document.createElement('button');resetWall.id='wall-reset-position';resetWall.textContent='Reset wall position';resetWall.onclick=()=>wallEditor?.resetPosition();document.getElementById('wall-actions').appendChild(resetWall);
         panel.addEventListener('wheel',e=>e.stopPropagation(),{passive:true});
         panel.style.top='140px';panel.style.maxHeight='calc(100% - 152px)';panel.style.overflowY='auto';
