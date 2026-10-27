@@ -3000,7 +3000,7 @@ window.PlatformCommerce.onReady(async function(){
       title:element.querySelector('#rWindowProjectTitle'),
       controlsHost:element.querySelector('.r-window-bar-actions'),
       contentTarget:document.getElementById('mainPanels'),
-      customChrome:true, titleMenu:false, animateGeometry:true, presentationModes:true, mobileFullscreen:true, allowFullscreen:false, viewportCoordinates:true, nativeModalLayout:true,
+      customChrome:true, titleMenu:false, animateGeometry:true, presentationModes:true, allowFullscreen:false, viewportCoordinates:true, nativeModalLayout:true,
       name:'project', label:(globalThis.PlatformLanguage?.text("project-request","m_aaebd7ccba0b30","Project") ?? "Project"), mode:'modal', width:1200, height:800,
       dockWidth:900, minWidth:360, minimizedHeight:32,
       topInset:() => document.getElementById('platformTopbar')?.offsetHeight || 0,
@@ -3058,7 +3058,6 @@ window.PlatformCommerce.onReady(async function(){
       .r-overlay.window-managed .r-win[data-window="minimized"] .r-window-identity{display:flex;flex:1;min-width:0;max-width:none;padding:0;border:0;font-size:12px;gap:6px}
       .r-overlay.window-managed .r-win[data-window="minimized"] .fm-window-controls button:not([data-window-action="minimize"]):not([data-window-action="close"]){display:none}
       @media(max-width:1080px){.r-overlay.window-managed .r-win{flex-direction:column;padding-top:0}}
-      @media(max-width:760px){.r-overlay.window-managed .r-window-bar-actions{flex-basis:90px;width:90px}.r-overlay.window-managed .fm-window-controls button{height:48px;min-height:48px}}
       @media(max-width:760px){.r-overlay.window-managed.entitlement-hide-fullscreen .fm-window-controls [data-window-action="fullscreen"]{display:none}}
       .project-window-embedded body{margin:0!important;overflow:hidden!important}
       .project-window-embedded .fm-attention-topbar,.project-window-embedded .mobile-topbar,.project-window-embedded #platformTopbar,.project-window-embedded .main,.project-window-embedded #mainSidebar,.project-window-embedded #sidebarBackdrop,.project-window-embedded #fmProjectRoutePrecover{display:none!important}
@@ -3087,10 +3086,10 @@ window.PlatformCommerce.onReady(async function(){
       @keyframes rIdentitySheetIn{from{transform:translateY(100%)}to{transform:none}}
       @media(prefers-reduced-motion:reduce){.r-project-identity-sheet{animation:none}}
     `);
-    if (projectWindowBridge) { document.documentElement.classList.add('project-window-embedded'); element.classList.add('fm-window'); element.dataset.window=projectModalWindow.state.mode; }
+    if (projectWindowBridge) { document.documentElement.classList.add('project-window-embedded'); element.classList.add('fm-window'); element.dataset.window='modal'; }
     overlay.classList.add('window-managed');
     observeProjectHeaderFit(overlay);
-    overlay.dataset.windowMode = projectModalWindow.state.mode;
+    overlay.dataset.windowMode = 'modal';
     projectLayout = window.FirstMateProjectLayout?.mount({ overlay, pane:projectContentPane, getProject:() => activeBaseProject, getTab:() => activePreviewTab, setTab:tab => setActivePreviewTab(tab) });
     if (!projectContentPane) projectWindowShell = window.FirstMateWindowShell.mount({
       element, header:element.querySelector('.r-window-bar'), identity:element.querySelector('.r-window-identity'),
@@ -3101,10 +3100,10 @@ window.PlatformCommerce.onReady(async function(){
   }
   function setProjectModalFullscreen(enabled, options = {}){
     enabled = false; // Entire-screen presentation is disabled for project windows.
+    projectModalFullscreen = !!enabled;
     projectModalWindow?.setMode(enabled ? 'fullscreen' : 'modal', {silent:true});
-    projectModalFullscreen = projectModalWindow ? projectModalWindow.state.mode === 'fullscreen' : !!enabled;
     const managedOverlay = $('#rOverlay');
-    if (managedOverlay && projectModalWindow) { managedOverlay.dataset.windowMode = projectModalWindow.state.mode; managedOverlay.querySelector('.r-win').dataset.window = projectModalWindow.state.mode; }
+    if (managedOverlay && projectModalWindow) { managedOverlay.dataset.windowMode = enabled ? 'fullscreen' : 'modal'; managedOverlay.querySelector('.r-win').dataset.window = enabled ? 'fullscreen' : 'modal'; }
     const overlay = $('#rOverlay');
     clearTimeout(projectModalFullscreenTimer);
     if (overlay) {
@@ -5832,6 +5831,16 @@ window.PlatformCommerce.onReady(async function(){
     return `<span class="r-info-tip r-addon-info-trigger" data-addon-info-trigger="${String(escapeHtml(key))}" role="button" tabindex="0" aria-label="${((v1) => globalThis.PlatformLanguage?.htmlText("project-request","m_6e4ba38fa02b85",`${v1} information`,{v1}) ?? `${v1} information`)(escapeHtml(info.title))}"><i class="fas fa-info"></i></span>`;
   }
 
+  /** A type card's price: this property's quote once known. "VAT included" is shown only where credit is added
+   * (billing, the signup load step and Stripe checkout), not on report prices (1M8-241). */
+  function typePriceLabel(type){
+    const price = fmtCredit(reportDisplayedBasePrice(type));
+    const text = type === 'residential'
+      ? (globalThis.PlatformLanguage?.text("project-request","price_flat_rate","{price} flat rate",{price}) ?? `${price} flat rate`)
+      : (globalThis.PlatformLanguage?.text("project-request","price_per_structure","{price} / structure",{price}) ?? `${price} / structure`);
+    return text;
+  }
+
   // The first order page puts the address under the map on phones, so Google's suggestions open above the field,
   // never over it or under the keyboard. Google moves and resizes the list whenever results change, so each list is
   // watched itself (style, rows and size) and put back; its height is capped to the room above the field.
@@ -5874,7 +5883,7 @@ window.PlatformCommerce.onReady(async function(){
     window.addEventListener('resize',()=>close());document.addEventListener('scroll',event=>{if(menu&&!menu.contains(event.target))close();},true);}
 
   function buildTypeButtons(){
-    const pricingLabels = Object.fromEntries(['residential','commercial','multifamily'].map(type => [type, globalThis.PlatformLanguage?.text('project-request', type === 'residential' ? 'price_flat_rate' : 'price_per_structure', fmtCredit(reportDisplayedBasePrice(type)) + (type === 'residential' ? ' flat rate' : ' / structure'), {price:fmtCredit(reportDisplayedBasePrice(type))})]));
+    const pricingLabels = Object.fromEntries(['residential','commercial','multifamily'].map(type => [type, escapeHtml(typePriceLabel(type))]));
     return Object.entries(TYPE_META).map(([key, meta]) => `
       <button type="button" class="r-type-btn" data-type="${key}">
         <div class="r-type-icon"><i class="fas ${meta.icon}"></i></div>
@@ -6088,13 +6097,23 @@ window.PlatformCommerce.onReady(async function(){
     return 240;
   }
 
+  // The wait bar spans the standard turnaround window the server is configured with. Its end labels and
+  // its marker both come from this range, so a wait near the end of the window sits near the right end.
+  function reportExpediteWaitRange(option){
+    const start = Number(option?.waitRangeStartMinutes ?? option?.baseStartMinutes ?? option?.base_start_minutes ?? 240);
+    const end = Number(option?.waitRangeEndMinutes ?? option?.baseEndMinutes ?? option?.base_end_minutes ?? 420);
+    return Number.isFinite(start) && Number.isFinite(end) && end > start ? { start, end } : { start:240, end:420 };
+  }
+
   function reportExpediteWaitPosition(option){
-    const isStandard = option?.key === 'standard_3_6';
-    const start = isStandard ? 180 : Number(option?.baseStartMinutes ?? option?.base_start_minutes ?? option?.startMinutes ?? 180);
-    const end = isStandard ? 360 : Number(option?.baseEndMinutes ?? option?.base_end_minutes ?? option?.endMinutes ?? 360);
+    const { start, end } = reportExpediteWaitRange(option);
     const wait = reportExpediteEstimatedWaitMinutes(option);
-    const range = Math.max(1, end - start);
-    return Math.max(0, Math.min(100, Math.round(((wait - start) / range) * 100)));
+    return Math.max(0, Math.min(100, Math.round(((wait - start) / (end - start)) * 100)));
+  }
+
+  function reportExpediteWaitRangeLabel(minutes){
+    const hours = Number((Number(minutes) / 60).toFixed(1));
+    return (globalThis.PlatformLanguage?.text("project-request","wait_range_hours",`${hours} hrs`,{hours}) ?? `${hours} hrs`);
   }
 
   function reportExpediteEstimatedWaitLabel(option){
@@ -6257,6 +6276,8 @@ window.PlatformCommerce.onReady(async function(){
         endMinutes: useUiWindow ? fallbackEndMinutes : (option.end_minutes ?? option.endMinutes ?? fallback.endMinutes ?? null),
         baseStartMinutes: useUiWindow ? (fallback.startMinutes ?? null) : (option.base_start_minutes ?? option.baseStartMinutes ?? fallback.startMinutes ?? null),
         baseEndMinutes: useUiWindow ? (fallback.endMinutes ?? null) : (option.base_end_minutes ?? option.baseEndMinutes ?? fallback.endMinutes ?? null),
+        waitRangeStartMinutes: option.base_start_minutes ?? option.baseStartMinutes ?? fallback.startMinutes ?? null,
+        waitRangeEndMinutes: option.base_end_minutes ?? option.baseEndMinutes ?? fallback.endMinutes ?? null,
         structureCount: Number(option.structure_count ?? option.structureCount ?? structureCount) || structureCount,
         additionalStructureMinutes,
         productionDeadlineMinutes: useUiWindow && fallback.productionDeadlineMinutes != null
@@ -6285,26 +6306,28 @@ window.PlatformCommerce.onReady(async function(){
   }
 
   function loadReportExpediteOptions(force = false){
-    if (!selectedType || !fmJson || !addressSelected) return;
+    if (!fmJson || !addressSelected) return;
     const currentSlot = Math.floor(Date.now() / 600000);
-    const structureCount = reportExpediteStructureCount(selectedType);
     const propertyKey = reportPropertyKey();
-    if (!force && reportExpeditePropertyKey === propertyKey && reportExpediteOptionsProjectType === selectedType && reportExpediteOptionsStructureCount === structureCount && reportExpediteOptionsSlot === currentSlot && reportExpediteOptions.length) return;
+    // Before a type is chosen, quote residential: the response carries this property's
+    // prices for every type, so the type cards show them instead of the account's base prices.
+    if (!selectedType && reportExpeditePropertyKey === propertyKey) return;
+    const requestType = selectedType || 'residential';
+    const structureCount = reportExpediteStructureCount(requestType);
+    if (!force && selectedType && reportExpeditePropertyKey === propertyKey && reportExpediteOptionsProjectType === selectedType && reportExpediteOptionsStructureCount === structureCount && reportExpediteOptionsSlot === currentSlot && reportExpediteOptions.length) return;
     if (reportExpediteOptionsLoading) return;
     reportExpediteOptionsLoading = true;
-    reportExpediteOptionsAuthoritative = false;
+    if (selectedType) reportExpediteOptionsAuthoritative = false;
     const quotedType = selectedType;
-    fmJson(`report-expedite-options?address=${encodeURIComponent($("#rAddress")?.value || "")}&lat=${encodeURIComponent($("#rLat")?.value || "")}&lng=${encodeURIComponent($("#rLng")?.value || "")}&project_type=${encodeURIComponent(selectedType)}&structure_count=${encodeURIComponent(String(structureCount))}`)
+    fmJson(`report-expedite-options?address=${encodeURIComponent($("#rAddress")?.value || "")}&lat=${encodeURIComponent($("#rLat")?.value || "")}&lng=${encodeURIComponent($("#rLng")?.value || "")}&project_type=${encodeURIComponent(requestType)}&structure_count=${encodeURIComponent(String(structureCount))}`)
       .then((data) => {
-        if (propertyKey !== reportPropertyKey() || quotedType !== selectedType) return;
+        if (propertyKey !== reportPropertyKey()) return;
         reportExpeditePropertyKey = propertyKey;
         reportPropertyPrices = data.report_prices || null;
         document.querySelectorAll('.r-type-btn[data-type] .r-type-price').forEach(label => {
-          const type = label.closest('[data-type]').dataset.type;
-          label.textContent = type === 'residential'
-            ? (globalThis.PlatformLanguage?.text("project-request","price_flat_rate","{price} flat rate",{price:fmtCredit(reportDisplayedBasePrice(type))}) ?? `${fmtCredit(reportDisplayedBasePrice(type))} flat rate`)
-            : (globalThis.PlatformLanguage?.text("project-request","price_per_structure","{price} / structure",{price:fmtCredit(reportDisplayedBasePrice(type))}) ?? `${fmtCredit(reportDisplayedBasePrice(type))} / structure`);
+          label.textContent = typePriceLabel(label.closest('[data-type]').dataset.type);
         });
+        if (!quotedType || quotedType !== selectedType) return;
         const options = normalizeReportExpediteOptionsResponse(data, selectedType, structureCount);
         if (options.length) {
           reportExpediteOptions = options;
@@ -6317,8 +6340,11 @@ window.PlatformCommerce.onReady(async function(){
         }
       })
       .catch((error) => {
-        if (propertyKey !== reportPropertyKey() || quotedType !== selectedType) return;
+        if (propertyKey !== reportPropertyKey()) return;
+        // Remember the failed property so renders do not retry it in a loop; its cards keep base prices.
+        if (reportExpeditePropertyKey !== propertyKey) reportPropertyPrices = null;
         reportExpeditePropertyKey = propertyKey;
+        if (!quotedType || quotedType !== selectedType) return;
         console.warn('Report prices unavailable; ordering waits for a verified quote.', error);
         const options = buildLocalReportExpediteOptions(selectedType, new Date(), structureCount);
         if (options.length) {
@@ -6473,6 +6499,7 @@ window.PlatformCommerce.onReady(async function(){
       waitMount.innerHTML = '';
     } else if (waitMount && defaultOption) {
       const position = reportExpediteWaitPosition(defaultOption);
+      const waitRange = reportExpediteWaitRange(defaultOption);
       waitMount.innerHTML = `
         <div class="r-expedite-default-head">
           <div class="r-expedite-status">
@@ -6482,7 +6509,7 @@ window.PlatformCommerce.onReady(async function(){
           <div class="r-expedite-eta">${String(escapeHtml(reportExpediteEstimatedWaitLabel(defaultOption)))}</div>
         </div>
         <div class="r-expedite-bar" style="--wait-position:${String(position)}%"><span class="r-expedite-marker" aria-hidden="true"></span></div>
-        <div class="r-expedite-bar-labels"><span>${(globalThis.PlatformLanguage?.htmlText("project-request","m_c025d9e87eaacd","4 hrs") ?? "4 hrs")}</span><span>${(globalThis.PlatformLanguage?.htmlText("project-request","m_ed52be56a2ea6c","7 hrs") ?? "7 hrs")}</span></div>`;
+        <div class="r-expedite-bar-labels"><span>${String(escapeHtml(reportExpediteWaitRangeLabel(waitRange.start)))}</span><span>${String(escapeHtml(reportExpediteWaitRangeLabel(waitRange.end)))}</span></div>`;
     } else if (waitMount) {
       waitMount.innerHTML = '';
     }
@@ -7267,7 +7294,7 @@ window.PlatformCommerce.onReady(async function(){
       isMobileReportOrder: () => shouldUseMobileOrderPagination(),
       mobileOrderPinsLocked: () => shouldUseMobileOrderPagination() && !mobileOrderScopeReady(),
       inlineProjectMapWithReports: () => projectModalAppsShouldInlineMap(),
-      reportNavigationContext: () => ({ordered:hasReportOrdered(),tabs:projectViewerTabs(),activeTab:activePreviewTab}),
+      reportNavigationContext: () => ({ordered:reportOrderExists(),tabs:projectViewerTabs(),activeTab:activePreviewTab}),
       showStructurePinLimitNotice: () => showStructurePinLimitNotice(),
       invalidateReportExpediteOptions: () => invalidateReportExpediteOptions(),
       renderPinInfo: () => renderPinInfo(),
@@ -7837,15 +7864,30 @@ window.PlatformCommerce.onReady(async function(){
     return tabs;
   }
 
+  // A report order exists once the project carries a report, an order status or a measurement id,
+  // cancelled and rejected orders included. The opening header and the hydrated header share this
+  // rule, so a cancelled order keeps the report layout instead of flipping to the full tab set.
+  function projectReportOrderExists(project){
+    const measurement=project?.measurement_project || project?.measurement || {};
+    const manifest=project?.manifest || measurement.raw?.manifest || {};
+    const rows=[project || {},measurement,measurement.raw || {},manifest];
+    return rows.some(row=>row.has_report || row.report_url || row.pdf_url || row.summary_url || row.xml_url || ['measurement_ordered','submitted','processing','in_progress','completed','complete','queued'].includes(String(row.workflow_state || row.status || '').toLowerCase())) || !!(project?.measurement_project_id || project?.firstmeasure_project_id || measurement.id || measurement.project_id);
+  }
+  function reportOrderExists(){
+    if (reorderMeasurementProjectId) return false;
+    return hasReportOrdered() || projectReportOrderExists(activeBaseProject);
+  }
+
   function openingProjectTabs(project, options = {}){
     if (!project && normalizeWorkflow(options.workflow || options.createWorkflow || options.intent)!=='project') return [];
     const tabs=projectViewerTabs({opening:true,project});
     const measurement=project?.measurement_project || project?.measurement || {};
     const manifest=project?.manifest || measurement.raw?.manifest || {};
     const rows=[project || {},measurement,measurement.raw || {},manifest];
-    const ordered=rows.some(row=>row.has_report || row.report_url || row.pdf_url || row.summary_url || row.xml_url || ['measurement_ordered','submitted','processing','in_progress','completed','complete','queued'].includes(String(row.workflow_state || row.status || '').toLowerCase())) || !!(project?.measurement_project_id || project?.firstmeasure_project_id || measurement.id || measurement.project_id);
+    const ordered=projectReportOrderExists(project);
     if(!ordered || weatherReportsEnabled() || reportFollowupEnabled() || !appFeatureEnabled('firstmeasure','measurement_report_summary',false) || rows.some(row=>row.include_inspection || row.include_instant || row.include_instant_preview || row.report_mode === 'both'))return tabs;
     const reportTabs=[{id:'summary',label:(globalThis.PlatformLanguage?.text("project-request","m_9b03ccb29ba168","Summary") ?? "Summary")},{id:'standard',label:window.Portal?.terminology?.get?.('reports.standard_view','Standard Report') || 'Standard Report'},{id:'customer',label:window.Portal?.terminology?.get?.('reports.customer_view','Customer Report') || 'Customer Report'}];
+    if(rows.some(row=>row.xml_url))reportTabs.push({id:'xml',label:(globalThis.PlatformLanguage?.text("project-request","m_8efb983a491620","XML") ?? "XML")});
     return window.Portal.ProjectViewer.reportHeaderTabs(tabs,reportTabs,true) || tabs;
   }
 
@@ -7853,15 +7895,19 @@ window.PlatformCommerce.onReady(async function(){
     const header=$('#rOverlay .r-modal-header');
     if(!header || header.querySelector('#rMeasureTabs'))return;
     const tabs=openingProjectTabs(activeBaseProject,{workflow:requestedWorkflow});
+    // This strip stands in only until the report app draws its own tabs (in the header or its panel).
+    const reportTabsDrawn=!!$('#rOverlay #rMeasureTabs [data-tab]');
+    if(reportTabsDrawn){header.querySelector('#rOpeningReportTabs')?.remove();return;}
     if(!tabs.some(tab=>tab.id==='project:map')){const pending=header.querySelector('#rOpeningReportTabs');if(pending){pending.remove();$('#rOverlay')?.classList.remove('flat-report-navigation','report-tabs-in-header');}return;}
     let nav=header.querySelector('#rOpeningReportTabs');
     if(!nav){nav=document.createElement('nav');nav.id='rOpeningReportTabs';nav.className='r-measure-tabs';header.append(nav);}
     $('#rOverlay')?.classList.add('flat-report-navigation','report-tabs-in-header');
-    const reportView=window.Portal?.navigation?.read?.().reportView || 'standard';
+    const reportView=projectMeasurementsModule()?.activeTab?.() || window.Portal?.navigation?.read?.().reportView || 'standard';
     const selected=activePreviewTab==='measurements' ? reportView : 'project:'+activePreviewTab;
     window.Portal.ProjectViewer.renderTabs(nav,tabs.map(tab=>({...tab,active:tab.id===selected})),{tabClass:'r-measure-tab',iconOnly:true,onTabClick:tab=>{
       if(tab.id.startsWith('project:'))setActivePreviewTab(tab.id.slice(8),{history:'push'});
-      else {setActivePreviewTab('measurements',{history:'push'});setActiveMeasurementTab(tab.id);}
+      else {setActivePreviewTab('measurements',{history:'push'});setActiveMeasurementTab(tab.id,{user:true});}
+      renderOpeningReportTabs();
     }});
   }
 
@@ -7974,6 +8020,7 @@ window.PlatformCommerce.onReady(async function(){
   }
 
   function measurementTabs(...args){ return projectMeasurementsInvoke('measurementTabs', args); }
+  function selectInitialMeasurementTab(...args){ return projectMeasurementsInvoke('selectInitialMeasurementTab', args); }
   function isPlatformProjectId(...args){ return projectMeasurementsInvoke('isPlatformProjectId', args); }
   function normalizedStatusList(values = []){
     return values.map((value) => projectText(value).toLowerCase()).filter(Boolean);
@@ -8879,7 +8926,9 @@ window.PlatformCommerce.onReady(async function(){
     if (activeBaseProject?.__projectShellLoading) return;
     if (!activeBaseProject && requestedWorkflow === 'contact') ensureContactDraftBaseProject();
     if (!activeBaseProject && requestedWorkflow === 'document' && docPickerDismissed) ensureDocumentBaseProject();
-    if (!activeBaseProject && addressSelected) ensureDraftBaseProject();
+    // Only a new project starts a draft here. A window opened for an existing project (an order whose record has not
+    // loaded yet, or failed to) must not save a new draft over the order's address (1M8-234).
+    if (!activeBaseProject && addressSelected && !viewingExistingProject) ensureDraftBaseProject();
     if (!activeBaseProject || !window.Portal.ProjectStore) return;
     syncProjectPhotosFromLibrary();
     // Without the Overview details form there are no edited values to read;
@@ -9566,7 +9615,7 @@ window.PlatformCommerce.onReady(async function(){
     if (activeBaseProject) syncProjectPhotosFromLibrary();
     setProjectionMode(true);
     refreshProjectModalAppsForOrderTransition();
-    setActiveMeasurementTab(data?.development_report ? 'model' : (reportOrderState.includeInspection ? 'instant' : 'standard'));
+    selectInitialMeasurementTab(reportOrderState.includeInspection ? 'instant' : 'standard', { model:data?.development_report === true });
     projectViewer?.setActiveTab('measurements');
     renderMeasurementsPanel();
     refreshProjectModalAppsForOrderTransition('measurements');
@@ -9695,6 +9744,7 @@ window.PlatformCommerce.onReady(async function(){
   }
 
   function renderWorkflowStateBody(options = {}){
+    if (addressSelected && !selectedType) loadReportExpediteOptions();
     ensureOrderContactFields();
     syncOverviewWorkflow();
     syncDevelopmentReportControls();
@@ -10470,6 +10520,8 @@ window.PlatformCommerce.onReady(async function(){
       // Whose order it is: another account signed in on this browser must never see or submit it (billing readPending).
       organization_id: String(window.__APP?.userOrgId || '').trim(),
       user_id: String(window.__APP?.userId || '').trim() || String(window.__APP?.userEmail || '').trim().toLowerCase(),
+      // The account that placed it: another account signed in on this browser must never submit it (1M8-204).
+      organization_id: String(window.__APP?.userOrgId || '').trim(),
       fields: {
         address: ($('#rAddress').value || '').trim(),
         residentName: primary.name || '',
@@ -10501,6 +10553,10 @@ window.PlatformCommerce.onReady(async function(){
         reorder_project_id: reorderSourceCanReopenInPlace && reorderMeasurementProjectId ? reorderMeasurementProjectId : '',
         source_project_id: reorderSourceCanReopenInPlace && reorderMeasurementProjectId ? reorderMeasurementProjectId : '',
         ...(window.Portal.ExteriorOrder?.payload() || {}),
+        // The quote shown here; the billing page tops up and resubmits
+        // against it instead of recomputing prices.
+        order_original_amount: window.Portal.ExteriorOrder?.active() ? '' : String(currentPriceQuote().original_amount ?? ''),
+        order_quoted_amount: String(currentPrice() ?? ''),
       }
     };
     try { localStorage.setItem(PENDING_ORDER_KEY, JSON.stringify(obj)); } catch (e) {}
@@ -11131,7 +11187,7 @@ window.PlatformCommerce.onReady(async function(){
           || !!summaryUrl
         ),
       };
-      setActiveMeasurementTab(cancelledMeasurement ? 'standard' : (reportOrderState.hasReadyReport ? 'model' : (reportOrderState.includeInspection ? 'instant' : 'standard')));
+      selectInitialMeasurementTab(!cancelledMeasurement && reportOrderState.includeInspection ? 'instant' : 'standard', { model:!cancelledMeasurement && reportOrderState.hasReadyReport });
       setProjectionMode(true);
       if (!options.preferredTab) setActivePreviewTab('measurements');
     }
@@ -11678,6 +11734,11 @@ window.PlatformCommerce.onReady(async function(){
     });
     window.addEventListener('fm:new-project-workflow', (event) => {
       const workflow = event?.detail?.workflow || 'project';
+      // Someone who may not order reports gets a reason instead of an order window that cannot load (1M8-227).
+      if (workflow === 'report' && Object.keys(window.Portal?.currentUser?.permissions || {}).length && !hasPerm('order_reports')) {
+        window.Portal?.ui?.showToast?.(globalThis.PlatformLanguage?.text('project-request', 'order_reports_denied_title', 'You cannot order reports') ?? 'You cannot order reports', globalThis.PlatformLanguage?.text('project-request', 'order_reports_denied_detail', 'Ask an admin on your account to give you permission to order reports.') ?? 'Ask an admin on your account to give you permission to order reports.', false);
+        return;
+      }
       if (workflow === 'contact' && window.Portal?.modules?.contacts?.open) {
         window.Portal.modules.contacts.open();
         return;
