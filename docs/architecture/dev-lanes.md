@@ -112,7 +112,7 @@ goes in a manifest whose digest is the release's full-tree hash.
 
 **Activation:** the same tree goes to web, worker and legacy at once
 (`router/hosts.mjs`): `rsync` into `<releases root>/<commit>.staging`
-(unchanged files hard-linked to the running release), `fm-release finish`
+(owned by `firstmeasure` like every release before it; unchanged files hard-linked to the running release), `fm-release finish`
 checks the staged tree is exactly the manifest and carries the running
 release's runtime data (`public/storage`, `public/v1/storage`), then
 `fm-release activate` runs on every role together: switch `current`, restart
