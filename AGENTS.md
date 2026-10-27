@@ -93,6 +93,35 @@ For private experiments only your own Chrome should see, use the
 through the FirstMate Dev Bridge extension and touches nothing on the server.
 Run `node --test tests/frontend-bridge.test.mjs` for changes to it.
 
+## Shipping the measure editor to dev
+
+The measure editor has its own dev lane
+([dev lanes](docs/architecture/dev-lanes.md#measure-internal-lane)): dev.1m8.ai
+serves `/measure/internal/` from branch `lane/measure-internal`, not from the
+platform release, and a push is live in about a minute. The lane owns
+`public/measure/internal/**` and `dev/**` (the editor's tests). Everything else,
+including `public/v1/**`, `public/libraries/**` and new language keys in
+`public/libraries/platform-language`, still ships through `platform`.
+
+1. Commit the editor change on your branch (canonical or your own; the commit
+   may also carry other files, which still need `platform`).
+2. From that checkout (it needs `public/v1/node_modules`; junction it from the
+   shared checkout), run
+   `node tools/dev-push/lanes/measure-internal/ship.mjs` (ships `HEAD`). It
+   takes only `public/measure/internal` and `dev` from the commit, merges them
+   onto `origin/lane/measure-internal` (a conflict there is refused), runs the
+   `dev/*.test.cjs` the change maps to (`--tests=full` for all), lints changed
+   PHP, switches the release with readiness checks and rollback, then
+   fast-forwards `lane/measure-internal` on origin.
+3. Check: `curl -sI https://dev.1m8.ai/measure/internal/<file>` shows
+   `X-FirstMate-Lane: measure-internal <sha>`.
+
+Do not copy editor files into the platform release on dev legacy with a
+per-task rollout: they are not served while the lane is active. `ship.mjs
+status`, `rollback [<sha>]`, and `uninstall` (serve the platform copy again)
+are the other commands. Run `node --test tests/dev-lane-measure-internal.test.mjs`
+for changes to the lane tool.
+
 ## Canonical source
 
 The active combined platform checkout is `C:/Users/jackh/Code/2026/FirstMate Platform`
