@@ -11,7 +11,9 @@
  *
  * Step widgets are registered by id (`registerWidget`) and are given the step's options (data from the server) and
  * the selections so far; they report a selection patch, whether it is complete, and a plain summary of it. Steps can
- * branch (a step's `next`, decided on the server); Back returns along the way taken and the progress bar shows it.
+ * branch (a step's `next`, decided on the server); Back returns along the way taken. There is no step count: setup
+ * steps the experience requires (docs/architecture/setup-steps.md) are injected by the server while unanswered, drawn
+ * in the same frame (often by their own module, widget `module`) and saved by their own action on Continue.
  * The finish offers "Start generating materials" and "View the price book" (the price book renderer, in the sheet).
  */
 (function(root){
@@ -48,11 +50,6 @@
     .gxs-widget{display:flex;flex-direction:column;min-width:0;min-height:0;background:linear-gradient(180deg,#fcfcfd,#fff 180px)}
     .gxs-head{display:flex;align-items:center;gap:12px;padding:16px 20px 8px}
     .gxs-badge{display:inline-flex;align-items:center;gap:7px;font-size:12px;font-weight:700;color:var(--primary,#d93025);background:rgba(var(--primary-rgb,217,48,37),.08);border-radius:999px;padding:5px 11px;white-space:nowrap}
-    .gxs-progress{display:flex;gap:6px;margin:0 auto 0 4px;padding:0;list-style:none;flex:1;max-width:320px}
-    .gxs-progress li{flex:1;height:4px;border-radius:2px;background:#eaecf0;overflow:hidden}
-    .gxs-progress li i{display:block;height:100%;width:0;background:var(--primary,#d93025);transition:width .5s cubic-bezier(.22,1,.36,1)}
-    .gxs-progress li.done i,.gxs-progress li.on i{width:100%}
-    .gxs-progress li.on i{opacity:.55}
     .gxs-icon{width:34px;height:34px;border:0;border-radius:10px;background:transparent;color:#667085;cursor:pointer;font-size:18px;display:inline-grid;place-items:center}
     .gxs-icon:hover{background:#f2f4f7;color:#101828}
     .gxs-stage{position:relative;flex:1;min-height:0;overflow:hidden}
@@ -75,6 +72,8 @@
     .gxs-info:hover .gxs-info-tip,.gxs-info:focus-visible .gxs-info-tip,.gxs-info:focus-within .gxs-info-tip{opacity:1;transform:translate(-50%,0)}
     .gxs-info:focus-within .gxs-info-tip{pointer-events:auto;cursor:text}
     .gxs-step>p.gxs-sub{margin:0 0 18px;color:#667085;max-width:60ch}
+    .gxs-module-loading{display:grid;place-items:center;min-height:160px;color:var(--primary,#d93025)}
+    .gxs-module-error{margin:24px 0;color:#b42318}
     .gxs-foot{display:flex;align-items:center;gap:10px;padding:14px 20px;border-top:1px solid #f2f4f7;background:#fff}
     .gxs-foot .gxs-status{margin-right:auto;color:#667085;font-size:12.5px;min-height:18px}
     .gxs-foot .gxs-status.err{color:#b42318}
@@ -158,14 +157,19 @@
       const { experience, track } = ctx;
       const here = ctx.where();
       const steps = array(experience.steps);
+      // Nothing left to ask (a setup that only requires setup steps, all answered): nothing is drawn.
+      if (!steps.length) return resolve({ status: 'satisfied' });
       const orgId = clean(root.__APP?.userOrgId);
       // The agent is the platform assistant itself, in the person's own project conversation (the one the tray shows).
       let agentic = kind === 'agentic' && !!here.projectId && !!orgId && !!root.AssistantAPI && typeof root.PlatformAssistant?.mountProject === 'function';
       const selections = { ...object(experience.progress?.data) };
       const summaries = {};
+      // A setup step this experience requires (docs/architecture/setup-steps.md) is answered on its own, through its
+      // published action: its answer is kept here per step and never mixed into the experience's selections.
+      const answers = {};
       let index = Math.max(0, steps.findIndex((step) => step.id === experience.progress?.step_id));
       if (index >= steps.length) index = 0;
-      let mounted = null, busy = false, closed = false, assistant = null, doneWaiter = null;
+      let mounted = null, busy = false, saving = false, closed = false, assistant = null, doneWaiter = null;
       // The way through: the steps visited (Back returns along them) and each branch the server decided.
       const visited = [], decided = {};
       const indexOf = (id) => steps.findIndex((entry) => entry.id === id);
@@ -175,10 +179,21 @@
         if (step && decided[step.id] !== undefined) return decided[step.id];
         const target = typeof n === 'string' ? n : n && typeof n === 'object' ? (array(n.branches)[0]?.to || n.otherwise) : '';
         const found = target ? indexOf(target) : -1;
-        return found > at ? found : at + 1;
+        return found > at ? entryOf(found) : at + 1;
       }
-      /** The steps on the way through, for the progress bar: those visited, this one, then the rest as far as is known. */
-      function path(){ const out = [...visited, index]; let at = index; while ((at = after(at)) < steps.length && out.length < steps.length) out.push(at); return out; }
+      /**
+       * Where to land when going to step `to`: the first of the unanswered setup steps the server put just before it
+       * (they are asked first), else the step itself. A branch or a fixed next that jumps to a step goes through them.
+       */
+      function entryOf(to){
+        const target = steps[to]?.id;
+        let at = to;
+        while (at > 0 && target && steps[at - 1]?.setup_step?.injected_for === target && !answered.has(steps[at - 1].id)) at -= 1;
+        return at;
+      }
+      // Setup steps saved in this run: going back to one and on again does not ask the steps before it again.
+      const answered = new Set();
+      index = entryOf(index);
 
       const host = document.createElement('div');
       host.className = 'gxs'; host.dataset.kind = agentic ? 'agentic' : 'modal'; host.setAttribute('data-fmr-ignore', ''); host.setAttribute('data-gx-setup', experience.id);
@@ -186,8 +201,7 @@
         <section class="gxs-sheet" role="dialog" aria-modal="true" aria-label="${esc(L(experience.title))}">
           <button type="button" class="gxs-close" data-gxs="close" aria-label="${esc(L('gx_ui_close_setup', 'Close setup'))}" title="${esc(L('gx_ui_close_setup', 'Close setup'))}"><span class="gxs-x" aria-hidden="true">&times;</span></button>
           <div class="gxs-widget">
-            <header class="gxs-head"><span class="gxs-badge"><i class="fas fa-wand-magic-sparkles" aria-hidden="true"></i><span>${H(experience.title)}</span></span>
-              <ol class="gxs-progress" aria-hidden="true">${steps.map(() => '<li><i></i></li>').join('')}</ol></header>
+            <header class="gxs-head"><span class="gxs-badge"><i class="fas fa-wand-magic-sparkles" aria-hidden="true"></i><span>${H(experience.title)}</span></span></header>
             <div class="gxs-stage"></div>
             <footer class="gxs-foot"><span class="gxs-status" role="status"></span>
               <button type="button" class="gxs-btn ghost" data-gxs="back">${H('gx_ui_back', 'Back')}</button>
@@ -258,6 +272,17 @@
           return object(result?.value ?? result);
         } catch (error) { console.warn('The setup could not save its draft before the price sheet.', error); return null; }
       }
+      /**
+       * A published data read for a step's code, as the person, in their organization: the value, or an error with the
+       * layer's reason. Steps read what they show (a catalog, an earlier answer) here, never from private routes.
+       */
+      async function readData(provider, exportName, extra = {}){
+        if (!orgId || !root.PlatformAPI?.publication?.read) throw new Error(L('gx_ui_read_unavailable', 'This can’t be loaded here. Reload the page and try again.'));
+        const result = await root.PlatformAPI.publication.read(orgId, { provider, export: exportName, target: { scope: 'organization', organizationId: orgId }, ...object(extra) });
+        const value = result?.result ?? result;
+        if (value?.status && value.status !== 'ready') throw Object.assign(new Error(clean(value.message) || L('gx_ui_read_failed', 'This couldn’t be loaded. Try again.')), { code: value.code, status: value.status });
+        return value?.value;
+      }
       /** A supplier's price sheet: saved first so it has an id, then the file goes to the agent with the supplier named. */
       function supplierPriceSheet(supplier){
         if (!assistant || !root.FirstMateSupplierColumns?.priceSheet) return null;
@@ -297,12 +322,9 @@
       }
       $('[data-gxs=toggleChat]').addEventListener('click', () => { const open = chat.dataset.open !== 'true'; chat.dataset.open = String(open); $('[data-gxs=toggleChat]').setAttribute('aria-expanded', String(open)); });
 
-      // Steps
-      function progress(){
-        const way = path(), at = way.indexOf(index), list = $('.gxs-progress');
-        if (list.children.length !== way.length) list.innerHTML = way.map(() => '<li><i></i></li>').join('');
-        [...list.children].forEach((li, i) => { li.classList.toggle('done', i < at); li.classList.toggle('on', i === at); });
-      }
+      // Steps. There is no step count or progress bar: a flow's length is not known ahead (setup steps it requires are
+      // asked only while unanswered, branches and answers add or remove steps), so the frame only ever goes forward
+      // to the next step, with Back along the way taken.
       function footer(){
         const step = steps[index];
         $('.gxs-foot').hidden = !!widgets.get(step.widget)?.handlesNavigation;
@@ -311,7 +333,8 @@
         // An optional last page (labor prices) can be skipped too; skipping it finishes without its part.
         $('[data-gxs=skip]').hidden = step.required !== false || (last && !Object.keys(object(step.options?.skip_sets)).length);
         const next = $('[data-gxs=next]');
-        next.innerHTML = busy ? `<span class="gxs-spin" aria-hidden="true"></span>${H('gx_ui_building', 'Building…')}` : (last ? (ctx.options?.nested ? H('gx_ui_finish_setup','Finish setup') : H('gx_ui_finish', 'Build my price book')) : H('gx_ui_continue', 'Continue'));
+        const finishLabel = experience.completion?.screen === 'none' ? H('gx_ui_done', 'Done') : ctx.options?.nested ? H('gx_ui_finish_setup','Finish setup') : H('gx_ui_finish', 'Build my price book');
+        next.innerHTML = busy ? `<span class="gxs-spin" aria-hidden="true"></span>${saving ? H('gx_ui_saving', 'Saving…') : H('gx_ui_building', 'Building…')}` : (last ? finishLabel : H('gx_ui_continue', 'Continue'));
         const blocked = step.required !== false && mounted?.valid?.() === false;
         next.disabled = busy || blocked;
         // A disabled button shows no tooltip of its own, so its wrapper says why.
@@ -349,10 +372,14 @@
         // bottom while there is more below.
         if (widget?.fill) el.dataset.fill = '';
         watchFade(el);
-        mounted = widget ? widget.render(el.querySelector('.gxs-body'), { step, options: object(step.options), selections, L, esc, money, where:here, actions: el.querySelector('.gxs-title-actions'), priceSheet: assistant ? supplierPriceSheet : null, paySheet: assistant ? laborPaySheet : null,
+        // A setup step's answer is its own (answers[step.id], saved by its action on Continue); an experience step's
+        // goes into the selections the completion reads.
+        const global = step.setup_step || null;
+        if (global && !answers[step.id]) answers[step.id] = {};
+        mounted = widget ? widget.render(el.querySelector('.gxs-body'), { step, options: object(step.options), selections, answer: global ? answers[step.id] : null, L, H, esc, money, where:here, orgId, read: readData, actions: el.querySelector('.gxs-title-actions'), priceSheet: assistant ? supplierPriceSheet : null, paySheet: assistant ? laborPaySheet : null,
           advance:()=>next(false), complete:completeDirectly, checkpoint:()=>track('step_view',{step_id:step.id,selections}), restart(){visited.length=0;show(0,-1);},
           async runGuide(id,options={}){ if(!options.keepVisible){host.hidden=true;host.inert=true;}try{return await ctx.playChild?.(id,options);}finally{if(!closed){host.hidden=false;host.inert=false;}} },
-          change(patch, summary){ Object.assign(selections, patch); if (summary !== undefined) summaries[step.id] = summary; status.textContent = ''; footer(); } }) : null;
+          change(patch, summary){ Object.assign(global ? answers[step.id] : selections, patch); if (summary !== undefined) summaries[step.id] = summary; status.textContent = ''; status.classList.remove('err'); footer(); } }) : null;
         if (!widget) el.querySelector('.gxs-body').textContent = L('gx_ui_widget_missing', 'This step cannot be shown here.');
         if (old) {
           old.classList.remove('gxs-below', 'gxs-above');
@@ -364,7 +391,7 @@
             setTimeout(() => { if (old !== currentPane) old.remove(); }, 560);
           }
         }
-        progress(); footer();
+        footer();
         setTimeout(() => { if (generation === paneGeneration) el.querySelector('button,input')?.focus?.({ preventScroll: true }); }, reduced() ? 0 : 450);
         track('step_view', { step_id: step.id, selections });
       }
@@ -392,6 +419,23 @@
         const choice = skip ? '' : clean(summaries[step.id] || mounted?.summary?.() || '');
         // An optional step skipped leaves its part out (the labor prices page: no labor lines).
         if (skip) Object.assign(selections, object(step.options?.skip_sets));
+        // A setup step is saved before the flow moves on: its published action, run as the person. A failure stays
+        // on the step with the reason, so nothing later is asked on an answer that was not kept.
+        const global = step.setup_step;
+        if (global?.writes?.action && !skip) {
+          const answer = object(mounted?.answer?.() ?? answers[step.id]);
+          busy = true; saving = true; footer(); status.textContent = ''; status.classList.remove('err');
+          try {
+            if (!orgId || !root.PlatformAPI?.publication?.invoke) throw new Error(L('gx_ui_save_unavailable', 'This can’t be saved here. Reload the page and try again.'));
+            await root.PlatformAPI.publication.invoke(orgId, global.writes.action, { scope: 'organization', organizationId: orgId }, answer, { idempotencyKey: `${experience.id}:${step.id}:${Date.now()}:${Math.random().toString(36).slice(2)}` });
+            answered.add(step.id);
+          } catch (error) {
+            busy = false; saving = false; footer(); status.classList.add('err');
+            status.textContent = clean(error?.message) || L('gx_ui_finish_failed', 'That didn’t save. Try again.');
+            return;
+          }
+          busy = false; saving = false;
+        }
         const sent = track(skip ? 'step_skip' : 'step_done', { step_id: step.id, selections });
         let to = after(index);
         if (step.next && typeof step.next === 'object') {
@@ -399,13 +443,14 @@
           const target = clean((await sent)?.next_step);
           busy = false;
           const found = indexOf(target);
-          if (found > index) { to = found; decided[step.id] = found; }
+          if (found > index) { to = entryOf(found); decided[step.id] = to; }
         }
         if (to >= steps.length) return finish(choice);
         if (!closed) { visited.push(index); enter(to, 1, choice); }
       }
       async function finish(choice){
-        if(ctx.options?.nested) { try{return await completeDirectly();}catch{return;} }
+        // Nested setups, and setups with no finish screen (one that only asks setup steps), close as they finish.
+        if(ctx.options?.nested || experience.completion?.screen === 'none') { try{return await completeDirectly();}catch{return;} }
         busy = true; footer(); status.textContent = ''; status.classList.remove('err');
         try {
           const result = await ctx.api.complete(experience.id, { selections, tab: here.tab, project_id: here.projectId, idempotency_key: `${experience.id}:${Date.now()}:${Math.random().toString(36).slice(2)}` });
@@ -416,7 +461,6 @@
           done.innerHTML = `<div class="gxs-done"><svg viewBox="0 0 84 84" aria-hidden="true"><circle cx="42" cy="42" r="38"/><path d="M26 43l11 11 21-23"/></svg><h2>${H('gx_ui_done_title', 'Your price book is ready')}</h2><p>${H('gx_ui_done_body_2', 'New materials lists start from your defaults, and everything else is in your price book to search.')}</p></div>`;
           stage.appendChild(done);
           currentPane = done; finished = value;
-          host.querySelectorAll('.gxs-progress li').forEach((li) => { li.classList.add('done'); li.classList.remove('on'); });
           // Two ways on: look at the price book here first, or close and generate this project's materials.
           const foot = $('.gxs-foot');
           [...foot.children].forEach((child) => { child.hidden = true; });
@@ -530,7 +574,9 @@
         else if (action === 'keep') keepGoing();
         else if (action === 'dismiss' && !host.dataset.dismissing) { host.dataset.dismissing = 'true'; (async () => { await track('dismiss', { step_id: steps[index]?.id, selections }); await close('plain'); resolve({ status: 'dismissed' }); })(); }
       });
-      const onKey = (event) => { if (event.key === 'Escape' && !closed) { event.preventDefault(); event.stopPropagation(); if (doneWaiter && bookPane) showPricebook(false); else if (doneWaiter) { const go = doneWaiter; doneWaiter = null; go(); } else if (host.querySelector('.gxs-ask')) keepGoing(); else confirmSkip(); } };
+      // Escape never reaches the page (the project window closes on it). A step that has something of its own open
+      // (a dropdown) closes that first: its `escape()` returns true.
+      const onKey = (event) => { if (event.key === 'Escape' && !closed) { event.preventDefault(); event.stopPropagation(); if (!doneWaiter && !host.querySelector('.gxs-ask') && mounted?.escape?.() === true) return; if (doneWaiter && bookPane) showPricebook(false); else if (doneWaiter) { const go = doneWaiter; doneWaiter = null; go(); } else if (host.querySelector('.gxs-ask')) keepGoing(); else confirmSkip(); } };
       document.addEventListener('keydown', onKey, true);
 
       /** Closes the sheet. `handoff` flies the conversation to the project's agent tray, which opens with it. */
@@ -612,6 +658,46 @@
 
   // ── Widgets ────────────────────────────────────────────────────────────
   function registerWidget(id, widget){ widgets.set(id, widget); }
+  /**
+   * A step with its own code (widget `module`, docs/architecture/setup-steps.md): a browser ES module under /libraries/
+   * on this site, loaded when the step first shows and mounted in the standard step frame. It exports
+   * `mount(el, ctx)` and returns `{ valid(), hint(), summary(), answer(), escape(), destroy() }` (`escape()` closes something
+   * of its own, such as a dropdown, and returns true; otherwise Escape asks to close the setup). `ctx` is what every widget gets
+   * (`step`, `options`, `answer`, `change(patch, summary)`, `advance()`, `L`, `H`, `esc`, `actions`) plus `read(provider,
+   * export, { path, args })`, a published data read as the person. The player saves `answer()` with the step's action.
+   */
+  const stepModules = new Map();
+  function loadStepModule(path){
+    const url = new URL(clean(path), scriptUrl);
+    if (url.origin !== new URL(scriptUrl).origin || !url.pathname.startsWith('/libraries/')) return Promise.reject(new Error(L('gx_ui_widget_missing', 'This step cannot be shown here.')));
+    if (!stepModules.has(url.href)) stepModules.set(url.href, import(url.href).catch((error) => { stepModules.delete(url.href); throw error; }));
+    return stepModules.get(url.href);
+  }
+  registerWidget('module', {
+    render(el, ctx){
+      let disposed = false, handle = null;
+      el.innerHTML = `<div class="gxs-module-loading"><span class="gxs-spin" aria-hidden="true"></span></div>`;
+      loadStepModule(ctx.step.module).then((module) => {
+        if (disposed) return;
+        el.innerHTML = '';
+        handle = (module.mount || module.default)?.(el, ctx) || {};
+        ctx.change({});
+      }).catch((error) => {
+        if (disposed) return;
+        console.warn('A setup step could not load its module.', error);
+        el.innerHTML = `<p class="gxs-module-error" role="alert">${esc(L('gx_ui_step_load_failed', 'This step didn’t load. Close the setup and try again.'))}</p>`;
+      });
+      return {
+        // Continue waits for the step's code to say its answer is complete.
+        valid: () => !!handle && handle.valid?.() !== false,
+        hint: () => handle?.hint?.() || '',
+        summary: () => handle?.summary?.() || '',
+        answer: () => handle?.answer?.(),
+        escape: () => handle?.escape?.() === true,
+        destroy(){ disposed = true; handle?.destroy?.(); }
+      };
+    }
+  });
   for (const id of ['operations-path','operations-document','operations-ready']) registerWidget(id, {
     fill:true, handlesNavigation:true,
     render(el,ctx){

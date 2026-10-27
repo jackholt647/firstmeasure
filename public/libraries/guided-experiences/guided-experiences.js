@@ -6,6 +6,7 @@
  *     refresh()                     reload what this person may play for the current page
  *     preload(projectId)            read once what may play on a project's tabs, so a tab's tour starts at once
  *     play(id, { replay })          play one now (a tutorial replay, a setup from a button)
+ *     require(stepId)               ask a setup step (and what it requires) only if the data says it is unanswered
  *     faqs(tab)                     the assistant's suggested questions for a project tab
  *     attachAssistant(drawer, api)  draws those questions above an assistant composer (platform-assistant.js)
  *     overlay                       the overlay tutorial engine, run(steps, options)
@@ -208,6 +209,8 @@
       await refresh(true);
       experience = state.experiences.get(id);
       if (!experience) return { status: 'unavailable' };
+      // Every setup step it requires is answered and it has none of its own: there is nothing to ask.
+      if (!array(experience.steps).length) { experience = null; return { status: 'satisfied' }; }
       if (experience.progress && experience.progress.status !== 'started' && !options.replay && !options.force) return { status: 'done' };
       // Asked again after the server answered: the person may have changed tab while the delay ran or this loaded.
       if (!onItsTab(experience, options.bound)) return { status: 'dropped' };
@@ -1096,6 +1099,13 @@
     copyHtml: H, installDev, syncDevEditing: () => devDocs.forEach(syncEditing), isDevEditor: () => devState.editor,
     filterProjectTabs, projectFacts,
     refresh: () => refresh(true), play, faqs, attachAssistant, overlay, where, follow,
+    /**
+     * Makes sure a setup step is answered (docs/architecture/setup-steps.md): asks it, and the steps it requires, in
+     * the standard setup frame when the data says it is not answered yet; does nothing when it is. Resolves
+     * { status: 'satisfied' | 'completed' | 'dismissed' | 'unavailable' | 'busy' }. A signup or main setup flow
+     * calls this, or names the step in its definition's `requires`.
+     */
+    require: (stepId) => play(`setup_step.${clean(stepId)}`, { force: true }),
     /** Reads what may play on a project's tabs once (in memory); resolves when this frame knows it. */
     preload: (projectId) => preload(clean(projectId) || where().projectId),
     registerKind(kind, player){ kinds.set(kind, player); },

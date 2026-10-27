@@ -947,7 +947,7 @@
     }
     if (policy.entitlement?.offered) context.preload = () => prepareApp(id);
     const handle = policy.entitlement?.offered
-      ? await (await import(new URL('./app-welcome.js?v=20261027-offers', runtimeScriptUrl).href)).mountWelcome(context)
+      ? await (await import(new URL('./app-welcome.js?v=20261027-page', runtimeScriptUrl).href)).mountWelcome(context)
       : await (typeof app.mount === 'function'
       ? app.mount(context)
       : (typeof app.render === 'function' ? app.render(context) : null)) || {};

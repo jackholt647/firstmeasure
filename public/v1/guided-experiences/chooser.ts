@@ -11,7 +11,9 @@ import type { ExperienceDefinition } from "./contracts.js";
  */
 
 export type ChooserContext = {
-  organization: { id: string; region: string; state: string; timezone: string; size: { users: number; tier: string }; industry: string; capabilities: Record<string, boolean> };
+  organization: { id: string; region: string; state: string; timezone: string; size: { users: number; tier: string }; industry: string; capabilities: Record<string, boolean>;
+    /** The company profile (company-profile/profile.ts): its company type id and the ids of its services. */
+    company_type?: string; services?: string[] };
   /** `eligible`: the experiences this person could play, filled when listing what they may see. */
   person: { id: string; role: string; permissions: Record<string, boolean>; eligible?: string[] };
   surface: { tab: string; project_id: string };

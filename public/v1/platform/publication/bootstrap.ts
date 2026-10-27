@@ -1,4 +1,6 @@
 import { registerOperationsSetupPublication } from '../../operations/onboarding.js';
+import { registerCompanyProfilePublication } from '../../company-profile/publication.js';
+import { registerSetupStepPublication } from '../../guided-experiences/publication.js';
 import {registerPhoneMarketingPublication} from '../../comms/phone/marketing-publication.js';
 import {registerPhonePublication} from '../../comms/phone/publication.js';
 import {registerResourceTypePublication} from '../../materials/resource-types-publication.js';
@@ -79,5 +81,7 @@ export function initializePublication() {
   registerSupplierPricesPublication();
   registerLaborSetupPublication();
   registerOperationsSetupPublication();
+  registerCompanyProfilePublication();
+  registerSetupStepPublication();
   initialized = true;
 }

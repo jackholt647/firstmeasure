@@ -16,7 +16,10 @@ export type OfferedAppId = keyof typeof APP_OFFERS;
 export const NEW_ORGANIZATION_APP_OFFERS = Object.keys(APP_OFFERS) as OfferedAppId[];
 
 const copy = (key: string, text: string) => ({ key: `gx_offer_${key}`, text });
-/** Static advertisements, not guide progress. The existing guide starts after activation. */
+/**
+ * Static advertisements, not guide progress. The existing guide starts after activation. `layout`: `page` draws the
+ * advertisement as one full-width page (copy, then the illustration below it) instead of the default two sides.
+ */
 export const APP_WELCOMES = {
   "portal.equipment": { theme: "equipment", eyebrow: copy("equipment_name", "Equipment"),
     headline: copy("equipment_headline", "The right equipment for every job."),
@@ -38,7 +41,7 @@ export const APP_WELCOMES = {
     description: copy("portal_description", "Give each customer a simple place to follow their project. A professional experience, with fewer things to chase."),
     benefits: [copy("portal_b1", "Give every project its own customer link"), copy("portal_b2", "Choose what you share with the customer"), copy("portal_b3", "Bring project information into one place")],
     caption: copy("portal_caption", "Their project. One simple link.") },
-  "project.materials": { theme: "materials", eyebrow: copy("operations_name", "Operations"),
+  "project.materials": { theme: "materials", layout: "page", eyebrow: copy("operations_name", "Operations"),
     headline: copy("operations_headline", "Turn your scope into a plan."),
     description: copy("operations_description", "Bring measurements, materials, work orders and equipment together. Start with what the job needs, then get everything ready to do the work."),
     benefits: [copy("operations_b1", "Build material lists from your project scope"), copy("operations_b2", "Plan work orders and who will do the work"), copy("operations_b3", "Match equipment to the project's requirements")],

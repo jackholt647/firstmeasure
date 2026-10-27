@@ -174,7 +174,7 @@ test('the shingle path: roof types, manufacturers in the order picked, defaults 
     await press(page);
     // Shingle is picked, so the server sends the setup to the manufacturers.
     await onStep(page,'What roofing manufacturers do you use?');
-    assert.equal(await page.evaluate(()=>document.querySelectorAll('.gxs-progress li').length),5,'roof types, manufacturers, defaults, suppliers, labor');
+    assert.equal(await page.evaluate(()=>document.querySelectorAll('.gxs-progress,.gxs-progress li').length),0,'no step count: a flow only goes to its next step');
     // Logos only: eight compact tiles, no text or border, all visible without scrolling; the wordmark when a logo is missing.
     assert.equal(await page.locator('.gxs-logo-tile').count(),8);
     await page.waitForFunction(()=>document.querySelector('[data-brand=gaf] img')?.naturalWidth>0);
@@ -406,7 +406,7 @@ test('the path without shingle: roof types, the default material, your own suppl
     await page.click('[data-type=tpo]');
     await press(page);
     await onStep(page,'What’s your default roofing material?');
-    assert.equal(await page.evaluate(()=>document.querySelectorAll('.gxs-progress li').length),4,'roof types, material, suppliers, labor');
+    assert.equal(await page.evaluate(()=>document.querySelectorAll('.gxs-progress,.gxs-progress li').length),0,'no step count on the other branch either');
     await page.waitForTimeout(500);
     // The systems of the kinds picked: metal's three, then TPO; the first is chosen; what each includes is in its tooltip.
     const tiles=await page.evaluate(()=>[...document.querySelectorAll('[data-system]')].map(t=>({id:t.dataset.system,name:t.querySelector('.gxs-type-name').textContent,meta:t.querySelector('.gxs-type-meta').textContent,on:t.getAttribute('aria-checked'),tip:t.title})));
