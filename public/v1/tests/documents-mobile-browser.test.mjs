@@ -191,10 +191,10 @@ test('Documents shows delivered roof PDFs and XML once, defaults to loose tiles,
   } finally { await browser.close(); }
 });
 
-test('document covers use PDF page one, module pages and a consistent icon fallback', async () => {
+for (const device of [DESKTOP,PHONE]) test(`document covers use PDF page one, module pages and a consistent icon fallback on ${device===PHONE?'phone':'desktop'}`, async () => {
   const browser=await launch();
   try {
-    const {page,errors}=await pageFor(browser,DESKTOP);
+    const {page,errors}=await pageFor(browser,device);
     // A real one-page PDF exercises pdf.js rather than a canvas stand-in.
     let pdf='%PDF-1.4\n';const offsets=[0];
     const stream='BT /F1 30 Tf 45 700 Td (Roof Measurement Report) Tj 0 -55 Td /F1 14 Tf (2205 Mimosa Place) Tj ET';
@@ -235,10 +235,15 @@ test('document covers use PDF page one, module pages and a consistent icon fallb
       assert.ok(metrics.every(m=>m.height===54 && m.whiteSpace==='nowrap' && m.ellipsis==='ellipsis' && m.center<2),JSON.stringify(metrics));
       const preview=await page.locator('[data-doc-preview-id="pdf"]').evaluate(node=>({width:node.clientWidth,canvas:node.querySelector('canvas').getBoundingClientRect().width}));
       assert.ok(Math.abs(preview.width-preview.canvas)<1,'PDF cover fills the available width');
+      if(device===PHONE && width===390){
+        const layout=await page.locator('.fm-document-tile').evaluateAll(tiles=>tiles.map(tile=>{const preview=tile.querySelector('.fm-doc-preview').getBoundingClientRect(),box=tile.getBoundingClientRect();return {x:box.x,y:box.y,width:box.width,height:box.height,preview:preview.height};}));
+        assert.equal(layout[0].y,layout[1].y,'phone has two tiles per row');
+        assert.ok(layout.every(tile=>tile.preview>=85 && Math.abs(tile.width-tile.height)<2),JSON.stringify(layout));
+      }
     }
-    await page.setViewportSize({width:1600,height:1000});
+    await page.setViewportSize(device.viewport);
     assert.deepEqual(errors,[]);
-    if(process.env.DOC_COVERS_SHOT){await page.addStyleTag({url:'https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css'});await page.evaluate(()=>document.fonts.ready);await page.screenshot({path:process.env.DOC_COVERS_SHOT});}
+    if(process.env.DOC_COVERS_SHOT){await page.addStyleTag({url:'https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css'});await page.evaluate(()=>document.fonts.ready);await page.screenshot({path:process.env.DOC_COVERS_SHOT.replace('.png',device===PHONE?'-phone.png':'-desktop.png')});}
   } finally {await browser.close();}
 });
 

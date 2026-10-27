@@ -772,18 +772,22 @@
       html[data-fm-doc-phone] .fm-docs-gallery [data-gallery-toolbar-action="new_document"] span{display:inline}
       html[data-fm-doc-phone] .fm-docs-gallery .pf-upload{height:36px;font-size:0;gap:0;padding:0 11px}
       html[data-fm-doc-phone] .fm-docs-gallery .pf-upload i{font-size:13px}
-      /* The list: the count once (under the project's name), and each document a card across the width. */
+      /* Phone covers use the same tile structure as desktop; never squeeze the
+         preview into the former 118px full-width document row. */
       html[data-fm-doc-phone] .fm-docs-gallery .pf-group-head .pf-uploaders{display:none}
-      html[data-fm-doc-phone] .fm-docs-gallery .pf-wrap:not([data-density="list"]) .pf-grid:has(>.fm-document-tile){grid-template-columns:minmax(0,1fr)!important;gap:10px}
-      html[data-fm-doc-phone] .fm-docs-gallery .pf-wrap:not([data-density="list"]) .pf-thumb.fm-document-tile{width:100%;height:118px;aspect-ratio:auto;border-radius:14px}
-      html[data-fm-doc-phone] .fm-docs-gallery .pf-wrap:not([data-density="list"]) .fm-document-tile .fm-doc-card{padding:38px 16px 13px}
-      html[data-fm-doc-phone] .fm-docs-gallery .pf-wrap:not([data-density="list"]) .fm-document-tile .fm-doc-card-mark{top:50%;right:18px;bottom:auto;transform:translateY(-50%);font-size:58px}
-      html[data-fm-doc-phone] .fm-docs-gallery .pf-wrap:not([data-density="list"]) .fm-document-tile .fm-doc-card-body{padding-right:72px}
-      html[data-fm-doc-phone] .fm-docs-gallery .pf-wrap:not([data-density="list"]) .fm-document-tile .fm-doc-card-title{-webkit-line-clamp:1;font-size:15px}
-      html[data-fm-doc-phone] .fm-docs-gallery .pf-wrap:not([data-density="list"]) .fm-document-tile .fm-doc-card-primary{font-size:21px}
-      html[data-fm-doc-phone] .fm-docs-gallery .pf-wrap:not([data-density="list"]) .fm-document-tile .fm-doc-card-facts{display:block;font-size:12px}
-      html[data-fm-doc-phone] .fm-docs-gallery .pf-wrap:not([data-density="list"]) .fm-document-tile .fm-doc-badges{left:12px;right:12px;top:11px}
-      html[data-fm-doc-phone] .fm-docs-gallery .pf-wrap:not([data-density="list"]) .fm-document-tile :is(.fm-doc-type-badge,.fm-doc-status-badge){display:inline-block;padding:4px 9px;font-size:10.5px}
+      html[data-fm-doc-phone] .fm-docs-gallery .pf-wrap:not([data-density="list"]) .pf-grid:has(>.fm-document-tile){grid-template-columns:repeat(2,minmax(0,1fr))!important;gap:10px;padding:8px}
+      html[data-fm-doc-phone] .fm-docs-gallery .pf-wrap:not([data-density="list"]) .pf-thumb.fm-document-tile{width:100%;height:auto;aspect-ratio:1;border-radius:12px}
+      html[data-fm-doc-phone] .fm-docs-gallery .fm-doc-card{padding:0}
+      html[data-fm-doc-phone] .fm-docs-gallery .fm-doc-card-body{padding:7px 8px;grid-template-columns:18px minmax(0,1fr);column-gap:6px}
+      html[data-fm-doc-phone] .fm-docs-gallery .fm-doc-card-title{font-size:12px}
+      html[data-fm-doc-phone] .fm-docs-gallery .fm-doc-card-facts{font-size:10px}
+      html[data-fm-doc-phone] .fm-docs-gallery .fm-doc-card-mark{left:50%;right:auto;top:50%;transform:translate(-50%,-50%);font-size:42px}
+      html[data-fm-doc-phone] .fm-docs-gallery .fm-doc-title-icon{font-size:15px;width:18px}
+      html[data-fm-doc-phone] .fm-docs-gallery .fm-doc-badges{top:6px;left:6px;right:6px;flex-wrap:wrap;gap:3px}
+      html[data-fm-doc-phone] .fm-docs-gallery :is(.fm-doc-type-badge,.fm-doc-status-badge){font-size:9px;padding:4px 6px}
+      html[data-fm-doc-phone] .fm-docs-gallery .fm-doc-detail-pills{bottom:60px;max-height:22px}
+      html[data-fm-doc-phone] .fm-docs-gallery .fm-doc-detail-pills>span{font-size:9px;padding:3px 6px}
+
     `);
   }
 
