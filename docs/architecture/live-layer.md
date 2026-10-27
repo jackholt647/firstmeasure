@@ -56,7 +56,9 @@ node tools/live-layer/live-sync.mjs clear      # take this checkout's files out 
    back to the release. PHP is never served from it.
 5. The web service watches `manifest.json` and sends `changed { gen, files: [{ path, sha|null }] }` on the
    `live-assets` channel of every connected page.
-6. The page swaps changed stylesheet `<link>`s and `<img>`s in place; for anything else a frame loaded it
+6. The page swaps changed stylesheet `<link>`s and `<img>`s in place, and a script's injected `<style>` when the
+   edit touched only that CSS (the template's `${...}` values are kept; the swap survives the app's re-renders).
+   For anything else a frame loaded it
    refetches those URLs past the browser cache and reloads that frame (the whole page only when the page itself
    ran it). A small "Live: …" pill shows what changed. On connect (`hello`) a frame that ran a cached older copy
    of a layer file reloads once.

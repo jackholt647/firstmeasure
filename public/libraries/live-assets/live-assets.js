@@ -6,9 +6,10 @@
  *   changed { gen, files: [{ path, sha|null }] } files written, or gone back to the release (sha null)
  *
  * For every frame of this page (the page and its same-origin frames that have no receiver of their own):
- * a changed stylesheet <link> or <img> is swapped in place; anything else the frame loaded (scripts,
- * modules, JSON) reloads that frame only, after the browser's cached copies of those URLs are refetched
- * so the reload cannot run an old copy. Files a frame never loaded are left alone.
+ * a changed stylesheet <link> or <img> is swapped in place, and so is a script's injected <style> when the
+ * edit touched only that CSS (swapInlineStyle); anything else the frame loaded (script logic, modules, JSON)
+ * reloads that frame only, after the browser's cached copies of those URLs are refetched so the reload cannot
+ * run an old copy. Files a frame never loaded are left alone.
  */
 
 // Hashed with line endings folded, as the receiver and tools/frontend-bridge do.
@@ -79,11 +80,94 @@ function notice(text) {
   } catch { /* a foreign top window */ }
 }
 
+const textOf = (url, cache) => fetch(url, { cache, credentials: 'same-origin' }).then((r) => (r.ok ? r.text() : null)).then((t) => t?.replace(/\r\n/g, '\n') ?? null, () => null);
+
+/**
+ * Most libraries keep their CSS in the script and inject it as a <style>. When the only difference between the
+ * copy the frame ran (the browser's cached copy) and the new one lies inside a stylesheet that appears in the old
+ * script word for word, exactly once, that <style> gets the new text in place and nothing reloads. Any other
+ * change (logic, several separate edits, a template with ${...} or escapes) returns false and the frame reloads.
+ * The script in memory stays the old one until the next reload; the browser's cache already has the new copy.
+ */
+export async function swapInlineStyle(win, path, urls, texts = new Map()) {
+  if (!/\.m?js$/i.test(path)) return false;
+  const url = [...urls][0];
+  if (!texts.has(url)) texts.set(url, (async () => {
+    const before = await textOf(url, 'force-cache');
+    const after = await textOf(url, 'reload');
+    await Promise.all([...urls].slice(1).map((other) => textOf(other, 'reload')));
+    return { before, after };
+  })());
+  const { before, after } = await texts.get(url);
+  if (before == null || after == null || before === after) return false;
+  let start = 0;
+  while (start < before.length && start < after.length && before[start] === after[start]) start++;
+  let tail = 0;
+  while (tail < before.length - start && tail < after.length - start && before[before.length - 1 - tail] === after[after.length - 1 - tail]) tail++;
+  const oldEnd = before.length - tail;
+  const grown = after.length - before.length;
+  if (before.slice(start, oldEnd).includes('`') || after.slice(start, oldEnd + grown).includes('`')) return false;
+  // The template literal around the edit, before and after.
+  const open = before.lastIndexOf('`', start - 1);
+  const close = before.indexOf('`', oldEnd);
+  if (open < 0 || close < 0) return false;
+  const oldBody = before.slice(open + 1, close);
+  const newBody = after.slice(open + 1, close + grown);
+  const oldTemplate = splitTemplate(oldBody), newTemplate = splitTemplate(newBody);
+  if (!oldTemplate || !newTemplate || oldTemplate.expressions.join('\0') !== newTemplate.expressions.join('\0')) return false;
+  // Exactly one <style> in the frame is that template, with the page's own values in its ${...} places.
+  const pattern = new RegExp(`^${oldTemplate.literals.map((part) => part.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('([\\s\\S]*?)')}$`);
+  const hits = [];
+  for (const style of win.document.querySelectorAll('style')) {
+    const match = pattern.exec(style.textContent.replace(/\r\n/g, '\n'));
+    if (match) hits.push({ style, values: match.slice(1) });
+  }
+  if (hits.length !== 1) return false;
+  const { style, values } = hits[0];
+  const next = newTemplate.literals.map((part, index) => part + (index < values.length ? values[index] : '')).join('');
+  guardStyle(style, style.textContent.replace(/\r\n/g, '\n')).next = next;
+  style.textContent = next;
+  return true;
+}
+
+/** A template literal's body as literal text and the ${...} between it, or null when it is not plain enough to rebuild. */
+function splitTemplate(body) {
+  if (body.includes('\\') || body.length < 20) return null;
+  const literals = [], expressions = [];
+  let at = 0;
+  for (;;) {
+    const open = body.indexOf('${', at);
+    if (open < 0) { literals.push(body.slice(at)); break; }
+    const close = body.indexOf('}', open);
+    if (close < 0 || body.slice(open + 2, close).includes('{')) return null;
+    literals.push(body.slice(at, open));
+    expressions.push(body.slice(open + 2, close));
+    at = close + 1;
+  }
+  return { literals, expressions };
+}
+
+/**
+ * The old script is still in memory, and libraries rewrite their <style> on every render (Portal.util.injectCSS).
+ * When one writes back the CSS it had before the first swap, put the newest text back before the frame paints.
+ */
+function guardStyle(style, original) {
+  if (style.__fmLiveStyle) return style.__fmLiveStyle;
+  const state = { original, next: original };
+  style.__fmLiveStyle = state;
+  new style.ownerDocument.defaultView.MutationObserver(() => {
+    const text = style.textContent.replace(/\r\n/g, '\n');
+    if (text === state.original && text !== state.next) style.textContent = state.next;
+  }).observe(style, { childList: true, characterData: true, subtree: true });
+  return state;
+}
+
 /** Applies changes to every frame of this page. Returns what it did, for checking from the console or a test. */
 export async function apply(changes) {
   const done = { swapped: [], reloaded: [] };
   const all = frames();
   const reloads = [];
+  const texts = new Map();
   for (const win of all) {
     const urls = loadedUrls(win);
     let reload = false;
@@ -94,6 +178,7 @@ export async function apply(changes) {
       if (extOf(path) === '.css' && links.length) { links.forEach((link) => swapLink(link, sha)); done.swapped.push(path); continue; }
       if (images.length) { images.forEach((img) => { img.src = bust(img.src, sha); }); done.swapped.push(path); continue; }
       if (IMAGE.test(path)) continue;
+      if (await swapInlineStyle(win, path, urls.get(path), texts)) { done.swapped.push(path); continue; }
       reload = true;
       // The reload must not take these from the browser's cache: refetch each URL the frame used.
       await Promise.all([...urls.get(path)].map((url) => fetch(url, { cache: 'reload', credentials: 'same-origin' }).catch(() => null)));

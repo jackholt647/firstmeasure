@@ -139,3 +139,23 @@ test('two checkouts share the layer: each keeps its own files and cannot overwri
     assert.equal(one.manifest().files['libraries/a/a.css'].source, 'droplet');
   } finally { rmSync(one.dir, { recursive: true, force: true }); }
 });
+
+test('a script edit that only touches its injected CSS swaps that <style> in place; anything else reloads', async () => {
+  const { swapInlineStyle } = await import('../public/libraries/live-assets/live-assets.js');
+  const source = (css, extra = '') => `const COLOR = '#667085';\nconst STYLES = \`\n  .tray{border:1px solid ${'${COLOR}'};padding:12px}\n  .title{color:${css}}\n\`;\nfunction draw(){ return 1${extra}; }\n`;
+  const run = async (before, after) => {
+    const realFetch = globalThis.fetch;
+    globalThis.fetch = async (_url, { cache }) => ({ ok: true, text: async () => (cache === 'force-cache' ? before : after) });
+    const style = { textContent: `\n  .tray{border:1px solid #667085;padding:12px}\n  .title{color:#101828}\n`, ownerDocument: { defaultView: { MutationObserver: class { observe() {} } } } };
+    const win = { document: { querySelectorAll: () => [style] } };
+    try { return { swapped: await swapInlineStyle(win, 'libraries/apps/x/app.js', new Set(['https://dev.1m8.ai/libraries/apps/x/app.js?v=1'])), css: style.textContent }; }
+    finally { globalThis.fetch = realFetch; }
+  };
+  const css = await run(source('#101828'), source('#2563eb'));
+  assert.equal(css.swapped, true);
+  assert.equal(css.css, `\n  .tray{border:1px solid #667085;padding:12px}\n  .title{color:#2563eb}\n`, 'the page keeps its own ${COLOR} value');
+  assert.equal((await run(source('#101828'), source('#101828', ' + 1'))).swapped, false, 'logic changed');
+  assert.equal((await run(source('#101828'), source('#2563eb', ' + 1'))).swapped, false, 'CSS and logic changed');
+  assert.equal((await run(source('#101828'), source('#101828').replace('${COLOR}', '${OTHER}'))).swapped, false, 'a ${...} changed');
+  assert.equal((await run(source('#101828'), source('#101828'))).swapped, false, 'nothing changed');
+});
