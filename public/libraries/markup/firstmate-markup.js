@@ -305,12 +305,13 @@
         const width = Number(item.width || 0.24) * canvas.width;
         const height = Number(item.height || 0.07) * canvas.height;
         const lines = String(item.text || '').split('\n').length || 1;
-        const fontSize = Math.max(8, (height - 8) / Math.max(1, lines * 1.14));
+        const fontSize = Number(item.fontWidthRatio) > 0 ? item.fontWidthRatio * canvas.width : Math.max(8, (height - 8) / Math.max(1, lines * 1.14));
         ctx.fillStyle = 'rgba(255,255,255,.72)';
         ctx.fillRect(x, y, width, height);
         ctx.fillStyle = item.color || '#111';
-        ctx.font = `700 ${fontSize}px Arial, sans-serif`;
+        ctx.font = `${item.italic ? 'italic ' : ''}${item.bold === false ? '400' : '700'} ${fontSize}px Arial, sans-serif`;
         ctx.textBaseline = 'top';
+        ctx.beginPath(); ctx.rect(x,y,width,height); ctx.clip();
         drawWrappedText(ctx, item.text || '', x + 5, y + 4, Math.max(20, width - 10), fontSize * 1.14);
       }
       ctx.restore();
@@ -499,6 +500,15 @@
       .fm-photo-markup-text-size{position:absolute;width:21px;height:21px;border-radius:5px;background:#fff;border:2px solid var(--primary,#d93025);box-shadow:0 6px 12px rgba(15,23,42,.14);display:none;cursor:nwse-resize;z-index:12;opacity:.5;transition:opacity .14s ease,transform .14s ease}
       .fm-photo-markup-handle:hover,.fm-photo-markup-handle:focus-visible,.fm-photo-markup-text-size:hover,.fm-photo-markup-text-size:focus-visible{opacity:1}
       .fm-photo-modal.markup-active .fm-photo-markup-handle,.fm-photo-modal.markup-active .fm-photo-markup-text-size{display:block}
+      .fm-photo-markup-format{position:absolute;display:flex;align-items:center;gap:2px;padding:3px;background:#fff;color:#344054;border:1px solid #d0d5dd;border-radius:0 0 8px 8px;box-shadow:0 3px 8px #10182824;z-index:14;white-space:nowrap}
+      .fm-photo-markup-format button{width:28px;height:28px;padding:0;border:0;border-radius:4px;background:transparent;color:inherit;cursor:pointer;font:16px Arial}
+      .fm-photo-markup-format button[aria-pressed=true]{background:var(--primary,#147d45);color:#fff}
+      .fm-photo-markup-format input{width:48px;height:28px;box-sizing:border-box;border:1px solid #d0d5dd;border-radius:4px;background:#fff;color:#344054;font:12px Arial;text-align:center}
+      .fm-photo-markup-format :focus-visible{outline:2px solid var(--primary,#147d45);outline-offset:1px}
+      .fm-photo-markup-text-delete{position:absolute;width:21px;height:21px;border-radius:50%;background:#fff;border:1px solid #d0d5dd;color:#475467;font:700 18px/18px sans-serif;padding:0;z-index:13;cursor:pointer}
+      .fm-photo-markup-layer :is([data-markup-handle^="text-"],[data-markup-delete],[data-markup-format]){opacity:0;pointer-events:none;visibility:hidden}
+      .fm-photo-modal.markup-active .fm-photo-markup-layer :is([data-markup-handle^="text-"],[data-markup-delete],[data-markup-format]).text-control-visible{opacity:1;pointer-events:auto;visibility:visible}
+      .fm-photo-modal:not(.markup-active) .fm-photo-markup-text-delete{display:none}
       .fm-photo-markup-path{fill:none;stroke:#111;stroke-width:2.2;stroke-linecap:round;stroke-linejoin:round}
       .fm-photo-markup-arrow{fill:none;stroke-linecap:round}
       .fm-photo-modal .r-proposal-markupdock{display:block;top:72px;right:18px}
@@ -511,7 +521,8 @@
       .fm-photo-modal .r-proposal-markupdock.expanded{width:42px}
       .fm-photo-modal .r-proposal-markup-btn{position:relative;width:42px;height:42px;border-radius:14px;border:1px solid rgba(15,23,42,.08);background:rgba(255,255,255,.92);backdrop-filter:blur(14px);color:#475467;display:flex;align-items:center;justify-content:center;cursor:pointer;box-shadow:0 18px 34px rgba(15,23,42,.12);transition:.18s ease}
       .fm-photo-modal .r-proposal-markup-btn:hover{transform:translateY(-1px);background:#fff;color:#101828}
-      .fm-photo-modal .r-proposal-markup-btn.active{background:var(--primary,#d93025);border-color:var(--primary,#d93025);color:#fff}
+      .fm-photo-modal .r-proposal-markup-btn.active{background:var(--primary,#d93025);border-color:var(--primary,#d93025);color:#fff;transform:scale(1.12);font-size:18px}
+      @media(prefers-reduced-motion:reduce){.fm-photo-modal .r-proposal-markup-btn{transition:none}}
       .fm-photo-modal .r-proposal-markup-tools{position:absolute;top:52px;right:0;display:flex;flex-direction:column;gap:10px;pointer-events:none}
       .fm-photo-modal .r-proposal-markupdock.expand-left .r-proposal-markup-tools{top:0;right:52px;flex-direction:row-reverse}
       .fm-photo-modal .r-proposal-markupdock.expand-up .r-proposal-markup-tools{top:auto;bottom:52px}
@@ -519,8 +530,8 @@
       .fm-photo-modal .r-proposal-markup-tool{width:42px;height:42px;border-radius:14px;border:1px solid rgba(15,23,42,.08);background:rgba(255,255,255,.94);backdrop-filter:blur(14px);color:#475467;display:flex;align-items:center;justify-content:center;cursor:pointer;box-shadow:0 18px 34px rgba(15,23,42,.12);opacity:0;transform:translateY(-14px) scale(.88);transition:opacity .2s ease,transform .26s cubic-bezier(.22,1,.36,1),background .18s ease,color .18s ease,border-color .18s ease}
       .fm-photo-modal .r-proposal-markupdock.expanded .r-proposal-markup-tool{opacity:1;transform:translateY(0) scale(1)}
       .fm-photo-modal .r-proposal-markup-tool:hover{transform:translateY(0) scale(1.04);background:#fff;color:#101828}
-      .fm-photo-modal .r-proposal-markup-tool:disabled{cursor:not-allowed;transform:translateY(-14px) scale(.88);background:rgba(255,255,255,.74);color:#98a2b3}
-      .fm-photo-modal .r-proposal-markupdock.expanded .r-proposal-markup-tool:disabled{opacity:.36;transform:translateY(0) scale(.96)}
+      .fm-photo-modal .r-proposal-markup-tool:disabled{cursor:not-allowed;transform:translateY(-14px) scale(.88);background:#f2f4f7;color:#98a2b3}
+      .fm-photo-modal .r-proposal-markupdock.expanded .r-proposal-markup-tool:disabled{opacity:1;transform:translateY(0) scale(1)}
       .fm-photo-modal .r-proposal-markup-tool.active{background:var(--primary,#d93025);border-color:var(--primary,#d93025);color:#fff}
       .fm-photo-modal .r-proposal-markup-tool.swatch{position:relative;overflow:hidden}
       .fm-photo-modal .r-proposal-markup-tool-swatch{position:absolute;inset:10px;border-radius:10px;border:1px solid rgba(255,255,255,.35)}
@@ -734,6 +745,12 @@
       this.root.closest('.fm-photo-modal')?.classList.toggle('markup-active', this.active);
       this.dock?.classList.toggle('expanded', this.active);
       this.toggleBtn?.classList.toggle('active', this.active);
+      const label = this.active ? 'Done with markup' : 'Markup';
+      this.toggleBtn?.setAttribute('aria-label', label);
+      this.toggleBtn?.setAttribute('aria-expanded', String(this.active));
+      this.toggleBtn?.setAttribute('data-fm-tooltip', label);
+      const icon = this.toggleBtn?.querySelector('i');
+      if (icon) icon.className = this.active ? 'fas fa-check' : 'fas fa-pen';
       if (!this.active) this.closePops();
     }
     point(event){
@@ -916,6 +933,7 @@
     applyTextBoxElement(item = {}, el = null){
       const target = el || this.layer?.querySelector?.(`.fm-photo-markup-text[data-markup-id="${item.id}"]`);
       const handle = this.layer?.querySelector?.(`.fm-photo-markup-text-size[data-markup-id="${item.id}"]`);
+      const remove = this.layer?.querySelector?.(`[data-markup-delete][data-markup-id="${item.id}"]`);
       if (!target) return;
       const metrics = this.textMetrics(item);
       const { width, height } = this.textBoxRenderBox(item);
@@ -924,8 +942,11 @@
       target.style.width = `${(width * 100).toFixed(4)}%`;
       target.style.height = height != null ? `${(height * 100).toFixed(4)}%` : '';
       target.style.maxWidth = `${(Math.max(0.12, 0.98 - Number(item.x || 0)) * 100).toFixed(3)}%`;
+      const format=this.layer.querySelector(`[data-markup-format][data-markup-id="${item.id}"]`);
+      if(format){format.style.left=`${item.x*100}%`;format.style.top=`${(item.y+height)*100}%`;}
       target.style.fontSize = `${fontSize.toFixed(1)}px`;
       target.style.padding = `${padding.y.toFixed(1)}px ${padding.x.toFixed(1)}px`;
+      if (remove) remove.style.left = `calc(${((Number(item.x || 0) + width) * 100).toFixed(4)}% - 10.5px)`;
       if (handle && height != null) {
         handle.style.left = `calc(${((Number(item.x || 0) + width) * 100).toFixed(4)}% - 10.5px)`;
         handle.style.top = `calc(${((Number(item.y || 0) + height) * 100).toFixed(4)}% - 10.5px)`;
@@ -976,26 +997,20 @@
     }
     textBoxFromResizeDrag(item = {}, point = {}, drag = {}){
       const { rect, minWidth, minHeight, maxWidth, maxHeight } = this.textBoxBounds(item);
-      const startWidth = Math.max(minWidth, Number(drag.startWidth || item.width || minWidth));
-      const startHeight = Math.max(minHeight, Number(drag.startHeight || item.height || minHeight));
-      const startFontPx = Math.max(4, Number(drag.startFontPx || item.fontPx || this.textFontPx(item.size || 1.5)));
-      const pointerWidthPx = Math.max(1, (Number(point.x || 0) - Number(item.x || 0)) * Math.max(1, rect.width || 900));
-      const pointerHeightPx = Math.max(1, (Number(point.y || 0) - Number(item.y || 0)) * Math.max(1, rect.height || 600));
-      const scaleX = pointerWidthPx / Math.max(1, Number(drag.startPointerWidthPx || startWidth * Math.max(1, rect.width || 900)));
-      const scaleY = pointerHeightPx / Math.max(1, Number(drag.startPointerHeightPx || startHeight * Math.max(1, rect.height || 600)));
-      let scale = Math.max(0.15, Math.min(scaleX, scaleY));
-      let width = clamp(startWidth * scale, minWidth, maxWidth);
-      let height = clamp(startHeight * scale, minHeight, maxHeight);
-      scale = Math.min(width / startWidth, height / startHeight);
-      width = clamp(startWidth * scale, minWidth, maxWidth);
-      height = clamp(startHeight * scale, minHeight, maxHeight);
-      const fontPx = Math.max(4, startFontPx * scale);
-      item.fontPx = fontPx;
-      item.aspect = Math.max(0.1, (width * Math.max(1, rect.width || 900)) / Math.max(1, height * Math.max(1, rect.height || 600)));
-      return { width, height };
+      item.fontWidthRatio = Number(item.fontPx || this.textFontPx(item.size)) / Math.max(1,rect.width);
+      // Resize the box, not the font: each pointer axis controls its own edge.
+      return {
+        width: clamp(Number(drag.startWidth || item.width) + (point.x - item.x) - Number(drag.startPointerWidthPx || 0) / rect.width, minWidth, maxWidth),
+        height: clamp(Number(drag.startHeight || item.height) + (point.y - item.y) - Number(drag.startPointerHeightPx || 0) / rect.height, minHeight, maxHeight)
+      };
     }
     fitTextBoxIntoAvailableWidth(item = {}, fontSize = null){
       const { rect, minWidth, minHeight, maxWidth, maxHeight } = this.textBoxBounds(item);
+      if (item.autoFit === false) {
+        item.width = clamp(Number(item.width),minWidth,maxWidth);
+        item.height = clamp(Number(item.height),minHeight,maxHeight);
+        return {width:item.width,height:item.height};
+      }
       const baseFont = Number(fontSize) || Number(item.fontPx) || this.textFontPx(item.size || 1.5, item.height ?? null, this.textMetrics(item).lineCount);
       const padding = this.textPadding(baseFont);
       const padX = padding.totalX;
@@ -1048,6 +1063,7 @@
       if (typeof this.options.onChange === 'function') this.options.onChange(this.items);
     }
     deleteItem(id){
+      this.pushHistory();
       this.items = this.items.filter((item) => item.id !== id);
       this.renderLayer();
       this.pushHistory();
@@ -1070,7 +1086,7 @@
       const dock = this.options.dock || {};
       this.dock.className = `r-proposal-markupdock ${dock.position || 'dock-top-right'} ${dock.expand || 'expand-down'}`;
       this.dock.innerHTML = `
-        <button type="button" class="r-proposal-markup-btn" data-markup-toggle data-fm-tooltip="Markup"><i class="fas fa-pen"></i></button>
+        <button type="button" class="r-proposal-markup-btn" data-markup-toggle aria-label="Markup" aria-expanded="false" data-fm-tooltip="Markup"><i class="fas fa-pen"></i></button>
         <div class="r-proposal-markup-tools">
           <button type="button" class="r-proposal-markup-tool active" data-markup-tool="pen" data-fm-tooltip="Pen"><i class="fas fa-pen"></i></button>
           <button type="button" class="r-proposal-markup-tool" data-markup-tool="arrow" data-fm-tooltip="Arrow"><i class="fas fa-arrow-right"></i></button>
@@ -1126,7 +1142,23 @@
       });
       this.bindColorPalette(colorPop);
       this.layer.addEventListener('pointerdown', (event) => this.onDown(event));
-      this.layer.addEventListener('pointermove', (event) => this.onMove(event));
+      this.layer.addEventListener('pointermove', (event) => {
+        if (!this.dragging && !this.creatingText) this.showTextControls(event.target.closest?.('[data-markup-id]')?.dataset.markupId || '');
+        this.onMove(event);
+      });
+      this.layer.addEventListener('pointerleave', (event) => { if (event.pointerType !== 'touch' && !this.dragging) this.showTextControls(''); });
+      this.layer.addEventListener('focusin', (event) => {
+        if (root.matchMedia?.('(hover: none)').matches) this.showTextControls(event.target.closest?.('[data-markup-id]')?.dataset.markupId || '');
+      });
+      this.layer.addEventListener('change', event => {
+        if(event.target.matches('[data-text-font-size]')) this.formatText(event.target, 'size', Number(event.target.value));
+      });
+      this.layer.addEventListener('click', (event) => {
+        const format=event.target.closest?.('[data-text-format]');
+        if(format && this.active){event.preventDefault();event.stopPropagation();this.formatText(format,format.dataset.textFormat);return;}
+        const button=event.target.closest?.('[data-markup-delete]');
+        if(button && this.active){event.preventDefault();event.stopPropagation();this.deleteItem(button.dataset.markupId);}
+      });
       this.keyHandler = (event) => {
         if (!this.active || !(event.ctrlKey || event.metaKey)) return;
         if (event.target?.closest?.('.fm-photo-markup-text')) return;
@@ -1209,10 +1241,33 @@
       this.layer?.remove();
       this.dock?.remove();
     }
+    formatText(control, kind, value){
+      if(!this.active)return;
+      const id=control.closest('[data-markup-id]')?.dataset.markupId;
+      const item=this.items.find(entry=>entry.id===id && entry.type==='text');
+      if(!item || (kind==='size' && (!Number.isFinite(value)||value<=0)))return;
+      this.pushHistory();
+      if(kind==='bold')item.bold=item.bold===false;
+      if(kind==='italic')item.italic=!item.italic;
+      if(kind==='size'){
+        item.fontPx=clamp(value,8,160);
+        item.fontWidthRatio=item.fontPx/Math.max(1,this.layer.getBoundingClientRect().width);
+      }
+      this.hoveredTextId=id;
+      this.renderLayer();this.pushHistory();this.emitChange();
+    }
+    showTextControls(id = ''){
+      this.hoveredTextId = id;
+      this.layer.querySelectorAll('[data-markup-handle^="text-"],[data-markup-delete],[data-markup-format]').forEach(control => control.classList.toggle('text-control-visible',control.dataset.markupId===id));
+    }
     onDown(event){
       if (!this.active) return;
+      if (event.target.closest?.('[data-markup-delete],[data-markup-format]')) return;
       const textEl = event.target.closest?.('.fm-photo-markup-text');
-      if (textEl && this.tool !== 'eraser') return;
+      if (textEl && this.tool !== 'eraser') {
+        if (event.pointerType === 'touch') this.showTextControls(textEl.dataset.markupId);
+        return;
+      }
       event.preventDefault();
       const point = this.point(event);
       if (this.tool === 'eraser') {
@@ -1226,6 +1281,7 @@
       }
       const handle = event.target.closest?.('[data-markup-handle]');
       if (handle) {
+        this.layer.setPointerCapture?.(event.pointerId);
         const item = this.items.find((entry) => entry.id === handle.dataset.markupId);
         const box = item?.type === 'text' ? this.textBoxRenderBox(item) : {};
         const rect = this.layer?.getBoundingClientRect?.() || { width: 900, height: 600 };
@@ -1244,7 +1300,7 @@
       }
       if (this.tool === 'text') {
         const rect = this.layer?.getBoundingClientRect?.() || { width: 900, height: 600 };
-        const startWidth = 0.18;
+        const startWidth = 0.36;
         const startHeight = Math.max(20 / Math.max(1, rect.height || 600), 0.04);
         const item = {
           id: uid('text'),
@@ -1256,18 +1312,18 @@
           color: this.color,
           size: this.size,
           fontPx: this.textFontPx(this.size),
+          fontWidthRatio: this.textFontPx(this.size) / Math.max(1,rect.width),
           width: startWidth,
           height: startHeight,
           naturalWidth: startWidth,
           naturalHeight: startHeight,
-          autoFit: true,
-          aspect: 2.4
+          autoFit: false,
+          aspect: 4.8
         };
         this.items.push(item);
         this.renderLayer();
-        setTimeout(() => this.layer.querySelector(`[data-markup-id="${item.id}"]`)?.focus(), 0);
-        this.pushHistory();
-        this.emitChange();
+        this.creatingText = { item, origin: point, moved: false };
+        this.layer.setPointerCapture?.(event.pointerId);
         return;
       }
       this.drawing = this.tool === 'arrow'
@@ -1280,6 +1336,18 @@
       if (!this.active) return;
       event.preventDefault();
       const point = this.point(event);
+      if (this.creatingText) {
+        const { item, origin } = this.creatingText;
+        const rect = this.layer.getBoundingClientRect();
+        if (!this.creatingText.moved && Math.hypot((point.x-origin.x)*rect.width,(point.y-origin.y)*rect.height)<6) return;
+        this.creatingText.moved = true;
+        const bounds = this.textBoxBounds({x:0,y:0});
+        item.width = Math.max(bounds.minWidth,Math.abs(point.x-origin.x));
+        item.height = Math.max(bounds.minHeight,Math.abs(point.y-origin.y));
+        item.x = Math.min(point.x,origin.x); item.y = Math.min(point.y,origin.y);
+        item.naturalWidth = item.width; item.naturalHeight = item.height;
+        this.renderLayer(); return;
+      }
       if (this.dragging) {
         const item = this.items.find((entry) => entry.id === this.dragging.id);
         if (!item) return;
@@ -1331,6 +1399,12 @@
       this.renderLayer();
     }
     onUp(){
+      if (this.creatingText) {
+        const {item} = this.creatingText; this.creatingText = null;
+        this.renderLayer(); this.pushHistory(); this.emitChange();
+        this.layer.querySelector(`.fm-photo-markup-text[data-markup-id="${item.id}"]`)?.focus();
+        return;
+      }
       if (this.drawing || this.dragging || this.erasing) {
         this.drawing = null;
         this.dragging = null;
@@ -1365,7 +1439,7 @@
         const style = `stroke:${escapeHtml(item.color || '#111')};stroke-width:${escapeHtml(String(item.size || 2.8))}`;
         return Object.values(parts).map((part) => `<line class="fm-photo-markup-arrow" data-markup-id="${escapeHtml(item.id)}" x1="${(part.x1 * 100).toFixed(3)}" y1="${(part.y1 * 100).toFixed(3)}" x2="${(part.x2 * 100).toFixed(3)}" y2="${(part.y2 * 100).toFixed(3)}" style="${style}"></line>`).join('');
       }).join('') + eraserPath;
-      this.layer.querySelectorAll('.fm-photo-markup-text,.fm-photo-markup-handle,.fm-photo-markup-text-size').forEach((node) => node.remove());
+      this.layer.querySelectorAll('.fm-photo-markup-text,.fm-photo-markup-handle,.fm-photo-markup-text-size,.fm-photo-markup-text-delete,.fm-photo-markup-format').forEach((node) => node.remove());
       this.items.filter((item) => item.type === 'text').forEach((item) => {
         const metrics = this.textMetrics(item);
         const { width, height } = this.textBoxRenderBox(item);
@@ -1373,7 +1447,7 @@
         const padding = this.textPadding(fontSize);
         const heightStyle = height != null ? `height:${(height * 100).toFixed(3)}%;` : '';
         const content = item.html ? sanitizeMarkupHtml(item.html) : escapeMarkupText(item.text || '');
-        this.layer.insertAdjacentHTML('beforeend', `<div class="fm-photo-markup-text" data-markup-id="${escapeHtml(item.id)}" contenteditable="true" spellcheck="true" style="left:${(item.x * 100).toFixed(3)}%;top:${(item.y * 100).toFixed(3)}%;width:${(width * 100).toFixed(3)}%;${heightStyle}max-width:${(Math.max(0.12, 0.98 - item.x) * 100).toFixed(3)}%;color:${escapeHtml(item.color || '#111')};font-size:${fontSize.toFixed(1)}px;padding:${padding.y.toFixed(1)}px ${padding.x.toFixed(1)}px">${content}</div>`);
+        this.layer.insertAdjacentHTML('beforeend', `<div class="fm-photo-markup-text" data-markup-id="${escapeHtml(item.id)}" contenteditable="true" spellcheck="true" style="left:${(item.x * 100).toFixed(3)}%;top:${(item.y * 100).toFixed(3)}%;width:${(width * 100).toFixed(3)}%;${heightStyle}max-width:${(Math.max(0.12, 0.98 - item.x) * 100).toFixed(3)}%;color:${escapeHtml(item.color || '#111')};font-weight:${item.bold === false ? 400 : 700};font-style:${item.italic ? 'italic' : 'normal'};font-size:${fontSize.toFixed(1)}px;padding:${padding.y.toFixed(1)}px ${padding.x.toFixed(1)}px">${content}</div>`);
       });
       const layerRect = this.layer.getBoundingClientRect();
       this.layer.querySelectorAll('.fm-photo-markup-text').forEach((el) => {
@@ -1393,9 +1467,16 @@
         const { width, height } = this.textBoxRenderBox(item);
         this.layer.insertAdjacentHTML('beforeend', `
           <div class="fm-photo-markup-handle" data-markup-id="${escapeHtml(item.id)}" data-markup-handle="text-move" style="left:${(Number(item.x || 0) * 100).toFixed(3)}%;top:${(Number(item.y || 0) * 100).toFixed(3)}%"></div>
+          <button type="button" class="fm-photo-markup-text-delete" data-markup-delete data-markup-id="${escapeHtml(item.id)}" aria-label="Delete text box" style="left:calc(${((Number(item.x || 0) + width) * 100).toFixed(3)}% - 10.5px);top:calc(${(Number(item.y || 0) * 100).toFixed(3)}% - 10.5px)">×</button>
+          <div class="fm-photo-markup-format" data-markup-format data-markup-id="${escapeHtml(item.id)}" role="toolbar" aria-label="Text formatting" style="left:${(Number(item.x || 0)*100).toFixed(3)}%;top:${((Number(item.y || 0)+height)*100).toFixed(3)}%">
+            <button type="button" data-text-format="bold" aria-label="Bold" aria-pressed="${item.bold !== false}"><b>B</b></button>
+            <button type="button" data-text-format="italic" aria-label="Italic" aria-pressed="${!!item.italic}"><i>I</i></button>
+            <input type="number" data-text-font-size aria-label="Text size" min="8" max="160" step="1" value="${Math.round(Number(item.fontPx)||this.textFontPx(item.size||1.5))}">
+          </div>
           <div class="fm-photo-markup-text-size" data-markup-id="${escapeHtml(item.id)}" data-markup-handle="text-size" style="left:calc(${((Number(item.x || 0) + width) * 100).toFixed(3)}% - 10.5px);top:calc(${((Number(item.y || 0) + height) * 100).toFixed(3)}% - 10.5px)"></div>
         `);
       });
+      this.showTextControls(this.hoveredTextId);
       this.layer.querySelectorAll('.fm-photo-markup-text').forEach((el) => {
         el.addEventListener('input', () => {
           const item = this.items.find((entry) => entry.id === el.dataset.markupId);
@@ -1405,8 +1486,7 @@
           item.text = editablePlainText(el);
           item.html = sanitizeMarkupHtml(el.innerHTML);
           item.aspect = this.textAspect(item);
-          item.autoFit = true;
-          this.fitTextBoxToContent(item, { fontSize: previousFontSize, element: el });
+          if (item.autoFit !== false) this.fitTextBoxToContent(item, { fontSize: previousFontSize, element: el });
           this.applyTextBoxElement(item, el);
           this.emitChange();
         });
