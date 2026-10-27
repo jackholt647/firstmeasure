@@ -115,8 +115,8 @@ platform activation.
 `public/measure/internal` (not `unused/` or `editor_scripts/vendor/`), about
 0.3 s for a one-file change. The editor's regression tests (`dev/*.test.cjs`,
 835 tests, about 100 s on a 22-core PC and much longer on the 2-CPU droplet,
-most of them Playwright) run only when a ship asks (`--regression`, or a
-router submission whose tests name `regression` or `regression:all`), once, on
+most of them Playwright) run only when a ship asks (`--regression` or
+`--regression=all`, which the router passes to `gates` as `regression`), once, on
 the server, never on a laptop (`runRegression`): the tests the change maps to
 (changed tests, and tests that name a changed file's basename) or all of them,
 each in its own `node --test` process from a `git archive` of the commit (plus
@@ -127,18 +127,22 @@ A test that also fails on the live release is reported as known and does not
 block; results on a release are cached in `.git/fm-lane-base-results.json`.
 
 **Through the router** (the default export of `lane.mjs`, the router's lane
-interface): `gates({ dir, sha, baseSha, tests })` runs the quick checks and,
-when asked, the regression tests. `deploy({ dir, sha, hosts })` builds the
-tree (`buildTree`: the commit's `public/measure/internal`, every sibling a
-symlink to `/opt/firstmeasure/current/public/<name>`), stages it with
-`hosts.stage` on dev legacy and dev web, activates both, checks that
-dev.1m8.ai serves a changed file with its bytes and the lane header, and rolls
-both back otherwise. `current({ hosts })` reports both roles. On dev web the
-release is not served; dev web's Node reads `editor_scripts/pdf.js` and
-`pdf_standalone.js` from it for server-rendered shared PDFs when the service
-has `FIRSTMEASURE_EDITOR_RUNTIME_ROOT=/opt/firstmeasure/lanes/measure-internal/current/public/measure/internal`
-(`pdf_runtime.ts` falls back to the platform copy when the path is missing and
-reads the files at each render, so a lane switch needs no restart).
+interface): `gates({ dir, sha, baseSha, regression })` runs the quick checks
+(`node --check`; the router host has no php) and, when asked, the regression
+tests. `deploy({ dir, sha, hosts })` builds the tree (`buildTree`: the commit's
+`public/measure/internal`, every sibling a symlink to
+`/opt/firstmeasure/current/public/<name>`), stages it with `hosts.stage` on dev
+legacy, web and worker, lints the changed PHP inside the staged release on
+legacy (`hosts.check`), activates the three, checks that dev.1m8.ai serves a
+changed file with its bytes and the lane header, and rolls every role back
+otherwise. Both return `timings` (ms per step and role) for the release record.
+`current({ hosts })` reports each role. On web and worker the release is not
+served: their Node reads `editor_scripts/pdf.js` and `pdf_standalone.js`
+(`pdf_runtime.ts`) and the Google key in `editor.php` (`forms/solar.ts`) from
+it, through `FIRSTMEASURE_EDITOR_RUNTIME_ROOT=/opt/firstmeasure/lanes/measure-internal/current/public/measure/internal`
+in the router's `release.env`. Both fall back to the platform copy when the
+path is missing; `pdf_runtime.ts` reads the files at each render, so a lane
+switch needs no restart.
 
 **Direct, until the router owns the lane** (`deploy(sha, { cwd, log, host })`,
 called by `ship.mjs`):
@@ -184,10 +188,10 @@ files show at once. For the hand-over while some sessions still ship editor
 files the old way. A later lane deploy never hard-links from, or writes
 through, a follow release. Responses carry no lane header in follow mode.
 
-**What reads editor files outside the editor.** Only `pdf_runtime.ts` (above).
-`forms/solar.ts` reads the Google key out of `editor.php` and
-`firstmeasure/api.ts`/`queue.ts` read untracked `config/` and `storage/` under
-the platform's `measure/internal`; none of those change with editor work.
+**What reads editor files outside the editor.** `pdf_runtime.ts` and
+`forms/solar.ts` (above). `firstmeasure/api.ts` and `queue.ts` read untracked
+`config/` and `storage/` under the platform's `measure/internal`, which editor
+work does not change.
 
 **Branches.** `lane/measure-internal` started at canonical `490c0b26`. The lane
 and canonical are merged into each other on request when work is quiet; until

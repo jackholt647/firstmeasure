@@ -47,8 +47,8 @@ function submit(ref, { regression, gatesOnly = false }) {
       "which this checkout does not have yet; they never run on this machine");
   }
   if (ref !== "HEAD" && git(["rev-parse", ref]) !== git(["rev-parse", "HEAD"])) throw new Error("the router submits HEAD: check out the commit first");
-  const tests = regression ? [regression === "all" ? "regression:all" : "regression"] : [];
-  const submitArgs = [submitScript, "--lane", LANE.name, "--wait", ...(tests.length ? ["--tests", tests.join(",")] : []), ...(gatesOnly ? ["--gates-only"] : [])];
+  const submitArgs = [submitScript, "--lane", LANE.name, "--wait",
+    ...(regression ? [regression === "all" ? "--regression=all" : "--regression"] : []), ...(gatesOnly ? ["--gates-only"] : [])];
   const r = spawnSync(process.execPath, submitArgs, { cwd, stdio: "inherit" });
   if (r.status !== 0) process.exit(r.status ?? 1);
   return null;

@@ -468,7 +468,9 @@ export async function uninstall({ log = (l) => console.error(l) } = {}) {
 
 const PLATFORM_PUBLIC = "/opt/firstmeasure/current/public";
 const PUBLIC_URL = process.env.DEV_PUSH_PUBLIC_URL || "https://dev.1m8.ai";
-const ROLES = ["legacy", "web"]; // legacy serves the editor; web's Node renders shared PDFs from it
+// legacy serves the editor; web and worker Node render shared PDFs from it
+// (FIRSTMEASURE_EDITOR_RUNTIME_ROOT in the router's release.env).
+const ROLES = ["legacy", "web", "worker"];
 
 /**
  * The lane's release tree for `sha` in `out`: public/measure/internal from the
@@ -530,7 +532,10 @@ async function servedReady(sha, rel, want, seconds = 30) {
   return `${PUBLIC_URL}/measure/internal/${rel} did not serve ${sha.slice(0, 10)}: ${last}`;
 }
 
-const regressionScope = (tests = []) => tests.includes("regression:all") ? "all" : tests.includes("regression") ? "mapped" : null;
+const regressionScope = (regression, tests = []) =>
+  regression === "all" || tests.includes("regression:all") ? "all" : regression === "mapped" || regression === true || tests.includes("regression") ? "mapped" : null;
+
+const timed = async (work) => { const began = Date.now(); const value = await work(); return [value, Date.now() - began]; };
 
 export default {
   name: LANE.name,
@@ -538,52 +543,86 @@ export default {
   batchMax: 8,
   owns: ownsPath,
 
-  // Quick checks always; the editor's regression tests only when a submission
-  // names `regression` (mapped tests) or `regression:all` in its tests.
-  async gates({ dir, sha, baseSha, tests = [], only, log = () => {} }) {
+  // Quick checks always (node --check here; PHP lint runs on the host in deploy
+  // when this machine has no php); the editor's regression tests only when the
+  // submission asks (`regression`: "mapped" | "all").
+  async gates({ dir, sha, baseSha, regression = null, tests = [], only, log = () => {} }) {
     const want = (id) => !only || only.some((item) => item === id || id.startsWith(`${item}:`));
-    const checks = await quickChecks({ sha, base: baseSha, cwd: dir, log });
+    const timings = {};
+    const [checks, checksMs] = await timed(() => quickChecks({ sha, base: baseSha, cwd: dir, log }));
+    timings.checks = checksMs;
     const failures = checks.failures.filter((failure) => want(failure.id));
     const notes = [...checks.notes];
-    const scope = regressionScope(tests);
+    const scope = regressionScope(regression, tests);
     if (scope && want("regression")) {
+      const began = Date.now();
       if (!existsSync(path.join(dir, "public", "v1", "node_modules"))) {
         const { ensureModules } = await import("../platform/lane.mjs");
         await ensureModules(dir, log);
       }
-      if (!linuxBrowser() && process.platform !== "win32") notes.push("no Chromium on this host: the editor's browser tests will fail");
+      if (!linuxBrowser() && process.platform !== "win32") notes.push("no Chromium on this host: the editor's browser tests fail here and count as known only if they also fail on the base");
       const result = await runRegression({ sha, base: baseSha, cwd: dir, tests: scope, log });
       for (const file of result.failed) failures.push({ id: `regression:${file}`, output: result.tails[file] || "" });
       if (result.known.length) notes.push(`known failures (also on ${String(baseSha).slice(0, 10)}): ${result.known.join(", ")}`);
       notes.push(`regression ${scope}: ${result.ran.length} file(s) in ${Math.round(result.ms / 1000)} s`);
+      timings.regression = Date.now() - began;
+      timings.regression_files = result.times;
     }
-    return { ok: failures.length === 0, failures, notes };
+    return { ok: failures.length === 0, failures, notes, timings };
   },
 
-  // Stages the tree on legacy and web, activates both, checks dev.1m8.ai serves
-  // it, and puts both back if anything fails.
+  // Stages the tree on every role, lints the changed PHP inside the staged
+  // release on legacy, activates legacy, web and worker, checks dev.1m8.ai
+  // serves it, and puts every role back if anything fails.
   async deploy({ dir, sha, hosts, log = () => {} }) {
+    const began = Date.now();
+    const timings = { stage: {}, activate: {} };
     const roles = ROLES.filter((role) => hosts.roles.includes(role));
     const before = Object.fromEntries(await Promise.all(roles.map(async (role) => [role, await hosts.status(role, LANE.name)])));
     const broken = roles.filter((role) => !before[role].ok);
-    if (broken.length) return { ok: false, error: `status failed: ${broken.map((role) => `${role}: ${before[role].error}`).join("; ")}`, rolledBack: true, infrastructure: true };
+    if (broken.length) return { ok: false, error: `status failed: ${broken.map((role) => `${role}: ${before[role].error}`).join("; ")}`, rolledBack: true, infrastructure: true, timings };
     const previous = Object.fromEntries(roles.map((role) => [role, before[role].lanes?.[LANE.name]?.current || null]));
     const build = mkdtempSync(path.join(os.tmpdir(), `fm-lane-tree-${sha.slice(0, 8)}-`));
     try {
+      let mark = Date.now();
       buildTree(sha, dir, build);
       const tree = treeManifest(build);
+      timings.build = Date.now() - mark;
       log(`staging ${sha.slice(0, 10)} on ${roles.join(", ")} (${Object.keys(tree.files).length} files, tree ${tree.tree_sha256.slice(0, 12)})`);
-      const staged = await Promise.all(roles.map((role) => hosts.stage(role, { lane: LANE.name, sha, dir: build, manifest: tree, releases: before[role].lanes?.[LANE.name]?.releases })));
+      const staged = await Promise.all(roles.map(async (role) => {
+        const [result, ms] = await timed(() => hosts.stage(role, { lane: LANE.name, sha, dir: build, manifest: tree, releases: before[role].lanes?.[LANE.name]?.releases }));
+        timings.stage[role] = ms;
+        return result;
+      }));
       const stageErrors = roles.filter((_, index) => !staged[index].ok);
-      if (stageErrors.length) return { ok: false, error: `staging failed: ${stageErrors.map((role) => `${role}: ${staged[roles.indexOf(role)].error}`).join("; ")}`, rolledBack: true, infrastructure: true };
+      if (stageErrors.length) return { ok: false, error: `staging failed: ${stageErrors.map((role) => `${role}: ${staged[roles.indexOf(role)].error}`).join("; ")}`, rolledBack: true, infrastructure: true, timings };
+
+      // PHP lint where PHP runs (the router host has no php).
+      const base = previous.legacy && commitExists(previous.legacy, dir) ? previous.legacy : null;
+      const changed = (changedPaths(base, sha, dir, [LANE.deploys]) || Object.keys(tree.files)).filter((file) => tree.files[file]);
+      const php = changed.filter((file) => file.endsWith(".php") && !skipCheck(file.slice(LANE.deploys.length + 1)));
+      if (php.length && !hasPhp() && roles.includes("legacy")) {
+        if (typeof hosts.check !== "function") log(`hosts.check unavailable: ${php.length} PHP file(s) not linted`);
+        else {
+          mark = Date.now();
+          const checked = await hosts.check("legacy", { lane: LANE.name, sha, paths: php });
+          timings.php_lint = Date.now() - mark;
+          if (!checked.ok) return { ok: false, error: `PHP lint failed on legacy:\n${checked.error || JSON.stringify(checked.failures || checked)}`, rolledBack: true, timings };
+        }
+      }
 
       const activated = [];
-      for (const role of roles) activated.push(await hosts.activate(role, { lane: LANE.name, sha, expect: previous[role] }));
+      for (const role of roles) {
+        const [result, ms] = await timed(() => hosts.activate(role, { lane: LANE.name, sha, expect: previous[role] }));
+        timings.activate[role] = ms;
+        activated.push(result);
+      }
       let error = roles.filter((_, index) => !activated[index].ok).map((role) => `${role}: ${activated[roles.indexOf(role)].error}`).join("; ");
       if (!error) {
-        const changed = changedPaths(previous.legacy && commitExists(previous.legacy, dir) ? previous.legacy : null, sha, dir, [LANE.deploys]) || [];
         const probe = changed.map((file) => file.slice(LANE.deploys.length + 1)).find((rel) => tree.files[`${LANE.deploys}/${rel}`] && !rel.endsWith(".php") && !skipCheck(rel)) || LANE.probe;
+        mark = Date.now();
         error = await servedReady(sha, probe, tree.files[`${LANE.deploys}/${probe}`][0]) || "";
+        timings.ready = Date.now() - mark;
       }
       if (error) {
         log(`not ready, rolling back: ${error}`);
@@ -592,10 +631,12 @@ export default {
           return { role, ...(await hosts.rollback(role, { lane: LANE.name, sha: previous[role] })) };
         }));
         const notBack = back.filter((item) => !item.ok);
-        return { ok: false, error: error + (notBack.length ? `\nROLLBACK FAILED on ${notBack.map((item) => `${item.role}: ${item.error}`).join("; ")}` : ""), rolledBack: notBack.length === 0 };
+        timings.total = Date.now() - began;
+        return { ok: false, error: error + (notBack.length ? `\nROLLBACK FAILED on ${notBack.map((item) => `${item.role}: ${item.error}`).join("; ")}` : ""), rolledBack: notBack.length === 0, timings };
       }
       Promise.all(roles.map((role) => hosts.prune(role, { lane: LANE.name }))).catch(() => {});
-      return { ok: true, name: sha, roles: Object.fromEntries(roles.map((role, index) => [role, { previous: previous[role], tree_sha256: staged[index].tree_sha256 || tree.tree_sha256 }])) };
+      timings.total = Date.now() - began;
+      return { ok: true, name: sha, roles: Object.fromEntries(roles.map((role, index) => [role, { previous: previous[role], tree_sha256: staged[index].tree_sha256 || tree.tree_sha256 }])), timings };
     } finally {
       rmSync(build, { recursive: true, force: true });
     }

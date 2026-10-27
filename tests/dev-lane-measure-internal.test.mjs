@@ -149,7 +149,8 @@ test('every ship lints and syntax-checks the changed editor files, in about a se
     s.write('public/measure/internal/editor_scripts/a.js', 'window.a = 2;\n');
     const fixed = s.commit('fixed a');
     const gates = await lane.gates({ dir: s.repo, sha: fixed, baseSha: broken, changed: [], tests: [] });
-    assert.deepEqual(gates, { ok: true, failures: [], notes: [] }, 'no regression tests unless a submission asks');
+    assert.equal(gates.ok, true);
+    assert.deepEqual(Object.keys(gates.timings), ['checks'], 'no regression tests unless a submission asks');
   } finally { s.done(); }
 });
 
