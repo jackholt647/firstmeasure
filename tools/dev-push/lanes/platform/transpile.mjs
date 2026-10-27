@@ -22,7 +22,7 @@ function* sources(v1, rel = "") {
 
 /** Transpiles one source; { ok, output } or { ok: false, errors }. */
 export function transpileSource(ts, text, fileName) {
-  const result = ts.transpileModule(text, { fileName, reportDiagnostics: true, compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.ES2022, esModuleInterop: true, resolveJsonModule: true } });
+  const result = ts.transpileModule(text, { fileName, reportDiagnostics: true, compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.ES2022 } });
   const errors = (result.diagnostics || []).filter((item) => item.category === ts.DiagnosticCategory.Error)
     .map((item) => `${fileName}${item.file && item.start !== undefined ? `:${item.file.getLineAndCharacterOfPosition(item.start).line + 1}` : ""}: ${ts.flattenDiagnosticMessageText(item.messageText, "\n")}`);
   return errors.length ? { ok: false, errors } : { ok: true, output: result.outputText };
