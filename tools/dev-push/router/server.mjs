@@ -65,6 +65,26 @@ async function main() {
   });
   await router.init();
   await router.git(["config", "remote.origin.pushurl", config.pushurl || "git@github.com:jackholt647/firstmeasure.git"]);
+  if (command === "gate" || command === "build") {
+    // Diagnostics: run a lane's gates, or build its release tree, for any commit without touching the queue.
+    const lane = args.lane || "platform";
+    const ref = args._[1] || `refs/lanes/${lane}`;
+    await router.fetch(lane);
+    await router.git(["fetch", "--quiet", "origin", ref.startsWith("refs/") ? ref : `+refs/heads/${ref}:refs/diagnose/${lane}`], { allowFail: true });
+    const sha = (await router.git(["rev-parse", ref.startsWith("refs/") ? ref : ((await router.git(["rev-parse", "--verify", "--quiet", `${ref}^{commit}`], { allowFail: true })).code === 0 ? ref : `refs/diagnose/${lane}`)])).trim();
+    const dir = await router.worktree(lane);
+    await router.git(["reset", "--quiet", "--hard", sha], { cwd: dir });
+    const started = Date.now();
+    if (command === "gate") {
+      const changed = String(args.changed || "").split(",").filter(Boolean);
+      const result = await lanes[lane].gates({ dir, sha, baseSha: sha, changed, tests: [], log: console.log });
+      console.log(JSON.stringify({ ok: result.ok, failures: result.failures.map((failure) => ({ id: failure.id, output: failure.output.slice(-1500) })), notes: result.notes, seconds: Math.round((Date.now() - started) / 1000) }, null, 1));
+    } else {
+      const result = await lanes[lane].deploy({ dir, sha, releaseId: `${lane}-diagnose-${sha.slice(0, 8)}`, hosts: { roles: [], status: async () => ({ ok: true }) }, log: console.log, buildOnly: true });
+      console.log(JSON.stringify({ ...result, seconds: Math.round((Date.now() - started) / 1000) }, null, 1));
+    }
+    return;
+  }
   if (command === "once") {
     router.startedAt = new Date().toISOString();
     for (const lane of args._[1] ? [args._[1]] : Object.keys(lanes)) while (await router.processLane(lane)) { /* drain */ }

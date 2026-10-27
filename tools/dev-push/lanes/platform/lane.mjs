@@ -124,7 +124,7 @@ export default {
   },
 
   /** Builds the release tree for `sha` and puts it on every role together. */
-  async deploy({ dir, sha, releaseId, hosts, log }) {
+  async deploy({ dir, sha, releaseId, hosts, log, buildOnly = false }) {
     const treeSha = (await run("git", ["rev-parse", `${sha}^{tree}`], { cwd: dir })).stdout.trim();
     const build = path.join(BUILDS, sha);
     if (!fs.existsSync(path.join(build, ".manifest.json"))) {
@@ -153,6 +153,7 @@ export default {
     }
     const manifest = JSON.parse(fs.readFileSync(path.join(build, ".manifest.json"), "utf8"));
     delete manifest.files[".manifest.json"];
+    if (buildOnly) return { ok: true, build, tree_sha256: manifest.tree_sha256, files: Object.keys(manifest.files).length };
 
     const roles = hosts.roles;
     const before = Object.fromEntries(await Promise.all(roles.map(async (role) => [role, await hosts.status(role, "platform")])));
