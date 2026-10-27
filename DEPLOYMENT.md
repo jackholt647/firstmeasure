@@ -1,5 +1,7 @@
 # FirstMeasure: local development and production deployment
 
+October 27 Visual recovery: [committed Docs, Photos upload/search, Operations badges, camera and markup; live conflict audit and permanent development activation](deploy/digitalocean/development-visual-recovery-20261027.md) records release `c9d694e1` on development legacy and web.
+
 October 27 Project reports: [mobile ordering recovery, report family icons and Operations Documents](deploy/digitalocean/development-mobile-order-recovery-20261026.md) records verified development release `82fa4dc6`.
 
 October 26 Project reports and ordering: [Documents includes roof PDFs and XML, defaults to loose gallery icons, and empty Measurements offers the shared report ordering workflow](deploy/digitalocean/development-project-reports-20261026.md) records release `a730ce84` on development legacy and web.

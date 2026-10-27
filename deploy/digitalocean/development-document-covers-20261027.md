@@ -1,3 +1,5 @@
+> Superseded by the [permanent visual recovery rollout](development-visual-recovery-20261027.md): release `c9d694e1` is activated on development legacy and web, including subsequent mobile, icon and pill changes. The live-only state below is historical.
+
 # Document covers — October 27, 2026
 
 Latest committed source: `00a237f4`. Verified served through the development live layer for `libraries/apps/docs/project.js` and `libraries/apps/materials/project.js`. All task deltas are pushed and reconciled into canonical without replacing unrelated edits.
