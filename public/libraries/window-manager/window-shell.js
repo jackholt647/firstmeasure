@@ -52,7 +52,7 @@
 .fm-entity-window .fm-shell-header[data-window-mobile=true]>.fm-project-tray-tabs{grid-column:2;grid-row:2}
 /* Phone project window: one tight title row (identity, header action, close) over tabs that use the full width; the trays are a footer bar. */
 .fm-entity-window .fm-shell-header:is(.r-window-bar,.fm-project-loading-header)[data-window-mobile=true]{grid-template-columns:minmax(0,1fr) auto auto!important;grid-template-rows:48px auto!important;min-height:48px!important}
-.fm-entity-window .fm-shell-header:is(.r-window-bar,.fm-project-loading-header)[data-window-mobile=true]>.fm-shell-identity{grid-column:1!important;grid-row:1!important;padding:0 2px 0 14px!important;gap:7px;font-size:16px!important}
+.fm-entity-window .fm-shell-header:is(.r-window-bar,.fm-project-loading-header)[data-window-mobile=true]>.fm-shell-identity{grid-column:1!important;grid-row:1!important;padding:0 12px 0 14px!important;gap:7px;font-size:16px!important}
 .fm-entity-window .fm-shell-header:is(.r-window-bar,.fm-project-loading-header)[data-window-mobile=true]>.fm-shell-identity>i{font-size:15px}
 .fm-entity-window .fm-shell-header:is(.r-window-bar,.fm-project-loading-header)[data-window-mobile=true] :is(#rWindowProjectTitle,.r-window-project-title){font-size:16px!important}
 .fm-entity-window .fm-shell-header:is(.r-window-bar,.fm-project-loading-header)[data-window-mobile=true]>.modal-shell-actions{grid-column:2!important;grid-row:1!important;align-self:center;border-left:0!important}
