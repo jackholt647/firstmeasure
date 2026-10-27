@@ -166,6 +166,16 @@ test('Documents shows delivered roof PDFs and XML once, defaults to loose tiles,
     assert.equal(await page.locator('.fm-document-tile').count(),3,'existing PDF entries are not duplicated');
     assert.ok(await page.getByText('Customer Roof Report',{exact:true}).first().isVisible());
     assert.ok(await page.getByText('Roof Measurement Report',{exact:true}).first().isVisible());
+    assert.equal(await page.locator('.fm-doc-card-mark .fa-ruler-combined').count(),3);
+    assert.equal(await page.locator('.fm-doc-symbol-badge.fa-user').count(),1);
+    assert.equal(await page.locator('.fm-doc-symbol-badge.fa-code').count(),1);
+    await page.evaluate(()=>document.documentElement.style.setProperty('--primary','#7c3aed'));
+    assert.deepEqual(await page.locator('.fm-doc-card-mark').evaluateAll(nodes=>nodes.map(node=>getComputedStyle(node).color)),Array(3).fill('rgb(124, 58, 237)'));
+    if (process.env.REPORT_ICONS_SHOT) {
+      await page.addStyleTag({url:'https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css'});
+      await page.evaluate(()=>document.fonts.ready);
+      await page.screenshot({path:process.env.REPORT_ICONS_SHOT});
+    }
     assert.equal(await page.locator('.fm-docs-gallery .pf-wrap').getAttribute('data-density'),'loose');
     await page.evaluate(()=>{window.FirstMateMarkup={openMediaViewer:options=>{window.openedDocument=options.photos[options.index].__document;window.closeDocument=options.onClose;return {close(){},updateBounds(){},updateMarkupLayerBounds(){}};}};});
     await page.getByText('Roof Report XML',{exact:true}).first().click();

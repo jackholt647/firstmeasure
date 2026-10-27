@@ -27,11 +27,11 @@
   ];
 
   const TYPE_META = {
-    roof_report_xml: { label: (globalThis.PlatformLanguage?.text('docs','roof_report_xml','Roof Report XML') ?? 'Roof Report XML'), icon: 'fa-file-code', color: '#059669' },
+    roof_report_xml: { label: (globalThis.PlatformLanguage?.text('docs','roof_report_xml','Roof Report XML') ?? 'Roof Report XML'), icon: 'fa-ruler-combined', badgeIcon:'fa-code', reportFamily:true, color: 'var(--primary,#d93025)' },
     proposal: { label: (globalThis.PlatformLanguage?.text("docs","m_1d8655e967c464","Proposal") ?? "Proposal"), icon: 'fa-file-signature', color: '#2563eb' },
     change_order: { label: (globalThis.PlatformLanguage?.text("docs","m_4c17910c74a05e","Change Order") ?? "Change Order"), icon: 'fa-file-contract', color: '#7c3aed' },
-    roof_report: { label: (globalThis.PlatformLanguage?.text("docs","m_51ac44c5f2e0fc","Roof Report") ?? "Roof Report"), icon: 'fa-ruler-combined', color: '#059669' },
-    customer_report: { label: (globalThis.PlatformLanguage?.text("docs","m_d7e9bec617183b","Customer Report") ?? "Customer Report"), icon: 'fa-file-lines', color: '#0891b2' },
+    roof_report: { label: (globalThis.PlatformLanguage?.text("docs","m_51ac44c5f2e0fc","Roof Report") ?? "Roof Report"), icon: 'fa-ruler-combined', reportFamily:true, color: 'var(--primary,#d93025)' },
+    customer_report: { label: (globalThis.PlatformLanguage?.text("docs","m_d7e9bec617183b","Customer Report") ?? "Customer Report"), icon: 'fa-ruler-combined', badgeIcon:'fa-user', reportFamily:true, color: 'var(--primary,#d93025)' },
     instant_report: { label: (globalThis.PlatformLanguage?.text("docs","m_f8f58e81f3e5f9","Instant Report") ?? "Instant Report"), icon: 'fa-bolt', color: '#ca8a04' },
     weather_report: { label: (globalThis.PlatformLanguage?.text("docs","m_e2f688300156b9","Weather Report") ?? "Weather Report"), icon: 'fa-cloud-sun-rain', color: '#0d9488' },
     invoice: { label: (globalThis.PlatformLanguage?.text("docs","m_1d5ea39cc421fc","Invoice") ?? "Invoice"), icon: 'fa-file-invoice-dollar', color: '#175cd3' },
@@ -176,8 +176,8 @@
       document_type: type,
       type,
       type_label: firstText(doc.type_label, meta.label),
-      icon: firstText(doc.icon, meta.icon),
-      color: firstText(doc.color, meta.color),
+      icon: meta.reportFamily ? meta.icon : firstText(doc.icon, meta.icon),
+      color: meta.reportFamily ? meta.color : firstText(doc.color, meta.color),
       title: firstText(doc.title, doc.label, doc.file_name, doc.name, meta.label),
       label: firstText(doc.label, doc.title, doc.file_name, doc.name, meta.label),
       url: fileUrl(doc),
@@ -638,6 +638,8 @@
       .fm-doc-card{position:absolute;inset:0;display:flex;flex-direction:column;justify-content:flex-end;overflow:hidden;padding:36px 12px 11px;background:linear-gradient(165deg,#fff 0%,color-mix(in srgb,var(--doc-color,#64748b) 8%,#f8fafc) 100%);text-align:left}
       .fm-doc-card-mark{position:absolute;right:9%;top:20%;font-size:clamp(30px,34cqw,96px);color:var(--doc-color,#64748b);opacity:.13;pointer-events:none;transition:opacity .16s ease}
       .pf-thumb:hover .fm-doc-card-mark{opacity:.2}
+      .fm-doc-symbol{position:relative;display:inline-block;line-height:1}
+      .fm-doc-symbol-badge{position:absolute;right:-.3em;bottom:-.2em;font-size:.43em;background:#f8fafc;border-radius:50%;padding:.2em;box-shadow:0 0 0 .08em #f8fafc}
       .fm-doc-card-body{position:relative;display:flex;flex-direction:column;gap:2px;min-width:0}
       .fm-doc-card-title{overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;color:#101828;font-size:clamp(11px,6.4cqw,14px);font-weight:800;line-height:1.28}
       .fm-doc-card-primary{overflow:hidden;white-space:nowrap;text-overflow:ellipsis;color:#101828;font-size:clamp(14px,10cqw,23px);font-weight:900;letter-spacing:-.015em;line-height:1.15}
@@ -1019,6 +1021,11 @@
     const name = firstText(doc.file_name, doc.fileName, doc.title, url).toLowerCase();
     return contentType.startsWith('image/') || /\.(?:png|jpe?g|gif|webp|avif|heic)(?:$|[?#])/i.test(name);
   }
+  function documentIconHtml(doc, className = ''){
+    const meta = typeMeta(doc.document_type);
+    const icon = meta.reportFamily ? meta.icon : (doc.icon || meta.icon);
+    return `<span class="${escapeHtml(className)}" aria-hidden="true"><span class="fm-doc-symbol"><i class="fas ${escapeHtml(icon)}"></i>${meta.badgeIcon ? `<i class="fas ${escapeHtml(meta.badgeIcon)} fm-doc-symbol-badge"></i>` : ''}</span></span>`;
+  }
   function documentThumbnailHtml(item = {}){
     const doc = documentFromItem(item);
     const meta = typeMeta(doc.document_type);
@@ -1037,7 +1044,7 @@
       ${summary?.amount ? `<span class="fm-doc-amount-pill">${escapeHtml(summary.amount)}</span>` : ''}`;
     }
     return `<span class="fm-doc-card" style="--doc-color:${color}">
-        <i class="fas ${escapeHtml(doc.icon || meta.icon)} fm-doc-card-mark" aria-hidden="true"></i>
+        ${documentIconHtml(doc,'fm-doc-card-mark')}
         <span class="fm-doc-card-body">
           <span class="fm-doc-card-title">${escapeHtml(doc.title || meta.label)}</span>
           ${summary?.amount ? `<strong class="fm-doc-card-primary">${escapeHtml(summary.amount)}</strong>` : ''}
@@ -1072,7 +1079,7 @@
     const disabled = doc.interactive === false || (!doc.url && !doc.media_id);
     return `
       <button type="button" class="fm-doc-tile ${doc.special ? 'special' : ''} ${doc.required ? 'required' : ''}" data-doc-index="${index}" ${disabled ? 'aria-disabled="true"' : ''} style="--doc-color:${escapeHtml(doc.color || meta.color)}">
-        <span class="fm-doc-icon"><i class="fas ${escapeHtml(doc.icon || meta.icon)}"></i></span>
+        ${documentIconHtml(doc,'fm-doc-icon')}
         <span class="fm-doc-title">${escapeHtml(doc.title)}</span>
         <span class="fm-doc-meta">${escapeHtml(doc.type_label || meta.label)}${doc.size_bytes ? ` · ${escapeHtml(formatBytes(doc.size_bytes))}` : ''}</span>
         ${doc.required && disabled ? `<span class="fm-doc-required">${(globalThis.PlatformLanguage?.htmlText("docs","m_a9849df346c95d","Needed") ?? "Needed")}</span>` : ''}
@@ -1086,7 +1093,7 @@
     return `
       <div class="fm-doc-row" data-doc-index="${index}" style="--doc-color:${escapeHtml(doc.color || meta.color)}">
         <button type="button" class="fm-doc-row-main">
-          <span class="fm-doc-icon"><i class="fas ${escapeHtml(doc.icon || meta.icon)}"></i></span>
+          ${documentIconHtml(doc,'fm-doc-icon')}
           <span><strong>${escapeHtml(doc.title)}</strong><em>${escapeHtml(doc.type_label || meta.label)}${doc.size_bytes ? ` · ${escapeHtml(formatBytes(doc.size_bytes))}` : ''}</em></span>
         </button>
         ${doc.related ? `<button type="button" class="fm-doc-row-action" data-doc-related>${escapeHtml(relatedLabel)}</button>` : ''}
