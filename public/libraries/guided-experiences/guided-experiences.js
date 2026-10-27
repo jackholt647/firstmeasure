@@ -201,6 +201,12 @@
     shared.active = token;
     let experience = null, outcome = null;
     try {
+      // Get Started on an app's welcome: the advertisement covers the panel until the real app shows (app-welcome.js).
+      // The tour starts after that, over the app it explains; a tab change meanwhile drops it as usual.
+      if (welcomePending()) {
+        await welcomeSettled();
+        if (options.bound && options.bound.generation !== state.visit.generation) return { status: 'dropped' };
+      }
       // A tab's tour from the preload draws at once; the server confirms it in the background (playInstant).
       const preloaded = options.instant ? instantCandidate(id, options.bound) : null;
       if (options.instant && !preloaded) return { status: 'dropped' };
@@ -239,6 +245,15 @@
 
   // A setup may open another existing guide and return to its checklist. The page's lock
   // stays with the parent: unrelated tab triggers cannot interrupt either experience.
+  /** The windows whose app welcome may still be covering a panel: this frame and the portal around it. */
+  function welcomeWindows(){
+    const wins = [root];
+    try { if (root.top && root.top !== root && root.top.FirstMateAppWelcome) wins.push(root.top); } catch (_) {}
+    return wins.filter((win) => { try { return !!win.FirstMateAppWelcome; } catch (_) { return false; } });
+  }
+  function welcomePending(){ return welcomeWindows().some((win) => { try { return win.FirstMateAppWelcome.pending(); } catch (_) { return false; } }); }
+  function welcomeSettled(){ return Promise.all(welcomeWindows().map((win) => { try { return win.FirstMateAppWelcome.settled(); } catch (_) { return null; } })).catch(() => null); }
+
   async function playChild(id,childOptions={}){
     if (!shared.active || shared.active.frame !== root || !state.current) return { status:'unavailable' };
     const parent = state.current, parentPlaying = state.playing;

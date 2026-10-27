@@ -99,24 +99,42 @@ async function refreshOrganization(orgId){
   }));
 }
 
-// Keep the advertisement in place while the host replaces its panel, then reveal the mounted app.
+// Transitions still covering a panel in this window. A tour waits for them (settled), so its first step is drawn
+// over the real app, never over the advertisement.
+const transitions=new Set();
+function settled(){return Promise.all([...transitions].map(entry=>entry.done)).then(()=>undefined);}
+if(typeof window!=='undefined')window.FirstMateAppWelcome={settled,pending:()=>transitions.size>0};
+
+// Keep the advertisement in place while the host replaces its panel, then reveal the mounted app. The cover ends when the
+// real app is mounted, the person goes to another tab, the panel leaves the page, the window is resized, or after 10 s.
 function transitionFrom(root, appId){
-  const rect=root.getBoundingClientRect(), cover=root.firstElementChild.cloneNode(true);
-  cover.setAttribute('aria-hidden','true'); cover.inert=true;
+  const rect=root.getBoundingClientRect(), article=root.querySelector(':scope > .fm-app-welcome'), cover=article.cloneNode(true);
+  cover.setAttribute('aria-hidden','true'); cover.inert=true; cover.classList.add('fm-app-welcome-cover');
   Object.assign(cover.style,{position:'fixed',left:rect.left+'px',top:rect.top+'px',width:rect.width+'px',height:rect.height+'px',zIndex:'1000',pointerEvents:'none'});
   document.body.append(cover);
-  let finished=false;
+  let finished=false, resolve;
+  const entry={done:new Promise(r=>{resolve=r;})};
+  transitions.add(entry);
+  const done=()=>{cover.remove();transitions.delete(entry);resolve();};
   const finish=()=>{
-    if(finished)return;finished=true;clearTimeout(timeout);
+    if(finished)return;finished=true;clearTimeout(timeout);clearInterval(watch);
     window.removeEventListener('fm:embeddable-apps:app-mounted',mounted);
     window.removeEventListener('fm:project-tab:opened',changed);
     window.removeEventListener('resize',finish);
-    if(window.matchMedia('(prefers-reduced-motion: reduce)').matches){cover.remove();return;}
-    cover.animate([{opacity:1,transform:'translateY(0)'},{opacity:0,transform:'translateY(-8px)'}],{duration:220,easing:'ease-out'}).finished.catch(()=>{}).finally(()=>cover.remove());
+    if(window.matchMedia('(prefers-reduced-motion: reduce)').matches||!cover.animate){done();return;}
+    cover.animate([{opacity:1,transform:'translateY(0)'},{opacity:0,transform:'translateY(-8px)'}],{duration:220,easing:'ease-out'}).finished.catch(()=>{}).finally(done);
   };
-  const mounted=event=>{if(event.detail?.appId===appId && !event.detail?.context?.entitlement?.offered)finish();};
+  const mounted=event=>{
+    const detail=event.detail||{}, mountedRoot=detail.context?.roots?.main||detail.context?.panelRoot;
+    if(detail.context?.entitlement?.offered||(detail.appId!==appId&&mountedRoot!==root))return;
+    // The real app is showing: nothing of the advertisement stays behind it.
+    if(mountedRoot===root&&root.contains(article)){article.remove();root.classList.remove('fm-app-welcome-host');}
+    finish();
+  };
   const changed=event=>{if(event.detail?.appId!==appId)finish();};
   const timeout=setTimeout(finish,10000);
+  // The host may drop the whole panel (another project, the window closed) without mounting anything.
+  const watch=setInterval(()=>{if(!root.isConnected)finish();},150);
   window.addEventListener('fm:embeddable-apps:app-mounted',mounted);
   window.addEventListener('fm:project-tab:opened',changed);
   window.addEventListener('resize',finish);

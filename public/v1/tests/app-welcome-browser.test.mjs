@@ -99,3 +99,46 @@ test('the runtime mounts only the welcome and keeps New without starting a tutor
     assert.equal(await page.evaluate(()=>window.operationalMounts),0,'preloading registers code without mounting the offered app');
   }finally{await browser.close();}
 });
+
+// The project window keeps one handle per tab: Get Started must leave nothing of the advertisement behind, whether
+// the host remounts the root (the runtime replaces the welcome), mounts the real app over it without destroying the
+// welcome, or drops the panel. A tour waits for the cover (FirstMateAppWelcome.settled).
+test('the advertisement is gone once the real app mounts, and the cover ends if its panel leaves the page',async()=>{
+  const runtime=await readFile(new URL('../../libraries/app-runtime/firstmate-embeddable-apps.js',import.meta.url),'utf8');
+  const module=await readFile(new URL('../../libraries/app-runtime/app-welcome.js',import.meta.url),'utf8');
+  const browser=await chromium.launch({channel:'chrome',headless:true});
+  try{
+    for(const mode of ['remount','overwrite','detached']){
+      const page=await browser.newPage();
+      await page.route('https://welcome.test/**',route=>{
+        const url=new URL(route.request().url());
+        const body=url.pathname.endsWith('app-welcome.js')?module:url.pathname.endsWith('runtime.js')?runtime:'<html><body><div id="panel"><main id="root" style="height:500px"></main></div></body></html>';
+        return route.fulfill({contentType:url.pathname.endsWith('.js')?'text/javascript':'text/html',body});
+      });
+      await page.goto('https://welcome.test/');
+      await page.evaluate(({welcome,mode})=>{
+        window.__APP={userOrgId:'org_test'};
+        const entitlement=offered=>({id:'project.photos',allowed:true,offered,...(offered?{welcome}:{}),visible:{desktop:true,mobile:true}});
+        window.PlatformAPI={request:async()=>({}),capabilities:{load:async()=>{}},appFlags:{load:async()=>{}}};
+        window.Portal={currentUser:{appEntitlements:[entitlement(true)]},auth:{syncPlatformSession:async()=>{
+          window.Portal.currentUser.appEntitlements=[entitlement(false)];
+          const root=document.getElementById('root');
+          if(mode==='remount')await FirstMateEmbeddableApps.mount(root,'project.photos',{surface:'project_modal',orgId:'org_test'});
+          if(mode==='overwrite'){root.insertAdjacentHTML('beforeend','<section id="actual-app">Ready</section>');window.dispatchEvent(new CustomEvent('fm:embeddable-apps:app-mounted',{detail:{appId:'project.photos',context:{roots:{main:root},entitlement:{offered:false}}}}));}
+          if(mode==='detached')document.getElementById('panel').remove();
+        }}};
+      },{welcome:APP_WELCOMES['project.photos'],mode});
+      await page.addScriptTag({url:'https://welcome.test/runtime.js'});
+      await page.evaluate(async()=>{
+        FirstMateEmbeddableApps.registerApp({id:'project.photos',surfaces:['project_modal'],mount(context){context.roots.main.insertAdjacentHTML('beforeend','<section id="actual-app">Ready</section>');return {destroy(){}};}});
+        await FirstMateEmbeddableApps.mount(document.getElementById('root'),'project.photos',{surface:'project_modal',orgId:'org_test'});
+      });
+      await page.getByRole('button',{name:'Get Started'}).click();
+      await page.waitForFunction(()=>window.FirstMateAppWelcome&&!window.FirstMateAppWelcome.pending()&&!document.querySelector('.fm-app-welcome-cover'),null,{timeout:3000});
+      assert.equal(await page.locator('.fm-app-welcome').count(),0,`${mode}: no advertisement is left`);
+      if(mode!=='detached')assert.equal(await page.locator('#actual-app').count(),1,`${mode}: the real app shows`);
+      assert.equal(await page.evaluate(()=>document.querySelector('.fm-app-welcome-host')),null);
+      await page.close();
+    }
+  }finally{await browser.close();}
+});

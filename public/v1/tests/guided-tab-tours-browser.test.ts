@@ -285,6 +285,30 @@ test("photos: a preloaded tour shows its first frame within 150 ms on a slow ser
   } finally { serverDelay = 0; await page.close(); }
 });
 
+// Get Started on an app's welcome: the advertisement's cover stays over the panel until the real app is mounted
+// (app-welcome.js). The tab's tour waits for it, so its first step is never drawn over the advertisement.
+test("photos: a tab's tour waits for the app welcome's cover to finish before its first step", async () => {
+  const userId = "user_photos_after_welcome";
+  const { page, errors } = await open(TABS.photos, userId);
+  try {
+    await page.evaluate(() => {
+      let release: () => void = () => {};
+      const done = new Promise<void>((resolve) => { release = resolve; });
+      (window as any).releaseWelcome = () => { (window as any).welcomeCovering = false; release(); };
+      (window as any).welcomeCovering = true;
+      (window as any).FirstMateAppWelcome = { pending: () => (window as any).welcomeCovering, settled: () => done };
+    });
+    await page.evaluate(() => (window as any).FirstMateGuides.preload("p1"));
+    await opened(page, TABS.photos.app);
+    await page.waitForTimeout(600);
+    assert.equal(await page.locator(".gx-pop").count(), 0, "no step while the advertisement covers the panel");
+    await page.evaluate(() => (window as any).releaseWelcome());
+    await page.waitForSelector(".gx-pop h3", { timeout: 4000 });
+    assert.equal(await heading(page), "Welcome to Photos");
+    assert.deepEqual(errors, []);
+  } finally { await page.close(); }
+});
+
 test("reports: a preloaded tour the server says is already done fades away and records nothing", async () => {
   const userId = "user_reports_done_elsewhere";
   const { page, errors } = await open(TABS.reports, userId);

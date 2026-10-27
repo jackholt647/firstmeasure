@@ -8041,10 +8041,12 @@ window.PlatformCommerce.onReady(async function(){
     if (!runtime?.mount || !app?.appId) return Promise.resolve(null);
     const panelRoot = document.querySelector(`#rOverlay .r-preview-panel[data-panel="${cssEscape(app.id)}"] .r-tab-main`);
     if (!panelRoot) return Promise.resolve(null);
+    // An app started from its welcome (or offered again) is a different app in the same panel: mount it afresh.
+    const offerChanged = projectModalOfferChanged(app);
     const existing = projectModalAppHandles.get(app.appId);
-    if (existing && !force) return Promise.resolve(existing);
+    if (existing && !force && !offerChanged) return Promise.resolve(existing);
     const pending = projectModalAppMounts.get(app.appId);
-    if (pending && !force) return pending;
+    if (pending && !force && !offerChanged) return pending;
     const host = projectWorkspaceHost();
     const active = app.id === activePreviewTab;
     const sidebarRoot = panelRoot.parentElement.querySelector(':scope > .r-tab-sidebar');
@@ -8077,8 +8079,18 @@ window.PlatformCommerce.onReady(async function(){
     }).finally(() => {
       if (projectModalAppMounts.get(app.appId) === mountPromise) projectModalAppMounts.delete(app.appId);
     });
+    mountPromise.offered = app.entitlement?.offered === true;
     projectModalAppMounts.set(app.appId, mountPromise);
     return mountPromise;
+  }
+
+  /** Whether the panel holds (or is mounting) the welcome of an app that is now started, or the reverse. */
+  function projectModalOfferChanged(app){
+    const offered = app?.entitlement?.offered === true;
+    const pending = projectModalAppMounts.get(app?.appId);
+    if (pending) return pending.offered !== offered;
+    const handle = projectModalAppHandles.get(app?.appId);
+    return !!handle && (handle.offered === true) !== offered;
   }
 
   function projectModalAppRuntimeContext(app, active){
@@ -8138,7 +8150,12 @@ window.PlatformCommerce.onReady(async function(){
     projectModalApps().forEach((app) => {
       const active = app.id === activePreviewTab;
       safelyRunProjectModalTab(app, active ? 'activate' : 'deactivate', () => {
-        const handle = projectModalAppHandles.get(app.appId);
+        let handle = projectModalAppHandles.get(app.appId);
+        if (handle && projectModalOfferChanged(app)) {
+          // Started (or offered again) while its tab is not showing: the next visit mounts the real app.
+          if (!active) { try { handle.destroy?.(); } catch (error) { console.warn(`Project modal app destroy failed for ${app.appId}`, error); } projectModalAppHandles.delete(app.appId); return; }
+          handle = null;
+        }
         if (handle) {
           if (active || app.id === previousTab) {
             const context = projectModalAppRuntimeContext(app, active);
