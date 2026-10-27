@@ -830,7 +830,7 @@
       title: (globalThis.PlatformLanguage?.text("firstmate-apps-manifest","m_c1ae5cde2c02d6","Onboarding Wizard") ?? "Onboarding Wizard"),
       kind: 'modal_app',
       surfaces: ['modal'],
-      bundles: [versionedBundle('onboarding/wizard.js', '20261023-signup-language-v1')]
+      bundles: [versionedBundle('onboarding/wizard.js', '20261026-company-name-v1')]
     },
     {
       id: 'promo.bonus_upfront_match',
