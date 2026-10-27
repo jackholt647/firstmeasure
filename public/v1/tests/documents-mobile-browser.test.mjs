@@ -72,17 +72,19 @@ test('on a phone the Docs header is one row, search opens over it, and New holds
     assert.ok(Math.max(...tops) - Math.min(...tops) < 6, `one row: ${JSON.stringify(controls)}`);
     assert.ok(bar.scrollWidth <= bar.clientWidth && Object.values(controls).filter(Boolean).every((entry) => entry.right <= 390), 'nothing runs off the screen');
     assert.ok(bar.height <= 64, `a single header row: ${bar.height}`);
-    assert.ok(controls.search.width <= 40, 'search is an icon until it is used');
+    assert.ok(controls.search.width > 36, 'search starts as an inline field');
     await page.locator('.fm-docs-gallery .pf-search').tap();
     await page.waitForTimeout(350);
     const open = await headerControls(page);
-    assert.ok(open.controls.search.width >= 300, `search opens across the row: ${open.controls.search.width}`);
+    assert.ok(open.controls.search.width > controls.search.width, 'search expands to the right');
+    assert.ok(open.controls.search.left >= open.controls.icon.right+6, 'left icon remains clear of the focus ring');
+    assert.ok(open.controls.search.right+4 <= bar.right-8, 'focus ring keeps the outer margin');
     await page.locator('.fm-docs-gallery .pf-search input').fill('roof');
-    // Leaving the field folds it back to its icon, marked as in use, and New is there again.
+    // Leaving the field restores its inline width, retaining the query.
     await page.locator('.fm-docs-gallery .pf-search input').evaluate((input) => input.blur());
     await page.waitForTimeout(100);
     const folded = await headerControls(page);
-    assert.ok(folded.controls.search.width <= 40 && folded.controls.new, 'search folds back with its words kept');
+    assert.equal(folded.controls.search.width,controls.search.width,'search restores its inline width');
     assert.equal(await page.locator('.fm-docs-gallery .pf-search input').inputValue(), 'roof');
     await page.locator('[data-gallery-toolbar-action="new_document"]').tap();
     const created = await page.evaluate(() => window.created.map((entry) => typeof entry.opts?.onUploadFiles));
@@ -91,6 +93,23 @@ test('on a phone the Docs header is one row, search opens over it, and New holds
     assert.equal(picked, true, 'Upload in the dialog opens the same file picker');
     assert.deepEqual(errors, []);
   } finally { await browser.close(); }
+});
+
+test('phone Photos and Docs expanded searches retain the icon and focus-ring margins',async()=>{
+  const browser=await launch();
+  try {
+    for(const kind of ['Photos','Docs'])for(const width of [320,390,430]){
+      const {page}=await pageFor(browser,{...PHONE,viewport:{width,height:844}});
+      await mountDocsTab(page);
+      if(kind==='Photos')await page.evaluate(()=>{document.querySelector('#tab').innerHTML='<div id="photos" style="height:100%;padding:0 12px"></div>';Portal.PhotoFeed.mountProjectGallery(document.querySelector('#photos'),{project:{id:'p1'},photos:[],title:'Photos',icon:'fa-images',selectionEnabled:false});});
+      const field=page.locator('.pf-search input').first();await field.focus();
+      await page.evaluate(()=>Promise.all(document.getAnimations().map(animation=>animation.finished.catch(()=>{}))));
+      const boxes=await field.evaluate(input=>{const bar=input.closest('.pf-toolbar'),icon=bar.querySelector('.pf-title i');const rect=node=>{const r=node.getBoundingClientRect();return {left:r.left,right:r.right};};return {input:rect(input),icon:rect(icon),bar:rect(bar),screen:innerWidth};});
+      assert.ok(boxes.input.left>=boxes.icon.right+6,`${kind} ${width}: icon stays visible ${JSON.stringify(boxes)}`);
+      assert.ok(boxes.input.right+4<=Math.min(boxes.screen,boxes.bar.right)-8,`${kind} ${width}: right focus margin ${JSON.stringify(boxes)}`);
+      await page.close();
+    }
+  }finally{await browser.close();}
 });
 
 test('on a desktop the Docs header keeps its search field, New and Upload', async () => {

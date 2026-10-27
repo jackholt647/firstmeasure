@@ -1904,6 +1904,21 @@
         .pf-wrap[data-mobile-grid=dense] .pf-shown-menu::before{content:'';display:block;width:36px;height:4px;margin:4px auto 2px;border-radius:2px;background:#d0d5dd}
         .pf-gallery-host:has(>.pf-wrap[data-mobile-grid=dense]) .pf-seldock{bottom:calc(10px + env(safe-area-inset-bottom,0px))}
       }
+      /* Shared project gallery header: Photos and Docs use one search surface. */
+      @media(max-width:760px){
+        .pf-gallery-host .pf-toolbar .pf-title{display:flex;flex:0 0 32px;min-width:32px;gap:0}
+        .pf-gallery-host .pf-toolbar .pf-title>div{display:none}
+        .pf-gallery-host .pf-toolbar .pf-title>i{width:32px;height:32px;border-radius:9px;font-size:14px;flex:none}
+        .pf-gallery-host .pf-toolbar .pf-tools{position:relative!important;flex:1 1 auto;min-width:0;flex-wrap:nowrap;gap:6px}
+        .pf-gallery-host .pf-toolbar .pf-search{order:0;flex:1 1 0;width:auto;min-width:36px;max-width:none;margin-right:auto}
+        .pf-gallery-host .pf-toolbar .pf-search input{box-sizing:border-box;height:36px;border:1px solid #d0d5dd;border-radius:10px;padding:0 12px 0 34px;background:#f8fafc;color:#101828;font-size:16px;cursor:text}
+        .pf-gallery-host .pf-toolbar .pf-search input::placeholder{color:#98a2b3}
+        .pf-gallery-host .pf-toolbar .pf-search i{left:11px;pointer-events:none}
+        .pf-gallery-host .pf-toolbar .pf-search:focus-within{position:absolute;left:0;right:0;top:50%;z-index:5;width:auto;transform:translateY(-50%);animation:pf-gallery-search-open .24s cubic-bezier(.2,.8,.2,1)}
+        .pf-gallery-host .pf-toolbar .pf-search:focus-within input{background:#fff;box-shadow:0 0 0 4px rgba(var(--primary-rgb,217,48,37),.12),0 8px 22px rgba(16,24,40,.12)}
+      }
+      @keyframes pf-gallery-search-open{from{opacity:.7}to{opacity:1}}
+      @media(prefers-reduced-motion:reduce){.pf-gallery-host .pf-search:focus-within{animation:none}}
       @media(min-width:560px) and (max-width:760px){.pf-wrap[data-mobile-grid=dense] .pf-grid{grid-template-columns:repeat(4,minmax(0,1fr))!important}}
       @keyframes pfSheetUp{from{opacity:0;transform:translateY(28px)}}
       @media(prefers-reduced-motion:reduce){.pf-wrap[data-mobile-grid=dense] .pf-shown-menu{animation:none}}
