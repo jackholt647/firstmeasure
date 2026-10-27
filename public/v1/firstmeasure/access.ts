@@ -90,6 +90,12 @@ function bindActor(request: FastifyRequest, principal: Principal) {
   if (!actor) return;
   if (plainObject(request.body)) {
     const input = request.body;
+    // A tab opened as another account (before a switch in another tab) names that account; it must not list the
+    // signed-in account's orders as its own (1M8-204).
+    const claimed = plainObject(input.actor) ? String(input.actor.organization_id || "").trim() : "";
+    if (claimed && actor.organization_id && claimed !== actor.organization_id && LIST_ROUTES.has(String(request.routeOptions.url ?? ""))) {
+      throw new FirstMeasureError("organization_forbidden", 403, "This session cannot act on the requested organization.");
+    }
     input.actor = { ...actor };
     for (const key of ["actor_email", "actor_name", "actor_role", "actor_org_id"]) delete input[key];
   }

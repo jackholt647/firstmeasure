@@ -253,7 +253,8 @@ test("adding a person who is already in the account never replaces them, and no 
     assert.equal(own.data.error, "org_user_exists");
   }
   const portalOwn = await owner.request("POST", "/v1/platform/portal-action", { action: "org_users_add_my", email: "readd.owner@example.test", name: "Me", perm_level: "viewer" });
-  assert.equal(portalOwn.data.error, "org_user_exists", JSON.stringify(portalOwn.data));
+  // The portal action refuses before the shared guard, with its own code.
+  assert.equal(portalOwn.data.error, "user_exists", JSON.stringify(portalOwn.data));
   assert.equal((await ownerRecord()).role, "owner");
   assert.equal((await owner.request("GET", "/v1/platform/organizations/readd_guard_org/global")).response.statusCode, 200, "the owner keeps their access");
 
