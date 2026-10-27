@@ -1,5 +1,7 @@
 # FirstMeasure: local development and production deployment
 
+October 27 Operations setup: [shared scope/proposal workflow, optional setup checklist, global Equipment offer and tutorial](deploy/digitalocean/development-operations-setup-20261027.md) records verified development release `1b28c1df` on worker, compatibility and web.
+
 October 26 Live layer: [browser files saved on the dev sync droplet are served by dev.1m8.ai at once and swapped into every open dev page; NGINX live folder, restricted receiver and check timer on dev web](deploy/digitalocean/development-live-layer-20261026.md) records release `d74f3b99` on the development worker, legacy and web and the host changes.
 
 October 25 Customer portal payment step: [Next Steps asks for a payment still due (amount, opening the document on its Pay task, or whom to contact when online payment is off) instead of calling the documents complete](deploy/digitalocean/development-portal-payment-step-20261025.md) records release `3f4a7277` on the development worker, legacy and web.
