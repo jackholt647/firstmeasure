@@ -8,10 +8,102 @@ October 27 Project reports: [mobile ordering recovery, report family icons and O
 
 October 26 Project reports and ordering: [Documents includes roof PDFs and XML, defaults to loose gallery icons, and empty Measurements offers the shared report ordering workflow](deploy/digitalocean/development-project-reports-20261026.md) records release `a730ce84` on development legacy and web.
 
+October 26 Project reports and ordering: [Documents includes roof PDFs and XML, defaults to loose gallery icons, and empty Measurements offers the shared report ordering workflow](deploy/digitalocean/development-project-reports-20261026.md) records release `a730ce84` on development legacy and web.
+
 October 27 Messages fallback: [independent Messages switch, bell fallback for tags, and Operations report prefill/copy fixes](deploy/digitalocean/development-messages-fallback-20261027.md) records verified development release `943d9542`.
 
 October 27 Operations setup: [shared scope/proposal workflow, optional setup checklist, global Equipment offer and tutorial](deploy/digitalocean/development-operations-setup-20261027.md) records verified development release `1b28c1df` on worker, compatibility and web.
 
+October 26 Project reports and ordering: [Documents includes roof PDFs and XML, defaults to loose gallery icons, and empty Measurements offers the shared report ordering workflow](deploy/digitalocean/development-project-reports-20261026.md) records release `a730ce84` on development legacy and web.
+
+>>=======
+October 23 tutorial artifact uploads on dev: [the API takes over tutorial projects PHP created, so artifact uploads and editor saves into them stop failing with EACCES](deploy/digitalocean/development-tutorial-storage-20261023.md) records branch `claude/gracious-goldberg-157f74` commit `865ee7bf` on production `6e8093f7`; not on production.
+
+October 27 production hotfix `71bf98a2`: [1M8-248 Customers tab Impersonate follows the user record, not the profile email](deploy/digitalocean/production-hotfix-20261027aa.md) on all roles; no production data changed; rollback is `fc31553b`.
+
+October 27 1M8-248 on dev: [Customers tab impersonation finds the sign-in identity through the user record, so users whose profile email differs from their sign-in email no longer fail with identity_not_found](deploy/digitalocean/development-impersonate-user-20261027.md) records `b49136e1` on `claude/impersonate-by-user-1m8-248` (from `production-live`). Not a regression; code not on production; no production data changed.
+
+October 26 production hotfix `fc31553b`: [1M8-246 onboarding asks for the person's and the company's name again](deploy/digitalocean/production-hotfix-20261026z.md) on all roles; no production data changed; rollback is `fe807b75`.
+
+October 26 1M8-246 on dev: [onboarding asks for the person's and the company's name again (every signup since October 20 was "Your Company")](deploy/digitalocean/development-company-name-20261026.md) records `66c4d0c4` on `claude/company-name-20261026` (from `production-live`). Code not on production; production repair is a dry run only.
+
+October 26 production hotfix `fe807b75`: [1M8-244 sign-in email kept equal to the user record and 1M8-245 adding a person never replaces a member or the owner](deploy/digitalocean/production-hotfix-20261026y.md) on all roles; rollback is `3c2c21da`.
+
+October 26 1M8-245 on dev: [adding a person never replaces a member, and whole-record user writes keep the owner and the last super admin; What The Hail Roofing's owner restored on production (data only)](deploy/digitalocean/development-admin-guard-20261026.md) records `ef1e3db5` on `claude/admin-guard-20261026` (from `codex/hotfix-20261026x`). Code not on production.
+
+October 26 1M8-244 sign-in email: [Proven Roofing's owner identity repaired in production (identity email matched to the user record); the users PATCH now keeps a user's email equal to their sign-in email](deploy/digitalocean/development-identity-email-20261026.md) records branch `claude/identity-mismatch-1m8-244` (`de3d8c6d`, on `codex/hotfix-20261026x`), the production data repair and its backup, 50 other affected users, and the development rollout. Code not on production.
+
+October 23 Signup form embeddable on dev: [the app's own signup form runs on the websites from one script tag, with an exact-origin allowlist on /v1/platform/auth/*](deploy/digitalocean/development-signup-embed-20261023.md) records `c17c3797` (1M8-240); websites not switched yet.
+
+October 23 Signup language on dev: [No Country or Language dropdowns, signups never refused, and the visitor's language handed from landing page (?lang + fm_lang cookie) through login, signup, onboarding and the organization in all 17 packs](deploy/digitalocean/development-signup-language-20261023.md) records `e7144481` and `52df0758` (1M8-240) on worker, legacy and web; the website droplets still need handoff.js.
+
+October 23 Signup lists on dev: [Country and Language are styled lists limited to Ben's 21 operating countries and their languages, the phone placeholder is the chosen calling code's own example, and signups choosing another country are refused](deploy/digitalocean/development-signup-lists-20261023.md) records release `eef3b3fa` (1M8-240), cut from `codex/hotfix-20261023o`.
+
+October 23 1M8-242 on dev: [imported accounts show their logo on reports (the editor context preferred the legacy relative key over the platform logo URL)](deploy/digitalocean/development-legacy-logos-20261023.md) records release `712de6b4` on worker, legacy and web. Not on canonical or production.
+
+October 23 Phone picker rework on dev: [Ben's 21 operating countries only, the number in each country's national format as it is typed (no "Saved as" line), and a styled calling-code list](deploy/digitalocean/development-phone-countries-rework-20261023.md) records releases `ab63b371` and `ffbdfc29` (1M8-240), cut from `codex/release-20261023m`.
+
+October 23 European login billboard on dev: [every visitor gets the main host's `https://1m8.ai/billboards/login/` (eu.1m8.ai never published it and showed "Not Found"), with a branded fallback panel when the billboard is missing](deploy/digitalocean/development-login-billboard-eu-20261023.md) records `f4c4600e` on `claude/kind-ishizaka-2fffa9`, cut from production `6e8093f7`, on legacy and web (pool unreachable). Not on production.
+
+October 22-23 Phone country codes on dev: [the calling-code picker offers the 52 served countries (detected first), formats the number for the chosen country as it is typed and previews the international number](deploy/digitalocean/development-phone-countries-20261022.md) records release `01f5e5c2` (1M8-240), cut from `codex/hotfix-20261023g`, on worker, legacy and web (pool unreachable); on October 23 the deleted 1M8-239 minimal signup was removed from dev so it shows production's signup form with the picker.
+
+October 23 1M8-238 customer users' order counts on dev: [the internal Customers tab counts each user's orders instead of the 0 stored at signup](deploy/digitalocean/development-user-order-count-20261023.md) records branch `claude/customer-user-order-count-20261023` (`51384eaa`, on `codex/hotfix-20261023f`) and the verified development rollout. Not on production.
+
+October 22 People and Settings access on dev: [admins can suspend, archive and revoke other super admins while the owner and the last super admin stay protected (also on the server), and Settings is hidden from people it has no page for](deploy/digitalocean/development-users-settings-20261022.md) records release `e9bfef63` (1M8-235/236), cut from `codex/hotfix-20261023e`, and the verified four-role development rollout.
+
+October 22 1M8-225 Customers tab on dev: [customer pages read their organizations in batched queries and full summaries are compacted per batch, so a page no longer queues about 1,600 reads on the compatibility pool and a Country sort no longer exhausts a worker heap](deploy/digitalocean/development-customers-batch-20261022.md) records hotfix branch `claude/customers-batch-reads-20261022` (`e3db0de0`, on `codex/release-20261022b`) and the verified four-role development rollout. Not on production.
+
+October 22 RELEASE CANDIDATE on dev: [`codex/release-candidate-20261022` combines the five Linear fix branches (billing, portal, accounts, Europe and 1M8-228, editor paste and pitch shortcut) on production `8c908166`; tests match production's and it awaits the team click-through](deploy/digitalocean/development-release-candidate-20261022.md). Not on production.
+
+October 21 Customer billing fixes on dev: [an order placed while adding funds is submitted after payment (market revision sent, priced from the shown quote, paid sessions with tax credited, mismatches held for review), the top-up page uses the organization's currency, and the statement counts refunds apart from payments](deploy/digitalocean/development-billing-topup-20261021.md) records releases `14a6e3de` and `039723d8` (1M8-198, 1M8-200, 1M8-218) and the verified development rollout. Not on canonical yet.
+
+October 21 Portal regressions on dev: [1M8-202/205/206/208/210/211 and the platform sync gate (report tab highlight, cancelled-order layout and status, stale Processing summaries, drafts, contact placeholder, impersonation Settings row)](deploy/digitalocean/development-portal-regressions-20261021.md) records session-branch release `41b65307` on legacy, web and pool; not on canonical yet.
+
+October 21 Add another account, ordering permission, password visibility on dev: [adding a second account works again, people without order_reports get no New Report or mobile +, and every password field has a show/hide button](deploy/digitalocean/development-account-access-20261021.md) records release `78a839d1` (1M8-223/227/221) and the verified four-role development rollout.
+
+October 21 Customer portal accounts on dev: [admins no longer show as viewers, a tab opened as another account stops instead of showing the active account's orders, per-organization browser caches, invitations open the inviting company (and tell the inviter when the person already has an account), activation codes, the invite level and photo button, and round avatars](deploy/digitalocean/development-account-fixes-20261021.md) records release `61402f23` (1M8-201/203/204/207/209/212/213) and the verified four-role development rollout.
+
+October 22 1M8-230 (recent orders missing from customer portals): [the portal listed a platform mirror that production stopped writing at the 10/20 release; candidate commit `41b65307` already fixes it and is on dev, production still lacks it; this adds a behavioral test](deploy/digitalocean/development-1m8-230-20261022.md). No dev rollout needed.
+
+October 22 Organization country of record (1M8-228): [every organization stores a country (signup, backfill, staff edit) usable by feature-flag country rules; production needs the backfill run at release](deploy/digitalocean/development-org-country-20261022.md) records release `a41a95c3` on branch `claude/lucid-yonath-777e5b` (not yet canonical) and the dev backfill.
+
+October 21 Customer country tracking (1M8-228): [the internal customer list, detail and queue cards show customer and order countries, with country filter and sort](deploy/digitalocean/development-customer-country-20261021.md) records release `39e25f28` on branch `claude/lucid-yonath-777e5b` (not yet canonical) and the verified development rollout.
+
+October 21 Europe report pricing: [EUR 25 residential and EUR 40 per commercial/multifamily structure, VAT included, EUR 5 gutters, US rush tiers in euros on a European clock, all in the operator pricing policy](deploy/digitalocean/development-europe-pricing-20261021.md) records release `cd556525` on branch `claude/lucid-yonath-777e5b` (not yet canonical) and the verified development rollout.
+
+October 21 Europe signup: [signup chooses country (billing profile), phone calling code and language; wizard and project-type prices follow the account currency; operator-only commercial profile reassignment](deploy/digitalocean/development-europe-signup-20261021.md) records release `45143009` on branch `claude/lucid-yonath-777e5b` (not yet canonical) and the verified development rollout.
+
+October 22 RELEASE CANDIDATE on dev: [`codex/release-candidate-20261022` combines the five Linear fix branches (billing, portal, accounts, Europe and 1M8-228, editor paste and pitch shortcut) on production `8c908166`; tests match production's and it awaits the team click-through](deploy/digitalocean/development-release-candidate-20261022.md). Not on production.
+
+October 21 Customer billing fixes on dev: [an order placed while adding funds is submitted after payment (market revision sent, priced from the shown quote, paid sessions with tax credited, mismatches held for review), the top-up page uses the organization's currency, and the statement counts refunds apart from payments](deploy/digitalocean/development-billing-topup-20261021.md) records releases `14a6e3de` and `039723d8` (1M8-198, 1M8-200, 1M8-218) and the verified development rollout. Not on canonical yet.
+
+October 21 Portal regressions on dev: [1M8-202/205/206/208/210/211 and the platform sync gate (report tab highlight, cancelled-order layout and status, stale Processing summaries, drafts, contact placeholder, impersonation Settings row)](deploy/digitalocean/development-portal-regressions-20261021.md) records session-branch release `41b65307` on legacy, web and pool; not on canonical yet.
+
+October 21 Add another account, ordering permission, password visibility on dev: [adding a second account works again, people without order_reports get no New Report or mobile +, and every password field has a show/hide button](deploy/digitalocean/development-account-access-20261021.md) records release `78a839d1` (1M8-223/227/221) and the verified four-role development rollout.
+
+October 21 Customer portal accounts on dev: [admins no longer show as viewers, a tab opened as another account stops instead of showing the active account's orders, per-organization browser caches, invitations open the inviting company (and tell the inviter when the person already has an account), activation codes, the invite level and photo button, and round avatars](deploy/digitalocean/development-account-fixes-20261021.md) records release `61402f23` (1M8-201/203/204/207/209/212/213) and the verified four-role development rollout.
+
+October 22 Organization country of record (1M8-228): [every organization stores a country (signup, backfill, staff edit) usable by feature-flag country rules; production needs the backfill run at release](deploy/digitalocean/development-org-country-20261022.md) records release `a41a95c3` on branch `claude/lucid-yonath-777e5b` (not yet canonical) and the dev backfill.
+
+October 21 Customer country tracking (1M8-228): [the internal customer list, detail and queue cards show customer and order countries, with country filter and sort](deploy/digitalocean/development-customer-country-20261021.md) records release `39e25f28` on branch `claude/lucid-yonath-777e5b` (not yet canonical) and the verified development rollout.
+
+October 21 Europe report pricing: [EUR 25 residential and EUR 40 per commercial/multifamily structure, VAT included, EUR 5 gutters, US rush tiers in euros on a European clock, all in the operator pricing policy](deploy/digitalocean/development-europe-pricing-20261021.md) records release `cd556525` on branch `claude/lucid-yonath-777e5b` (not yet canonical) and the verified development rollout.
+
+October 21 Europe signup: [signup chooses country (billing profile), phone calling code and language; wizard and project-type prices follow the account currency; operator-only commercial profile reassignment](deploy/digitalocean/development-europe-signup-20261021.md) records release `45143009` on branch `claude/lucid-yonath-777e5b` (not yet canonical) and the verified development rollout.
+
+October 21 PRODUCTION HOTFIX: [`10d8d525` serves project artifacts byte for byte, so projects with saved undo history open again ("Load Error: Failed to fetch")](deploy/digitalocean/production-hotfix-artifact-encoding-20261020.md); compatibility and all six web nodes, verified.
+
+October 20 PRODUCTION RELEASE: [canonical `31f87be5` is live on compatibility, the worker and all six web nodes (platform, Full House and the roof 3D viewer off), with the 10-minute PDF sync changeover issue and rollback](deploy/digitalocean/production-release-20261020.md). Production now runs the canonical branch.
+
+October 20 Production release staging: [release `31f87be5` installed on compatibility and the worker, the web nodes' installer replaced and the platform index prepared; nothing activated](deploy/digitalocean/production-release-staging-20261020.md).
+
+October 20 Original roof report layout on dev: [roof-only PDFs keep the production titles and page order; the Full House layout applies only with Full House pages](deploy/digitalocean/development-pdf-original-layout-20261020.md) records release `128d7f2b` and the verified development rollout.
+
+October 20 Production release gates on dev: [the roof 3D viewer behind `firstmeasure.roof_model_viewer` (Full House always shows it) and the signup sandbox limited to development hosts](deploy/digitalocean/development-release-gates-20261020.md) records release `067deb12` and the verified four-role development rollout.
+
+October 21 Europe signup: [signup chooses country (billing profile), phone calling code and language; wizard and project-type prices follow the account currency; operator-only commercial profile reassignment](deploy/digitalocean/development-europe-signup-20261021.md) records release `45143009` on branch `claude/lucid-yonath-777e5b` (not yet canonical) and the verified development rollout.
+
+>>>>>>> origin/codex/consolidated-firstmeasure-20260923
 October 26 Live layer: [browser files saved on the dev sync droplet are served by dev.1m8.ai at once and swapped into every open dev page; NGINX live folder, restricted receiver and check timer on dev web](deploy/digitalocean/development-live-layer-20261026.md) records release `d74f3b99` on the development worker, legacy and web and the host changes.
 
 October 25 Customer portal payment step: [Next Steps asks for a payment still due (amount, opening the document on its Pay task, or whom to contact when online payment is off) instead of calling the documents complete](deploy/digitalocean/development-portal-payment-step-20261025.md) records release `3f4a7277` on the development worker, legacy and web.
@@ -58,6 +150,8 @@ October 19-20 Full-house production points: [a full house is scored at submissio
 
 October 19-20 Full-house staff fixes: [the browser API base is the public origin, embedded QA and manager sign-off show and send the full-house checks, approval adopts the newest reviewed PDF revision, plus Full House badges and qualified-only reservation lists](deploy/digitalocean/development-full-house-staff-fixes-20261019.md) records release `c1240ed1` on all four development roles.
 
+October 21 Editor paste and pitches: [pasting no longer leaves duplicate stacked lines on shared edges (1M8-226) and K toggles pitch labels (1M8-191)](deploy/digitalocean/development-paste-pitch-20261021.md) records release `a8154fde` and the verified development rollout.
+
 October 22 Exterior PDF rework and roof materials: [four elevations on one page each, roof-style two-column tables, chimney caps, trim and no soffit z-fighting, dimension context with an org toggle, roof materials and a textured cover](deploy/digitalocean/development-report-roof-20261022.md) records release `60552c1d` and the verified development rollout.
 
 October 21 Exterior report fixes: [front-facing cover, readable elevations, each face counted and labelled once, real opening areas, unassigned-material warning and a resizable configuration tray](deploy/digitalocean/development-report-fixes-20261021.md) records release `a6f649b3` and the verified development rollout.
@@ -95,9 +189,11 @@ October 19 Sticker typing with Shift: [Shift+W/D/G types a selected face; Ctrl i
 October 19 Curved copy/paste, Resources media viewer and plane Auto-step: [pasted curves keep their definition, the reworked media viewer with server-side frame extraction (ffmpeg on dev hosts) and plane Auto-step](deploy/digitalocean/development-full-house-curves-resources-20261019.md) records release `700b8d54` and the verified development rollout.
 
 October 19 Full-house speed pass: [no shader recompiles per redraw, early-exit occlusion, a passive 2D plan during 3D gestures, an exact wall composition key, draw memos and cheaper previews](deploy/digitalocean/development-full-house-speed-20261019.md) records release `f709807f`, the measurements and the verified development rollout.
+
 October 11 Feed Settings: [Search, categories and descriptions](deploy/digitalocean/development-feed-settings-ui-20261011.md) records the Settings UI update, browser/visual checks and development rollout.
 
 October 19 Pay sheets, payables and People gaps: [the pay sheet editor, payroll bills through payables with reimbursements settled once, export templates, archive and restore, branch membership and words, and outside company onboarding](deploy/digitalocean/development-people-payroll-gaps-20261019.md) records release `c255dda3` (payroll schema version 6), the host merges, the per-host generated files and the verified four-role development rollout.
+
 October 11 Feed: [Terminology and workflow context](deploy/digitalocean/development-feed-terminology-flexibility-20261011.md) records the focused activity/catalog update, checks, development rollout and scope limits.
 
 October 19 Route lock-down: [platform routes stay inside the caller's organizations, the raw global document and the credits ledger need billing management, and the balance needs report ordering or billing](deploy/digitalocean/development-route-gates-20261019.md) records release `65634240`, the host merges and the verified four-role development rollout with owner and orderer checks.
@@ -199,6 +295,7 @@ October 11 GIF picker: [Hide creator profile overlays](deploy/digitalocean/devel
 October 11 Project preview contact details: [Tags and contact priority fields](deploy/digitalocean/development-project-preview-contact-priority-20261011.md) records the checks and verified development rollout.
 
 October 10 GIF loading: [Scrollbar resize loop fix](deploy/digitalocean/development-gif-loading-fix-20261010.md) records the reproduction, timeout recovery, regression checks and verified development rollout.
+
 October 12 Project resource types: [removal, resizable columns and action header](deploy/digitalocean/development-project-categories-20261012.md) records the new archive writer, its limits, checks and verified development rollout.
 
 October 11 Project resource rows: [one-line rows, drag ordering and collapsible lists](deploy/digitalocean/development-project-list-rows-20261011.md) records the row contract, list header changes, checks and verified development rollout.
@@ -208,6 +305,7 @@ October 10 Project resource lists: [dense line-item rows](deploy/digitalocean/de
 October 10 Priority field owners: [shared contact, user and resource priorities](deploy/digitalocean/development-priority-owners-20261010.md) records the owner architecture, verified development rollout and rollback baselines.
 
 October 10 shared pickers: [Widget-owned GIF and emoji pickers](deploy/digitalocean/development-shared-pickers-20261010.md) records Channels consumption, compact popovers, preserved Feed composer changes, and verified development rollout.
+
 October 10 Feed: [Permissions and auto-save](deploy/digitalocean/development-feed-permissions-autosave-20261010.md) records the settings redesign, verified three-app-role development rollout, and October 11 correction that the report worker is not a Feed deployment dependency.
 
 October 10 Project preview contact card: [Conditional primary label and icon actions](deploy/digitalocean/development-project-preview-contact-icons-20261010.md) records the checks and verified development rollout.

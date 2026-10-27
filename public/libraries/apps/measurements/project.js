@@ -4,6 +4,14 @@
 window.PlatformCommerce.onReady(function(){
   const runtime = window.FirstMateEmbeddableApps;
   const Portal = window.Portal;
+  // index.php and the apps runtime can both load this file (under different ?v= keys). A second copy
+  // would keep its own report-tab state and repaint the shared tab strip from it, so the highlighted tab
+  // stopped following the open report (1M8-205). Every later copy defers to the first.
+  const loadedMeasurementsApp = Portal?.modules?.projectMeasurements;
+  if (loadedMeasurementsApp?.singleton) {
+    if (loadedMeasurementsApp.definition) runtime?.registerApp?.(loadedMeasurementsApp.definition);
+    return;
+  }
   const util = Portal?.util || {};
   const cfg = Portal?.cfg || window.__APP || {};
   const $ = util.$ || ((sel, root = document) => root.querySelector(sel));
@@ -53,6 +61,8 @@ window.PlatformCommerce.onReady(function(){
   let cancellationCountdownTimer = null;
   let pendingExpediteSelection = '';
   let activeMeasurementTab = 'model';
+  let userMeasurementTab = '';
+  let userMeasurementTabProject = '';
   let roofViewer = null;
   let roofViewerKey = '';
   // The route's report view as last applied or as it read after a chosen tab was pushed.
@@ -137,7 +147,11 @@ window.PlatformCommerce.onReady(function(){
   function resolveRoot(context = {}){
     const root = context.panelRoot || context.roots?.main || state.panelRoot || document.querySelector('#rOverlay .r-preview-panel[data-panel="measurements"]');
     if (!root) return null;
-    if (!root.querySelector?.('.r-measure-body')) root.innerHTML = panelHtml();
+    // The project modal mounts with its outer panel and the runtime with the panel's main region. Both
+    // resolve to the element holding the report body, so every render finds the same tab strip and panes.
+    const body = root.querySelector?.('.r-measure-body');
+    if (body?.parentElement) return body.parentElement;
+    root.innerHTML = panelHtml();
     return root;
   }
 
@@ -187,6 +201,10 @@ window.PlatformCommerce.onReady(function(){
   }
   function measurementReportSummaryEnabled(){
     return firstMeasureFlagEnabled('measurement_report_summary', false);
+  }
+  // The 3D viewer is part of Full House; roof-only reports show it once the organization turns on roof_model_viewer.
+  function reportModelViewerEnabled(){
+    return reportSummaryIsFullHouse() || firstMeasureFlagEnabled('roof_model_viewer', false);
   }
   const fmtCredit = value => window.PlatformCommerce.credit(value);
   function fmtMoney(value){ return callHost('fmtMoney', value) || String(Math.round((Number(value) || 0) * 100) / 100); }
@@ -324,7 +342,7 @@ window.PlatformCommerce.onReady(function(){
     const projectId = activeMeasurementProjectId();
     const cachedAssets = projectId ? primeMeasurementAssetCacheFromKnownUrls(projectId) : null;
     const hasXml = ready && !!cachedAssets?.xmlUrl;
-    if(ready) tabs.push({id:'model',get label(){ return (globalThis.PlatformLanguage?.text("measurements","report_model_tab","Model") ?? "Model"); },icon:'fa-cube',active:activeMeasurementTab==='model',disabled:false,pending:false});
+    if(ready && reportModelViewerEnabled()) tabs.push({id:'model',get label(){ return (globalThis.PlatformLanguage?.text("measurements","report_model_tab","Model") ?? "Model"); },icon:'fa-cube',active:activeMeasurementTab==='model',disabled:false,pending:false});
     const changes = reportFollowupEnabled() ? reportChangeRequests() : [];
     const supportView = !changes.length || reportRequestsAreSupportOnly(changes);
     if (inlineProjectMapWithReports()) {
@@ -2193,6 +2211,7 @@ window.PlatformCommerce.onReady(function(){
   }
 
   function reportSummaryStatusLabel(row){
+    if (row.cancelled) return (globalThis.PlatformLanguage?.text("measurements","m_9863f11d60b2fa","Cancelled") ?? "Cancelled");
     if (row.processing) return (globalThis.PlatformLanguage?.text("measurements","m_7244c568a68bff","Processing") ?? "Processing");
     if (row.ready) return (globalThis.PlatformLanguage?.text("measurements","m_d0dd61f9c0e1d2","Ready") ?? "Ready");
     if (row.pending) return (globalThis.PlatformLanguage?.text("measurements","m_2175240180a38e","Pending") ?? "Pending");
@@ -2211,11 +2230,15 @@ window.PlatformCommerce.onReady(function(){
     const weather = weatherReportInfo();
     const instantOrdered = reportOrderIncludesInstant();
     const guttersOrdered = reportOrderIncludesGutters();
+    const cancelled = reportOrderIsCancelled();
+    // A release-held order is finished but not yet delivered: the customer still sees it processing (1M8-234).
+    const closed = cancelled || reportOrderIsRejected();
     const documentState = (url, pendingWhenUnlocked = false) => ({
-      url: documentsUnlocked ? (url || '') : '',
-      ready: documentsUnlocked && !!url,
-      pending: documentsUnlocked && !!pendingWhenUnlocked,
-      processing: !documentsUnlocked
+      url: documentsUnlocked && !closed ? (url || '') : '',
+      ready: documentsUnlocked && !closed && !!url,
+      pending: documentsUnlocked && !closed && !!pendingWhenUnlocked,
+      processing: !documentsUnlocked && !closed,
+      cancelled
     });
     const standardState = documentState(cachedAssets?.reportUrl || '', pending && !cachedAssets?.reportUrl);
     const summaryState = documentState(cachedAssets?.summaryUrl || '', pending && !cachedAssets?.summaryUrl);
@@ -3550,11 +3573,32 @@ window.PlatformCommerce.onReady(function(){
 
   function setActiveMeasurementTab(tab, options = {}){
     const available = measurementTabs();
-    const next = available.find((entry) => entry.id === tab && !entry.disabled) || available.find((entry) => !entry.disabled) || available[0];
+    const next = available.find((entry) => entry.id === tab && !entry.disabled)
+      || available.find((entry) => entry.id === 'standard' && !entry.disabled)
+      || available.find((entry) => !entry.disabled)
+      || available[0];
     activeMeasurementTab = next?.id || 'standard';
+    if (options.user) {
+      userMeasurementTab = activeMeasurementTab;
+      userMeasurementTabProject = activeMeasurementProjectId() || '';
+    }
     if (options.updateRoute !== false && !window.Portal?.navigation?.applying) window.Portal?.navigation?.push?.({ reportView:activeMeasurementTab }, { source:'project-report-view', ownedKeys:['reportView'] });
     appliedRouteView = window.Portal?.navigation?.read?.().reportView || '';
     renderMeasurementsPanel();
+  }
+
+  // Hydrating a project picks its opening report view. A view the route names or the user picked wins;
+  // otherwise the 3D model opens only where it is offered, then the caller's fallback, then Standard.
+  function selectInitialMeasurementTab(fallback = 'standard', options = {}){
+    const available = measurementTabs().filter((entry) => !entry.disabled);
+    const offered = (id) => !!id && available.some((entry) => entry.id === id);
+    const routed = window.Portal?.navigation?.read?.().reportView || '';
+    const projectId = activeMeasurementProjectId() || '';
+    const chosen = userMeasurementTab && userMeasurementTabProject === projectId ? userMeasurementTab : '';
+    const model = options.model && reportModelViewerEnabled() ? 'model' : '';
+    const next = [routed, chosen, model, fallback, 'standard'].find(offered) || fallback || 'standard';
+    setActiveMeasurementTab(next, { updateRoute:false });
+    return activeMeasurementTab;
   }
 
   function mergeReportManifestIntoActiveProject(manifest = {}){
@@ -3890,7 +3934,9 @@ window.PlatformCommerce.onReady(function(){
     const root = currentPanelRoot();
     const overlay = root?.closest('#rOverlay');
     const header = overlay?.querySelector('.r-modal-header');
-    const tabsEl = root?.querySelector('#rMeasureTabs') || header?.querySelector('#rMeasureTabs');
+    // The strip may sit anywhere in this panel or in the header; a render that missed it left the old
+    // highlight (and its click handlers) in place while the panes switched (1M8-205).
+    const tabsEl = root?.querySelector('#rMeasureTabs') || root?.closest('.r-preview-panel')?.querySelector('#rMeasureTabs') || header?.querySelector('#rMeasureTabs');
     if (!root || !header || !tabsEl) return;
     const context = callHost('reportNavigationContext') || {};
     const reports = measurementTabs();
@@ -3911,10 +3957,14 @@ window.PlatformCommerce.onReady(function(){
       if (tab.id.startsWith('project:')) setActivePreviewTab(tab.id.slice(8), {history:'push',source:'report-header'});
       else {
         if (flat && context.activeTab !== 'measurements') setActivePreviewTab('measurements', {history:'push',source:'report-header'});
-        setActiveMeasurementTab(tab.id);
+        setActiveMeasurementTab(tab.id, { user:true });
       }
     }});
     tabsEl.querySelectorAll('[data-tab]').forEach(button => button.setAttribute('aria-selected',String(button.dataset.tab === selected)));
+    // The project modal repaints only this strip on many header updates; the open pane follows it.
+    root.querySelectorAll('.r-measure-pane').forEach((pane) => {
+      pane.classList.toggle('active', pane.dataset.measurePane === activeMeasurementTab);
+    });
   }
 
   // The host refreshes the tab strip on its own (modal presentation). If the active tab moved since the panes were
@@ -3934,7 +3984,7 @@ window.PlatformCommerce.onReady(function(){
     const reportTabs = measurementTabs();
     const context = callHost('reportNavigationContext') || {};
     const compactTabs = reportHeaderTabs(context.tabs || [], reportTabs, context.ordered);
-    const tabs = compactTabs ? reportTabs.filter(tab => ['model','customer','standard','summary'].includes(tab.id)) : reportTabs;
+    const tabs = compactTabs ? reportTabs.filter(tab => ['model','customer','standard','summary','xml'].includes(tab.id)) : reportTabs;
     if (!tabs.some((tab) => tab.id === activeMeasurementTab)) {
       activeMeasurementTab = tabs.find((tab) => tab.id === 'standard' && !tab.disabled)?.id || tabs.find((tab) => !tab.disabled)?.id || 'standard';
     }
@@ -4078,15 +4128,17 @@ window.PlatformCommerce.onReady(function(){
     state.panelRoot = resolveRoot(context);
     state.mounted = !!state.panelRoot;
     state.active = context.active !== false;
-    const routedView = window.Portal?.navigation?.read?.().reportView;
-    // Every host call re-runs mount(): apply the routed view only when the route moved, or a stale route value
-    // would override the tab the person just chose.
-    if (routedView && routedView !== appliedRouteView) activeMeasurementTab = routedView;
-    if (routedView) appliedRouteView = routedView;
     if (state.model && window.FirstMateAppContext?.installProjectContextAccessors) {
       window.FirstMateAppContext.installProjectContextAccessors(state.model, { overwrite: false });
     }
     installHostGlobals();
+    const routedView = window.Portal?.navigation?.read?.().reportView;
+    const chosenView = userMeasurementTab && userMeasurementTabProject === (activeMeasurementProjectId() || '') ? userMeasurementTab : '';
+    // Every host call re-runs mount(): apply the routed view only when the route moved, or a stale route value
+    // would override the tab the person just chose; otherwise a remount keeps the person's tab for this project.
+    if (routedView && routedView !== appliedRouteView) activeMeasurementTab = routedView;
+    else if (chosenView) activeMeasurementTab = chosenView;
+    if (routedView) appliedRouteView = routedView;
     if (state.active && state.panelRoot) renderMeasurementsPanel();
     return api;
   }
@@ -4231,6 +4283,8 @@ window.PlatformCommerce.onReady(function(){
     renderInstantMeasurement,
     loadMeasurementAssets,
     setActiveMeasurementTab,
+    selectInitialMeasurementTab,
+    reportModelViewerEnabled,
     mergeReportManifestIntoActiveProject,
     snapshotReportExpediteState,
     restoreReportExpediteState,
@@ -4239,7 +4293,8 @@ window.PlatformCommerce.onReady(function(){
     cancelPendingReportOrder,
     renderMeasurementsPanel,
     cache: () => ({ measurementAssetCache, measurementAssetLoads }),
-    context: () => ({ mounted: state.mounted, active: state.active, activeMeasurementTab })
+    context: () => ({ mounted: state.mounted, active: state.active, activeMeasurementTab }),
+    activeTab: () => activeMeasurementTab
   };
 
   const definition = {
@@ -4259,6 +4314,8 @@ window.PlatformCommerce.onReady(function(){
     mount
   };
 
+  api.singleton = true;
+  api.definition = definition;
   Portal.modules = Portal.modules || {};
   Portal.modules.projectMeasurements = api;
   Portal.ProjectMeasurementsApp = api;
@@ -4266,7 +4323,8 @@ window.PlatformCommerce.onReady(function(){
     priority:600,
     apply:(route) => {
       if (!route.project || route.projectTab !== 'measurements' || !state.mounted) return;
-      setActiveMeasurementTab(route.reportView || 'model', { updateRoute:false });
+      if (route.reportView) setActiveMeasurementTab(route.reportView, { updateRoute:false });
+      else selectInitialMeasurementTab('standard', { model:true });
     }
   });
 

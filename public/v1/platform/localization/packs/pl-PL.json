@@ -3179,7 +3179,34 @@
     "m_8342e19eddc030": "Przed otwarciem portalu wyślemy kod na ten adres e-mail. Jeśli adres został wpisany błędnie, możesz go tutaj poprawić.",
     "m_2fbb4b11eb7b6f": "Adres e-mail",
     "m_3a7c6bd31cf96e": "Kod weryfikacyjny",
-    "m_a455a4668ee54d": "\n            Zweryfikuj &amp; przejdź do portalu "
+    "m_a455a4668ee54d": "\n            Zweryfikuj &amp; przejdź do portalu ",
+    "auto_topup_summary": {
+      "message": "Jeśli saldo spadnie poniżej {threshold}, automatycznie dodamy {amount} do Twojego konta.",
+      "format": "icu"
+    },
+    "bonus_amount": {
+      "message": "+ {amount} premii",
+      "format": "icu"
+    },
+    "invites_sent": {
+      "message": "{count, plural, one {Wysłano # zaproszenie.} few {Wysłano # zaproszenia.} many {Wysłano # zaproszeń.} other {Wysłano # zaproszenia.}}",
+      "format": "icu"
+    },
+    "m_56c6c9cbb10acb": " Kwota automatycznego doładowania",
+    "m_bc9847e2ca77cb": "Automatyczne doładowanie",
+    "m_cc2003d4e4237c": " Doładuj, gdy saldo spadnie poniżej",
+    "m_db0d748a115fcb": "Automatycznie doładowuj moje konto.",
+    "prices_include_vat": "Ceny zawierają VAT.",
+    "total_credit": {
+      "message": "{amount} środków łącznie",
+      "format": "icu"
+    },
+    "ob_full_name_label": "Twoje imię i nazwisko",
+    "ob_full_name_placeholder": "Imię i nazwisko",
+    "ob_company_name_label": "Nazwa firmy",
+    "ob_company_name_placeholder": "Nazwa Twojej firmy",
+    "ob_names_missing_title": "Twoje dane i firma",
+    "ob_names_missing_body": "Aby kontynuować, wpisz swoje imię i nazwisko oraz nazwę firmy."
   },
   "payroll": {
     "m_4a04382820d2e1": "Inne",
@@ -12697,6 +12724,149 @@
     },
     "exchange_estimate": {
       "message": "Około {amount} · kurs wymiany w chwili płatności może się różnić.",
+      "format": "icu"
+    },
+    "vat_included": {
+      "message": "{price} z VAT",
+      "format": "icu"
+    }
+  },
+  "signup": {
+    "offer_title": "Raporty dachów premium",
+    "offer_price": {
+      "message": "Tylko {price}",
+      "format": "icu"
+    },
+    "offer_price_vat": {
+      "message": "Tylko {price} z VAT",
+      "format": "icu"
+    },
+    "referral_loading": "Ładowanie...",
+    "referral_partner_invitation": "Zaproszenie od partnera",
+    "referral_invited": "Zaprasza Cię do wypróbowania FirstMeasure",
+    "referral_partner_default": "Partner FirstMate",
+    "referral_offer": {
+      "message": "Zarejestruj się dziś i otrzymaj {percent}% zniżki na wszystkie zamówienia przez pierwsze {days} dni.",
+      "format": "icu"
+    },
+    "referral_offer_default": "Zarejestruj się dziś i otrzymaj 50% zniżki na wszystkie zamówienia przez pierwsze 7 dni.",
+    "referral_activate": "Zarejestruj się dziś, aby aktywować ofertę z polecenia.",
+    "referral_offer_short": {
+      "message": "{percent}% zniżki na zamówienia przez pierwsze {days} dni.",
+      "format": "icu"
+    },
+    "referral_offer_percent": {
+      "message": "{percent}% zniżki na kwalifikujące się zamówienia.",
+      "format": "icu"
+    },
+    "referral_offer_applied": "Oferta z polecenia zostanie zastosowana podczas rejestracji.",
+    "referral_attribution": "Polecenie zostanie przypisane podczas tworzenia konta.",
+    "continue": "Dalej",
+    "claim_invitation": "Przyjmij zaproszenie",
+    "tab_login": "Zaloguj się",
+    "tab_register": "Utwórz konto",
+    "tab_register_invite": "Utwórz konto swojej firmy, aby aktywować to zaproszenie.",
+    "widget_title": "Utwórz konto FirstMate",
+    "google_sign_in": "Zaloguj się przez Google",
+    "google_sign_up": "Zarejestruj się przez Google",
+    "divider_login": "lub użyj swojego konta",
+    "divider_register": "lub zarejestruj się przez e-mail",
+    "email_or_phone": "E-mail lub telefon",
+    "password": "Hasło",
+    "login_button": "Zaloguj się",
+    "forgot_password": "Nie pamiętasz hasła?",
+    "phone": "Telefon",
+    "phone_number": "Numer telefonu",
+    "email": "E-mail",
+    "confirm_password": "Potwierdź hasło",
+    "create_account": "Utwórz konto",
+    "create_account_widget": "Utwórz konto",
+    "already_have_account": "Masz już konto?",
+    "login_here": "Kliknij tutaj, aby się zalogować",
+    "login_link": "Zaloguj się",
+    "terms": {
+      "message": "Tworząc konto, akceptujesz nasze {terms} i zgadzasz się na otrzymywanie SMS-ów na podany numer. Mogą obowiązywać opłaty za wiadomości i transmisję danych.",
+      "format": "icu"
+    },
+    "terms_link": "Warunki korzystania",
+    "reset_how": "Jak chcesz zresetować hasło?",
+    "reset_method": "Sposób resetowania hasła",
+    "send_code": "Wyślij kod",
+    "back_to_login": "Wróć do logowania",
+    "otp_enter": "Wpisz kod weryfikacyjny:",
+    "otp_sent_to": "Wpisz kod wysłany na",
+    "otp_reset_sent_to": "Wpisz kod resetowania hasła wysłany na",
+    "otp_label": "6-cyfrowy kod",
+    "verify_code": "Zweryfikuj kod",
+    "start_over": "Zacznij od nowa",
+    "reset_verified": "Kod zweryfikowany. Ustaw nowe hasło.",
+    "new_password": "Nowe hasło",
+    "update_password": "Zmień hasło",
+    "password_updated": "Hasło zmienione! Logowanie...",
+    "password_updated_redirect": "Hasło zmienione. Przekierowanie...",
+    "creating": "Tworzenie…",
+    "sending": "Wysyłanie…",
+    "working": "Przetwarzanie...",
+    "verification_required": "Wymagana weryfikacja",
+    "account_created_verify": "Konto utworzone! Potwierdź swój adres e-mail.",
+    "account_created_verify_widget": "Konto utworzone. Potwierdź adres e-mail, aby kontynuować.",
+    "reset_code_sent": "Wysłano kod resetowania hasła.",
+    "err_generic": "Nie udało się zrealizować Twojej prośby. Spróbuj ponownie. Jeśli problem się powtarza, napisz na support@1m8.ai.",
+    "err_google": "Nie udało się zalogować przez Google. Spróbuj ponownie.",
+    "err_identity_phone_exists": "Ten numer telefonu jest już powiązany z kontem. Zaloguj się na to konto lub użyj innego numeru.",
+    "err_identity_email_exists": "Ten adres e-mail jest już powiązany z kontem. Zaloguj się lub użyj opcji „Nie pamiętasz hasła?”, aby odzyskać dostęp.",
+    "err_identity_exists": "Konto z tymi danymi już istnieje. Zaloguj się lub użyj opcji „Nie pamiętasz hasła?”, aby odzyskać dostęp.",
+    "err_invalid_credentials": "Podany e-mail, numer telefonu lub hasło są nieprawidłowe.",
+    "err_wrong_password": "Podane hasło jest nieprawidłowe.",
+    "err_identity_phone_ambiguous": "Ten numer telefonu jest powiązany z kilkoma kontami. Zaloguj się przez e-mail lub skontaktuj się z pomocą techniczną.",
+    "err_not_found": "Nie znaleźliśmy konta z tym adresem e-mail lub numerem telefonu.",
+    "err_identity_phone_not_found": "Nie znaleźliśmy konta z tym numerem telefonu.",
+    "err_invalid_email": "Wpisz prawidłowy adres e-mail.",
+    "err_invalid_phone_number": "Wpisz prawidłowy numer komórkowy, z kierunkowym kraju poza USA i Kanadą.",
+    "err_missing_login_identifier": "Wpisz swój adres e-mail lub numer telefonu.",
+    "err_registration_in_progress": "Twoje konto jest już tworzone. Poczekaj chwilę, a następnie spróbuj się zalogować.",
+    "err_account_disabled": "To konto jest wyłączone. Skontaktuj się z administratorem firmy lub pomocą techniczną.",
+    "err_membership_required": "Twoje konto nie jest jeszcze przypisane do żadnej firmy. Skontaktuj się z administratorem firmy lub pomocą techniczną.",
+    "err_google_account_mismatch": "Ten adres e-mail jest powiązany z innym kontem Google. Użyj tamtego konta Google lub skontaktuj się z pomocą techniczną.",
+    "err_google_credential_required": "Logowanie przez Google nie zostało zakończone. Spróbuj ponownie.",
+    "err_invalid_google_credential": "Google nie mógł zweryfikować tego logowania. Spróbuj ponownie.",
+    "err_unverified_google_email": "Przed zalogowaniem potwierdź swój adres e-mail w Google.",
+    "err_invalid_recovery_token": "Sesja resetowania hasła wygasła. Użyj opcji „Nie pamiętasz hasła?”, aby poprosić o nowy kod.",
+    "err_sms_phone_unavailable": "To konto nie ma prawidłowego numeru komórkowego. Użyj odzyskiwania przez e-mail lub skontaktuj się z pomocą techniczną.",
+    "err_sms_send_failed": "Nie udało się wysłać kodu SMS. Spróbuj później lub użyj odzyskiwania przez e-mail.",
+    "err_email_send_failed": "Nie udało się wysłać e-maila weryfikacyjnego. Spróbuj później lub skontaktuj się z pomocą techniczną.",
+    "err_session_expired": "Sesja wygasła. Zaloguj się ponownie.",
+    "err_refresh": "Odśwież stronę i spróbuj ponownie.",
+    "err_connection": "Nie udało się połączyć z serwerem. Sprawdź połączenie i spróbuj ponownie.",
+    "err_connection_short": "Błąd połączenia. Spróbuj ponownie.",
+    "err_missing_fields": "Wypełnij wszystkie wymagane pola konta.",
+    "err_invalid_code": "Kod weryfikacyjny jest nieprawidłowy lub wygasł. Poproś o nowy kod i spróbuj ponownie.",
+    "err_password_short": "Użyj hasła o długości co najmniej 6 znaków.",
+    "err_reset_not_authorized": "Zanim ustawisz nowe hasło, zweryfikuj kod odzyskiwania. Zacznij od nowa od opcji „Nie pamiętasz hasła?”.",
+    "err_too_many": "Zbyt wiele prób. Poczekaj kilka minut i spróbuj ponownie.",
+    "err_passwords_mismatch": "Hasła nie są identyczne.",
+    "err_login_failed": "Nie udało się zalogować. Spróbuj ponownie.",
+    "err_create_failed": "Nie udało się utworzyć konta. Spróbuj ponownie lub napisz na support@1m8.ai.",
+    "err_recovery_send_failed": "Nie udało się wysłać kodu odzyskiwania. Spróbuj ponownie lub napisz na support@1m8.ai.",
+    "err_verify_failed": "Nie udało się zweryfikować kodu. Poproś o nowy kod i spróbuj ponownie.",
+    "err_update_password_failed": "Nie udało się zmienić hasła. Spróbuj ponownie lub napisz na support@1m8.ai.",
+    "err_google_linked_elsewhere": "Ten adres e-mail jest już powiązany z innym kontem Google. Jeśli potrzebujesz pomocy, skontaktuj się z pomocą techniczną.",
+    "err_google_no_company": "Rozpoznaliśmy Twój adres e-mail Google, ale nie jest on jeszcze przypisany do żadnej firmy.",
+    "err_account_disabled_admin": "To konto jest wyłączone. Skontaktuj się z administratorem firmy.",
+    "referral_invited_you": {
+      "message": "{partner} zaprasza Cię",
+      "format": "icu"
+    },
+    "start_ordering_reports": "Zacznij zamawiać raporty",
+    "err_bonus_unconfirmed": "Nie udało się potwierdzić premii z kampanii. Spróbuj ponownie za chwilę."
+  },
+  "signup-region": {
+    "calling_code": "Numer kierunkowy kraju"
+  },
+  "phone-input": {
+    "calling_code": "Numer kierunkowy kraju",
+    "calling_code_value": {
+      "message": "Numer kierunkowy kraju: {country} +{code}",
       "format": "icu"
     }
   }

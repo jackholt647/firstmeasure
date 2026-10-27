@@ -10,7 +10,8 @@ test("landing signup presents backend auth errors as actionable messages", () =>
   const start = widgetSource.indexOf("    function authErrorMessage(");
   const end = widgetSource.indexOf("    function loginErrorMessage(", start);
   assert.ok(start > 0 && end > start);
-  const context = vm.createContext({});
+  // The widget's T(key, fallback) reads the signup catalog; without one it shows the English fallback.
+  const context = vm.createContext({ T: (_key: string, fallback: string) => fallback });
   vm.runInContext(widgetSource.slice(start, end), context);
   const message = context.authErrorMessage as (data: unknown, fallback?: string) => string;
 

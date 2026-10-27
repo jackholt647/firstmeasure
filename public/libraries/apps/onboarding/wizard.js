@@ -42,7 +42,7 @@
   const { showToast } = window.Portal.ui;
   const APP = window.__APP || {};
   const ME_EMAIL = String(APP.userEmail || '').toLowerCase().trim();
-  const ME_NAME  = String(APP.userName || APP.userEmail || '').trim();
+  let ME_NAME  = String(APP.userName || APP.userEmail || '').trim();
   const DEFAULT_LOGO = '/images/logo_red.png';
   const SAMPLE_DIAGRAM = 'media/sample_diagram_cropped.png';
 
@@ -71,7 +71,7 @@
   if (!ORG_NAME) {
     try {
       const cached = JSON.parse(localStorage.getItem('fm_org_theme_v1') || '{}');
-      if (cached.name) ORG_NAME = cached.name;
+      if (cached.name && String(cached.orgId || '') === String(APP.userOrgId || APP.orgId || '')) ORG_NAME = cached.name;
     } catch(e){}
   }
   if (!ORG_NAME) {
@@ -159,10 +159,37 @@
     return { valid:true, bonus_dollars:bonus, total_account_value:value + bonus, match_percent:match, tier };
   }
 
+  // Account amounts follow the organization's billing currency (1M8-215).
+  function creditAmountText(amount){
+    try { return window.PlatformCommerce.credit(amount); } catch (_) { return String(amount); }
+  }
+
+  /** The currency symbol shown beside amount inputs; none for credit-denominated accounts. */
+  function creditCurrencyAffix(){
+    try {
+      const view = window.PlatformCommerce.current();
+      if (view.credit_display === 'credits') return '';
+      const locale = window.PlatformLanguage?.companyContext?.().locale || window.PlatformLanguage?.locale?.() || 'en-US';
+      return new Intl.NumberFormat(locale, { style:'currency', currency:view.currency }).formatToParts(0).find(part => part.type === 'currency')?.value || '';
+    } catch (_) { return ''; }
+  }
+
+  function creditText(key, fallback, values){
+    const readable = fallback.replace(/\{(\w+)\}/g, (_, name) => String(values?.[name] ?? ''));
+    return globalThis.PlatformLanguage?.text('onboarding', key, readable, values) ?? readable;
+  }
+
+  /** Outside the US and Canada amounts are charged with VAT included. */
+  function vatNoteHtml(){
+    let included = false;
+    try { included = !!window.PlatformCommerce.current().vat_included; } catch (_) {}
+    return included ? `<p class="ob-sub ob-vat-note">${esc(creditText('prices_include_vat', 'Prices include VAT.'))}</p>` : '';
+  }
+
   function totalCreditsText(amount){
     const quote = bonusQuoteForAmount(amount);
     const total = quote.valid ? quote.total_account_value : Math.max(0, Math.round(Number(amount || 0)));
-    return `$${total} total credit`;
+    return creditText('total_credit', '{amount} total credit', { amount: creditAmountText(total) });
   }
 
   function bonusMinimumLoadAmount(){
@@ -173,7 +200,7 @@
 
   function bonusDollarsText(amount){
     const quote = bonusQuoteForAmount(amount);
-    return quote.valid && quote.bonus_dollars > 0 ? `+ $${Math.round(quote.bonus_dollars)} Bonus` : '';
+    return quote.valid && quote.bonus_dollars > 0 ? creditText('bonus_amount', '+ {amount} Bonus', { amount: creditAmountText(Math.round(quote.bonus_dollars)) }) : '';
   }
 
   function customBonusPreviewHtml(amount){
@@ -642,6 +669,8 @@
     transition: border-color .2s, box-shadow .2s;
   }
   .ob-input::placeholder{ color:rgba(0,0,0,0.3); }
+  .ob-input.ob-input-invalid{ border-color:#d93025; box-shadow:0 0 0 3px rgba(217,48,37,0.12); }
+  .ob-profile-row{ display:grid; grid-template-columns:repeat(auto-fit, minmax(200px, 1fr)); gap:12px; margin:16px 0 8px; }
   .ob-input:focus{
     border-color:var(--primary, #d93025);
     box-shadow:0 0 0 3px rgba(var(--primary-rgb, 217,48,37),0.1);
@@ -1859,6 +1888,18 @@
   const VERIFY_PAGE = 3;
   const ALL_PAGES = [0, 1, 2, VERIFY_PAGE];
 
+  /* Who and which company. Signup asks for neither, so the welcome page asks
+     until they are saved (1M8-246: every signup was left "Your Company"). */
+  const PLACEHOLDER_ORG_NAMES = new Set(['', 'your company', 'untitled organization', 'default branch']);
+  const isPlaceholderOrgName = (name) => PLACEHOLDER_ORG_NAMES.has(String(name || '').trim().toLowerCase());
+  const savedFullName = () => {
+    const name = String(APP.userName || '').trim();
+    return name && name.toLowerCase() !== ME_EMAIL ? name : '';
+  };
+  let profileState = { fullName: '', companyName: '' };
+  /* The sample report shows the company name as it is typed. */
+  const previewOrgName = () => (isPlaceholderOrgName(ORG_NAME) && profileState.companyName) || ORG_NAME || 'Your Company';
+
   /* Branding state */
   let brandState = {
     website: '',
@@ -2249,6 +2290,7 @@
     try {
       sessionStorage.setItem(SS_KEY, JSON.stringify({
         currentPage,
+        profile: { fullName: profileState.fullName, companyName: profileState.companyName },
         brand: {
           website:        brandState.website,
           domain:         brandState.domain,
@@ -2303,6 +2345,11 @@
 
       if (typeof s.currentPage === 'number') {
         currentPage = ALL_PAGES.includes(s.currentPage) ? s.currentPage : 0;
+      }
+
+      if (s.profile && typeof s.profile === 'object') {
+        profileState.fullName    = String(s.profile.fullName || '').trim();
+        profileState.companyName = String(s.profile.companyName || '').trim();
       }
 
       if (s.brand && typeof s.brand === 'object') {
@@ -2616,6 +2663,10 @@
     renderPage2();
     renderPage3();
     renderProgress();
+    let commerceReady = true;
+    try { window.PlatformCommerce.current(); } catch (_) { commerceReady = false; }
+    // Amounts render in the account currency once billing settings arrive.
+    if (!commerceReady) window.PlatformCommerce?.onReady?.(() => renderPage2());
     currentPageEnteredAt = Date.now();
     trackOnboarding('wizard_start', { metadata: { restored: !!hasWizardState(), mobile_flow: isMobileOnboarding() } });
     trackOnboarding('step_view', { step: pageName(currentPage), step_index: visiblePages().indexOf(currentPage) });
@@ -2880,7 +2931,7 @@
             <div class="ob-prev-info">
               <div class="ob-prev-box left" style="border-left-color:${String(esc(brandState.primary))}">
                 <div class="ob-prev-label">${(globalThis.PlatformLanguage?.htmlText("onboarding","m_bad7dada05af1a","Prepared for") ?? "Prepared for")}</div>
-                <div class="ob-prev-value ob-prev-orgname">${String(esc(ORG_NAME || 'Your Company'))}</div>
+                <div class="ob-prev-value ob-prev-orgname">${String(esc(previewOrgName()))}</div>
               </div>
               <div class="ob-prev-box right" style="border-left-color:${String(esc(brandState.primary))}">
                 <div class="ob-prev-label">${(globalThis.PlatformLanguage?.htmlText("onboarding","m_ae873abaa56707","Measurements") ?? "Measurements")}</div>
@@ -2912,6 +2963,49 @@
   /* ═══════════════════════════════════════════════════════════════
    *  PAGE 0: BRANDING
    * ═══════════════════════════════════════════════════════════════ */
+  function welcomeNamesMarkup(){
+    const askName = !savedFullName();
+    const askCompany = isPlaceholderOrgName(ORG_NAME);
+    if (!askName && !askCompany) {
+      return `
+      <div class="ob-welcome-names">
+        <div class="ob-name-user">${esc(savedFullName())}</div>
+        <div class="ob-name-org">${esc(ORG_NAME)}</div>
+      </div>`;
+    }
+    return `
+      <div class="ob-profile-row">
+        ${askName ? `<div class="ob-row">
+          <label class="ob-lbl" for="obFullName">${(globalThis.PlatformLanguage?.htmlText("onboarding","ob_full_name_label","Your name") ?? "Your name")}</label>
+          <input class="ob-input" id="obFullName" name="full_name" placeholder="${esc((globalThis.PlatformLanguage?.text("onboarding","ob_full_name_placeholder","Your full name") ?? "Your full name"))}" autocomplete="name" maxlength="120" value="${esc(profileState.fullName)}">
+        </div>` : ''}
+        ${askCompany ? `<div class="ob-row">
+          <label class="ob-lbl" for="obCompanyName">${(globalThis.PlatformLanguage?.htmlText("onboarding","ob_company_name_label","Company name") ?? "Company name")}</label>
+          <input class="ob-input" id="obCompanyName" name="company_name" placeholder="${esc((globalThis.PlatformLanguage?.text("onboarding","ob_company_name_placeholder","Your company name") ?? "Your company name"))}" autocomplete="organization" maxlength="120" value="${esc(profileState.companyName)}">
+        </div>` : ''}
+      </div>`;
+  }
+
+  /* The name inputs on the welcome page, if shown: false (and marked) while one is empty. */
+  function welcomeNamesComplete(){
+    const fields = [
+      { input: document.getElementById('obFullName'), key: 'fullName' },
+      { input: document.getElementById('obCompanyName'), key: 'companyName' },
+    ].filter(field => field.input);
+    fields.forEach(({ input, key }) => { profileState[key] = String(input.value || '').trim(); });
+    const missing = fields.filter(({ key }) => !profileState[key] || (key === 'companyName' && isPlaceholderOrgName(profileState[key])));
+    fields.forEach(({ input }) => {
+      const invalid = missing.some(field => field.input === input);
+      input.classList.toggle('ob-input-invalid', invalid);
+      input.setAttribute('aria-invalid', invalid ? 'true' : 'false');
+    });
+    if (!missing.length) return true;
+    showToast((globalThis.PlatformLanguage?.text("onboarding","ob_names_missing_title","Your name and company") ?? "Your name and company"), (globalThis.PlatformLanguage?.text("onboarding","ob_names_missing_body","Enter your name and company name to continue.") ?? "Enter your name and company name to continue."), false);
+    missing[0].input.focus();
+    missing[0].input.scrollIntoView({ block: 'center', behavior: 'smooth' });
+    return false;
+  }
+
   function renderPage0(){
     const page = document.getElementById('obPage0');
     if (!page) return;
@@ -2925,7 +3019,7 @@
           <div class="ob-preview-logo"><img class="ob-preview-logo-img" src="${String(esc(brandState.logoUrl || DEFAULT_LOGO))}" alt="${(globalThis.PlatformLanguage?.htmlText("onboarding","m_a63c5a4c25569b","Logo") ?? "Logo")}"></div>
           <div class="ob-prev-diagram"><img id="obSampleDiagram" src="${String(esc(SAMPLE_DIAGRAM))}" alt="${(globalThis.PlatformLanguage?.htmlText("onboarding","m_77fc722124c288","Sample report") ?? "Sample report")}"></div>
           <div class="ob-prev-info">
-            <div class="ob-prev-box left"><div class="ob-prev-label">${(globalThis.PlatformLanguage?.htmlText("onboarding","m_bad7dada05af1a","Prepared for") ?? "Prepared for")}</div><div class="ob-prev-value ob-prev-orgname">${String(esc(ORG_NAME || 'Your Company'))}</div></div>
+            <div class="ob-prev-box left"><div class="ob-prev-label">${(globalThis.PlatformLanguage?.htmlText("onboarding","m_bad7dada05af1a","Prepared for") ?? "Prepared for")}</div><div class="ob-prev-value ob-prev-orgname">${String(esc(previewOrgName()))}</div></div>
             <div class="ob-prev-box right"><div class="ob-prev-label">${(globalThis.PlatformLanguage?.htmlText("onboarding","m_ae873abaa56707","Measurements") ?? "Measurements")}</div><div class="ob-prev-value">${(globalThis.PlatformLanguage?.htmlText("onboarding","m_8658b6cca50dd1","Squares") ?? "Squares")}</div><div class="ob-prev-big">23.5</div></div>
           </div>
         </div>
@@ -2935,10 +3029,7 @@
       <div class="ob-progress"></div>
       <div class="ob-step-label">${String(stepLabel(0))}</div>
       <h1 class="ob-h1">${(globalThis.PlatformLanguage?.htmlText("onboarding","m_2e992f8bee9c08","Welcome") ?? "Welcome")}</h1>
-      <div class="ob-welcome-names">
-        <div class="ob-name-user">${String(esc(ME_NAME || ME_EMAIL))}</div>
-        <div class="ob-name-org">${String(esc(ORG_NAME || 'Your Company'))}</div>
-      </div>
+      ${String(welcomeNamesMarkup())}
 
       <div class="ob-row">
         <label class="ob-lbl">${(globalThis.PlatformLanguage?.htmlText("onboarding","m_6ab3729e8bcb2e","Company website") ?? "Company website")}</label>
@@ -3014,6 +3105,16 @@
     const brandHint = document.getElementById('obBrandHint');
 
     const obPage0 = document.getElementById('obPage0');
+    ['obFullName', 'obCompanyName'].forEach((id) => {
+      const input = document.getElementById(id);
+      input?.addEventListener('input', () => {
+        profileState[id === 'obFullName' ? 'fullName' : 'companyName'] = String(input.value || '').trim();
+        if (id === 'obCompanyName') document.querySelectorAll('.ob-prev-orgname').forEach((el) => { el.textContent = previewOrgName(); });
+        input.classList.remove('ob-input-invalid');
+        input.removeAttribute('aria-invalid');
+        saveState();
+      });
+    });
 
     function setLogoPlaceholder(text){
       if (!logoPlaceholder) return;
@@ -3428,6 +3529,7 @@
 
     async function saveBrandingAndContinue(){
       if (skip0.disabled || next0.disabled) return;
+      if (!welcomeNamesComplete()) return;
       skip0.disabled = true;
       next0.disabled = true;
       try {
@@ -3562,10 +3664,26 @@
         } catch(e){ /* silent */ }
       }
       try {
-        await postAction('org_update_my', {
+        const companyName = isPlaceholderOrgName(ORG_NAME) ? profileState.companyName : '';
+        const fullName = savedFullName() ? '' : profileState.fullName;
+        const { data } = await postAction('org_update_my', {
           accent: brandState.primary,
           secondary: brandState.secondary,
+          ...(companyName ? { name: companyName } : {}),
+          ...(fullName ? { full_name: fullName } : {}),
         });
+        if (data?.success) {
+          if (companyName) {
+            ORG_NAME = companyName;
+            APP.orgName = companyName;
+            APP.userCompany = companyName;
+          }
+          if (fullName) {
+            APP.userName = fullName;
+            ME_NAME = fullName;
+            renderPage1();
+          }
+        }
       } catch(e){ /* silent */ }
       applyLiveTheme(brandState.primary, brandState.secondary);
 
@@ -3682,7 +3800,7 @@
           } catch(e){ /* continue */ }
         }
         btn.disabled = false;
-        showToast((globalThis.PlatformLanguage?.text("onboarding","m_b982de697abe2d","Invites sent") ?? "Invites sent"), ((v0,v1) => globalThis.PlatformLanguage?.text("onboarding","m_507489a99d1632",`${v0} invite${v1} sent.`,{v0,v1}) ?? `${v0} invite${v1} sent.`)(toSend.length,toSend.length>1?'s':''), true);
+        showToast((globalThis.PlatformLanguage?.text("onboarding","m_b982de697abe2d","Invites sent") ?? "Invites sent"), (globalThis.PlatformLanguage?.text("onboarding","invites_sent","{count, plural, one {# invite sent.} other {# invites sent.}}",{count:toSend.length}) ?? (toSend.length === 1 ? '1 invite sent.' : `${toSend.length} invites sent.`)), true);
       }
       goToPage(nextVisiblePage(1));
     });
@@ -3830,14 +3948,14 @@
     const loadTiers = activeLoadTiers();
     const bonusMinimum = bonusMinimumLoadAmount();
     const bonusIntroHtml = bonusOfferEnabled()
-      ? `<p class="ob-sub ob-bonus-copy"><i class="fas fa-gift" aria-hidden="true"></i>${(globalThis.PlatformLanguage?.htmlText("onboarding","m_95ed713993880f","As a new customer, we're offering a ") ?? "As a new customer, we're offering a ")}<strong>${(globalThis.PlatformLanguage?.htmlText("onboarding","m_dbf7ed5d0bf61d","one time bonus match") ?? "one time bonus match")}</strong>${((v0) => globalThis.PlatformLanguage?.htmlText("onboarding","m_71f966e787feb1",` on your first load of more than ${v0}.`,{v0}) ?? ` on your first load of more than ${v0}.`)(esc(`$${bonusMinimum}`))}</p>`
+      ? `<p class="ob-sub ob-bonus-copy"><i class="fas fa-gift" aria-hidden="true"></i>${(globalThis.PlatformLanguage?.htmlText("onboarding","m_95ed713993880f","As a new customer, we're offering a ") ?? "As a new customer, we're offering a ")}<strong>${(globalThis.PlatformLanguage?.htmlText("onboarding","m_dbf7ed5d0bf61d","one time bonus match") ?? "one time bonus match")}</strong>${((v0) => globalThis.PlatformLanguage?.htmlText("onboarding","m_71f966e787feb1",` on your first load of more than ${v0}.`,{v0}) ?? ` on your first load of more than ${v0}.`)(esc(creditAmountText(bonusMinimum)))}</p>`
       : `<p class="ob-sub">${(globalThis.PlatformLanguage?.htmlText("onboarding","m_8f203cf0d6d287","Load your account now, then add your card in our secure checkout.") ?? "Load your account now, then add your card in our secure checkout.")}</p>`;
     const tiersHtml = loadTiers.map(t => {
       const bonusText = bonusDollarsText(t.amount);
       return `
         <div class="ob-tier ${selectedTier === t.amount ? 'selected' : ''}" data-amount="${t.amount}">
           <div class="ob-tier-main">
-            <div class="ob-tier-amount">$${t.amount}</div>
+            <div class="ob-tier-amount">${esc(creditAmountText(t.amount))}</div>
             ${bonusText ? `<div class="ob-tier-bonus">${esc(bonusText)}</div>` : ''}
           </div>
           <div class="ob-tier-total">${esc(totalCreditsText(t.amount))}</div>
@@ -3851,7 +3969,7 @@
       <div class="ob-tier ob-tier-custom ${String(customSelected ? 'selected' : '')}" id="obCustomTile">
         <div class="ob-tier-custom-label">${(globalThis.PlatformLanguage?.htmlText("onboarding","m_6edcf7d7d41112","Custom") ?? "Custom")}</div>
         <div style="display:flex;align-items:center;gap:3px;">
-          <span style="font-size:16px;font-weight:900;color:rgba(0,0,0,.35);">$</span>
+          <span style="font-size:16px;font-weight:900;color:rgba(0,0,0,.35);">${esc(creditCurrencyAffix())}</span>
           <input class="ob-tier-custom-input" id="obCustomAmount" placeholder="—" inputmode="numeric" value="${String(esc(customAmount))}">
         </div>
         <div class="ob-tier-custom-preview" id="obCustomPreview" style="${String(customPreviewAmount ? '' : 'display:none;')}">${String(customPreviewAmount ? customBonusPreviewHtml(customPreviewAmount) : '')}</div>
@@ -3865,6 +3983,7 @@
       ${String(bonusIntroHtml)}
 
       <div class="ob-tier-grid" id="obTierGrid">${String(tiersHtml)}${String(customTileHtml)}</div>
+      ${vatNoteHtml()}
       <div class="ob-topup-msg" id="obLoadMsg" aria-live="polite"></div>
 
       ${String(SIGNUP_AUTO_TOPUP_ENABLED ? `
@@ -3882,7 +4001,7 @@
             <div class="ob-topup-label"><i class="fas fa-arrow-down"></i>${(globalThis.PlatformLanguage?.htmlText("onboarding","m_cc2003d4e4237c"," Top up when below") ?? " Top up when below")}</div>
             <div class="ob-topup-ctrl">
               <button class="ob-topup-step" id="obThMinus" type="button"><i class="fas fa-minus"></i></button>
-              <span class="ob-usd" style="color:rgba(0,0,0,.4);font-weight:900;">$</span>
+              <span class="ob-usd" style="color:rgba(0,0,0,.4);font-weight:900;">${esc(creditCurrencyAffix())}</span>
               <input class="ob-input ob-topup-input" id="obThreshold" value="${topupThreshold}" inputmode="numeric">
               <button class="ob-topup-step" id="obThPlus" type="button"><i class="fas fa-plus"></i></button>
             </div>
@@ -3891,7 +4010,7 @@
             <div class="ob-topup-label"><i class="fas fa-cart-plus"></i>${(globalThis.PlatformLanguage?.htmlText("onboarding","m_56c6c9cbb10acb"," Auto top-up amount") ?? " Auto top-up amount")}</div>
             <div class="ob-topup-ctrl">
               <button class="ob-topup-step" id="obAmtMinus" type="button"><i class="fas fa-minus"></i></button>
-              <span class="ob-usd" style="color:rgba(0,0,0,.4);font-weight:900;">$</span>
+              <span class="ob-usd" style="color:rgba(0,0,0,.4);font-weight:900;">${esc(creditCurrencyAffix())}</span>
               <input class="ob-input ob-topup-input" id="obTopupAmt" value="${topupAmount}" inputmode="numeric">
               <button class="ob-topup-step" id="obAmtPlus" type="button"><i class="fas fa-plus"></i></button>
             </div>
@@ -3955,7 +4074,7 @@
         return;
       }
       autoSummary.style.display = '';
-      autoSummary.textContent = ((v0,v1) => globalThis.PlatformLanguage?.text("onboarding","m_f38174b09afe58",`If your balance falls below $${v0}, we will automatically add $${v1} to your account.`,{v0,v1}) ?? `If your balance falls below $${v0}, we will automatically add $${v1} to your account.`)(topupThreshold,topupAmount);
+      autoSummary.textContent = creditText('auto_topup_summary', 'If your balance falls below {threshold}, we will automatically add {amount} to your account.', { threshold: creditAmountText(topupThreshold), amount: creditAmountText(topupAmount) });
     }
 
     function setLoadMessage(text){

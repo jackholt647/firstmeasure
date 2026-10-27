@@ -56,3 +56,35 @@ test('only a page on dev.1m8.ai watches the live layer, on the same stream as pr
   assert.equal(production.length, 1);
   assert.doesNotMatch(production[0], /live-assets/);
 });
+
+test('a portal without platform.expanded_access opens no event stream and polls nothing', async () => {
+  const timers=new Map(), sources=[], requests=[], listeners={};
+  let timerId=0, expanded=false;
+  class EventSource {
+    constructor(url){this.url=url;this.listeners={};sources.push(this);}
+    addEventListener(name,fn){this.listeners[name]=fn;}
+    close(){this.closed=true;}
+  }
+  const window={EventSource,__APP:{userOrgId:'org',platformExpandedAssets:false},dispatchEvent(){},addEventListener(name,fn){listeners[name]=fn;}};
+  const context=vm.createContext({window,EventSource,console,location:{origin:'https://example.test',hostname:'example.test'},document:{hidden:false,cookie:'',addEventListener(){}},CustomEvent:class {},
+    setTimeout:(fn,ms)=>{timers.set(++timerId,{fn,ms});return timerId;},clearTimeout:id=>timers.delete(id),
+    fetch:async url=>{requests.push(url);return {ok:false};}});
+  vm.runInContext(await readFile(new URL('../../libraries/platform-realtime/platform-realtime.js',import.meta.url),'utf8'),context);
+  const flush=()=>{for(const [id,timer] of [...timers]){timers.delete(id);timer.fn();}};
+  // Account presence starts at load; the page also subscribes and watches a channel.
+  window.PlatformRealtime.subscribe('org','projects.',()=>{});
+  window.PlatformRealtime.watchPresence('org','project:1',()=>{});
+  flush(); flush();
+  assert.equal(sources.length,0,'no stream for an organization the server refuses');
+  assert.equal(requests.length,0,'no poll fallback either');
+  assert.equal(timers.size,0,'nothing left to retry');
+
+  // The portal's own check decides once it is loaded, and access turning on connects.
+  window.Portal={platformExpandedAccess:()=>expanded};
+  listeners['fm:capabilities:updated']();
+  assert.equal(sources.length,0);
+  expanded=true;
+  listeners['fm:capabilities:updated']();
+  assert.equal(sources.length,1,'one stream once expanded access is on');
+  assert.match(sources[0].url,/watch=presence%3Aonline/);
+});

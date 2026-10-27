@@ -389,26 +389,29 @@ export async function createOrInviteCanvassingUser(orgId: string, branchId: stri
   }
   const identityId = cleanText(identity.id);
   const userId = cleanText(input.id || `user_${identityId.replace(/^identity_/, "")}`);
+  const data = {
+    identity_id: identityId,
+    email,
+    name: cleanText(input.name || identity.name),
+    phone: cleanText(input.phone || identity.phone),
+    role: preset.role,
+    roles: preset.roles,
+    branch_id: branchId,
+    status: cleanText(input.status || (password ? "active" : "invited")),
+    permissions: preset.permissions,
+    profile: {},
+    metadata: {
+      source: "canvassing_app",
+      invite_pending: !password,
+      invited_at: nowIso(),
+      ...asObject(input.metadata)
+    }
+  };
+  // Inviting an existing member replaces their record: never the owner's or the last super admin's (1M8-245).
+  await (await import("../platform/api.js")).assertOrgUserWriteKeepsAdmin(orgId, userId, data);
   const user = await upsertDocument(orgId, "users", {
     id: userId,
-    data: {
-      identity_id: identityId,
-      email,
-      name: cleanText(input.name || identity.name),
-      phone: cleanText(input.phone || identity.phone),
-      role: preset.role,
-      roles: preset.roles,
-      branch_id: branchId,
-      status: cleanText(input.status || (password ? "active" : "invited")),
-      permissions: preset.permissions,
-      profile: {},
-      metadata: {
-        source: "canvassing_app",
-        invite_pending: !password,
-        invited_at: nowIso(),
-        ...asObject(input.metadata)
-      }
-    },
+    data,
     metadata: {
       kind: "organization_user",
       identity_id: identityId,

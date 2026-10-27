@@ -6182,6 +6182,16 @@ window.PlatformCommerce.onReady(async function(){
       else if(event.key==='ArrowDown'||event.key==='ArrowUp'){event.preventDefault();items[(at+(event.key==='ArrowDown'?1:items.length-1))%items.length]?.focus();}},true);
     window.addEventListener('resize',()=>close());document.addEventListener('scroll',event=>{if(menu&&!menu.contains(event.target))close();},true);}
 
+  /** A type card's price: this property's quote once known. "VAT included" is shown only where credit is added
+   * (billing, the signup load step and Stripe checkout), not on report prices (1M8-241). */
+  function typePriceLabel(type){
+    const price = fmtCredit(reportDisplayedBasePrice(type));
+    const text = type === 'residential'
+      ? (globalThis.PlatformLanguage?.text("project-request","price_flat_rate","{price} flat rate",{price}) ?? `${price} flat rate`)
+      : (globalThis.PlatformLanguage?.text("project-request","price_per_structure","{price} / structure",{price}) ?? `${price} / structure`);
+    return text;
+  }
+
   function buildTypeButtons(){
     const pricingLabels = Object.fromEntries(['residential','commercial','multifamily'].map(type => [type, escapeHtml(typePriceLabel(type))]));
     return Object.entries(TYPE_META).map(([key, meta]) => `

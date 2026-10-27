@@ -925,6 +925,7 @@ window.KB_MAP = {
     TYPES:         { key: 'p' },
     FACES:         { key: '[' },
     SNAP:          { key: 'f' },
+    PITCHES:       { key: 'k' },
     
     // Geometry Operations
 CONNECT:       { key: 'c' }, // Distinguishes from COPY
@@ -1028,6 +1029,7 @@ function initDynamicHelpBar() {
     html += makeGroup(k.FACES, 'Faces', 'Toggle Generated Faces');
     html += makeGroup(k.TYPES, 'Types', 'Toggle Line Types');
     html += makeGroup(k.SNAP, 'Snap', 'Toggle Snapping');
+    html += makeGroup(k.PITCHES, 'Pitches', 'Toggle Pitch Labels');
 
     html += makeSeparator();
 
@@ -3002,21 +3004,10 @@ async function saveProjectArtifactBlob(fileName, blob) {
     return true;
 }
 
-function firstMeasureReadQuadViewsDisabledFromOrg(org) {
-    const general = org && org.report_settings && org.report_settings.general
-        ? org.report_settings.general
-        : {};
-    return !!(
-        general.disable_quad_views ||
-        general.disableQuadViews ||
-        general.no_quad_views ||
-        general.noQuadViews
-    );
-}
-
+// Quad views are retired (1M8-233): the Quad button and step stay hidden, a saved quad_crop is
+// never loaded and none is uploaded. See firstMeasurePdfQuadViewsDisabled in pdf.js.
 function firstMeasureAreQuadViewsDisabled() {
-    if (window.FIRSTMEASURE_DISABLE_QUAD_VIEWS === true) return true;
-    return firstMeasureReadQuadViewsDisabledFromOrg(window.projectOrganization || null);
+    return true;
 }
 window.firstMeasureAreQuadViewsDisabled = firstMeasureAreQuadViewsDisabled;
 
@@ -4073,13 +4064,22 @@ async function loadProjectFromFolder(folderHash) {
         if (manifest.address) setHeaderAddress(manifest.address);
 
         const meta = data.app_metadata || manifest.app_metadata || {};
-        const savedEditorHistory=window.EditorHistory?await window.EditorHistory.load(requestedProjectId,meta.editorHistory,async(project,name)=>{
-            const response=await fetch(window.firstMeasureBuildUrl('/projects/'+encodeURIComponent(project)+'/artifacts/'+encodeURIComponent(name)),{credentials:'same-origin'});
-            if(!response.ok)throw new Error('Could not load undo history ('+response.status+'). Please reload.');
-            return response.arrayBuffer();
-        }):null;
+        let savedEditorHistory=null;
+        if(window.EditorHistory){
+            // Undo history is not needed to open the project: one that cannot be read starts a fresh history.
+            try{
+                savedEditorHistory=await window.EditorHistory.load(requestedProjectId,meta.editorHistory,async(project,name)=>{
+                    const response=await fetch(window.firstMeasureBuildUrl('/projects/'+encodeURIComponent(project)+'/artifacts/'+encodeURIComponent(name)),{credentials:'same-origin'});
+                    if(!response.ok)throw new Error('Could not load undo history ('+response.status+'). Please reload.');
+                    return response.arrayBuffer();
+                });
+                if(savedEditorHistory&&savedEditorHistory.version!==1)throw new Error('Unsupported editor undo history.');
+            }catch(historyError){
+                console.warn('Saved undo history could not be loaded; this project opens with a fresh undo history.',historyError);
+                savedEditorHistory=null;
+            }
+        }
         if(String(window.currentProjectId)!==requestedProjectId)return;
-        if(savedEditorHistory&&savedEditorHistory.version!==1)throw new Error('Unsupported editor undo history.');
 
         window.currentProjectLoadedAppMetadata = (meta && typeof meta === 'object')
             ? JSON.parse(JSON.stringify(meta))

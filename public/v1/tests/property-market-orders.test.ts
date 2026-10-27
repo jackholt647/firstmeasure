@@ -29,14 +29,14 @@ test('portal verifies property country before charging and persists account curr
    const apiQuote=await app.inject({method:'GET',url:`/v1/public/firstmeasure/pricing?lat=${lat}&lng=${lng}`,headers:apiHeaders});assert.equal(apiQuote.statusCode,200,apiQuote.body);assert.equal(apiQuote.json().options[0].unit_price,amount);assert.equal(apiQuote.json().add_ons.gutters.unit_price,amount===7?2:currency==='USD'?6:5);
    const apiOrder=await app.inject({method:'POST',url:'/v1/public/firstmeasure/reports',headers:apiHeaders,payload:{address:'Fixture API property',lat,lng,report_market_revision:apiQuote.json().report_market_revision}});assert.equal(apiOrder.statusCode,201,apiOrder.body);assert.equal(apiOrder.json().billing.quoted_amount,amount);
    const body={action:'queue',address:'Fixture property',project_type:'residential',lat,lng,pins:[{lat,lng}],report_market_revision:quote.json().report_market_revision,report_property_country:'US',address_components:{country:'US'}};
-   assert.equal(quote.json().options.length,lat===48.85?1:3);
+   assert.equal(quote.json().options.length,3,'rush is offered for European properties too');
    const commercialQuote=await app.inject({method:'GET',url:`/v1/firstmeasure/report-expedite-options?project_type=commercial&structure_count=2&lat=${lat}&lng=${lng}`,headers});
    assert.equal(commercialQuote.statusCode,200,commercialQuote.body);
-   assert.equal(commercialQuote.json().options[0].unit_price,amount===7?12:currency==='USD'?58:50);
+   assert.equal(commercialQuote.json().options[0].unit_price,amount===7?12:currency==='USD'?46:40);
    if(lat===48.85){
-    const rushed=await app.inject({method:'POST',url:'/v1/platform/portal-action',headers,payload:{...body,report_expedite_option:'rush_under_1'}});
-    assert.equal(rushed.statusCode,403,rushed.body);assert.equal(rushed.json().error,'international_expedite_disabled');
-    assert.equal((await store.readGlobal(orgId)).data.credits_balance,100);
+    const rush=quote.json().options.find((o:any)=>o.key==='rush_under_1');
+    assert.ok(rush.unit_price>amount,'a European rush costs more than the standard report');
+    assert.equal(quote.json().time_zone,'Europe/Paris');
    }
    if(amount!==7){
     const stale=await app.inject({method:'POST',url:'/v1/platform/portal-action',headers,payload:{...body,report_market_revision:1}});

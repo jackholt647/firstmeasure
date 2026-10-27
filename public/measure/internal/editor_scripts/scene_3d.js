@@ -1424,7 +1424,7 @@ function build3DControlPanel() {
     const pitchBtn = document.createElement('button');
     pitchBtn.id = 'btnTogglePitch';
     pitchBtn.className = 'enh-btn' + (_enh.showPitchLabels ? ' active' : '');
-    pitchBtn.textContent = 'PITCH'; pitchBtn.title = 'Toggle pitch labels on faces';
+    pitchBtn.textContent = 'PITCH'; pitchBtn.title = 'Toggle pitch labels on faces (K)';
     pitchBtn.addEventListener('click', e => { e.stopPropagation(); window.togglePitchLabels(); });
     panel.appendChild(pitchBtn);
     // ISO is the perspective side of the existing toggle.

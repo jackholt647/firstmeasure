@@ -1817,6 +1817,26 @@ function saveReferralPartnerSync(input: JsonObject) {
 }
 
 function trackReferralEvent(input: JsonObject) {
+  const { event, uniqueEvent } = referralEventRow(input);
+  withReferralDb((db) => inWriteTransaction(db, () => recordReferralEvent(db, event, uniqueEvent)));
+  return { ok: true, success: true, event };
+}
+
+/** Write a transaction at once: the compatibility service runs several processes on one file, and a counter row
+ * read in one and inserted in another would be inserted twice. */
+function inWriteTransaction<T>(db: DatabaseSync, fn: () => T): T {
+  db.exec("BEGIN IMMEDIATE");
+  try {
+    const result = fn();
+    db.exec("COMMIT");
+    return result;
+  } catch (error) {
+    db.exec("ROLLBACK");
+    throw error;
+  }
+}
+
+function referralEventRow(input: JsonObject) {
   const now = nowIso();
   const metadataInput = asObject(input.metadata);
   const eventId = String(input.event_id || metadataInput.event_id || "").trim();
@@ -1842,56 +1862,93 @@ function trackReferralEvent(input: JsonObject) {
     created_at: now,
     updated_at: now
   };
-  withReferralDb((db) => {
-    const existing = uniqueEvent ? null : db.prepare(`
-      SELECT * FROM referral_events
-      WHERE partner_id = :partner_id
-        AND actor_email = :actor_email
-        AND actor_org_id = :actor_org_id
-        AND event_type = :event_type
-      LIMIT 1
-    `).get(sqliteParams(`
-      SELECT * FROM referral_events
-      WHERE partner_id = :partner_id
-        AND actor_email = :actor_email
-        AND actor_org_id = :actor_org_id
-        AND event_type = :event_type
-      LIMIT 1
-    `, event) as any) as JsonObject | undefined;
-    if (existing?.id) {
-      db.prepare(`
-        UPDATE referral_events
-        SET code_id = ?,
-            code = ?,
-            event_count = COALESCE(event_count, 0) + 1,
-            last_seen_at = ?,
-            metadata_json = ?,
-            updated_at = ?
-        WHERE id = ?
-      `).run(event.code_id, event.code, event.last_seen_at, event.metadata_json, event.updated_at, String(existing.id));
-      event.id = String(existing.id);
-      event.event_count = Number(existing.event_count ?? 0) + 1;
-      event.first_seen_at = String(existing.first_seen_at ?? event.first_seen_at);
-      return;
-    }
-    db.prepare(`
-      INSERT INTO referral_events (
-        id, partner_id, code_id, code, actor_email, actor_org_id, event_type,
-        event_count, first_seen_at, last_seen_at, metadata_json, created_at, updated_at
-      ) VALUES (
-        :id, :partner_id, :code_id, :code, :actor_email, :actor_org_id, :event_type,
-        :event_count, :first_seen_at, :last_seen_at, :metadata_json, :created_at, :updated_at
-      )
-    `).run(event as any);
-  });
-  return { ok: true, success: true, event };
+  return { event, uniqueEvent };
 }
 
-export function trackAcquisitionEvent(input: JsonObject) {
+/** A unique event (one with an event id: every signup form interaction) is its own row. Any other event is a counter
+ * per campaign, actor and type. */
+function recordReferralEvent(db: DatabaseSync, event: ReturnType<typeof referralEventRow>["event"], uniqueEvent: boolean) {
+  const existing = uniqueEvent ? null : db.prepare(`
+    SELECT * FROM referral_events
+    WHERE partner_id = :partner_id
+      AND actor_email = :actor_email
+      AND actor_org_id = :actor_org_id
+      AND event_type = :event_type
+    LIMIT 1
+  `).get(sqliteParams(`
+    SELECT * FROM referral_events
+    WHERE partner_id = :partner_id
+      AND actor_email = :actor_email
+      AND actor_org_id = :actor_org_id
+      AND event_type = :event_type
+    LIMIT 1
+  `, event) as any) as JsonObject | undefined;
+  if (existing?.id) {
+    db.prepare(`
+      UPDATE referral_events
+      SET code_id = ?,
+          code = ?,
+          event_count = COALESCE(event_count, 0) + 1,
+          last_seen_at = ?,
+          metadata_json = ?,
+          updated_at = ?
+      WHERE id = ?
+    `).run(event.code_id, event.code, event.last_seen_at, event.metadata_json, event.updated_at, String(existing.id));
+    event.id = String(existing.id);
+    event.event_count = Number(existing.event_count ?? 0) + 1;
+    event.first_seen_at = String(existing.first_seen_at ?? event.first_seen_at);
+    return;
+  }
+  db.prepare(`
+    INSERT INTO referral_events (
+      id, partner_id, code_id, code, actor_email, actor_org_id, event_type,
+      event_count, first_seen_at, last_seen_at, metadata_json, created_at, updated_at
+    ) VALUES (
+      :id, :partner_id, :code_id, :code, :actor_email, :actor_org_id, :event_type,
+      :event_count, :first_seen_at, :last_seen_at, :metadata_json, :created_at, :updated_at
+    )
+  `).run(event as any);
+}
+
+/** The most events one request to the public acquisition event route may carry (the signup form sends batches). */
+export const ACQUISITION_EVENT_BATCH_LIMIT = 25;
+const ACQUISITION_EVENT_TYPE = /^[A-Za-z0-9][A-Za-z0-9_.:-]{0,79}$/;
+const ACQUISITION_EVENT_MAX_CHARS = 16_384;
+
+/** The events in a public acquisition event request: one event object, or `{ events: [...] }`. Anything else is a
+ * 400, so a broken or hostile caller is told so instead of failing the ledger write. The size limit applies to what
+ * the visitor sent; the web node adds the request's headers to each event before the ledger checks it again. */
+export function acquisitionEventInputs(body: unknown, { limitSize = true } = {}): JsonObject[] {
+  const invalid = (message: string, index?: number) => badRequest("invalid_acquisition_event", message, index === undefined ? undefined : { index });
+  if (!body || typeof body !== "object" || Array.isArray(body)) throw invalid("Send an event object.");
+  const batch = "events" in body;
+  const list = batch ? (body as JsonObject).events : [body];
+  if (!Array.isArray(list) || list.length < 1 || list.length > ACQUISITION_EVENT_BATCH_LIMIT) {
+    throw invalid(`Send between 1 and ${ACQUISITION_EVENT_BATCH_LIMIT} events.`);
+  }
+  return list.map((item, index) => {
+    const at = batch ? index : undefined;
+    if (!item || typeof item !== "object" || Array.isArray(item)) throw invalid("Each event must be an object.", at);
+    const event = item as JsonObject;
+    if (typeof event.event_type !== "string" || !ACQUISITION_EVENT_TYPE.test(event.event_type)) {
+      throw invalid("event_type is required: up to 80 letters, digits, _ . : or -.", at);
+    }
+    if (event.event_id != null && (typeof event.event_id !== "string" || event.event_id.length > 120)) {
+      throw invalid("event_id must be text of up to 120 characters.", at);
+    }
+    if (event.metadata != null && typeof event.metadata !== "string" && (typeof event.metadata !== "object" || Array.isArray(event.metadata))) {
+      throw invalid("metadata must be an object.", at);
+    }
+    if (limitSize && JSON.stringify(event).length > ACQUISITION_EVENT_MAX_CHARS) throw invalid(`An event may be at most ${ACQUISITION_EVENT_MAX_CHARS} characters.`, at);
+    return event;
+  });
+}
+
+function acquisitionEventRow(input: JsonObject) {
   const codeValue = String(input.acquisition_code ?? input.cid ?? input.campaign_code ?? input.referral_code ?? input.code ?? input.campaign ?? "").trim();
   const code = codeValue ? referralCodeByCode(codeValue, false) : null;
   const partner = code ? row("SELECT * FROM referral_partners WHERE id = :id LIMIT 1", { id: String(code.partner_id ?? "") }) : null;
-  return trackReferralEvent({
+  return referralEventRow({
     ...input,
     partner_id: input.partner_id || partner?.id || "",
     code_id: input.code_id || code?.id || "",
@@ -1902,6 +1959,21 @@ export function trackAcquisitionEvent(input: JsonObject) {
       source_type: partner && code && isReferralAcquisition(partner, code) ? "referral" : String(input.source_type || "marketing")
     }
   });
+}
+
+export function trackAcquisitionEvent(input: JsonObject) {
+  const { event, uniqueEvent } = acquisitionEventRow(acquisitionEventInputs(input, { limitSize: false })[0] as JsonObject);
+  withReferralDb((db) => inWriteTransaction(db, () => recordReferralEvent(db, event, uniqueEvent)));
+  return { ok: true, success: true, event };
+}
+
+/** Record a batch from one page in one transaction: every event, or none. */
+export function trackAcquisitionEvents(inputs: JsonObject[]) {
+  const rows = acquisitionEventInputs({ events: inputs }, { limitSize: false }).map(acquisitionEventRow);
+  withReferralDb((db) => inWriteTransaction(db, () => {
+    for (const { event, uniqueEvent } of rows) recordReferralEvent(db, event, uniqueEvent);
+  }));
+  return { ok: true, success: true, recorded: rows.length, event_ids: rows.map(({ event }) => event.id) };
 }
 
 function ensureAcquisitionLink(input: JsonObject) {
@@ -2569,6 +2641,7 @@ function withReferralDb<T>(fn: (db: DatabaseSync) => T): T {
       CREATE INDEX IF NOT EXISTS idx_referral_rewards_attribution ON referral_reward_ledger(attribution_id);
     `);
     ensureReferralColumns(db);
+    replaceRetiredEventIndex(db);
     return fn(db);
   } finally {
     db.close();
@@ -2601,6 +2674,15 @@ function ensureReferralColumns(db: DatabaseSync) {
   ]) {
     try { db.exec(sql); } catch {}
   }
+}
+
+/** The retired PHP module kept one counter row per campaign, actor and type, and made that UNIQUE. Unique events
+ * (every signup form interaction) are a row each, so on databases migrated from it that index refused every anonymous
+ * visitor's interaction after the first per campaign and type. A plain index keeps the counter lookup fast; counter
+ * rows stay single because they are written in one immediate transaction. */
+function replaceRetiredEventIndex(db: DatabaseSync) {
+  db.exec("CREATE INDEX IF NOT EXISTS idx_referral_events_actor ON referral_events(partner_id, actor_email, actor_org_id, event_type)");
+  db.exec("DROP INDEX IF EXISTS idx_referral_events_unique");
 }
 
 function normalizeRow(rowValue: JsonObject) {

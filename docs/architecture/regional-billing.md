@@ -5,7 +5,7 @@
 The shared market boundary is **US/Canada versus every other country**. The UK,
 Switzerland, Japan and Australia are international; EU membership is irrelevant.
 `commerce/region-data.json` owns the domestic-country list and IANA time-zone
-map used by signup and the login billboard.
+map used by signup.
 
 | Account | Property | Standard roof report | Gutter add-on | Currency |
 | --- | --- | --- | --- | --- |
@@ -36,17 +36,24 @@ Non-US accounts default to metric; US accounts default to imperial. Language
 comes from installed packs in `platform/localization/languages.json` and is
 independent of billing currency.
 
-The login embeds `https://1m8.ai/billboards/login` for US/Canada and
-`https://eu.1m8.ai/billboards/login` for known international visitors.
-`X-FirstMate-Region: EU` or `EUROPE` forces the international billboard only.
-It never changes account country, currency or prices. Unknown visitors use the
-main billboard until a country is resolved. Browser and password/Google signup
-use the same time-zone/country data. Both signup paths send browser hints.
+The login embeds `https://1m8.ai/billboards/login/` for every visitor
+(`portal/marketing/billboard_source.php`). Until October 23, 2026 known
+international visitors got `https://eu.1m8.ai/billboards/login`, which the EU
+website host never published (404, shown as "Not Found" in the panel); the
+billboard content is not regional, so the per-region choice and the
+`X-FirstMate-Region` billboard override were removed. If the website ever
+publishes a regional billboard, change the source file and the browser test.
+Browser and password/Google signup use the shared time-zone/country data and
+send browser hints.
 
 The website owns all billboard content and internal padding. The app provides
 a rounded, zero-padding, non-scrolling frame, 16:10 on desktop and 4:1 at
-viewport widths up to 760px. The external pages returned 404 during rollout;
-the website team still must publish them.
+viewport widths up to 760px. The frame stays hidden until it loads and the
+same-origin check `portal/marketing/billboard_status.php` (a HEAD request,
+cached five minutes per web host) has not reported a 4xx/5xx; a definite
+error, or no load within 10 seconds, shows a branded fallback panel instead.
+An unreachable check is "unknown" and leaves the frame to decide.
+`tests/login-billboard-browser.test.mjs` covers a French visitor.
 
 ## Property verification and charge safety
 

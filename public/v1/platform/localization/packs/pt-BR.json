@@ -3242,10 +3242,6 @@
     "m_163c9e8ccdb047": " Você pode gerenciar usuários a qualquer momento na seção Usuários das Configurações da empresa.",
     "m_206d31a7c795c4": " Voltar",
     "m_b982de697abe2d": "Convites enviados",
-    "m_507489a99d1632": {
-      "message": "{v0} convite{v1} enviado(s).",
-      "format": "icu"
-    },
     "m_2b39214759d91a": " Personalizado\n      ",
     "m_0ded144729a113": "Permissões",
     "m_8cf345002184e5": "Nome",
@@ -3271,7 +3267,34 @@
     "m_8342e19eddc030": "Enviaremos um código para este e-mail antes de abrir o portal. Você pode corrigir o endereço aqui se tiver digitado errado.",
     "m_2fbb4b11eb7b6f": "Endereço de e-mail",
     "m_3a7c6bd31cf96e": "Código de verificação",
-    "m_a455a4668ee54d": "\n            Verificar &amp; acessar o portal "
+    "m_a455a4668ee54d": "\n            Verificar &amp; acessar o portal ",
+    "auto_topup_summary": {
+      "message": "Se o seu saldo ficar abaixo de {threshold}, adicionaremos automaticamente {amount} à sua conta.",
+      "format": "icu"
+    },
+    "bonus_amount": {
+      "message": "+ {amount} de bônus",
+      "format": "icu"
+    },
+    "invites_sent": {
+      "message": "{count, plural, one {# convite enviado.} other {# convites enviados.}}",
+      "format": "icu"
+    },
+    "m_56c6c9cbb10acb": " Valor da recarga automática",
+    "m_bc9847e2ca77cb": "Recarga automática",
+    "m_cc2003d4e4237c": " Recarregar quando estiver abaixo de",
+    "m_db0d748a115fcb": "Manter minha conta com saldo automaticamente.",
+    "prices_include_vat": "Os preços incluem impostos.",
+    "total_credit": {
+      "message": "{amount} de crédito no total",
+      "format": "icu"
+    },
+    "ob_full_name_label": "Seu nome",
+    "ob_full_name_placeholder": "Seu nome completo",
+    "ob_company_name_label": "Nome da empresa",
+    "ob_company_name_placeholder": "O nome da sua empresa",
+    "ob_names_missing_title": "Seu nome e sua empresa",
+    "ob_names_missing_body": "Informe seu nome e o nome da empresa para continuar."
   },
   "payroll": {
     "m_4a04382820d2e1": "Outro",
@@ -12937,6 +12960,149 @@
     },
     "exchange_estimate": {
       "message": "Aproximadamente {amount} · a taxa de câmbio no pagamento pode ser diferente.",
+      "format": "icu"
+    },
+    "vat_included": {
+      "message": "{price}, impostos incluídos",
+      "format": "icu"
+    }
+  },
+  "signup": {
+    "offer_title": "Relatórios de telhado premium",
+    "offer_price": {
+      "message": "Apenas {price}",
+      "format": "icu"
+    },
+    "offer_price_vat": {
+      "message": "Apenas {price}, impostos incluídos",
+      "format": "icu"
+    },
+    "referral_loading": "Carregando...",
+    "referral_partner_invitation": "Convite de parceiro",
+    "referral_invited": "Convidou você para experimentar o FirstMeasure",
+    "referral_partner_default": "Um parceiro FirstMate",
+    "referral_offer": {
+      "message": "Cadastre-se hoje e ganhe {percent}% de desconto em todos os pedidos nos seus primeiros {days} dias.",
+      "format": "icu"
+    },
+    "referral_offer_default": "Cadastre-se hoje e ganhe 50% de desconto em todos os pedidos nos seus primeiros 7 dias.",
+    "referral_activate": "Cadastre-se hoje para ativar sua oferta de indicação.",
+    "referral_offer_short": {
+      "message": "{percent}% de desconto nos pedidos dos seus primeiros {days} dias.",
+      "format": "icu"
+    },
+    "referral_offer_percent": {
+      "message": "{percent}% de desconto em pedidos elegíveis.",
+      "format": "icu"
+    },
+    "referral_offer_applied": "Sua oferta de indicação será aplicada no cadastro.",
+    "referral_attribution": "A indicação será registrada quando você criar sua conta.",
+    "continue": "Continuar",
+    "claim_invitation": "Aceitar convite",
+    "tab_login": "Entrar",
+    "tab_register": "Criar conta",
+    "tab_register_invite": "Crie a conta da sua empresa para ativar este convite.",
+    "widget_title": "Crie sua conta FirstMate",
+    "google_sign_in": "Entrar com o Google",
+    "google_sign_up": "Cadastrar-se com o Google",
+    "divider_login": "ou use sua conta",
+    "divider_register": "ou cadastre-se com e-mail",
+    "email_or_phone": "E-mail ou telefone",
+    "password": "Senha",
+    "login_button": "Entrar",
+    "forgot_password": "Esqueceu a senha?",
+    "phone": "Telefone",
+    "phone_number": "Número de telefone",
+    "email": "E-mail",
+    "confirm_password": "Confirmar senha",
+    "create_account": "Criar conta",
+    "create_account_widget": "Criar conta",
+    "already_have_account": "Já tem uma conta?",
+    "login_here": "Clique aqui para entrar",
+    "login_link": "Entrar",
+    "terms": {
+      "message": "Ao criar uma conta, você concorda com nossos {terms} e em receber mensagens de texto no número informado. Podem ser cobradas tarifas de mensagens e dados.",
+      "format": "icu"
+    },
+    "terms_link": "Termos de uso",
+    "reset_how": "Como você quer redefinir sua senha?",
+    "reset_method": "Método de redefinição de senha",
+    "send_code": "Enviar código",
+    "back_to_login": "Voltar para o login",
+    "otp_enter": "Digite o código de verificação:",
+    "otp_sent_to": "Digite o código enviado para",
+    "otp_reset_sent_to": "Digite o código de redefinição de senha enviado para",
+    "otp_label": "Código de 6 dígitos",
+    "verify_code": "Verificar código",
+    "start_over": "Recomeçar",
+    "reset_verified": "Código verificado. Defina uma nova senha.",
+    "new_password": "Nova senha",
+    "update_password": "Atualizar senha",
+    "password_updated": "Senha atualizada! Entrando...",
+    "password_updated_redirect": "Senha atualizada. Redirecionando...",
+    "creating": "Criando…",
+    "sending": "Enviando…",
+    "working": "Processando...",
+    "verification_required": "Verificação necessária",
+    "account_created_verify": "Conta criada! Verifique seu e-mail.",
+    "account_created_verify_widget": "Conta criada. Verifique seu e-mail para continuar.",
+    "reset_code_sent": "Código de redefinição de senha enviado.",
+    "err_generic": "Não foi possível concluir sua solicitação. Tente novamente. Se o problema continuar, escreva para support@1m8.ai.",
+    "err_google": "Não foi possível concluir o login com o Google. Tente novamente.",
+    "err_identity_phone_exists": "Esse número de telefone já está vinculado a uma conta. Entre nessa conta ou use outro número.",
+    "err_identity_email_exists": "Esse e-mail já está vinculado a uma conta. Entre ou use “Esqueceu a senha?” para recuperar o acesso.",
+    "err_identity_exists": "Já existe uma conta com esses dados. Entre ou use “Esqueceu a senha?” para recuperar o acesso.",
+    "err_invalid_credentials": "O e-mail, o telefone ou a senha informados estão incorretos.",
+    "err_wrong_password": "A senha informada está incorreta.",
+    "err_identity_phone_ambiguous": "Esse número de telefone está vinculado a várias contas. Entre com seu e-mail ou fale com o suporte.",
+    "err_not_found": "Não encontramos nenhuma conta com esse e-mail ou telefone.",
+    "err_identity_phone_not_found": "Não encontramos nenhuma conta com esse número de telefone.",
+    "err_invalid_email": "Digite um e-mail válido.",
+    "err_invalid_phone_number": "Digite um número de celular válido, com o código do país fora dos EUA e do Canadá.",
+    "err_missing_login_identifier": "Digite seu e-mail ou número de telefone.",
+    "err_registration_in_progress": "Sua conta já está sendo criada. Aguarde um momento e tente entrar.",
+    "err_account_disabled": "Esta conta está desativada. Fale com o administrador da sua empresa ou com o suporte.",
+    "err_membership_required": "Sua conta ainda não está vinculada a uma empresa. Fale com o administrador da sua empresa ou com o suporte.",
+    "err_google_account_mismatch": "Este e-mail está vinculado a outra conta do Google. Tente essa conta do Google ou fale com o suporte.",
+    "err_google_credential_required": "O login com o Google não foi concluído. Tente novamente.",
+    "err_invalid_google_credential": "O Google não conseguiu verificar este login. Tente novamente.",
+    "err_unverified_google_email": "Verifique seu e-mail no Google antes de entrar.",
+    "err_invalid_recovery_token": "Sua sessão de redefinição de senha expirou. Use “Esqueceu a senha?” para pedir um novo código.",
+    "err_sms_phone_unavailable": "Esta conta não tem um número de celular válido. Use a recuperação por e-mail ou fale com o suporte.",
+    "err_sms_send_failed": "Não foi possível enviar o código por SMS. Tente mais tarde ou use a recuperação por e-mail.",
+    "err_email_send_failed": "Não foi possível enviar o e-mail de verificação. Tente mais tarde ou fale com o suporte.",
+    "err_session_expired": "Sua sessão expirou. Entre novamente.",
+    "err_refresh": "Atualize esta página e tente novamente.",
+    "err_connection": "Não foi possível conectar ao servidor. Verifique sua conexão e tente novamente.",
+    "err_connection_short": "Erro de conexão. Tente novamente.",
+    "err_missing_fields": "Preencha todos os campos obrigatórios da conta.",
+    "err_invalid_code": "Esse código de verificação está incorreto ou expirou. Peça um novo código e tente novamente.",
+    "err_password_short": "Use uma senha com pelo menos 6 caracteres.",
+    "err_reset_not_authorized": "Verifique seu código de recuperação antes de definir uma nova senha. Recomece em “Esqueceu a senha?”.",
+    "err_too_many": "Muitas tentativas. Aguarde alguns minutos e tente novamente.",
+    "err_passwords_mismatch": "As senhas não coincidem.",
+    "err_login_failed": "Não foi possível entrar. Tente novamente.",
+    "err_create_failed": "Não foi possível criar sua conta. Tente novamente ou escreva para support@1m8.ai.",
+    "err_recovery_send_failed": "Não foi possível enviar um código de recuperação. Tente novamente ou escreva para support@1m8.ai.",
+    "err_verify_failed": "Não foi possível verificar esse código. Peça um novo código e tente novamente.",
+    "err_update_password_failed": "Não foi possível atualizar sua senha. Tente novamente ou escreva para support@1m8.ai.",
+    "err_google_linked_elsewhere": "Este e-mail já está vinculado a outra conta do Google. Fale com o suporte se precisar de ajuda.",
+    "err_google_no_company": "Seu e-mail do Google foi reconhecido, mas ainda não está vinculado a uma empresa.",
+    "err_account_disabled_admin": "Esta conta está desativada. Fale com o administrador da sua empresa.",
+    "referral_invited_you": {
+      "message": "{partner} convidou você",
+      "format": "icu"
+    },
+    "start_ordering_reports": "Começar a pedir relatórios",
+    "err_bonus_unconfirmed": "Não foi possível confirmar o bônus da sua campanha. Tente novamente em instantes."
+  },
+  "signup-region": {
+    "calling_code": "Código telefônico do país"
+  },
+  "phone-input": {
+    "calling_code": "Código telefônico do país",
+    "calling_code_value": {
+      "message": "Código telefônico do país: {country} +{code}",
       "format": "icu"
     }
   }

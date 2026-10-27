@@ -404,6 +404,13 @@ Note: Our coverage is based on individual structure, not area - so we may have c
       const bgs = { 1:'#e6f4ea', 2:'#f1f8e9', 3:'#fff8e1', 4:'#fff3e0', 5:'#fce8e6' };
       return bgs[level] || '#fff8e1';
     },
+    /** Orders for properties outside the US and Canada show their verified country (manifest report_property_country). */
+    propertyCountryTag(p){
+      const code = String(p?.report_property_country || p?.property_country || '').trim().toUpperCase();
+      if (!/^[A-Z]{2}$/.test(code) || code === 'US' || code === 'CA') return '';
+      const currency = String(p?.report_currency || '').trim().toUpperCase();
+      return `<span class="qtag" title="Property in ${Portal.escapeHtml(code)}${currency ? ' · billed in ' + Portal.escapeHtml(currency) : ''}" style="background:#e8f0fe; color:#1a4fb4; border-color:#aecbfa; font-size:9px; font-weight:950;">${Portal.escapeHtml(code)}</span>`;
+    },
     complexityBadgeHtml(rawVal, style='tag'){
       const level = this.normalizeComplexity(rawVal);
       const color = this.complexityColor(level);
@@ -3534,6 +3541,7 @@ Note: Our coverage is based on individual structure, not area - so we may have c
             ${priorityTag}
             ${complexityTag}
             ${qTypeTag}
+            ${this.propertyCountryTag(p)}
           </div>
           ${reservedFor ? `<div class="qreserved"><i class="fas fa-bookmark"></i> Waiting for ${Portal.escapeHtml(reservedFor)}</div>` : ''}
           <div class="qcard-times">
@@ -7519,7 +7527,7 @@ Note: Our coverage is based on individual structure, not area - so we may have c
               <span><b>${ageLabel}:</b> <span class="qstage-age" style="color:#1a73e8; font-weight:900;">${this.fmtAge(ageMs)}</span></span>
             </div>
             <div class="qmeta">
-              ${submissionFailureTag} ${vipTag} ${manualPriorityTag} ${priorityTag} ${complexityTag} ${typeTag}
+              ${submissionFailureTag} ${vipTag} ${manualPriorityTag} ${priorityTag} ${complexityTag} ${typeTag} ${this.propertyCountryTag(p)}
             </div>
             ${reservedFor ? `<div class="qreserved"><i class="fas fa-bookmark"></i> Reserved for ${Portal.escapeHtml(reservedFor)}</div>` : ''}
             ${claimerHtml}

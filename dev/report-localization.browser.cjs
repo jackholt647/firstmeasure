@@ -38,13 +38,22 @@ async function main(){
     const blob=rendered.result.blob;result[name+'-'+mode]=Array.from(new Uint8Array(await blob.arrayBuffer()));
     const text=drawnText.join('\n'),metric=prefs.measurement_system==='metric';
     const requireText=(pattern,expected)=>{if(pattern.test(text)!==expected)throw Error(name+' '+mode+' unexpected section: '+pattern);};
-    // A roof-only report in English keeps the original titles (Materials, Pitch Diagram, Project Summary);
-    // a Full House report uses the roof-prefixed ones.
-    requireText(exterior?/Roof Materials/:/\bMaterials\b/,!metric);
-    requireText(exterior?/Roof Ventilation/:/\bVentilation\b/,!metric);
+    // Roof-only English reports keep the original titles and order; the Full House layout needs exterior pages.
+    const original=!exterior&&/^en/i.test(prefs.report_language||'en-US');
+    const title=label=>new RegExp('(^|\\n)'+label.replace(/[()]/g,'\\$&')+'(\\n|$)','i');
+    requireText(original?title('Materials'):/Roof Materials/,!metric);
+    requireText(original?title('Ventilation'):/Roof Ventilation/,!metric);
     requireText(/Material Allowances/,exterior&&!metric&&mode==='full');
-    requireText(exterior?/Roof Summary/:/Project Summary/,true);
-    if(mode==='full'){requireText(exterior?/Roof Pitch Diagram/:/\bPitch Diagram/,true);requireText(exterior?/Roof Area Diagram/:/\bArea Diagram/,true);}
+    requireText(original?/Project Summary/:/Roof Summary/,true);
+    requireText(/Roof Summary|Roof Imagery|Roof Pitch Diagram|Roof Area Diagram|Roof Materials|Roof Ventilation|Roof Notes/,!original);
+    if(mode==='full'){
+     requireText(original?title('Pitch Diagram'):/Roof Pitch Diagram/,true);requireText(original?title('Area Diagram'):/Roof Area Diagram/,true);
+     if(original){
+      const at=label=>text.search(title(label));
+      const seen=[at('Top View'),at('Pitch Diagram'),at('Area Diagram'),text.lastIndexOf('Project Summary'),at('Materials'),at('Ventilation')].filter(n=>n>=0);
+      if(seen.some((n,i)=>i&&n<seen[i-1]))throw Error(name+' '+mode+' original page order changed');
+     }
+    }
     if(metric)requireText(/m²/,true);
     if(exterior&&mode==='full'){requireText(/Exterior Quantities/,true);requireText(/Opening Schedule/,true);}
    }

@@ -40,12 +40,16 @@ async function main(){
     const blob=rendered.result.blob;result[name+'-'+mode]=Array.from(new Uint8Array(await blob.arrayBuffer()));
     const text=drawnText.join('\n'),metric=prefs.measurement_system==='metric';
     const requireText=(pattern,expected)=>{if(pattern.test(text)!==expected)throw Error(name+' '+mode+' unexpected section: '+pattern);};
-    requireText(/Roof Materials/,!metric);
-    requireText(/Roof Ventilation/,!metric);
+    // Roof-only English reports keep the original titles; Full House (customer or with exterior pages) uses the new ones.
+    const original=!exterior&&!customer&&/^en/i.test(prefs.report_language||'en-US');
+    const title=label=>new RegExp('(^|\\n)'+label+'(\\n|$)','i');
+    requireText(original?title('Materials'):/Roof Materials/,!metric);
+    requireText(original?title('Ventilation'):/Roof Ventilation/,!metric);
     requireText(/Material Allowances/,exterior&&!metric&&mode==='full');
-    requireText(/Roof Summary/,true);
+    requireText(original?/Project Summary/:/Roof Summary/,true);
+    requireText(/Roof Summary|Roof Imagery|Roof Pitch Diagram|Roof Area Diagram|Roof Materials|Roof Ventilation|Roof Notes/,!original);
     if(customer)requireText(/Gutter/i,true);
-    if(mode==='full'){requireText(/Roof Pitch Diagram/,true);requireText(/Roof Area Diagram/,true);}
+    if(mode==='full'){requireText(original?title('Pitch Diagram'):/Roof Pitch Diagram/,true);requireText(original?title('Area Diagram'):/Roof Area Diagram/,true);}
     if(metric)requireText(/m²/,true);
     if(exterior&&mode==='full'){requireText(/Exterior Quantities/,true);requireText(/Opening Schedule/,true);}
    }

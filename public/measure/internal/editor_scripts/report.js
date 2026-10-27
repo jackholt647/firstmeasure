@@ -23,26 +23,9 @@ let _reportTopViewUnavailableReason = '';
 let _reportTopViewUnavailableLogged = false;
 const REPORT_AUTO_TOP_VIEW_MAX_ZOOM = 0.75;
 
+// Quad views are retired (1M8-233); see firstMeasurePdfQuadViewsDisabled in pdf.js.
 function areReportQuadViewsDisabled() {
-    if (typeof window.firstMeasureAreQuadViewsDisabled === 'function') {
-        return window.firstMeasureAreQuadViewsDisabled();
-    }
-    const globalSettings = window.FIRSTMEASURE_REPORT_SETTINGS || window.PORTAL_CFG?.report_settings || {};
-    if (
-        globalSettings.disable_quad_views ||
-        globalSettings.disableQuadViews ||
-        globalSettings.no_quad_views ||
-        globalSettings.noQuadViews
-    ) {
-        return true;
-    }
-    const general = window.projectOrganization?.report_settings?.general || {};
-    return !!(
-        general.disable_quad_views ||
-        general.disableQuadViews ||
-        general.no_quad_views ||
-        general.noQuadViews
-    );
+    return true;
 }
 window.areReportQuadViewsDisabled = areReportQuadViewsDisabled;
 

@@ -51,8 +51,10 @@ test('the report preview shows every page of the customer and internal PDFs and 
     // Internal PDFs are not branded: FirstMate's red and logo whatever the organization's branding.
     await page.evaluate((settings) => window.FirstMateReportPreview.render(document.querySelector('#host'), {settings, logo:'/org-logo.png'}), ALL);
     assert.deepEqual(await branding(), {unbranded:true, sidebar:'rgb(200, 40, 40)', logo:'/images/logo_red.png'});
-    // There is no elevations page; the 3D views page carries the roof-only title, 3D Facets.
+    // A roof-only report keeps the original titles and order: no elevations page, so the 3D views page is "3D Facets",
+    // and the diagrams come before the summary.
     assert.match(await page.evaluate(() => document.querySelector('[data-rpv-sheet="2"]').textContent), /3D Facets[\s\S]*North View/);
+    assert.match(await page.evaluate(() => document.querySelector('[data-rpv-sheet="3"]').textContent), /Pitch Diagram/);
     assert.match(internal.cover, /PROJECT SUMMARY[\s\S]*Total Squares \(14% Waste\): 55\.32[\s\S]*MEASUREMENT BREAKDOWN/);
     assert.match(internal.title, /Top View[\s\S]*Page 2/);
     // Paging: a thumbnail opens its page and the counter follows.

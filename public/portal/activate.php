@@ -8,6 +8,8 @@ require_once dirname(__DIR__) . '/includes/web_security.php';
 // Only a path on this site: ?redirect= is attacker-chosen.
 $redirectParam = fm_safe_redirect_path($_GET['redirect'] ?? '', './');
 $startParam = isset($_GET['start']) ? trim($_GET['start']) : '';
+// The inviting organization: activation signs in to it, not to another company this email already belongs to.
+$orgParam = isset($_GET['org']) ? preg_replace('/[^A-Za-z0-9_\-]/', '', trim($_GET['org'])) : '';
 
 // --- 1. CHECK IF ALREADY VERIFIED ---
 if ($emailParam) {
@@ -21,6 +23,9 @@ if ($emailParam) {
             $loginUrl = 'login.php?email=' . urlencode($emailParam);
             if ($redirectParam && $redirectParam !== './') {
                 $loginUrl .= '&redirect=' . urlencode($redirectParam);
+            }
+            if ($orgParam !== '') {
+                $loginUrl .= '&org=' . urlencode($orgParam);
             }
             header("Location: " . $loginUrl);
             exit;
@@ -145,7 +150,7 @@ function esc($s) { return htmlspecialchars($s ?? '', ENT_QUOTES, 'UTF-8'); }
         <!-- STEP 2: OTP -->
         <form class="auth-form" id="otpForm">
             <div class="otp-info">
-                <span id="otpMsg">Enter the code sent to your email:</span><br>
+                <span id="otpMsg">Enter the activation code sent to your email:</span><br>
                 <strong id="otpEmailDisp"></strong>
             </div>
             <div class="form-group">
@@ -182,7 +187,9 @@ function esc($s) { return htmlspecialchars($s ?? '', ENT_QUOTES, 'UTF-8'); }
     </div>
 </div>
 
+<script src="/portal/landing/shared/password-toggle.js?v=<?php echo esc(substr((string)@hash_file('sha256', __DIR__ . '/landing/shared/password-toggle.js'), 0, 16)); ?>"></script>
 <script>
+    window.FirstMatePasswordToggle?.enhance(document);
     const urlParams = new URLSearchParams(window.location.search);
     function sameOriginPath(raw, fallback) {
         try {
@@ -195,6 +202,7 @@ function esc($s) { return htmlspecialchars($s ?? '', ENT_QUOTES, 'UTF-8'); }
     }
     const redirectTarget = sameOriginPath(<?php echo json_encode($redirectParam ?: './'); ?>, './');
     const startParam = urlParams.get('start') || <?php echo json_encode($startParam); ?>;
+    const invitedOrgId = <?php echo json_encode($orgParam); ?>;
 
     const formArea = document.querySelector('.form-area');
     const emailInput = document.getElementById('emailInput');
@@ -290,7 +298,7 @@ function esc($s) { return htmlspecialchars($s ?? '', ENT_QUOTES, 'UTF-8'); }
         // Default to start form, but allow deep-link to OTP
         if (startParam && startParam.toLowerCase() === 'otp') {
             const e = (emailInput.value || '').trim();
-            if (e) showOtp(e, "Enter the code sent to your email:");
+            if (e) showOtp(e, "Enter the activation code sent to your email:");
             else showStart();
         } else {
             showStart();
@@ -313,14 +321,14 @@ function esc($s) { return htmlspecialchars($s ?? '', ENT_QUOTES, 'UTF-8'); }
         }
 
         const fd = new FormData();
-        fd.append('action', 'forgot_password'); 
+        fd.append('action', 'forgot_password'); fd.append('purpose', 'activation'); 
         fd.append('email', email);
 
         try {
             const data = await authLegacyRequest(fd);
 
             if (data && data.require_otp) {
-                showOtp(data.email || email, data.message || "Enter the code sent to your email:");
+                showOtp(data.email || email, "We sent an activation code to your email. Enter it below:");
             } else {
                 err.innerText = (data && (data.error || data.message)) ? (data.error || data.message) : 'Failed to send code.';
                 err.style.display = 'block';
@@ -402,6 +410,7 @@ function esc($s) { return htmlspecialchars($s ?? '', ENT_QUOTES, 'UTF-8'); }
                 loginFd.append('action', 'login');
                 loginFd.append('email', email);
                 loginFd.append('password', pw);
+                if (invitedOrgId) loginFd.append('organization_id', invitedOrgId);
 
                 const loginData = await authLegacyRequest(loginFd);
 
@@ -414,7 +423,7 @@ function esc($s) { return htmlspecialchars($s ?? '', ENT_QUOTES, 'UTF-8'); }
                     // Fallback if login fails (rare): redirect to login page
                     setTimeout(() => {
                         const r = encodeURIComponent(redirectTarget || './');
-                        window.location.href = 'login.php?email=' + encodeURIComponent(email) + '&redirect=' + r;
+                        window.location.href = 'login.php?email=' + encodeURIComponent(email) + '&redirect=' + r + (invitedOrgId ? '&org=' + encodeURIComponent(invitedOrgId) : '');
                     }, 1500);
                 }
 

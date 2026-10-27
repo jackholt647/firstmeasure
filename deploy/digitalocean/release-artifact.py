@@ -21,11 +21,18 @@ def safe_name(name):
     p = PurePosixPath(name)
     if not name or p.is_absolute() or '..' in p.parts or '\\' in name or ':' in name or p.as_posix() != name:
         raise ValueError('Unsafe archive path')
+    # Code modules that live in a directory named storage (runtime state never does).
     storage_module = name in {
-        'public/v1/src/storage/project_artifacts.ts',
-        'public/v1/dist/src/storage/project_artifacts.js',
+        f'public/v1/{folder}/storage/{module}.{extension}'
+        for module in ('project_artifacts', 'artifact_catalog', 'storage_metrics')
+        for folder, extension in (('src', 'ts'), ('dist/src', 'js'))
     }
-    if any(x in {'.git', 'private', 'secrets', '.local-runtime'} for x in p.parts) or ('storage' in p.parts and not storage_module):
+    # A registry package may name an internal code folder "private" (@bufbuild/protobuf
+    # does); inside node_modules only that folder name is allowed. Secret file names,
+    # extensions and every other directory rule still apply there.
+    package_private = name.startswith('public/v1/node_modules/') and '.git' not in p.parts
+    reserved = {'.git', 'secrets', '.local-runtime'} | (set() if package_private else {'private'})
+    if any(x in reserved for x in p.parts) or ('storage' in p.parts and not storage_module):
         raise ValueError('Runtime state or secret directory in code archive')
     if p.name == '.env' or p.name.startswith('.env.') or p.suffix.lower() in {'.pem', '.key', '.sqlite', '.db', '.zip'}:
         raise ValueError('Private or nested archive file in code archive')

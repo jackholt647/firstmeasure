@@ -52,14 +52,23 @@ window.PlatformCommerce.onReady(function(){
     return new Promise((resolve) => setTimeout(resolve, ms));
   }
 
+  // Fallback prices come from the organization's commercial profile, never
+  // from US numbers; a pending order normally carries the server quote.
   function gutterReportAddon(){
-    const amount = Number(cfg.gutterReportAddon ?? 2);
-    return Number.isFinite(amount) ? amount : 2;
+    return window.PlatformCommerce.price('gutters');
   }
 
   function weatherReportAddon(){
-    const amount = Number(cfg.weatherReportAddon ?? 5);
-    return Number.isFinite(amount) ? amount : 5;
+    return window.PlatformCommerce.price('weather');
+  }
+
+  function profileBasePrice(projectType){
+    return window.PlatformCommerce.price(projectType === 'commercial' || projectType === 'multifamily' ? projectType : 'residential');
+  }
+
+  function positiveQuote(value){
+    const amount = Number(value);
+    return String(value ?? '').trim() !== '' && Number.isFinite(amount) && amount > 0 ? Math.round(amount * 100) / 100 : null;
   }
 
   const fmtCredit = value => window.PlatformCommerce.credit(value);
@@ -293,14 +302,7 @@ window.PlatformCommerce.onReady(function(){
         rushDelta: Number.isFinite(quotedDelta) ? Math.max(0, Math.round(quotedDelta * 100) / 100) : Math.max(0, Math.round((quotedUnit - ROOF_COST) * 100) / 100)
       };
     }
-    const wait = Number(fields?.report_estimated_wait_minutes);
-    const normalizedWait = Number.isFinite(wait) ? Math.max(180, Math.min(360, wait)) : 180;
-    const ratio = (normalizedWait - 180) / 180;
-    const rush23 = Math.round((8 + ratio * 2) * 10) / 10;
-    const rush12 = Math.round((ROOF_COST + (rush23 - ROOF_COST) * 3) * 100) / 100;
-    if (key === 'rush_under_1') return { key, residentialPrice: rush12, rushDelta: Math.max(0, Math.round((rush12 - ROOF_COST) * 100) / 100) };
-    if (key === 'rush_1_3') return { key, residentialPrice: rush23, rushDelta: Math.max(0, Math.round((rush23 - ROOF_COST) * 100) / 100) };
-    if (key === 'standard_3_6' || key === 'rush_3_4' || key === 'no_rush') return { key, residentialPrice: ROOF_COST, rushDelta: 0 };
+    // Rush prices are only known from the server quote the order carries.
     return null;
   }
 
@@ -308,7 +310,7 @@ window.PlatformCommerce.onReady(function(){
     const projectType = String(fields?.project_type || 'residential').trim().toLowerCase() || 'residential';
     const reportMode = pendingReportMode(fields);
     const expedite = pendingReportExpediteOption(fields);
-    const standardBase = projectType === 'commercial' || projectType === 'multifamily' ? 12 : ROOF_COST;
+    const standardBase = profileBasePrice(projectType);
     const base = expedite
       ? (projectType === 'commercial' || projectType === 'multifamily' ? standardBase + expedite.rushDelta : expedite.residentialPrice)
       : standardBase;
@@ -322,20 +324,22 @@ window.PlatformCommerce.onReady(function(){
     return pendingOrderQuote(fields).final_amount;
   }
 
+  // The server quote the order screen showed: what the order will charge.
   function pendingOriginalOrderAmount(fields){
+    return positiveQuote(fields?.order_original_amount)
+      ?? positiveQuote(fields?.report_expedite_net_total_price)
+      ?? pendingComputedOrderAmount(fields);
+  }
+
+  function pendingComputedOrderAmount(fields){
     const projectType = String(fields?.project_type || 'residential').trim().toLowerCase() || 'residential';
     const base = pendingUnitPrice(fields);
     const gross = projectType === 'commercial' || projectType === 'multifamily'
       ? base * Math.max(1, pendingPinCount(fields))
       : base + (pendingIncludesGutters(fields) ? gutterReportAddon() : 0);
-    const withWeather = gross + (pendingIncludesWeather(fields) ? weatherReportAddon() : 0);
+    const withWeather = gross + (pendingIncludesWeather(fields) ? weatherReportAddon() * Math.max(1, pendingPinCount(fields)) : 0);
     const couponDiscount = Number(fields?.report_expedite_coupon_discount);
-    const computed = Math.max(0.01, Math.round((withWeather - (Number.isFinite(couponDiscount) ? Math.max(0, couponDiscount) : 0)) * 100) / 100);
-    const quotedNet = Number(fields?.report_expedite_net_total_price);
-    if (Number.isFinite(quotedNet) && quotedNet > 0) {
-      return Math.max(computed, Math.round(quotedNet * 100) / 100);
-    }
-    return computed;
+    return Math.max(0.01, Math.round((withWeather - (Number.isFinite(couponDiscount) ? Math.max(0, couponDiscount) : 0)) * 100) / 100);
   }
 
   function pendingDiscountableBase(fields){
@@ -353,6 +357,11 @@ window.PlatformCommerce.onReady(function(){
   function pendingOrderQuote(fields){
     const original = fields?.measurement_scope === 'full_house' ? Number(fields.exteriors_quoted_amount) : pendingOriginalOrderAmount(fields);
     if (fields?.measurement_scope === 'full_house') return {active:false,original_amount:original,final_amount:original,discount_amount:0,discountable_amount:0,discount_percent:0};
+    const quotedFinal = positiveQuote(fields?.order_quoted_amount);
+    if (quotedFinal !== null && positiveQuote(fields?.order_original_amount) !== null) {
+      const discount = Math.max(0, Math.round((original - quotedFinal) * 100) / 100);
+      return { active: discount > 0, original_amount: original, final_amount: quotedFinal, discount_amount: discount, discountable_amount: discount > 0 ? original : 0, discount_percent: discount > 0 && original > 0 ? Math.round((discount / original) * 10000) / 100 : 0 };
+    }
     return window.Portal?.pricing?.referralDiscountPreview?.(original, pendingDiscountableBase(fields)) || {
       active: false,
       original_amount: original,
@@ -390,6 +399,8 @@ window.PlatformCommerce.onReady(function(){
     .b-price{height:100%; display:flex; flex-direction:column; justify-content:center; gap:8px; background:#fafafa}
     .b-price-label{font-weight:950; color:#555; font-size:11px; letter-spacing:.4px; text-transform:uppercase}
     .b-price .big{font-weight:1000; font-size:22px; letter-spacing:-.2px}
+    .b-price .b-total-vat{display:block; margin-top:2px; font-size:12px; font-weight:800; color:#667085}
+    .b-price .b-total-vat[hidden]{display:none}
     .b-price .big.is-insufficient{color:#d93025}
     .b-err{margin-top:10px; min-height:16px; font-size:12px; font-weight:1000; color:#d93025}
     .b-msg{margin-top:8px; font-size:12px; color:#777; font-weight:850}
@@ -600,6 +611,7 @@ window.PlatformCommerce.onReady(function(){
             <div class="b-credit-panel b-price">
               <div class="b-price-label">${(globalThis.PlatformLanguage?.htmlText("billing","m_9403c7637d4905","Total") ?? "Total")}</div>
               <div class="big" id="bTotal">${window.PlatformCommerce.cash(DEFAULT_CREDIT_AMOUNT)}</div>
+              <small class="b-total-vat" id="bTotalVat" hidden></small>
             </div>
           </div>
           <div class="b-hint" id="bHint">${String(creditAmountHelpText())}</div>
@@ -992,9 +1004,23 @@ window.PlatformCommerce.onReady(function(){
       message.style.display = insufficient ? 'block' : 'none';
     }
   }
+  // Credit is charged with VAT included outside the US and Canada. The checkout total says so on a smaller line
+  // beneath the amount; the "Needed for order" amount above it is the report price and stays plain (1M8-241).
+  function renderCheckoutTotalVat(){
+    const total = $('#bTotal');
+    if (!total) return;
+    let vat = document.getElementById('bTotalVat');
+    if (!vat) { vat = document.createElement('small'); vat.id = 'bTotalVat'; vat.className = 'b-total-vat'; }
+    if (vat.previousElementSibling !== total) total.after(vat);
+    let included = false;
+    try { included = !!window.PlatformCommerce.current().vat_included; } catch (_) {}
+    vat.textContent = included ? (globalThis.PlatformLanguage?.text("billing","checkout_vat_included","VAT included") ?? "VAT included") : '';
+    vat.hidden = !included;
+  }
   function updateTotal(){
     const q = readAmountInput();
     $('#bTotal').textContent = window.PlatformCommerce.cash(q ?? 0);
+    renderCheckoutTotalVat();
     let fx=document.getElementById('bFxEstimate');if(!fx){fx=document.createElement('small');fx.id='bFxEstimate';$('#bTotal').after(fx);}fx.textContent=window.PlatformCommerce.estimate(q ?? 0);
     updateFirstReportInsufficientState(q ?? 0);
     if (firstReportAccountLoadEligible && !purchaseTopupContext) {
@@ -1231,7 +1257,7 @@ window.PlatformCommerce.onReady(function(){
     }
     $('#bFirstReportCard .b-first-number:first-child span').textContent = (purchaseActive || reportGateActive) ? (globalThis.PlatformLanguage?.text("billing","needed_for_order","Needed for order") ?? "Needed for order") : (globalThis.PlatformLanguage?.text("billing","first_report_from","First report from") ?? "First report from");
     $('#bFirstReportCard .b-first-number.due span').textContent = (purchaseActive || reportGateActive) ? (globalThis.PlatformLanguage?.text("billing","difference","Difference") ?? "Difference") : (globalThis.PlatformLanguage?.text("billing","credit_to_add_lower","Credit to add") ?? "Credit to add");
-    $('#bFirstReportTotal').textContent = `${fmtCredit(required)}`;
+    $('#bFirstReportTotal').textContent = fmtCredit(required);
     $('#bFirstBalance').textContent = `${fmtCredit(balance)}`;
     $('#bFirstDue').textContent = `${fmtCredit(needed)}`;
     if (autoSubmit) {
@@ -1309,7 +1335,7 @@ window.PlatformCommerce.onReady(function(){
     const priceLabel = quote.active
       ? (globalThis.PlatformLanguage?.text("billing","discount_price","{price} (save {saving})",{price:fmtCredit(quote.final_amount),saving:fmtCredit(quote.discount_amount)}) ?? `${fmtCredit(quote.final_amount)} (save ${fmtCredit(quote.discount_amount)})`)
       : `${fmtCredit(quote.final_amount)}`;
-    $('#bPendingSub').textContent = [typeLabel, packageLabel, priceLabel, rn, em, ph].filter(Boolean).join(' - ') || '-';
+    $('#bPendingSub').textContent = [typeLabel, packageLabel, window.PlatformCommerce.withVat(priceLabel), rn, em, ph].filter(Boolean).join(' - ') || '-';
     renderFundingContext();
   }
 
@@ -1336,7 +1362,7 @@ window.PlatformCommerce.onReady(function(){
     const priceLabel = quote.active
       ? (globalThis.PlatformLanguage?.text("billing","discount_price","{price} (save {saving})",{price:fmtCredit(quote.final_amount),saving:fmtCredit(quote.discount_amount)}) ?? `${fmtCredit(quote.final_amount)} (save ${fmtCredit(quote.discount_amount)})`)
       : `${fmtCredit(quote.final_amount)}`;
-    $('#bPendingSub').textContent = [typeLabel, packageLabel, priceLabel, rn, em, ph].filter(Boolean).join(' • ') || '—';
+    $('#bPendingSub').textContent = [typeLabel, packageLabel, window.PlatformCommerce.withVat(priceLabel), rn, em, ph].filter(Boolean).join(' • ') || '—';
   }
 
   async function startCheckout(e){
@@ -1416,7 +1442,12 @@ window.PlatformCommerce.onReady(function(){
       await window.Portal.credits.refreshCredits().catch(()=>null);
       const bal = window.Portal.credits.lastCredits ?? 0;
       const requiredAmount = pendingOrderAmount(po.fields);
-      if (bal < requiredAmount) return false;
+      if (bal < requiredAmount) {
+        if (reason && reason !== 'boot') {
+          showToast((globalThis.PlatformLanguage?.text("billing","order_not_submitted","Order not submitted yet") ?? "Order not submitted yet"), (globalThis.PlatformLanguage?.text("billing","order_needs_credit","This order needs {required}; your balance is {balance}. Add the difference to submit it.",{required:fmtCredit(requiredAmount),balance:fmtCredit(bal)}) ?? `This order needs ${fmtCredit(requiredAmount)}; your balance is ${fmtCredit(bal)}. Add the difference to submit it.`), false);
+        }
+        return false;
+      }
 
       showToast((globalThis.PlatformLanguage?.text("billing","m_6dd3d30653a1b5","Submitting order…") ?? "Submitting order…"), po.fields.address, true);
 
@@ -1450,6 +1481,7 @@ window.PlatformCommerce.onReady(function(){
         report_expedite_net_total_price: f.report_expedite_net_total_price || '',
         report_expedite_rush_delta: f.report_expedite_rush_delta || '',
         report_pricing_revision: f.report_pricing_revision ?? '',
+        report_market_revision: f.report_market_revision ?? '',
         report_expedite_coupon_available: f.report_expedite_coupon_available || '',
         report_expedite_coupon_discount: f.report_expedite_coupon_discount || '',
         is_expedited: f.is_expedited === true || f.is_expedited === '1' || String(f.is_expedited || '').trim().toLowerCase() === 'true',
@@ -1468,7 +1500,7 @@ window.PlatformCommerce.onReady(function(){
       });
 
       if (!data || !data.success){
-        showToast((globalThis.PlatformLanguage?.text("billing","m_cb54e163f7df44","Couldn’t submit order") ?? "Couldn’t submit order"), data?.error || 'Order submission failed.', false);
+        showToast((globalThis.PlatformLanguage?.text("billing","m_cb54e163f7df44","Couldn’t submit order") ?? "Couldn’t submit order"), data?.message || data?.error || 'Order submission failed.', false);
         return false;
       }
 
@@ -1533,7 +1565,7 @@ window.PlatformCommerce.onReady(function(){
       } catch(e){
         lastData = null;
       }
-      if (lastData?.success === true) return { data: lastData, attempts };
+      if (lastData?.success === true || lastData?.needs_review === true) return { data: lastData, attempts };
       showStripeCheckoutOverlay(attempts === 1
         ? 'Confirming your payment...'
         : 'Still confirming your payment...');
@@ -1577,6 +1609,10 @@ window.PlatformCommerce.onReady(function(){
           attempts = fulfilled.attempts;
         }
         const paidByReturnUrl = reason !== 'bfcache_restore';
+        if (fulfillData?.needs_review === true) {
+          showToast((globalThis.PlatformLanguage?.text("billing","payment_under_review","Payment received, under review") ?? "Payment received, under review"), String(fulfillData.customer_message || (globalThis.PlatformLanguage?.text("billing","payment_under_review_detail","We received your payment but could not add the credit automatically. Our team has been alerted and will add it shortly. Your order is saved.") ?? "We received your payment but could not add the credit automatically. Our team has been alerted and will add it shortly. Your order is saved.")), false);
+          return false;
+        }
         if (!sessionToFulfill || fulfillData?.success !== true) {
           showToast((globalThis.PlatformLanguage?.text("billing","m_0b51da47b5df80","Payment not complete") ?? "Payment not complete"), (globalThis.PlatformLanguage?.text("billing","m_5a3dca8919c4c0","No charge has been confirmed yet.") ?? "No charge has been confirmed yet."), false);
           return false;

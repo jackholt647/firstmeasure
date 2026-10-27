@@ -460,6 +460,14 @@ function portalFeatureFlagRegistry() {
         'default' => true,
             'requires' => ['firstmeasure.report_orders'],
         ],
+        'firstmeasure.roof_model_viewer' => [
+            'group' => 'firstmeasure',
+            'flag' => 'roof_model_viewer',
+            'label' => 'Roof Model Viewer',
+            'description' => 'Shows the 3D Model & photos tab for roof-only reports. Full House reports always show it.',
+            'default' => false,
+            'requires' => ['firstmeasure.report_orders'],
+        ],
         'firstmeasure.report_orders' => [
             'group' => 'firstmeasure',
             'flag' => 'report_orders',

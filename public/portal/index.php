@@ -1670,7 +1670,8 @@ session_write_close();
         const currentBranchId = String(window.__APP?.userBranchId || 'default').trim() || 'default';
         const cachedOrgId = String(theme.orgId || '').trim();
         const cachedBranchId = String(theme.branchId || 'default').trim() || 'default';
-        if (currentOrgId && cachedOrgId && currentOrgId !== cachedOrgId) return false;
+        // A theme without its organization may belong to another account signed in on this browser.
+        if (currentOrgId && currentOrgId !== cachedOrgId) return false;
         if (currentBranchId && cachedBranchId && currentBranchId !== cachedBranchId) return false;
         return true;
       }
@@ -2001,7 +2002,11 @@ session_write_close();
         /* Push everything below the banner */
         body { padding-top: 44px !important; }
         .mobile-topbar { top: 44px !important; }
-        .sidebar { top: 44px !important; height: calc(var(--fm-visual-vh, 100vh) - 44px) !important; }
+        /* On desktop the sidebar sits in body's flow below the padding; offsetting it again clipped
+           its last 44px (the Settings row). Only the fixed mobile drawer needs the offset. */
+        @media (max-width: 820px) {
+            .sidebar { top: 44px !important; height: calc(var(--fm-visual-vh, 100vh) - 44px) !important; }
+        }
     </style>
     <script>
     async function stopImpersonating() {
@@ -2497,7 +2502,9 @@ session_write_close();
 
   <!-- Signup Sandbox dev bar: no-ops unless the logged-in org is a sandbox
        test org (and /v1/signup-sandbox is dead in production entirely). -->
+  <?php require_once __DIR__ . '/signup-sandbox/available.php'; if (fm_signup_sandbox_available()): ?>
   <script src="signup-sandbox/devbar.js?v=<?= portalAssetVersion('signup-sandbox/devbar.js') ?>" defer></script>
+  <?php endif; ?>
 
   <!-- Mobile sidebar toggle -->
   <script>
@@ -2636,7 +2643,13 @@ session_write_close();
         return modes[raw] ? raw : 'report';
       };
       const DEFAULT_MENU_ITEMS = ['project', 'contact', 'report', 'document', 'payment', 'appointment'];
+      /* Ordering a report needs order_reports (1M8-227). Until the session's permissions arrive nothing is hidden. */
+      const cannotOrderReports = () => {
+        const permissions = window.Portal?.currentUser?.permissions;
+        return !!permissions && Object.keys(permissions).length > 0 && window.Portal?.util?.hasPerm?.('order_reports') !== true;
+      };
       const itemAvailable = (id) => {
+        if (id === 'report' && cannotOrderReports()) return false;
         if (isDocMode(id)) return documentsEnabled();
         if (String(id).startsWith('form:')) return !!staffForm(id);
         return !!modes[id] && id !== 'selector';
@@ -2668,7 +2681,8 @@ session_write_close();
         && !['view_projects', 'manage_projects'].some((permission) => window.Portal?.util?.hasPerm?.(permission));
       const syncCreateAccess = (mode = '') => {
         const assignedOnly = isAssignedOnlyUser();
-        const unavailable = assignedOnly || mode === 'off';
+        const nothingToCreate = (mode === 'report' && cannotOrderReports()) || (mode === 'selector' && !configuredMenuItems().length);
+        const unavailable = assignedOnly || mode === 'off' || nothingToCreate;
         document.documentElement.dataset.fmAssignedOnly = assignedOnly ? 'true' : 'false';
         sidebar?.classList.toggle('new-button-unavailable', unavailable);
         wrap.hidden = unavailable;
@@ -3013,6 +3027,7 @@ session_write_close();
       });
       window.addEventListener('fm:app-flags:failed', setButtonMode);
       window.addEventListener('fm:platform-session:updated', setButtonMode);
+      window.addEventListener('fm:perms:updated', setButtonMode);
       window.addEventListener('fm:language:updated', setButtonMode);
       Promise.resolve(window.PlatformLanguage?.ensure?.(['platform'])).then(setButtonMode).catch(() => null);
       setButtonMode();

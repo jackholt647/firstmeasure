@@ -618,9 +618,66 @@ export async function readPlatformRollout(orgId: string) {
 }
 
 /** An organization is the feature ceiling. An operator can restrict its audience. */
+// ---------------------------------------------------------------------------
+// Country rules (1M8-228)
+// ---------------------------------------------------------------------------
+
+/**
+ * Operator rules that set capability values for organizations in given countries (their country of record,
+ * platform/organization_country.ts). A rule wins over the organization's stored value; later rules win over
+ * earlier ones. Stored as the platform configuration "capability_country_rules".
+ */
+export type CapabilityCountryRule = { countries: string[]; values: Record<string, CapabilityValue>; note?: string };
+const COUNTRY_RULES_TTL_MS = 15_000;
+let countryRulesCache: { at: number; rules: CapabilityCountryRule[] } | null = null;
+
+export function normalizeCapabilityCountryRules(input: unknown): CapabilityCountryRule[] {
+  const rules = Array.isArray(asObject(input).rules) ? asObject(input).rules as unknown[] : Array.isArray(input) ? input : [];
+  if (rules.length > 100) throw badRequest("invalid_country_rules", "At most 100 country rules.");
+  return rules.map((raw, index) => {
+    const rule = asObject(raw);
+    const countries = (Array.isArray(rule.countries) ? rule.countries : []).map(value => cleanText(value).toUpperCase());
+    if (!countries.length || countries.some(code => !/^[A-Z]{2}$/.test(code))) throw badRequest("invalid_country_rules", `Rule ${index + 1} needs one or more two-letter country codes.`);
+    const { values, violations } = validateValueSet(asObject(rule.values));
+    if (violations.length) throw badRequest("invalid_country_rules", `Rule ${index + 1}: ${violations.map(violation => violation.message).join(" ")}`);
+    if (!Object.keys(values).length) throw badRequest("invalid_country_rules", `Rule ${index + 1} sets no capability values.`);
+    const note = cleanText(rule.note).slice(0, 200);
+    return { countries: [...new Set(countries)], values, ...(note ? { note } : {}) };
+  });
+}
+
+export async function readCapabilityCountryRules(fresh = false) {
+  if (!fresh && countryRulesCache && Date.now() - countryRulesCache.at < COUNTRY_RULES_TTL_MS) return countryRulesCache.rules;
+  const raw = await readPlatformConfiguration("capability_country_rules");
+  // A saved rule that no longer validates (say, a removed capability) is skipped, never fatal to flag checks.
+  const saved = raw ? asObject(raw.data ?? raw).rules : [];
+  const rules = (Array.isArray(saved) ? saved : []).flatMap(rule => { try { return normalizeCapabilityCountryRules([rule]); } catch { return []; } });
+  countryRulesCache = { at: Date.now(), rules };
+  return rules;
+}
+
+export async function saveCapabilityCountryRules(input: unknown, actorEmail: string) {
+  const rules = normalizeCapabilityCountryRules(input);
+  await mutatePlatformConfiguration("capability_country_rules", () => ({ data: { rules }, updated_by: actorEmail, updated_at: new Date().toISOString() }));
+  countryRulesCache = { at: Date.now(), rules };
+  return rules;
+}
+
+export function applyCapabilityCountryRules(values: Record<string, CapabilityValue>, country: string, rules: CapabilityCountryRule[]) {
+  const matching = rules.filter(rule => rule.countries.includes(country));
+  return matching.length ? Object.assign({ ...values }, ...matching.map(rule => rule.values)) as Record<string, CapabilityValue> : values;
+}
+
+async function withCountryRules(orgId: string, values: Record<string, CapabilityValue>) {
+  const rules = await readCapabilityCountryRules();
+  if (!rules.length) return values;
+  const { organizationCountryCode } = await import("./organization_country.js");
+  return applyCapabilityCountryRules(values, await organizationCountryCode(orgId), rules);
+}
+
 export async function capabilityValuesForUser(orgId: string, userId?: string, raw?: Record<string, CapabilityValue>, includeOffered = false) {
   const global = includeOffered && raw ? null : await readGlobal(orgId);
-  let values = raw || capabilityValuesFromGlobal(global!);
+  let values = await withCountryRules(orgId, raw || capabilityValuesFromGlobal(global!));
   if (values["platform.expanded_access"] === true) {
     values = await (await import("../platform-billing/service.js")).applyEntitlements(orgId, values);
   }
