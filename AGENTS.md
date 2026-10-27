@@ -21,20 +21,33 @@ Production deployment requires user authorization; honor authorization already g
 ## Shipping code to dev: one way
 
 Code reaches dev.1m8.ai only through the dev push router
-([dev lanes](docs/architecture/dev-lanes.md)). Commit on your branch, rebased
-on the lane tip, then:
+([dev lanes](docs/architecture/dev-lanes.md)). Its repository on the dev sync
+droplet is the source of truth for canonical; GitHub is a mirror. Commit on
+your branch, rebased on the lane tip (`git fetch devpush && git rebase
+devpush/codex/consolidated-firstmeasure-20260923`; the remote `devpush` is added
+on first submit), then:
 
 ```
 node tools/dev-push/submit.mjs --wait
 ```
 
 It picks the lane from your changed paths, queues `HEAD` and waits until it is
-live (exit 0) or rejected with the conflicting files or the failing gate (exit
-1: rebase, fix, submit again). `submit.mjs status --mine` shows your queue.
-Lanes: **config** is data in the config library (never code), **live** is a
-browser file you are tuning (live layer below), **measure-internal** is
-`public/measure/internal/**`, **platform** is everything else. One submission
-holds one lane's files.
+live (exit 0) or rejected with the conflicting files or the failing check and
+what to do next (exit 1: rebase, fix, submit again). `submit.mjs status --mine`
+shows your queue. Lanes: **config** is data in the config library (never
+code), **live** is a browser file you are tuning (live layer below),
+**measure-internal** is `public/measure/internal/**` and `dev/**`,
+**platform** is everything else. One submission holds one lane's files.
+
+**Tests are opt-in.** Every submission gets only checks that take a second or
+two (JavaScript parse, per-file transpile, PHP lint, the few suites under two
+seconds). The type check (`npm run check`, about a minute) and every suite
+named below under "Run ... for changes here" are **regression**: add
+`--regression` (or run `submit.mjs regression` to test without shipping) only
+when you suspect a bug, when Jack asks, or after about 20 minutes or more of
+work. They run once, on the server; do not run them on this PC first. Browser
+files, templates and live saves get no tests. Measured times are in dev lanes,
+"Checks".
 
 Never write or copy per-task rollout scripts (`output/<task>/rollout.py`,
 `deploy.py`, `ship.sh`, `integrate.py`, ...), never SSH to a dev host to stage

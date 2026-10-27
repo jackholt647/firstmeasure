@@ -2,7 +2,7 @@
 
 **Development (dev.1m8.ai) ships only through the dev push router:** commit, then
 `node tools/dev-push/submit.mjs --wait` ([dev lanes](docs/architecture/dev-lanes.md)).
-The router merges, type-checks and tests, builds one release from git and
+The router merges, runs the second-scale checks (tests and the type check are opt-in with `--regression`), builds one release from git and
 activates every dev role together. Per-task rollout scripts, SSH activations on
 dev hosts, `deploy/digitalocean/development-*.md` rollout records and pointer
 lines in this file for dev releases are retired; release records live in the
