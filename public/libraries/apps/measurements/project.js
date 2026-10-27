@@ -4128,18 +4128,17 @@ window.PlatformCommerce.onReady(function(){
     state.panelRoot = resolveRoot(context);
     state.mounted = !!state.panelRoot;
     state.active = context.active !== false;
-    const routedView = window.Portal?.navigation?.read?.().reportView;
-    // Every host call re-runs mount(): apply the routed view only when the route moved, or a stale route value
-    // would override the tab the person just chose.
-    if (routedView && routedView !== appliedRouteView) activeMeasurementTab = routedView;
-    if (routedView) appliedRouteView = routedView;
     if (state.model && window.FirstMateAppContext?.installProjectContextAccessors) {
       window.FirstMateAppContext.installProjectContextAccessors(state.model, { overwrite: false });
     }
     installHostGlobals();
     const routedView = window.Portal?.navigation?.read?.().reportView;
     const chosenView = userMeasurementTab && userMeasurementTabProject === (activeMeasurementProjectId() || '') ? userMeasurementTab : '';
-    if (routedView || chosenView) activeMeasurementTab = routedView || chosenView;
+    // Every host call re-runs mount(): apply the routed view only when the route moved, or a stale route value
+    // would override the tab the person just chose; otherwise a remount keeps the person's tab for this project.
+    if (routedView && routedView !== appliedRouteView) activeMeasurementTab = routedView;
+    else if (chosenView) activeMeasurementTab = chosenView;
+    if (routedView) appliedRouteView = routedView;
     if (state.active && state.panelRoot) renderMeasurementsPanel();
     return api;
   }

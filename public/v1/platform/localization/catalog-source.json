@@ -1333,7 +1333,12 @@
     "m_cf5f3989e6c363": "Create and link contact",
     "m_6cfe7789274143": "Loading docs…",
     "m_c25cc66b28cc9d": "Open",
-    "m_64e56ff491b9dc": "No docs for this contact yet."
+    "m_64e56ff491b9dc": "No docs for this contact yet.",
+    "m_f8e16243e0f91c": "Manage view",
+    "m_ead6d3b487e677": "More",
+    "m_bf18bbe92ba310": "More actions",
+    "m_ea57e48c6efe7a": "Add employer",
+    "m_37d730ce887bee": "Add spouse"
   },
   "crew": {
     "m_b0bb1e74e2a6d3": "Review",
@@ -2011,7 +2016,8 @@
     "m_de8d0881fe4fea": "No documents yet.",
     "m_62997576d7339b": "View all documents",
     "m_53ec6068da7b8a": "Upcoming &amp; Due Payments",
-    "m_1352cafa75b8da": "Status"
+    "m_1352cafa75b8da": "Status",
+    "m_8a8c4b022e62d8": "Make payment"
   },
   "docs": {
     "m_fc54001a0cc000": "Receipts",
@@ -2855,7 +2861,23 @@
     "m_0d2109250f56e7": {
       "message": " Restrict access to these {v3}",
       "format": "icu"
-    }
+    },
+    "m_4aeab53b575a99": "Edit layout",
+    "m_b0f068a022cd0c": "Open the template layout editor for this document",
+    "m_01661039a10c5b": "Add the customer’s email to the project first.",
+    "m_932d28b21801c0": "Who is signing?",
+    "m_b45d2f4ddbe4f5": "The agreement is made out to this person. They review and sign it on this screen, and a sealed copy is emailed to them.",
+    "m_38ccbd6c134964": "Full name",
+    "m_c531a65ac4bc3c": {
+      "message": "{v4} am presenting this agreement in person and will witness this person review and sign it on this screen.",
+      "format": "icu"
+    },
+    "m_ec39dcfd6e1db2": "Continue to sign",
+    "m_cd289fbfa2cfce": "Enter the full name of the person signing.",
+    "m_dc6d0673f049c3": "Enter their email address: the signed copy goes there.",
+    "m_32923c20e947de": "Confirm that you are presenting this in person.",
+    "m_9ba5134ee5d0df": "Preparing the agreement…",
+    "m_a612df7f675c3f": "Preview what they see (nothing can be signed or paid)"
   },
   "equipment": {
     "m_f326bdcd77881a": "Available",
@@ -3757,7 +3779,8 @@
       "format": "icu"
     },
     "m_e05fb49213187a": "Record",
-    "review_full_structural_report": "Review your full structural report"
+    "review_full_structural_report": "Review your full structural report",
+    "m_c3839bf54e2f6b": "Full loop"
   },
   "help": {
     "m_0db6efc53ab2ed": "Need a hand?",
@@ -4478,7 +4501,76 @@
     },
     "m_6ec42894be6710": "Cancel the rest…",
     "m_bae3966338ea32": "Confirm each work order as done, then finalize it. Finalizing marks it completed and to be paid and locks it; its cost then counts as actual in the final expenses. Lines that are not done yet can be paid out later; to finish this step, pay out the rest of each work order or cancel it.",
-    "m_c3275f879c07ed": "Cancel the rest of this work order?"
+    "m_c3275f879c07ed": "Cancel the rest of this work order?",
+    "m_232631c80a3d66": "Nothing left to order",
+    "m_7ff713b3c9b8ba": "Every selected list has already been ordered.",
+    "m_dbddf583da0f88": "The items, quantities and prices are on the attached purchase order.",
+    "m_70318d26ef5e08": "Could not download the purchase order",
+    "m_62077b8964950f": "no order email on file",
+    "m_e7bca94ce54b26": " Copy",
+    "m_c66c415b0e5570": " Send",
+    "m_c3bca49dadf49f": "Copy this supplier's email to paste somewhere else",
+    "m_3bfad752ca46fa": "Send the order as",
+    "m_352828b26795d5": " Purchase order attached (PDF)",
+    "m_09ddfe685b6086": " Table in the email",
+    "m_f6f4c695a63a12": "What the email carries",
+    "m_faf5dbcebbc69b": "Choose the lists to order on the left.",
+    "m_7672a72efe9992": "Purchase order for",
+    "m_ebd488ec036b1f": "The supplier, delivery dates, lines and prices come from the lists on the left. To change how every purchase order is laid out, edit the Purchase Order template in Documents.",
+    "m_cc6dcc983ff29f": " Preparing the purchase order…",
+    "m_87d55382163ac0": {
+      "message": "{v3} item{v4}",
+      "format": "icu"
+    },
+    "m_9b55c1224658ea": "Choose the lists to pick up on the left.",
+    "m_769a829e7771b2": {
+      "message": " Share with {v2}",
+      "format": "icu"
+    },
+    "m_ff5a2a0513a252": "Assign the shopping list to them. It shows in their checklists on this project, where they check items off.",
+    "m_fe18feb118e78a": "No one is assigned to this project's work yet. Share a link instead.",
+    "m_610bef7c6f0d04": "Open the shared list",
+    "m_b6a55f4dd8356a": {
+      "message": "{v0} of {v1} picked up ",
+      "format": "icu"
+    },
+    "m_e71e4904fb4a5f": "Picked up by",
+    "m_121eee90458d07": "Share a link",
+    "m_d6b33273b2a35d": "They can",
+    "m_1b164aeeab02fd": "Check items off",
+    "m_6464833943060a": "Only view the list",
+    "m_8cf345002184e5": "Name",
+    "m_5d2b9327181e33": "Email",
+    "m_f26e8ee261e39d": "Mobile",
+    "m_24957e5191e9b8": " Copy link",
+    "m_f11bbc54c9fb74": "How to order",
+    "m_4c116f5861963a": " Download PO",
+    "m_4c8ec1a0b1056a": " Download shopping list",
+    "m_661d8c95370bd8": " Mark as ordered",
+    "m_96c1e6d48a3958": "Shopping list shared",
+    "m_918dc3b3bc7606": "Could not share the shopping list",
+    "m_e848dacfb0d21d": "Could not make a link",
+    "m_9b68091b586fc3": "Who should get it?",
+    "m_c9d303e02f48fd": "Enter an email address or a mobile number to send the list to.",
+    "m_df6a652e50c9c9": "The link was made but not sent",
+    "m_34a49c645e5c9d": "Shopping list sent",
+    "m_2a5439c730b240": {
+      "message": "Sent to {v0}.",
+      "format": "icu"
+    },
+    "m_5d3f3506f3ada9": "Could not send the shopping list",
+    "m_35970cf717e274": "Could not download the shopping list",
+    "m_eec305f028ad41": "Could not refresh the shopping list",
+    "m_74350f09e0e3da": {
+      "message": "{v0} is in the Documents tab.",
+      "format": "icu"
+    },
+    "m_b996fb68f56869": "Could not write the work order",
+    "m_7b342d1b9f08d9": {
+      "message": "Show {v1} more who {v2} not marked for this work",
+      "format": "icu"
+    },
+    "m_e1a77a52be0af1": "Not marked for this work"
   },
   "measurements": {
     "m_aaf397f737f7b1": "Residential",
@@ -4877,7 +4969,50 @@
     "m_8658b6cca50dd1": "Squares",
     "m_d7e11daf9d1a5e": "1 roofing square = 100 square feet",
     "m_404407dfdead5e": "Pitch is rise per 12 inches of horizontal run.",
-    "m_d6f00e010cae22": "ft"
+    "m_d6f00e010cae22": "ft",
+    "m_ae6d32d4542b7a": "Roof",
+    "m_70ec42f5f91e88": "Walls",
+    "m_308419cd810563": "Base",
+    "m_79488d844674ed": "Click a point on the model",
+    "m_506191e24dd383": "Clear",
+    "m_8cb6b086a0e69c": "Done",
+    "m_478b5b61e7534e": "As built",
+    "m_929d3bd2149645": "Projected",
+    "m_a32f4484b87593": "Openings",
+    "m_aaed1f17747ac4": "Measured",
+    "m_0afa13dfc43109": "Drag to orbit · Scroll to zoom · Click to inspect",
+    "m_55091a5333e03b": "Area labels (roofing squares, wall square feet)",
+    "m_1b9e6a4e4a2f20": "Line lengths",
+    "m_07598013024f29": "Measure",
+    "m_d40837eb898597": "Measure: click two points on the model",
+    "m_6492ba879f94b7": "Layers",
+    "m_bced6b5d590a52": "Design",
+    "m_f7628dd04f27ed": "The house as it was measured",
+    "m_64fc59957587f2": "The finishes you are trying",
+    "m_1268ca4a3ed498": "Choose colors and materials",
+    "m_f98561cb4057f0": "Projected design",
+    "m_4c0f13b75fa00d": "Clear selection",
+    "m_20152b36b5843b": {
+      "message": "{v0} ({v1} ft)",
+      "format": "icu"
+    },
+    "m_7fdcdacddbecb2": "Click the second point",
+    "m_400239fd053991": {
+      "message": "{v0} · click to measure again",
+      "format": "icu"
+    },
+    "m_1855df73e32c10": "Roof face",
+    "m_370403c345ba87": "Model measurements",
+    "m_ec3950f7565119": "Roof trim (fascia)",
+    "m_4a5b1912194aed": "No windows, doors or vents were drawn on this report.",
+    "m_194c5728f1671f": "Chimney top",
+    "m_c583c9590d6be2": "Horizontal return",
+    "m_5d4ee2c328b68b": "Skylight",
+    "m_08710d6591d758": "Ridge caps",
+    "m_29e4b9f7c0859a": "Fascia",
+    "m_e839e628a5c743": "Close design",
+    "m_c1b810cb6841fe": "Reading material lists…",
+    "m_df13f4ec78c9b6": "No roof, siding, trim or door products with a color were found on this project’s material lists."
   },
   "money": {
     "m_487adb3f2ba511": "Loading money...",
@@ -13180,7 +13315,75 @@
     "m_76d0a0f6b92b6b": "Start field",
     "m_6945dd9fd27fb0": "The window starts",
     "m_61e1bda0af7448": "Project Summary",
-    "m_2a3205adcd6f09": "Measurement Breakdown"
+    "m_2a3205adcd6f09": "Measurement Breakdown",
+    "m_4d0c60dd116d3b": "Flat Roof",
+    "m_93d25099514617": "Flat Roof Materials",
+    "m_446cd114d154ff": " Building the sample Full Exterior report&hellip;",
+    "m_20318c30807ae2": "The sample Full Exterior report could not be built. Reload the page to try again.",
+    "m_3f4a7c37a74eb7": "Roof only",
+    "m_3158a35d7e6e84": "Full Exterior",
+    "m_77fc722124c288": "Sample report",
+    "m_bc6dfa48f5d5dd": "Configure delivery copy",
+    "m_631483b63c3bd7": "Send again if this project already received a request",
+    "m_b8071e017821d8": "Agent",
+    "m_0205ee26fb6576": "Show or hide the agent Show or hide the agent",
+    "m_ada2868141dc26": "Calculations",
+    "m_bf56e73c5af69f": "Category name",
+    "m_d432572ead735a": "Icon and color Where this column’s suggested lines come from Remove from every project",
+    "m_691187e28aba8e": "Materials",
+    "m_9896e332451f76": "Price book, suppliers, calculations and resource categories for materials.",
+    "m_f6f7aa53cce791": "Materials settings",
+    "m_b044506f52c36b": "New category",
+    "m_93c3256ec10201": "Price book",
+    "m_d081574464c8b7": "Resource categories",
+    "m_2347a7d748f6a2": "SKU only",
+    "m_a69614c5593592": "Leave out price book items kept only for estimating, which have no SKU to order.",
+    "m_1e507c66b8c967": "Suppliers, locations and delivery",
+    "m_e47cfe1b6de933": "Base %",
+    "m_3d7bbaf151db86": "Every roof gets at least this much",
+    "m_58a98b80c7ef37": "Default labor",
+    "m_3943d61976fd0f": "Default materials",
+    "m_a8e9f5393296d4": "Default materials and labor",
+    "m_b30e0eca7a551b": "Elevation Pages",
+    "m_540b888d2a3171": "The front, back, left and right elevations with every wall face, and faces hidden behind other walls.",
+    "m_263344c3d06fde": "Exterior Quantities",
+    "m_061a1f6f4f5a3e": "Measured lengths, trim by kind and net wall area by material.",
+    "m_3ecf5493eae6f7": "Exterior Summary Page",
+    "m_38536869fc868e": "Wall area, openings and the other exterior totals.",
+    "m_2f6a5f72eee31d": "Factor",
+    "m_4a6375b8cd76a9": "Times this much. 1 is the measurement as it is. Times this much. 1 is the measurement as it is. Remove this measurement",
+    "m_fb3e2631292e3e": "Find",
+    "m_11b11e28334e67": "Full Exterior reports",
+    "m_6a644dafb04cb7": "Page orientation of Full Exterior reports. Landscape unless you choose portrait.",
+    "m_908efb91522810": "Generate {name}",
+    "m_47914910b3588f": "Group",
+    "m_6958149a8f886c": "The heading this line sits under on the materials list.",
+    "m_1c6340b1523634": "Highest %",
+    "m_690684720bfc83": "Hips and valleys %",
+    "m_423c16e86a5cae": "+ % per ft of hip and valley per square",
+    "m_9fcfc280a18dba": "House context",
+    "m_1d7225b6174bb3": "Each wall dimension drawing shows the rest of the house, dimmed, behind the measured face. Off draws the face alone.",
+    "m_ba5dd11f1bb044": "Item type",
+    "m_e4b4c018b07d79": "With no item chosen, the line uses the first price book item of this type. Not found, it uses this rule’s name.",
+    "m_1cce8b6a678ea1": "Lowest %",
+    "m_80b4ad94d85177": "Material Allowances",
+    "m_2cadd69aa09ef5": "Wall material areas and squares with waste allowances.",
+    "m_5d8e29754e64d8": "Measured from",
+    "m_811843baa687e0": "Opening Schedule",
+    "m_6898c0fee67d3e": "Every window, door and garage door with its size and trim.",
+    "m_595d5a2a5e4db1": "Package",
+    "m_164c8d415e56b0": "Report settings",
+    "m_29749272f76740": "Report Settings",
+    "m_56016fcb9281fb": "Roof reports",
+    "m_3d71397521b072": "Page orientation of roof-only reports.",
+    "m_603fb3a8bb0df3": "Steep %",
+    "m_30dda3bd7ab84f": "+ % for a roof all over 8/12",
+    "m_c9dde3d563aaaf": "Wall Dimension Pages",
+    "m_ae3150e4380b3c": "Each wall face and trim face drawn with its dimensions.",
+    "m_604e0010493672": "Wall Notes Page",
+    "m_8b74c5834063f9": "The elevations with the report's wall notes.",
+    "m_0f91b42c832e24": "Waste percent",
+    "m_9b8573b4339e02": "What one package covers"
   },
   "signatures": {
     "m_2ebfdc1730afd2": "Add Work",
@@ -14834,7 +15037,9 @@
       "format": "icu"
     },
     "m_9478c78a65c286": "Refund policy.",
-    "m_80cc879211a2c2": "Payment details are entered securely with Forward and never stored by us."
+    "m_80cc879211a2c2": "Payment details are entered securely with Forward and never stored by us.",
+    "m_84c10102ef8259": "Confirming your bank payment…",
+    "m_30c6f68e691e18": "This takes a few seconds. Please keep this window open."
   },
   "communications-templates": {
     "m_ed956bd0cbfa79": "First name",
@@ -17005,7 +17210,12 @@
     "m_bb245dc0a2357a": "EDIT NOTE",
     "m_cbef679b21abb4": "Cancel",
     "m_1d368860f0287e": "Save changes",
-    "m_df79183a2cbeb6": "EDIT REPLY"
+    "m_df79183a2cbeb6": "EDIT REPLY",
+    "m_3e3d893e7dd7da": {
+      "message": "Current: {v0}. Select an audience to update.",
+      "format": "icu"
+    },
+    "m_9417f96a1856fa": "Apply"
   },
   "settings-pages": {
     "m_a446c433a4d6f0": {
@@ -18157,7 +18367,7 @@
     "internal_user_not_found": "Internal user was not found.",
     "missing_app_flags": "App flags or variants are required.",
     "coupon_not_found": "Coupon was not found.",
-    "protected_collection": "Use the authenticated Prices API.",
+    "protected_collection": "This collection has its own authenticated API.",
     "missing_email": "An email is required to create a login.",
     "unknown_internal_actor": "The internal user could not be verified.",
     "invalid_api_key_mode": "API key mode must be live or test.",
@@ -18474,7 +18684,7 @@
     "missing_avatar": "An avatar file is required.",
     "stripe_customer_create_failed": "Could not create Stripe customer.",
     "payment_amount_mismatch": "Payment amount or currency mismatch.",
-    "project_access_denied": "You do not have access to this report order.",
+    "project_access_denied": "This project is not assigned to you.",
     "invalid_expedite_option": "Choose a valid expedited delivery option.",
     "exterior_delivery_locked": "Full House delivery is selected when ordering and cannot be changed here.",
     "project_not_expeditable": "This report can no longer be expedited.",
@@ -19658,7 +19868,83 @@
     "session_replay_not_found": "That replay session does not exist.",
     "missing_page": "A page id is required.",
     "missing_key": "A key id is required.",
-    "replay_key_not_found": "No active key with that id."
+    "replay_key_not_found": "No active key with that id.",
+    "note_audience_retired": "This audience is no longer available. Choose people, groups or departments.",
+    "presented_signature_output_only": "Only a signature is taken in person here.",
+    "portal_preview_read_only": "This is a preview of what your customer sees. Nothing can be signed, accepted or paid in a preview.",
+    "document_edit_missing": "Nothing to save.",
+    "document_input_not_writable": "That value is not an input of this document.",
+    "document_input_invalid": "Type a number.",
+    "document_text_not_editable": "That text is made from the document's data; change the data instead.",
+    "document_revision_invalid": "Name a revision by its number.",
+    "document_revision_not_found": "That revision was not found.",
+    "document_revision_subject_invalid": "That kind of document has no history.",
+    "guided_experience_missing": "That guided experience does not exist.",
+    "guided_dev_denied": "Guided experience development tools are for platform administrators in development.",
+    "guided_copy_empty": "Copy cannot be empty. Revert it instead.",
+    "guided_copy_revision": "That revision does not exist.",
+    "guided_experience_ineligible": "This guided experience is not available to you.",
+    "guided_experience_no_variant": "No version of this guided experience suits you.",
+    "guided_event_type": "Unknown guided experience event.",
+    "guided_step_unknown": "That step is not part of this experience.",
+    "guided_event_properties": "Event properties are limited to 2 KB.",
+    "guided_complete_route": "Finish this experience through its completion, which runs its action.",
+    "guided_assistant_off": "The assistant is not available.",
+    "session_required": "Acting as someone needs a signed-in admin session.",
+    "already_impersonating": "Stop acting as the current staff member first.",
+    "staff_required": "Internal staff access is required.",
+    "labor_setup_user": "Setting up who does the labor needs a signed-in person.",
+    "work_order_not_labor": "A work order is written from a labor list.",
+    "work_order_wrong_project": "That list belongs to another project.",
+    "work_order_empty": "This project has no work order lists yet.",
+    "work_order_id_taken": "Another document already uses this work order's id.",
+    "materials_generate_user": "Generating materials needs a signed-in person.",
+    "measurement_defaults_invalid": "The lowest waste is above the highest.",
+    "measurement_defaults_revision": "Someone else changed these defaults. Reload them before saving.",
+    "measurement_defaults_unmeasured": "This project has no roof measurements yet. Finish its measurement report, then generate again.",
+    "materials_ordering_user": "A signed-in person writes purchase orders and shopping lists.",
+    "purchase_order_number_contention": "A purchase order number could not be allocated. Try again.",
+    "purchase_order_project": "This purchase order belongs to another project.",
+    "shopping_list_item_not_found": "This item is not on the shopping list.",
+    "shopping_list_empty": "This shopping list has no items.",
+    "materials_settings_permission": "Materials settings need permission to manage company settings or projects.",
+    "materials_settings_user": "Sign in to work on materials settings.",
+    "supplier_prices_user": "Setting supplier prices needs a signed-in person.",
+    "project_exists": "This project already exists. Open it again before saving changes.",
+    "org_user_exists": "That person is already in this account. Change their level in People instead.",
+    "portal_guest_links_disabled": "Guest links are turned off for this organization. Existing links keep working until they expire or are revoked.",
+    "impersonation_restore_mismatch": "The original session does not belong to the administrator who started this session.",
+    "missing_user_id": "A user is required.",
+    "user_exists": "This person is already a member of the organization.",
+    "email_change_requires_verification": "A person's sign-in email is changed from their own account, where the new address is verified.",
+    "self_disable_forbidden": "You cannot disable or remove your own account.",
+    "stripe_session_forbidden": "This checkout session does not belong to this organization.",
+    "refund_not_pending": "This report has no refund waiting.",
+    "refund_amount_invalid": "This report's refund amount is not valid.",
+    "invalid_permission_level": "Choose a valid permission level.",
+    "invalid_billing_amount": "Enter an amount between 0 and 50,000.",
+    "manual_measurements_mode": "Saving measurements requires command execution.",
+    "manual_measurements_unavailable": "This project's scopes name no measurement schema, so there is nothing to enter.",
+    "manual_measurements_empty": "Give at least one measurement to set or clear.",
+    "measurement_equivalence_invalid": "An equivalence names two or more defined measurements.",
+    "cross_site_request": "This request came from another site.",
+    "service_credential_invalid": "The service credential is not valid.",
+    "service_signature_invalid": "The service signature is not valid.",
+    "service_actor_not_staff": "The signed actor is not an active staff member.",
+    "signed_body_too_large": "A signed service request body is too large.",
+    "route_access_undeclared": "This route has no access declaration.",
+    "access_denied": "This account cannot use this route.",
+    "pricebook_setup_roof_types": "Choose at least one kind of roof.",
+    "pricebook_setup_brands": "Choose at least one roofing manufacturer.",
+    "pricebook_setup_material": "There is no materials data for these kinds of roof yet.",
+    "project_manage_denied": "You cannot change this project.",
+    "media_id_taken": "This media id is already in use.",
+    "media_assigned_elsewhere": "This photo already belongs to a project.",
+    "media_write_denied": "This photo cannot be changed by you.",
+    "media_not_paired": "Only photos paired from the Feed can be returned to it.",
+    "invalid_page_pattern": "A page is a path such as /portal/billing, optionally with * for anything; no query string.",
+    "page_rules_exclude_only": "A page rule can only stop recording on that page.",
+    "session_replay_page_excluded": "This page is not recorded."
   },
   "notifications": {
     "document_greeting": {
@@ -20108,7 +20394,9 @@
     "m_4e8c952f0cf65d": "Green",
     "m_878def22dd3973": "Blue",
     "m_6bb25348173069": "Color palette",
-    "m_27b8c8febba9e1": "Enter a 3 or 6 digit hex color."
+    "m_27b8c8febba9e1": "Enter a 3 or 6 digit hex color.",
+    "m_be7965ac7349b2": "Recent colors",
+    "m_989f82b368f52d": "Colors you choose appear here."
   },
   "date-time-picker": {
     "m_6d7a33935956b0": {
@@ -20325,7 +20613,8 @@
     "m_da3e7eb119ea35": "Send a GIF",
     "m_974091bf415ab8": "Remove GIF",
     "m_5cb357cdd8d301": "Could not open contact action",
-    "m_c587aef787417a": "Attach a GIF"
+    "m_c587aef787417a": "Attach a GIF",
+    "m_f23e5a4b942249": "3D model"
   },
   "project-selector": {
     "m_72c2b5831cf3b6": "Project or lead (optional)",
@@ -20372,6 +20661,12 @@
     "m_a0e4a1cdb10e6e": "Transfer to global agent",
     "m_908f323dd932fe": {
       "message": "Preview {v1}",
+      "format": "icu"
+    },
+    "m_186fc46dfb3cc0": "Working",
+    "m_4cd5e2d9c65130": "Conversation",
+    "m_e13f7b6ccc3751": {
+      "message": ".fm-project-content[data-agent-compact=true]'{'grid-template-columns:minmax(0,1fr) 0px!important'}'\n{v0}\n@keyframes fmAgentGlow'{'0%,100%'{'box-shadow:0 0 0 3px rgba(var(--primary-rgb,23,92,211),.16),0 3px 12px rgba(var(--primary-rgb,23,92,211),.38)'}'50%'{'box-shadow:0 0 0 5px rgba(var(--primary-rgb,23,92,211),.1),0 3px 18px rgba(var(--primary-rgb,23,92,211),.55)'}''}'",
       "format": "icu"
     }
   },
@@ -20519,7 +20814,8 @@
     "m_b21558db39995f": "Your roof",
     "m_c44abe253b114a": "Shingles",
     "m_fdbb17d6e9729c": "Underlayment",
-    "m_551d6ed3a0231c": "Ice & water barrier"
+    "m_551d6ed3a0231c": "Ice & water barrier",
+    "m_a15741d2474526": "Aa"
   },
   "image-viewer": {
     "m_2d8510904d5879": "Fit",
@@ -20837,6 +21133,26 @@
     "m_23d5e0c82a8304": "Person",
     "m_c814e4fbc9b9e2": "Device",
     "m_a6c13e38e7e96e": "Pages",
-    "m_345c4a1d9d7ef8": "Open the portal"
+    "m_345c4a1d9d7ef8": "Open the portal",
+    "m_e9d5e8a7822002": "Stop now",
+    "m_c46d4fcfd32aea": "15 min",
+    "m_44a717b6a4cc10": "1 hour",
+    "m_9a59f1aeb7401a": "4 hours",
+    "m_a6519204513246": "Record for",
+    "m_3d303915dce793": "Take it off the list: it is recorded like any other page",
+    "m_e1ac1fa3f059ca": "Every page is recorded for those who are.",
+    "m_6af5a3050c24f9": "Pages never recorded",
+    "m_94d7efb2a20f14": "Nobody is recorded on these pages, whatever the rules above say. A page is its path and hash: ",
+    "m_d44baac9ad3870": "/portal/billing",
+    "m_b1cfce9357fc9e": " stands for anything (",
+    "m_5741722c9a58e0": "/portal/#settings*",
+    "m_906c2998197ec4": " records a page for a while and switches it back off by itself; pages already open start when they are next loaded.",
+    "m_a76046f8374494": "Don’t record this page"
+  },
+  "guided-experiences": {
+    "m_dd0c616953d455": "&times;",
+    "m_6dc5ad59ad2b81": "GX",
+    "m_c9a7bdf120eceb": "&nbsp;$",
+    "m_7e784f9b5540ab": "error"
   }
 }
