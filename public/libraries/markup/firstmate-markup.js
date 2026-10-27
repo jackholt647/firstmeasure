@@ -189,7 +189,9 @@
     if (/\.(mp4|mov|m4v|webm|avi|mkv|ogv)(?:[?#].*)?$/.test(url)) return 'video';
     if (/\.pdf(?:[?#].*)?$/.test(url)) return 'pdf';
     if (/\.(mp3|m4a|wav|aac|flac|oga|ogg)(?:[?#].*)?$/.test(url)) return 'audio';
-    if (/\.(png|jpe?g|gif|webp|bmp|avif|heic)(?:[?#].*)?$/.test(url)) return 'image';
+    if (/\.(png|jpe?g|gif|webp|bmp|avif|heic|svg)(?:[?#].*)?$/.test(url)) return 'image';
+    // A file that says it is a document (or carries a non-media type) is a document, not a broken photo.
+    if (['document', 'file'].includes(explicit) || (mime && !mime.startsWith('image/'))) return 'document';
     return 'image';
   }
   function isVideoMedia(item = {}){ return mediaKind(item) === 'video'; }
@@ -197,7 +199,7 @@
   function photoUrl(photo = {}, variant = 'original'){
     const oid = orgId();
     if (photo.media_id && root.PlatformAPI?.media?.fileUrl) return root.PlatformAPI.media.fileUrl(oid, photo.media_id, variant);
-    return cleanText(variant === 'thumb_320' ? (photo.thumb || photo.src) : (photo.src || photo.thumb));
+    return cleanText(variant === 'thumb_320' ? (photo.thumb || photo.src || photo.url) : (photo.src || photo.url || photo.thumb));
   }
   function safeFileName(value = 'photo', ext = 'jpg'){
     const base = cleanText(value).replace(/[\\/:*?"<>|]+/g, '-').replace(/\s+/g, ' ').trim().slice(0, 90) || 'photo';
@@ -328,7 +330,9 @@
   function loadScriptOnce(id, src){
     if (root[id]) return Promise.resolve(root[id]);
     const existing = document.querySelector(`script[data-loader-id="${id}"]`);
-    if (existing) return new Promise((resolve, reject) => {
+    // A tag that loaded without defining the global (a failed or redirected load) is retried.
+    if (existing?.dataset.loaderState === 'loaded') existing.remove();
+    else if (existing) return new Promise((resolve, reject) => {
       existing.addEventListener('load', () => resolve(root[id]));
       existing.addEventListener('error', reject);
     });
@@ -337,8 +341,8 @@
       script.src = src;
       script.async = true;
       script.dataset.loaderId = id;
-      script.onload = () => resolve(root[id]);
-      script.onerror = reject;
+      script.onload = () => { script.dataset.loaderState = 'loaded'; resolve(root[id]); };
+      script.onerror = (error) => { script.remove(); reject(error); };
       document.head.appendChild(script);
     });
   }
@@ -416,65 +420,179 @@
 
   function injectStyles(){
     root.Portal?.util?.injectCSS?.('firstmate_photo_markup', `
-      .fm-photo-modal{position:fixed;z-index:2147483140;background:rgba(12,18,28,.86);display:flex;align-items:stretch;justify-content:center;color:#fff}
-      .fm-photo-modal-shell{width:100%;height:100%;display:grid;grid-template-columns:minmax(0,1fr) 360px;background:#0b111b}
-      .fm-photo-stage{position:relative;min-width:0;display:flex;align-items:center;justify-content:center;overflow:hidden;background:#070b12}
-      .fm-photo-stage img,.fm-photo-stage video{max-width:100%;max-height:100%;object-fit:contain;display:block}
-      .fm-photo-stage iframe{width:100%;height:100%;border:0;background:#fff;display:block}
-      .fm-photo-stage audio{width:min(620px,calc(100% - 96px));position:relative;z-index:2}
-      .fm-media-file-fallback{max-width:460px;margin:28px;padding:34px;border:1px solid rgba(255,255,255,.14);border-radius:18px;background:rgba(15,23,42,.72);color:#fff;text-align:center;display:flex;flex-direction:column;align-items:center;gap:12px}
-      .fm-media-file-fallback i{font-size:44px;color:rgba(255,255,255,.72)}
-      .fm-media-file-fallback strong{font-size:16px}.fm-media-file-fallback span{font-size:12px;line-height:1.5;color:rgba(255,255,255,.72)}
-      .fm-media-file-fallback a{border-radius:10px;background:#fff;color:#101828;padding:10px 13px;text-decoration:none;font-size:12px;font-weight:900}
-      .fm-photo-stage [hidden]{display:none!important}
-      .fm-photo-top{position:absolute;top:18px;left:18px;right:18px;z-index:20;display:flex;align-items:flex-start;justify-content:space-between;gap:16px;pointer-events:none}
-      .fm-photo-title{min-width:0;text-shadow:0 2px 16px rgba(0,0,0,.5)}
-      .fm-photo-title strong{display:block;font-size:15px;line-height:1.2;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:58vw}
-      .fm-photo-title span{display:block;font-size:12px;color:rgba(255,255,255,.76);margin-top:3px}
-      .fm-photo-actions{display:flex;align-items:flex-start;gap:8px;pointer-events:auto}
+      .fm-photo-modal{--fmv-bg:#f6f7f9;--fmv-stage:#eef0f4;--fmv-bar:#fff;--fmv-fg:#101828;--fmv-muted:#667085;--fmv-soft:#98a2b3;--fmv-line:#eaecf0;--fmv-hover:#f2f4f7;--fmv-glass:rgba(255,255,255,.84);--fmv-glass-hover:#fff;--fmv-glass-fg:#344054;--fmv-glass-line:rgba(16,24,40,.09);--fmv-accent:var(--primary,#2563eb);--fmv-accent-rgb:var(--primary-rgb,37,99,235);--fmv-side:360px;position:fixed;z-index:2147483140;display:flex;align-items:stretch;justify-content:center;color:var(--fmv-fg);background:var(--fmv-bg);overflow:hidden;animation:fmvIn .22s cubic-bezier(.2,.8,.2,1)}
+      .fm-photo-modal.is-inline{position:absolute;inset:0;z-index:1;animation:none;--fmv-side:300px;border-radius:inherit}
+      .fm-photo-modal[hidden]{display:none!important}
+      .fm-photo-modal-shell{width:100%;height:100%;min-height:0;display:grid;grid-template-columns:minmax(0,1fr) var(--fmv-side);background:var(--fmv-bg)}
+      .fm-photo-modal.side-collapsed .fm-photo-modal-shell,.fm-photo-modal.is-empty .fm-photo-modal-shell{grid-template-columns:minmax(0,1fr) 0}
+      .fm-photo-modal.side-collapsed:not(.is-mobile) .fm-photo-side,.fm-photo-modal.is-empty .fm-photo-side{visibility:hidden;border:0}
+      .fmv-main{position:relative;min-width:0;min-height:0;display:flex;flex-direction:column;container-type:inline-size;container-name:fmv-main}
+      .fm-photo-top{position:relative;z-index:30;flex:none;height:56px;display:flex;align-items:center;gap:12px;padding:0 10px 0 14px;background:var(--fmv-bar);border-bottom:1px solid var(--fmv-line)}
+      .fm-photo-modal.is-inline .fm-photo-top{height:50px;padding:0 8px 0 12px;gap:10px}
+      .fmv-title-icon{width:32px;height:32px;flex:none;border-radius:10px;display:grid;place-items:center;font-size:14px;color:var(--fmv-icon,var(--fmv-accent));background:color-mix(in srgb,var(--fmv-icon,var(--fmv-accent)) 12%,#fff)}
+      .fm-photo-title{min-width:0;flex:1}
+      .fm-photo-title strong{display:block;font-size:14px;font-weight:700;line-height:1.25;color:var(--fmv-fg);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+      .fm-photo-title span{display:block;margin-top:2px;font-size:12px;line-height:1.2;color:var(--fmv-muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+      .fm-photo-title span:empty{display:none}
+      .fm-photo-actions{display:flex;align-items:center;gap:4px;flex:none;pointer-events:auto}
       .fm-photo-actions-wrap{position:relative}
-      .fm-photo-iconbtn{pointer-events:auto;width:38px;height:38px;border-radius:999px;border:1px solid rgba(255,255,255,.16);background:rgba(15,23,42,.62);color:#fff;display:flex;align-items:center;justify-content:center;cursor:pointer;backdrop-filter:blur(12px)}
-      .fm-photo-iconbtn:hover{background:rgba(255,255,255,.16)}
-      .fm-photo-actions-menu{position:absolute;right:0;top:46px;width:220px;border:1px solid rgba(255,255,255,.14);border-radius:14px;background:rgba(15,23,42,.92);box-shadow:0 18px 44px rgba(0,0,0,.32);backdrop-filter:blur(16px);padding:6px;display:none}
-      .fm-photo-actions-menu.visible{display:block}
-      .fm-photo-actions-menu button{width:100%;border:0;border-radius:10px;background:transparent;color:#fff;padding:10px 11px;text-align:left;font-size:12px;font-weight:900;cursor:pointer;display:flex;align-items:center;gap:9px}
-      .fm-photo-actions-menu button:hover{background:rgba(255,255,255,.12)}
-      .fm-photo-actions-menu button.danger{color:#fecaca}
+      .fm-photo-iconbtn{pointer-events:auto;width:36px;height:36px;flex:none;border:0;border-radius:10px;background:transparent;color:#475467;display:inline-flex;align-items:center;justify-content:center;font-size:15px;cursor:pointer;transition:background .15s ease,color .15s ease,transform .15s ease}
+      .fm-photo-iconbtn:hover{background:var(--fmv-hover);color:var(--fmv-fg)}
+      .fm-photo-iconbtn[aria-pressed=true],.fm-photo-iconbtn[aria-expanded=true]{background:rgba(var(--fmv-accent-rgb),.1);color:var(--primary-readable,var(--fmv-accent))}
+      .fm-photo-iconbtn:focus-visible,.fmv-toolbtn:focus-visible,.fmv-thumb:focus-visible,.fm-photo-nav:focus-visible{outline:2px solid var(--fmv-accent);outline-offset:2px}
+      .fm-photo-iconbtn[hidden],.fmv-toolbtn[hidden]{display:none!important}
+      .fmv-sep{width:1px;height:22px;background:var(--fmv-line);margin:0 4px;flex:none}
+      .fmv-toolbar{display:flex;align-items:center;gap:6px}
+      .fmv-toolbar:empty,.fmv-toolbar:empty+.fmv-sep{display:none}
+      .fmv-toolbtn{height:32px;display:inline-flex;align-items:center;gap:7px;padding:0 11px;border:1px solid var(--fmv-line);border-radius:9px;background:#fff;color:#344054;font:inherit;font-size:12px;font-weight:600;white-space:nowrap;cursor:pointer;transition:background .15s ease,border-color .15s ease}
+      .fmv-toolbtn:hover{background:var(--fmv-hover);border-color:#d0d5dd}
+      .fmv-toolbtn.primary{background:var(--fmv-accent);border-color:var(--fmv-accent);color:#fff}.fm-photo-modal .fmv-toolbtn.primary,.fm-photo-modal .fmv-toolbtn.primary *{color:#fff!important}.fmv-toolbtn.primary:hover{background:var(--fmv-accent);filter:brightness(.94)}
+      .fm-photo-modal.is-empty :is(.fmv-sep,.fm-photo-actions-wrap,[data-media-info],[data-media-strip-toggle],.fmv-pager,.fm-photo-mobile-bar){display:none!important}
+      .fmv-toolbtn i{font-size:12px}
+      .fmv-pager{display:flex;align-items:center;gap:0;padding:2px;margin-right:2px;border-radius:10px;background:var(--fmv-hover)}
+      .fmv-pager[hidden]{display:none}
+      .fmv-pager button{width:28px;height:28px;border:0;border-radius:8px;background:transparent;color:#475467;cursor:pointer;font-size:11px}
+      .fmv-pager button:hover{background:#fff;color:var(--fmv-fg);box-shadow:0 1px 2px rgba(16,24,40,.08)}
+      .fmv-pager span{min-width:44px;text-align:center;font-size:12px;font-weight:600;color:#344054;font-variant-numeric:tabular-nums}
+      .fm-photo-actions-menu{position:absolute;right:0;top:44px;z-index:90;width:236px;padding:6px;border:1px solid var(--fmv-line);border-radius:14px;background:#fff;color:var(--fmv-fg);box-shadow:0 20px 44px -12px rgba(16,24,40,.28),0 2px 6px rgba(16,24,40,.06);display:none;transform-origin:top right}
+      .fm-photo-actions-menu.visible{display:block;animation:fmvMenuIn .16s cubic-bezier(.2,.8,.2,1)}
+      .fm-photo-actions-menu button{width:100%;border:0;border-radius:9px;background:transparent;color:#344054;padding:9px 10px;text-align:left;font:inherit;font-size:13px;font-weight:600;cursor:pointer;display:flex;align-items:center;gap:10px}
+      .fm-photo-actions-menu button i{width:16px;text-align:center;color:#98a2b3;font-size:13px}
+      .fm-photo-actions-menu button:hover{background:var(--fmv-hover);color:var(--fmv-fg)}
+      .fm-photo-actions-menu button:hover i{color:#475467}
+      .fm-photo-actions-menu button.danger,.fm-photo-actions-menu button.danger i{color:#d92d20}
+      .fm-photo-actions-menu button.danger:hover{background:#fef3f2}
+      .fm-photo-actions-menu button:disabled{opacity:.6;cursor:default}
       .fm-photo-actions-menu button[hidden]{display:none!important}
-      .fm-photo-nav{position:absolute;top:50%;transform:translateY(-50%);z-index:18;width:44px;height:58px;border:1px solid rgba(255,255,255,.14);border-radius:16px;background:rgba(15,23,42,.54);color:#fff;display:flex;align-items:center;justify-content:center;cursor:pointer;backdrop-filter:blur(12px)}
-      .fm-photo-nav.prev{left:18px}.fm-photo-nav.next{right:18px}
-      .fm-photo-side{background:#fff;color:#101828;border-left:1px solid rgba(15,23,42,.08);display:flex;flex-direction:column;min-height:0}
-      .fm-photo-meta{padding:18px;border-bottom:1px solid #eaecf0}
-      .fm-photo-meta h3{margin:0;font-size:16px;line-height:1.25;color:#101828}
-      .fm-photo-project-link{margin:0;border:0;background:transparent;padding:0;text-align:left;font:inherit;font-size:16px;line-height:1.25;font-weight:900;color:#101828;cursor:pointer}
-      .fm-photo-project-link:hover{color:var(--primary-readable,var(--primary,#d93025));text-decoration:underline}
-      .fm-photo-project-link.is-static{cursor:default}
-      .fm-photo-project-link.is-static:hover{color:#101828;text-decoration:none}
-      .fm-photo-meta-row{margin-top:10px;display:flex;align-items:center;gap:8px;color:#475467;font-size:12px;line-height:1.35}
-      .fm-photo-user-row{width:100%;margin-top:10px;border:0;background:transparent;padding:0;display:flex;align-items:center;gap:8px;color:#475467;font:inherit;font-size:12px;line-height:1.35;text-align:left;cursor:pointer}
-      .fm-photo-user-row:hover strong{color:var(--primary-readable,var(--primary,#d93025));text-decoration:underline}
-      .fm-photo-avatar{width:30px;height:30px;border-radius:999px;background:var(--primary,#d93025);color:#fff;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:900;flex:0 0 auto}
-      .fm-photo-tags{display:flex;gap:6px;flex-wrap:wrap;margin-top:12px;align-items:center}
-      .fm-photo-tag{border:0;border-radius:999px;background:#f2f4f7;color:#344054;padding:4px 8px;font-size:11px;font-weight:800}
-      button.fm-photo-tag{cursor:pointer;display:inline-flex;align-items:center;gap:5px}
-      button.fm-photo-tag:hover{background:#fee4e2;color:#b42318}
+      .fm-photo-actions-menu [data-photo-custom-actions]:empty{display:none}
+      .fm-photo-actions-menu [data-photo-custom-actions]:not(:empty){padding-bottom:5px;margin-bottom:5px;border-bottom:1px solid var(--fmv-line)}
+      .fm-photo-actions-menu hr{border:0;border-top:1px solid var(--fmv-line);margin:5px 4px}
+      .fm-photo-stage{position:relative;flex:1;min-width:0;min-height:0;display:flex;align-items:center;justify-content:center;overflow:hidden;padding:16px;background:var(--fmv-stage);box-sizing:border-box}
+      .fm-photo-modal.is-inline .fm-photo-stage{padding:10px}
+      .fm-photo-stage img[data-photo-img]{max-width:100%;max-height:100%;object-fit:contain;display:block;border-radius:6px;box-shadow:0 1px 2px rgba(16,24,40,.06),0 16px 40px -18px rgba(16,24,40,.35);user-select:none;-webkit-user-drag:none;transition:opacity .2s ease}
+      .fm-photo-stage img[data-photo-img].is-loading{opacity:0}
+      .fm-photo-stage video{max-width:100%;max-height:100%;display:block;border-radius:10px;background:#0b0d12;box-shadow:0 16px 40px -18px rgba(16,24,40,.45)}
+      .fm-photo-stage iframe{position:absolute;inset:0;z-index:2;width:100%;height:100%;border:0;background:#fff;display:block}
+      .fm-photo-stage audio{width:min(620px,calc(100% - 96px));position:relative;z-index:2}
+      .fm-photo-stage [hidden]{display:none!important}
+      .fmv-custom-host{position:absolute;inset:0;z-index:3;overflow:auto;background:var(--fmv-stage)}
+      .fmv-details-extra{margin-top:14px;font-size:12.5px;color:#344054;overflow-x:auto}
+      .fmv-details-extra[hidden]{display:none}
+      .fmv-pdf-host{position:absolute;inset:0;z-index:3;min-height:0;overflow:hidden;background:var(--fmv-stage)}
+      .fmv-loading{position:absolute;inset:0;display:grid;place-items:center;color:var(--fmv-muted);font-size:13px;gap:10px;align-content:center}
+      .fmv-loading i{font-size:22px;color:var(--fmv-soft)}
+      .fm-media-file-fallback{position:relative;z-index:2;max-width:400px;margin:24px;padding:30px 28px;border:1px solid var(--fmv-line);border-radius:18px;background:#fff;color:var(--fmv-fg);text-align:center;display:flex;flex-direction:column;align-items:center;gap:10px;box-shadow:0 16px 40px -20px rgba(16,24,40,.3)}
+      .fm-media-file-fallback>i{width:56px;height:56px;border-radius:16px;display:grid;place-items:center;font-size:24px;color:var(--fmv-icon,#475467);background:color-mix(in srgb,var(--fmv-icon,#475467) 12%,#fff)}
+      .fm-media-file-fallback strong{font-size:15px;line-height:1.3;overflow-wrap:anywhere}.fm-media-file-fallback span{font-size:12.5px;line-height:1.5;color:var(--fmv-muted)}
+      .fm-media-file-fallback a{margin-top:6px;border-radius:10px;background:var(--fmv-accent);color:#fff;padding:9px 14px;text-decoration:none;font-size:12.5px;font-weight:700}
+      .fmv-empty{position:relative;z-index:2;max-width:360px;margin:24px;text-align:center;display:flex;flex-direction:column;align-items:center;gap:8px;color:var(--fmv-fg)}
+      .fmv-empty>i{width:60px;height:60px;border-radius:18px;display:grid;place-items:center;font-size:24px;color:var(--primary-readable,var(--fmv-accent));background:rgba(var(--fmv-accent-rgb),.1);margin-bottom:6px}
+      .fmv-empty strong{font-size:15px}.fmv-empty span{font-size:12.5px;line-height:1.5;color:var(--fmv-muted)}
+      .fmv-empty-actions{display:flex;flex-wrap:wrap;justify-content:center;gap:8px;margin-top:10px}
+      .fm-photo-nav{position:absolute;top:50%;z-index:18;width:40px;height:40px;margin-top:-20px;border:1px solid var(--fmv-glass-line);border-radius:999px;background:var(--fmv-glass);backdrop-filter:blur(14px) saturate(1.4);-webkit-backdrop-filter:blur(14px) saturate(1.4);color:var(--fmv-glass-fg);display:flex;align-items:center;justify-content:center;cursor:pointer;font-size:13px;box-shadow:0 8px 24px -10px rgba(16,24,40,.35);opacity:.78;transition:opacity .18s ease,transform .18s ease,background .18s ease}
+      .fm-photo-stage:hover .fm-photo-nav,.fm-photo-nav:focus-visible{opacity:1}
+      .fm-photo-nav:hover{background:var(--fmv-glass-hover);transform:scale(1.06)}
+      .fm-photo-nav.prev{left:16px}.fm-photo-nav.next{right:16px}
+      .fm-photo-modal.is-single .fm-photo-nav,.fm-photo-modal.is-empty .fm-photo-nav,.fm-photo-modal.flat-active .fm-photo-nav,.fm-photo-modal.markup-active .fm-photo-nav{display:none}
+      .fmv-zoom{position:absolute;left:16px;bottom:16px;z-index:20;display:none;align-items:center;gap:2px;padding:3px;border:1px solid var(--fmv-glass-line);border-radius:999px;background:var(--fmv-glass);backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);box-shadow:0 8px 24px -12px rgba(16,24,40,.35)}
+      .fm-photo-modal.image-active:not(.is-mobile):not(.markup-active):not(.is-empty) .fmv-zoom{display:flex}
+      .fmv-zoom button{height:28px;min-width:28px;border:0;border-radius:999px;background:transparent;color:var(--fmv-glass-fg);cursor:pointer;font:inherit;font-size:12px;font-weight:600;font-variant-numeric:tabular-nums;padding:0 6px}
+      .fmv-zoom button:hover{background:rgba(16,24,40,.06)}
+      .fmv-zoom [data-zoom-reset]{min-width:50px}
+      .fm-photo-modal.is-zoomed .fm-photo-stage{cursor:grab}.fm-photo-modal.is-panning .fm-photo-stage{cursor:grabbing}
+      .fm-photo-modal.is-zoomed .fm-photo-stage img[data-photo-img]{box-shadow:none;border-radius:0}
+      .fmv-strip{flex:none;display:none;gap:8px;align-items:center;padding:10px 14px;overflow-x:auto;overflow-y:hidden;background:var(--fmv-bar);border-top:1px solid var(--fmv-line);scrollbar-width:thin;scroll-behavior:smooth}
+      .fm-photo-modal.has-strip .fmv-strip{display:flex}
+      .fmv-thumb{position:relative;flex:0 0 56px;width:56px;height:56px;padding:0;border:0;border-radius:10px;overflow:hidden;background:#f2f4f7;cursor:pointer;opacity:.7;transition:opacity .16s ease,transform .16s ease,box-shadow .16s ease}
+      .fm-photo-modal.is-inline .fmv-thumb{flex-basis:52px;width:52px;height:52px}
+      .fmv-thumb:hover{opacity:1;transform:translateY(-1px)}
+      .fmv-thumb.active{opacity:1;box-shadow:0 0 0 2px var(--fmv-bar),0 0 0 4px var(--fmv-accent)}
+      .fmv-thumb img{width:100%;height:100%;object-fit:cover;display:block}
+      .fmv-thumb-icon{position:absolute;inset:0;display:grid;place-items:center;font-size:20px;color:var(--fmv-icon,#667085);background:color-mix(in srgb,var(--fmv-icon,#667085) 12%,#fff)}
+      .fmv-thumb-icon.has-ext{align-content:center;gap:2px;font-size:16px}.fmv-thumb-ext{font-size:9px;font-weight:800;letter-spacing:.04em;font-family:inherit}
+      @container fmv-main (max-width:760px){.fmv-toolbar .fmv-toolbtn span{display:none}.fmv-toolbar .fmv-toolbtn{width:34px;padding:0;justify-content:center}.fm-photo-modal .fmv-pager span{min-width:36px}}
+      @container fmv-main (max-width:520px){.fmv-title-icon{display:none}}
+      .fmv-thumb-badge{position:absolute;left:4px;bottom:4px;width:18px;height:18px;border-radius:999px;display:grid;place-items:center;font-size:8px;color:#fff;background:rgba(16,24,40,.55)}
+      .fm-photo-side{position:relative;background:#fff;color:var(--fmv-fg);border-left:1px solid var(--fmv-line);display:flex;flex-direction:column;min-height:0;min-width:0;overflow:hidden}
+      .fm-photo-meta{flex:none;max-height:55%;overflow:auto;padding:18px 18px 14px;border-bottom:1px solid var(--fmv-line);overscroll-behavior:contain}
+      .fm-photo-modal.is-inline .fm-photo-meta{padding:14px 14px 12px}
+      .fmv-side-title{display:flex;align-items:flex-start;gap:6px}
+      .fmv-side-title h3{flex:1;min-width:0;margin:0;font-size:16px;font-weight:700;line-height:1.3;color:var(--fmv-fg);overflow-wrap:anywhere}
+      .fmv-side-title h3.can-rename{cursor:text;border-radius:7px;margin:-3px -5px;padding:3px 5px;transition:background .15s ease}
+      .fmv-side-title h3.can-rename:hover{background:var(--fmv-hover)}
+      .fmv-rename-btn{width:26px;height:26px;flex:none;border:0;border-radius:7px;background:transparent;color:var(--fmv-soft);cursor:pointer;font-size:11px;opacity:0;transition:opacity .15s ease}
+      .fmv-side-title:hover .fmv-rename-btn,.fmv-rename-btn:focus-visible{opacity:1}.fmv-rename-btn:hover{background:var(--fmv-hover);color:#475467}
+      .fmv-rename-btn[hidden]{display:none}
+      .fmv-rename-input{width:100%;box-sizing:border-box;margin:-4px -6px;padding:3px 8px;font:inherit;font-size:16px;font-weight:700;line-height:1.3;color:var(--fmv-fg);border:1px solid var(--fmv-accent);border-radius:8px;outline:none;box-shadow:0 0 0 4px rgba(var(--fmv-accent-rgb),.14)}
+      .fm-photo-project-link{display:inline-flex;align-items:center;gap:6px;max-width:100%;margin-top:6px;border:0;background:transparent;padding:0;text-align:left;font:inherit;font-size:12px;font-weight:600;line-height:1.3;color:var(--fmv-muted);cursor:pointer}
+      .fm-photo-project-link span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+      .fm-photo-project-link i{font-size:11px;color:var(--fmv-soft)}
+      .fm-photo-project-link:hover{color:var(--primary-readable,var(--fmv-accent))}
+      .fm-photo-project-link.is-static{cursor:default}.fm-photo-project-link.is-static:hover{color:var(--fmv-muted)}
+      .fm-photo-project-link[hidden]{display:none}
+      .fm-photo-user-row{width:100%;margin-top:14px;border:0;background:transparent;padding:0;display:flex;align-items:center;gap:10px;color:var(--fmv-fg);font:inherit;text-align:left;cursor:pointer}
+      .fm-photo-user-row.is-source{cursor:default}
+      .fm-photo-user-row:not(.is-source):hover strong{color:var(--primary-readable,var(--fmv-accent))}
+      .fm-photo-avatar{width:34px;height:34px;border-radius:999px;background:var(--fmv-accent);color:var(--on-primary,#fff);display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:700;flex:none;overflow:hidden}
+      .fm-photo-avatar img{width:100%;height:100%;object-fit:cover;display:block}
+      .fm-photo-user-row.is-source .fm-photo-avatar{border-radius:10px;font-size:14px;color:var(--fmv-icon,var(--fmv-accent));background:color-mix(in srgb,var(--fmv-icon,var(--fmv-accent)) 12%,#fff)}
+      .fmv-who{min-width:0}.fmv-who strong{display:block;font-size:13px;font-weight:650;line-height:1.3;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+      .fmv-who>span{display:block;margin-top:1px;font-size:12px;line-height:1.3;color:var(--fmv-muted)}
+      .fmv-chips{display:flex;flex-wrap:wrap;gap:6px;margin-top:14px}
+      .fmv-chips:empty{display:none}
+      .fmv-chip{display:inline-flex;align-items:center;gap:6px;height:26px;padding:0 10px;border-radius:999px;background:#f2f4f7;color:#344054;font-size:11.5px;font-weight:600;white-space:nowrap;font-variant-numeric:tabular-nums}
+      .fmv-chip i{font-size:11px;color:#98a2b3}
+      .fm-photo-tags{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px;align-items:center}
+      .fm-photo-tags:empty{display:none}
+      .fm-photo-tag{display:inline-flex;align-items:center;gap:6px;height:26px;border:1px solid rgba(var(--fmv-accent-rgb),.2);border-radius:999px;background:rgba(var(--fmv-accent-rgb),.06);color:var(--primary-readable,var(--fmv-accent));padding:0 10px;font:inherit;font-size:11.5px;font-weight:600;white-space:nowrap}
+      .fm-photo-tag>i:first-child{font-size:10px;opacity:.7}
+      button.fm-photo-tag{cursor:pointer}
+      button.fm-photo-tag .fa-xmark{font-size:10px;opacity:.55}
+      button.fm-photo-tag:hover{background:#fef3f2;border-color:#fecdca;color:#b42318}
       .fm-photo-tag-editor{display:inline-flex;align-items:center;gap:4px}
-      .fm-photo-tag-input{width:104px;border:1px solid #d0d5dd;border-radius:999px;padding:4px 9px;font-size:11px;outline:none}
-      .fm-photo-tag-input:focus{border-color:#1570ef;box-shadow:0 0 0 2px rgba(21,112,239,.12)}
-      .fm-photo-tag-add{width:24px;height:24px;border:0;border-radius:50%;background:#eaf2ff;color:#175cd3;cursor:pointer}
-      .fm-photo-indicators{display:flex;flex-direction:column;gap:8px;margin-top:14px}
-      .fm-photo-indicator{display:grid;grid-template-columns:30px minmax(0,1fr);align-items:center;gap:10px;padding:10px 11px;border:1px solid #d0d5dd;border-radius:13px;background:#f8fafc;color:#344054;box-shadow:0 1px 2px rgba(16,24,40,.04)}
-      .fm-photo-indicator-icon{width:30px;height:30px;border-radius:999px;background:#e4e7ec;color:#475467;display:flex;align-items:center;justify-content:center;font-size:12px}
-      .fm-photo-indicator strong{display:block;font-size:12px;line-height:1.25;color:#101828}.fm-photo-indicator span{display:block;margin-top:2px;font-size:11px;line-height:1.3;color:#667085}
+      .fm-photo-tag-input{width:96px;height:26px;box-sizing:border-box;border:1px dashed #d0d5dd;border-radius:999px;padding:0 10px;font:inherit;font-size:11.5px;background:#fff;outline:none;transition:width .18s ease,border-color .15s ease}
+      .fm-photo-tag-input:focus{width:130px;border-style:solid;border-color:var(--fmv-accent);box-shadow:0 0 0 3px rgba(var(--fmv-accent-rgb),.12)}
+      .fm-photo-tag-add{width:26px;height:26px;border:0;border-radius:50%;background:var(--fmv-hover);color:#475467;cursor:pointer;font-size:11px}
+      .fm-photo-tag-add:hover{background:rgba(var(--fmv-accent-rgb),.12);color:var(--primary-readable,var(--fmv-accent))}
+      .fmv-note{display:flex;align-items:flex-start;gap:8px;margin-top:12px;padding:9px 11px;border-radius:10px;background:#f8f9fb;border:1px solid var(--fmv-line);color:#475467;font-size:12px;line-height:1.4}
+      .fmv-note i{margin-top:2px;color:var(--fmv-soft)}
+      .fmv-note[hidden]{display:none}
+      .fm-photo-indicators{display:flex;flex-direction:column;gap:8px;margin-top:12px}
+      .fm-photo-indicators:empty{display:none}
+      .fm-photo-indicator{display:grid;grid-template-columns:30px minmax(0,1fr);align-items:center;gap:10px;padding:9px 11px;border:1px solid var(--fmv-line);border-radius:12px;background:#f9fafb;color:#344054}
+      .fm-photo-indicator-icon{width:30px;height:30px;border-radius:999px;background:#eaecf0;color:#475467;display:flex;align-items:center;justify-content:center;font-size:12px}
+      .fm-photo-indicator strong{display:block;font-size:12px;line-height:1.25;color:var(--fmv-fg)}.fm-photo-indicator span{display:block;margin-top:2px;font-size:11px;line-height:1.3;color:var(--fmv-muted)}
       .fm-photo-indicator.success{border-color:#abefc6;background:linear-gradient(135deg,#ecfdf3 0%,#f6fef9 100%)}.fm-photo-indicator.success .fm-photo-indicator-icon{background:#d1fadf;color:#067647}
       .fm-photo-indicator.pulse{animation:fm-photo-indicator-pulse .7s ease-out}
-      @keyframes fm-photo-indicator-pulse{0%{transform:scale(.97);box-shadow:0 0 0 0 rgba(18,183,106,.32)}55%{transform:scale(1);box-shadow:0 0 0 7px rgba(18,183,106,0)}100%{box-shadow:0 1px 2px rgba(16,24,40,.04)}}
-      .fm-photo-comments{padding:14px 18px;overflow:auto;flex:1;display:flex;flex-direction:column;gap:12px}
-      .fm-photo-comment{display:grid;grid-template-columns:30px minmax(0,1fr);gap:9px}
-      .fm-photo-comment-body{background:#f8fafc;border:1px solid #eaecf0;border-radius:12px;padding:9px 10px;color:#101828}
-      .fm-photo-comment-head{display:flex;justify-content:space-between;gap:8px;font-size:11px;color:#667085;margin-bottom:4px}
-      .fm-photo-comment-head strong{color:#344054;font-size:12px}
-      .fm-photo-comment-text{font-size:13px;line-height:1.42;white-space:pre-wrap}
+      @keyframes fm-photo-indicator-pulse{0%{transform:scale(.97);box-shadow:0 0 0 0 rgba(18,183,106,.32)}55%{transform:scale(1);box-shadow:0 0 0 7px rgba(18,183,106,0)}100%{box-shadow:none}}
+      .fmv-comments-head{flex:none;display:flex;align-items:center;gap:8px;padding:12px 10px 8px 18px}
+      .fm-photo-modal.is-inline .fmv-comments-head{padding-left:14px}
+      .fmv-comments-head>strong{font-size:13px;font-weight:700;color:var(--fmv-fg)}
+      .fmv-comments-head>i{font-size:13px;color:var(--fmv-soft)}
+      .fmv-count{min-width:20px;height:20px;padding:0 6px;box-sizing:border-box;border-radius:999px;background:#f2f4f7;color:#475467;font-size:11px;font-weight:700;display:inline-flex;align-items:center;justify-content:center;font-variant-numeric:tabular-nums}
+      .fmv-count:empty{display:none}
+      .fmv-comments-head .fm-photo-iconbtn{margin-left:auto;width:30px;height:30px;font-size:12px;border-radius:8px}
+      .fm-photo-comments{position:relative;flex:1;min-height:0;display:flex;flex-direction:column;overflow:hidden}
+      .fm-photo-comments>.fmv-comments-node{display:flex;flex:1;min-height:0;width:100%}
+      .fm-photo-side .pn-workspace{background:#fff;font-size:13px}
+      .fm-photo-side .pn-workspace .pn-tools{display:none;border-bottom:0;padding:0 12px 8px}
+      .fm-photo-side.show-comment-tools .pn-workspace .pn-tools{display:grid;animation:fmvMenuIn .16s ease-out}
+      .fm-photo-side .pn-workspace .pn-history{background:#fff;padding:4px 14px 30px}
+      .fm-photo-side .pn-pinned{background:#fff;padding:0 14px;border-bottom:1px solid var(--fmv-line)}
+      .fm-photo-side .pn-card{border:0;background:#f7f8fa;border-radius:14px;padding:11px 12px;margin-bottom:8px;box-shadow:none}
+      .fm-photo-side .pn-pinned .pn-card{background:#fffaeb}
+      .fm-photo-side .pn-workspace .pn-composer{padding:18px 12px 12px}
+      .fm-photo-side .pn-workspace .pn-composer-box{border-radius:14px;border-color:#d0d5dd;padding:6px 9px 4px;box-shadow:0 1px 2px rgba(16,24,40,.05);background:#fff}
+      .fm-photo-side .pn-workspace .pn-composer-box:focus-within{border-color:var(--fmv-accent);box-shadow:0 0 0 3px rgba(var(--fmv-accent-rgb),.12)}
+      .fm-photo-side .pn-workspace .pn-composer .pn-editor-mount>.fm-ch-formatbar{margin-right:96px;overflow:hidden}
+      .fm-photo-side .pn-workspace .pn-main-audience{max-width:92px}
+      .fm-photo-side .pn-workspace .pn-editor-mount>.fm-ch-rich-editor,.fm-photo-side .pn-workspace .pn-editor-mount>textarea{min-height:40px}
+      .fm-photo-side .pn-workspace .pn-add button{border-radius:8px 0 0 8px;height:28px}
+      .fm-photo-side .pn-workspace .pn-add button+button{border-radius:0 8px 8px 0}
+      .fm-photo-side .pn-filter-menu{top:44px}
+      .fmv-comments-off{margin:6px 16px 16px;padding:26px 18px;border:1px dashed #d0d5dd;border-radius:14px;text-align:center;display:flex;flex-direction:column;align-items:center;gap:6px;background:#fcfcfd}
+      .fmv-comments-off>i{width:40px;height:40px;border-radius:999px;display:grid;place-items:center;background:#f2f4f7;color:#667085;font-size:16px;margin-bottom:4px}
+      .fmv-comments-off strong{font-size:13px;color:var(--fmv-fg)}.fmv-comments-off span{font-size:12px;line-height:1.5;color:var(--fmv-muted)}
       .fm-photo-mention{position:relative;display:inline-flex;align-items:center;vertical-align:baseline;margin:0 1px;padding:1px 5px;border:1px solid rgba(var(--primary-rgb,217,48,37),.2);border-radius:999px;background:rgba(var(--primary-rgb,217,48,37),.08);color:var(--primary-readable,var(--primary,#d93025));font-weight:650;line-height:1.25;white-space:nowrap;cursor:pointer}
       .fm-photo-mention::before{content:'@';font-weight:700;opacity:.8}
       .fm-photo-mention-card{position:fixed;left:0;top:0;z-index:2147483400;width:max-content;min-width:220px;max-width:280px;padding:10px;border:1px solid rgba(15,23,42,.1);border-radius:14px;background:#fff;color:#101828;box-shadow:0 18px 38px rgba(15,23,42,.18);display:none;grid-template-columns:34px minmax(0,1fr);gap:9px;white-space:normal;pointer-events:none}
@@ -483,12 +601,6 @@
       .fm-photo-mention-avatar img{width:100%;height:100%;object-fit:cover;display:block}
       .fm-photo-mention-name{display:block;font-size:13px;font-weight:1000;line-height:1.15;color:#101828;overflow:hidden;text-overflow:ellipsis}
       .fm-photo-mention-email{display:block;margin-top:3px;font-size:11px;font-weight:700;line-height:1.2;color:#667085;overflow:hidden;text-overflow:ellipsis}
-      .fm-photo-comment-empty{border:1px dashed #d0d5dd;border-radius:12px;padding:18px;text-align:center;color:#667085;font-size:13px}
-      .fm-photo-composer{border-top:1px solid #eaecf0;padding:14px 18px;background:#fff}
-      .fm-photo-composer textarea{width:100%;min-height:72px;resize:vertical;border:1px solid #d0d5dd;border-radius:12px;padding:10px 11px;font:inherit;font-size:13px;line-height:1.42;outline:none}
-      .fm-photo-composer textarea:focus{border-color:var(--primary,#d93025);box-shadow:0 0 0 4px rgba(var(--primary-rgb,217,48,37),.12)}
-      .fm-photo-composer-actions{display:flex;justify-content:flex-end;margin-top:10px}
-      .fm-photo-composer-actions button{border:0;border-radius:10px;background:var(--primary,#d93025);color:#fff;font-weight:900;padding:9px 13px;cursor:pointer}
       .fm-photo-markup-layer{position:absolute;inset:0;z-index:10;pointer-events:none}
       .fm-photo-modal.markup-active .fm-photo-markup-layer{pointer-events:auto}
       .fm-photo-modal.video-active .fm-photo-markup-layer,.fm-photo-modal.non-image-active .fm-photo-markup-layer{pointer-events:none}
@@ -523,9 +635,6 @@
       .fm-photo-markup-arrow{fill:none;stroke-linecap:round}
       .fm-photo-modal .r-proposal-markupdock{display:block;top:72px;right:18px}
       .fm-photo-modal.video-active .r-proposal-markupdock,.fm-photo-modal.video-active [data-photo-download-markup],.fm-photo-modal.non-image-active .r-proposal-markupdock,.fm-photo-modal.non-image-active [data-photo-download-markup]{display:none}
-      .fm-photo-modal .fm-video-editdock{position:absolute;right:18px;bottom:18px;z-index:61;display:none}
-      .fm-photo-modal.video-active .fm-video-editdock{display:block}
-      .fm-photo-modal .fm-video-editdock[hidden]{display:none!important}
       .fm-photo-modal .r-proposal-markupdock{position:absolute;z-index:61;width:42px}
       .fm-photo-modal .r-proposal-markupdock.dock-bottom-right{top:auto;right:18px;bottom:18px}
       .fm-photo-modal .r-proposal-markupdock.expanded{width:42px}
@@ -558,36 +667,43 @@
       .fm-photo-modal .r-proposal-markup-color{width:28px;height:28px;border-radius:10px;border:1px solid rgba(15,23,42,.08);cursor:pointer;box-shadow:inset 0 0 0 1px rgba(255,255,255,.45)}
       .fm-photo-modal .r-proposal-markup-color.custom{position:relative;background:conic-gradient(#ff6b6b,#ffd166,#06d6a0,#118ab2,#9b5de5,#ff6b6b)}
       .fm-photo-modal .r-proposal-markup-color input{position:absolute;inset:0;opacity:0;cursor:pointer}
-      @media(max-width:900px){.fm-photo-modal-shell{grid-template-columns:1fr}.fm-photo-side{position:absolute;right:0;top:0;bottom:0;width:min(360px,92vw);box-shadow:-20px 0 44px rgba(0,0,0,.28)}}
-      .fm-photo-mobile-bar,.fm-photo-sheet-handle,.fm-photo-sheet-scrim{display:none}
-      .fm-photo-modal.is-mobile{background:#000;animation:fmPhotoViewerIn .2s ease-out}
-      .fm-photo-modal.is-mobile .fm-photo-modal-shell{grid-template-columns:1fr;background:#000}
-      .fm-photo-modal.is-mobile .fm-photo-stage{background:#000;touch-action:none}
-      .fm-photo-modal.is-mobile .fm-photo-stage img{transform-origin:center center}
-      .fm-photo-modal.is-mobile .fm-photo-top{top:calc(env(safe-area-inset-top,0px) + 8px);left:12px;right:8px;gap:8px;align-items:center;transition:opacity .2s ease,transform .24s ease}
-      .fm-photo-modal.is-mobile .fm-photo-title strong{max-width:100%;font-size:14px}
-      .fm-photo-modal.is-mobile .fm-photo-title span{font-size:11px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-      .fm-photo-modal.is-mobile .fm-photo-iconbtn{width:40px;height:40px;background:rgba(15,23,42,.55)}
-      .fm-photo-modal.is-mobile .fm-photo-actions-menu{position:fixed;left:8px;right:8px;top:auto;bottom:calc(8px + env(safe-area-inset-bottom,0px));width:auto;border-radius:16px;padding:8px;z-index:90;animation:fmPhotoSheetIn .22s cubic-bezier(.2,.8,.2,1)}
-      .fm-photo-modal.is-mobile .fm-photo-top:has(.fm-photo-actions-menu.visible){z-index:95}
-      .fm-photo-modal.is-mobile .fm-photo-actions-menu.visible{box-shadow:0 0 0 100vmax rgba(0,0,0,.45),0 18px 44px rgba(0,0,0,.32)}
-      .fm-photo-modal.is-mobile .fm-photo-meta .fm-photo-meta-row{display:none}
-      .fm-photo-modal.is-mobile .fm-photo-actions-menu button{padding:13px 12px;font-size:14px;font-weight:700;gap:12px}
-      .fm-photo-modal.is-mobile .fm-photo-nav{width:36px;height:48px;border-radius:12px;background:rgba(15,23,42,.38);transition:opacity .2s ease}
-      .fm-photo-modal.is-mobile .fm-photo-nav.prev{left:6px}.fm-photo-modal.is-mobile .fm-photo-nav.next{right:6px}
-      .fm-photo-modal.is-mobile.is-single .fm-photo-nav{display:none}
-      .fm-photo-modal.is-mobile .fm-photo-mobile-bar{position:absolute;left:12px;bottom:calc(env(safe-area-inset-bottom,0px) + 14px);z-index:60;display:flex;align-items:center;gap:8px;transition:opacity .2s ease,transform .24s ease}
-      .fm-photo-modal.is-mobile .fm-photo-details-btn{height:42px;display:inline-flex;align-items:center;gap:8px;padding:0 15px;border:1px solid rgba(255,255,255,.16);border-radius:999px;background:rgba(15,23,42,.62);backdrop-filter:blur(12px);color:#fff;font:inherit;font-size:13px;font-weight:700;cursor:pointer}
-      .fm-photo-modal.is-mobile .fm-photo-details-btn i{font-size:15px}.fm-photo-modal.is-mobile .fm-photo-details-btn span{font-variant-numeric:tabular-nums;color:rgba(255,255,255,.75);font-weight:600}.fm-photo-modal.is-mobile .fm-photo-details-btn span:empty{display:none}
       .fm-photo-modal.is-mobile .r-proposal-markupdock.dock-bottom-right,.fm-photo-modal.is-mobile .fm-video-editdock{right:12px;bottom:calc(env(safe-area-inset-bottom,0px) + 14px);transition:opacity .2s ease}
       .fm-photo-modal.is-mobile .r-proposal-markupdock.expand-left .r-proposal-markup-tools{top:auto;right:0;bottom:52px;flex-direction:column-reverse}
       .fm-photo-modal.is-mobile .r-proposal-markupdock.expand-left .r-proposal-markup-pop{right:52px;left:auto;top:auto;bottom:0;transform:translateX(8px) scale(.96)}
       .fm-photo-modal.is-mobile .r-proposal-markupdock.expand-left .r-proposal-markup-pop.visible{transform:none}
       .fm-photo-modal.is-mobile .fm-photo-markup-layer{touch-action:none}
-      .fm-photo-modal.is-mobile.markup-active .fm-photo-mobile-bar,.fm-photo-modal.is-mobile.markup-active .fm-photo-nav{opacity:0;pointer-events:none}
       .fm-photo-modal.is-mobile.chrome-hidden:not(.markup-active) :is(.fm-photo-top,.fm-photo-mobile-bar,.fm-photo-nav,.r-proposal-markupdock,.fm-video-editdock){opacity:0;pointer-events:none}
-      .fm-photo-modal.is-mobile.chrome-hidden:not(.markup-active) .fm-photo-top{transform:translateY(-8px)}
-      .fm-photo-modal.is-mobile.chrome-hidden:not(.markup-active) .fm-photo-mobile-bar{transform:translateY(8px)}
+      .fm-photo-modal.video-active .r-proposal-markupdock,.fm-photo-modal.video-active [data-photo-download-markup],.fm-photo-modal.non-image-active .r-proposal-markupdock,.fm-photo-modal.non-image-active:not(.pdf-active) [data-photo-download-markup],.fm-photo-modal.is-empty .r-proposal-markupdock{display:none}
+      .fm-photo-modal .r-proposal-markupdock.dock-bottom-right{top:auto;right:16px;bottom:16px}
+      .fm-photo-modal .r-proposal-markup-btn{position:relative;width:42px;height:42px;border-radius:14px;border:1px solid var(--fmv-glass-line);background:var(--fmv-glass);backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);color:#475467;display:flex;align-items:center;justify-content:center;cursor:pointer;box-shadow:0 10px 26px -10px rgba(15,23,42,.35);transition:.18s ease}
+      .fm-photo-modal .r-proposal-markup-tool{width:42px;height:42px;border-radius:14px;border:1px solid rgba(15,23,42,.08);background:rgba(255,255,255,.94);backdrop-filter:blur(14px);color:#475467;display:flex;align-items:center;justify-content:center;cursor:pointer;box-shadow:0 10px 26px -10px rgba(15,23,42,.3);opacity:0;transform:translateY(-14px) scale(.88);transition:opacity .2s ease,transform .26s cubic-bezier(.22,1,.36,1),background .18s ease,color .18s ease,border-color .18s ease}
+      .fm-photo-modal.pdf-viewer-active [data-photo-download-markup]:not([hidden]){display:flex}
+      .fm-photo-modal.is-narrow:not(.is-mobile) .fm-photo-modal-shell{grid-template-columns:minmax(0,1fr) 0}
+      .fm-photo-modal.is-narrow:not(.is-mobile):not(.side-collapsed) .fm-photo-side{position:absolute;right:0;top:56px;bottom:0;z-index:70;width:min(var(--fmv-side),92%);box-shadow:-24px 0 48px -16px rgba(16,24,40,.28);animation:fmvSideIn .24s cubic-bezier(.2,.8,.2,1)}
+      .fm-photo-modal.is-inline.is-narrow:not(.is-mobile):not(.side-collapsed) .fm-photo-side{top:50px}
+      .fm-photo-mobile-bar,.fm-photo-sheet-handle,.fm-photo-sheet-scrim{display:none}
+      .fm-photo-modal.is-mobile .fm-photo-modal-shell{grid-template-columns:1fr}
+      .fm-photo-modal.is-mobile .fm-photo-stage{touch-action:none;padding:0}
+      .fm-photo-modal.is-mobile .fm-photo-stage img[data-photo-img]{transform-origin:center center;border-radius:0;box-shadow:none}
+      .fm-photo-modal.is-mobile .fm-photo-stage video{border-radius:0}
+      .fm-photo-modal.is-mobile:not(.flat-active) .fmv-pager,.fm-photo-modal.is-mobile [data-media-strip-toggle],.fm-photo-modal.is-mobile:not(.flat-active) [data-media-info]{display:none}
+      .fm-photo-modal.is-mobile .fm-photo-actions-menu{position:fixed;left:8px;right:8px;top:auto;bottom:calc(8px + env(safe-area-inset-bottom,0px));width:auto;border-radius:16px;padding:8px;z-index:90;animation:fmPhotoSheetIn .22s cubic-bezier(.2,.8,.2,1)}
+      .fm-photo-modal.is-mobile .fm-photo-top:has(.fm-photo-actions-menu.visible){z-index:95}
+      .fm-photo-modal.is-mobile .fm-photo-actions-menu.visible{box-shadow:0 0 0 100vmax rgba(0,0,0,.45),0 18px 44px rgba(0,0,0,.32)}
+      .fm-photo-modal.is-mobile .fm-photo-actions-menu button{padding:13px 12px;font-size:14px;gap:12px}
+      .fm-photo-modal.is-mobile .fm-photo-nav{width:36px;height:36px;margin-top:-18px;transition:opacity .2s ease}
+      .fm-photo-modal.is-mobile .fm-photo-nav.prev{left:8px}.fm-photo-modal.is-mobile .fm-photo-nav.next{right:8px}
+      .fm-photo-modal.is-mobile .fm-photo-mobile-bar{position:absolute;left:12px;bottom:calc(env(safe-area-inset-bottom,0px) + 14px);z-index:60;display:flex;align-items:center;gap:8px;transition:opacity .2s ease,transform .24s ease}
+      .fm-photo-modal.is-mobile.flat-active .fm-photo-mobile-bar{display:none}
+      .fm-photo-modal.is-mobile .fm-photo-details-btn{height:42px;display:inline-flex;align-items:center;gap:8px;padding:0 15px;border:1px solid var(--fmv-glass-line);border-radius:999px;background:var(--fmv-glass);backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);color:var(--fmv-glass-fg);font:inherit;font-size:13px;font-weight:700;cursor:pointer;box-shadow:0 8px 24px -10px rgba(0,0,0,.4)}
+      .fm-photo-modal.is-mobile .fm-photo-details-btn i{font-size:15px}.fm-photo-modal.is-mobile .fm-photo-details-btn span{font-variant-numeric:tabular-nums;opacity:.7;font-weight:600}.fm-photo-modal.is-mobile .fm-photo-details-btn span:empty{display:none}
+      .fm-photo-modal.is-mobile .r-proposal-markupdock.dock-bottom-right{right:12px;bottom:calc(env(safe-area-inset-bottom,0px) + 14px);transition:opacity .2s ease}
+      .fm-photo-modal.is-mobile .fm-video-editdock{right:12px;top:auto;bottom:calc(env(safe-area-inset-bottom,0px) + 70px);transition:opacity .2s ease}
+      .fm-photo-modal.is-mobile .r-proposal-markupdock.expand-left .r-proposal-markup-tools{top:auto;right:0;bottom:52px;flex-direction:column-reverse}
+      .fm-photo-modal.is-mobile .r-proposal-markupdock.expand-left .r-proposal-markup-pop{right:52px;left:auto;top:auto;bottom:0;transform:translateX(8px) scale(.96)}
+      .fm-photo-modal.is-mobile .r-proposal-markupdock.expand-left .r-proposal-markup-pop.visible{transform:none}
+      .fm-photo-modal.is-mobile .fm-photo-markup-layer{touch-action:none}
+      .fm-photo-modal.is-mobile.markup-active .fm-photo-mobile-bar,.fm-photo-modal.is-mobile.markup-active .fm-photo-nav{opacity:0;pointer-events:none}
       .fm-photo-modal.is-mobile .fm-photo-sheet-scrim{display:block;position:absolute;inset:0;z-index:68;background:rgba(0,0,0,.42);opacity:0;pointer-events:none;transition:opacity .24s ease}
       .fm-photo-modal.is-mobile.sheet-open .fm-photo-sheet-scrim{opacity:1;pointer-events:auto}
       .fm-photo-modal.is-mobile .fm-photo-side{position:absolute;left:0;right:0;top:auto;bottom:0;z-index:70;width:auto;height:min(78%,680px);border:0;border-radius:18px 18px 0 0;box-shadow:0 -18px 48px rgba(0,0,0,.32);overflow:hidden;transform:translateY(calc(100% + 24px));visibility:hidden;transition:transform .32s cubic-bezier(.2,.8,.2,1),visibility 0s linear .32s;padding-bottom:env(safe-area-inset-bottom,0px);box-sizing:border-box}
@@ -596,16 +712,41 @@
       .fm-photo-modal.is-mobile .fm-photo-sheet-handle{display:flex;align-items:center;justify-content:center;position:relative;flex:none;height:30px;touch-action:none;cursor:grab}
       .fm-photo-modal.is-mobile .fm-photo-sheet-handle>span{width:38px;height:4px;border-radius:2px;background:#d0d5dd}
       .fm-photo-modal.is-mobile .fm-photo-sheet-handle>button{position:absolute;right:8px;top:2px;width:32px;height:28px;border:0;border-radius:8px;background:transparent;color:#667085;cursor:pointer}
-      .fm-photo-modal.is-mobile .fm-photo-meta{padding:0 16px 12px}
+      .fm-photo-modal.is-mobile .fm-photo-meta{padding:0 16px 12px;max-height:46%}
+      .fm-photo-modal.is-mobile .fmv-comments-head{padding-left:16px}
       .fm-photo-modal.is-mobile .fm-photo-indicators{flex-direction:row;flex-wrap:wrap;gap:6px;margin-top:10px}
       .fm-photo-modal.is-mobile .fm-photo-indicator{grid-template-columns:24px auto;gap:7px;padding:5px 10px 5px 5px;border-radius:999px}
       .fm-photo-modal.is-mobile .fm-photo-indicator-icon{width:24px;height:24px;font-size:10px}
       .fm-photo-modal.is-mobile .fm-photo-indicator span{display:none}
       .fm-photo-modal.is-mobile .fm-photo-tag-input{width:120px;height:30px;font-size:13px}
       .fm-photo-modal.is-mobile .fm-photo-tag-add{width:30px;height:30px}
+      .fm-photo-modal.is-inline.is-mobile .fm-photo-actions-menu{position:absolute;left:auto;right:0;top:44px;bottom:auto;width:228px;box-shadow:0 20px 44px -12px rgba(16,24,40,.28);animation:fmvMenuIn .16s ease-out}
+      .fm-photo-modal.is-inline.is-mobile .fm-photo-actions-menu button{padding:10px;font-size:13px}
+      .fm-photo-modal.is-inline.is-mobile .fmv-toolbar .fmv-toolbtn span{display:none}
+      .fm-photo-modal.is-inline.is-mobile .fmv-toolbar .fmv-toolbtn{width:34px;padding:0;justify-content:center}
+      .fm-photo-modal.is-inline.is-mobile .fmv-title-icon{display:none}
+      .fm-photo-modal.is-inline.is-mobile .fmv-strip{padding:8px 10px;gap:6px}
+      .fm-photo-modal.is-inline.is-mobile .fmv-thumb{flex-basis:44px;width:44px;height:44px;border-radius:8px}
+      .fm-photo-modal.is-inline.is-mobile .fm-photo-side{height:min(86%,640px)}
+      .fm-photo-modal.is-phone{--fmv-bg:#000;--fmv-stage:#000;--fmv-glass:rgba(255,255,255,.16);--fmv-glass-hover:rgba(255,255,255,.26);--fmv-glass-fg:#fff;--fmv-glass-line:rgba(255,255,255,.18);animation:fmPhotoViewerIn .2s ease-out}
+      .fm-photo-modal.is-phone .fm-photo-top{position:absolute;top:calc(env(safe-area-inset-top,0px) + 8px);left:12px;right:8px;height:auto;padding:0;gap:8px;background:transparent;border:0;transition:opacity .2s ease,transform .24s ease}
+      .fm-photo-modal.is-phone .fmv-title-icon,.fm-photo-modal.is-phone .fmv-sep{display:none}
+      .fm-photo-modal.is-phone .fm-photo-title{color:#fff;text-shadow:0 1px 12px rgba(0,0,0,.6)}
+      .fm-photo-modal.is-phone .fm-photo-title strong{color:#fff;font-size:14px}.fm-photo-modal.is-phone .fm-photo-title span{color:rgba(255,255,255,.76);font-size:11px}
+      .fm-photo-modal.is-phone .fm-photo-iconbtn{width:40px;height:40px;border-radius:999px;color:#fff;background:var(--fmv-glass);border:1px solid var(--fmv-glass-line);backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px)}
+      .fm-photo-modal.is-phone .fm-photo-iconbtn:hover{background:var(--fmv-glass-hover)}
+      .fm-photo-modal.is-phone.flat-active .fm-photo-top{position:relative;top:0;left:0;right:0;padding:calc(env(safe-area-inset-top,0px) + 6px) 8px 6px 12px;background:#0b0d12}
+      .fm-photo-modal.is-phone .fmv-strip{display:none}
+      .fm-photo-modal.is-phone .fmv-pager{background:rgba(255,255,255,.12)}.fm-photo-modal.is-phone .fmv-pager span{color:#fff;min-width:38px}.fm-photo-modal.is-phone .fmv-pager button{color:#fff}.fm-photo-modal.is-phone .fmv-pager button:hover{background:rgba(255,255,255,.16);box-shadow:none}
+      .fm-photo-modal.is-phone.chrome-hidden:not(.markup-active) :is(.fm-photo-top,.fm-photo-mobile-bar,.fm-photo-nav,.r-proposal-markupdock,.fm-video-editdock){opacity:0;pointer-events:none}
+      .fm-photo-modal.is-phone.chrome-hidden:not(.markup-active) .fm-photo-top{transform:translateY(-8px)}
+      .fm-photo-modal.is-phone.chrome-hidden:not(.markup-active) .fm-photo-mobile-bar{transform:translateY(8px)}
       @keyframes fmPhotoSheetIn{from{opacity:0;transform:translateY(20px)}}
       @keyframes fmPhotoViewerIn{from{opacity:0;transform:scale(.985)}}
-      @media(prefers-reduced-motion:reduce){.fm-photo-modal.is-mobile,.fm-photo-modal.is-mobile .fm-photo-side,.fm-photo-modal.is-mobile .fm-photo-actions-menu{animation:none;transition:none}}
+      @keyframes fmvIn{from{opacity:0}}
+      @keyframes fmvMenuIn{from{opacity:0;transform:translateY(-4px) scale(.98)}}
+      @keyframes fmvSideIn{from{opacity:0;transform:translateX(16px)}}
+      @media(prefers-reduced-motion:reduce){.fm-photo-modal,.fm-photo-modal .fm-photo-side,.fm-photo-modal .fm-photo-actions-menu,.fm-photo-modal .fmv-strip{animation:none!important;transition:none!important;scroll-behavior:auto}}
     `);
   }
   function svgPath(points = []){
@@ -1500,6 +1641,12 @@
           item.aspect = this.textAspect(item);
           if (item.autoFit !== false) this.fitTextBoxToContent(item, { fontSize: previousFontSize, element: el });
           this.applyTextBoxElement(item, el);
+          if (item.autoFit === false && el.scrollHeight > el.clientHeight + 1) {
+            const layerHeight = Math.max(1, this.layer?.getBoundingClientRect?.().height || 600);
+            item.height = clamp((el.scrollHeight + 2) / layerHeight, Number(item.height) || 0, Math.max(0.02, 0.995 - Number(item.y || 0)));
+            this.applyTextBoxElement(item, el);
+            this.layer.querySelector(`[data-markup-handle="text-size"][data-markup-id="${CSS.escape(item.id)}"]`)?.style.setProperty('top', `calc(${((Number(item.y || 0) + item.height) * 100).toFixed(3)}% - 10.5px)`);
+          }
           this.emitChange();
         });
         el.addEventListener('keydown', (event) => {
@@ -1528,9 +1675,105 @@
     }
   }
 
+  // The shared viewer for photos, videos, PDFs and other files. As a modal it is bounded to a host region (or full
+  // screen on a phone); with `host` it renders inline as a carousel (mountMediaCarousel). PDFs are drawn by
+  // FirstMatePdf (libraries/pdf-viewer) with its own toolbar and markup dock; the browser's PDF frame is the fallback.
+  const VIEWER_STRIP_KEY = 'fm_media_viewer_strip_v1';
+  const VIEWER_SIDE_KEY = 'fm_media_viewer_side_v1';
+  const DOCUMENT_MARKUP_LAYER = 'document_markup';
+  const PDF_VIEWER_SRC = '/libraries/pdf-viewer/firstmate-pdf-viewer.js?v=20261027-pdf-v1';
+  const CAROUSEL_COMPACT_WIDTH = 640;
+  const STRIP_WINDOW = 160;
+  function readPref(key, fallback){
+    try { const value = root.localStorage?.getItem(key); return value == null ? fallback : value === '1'; } catch (_) { return fallback; }
+  }
+  function writePref(key, value){
+    try { root.localStorage?.setItem(key, value ? '1' : '0'); } catch (_) {}
+  }
+  function formatBytes(bytes){
+    let value = Number(bytes) || 0;
+    if (value <= 0) return '';
+    const units = ['B', 'KB', 'MB', 'GB'];
+    let unit = 0;
+    while (value >= 1024 && unit < units.length - 1) { value /= 1024; unit += 1; }
+    return `${value >= 10 || unit === 0 ? Math.round(value) : value.toFixed(1)} ${units[unit]}`;
+  }
+  function formatDuration(seconds){
+    const total = Math.round(Number(seconds) || 0);
+    if (!total || !Number.isFinite(total)) return '';
+    const h = Math.floor(total / 3600), m = Math.floor((total % 3600) / 60), s = total % 60;
+    return h ? `${h}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}` : `${m}:${String(s).padStart(2, '0')}`;
+  }
+  function faIcon(value, fallback = 'fa-file-lines'){
+    const raw = cleanText(value).split(/\s+/).find((part) => /^fa-[a-z0-9-]+$/.test(part) && !/^fa-(solid|regular|light|brands)$/.test(part)) || '';
+    const name = raw || (/^[a-z0-9-]+$/.test(cleanText(value)) && cleanText(value) ? `fa-${cleanText(value)}` : '');
+    return /^fa-[a-z0-9-]+$/.test(name) ? name : fallback;
+  }
+  function itemKey(photo = {}){ return cleanText(photo.media_id || photo.mediaId || photo.id || photo.photo_id || photo.src || photo.url); }
+  function fileExtension(photo = {}){
+    const name = cleanText(photo.file_name || photo.fileName || photo.name || photo.src || photo.url).split(/[?#]/)[0];
+    const match = name.match(/\.([a-z0-9]{2,5})$/i);
+    return match ? match[1].toUpperCase() : '';
+  }
+  function itemMime(photo = {}){
+    const meta = photo.metadata && typeof photo.metadata === 'object' ? photo.metadata : {};
+    return cleanText(photo.mime_type || photo.mimeType || photo.content_type || photo.contentType || meta.mime_type || meta.content_type).toLowerCase();
+  }
+  function thumbUrl(photo = {}){
+    const kind = mediaKind(photo);
+    const id = cleanText(photo.media_id);
+    if (id && (kind === 'image' || kind === 'video') && root.PlatformAPI?.media?.thumbnailUrl) return root.PlatformAPI.media.thumbnailUrl(orgId(), id, 320);
+    const given = cleanText(photo.thumb || photo.thumbnail_url || photo.thumbnailUrl);
+    if (given && !given.startsWith('fm-doc://')) return given;
+    return kind === 'image' ? photoUrl(photo, 'original') : '';
+  }
+  function kindIcon(kind){
+    return { image:'fa-image', video:'fa-video', pdf:'fa-file-pdf', audio:'fa-music', document:'fa-file-lines' }[kind] || 'fa-file-lines';
+  }
+  function kindLabel(kind, photo = {}){
+    if (kind === 'image') return (globalThis.PlatformLanguage?.text("markup","m_viewer_kind_photo","Photo") ?? "Photo");
+    if (kind === 'video') return (globalThis.PlatformLanguage?.text("markup","m_viewer_kind_video","Video") ?? "Video");
+    if (kind === 'pdf') return 'PDF';
+    if (kind === 'audio') return (globalThis.PlatformLanguage?.text("markup","m_viewer_kind_audio","Audio") ?? "Audio");
+    return fileExtension(photo) || (globalThis.PlatformLanguage?.text("markup","m_viewer_kind_document","Document") ?? "Document");
+  }
+  function pagesFromLayer(result){
+    const data = result?.layer?.data || result?.data || {};
+    return data.pages && typeof data.pages === 'object' && !Array.isArray(data.pages) ? data.pages : {};
+  }
+  async function shortHash(value){
+    const raw = String(value ?? '');
+    try {
+      const bytes = await root.crypto.subtle.digest('SHA-256', new TextEncoder().encode(raw));
+      return [...new Uint8Array(bytes)].slice(0, 6).map((b) => b.toString(16).padStart(2, '0')).join('');
+    } catch (_) {
+      let hash = 2166136261;
+      for (let i = 0; i < raw.length; i += 1) { hash ^= raw.charCodeAt(i); hash = Math.imul(hash, 16777619); }
+      return (hash >>> 0).toString(16).padStart(8, '0');
+    }
+  }
+  // The project document markup key ([a-z0-9_:.-]{1,100}). A generated report keeps one id across re-runs
+  // ("customer_report_pdf"), so its key adds a hash of the file it points at and when it was produced: a
+  // re-measured report starts clean instead of inheriting markup drawn on the old one.
+  async function documentMarkupKey(photo = {}){
+    const doc = photo.__document && typeof photo.__document === 'object' ? photo.__document : photo;
+    const id = cleanText(doc.id || photo.id || photo.doc_id || photo.document_id);
+    const slug = id.toLowerCase().replace(/[^a-z0-9_:.-]+/g, '_').replace(/^_+|_+$/g, '').slice(0, 80);
+    const meta = doc.metadata && typeof doc.metadata === 'object' ? doc.metadata : {};
+    const generated = !!doc.special || /report/.test(cleanText(doc.source || meta.source).toLowerCase());
+    const url = cleanText(doc.url || doc.href || photo.url || photo.src);
+    if (slug && !generated && slug === id.toLowerCase()) return slug;
+    let path = url;
+    try { const parsed = new URL(url, root.location?.href); path = `${parsed.pathname}${parsed.search}`; } catch (_) {}
+    if (!slug && !path) return '';
+    const identity = [path, cleanText(doc.report_id || doc.order_id || meta.report_id || meta.order_id), cleanText(doc.uploaded_at || doc.created_at || meta.created_at)].join('|');
+    return `${slug || 'document'}:${await shortHash(generated ? identity : id)}`.slice(0, 100);
+  }
+  function errorStatus(error){ return Number(error?.status || error?.statusCode || error?.response?.status) || 0; }
+
   class MediaViewer {
     constructor(options = {}){
-      this.photos = Array.isArray(options.photos) ? options.photos : [];
+      this.photos = Array.isArray(options.photos) ? options.photos.slice() : [];
       this.index = clamp(Number(options.index || 0), 0, Math.max(0, this.photos.length - 1));
       this.project = options.project || {};
       this.onClose = options.onClose;
@@ -1545,16 +1788,30 @@
       this.actions = Array.isArray(options.actions) ? options.actions : [];
       this.indicators = Array.isArray(options.indicators) ? options.indicators : [];
       this.boundsTarget = options.boundsTarget || null;
-      this.embedded = options.embedded === true;
+      this.host = options.host && typeof options.host === 'object' && options.host.nodeType === 1 ? options.host : null;
+      this.inline = !!this.host;
+      this.embedded = options.embedded === true || this.inline;
       this.projectLinkEnabled = options.projectLinkEnabled !== false;
       this.itemNoun = cleanText(options.itemNoun || 'photo');
       this.collectionNoun = cleanText(options.collectionNoun || (this.itemNoun === 'photo' ? 'photos' : `${this.itemNoun}s`));
+      this.title = cleanText(options.title);
+      this.toolbar = Array.isArray(options.toolbar) ? options.toolbar.filter(Boolean) : [];
+      this.emptyState = options.emptyState && typeof options.emptyState === 'object' ? options.emptyState : null;
+      this.renderItem = typeof options.renderItem === 'function' ? options.renderItem : null;
+      this.detailsSection = typeof options.details === 'function' ? options.details : null;
+      this.canRenameOption = typeof options.canRename === 'function' ? options.canRename : null;
+      this.stripOn = this.inline ? true : readPref(VIEWER_STRIP_KEY, true);
+      this.sideOpen = this.inline ? options.details !== false : readPref(VIEWER_SIDE_KEY, true);
+      this.compact = false;
+      this.showToken = 0;
       this.comments = [];
       this.mentions = null;
       this.modalHandle = null;
       this.markupSaveTimer = 0;
       this.pendingMarkupSave = null;
       this.markupSavePromise = Promise.resolve();
+      this.pdf = null;
+      this.mediaFacts = {};
       injectStyles();
       this.renderShell();
       this.show(this.index);
@@ -1565,9 +1822,13 @@
       return (photo.__project && typeof photo.__project === 'object') ? photo.__project : (this.project || {});
     }
     close(){
+      if (this.closed) return;
+      this.closed = true;
       this.flushMarkupSave();
       this.modalHandle?.unregister?.();
       this.modalHandle = null;
+      this.teardownPdf();
+      this.teardownCustom();
       this.markup?.destroy?.();
       this.mentions?.destroy?.();
       this.commentsClosed=true;
@@ -1575,8 +1836,11 @@
       this.commentWorkspaces?.clear();
       this.layoutObserver?.disconnect?.();
       this.layoutObserver = null;
+      this.hostObserver?.disconnect?.();
+      this.hostObserver = null;
       if (this.layoutFrame) cancelAnimationFrame(this.layoutFrame);
       if (this.layoutSettleTimer) clearTimeout(this.layoutSettleTimer);
+      this.el?.querySelector?.('[data-photo-video]')?.pause?.();
       this.el?.remove();
       window.removeEventListener('keydown', this.keyHandler);
       this.mobileQuery?.removeEventListener?.('change', this.mobileChange);
@@ -1586,6 +1850,8 @@
       document.removeEventListener('transitionend', this.boundTransitionEnd, true);
       window.removeEventListener('mousedown', this.boundOutsideDown, true);
       window.removeEventListener('mouseup', this.boundOutsideUp, true);
+      window.removeEventListener('pointerdown', this.boundMenuOutside, true);
+      window.removeEventListener('fm:project-notes:refreshed', this.boundCommentsRefreshed);
       if (typeof this.onClose === 'function') this.onClose();
     }
     scheduleMarkupSave(photo = {}, items = []){
@@ -1611,7 +1877,23 @@
       return this.markupSavePromise;
     }
     mediaDisplayName(photo = this.current()){
-      return cleanText(photo.label || photo.name || photo.alt || photo.file_name || photo.fileName);
+      return cleanText(photo.label || photo.name || photo.alt || photo.title || photo.file_name || photo.fileName);
+    }
+    nounFor(photo = this.current()){
+      if (this.itemNoun !== 'photo') return this.itemNoun;
+      const kind = mediaKind(photo);
+      if (kind === 'video') return 'video';
+      if (kind === 'image') return 'photo';
+      return 'document';
+    }
+    canRename(photo = this.current()){
+      if (this.canRenameOption) {
+        let allowed = false;
+        try { allowed = this.canRenameOption({ photo, project: this.currentProject(), viewer: this }) !== false; } catch (_) { allowed = false; }
+        if (!allowed) return false;
+      }
+      if (typeof this.onRename === 'function') return true;
+      return !!cleanText(photo.media_id || photo.mediaId) && typeof root.PlatformAPI?.media?.rename === 'function';
     }
     async renameCurrent(){
       const photo = this.current();
@@ -1622,13 +1904,25 @@
         await (root.PlatformUI?.alert?.((globalThis.PlatformLanguage?.text("markup","m_30eddb404541fc","This item cannot be renamed.") ?? "This item cannot be renamed."), { title: (globalThis.PlatformLanguage?.text("markup","m_abcfa0ca6c43d1","Rename unavailable") ?? "Rename unavailable") }) || Promise.resolve());
         return;
       }
+      // The side panel renames in place; a phone (or a collapsed panel) asks in a dialog.
+      if (!this.mobile && !this.el.classList.contains('side-collapsed') && !this.el.classList.contains('is-narrow')) {
+        this.startInlineRename();
+        return;
+      }
       const current = this.mediaDisplayName(photo);
       const entered = await (root.PlatformUI?.prompt?.(((v0) => globalThis.PlatformLanguage?.text("markup","m_7df4ce03bd425a",`Rename this ${v0}`,{v0}) ?? `Rename this ${v0}`)(this.itemNoun), current, {
         title: (globalThis.PlatformLanguage?.text("markup","m_e32e6dab52dcf9","Rename") ?? "Rename"),
         okLabel: 'Save'
       }) ?? Promise.resolve(root.prompt(((v0) => globalThis.PlatformLanguage?.text("markup","m_7df4ce03bd425a",`Rename this ${v0}`,{v0}) ?? `Rename this ${v0}`)(this.itemNoun), current)));
+      await this.commitRename(entered);
+    }
+    async commitRename(entered){
+      const photo = this.current();
+      const project = this.currentProject();
+      const mediaId = cleanText(photo.media_id || photo.mediaId || photo.id);
+      const current = this.mediaDisplayName(photo);
       const name = cleanText(entered);
-      if (!name || name === current) return;
+      if (!name || name === current || !mediaId) return;
       try {
         const result = await root.PlatformAPI.media.rename(orgId(), mediaId, name);
         const saved = result?.media && typeof result.media === 'object' ? result.media : {};
@@ -1637,8 +1931,7 @@
         photo.name = savedName;
         photo.alt = savedName;
         photo.file_name = cleanText(saved.file_name) || photo.file_name;
-        const title = this.el?.querySelector?.('[data-photo-title]');
-        if (title) title.textContent = savedName;
+        if (this.current() === photo) this.renderTitles(photo);
         root.dispatchEvent(new CustomEvent('fm:media-renamed', {
           detail: { mediaId, name: savedName, fileName: cleanText(photo.file_name), projectId: this.currentProjectId(project) }
         }));
@@ -1646,6 +1939,36 @@
       } catch (error) {
         await (root.PlatformUI?.alert?.(error?.message || 'Could not rename this item.', { title: (globalThis.PlatformLanguage?.text("markup","m_a9069725fd09b3","Rename failed") ?? "Rename failed") }) || Promise.resolve());
       }
+    }
+    startInlineRename(){
+      const photo = this.current();
+      if (!this.canRename(photo)) return;
+      if (typeof this.onRename === 'function') { this.renameCurrent(); return; }
+      const heading = this.el.querySelector('[data-photo-side-title]');
+      if (!heading || heading.querySelector('input')) return;
+      const current = this.mediaDisplayName(photo);
+      const input = document.createElement('input');
+      input.className = 'fmv-rename-input';
+      input.value = current;
+      input.maxLength = 160;
+      input.setAttribute('aria-label', ((v0) => globalThis.PlatformLanguage?.text("markup","m_7df4ce03bd425a",`Rename this ${v0}`,{v0}) ?? `Rename this ${v0}`)(this.nounFor(photo)));
+      heading.replaceChildren(input);
+      input.focus();
+      input.select();
+      let done = false;
+      const finish = async (save) => {
+        if (done) return;
+        done = true;
+        const value = input.value;
+        this.renderTitles(photo);
+        if (save && this.current() === photo) await this.commitRename(value);
+      };
+      input.addEventListener('keydown', (event) => {
+        if (event.key === 'Enter') { event.preventDefault(); finish(true); }
+        else if (event.key === 'Escape') { event.preventDefault(); event.stopPropagation(); finish(false); }
+        event.stopPropagation();
+      });
+      input.addEventListener('blur', () => finish(true));
     }
     currentProjectId(project = this.currentProject()){
       return cleanText(
@@ -1718,24 +2041,51 @@
       await this.show(this.index + 1);
       return saved;
     }
+    // Files the browser can show in a frame. Anything else gets the "open the original" card instead of a frame
+    // that would download it.
+    canFramePreview(photo = {}, kind = mediaKind(photo)){
+      if (kind === 'pdf') return true;
+      const mime = itemMime(photo);
+      if (mime.startsWith('text/') || /^(?:application\/(?:json|xml|[\w.-]+\+(?:json|xml))|image\/svg\+xml)$/.test(mime)) return true;
+      return ['TXT', 'CSV', 'HTML', 'HTM', 'JSON', 'XML', 'MD', 'SVG', 'LOG'].includes(fileExtension(photo));
+    }
     async show(index){
-      this.index = (index + this.photos.length) % this.photos.length;
+      if (!this.el || this.closed) return;
+      if (!this.photos.length) { this.renderEmpty(); return; }
+      this.el.classList.remove('is-empty');
+      this.index = ((Number(index) || 0) % this.photos.length + this.photos.length) % this.photos.length;
+      const token = ++this.showToken;
       const photo = this.current();
       const project = this.currentProject();
-      const up = uploader(photo);
       const img = this.el.querySelector('[data-photo-img]');
       const video = this.el.querySelector('[data-photo-video]');
       const frame = this.el.querySelector('[data-media-frame]');
       const audio = this.el.querySelector('[data-media-audio]');
       const fallback = this.el.querySelector('[data-media-fallback]');
+      const empty = this.el.querySelector('[data-media-empty]');
+      if (empty) empty.hidden = true;
       const kind = mediaKind(photo);
-      const isVideo = kind === 'video';
-      const isImage = kind === 'image';
       const url = photoUrl(photo, 'original');
+      // A caller-drawn item (item.render, or options.renderItem for what the viewer cannot show itself).
+      const custom = this.customRenderer(photo, kind, url);
+      const isVideo = !custom && kind === 'video';
+      const isImage = !custom && kind === 'image';
+      this.mediaFacts = {};
+      this.teardownPdf();
+      this.teardownCustom();
       if (img) {
         img.hidden = !isImage;
-        if (isImage) img.src = url;
-        else img.removeAttribute('src');
+        if (isImage) {
+          if (img.getAttribute('src') !== url) {
+            img.classList.add('is-loading');
+            img.src = url;
+          }
+          img.alt = this.mediaDisplayName(photo);
+          if (img.complete && img.naturalWidth) this.onImageLoaded();
+        } else {
+          img.removeAttribute('src');
+          img.classList.remove('is-loading');
+        }
       }
       if (video) {
         video.hidden = !isVideo;
@@ -1753,15 +2103,16 @@
           video.load?.();
         }
       }
+      // PDFs mount FirstMatePdf below; the frame is for other previewable files and the PDF fallback.
+      const useFrame = !custom && (kind === 'pdf' || kind === 'document') && kind !== 'pdf' && !!url && this.canFramePreview(photo, kind);
       if (frame) {
-        const useFrame = kind === 'pdf' || kind === 'document';
         frame.hidden = !useFrame;
-        if (useFrame) frame.src = `${url}${kind === 'pdf' && !url.includes('#') ? '#view=FitH' : ''}`;
+        if (useFrame) frame.src = url;
         else frame.removeAttribute('src');
       }
       if (audio) {
-        audio.hidden = kind !== 'audio';
-        if (kind === 'audio') {
+        audio.hidden = custom || kind !== 'audio';
+        if (!custom && kind === 'audio') {
           audio.src = url;
           audio.load?.();
         } else {
@@ -1771,63 +2122,540 @@
         }
       }
       if (fallback) {
-        fallback.hidden = !!url || ['image', 'video', 'audio'].includes(kind);
-        fallback.querySelector('[data-media-fallback-title]').textContent = photo.label || photo.name || `This ${this.itemNoun}`;
+        fallback.hidden = !!custom || ['image', 'video', 'audio', 'pdf'].includes(kind) || useFrame;
+        fallback.style.setProperty('--fmv-icon', cleanText(photo.color || photo.__document?.color) || '#475467');
+        fallback.querySelector('[data-media-fallback-icon]').className = `fas ${faIcon(photo.icon || photo.__document?.icon, kindIcon(kind))}`;
+        fallback.querySelector('[data-media-fallback-title]').textContent = this.mediaDisplayName(photo) || `This ${this.nounFor(photo)}`;
         const link = fallback.querySelector('[data-media-fallback-open]');
         if (link) {
           link.hidden = !url;
           link.href = url || '#';
         }
       }
-      const plainDownload = this.el.querySelector('[data-photo-download-plain]');
-      if (plainDownload) plainDownload.innerHTML = isImage ? '<i class="far fa-image"></i> Download without Markup' : '<i class="fas fa-download"></i> Download';
+      for (const name of ['image', 'video', 'pdf', 'audio', 'document']) this.el.classList.toggle(`${name}-active`, !custom && kind === name);
+      this.el.classList.toggle('custom-active', !!custom);
+      this.el.classList.toggle('video-active', isVideo);
+      this.el.classList.toggle('non-image-active', !isImage);
+      this.el.classList.toggle('flat-active', !isImage && !isVideo);
+      this.el.classList.toggle('is-single', this.photos.length < 2);
+      if (custom) this.mountCustom(photo, custom);
+      else if (kind === 'pdf' && url) this.mountPdf(photo, url, token);
+      this.refreshDownloadButtons();
       const deleteButton = this.el.querySelector('[data-photo-delete]');
-      if (deleteButton && this.canDelete !== undefined) {
-        deleteButton.hidden = typeof this.canDelete === 'function'
+      if (deleteButton) {
+        deleteButton.hidden = typeof this.onDeletePhoto !== 'function' || (this.canDelete !== undefined && (typeof this.canDelete === 'function'
           ? this.canDelete({ photo, project, viewer:this }) === false
-          : this.canDelete === false;
+          : this.canDelete === false));
       }
       this.refreshActions();
       this.refreshIndicators();
+      this.renderDetails();
       requestAnimationFrame(() => this.updateMarkupLayerBounds());
-      this.el.querySelector('[data-photo-title]').textContent = photo.label || project.title || project.address || (isVideo ? 'Video' : (isImage ? 'Photo' : this.itemNoun));
-      this.el.querySelector('[data-photo-sub]').textContent = `${up.name || 'Unknown uploader'}${up.at ? ` \u2022 ${formatDateTime(up.at)}` : ''}`;
-      this.el.querySelector('[data-photo-project]').textContent = project.title || project.address || `Project ${this.itemNoun}`;
-      this.el.querySelector('[data-photo-uploader]').textContent = up.name || 'Unknown uploader';
-      this.el.querySelector('[data-photo-uploaded]').textContent = up.at ? formatDateTime(up.at) : 'Unknown time';
-      this.el.querySelector('[data-photo-counter]').textContent = `${this.index + 1} / ${this.photos.length}`;
+      this.renderTitles(photo);
+      this.renderWho(photo);
+      this.renderChips(photo);
+      this.renderNote();
+      this.renderStrip();
       const mobileCounter = this.el.querySelector('[data-photo-mobile-counter]');
       if (mobileCounter) mobileCounter.textContent = this.photos.length > 1 ? `${this.index + 1} / ${this.photos.length}` : '';
-      this.el.classList.toggle('is-single', this.photos.length < 2);
       this.resetZoom?.(false);
-      this.el.querySelector('[data-photo-avatar]').textContent = (up.name || up.email || '?').slice(0, 1).toUpperCase();
-      const userBtn = this.el.querySelector('[data-photo-user-open]');
-      if (userBtn) {
-        userBtn.dataset.photoUserId = up.id || '';
-        userBtn.dataset.photoUserName = up.name || '';
-        userBtn.dataset.photoUserEmail = up.email || '';
-        userBtn.dataset.photoUserAvatar = up.avatar || '';
-      }
       this.renderTags(photo);
       const renameButton = this.el.querySelector('[data-photo-rename]');
-      if (renameButton) renameButton.hidden = !cleanText(photo.media_id) || typeof root.PlatformAPI?.media?.rename !== 'function';
+      if (renameButton) {
+        renameButton.hidden = !cleanText(photo.media_id) || typeof root.PlatformAPI?.media?.rename !== 'function';
+        if (typeof this.onRename === 'function') renameButton.hidden = false;
+        if (this.canRenameOption) renameButton.hidden = !this.canRename(photo);
+      }
       const videoEditDock = this.el.querySelector('[data-video-editdock]');
       if (videoEditDock) videoEditDock.hidden = !isVideo || !root.FirstMateVideoEditor?.isSupported?.() || !url;
       this.markup?.setItems([]);
-      this.el.classList.toggle('video-active', isVideo);
-      this.el.classList.toggle('non-image-active', !isImage);
       if (!isImage) this.markup?.setActive(false);
       this.mountPhotoComments(photo);
       if (photo.media_id && isImage) {
         const items=await loadMarkup(orgId(),photo.media_id);
-        if(this.current()!==photo || !this.el?.isConnected)return;
+        if(this.current()!==photo || token!==this.showToken || !this.el?.isConnected)return;
         this.markup?.setItems(items);
       }
       if (typeof this.onChange === 'function') this.onChange({ photo, index: this.index, project, isVideo, mediaKind:kind });
     }
+    renderEmpty(){
+      this.showToken += 1;
+      this.teardownPdf();
+      this.teardownCustom();
+      this.renderDetails();
+      this.markup?.setActive(false);
+      this.markup?.setItems([]);
+      this.el.classList.add('is-empty', 'is-single');
+      for (const name of ['image', 'video', 'pdf', 'audio', 'document']) this.el.classList.remove(`${name}-active`);
+      this.el.classList.add('non-image-active', 'flat-active');
+      this.el.classList.remove('video-active', 'has-strip');
+      const img = this.el.querySelector('[data-photo-img]');
+      if (img) { img.hidden = true; img.removeAttribute('src'); }
+      const video = this.el.querySelector('[data-photo-video]');
+      if (video) { video.pause?.(); video.hidden = true; video.removeAttribute('src'); }
+      const frame = this.el.querySelector('[data-media-frame]');
+      if (frame) { frame.hidden = true; frame.removeAttribute('src'); }
+      const audio = this.el.querySelector('[data-media-audio]');
+      if (audio) { audio.pause?.(); audio.hidden = true; audio.removeAttribute('src'); }
+      const fallback = this.el.querySelector('[data-media-fallback]');
+      if (fallback) fallback.hidden = true;
+      const state = this.emptyState || {};
+      const empty = this.el.querySelector('[data-media-empty]');
+      if (empty) {
+        const actions = Array.isArray(state.actions) ? state.actions.filter(Boolean) : [];
+        const title = cleanText(state.title) || ((v0) => globalThis.PlatformLanguage?.text("markup","m_viewer_empty_title",`No ${v0} yet`,{v0}) ?? `No ${v0} yet`)(this.collectionNoun);
+        empty.innerHTML = `<i class="fas ${faIcon(state.icon, this.itemNoun === 'photo' ? 'fa-images' : 'fa-folder-open')}"></i><strong>${escapeHtml(title)}</strong>${cleanText(state.body) ? `<span>${escapeHtml(state.body)}</span>` : ''}${actions.length ? `<div class="fmv-empty-actions">${actions.map((action, i) => `<button type="button" class="fmv-toolbtn${action.primary || i === 0 ? ' primary' : ''}" data-media-empty-action="${i}">${action.icon ? `<i class="fas ${faIcon(action.icon, 'fa-plus')}"></i>` : ''}<span>${escapeHtml(typeof action.label === 'function' ? action.label({ viewer:this }) : action.label || '')}</span></button>`).join('')}</div>` : ''}`;
+        empty.querySelectorAll('[data-media-empty-action]').forEach((button) => button.addEventListener('click', () => {
+          const action = actions[Number(button.dataset.mediaEmptyAction)];
+          if (typeof action?.onClick === 'function') action.onClick({ viewer:this, project:this.project });
+        }));
+        empty.hidden = false;
+      }
+      const title = this.el.querySelector('[data-photo-title]');
+      if (title) title.textContent = this.title || (this.collectionNoun.charAt(0).toUpperCase() + this.collectionNoun.slice(1));
+      const sub = this.el.querySelector('[data-photo-sub]');
+      if (sub) sub.textContent = '';
+      const icon = this.el.querySelector('[data-media-title-icon]');
+      if (icon) { icon.innerHTML = `<i class="fas ${this.itemNoun === 'photo' ? 'fa-images' : 'fa-folder-open'}"></i>`; icon.style.removeProperty('--fmv-icon'); }
+      const pager = this.el.querySelector('[data-media-pager]');
+      if (pager) pager.hidden = true;
+      const strip = this.el.querySelector('[data-media-strip]');
+      if (strip) strip.replaceChildren();
+      this.stripRange = null;
+      this.setSheet(false);
+      this.mountPhotoComments(null);
+    }
+    renderTitles(photo = this.current()){
+      if (!this.el || !this.photos.length) return;
+      const project = this.currentProject();
+      const kind = mediaKind(photo);
+      const name = this.mediaDisplayName(photo) || project.title || project.address || kindLabel(kind, photo);
+      const title = this.el.querySelector('[data-photo-title]');
+      if (title) title.textContent = name;
+      const side = this.el.querySelector('[data-photo-side-title]');
+      if (side) {
+        side.textContent = name;
+        const renameable = this.canRename(photo);
+        side.classList.toggle('can-rename', renameable);
+        side.title = renameable ? ((globalThis.PlatformLanguage?.text("markup","m_viewer_click_rename","Click to rename") ?? "Click to rename")) : '';
+        const pencil = this.el.querySelector('[data-photo-side-rename]');
+        if (pencil) pencil.hidden = !renameable;
+      }
+      const up = uploader(photo);
+      const position = this.photos.length > 1 ? ((v0,v1,v2) => globalThis.PlatformLanguage?.text("markup","m_viewer_position",`${v0} ${v1} of ${v2}`,{v0,v1,v2}) ?? `${v0} ${v1} of ${v2}`)(kindLabel(kind, photo), this.index + 1, this.photos.length) : kindLabel(kind, photo);
+      const sub = this.el.querySelector('[data-photo-sub]');
+      if (sub) sub.textContent = [position, up.at ? formatDateTime(up.at) : ''].filter(Boolean).join(' · ');
+      const icon = this.el.querySelector('[data-media-title-icon]');
+      if (icon) {
+        icon.innerHTML = `<i class="fas ${faIcon(photo.icon || photo.__document?.icon, kindIcon(kind))}"></i>`;
+        const color = cleanText(photo.color || photo.__document?.color);
+        if (/^#[0-9a-f]{3,8}$/i.test(color)) icon.style.setProperty('--fmv-icon', color); else icon.style.removeProperty('--fmv-icon');
+      }
+      const counter = this.el.querySelector('[data-photo-counter]');
+      if (counter) counter.textContent = `${this.index + 1} / ${this.photos.length}`;
+      const pager = this.el.querySelector('[data-media-pager]');
+      if (pager) pager.hidden = this.photos.length < 2;
+      const projectLink = this.el.querySelector('[data-photo-project]');
+      if (projectLink) {
+        const label = cleanText(project.title || project.address);
+        projectLink.hidden = !label;
+        const span = projectLink.querySelector('span');
+        if (span) span.textContent = label;
+      }
+    }
+    // Who added an item, or where it came from when nobody did (a report, a generated document).
+    sourceOf(photo = {}){
+      const doc = photo.__document && typeof photo.__document === 'object' ? photo.__document : photo;
+      const meta = doc.metadata && typeof doc.metadata === 'object' ? doc.metadata : (photo.metadata || {});
+      const source = cleanText(doc.source || meta.source).toLowerCase();
+      const type = cleanText(doc.document_type || doc.type).toLowerCase();
+      const typeLabel = cleanText(doc.type_label);
+      const kind = mediaKind(photo);
+      if (type.includes('report') || source.includes('report')) return { icon: faIcon(doc.icon, 'fa-file-lines'), label: (globalThis.PlatformLanguage?.text("markup","m_viewer_source_report","FirstMate report") ?? "FirstMate report") };
+      if (source === 'document_engine') return { icon: faIcon(doc.icon, 'fa-file-signature'), label: typeLabel ? ((v0) => globalThis.PlatformLanguage?.text("markup","m_viewer_source_document_typed",`FirstMate ${v0}`,{v0}) ?? `FirstMate ${v0}`)(typeLabel.toLowerCase()) : (globalThis.PlatformLanguage?.text("markup","m_viewer_source_document","FirstMate document") ?? "FirstMate document") };
+      if (source === 'payments_invoice' || type === 'invoice') return { icon: faIcon(doc.icon, 'fa-file-invoice-dollar'), label: (globalThis.PlatformLanguage?.text("markup","m_viewer_source_invoice","FirstMate invoice") ?? "FirstMate invoice") };
+      if (typeLabel && photo.__document) return { icon: faIcon(doc.icon, kindIcon(kind)), label: typeLabel };
+      return { icon: kindIcon(kind), label: ((v0) => globalThis.PlatformLanguage?.text("markup","m_viewer_source_added",`${v0} added`,{v0}) ?? `${v0} added`)(kindLabel(kind, photo)) };
+    }
+    renderWho(photo = this.current()){
+      const row = this.el.querySelector('[data-photo-user-open]');
+      if (!row) return;
+      const up = uploader(photo);
+      const avatar = row.querySelector('[data-photo-avatar]');
+      const name = row.querySelector('[data-photo-uploader]');
+      const when = row.querySelector('[data-photo-uploaded]');
+      const hasUser = !!(up.name || up.email);
+      row.classList.toggle('is-source', !hasUser);
+      row.disabled = !hasUser;
+      row.style.removeProperty('--fmv-icon');
+      if (hasUser) {
+        avatar.innerHTML = up.avatar && /^(https?:|\/|data:image\/)/.test(up.avatar) ? `<img src="${escapeHtml(up.avatar)}" alt="">` : escapeHtml((up.name || up.email).slice(0, 1).toUpperCase());
+        name.textContent = up.name || up.email;
+      } else {
+        const source = this.sourceOf(photo);
+        avatar.innerHTML = `<i class="fas ${source.icon}"></i>`;
+        const color = cleanText(photo.color || photo.__document?.color);
+        if (/^#[0-9a-f]{3,8}$/i.test(color)) row.style.setProperty('--fmv-icon', color);
+        name.textContent = source.label;
+      }
+      when.textContent = up.at ? formatDateTime(up.at) : '';
+      row.dataset.photoUserId = hasUser ? up.id || '' : '';
+      row.dataset.photoUserName = hasUser ? up.name || '' : '';
+      row.dataset.photoUserEmail = hasUser ? up.email || '' : '';
+      row.dataset.photoUserAvatar = hasUser ? up.avatar || '' : '';
+    }
+    renderChips(photo = this.current()){
+      const host = this.el?.querySelector?.('[data-media-chips]');
+      if (!host || this.current() !== photo) return;
+      const kind = mediaKind(photo);
+      const meta = photo.metadata && typeof photo.metadata === 'object' ? photo.metadata : {};
+      const doc = photo.__document || {};
+      const chips = [{ icon: kindIcon(kind), text: kindLabel(kind, photo) }];
+      const facts = this.mediaFacts || {};
+      if (facts.pages) chips.push({ icon: 'fa-copy', text: facts.pages === 1 ? (globalThis.PlatformLanguage?.text("markup","m_viewer_one_page","1 page") ?? "1 page") : ((v0) => globalThis.PlatformLanguage?.text("markup","m_viewer_pages",`${v0} pages`,{v0}) ?? `${v0} pages`)(facts.pages) });
+      if (facts.width && facts.height) chips.push({ icon: 'fa-expand', text: `${facts.width} × ${facts.height}` });
+      if (facts.duration) chips.push({ icon: 'fa-clock', text: formatDuration(facts.duration) });
+      const size = formatBytes(photo.size_bytes || photo.sizeBytes || photo.size || meta.size_bytes || meta.size || doc.size_bytes);
+      if (size) chips.push({ icon: 'fa-weight-hanging', text: size });
+      host.innerHTML = chips.map((chip) => `<span class="fmv-chip"><i class="fas ${chip.icon}"></i>${escapeHtml(chip.text)}</span>`).join('');
+    }
+    renderNote(){
+      const note = this.el?.querySelector?.('[data-media-note]');
+      if (!note) return;
+      const mode = this.pdf && this.pdfMarkup?.enabled ? this.pdfMarkup.mode : 'saved';
+      note.hidden = mode === 'saved';
+      if (mode === 'readonly') note.innerHTML = `<i class="fas fa-lock"></i><span>${(globalThis.PlatformLanguage?.htmlText("markup","m_viewer_markup_read_only","You can see markup on this file, but changes you draw aren't saved.") ?? "You can see markup on this file, but changes you draw aren't saved.")}</span>`;
+      else if (mode === 'unsaved') note.innerHTML =`<i class="fas fa-circle-info"></i><span>${(globalThis.PlatformLanguage?.htmlText("markup","m_viewer_markup_not_saved","Markup on this file isn't saved. Download it with markup to keep a copy.") ?? "Markup on this file isn't saved. Download it with markup to keep a copy.")}</span>`;
+    }
+    onImageLoaded(){
+      const img = this.el?.querySelector?.('[data-photo-img]');
+      if (!img) return;
+      img.classList.remove('is-loading');
+      if (img.naturalWidth && mediaKind(this.current()) === 'image') {
+        this.mediaFacts = { ...this.mediaFacts, width: img.naturalWidth, height: img.naturalHeight };
+        this.renderChips();
+      }
+      this.scheduleLayoutRefresh();
+    }
+    renderStrip(){
+      const strip = this.el?.querySelector?.('[data-media-strip]');
+      if (!strip) return;
+      const show = this.photos.length > 1 && this.stripOn && !(this.mobile && !this.inline);
+      this.el.classList.toggle('has-strip', show);
+      const toggle = this.el.querySelector('[data-media-strip-toggle]');
+      if (toggle) {
+        toggle.hidden = this.inline || this.photos.length < 2;
+        toggle.setAttribute('aria-pressed', String(!!this.stripOn));
+      }
+      if (!show) return;
+      const n = this.photos.length;
+      let range = this.stripRange;
+      if (!range || range.n !== n || this.index < range.start + (range.start ? 8 : 0) || this.index >= range.end - (range.end < n ? 8 : 0)) {
+        const start = n <= STRIP_WINDOW ? 0 : clamp(this.index - Math.floor(STRIP_WINDOW / 2), 0, n - STRIP_WINDOW);
+        range = { n, start, end: Math.min(n, start + STRIP_WINDOW) };
+        this.stripRange = range;
+        let html = '';
+        for (let i = range.start; i < range.end; i += 1) {
+          const photo = this.photos[i] || {};
+          const kind = mediaKind(photo);
+          const src = thumbUrl(photo);
+          const color = cleanText(photo.color || photo.__document?.color);
+          const label = this.mediaDisplayName(photo) || kindLabel(kind, photo);
+          html += `<button type="button" class="fmv-thumb" data-media-thumb="${i}" title="${escapeHtml(label)}" aria-label="${escapeHtml(label)}"${/^#[0-9a-f]{3,8}$/i.test(color) ? ` style="--fmv-icon:${color}"` : ''}>${src ? `<img src="${escapeHtml(src)}" alt="" loading="lazy" decoding="async" draggable="false">` : `<span class="fmv-thumb-icon has-ext"><i class="fas ${faIcon(photo.icon || photo.__document?.icon, kindIcon(kind))}"></i>${(kind === 'pdf' ? 'PDF' : fileExtension(photo)) ? `<span class="fmv-thumb-ext">${escapeHtml((kind === 'pdf' ? 'PDF' : fileExtension(photo)).slice(0, 5))}</span>` : ''}</span>`}${kind === 'video' ? '<span class="fmv-thumb-badge"><i class="fas fa-play"></i></span>' : ''}</button>`;
+        }
+        strip.innerHTML = html;
+        strip.querySelectorAll('img').forEach((image) => image.addEventListener('error', () => {
+          const button = image.closest('[data-media-thumb]');
+          const photo = this.photos[Number(button?.dataset.mediaThumb)] || {};
+          image.replaceWith(Object.assign(document.createElement('span'), { className: 'fmv-thumb-icon', innerHTML: `<i class="fas ${kindIcon(mediaKind(photo))}"></i>` }));
+        }, { once: true }));
+      }
+      strip.querySelectorAll('.fmv-thumb.active').forEach((node) => { node.classList.remove('active'); node.removeAttribute('aria-current'); });
+      const active = strip.querySelector(`[data-media-thumb="${this.index}"]`);
+      if (active) {
+        active.classList.add('active');
+        active.setAttribute('aria-current', 'true');
+        const left = active.offsetLeft - strip.clientWidth / 2 + active.offsetWidth / 2;
+        if (strip.scrollTo) strip.scrollTo({ left: Math.max(0, left) });
+        else strip.scrollLeft = Math.max(0, left);
+      }
+    }
+    setStrip(on){
+      this.stripOn = !!on;
+      if (!this.inline) writePref(VIEWER_STRIP_KEY, this.stripOn);
+      this.renderStrip();
+      this.scheduleLayoutRefresh();
+    }
+    setSide(open){
+      this.sideOpen = !!open;
+      if (!this.inline) writePref(VIEWER_SIDE_KEY, this.sideOpen);
+      this.applySide();
+      this.scheduleLayoutRefresh();
+    }
+    applySide(){
+      if (!this.el) return;
+      const narrow = this.el.classList.contains('is-narrow');
+      const open = narrow ? !!this.narrowSideOpen : this.sideOpen;
+      this.el.classList.toggle('side-collapsed', !this.mobile && !open);
+      const info = this.el.querySelector('[data-media-info]');
+      if (info) info.setAttribute('aria-pressed', String(this.mobile ? this.el.classList.contains('sheet-open') : open));
+      const side = this.el.querySelector('.fm-photo-side');
+      if (side && !this.mobile) side.inert = !open;
+    }
+    toggleInfo(){
+      if (this.mobile) { this.setSheet(!this.el.classList.contains('sheet-open')); return; }
+      if (this.el.classList.contains('is-narrow')) { this.narrowSideOpen = !this.narrowSideOpen; this.applySide(); return; }
+      this.setSide(!this.sideOpen);
+    }
+    refreshDownloadButtons(){
+      if (!this.el) return;
+      const kind = mediaKind(this.current());
+      const plain = this.el.querySelector('[data-photo-download-plain]');
+      const marked = this.el.querySelector('[data-photo-download-markup]');
+      if (kind === 'image') {
+        if (marked) { marked.hidden = false; marked.innerHTML = `<i class="fas fa-download"></i>${(globalThis.PlatformLanguage?.htmlText("markup","m_f3ad10eaad3ccf"," Download") ?? " Download")}`; }
+        if (plain) plain.innerHTML = `<i class="far fa-image"></i>${(globalThis.PlatformLanguage?.htmlText("markup","m_42f3ea50e49555"," Download without Markup") ?? " Download without Markup")}`;
+      } else {
+        if (plain) plain.innerHTML = `<i class="fas fa-download"></i>${(globalThis.PlatformLanguage?.htmlText("markup","m_f3ad10eaad3ccf"," Download") ?? " Download")}`;
+        if (marked) {
+          marked.hidden = !(kind === 'pdf' && this.pdf?.download);
+          marked.innerHTML = `<i class="fas fa-pen-to-square"></i>${(globalThis.PlatformLanguage?.htmlText("markup","m_viewer_download_with_markup"," Download with markup") ?? " Download with markup")}`;
+        }
+      }
+      // Images list "with markup" first (the default download); other files list the plain download first.
+      if (plain && marked && plain.parentElement === marked.parentElement) {
+        if (kind === 'image' && plain.previousElementSibling !== marked) marked.after(plain);
+        else if (kind !== 'image' && marked.previousElementSibling !== plain) plain.after(marked);
+      }
+    }
+    // ---- PDFs ----------------------------------------------------------------------------------------------
+    // Where a document's markup lives: the media record's document_markup layer, or (for a project document with
+    // no media record) the project document markup store. With neither, or when the store is missing (404) or
+    // refuses writes (403), markup is still drawn and downloadable but not kept; the details panel says so.
+    documentMarkupStore(photo = {}){
+      const oid = orgId();
+      const mediaId = cleanText(photo.media_id || photo.mediaId);
+      const media = root.PlatformAPI?.media;
+      const state = { mode: 'saved' };
+      const setMode = (mode) => {
+        if (state.mode === mode) return;
+        state.mode = mode;
+        if (this.pdfMarkup === state) this.renderNote();
+      };
+      if (oid && mediaId && media?.getMarkup && media?.saveMarkup) {
+        return {
+          state,
+          load: async () => pagesFromLayer(await media.getMarkup(oid, mediaId, DOCUMENT_MARKUP_LAYER).catch(() => null)),
+          save: async (pages) => {
+            try {
+              return await media.saveMarkup(oid, mediaId, DOCUMENT_MARKUP_LAYER, { schema: 1, pages: pages || {} }, {
+                source: 'document_markup',
+                updated_by_name: userName(),
+                updated_by_email: userEmail()
+              });
+            } catch (error) {
+              if (errorStatus(error) === 403) { setMode('readonly'); return null; }
+              throw error;
+            }
+          }
+        };
+      }
+      const api = root.PlatformAPI?.projectDocumentMarkup;
+      const projectId = this.currentProjectId(this.currentProject());
+      if (oid && projectId && typeof api?.get === 'function' && typeof api?.save === 'function') {
+        const keyPromise = documentMarkupKey(photo);
+        let revision = null;
+        const readLatest = async () => {
+          const result = await api.get(oid, projectId, await keyPromise);
+          revision = Number.isInteger(result?.layer?.revision) ? result.layer.revision : null;
+          return result;
+        };
+        return {
+          state,
+          load: async () => {
+            if (!(await keyPromise)) { setMode('unsaved'); return {}; }
+            try { return pagesFromLayer(await readLatest()); }
+            catch (error) {
+              const status = errorStatus(error);
+              if (status === 404 || status === 405 || status === 501) setMode('unsaved');
+              else if (status === 403) setMode('readonly');
+              return {};
+            }
+          },
+          save: async (pages) => {
+            if (state.mode !== 'saved') return null;
+            const key = await keyPromise;
+            const data = { schema: 1, pages: pages || {} };
+            const write = () => api.save(oid, projectId, key, data, Number.isInteger(revision) ? { expected_revision: revision } : {});
+            try {
+              let result;
+              try { result = await write(); }
+              catch (error) {
+                // Someone else saved since this copy loaded: take their revision and write this page set once.
+                if (errorStatus(error) !== 409) throw error;
+                await readLatest();
+                result = await write();
+              }
+              if (Number.isInteger(result?.layer?.revision)) revision = result.layer.revision;
+              return result;
+            } catch (error) {
+              const status = errorStatus(error);
+              if (status === 403) { setMode('readonly'); return null; }
+              if (status === 404 || status === 405) { setMode('unsaved'); return null; }
+              console.warn('Could not save document markup', error);
+              throw error;
+            }
+          }
+        };
+      }
+      state.mode = 'unsaved';
+      return { state, load: async () => ({}), save: async () => null };
+    }
+    async mountPdf(photo, url, token){
+      const host = this.el.querySelector('[data-media-pdf]');
+      if (!host) return;
+      host.hidden = false;
+      host.innerHTML = `<div class="fmv-loading"><i class="fas fa-circle-notch fa-spin"></i><span>${(globalThis.PlatformLanguage?.htmlText("markup","m_viewer_opening_document","Opening document…") ?? "Opening document…")}</span></div>`;
+      let lib = null;
+      try { lib = await loadScriptOnce('FirstMatePdf', PDF_VIEWER_SRC); } catch (_) { lib = null; }
+      if (token !== this.showToken || this.closed || !this.el?.isConnected) return;
+      if (typeof lib?.mount !== 'function') { this.pdfFallback(url, token); return; }
+      const store = this.documentMarkupStore(photo);
+      const doc = photo.__document || {};
+      const enabled = photo.can_markup !== false && doc.can_markup !== false;
+      this.pdfMarkup = Object.assign(store.state, { enabled });
+      host.replaceChildren();
+      let handle = null;
+      try {
+        handle = lib.mount(host, {
+          url,
+          fileName: photoFileName(photo, this.currentProject()),
+          title: this.mediaDisplayName(photo),
+          initialPage: 1,
+          zoom: 'fit-width',
+          thumbnails: 'auto',
+          markup: { enabled, readOnly: false, load: store.load, save: store.save },
+          onReady: ({ pageCount } = {}) => {
+            if (token !== this.showToken) return;
+            this.mediaFacts = { ...this.mediaFacts, pages: Number(pageCount) || 0 };
+            this.renderChips(photo);
+          },
+          onPageChange: ({ pageCount } = {}) => {
+            if (token !== this.showToken || !pageCount || this.mediaFacts.pages) return;
+            this.mediaFacts = { ...this.mediaFacts, pages: Number(pageCount) || 0 };
+            this.renderChips(photo);
+          },
+          onError: (error) => {
+            if (token !== this.showToken) return;
+            console.warn('PDF viewer failed; using the browser preview', error);
+            this.pdfFallback(url, token);
+          }
+        });
+      } catch (error) {
+        console.warn('PDF viewer failed; using the browser preview', error);
+        this.pdfFallback(url, token);
+        return;
+      }
+      if (token !== this.showToken) { try { handle?.destroy?.(); } catch (_) {} return; }
+      this.pdf = handle || null;
+      this.el.classList.add('pdf-viewer-active');
+      this.refreshDownloadButtons();
+      this.renderNote();
+    }
+    pdfFallback(url, token){
+      if (token !== this.showToken || !this.el) return;
+      this.teardownPdf();
+      const frame = this.el.querySelector('[data-media-frame]');
+      if (frame && url) {
+        frame.hidden = false;
+        frame.src = `${url}${!url.includes('#') ? '#view=FitH' : ''}`;
+      }
+      this.refreshDownloadButtons();
+    }
+    teardownPdf(){
+      const handle = this.pdf;
+      this.pdf = null;
+      this.pdfMarkup = null;
+      try { handle?.destroy?.(); } catch (error) { console.warn('Could not close the PDF viewer', error); }
+      const host = this.el?.querySelector?.('[data-media-pdf]');
+      if (host) { host.replaceChildren(); host.hidden = true; }
+      this.el?.classList.remove('pdf-viewer-active');
+      this.renderNote();
+    }
+    async downloadCurrent(withMarkup){
+      const photo = this.current();
+      const kind = mediaKind(photo);
+      try {
+        if (kind === 'pdf' && this.pdf?.download) return await this.pdf.download({ withMarkup: !!withMarkup });
+        if (withMarkup && kind === 'image') return await downloadPhoto(photo, { withMarkup: true, items: this.markup?.items || [] });
+        return await downloadPhoto(photo, { withMarkup: false });
+      } catch (error) {
+        root.PlatformUI?.alert?.(error?.message || 'Could not download this item.');
+      }
+    }
+    // ---- caller-drawn items and details ------------------------------------------------------------------------
+    // item.render(host, context) always draws the item; options.renderItem({ photo, host, ... }) draws only what the
+    // viewer cannot show itself (no file, or a file with no preview). Either may return a cleanup function.
+    customRenderer(photo = {}, kind = mediaKind(photo), url = ''){
+      if (typeof photo.render === 'function') return (host, context) => photo.render(host, context);
+      if (!this.renderItem) return null;
+      const viewable = !!url && (['image', 'video', 'audio', 'pdf'].includes(kind) || (kind === 'document' && this.canFramePreview(photo, kind)));
+      return viewable ? null : (host, context) => this.renderItem({ ...context, host });
+    }
+    mountCustom(photo, render){
+      const host = this.el.querySelector('[data-media-custom]');
+      if (!host) return;
+      host.hidden = false;
+      host.replaceChildren();
+      try {
+        const cleanup = render(host, { photo, project: this.currentProject(), viewer: this });
+        this.customCleanup = typeof cleanup === 'function' ? cleanup : null;
+      } catch (error) {
+        console.warn('Could not draw this item', error);
+        host.hidden = true;
+        const fallback = this.el.querySelector('[data-media-fallback]');
+        if (fallback) fallback.hidden = false;
+      }
+    }
+    teardownCustom(){
+      const cleanup = this.customCleanup;
+      this.customCleanup = null;
+      try { cleanup?.(); } catch (error) { console.warn('Could not clean up a drawn item', error); }
+      const host = this.el?.querySelector?.('[data-media-custom]');
+      if (host) { host.replaceChildren(); host.hidden = true; }
+      this.el?.classList.remove('custom-active');
+    }
+    renderDetails(photo = this.current()){
+      const host = this.el?.querySelector?.('[data-media-details]');
+      if (!host) return;
+      host.replaceChildren();
+      host.hidden = true;
+      if (!this.detailsSection || !this.photos.length) return;
+      let content = null;
+      try { content = this.detailsSection({ photo, project: this.currentProject(), viewer: this }); } catch (error) { console.warn('Could not render item details', error); }
+      if (content && typeof content === 'object' && content.nodeType) host.append(content);
+      else if (cleanText(content)) host.innerHTML = String(content);
+      else return;
+      host.hidden = false;
+    }
+    // ---- tags ------------------------------------------------------------------------------------------------
     photoTags(photo = {}){
       const meta = photo.metadata && typeof photo.metadata === 'object' ? photo.metadata : {};
       return [...new Set([...(Array.isArray(photo.tags) ? photo.tags : []), ...(Array.isArray(meta.tags) ? meta.tags : [])].map(cleanText).filter(Boolean))];
+    }
+    tagKey(tag){ return cleanText(tag).replace(/^#+/, '').toLowerCase().replace(/[\s_-]+/g, ' ').trim(); }
+    // One chip per tag: "Customer Report" and "customer_report" are the same tag, shown once.
+    displayTags(photo = {}){
+      const groups = new Map();
+      this.photoTags(photo).forEach((raw) => {
+        const key = this.tagKey(raw);
+        if (!key) return;
+        const label = cleanText(raw).replace(/^#+/, '').replace(/_/g, ' ').replace(/\s+/g, ' ').trim();
+        const group = groups.get(key);
+        if (!group) groups.set(key, { key, label });
+        else if (!/[A-Z]/.test(group.label) && /[A-Z]/.test(label)) group.label = label;
+      });
+      return [...groups.values()];
     }
     normalizeTags(value){
       const values = Array.isArray(value) ? value : String(value || '').split(',');
@@ -1842,12 +2670,12 @@
     renderTags(photo = this.current()){
       const host = this.el?.querySelector?.('[data-photo-tags]');
       if (!host) return;
-      const tags = this.photoTags(photo);
+      const tags = this.displayTags(photo);
       const editable = typeof this.onTagsChange === 'function' && !!cleanText(photo.media_id || photo.mediaId || photo.id);
       host.innerHTML = `
         ${tags.map((tag) => editable
-          ? `<button type="button" class="fm-photo-tag" data-photo-tag-remove="${String(escapeHtml(tag))}" title="${(globalThis.PlatformLanguage?.htmlText("markup","m_cc0fe15c22053c","Remove tag") ?? "Remove tag")}">#${String(escapeHtml(tag))} <i class="fas fa-xmark"></i></button>`
-          : `<span class="fm-photo-tag">#${escapeHtml(tag)}</span>`).join('')}
+          ? `<button type="button" class="fm-photo-tag" data-photo-tag-remove="${String(escapeHtml(tag.key))}" title="${(globalThis.PlatformLanguage?.htmlText("markup","m_cc0fe15c22053c","Remove tag") ?? "Remove tag")}"><i class="fas fa-tag"></i>${String(escapeHtml(tag.label))} <i class="fas fa-xmark"></i></button>`
+          : `<span class="fm-photo-tag"><i class="fas fa-tag"></i>${escapeHtml(tag.label)}</span>`).join('')}
         ${editable ? `<span class="fm-photo-tag-editor"><input class="fm-photo-tag-input" data-photo-tag-input placeholder="${(globalThis.PlatformLanguage?.htmlText("markup","m_d98fa45e09de02","Add tag") ?? "Add tag")}" maxlength="64" aria-label="${(globalThis.PlatformLanguage?.htmlText("markup","m_a5ea54eaae7cc4","Add media tag") ?? "Add media tag")}"><button type="button" class="fm-photo-tag-add" data-photo-tag-add aria-label="${(globalThis.PlatformLanguage?.htmlText("markup","m_d98fa45e09de02","Add tag") ?? "Add tag")}"><i class="fas fa-plus"></i></button></span>` : ''}`;
     }
     async setPhotoTags(tagsValue){
@@ -1872,26 +2700,112 @@
         await (root.PlatformUI?.alert?.(error?.message || 'Could not save media tags.') || Promise.resolve());
       } finally {
         this.tagsSaving = false;
-        this.renderTags(photo);
+        if (this.current() === photo) this.renderTags(photo);
       }
+    }
+    // ---- carousel API ----------------------------------------------------------------------------------------
+    setItems(items = [], options = {}){
+      const keep = options.keepSelection !== false;
+      const previous = this.photos.length ? this.current() : null;
+      const previousKey = previous ? itemKey(previous) : '';
+      this.photos = Array.isArray(items) ? items.slice() : [];
+      this.stripRange = null;
+      if (!this.photos.length) { this.index = 0; this.renderEmpty(); return; }
+      let next = clamp(Number(options.index ?? this.index) || 0, 0, this.photos.length - 1);
+      if (keep && previousKey) {
+        const found = this.photos.findIndex((photo) => itemKey(photo) === previousKey);
+        if (found >= 0 && !this.el.classList.contains('is-empty')) {
+          // The same item stays on screen: refresh what is around it without reloading the media.
+          const same = this.photos[found];
+          this.index = found;
+          if (same !== previous) Object.assign(previous, same, { __project: same.__project || previous.__project });
+          this.photos[found] = previous;
+          this.el.classList.toggle('is-single', this.photos.length < 2);
+          this.renderTitles(previous);
+          this.renderWho(previous);
+          this.renderChips(previous);
+          this.renderTags(previous);
+          this.refreshActions();
+          this.refreshIndicators();
+          this.renderDetails(previous);
+          this.renderStrip();
+          const mobileCounter = this.el.querySelector('[data-photo-mobile-counter]');
+          if (mobileCounter) mobileCounter.textContent = this.photos.length > 1 ? `${this.index + 1} / ${this.photos.length}` : '';
+          return;
+        }
+        if (found >= 0) next = found;
+      }
+      this.show(next);
+    }
+    select(target){
+      if (!this.photos.length) return false;
+      let index = -1;
+      if (typeof target === 'number') index = target;
+      else if (target && typeof target === 'object') index = this.photos.indexOf(target) >= 0 ? this.photos.indexOf(target) : this.photos.findIndex((photo) => itemKey(photo) === itemKey(target));
+      else index = this.photos.findIndex((photo) => itemKey(photo) === cleanText(target) || cleanText(photo.id) === cleanText(target));
+      if (index < 0 || index >= this.photos.length) return false;
+      if (index !== this.index || this.el.classList.contains('is-empty')) this.show(index);
+      return true;
+    }
+    setVisible(visible){
+      if (!this.el) return;
+      this.el.hidden = !visible;
+      if (!visible) {
+        this.el.querySelector('[data-photo-video]')?.pause?.();
+        this.closeMenu();
+        this.setSheet(false);
+        this.markup?.setActive(false);
+        for (const workspace of this.commentWorkspaces?.values() || []) workspace.handle.setVisible?.(false);
+        return;
+      }
+      this.resize();
+    }
+    resize(){
+      if (!this.el || this.closed) return;
+      this.checkCompact();
+      this.scheduleLayoutRefresh();
+    }
+    checkCompact(){
+      if (!this.inline || !this.host) return;
+      const width = this.host.clientWidth || this.host.getBoundingClientRect().width || 0;
+      if (!width) return;
+      const compact = width < CAROUSEL_COMPACT_WIDTH;
+      this.el.classList.toggle('is-narrow', !compact && width < 860);
+      if (compact !== this.compact) {
+        this.compact = compact;
+        this.mobileChange?.();
+      } else this.applySide();
+    }
+    closeMenu(){
+      const menu = this.el?.querySelector?.('[data-photo-actions-menu]');
+      menu?.classList.remove('visible');
+      this.el?.querySelector?.('[data-photo-actions]')?.setAttribute('aria-expanded', 'false');
+    }
+    renderToolbar(){
+      const host = this.el?.querySelector?.('[data-media-toolbar]');
+      if (!host) return;
+      host.innerHTML = this.toolbar.map((button, index) => {
+        const label = cleanText(typeof button.label === 'function' ? button.label({ viewer:this }) : button.label);
+        return `<button type="button" class="fmv-toolbtn${button.primary ? ' primary' : ''}" data-media-toolbar-btn="${index}" title="${escapeHtml(label)}" aria-label="${escapeHtml(label)}">${button.icon ? `<i class="fas ${faIcon(button.icon, 'fa-circle')}"></i>` : ''}<span>${escapeHtml(label)}</span></button>`;
+      }).join('');
     }
     renderShell(){
       this.el = document.createElement('div');
-      this.el.className = 'fm-photo-modal';
+      this.el.className = `fm-photo-modal${this.inline ? ' is-inline' : ''}`;
+      const sideTitle = escapeHtml(this.project.title || this.project.address || '');
       this.el.innerHTML = `
         <div class="fm-photo-modal-shell">
-          <div class="fm-photo-stage" data-photo-stage>
-            <img data-photo-img alt="">
-            <video data-photo-video hidden controls autoplay playsinline preload="metadata"></video>
-            <iframe data-media-frame hidden title="${(globalThis.PlatformLanguage?.htmlText("markup","m_95d2aa503390fe","File preview") ?? "File preview")}"></iframe>
-            <audio data-media-audio hidden controls preload="metadata"></audio>
-            <div class="fm-media-file-fallback" data-media-fallback hidden><i class="fas fa-file-lines"></i><strong data-media-fallback-title>${(globalThis.PlatformLanguage?.htmlText("markup","m_22899574eaa007","File preview unavailable") ?? "File preview unavailable")}</strong><span>${(globalThis.PlatformLanguage?.htmlText("markup","m_b68fe0cee2110f","This file cannot be previewed in the browser.") ?? "This file cannot be previewed in the browser.")}</span><a data-media-fallback-open target="_blank" rel="noopener">${(globalThis.PlatformLanguage?.htmlText("markup","m_237716bb3d8498","Open Original") ?? "Open Original")}</a></div>
-            <div class="fm-photo-top">
+          <div class="fmv-main">
+            <div class="fm-photo-top" data-photo-top>
+              <span class="fmv-title-icon" data-media-title-icon aria-hidden="true"><i class="fas fa-image"></i></span>
               <div class="fm-photo-title"><strong data-photo-title></strong><span data-photo-sub></span></div>
               <div class="fm-photo-actions">
+                <div class="fmv-toolbar" data-media-toolbar></div><span class="fmv-sep" aria-hidden="true"></span>
+                <div class="fmv-pager" data-media-pager hidden><button type="button" data-media-prev aria-label="${(globalThis.PlatformLanguage?.htmlText("markup","m_viewer_previous","Previous") ?? "Previous")}"><i class="fas fa-chevron-left"></i></button><span data-photo-counter></span><button type="button" data-media-next aria-label="${(globalThis.PlatformLanguage?.htmlText("markup","m_viewer_next","Next") ?? "Next")}"><i class="fas fa-chevron-right"></i></button></div>
+                <button type="button" class="fm-photo-iconbtn" data-media-strip-toggle aria-pressed="true" title="${(globalThis.PlatformLanguage?.htmlText("markup","m_viewer_filmstrip","Show filmstrip") ?? "Show filmstrip")}" aria-label="${(globalThis.PlatformLanguage?.htmlText("markup","m_viewer_filmstrip","Show filmstrip") ?? "Show filmstrip")}"><i class="fas fa-film"></i></button>
                 <div class="fm-photo-actions-wrap">
-                  <button type="button" class="fm-photo-iconbtn" data-photo-actions aria-label="${(globalThis.PlatformLanguage?.htmlText("markup","m_fd0f574164b88e","Item actions") ?? "Item actions")}"><i class="fas fa-ellipsis"></i></button>
-                  <div class="fm-photo-actions-menu" data-photo-actions-menu>
+                  <button type="button" class="fm-photo-iconbtn" data-photo-actions aria-haspopup="menu" aria-expanded="false" aria-label="${(globalThis.PlatformLanguage?.htmlText("markup","m_fd0f574164b88e","Item actions") ?? "Item actions")}"><i class="fas fa-ellipsis"></i></button>
+                  <div class="fm-photo-actions-menu" data-photo-actions-menu role="menu">
                     <div data-photo-custom-actions></div>
                     <button type="button" data-photo-rename><i class="fas fa-i-cursor"></i>${(globalThis.PlatformLanguage?.htmlText("markup","m_7f5b6c585dabfc"," Rename") ?? " Rename")}</button>
                     <button type="button" data-photo-download-markup><i class="fas fa-download"></i>${(globalThis.PlatformLanguage?.htmlText("markup","m_f3ad10eaad3ccf"," Download") ?? " Download")}</button>
@@ -1899,40 +2813,73 @@
                     <button type="button" class="danger" data-photo-delete><i class="fas fa-trash"></i>${(globalThis.PlatformLanguage?.htmlText("markup","m_90e27d705bee80"," Delete") ?? " Delete")}</button>
                   </div>
                 </div>
-                <button type="button" class="fm-photo-iconbtn" data-photo-close aria-label="${(globalThis.PlatformLanguage?.htmlText("markup","m_53279632ecc960","Close viewer") ?? "Close viewer")}"><i class="fas fa-times"></i></button>
+                <button type="button" class="fm-photo-iconbtn" data-media-info aria-pressed="true" title="${(globalThis.PlatformLanguage?.htmlText("markup","m_mobile_details_label","Details and comments") ?? "Details and comments")}" aria-label="${(globalThis.PlatformLanguage?.htmlText("markup","m_mobile_details_label","Details and comments") ?? "Details and comments")}"><i class="far fa-comment-dots"></i></button>
+                ${this.inline ? '' : `<button type="button" class="fm-photo-iconbtn" data-photo-close aria-label="${(globalThis.PlatformLanguage?.htmlText("markup","m_53279632ecc960","Close viewer") ?? "Close viewer")}"><i class="fas fa-times"></i></button>`}
               </div>
             </div>
-            <button type="button" class="fm-photo-nav prev" data-photo-prev aria-label="${(globalThis.PlatformLanguage?.htmlText("markup","m_ff93a3105bd290","Previous photo") ?? "Previous photo")}"><i class="fas fa-chevron-left"></i></button>
-            <button type="button" class="fm-photo-nav next" data-photo-next aria-label="${(globalThis.PlatformLanguage?.htmlText("markup","m_289ae0bcddeebf","Next photo") ?? "Next photo")}"><i class="fas fa-chevron-right"></i></button>
-            <div class="fm-photo-mobile-bar"><button type="button" class="fm-photo-details-btn" data-photo-details aria-expanded="false" aria-label="${(globalThis.PlatformLanguage?.htmlText("markup","m_mobile_details_label","Details and comments") ?? "Details and comments")}"><i class="fas fa-circle-info"></i>${(globalThis.PlatformLanguage?.htmlText("markup","m_mobile_details","Details") ?? "Details")}<span data-photo-mobile-counter></span></button></div>
-            <div class="fm-video-editdock" data-video-editdock>
-              <button type="button" class="r-proposal-markup-btn" data-video-edit data-fm-tooltip="Edit Video" aria-label="${(globalThis.PlatformLanguage?.htmlText("markup","m_297d0c5325cbc2","Edit video") ?? "Edit video")}"><i class="fas fa-scissors"></i></button>
+            <div class="fm-photo-stage" data-photo-stage>
+              <img data-photo-img alt="" draggable="false">
+              <video data-photo-video hidden controls autoplay playsinline preload="metadata"></video>
+              <iframe data-media-frame hidden title="${(globalThis.PlatformLanguage?.htmlText("markup","m_95d2aa503390fe","File preview") ?? "File preview")}"></iframe>
+              <div class="fmv-pdf-host" data-media-pdf hidden></div>
+              <audio data-media-audio hidden controls preload="metadata"></audio>
+              <div class="fm-media-file-fallback" data-media-fallback hidden><i data-media-fallback-icon class="fas fa-file-lines"></i><strong data-media-fallback-title>${(globalThis.PlatformLanguage?.htmlText("markup","m_22899574eaa007","File preview unavailable") ?? "File preview unavailable")}</strong><span>${(globalThis.PlatformLanguage?.htmlText("markup","m_b68fe0cee2110f","This file cannot be previewed in the browser.") ?? "This file cannot be previewed in the browser.")}</span><a data-media-fallback-open target="_blank" rel="noopener">${(globalThis.PlatformLanguage?.htmlText("markup","m_237716bb3d8498","Open Original") ?? "Open Original")}</a></div>
+              <div class="fmv-empty" data-media-empty hidden></div>
+              <div class="fmv-custom-host" data-media-custom hidden></div>
+              <button type="button" class="fm-photo-nav prev" data-photo-prev aria-label="${(globalThis.PlatformLanguage?.htmlText("markup","m_viewer_previous","Previous") ?? "Previous")}"><i class="fas fa-chevron-left"></i></button>
+              <button type="button" class="fm-photo-nav next" data-photo-next aria-label="${(globalThis.PlatformLanguage?.htmlText("markup","m_viewer_next","Next") ?? "Next")}"><i class="fas fa-chevron-right"></i></button>
+              <div class="fmv-zoom" data-media-zoom><button type="button" data-zoom-out aria-label="${(globalThis.PlatformLanguage?.htmlText("markup","m_viewer_zoom_out","Zoom out") ?? "Zoom out")}"><i class="fas fa-minus"></i></button><button type="button" data-zoom-reset title="${(globalThis.PlatformLanguage?.htmlText("markup","m_viewer_zoom_fit","Fit to screen") ?? "Fit to screen")}">100%</button><button type="button" data-zoom-in aria-label="${(globalThis.PlatformLanguage?.htmlText("markup","m_viewer_zoom_in","Zoom in") ?? "Zoom in")}"><i class="fas fa-plus"></i></button></div>
+              <div class="fm-photo-mobile-bar"><button type="button" class="fm-photo-details-btn" data-photo-details aria-expanded="false" aria-label="${(globalThis.PlatformLanguage?.htmlText("markup","m_mobile_details_label","Details and comments") ?? "Details and comments")}"><i class="fas fa-circle-info"></i>${(globalThis.PlatformLanguage?.htmlText("markup","m_mobile_details","Details") ?? "Details")}<span data-photo-mobile-counter></span></button></div>
+              <div class="fm-video-editdock" data-video-editdock>
+                <button type="button" class="r-proposal-markup-btn" data-video-edit data-fm-tooltip="Edit Video" aria-label="${(globalThis.PlatformLanguage?.htmlText("markup","m_297d0c5325cbc2","Edit video") ?? "Edit video")}"><i class="fas fa-scissors"></i></button>
+              </div>
             </div>
+            <div class="fmv-strip" data-media-strip role="listbox" aria-label="${(globalThis.PlatformLanguage?.htmlText("markup","m_viewer_filmstrip_label","Filmstrip") ?? "Filmstrip")}"></div>
           </div>
           <div class="fm-photo-sheet-scrim" data-photo-sheet-scrim></div>
-          <aside class="fm-photo-side">
+          <aside class="fm-photo-side" data-photo-side>
             <div class="fm-photo-sheet-handle" data-photo-sheet-handle><span></span><button type="button" data-photo-sheet-close aria-label="${(globalThis.PlatformLanguage?.htmlText("markup","m_mobile_hide_details","Hide details") ?? "Hide details")}"><i class="fas fa-chevron-down"></i></button></div>
             <div class="fm-photo-meta">
-              ${String(this.projectLinkEnabled ? `<button type="button" class="fm-photo-project-link" data-photo-project>${escapeHtml(this.project.title || this.project.address || `Project ${this.itemNoun}`)}</button>` : `<div class="fm-photo-project-link is-static" data-photo-project>${escapeHtml(this.project.title || this.project.address || `Project ${this.itemNoun}`)}</div>`)}
-              <button type="button" class="fm-photo-user-row" data-photo-user-open><span class="fm-photo-avatar" data-photo-avatar>?</span><span><strong data-photo-uploader></strong><br><span data-photo-uploaded></span></span></button>
-              <div class="fm-photo-meta-row"><i class="fas ${String(this.itemNoun === 'photo' ? 'fa-images' : 'fa-file-lines')}"></i><span data-photo-counter></span></div>
+              <div class="fmv-side-title"><h3 data-photo-side-title></h3><button type="button" class="fmv-rename-btn" data-photo-side-rename hidden aria-label="${(globalThis.PlatformLanguage?.htmlText("markup","m_e32e6dab52dcf9","Rename") ?? "Rename")}"><i class="fas fa-pen"></i></button></div>
+              ${this.projectLinkEnabled ? `<button type="button" class="fm-photo-project-link" data-photo-project><i class="fas fa-folder-open"></i><span>${sideTitle}</span></button>` : `<div class="fm-photo-project-link is-static" data-photo-project><i class="fas fa-folder"></i><span>${sideTitle}</span></div>`}
+              <button type="button" class="fm-photo-user-row" data-photo-user-open><span class="fm-photo-avatar" data-photo-avatar></span><span class="fmv-who"><strong data-photo-uploader></strong><span data-photo-uploaded></span></span></button>
+              <div class="fmv-chips" data-media-chips></div>
               <div class="fm-photo-tags" data-photo-tags></div>
+              <div class="fmv-note" data-media-note hidden></div>
               <div class="fm-photo-indicators" data-photo-indicators></div>
+              <div class="fmv-details-extra" data-media-details hidden></div>
             </div>
+            <div class="fmv-comments-head"><i class="far fa-comments" aria-hidden="true"></i><strong>${(globalThis.PlatformLanguage?.htmlText("markup","m_viewer_comments","Comments") ?? "Comments")}</strong><span class="fmv-count" data-comment-count></span><button type="button" class="fm-photo-iconbtn" data-comment-tools aria-pressed="false" title="${(globalThis.PlatformLanguage?.htmlText("markup","m_viewer_comment_search","Search and filter comments") ?? "Search and filter comments")}" aria-label="${(globalThis.PlatformLanguage?.htmlText("markup","m_viewer_comment_search","Search and filter comments") ?? "Search and filter comments")}"><i class="fas fa-magnifying-glass"></i></button></div>
             <div class="fm-photo-comments" data-photo-comments></div>
           </aside>
         </div>`;
-      document.body.appendChild(this.el);
-      this.modalHandle = root.Portal?.modals?.register?.(this.el, {
-        id: 'photo-viewer',
-        closeOnEscape: true,
-        closeOnBackdrop: false,
-        onClose: () => this.close()
-      }) || null;
+      if (this.inline) {
+        if (root.getComputedStyle?.(this.host).position === 'static') this.host.style.position = 'relative';
+        this.host.appendChild(this.el);
+      } else {
+        document.body.appendChild(this.el);
+        this.modalHandle = root.Portal?.modals?.register?.(this.el, {
+          id: 'photo-viewer',
+          closeOnEscape: true,
+          closeOnBackdrop: false,
+          onClose: () => this.close()
+        }) || null;
+      }
+      this.renderToolbar();
       this.boundResize = () => this.scheduleLayoutRefresh();
       this.boundTransitionEnd = () => this.scheduleLayoutRefresh();
       this.boundOutsideDown = (event) => this.handleOutsidePointer(event, 'down');
       this.boundOutsideUp = (event) => this.handleOutsidePointer(event, 'up');
+      this.boundCommentsRefreshed = (event) => {
+        const id = cleanText(event?.detail?.projectId);
+        if (id && id === `photo:${this.commentMediaId || ''}`) this.updateCommentCount();
+      };
+      this.boundMenuOutside = (event) => {
+        const menu = this.el?.querySelector?.('[data-photo-actions-menu]');
+        if (!menu?.classList.contains('visible') || event.target?.closest?.('.fm-photo-actions-wrap')) return;
+        if (this.mobile && !this.inline && this.el.contains(event.target)) { event.preventDefault(); event.stopPropagation(); }
+        this.closeMenu();
+      };
       this.updateBounds();
       window.addEventListener('resize', this.boundResize);
       root.visualViewport?.addEventListener?.('resize', this.boundResize);
@@ -1940,6 +2887,8 @@
       document.addEventListener('transitionend', this.boundTransitionEnd, true);
       window.addEventListener('mousedown', this.boundOutsideDown, true);
       window.addEventListener('mouseup', this.boundOutsideUp, true);
+      window.addEventListener('pointerdown', this.boundMenuOutside, true);
+      window.addEventListener('fm:project-notes:refreshed', this.boundCommentsRefreshed);
       this.markup = new PhotoMarkup(this.el.querySelector('[data-photo-stage]'), {
         dock: { position: 'dock-bottom-right', expand: 'expand-left' },
         size: 1.5,
@@ -1950,49 +2899,102 @@
       });
       this.bindLayoutObserver();
       this.bindMobile();
+      this.applySide();
       this.scheduleLayoutRefresh();
-      this.el.querySelector('[data-photo-img]')?.addEventListener('load', () => this.scheduleLayoutRefresh());
-      this.el.querySelector('[data-photo-close]').addEventListener('click', () => this.close());
+      const img = this.el.querySelector('[data-photo-img]');
+      img?.addEventListener('load', () => this.onImageLoaded());
+      img?.addEventListener('error', () => img.classList.remove('is-loading'));
+      const video = this.el.querySelector('[data-photo-video]');
+      video?.addEventListener('loadedmetadata', () => {
+        if (mediaKind(this.current()) !== 'video') return;
+        this.mediaFacts = { ...this.mediaFacts, duration: video.duration, width: video.videoWidth, height: video.videoHeight };
+        this.renderChips();
+      });
+      this.el.querySelector('[data-photo-close]')?.addEventListener('click', () => this.close());
       const actionMenu = () => this.el.querySelector('[data-photo-actions-menu]');
-      this.el.querySelector('[data-photo-actions]')?.addEventListener('click', () => {
-        actionMenu()?.classList.toggle('visible');
+      this.el.querySelector('[data-photo-actions]')?.addEventListener('click', (event) => {
+        const open = !actionMenu()?.classList.contains('visible');
+        actionMenu()?.classList.toggle('visible', open);
+        event.currentTarget.setAttribute('aria-expanded', String(open));
       });
       this.el.querySelector('[data-photo-rename]')?.addEventListener('click', async () => {
-        actionMenu()?.classList.remove('visible');
+        this.closeMenu();
         await this.renameCurrent();
       });
       this.el.querySelector('[data-photo-download-plain]')?.addEventListener('click', async () => {
-        actionMenu()?.classList.remove('visible');
-        await downloadPhoto(this.current(), { withMarkup: false }).catch((error) => root.PlatformUI?.alert?.(error?.message || 'Could not download this photo.'));
+        this.closeMenu();
+        await this.downloadCurrent(false);
       });
       this.el.querySelector('[data-photo-download-markup]')?.addEventListener('click', async () => {
-        actionMenu()?.classList.remove('visible');
-        await downloadPhoto(this.current(), { withMarkup: true, items: this.markup?.items || [] }).catch((error) => root.PlatformUI?.alert?.(error?.message || 'Could not download this photo.'));
+        this.closeMenu();
+        await this.downloadCurrent(true);
       });
       this.el.querySelector('[data-photo-delete]')?.addEventListener('click', async () => {
-        actionMenu()?.classList.remove('visible');
+        this.closeMenu();
         if (typeof this.onDeletePhoto !== 'function') {
           await (root.PlatformUI?.alert?.((globalThis.PlatformLanguage?.text("markup","m_9d84df54ce758c","This photo cannot be deleted from here.") ?? "This photo cannot be deleted from here."), { title: (globalThis.PlatformLanguage?.text("markup","m_fe99e3347c6980","Delete unavailable") ?? "Delete unavailable") }) || Promise.resolve(alert((globalThis.PlatformLanguage?.text("markup","m_9d84df54ce758c","This photo cannot be deleted from here.") ?? "This photo cannot be deleted from here."))));
           return;
         }
         const result = await this.onDeletePhoto(this.current(), this.currentProject());
-        if (result?.count !== 0) this.close();
+        if (result?.count !== 0 && !this.inline) this.close();
       });
       this.el.querySelector('[data-video-edit]')?.addEventListener('click', () => this.openVideoEditor());
-      this.el.querySelector('[data-photo-prev]').addEventListener('click', () => this.show(this.index - 1));
-      this.el.querySelector('[data-photo-next]').addEventListener('click', () => this.show(this.index + 1));
+      const step = (delta) => { if (this.photos.length > 1) this.show(this.index + delta); };
+      this.el.querySelector('[data-photo-prev]').addEventListener('click', () => step(-1));
+      this.el.querySelector('[data-photo-next]').addEventListener('click', () => step(1));
+      this.el.querySelector('[data-media-prev]')?.addEventListener('click', () => step(-1));
+      this.el.querySelector('[data-media-next]')?.addEventListener('click', () => step(1));
+      this.el.querySelector('[data-media-strip-toggle]')?.addEventListener('click', () => this.setStrip(!this.stripOn));
+      this.el.querySelector('[data-media-info]')?.addEventListener('click', () => this.toggleInfo());
+      this.el.querySelector('[data-media-strip]')?.addEventListener('click', (event) => {
+        const thumb = event.target?.closest?.('[data-media-thumb]');
+        if (thumb) this.show(Number(thumb.dataset.mediaThumb));
+      });
+      this.el.querySelector('[data-media-toolbar]')?.addEventListener('click', (event) => {
+        const button = event.target?.closest?.('[data-media-toolbar-btn]');
+        const entry = button ? this.toolbar[Number(button.dataset.mediaToolbarBtn)] : null;
+        if (typeof entry?.onClick === 'function') entry.onClick({ viewer:this, photo:this.photos.length ? this.current() : null, project:this.currentProject(), event });
+      });
+      this.el.querySelector('[data-photo-side-title]')?.addEventListener('click', () => this.startInlineRename());
+      this.el.querySelector('[data-photo-side-rename]')?.addEventListener('click', () => this.startInlineRename());
+      this.el.querySelector('[data-comment-tools]')?.addEventListener('click', (event) => {
+        const side = this.el.querySelector('.fm-photo-side');
+        const on = !side.classList.contains('show-comment-tools');
+        side.classList.toggle('show-comment-tools', on);
+        event.currentTarget.setAttribute('aria-pressed', String(on));
+        if (on) setTimeout(() => side.querySelector('.pn-tools input[type=search]')?.focus?.(), 30);
+      });
+      const tagsHost = this.el.querySelector('[data-photo-tags]');
+      tagsHost?.addEventListener('click', (event) => {
+        const remove = event.target?.closest?.('[data-photo-tag-remove]');
+        if (remove) {
+          const key = remove.dataset.photoTagRemove;
+          this.setPhotoTags(this.photoTags(this.current()).filter((tag) => this.tagKey(tag) !== key));
+          return;
+        }
+        if (event.target?.closest?.('[data-photo-tag-add]')) {
+          const input = this.el.querySelector('[data-photo-tag-input]');
+          this.setPhotoTags([...this.photoTags(this.current()), input?.value || '']);
+        }
+      });
+      tagsHost?.addEventListener('keydown', (event) => {
+        if (!event.target?.matches?.('[data-photo-tag-input]') || !['Enter', ','].includes(event.key)) return;
+        event.preventDefault();
+        this.setPhotoTags([...this.photoTags(this.current()), event.target.value || '']);
+      });
       if (this.projectLinkEnabled) {
         this.el.querySelector('[data-photo-project]')?.addEventListener('click', () => {
           const project = this.currentProject();
           if (typeof this.onOpenProject === 'function') this.onOpenProject(project);
           else window.Portal?.modules?.request?.openProject?.(project);
-          this.close();
+          if (!this.inline) this.close();
         });
       }
       this.el.querySelector('[data-photo-user-open]')?.addEventListener('click', (event) => {
         event.preventDefault();
         event.stopPropagation();
         const btn = event.currentTarget;
+        if (btn.classList.contains('is-source')) return;
         root.Portal?.PhotoFeed?.openUserModal?.({
           id: btn.dataset.photoUserId || '',
           name: btn.dataset.photoUserName || '',
@@ -2002,23 +3004,32 @@
       });
 
       this.keyHandler = (event) => {
+        if (this.closed || this.el.hidden || event.defaultPrevented) return;
+        if (this.inline && !this.el.contains(document.activeElement)) return;
+        if (event.target?.closest?.('.fm-photo-markup-text,[contenteditable="true"],textarea,input,select,[data-media-pdf]')) return;
+        if (this.modalHandle && !this.modalHandle.isTop?.()) return;
         if (event.key === 'ArrowLeft' || event.key === 'ArrowRight') {
-          if (event.target?.closest?.('.fm-photo-markup-text,[contenteditable="true"],textarea,input,select')) return;
-          if (this.modalHandle && !this.modalHandle.isTop?.()) return;
+          if (this.photos.length < 2) return;
           event.preventDefault();
           this.show(this.index + (event.key === 'ArrowLeft' ? -1 : 1));
+        } else if (!this.mobile && !event.ctrlKey && !event.metaKey && !event.altKey && ['+', '=', '-', '0'].includes(event.key) && mediaKind(this.current()) === 'image' && !this.el.classList.contains('markup-active')) {
+          event.preventDefault();
+          this.zoomBy?.(event.key === '0' ? 0 : (event.key === '-' ? 1 / 1.4 : 1.4));
         }
       };
       window.addEventListener('keydown', this.keyHandler);
     }
-    // Phone presentation: the item full screen, swipe or arrows between items, pinch and double-tap zoom, a tap
-    // hides the controls, and the details (tags, indicators, comments) in a bottom sheet. Desktop never enters it.
+    // Zoom and gestures. A phone shows the item full screen: swipe or arrows between items, pinch and double-tap
+    // zoom, a tap hides the controls, and the details (tags, indicators, comments) in a bottom sheet. On desktop an
+    // image zooms with the wheel or a trackpad pinch, a double-click or the zoom control, and pans by dragging.
+    // An inline carousel narrower than CAROUSEL_COMPACT_WIDTH behaves like the phone, inside its host.
     bindMobile(){
       const el = this.el, stage = el.querySelector('[data-photo-stage]'), img = el.querySelector('[data-photo-img]');
       this.mobileQuery = this.embedded ? null : (root.matchMedia?.('(max-width: 760px)') || null);
       this.zoom = { s: 1, x: 0, y: 0 };
       const layerNodes = () => [img, this.markup?.layer].filter(Boolean);
       const reduced = () => !!root.matchMedia?.('(prefers-reduced-motion: reduce)')?.matches;
+      const zoomLabel = el.querySelector('[data-zoom-reset]');
       const clampPan = () => {
         const z = this.zoom, w = img.offsetWidth * z.s, h = img.offsetHeight * z.s;
         const mx = Math.max(0, (w - stage.clientWidth) / 2), my = Math.max(0, (h - stage.clientHeight) / 2);
@@ -2029,20 +3040,25 @@
         const transform = zoomed ? `translate(${z.x}px,${z.y}px) scale(${z.s})` : '';
         layerNodes().forEach((node) => { node.style.transition = animate && !reduced() ? 'transform .24s cubic-bezier(.2,.8,.2,1)' : ''; node.style.transform = transform; });
         el.classList.toggle('is-zoomed', zoomed);
+        if (zoomLabel) zoomLabel.textContent = `${Math.round(z.s * 100)}%`;
       };
       this.resetZoom = (animate = true) => {
         if (!this.zoom) return;
         const was = this.zoom.s !== 1;
         this.zoom = { s: 1, x: 0, y: 0 };
+        if (zoomLabel) zoomLabel.textContent = '100%';
         if (!was) return;
         apply(animate);
         requestAnimationFrame(() => this.updateMarkupLayerBounds());
       };
       const sync = () => {
-        this.mobile = !!this.mobileQuery?.matches;
+        this.mobile = this.inline ? !!this.compact : !!this.mobileQuery?.matches;
         el.classList.toggle('is-mobile', this.mobile);
+        el.classList.toggle('is-phone', this.mobile && !this.inline);
         if (!this.mobile) { this.setSheet(false); el.classList.remove('chrome-hidden'); this.resetZoom(false); }
         else this.setSheet(el.classList.contains('sheet-open'));
+        this.applySide();
+        this.renderStrip();
         this.scheduleLayoutRefresh();
       };
       this.mobileChange = sync;
@@ -2050,19 +3066,48 @@
       // Drawing starts from the fitted photo, never a zoomed one.
       if (this.markup) {
         const setActive = this.markup.setActive.bind(this.markup);
-        this.markup.setActive = (active) => { if (active && this.mobile) { this.resetZoom(false); this.setSheet(false); el.classList.remove('chrome-hidden'); } return setActive(active); };
+        this.markup.setActive = (active) => {
+          if (active) { this.resetZoom(false); if (this.mobile) { this.setSheet(false); el.classList.remove('chrome-hidden'); } }
+          return setActive(active);
+        };
       }
       const pointers = new Map();
       let gesture = null, lastTap = null, tapTimer = 0;
-      const ignore = (target) => !!target?.closest?.('button,a,input,textarea,select,video,audio,iframe,.fm-photo-top,.fm-photo-mobile-bar,.r-proposal-markupdock,.fm-video-editdock,.fm-photo-markup-text,.fm-media-file-fallback');
-      const usable = () => this.mobile && !el.classList.contains('markup-active') && !el.classList.contains('sheet-open') && mediaKind(this.current()) === 'image';
+      const ignore = (target) => !!target?.closest?.('button,a,input,textarea,select,video,audio,iframe,.fm-photo-top,.fm-photo-mobile-bar,.r-proposal-markupdock,.fm-video-editdock,.fm-photo-markup-text,.fm-media-file-fallback,.fmv-zoom,.fmv-empty,[data-media-pdf]');
+      const isImage = () => mediaKind(this.current()) === 'image' && !el.classList.contains('is-empty');
+      const usable = () => this.mobile && !el.classList.contains('markup-active') && !el.classList.contains('sheet-open') && isImage();
+      const deskUsable = () => !this.mobile && !el.classList.contains('markup-active') && isImage();
       const center = (x, y) => { const r = stage.getBoundingClientRect(); return { x: x - r.left - r.width / 2, y: y - r.top - r.height / 2 }; };
       const zoomAt = (scale, point, animate) => {
         const z = this.zoom, next = clamp(scale, 1, 5), ratio = next / z.s;
         z.x = point.x - (point.x - z.x) * ratio; z.y = point.y - (point.y - z.y) * ratio; z.s = next;
         if (next === 1) { z.x = 0; z.y = 0; }
         clampPan(); apply(animate);
+        if (next === 1) requestAnimationFrame(() => this.updateMarkupLayerBounds());
       };
+      this.zoomBy = (factor) => {
+        if (!isImage()) return;
+        if (!factor) { this.resetZoom(true); return; }
+        zoomAt(this.zoom.s * factor, { x: 0, y: 0 }, true);
+      };
+      el.querySelector('[data-zoom-in]')?.addEventListener('click', () => this.zoomBy(1.4));
+      el.querySelector('[data-zoom-out]')?.addEventListener('click', () => this.zoomBy(1 / 1.4));
+      el.querySelector('[data-zoom-reset]')?.addEventListener('click', () => this.zoomBy(0));
+      stage.addEventListener('wheel', (event) => {
+        if (!deskUsable() || ignore(event.target)) return;
+        event.preventDefault();
+        if (!event.ctrlKey && this.zoom.s > 1 && Math.abs(event.deltaX) > 0.5) {
+          this.zoom.x -= event.deltaX; this.zoom.y -= event.deltaY; clampPan(); apply(false);
+          return;
+        }
+        const speed = event.ctrlKey ? 0.012 : 0.0018;
+        zoomAt(this.zoom.s * Math.exp(-clamp(event.deltaY, -120, 120) * speed * (event.deltaMode === 1 ? 16 : 1)), center(event.clientX, event.clientY), false);
+      }, { passive: false });
+      stage.addEventListener('dblclick', (event) => {
+        if (!deskUsable() || ignore(event.target)) return;
+        event.preventDefault();
+        if (this.zoom.s > 1) this.resetZoom(true); else zoomAt(2.5, center(event.clientX, event.clientY), true);
+      });
       const handleTap = (x, y) => {
         const now = Date.now(), point = center(x, y);
         if (lastTap && now - lastTap.t < 300 && Math.hypot(point.x - lastTap.x, point.y - lastTap.y) < 40) {
@@ -2072,10 +3117,21 @@
         }
         lastTap = { t: now, x: point.x, y: point.y };
         clearTimeout(tapTimer);
-        tapTimer = setTimeout(() => { lastTap = null; el.classList.toggle('chrome-hidden'); }, 300);
+        tapTimer = setTimeout(() => { lastTap = null; if (!this.inline) el.classList.toggle('chrome-hidden'); }, 300);
       };
       stage.addEventListener('pointerdown', (event) => {
-        if (!usable() || ignore(event.target)) return;
+        if (ignore(event.target)) return;
+        if (!this.mobile) {
+          // Desktop: drag pans a zoomed image.
+          if (!deskUsable() || this.zoom.s <= 1 || event.button !== 0) return;
+          pointers.set(event.pointerId, { x: event.clientX, y: event.clientY });
+          try { stage.setPointerCapture(event.pointerId); } catch (_) {}
+          gesture = { type: 'pan', x: event.clientX, y: event.clientY, zx: this.zoom.x, zy: this.zoom.y };
+          el.classList.add('is-panning');
+          event.preventDefault();
+          return;
+        }
+        if (!usable()) return;
         pointers.set(event.pointerId, { x: event.clientX, y: event.clientY });
         try { stage.setPointerCapture(event.pointerId); } catch (_) {}
         const pts = [...pointers.values()];
@@ -2088,6 +3144,11 @@
       stage.addEventListener('pointermove', (event) => {
         if (!gesture || !pointers.has(event.pointerId)) return;
         pointers.set(event.pointerId, { x: event.clientX, y: event.clientY });
+        if (gesture.type === 'pan') {
+          this.zoom.x = gesture.zx + event.clientX - gesture.x; this.zoom.y = gesture.zy + event.clientY - gesture.y;
+          clampPan(); apply(false);
+          return;
+        }
         const pts = [...pointers.values()];
         if (gesture.type === 'pinch' && pts.length >= 2) {
           const dist = Math.hypot(pts[0].x - pts[1].x, pts[0].y - pts[1].y), mid = center((pts[0].x + pts[1].x) / 2, (pts[0].y + pts[1].y) / 2);
@@ -2111,6 +3172,7 @@
         if (!pointers.has(event.pointerId)) return;
         pointers.delete(event.pointerId);
         if (!gesture) return;
+        if (gesture.type === 'pan') { gesture = null; el.classList.remove('is-panning'); return; }
         if (gesture.type === 'pinch') {
           if (!pointers.size) { gesture = null; if (this.zoom.s < 1.06) { this.zoom.s = 1.0001; this.resetZoom(true); } }
           else { const [p] = [...pointers.values()]; gesture = { type: 'one', x: p.x, y: p.y, zx: this.zoom.x, zy: this.zoom.y, dx: 0, dy: 0, moved: true }; }
@@ -2162,14 +3224,10 @@
       handle?.addEventListener('pointerup', dropSheet);
       handle?.addEventListener('pointercancel', dropSheet);
       el.addEventListener('keydown', (event) => {
-        if (event.key === 'Escape' && el.classList.contains('sheet-open')) { event.preventDefault(); event.stopPropagation(); this.setSheet(false); }
-      }, true);
-      // The actions sheet closes on a tap anywhere outside it.
-      el.addEventListener('pointerdown', (event) => {
+        if (event.key !== 'Escape') return;
         const menu = el.querySelector('[data-photo-actions-menu]');
-        if (!this.mobile || !menu?.classList.contains('visible') || event.target.closest?.('.fm-photo-actions-wrap')) return;
-        event.preventDefault(); event.stopPropagation();
-        menu.classList.remove('visible');
+        if (menu?.classList.contains('visible')) { event.preventDefault(); event.stopPropagation(); this.closeMenu(); return; }
+        if (el.classList.contains('sheet-open')) { event.preventDefault(); event.stopPropagation(); this.setSheet(false); }
       }, true);
       sync();
     }
@@ -2179,7 +3237,8 @@
       this.el.classList.toggle('sheet-open', next);
       this.el.querySelector('[data-photo-details]')?.setAttribute('aria-expanded', String(next));
       const side = this.el.querySelector('.fm-photo-side');
-      if (side) side.inert = !!this.mobile && !next;
+      if (side) side.inert = this.mobile ? !next : this.el.classList.contains('side-collapsed');
+      if (this.mobile) this.el.querySelector('[data-media-info]')?.setAttribute('aria-pressed', String(next));
     }
     refreshActions(){
       const host = this.el?.querySelector?.('[data-photo-custom-actions]');
@@ -2191,7 +3250,7 @@
         const label = typeof action.label === 'function' ? action.label({ photo, project, viewer: this }) : action.label;
         const icon = typeof action.icon === 'function' ? action.icon({ photo, project, viewer: this }) : action.icon;
         const className = typeof action.className === 'function' ? action.className({ photo, project, viewer: this }) : action.className;
-        return `<button type="button" class="${escapeHtml(className || '')}" data-photo-custom-action="${index}">${icon ? `<i class="fas fa-${escapeHtml(icon)}"></i>` : ''} ${escapeHtml(label || 'Action')}</button>`;
+        return `<button type="button" class="${escapeHtml(className || '')}" data-photo-custom-action="${index}">${icon ? `<i class="fas fa-${escapeHtml(cleanText(icon).replace(/^fa-/, ''))}"></i>` : '<i class="fas fa-circle-dot"></i>'} ${escapeHtml(label || 'Action')}</button>`;
       }).join('');
       host.querySelectorAll('[data-photo-custom-action]').forEach((button) => {
         button.addEventListener('click', async () => {
@@ -2204,26 +3263,10 @@
             await action.onClick({ photo: this.current(), project: this.currentProject(), viewer: this });
           } finally {
             button.disabled = false;
-            this.el?.querySelector?.('[data-photo-actions-menu]')?.classList.remove('visible');
+            this.closeMenu();
             this.refreshActions();
           }
         });
-      });
-      this.el.querySelector('[data-photo-tags]')?.addEventListener('click', (event) => {
-        const remove = event.target?.closest?.('[data-photo-tag-remove]');
-        if (remove) {
-          this.setPhotoTags(this.photoTags(this.current()).filter((tag) => tag !== remove.dataset.photoTagRemove));
-          return;
-        }
-        if (event.target?.closest?.('[data-photo-tag-add]')) {
-          const input = this.el.querySelector('[data-photo-tag-input]');
-          this.setPhotoTags([...this.photoTags(this.current()), input?.value || '']);
-        }
-      });
-      this.el.querySelector('[data-photo-tags]')?.addEventListener('keydown', (event) => {
-        if (!event.target?.matches?.('[data-photo-tag-input]') || !['Enter', ','].includes(event.key)) return;
-        event.preventDefault();
-        this.setPhotoTags([...this.photoTags(this.current()), event.target.value || '']);
       });
     }
     refreshIndicators(options = {}){
@@ -2232,7 +3275,7 @@
       const photo = this.current();
       const project = this.currentProject();
       const context = { photo, project, viewer: this };
-      const visible = this.indicators.filter((indicator) => indicator && (typeof indicator.visible !== 'function' || indicator.visible(context) !== false));
+      const visible = this.photos.length ? this.indicators.filter((indicator) => indicator && (typeof indicator.visible !== 'function' || indicator.visible(context) !== false)) : [];
       host.innerHTML = visible.map((indicator) => {
         const label = typeof indicator.label === 'function' ? indicator.label(context) : indicator.label;
         const detail = typeof indicator.detail === 'function' ? indicator.detail(context) : indicator.detail;
@@ -2243,7 +3286,7 @@
       }).join('');
     }
     handleOutsidePointer(event, phase){
-      if (this.embedded) return;
+      if (this.embedded || this.inline) return;
       if (this.modalHandle && !this.modalHandle.isTop?.()) return;
       if (!this.el || this.el.contains(event.target)) return;
       const rect = this.el.getBoundingClientRect();
@@ -2260,6 +3303,7 @@
       this.outsidePointerDown = false;
     }
     layoutTarget(){
+      if (this.inline) return this.host;
       return this.boundsTarget
         || document.getElementById('mainPanels')
         || document.querySelector('.main-panels')
@@ -2269,14 +3313,17 @@
     bindLayoutObserver(){
       this.layoutObserver?.disconnect?.();
       if (typeof root.ResizeObserver !== 'function') return;
-      this.layoutObserver = new root.ResizeObserver(() => this.scheduleLayoutRefresh());
+      this.layoutObserver = new root.ResizeObserver(() => {
+        if (this.inline) this.checkCompact();
+        this.scheduleLayoutRefresh();
+      });
       const target = this.layoutTarget();
       if (target) this.layoutObserver.observe(target);
       const stage = this.el?.querySelector?.('[data-photo-stage]');
       if (stage && stage !== target) this.layoutObserver.observe(stage);
     }
     scheduleLayoutRefresh(){
-      if (!this.el?.isConnected) return;
+      if (!this.el?.isConnected || this.closed) return;
       if (this.layoutFrame) cancelAnimationFrame(this.layoutFrame);
       this.layoutFrame = requestAnimationFrame(() => {
         this.layoutFrame = 0;
@@ -2286,13 +3333,15 @@
       if (this.layoutSettleTimer) clearTimeout(this.layoutSettleTimer);
       this.layoutSettleTimer = setTimeout(() => {
         this.layoutSettleTimer = 0;
-        if (!this.el?.isConnected) return;
+        if (!this.el?.isConnected || this.closed) return;
         this.updateBounds();
         requestAnimationFrame(() => this.updateMarkupLayerBounds());
+        try { this.pdf?.resize?.(); } catch (_) {}
       }, 180);
     }
     updateBounds(){
       if (!this.el) return;
+      if (this.inline) { this.checkCompact(); return; }
       // A phone shows the item full screen, over the project window's header.
       if (this.mobile) {
         Object.assign(this.el.style, { top: '0px', left: '0px', width: `${window.innerWidth}px`, height: `${window.innerHeight}px` });
@@ -2310,6 +3359,12 @@
         width: `${width}px`,
         height: `${height}px`
       });
+      const narrow = width < 900;
+      if (narrow !== this.el.classList.contains('is-narrow')) {
+        this.el.classList.toggle('is-narrow', narrow);
+        this.narrowSideOpen = false;
+        this.applySide();
+      }
     }
     updateMarkupLayerBounds(){
       const stage = this.el?.querySelector?.('[data-photo-stage]');
@@ -2329,28 +3384,50 @@
       });
       this.markup.refreshTextBoxLayout?.();
     }
+    updateCommentCount(){
+      const el = this.el?.querySelector?.('[data-comment-count]');
+      if (!el) return;
+      const id = this.commentMediaId;
+      const notes = id ? (root.Portal?.ProjectNotes?.all?.({ id: `photo:${id}` }) || []) : [];
+      el.textContent = notes.length ? String(notes.length) : '';
+    }
     mountPhotoComments(photo){
       const host=this.el.querySelector('[data-photo-comments]');
       if(!host || this.commentsClosed)return;
       this.commentWorkspaces=this.commentWorkspaces || new Map();
-      const mediaId=cleanText(photo.media_id || photo.mediaId);
+      const mediaId=photo ? cleanText(photo.media_id || photo.mediaId) : '';
+      this.commentMediaId=mediaId;
       for(const workspace of this.commentWorkspaces.values())workspace.handle.setVisible?.(false);
       host.replaceChildren();
-      host.style.cssText='padding:0;overflow:hidden;gap:0;min-height:0;position:relative';
-      if(!mediaId){host.textContent='Comments are available after this photo is saved.';return;}
+      const tools=this.el.querySelector('[data-comment-tools]');
+      if(tools)tools.hidden=!mediaId;
+      this.updateCommentCount();
+      if(!photo)return;
+      const noun=this.nounFor(photo);
+      const offCard=(icon,title,body)=>{host.innerHTML=`<div class="fmv-comments-off"><i class="${icon}"></i><strong>${escapeHtml(title)}</strong><span>${escapeHtml(body)}</span></div>`;};
+      if(!mediaId){
+        const body={
+          photo:(globalThis.PlatformLanguage?.text("markup","m_viewer_comments_after_save_photo","Comments open once this photo is saved to the project.") ?? "Comments open once this photo is saved to the project."),
+          video:(globalThis.PlatformLanguage?.text("markup","m_viewer_comments_after_save_video","Comments open once this video is saved to the project.") ?? "Comments open once this video is saved to the project."),
+          file:(globalThis.PlatformLanguage?.text("markup","m_viewer_comments_after_save_file","Comments open once this file is saved to the project.") ?? "Comments open once this file is saved to the project.")
+        }[noun] || (globalThis.PlatformLanguage?.text("markup","m_viewer_comments_after_save_document","Comments open once this document is saved to the project.") ?? "Comments open once this document is saved to the project.");
+        offCard('far fa-comment-dots',(globalThis.PlatformLanguage?.text("markup","m_viewer_comments_unavailable","No comments here yet") ?? "No comments here yet"),body);
+        return;
+      }
       const notes=root.Portal?.ProjectNotes;
-      if(!notes?.mount){host.textContent='Comments could not load. Please reopen this viewer.';return;}
+      if(!notes?.mount){offCard('fas fa-triangle-exclamation',(globalThis.PlatformLanguage?.text("markup","m_viewer_comments_failed","Comments couldn't load") ?? "Comments couldn't load"),(globalThis.PlatformLanguage?.text("markup","m_viewer_comments_failed_body","Close and reopen this viewer to try again.") ?? "Close and reopen this viewer to try again."));return;}
       let workspace=this.commentWorkspaces.get(mediaId);
       if(!workspace){
-        const node=document.createElement('div');node.style.cssText='display:flex;flex:1;min-height:0;width:100%';
+        const node=document.createElement('div');node.className='fmv-comments-node';
         host.append(node);
-        const handle=notes.mount(node,{project:{id:'photo:'+mediaId,commentMediaId:mediaId},kind:'photo-comments',onPosted:message=>{
+        const handle=notes.mount(node,{project:{id:'photo:'+mediaId,commentMediaId:mediaId},kind:'photo-comments',commentNoun:noun,onPosted:message=>{
           const project=photo.__project || this.project || {};
           root.Portal?.PhotoFeed?.trackActivity?.({type:'photo_commented',summary:'Commented on media',actor_name:userName(),actor_email:userEmail(),target:{media_id:mediaId,photo_id:photoId(photo),project_id:this.currentProjectId(project),project_title:project.title || project.address || '',project_address:project.address || ''},metadata:{comment_id:message?.id || '',mention_count:message?.mention_users?.length || 0}},{source:'photo_comments'});
           this.onChange?.({photo,comment:message});
         }});
         workspace={node,handle};this.commentWorkspaces.set(mediaId,workspace);
-      }else{host.append(workspace.node);workspace.handle.refresh().catch(()=>{});}
+        Promise.resolve(handle?.ready).then(()=>{if(this.commentMediaId===mediaId)this.updateCommentCount();}).catch(()=>{});
+      }else{host.append(workspace.node);workspace.handle.refresh().then(()=>this.updateCommentCount()).catch(()=>{});}
     }
     mentionUserFromChip(chip){
       return {
@@ -2415,6 +3492,24 @@
     return openMediaViewer(options);
   }
 
+  // The viewer inline in a host element (no modal, no outside-click close): the stage, a filmstrip underneath and a
+  // compact header with optional toolbar buttons. Below CAROUSEL_COMPACT_WIDTH of host width it behaves like the
+  // phone viewer (details in a bottom sheet inside the host); wider, details and comments sit in a right column.
+  function mountMediaCarousel(host, options = {}){
+    if (!host || host.nodeType !== 1) throw new Error('mountMediaCarousel needs a host element.');
+    const viewer = new MediaViewer({ ...options, photos: Array.isArray(options.photos) ? options.photos : (Array.isArray(options.items) ? options.items : []), host, embedded: true });
+    return {
+      viewer,
+      setItems: (items, opts = { keepSelection: true }) => viewer.setItems(items, opts),
+      select: (indexOrId) => viewer.select(indexOrId),
+      setVisible: (visible) => viewer.setVisible(visible),
+      resize: () => viewer.resize(),
+      destroy: () => viewer.close(),
+      get index(){ return viewer.index; },
+      current: () => (viewer.photos.length ? viewer.current() : null)
+    };
+  }
+
   function proposalDockHtml(){
     return `
       <div class="r-proposal-markupdock" id="rProposalMarkupDock">
@@ -2449,6 +3544,7 @@
     PhotoViewer: MediaViewer,
     openMediaViewer,
     openPhotoViewer,
+    mountMediaCarousel,
     loadMarkup,
     saveMarkup,
     loadComments,
@@ -2464,6 +3560,7 @@
     rememberMarkupColor,
     markupDefaultColors: MARKUP_DEFAULT_COLORS.slice(),
     PHOTO_MARKUP_LAYER,
-    PHOTO_COMMENTS_LAYER
+    PHOTO_COMMENTS_LAYER,
+    DOCUMENT_MARKUP_LAYER
   };
 })();
