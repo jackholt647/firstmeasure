@@ -6,7 +6,7 @@ import { env } from "../src/config/env.js";
 import { badRequest, notFound } from "./errors.js";
 import { OTHER_PERMISSION_CATEGORY, PERMISSION_CATEGORIES, WILDCARD_PERMISSION, permissionSubcategory } from "./permission_categories.js";
 import { readGlobal, mutateGlobal, readPlatformConfiguration, mutatePlatformConfiguration, type JsonObject } from "./storage.js";
-import { APP_OFFERS, maskOfferedCapabilities, offeredAppIds } from "./app-experience/offers.js";
+import { APP_OFFERS, maskOfferedCapabilities, offeredAppIds, offersWithPrerequisitesMet } from "./app-experience/offers.js";
 
 /**
  * Central capability registry.
@@ -638,8 +638,9 @@ export async function capabilityAccessState(orgId: string, userId?: string) {
   const values = await capabilityValuesForUser(orgId, userId, capabilityValuesFromGlobal(global), true);
   const pending = offeredAppIds(asObject(global.data).app_offers);
   const ceiling = pending.length ? resolveCapabilities(values).effectiveByKey : {};
-  return { capabilities: resolveCapabilities(maskOfferedCapabilities(values, pending)),
-    offeredAppIds: pending.filter(id => APP_OFFERS[id].some(key => ceiling[key] === true)) };
+  // A pending offer stays masked either way; one whose prerequisite setup is not reached is just not advertised yet.
+  const advertised = await offersWithPrerequisitesMet(orgId, pending.filter(id => APP_OFFERS[id].some(key => ceiling[key] === true)));
+  return { capabilities: resolveCapabilities(maskOfferedCapabilities(values, pending)), offeredAppIds: advertised };
 }
 
 /** Only configured and commercially available offers may be shown. */

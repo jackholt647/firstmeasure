@@ -275,7 +275,17 @@ Operations uses the existing `project.materials` app id. Its welcome advertiseme
 activates the organization offer only after Get Started, then opens the shared
 Operations guide. The guide can offer Equipment globally as `portal.equipment`
 without activating `apps.equipment`; that sidebar entry retains New until its
-Get Started action activates it for the organization. A resource column is
+Get Started action activates it for the organization. New organizations hold the
+Equipment offer from signup, but it is advertised only once Operations is set
+up: `APP_OFFER_PREREQUISITES` in `offers.ts` names the organization's
+`operations.setup` guide and its `ready` step, and the offer joins the
+entitlements once that guide recorded reaching the step or completing (read from
+its events, so a replay or going back does not withdraw it). Until then the
+sidebar shows nothing for Equipment and its start endpoint refuses. The
+Operations ready step refreshes the session in its own and the top window, so
+Equipment appears in the sidebar without a reload; other open sessions see it on
+their next session refresh. An organization whose Equipment is already started,
+or on without an offer, is unaffected. A resource column is
 separate from app visibility: initial Operations setup keeps Labor hidden until
 configured and Equipment hidden until its capability is active. Existing saved
 column settings and existing labor work remain visible.

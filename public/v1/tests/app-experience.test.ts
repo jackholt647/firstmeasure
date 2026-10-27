@@ -307,7 +307,16 @@ test('offered apps stay new for the organization until an eligible person starts
   assert.equal((await effectiveCapabilities(orgId)).effectiveByKey['platform.materials'],false);
   const fresh=await owner.request('GET','/v1/platform/auth/session');
   assert.notEqual(fresh.app_entitlements.find((app:any)=>app.id==='project.docs').offered,true);
-  assert.equal(fresh.app_entitlements.find((app:any)=>app.id==='portal.equipment').offered,true);
+  // Equipment is offered only once Operations setup has reached its ready step (APP_OFFER_PREREQUISITES).
+  assert.equal(fresh.app_entitlements.some((app:any)=>app.id==='portal.equipment'),false);
+  assert.equal((await person.client.raw('POST',`${base}/app-offers/portal.equipment/start`,{})).statusCode,403);
+  const {recordEvent}=await import('../guided-experiences/store.js');
+  const opsEvent={experience_id:'operations.setup',experience_version:1,variant_id:'default',bucket:0,unit_id:orgId,user_id:person.userId};
+  await recordEvent(orgId,{...opsEvent,type:'step_view',step_id:'document'});
+  assert.equal((await owner.request('GET','/v1/platform/auth/session')).app_entitlements.some((app:any)=>app.id==='portal.equipment'),false);
+  await recordEvent(orgId,{...opsEvent,type:'step_view',step_id:'ready'});
+  const reached=await owner.request('GET','/v1/platform/auth/session');
+  assert.equal(reached.app_entitlements.find((app:any)=>app.id==='portal.equipment').offered,true);
   assert.equal((await effectiveCapabilities(orgId)).effectiveByKey['apps.equipment'],false);
   await person.client.request('POST',`${base}/app-offers/portal.equipment/start`,{});
   const equipmentSession=await owner.request('GET','/v1/platform/auth/session');

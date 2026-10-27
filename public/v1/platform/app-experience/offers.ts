@@ -15,6 +15,31 @@ export const APP_OFFERS = {
 export type OfferedAppId = keyof typeof APP_OFFERS;
 export const NEW_ORGANIZATION_APP_OFFERS = Object.keys(APP_OFFERS) as OfferedAppId[];
 
+/**
+ * An offer that only makes sense after another app is set up. It is advertised
+ * once the organization's setup guide has reached `step` or completed, read from
+ * the guide's own recorded events (so a later replay does not withdraw it).
+ * This gates only the offer: an app already started, or switched on without an
+ * offer, is unaffected.
+ */
+export const APP_OFFER_PREREQUISITES: Partial<Record<OfferedAppId, { experience: string; step: string }>> = {
+  // Equipment is matched to the requirements an Operations scope of work publishes.
+  "portal.equipment": { experience: "operations.setup", step: "ready" }
+};
+
+/** The pending offers whose prerequisite setup has been reached. */
+export async function offersWithPrerequisitesMet(orgId: string, ids: readonly OfferedAppId[]) {
+  const gated = ids.filter(id => APP_OFFER_PREREQUISITES[id]);
+  if (!gated.length) return [...ids];
+  const { setupReached } = await import("../../guided-experiences/store.js");
+  const met = new Set<OfferedAppId>();
+  for (const id of gated) {
+    const { experience, step } = APP_OFFER_PREREQUISITES[id]!;
+    if (await setupReached(orgId, experience, step)) met.add(id);
+  }
+  return ids.filter(id => !APP_OFFER_PREREQUISITES[id] || met.has(id));
+}
+
 const copy = (key: string, text: string) => ({ key: `gx_offer_${key}`, text });
 /** Static advertisements, not guide progress. The existing guide starts after activation. */
 export const APP_WELCOMES = {

@@ -58,9 +58,12 @@ function environment(ctx){
   };
   return {orgId,projectId,target,invoke};
 }
+// Reaching the ready step is what offers Equipment (APP_OFFER_PREREQUISITES): show it in this and the top window's sidebar now.
+async function syncSessions(){const wins=new Set([window]);try{if(window.top.location.origin===location.origin)wins.add(window.top);}catch{}await Promise.all([...wins].map(win=>win.Portal?.auth?.syncPlatformSession?.()?.catch?.(()=>null)));}
 async function activate(appId,orgId){
-  const entries=window.Portal?.currentUser?.appEntitlements||[];
-  if(!entries.find(entry=>entry.id===appId)?.offered)return;
+  const offered=()=>(window.Portal?.currentUser?.appEntitlements||[]).find(entry=>entry.id===appId)?.offered;
+  if(!offered())await syncSessions();
+  if(!offered())return;
   await window.PlatformAPI.request(`/organizations/${encodeURIComponent(orgId)}/app-offers/${encodeURIComponent(appId)}/start`,{method:'POST',body:{}});
   await Promise.all([window.PlatformAPI.capabilities.load(orgId,{refresh:true}),window.PlatformAPI.appFlags.load(orgId,{refresh:true})]);
   await window.Portal.auth.syncPlatformSession();
@@ -205,7 +208,7 @@ function readyWidget(el,ctx){
       }
     }catch(error){showError(error);}finally{busy=false;}
   }
-  el.innerHTML=`<div class="ops-loading">${esc(copy('gx_ops_checking','Checking your setup…'))}</div>`;refresh().catch(error=>{el.innerHTML='<p class="ops-error" role="alert"></p>';showError(error);});
+  el.innerHTML=`<div class="ops-loading">${esc(copy('gx_ops_checking','Checking your setup…'))}</div>`;Promise.resolve(ctx.checkpoint?.()).then(syncSessions).catch(()=>null);refresh().catch(error=>{el.innerHTML='<p class="ops-error" role="alert"></p>';showError(error);});
   return {destroy(){alive=false;child?.destroy?.();}};
 }
 export function mountWidget(id,el,ctx){installStyle();if(id==='operations-path')return pathWidget(el,ctx);if(id==='operations-document')return documentWidget(el,ctx);return readyWidget(el,ctx);}
