@@ -34,7 +34,7 @@ import urllib.request
 ROOT = pathlib.Path("/opt/firstmeasure")
 CONFIG = pathlib.Path(os.environ.get("FM_RELEASE_CONFIG", "/etc/firstmeasure/dev-push-role.json"))
 LOCK = pathlib.Path("/run/lock/fm-release.lock")
-SHA = re.compile(r"^[0-9a-f]{40}$")
+SHA = re.compile(r"^[0-9a-f]{40}(-dp)?$")  # release name: the commit, or <commit>-dp beside an old-tool directory
 LANE = re.compile(r"^[a-z][a-z0-9-]{1,31}$")
 RECEIPT = "dev-push-release.json"
 # Never part of a release tree: runtime data carried from the running release, and the router's receipt.
@@ -308,6 +308,8 @@ def cmd_activate(lane, sha, expect, wait_jobs):
 
 
 def cmd_rollback(lane, sha):
+    if "/" in sha or sha.startswith("."):
+        fail("bad release name")
     handle = locked()
     releases, link = lane_dirs(lane)
     target = releases / sha
@@ -320,7 +322,7 @@ def cmd_rollback(lane, sha):
     out({"ok": error is None, "release": sha, "error": error}, 0 if error is None else 1)
 
 
-def cmd_status(lane):
+def cmd_status(lane, probe=None):
     settings = config()
     lanes = [lane] if lane else ["platform"] + sorted(p.name for p in (ROOT / "lanes").glob("*") if p.is_dir())
     result = {"ok": True, "role": settings.get("role"), "host": os.uname().nodename, "lanes": {}}
@@ -334,6 +336,9 @@ def cmd_status(lane):
         stat = os.statvfs(releases) if releases.exists() else None
         result["lanes"][name] = {"current": current.name if current else None, "receipt": receipt, "releases": str(releases),
                                  "free_bytes": usage.free if usage else None, "free_inodes": stat.f_favail if stat else None}
+    if probe and SHA.match(probe) and lane:
+        releases, _ = lane_dirs(lane)
+        result["probe"] = {name: {"exists": (releases / name).is_dir(), "router": (releases / name / RECEIPT).is_file()} for name in (probe, probe + "-dp")}
     lsattr = subprocess.run(["lsattr", "-d", str(ROOT)], capture_output=True, text=True).stdout.split()
     result["sealed"] = bool(lsattr) and "i" in lsattr[0].replace("I", "")
     out(result)
@@ -393,7 +398,7 @@ def cmd_ssh():
             fail("only rsync uploads are allowed")
         dest = os.path.normpath(argv[-1])
         allowed = [str(lane_dirs("platform")[0])] + [str(p / "releases") for p in (ROOT / "lanes").glob("*")]
-        if not any(dest.startswith(root + "/") for root in allowed) or not re.search(r"/[0-9a-f]{40}\.staging$", dest):
+        if not any(dest.startswith(root + "/") for root in allowed) or not re.search(r"/[0-9a-f]{40}(-dp)?\.staging$", dest):
             fail(f"rsync destination {dest} is not a staging directory")
         for arg in argv:
             if arg.startswith("--link-dest="):
@@ -433,7 +438,8 @@ def main(argv):
     if command == "rollback":
         return cmd_rollback(rest[0], rest[1])
     if command == "status":
-        return cmd_status(rest[0] if rest else None)
+        probe = option("--probe", None)
+        return cmd_status(rest[0] if rest else None, probe)
     if command == "tree":
         return cmd_tree(rest[0] if rest else "platform")
     if command == "prune":

@@ -67,8 +67,9 @@ async function main() {
   });
   await router.init();
   await router.git(["config", "remote.origin.pushurl", config.pushurl || "git@github.com:jackholt647/firstmeasure.git"]);
-  if (command === "gate" || command === "build") {
-    // Diagnostics: run a lane's gates, or build its release tree, for any commit without touching the queue.
+  if (command === "gate" || command === "build" || command === "stage") {
+    // Diagnostics: run a lane's gates, build its release tree, or build and stage it on every role (no activation),
+    // for any commit without touching the queue.
     const lane = args.lane || "platform";
     const ref = args._[1] || `refs/lanes/${lane}`;
     await router.fetch(lane);
@@ -82,7 +83,9 @@ async function main() {
       const result = await lanes[lane].gates({ dir, sha, baseSha: sha, changed, tests: [], log: console.log });
       console.log(JSON.stringify({ ok: result.ok, failures: result.failures.map((failure) => ({ id: failure.id, output: failure.output.slice(-1500) })), notes: result.notes, seconds: Math.round((Date.now() - started) / 1000) }, null, 1));
     } else {
-      const result = await lanes[lane].deploy({ dir, sha, releaseId: `${lane}-diagnose-${sha.slice(0, 8)}`, hosts: { roles: [], status: async () => ({ ok: true }) }, log: console.log, buildOnly: true });
+      const result = command === "build"
+        ? await lanes[lane].deploy({ dir, sha, releaseId: `${lane}-diagnose-${sha.slice(0, 8)}`, hosts: { roles: [], status: async () => ({ ok: true }) }, log: console.log, buildOnly: true })
+        : await lanes[lane].deploy({ dir, sha, releaseId: `${lane}-diagnose-${sha.slice(0, 8)}`, hosts, log: console.log, stageOnly: true });
       console.log(JSON.stringify({ ...result, seconds: Math.round((Date.now() - started) / 1000) }, null, 1));
     }
     return;

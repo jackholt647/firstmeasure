@@ -29,7 +29,7 @@ export function makeHosts({ inventory = INVENTORY, key = path.join(os.homedir(),
   return {
     roles: Object.keys(inventory),
     call,
-    status: (role, lane = "platform") => call(role, ["status", lane], { timeoutMs: 60_000 }),
+    status: (role, lane = "platform", probe = null) => call(role, ["status", lane, ...(probe ? ["--probe", probe] : [])], { timeoutMs: 60_000 }),
 
     /** Uploads `dir` as release `sha` of `lane` (unchanged files hard-linked to the running release) and checks it against `manifest`. */
     async stage(role, { lane, sha, dir, manifest, releases }) {

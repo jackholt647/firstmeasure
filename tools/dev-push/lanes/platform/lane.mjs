@@ -124,9 +124,16 @@ export default {
   },
 
   /** Builds the release tree for `sha` and puts it on every role together. */
-  async deploy({ dir, sha, releaseId, hosts, log, buildOnly = false }) {
+  async deploy({ dir, sha, releaseId, hosts, log, buildOnly = false, stageOnly = false }) {
     const treeSha = (await run("git", ["rev-parse", `${sha}^{tree}`], { cwd: dir })).stdout.trim();
-    const build = path.join(BUILDS, sha);
+    const roles = hosts.roles;
+    const before = Object.fromEntries(await Promise.all(roles.map(async (role) => [role, await hosts.status(role, "platform", sha)])));
+    const broken = roles.filter((role) => !before[role].ok);
+    if (broken.length) return { ok: false, error: `status failed: ${broken.map((role) => `${role}: ${before[role].error}`).join("; ")}`, rolledBack: true, infrastructure: true };
+    // The release directory is named for the commit, or <commit>-dp where the old tooling already made one of that
+    // name (the running release at the re-baseline). RELEASE_ID equals the directory name; the web standby relies on it.
+    const name = roles.some((role) => before[role].probe?.[sha]?.exists && !before[role].probe[sha].router) ? `${sha}-dp` : sha;
+    const build = path.join(BUILDS, name);
     if (!fs.existsSync(path.join(build, ".manifest.json"))) {
       const modules = await ensureModules(dir, log);
       const dist = await buildDist(dir, treeSha, log);
@@ -143,7 +150,7 @@ export default {
         const copied = await run("cp", ["-al", from, to]);
         if (copied.code !== 0) throw new Error(`cp ${from}: ${copied.stderr}`);
       }
-      fs.writeFileSync(path.join(tmp, "release.env"), `RELEASE_ID=${sha}\nRELEASE_COMMIT=${sha}\nDEV_PUSH_RELEASE=${releaseId}\n`);
+      fs.writeFileSync(path.join(tmp, "release.env"), `RELEASE_ID=${name}\nRELEASE_COMMIT=${sha}\nDEV_PUSH_RELEASE=${releaseId}\n`);
       const manifest = await treeManifest(tmp);
       manifest.release_id = releaseId;
       fs.writeFileSync(path.join(tmp, ".manifest.json"), JSON.stringify(manifest));
@@ -153,23 +160,20 @@ export default {
     }
     const manifest = JSON.parse(fs.readFileSync(path.join(build, ".manifest.json"), "utf8"));
     delete manifest.files[".manifest.json"];
-    if (buildOnly) return { ok: true, build, tree_sha256: manifest.tree_sha256, files: Object.keys(manifest.files).length };
+    if (buildOnly) return { ok: true, build, name, tree_sha256: manifest.tree_sha256, files: Object.keys(manifest.files).length };
 
-    const roles = hosts.roles;
-    const before = Object.fromEntries(await Promise.all(roles.map(async (role) => [role, await hosts.status(role, "platform")])));
-    const broken = roles.filter((role) => !before[role].ok);
-    if (broken.length) return { ok: false, error: `status failed: ${broken.map((role) => `${role}: ${before[role].error}`).join("; ")}`, rolledBack: true, infrastructure: true };
-    log(`staging ${sha.slice(0, 10)} on ${roles.join(", ")} (${Object.keys(manifest.files).length} files, tree ${manifest.tree_sha256.slice(0, 12)})`);
-    const staged = await Promise.all(roles.map((role) => hosts.stage(role, { lane: "platform", sha, dir: build, manifest: { ...manifest, files: withoutLocal(manifest.files) }, releases: before[role].lanes.platform.releases })));
+    log(`staging ${name} on ${roles.join(", ")} (${Object.keys(manifest.files).length} files, tree ${manifest.tree_sha256.slice(0, 12)})`);
+    const staged = await Promise.all(roles.map((role) => hosts.stage(role, { lane: "platform", sha: name, dir: build, manifest: { ...manifest, files: withoutLocal(manifest.files) }, releases: before[role].lanes.platform.releases })));
     const stageErrors = roles.filter((_, index) => !staged[index].ok);
     if (stageErrors.length) return { ok: false, error: `staging failed: ${stageErrors.map((role) => `${role}: ${JSON.stringify(staged[roles.indexOf(role)])}`).join("; ")}`, rolledBack: true, infrastructure: true };
+    if (stageOnly) return { ok: true, name, staged: Object.fromEntries(roles.map((role, index) => [role, staged[index]])) };
 
-    log(`activating ${sha.slice(0, 10)} on ${roles.join(", ")}`);
+    log(`activating ${name} on ${roles.join(", ")}`);
     const previous = Object.fromEntries(roles.map((role) => [role, before[role].lanes.platform.current]));
-    const activated = await Promise.all(roles.map((role) => hosts.activate(role, { lane: "platform", sha, expect: previous[role] })));
+    const activated = await Promise.all(roles.map((role) => hosts.activate(role, { lane: "platform", sha: name, expect: previous[role] })));
     let failed = roles.filter((_, index) => !activated[index].ok);
     if (!failed.length) {
-      const publicError = await waitPublic(sha);
+      const publicError = await waitPublic(name);
       if (publicError) { failed = ["public"]; activated.push({ ok: false, error: publicError }); }
     }
     if (failed.length) {
@@ -177,14 +181,14 @@ export default {
       log(`activation failed; rolling every role back:\n${errors}`);
       const back = await Promise.all(roles.map(async (role, index) => {
         if (!activated[index].ok && activated[index].rolled_back !== false) return { role, ok: true };
-        if (!previous[role] || previous[role] === sha) return { role, ok: true };
+        if (!previous[role] || previous[role] === name) return { role, ok: true };
         return { role, ...(await hosts.rollback(role, { lane: "platform", sha: previous[role] })) };
       }));
       const notBack = back.filter((item) => !item.ok);
       return { ok: false, error: errors + (notBack.length ? `\nROLLBACK FAILED on ${notBack.map((item) => `${item.role}: ${item.error}`).join("; ")}` : ""), rolledBack: notBack.length === 0 };
     }
     Promise.all(roles.map((role) => hosts.prune(role, { lane: "platform" }))).then((results) => log(`pruned old releases: ${results.map((result, index) => `${roles[index]} ${result.removed ?? result.error}`).join(", ")}`)).catch(() => {});
-    return { ok: true, roles: Object.fromEntries(roles.map((role, index) => [role, { previous: previous[role], tree_sha256: staged[index].tree_sha256, reused: Boolean(activated[index].reused) }])) };
+    return { ok: true, name, roles: Object.fromEntries(roles.map((role, index) => [role, { previous: previous[role], tree_sha256: staged[index].tree_sha256, reused: Boolean(activated[index].reused) }])) };
   },
 
   async current({ hosts }) {

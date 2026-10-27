@@ -55,6 +55,7 @@ DEFAULT_JUMP = "dev-sync-droplet"
 DEFAULT_KEY = os.path.join(os.path.expanduser("~"), ".ssh", "id_ed25519_firstmeasure_cluster_v2")
 RELEASE_LINK = "/opt/firstmeasure/current"
 LIVE_ROOT = "/opt/firstmeasure/live"
+LANES_ROOT = "/opt/firstmeasure/lanes"  # per-path lanes nginx serves ahead of the release (lanes/<name>/current)
 SKIP_PREFIXES = ("public/v1/node_modules", "public/v1/dist", "public/storage", "public/v1/storage", "public/v1/output")
 SKIP_NAMES = ("node_modules", ".git")
 CODE_PREFIXES = ("public/", "deploy/", "tools/", "tests/", "dev/", "docs/")
@@ -132,6 +133,27 @@ def main(args):
                 out["live_manifest_error"] = str(e)
             pub = os.path.join(live, "public")
             out["live"] = walk(pub, (), ()) if os.path.isdir(pub) else None
+            if out["live"]:
+                # The live manifest's sha/base are sha1 of CRLF-folded text: hash the release counterpart the same way.
+                rel_sha = {}
+                for f in out["live"]["files"]:
+                    try:
+                        with open(os.path.join(root, "public", f["p"]), "rb") as fh:
+                            data = fh.read()
+                        rel_sha[f["p"]] = [hashlib.sha1(data).hexdigest(),
+                                           hashlib.sha1(data.replace(b"\r\n", b"\n")).hexdigest()]
+                    except OSError:
+                        rel_sha[f["p"]] = None
+                out["live_release_sha1"] = rel_sha
+        lanes = args.get("lanes_root")
+        out["lanes"] = {}
+        if lanes and os.path.isdir(lanes):
+            for name in sorted(os.listdir(lanes)):
+                cur = os.path.join(lanes, name, "current")
+                if os.path.isdir(cur):
+                    lroot = os.path.realpath(cur)
+                    out["lanes"][name] = {"release_root": lroot, "release_link_target": os.readlink(cur) if os.path.islink(cur) else None,
+                                          "release": walk(lroot, tuple(args["skip_prefixes"]), tuple(args["skip_names"]))}
     elif args["cmd"] == "fetch":
         got = {}
         for p in args["paths"]:
@@ -260,6 +282,10 @@ def is_text(data):
     return b"\0" not in data[:65536]
 
 
+def norm(line):
+    return re.sub(r"\s+", "", line)
+
+
 def lines_of(data):
     return data.replace(b"\r\n", b"\n").decode("utf-8", "replace").split("\n")
 
@@ -365,13 +391,13 @@ class Audit:
     def walk_role(self, role):
         ip = self.opts.hosts[role]
         self.log("[%s] walking %s on %s ..." % (role, RELEASE_LINK, ip))
-        data = self.ssh.call(ip, {"cmd": "walk", "release_link": RELEASE_LINK, "live_root": LIVE_ROOT,
+        data = self.ssh.call(ip, {"cmd": "walk", "release_link": RELEASE_LINK, "live_root": LIVE_ROOT, "lanes_root": LANES_ROOT,
                                   "skip_prefixes": list(SKIP_PREFIXES), "skip_names": list(SKIP_NAMES)})
         self.log("[%s] %d files, %d symlinks from %s" % (role, len(data["release"]["files"]),
                                                          len(data["release"]["links"]), data["release_root"]))
         return data
 
-    def classify(self, role, data):
+    def classify(self, role, data, ip=None):
         rel = data["release"]
         release_name = os.path.basename(data["release_root"])
         rinfo = self.release_tree(release_name)
@@ -447,7 +473,7 @@ class Audit:
         missing_by_top = collections.Counter(p.split("/", 1)[0] if "/" in p else "(root)" for p in missing)
 
         return {
-            "ip": self.opts.hosts[role], "host": data.get("host"), "release_root": data["release_root"],
+            "ip": ip or self.opts.hosts[role], "host": data.get("host"), "release_root": data["release_root"],
             "release_link_target": data.get("release_link_target"),
             "release_commit": {k: v for k, v in rinfo.items() if k != "tree"},
             "file_count": len(host_files), "symlink_count": len(host_links),
@@ -486,6 +512,11 @@ class Audit:
                         e["matched_blob"] = via
                 e["in_manifest"] = bool(m)
                 rel_entry = release_files.get(path)
+                rs = (data.get("live_release_sha1") or {}).get(rel)
+                if m and rs is not None:
+                    e["manifest_base_matches_release"] = m.get("base") in rs
+                elif m:
+                    e["manifest_base_matches_release"] = m.get("base") in (None, "")
                 e["release_blob"] = rel_entry["blob"] if rel_entry else (e["canonical_blob"] if path in self.tree else None)
             counts[e["class"]] += 1
             out.append(e)
@@ -589,46 +620,72 @@ class Audit:
                 e["diff_to"] = e["captured_to"] + ".diff"
                 e["diff_added"] = sum(1 for l in diff if l.startswith("+") and not l.startswith("+++"))
                 e["diff_removed"] = sum(1 for l in diff if l.startswith("-") and not l.startswith("---"))
-            canon_set = set(canon_lines)
-            added = [l for l in host_lines if l not in canon_set and l.strip()]
+            # Lines the host has that canonical lacks, ignoring whitespace-only differences, sorted into
+            #   stale:    the line is in an older canonical version of the path (canonical moved past it),
+            #   unmerged: the line is only in versions on refs canonical does not contain (work to carry),
+            #   never:    the line is in no committed version of the path (host-only edit or a line-level merge).
+            canon_set, canon_norm = set(canon_lines), {norm(l) for l in canon_lines}
+            added = [l for l in host_lines if l.strip() and l not in canon_set]
+            added_sig = [l for l in added if norm(l) not in canon_norm]
             e["lines_not_in_canonical"] = len(added)
-            candidates = ref_blobs.get(e["path"], {})
-            union, best = set(), None
+            e["added_whitespace_only"] = len(added) - len(added_sig)
             hc = collections.Counter(host_lines)
-            for oid, rlist in candidates.items():
+            stale_norm, other_norm, hbest, best = set(), collections.defaultdict(set), None, None
+            versions = list(history.get(e["path"], ()))
+            for oid in list(ref_blobs.get(e["path"], {})):
+                if oid not in versions:
+                    versions.append(oid)
+            for oid in versions:
                 c = contents.get(oid)
                 if c is None:
                     continue
                 cl = lines_of(c)
-                union.update(cl)
-                dist = sum((hc - collections.Counter(cl)).values()) + sum((collections.Counter(cl) - hc).values())
-                if best is None or dist < best[0]:
-                    best = (dist, rlist)
-            unexplained = [l for l in added if l not in union]
-            e["lines_unexplained_by_refs"] = len(unexplained)
-            ever = set(union)
-            hbest = None
-            for oid in history.get(e["path"], ()):
-                c = contents.get(oid)
-                if c is None:
-                    continue
-                cl = lines_of(c)
-                ever.update(cl)
+                if oid in self.canon_reach:
+                    stale_norm.update(norm(l) for l in cl)
+                else:
+                    for l in cl:
+                        other_norm[norm(l)].add(oid)
                 dist = sum((hc - collections.Counter(cl)).values()) + sum((collections.Counter(cl) - hc).values())
                 if hbest is None or dist < hbest[0]:
                     hbest = (dist, oid)
-            never = [l for l in added if l not in ever]
+            stale, unmerged, never = [], [], []
+            ref_votes = collections.Counter()
+            idx = self.ref_index() if other_norm else {}
+            for l in added_sig:
+                k = norm(l)
+                if k in stale_norm:
+                    stale.append(l)
+                elif k in other_norm:
+                    unmerged.append(l)
+                    for ref in {r for oid in other_norm[k] for r in idx.get(oid, ["(unreachable object)"])}:
+                        ref_votes[ref] += 1
+                else:
+                    never.append(l)
+            e["added_stale"] = len(stale)
+            e["added_unmerged"] = len(unmerged)
+            e["added_never_committed"] = len(never)
             e["lines_in_no_committed_version"] = len(never)
-            e["new_line_sample"] = [l.strip()[:160] for l in never[:6]]
-            e["history_versions"] = len(history.get(e["path"], ()))
+            if unmerged:
+                e["unmerged_refs"] = [r for r, _ in ref_votes.most_common(8)]
+                e["unmerged_sample"] = [l.strip()[:160] for l in unmerged[:4]]
+            if never:
+                e["new_line_sample"] = [l.strip()[:160] for l in never[:6]]
+            e["history_versions"] = len(versions)
             if hbest:
                 e["closest_version_line_distance"] = hbest[0]
                 e["closest_version_blob"] = hbest[1]
                 e["closest_version_on_canonical"] = hbest[1] in self.canon_reach
+            for oid, rlist in ref_blobs.get(e["path"], {}).items():
+                c = contents.get(oid)
+                if c is None:
+                    continue
+                cl = collections.Counter(lines_of(c))
+                dist = sum((hc - cl).values()) + sum((cl - hc).values())
+                if best is None or dist < best[0]:
+                    best = (dist, rlist)
             if best:
-                e["closest_ref_line_distance"] = best[0]
-                e["closest_refs"] = sorted(best[1])[:6]
-            e["refs_with_path"] = len(candidates)
+                e["closest_tip_line_distance"] = best[0]
+                e["closest_tips"] = sorted(best[1])[:6]
 
     # ---- driver
     def run(self):
@@ -642,18 +699,26 @@ class Audit:
         report = {"generated_at": self.opts.stamp, "canonical_ref": self.opts.canonical, "canonical": self.canonical,
                   "repo": os.path.abspath(self.opts.repo), "skip_prefixes": SKIP_PREFIXES, "skip_names": SKIP_NAMES,
                   "unmerged_ref_count": len(self.unmerged), "roles": {}}
+        jobs = []
         for role in roles:
-            data = walks[role]
-            r = self.classify(role, data)
-            report["roles"][role] = r
+            jobs.append((role, role, walks[role], None))
+            for name, lane in sorted((walks[role].get("lanes") or {}).items()):
+                lane = dict(lane, host=walks[role].get("host"))
+                jobs.append(("%s/lane:%s" % (role, name), "%s-lane-%s" % (role, name), lane, role))
+        for key, subdir, data, lane_of in jobs:
+            role = lane_of or key
+            r = self.classify(key, data, ip=self.opts.hosts[role])
+            if lane_of:
+                r["lane_of"] = lane_of
+            report["roles"][key] = r
             if data.get("live") is not None or data.get("live_manifest"):
                 r["live"] = self.classify_live(data, r)
             if self.opts.capture:
                 grab = [e for e in r["entries"] if e["class"] in ("novel", "object-only")
                         or (e["class"].startswith("host-only-") and e.get("group") != "junk"
                             and e["class"].split(":")[1] in ("never-committed", "object-only"))]
-                self.capture(role, r["ip"], r["release_root"], grab, role)
-                self.provenance(role, grab, r["release_commit"].get("commit"))
+                self.capture(role, r["ip"], r["release_root"], grab, subdir)
+                self.provenance(key, grab, r["release_commit"].get("commit"))
                 if r.get("live"):
                     lv = [e for e in r["live"]["files"] if "size" in e]
                     self.capture(role, r["ip"], LIVE_ROOT + "/public", lv, role + "-live")
@@ -679,14 +744,18 @@ def summary_md(report):
                         rc.get("canonical_commits_not_in_release", 0))) if rc.get("commit") else ""), ""]
         out += ["| class | count |", "|---|---|"] + ["| %s | %d |" % kv for kv in r["counts"].items()] + [""]
         novel = [e for e in r["entries"] if e["class"] in ("novel", "object-only")]
+        novel.sort(key=lambda e: (-(e.get("added_unmerged", 0) + e.get("added_never_committed", 0)), e["path"]))
         if novel:
-            out += ["### Novel content (in canonical's tree, bytes in no reachable git object)", ""]
+            out += ["### Novel content (in canonical's tree, bytes in no reachable git object)", "",
+                    "Added lines = host lines canonical lacks: stale (in an older canonical version), "
+                    "unmerged (only on refs canonical lacks), never (in no committed version), ws (whitespace only).", ""]
             for e in novel:
-                out.append("- `%s` %s: +%s/-%s vs canonical; %s lines not in canonical, %s not on any unmerged tip, "
-                           "%s in no committed version of the path%s" % (
+                out.append("- `%s` %s: +%s/-%s vs canonical; added: %s stale, %s unmerged%s, %s never, %s ws%s" % (
                     e["path"], e["class"], e.get("diff_added", "?"), e.get("diff_removed", "?"),
-                    e.get("lines_not_in_canonical", "?"), e.get("lines_unexplained_by_refs", "?"),
-                    e.get("lines_in_no_committed_version", "?"), " (generated?)" if e.get("generated_hint") else ""))
+                    e.get("added_stale", "?"), e.get("added_unmerged", "?"),
+                    (" [" + ", ".join(e["unmerged_refs"][:3]) + "]") if e.get("unmerged_refs") else "",
+                    e.get("added_never_committed", "?"), e.get("added_whitespace_only", "?"),
+                    " (generated?)" if e.get("generated_hint") else ""))
             out.append("")
         ho = [e for e in r["entries"] if e["class"].startswith("host-only-") and e.get("group") != "junk"]
         if ho:
@@ -709,9 +778,14 @@ def summary_md(report):
             out += ["### Live layer (manifest %s)" % lv.get("manifest_at"), ""]
             for e in lv["files"]:
                 m = e.get("manifest") or {}
-                out.append("- `%s` %s; source %s%s" % (e["path"], e["class"], m.get("source", "-"),
-                                                     (", %s lines in no committed version" % e["lines_in_no_committed_version"])
-                                                     if "lines_in_no_committed_version" in e else ""))
+                out.append("- `%s` %s; base %s; source %s%s" % (e["path"], e["class"],
+                                                     {True: "= release", False: "!= release (release moved)"}.get(e.get("manifest_base_matches_release"), "-"),
+                                                     m.get("source", "-"),
+                                                     (", added vs canonical: %s stale, %s unmerged%s, %s never" % (
+                                                         e["added_stale"], e["added_unmerged"],
+                                                         (" [" + ", ".join(e["unmerged_refs"][:3]) + "]") if e.get("unmerged_refs") else "",
+                                                         e["added_never_committed"]))
+                                                     if "added_stale" in e else ""))
             out.append("")
     return "\n".join(out) + "\n"
 
