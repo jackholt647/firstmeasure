@@ -305,12 +305,13 @@
         const width = Number(item.width || 0.24) * canvas.width;
         const height = Number(item.height || 0.07) * canvas.height;
         const lines = String(item.text || '').split('\n').length || 1;
-        const fontSize = Math.max(8, (height - 8) / Math.max(1, lines * 1.14));
+        const fontSize = Number(item.fontWidthRatio) > 0 ? item.fontWidthRatio * canvas.width : Math.max(8, (height - 8) / Math.max(1, lines * 1.14));
         ctx.fillStyle = 'rgba(255,255,255,.72)';
         ctx.fillRect(x, y, width, height);
         ctx.fillStyle = item.color || '#111';
         ctx.font = `700 ${fontSize}px Arial, sans-serif`;
         ctx.textBaseline = 'top';
+        ctx.beginPath(); ctx.rect(x,y,width,height); ctx.clip();
         drawWrappedText(ctx, item.text || '', x + 5, y + 4, Math.max(20, width - 10), fontSize * 1.14);
       }
       ctx.restore();
@@ -499,6 +500,10 @@
       .fm-photo-markup-text-size{position:absolute;width:21px;height:21px;border-radius:5px;background:#fff;border:2px solid var(--primary,#d93025);box-shadow:0 6px 12px rgba(15,23,42,.14);display:none;cursor:nwse-resize;z-index:12;opacity:.5;transition:opacity .14s ease,transform .14s ease}
       .fm-photo-markup-handle:hover,.fm-photo-markup-handle:focus-visible,.fm-photo-markup-text-size:hover,.fm-photo-markup-text-size:focus-visible{opacity:1}
       .fm-photo-modal.markup-active .fm-photo-markup-handle,.fm-photo-modal.markup-active .fm-photo-markup-text-size{display:block}
+      .fm-photo-markup-text-delete{position:absolute;width:21px;height:21px;border-radius:50%;background:#fff;border:1px solid #d0d5dd;color:#475467;font:700 18px/18px sans-serif;padding:0;z-index:13;cursor:pointer}
+      .fm-photo-markup-layer :is([data-markup-handle^="text-"],[data-markup-delete]){opacity:0;pointer-events:none;visibility:hidden}
+      .fm-photo-modal.markup-active .fm-photo-markup-layer :is([data-markup-handle^="text-"],[data-markup-delete]).text-control-visible{opacity:1;pointer-events:auto;visibility:visible}
+      .fm-photo-modal:not(.markup-active) .fm-photo-markup-text-delete{display:none}
       .fm-photo-markup-path{fill:none;stroke:#111;stroke-width:2.2;stroke-linecap:round;stroke-linejoin:round}
       .fm-photo-markup-arrow{fill:none;stroke-linecap:round}
       .fm-photo-modal .r-proposal-markupdock{display:block;top:72px;right:18px}
@@ -923,6 +928,7 @@
     applyTextBoxElement(item = {}, el = null){
       const target = el || this.layer?.querySelector?.(`.fm-photo-markup-text[data-markup-id="${item.id}"]`);
       const handle = this.layer?.querySelector?.(`.fm-photo-markup-text-size[data-markup-id="${item.id}"]`);
+      const remove = this.layer?.querySelector?.(`[data-markup-delete][data-markup-id="${item.id}"]`);
       if (!target) return;
       const metrics = this.textMetrics(item);
       const { width, height } = this.textBoxRenderBox(item);
@@ -933,6 +939,7 @@
       target.style.maxWidth = `${(Math.max(0.12, 0.98 - Number(item.x || 0)) * 100).toFixed(3)}%`;
       target.style.fontSize = `${fontSize.toFixed(1)}px`;
       target.style.padding = `${padding.y.toFixed(1)}px ${padding.x.toFixed(1)}px`;
+      if (remove) remove.style.left = `calc(${((Number(item.x || 0) + width) * 100).toFixed(4)}% - 10.5px)`;
       if (handle && height != null) {
         handle.style.left = `calc(${((Number(item.x || 0) + width) * 100).toFixed(4)}% - 10.5px)`;
         handle.style.top = `calc(${((Number(item.y || 0) + height) * 100).toFixed(4)}% - 10.5px)`;
@@ -983,26 +990,20 @@
     }
     textBoxFromResizeDrag(item = {}, point = {}, drag = {}){
       const { rect, minWidth, minHeight, maxWidth, maxHeight } = this.textBoxBounds(item);
-      const startWidth = Math.max(minWidth, Number(drag.startWidth || item.width || minWidth));
-      const startHeight = Math.max(minHeight, Number(drag.startHeight || item.height || minHeight));
-      const startFontPx = Math.max(4, Number(drag.startFontPx || item.fontPx || this.textFontPx(item.size || 1.5)));
-      const pointerWidthPx = Math.max(1, (Number(point.x || 0) - Number(item.x || 0)) * Math.max(1, rect.width || 900));
-      const pointerHeightPx = Math.max(1, (Number(point.y || 0) - Number(item.y || 0)) * Math.max(1, rect.height || 600));
-      const scaleX = pointerWidthPx / Math.max(1, Number(drag.startPointerWidthPx || startWidth * Math.max(1, rect.width || 900)));
-      const scaleY = pointerHeightPx / Math.max(1, Number(drag.startPointerHeightPx || startHeight * Math.max(1, rect.height || 600)));
-      let scale = Math.max(0.15, Math.min(scaleX, scaleY));
-      let width = clamp(startWidth * scale, minWidth, maxWidth);
-      let height = clamp(startHeight * scale, minHeight, maxHeight);
-      scale = Math.min(width / startWidth, height / startHeight);
-      width = clamp(startWidth * scale, minWidth, maxWidth);
-      height = clamp(startHeight * scale, minHeight, maxHeight);
-      const fontPx = Math.max(4, startFontPx * scale);
-      item.fontPx = fontPx;
-      item.aspect = Math.max(0.1, (width * Math.max(1, rect.width || 900)) / Math.max(1, height * Math.max(1, rect.height || 600)));
-      return { width, height };
+      item.fontWidthRatio = Number(item.fontPx || this.textFontPx(item.size)) / Math.max(1,rect.width);
+      // Resize the box, not the font: each pointer axis controls its own edge.
+      return {
+        width: clamp(Number(drag.startWidth || item.width) + (point.x - item.x) - Number(drag.startPointerWidthPx || 0) / rect.width, minWidth, maxWidth),
+        height: clamp(Number(drag.startHeight || item.height) + (point.y - item.y) - Number(drag.startPointerHeightPx || 0) / rect.height, minHeight, maxHeight)
+      };
     }
     fitTextBoxIntoAvailableWidth(item = {}, fontSize = null){
       const { rect, minWidth, minHeight, maxWidth, maxHeight } = this.textBoxBounds(item);
+      if (item.autoFit === false) {
+        item.width = clamp(Number(item.width),minWidth,maxWidth);
+        item.height = clamp(Number(item.height),minHeight,maxHeight);
+        return {width:item.width,height:item.height};
+      }
       const baseFont = Number(fontSize) || Number(item.fontPx) || this.textFontPx(item.size || 1.5, item.height ?? null, this.textMetrics(item).lineCount);
       const padding = this.textPadding(baseFont);
       const padX = padding.totalX;
@@ -1055,6 +1056,7 @@
       if (typeof this.options.onChange === 'function') this.options.onChange(this.items);
     }
     deleteItem(id){
+      this.pushHistory();
       this.items = this.items.filter((item) => item.id !== id);
       this.renderLayer();
       this.pushHistory();
@@ -1133,7 +1135,18 @@
       });
       this.bindColorPalette(colorPop);
       this.layer.addEventListener('pointerdown', (event) => this.onDown(event));
-      this.layer.addEventListener('pointermove', (event) => this.onMove(event));
+      this.layer.addEventListener('pointermove', (event) => {
+        if (!this.dragging && !this.creatingText) this.showTextControls(event.target.closest?.('[data-markup-id]')?.dataset.markupId || '');
+        this.onMove(event);
+      });
+      this.layer.addEventListener('pointerleave', (event) => { if (event.pointerType !== 'touch' && !this.dragging) this.showTextControls(''); });
+      this.layer.addEventListener('focusin', (event) => {
+        if (root.matchMedia?.('(hover: none)').matches) this.showTextControls(event.target.closest?.('[data-markup-id]')?.dataset.markupId || '');
+      });
+      this.layer.addEventListener('click', (event) => {
+        const button=event.target.closest?.('[data-markup-delete]');
+        if(button && this.active){event.preventDefault();event.stopPropagation();this.deleteItem(button.dataset.markupId);}
+      });
       this.keyHandler = (event) => {
         if (!this.active || !(event.ctrlKey || event.metaKey)) return;
         if (event.target?.closest?.('.fm-photo-markup-text')) return;
@@ -1216,10 +1229,18 @@
       this.layer?.remove();
       this.dock?.remove();
     }
+    showTextControls(id = ''){
+      this.hoveredTextId = id;
+      this.layer.querySelectorAll('[data-markup-handle^="text-"],[data-markup-delete]').forEach(control => control.classList.toggle('text-control-visible',control.dataset.markupId===id));
+    }
     onDown(event){
       if (!this.active) return;
+      if (event.target.closest?.('[data-markup-delete]')) return;
       const textEl = event.target.closest?.('.fm-photo-markup-text');
-      if (textEl && this.tool !== 'eraser') return;
+      if (textEl && this.tool !== 'eraser') {
+        if (event.pointerType === 'touch') this.showTextControls(textEl.dataset.markupId);
+        return;
+      }
       event.preventDefault();
       const point = this.point(event);
       if (this.tool === 'eraser') {
@@ -1233,6 +1254,7 @@
       }
       const handle = event.target.closest?.('[data-markup-handle]');
       if (handle) {
+        this.layer.setPointerCapture?.(event.pointerId);
         const item = this.items.find((entry) => entry.id === handle.dataset.markupId);
         const box = item?.type === 'text' ? this.textBoxRenderBox(item) : {};
         const rect = this.layer?.getBoundingClientRect?.() || { width: 900, height: 600 };
@@ -1251,7 +1273,7 @@
       }
       if (this.tool === 'text') {
         const rect = this.layer?.getBoundingClientRect?.() || { width: 900, height: 600 };
-        const startWidth = 0.18;
+        const startWidth = 0.36;
         const startHeight = Math.max(20 / Math.max(1, rect.height || 600), 0.04);
         const item = {
           id: uid('text'),
@@ -1263,18 +1285,18 @@
           color: this.color,
           size: this.size,
           fontPx: this.textFontPx(this.size),
+          fontWidthRatio: this.textFontPx(this.size) / Math.max(1,rect.width),
           width: startWidth,
           height: startHeight,
           naturalWidth: startWidth,
           naturalHeight: startHeight,
-          autoFit: true,
-          aspect: 2.4
+          autoFit: false,
+          aspect: 4.8
         };
         this.items.push(item);
         this.renderLayer();
-        setTimeout(() => this.layer.querySelector(`[data-markup-id="${item.id}"]`)?.focus(), 0);
-        this.pushHistory();
-        this.emitChange();
+        this.creatingText = { item, origin: point, moved: false };
+        this.layer.setPointerCapture?.(event.pointerId);
         return;
       }
       this.drawing = this.tool === 'arrow'
@@ -1287,6 +1309,18 @@
       if (!this.active) return;
       event.preventDefault();
       const point = this.point(event);
+      if (this.creatingText) {
+        const { item, origin } = this.creatingText;
+        const rect = this.layer.getBoundingClientRect();
+        if (!this.creatingText.moved && Math.hypot((point.x-origin.x)*rect.width,(point.y-origin.y)*rect.height)<6) return;
+        this.creatingText.moved = true;
+        const bounds = this.textBoxBounds({x:0,y:0});
+        item.width = Math.max(bounds.minWidth,Math.abs(point.x-origin.x));
+        item.height = Math.max(bounds.minHeight,Math.abs(point.y-origin.y));
+        item.x = Math.min(point.x,origin.x); item.y = Math.min(point.y,origin.y);
+        item.naturalWidth = item.width; item.naturalHeight = item.height;
+        this.renderLayer(); return;
+      }
       if (this.dragging) {
         const item = this.items.find((entry) => entry.id === this.dragging.id);
         if (!item) return;
@@ -1338,6 +1372,12 @@
       this.renderLayer();
     }
     onUp(){
+      if (this.creatingText) {
+        const {item} = this.creatingText; this.creatingText = null;
+        this.renderLayer(); this.pushHistory(); this.emitChange();
+        this.layer.querySelector(`.fm-photo-markup-text[data-markup-id="${item.id}"]`)?.focus();
+        return;
+      }
       if (this.drawing || this.dragging || this.erasing) {
         this.drawing = null;
         this.dragging = null;
@@ -1372,7 +1412,7 @@
         const style = `stroke:${escapeHtml(item.color || '#111')};stroke-width:${escapeHtml(String(item.size || 2.8))}`;
         return Object.values(parts).map((part) => `<line class="fm-photo-markup-arrow" data-markup-id="${escapeHtml(item.id)}" x1="${(part.x1 * 100).toFixed(3)}" y1="${(part.y1 * 100).toFixed(3)}" x2="${(part.x2 * 100).toFixed(3)}" y2="${(part.y2 * 100).toFixed(3)}" style="${style}"></line>`).join('');
       }).join('') + eraserPath;
-      this.layer.querySelectorAll('.fm-photo-markup-text,.fm-photo-markup-handle,.fm-photo-markup-text-size').forEach((node) => node.remove());
+      this.layer.querySelectorAll('.fm-photo-markup-text,.fm-photo-markup-handle,.fm-photo-markup-text-size,.fm-photo-markup-text-delete').forEach((node) => node.remove());
       this.items.filter((item) => item.type === 'text').forEach((item) => {
         const metrics = this.textMetrics(item);
         const { width, height } = this.textBoxRenderBox(item);
@@ -1400,9 +1440,11 @@
         const { width, height } = this.textBoxRenderBox(item);
         this.layer.insertAdjacentHTML('beforeend', `
           <div class="fm-photo-markup-handle" data-markup-id="${escapeHtml(item.id)}" data-markup-handle="text-move" style="left:${(Number(item.x || 0) * 100).toFixed(3)}%;top:${(Number(item.y || 0) * 100).toFixed(3)}%"></div>
+          <button type="button" class="fm-photo-markup-text-delete" data-markup-delete data-markup-id="${escapeHtml(item.id)}" aria-label="Delete text box" style="left:calc(${((Number(item.x || 0) + width) * 100).toFixed(3)}% - 10.5px);top:calc(${(Number(item.y || 0) * 100).toFixed(3)}% - 10.5px)">×</button>
           <div class="fm-photo-markup-text-size" data-markup-id="${escapeHtml(item.id)}" data-markup-handle="text-size" style="left:calc(${((Number(item.x || 0) + width) * 100).toFixed(3)}% - 10.5px);top:calc(${((Number(item.y || 0) + height) * 100).toFixed(3)}% - 10.5px)"></div>
         `);
       });
+      this.showTextControls(this.hoveredTextId);
       this.layer.querySelectorAll('.fm-photo-markup-text').forEach((el) => {
         el.addEventListener('input', () => {
           const item = this.items.find((entry) => entry.id === el.dataset.markupId);
@@ -1412,8 +1454,7 @@
           item.text = editablePlainText(el);
           item.html = sanitizeMarkupHtml(el.innerHTML);
           item.aspect = this.textAspect(item);
-          item.autoFit = true;
-          this.fitTextBoxToContent(item, { fontSize: previousFontSize, element: el });
+          if (item.autoFit !== false) this.fitTextBoxToContent(item, { fontSize: previousFontSize, element: el });
           this.applyTextBoxElement(item, el);
           this.emitChange();
         });
