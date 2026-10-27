@@ -4,7 +4,7 @@ import vm from 'node:vm';
 import {readFile,mkdir} from 'node:fs/promises';
 import {createServer} from 'node:http';
 import {chromium} from 'playwright-core';
-const source = await readFile(new URL('../../libraries/apps/materials/project.js',import.meta.url),'utf8');
+const source = (await readFile(new URL('../../libraries/apps/materials/project.js',import.meta.url),'utf8')).replace(/\r\n/g,'\n');
 const helper = await readFile(new URL('../../libraries/apps/materials/scope-of-work.js',import.meta.url),'utf8');
 const module = await import('data:text/javascript;base64,'+Buffer.from(helper).toString('base64'));
 function fn(name) {
@@ -23,7 +23,7 @@ test('only accepted artifact publishers and published measurement datasets appea
     ]}};
     if(path.includes('/snapshots'))return {snapshots:[{id:'accepted',title:'Roof proposal',resolved_definition:{computed_values:{contract_total_cents:1234500}}}]};
     return {documents:[{id:'proposal',title:'Roof proposal',status:'completed'},{id:'draft',status:'draft'},{id:'presentation',status:'completed'}]};
-  },publication:{list:async()=>({items:[{id:'roof',name:'Roof report',type:'measurements',revision:'r1'},{id:'generic',type:'generic'}]}),read:async()=>({status:'ready',value:{measurements:{roofArea:{value:1400,unit:'ft2'}},artifacts:[]}})}}};
+  },publication:{list:async()=>({items:[{id:'roof',name:'Roof report',type:'measurements',revision:'r1'},{id:'generic',type:'generic'}]}),read:async(org,source)=>source.provider==='measurement-schemas'?{status:'missing'}:({status:'ready',value:{measurements:{roofArea:{value:1400,unit:'ft2'}},artifacts:[]}})}}};
   try {
     const result=await module.loadDocuments('org','project');
     assert.deepEqual(result.documents.map(doc=>doc.id),['proposal:accepted','roof']);
@@ -35,6 +35,21 @@ test('only accepted artifact publishers and published measurement datasets appea
     window.PlatformAPI.request=async()=>{throw Error('denied')};window.PlatformAPI.publication.list=async()=>{throw Error('denied')};
     const denied=await module.loadDocuments('org','project');assert.equal(denied.documents.length,0);assert.match(denied.error,/could not load/);
   } finally {delete globalThis.window}
+});
+
+test('delivered report files remain independent of accepted scope publications', async () => {
+  globalThis.window={PlatformAPI:{baseUrl:()=>'/v1/platform',request:async()=>{throw Error('denied')},publication:{list:async()=>({items:[]}),read:async()=>({status:'missing'})}}};
+  try {
+    const assets={reportUrl:'/report.pdf',summaryUrl:'/summary.pdf',xmlUrl:'/model_data.xml'};
+    const result=await module.loadDocuments('org','project',{loadReportAssets:async()=>assets});
+    assert.equal(result.documents.length,3);
+    assert.ok(result.documents.every(doc=>doc.source==='report_asset'&&!doc.sets&&!doc.snapshot));
+    const html=module.renderDocumentStrip(result.documents,'roof_report_xml');
+    assert.equal((html.match(/fa-ruler-combined/g)||[]).length,3);
+    assert.match(html,/fa-user/);assert.match(html,/fa-code/);
+    const held=await module.loadDocuments('org','project',{loadReportAssets:async()=>({})});
+    assert.equal(held.documents.length,0);
+  } finally {delete globalThis.window;}
 });
 
 test('first Add creates only the requested resource list; later adds reuse it', async () => {
@@ -62,7 +77,7 @@ test('first Add creates only the requested resource list; later adds reuse it', 
 test('completed reports predating dataset publication remain readable without an import', async () => {
   const calls=[];
   globalThis.window={PlatformAPI:{baseUrl:()=> '/v1/platform',request:async path=>path.includes('calculus')?{ledger:{sets:[]}}:{documents:[]},publication:{list:async()=>({items:[]}),read:async(org,source)=>{
-    calls.push(source.export);return source.export==='report'?{status:'ready',value:{reportId:'completed-report'}}:{status:'ready',value:{rows:[{key:'roofArea',value:1200,unit:'ft2'},{key:'missing',value:'Pending',unit:'ft'}]}};
+    calls.push(source.export);if(source.provider==='measurement-schemas')return {status:'missing'};return source.export==='report'?{status:'ready',value:{reportId:'completed-report'}}:{status:'ready',value:{rows:[{key:'roofArea',value:1200,unit:'ft2'},{key:'missing',value:'Pending',unit:'ft'}]}};
   }}}};
   try {
     const result=await module.loadDocuments('org','project');assert.deepEqual(calls,['report','measurements','manual']);assert.equal(result.documents.length,1);assert.deepEqual(result.documents[0].value.measurements,{roofArea:{value:1200,unit:'ft2'}});assert.equal(result.error,'');
@@ -75,7 +90,7 @@ test('the project renderer mounts the compact published rail without requiring w
   const target={querySelector(){},textContent:''};
   const ctx={performance,state:{active:true,lists:[],scopeDocuments:[],scopeDocumentsError:'',sidebarRoot:{classList:{add(){},remove(){}},querySelector:()=>null}},
     leftContentRoot:()=>target,orgId:()=> 'org',projectId:()=> 'project',schedulingOn:()=>true,timingMark(){},disposeScopeWidgets(){},scopeWidgetContext:()=>({fragments:{'scope.lists':()=>null}}),
-    railLayout:()=>({defaultRatio:50,layout:'single'}),
+    callHost:()=>false,railLayout:()=>({defaultRatio:50,layout:'single'}),
     scopeWorkspace:{mountSidebar:(root,docs,error,key)=>{assert.equal(key,'org:project');mounted=true},installDivider:(root,layout)=>{divider=layout}}};
   vm.createContext(ctx);vm.runInContext(fn('renderLeft'),ctx);ctx.renderLeft();assert.ok(mounted);assert.equal(divider.defaultRatio,50);
   // One resource column gives an even split; several give the rail a third.
@@ -146,6 +161,17 @@ test('resource panes keep independent scroll, stable equal columns, and a dragga
     assert.ok(await page.locator('aside table').getByText('Shingles',{exact:true}).isVisible());assert.equal(await page.getByRole('button',{name:'Back',exact:false}).count(),0);
     assert.equal(await page.locator('[data-scope-document="report"]').count(),0);assert.equal(await page.locator('aside [data-scope-measure],aside details').count(),0);
     for(let i=0;i<3;i++){await page.getByRole('tab',{name:'Documents',exact:true}).click();await page.getByRole('tab',{name:'Photos',exact:true}).click();await page.getByRole('tab',{name:'Measurements',exact:true}).click();}
+    await page.evaluate(()=>helper.mountSidebar(document.querySelector('aside'),[...scopeDocs,...helper.reportDocuments({reportUrl:'/report.pdf',summaryUrl:'/summary.pdf',xmlUrl:'/model_data.xml'})],'','org:project'));
+    assert.equal(await page.locator('[data-scope-document]').count(),4,'accepted contract plus all three report files');
+    await page.getByRole('tab',{name:'Documents',exact:true}).click();
+    await page.locator('[data-scope-document="roof_report_xml"]').click();
+    assert.equal(await page.getByRole('link',{name:'Download XML'}).getAttribute('href'),'/model_data.xml');
+    await page.locator('[data-scope-document="customer_report_pdf"]').click();
+    assert.equal(await page.locator('.sw-report-preview').getAttribute('src'),'/summary.pdf#view=FitH');
+    await page.locator('[data-scope-document="roof_report_pdf"]').click();
+    assert.equal(await page.locator('.sw-report-preview').getAttribute('src'),'/report.pdf#view=FitH');
+    await page.locator('[data-scope-document="contract"]').click();
+    await page.getByText('Rendered accepted roof contract').waitFor();
     await page.evaluate(()=>helper.mountSidebar(document.querySelector('aside'),scopeDocs,'','org:project',{measurementOverrides:{roofArea:1500},onMeasurementChange:(key,value)=>window.edited={key,value}}));
     assert.equal(await page.evaluate(()=>roofContext.getMeasurements().roofArea.value),1500);await page.evaluate(()=>roofContext.onMeasurementChange('roofArea',1750));assert.deepEqual(await page.evaluate(()=>edited),{key:'roofArea',value:1750});assert.equal(await page.evaluate(()=>roofContext.getMeasurements().roofArea.value),1750);
     await page.evaluate(()=>helper.mountSidebar(document.querySelector('aside'),scopeDocs.filter(doc=>doc.source!=='document'),'','org:empty'));await page.getByRole('tab',{name:'Documents',exact:true}).click();

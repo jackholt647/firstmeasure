@@ -28,7 +28,7 @@ of one that does not. Measurements is the default and is the 3D roof viewer with
 (line types, pitches and summary); the rail has no separate list of every
 published measurement, and one must not be added back.
 Documents mirrors Photos with a document viewer in place of the image viewer:
-the selected accepted document is rendered by FMDocRenderer above its published
+delivered roof measurement PDFs, customer PDFs and XML appear alongside accepted documents. These report entries reuse the authorized project report-asset loader and do not create material publications. PDFs open in the viewer; XML offers a download. All three use the organization-primary ruler icon, with customer/code badges where appropriate. For accepted documents, the selected document is rendered by FMDocRenderer above its published
 materials, and a strip beneath lists every accepted document, with the first
 selected. With no accepted documents the same viewer-above-strip layout stays,
 showing No document selected and No documents yet. There is no Scope of Work tab and no tile-then-Back navigation. Document membership comes from persisted
