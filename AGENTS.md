@@ -121,6 +121,41 @@ For private experiments only your own Chrome should see, use the
 through the FirstMate Dev Bridge extension and touches nothing on the server.
 Run `node --test tests/frontend-bridge.test.mjs` for changes to it.
 
+## Shipping the measure editor to dev
+
+The measure editor has its own dev lane
+([dev lanes](docs/architecture/dev-lanes.md#measure-internal-lane)): dev.1m8.ai
+serves `/measure/internal/` from branch `lane/measure-internal`, not from the
+platform release, and a ship is live in seconds. The lane owns
+`public/measure/internal/**` and `dev/**` (the editor's tests). Everything else,
+including `public/v1/**`, `public/libraries/**` and new language keys in
+`public/libraries/platform-language`, still ships through `platform`.
+
+1. Commit the editor change (on canonical or your own branch).
+2. Run `node tools/dev-push/lanes/measure-internal/ship.mjs` (ships `HEAD`). It
+   takes only the lane's paths from the commit, lints changed PHP and
+   syntax-checks changed JavaScript (about a second), switches the release
+   with a readiness check and rollback, and advances `lane/measure-internal`.
+   Once the checkout has `tools/dev-push/submit.mjs`, it hands the commit to the
+   dev push router instead.
+3. Check: `curl -sI https://dev.1m8.ai/measure/internal/<file>` shows
+   `X-FirstMate-Lane: measure-internal <sha>`.
+
+**Regression tests.** Agents do not run the editor's regression tests
+(`dev/*.test.cjs`) on this machine. Ship with `--regression` (the tests the
+change maps to; `--regression=all` for every one) only when you suspect a bug
+or regression, when Jack asks, or when the work behind the ship took at least
+about 20 minutes; quick changes never run them. They run once, on the server.
+`ship.mjs regression` runs them there without shipping, for when something
+looks broken.
+
+Do not copy editor files into the platform release on dev legacy with a
+per-task rollout: they are not served while the lane serves its own release.
+Other commands: `ship.mjs status`, `rollback [<sha>]`, `follow` (serve the
+platform release's editor through the lane), `uninstall` (serve the platform
+copy directly). Run `node --test tests/dev-lane-measure-internal.test.mjs` for
+changes to the lane tool.
+
 ## Canonical source
 
 The active combined platform checkout is `C:/Users/jackh/Code/2026/FirstMate Platform`

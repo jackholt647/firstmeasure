@@ -167,16 +167,136 @@ release without updating their checkout.
 
 ## measure-internal lane
 
-Served from `/opt/firstmeasure/lanes/measure-internal/current` on dev legacy.
-The lane release mirrors the `public/` layout so the editor's relative includes
-(`__DIR__ . '/../../portal/...'`, `'/../../v1/storage/...'`) resolve into the
-platform release through symlinks; the platform release's own copy of those
-paths is not served on dev while the lane is active. Responses carry
-`X-FirstMate-Lane: measure-internal <sha>`. The lane branch and canonical are
-merged into each other on request when work is quiet; they rarely overlap
-(since Oct 1, a handful of commits also touched `public/v1/firstmeasure`,
-`public/libraries/apps` or `public/v1/platform`; those parts ship on
-`platform`).
+Built 2026-10-27; setup record:
+[development-measure-internal-lane-20261027](../../deploy/digitalocean/development-measure-internal-lane-20261027.md).
+Code: `tools/dev-push/lanes/measure-internal/` (`lane.mjs`: the router's lane
+module and the direct `deploy(sha)`; `ship.mjs` CLI; `lane-host.sh` host side
+of the direct path). Tests:
+`tests/dev-lane-measure-internal.test.mjs`.
+
+**Owns** `public/measure/internal/**` (deployed) and `dev/**` (the editor's
+tests and tooling; gates only). Anything else in a lane commit is refused and
+ships on `platform`: language catalogs (`public/libraries/platform-language`)
+for new editor copy, `public/v1/**`, `public/libraries/**`, `public/portal/**`.
+
+**Target.** Dev legacy serves the editor (through the router, dev web also
+holds the release for server-rendered PDFs; see below). Dev web proxies `/measure/internal/` there (its
+live-layer location never sees those paths). On dev legacy the site's `root` is
+`$fm_public_root`, a map in `/etc/nginx/conf.d/firstmeasure-lanes.conf`:
+`/measure/internal/...` resolves to
+`/opt/firstmeasure/lanes/measure-internal/current/public`, everything else to
+`/opt/firstmeasure/current/public`. Every other location (PHP, `try_files`
+fallbacks, health) is unchanged. A second map turns `$realpath_root` into the
+response header `X-FirstMate-Lane: measure-internal <sha>`.
+
+**Release layout.** `releases/<sha>/public/measure/internal` holds the commit's
+files; every sibling (`public/portal`, `public/v1`, `public/includes`,
+`public/libraries`, `public/storage`, `public/measure/sales`, ...) is a symlink
+into `/opt/firstmeasure/current/public`. PHP gets `SCRIPT_FILENAME` from
+`$realpath_root`, so `__DIR__` is the lane release and the editor's relative
+includes (`dirname(__DIR__, 2) . '/includes/...'`, `'/../../portal/...'`) and
+its storage (`public/storage/measure/internal`) reach the platform release that
+is current, exactly as before. Siblings are relinked on every lane deploy; a
+new top-level entry in a platform release appears in the lane at its next
+deploy (the editor reaches none today). PHP's realpath cache can keep resolving
+a sibling to the previous platform release for up to two minutes after a
+platform activation.
+
+**Checks and tests.** Every ship runs the quick checks (`quickChecks`):
+`php -l` of the changed PHP and `node --check` of the changed JavaScript under
+`public/measure/internal` (not `unused/` or `editor_scripts/vendor/`), about
+0.3 s for a one-file change. The editor's regression tests (`dev/*.test.cjs`,
+835 tests, about 100 s on a 22-core PC and much longer on the 2-CPU droplet,
+most of them Playwright) run only when a ship asks (`--regression` or
+`--regression=all`, which the router passes to `gates` as `regression`), once, on
+the server, never on a laptop (`runRegression`): the tests the change maps to
+(changed tests, and tests that name a changed file's basename) or all of them,
+each in its own `node --test` process from a `git archive` of the commit (plus
+any `public/...` file a selected test names) with `public/v1/node_modules`
+linked in. Several editor tests name only the Windows Chrome path; off Windows
+the extracted tree gets that relative path as a link to the server's Chromium.
+A test that also fails on the live release is reported as known and does not
+block; results on a release are cached in `.git/fm-lane-base-results.json`.
+
+**Through the router** (the default export of `lane.mjs`, the router's lane
+interface): `gates({ dir, sha, baseSha, regression })` runs the quick checks
+(`node --check`; the router host has no php) and, when asked, the regression
+tests. `deploy({ dir, sha, hosts })` builds the tree (`buildTree`: the commit's
+`public/measure/internal`, every sibling a symlink to
+`/opt/firstmeasure/current/public/<name>`), stages it with `hosts.stage` on dev
+legacy, web and worker, lints the changed PHP inside the staged release on
+legacy (`hosts.check`), activates the three, checks that dev.1m8.ai serves a
+changed file with its bytes and the lane header, and rolls every role back
+otherwise. Both return `timings` (ms per step and role) for the release record.
+`current({ hosts })` reports each role. On web and worker the release is not
+served: their Node reads `editor_scripts/pdf.js` and `pdf_standalone.js`
+(`pdf_runtime.ts`) and the Google key in `editor.php` (`forms/solar.ts`) from
+it, through `FIRSTMEASURE_EDITOR_RUNTIME_ROOT=/opt/firstmeasure/lanes/measure-internal/current/public/measure/internal`
+in the router's `release.env`. Both fall back to the platform copy when the
+path is missing; `pdf_runtime.ts` reads the files at each render, so a lane
+switch needs no restart.
+
+**Direct, until the router owns the lane** (`deploy(sha, { cwd, log, host })`,
+called by `ship.mjs`):
+
+1. Read the host status (live lane release, serving lane or platform).
+2. Quick checks.
+3. Manifest: sha256 of every deployed file from git blobs (`core.autocrlf`
+   off, so the commit's bytes, never a working copy or a host file).
+4. One SSH stream: a tar with `lane-host.sh`, the manifest and the changed
+   files. The host hard-links the live release, writes the changed files,
+   deletes what the commit deleted, checks every file against the manifest
+   (any mismatch: the client resends every file), lints changed PHP with
+   `php -l`, links the siblings, and swaps `current` with a rename.
+5. Readiness: a changed static file (or `audio/ding.mp3`) comes back with the
+   manifest's bytes and the new lane header; `/measure/internal/`,
+   `editor.php` and `backend_login.php` answer with the statuses they had
+   before the switch (never 5xx). Otherwise `current` is swapped back.
+6. A record is written to `/opt/firstmeasure/lanes/measure-internal/records/`
+   and returned. Twelve releases are kept, plus `current` and `previous`.
+
+`ship.mjs` adds the branch step (`laneCommit` in `lane.mjs`). It takes the
+editor from any commit: a commit on the lane tip that changes only lane paths
+ships as is; otherwise `git merge-tree` merges the commit with the lane tip and
+a new single-parent commit on the tip takes only `public/measure/internal` and
+`dev` from the result (other paths stay as on the lane; they ship on
+`platform`). A conflict in a lane path is refused. After a live deploy
+`lane/measure-internal` on origin is fast-forwarded (`--force-with-lease`); a
+refused push rolls the host back. One deploy at a time (host `flock`). In a
+checkout that has the router's `tools/dev-push/submit.mjs`, `ship.mjs` submits
+to the router instead (`FM_LANE_DIRECT=1` forces the direct path).
+
+Measured on 2026-10-27 with the regression tests still in every ship: 34-110 s
+from command to live, of which the tests took 22-88 s and the host build and
+switch 0.6 s. Without them a direct ship is the SSH round trips plus about a
+second.
+
+**Follow mode.** `ship.mjs follow` points `current` at
+`releases/platform-follow`, whose `public/` entries (`measure/` included) are
+all symlinks into `/opt/firstmeasure/current/public`. nginx is unchanged, but
+the bytes and PHP (`__DIR__` resolves into the platform release) are the
+platform release's, so platform releases and old per-task rollouts of editor
+files show at once. For the hand-over while some sessions still ship editor
+files the old way. A later lane deploy never hard-links from, or writes
+through, a follow release. Responses carry no lane header in follow mode.
+
+**What reads editor files outside the editor.** `pdf_runtime.ts` and
+`forms/solar.ts` (above). `firstmeasure/api.ts` and `queue.ts` read untracked
+`config/` and `storage/` under the platform's `measure/internal`, which editor
+work does not change.
+
+**Branches.** `lane/measure-internal` started at canonical `490c0b26`. The lane
+and canonical are merged into each other on request when work is quiet; until
+canonical has a lane commit, a platform release still carries the older editor
+files, unserved on dev.
+
+**Switch back** to the platform copy: `node tools/dev-push/lanes/measure-internal/ship.mjs uninstall`
+(comments out the `/measure/internal/` line of the map and reloads nginx);
+`install` turns the lane on again. `rollback [<sha>]` returns to the previous
+(or named) lane release.
+
+Old per-task rollouts that copy editor files into the platform release on dev
+legacy still succeed but are not served while the lane is active.
 
 ## Config lane
 
