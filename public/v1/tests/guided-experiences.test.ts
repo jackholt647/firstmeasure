@@ -172,7 +172,6 @@ test("Operations uses the shared document workflow and optional setup hub before
  assert.equal(setup.completion.action?.id,'operations.setup.complete');
  assert.deepEqual(setup.completion.then,[{resume:true},{play:'materials.tab_tutorial'}],'generate materials before the tutorial looks for its targets');
  assert.equal(setup.completion.action?.target,'project');
- assert.deepEqual(setup.completion.then,[{play:'materials.tab_tutorial'}]);
  const cards=(setup.steps.find(step=>step.id==='ready') as any).options.setups;
  assert.deepEqual(cards.map((card:any)=>[card.id,card.minutes]),[['suppliers',5],['equipment',3],['workforce',5],['proposals',10]]);
  assert.equal(cards.find((card:any)=>card.id==='workforce').terminologyKey,'workforce.resource_group_plural');

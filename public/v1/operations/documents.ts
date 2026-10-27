@@ -11,7 +11,7 @@ import { createDocumentTemplate, createDocumentWorkflow, readDocumentTemplate, r
 import { ensureDefaultDocumentAssets } from '../documents/seeds.js';
 import { withDocumentChange } from '../documents/versions/context.js';
 import { publishInternalDocumentScope, hasPublishedDocumentScope } from '../materials/calculus.js';
-import { readProjectForMedia } from '../projects/media-assignment.js';
+import { readProjectForAccess } from '../projects/access.js';
 import { workRequirements } from '../platform/publication/work-items.js';
 import { listMeasurementDefinitions } from '../platform/publication/measurement-schemas.js';
 import { getOrganizationPricebook, readOrganizationPricebook } from '../pricebook/storage.js';
@@ -36,7 +36,7 @@ async function access(ctx:PublicationContext,project:string){
   if(!ctx.auth)throw forbidden('operations_user_required','A signed-in person is required.');
   if(!project||project==='draft')throw badRequest('operations_project_required','Save this project before building its scope.');
   await authorizePublication(ctx,{scope:'project',organizationId:ctx.organizationId,projectId:project},policy,'operations.document');
-  await readProjectForMedia(ctx.auth,project,'manage_projects');
+  await readProjectForAccess(ctx.auth,project,'manage_projects');
   return ctx.auth;
 }
 async function owned(ctx:PublicationContext,id:string){
