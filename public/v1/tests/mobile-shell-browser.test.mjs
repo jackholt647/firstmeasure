@@ -128,7 +128,7 @@ test('the phone top bar shows the open app icon and title, and apps can change t
   } finally { await browser.close(); }
 });
 
-test('the More sheet is a grouped bottom sheet with large targets that opens and closes with motion', async () => {
+test('the More menu opens at the top with separate actions and closes with motion', async () => {
   const browser = await launch();
   try {
     for (const viewport of [{ width: 390, height: 844 }, { width: 360, height: 740 }]) {
@@ -142,30 +142,31 @@ test('the More sheet is a grouped bottom sheet with large targets that opens and
       });
       await page.getByRole('button', { name: 'More' }).click();
       const sheet = page.locator('#mobilePlatformMoreMenu .ptb-sheet');
-      await page.waitForFunction(() => { const r = document.querySelector('#mobilePlatformMoreMenu .ptb-sheet').getBoundingClientRect(); return Math.abs(r.bottom - innerHeight) < 1; });
-      assert.equal(await page.getByRole('button', { name: 'More' }).getAttribute('aria-expanded'), 'true');
+      await page.waitForFunction(() => { const r = document.querySelector('#mobilePlatformMoreMenu .ptb-sheet').getBoundingClientRect(); const trigger = document.querySelector('#mobilePlatformMoreBtn').getBoundingClientRect(); return Math.abs(r.top - trigger.bottom - 6) < 1; });
+      assert.equal(await page.locator('#mobilePlatformMoreBtn').getAttribute('aria-expanded'), 'true');
       assert.equal(await page.evaluate(() => document.getElementById('mobilePlatformMoreMenu').matches(':popover-open')), true, 'the sheet is in the top layer');
       const box = await sheet.boundingBox();
-      assert.ok(box.x === 0 && Math.round(box.width) === viewport.width, JSON.stringify(box));
+      const trigger = await page.locator('#mobilePlatformMoreBtn').boundingBox();
+      assert.ok(Math.abs(box.y - trigger.y - trigger.height - 6) < 2 && box.width <= 228, JSON.stringify({box,trigger}));
       const groups = await page.evaluate(() => [...document.querySelectorAll('#mobilePlatformMoreMenu [data-more-group]')]
         .filter((group) => getComputedStyle(group).display !== 'none')
         .map((group) => [...group.querySelectorAll('.ptb-more-item')].filter((item) => getComputedStyle(item).display !== 'none').map((item) => item.querySelector('span').textContent.trim())));
-      assert.deepEqual(groups, [['AI Assistant'], ['Messages', 'Notifications'], ['Development tools']]);
+      assert.deepEqual(groups, [['AI Assistant'], ['Messages'], ['Notifications'], ['Development']]);
       for (const item of await page.locator('#mobilePlatformMoreMenu .ptb-more-item:visible').all()) {
         const rect = await item.boundingBox();
-        assert.ok(rect.height >= 48 && rect.width >= viewport.width - 40, `tap target ${JSON.stringify(rect)}`);
-        assert.ok(await item.locator('i').evaluate((icon) => icon.getBoundingClientRect().width >= 32), 'each entry has an icon tile');
+        assert.ok(rect.height >= 43.5 && rect.width >= 210, `tap target ${JSON.stringify(rect)}`);
+        assert.ok(await item.locator('i').evaluate((icon) => icon.getBoundingClientRect().width >= 27.5), 'each entry has an icon tile');
       }
       await page.waitForFunction(() => document.getElementById('mobilePlatformMoreMessagesCount').textContent === '3');
       assert.equal(await page.locator('#mobilePlatformMoreMessagesCount').isVisible(), true);
       if (shots) await page.screenshot({ path: path.join(shots, `sheet-${viewport.width}.png`) });
 
       // Tapping the scrim slides the sheet away, then leaves the top layer.
-      await page.mouse.click(viewport.width / 2, 40);
+      await page.locator('#mobilePlatformMoreBtn').click();
       const midway = await sheet.boundingBox();
       assert.ok(midway && midway.y < viewport.height, 'closing animates rather than vanishing');
       await page.waitForFunction(() => !document.getElementById('mobilePlatformMoreMenu').matches(':popover-open'));
-      assert.equal(await page.getByRole('button', { name: 'More' }).getAttribute('aria-expanded'), 'false');
+      assert.equal(await page.locator('#mobilePlatformMoreBtn').getAttribute('aria-expanded'), 'false');
 
       // Escape closes it, and an entry opens its control.
       await page.getByRole('button', { name: 'More' }).click();

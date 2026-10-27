@@ -102,22 +102,11 @@ const openFromMore = async (page, item) => {
   await page.locator(item).click();
 };
 
-test('phone: the More menu is a bottom sheet by default and a dropdown at the top right when topbar.phone_menu is "top"', async () => {
+test('phone: the More menu opens at the top right with separate primary-colored actions and Close', async () => {
   const browser = await launch();
   try {
     for (const viewport of [{ width: 390, height: 844 }, { width: 360, height: 740 }]) {
-      const bottom = await openShell(browser, viewport);
-      await bottom.page.getByRole('button', { name: 'More' }).click();
-      await settledAtBottom(bottom.page, 'mobilePlatformMoreMenu');
-      assert.equal(await bottom.page.locator('#mobilePlatformMoreMenu').getAttribute('data-placement'), 'bottom');
-      const sheet = await rect(bottom.page, '#mobilePlatformMoreMenu .ptb-sheet');
-      assert.ok(sheet.left === 0 && Math.round(sheet.width) === viewport.width, JSON.stringify(sheet));
-      assert.equal(await bottom.page.locator('#mobilePlatformMoreMenu .ptb-sheet-grip').isVisible(), true, 'the sheet has a drag handle');
-      await shot(bottom.page, `more-bottom-${viewport.width}`);
-      assert.deepEqual(bottom.errors, []);
-      await bottom.context.close();
-
-      const top = await openShell(browser, viewport, { placement: 'top' });
+      const top = await openShell(browser, viewport);
       const more = await rect(top.page, '#mobilePlatformMoreBtn');
       await top.page.getByRole('button', { name: 'More' }).click();
       await top.page.waitForFunction(() => getComputedStyle(document.querySelector('#mobilePlatformMoreMenu .ptb-sheet')).opacity === '1');
@@ -128,7 +117,16 @@ test('phone: the More menu is a bottom sheet by default and a dropdown at the to
       assert.ok(Math.abs(dropdown.right - (viewport.width - 10)) < 1 && dropdown.width <= 300, JSON.stringify(dropdown));
       assert.ok(dropdown.bottom < viewport.height - 100, 'a dropdown, not a sheet');
       assert.equal(await top.page.locator('#mobilePlatformMoreMenu .ptb-sheet-grip').isVisible(), false);
-      assert.deepEqual(await top.page.locator('#mobilePlatformMoreMenu .ptb-more-item:visible span').allTextContents(), ['AI Assistant', 'To Do', 'Messages', 'Notifications', 'Development tools']);
+      assert.deepEqual(await top.page.locator('#mobilePlatformMoreMenu .ptb-more-item:visible span').allTextContents(), ['AI Assistant', 'To Do', 'Messages', 'Notifications', 'Development']);
+      assert.equal(await top.page.locator('#mobilePlatformMoreMenu .ptb-sheet-close').count(), 0);
+      assert.equal(await top.page.locator('#mobilePlatformMoreBtn').getAttribute('aria-label'), 'Close');
+      assert.ok(dropdown.width <= 228);
+      assert.equal(await top.page.evaluate(() => document.getElementById('mobilePlatformMoreMessages').parentElement !== document.getElementById('mobilePlatformMoreNotifications').parentElement), true);
+      const colors = await top.page.locator('#mobilePlatformMoreMenu .ptb-more-item:visible > i').evaluateAll(items => items.map(item => getComputedStyle(item).backgroundColor));
+      assert.ok(colors.every(color => color === 'rgb(15, 118, 110)'), JSON.stringify(colors));
+      await top.page.locator('#mobilePlatformMoreBtn').click();
+      await top.page.waitForFunction(() => !document.getElementById('mobilePlatformMoreMenu').matches(':popover-open'));
+      await top.page.getByRole('button', { name: 'More' }).click();
       await shot(top.page, `more-top-${viewport.width}`);
       // What it opens still slides up from the bottom.
       await top.page.locator('#mobilePlatformMoreMessages').click();
@@ -281,5 +279,37 @@ test('desktop is unchanged: dropdowns under the top bar, the assistant window, t
     assert.ok(dev.top > 40 && dev.top < 120 && dev.right > 1500, JSON.stringify(dev));
     assert.equal(await page.locator('.fm-dev-window.fm-dev-in-sheet').count(), 0);
     assert.deepEqual(errors, []);
+  } finally { await browser.close(); }
+});
+
+
+test('restored More menu preserves message gating, ignores stale loads and opens photo messages on Photos', async () => {
+  const browser = await launch();
+  try {
+    const {page, context, errors} = await openShell(browser, {width:390,height:844});
+    await page.waitForFunction(() => document.getElementById('mobilePlatformMoreMessagesCount').textContent === '3');
+    await page.evaluate(() => {
+      ChannelsAPI.readState.inbox = () => new Promise(resolve => { window.resolveInbox = resolve; });
+      dispatchEvent(new CustomEvent('fm:capabilities:updated'));
+    });
+    await page.waitForFunction(() => typeof window.resolveInbox === 'function');
+    await page.evaluate(() => { flags['topbar.messages'] = false; dispatchEvent(new CustomEvent('fm:capabilities:updated')); resolveInbox({entries:[{entry_id:'stale',unread:true,count:20,text:'Stale inbox'}]}); });
+    await page.waitForTimeout(50);
+    assert.equal(await page.locator('#platformMessagesSlot').evaluate(e=>e.hidden), true);
+    assert.equal(await page.locator('#mobilePlatformMoreMessages').evaluate(e=>e.hidden), true);
+    assert.equal(await page.locator('#mobilePlatformMoreMessagesCount').textContent(), '0');
+    await page.evaluate(() => {
+      window.photoRoutes=[];
+      Portal.navigation={navigate:route=>photoRoutes.push(route),applyCurrent:async()=>{}};
+      ChannelsAPI.readState.inbox=async()=>({entries:[{entry_id:'photo',kind:'dm',channel_type:'project',project_id:'project-1',photo_id:'photo-1',unread:true,count:1,text:'A photo',author:{name:'Jane'}}]});
+      ChannelsAPI.readState.inboxRead=async()=>({});
+      flags['topbar.messages']=true;dispatchEvent(new CustomEvent('fm:app-flags:updated'));
+    });
+    await page.waitForFunction(() => document.getElementById('mobilePlatformMoreMessagesCount').textContent === '1');
+    await openFromMore(page,'#mobilePlatformMoreMessages');
+    await page.locator('#mobilePlatformMessagesMenu [data-message-entry]').first().click();
+    await page.waitForFunction(() => photoRoutes.length>0);
+    assert.deepEqual(await page.evaluate(()=>photoRoutes[0]), {project:'project-1',projectTab:'photos',projectNote:null,photo:'photo-1',photoScope:'project'});
+    assert.deepEqual(errors,[]);await context.close();
   } finally { await browser.close(); }
 });

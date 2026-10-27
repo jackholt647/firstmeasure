@@ -81,19 +81,23 @@
 
   // --- Mobile consolidated "More" sheet -------------------------------------
   // On phones every desktop top bar action (assistant, to-do, phone, messages,
-  // notifications, development tools) collapses into one button whose bottom
+  // notifications, development tools) collapses into one button whose top
   // sheet proxies to the real controls. Each item is shown exactly when its
   // desktop control is, so phone and desktop offer the same entries.
   // Scripts that add an item prepend a `.ptb-more-item` to the menu; it is
   // filed into the group named by its `data-more-group` (default "tools").
 
-  const MORE_GROUPS = { mobilePlatformMoreAssistant:'work', mobilePlatformMoreTodos:'work', mobilePlatformMoreMessages:'inbox', mobilePlatformMoreNotifications:'inbox', mobilePlatformMorePhone:'inbox' };
+  const MORE_GROUPS = { mobilePlatformMoreAssistant:'work', mobilePlatformMoreTodos:'work', mobilePlatformMoreMessages:'messages', mobilePlatformMoreNotifications:'notifications', mobilePlatformMorePhone:'inbox' };
   const MORE_ORDER = ['mobilePlatformMoreAssistant', 'mobilePlatformMoreTodos', 'mobilePlatformMoreMessages', 'mobilePlatformMoreNotifications', 'mobilePlatformMorePhone'];
   let moreReturnFocus = null;
 
   function fileMoreItems(){
     const menu = $('#mobilePlatformMoreMenu');
     if (!menu) return;
+    menu.querySelectorAll('#mobilePlatformMoreGuides > span, [data-dev-mobile] > span').forEach((label) => {
+      label.textContent = label.parentElement.id === 'mobilePlatformMoreGuides'
+        ? phrase('ptb_more_setups', 'Setups') : phrase('ptb_more_development', 'Development');
+    });
     menu.querySelectorAll(':scope > .ptb-more-item, :scope > .ptb-sheet > .ptb-more-item').forEach((item) => {
       const group = menu.querySelector(`[data-more-group="${item.dataset.moreGroup || MORE_GROUPS[item.id] || 'tools'}"]`)
         || menu.querySelector('[data-more-group="tools"]');
@@ -108,23 +112,12 @@
     return $('#mobilePlatformMoreMenu')?.classList.contains('visible') === true;
   }
 
-  // Where the More menu opens on phones is the organization's topbar.phone_menu: "bottom" (the default) is a
-  // sheet from the bottom, "top" a dropdown at the top right. What it opens slides up from the bottom either way.
-  function moreMenuPlacement(){
-    const capabilities = window.Portal?.capabilities || window.PlatformAPI?.capabilities;
-    const flags = window.Portal?.appFlags || window.PlatformAPI?.appFlags;
-    const value = capabilities?.current?.()
-      ? capabilities.value?.('topbar.phone_menu', 'bottom')
-      : (flags?.current?.() ? flags.value?.('topbar', 'phone_menu', 'bottom') : 'bottom');
-    return value === 'top' ? 'top' : 'bottom';
-  }
-
   function openMoreMenu(){
     const menu = $('#mobilePlatformMoreMenu');
     if (!menu) return;
     fileMoreItems();
     syncMoreMenu();
-    const placement = moreMenuPlacement();
+    const placement = 'top';
     menu.dataset.placement = placement;
     if (placement === 'top') {
       const rect = $('#mobilePlatformMoreBtn')?.getBoundingClientRect();
@@ -133,6 +126,7 @@
     presentSheet(menu);
     moreReturnFocus = $('#mobilePlatformMoreBtn');
     moreReturnFocus?.setAttribute('aria-expanded', 'true');
+    moreReturnFocus?.setAttribute('aria-label', phrase('ptb_sheet_close', 'Close'));
     menu.querySelector('.ptb-more-item:not([hidden])')?.focus({ preventScroll:true });
   }
 
@@ -142,6 +136,7 @@
     const menu = $('#mobilePlatformMoreMenu');
     const button = $('#mobilePlatformMoreBtn');
     button?.setAttribute('aria-expanded', 'false');
+    button?.setAttribute('aria-label', phrase('ptb_more', 'More'));
     if (menu?.contains(document.activeElement)) button?.focus({ preventScroll:true });
   }
 
@@ -153,7 +148,41 @@
     const menu = $('#mobilePlatformMoreMenu');
     if (!menu || menu.dataset.moreReady) return;
     menu.dataset.moreReady = '1';
+    menu.dataset.placement = 'top';
     menu.classList.add('ptb-menu--sheet');
+    const sheet = menu.querySelector('.ptb-sheet');
+    if (sheet) {
+      // Each inbox action has its own card, just like the assistant.
+      for (const [id, groupId] of [['mobilePlatformMoreMessages','messages'], ['mobilePlatformMoreNotifications','notifications']]) {
+        const item = menu.querySelector('#' + id);
+        if (!item) continue;
+        const group = document.createElement('div'); group.className = 'ptb-sheet-group'; group.dataset.moreGroup = groupId;
+        const previous = item.parentElement; previous.before(group); group.append(item);
+      }
+    }
+    if (!document.getElementById('ptb-more-style')) {
+      const style = document.createElement('style'); style.id = 'ptb-more-style';
+      style.textContent = `
+        .mobile-topbar #mobilePlatformMoreMenu{pointer-events:none}
+        .mobile-topbar #mobilePlatformMoreMenu .ptb-sheet,.mobile-topbar #mobilePlatformMoreMenu .ptb-sheet-scrim{pointer-events:auto}
+        .mobile-topbar #mobilePlatformMoreMenu .ptb-sheet-scrim{top:var(--ptb-more-top,56px)}
+        .mobile-topbar #mobilePlatformMoreMenu .ptb-sheet{width:min(228px,calc(100vw - 20px));gap:4px;padding:5px;border-radius:14px}
+        .mobile-topbar #mobilePlatformMoreMenu .ptb-sheet-group{border-radius:9px}
+        .mobile-topbar #mobilePlatformMoreMenu .ptb-more-item{min-height:44px;padding:6px 10px;gap:10px;font-size:14px}
+        .mobile-topbar #mobilePlatformMoreMenu .ptb-more-item > i{width:28px;height:28px;border-radius:8px;font-size:13px;background:var(--primary,#d93025);color:var(--on-primary,#fff)}
+        .mobile-topbar #mobilePlatformMoreMenu .ptb-more-item::before{left:48px}
+        .mobile-topbar #mobilePlatformMoreMenu .ptb-more-item::after{font-size:10px}
+        .mobile-topbar #mobilePlatformMoreMenu .ptb-more-count{min-width:18px;padding:1px 5px;font-size:10px}
+        #mobilePlatformMoreBtn>i{transition:transform .24s ease,opacity .18s ease}
+        #mobilePlatformMoreBtn::after{content:"\\f00d";font-family:"Font Awesome 6 Free";font-weight:900;position:absolute;inset:0;display:grid;place-items:center;opacity:0;transform:rotate(-180deg);transition:transform .24s ease,opacity .18s ease;pointer-events:none}
+        #mobilePlatformMoreBtn[aria-expanded=true]>i{opacity:0;transform:rotate(180deg)}
+        #mobilePlatformMoreBtn[aria-expanded=true]::after{opacity:1;transform:rotate(0)}
+        #mobilePlatformMoreBtn[aria-expanded=true]>.ptb-count{opacity:0}
+        @media(prefers-reduced-motion:reduce){#mobilePlatformMoreBtn>i,#mobilePlatformMoreBtn::after{transition:none}}
+
+      `;
+      document.head.append(style);
+    }
     fileMoreItems();
     new MutationObserver((records) => {
       if (records.some((record) => record.type === 'childList')) fileMoreItems();
@@ -484,10 +513,11 @@ ${window.FirstMateAgentBar.css({ host:'.ptb-agent-host', bar:'.ptb-agent-bar', p
   // --- Messages dropdown (personal channels inbox) --------------------------
 
   let messagesInbox = { entries: [], unread_total: 0 };
+  let messagesGeneration = 0;
 
   function messagesAllowed(){
     try {
-      if (window.Portal?.can && window.Portal?.capabilities?.can) return window.Portal.can('apps.channels') !== false;
+      if (window.Portal?.can && window.Portal?.capabilities?.can) return window.Portal.can('apps.channels') !== false && window.Portal.can('topbar.messages') !== false;
     } catch (_) {}
     return true;
   }
@@ -498,6 +528,14 @@ ${window.FirstMateAgentBar.css({ host:'.ptb-agent-host', bar:'.ptb-agent-bar', p
     const mobile = $('#mobilePlatformMessagesSlot');
     if (desktop) desktop.hidden = !allowed;
     if (mobile) mobile.hidden = !allowed;
+    if (!allowed) {
+      messagesGeneration++;
+      closeMessagesMenus();
+      messagesInbox = { entries: [], unread_total: 0 };
+      renderMessagesBadge();
+      renderMessagesList();
+    }
+    syncMoreMenu();
   }
 
   function messagesMenus(){
@@ -569,7 +607,10 @@ ${window.FirstMateAgentBar.css({ host:'.ptb-agent-host', bar:'.ptb-agent-bar', p
     closeMessagesMenus();
     renderMessagesList();
     try {
-      if (entry.channel_type === 'project' && cleanText(entry.project_id)) {
+      if (cleanText(entry.photo_id) && cleanText(entry.project_id)) {
+        window.Portal?.navigation?.navigate?.({project:cleanText(entry.project_id),projectTab:'photos',projectNote:null,photo:cleanText(entry.photo_id),photoScope:'project'}, {source:'messages-inbox',ownedKeys:['project','projectTab','projectNote','photo','photoScope']});
+        await window.Portal?.navigation?.applyCurrent?.();
+      } else if (entry.channel_type === 'project' && cleanText(entry.project_id)) {
         window.Portal?.navigation?.navigate?.({project:cleanText(entry.project_id), projectTab:'materials', projectNote:cleanText(entry.kind === 'activity' ? entry.related_message_id : entry.message_id) || null}, {source:'messages-inbox'});
         await window.Portal?.navigation?.applyCurrent?.();
       } else {
@@ -635,8 +676,10 @@ ${window.FirstMateAgentBar.css({ host:'.ptb-agent-host', bar:'.ptb-agent-bar', p
 
   async function loadMessagesInbox(){
     if (!window.ChannelsAPI?.readState?.inbox || !orgId() || !messagesAllowed()) return;
+    const generation = messagesGeneration;
     try {
       const data = await window.ChannelsAPI.readState.inbox(orgId());
+      if (generation !== messagesGeneration || !messagesAllowed()) return;
       const entries = (data.entries || []).filter(entry => !openedMessageEntries.has(entry.entry_id));
       messagesInbox = { entries, unread_total: entries.reduce((sum, entry) => sum + (entry.unread ? Math.max(1, Number(entry.count || 1)) : 0), 0) };
       renderMessagesBadge();
@@ -1104,7 +1147,7 @@ ${window.FirstMateAgentBar.css({ host:'.ptb-agent-host', bar:'.ptb-agent-bar', p
 
   function searchOffersHtml(query){
     const rows = [];
-    if (canOrderReportFromSearch()) rows.push(searchOfferRowHtml('report', 'fa-file-lines', ((v0) => globalThis.PlatformLanguage?.text("platform","search_offer_order_report",`Order a new report for "${v0}"`,{v0}) ?? `Order a new report for "${v0}"`)(query)));
+    if (canOrderReportFromSearch()) rows.push(searchOfferRowHtml('report', 'fa-file-lines', ((v0) => globalThis.PlatformLanguage?.text("platform","search_offer_order_measurement_report",`Order a measurement report for "${v0}"`,{v0}) ?? `Order a measurement report for "${v0}"`)(query)));
     if (canStartProjectFromSearch()) rows.push(searchOfferRowHtml('project', 'fa-folder-plus', ((v0) => globalThis.PlatformLanguage?.text("platform","search_offer_new_project",`New project for "${v0}"`,{v0}) ?? `New project for "${v0}"`)(query)));
     if (canCreateContactFromSearch()) rows.push(searchOfferRowHtml('contact', 'fa-address-book', ((v0) => globalThis.PlatformLanguage?.text("platform","search_offer_new_contact",`New contact for "${v0}"`,{v0}) ?? `New contact for "${v0}"`)(query)));
     return rows.join('');
@@ -1643,6 +1686,7 @@ ${window.FirstMateAgentBar.css({ host:'.ptb-agent-host', bar:'.ptb-agent-bar', p
     ].forEach(({ button, menu }) => {
       $(button)?.addEventListener('click', async (event) => {
         event.stopPropagation();
+        if (!messagesAllowed()) return;
         const targetMenu = $(menu);
         const opening = !targetMenu?.classList.contains('visible');
         closeMessagesMenus();
@@ -1682,7 +1726,9 @@ ${window.FirstMateAgentBar.css({ host:'.ptb-agent-host', bar:'.ptb-agent-bar', p
       });
     });
     updateAssistantVisibility(true);
-    window.addEventListener('fm:capabilities:updated', () => { updateAssistantVisibility(); updateMessagesVisibility(); });
+    const refreshMessagesAccess = () => { updateAssistantVisibility(); updateMessagesVisibility(); loadMessagesInbox().catch(() => null); };
+    window.addEventListener('fm:capabilities:updated', refreshMessagesAccess);
+    window.addEventListener('fm:app-flags:updated', refreshMessagesAccess);
     window.PlatformNotifications?.subscribe(renderNotifications);
     window.PlatformRealtime?.subscribe?.(orgId(), "channels.", event => {
       if (['channels.read.updated','channels.read_state.updated','channels.unreads.changed','channels.message.created','channels.reaction.updated'].includes(event.topic)) loadMessagesInbox().catch(() => null);

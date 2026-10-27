@@ -1,4 +1,4 @@
-// A top-bar search with no matching project offers, under No matches: Order a new report for what was
+// A top-bar search with no matching project offers, under No matches: Order a measurement report for what was
 // typed, New project and New contact. Ordering asks Google; an answer that only completes the typed address
 // (address-match.js) opens a project already there, or a new draft with the address filled in; anything else
 // opens a new draft with the text typed and Google's suggestions open. Each offer needs its permission and
@@ -110,14 +110,14 @@ async function typeSearch(page, text, mobile = false){
 const offers = (page, mobile = false) => page.locator(`${resultsBox(mobile)} [data-search-offer]`).evaluateAll((rows) => rows.map((row) => [row.dataset.searchOffer, row.textContent.trim()]));
 const shot = async (page, name) => { if (!shots) return; await mkdir(shots, { recursive: true }); await page.screenshot({ path: path.join(shots, `${name}.png`) }); };
 
-test('no matches offers Order a new report, New project and New contact, in that order, reachable with the arrow keys', async () => {
+test('no matches offers Order a measurement report, New project and New contact, in that order, reachable with the arrow keys', async () => {
   const browser = await launch();
   try {
     const { context, page, errors } = await openShell(browser, {});
     await typeSearch(page, '123 Main Street');
     assert.match(await page.locator('#platformSearchResults .ptb-search-offers-label').textContent(), /No matches/);
     assert.deepEqual(await offers(page), [
-      ['report', 'Order a new report for "123 Main Street"'],
+      ['report', 'Order a measurement report for "123 Main Street"'],
       ['project', 'New project for "123 Main Street"'],
       ['contact', 'New contact for "123 Main Street"']
     ]);

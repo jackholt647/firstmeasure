@@ -132,7 +132,7 @@ values (`icon: ''` shows none), and `actions` is a node of compact icon
 buttons shown beside the title. A setting stays with its app and applies
 whenever that app is the open one.
 
-The More (⋯) button opens a bottom sheet with every desktop top bar action:
+The More (⋯) button opens a menu at the top right with every desktop top bar action:
 the assistant, To Do, messages, notifications, the phone and development
 tools. Each entry is shown exactly when its desktop control is, so a phone and
 a desktop offer the same actions, all decided by the organization's switches
@@ -142,10 +142,11 @@ its phone entry as a `.ptb-more-item` in `#mobilePlatformMoreMenu`, naming its
 group with `data-more-group` (`work`, `inbox`, or the default `tools`), and
 hides it with `hidden` whenever its desktop control is hidden.
 
-Where the More menu opens is the organization's `topbar.phone_menu` setting:
-`bottom` (the default) is the sheet, `top` a dropdown at the top right. What
-it opens comes from the bottom either way, as the project window's trays do
-([project content layout](project-content-layout.md#phone-trays)). Messages,
+The compact More menu anchors below its button, which rotates from dots to a
+Close icon while open. The menu itself needs no separate header or Close row.
+Its action icons use the primary color; Messages and Notifications each have
+separate cards. The earlier `topbar.phone_menu` setting is no longer consulted
+by this menu. The controls it opens retain their own presentation. Messages,
 notifications, To Do and development tools are bottom sheets in the top
 layer, one at a time, each with a drag handle, a title with Close, and an
 animated open and close. The assistant is the project window's agent bar
