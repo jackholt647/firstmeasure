@@ -889,17 +889,18 @@ window.PlatformCommerce.onReady(async function(){
     /* Project details tray: the one owner of the project's contact, address and measurements. Open, it joins the
        header's left end into one white column, and the tabs and content slide right (pushed, not covered). */
     #rOverlay{--r-details-tray-w:clamp(300px,30%,400px);--r-details-tray-ease:cubic-bezier(.22,1,.36,1)}
-    .r-details-tray{position:absolute;z-index:80;left:0;top:0;bottom:0;width:var(--r-details-tray-w);display:flex;flex-direction:column;min-height:0;box-sizing:border-box;background:#fff;transform:translateX(-101%);visibility:hidden;transition:transform .34s var(--r-details-tray-ease),visibility 0s linear .34s}
+    .r-details-tray{position:absolute;z-index:80;left:0;top:var(--r-details-tray-start,36px);bottom:0;width:var(--r-details-tray-w);display:flex;flex-direction:column;min-height:0;box-sizing:border-box;background:#fff;transform:translateX(-101%);visibility:hidden;transition:transform .34s var(--r-details-tray-ease),visibility 0s linear .34s}
     /* The divider starts under the header, so the header and the tray read as one white surface. */
-    .r-details-tray::after{content:'';position:absolute;right:0;top:var(--r-details-tray-top,69px);bottom:0;width:1px;background:#e4e7ec;pointer-events:none}
+    .r-details-tray::after{content:'';position:absolute;right:0;top:var(--r-details-tray-divider,33px);bottom:0;width:1px;background:#e4e7ec;pointer-events:none}
     #rOverlay.details-tray-sheet .r-details-tray::after{display:none}
     .r-overview-initial-actions:empty{display:none!important}
     #rOverlay.details-tray-open .r-details-tray{transform:none;visibility:visible;transition:transform .34s var(--r-details-tray-ease),visibility 0s}
-    #rOverlay .fm-shell-header{transition:padding-left .34s var(--r-details-tray-ease)}
+    #rOverlay #rProjectViewerTabs{transition:margin-left .34s var(--r-details-tray-ease)}
     #rOverlay .fm-project-content{transition:grid-template-columns .32s var(--r-details-tray-ease),margin-left .34s var(--r-details-tray-ease)}
-    #rOverlay.details-tray-open:not(.details-tray-sheet) .fm-shell-header{padding-left:var(--r-details-tray-w)}
+    #rOverlay.details-tray-open:not(.details-tray-sheet) #rProjectViewerTabs{margin-left:var(--r-details-tray-px,var(--r-details-tray-w))!important}
     #rOverlay.details-tray-open:not(.details-tray-sheet) .fm-project-content{margin-left:var(--r-details-tray-w)}
-    #rOverlay.details-tray-open:not(.details-tray-sheet) .fm-shell-identity>i:first-child,#rOverlay.details-tray-open:not(.details-tray-sheet) #rProjectIdentityTrigger{display:none}
+    /* On a desktop the header's own title is the tray's title and toggle; the tray has no heading of its own. */
+    #rOverlay:not(.details-tray-sheet) .r-details-tray-head{display:none}
     .r-details-tray-head{flex:none;display:flex;align-items:flex-start;gap:10px;padding:16px 12px 6px 18px}
     .r-details-tray-head>i{flex:none;font-size:21px;line-height:26px;transform-origin:left center}
     .r-details-tray-title{flex:1;min-width:0;margin:0;font-size:17px;line-height:26px;font-weight:800;color:#1d2939;overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow-wrap:anywhere;transform-origin:left top}
@@ -907,7 +908,7 @@ window.PlatformCommerce.onReady(async function(){
     .r-details-tray-close:hover{background:rgba(var(--primary-rgb,217,48,37),.08);color:var(--primary-readable,var(--primary,#d93025))}
     .r-details-tray-close:focus-visible{outline:2px solid var(--primary,#d93025);outline-offset:1px}
     .r-details-tray-body{flex:1;min-height:0;display:flex;flex-direction:column}
-    #rOverlay .r-details-tray-body>.r-overview-details{order:0;flex:1 1 auto;width:auto;min-width:0;max-width:none;height:auto;min-height:0;max-height:none;padding:4px 18px 12px;border:0;box-shadow:none}
+    #rOverlay .r-details-tray-body>.r-overview-details{order:0;flex:1 1 auto;width:auto;min-width:0;max-width:none;height:auto;min-height:0;max-height:none;padding:14px 18px 12px;border:0;box-shadow:none}
     #rOverlay.details-tray-open .r-details-tray-body>.r-overview-details>.r-form{animation:rDetailsTrayRise .42s var(--r-details-tray-ease) both}
     @keyframes rDetailsTrayRise{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:none}}
     .r-details-tray-scrim{display:none}
@@ -955,12 +956,12 @@ window.PlatformCommerce.onReady(async function(){
     .r-tray-measure-root [data-scope-measurement-start]:has([data-measure-order-status]){overflow:auto}
     /* Phones: a full-height sheet from the left over the window, closed by its control or the dimmed window. */
     #rOverlay.details-tray-sheet{--r-details-tray-w:min(420px,calc(100% - 44px))}
-    #rOverlay.details-tray-sheet .r-details-tray{z-index:2147483300;box-shadow:0 0 40px rgba(16,24,40,.22);border-right:0}
+    #rOverlay.details-tray-sheet .r-details-tray{top:0;z-index:2147483300;box-shadow:0 0 40px rgba(16,24,40,.22);border-right:0}
     #rOverlay.details-tray-sheet .r-details-tray-head{padding-top:max(16px,env(safe-area-inset-top))}
     #rOverlay.details-tray-sheet .r-details-tray-body{overflow:auto;padding-bottom:env(safe-area-inset-bottom)}
     #rOverlay.details-tray-sheet .r-details-tray-scrim{display:block;position:absolute;inset:0;z-index:2147483299;border:0;padding:0;background:rgba(16,24,40,.32);opacity:0;pointer-events:none;transition:opacity .28s ease}
     #rOverlay.details-tray-sheet.details-tray-open .r-details-tray-scrim{opacity:1;pointer-events:auto}
-    @media(prefers-reduced-motion:reduce){.r-details-tray,#rOverlay .fm-shell-header,#rOverlay .fm-project-content,.r-details-tray-scrim{transition:none!important}#rOverlay .r-details-tray-body>.r-overview-details>.r-form{animation:none!important}}
+    @media(prefers-reduced-motion:reduce){.r-details-tray,#rOverlay #rProjectViewerTabs,#rOverlay .fm-project-content,.r-details-tray-scrim{transition:none!important}#rOverlay .r-details-tray-body>.r-overview-details>.r-form{animation:none!important}}
     .r-project-identity-fields{padding:14px;gap:14px}
     :is(.r-project-identity-popover,.r-overview-details) .r-contact-card,:is(.r-project-identity-popover,.r-overview-details) .r-contact-list.has-multiple .r-contact-card{border:0;border-radius:0;box-shadow:none;background:none;padding:0;margin:0}
     :is(.r-project-identity-popover,.r-overview-details) .r-contact-card+.r-contact-card{border-top:1px solid #e4e7ec;padding-top:14px}
@@ -4834,32 +4835,18 @@ window.PlatformCommerce.onReady(async function(){
     syncDetailsTrayTop();
     if(open)placeOverviewDetails();
     if(open===detailsTrayOpen && overlay.classList.contains('details-tray-open')===open)return;
-    const motion=!window.matchMedia?.('(prefers-reduced-motion: reduce)').matches && overlay.isConnected && overlay.offsetWidth>0;
-    const headerTitle=document.querySelector('#rWindowProjectTitle strong') || document.getElementById('rWindowProjectTitle');
-    const trayTitle=tray.querySelector('[data-details-tray-title]'),headerIcon=document.querySelector('#rOverlay .fm-shell-identity>i:first-child'),trayIcon=tray.querySelector('[data-details-tray-icon]');
-    const before=open ? [headerTitle?.getBoundingClientRect(),headerIcon?.getBoundingClientRect()] : null;
     detailsTrayOpen=open;
     overlay.classList.toggle('details-tray-open',open);
     document.getElementById('rProjectIdentityTrigger')?.setAttribute('aria-expanded',String(open));
     tray.toggleAttribute('inert',!open);
-    // The header's title and icon grow into the tray's: animate each from where the header drew it. The tray
-    // slides in with the same easing, so the offset it is still carrying is added to the starting position.
-    if(open && motion && !sheet){
-      syncDetailsTrayTitle();
-      const width=tray.offsetWidth,animation={duration:340,easing:'cubic-bezier(.22,1,.36,1)'};
-      const flip=(node,from)=>{
-        if(!node || !from?.width)return;
-        const saved=tray.style.transform;tray.style.transition='none';tray.style.transform='none';
-        const to=node.getBoundingClientRect();tray.style.transform=saved;void tray.offsetWidth;tray.style.transition='';
-        if(!to.width)return;
-        const scale=Math.min(1,from.height/to.height);
-        node.animate([{transform:`translate(${from.left-to.left+width}px,${from.top-to.top}px) scale(${scale})`},{transform:'none'}],animation);
-      };
-      flip(trayTitle,before[0]);flip(trayIcon,before[1]);
-    }
     if(open && sheet)tray.querySelector('[data-details-tray-close]')?.focus({preventScroll:true});
     if(open)syncTrayMeasurements();
-    setTimeout(()=>window.dispatchEvent(new Event('resize')),360);
+    setTimeout(()=>{
+      // The tab strip narrows while the tabs slide; when they fit again it must not stay scrolled.
+      const tabs=document.getElementById('rProjectViewerTabs');
+      if(tabs && tabs.scrollWidth<=tabs.clientWidth+1)tabs.scrollLeft=0;
+      window.dispatchEvent(new Event('resize'));
+    },360);
   }
   // Runs with the Overview workflow render: applies the default for a project the window has just shown.
   function syncDetailsTray(){
@@ -4880,7 +4867,12 @@ window.PlatformCommerce.onReady(async function(){
   // The tray's divider begins where the header's bottom edge is.
   function syncDetailsTrayTop(){
     const overlay=document.getElementById('rOverlay'),header=overlay?.querySelector('.fm-shell-header,.r-modal-header');
-    if(header?.offsetHeight)overlay.style.setProperty('--r-details-tray-top',header.offsetHeight+'px');
+    const identity=header?.querySelector('.fm-shell-identity,.r-window-identity');
+    if(!header?.offsetHeight || !identity?.offsetHeight)return;
+    overlay.style.setProperty('--r-details-tray-start',identity.offsetHeight+'px');
+    // The tabs' margin resolves against their grid column, not the window, so it takes the tray's measured width.
+    const tray=document.getElementById('rDetailsTray');if(tray?.offsetWidth)overlay.style.setProperty('--r-details-tray-px',tray.offsetWidth+'px');
+    overlay.style.setProperty('--r-details-tray-divider',Math.max(0,header.offsetHeight-identity.offsetHeight)+'px');
   }
   window.addEventListener('resize',()=>{
     const overlay=document.getElementById('rOverlay');if(!overlay?.querySelector('#rDetailsTray'))return;
