@@ -39,6 +39,7 @@ export class Router {
     this.submissions = this.readJson("submissions.json", {});
     this.releases = this.readJson("releases.json", []);
     this.gateCache = new Map(); // `${sha}\0${gate}` -> passed?
+    this.failedOverlays = new Set(); // `${ref}@${sha}@${tip}`: overlays that could not be merged onto that tip
     for (const name of Object.keys(this.lanes)) this.laneState[name] = { state: "idle", batch: [], release: null, tip: null, note: null };
   }
 
@@ -258,14 +259,26 @@ export class Router {
 
   async processLane(lane) {
     const module = this.lanes[lane];
+    // A release that went live but whose lane push failed must reach the branch before anything else is merged,
+    // or the next release would be built without it.
+    const unpushed = this.readJson("unpushed.json", {})[lane];
+    if (unpushed) {
+      const push = await this.git(["push", "--quiet", "origin", `${unpushed}:refs/heads/${module.branch}`], { allowFail: true });
+      if (push.code !== 0) {
+        await this.setLane(lane, { state: "paused", note: `release ${unpushed.slice(0, 10)} is live but ${module.branch} could not be advanced: ${trim(push.stderr, 300)}` });
+        return false;
+      }
+      const record = this.readJson("unpushed.json", {}); delete record[lane]; this.writeJson("unpushed.json", record);
+      this.log(lane, `${module.branch} advanced to ${unpushed.slice(0, 10)} (retried push)`);
+    }
     const tip = await this.fetch(lane);
     await this.setLane(lane, { tip });
     const queue = await this.pending(lane);
     // Live overlays ride along with every platform batch; on their own they trigger a release only once parked
-    // (a release changed their file, so dev no longer serves them).
+    // (a release changed their file, so dev no longer serves them). One that failed on this tip waits for a new tip.
     let overlays = [];
     if (lane === "platform" && this.options.overlays) {
-      try { overlays = await this.options.overlays(tip, this); }
+      try { overlays = (await this.options.overlays(tip, this)).filter((overlay) => !this.failedOverlays.has(`${overlay.ref}@${overlay.sha}@${tip}`)); }
       catch (error) { this.log(lane, `live overlays unavailable: ${error.message}`); }
     }
     if (!queue.length && !overlays.some((overlay) => overlay.parked)) return false;
@@ -289,7 +302,7 @@ export class Router {
       }
       candidates.push(entry);
     }
-    if (!candidates.length && !overlays.length) return true;
+    if (!candidates.length && !overlays.some((overlay) => overlay.parked)) return true;
 
     await this.setLane(lane, { state: "merging", batch: candidates.map((entry) => entry.ref) });
     await this.update(candidates, { state: "merging" });
@@ -323,10 +336,11 @@ export class Router {
         }
       }
     }
+    for (const { overlay } of final.overlayConflicts) this.failedOverlays.add(`${overlay.ref}@${overlay.sha}@${tip}`);
     if (!accepted.length && !final.overlaysMerged.length) {
       await this.setLane(lane, { state: "idle", batch: [], note: final.overlayConflicts.length ? `${final.overlayConflicts.length} live overlay(s) need review` : null });
       if (this.options.overlayProblems && final.overlayConflicts.length) await this.options.overlayProblems(final.overlayConflicts);
-      return true;
+      return candidates.length > 0;
     }
 
     // The lane branch must not have moved since the merge, or the release would not be a fast-forward of it.
@@ -361,8 +375,11 @@ export class Router {
     }
 
     const push = await this.git(["push", "--quiet", "origin", `${final.sha}:refs/heads/${module.branch}`], { allowFail: true });
-    if (push.code !== 0) this.log(lane, `WARNING: ${releaseId} is live but ${module.branch} could not be fast-forwarded: ${push.stderr.trim()}`);
-    else await this.git(["update-ref", `refs/lanes/${lane}`, final.sha]);
+    if (push.code !== 0) {
+      // Dev now runs work the branch lacks: hold the lane until the push succeeds (retried at the top of every pass).
+      this.log(lane, `WARNING: ${releaseId} is live but ${module.branch} could not be fast-forwarded: ${push.stderr.trim()}`);
+      this.writeJson("unpushed.json", { ...this.readJson("unpushed.json", {}), [lane]: final.sha });
+    } else await this.git(["update-ref", `refs/lanes/${lane}`, final.sha]);
     const release = {
       id: releaseId, lane, sha: final.sha, at: new Date().toISOString(), base: tip, branch_pushed: push.code === 0,
       submissions: accepted.map((entry) => entry.ref), works: accepted.map((entry) => entry.work),

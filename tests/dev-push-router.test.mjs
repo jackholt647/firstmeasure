@@ -227,3 +227,53 @@ test('a dev rollout record in the submission is refused', async () => {
     assert.equal(s.deployed.length, 0);
   } finally { s.cleanup(); }
 });
+
+test('a release whose lane push fails holds the lane until the push succeeds', async () => {
+  const s = scratch();
+  try {
+    // The origin refuses updates of the lane branch while a flag file exists.
+    const flag = path.join(s.dir, 'refuse');
+    writeFileSync(flag, '1');
+    writeFileSync(path.join(s.origin, 'hooks', 'pre-receive'), `#!/bin/sh\nwhile read old new ref; do if [ "$ref" = "refs/heads/${BRANCH}" ] && [ -f "${flag.replaceAll('\\', '/')}" ]; then echo refused >&2; exit 1; fi; done\nexit 0\n`, { mode: 0o755 });
+    const a = s.clone('alice'), b = s.clone('bob');
+    a.edit('a.txt', 'a\n'); a.submit('--slug', 'a');
+    const router = s.makeRouter();
+    await router.init();
+    assert.equal(await router.processLane('platform'), true);
+    assert.equal(s.deployed.length, 1, 'released');
+    assert.equal(s.originFile('a.txt'), '', 'branch not advanced');
+    b.edit('b.txt', 'b\n'); b.submit('--slug', 'b');
+    assert.equal(await router.processLane('platform'), false, 'held while the push fails');
+    assert.equal(s.deployed.length, 1);
+    assert.equal(router.laneState.platform.state, 'paused');
+    rmSync(flag);
+    await drain(router);
+    assert.equal(s.originFile('a.txt'), 'a\n');
+    assert.equal(s.originFile('b.txt'), 'b\n');
+    assert.equal(s.deployed.length, 2);
+  } finally { s.cleanup(); }
+});
+
+test('a parked overlay that cannot merge is reported once, not retried in a loop', async () => {
+  const s = scratch();
+  try {
+    const owner = s.clone('owner');
+    owner.edit('shared.txt', 'one\nTWO live\nthree\n', 'live save');
+    const overlaySha = sh(owner.dir, 'rev-parse', 'HEAD');
+    sh(owner.dir, 'push', '-q', 'origin', 'HEAD:refs/heads/live/owner');
+    const seed = s.clone('seed2');
+    seed.edit('shared.txt', 'one\nTWO released\nthree\n');
+    sh(seed.dir, 'push', '-q', 'origin', BRANCH);
+    const problems = [];
+    const router = s.makeRouter({
+      overlays: async (tip, r) => { await r.git(['fetch', '-q', 'origin', '+refs/heads/live/owner:refs/live/owner']); return [{ ref: 'live/owner', sha: overlaySha, owner: 'owner', parked: true, files: { 'shared.txt': 'h' } }]; },
+      overlayProblems: async (list) => { problems.push(...list); }
+    });
+    await router.init();
+    assert.equal(await router.processLane('platform'), false);
+    assert.equal(await router.processLane('platform'), false, 'second pass skips the known failure');
+    assert.equal(problems.length, 1);
+    assert.equal(s.deployed.length, 0);
+    assert.match(router.laneState.platform.note, /need review/);
+  } finally { s.cleanup(); }
+});
