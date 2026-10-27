@@ -1,9 +1,9 @@
 {
   "summary": {
     "routes": {
-      "total": 1918,
+      "total": 1920,
       "by_kind": {
-        "any:login_only": 168,
+        "any:login_only": 170,
         "any:login_only+handler_checks": 349,
         "any:permission": 710,
         "app(contact.media|portal.crew_receipts|portal.photos_feed|portal.receipts|portal.viewer|project.crew_materials|project.photos):login_only": 1,
@@ -1697,6 +1697,7 @@
     "POST /v1/platform/organizations/:orgId/action-items/:actionItemId/cancel": {"file":"platform/api.ts","gates":[{"app":"any","csrf":true}],"checks":["hasPermission(manage_company_settings)","hasPermission(manage_company_user_permissions)","hasPermission(dynamic)","hasPermission(view_projects|manage_company_settings)","hasPermission(manage_own_notifications)","hasPermission(manage_notification_defaults)"],"kind":"any:login_only+handler_checks"},
     "POST /v1/platform/organizations/:orgId/action-items/:actionItemId/claim": {"file":"platform/api.ts","gates":[{"app":"any","csrf":true}],"checks":["hasPermission(manage_company_settings)","hasPermission(manage_company_user_permissions)","hasPermission(dynamic)","hasPermission(view_projects|manage_company_settings)","hasPermission(manage_own_notifications)","hasPermission(manage_notification_defaults)"],"kind":"any:login_only+handler_checks"},
     "POST /v1/platform/organizations/:orgId/action-items/:actionItemId/complete": {"file":"platform/api.ts","gates":[{"app":"any","csrf":true}],"checks":["hasPermission(manage_company_settings)","hasPermission(manage_company_user_permissions)","hasPermission(dynamic)","hasPermission(view_projects|manage_company_settings)","hasPermission(manage_own_notifications)","hasPermission(manage_notification_defaults)"],"kind":"any:login_only+handler_checks"},
+    "POST /v1/platform/organizations/:orgId/app-offers/:appId/start": {"file":"platform/api.ts","gates":[{"app":"any","csrf":true}],"kind":"any:login_only"},
     "POST /v1/platform/organizations/:orgId/attention-banners": {"file":"platform/attention.ts","gates":[{"app":"any","permission":"manage_company_settings","csrf":true}],"kind":"any:permission"},
     "POST /v1/platform/organizations/:orgId/branches/:branchId/pricebook/generate": {"file":"platform/api.ts","gates":[{"app":"any","permission":"manage_company_settings","csrf":true}],"kind":"any:permission"},
     "POST /v1/platform/organizations/:orgId/capabilities/presets": {"file":"platform/api.ts","gates":[{"app":"any","csrf":true}],"kind":"any:login_only"},
@@ -1943,6 +1944,7 @@
     "PUT /v1/platform/organizations/:orgId/:collection/:documentId": {"file":"platform/api.ts","gates":[{"app":"any","permission":{"dynamic":"collectionWritePermission(collection, \"replace\")"},"scoped":{"dynamic":"collection===\"calendar_events\""},"csrf":true},{"app":"any","permission":"manage_company_user_permissions","csrf":true}],"checks":["hasPermission(dynamic)","hasPermission(manage_company_settings)","hasPermission(view_projects|manage_company_settings)","hasPermission(manage_own_notifications)","hasPermission(manage_notification_defaults)"],"publication":true,"kind":"any:permission"},
     "PUT /v1/platform/organizations/:orgId/app-flags": {"file":"platform/api.ts","gates":[{"app":"any","csrf":true}],"kind":"any:login_only"},
     "PUT /v1/platform/organizations/:orgId/app-groups/:groupId": {"file":"platform/api.ts","gates":[{"app":"any","permission":"manage_company_settings","csrf":true}],"kind":"any:permission"},
+    "PUT /v1/platform/organizations/:orgId/app-offers": {"file":"platform/api.ts","gates":[{"app":"any","csrf":true}],"kind":"any:login_only"},
     "PUT /v1/platform/organizations/:orgId/assignee-scheduling": {"file":"platform/api.ts","gates":[{"app":"any","permission":"manage_company_settings","csrf":true}],"checks":["hasPermission(manage_company_settings)"],"kind":"any:permission"},
     "PUT /v1/platform/organizations/:orgId/branch/:branchId/modules/:moduleId": {"file":"platform/api.ts","gates":[{"app":"any","permission":{"dynamic":"branchModuleWritePermission(getParam(request.params, \"moduleId\"))"},"csrf":true}],"kind":"any:permission"},
     "PUT /v1/platform/organizations/:orgId/capabilities": {"file":"platform/api.ts","gates":[{"app":"any","csrf":true}],"kind":"any:login_only"},
