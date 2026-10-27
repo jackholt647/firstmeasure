@@ -1,0 +1,30 @@
+{
+  "kind": "guided_tab_faqs",
+  "id": "project.docs",
+  "revision": 1,
+  "sha256": "7ab88a97083253baf32b061f7231a608238739ae6ec6f66bed67ed693ae8bce4",
+  "title": "Questions on project.docs",
+  "updated_at": "2026-10-27T23:15:15.074Z",
+  "updated_by": "generator",
+  "data": {
+    "tab": "project.docs",
+    "questions": [
+      {
+        "id": "docs.proposal",
+        "text": {
+          "key": "gx_faq_docs_proposal",
+          "text": "How do I make a proposal for this project?"
+        },
+        "action": "ask"
+      },
+      {
+        "id": "docs.sign",
+        "text": {
+          "key": "gx_faq_docs_sign",
+          "text": "How does the customer sign?"
+        },
+        "action": "ask"
+      }
+    ]
+  }
+}

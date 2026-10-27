@@ -1,0 +1,47 @@
+{
+  "kind": "app_welcome",
+  "id": "portal.financials",
+  "revision": 1,
+  "sha256": "2bdfef18b040ab54ba678bfd51f33aaad292f003840e12906d5163614528cafc",
+  "title": "portal.financials: Know where your business stands.",
+  "updated_at": "2026-10-27T23:15:15.074Z",
+  "updated_by": "generator",
+  "data": {
+    "theme": "money",
+    "setup": "platform.money",
+    "setup_note": {
+      "key": "gx_offer_money_setup_note",
+      "text": "Get Started begins with payments onboarding."
+    },
+    "eyebrow": {
+      "key": "gx_offer_financials_name",
+      "text": "Financials"
+    },
+    "headline": {
+      "key": "gx_offer_financials_headline",
+      "text": "Know where your business stands."
+    },
+    "description": {
+      "key": "gx_offer_financials_description",
+      "text": "Profit, revenue and cash flow across all of your projects, built from the payments and expenses you already record."
+    },
+    "benefits": [
+      {
+        "key": "gx_offer_financials_b1",
+        "text": "See profit on every project"
+      },
+      {
+        "key": "gx_offer_financials_b2",
+        "text": "Follow revenue and what is still owed"
+      },
+      {
+        "key": "gx_offer_financials_b3",
+        "text": "Look ahead with cash flow forecasts"
+      }
+    ],
+    "caption": {
+      "key": "gx_offer_financials_caption",
+      "text": "Your numbers, without the spreadsheet."
+    }
+  }
+}

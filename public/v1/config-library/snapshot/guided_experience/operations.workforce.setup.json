@@ -1,0 +1,79 @@
+{
+  "kind": "guided_experience",
+  "id": "operations.workforce.setup",
+  "revision": 1,
+  "sha256": "fff93007b5f23160d0ce6b2dd4e2fc32011a0003f43dd429b49b60b64a2c6907",
+  "title": "Set up who does the work",
+  "updated_at": "2026-10-27T23:15:15.074Z",
+  "updated_by": "generator",
+  "data": {
+    "id": "operations.workforce.setup",
+    "version": 1,
+    "kind": "modal",
+    "scope": "organization",
+    "salt": "v1",
+    "title": {
+      "key": "gx_ops_workforce_title",
+      "text": "Set up who does the work"
+    },
+    "tab": "project.materials",
+    "eligibility": {
+      "capabilities": [
+        "platform.materials",
+        "apps.crew"
+      ],
+      "permissions": [
+        "manage_company_settings",
+        "manage_projects"
+      ]
+    },
+    "triggers": [
+      {
+        "kind": "manual"
+      }
+    ],
+    "variants": [
+      {
+        "id": "default",
+        "weight": 1,
+        "content": {}
+      }
+    ],
+    "requires": [],
+    "steps": [
+      {
+        "id": "workforce",
+        "widget": "labor-assignees",
+        "requires": [],
+        "title": {
+          "key": "gx_ops_workforce_step",
+          "text": "Who will do the work?"
+        },
+        "subtitle": {
+          "key": "gx_ops_workforce_body",
+          "text": "Add your groups and subcontractors, and how you pay them. Work orders use their pay sheets."
+        },
+        "say": [],
+        "options": {},
+        "source": "operations.workforce",
+        "selects": [
+          "labor",
+          "include_labor"
+        ],
+        "required": true
+      }
+    ],
+    "completion": {
+      "action": {
+        "id": "operations.workforce.setup.apply",
+        "target": "organization",
+        "input": {}
+      },
+      "screen": "pricebook",
+      "say": [],
+      "then": []
+    },
+    "replayable": true,
+    "reveal": []
+  }
+}

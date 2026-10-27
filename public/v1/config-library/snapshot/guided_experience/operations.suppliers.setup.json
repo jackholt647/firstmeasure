@@ -1,0 +1,76 @@
+{
+  "kind": "guided_experience",
+  "id": "operations.suppliers.setup",
+  "revision": 1,
+  "sha256": "d063e83a74f83b86f17ddd4d3249226a962cbb0921ce174b2ff9e4420b608f4f",
+  "title": "Set up your suppliers",
+  "updated_at": "2026-10-27T23:15:15.074Z",
+  "updated_by": "generator",
+  "data": {
+    "id": "operations.suppliers.setup",
+    "version": 1,
+    "kind": "modal",
+    "scope": "organization",
+    "salt": "v1",
+    "title": {
+      "key": "gx_ops_suppliers_title",
+      "text": "Set up your suppliers"
+    },
+    "tab": "project.materials",
+    "eligibility": {
+      "capabilities": [
+        "platform.materials"
+      ],
+      "permissions": [
+        "manage_company_settings"
+      ]
+    },
+    "triggers": [
+      {
+        "kind": "manual"
+      }
+    ],
+    "variants": [
+      {
+        "id": "default",
+        "weight": 1,
+        "content": {}
+      }
+    ],
+    "requires": [],
+    "steps": [
+      {
+        "id": "suppliers",
+        "widget": "supplier-columns",
+        "requires": [],
+        "title": {
+          "key": "gx_ops_suppliers_step",
+          "text": "Where do you get your materials?"
+        },
+        "subtitle": {
+          "key": "gx_ops_suppliers_body",
+          "text": "Add your suppliers now. You can add their prices and delivery details whenever you’re ready."
+        },
+        "say": [],
+        "options": {},
+        "source": "operations.suppliers",
+        "selects": [
+          "suppliers"
+        ],
+        "required": true
+      }
+    ],
+    "completion": {
+      "action": {
+        "id": "operations.suppliers.setup.apply",
+        "target": "organization",
+        "input": {}
+      },
+      "screen": "pricebook",
+      "say": [],
+      "then": []
+    },
+    "replayable": true,
+    "reveal": []
+  }
+}

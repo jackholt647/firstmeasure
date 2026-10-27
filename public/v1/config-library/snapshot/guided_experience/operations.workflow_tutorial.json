@@ -1,0 +1,102 @@
+{
+  "kind": "guided_experience",
+  "id": "operations.workflow_tutorial",
+  "revision": 1,
+  "sha256": "4a64a0c39ddf50c3c1d58c51e1be541e2a5215d49097ed854343890ab646a6c6",
+  "title": "Build your project scope",
+  "updated_at": "2026-10-27T23:15:15.074Z",
+  "updated_by": "generator",
+  "data": {
+    "id": "operations.workflow_tutorial",
+    "version": 1,
+    "kind": "overlay",
+    "scope": "person",
+    "salt": "v1",
+    "title": {
+      "key": "gx_ops_workflow_tour_title",
+      "text": "Build your project scope"
+    },
+    "tab": "project.materials",
+    "eligibility": {
+      "capabilities": [
+        "platform.materials"
+      ],
+      "permissions": [
+        "manage_projects"
+      ]
+    },
+    "triggers": [
+      {
+        "kind": "manual"
+      }
+    ],
+    "variants": [
+      {
+        "id": "default",
+        "weight": 1,
+        "content": {}
+      }
+    ],
+    "requires": [],
+    "steps": [
+      {
+        "id": "work",
+        "title": {
+          "key": "gx_ops_workflow_tour_work_title",
+          "text": "Pick every kind of work"
+        },
+        "body": {
+          "key": "gx_ops_workflow_tour_work_body",
+          "text": "Roofing, gutters, siding—or a combination. Choose everything this project includes. You can select more than one."
+        },
+        "targets": [
+          ".ops-workflow .fmdw-piece-grid"
+        ],
+        "placement": "bottom",
+        "advance": "next",
+        "wait_ms": 5000
+      },
+      {
+        "id": "steps",
+        "title": {
+          "key": "gx_ops_workflow_tour_steps_title",
+          "text": "Build it one step at a time"
+        },
+        "body": {
+          "key": "gx_ops_workflow_tour_scope_steps_body",
+          "text": "Next you’ll check measurements and review the products and work. You can go back to change an answer."
+        },
+        "targets": [
+          ".ops-workflow [data-fmdw-steps]"
+        ],
+        "placement": "right",
+        "advance": "next",
+        "wait_ms": 1500
+      },
+      {
+        "id": "continue",
+        "title": {
+          "key": "gx_ops_workflow_tour_continue_title",
+          "text": "Your choices build your scope"
+        },
+        "body": {
+          "key": "gx_ops_workflow_tour_continue_body",
+          "text": "Use Next when you’re ready. Finishing saves your scope of work, so Operations can generate materials from the choices you made."
+        },
+        "targets": [
+          ".ops-workflow [data-fmdw-continue]"
+        ],
+        "placement": "top",
+        "advance": "next",
+        "wait_ms": 1500
+      }
+    ],
+    "completion": {
+      "screen": "pricebook",
+      "say": [],
+      "then": []
+    },
+    "replayable": true,
+    "reveal": []
+  }
+}

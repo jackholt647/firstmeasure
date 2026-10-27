@@ -1,0 +1,49 @@
+{
+  "kind": "setup_step",
+  "id": "company.type",
+  "revision": 1,
+  "sha256": "8bbd70a637042b70651452c20e8cb862dad19086c09bd114eac7bce21a1ca56d",
+  "title": "What kind of company are you?",
+  "updated_at": "2026-10-27T23:15:15.074Z",
+  "updated_by": "generator",
+  "data": {
+    "id": "company.type",
+    "version": 1,
+    "scope": "organization",
+    "title": {
+      "key": "gx_step_company_type_title",
+      "text": "What kind of company are you?"
+    },
+    "subtitle": {
+      "key": "gx_step_company_type_subtitle",
+      "text": "We use this to suggest the work, materials and setup that fit your business. You can change it later in Settings."
+    },
+    "description": {
+      "key": "gx_step_company_type_description",
+      "text": "The kind of company the organization is, such as a roofing contractor. Sets its industry for setups and suggestions."
+    },
+    "ui": {
+      "widget": "module",
+      "module": "/libraries/setup-steps/company-profile.js?v=20261027-1"
+    },
+    "options": {
+      "part": "type"
+    },
+    "requires": [],
+    "eligibility": {
+      "capabilities": [],
+      "permissions": [
+        "manage_company_settings"
+      ]
+    },
+    "satisfied": {
+      "provider": "company-profile",
+      "export": "profile",
+      "path": "/answered/type"
+    },
+    "writes": {
+      "action": "company-profile.save",
+      "target": "organization"
+    }
+  }
+}

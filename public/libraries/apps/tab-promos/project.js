@@ -1,12 +1,23 @@
-/* Reusable, read-only project-tab marketing replacements. No material APIs or mutations. */
+/* Reusable, read-only project-tab marketing replacements. No material APIs or mutations.
+ * The promos themselves are config library entries (kind tab_promo, docs/project-tab-promos.md), read from
+ * GET /v1/config-library/read/tab_promo when this file loads; their images are library assets. This file is the
+ * render engine only. */
 (function(){
   const registry = new Map();
   const escape = value => String(value ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+  const libraryBase = () => {
+    const platform = String(window.__APP?.platformApiBase || '').trim();
+    return platform ? platform.replace(/\/v1\/platform\/?$/i, '/v1/config-library').replace(/\/+$/, '') : '/v1/config-library';
+  };
+  /** Library text: shown as is, or a `tab-promos` language key with its English. */
+  const txt = value => value && typeof value === 'object' ? (globalThis.PlatformLanguage?.text?.('tab-promos', value.key, value.text) ?? value.text) : String(value ?? '');
+  /** An image: a library asset (`asset:<sha256>`), served immutable by the library. */
+  const src = value => { const match = /^asset:([0-9a-f]{64})$/.exec(String(value || '')); return match ? `${libraryBase()}/assets/${match[1]}` : ''; };
   function eligible(def, context = {}) {
     const capabilities = window.Portal?.capabilities;
     return capabilities?.value?.(def.flag, false) === true
-      && capabilities?.value?.(def.replacesCapability, false) !== true
-      && !(def.realEnabled && def.realEnabled(context));
+      && capabilities?.value?.(def.replaces_capability, false) !== true
+      && !(def.real_enabled_context && context?.[def.real_enabled_context] === true);
   }
   const css = `
     .pv-tab-badge{display:inline-flex!important;align-items:center;white-space:nowrap;background:#fff0cb;color:#794c00;border:1px solid #f2ca72;border-radius:999px;padding:3px 7px;font-size:9px!important;line-height:1.2;font-weight:800;letter-spacing:.02em;margin-left:5px}
@@ -24,35 +35,45 @@
     @media(max-width:900px){.fm-tab-promo .tp-hero,.fm-tab-promo .tp-rule{grid-template-columns:1fr}.fm-tab-promo .tp-hero{gap:24px}.fm-tab-promo .tp-rule figure{order:2}.fm-tab-promo .tp-wrap{padding:24px}.fm-tab-promo h1{font-size:38px}}
     @media(max-width:480px){.fm-tab-promo .tp-wrap{padding:20px 16px 32px}.fm-tab-promo .tp-hero{margin:27px 0}.fm-tab-promo h1{font-size:34px}.fm-tab-promo .tp-rule{padding:18px;gap:16px}.fm-tab-promo .tp-features{grid-template-columns:1fr;gap:13px}.fm-tab-promo .tp-end{padding:20px}.pv-tab-badge{font-size:8px!important;padding:3px 5px;margin-left:3px}}
   `;
+  const open = (globalThis.PlatformLanguage?.htmlText("tab-promos","m_4a4816db7c642d","Open screenshot at full size") ?? "Open screenshot at full size");
+  const figure = image => `<figure><a href="${escape(src(image.src))}" target="_blank" rel="noopener noreferrer" aria-label="${open}"><img src="${escape(src(image.src))}" alt="${escape(txt(image.alt))}" loading="lazy" width="1280" height="720"></a><figcaption>${escape(txt(image.caption))}</figcaption></figure>`;
   function render(def){
     const c = def.content;
-    return `<article class="fm-tab-promo" aria-label="${((v0) => globalThis.PlatformLanguage?.htmlText("tab-promos","m_a9cbcece18bdac",`${v0} coming soon`,{v0}) ?? `${v0} coming soon`)(escape(def.title))}"><div class="tp-wrap">
+    return `<article class="fm-tab-promo" aria-label="${((v0) => globalThis.PlatformLanguage?.htmlText("tab-promos","m_a9cbcece18bdac",`${v0} coming soon`,{v0}) ?? `${v0} coming soon`)(escape(txt(def.title)))}"><div class="tp-wrap">
       <div class="tp-brand"><img src="/images/logo_square.png" alt="">${(globalThis.PlatformLanguage?.htmlText("tab-promos","m_5c4fb8df281140","FirstMate") ?? "FirstMate")}<span>${(globalThis.PlatformLanguage?.htmlText("tab-promos","m_9011dd5d1fb41c","Coming soon") ?? "Coming soon")}</span></div>
-      <section class="tp-hero"><div><p class="tp-eyebrow">${String(escape(c.eyebrow))}</p><h1>${String(escape(c.headline))}<br><em>${String(escape(c.accent))}</em></h1><p>${String(escape(c.intro))}</p><span class="tp-pill">${String(escape(c.heroPill || "Built around the way you work"))}</span></div><figure><a href="${String(escape(c.images[0].src))}" target="_blank" rel="noopener noreferrer" aria-label="${(globalThis.PlatformLanguage?.htmlText("tab-promos","m_4a4816db7c642d","Open screenshot at full size") ?? "Open screenshot at full size")}"><img src="${String(escape(c.images[0].src))}" alt="${String(escape(c.images[0].alt))}" loading="lazy" width="1280" height="720"></a><figcaption>${String(escape(c.images[0].caption))}</figcaption></figure></section>
-      <section class="tp-rule"><figure><a href="${String(escape(c.images[1].src))}" target="_blank" rel="noopener noreferrer" aria-label="${(globalThis.PlatformLanguage?.htmlText("tab-promos","m_4a4816db7c642d","Open screenshot at full size") ?? "Open screenshot at full size")}"><img src="${String(escape(c.images[1].src))}" alt="${String(escape(c.images[1].alt))}" loading="lazy" width="1280" height="720"></a><figcaption>${String(escape(c.images[1].caption))}</figcaption></figure><div><p class="tp-eyebrow">${String(escape(c.rulesEyebrow || "Make it your own"))}</p><h2>${String(escape(c.rulesTitle))}</h2><p>${String(escape(c.rulesBody))}</p><span class="tp-pill">${String(escape(c.rulesPill || "Built for your business"))}</span></div></section>
-      <section class="tp-features">${String(c.features.map(f=>`<div class="tp-feature"><h3>${escape(f.title)}</h3><p>${escape(f.body)}</p></div>`).join(''))}</section>
-      <footer class="tp-end"><h2>${String(escape(c.footerTitle || "More possibilities. Coming soon."))}</h2><p>${(globalThis.PlatformLanguage?.htmlText("tab-promos","m_5469b46d69ad5b","This is a preview of what’s coming to FirstMate. Availability and final features may change. ") ?? "This is a preview of what’s coming to FirstMate. Availability and final features may change. ")}<a href="https://1m8.ai/" target="_blank" rel="noopener noreferrer">${(globalThis.PlatformLanguage?.htmlText("tab-promos","m_ba4635a7ef2d18","Explore FirstMate ↗") ?? "Explore FirstMate ↗")}</a></p></footer>
+      <section class="tp-hero"><div><p class="tp-eyebrow">${escape(txt(c.eyebrow))}</p><h1>${escape(txt(c.headline))}<br><em>${escape(txt(c.accent))}</em></h1><p>${escape(txt(c.intro))}</p><span class="tp-pill">${escape(c.hero_pill ? txt(c.hero_pill) : "Built around the way you work")}</span></div>${figure(c.images[0])}</section>
+      <section class="tp-rule">${figure(c.images[1])}<div><p class="tp-eyebrow">${escape(c.rules_eyebrow ? txt(c.rules_eyebrow) : "Make it your own")}</p><h2>${escape(txt(c.rules_title))}</h2><p>${escape(txt(c.rules_body))}</p><span class="tp-pill">${escape(c.rules_pill ? txt(c.rules_pill) : "Built for your business")}</span></div></section>
+      <section class="tp-features">${c.features.map(f=>`<div class="tp-feature"><h3>${escape(txt(f.title))}</h3><p>${escape(txt(f.body))}</p></div>`).join('')}</section>
+      <footer class="tp-end"><h2>${escape(c.footer_title ? txt(c.footer_title) : "More possibilities. Coming soon.")}</h2><p>${(globalThis.PlatformLanguage?.htmlText("tab-promos","m_5469b46d69ad5b","This is a preview of what’s coming to FirstMate. Availability and final features may change. ") ?? "This is a preview of what’s coming to FirstMate. Availability and final features may change. ")}<a href="https://1m8.ai/" target="_blank" rel="noopener noreferrer">${(globalThis.PlatformLanguage?.htmlText("tab-promos","m_ba4635a7ef2d18","Explore FirstMate ↗") ?? "Explore FirstMate ↗")}</a></p></footer>
     </div></article>`;
   }
+  /** One promo: a library entry's data with its `id` (the app id is `project.<id>`). */
   function register(def){
-    if (!def.id || !def.flag || !def.replacesCapability || !def.tabId) throw new Error('A tab promo needs an id, flag, replacement capability and tab id.');
+    if (!def.id || !def.flag || !def.replaces_capability || !def.tab_id || !def.content) throw new Error('A tab promo needs an id, flag, replacement capability, tab id and content.');
     if(registry.has(def.id)) throw new Error('Duplicate tab promo: '+def.id);
     registry.set(def.id,def);
     window.Portal?.util?.injectCSS?.('project-tab-promos',css);
+    const title = txt(def.title);
     window.FirstMateEmbeddableApps?.registerApp?.({
-      id:`project.${def.id}`,kind:'project_modal_app',projectModalTabId:def.tabId,
-      title:def.title,label:def.title,icon:def.icon || 'fa-boxes-stacked',promoBadge:'Coming soon',order:def.order || 55,
+      id:`project.${def.id}`,kind:'project_modal_app',projectModalTabId:def.tab_id,
+      title,label:title,icon:def.icon || 'fa-boxes-stacked',promoBadge:'Coming soon',order:def.order || 55,
       surfaces:['project_modal'],regions:['main'],requiresContext:['project'],access:{capability:def.flag},
       enabled:context=>eligible(def,context),
       panelHtml:()=>render(def),
       mount(context){const root=context.roots?.main || context.panelRoot;const update=()=>{if(root)root.innerHTML=eligible(def,context)?render(def):'';};update();return {activate:update,setActive:active=>{if(active)update();},destroy:()=>{if(root)root.innerHTML='';}};}
     });
   }
-  window.FirstMateTabPromos = {register,eligible,definitions:()=>[...registry.values()]};
-  register({id:'materials_promo',tabId:'materials',title:(globalThis.PlatformLanguage?.text("tab-promos","m_691187e28aba8e","Materials") ?? "Materials"),order:65,flag:'firstmeasure.materials_promo',replacesCapability:'platform.materials',realEnabled:context=>context.materialsEnabled===true,
-    content:{eyebrow:'Materials, powered by FirstMate Scope',headline:'Your products. Your rules.',accent:'Your material lists.',intro:'Turn project measurements into material lists inside FirstMate Scope. Choose your own products, define how quantities are calculated, and carry each list through ordering and delivery—all in the same project.',
-      rulesEyebrow:'Your takeoff, your way',rulesPill:'Your catalog + your calculations',footerTitle:'From measurements to materials. Then keep things moving.',rulesTitle:'You decide what goes into every list.',rulesBody:'Set up your own products, coverage, waste, rounding, and formulas. Build reusable setups for different roof systems, crews, or jobs—and adjust the details whenever the project calls for it.',
-      images:[{src:'/libraries/apps/tab-promos/images/scope-materials.png',alt:'Actual FirstMate Scope workspace with a roof replacement material list, product variants, quantities, scheduling and ordering controls.',caption:(globalThis.PlatformLanguage?.text("tab-promos","m_582fa8f6e85c70","FirstMate Scope · Actual development app, shown with fictional demo project data.") ?? "FirstMate Scope · Actual development app, shown with fictional demo project data.")},{src:'/libraries/apps/tab-promos/images/scope-pricebook.png',alt:'Actual FirstMate Price Book editor showing material product variants, colors, pricing behavior and SKU customization.',caption:(globalThis.PlatformLanguage?.text("tab-promos","m_c93b8afab697eb","Scope’s Price Book · Actual product and variant customization screen. Demo catalog and prices.") ?? "Scope’s Price Book · Actual product and variant customization screen. Demo catalog and prices.")}],
-      features:[{title:(globalThis.PlatformLanguage?.text("tab-promos","m_55aef9e1931342","Start with your measurements") ?? "Start with your measurements"),body:'Generate quantities from the roof measurements already in your project. Keep the flexibility to review and adjust the list.'},{title:(globalThis.PlatformLanguage?.text("tab-promos","m_28ea4baf467ffa","Make it your own") ?? "Make it your own"),body:'Use your own material catalog and calculation rules. Save the setups that work for your business and reuse them.'},{title:(globalThis.PlatformLanguage?.text("tab-promos","m_9d9cee67b5d96a","Keep the job moving") ?? "Keep the job moving"),body:'Connect your material workflow to follow-ups, supplier emails, and delivery scheduling—with the timing and steps you choose.'}]
-    }});
+  // The tab pill styles (.pv-tab-badge) are used by every project tab strip, promo or not.
+  window.Portal?.util?.injectCSS?.('project-tab-promos',css);
+  /** Reads the library's promos once and registers each. A promo that fails to load is simply not offered. */
+  const ready = (typeof window.fetch === 'function' ? window.fetch(`${libraryBase()}/read/tab_promo`, { credentials:'same-origin' }) : Promise.reject(new Error('no fetch')))
+    .then(response => response.ok ? response.json() : { entries: [] })
+    .then(result => {
+      for (const entry of Array.isArray(result?.entries) ? result.entries : []) {
+        try { if (!registry.has(entry.id)) register({ ...entry.data, id: entry.id }); } catch (error) { globalThis.console?.warn?.('Tab promo not registered', entry?.id, error); }
+      }
+      return [...registry.values()];
+    })
+    .catch(() => [...registry.values()]);
+  window.FirstMateTabPromos = {register,eligible,ready,definitions:()=>[...registry.values()]};
 })();

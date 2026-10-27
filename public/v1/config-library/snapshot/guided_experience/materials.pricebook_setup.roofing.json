@@ -1,0 +1,354 @@
+{
+  "kind": "guided_experience",
+  "id": "materials.pricebook_setup.roofing",
+  "revision": 1,
+  "sha256": "92fd0499ebb1df0b9e3d18d3fb282a62cb70ad6cdd349af8f0ade83173106dfb",
+  "title": "Set up your price book",
+  "updated_at": "2026-10-27T23:15:15.074Z",
+  "updated_by": "generator",
+  "data": {
+    "id": "materials.pricebook_setup.roofing",
+    "version": 1,
+    "kind": "agentic",
+    "scope": "organization",
+    "salt": "2026-10",
+    "title": {
+      "key": "gx_mps_title",
+      "text": "Set up your price book"
+    },
+    "description": {
+      "key": "gx_mps_description_2",
+      "text": "Tell us what kinds of roofs you install and the materials you use, and new materials lists start from them."
+    },
+    "tab": "project.materials",
+    "eligibility": {
+      "capabilities": [
+        "platform.materials"
+      ],
+      "permissions": [
+        "manage_company_settings",
+        "manage_projects"
+      ],
+      "when": {
+        "match": "any",
+        "rules": [
+          {
+            "field": "organization.industry",
+            "operator": "is_missing"
+          },
+          {
+            "field": "organization.industry",
+            "operator": "in",
+            "value": [
+              "roofing",
+              "exteriors",
+              "roofing_and_exteriors"
+            ]
+          }
+        ]
+      }
+    },
+    "triggers": [
+      {
+        "kind": "manual"
+      }
+    ],
+    "variants": [
+      {
+        "id": "agentic",
+        "weight": 1,
+        "when": {
+          "field": "organization.flags.assistant",
+          "operator": "equals",
+          "value": true
+        },
+        "content": {}
+      },
+      {
+        "id": "agentic_express",
+        "weight": 0,
+        "when": {
+          "field": "organization.flags.assistant",
+          "operator": "equals",
+          "value": true
+        },
+        "steps": [
+          "roof_types",
+          "brands",
+          "defaults",
+          "material",
+          "suppliers"
+        ],
+        "content": {}
+      },
+      {
+        "id": "modal",
+        "weight": 1,
+        "when": {
+          "field": "organization.flags.assistant",
+          "operator": "not_equals",
+          "value": true
+        },
+        "kind": "modal",
+        "content": {}
+      }
+    ],
+    "requires": [],
+    "steps": [
+      {
+        "id": "roof_types",
+        "widget": "roof-types",
+        "requires": [],
+        "title": {
+          "key": "gx_mps_types_title",
+          "text": "What kinds of roofs do you install?"
+        },
+        "subtitle": {
+          "key": "gx_mps_types_subtitle",
+          "text": "Pick every kind you install. You can change this any time."
+        },
+        "say": [
+          {
+            "key": "gx_mps_types_say_1",
+            "text": "Before I build your first materials list, let's set up your price book so it uses what you actually install. It takes about a minute."
+          },
+          {
+            "key": "gx_mps_types_say_2",
+            "text": "First: what kinds of roofs do you install? Pick as many as you like."
+          }
+        ],
+        "options": {},
+        "source": "pricebook.roofing_setup",
+        "selects": [
+          "roof_types",
+          "region",
+          "state"
+        ],
+        "required": true,
+        "next": {
+          "branches": [
+            {
+              "when": {
+                "field": "selections.roof_types",
+                "operator": "contains",
+                "value": "shingle"
+              },
+              "to": "brands"
+            }
+          ],
+          "otherwise": "material"
+        }
+      },
+      {
+        "id": "brands",
+        "widget": "brand-cards",
+        "requires": [],
+        "title": {
+          "key": "gx_mps_makers_title",
+          "text": "What roofing manufacturers do you use?"
+        },
+        "subtitle": {
+          "key": "gx_mps_makers_subtitle",
+          "text": "Pick every brand you use. Everything they make goes in your price book so you can find it, and your defaults come from the first one you pick."
+        },
+        "say": [
+          {
+            "key": "gx_mps_makers_say_1",
+            "text": "Which roofing manufacturers do you use? Pick as many as you like. Your defaults come from the first one you pick."
+          }
+        ],
+        "options": {
+          "allow_all": true
+        },
+        "source": "pricebook.roofing_setup",
+        "selects": [
+          "brands"
+        ],
+        "required": true
+      },
+      {
+        "id": "defaults",
+        "widget": "material-defaults",
+        "requires": [],
+        "title": {
+          "key": "gx_mps_defaults_title",
+          "text": "Set your default materials"
+        },
+        "subtitle": {
+          "key": "gx_mps_defaults_subtitle",
+          "text": "What a new materials list uses when there's no document yet. Change any of them, or skip this to use these."
+        },
+        "say": [
+          {
+            "key": "gx_mps_defaults_say_1",
+            "text": "Here's what I'll use by default, from the brands you picked. Change anything that isn't what you use, or skip this step."
+          }
+        ],
+        "options": {
+          "skip_sets": {
+            "defaults": {}
+          }
+        },
+        "source": "pricebook.roofing_setup",
+        "selects": [
+          "defaults"
+        ],
+        "required": false,
+        "next": "suppliers"
+      },
+      {
+        "id": "material",
+        "widget": "default-material",
+        "requires": [],
+        "title": {
+          "key": "gx_mps_material_title",
+          "text": "What's your default roofing material?"
+        },
+        "subtitle": {
+          "key": "gx_mps_material_subtitle",
+          "text": "A new materials list starts with this: the roof in squares, plus the parts that kind of roof needs."
+        },
+        "say": [
+          {
+            "key": "gx_mps_material_say_1",
+            "text": "Which of these do you install most? New materials lists will start with it."
+          }
+        ],
+        "options": {},
+        "source": "pricebook.roofing_setup",
+        "selects": [
+          "default_material"
+        ],
+        "required": true
+      },
+      {
+        "id": "suppliers",
+        "widget": "supplier-columns",
+        "requires": [],
+        "title": {
+          "key": "gx_mps_suppliers_title",
+          "text": "Who provides your materials?"
+        },
+        "subtitle": {
+          "key": "gx_mps_suppliers_subtitle_2",
+          "text": "Pick or type every supplier you buy from. Each column shows what that supplier carries, and a price sheet sets its costs."
+        },
+        "say": [
+          {
+            "key": "gx_mps_suppliers_say_2",
+            "text": "Who do you buy your materials from? Pick your suppliers, or type your own and press Enter."
+          },
+          {
+            "key": "gx_mps_price_sheet_say",
+            "text": "If you have a price sheet from your supplier, you can upload it here and I'll set it up for you."
+          }
+        ],
+        "options": {},
+        "source": "pricebook.roofing_setup",
+        "selects": [
+          "suppliers"
+        ],
+        "required": false,
+        "agent_note": {
+          "key": "gx_mps_suppliers_agent_3",
+          "text": "Price sheets. A sheet for a named supplier (its id is in the message): read it and match each line to their price book items (pricebook.prices.list) and that supplier's items (suppliers.catalog). Lines that match nothing are new items (common for metal, tile, slate and flat roofs, which have no manufacturer catalog): list them with their unit and cost and, once the person agrees, add them with pricebook.items.add (category and type from the kind of roof). Show the matches and cost changes as a short list, ask before applying any uncertain match, then set that supplier's costs with suppliers.prices.update (cents) for the matched and added items, and offer to update the price book costs too (pricebook.prices.update). A sheet with no supplier named: the same against the price book only. Costs only, never a markup. The setup's columns refresh when they continue."
+        },
+        "upload": {
+          "line": "gx_mps_price_sheet_say",
+          "button": {
+            "key": "gx_mps_price_sheet_button",
+            "text": "Upload a price sheet"
+          },
+          "message": {
+            "key": "gx_mps_price_sheet_message",
+            "text": "Here's my supplier price sheet. Please update my material prices from it."
+          },
+          "accept": ".csv,.xlsx,.xls,.pdf,.txt"
+        }
+      },
+      {
+        "id": "labor",
+        "widget": "labor-assignees",
+        "requires": [],
+        "title": {
+          "key": "gx_mps_labor_title",
+          "text": "Who does your labor?"
+        },
+        "subtitle": {
+          "key": "gx_mps_labor_subtitle",
+          "text": "Add the groups of employees and the subcontractors who install your roofs, and how each is paid. Skip this if you don't track labor here."
+        },
+        "say": [
+          {
+            "key": "gx_mps_labor_say_1",
+            "text": "Last one: who installs your roofs? Add your own groups and any subcontractors, and how you pay each one."
+          },
+          {
+            "key": "gx_mps_labor_say_2",
+            "text": "If you have someone's pay sheet or rate card, upload it on their card and I'll set up their pay from it."
+          }
+        ],
+        "options": {
+          "optional": true,
+          "skip_sets": {
+            "include_labor": false,
+            "labor": {
+              "assignees": [],
+              "skipped": true
+            }
+          }
+        },
+        "source": "labor.setup",
+        "selects": [
+          "labor",
+          "include_labor"
+        ],
+        "required": false,
+        "agent_note": {
+          "key": "gx_mps_labor_agent",
+          "text": "Pay sheets. When the person uploads a pay sheet or rate card for a named group or subcontractor (its assignee key, such as resource_group:abc, is in the message), read it and write that assignee's roofing pay sheet: inputs from the roofing measurements (roof.squares and its pitch bands, roof line lengths), hours or a number typed per job, and one entry per thing they charge. Check it with pay-sheets.try, show the person the lines in plain words, ask about anything unclear, then save it with pay-sheets.sheet.save (rates in cents). Never work out what anyone is paid; a pay sheet is evaluated by the platform."
+        },
+        "eligibility": {
+          "capabilities": [
+            "apps.crew",
+            "platform.people_access",
+            "platform.expanded_access",
+            "platform.materials"
+          ],
+          "permissions": [
+            "manage_company_settings"
+          ]
+        }
+      }
+    ],
+    "completion": {
+      "action": {
+        "id": "pricebook.setup.apply",
+        "target": "organization",
+        "input": {
+          "trade": "roofing"
+        }
+      },
+      "screen": "pricebook",
+      "say": [
+        {
+          "key": "gx_mps_done_say_2",
+          "text": "Your price book is ready. Start generating this project's materials, or have a look at your price book first."
+        }
+      ],
+      "then": [
+        {
+          "handoff": "assistant_tray"
+        },
+        {
+          "resume": true
+        },
+        {
+          "play": "materials.tab_tutorial"
+        }
+      ]
+    },
+    "replayable": false,
+    "reveal": []
+  }
+}

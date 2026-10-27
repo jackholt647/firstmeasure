@@ -1,0 +1,42 @@
+{
+  "kind": "app_welcome",
+  "id": "project.checklists",
+  "revision": 1,
+  "sha256": "c2eef7a6b67faa07703925258720a94f7616165e8e79a5ff3380fcbf5801cabb",
+  "title": "project.checklists: Every step. Done right.",
+  "updated_at": "2026-10-27T23:15:15.074Z",
+  "updated_by": "generator",
+  "data": {
+    "theme": "checklists",
+    "eyebrow": {
+      "key": "gx_offer_checklists_name",
+      "text": "Checklists"
+    },
+    "headline": {
+      "key": "gx_offer_checklists_headline",
+      "text": "Every step. Done right."
+    },
+    "description": {
+      "key": "gx_offer_checklists_description",
+      "text": "Give each job the checklists it needs and see who completed each item, and when."
+    },
+    "benefits": [
+      {
+        "key": "gx_offer_checklists_b1",
+        "text": "Build checklists for the work you repeat"
+      },
+      {
+        "key": "gx_offer_checklists_b2",
+        "text": "See who completed each item"
+      },
+      {
+        "key": "gx_offer_checklists_b3",
+        "text": "Review finished work before you sign off"
+      }
+    ],
+    "caption": {
+      "key": "gx_offer_checklists_caption",
+      "text": "Nothing missed on the job."
+    }
+  }
+}

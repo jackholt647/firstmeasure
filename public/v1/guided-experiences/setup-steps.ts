@@ -2,7 +2,9 @@ import { z } from "zod";
 import type { PlatformAuthContext } from "../platform/auth.js";
 import { userPublicationContext } from "../platform/publication/context.js";
 import { readPublishedData } from "../platform/publication/providers.js";
+import { libraryEntries, libraryVersion } from "../config-library/library.js";
 import { copySchema, setupStepModuleSchema } from "./contracts.js";
+import { SETUP_STEP_KIND } from "./library-checks.js";
 
 /**
  * Setup steps (docs/architecture/setup-steps.md): a question asked once and answered as data, declared once and
@@ -10,13 +12,13 @@ import { copySchema, setupStepModuleSchema } from "./contracts.js";
  *
  * A step says what it asks (its widget or its own browser module), what writes its answer (a published action, run
  * as the person) and what says it is answered (a published data read, so "is this answered" is a data-layer read and
- * never a configuration check). Global steps live in `guided-experiences/steps/`; an app may register its own beside
- * its definitions. An experience, or one of its steps, names the steps it `requires`; when the experience is resolved
+ * never a configuration check). Steps are config library entries (kind setup_step), edited on dev, read live; what a
+ * step names (its export and action) is code registered by id. An experience, or one of its steps, names the steps it `requires`; when the experience is resolved
  * for a person, each required step that is not answered yet, and that the person may answer, is injected just
  * before the step that needs it (its own requirements first). A step that is answered is never asked again,
  * wherever it was answered (signup, another app's setup, an agent).
  *
- * Each step is also registered as an experience, `setup_step.<id>`, with no steps of its own and the step as its
+ * Each step is also played as an experience (derived in registry.ts), `setup_step.<id>`, with no steps of its own and the step as its
  * requirement: playing it (FirstMateGuides.require) asks only what is missing and does nothing when it is answered.
  */
 const id = z.string().trim().regex(/^[a-z][a-z0-9_]*(\.[a-z][a-z0-9_]*)+$/, "A setup step id is dotted, such as company.type.");
@@ -45,21 +47,52 @@ export const setupStepDefinitionSchema = z.object({
 export type SetupStepDefinition = z.infer<typeof setupStepDefinitionSchema>;
 export type SetupStepInput = z.input<typeof setupStepDefinitionSchema>;
 
-const steps = new Map<string, SetupStepDefinition>();
+/** Steps added in this process only (tests), beside the library's. */
+const testSteps = new Map<string, SetupStepDefinition>();
+let testVersion = 0;
+let cache: { key: string; steps: Map<string, SetupStepDefinition> } | null = null;
+/** Changes whenever the steps may have: a cache key for anything derived from them. */
+export function setupStepsVersion() { return `${libraryVersion()}:${testVersion}`; }
+/** Every step: the library's setup_step entries (checked when saved), parsed once per library change, and tests' own. */
+function currentSteps() {
+  const key = setupStepsVersion();
+  if (cache?.key === key) return cache.steps;
+  const steps = new Map<string, SetupStepDefinition>();
+  for (const entry of libraryEntries(SETUP_STEP_KIND)) {
+    const parsed = setupStepDefinitionSchema.safeParse(entry.data);
+    if (parsed.success) steps.set(parsed.data.id, parsed.data);
+    else console.warn(`[setup-steps] setup_step/${entry.id} r${entry.revision} is not a valid setup step and is not asked.`);
+  }
+  for (const [stepId, step] of testSteps) steps.set(stepId, step);
+  // Listed with what each step requires before it (company.type before company.services), else by id.
+  const ordered = new Map<string, SetupStepDefinition>();
+  const place = (stepId: string, trail: string[]) => {
+    const step = steps.get(stepId);
+    if (!step || ordered.has(stepId) || trail.includes(stepId)) return;
+    for (const before of step.requires) place(before, [...trail, stepId]);
+    ordered.set(stepId, step);
+  };
+  for (const stepId of steps.keys()) place(stepId, []);
+  cache = { key, steps: ordered };
+  return ordered;
+}
 
-export function registerSetupStep(input: SetupStepInput) {
+/** Tests: a step asked in this process only. Refused when the library or an earlier call has the id. */
+export function registerSetupStepForTests(input: SetupStepInput) {
   const parsed = setupStepDefinitionSchema.safeParse(input);
   if (!parsed.success) throw new Error(`Setup step ${String((input as { id?: unknown }).id)} is invalid: ${parsed.error.issues.map((issue) => `${issue.path.join(".")} ${issue.message}`).join("; ")}`);
   const step = parsed.data;
-  if (steps.has(step.id)) throw new Error(`Setup step ${step.id} is registered twice.`);
-  steps.set(step.id, step);
+  if (currentSteps().has(step.id)) throw new Error(`Setup step ${step.id} is registered twice.`);
+  testSteps.set(step.id, step);
+  testVersion += 1;
   return step;
 }
-export function setupStep(stepId: string) { return steps.get(stepId) || null; }
-export function listSetupSteps() { return [...steps.values()]; }
+export function setupStep(stepId: string) { return currentSteps().get(stepId) || null; }
+export function listSetupSteps() { return [...currentSteps().values()]; }
 
-/** Every requirement names a registered step and none requires itself, however far down. Run once all are registered. */
+/** Every requirement names a known step and none requires itself, however far down. */
 export function checkSetupStepGraph(extraRoots: { from: string; requires: string[] }[] = []) {
+  const steps = currentSteps();
   const visit = (stepId: string, trail: string[]) => {
     const step = steps.get(stepId);
     if (!step) throw new Error(`${trail.at(-1) || "A setup"} requires ${stepId}, which is not a registered setup step.`);
@@ -96,7 +129,7 @@ export async function missingSetupSteps(ctx: PlatformAuthContext, required: stri
   const walk = async (stepId: string) => {
     if (seen.has(stepId)) return;
     seen.add(stepId);
-    const step = steps.get(stepId);
+    const step = setupStep(stepId);
     if (!step || !(await allowed(step.eligibility))) return;
     if (await stepSatisfied(ctx, step, cache)) return;
     for (const before of step.requires) await walk(before);

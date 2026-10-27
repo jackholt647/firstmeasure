@@ -1,0 +1,159 @@
+{
+  "kind": "guided_experience",
+  "id": "operations.setup",
+  "revision": 1,
+  "sha256": "5cbeb68d9242e2a35bc37cdb9f3022b17b2a881494908fda713f4de6052ee010",
+  "title": "Set up Operations",
+  "updated_at": "2026-10-27T23:15:15.074Z",
+  "updated_by": "generator",
+  "data": {
+    "id": "operations.setup",
+    "version": 1,
+    "kind": "modal",
+    "scope": "organization",
+    "salt": "operations-v1",
+    "title": {
+      "key": "gx_ops_title",
+      "text": "Set up Operations"
+    },
+    "description": {
+      "key": "gx_ops_description",
+      "text": "Build a scope of work, then get your materials, work orders and equipment ready."
+    },
+    "tab": "project.materials",
+    "eligibility": {
+      "capabilities": [
+        "platform.materials"
+      ],
+      "permissions": [
+        "manage_projects"
+      ]
+    },
+    "triggers": [
+      {
+        "kind": "tab_opened",
+        "tab": "project.materials",
+        "once": true,
+        "delay_ms": 0
+      }
+    ],
+    "variants": [
+      {
+        "id": "default",
+        "weight": 1,
+        "content": {}
+      }
+    ],
+    "requires": [],
+    "steps": [
+      {
+        "id": "path",
+        "widget": "operations-path",
+        "requires": [],
+        "title": {
+          "key": "gx_ops_path_title",
+          "text": "Start with the work you’re planning"
+        },
+        "subtitle": {
+          "key": "gx_ops_path_body",
+          "text": "Your proposal tells us what the job needs, so we can build your materials and work order. Not ready for a proposal? Build a quick scope of work instead."
+        },
+        "say": [],
+        "options": {},
+        "selects": [
+          "operation_path"
+        ],
+        "required": true
+      },
+      {
+        "id": "document",
+        "widget": "operations-document",
+        "requires": [
+          "company.services"
+        ],
+        "title": {
+          "key": "gx_ops_document_title",
+          "text": "What does this project need?"
+        },
+        "say": [],
+        "options": {},
+        "selects": [
+          "operation_path",
+          "operations_document_id",
+          "operations_scope_ready",
+          "operations_project_id"
+        ],
+        "required": true
+      },
+      {
+        "id": "ready",
+        "widget": "operations-ready",
+        "requires": [],
+        "title": {
+          "key": "gx_ops_ready_title",
+          "text": "Your scope of work is ready"
+        },
+        "subtitle": {
+          "key": "gx_ops_ready_body",
+          "text": "Generate your materials now, or set up a little more of Operations. You can come back to any of these later."
+        },
+        "say": [],
+        "options": {
+          "setups": [
+            {
+              "id": "suppliers",
+              "label": "Suppliers",
+              "minutes": 5,
+              "experience": "operations.suppliers.setup"
+            },
+            {
+              "id": "equipment",
+              "label": "Equipment",
+              "minutes": 3,
+              "appId": "portal.equipment"
+            },
+            {
+              "id": "workforce",
+              "label": "Workforce",
+              "terminologyKey": "workforce.resource_group_plural",
+              "minutes": 5,
+              "experience": "operations.workforce.setup"
+            },
+            {
+              "id": "proposals",
+              "label": "Proposals",
+              "minutes": 10,
+              "experience": "operations.proposal.setup"
+            }
+          ]
+        },
+        "selects": [
+          "operations_document_id",
+          "operation_path",
+          "operations_scope_ready",
+          "operations_project_id"
+        ],
+        "required": true
+      }
+    ],
+    "completion": {
+      "action": {
+        "id": "operations.setup.complete",
+        "target": "project",
+        "input": {}
+      },
+      "screen": "pricebook",
+      "say": [],
+      "then": [
+        {
+          "resume": true
+        },
+        {
+          "play": "materials.tab_tutorial"
+        }
+      ]
+    },
+    "replayable": true,
+    "reveal": []
+  }
+}

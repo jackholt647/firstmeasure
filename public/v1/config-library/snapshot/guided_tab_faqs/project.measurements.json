@@ -1,0 +1,39 @@
+{
+  "kind": "guided_tab_faqs",
+  "id": "project.measurements",
+  "revision": 1,
+  "sha256": "6e6cd6c9770484731844d94ec78c4cfe1c59b61817ea316713e5aa1e6494f67a",
+  "title": "Questions on project.measurements",
+  "updated_at": "2026-10-27T23:15:15.074Z",
+  "updated_by": "generator",
+  "data": {
+    "tab": "project.measurements",
+    "questions": [
+      {
+        "id": "reports.read",
+        "text": {
+          "key": "gx_faq_reports_read",
+          "text": "Walk me through this roof report"
+        },
+        "action": "ask"
+      },
+      {
+        "id": "reports.order",
+        "text": {
+          "key": "gx_faq_reports_order",
+          "text": "How do I order another report?"
+        },
+        "action": "ask"
+      },
+      {
+        "id": "reports.tour",
+        "text": {
+          "key": "gx_faq_reports_tour",
+          "text": "Show me the tutorial again"
+        },
+        "action": "play",
+        "experience": "reports.tab_tutorial"
+      }
+    ]
+  }
+}

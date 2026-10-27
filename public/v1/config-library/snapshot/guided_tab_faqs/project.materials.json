@@ -1,0 +1,55 @@
+{
+  "kind": "guided_tab_faqs",
+  "id": "project.materials",
+  "revision": 1,
+  "sha256": "b34a49a5b5872a30a750aea54c895c9a4be143bb7fc4547021f04dfd7617849d",
+  "title": "Questions on project.materials",
+  "updated_at": "2026-10-27T23:15:15.074Z",
+  "updated_by": "generator",
+  "data": {
+    "tab": "project.materials",
+    "questions": [
+      {
+        "id": "materials.how_generate",
+        "text": {
+          "key": "gx_faq_mat_how_generate",
+          "text": "How do I generate the materials list?"
+        },
+        "action": "ask"
+      },
+      {
+        "id": "materials.generate_for_me",
+        "text": {
+          "key": "gx_faq_mat_generate_for_me",
+          "text": "Generate the materials list for me"
+        },
+        "action": "ask"
+      },
+      {
+        "id": "materials.quantities",
+        "text": {
+          "key": "gx_faq_mat_quantities",
+          "text": "How are the quantities worked out?"
+        },
+        "action": "ask"
+      },
+      {
+        "id": "materials.order",
+        "text": {
+          "key": "gx_faq_mat_order",
+          "text": "How do I order from my supplier?"
+        },
+        "action": "ask"
+      },
+      {
+        "id": "materials.tour",
+        "text": {
+          "key": "gx_faq_mat_tour",
+          "text": "Show me the tutorial again"
+        },
+        "action": "play",
+        "experience": "materials.tab_tutorial"
+      }
+    ]
+  }
+}

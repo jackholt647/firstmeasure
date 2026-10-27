@@ -1,0 +1,42 @@
+{
+  "kind": "app_welcome",
+  "id": "project.docs",
+  "revision": 1,
+  "sha256": "272494b163f4dfdf69359148e827647b42c220781ced80ae78b4f303953dd7f8",
+  "title": "project.docs: Less paperwork. More progress.",
+  "updated_at": "2026-10-27T23:15:15.074Z",
+  "updated_by": "generator",
+  "data": {
+    "theme": "documents",
+    "eyebrow": {
+      "key": "gx_offer_docs_name",
+      "text": "Project Documents"
+    },
+    "headline": {
+      "key": "gx_offer_docs_headline",
+      "text": "Less paperwork. More progress."
+    },
+    "description": {
+      "key": "gx_offer_docs_description",
+      "text": "Give every proposal, contract, and project file a home. Keep the information you need right beside the work."
+    },
+    "benefits": [
+      {
+        "key": "gx_offer_docs_b1",
+        "text": "Keep project documents together"
+      },
+      {
+        "key": "gx_offer_docs_b2",
+        "text": "Create documents from reusable templates"
+      },
+      {
+        "key": "gx_offer_docs_b3",
+        "text": "Find the right file without the back-and-forth"
+      }
+    ],
+    "caption": {
+      "key": "gx_offer_docs_caption",
+      "text": "From the first proposal to the final detail."
+    }
+  }
+}

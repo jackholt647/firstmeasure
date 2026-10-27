@@ -1,0 +1,23 @@
+{
+  "kind": "guided_tab_faqs",
+  "id": "portal.equipment",
+  "revision": 1,
+  "sha256": "045b1ed313c9bfb153c4b83c9ccf8ebf310c3679b7eb576152549e85115f8f07",
+  "title": "Questions on portal.equipment",
+  "updated_at": "2026-10-27T23:15:15.074Z",
+  "updated_by": "generator",
+  "data": {
+    "tab": "portal.equipment",
+    "questions": [
+      {
+        "id": "equipment.tour",
+        "text": {
+          "key": "gx_eq_faq_tour",
+          "text": "Show me the equipment tutorial again"
+        },
+        "action": "play",
+        "experience": "equipment.tab_tutorial"
+      }
+    ]
+  }
+}

@@ -1,7 +1,7 @@
 import type { LibraryKind } from "../contracts.js";
 import { experienceSchema, type ExperienceDefinition } from "../../guided-experiences/contracts.js";
 import { guidedSource } from "../../guided-experiences/registry.js";
-import { ensureGuidedDefinitions } from "../../guided-experiences/service.js";
+import { ensureGuidedSources } from "../../guided-experiences/sources.js";
 import { capabilityErrors, entryMissing, experienceMissing, GUIDED_EXPERIENCE_KIND, SETUP_STEP_EXPERIENCE_PREFIX, SETUP_STEP_KIND } from "../../guided-experiences/library-checks.js";
 
 /**
@@ -24,7 +24,8 @@ export const guidedExperienceKind: LibraryKind<ExperienceDefinition> = {
     if (data.id !== ctx.id) errors.push(`The experience's id ${data.id} is not the entry's id ${ctx.id}.`);
     if (ctx.id.startsWith(SETUP_STEP_EXPERIENCE_PREFIX)) errors.push(`${SETUP_STEP_EXPERIENCE_PREFIX}* experiences are played from setup steps; edit the setup_step entry.`);
     errors.push(...capabilityErrors(data.eligibility.capabilities, registries, "eligibility.capabilities"));
-    ensureGuidedDefinitions();
+    // Save-time checks are in-memory lookups only (sources, capabilities, actions, other entries).
+    ensureGuidedSources();
     const own = new Set(data.steps.map((step) => step.id));
     for (const step of data.steps) {
       const at = `steps.${step.id}`;

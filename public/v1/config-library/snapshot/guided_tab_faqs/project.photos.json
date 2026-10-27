@@ -1,0 +1,47 @@
+{
+  "kind": "guided_tab_faqs",
+  "id": "project.photos",
+  "revision": 1,
+  "sha256": "043d8c87ac20e1ae810c8fd5f7f482ca1620ecdab01880ac43575f56f08d89dd",
+  "title": "Questions on project.photos",
+  "updated_at": "2026-10-27T23:15:15.074Z",
+  "updated_by": "generator",
+  "data": {
+    "tab": "project.photos",
+    "questions": [
+      {
+        "id": "photos.add",
+        "text": {
+          "key": "gx_faq_photos_add",
+          "text": "How do I add photos to this project?"
+        },
+        "action": "ask"
+      },
+      {
+        "id": "photos.share",
+        "text": {
+          "key": "gx_faq_photos_share",
+          "text": "Can the customer see these photos?"
+        },
+        "action": "ask"
+      },
+      {
+        "id": "photos.markup",
+        "text": {
+          "key": "gx_faq_photos_markup",
+          "text": "How do I mark up a photo?"
+        },
+        "action": "ask"
+      },
+      {
+        "id": "photos.tour",
+        "text": {
+          "key": "gx_faq_photos_tour",
+          "text": "Show me the tutorial again"
+        },
+        "action": "play",
+        "experience": "photos.tab_tutorial"
+      }
+    ]
+  }
+}

@@ -1,0 +1,72 @@
+{
+  "kind": "tab_promo",
+  "id": "materials_promo",
+  "revision": 1,
+  "sha256": "13907b33ca3648c55930d9a9d32e96a55e4fdb0f5b357ff8612342388aa2e6bf",
+  "title": "Materials",
+  "updated_at": "2026-10-27T23:15:15.074Z",
+  "updated_by": "generator",
+  "data": {
+    "tab_id": "materials",
+    "title": {
+      "key": "m_691187e28aba8e",
+      "text": "Materials"
+    },
+    "order": 65,
+    "flag": "firstmeasure.materials_promo",
+    "replaces_capability": "platform.materials",
+    "real_enabled_context": "materialsEnabled",
+    "content": {
+      "eyebrow": "Materials, powered by FirstMate Scope",
+      "headline": "Your products. Your rules.",
+      "accent": "Your material lists.",
+      "intro": "Turn project measurements into material lists inside FirstMate Scope. Choose your own products, define how quantities are calculated, and carry each list through ordering and delivery—all in the same project.",
+      "rules_eyebrow": "Your takeoff, your way",
+      "rules_title": "You decide what goes into every list.",
+      "rules_body": "Set up your own products, coverage, waste, rounding, and formulas. Build reusable setups for different roof systems, crews, or jobs—and adjust the details whenever the project calls for it.",
+      "rules_pill": "Your catalog + your calculations",
+      "footer_title": "From measurements to materials. Then keep things moving.",
+      "images": [
+        {
+          "src": "asset:8e6e61c4004e4cf1873eb00e666850e6f3acd372d6c0f9ed658e11f275181890",
+          "alt": "Actual FirstMate Scope workspace with a roof replacement material list, product variants, quantities, scheduling and ordering controls.",
+          "caption": {
+            "key": "m_582fa8f6e85c70",
+            "text": "FirstMate Scope · Actual development app, shown with fictional demo project data."
+          }
+        },
+        {
+          "src": "asset:dc4908540291e289231bae0872e9125a96f53d5ba60cfab952b6040decdba42c",
+          "alt": "Actual FirstMate Price Book editor showing material product variants, colors, pricing behavior and SKU customization.",
+          "caption": {
+            "key": "m_c93b8afab697eb",
+            "text": "Scope’s Price Book · Actual product and variant customization screen. Demo catalog and prices."
+          }
+        }
+      ],
+      "features": [
+        {
+          "title": {
+            "key": "m_55aef9e1931342",
+            "text": "Start with your measurements"
+          },
+          "body": "Generate quantities from the roof measurements already in your project. Keep the flexibility to review and adjust the list."
+        },
+        {
+          "title": {
+            "key": "m_28ea4baf467ffa",
+            "text": "Make it your own"
+          },
+          "body": "Use your own material catalog and calculation rules. Save the setups that work for your business and reuse them."
+        },
+        {
+          "title": {
+            "key": "m_9d9cee67b5d96a",
+            "text": "Keep the job moving"
+          },
+          "body": "Connect your material workflow to follow-ups, supplier emails, and delivery scheduling—with the timing and steps you choose."
+        }
+      ]
+    }
+  }
+}

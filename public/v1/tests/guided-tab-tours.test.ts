@@ -77,15 +77,17 @@ test("every tour target names hooks the tab's own source draws", async () => {
   }
 });
 
-test("addTabFaqs merges with a tab's questions and keeps the limit and unique ids", async () => {
-  const { addTabFaqs, registerTabFaqs, tabFaqs } = await import("../guided-experiences/registry.js");
+test("each tab's questions are one library entry, checked for the limit, unique ids and the experiences they play", async () => {
+  const { registerAllLibraryKinds } = await import("../config-library/kinds/index.js"), { checkEntry } = await import("../config-library/writes.js"), { libraryEntries } = await import("../config-library/library.js");
+  registerAllLibraryKinds();
   const t = (key: string, text: string) => ({ key, text });
-  addTabFaqs({ tab: "test.merge", questions: [{ id: "merge.added", text: t("gx_test_merge_a", "Added") }] });
-  registerTabFaqs({ tab: "test.merge", questions: [{ id: "merge.own", text: t("gx_test_merge_b", "Own") }] });
-  assert.deepEqual(tabFaqs("test.merge")!.questions.map((question) => question.id), ["merge.own", "merge.added"], "the extra comes after the tab's own, whichever registered first");
-  assert.throws(() => addTabFaqs({ tab: "test.merge", questions: [{ id: "merge.own", text: t("gx_test_merge_c", "Again") }] }), /repeat an id/);
-  assert.throws(() => addTabFaqs({ tab: "test.merge", questions: Array.from({ length: 7 }, (_, i) => ({ id: `merge.n${i}`, text: t(`gx_test_merge_n${i}`, "More") })) }), /8/);
-  assert.deepEqual(tabFaqs("test.merge")!.questions.length, 2, "a refused addition adds nothing");
+  assert.deepEqual(libraryEntries("guided_tab_faqs").map((entry) => entry.id), ["portal.equipment", "project.customer_portal", "project.docs", "project.map", "project.materials", "project.measurements", "project.photos"]);
+  const ask = (i: number) => ({ id: `q.n${i}`, text: t(`gx_test_q_${i}`, "More") });
+  assert.deepEqual(checkEntry("guided_tab_faqs", "test.tab", { tab: "test.tab", questions: [ask(1)] }, null).errors, []);
+  assert.match(checkEntry("guided_tab_faqs", "test.tab", { tab: "test.tab", questions: [ask(1), ask(1)] }, null).errors.join(" "), /same id/);
+  assert.match(checkEntry("guided_tab_faqs", "test.tab", { tab: "test.tab", questions: Array.from({ length: 9 }, (_, i) => ask(i)) }, null).errors.join(" "), /8/);
+  assert.match(checkEntry("guided_tab_faqs", "test.tab", { tab: "other.tab", questions: [ask(1)] }, null).errors.join(" "), /not the entry's id/);
+  assert.match(checkEntry("guided_tab_faqs", "test.tab", { tab: "test.tab", questions: [{ id: "q.play", text: t("gx_test_q_play", "Again"), action: "play", experience: "no.such_tour" }] }, null).errors.join(" "), /not an experience/);
 });
 
 test("a fresh organization's people get each tour on first view where the tab is on, and not where it is off", async () => {

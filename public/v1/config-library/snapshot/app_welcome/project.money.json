@@ -1,0 +1,47 @@
+{
+  "kind": "app_welcome",
+  "id": "project.money",
+  "revision": 1,
+  "sha256": "e873bc1a70d5c2126194cd48cc7d3181dbe3abefcc72ba10b7fb6c4ec2d3cdd9",
+  "title": "project.money: Get paid for every job.",
+  "updated_at": "2026-10-27T23:15:15.074Z",
+  "updated_by": "generator",
+  "data": {
+    "theme": "money",
+    "setup": "platform.money",
+    "setup_note": {
+      "key": "gx_offer_money_setup_note",
+      "text": "Get Started begins with payments onboarding."
+    },
+    "eyebrow": {
+      "key": "gx_offer_financials_name",
+      "text": "Financials"
+    },
+    "headline": {
+      "key": "gx_offer_money_headline",
+      "text": "Get paid for every job."
+    },
+    "description": {
+      "key": "gx_offer_money_description",
+      "text": "See what each project has billed, collected and spent, and take payments from customers right from the project."
+    },
+    "benefits": [
+      {
+        "key": "gx_offer_money_b1",
+        "text": "Take card and bank payments from customers"
+      },
+      {
+        "key": "gx_offer_money_b2",
+        "text": "Follow payments, expenses and profit on every project"
+      },
+      {
+        "key": "gx_offer_money_b3",
+        "text": "Set payment schedules that match the work"
+      }
+    ],
+    "caption": {
+      "key": "gx_offer_money_caption",
+      "text": "Every project's money, in one place."
+    }
+  }
+}
