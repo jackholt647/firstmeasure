@@ -502,7 +502,7 @@
       portalTabId: 'payroll',
       settingsTabId: 'payroll',
       order: 55,
-      bundles: [versionedBundle('../payroll-api/payroll-api.js', '20261019-payroll-closeout-v1'), versionedBundle('settings/payroll.js', '20261019-payroll-closeout-v1'), versionedBundle('people/people-kit.js', '20261019-people-gaps-v1'), versionedBundle('people/list-page.js', '20261019-people-gaps-v1'), versionedBundle('people/entity-modal.js', '20261015-branches-v1'), versionedBundle('payroll/my-pay.js', '20261019-people-gaps-v1'), versionedBundle('payroll/app.js', '20261019-payroll-closeout-v1')]
+      bundles: [versionedBundle('../payroll-api/payroll-api.js', '20261019-payroll-closeout-v1'), versionedBundle('settings/payroll.js', '20261019-payroll-closeout-v1'), versionedBundle('people/people-kit.js', '20261021-account-fixes-v1'), versionedBundle('people/list-page.js', '20261019-people-gaps-v1'), versionedBundle('people/entity-modal.js', '20261015-branches-v1'), versionedBundle('payroll/my-pay.js', '20261019-people-gaps-v1'), versionedBundle('payroll/app.js', '20261019-payroll-closeout-v1')]
     },
     {
       id: 'portal.chat',
@@ -858,7 +858,7 @@
       title: (globalThis.PlatformLanguage?.text("firstmate-apps-manifest","m_c1ae5cde2c02d6","Onboarding Wizard") ?? "Onboarding Wizard"),
       kind: 'modal_app',
       surfaces: ['modal'],
-      bundles: [bundle('onboarding/wizard.js')]
+      bundles: [versionedBundle('onboarding/wizard.js', '20261026-company-name-v1')]
     },
     {
       id: 'promo.bonus_upfront_match',

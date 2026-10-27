@@ -17,9 +17,17 @@ test('durable imagery job retries transient failures, preserves terminal project
   });
   vm.runInContext(code,context);
   assert.equal((await handler({payload:{project_id:'a',input:{}}})).processed,true);
+  // An explicit structure-pin request records its failure on the project.
   failure=Object.assign(new Error('SlowDown'),{transient:true});
-  await assert.rejects(handler({payload:{project_id:'a'}}),/SlowDown/);assert.equal(patches.at(-1).retryable,true);
-  failure=new Error('permanent');assert.equal((await handler({payload:{project_id:'a'}})).needs_attention,true);
+  await assert.rejects(handler({payload:{project_id:'a',structure_pins:true}}),/SlowDown/);assert.equal(patches.at(-1).retryable,true);
+  failure=new Error('permanent');assert.equal((await handler({payload:{project_id:'a',structure_pins:true}})).needs_attention,true);
+  assert.equal(patches.length,2);
+  // An order's imagery failure (no coverage included) leaves the order in the queue: nothing is patched.
+  failure=Object.assign(new Error('no coverage'),{code:'solar_imagery_no_coverage'});
+  assert.equal((await handler({payload:{project_id:'a'}})).needs_attention,true);
+  failure=Object.assign(new Error('SlowDown'),{transient:true});
+  await assert.rejects(handler({payload:{project_id:'a'}}),/SlowDown/);
+  assert.equal(patches.length,2);
   status='cancelled';const before=processed;assert.equal((await handler({payload:{project_id:'a'}})).skipped,true);assert.equal(processed,before);
 });
 test('enqueue stores only processing inputs and acceptance never loads storage detail',async()=>{

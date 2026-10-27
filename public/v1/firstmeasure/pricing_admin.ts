@@ -1,4 +1,5 @@
-import { commercialPolicy, commercialPolicySchema, DEFAULT_COMMERCIAL_POLICY } from "../commerce/profile.js";
+import { commercialPolicy, commercialPolicySchema, DEFAULT_COMMERCIAL_POLICY, organizationProfile } from "../commerce/profile.js";
+import { commercialProfileLock, reassignCommercialProfile } from "../commerce/reassign.js";
 import type { FastifyPluginAsync, FastifyRequest } from "fastify";
 import { z } from "zod";
 import { requirePlatformAuth } from "../platform/auth.js";
@@ -44,6 +45,21 @@ export const registerPricingAdmin: FastifyPluginAsync = async app => {
       await saveInternalDocument("pricing_config", "commercial", { data: body.config, metadata: { updated_by: user.email, previous_config: previous.config, previous_revision: previous.revision } }, { replace: true });
       return { success: true, ...await commercialPolicy() };
     } finally { await release(); }
+  });
+  // Operators only. Allowed while the organization has no credit ledger or Stripe charges (commerce/reassign.ts).
+  app.get("/organizations/:orgId/commercial-profile", async request => {
+    await requirePricingAdmin(request);
+    const orgId = String((request.params as Record<string, unknown>).orgId);
+    const lock = await commercialProfileLock(orgId);
+    return { success: true, profile: await organizationProfile(orgId), reassignable: !lock, locked_reason: lock || null };
+  });
+  app.post("/organizations/:orgId/commercial-profile", async request => {
+    const user = await requirePricingAdmin(request, true);
+    const orgId = String((request.params as Record<string, unknown>).orgId);
+    const body = z.object({ country: z.string().length(2) }).strict().parse(request.body);
+    const release = await acquireFirstMeasureLock(`commercial-profile:${orgId}`, { waitMs: 5000 });
+    try { return { success: true, ...await reassignCommercialProfile(orgId, body.country, String(user.email)) }; }
+    finally { await release(); }
   });
   app.get("/", async request => {
     await requirePricingAdmin(request);

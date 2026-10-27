@@ -7,6 +7,35 @@ optimization here must return exactly the same results.
 Add an entry when you knowingly ship something that reads more than it needs, repeats work, or will not scale, and
 link the entry from the architecture doc's "Not built" section. Remove an entry when it is done.
 
+## Customer summaries load every order's manifest
+
+**Today.** Each internal Customers row (`buildOrganizationSummaryRow` in `internal/api.ts`) is built from the
+organization's full user and project documents and every indexed order's list manifest, then compacted to about
+6 KB (`compactOrganizationSummary`). On dev the 200 full rows of one page serialize to about 260 MB. The reads are
+batched (1M8-225, two queries per 250 organizations) and full summaries are compacted per batch, so the pool and the
+heap are no longer the limit, but a page still spends about 3 s on dev (5,700 organizations) moving and parsing that
+data, and sorting or filtering by a summary column still builds every organization's row.
+
+**Where the change goes.** A summary query that returns only what the compact row uses: per-order timestamps, owner
+and issuer emails, status, property country and currency, plus the user fields `organizationUserView` reads. Or a
+per-organization summary table kept current by order and user writes, which would also make column sorts a query.
+
+**Why it can wait.** The October 22 hotfix had to keep every row identical and ship the same day.
+
+## Full-house filter in the drafting queue reads the manifest
+
+**Today.** A drafter without the full-house qualification claims from the queue with an extra condition on
+`manifest_json->>'measurement_scope'` (`candidateSql` in `firstmeasure/queue_postgres.ts`). The claim indexes narrow
+the rows first (queued, unassigned, unreserved or reserved to the drafter), so the JSON is read only for those
+candidates, not the whole table. The "PostgreSQL hot queue paths do not search JSON documents" check in
+`tests/firstmeasure-postgres-indexed-queue.test.ts` fails because of it.
+
+**Where the change goes.** A derived `measurement_scope` column on `projects`, filled by `migrateDerivedQueueColumns`
+like the other queue columns (schema version bump), and the condition on that column instead of the JSON.
+
+**Why it can wait.** The candidate set is small (the queued backlog), and adding a column to the core order queue
+was not done on the October 20 production release day.
+
 ## The price book setup sends its options once per step
 
 **Today.** The roofing price book setup's steps share one guided source (`pricebook.roofing_setup`,
@@ -140,55 +169,6 @@ new or changed since they were indexed (`indexPendingReplaySessions` in `insight
 for re-indexing after an `INDEX_VERSION` change. The sessions indexed stay the same.
 
 **Why it can wait.** Two small queries a minute at today's volumes.
-
-||||||| parent of fe90d4bb (Session replay archives: re-tokenize finished sessions across sessions, losslessly)
-## Session replay archives decode a whole session to serve one page
-
-**Today.** The chunks endpoint restores every page of an archived session to serve one page's chunks
-(`readArchivedPageChunks` in `session-replay/archive.ts`) and keeps the last six decoded sessions in memory for ten
-minutes.
-
-**Where the change goes.** Compress each page as its own zstd frame in the archive, with a small index of frame
-offsets, so one page is decompressed on its own. The restored chunks stay the same.
-
-**Why it can wait.** Archived sessions are opened rarely, and a session of a few hundred KB decodes in milliseconds.
-(docs/architecture/session-replay.md, "Archives")
-
-## Session replay vocabulary versions are read whole
-
-**Today.** Loading a pinned vocabulary reads every token blob of its generation up to that version
-(`readTokens` in `session-replay/archive.ts`), even when the version before it is already in memory, and an archive run
-reloads the newest organization version from its rows.
-
-**Where the change goes.** Extend a cached earlier version with only the newer blobs, and keep each generation's
-token list once per process. The vocabulary read stays the same.
-
-**Why it can wait.** A generation is capped at 500 versions and 60,000 tokens, and the result is cached per pinned
-version. (docs/architecture/session-replay.md, "Archives")
-
-## Session replay archive runs hold a whole session in memory
-
-**Today.** The archive task reads one session's chunks, its canonical form and its archive into memory at once, and
-skips sessions over 48 MB as recorded (`maxSessionBytes`), which then stay live.
-
-**Where the change goes.** Archive page by page into separate frames (as above) so memory follows the largest page,
-and lift the limit. The archive bytes per page stay the same.
-
-**Why it can wait.** Recorded sessions are tens to hundreds of KB; a session stops accepting chunks at 256 MB.
-(docs/architecture/session-replay.md, "Archives")
-
-## Exterior PDF dimension drawings rasterize the whole house per face
-
-**Today.** With house context on, each Wall/Trim Dimensions drawing rasterizes every house face (walls, roof,
-chimney tops, trim) behind the measured face (`drawDiagram` with `context` in
-`public/measure/internal/editor_scripts/exterior_pdf.js`), so the work grows with faces times house size. On the
-pilot house that is about 12 ms more per face.
-
-**Where the change goes.** Cull context faces to the drawing's frame and to the region behind the face plane before
-meshing them (or cache each face's mesh across drawings) in `rasterScene`. The pixels drawn stay the same.
-
-**Why it can wait.** About a second on a 66-face house, inside a PDF that takes several seconds anyway.
-(dev/EXTERIOR_REPORT.md, "House context behind wall dimension drawings")
 
 ## Contact date rules read every contact
 

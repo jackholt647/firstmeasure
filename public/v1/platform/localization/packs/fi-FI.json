@@ -3234,10 +3234,6 @@
     "m_163c9e8ccdb047": "Voit hallinnoida käyttäjiä milloin tahansa Yrityksen asetusten Käyttäjät-osiossa.",
     "m_206d31a7c795c4": " Takaisin",
     "m_b982de697abe2d": "Kutsut lähetetty",
-    "m_507489a99d1632": {
-      "message": "{v0} kutsu{v1} lähetetty.",
-      "format": "icu"
-    },
     "m_2b39214759d91a": " Mukautettu\n      ",
     "m_0ded144729a113": "Käyttöoikeudet",
     "m_8cf345002184e5": "Nimi",
@@ -3263,7 +3259,34 @@
     "m_8342e19eddc030": "Lähetämme tähän sähköpostiosoitteeseen koodin ennen portaalin avaamista. Voit korjata osoitteen tässä, jos se on virheellinen.",
     "m_2fbb4b11eb7b6f": "Sähköpostiosoite",
     "m_3a7c6bd31cf96e": "Vahvistuskoodi",
-    "m_a455a4668ee54d": "\n            Vahvista &amp; siirry portaaliin "
+    "m_a455a4668ee54d": "\n            Vahvista &amp; siirry portaaliin ",
+    "auto_topup_summary": {
+      "message": "Jos saldosi laskee alle {threshold}, lisäämme tilillesi automaattisesti {amount}.",
+      "format": "icu"
+    },
+    "bonus_amount": {
+      "message": "+ {amount} bonusta",
+      "format": "icu"
+    },
+    "invites_sent": {
+      "message": "{count, plural, one {# kutsu lähetetty.} other {# kutsua lähetetty.}}",
+      "format": "icu"
+    },
+    "m_56c6c9cbb10acb": " Automaattisen lisäyksen summa",
+    "m_bc9847e2ca77cb": "Automaattinen lisäys",
+    "m_cc2003d4e4237c": " Lisää, kun saldo on alle",
+    "m_db0d748a115fcb": "Pidä tilini automaattisesti katteellisena.",
+    "prices_include_vat": "Hinnat sisältävät ALV:n.",
+    "total_credit": {
+      "message": "{amount} saldoa yhteensä",
+      "format": "icu"
+    },
+    "ob_full_name_label": "Nimesi",
+    "ob_full_name_placeholder": "Koko nimesi",
+    "ob_company_name_label": "Yrityksen nimi",
+    "ob_company_name_placeholder": "Yrityksesi nimi",
+    "ob_names_missing_title": "Nimesi ja yrityksesi",
+    "ob_names_missing_body": "Jatka antamalla nimesi ja yrityksesi nimi."
   },
   "payroll": {
     "m_4a04382820d2e1": "Muu",
@@ -12921,6 +12944,149 @@
     },
     "exchange_estimate": {
       "message": "Noin {amount} · maksuhetken valuuttakurssi voi poiketa tästä.",
+      "format": "icu"
+    },
+    "vat_included": {
+      "message": "{price}, sis. ALV",
+      "format": "icu"
+    }
+  },
+  "signup": {
+    "offer_title": "Premium-kattoraportit",
+    "offer_price": {
+      "message": "Vain {price}",
+      "format": "icu"
+    },
+    "offer_price_vat": {
+      "message": "Vain {price}, sis. ALV",
+      "format": "icu"
+    },
+    "referral_loading": "Ladataan...",
+    "referral_partner_invitation": "Kumppanin kutsu",
+    "referral_invited": "On kutsunut sinut kokeilemaan FirstMeasurea",
+    "referral_partner_default": "FirstMate-kumppani",
+    "referral_offer": {
+      "message": "Rekisteröidy tänään ja saat {percent} %:n alennuksen kaikista tilauksista ensimmäisten {days} päivän ajan.",
+      "format": "icu"
+    },
+    "referral_offer_default": "Rekisteröidy tänään ja saat 50 %:n alennuksen kaikista tilauksista ensimmäisten 7 päivän ajan.",
+    "referral_activate": "Rekisteröidy tänään aktivoidaksesi suositteluetusi.",
+    "referral_offer_short": {
+      "message": "{percent} %:n alennus tilauksista ensimmäisten {days} päivän ajan.",
+      "format": "icu"
+    },
+    "referral_offer_percent": {
+      "message": "{percent} %:n alennus soveltuvista tilauksista.",
+      "format": "icu"
+    },
+    "referral_offer_applied": "Suositteluetusi otetaan käyttöön rekisteröitymisen yhteydessä.",
+    "referral_attribution": "Suosittelu kirjataan, kun luot tilisi.",
+    "continue": "Jatka",
+    "claim_invitation": "Hyväksy kutsu",
+    "tab_login": "Kirjaudu",
+    "tab_register": "Luo tili",
+    "tab_register_invite": "Luo yrityksesi tili aktivoidaksesi tämän kutsun.",
+    "widget_title": "Luo FirstMate-tilisi",
+    "google_sign_in": "Kirjaudu Googlella",
+    "google_sign_up": "Rekisteröidy Googlella",
+    "divider_login": "tai käytä tiliäsi",
+    "divider_register": "tai rekisteröidy sähköpostilla",
+    "email_or_phone": "Sähköposti tai puhelin",
+    "password": "Salasana",
+    "login_button": "Kirjaudu",
+    "forgot_password": "Unohtuiko salasana?",
+    "phone": "Puhelin",
+    "phone_number": "Puhelinnumero",
+    "email": "Sähköposti",
+    "confirm_password": "Vahvista salasana",
+    "create_account": "Luo tili",
+    "create_account_widget": "Luo tili",
+    "already_have_account": "Onko sinulla jo tili?",
+    "login_here": "Kirjaudu sisään tästä",
+    "login_link": "Kirjaudu",
+    "terms": {
+      "message": "Luomalla tilin hyväksyt {terms} ja sen, että voimme lähettää tekstiviestejä antamaasi numeroon. Viesti- ja datamaksuja voidaan periä.",
+      "format": "icu"
+    },
+    "terms_link": "käyttöehtomme",
+    "reset_how": "Miten haluat nollata salasanasi?",
+    "reset_method": "Salasanan nollaustapa",
+    "send_code": "Lähetä koodi",
+    "back_to_login": "Takaisin kirjautumiseen",
+    "otp_enter": "Anna vahvistuskoodi:",
+    "otp_sent_to": "Anna koodi, joka lähetettiin osoitteeseen",
+    "otp_reset_sent_to": "Anna salasanan nollauskoodi, joka lähetettiin osoitteeseen",
+    "otp_label": "6-numeroinen koodi",
+    "verify_code": "Vahvista koodi",
+    "start_over": "Aloita alusta",
+    "reset_verified": "Koodi vahvistettu. Aseta uusi salasana.",
+    "new_password": "Uusi salasana",
+    "update_password": "Päivitä salasana",
+    "password_updated": "Salasana päivitetty! Kirjaudutaan sisään...",
+    "password_updated_redirect": "Salasana päivitetty. Ohjataan eteenpäin...",
+    "creating": "Luodaan…",
+    "sending": "Lähetetään…",
+    "working": "Käsitellään...",
+    "verification_required": "Vahvistus vaaditaan",
+    "account_created_verify": "Tili luotu! Vahvista sähköpostiosoitteesi.",
+    "account_created_verify_widget": "Tili luotu. Vahvista sähköpostiosoitteesi jatkaaksesi.",
+    "reset_code_sent": "Salasanan nollauskoodi lähetetty.",
+    "err_generic": "Pyyntöäsi ei voitu suorittaa. Yritä uudelleen. Jos ongelma jatkuu, kirjoita osoitteeseen support@1m8.ai.",
+    "err_google": "Google-kirjautumista ei voitu suorittaa. Yritä uudelleen.",
+    "err_identity_phone_exists": "Puhelinnumero on jo liitetty tiliin. Kirjaudu kyseiselle tilille tai käytä toista numeroa.",
+    "err_identity_email_exists": "Sähköpostiosoite on jo liitetty tiliin. Kirjaudu sisään tai palauta käyttöoikeus kohdasta ”Unohtuiko salasana?”.",
+    "err_identity_exists": "Näillä tiedoilla on jo tili. Kirjaudu sisään tai palauta käyttöoikeus kohdasta ”Unohtuiko salasana?”.",
+    "err_invalid_credentials": "Antamasi sähköpostiosoite, puhelinnumero tai salasana on virheellinen.",
+    "err_wrong_password": "Antamasi salasana on virheellinen.",
+    "err_identity_phone_ambiguous": "Puhelinnumero on liitetty useaan tiliin. Kirjaudu sähköpostilla tai ota yhteyttä tukeen.",
+    "err_not_found": "Emme löytäneet tiliä tällä sähköpostiosoitteella tai puhelinnumerolla.",
+    "err_identity_phone_not_found": "Emme löytäneet tiliä tällä puhelinnumerolla.",
+    "err_invalid_email": "Anna kelvollinen sähköpostiosoite.",
+    "err_invalid_phone_number": "Anna kelvollinen matkapuhelinnumero, Yhdysvaltojen ja Kanadan ulkopuolella maatunnuksen kanssa.",
+    "err_missing_login_identifier": "Anna sähköpostiosoitteesi tai puhelinnumerosi.",
+    "err_registration_in_progress": "Tiliäsi luodaan jo. Odota hetki ja yritä sitten kirjautua sisään.",
+    "err_account_disabled": "Tili on poistettu käytöstä. Ota yhteyttä yrityksesi järjestelmänvalvojaan tai tukeen.",
+    "err_membership_required": "Tiliäsi ei ole vielä liitetty yritykseen. Ota yhteyttä yrityksesi järjestelmänvalvojaan tai tukeen.",
+    "err_google_account_mismatch": "Sähköpostiosoite on liitetty toiseen Google-tiliin. Kokeile sitä Google-tiliä tai ota yhteyttä tukeen.",
+    "err_google_credential_required": "Google-kirjautuminen ei valmistunut. Yritä uudelleen.",
+    "err_invalid_google_credential": "Google ei voinut vahvistaa tätä kirjautumista. Yritä uudelleen.",
+    "err_unverified_google_email": "Vahvista sähköpostiosoitteesi Googlessa ennen kirjautumista.",
+    "err_invalid_recovery_token": "Salasanan nollausistuntosi on vanhentunut. Pyydä uusi koodi kohdasta ”Unohtuiko salasana?”.",
+    "err_sms_phone_unavailable": "Tilillä ei ole kelvollista matkapuhelinnumeroa. Käytä sähköpostipalautusta tai ota yhteyttä tukeen.",
+    "err_sms_send_failed": "Vahvistuskoodia ei voitu lähettää tekstiviestinä. Yritä myöhemmin uudelleen tai käytä sähköpostipalautusta.",
+    "err_email_send_failed": "Vahvistussähköpostia ei voitu lähettää. Yritä myöhemmin uudelleen tai ota yhteyttä tukeen.",
+    "err_session_expired": "Istuntosi on vanhentunut. Kirjaudu sisään uudelleen.",
+    "err_refresh": "Päivitä sivu ja yritä uudelleen.",
+    "err_connection": "Palvelimeen ei saatu yhteyttä. Tarkista yhteytesi ja yritä uudelleen.",
+    "err_connection_short": "Yhteysvirhe. Yritä uudelleen.",
+    "err_missing_fields": "Täytä kaikki tilin pakolliset kentät.",
+    "err_invalid_code": "Vahvistuskoodi on virheellinen tai vanhentunut. Pyydä uusi koodi ja yritä uudelleen.",
+    "err_password_short": "Käytä vähintään 6 merkin pituista salasanaa.",
+    "err_reset_not_authorized": "Vahvista palautuskoodisi ennen uuden salasanan asettamista. Aloita alusta kohdasta ”Unohtuiko salasana?”.",
+    "err_too_many": "Liian monta yritystä. Odota muutama minuutti ja yritä uudelleen.",
+    "err_passwords_mismatch": "Salasanat eivät täsmää.",
+    "err_login_failed": "Kirjautuminen epäonnistui. Yritä uudelleen.",
+    "err_create_failed": "Tiliäsi ei voitu luoda. Yritä uudelleen tai kirjoita osoitteeseen support@1m8.ai.",
+    "err_recovery_send_failed": "Palautuskoodia ei voitu lähettää. Yritä uudelleen tai kirjoita osoitteeseen support@1m8.ai.",
+    "err_verify_failed": "Koodia ei voitu vahvistaa. Pyydä uusi koodi ja yritä uudelleen.",
+    "err_update_password_failed": "Salasanaasi ei voitu päivittää. Yritä uudelleen tai kirjoita osoitteeseen support@1m8.ai.",
+    "err_google_linked_elsewhere": "Sähköpostiosoite on jo liitetty toiseen Google-tiliin. Ota yhteyttä tukeen, jos tarvitset apua.",
+    "err_google_no_company": "Google-sähköpostisi tunnistettiin, mutta sitä ei ole vielä liitetty yritykseen.",
+    "err_account_disabled_admin": "Tili on poistettu käytöstä. Ota yhteyttä yrityksesi järjestelmänvalvojaan.",
+    "referral_invited_you": {
+      "message": "{partner} kutsui sinut",
+      "format": "icu"
+    },
+    "start_ordering_reports": "Aloita raporttien tilaaminen",
+    "err_bonus_unconfirmed": "Kampanjabonustasi ei voitu vahvistaa. Yritä hetken kuluttua uudelleen."
+  },
+  "signup-region": {
+    "calling_code": "Maatunnus"
+  },
+  "phone-input": {
+    "calling_code": "Maatunnus",
+    "calling_code_value": {
+      "message": "Maatunnus: {country} +{code}",
       "format": "icu"
     }
   }

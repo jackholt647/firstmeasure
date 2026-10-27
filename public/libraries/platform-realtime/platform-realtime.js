@@ -83,6 +83,16 @@
     return state.baseUrl;
   }
 
+  // The platform event stream, its poll fallback and presence all need
+  // platform.expanded_access; without it the server refuses every request
+  // (403 capability_denied), so the page opens nothing rather than retrying a
+  // refusal every few seconds. Same check as Portal.platformExpandedAccess().
+  // A page that does not say (no portal flag) keeps its stream.
+  function streamAllowed(){
+    if (typeof root.Portal?.platformExpandedAccess === 'function') return root.Portal.platformExpandedAccess() === true;
+    return APP.platformExpandedAssets !== false;
+  }
+
   function orgState(orgId){
     let entry = state.orgs.get(orgId);
     if (!entry) {
@@ -142,6 +152,7 @@
   function connect(orgId){
     const entry = orgState(orgId);
     if (state.suspended || !wanted(entry)) return;
+    if (!streamAllowed()) { closeStream(entry); return; }
     const key = watchKeyOf(entry);
     if (entry.source && entry.watchKey === key) return;
     if (entry.mode === 'polling' && !entry.channels.size) return;
@@ -344,6 +355,11 @@
   root.addEventListener('pagehide', () => {
     state.suspended = true;
     for (const entry of state.orgs.values()) { closeStream(entry); channelsDown(entry); }
+  });
+  // Access granted later (capabilities loaded) opens what the page already wants.
+  root.addEventListener('fm:capabilities:updated', () => {
+    if (state.suspended) return;
+    for (const orgId of state.orgs.keys()) connect(orgId);
   });
   root.addEventListener('pageshow', () => {
     if (!state.suspended) return;

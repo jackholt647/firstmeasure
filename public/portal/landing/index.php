@@ -27,4 +27,7 @@ require $variants[$variant];
 // Signup Sandbox dev bar: appended after the variant document so testers
 // walking a sandbox workflow keep the stage navigator on real landing pages.
 // It no-ops for normal visitors (and in production the API is dead).
-echo "\n<script src=\"/portal/signup-sandbox/devbar.js\" defer></script>\n";
+require_once __DIR__ . '/../signup-sandbox/available.php';
+if (fm_signup_sandbox_available()) {
+    echo "\n<script src=\"/portal/signup-sandbox/devbar.js\" defer></script>\n";
+}

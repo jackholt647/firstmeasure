@@ -88,6 +88,8 @@ export type IndexedProjectDocument = SqlParams & {
 };
 
 export type ProjectIndexManifestQuery = {
+  /** Return each order's frozen report language too; many-row reads leave it out by default. */
+  include_language_snapshot?: boolean;
   search?: string;
   statuses?: string[];
   limit?: number;
@@ -362,6 +364,19 @@ export async function findIndexedProjectsByNormalizedAddress(
       }
     })
     .filter((manifest): manifest is ProjectManifest => Boolean(manifest));
+}
+
+/** queryIndexedProjectManifests({ organization_id, ... }) for several organizations, keyed by organization id. */
+export async function queryIndexedProjectManifestsByOrganization(
+  orgIds: string[],
+  options: { limit?: number; includeInstantOnly?: boolean } = {}
+): Promise<Map<string, ProjectManifest[]>> {
+  if (isFirstMeasurePostgresEnabled()) {
+    return (await postgresIndex()).queryPostgresProjectManifestsByOrganization(orgIds, options);
+  }
+  const ids = [...new Set(orgIds.map((id) => String(id).trim()).filter(Boolean))];
+  const results = await Promise.all(ids.map((id) => queryIndexedProjectManifests({ ...options, organization_id: id })));
+  return new Map(ids.map((id, index) => [id, results[index]!.projects]));
 }
 
 export async function queryIndexedProjectManifests(

@@ -30,5 +30,10 @@
   function estimate(amount,exchange=current().exchange){
     return exchange?.rate>0?commerceText('exchange_estimate','Approximately {amount} · exchange rate at payment may differ.',{amount:cash(Number(amount)*exchange.rate,exchange.currency)}):'';
   }
-  root.PlatformCommerce={set,current,price,credit,cash,estimate,onReady};
+  /** A report price as charged; outside the US and Canada prices are shown as VAT included. */
+  function withVat(text,view){
+    try{view=view||current();}catch(_){return text;}
+    return view.vat_included?commerceText('vat_included','{price}, VAT included',{price:text}):text;
+  }
+  root.PlatformCommerce={set,current,price,credit,cash,estimate,onReady,withVat};
 })(globalThis);

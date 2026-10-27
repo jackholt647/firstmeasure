@@ -3234,10 +3234,6 @@
     "m_163c9e8ccdb047": " Du kan til enhver tid administrere brugere under Brugere i Virksomhedsindstillinger.",
     "m_206d31a7c795c4": " Tilbage",
     "m_b982de697abe2d": "Invitationer sendt",
-    "m_507489a99d1632": {
-      "message": "{v0} invitation{v1} sendt.",
-      "format": "icu"
-    },
     "m_2b39214759d91a": " Tilpasset\n       ",
     "m_0ded144729a113": "Tilladelser",
     "m_8cf345002184e5": "Navn",
@@ -3263,7 +3259,34 @@
     "m_8342e19eddc030": "Vi sender en kode til denne e-mail, før portalen åbnes. Du kan rette adressen her, hvis den blev indtastet forkert.",
     "m_2fbb4b11eb7b6f": "E-mailadresse",
     "m_3a7c6bd31cf96e": "Bekræftelseskode",
-    "m_a455a4668ee54d": "\n            Bekræft &amp; gå til portalen  "
+    "m_a455a4668ee54d": "\n            Bekræft &amp; gå til portalen  ",
+    "auto_topup_summary": {
+      "message": "Hvis din saldo kommer under {threshold}, tilføjer vi automatisk {amount} til din konto.",
+      "format": "icu"
+    },
+    "bonus_amount": {
+      "message": "+ {amount} i bonus",
+      "format": "icu"
+    },
+    "invites_sent": {
+      "message": "{count, plural, one {# invitation sendt.} other {# invitationer sendt.}}",
+      "format": "icu"
+    },
+    "m_56c6c9cbb10acb": " Beløb for automatisk optankning",
+    "m_bc9847e2ca77cb": "Automatisk optankning",
+    "m_cc2003d4e4237c": " Optank, når saldoen er under",
+    "m_db0d748a115fcb": "Hold min konto fyldt op automatisk.",
+    "prices_include_vat": "Priserne er inkl. moms.",
+    "total_credit": {
+      "message": "{amount} i kredit i alt",
+      "format": "icu"
+    },
+    "ob_full_name_label": "Dit navn",
+    "ob_full_name_placeholder": "Dit fulde navn",
+    "ob_company_name_label": "Firmanavn",
+    "ob_company_name_placeholder": "Dit firmanavn",
+    "ob_names_missing_title": "Dit navn og firma",
+    "ob_names_missing_body": "Indtast dit navn og firmanavn for at fortsætte."
   },
   "payroll": {
     "m_4a04382820d2e1": "Andet",
@@ -12921,6 +12944,149 @@
     },
     "exchange_estimate": {
       "message": "Cirka {amount} · valutakursen på betalingstidspunktet kan være anderledes.",
+      "format": "icu"
+    },
+    "vat_included": {
+      "message": "{price} inkl. moms",
+      "format": "icu"
+    }
+  },
+  "signup": {
+    "offer_title": "Premium-tagrapporter",
+    "offer_price": {
+      "message": "Kun {price}",
+      "format": "icu"
+    },
+    "offer_price_vat": {
+      "message": "Kun {price} inkl. moms",
+      "format": "icu"
+    },
+    "referral_loading": "Indlæser...",
+    "referral_partner_invitation": "Invitation fra en partner",
+    "referral_invited": "Har inviteret dig til at prøve FirstMeasure",
+    "referral_partner_default": "En FirstMate-partner",
+    "referral_offer": {
+      "message": "Tilmeld dig i dag, og få {percent} % rabat på alle ordrer i dine første {days} dage.",
+      "format": "icu"
+    },
+    "referral_offer_default": "Tilmeld dig i dag, og få 50 % rabat på alle ordrer i dine første 7 dage.",
+    "referral_activate": "Tilmeld dig i dag for at aktivere dit henvisningstilbud.",
+    "referral_offer_short": {
+      "message": "{percent} % rabat på ordrer i dine første {days} dage.",
+      "format": "icu"
+    },
+    "referral_offer_percent": {
+      "message": "{percent} % rabat på kvalificerede ordrer.",
+      "format": "icu"
+    },
+    "referral_offer_applied": "Dit henvisningstilbud anvendes, når du tilmelder dig.",
+    "referral_attribution": "Henvisningen registreres, når du opretter din konto.",
+    "continue": "Fortsæt",
+    "claim_invitation": "Tag imod invitationen",
+    "tab_login": "Log ind",
+    "tab_register": "Opret konto",
+    "tab_register_invite": "Opret din virksomheds konto for at aktivere denne invitation.",
+    "widget_title": "Opret din FirstMate-konto",
+    "google_sign_in": "Log ind med Google",
+    "google_sign_up": "Tilmeld dig med Google",
+    "divider_login": "eller brug din konto",
+    "divider_register": "eller opret med e-mail",
+    "email_or_phone": "E-mail eller telefon",
+    "password": "Adgangskode",
+    "login_button": "Log ind",
+    "forgot_password": "Glemt adgangskode?",
+    "phone": "Telefon",
+    "phone_number": "Telefonnummer",
+    "email": "E-mail",
+    "confirm_password": "Bekræft adgangskode",
+    "create_account": "Opret konto",
+    "create_account_widget": "Opret konto",
+    "already_have_account": "Har du allerede en konto?",
+    "login_here": "Klik her for at logge ind",
+    "login_link": "Log ind",
+    "terms": {
+      "message": "Ved at oprette en konto accepterer du vores {terms} og at modtage sms’er på det angivne nummer. Der kan være takster for beskeder og data.",
+      "format": "icu"
+    },
+    "terms_link": "Brugsvilkår",
+    "reset_how": "Hvordan vil du nulstille din adgangskode?",
+    "reset_method": "Metode til nulstilling af adgangskode",
+    "send_code": "Send kode",
+    "back_to_login": "Tilbage til log ind",
+    "otp_enter": "Indtast bekræftelseskoden:",
+    "otp_sent_to": "Indtast koden, der blev sendt til",
+    "otp_reset_sent_to": "Indtast nulstillingskoden, der blev sendt til",
+    "otp_label": "6-cifret kode",
+    "verify_code": "Bekræft kode",
+    "start_over": "Start forfra",
+    "reset_verified": "Koden er bekræftet. Vælg en ny adgangskode.",
+    "new_password": "Ny adgangskode",
+    "update_password": "Opdater adgangskode",
+    "password_updated": "Adgangskoden er opdateret! Logger ind...",
+    "password_updated_redirect": "Adgangskoden er opdateret. Viderestiller...",
+    "creating": "Opretter…",
+    "sending": "Sender…",
+    "working": "Arbejder...",
+    "verification_required": "Bekræftelse påkrævet",
+    "account_created_verify": "Kontoen er oprettet! Bekræft din e-mail.",
+    "account_created_verify_widget": "Kontoen er oprettet. Bekræft din e-mail for at fortsætte.",
+    "reset_code_sent": "Koden til nulstilling af adgangskode er sendt.",
+    "err_generic": "Vi kunne ikke gennemføre din anmodning. Prøv igen. Hvis problemet fortsætter, så skriv til support@1m8.ai.",
+    "err_google": "Login med Google kunne ikke gennemføres. Prøv igen.",
+    "err_identity_phone_exists": "Telefonnummeret er allerede knyttet til en konto. Log ind på den konto, eller brug et andet nummer.",
+    "err_identity_email_exists": "E-mailadressen er allerede knyttet til en konto. Log ind, eller brug »Glemt adgangskode?« for at få adgang igen.",
+    "err_identity_exists": "Der findes allerede en konto med disse oplysninger. Log ind, eller brug »Glemt adgangskode?« for at få adgang igen.",
+    "err_invalid_credentials": "E-mailadressen, telefonnummeret eller adgangskoden er forkert.",
+    "err_wrong_password": "Adgangskoden er forkert.",
+    "err_identity_phone_ambiguous": "Telefonnummeret er knyttet til flere konti. Log ind med din e-mail, eller kontakt support.",
+    "err_not_found": "Vi kunne ikke finde en konto med den e-mail eller det telefonnummer.",
+    "err_identity_phone_not_found": "Vi kunne ikke finde en konto med det telefonnummer.",
+    "err_invalid_email": "Indtast en gyldig e-mailadresse.",
+    "err_invalid_phone_number": "Indtast et gyldigt mobilnummer med landekode uden for USA og Canada.",
+    "err_missing_login_identifier": "Indtast din e-mailadresse eller dit telefonnummer.",
+    "err_registration_in_progress": "Din konto er allerede ved at blive oprettet. Vent et øjeblik, og prøv så at logge ind.",
+    "err_account_disabled": "Kontoen er deaktiveret. Kontakt din virksomheds administrator eller support.",
+    "err_membership_required": "Din konto er endnu ikke knyttet til en virksomhed. Kontakt din virksomheds administrator eller support.",
+    "err_google_account_mismatch": "E-mailen er knyttet til en anden Google-konto. Prøv den Google-konto, eller kontakt support.",
+    "err_google_credential_required": "Login med Google blev ikke afsluttet. Prøv igen.",
+    "err_invalid_google_credential": "Google kunne ikke bekræfte dette login. Prøv igen.",
+    "err_unverified_google_email": "Bekræft din e-mail hos Google, før du logger ind.",
+    "err_invalid_recovery_token": "Din session til nulstilling af adgangskode er udløbet. Brug »Glemt adgangskode?« for at få en ny kode.",
+    "err_sms_phone_unavailable": "Kontoen har ikke et gyldigt mobilnummer. Brug gendannelse via e-mail, eller kontakt support.",
+    "err_sms_send_failed": "Vi kunne ikke sende en bekræftelseskode via sms. Prøv igen senere, eller brug gendannelse via e-mail.",
+    "err_email_send_failed": "Vi kunne ikke sende bekræftelsesmailen. Prøv igen senere, eller kontakt support.",
+    "err_session_expired": "Din session er udløbet. Log ind igen.",
+    "err_refresh": "Opdater siden, og prøv igen.",
+    "err_connection": "Vi kunne ikke oprette forbindelse til serveren. Tjek din forbindelse, og prøv igen.",
+    "err_connection_short": "Forbindelsesfejl. Prøv igen.",
+    "err_missing_fields": "Udfyld alle obligatoriske felter for kontoen.",
+    "err_invalid_code": "Bekræftelseskoden er forkert eller udløbet. Bed om en ny kode, og prøv igen.",
+    "err_password_short": "Brug en adgangskode på mindst 6 tegn.",
+    "err_reset_not_authorized": "Bekræft din gendannelseskode, før du vælger en ny adgangskode. Start forfra med »Glemt adgangskode?«.",
+    "err_too_many": "For mange forsøg. Vent et par minutter, og prøv igen.",
+    "err_passwords_mismatch": "Adgangskoderne er ikke ens.",
+    "err_login_failed": "Kunne ikke logge ind. Prøv igen.",
+    "err_create_failed": "Vi kunne ikke oprette din konto. Prøv igen, eller skriv til support@1m8.ai.",
+    "err_recovery_send_failed": "Vi kunne ikke sende en gendannelseskode. Prøv igen, eller skriv til support@1m8.ai.",
+    "err_verify_failed": "Vi kunne ikke bekræfte koden. Bed om en ny kode, og prøv igen.",
+    "err_update_password_failed": "Vi kunne ikke opdatere din adgangskode. Prøv igen, eller skriv til support@1m8.ai.",
+    "err_google_linked_elsewhere": "E-mailen er allerede knyttet til en anden Google-konto. Kontakt support, hvis du har brug for hjælp.",
+    "err_google_no_company": "Din Google-e-mail er genkendt, men den er endnu ikke knyttet til en virksomhed.",
+    "err_account_disabled_admin": "Kontoen er deaktiveret. Kontakt din virksomheds administrator.",
+    "referral_invited_you": {
+      "message": "{partner} har inviteret dig",
+      "format": "icu"
+    },
+    "start_ordering_reports": "Begynd at bestille rapporter",
+    "err_bonus_unconfirmed": "Vi kunne ikke bekræfte din kampagnebonus. Prøv igen om et øjeblik."
+  },
+  "signup-region": {
+    "calling_code": "Landekode"
+  },
+  "phone-input": {
+    "calling_code": "Landekode",
+    "calling_code_value": {
+      "message": "Landekode: {country} +{code}",
       "format": "icu"
     }
   }

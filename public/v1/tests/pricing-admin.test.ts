@@ -96,12 +96,12 @@ test('Prices authorization, validation, concurrency, shared quote/charge setting
     const internationalEndpoint=endpoint+'commercial';
     assert.equal((await app.inject({method:'GET',url:internationalEndpoint,headers:users.customer})).statusCode,403);
     const international=(await app.inject({method:'GET',url:internationalEndpoint,headers:users.admin})).json();
-    assert.equal(international.config.international_expedite_enabled,false);
-    for(const enabled of [true,false]){
+    assert.equal(international.config.international_prices.per_structure,40);
+    for(const residential of [27,25]){
       const before=(await app.inject({method:'GET',url:internationalEndpoint,headers:users.admin})).json();
-      const saved=await app.inject({method:'PUT',url:internationalEndpoint,headers:users.admin,payload:{revision:before.revision,config:{...before.config,international_expedite_enabled:enabled}}});
+      const saved=await app.inject({method:'PUT',url:internationalEndpoint,headers:users.admin,payload:{revision:before.revision,config:{...before.config,international_prices:{...before.config.international_prices,residential}}}});
       assert.equal(saved.statusCode,200,saved.body);
-      assert.equal(saved.json().config.international_expedite_enabled,enabled);
+      assert.equal(saved.json().config.international_prices.residential,residential);
       assert.deepEqual(saved.json().config.multipliers,before.config.multipliers);
       assert.deepEqual(saved.json().config.currencies,before.config.currencies);
     }

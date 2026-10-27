@@ -649,6 +649,7 @@
     } catch (error) {
       const data = error?.data || null;
       const text = error?.responseText || '';
+      if (data?.error === 'organization_forbidden') void window.FirstMateAccountGuard?.check?.();
       if (isAuthFailure({ status: error?.status || 0 }, data, text)) {
         redirectToLogin('expired');
         throw authRequiredError();
@@ -696,6 +697,8 @@
       redirectToLogin('expired');
       throw authRequiredError();
     }
+    // Another tab switched this browser to a different account.
+    if (data?.error === 'organization_forbidden') void window.FirstMateAccountGuard?.check?.();
     return { res, data };
   }
 
@@ -1303,18 +1306,21 @@
     if (project.has_meaningful_activity === true || project.meaningful_activity === true) return true;
     const workflow = cleanText(project.workflow_state).toLowerCase();
     if (['proposal_only', 'document_only', 'drafting_proposal', 'proposal_sent', 'newly_sold', 'measurement_ordered'].includes(workflow)) return true;
-    const populatedArrays = ['photos', 'documents', 'document_ids', 'material_lists', 'material_list_ids', 'work_plan_ids', 'todos', 'action_items'];
+    // Work plans are created automatically when a project starts a scope, so they are not activity.
+    const populatedArrays = ['photos', 'documents', 'document_ids', 'material_lists', 'material_list_ids', 'todos', 'action_items'];
     if (populatedArrays.some((key) => Array.isArray(project[key]) && project[key].length)) return true;
     const scope = project.scope && typeof project.scope === 'object' ? project.scope : {};
     if ((Array.isArray(scope.root_items) && scope.root_items.length) || (Array.isArray(scope.pieces) && scope.pieces.length)) return true;
-    const workProjection = project.work_projection && typeof project.work_projection === 'object' ? project.work_projection : {};
-    if (Array.isArray(workProjection.plans) && workProjection.plans.length) return true;
     return !!cleanText(project.project_notes, project.notes, project.tech_notes);
   };
 
   function isDraftPlatformProject(project = {}){
     const status = cleanText(project.status, project.measurement_project?.status, project.measurement?.status, project.workflow_state).toLowerCase();
     if (projectMeasurementKeys(project).length && ['queued', 'processing', 'in_progress', 'awaiting_review', 'awaiting_manager_review', 'pending_rejection'].includes(status)) return false;
+    // A project saved as a draft stays one until it has an order, a proposal or an appointment.
+    if (cleanText(project.workflow_state).toLowerCase() === 'draft') {
+      return !projectMeasurementKeys(project).length && !hasProjectProposals(project) && !hasScheduledAppointment(project);
+    }
     return !projectMeasurementKeys(project).length
       && !hasMeaningfulProjectActivity(project);
   }
@@ -1429,9 +1435,11 @@
     );
     if (!measurementId || measurementId === cleanText(project.platform_project_id)) return project;
     try {
-      if (options.summaries && !options.summaries.has(measurementId)) return project;
-      const data = options.summaries ? { project: options.summaries.get(measurementId) }
-        : options.summaryOnly ? await readFirstMeasureSummary(measurementId) : await fmJson(`projects/${encodeURIComponent(measurementId)}`);
+      // The batched summary omits some ids (visibility filters, Full House ids); those read their own
+      // summary so an old order never keeps the status it had when it was placed.
+      const batched = options.summaries?.get(measurementId);
+      const data = batched ? { project: batched }
+        : (options.summaries || options.summaryOnly) ? await readFirstMeasureSummary(measurementId) : await fmJson(`projects/${encodeURIComponent(measurementId)}`);
       const fmProject = data?.project && typeof data.project === 'object' ? data.project : {};
       const manifest = fmProject?.manifest && typeof fmProject.manifest === 'object' ? fmProject.manifest : {};
       const files = Array.isArray(fmProject.files) ? fmProject.files : [];
@@ -1675,7 +1683,17 @@
     return base;
   }
 
+  // Platform projects exist only with expanded platform access. Without it the projects API refuses
+  // these writes, so FirstMeasure orders are listed directly instead of mirrored.
+  function platformExpandedAccess(){
+    const capabilities = window.Portal?.capabilities || window.PlatformAPI?.capabilities;
+    if (capabilities?.current?.()) return capabilities.value?.('platform.expanded_access', false) === true;
+    return APP.platformExpandedAssets === true;
+  }
+  window.Portal.platformExpandedAccess = platformExpandedAccess;
+
   async function savePlatformProjectFromFirstMeasure(project = {}, existingProject = {}){
+    if (!platformExpandedAccess()) return null;
     const orgId = cleanText(APP.userOrgId || APP.orgId);
     if (!orgId) return null;
     const base = platformProjectFromFirstMeasure(project, existingProject);
@@ -1849,10 +1867,10 @@
     if (!actor.email) return null;
 
     if (action === 'list_projects') {
-      const platformProjects = await listPlatformProjectCandidates().catch((error) => {
+      const platformProjects = platformExpandedAccess() ? await listPlatformProjectCandidates().catch((error) => {
         console.warn('Platform project list failed; falling back to FirstMeasure', error);
         return null;
-      });
+      }) : null;
       const platformList = Array.isArray(platformProjects) ? platformProjects : [];
       if (platformList.length) {
         const includeFirstMeasure = truthyField(fields.include_firstmeasure) || truthyField(fields.duplicate_check);
@@ -1880,6 +1898,8 @@
         []
       );
       const firstMeasureList = Array.isArray(firstMeasureProjects) ? firstMeasureProjects : [];
+      // Cache-only drafts at a listed order's address must not stand in for that order (1M8-234).
+      try { window.Portal.ProjectStore?.discardDraftsShadowingOrders?.(firstMeasureList); } catch (error) { console.warn('Draft cleanup failed', error); }
       let data;
       data = await projectPageFromCandidates(firstMeasureList, fields, { hydrateDetails: false });
       data.import_source = 'firstmeasure';
@@ -3542,6 +3562,21 @@
     requestAnimationFrame(() => panel.__updateAppScrollControls?.());
   }
 
+  /* Settings is offered only when it has a page for this person (1M8-236): one of their own pages that the organization has
+     switched on, or a page their permissions open. These are the gates of the sections in settings/company.js, which the
+     server enforces per section; until the session's permissions arrive Settings stays. */
+  const SETTINGS_PERMISSIONS = ['manage_company_settings', 'manage_company_users', 'manage_company_user_permissions', 'manage_report_settings', 'manage_billing', 'manage_payroll', 'manage_feed', 'manage_channels', 'view_platform_billing', 'manage_platform_billing'];
+  function settingsAvailable(){
+    const permissions = window.Portal?.currentUser?.permissions || {};
+    if (!Object.keys(permissions).length) return true;
+    if (SETTINGS_PERMISSIONS.some((key) => hasPerm(key))) return true;
+    const flags = window.Portal?.appFlags || window.PlatformAPI?.appFlags;
+    const on = (group, key) => flags?.has?.(group, key) === true || flags?.value?.(group, key, false) === true;
+    return on('platform', 'my_settings') || on('platform', 'left_column_settings') || on('apps', 'channels') || on('apps', 'notifications')
+      || on('apps', 'comms') || on('mobile', 'app_download')
+      || (on('apps', 'assistant') && ['use_assistant', 'view_projects', 'manage_projects'].some((key) => hasPerm(key)));
+  }
+
   function renderSidebarLaunchers(container, list = []){
     if (!container) return;
     container.__launcherAbort?.abort?.();
@@ -3562,7 +3597,7 @@
     const advancedMenu = advancedAppMenuEnabled();
     if (!advancedMenu && advancedAppMenuOpen) closeAdvancedAppMenu({ restoreFocus:false });
     const settingsTabId = ['company', 'settings'].join('_');
-    const settingsTab = list.find((tab) => tab.id === settingsTabId && tab.placement === 'settings');
+    const settingsTab = settingsAvailable() ? list.find((tab) => tab.id === settingsTabId && tab.placement === 'settings') : null;
     const capabilities = window.Portal?.capabilities || window.PlatformAPI?.capabilities;
     const flags = window.Portal?.appFlags || window.PlatformAPI?.appFlags;
     // The organization's sidebar footer layout (platform.sidebar_footer_layout): "stacked" keeps the account on its

@@ -4911,17 +4911,20 @@
     if (p?.has_meaningful_activity === true || p?.meaningful_activity === true) return true;
     const workflow = String(p?.workflow_state || '').trim().toLowerCase();
     if (['proposal_only', 'document_only', 'drafting_proposal', 'proposal_sent', 'newly_sold', 'measurement_ordered'].includes(workflow)) return true;
-    const populatedArrays = ['photos', 'documents', 'document_ids', 'material_lists', 'material_list_ids', 'work_plan_ids', 'todos', 'action_items'];
+    // Work plans are created automatically when a project starts a scope, so they are not activity.
+    const populatedArrays = ['photos', 'documents', 'document_ids', 'material_lists', 'material_list_ids', 'todos', 'action_items'];
     if (populatedArrays.some((key) => Array.isArray(p?.[key]) && p[key].length)) return true;
     const scope = p?.scope && typeof p.scope === 'object' ? p.scope : {};
     if ((Array.isArray(scope.root_items) && scope.root_items.length) || (Array.isArray(scope.pieces) && scope.pieces.length)) return true;
-    const workProjection = p?.work_projection && typeof p.work_projection === 'object' ? p.work_projection : {};
-    if (Array.isArray(workProjection.plans) && workProjection.plans.length) return true;
     return !!String(p?.project_notes || p?.notes || p?.tech_notes || '').trim();
   }
   function isDraftProject(p){
     const status = String(p?.status || p?.measurement_project?.status || p?.measurement?.status || p?.workflow_state || '').trim().toLowerCase();
     if (hasMeasurementOrder(p) && ['queued', 'processing', 'in_progress', 'awaiting_review', 'awaiting_manager_review', 'pending_rejection'].includes(status)) return false;
+    // A project saved as a draft stays one until it has an order, a proposal or an appointment.
+    if (String(p?.workflow_state || '').trim().toLowerCase() === 'draft') {
+      return !hasMeasurementOrder(p) && !hasProjectProposals(p) && !hasScheduledAppointment(p);
+    }
     return !hasMeasurementOrder(p) && !hasMeaningfulProjectActivity(p);
   }
 
@@ -6592,7 +6595,7 @@
         if (bodyMeta) bodyMeta.remove();
         const tileResident = tile.querySelector('.v-body .v-meta');
         const tileContact = resolveResidentFields(project);
-        if (tileResident) tileResident.innerHTML = `<i class="fas fa-user"></i> ${escapeHtml(tileContact.displayName || tileContact.name || 'N/A')}`;
+        if (tileResident) tileResident.innerHTML = `<i class="fas fa-user"></i> ${escapeHtml(tileContact.displayName || tileContact.name || (globalThis.PlatformLanguage?.text('projects','fm_contact_unavailable','Not provided') ?? 'Not provided'))}`;
       }
       const row = panelEl.querySelector(`.v-lrow[data-id="${CSS.escape(id)}"]`);
       if (row){
@@ -6615,7 +6618,7 @@
         const d = row.querySelector('[data-col="created_at"]');
         if (d) d.textContent = formatDate(project.created_at);
         const residentCols = row.querySelector('[data-col="resident"]')?.querySelectorAll('div');
-        if (residentCols?.[0]) residentCols[0].textContent = resident.displayName || resident.name || '\u2014';
+        if (residentCols?.[0]) residentCols[0].textContent = resident.name || '\u2014';
         row.querySelector('[data-col="resident"]')?.toggleAttribute('data-empty', !(resident.displayName || resident.name));
         if (residentCols?.[1]) residentCols[1].textContent = (resident.displayDetail || '').toString();
         const addr = row.querySelector('.v-laddr');
@@ -6822,6 +6825,8 @@
       const raw = localStorage.getItem('fm_org_theme_v1');
       const parsed = raw ? JSON.parse(raw) : null;
       if (!parsed || typeof parsed !== 'object') return null;
+      // Another account signed in on this browser may have written the cache.
+      if (String(parsed.orgId || '') !== String(window.__APP?.userOrgId || window.__APP?.orgId || '').trim()) return null;
       return {
         logo_url: portalBrandingAssetUrl(parsed.logo || ''),
         primary_color: typeof parsed.primary === 'string' ? parsed.primary.trim() : '',

@@ -42,7 +42,7 @@ test('report header uses four or five equal tabs and retains selection across pr
  assert.equal(await page.locator('#rMeasureTabs .active').getAttribute('data-tab'),'summary');
  await page.evaluate(()=>{context.tabs=context.tabs.filter(t=>t.id!=='docs');context.ordered=false;renderReportNavigation();});
  assert.equal(await page.locator('.flat-report-navigation').count(),0);
- assert.deepEqual(await page.evaluate(()=>reportHeaderTabs([{id:'map'},{id:'measurements'}],[...measurementTabs(),{id:'model'},{id:'xml'}],true).map(t=>t.id)),['project:map','summary','standard','customer']);
+ assert.deepEqual(await page.evaluate(()=>reportHeaderTabs([{id:'map'},{id:'measurements'}],[...measurementTabs(),{id:'model'},{id:'xml'}],true).map(t=>t.id)),['project:map','summary','standard','customer','xml']);
  assert.equal(await page.evaluate(()=>reportHeaderTabs([{id:'map'},{id:'measurements'}],[...measurementTabs(),{id:'weather'}],true)),null);
  await page.close();
  }}finally{await browser.close();}
@@ -57,9 +57,9 @@ test('mobile opening header has final tabs and no desktop pills before child boo
  await page.goto('https://shell.test/');
  await page.evaluate(()=>{window.Portal={modules:{request:{openingHeader:()=>({title:'Test roof',identityHtml:'Test roof',pillsHtml:'<button>Residential</button>'})}}};});
  await page.addScriptTag({content:await load('public/portal/scripts/project_viewer.js')});
- const start=shell.indexOf('  function openingProjectTabs(');
+ const start=shell.indexOf('  function projectReportOrderExists(');
  await page.evaluate(()=>{window.projectViewerTabs=()=>[{id:'map'},{id:'measurements'}];window.weatherReportsEnabled=()=>false;window.reportFollowupEnabled=()=>false;window.appFeatureEnabled=()=>true;});
- await page.addScriptTag({content:shell.slice(start,shell.indexOf('\n  }',start)+4)+'\nPortal.modules.request.openingTabs=openingProjectTabs;'});
+ await page.addScriptTag({content:shell.slice(start,shell.indexOf('\n  }',shell.indexOf('  function openingProjectTabs(',start))+4)+'\nPortal.modules.request.openingTabs=openingProjectTabs;'});
  for(const file of ['window-manager.js','window-shell.js','project-windows.js'])await page.addScriptTag({content:await load('public/libraries/window-manager/'+file)});
  const initial=await page.evaluate(()=>{
   window.record=FirstMateProjectWindows.open({id:'project_test',status:'processing'},{tab:'measurements'});
@@ -80,7 +80,7 @@ test('mobile opening header has final tabs and no desktop pills before child boo
  await page.evaluate(()=>FirstMateProjectWindows.close(record.token));
  await page.evaluate(()=>{
   document.body.innerHTML='<div id="rOverlay"><header class="r-modal-header"><nav id="rProjectViewerTabs"></nav></header></div>';
-  window.$=selector=>document.querySelector(selector);window.activeBaseProject={id:'project_test',status:'processing'};window.activePreviewTab='measurements';window.requestedWorkflow='project';
+  window.$=selector=>document.querySelector(selector);window.projectMeasurementsModule=()=>null;window.activeBaseProject={id:'project_test',status:'processing'};window.activePreviewTab='measurements';window.requestedWorkflow='project';
  });
  const renderStart=shell.indexOf('  function renderOpeningReportTabs(');
  await page.addScriptTag({content:shell.slice(renderStart,shell.indexOf('\n  }',renderStart)+4)+'\nrenderOpeningReportTabs();'});

@@ -1,4 +1,9 @@
 import { mutatePlatformConfiguration } from "../platform/storage.js";
+import { countryCode } from "../commerce/regions.js";
+import { countryRecord, organizationCountry, orderPropertyCountry, saveOrganizationCountry } from "../platform/organization_country.js";
+import { profileFromGlobal } from "../commerce/profile.js";
+import { commercialProfileLock, reassignCommercialProfile } from "../commerce/reassign.js";
+import { readCapabilityCountryRules, saveCapabilityCountryRules } from "../platform/capabilities.js";
 import { assignedTutorialCourses, hasTutorialCourse, OPTIONAL_TUTORIAL_COURSES } from "./tutorial_courses.js";
 import { assertFullHouseEligible, fullHouseEligible, isCustomerFullHouse, FULL_HOUSE_QUALITY_CATEGORIES } from '../firstmeasure/full_house_workflow.js';
 import { managerReviewCsv } from "./manager_review_export.js";
@@ -20,7 +25,7 @@ import { ZodError, z } from "zod";
 
 import { handleCommunicationsLegacyAction } from "../communications/api.js";
 import { getAppleKeyInfo, readAppleKeyStore, setAppleKey } from "../firstmeasure/apple.js";
-import { getFirstMeasureProjectIndexStatus, listIndexedProjectManifests, queryIndexedProjectManifests, readIndexedProjectManifestsByIds, rebuildFirstMeasureProjectIndex } from "../firstmeasure/project_index.js";
+import { getFirstMeasureProjectIndexStatus, listIndexedProjectManifests, queryIndexedProjectManifests, queryIndexedProjectManifestsByOrganization, readIndexedProjectManifestsByIds, rebuildFirstMeasureProjectIndex } from "../firstmeasure/project_index.js";
 import { getCurrentRushMode, listRushModes } from "../firstmeasure/rush.js";
 import { MANAGEMENT_TIME_ZONE, managementDateKey, managementDayBounds } from "../firstmeasure/reporting_time.js";
 import {
@@ -57,6 +62,8 @@ import {
   patchIdentity,
   readGlobal,
   mutateGlobal,
+  readDocument,
+  readIdentity,
   readOrganization,
   saveGlobal,
   upsertDocument
@@ -728,7 +735,7 @@ export const registerInternalApi: FastifyPluginAsync = async (app) => {
       const result = await paginatedOrganizationDashboard(query);
       return { ok: true, success: true, ...result };
     }
-    const organizations = compactOrganizationSummaries(await buildOrganizationSummaries(query));
+    const organizations = await compactOrganizationSummariesFor(query);
     return { ok: true, success: true, organizations, count: organizations.length };
   });
 
@@ -738,7 +745,7 @@ export const registerInternalApi: FastifyPluginAsync = async (app) => {
       const result = await paginatedOrganizationDashboard(query);
       return { ok: true, success: true, ...result };
     }
-    const organizations = compactOrganizationSummaries(await buildOrganizationSummaries(query));
+    const organizations = await compactOrganizationSummariesFor(query);
     const totals = organizations.reduce((acc, org) => {
       acc.credits_balance += Number(org.credits_balance || 0);
       acc.users += Number(org.user_count || 0);
@@ -756,6 +763,7 @@ export const registerInternalApi: FastifyPluginAsync = async (app) => {
     const body = objectSchema.parse(request.body ?? {});
     const manifestPatch = asObject(body.manifest ?? body.organization ?? body);
     const globalPatch = asObject(body.global);
+    if (globalPatch.commercial_profile !== undefined) throw forbidden("billing_profile_fixed", "Reassign the billing profile with the commercial profile action, which checks for credit history and Stripe charges.");
     const organization = Object.keys(manifestPatch).length ? await patchOrganization(orgId, manifestPatch) : await readOrganization(orgId);
     const global = Object.keys(globalPatch).length ? await saveGlobal(orgId, { data: globalPatch }) : await readGlobal(orgId);
     return { ok: true, success: true, organization, global };
@@ -794,6 +802,17 @@ export const registerInternalApi: FastifyPluginAsync = async (app) => {
   app.post("/bonus-offers/rollouts/:rolloutId/cancel", async (request) => {
     const body = objectSchema.parse(request.body ?? {});
     return await internalCancelBonusOfferRollout(param(request.params, "rolloutId"), body, actorFromRequest(request));
+  });
+
+  // 1M8-228: capability values for organizations by country of record (platform/capabilities.ts).
+  app.get("/admin/capability-country-rules", async (request) => {
+    await requireInternalFeatureFlagAdmin(request);
+    return { ok: true, success: true, rules: await readCapabilityCountryRules(true) };
+  });
+  app.put("/admin/capability-country-rules", async (request) => {
+    const actor = await requireInternalFeatureFlagAdmin(request);
+    const rules = await saveCapabilityCountryRules(objectSchema.parse(request.body ?? {}), cleanText(actor.email).toLowerCase());
+    return { ok: true, success: true, rules };
   });
 
   app.post("/admin/organizations/:orgId/app-flags", async (request) => {
@@ -1567,19 +1586,23 @@ async function startCustomerImpersonation(request: FastifyRequest, reply: Fastif
 
   const email = cleanText(body.email || body.user_email).toLowerCase();
   const requestedOrgId = cleanText(body.org_id || body.organization_id);
-  if (!email) return { ok: false, success: false, status_code: 400, error: "missing_user_email" };
+  const requestedUserId = cleanText(body.user_id);
+  if (!email && !(requestedOrgId && requestedUserId)) return { ok: false, success: false, status_code: 400, error: "missing_user_email" };
   // Acting as staff goes through /v1/internal/impersonation; this is for customer accounts.
   if (requestedOrgId && requestedOrgId.toLowerCase() === internalPlatformOrgId()) {
     return { ok: false, success: false, status_code: 403, error: "staff_impersonation_not_here" };
   }
 
-  const identity = await findIdentityByEmailOrNull(email);
+  // The user record's own identity link comes first: its email can differ from the sign-in email (1M8-248).
+  const identity = await impersonationIdentityForUser(requestedOrgId, requestedUserId) ?? (email ? await findIdentityByEmailOrNull(email) : null);
   if (!identity) return { ok: false, success: false, status_code: 404, error: "identity_not_found" };
 
   const memberships = await listIdentityMemberships(String(identity.id ?? "")).catch(() => []);
   const selected = memberships.find((entry) => {
     const organization = asObject(asObject(entry).organization);
-    return requestedOrgId ? cleanText(organization.id) === requestedOrgId : cleanText(organization.id) !== internalPlatformOrgId();
+    if (!requestedOrgId) return cleanText(organization.id) !== internalPlatformOrgId();
+    const user = asObject(asObject(entry).user);
+    return cleanText(organization.id) === requestedOrgId && (!requestedUserId || cleanText(user.id) === requestedUserId);
   }) ?? (requestedOrgId ? undefined : memberships[0]);
   if (!selected) return { ok: false, success: false, status_code: 404, error: "membership_not_found" };
 
@@ -1625,6 +1648,14 @@ async function startCustomerImpersonation(request: FastifyRequest, reply: Fastif
     admin_email: actorEmail,
     redirect_url: "/portal/"
   };
+}
+
+async function impersonationIdentityForUser(orgId: string, userId: string) {
+  if (!orgId || !userId) return null;
+  const document = await readDocument(orgId, "users", userId).catch(() => null);
+  if (!document) return null;
+  const identityId = cleanText(documentData(document).identity_id || asObject(document.metadata).identity_id);
+  return identityId ? await readIdentity(identityId).catch(() => null) : null;
 }
 
 async function adminRestorePlatformSessionId(request: FastifyRequest, adminUser: JsonObject, actor: JsonObject) {
@@ -3167,7 +3198,7 @@ async function handleTutorialLegacyAction(action: string, body: JsonObject, acto
 }
 
 async function buildInternalStats() {
-  const [users, organizations] = await Promise.all([listInternalUsers(), buildOrganizationSummaries({})]);
+  const [users, organizations] = await Promise.all([listInternalUsers(), compactOrganizationSummariesFor({})]);
   return {
     internal_users: users.length,
     trained_users: users.filter((user) => user.training_complete).length,
@@ -3229,6 +3260,8 @@ type OrganizationSummaryCacheEntry = {
 
 const ORGANIZATION_SUMMARY_CACHE_TTL_MS = 60_000;
 const organizationSummaryCache = new Map<string, OrganizationSummaryCacheEntry>();
+// One build per key at a time: concurrent staff requests share it instead of each loading every organization.
+const organizationSummaryInflight = new Map<string, Promise<{ organizations: JsonObject[]; totals: JsonObject }>>();
 
 type StatsCreditRevenueCacheEntry = {
   expiresAt: number;
@@ -3240,6 +3273,7 @@ const statsCreditRevenueCache = new Map<string, StatsCreditRevenueCacheEntry>();
 
 function clearOrganizationSummaryCache() {
   organizationSummaryCache.clear();
+  organizationSummaryInflight.clear();
 }
 
 function clearStatsCreditRevenueCache() {
@@ -3260,13 +3294,21 @@ async function compactCachedOrganizationSummaries(query: JsonObject) {
   if (cached && cached.expiresAt > Date.now()) {
     return { organizations: cached.organizations, totals: cached.totals, cached: true };
   }
-  const organizations = compactOrganizationSummaries(await buildOrganizationSummaries(query));
-  const totals = summarizeOrganizations(organizations);
-  organizationSummaryCache.set(key, {
-    expiresAt: Date.now() + ORGANIZATION_SUMMARY_CACHE_TTL_MS,
-    organizations,
-    totals
-  });
+  let build = organizationSummaryInflight.get(key);
+  if (!build) {
+    build = (async () => {
+      const organizations = await compactOrganizationSummariesFor(query);
+      const totals = summarizeOrganizations(organizations);
+      if (organizationSummaryInflight.get(key) === build) {
+        organizationSummaryCache.set(key, { expiresAt: Date.now() + ORGANIZATION_SUMMARY_CACHE_TTL_MS, organizations, totals });
+      }
+      return { organizations, totals };
+    })().finally(() => {
+      if (organizationSummaryInflight.get(key) === build) organizationSummaryInflight.delete(key);
+    });
+    organizationSummaryInflight.set(key, build);
+  }
+  const { organizations, totals } = await build;
   return { organizations, totals, cached: false };
 }
 
@@ -3328,6 +3370,11 @@ export function customerDashboardRowMatches(row: JsonObject, filters: JsonObject
     else if (column === "avgOrdersDay") haystack = String(row.avgOrdersDay ?? 0);
     else if (column === "credits") haystack = String(row.credits_balance ?? 0);
     else if (column === "salesperson") haystack = String(row.assigned_sales_name ?? row.assigned_sales_email ?? "Unassigned");
+    else if (column === "country") {
+      // An exact two-letter code matches only that country; otherwise match the code or name.
+      if (/^[a-z]{2}$/.test(needle)) { if (String(row.country ?? "").toLowerCase() === needle) continue; return false; }
+      haystack = `${String(row.country ?? "")} ${String(row.country_name ?? "")}`;
+    }
     else if (column === "created") {
       const created = row.created_at ? new Date(String(row.created_at)) : null;
       haystack = created && Number.isFinite(created.getTime())
@@ -3382,7 +3429,7 @@ async function organizationIdsMatchingCustomerEmail(orgIds: string[], needle: st
   return new Set(orgIds.filter((_, index) => matches[index]));
 }
 
-function sortCustomerDashboardRows(rows: JsonObject[], sortColumn: string, sortDirection: string) {
+export function sortCustomerDashboardRows(rows: JsonObject[], sortColumn: string, sortDirection: string) {
   const direction = sortDirection === "desc" ? -1 : 1;
   const numericColumns = new Set(["users", "lifetimeOrders", "rolling7", "avgOrdersDay", "credits", "created"]);
   return [...rows].sort((a, b) => {
@@ -3409,6 +3456,9 @@ function sortCustomerDashboardRows(rows: JsonObject[], sortColumn: string, sortD
     } else if (sortColumn === "created") {
       left = Date.parse(String(a.created_at ?? "")) || 0;
       right = Date.parse(String(b.created_at ?? "")) || 0;
+    } else if (sortColumn === "country") {
+      left = `${String(a.country_name ?? "zzzz")} ${String(a.name ?? "")}`.toLowerCase();
+      right = `${String(b.country_name ?? "zzzz")} ${String(b.name ?? "")}`.toLowerCase();
     } else {
       left = String(a.name ?? a.id ?? "").toLowerCase();
       right = String(b.name ?? b.id ?? "").toLowerCase();
@@ -3521,11 +3571,7 @@ async function paginatedOrganizationDashboard(query: JsonObject) {
     const totalPages = Math.max(1, Math.ceil(totalCount / pageSize));
     const page = Math.min(requestedPage, totalPages);
     const pageManifests = manifests.slice((page - 1) * pageSize, page * pageSize);
-    matchingRows = compactOrganizationSummaries(await mapCustomerOrganizationsWithConcurrency(
-      pageManifests,
-      16,
-      (org) => buildOrganizationSummaryRow(org, true)
-    ));
+    matchingRows = compactOrganizationSummaries(await buildOrganizationSummaryRows(pageManifests, true));
     totals = {
       organizations: totalCount,
       test_organizations: 0,
@@ -3642,22 +3688,32 @@ async function customerUsersExportPage(body: JsonObject) {
   return { ok: true, success: true, organizations, next_cursor };
 }
 
+type OrganizationSummaryRow = Awaited<ReturnType<typeof buildOrganizationSummaryRow>>;
+
 async function buildOrganizationSummaries(query: JsonObject) {
+  return await buildOrganizationSummariesAs(query, (row) => row);
+}
+
+/**
+ * Every organization's summary row, each passed through `transform` as soon as its batch is built. Full
+ * rows carry every project, user and ledger entry; holding all 11,000+ at once exhausted the
+ * compatibility workers' heap (1M8-225), so callers that only need compact rows compact per batch.
+ */
+async function buildOrganizationSummariesAs<T>(query: JsonObject, transform: (row: OrganizationSummaryRow) => T) {
   const search = String(query.q ?? query.search ?? "").trim().toLowerCase();
   const includeCredits = query.include_credits !== false && query.include_credits !== "0";
   const includeInternal = query.include_internal === true || query.include_internal === "1" || query.include_internal === "true";
   const internalOrgId = internalPlatformOrgId();
   const orgs = await listOrganizations();
   const visibleOrgs = orgs.filter((org) => includeInternal || String(org.id ?? "").toLowerCase() !== internalOrgId);
-  const rows = await mapCustomerOrganizationsWithConcurrency(
-    visibleOrgs,
-    16,
-    (org) => buildOrganizationSummaryRow(org, includeCredits)
-  );
-  return rows.filter((row) => {
-    if (!search) return true;
-    return `${row.id} ${row.name} ${row.sales_owner_email ?? ""}`.toLowerCase().includes(search);
+  return await buildOrganizationSummaryRows(visibleOrgs, includeCredits, (row) => {
+    if (search && !`${row.id} ${row.name} ${row.sales_owner_email ?? ""}`.toLowerCase().includes(search)) return null;
+    return transform(row);
   });
+}
+
+async function compactOrganizationSummariesFor(query: JsonObject) {
+  return await buildOrganizationSummariesAs(query, compactOrganizationSummary);
 }
 
 type OrganizationSummaryPreloadedData = {
@@ -3667,7 +3723,70 @@ type OrganizationSummaryPreloadedData = {
   indexedProjectRows: Awaited<ReturnType<typeof firstMeasureProjectRowsForOrg>>;
 };
 
-async function buildOrganizationSummaryRow(
+const ORGANIZATION_SUMMARY_PRELOAD_BATCH = 250;
+
+/**
+ * Summary rows for many organizations. In PostgreSQL each batch of organizations is read with two
+ * queries instead of about eight per organization: a 200-row customer page used to queue some 1,600
+ * reads on the compatibility host's four-connection pool (1M8-225). The rows are the same as
+ * buildOrganizationSummaryRow's own reads, except that a missing global document is not seeded
+ * (a summary only needs its empty data). If a batch read fails, its organizations fall back to the
+ * per-organization reads, which already treat a failed read as empty.
+ */
+export async function buildOrganizationSummaryRows(orgs: JsonObject[], includeCredits: boolean): Promise<OrganizationSummaryRow[]>;
+export async function buildOrganizationSummaryRows<T>(orgs: JsonObject[], includeCredits: boolean, transform: (row: OrganizationSummaryRow) => T | null): Promise<T[]>;
+export async function buildOrganizationSummaryRows<T>(orgs: JsonObject[], includeCredits: boolean, transform?: (row: OrganizationSummaryRow) => T | null) {
+  const rows: Array<T | OrganizationSummaryRow> = [];
+  for (let start = 0; start < orgs.length; start += ORGANIZATION_SUMMARY_PRELOAD_BATCH) {
+    const batch = orgs.slice(start, start + ORGANIZATION_SUMMARY_PRELOAD_BATCH);
+    const preloaded = await preloadOrganizationSummaryData(batch.map((org) => String(org.id ?? ""))).catch(() => null);
+    const built = await mapCustomerOrganizationsWithConcurrency(
+      batch,
+      16,
+      (org) => buildOrganizationSummaryRow(org, includeCredits, preloaded?.get(String(org.id ?? "")))
+    );
+    for (const row of built) {
+      const kept = transform ? transform(row) : row;
+      if (kept !== null) rows.push(kept);
+    }
+  }
+  return rows;
+}
+
+async function preloadOrganizationSummaryData(orgIds: string[]) {
+  const { isFirstMeasurePostgresEnabled, queryPostgres } = await import("../src/database/postgres.js");
+  const ids = [...new Set(orgIds.filter(Boolean))];
+  if (!isFirstMeasurePostgresEnabled() || !ids.length) return null;
+  // Same rows and order as readGlobal and listDocuments, without their per-call checks. listDocuments reads
+  // platform_documents_list_idx (organization_id, collection, updated_at DESC), which returns equal
+  // timestamps in heap order; ctid breaks ties the same way, so users and projects keep their order.
+  const [documents, manifests] = await Promise.all([
+    queryPostgres<{ organization_id: string; collection: string; document: JsonObject }>(`
+      SELECT organization_id, collection, document FROM platform_documents
+      WHERE organization_id = ANY($1::text[])
+        AND (collection IN ('users', 'projects') OR (collection = 'global' AND id = 'global'))
+      ORDER BY updated_at DESC, ctid
+    `, [ids]),
+    queryIndexedProjectManifestsByOrganization(ids, { limit: 20_000, includeInstantOnly: true })
+  ]);
+  const preloaded = new Map<string, OrganizationSummaryPreloadedData>(ids.map((id) => [id, {
+    global: null as unknown as OrganizationSummaryPreloadedData["global"],
+    users: [],
+    projects: [],
+    indexedProjectRows: (manifests.get(id) ?? []).map(firstMeasureManifestOrderRow)
+  }]));
+  for (const row of documents.rows) {
+    const entry = preloaded.get(row.organization_id);
+    if (!entry) continue;
+    const document = asObject(row.document);
+    if (row.collection === "global") entry.global = document as OrganizationSummaryPreloadedData["global"];
+    else if (row.collection === "users") entry.users.push(document as OrganizationSummaryPreloadedData["users"][number]);
+    else entry.projects.push(document as OrganizationSummaryPreloadedData["projects"][number]);
+  }
+  return preloaded;
+}
+
+export async function buildOrganizationSummaryRow(
   org: JsonObject,
   includeCredits: boolean,
   preloaded?: OrganizationSummaryPreloadedData
@@ -3744,7 +3863,8 @@ async function buildOrganizationSummaryRow(
       avgOrdersDay: Number((rolling7 / 7).toFixed(2)),
       last_active_rolling7: lastActiveRolling7,
       last_active_avg_orders_day: Number((lastActiveRolling7 / 7).toFixed(2)),
-      branding: organizationBrandingView(orgId, org, globalData)
+      branding: organizationBrandingView(orgId, org, globalData),
+      ...organizationCountry(globalData, projectRows)
     };
   } catch (error) {
     throw annotateError(error, {
@@ -4461,6 +4581,10 @@ function compactOrganizationSummary(row: JsonObject) {
     created_at: row.created_at ?? null,
     updated_at: row.updated_at ?? null,
     is_test: Boolean(row.is_test),
+    country: row.country ?? "",
+    country_name: row.country_name ?? "",
+    country_source: row.country_source ?? "",
+    currency: row.currency ?? "",
     sales_owner_email: row.sales_owner_email ?? null,
     assigned_sales_email: row.assigned_sales_email ?? null,
     assigned_sales_name: row.assigned_sales_name ?? "",
@@ -4529,9 +4653,13 @@ function compactOrder(order: unknown) {
     issuer: { email: data.issuer_email ?? issuer.email ?? "" },
     created_at: data.created_at ?? data.submitted_at ?? data.completed_at ?? data.updated_at ?? null,
     revenue: Number(data.revenue ?? data.amount_charged ?? 0) || 0,
+    property_country: orderPropertyCountry(data),
+    report_currency: String(data.report_currency ?? asObject(data.manifest).report_currency ?? ""),
     source: data.source ?? ""
   };
 }
+
+export { organizationCountry } from "../platform/organization_country.js";
 
 function compactLedgerEntry(entry: unknown) {
   const data = asObject(entry);
@@ -5189,6 +5317,30 @@ async function handleLegacyAction(app: FastifyInstance, body: JsonObject, reques
       const organization = await patchOrganization(orgId, { sales_owner_email: String(body.email ?? body.sales_owner_email ?? "").trim().toLowerCase() });
       clearOrganizationSummaryCache();
       return { ok: true, success: true, organization };
+    }
+    case "capability_country_rules_get": {
+      await requireInternalFeatureFlagAdmin(request);
+      return { ok: true, success: true, rules: await readCapabilityCountryRules(true) };
+    }
+    case "capability_country_rules_save": {
+      const admin = await requireInternalFeatureFlagAdmin(request);
+      const rules = await saveCapabilityCountryRules({ rules: parseJsonish(body.rules, []) }, cleanText(admin.email).toLowerCase());
+      return { ok: true, success: true, rules };
+    }
+    case "org_set_country": {
+      // 1M8-228: staff set an organization's country of record. Report pricing and currency follow while
+      // the organization has no credit history or Stripe charges; after that the billing profile is kept.
+      const orgId = String(body.org_id ?? "").trim();
+      const record = countryRecord(body.country, "staff", actor.email);
+      if (!orgId || !record) throw badRequest("invalid_country", "Choose a valid country.");
+      await readOrganization(orgId);
+      await saveOrganizationCountry(orgId, record);
+      const profile = profileFromGlobal(asObject((await readGlobal(orgId)).data));
+      const lock = await commercialProfileLock(orgId);
+      const billing = profile.country === record.code ? "unchanged" : lock ? "locked" : "reassigned";
+      if (billing === "reassigned") await reassignCommercialProfile(orgId, record.code, actor.email);
+      clearOrganizationSummaryCache();
+      return { ok: true, success: true, org_id: orgId, country: record, billing, billing_locked_reason: billing === "locked" ? lock : null };
     }
     case "org_set_test_flag": {
       const orgId = String(body.org_id ?? "").trim();
@@ -6979,6 +7131,8 @@ function firstMeasureManifestOrderRow(manifest: JsonObject) {
     revenue: manifest.amount_charged ?? 0,
     instant_enabled: manifest.instant_enabled ?? false,
     instant_only: manifest.instant_only ?? false,
+    property_country: manifest.report_property_country ?? "",
+    report_currency: manifest.report_currency ?? "",
     source: "firstmeasure_project_index",
     manifest
   };
@@ -7113,9 +7267,14 @@ function organizationUserView(document: JsonObject, projects: JsonObject[] = [])
   const items = asObject(orgPermissions.items ?? data.permissions);
   const stats = asObject(data.stats);
   const storedOrderCount = numberValue(data.orderCount ?? data.order_count ?? data.orders_count ?? stats.projects_ordered ?? stats.order_count, Number.NaN);
-  const orderCount = Number.isFinite(storedOrderCount) ? storedOrderCount : organizationUserOrderCount(data, projects);
+  // Signup stores stats.projects_ordered = 0 and nothing keeps it current, so a stored count is only a floor
+  // (legacy migration snapshots); the user's orders in this organization are counted (1M8-238).
+  const countedOrders = organizationUserOrderCount(data, projects);
+  const orderCount = Number.isFinite(storedOrderCount) ? Math.max(storedOrderCount, countedOrders) : countedOrders;
   return {
     ...data,
+    // The record id, which the Customers tab sends to impersonate this user (1M8-248).
+    id: cleanText(data.id) || cleanText(document.id),
     org_permissions: { level, items },
     org_permission_level: level,
     permission_level: level,

@@ -78,6 +78,17 @@ class ArtifactTests(unittest.TestCase):
                     artifact.install(file, m, root / 'releases')
                 self.assertEqual(list((root / 'releases').iterdir()), [])
 
+    def test_name_rules_allow_storage_code_modules_and_package_private_folders_only(self):
+        for name in ('public/v1/dist/src/storage/artifact_catalog.js', 'public/v1/dist/src/storage/storage_metrics.js',
+                     'public/v1/src/storage/artifact_catalog.ts', 'public/v1/node_modules/@bufbuild/protobuf/dist/esm/private/util.js'):
+            with self.subTest(allowed=name):
+                artifact.safe_name(name)
+        for name in ('public/v1/dist/src/storage/other.js', 'public/v1/storage/artifact_catalog.js', 'public/private/key.txt',
+                     'public/v1/dist/private/x.js', 'public/v1/node_modules/pkg/private/.env', 'public/v1/node_modules/pkg/private/server.pem',
+                     'public/v1/node_modules/pkg/storage/state.json', 'public/v1/node_modules/pkg/secrets/token.txt'):
+            with self.subTest(rejected=name), self.assertRaises(ValueError):
+                artifact.safe_name(name)
+
     def test_rejects_tampering_and_different_existing_release(self):
         with tempfile.TemporaryDirectory() as folder:
             root = Path(folder)

@@ -16,7 +16,8 @@ const operations = {
   customerReferralStatus: referrals.customerReferralStatus,
   publicAcquisitionLookup: referrals.publicAcquisitionLookup,
   publicReferralLookup: referrals.publicReferralLookup,
-  trackAcquisitionEvent: referrals.trackAcquisitionEvent
+  trackAcquisitionEvent: referrals.trackAcquisitionEvent,
+  trackAcquisitionEvents: referrals.trackAcquisitionEvents
 };
 type Operation = keyof typeof operations;
 type ServiceConfig = Pick<typeof env, "deploymentTopology" | "clusterNodeRole" | "legacyServiceUrl" | "legacyProxySecret">;
@@ -34,6 +35,11 @@ export function createReferralService(config: ServiceConfig, request = fetch) {
       body: JSON.stringify({ args }),
       signal: AbortSignal.timeout(15_000)
     });
+    if (response.status === 400) {
+      // The ledger refused the input itself: tell the caller, as a local call would, rather than report an outage.
+      const refusal = await response.json().catch(() => ({})) as { code?: unknown; message?: unknown };
+      throw new PlatformError(String(refusal.code || "invalid_request"), 400, String(refusal.message || "The request is not valid."));
+    }
     if (!response.ok) {
       // Never fall back to a node-local ledger. That appears successful while
       // silently dropping the advertised offer and splitting campaign totals.
@@ -50,7 +56,8 @@ export function createReferralService(config: ServiceConfig, request = fetch) {
     customerReferralStatus: wrap("customerReferralStatus"),
     publicAcquisitionLookup: wrap("publicAcquisitionLookup"),
     publicReferralLookup: wrap("publicReferralLookup"),
-    trackAcquisitionEvent: wrap("trackAcquisitionEvent")
+    trackAcquisitionEvent: wrap("trackAcquisitionEvent"),
+    trackAcquisitionEvents: wrap("trackAcquisitionEvents")
   };
 }
 
@@ -58,8 +65,10 @@ export const {
   acquisitionBonusOfferForCampaignToken, acquisitionBonusOfferForOrganization,
   acquisitionBonusQuoteForOrganization, completeAcquisitionSignup,
   customerReferralEvent, customerReferralStatus, publicAcquisitionLookup,
-  publicReferralLookup, trackAcquisitionEvent
+  publicReferralLookup, trackAcquisitionEvent, trackAcquisitionEvents
 } = createReferralService(env);
+
+export { ACQUISITION_EVENT_BATCH_LIMIT, acquisitionEventInputs } from "./referrals.js";
 
 export function referralServiceRoutes(secret: string): FastifyPluginAsync {
   return async (app) => {

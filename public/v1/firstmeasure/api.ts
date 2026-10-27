@@ -348,7 +348,7 @@ import {
 
 } from "../public-firstmeasure/billing.js";
 
-import { readBranchModule, readDocument, readGlobal, readOrganization, saveGlobal } from "../platform/storage.js";
+import { readBranchModule, readDocument, readGlobal, readMediaMetadata, readOrganization, saveGlobal } from "../platform/storage.js";
 
 import {
 
@@ -1125,7 +1125,12 @@ export const registerFirstMeasureApi: FastifyPluginAsync = async (app) => {
       else await processProjectImagery(projectId, asRecord(job.payload.input));
       return { processed: true };
     } catch (error) {
-      await patchManifest(projectId, imageryFailurePatch(error));
+      // An order whose imagery fails (including no Google height-map coverage) stays in the drafting queue for
+      // the technician to judge, as it did before imagery became a durable job. Only an explicit structure-pin
+      // request records the failure on the project and moves it to review.
+      if (job.payload.structure_pins === true) await patchManifest(projectId, imageryFailurePatch(error));
+      else console.warn(JSON.stringify({ event: "firstmeasure_order_imagery_failed", project_id: projectId,
+        code: String((error as { code?: string })?.code || ""), transient: isTransientProviderFailure(error) }));
       if (isTransientProviderFailure(error)) throw error;
       return { processed: false, needs_attention: true };
     }
@@ -2255,9 +2260,9 @@ export const registerFirstMeasureApi: FastifyPluginAsync = async (app) => {
 
     });
 
-    const result = await queryIndexedProjectManifests(query);
-
     const view = getProjectListView(input);
+
+    const result = await queryIndexedProjectManifests({ ...query, include_language_snapshot: view === "full" });
 
     return {
 
@@ -2390,6 +2395,9 @@ export const registerFirstMeasureApi: FastifyPluginAsync = async (app) => {
     const input = asRecord(request.body);
     if (input.refresh === true) {
       const auth = await requirePlatformAuth(request, { permission: 'view_reports' });
+      // A tab opened as another account (before a switch in another tab) must not list the active account's orders as its own.
+      const pageOrgId = String(asRecord(input.actor).organization_id || '').trim();
+      if (pageOrgId && pageOrgId !== auth.orgId) throw new FirstMeasureError('organization_forbidden', 403, 'This session cannot act on the requested organization.');
       input.actor = { email: String(auth.identity.email || ''), organization_id: auth.orgId,
         team_id: String(auth.user.team_id || auth.branchId || ''), roles: [] };
       input.filter = ['mine', 'org', 'team'].includes(String(input.filter)) ? input.filter : 'org';
@@ -2445,9 +2453,9 @@ export const registerFirstMeasureApi: FastifyPluginAsync = async (app) => {
 
     });
 
-    const result = await queryIndexedProjectManifests(query);
-
     const view = getProjectListView(input);
+
+    const result = await queryIndexedProjectManifests({ ...query, include_language_snapshot: view === "full" });
 
     return {
 
@@ -3657,7 +3665,9 @@ export const registerFirstMeasureApi: FastifyPluginAsync = async (app) => {
 
 
 
-  app.get("/projects/:id/artifacts/:name", async (request, reply) => {
+  // Artifacts are sent byte for byte: response compression would label an already-gzipped artifact (saved
+  // undo history) with the browser's preferred encoding without re-encoding it, and the download fails.
+  app.get("/projects/:id/artifacts/:name", { compress: false }, async (request, reply) => {
 
     await requireResourceAccess(request, getFileName(request.params));
 
@@ -21035,7 +21045,10 @@ function firstLogoValue(...sources: Array<Record<string, unknown>>) {
 
   }
 
-  return logos.find(isAbsoluteOrDataUrl) ?? logos[0];
+  // A site-rooted URL ("/v1/platform/organizations/<org>/media/<id>/logo") beats a legacy relative
+  // key ("organizations/<org>/logo.png"): imported accounts keep the key in their branch branding,
+  // and no production host has the file it names (1M8-242).
+  return logos.find(isAbsoluteOrDataUrl) ?? logos.find((logo) => logo.startsWith("/")) ?? logos[0];
 
 }
 
@@ -21453,6 +21466,15 @@ async function resolvePortalOrganizationLogo(logo: string | null | undefined, or
 
   }
 
+  // A legacy key whose file is gone: the import moved the logo into the organization's logo media slot.
+  if (!raw.startsWith("/")) {
+
+    const slotUrl = await organizationLogoSlotUrl(orgId);
+
+    if (slotUrl) return slotUrl;
+
+  }
+
 
 
   return raw;
@@ -21474,6 +21496,23 @@ async function readJsonIfExists(filePath: string) {
     return null;
 
   }
+
+}
+
+
+
+async function organizationLogoSlotUrl(orgId: string) {
+
+  const mediaId = `organization_${orgId}_logo`;
+
+  const metadata = await readMediaMetadata(orgId, mediaId).catch(() => null);
+
+  if (!metadata) return null;
+
+  // Only logo-slot media is served by the public logo route.
+  if (String(metadata.slot || asRecord(metadata.owner).slot || "") !== "logo") return null;
+
+  return `/v1/platform/organizations/${encodeURIComponent(orgId)}/media/${encodeURIComponent(mediaId)}/logo`;
 
 }
 
