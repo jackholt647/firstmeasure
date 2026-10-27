@@ -1074,8 +1074,15 @@ function perf_previewPaste(e,pointer=false){if(tool?.kind!=='paste'||!e||viewOf(
  // Pasted stickers on a wall draft preview as that wall with them installed, the
  // same as a slid sticker; elsewhere the preview stays as drawn before.
  function pasteLight(t,on){
-  const ref=t.ref,key=on&&t.valid&&overlayGestures()&&ref?.d?draftKey(ref.d):null;if(!key)return;
-  const draft=copy(ref.d);try{withDraftCopy(key,draft,()=>installInto(draft,t.preview.faces));t.light={key,draft};}catch(error){t.light=null;}
+  const ref=t.ref;if(!on||!t.valid||!overlayGestures()||!ref)return;
+  try{
+   if(ref.d){const key=draftKey(ref.d),draft=copy(ref.d);if(!key)return;withDraftCopy(key,draft,()=>installInto(draft,t.preview.faces));t.light={key,draft};return;}
+   // A standalone surface becomes a draft when stickers are placed on it (solidDraft); preview that on copies.
+   if(!ref.solid?.id)return;const id=ref.solid.id,key='solid:'+id,published=host.state().wallEdits,surfaces=(published.$surfaces||[]).map(f=>f.id===id?copy(f):f),surface=surfaces.find(f=>f.id===id);if(!surface)return;
+   const holder={...published.$drafts};let draft=null;
+   withDraftCopy(key,{},()=>{host.state().wallEdits.$drafts=holder;delete holder[key];draft=solidDraft(surface);installInto(draft,t.preview.faces);},surfaces);
+   t.light={key,draft,solid:id,surfaces};
+  }catch(error){t.light=null;}
  }
  function placePaste(e){previewPaste(e);const t=tool;if(!t?.valid||!t.preview)return true;try{const edits=host.state().wallEdits||={},prefix='paste-'+t.op,preview=pastedCurveIds(t.preview,prefix);
    if(!workingPlane&&preview.faces.length&&preview.faces.every(f=>f.feature)){installStickers(t.ref,preview.faces);window.ExteriorModel.validateEdits(edits,t.before);host.commit(t.before);tool=null;clearGuides();host.message('Stickers placed. T cycles trim for the selected group.');host.redraw();return true;}
@@ -2671,9 +2678,9 @@ function perf_movePointer(e){if(workingPlane&&!tool&&!box){mouse=e;if(workingPla
  function gestureDraftKey(){const t=tool;return host.drawsOverlay&&overlayGestures()&&t?.light&&(t.kind==='paste'||t.kind==='extrude'&&t.moveMode)?t.light.key:null;}
  const lengthMode=()=>host.state()?.lineLengthMode||(host.state()?.wallLengths===false?'off':'moving');
  // Run fn with one draft replaced, reading the composed walls of the published model.
- function withDraftCopy(key,draft,fn){
+ function withDraftCopy(key,draft,fn,surfaces=null){
   const state=host.state(),published=state.wallEdits,priorWalls=renderWalls;renderWalls=renderWalls||host.walls();
-  if(draft)state.wallEdits={...published,$drafts:{...published.$drafts,[key]:draft}};
+  if(draft)state.wallEdits={...published,...(surfaces?{$surfaces:surfaces}:{}),$drafts:{...published.$drafts,[key]:draft}};
   try{return fn();}finally{state.wallEdits=published;renderWalls=priorWalls;}
  }
  function drawGestureOverlay(group,vector){
@@ -2688,7 +2695,7 @@ function perf_movePointer(e){if(workingPlane&&!tool&&!box){mouse=e;if(workingPla
     if(!(typeof isFreeMove!=='undefined'&&isFreeMove)){if(t.kind==='extrude'&&!t.invalid&&t.previewCap)addGuides(group,vector,W.planeAlignmentGuides(t.previewCap.points,faceSlideTargets(t),t.moveFrame));if(t.kind==='paste'&&t.preview?.valid)addGuides(group,vector,t.preview.guides);}
     if(lengthMode()!=='all')drawLengths(group,vector);
    }finally{drawPass=false;drawFaceRefs=null;renderInputs=null;renderedDivisionTrim.clear();renderDividerIndex=null;renderDividers=null;renderOpenings=[];supportSnapshot=null;supportIndex=null;renderSegments=null;renderCacheActive=false;solidMeshes.length=kept;}
-  });
+  },t.light.surfaces);
  }
  function drawOverlay(group,vector){
   if(gestureDraftKey())return drawGestureOverlay(group,vector);
@@ -2723,7 +2730,7 @@ function perf_movePointer(e){if(workingPlane&&!tool&&!box){mouse=e;if(workingPla
   if(tool?.belowBase)for(const cut of tool.belowBase.cuts){const geo=new THREE.BufferGeometry().setFromPoints([...cut.points,cut.points[0]].map(vector)),line=new THREE.Line(geo,new THREE.LineDashedMaterial({color:'#fff',dashSize:.15,gapSize:.08,depthTest:false}));line.computeLineDistances();group.add(line);}
 
   for(const source of solids()){
-   if(!faceVisible(source))continue;
+   if(!faceVisible(source)||gestureDraftKey()&&tool.light.solid===source.id)continue;
    const parts=drawMemoized('solid-parts',source,()=>(chimneyParts(source)||[source]).flatMap(part=>window.ExteriorModel.cutOpenings(part,renderOpenings)).flatMap(part=>window.WallClosedSoffits?.presentation(part,host.state())||[part]),renderInputs);
    parts.forEach((f,index)=>{
     const draw=target=>{const before=solidMeshes.length;drawSolidPart(target,vector,source,f);return solidMeshes.splice(before);};
