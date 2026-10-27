@@ -152,6 +152,11 @@ every other suite is regression only. The list is `ALWAYS` in
 | `tests/session-replay-agent-access.test.ts` | 7.0 s | ok | regression |
 | `tests/forms-api.test.ts` | 34.4 s | ok | regression |
 | `tests/view-presence-client.test.mjs` | 0.8 s | ok | always |
+| `npm run test:payments` | 149.8 s | fails on the droplet | regression |
+| `npm run test:publication` | 185.5 s | fails on the droplet | regression |
+| `localization-catalogs --check` | 6.8 s | fails on the droplet | regression |
+| `root tests/live-layer.test.mjs` | 2.6 s | ok | regression |
+| `root tests/frontend-bridge.test.mjs` | 1.6 s | ok | always |
 
 A suite marked "fails on the droplet" also fails on canonical there (no Chrome, no PHP, or a
 pre-existing failure); the router does not count a failure the lane tip already has.
