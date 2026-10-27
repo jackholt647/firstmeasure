@@ -4,7 +4,7 @@ import {mkdtemp} from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 
-test('the MVP platform workflow is FirstMeasure plus projects, contacts, feed and the project tabs and trays, without scheduling',async()=>{
+test('the MVP platform workflow is FirstMeasure plus projects, contacts, feed, offered Money and Checklists, and the project tabs and trays, without scheduling',async()=>{
  const root=await mkdtemp(path.join(os.tmpdir(),'fm-sandbox-mvp-'));
  Object.assign(process.env,{FIRSTMATE_ENV:'development',FIRSTMEASURE_DATA_ENVIRONMENT:'development',FIRSTMEASURE_DATABASE_MODE:'sqlite',PLATFORM_STORAGE_ROOT:path.join(root,'platform'),SIGNUP_SANDBOX_STORAGE_ROOT:path.join(root,'sandbox'),PLATFORM_SESSION_SECRET:'isolated-sandbox-mvp-platform-test-secret',FIRSTMEASURE_STORAGE_ROOT:path.join(root,'firstmeasure'),FIRSTMEASURE_INDEX_DB_PATH:path.join(root,'firstmeasure-index.sqlite')});
  // No capability modules are loaded here: the configuration registers the ones it turns off itself, whichever
@@ -41,8 +41,22 @@ test('the MVP platform workflow is FirstMeasure plus projects, contacts, feed an
  const instance=await service.createTestInstance('swf_mvp_platform',{label:'MVP platform fixture'});
  const orgId=String(instance.testOrg.org_id);
  const offered=await storage.readGlobal(orgId);
- assert.deepEqual((offered.data as any).app_offers,['project.photos','project.docs','project.customer_portal','project.materials','portal.equipment']);
+ assert.deepEqual((offered.data as any).app_offers,['project.photos','project.docs','project.customer_portal','project.materials','portal.equipment','project.money','portal.financials','project.checklists']);
  const beforeStart=await capabilities.effectiveCapabilities(orgId);
+ // Money (its project tab and Financials) and Checklists are configured on but wait for Get Started.
+ for(const key of ['platform.money','money.profitability','money.take_payment','apps.checklists']) assert.equal(beforeStart.effectiveByKey[key],false,`${key} waits for Get Started`);
+ // Merchant processing stays off until Money's setup starts it, so no payments onboarding banner shows before then.
+ assert.equal((workflow!.defaults as any).app_flags['money.merchant_processing'],false);
+ const {computeMoneyOnboardingEntries}=await import('../payments/onboarding_attention.js');
+ assert.deepEqual(await computeMoneyOnboardingEntries(orgId),[]);
+ const ownerBefore:any=(await storage.listDocuments(orgId,'users')).find((row:any)=>row.data?.role==='owner');
+ const accessState=await capabilities.capabilityAccessState(orgId,ownerBefore.id);
+ const offeredProfile=await (await import('../workforce/access.js')).resolveAccessProfile(orgId,{...ownerBefore.data,id:ownerBefore.id},{effectiveByKey:accessState.capabilities.effectiveByKey,offeredAppIds:accessState.offeredAppIds});
+ for(const id of ['project.money','portal.financials','project.checklists']){
+  const entitlement:any=offeredProfile.app_entitlements_by_id[id];
+  assert.equal(entitlement?.offered,true,`${id} is offered`);assert.equal(entitlement?.allowed,true,`${id} is shown to the owner`);
+ }
+ assert.equal((offeredProfile.app_entitlements_by_id['project.money'] as any).welcome.setup,'platform.money','Money continues into its setup');
  assert.equal(beforeStart.effectiveByKey['platform.photos_feed'],true,'Feed is available at MVP launch');
  assert.equal(beforeStart.effectiveByKey['platform.project_photos'],false,'project Photos waits for Get Started');
  assert.equal(beforeStart.effectiveByKey['apps.equipment'],false,'Equipment is only offered until setup is chosen');
@@ -51,9 +65,9 @@ test('the MVP platform workflow is FirstMeasure plus projects, contacts, feed an
  await storage.mutateGlobal(orgId,current=>{current.data={...(current.data as Record<string,unknown>),app_offers:[]};return current;});
  instance.authContext=await (await import('../platform/auth.js')).buildAuthContext(instance.authContext.sessionId,instance.authContext.session);
  const {effectiveByKey}=await capabilities.effectiveCapabilities(orgId);
- const on=['platform.more_apps','platform.advanced_app_menu','firstmeasure.exteriors','platform.top_bar','topbar.global_search','topbar.notifications','platform.expanded_access','apps.projects','apps.project_map','platform.project_stages_view','platform.contacts','platform.photos_feed','platform.project_photos','platform.customer_portal','platform.materials','platform.documents','apps.firstmeasure','firstmeasure.report_orders','apps.assistant','channels.project_notes','apps.equipment'];
+ const on=['platform.money','money.profitability','apps.checklists','platform.more_apps','platform.advanced_app_menu','firstmeasure.exteriors','platform.top_bar','topbar.global_search','topbar.notifications','platform.expanded_access','apps.projects','apps.project_map','platform.project_stages_view','platform.contacts','platform.photos_feed','platform.project_photos','platform.customer_portal','platform.materials','platform.documents','apps.firstmeasure','firstmeasure.report_orders','apps.assistant','channels.project_notes','apps.equipment'];
  for(const key of on) assert.equal(effectiveByKey[key],true,key);
- const off=['topbar.messages','customer_portal.guest_links','platform.project_assignments','topbar.todos','channels.project_messages_tray','platform.scheduling','scheduling.gantt','apps.crm','apps.stats','apps.payroll','apps.training','apps.sales','platform.money','apps.comms','apps.live_chat','assistant.actions','apps.checklists'];
+ const off=['topbar.messages','customer_portal.guest_links','platform.project_assignments','topbar.todos','channels.project_messages_tray','platform.scheduling','scheduling.gantt','apps.crm','apps.stats','apps.payroll','apps.training','apps.sales','apps.comms','apps.live_chat','assistant.actions','money.merchant_processing','money.invoices'];
  for(const key of off) assert.notEqual(effectiveByKey[key],true,key);
  // Accepting Equipment enables its standard fixed feature set; the main Scheduling app remains off.
  assert.equal(effectiveByKey['equipment.scheduling'],true);
@@ -68,8 +82,8 @@ test('the MVP platform workflow is FirstMeasure plus projects, contacts, feed an
  // apps.crew and platform.people_access are on for testing for now (mvp-platform.ts).
  const global=await storage.readGlobal(orgId);
  assert.deepEqual((global.data as any).app_placements,{'portal.channels':'hidden','portal.assistant':'hidden'});
- // Project tabs: Overview, Reports, Photos, Docs, Project (called Materials) and Customer Portal; Photos and Docs are New.
- const projectTabs={order:['project.map','project.measurements','project.photos','project.docs','project.materials','project.customer_portal'],pills:{'project.photos':'new','project.docs':'new','project.materials':'new','project.customer_portal':'new'}};
+ // Project tabs: Photos (first, so the window opens on it), Docs, Operations, Customer Portal, Money and Checklists.
+ const projectTabs={order:['project.photos','project.docs','project.materials','project.customer_portal','project.money','project.checklists'],pills:{'project.photos':'new','project.docs':'new','project.materials':'new','project.customer_portal':'new'}};
  assert.deepEqual((global.data as any).project_tabs,projectTabs);
  const {appFlagState}=await import('../platform/app_flags.js');
  assert.deepEqual((await appFlagState(orgId)).project_tabs,projectTabs);
@@ -84,7 +98,7 @@ test('the MVP platform workflow is FirstMeasure plus projects, contacts, feed an
  const roofing=await scopes.readScopeTemplate(orgId,'default','generic_roofing');
  assert.deepEqual((roofing as any).definition?.measurement_schema_ids ?? (roofing as any).measurement_schema_ids,['roofing']);
  assert.equal(String((await creation.creationScopeTemplate(orgId,'default')).id),'generic_roofing');
- assert.equal((workflow as any).dev_bar,false);assert.equal((workflow as any).configuration_revision,21);
+ assert.equal((workflow as any).dev_bar,false);assert.equal((workflow as any).configuration_revision,22);
  const resolved=(await capabilities.effectiveCapabilities(orgId)).values as any;
  assert.equal(resolved['platform.new_button_mode'],'selector');assert.equal(resolved['platform.new_button_items'],'report,project,contact');
  // The left column's footer is stacked: the account on its own row, named explicitly as well as being the default.
@@ -152,17 +166,25 @@ test('the MVP platform workflow is FirstMeasure plus projects, contacts, feed an
  const access=await import('../workforce/access.js');
  const roles=(await access.listAccessRoles(orgId)).filter((role:any)=>role.status!=='archived');
  assert.ok(roles.length>0);
- for(const role of roles as any[]) assert.equal(role.app_defaults?.['portal.viewer']?.options?.map_first,true,String(role.id));
+ for(const role of roles as any[]){
+  assert.equal(role.app_defaults?.['portal.viewer']?.options?.map_first,true,String(role.id));
+  // Overview and Reports are not project window tabs here; the people still have them (report ordering, its routes).
+  for(const app of ['project.map','project.measurements']) assert.equal(role.app_defaults?.[app]?.options?.tab,false,`${role.id} ${app}`);
+ }
  // The tester is the owner, with the Super admin role like a real signup's owner, so the role's map_first reaches them.
  const owner:any=(await storage.listDocuments(orgId,'users')).find((row:any)=>row.data?.role==='owner');
  const profile=await access.resolveAccessProfile(orgId,{...owner.data,id:owner.id});
  assert.deepEqual(profile.access_role_ids,['super_admin']);
  assert.equal(profile.app_entitlements_by_id['portal.viewer']?.option_values.map_first,true);
+ for(const app of ['project.map','project.measurements']){
+  const entitlement:any=profile.app_entitlements_by_id[app];
+  assert.equal(entitlement?.allowed,true,`${app} stays available`);assert.equal(entitlement.params.show_as_tab,false,`${app} is not a tab`);
+ }
  // After accepting the offers, their main view includes Equipment, My Projects, My Contacts and Feed: the portal tabs they have, less those hidden by placement,
  // Settings (its own control) and Pricebook (opened full screen from the Apps overlay and Settings).
  const placements=(global.data as any).app_placements||{};
  const tabs=profile.app_entitlements.filter((app:any)=>app.surface==='portal_tab'&&app.allowed);
- assert.deepEqual(tabs.filter((app:any)=>placements[app.id]!=='hidden'&&app.launcher!==false&&app.id!=='portal.pricebook').map((app:any)=>app.title).sort(),['Equipment','Feed','My Contacts','My Projects']);
+ assert.deepEqual(tabs.filter((app:any)=>placements[app.id]!=='hidden'&&app.launcher!==false&&app.id!=='portal.pricebook').map((app:any)=>app.title).sort(),['Equipment','Feed','Financials','My Contacts','My Projects']);
  assert.ok(tabs.some((app:any)=>app.id==='portal.pricebook'));
  assert.ok(!tabs.some((app:any)=>app.id==='portal.chat'),'no Communications or Call center');
  // A launched MVP test org starts with no sample projects or customers: they come only from "Add sample data".

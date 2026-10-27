@@ -96,6 +96,14 @@ const contactView = (id: string, title: string, icon: string, order: number, sou
   id, title, icon, order, surface: "contact_modal", description: "", default_visible: true, ...source
 });
 
+/**
+ * Whether a project window view is a tab in the window's tab strip. Off, the person still has the app (its routes and
+ * data), and the window uses it where it is needed without offering it as a tab.
+ */
+const projectWindowTabOption = (note: string): AppOptionDefinition => ({
+  key: "tab", label: "Project window tab", description: `Shows this view as a tab in the project window. ${note}`, default: true, param: "show_as_tab"
+});
+
 const APP_SOURCE: AppSource[] = [
   // Portal tabs.
   tab("portal.viewer", "My Projects", "fa-briefcase", 10, {
@@ -154,7 +162,7 @@ const APP_SOURCE: AppSource[] = [
   tab("portal.sales_earnings", "Earnings", "fa-wallet", 30, { terminology_key: "earnings.sales_portal_tab", description: "Your commission earnings: pending, paid, and per deal.", capabilities: ["payroll.self_service_earnings"], default_visible: false, default_params: { mode: "sales", subject_scope: "mine", presentation: "commissions", projected_enabled: false }, parameter_permissions: { projected_enabled: PAYROLL_PERMISSION_KEYS.view_own_projected_earnings }, layout: PORTAL_LAYOUT }),
 
   // Project window views.
-  projectView("project.map", "Project Overview", "fa-map-location-dot", 10, { terminology_key: "projects.overview_tab", description: "Project overview, property, and map details.", capabilities: ["apps.project_map"] }),
+  projectView("project.map", "Project Overview", "fa-map-location-dot", 10, { terminology_key: "projects.overview_tab", description: "Project overview, property, and map details.", capabilities: ["apps.project_map"], options: [projectWindowTabOption("Overview's map is still where a report order's pins are placed.")] }),
   projectView("project.photos", "Project Photos", "fa-images", 20, { terminology_key: "photos.project_tab", description: "Photos associated with the project.", capabilities: ["platform.project_photos"] }),
   projectView("project.proposal", "Project Proposals", "fa-file-signature", 30, { terminology_key: "proposals.project_tab", description: "Proposals and customer approvals for the project.", capabilities: ["platform.proposals"] }),
   projectView("project.docs", "Project Docs", "fa-folder-open", 40, { terminology_key: "documents.project_tab", description: "Documents associated with the project.", capabilities: ["platform.project_docs", "platform.documents"] }),
@@ -164,7 +172,7 @@ const APP_SOURCE: AppSource[] = [
   projectView("project.comms", "Comms", "fa-comments", 65, { terminology_key: "comms.project_tab", description: "Calls, texts and email with the customer.", capabilities: ["apps.comms"] }),
   projectView("project.customer_portal", "Customer Portal", "fa-user-lock", 70, { terminology_key: "customer_portal.project_tab", description: "Customer-facing project portal configuration and preview.", capabilities: ["platform.customer_portal"] }),
   projectView("project.schedule", "Project Schedule", "fa-calendar-days", 80, { terminology_key: "scheduling.project_tab", description: "Scheduling and assigned work for this project.", capabilities: ["platform.scheduling"] }),
-  projectView("project.measurements", "Reports", "fa-ruler-combined", 90, { terminology_key: "reports.project_tab", description: "Measurements and report ordering for this project.", capabilities: ["apps.firstmeasure"] }),
+  projectView("project.measurements", "Reports", "fa-ruler-combined", 90, { terminology_key: "reports.project_tab", description: "Measurements and report ordering for this project.", capabilities: ["apps.firstmeasure"], options: [projectWindowTabOption("Reports and report ordering stay available in the project details.")] }),
   projectView("project.checklists", "Checklists", "fa-list-check", 95, { terminology_key: "checklists.project_tab", description: "Review and manage every checklist for this project, including who completed each item.", capabilities: ["apps.checklists"], default_params: { mode: "manage" } }),
   projectView("project.crew_overview", "Visit", "fa-house", 10, { terminology_key: "crew.overview_tab", description: "The workflow for a scheduled visit.", capabilities: ["apps.crew"], default_visible: false, default_home: true, default_params: { mode: "crew" }, layout: PROJECT_LAYOUT }),
   projectView("project.sales_overview", "Sales Visit", "fa-house", 11, { terminology_key: "sales.overview_tab", description: "Customer, appointments, follow-ups, and notes for a sale.", capabilities: ["apps.sales"], default_visible: false, default_home: true, default_params: { mode: "sales" }, layout: PROJECT_LAYOUT }),

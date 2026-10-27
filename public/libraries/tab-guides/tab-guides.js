@@ -46,11 +46,16 @@
 
   const css = `
     .pv-tab-badge.pv-tab-badge--new{background:#e8f5ee;color:#0f6b3a;border-color:#9bd3b3}
-    .pv-tab-badge.pv-tab-badge--coming_soon{background:#fff0cb;color:#794c00;border-color:#f2ca72}
+    .pv-tab-badge.pv-tab-badge--coming_soon,.pv-tab-badge.pv-tab-badge--setup{background:#fff0cb;color:#794c00;border-color:#f2ca72}
     .icon-only .pv-tab-badge--new,
     .r-overlay.entitlement-tab-icons .r-tab .pv-tab-badge--new,
     .r-overlay.mobile-info-navigation:not(.mobile-order) .r-tab .pv-tab-badge--new,
-    .r-overlay.window-managed .r-header-icons .r-tab .pv-tab-badge--new{font-size:0!important;width:8px;height:8px;min-width:8px;padding:0;margin-left:-4px;align-self:flex-start;margin-top:-2px;background:#16a34a;border:2px solid #fff;box-sizing:content-box}
+    .r-overlay.window-managed .r-header-icons .r-tab .pv-tab-badge--new,
+    .icon-only .pv-tab-badge--setup,
+    .r-overlay.entitlement-tab-icons .r-tab .pv-tab-badge--setup,
+    .r-overlay.mobile-info-navigation:not(.mobile-order) .r-tab .pv-tab-badge--setup,
+    .r-overlay.window-managed .r-header-icons .r-tab .pv-tab-badge--setup{font-size:0!important;width:8px;height:8px;min-width:8px;padding:0;margin-left:-4px;align-self:flex-start;margin-top:-2px;background:#16a34a;border:2px solid #fff;box-sizing:content-box}
+    .icon-only .pv-tab-badge--setup,.r-overlay.entitlement-tab-icons .r-tab .pv-tab-badge--setup,.r-overlay.mobile-info-navigation:not(.mobile-order) .r-tab .pv-tab-badge--setup,.r-overlay.window-managed .r-header-icons .r-tab .pv-tab-badge--setup{background:#d97706}
     .fm-tab-help{position:absolute;left:12px;bottom:12px;z-index:40;width:30px;height:30px;border-radius:50%;border:1px solid rgba(15,23,42,.14);background:rgba(255,255,255,.94);color:#475467;display:inline-flex;align-items:center;justify-content:center;font-size:14px;cursor:pointer;box-shadow:0 6px 18px rgba(15,23,42,.12)}
     .fm-tab-help:hover{color:#101828;background:#fff}
     .fm-tab-help:focus-visible{outline:2px solid var(--primary,#d93025);outline-offset:2px}
@@ -124,6 +129,8 @@
   function pill(appId){
     const id = lower(appId);
     if (offered(id)) return { kind:'new', label:text('tg_pill_new', 'New') };
+    // Started, but its required setup (Money's payments onboarding) is not finished.
+    if (root.Portal?.appSetup?.pendingFor?.(id)) return { kind:'setup', label:text('tg_pill_setup_required', 'Setup required') };
     const kind = lower(settings().pills[id]).replace(/[\s-]+/g, '_');
     if (kind === 'new') return hasSeen(SEEN_TABS, id) ? null : { kind:'new', label:text('tg_pill_new', 'New') };
     if (kind === 'coming_soon') return { kind:'coming_soon', label:text('tg_pill_coming_soon', 'Coming soon') };

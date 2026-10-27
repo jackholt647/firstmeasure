@@ -9,11 +9,22 @@ export const APP_OFFERS = {
   "project.docs": ["platform.project_docs", "platform.documents"],
   "project.customer_portal": ["platform.customer_portal"],
   "project.materials": ["platform.materials"],
-  "portal.equipment": ["apps.equipment"]
+  "portal.equipment": ["apps.equipment"],
+  // Money's project tab and its Financials page are one app: offers with the same switches start together.
+  "project.money": ["platform.money"],
+  "portal.financials": ["platform.money"],
+  "project.checklists": ["apps.checklists"]
 } as const;
 
 export type OfferedAppId = keyof typeof APP_OFFERS;
-export const NEW_ORGANIZATION_APP_OFFERS = Object.keys(APP_OFFERS) as OfferedAppId[];
+/** What every new organization starts with. A signup sandbox configuration may name its own list (settings.app_offers). */
+export const NEW_ORGANIZATION_APP_OFFERS: OfferedAppId[] = ["project.photos", "project.docs", "project.customer_portal", "project.materials", "portal.equipment"];
+
+/** Offers that start together with this one: the same switches are the same app. */
+export function offerSiblings(id: OfferedAppId): OfferedAppId[] {
+  const switches = [...APP_OFFERS[id]].sort().join(",");
+  return (Object.keys(APP_OFFERS) as OfferedAppId[]).filter((other) => [...APP_OFFERS[other]].sort().join(",") === switches);
+}
 
 /**
  * An offer that only makes sense after another app is set up. It is advertised
@@ -67,7 +78,25 @@ export const APP_WELCOMES = {
     headline: copy("operations_headline", "Turn your scope into a plan."),
     description: copy("operations_description", "Bring measurements, materials, work orders and equipment together. Start with what the job needs, then get everything ready to do the work."),
     benefits: [copy("operations_b1", "Build material lists from your project scope"), copy("operations_b2", "Plan work orders and who will do the work"), copy("operations_b3", "Match equipment to the project's requirements")],
-    caption: copy("operations_caption", "One scope. Everything you need to get it done.") }
+    caption: copy("operations_caption", "One scope. Everything you need to get it done.") },
+  // `setup`: the switch whose required setup workflow Get Started continues into (app-setup-workflows.js).
+  "project.money": { theme: "money", setup: "platform.money", setup_note: copy("money_setup_note", "Get Started begins with payments onboarding."),
+    eyebrow: copy("money_name", "Money"),
+    headline: copy("money_headline", "Get paid for every job."),
+    description: copy("money_description", "See what each project has billed, collected and spent, and take payments from customers right from the project."),
+    benefits: [copy("money_b1", "Take card and bank payments from customers"), copy("money_b2", "Follow payments, expenses and profit on every project"), copy("money_b3", "Set payment schedules that match the work")],
+    caption: copy("money_caption", "Every project's money, in one place.") },
+  "portal.financials": { theme: "money", setup: "platform.money", setup_note: copy("money_setup_note", "Get Started begins with payments onboarding."),
+    eyebrow: copy("financials_name", "Financials"),
+    headline: copy("financials_headline", "Know where your business stands."),
+    description: copy("financials_description", "Profit, revenue and cash flow across all of your projects, built from the payments and expenses you already record."),
+    benefits: [copy("financials_b1", "See profit on every project"), copy("financials_b2", "Follow revenue and what is still owed"), copy("financials_b3", "Look ahead with cash flow forecasts")],
+    caption: copy("financials_caption", "Your numbers, without the spreadsheet.") },
+  "project.checklists": { theme: "checklists", eyebrow: copy("checklists_name", "Checklists"),
+    headline: copy("checklists_headline", "Every step. Done right."),
+    description: copy("checklists_description", "Give each job the checklists it needs and see who completed each item, and when."),
+    benefits: [copy("checklists_b1", "Build checklists for the work you repeat"), copy("checklists_b2", "See who completed each item"), copy("checklists_b3", "Review finished work before you sign off")],
+    caption: copy("checklists_caption", "Nothing missed on the job.") }
 } as const;
 
 /** Ignore unrecognized stored values, rather than allowing them to mask other features. */

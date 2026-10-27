@@ -4871,7 +4871,8 @@ window.PlatformCommerce.onReady(async function(){
       const fresh=detailsTrayProjectKey===null || !projectOpenId();
       detailsTrayProjectKey=key;detailsTrayUserChoice=false;
       let remembered='';try{remembered=localStorage.getItem(DETAILS_TRAY_PREF)||'';}catch{}
-      setDetailsTrayOpen(!projectOpenId() || workflow || (fresh && remembered==='open') || remembered==='open');
+      setDetailsTrayOpen(!projectOpenId() || workflow || detailsTrayAsked || (fresh && remembered==='open') || remembered==='open');
+      detailsTrayAsked=false;
     }else if(workflow && !detailsTrayOpen && !detailsTrayUserChoice)setDetailsTrayOpen(true);
     placeOverviewDetails();
     syncTrayMeasurements();
@@ -7402,6 +7403,13 @@ window.PlatformCommerce.onReady(async function(){
     // Docs consolidation aliases: the retired standalone Documents tab and the
     // deprecated Proposals tab both land on the unified Docs tab.
     if (!allowed.includes(tab) && ['documents', 'proposal'].includes(tab) && allowed.includes('docs')) tab = 'docs';
+    // A view that is not a tab here (App experience's "Project window tab" option) is opened only as a report order's
+    // workspace; anything else asking for it (a link, a search result, a tour, the end of an order) lands on the
+    // default tab, and Reports' measurements are in the project details tray.
+    if (!projectModalTabShown(tab) && !projectOrderWorkspaceActive()) {
+      if (tab === 'measurements' && !options.keepTrayClosed) { detailsTrayAsked = true; setDetailsTrayOpen(true); }
+      tab = projectDefaultPreviewTab();
+    }
     activePreviewTab = allowed.includes(tab) ? tab : projectDefaultPreviewTab();
     $('#rOverlay')?.classList.toggle('overview-order-focused', shouldUseMobileOrderPagination() && activePreviewTab === 'map');
     proposalWorkspaceOpen = proposalsEnabled() && activePreviewTab === 'proposal';
@@ -7950,7 +7958,7 @@ window.PlatformCommerce.onReady(async function(){
 
   function projectModalPanelHtml(app, context = projectModalRuntimeContext()){
     const body=typeof app.panelHtml==='function' ? app.panelHtml(context) : (typeof app.panelHtml==='string' ? app.panelHtml : `<div id="${escapeHtml(app.id)}Panel" style="height:100%"></div>`);
-    const rail=projectTabHasSidebar(app.id) && !app.app?.promoBadge ? `<aside class="r-tab-sidebar r-proposal-section visible"${app.id==='proposal'?' id="rProposalSection"':''}>${app.id==='proposal'?`<div class="r-step-shell"><div class="r-step-inner"><div class="r-step-body"><label id="rProposalLabel">${(globalThis.PlatformLanguage?.htmlText("project-request","m_1d8655e967c464","Proposal") ?? "Proposal")}</label><div class="r-proposal-listing" id="rProposalList"></div></div></div></div>`:''}</aside>` : '';
+    const rail=projectTabHasSidebar(app.id) && !app.app?.promoBadge && app.entitlement?.offered !== true ? `<aside class="r-tab-sidebar r-proposal-section visible"${app.id==='proposal'?' id="rProposalSection"':''}>${app.id==='proposal'?`<div class="r-step-shell"><div class="r-step-inner"><div class="r-step-body"><label id="rProposalLabel">${(globalThis.PlatformLanguage?.htmlText("project-request","m_1d8655e967c464","Proposal") ?? "Proposal")}</label><div class="r-proposal-listing" id="rProposalList"></div></div></div></div>`:''}</aside>` : '';
     return `<div class="r-tab-content">${rail}<div class="r-tab-main">${body}</div></div>`;
   }
   function projectModalAppPanelsHtml(){
@@ -8152,6 +8160,8 @@ window.PlatformCommerce.onReady(async function(){
     })) syncProjectViewerTabs();
   }
 
+  // A setup's status changed: the "Setup required" pill follows it (tab-guides.js).
+  window.addEventListener('fm:app-setup:updated', () => { if ($('#rOverlay')?.classList.contains('active')) syncProjectViewerTabs(); });
   // A guided experience finished: a tab it held back may now show (docs/architecture/guided-experiences.md).
   window.addEventListener('fm:guides:tabs-changed', () => { if ($('#rOverlay')?.classList.contains('active')) refreshProjectModalAppsForOrderTransition(); });
   function refreshProjectModalAppsForOrderTransition(previousTab = activePreviewTab){
@@ -8175,7 +8185,7 @@ window.PlatformCommerce.onReady(async function(){
       });
     }
     // The organization's tab order: listed tabs first, the rest after them in their own order.
-    const apps = projectModalApps(options);
+    const apps = projectModalApps(options).filter((tab) => projectModalAppIsTab(tab) || (!options.opening && tab.id === activePreviewTab));
     (window.FirstMateTabGuides?.order?.(apps) || apps).forEach((tab) => {
       if (!tabs.some((entry) => entry.id === tab.id)) {
         const pill = window.FirstMateTabGuides?.pill?.(tab.appId) || null;
@@ -8214,7 +8224,8 @@ window.PlatformCommerce.onReady(async function(){
     const manifest=project?.manifest || measurement.raw?.manifest || {};
     const rows=[project || {},measurement,measurement.raw || {},manifest];
     const ordered=projectReportOrderExists(project);
-    if(!ordered || weatherReportsEnabled() || reportFollowupEnabled() || !appFeatureEnabled('firstmeasure','measurement_report_summary',false) || rows.some(row=>row.include_inspection || row.include_instant || row.include_instant_preview || row.report_mode === 'both'))return tabs;
+    // Report views join the header only beside a Reports tab (not where Reports is in the project details tray).
+    if(!ordered || !tabs.some(tab=>tab.id==='measurements') || weatherReportsEnabled() || reportFollowupEnabled() || !appFeatureEnabled('firstmeasure','measurement_report_summary',false) || rows.some(row=>row.include_inspection || row.include_instant || row.include_instant_preview || row.report_mode === 'both'))return tabs;
     const reportTabs=[{id:'summary',label:(globalThis.PlatformLanguage?.text("project-request","m_9b03ccb29ba168","Summary") ?? "Summary")},{id:'standard',label:window.Portal?.terminology?.get?.('reports.standard_view','Standard Report') || 'Standard Report'},{id:'customer',label:window.Portal?.terminology?.get?.('reports.customer_view','Customer Report') || 'Customer Report'}];
     if(rows.some(row=>row.xml_url))reportTabs.push({id:'xml',label:(globalThis.PlatformLanguage?.text("project-request","m_8efb983a491620","XML") ?? "XML")});
     return window.Portal.ProjectViewer.reportHeaderTabs(tabs,reportTabs,true) || tabs;
@@ -8309,14 +8320,36 @@ window.PlatformCommerce.onReady(async function(){
       : (window.Portal?.terminology?.get?.('projects.overview_tab', 'Overview') || 'Overview');
   }
 
+  // App experience's "Project window tab" option (show_as_tab). Off, the person still has the view, and the window
+  // uses it where it is needed (Overview's map is where a report order's pins are placed), but it is not a tab.
+  function projectModalAppIsTab(app){ return app?.params?.show_as_tab !== false; }
+  // Reports was asked for while it is not a tab: the project details tray opens even when the window is still applying
+  // the newly shown project's tray default.
+  let detailsTrayAsked = false;
+  function projectModalTabShown(tabId){
+    const app = projectModalApps({ includeInlineMap:true }).find((entry) => entry.id === tabId);
+    if (app) return projectModalAppIsTab(app);
+    // Not in this window yet (Reports appears once a project has a report): the person's App experience still says.
+    const entitlements = window.Portal?.currentUser?.appEntitlements;
+    const entitlement = Array.isArray(entitlements) ? entitlements.find((entry) => entry?.id === `project.${tabId}`) : null;
+    return entitlement?.params?.show_as_tab !== false;
+  }
+  function projectOrderWorkspaceActive(){
+    return !hasReportOrdered() && (!!window.Portal.ExteriorOrder?.active() || shouldLockReportOrderingWorkflow() || overviewWorkflowMode === 'report');
+  }
+
   function projectDefaultPreviewTab(){
-    const apps = projectModalApps();
+    const all = projectModalApps();
+    const tabs = all.filter(projectModalAppIsTab);
+    const apps = tabs.length ? tabs : all;
     if (apps.some((app) => app.id === 'map' && !app.disabled)) return 'map';
     const entitlementHome = apps.find((app) => app.defaultHome === true && !app.disabled);
     if (entitlementHome) return entitlementHome.id;
     if (projectModalAppsShouldInlineMap() && apps.some((app) => app.id === 'measurements')) return 'measurements';
     if (apps.some((app) => app.id === 'map')) return 'map';
-    return apps.find((app) => !app.disabled)?.id || apps[0]?.id || 'map';
+    // Otherwise the first tab in the organization's order (Photos, where Overview is not a tab).
+    const ordered = window.FirstMateTabGuides?.order?.(apps) || apps;
+    return ordered.find((app) => !app.disabled)?.id || ordered[0]?.id || 'map';
   }
 
   function projectMeasurementsModule(){
@@ -9946,6 +9979,8 @@ window.PlatformCommerce.onReady(async function(){
     refreshProjectModalAppsForOrderTransition();
     selectInitialMeasurementTab(reportOrderState.includeInspection ? 'instant' : 'standard', { model:data?.development_report === true });
     projectViewer?.setActiveTab('measurements');
+    // Without a Reports tab the order's status is in the project details tray, and the window moves to its first tab.
+    if (!projectModalTabShown('measurements')) setActivePreviewTab('measurements');
     renderMeasurementsPanel();
     refreshProjectModalAppsForOrderTransition('measurements');
     renderWorkflowState();

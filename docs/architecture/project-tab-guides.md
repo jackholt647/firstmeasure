@@ -23,6 +23,15 @@ it is not writable through `/global`.
   `coming_soon` always shows "Coming soon". The tab-promos replacements
   (`apps/tab-promos/project.js`) keep their own `promoBadge`.
 
+Two pills come from state, not from this list: an offered app always shows
+"New", and a started app whose required setup is unfinished shows "Setup
+required" (kind `setup`), on project tabs and left-column links alike
+([app experience](app-experience.md#offered-apps)).
+
+Whether a view is a tab at all is App experience (the "Project window tab"
+option, `show_as_tab`). The window opens on the first tab in this order unless
+Overview is a tab or the person has a default home view.
+
 A configuration sets it as data (`settings.project_tabs`); see
 `signup-sandbox/configurations/mvp-platform.ts`.
 
