@@ -39,10 +39,10 @@ test('loadDocuments keeps entries made by hand out of the report values and adds
     assert.ok(!reads.includes('value:dataset_manual_x'),'the manual dataset is never read as a report measurement document');
     assert.deepEqual(result.documents.map(doc=>[doc.id,doc.source]),[['manual-measurements','manual'],['report','measurement']]);
     const manual=result.documents.find(doc=>doc.source==='manual');assert.equal(manual.reportReady,true);assert.deepEqual(manual.form.manual.values,{roofSquares:30});
-    // A project whose scopes name no schema and has nothing entered adds nothing.
+    // Keep availability even without a schema, so the empty state can explain manual entry.
     window.PlatformAPI.publication.read=async(org,source)=>source.export==='manual'?{status:'ready',value:form({available:false,fields:[],schemas:[]})}:{status:'missing'};
     window.PlatformAPI.publication.list=async()=>({items:[]});
-    assert.equal((await scopeModule.loadDocuments('org','project')).documents.length,0);
+    assert.equal((await scopeModule.loadDocuments('org','project')).documents[0].form.available,false);
     // Someone without project data access keeps the view they had.
     window.PlatformAPI.publication.read=async(org,source)=>{if(source.export==='manual')throw Error('denied');return {status:'missing'};};
     const denied=await scopeModule.loadDocuments('org','project');assert.equal(denied.documents.length,0);assert.equal(denied.error,'');
@@ -64,8 +64,13 @@ test('the Measurements view becomes the editor without a report, saves through t
       window.widgetVisible=[];window.FirstMateWidgets={mount(root,ref){root.innerHTML='<div>3D model</div>';return {setVisible(v){widgetVisible.push(v);},destroy(){}};}};
       window.confirm=()=>true;
       window.manualDoc=f=>({id:'manual-measurements',source:'manual',title:'Measurements entered by hand',form:f,reportReady:false});
-      helper.mountSidebar(document.querySelector('aside'),[manualDoc(form)],'','org:project');
+      helper.mountSidebar(document.querySelector('aside'),[manualDoc(form)],'','org:project',{canOrderMeasurements:true,onOrderMeasurements:()=>{window.orderOpened=true;}});
     },form());
+    await page.getByText('No measurements.',{exact:true}).waitFor();
+    await page.getByRole('button',{name:'Order measurement report'}).click();
+    assert.equal(await page.evaluate(()=>window.orderOpened),true);
+    assert.equal(await page.evaluate(()=>invocations.length),0,'opening ordering does not write measurements');
+    await page.getByRole('button',{name:'Add measurements manually'}).click();
     await page.getByRole('heading',{name:'Measurements'}).waitFor();
     assert.ok(await page.getByText('Roofing',{exact:true}).isVisible());
     assert.equal(await page.locator('[data-scope-panel="roof"]').isHidden(),true,'the dead-end report view is replaced');
@@ -136,6 +141,7 @@ test('a typed value survives a stale refresh, expanding, collapsing and a reload
       mountWith(staleForm);
     },form());
     const squares=()=>page.getByLabel('Roof squares (sq)');
+    await page.getByRole('button',{name:'Add measurements manually'}).click();
     await squares().waitFor();
     // Jack's steps: type 20 squares and move on.
     await squares().fill('20');await squares().press('Tab');

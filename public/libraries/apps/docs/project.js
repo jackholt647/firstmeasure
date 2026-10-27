@@ -27,6 +27,7 @@
   ];
 
   const TYPE_META = {
+    roof_report_xml: { label: (globalThis.PlatformLanguage?.text('docs','roof_report_xml','Roof Report XML') ?? 'Roof Report XML'), icon: 'fa-file-code', color: '#059669' },
     proposal: { label: (globalThis.PlatformLanguage?.text("docs","m_1d8655e967c464","Proposal") ?? "Proposal"), icon: 'fa-file-signature', color: '#2563eb' },
     change_order: { label: (globalThis.PlatformLanguage?.text("docs","m_4c17910c74a05e","Change Order") ?? "Change Order"), icon: 'fa-file-contract', color: '#7c3aed' },
     roof_report: { label: (globalThis.PlatformLanguage?.text("docs","m_51ac44c5f2e0fc","Roof Report") ?? "Roof Report"), icon: 'fa-ruler-combined', color: '#059669' },
@@ -59,7 +60,7 @@
     visibleDocumentCategories: new Set(['receipt', 'invoice', 'proposal_report', 'other']),
     categoryMenuOpen: false,
     viewMode: 'tiles',
-    galleryDensity: 'comfortable',
+    galleryDensity: 'loose',
     tileSize: 128,
     viewerOpen: false,
     viewerIndex: 0,
@@ -77,6 +78,7 @@
     engineEntries: [],
     receiptsById: new Map(),
     measurements: null,
+    reportAssets: null,
     // Inline create surface (doc-first flows): the wizard rendered into the
     // right panel instead of a floating modal.
     createHost: null
@@ -116,6 +118,9 @@
   }
   function branchId(){
     return firstText(state.context?.branchId, window.Portal?.branchModules?.currentBranchId?.(), window.__APP?.userBranchId, project()?.branch_id, 'default') || 'default';
+  }
+  function densityPreferenceKey(){
+    return `firstmate.documents.density.${orgId()}.${firstText(Portal.cfg?.userId,window.__APP?.userId)}`;
   }
   function projectDocsEnabled(context = state.context || {}){
     if (context.projectDocsEnabled === false) return false;
@@ -547,6 +552,7 @@
     if (state.loadedForProjectId && state.loadedForProjectId !== pid) {
       state.visibleDocumentCategories = new Set(['receipt', 'invoice', 'proposal_report', 'other']);
       state.categoryMenuOpen = false;
+      state.reportAssets = null;
     }
     state.loading = true;
     render();
@@ -569,7 +575,11 @@
         // Report tiles show the project's measurements.
         window.PlatformAPI?.publication?.measurements
           ? window.PlatformAPI.publication.measurements(oid, pid).catch(() => null)
-          : Promise.resolve(null)
+          : Promise.resolve(null),
+        Promise.resolve(callHost('loadReportDocumentAssets')).catch((error) => {
+          console.warn('Unable to load report documents',error);
+          return {};
+        })
       ]).then((results) => {
         const measured = {};
         Object.entries(Object(Object(results[3]?.value).measurements)).forEach(([key, entry]) => {
@@ -577,6 +587,7 @@
           if (Number.isFinite(value)) measured[key] = value;
         });
         state.measurements = measured;
+        state.reportAssets = results[4] || null;
         return results;
       });
       state.receiptsById = new Map((Array.isArray(receiptResult?.receipts) ? receiptResult.receipts : []).map((receipt) => [cleanText(receipt.id), receipt]));
@@ -779,6 +790,13 @@
     state.panelRoot = context.panelRoot || context.roots?.main || state.panelRoot;
     state.mounted = !!resolveRoot(state.panelRoot);
     state.active = context.active === true;
+    try {
+      const density = localStorage.getItem(densityPreferenceKey());
+      if (['loose','comfortable','compact','list'].includes(density)) {
+        state.galleryDensity = density;
+        state.viewMode = density === 'list' ? 'list' : 'tiles';
+      }
+    } catch {}
     const routedView = window.Portal?.navigation?.read?.().documentView;
     if (['tiles','list'].includes(routedView)) state.viewMode = routedView;
     render();
@@ -886,7 +904,29 @@
     return allViewableDocs().filter((doc) => state.visibleDocumentCategories.has(documentCategory(doc)));
   }
   function allViewableDocs(){
-    return state.docs.filter((doc) => doc.interactive !== false && (doc.url || doc.media_id));
+    return reportDocuments(state.docs).filter((doc) => doc.interactive !== false && (doc.url || doc.media_id));
+  }
+  // These are references to the delivered report, not copies in the document
+  // engine. Reuse Reports' resolution of manifest URLs and release holds.
+  function reportDocuments(docs){
+    const assets = state.reportAssets;
+    if (!assets) return docs;
+    const measured = project().measurement_project || project().measurement || {};
+    const producedAt = firstText(measured.completed_at, measured.raw?.completed_at);
+    const reports = [
+      ['roof_report_pdf','roof_report','roof_measurements_report','Roof Measurement Report','reportUrl','application/pdf','roof-measurements.pdf'],
+      ['customer_report_pdf','customer_report','customer_roof_report','Customer Roof Report','summaryUrl','application/pdf','customer-roof-report.pdf'],
+      ['roof_report_xml','roof_report_xml','roof_report_xml','Roof Report XML','xmlUrl','application/xml','roof-report.xml']
+    ];
+    const ids = new Set(reports.map(row => row[0]));
+    return normalizeList([...docs.filter(doc => !ids.has(docId(doc))), ...reports.flatMap(([id,type,key,title,asset,contentType,fileName]) => {
+      const url = cleanText(assets[asset]);
+      if (!url) return [];
+      const stored = docs.find(doc => docId(doc) === id) || {};
+      return [{...stored,id,document_type:type,title:globalThis.PlatformLanguage?.text('docs',key,title) ?? title,
+        url,content_type:contentType,file_name:fileName,special:true,source:'report',
+        uploaded_at:firstText(producedAt,stored.uploaded_at),related:{tab:'measurements',label:relatedActionLabel({document_type:type})}}];
+    })]);
   }
   // Everything the gallery shows: engine documents (opened through the engine
   // editor/preview, never the media viewer) + viewable media references.
@@ -1095,7 +1135,7 @@
       icon:'fa-folder-open',
       itemNoun:'document',
       uploadLabel:'Upload',
-      initialDensity:state.viewMode === 'list' ? 'list' : (state.galleryDensity === 'list' ? 'comfortable' : state.galleryDensity),
+      initialDensity:state.viewMode === 'list' ? 'list' : (state.galleryDensity === 'list' ? 'loose' : state.galleryDensity),
       extraDensityModes:[{ id:'list', label:(globalThis.PlatformLanguage?.text("docs","m_db473980ea71b2","List") ?? "List"), icon:'list' }],
       // Documents are few: tiles sit together with their dates on them; only
       // the list view splits them into days.
@@ -1147,6 +1187,7 @@
       }] : [])],
       onDensityChange:(density) => {
         state.galleryDensity = density;
+        try { localStorage.setItem(densityPreferenceKey(),density); } catch {}
         setDocumentView(density === 'list' ? 'list' : 'tiles', { render:false });
       }
     });
@@ -1208,6 +1249,7 @@
     closeViewer(false, { fromRoute:true });
     destroyEngine();
     state.docs = [];
+    state.reportAssets = null;
     state.uploadedDocs = [];
     state.invoices = [];
     state.visibleDocumentCategories = new Set(DOCUMENT_CATEGORIES.map((category) => category.id));

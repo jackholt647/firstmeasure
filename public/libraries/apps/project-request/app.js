@@ -7170,6 +7170,14 @@ window.PlatformCommerce.onReady(async function(){
       },
       getBranchProjectConfig: () => branchProjectConfig,
       getReportOrderState: () => reportOrderState,
+      loadReportDocumentAssets: async () => {
+        const app = mountProjectMeasurementsApp({active:false});
+        if (!app) return null;
+        const id = activeMeasurementProjectId();
+        return (id ? await app.invoke('loadMeasurementAssets',[id]) : null) || app.invoke('reportOrderKnownAssetUrls',[]);
+      },
+      canOrderMeasurements: () => firstMeasureReportOrdersEnabled() && hasPerm('order_reports') && !hasReportOrdered(),
+      orderMeasurements: () => startMeasurementOrder(),
       setReportOrderState: (nextState) => {
         reportOrderState = nextState || null;
         return reportOrderState;
@@ -9605,6 +9613,16 @@ window.PlatformCommerce.onReady(async function(){
     }
   }
 
+  // Both Overview and the Operations measurements rail enter the same order
+  // session. Opening it never submits an order or creates another project.
+  function startMeasurementOrder(){
+    if (!firstMeasureReportOrdersEnabled() || !hasPerm('order_reports') || hasReportOrdered()) return false;
+    requestedWorkflow='report';overviewWorkflowMode='report';reportProjectChoice=activeBaseProject?'existing':'new';reportSelection='roof';locationConfirmed=false;
+    preloadFirstReportCheckoutEligibility();setActivePreviewTab('map');renderWorkflowState();queueAutosaveNotice();
+    if (!addressSelected) $('#rAddress')?.focus();
+    return true;
+  }
+
   function syncOverviewWorkflow(){
     const overlay=$('#rOverlay'),details=overlay?.querySelector('.r-overview-details');
     if (!details) return;
@@ -9629,9 +9647,7 @@ window.PlatformCommerce.onReady(async function(){
       for (const [key,label] of choices) {const button=document.createElement('button');button.type='button';button.className='r-toggle-btn';const icon=document.createElement('i');icon.className='fas '+({roof:'fa-ruler-combined',proposal:'fa-file-signature',schedule:'fa-calendar-days'}[key]);icon.setAttribute('aria-hidden','true');button.append(icon,document.createTextNode(label));
         button.onclick=()=>{
           if (key==='roof') {
-            if (hasReportOrdered()) applyReorderPrefillState(activeBaseProject || {});
-            requestedWorkflow='report';overviewWorkflowMode='report';reportProjectChoice=activeBaseProject?'existing':'new';reportSelection='roof';locationConfirmed=false;
-            preloadFirstReportCheckoutEligibility();setActivePreviewTab('map');renderWorkflowState();queueAutosaveNotice();
+            startMeasurementOrder();
           } else document.querySelector('.r-toggle-btn[data-report-choice="'+key+'"]')?.click();
         };actions.append(button);
       }
