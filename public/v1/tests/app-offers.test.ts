@@ -8,15 +8,33 @@ import { hasAppAccess, hasAppEntitlement, type PlatformAuthContext } from "../pl
 import { containsAppFlagMutation } from '../platform/app_flags.js';
 
 test("offers mask the operational capabilities and their dependent features", () => {
-  const configured = { "platform.project_photos": true, "platform.photos_feed": true,
+  const configured = { "platform.expanded_access": true, "platform.project_photos": true, "platform.photos_feed": true,
     "platform.customer_portal": true, "platform.customer_portal_media": true };
   const masked = maskOfferedCapabilities(configured, ["project.photos", "project.customer_portal"]);
   const resolved = resolveCapabilities(masked).effectiveByKey;
   assert.equal(resolved["platform.project_photos"], false);
-  assert.equal(resolved["platform.photos_feed"], false);
+  assert.equal(resolved["platform.photos_feed"], true, "the company Feed is independent of the project Photos offer");
   assert.equal(resolved["platform.customer_portal"], false);
   assert.equal(resolved["platform.customer_portal_media"], false);
   assert.equal(configured["platform.project_photos"], true);
+});
+
+test("an enabled Feed remains operational while project Photos is offered", () => {
+  const values = maskOfferedCapabilities({ "platform.expanded_access": true, "platform.photos_feed": true, "platform.project_photos": true }, ["project.photos"]);
+  const { effectiveByKey } = resolveCapabilities(values);
+  const appEntitlements = resolveAppEntitlements({ effectiveByKey, offeredAppIds: ["project.photos"] });
+  const feed = appEntitlements.find(app => app.id === "portal.photos_feed");
+  assert.equal(feed?.allowed, true);
+  assert.notEqual(feed?.offered, true);
+  assert.equal(feed?.visible.desktop, true);
+  assert.equal(feed?.visible.mobile, true);
+  for (const expanded of [false, true]) {
+    const ctx = { appEntitlements, accessProfile: expanded ? {} : undefined } as PlatformAuthContext;
+    assert.equal(hasAppAccess(ctx, "portal.photos_feed"), true);
+    assert.equal(hasAppAccess(ctx, "project.photos"), false);
+  }
+  assert.equal(resolveCapabilities({ ...values, "platform.photos_feed": false }).effectiveByKey["platform.photos_feed"], false,
+    "an explicitly disabled Feed stays disabled");
 });
 
 test("only known offers are accepted and duplicate values are removed", () => {

@@ -8,6 +8,31 @@ const source=(await readFile(new URL('../../libraries/app-runtime/app-welcome.js
 const output=new URL('../../../output/app-welcome-tests/',import.meta.url);
 await mkdir(output,{recursive:true});
 
+test('activation refreshes guides before the host mounts and fades the advertisement away',async()=>{
+  const browser=await chromium.launch({channel:'chrome',headless:true});
+  try{
+    const page=await browser.newPage();
+    await page.setContent('<main id="root" style="height:600px"></main>');
+    await page.addScriptTag({content:source+'\nwindow.mountWelcome=mountWelcome;'});
+    await page.evaluate(welcome=>{
+      window.__APP={userOrgId:'org_test'};window.steps=[];
+      window.PlatformAPI={request:async()=>{steps.push('activate');return {};},capabilities:{load:async()=>{}},appFlags:{load:async()=>{}}};
+      window.FirstMateGuides={refresh:async()=>{steps.push('guides');}};
+      window.Portal={auth:{syncPlatformSession:async()=>{
+        steps.push('mount');window.handle.destroy();
+        document.getElementById('root').innerHTML='<section id="actual-app">Ready</section>';
+        window.dispatchEvent(new CustomEvent('fm:embeddable-apps:app-mounted',{detail:{appId:'project.photos',context:{entitlement:{offered:false}}}}));
+      }}};
+      window.handle=window.mountWelcome({appId:'project.photos',orgId:'org_test',roots:{main:document.getElementById('root')},entitlement:{welcome},preload:async()=>{steps.push('preload');}});
+    },APP_WELCOMES['project.photos']);
+    await page.waitForFunction(()=>steps.includes('preload'));
+    await page.getByRole('button',{name:'Get Started'}).click();
+    await page.waitForSelector('#actual-app');
+    await page.waitForFunction(()=>!document.querySelector('.fm-app-welcome'));
+    assert.deepEqual(await page.evaluate(()=>steps),['preload','activate','guides','mount']);
+  }finally{await browser.close();}
+});
+
 test('designed welcome screens fit phones and desktops and only activate on Get Started',async()=>{
   const browser=await chromium.launch({channel:'chrome',headless:true});
   try {
@@ -62,6 +87,7 @@ test('the runtime mounts only the welcome and keeps New without starting a tutor
     await page.addScriptTag({content:guides});
     const result=await page.evaluate(async()=>{
       FirstMateEmbeddableApps.registerManifest({id:'project.photos',surfaces:['project_modal'],bundles:['https://welcome.test/photos.js']});
+      FirstMateEmbeddableApps.registerApp({id:'project.photos',surfaces:['project_modal']});
       const listed=FirstMateEmbeddableApps.listApps({surface:'project_modal'});
       await FirstMateEmbeddableApps.mount(document.getElementById('root'),'project.photos',{surface:'project_modal',orgId:'test'});
       FirstMateTabGuides.opened({appId:'project.photos'});

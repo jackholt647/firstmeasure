@@ -277,11 +277,14 @@ const definitions: CapabilityDefinition[] = [
   },
   {
     key: "platform.photos_feed",
-    kind: "feature",
-    parent: "platform.project_photos",
+    kind: "app",
+    icon: "fa-layer-group",
+    category: "Project Delivery",
     label: "Feed",
     description: "The organization-wide media, document, and activity feed, including photo comments and markup review workflows.",
-    default: false
+    catalog_stub: "Company posts, media, and activity.",
+    default: false,
+    runtime_app_id: "photos_feed"
   },
   {
     key: "platform.project_docs",

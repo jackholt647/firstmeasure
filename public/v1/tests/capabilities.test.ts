@@ -164,8 +164,8 @@ test("solver enforces parent chains and cross dependencies with legacy reason st
     "platform.pricebook": false
   };
   const resolution = resolveCapabilities(values);
-  assert.equal(resolution.effectiveByKey["platform.photos_feed"], false);
-  assert.equal(resolution.reasons["platform.photos_feed"], "requires platform.project_photos");
+  assert.equal(resolution.effectiveByKey["platform.photos_feed"], true, "Feed is its own app, independent of project Photos");
+  assert.equal(resolution.reasons["platform.photos_feed"], null);
   assert.equal(resolution.effectiveByKey["platform.customer_portal"], true);
   assert.equal(resolution.effectiveByKey["platform.customer_portal_media"], false);
   assert.equal(resolution.reasons["platform.customer_portal_media"], "requires platform.project_photos");

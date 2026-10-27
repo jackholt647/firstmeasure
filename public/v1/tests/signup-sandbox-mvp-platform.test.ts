@@ -40,6 +40,11 @@ test('the MVP platform workflow is FirstMeasure plus projects, contacts, feed an
 
  const instance=await service.createTestInstance('swf_mvp_platform',{label:'MVP platform fixture'});
  const orgId=String(instance.testOrg.org_id);
+ const offered=await storage.readGlobal(orgId);
+ assert.deepEqual((offered.data as any).app_offers,['project.photos','project.docs','project.customer_portal','project.materials']);
+ // The remainder exercises the configured apps after the organization has opted in.
+ await storage.mutateGlobal(orgId,current=>{current.data={...current.data,app_offers:[]};return current;});
+ instance.authContext=await (await import('../platform/auth.js')).buildAuthContext(instance.authContext.sessionId,instance.authContext.session);
  const {effectiveByKey}=await capabilities.effectiveCapabilities(orgId);
  const on=['platform.more_apps','platform.advanced_app_menu','firstmeasure.exteriors','platform.top_bar','topbar.global_search','topbar.notifications','platform.expanded_access','apps.projects','apps.project_map','platform.project_stages_view','platform.contacts','platform.photos_feed','platform.project_photos','platform.customer_portal','platform.materials','platform.documents','apps.firstmeasure','firstmeasure.report_orders','apps.assistant','channels.project_notes'];
  for(const key of on) assert.equal(effectiveByKey[key],true,key);
@@ -72,7 +77,7 @@ test('the MVP platform workflow is FirstMeasure plus projects, contacts, feed an
  const roofing=await scopes.readScopeTemplate(orgId,'default','generic_roofing');
  assert.deepEqual((roofing as any).definition?.measurement_schema_ids ?? (roofing as any).measurement_schema_ids,['roofing']);
  assert.equal(String((await creation.creationScopeTemplate(orgId,'default')).id),'generic_roofing');
- assert.equal((workflow as any).dev_bar,false);assert.equal((workflow as any).configuration_revision,18);
+ assert.equal((workflow as any).dev_bar,false);assert.equal((workflow as any).configuration_revision,19);
  const resolved=(await capabilities.effectiveCapabilities(orgId)).values as any;
  assert.equal(resolved['platform.new_button_mode'],'selector');assert.equal(resolved['platform.new_button_items'],'report,project,contact');
  // The left column's footer is stacked: the account on its own row, named explicitly as well as being the default.

@@ -93,7 +93,10 @@ department, group, user and device visibility rules. Their entitlement carries
 `offered` and `welcome`. Discovery never grants operational app access.
 
 The embeddable runtime mounts the shared `app-runtime/app-welcome.js`
-advertisement instead of loading an offered app's bundle. It has designed HTML
+advertisement while preparing the offered app's bundles in the background. Code
+registration does not mount the app or read its operational data. Get Started
+activates the app, refreshes guide eligibility before the host redraw, and
+crossfades into the mounted app. The explicit start skips the normal setup delay. It has designed HTML
 and CSS, real localized copy and a Get Started button; it is not a new guide
 engine. Opening it neither records `seen_tabs` nor launches a guide, and New
 remains visible regardless of personal seen history.
