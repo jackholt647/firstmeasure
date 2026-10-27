@@ -49,7 +49,7 @@ test('the runtime mounts only the welcome and keeps New without starting a tutor
     const page=await browser.newPage();
     await page.route('https://welcome.test/**',route=>{
       const url=new URL(route.request().url());
-      const body=url.pathname.endsWith('app-welcome.js')?module:url.pathname.endsWith('runtime.js')?runtime:'<html><body><main id="root"></main></body></html>';
+      const body=url.pathname.endsWith('photos.js')?`window.bundleLoads=(window.bundleLoads||0)+1;FirstMateEmbeddableApps.registerApp({id:'project.photos',surfaces:['project_modal'],enabled:()=>false,access:{capability:'platform.project_photos'},mount(){window.operationalMounts++;}});`:url.pathname.endsWith('app-welcome.js')?module:url.pathname.endsWith('runtime.js')?runtime:'<html><body><main id="root"></main></body></html>';
       return route.fulfill({contentType:url.pathname.endsWith('.js')?'text/javascript':'text/html',body});
     });
     await page.goto('https://welcome.test/');
@@ -61,7 +61,7 @@ test('the runtime mounts only the welcome and keeps New without starting a tutor
     await page.addScriptTag({url:'https://welcome.test/runtime.js'});
     await page.addScriptTag({content:guides});
     const result=await page.evaluate(async()=>{
-      FirstMateEmbeddableApps.registerApp({id:'project.photos',surfaces:['project_modal'],enabled:()=>false,access:{capability:'platform.project_photos'},mount(){window.operationalMounts++;}});
+      FirstMateEmbeddableApps.registerManifest({id:'project.photos',surfaces:['project_modal'],bundles:['https://welcome.test/photos.js']});
       const listed=FirstMateEmbeddableApps.listApps({surface:'project_modal'});
       await FirstMateEmbeddableApps.mount(document.getElementById('root'),'project.photos',{surface:'project_modal',orgId:'test'});
       FirstMateTabGuides.opened({appId:'project.photos'});
@@ -69,5 +69,7 @@ test('the runtime mounts only the welcome and keeps New without starting a tutor
     });
     assert.deepEqual(result,{count:1,mounts:0,events:0,pill:'new'});
     assert.equal(await page.getByRole('button',{name:'Get Started'}).count(),1);
+    await page.waitForFunction(()=>window.bundleLoads===1);
+    assert.equal(await page.evaluate(()=>window.operationalMounts),0,'preloading registers code without mounting the offered app');
   }finally{await browser.close();}
 });

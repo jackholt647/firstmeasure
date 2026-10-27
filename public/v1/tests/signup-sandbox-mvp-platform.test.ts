@@ -62,7 +62,7 @@ test('the MVP platform workflow is FirstMeasure plus projects, contacts, feed an
  const {appFlagState}=await import('../platform/app_flags.js');
  assert.deepEqual((await appFlagState(orgId)).project_tabs,projectTabs);
  const {readTerminologyMappings}=await import('../platform/localization/terminology-settings.js');
- assert.equal((await readTerminologyMappings(orgId,'default') as any).labels.scope.project_tab,'Materials');
+ assert.equal((await readTerminologyMappings(orgId,'default') as any).labels.scope.project_tab,'Operations');
  // The configuration's setup script: Generic Roofing installed, every new project starts it, other presets off.
  const router=await import('../scopes/router.js');const scopes=await import('../scopes/storage.js');const creation=await import('../projects/create.js');
  const routing=await router.readIntakeRouting(orgId);

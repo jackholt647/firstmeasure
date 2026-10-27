@@ -349,6 +349,8 @@
    * tab plays it again. A setup (modal or agentic) covers the whole page and its write is the organization's, not the
    * tab's, so it carries on; only the tour that would follow it is held to the tab.
    */
+  const activatedTabs = new Set();
+  root.addEventListener('fm:app-offer:starting', event => { if (event.detail?.appId) activatedTabs.add(event.detail.appId); });
   function onTabOpened(event){
     const tab = clean(event?.detail?.appId);
     if (!tab) return;
@@ -359,7 +361,7 @@
     // The host announces the same tab again when it redraws: one arming per visit.
     if (state.visit.armed) return;
     state.visit.armed = true;
-    const bound = { generation: state.visit.generation, isActive, projectId };
+    const bound = { generation: state.visit.generation, isActive, projectId, activated: activatedTabs.delete(tab) };
     // From the preload when this frame has it (synchronously), else once the project's list has been read.
     const snapshot = snapshots.get(snapshotKey(projectId));
     if (snapshot) { if (!arm(snapshot, tab, bound)) refresh(); }
@@ -382,7 +384,7 @@
         play(experience.id, { bound, instant: true });
         return true;
       }
-      const timer = setTimeout(() => { state.tabTimers.delete(timer); if (onItsTab(experience, bound)) play(experience.id, { bound }); }, Number(trigger.delay_ms || 700));
+      const timer = setTimeout(() => { state.tabTimers.delete(timer); if (onItsTab(experience, bound)) play(experience.id, { bound }); }, bound.activated ? 0 : Number(trigger.delay_ms || 700));
       state.tabTimers.add(timer);
       break;
     }

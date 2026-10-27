@@ -12,6 +12,7 @@
   const mounted = new WeakMap();
   const mounting = new WeakMap();
   const loadedBundles = new Set();
+  const preparingApps = new Map();
   let instanceCounter = 0;
 
   const noop = () => {};
@@ -825,7 +826,7 @@
   async function ensureBundle(src){
     const bundle = cleanText(src);
     if (!bundle || loadedBundles.has(bundle)) return true;
-    if (scriptAlreadyPresent(bundle)) {
+    if (scriptAlreadyPresent(bundle) && !document.querySelector(`script[data-embeddable-app-bundle="${CSS.escape(bundle)}"]`)) {
       loadedBundles.add(bundle);
       return true;
     }
@@ -841,7 +842,7 @@
       script.async = false;
       script.dataset.embeddableAppBundle = bundle;
       script.onload = resolve;
-      script.onerror = reject;
+      script.onerror = (error) => { script.remove(); reject(error); };
       document.head.appendChild(script);
     });
     loadedBundles.add(bundle);
@@ -875,6 +876,14 @@
     return app;
   }
 
+  function prepareApp(appId){
+    if (!preparingApps.has(appId)) {
+      const promise = ensureAppReady(appId).finally(() => preparingApps.delete(appId));
+      preparingApps.set(appId, promise);
+    }
+    return preparingApps.get(appId);
+  }
+
   async function mount(target, appId, options = {}){
     const id = cleanText(appId);
     const roots = normalizeRoots(target);
@@ -899,8 +908,8 @@
     const candidate = apps.get(id) || manifest;
     const candidateContext = createContext({ ...options, appId: id }, candidate, roots);
     const candidatePolicy = candidate && evaluateDefinition(candidate, candidateContext);
-    // Offered apps must not load their operational bundles or run their lifecycle.
-    const ready = candidatePolicy?.entitlement?.offered ? Promise.resolve(candidate) : ensureAppReady(id);
+    // Offered apps may prepare code, but never mount or fetch operational data before activation.
+    const ready = candidatePolicy?.entitlement?.offered ? Promise.resolve(candidate) : prepareApp(id);
     const app = await (loading?opening.wait(ready,loading.signal):ready) || apps.get(id);
     if(!isCurrent())return null;
     if (!app) {
@@ -936,6 +945,7 @@
       dispatch('fm:embeddable-apps:app-denied', { appId: id, context, reasons: policy.reasons });
       return denied;
     }
+    if (policy.entitlement?.offered) context.preload = () => prepareApp(id);
     const handle = policy.entitlement?.offered
       ? await (await import(new URL('./app-welcome.js?v=20261027-offers', runtimeScriptUrl).href)).mountWelcome(context)
       : await (typeof app.mount === 'function'

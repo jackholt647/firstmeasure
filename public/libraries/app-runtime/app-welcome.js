@@ -56,13 +56,37 @@ async function refreshOrganization(orgId){
   for (const win of [...windows]) for (const frame of win.document.querySelectorAll('iframe')) {
     try { if (frame.contentWindow?.Portal && frame.contentWindow.location.origin === location.origin) windows.add(frame.contentWindow); } catch {}
   }
-  for (const win of windows) {
-    if ((win.__APP?.userOrgId || win.Portal?.currentUser?.orgId) !== orgId) continue;
-    await Promise.all([win.PlatformAPI.capabilities.load(orgId,{refresh:true}),win.PlatformAPI.appFlags.load(orgId,{refresh:true})]);
+  await Promise.all([...windows].map(async win => {
+    if ((win.__APP?.userOrgId || win.Portal?.currentUser?.orgId) !== orgId) return;
+    // Load guide eligibility before the new session redraws the active tab.
+    await Promise.all([win.PlatformAPI.capabilities.load(orgId,{refresh:true}),win.PlatformAPI.appFlags.load(orgId,{refresh:true}),win.FirstMateGuides?.refresh?.()]);
     await win.Portal.auth.syncPlatformSession();
-    await win.FirstMateGuides?.refresh?.();
     win.dispatchEvent(new win.CustomEvent('fm:app-flags:updated'));
-  }
+  }));
+}
+
+// Keep the advertisement in place while the host replaces its panel, then reveal the mounted app.
+function transitionFrom(root, appId){
+  const rect=root.getBoundingClientRect(), cover=root.firstElementChild.cloneNode(true);
+  cover.setAttribute('aria-hidden','true'); cover.inert=true;
+  Object.assign(cover.style,{position:'fixed',left:rect.left+'px',top:rect.top+'px',width:rect.width+'px',height:rect.height+'px',zIndex:'1000',pointerEvents:'none'});
+  document.body.append(cover);
+  let finished=false;
+  const finish=()=>{
+    if(finished)return;finished=true;clearTimeout(timeout);
+    window.removeEventListener('fm:embeddable-apps:app-mounted',mounted);
+    window.removeEventListener('fm:project-tab:opened',changed);
+    window.removeEventListener('resize',finish);
+    if(window.matchMedia('(prefers-reduced-motion: reduce)').matches){cover.remove();return;}
+    cover.animate([{opacity:1,transform:'translateY(0)'},{opacity:0,transform:'translateY(-8px)'}],{duration:220,easing:'ease-out'}).finished.catch(()=>{}).finally(()=>cover.remove());
+  };
+  const mounted=event=>{if(event.detail?.appId===appId && !event.detail?.context?.entitlement?.offered)finish();};
+  const changed=event=>{if(event.detail?.appId!==appId)finish();};
+  const timeout=setTimeout(finish,10000);
+  window.addEventListener('fm:embeddable-apps:app-mounted',mounted);
+  window.addEventListener('fm:project-tab:opened',changed);
+  window.addEventListener('resize',finish);
+  return finish;
 }
 
 export function mountWelcome(context){
@@ -73,17 +97,24 @@ export function mountWelcome(context){
   root.innerHTML=renderWelcome(welcome);
   root.classList.add('fm-app-welcome-host');
   let destroyed=false, pending=false, started=false;
+  // Fetch/register bundles while the advertisement is showing; mounting remains gated by Get Started.
+  const preload=Promise.resolve().then(()=>context.preload?.()).catch(()=>null);
   const button=root.querySelector('.faw-start');
   const start=async()=>{
     if(pending || destroyed) return;
     pending=true;button.disabled=true;root.querySelector('.faw-error').textContent='';
+    let finishTransition;
     try {
       if (!started) await window.PlatformAPI.request(`/organizations/${encodeURIComponent(context.orgId)}/app-offers/${encodeURIComponent(context.appId)}/start`,{method:'POST',body:{}});
       started=true;
+      await preload;
+      if(!destroyed)finishTransition=transitionFrom(root,context.appId);
+      window.dispatchEvent(new CustomEvent('fm:app-offer:starting',{detail:{appId:context.appId}}));
       await refreshOrganization(context.orgId);
       // Refreshing the session may already replace this welcome; still re-arm the newly available guide.
       if ((window.__APP?.userOrgId || window.Portal?.currentUser?.orgId) === context.orgId) window.dispatchEvent(new CustomEvent('fm:app-offer:started',{detail:{appId:context.appId}}));
     } catch(error) {
+      finishTransition?.();
       if(!destroyed) root.querySelector('.faw-error').textContent=error?.message || text('gx_offer_error','Could not start this app. Please try again.');
     } finally {pending=false;if(!destroyed)button.disabled=false;}
   };

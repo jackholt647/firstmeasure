@@ -32,7 +32,7 @@ export const APP_WELCOMES = {
     description: copy("portal_description", "Give each customer a simple place to follow their project. A professional experience, with fewer things to chase."),
     benefits: [copy("portal_b1", "Give every project its own customer link"), copy("portal_b2", "Choose what you share with the customer"), copy("portal_b3", "Bring project information into one place")],
     caption: copy("portal_caption", "Their project. One simple link.") },
-  "project.materials": { theme: "materials", eyebrow: copy("materials_name", "Materials"),
+  "project.materials": { theme: "materials", eyebrow: copy("operations_name", "Operations"),
     headline: copy("materials_headline", "From measurements to materials."),
     description: copy("materials_description", "Build the list that moves the job forward. Bring your products, quantities, and material planning into the project."),
     benefits: [copy("materials_b1", "Build and adjust project material lists"), copy("materials_b2", "Use your own products and calculation rules"), copy("materials_b3", "Keep quantities and job details together")],

@@ -1182,7 +1182,7 @@
   }
 
   function panelHtml(){
-    return `<div class="mt-app" data-materials-root><div class="mt-empty">${(globalThis.PlatformLanguage?.htmlText("materials","m_9d3e82ecfd10ec","Scope") ?? "Scope")}</div></div>`;
+    return `<div class="mt-app" data-materials-root><div class="mt-empty">${(globalThis.PlatformLanguage?.htmlText("materials","project_operations_title","Operations") ?? "Operations")}</div></div>`;
   }
 
   function defaultSections(){
@@ -6239,7 +6239,7 @@
     state.sidebarRoot.classList.remove('mode-list', 'mode-send');
     const label = state.sidebarRoot.querySelector('#mtSidebarLabel');
     if (label) {
-      label.textContent = (globalThis.PlatformLanguage?.text("materials","m_9d3e82ecfd10ec","Scope") ?? "Scope");
+      label.textContent = (globalThis.PlatformLanguage?.text("materials","project_operations_title","Operations") ?? "Operations");
       label.hidden = true;
     }
     disposeScopeWidgets();
@@ -6368,7 +6368,7 @@
     const customFieldsOpen = state.leftSections.custom_fields !== false;
     return `
       <div class="mt-left">
-        <div class="mt-left-head"><strong>${(globalThis.PlatformLanguage?.htmlText("materials","m_9d3e82ecfd10ec","Scope") ?? "Scope")}</strong>${String(state.activeList ? `<em class="mt-status ${statusClass(state.activeList.status)}">${escapeHtml(resourceTerms(resourceType(state.activeList), state.activeList).plural)}</em>` : '')}</div>
+        <div class="mt-left-head"><strong>${(globalThis.PlatformLanguage?.htmlText("materials","project_operations_title","Operations") ?? "Operations")}</strong>${String(state.activeList ? `<em class="mt-status ${statusClass(state.activeList.status)}">${escapeHtml(resourceTerms(resourceType(state.activeList), state.activeList).plural)}</em>` : '')}</div>
         <div class="mt-left-body">
           <section class="mt-left-group ${String(listsOpen ? '' : 'collapsed')}">
             <button type="button" class="mt-left-group-head" data-mt-left-toggle="lists" aria-expanded="${String(listsOpen ? 'true' : 'false')}"><strong>${(globalThis.PlatformLanguage?.htmlText("materials","m_aee5caa035aefc","Lists") ?? "Lists")}</strong><span>${String(state.lists.length)} <i class="fas fa-chevron-${String(listsOpen ? 'up' : 'down')}"></i></span></button>
@@ -7911,8 +7911,8 @@
   runtime?.registerApp?.({
     id: 'project.materials',
     kind: 'project_modal_app',
-    title: (globalThis.PlatformLanguage?.text("materials","m_9d3e82ecfd10ec","Scope") ?? "Scope"),
-    label: (globalThis.PlatformLanguage?.text("materials","m_9d3e82ecfd10ec","Scope") ?? "Scope"),
+    title: (globalThis.PlatformLanguage?.text("materials","project_operations_title","Operations") ?? "Operations"),
+    label: (globalThis.PlatformLanguage?.text("materials","project_operations_title","Operations") ?? "Operations"),
     icon: 'fa-clipboard-list',
     order: 55,
     visible: true,
