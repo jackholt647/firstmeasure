@@ -13,7 +13,7 @@ export const resourceTypeIdSchema=z.string().trim().regex(/^[a-z][a-z0-9_-]{0,79
 export const LINE_ITEM_SOURCES=['pricebook','equipment'] as const;
 // Sources a type suggests line items from until someone chooses otherwise.
 const DEFAULT_LINE_ITEM_SOURCES:Record<string,string[]>={material:['pricebook'],labor:[],equipment:['equipment']};
-export const resourceTypeInputSchema=z.object({id:resourceTypeIdSchema,name:z.string().trim().max(100),icon:z.string().regex(/^fa-[a-z0-9-]{1,76}$/),color:z.string().regex(/^#[0-9a-fA-F]{6}$/),line_item_sources:z.array(z.enum(LINE_ITEM_SOURCES)).max(LINE_ITEM_SOURCES.length).optional(),pricebook_sku_only:z.boolean().optional(),shown:z.enum(['always','with_assignees']).optional(),expected_revision:z.number().int().nonnegative().optional()}).strict();
+export const resourceTypeInputSchema=z.object({id:resourceTypeIdSchema,name:z.string().trim().max(100),icon:z.string().regex(/^fa-[a-z0-9-]{1,76}$/),color:z.string().regex(/^#[0-9a-fA-F]{6}$/),line_item_sources:z.array(z.enum(LINE_ITEM_SOURCES)).max(LINE_ITEM_SOURCES.length).optional(),pricebook_sku_only:z.boolean().optional(),shown:z.enum(['always','with_assignees','when_configured']).optional(),expected_revision:z.number().int().nonnegative().optional()}).strict();
 export const resourceTypeArchiveSchema=z.object({id:resourceTypeIdSchema,expected_revision:z.number().int().nonnegative().optional()}).strict();
 export const defaultResourceTypes=[{id:'material',name:'Materials',icon:'fa-boxes-stacked',color:'#d93025',line_item_sources:['pricebook'],pricebook_sku_only:true,revision:0},{id:'labor',name:'Labor',icon:'fa-helmet-safety',color:'#2563eb',line_item_sources:[],pricebook_sku_only:false,revision:0},{id:'equipment',name:'Equipment',icon:'fa-truck-pickup',color:'#0f766e',line_item_sources:['equipment'],pricebook_sku_only:false,revision:0}];
 // Equipment is a column, and an equipment list can be made, only while the organization has the Equipment app on
@@ -28,11 +28,13 @@ export async function equipmentListsAllowed(orgId:string){return await isCapabil
  *   labor (an active group of users, an active outside company that is not only a supplier, or anyone with a pay
  *   sheet), or while any labor list exists, so no work is hidden. Where groups of users and outside companies are off
  *   (apps.crew) labor is plain lines and it shows.
+ * - `when_configured`, used by Operations setup, waits for that same evidence even when apps.crew is off.
+ *   Existing labor lists still show, and an explicit setup writes `always`.
  * Turning it on is saving `always` through materials.resource-type.update.
  */
 export async function laborColumnShown(orgId:string,labor?:{shown?:unknown}){
- if(labor?.shown!=='with_assignees')return true;
- if(!await isCapabilityEnabled(orgId,'apps.crew').catch(()=>false))return true;
+ if(labor?.shown!=='with_assignees'&&labor?.shown!=='when_configured')return true;
+ if(labor.shown==='with_assignees'&&!await isCapabilityEnabled(orgId,'apps.crew').catch(()=>false))return true;
  const [{listResourceGroups},{listOrganizationConnections},{listPaySheets}]=await Promise.all([import('../workforce/storage.js'),import('../connections/storage.js'),import('../labor/pay-sheets.js')]);
  if((await listResourceGroups(orgId,{}).catch(()=>[])).length)return true;
  if((await listOrganizationConnections(orgId,{}).catch(()=>[])).length)return true;
@@ -66,4 +68,4 @@ export async function archiveResourceType(orgId:string,input:unknown,auth:Platfo
  const doc=await upsertDocument(orgId,RESOURCE_TYPE_COLLECTION,{id,expected_revision:expected_revision??current.revision,data:{name:current.name,icon:current.icon,color:current.color,archived_at:new Date().toISOString(),archived_by_user_id:auth.userId,updated_by_user_id:auth.userId},metadata:{kind:'material_resource_type'}},{replace:true});
  return {id:doc.id,archived:true,revision:Number(doc.revision||0)};
 }
-export function resourceTypeRow(input:JsonObject){const known=LINE_ITEM_SOURCES as readonly string[],sources=Array.isArray(input.line_item_sources)?[...new Set(input.line_item_sources.map(String).filter(source=>known.includes(source)))]:[...(DEFAULT_LINE_ITEM_SOURCES[String(input.id)]||[])];return {id:String(input.id),name:String(input.name||''),icon:String(input.icon||'fa-layer-group'),color:String(input.color||'#64748b'),line_item_sources:sources,pricebook_sku_only:typeof input.pricebook_sku_only==='boolean'?input.pricebook_sku_only:String(input.id)==='material',...(input.shown==='always'||input.shown==='with_assignees'?{shown:input.shown}:{}),revision:Number(input.revision||0)};}
+export function resourceTypeRow(input:JsonObject){const known=LINE_ITEM_SOURCES as readonly string[],sources=Array.isArray(input.line_item_sources)?[...new Set(input.line_item_sources.map(String).filter(source=>known.includes(source)))]:[...(DEFAULT_LINE_ITEM_SOURCES[String(input.id)]||[])];return {id:String(input.id),name:String(input.name||''),icon:String(input.icon||'fa-layer-group'),color:String(input.color||'#64748b'),line_item_sources:sources,pricebook_sku_only:typeof input.pricebook_sku_only==='boolean'?input.pricebook_sku_only:String(input.id)==='material',...(input.shown==='always'||input.shown==='with_assignees'||input.shown==='when_configured'?{shown:input.shown}:{}),revision:Number(input.revision||0)};}

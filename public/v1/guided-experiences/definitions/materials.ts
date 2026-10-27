@@ -8,7 +8,8 @@ import { registerExperience, registerGuidedSource, registerTabFaqs } from "../re
  * runtime plays it (guided-experiences/service.ts, libraries/guided-experiences/).
  */
 const t = (key: string, text: string) => ({ key, text });
-export const MATERIALS_SETUP = "materials.pricebook_setup.roofing";
+export const MATERIALS_SETUP = "operations.setup";
+const LEGACY_PRICEBOOK_SETUP = "materials.pricebook_setup.roofing";
 export const MATERIALS_TUTORIAL = "materials.tab_tutorial";
 
 let registered = false;
@@ -21,7 +22,7 @@ export function registerMaterialsGuidedExperiences() {
   registerGuidedSource("labor.setup", (ctx) => laborSetupOptions(ctx.orgId));
 
   registerExperience({
-    id: MATERIALS_SETUP, version: 1, kind: "agentic", scope: "organization", salt: "2026-10",
+    id: LEGACY_PRICEBOOK_SETUP, version: 1, kind: "agentic", scope: "organization", salt: "2026-10",
     title: t("gx_mps_title", "Set up your price book"),
     description: t("gx_mps_description_2", "Tell us what kinds of roofs you install and the materials you use, and new materials lists start from them."),
     tab: "project.materials",
@@ -31,11 +32,8 @@ export function registerMaterialsGuidedExperiences() {
       // Roofing first. An organization that has not said what it does is treated as roofing, as FirstMeasure customers are.
       when: { match: "any", rules: [{ field: "organization.industry", operator: "is_missing" }, { field: "organization.industry", operator: "in", value: ["roofing", "exteriors", "roofing_and_exteriors"] }] }
     },
-    // The first time someone who can set it up opens Materials, report or not; Generate catches anyone who skipped.
-    triggers: [
-      { kind: "tab_opened", tab: "project.materials", delay_ms: 500 },
-      { kind: "before_action", action: "materials.generate", selector: "[data-mt-generate-materials],[data-mt-generate-column]", once: true }
-    ],
+    // Retained for historical replays only; Operations now owns first-use setup.
+    triggers: [{ kind: "manual" }],
     variants: [
       // The agent beside the setup, where the assistant is on for the organization.
       { id: "agentic", weight: 1, when: { field: "organization.flags.assistant", operator: "equals", value: true } },

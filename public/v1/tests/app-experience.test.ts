@@ -287,7 +287,8 @@ test('offered apps stay new for the organization until an eligible person starts
   const person=await createPerson(owner,orgId,suffix,'offer-reader',['viewer']);
   const {saveGlobal,readGlobal,upsertDocument}=await import('../platform/storage.js');
   const {effectiveCapabilities}=await import('../platform/capabilities.js');
-  await saveGlobal(orgId,{data:{app_offers:['project.docs','project.materials']}});
+  await (await import('../platform/capabilities.js')).saveCapabilityValues(orgId,{'apps.equipment':true});
+  await saveGlobal(orgId,{data:{app_offers:['project.docs','project.materials','portal.equipment']}});
   const base=`/v1/platform/organizations/${orgId}`;
   const session=await person.client.request('GET','/v1/platform/auth/session');
   assert.equal(session.app_entitlements.find((app:any)=>app.id==='project.docs').offered,true);
@@ -300,12 +301,20 @@ test('offered apps stay new for the organization until an eligible person starts
   await upsertDocument(orgId,'users',{id:person.userId,data:{app_access_overrides:{}}},{replace:false});
   await Promise.all([person.client.request('POST',`${base}/app-offers/project.docs/start`,{}),owner.request('POST',`${base}/app-offers/project.docs/start`,{})]);
   const global=await readGlobal(orgId);
-  assert.deepEqual(global.data.app_offers,['project.materials']);
+  assert.deepEqual(global.data.app_offers,['project.materials','portal.equipment']);
   assert.ok((global.data.app_activations as Json)['project.docs'].started_at);
   assert.equal((await effectiveCapabilities(orgId)).effectiveByKey['platform.documents'],true);
   assert.equal((await effectiveCapabilities(orgId)).effectiveByKey['platform.materials'],false);
   const fresh=await owner.request('GET','/v1/platform/auth/session');
   assert.notEqual(fresh.app_entitlements.find((app:any)=>app.id==='project.docs').offered,true);
+  assert.equal(fresh.app_entitlements.find((app:any)=>app.id==='portal.equipment').offered,true);
+  assert.equal((await effectiveCapabilities(orgId)).effectiveByKey['apps.equipment'],false);
+  await person.client.request('POST',`${base}/app-offers/portal.equipment/start`,{});
+  const equipmentSession=await owner.request('GET','/v1/platform/auth/session');
+  assert.notEqual(equipmentSession.app_entitlements.find((app:any)=>app.id==='portal.equipment').offered,true);
+  assert.equal((await effectiveCapabilities(orgId)).effectiveByKey['apps.equipment'],true);
+  assert.deepEqual((await readGlobal(orgId)).data.app_offers,['project.materials']);
+
   assert.equal((await person.client.raw('POST',`${base}/app-offers/portal.company_settings/start`,{})).statusCode,404);
 });
 

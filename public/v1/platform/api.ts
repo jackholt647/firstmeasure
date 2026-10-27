@@ -492,7 +492,7 @@ export const registerPlatformApi: FastifyPluginAsync<PlatformApiOptions> = async
   app.put('/organizations/:orgId/app-offers', { config: { access: 'customer_or_staff' } }, async request => {
     const ctx = await requirePlatformAuth(request, { orgId: getParam(request.params, 'orgId'), csrf: true });
     if (env.dataEnvironment !== 'development' || !canManageOrgAppFlags(ctx)) throw forbidden('app_offer_reset_denied', 'Only a development operator can reset app welcomes.');
-    const body = z.object({ apps: z.array(z.enum(['project.photos', 'project.docs', 'project.customer_portal', 'project.materials'])).max(4) }).strict().parse(request.body);
+    const body = z.object({ apps: z.array(z.enum(['project.photos', 'project.docs', 'project.customer_portal', 'project.materials', 'portal.equipment'])).max(5) }).strict().parse(request.body);
     await mutateGlobal(ctx.orgId, () => ({ data: { app_offers: offeredAppIds(body.apps) } }));
     return { ok: true };
   });

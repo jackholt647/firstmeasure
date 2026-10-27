@@ -64,3 +64,16 @@ test('generic global writes cannot consume offers or forge their activation reco
   assert.equal(containsAppFlagMutation({ data: { app_offers: [] } }), true);
   assert.equal(containsAppFlagMutation({ app_activations: {} }), true);
 });
+
+
+test("Equipment is discoverable globally but operationally off until its offer is accepted", () => {
+ const masked=resolveCapabilities(maskOfferedCapabilities({'platform.expanded_access':true,'apps.equipment':true,'equipment.scheduling':true},['portal.equipment'])).effectiveByKey;
+ assert.equal(masked['apps.equipment'],false);
+ assert.notEqual(masked['equipment.scheduling'],true);
+ const appEntitlements=resolveAppEntitlements({effectiveByKey:masked,offeredAppIds:['portal.equipment']});
+ const equipment=appEntitlements.find(app=>app.id==='portal.equipment');
+ assert.equal(equipment?.allowed,true);
+ assert.equal(equipment?.offered,true);
+ assert.equal(equipment?.welcome?.theme,'equipment');
+ assert.equal(hasAppAccess({appEntitlements} as PlatformAuthContext,'portal.equipment'),false);
+});

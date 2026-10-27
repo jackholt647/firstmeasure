@@ -5523,6 +5523,7 @@
         },
         openPreview: (doc, options = {}) => openPreview(objectValue(doc), options),
         openSendModal: (doc) => openSendModal(objectValue(doc)),
+        openPresentation: () => openPresentation(),
         downloadPdf: (doc, button) => downloadPdf(objectValue(doc), button || null),
         duplicateDoc: (doc, button) => duplicateDoc(objectValue(doc), button || null),
         archiveDoc: (doc) => archiveDoc(objectValue(doc)),

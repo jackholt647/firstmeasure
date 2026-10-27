@@ -17,6 +17,7 @@
 (function(root){
   'use strict';
   const document = root.document;
+  const scriptUrl = document.currentScript?.src || new URL('/libraries/guided-experiences/guided-setup.js',location.href).href;
   const G = () => root.FirstMateGuides;
   const clean = (value) => String(value ?? '').trim();
   const array = (value) => Array.isArray(value) ? value : [];
@@ -304,12 +305,13 @@
       }
       function footer(){
         const step = steps[index];
+        $('.gxs-foot').hidden = !!widgets.get(step.widget)?.handlesNavigation;
         const last = after(index) >= steps.length;
         $('[data-gxs=back]').hidden = !visited.length && index === 0;
         // An optional last page (labor prices) can be skipped too; skipping it finishes without its part.
         $('[data-gxs=skip]').hidden = step.required !== false || (last && !Object.keys(object(step.options?.skip_sets)).length);
         const next = $('[data-gxs=next]');
-        next.innerHTML = busy ? `<span class="gxs-spin" aria-hidden="true"></span>${H('gx_ui_building', 'Building…')}` : (last ? H('gx_ui_finish', 'Build my price book') : H('gx_ui_continue', 'Continue'));
+        next.innerHTML = busy ? `<span class="gxs-spin" aria-hidden="true"></span>${H('gx_ui_building', 'Building…')}` : (last ? (ctx.options?.nested ? H('gx_ui_finish_setup','Finish setup') : H('gx_ui_finish', 'Build my price book')) : H('gx_ui_continue', 'Continue'));
         const blocked = step.required !== false && mounted?.valid?.() === false;
         next.disabled = busy || blocked;
         // A disabled button shows no tooltip of its own, so its wrapper says why.
@@ -347,7 +349,10 @@
         // bottom while there is more below.
         if (widget?.fill) el.dataset.fill = '';
         watchFade(el);
-        mounted = widget ? widget.render(el.querySelector('.gxs-body'), { step, options: object(step.options), selections, L, esc, money, actions: el.querySelector('.gxs-title-actions'), priceSheet: assistant ? supplierPriceSheet : null, paySheet: assistant ? laborPaySheet : null, change(patch, summary){ Object.assign(selections, patch); if (summary !== undefined) summaries[step.id] = summary; status.textContent = ''; footer(); } }) : null;
+        mounted = widget ? widget.render(el.querySelector('.gxs-body'), { step, options: object(step.options), selections, L, esc, money, where:here, actions: el.querySelector('.gxs-title-actions'), priceSheet: assistant ? supplierPriceSheet : null, paySheet: assistant ? laborPaySheet : null,
+          advance:()=>next(false), complete:completeDirectly, checkpoint:()=>track('step_view',{step_id:step.id,selections}), restart(){visited.length=0;show(0,-1);},
+          async runGuide(id,options={}){ if(!options.keepVisible){host.hidden=true;host.inert=true;}try{return await ctx.playChild?.(id,options);}finally{if(!closed){host.hidden=false;host.inert=false;}} },
+          change(patch, summary){ Object.assign(selections, patch); if (summary !== undefined) summaries[step.id] = summary; status.textContent = ''; footer(); } }) : null;
         if (!widget) el.querySelector('.gxs-body').textContent = L('gx_ui_widget_missing', 'This step cannot be shown here.');
         if (old) {
           old.classList.remove('gxs-below', 'gxs-above');
@@ -400,6 +405,7 @@
         if (!closed) { visited.push(index); enter(to, 1, choice); }
       }
       async function finish(choice){
+        if(ctx.options?.nested) { try{return await completeDirectly();}catch{return;} }
         busy = true; footer(); status.textContent = ''; status.classList.remove('err');
         try {
           const result = await ctx.api.complete(experience.id, { selections, tab: here.tab, project_id: here.projectId, idempotency_key: `${experience.id}:${Date.now()}:${Math.random().toString(36).slice(2)}` });
@@ -434,6 +440,18 @@
           status.classList.add('err');
           status.textContent = clean(error?.message) || L('gx_ui_finish_failed', 'That didn’t save. Try again.');
         }
+      }
+
+      // Widgets that finish with their own checklist can use the same server completion
+      // contract without the legacy price-book confirmation screen.
+      async function completeDirectly(outcome = {}){
+        if (busy || closed) return;
+        busy=true; footer();
+        try {
+          const result=await ctx.api.complete(experience.id,{selections,tab:here.tab,project_id:here.projectId,idempotency_key:`${experience.id}:${Date.now()}:${Math.random().toString(36).slice(2)}`});
+          await close('plain');
+          resolve({status:'completed',result:object(result.result),...(outcome.generate===true?{generate:true}:{})});
+        } catch(error) { busy=false;footer();status.classList.add('err');status.textContent=error?.message||L('gx_ui_finish_failed','That didn’t save. Try again.');throw error; }
       }
       /**
        * The price book that was just set up, in the sheet in place of the finish, with the agent still beside it: the
@@ -594,6 +612,17 @@
 
   // ── Widgets ────────────────────────────────────────────────────────────
   function registerWidget(id, widget){ widgets.set(id, widget); }
+  for (const id of ['operations-path','operations-document','operations-ready']) registerWidget(id, {
+    fill:true, handlesNavigation:true,
+    render(el,ctx){
+      let disposed=false, handle=null;
+      el.textContent=L('gx_operations_loading','Opening Operations…');
+      import(new URL('./operations-setup.js?v=20261027-operations',scriptUrl).href).then(module=>{
+        if(!disposed)handle=module.mountWidget(id,el,ctx);
+      }).catch(error=>{if(!disposed)el.textContent=error?.message||L('gx_operations_load_error','Could not open this step. Close and try again.');});
+      return {valid:()=>handle?.valid?.()!==false,destroy(){disposed=true;handle?.destroy?.();}};
+    }
+  });
   const widgetCss = `
     /* The grid takes the step's height from the top; its rows stay a tile's shape and leftover space falls below. */
     .gxs-logos{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));grid-auto-rows:minmax(108px,150px);align-content:start;gap:12px;flex:1 1 auto;min-height:0;padding-bottom:24px}

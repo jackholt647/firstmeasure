@@ -112,7 +112,7 @@ test("progress: exposure once, step navigation and branches, skip, dismiss, repl
   assert.ok((await listEvents(ORG, "test.tour")).every((event) => ["a", "b"].includes(event.variant_id)), "every event carries its variant");
 });
 
-test("the Materials setup and tour are valid data, offered by eligibility, with the tab's questions", async () => {
+test("the historical pricebook setup remains manually replayable and Operations owns first-use", async () => {
   const service = await import("../guided-experiences/service.js"), { experience, tabFaqs } = await import("../guided-experiences/registry.js");
   service.ensureGuidedDefinitions();
   const setup = experience("materials.pricebook_setup.roofing")!, tour = experience("materials.tab_tutorial")!;
@@ -141,8 +141,8 @@ test("the Materials setup and tour are valid data, offered by eligibility, with 
   assert.ok(listed.faqs!.questions.length >= 4);
   const crew = person("crew", { role: "member", permissions: { view_projects: true }, accessProfile: { roles: [], app_restrictions: [] } });
   assert.equal((await service.availableExperiences(crew, {})).experiences.some((entry) => entry.id === "materials.pricebook_setup.roofing"), false, "only someone who may change company settings is asked");
-  // The first view of Materials starts the setup; Generate is the fallback.
-  assert.deepEqual(offered.triggers.map((trigger: any) => trigger.kind), ["tab_opened", "before_action"]);
+  // The old manufacturer questionnaire is available only when explicitly requested.
+  assert.deepEqual(offered.triggers.map((trigger: any) => trigger.kind), ["manual"]);
   // Onboarding sequencing: until the tour is done, Materials shows only on projects with a report.
   assert.deepEqual(listed.reveals, [], "Operations is offered before measurements");
   const tourForOwner = listed.experiences.find((entry) => entry.id === "materials.tab_tutorial")!;
@@ -156,4 +156,39 @@ test("the Materials setup and tour are valid data, offered by eligibility, with 
   const { experienceSchema } = await import("../guided-experiences/contracts.js");
   assert.equal(experienceSchema.safeParse({ ...experience("materials.tab_tutorial"), reveal: [{ tab: "project.materials", when: { "organization.size": 3 } }] }).success, false, "a reveal reads project facts only");
   assert.equal(await service.guidedConversationContext(owner, "project:p1"), "", "no setup open on that conversation");
+});
+
+
+test("Operations uses the shared document workflow and optional setup hub before its materials tour", async () => {
+ const service=await import('../guided-experiences/service.js');
+ const {experience}=await import('../guided-experiences/registry.js');
+ const {experienceSchema}=await import('../guided-experiences/contracts.js');
+ service.ensureGuidedDefinitions();
+ const setup=experience('operations.setup')!;
+ assert.equal(experienceSchema.safeParse(setup).success,true);
+ assert.equal(setup.kind,'modal');assert.equal(setup.scope,'organization');
+ assert.deepEqual(setup.triggers.map(trigger=>trigger.kind),['tab_opened']);
+ assert.deepEqual(setup.steps.map(step=>(step as any).widget),['operations-path','operations-document','operations-ready']);
+ assert.equal(setup.completion.action?.id,'operations.setup.complete');
+ assert.deepEqual(setup.completion.then,[{resume:true},{play:'materials.tab_tutorial'}],'generate materials before the tutorial looks for its targets');
+ assert.equal(setup.completion.action?.target,'project');
+ assert.deepEqual(setup.completion.then,[{play:'materials.tab_tutorial'}]);
+ const cards=(setup.steps.find(step=>step.id==='ready') as any).options.setups;
+ assert.deepEqual(cards.map((card:any)=>[card.id,card.minutes]),[['suppliers',5],['equipment',3],['workforce',5],['proposals',10]]);
+ assert.equal(cards.find((card:any)=>card.id==='workforce').terminologyKey,'workforce.resource_group_plural');
+ for(const id of ['operations.suppliers.setup','operations.workforce.setup','operations.proposal.setup']){
+   const optional=experience(id)!;
+   assert.equal(experienceSchema.safeParse(optional).success,true,id);
+   assert.deepEqual(optional.triggers.map(trigger=>trigger.kind),['manual'],`${id} only starts when chosen`);
+ }
+ assert.equal((experience('operations.proposal.setup')!.steps[0] as any).options.path,'proposal');
+ const operator=person('operations-editor',{permissions:{manage_projects:true}});
+ const listed=await service.availableExperiences(operator,{tab:'project.materials'});
+ assert.ok(listed.experiences.some(item=>item.id==='operations.setup'),'a project editor does not need company-settings permission to build a scope');
+ assert.equal(listed.experiences.find(item=>item.id==='materials.tab_tutorial')!.triggers.some(trigger=>trigger.kind==='tab_opened'),false,'the tutorial waits for Operations setup, not the retired pricebook setup');
+ const {writeProgress}=await import('../guided-experiences/store.js');
+ await writeProgress(ORG,'','operations.setup',{status:'completed',variant_id:'default',userId:'operations-editor'});
+ const nextPerson=await service.availableExperiences(person('another-editor',{permissions:{manage_projects:true}}),{tab:'project.materials'});
+ assert.equal(nextPerson.experiences.find(item=>item.id==='operations.setup')?.progress?.status,'completed','setup progress belongs to the organization');
+ assert.equal(nextPerson.experiences.find(item=>item.id==='materials.tab_tutorial')!.triggers.some(trigger=>trigger.kind==='tab_opened'),true,'the tour can run once scope setup is complete');
 });

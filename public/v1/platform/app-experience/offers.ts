@@ -8,7 +8,8 @@ export const APP_OFFERS = {
   "project.photos": ["platform.project_photos"],
   "project.docs": ["platform.project_docs", "platform.documents"],
   "project.customer_portal": ["platform.customer_portal"],
-  "project.materials": ["platform.materials"]
+  "project.materials": ["platform.materials"],
+  "portal.equipment": ["apps.equipment"]
 } as const;
 
 export type OfferedAppId = keyof typeof APP_OFFERS;
@@ -17,9 +18,14 @@ export const NEW_ORGANIZATION_APP_OFFERS = Object.keys(APP_OFFERS) as OfferedApp
 const copy = (key: string, text: string) => ({ key: `gx_offer_${key}`, text });
 /** Static advertisements, not guide progress. The existing guide starts after activation. */
 export const APP_WELCOMES = {
+  "portal.equipment": { theme: "equipment", eyebrow: copy("equipment_name", "Equipment"),
+    headline: copy("equipment_headline", "The right equipment for every job."),
+    description: copy("equipment_description", "Connect the equipment you own or rent to the work your projects need."),
+    benefits: [copy("equipment_b1", "Keep your equipment and its capabilities together"), copy("equipment_b2", "Match equipment to requirements from your scope of work"), copy("equipment_b3", "Plan project equipment alongside materials and work orders")],
+    caption: copy("equipment_caption", "Your equipment. Connected to the work.") },
   "project.photos": { theme: "photos", eyebrow: copy("photos_name", "Project Photos"),
     headline: copy("photos_headline", "Every job. Every detail. All together."),
-    description: copy("photos_description", "Keep the whole story of a project in one place—from the first visit to the final walkthrough."),
+    description: copy("photos_description", "Keep the whole story of a project in one place - from the first visit to the final walkthrough."),
     benefits: [copy("photos_b1", "Capture and upload right from the jobsite"), copy("photos_b2", "Keep project photos organized and easy to find"), copy("photos_b3", "Share the details with your team")],
     caption: copy("photos_caption", "A clearer picture of every project.") },
   "project.docs": { theme: "documents", eyebrow: copy("docs_name", "Project Documents"),
@@ -33,10 +39,10 @@ export const APP_WELCOMES = {
     benefits: [copy("portal_b1", "Give every project its own customer link"), copy("portal_b2", "Choose what you share with the customer"), copy("portal_b3", "Bring project information into one place")],
     caption: copy("portal_caption", "Their project. One simple link.") },
   "project.materials": { theme: "materials", eyebrow: copy("operations_name", "Operations"),
-    headline: copy("materials_headline", "From measurements to materials."),
-    description: copy("materials_description", "Build the list that moves the job forward. Bring your products, quantities, and material planning into the project."),
-    benefits: [copy("materials_b1", "Build and adjust project material lists"), copy("materials_b2", "Use your own products and calculation rules"), copy("materials_b3", "Keep quantities and job details together")],
-    caption: copy("materials_caption", "Your products. Your rules. Your material lists.") }
+    headline: copy("operations_headline", "Turn your scope into a plan."),
+    description: copy("operations_description", "Bring measurements, materials, work orders and equipment together. Start with what the job needs, then get everything ready to do the work."),
+    benefits: [copy("operations_b1", "Build material lists from your project scope"), copy("operations_b2", "Plan work orders and who will do the work"), copy("operations_b3", "Match equipment to the project's requirements")],
+    caption: copy("operations_caption", "One scope. Everything you need to get it done.") }
 } as const;
 
 /** Ignore unrecognized stored values, rather than allowing them to mask other features. */

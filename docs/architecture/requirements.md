@@ -16,7 +16,11 @@ Three layers, and they do different jobs:
 2. **The project's scope artifacts** say what *this* job includes. They are the
    sets in the project's materials ledger ([materials calculus](materials-calculus.md)).
    Each set carries material lines and, in `work`, the work items and functions
-   the job includes. An accepted document's calculation publishes them; a
+   the job includes. An accepted document's calculation publishes them; Operations
+   can also explicitly publish a retained internal scope snapshot before customer
+   acceptance. That origin is marked `planning: true`, never signed or accepted.
+   A later signed version of the same proposal replaces that set's source in place,
+   preserving its identity, material lines and orders instead of doubling requirements. A
    person can add work by hand; an agent can build a set from scratch. They
    take their shape from the scope set and the measurements, and their content
    from whatever defined the job.

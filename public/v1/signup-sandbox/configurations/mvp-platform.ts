@@ -40,6 +40,7 @@ const ENABLED = [
   "platform.customer_portal",
   "platform.customer_portal_media",
   "platform.materials",
+  "apps.equipment",
   "platform.pricebook",
   "materials.ordering",
   "platform.documents",
@@ -104,7 +105,7 @@ export const workflow: JsonObject = {
   description: "The FirstMeasure default signup plus the MVP platform: My Projects (with the project map), My Contacts and Feed; project tabs Overview, Reports, Photos (New), Docs (New), Operations and Customer Portal; Agent, Notes, Activity and To Do trays. No Scheduling or calendar. Every project is a generic roof job.",
   entry_mode: "landing_first",
   // Raise when this file changes: the saved workflow is replaced with it on the next seed.
-  configuration_revision: 19,
+  configuration_revision: 20,
   sample_data: true,
   // A launched test instance starts empty: sample projects and customers come only from "Add sample data" in the
   // development tools (Jack, 2026-10-26). An empty list, not a missing one, so the revision replaces a saved list.
