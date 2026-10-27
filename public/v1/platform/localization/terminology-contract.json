@@ -396,7 +396,7 @@
     "kind": "entity"
   },
   "money.project_tab": {
-    "label": "Money",
+    "label": "Financials",
     "kind": "navigation"
   },
   "money.payments_settings_tab": {

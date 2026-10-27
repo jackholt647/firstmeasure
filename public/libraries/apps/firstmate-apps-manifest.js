@@ -287,14 +287,14 @@
     {
       id: 'project.money',
       package: 'money',
-      title: (globalThis.PlatformLanguage?.text("firstmate-apps-manifest","m_05cb9dd7e5a780","Money") ?? "Money"),
+      title: (globalThis.PlatformLanguage?.text("firstmate-apps-manifest","project_financials_tab","Financials") ?? "Financials"),
       terminologyKey: 'money.project_tab',
       icon: 'fa-dollar-sign',
       kind: 'project_modal_app',
       surfaces: ['project_modal'],
       requiresContext: ['project'],
       dependencies: ['project.proposal', 'project.materials'],
-      bundles: [gifDisplayBundle,versionedBundle('../payments-api/payments-api.js', '20261019-forward-cert'), versionedBundle('../payroll-api/payroll-api.js', '20261019-payroll-closeout-v1'), versionedBundle('../documents-api/documents-api.js', '20261022-document-history'), versionedBundle('payroll/project.js', '20260714-money-commissions'), versionedBundle('photos/feed.js', '20261027-viewer-2'), versionedBundle('receipts/app.js', '20260714-receipt-pdf-preview'), versionedBundle('money/project.js', '20261019-forward-cert')]
+      bundles: [gifDisplayBundle,versionedBundle('../payments-api/payments-api.js', '20261019-forward-cert'), versionedBundle('../payroll-api/payroll-api.js', '20261019-payroll-closeout-v1'), versionedBundle('../documents-api/documents-api.js', '20261022-document-history'), versionedBundle('payroll/project.js', '20260714-money-commissions'), versionedBundle('photos/feed.js', '20261027-viewer-2'), versionedBundle('receipts/app.js', '20260714-receipt-pdf-preview'), versionedBundle('money/project.js', '20261027-financials')]
     },
     {
       id: 'project.request',

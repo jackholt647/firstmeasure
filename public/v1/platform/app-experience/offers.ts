@@ -84,7 +84,7 @@ export const APP_WELCOMES = {
     caption: copy("operations_caption", "One scope. Everything you need to get it done.") },
   // `setup`: the switch whose required setup workflow Get Started continues into (app-setup-workflows.js).
   "project.money": { theme: "money", setup: "platform.money", setup_note: copy("money_setup_note", "Get Started begins with payments onboarding."),
-    eyebrow: copy("money_name", "Money"),
+    eyebrow: copy("financials_name", "Financials"),
     headline: copy("money_headline", "Get paid for every job."),
     description: copy("money_description", "See what each project has billed, collected and spent, and take payments from customers right from the project."),
     benefits: [copy("money_b1", "Take card and bank payments from customers"), copy("money_b2", "Follow payments, expenses and profit on every project"), copy("money_b3", "Set payment schedules that match the work")],
