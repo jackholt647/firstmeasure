@@ -16,7 +16,7 @@ import { registerRealtimeChannelKind, type RealtimeChannelSend } from "./realtim
 export type LiveManifest = {
   gen: number;
   files: Record<string, { sha: string }>;
-  /** Files that left the layer at `gen` and why: "released" (the release now has the same bytes), "conflict", "reverted". */
+  /** Files that left the layer at `gen` and why: "released" (the release now has the same bytes or the router merged them in), "parked" (the release changed under it; kept for the router), "reverted"; older manifests may say "conflict". */
   retired?: Record<string, { reason: string; gen: number }>;
 };
 export type LiveChange = { path: string; sha: string | null };
