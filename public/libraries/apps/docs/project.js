@@ -728,26 +728,16 @@
       @media(max-width:760px){.fm-docs-toolbar{display:flex;align-items:stretch;flex-direction:column}.fm-docs-controls{justify-content:flex-start}.fm-doc-special-row{grid-auto-columns:minmax(112px,132px)}}
       @media(max-width:720px){.fm-docs-wrap,.fm-docs-wrap.shared-media{padding:20px}}
       /* Phone (html[data-fm-doc-phone]): the header is one row like Photos —
-         the tab icon, search as an icon that opens over the row, Tags, Shown
+         the tab icon, a flexible search that opens over the row, Tags, Shown
          and one New (its dialog holds Upload). */
       html[data-fm-doc-phone] .fm-docs-wrap,html[data-fm-doc-phone] .fm-docs-wrap.shared-media{padding:0 12px 12px}
       html[data-fm-doc-phone] .fm-docs-gallery .pf-toolbar{flex-wrap:nowrap;gap:8px;margin:0 -12px 12px;padding:10px 12px}
       html[data-fm-doc-phone] .fm-docs-gallery .pf-title{flex:0 0 32px}
       html[data-fm-doc-phone] .fm-docs-gallery .pf-title>div{display:none}
       html[data-fm-doc-phone] .fm-docs-gallery .pf-title i{width:32px;height:32px}
-      html[data-fm-doc-phone] .fm-docs-gallery .pf-tools{position:relative;flex:1 1 auto;flex-wrap:nowrap;justify-content:flex-end;gap:6px;min-width:0}
+      html[data-fm-doc-phone] .fm-docs-gallery .pf-tools{position:static;flex:1 1 auto;flex-wrap:nowrap;justify-content:flex-end;gap:6px;min-width:0}
       html[data-fm-doc-phone] .fm-docs-gallery .pf-density,html[data-fm-doc-phone] .fm-docs-gallery .pf-tools:has([data-gallery-toolbar-action="new_document"]) .pf-upload{display:none}
-      html[data-fm-doc-phone] .fm-docs-gallery .pf-search{order:0;flex:0 0 36px;width:36px;min-width:36px;max-width:none;margin-right:auto}
-      html[data-fm-doc-phone] .fm-docs-gallery .pf-search input{height:36px;padding:0 0 0 34px;border-radius:10px;font-size:16px;cursor:pointer;color:transparent;transition:box-shadow .15s ease}
-      html[data-fm-doc-phone] .fm-docs-gallery .pf-search input::placeholder{color:transparent}
-      html[data-fm-doc-phone] .fm-docs-gallery .pf-search i{left:11px;pointer-events:none;transition:color .15s ease}
-      html[data-fm-doc-phone] .fm-docs-gallery .pf-search:has(input:not(:placeholder-shown)) i{color:var(--primary-readable,var(--primary,#d93025))}
-      html[data-fm-doc-phone] .fm-docs-gallery .pf-search:has(input:not(:placeholder-shown))::after{content:'';position:absolute;right:5px;top:5px;width:7px;height:7px;border-radius:50%;background:var(--primary,#d93025);box-shadow:0 0 0 2px #fff}
-      html[data-fm-doc-phone] .fm-docs-gallery .pf-search:focus-within{position:absolute;left:0;right:0;top:50%;z-index:5;width:auto;transform:translateY(-50%);animation:fm-docs-search-open .24s cubic-bezier(.2,.8,.2,1)}
-      html[data-fm-doc-phone] .fm-docs-gallery .pf-search:focus-within::after{display:none}
-      html[data-fm-doc-phone] .fm-docs-gallery .pf-search:focus-within input{cursor:text;color:#101828;padding-right:12px;box-shadow:0 0 0 4px rgba(var(--primary-rgb,217,48,37),.12),0 8px 22px rgba(16,24,40,.12)}
-      html[data-fm-doc-phone] .fm-docs-gallery .pf-search:focus-within input::placeholder{color:#98a2b3}
-      @keyframes fm-docs-search-open{from{clip-path:inset(0 calc(100% - 36px) 0 0 round 10px)}to{clip-path:inset(0 0 0 0 round 10px)}}
+      /* Search sizing and expansion are shared with Photos in photos/feed.js. */
       html[data-fm-doc-phone] .fm-docs-gallery .pf-toolbar-action{height:36px;min-width:36px;padding:0 10px;justify-content:center}
       html[data-fm-doc-phone] .fm-docs-gallery .pf-toolbar-action:not([data-gallery-toolbar-action="new_document"]) span{display:none}
       html[data-fm-doc-phone] .fm-docs-gallery [data-gallery-toolbar-action="new_document"]{padding:0 14px;gap:6px}
@@ -766,7 +756,6 @@
       html[data-fm-doc-phone] .fm-docs-gallery .pf-wrap:not([data-density="list"]) .fm-document-tile .fm-doc-card-facts{display:block;font-size:12px}
       html[data-fm-doc-phone] .fm-docs-gallery .pf-wrap:not([data-density="list"]) .fm-document-tile .fm-doc-badges{left:12px;right:12px;top:11px}
       html[data-fm-doc-phone] .fm-docs-gallery .pf-wrap:not([data-density="list"]) .fm-document-tile :is(.fm-doc-type-badge,.fm-doc-status-badge){display:inline-block;padding:4px 9px;font-size:10.5px}
-      @media(prefers-reduced-motion:reduce){html[data-fm-doc-phone] .fm-docs-gallery .pf-search:focus-within{animation:none}}
     `);
   }
 
