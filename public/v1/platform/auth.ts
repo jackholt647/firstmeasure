@@ -716,7 +716,7 @@ export function hasAppEntitlement(ctx: PlatformAuthContext, appId: string) {
   const normalize=(id:string)=>id.replace(/^(portal|project|apps|settings|platform)\./,'');
   if ((ctx.accessProfile?.app_restrictions || []).some(id=>normalize(id)===normalize(appId))) return false;
   return !(ctx.appEntitlements || []).some(entry =>
-    (entry.id === appId || entry.portal_tab_id === appId || normalize(entry.id) === normalize(appId)) && entry.restricted);
+    (entry.id === appId || entry.portal_tab_id === appId || normalize(entry.id) === normalize(appId)) && (entry.restricted || entry.offered));
 }
 
 /**
@@ -736,7 +736,7 @@ export function hasAppAccess(ctx: PlatformAuthContext, appIds: string | string[]
 /** An option of an app (docs/architecture/app-experience.md), such as Today's time clock, as this person gets it. */
 export function appOptionEnabled(ctx: PlatformAuthContext, appId: string, optionKey: string) {
   const entry = (ctx.appEntitlements || []).find((app) => app.id === appId);
-  return entry?.allowed === true && entry.option_values[optionKey] === true;
+  return entry?.allowed === true && !entry.offered && entry.option_values[optionKey] === true;
 }
 
 /**

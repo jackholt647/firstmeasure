@@ -81,7 +81,8 @@ export function mountWelcome(context){
       if (!started) await window.PlatformAPI.request(`/organizations/${encodeURIComponent(context.orgId)}/app-offers/${encodeURIComponent(context.appId)}/start`,{method:'POST',body:{}});
       started=true;
       await refreshOrganization(context.orgId);
-      if (!destroyed && root.isConnected) window.dispatchEvent(new CustomEvent('fm:app-offer:started',{detail:{appId:context.appId}}));
+      // Refreshing the session may already replace this welcome; still re-arm the newly available guide.
+      if ((window.__APP?.userOrgId || window.Portal?.currentUser?.orgId) === context.orgId) window.dispatchEvent(new CustomEvent('fm:app-offer:started',{detail:{appId:context.appId}}));
     } catch(error) {
       if(!destroyed) root.querySelector('.faw-error').textContent=error?.message || text('gx_offer_error','Could not start this app. Please try again.');
     } finally {pending=false;if(!destroyed)button.disabled=false;}

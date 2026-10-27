@@ -4,7 +4,8 @@ import { maskOfferedCapabilities, offeredAppIds } from "../platform/app-experien
 import { resolveCapabilities } from "../platform/capabilities.js";
 import "../platform/capability_defs.js";
 import { resolveAppEntitlements } from "../workforce/access.js";
-import { hasAppAccess, type PlatformAuthContext } from "../platform/auth.js";
+import { hasAppAccess, hasAppEntitlement, type PlatformAuthContext } from "../platform/auth.js";
+import { containsAppFlagMutation } from '../platform/app_flags.js';
 
 test("offers mask the operational capabilities and their dependent features", () => {
   const configured = { "platform.project_photos": true, "platform.photos_feed": true,
@@ -37,5 +38,11 @@ test("an offered tab does not grant access to its operational routes", () => {
   for (const expanded of [false, true]) {
     const ctx = { appEntitlements, accessProfile: expanded ? {} : undefined } as PlatformAuthContext;
     assert.equal(hasAppAccess(ctx, "project.photos"), false);
+    assert.equal(hasAppEntitlement(ctx, 'photos'), false);
   }
+});
+
+test('generic global writes cannot consume offers or forge their activation record', () => {
+  assert.equal(containsAppFlagMutation({ data: { app_offers: [] } }), true);
+  assert.equal(containsAppFlagMutation({ app_activations: {} }), true);
 });
