@@ -3204,7 +3204,13 @@
     "total_credit": {
       "message": "{amount} i kredit totalt",
       "format": "icu"
-    }
+    },
+    "ob_full_name_label": "Ditt namn",
+    "ob_full_name_placeholder": "Ditt fullständiga namn",
+    "ob_company_name_label": "Företagsnamn",
+    "ob_company_name_placeholder": "Ditt företags namn",
+    "ob_names_missing_title": "Ditt namn och företag",
+    "ob_names_missing_body": "Ange ditt namn och företagsnamn för att fortsätta."
   },
   "payroll": {
     "m_4a04382820d2e1": "Övrigt",

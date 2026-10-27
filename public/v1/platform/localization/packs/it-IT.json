@@ -3184,7 +3184,13 @@
     "invites_sent": {
       "message": "{count, plural, one {# invito inviato.} other {# inviti inviati.}}",
       "format": "icu"
-    }
+    },
+    "ob_full_name_label": "Il tuo nome",
+    "ob_full_name_placeholder": "Il tuo nome completo",
+    "ob_company_name_label": "Nome dell'azienda",
+    "ob_company_name_placeholder": "Il nome della tua azienda",
+    "ob_names_missing_title": "Il tuo nome e la tua azienda",
+    "ob_names_missing_body": "Inserisci il tuo nome e il nome dell'azienda per continuare."
   },
   "payroll": {
     "m_4a04382820d2e1": "Altro",

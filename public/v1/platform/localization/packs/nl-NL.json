@@ -3284,7 +3284,13 @@
     "total_credit": {
       "message": "{amount} tegoed in totaal",
       "format": "icu"
-    }
+    },
+    "ob_full_name_label": "Je naam",
+    "ob_full_name_placeholder": "Je volledige naam",
+    "ob_company_name_label": "Bedrijfsnaam",
+    "ob_company_name_placeholder": "De naam van je bedrijf",
+    "ob_names_missing_title": "Je naam en bedrijf",
+    "ob_names_missing_body": "Vul je naam en bedrijfsnaam in om verder te gaan."
   },
   "payroll": {
     "m_4a04382820d2e1": "Overig",

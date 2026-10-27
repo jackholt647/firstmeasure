@@ -669,6 +669,8 @@
     transition: border-color .2s, box-shadow .2s;
   }
   .ob-input::placeholder{ color:rgba(0,0,0,0.3); }
+  .ob-input.ob-input-invalid{ border-color:#d93025; box-shadow:0 0 0 3px rgba(217,48,37,0.12); }
+  .ob-profile-row{ display:grid; grid-template-columns:repeat(auto-fit, minmax(200px, 1fr)); gap:12px; margin-bottom:8px; }
   .ob-input:focus{
     border-color:var(--primary, #d93025);
     box-shadow:0 0 0 3px rgba(var(--primary-rgb, 217,48,37),0.1);
@@ -1886,6 +1888,16 @@
   const VERIFY_PAGE = 3;
   const ALL_PAGES = [0, 1, 2, VERIFY_PAGE];
 
+  /* Who and which company. Signup asks for neither, so the welcome page asks
+     until they are saved (1M8-246: every signup was left "Your Company"). */
+  const PLACEHOLDER_ORG_NAMES = new Set(['', 'your company', 'untitled organization', 'default branch']);
+  const isPlaceholderOrgName = (name) => PLACEHOLDER_ORG_NAMES.has(String(name || '').trim().toLowerCase());
+  const savedFullName = () => {
+    const name = String(APP.userName || '').trim();
+    return name && name.toLowerCase() !== ME_EMAIL ? name : '';
+  };
+  let profileState = { fullName: '', companyName: '' };
+
   /* Branding state */
   let brandState = {
     website: '',
@@ -2276,6 +2288,7 @@
     try {
       sessionStorage.setItem(SS_KEY, JSON.stringify({
         currentPage,
+        profile: { fullName: profileState.fullName, companyName: profileState.companyName },
         brand: {
           website:        brandState.website,
           domain:         brandState.domain,
@@ -2330,6 +2343,11 @@
 
       if (typeof s.currentPage === 'number') {
         currentPage = ALL_PAGES.includes(s.currentPage) ? s.currentPage : 0;
+      }
+
+      if (s.profile && typeof s.profile === 'object') {
+        profileState.fullName    = String(s.profile.fullName || '').trim();
+        profileState.companyName = String(s.profile.companyName || '').trim();
       }
 
       if (s.brand && typeof s.brand === 'object') {
@@ -2943,6 +2961,49 @@
   /* ═══════════════════════════════════════════════════════════════
    *  PAGE 0: BRANDING
    * ═══════════════════════════════════════════════════════════════ */
+  function welcomeNamesMarkup(){
+    const askName = !savedFullName();
+    const askCompany = isPlaceholderOrgName(ORG_NAME);
+    if (!askName && !askCompany) {
+      return `
+      <div class="ob-welcome-names">
+        <div class="ob-name-user">${esc(savedFullName())}</div>
+        <div class="ob-name-org">${esc(ORG_NAME)}</div>
+      </div>`;
+    }
+    return `
+      <div class="ob-profile-row">
+        ${askName ? `<div class="ob-row">
+          <label class="ob-lbl" for="obFullName">${(globalThis.PlatformLanguage?.htmlText("onboarding","ob_full_name_label","Your name") ?? "Your name")}</label>
+          <input class="ob-input" id="obFullName" name="full_name" placeholder="${esc((globalThis.PlatformLanguage?.text("onboarding","ob_full_name_placeholder","Your full name") ?? "Your full name"))}" autocomplete="name" maxlength="120" value="${esc(profileState.fullName)}">
+        </div>` : ''}
+        ${askCompany ? `<div class="ob-row">
+          <label class="ob-lbl" for="obCompanyName">${(globalThis.PlatformLanguage?.htmlText("onboarding","ob_company_name_label","Company name") ?? "Company name")}</label>
+          <input class="ob-input" id="obCompanyName" name="company_name" placeholder="${esc((globalThis.PlatformLanguage?.text("onboarding","ob_company_name_placeholder","Your company name") ?? "Your company name"))}" autocomplete="organization" maxlength="120" value="${esc(profileState.companyName)}">
+        </div>` : ''}
+      </div>`;
+  }
+
+  /* The name inputs on the welcome page, if shown: false (and marked) while one is empty. */
+  function welcomeNamesComplete(){
+    const fields = [
+      { input: document.getElementById('obFullName'), key: 'fullName' },
+      { input: document.getElementById('obCompanyName'), key: 'companyName' },
+    ].filter(field => field.input);
+    fields.forEach(({ input, key }) => { profileState[key] = String(input.value || '').trim(); });
+    const missing = fields.filter(({ key }) => !profileState[key] || (key === 'companyName' && isPlaceholderOrgName(profileState[key])));
+    fields.forEach(({ input }) => {
+      const invalid = missing.some(field => field.input === input);
+      input.classList.toggle('ob-input-invalid', invalid);
+      input.setAttribute('aria-invalid', invalid ? 'true' : 'false');
+    });
+    if (!missing.length) return true;
+    showToast((globalThis.PlatformLanguage?.text("onboarding","ob_names_missing_title","Your name and company") ?? "Your name and company"), (globalThis.PlatformLanguage?.text("onboarding","ob_names_missing_body","Enter your name and company name to continue.") ?? "Enter your name and company name to continue."), false);
+    missing[0].input.focus();
+    missing[0].input.scrollIntoView({ block: 'center', behavior: 'smooth' });
+    return false;
+  }
+
   function renderPage0(){
     const page = document.getElementById('obPage0');
     if (!page) return;
@@ -2966,10 +3027,7 @@
       <div class="ob-progress"></div>
       <div class="ob-step-label">${String(stepLabel(0))}</div>
       <h1 class="ob-h1">${(globalThis.PlatformLanguage?.htmlText("onboarding","m_2e992f8bee9c08","Welcome") ?? "Welcome")}</h1>
-      <div class="ob-welcome-names">
-        <div class="ob-name-user">${String(esc(ME_NAME || ME_EMAIL))}</div>
-        <div class="ob-name-org">${String(esc(ORG_NAME || 'Your Company'))}</div>
-      </div>
+      ${String(welcomeNamesMarkup())}
 
       <div class="ob-row">
         <label class="ob-lbl">${(globalThis.PlatformLanguage?.htmlText("onboarding","m_6ab3729e8bcb2e","Company website") ?? "Company website")}</label>
@@ -3045,6 +3103,15 @@
     const brandHint = document.getElementById('obBrandHint');
 
     const obPage0 = document.getElementById('obPage0');
+    ['obFullName', 'obCompanyName'].forEach((id) => {
+      const input = document.getElementById(id);
+      input?.addEventListener('input', () => {
+        profileState[id === 'obFullName' ? 'fullName' : 'companyName'] = String(input.value || '').trim();
+        input.classList.remove('ob-input-invalid');
+        input.removeAttribute('aria-invalid');
+        saveState();
+      });
+    });
 
     function setLogoPlaceholder(text){
       if (!logoPlaceholder) return;
@@ -3459,6 +3526,7 @@
 
     async function saveBrandingAndContinue(){
       if (skip0.disabled || next0.disabled) return;
+      if (!welcomeNamesComplete()) return;
       skip0.disabled = true;
       next0.disabled = true;
       try {
@@ -3593,10 +3661,22 @@
         } catch(e){ /* silent */ }
       }
       try {
-        await postAction('org_update_my', {
+        const companyName = isPlaceholderOrgName(ORG_NAME) ? profileState.companyName : '';
+        const fullName = savedFullName() ? '' : profileState.fullName;
+        const { data } = await postAction('org_update_my', {
           accent: brandState.primary,
           secondary: brandState.secondary,
+          ...(companyName ? { name: companyName } : {}),
+          ...(fullName ? { full_name: fullName } : {}),
         });
+        if (data?.success) {
+          if (companyName) {
+            ORG_NAME = companyName;
+            APP.orgName = companyName;
+            APP.userCompany = companyName;
+          }
+          if (fullName) APP.userName = fullName;
+        }
       } catch(e){ /* silent */ }
       applyLiveTheme(brandState.primary, brandState.secondary);
 

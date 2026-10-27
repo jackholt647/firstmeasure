@@ -3200,7 +3200,13 @@
     "total_credit": {
       "message": "{amount} środków łącznie",
       "format": "icu"
-    }
+    },
+    "ob_full_name_label": "Twoje imię i nazwisko",
+    "ob_full_name_placeholder": "Imię i nazwisko",
+    "ob_company_name_label": "Nazwa firmy",
+    "ob_company_name_placeholder": "Nazwa Twojej firmy",
+    "ob_names_missing_title": "Twoje dane i firma",
+    "ob_names_missing_body": "Aby kontynuować, wpisz swoje imię i nazwisko oraz nazwę firmy."
   },
   "payroll": {
     "m_4a04382820d2e1": "Inne",

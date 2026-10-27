@@ -3280,7 +3280,13 @@
     "total_credit": {
       "message": "{amount} saldoa yhteensä",
       "format": "icu"
-    }
+    },
+    "ob_full_name_label": "Nimesi",
+    "ob_full_name_placeholder": "Koko nimesi",
+    "ob_company_name_label": "Yrityksen nimi",
+    "ob_company_name_placeholder": "Yrityksesi nimi",
+    "ob_names_missing_title": "Nimesi ja yrityksesi",
+    "ob_names_missing_body": "Jatka antamalla nimesi ja yrityksesi nimi."
   },
   "payroll": {
     "m_4a04382820d2e1": "Muu",

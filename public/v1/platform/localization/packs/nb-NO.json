@@ -3284,7 +3284,13 @@
     "total_credit": {
       "message": "{amount} i kreditt totalt",
       "format": "icu"
-    }
+    },
+    "ob_full_name_label": "Navnet ditt",
+    "ob_full_name_placeholder": "Fullt navn",
+    "ob_company_name_label": "Firmanavn",
+    "ob_company_name_placeholder": "Navnet på firmaet ditt",
+    "ob_names_missing_title": "Navnet ditt og firmaet",
+    "ob_names_missing_body": "Skriv inn navnet ditt og firmanavnet for å fortsette."
   },
   "payroll": {
     "m_4a04382820d2e1": "Annet",

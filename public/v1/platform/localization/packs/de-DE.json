@@ -3280,7 +3280,13 @@
     "invites_sent": {
       "message": "{count, plural, one {# Einladung gesendet.} other {# Einladungen gesendet.}}",
       "format": "icu"
-    }
+    },
+    "ob_full_name_label": "Ihr Name",
+    "ob_full_name_placeholder": "Ihr vollständiger Name",
+    "ob_company_name_label": "Firmenname",
+    "ob_company_name_placeholder": "Name Ihres Unternehmens",
+    "ob_names_missing_title": "Ihr Name und Ihr Unternehmen",
+    "ob_names_missing_body": "Geben Sie Ihren Namen und den Firmennamen ein, um fortzufahren."
   },
   "payroll": {
     "m_4a04382820d2e1": "Sonstiges",

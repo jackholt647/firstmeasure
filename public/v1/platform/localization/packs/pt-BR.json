@@ -3288,7 +3288,13 @@
     "total_credit": {
       "message": "{amount} de crédito no total",
       "format": "icu"
-    }
+    },
+    "ob_full_name_label": "Seu nome",
+    "ob_full_name_placeholder": "Seu nome completo",
+    "ob_company_name_label": "Nome da empresa",
+    "ob_company_name_placeholder": "O nome da sua empresa",
+    "ob_names_missing_title": "Seu nome e sua empresa",
+    "ob_names_missing_body": "Informe seu nome e o nome da empresa para continuar."
   },
   "payroll": {
     "m_4a04382820d2e1": "Outro",

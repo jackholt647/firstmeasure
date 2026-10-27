@@ -3288,7 +3288,13 @@
     "total_credit": {
       "message": "Συνολική πίστωση {amount}",
       "format": "icu"
-    }
+    },
+    "ob_full_name_label": "Το όνομά σας",
+    "ob_full_name_placeholder": "Το ονοματεπώνυμό σας",
+    "ob_company_name_label": "Επωνυμία εταιρείας",
+    "ob_company_name_placeholder": "Η επωνυμία της εταιρείας σας",
+    "ob_names_missing_title": "Το όνομά σας και η εταιρεία σας",
+    "ob_names_missing_body": "Εισαγάγετε το όνομά σας και την επωνυμία της εταιρείας για να συνεχίσετε."
   },
   "payroll": {
     "m_4a04382820d2e1": "Άλλο",
