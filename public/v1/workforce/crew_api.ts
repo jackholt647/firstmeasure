@@ -82,6 +82,8 @@ import {
   signProjectChecklist
 } from "./crew_storage.js";
 import { normalizePortalSignature } from "../platform/portal_signatures.js";
+import { isCapabilityEnabled } from "../platform/capabilities.js";
+import { generateChecklistDocument } from "./checklist-documents.js";
 
 type CrewActor = {
   ctx: PlatformAuthContext;
@@ -2925,6 +2927,26 @@ export const registerCrewApi: FastifyPluginAsync = async (app) => {
     };
     const updated = (await addProjectChecklistItemAttachment(orgId, projectId, item.id, attachment, actor.ctx.userId));
     return { ok: true, attachment, item: updated };
+  });
+
+  // The checklist written out as a document (workforce/checklist-documents.ts) for email, download or print.
+  app.post("/organizations/:orgId/crew/projects/:projectId/checklists/:checklistId/document", async (request) => {
+    const orgId = getParam(request.params, "orgId");
+    const actor = await requireCrewActor(request, orgId, "crew.checklists.manage", true);
+    const projectId = getParam(request.params, "projectId");
+    await accessibleProject(orgId, projectId, actor);
+    if (!(await isCapabilityEnabled(orgId, "platform.documents").catch(() => false))) {
+      throw forbidden("documents_disabled", "Documents are off for this organization.");
+    }
+    const checklist = (await readProjectChecklist(orgId, projectId, getParam(request.params, "checklistId")));
+    if (!checklistVisibleToActor(actor, checklist) && !actor.management) throw forbidden("checklist_forbidden", "This checklist is not available to this user.");
+    const detail = (await listProjectChecklists(orgId, projectId)).find((entry) => entry.id === checklist.id);
+    const names = await checklistUserNames(orgId, [
+      ...(detail?.items || []).map((item) => item.completed_by_user_id),
+      ...checklist.assigned_user_ids
+    ]);
+    const document = await generateChecklistDocument(orgId, projectId, checklist.id, actor.ctx, names);
+    return { ok: true, document };
   });
 
   // The one sign-off a checklist can ask for (signature_required), by whoever may complete it, once every item is done.

@@ -651,3 +651,45 @@ test("A checklist can require one sign-off, given in the crew app once every ite
   assert.equal(refused.statusCode, 400);
   assert.equal(refused.data.error, "checklist_signature_not_required");
 });
+
+test("A checklist is written out as a printable document in the project's Documents, with a signature line when it asks for one", async () => {
+  const owner = createSessionClient();
+  const { orgId, suffix } = await registerOwner(owner);
+  const { saveCapabilityValues } = await import("../platform/capabilities.js");
+  await saveCapabilityValues(orgId, { "platform.documents": true });
+  const member = await createFieldUser(owner, orgId, suffix, "crew_member");
+  const projectId = "checklist_document_project";
+  await seedProject(orgId, projectId, [member.userId]);
+  const base = `/v1/workforce/organizations/${orgId}/crew/projects/${projectId}/checklists`;
+  const created = await owner.request("POST", base, {
+    title: "Crew safety",
+    signature_required: true,
+    assignment_policy: { schema_version: 1, mode: "any", allow_unassigned: true, rules: [] },
+    items: [{ title: "Harness checked" }, { title: "Ladder tied off" }]
+  });
+  const checklistId = created.checklist.id;
+  const first = await owner.request("POST", `${base}/${checklistId}/document`, {});
+  assert.equal(first.document.document_type, "checklist");
+  assert.equal(first.document.template_ref.template_id, "tpl_checklist_default");
+  assert.equal(first.document.project_id, projectId);
+  assert.equal(first.document.params.signature_required, true);
+  assert.ok(!first.document.params.signer_name, "nobody has signed yet");
+  assert.deepEqual(first.document.params.rows.map((row: Json) => [row.name, row.checked]), [["Harness checked", false], ["Ladder tied off", false]]);
+
+  // Signed in the crew app, then written again: the same document, now naming who signed.
+  const items = (await owner.request("GET", base)).checklists.find((entry: Json) => entry.id === checklistId).items;
+  for (const item of items) await member.client.request("PATCH", `${base}/${checklistId}/items/${item.id}`, { completed: true });
+  await member.client.request("POST", `${base}/${checklistId}/signature`, { signature: { type: "typed", signer_name: "Test crew_member" } });
+  const again = await owner.request("POST", `${base}/${checklistId}/document`, {});
+  assert.equal(again.document.id, first.document.id);
+  assert.equal(again.document.params.signer_name, "Test crew_member");
+  assert.ok(again.document.params.signed_on);
+  assert.ok(again.document.params.rows.every((row: Json) => row.checked === true && row.done_by.startsWith("Test crew_member")));
+  const listed = await owner.request("GET", `/v1/documents/organizations/${orgId}/projects/${projectId}/documents`).catch(() => null)
+    || await owner.request("GET", `/v1/documents/organizations/${orgId}/documents`);
+  assert.ok(listed.documents.some((document: Json) => document.id === first.document.id), "the document is in the project's Documents");
+
+  // Field users without checklist management cannot write documents.
+  const refused = await member.client.raw("POST", `${base}/${checklistId}/document`, {});
+  assert.equal(refused.statusCode, 403);
+});
