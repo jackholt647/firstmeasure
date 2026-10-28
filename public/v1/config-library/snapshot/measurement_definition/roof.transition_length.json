@@ -1,0 +1,19 @@
+{
+  "kind": "measurement_definition",
+  "id": "roof.transition_length",
+  "revision": 1,
+  "sha256": "9267729849182cc6ddd308c727571e9dc373b6d3de64e5ccc98d5bb7721cd4d1",
+  "title": "Transitions",
+  "updated_at": "2026-10-27T23:18:15.598Z",
+  "updated_by": "generator",
+  "data": {
+    "key": "transitionsLf",
+    "label": "Transitions",
+    "unit": "ft",
+    "levels": [
+      "project",
+      "structure"
+    ],
+    "description": "Length of pitch transitions."
+  }
+}

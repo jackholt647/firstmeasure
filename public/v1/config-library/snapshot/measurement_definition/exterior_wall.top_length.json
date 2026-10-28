@@ -1,0 +1,19 @@
+{
+  "kind": "measurement_definition",
+  "id": "exterior_wall.top_length",
+  "revision": 1,
+  "sha256": "44996fd48a93eb52ce0467f1c97b397788cc10e7e2b5f7996eb8c88d9a3fb634",
+  "title": "Wall tops",
+  "updated_at": "2026-10-27T23:18:15.598Z",
+  "updated_by": "generator",
+  "data": {
+    "key": "wallTopLf",
+    "label": "Wall tops",
+    "unit": "ft",
+    "levels": [
+      "project",
+      "structure"
+    ],
+    "description": "Length along the top of walls."
+  }
+}

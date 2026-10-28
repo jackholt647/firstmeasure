@@ -1,0 +1,19 @@
+{
+  "kind": "measurement_definition",
+  "id": "exterior_wall.gross_area",
+  "revision": 1,
+  "sha256": "3c7888b924c25a3862b6f9c9baa9aacd9f12d43e08f909850fa4cf0326185a6f",
+  "title": "Gross exterior wall area",
+  "updated_at": "2026-10-27T23:18:15.598Z",
+  "updated_by": "generator",
+  "data": {
+    "key": "wallGrossArea",
+    "label": "Gross exterior wall area",
+    "unit": "ft2",
+    "levels": [
+      "project",
+      "structure"
+    ],
+    "description": "Exterior wall area including openings."
+  }
+}

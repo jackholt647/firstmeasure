@@ -1,0 +1,19 @@
+{
+  "kind": "measurement_definition",
+  "id": "exterior_wall.bottom_length",
+  "revision": 1,
+  "sha256": "c116191adc85c36f3ad7d5d88d1a42d55fedc408dfd099544460ffa7d8c333f6",
+  "title": "Wall bottoms",
+  "updated_at": "2026-10-27T23:18:15.598Z",
+  "updated_by": "generator",
+  "data": {
+    "key": "wallBottomLf",
+    "label": "Wall bottoms",
+    "unit": "ft",
+    "levels": [
+      "project",
+      "structure"
+    ],
+    "description": "Length along the bottom of walls."
+  }
+}

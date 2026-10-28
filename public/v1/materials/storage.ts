@@ -13,7 +13,7 @@ import {
   upsertDocument,
   type JsonObject
 } from "../platform/storage.js";
-import { DEFAULT_PRICEBOOK_TEMPLATE } from "../pricebook/default_template.js";
+import { defaultPricebookTemplate } from "../pricebook/template.js";
 import { listPricebookManifests, readCatalog, readManifest } from "../pricebook/storage.js";
 import { enrichedProposalScopePieces, normalizeScopeItem, resolveScopeItemVariation, scopeItemSelected } from "../proposals/scope.js";
 import { readScopeTemplate, readScopeTemplateVersion } from "../scopes/storage.js";
@@ -1529,7 +1529,7 @@ function scopeMaterialLineItem(fact: ScopeMaterialFact, listId: string, listDefi
 }
 
 async function scopeMaterialFacts(orgId: string, items: JsonObject[]): Promise<ScopeMaterialFact[]> {
-  const defaultCatalog = asObject(DEFAULT_PRICEBOOK_TEMPLATE.catalog);
+  const defaultCatalog = asObject(structuredClone(defaultPricebookTemplate().catalog));
   const defaultItems = (Array.isArray(defaultCatalog.items) ? defaultCatalog.items : []).map(asObject);
   const defaultPricebookId = await resolveDefaultPricebookId(orgId);
   const catalogCache = new Map<string, Promise<{ catalog: JsonObject; manifest: JsonObject }>>();

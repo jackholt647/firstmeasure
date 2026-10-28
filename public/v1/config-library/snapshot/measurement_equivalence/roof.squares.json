@@ -1,0 +1,16 @@
+{
+  "kind": "measurement_equivalence",
+  "id": "roof.squares",
+  "revision": 1,
+  "sha256": "dc946910b65e152156b0aa51b1885c900f6fcc0c58548d60a091463379c0490c",
+  "title": "roof.squares = roof.area",
+  "updated_at": "2026-10-27T23:18:15.598Z",
+  "updated_by": "generator",
+  "data": {
+    "measurements": [
+      "roof.squares",
+      "roof.area"
+    ],
+    "description": "Roof squares are roof area in units of 100 square feet."
+  }
+}

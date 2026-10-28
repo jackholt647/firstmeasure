@@ -1,0 +1,19 @@
+{
+  "kind": "measurement_definition",
+  "id": "exterior_wall.outside_corner_length",
+  "revision": 1,
+  "sha256": "89ec0ea2916a748915da02d15f24d4d4ce2f8923578306a17fd12da2fc682130",
+  "title": "Outside corners",
+  "updated_at": "2026-10-27T23:18:15.598Z",
+  "updated_by": "generator",
+  "data": {
+    "key": "outsideCornersLf",
+    "label": "Outside corners",
+    "unit": "ft",
+    "levels": [
+      "project",
+      "structure"
+    ],
+    "description": "Total outside corner length."
+  }
+}

@@ -1,0 +1,15 @@
+{
+  "kind": "work_item",
+  "id": "roofing.dry_in",
+  "revision": 1,
+  "sha256": "85b53e7429383dfcf50d780a3b93e52c21b262dd43374a1124f440ca37b644ad",
+  "title": "Underlayment and dry-in",
+  "updated_at": "2026-10-27T23:18:15.598Z",
+  "updated_by": "generator",
+  "data": {
+    "label": "Underlayment and dry-in",
+    "kind": "work",
+    "unit": "roofing_square",
+    "description": "Cover the deck with underlayment so the roof is weathertight."
+  }
+}

@@ -1,0 +1,19 @@
+{
+  "kind": "measurement_definition",
+  "id": "roof.eave_length",
+  "revision": 1,
+  "sha256": "52f98b0461caa6892fa118dd317478c5b2ddfa4c104f845c62238414be47e461",
+  "title": "Eaves",
+  "updated_at": "2026-10-27T23:18:15.598Z",
+  "updated_by": "generator",
+  "data": {
+    "key": "eavesLf",
+    "label": "Eaves",
+    "unit": "ft",
+    "levels": [
+      "project",
+      "structure"
+    ],
+    "description": "Total eave length."
+  }
+}

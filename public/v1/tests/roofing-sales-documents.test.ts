@@ -7,14 +7,14 @@ import test, { after, before } from "node:test";
 
 import { scopeItemPriceResult } from "../proposals/scope.js";
 import { generatePieceScope } from "../pricebook/scope-generation.js";
-import { DEFAULT_PRICEBOOK_TEMPLATE } from "../pricebook/default_template.js";
+import { defaultPricebookTemplate } from "../pricebook/template.js";
 
 // The sales documents a roofing organization starts with: what a new
 // organization gets, what an existing one loses, and that every price a
 // salesperson or a customer sees adds up.
 
 type Line = Record<string, any>;
-const book = DEFAULT_PRICEBOOK_TEMPLATE.catalog;
+const book = defaultPricebookTemplate().catalog;
 const measurements = { roofSquares: 29.6, wastePercent: 10, eavesLf: 197.25, rakesLf: 208.6, ridgesLf: 93.4, hipsLf: 0, valleyLf: 16.2, sideWallLf: 82.8, headWallLf: 4.5 };
 const refId = (line: Line) => String(line.pricebook_ref?.item_id || "");
 const ifChosen = (line: Line) => scopeItemPriceResult({ ...line, selection: { ...line.selection, selected: true } }).amount_cents;

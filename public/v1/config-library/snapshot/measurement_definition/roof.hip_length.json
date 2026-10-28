@@ -1,0 +1,19 @@
+{
+  "kind": "measurement_definition",
+  "id": "roof.hip_length",
+  "revision": 1,
+  "sha256": "c0389af086a186fdfa5eaf4a9576a6105b6cb28f98fb5e49c3a94e6360e5e567",
+  "title": "Hips",
+  "updated_at": "2026-10-27T23:18:15.598Z",
+  "updated_by": "generator",
+  "data": {
+    "key": "hipsLf",
+    "label": "Hips",
+    "unit": "ft",
+    "levels": [
+      "project",
+      "structure"
+    ],
+    "description": "Total hip length."
+  }
+}

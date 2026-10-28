@@ -30,7 +30,7 @@ export const measurementEquivalenceKind: LibraryKind<MeasurementEquivalenceData>
     if (members.some((definition) => !definition)) return ["An equivalence names two or more defined measurements."];
     const errors: string[] = [];
     const quantity = unitQuantity(members[0]!.unit);
-    const taken = new Set(listMeasurementEquivalences().filter((equivalence) => !sameMembers(equivalence.measurements, data.measurements) && equivalence.measurements[0] !== ctx.id).flatMap((equivalence) => equivalence.measurements));
+    const taken = new Set(listMeasurementEquivalences().filter((equivalence) => (equivalence.id || equivalence.measurements[0]) !== ctx.id).flatMap((equivalence) => equivalence.measurements));
     for (const definition of members) {
       if (!definition!.key || definition!.slice || !quantity || unitQuantity(definition!.unit) !== quantity) errors.push(`${definition!.id} cannot be equivalent: it needs its own key, no partition, and a unit of the same kind.`);
       if (taken.has(definition!.id)) errors.push(`${definition!.id} is already in an equivalence.`);
@@ -39,5 +39,3 @@ export const measurementEquivalenceKind: LibraryKind<MeasurementEquivalenceData>
   },
   compatible: (previous, next, id) => unchanged(previous, next, ["measurements"], id)
 };
-
-const sameMembers = (a: string[], b: string[]) => a.length === b.length && a.every((id, index) => b[index] === id);

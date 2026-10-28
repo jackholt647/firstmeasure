@@ -1,0 +1,19 @@
+{
+  "kind": "measurement_definition",
+  "id": "exterior_wall.termination_length",
+  "revision": 1,
+  "sha256": "3aa929bd7c58edbf8c1a0113802f34d29944f0a7ada3bcba3d9630e40ede05c4",
+  "title": "Wall terminations",
+  "updated_at": "2026-10-27T23:18:15.598Z",
+  "updated_by": "generator",
+  "data": {
+    "key": "wallTerminationsLf",
+    "label": "Wall terminations",
+    "unit": "ft",
+    "levels": [
+      "project",
+      "structure"
+    ],
+    "description": "Length where wall cladding terminates."
+  }
+}

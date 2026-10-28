@@ -1,0 +1,15 @@
+{
+  "kind": "work_item",
+  "id": "roofing.cleanup",
+  "revision": 1,
+  "sha256": "53a2f60fb37f251b234261ec7229756bc58740338e127dac1c980582416a7bc1",
+  "title": "Clean up",
+  "updated_at": "2026-10-27T23:18:15.598Z",
+  "updated_by": "generator",
+  "data": {
+    "label": "Clean up",
+    "kind": "work",
+    "unit": "job",
+    "description": "Clear the site and sweep for nails."
+  }
+}

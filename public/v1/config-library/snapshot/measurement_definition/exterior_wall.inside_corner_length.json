@@ -1,0 +1,19 @@
+{
+  "kind": "measurement_definition",
+  "id": "exterior_wall.inside_corner_length",
+  "revision": 1,
+  "sha256": "363283a6064b08ad19487386a559ff49b266495a2bc651d63f81f904707eab0e",
+  "title": "Inside corners",
+  "updated_at": "2026-10-27T23:18:15.598Z",
+  "updated_by": "generator",
+  "data": {
+    "key": "insideCornersLf",
+    "label": "Inside corners",
+    "unit": "ft",
+    "levels": [
+      "project",
+      "structure"
+    ],
+    "description": "Total inside corner length."
+  }
+}

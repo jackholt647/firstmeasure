@@ -1,0 +1,19 @@
+{
+  "kind": "measurement_definition",
+  "id": "roof.head_wall_length",
+  "revision": 1,
+  "sha256": "5332e3add0c151afb0df59a141368e89a153442101cde6ea73496b63dd641602",
+  "title": "Head walls",
+  "updated_at": "2026-10-27T23:18:15.598Z",
+  "updated_by": "generator",
+  "data": {
+    "key": "headWallLf",
+    "label": "Head walls",
+    "unit": "ft",
+    "levels": [
+      "project",
+      "structure"
+    ],
+    "description": "Length of roof meeting a wall across its top."
+  }
+}

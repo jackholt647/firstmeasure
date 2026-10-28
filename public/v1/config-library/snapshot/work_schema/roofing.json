@@ -1,0 +1,99 @@
+{
+  "kind": "work_schema",
+  "id": "roofing",
+  "revision": 1,
+  "sha256": "0bebdc083d6ce4adc56ab67871e7b13115e7e7241c9d46c8711684515beedd9f",
+  "title": "roofing work",
+  "updated_at": "2026-10-27T23:18:15.598Z",
+  "updated_by": "generator",
+  "data": {
+    "version": "1",
+    "items": [
+      {
+        "item": "roofing.tear_off",
+        "quantity": {
+          "measurements": [
+            "roof.squares"
+          ]
+        }
+      },
+      {
+        "item": "disposal.debris",
+        "quantity": {
+          "measurements": [
+            "roof.squares"
+          ],
+          "factor": 0.4,
+          "scale": [
+            {
+              "field": "existing_layers",
+              "default": 1
+            }
+          ]
+        },
+        "under": "roofing.tear_off"
+      },
+      {
+        "item": "roofing.dry_in",
+        "quantity": {
+          "measurements": [
+            "roof.squares"
+          ]
+        }
+      },
+      {
+        "item": "roofing.install",
+        "quantity": {
+          "measurements": [
+            "roof.squares"
+          ]
+        }
+      },
+      {
+        "item": "roofing.edge_metal",
+        "quantity": {
+          "measurements": [
+            "roof.eave_length",
+            "roof.rake_length"
+          ]
+        },
+        "optional": true
+      },
+      {
+        "item": "roofing.ridge_cap",
+        "quantity": {
+          "measurements": [
+            "roof.ridge_length",
+            "roof.hip_length"
+          ]
+        },
+        "optional": true
+      },
+      {
+        "item": "roofing.valleys",
+        "quantity": {
+          "measurements": [
+            "roof.valley_length"
+          ]
+        },
+        "optional": true
+      },
+      {
+        "item": "roofing.wall_flashing",
+        "quantity": {
+          "measurements": [
+            "roof.head_wall_length",
+            "roof.side_wall_length"
+          ]
+        },
+        "optional": true
+      },
+      {
+        "item": "roofing.cleanup",
+        "quantity": {
+          "fixed": 1
+        }
+      }
+    ]
+  }
+}

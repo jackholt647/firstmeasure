@@ -1,0 +1,16 @@
+{
+  "kind": "work_item",
+  "id": "disposal.debris",
+  "revision": 1,
+  "sha256": "54a218ac2c5a0e4264a82fb1a719469011c614bd72d36bee3c44df6f86423e8a",
+  "title": "Debris disposal",
+  "updated_at": "2026-10-27T23:18:15.598Z",
+  "updated_by": "generator",
+  "data": {
+    "label": "Debris disposal",
+    "kind": "function",
+    "unit": "yd3",
+    "description": "Somewhere for the torn-off material to go: a dumpster, a dump trailer or truck, or a company that hauls it away.",
+    "per_load_default": true
+  }
+}

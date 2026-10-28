@@ -1,0 +1,19 @@
+{
+  "kind": "measurement_definition",
+  "id": "roof.area",
+  "revision": 1,
+  "sha256": "77bf1126d95f5a03f37986c811457fa6434bd20496d689938e67d26be766e845",
+  "title": "Roof area",
+  "updated_at": "2026-10-27T23:18:15.598Z",
+  "updated_by": "generator",
+  "data": {
+    "key": "roofArea",
+    "label": "Roof area",
+    "unit": "ft2",
+    "levels": [
+      "project",
+      "structure"
+    ],
+    "description": "Sloped surface area of every roof face."
+  }
+}

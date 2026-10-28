@@ -1,0 +1,16 @@
+{
+  "kind": "measurement_partition",
+  "id": "roof.pitch_bands",
+  "revision": 1,
+  "sha256": "2a65bf02914b2a5d3f5ac1c36099417557ccdd7ecacae346bb25b79c1b2bd9de",
+  "title": "By pitch band",
+  "updated_at": "2026-10-27T23:18:15.598Z",
+  "updated_by": "generator",
+  "data": {
+    "of": "roof.squares",
+    "dimension": "roof.pitch",
+    "label": "By pitch band",
+    "complete": true,
+    "description": "Roof squares in the standard pitch bands, from flat to steeper than 12/12."
+  }
+}

@@ -1,0 +1,15 @@
+{
+  "kind": "work_item",
+  "id": "gutters.remove",
+  "revision": 1,
+  "sha256": "9f82561025a90e97e8c9450349d5ad0d65c6588b33ab4d075c527170dedeca9b",
+  "title": "Remove existing gutters",
+  "updated_at": "2026-10-27T23:18:15.598Z",
+  "updated_by": "generator",
+  "data": {
+    "label": "Remove existing gutters",
+    "kind": "work",
+    "unit": "ft",
+    "description": "Take down the gutter runs being replaced."
+  }
+}

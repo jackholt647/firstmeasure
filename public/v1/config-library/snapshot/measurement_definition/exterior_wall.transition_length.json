@@ -1,0 +1,19 @@
+{
+  "kind": "measurement_definition",
+  "id": "exterior_wall.transition_length",
+  "revision": 1,
+  "sha256": "e65101b4bdf34952461b06e8a773eb782774a0459552853c59a7eb7ec021b27e",
+  "title": "Wall transitions",
+  "updated_at": "2026-10-27T23:18:15.598Z",
+  "updated_by": "generator",
+  "data": {
+    "key": "wallTransitionsLf",
+    "label": "Wall transitions",
+    "unit": "ft",
+    "levels": [
+      "project",
+      "structure"
+    ],
+    "description": "Length of transitions between wall materials."
+  }
+}

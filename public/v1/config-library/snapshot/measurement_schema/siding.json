@@ -1,0 +1,60 @@
+{
+  "kind": "measurement_schema",
+  "id": "siding",
+  "revision": 1,
+  "sha256": "0a336248736228842dadcae565d6eb496ee3cde6bbfb5329493b93b6880f0631",
+  "title": "Siding",
+  "updated_at": "2026-10-27T23:18:15.598Z",
+  "updated_by": "generator",
+  "data": {
+    "version": "1",
+    "title": "Siding",
+    "description": "Wall cladding replacement.",
+    "measurements": [
+      {
+        "definition": "exterior_wall.net_area",
+        "required": true
+      },
+      {
+        "definition": "exterior_wall.gross_area",
+        "required": false
+      },
+      {
+        "definition": "exterior_wall.opening_area",
+        "required": false
+      },
+      {
+        "definition": "exterior_wall.opening_perimeter",
+        "required": false
+      },
+      {
+        "definition": "exterior_wall.top_length",
+        "required": false
+      },
+      {
+        "definition": "exterior_wall.bottom_length",
+        "required": false
+      },
+      {
+        "definition": "exterior_wall.transition_length",
+        "required": false
+      },
+      {
+        "definition": "exterior_wall.termination_length",
+        "required": false
+      },
+      {
+        "definition": "exterior_wall.inside_corner_length",
+        "required": false
+      },
+      {
+        "definition": "exterior_wall.outside_corner_length",
+        "required": false
+      },
+      {
+        "definition": "exterior_wall.return_area",
+        "required": false
+      }
+    ]
+  }
+}

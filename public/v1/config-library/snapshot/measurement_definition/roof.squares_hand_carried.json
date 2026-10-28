@@ -1,0 +1,22 @@
+{
+  "kind": "measurement_definition",
+  "id": "roof.squares_hand_carried",
+  "revision": 1,
+  "sha256": "78d0ae4f193c140999e645d69b1e85b3f9e4fec8a109eab8a289601755f271d1",
+  "title": "Hand-carried squares",
+  "updated_at": "2026-10-27T23:18:15.598Z",
+  "updated_by": "generator",
+  "data": {
+    "key": "handCarriedSquares",
+    "label": "Hand-carried squares",
+    "unit": "roofing_square",
+    "levels": [
+      "project",
+      "structure"
+    ],
+    "slice": {
+      "partition": "roof.access_carried"
+    },
+    "description": "Roof squares that cannot be loaded directly, so material is carried to them and debris carried away by hand."
+  }
+}

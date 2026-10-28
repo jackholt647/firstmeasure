@@ -1,0 +1,22 @@
+{
+  "kind": "measurement_definition",
+  "id": "roof.squares_at_pitch",
+  "revision": 1,
+  "sha256": "21d69d6bd391aa48a4da58df6a5b844d23e9857b8a0cb2d7f2c5f82779921414",
+  "title": "Squares at each pitch",
+  "updated_at": "2026-10-27T23:18:15.598Z",
+  "updated_by": "generator",
+  "data": {
+    "keyPattern": "^pitch\\d+(?:\\.\\d+)?Squares$",
+    "label": "Squares at each pitch",
+    "unit": "roofing_square",
+    "levels": [
+      "project",
+      "structure"
+    ],
+    "slice": {
+      "partition": "roof.pitch_exact"
+    },
+    "description": "Squares at one exact pitch, one key per pitch such as pitch6Squares for 6/12."
+  }
+}

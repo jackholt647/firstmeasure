@@ -1,0 +1,19 @@
+{
+  "kind": "measurement_definition",
+  "id": "roof.parapet_length",
+  "revision": 1,
+  "sha256": "7b0137f3ca5e214788359de81e421bb9149950ec12e1283268386fca3f459178",
+  "title": "Parapets",
+  "updated_at": "2026-10-27T23:18:15.598Z",
+  "updated_by": "generator",
+  "data": {
+    "key": "parapetLf",
+    "label": "Parapets",
+    "unit": "ft",
+    "levels": [
+      "project",
+      "structure"
+    ],
+    "description": "Parapet wall length."
+  }
+}

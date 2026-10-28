@@ -1,0 +1,19 @@
+{
+  "kind": "measurement_definition",
+  "id": "exterior_wall.return_area",
+  "revision": 1,
+  "sha256": "66cc0ee5e284c7ca465c61dbbc35ff8bb5f60eeadeb5802ad2bb12d58a82db94",
+  "title": "Returns",
+  "updated_at": "2026-10-27T23:18:15.598Z",
+  "updated_by": "generator",
+  "data": {
+    "key": "wallReturnsArea",
+    "label": "Returns",
+    "unit": "ft2",
+    "levels": [
+      "project",
+      "structure"
+    ],
+    "description": "Area of wall returns."
+  }
+}

@@ -1,0 +1,15 @@
+{
+  "kind": "work_item",
+  "id": "siding.remove",
+  "revision": 1,
+  "sha256": "f3290eaa8c2ac0133f3cafcb50fb3e41bcf745b63cfcd60d6c88b8e8c97f49a0",
+  "title": "Remove existing siding",
+  "updated_at": "2026-10-27T23:18:15.598Z",
+  "updated_by": "generator",
+  "data": {
+    "label": "Remove existing siding",
+    "kind": "work",
+    "unit": "ft2",
+    "description": "Remove the wall covering being replaced."
+  }
+}

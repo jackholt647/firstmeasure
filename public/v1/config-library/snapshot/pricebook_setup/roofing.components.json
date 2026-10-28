@@ -1,0 +1,4885 @@
+{
+  "kind": "pricebook_setup",
+  "id": "roofing.components",
+  "revision": 1,
+  "sha256": "0c7eccf3d1ec75eababc4d3263a19399617344bc2e9636546cb6b9e1cb8110e7",
+  "title": "Roofing roof-type components",
+  "updated_at": "2026-10-27T23:18:15.598Z",
+  "updated_by": "generator",
+  "data": {
+    "trade": "roofing",
+    "part": "components",
+    "content": {
+      "schema_version": 1,
+      "status": "provisional",
+      "types": [
+        {
+          "id": "asphalt_shingle",
+          "label": "Asphalt shingle",
+          "components": [
+            {
+              "key": "shingles",
+              "label": "Architectural shingles",
+              "group": "Field",
+              "standard": true,
+              "terms": [
+                {
+                  "measurement": "roof.squares",
+                  "factor": 1
+                }
+              ],
+              "entered_by_hand": false,
+              "waste_percent": 10,
+              "unit": "bundle",
+              "coverage": 0.333,
+              "explain": "3 bundles per square; add more waste on cut-up roofs with many hips and valleys",
+              "unit_cost_estimate": null,
+              "provisional": true,
+              "example_brands": [
+                "GAF Timberline HDZ",
+                "Owens Corning Duration",
+                "CertainTeed Landmark"
+              ]
+            },
+            {
+              "key": "synthetic_underlayment",
+              "label": "Synthetic underlayment",
+              "group": "Underlayment",
+              "standard": true,
+              "terms": [
+                {
+                  "measurement": "roof.squares",
+                  "factor": 1
+                }
+              ],
+              "entered_by_hand": false,
+              "waste_percent": 10,
+              "unit": "roll",
+              "coverage": 10,
+              "explain": "one 10-square roll per 10 squares, plus laps",
+              "unit_cost_estimate": null,
+              "provisional": true,
+              "example_brands": [
+                "GAF FeltBuster",
+                "Owens Corning RhinoRoof",
+                "Grace Tri-Flex"
+              ]
+            },
+            {
+              "key": "ice_water_eave",
+              "label": "Ice and water shield, eaves",
+              "group": "Underlayment",
+              "standard": true,
+              "terms": [
+                {
+                  "measurement": "roof.eave_length",
+                  "factor": 1
+                }
+              ],
+              "entered_by_hand": false,
+              "waste_percent": 10,
+              "unit": "roll",
+              "coverage": 65,
+              "explain": "one 3 ft course along every eave (two courses where code needs 24 in inside the wall line); ~65 ft net per 2-square roll",
+              "unit_cost_estimate": null,
+              "provisional": true,
+              "example_brands": [
+                "GAF WeatherWatch",
+                "Grace Ice & Water Shield",
+                "Owens Corning WeatherLock"
+              ]
+            },
+            {
+              "key": "ice_water_valley",
+              "label": "Ice and water shield, valleys and walls",
+              "group": "Underlayment",
+              "standard": true,
+              "terms": [
+                {
+                  "measurement": "roof.valley_length",
+                  "factor": 1
+                },
+                {
+                  "measurement": "roof.side_wall_length",
+                  "factor": 0.5
+                },
+                {
+                  "measurement": "roof.head_wall_length",
+                  "factor": 0.5
+                }
+              ],
+              "entered_by_hand": false,
+              "waste_percent": 10,
+              "unit": "roll",
+              "coverage": 65,
+              "explain": "a 3 ft strip centred in every valley; a half-width strip up walls is good practice",
+              "unit_cost_estimate": null,
+              "provisional": true,
+              "example_brands": []
+            },
+            {
+              "key": "starter",
+              "label": "Starter strip shingles",
+              "group": "Field",
+              "standard": true,
+              "terms": [
+                {
+                  "measurement": "roof.eave_length",
+                  "factor": 1
+                },
+                {
+                  "measurement": "roof.rake_length",
+                  "factor": 1
+                }
+              ],
+              "entered_by_hand": false,
+              "waste_percent": 5,
+              "unit": "bundle",
+              "coverage": 110,
+              "explain": "along every eave and rake; a bundle runs about 100-120 ft",
+              "unit_cost_estimate": null,
+              "provisional": true,
+              "example_brands": [
+                "GAF Pro-Start",
+                "Owens Corning Starter Strip Plus"
+              ]
+            },
+            {
+              "key": "drip_edge",
+              "label": "Drip edge",
+              "group": "Trim",
+              "standard": true,
+              "terms": [
+                {
+                  "measurement": "roof.eave_length",
+                  "factor": 1
+                },
+                {
+                  "measurement": "roof.rake_length",
+                  "factor": 1
+                }
+              ],
+              "entered_by_hand": false,
+              "waste_percent": 5,
+              "unit": "piece",
+              "coverage": 10,
+              "explain": "10 ft pieces along every eave and rake, overlapped 2 in",
+              "unit_cost_estimate": null,
+              "provisional": true,
+              "example_brands": []
+            },
+            {
+              "key": "hip_ridge_cap",
+              "label": "Hip and ridge cap shingles",
+              "group": "Field",
+              "standard": true,
+              "terms": [
+                {
+                  "measurement": "roof.ridge_length",
+                  "factor": 1
+                },
+                {
+                  "measurement": "roof.hip_length",
+                  "factor": 1
+                }
+              ],
+              "entered_by_hand": false,
+              "waste_percent": 5,
+              "unit": "bundle",
+              "coverage": 25,
+              "explain": "one bundle covers about 20-33 ft depending on product; 25 ft is a safe planning figure",
+              "unit_cost_estimate": null,
+              "provisional": true,
+              "example_brands": [
+                "GAF Seal-A-Ridge",
+                "Owens Corning ProEdge"
+              ]
+            },
+            {
+              "key": "ridge_vent",
+              "label": "Shingle-over ridge vent",
+              "group": "Ventilation",
+              "standard": true,
+              "terms": [
+                {
+                  "measurement": "roof.ridge_length",
+                  "factor": 1
+                }
+              ],
+              "entered_by_hand": false,
+              "waste_percent": 5,
+              "unit": "piece",
+              "coverage": 4,
+              "explain": "4 ft sections along the ridge, stopping short of the ends; skip if the house uses other exhaust",
+              "unit_cost_estimate": null,
+              "provisional": true,
+              "example_brands": [
+                "GAF Cobra",
+                "Owens Corning VentSure",
+                "Air Vent ShingleVent II"
+              ]
+            },
+            {
+              "key": "valley_metal",
+              "label": "W-valley metal (open valleys)",
+              "group": "Flashing",
+              "standard": false,
+              "terms": [
+                {
+                  "measurement": "roof.valley_length",
+                  "factor": 1
+                }
+              ],
+              "entered_by_hand": false,
+              "waste_percent": 5,
+              "unit": "piece",
+              "coverage": 10,
+              "explain": "only for open valleys; closed-cut and woven valleys use ice and water shield instead",
+              "unit_cost_estimate": null,
+              "provisional": true,
+              "example_brands": []
+            },
+            {
+              "key": "step_flashing",
+              "label": "Step flashing",
+              "group": "Flashing",
+              "standard": true,
+              "terms": [
+                {
+                  "measurement": "roof.side_wall_length",
+                  "factor": 1
+                },
+                {
+                  "measurement": "roof.chimney_step_length",
+                  "factor": 1
+                }
+              ],
+              "entered_by_hand": false,
+              "waste_percent": 5,
+              "unit": "bundle",
+              "coverage": 40,
+              "explain": "one piece per shingle course (~5 in exposure) up sidewalls and chimney sides; a bundle of 100 does ~40 ft",
+              "unit_cost_estimate": null,
+              "provisional": true,
+              "example_brands": []
+            },
+            {
+              "key": "headwall_flashing",
+              "label": "Headwall / apron flashing",
+              "group": "Flashing",
+              "standard": true,
+              "terms": [
+                {
+                  "measurement": "roof.head_wall_length",
+                  "factor": 1
+                },
+                {
+                  "measurement": "roof.chimney_apron_length",
+                  "factor": 1
+                }
+              ],
+              "entered_by_hand": false,
+              "waste_percent": 5,
+              "unit": "piece",
+              "coverage": 10,
+              "explain": "continuous L-flashing along headwalls and the chimney front",
+              "unit_cost_estimate": null,
+              "provisional": true,
+              "example_brands": []
+            },
+            {
+              "key": "chimney_counter",
+              "label": "Chimney counterflashing",
+              "group": "Flashing",
+              "standard": false,
+              "terms": [
+                {
+                  "measurement": "roof.chimney_step_length",
+                  "factor": 1
+                },
+                {
+                  "measurement": "roof.chimney_apron_length",
+                  "factor": 1
+                }
+              ],
+              "entered_by_hand": false,
+              "waste_percent": 5,
+              "unit": "piece",
+              "coverage": 10,
+              "explain": "reglet or surface-mounted counterflashing over step and apron flashing at chimneys",
+              "unit_cost_estimate": null,
+              "provisional": true,
+              "example_brands": []
+            },
+            {
+              "key": "coil_nails",
+              "label": "Coil roofing nails (1-1/4 in)",
+              "group": "Fasteners",
+              "standard": true,
+              "terms": [
+                {
+                  "measurement": "roof.squares",
+                  "factor": 1
+                }
+              ],
+              "entered_by_hand": false,
+              "waste_percent": 0,
+              "unit": "box",
+              "coverage": 20,
+              "explain": "4 nails per shingle (6 in high-wind zones); a 7,200-count box does ~20 squares including starter and caps",
+              "unit_cost_estimate": null,
+              "provisional": true,
+              "example_brands": []
+            },
+            {
+              "key": "cap_nails",
+              "label": "Plastic cap nails for underlayment",
+              "group": "Fasteners",
+              "standard": true,
+              "terms": [
+                {
+                  "measurement": "roof.squares",
+                  "factor": 1
+                }
+              ],
+              "entered_by_hand": false,
+              "waste_percent": 0,
+              "unit": "pail",
+              "coverage": 25,
+              "explain": "a 2,000-3,000 count pail fastens the underlayment on a typical whole roof",
+              "unit_cost_estimate": null,
+              "provisional": true,
+              "example_brands": []
+            },
+            {
+              "key": "sealant",
+              "label": "Roofing sealant",
+              "group": "Accessories",
+              "standard": true,
+              "terms": [
+                {
+                  "measurement": "roof.squares",
+                  "factor": 1
+                }
+              ],
+              "entered_by_hand": false,
+              "waste_percent": 0,
+              "unit": "tube",
+              "coverage": 10,
+              "explain": "for flashings, nail heads at caps and boots; about one tube per 10 squares",
+              "unit_cost_estimate": null,
+              "provisional": true,
+              "example_brands": []
+            },
+            {
+              "key": "pipe_boots",
+              "label": "Pipe boots",
+              "group": "Flashing",
+              "standard": true,
+              "terms": [],
+              "entered_by_hand": true,
+              "waste_percent": 0,
+              "unit": "piece",
+              "coverage": 1,
+              "explain": "one per plumbing vent; count from the inspection",
+              "unit_cost_estimate": null,
+              "provisional": true,
+              "example_brands": []
+            },
+            {
+              "key": "box_vents",
+              "label": "Static roof vents / exhaust vents",
+              "group": "Ventilation",
+              "standard": false,
+              "terms": [],
+              "entered_by_hand": true,
+              "waste_percent": 0,
+              "unit": "piece",
+              "coverage": 1,
+              "explain": "only where ridge vent is not used; count from the inspection",
+              "unit_cost_estimate": null,
+              "provisional": true,
+              "example_brands": []
+            },
+            {
+              "key": "intake_vents",
+              "label": "Intake vents (soffit or edge)",
+              "group": "Ventilation",
+              "standard": false,
+              "terms": [],
+              "entered_by_hand": true,
+              "waste_percent": 0,
+              "unit": "piece",
+              "coverage": 1,
+              "explain": "balance exhaust with intake per IRC R806; count or footage from the inspection",
+              "unit_cost_estimate": null,
+              "provisional": true,
+              "example_brands": []
+            }
+          ],
+          "sources": [
+            "GAF Timberline HDZ / Pro-Start / Seal-A-Ridge application instructions",
+            "Owens Corning Duration shingle and starter application instructions",
+            "ARMA Residential Asphalt Roofing Manual",
+            "IRC R905.2 (asphalt shingles), R903 flashing, R806 ventilation"
+          ]
+        },
+        {
+          "id": "wood_shake",
+          "label": "Wood shake",
+          "components": [
+            {
+              "key": "shakes",
+              "label": "Cedar shakes (24 in)",
+              "group": "Field",
+              "standard": true,
+              "terms": [
+                {
+                  "measurement": "roof.squares",
+                  "factor": 1
+                }
+              ],
+              "entered_by_hand": false,
+              "waste_percent": 10,
+              "unit": "bundle",
+              "coverage": 0.2,
+              "explain": "about 5 bundles per square at a 10 in exposure (4 bundles at 7.5 in for 18 in shakes plan as more)",
+              "unit_cost_estimate": null,
+              "provisional": true,
+              "example_brands": [
+                "Certi-Split",
+                "Certi-Sawn"
+              ]
+            },
+            {
+              "key": "starter_course",
+              "label": "Starter course (doubled first course)",
+              "group": "Field",
+              "standard": true,
+              "terms": [
+                {
+                  "measurement": "roof.eave_length",
+                  "factor": 1
+                }
+              ],
+              "entered_by_hand": false,
+              "waste_percent": 10,
+              "unit": "bundle",
+              "coverage": 15,
+              "explain": "the first course at every eave is doubled, usually with 15 or 18 in shakes/shingles",
+              "unit_cost_estimate": null,
+              "provisional": true,
+              "example_brands": []
+            },
+            {
+              "key": "interlayment",
+              "label": "18 in #30 felt interlayment strips",
+              "group": "Underlayment",
+              "standard": true,
+              "terms": [
+                {
+                  "measurement": "roof.squares",
+                  "factor": 1
+                }
+              ],
+              "entered_by_hand": false,
+              "waste_percent": 10,
+              "unit": "roll",
+              "coverage": 1.5,
+              "explain": "one 18 in strip of #30 felt laid between every course of shakes (~120 ft per square at 10 in exposure); roll lengths vary",
+              "unit_cost_estimate": null,
+              "provisional": true,
+              "example_brands": []
+            },
+            {
+              "key": "underlayment",
+              "label": "Underlayment over solid sheathing",
+              "group": "Underlayment",
+              "standard": false,
+              "terms": [
+                {
+                  "measurement": "roof.squares",
+                  "factor": 1
+                }
+              ],
+              "entered_by_hand": false,
+              "waste_percent": 10,
+              "unit": "roll",
+              "coverage": 10,
+              "explain": "breathable synthetic or felt over solid sheathing where used; not needed over spaced sheathing",
+              "unit_cost_estimate": null,
+              "provisional": true,
+              "example_brands": []
+            },
+            {
+              "key": "ventilation_mat",
+              "label": "Ventilating mat under shakes",
+              "group": "Underlayment",
+              "standard": false,
+              "terms": [
+                {
+                  "measurement": "roof.squares",
+                  "factor": 1
+                }
+              ],
+              "entered_by_hand": false,
+              "waste_percent": 10,
+              "unit": "roll",
+              "coverage": 4,
+              "explain": "a drainage/ventilation mat that lets shakes dry on solid decks; rolls cover about 4 squares",
+              "unit_cost_estimate": null,
+              "provisional": true,
+              "example_brands": [
+                "Benjamin Obdyke Cedar Breather"
+              ]
+            },
+            {
+              "key": "spaced_sheathing",
+              "label": "Spaced sheathing boards (1x4 / 1x6)",
+              "group": "Accessories",
+              "standard": false,
+              "terms": [
+                {
+                  "measurement": "roof.squares",
+                  "factor": 1
+                }
+              ],
+              "entered_by_hand": false,
+              "waste_percent": 10,
+              "unit": "piece",
+              "coverage": 0.13,
+              "explain": "boards spaced to the exposure, about 120 ft per square; 16 ft pieces. Only when re-decking with spaced boards",
+              "unit_cost_estimate": null,
+              "provisional": true,
+              "example_brands": []
+            },
+            {
+              "key": "ice_water_eave",
+              "label": "Ice and water shield, eaves",
+              "group": "Underlayment",
+              "standard": false,
+              "terms": [
+                {
+                  "measurement": "roof.eave_length",
+                  "factor": 1
+                }
+              ],
+              "entered_by_hand": false,
+              "waste_percent": 10,
+              "unit": "roll",
+              "coverage": 65,
+              "explain": "required at eaves in ice-dam regions; ~65 ft net per 2-square roll",
+              "unit_cost_estimate": null,
+              "provisional": true,
+              "example_brands": []
+            },
+            {
+              "key": "hip_ridge",
+              "label": "Factory hip and ridge units",
+              "group": "Field",
+              "standard": true,
+              "terms": [
+                {
+                  "measurement": "roof.ridge_length",
+                  "factor": 1
+                },
+                {
+                  "measurement": "roof.hip_length",
+                  "factor": 1
+                }
+              ],
+              "entered_by_hand": false,
+              "waste_percent": 5,
+              "unit": "bundle",
+              "coverage": 16,
+              "explain": "pre-assembled hip and ridge; a bundle runs about 16-20 ft at a 10 in exposure",
+              "unit_cost_estimate": null,
+              "provisional": true,
+              "example_brands": []
+            },
+            {
+              "key": "ridge_vent",
+              "label": "Ridge vent for wood roofs",
+              "group": "Ventilation",
+              "standard": false,
+              "terms": [
+                {
+                  "measurement": "roof.ridge_length",
+                  "factor": 1
+                }
+              ],
+              "entered_by_hand": false,
+              "waste_percent": 5,
+              "unit": "piece",
+              "coverage": 4,
+              "explain": "4 ft sections under the ridge units where the attic is vented at the ridge",
+              "unit_cost_estimate": null,
+              "provisional": true,
+              "example_brands": []
+            },
+            {
+              "key": "drip_edge",
+              "label": "Drip edge",
+              "group": "Trim",
+              "standard": false,
+              "terms": [
+                {
+                  "measurement": "roof.eave_length",
+                  "factor": 1
+                },
+                {
+                  "measurement": "roof.rake_length",
+                  "factor": 1
+                }
+              ],
+              "entered_by_hand": false,
+              "waste_percent": 5,
+              "unit": "piece",
+              "coverage": 10,
+              "explain": "not required by CSSB but common and required by some local codes",
+              "unit_cost_estimate": null,
+              "provisional": true,
+              "example_brands": []
+            },
+            {
+              "key": "valley_metal",
+              "label": "Valley flashing (24 in W-valley)",
+              "group": "Flashing",
+              "standard": true,
+              "terms": [
+                {
+                  "measurement": "roof.valley_length",
+                  "factor": 1
+                }
+              ],
+              "entered_by_hand": false,
+              "waste_percent": 5,
+              "unit": "piece",
+              "coverage": 10,
+              "explain": "metal valley at least 20 in wide with a centre crimp; wood roofs always use open metal valleys",
+              "unit_cost_estimate": null,
+              "provisional": true,
+              "example_brands": []
+            },
+            {
+              "key": "step_flashing",
+              "label": "Step flashing (large)",
+              "group": "Flashing",
+              "standard": true,
+              "terms": [
+                {
+                  "measurement": "roof.side_wall_length",
+                  "factor": 1
+                },
+                {
+                  "measurement": "roof.chimney_step_length",
+                  "factor": 1
+                }
+              ],
+              "entered_by_hand": false,
+              "waste_percent": 5,
+              "unit": "bundle",
+              "coverage": 50,
+              "explain": "one piece per course (~10 in exposure) up sidewalls and chimney sides; 100 pieces do ~50 ft",
+              "unit_cost_estimate": null,
+              "provisional": true,
+              "example_brands": []
+            },
+            {
+              "key": "headwall_flashing",
+              "label": "Headwall / apron flashing",
+              "group": "Flashing",
+              "standard": true,
+              "terms": [
+                {
+                  "measurement": "roof.head_wall_length",
+                  "factor": 1
+                },
+                {
+                  "measurement": "roof.chimney_apron_length",
+                  "factor": 1
+                }
+              ],
+              "entered_by_hand": false,
+              "waste_percent": 5,
+              "unit": "piece",
+              "coverage": 10,
+              "explain": "continuous apron flashing along headwalls and the chimney front",
+              "unit_cost_estimate": null,
+              "provisional": true,
+              "example_brands": []
+            },
+            {
+              "key": "chimney_counter",
+              "label": "Chimney counterflashing",
+              "group": "Flashing",
+              "standard": false,
+              "terms": [
+                {
+                  "measurement": "roof.chimney_step_length",
+                  "factor": 1
+                },
+                {
+                  "measurement": "roof.chimney_apron_length",
+                  "factor": 1
+                }
+              ],
+              "entered_by_hand": false,
+              "waste_percent": 5,
+              "unit": "piece",
+              "coverage": 10,
+              "explain": "counterflashing over the step and apron flashing",
+              "unit_cost_estimate": null,
+              "provisional": true,
+              "example_brands": []
+            },
+            {
+              "key": "fasteners",
+              "label": "Stainless ring-shank nails or staples",
+              "group": "Fasteners",
+              "standard": true,
+              "terms": [
+                {
+                  "measurement": "roof.squares",
+                  "factor": 1
+                }
+              ],
+              "entered_by_hand": false,
+              "waste_percent": 0,
+              "unit": "box",
+              "coverage": 9,
+              "explain": "2 fasteners per shake (~350 per square); a pneumatic box of ~3,000-3,600 does ~9 squares. Type 316 stainless near salt water",
+              "unit_cost_estimate": null,
+              "provisional": true,
+              "example_brands": []
+            },
+            {
+              "key": "sealant",
+              "label": "Roofing sealant",
+              "group": "Accessories",
+              "standard": true,
+              "terms": [
+                {
+                  "measurement": "roof.squares",
+                  "factor": 1
+                }
+              ],
+              "entered_by_hand": false,
+              "waste_percent": 0,
+              "unit": "tube",
+              "coverage": 15,
+              "explain": "only at flashings and penetrations; wood roofs use little sealant",
+              "unit_cost_estimate": null,
+              "provisional": true,
+              "example_brands": []
+            },
+            {
+              "key": "pipe_flashings",
+              "label": "Pipe flashings (lead or metal)",
+              "group": "Flashing",
+              "standard": true,
+              "terms": [],
+              "entered_by_hand": true,
+              "waste_percent": 0,
+              "unit": "piece",
+              "coverage": 1,
+              "explain": "one per plumbing vent; count from the inspection",
+              "unit_cost_estimate": null,
+              "provisional": true,
+              "example_brands": []
+            },
+            {
+              "key": "roof_vents",
+              "label": "Static exhaust vents",
+              "group": "Ventilation",
+              "standard": false,
+              "terms": [],
+              "entered_by_hand": true,
+              "waste_percent": 0,
+              "unit": "piece",
+              "coverage": 1,
+              "explain": "only where ridge vent is not used",
+              "unit_cost_estimate": null,
+              "provisional": true,
+              "example_brands": []
+            }
+          ],
+          "sources": [
+            "Cedar Shake & Shingle Bureau (CSSB) New Roof Construction manual and installation guides",
+            "IRC R905.8 (wood shakes)",
+            "Benjamin Obdyke Cedar Breather installation guide"
+          ]
+        },
+        {
+          "id": "metal_standing_seam",
+          "label": "Standing seam metal",
+          "components": [
+            {
+              "key": "panels",
+              "label": "Standing seam panels (snap-lock or mechanical seam)",
+              "group": "Field",
+              "standard": true,
+              "terms": [
+                {
+                  "measurement": "roof.squares",
+                  "factor": 1
+                }
+              ],
+              "entered_by_hand": false,
+              "waste_percent": 8,
+              "unit": "square",
+              "coverage": 1,
+              "explain": "panels are cut to length per run; order by area plus waste for hips, valleys and offcuts",
+              "unit_cost_estimate": null,
+              "provisional": true,
+              "example_brands": [
+                "Englert",
+                "Drexel",
+                "McElroy",
+                "Sheffield",
+                "PAC-CLAD"
+              ]
+            },
+            {
+              "key": "ht_underlayment",
+              "label": "High-temperature synthetic underlayment",
+              "group": "Underlayment",
+              "standard": true,
+              "terms": [
+                {
+                  "measurement": "roof.squares",
+                  "factor": 1
+                }
+              ],
+              "entered_by_hand": false,
+              "waste_percent": 10,
+              "unit": "roll",
+              "coverage": 10,
+              "explain": "metal gets hot: use a high-temp rated (240-260 F) underlayment over the whole deck; 10 squares per roll",
+              "unit_cost_estimate": null,
+              "provisional": true,
+              "example_brands": [
+                "Sharkskin Ultra SA/Comp",
+                "Titanium PSU30",
+                "Grace Tri-Flex XT"
+              ]
+            },
+            {
+              "key": "ht_ice_water",
+              "label": "High-temperature ice and water barrier, eaves and valleys",
+              "group": "Underlayment",
+              "standard": true,
+              "terms": [
+                {
+                  "measurement": "roof.eave_length",
+                  "factor": 1
+                },
+                {
+                  "measurement": "roof.valley_length",
+                  "factor": 1
+                }
+              ],
+              "entered_by_hand": false,
+              "waste_percent": 10,
+              "unit": "roll",
+              "coverage": 65,
+              "explain": "high-temp self-adhered membrane along eaves and centred in valleys; regular ice and water melts under metal",
+              "unit_cost_estimate": null,
+              "provisional": true,
+              "example_brands": [
+                "Grace Ice & Water Shield HT",
+                "Polyglass Polystick MTS",
+                "GAF StormGuard HT"
+              ]
+            },
+            {
+              "key": "ht_full_coverage",
+              "label": "High-temperature self-adhered underlayment, full coverage",
+              "group": "Underlayment",
+              "standard": false,
+              "terms": [
+                {
+                  "measurement": "roof.squares",
+                  "factor": 1
+                }
+              ],
+              "entered_by_hand": false,
+              "waste_percent": 15,
+              "unit": "roll",
+              "coverage": 2,
+              "explain": "upgrade or warranty requirement: self-adhered over the whole deck instead of synthetic; 2 squares per roll",
+              "unit_cost_estimate": null,
+              "provisional": true,
+              "example_brands": [
+                "Grace Ice & Water Shield HT",
+                "Polyglass Polystick MTS Plus"
+              ]
+            },
+            {
+              "key": "slip_sheet",
+              "label": "Slip sheet (rosin paper)",
+              "group": "Underlayment",
+              "standard": false,
+              "terms": [
+                {
+                  "measurement": "roof.squares",
+                  "factor": 1
+                }
+              ],
+              "entered_by_hand": false,
+              "waste_percent": 10,
+              "unit": "roll",
+              "coverage": 5,
+              "explain": "loose sheet between self-adhered underlayment and panels so panels can move; ~500 sq ft rolls",
+              "unit_cost_estimate": null,
+              "provisional": true,
+              "example_brands": []
+            },
+            {
+              "key": "clips",
+              "label": "Standing seam clips",
+              "group": "Fasteners",
+              "standard": true,
+              "terms": [
+                {
+                  "measurement": "roof.squares",
+                  "factor": 1
+                }
+              ],
+              "entered_by_hand": false,
+              "waste_percent": 5,
+              "unit": "box",
+              "coverage": 2.5,
+              "explain": "about 1 clip every 2 ft along each panel seam (closer at eaves, rakes and ridges); ~40 per square, boxes of 100",
+              "unit_cost_estimate": null,
+              "provisional": true,
+              "example_brands": []
+            },
+            {
+              "key": "clip_screws",
+              "label": "Pancake-head clip screws",
+              "group": "Fasteners",
+              "standard": true,
+              "terms": [
+                {
+                  "measurement": "roof.squares",
+                  "factor": 1
+                }
+              ],
+              "entered_by_hand": false,
+              "waste_percent": 5,
+              "unit": "box",
+              "coverage": 3,
+              "explain": "2 screws per clip; a box of 250 does about 3 squares",
+              "unit_cost_estimate": null,
+              "provisional": true,
+              "example_brands": []
+            },
+            {
+              "key": "eave_cleat",
+              "label": "Eave cleat / hook strip",
+              "group": "Trim",
+              "standard": true,
+              "terms": [
+                {
+                  "measurement": "roof.eave_length",
+                  "factor": 1
+                }
+              ],
+              "entered_by_hand": false,
+              "waste_percent": 5,
+              "unit": "piece",
+              "coverage": 10,
+              "explain": "continuous cleat along the eave that the panel hem locks onto",
+              "unit_cost_estimate": null,
+              "provisional": true,
+              "example_brands": []
+            },
+            {
+              "key": "eave_trim",
+              "label": "Eave trim / drip edge",
+              "group": "Trim",
+              "standard": true,
+              "terms": [
+                {
+                  "measurement": "roof.eave_length",
+                  "factor": 1
+                }
+              ],
+              "entered_by_hand": false,
+              "waste_percent": 5,
+              "unit": "piece",
+              "coverage": 10,
+              "explain": "brake-formed or stock eave trim along every eave",
+              "unit_cost_estimate": null,
+              "provisional": true,
+              "example_brands": []
+            },
+            {
+              "key": "rake_trim",
+              "label": "Rake / gable trim",
+              "group": "Trim",
+              "standard": true,
+              "terms": [
+                {
+                  "measurement": "roof.rake_length",
+                  "factor": 1
+                }
+              ],
+              "entered_by_hand": false,
+              "waste_percent": 5,
+              "unit": "piece",
+              "coverage": 10,
+              "explain": "rake trim along every gable edge, usually with a rake cleat",
+              "unit_cost_estimate": null,
+              "provisional": true,
+              "example_brands": []
+            },
+            {
+              "key": "rake_cleat",
+              "label": "Rake cleat",
+              "group": "Trim",
+              "standard": false,
+              "terms": [
+                {
+                  "measurement": "roof.rake_length",
+                  "factor": 1
+                }
+              ],
+              "entered_by_hand": false,
+              "waste_percent": 5,
+              "unit": "piece",
+              "coverage": 10,
+              "explain": "continuous cleat that holds the rake trim hem; some profiles fasten the trim directly",
+              "unit_cost_estimate": null,
+              "provisional": true,
+              "example_brands": []
+            },
+            {
+              "key": "ridge_cap",
+              "label": "Ridge cap",
+              "group": "Trim",
+              "standard": true,
+              "terms": [
+                {
+                  "measurement": "roof.ridge_length",
+                  "factor": 1
+                }
+              ],
+              "entered_by_hand": false,
+              "waste_percent": 5,
+              "unit": "piece",
+              "coverage": 10,
+              "explain": "ridge cap over Z-closures along every ridge",
+              "unit_cost_estimate": null,
+              "provisional": true,
+              "example_brands": []
+            },
+            {
+              "key": "hip_cap",
+              "label": "Hip cap",
+              "group": "Trim",
+              "standard": true,
+              "terms": [
+                {
+                  "measurement": "roof.hip_length",
+                  "factor": 1
+                }
+              ],
+              "entered_by_hand": false,
+              "waste_percent": 5,
+              "unit": "piece",
+              "coverage": 10,
+              "explain": "hip cap over Z-closures along every hip",
+              "unit_cost_estimate": null,
+              "provisional": true,
+              "example_brands": []
+            },
+            {
+              "key": "z_closures",
+              "label": "Z-closures at ridge and hips",
+              "group": "Accessories",
+              "standard": true,
+              "terms": [
+                {
+                  "measurement": "roof.ridge_length",
+                  "factor": 2
+                },
+                {
+                  "measurement": "roof.hip_length",
+                  "factor": 2
+                }
+              ],
+              "entered_by_hand": false,
+              "waste_percent": 5,
+              "unit": "piece",
+              "coverage": 10,
+              "explain": "a Z-closure on each side of every ridge and hip (two runs per foot), sealed to the panel",
+              "unit_cost_estimate": null,
+              "provisional": true,
+              "example_brands": []
+            },
+            {
+              "key": "vented_ridge",
+              "label": "Vented ridge closure / ridge vent filter",
+              "group": "Ventilation",
+              "standard": false,
+              "terms": [
+                {
+                  "measurement": "roof.ridge_length",
+                  "factor": 1
+                }
+              ],
+              "entered_by_hand": false,
+              "waste_percent": 5,
+              "unit": "piece",
+              "coverage": 10,
+              "explain": "vented closures in place of solid Z-closures where the attic exhausts at the ridge",
+              "unit_cost_estimate": null,
+              "provisional": true,
+              "example_brands": []
+            },
+            {
+              "key": "valley_pan",
+              "label": "Valley pan with hemmed edges",
+              "group": "Flashing",
+              "standard": true,
+              "terms": [
+                {
+                  "measurement": "roof.valley_length",
+                  "factor": 1
+                }
+              ],
+              "entered_by_hand": false,
+              "waste_percent": 5,
+              "unit": "piece",
+              "coverage": 10,
+              "explain": "a formed valley pan in every valley, with valley cleats or Z-closures for the panel ends",
+              "unit_cost_estimate": null,
+              "provisional": true,
+              "example_brands": []
+            },
+            {
+              "key": "sidewall_flashing",
+              "label": "Sidewall flashing",
+              "group": "Flashing",
+              "standard": true,
+              "terms": [
+                {
+                  "measurement": "roof.side_wall_length",
+                  "factor": 1
+                },
+                {
+                  "measurement": "roof.chimney_step_length",
+                  "factor": 1
+                }
+              ],
+              "entered_by_hand": false,
+              "waste_percent": 5,
+              "unit": "piece",
+              "coverage": 10,
+              "explain": "continuous sidewall trim along walls and chimney sides (metal does not use step flashing)",
+              "unit_cost_estimate": null,
+              "provisional": true,
+              "example_brands": []
+            },
+            {
+              "key": "headwall_flashing",
+              "label": "Headwall / endwall flashing",
+              "group": "Flashing",
+              "standard": true,
+              "terms": [
+                {
+                  "measurement": "roof.head_wall_length",
+                  "factor": 1
+                },
+                {
+                  "measurement": "roof.chimney_apron_length",
+                  "factor": 1
+                }
+              ],
+              "entered_by_hand": false,
+              "waste_percent": 5,
+              "unit": "piece",
+              "coverage": 10,
+              "explain": "endwall flashing over Z-closures along headwalls and the chimney front",
+              "unit_cost_estimate": null,
+              "provisional": true,
+              "example_brands": []
+            },
+            {
+              "key": "counterflashing",
+              "label": "Counterflashing / reglet",
+              "group": "Flashing",
+              "standard": false,
+              "terms": [
+                {
+                  "measurement": "roof.side_wall_length",
+                  "factor": 1
+                },
+                {
+                  "measurement": "roof.head_wall_length",
+                  "factor": 1
+                },
+                {
+                  "measurement": "roof.chimney_step_length",
+                  "factor": 1
+                },
+                {
+                  "measurement": "roof.chimney_apron_length",
+                  "factor": 1
+                }
+              ],
+              "entered_by_hand": false,
+              "waste_percent": 5,
+              "unit": "piece",
+              "coverage": 10,
+              "explain": "counterflashing over sidewall and endwall trim on masonry or where siding is not removed",
+              "unit_cost_estimate": null,
+              "provisional": true,
+              "example_brands": []
+            },
+            {
+              "key": "butyl_tape",
+              "label": "Butyl tape sealant",
+              "group": "Accessories",
+              "standard": true,
+              "terms": [
+                {
+                  "measurement": "roof.ridge_length",
+                  "factor": 2
+                },
+                {
+                  "measurement": "roof.hip_length",
+                  "factor": 2
+                },
+                {
+                  "measurement": "roof.valley_length",
+                  "factor": 2
+                },
+                {
+                  "measurement": "roof.eave_length",
+                  "factor": 1
+                },
+                {
+                  "measurement": "roof.rake_length",
+                  "factor": 1
+                },
+                {
+                  "measurement": "roof.side_wall_length",
+                  "factor": 1
+                },
+                {
+                  "measurement": "roof.head_wall_length",
+                  "factor": 1
+                }
+              ],
+              "entered_by_hand": false,
+              "waste_percent": 10,
+              "unit": "roll",
+              "coverage": 45,
+              "explain": "under every closure and trim lap: both sides of ridges, hips and valleys plus eaves, rakes and walls; 45 ft rolls",
+              "unit_cost_estimate": null,
+              "provisional": true,
+              "example_brands": []
+            },
+            {
+              "key": "sealant",
+              "label": "Urethane / metal-roof sealant",
+              "group": "Accessories",
+              "standard": true,
+              "terms": [
+                {
+                  "measurement": "roof.squares",
+                  "factor": 1
+                }
+              ],
+              "entered_by_hand": false,
+              "waste_percent": 0,
+              "unit": "tube",
+              "coverage": 8,
+              "explain": "for trim laps, closures and penetrations; about one tube per 8 squares",
+              "unit_cost_estimate": null,
+              "provisional": true,
+              "example_brands": []
+            },
+            {
+              "key": "rivets",
+              "label": "Pop rivets",
+              "group": "Fasteners",
+              "standard": true,
+              "terms": [
+                {
+                  "measurement": "roof.squares",
+                  "factor": 1
+                }
+              ],
+              "entered_by_hand": false,
+              "waste_percent": 0,
+              "unit": "box",
+              "coverage": 30,
+              "explain": "for trim laps and closures; a box of 250 usually does a whole roof",
+              "unit_cost_estimate": null,
+              "provisional": true,
+              "example_brands": []
+            },
+            {
+              "key": "trim_screws",
+              "label": "Trim / stitch screws",
+              "group": "Fasteners",
+              "standard": true,
+              "terms": [
+                {
+                  "measurement": "roof.eave_length",
+                  "factor": 1
+                },
+                {
+                  "measurement": "roof.rake_length",
+                  "factor": 1
+                },
+                {
+                  "measurement": "roof.ridge_length",
+                  "factor": 1
+                },
+                {
+                  "measurement": "roof.hip_length",
+                  "factor": 1
+                },
+                {
+                  "measurement": "roof.side_wall_length",
+                  "factor": 1
+                },
+                {
+                  "measurement": "roof.head_wall_length",
+                  "factor": 1
+                }
+              ],
+              "entered_by_hand": false,
+              "waste_percent": 0,
+              "unit": "box",
+              "coverage": 200,
+              "explain": "about 1 painted screw per foot of trim and cap; a bag of 250 does ~200 ft",
+              "unit_cost_estimate": null,
+              "provisional": true,
+              "example_brands": []
+            },
+            {
+              "key": "pipe_flashings",
+              "label": "Retrofit pipe flashings",
+              "group": "Flashing",
+              "standard": true,
+              "terms": [],
+              "entered_by_hand": true,
+              "waste_percent": 0,
+              "unit": "piece",
+              "coverage": 1,
+              "explain": "EPDM or silicone retrofit boot with flexible base for each pipe; placed in the panel flat, never across a seam",
+              "unit_cost_estimate": null,
+              "provisional": true,
+              "example_brands": [
+                "Dektite",
+                "Oatey Retrofit",
+                "Portals Plus"
+              ]
+            },
+            {
+              "key": "snow_guards",
+              "label": "Snow guards / snow retention",
+              "group": "Accessories",
+              "standard": false,
+              "terms": [],
+              "entered_by_hand": true,
+              "waste_percent": 0,
+              "unit": "piece",
+              "coverage": 1,
+              "explain": "clamp-on snow retention in snow regions; count from a layout",
+              "unit_cost_estimate": null,
+              "provisional": true,
+              "example_brands": []
+            },
+            {
+              "key": "chimney_cricket",
+              "label": "Chimney cricket / diverter",
+              "group": "Flashing",
+              "standard": false,
+              "terms": [],
+              "entered_by_hand": true,
+              "waste_percent": 0,
+              "unit": "piece",
+              "coverage": 1,
+              "explain": "behind chimneys wider than 30 in",
+              "unit_cost_estimate": null,
+              "provisional": true,
+              "example_brands": []
+            }
+          ],
+          "sources": [
+            "Metal Construction Association (MCA) and SMACNA Architectural Sheet Metal Manual",
+            "Manufacturer installation manuals: Englert, Drexel Metals, McElroy Metal, Sheffield Metals, Petersen PAC-CLAD",
+            "Underlayment manufacturers' high-temperature product guides (e.g. Grace Ultra, Polyglass, Sharkskin)",
+            "IRC R905.10 (metal roof panels)"
+          ]
+        },
+        {
+          "id": "metal_exposed_fastener",
+          "label": "Exposed-fastener metal (corrugated / R-panel)",
+          "components": [
+            {
+              "key": "panels",
+              "label": "Exposed-fastener panels (R-panel / corrugated)",
+              "group": "Field",
+              "standard": true,
+              "terms": [
+                {
+                  "measurement": "roof.squares",
+                  "factor": 1
+                }
+              ],
+              "entered_by_hand": false,
+              "waste_percent": 10,
+              "unit": "square",
+              "coverage": 1,
+              "explain": "panels are 36 in coverage cut to length; order by area plus waste for end laps and cut-up areas",
+              "unit_cost_estimate": null,
+              "provisional": true,
+              "example_brands": [
+                "Metal Sales Classic Rib",
+                "Union Corrugating MasterRib",
+                "Fabral Grandrib 3"
+              ]
+            },
+            {
+              "key": "ht_underlayment",
+              "label": "High-temperature synthetic underlayment",
+              "group": "Underlayment",
+              "standard": true,
+              "terms": [
+                {
+                  "measurement": "roof.squares",
+                  "factor": 1
+                }
+              ],
+              "entered_by_hand": false,
+              "waste_percent": 10,
+              "unit": "roll",
+              "coverage": 10,
+              "explain": "over solid decks, a high-temp synthetic over the whole roof; 10 squares per roll. Barns over purlins often skip it",
+              "unit_cost_estimate": null,
+              "provisional": true,
+              "example_brands": []
+            },
+            {
+              "key": "ht_ice_water",
+              "label": "High-temperature ice and water barrier, eaves and valleys",
+              "group": "Underlayment",
+              "standard": false,
+              "terms": [
+                {
+                  "measurement": "roof.eave_length",
+                  "factor": 1
+                },
+                {
+                  "measurement": "roof.valley_length",
+                  "factor": 1
+                }
+              ],
+              "entered_by_hand": false,
+              "waste_percent": 10,
+              "unit": "roll",
+              "coverage": 65,
+              "explain": "high-temp self-adhered along eaves and centred in valleys in ice-dam regions",
+              "unit_cost_estimate": null,
+              "provisional": true,
+              "example_brands": []
+            },
+            {
+              "key": "purlins",
+              "label": "Purlins / battens (1x4 or 2x4)",
+              "group": "Accessories",
+              "standard": false,
+              "terms": [
+                {
+                  "measurement": "roof.squares",
+                  "factor": 1
+                }
+              ],
+              "entered_by_hand": false,
+              "waste_percent": 10,
+              "unit": "piece",
+              "coverage": 0.32,
+              "explain": "only when installing over old shingles or on purlins: rows 24 in on centre, ~50 ft per square, 16 ft pieces",
+              "unit_cost_estimate": null,
+              "provisional": true,
+              "example_brands": []
+            },
+            {
+              "key": "panel_screws",
+              "label": "Panel screws with EPDM washers",
+              "group": "Fasteners",
+              "standard": true,
+              "terms": [
+                {
+                  "measurement": "roof.squares",
+                  "factor": 1
+                }
+              ],
+              "entered_by_hand": false,
+              "waste_percent": 5,
+              "unit": "box",
+              "coverage": 3,
+              "explain": "about 75-80 screws per square in the flat beside the rib at each purlin/row; bags of 250",
+              "unit_cost_estimate": null,
+              "provisional": true,
+              "example_brands": []
+            },
+            {
+              "key": "stitch_screws",
+              "label": "Lap stitch screws",
+              "group": "Fasteners",
+              "standard": true,
+              "terms": [
+                {
+                  "measurement": "roof.squares",
+                  "factor": 1
+                }
+              ],
+              "entered_by_hand": false,
+              "waste_percent": 0,
+              "unit": "box",
+              "coverage": 10,
+              "explain": "short stitch screws along side laps and trim; bags of 250 do ~10 squares",
+              "unit_cost_estimate": null,
+              "provisional": true,
+              "example_brands": []
+            },
+            {
+              "key": "inside_closures",
+              "label": "Inside foam closures at eave",
+              "group": "Accessories",
+              "standard": true,
+              "terms": [
+                {
+                  "measurement": "roof.eave_length",
+                  "factor": 1
+                }
+              ],
+              "entered_by_hand": false,
+              "waste_percent": 5,
+              "unit": "piece",
+              "coverage": 3,
+              "explain": "a profiled foam closure under the panels along every eave; each closure covers one 3 ft panel",
+              "unit_cost_estimate": null,
+              "provisional": true,
+              "example_brands": []
+            },
+            {
+              "key": "outside_closures",
+              "label": "Outside foam closures at ridge and hips",
+              "group": "Accessories",
+              "standard": true,
+              "terms": [
+                {
+                  "measurement": "roof.ridge_length",
+                  "factor": 2
+                },
+                {
+                  "measurement": "roof.hip_length",
+                  "factor": 2
+                }
+              ],
+              "entered_by_hand": false,
+              "waste_percent": 5,
+              "unit": "piece",
+              "coverage": 3,
+              "explain": "a profiled closure on each side of ridges and hips; 3 ft each",
+              "unit_cost_estimate": null,
+              "provisional": true,
+              "example_brands": []
+            },
+            {
+              "key": "vented_closures",
+              "label": "Vented ridge closures",
+              "group": "Ventilation",
+              "standard": false,
+              "terms": [
+                {
+                  "measurement": "roof.ridge_length",
+                  "factor": 2
+                }
+              ],
+              "entered_by_hand": false,
+              "waste_percent": 5,
+              "unit": "piece",
+              "coverage": 3,
+              "explain": "vented closures in place of solid ones where the attic exhausts at the ridge",
+              "unit_cost_estimate": null,
+              "provisional": true,
+              "example_brands": []
+            },
+            {
+              "key": "eave_trim",
+              "label": "Eave trim / drip edge",
+              "group": "Trim",
+              "standard": true,
+              "terms": [
+                {
+                  "measurement": "roof.eave_length",
+                  "factor": 1
+                }
+              ],
+              "entered_by_hand": false,
+              "waste_percent": 5,
+              "unit": "piece",
+              "coverage": 10,
+              "explain": "along every eave",
+              "unit_cost_estimate": null,
+              "provisional": true,
+              "example_brands": []
+            },
+            {
+              "key": "rake_trim",
+              "label": "Rake / gable trim",
+              "group": "Trim",
+              "standard": true,
+              "terms": [
+                {
+                  "measurement": "roof.rake_length",
+                  "factor": 1
+                }
+              ],
+              "entered_by_hand": false,
+              "waste_percent": 5,
+              "unit": "piece",
+              "coverage": 10,
+              "explain": "along every gable edge",
+              "unit_cost_estimate": null,
+              "provisional": true,
+              "example_brands": []
+            },
+            {
+              "key": "ridge_cap",
+              "label": "Ridge cap",
+              "group": "Trim",
+              "standard": true,
+              "terms": [
+                {
+                  "measurement": "roof.ridge_length",
+                  "factor": 1
+                }
+              ],
+              "entered_by_hand": false,
+              "waste_percent": 5,
+              "unit": "piece",
+              "coverage": 10,
+              "explain": "along every ridge",
+              "unit_cost_estimate": null,
+              "provisional": true,
+              "example_brands": []
+            },
+            {
+              "key": "hip_cap",
+              "label": "Hip cap",
+              "group": "Trim",
+              "standard": true,
+              "terms": [
+                {
+                  "measurement": "roof.hip_length",
+                  "factor": 1
+                }
+              ],
+              "entered_by_hand": false,
+              "waste_percent": 5,
+              "unit": "piece",
+              "coverage": 10,
+              "explain": "along every hip",
+              "unit_cost_estimate": null,
+              "provisional": true,
+              "example_brands": []
+            },
+            {
+              "key": "valley_flashing",
+              "label": "Valley flashing",
+              "group": "Flashing",
+              "standard": true,
+              "terms": [
+                {
+                  "measurement": "roof.valley_length",
+                  "factor": 1
+                }
+              ],
+              "entered_by_hand": false,
+              "waste_percent": 5,
+              "unit": "piece",
+              "coverage": 10,
+              "explain": "formed valley in every valley with closures or butyl at the panel ends",
+              "unit_cost_estimate": null,
+              "provisional": true,
+              "example_brands": []
+            },
+            {
+              "key": "sidewall_flashing",
+              "label": "Sidewall flashing",
+              "group": "Flashing",
+              "standard": true,
+              "terms": [
+                {
+                  "measurement": "roof.side_wall_length",
+                  "factor": 1
+                },
+                {
+                  "measurement": "roof.chimney_step_length",
+                  "factor": 1
+                }
+              ],
+              "entered_by_hand": false,
+              "waste_percent": 5,
+              "unit": "piece",
+              "coverage": 10,
+              "explain": "continuous sidewall trim along walls and chimney sides",
+              "unit_cost_estimate": null,
+              "provisional": true,
+              "example_brands": []
+            },
+            {
+              "key": "endwall_flashing",
+              "label": "Endwall / headwall flashing",
+              "group": "Flashing",
+              "standard": true,
+              "terms": [
+                {
+                  "measurement": "roof.head_wall_length",
+                  "factor": 1
+                },
+                {
+                  "measurement": "roof.chimney_apron_length",
+                  "factor": 1
+                }
+              ],
+              "entered_by_hand": false,
+              "waste_percent": 5,
+              "unit": "piece",
+              "coverage": 10,
+              "explain": "endwall trim over outside closures along headwalls and the chimney front",
+              "unit_cost_estimate": null,
+              "provisional": true,
+              "example_brands": []
+            },
+            {
+              "key": "butyl_tape",
+              "label": "Butyl tape sealant",
+              "group": "Accessories",
+              "standard": true,
+              "terms": [
+                {
+                  "measurement": "roof.eave_length",
+                  "factor": 1
+                },
+                {
+                  "measurement": "roof.ridge_length",
+                  "factor": 2
+                },
+                {
+                  "measurement": "roof.hip_length",
+                  "factor": 2
+                },
+                {
+                  "measurement": "roof.valley_length",
+                  "factor": 2
+                },
+                {
+                  "measurement": "roof.head_wall_length",
+                  "factor": 1
+                }
+              ],
+              "entered_by_hand": false,
+              "waste_percent": 10,
+              "unit": "roll",
+              "coverage": 45,
+              "explain": "under closures and at end laps; 45 ft rolls",
+              "unit_cost_estimate": null,
+              "provisional": true,
+              "example_brands": []
+            },
+            {
+              "key": "sidelap_sealant",
+              "label": "Side-lap sealant tape",
+              "group": "Accessories",
+              "standard": false,
+              "terms": [
+                {
+                  "measurement": "roof.squares",
+                  "factor": 1
+                }
+              ],
+              "entered_by_hand": false,
+              "waste_percent": 10,
+              "unit": "roll",
+              "coverage": 1.3,
+              "explain": "only on low slopes (under 3:12): a bead in every side lap, about 33 ft per square",
+              "unit_cost_estimate": null,
+              "provisional": true,
+              "example_brands": []
+            },
+            {
+              "key": "sealant",
+              "label": "Metal-roof sealant",
+              "group": "Accessories",
+              "standard": true,
+              "terms": [
+                {
+                  "measurement": "roof.squares",
+                  "factor": 1
+                }
+              ],
+              "entered_by_hand": false,
+              "waste_percent": 0,
+              "unit": "tube",
+              "coverage": 8,
+              "explain": "for trim laps and penetrations; about one tube per 8 squares",
+              "unit_cost_estimate": null,
+              "provisional": true,
+              "example_brands": []
+            },
+            {
+              "key": "trim_screws",
+              "label": "Trim screws",
+              "group": "Fasteners",
+              "standard": true,
+              "terms": [
+                {
+                  "measurement": "roof.eave_length",
+                  "factor": 1
+                },
+                {
+                  "measurement": "roof.rake_length",
+                  "factor": 1
+                },
+                {
+                  "measurement": "roof.ridge_length",
+                  "factor": 1
+                },
+                {
+                  "measurement": "roof.hip_length",
+                  "factor": 1
+                },
+                {
+                  "measurement": "roof.side_wall_length",
+                  "factor": 1
+                },
+                {
+                  "measurement": "roof.head_wall_length",
+                  "factor": 1
+                }
+              ],
+              "entered_by_hand": false,
+              "waste_percent": 0,
+              "unit": "box",
+              "coverage": 200,
+              "explain": "about 1 screw per foot of trim; a bag of 250 does ~200 ft",
+              "unit_cost_estimate": null,
+              "provisional": true,
+              "example_brands": []
+            },
+            {
+              "key": "pipe_flashings",
+              "label": "Retrofit pipe flashings",
+              "group": "Flashing",
+              "standard": true,
+              "terms": [],
+              "entered_by_hand": true,
+              "waste_percent": 0,
+              "unit": "piece",
+              "coverage": 1,
+              "explain": "EPDM or silicone retrofit boot for each pipe",
+              "unit_cost_estimate": null,
+              "provisional": true,
+              "example_brands": [
+                "Dektite",
+                "Oatey Retrofit"
+              ]
+            },
+            {
+              "key": "touch_up_paint",
+              "label": "Touch-up paint",
+              "group": "Accessories",
+              "standard": false,
+              "terms": [],
+              "entered_by_hand": true,
+              "waste_percent": 0,
+              "unit": "piece",
+              "coverage": 1,
+              "explain": "matching paint pen or can for scratches",
+              "unit_cost_estimate": null,
+              "provisional": true,
+              "example_brands": []
+            }
+          ],
+          "sources": [
+            "Metal Construction Association (MCA) exposed-fastener guidance",
+            "Manufacturer installation guides: Metal Sales, Union Corrugating, Pro-Panel/MBCI, Fabral",
+            "IRC R905.10 (metal roof panels)"
+          ]
+        },
+        {
+          "id": "stone_coated_steel",
+          "label": "Stone-coated steel",
+          "components": [
+            {
+              "key": "panels",
+              "label": "Stone-coated steel panels",
+              "group": "Field",
+              "standard": true,
+              "terms": [
+                {
+                  "measurement": "roof.squares",
+                  "factor": 1
+                }
+              ],
+              "entered_by_hand": false,
+              "waste_percent": 8,
+              "unit": "panel",
+              "coverage": 0.04,
+              "explain": "about 22-28 panels per square depending on profile (tile, shake, shingle); check the profile's coverage",
+              "unit_cost_estimate": null,
+              "provisional": true,
+              "example_brands": [
+                "DECRA",
+                "Westlake Royal",
+                "Tilcor"
+              ]
+            },
+            {
+              "key": "underlayment",
+              "label": "Synthetic underlayment",
+              "group": "Underlayment",
+              "standard": true,
+              "terms": [
+                {
+                  "measurement": "roof.squares",
+                  "factor": 1
+                }
+              ],
+              "entered_by_hand": false,
+              "waste_percent": 10,
+              "unit": "roll",
+              "coverage": 10,
+              "explain": "synthetic or #30 felt over the whole deck; 10 squares per roll",
+              "unit_cost_estimate": null,
+              "provisional": true,
+              "example_brands": []
+            },
+            {
+              "key": "ice_water",
+              "label": "Ice and water barrier, eaves and valleys",
+              "group": "Underlayment",
+              "standard": false,
+              "terms": [
+                {
+                  "measurement": "roof.eave_length",
+                  "factor": 1
+                },
+                {
+                  "measurement": "roof.valley_length",
+                  "factor": 1
+                }
+              ],
+              "entered_by_hand": false,
+              "waste_percent": 10,
+              "unit": "roll",
+              "coverage": 65,
+              "explain": "self-adhered along eaves and in valleys in ice-dam regions",
+              "unit_cost_estimate": null,
+              "provisional": true,
+              "example_brands": []
+            },
+            {
+              "key": "battens",
+              "label": "Battens (1x4 / 2x2)",
+              "group": "Accessories",
+              "standard": false,
+              "terms": [
+                {
+                  "measurement": "roof.squares",
+                  "factor": 1
+                }
+              ],
+              "entered_by_hand": false,
+              "waste_percent": 10,
+              "unit": "piece",
+              "coverage": 0.12,
+              "explain": "batten systems only: one row per course (~14-15 in), ~83 ft per square, 10 ft pieces. Direct-to-deck profiles skip it",
+              "unit_cost_estimate": null,
+              "provisional": true,
+              "example_brands": []
+            },
+            {
+              "key": "eave_starter",
+              "label": "Eave starter / eave closure",
+              "group": "Trim",
+              "standard": true,
+              "terms": [
+                {
+                  "measurement": "roof.eave_length",
+                  "factor": 1
+                }
+              ],
+              "entered_by_hand": false,
+              "waste_percent": 5,
+              "unit": "piece",
+              "coverage": 4,
+              "explain": "profile-matched eave starter or closure along every eave; ~4 ft pieces",
+              "unit_cost_estimate": null,
+              "provisional": true,
+              "example_brands": []
+            },
+            {
+              "key": "rake_trim",
+              "label": "Rake / barge cover",
+              "group": "Trim",
+              "standard": true,
+              "terms": [
+                {
+                  "measurement": "roof.rake_length",
+                  "factor": 1
+                }
+              ],
+              "entered_by_hand": false,
+              "waste_percent": 5,
+              "unit": "piece",
+              "coverage": 4,
+              "explain": "stone-coated rake cover along every gable edge; ~4 ft pieces",
+              "unit_cost_estimate": null,
+              "provisional": true,
+              "example_brands": []
+            },
+            {
+              "key": "ridge_hip",
+              "label": "Ridge and hip caps",
+              "group": "Trim",
+              "standard": true,
+              "terms": [
+                {
+                  "measurement": "roof.ridge_length",
+                  "factor": 1
+                },
+                {
+                  "measurement": "roof.hip_length",
+                  "factor": 1
+                }
+              ],
+              "entered_by_hand": false,
+              "waste_percent": 5,
+              "unit": "piece",
+              "coverage": 1.4,
+              "explain": "stone-coated caps along ridges and hips; ~16-17 in exposure per piece",
+              "unit_cost_estimate": null,
+              "provisional": true,
+              "example_brands": []
+            },
+            {
+              "key": "ridge_vent",
+              "label": "Vented ridge / ridge vent",
+              "group": "Ventilation",
+              "standard": false,
+              "terms": [
+                {
+                  "measurement": "roof.ridge_length",
+                  "factor": 1
+                }
+              ],
+              "entered_by_hand": false,
+              "waste_percent": 5,
+              "unit": "piece",
+              "coverage": 4,
+              "explain": "vented ridge system under the caps where the attic exhausts at the ridge",
+              "unit_cost_estimate": null,
+              "provisional": true,
+              "example_brands": []
+            },
+            {
+              "key": "valley_flashing",
+              "label": "Valley flashing",
+              "group": "Flashing",
+              "standard": true,
+              "terms": [
+                {
+                  "measurement": "roof.valley_length",
+                  "factor": 1
+                }
+              ],
+              "entered_by_hand": false,
+              "waste_percent": 5,
+              "unit": "piece",
+              "coverage": 10,
+              "explain": "a valley tray in every valley",
+              "unit_cost_estimate": null,
+              "provisional": true,
+              "example_brands": []
+            },
+            {
+              "key": "wall_flashing",
+              "label": "Sidewall flashing",
+              "group": "Flashing",
+              "standard": true,
+              "terms": [
+                {
+                  "measurement": "roof.side_wall_length",
+                  "factor": 1
+                },
+                {
+                  "measurement": "roof.chimney_step_length",
+                  "factor": 1
+                }
+              ],
+              "entered_by_hand": false,
+              "waste_percent": 5,
+              "unit": "piece",
+              "coverage": 10,
+              "explain": "pan-style sidewall flashing along walls and chimney sides",
+              "unit_cost_estimate": null,
+              "provisional": true,
+              "example_brands": []
+            },
+            {
+              "key": "headwall_flashing",
+              "label": "Headwall / apron flashing",
+              "group": "Flashing",
+              "standard": true,
+              "terms": [
+                {
+                  "measurement": "roof.head_wall_length",
+                  "factor": 1
+                },
+                {
+                  "measurement": "roof.chimney_apron_length",
+                  "factor": 1
+                }
+              ],
+              "entered_by_hand": false,
+              "waste_percent": 5,
+              "unit": "piece",
+              "coverage": 10,
+              "explain": "headwall flashing along headwalls and the chimney front",
+              "unit_cost_estimate": null,
+              "provisional": true,
+              "example_brands": []
+            },
+            {
+              "key": "fasteners",
+              "label": "Ring-shank nails or screws",
+              "group": "Fasteners",
+              "standard": true,
+              "terms": [
+                {
+                  "measurement": "roof.squares",
+                  "factor": 1
+                }
+              ],
+              "entered_by_hand": false,
+              "waste_percent": 0,
+              "unit": "box",
+              "coverage": 8,
+              "explain": "4-5 fasteners per panel, ~120 per square; a box of 1,000 does ~8 squares",
+              "unit_cost_estimate": null,
+              "provisional": true,
+              "example_brands": []
+            },
+            {
+              "key": "sealant",
+              "label": "Sealant",
+              "group": "Accessories",
+              "standard": true,
+              "terms": [
+                {
+                  "measurement": "roof.squares",
+                  "factor": 1
+                }
+              ],
+              "entered_by_hand": false,
+              "waste_percent": 0,
+              "unit": "tube",
+              "coverage": 10,
+              "explain": "for flashings and caps; about one tube per 10 squares",
+              "unit_cost_estimate": null,
+              "provisional": true,
+              "example_brands": []
+            },
+            {
+              "key": "touch_up",
+              "label": "Stone chip / touch-up kit",
+              "group": "Accessories",
+              "standard": true,
+              "terms": [
+                {
+                  "measurement": "roof.squares",
+                  "factor": 1
+                }
+              ],
+              "entered_by_hand": false,
+              "waste_percent": 0,
+              "unit": "piece",
+              "coverage": 30,
+              "explain": "coating and loose stone chips for cut edges and scuffs; one kit usually does a whole roof",
+              "unit_cost_estimate": null,
+              "provisional": true,
+              "example_brands": []
+            },
+            {
+              "key": "pipe_flashings",
+              "label": "Pipe flashings (lead or flexible)",
+              "group": "Flashing",
+              "standard": true,
+              "terms": [],
+              "entered_by_hand": true,
+              "waste_percent": 0,
+              "unit": "piece",
+              "coverage": 1,
+              "explain": "lead or flexible-base flashing dressed over the panel profile, one per pipe",
+              "unit_cost_estimate": null,
+              "provisional": true,
+              "example_brands": []
+            }
+          ],
+          "sources": [
+            "DECRA Metal Roofing installation manuals (Tile, Shake, Shingle; direct-to-deck and batten systems)",
+            "Westlake Royal (Boral) stone-coated steel installation guides; Tilcor installation guide",
+            "IRC R905.10 / manufacturer evaluation reports"
+          ]
+        },
+        {
+          "id": "tile_concrete_clay",
+          "label": "Concrete / clay tile",
+          "components": [
+            {
+              "key": "tiles",
+              "label": "Field tiles (concrete or clay)",
+              "group": "Field",
+              "standard": true,
+              "terms": [
+                {
+                  "measurement": "roof.squares",
+                  "factor": 1
+                }
+              ],
+              "entered_by_hand": false,
+              "waste_percent": 8,
+              "unit": "square",
+              "coverage": 1,
+              "explain": "ordered by the square (~90 flat/S concrete tiles; ~150-170 two-piece clay barrel); more waste on hips",
+              "unit_cost_estimate": null,
+              "provisional": true,
+              "example_brands": [
+                "Eagle",
+                "Westlake Royal",
+                "Ludowici",
+                "Crown"
+              ]
+            },
+            {
+              "key": "tile_underlayment",
+              "label": "Tile underlayment (heavy-duty synthetic or 2-ply felt)",
+              "group": "Underlayment",
+              "standard": true,
+              "terms": [
+                {
+                  "measurement": "roof.squares",
+                  "factor": 1
+                }
+              ],
+              "entered_by_hand": false,
+              "waste_percent": 10,
+              "unit": "roll",
+              "coverage": 10,
+              "explain": "tile outlives normal underlayment: use a tile-rated synthetic or two plies of #30; 10 squares per synthetic roll",
+              "unit_cost_estimate": null,
+              "provisional": true,
+              "example_brands": []
+            },
+            {
+              "key": "sa_tile_underlayment",
+              "label": "Self-adhered high-temp tile underlayment",
+              "group": "Underlayment",
+              "standard": false,
+              "terms": [
+                {
+                  "measurement": "roof.squares",
+                  "factor": 1
+                }
+              ],
+              "entered_by_hand": false,
+              "waste_percent": 15,
+              "unit": "roll",
+              "coverage": 2,
+              "explain": "regional (Florida, high wind) or upgrade: self-adhered tile underlayment over the whole deck; 2 squares per roll",
+              "unit_cost_estimate": null,
+              "provisional": true,
+              "example_brands": [
+                "Polyglass Polystick TU Plus",
+                "Tarco TU-Max"
+              ]
+            },
+            {
+              "key": "ice_water",
+              "label": "Ice and water barrier, eaves and valleys",
+              "group": "Underlayment",
+              "standard": false,
+              "terms": [
+                {
+                  "measurement": "roof.eave_length",
+                  "factor": 1
+                },
+                {
+                  "measurement": "roof.valley_length",
+                  "factor": 1
+                }
+              ],
+              "entered_by_hand": false,
+              "waste_percent": 10,
+              "unit": "roll",
+              "coverage": 65,
+              "explain": "in ice-dam regions along eaves and centred in valleys",
+              "unit_cost_estimate": null,
+              "provisional": true,
+              "example_brands": []
+            },
+            {
+              "key": "battens",
+              "label": "Battens",
+              "group": "Accessories",
+              "standard": false,
+              "terms": [
+                {
+                  "measurement": "roof.squares",
+                  "factor": 1
+                }
+              ],
+              "entered_by_hand": false,
+              "waste_percent": 10,
+              "unit": "piece",
+              "coverage": 0.09,
+              "explain": "one row per course (~13.5 in), ~89 ft per square, 8 ft pieces. Required on steep slopes and in some regions; direct-deck otherwise",
+              "unit_cost_estimate": null,
+              "provisional": true,
+              "example_brands": []
+            },
+            {
+              "key": "counter_battens",
+              "label": "Counter-battens",
+              "group": "Accessories",
+              "standard": false,
+              "terms": [
+                {
+                  "measurement": "roof.squares",
+                  "factor": 1
+                }
+              ],
+              "entered_by_hand": false,
+              "waste_percent": 10,
+              "unit": "piece",
+              "coverage": 0.4,
+              "explain": "vertical strips under the battens for drainage, ~16-24 in on centre (~25 ft per square)",
+              "unit_cost_estimate": null,
+              "provisional": true,
+              "example_brands": []
+            },
+            {
+              "key": "eave_closure",
+              "label": "Eave closure / bird stop",
+              "group": "Trim",
+              "standard": true,
+              "terms": [
+                {
+                  "measurement": "roof.eave_length",
+                  "factor": 1
+                }
+              ],
+              "entered_by_hand": false,
+              "waste_percent": 5,
+              "unit": "piece",
+              "coverage": 10,
+              "explain": "raises the first course and closes the tile profile along every eave",
+              "unit_cost_estimate": null,
+              "provisional": true,
+              "example_brands": []
+            },
+            {
+              "key": "drip_edge",
+              "label": "Drip edge",
+              "group": "Trim",
+              "standard": true,
+              "terms": [
+                {
+                  "measurement": "roof.eave_length",
+                  "factor": 1
+                },
+                {
+                  "measurement": "roof.rake_length",
+                  "factor": 1
+                }
+              ],
+              "entered_by_hand": false,
+              "waste_percent": 5,
+              "unit": "piece",
+              "coverage": 10,
+              "explain": "along every eave and rake under the underlayment",
+              "unit_cost_estimate": null,
+              "provisional": true,
+              "example_brands": []
+            },
+            {
+              "key": "rake_tiles",
+              "label": "Rake tiles",
+              "group": "Trim",
+              "standard": true,
+              "terms": [
+                {
+                  "measurement": "roof.rake_length",
+                  "factor": 1
+                }
+              ],
+              "entered_by_hand": false,
+              "waste_percent": 5,
+              "unit": "piece",
+              "coverage": 1.1,
+              "explain": "one rake tile per course (~13-14 in) along every gable edge",
+              "unit_cost_estimate": null,
+              "provisional": true,
+              "example_brands": []
+            },
+            {
+              "key": "ridge_hip_tiles",
+              "label": "Ridge and hip tiles",
+              "group": "Trim",
+              "standard": true,
+              "terms": [
+                {
+                  "measurement": "roof.ridge_length",
+                  "factor": 1
+                },
+                {
+                  "measurement": "roof.hip_length",
+                  "factor": 1
+                }
+              ],
+              "entered_by_hand": false,
+              "waste_percent": 8,
+              "unit": "piece",
+              "coverage": 1.15,
+              "explain": "trim tiles lapped along ridges and hips; ~14 in exposure per piece",
+              "unit_cost_estimate": null,
+              "provisional": true,
+              "example_brands": []
+            },
+            {
+              "key": "ridge_nailer",
+              "label": "Ridge and hip nailer board / raiser",
+              "group": "Accessories",
+              "standard": true,
+              "terms": [
+                {
+                  "measurement": "roof.ridge_length",
+                  "factor": 1
+                },
+                {
+                  "measurement": "roof.hip_length",
+                  "factor": 1
+                }
+              ],
+              "entered_by_hand": false,
+              "waste_percent": 5,
+              "unit": "piece",
+              "coverage": 10,
+              "explain": "a wood or metal nailer along every ridge and hip to fasten the trim tiles",
+              "unit_cost_estimate": null,
+              "provisional": true,
+              "example_brands": []
+            },
+            {
+              "key": "ridge_closure",
+              "label": "Ridge and hip closure roll (vented)",
+              "group": "Ventilation",
+              "standard": true,
+              "terms": [
+                {
+                  "measurement": "roof.ridge_length",
+                  "factor": 1
+                },
+                {
+                  "measurement": "roof.hip_length",
+                  "factor": 1
+                }
+              ],
+              "entered_by_hand": false,
+              "waste_percent": 5,
+              "unit": "roll",
+              "coverage": 16.5,
+              "explain": "flexible closure under ridge and hip tiles in place of mortar; vented where the attic exhausts at the ridge",
+              "unit_cost_estimate": null,
+              "provisional": true,
+              "example_brands": [
+                "Figaroll"
+              ]
+            },
+            {
+              "key": "tile_nails",
+              "label": "Tile nails or screws",
+              "group": "Fasteners",
+              "standard": true,
+              "terms": [
+                {
+                  "measurement": "roof.squares",
+                  "factor": 1
+                }
+              ],
+              "entered_by_hand": false,
+              "waste_percent": 0,
+              "unit": "box",
+              "coverage": 5,
+              "explain": "1-2 corrosion-resistant fasteners per tile (~90-180 per square); boxes vary, plan ~5 squares per box",
+              "unit_cost_estimate": null,
+              "provisional": true,
+              "example_brands": []
+            },
+            {
+              "key": "foam_adhesive",
+              "label": "Foam tile adhesive",
+              "group": "Fasteners",
+              "standard": false,
+              "terms": [
+                {
+                  "measurement": "roof.squares",
+                  "factor": 1
+                }
+              ],
+              "entered_by_hand": false,
+              "waste_percent": 0,
+              "unit": "piece",
+              "coverage": 1.5,
+              "explain": "alternative or supplement to nails (common in Florida): one canister sets about 1-2 squares; follow the adhesive's paddy pattern",
+              "unit_cost_estimate": null,
+              "provisional": true,
+              "example_brands": [
+                "DuPont Tile Bond",
+                "ICP Polyset AH-160"
+              ]
+            },
+            {
+              "key": "wind_clips",
+              "label": "Tail / storm clips",
+              "group": "Fasteners",
+              "standard": false,
+              "terms": [
+                {
+                  "measurement": "roof.squares",
+                  "factor": 1
+                }
+              ],
+              "entered_by_hand": false,
+              "waste_percent": 0,
+              "unit": "box",
+              "coverage": 5,
+              "explain": "high-wind and coastal areas: a clip at the nose of each tile; boxes of ~500",
+              "unit_cost_estimate": null,
+              "provisional": true,
+              "example_brands": []
+            },
+            {
+              "key": "valley_metal",
+              "label": "Tile valley metal (24 in, ribbed)",
+              "group": "Flashing",
+              "standard": true,
+              "terms": [
+                {
+                  "measurement": "roof.valley_length",
+                  "factor": 1
+                }
+              ],
+              "entered_by_hand": false,
+              "waste_percent": 5,
+              "unit": "piece",
+              "coverage": 10,
+              "explain": "wide valley metal with water diverter ribs in every valley",
+              "unit_cost_estimate": null,
+              "provisional": true,
+              "example_brands": []
+            },
+            {
+              "key": "pan_flashing",
+              "label": "Sidewall pan / channel flashing",
+              "group": "Flashing",
+              "standard": true,
+              "terms": [
+                {
+                  "measurement": "roof.side_wall_length",
+                  "factor": 1
+                },
+                {
+                  "measurement": "roof.chimney_step_length",
+                  "factor": 1
+                }
+              ],
+              "entered_by_hand": false,
+              "waste_percent": 5,
+              "unit": "piece",
+              "coverage": 10,
+              "explain": "channel flashing under the tile along walls and chimney sides",
+              "unit_cost_estimate": null,
+              "provisional": true,
+              "example_brands": []
+            },
+            {
+              "key": "flexible_flashing",
+              "label": "Flexible headwall flashing (lead or self-adhering)",
+              "group": "Flashing",
+              "standard": true,
+              "terms": [
+                {
+                  "measurement": "roof.head_wall_length",
+                  "factor": 1
+                },
+                {
+                  "measurement": "roof.chimney_apron_length",
+                  "factor": 1
+                }
+              ],
+              "entered_by_hand": false,
+              "waste_percent": 5,
+              "unit": "roll",
+              "coverage": 16.5,
+              "explain": "dressed over the tile profile along headwalls and the chimney front; ~16.5 ft rolls",
+              "unit_cost_estimate": null,
+              "provisional": true,
+              "example_brands": [
+                "Wakaflex"
+              ]
+            },
+            {
+              "key": "counterflashing",
+              "label": "Counterflashing",
+              "group": "Flashing",
+              "standard": true,
+              "terms": [
+                {
+                  "measurement": "roof.side_wall_length",
+                  "factor": 1
+                },
+                {
+                  "measurement": "roof.head_wall_length",
+                  "factor": 1
+                },
+                {
+                  "measurement": "roof.chimney_step_length",
+                  "factor": 1
+                },
+                {
+                  "measurement": "roof.chimney_apron_length",
+                  "factor": 1
+                }
+              ],
+              "entered_by_hand": false,
+              "waste_percent": 5,
+              "unit": "piece",
+              "coverage": 10,
+              "explain": "counterflashing over pan and headwall flashing",
+              "unit_cost_estimate": null,
+              "provisional": true,
+              "example_brands": []
+            },
+            {
+              "key": "sealant",
+              "label": "Tile sealant / mastic",
+              "group": "Accessories",
+              "standard": true,
+              "terms": [
+                {
+                  "measurement": "roof.squares",
+                  "factor": 1
+                }
+              ],
+              "entered_by_hand": false,
+              "waste_percent": 0,
+              "unit": "tube",
+              "coverage": 8,
+              "explain": "for flashings, ridge ends and penetrations; about one tube per 8 squares",
+              "unit_cost_estimate": null,
+              "provisional": true,
+              "example_brands": []
+            },
+            {
+              "key": "pipe_flashings",
+              "label": "Tile pipe flashings (primary and secondary)",
+              "group": "Flashing",
+              "standard": true,
+              "terms": [],
+              "entered_by_hand": true,
+              "waste_percent": 0,
+              "unit": "piece",
+              "coverage": 1,
+              "explain": "a deck flashing under the underlayment plus a lead or flexible flashing dressed over the tile, one set per pipe",
+              "unit_cost_estimate": null,
+              "provisional": true,
+              "example_brands": []
+            },
+            {
+              "key": "tile_vents",
+              "label": "Off-ridge tile vents",
+              "group": "Ventilation",
+              "standard": false,
+              "terms": [],
+              "entered_by_hand": true,
+              "waste_percent": 0,
+              "unit": "piece",
+              "coverage": 1,
+              "explain": "tile-profile vents where ridge venting is not used",
+              "unit_cost_estimate": null,
+              "provisional": true,
+              "example_brands": []
+            },
+            {
+              "key": "mortar",
+              "label": "Mortar for ridges and rakes",
+              "group": "Accessories",
+              "standard": false,
+              "terms": [
+                {
+                  "measurement": "roof.ridge_length",
+                  "factor": 1
+                },
+                {
+                  "measurement": "roof.hip_length",
+                  "factor": 1
+                }
+              ],
+              "entered_by_hand": false,
+              "waste_percent": 10,
+              "unit": "piece",
+              "coverage": 10,
+              "explain": "only where trim tiles are mortar-set instead of a closure roll; one 80 lb bag does roughly 10 ft",
+              "unit_cost_estimate": null,
+              "provisional": true,
+              "example_brands": []
+            }
+          ],
+          "sources": [
+            "Tile Roofing Industry Alliance (TRI) / FRSA Concrete and Clay Roof Tile Installation Manual",
+            "Manufacturer guides: Eagle Roofing, Westlake Royal (Boral), Ludowici, Crown",
+            "Foam adhesive manufacturers' application guides (e.g. DuPont Tile Bond, ICP Polyset)",
+            "IRC R905.3 (clay and concrete tile)"
+          ]
+        },
+        {
+          "id": "slate",
+          "label": "Slate",
+          "components": [
+            {
+              "key": "slate",
+              "label": "Roofing slate",
+              "group": "Field",
+              "standard": true,
+              "terms": [
+                {
+                  "measurement": "roof.squares",
+                  "factor": 1
+                }
+              ],
+              "entered_by_hand": false,
+              "waste_percent": 10,
+              "unit": "square",
+              "coverage": 1,
+              "explain": "ordered by the square (piece count depends on size and exposure); add waste for breakage and cuts",
+              "unit_cost_estimate": null,
+              "provisional": true,
+              "example_brands": []
+            },
+            {
+              "key": "underlayment",
+              "label": "#30 felt or heavier / synthetic underlayment",
+              "group": "Underlayment",
+              "standard": true,
+              "terms": [
+                {
+                  "measurement": "roof.squares",
+                  "factor": 1
+                }
+              ],
+              "entered_by_hand": false,
+              "waste_percent": 10,
+              "unit": "roll",
+              "coverage": 2,
+              "explain": "#30 or 45 lb felt (or a synthetic) over the whole deck; felt rolls are ~2 squares (synthetic 10)",
+              "unit_cost_estimate": null,
+              "provisional": true,
+              "example_brands": []
+            },
+            {
+              "key": "ice_water",
+              "label": "Ice and water barrier, eaves and valleys",
+              "group": "Underlayment",
+              "standard": false,
+              "terms": [
+                {
+                  "measurement": "roof.eave_length",
+                  "factor": 1
+                },
+                {
+                  "measurement": "roof.valley_length",
+                  "factor": 1
+                }
+              ],
+              "entered_by_hand": false,
+              "waste_percent": 10,
+              "unit": "roll",
+              "coverage": 65,
+              "explain": "self-adhered along eaves and in valleys in ice-dam regions",
+              "unit_cost_estimate": null,
+              "provisional": true,
+              "example_brands": []
+            },
+            {
+              "key": "cant_strip",
+              "label": "Eave cant strip",
+              "group": "Accessories",
+              "standard": true,
+              "terms": [
+                {
+                  "measurement": "roof.eave_length",
+                  "factor": 1
+                }
+              ],
+              "entered_by_hand": false,
+              "waste_percent": 5,
+              "unit": "piece",
+              "coverage": 8,
+              "explain": "a thin wood strip along the eave that tilts the starter course; 8 ft pieces",
+              "unit_cost_estimate": null,
+              "provisional": true,
+              "example_brands": []
+            },
+            {
+              "key": "starter_slates",
+              "label": "Starter slates",
+              "group": "Field",
+              "standard": true,
+              "terms": [
+                {
+                  "measurement": "roof.eave_length",
+                  "factor": 1
+                }
+              ],
+              "entered_by_hand": false,
+              "waste_percent": 10,
+              "unit": "piece",
+              "coverage": 0.83,
+              "explain": "one starter slate laid lengthwise per slate width (~10 in) along every eave",
+              "unit_cost_estimate": null,
+              "provisional": true,
+              "example_brands": []
+            },
+            {
+              "key": "ridge_hip_slates",
+              "label": "Ridge and hip slates (saddle or strip)",
+              "group": "Trim",
+              "standard": true,
+              "terms": [
+                {
+                  "measurement": "roof.ridge_length",
+                  "factor": 1
+                },
+                {
+                  "measurement": "roof.hip_length",
+                  "factor": 1
+                }
+              ],
+              "entered_by_hand": false,
+              "waste_percent": 10,
+              "unit": "piece",
+              "coverage": 0.29,
+              "explain": "two slates per course, one each side, at ~7 in exposure: ~3.4 per foot of ridge and hip",
+              "unit_cost_estimate": null,
+              "provisional": true,
+              "example_brands": []
+            },
+            {
+              "key": "copper_ridge",
+              "label": "Copper ridge / hip cap",
+              "group": "Trim",
+              "standard": false,
+              "terms": [
+                {
+                  "measurement": "roof.ridge_length",
+                  "factor": 1
+                },
+                {
+                  "measurement": "roof.hip_length",
+                  "factor": 1
+                }
+              ],
+              "entered_by_hand": false,
+              "waste_percent": 5,
+              "unit": "piece",
+              "coverage": 8,
+              "explain": "alternative to slate ridges: 16 oz copper cap in 8 ft pieces",
+              "unit_cost_estimate": null,
+              "provisional": true,
+              "example_brands": []
+            },
+            {
+              "key": "copper_nails",
+              "label": "Copper slating nails",
+              "group": "Fasteners",
+              "standard": true,
+              "terms": [
+                {
+                  "measurement": "roof.squares",
+                  "factor": 1
+                }
+              ],
+              "entered_by_hand": false,
+              "waste_percent": 0,
+              "unit": "box",
+              "coverage": 1.5,
+              "explain": "2 copper nails per slate (~350-400 per square for 18x10 at 7.5 in exposure); a 5 lb box does ~1.5 squares",
+              "unit_cost_estimate": null,
+              "provisional": true,
+              "example_brands": []
+            },
+            {
+              "key": "slate_hooks",
+              "label": "Slate hooks",
+              "group": "Fasteners",
+              "standard": false,
+              "terms": [
+                {
+                  "measurement": "roof.squares",
+                  "factor": 1
+                }
+              ],
+              "entered_by_hand": false,
+              "waste_percent": 0,
+              "unit": "box",
+              "coverage": 5,
+              "explain": "hook-installed roofs: one stainless or copper hook per slate; boxes of ~1,000",
+              "unit_cost_estimate": null,
+              "provisional": true,
+              "example_brands": []
+            },
+            {
+              "key": "drip_edge",
+              "label": "Copper drip edge",
+              "group": "Trim",
+              "standard": false,
+              "terms": [
+                {
+                  "measurement": "roof.eave_length",
+                  "factor": 1
+                },
+                {
+                  "measurement": "roof.rake_length",
+                  "factor": 1
+                }
+              ],
+              "entered_by_hand": false,
+              "waste_percent": 5,
+              "unit": "piece",
+              "coverage": 10,
+              "explain": "along eaves and rakes",
+              "unit_cost_estimate": null,
+              "provisional": true,
+              "example_brands": []
+            },
+            {
+              "key": "valley_flashing",
+              "label": "Copper valley flashing (20-24 in)",
+              "group": "Flashing",
+              "standard": true,
+              "terms": [
+                {
+                  "measurement": "roof.valley_length",
+                  "factor": 1
+                }
+              ],
+              "entered_by_hand": false,
+              "waste_percent": 5,
+              "unit": "piece",
+              "coverage": 10,
+              "explain": "16 oz copper or stainless valley in every valley; slate valleys must outlast the slate",
+              "unit_cost_estimate": null,
+              "provisional": true,
+              "example_brands": []
+            },
+            {
+              "key": "step_flashing",
+              "label": "Copper step flashing",
+              "group": "Flashing",
+              "standard": true,
+              "terms": [
+                {
+                  "measurement": "roof.side_wall_length",
+                  "factor": 1
+                },
+                {
+                  "measurement": "roof.chimney_step_length",
+                  "factor": 1
+                }
+              ],
+              "entered_by_hand": false,
+              "waste_percent": 5,
+              "unit": "box",
+              "coverage": 55,
+              "explain": "one step per course (~7 in exposure) up sidewalls and chimney sides; 100 pieces do ~55 ft",
+              "unit_cost_estimate": null,
+              "provisional": true,
+              "example_brands": []
+            },
+            {
+              "key": "headwall_flashing",
+              "label": "Copper apron flashing",
+              "group": "Flashing",
+              "standard": true,
+              "terms": [
+                {
+                  "measurement": "roof.head_wall_length",
+                  "factor": 1
+                },
+                {
+                  "measurement": "roof.chimney_apron_length",
+                  "factor": 1
+                }
+              ],
+              "entered_by_hand": false,
+              "waste_percent": 5,
+              "unit": "piece",
+              "coverage": 8,
+              "explain": "copper apron along headwalls and the chimney front; 8 ft pieces",
+              "unit_cost_estimate": null,
+              "provisional": true,
+              "example_brands": []
+            },
+            {
+              "key": "counterflashing",
+              "label": "Copper counterflashing",
+              "group": "Flashing",
+              "standard": true,
+              "terms": [
+                {
+                  "measurement": "roof.side_wall_length",
+                  "factor": 1
+                },
+                {
+                  "measurement": "roof.head_wall_length",
+                  "factor": 1
+                },
+                {
+                  "measurement": "roof.chimney_step_length",
+                  "factor": 1
+                },
+                {
+                  "measurement": "roof.chimney_apron_length",
+                  "factor": 1
+                }
+              ],
+              "entered_by_hand": false,
+              "waste_percent": 5,
+              "unit": "piece",
+              "coverage": 8,
+              "explain": "copper counterflashing over step and apron flashing",
+              "unit_cost_estimate": null,
+              "provisional": true,
+              "example_brands": []
+            },
+            {
+              "key": "ridge_vent",
+              "label": "Concealed ridge vent",
+              "group": "Ventilation",
+              "standard": false,
+              "terms": [
+                {
+                  "measurement": "roof.ridge_length",
+                  "factor": 1
+                }
+              ],
+              "entered_by_hand": false,
+              "waste_percent": 5,
+              "unit": "piece",
+              "coverage": 4,
+              "explain": "under a copper ridge where the attic exhausts at the ridge",
+              "unit_cost_estimate": null,
+              "provisional": true,
+              "example_brands": []
+            },
+            {
+              "key": "sealant",
+              "label": "Sealant / roof cement",
+              "group": "Accessories",
+              "standard": true,
+              "terms": [
+                {
+                  "measurement": "roof.squares",
+                  "factor": 1
+                }
+              ],
+              "entered_by_hand": false,
+              "waste_percent": 0,
+              "unit": "tube",
+              "coverage": 20,
+              "explain": "slate uses little sealant: ridge setting and flashing details; about one tube per 20 squares",
+              "unit_cost_estimate": null,
+              "provisional": true,
+              "example_brands": []
+            },
+            {
+              "key": "pipe_flashings",
+              "label": "Copper or lead pipe flashings",
+              "group": "Flashing",
+              "standard": true,
+              "terms": [],
+              "entered_by_hand": true,
+              "waste_percent": 0,
+              "unit": "piece",
+              "coverage": 1,
+              "explain": "one per pipe, woven into the courses",
+              "unit_cost_estimate": null,
+              "provisional": true,
+              "example_brands": []
+            },
+            {
+              "key": "snow_guards",
+              "label": "Snow guards",
+              "group": "Accessories",
+              "standard": false,
+              "terms": [],
+              "entered_by_hand": true,
+              "waste_percent": 0,
+              "unit": "piece",
+              "coverage": 1,
+              "explain": "in snow regions; slate roofs commonly have them",
+              "unit_cost_estimate": null,
+              "provisional": true,
+              "example_brands": []
+            }
+          ],
+          "sources": [
+            "National Slate Association (NSA) Slate Roofs: Design and Installation Manual",
+            "Joseph Jenkins, The Slate Roof Bible",
+            "Copper Development Association, Copper in Architecture design handbook (flashings)",
+            "IRC R905.6 (slate and slate-type shingles)"
+          ]
+        },
+        {
+          "id": "tpo",
+          "label": "TPO",
+          "components": [
+            {
+              "key": "insulation",
+              "label": "Polyiso insulation (4x8)",
+              "group": "Membrane system",
+              "standard": false,
+              "terms": [
+                {
+                  "measurement": "roof.flat_squares",
+                  "factor": 1
+                }
+              ],
+              "entered_by_hand": false,
+              "waste_percent": 5,
+              "unit": "sheet",
+              "coverage": 0.32,
+              "explain": "one layer of 4x8 boards (32 sq ft) over the deck; thickness and layers set by the energy code R-value",
+              "unit_cost_estimate": null,
+              "provisional": true,
+              "example_brands": []
+            },
+            {
+              "key": "cover_board",
+              "label": "Cover board (HD polyiso or gypsum, 4x8)",
+              "group": "Membrane system",
+              "standard": false,
+              "terms": [
+                {
+                  "measurement": "roof.flat_squares",
+                  "factor": 1
+                }
+              ],
+              "entered_by_hand": false,
+              "waste_percent": 5,
+              "unit": "sheet",
+              "coverage": 0.32,
+              "explain": "a cover board over insulation or the old roof for a firm, compatible surface",
+              "unit_cost_estimate": null,
+              "provisional": true,
+              "example_brands": []
+            },
+            {
+              "key": "insulation_fasteners",
+              "label": "Insulation fasteners and plates",
+              "group": "Fasteners",
+              "standard": false,
+              "terms": [
+                {
+                  "measurement": "roof.flat_squares",
+                  "factor": 1
+                }
+              ],
+              "entered_by_hand": false,
+              "waste_percent": 0,
+              "unit": "box",
+              "coverage": 30,
+              "explain": "about 8-16 per board by roof zone (~30 per square); boxes of ~1,000",
+              "unit_cost_estimate": null,
+              "provisional": true,
+              "example_brands": []
+            },
+            {
+              "key": "membrane",
+              "label": "TPO membrane (60 mil, 10x100)",
+              "group": "Membrane system",
+              "standard": true,
+              "terms": [
+                {
+                  "measurement": "roof.flat_squares",
+                  "factor": 1
+                }
+              ],
+              "entered_by_hand": false,
+              "waste_percent": 10,
+              "unit": "roll",
+              "coverage": 10,
+              "explain": "10 ft x 100 ft rolls; waste covers 6 in seam laps, perimeter sheets and cuts",
+              "unit_cost_estimate": null,
+              "provisional": true,
+              "example_brands": [
+                "GAF EverGuard",
+                "Carlisle Sure-Weld",
+                "Holcim UltraPly"
+              ]
+            },
+            {
+              "key": "seam_fasteners",
+              "label": "Membrane fasteners and seam plates",
+              "group": "Fasteners",
+              "standard": true,
+              "terms": [
+                {
+                  "measurement": "roof.flat_squares",
+                  "factor": 1
+                }
+              ],
+              "entered_by_hand": false,
+              "waste_percent": 0,
+              "unit": "box",
+              "coverage": 30,
+              "explain": "mechanically attached: fasteners every 6-12 in in each seam, closer at the perimeter (~15 per square); boxes of ~500",
+              "unit_cost_estimate": null,
+              "provisional": true,
+              "example_brands": []
+            },
+            {
+              "key": "bonding_adhesive",
+              "label": "Bonding adhesive (fully adhered)",
+              "group": "Membrane system",
+              "standard": false,
+              "terms": [
+                {
+                  "measurement": "roof.flat_squares",
+                  "factor": 1
+                }
+              ],
+              "entered_by_hand": false,
+              "waste_percent": 5,
+              "unit": "pail",
+              "coverage": 3,
+              "explain": "alternative to mechanical attachment: a 5 gal pail does about 3 squares (both surfaces coated)",
+              "unit_cost_estimate": null,
+              "provisional": true,
+              "example_brands": []
+            },
+            {
+              "key": "wall_flashing",
+              "label": "Wall and curb flashing membrane (24 in)",
+              "group": "Membrane system",
+              "standard": true,
+              "terms": [
+                {
+                  "measurement": "roof.side_wall_length",
+                  "factor": 1
+                },
+                {
+                  "measurement": "roof.head_wall_length",
+                  "factor": 1
+                },
+                {
+                  "measurement": "roof.chimney_step_length",
+                  "factor": 1
+                },
+                {
+                  "measurement": "roof.chimney_apron_length",
+                  "factor": 1
+                }
+              ],
+              "entered_by_hand": false,
+              "waste_percent": 10,
+              "unit": "roll",
+              "coverage": 50,
+              "explain": "reinforced TPO up every wall and curb at least 8 in; taller walls need wider stock. ~50 ft rolls",
+              "unit_cost_estimate": null,
+              "provisional": true,
+              "example_brands": []
+            },
+            {
+              "key": "detail_flashing",
+              "label": "Non-reinforced TPO flashing (corners, penetrations)",
+              "group": "Membrane system",
+              "standard": true,
+              "terms": [
+                {
+                  "measurement": "roof.flat_squares",
+                  "factor": 1
+                }
+              ],
+              "entered_by_hand": false,
+              "waste_percent": 0,
+              "unit": "roll",
+              "coverage": 30,
+              "explain": "for field-formed corners and odd penetrations; a 24 in x 50 ft roll does most roofs",
+              "unit_cost_estimate": null,
+              "provisional": true,
+              "example_brands": []
+            },
+            {
+              "key": "cut_edge_sealant",
+              "label": "Cut-edge sealant",
+              "group": "Accessories",
+              "standard": true,
+              "terms": [
+                {
+                  "measurement": "roof.flat_squares",
+                  "factor": 1
+                }
+              ],
+              "entered_by_hand": false,
+              "waste_percent": 0,
+              "unit": "tube",
+              "coverage": 20,
+              "explain": "seals cut edges of reinforced membrane at T-joints and details; about one bottle per 20 squares",
+              "unit_cost_estimate": null,
+              "provisional": true,
+              "example_brands": []
+            },
+            {
+              "key": "water_block",
+              "label": "Water block / lap sealant",
+              "group": "Accessories",
+              "standard": true,
+              "terms": [
+                {
+                  "measurement": "roof.side_wall_length",
+                  "factor": 1
+                },
+                {
+                  "measurement": "roof.head_wall_length",
+                  "factor": 1
+                },
+                {
+                  "measurement": "roof.chimney_step_length",
+                  "factor": 1
+                },
+                {
+                  "measurement": "roof.chimney_apron_length",
+                  "factor": 1
+                }
+              ],
+              "entered_by_hand": false,
+              "waste_percent": 10,
+              "unit": "tube",
+              "coverage": 25,
+              "explain": "a bead behind termination bar and at terminations; ~25 ft per tube",
+              "unit_cost_estimate": null,
+              "provisional": true,
+              "example_brands": []
+            },
+            {
+              "key": "sealant",
+              "label": "Single-ply compatible sealant",
+              "group": "Accessories",
+              "standard": true,
+              "terms": [
+                {
+                  "measurement": "roof.flat_squares",
+                  "factor": 1
+                }
+              ],
+              "entered_by_hand": false,
+              "waste_percent": 0,
+              "unit": "tube",
+              "coverage": 10,
+              "explain": "top-of-termination and general sealing; about one tube per 10 squares",
+              "unit_cost_estimate": null,
+              "provisional": true,
+              "example_brands": []
+            },
+            {
+              "key": "edge_metal",
+              "label": "TPO-clad edge metal",
+              "group": "Trim",
+              "standard": true,
+              "terms": [
+                {
+                  "measurement": "roof.eave_length",
+                  "factor": 1
+                },
+                {
+                  "measurement": "roof.rake_length",
+                  "factor": 1
+                }
+              ],
+              "entered_by_hand": false,
+              "waste_percent": 5,
+              "unit": "piece",
+              "coverage": 10,
+              "explain": "drip edge / gravel stop along every roof edge (eave and rake lines in the report); 10 ft pieces",
+              "unit_cost_estimate": null,
+              "provisional": true,
+              "example_brands": []
+            },
+            {
+              "key": "termination_bar",
+              "label": "Termination bar",
+              "group": "Trim",
+              "standard": true,
+              "terms": [
+                {
+                  "measurement": "roof.side_wall_length",
+                  "factor": 1
+                },
+                {
+                  "measurement": "roof.head_wall_length",
+                  "factor": 1
+                },
+                {
+                  "measurement": "roof.chimney_step_length",
+                  "factor": 1
+                },
+                {
+                  "measurement": "roof.chimney_apron_length",
+                  "factor": 1
+                }
+              ],
+              "entered_by_hand": false,
+              "waste_percent": 5,
+              "unit": "piece",
+              "coverage": 10,
+              "explain": "termination bar at the top of every wall and curb flashing; 10 ft pieces",
+              "unit_cost_estimate": null,
+              "provisional": true,
+              "example_brands": []
+            },
+            {
+              "key": "term_bar_fasteners",
+              "label": "Termination bar fasteners",
+              "group": "Fasteners",
+              "standard": true,
+              "terms": [
+                {
+                  "measurement": "roof.side_wall_length",
+                  "factor": 1
+                },
+                {
+                  "measurement": "roof.head_wall_length",
+                  "factor": 1
+                },
+                {
+                  "measurement": "roof.chimney_step_length",
+                  "factor": 1
+                },
+                {
+                  "measurement": "roof.chimney_apron_length",
+                  "factor": 1
+                }
+              ],
+              "entered_by_hand": false,
+              "waste_percent": 0,
+              "unit": "box",
+              "coverage": 65,
+              "explain": "a fastener every 6-8 in along the termination bar; a box of 100 does ~65 ft",
+              "unit_cost_estimate": null,
+              "provisional": true,
+              "example_brands": []
+            },
+            {
+              "key": "pipe_boots",
+              "label": "Pre-molded TPO pipe boots",
+              "group": "Flashing",
+              "standard": true,
+              "terms": [],
+              "entered_by_hand": true,
+              "waste_percent": 0,
+              "unit": "piece",
+              "coverage": 1,
+              "explain": "one per pipe, heat-welded",
+              "unit_cost_estimate": null,
+              "provisional": true,
+              "example_brands": []
+            },
+            {
+              "key": "corners",
+              "label": "Pre-molded inside/outside corners",
+              "group": "Flashing",
+              "standard": true,
+              "terms": [],
+              "entered_by_hand": true,
+              "waste_percent": 0,
+              "unit": "piece",
+              "coverage": 1,
+              "explain": "one per wall/curb corner",
+              "unit_cost_estimate": null,
+              "provisional": true,
+              "example_brands": []
+            },
+            {
+              "key": "drains",
+              "label": "Roof drains / scuppers",
+              "group": "Accessories",
+              "standard": false,
+              "terms": [],
+              "entered_by_hand": true,
+              "waste_percent": 0,
+              "unit": "piece",
+              "coverage": 1,
+              "explain": "replace or flash each drain and scupper",
+              "unit_cost_estimate": null,
+              "provisional": true,
+              "example_brands": []
+            },
+            {
+              "key": "walkway_pads",
+              "label": "Walkway pads",
+              "group": "Accessories",
+              "standard": false,
+              "terms": [],
+              "entered_by_hand": true,
+              "waste_percent": 0,
+              "unit": "roll",
+              "coverage": 1,
+              "explain": "around rooftop equipment",
+              "unit_cost_estimate": null,
+              "provisional": true,
+              "example_brands": []
+            }
+          ],
+          "sources": [
+            "GAF EverGuard TPO Application Guidelines",
+            "Carlisle SynTec Sure-Weld TPO specifications and details",
+            "Holcim (Firestone) UltraPly TPO technical manual",
+            "ANSI/SPRI ES-1 edge securement; NRCA Roofing Manual: Membrane Roof Systems"
+          ]
+        },
+        {
+          "id": "pvc",
+          "label": "PVC",
+          "components": [
+            {
+              "key": "insulation",
+              "label": "Polyiso insulation (4x8)",
+              "group": "Membrane system",
+              "standard": false,
+              "terms": [
+                {
+                  "measurement": "roof.flat_squares",
+                  "factor": 1
+                }
+              ],
+              "entered_by_hand": false,
+              "waste_percent": 5,
+              "unit": "sheet",
+              "coverage": 0.32,
+              "explain": "one layer of 4x8 boards (32 sq ft) over the deck; thickness and layers set by the energy code R-value",
+              "unit_cost_estimate": null,
+              "provisional": true,
+              "example_brands": []
+            },
+            {
+              "key": "cover_board",
+              "label": "Cover board (HD polyiso or gypsum, 4x8)",
+              "group": "Membrane system",
+              "standard": false,
+              "terms": [
+                {
+                  "measurement": "roof.flat_squares",
+                  "factor": 1
+                }
+              ],
+              "entered_by_hand": false,
+              "waste_percent": 5,
+              "unit": "sheet",
+              "coverage": 0.32,
+              "explain": "a cover board over insulation or the old roof for a firm, compatible surface",
+              "unit_cost_estimate": null,
+              "provisional": true,
+              "example_brands": []
+            },
+            {
+              "key": "insulation_fasteners",
+              "label": "Insulation fasteners and plates",
+              "group": "Fasteners",
+              "standard": false,
+              "terms": [
+                {
+                  "measurement": "roof.flat_squares",
+                  "factor": 1
+                }
+              ],
+              "entered_by_hand": false,
+              "waste_percent": 0,
+              "unit": "box",
+              "coverage": 30,
+              "explain": "about 8-16 per board by roof zone (~30 per square); boxes of ~1,000",
+              "unit_cost_estimate": null,
+              "provisional": true,
+              "example_brands": []
+            },
+            {
+              "key": "separator",
+              "label": "Separation layer / slip sheet",
+              "group": "Membrane system",
+              "standard": false,
+              "terms": [
+                {
+                  "measurement": "roof.flat_squares",
+                  "factor": 1
+                }
+              ],
+              "entered_by_hand": false,
+              "waste_percent": 10,
+              "unit": "roll",
+              "coverage": 10,
+              "explain": "PVC must not touch asphalt or EPS foam: a fleece or slip sheet over an old asphalt roof unless new board covers it",
+              "unit_cost_estimate": null,
+              "provisional": true,
+              "example_brands": []
+            },
+            {
+              "key": "membrane",
+              "label": "PVC membrane (60 mil, 10x100)",
+              "group": "Membrane system",
+              "standard": true,
+              "terms": [
+                {
+                  "measurement": "roof.flat_squares",
+                  "factor": 1
+                }
+              ],
+              "entered_by_hand": false,
+              "waste_percent": 10,
+              "unit": "roll",
+              "coverage": 10,
+              "explain": "10 ft x 100 ft rolls, hot-air welded; waste covers seam laps, perimeter sheets and cuts",
+              "unit_cost_estimate": null,
+              "provisional": true,
+              "example_brands": [
+                "Carlisle Sure-Flex",
+                "Sika Sarnafil",
+                "Johns Manville",
+                "GAF EverGuard PVC"
+              ]
+            },
+            {
+              "key": "seam_fasteners",
+              "label": "Membrane fasteners and seam plates",
+              "group": "Fasteners",
+              "standard": true,
+              "terms": [
+                {
+                  "measurement": "roof.flat_squares",
+                  "factor": 1
+                }
+              ],
+              "entered_by_hand": false,
+              "waste_percent": 0,
+              "unit": "box",
+              "coverage": 30,
+              "explain": "mechanically attached: fasteners in every seam, closer at the perimeter (~15 per square); boxes of ~500",
+              "unit_cost_estimate": null,
+              "provisional": true,
+              "example_brands": []
+            },
+            {
+              "key": "bonding_adhesive",
+              "label": "PVC bonding adhesive (fully adhered)",
+              "group": "Membrane system",
+              "standard": false,
+              "terms": [
+                {
+                  "measurement": "roof.flat_squares",
+                  "factor": 1
+                }
+              ],
+              "entered_by_hand": false,
+              "waste_percent": 5,
+              "unit": "pail",
+              "coverage": 3,
+              "explain": "alternative to mechanical attachment: a 5 gal pail does about 3 squares",
+              "unit_cost_estimate": null,
+              "provisional": true,
+              "example_brands": []
+            },
+            {
+              "key": "wall_flashing",
+              "label": "Wall and curb flashing membrane (24 in)",
+              "group": "Membrane system",
+              "standard": true,
+              "terms": [
+                {
+                  "measurement": "roof.side_wall_length",
+                  "factor": 1
+                },
+                {
+                  "measurement": "roof.head_wall_length",
+                  "factor": 1
+                },
+                {
+                  "measurement": "roof.chimney_step_length",
+                  "factor": 1
+                },
+                {
+                  "measurement": "roof.chimney_apron_length",
+                  "factor": 1
+                }
+              ],
+              "entered_by_hand": false,
+              "waste_percent": 10,
+              "unit": "roll",
+              "coverage": 50,
+              "explain": "reinforced PVC up every wall and curb; ~50 ft rolls",
+              "unit_cost_estimate": null,
+              "provisional": true,
+              "example_brands": []
+            },
+            {
+              "key": "detail_flashing",
+              "label": "Non-reinforced PVC flashing (corners, penetrations)",
+              "group": "Membrane system",
+              "standard": true,
+              "terms": [
+                {
+                  "measurement": "roof.flat_squares",
+                  "factor": 1
+                }
+              ],
+              "entered_by_hand": false,
+              "waste_percent": 0,
+              "unit": "roll",
+              "coverage": 30,
+              "explain": "for field-formed corners and odd penetrations",
+              "unit_cost_estimate": null,
+              "provisional": true,
+              "example_brands": []
+            },
+            {
+              "key": "water_block",
+              "label": "Water block / lap sealant",
+              "group": "Accessories",
+              "standard": true,
+              "terms": [
+                {
+                  "measurement": "roof.side_wall_length",
+                  "factor": 1
+                },
+                {
+                  "measurement": "roof.head_wall_length",
+                  "factor": 1
+                },
+                {
+                  "measurement": "roof.chimney_step_length",
+                  "factor": 1
+                },
+                {
+                  "measurement": "roof.chimney_apron_length",
+                  "factor": 1
+                }
+              ],
+              "entered_by_hand": false,
+              "waste_percent": 10,
+              "unit": "tube",
+              "coverage": 25,
+              "explain": "a bead behind termination bar; ~25 ft per tube",
+              "unit_cost_estimate": null,
+              "provisional": true,
+              "example_brands": []
+            },
+            {
+              "key": "sealant",
+              "label": "PVC-compatible sealant",
+              "group": "Accessories",
+              "standard": true,
+              "terms": [
+                {
+                  "measurement": "roof.flat_squares",
+                  "factor": 1
+                }
+              ],
+              "entered_by_hand": false,
+              "waste_percent": 0,
+              "unit": "tube",
+              "coverage": 10,
+              "explain": "about one tube per 10 squares",
+              "unit_cost_estimate": null,
+              "provisional": true,
+              "example_brands": []
+            },
+            {
+              "key": "edge_metal",
+              "label": "PVC-clad edge metal",
+              "group": "Trim",
+              "standard": true,
+              "terms": [
+                {
+                  "measurement": "roof.eave_length",
+                  "factor": 1
+                },
+                {
+                  "measurement": "roof.rake_length",
+                  "factor": 1
+                }
+              ],
+              "entered_by_hand": false,
+              "waste_percent": 5,
+              "unit": "piece",
+              "coverage": 10,
+              "explain": "drip edge / gravel stop along every roof edge (eave and rake lines in the report); 10 ft pieces",
+              "unit_cost_estimate": null,
+              "provisional": true,
+              "example_brands": []
+            },
+            {
+              "key": "termination_bar",
+              "label": "Termination bar",
+              "group": "Trim",
+              "standard": true,
+              "terms": [
+                {
+                  "measurement": "roof.side_wall_length",
+                  "factor": 1
+                },
+                {
+                  "measurement": "roof.head_wall_length",
+                  "factor": 1
+                },
+                {
+                  "measurement": "roof.chimney_step_length",
+                  "factor": 1
+                },
+                {
+                  "measurement": "roof.chimney_apron_length",
+                  "factor": 1
+                }
+              ],
+              "entered_by_hand": false,
+              "waste_percent": 5,
+              "unit": "piece",
+              "coverage": 10,
+              "explain": "termination bar at the top of every wall and curb flashing; 10 ft pieces",
+              "unit_cost_estimate": null,
+              "provisional": true,
+              "example_brands": []
+            },
+            {
+              "key": "term_bar_fasteners",
+              "label": "Termination bar fasteners",
+              "group": "Fasteners",
+              "standard": true,
+              "terms": [
+                {
+                  "measurement": "roof.side_wall_length",
+                  "factor": 1
+                },
+                {
+                  "measurement": "roof.head_wall_length",
+                  "factor": 1
+                },
+                {
+                  "measurement": "roof.chimney_step_length",
+                  "factor": 1
+                },
+                {
+                  "measurement": "roof.chimney_apron_length",
+                  "factor": 1
+                }
+              ],
+              "entered_by_hand": false,
+              "waste_percent": 0,
+              "unit": "box",
+              "coverage": 65,
+              "explain": "a fastener every 6-8 in along the termination bar; a box of 100 does ~65 ft",
+              "unit_cost_estimate": null,
+              "provisional": true,
+              "example_brands": []
+            },
+            {
+              "key": "pipe_boots",
+              "label": "Pre-molded PVC pipe boots",
+              "group": "Flashing",
+              "standard": true,
+              "terms": [],
+              "entered_by_hand": true,
+              "waste_percent": 0,
+              "unit": "piece",
+              "coverage": 1,
+              "explain": "one per pipe, heat-welded",
+              "unit_cost_estimate": null,
+              "provisional": true,
+              "example_brands": []
+            },
+            {
+              "key": "corners",
+              "label": "Pre-molded inside/outside corners",
+              "group": "Flashing",
+              "standard": true,
+              "terms": [],
+              "entered_by_hand": true,
+              "waste_percent": 0,
+              "unit": "piece",
+              "coverage": 1,
+              "explain": "one per wall/curb corner",
+              "unit_cost_estimate": null,
+              "provisional": true,
+              "example_brands": []
+            },
+            {
+              "key": "drains",
+              "label": "Roof drains / scuppers",
+              "group": "Accessories",
+              "standard": false,
+              "terms": [],
+              "entered_by_hand": true,
+              "waste_percent": 0,
+              "unit": "piece",
+              "coverage": 1,
+              "explain": "replace or flash each drain and scupper",
+              "unit_cost_estimate": null,
+              "provisional": true,
+              "example_brands": []
+            },
+            {
+              "key": "walkway_pads",
+              "label": "Walkway pads",
+              "group": "Accessories",
+              "standard": false,
+              "terms": [],
+              "entered_by_hand": true,
+              "waste_percent": 0,
+              "unit": "roll",
+              "coverage": 1,
+              "explain": "around rooftop equipment",
+              "unit_cost_estimate": null,
+              "provisional": true,
+              "example_brands": []
+            }
+          ],
+          "sources": [
+            "Carlisle SynTec Sure-Flex PVC specifications and details",
+            "Sika Sarnafil / Johns Manville PVC application guides",
+            "GAF EverGuard PVC Application Guidelines",
+            "ANSI/SPRI ES-1 edge securement; NRCA Roofing Manual: Membrane Roof Systems"
+          ]
+        },
+        {
+          "id": "epdm",
+          "label": "EPDM",
+          "components": [
+            {
+              "key": "insulation",
+              "label": "Polyiso insulation (4x8)",
+              "group": "Membrane system",
+              "standard": false,
+              "terms": [
+                {
+                  "measurement": "roof.flat_squares",
+                  "factor": 1
+                }
+              ],
+              "entered_by_hand": false,
+              "waste_percent": 5,
+              "unit": "sheet",
+              "coverage": 0.32,
+              "explain": "one layer of 4x8 boards (32 sq ft) over the deck; thickness and layers set by the energy code R-value",
+              "unit_cost_estimate": null,
+              "provisional": true,
+              "example_brands": []
+            },
+            {
+              "key": "cover_board",
+              "label": "Cover board (HD polyiso or gypsum, 4x8)",
+              "group": "Membrane system",
+              "standard": false,
+              "terms": [
+                {
+                  "measurement": "roof.flat_squares",
+                  "factor": 1
+                }
+              ],
+              "entered_by_hand": false,
+              "waste_percent": 5,
+              "unit": "sheet",
+              "coverage": 0.32,
+              "explain": "a cover board over insulation or the old roof for a firm, compatible surface",
+              "unit_cost_estimate": null,
+              "provisional": true,
+              "example_brands": []
+            },
+            {
+              "key": "insulation_fasteners",
+              "label": "Insulation fasteners and plates",
+              "group": "Fasteners",
+              "standard": false,
+              "terms": [
+                {
+                  "measurement": "roof.flat_squares",
+                  "factor": 1
+                }
+              ],
+              "entered_by_hand": false,
+              "waste_percent": 0,
+              "unit": "box",
+              "coverage": 30,
+              "explain": "about 8-16 per board by roof zone (~30 per square); boxes of ~1,000",
+              "unit_cost_estimate": null,
+              "provisional": true,
+              "example_brands": []
+            },
+            {
+              "key": "membrane",
+              "label": "EPDM membrane (60 mil)",
+              "group": "Membrane system",
+              "standard": true,
+              "terms": [
+                {
+                  "measurement": "roof.flat_squares",
+                  "factor": 1
+                }
+              ],
+              "entered_by_hand": false,
+              "waste_percent": 10,
+              "unit": "roll",
+              "coverage": 10,
+              "explain": "sized rolls (10 ft and 20 ft widths); 10 squares per 10x100 roll, waste for laps and cuts",
+              "unit_cost_estimate": null,
+              "provisional": true,
+              "example_brands": [
+                "Carlisle Sure-Seal",
+                "Holcim RubberGard"
+              ]
+            },
+            {
+              "key": "bonding_adhesive",
+              "label": "Bonding adhesive",
+              "group": "Membrane system",
+              "standard": true,
+              "terms": [
+                {
+                  "measurement": "roof.flat_squares",
+                  "factor": 1
+                }
+              ],
+              "entered_by_hand": false,
+              "waste_percent": 5,
+              "unit": "pail",
+              "coverage": 3,
+              "explain": "fully adhered (the usual residential method): a 5 gal pail does ~3 squares coating both surfaces",
+              "unit_cost_estimate": null,
+              "provisional": true,
+              "example_brands": []
+            },
+            {
+              "key": "seam_tape",
+              "label": "Seam tape (3 in)",
+              "group": "Membrane system",
+              "standard": true,
+              "terms": [
+                {
+                  "measurement": "roof.flat_squares",
+                  "factor": 1
+                }
+              ],
+              "entered_by_hand": false,
+              "waste_percent": 10,
+              "unit": "roll",
+              "coverage": 8,
+              "explain": "every side and end lap is taped: ~12 ft of seam per square with 10 ft sheets; 100 ft rolls do ~8 squares",
+              "unit_cost_estimate": null,
+              "provisional": true,
+              "example_brands": []
+            },
+            {
+              "key": "seam_primer",
+              "label": "Seam primer",
+              "group": "Membrane system",
+              "standard": true,
+              "terms": [
+                {
+                  "measurement": "roof.flat_squares",
+                  "factor": 1
+                }
+              ],
+              "entered_by_hand": false,
+              "waste_percent": 5,
+              "unit": "pail",
+              "coverage": 15,
+              "explain": "primes laps for tape and flashing; a gallon does about 250-300 ft of 3 in tape (~15 squares with flashings)",
+              "unit_cost_estimate": null,
+              "provisional": true,
+              "example_brands": []
+            },
+            {
+              "key": "edge_cover_strip",
+              "label": "Pressure-sensitive cover strip (6 in)",
+              "group": "Membrane system",
+              "standard": true,
+              "terms": [
+                {
+                  "measurement": "roof.eave_length",
+                  "factor": 1
+                },
+                {
+                  "measurement": "roof.rake_length",
+                  "factor": 1
+                }
+              ],
+              "entered_by_hand": false,
+              "waste_percent": 10,
+              "unit": "roll",
+              "coverage": 100,
+              "explain": "strips the edge metal flange into the membrane along every edge; 100 ft rolls",
+              "unit_cost_estimate": null,
+              "provisional": true,
+              "example_brands": []
+            },
+            {
+              "key": "wall_flashing",
+              "label": "Wall and curb flashing (cured EPDM)",
+              "group": "Membrane system",
+              "standard": true,
+              "terms": [
+                {
+                  "measurement": "roof.side_wall_length",
+                  "factor": 1
+                },
+                {
+                  "measurement": "roof.head_wall_length",
+                  "factor": 1
+                },
+                {
+                  "measurement": "roof.chimney_step_length",
+                  "factor": 1
+                },
+                {
+                  "measurement": "roof.chimney_apron_length",
+                  "factor": 1
+                }
+              ],
+              "entered_by_hand": false,
+              "waste_percent": 10,
+              "unit": "roll",
+              "coverage": 50,
+              "explain": "membrane run up every wall and curb and adhered; ~50 ft of 18-24 in stock per roll",
+              "unit_cost_estimate": null,
+              "provisional": true,
+              "example_brands": []
+            },
+            {
+              "key": "uncured_flashing",
+              "label": "Uncured EPDM flashing (corners, penetrations)",
+              "group": "Membrane system",
+              "standard": true,
+              "terms": [
+                {
+                  "measurement": "roof.flat_squares",
+                  "factor": 1
+                }
+              ],
+              "entered_by_hand": false,
+              "waste_percent": 0,
+              "unit": "roll",
+              "coverage": 30,
+              "explain": "for inside/outside corners and odd penetrations; a 9-12 in x 50 ft roll does most roofs",
+              "unit_cost_estimate": null,
+              "provisional": true,
+              "example_brands": []
+            },
+            {
+              "key": "lap_sealant",
+              "label": "Lap sealant",
+              "group": "Accessories",
+              "standard": true,
+              "terms": [
+                {
+                  "measurement": "roof.side_wall_length",
+                  "factor": 1
+                },
+                {
+                  "measurement": "roof.head_wall_length",
+                  "factor": 1
+                },
+                {
+                  "measurement": "roof.chimney_step_length",
+                  "factor": 1
+                },
+                {
+                  "measurement": "roof.chimney_apron_length",
+                  "factor": 1
+                },
+                {
+                  "measurement": "roof.eave_length",
+                  "factor": 1
+                },
+                {
+                  "measurement": "roof.rake_length",
+                  "factor": 1
+                }
+              ],
+              "entered_by_hand": false,
+              "waste_percent": 10,
+              "unit": "tube",
+              "coverage": 22,
+              "explain": "a bead along exposed seam edges at flashings and edge strips; ~22 ft per tube",
+              "unit_cost_estimate": null,
+              "provisional": true,
+              "example_brands": []
+            },
+            {
+              "key": "water_block",
+              "label": "Water block",
+              "group": "Accessories",
+              "standard": true,
+              "terms": [
+                {
+                  "measurement": "roof.side_wall_length",
+                  "factor": 1
+                },
+                {
+                  "measurement": "roof.head_wall_length",
+                  "factor": 1
+                },
+                {
+                  "measurement": "roof.chimney_step_length",
+                  "factor": 1
+                },
+                {
+                  "measurement": "roof.chimney_apron_length",
+                  "factor": 1
+                }
+              ],
+              "entered_by_hand": false,
+              "waste_percent": 10,
+              "unit": "tube",
+              "coverage": 25,
+              "explain": "behind termination bar; ~25 ft per tube",
+              "unit_cost_estimate": null,
+              "provisional": true,
+              "example_brands": []
+            },
+            {
+              "key": "seam_fasteners",
+              "label": "Membrane fasteners and plates (mechanically attached)",
+              "group": "Fasteners",
+              "standard": false,
+              "terms": [
+                {
+                  "measurement": "roof.flat_squares",
+                  "factor": 1
+                }
+              ],
+              "entered_by_hand": false,
+              "waste_percent": 0,
+              "unit": "box",
+              "coverage": 30,
+              "explain": "only for mechanically attached systems, plus the base-of-wall securement row",
+              "unit_cost_estimate": null,
+              "provisional": true,
+              "example_brands": []
+            },
+            {
+              "key": "edge_metal",
+              "label": "Drip edge / gravel stop",
+              "group": "Trim",
+              "standard": true,
+              "terms": [
+                {
+                  "measurement": "roof.eave_length",
+                  "factor": 1
+                },
+                {
+                  "measurement": "roof.rake_length",
+                  "factor": 1
+                }
+              ],
+              "entered_by_hand": false,
+              "waste_percent": 5,
+              "unit": "piece",
+              "coverage": 10,
+              "explain": "drip edge / gravel stop along every roof edge (eave and rake lines in the report); 10 ft pieces",
+              "unit_cost_estimate": null,
+              "provisional": true,
+              "example_brands": []
+            },
+            {
+              "key": "termination_bar",
+              "label": "Termination bar",
+              "group": "Trim",
+              "standard": true,
+              "terms": [
+                {
+                  "measurement": "roof.side_wall_length",
+                  "factor": 1
+                },
+                {
+                  "measurement": "roof.head_wall_length",
+                  "factor": 1
+                },
+                {
+                  "measurement": "roof.chimney_step_length",
+                  "factor": 1
+                },
+                {
+                  "measurement": "roof.chimney_apron_length",
+                  "factor": 1
+                }
+              ],
+              "entered_by_hand": false,
+              "waste_percent": 5,
+              "unit": "piece",
+              "coverage": 10,
+              "explain": "termination bar at the top of every wall and curb flashing; 10 ft pieces",
+              "unit_cost_estimate": null,
+              "provisional": true,
+              "example_brands": []
+            },
+            {
+              "key": "term_bar_fasteners",
+              "label": "Termination bar fasteners",
+              "group": "Fasteners",
+              "standard": true,
+              "terms": [
+                {
+                  "measurement": "roof.side_wall_length",
+                  "factor": 1
+                },
+                {
+                  "measurement": "roof.head_wall_length",
+                  "factor": 1
+                },
+                {
+                  "measurement": "roof.chimney_step_length",
+                  "factor": 1
+                },
+                {
+                  "measurement": "roof.chimney_apron_length",
+                  "factor": 1
+                }
+              ],
+              "entered_by_hand": false,
+              "waste_percent": 0,
+              "unit": "box",
+              "coverage": 65,
+              "explain": "a fastener every 6-8 in along the termination bar; a box of 100 does ~65 ft",
+              "unit_cost_estimate": null,
+              "provisional": true,
+              "example_brands": []
+            },
+            {
+              "key": "pipe_boots",
+              "label": "Pre-molded EPDM pipe boots",
+              "group": "Flashing",
+              "standard": true,
+              "terms": [],
+              "entered_by_hand": true,
+              "waste_percent": 0,
+              "unit": "piece",
+              "coverage": 1,
+              "explain": "one per pipe",
+              "unit_cost_estimate": null,
+              "provisional": true,
+              "example_brands": []
+            },
+            {
+              "key": "corners",
+              "label": "Pre-molded inside/outside corners",
+              "group": "Flashing",
+              "standard": false,
+              "terms": [],
+              "entered_by_hand": true,
+              "waste_percent": 0,
+              "unit": "piece",
+              "coverage": 1,
+              "explain": "one per wall/curb corner",
+              "unit_cost_estimate": null,
+              "provisional": true,
+              "example_brands": []
+            },
+            {
+              "key": "drains",
+              "label": "Roof drains / scuppers",
+              "group": "Accessories",
+              "standard": false,
+              "terms": [],
+              "entered_by_hand": true,
+              "waste_percent": 0,
+              "unit": "piece",
+              "coverage": 1,
+              "explain": "replace or flash each drain and scupper",
+              "unit_cost_estimate": null,
+              "provisional": true,
+              "example_brands": []
+            }
+          ],
+          "sources": [
+            "Carlisle SynTec Sure-Seal EPDM specifications, details and product data (HP-250 primer, SecurTAPE)",
+            "Holcim (Firestone) RubberGard EPDM technical manual",
+            "ANSI/SPRI ES-1 edge securement; NRCA Roofing Manual: Membrane Roof Systems"
+          ]
+        },
+        {
+          "id": "modified_bitumen",
+          "label": "Modified bitumen / torch-down",
+          "components": [
+            {
+              "key": "insulation",
+              "label": "Polyiso insulation (4x8)",
+              "group": "Membrane system",
+              "standard": false,
+              "terms": [
+                {
+                  "measurement": "roof.flat_squares",
+                  "factor": 1
+                }
+              ],
+              "entered_by_hand": false,
+              "waste_percent": 5,
+              "unit": "sheet",
+              "coverage": 0.32,
+              "explain": "one layer of 4x8 boards (32 sq ft) over the deck; thickness and layers set by the energy code R-value",
+              "unit_cost_estimate": null,
+              "provisional": true,
+              "example_brands": []
+            },
+            {
+              "key": "cover_board",
+              "label": "Cover board (HD polyiso or gypsum, 4x8)",
+              "group": "Membrane system",
+              "standard": false,
+              "terms": [
+                {
+                  "measurement": "roof.flat_squares",
+                  "factor": 1
+                }
+              ],
+              "entered_by_hand": false,
+              "waste_percent": 5,
+              "unit": "sheet",
+              "coverage": 0.32,
+              "explain": "a cover board over insulation or the old roof for a firm, compatible surface",
+              "unit_cost_estimate": null,
+              "provisional": true,
+              "example_brands": []
+            },
+            {
+              "key": "insulation_fasteners",
+              "label": "Insulation fasteners and plates",
+              "group": "Fasteners",
+              "standard": false,
+              "terms": [
+                {
+                  "measurement": "roof.flat_squares",
+                  "factor": 1
+                }
+              ],
+              "entered_by_hand": false,
+              "waste_percent": 0,
+              "unit": "box",
+              "coverage": 30,
+              "explain": "about 8-16 per board by roof zone (~30 per square); boxes of ~1,000",
+              "unit_cost_estimate": null,
+              "provisional": true,
+              "example_brands": []
+            },
+            {
+              "key": "base_sheet",
+              "label": "Base sheet (mechanically fastened)",
+              "group": "Membrane system",
+              "standard": true,
+              "terms": [
+                {
+                  "measurement": "roof.flat_squares",
+                  "factor": 1
+                }
+              ],
+              "entered_by_hand": false,
+              "waste_percent": 10,
+              "unit": "roll",
+              "coverage": 2,
+              "explain": "one ply over the deck; base sheet rolls run 1-3 squares by product, 2 is typical",
+              "unit_cost_estimate": null,
+              "provisional": true,
+              "example_brands": []
+            },
+            {
+              "key": "base_fasteners",
+              "label": "Base sheet cap nails / plates",
+              "group": "Fasteners",
+              "standard": true,
+              "terms": [
+                {
+                  "measurement": "roof.flat_squares",
+                  "factor": 1
+                }
+              ],
+              "entered_by_hand": false,
+              "waste_percent": 0,
+              "unit": "pail",
+              "coverage": 25,
+              "explain": "~9 in on laps and two staggered rows in the field (~90 per square); a pail does a typical roof",
+              "unit_cost_estimate": null,
+              "provisional": true,
+              "example_brands": []
+            },
+            {
+              "key": "cap_sheet",
+              "label": "Granulated cap sheet (SBS or APP)",
+              "group": "Membrane system",
+              "standard": true,
+              "terms": [
+                {
+                  "measurement": "roof.flat_squares",
+                  "factor": 1
+                }
+              ],
+              "entered_by_hand": false,
+              "waste_percent": 12,
+              "unit": "roll",
+              "coverage": 1,
+              "explain": "about 1 square per roll; 4 in side and 6 in end laps plus cuts",
+              "unit_cost_estimate": null,
+              "provisional": true,
+              "example_brands": [
+                "GAF Ruberoid",
+                "GAF Liberty",
+                "Johns Manville DynaGlas",
+                "Holcim SBS"
+              ]
+            },
+            {
+              "key": "interply",
+              "label": "Interply / smooth base ply (2-ply over base)",
+              "group": "Membrane system",
+              "standard": false,
+              "terms": [
+                {
+                  "measurement": "roof.flat_squares",
+                  "factor": 1
+                }
+              ],
+              "entered_by_hand": false,
+              "waste_percent": 12,
+              "unit": "roll",
+              "coverage": 1,
+              "explain": "commercial 3-ply systems add a smooth ply between base and cap",
+              "unit_cost_estimate": null,
+              "provisional": true,
+              "example_brands": []
+            },
+            {
+              "key": "self_adhered_system",
+              "label": "Self-adhered base and cap (no torch)",
+              "group": "Membrane system",
+              "standard": false,
+              "terms": [
+                {
+                  "measurement": "roof.flat_squares",
+                  "factor": 1
+                }
+              ],
+              "entered_by_hand": false,
+              "waste_percent": 12,
+              "unit": "roll",
+              "coverage": 1,
+              "explain": "residential alternative to torching: self-adhered base and cap, ~1 square per roll each (order per ply)",
+              "unit_cost_estimate": null,
+              "provisional": true,
+              "example_brands": [
+                "GAF Liberty",
+                "Polyglass Elastoflex SA"
+              ]
+            },
+            {
+              "key": "primer",
+              "label": "Asphalt primer",
+              "group": "Membrane system",
+              "standard": false,
+              "terms": [
+                {
+                  "measurement": "roof.flat_squares",
+                  "factor": 1
+                }
+              ],
+              "entered_by_hand": false,
+              "waste_percent": 0,
+              "unit": "pail",
+              "coverage": 6,
+              "explain": "on metal flanges, concrete and under self-adhered sheets; a 5 gal pail does ~6 squares where the whole deck is primed",
+              "unit_cost_estimate": null,
+              "provisional": true,
+              "example_brands": []
+            },
+            {
+              "key": "cant_strip",
+              "label": "Cant strips",
+              "group": "Accessories",
+              "standard": true,
+              "terms": [
+                {
+                  "measurement": "roof.side_wall_length",
+                  "factor": 1
+                },
+                {
+                  "measurement": "roof.head_wall_length",
+                  "factor": 1
+                },
+                {
+                  "measurement": "roof.chimney_step_length",
+                  "factor": 1
+                },
+                {
+                  "measurement": "roof.chimney_apron_length",
+                  "factor": 1
+                }
+              ],
+              "entered_by_hand": false,
+              "waste_percent": 5,
+              "unit": "piece",
+              "coverage": 4,
+              "explain": "45 degree fibre or perlite cant at the base of every wall and curb; 4 ft pieces",
+              "unit_cost_estimate": null,
+              "provisional": true,
+              "example_brands": []
+            },
+            {
+              "key": "wall_flashing",
+              "label": "Wall flashing plies (cut from cap and base)",
+              "group": "Membrane system",
+              "standard": true,
+              "terms": [
+                {
+                  "measurement": "roof.side_wall_length",
+                  "factor": 1
+                },
+                {
+                  "measurement": "roof.head_wall_length",
+                  "factor": 1
+                },
+                {
+                  "measurement": "roof.chimney_step_length",
+                  "factor": 1
+                },
+                {
+                  "measurement": "roof.chimney_apron_length",
+                  "factor": 1
+                }
+              ],
+              "entered_by_hand": false,
+              "waste_percent": 10,
+              "unit": "roll",
+              "coverage": 60,
+              "explain": "two-ply base flashing up walls and curbs; a roll cut into 18 in strips gives ~60 ft",
+              "unit_cost_estimate": null,
+              "provisional": true,
+              "example_brands": []
+            },
+            {
+              "key": "flashing_cement",
+              "label": "Modified bitumen flashing cement",
+              "group": "Accessories",
+              "standard": true,
+              "terms": [
+                {
+                  "measurement": "roof.flat_squares",
+                  "factor": 1
+                }
+              ],
+              "entered_by_hand": false,
+              "waste_percent": 0,
+              "unit": "tube",
+              "coverage": 8,
+              "explain": "at laps on flanges, penetrations and terminations; about one tube per 8 squares",
+              "unit_cost_estimate": null,
+              "provisional": true,
+              "example_brands": []
+            },
+            {
+              "key": "propane",
+              "label": "Torch fuel (propane)",
+              "group": "Accessories",
+              "standard": false,
+              "terms": [
+                {
+                  "measurement": "roof.flat_squares",
+                  "factor": 1
+                }
+              ],
+              "entered_by_hand": false,
+              "waste_percent": 0,
+              "unit": "piece",
+              "coverage": 4,
+              "explain": "torch-applied only: a 100 lb cylinder lasts roughly 4 squares of cap and flashing",
+              "unit_cost_estimate": null,
+              "provisional": true,
+              "example_brands": []
+            },
+            {
+              "key": "coating",
+              "label": "Reflective coating",
+              "group": "Accessories",
+              "standard": false,
+              "terms": [
+                {
+                  "measurement": "roof.flat_squares",
+                  "factor": 1
+                }
+              ],
+              "entered_by_hand": false,
+              "waste_percent": 5,
+              "unit": "pail",
+              "coverage": 3.5,
+              "explain": "only on smooth sheets or for cool-roof upgrades: ~1.5 gal per square, 5 gal pails",
+              "unit_cost_estimate": null,
+              "provisional": true,
+              "example_brands": []
+            },
+            {
+              "key": "edge_metal",
+              "label": "Drip edge / gravel stop",
+              "group": "Trim",
+              "standard": true,
+              "terms": [
+                {
+                  "measurement": "roof.eave_length",
+                  "factor": 1
+                },
+                {
+                  "measurement": "roof.rake_length",
+                  "factor": 1
+                }
+              ],
+              "entered_by_hand": false,
+              "waste_percent": 5,
+              "unit": "piece",
+              "coverage": 10,
+              "explain": "drip edge / gravel stop along every roof edge (eave and rake lines in the report); 10 ft pieces",
+              "unit_cost_estimate": null,
+              "provisional": true,
+              "example_brands": []
+            },
+            {
+              "key": "termination_bar",
+              "label": "Termination bar",
+              "group": "Trim",
+              "standard": true,
+              "terms": [
+                {
+                  "measurement": "roof.side_wall_length",
+                  "factor": 1
+                },
+                {
+                  "measurement": "roof.head_wall_length",
+                  "factor": 1
+                },
+                {
+                  "measurement": "roof.chimney_step_length",
+                  "factor": 1
+                },
+                {
+                  "measurement": "roof.chimney_apron_length",
+                  "factor": 1
+                }
+              ],
+              "entered_by_hand": false,
+              "waste_percent": 5,
+              "unit": "piece",
+              "coverage": 10,
+              "explain": "termination bar at the top of every wall and curb flashing; 10 ft pieces",
+              "unit_cost_estimate": null,
+              "provisional": true,
+              "example_brands": []
+            },
+            {
+              "key": "term_bar_fasteners",
+              "label": "Termination bar fasteners",
+              "group": "Fasteners",
+              "standard": true,
+              "terms": [
+                {
+                  "measurement": "roof.side_wall_length",
+                  "factor": 1
+                },
+                {
+                  "measurement": "roof.head_wall_length",
+                  "factor": 1
+                },
+                {
+                  "measurement": "roof.chimney_step_length",
+                  "factor": 1
+                },
+                {
+                  "measurement": "roof.chimney_apron_length",
+                  "factor": 1
+                }
+              ],
+              "entered_by_hand": false,
+              "waste_percent": 0,
+              "unit": "box",
+              "coverage": 65,
+              "explain": "a fastener every 6-8 in along the termination bar; a box of 100 does ~65 ft",
+              "unit_cost_estimate": null,
+              "provisional": true,
+              "example_brands": []
+            },
+            {
+              "key": "pipe_flashings",
+              "label": "Pipe flashings (lead or spun aluminium)",
+              "group": "Flashing",
+              "standard": true,
+              "terms": [],
+              "entered_by_hand": true,
+              "waste_percent": 0,
+              "unit": "piece",
+              "coverage": 1,
+              "explain": "flanged boot set in cement and stripped in with membrane, one per pipe",
+              "unit_cost_estimate": null,
+              "provisional": true,
+              "example_brands": []
+            },
+            {
+              "key": "drains",
+              "label": "Roof drains / scuppers",
+              "group": "Accessories",
+              "standard": false,
+              "terms": [],
+              "entered_by_hand": true,
+              "waste_percent": 0,
+              "unit": "piece",
+              "coverage": 1,
+              "explain": "replace or flash each drain and scupper",
+              "unit_cost_estimate": null,
+              "provisional": true,
+              "example_brands": []
+            }
+          ],
+          "sources": [
+            "GAF Ruberoid / Liberty modified bitumen application guidelines",
+            "Johns Manville and Holcim (Firestone) SBS/APP specifications",
+            "NRCA Roofing Manual: Membrane Roof Systems; ARMA Quality Manual for low-slope roofing",
+            "IRC R905.11 (modified bitumen roofing)"
+          ]
+        }
+      ]
+    }
+  }
+}
