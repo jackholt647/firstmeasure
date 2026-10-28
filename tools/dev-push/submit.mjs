@@ -103,6 +103,8 @@ async function submit(args, { regressionOnly = false } = {}) {
   const pushed = await git(root, ["push", "--force", "--quiet", REMOTE, `${submission}:${ref}`], { allowFail: true });
   if (pushed.code !== 0) throw new Error(`push to the router (${routerUrl()}) ${ref} failed: ${pushed.stderr.trim()}`);
   console.log(`queued  ${ref.replace("refs/heads/", "")}  (${files.length} file(s), ${head.slice(0, 10)} on ${tip.branch} ${tip.sha.slice(0, 10)}${regression ? `, regression: ${regression}` : ""})`);
+  const hold = await readStatus().then((doc) => doc?.router?.hold, () => null);
+  if (hold) console.log(`${hold.reason}: your ship is queued and will run when it ends (held since ${hold.at}).`);
   if (regressionOnly) console.log("This runs the regression suites on the server and ships nothing.");
   else if (!regression) console.log(REGRESSION_HELP);
   console.log(`status: node tools/dev-push/submit.mjs status --mine   wait: node tools/dev-push/submit.mjs wait ${slug}`);

@@ -84,7 +84,7 @@ export class Router {
     const submissions = Object.values(this.submissions).sort((a, b) => String(b.updated_at).localeCompare(String(a.updated_at))).slice(0, KEEP_SUBMISSIONS);
     return {
       v: 1, updated_at: new Date().toISOString(),
-      router: { host: this.options.host || "dev-sync-droplet", version: this.options.version || null, started_at: this.startedAt || null, paused: this.paused.size === Object.keys(this.lanes).length },
+      router: { host: this.options.host || "dev-sync-droplet", version: this.options.version || null, started_at: this.startedAt || null, paused: this.paused.size === Object.keys(this.lanes).length, hold: this.hold || null },
       lanes, submissions, releases: this.releases.slice(0, KEEP_RELEASES), fleet: this.fleet || null, live: this.live || null
     };
   }
@@ -330,7 +330,7 @@ export class Router {
 
   // ---------------------------------------------------------------- one batch
 
-  async processLane(lane) {
+  async processLane(lane, { overlaysOnly = false } = {}) {
     const module = this.lanes[lane];
     // A release that went live but whose lane push failed must reach the branch before anything else is merged,
     // or the next release would be built without it.
@@ -346,7 +346,7 @@ export class Router {
     }
     const tip = await this.fetch(lane);
     await this.setLane(lane, { tip });
-    const queue = await this.pending(lane);
+    const queue = overlaysOnly ? [] : await this.pending(lane); // overlaysOnly: baking during a hold
     // Live overlays ride along with every platform batch; on their own they trigger a release only once parked
     // (a release changed their file, so dev no longer serves them). One that failed on this tip waits for a new tip.
     let overlays = [];
@@ -521,8 +521,16 @@ export class Router {
     while (!this.stopped) {
       let busy = false;
       this.paused = new Set(this.readJson("paused.json", []));
-      if (!this.paused.has(lane)) {
-        try { busy = lane === "regression" ? await this.processRegression() : await this.processLane(lane); }
+      // A hold (server.mjs hold "<reason>") keeps every lane's queue waiting; submissions are accepted, not refused.
+      // Live overlays can still be baked during a hold (router.forceOverlays, with no queued work).
+      this.hold = this.readJson("hold.json", null);
+      if (this.hold && this.lanes[lane] && !(lane === "platform" && this.forceOverlays)) {
+        if (this.laneState[lane].state !== "held") await this.setLane(lane, { state: "held", note: `hold: ${this.hold.reason}` });
+      } else if (this.hold && lane === "regression") {
+        // waits too
+      } else if (!this.paused.has(lane)) {
+        if (this.lanes[lane] && this.laneState[lane].state === "held") await this.setLane(lane, { state: "idle", note: null });
+        try { busy = lane === "regression" ? await this.processRegression() : await this.processLane(lane, { overlaysOnly: Boolean(this.hold) }); }
         catch (error) {
           this.log(lane, `error: ${error.stack || error.message}`);
           if (this.lanes[lane]) await this.setLane(lane, { state: "idle", batch: [], note: `router error: ${trim(error.message, 300)}` }).catch(() => {});
