@@ -9,6 +9,8 @@ lines in this file for dev releases are retired; release records live in the
 router (`https://dev.1m8.ai/__dev-push/status.json`). The pointer lines below
 are history. Production is unchanged.
 
+October 27 measure-internal dev lane: [dev.1m8.ai serves the measure editor from branch `lane/measure-internal` on dev legacy, shipped in about a minute with `tools/dev-push/lanes/measure-internal/ship.mjs`](deploy/digitalocean/development-measure-internal-lane-20261027.md); per-task rollouts of editor files to dev legacy are no longer served.
+
 October 27 Visual recovery: [committed Docs, Photos upload/search, Operations badges, camera and markup; live conflict audit and permanent development activation](deploy/digitalocean/development-visual-recovery-20261027.md) records release `c9d694e1` on development legacy and web.
 
 October 27 Project details tray: [project contact, address and measurements move into a left tray that launches report orders](deploy/digitalocean/development-project-details-tray-20261027.md) records release `0bf560cd` on development legacy and web.

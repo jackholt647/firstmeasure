@@ -13476,6 +13476,8 @@ ${String(companyBusinessAddress ? `                  <div class="cs-field wide">
       const key = logoKey(state.logo || DEFAULT_LOGO);
       if (!force && key === lastSidebarLogoKey) return;
       lastSidebarLogoKey = key;
+      // persistTheme() already gave the shell this logo; it picks the header-sized, cacheable URL.
+      if (window.__applyTheme) return;
       setImgSmart(img, key, { forceBust: force, bustKey: Date.now() });
     }
     function updatePreviewLogoIfNeeded(force){
