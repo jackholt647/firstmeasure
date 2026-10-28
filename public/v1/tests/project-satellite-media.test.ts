@@ -150,3 +150,40 @@ test("a report of another organization or one not yet completed gives no image",
   const result = await satellite.ensureProjectSatelliteMedia(org, "p_pending", { googleStaticMap: neverGoogle });
   assert.equal(result.status, "unavailable");
 });
+
+test("while the report is still processing, the static map is fetched with the Maps Static key and becomes the cover (FM-292)", async () => {
+  const { env } = await import("../src/config/env.js");
+  const keys = env as unknown as Record<string, string>;
+  const saved = { stat: keys.googleMapsStaticApiKey ?? "", server: keys.googleMapsApiKey ?? "" };
+  const realFetch = globalThis.fetch;
+  const asked: URL[] = [];
+  const image = await png(1280, 800, { r: 70, g: 80, b: 90 });
+  keys.googleMapsStaticApiKey = "maps-static-key";
+  keys.googleMapsApiKey = "server-key";
+  globalThis.fetch = (async (input: string | URL | Request) => {
+    asked.push(new URL(String(input instanceof Request ? input.url : input)));
+    return new Response(new Uint8Array(image), { status: 200, headers: { "content-type": "image/png" } });
+  }) as typeof fetch;
+  try {
+    assert.equal(satellite.staticMapApiKey(), "maps-static-key", "reports fetch google.png with this key; the server key may not allow Maps Static");
+    // An ordered report that has not completed: its own image is not used yet, so the static map stands in.
+    await storage.upsertDocument(org, "projects", { id: "p_processing", data: { title: "Processing", lat: 38.97, lng: -76.49, measurement_project: { id: "report_processing", status: "processing" } } });
+    const result = await satellite.ensureProjectSatelliteMedia(org, "p_processing");
+    assert.equal(result.status, "saved");
+    assert.equal(result.source, "google_static_map");
+    assert.equal(result.cover_set, true);
+    assert.equal(await coverOf("p_processing"), result.media_id);
+    assert.deepEqual((await photosOf("p_processing")).map((photo) => photo.media_id), [result.media_id]);
+    const maps = asked.filter((url) => url.hostname === "maps.googleapis.com");
+    assert.equal(maps.length, 1);
+    assert.equal(maps[0]?.searchParams.get("key"), "maps-static-key");
+    assert.equal(maps[0]?.searchParams.get("maptype"), "satellite");
+
+    keys.googleMapsStaticApiKey = "";
+    assert.equal(satellite.staticMapApiKey(), "server-key", "without a Maps Static key the server key is the fallback");
+  } finally {
+    globalThis.fetch = realFetch;
+    keys.googleMapsStaticApiKey = saved.stat;
+    keys.googleMapsApiKey = saved.server;
+  }
+});
