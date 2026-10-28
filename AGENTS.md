@@ -101,6 +101,23 @@ within a second, with no commit, merge or rollout. Never add a default to a
 (it is exported from the store with `scripts/config-library-snapshot.ts`).
 Code declares kinds (structure, checks, how an organization's copy is reset)
 and reads entries; procedural setup is a published action an entry names.
+
+To change a default, use the CLI (it needs a config library access key in
+`FM_CONFIG_LIBRARY_KEY` or `~/.config/firstmate/config-library-key`, created
+by a platform administrator in the dev console; never print or commit it):
+
+```bash
+node tools/config-library/cli.mjs kinds
+node tools/config-library/cli.mjs get document_template tpl_invoice_default --out tpl.json
+node tools/config-library/cli.mjs put document_template tpl_invoice_default tpl.json --note "Shorter footer"
+node tools/config-library/cli.mjs history document_template tpl_invoice_default
+node tools/config-library/cli.mjs revert document_template tpl_invoice_default 3
+```
+
+Saves take milliseconds and run no tests. Only `put`'s checks run (shape,
+append-only dictionaries, references to registered code); a 400 lists what to
+fix, a 409 means someone else saved first (`get` again). This is not a code
+change: no commit, no `submit.mjs`, no rollout.
 Run `tests/config-library.test.ts` and `tests/config-library-api.test.ts` for
 changes to the library.
 
