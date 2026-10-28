@@ -185,15 +185,20 @@ def running_jobs():
     return json.loads(result.stdout.strip().splitlines()[-1]).get("running", 0)
 
 
+def sealed():
+    flags = subprocess.run(["lsattr", "-d", str(ROOT)], capture_output=True, text=True).stdout.split()
+    return bool(flags) and "i" in flags[0].replace("I", "")
+
+
 def seal(on):
-    flag = "+i" if on else "-i"
-    subprocess.run(["chattr", flag, str(ROOT)], check=True)
+    if sealed() != on:  # chattr refuses to set +i on a folder that already has it
+        subprocess.run(["chattr", "+i" if on else "-i", str(ROOT)], check=True)
 
 
 def swap(link, target):
     """Atomically point `link` at `target` (the lane's current symlink)."""
-    sealed = link.parent == ROOT and "i" in subprocess.run(["lsattr", "-d", str(ROOT)], capture_output=True, text=True).stdout.split()[0]
-    if sealed:
+    was_sealed = link.parent == ROOT and sealed()
+    if was_sealed:
         seal(False)
     try:
         temp = link.with_name(link.name + ".fm-release-next")
@@ -202,7 +207,7 @@ def swap(link, target):
         temp.symlink_to(target)
         os.replace(temp, link)
     finally:
-        if sealed:
+        if was_sealed:
             seal(True)
 
 
@@ -414,9 +419,13 @@ def cmd_check(lane, name):
 GUARD_BANNER = pathlib.Path("/etc/ssh/dev-push-banner")
 GUARD_SSHD = pathlib.Path("/etc/ssh/sshd_config.d/60-dev-push-banner.conf")
 GUARD_TEXT = """\
-This development host takes releases only from the dev push router.
-Ship with:  node tools/dev-push/submit.mjs --wait   (docs/architecture/dev-lanes.md)
-Per-task rollout scripts (prepare/rollout/deploy/ship) no longer work here: /opt/firstmeasure is sealed.
+=== dev.1m8.ai takes releases only from the dev push router ===
+Per-task rollout scripts (prepare/rollout/deploy/ship/integrate) no longer work: /opt/firstmeasure is sealed.
+To ship to dev: commit, then from any checkout of the firstmeasure repo (Git Bash or Linux), even one without
+tools/dev-push:
+  git fetch dev-sync-droplet:/home/dev/router/firstmeasure.git codex/consolidated-firstmeasure-20260923 && mkdir -p ~/.dev-push && git archive FETCH_HEAD tools/dev-push | tar -x -C ~/.dev-push && node ~/.dev-push/tools/dev-push/submit.mjs --wait
+It queues your HEAD, merges it onto canonical, releases it to every dev role and prints `live` or why it was
+rejected. Measure editor files go to their own lane automatically. Read docs/architecture/dev-lanes.md.
 """
 
 
@@ -424,7 +433,8 @@ def cmd_guard(on):
     """Root only (not the router key): seal /opt/firstmeasure and show every SSH client the one way to ship, or undo it."""
     if on:
         GUARD_BANNER.write_text(GUARD_TEXT)
-        GUARD_SSHD.write_text(f"Banner {GUARD_BANNER}\n")
+        # Root logins only: that is what rollout scripts used; the live layer's restricted account stays quiet.
+        GUARD_SSHD.write_text(f"Match User root\n    Banner {GUARD_BANNER}\n")
     else:
         GUARD_SSHD.unlink(missing_ok=True)
     check = subprocess.run(["sshd", "-t"], capture_output=True, text=True)
