@@ -154,7 +154,7 @@ test("a report of another organization or one not yet completed gives no image",
 test("while the report is still processing, the static map is fetched with the Maps Static key and becomes the cover (FM-292)", async () => {
   const { env } = await import("../src/config/env.js");
   const keys = env as unknown as Record<string, string>;
-  const saved = { stat: keys.googleMapsStaticApiKey, server: keys.googleMapsApiKey };
+  const saved = { stat: keys.googleMapsStaticApiKey ?? "", server: keys.googleMapsApiKey ?? "" };
   const realFetch = globalThis.fetch;
   const asked: URL[] = [];
   const image = await png(1280, 800, { r: 70, g: 80, b: 90 });
@@ -176,8 +176,8 @@ test("while the report is still processing, the static map is fetched with the M
     assert.deepEqual((await photosOf("p_processing")).map((photo) => photo.media_id), [result.media_id]);
     const maps = asked.filter((url) => url.hostname === "maps.googleapis.com");
     assert.equal(maps.length, 1);
-    assert.equal(maps[0].searchParams.get("key"), "maps-static-key");
-    assert.equal(maps[0].searchParams.get("maptype"), "satellite");
+    assert.equal(maps[0]?.searchParams.get("key"), "maps-static-key");
+    assert.equal(maps[0]?.searchParams.get("maptype"), "satellite");
 
     keys.googleMapsStaticApiKey = "";
     assert.equal(satellite.staticMapApiKey(), "server-key", "without a Maps Static key the server key is the fallback");
