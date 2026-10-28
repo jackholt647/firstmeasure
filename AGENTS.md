@@ -114,9 +114,14 @@ within a second, with no commit, merge or rollout. Never add a default to a
 Code declares kinds (structure, checks, how an organization's copy is reset)
 and reads entries; procedural setup is a published action an entry names.
 
-To change a default, use the CLI (it needs a config library access key in
-`FM_CONFIG_LIBRARY_KEY` or `~/.config/firstmate/config-library-key`, created
-by a platform administrator in the dev console; never print or commit it):
+To change a default, use the CLI. Agent machines (fm-agents-1, the dev sync
+droplet, Jack's PC) already hold a dev key in
+`~/.config/firstmate/config-library-key` (mode 600), read automatically; do
+not ask anyone for one. A new machine gets its own with
+`sh tools/config-library/enroll.sh agents:<machine>` once its SSH public key
+is listed in `public/v1/config-library/agent-machines.json` (see the doc's
+"Agent machines"). Never print, copy or commit a key. Dev only; production has
+no keys.
 
 ```bash
 node tools/config-library/cli.mjs kinds

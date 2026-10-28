@@ -138,6 +138,7 @@ library entries and assets only.
 | `GET /assets`, `POST /assets` `{file_name, data_base64}` | assets |
 | `GET /export` | the whole store (for the snapshot script) |
 | `GET/POST /keys`, `DELETE /keys/:id` | access keys (signed-in administrator) |
+| `POST /keys/enroll` | an agent machine's own key, by SSH signature (Agent machines) |
 | `GET /organizations/:orgId/copies?kind=` | how the organization's copies stand |
 | `POST /organizations/:orgId/copies/:kind/:id/reset` | reset a copy to the library |
 | `GET /organizations/:orgId/state` | a test organization's flags (flat), settings, scope flags, its start and every changed path |
@@ -157,6 +158,33 @@ curl -s -H "Authorization: Bearer $FM_CONFIG_LIBRARY_KEY" https://dev.1m8.ai/v1/
 curl -s -X PUT -H "Authorization: Bearer $FM_CONFIG_LIBRARY_KEY" -H "Content-Type: application/json" \
   -d '{"data": {...}, "expected_revision": 4, "note": "Shorter footer"}' https://dev.1m8.ai/v1/config-library/entries/document_template/tpl_invoice
 ```
+
+## Agent machines
+
+Agent machines hold their own dev key, so no person is ever asked for one.
+Each listed machine has a signing key that never leaves it
+(`~/.ssh/fm_config_library_ed25519`); its public half is in
+`public/v1/config-library/agent-machines.json` under a name such as
+`agents:fm-agents-1`. `tools/config-library/enroll.sh <name>` signs a one-time
+enrollment (`ssh-keygen -Y sign`, namespace `fm-config-library`, with a time
+and a nonce) and posts it to `POST /v1/config-library/keys/enroll`. Dev checks
+the signature against the listed key (fresh within five minutes, never reused),
+revokes that machine's earlier key and returns a new one as the response body;
+the script writes it to `~/.config/firstmate/config-library-key` (mode 600)
+and prints only its id. The key is never in a transcript, a chat, a form or a
+log. Keys are listed and revoked like any other in the dev console (`GET /keys`,
+`DELETE /keys/:id`); enrolling again replaces one.
+
+| Machine | Account | Key file |
+|---|---|---|
+| `agents:fm-agents-1` | `agent` (ssh `fm-agents`) | `/srv/agents/home/agent/.config/firstmate/config-library-key` |
+| `agents:dev-sync-droplet` | `dev` | `/home/dev/.config/firstmate/config-library-key` |
+| `agents:jack-pc` | `jackh` | `C:\Users\jackh\.config\firstmate\config-library-key` |
+
+A new machine: `ssh-keygen -t ed25519 -N '' -C config-library@<machine> -f ~/.ssh/fm_config_library_ed25519`,
+commit its `.pub` line to `agent-machines.json` (through `submit.mjs`), then run
+`sh tools/config-library/enroll.sh agents:<machine>`. Removing a machine:
+delete its line and revoke its key. Production has no keys and no enrollment.
 
 ## Test organizations
 

@@ -2,9 +2,10 @@
 // Edit the platform config library on dev (docs/architecture/config-library.md). Defaults are data: change them
 // here, not in code. Every write is a new revision on dev.1m8.ai, read by every dev process within a second.
 //
-// Key: a config library access key (fmck_...) a platform administrator created (dev console, or POST
-// /v1/config-library/keys). Put it in FM_CONFIG_LIBRARY_KEY or in ~/.config/firstmate/config-library-key.
-// Never print or commit it. Origin: FM_DEV_ORIGIN (default https://dev.1m8.ai).
+// Key: agent machines already hold one in ~/.config/firstmate/config-library-key (FM_CONFIG_LIBRARY_KEY wins when set).
+// A machine without one runs `sh tools/config-library/enroll.sh agents:<machine>` once (its SSH public key must be
+// listed in public/v1/config-library/agent-machines.json). Never print or commit it. Origin: FM_DEV_ORIGIN (default
+// https://dev.1m8.ai).
 //
 //   node tools/config-library/cli.mjs kinds
 //   node tools/config-library/cli.mjs list <kind> [query]
@@ -30,7 +31,7 @@ const keyFile = path.join(os.homedir(), ".config", "firstmate", "config-library-
 const key = (process.env.FM_CONFIG_LIBRARY_KEY || (existsSync(keyFile) ? readFileSync(keyFile, "utf8") : "")).trim();
 
 async function call(method, route, body) {
-  if (!key) { console.error(`No key: set FM_CONFIG_LIBRARY_KEY or write it to ${keyFile}. A platform administrator creates one in the dev console.`); process.exit(2); }
+  if (!key) { console.error(`No key in ${keyFile}. Get this machine's: sh tools/config-library/enroll.sh agents:<machine> (see docs/architecture/config-library.md, Agent machines).`); process.exit(2); }
   const response = await fetch(`${origin}/v1/config-library${route}`, { method, headers: { Authorization: `Bearer ${key}`, ...(body ? { "Content-Type": "application/json" } : {}) }, body: body ? JSON.stringify(body) : undefined });
   const text = await response.text();
   let json; try { json = JSON.parse(text); } catch { json = { message: text }; }

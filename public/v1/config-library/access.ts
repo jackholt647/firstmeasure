@@ -47,10 +47,11 @@ export async function requireLibraryAdmin(request: FastifyRequest, csrf = false)
   return caller;
 }
 
-export async function createAccessKey(input: { name: string; createdBy: string; days?: number }) {
+export async function createAccessKey(input: { name: string; createdBy: string; days?: number; createdAt?: number }) {
   const key = KEY_PREFIX + randomBytes(32).toString("base64url");
   const days = Math.min(365, Math.max(1, Math.round(input.days ?? 30)));
-  const row = { id: "ck_" + randomUUID().replace(/-/g, "").slice(0, 16), name: input.name.slice(0, 120), prefix: key.slice(0, KEY_PREFIX.length + 6), created_by: input.createdBy, created_at: Date.now(), expires_at: Date.now() + days * DAY_MS };
+  const createdAt = input.createdAt ?? Date.now();
+  const row = { id: "ck_" + randomUUID().replace(/-/g, "").slice(0, 16), name: input.name.slice(0, 120), prefix: key.slice(0, KEY_PREFIX.length + 6), created_by: input.createdBy, created_at: createdAt, expires_at: createdAt + days * DAY_MS };
   await libraryStore().prepare("INSERT INTO config_library_keys (id, name, key_hash, prefix, created_by, created_at, expires_at) VALUES (?,?,?,?,?,?,?)")
     .run(row.id, row.name, hash(key), row.prefix, row.created_by, row.created_at, row.expires_at);
   return { key, ...keyFromRow({ ...row, last_used_at: 0, uses: 0, revoked_at: 0, revoked_by: "" }) };

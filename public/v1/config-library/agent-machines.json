@@ -1,0 +1,8 @@
+{
+  "about": "Agent machines that fetch their own dev config library key with tools/config-library/enroll.sh. Public keys only: each private key stays on its machine (~/.ssh/fm_config_library_ed25519). Add a machine by committing its public key here. See docs/architecture/config-library.md, Agent machines.",
+  "machines": [
+    { "name": "agents:fm-agents-1", "public_key": "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIApfUjsYXpyKSJk+hdUzLHTzCxYRAYaTGTlIPeKVllP5 config-library@fm-agents-1" },
+    { "name": "agents:dev-sync-droplet", "public_key": "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIFk+3S5sw1kgd1ol8AgSadFm6t1T7kchwh1MnaGHBBwy config-library@dev-sync-droplet" },
+    { "name": "agents:jack-pc", "public_key": "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIODVmT8sJDop8CBhPawiftx1KkM2gql7JtfuyKVFWIWF config-library@jack-pc" }
+  ]
+}
