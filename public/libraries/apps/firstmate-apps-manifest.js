@@ -294,7 +294,7 @@
       surfaces: ['project_modal'],
       requiresContext: ['project'],
       dependencies: ['project.proposal', 'project.materials'],
-      bundles: [gifDisplayBundle,versionedBundle('../payments-api/payments-api.js', '20261019-forward-cert'), versionedBundle('../payroll-api/payroll-api.js', '20261019-payroll-closeout-v1'), versionedBundle('../documents-api/documents-api.js', '20261022-document-history'), versionedBundle('photos/feed.js', '20261027-viewer-2'), versionedBundle('receipts/app.js', '20260714-receipt-pdf-preview'), versionedBundle('money/project.js', '20261027-financials')]
+      bundles: [gifDisplayBundle,versionedBundle('../payments-api/payments-api.js', '20261019-forward-cert'), versionedBundle('../payroll-api/payroll-api.js', '20261019-payroll-closeout-v1'), versionedBundle('../documents-api/documents-api.js', '20261022-document-history'), versionedBundle('photos/feed.js', '20261027-viewer-2'), versionedBundle('receipts/app.js', '20260714-receipt-pdf-preview'), versionedBundle('money/project.js', '20261028-one-ledger')]
     },
     {
       id: 'project.request',
@@ -303,7 +303,7 @@
       kind: 'modal_app',
       surfaces: ['modal', 'project_modal'],
       dependencies: ['firstmeasure.order', 'project.map', 'project.photos', 'project.proposal', 'project.materials', 'project.money', 'project.customer_portal', 'project.schedule', 'project.measurements', 'project.checklists'],
-      bundles: [...channelsLibBundles, versionedBundle('../window-manager/project-windows.js', '20261026-open-link-safe'), versionedBundle('project-request/app.js', '20261027-welcome-reveal')]
+      bundles: [...channelsLibBundles, versionedBundle('../window-manager/project-windows.js', '20261026-open-link-safe'), versionedBundle('project-request/app.js', '20261028-money-no-rail')]
     },
     {
       id: 'firstmeasure.order',

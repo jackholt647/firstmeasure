@@ -189,13 +189,13 @@ async function openMoneyTab(projectId, waitSelector = "[data-money-autopay]") {
     // Let the money tab render on its own, clear stray route keys once if the
     // schedule panel is missing, then wait for the target selector (the
     // autopay card renders after async intake-config + enrollment fetches).
-    let scheduleReady = await page.waitForSelector(".mn-left-schedule", { timeout: 15000, state: "attached" })
+    let scheduleReady = await page.waitForSelector("[data-money-schedule-strip]", { timeout: 15000, state: "attached" })
       .then(() => true).catch(() => false);
     if (!scheduleReady) {
       await page.evaluate((id) => {
         window.Portal.navigation.navigate({ tab: null, project: id, projectTab: "money" });
       }, projectId);
-      scheduleReady = await page.waitForSelector(".mn-left-schedule", { timeout: 10000, state: "attached" })
+      scheduleReady = await page.waitForSelector("[data-money-schedule-strip]", { timeout: 10000, state: "attached" })
         .then(() => true).catch(() => false);
     }
     if (!scheduleReady) continue; // full reload retry
@@ -207,7 +207,7 @@ async function openMoneyTab(projectId, waitSelector = "[data-money-autopay]") {
     const debug = await page.evaluate(async (id) => {
       const out = {
         url: location.href,
-        schedule: !!document.querySelector(".mn-left-schedule"),
+        schedule: !!document.querySelector("[data-money-schedule-strip]"),
         autopay: !!document.querySelector("[data-money-autopay]"),
         api: typeof window.PaymentsAPI?.autopay?.get
       };
@@ -262,7 +262,11 @@ await page.waitForFunction(() => {
   const chip = document.querySelector("[data-money-autopay-status]");
   return chip && /Active/i.test(chip.textContent || "");
 }, null, { timeout: 15000 });
-const enrolledChip = await page.evaluate(() => document.querySelector("[data-money-autopay]")?.textContent.replace(/\s+/g, " ").trim() || "");
+// The schedule's autopay card names the method and the next payment in its tooltip.
+const enrolledChip = await page.evaluate(() => {
+  const card = document.querySelector("[data-money-schedule-strip] [data-money-autopay]");
+  return `${card?.textContent || ""} ${card?.dataset.fmTooltip || ""}`.replace(/\s+/g, " ").trim();
+});
 check("enrolled chip shows the method label and next due obligation",
   /Active/.test(enrolledChip) && /Visa ending in 4242/.test(enrolledChip) && /Next: Deposit/i.test(enrolledChip), enrolledChip);
 await shot("autopay-enrolled");
@@ -284,15 +288,15 @@ check("allocation satisfies the deposit obligation to the cent", deposit.allocat
 
 await openMoneyTab(main.projectId);
 const paidUi = await page.evaluate(() => {
-  const cards = [...document.querySelectorAll(".mn-schedule-list .mn-due-card")];
+  const cards = [...document.querySelectorAll("[data-money-schedule-strip] .mn-due-card")];
   const depositCard = cards.find((card) => /deposit/i.test(card.textContent || ""));
   return {
-    depositCard: depositCard ? depositCard.textContent.replace(/\s+/g, " ").trim() : "",
+    depositCard: depositCard ? `${depositCard.textContent} ${depositCard.dataset.fmTooltip || ""}`.replace(/\s+/g, " ").trim() : "",
     autopay: document.querySelector("[data-money-autopay]")?.textContent.replace(/\s+/g, " ").trim() || ""
   };
 });
 check("UI shows the deposit as paid after the autopay run",
-  /Paid/i.test(paidUi.depositCard) && /\$2,500(\.00)? taken/.test(paidUi.depositCard), paidUi.depositCard);
+  /Paid/i.test(paidUi.depositCard) && /\$2,500(\.00)? paid/.test(paidUi.depositCard), paidUi.depositCard);
 check("autopay chip stays active and advances to the next open obligation",
   /Active/.test(paidUi.autopay) && /Next: Final Payment/i.test(paidUi.autopay), paidUi.autopay);
 await shot("autopay-paid");
@@ -315,6 +319,8 @@ const dunningPayments = (await client.req("GET", `/v1/payments/organizations/${o
 check("declined autopay attempts never write transactions", dunningPayments.length === 0, dunningPayments.length);
 
 await openMoneyTab(dunning.projectId);
+await domClick("[data-money-schedule-strip] [data-money-autopay]");
+await page.waitForSelector("[data-money-autopay-resume]", { timeout: 10000, state: "attached" });
 const pausedUi = await page.evaluate(() => ({
   chip: document.querySelector("[data-money-autopay-status]")?.textContent.trim() || "",
   failure: document.querySelector("[data-money-autopay-failure]")?.textContent.replace(/\s+/g, " ").trim() || "",
@@ -331,6 +337,8 @@ await client.req("PUT", `/v1/payments/organizations/${orgId}/projects/${dunning.
   status: "paused"
 });
 await openMoneyTab(dunning.projectId);
+await domClick("[data-money-schedule-strip] [data-money-autopay]");
+await page.waitForSelector("[data-money-autopay-resume]", { timeout: 10000, state: "attached" });
 await domClick("[data-money-autopay-resume]");
 await page.waitForFunction(() => {
   const chip = document.querySelector("[data-money-autopay-status]");

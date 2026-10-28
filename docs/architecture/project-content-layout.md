@@ -8,7 +8,7 @@ Under the address the tray shows **Measurements**: the Operations Measurements v
 
 `firstmeasure/order/app.js` supplies the Overview details component. Its definition is `overview_details`, not a general modal region app. The form stays mounted across tab changes and panel rebuilds to preserve values, handlers and drafts. A hidden storage element retains the form only while panels are being rebuilt; it is not an app mounting surface.
 
-Scope, Money and legacy Proposals receive a private `.r-tab-sidebar` beneath their own tab panel. Their main renderer receives `.r-tab-main`; their context's `sidebarRoot` is confined to that same tab. These apps cannot replace Overview's details or another tab's rail. Ordinary tab switching and docked tabs use the same content layout.
+Scope and legacy Proposals receive a private `.r-tab-sidebar` beneath their own tab panel; Money has none (see [the Money tab](#the-money-tab)). Their main renderer receives `.r-tab-main`; their context's `sidebarRoot` is confined to that same tab. These apps cannot replace Overview's details or another tab's rail. Ordinary tab switching and docked tabs use the same content layout.
 
 The Scope app's standard tab label is **Project**, resolved through the existing
 `scope.project_tab` terminology key. Its private rail occupies one third of the
@@ -178,6 +178,36 @@ Each docked tab still has its own owned document for legacy app isolation. Realt
 Pane weights are relative. `project-layout.js` rescales them to average 1 on every arrangement, so a layout restored with normalized weights or a dragged divider never leaves free space; when the last docked pane closes (its X, Close pane in the tab menu, a single-pane layout, the docked document closing, or `clear()`), the remaining pane drops its inline flex and ratio and fills the window. Splitting again starts even.
 
 Projects and Contacts share the [entity window shell](window-shell.md). Its optional persistent sidebar is declared by Contacts; Projects declare none and keep the content ownership above.
+
+## The Money tab
+
+Money (`apps/money/project.js`, named Financials through `money.project_tab`) is one surface with no rail and no
+sub-tabs. Its header is the Docs and Photos one: the icon and **Money**, then Take a payment (the processor checkout,
+`FirstMatePaymentIntake` with `prepareCheckout`; see [payments](payments.md)), Upload receipts and Generate invoice,
+then Reports and Settings as icon buttons. There is no refresh control and no "updated" time. Under it the six project
+figures (revenue, collected, remaining, cost forecast, forecast profit, profit to date) are a row of tiles; Cost
+forecast opens the project's expense lists with their projected and actual costs.
+
+The rest is one ledger. The payment schedule (and autopay, when the customer has a saved method) runs across its
+top. Below are every payment, refund, expense, invoice and receipt, searchable, filtered by type or expense
+category, sorted by any column, shown as a list (default) or tiles (remembered in this browser). Payments, refunds
+and expenses carry the running balance; invoices and receipts are records with their amounts and no balance.
+A receipt shows its thumbnail and opens in the shared receipt viewer, routed by `receipt`. Opening an entry shows
+it in a modal with what can be done to it (refund, reallocate, mark cleared, pay, remove, email, mark due, void,
+review and apply). Adding a payment or an expense is a modal from the ledger's own buttons.
+
+An expense category is the payable `kind`. Settings renames or hides the built-in four (`labor`, `material_order`,
+`reimbursement`, `other`) and adds the organization's own, saved as the `money_settings` branch module
+(`manage_projects` or `manage_company_settings`). A repeating expense is one payable per date through its end date
+(at most 36), linked by `metadata.recurrence_group_id`; each is paid or removed on its own, and Recurring is offered
+as a filter only when something recurs. Recurring billing comes from recurrence series and shows in the schedule.
+
+The old view names stay valid route values: `moneyView` `payments`, `expenses`, `invoices`, `receipts` and
+`recurring` select that ledger filter, `overview` and `ledger` show everything, `take_payment` opens Take a payment.
+Explanations are tooltips (`data-fm-tooltip`), never sentences on the page. Colours are the organization's brand
+(`--primary`); a status is only coloured when it needs attention. Modals are local to the tab and keep their own
+dimming (`data-fm-window-backdrop="off"`); Escape closes the topmost one only. Test:
+`public/v1/tests/navigation-contract.test.mjs` ("project Money is one ledger").
 
 ## Overview entry workflows and project trays
 

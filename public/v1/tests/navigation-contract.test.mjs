@@ -351,11 +351,38 @@ test('capability-gated apps fail closed until organization capabilities load', a
   assert.doesNotMatch(runtime, /if \(!state\?\.definitions_by_key\) return true;/);
 });
 
-test('project invoice tab is declared and restored through the Money route schema', async () => {
+test('project Money is one ledger: Docs-style header, metric tiles, no rail or sub-tabs, old views land on ledger filters', async () => {
   const manifest = await readFile(path.join(publicRoot, 'libraries/apps/firstmate-apps-manifest.js'), 'utf8');
   const moneyApp = await readFile(path.join(publicRoot, 'libraries/apps/money/project.js'), 'utf8');
-  assert.match(manifest, /moneyView:\{ default:'overview', values:\[[^\]]*'invoices'/);
-  assert.match(moneyApp, /state\.activeView === 'invoices'/);
+  const host = await readFile(path.join(publicRoot, 'libraries/apps/project-request/app.js'), 'utf8');
+  // Old links (Invoices and Receipts apps, the phone's Ledger and Payments) keep their route values.
+  assert.match(manifest, /moneyView:\{ default:'overview', values:\['overview','ledger','payments','invoices','recurring','expenses','receipts','take_payment'\]/);
+  assert.match(moneyApp, /function filterForView\(view\)\{\s*return \(\{ payments:'in', expenses:'out', invoices:'invoices', receipts:'receipts', recurring:'recurring' \}\)/);
+  assert.match(moneyApp, /Portal\?\.navigation\?\.replace\?\.\(\{ moneyView:viewForFilter\(filter\) \}/);
+  // No private rail and no sub-tabs: the host gives Money no .r-tab-sidebar and the tab draws no tab strip.
+  assert.match(host, /function projectTabHasSidebar\(tab = activePreviewTab\)\{\s*return \['proposal','materials'\]\.includes\(tab\);/);
+  assert.doesNotMatch(moneyApp, /sidebarRoot|renderLeft|mn-left|mn-tabs|visibleMoneyTabs|data-money-view=/);
+  // Header like Docs and Photos: icon and one word, the actions, then Reports and Settings; no refresh or timestamp.
+  assert.match(moneyApp, /<div class="mn-title"><i class="fas fa-dollar-sign" aria-hidden="true"><\/i><strong>\$\{escapeHtml\(term\('workspace'\)\)\}<\/strong><\/div>/);
+  assert.match(moneyApp, /data-money-take-payment[\s\S]*data-money-upload-receipt[\s\S]*data-money-open-modal="invoice"[\s\S]*data-money-open-modal="reports"[\s\S]*data-money-open-modal="settings"/);
+  assert.doesNotMatch(moneyApp, /data-money-refresh|lastLoadedAt|Updated \$\{/);
+  // The six figures are tiles under the header, explained in tooltips.
+  for (const key of ['revenue', 'collected', 'remaining', 'cost_forecast', 'forecast_profit', 'profit_to_date']) assert.match(moneyApp, new RegExp(`tile\\(\\{ key:'${key}', label:term\\('${key}'\\)`));
+  assert.match(moneyApp, /class="mn-metric \$\{tone\}" data-money-metric="\$\{key\}" data-fm-tooltip=/);
+  // One ledger: payment schedule on top, search, type and category filter, list or tiles, sortable columns.
+  assert.match(moneyApp, /<section class="mn-ledger"[\s\S]*\$\{scheduleHtml\(\)\}[\s\S]*data-money-ledger-search[\s\S]*data-money-ledger-filter[\s\S]*data-money-ledger-view="list"[\s\S]*data-money-ledger-view="tiles"/);
+  assert.match(moneyApp, /sortHeader\('date'[\s\S]*sortHeader\('item'[\s\S]*sortHeader\('category'[\s\S]*sortHeader\('status'[\s\S]*sortHeader\('amount'[\s\S]*sortHeader\('balance'/);
+  assert.match(moneyApp, /aria-sort=/);
+  assert.match(moneyApp, /kind:'invoice', type:'record'[\s\S]*kind:'receipt', type:'record'/, 'invoices and receipts are ledger records');
+  assert.match(moneyApp, /option\('recurring', term\('recurring'\)\)/);
+  assert.match(moneyApp, /hasRecurring \|\| state\.ledgerFilter === 'recurring' \?/, 'Recurring is offered only when something recurs');
+  // Adding a payment or expense, invoices, reports and settings are modals.
+  for (const modal of ['take_payment', 'add_payment', 'add_expense', 'invoice', 'reports', 'settings', 'autopay', 'expense_lists', 'item']) assert.match(moneyApp, new RegExp(`\\b${modal}:\\w+ModalHtml`));
+  assert.match(moneyApp, /data-fm-window-backdrop="off" class="mn-modal-shade/);
+  // Brand colours, never the old hard-coded green.
+  assert.doesNotMatch(moneyApp, /#067647|6,118,71|#05603a|#ecfdf3|#f6fef9/i);
+  assert.match(moneyApp, /\.mn-btn\.primary\{background:var\(--primary,#d93025\)/);
+  // The invoice composer survives as the Generate Invoice modal.
   assert.match(moneyApp, /name="render_paid_in_full"/);
   assert.match(moneyApp, /role="switch"/);
   assert.match(moneyApp, /data-paid=/);
@@ -367,65 +394,25 @@ test('project invoice tab is declared and restored through the Money route schem
   assert.match(moneyApp, /data-money-invoice-add-payment/);
   assert.match(moneyApp, /name="tax_enabled"/);
   assert.match(moneyApp, /line_items:lineItems/);
-  assert.match(moneyApp, /mn-invoice-generate-column/);
-  assert.match(moneyApp, /mn-invoice-history-column/);
-  assert.match(moneyApp, /mn-invoice-history-top/);
-  assert.doesNotMatch(moneyApp, /function kpiBand\(|kpiBand\(summary\)/);
-  assert.match(moneyApp, /mn-layout mn-overview-layout/);
-  assert.match(moneyApp, /ledgerSection\(\)/);
-  assert.match(moneyApp, /ledgerFilters: \{ payments:true, expenses:true, activity:false \}/);
-  assert.match(moneyApp, /ledgerSort: \{ key:'date', direction:'desc' \}/);
-  assert.match(moneyApp, /data-money-ledger-filter/);
-  assert.match(moneyApp, /data-money-ledger-sort/);
-  assert.match(moneyApp, /aria-sort=/);
-  assert.match(moneyApp, /state\.ledgerSort = \{ key, direction \}/);
-  assert.match(moneyApp, /\['money_in', 'In', 'end'\][\s\S]*\['money_out', 'Out', 'end'\]/);
-  assert.match(moneyApp, /mn-overview-layout\{grid-template-columns:minmax\(0,1\.45fr\) minmax\(260px,\.55fr\)\}/);
-  assert.match(moneyApp, /mn-ledger-table\{width:100%;min-width:0;table-layout:fixed\}/);
-  assert.match(moneyApp, /mn-ledger-table th:nth-child\(2\),\.mn-ledger-table td:nth-child\(2\)\{width:32%;max-width:300px;overflow:hidden\}/);
-  assert.match(moneyApp, /data-money-ledger-detail/);
-  assert.match(moneyApp, /data-money-delete-expense/);
-  assert.match(moneyApp, /term\('transaction'\)[\s\S]*term\('receipt'\)[\s\S]*term\('money_in'\)[\s\S]*term\('money_out'\)[\s\S]*term\('balance'\)/);
-  assert.match(moneyApp, /id:'payments', icon:'fa-money-check-dollar'/);
-  assert.doesNotMatch(moneyApp, /viewTab\('activity'/);
-  assert.match(moneyApp, /id:'expenses', icon:'fa-list-check', label:term\('expense_lists'\)/);
-  assert.doesNotMatch(moneyApp, /MONEY_TERM_DEFAULTS|add_collected_payment:'/, 'money words are library terminology');
-  assert.equal(JSON.parse(await readFile(path.join(publicRoot, 'v1/config-library/snapshot/terminology_namespace/money.json'), 'utf8')).data.terms.find((item) => item.key === 'add_collected_payment')?.label, 'Add Collected Payment');
-  assert.match(moneyApp, /<h3>\$\{escapeHtml\(term\('add_collected_payment'\)\)\}<\/h3>/);
-  assert.match(moneyApp, /PlatformTerminology\?\.ready\?\.\(\)/);
-  assert.match(moneyApp, /cleanText\(event\.type, event\.event_type\)/);
-  assert.doesNotMatch(moneyApp, /paymentHistorySection\(5\)|activitySection\(5\)/);
-  assert.match(moneyApp, /Project Financials/);
-  assert.match(moneyApp, /leftMetric\(term\('revenue'\)[\s\S]*leftMetric\(term\('collected'\)[\s\S]*leftMetric\(term\('remaining'\)[\s\S]*leftMetric\(term\('cost_forecast'\)[\s\S]*leftMetric\(term\('forecast_profit'\)[\s\S]*leftMetric\(term\('profit_to_date'\)/);
-  assert.match(moneyApp, /tabindex="0"[\s\S]*data-mn-tip/);
-  assert.match(moneyApp, /\.mn-left-metric:hover::after,.mn-left-metric:focus-visible::after/);
-  assert.doesNotMatch(moneyApp, /function profitabilitySection\(|<h3>Profitability<\/h3>/);
-  assert.match(moneyApp, /\.mn-left-footer\{position:sticky;bottom:0/);
-  assert.equal((moneyApp.match(/Payment Schedule/g) || []).length, 1);
-  assert.match(moneyApp, /mn-left-schedule-head/);
-  assert.doesNotMatch(moneyApp, /mn-progress|<h3>Payment Schedule<\/h3>/);
-  assert.doesNotMatch(moneyApp, /state\.notice \? `<div class="mn-alert"/);
-  assert.doesNotMatch(moneyApp, /Uses the selected proposal's theme/);
   assert.match(moneyApp, /const recipient = customerEmail\(\) \|\| cleanText\(invoice\?\.customer\?\.email\)/);
   assert.match(moneyApp, /value="\$\{escapeHtml\(recipient\)\}"/);
-  assert.match(moneyApp, /Portal\?\.navigation\?\.push\?\.\(\{ moneyView:next/);
+  // Words are library terminology.
+  assert.doesNotMatch(moneyApp, /MONEY_TERM_DEFAULTS|add_collected_payment:'/, 'money words are library terminology');
+  assert.equal(JSON.parse(await readFile(path.join(publicRoot, 'v1/config-library/snapshot/terminology_namespace/money.json'), 'utf8')).data.terms.find((item) => item.key === 'add_collected_payment')?.label, 'Add Collected Payment');
+  assert.match(moneyApp, /title:term\('add_collected_payment'\)/);
+  assert.match(moneyApp, /PlatformTerminology\?\.ready\?\.\(\)/);
+  assert.match(moneyApp, /cleanText\(event\.type, event\.event_type\)/);
+  assert.doesNotMatch(moneyApp, /PaymentsAPI\.ledger/);
+  // Expense categories are the payable kind; Settings saves them as the money_settings branch module.
+  assert.match(moneyApp, /const BUILT_IN_CATEGORIES = \['labor', 'material_order', 'reimbursement', 'other'\]/);
+  assert.match(moneyApp, /branchModules\.save\(requestedOrgId, branchId\(\), 'money_settings'/);
+  const platformApi = await readFile(path.join(publicRoot, 'v1/platform/api.ts'), 'utf8');
+  assert.match(platformApi, /if \(moduleId === "money_settings"\) return "manage_projects\|manage_company_settings";/);
+  // A repeating expense is one payable per date, linked by its recurrence group.
+  assert.match(moneyApp, /metadata:\{ recurring:true, recurrence_group_id:groupId, occurrence_index:index, recurrence:\{ frequency, interval, until \} \}/);
   const settingsApp = await readFile(path.join(publicRoot, 'libraries/apps/settings/company.js'), 'utf8');
   assert.match(settingsApp, /id:'money'[^\n]+tabId:'csTabMoney'/);
-  assert.match(settingsApp, /id:'payments', label:'Payments'/);
   assert.match(settingsApp, /branchModules\.save\(orgId, branchId, 'payment_settings'/);
-});
-
-test('project Money uses dedicated mobile Ledger and Payments routes while preserving desktop Overview', async () => {
-  const manifest = await readFile(path.join(publicRoot, 'libraries/apps/firstmate-apps-manifest.js'), 'utf8');
-  const moneyApp = await readFile(path.join(publicRoot, 'libraries/apps/money/project.js'), 'utf8');
-  assert.match(manifest, /moneyView:\{ default:'overview', values:\[[^\]]*'ledger'/);
-  assert.match(manifest, /moneyView:\{ default:'overview', values:\[[^\]]*'payments'/);
-  assert.match(moneyApp, /id:'ledger', icon:'fa-book-open'/);
-  assert.match(moneyApp, /function mobileLedgerView\(/);
-  assert.match(moneyApp, /function mobilePaymentsView\(/);
-  assert.match(moneyApp, /function normalizeMoneyView\(/);
-  assert.doesNotMatch(moneyApp, /PaymentsAPI\.ledger/);
-  assert.match(moneyApp, /const nextView = normalizeMoneyView\(route\.moneyView\)/);
 });
 
 test('inviting someone from inside a group gives the roles its type gives on joining, and old Users and Crews links land on People', async () => {
@@ -482,7 +469,7 @@ test('payroll settings stay inside the routed Payroll workspace', async () => {
   assert.doesNotMatch(payrollSettings, /renderSummary\(/);
 });
 
-test('receipt browsers share a routed global tab and project Money subtab', async () => {
+test('receipt browsers share a routed global tab and the viewer project Money opens from its ledger', async () => {
   const manifest = await readFile(path.join(publicRoot, 'libraries/apps/firstmate-apps-manifest.js'), 'utf8');
   const portalIndex = await readFile(path.join(publicRoot, 'portal/index.php'), 'utf8');
   const moneyApp = await readFile(path.join(publicRoot, 'libraries/apps/money/project.js'), 'utf8');
@@ -495,9 +482,12 @@ test('receipt browsers share a routed global tab and project Money subtab', asyn
   assert.match(manifest, /portalTabId: 'receipts'/);
   assert.match(manifest, /moneyView:\{ default:'overview', values:\[[^\]]*'receipts'/);
   assert.match(manifest, /receipts: \{ receipt:\{ history:'push' \} \}/);
-  assert.match(moneyApp, /id:'receipts', icon:'fa-file-invoice'/);
-  assert.match(moneyApp, /data-money-receipts-browser/);
-  assert.doesNotMatch(moneyApp, /function receiptsSection\(/);
+  // Money lists receipts in its ledger and opens them in the shared viewer, routed by `receipt`.
+  assert.match(moneyApp, /Portal\.ReceiptsBrowser\.openViewer\(\{/);
+  assert.match(moneyApp, /onReview:canManageMoney\(\) \? \(receipt\) => openReceiptReview\(receipt\)/);
+  assert.match(moneyApp, /routeReceipt\(receipt\.id, 'replace'\)/);
+  assert.match(moneyApp, /backOrClose\?\.\(\['receipt'\], \{ receipt:null \}/);
+  assert.doesNotMatch(moneyApp, /function receiptsSection\(|data-money-receipts-browser/);
   assert.match(receiptsApp, /Portal\.PhotoFeed\.mountProjectGallery/);
   assert.match(receiptsApp, /\.rb-browser-global\{box-sizing:border-box;padding:12px\}/);
   assert.match(receiptsApp, /root\.classList\.toggle\('rb-browser-global', scope === 'global'\)/);
