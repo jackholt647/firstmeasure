@@ -85,6 +85,12 @@ push queue refs and read lane tips and status, nothing else. The live layer work
 restricted `~/.ssh/fm_live_ed25519` pair is installed, and `node tools/live-layer/live-sync.mjs` in a clean
 checkout makes saves live on dev.1m8.ai ([live layer](live-layer.md)).
 
+The router runs opt-in regression suites (browser ones included) here, not on the dev sync droplet. Its key is in
+`agent`'s `authorized_keys` with `from="147.182.178.6",restrict` and the forced command
+`~/dev-push-runner/regress.sh` (source `tools/dev-push/runner/regress.sh`). That script fetches `regress/<sha>`
+from the router, keeps `node_modules` per lockfile under `~/dev-push-runner/modules` and runs each suite with
+Playwright's Chromium (`~/.cache/ms-playwright` links to the shared cache).
+
 The submit key is installed for account `dev` on the dev sync droplet with `from="67.205.145.222",restrict` and
 the forced command `~/dev-push/bin/submit-shell` (source `tools/dev-push/router/submit-shell.sh`). It allows
 only fetch and push of `/home/dev/router/firstmeasure.git` and reading the router status. The repository's
