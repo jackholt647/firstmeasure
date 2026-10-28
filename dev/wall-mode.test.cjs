@@ -829,8 +829,8 @@ test('DSM sampling restores image visibility on completion, cancellation and lea
 });
 
 test('From Roof uses a supported automatic ground plane when DSM evidence exists',()=>{
- const width=100,height=100,mpp=1,data=new Float32Array(width*height);for(let y=0;y<height;y++)for(let x=0;x<width;x++)data[y*width+x]=2+.02*(x-50)+.01*(y-50);
- const f=fixture(true,{imageWidth:width,imageHeight:height,layerData:{dsm:[data]}}),points=[{x:45,y:45,z:8},{x:55,y:45,z:8},{x:55,y:55,z:8},{x:45,y:55,z:8}];f.ctx.activeGeometry={points,connections:[{start:points[0],end:points[1],type:'eave'}],manualFaces:[{points}]};f.ctx.WallMode.setEnabled(true);f.soffits[1].onclick();const s=f.ctx.WallMode.serialize();assert.equal(s.ground.source,'DSM');assert.ok(Math.abs(s.ground.plane.dx-.02)<1e-5);assert.ok(Math.abs(s.ground.plane.dy-.01)<1e-5);assert.ok(s.base.faces.every(f=>f.points.every(p=>Math.abs(p.z-(2+.02*p.x+.01*p.y))<1e-5)));
+ const width=100,height=100,mpp=1,data=new Float32Array(width*height);for(let y=0;y<height;y++)for(let x=0;x<width;x++)data[y*width+x]=2+.05*(x-50)+.03*(y-50);
+ const f=fixture(true,{imageWidth:width,imageHeight:height,layerData:{dsm:[data]}}),points=[{x:45,y:45,z:8},{x:55,y:45,z:8},{x:55,y:55,z:8},{x:45,y:55,z:8}];f.ctx.activeGeometry={points,connections:[{start:points[0],end:points[1],type:'eave'}],manualFaces:[{points}]};f.ctx.WallMode.setEnabled(true);f.soffits[1].onclick();const s=f.ctx.WallMode.serialize();assert.equal(s.ground.source,'DSM');assert.ok(Math.abs(s.ground.plane.dx-.05)<1e-5);assert.ok(Math.abs(s.ground.plane.dy-.03)<1e-5);assert.ok(s.base.faces.every(f=>f.points.every(p=>Math.abs(p.z-(2+.05*p.x+.03*p.y))<1e-5)));
 });
 
 

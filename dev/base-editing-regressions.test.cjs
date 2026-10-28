@@ -118,7 +118,7 @@ test('a region enclosed only by wall boundary that no face covered stays open',(
 
 // #8
 test('Reground keeps faces, finishes, stickers, drawing and cuts and fits them to the grade',()=>{
- const roof={faces:[{id:0,points:[p(0,0,5),p(10,0,5),p(10,10,8),p(0,10,8)]}]},grade=T.reference({points:[p(-3,-3,1),p(13,-3,1.32),p(13,13,1.32),p(-3,13,1)],source:'DSM'},roof),at=q=>grade.plane.dx*q.x+grade.plane.dy*q.y+grade.plane.k;
+ const roof={faces:[{id:0,points:[p(0,0,5),p(10,0,5),p(10,10,8),p(0,10,8)]}]},grade=T.reference({points:[p(-3,-3,1),p(13,-3,1.8),p(13,13,1.8),p(-3,13,1)],source:'DSM'},roof),at=q=>grade.plane.dx*q.x+grade.plane.dy*q.y+grade.plane.k;
  const b=square(),a=S.add(b,p(5,0)),c=S.add(b,p(5,10));S.connect(b,[a,c]);const anchor=S.add(b,p(2,2));S.addCurve(b,{type:'ellipse',center:p(7.5,5),u:p(1,0),v:p(0,1),radiusX:1,radiusY:1,sweep:Math.PI});
  S.rebind(b,b);const right=b.faces.find(f=>f.points.every(q=>q.x>=5));right.material='brick';right.feature={kind:'door'};const ids=b.faces.map(f=>f.id).sort();
  const plan=B.reground(b,grade),next=plan.base;assert.deepEqual(plan.lost,[]);
