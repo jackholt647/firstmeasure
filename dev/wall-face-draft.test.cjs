@@ -1298,7 +1298,7 @@ test('repeated curve nudges and rotation commits do not accumulate sampled contr
 test('T previews planar trim, cycles from the original geometry, cancels and commits one undo item',()=>{
  const f=fixture();f.editor.doubleClick(f.e(2,0),f.w);f.editor.doubleClick(f.e(2,4),f.w);f.editor.down(f.e(2,0,true));f.listeners.pointerup(f.e(2,0,true));f.editor.key({key:'u'});f.editor.clear();
  assert.ok(f.editor.pickLine3D(f.e(2,2)));f.listeners.pointerup(f.e(2,2));const original=JSON.stringify(f.state.wallEdits),count=f.history.length;
- f.editor.key({key:'t'});assert.equal(f.editor.interaction(),'trim');assert.match(f.message(),/Trim 0.50 ft/);assert.equal(f.state.wallEdits.$surfaces.filter(s=>s.trim).length,1);
+ f.editor.key({key:'t'});assert.equal(f.editor.interaction(),'trim');assert.match(f.message(),/Trim 6 in/);assert.equal(f.state.wallEdits.$surfaces.filter(s=>s.trim).length,1);
  const first=f.state.wallEdits.$surfaces.find(s=>s.trim).points.map(p=>p.x);f.editor.key({key:'t'});assert.equal(f.state.wallEdits.$surfaces.filter(s=>s.trim).length,1);assert.notDeepEqual(f.state.wallEdits.$surfaces.find(s=>s.trim).points.map(p=>p.x),first);
  f.editor.key({key:'t'});assert.equal(f.state.wallEdits.$surfaces.filter(s=>s.trim).length,2);f.listeners.pointermove(f.e(3,3));assert.equal(f.editor.interaction(),'trim');
  f.editor.key({key:'Escape'});assert.equal(JSON.stringify(f.state.wallEdits),original);assert.equal(f.history.length,count);

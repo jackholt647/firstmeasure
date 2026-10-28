@@ -15,10 +15,12 @@ function menuFactory(){
  const nodes=new Map(),element=()=>({style:{setProperty(){}},dataset:{},children:[],classList:{toggle(){}},replaceChildren(){this.children=[];},appendChild(n){this.children.push(n);},value:'',hidden:false,addEventListener(){},setAttribute(){},focus(){},blur(){},querySelector(q){if(q[0]==='#')return nodes.get(q.slice(1));this.found||={};return this.found[q]||=element();},querySelectorAll(){return this.children;},set innerHTML(html){for(const m of html.matchAll(/<(?:button|input|select|span|section|div)[^>]*id="([^"]+)"[^>]*>/g)){const n=element();n.value=m[0].match(/value="([^"]+)"/)?.[1]||'';nodes.set(m[1],n);}},get parentElement(){return parent;}}),parent={insertBefore(node){nodes.set(node.id,node);}};
  const ctx={RoofTrim:R,WallTrim:T,document:{querySelector:()=>parent,createElement:element,head:{appendChild(){}},getElementById:()=>null}};ctx.window=ctx;vm.createContext(ctx);vm.runInContext(fs.readFileSync(dir+'roof_trim_editor.js','utf8'),ctx);return {ctx,nodes};
 }
+// The shared number entry (digits, Backspace, minus) every editor types into.
+function distanceInput(){const ctx={document:{getElementById:()=>null}};ctx.window=ctx;vm.createContext(ctx);vm.runInContext(fs.readFileSync(dir+'exterior_distance_input.js','utf8'),ctx);return ctx.ExteriorDistanceInput;}
 const p=(x,z,y=0)=>({x,y,z});
 function setup(){
- let wallHost,wallEditor,menu;const walls=wallEditorFactory(),dom=menuFactory();
- const f=wallModeFixture(true,{console,WallTrim:T,WallSolidGeometry:require('../'+dir+'wall_solid_geometry.js'),createWallEditor:h=>{wallHost=h;wallEditor=walls.createWallEditor(h);return wallEditor;},createRoofTrimEditor:h=>{menu=dom.ctx.createRoofTrimEditor(h);return menu;}});
+ let wallHost,wallEditor,menu;const walls=wallEditorFactory(),dom=menuFactory(),typing=distanceInput();dom.ctx.ExteriorDistanceInput=walls.ExteriorDistanceInput=typing;
+ const f=wallModeFixture(true,{console,ExteriorDistanceInput:typing,WallTrim:T,WallSolidGeometry:require('../'+dir+'wall_solid_geometry.js'),createWallEditor:h=>{wallHost=h;wallEditor=walls.createWallEditor(h);return wallEditor;},createRoofTrimEditor:h=>{menu=dom.ctx.createRoofTrimEditor(h);return menu;}});
  f.ctx.activeGeometry.connections[0].type='eave';f.ctx.WallMode.setEnabled(true);f.soffits[1].onclick();
  const state=wallHost.state(),window={id:'win',points:[p(5.5,1),p(6.5,1),p(6.5,2),p(5.5,2)].map(q=>({...q,x:q.x+100})),feature:{type:'window'}};
  // Two stored wall faces meeting at a corner, a third face and a window, away from the generated walls.
@@ -30,7 +32,7 @@ function setup(){
  const select=()=>{wallEditor.restoreSelection({draft:{lineSelection:[{id:'corner',pair:corner}],faceSelection:[{solid:'panel'},{solid:'win'}],selectedSolid:'panel'}});menu.restoreSelection({selected:[eave.id]});menu.update();};
  select();
  const key=(k,extra={})=>f.listeners['window:keydown']?.({key:k,target:{closest:()=>null},preventDefault(){},stopImmediatePropagation(){},stopPropagation(){},...extra});
- return {f,state,menu,wallEditor,eave,corner,select,key,dom,settings:()=>f.ctx.WallMode.serialize().roofTrim};
+ return {f,state,menu,wallEditor,wallHost,eave,corner,select,key,dom,settings:()=>f.ctx.WallMode.serialize().roofTrim};
 }
 const lineLayers=s=>[...new Map(s.wallEdits.$surfaces.flatMap(f=>f.trimData?.layers||[]).filter(l=>!l.side&&!l.joinIds).map(l=>[l.id,l])).values()];
 const faceLayers=s=>T.insideLayers(s.wallEdits.$surfaces,['panel']);
@@ -73,4 +75,31 @@ test('Remove takes trim off every selected item; T adds trim with the current se
  assert.ok(lineLayers(state).length&&faceLayers(state).length&&opening(state).trim&&t.settings().edges[eave.id].height>0);
  assert.equal(menu.applySelection({remove:true}),true);s=menu.summary();assert.equal(s.width,0);
  assert.equal(lineLayers(state).length,0);assert.equal(faceLayers(state).length,0);assert.equal(opening(state).trim,undefined);assert.equal(t.settings().edges[eave.id].height,0);
+});
+
+// FM-299: a number typed with the Trim menu open is the selection's width in
+// inches, before or after T, and one Ctrl+Z takes the whole number back.
+test('typing a width with the Trim menu open sets every selected item, before or after T, as one undo step',()=>{
+ const t=setup(),{state,menu,eave}=t,before=JSON.stringify({edits:state.wallEdits,roof:t.settings()});
+ for(const k of ['1','2','Backspace','Backspace','5'])t.key(k);
+ assert.equal(t.dom.nodes.get('roof-trim-options').hidden,false,'typing keeps the menu open');
+ let s=menu.summary();assert.equal(s.width,5,'1, 2, Backspace twice, 5 is five inches on every type');assert.equal(s.missing,false);
+ assert.ok(lineLayers(state).every(l=>Math.abs(l.width-5*inch)<1e-9)&&faceLayers(state).every(l=>Math.abs(l.width-5*inch)<1e-9));
+ assert.ok(Math.abs(opening(state).trim.width-5*inch)<1e-9);assert.ok(Math.abs(t.settings().edges[eave.id].height-5*inch)<1e-9);
+ t.key('t');s=menu.summary();assert.equal(s.width,5,'T straight after a number keeps it');
+ t.key('z',{ctrlKey:true});assert.equal(JSON.stringify({edits:state.wallEdits,roof:t.settings()}),before,'one Ctrl+Z takes the typed width back');
+ // T first, then a number.
+ t.select();t.key('t');assert.equal(menu.summary().missing,false);t.key('3');s=menu.summary();assert.equal(s.width,3,'a number after T sets the width T added');
+ assert.ok(Math.abs(opening(state).trim.width-3*inch)<1e-9);
+ t.key('z',{ctrlKey:true});assert.equal(JSON.stringify({edits:state.wallEdits,roof:t.settings()}),before,'T and the number after it are one undo step');
+});
+
+test('a number then T trims a selected window outside the Trim menu; one Ctrl+Z reverts it',()=>{
+ const t=setup(),{state,menu}=t;t.dom.nodes.get('roof-trim-tool').onclick();assert.equal(t.dom.nodes.get('roof-trim-options').hidden,true);menu.restoreSelection({selected:[]});t.wallHost.setLayer('walls');
+ t.wallEditor.restoreSelection({draft:{faceSelection:[{solid:'win'}],selectedSolid:'win'}});const before=JSON.stringify(state.wallEdits);
+ for(const k of ['7','Backspace','6'])t.key(k);assert.equal(opening(state).trim,undefined,'the number waits for T');
+ t.key('t');assert.ok(Math.abs(opening(state).trim.width-6*inch)<1e-9,'6 then T is six inch trim');
+ for(const k of ['4','.','5'])t.key(k);assert.ok(Math.abs(opening(state).trim.width-4.5*inch)<1e-9,'a number after T changes it');
+ t.key('t');assert.ok(Math.abs(opening(state).trim.width-4.5*inch)<1e-9,'T straight after a number keeps it');
+ t.key('z',{ctrlKey:true});assert.equal(JSON.stringify(state.wallEdits),before,'T and the numbers typed with it are one undo step');
 });
