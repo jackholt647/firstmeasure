@@ -72,7 +72,7 @@ export type LibraryKind<T = any> = {
   /** Default /^[a-z0-9][a-z0-9_.:-]{0,159}$/. */
   idPattern?: RegExp;
   /** Structure of an entry's data. Parsing may fill defaults; what is stored is the parsed value. */
-  schema: z.ZodType<T>;
+  schema: z.ZodType<T, z.ZodTypeDef, unknown>;
   /** References to what the running code registers (providers, actions, widgets, measurement keys, conditions).
    * Runs on every save, so it must cost milliseconds: in-memory lookups only, never rendering, running a module or
    * reading organizations. Anything slower belongs in `deepCheck`. */

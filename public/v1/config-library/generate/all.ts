@@ -22,6 +22,10 @@ import { pricebookSetupGenerator } from "./pricebook_setup.js";
 import { pricebookTemplateGenerator } from "./pricebook_template.js";
 import { workItemGenerator } from "./work_item.js";
 import { workSchemaGenerator } from "./work_schema.js";
+import { documentTemplateGenerator } from "./document-template.js";
+import { documentThemeGenerator } from "./document-theme.js";
+import { documentWorkflowGenerator } from "./document-workflow.js";
+import { presentationDeckGenerator } from "./presentation-deck.js";
 
 /** Every kind's one-shot generator (see ./index.ts). One import per kind; removed with that kind's code seeds. */
 export async function allGenerators(): Promise<Generator[]> {
@@ -48,6 +52,10 @@ export async function allGenerators(): Promise<Generator[]> {
     workSchemaGenerator,
     pricebookTemplateGenerator,
     materialLibraryGenerator,
-    pricebookSetupGenerator
+    pricebookSetupGenerator,
+    documentThemeGenerator,
+    documentTemplateGenerator,
+    documentWorkflowGenerator,
+    presentationDeckGenerator
   ];
 }
