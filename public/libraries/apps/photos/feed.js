@@ -919,6 +919,19 @@
       return null;
     });
   }
+  // Media a writer made, with no person behind it (the saved satellite image, projects/satellite-media.ts).
+  function isSystemMedia(photo = {}){
+    const up = uploader(photo);
+    const meta = photo.metadata && typeof photo.metadata === 'object' ? photo.metadata : {};
+    return !up.name && !up.email && !up.id && !!cleanText(photo.source || meta.source);
+  }
+  function uploaderLabel(photo = {}){
+    const up = uploader(photo);
+    if (up.name || up.email) return up.name || up.email;
+    return isSystemMedia(photo)
+      ? (globalThis.PlatformLanguage?.text("photos","pf_uploader_system","System") ?? "System")
+      : (globalThis.PlatformLanguage?.text("photos","pf_uploader_unknown","Unknown") ?? "Unknown");
+  }
   function userKey(user = {}){
     return cleanText(user.id || user.email || user.name).toLowerCase();
   }
@@ -946,6 +959,7 @@
   }
   function userListHtml(items = []){
     const users = uploaderUsers(items);
+    if (!users.length && items.length && items.every((item) => isSystemMedia(item.photo))) return `<span>${(globalThis.PlatformLanguage?.htmlText("photos","pf_uploader_system","System") ?? "System")}</span>`;
     if (!users.length) return `<span>${(globalThis.PlatformLanguage?.htmlText("photos","m_d891abd029c243","Unknown uploader") ?? "Unknown uploader")}</span>`;
     if (!userModalsEnabled()) return escapeHtml(userListLabel(items));
     return users.map((user) => `<button type="button" class="pf-user-link" data-photo-user-open="${escapeHtml(user.key)}">${escapeHtml(user.name || user.email || 'User')}</button>`).join('<span class="pf-user-sep">,</span> ');
@@ -1742,6 +1756,8 @@
       .pf-scroll{overflow:auto;flex:1;padding:0 2px 16px;min-height:0}.pf-day{margin-bottom:26px}.pf-wrap .pf-day-title{font-size:13px;font-weight:700;line-height:1.4;color:#344054;text-transform:none;letter-spacing:0;margin:0 0 16px}.pf-day-heading{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:16px}.pf-wrap .pf-day-heading .pf-day-title{margin:0}.pf-day-summary{font-size:12px;font-weight:400;color:#667085;display:flex;gap:14px;flex-wrap:wrap}
       .pf-group{background:#fff;border:1px solid #eaecf0;border-radius:8px;margin-bottom:14px;overflow:hidden;box-shadow:0 1px 2px rgba(16,24,40,.04)}
       .pf-group-head{padding:13px 14px;border-bottom:1px solid #f2f4f7;display:flex;align-items:flex-start;justify-content:space-between;gap:12px}.pf-group-head strong{font-size:14px}.pf-group-head span{display:block;color:#667085;font-size:12px;margin-top:3px}.pf-project-link{border:0;background:transparent;color:#101828;padding:0;font:inherit;font-size:14px;font-weight:1000;cursor:pointer;text-align:left}.pf-project-link:hover{color:var(--primary-readable,var(--primary,#d93025));text-decoration:underline}.pf-uploaders{font-size:12px;color:#475467;text-align:right;max-width:320px}.pf-user-link{border:0;background:transparent;color:#475467;padding:0;font:inherit;font-size:12px;font-weight:900;cursor:pointer}.pf-user-link:hover{color:var(--primary-readable,var(--primary,#d93025));text-decoration:underline}.pf-user-sep{color:#98a2b3}
+      .pf-day-compact{margin-bottom:14px}.pf-group-head.pf-group-bar{flex-direction:row;align-items:center;justify-content:flex-start;gap:6px;padding:7px 14px 0;border-bottom:0;font-size:12px;line-height:18px;color:#667085}.pf-group-head.pf-group-bar strong{font-size:12px;font-weight:800;color:#344054}.pf-group-head.pf-group-bar span{display:inline;margin:0;font-size:12px}.pf-bar-dot{color:#98a2b3}
+      .pf-group-notched{position:relative;background:transparent;border:0;box-shadow:none;overflow:visible}.pf-notch-frame{position:absolute;left:0;top:0;z-index:0;overflow:visible;pointer-events:none;filter:drop-shadow(0 1px 1px rgba(16,24,40,.05))}.pf-notch-frame path{fill:#fff;stroke:#eaecf0;stroke-width:1}.pf-group-notched>.pf-grid{position:relative;z-index:1}.pf-group-notched .pf-group-head.pf-group-bar{border-bottom:0;padding:5px 6px 1px}.pf-notch{min-width:0;margin:0 4px 4px 0}.pf-group-notched.pf-notch-stacked .pf-notch{margin:0}.pf-pinned-intro{margin:0 0 14px}
       .pf-grid{display:grid;gap:6px;padding:8px}.pf-wrap[data-density="loose"] .pf-grid{grid-template-columns:repeat(auto-fill,minmax(210px,1fr))}.pf-wrap[data-density="comfortable"] .pf-grid{grid-template-columns:repeat(auto-fill,minmax(154px,1fr))}.pf-wrap[data-density="compact"] .pf-grid{grid-template-columns:repeat(auto-fill,minmax(112px,1fr))}
       .pf-feed-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:12px}.pf-wrap[data-density="loose"] .pf-feed-grid{grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:16px}.pf-wrap[data-density="compact"] .pf-feed-grid{grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:8px}.pf-wrap[data-density="list"] .pf-feed-grid{grid-template-columns:1fr;gap:8px;max-width:1050px}
       .pf-feed-card{min-width:0;border:1px solid #eaecf0;border-radius:13px;background:#fff;overflow:hidden;box-shadow:0 1px 2px rgba(16,24,40,.04)}.pf-feed-card .pf-thumb,.pf-document-preview{display:block;width:100%;aspect-ratio:16/11;border:0;border-bottom:1px solid #f2f4f7;border-radius:0;background:#f2f4f7;position:relative;overflow:hidden;cursor:pointer}.pf-feed-card .pf-thumb img,.pf-feed-card .pf-thumb video,.pf-document-preview>img{width:100%;height:100%;object-fit:cover;display:block}.pf-feed-card-body{padding:11px 12px 13px;min-width:0}.pf-feed-card-heading{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:7px}.pf-kind{display:flex;align-items:center;gap:6px;color:#475467;font-size:10px;font-weight:1000;text-transform:uppercase;letter-spacing:.045em}.pf-feed-card-heading time{color:#98a2b3;font-size:10px;white-space:nowrap}.pf-feed-project{display:block;max-width:100%;border:0;background:transparent;color:#101828;padding:0;font:inherit;font-size:13px;font-weight:1000;cursor:pointer;text-align:left;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.pf-feed-project:hover{color:var(--primary-readable,var(--primary,#d93025));text-decoration:underline}.pf-feed-subtitle{display:block;color:#667085;font-size:11px;margin-top:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.pf-paired-activity{display:flex;align-items:flex-start;gap:6px;margin-top:9px;padding-top:8px;border-top:1px solid #f2f4f7;color:#475467;font-size:10px;line-height:1.35}.pf-paired-activity i{color:var(--primary-readable,var(--primary,#d93025));margin-top:1px}.pf-document-preview{color:#475467}.pf-document-icon{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;flex-direction:column;gap:9px;background:color-mix(in srgb,var(--feed-doc-color) 7%,#fff);color:var(--feed-doc-color)}.pf-document-icon i{font-size:36px}.pf-document-icon small{font-size:10px;font-weight:1000;text-transform:uppercase;letter-spacing:.05em}.pf-document-badge{position:absolute;left:9px;bottom:9px;border-radius:999px;background:var(--feed-doc-color);color:#fff;padding:5px 8px;font-size:9px;font-weight:1000;text-transform:uppercase;letter-spacing:.04em}.pf-document-title{display:block;color:#101828;font-size:13px;margin-bottom:5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
@@ -2420,6 +2436,43 @@
     };
     return { close, refresh: picker.refresh };
   }
+  // Places a notched group's pinned tiles in its top-left corner and draws its outline around them: an L when the
+  // group's tiles run under the pinned tiles, else a box beside them. With too few columns the pinned tiles take the
+  // first row and the outline is a plain box.
+  function drawNotchFrame(group){
+    const grid = group?.querySelector?.(':scope>.pf-grid');
+    const notch = grid?.querySelector?.(':scope>[data-pf-notch]');
+    const head = grid?.querySelector?.(':scope>.pf-group-head');
+    const svg = group?.querySelector?.(':scope>.pf-notch-frame');
+    const path = svg?.querySelector?.('path');
+    if (!grid || !notch || !path) return;
+    const columns = Math.max(1, Number(notch.querySelector('[data-notch-columns]')?.dataset.notchColumns) || 1);
+    const tracks = cleanText(getComputedStyle(grid).gridTemplateColumns).split(/\s+/).filter(Boolean).length;
+    const fits = tracks > columns;
+    group.classList.toggle('pf-notch-stacked', !fits);
+    notch.style.gridColumn = fits ? `1 / span ${columns}` : '1 / -1';
+    notch.style.gridRow = fits ? '1 / span 2' : 'auto';
+    if (head) { head.style.gridColumn = fits ? `${columns + 1} / -1` : '1 / -1'; head.style.gridRow = fits ? '1' : 'auto'; }
+    const box = group.getBoundingClientRect();
+    const width = Math.round(box.width), height = Math.round(box.height);
+    if (!width || !height) return;
+    svg.setAttribute('width', String(width));
+    svg.setAttribute('height', String(height));
+    svg.setAttribute('viewBox', `0 0 ${width} ${height}`);
+    const r = 10, a = 0.5, right = width - a, bottom = height - a;
+    if (!fits) {
+      path.setAttribute('d', `M${a + r} ${a}H${right - r}A${r} ${r} 0 0 1 ${right} ${a + r}V${bottom - r}A${r} ${r} 0 0 1 ${right - r} ${bottom}H${a + r}A${r} ${r} 0 0 1 ${a} ${bottom - r}V${a + r}A${r} ${r} 0 0 1 ${a + r} ${a}Z`);
+      return;
+    }
+    const pin = notch.getBoundingClientRect();
+    const nx = Math.round(pin.right - box.left) + 5.5, ny = Math.round(pin.bottom - box.top) + 5.5;
+    // Only a box beside the pinned tiles when nothing of the group sits under them.
+    if (bottom - ny < r * 2) {
+      path.setAttribute('d', `M${nx + r} ${a}H${right - r}A${r} ${r} 0 0 1 ${right} ${a + r}V${bottom - r}A${r} ${r} 0 0 1 ${right - r} ${bottom}H${nx + r}A${r} ${r} 0 0 1 ${nx} ${bottom - r}V${a + r}A${r} ${r} 0 0 1 ${nx + r} ${a}Z`);
+      return;
+    }
+    path.setAttribute('d', `M${nx + r} ${a}H${right - r}A${r} ${r} 0 0 1 ${right} ${a + r}V${bottom - r}A${r} ${r} 0 0 1 ${right - r} ${bottom}H${a + r}A${r} ${r} 0 0 1 ${a} ${bottom - r}V${ny + r}A${r} ${r} 0 0 1 ${a + r} ${ny}H${nx - r}A${r} ${r} 0 0 0 ${nx} ${ny - r}V${a + r}A${r} ${r} 0 0 1 ${nx + r} ${a}Z`);
+  }
   function renderGroup(group, options = {}){
     const enableProjectLinks = options.enableProjectLinks ?? state.enableProjectLinks;
     const selectedSet = options.selected || state.selected;
@@ -2434,20 +2487,28 @@
     const groupUploaders = typeof options.renderGroupUploaders === 'function'
       ? options.renderGroupUploaders(group)
       : `<i class="fas fa-user"></i> ${userListHtml(group.items)}`;
-    return `
-      <section class="pf-group">
-        <div class="pf-group-head">
+    // options.compact: the gallery is one project's, so the group says only when and how many (a thin bar); who
+    // uploaded each item is on the tile. options.notch: tiles pinned into the group's top-left corner (the cover).
+    const head = options.compact
+      ? `<div class="pf-group-head pf-group-bar">${options.dayLabel ? `<strong>${escapeHtml(options.dayLabel)}</strong><span class="pf-bar-dot" aria-hidden="true">·</span>` : ''}<span>${escapeHtml(fallbackSubtitle)}</span></div>`
+      : `<div class="pf-group-head">
           <div>${projectButton}<span>${escapeHtml(subtitle && subtitle.toLowerCase() !== cleanText(group.projectTitle).toLowerCase() ? subtitle : fallbackSubtitle)}</span></div>
           <div class="pf-uploaders">${groupUploaders}</div>
-        </div>
+        </div>`;
+    const notch = options.notch && options.notch.html ? options.notch : null;
+    const notchColumns = Math.max(1, Number(notch?.columns) || 1);
+    return `
+      <section class="pf-group${options.compact ? ' pf-group-compact' : ''}${notch ? ' pf-group-notched' : ''}"${notch ? ' data-pf-notched' : ''}>
+        ${notch ? `<svg class="pf-notch-frame" aria-hidden="true" focusable="false"><path data-pf-notch-path></path></svg>` : head}
         <div class="pf-grid">
+          ${notch ? `<div class="pf-notch" data-pf-notch style="grid-column:1 / span ${notchColumns};grid-row:1 / span 2">${notch.html}</div>${head.replace('class="pf-group-head pf-group-bar"', `class="pf-group-head pf-group-bar" style="grid-column:${notchColumns + 1} / -1;grid-row:1"`)}` : ''}
           ${group.items.map((item) => {
             const up = uploader(item.photo);
             const selected = selectedSet.has(item.id);
             const thumbnail = typeof options.renderThumbnail === 'function' ? options.renderThumbnail(item) : mediaThumbHtml(item);
             const meta = typeof options.renderTileMeta === 'function'
               ? options.renderTileMeta(item)
-              : `${escapeHtml(up.name || up.email || 'Unknown')}<br>${escapeHtml(item.photo?.uploading ? 'Uploading...' : (window.FirstMateMarkup?.formatDateTime?.(item.uploadedAt) || ''))}`;
+              : `${escapeHtml(up.name || up.email || uploaderLabel(item.photo))}<br>${escapeHtml(item.photo?.uploading ? 'Uploading...' : (window.FirstMateMarkup?.formatDateTime?.(item.uploadedAt) || ''))}`;
             const extraClass = cleanText(typeof options.tileClass === 'function' ? options.tileClass(item) : options.tileClass);
             // options.renderTileBadge(item): extra markup on the tile (e.g. the project's cover badge).
             const badge = typeof options.renderTileBadge === 'function' ? (options.renderTileBadge(item) || '') : '';
@@ -4851,15 +4912,64 @@
       if (!el.isConnected) panel.appendChild(el);
       if (!el.classList.contains('open')) { void el.offsetWidth; el.classList.add('open'); }
     }
+    // A gallery of one project (a project's Photos tab) does not repeat the project's address on every group, and a
+    // day is one thin bar ("Today · 3 media items"). A phone keeps its own compact layout.
+    const phoneLayout = () => options.mobileGrid === 'dense' && window.matchMedia?.('(max-width:760px)')?.matches === true;
+    const compactGroups = () => !phoneLayout() && new Set(local.items.map((item) => item.projectId || item.projectTitle)).size <= 1;
+    // options.pinnedTiles(): { html, columns } tiles pinned into the top-left corner of the first group (the project's
+    // cover), and above the gallery when there is no group to hold them.
+    const pinnedTiles = () => {
+      const pinned = typeof options.pinnedTiles === 'function' ? options.pinnedTiles() : null;
+      return pinned && cleanText(pinned.html) ? pinned : null;
+    };
     const bodyHtml = () => {
       const groups = localGroups();
+      const compact = compactGroups();
+      const pinned = pinnedTiles();
+      const notched = !!(pinned && compact && groups.length);
+      const groupOptions = { enableProjectLinks: options.enableProjectLinks !== false, selected: local.selected, selectionEnabled:options.selectionEnabled, itemNoun:options.itemNoun, renderThumbnail:options.renderThumbnail, renderTileMeta:options.renderTileMeta, renderGroupUploaders:options.renderGroupUploaders, tileClass:options.tileClass, renderTileBadge:options.renderTileBadge, compact };
+      let first = true;
+      const groupHtml = (group, dayLabel = '') => {
+        const html = renderGroup(group, { ...groupOptions, dayLabel, notch: first && notched ? pinned : null });
+        first = false;
+        return html;
+      };
       return `
         <div class="pf-scroll" data-feed-scroll>
           ${typeof options.introHtml === 'function' ? (options.introHtml() || '') : ''}
+          ${pinned && !notched ? `<div class="pf-pinned-intro">${pinned.html}</div>` : ''}
           ${!groups.length ? `<div class="pf-empty"><i class="fas ${escapeHtml(options.emptyIcon || 'fa-images')}"></i><strong>${escapeHtml(options.emptyTitle || 'No media found')}</strong><div>${escapeHtml(options.emptyMessage || 'Upload project media or adjust the search.')}</div></div>` : ''}
-          ${(groupByDay() ? groupedByDay(groups) : [['', groups]]).map(([key, list]) => `<div class="pf-day">${key ? `<div class="pf-day-heading"><h2 class="pf-day-title">${escapeHtml(dateLabel(key))}</h2>${typeof options.renderDaySummary==='function'?`<div class="pf-day-summary">${options.renderDaySummary({key,groups:list})}</div>`:''}</div>` : ''}${list.map((group) => renderGroup(group, { enableProjectLinks: options.enableProjectLinks !== false, selected: local.selected, selectionEnabled:options.selectionEnabled, itemNoun:options.itemNoun, renderThumbnail:options.renderThumbnail, renderTileMeta:options.renderTileMeta, renderGroupUploaders:options.renderGroupUploaders, tileClass:options.tileClass, renderTileBadge:options.renderTileBadge })).join('')}</div>`).join('')}
+          ${(groupByDay() ? groupedByDay(groups) : [['', groups]]).map(([key, list]) => compact
+            ? `<div class="pf-day pf-day-compact">${list.map((group) => groupHtml(group, key ? dateLabel(key) : '')).join('')}</div>`
+            : `<div class="pf-day">${key ? `<div class="pf-day-heading"><h2 class="pf-day-title">${escapeHtml(dateLabel(key))}</h2>${typeof options.renderDaySummary==='function'?`<div class="pf-day-summary">${options.renderDaySummary({key,groups:list})}</div>`:''}</div>` : ''}${list.map((group) => groupHtml(group)).join('')}</div>`).join('')}
         </div>`;
     };
+    // The notched group's frame: one outline that runs around the pinned tiles, drawn again whenever the group or
+    // the pinned tiles change size (and when the host repaints the pinned tiles in place).
+    const notchWatch = { resize: null, mutation: null, phone: null };
+    const syncNotch = () => {
+      notchWatch.resize?.disconnect();
+      notchWatch.mutation?.disconnect();
+      const group = panel.querySelector('[data-pf-notched]');
+      if (!group) return;
+      const draw = () => drawNotchFrame(group);
+      draw();
+      if (typeof ResizeObserver === 'function') {
+        notchWatch.resize = new ResizeObserver(draw);
+        notchWatch.resize.observe(group);
+      }
+      const notch = group.querySelector('[data-pf-notch]');
+      if (notch && typeof MutationObserver === 'function') {
+        notchWatch.mutation = new MutationObserver(draw);
+        notchWatch.mutation.observe(notch, { childList:true, subtree:true });
+      }
+    };
+    // Crossing the phone width switches layouts.
+    if (options.mobileGrid === 'dense' && window.matchMedia) {
+      const query = window.matchMedia('(max-width:760px)');
+      notchWatch.phone = () => { if (panel.isConnected) renderBody(); else query.removeEventListener?.('change', notchWatch.phone); };
+      query.addEventListener?.('change', notchWatch.phone);
+    }
     const renderBody = () => {
       const body = panel.querySelector('[data-photo-feed-dynamic]');
       if (!body) return renderLocal();
@@ -4869,6 +4979,7 @@
       bindBody();
       bindThumbLoading(panel);
       syncDock();
+      syncNotch();
     };
     // A re-render keeps the gallery where it was: ticking a photo must not scroll it back to the top.
     const restoreScroll = (scrollTop) => {
@@ -5242,6 +5353,7 @@
       bindBody();
       bindThumbLoading(panel);
       syncDock();
+      syncNotch();
       restoreLocalPhotoRoute();
     }
     renderLocal();
