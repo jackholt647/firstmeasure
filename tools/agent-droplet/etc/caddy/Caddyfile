@@ -1,0 +1,22 @@
+# Agent droplet: experimental hosting. One file per experiment in /etc/caddy/experiments, written by fm-experiment.
+{
+	email jack@1m8.ai
+}
+
+(experiment) {
+	header X-Robots-Tag "noindex, nofollow, noarchive"
+	@robots path /robots.txt
+	respond @robots <<TXT
+		User-agent: *
+		Disallow: /
+		TXT 200
+	log {
+		output file /srv/agents/logs/experiments/access.log {
+			roll_size 50MiB
+			roll_keep 5
+			roll_keep_for 168h
+		}
+	}
+}
+
+import /etc/caddy/experiments/*.caddy

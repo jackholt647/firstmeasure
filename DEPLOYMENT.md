@@ -1160,7 +1160,7 @@ Verify the intended release, process configuration, ready-node count, and affect
 
 Keep the previous code release. Code rollback requires database compatibility and does not reverse migrations, email, charges, or edits. The frozen old server is not a lossless rollback target after new production writes. Preserve/reconcile those writes before any return to it; never automatically restart its writers or rerun imports.
 
-Routine code releases leave DNS alone. The app subdomain is delegated to DigitalOcean; the parent `1m8.ai` remains at GoDaddy. App A/AAAA point to the load balancer, TTL 600. Managed certificate `app-1m8-ai-production-20260908` serves HTTPS443. An app certificate also remained on staging port 444; that is not the normal user endpoint.
+Routine code releases leave DNS alone. The app subdomain is delegated to DigitalOcean; the parent `1m8.ai` is now a DigitalOcean zone too (nameservers `ns1-3.digitalocean.com`, checked 2026-10-27; it was at GoDaddy). App A/AAAA point to the load balancer, TTL 600. Managed certificate `app-1m8-ai-production-20260908` serves HTTPS443. An app certificate also remained on staging port 444; that is not the normal user endpoint.
 
 ## Recovery and evidence
 

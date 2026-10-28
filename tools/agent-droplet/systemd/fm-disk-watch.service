@@ -1,0 +1,6 @@
+[Unit]
+Description=Warn when / or /srv/agents is nearly full
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/bin/fm-disk-watch

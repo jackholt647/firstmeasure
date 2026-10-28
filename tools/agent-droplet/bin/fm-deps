@@ -1,0 +1,52 @@
+#!/usr/bin/env bash
+# Links a checkout's node_modules to a shared build, so many worktrees do not each hold a copy.
+#   fm-deps [checkout]      (default: the git checkout of the current directory)
+#   fm-deps --replace ...   also replace a real node_modules directory that is already there
+# Each package directory with a package-lock.json gets node_modules -> /srv/agents/cache/node_modules/<key>/node_modules,
+# where <key> hashes the lockfile, package.json, and the Node and npm versions. The first checkout with a new
+# lockfile builds it (npm ci --ignore-scripts, then npm rebuild for dependencies' own install steps); later ones
+# link in a second. Treat the shared copy as read-only: to try a dependency change, run with a changed
+# package-lock.json (it builds a new key) or delete the link and run npm install for a private copy.
+set -euo pipefail
+REPLACE=false
+[ "${1:-}" = "--replace" ] && { REPLACE=true; shift; }
+target=${1:-$(git rev-parse --show-toplevel)}
+CACHE=/srv/agents/cache/node_modules
+mkdir -p "$CACHE"
+nodev=$(node -p 'process.versions.node.split(".")[0]')
+npmv=$(npm -v | cut -d. -f1)
+# .gitignore's `node_modules/` does not match a symlink; ignore the links for every worktree of this repository.
+exclude=$(git -C "$target" rev-parse --path-format=absolute --git-common-dir)/info/exclude
+mkdir -p "$(dirname "$exclude")"
+grep -qxF node_modules "$exclude" 2>/dev/null || echo node_modules >> "$exclude"
+
+while IFS= read -r -d '' lock; do
+  dir=$(dirname "$lock")
+  key=$( { cat "$lock" "$dir/package.json"; echo "node$nodev npm$npmv"; } | sha256sum | cut -c1-16)
+  build=$CACHE/$key
+  if [ ! -d "$build/node_modules" ]; then
+    exec 9>"$CACHE/$key.lock"
+    flock 9
+    if [ ! -d "$build/node_modules" ]; then
+      echo "fm-deps: building $key for ${dir#$target/}" >&2
+      tmp=$(mktemp -d "$CACHE/.$key.XXXXXX")
+      cp "$lock" "$dir/package.json" "$tmp/"
+      [ -f "$dir/.npmrc" ] && cp "$dir/.npmrc" "$tmp/"
+      ( cd "$tmp" && npm ci --ignore-scripts --no-audit --no-fund --loglevel=error && npm rebuild --loglevel=error ) >&2
+      echo "${dir#$target/} from $(git -C "$dir" rev-parse --short HEAD 2>/dev/null || echo ?)" > "$tmp/.source"
+      chmod -R g+rwX "$tmp"
+      mv "$tmp" "$build"
+    fi
+    flock -u 9
+  fi
+  touch "$build/.last-used"
+  nm=$dir/node_modules
+  if [ -L "$nm" ]; then
+    ln -sfn "$build/node_modules" "$nm"
+  elif [ -e "$nm" ]; then
+    if $REPLACE; then rm -rf "$nm"; ln -s "$build/node_modules" "$nm"; else echo "fm-deps: ${nm#$target/} is a real directory; left as is (use --replace)" >&2; continue; fi
+  else
+    ln -s "$build/node_modules" "$nm"
+  fi
+  echo "${nm#$target/} -> $build/node_modules"
+done < <(find "$target" -name node_modules -prune -o -name .git -prune -o -name package-lock.json -print0)
