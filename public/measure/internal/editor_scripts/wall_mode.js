@@ -713,7 +713,8 @@ function perf_render2DContent() {
     function drawEditorOverlay(...args){if(!window.ExteriorPerf?.enabled)return perf_drawEditorOverlay.apply(this,args);return window.ExteriorPerf.measure('Preview overlay',()=>perf_drawEditorOverlay.apply(this,args));}
     function perf_drawEditorOverlay(){
         const had=!!overlayGroup;clearEditorOverlay();if(typeof scene==='undefined'||!scene||!window.THREE?.Group||!enabled)return;
-        const group=new THREE.Group();group.name='exteriors-wall-overlay';withWallScene(()=>wallEditor?.drawOverlay?.(group,p=>getVector3(toPixel(p))));
+        const group=new THREE.Group();group.name='exteriors-wall-overlay';const vector=p=>getVector3(toPixel(p));withWallScene(()=>wallEditor?.drawOverlay?.(group,vector));
+        window.exteriorSurfaceDisplay?.(group,surfaceMode());applyPlaneDisplay(group,vector);applyLineSelectDisplay(group);
         if(group.children.length){overlayGroup=group;scene.add(group);}if(had||overlayGroup)window.invalidateScene3D?.();
     }
     function clearNudgePreview(){if(nudgePreviewGroup){nudgePreviewGroup.parent?.remove(nudgePreviewGroup);disposeObject3D(nudgePreviewGroup);nudgePreviewGroup=null;}}
@@ -1365,3 +1366,4 @@ function perf_render3DFrame() {
     window.WallMode={selectionActions,prepareHeightMask:()=>{settleNudges();closeResoffit();groundEditor?.leave();roofTrimEditor?.finish();wallEditor?.leave?.();baseEditor?.leave?.();},applyAIPlacements,aiStickerScene,selectAIFace,prepareAICapture,aiGeometry,renderChunk,get finishDefaults(){return state?.finishDefaults||{};},renderRoofTrim3D,serializeRoofTrim:()=>copy(state?.roofTrim||roofTrimOnly),reportSnapshot:reportSnapshotWithCover,displaySupports,coverParts,registerLayerVisibility,get enabled(){return enabled;},render2D,render3D,syncVisibility,serialize:exportState,serializeHistory,serializeView:()=>projectId===currentId()?viewSnapshot():null,restore,beforeProjectLoad,setEnabled,get roofRebuild(){return lastRoofRebuild;}};
     if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',initialize,{once:true});else initialize();
 })();
+// measure-internal lane: bridge proof
