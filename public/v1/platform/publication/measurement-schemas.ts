@@ -159,6 +159,10 @@ export function registerMeasurementEquivalence(equivalence: MeasurementEquivalen
   }
   equivalences.push(Object.freeze(jsonClone(equivalence)));
 }
+/** Every declared equivalence, in the order declared. */
+export function listMeasurementEquivalences() { return equivalences.map((equivalence) => jsonClone(equivalence)); }
+/** The kind of quantity a unit measures (length, area), or null for a unit that never converts. */
+export function unitQuantity(unit: string) { return UNIT_SCALES[unit]?.quantity ?? null; }
 /** The definitions equivalent to this one, each with the factor that turns a value of this one into a value of that one. */
 export function measurementEquivalents(definitionId: string): { definition: string; key: string; unit: string; factor: number }[] {
   const group = equivalences.find((equivalence) => equivalence.measurements.includes(definitionId));

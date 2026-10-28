@@ -59,19 +59,19 @@ export type RoofingCatalog = { source: "research" | "library"; brands: Brand[]; 
 /** One system of the roof-type components (standing seam metal, TPO): its components as price book products. */
 export type ComponentSystem = { id: string; label: string; status: string; components: Product[] };
 
-const FEATURED = ["gaf", "owens_corning", "malarkey", "certainteed"];
-const BRAND_LOOK: Record<string, { name: string; color: string; tagline: string }> = {
+export const FEATURED = ["gaf", "owens_corning", "malarkey", "certainteed"];
+export const BRAND_LOOK: Record<string, { name: string; color: string; tagline: string }> = {
   gaf: { name: "GAF", color: "#d71920", tagline: "Timberline, Royal Sovereign" },
   owens_corning: { name: "Owens Corning", color: "#d6246e", tagline: "Duration, Oakridge, Supreme" },
   malarkey: { name: "Malarkey", color: "#1f6f43", tagline: "Highlander, Vista, Legacy" },
   certainteed: { name: "CertainTeed", color: "#0a5aa5", tagline: "Landmark, XT 25, Presidential" }
 };
 /** Research rule ids beside the measurement-default rule keys they fill. */
-const DEFAULT_RULE: Record<string, string> = { field_shingles: "shingles", starter: "starter", hip_ridge: "hip_ridge", ice_water: "ice_water", underlayment: "underlayment", drip_edge: "drip_edge", ridge_vent: "ridge_vent", intake_vent: "intake_vent", step_flashing: "step_flashing", headwall_flashing: "headwall_flashing", valley_metal: "valley_metal", roofing_nails: "coil_nails", cap_nails: "cap_nails" };
-const ACCESSORY_ROLES = ["starter", "hip_ridge", "underlayment", "ice_water", "ridge_vent", "intake_vent", "box_vent", "pipe_boot", "low_slope_membrane", "low_slope_base", "low_slope_cap"];
+export const DEFAULT_RULE: Record<string, string> = { field_shingles: "shingles", starter: "starter", hip_ridge: "hip_ridge", ice_water: "ice_water", underlayment: "underlayment", drip_edge: "drip_edge", ridge_vent: "ridge_vent", intake_vent: "intake_vent", step_flashing: "step_flashing", headwall_flashing: "headwall_flashing", valley_metal: "valley_metal", roofing_nails: "coil_nails", cap_nails: "cap_nails" };
+export const ACCESSORY_ROLES = ["starter", "hip_ridge", "underlayment", "ice_water", "ridge_vent", "intake_vent", "box_vent", "pipe_boot", "low_slope_membrane", "low_slope_base", "low_slope_cap"];
 /** The research rule an accessory role is measured by, where it is not the role itself. */
-const ROLE_RULE: Record<string, string> = { pipe_boot: "pipe_boots", box_vent: "box_vents", low_slope_membrane: "low_slope", low_slope_base: "low_slope", low_slope_cap: "low_slope" };
-const CATEGORY: Record<string, string> = { line: "shingle_roofs", starter: "shingle_roofs", hip_ridge: "shingle_roofs", underlayment: "shingle_roofs", ice_water: "leak_barriers", ridge_vent: "accessories", intake_vent: "accessories", box_vent: "accessories", ventilation: "accessories", pipe_boot: "accessories", flashing: "flashing", penetrations: "accessories", fasteners: "accessories", sealants: "accessories", decking: "misc", labor: "misc", low_slope_membrane: "flat_roofs", low_slope_base: "flat_roofs", low_slope_cap: "flat_roofs" };
+export const ROLE_RULE: Record<string, string> = { pipe_boot: "pipe_boots", box_vent: "box_vents", low_slope_membrane: "low_slope", low_slope_base: "low_slope", low_slope_cap: "low_slope" };
+export const CATEGORY: Record<string, string> = { line: "shingle_roofs", starter: "shingle_roofs", hip_ridge: "shingle_roofs", underlayment: "shingle_roofs", ice_water: "leak_barriers", ridge_vent: "accessories", intake_vent: "accessories", box_vent: "accessories", ventilation: "accessories", pipe_boot: "accessories", flashing: "flashing", penetrations: "accessories", fasteners: "accessories", sealants: "accessories", decking: "misc", labor: "misc", low_slope_membrane: "flat_roofs", low_slope_base: "flat_roofs", low_slope_cap: "flat_roofs" };
 /**
  * The slots of the defaults step: which products can fill each (accessory roles of the picked brands, then generic
  * items measured by the same rule). The browser composes the same lists from the same data (guided-setup.js).
