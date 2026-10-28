@@ -230,7 +230,19 @@ the role's services (web; worker, platform worker, payment browser; legacy)
 and reload PHP, wait for readiness (the old deploy script's checks), and
 finally `https://dev.1m8.ai/v1/health/ready` must report the release twice. Any
 role not ready rolls every role back. Old release directories are pruned
-(newest 10 and anything under 3 days kept).
+(newest 10 and anything under 3 days kept, and never the one a running service
+started in).
+
+**Fast paths.** A role whose running release is the router's previous one gets
+only the changed files: a tar over SSH that `fm-release assemble` applies to a
+hard-linked copy of that release, and `finish --previous` reads only what
+changed. A release that changes nothing under `public/v1` keeps the server:
+its `RELEASE_ID` stays the running server's (the release's own id is
+`DEV_PUSH_RELEASE`), and `activate --keep-server` moves `current` and reloads PHP
+without restarting Node; health, the web standby and the fleet check compare
+`RELEASE_ID`. Measured 2026-10-28: a browser-only ship takes about 17 s of deploy
+(30 s from `submit.mjs --wait` to live), a ship that changes server code about
+29 s (40 s).
 
 **Hosts belong to the router.** `tools/dev-push/host/fm-release.py` is
 installed as `/usr/local/sbin/fm-release` on each role (`host/install.sh`); the

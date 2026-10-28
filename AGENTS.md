@@ -37,7 +37,9 @@ what to do next (exit 1: rebase, fix, submit again). `submit.mjs status --mine`
 shows your queue. Lanes: **config** is data in the config library (never
 code), **live** is a browser file you are tuning (live layer below),
 **measure-internal** is `public/measure/internal/**` and `dev/**`,
-**platform** is everything else. One submission holds one lane's files.
+**platform** is everything else. One submission holds one lane's files. Measure
+editor changes ship with `node tools/dev-push/lanes/measure-internal/ship.mjs`,
+which builds the lane commit itself (reverts included) and submits it.
 
 **Tests are opt-in.** Every submission gets only checks that take a second or
 two (JavaScript parse, per-file transpile, PHP lint, the few suites under two
