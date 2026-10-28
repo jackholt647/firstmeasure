@@ -92,7 +92,7 @@ async function main() {
   // Fleet state first: it says which node is the primary web node and which pool members were adopted.
   const fleet = makeFleet({ router, hosts, log: (line) => router.log("fleet", line) });
   // Requests for the running router (it alone touches the repository and hosts): primary, bake-live, forget.
-  if (["primary", "bake-live", "forget"].includes(command)) {
+  if (["primary", "bake-live", "forget", "adopt"].includes(command)) {
     fs.appendFileSync(path.join(STATE, "requests.jsonl"), JSON.stringify({ command, target: args._[1] || null, at: new Date().toISOString() }) + "\n");
     console.log(`asked the running router to ${command}${args._[1] ? ` ${args._[1]}` : ""}; watch state/router.log`);
     return;
