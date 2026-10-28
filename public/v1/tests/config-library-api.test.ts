@@ -10,7 +10,7 @@ import test, { after } from "node:test";
 const root = await mkdtemp(path.join(os.tmpdir(), "config-library-api-"));
 Object.assign(process.env, {
   FIRSTMATE_ENV: "development", FIRSTMEASURE_DATA_ENVIRONMENT: "development", FIRSTMEASURE_DATABASE_MODE: "sqlite", CONFIG_LIBRARY_SOURCE: "store",
-  CONFIG_LIBRARY_SNAPSHOT_DIR: path.join(root, "snapshot"), PLATFORM_STORAGE_ROOT: path.join(root, "platform"), SIGNUP_SANDBOX_STORAGE_ROOT: path.join(root, "sandbox"),
+  PLATFORM_STORAGE_ROOT: path.join(root, "platform"), SIGNUP_SANDBOX_STORAGE_ROOT: path.join(root, "sandbox"),
   PLATFORM_SESSION_SECRET: "isolated-config-library-api-test-secret", FIRSTMEASURE_STORAGE_ROOT: path.join(root, "firstmeasure"),
   FIRSTMEASURE_INDEX_DB_PATH: path.join(root, "firstmeasure-index.sqlite"), INTERNAL_STORAGE_ROOT: path.join(root, "internal"), PLATFORM_HEARTBEAT_DISABLED: "1"
 });
@@ -42,7 +42,7 @@ test("config library API: gate, agent key, browser reads and a test organization
 
   const service = await import("../signup-sandbox/service.js");
   const storage = await import("../platform/storage.js");
-  process.chdir(root);
+
   await service.ensureSeedData();
   const instance = await service.createTestInstance("swf_mvp_platform", { label: "Config library fixture" });
   const sandboxOrg = String(instance.testOrg.org_id);
