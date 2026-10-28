@@ -117,7 +117,7 @@ test('a conflicting submission comes back rejected with the files; the other lan
     assert.equal(rejected.state, 'rejected');
     assert.equal(rejected.reason, 'conflict');
     assert.match(rejected.details, /shared\.txt/);
-    assert.match(rejected.details, /git rebase origin\//);
+    assert.match(rejected.details, /git rebase devpush\//);
     assert.equal(s.originFile('shared.txt'), 'one\nTWO by alice\nthree\n');
     assert.deepEqual(s.queueRefs(), []);
     const wait = b.submit('wait', 'queue/platform/bob-second');
