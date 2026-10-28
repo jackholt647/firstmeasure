@@ -49,7 +49,7 @@ test("a new organization's copies are the library's, with the price book's rate 
   const { ctx, kinds, store } = await organization();
   const template = kinds.libraryKind("document_template");
   const status = await template.orgCopies.status(ctx.orgId);
-  assert.ok(status.filter((row: Json) => !["tpl_kitchen_estimate", "tpl_kitchen_selections", "tpl_same_day_service_authorization", "tpl_operations_scope_v1", "tpl_operations_proposal_v1"].includes(row.id)).every((row: Json) => row.state === "library"), JSON.stringify(status));
+  assert.ok(status.filter((row: Json) => !["tpl_kitchen_estimate", "tpl_kitchen_selections", "tpl_same_day_service_authorization", "tpl_operations_scope_v1", "tpl_operations_proposal_v1", "tpl_checklist_default"].includes(row.id)).every((row: Json) => row.state === "library"), JSON.stringify(status));
   assert.equal(status.find((row: Json) => row.id === "tpl_kitchen_estimate").state, "missing", "a scope's own template waits until the scope issues it");
   for (const name of ["document_theme", "document_workflow", "presentation_deck"]) {
     const rows = await kinds.libraryKind(name).orgCopies.status(ctx.orgId);

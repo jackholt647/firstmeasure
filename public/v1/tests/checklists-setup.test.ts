@@ -44,7 +44,7 @@ test("the checklists setup asks the kind of company first, then adds the picked 
   const tour = (await listed()).find((entry: any) => entry.id === "checklists.tab_tutorial")!;
   assert.ok(tour, "the tour is offered too");
   assert.deepEqual(ids(tour), ["intro", "lists", "assign", "add_item", "comment", "voice_update", "document", "send_crew", "try_voice"]);
-  assert.equal(tour.steps.at(-1).advance, "click", "the last step waits for them to try creating a checklist by voice (or skip)");
+  assert.equal((tour.steps.at(-1) as any)?.advance, "click", "the last step waits for them to try creating a checklist by voice (or skip)");
 
   // Answered (a roofer): asked no more, and the checklists are the roofing ones.
   const { invokeAction } = await import("../platform/publication/actions.js"), { userPublicationContext } = await import("../platform/publication/context.js");
