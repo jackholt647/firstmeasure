@@ -6,7 +6,7 @@ import { createAccessKey, listAccessKeys, requireLibraryAdmin, requireLibraryEdi
 import { listAssets, putAsset, readAsset } from "./assets.js";
 import { listLibraryKinds, libraryKind } from "./kinds.js";
 import { registerAllLibraryKinds } from "./kinds/index.js";
-import { libraryEntries, libraryEntry, librarySource, libraryVersion, refreshLibrary } from "./library.js";
+import { libraryEntries, libraryEntry, libraryLoaded, librarySource, libraryVersion, refreshLibrary } from "./library.js";
 import { captureInitialState, organizationState, restoreInitialState, setOrganizationState } from "./initial-state.js";
 import { checkEntry, deleteEntry, listRevisions, readRevision, recentChanges, revertEntry, saveEntry, storeEntries } from "./writes.js";
 
@@ -54,7 +54,7 @@ export async function registerConfigLibraryApi(app: FastifyInstance) {
     if (!kind?.browser) throw notFound("config_library_kind_unknown", "No such readable kind.");
     await refreshLibrary();
     reply.header("Cache-Control", librarySource() === "store" ? "public, max-age=2" : "public, max-age=300");
-    return { ok: true, kind: kind.kind, version: libraryVersion(), entries: libraryEntries(kind.kind).map((entry) => ({ id: entry.id, revision: entry.revision, title: entry.title, data: entry.data })) };
+    return { ok: true, kind: kind.kind, source: libraryLoaded(), version: libraryVersion(), entries: libraryEntries(kind.kind).map((entry) => ({ id: entry.id, revision: entry.revision, title: entry.title, data: entry.data })) };
   });
 
   app.get("/kinds", async (request) => {

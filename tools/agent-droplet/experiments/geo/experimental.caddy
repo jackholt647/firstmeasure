@@ -1,0 +1,44 @@
+# experimental.1m8.ai: the GEO experiment (a FirstMate host with the GEO external app), moved from the
+# firstmate-experiments droplet on 2026-10-28 with the same URLs, plus the static game at /workspace/game/.
+experimental.1m8.ai {
+	import experiment
+	request_body {
+		max_size 128MB
+	}
+	redir / /portal/?tab=external_geo 302
+	redir /workspace/game /workspace/game/ 301
+
+	# Hidden files and data or secret files are never served (as on the old host), in every handle below
+	# except /v1, which the API answers itself.
+	@denied path_regexp denied (/\.|(?i)\.(sqlite|db|env|log|bak|pem|key)$)
+
+	handle /workspace/game/* {
+		respond @denied 403
+		uri strip_prefix /workspace/game
+		root * /srv/agents/experiments/game/www
+		header Cache-Control no-cache
+		file_server
+	}
+	handle /v1 {
+		reverse_proxy 127.0.0.1:3101
+	}
+	handle /v1/* {
+		reverse_proxy 127.0.0.1:3101 {
+			flush_interval -1
+			transport http {
+				read_timeout 300s
+			}
+		}
+	}
+	handle {
+		respond @denied 403
+		root * /srv/agents/experiments/geo/host/public
+		php_fastcgi unix//run/php/php8.3-fpm.sock {
+			try_files {path} {path}/index.php =404
+			env FIRSTMATE_EXTERNAL_APPS_CONFIG /etc/firstmate-experiments/external-apps.json
+			env PUBLIC_REGISTRATION_ENABLED false
+			read_timeout 300s
+		}
+		file_server
+	}
+}

@@ -36,7 +36,10 @@ const here = path.dirname(fileURLToPath(import.meta.url));
 export function snapshotDir() {
   const configured = String(process.env.CONFIG_LIBRARY_SNAPSHOT_DIR || "").trim();
   if (configured) return path.resolve(configured);
-  const candidates = [path.join(here, "snapshot"), path.resolve(here, "..", "..", "config-library", "snapshot"), path.resolve(process.cwd(), "config-library", "snapshot")];
+  // A compiled build may carry a partial copy (JSON only) under dist/: the source tree's snapshot comes first there.
+  const source = path.resolve(here, "..", "..", "config-library", "snapshot");
+  const compiled = path.basename(path.resolve(here, "..")) === "dist";
+  const candidates = compiled ? [source, path.join(here, "snapshot")] : [path.join(here, "snapshot"), source, path.resolve(process.cwd(), "config-library", "snapshot")];
   return candidates.find((candidate) => existsSync(candidate)) || candidates[0]!;
 }
 
@@ -137,6 +140,9 @@ export function startLibrarySync() {
   })().catch((error) => { syncing = undefined; throw error; });
 }
 export function stopLibrarySync() { if (timer) clearInterval(timer); timer = undefined; syncing = undefined; seenSeq = -1; }
+
+/** Where this process's entries come from right now: "store" once the store has loaded, otherwise "snapshot". */
+export function libraryLoaded(): "store" | "snapshot" { return seenSeq >= 0 ? "store" : "snapshot"; }
 
 /** Reads whatever changed in the store since this process last looked. One query when nothing did. */
 export async function refreshLibrary() {
