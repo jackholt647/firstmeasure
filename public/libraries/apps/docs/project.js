@@ -1437,6 +1437,15 @@
     return true;
   }
 
+  /** Opens the documents' own send dialog (email with a portal link and the PDF) for an engine document. */
+  async function sendEngineDocument(record){
+    if (!record || typeof record !== 'object' || !record.id) return false;
+    try { await ensureEngine(); } catch (error) { /* denied or unavailable */ }
+    if (!state.engineApi?.openSendModal) return false;
+    state.engineApi.openSendModal(record);
+    return true;
+  }
+
   /** Doc-first handoff: the tab's project just got established (picked or
    *  created). Remount the engine under the project, attach the standalone
    *  document that was being worked on (options.document overrides the live
@@ -1486,6 +1495,7 @@
     currentEngineDoc,
     standaloneEngineDocs,
     openEngineDocument,
+    sendEngineDocument,
     adoptProject,
     panelHtml
   };

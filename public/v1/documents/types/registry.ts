@@ -258,6 +258,26 @@ registerDocumentType("shopping_list", {
   seeded_templates: ["tpl_shopping_list_default"]
 });
 
+// A project checklist written out for paper (workforce/checklist-documents.ts): for anyone without the crew app, with
+// a signature line when the checklist asks for a sign-off. Nothing is signed on it electronically.
+registerDocumentType("checklist", {
+  label: "Checklist",
+  icon: "fa-list-check",
+  param_schema: {
+    project: { type: "entity", entity: "project" },
+    title: { type: "string", label: "Title" },
+    list_date: { type: "date", label: "Date" },
+    assignee: { type: "string", label: "Assigned to" },
+    rows: { type: "list", items: { type: "object" } },
+    signature_required: { type: "boolean", label: "Needs a signature" },
+    signer_name: { type: "string", label: "Signed by" },
+    signed_on: { type: "string", label: "Signed on" }
+  },
+  output_schema: {},
+  default_theme_id: "thm_clean",
+  seeded_templates: ["tpl_checklist_default"]
+});
+
 registerDocumentType("scope_of_work", {
   label: "Scope of work", icon: "fa-list-check",
   param_schema: { project: { type: "entity", entity: "project" }, scope_items: { type: "list", items: { type: "pricebook_line" } } },

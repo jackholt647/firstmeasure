@@ -1,0 +1,971 @@
+{
+  "kind": "document_template",
+  "id": "tpl_checklist_default",
+  "revision": 1,
+  "sha256": "ae40a48832c56c85f31babac6dd695282716f2288162bd1077dc956e2c1de6f4",
+  "title": "Printable checklist",
+  "updated_at": "2026-10-28T08:29:23.025Z",
+  "updated_by": "router-fm-283",
+  "data": {
+    "name": "Printable checklist",
+    "document_type": "checklist",
+    "description": "A project checklist on paper: each item with a box to tick, and a signature line when the checklist asks for one.",
+    "status": "active",
+    "seeding": "on_request",
+    "definition": {
+      "schema_version": 1,
+      "kind": "document",
+      "settings": {
+        "paper": {
+          "size": "letter",
+          "orientation": "portrait"
+        },
+        "locale": "en-US",
+        "base_font_pt": 11
+      },
+      "theme_ref": {
+        "theme_id": "thm_clean"
+      },
+      "params": {
+        "project": {
+          "type": "entity",
+          "entity": "project"
+        },
+        "title": {
+          "type": "string",
+          "label": "Title"
+        },
+        "list_date": {
+          "type": "date",
+          "label": "Date"
+        },
+        "assignee": {
+          "type": "string",
+          "label": "Assigned to"
+        },
+        "notes": {
+          "type": "text",
+          "label": "Notes",
+          "default": "Tick each item as it is done."
+        },
+        "rows": {
+          "type": "list",
+          "items": {
+            "type": "object"
+          },
+          "label": "Items",
+          "required": true
+        },
+        "signature_required": {
+          "type": "boolean",
+          "label": "Needs a signature"
+        },
+        "signer_name": {
+          "type": "string",
+          "label": "Signed by"
+        },
+        "signed_on": {
+          "type": "string",
+          "label": "Signed on"
+        }
+      },
+      "computed": {},
+      "outputs": {},
+      "styles": {
+        "li_name": {
+          "family": "var(--fm-body-font)",
+          "size_pt": 10.5,
+          "weight": 700,
+          "color": "var(--fm-text)"
+        },
+        "li_meta": {
+          "family": "var(--fm-body-font)",
+          "size_pt": 8.5,
+          "weight": 400,
+          "color": "var(--fm-color-muted)"
+        },
+        "li_amount": {
+          "family": "var(--fm-body-font)",
+          "size_pt": 10.5,
+          "weight": 700,
+          "color": "var(--fm-text)"
+        },
+        "li_total": {
+          "family": "var(--fm-display-font)",
+          "size_pt": 13,
+          "weight": 800,
+          "color": "var(--fm-text)"
+        },
+        "cl_group": {
+          "family": "var(--fm-display-font)",
+          "size_pt": 12,
+          "weight": 800,
+          "color": "var(--fm-text)"
+        }
+      },
+      "components": {
+        "cl_row": {
+          "params": {
+            "item": {
+              "type": "object"
+            }
+          },
+          "root": {
+            "id": "nd_c1kequm3ifsaz",
+            "type": "frame",
+            "name": "",
+            "frame": {
+              "x": 0,
+              "y": 0,
+              "w": 0,
+              "h": "auto",
+              "rotation": 0,
+              "z": 0,
+              "layout": "flow",
+              "constraints": {
+                "h": "left",
+                "v": "top"
+              }
+            },
+            "style": {},
+            "locks": {},
+            "bind": null,
+            "visible": true,
+            "props": {
+              "background": null,
+              "clip": false,
+              "flow": {
+                "direction": "column",
+                "gap": 0,
+                "padding": [
+                  0,
+                  0,
+                  0,
+                  0
+                ],
+                "align": "stretch",
+                "wrap": false
+              },
+              "overflow": "visible"
+            },
+            "children": [
+              {
+                "id": "nd_c1keqc4yqqtay",
+                "type": "frame",
+                "name": "",
+                "frame": {
+                  "x": 0,
+                  "y": 0,
+                  "w": 0,
+                  "h": "auto",
+                  "rotation": 0,
+                  "z": 0,
+                  "layout": "flow",
+                  "constraints": {
+                    "h": "left",
+                    "v": "top"
+                  }
+                },
+                "style": {},
+                "locks": {},
+                "bind": null,
+                "visible": true,
+                "props": {
+                  "background": null,
+                  "clip": false,
+                  "flow": {
+                    "direction": "row",
+                    "gap": 8,
+                    "padding": [
+                      5,
+                      8,
+                      5,
+                      8
+                    ],
+                    "align": "center",
+                    "wrap": false
+                  },
+                  "overflow": "visible"
+                },
+                "children": [
+                  {
+                    "id": "nd_c1keqosxk0gap",
+                    "type": "text",
+                    "name": "",
+                    "frame": {
+                      "x": 0,
+                      "y": 0,
+                      "w": 20,
+                      "h": "auto",
+                      "rotation": 0,
+                      "z": 0,
+                      "layout": "flow",
+                      "constraints": {
+                        "h": "left",
+                        "v": "top"
+                      }
+                    },
+                    "style": {
+                      "font": {
+                        "family": "var(--fm-body-font)",
+                        "size_pt": 15,
+                        "color": "var(--fm-text)"
+                      }
+                    },
+                    "locks": {},
+                    "bind": null,
+                    "visible": true,
+                    "props": {
+                      "blocks": [
+                        {
+                          "id": "blk_c1keq7oewd9an",
+                          "type": "paragraph",
+                          "align": "left",
+                          "runs": [
+                            {
+                              "text": "",
+                              "bind": "item.checked == true ? '☑' : '☐'"
+                            }
+                          ]
+                        }
+                      ],
+                      "valign": "top",
+                      "auto_fit": false,
+                      "line_height": 1.4,
+                      "letter_spacing": 0
+                    },
+                    "anchor": "flow"
+                  },
+                  {
+                    "id": "nd_c1keqyb9cx4au",
+                    "type": "text",
+                    "name": "",
+                    "frame": {
+                      "x": 0,
+                      "y": 0,
+                      "w": 0,
+                      "h": "auto",
+                      "rotation": 0,
+                      "z": 0,
+                      "layout": "flow",
+                      "constraints": {
+                        "h": "left",
+                        "v": "top"
+                      },
+                      "grow": 1
+                    },
+                    "style": {},
+                    "locks": {},
+                    "bind": null,
+                    "visible": true,
+                    "props": {
+                      "blocks": [
+                        {
+                          "id": "blk_c1keq5bvan0ar",
+                          "type": "paragraph",
+                          "align": "left",
+                          "style_ref": "li_name",
+                          "runs": [
+                            {
+                              "text": "",
+                              "bind": "item.name"
+                            }
+                          ]
+                        },
+                        {
+                          "id": "blk_c1keqql6gpvas",
+                          "type": "paragraph",
+                          "align": "left",
+                          "style_ref": "li_meta",
+                          "collapse_empty": true,
+                          "runs": [
+                            {
+                              "text": "",
+                              "bind": "coalesce(item.details, '')"
+                            }
+                          ]
+                        }
+                      ],
+                      "valign": "top",
+                      "auto_fit": false,
+                      "line_height": 1.4,
+                      "letter_spacing": 0
+                    },
+                    "anchor": "flow"
+                  },
+                  {
+                    "id": "nd_c1keqtxpqksax",
+                    "type": "text",
+                    "name": "",
+                    "frame": {
+                      "x": 0,
+                      "y": 0,
+                      "w": 150,
+                      "h": "auto",
+                      "rotation": 0,
+                      "z": 0,
+                      "layout": "flow",
+                      "constraints": {
+                        "h": "left",
+                        "v": "top"
+                      }
+                    },
+                    "style": {},
+                    "locks": {},
+                    "bind": null,
+                    "visible": true,
+                    "props": {
+                      "blocks": [
+                        {
+                          "id": "blk_c1kedoneby1",
+                          "type": "paragraph",
+                          "align": "right",
+                          "style_ref": "li_meta",
+                          "runs": [
+                            {
+                              "text": "",
+                              "bind": "coalesce(item.done_by, '')"
+                            }
+                          ]
+                        }
+                      ],
+                      "valign": "top",
+                      "auto_fit": false,
+                      "line_height": 1.4,
+                      "letter_spacing": 0
+                    },
+                    "anchor": "flow"
+                  }
+                ]
+              }
+            ]
+          }
+        }
+      },
+      "chains": {},
+      "assets": [],
+      "edit_policy": {
+        "base_profile": "document",
+        "max_profile": "designer",
+        "features": {},
+        "unlock": {
+          "allowed": true
+        }
+      },
+      "metadata": {
+        "document_type": "checklist"
+      },
+      "pages": [
+        {
+          "id": "pg_c1kepqu4h469v",
+          "role": "body",
+          "name": "Shopping List",
+          "master_ref": null,
+          "repeat": null,
+          "children": [
+            {
+              "id": "nd_c1keqyxlt9fah",
+              "type": "frame",
+              "name": "Body",
+              "frame": {
+                "x": 48,
+                "y": 80,
+                "w": 516,
+                "h": 664,
+                "rotation": 0,
+                "z": 0,
+                "layout": "flow",
+                "constraints": {
+                  "h": "stretch",
+                  "v": "top"
+                }
+              },
+              "style": {},
+              "locks": {},
+              "bind": null,
+              "visible": true,
+              "props": {
+                "background": null,
+                "clip": false,
+                "flow": {
+                  "direction": "column",
+                  "gap": 7,
+                  "padding": [
+                    0,
+                    0,
+                    0,
+                    0
+                  ],
+                  "align": "stretch",
+                  "wrap": false
+                },
+                "overflow": "paginate",
+                "page_region": "body"
+              },
+              "children": [
+                {
+                  "id": "nd_c1kep0q2ezv9y",
+                  "type": "image",
+                  "name": "",
+                  "frame": {
+                    "x": 0,
+                    "y": 0,
+                    "w": 150,
+                    "h": 32,
+                    "rotation": 0,
+                    "z": 0,
+                    "layout": "flow",
+                    "constraints": {
+                      "h": "left",
+                      "v": "top"
+                    }
+                  },
+                  "style": {},
+                  "locks": {},
+                  "bind": {
+                    "props": {
+                      "props.media": "{{org.logo_url}}"
+                    },
+                    "if": "not_empty(org.logo_url)"
+                  },
+                  "visible": true,
+                  "props": {
+                    "media": null,
+                    "fit": "contain",
+                    "focal": {
+                      "x": 0.5,
+                      "y": 0.5
+                    },
+                    "crop": null,
+                    "alt": "Company logo"
+                  },
+                  "anchor": "flow"
+                },
+                {
+                  "id": "nd_c1kep0v8zr1a5",
+                  "type": "frame",
+                  "name": "",
+                  "frame": {
+                    "x": 0,
+                    "y": 0,
+                    "w": 0,
+                    "h": "auto",
+                    "rotation": 0,
+                    "z": 0,
+                    "layout": "flow",
+                    "constraints": {
+                      "h": "left",
+                      "v": "top"
+                    }
+                  },
+                  "style": {},
+                  "locks": {},
+                  "bind": null,
+                  "visible": true,
+                  "props": {
+                    "background": null,
+                    "clip": false,
+                    "flow": {
+                      "direction": "row",
+                      "gap": 16,
+                      "padding": [
+                        0,
+                        0,
+                        0,
+                        0
+                      ],
+                      "align": "end",
+                      "wrap": false
+                    },
+                    "overflow": "visible"
+                  },
+                  "children": [
+                    {
+                      "id": "nd_c1kepv3sebha1",
+                      "type": "text",
+                      "name": "",
+                      "frame": {
+                        "x": 0,
+                        "y": 0,
+                        "w": 0,
+                        "h": "auto",
+                        "rotation": 0,
+                        "z": 0,
+                        "layout": "flow",
+                        "constraints": {
+                          "h": "left",
+                          "v": "top"
+                        },
+                        "grow": 1
+                      },
+                      "style": {
+                        "font": {
+                          "family": "var(--fm-display-font)",
+                          "size_pt": 22,
+                          "weight": 800,
+                          "color": "var(--fm-text)"
+                        }
+                      },
+                      "locks": {},
+                      "bind": null,
+                      "visible": true,
+                      "props": {
+                        "blocks": [
+                          {
+                            "id": "blk_c1kepda2l479z",
+                            "type": "paragraph",
+                            "align": "left",
+                            "runs": [
+                              {
+                                "text": "",
+                                "bind": "coalesce(params.title, 'Checklist')"
+                              }
+                            ]
+                          }
+                        ],
+                        "valign": "top",
+                        "auto_fit": false,
+                        "line_height": 1.4,
+                        "letter_spacing": 0
+                      },
+                      "anchor": "flow"
+                    },
+                    {
+                      "id": "nd_c1keplwecsha4",
+                      "type": "text",
+                      "name": "",
+                      "frame": {
+                        "x": 0,
+                        "y": 0,
+                        "w": 120,
+                        "h": "auto",
+                        "rotation": 0,
+                        "z": 0,
+                        "layout": "flow",
+                        "constraints": {
+                          "h": "left",
+                          "v": "top"
+                        }
+                      },
+                      "style": {
+                        "font": {
+                          "family": "var(--fm-body-font)",
+                          "size_pt": 11,
+                          "weight": 700
+                        }
+                      },
+                      "locks": {},
+                      "bind": null,
+                      "visible": true,
+                      "props": {
+                        "blocks": [
+                          {
+                            "id": "blk_c1kepk8i000a2",
+                            "type": "paragraph",
+                            "align": "right",
+                            "runs": [
+                              {
+                                "text": "Date\n",
+                                "font": {
+                                  "size_pt": 8.5,
+                                  "weight": 800,
+                                  "color": "var(--fm-color-muted)",
+                                  "transform": "uppercase"
+                                }
+                              },
+                              {
+                                "text": "",
+                                "bind": "params.list_date | date"
+                              }
+                            ]
+                          }
+                        ],
+                        "valign": "top",
+                        "auto_fit": false,
+                        "line_height": 1.4,
+                        "letter_spacing": 0
+                      },
+                      "anchor": "flow"
+                    }
+                  ],
+                  "anchor": "flow"
+                },
+                {
+                  "id": "nd_c1kepu3awylac",
+                  "type": "frame",
+                  "name": "",
+                  "frame": {
+                    "x": 0,
+                    "y": 0,
+                    "w": 0,
+                    "h": "auto",
+                    "rotation": 0,
+                    "z": 0,
+                    "layout": "flow",
+                    "constraints": {
+                      "h": "left",
+                      "v": "top"
+                    }
+                  },
+                  "style": {},
+                  "locks": {},
+                  "bind": null,
+                  "visible": true,
+                  "props": {
+                    "background": null,
+                    "clip": false,
+                    "flow": {
+                      "direction": "row",
+                      "gap": 20,
+                      "padding": [
+                        0,
+                        0,
+                        0,
+                        0
+                      ],
+                      "align": "start",
+                      "wrap": false
+                    },
+                    "overflow": "visible"
+                  },
+                  "children": [
+                    {
+                      "id": "nd_c1kepitngdca8",
+                      "type": "text",
+                      "name": "",
+                      "frame": {
+                        "x": 0,
+                        "y": 0,
+                        "w": 0,
+                        "h": "auto",
+                        "rotation": 0,
+                        "z": 0,
+                        "layout": "flow",
+                        "constraints": {
+                          "h": "left",
+                          "v": "top"
+                        },
+                        "grow": 1
+                      },
+                      "style": {
+                        "font": {
+                          "family": "var(--fm-body-font)",
+                          "size_pt": 11,
+                          "weight": 700
+                        }
+                      },
+                      "locks": {},
+                      "bind": null,
+                      "visible": true,
+                      "props": {
+                        "blocks": [
+                          {
+                            "id": "blk_c1kepe0ewpqa6",
+                            "type": "paragraph",
+                            "align": "left",
+                            "runs": [
+                              {
+                                "text": "Project\n",
+                                "font": {
+                                  "size_pt": 8.5,
+                                  "weight": 800,
+                                  "color": "var(--fm-color-muted)",
+                                  "transform": "uppercase"
+                                }
+                              },
+                              {
+                                "text": "",
+                                "bind": "coalesce(params.project.title, project.title, '')"
+                              },
+                              {
+                                "text": "\n"
+                              },
+                              {
+                                "text": "",
+                                "bind": "coalesce(params.project.address, project.address, '')",
+                                "font": {
+                                  "size_pt": 9,
+                                  "weight": 400,
+                                  "color": "var(--fm-color-muted)"
+                                }
+                              }
+                            ]
+                          }
+                        ],
+                        "valign": "top",
+                        "auto_fit": false,
+                        "line_height": 1.4,
+                        "letter_spacing": 0
+                      },
+                      "anchor": "flow"
+                    },
+                    {
+                      "id": "nd_c1kepbdhx7sab",
+                      "type": "text",
+                      "name": "",
+                      "frame": {
+                        "x": 0,
+                        "y": 0,
+                        "w": 0,
+                        "h": "auto",
+                        "rotation": 0,
+                        "z": 0,
+                        "layout": "flow",
+                        "constraints": {
+                          "h": "left",
+                          "v": "top"
+                        },
+                        "grow": 1
+                      },
+                      "style": {
+                        "font": {
+                          "family": "var(--fm-body-font)",
+                          "size_pt": 11,
+                          "weight": 700
+                        }
+                      },
+                      "locks": {},
+                      "bind": {
+                        "if": "not_empty(params.assignee)"
+                      },
+                      "visible": true,
+                      "props": {
+                        "blocks": [
+                          {
+                            "id": "blk_c1keppejv0ma9",
+                            "type": "paragraph",
+                            "align": "left",
+                            "runs": [
+                              {
+                                "text": "Assigned to\n",
+                                "font": {
+                                  "size_pt": 8.5,
+                                  "weight": 800,
+                                  "color": "var(--fm-color-muted)",
+                                  "transform": "uppercase"
+                                }
+                              },
+                              {
+                                "text": "",
+                                "bind": "coalesce(params.assignee, '')"
+                              }
+                            ]
+                          }
+                        ],
+                        "valign": "top",
+                        "auto_fit": false,
+                        "line_height": 1.4,
+                        "letter_spacing": 0
+                      },
+                      "anchor": "flow"
+                    }
+                  ],
+                  "anchor": "flow"
+                },
+                {
+                  "id": "nd_c1kepigbwq3af",
+                  "type": "text",
+                  "name": "",
+                  "frame": {
+                    "x": 0,
+                    "y": 0,
+                    "w": 0,
+                    "h": "auto",
+                    "rotation": 0,
+                    "z": 0,
+                    "layout": "flow",
+                    "constraints": {
+                      "h": "left",
+                      "v": "top"
+                    }
+                  },
+                  "style": {
+                    "font": {
+                      "family": "var(--fm-body-font)",
+                      "size_pt": 9,
+                      "color": "var(--fm-color-muted)"
+                    }
+                  },
+                  "locks": {},
+                  "bind": {
+                    "if": "not_empty(params.notes)"
+                  },
+                  "visible": true,
+                  "props": {
+                    "blocks": [
+                      {
+                        "id": "blk_c1kepzm3z6vad",
+                        "type": "paragraph",
+                        "align": "left",
+                        "runs": [
+                          {
+                            "text": "",
+                            "bind": "coalesce(params.notes, '')"
+                          }
+                        ]
+                      }
+                    ],
+                    "valign": "top",
+                    "auto_fit": false,
+                    "line_height": 1.4,
+                    "letter_spacing": 0
+                  },
+                  "anchor": "flow"
+                },
+                {
+                  "id": "nd_c1kepk96sbmag",
+                  "type": "repeater",
+                  "name": "",
+                  "frame": {
+                    "x": 0,
+                    "y": 0,
+                    "w": 0,
+                    "h": "auto",
+                    "rotation": 0,
+                    "z": 0,
+                    "layout": "flow",
+                    "constraints": {
+                      "h": "left",
+                      "v": "top"
+                    }
+                  },
+                  "style": {},
+                  "locks": {},
+                  "bind": null,
+                  "visible": true,
+                  "props": {
+                    "source": "{{params.rows}}",
+                    "component": "cl_row",
+                    "variant": null,
+                    "as": "row",
+                    "index_as": "index",
+                    "layout": {
+                      "direction": "column",
+                      "columns": 1,
+                      "gap_pt": 0
+                    },
+                    "break_rules": {
+                      "repeat_header": false,
+                      "min_rows_per_segment": 2,
+                      "keep_with_next": []
+                    },
+                    "empty_text": "This checklist has no items yet."
+                  },
+                  "anchor": "flow"
+                },
+                {
+                  "id": "nd_c1kesignline",
+                  "type": "text",
+                  "name": "",
+                  "frame": {
+                    "x": 0,
+                    "y": 0,
+                    "w": 0,
+                    "h": "auto",
+                    "rotation": 0,
+                    "z": 0,
+                    "layout": "flow",
+                    "constraints": {
+                      "h": "left",
+                      "v": "top"
+                    }
+                  },
+                  "style": {
+                    "font": {
+                      "family": "var(--fm-body-font)",
+                      "size_pt": 10.5,
+                      "color": "var(--fm-text)"
+                    }
+                  },
+                  "locks": {},
+                  "bind": {
+                    "if": "params.signature_required == true"
+                  },
+                  "visible": true,
+                  "props": {
+                    "blocks": [
+                      {
+                        "id": "blk_c1kesig0001",
+                        "type": "paragraph",
+                        "align": "left",
+                        "runs": [
+                          {
+                            "text": " "
+                          }
+                        ]
+                      },
+                      {
+                        "id": "blk_c1kesig0002",
+                        "type": "paragraph",
+                        "align": "left",
+                        "runs": [
+                          {
+                            "text": "Signature\n",
+                            "font": {
+                              "size_pt": 8.5,
+                              "weight": 800,
+                              "color": "var(--fm-color-muted)",
+                              "transform": "uppercase"
+                            }
+                          },
+                          {
+                            "text": "",
+                            "bind": "not_empty(params.signer_name) ? concat('Signed in the crew app by ', params.signer_name) : '______________________________________________'"
+                          }
+                        ]
+                      },
+                      {
+                        "id": "blk_c1kesig0003",
+                        "type": "paragraph",
+                        "align": "left",
+                        "runs": [
+                          {
+                            "text": "Name  ",
+                            "font": {
+                              "size_pt": 8.5,
+                              "weight": 800,
+                              "color": "var(--fm-color-muted)",
+                              "transform": "uppercase"
+                            }
+                          },
+                          {
+                            "text": "",
+                            "bind": "coalesce(params.signer_name, '______________________________')"
+                          },
+                          {
+                            "text": "      Date  ",
+                            "font": {
+                              "size_pt": 8.5,
+                              "weight": 800,
+                              "color": "var(--fm-color-muted)",
+                              "transform": "uppercase"
+                            }
+                          },
+                          {
+                            "text": "",
+                            "bind": "coalesce(params.signed_on, '______________')"
+                          }
+                        ]
+                      }
+                    ],
+                    "valign": "top",
+                    "auto_fit": false,
+                    "line_height": 1.4,
+                    "letter_spacing": 0
+                  },
+                  "anchor": "flow"
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    "metadata": {
+      "system": true
+    },
+    "initial_metadata": {},
+    "requires_pricebook_items": [],
+    "pricebook_defaults": []
+  }
+}

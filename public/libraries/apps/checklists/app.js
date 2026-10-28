@@ -348,6 +348,61 @@
       return `<div class="${String(classes)}" data-fmcl-item="${String(esc(checklist.id))}::${String(esc(item.id))}"><div class="fmcl-item-main">${String(check)}<div class="fmcl-item-copy">${String(titleHtml)}${String(itemSubtitle(item) ? `<span>${esc(itemSubtitle(item))}</span>` : '')}</div>${String(control)}${String(noteButton)}<span class="fmcl-item-tools"><button class="fmcl-icon-btn fmcl-item-action fmcl-evidence-button ${String(drawer.evidenceOpen ? 'active' : '')} ${String(attachments.length ? 'has-files' : '')}" type="button" data-fmcl-evidence-open aria-label="${(globalThis.PlatformLanguage?.htmlText("checklists","m_22d6acf47e2b46","Evidence and requirements") ?? "Evidence and requirements")}" title="${(globalThis.PlatformLanguage?.htmlText("checklists","m_22d6acf47e2b46","Evidence and requirements") ?? "Evidence and requirements")}"><i class="fas fa-paperclip"></i>${String(requirements.length ? '<span class="fmcl-evidence-dot"></span>' : '')}</button><button class="fmcl-icon-btn fmcl-item-action danger" type="button" data-fmcl-item-delete aria-label="${(globalThis.PlatformLanguage?.htmlText("checklists","m_aaf8dbee05f91a","Delete item") ?? "Delete item")}" title="${(globalThis.PlatformLanguage?.htmlText("checklists","m_aaf8dbee05f91a","Delete item") ?? "Delete item")}"><i class="fas fa-trash"></i></button></span></div>${String(evidenceDrawer)}${String(noteLine)}${String(drawerHtml)}</div>`;
     };
 
+    // The Documents app being on (platform.documents) is what lets a checklist be written out as a document.
+    const documentsOn = () => {
+      const flags = window.Portal?.appFlags || window.PlatformAPI?.appFlags;
+      if (!flags?.current?.()) return true;
+      if (flags.has?.('platform', 'documents')) return true;
+      return flags.value?.('platform', 'documents', false) === true;
+    };
+    const documentsTab = () => window.Portal?.modules?.projectDocsTab || window.Portal?.ProjectDocsTab;
+    const openDocsTab = () => {
+      const host = context.projectWorkspace || context.host || {};
+      try { host.setActivePreviewTab?.('docs'); } catch (_) {}
+      try { window.Portal?.navigation?.push?.({ projectTab:'docs' }, { source:'checklist-document', ownedKeys:['projectTab'] }); } catch (_) {}
+    };
+    const printPdf = (url) => {
+      const frame = document.createElement('iframe');
+      frame.style.cssText = 'position:fixed;right:0;bottom:0;width:0;height:0;border:0;visibility:hidden';
+      frame.src = url;
+      frame.addEventListener('load', () => {
+        try { frame.contentWindow.focus(); frame.contentWindow.print(); }
+        catch (_) { window.open(url, '_blank', 'noopener'); }
+        setTimeout(() => frame.remove(), 60000);
+      });
+      document.body.appendChild(frame);
+    };
+    // The document button: writes the checklist out as a document (it is then in the Documents tab), and offers to
+    // email it with the documents' own send dialog, download its PDF or print it.
+    const checklistDocument = async (checklist, button) => {
+      if (button) button.disabled = true;
+      let documentRecord = null;
+      try {
+        documentRecord = obj((await window.CrewAPI.projects.checklistDocument(orgId(context), projectId(context), checklist.id))?.document);
+        try { window.dispatchEvent(new CustomEvent('fm:documents:refresh', { detail:{ project_id:projectId(context), document_id:clean(documentRecord.id) } })); } catch (_) {}
+      } catch (error) {
+        showToast('Checklist document', statusError(error), false);
+        return;
+      } finally { if (button) button.disabled = false; }
+      if (!clean(documentRecord.id)) return;
+      const pdfUrl = window.DocumentsAPI?.documents?.pdfUrl?.(orgId(context), documentRecord.id)
+        || `${location.origin}/v1/documents/organizations/${encodeURIComponent(orgId(context))}/documents/${encodeURIComponent(documentRecord.id)}/pdf`;
+      const choice = await (Portal.ui?.choose?.(`${clean(checklist.title) || 'This checklist'} is saved in Documents${checklist.signature_required ? ', with a signature line' : ''}. What would you like to do with it?`, [
+        { value:'email', label:'Email', primary:true },
+        { value:'download', label:'Download' },
+        { value:'print', label:'Print' },
+        { value:'close', label:'Done' }
+      ], { title:'Checklist document', defaultFocus:'email' }) || Promise.resolve('close'));
+      if (choice === 'download') window.open(pdfUrl, '_blank', 'noopener');
+      else if (choice === 'print') printPdf(pdfUrl);
+      else if (choice === 'email') {
+        openDocsTab();
+        const docs = documentsTab();
+        const sent = await docs?.sendEngineDocument?.(documentRecord).catch(() => false);
+        if (!sent && !(await docs?.openEngineDocument?.(documentRecord).catch(() => false))) window.open(pdfUrl, '_blank', 'noopener');
+      }
+    };
+
     // A checklist that asks for a sign-off says whether it has one: who signed and when, or that it is still to sign.
     const signatureHtml = (checklist) => {
       if (!checklist.signature_required) return '';
@@ -413,7 +468,7 @@
       const untitled = clean(checklist.title).toLowerCase() === 'untitled checklist';
       const collapsed = checklistUi(checklist.id).collapsed;
       return `<section class="fmcl-card ${String(detail ? 'detail' : '')} ${String(collapsed ? 'collapsed' : '')} ${String(deleted ? 'deleted' : '')}" data-fmcl-list="${String(esc(checklist.id))}" data-fmcl-order="${String(order)}" data-fmcl-deleted="${String(deleted)}">
-        <div class="fmcl-cl-head"><button class="fmcl-cl-icon" type="button" data-fmcl-collapse aria-expanded="${String(!collapsed)}" aria-label="${((v7) => globalThis.PlatformLanguage?.htmlText("checklists","m_ce48bcc0fd78ab",`${v7} checklist`,{v7}) ?? `${v7} checklist`)(collapsed ? 'Expand' : 'Collapse')}" title="${String(collapsed ? 'Expand checklist' : 'Collapse checklist')}"><i class="fas ${String(collapsed ? 'fa-chevron-down' : 'fa-chevron-up')}"></i></button><div class="fmcl-cl-copy"><input class="fmcl-list-title ${String(untitled ? 'untitled' : '')}" data-fmcl-rename value="${String(untitled ? '' : esc(checklist.title))}" placeholder="${(globalThis.PlatformLanguage?.htmlText("checklists","m_9054974500fee9","Untitled…") ?? "Untitled…")}" aria-label="${(globalThis.PlatformLanguage?.htmlText("checklists","m_3bf1f1282b3808","Checklist title") ?? "Checklist title")}" title="${String(deleted ? 'Deleted checklist' : 'Click to rename')}" ${String(deleted ? 'readonly' : '')}>${String(deleted ? `<span class="fmcl-deleted-tag"><i class="fas fa-trash"></i>${((v0) => globalThis.PlatformLanguage?.htmlText("checklists","m_5f680e6eb92fdb",` Deleted ${v0}`,{v0}) ?? ` Deleted ${v0}`)(esc(shortDate(checklist.deleted_at)))}</span>` : '')}</div><span class="fmcl-cl-tools"><button class="fmcl-icon-btn voice-update" type="button" data-fmcl-voice-update aria-label="${(globalThis.PlatformLanguage?.htmlText("checklists","m_b794aea060fc8f","Update checklist by voice") ?? "Update checklist by voice")}" title="${(globalThis.PlatformLanguage?.htmlText("checklists","m_8f89b708111629","Update by voice") ?? "Update by voice")}"><span class="fm-voice-icon" aria-hidden="true" style="display:inline-block;width:1em;height:1em;flex:none;vertical-align:-.125em;background:currentColor;mask:url(/libraries/voice-icons/dictation.svg) center/contain no-repeat;-webkit-mask:url(/libraries/voice-icons/dictation.svg) center/contain no-repeat"></span></button></span></div>
+        <div class="fmcl-cl-head"><button class="fmcl-cl-icon" type="button" data-fmcl-collapse aria-expanded="${String(!collapsed)}" aria-label="${((v7) => globalThis.PlatformLanguage?.htmlText("checklists","m_ce48bcc0fd78ab",`${v7} checklist`,{v7}) ?? `${v7} checklist`)(collapsed ? 'Expand' : 'Collapse')}" title="${String(collapsed ? 'Expand checklist' : 'Collapse checklist')}"><i class="fas ${String(collapsed ? 'fa-chevron-down' : 'fa-chevron-up')}"></i></button><div class="fmcl-cl-copy"><input class="fmcl-list-title ${String(untitled ? 'untitled' : '')}" data-fmcl-rename value="${String(untitled ? '' : esc(checklist.title))}" placeholder="${(globalThis.PlatformLanguage?.htmlText("checklists","m_9054974500fee9","Untitled…") ?? "Untitled…")}" aria-label="${(globalThis.PlatformLanguage?.htmlText("checklists","m_3bf1f1282b3808","Checklist title") ?? "Checklist title")}" title="${String(deleted ? 'Deleted checklist' : 'Click to rename')}" ${String(deleted ? 'readonly' : '')}>${String(deleted ? `<span class="fmcl-deleted-tag"><i class="fas fa-trash"></i>${((v0) => globalThis.PlatformLanguage?.htmlText("checklists","m_5f680e6eb92fdb",` Deleted ${v0}`,{v0}) ?? ` Deleted ${v0}`)(esc(shortDate(checklist.deleted_at)))}</span>` : '')}</div><span class="fmcl-cl-tools">${String(!deleted && documentsOn() ? `<button class="fmcl-icon-btn" type="button" data-fmcl-document aria-label="Checklist document" title="Save to Documents, then email, download or print"><i class="fas fa-file-lines"></i></button>` : '')}<button class="fmcl-icon-btn voice-update" type="button" data-fmcl-voice-update aria-label="${(globalThis.PlatformLanguage?.htmlText("checklists","m_b794aea060fc8f","Update checklist by voice") ?? "Update checklist by voice")}" title="${(globalThis.PlatformLanguage?.htmlText("checklists","m_8f89b708111629","Update by voice") ?? "Update by voice")}"><span class="fm-voice-icon" aria-hidden="true" style="display:inline-block;width:1em;height:1em;flex:none;vertical-align:-.125em;background:currentColor;mask:url(/libraries/voice-icons/dictation.svg) center/contain no-repeat;-webkit-mask:url(/libraries/voice-icons/dictation.svg) center/contain no-repeat"></span></button></span></div>
         <div class="fmcl-card-body"><div class="fmcl-card-body-inner">
           <div class="fmcl-card-actions">
             <span class="fmcl-menu-wrap"><button class="fmcl-config-btn ${String(assignmentUi.open ? 'open' : '')}" type="button" data-fmcl-assign><i class="fas fa-user-group"></i>${((v16) => globalThis.PlatformLanguage?.htmlText("checklists","m_467cf3556084e7",` Completes: ${v16} `,{v16}) ?? ` Completes: ${v16} `)(esc(assignmentLabel))}<i class="fas fa-chevron-down"></i></button><div class="fmcl-assignment ${String(assignmentUi.open ? 'open' : '')}" data-fmcl-assignment>
@@ -620,6 +675,7 @@
           if (event.key === 'Enter') { event.preventDefault(); titleInput.blur(); }
           if (event.key === 'Escape') { titleInput.value = clean(checklist.title).toLowerCase() === 'untitled checklist' ? '' : checklist.title; titleInput.blur(); }
         });
+        section.querySelector('[data-fmcl-document]')?.addEventListener('click', (event) => { event.stopPropagation(); void checklistDocument(checklist, event.currentTarget); });
         section.querySelector('[data-fmcl-signature-required]')?.addEventListener('click', async () => {
           try { await window.CrewAPI.projects.updateChecklist(orgId(context), projectId(context), checklistId, { signature_required: !checklist.signature_required }); await load(); }
           catch (error) { showToast('Checklist', statusError(error), false); }
