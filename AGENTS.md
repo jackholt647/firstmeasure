@@ -176,10 +176,10 @@ looks broken.
 
 Do not copy editor files into the platform release on dev legacy with a
 per-task rollout: they are not served while the lane serves its own release.
-Other commands: `ship.mjs status`, `rollback [<sha>]`, `follow` (serve the
-platform release's editor through the lane), `uninstall` (serve the platform
-copy directly). Run `node --test tests/dev-lane-measure-internal.test.mjs` for
-changes to the lane tool.
+Only the router activates lane releases: to undo a change, ship a revert.
+`ship.mjs status` shows the lane. Run
+`node --test tests/dev-lane-measure-internal.test.mjs` for changes to the lane
+tool.
 
 ## Canonical source
 
