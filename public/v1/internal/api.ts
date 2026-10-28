@@ -1533,16 +1533,18 @@ async function startCustomerImpersonation(request: FastifyRequest, reply: Fastif
   const requestedUserId = cleanText(body.user_id);
   if (!email && !(requestedOrgId && requestedUserId)) return { ok: false, success: false, status_code: 400, error: "missing_user_email" };
 
-  // The user record's own identity link comes first: its email can differ from the sign-in email (1M8-248).
-  const identity = await impersonationIdentityForUser(requestedOrgId, requestedUserId) ?? (email ? await findIdentityByEmailOrNull(email) : null);
+  // The user record's own identity link comes first: its email can differ from the sign-in email (1M8-248, 1M8-249).
+  const record = await impersonationUserRecord(requestedOrgId, requestedUserId, email);
+  const identity = record?.identity ?? (email ? await findIdentityByEmailOrNull(email) : null);
   if (!identity) return { ok: false, success: false, status_code: 404, error: "identity_not_found" };
+  const targetUserId = record?.userId || requestedUserId;
 
   const memberships = await listIdentityMemberships(String(identity.id ?? "")).catch(() => []);
   const selected = memberships.find((entry) => {
     const organization = asObject(asObject(entry).organization);
     if (!requestedOrgId) return cleanText(organization.id) !== internalPlatformOrgId();
     const user = asObject(asObject(entry).user);
-    return cleanText(organization.id) === requestedOrgId && (!requestedUserId || cleanText(user.id) === requestedUserId);
+    return cleanText(organization.id) === requestedOrgId && (!targetUserId || cleanText(user.id) === targetUserId);
   }) ?? (requestedOrgId ? undefined : memberships[0]);
   if (!selected) return { ok: false, success: false, status_code: 404, error: "membership_not_found" };
 
@@ -1588,12 +1590,17 @@ async function startCustomerImpersonation(request: FastifyRequest, reply: Fastif
   };
 }
 
-async function impersonationIdentityForUser(orgId: string, userId: string) {
-  if (!orgId || !userId) return null;
-  const document = await readDocument(orgId, "users", userId).catch(() => null);
+// The organization user being impersonated: by id, or else the one whose record has this email (a page loaded before
+// the tab sent ids), followed to the identity it signs in with.
+async function impersonationUserRecord(orgId: string, userId: string, email: string) {
+  if (!orgId || (!userId && !email)) return null;
+  const document = userId
+    ? await readDocument(orgId, "users", userId).catch(() => null)
+    : (await listDocuments(orgId, "users").catch(() => [])).find((entry) => cleanText(documentData(asObject(entry)).email).toLowerCase() === email) ?? null;
   if (!document) return null;
   const identityId = cleanText(documentData(document).identity_id || asObject(document.metadata).identity_id);
-  return identityId ? await readIdentity(identityId).catch(() => null) : null;
+  const identity = identityId ? await readIdentity(identityId).catch(() => null) : null;
+  return identity ? { identity, userId: cleanText(document.id || documentData(document).id) } : null;
 }
 
 async function adminRestorePlatformSessionId(request: FastifyRequest, adminUser: JsonObject, actor: JsonObject) {

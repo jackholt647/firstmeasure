@@ -3253,7 +3253,7 @@
     },
     async onShow(){ await loadCustomers(); },
     openOrgDetail(orgId){ openOrgDetail(orgId); },
-    impersonateUser(email, name){ impersonateUser(email, name); }
+    impersonateUser(email, name, userId){ impersonateUser(email, name, userId); }
   };
 
   const origSwitch = Portal.switchView ? Portal.switchView.bind(Portal) : null;
