@@ -358,6 +358,8 @@ export class Router {
       const { sha } = await timed("merge", () => this.mergeOnto(dir, tip, accepted));
       const gate = await timed("gates", () => this.runGates(lane, dir, sha, tip, accepted));
       for (const [stage, ms] of Object.entries(gate.timings || {})) if (stage !== "gates_total") timings[`gate:${stage}`] = ms;
+      // Failures the lane tip already has are nobody's in this batch.
+      if (!gate.ok && !(await timed("gates_tip", () => this.preexisting(lane, dir, tip, accepted, gate.failures))).length) gate.ok = true;
       if (!gate.ok) {
         this.log(lane, `batch of ${accepted.length} failed ${gate.failures.map((failure) => failure.id).join(", ")}; bisecting`);
         accepted = await timed("bisect", () => this.bisect(lane, dir, tip, accepted, [], accepted.length > 1));

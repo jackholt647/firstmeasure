@@ -290,6 +290,8 @@ test("the organization logo is cached by revision and revalidated by ETag", asyn
   const branding = (await client.request("GET", "/v1/platform/me")).global?.data?.branding || {};
   assert.equal(branding.logo, second);
 
+  // A private project photo is never served by the public logo route. The upload route checks that the project exists.
+  await (await import("../platform/storage.js")).upsertDocument(orgId, "projects", { id: "project_logo_cache", data: { title: "Logo cache project" } });
   const photo = await client.request("POST", `/v1/platform/organizations/${orgId}/media`, {
     owner_type: "project", owner_id: "project_logo_cache", slot: "photos", collection: "projects", scope: "projects",
     file_name: "photo.png", content_type: "image/png", base64: Buffer.from("private-photo").toString("base64")
