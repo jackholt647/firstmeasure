@@ -28,6 +28,7 @@ itself; this droplet serves the names under it (below).
 ```
 /srv/agents/work/firstmeasure     main clone (canonical branch, from GitHub); worktrees go beside it under work/
 /srv/agents/home/agent            the agent user's home (~/code -> /srv/agents/work)
+~/reference/synthesizer.js        Jack's model-provider helper with API keys (700/600); never print or copy its keys
 /srv/agents/cache/npm             shared npm cache (npm_config_cache)
 /srv/agents/cache/node_modules    shared node_modules builds (fm-deps)
 /srv/agents/cache/ms-playwright   Playwright's Chromium (PLAYWRIGHT_BROWSERS_PATH)

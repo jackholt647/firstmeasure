@@ -13,6 +13,9 @@ and the full reference is `docs/architecture/agent-droplet.md` there.
 - Can reach: GitHub, the dev push router (submit only), dev web's live layer, the internet.
   Cannot reach: production (no key, VPC or secret), dev host shells, DigitalOcean's API. Never copy cluster
   keys, DigitalOcean tokens or production secrets here.
+- `~/reference/synthesizer.js` (private to `agent`) is Jack's helper with model-provider API keys and call
+  functions (Luna among them); use it to call those providers. Never print its keys or copy them anywhere:
+  no commit, log, experiment, message or other file.
 
 ## Jack's PC and browsers
 - Jack's PC home folder (`C:\Users\jackh`) is at `/mnt/jack-pc` while his tunnel is up (`sudo fm-jack-pc-mount
