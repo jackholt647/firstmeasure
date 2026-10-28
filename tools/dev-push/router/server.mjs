@@ -4,6 +4,8 @@
 //   node tools/dev-push/router/server.mjs                 run every lane forever
 //   node tools/dev-push/router/server.mjs once [<lane>]   one pass over each lane's queue, then exit
 //   node tools/dev-push/router/server.mjs pause|resume <lane>
+//   node tools/dev-push/router/server.mjs primary <role|ip>   bake live overlays into a release, then make that node the primary web node
+//   node tools/dev-push/router/server.mjs bake-live | forget <role>
 //   node tools/dev-push/router/server.mjs release [<lane>] [--force]   deploy the lane tip as it stands (re-baseline)
 //   node tools/dev-push/router/server.mjs gate|build <ref> [--changed a,b]   diagnostics, no queue
 //
@@ -58,14 +60,18 @@ async function main() {
   // router move branches, recognised by this variable on local pushes. GitHub is mirrored from PCs (mirror.mjs).
   process.env.DEV_PUSH_ROUTER = "1";
   const version = (await run("git", ["rev-parse", "--short", "HEAD"], { cwd: here })).stdout.trim() || null;
-  const live = lanes.platform && config.live !== false ? liveOverlays({ hosts, home: HOME, log: (line) => console.log(`[live] ${line}`) }) : {};
+  const receiver = () => `fmlive@${(hosts.addresses().web || "root@143.198.68.11").split("@").pop()}`; // the primary web node
+  const live = lanes.platform && config.live !== false ? liveOverlays({ hosts, home: HOME, target: receiver, log: (line) => console.log(`[live] ${line}`) }) : {};
   const app = path.resolve(here, "..", "..", "..");
   const router = new Router({
     repo: path.join(HOME, "repo.git"), remote: config.remote || ROUTER_REPO_PATH, stateDir: STATE, lanes, hosts, version,
     host: os.hostname(),
+    // Every web node holds the status document (nginx serves it at /__dev-push/status.json on each).
     publish: config.publish === false ? null : async (doc) => {
-      const result = await hosts.call("web", ["publish"], { input: JSON.stringify(doc), timeoutMs: 60_000 });
-      if (!result.ok) throw new Error(result.error);
+      const roles = hosts.roles.filter((role) => role === "web" || role.startsWith("web-"));
+      const results = await Promise.all(roles.map((role) => hosts.call(role, ["publish"], { input: JSON.stringify(doc), timeoutMs: 60_000 })));
+      const failed = results.map((result, index) => (result.ok ? null : `${roles[index]}: ${result.error}`)).filter(Boolean);
+      if (failed.length) throw new Error(failed.join("; "));
     },
     ...live,
     // A platform release that changes the router's own code moves the router to it; cron restarts it within a minute.
@@ -83,6 +89,14 @@ async function main() {
     }
   });
   await router.init();
+  // Fleet state first: it says which node is the primary web node and which pool members were adopted.
+  const fleet = makeFleet({ router, hosts, log: (line) => router.log("fleet", line) });
+  // Requests for the running router (it alone touches the repository and hosts): primary, bake-live, forget.
+  if (["primary", "bake-live", "forget"].includes(command)) {
+    fs.appendFileSync(path.join(STATE, "requests.jsonl"), JSON.stringify({ command, target: args._[1] || null, at: new Date().toISOString() }) + "\n");
+    console.log(`asked the running router to ${command}${args._[1] ? ` ${args._[1]}` : ""}; watch state/router.log`);
+    return;
+  }
   await router.git(["remote", "set-url", "origin", config.remote || ROUTER_REPO_PATH]);
   await router.git(["config", "--unset-all", "remote.origin.pushurl"], { allowFail: true }); // pushes go to the same repository
   if (command === "gate" || command === "build" || command === "stage") {
@@ -121,8 +135,7 @@ async function main() {
   // The repository is local, so an idle pass costs a few milliseconds: poll often to keep the queue wait short.
   // Every minute: is every web node behind the load balancer on the router's release, and are new pool members adopted?
   if (lanes.platform && config.fleet !== false) {
-    const fleet = makeFleet({ router, hosts, home: HOME, log: (line) => router.log("fleet", line) });
-    const tick = () => fleet.check().catch((error) => { router.log("fleet", `check failed: ${error.message}`); return true; }).then((done) => setTimeout(tick, done ? 60_000 : 10_000));
+    const tick = () => fleet.requests(live.lastExport).then(() => fleet.check()).catch((error) => { router.log("fleet", `check failed: ${error.message}`); return true; }).then((done) => setTimeout(tick, done ? 60_000 : 10_000));
     setTimeout(tick, 20_000);
   }
   await router.start({ intervalMs: config.intervalMs || 3_000 });

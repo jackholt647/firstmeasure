@@ -118,7 +118,27 @@ class Receiver {
 function receiverCommand(args) {
   if (args.receiver) return String(args.receiver).split(" ").filter(Boolean);
   const jump = args.jump ? ["-J", String(args.jump)] : [];
-  return ["ssh", "-T", "-o", "BatchMode=yes", "-o", "StrictHostKeyChecking=accept-new", "-o", "ServerAliveInterval=15", "-o", "ConnectTimeout=10", ...jump, "-i", args.key || DEFAULT_KEY, args.target || DEFAULT_TARGET, "serve"];
+  const hostKey = args.knownHosts ? ["-o", `UserKnownHostsFile=${args.knownHosts}`, "-o", "StrictHostKeyChecking=yes"] : ["-o", "StrictHostKeyChecking=accept-new"];
+  return ["ssh", "-T", "-o", "BatchMode=yes", ...hostKey, "-o", "ServerAliveInterval=15", "-o", "ConnectTimeout=10", ...jump, "-i", args.key || DEFAULT_KEY, args.target || DEFAULT_TARGET, "serve"];
+}
+
+/**
+ * Without --target, the receiver is whichever web node the dev push router names in its status document (fetched
+ * over TLS, with the receiver's SSH host key, which is then the only key accepted); the old fixed address otherwise.
+ */
+async function resolveReceiver(args) {
+  if (args.target || args.receiver) return args;
+  try {
+    const response = await fetch(process.env.DEV_PUSH_STATUS_URL || "https://dev.1m8.ai/__dev-push/status.json", { signal: AbortSignal.timeout(8000) });
+    const live = (await response.json())?.live;
+    if (live?.target && live?.host_key) {
+      const knownHosts = path.join(os.homedir(), ".ssh", "fm-live-known-hosts");
+      fs.mkdirSync(path.dirname(knownHosts), { recursive: true });
+      fs.writeFileSync(knownHosts, `${live.host_key}\n`);
+      return { ...args, target: live.target, knownHosts };
+    }
+  } catch {}
+  return args;
 }
 
 /** Who this sync is to the receiver: the files it owns there. */
@@ -158,6 +178,7 @@ export async function reconcile(root, baseRef, receiver, memo, log = console.log
 }
 
 async function serve(args) {
+  args = await resolveReceiver(args);
   const root = path.resolve(args.root || ".");
   const baseRef = args.base || DEFAULT_BASE;
   const receiver = new Receiver(receiverCommand(args));
@@ -196,6 +217,7 @@ async function serve(args) {
 }
 
 async function status(args) {
+  args = await resolveReceiver(args);
   const root = path.resolve(args.root || ".");
   const receiver = new Receiver(receiverCommand(args));
   const [listed, desired] = await Promise.all([receiver.request({ op: "list" }), desiredFiles(root, args.base || DEFAULT_BASE)]);
@@ -215,6 +237,7 @@ async function status(args) {
 }
 
 async function clear(args) {
+  args = await resolveReceiver(args);
   const root = path.resolve(args.root || ".");
   const receiver = new Receiver(receiverCommand(args));
   const source = sourceOf(args, root);
