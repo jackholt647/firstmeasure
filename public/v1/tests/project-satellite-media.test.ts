@@ -143,14 +143,25 @@ test("asking for a project that does not exist creates nothing", async () => {
   assert.equal((await projectMedia("p_missing")).length, 0);
 });
 
-test("a report of another organization or one not yet completed gives no image", async () => {
-  // The default reader checks the report's organization and status before reading any artifact.
-  const source = await (await import("node:fs/promises")).readFile(new URL("../projects/satellite-media.ts", import.meta.url), "utf8");
-  assert.match(source, /organization_ref\)\.id\) !== orgId \|\| clean\(manifest\.status\)\.toLowerCase\(\) !== "completed"/);
+test("a report of another organization gives no image; one still processing does (FM-292)", async () => {
+  // The default reader checks the report's organization before reading any artifact; the status does not matter,
+  // because the top-down imagery is downloaded when the report is ordered.
+  assert.equal(satellite.reportImageryUsable({ organization_ref: { id: "other_org" }, status: "completed" }, org), false);
+  assert.equal(satellite.reportImageryUsable({ status: "completed" }, org), false);
+  assert.equal(satellite.reportImageryUsable({ organization_ref: { id: org }, status: "processing" }, org), true);
+  assert.equal(satellite.reportImageryUsable({ organization_ref: { id: org }, status: "completed" }, ""), false);
+
   await storage.upsertDocument(org, "projects", { id: "p_pending", data: { title: "Pending", measurement_project: { id: "report_missing" } } });
   const result = await satellite.ensureProjectSatelliteMedia(org, "p_pending", { googleStaticMap: neverGoogle });
   assert.equal(result.status, "unavailable");
-  assert.equal(result.unavailable_reason, "report_not_completed_no_coordinates");
+  assert.equal(result.unavailable_reason, "report_has_no_image_no_coordinates");
+
+  // An ordered report that is still processing already has its imagery: it is saved and becomes the cover.
+  await storage.upsertDocument(org, "projects", { id: "p_ordered", data: { title: "Ordered", measurement_project: { id: "report_ordered", status: "processing" } } });
+  const ordered = await satellite.ensureProjectSatelliteMedia(org, "p_ordered", { firstMeasureImage: async () => ({ bytes: await png(), artifact: "rgb.tif" }), googleStaticMap: neverGoogle });
+  assert.equal(ordered.status, "saved");
+  assert.equal(ordered.source, "firstmeasure");
+  assert.equal(await coverOf("p_ordered"), ordered.media_id);
 });
 
 test("while the report is still processing, the static map is fetched with the Maps Static key and becomes the cover (FM-292)", async () => {
