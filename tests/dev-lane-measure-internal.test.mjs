@@ -2,7 +2,7 @@
 // manifest built from git blobs, the quick checks every ship runs, which editor tests a regression run
 // picks and how a failure canonical already has is told apart, and the router's lane module. A scratch
 // repository stands in for the checkout.
-import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from 'node:fs';
+import fs, { mkdtempSync, mkdirSync, writeFileSync, rmSync } from 'node:fs';
 import { createHash } from 'node:crypto';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
@@ -178,9 +178,9 @@ test('the release tree is the commit\'s editor plus links into the platform rele
       assert.deepEqual(tree.links, {
         'public/measure/sales': '/opt/firstmeasure/current/public/measure/sales',
         'public/portal': '/opt/firstmeasure/current/public/portal',
-        'public/storage': '/opt/firstmeasure/current/public/storage',
         'public/v1': '/opt/firstmeasure/current/public/v1'
-      });
+      }, 'public/storage is a host path fm-release does not check');
+      assert.ok(fs.lstatSync(path.join(out, 'public', 'storage')).isSymbolicLink(), 'but the link is in the tree');
     } finally { rmSync(out, { recursive: true, force: true }); }
   } finally { s.done(); }
 });
