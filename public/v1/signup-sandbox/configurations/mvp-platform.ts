@@ -16,7 +16,7 @@ import { readBranchModule, saveBranchModule } from "../../platform/storage.js";
 import { listAccessRoles, patchAccessRole } from "../../workforce/access.js";
 import { saveIntakeRouting, readIntakeRouting } from "../../scopes/router.js";
 import { listScopeTemplates, patchScopeFlags, readScopeFlagState, readScopeTemplate, saveScopeTemplate } from "../../scopes/storage.js";
-import { DEFAULT_SCOPE_TEMPLATES } from "../../scopes/presets/index.js";
+import { libraryCopy } from "../../config-library/library.js";
 import type { JsonObject } from "../storage.js";
 
 export const MVP_PLATFORM_WORKFLOW_ID = "swf_mvp_platform";
@@ -251,8 +251,8 @@ const stage = (id: string, title: string, color: string, [taskId, taskTitle]: [s
  * Replacement preset so documents and materials work the same way.
  */
 export function genericRoofingTemplate(): JsonObject {
-  const base = DEFAULT_SCOPE_TEMPLATES.find((definition) => definition.id === "roof_replacement") as unknown as JsonObject;
-  const copy = JSON.parse(JSON.stringify(base)) as JsonObject;
+  // The scope library's Roof Replacement, without its place in the library list.
+  const { sort_order: _sortOrder, ...copy } = libraryCopy<JsonObject>("scope_template", "roof_replacement") || {};
   return {
     ...copy,
     id: GENERIC_ROOFING_TEMPLATE_ID,

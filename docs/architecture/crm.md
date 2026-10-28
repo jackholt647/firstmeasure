@@ -215,8 +215,9 @@ holds rules: days, how days are counted (`calendar`; `business`, Monday to Satur
 `weekdays`), federal holidays skipped or not, and conditions in the condition contract
 over the project, its primary contact (with `contact.age` from a birthday) and its
 lead source. The first matching rule applies; with none, or with rescission off, the
-sale has no window. The window is a scope step (`rescissionStage` in
-`scopes/presets/industry.ts`):
+sale has no window. The window is a scope step (`rescission_stage` in the
+`insurance_roof_sale` and `in_home_sale` entries of the scope library, config library
+kind `scope_template`):
 
 - `onReady`: `sales.startRescission.v1` sets the step's due date to the end of the
   last day the customer may cancel, in the organization's time zone, and records the
@@ -259,8 +260,10 @@ second pack adds its scopes and views only.
 | Something else | The base views and sources |
 
 Every pack also adds the common sources (Website with Google Ads and Facebook and
-Instagram under it, Phone call, Referral, Repeat customer). The industry scopes live
-in `scopes/presets/industry.ts` and are not installed in every organization.
+Instagram under it, Phone call, Referral, Repeat customer). The industry scopes are
+scope library entries with `metadata.industry_preset` ([config library](config-library.md)
+kind `scope_template`, read through `scopes/library.ts`) and are not installed in every
+organization; an untouched copy follows the library like any other scope.
 
 | People | CRM features on |
 |---|---|

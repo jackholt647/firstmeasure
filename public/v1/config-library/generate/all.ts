@@ -1,13 +1,11 @@
 import type { Generator } from "./index.js";
 import { appFlagDefaultsGenerator } from "./app_flag_defaults.js";
-import { automationRuleDefaultGenerator } from "./automation_rule_default.js";
 import { capabilityDefaultsGenerator } from "./capability_defaults.js";
 import { capabilityPresetGenerator } from "./capability_preset.js";
 import { capabilitySignupPresetGenerator } from "./capability_signup_preset.js";
 import { documentTemplateGenerator } from "./document-template.js";
 import { documentThemeGenerator } from "./document-theme.js";
 import { documentWorkflowGenerator } from "./document-workflow.js";
-import { formTemplateGenerator } from "./form_template.js";
 import { materialLibraryGenerator } from "./material_library.js";
 import { measurementDefinitionGenerator } from "./measurement_definition.js";
 import { measurementEquivalenceGenerator } from "./measurement_equivalence.js";
@@ -17,7 +15,6 @@ import { presentationDeckGenerator } from "./presentation-deck.js";
 import { pricebookSetupGenerator } from "./pricebook_setup.js";
 import { pricebookTemplateGenerator } from "./pricebook_template.js";
 import { sandboxConfigurationGenerator } from "./sandbox_configuration.js";
-import { scopeTemplateGenerator } from "./scope_template.js";
 import { terminologyNamespaceGenerator } from "./terminology_namespace.js";
 import { workItemGenerator } from "./work_item.js";
 import { workSchemaGenerator } from "./work_schema.js";
@@ -26,14 +23,12 @@ import { workSchemaGenerator } from "./work_schema.js";
 export async function allGenerators(): Promise<Generator[]> {
   return [
     appFlagDefaultsGenerator,
-    automationRuleDefaultGenerator,
     capabilityDefaultsGenerator,
     capabilityPresetGenerator,
     capabilitySignupPresetGenerator,
     documentTemplateGenerator,
     documentThemeGenerator,
     documentWorkflowGenerator,
-    formTemplateGenerator,
     materialLibraryGenerator,
     measurementDefinitionGenerator,
     measurementEquivalenceGenerator,
@@ -43,7 +38,6 @@ export async function allGenerators(): Promise<Generator[]> {
     pricebookSetupGenerator,
     pricebookTemplateGenerator,
     sandboxConfigurationGenerator,
-    scopeTemplateGenerator,
     terminologyNamespaceGenerator,
     workItemGenerator,
     workSchemaGenerator

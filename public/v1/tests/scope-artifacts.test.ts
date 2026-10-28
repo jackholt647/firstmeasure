@@ -1,11 +1,12 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { buildScopeArtifactMap, patchScopeArtifact, createScopeArtifact } from "../scopes/artifacts.js";
-import { DEFAULT_SCOPE_TEMPLATES } from "../scopes/presets/index.js";
+import { defaultScopeLibraryEntries } from "../scopes/library.js";
+const LIBRARY_SCOPES = defaultScopeLibraryEntries().map((entry) => structuredClone(entry.data) as any);
 import { registerBuiltinWorkAutomations } from "../work/automations/builtins.js";
 import { registerPayrollAutomations } from "../payroll/automations.js";
 registerBuiltinWorkAutomations(); registerPayrollAutomations();
-const roof = DEFAULT_SCOPE_TEMPLATES.find(t=>t.id === "roof_replacement")!;
+const roof = LIBRARY_SCOPES.find(t=>t.id === "roof_replacement")!;
 
 test("customer portal includes access settings and only inbound pages targeting this scope", () => {
   const definition={id:"roof",name:"Roof",work_plan:{root_nodes:[]},customer_scheduling:{enabled:true,min_notice_minutes:120},checklists:[{id:"hidden",title:"Crew checks",items:[]},{id:"customer",title:"Customer checks",customer_access:{visible:true,can_complete:true},items:[]}]};
@@ -27,7 +28,7 @@ test("customer portal includes access settings and only inbound pages targeting 
 });
 
 test("roofing sales exposes its explicit customer portal handoff and document sources", () => {
-  const sales=DEFAULT_SCOPE_TEMPLATES.find(t=>t.id==="roofing_sales_appointment")!;
+  const sales=LIBRARY_SCOPES.find(t=>t.id==="roofing_sales_appointment")!;
   const portal=buildScopeArtifactMap(sales).artifacts.filter(a=>a.type==="portal");
   assert.ok(portal.some(a=>a.config.portal_kind==="handoff" && a.title==="Send to customer portal"));
   assert.ok(portal.some(a=>a.config.portal_kind==="document" && a.related_ids.some(id=>id.startsWith("documents:"))));
@@ -107,14 +108,14 @@ test("disabled setup remains visible, arbitrary functions are disclosed, and fie
   const catalog=buildScopeArtifactMap(definition);
   assert.equal(catalog.artifacts.find(a=>a.type==="checklists")!.enabled,false);
   assert.ok(catalog.artifacts.some(a=>a.type==="other" && a.config.code));
-  const sales=DEFAULT_SCOPE_TEMPLATES.find(t=>t.id==="roofing_sales_appointment")!;
+  const sales=LIBRARY_SCOPES.find(t=>t.id==="roofing_sales_appointment")!;
   const visit=buildScopeArtifactMap(sales);
   assert.ok(visit.artifacts.some(a=>a.type==="workflows"));
   assert.ok(visit.artifacts.some(a=>a.type==="communications" && a.origin==="Visit step"));
 });
 
 test("every preset projects without mutating its definition",()=>{
-  for(const definition of DEFAULT_SCOPE_TEMPLATES){
+  for(const definition of LIBRARY_SCOPES){
     const before=JSON.stringify(definition);const map=buildScopeArtifactMap(definition);
     assert.equal(JSON.stringify(definition),before);assert.equal(new Set(map.artifacts.map(a=>a.id)).size,map.artifacts.length);
   }
