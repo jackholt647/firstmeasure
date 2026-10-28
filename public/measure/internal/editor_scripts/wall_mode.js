@@ -713,7 +713,8 @@ function perf_render2DContent() {
     function drawEditorOverlay(...args){if(!window.ExteriorPerf?.enabled)return perf_drawEditorOverlay.apply(this,args);return window.ExteriorPerf.measure('Preview overlay',()=>perf_drawEditorOverlay.apply(this,args));}
     function perf_drawEditorOverlay(){
         const had=!!overlayGroup;clearEditorOverlay();if(typeof scene==='undefined'||!scene||!window.THREE?.Group||!enabled)return;
-        const group=new THREE.Group();group.name='exteriors-wall-overlay';withWallScene(()=>wallEditor?.drawOverlay?.(group,p=>getVector3(toPixel(p))));
+        const group=new THREE.Group();group.name='exteriors-wall-overlay';const vector=p=>getVector3(toPixel(p));withWallScene(()=>wallEditor?.drawOverlay?.(group,vector));
+        window.exteriorSurfaceDisplay?.(group,surfaceMode());applyPlaneDisplay(group,vector);applyLineSelectDisplay(group);
         if(group.children.length){overlayGroup=group;scene.add(group);}if(had||overlayGroup)window.invalidateScene3D?.();
     }
     function clearNudgePreview(){if(nudgePreviewGroup){nudgePreviewGroup.parent?.remove(nudgePreviewGroup);disposeObject3D(nudgePreviewGroup);nudgePreviewGroup=null;}}
