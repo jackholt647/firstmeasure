@@ -1,0 +1,6 @@
+[Unit]
+Description=Mount Jack's PC at /mnt/jack-pc while its tunnel is up
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/bin/fm-jack-pc-mount

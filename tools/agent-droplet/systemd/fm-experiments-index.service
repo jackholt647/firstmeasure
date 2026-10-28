@@ -1,0 +1,7 @@
+[Unit]
+Description=Rebuild the experiments index page
+
+[Service]
+Type=oneshot
+User=agent
+ExecStart=/usr/local/bin/fm-experiment index

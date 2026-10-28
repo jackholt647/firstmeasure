@@ -78,6 +78,16 @@ go through `safeFetch`. Run `tests/route-access.test.ts` for changes here.
 - Connect through the existing SSH configuration. Never expose, print, copy, or transmit a private SSH key.
 - Infer sync paths/direction only from adequate context. Do not infer deletion, mirroring, or overwrite semantics from a generic sync request.
 
+## Agent droplet
+
+Most agent sessions run on the agent droplet `fm-agents-1` (SSH `agent@67.205.145.222`), not on Jack's PC.
+Read [agent droplet](docs/architecture/agent-droplet.md) before working there or changing it: checkouts and
+`fm-deps` under `/srv/agents/work`, disk rules and nightly cleanup, browsers (prefer Jack's Chrome through
+Claude in Chrome for anything he is signed in to), experiments at `<name>.experimental.1m8.ai`
+(`fm-experiment`), and Jack's PC at `/mnt/jack-pc`. Its setup is `tools/agent-droplet/`; change those scripts,
+not the droplet by hand. It has no production access: never copy cluster keys, DigitalOcean tokens or
+production secrets onto it.
+
 ## Performance work deferred on purpose
 
 [docs/optimization-backlog.md](docs/optimization-backlog.md) is the one list of

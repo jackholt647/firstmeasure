@@ -1,0 +1,72 @@
+#!/usr/bin/env bash
+# Nightly cleanup on the agent droplet (fm-agents-cleanup.timer, 04:15 UTC).
+#   fm-agents-cleanup [--dry-run]
+# 1. Deletes files under /srv/agents/logs older than 7 days.
+# 2. Removes working copies of finished sessions under /srv/agents/work: a git checkout is removed only when
+#    nothing changed in it for 12 hours, no process runs inside it, `git status` shows nothing (untracked
+#    included), it has no stash (main clones), and every commit it holds is on a remote (origin, devpush, ...).
+#    A checkout containing a `.fm-keep` file is never removed.
+# 3. Drops shared node_modules builds (fm-deps) that no checkout links to and nobody used for 3 days.
+set -uo pipefail
+DRY=false
+[ "${1:-}" = "--dry-run" ] && DRY=true
+ROOT=/srv/agents
+WORK=$ROOT/work
+LOGDIR=$ROOT/logs/cleanup
+mkdir -p "$LOGDIR"
+LOG=$LOGDIR/$(date -u +%F).log
+say() { echo "$(date -u +%H:%M:%S) $*" | tee -a "$LOG"; }
+act() { if $DRY; then say "would: $*"; else say "do: $*"; "$@"; fi; }
+as_owner() { local d=$1; shift; local u; u=$(stat -c %U "$d"); if [ "$(id -un)" = "$u" ]; then "$@"; else sudo -u "$u" -- "$@"; fi; }
+
+say "cleanup start (dry-run=$DRY)"
+
+# 1. Logs
+while IFS= read -r -d '' f; do act rm -f -- "$f"; done < <(find "$ROOT/logs" -type f -mtime +7 -print0)
+$DRY || find "$ROOT/logs" -mindepth 2 -type d -empty -delete
+
+# 2. Working copies
+cwds=$(for p in /proc/[0-9]*/cwd; do readlink "$p" 2>/dev/null; done | sort -u)
+in_use() { local d=$1; grep -qxF "$d" <<<"$cwds" || grep -q "^$d/" <<<"$cwds"; }
+
+mapfile -d '' gits < <(find "$WORK" -maxdepth 6 \( -name node_modules -prune \) -o -name .git -print0 2>/dev/null)
+for g in "${gits[@]}"; do
+  d=$(dirname "$g")
+  [ -e "$d/.fm-keep" ] && { say "keep $d (.fm-keep)"; continue; }
+  if in_use "$d"; then say "keep $d (a process runs inside it)"; continue; fi
+  recent=$(find "$d" -xdev \( -name node_modules -o -name .git \) -prune -o -newermt '-12 hours' -print -quit 2>/dev/null)
+  [ -z "$recent" ] && [ -d "$d/.git" ] && recent=$(find "$d/.git" -maxdepth 1 -newermt '-12 hours' -print -quit)
+  if [ -n "$recent" ]; then say "keep $d (changed in the last 12 hours)"; continue; fi
+  if [ -n "$(as_owner "$d" git -C "$d" status --porcelain --untracked-files=all 2>&1)" ]; then say "keep $d (uncommitted work)"; continue; fi
+  linked=false; [ -f "$g" ] && linked=true
+  if ! $linked; then
+    if [ -n "$(as_owner "$d" git -C "$d" worktree list --porcelain | grep -c '^worktree ' | awk '$1>1')" ]; then say "keep $d (has linked worktrees)"; continue; fi
+    if [ -n "$(as_owner "$d" git -C "$d" stash list)" ]; then say "keep $d (has stashes)"; continue; fi
+  fi
+  as_owner "$d" timeout 90 git -C "$d" fetch --all --prune --quiet >/dev/null 2>&1 || say "note $d: fetch failed; judging by the remote refs it already has"
+  if $linked; then commits=$(as_owner "$d" git -C "$d" rev-parse HEAD); else commits=$(as_owner "$d" git -C "$d" for-each-ref --format='%(objectname)' refs/heads; as_owner "$d" git -C "$d" rev-parse HEAD); fi
+  unpushed=""
+  for c in $(echo "$commits" | sort -u); do
+    [ -n "$(as_owner "$d" git -C "$d" branch -r --contains "$c" 2>/dev/null | head -1)" ] || unpushed="$unpushed $c"
+  done
+  if [ -n "$unpushed" ]; then say "keep $d (commits not on any remote:$unpushed)"; continue; fi
+  if $linked; then
+    main=$(as_owner "$d" git -C "$d" rev-parse --path-format=absolute --git-common-dir)
+    act as_owner "$d" git --git-dir="$main" worktree remove --force "$d"
+  else
+    act rm -rf -- "$d"
+  fi
+done
+for g in "${gits[@]}"; do [ -d "$g" ] && ! $DRY && as_owner "$(dirname "$g")" git -C "$(dirname "$g")" worktree prune 2>/dev/null; done
+
+# 3. Shared node_modules builds
+links=$(find "$WORK" -maxdepth 8 -name node_modules -type l -printf '%l\n' 2>/dev/null | sort -u)
+for c in "$ROOT"/cache/node_modules/*/; do
+  [ -d "$c" ] || continue
+  c=${c%/}
+  grep -q "^$c/" <<<"$links" && continue
+  [ -n "$(find "$c" -maxdepth 1 -name .last-used -mtime -3 -print -quit)" ] && continue
+  act rm -rf -- "$c"
+done
+
+say "cleanup done"
