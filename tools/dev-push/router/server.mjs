@@ -122,7 +122,7 @@ async function main() {
   // Every minute: is every web node behind the load balancer on the router's release, and are new pool members adopted?
   if (lanes.platform && config.fleet !== false) {
     const fleet = makeFleet({ router, hosts, home: HOME, log: (line) => router.log("fleet", line) });
-    const tick = () => fleet.check().catch((error) => router.log("fleet", `check failed: ${error.message}`)).finally(() => setTimeout(tick, 60_000));
+    const tick = () => fleet.check().catch((error) => { router.log("fleet", `check failed: ${error.message}`); return true; }).then((done) => setTimeout(tick, done ? 60_000 : 10_000));
     setTimeout(tick, 20_000);
   }
   await router.start({ intervalMs: config.intervalMs || 3_000 });
