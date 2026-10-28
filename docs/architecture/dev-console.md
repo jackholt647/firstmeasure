@@ -46,7 +46,7 @@ library's editor flag); `readAccess` in `dev-console.js` says so.
 | Test users | turn users off, Solo one, turn everyone on; never the person using the console | the hidden developer overlay (Ctrl+Alt+Shift+D) |
 | Software layers | declared contracts ([development software layers](development-software-layers.md)) | the Development dropdown |
 | Live layer | files dev serves ahead of its release, the checkout that put each there, recent retirements | `live-sync.mjs status` ([live layer](live-layer.md)); `GET …/development/console/live` reads the receiver's manifest |
-| Dev push queue | each lane's state and last release, each submission's state and why it was rejected | new; the router's `/__dev-push/status.json`, read when opened and every 15 s while showing |
+| Dev push queue | each lane's state and last release, each submission's state and why it was rejected, recent releases; "router unavailable" while it reports nothing | new; the router's status file, on the `dev-push` channel (`development/dev-push-status.ts`, which watches `/opt/firstmeasure/dev-push/status.json`); until that channel is on the host, `/__dev-push/status.json` read every 15 s while showing |
 
 Flags and settings and the config library show "not on dev yet" until the config
 library's API answers on the host.
@@ -60,7 +60,8 @@ library's API answers on the host.
   `org_state.` platform events and the config library on `config_library.` (and reads
   again when opened: edits from other organizations do not reach this page); the Live
   layer section redraws on the `fm:live-assets` window event the live-assets library
-  dispatches for each change on the `live-assets` channel.
+  dispatches for each change on the `live-assets` channel. The push queue watches the `dev-push`
+  channel, which sends the router's status document whenever the router rewrites it.
 - The tray is above the project window (2147483200) and the sandbox stage overlay
   (z-index 2147483640).
 
