@@ -81,7 +81,8 @@ async function submit(args, { regressionOnly = false } = {}) {
   if (!files.length && !regressionOnly) throw new Error(`HEAD ${head.slice(0, 10)} has nothing that ${tip.branch} lacks.`);
 
   const branch = (await git(root, ["rev-parse", "--abbrev-ref", "HEAD"])).trim();
-  const subject = (await git(root, ["log", "-1", "--format=%s", "HEAD"])).trim();
+  // The newest commit of your own that the lane lacks names the submission (not "Merge ... into ...").
+  const subject = ((await git(root, ["log", "-1", "--no-merges", "--format=%s", `${tip.sha}..HEAD`])).trim() || (await git(root, ["log", "-1", "--format=%s", "HEAD"])).trim());
   const slug = slugify(args.slug || (branch !== "HEAD" ? branch.split("/").pop() : "") || subject) || head.slice(0, 8);
   const agent = agentId();
   const queueLane = regressionOnly ? "regression" : lane;
