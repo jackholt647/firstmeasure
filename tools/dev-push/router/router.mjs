@@ -5,7 +5,7 @@
 // document. Nothing here knows about hosts: a lane module (lanes/<lane>/lane.mjs) owns gates and deploy.
 import fs from "node:fs";
 import path from "node:path";
-import { git, laneOf, parseManifest, parseQueueRef, TERMINAL } from "../lib/common.mjs";
+import { LANES, git, laneOf, parseManifest, parseQueueRef, TERMINAL } from "../lib/common.mjs";
 
 const IDENTITY = { GIT_AUTHOR_NAME: "dev-push router", GIT_AUTHOR_EMAIL: "dev-push@1m8.ai", GIT_COMMITTER_NAME: "dev-push router", GIT_COMMITTER_EMAIL: "dev-push@1m8.ai" };
 const KEEP_SUBMISSIONS = 200;
@@ -206,11 +206,41 @@ export class Router {
     return true;
   }
 
-  /** Files the work changes relative to where it left the lane. */
-  async changedBy(sha, tip) {
-    const base = (await this.git(["merge-base", tip, sha], { allowFail: true })).stdout?.trim();
+  /** Files the work changes relative to where it left the lane (or `base`, the work's own starting point). */
+  async changedBy(sha, tip, base = null) {
+    base ||= (await this.git(["merge-base", tip, sha], { allowFail: true })).stdout?.trim();
     if (!base) return null;
     return (await this.git(["-c", "core.quotepath=off", "diff", "--name-only", "--no-renames", "-z", base, sha])).split("\0").filter(Boolean);
+  }
+
+  /**
+   * Where a submission to a lane other than platform starts: the newer of its merge-bases with the lane tip and with
+   * canonical. Editor work is usually committed on canonical, whose history the lane does not carry; what the
+   * submitter changed is what lies between that point and their commit.
+   */
+  async ownBase(work, tip) {
+    const platformTip = (await this.git(["rev-parse", "--verify", "--quiet", "refs/lanes/platform"], { allowFail: true })).stdout?.trim();
+    const bases = [];
+    for (const other of [tip, platformTip].filter(Boolean)) {
+      const base = (await this.git(["merge-base", other, work], { allowFail: true })).stdout?.trim();
+      if (base) bases.push(base);
+    }
+    if (bases.length < 2) return bases[0] || null;
+    return (await this.git(["merge-base", "--is-ancestor", bases[0], bases[1]], { allowFail: true })).code === 0 ? bases[1] : bases[0];
+  }
+
+  /** Applies only the lane's paths of a submission's own changes onto the lane tip, as one single-parent commit. */
+  async applyLanePatch(dir, entry, paths) {
+    const patch = await this.git(["diff", "--binary", "--no-renames", "--full-index", entry.base, entry.work, "--", ...paths]);
+    if (!patch.trim()) return { ok: true, empty: true };
+    const applied = await this.git(["apply", "--3way", "--index", "--whitespace=nowarn", "-"], { cwd: dir, input: patch, allowFail: true });
+    if (applied.code !== 0) {
+      const files = (await this.git(["diff", "--name-only", "--diff-filter=U"], { cwd: dir, allowFail: true })).stdout?.split("\n").filter(Boolean) || [];
+      await this.git(["reset", "--quiet", "--hard", "HEAD"], { cwd: dir });
+      return { ok: false, files: files.length ? files : [applied.stderr.trim().slice(0, 500)], output: applied.stderr };
+    }
+    await this.git(["commit", "-q", "-m", `Merge ${entry.ref}: ${entry.title}\n\nFrom ${entry.work} (only ${paths.join(", ")}).`], { cwd: dir });
+    return { ok: true };
   }
 
   /**
@@ -222,6 +252,13 @@ export class Router {
     await this.git(["clean", "-fdq", "-e", "node_modules", "-e", "**/node_modules"], { cwd: dir });
     const merged = [], conflicts = [], overlayConflicts = [], overlaysMerged = [];
     for (const entry of entries) {
+      const paths = this.lanes[entry.lane]?.paths || LANES[entry.lane]?.paths;
+      if (entry.base && paths) {
+        const applied = await this.applyLanePatch(dir, entry, paths);
+        if (applied.ok) merged.push(entry);
+        else conflicts.push({ entry, files: applied.files, output: applied.output });
+        continue;
+      }
       const result = await this.git(["merge", "--no-ff", "--no-edit", "-m", `Merge ${entry.ref}: ${entry.title}`, entry.work], { cwd: dir, allowFail: true });
       if (result.code === 0) { merged.push(entry); continue; }
       const files = (await this.git(["diff", "--name-only", "--diff-filter=U"], { cwd: dir, allowFail: true })).stdout?.split("\n").filter(Boolean) || [];
@@ -244,7 +281,7 @@ export class Router {
   // ---------------------------------------------------------------- gates
 
   async runGates(lane, dir, sha, tip, entries, only) {
-    const changed = [...new Set((await Promise.all(entries.map((entry) => this.changedBy(entry.work, tip)))).flat().filter(Boolean))];
+    const changed = [...new Set((await Promise.all(entries.map((entry) => this.changedBy(entry.work, tip, entry.base)))).flat().filter(Boolean))];
     const tests = [...new Set(entries.flatMap((entry) => entry.tests || []))];
     // Regression suites run only when a submission asks (submit.mjs --regression): "all" beats "mapped".
     const asked = entries.map((entry) => entry.regression).filter(Boolean);
@@ -328,9 +365,11 @@ export class Router {
     // Lane ownership and nothing-to-do checks before anything is merged.
     const candidates = [];
     for (const entry of batch) {
-      const files = await this.changedBy(entry.work, tip);
+      // A lane with its own paths judges and takes only what the submitter changed (see ownBase).
+      if (module.paths || LANES[lane]?.paths) entry.base = await this.ownBase(entry.work, tip);
+      const files = await this.changedBy(entry.work, tip, entry.base);
       if (!files) { await this.reject(entry, "unrelated-history", `${entry.work} shares no history with ${module.branch}.`); continue; }
-      const added = (await this.git(["-c", "core.quotepath=off", "diff", "--name-only", "--diff-filter=A", "--no-renames", (await this.git(["merge-base", tip, entry.work])).trim(), entry.work])).split("\n").filter(Boolean);
+      const added = (await this.git(["-c", "core.quotepath=off", "diff", "--name-only", "--diff-filter=A", "--no-renames", entry.base || (await this.git(["merge-base", tip, entry.work])).trim(), entry.work])).split("\n").filter(Boolean);
       const records = added.filter((file) => /^deploy\/digitalocean\/development-[^/]+\.md$/.test(file));
       if (records.length) { await this.reject(entry, "policy", `Dev rollout records are no longer committed (the router records releases):\n${records.join("\n")}\nDrop them from your branch and submit again.`); continue; }
       const outside = files.filter((file) => laneOf(file) !== lane);

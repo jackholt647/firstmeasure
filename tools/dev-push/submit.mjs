@@ -208,5 +208,6 @@ if (isMain) {
     : command === "withdraw" ? withdraw(args)
     : command === "regression" ? submit(args, { regressionOnly: true })
     : submit(args, { regressionOnly: Boolean(args["gates-only"]) }); // --gates-only: check the merged commit, ship nothing
-  job.then((code) => process.exit(code || 0), (error) => { console.error(`submit: ${error.message}`); process.exit(1); });
+  // exitCode, not process.exit(): exiting while the background mirror detaches trips a libuv assertion on Windows.
+  job.then((code) => { process.exitCode = code || 0; }, (error) => { console.error(`submit: ${error.message}`); process.exitCode = 1; });
 }
