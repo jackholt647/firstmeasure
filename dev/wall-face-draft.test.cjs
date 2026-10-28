@@ -3829,3 +3829,21 @@ test('sticker slide and paste with an overlay host re-cut only their wall until 
  assert.deepEqual(fast.steps,plain.steps,'commits are identical');assert.ok(fast.overlays>0,fast.message);
  assert.equal(JSON.parse(fast.steps[1]).$drafts.w.faces.filter(f=>f.feature).length,2,fast.message);
 });
+test('E holds a sticker at a typed distance from where it was, for M and for paste, with direction snaps',()=>{
+ for(const overlay of [false,true]){
+  const f=stickerFixture('window',[1,1.5],overlay?{redrawOverlay:()=>{},drawsOverlay:true}:{}),FT=.3048;
+  const centre=()=>{const face=f.d().faces.filter(x=>x.feature).at(-1),xs=face.points.map(p=>p.x),ys=face.points.map(p=>p.y);return {x:(Math.min(...xs)+Math.max(...xs))/2,y:(Math.min(...ys)+Math.max(...ys))/2};};
+  const start=centre();f.listeners.pointermove({...f.e(start.x,start.y),buttons:0});f.editor.key({key:'m'});f.editor.key({key:'e'});
+  assert.match(f.editor.distanceInput()?.label||'',/From point/,f.message());
+  f.editor.distanceInput().set(2*FT);for(const [x,y] of [[2,2.3],[1.4,0.8]])f.listeners.pointermove({...f.e(x,y),buttons:0});
+  f.listeners.pointermove({...f.e(3,start.y+.03),buttons:0});f.editor.down(f.e(3,start.y+.03));let c=centre();
+  assert.ok(Math.abs(Math.hypot(c.x-start.x,c.y-start.y)-2*FT)<1e-6,JSON.stringify({c,start,m:f.message()}));assert.ok(Math.abs(c.y-start.y)<1e-6,'snapped onto the horizontal through the start');
+  const moved=c;f.listeners.pointermove({...f.e(moved.x,moved.y),buttons:0});f.editor.key({key:'m'});f.editor.key({key:'e'});f.editor.key({key:'escape'});
+  assert.doesNotMatch(f.editor.distanceInput()?.label||'',/From point/,'Escape leaves the lock');f.editor.key({key:'escape'});
+  f.editor.featureCommand('window',0,true);f.listeners.pointermove({...f.e(1,3),buttons:0});f.editor.down(f.e(1,3));
+  f.editor.key({key:'c',ctrlKey:true});f.editor.key({key:'v',ctrlKey:true});f.listeners.pointermove({...f.e(2.8,3),buttons:0});f.editor.key({key:'e'});
+  assert.match(f.editor.distanceInput()?.label||'',/From point/,f.message());f.editor.distanceInput().set(2*FT);
+  f.listeners.pointermove({...f.e(2.8,1.5),buttons:0});f.editor.down(f.e(2.8,1.5));c=centre();
+  assert.ok(Math.abs(Math.hypot(c.x-2.8,c.y-3)-2*FT)<1e-6&&Math.abs(c.x-2.8)<1e-6,JSON.stringify({c,m:f.message()}));
+ }
+});
