@@ -84,6 +84,64 @@
       .cti-done{display:grid;place-items:center;text-align:center;padding:44px 20px}
       .cti-done i{font-size:34px;color:#12b76a}.cti-done h4{margin:14px 0 4px;font-size:18px}.cti-done p{margin:0 0 18px;color:#667085;font-size:12.5px}
       @media(max-width:900px){.cti-formats,.cti-option-grid{grid-template-columns:1fr}.cti-stats{grid-template-columns:repeat(2,minmax(0,1fr))}.cti-history-row{grid-template-columns:1fr;align-items:stretch}.cti-history-row .cti-actions{justify-content:flex-start}}
+      .cti-help{display:none}
+      .cti-tab-short,.cti-drop .cti-drop-mobile{display:none}
+      @media(max-width:820px){
+        .cti-page{min-height:0;padding:0 12px 20px;max-width:100%;font-size:14px}
+        .cti-page button,.cti-page input,.cti-page select{font-family:inherit}
+        .cti-catalog-actions{justify-content:flex-start;margin-top:12px}
+        .cti-subtabs{position:sticky;top:0;z-index:2;display:grid;grid-auto-flow:column;grid-auto-columns:minmax(0,1fr);gap:0;margin:0 -12px 16px;padding:0 8px;background:#fff;border-bottom:1px solid #eaecf0}
+        .cti-subtab{min-width:0;min-height:44px;padding:10px 4px;font-size:12px;font-weight:650;white-space:nowrap}
+        .cti-subtab.active{color:var(--primary-readable,var(--primary,#d93025))}
+        .cti-tab-full,.cti-drop .cti-drop-desktop{display:none}.cti-tab-short,.cti-drop .cti-drop-mobile{display:inline}
+        .cti-head{align-items:center;gap:10px;margin-bottom:16px;min-width:0}
+        .cti-head>div:first-child{min-width:0;flex:1}
+        .cti-head h3{font-size:18px;line-height:1.3}
+        .cti-kicker{display:none}
+        .cti-head p{overflow-wrap:anywhere;font-size:12px}
+        .cti-head h3,.cti-block h4,.cti-format strong{display:flex;align-items:center;gap:6px}
+        .cti-block{border:0;border-radius:0;background:transparent;padding:0 0 18px;margin:0 0 18px;border-bottom:1px solid #eaecf0}
+        .cti-block:last-child{border-bottom:0}
+        .cti-block h4{font-size:14px;margin-bottom:10px}
+        .cti-help{display:inline-flex;align-items:center;justify-content:center;flex:none;width:32px;height:32px;padding:0;border:0;border-radius:50%;background:transparent;color:#98a2b3;font-size:14px;cursor:pointer;vertical-align:middle}
+        .cti-help:focus-visible{outline:2px solid var(--primary,#d93025)}
+        .cti-supporting-copy{display:none!important}
+        .cti-btn{min-height:44px;border-radius:10px;padding:10px 12px;font-size:13px;font-weight:650;line-height:1.3;justify-content:center}
+        .cti-actions{gap:8px}
+        .cti-input,.cti-select{min-height:44px;font-size:16px;border-radius:10px;font-weight:400}
+        .cti-drop{border:0;padding:26px 14px;background:#f8fafc;border-radius:14px}
+        .cti-drop>i{color:var(--primary-readable,var(--primary,#d93025));font-size:28px}
+        .cti-drop strong{font-size:15px;margin-top:12px}.cti-drop>span{font-size:12px;line-height:1.5}
+        .cti-formats{grid-template-columns:1fr;gap:0;margin-top:10px}
+        .cti-format{border:0;border-bottom:1px solid #f2f4f7;border-radius:0;padding:6px 0;align-items:center;gap:10px}
+        .cti-format:last-child{border-bottom:0}.cti-format>i{width:24px;text-align:center;color:var(--primary-readable,var(--primary,#d93025))}.cti-format>div{flex:1;min-width:0}
+        .cti-format strong{font-size:13px;justify-content:space-between;font-weight:600}
+        .cti-map-grid{grid-template-columns:minmax(0,1fr);gap:8px}.cti-map-row{padding:10px;border-radius:10px}
+        .cti-map-row>strong{white-space:normal;overflow-wrap:anywhere;font-size:12px}
+        .cti-stats{grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}.cti-stat{padding:12px;border-radius:10px}.cti-stat strong{font-size:24px}
+        .cti-option-grid{grid-template-columns:minmax(0,1fr);gap:8px}.cti-option{padding:12px;border-radius:10px;min-height:60px}.cti-option strong{font-size:13px}.cti-option span{font-size:12px;line-height:1.4}
+        .cti-tag-row{gap:8px}.cti-tag{min-height:32px;max-width:100%;overflow-wrap:anywhere}.cti-tag button{width:28px;height:28px;justify-content:center;align-items:center;flex:none}
+        .cti-table-wrap{border:0;max-height:none;overflow:visible;border-radius:0}
+        .cti-table,.cti-table tbody{display:block;width:100%}.cti-table thead{display:none}
+        .cti-table tr{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;border:1px solid #eaecf0;border-radius:12px;padding:12px;margin-bottom:8px}
+        .cti-table td{display:block;min-width:0;max-width:none;padding:0;border:0;white-space:normal;overflow:visible;overflow-wrap:anywhere;font-size:12px;font-weight:400}
+        .cti-table td::before{content:attr(data-label);display:block;margin-bottom:4px;font-size:10px;font-weight:600;color:#98a2b3}
+        .cti-table td:first-child,.cti-table td:nth-child(2),.cti-table td:last-child{grid-column:1/-1}.cti-table td:first-child::before{display:none}.cti-table td:nth-child(2){font-size:15px;font-weight:650}
+        .cti-table td:empty{display:none}
+        .cti-footer{align-items:stretch;flex-wrap:wrap;gap:8px}.cti-footer>.cti-actions{width:100%}.cti-footer>.cti-actions>.cti-btn{flex:1}.cti-status:empty{display:none}.cti-status{font-size:12px}
+        .cti-history-row{min-width:0;display:grid;grid-template-columns:minmax(0,1fr) auto;gap:10px;padding:12px;border-radius:12px;margin-bottom:10px}
+        .cti-history-main{min-width:0}.cti-history-main strong,.cti-history-main span{overflow-wrap:anywhere}.cti-history-main strong{font-size:14px;font-weight:650}.cti-history-main span{font-size:11px;font-weight:400;line-height:1.5}
+        .cti-history-row>.cti-actions{grid-column:2;grid-row:1;align-items:center;flex-direction:column;gap:6px;justify-content:flex-start}
+        .cti-history-counts,.cti-history-row>.cti-tag-row{grid-column:1/-1;font-size:12px;font-weight:400}
+        .cti-history-row[data-catalog-id]>label:first-child{grid-column:1/-1;display:grid;gap:6px;font-size:12px;color:#667085}
+        .cti-history-row[data-catalog-id]>label:nth-child(2){display:flex;align-items:center;gap:8px;font-size:13px}
+        .cti-page input[type=checkbox]{width:20px;height:20px;accent-color:var(--primary,#d93025);vertical-align:middle;flex:none}
+        .cti-block>label:has(input[type=checkbox]){display:inline-flex;gap:8px;align-items:center;font-size:13px;line-height:1.5;max-width:calc(100% - 36px)}
+        .cti-field>span:has(input[type=checkbox]){display:flex;align-items:center;gap:8px;min-height:44px;font-size:13px;line-height:1.5;font-weight:500}
+        .cti-empty{border:0;background:#f8fafc;padding:24px 16px;font-size:13px;line-height:1.5}.cti-done{padding:28px 0}.cti-done .cti-actions{width:100%;flex-direction:column}
+        .cti-warning,.cti-error{overflow-wrap:anywhere;line-height:1.5;font-weight:500}
+      }
+
     `;
     document.head.appendChild(style);
   }
@@ -136,7 +194,8 @@
     }
 
     function subTabs(){
-      return `<div class="cti-subtabs">${[['import','Import contacts'],['history','Import history'],...(canManageTags?[['tags','Contact tags'],['preferences','Preferences']]:[])].map(([id,label]) => `<button class="cti-subtab ${state.subtab===id?'active':''}" data-cti-subtab="${id}" type="button">${esc(label)}</button>`).join('')}</div>`;
+      const shortLabels = {import:'Import',history:'History',tags:'Tags',preferences:'Preferences'};
+      return `<div class="cti-subtabs">${[['import','Import contacts'],['history','Import history'],...(canManageTags?[['tags','Contact tags'],['preferences','Preferences']]:[])].map(([id,label]) => `<button class="cti-subtab ${state.subtab===id?'active':''}" data-cti-subtab="${id}" type="button"><span class="cti-tab-full">${esc(label)}</span><span class="cti-tab-short">${esc(globalThis.PlatformLanguage?.text("settings", "contacts_tab_"+id, shortLabels[id]) ?? shortLabels[id])}</span></button>`).join('')}</div>`;
     }
     function bindSubTabs(){
       host.querySelectorAll('[data-cti-subtab]').forEach((button) => button.addEventListener('click', () => setSubtab(button.dataset.ctiSubtab)));
@@ -261,7 +320,7 @@
         <div class="cti-block">
           <div class="cti-drop" data-cti-drop role="button" tabindex="0" aria-label="${(globalThis.PlatformLanguage?.htmlText("settings","m_b57aeb22381727","Choose a contact file") ?? "Choose a contact file")}">
             <i class="fas fa-file-import"></i>
-            <strong>${String(state.busy ? 'Reading file...' : 'Drop a contact file here, or click to browse')}</strong>
+            <strong><span class="cti-drop-desktop">${String(state.busy ? 'Reading file...' : 'Drop a contact file here, or click to browse')}</span><span class="cti-drop-mobile">${esc(state.busy ? (globalThis.PlatformLanguage?.text('settings','contacts_reading_file','Reading file…') ?? 'Reading file…') : (globalThis.PlatformLanguage?.text('settings','contacts_choose_file','Choose a contact file') ?? 'Choose a contact file'))}</span></strong>
             <span>${(globalThis.PlatformLanguage?.htmlText("settings","m_875b636e51160c",".vcf (vCard), .csv, or .tsv · up to 25,000 contacts per file") ?? ".vcf (vCard), .csv, or .tsv · up to 25,000 contacts per file")}</span>
             <input type="file" data-cti-file accept=".vcf,.csv,.tsv,.txt,text/vcard,text/csv,text/plain" hidden>
           </div>
@@ -453,7 +512,7 @@
       const drop = host.querySelector('[data-cti-drop]');
       const fileInput = host.querySelector('[data-cti-file]');
       if (drop && fileInput) {
-        drop.addEventListener('click', () => fileInput.click());
+        drop.addEventListener('click', event => { if (event.target !== fileInput && !state.busy) fileInput.click(); });
         drop.addEventListener('keydown', (event) => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); fileInput.click(); } });
         drop.addEventListener('dragover', (event) => { event.preventDefault(); drop.classList.add('dragging'); });
         drop.addEventListener('dragleave', () => drop.classList.remove('dragging'));
@@ -531,7 +590,7 @@
       return `<div class="cti-head"><div><h3>Contact tags</h3><p>Admins manage the tags available to contacts. Existing tags remain on contacts. The built-in ${esc(root.PlatformTerminology?.get?.('contacts.org','Org') || 'Org')} tag follows the contact type; its name is managed in Terminology.</p></div></div>
         ${state.catalogError?`<div class="cti-error">${esc(state.catalogError)}</div>`:''}
         <div class="cti-block">${state.catalog.filter(row=>row.id!=='org').map(row=>`<div class="cti-history-row" data-catalog-id="${esc(row.id)}"><label>Tag name<input class="cti-input" data-catalog-label value="${esc(row.label)}" maxlength="80"></label><label><input type="checkbox" data-catalog-enabled ${row.enabled!==false?'checked':''}> Available</label><button class="cti-btn danger" type="button" data-catalog-remove="${esc(row.id)}" aria-label="Remove ${esc(row.label)} tag">Remove</button></div>`).join('')}
-        <button class="cti-btn" type="button" data-catalog-add>Add tag</button><button class="cti-btn primary" type="button" data-catalog-save>Save tags</button></div>`;
+        <div class="cti-actions cti-catalog-actions"><button class="cti-btn" type="button" data-catalog-add>Add tag</button><button class="cti-btn primary" type="button" data-catalog-save>Save tags</button></div></div>`;
     }
     function bindCatalog(){
       host.querySelectorAll('[data-catalog-remove]').forEach(button=>button.addEventListener('click',()=>{collectCatalog();state.catalog=state.catalog.filter(row=>row.id!==button.dataset.catalogRemove);render();}));
@@ -549,7 +608,7 @@
         const tag=state.catalog.find(tag=>tag.id===row.dataset.catalogId);if(tag){tag.label=row.querySelector('[data-catalog-label]').value.trim();tag.enabled=row.querySelector('[data-catalog-enabled]').checked;}
       });
     }
-    function render(){
+    function renderContent(){
       if(state.subtab==='tags' && canManageTags){page.innerHTML=subTabs()+tagsMarkup();bindSubTabs();bindCatalog();return;}
       if(state.subtab==='preferences' && canManageTags){
         page.innerHTML=subTabs()+`<div class="cti-head"><div><h3>Contact preferences</h3><p>Choose which details your organization tracks on every contact.</p></div></div><div class="cti-block"><h4>Contact time zones</h4><p>Show a time-zone dropdown in the contact editor.</p><label class="cti-field"><span><input type="checkbox" data-cti-time-zones ${state.trackTimeZones?'checked':''}> Track individual contact time zones</span></label><div class="cti-actions"><button class="cti-btn primary" type="button" data-cti-save-preferences>Save preferences</button></div>${state.catalogError?`<div class="cti-error">${esc(state.catalogError)}</div>`:''}</div>`;
@@ -574,6 +633,29 @@
       page.innerHTML = `${subTabs()}${body}`;
       bindSubTabs();
       bindImport();
+    }
+
+    function render(){
+      root.PlatformUI?.hideTooltip?.();
+      renderContent();
+      // Keep existing, localized explanatory copy available through the platform tooltip on a phone.
+      page.querySelectorAll('.cti-head p:not(:has(strong)), .cti-block > p, .cti-format span').forEach(copy => {
+        if (copy.closest('.cti-done') || copy.parentElement.querySelector(':scope > .cti-table-wrap') || !copy.textContent.trim()) return;
+        const heading = copy.parentElement.querySelector('h3,h4,strong');
+        const anchor = heading || copy.previousElementSibling;
+        if (!anchor) return;
+        copy.classList.add('cti-supporting-copy');
+        const help = document.createElement('button');
+        help.type = 'button'; help.className = 'cti-help';
+        help.setAttribute('aria-label', globalThis.PlatformLanguage?.text('settings','contacts_more_info','More information') ?? 'More information');
+        help.innerHTML = '<i class="fas fa-circle-info" aria-hidden="true"></i>';
+        help.addEventListener('click', () => root.PlatformUI?.showTooltip?.(help, {text:copy.textContent.trim(),delay:0}));
+        if (heading) heading.append(help); else anchor.after(help);
+      });
+      page.querySelectorAll('.cti-table').forEach(table => {
+        const labels = Array.from(table.querySelectorAll('th'), cell => cell.textContent.trim());
+        table.querySelectorAll('tbody tr').forEach(row => Array.from(row.cells).forEach((cell,index) => { cell.dataset.label = labels[index] || ''; }));
+      });
     }
 
     render();

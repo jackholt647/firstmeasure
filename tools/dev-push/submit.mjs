@@ -3,6 +3,7 @@
 //
 //   node tools/dev-push/submit.mjs [--lane platform|measure-internal] [--title "..."] [--slug s] [--regression[=all]] [--wait]
 //   node tools/dev-push/submit.mjs regression [--all] [--wait]       run the regression suites on the server; ships nothing
+//   node tools/dev-push/submit.mjs --gates-only [--regression] [--wait]   only the checks (quick, or with the suites); ships nothing
 //   node tools/dev-push/submit.mjs status [--lane L] [--mine] [--json]
 //   node tools/dev-push/submit.mjs wait [<slug>|<queue ref>]
 //   node tools/dev-push/submit.mjs withdraw [<slug>]
@@ -80,11 +81,14 @@ async function submit(args, { regressionOnly = false } = {}) {
   if (!files.length && !regressionOnly) throw new Error(`HEAD ${head.slice(0, 10)} has nothing that ${tip.branch} lacks.`);
 
   const branch = (await git(root, ["rev-parse", "--abbrev-ref", "HEAD"])).trim();
-  const subject = (await git(root, ["log", "-1", "--format=%s", "HEAD"])).trim();
+  // The newest commit of your own that the lane lacks names the submission (not "Merge ... into ...").
+  const subject = ((await git(root, ["log", "-1", "--no-merges", "--format=%s", `${tip.sha}..HEAD`])).trim() || (await git(root, ["log", "-1", "--format=%s", "HEAD"])).trim());
   const slug = slugify(args.slug || (branch !== "HEAD" ? branch.split("/").pop() : "") || subject) || head.slice(0, 8);
   const agent = agentId();
   const queueLane = regressionOnly ? "regression" : lane;
-  const regression = regressionOnly || args.regression ? (args.all || args.regression === "all" ? "all" : "mapped") : null;
+  // --tests regression[:all] is the measure lane's ship.mjs spelling of --regression[=all].
+  const asked = args.regression || (String(args.tests || "").startsWith("regression") ? (String(args.tests).endsWith(":all") ? "all" : true) : null);
+  const regression = asked ? (args.all || asked === "all" ? "all" : "mapped") : regressionOnly && !args["gates-only"] ? (args.all ? "all" : "mapped") : null;
   const ref = queueRef(queueLane, agent, slug);
   const manifest = {
     v: 1, lane: queueLane, target: lane, agent, slug,
@@ -203,6 +207,7 @@ if (isMain) {
     : command === "wait" ? (async () => wait({ ref: await resolveRef((await git(process.cwd(), ["rev-parse", "--show-toplevel"])).trim(), args._[1]) }))()
     : command === "withdraw" ? withdraw(args)
     : command === "regression" ? submit(args, { regressionOnly: true })
-    : submit(args);
-  job.then((code) => process.exit(code || 0), (error) => { console.error(`submit: ${error.message}`); process.exit(1); });
+    : submit(args, { regressionOnly: Boolean(args["gates-only"]) }); // --gates-only: check the merged commit, ship nothing
+  // exitCode, not process.exit(): exiting while the background mirror detaches trips a libuv assertion on Windows.
+  job.then((code) => { process.exitCode = code || 0; }, (error) => { console.error(`submit: ${error.message}`); process.exitCode = 1; });
 }

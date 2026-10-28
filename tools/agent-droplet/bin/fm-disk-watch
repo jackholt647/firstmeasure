@@ -1,0 +1,49 @@
+#!/usr/bin/env bash
+# Warns when / or /srv/agents reaches the threshold in /etc/fm-agents/disk-watch.conf (80%).
+# Writes /srv/agents/status/disk.json every run (for the dev console) and, while over the threshold,
+# /srv/agents/status/disk-warning.txt, which agents' shells print at login. A new warning is also
+# broadcast to open terminals and logged. FM_DISK_THRESHOLD=<n> overrides the threshold for a test run.
+set -euo pipefail
+THRESHOLD=80
+PATHS="/ /srv/agents"
+[ -r /etc/fm-agents/disk-watch.conf ] && . /etc/fm-agents/disk-watch.conf
+THRESHOLD=${FM_DISK_THRESHOLD:-$THRESHOLD}
+STATUS=/srv/agents/status
+LOG=/srv/agents/logs/disk-watch.log
+mkdir -p "$STATUS"
+
+now=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+entries=()
+over=()
+for p in $PATHS; do
+  mountpoint -q "$p" || [ "$p" = / ] || continue
+  read -r size used avail pct <<<"$(df -B1 --output=size,used,avail,pcent "$p" | tail -1 | tr -d '%')"
+  flag=false
+  if [ "$pct" -ge "$THRESHOLD" ]; then flag=true; over+=("$p is at ${pct}% ($(numfmt --to=iec "$avail") free)"); fi
+  entries+=("{\"path\":\"$p\",\"used_percent\":$pct,\"size_bytes\":$size,\"used_bytes\":$used,\"avail_bytes\":$avail,\"over\":$flag}")
+done
+
+warning=""
+if [ ${#over[@]} -gt 0 ]; then
+  warning="DISK WARNING on $(hostname) at $now: $(IFS=';'; echo "${over[*]}") (threshold ${THRESHOLD}%). Free space before starting large work: remove finished worktrees (fm-agents-cleanup --dry-run lists them), old logs, unused caches (ncdu /srv/agents). See docs/architecture/agent-droplet.md, Disk."
+fi
+
+json="{\"host\":\"$(hostname)\",\"checked_at\":\"$now\",\"threshold_percent\":$THRESHOLD,\"filesystems\":[$(IFS=,; echo "${entries[*]}")],\"warning\":$( [ -n "$warning" ] && jq -Rn --arg w "$warning" '$w' || echo null )}"
+tmp=$(mktemp "$STATUS/.disk.json.XXXXXX")
+echo "$json" > "$tmp" && chmod 644 "$tmp" && mv -f "$tmp" "$STATUS/disk.json"
+
+if [ -n "$warning" ]; then
+  first=false
+  [ -s "$STATUS/disk-warning.txt" ] || first=true
+  printf '%s\n' "$warning" > "$STATUS/disk-warning.txt"
+  chmod 644 "$STATUS/disk-warning.txt"
+  if $first; then
+    echo "$now WARN $warning" >> "$LOG"
+    logger -t fm-disk-watch -p user.warning "$warning"
+    wall -n "$warning" 2>/dev/null || true
+  fi
+elif [ -e "$STATUS/disk-warning.txt" ]; then
+  rm -f "$STATUS/disk-warning.txt"
+  echo "$now CLEAR all filesystems below ${THRESHOLD}%" >> "$LOG"
+  logger -t fm-disk-watch "cleared: all filesystems below ${THRESHOLD}%"
+fi

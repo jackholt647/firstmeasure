@@ -17,6 +17,7 @@ import { ROUTER_REPO_PATH, parseArgs, run } from "../lib/common.mjs";
 import { makeHosts } from "./hosts.mjs";
 import { Router } from "./router.mjs";
 import { liveOverlays } from "./live.mjs";
+import { makeFleet } from "./fleet.mjs";
 
 const HOME = process.env.DEV_PUSH_HOME || path.join(os.homedir(), "dev-push");
 const STATE = path.join(HOME, "state");
@@ -53,11 +54,12 @@ async function main() {
   const names = config.lanes || ["platform", "measure-internal"];
   const lanes = await loadLanes(names);
   const hosts = makeHosts({ knownHosts: path.join(HOME, "known_hosts"), key: KEY });
-  // Fetch over HTTPS (public repository); push with the router's deploy key.
   // The router's repository (tools/dev-push/router/install-repo.sh) is on this machine; its hook lets only the
   // router move branches, recognised by this variable on local pushes. GitHub is mirrored from PCs (mirror.mjs).
   process.env.DEV_PUSH_ROUTER = "1";
   const version = (await run("git", ["rev-parse", "--short", "HEAD"], { cwd: here })).stdout.trim() || null;
+  const live = lanes.platform && config.live !== false ? liveOverlays({ hosts, home: HOME, log: (line) => console.log(`[live] ${line}`) }) : {};
+  const app = path.resolve(here, "..", "..", "..");
   const router = new Router({
     repo: path.join(HOME, "repo.git"), remote: config.remote || ROUTER_REPO_PATH, stateDir: STATE, lanes, hosts, version,
     host: os.hostname(),
@@ -65,10 +67,24 @@ async function main() {
       const result = await hosts.call("web", ["publish"], { input: JSON.stringify(doc), timeoutMs: 60_000 });
       if (!result.ok) throw new Error(result.error);
     },
-    ...(lanes.platform && config.live !== false ? liveOverlays({ hosts, home: HOME, log: (line) => console.log(`[live] ${line}`) }) : {})
+    ...live,
+    // A platform release that changes the router's own code moves the router to it; cron restarts it within a minute.
+    // A router that then fails to start is put back with `install-droplet.sh update <good sha>`.
+    afterRelease: async (event) => {
+      if (live.afterRelease) await live.afterRelease(event);
+      if (event.lane !== "platform" || config.selfUpdate === false) return;
+      const changed = (await router.git(["diff", "--name-only", event.release.base, event.release.sha, "--", "tools/dev-push"], { allowFail: true })).stdout?.trim();
+      if (!changed) return;
+      const fetched = await run("bash", ["-c", `git -C '${app}' fetch -q '${config.remote || ROUTER_REPO_PATH}' ${event.release.sha} && git -C '${app}' checkout -q -f -B router ${event.release.sha}`]);
+      if (fetched.code !== 0) { router.log("router", `self-update to ${event.release.sha.slice(0, 10)} failed: ${fetched.stderr.trim()}`); return; }
+      router.log("router", `release ${event.release.id} changed tools/dev-push; restarting on it`);
+      router.stopped = true;
+      setTimeout(() => process.exit(0), 2000);
+    }
   });
   await router.init();
   await router.git(["remote", "set-url", "origin", config.remote || ROUTER_REPO_PATH]);
+  await router.git(["config", "--unset-all", "remote.origin.pushurl"], { allowFail: true }); // pushes go to the same repository
   if (command === "gate" || command === "build" || command === "stage") {
     // Diagnostics: run a lane's gates, build its release tree, or build and stage it on every role (no activation),
     // for any commit without touching the queue.
@@ -102,7 +118,14 @@ async function main() {
     await router.saveStatus();
     return;
   }
-  await router.start({ intervalMs: config.intervalMs || 15_000 });
+  // The repository is local, so an idle pass costs a few milliseconds: poll often to keep the queue wait short.
+  // Every minute: is every web node behind the load balancer on the router's release, and are new pool members adopted?
+  if (lanes.platform && config.fleet !== false) {
+    const fleet = makeFleet({ router, hosts, home: HOME, log: (line) => router.log("fleet", line) });
+    const tick = () => fleet.check().catch((error) => router.log("fleet", `check failed: ${error.message}`)).finally(() => setTimeout(tick, 60_000));
+    setTimeout(tick, 20_000);
+  }
+  await router.start({ intervalMs: config.intervalMs || 3_000 });
 }
 
 main().catch((error) => { console.error(error.stack || error.message); process.exit(1); });

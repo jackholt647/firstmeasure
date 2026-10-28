@@ -5,7 +5,7 @@
 // document. Nothing here knows about hosts: a lane module (lanes/<lane>/lane.mjs) owns gates and deploy.
 import fs from "node:fs";
 import path from "node:path";
-import { git, laneOf, parseManifest, parseQueueRef, TERMINAL } from "../lib/common.mjs";
+import { LANES, git, laneOf, parseManifest, parseQueueRef, TERMINAL } from "../lib/common.mjs";
 
 const IDENTITY = { GIT_AUTHOR_NAME: "dev-push router", GIT_AUTHOR_EMAIL: "dev-push@1m8.ai", GIT_COMMITTER_NAME: "dev-push router", GIT_COMMITTER_EMAIL: "dev-push@1m8.ai" };
 const KEEP_SUBMISSIONS = 200;
@@ -40,7 +40,10 @@ export class Router {
     this.releases = this.readJson("releases.json", []);
     this.gateCache = new Map(); // `${sha}\0${gate}` -> passed?
     this.failedOverlays = new Set(); // `${ref}@${sha}@${tip}`: overlays that could not be merged onto that tip
-    for (const name of Object.keys(this.lanes)) this.laneState[name] = { state: "idle", batch: [], release: null, tip: null, note: null };
+    for (const name of Object.keys(this.lanes)) {
+      const last = this.releases.find((release) => release.lane === name);
+      this.laneState[name] = { state: "idle", batch: [], release: last ? { id: last.id, sha: last.sha, name: last.name || last.sha, server: last.server || last.name || last.sha, at: last.at } : null, tip: null, note: null };
+    }
   }
 
   readJson(name, fallback) { try { return JSON.parse(fs.readFileSync(path.join(this.stateDir, name), "utf8")); } catch { return fallback; } }
@@ -82,7 +85,7 @@ export class Router {
     return {
       v: 1, updated_at: new Date().toISOString(),
       router: { host: this.options.host || "dev-sync-droplet", version: this.options.version || null, started_at: this.startedAt || null, paused: this.paused.size === Object.keys(this.lanes).length },
-      lanes, submissions, releases: this.releases.slice(0, KEEP_RELEASES)
+      lanes, submissions, releases: this.releases.slice(0, KEEP_RELEASES), fleet: this.fleet || null
     };
   }
 
@@ -192,7 +195,7 @@ export class Router {
       await this.retire(entry);
       return true;
     }
-    const gate = await this.runGates(target, dir, sha, tip, [{ ...entry, regression: entry.regression || "mapped" }]);
+    const gate = await this.runGates(target, dir, sha, tip, [entry]); // regression null = the quick checks only (--gates-only)
     const report = [
       ...gate.failures.map((failure) => `## FAILED ${failure.id}\n${trim(failure.output, 4000)}`),
       ...(gate.notes || []).map((note) => `note: ${note}`)
@@ -203,11 +206,41 @@ export class Router {
     return true;
   }
 
-  /** Files the work changes relative to where it left the lane. */
-  async changedBy(sha, tip) {
-    const base = (await this.git(["merge-base", tip, sha], { allowFail: true })).stdout?.trim();
+  /** Files the work changes relative to where it left the lane (or `base`, the work's own starting point). */
+  async changedBy(sha, tip, base = null) {
+    base ||= (await this.git(["merge-base", tip, sha], { allowFail: true })).stdout?.trim();
     if (!base) return null;
     return (await this.git(["-c", "core.quotepath=off", "diff", "--name-only", "--no-renames", "-z", base, sha])).split("\0").filter(Boolean);
+  }
+
+  /**
+   * Where a submission to a lane other than platform starts: the newer of its merge-bases with the lane tip and with
+   * canonical. Editor work is usually committed on canonical, whose history the lane does not carry; what the
+   * submitter changed is what lies between that point and their commit.
+   */
+  async ownBase(work, tip) {
+    const platformTip = (await this.git(["rev-parse", "--verify", "--quiet", "refs/lanes/platform"], { allowFail: true })).stdout?.trim();
+    const bases = [];
+    for (const other of [tip, platformTip].filter(Boolean)) {
+      const base = (await this.git(["merge-base", other, work], { allowFail: true })).stdout?.trim();
+      if (base) bases.push(base);
+    }
+    if (bases.length < 2) return bases[0] || null;
+    return (await this.git(["merge-base", "--is-ancestor", bases[0], bases[1]], { allowFail: true })).code === 0 ? bases[1] : bases[0];
+  }
+
+  /** Applies only the lane's paths of a submission's own changes onto the lane tip, as one single-parent commit. */
+  async applyLanePatch(dir, entry, paths) {
+    const patch = await this.git(["diff", "--binary", "--no-renames", "--full-index", entry.base, entry.work, "--", ...paths]);
+    if (!patch.trim()) return { ok: true, empty: true };
+    const applied = await this.git(["apply", "--3way", "--index", "--whitespace=nowarn", "-"], { cwd: dir, input: patch, allowFail: true });
+    if (applied.code !== 0) {
+      const files = (await this.git(["diff", "--name-only", "--diff-filter=U"], { cwd: dir, allowFail: true })).stdout?.split("\n").filter(Boolean) || [];
+      await this.git(["reset", "--quiet", "--hard", "HEAD"], { cwd: dir });
+      return { ok: false, files: files.length ? files : [applied.stderr.trim().slice(0, 500)], output: applied.stderr };
+    }
+    await this.git(["commit", "-q", "-m", `Merge ${entry.ref}: ${entry.title}\n\nFrom ${entry.work} (only ${paths.join(", ")}).`], { cwd: dir });
+    return { ok: true };
   }
 
   /**
@@ -219,6 +252,13 @@ export class Router {
     await this.git(["clean", "-fdq", "-e", "node_modules", "-e", "**/node_modules"], { cwd: dir });
     const merged = [], conflicts = [], overlayConflicts = [], overlaysMerged = [];
     for (const entry of entries) {
+      const paths = this.lanes[entry.lane]?.paths || LANES[entry.lane]?.paths;
+      if (entry.base && paths) {
+        const applied = await this.applyLanePatch(dir, entry, paths);
+        if (applied.ok) merged.push(entry);
+        else conflicts.push({ entry, files: applied.files, output: applied.output });
+        continue;
+      }
       const result = await this.git(["merge", "--no-ff", "--no-edit", "-m", `Merge ${entry.ref}: ${entry.title}`, entry.work], { cwd: dir, allowFail: true });
       if (result.code === 0) { merged.push(entry); continue; }
       const files = (await this.git(["diff", "--name-only", "--diff-filter=U"], { cwd: dir, allowFail: true })).stdout?.split("\n").filter(Boolean) || [];
@@ -241,7 +281,7 @@ export class Router {
   // ---------------------------------------------------------------- gates
 
   async runGates(lane, dir, sha, tip, entries, only) {
-    const changed = [...new Set((await Promise.all(entries.map((entry) => this.changedBy(entry.work, tip)))).flat().filter(Boolean))];
+    const changed = [...new Set((await Promise.all(entries.map((entry) => this.changedBy(entry.work, tip, entry.base)))).flat().filter(Boolean))];
     const tests = [...new Set(entries.flatMap((entry) => entry.tests || []))];
     // Regression suites run only when a submission asks (submit.mjs --regression): "all" beats "mapped".
     const asked = entries.map((entry) => entry.regression).filter(Boolean);
@@ -325,9 +365,11 @@ export class Router {
     // Lane ownership and nothing-to-do checks before anything is merged.
     const candidates = [];
     for (const entry of batch) {
-      const files = await this.changedBy(entry.work, tip);
+      // A lane with its own paths judges and takes only what the submitter changed (see ownBase).
+      if (module.paths || LANES[lane]?.paths) entry.base = await this.ownBase(entry.work, tip);
+      const files = await this.changedBy(entry.work, tip, entry.base);
       if (!files) { await this.reject(entry, "unrelated-history", `${entry.work} shares no history with ${module.branch}.`); continue; }
-      const added = (await this.git(["-c", "core.quotepath=off", "diff", "--name-only", "--diff-filter=A", "--no-renames", (await this.git(["merge-base", tip, entry.work])).trim(), entry.work])).split("\n").filter(Boolean);
+      const added = (await this.git(["-c", "core.quotepath=off", "diff", "--name-only", "--diff-filter=A", "--no-renames", entry.base || (await this.git(["merge-base", tip, entry.work])).trim(), entry.work])).split("\n").filter(Boolean);
       const records = added.filter((file) => /^deploy\/digitalocean\/development-[^/]+\.md$/.test(file));
       if (records.length) { await this.reject(entry, "policy", `Dev rollout records are no longer committed (the router records releases):\n${records.join("\n")}\nDrop them from your branch and submit again.`); continue; }
       const outside = files.filter((file) => laneOf(file) !== lane);
@@ -345,7 +387,7 @@ export class Router {
     await this.update(candidates, { state: "merging" });
     let { conflicts } = await timed("merge", () => this.mergeOnto(dir, tip, candidates));
     for (const { entry, files } of conflicts) {
-      await this.reject(entry, "conflict", `Conflicts with ${module.branch} ${tip.slice(0, 10)} (or with work merged ahead of it in this batch) in:\n${files.join("\n")}\n\nRebase onto the lane tip and submit again:\n  git fetch origin && git rebase origin/${module.branch}\n  node tools/dev-push/submit.mjs --lane ${lane}`);
+      await this.reject(entry, "conflict", `Conflicts with ${module.branch} ${tip.slice(0, 10)} (or with work merged ahead of it in this batch) in:\n${files.join("\n")}\n\nRebase onto the lane tip and submit again:\n  git fetch devpush && git rebase devpush/${module.branch}\n  node tools/dev-push/submit.mjs --wait`);
     }
     let accepted = candidates.filter((entry) => !conflicts.some((conflict) => conflict.entry === entry));
 
@@ -355,6 +397,8 @@ export class Router {
       const { sha } = await timed("merge", () => this.mergeOnto(dir, tip, accepted));
       const gate = await timed("gates", () => this.runGates(lane, dir, sha, tip, accepted));
       for (const [stage, ms] of Object.entries(gate.timings || {})) if (stage !== "gates_total") timings[`gate:${stage}`] = ms;
+      // Failures the lane tip already has are nobody's in this batch.
+      if (!gate.ok && !(await timed("gates_tip", () => this.preexisting(lane, dir, tip, accepted, gate.failures))).length) gate.ok = true;
       if (!gate.ok) {
         this.log(lane, `batch of ${accepted.length} failed ${gate.failures.map((failure) => failure.id).join(", ")}; bisecting`);
         accepted = await timed("bisect", () => this.bisect(lane, dir, tip, accepted, [], accepted.length > 1));
@@ -401,7 +445,7 @@ export class Router {
     for (const [stage, ms] of Object.entries(deployed.timings || {})) timings[`deploy:${stage}`] = ms;
     if (!deployed.ok) {
       this.log(lane, `deploy ${releaseId} failed: ${deployed.error}`);
-      if (accepted.length === 1 && deployed.rolledBack) {
+      if (accepted.length === 1 && deployed.rolledBack && !deployed.infrastructure) {
         await this.reject(accepted[0], "deploy-failed", `The release built from your merge did not come up on dev and was rolled back:\n${deployed.error}`);
       } else {
         // Infrastructure or a batch: stop the lane for a person to look; nothing is lost, the queue stays.
@@ -424,17 +468,29 @@ export class Router {
     const release = {
       id: releaseId, lane, sha: final.sha, at: new Date().toISOString(), base: tip, branch_pushed: push.code === 0,
       submissions: accepted.map((entry) => entry.ref), works: accepted.map((entry) => entry.work),
-      overlays: final.overlaysMerged.map((overlay) => overlay.ref), roles: deployed.roles || {}, timings
+      overlays: final.overlaysMerged.map((overlay) => overlay.ref), roles: deployed.roles || {}, timings, name: deployed.name || final.sha, server: deployed.server || deployed.name || final.sha
     };
     this.releases.unshift(release);
     fs.writeFileSync(path.join(this.stateDir, "releases", `${releaseId}.json`), JSON.stringify(release, null, 1));
     await this.update(accepted, { state: "live", release: releaseId, details: null, timings });
-    await this.setLane(lane, { state: "idle", batch: [], tip: push.code === 0 ? final.sha : tip, release: { id: releaseId, sha: final.sha, at: release.at }, note: final.overlayConflicts.length ? `${final.overlayConflicts.length} live overlay(s) need review` : null });
+    await this.setLane(lane, { state: "idle", batch: [], tip: push.code === 0 ? final.sha : tip, release: { id: releaseId, sha: final.sha, name: release.name, server: release.server, at: release.at }, note: final.overlayConflicts.length ? `${final.overlayConflicts.length} live overlay(s) need review` : null });
     for (const entry of accepted) await this.retire(entry);
     if (this.options.afterRelease) await this.options.afterRelease({ lane, release, overlays: final.overlaysMerged }).catch((error) => this.log(lane, `afterRelease: ${error.message}`));
     if (this.options.overlayProblems && final.overlayConflicts.length) await this.options.overlayProblems(final.overlayConflicts).catch(() => {});
     this.log(lane, `live ${releaseId}`);
     return true;
+  }
+
+  /** Puts the lane's current release on one role that lacks it (a new pool member), the same tree under the same name. */
+  async catchUp(lane, role) {
+    const current = this.laneState[lane].release;
+    if (!current) return { ok: false, error: "no release yet" };
+    const dir = await this.worktree(`${lane}-catchup`, current.sha);
+    await this.git(["reset", "--quiet", "--hard", current.sha], { cwd: dir });
+    const at = Date.now();
+    const result = await this.lanes[lane].deploy({ dir, sha: current.sha, releaseId: current.id, previous: current, hosts: this.options.hosts, log: (line) => this.log(lane, `[${role}] ${line}`), onlyRoles: [role], releaseName: current.name || current.sha });
+    this.log(lane, `${role} ${result.ok ? `now serves ${current.id}` : `not brought up: ${trim(result.error, 300)}`} (${Math.round((Date.now() - at) / 1000)} s)`);
+    return result;
   }
 
   /** Releases the lane tip as it stands (the re-baseline, or redeploying after a host was rebuilt). */
@@ -450,10 +506,10 @@ export class Router {
     this.log(lane, `releasing the lane tip ${tip.slice(0, 10)} as ${releaseId}`);
     const deployed = await module.deploy({ dir, sha: tip, releaseId, previous: this.laneState[lane].release, hosts: this.options.hosts, ssh: this.ssh, log: (line) => this.log(lane, line) });
     if (!deployed.ok) { await this.setLane(lane, { state: "idle", note: `release of the tip failed: ${trim(deployed.error, 400)}` }); throw new Error(deployed.error); }
-    const release = { id: releaseId, lane, sha: tip, at: new Date().toISOString(), base: tip, branch_pushed: true, submissions: [], works: [], overlays: [], roles: deployed.roles || {} };
+    const release = { id: releaseId, lane, sha: tip, at: new Date().toISOString(), base: tip, branch_pushed: true, submissions: [], works: [], overlays: [], roles: deployed.roles || {}, timings: deployed.timings || {}, name: deployed.name || tip, server: deployed.server || deployed.name || tip };
     this.releases.unshift(release);
     fs.writeFileSync(path.join(this.stateDir, "releases", `${releaseId}.json`), JSON.stringify(release, null, 1));
-    await this.setLane(lane, { state: "idle", release: { id: releaseId, sha: tip, at: release.at }, note: null });
+    await this.setLane(lane, { state: "idle", release: { id: releaseId, sha: tip, name: release.name, server: release.server, at: release.at }, note: null });
     this.log(lane, `live ${releaseId}`);
     return release;
   }

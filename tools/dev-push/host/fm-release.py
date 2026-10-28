@@ -39,6 +39,7 @@ LOCK = pathlib.Path("/run/lock/fm-release.lock")
 SHA = re.compile(r"^[0-9a-f]{40}(-dp)?$")  # release name: the commit, or <commit>-dp beside an old-tool directory
 LANE = re.compile(r"^[a-z][a-z0-9-]{1,31}$")
 RECEIPT = "dev-push-release.json"
+AWAITING = pathlib.Path("/var/lib/dev-push/awaiting-release")  # units a new pool node keeps stopped until its first release
 # Never part of a release tree: runtime data carried from the running release, and the router's receipt.
 HOST_PATHS = ("public/storage", "public/v1/storage", "public/v1/output")
 SKIP_IN_TREE = set(HOST_PATHS) | {RECEIPT, "channels-release.json"}
@@ -79,10 +80,12 @@ def file_sha(path):
     return digest.hexdigest()
 
 
-def walk(tree):
-    """{rel: [sha256, size, mode]} for files and {rel: target} for symlinks, excluding host paths."""
+def walk(tree, trust=None):
+    """{rel: [sha256, size, mode]} for files and {rel: target} for symlinks, excluding host paths. A file that is still
+    the same inode as in `trust` (the verified release it was hard-linked from) is not read again: its sha256 is None."""
     files, links = {}, {}
     tree = str(tree)
+    trust = str(trust) if trust else None
     for dirpath, dirnames, filenames in os.walk(tree):
         rel_dir = os.path.relpath(dirpath, tree).replace(os.sep, "/")
         rel_dir = "" if rel_dir == "." else rel_dir + "/"
@@ -106,8 +109,26 @@ def walk(tree):
                 links[rel] = os.readlink(full)
                 continue
             st = os.stat(full)
-            files[rel] = [file_sha(full), st.st_size, st.st_mode & 0o777]
+            same = False
+            if trust:
+                try:
+                    old = os.stat(os.path.join(trust, rel))
+                    same = (old.st_dev, old.st_ino) == (st.st_dev, st.st_ino)
+                except OSError:
+                    pass
+            files[rel] = [None if same else file_sha(full), st.st_size, st.st_mode & 0o777]
     return files, links
+
+
+def release_id_of(release):
+    """RELEASE_ID from a release's release.env (what its server reports); the directory name otherwise."""
+    try:
+        for line in (pathlib.Path(release) / "release.env").read_text().splitlines():
+            if line.startswith("RELEASE_ID="):
+                return line.split("=", 1)[1].strip()
+    except OSError:
+        pass
+    return pathlib.Path(release).name
 
 
 def tree_digest(files, links):
@@ -185,15 +206,20 @@ def running_jobs():
     return json.loads(result.stdout.strip().splitlines()[-1]).get("running", 0)
 
 
+def sealed():
+    flags = subprocess.run(["lsattr", "-d", str(ROOT)], capture_output=True, text=True).stdout.split()
+    return bool(flags) and "i" in flags[0].replace("I", "")
+
+
 def seal(on):
-    flag = "+i" if on else "-i"
-    subprocess.run(["chattr", flag, str(ROOT)], check=True)
+    if sealed() != on:  # chattr refuses to set +i on a folder that already has it
+        subprocess.run(["chattr", "+i" if on else "-i", str(ROOT)], check=True)
 
 
 def swap(link, target):
     """Atomically point `link` at `target` (the lane's current symlink)."""
-    sealed = link.parent == ROOT and "i" in subprocess.run(["lsattr", "-d", str(ROOT)], capture_output=True, text=True).stdout.split()[0]
-    if sealed:
+    was_sealed = link.parent == ROOT and sealed()
+    if was_sealed:
         seal(False)
     try:
         temp = link.with_name(link.name + ".fm-release-next")
@@ -202,7 +228,7 @@ def swap(link, target):
         temp.symlink_to(target)
         os.replace(temp, link)
     finally:
-        if sealed:
+        if was_sealed:
             seal(True)
 
 
@@ -226,7 +252,41 @@ def locked():
 
 # ------------------------------------------------------------------------------------------------ commands
 
-def cmd_finish(lane, sha):
+def cmd_assemble(lane, sha, previous_name):
+    """A release staged from the previous one: hard-link it, then apply the changed files (a tar on stdin, with the
+    deleted paths listed in its .dev-push-deleted). `finish --previous` then reads only what changed."""
+    if not SHA.match(sha) or not SHA.match(previous_name):
+        fail("bad release name")
+    releases, _ = lane_dirs(lane)
+    previous = releases / previous_name
+    if not (previous / RECEIPT).is_file():
+        fail(f"{previous} was not staged by the router")
+    staging = releases / f"{sha}.staging"
+    shutil.rmtree(staging, ignore_errors=True)
+    subprocess.run(["cp", "-al", str(previous), str(staging)], check=True)
+    for rel in (*HOST_PATHS, RECEIPT, "channels-release.json"):
+        path = staging / rel
+        if path.is_dir() and not path.is_symlink():
+            shutil.rmtree(path)
+        elif path.exists() or path.is_symlink():
+            path.unlink()
+    # New files replace their links (--unlink-first) so the previous release is never written through.
+    result = subprocess.run(["tar", "-x", "--unlink-first", "-C", str(staging)], stdin=sys.stdin.buffer, capture_output=True)
+    if result.returncode != 0:
+        fail(f"tar: {result.stderr.decode(errors='replace')[-500:]}")
+    deleted = staging / ".dev-push-deleted"
+    removed = 0
+    if deleted.is_file():
+        for rel in deleted.read_text().splitlines():
+            path = (staging / rel)
+            if rel and str(path.resolve()).startswith(str(staging.resolve()) + "/") and (path.is_file() or path.is_symlink()):
+                path.unlink()
+                removed += 1
+        deleted.unlink()
+    out({"ok": True, "staging": str(staging), "removed": removed})
+
+
+def cmd_finish(lane, sha, previous_name=None):
     if not SHA.match(sha):
         fail("bad sha")
     releases, link = lane_dirs(lane)
@@ -235,8 +295,12 @@ def cmd_finish(lane, sha):
     if not staging.is_dir():
         fail(f"nothing staged at {staging}")
     manifest = json.load(sys.stdin)
-    files, links = walk(staging)
     want_files = {rel: list(entry) for rel, entry in manifest["files"].items()}
+    trust = releases / previous_name if previous_name and SHA.match(previous_name) and (releases / previous_name / RECEIPT).is_file() else None
+    files, links = walk(staging, trust)
+    for rel, entry in files.items():  # unchanged links into the verified previous release
+        if entry[0] is None and rel in want_files:
+            entry[0] = want_files[rel][0]
     want_links = manifest.get("links", {})
     extra = sorted(set(files) - set(want_files))[:20]
     missing = sorted(set(want_files) - set(files))[:20]
@@ -270,7 +334,9 @@ def cmd_finish(lane, sha):
     out({"ok": True, "release": str(target), "tree_sha256": digest, "files": len(files)})
 
 
-def cmd_activate(lane, sha, expect, wait_jobs):
+def cmd_activate(lane, sha, expect, wait_jobs, keep_server=False):
+    """keep_server: the release changes no server code (it keeps the running release's RELEASE_ID), so only `current`
+    and PHP move; Node keeps running, which is the release it would restart into."""
     if not SHA.match(sha):
         fail("bad sha")
     handle = locked()
@@ -281,11 +347,12 @@ def cmd_activate(lane, sha, expect, wait_jobs):
         fail(f"{target} was not staged by the router")
     previous = current_release(link)
     if previous == target.resolve():
-        error = wait_ready(sha, 30) if lane == "platform" else None
+        error = wait_ready(release_id_of(target), 30) if lane == "platform" else None
         out({"ok": error is None, "reused": True, "previous": previous.name, "error": error}, 0 if error is None else 1)
     if expect and expect != "-" and (previous is None or previous.name != expect):
         fail(f"current release is {previous.name if previous else None}, not {expect}", previous=previous.name if previous else None)
-    if lane == "platform":
+    keep_server = keep_server and lane == "platform" and previous is not None and release_id_of(previous) == release_id_of(target) and not AWAITING.is_file()
+    if lane == "platform" and not keep_server:
         deadline = time.time() + wait_jobs
         while running_jobs() > 0:
             if time.time() > deadline:
@@ -293,8 +360,13 @@ def cmd_activate(lane, sha, expect, wait_jobs):
             time.sleep(5)
     swap(link, target)
     try:
-        restart(lane, settings)
-        error = wait_ready(sha, 120) if lane == "platform" else None
+        if keep_server:
+            for service in settings.get("reload", []):
+                subprocess.run(["systemctl", "reload", service], check=True)
+            error = wait_ready(release_id_of(target), 15)
+        else:
+            restart(lane, settings)
+            error = wait_ready(release_id_of(target), 120) if lane == "platform" else None
         if error:
             raise RuntimeError(error)
     except Exception as exc:  # noqa: BLE001
@@ -302,11 +374,17 @@ def cmd_activate(lane, sha, expect, wait_jobs):
         if previous:
             swap(link, previous)
             restart(lane, settings)
-            back = wait_ready(previous.name, 120) if lane == "platform" else None
+            back = wait_ready(release_id_of(previous), 120) if lane == "platform" else None
             fail(f"activation failed: {reason}", rolled_back=back is None, rollback_error=back, previous=previous.name)
         fail(f"activation failed: {reason}", rolled_back=False)
+    joined = False
+    if lane == "platform" and AWAITING.is_file():
+        # A new pool node held out of rotation (deploy/digitalocean/dev-pool-user-data.sh) now runs the router's release.
+        subprocess.run(["systemctl", "enable", "--now", *AWAITING.read_text().split()], check=False)
+        AWAITING.unlink()
+        joined = True
     handle.close()
-    out({"ok": True, "release": sha, "previous": previous.name if previous else None})
+    out({"ok": True, "release": sha, "previous": previous.name if previous else None, "joined": joined, "kept_server": keep_server})
 
 
 def cmd_rollback(lane, sha):
@@ -319,7 +397,7 @@ def cmd_rollback(lane, sha):
         fail(f"no release {target}")
     swap(link, target)
     restart(lane, config())
-    error = wait_ready(sha, 120) if lane == "platform" else None
+    error = wait_ready(release_id_of(target), 120) if lane == "platform" else None
     handle.close()
     out({"ok": error is None, "release": sha, "error": error}, 0 if error is None else 1)
 
@@ -327,7 +405,7 @@ def cmd_rollback(lane, sha):
 def cmd_status(lane, probe=None):
     settings = config()
     lanes = [lane] if lane else ["platform"] + sorted(p.name for p in (ROOT / "lanes").glob("*") if p.is_dir())
-    result = {"ok": True, "role": settings.get("role"), "host": os.uname().nodename, "lanes": {}}
+    result = {"ok": True, "role": settings.get("role"), "host": os.uname().nodename, "lanes": {}, "awaiting_release": AWAITING.is_file()}
     for name in lanes:
         releases, link = lane_dirs(name)
         current = current_release(link)
@@ -358,6 +436,15 @@ def cmd_prune(lane, keep, days):
     releases, link = lane_dirs(lane)
     current = current_release(link)
     keepers = {current.name} if current else set()
+    # A release that kept the server leaves Node running in an older release directory: never remove that one.
+    for service in config().get("services", []):
+        pid = subprocess.run(["systemctl", "show", service, "-p", "MainPID", "--value"], capture_output=True, text=True).stdout.strip()
+        try:
+            cwd = pathlib.Path(os.readlink(f"/proc/{pid}/cwd"))
+            if releases in cwd.parents:
+                keepers.add(cwd.relative_to(releases).parts[0])
+        except (OSError, ValueError):
+            pass
     candidates = sorted((p for p in releases.iterdir() if p.is_dir() and re.match(r"^[0-9a-f]{40}", p.name)), key=lambda p: p.stat().st_mtime, reverse=True)
     newest = {p.name for p in candidates[:keep]}
     cutoff = time.time() - days * 86400
@@ -414,9 +501,13 @@ def cmd_check(lane, name):
 GUARD_BANNER = pathlib.Path("/etc/ssh/dev-push-banner")
 GUARD_SSHD = pathlib.Path("/etc/ssh/sshd_config.d/60-dev-push-banner.conf")
 GUARD_TEXT = """\
-This development host takes releases only from the dev push router.
-Ship with:  node tools/dev-push/submit.mjs --wait   (docs/architecture/dev-lanes.md)
-Per-task rollout scripts (prepare/rollout/deploy/ship) no longer work here: /opt/firstmeasure is sealed.
+=== dev.1m8.ai takes releases only from the dev push router ===
+Per-task rollout scripts (prepare/rollout/deploy/ship/integrate) no longer work: /opt/firstmeasure is sealed.
+To ship to dev: commit, then from any checkout of the firstmeasure repo (Git Bash or Linux), even one without
+tools/dev-push:
+  git fetch dev-sync-droplet:/home/dev/router/firstmeasure.git codex/consolidated-firstmeasure-20260923 && mkdir -p ~/.dev-push && git archive FETCH_HEAD tools/dev-push | tar -x -C ~/.dev-push && node ~/.dev-push/tools/dev-push/submit.mjs --wait
+It queues your HEAD, merges it onto canonical, releases it to every dev role and prints `live` or why it was
+rejected. Measure editor files go to their own lane automatically. Read docs/architecture/dev-lanes.md.
 """
 
 
@@ -424,7 +515,8 @@ def cmd_guard(on):
     """Root only (not the router key): seal /opt/firstmeasure and show every SSH client the one way to ship, or undo it."""
     if on:
         GUARD_BANNER.write_text(GUARD_TEXT)
-        GUARD_SSHD.write_text(f"Banner {GUARD_BANNER}\n")
+        # Root logins only: that is what rollout scripts used; the live layer's restricted account stays quiet.
+        GUARD_SSHD.write_text(f"Match User root\n    Banner {GUARD_BANNER}\n")
     else:
         GUARD_SSHD.unlink(missing_ok=True)
     check = subprocess.run(["sshd", "-t"], capture_output=True, text=True)
@@ -446,8 +538,10 @@ def cmd_ssh():
         if argv[1:2] != ["--server"] or "--sender" in argv or any(a.startswith(("--remove-source", "--rsync-path")) for a in argv):
             fail("only rsync uploads are allowed")
         dest = os.path.normpath(argv[-1])
-        allowed = [str(lane_dirs("platform")[0])] + [str(p / "releases") for p in (ROOT / "lanes").glob("*")]
-        if not any(dest.startswith(root + "/") for root in allowed) or not re.search(r"/[0-9a-f]{40}(-dp)?\.staging$", dest):
+        platform_root = str(lane_dirs("platform")[0])
+        lane_match = re.match(r"^/opt/firstmeasure/lanes/([a-z][a-z0-9-]{1,31})/releases/[0-9a-f]{40}(-dp)?\.staging$", dest)
+        platform_match = dest.startswith(platform_root + "/") and re.search(r"/[0-9a-f]{40}(-dp)?\.staging$", dest)
+        if not (lane_match or platform_match):
             fail(f"rsync destination {dest} is not a staging directory")
         for arg in argv:
             if arg.startswith("--link-dest="):
@@ -458,7 +552,7 @@ def cmd_ssh():
         os.execvp("rsync", argv)
     if argv[0] in ("fm-release", "/usr/local/sbin/fm-release"):
         argv = argv[1:]
-    if not argv or argv[0] not in ("finish", "activate", "rollback", "status", "tree", "prune", "publish", "check"):
+    if not argv or argv[0] not in ("finish", "assemble", "activate", "rollback", "status", "tree", "prune", "publish", "check"):
         fail(f"command not allowed: {original[:80]}")
     main(argv)
 
@@ -479,11 +573,16 @@ def main(argv):
     if command == "ssh":
         return cmd_ssh()
     if command == "finish":
-        return cmd_finish(rest[0], rest[1])
+        previous = option("--previous", None)
+        return cmd_finish(rest[0], rest[1], previous)
+    if command == "assemble":
+        return cmd_assemble(rest[0], rest[1], rest[2])
     if command == "activate":
         expect = option("--expect", "-")
         wait_jobs = int(option("--wait-jobs", "600"))
-        return cmd_activate(rest[0], rest[1], expect, wait_jobs)
+        keep_server = "--keep-server" in rest
+        rest = [item for item in rest if item != "--keep-server"]
+        return cmd_activate(rest[0], rest[1], expect, wait_jobs, keep_server)
     if command == "rollback":
         return cmd_rollback(rest[0], rest[1])
     if command == "status":

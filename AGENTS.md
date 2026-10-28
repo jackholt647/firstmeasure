@@ -78,6 +78,18 @@ go through `safeFetch`. Run `tests/route-access.test.ts` for changes here.
 - Connect through the existing SSH configuration. Never expose, print, copy, or transmit a private SSH key.
 - Infer sync paths/direction only from adequate context. Do not infer deletion, mirroring, or overwrite semantics from a generic sync request.
 
+## Agent droplet
+
+Most agent sessions (Claude Code, Codex, Antigravity) run on the agent droplet `fm-agents-1` (SSH
+`agent@67.205.145.222`), not on Jack's PC. There every tool's global rules file is
+`/srv/agents/ENVIRONMENT.md`. Read [agent droplet](docs/architecture/agent-droplet.md) before working there
+or changing it: how Jack starts each tool, checkouts and
+`fm-deps` under `/srv/agents/work`, disk rules and nightly cleanup, browsers (prefer Jack's Chrome through
+Claude in Chrome for anything he is signed in to), experiments at `<name>.experimental.1m8.ai`
+(`fm-experiment`), and Jack's PC at `/mnt/jack-pc`. Its setup is `tools/agent-droplet/`; change those scripts,
+not the droplet by hand. It has no production access: never copy cluster keys, DigitalOcean tokens or
+production secrets onto it.
+
 ## Performance work deferred on purpose
 
 [docs/optimization-backlog.md](docs/optimization-backlog.md) is the one list of
@@ -180,12 +192,12 @@ including `public/v1/**`, `public/libraries/**` and new language keys in
 `public/libraries/platform-language`, still ships through `platform`.
 
 1. Commit the editor change (on canonical or your own branch).
-2. Run `node tools/dev-push/lanes/measure-internal/ship.mjs` (ships `HEAD`). It
-   takes only the lane's paths from the commit, lints changed PHP and
-   syntax-checks changed JavaScript (about a second), switches the release
-   with a readiness check and rollback, and advances `lane/measure-internal`.
-   Once the checkout has `tools/dev-push/submit.mjs`, it hands the commit to the
-   dev push router instead.
+2. Run `node tools/dev-push/lanes/measure-internal/ship.mjs` (ships `HEAD`;
+   use it rather than `submit.mjs` for editor commits made on canonical). It
+   puts only the lane's paths from the commit onto `lane/measure-internal` and
+   submits that to the dev push router, which lints changed PHP, syntax-checks
+   changed JavaScript, switches the release with a readiness check and
+   rollback, and answers: live in about half a minute.
 3. Check: `curl -sI https://dev.1m8.ai/measure/internal/<file>` shows
    `X-FirstMate-Lane: measure-internal <sha>`.
 
@@ -199,10 +211,10 @@ looks broken.
 
 Do not copy editor files into the platform release on dev legacy with a
 per-task rollout: they are not served while the lane serves its own release.
-Other commands: `ship.mjs status`, `rollback [<sha>]`, `follow` (serve the
-platform release's editor through the lane), `uninstall` (serve the platform
-copy directly). Run `node --test tests/dev-lane-measure-internal.test.mjs` for
-changes to the lane tool.
+Only the router activates lane releases: to undo a change, ship a revert.
+`ship.mjs status` shows the lane. Run
+`node --test tests/dev-lane-measure-internal.test.mjs` for changes to the lane
+tool.
 
 ## Canonical source
 
@@ -586,6 +598,17 @@ code, and never add another `text/event-stream` endpoint: browsers allow six
 connections per site across all tabs, and each extra stream silently starves
 ordinary requests. Run `tests/realtime-single-stream.test.ts` and
 `tests/view-presence-client.test.mjs` for changes here.
+
+## Dev console
+
+Read [dev console](docs/architecture/dev-console.md) before adding a development
+control to a page. Every development control is a section of the one dev console
+tray (`public/libraries/dev-console`), shown only to the development tools audience
+on development; do not add another floating pill, bar, dropdown or hidden shortcut.
+On a desktop the page is docked beside the tray (`dock.js`), never covered.
+Run `tests/dev-console.test.ts`, `tests/guided-experiences-flow-browser.test.mjs`,
+`tests/development-layers-browser.test.mjs` and
+`tests/dev-console-dock-browser.test.mjs` for changes here.
 
 ## Session replay
 

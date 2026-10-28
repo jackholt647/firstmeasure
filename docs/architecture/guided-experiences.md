@@ -531,7 +531,7 @@ Materials tab audit (October 24), button to published action:
 Development data environment only (`env.dataEnvironment === "development"`, never
 production): `guided-experiences/dev.ts`. Who: a platform administrator (an active
 internal admin, as session replay decides) or the development tools audience (a
-settings manager in a sandbox test organization, as the dev bar's tools). Every
+settings manager in a sandbox test organization, as the [dev console](dev-console.md)). Every
 route refuses elsewhere with 404, whoever asks.
 
 - **Reset** (`POST …/organizations/:org/dev/reset { experience_id, scope: me |
@@ -560,13 +560,12 @@ route refuses elsewhere with 404, whoever asks.
   entry for the key, when there is one; other languages keep their translation.
   Production reads the library snapshot, so an edit reaches it with the next
   snapshot in a release; there is no export to code.
-- **Seeing it:** copy editing is off until the editor turns it on in the pill
-  (remembered per browser); then editable copy has a dashed outline. The pill sits
-  at the bottom left of the screen, just right of the portal sidebar, folds to a
-  "GX" handle, says "Editing copy" and
-  its menu holds the last field's history and each experience's Replay or
-  Restart, Reset me and Reset org. The development tools window gets the same
-  section. Everything is `data-fmr-ignore`.
+- **Seeing it:** the tools are the Guided experiences section of the
+  [dev console](dev-console.md), drawn by `FirstMateGuides.devPanel`: "Editing copy"
+  (off until the editor turns it on, remembered per browser; then editable copy has a
+  dashed outline), the last field's history and each experience's Replay or Restart,
+  Reset me and Reset org. They act on the open project frame. Everything is
+  `data-fmr-ignore`.
 
 ## Operations setup
 

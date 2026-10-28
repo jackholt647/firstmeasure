@@ -1,0 +1,30 @@
+#!/usr/bin/env bash
+# Keeps /mnt/jack-pc mounted (sshfs over the reverse tunnel from Jack's PC) while the tunnel is up and
+# unmounts it when the tunnel goes away, so nothing hangs on a dead mount. Only `agent` can read it.
+#   fm-jack-pc-mount            (fm-jack-pc-mount.timer runs it every minute)
+#   fm-jack-pc-mount status
+set -uo pipefail
+PORT=2222; REMOTE_USER=jackh; REMOTE_PATH=/C:/Users/jackh; MOUNTPOINT=/mnt/jack-pc
+[ -r /etc/fm-agents/jack-pc.conf ] && . /etc/fm-agents/jack-pc.conf
+KEY=/etc/fm-agents/jack-pc_ed25519
+KNOWN=/etc/fm-agents/jack-pc_known_hosts
+up() { timeout 3 bash -c "exec 3<>/dev/tcp/127.0.0.1/$PORT" 2>/dev/null; }
+mounted() { mountpoint -q "$MOUNTPOINT"; }
+healthy() { timeout 10 stat -t "$MOUNTPOINT/." >/dev/null 2>&1; }
+
+if [ "${1:-}" = status ]; then
+  echo "tunnel: $(up && echo up || echo down)  mount: $(mounted && echo mounted || echo not mounted)"; exit 0
+fi
+if up; then
+  if mounted && ! healthy; then fusermount3 -uz "$MOUNTPOINT"; fi
+  if ! mounted; then
+    uid=$(id -u agent); gid=$(id -g agent)
+    sshfs -p "$PORT" "$REMOTE_USER@127.0.0.1:$REMOTE_PATH" "$MOUNTPOINT" -o \
+      "IdentityFile=$KEY,IdentitiesOnly=yes,BatchMode=yes,StrictHostKeyChecking=accept-new,UserKnownHostsFile=$KNOWN,ConnectTimeout=10,ServerAliveInterval=15,ServerAliveCountMax=3,reconnect,allow_other,default_permissions,uid=$uid,gid=$gid,umask=077,idmap=none" \
+      && logger -t fm-jack-pc "mounted $REMOTE_PATH at $MOUNTPOINT" \
+      || logger -t fm-jack-pc "tunnel up but sshfs failed"
+  fi
+elif mounted; then
+  fusermount3 -uz "$MOUNTPOINT" && logger -t fm-jack-pc "tunnel down; unmounted $MOUNTPOINT"
+fi
+exit 0

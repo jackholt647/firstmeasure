@@ -846,50 +846,20 @@
     html.gx-editing [data-gx-copy]{outline:1px dashed rgba(217,48,37,.55);outline-offset:2px;border-radius:3px;cursor:text;-webkit-user-select:text;user-select:text}
     html.gx-editing [data-gx-copy]:hover{background:rgba(217,48,37,.06)}
     html.gx-editing [data-gx-copy]:focus{outline:2px solid var(--primary,#d93025);background:rgba(255,236,153,.35)}
-    .gx-dev{position:fixed;left:12px;bottom:12px;z-index:2147483600;font:12px/1.4 system-ui,-apple-system,Segoe UI,Roboto,sans-serif;color:#101828}
-    .gx-dev-pill{display:inline-flex;align-items:center;gap:6px;padding:4px;border-radius:999px;background:#101828;color:#fff;box-shadow:0 8px 24px rgba(16,24,40,.3)}
-    .gx-dev-pill button{border:0;border-radius:999px;background:transparent;color:inherit;font:inherit;font-weight:650;padding:5px 10px;cursor:pointer}
-    .gx-dev-pill button[aria-pressed=true]{background:#d93025}
-    .gx-dev-pill button:hover{background:rgba(255,255,255,.14)}
-    .gx-dev-pill button[aria-pressed=true]:hover{background:#b42318}
-    .gx-dev-status{opacity:.75;padding-right:6px;min-width:42px}
-    .gx-dev-pill .gx-dev-handle{width:26px;height:26px;padding:0;display:grid;place-items:center;font-size:10px;font-weight:800;letter-spacing:.02em}
-    .gx-dev[data-collapsed=true] .gx-dev-pill{padding:3px}
-    .gx-dev[data-corner=true]{left:2px;bottom:2px}
-    .gx-dev[data-corner=true][data-collapsed=true] .gx-dev-pill{padding:2px}
-    .gx-dev[data-corner=true][data-collapsed=true] .gx-dev-handle{width:22px;height:22px;font-size:9px}
-    .gx-dev[data-collapsed=true] .gx-dev-pill>:not(.gx-dev-handle),.gx-dev[data-collapsed=true] .gx-dev-panel{display:none}
-    .gx-dev-panel{position:absolute;left:0;bottom:44px;width:min(340px,calc(100vw - 24px));max-height:min(60vh,520px);overflow:auto;background:#fff;border:1px solid #e4e7ec;border-radius:12px;box-shadow:0 18px 50px rgba(16,24,40,.25);padding:10px}
-    .gx-dev-panel[hidden]{display:none}
-    .gx-dev-panel h4{margin:8px 4px 6px;font-size:11px;text-transform:uppercase;letter-spacing:.05em;color:#667085}
-    .gx-dev-row{display:flex;align-items:center;gap:6px;padding:6px 4px;border-top:1px solid #f2f4f7}
-    .gx-dev-row span{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis}
-    .gx-dev-row button,.gx-dev-panel .gx-dev-btn{border:1px solid #d0d5dd;border-radius:7px;background:#fff;font:inherit;font-size:11.5px;font-weight:650;padding:3px 8px;cursor:pointer;color:#344054;white-space:nowrap}
+    .gx-dev-tools{font-size:12.5px;color:#101828}
+    .gx-dev-switch{display:flex;align-items:center;gap:10px;padding:4px 2px 8px;font-weight:650}
+    .gx-dev-switch span{flex:1}
+    .gx-dev-status{display:block;min-height:1.4em;color:#667085;font-size:12px;padding:0 2px 6px}
+    .gx-dev-panel h4{margin:12px 2px 6px;font-size:11px;text-transform:uppercase;letter-spacing:.05em;color:#667085}
+    .gx-dev-row{display:flex;align-items:center;flex-wrap:wrap;gap:6px;padding:7px 2px;border-top:1px solid #f2f4f7}
+    .gx-dev-row span{flex:1 1 100%;min-width:0;overflow-wrap:anywhere}
+    .gx-dev-row button{border:1px solid #d0d5dd;border-radius:7px;background:#fff;font:inherit;font-size:11.5px;font-weight:650;padding:4px 9px;cursor:pointer;color:#344054;white-space:nowrap}
     .gx-dev-row button:hover{background:#f9fafb}
     .gx-dev-history small{display:block;color:#667085}
-    .gx-dev-empty{color:#667085;padding:6px 4px}
-    /* Phones: no floating pill; the tools open from the shell's ⋯ sheet (Development tools group) as a bottom sheet. */
-    @media (max-width:820px){body:has(#mobilePlatformMoreSlot:not([hidden])) .gx-dev[data-in-more=true]{display:none!important}}
-    .gx-dev-sheet{position:fixed;inset:0;z-index:2147483600;display:flex;flex-direction:column;justify-content:flex-end;font:14px/1.4 system-ui,-apple-system,Segoe UI,Roboto,sans-serif;color:#101828}
-    .gx-dev-sheet[hidden]{display:none}
-    .gx-dev-sheet-scrim{position:absolute;inset:0;background:rgba(15,23,42,.42)}
-    .gx-dev-sheet-card{position:relative;display:flex;flex-direction:column;max-height:82vh;background:#fff;border-radius:18px 18px 0 0;box-shadow:0 -12px 40px rgba(16,24,40,.22);padding:6px 14px calc(14px + env(safe-area-inset-bottom,0px))}
-    .gx-dev-sheet-grip{align-self:center;width:40px;height:5px;margin:4px 0 8px;border-radius:999px;background:#d0d5dd}
-    .gx-dev-sheet-head{display:flex;align-items:center;gap:10px;min-height:44px}
-    .gx-dev-sheet-head h3{flex:1;margin:0;font-size:17px;font-weight:750}
-    .gx-dev-sheet-head button{width:40px;height:40px;border:0;border-radius:999px;background:#f2f4f7;color:#344054;font-size:20px;line-height:1;cursor:pointer}
-    .gx-dev-sheet-switch{display:flex;align-items:center;gap:12px;min-height:48px;padding:4px 2px;border-top:1px solid #f2f4f7;font-weight:650}
-    .gx-dev-sheet-switch span{flex:1}
-    .gx-dev-sheet-switch input{width:22px;height:22px;accent-color:var(--primary,#d93025)}
-    .gx-dev-sheet .gx-dev-status{display:block;min-height:0;color:#667085;font-size:13px;padding:0 2px}
-    .gx-dev-sheet .gx-dev-status:empty{display:none}
-    .gx-dev-sheet .gx-dev-panel{position:static;width:auto;max-height:none;flex:1;min-height:0;overflow:auto;border:0;box-shadow:none;padding:0}
-    .gx-dev-sheet .gx-dev-row{flex-wrap:wrap;padding:8px 2px}
-    .gx-dev-sheet .gx-dev-row span{flex:1 1 100%}
-    .gx-dev-sheet .gx-dev-row button{min-height:40px;padding:6px 12px;font-size:13px}
+    .gx-dev-empty{color:#667085;padding:6px 2px}
   `;
   const EDIT_KEY = 'fm-gx-edit-copy';
-  // Copy editing is off until a development editor turns it on (the pill's switch), in each browser.
+  // Copy editing is off until a development editor turns it on (the dev console's switch), in each browser.
   const editing = () => { try { return root.localStorage?.getItem(EDIT_KEY) === 'on'; } catch (_) { return false; } };
   const devApi = {
     save: (body) => request('/dev/copy', { method:'PUT', body }),
@@ -907,7 +877,7 @@
   function syncEditing(doc){
     doc.documentElement.classList.toggle('gx-editing', editing());
     doc.querySelectorAll('[data-gx-copy]').forEach(setEditable);
-    doc.querySelectorAll('.gx-dev [data-gxd=toggle]').forEach((button) => button.setAttribute('aria-pressed', String(editing())));
+    doc.querySelectorAll('.gx-dev-tools [data-gxd-edit]').forEach((input) => { input.checked = editing(); });
   }
   function status(text){
     devStatus = text;
@@ -964,101 +934,27 @@
       }
     }).observe(doc.body || doc.documentElement, { childList: true, subtree: true });
     syncEditing(doc);
-    mountDevPill(doc);
-    watchDevTools(doc);
+  }
+  /** Turns copy editing on or off in this browser, here and in the open project frame. */
+  function setEditing(on){
+    try { root.localStorage?.setItem(EDIT_KEY, on ? 'on' : 'off'); } catch (_) {}
+    devDocs.forEach(syncEditing);
+    projectFrameGuides()?.syncDevEditing?.();
   }
   /**
-   * The pill: "Editing copy" on or off, the last edited field's history, and reset or replay for each experience.
-   * One pill, on the top page, fixed to the bottom left of the screen above the project window (2147483200); it
-   * acts on the open project frame. It folds to a small "GX" handle.
+   * The guided experiences section of the dev console (libraries/dev-console): "Editing copy" on or off, the last
+   * edited field's history, and reset or replay for each experience. It acts on the open project frame.
    */
-  const COLLAPSE_KEY = 'fm-gx-dev-collapsed';
-  function mountDevPill(doc){
-    // Only the top page gets the pill. A project frame (whichever library instance draws into it: its own, or the
-    // page's when it attaches the frame's assistant) leaves it to the page above; only an unreachable parent gets one.
-    const reachableTop = (win) => { try { return win && win.top !== win && win.top.document ? win.top : null; } catch (_) { return null; } };
-    if (reachableTop(root) || reachableTop(doc.defaultView)) return;
-    if (doc.querySelector('.gx-dev')) return;
-    const host = doc.createElement('div'); host.className = 'gx-dev'; host.setAttribute('data-fmr-ignore', '');
-    let collapsed = true;
-    try { collapsed = root.localStorage?.getItem(COLLAPSE_KEY) !== 'open'; } catch (_) {}
-    host.dataset.collapsed = String(collapsed);
-    host.innerHTML = `<div class="gx-dev-panel" hidden></div><div class="gx-dev-pill"><button type="button" class="gx-dev-handle" data-gxd="collapse" aria-expanded="${!collapsed}" aria-label="${esc(L('gx_dev_handle', 'Guided experience tools'))}" title="${esc(L('gx_dev_handle', 'Guided experience tools'))}">GX</button><button type="button" data-gxd="toggle" aria-pressed="${editing()}">${esc(L('gx_dev_editing', 'Editing copy'))}</button><span class="gx-dev-status" role="status">${esc(devStatus)}</span><button type="button" data-gxd="menu" aria-expanded="false" aria-label="${esc(L('gx_dev_menu', 'Guided experience tools'))}">&#8943;</button></div>`;
-    (doc.body || doc.documentElement).appendChild(host);
-    const panel = host.querySelector('.gx-dev-panel');
-    host.addEventListener('click', async (event) => {
-      const action = event.target.closest?.('[data-gxd]');
-      if (!action) return;
-      const kind = action.dataset.gxd;
-      if (kind === 'collapse') { const next = host.dataset.collapsed !== 'true'; host.dataset.collapsed = String(next); action.setAttribute('aria-expanded', String(!next)); try { root.localStorage?.setItem(COLLAPSE_KEY, next ? 'closed' : 'open'); } catch (_) {} return; }
-      if (kind === 'toggle') { try { root.localStorage?.setItem(EDIT_KEY, editing() ? 'off' : 'on'); } catch (_) {} devDocs.forEach(syncEditing); doc.querySelectorAll('iframe').forEach((frame) => { try { const guides = frame.contentWindow?.FirstMateGuides; if (guides && guides !== root.FirstMateGuides) guides.syncDevEditing?.(); } catch (_) {} }); return; }
-      if (kind === 'menu') { panel.hidden = !panel.hidden; action.setAttribute('aria-expanded', String(!panel.hidden)); if (!panel.hidden) renderDevPanel(panel); return; }
-      await devAction(action.dataset, () => renderDevPanel(panel));
-    });
-    host.hidden = false;
-    mountDevMoreItem(doc, host);
-    // Beside the portal sidebar's footer rather than over its settings button: just right of the sidebar, following
-    // its width as it expands and collapses.
-    // When something covers the sidebar (the project window), it sits small in the very corner of the screen, clear of
-    // that window's frame. Checked again as windows open and close.
-    const dock = () => {
-      const side = doc.querySelector('.sidebar'), box = side?.getBoundingClientRect(), win = doc.defaultView;
-      const shown = box && box.width > 0 && box.left < 8 && getComputedStyle(side).display !== 'none';
-      let covered = false;
-      if (shown && win) {
-        const x = Math.max(1, Math.min(box.right - 4, box.left + 24)), y = Math.max(1, win.innerHeight - 24);
-        const hit = doc.elementsFromPoint(x, y).find((el) => !host.contains(el));
-        covered = !!hit && !side.contains(hit);
-      }
-      host.dataset.corner = String(!shown || covered);
-      host.style.left = shown && !covered ? `${Math.round(box.right + 12)}px` : '';
-    };
-    dock();
-    const side = doc.querySelector('.sidebar');
-    if (side && doc.defaultView?.ResizeObserver) new doc.defaultView.ResizeObserver(dock).observe(side);
-    doc.defaultView?.addEventListener('resize', dock);
-    setInterval(dock, 1000);
-  }
-  /**
-   * Phones: the pill would cover primary controls, so where the shell has its ⋯ sheet (the portal at 820px or narrower)
-   * the tools are an entry in its Development tools group and open as a bottom sheet; the pill is hidden there by CSS.
-   * Desktop keeps the pill.
-   */
-  function mountDevMoreItem(doc, host){
-    const menu = doc.getElementById('mobilePlatformMoreMenu');
-    if (!menu || doc.getElementById('mobilePlatformMoreGuides')) return;
-    const item = doc.createElement('button');
-    // Filed into the sheet's default "tools" group (Development tools). No data-more-group of its own: topbar.js finds
-    // the group with [data-more-group="tools"], which would match a prepended item first.
-    item.type = 'button'; item.id = 'mobilePlatformMoreGuides'; item.className = 'ptb-more-item';
-    item.setAttribute('data-fmr-ignore', '');
-    item.innerHTML = `<i class="fas fa-route" aria-hidden="true"></i><span>${esc(L('gx_dev_section', 'Guided experiences'))}</span>`;
-    item.addEventListener('click', () => { menu.classList.remove('visible'); openDevSheet(doc); });
-    menu.prepend(item);
-    host.dataset.inMore = 'true';
-  }
-  function openDevSheet(doc){
-    let sheet = doc.querySelector('.gx-dev-sheet');
-    if (!sheet) {
-      sheet = doc.createElement('div'); sheet.className = 'gx-dev-sheet'; sheet.setAttribute('data-fmr-ignore', '');
-      sheet.setAttribute('role', 'dialog'); sheet.setAttribute('aria-modal', 'true'); sheet.setAttribute('aria-label', L('gx_dev_section', 'Guided experiences'));
-      sheet.innerHTML = `<div class="gx-dev-sheet-scrim" data-gxd-close></div><div class="gx-dev-sheet-card"><div class="gx-dev-sheet-grip" aria-hidden="true"></div><div class="gx-dev-sheet-head"><h3>${esc(L('gx_dev_section', 'Guided experiences'))}</h3><button type="button" data-gxd-close aria-label="${esc(L('gx_dev_sheet_close', 'Close'))}">&times;</button></div><label class="gx-dev-sheet-switch"><span>${esc(L('gx_dev_editing', 'Editing copy'))}</span><input type="checkbox" role="switch" data-gxd-edit></label><span class="gx-dev-status" role="status"></span><div class="gx-dev-panel"></div></div>`;
-      (doc.body || doc.documentElement).appendChild(sheet);
-      const panel = sheet.querySelector('.gx-dev-panel');
-      const close = () => { sheet.hidden = true; };
-      sheet.addEventListener('click', (event) => {
-        if (event.target.closest?.('[data-gxd-close]')) { close(); return; }
-        const action = event.target.closest?.('[data-gxd]');
-        if (action) devAction(action.dataset, () => renderDevPanel(panel));
-      });
-      sheet.querySelector('[data-gxd-edit]').addEventListener('change', (event) => { try { root.localStorage?.setItem(EDIT_KEY, event.target.checked ? 'on' : 'off'); } catch (_) {} devDocs.forEach(syncEditing); projectFrameGuides()?.syncDevEditing?.(); });
-      doc.addEventListener('keydown', (event) => { if (event.key === 'Escape' && !sheet.hidden) close(); });
-    }
-    sheet.querySelector('[data-gxd-edit]').checked = editing();
-    sheet.querySelector('.gx-dev-status').textContent = devStatus;
-    sheet.hidden = false;
-    renderDevPanel(sheet.querySelector('.gx-dev-panel'));
-    sheet.querySelector('[data-gxd-close]:not(.gx-dev-sheet-scrim)')?.focus({ preventScroll: true });
+  function devPanel(container){
+    container.classList.add('gx-dev-tools');
+    container.setAttribute('data-fmr-ignore', '');
+    container.innerHTML = `<label class="gx-dev-switch"><span>${esc(L('gx_dev_editing', 'Editing copy'))}</span><input type="checkbox" class="fm-dc-switch" role="switch" data-gxd-edit ${editing() ? 'checked' : ''}></label><span class="gx-dev-status" role="status">${esc(devStatus)}</span><div class="gx-dev-panel"></div>`;
+    const panel = container.querySelector('.gx-dev-panel');
+    container.querySelector('[data-gxd-edit]').addEventListener('change', (event) => setEditing(event.target.checked));
+    container.addEventListener('click', (event) => { const action = event.target.closest?.('[data-gxd]'); if (action) devAction(action.dataset, () => renderDevPanel(panel)); });
+    const render = async () => { container.querySelector('[data-gxd-edit]').checked = editing(); await refresh(true).catch(() => null); return renderDevPanel(panel); };
+    render();
+    return { shown: render };
   }
   async function devAction(data, rerender){
     const kind = data.gxd, id = data.gxdId;
@@ -1093,28 +989,12 @@
     panel.innerHTML = `<h4>${esc(L('gx_dev_field', 'Last edited copy'))}</h4>${lastKey ? `<div class="gx-dev-history">${history.map((entry) => `<div class="gx-dev-row"><span>${esc(entry.text || L('gx_dev_builtin_text', '(built-in text)'))}<small>${esc(entry.author)} · ${esc(new Date(entry.created_at).toLocaleString())} · r${entry.revision}</small></span><button type="button" data-gxd="revert" data-gxd-key="${esc(lastKey)}" data-gxd-revision="${entry.revision}">${esc(L('gx_dev_use', 'Use'))}</button></div>`).join('')}<div class="gx-dev-row"><span>${esc(lastKey)}</span><button type="button" data-gxd="revert" data-gxd-key="${esc(lastKey)}" data-gxd-revision="0">${esc(L('gx_dev_first_text', 'Use the first text'))}</button></div></div>` : `<div class="gx-dev-empty">${esc(L('gx_dev_no_field', 'Edit any copy to see its history here.'))}</div>`}
       <h4>${esc(L('gx_dev_experiences', 'Experiences'))}</h4>${list.map((entry) => `<div class="gx-dev-row"><span title="${esc(entry.id)}">${esc(L(entry.title))}</span>${entry.kind === 'overlay' ? `<button type="button" data-gxd="replay" data-gxd-id="${esc(entry.id)}">${esc(L('gx_dev_replay', 'Replay'))}</button>` : `<button type="button" data-gxd="restart" data-gxd-id="${esc(entry.id)}">${esc(L('gx_dev_restart', 'Restart'))}</button>`}<button type="button" data-gxd="reset-me" data-gxd-id="${esc(entry.id)}">${esc(L('gx_dev_reset_me', 'Reset me'))}</button><button type="button" data-gxd="reset-org" data-gxd-id="${esc(entry.id)}">${esc(L('gx_dev_reset_org', 'Reset org'))}</button></div>`).join('') || `<div class="gx-dev-empty">${esc(L('gx_dev_none', 'No experiences.'))}</div>`}`;
   }
-  /** Adds a "Guided experiences" section to the development tools window (libraries/development-tools) when it opens. */
-  function watchDevTools(doc){
-    const add = () => doc.querySelectorAll('.fm-dev-window .fm-dev-body').forEach((body) => {
-      if (body.querySelector('[data-gx-devtools]')) return;
-      const section = doc.createElement('details'); section.className = 'fm-dev-section'; section.dataset.gxDevtools = ''; section.setAttribute('data-fmr-ignore', '');
-      section.innerHTML = `<summary><span><i class="fas fa-route" aria-hidden="true"></i> ${esc(L('gx_dev_section', 'Guided experiences'))}</span></summary><div class="gx-dev-panel" style="position:static;width:auto;box-shadow:none;border:0;padding:0"></div><label class="fm-dev-option"><span><strong>${esc(L('gx_dev_editing', 'Editing copy'))}</strong></span><input type="checkbox" role="switch" data-gxd-edit ${editing() ? 'checked' : ''}></label>`;
-      const footer = body.querySelector('.fm-dev-footer');
-      body.insertBefore(section, footer || null);
-      const panel = section.querySelector('.gx-dev-panel');
-      section.addEventListener('toggle', () => { if (section.open) renderDevPanel(panel); });
-      section.addEventListener('click', (event) => { const action = event.target.closest?.('[data-gxd]'); if (action && !action.matches('[data-gxd-edit]')) devAction(action.dataset, () => renderDevPanel(panel)); });
-      section.querySelector('[data-gxd-edit]').addEventListener('change', (event) => { try { root.localStorage?.setItem(EDIT_KEY, event.target.checked ? 'on' : 'off'); } catch (_) {} devDocs.forEach(syncEditing); projectFrameGuides()?.syncDevEditing?.(); });
-    });
-    let queued = false;
-    new (doc.defaultView?.MutationObserver || MutationObserver)(() => { if (queued) return; queued = true; requestAnimationFrame(() => { queued = false; add(); }); }).observe(doc.body || doc.documentElement, { childList: true, subtree: true });
-    add();
-  }
-
   root.FirstMateGuides = {
-    /** Development: re-reads the editing switch (the pill on the page above calls it on project frames). */
+    /** Development: re-reads the editing switch (the dev console on the page above calls it on project frames). */
     syncDevEditing: () => devDocs.forEach(syncEditing),
-    copyHtml: H, installDev, syncDevEditing: () => devDocs.forEach(syncEditing), isDevEditor: () => devState.editor,
+    copyHtml: H, installDev, isDevEditor: () => devState.editor,
+    /** Development: draws the guided experiences tools into a dev console section (development editors only). */
+    devPanel: (container) => devState.editor ? devPanel(container) : null,
     filterProjectTabs, projectFacts,
     refresh: () => refresh(true), play, faqs, attachAssistant, overlay, where, follow,
     /**

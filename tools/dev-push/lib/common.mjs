@@ -21,7 +21,8 @@ const laneBuilt = (name) => (process.env.DEV_PUSH_LANES ? process.env.DEV_PUSH_L
 export const LANES = {
   platform: { branch: "codex/consolidated-firstmeasure-20260923", owns: () => true },
   // A lane owns its paths once its module is in the checkout; until then platform carries them.
-  "measure-internal": { branch: "lane/measure-internal", owns: (file) => (file.startsWith("public/measure/internal/") || file.startsWith("dev/")) && laneBuilt("measure-internal") }
+  // `paths`: a lane other than platform takes only its own paths from a submission, onto its own tip.
+  "measure-internal": { branch: "lane/measure-internal", paths: ["public/measure/internal", "dev"], owns: (file) => (file.startsWith("public/measure/internal/") || file.startsWith("dev/")) && laneBuilt("measure-internal") }
 };
 
 /** The most specific lane that owns a path (anything not claimed by another lane is platform). */

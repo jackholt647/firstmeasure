@@ -16,7 +16,13 @@ case "$ROLE" in
 esac
 systemctl cat "$UNIT" >/dev/null 2>&1 || { echo "$UNIT not found: not the development $ROLE host" >&2; exit 1; }
 pid=$(systemctl show "$UNIT" -p MainPID --value)
-tr '\0' '\n' < "/proc/$pid/environ" | grep -qx 'FIRSTMEASURE_DATA_ENVIRONMENT=development' || { echo "$UNIT is not a development process" >&2; exit 1; }
+if [ "$pid" != 0 ]; then
+  tr '\0' '\n' < "/proc/$pid/environ" | grep -qx 'FIRSTMEASURE_DATA_ENVIRONMENT=development' || { echo "$UNIT is not a development process" >&2; exit 1; }
+else
+  # A stopped service (a new pool node held out of rotation): read its environment files instead.
+  files=$(systemctl show "$UNIT" -p EnvironmentFiles --value | grep -o '/[^ ]*' | grep -v '^/opt/firstmeasure/')
+  cat $files 2>/dev/null | grep -Eq '^FIRSTMEASURE_DATA_ENVIRONMENT="?development"?$' || { echo "$UNIT is not configured for development" >&2; exit 1; }
+fi
 case "$PUBKEY" in ssh-ed25519\ *) ;; *) echo "expected an ssh-ed25519 public key" >&2; exit 1 ;; esac
 
 install -o root -g root -m 0755 "$HELPER_SRC" /usr/local/sbin/fm-release

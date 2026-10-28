@@ -13,6 +13,7 @@ import { createRequire } from "node:module";
 import { LANES, laneOf, run } from "../../lib/common.mjs";
 import { ALWAYS, COMMANDS, AREAS, testsFor } from "./test-map.mjs";
 import { buildDist as transpileDist, transpileSource } from "./transpile.mjs";
+import { missingReferences } from "./references.mjs";
 
 const HOME = process.env.DEV_PUSH_HOME || path.join(os.homedir(), "dev-push");
 const CACHE = path.join(HOME, "cache");
@@ -118,6 +119,13 @@ export default {
       if (result.code !== 0) failures.push({ id, output: tail(result.stderr, 2000) });
     }
     timings.parse_js = since(at);
+    // Always: nothing in the tree may point at a file the tree lacks (a release built from git has no host leftovers).
+    if (want("references")) {
+      at = Date.now();
+      const missing = missingReferences(dir);
+      timings.references = since(at);
+      if (missing.length) failures.push({ id: "references", output: missing.map((item) => `${item.path} is missing, referenced by ${item.from}: ${item.ref}`).join("\n") });
+    }
     const server = existing.filter((file) => !isBrowserFile(file));
     const ts = server.filter((file) => file.startsWith("public/v1/") && file.endsWith(".ts") && !file.endsWith(".d.ts"));
     if (ts.length) {
@@ -169,17 +177,22 @@ export default {
   },
 
   /** Builds the release tree for `sha` and puts it on every role together. */
-  async deploy({ dir, sha, releaseId, previous: previousRelease = null, hosts, log, buildOnly = false, stageOnly = false }) {
+  async deploy({ dir, sha, releaseId, previous: previousRelease = null, hosts, log, buildOnly = false, stageOnly = false, onlyRoles = null, releaseName = null }) {
     const timings = {};
     let at = Date.now();
-    const roles = hosts.roles;
+    const roles = onlyRoles || hosts.roles; // onlyRoles: bring one new pool member to the current release
     const before = Object.fromEntries(await Promise.all(roles.map(async (role) => [role, await hosts.status(role, "platform", sha)])));
     timings.status = since(at);
     const broken = roles.filter((role) => !before[role].ok);
     if (broken.length) return { ok: false, error: `status failed: ${broken.map((role) => `${role}: ${before[role].error}`).join("; ")}`, rolledBack: true, infrastructure: true, timings };
     // The release directory is named for the commit, or <commit>-dp where the old tooling already made one of that
     // name (the running release at the re-baseline). RELEASE_ID equals the directory name; the web standby relies on it.
-    const name = roles.some((role) => before[role].probe?.[sha]?.exists && !before[role].probe[sha].router) ? `${sha}-dp` : sha;
+    const name = releaseName || (roles.some((role) => before[role].probe?.[sha]?.exists && !before[role].probe[sha].router) ? `${sha}-dp` : sha);
+    // A release that changes nothing under public/v1 keeps the running server: its RELEASE_ID stays the server's
+    // release, and activation moves `current` and reloads PHP without restarting Node (fm-release activate --keep-server).
+    const changedSincePrevious = previousRelease?.sha && !onlyRoles ? (await run("git", ["diff", "--name-only", previousRelease.sha, sha], { cwd: dir })).stdout.split("\n").filter(Boolean) : null;
+    const keepServer = Boolean(changedSincePrevious && !changedSincePrevious.some((file) => file.startsWith("public/v1/")));
+    const serverId = releaseName ? (previousRelease?.server || releaseName) : keepServer ? (previousRelease.server || previousRelease.name || previousRelease.sha) : name;
     const build = path.join(BUILDS, name);
     if (!fs.existsSync(path.join(build, ".manifest.json"))) {
       at = Date.now();
@@ -202,8 +215,8 @@ export default {
         const copied = await run("cp", ["-al", from, to]);
         if (copied.code !== 0) throw new Error(`cp ${from}: ${copied.stderr}`);
       }
-      fs.writeFileSync(path.join(tmp, "release.env"), `RELEASE_ID=${name}\nRELEASE_COMMIT=${sha}\nDEV_PUSH_RELEASE=${releaseId}\nFIRSTMEASURE_EDITOR_RUNTIME_ROOT=${EDITOR_RUNTIME_ROOT}\n`);
-      const manifest = await treeManifest(tmp);
+      fs.writeFileSync(path.join(tmp, "release.env"), `RELEASE_ID=${serverId}\nRELEASE_COMMIT=${sha}\nDEV_PUSH_RELEASE=${releaseId}\nFIRSTMEASURE_EDITOR_RUNTIME_ROOT=${EDITOR_RUNTIME_ROOT}\n`);
+      const manifest = await treeManifest(tmp, path.join(CACHE, "hashes.json"));
       manifest.release_id = releaseId;
       fs.writeFileSync(path.join(tmp, ".manifest.json"), JSON.stringify(manifest));
       fs.renameSync(tmp, build);
@@ -214,10 +227,21 @@ export default {
     delete manifest.files[".manifest.json"];
     if (buildOnly) return { ok: true, build, name, tree_sha256: manifest.tree_sha256, files: Object.keys(manifest.files).length, timings };
 
-    log(`staging ${name} on ${roles.join(", ")} (${Object.keys(manifest.files).length} files, tree ${manifest.tree_sha256.slice(0, 12)})`);
+    // A role whose running release is the previous one we built gets only the changed files; any other gets the tree.
+    const previousName = previousRelease?.name || previousRelease?.sha;
+    const previousManifest = (() => { try { return previousName ? JSON.parse(fs.readFileSync(path.join(BUILDS, previousName, ".manifest.json"), "utf8")) : null; } catch { return null; } })();
+    const delta = previousManifest && hosts.assemble ? {
+      changed: Object.keys(manifest.files).filter((rel) => rel !== ".manifest.json" && previousManifest.files[rel]?.[0] !== manifest.files[rel][0]),
+      deleted: Object.keys(previousManifest.files).filter((rel) => rel !== ".manifest.json" && !manifest.files[rel])
+    } : null;
+    log(`staging ${name} on ${roles.join(", ")} (${Object.keys(manifest.files).length} files, tree ${manifest.tree_sha256.slice(0, 12)}${delta ? `; ${delta.changed.length} changed, ${delta.deleted.length} deleted since ${previousName.slice(0, 10)}` : ""}${keepServer ? "; server kept" : ""})`);
     const staged = await Promise.all(roles.map(async (role) => {
       const started = Date.now();
-      const result = await hosts.stage(role, { lane: "platform", sha: name, dir: build, manifest: { ...manifest, files: withoutLocal(manifest.files) }, releases: before[role].lanes.platform.releases });
+      const running = before[role].lanes.platform;
+      const fromPrevious = delta && running.current === previousName && running.receipt?.tree_sha256 === previousManifest.tree_sha256;
+      const result = fromPrevious
+        ? await hosts.assemble(role, { lane: "platform", sha: name, previous: previousName, dir: build, changed: delta.changed, deleted: delta.deleted, manifest: { ...manifest, files: withoutLocal(manifest.files) } })
+        : await hosts.stage(role, { lane: "platform", sha: name, dir: build, manifest: { ...manifest, files: withoutLocal(manifest.files) }, releases: running.releases });
       timings[`transfer:${role}`] = since(started);
       return result;
     }));
@@ -229,7 +253,8 @@ export default {
       at = Date.now();
       const checked = await hosts.check("legacy", { lane: "platform", sha: name, paths: php });
       timings.php_lint = since(at);
-      if (!checked.ok) return { ok: false, error: `PHP lint failed:\n${tail(checked.output || checked.error, 3000)}`, rolledBack: true, timings };
+      // A lint answer names files; anything else (the host refused or was unreachable) is the router's problem.
+      if (!checked.ok) return checked.output ? { ok: false, error: `PHP lint failed:\n${tail(checked.output, 3000)}`, rolledBack: true, timings } : { ok: false, error: `PHP lint could not run: ${checked.error}`, rolledBack: true, infrastructure: true, timings };
     }
     if (stageOnly) return { ok: true, name, staged: Object.fromEntries(roles.map((role, index) => [role, staged[index]])), timings };
 
@@ -237,14 +262,14 @@ export default {
     const previous = Object.fromEntries(roles.map((role) => [role, before[role].lanes.platform.current]));
     const activated = await Promise.all(roles.map(async (role) => {
       const started = Date.now();
-      const result = await hosts.activate(role, { lane: "platform", sha: name, expect: previous[role] });
+      const result = await hosts.activate(role, { lane: "platform", sha: name, expect: previous[role], keepServer });
       timings[`activate:${role}`] = since(started);
       return result;
     }));
     let failed = roles.filter((_, index) => !activated[index].ok);
     if (!failed.length) {
       at = Date.now();
-      const publicError = await waitPublic(name);
+      const publicError = await waitPublic(serverId);
       timings.public_ready = since(at);
       if (publicError) { failed = ["public"]; activated.push({ ok: false, error: publicError }); }
     }
@@ -260,7 +285,7 @@ export default {
       return { ok: false, error: errors + (notBack.length ? `\nROLLBACK FAILED on ${notBack.map((item) => `${item.role}: ${item.error}`).join("; ")}` : ""), rolledBack: notBack.length === 0, timings };
     }
     Promise.all(roles.map((role) => hosts.prune(role, { lane: "platform" }))).then((results) => log(`pruned old releases: ${results.map((result, index) => `${roles[index]} ${result.removed ?? result.error}`).join(", ")}`)).catch(() => {});
-    return { ok: true, name, timings, roles: Object.fromEntries(roles.map((role, index) => [role, { previous: previous[role], tree_sha256: staged[index].tree_sha256, reused: Boolean(activated[index].reused) }])) };
+    return { ok: true, name, server: serverId, keptServer: keepServer, timings, roles: Object.fromEntries(roles.map((role, index) => [role, { previous: previous[role], tree_sha256: staged[index].tree_sha256, reused: Boolean(activated[index].reused) }])) };
   },
 
   async current({ hosts }) {
@@ -272,8 +297,11 @@ export default {
 const withoutLocal = (files) => Object.fromEntries(Object.entries(files).filter(([rel]) => rel !== ".manifest.json"));
 
 /** Every file (sha256, size, mode) and symlink of a tree, and the digest fm-release computes. */
-export async function treeManifest(root) {
+export async function treeManifest(root, cacheFile = null) {
   const files = {}, links = {};
+  // node_modules and dist are hard links into the caches, so the same inode, size and mtime mean the same bytes.
+  const cache = (() => { try { return cacheFile ? JSON.parse(fs.readFileSync(cacheFile, "utf8")) : {}; } catch { return {}; } })();
+  const used = {};
   const walk = (dir, prefix) => {
     for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
       const rel = prefix + entry.name;
@@ -281,10 +309,14 @@ export async function treeManifest(root) {
       if (entry.isSymbolicLink()) { links[rel] = fs.readlinkSync(full); continue; }
       if (entry.isDirectory()) { walk(full, `${rel}/`); continue; }
       const stat = fs.statSync(full);
-      files[rel] = [sha256(full), stat.size, stat.mode & 0o777];
+      const key = `${stat.dev}:${stat.ino}:${stat.size}:${stat.mtimeMs}`;
+      const hash = (cacheFile && stat.nlink > 1 && cache[key]) || sha256(full);
+      if (cacheFile && stat.nlink > 1) used[key] = hash;
+      files[rel] = [hash, stat.size, stat.mode & 0o777];
     }
   };
   walk(root, "");
+  if (cacheFile) { fs.writeFileSync(`${cacheFile}.tmp`, JSON.stringify(used)); fs.renameSync(`${cacheFile}.tmp`, cacheFile); }
   delete files[".manifest.json"];
   const digest = crypto.createHash("sha256");
   for (const rel of Object.keys(files).sort()) digest.update(`f ${rel} ${files[rel][0]}\n`);

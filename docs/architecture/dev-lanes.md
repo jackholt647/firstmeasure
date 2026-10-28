@@ -1,6 +1,6 @@
 # Dev lanes and the dev push router
 
-Status: agreed design (2026-10-27); router, platform lane and live bake-down built in `tools/dev-push/` (cutover pending). Development (dev.1m8.ai) only;
+Status: agreed design (2026-10-27); in service since the cutover of 2026-10-27 (canonical `0c374e3c`: every dev role rebuilt from git; proven with concurrent submissions, a rejected conflict and a live overlay surviving a release). The old-script refusal (`fm-release guard on`) waits for the coordinator. Development (dev.1m8.ai) only;
 production is a separate scope and nothing here changes how production ships.
 
 ## Why
@@ -168,7 +168,9 @@ pre-existing failure); the router does not count a failure the lane tip already 
 the router's own code); its repository is `/home/dev/router/firstmeasure.git`
 (`router/install-repo.sh`). Cron starts it every minute unless the running one
 holds its lock (`router/install-droplet.sh`; the account has no lingering
-systemd session), so a reboot costs at most a minute.
+systemd session), so a reboot costs at most a minute. A platform release that changes
+`tools/dev-push/` moves the router's code to that release and restarts it; if the new
+code will not start, `router/install-droplet.sh update <good sha>` puts it back.
 
 Each lane runs its own loop; inside a lane, submissions are taken in submission
 order, up to `batchMax` at a time (`router/router.mjs`):
@@ -239,6 +241,36 @@ staging directory and run fm-release, nothing else. After the re-baseline
 `current`; the old per-task scripts fail at their first upload) and shows
 every SSH client a banner naming `submit.mjs`.
 
+### New web nodes
+
+dev.1m8.ai's load balancer routes to every droplet tagged
+`firstmeasure-development-autoscale-r1`; the autoscale pool
+(`firstmeasure-development-web-autoscale-r1`) adds members built from its image,
+which carries whatever release the image had. On 2026-10-28 a member built from
+the September 7 image served about 60% of dev's requests unnoticed. Now:
+
+* **Held out until current.** The pool's user data
+  (`deploy/digitalocean/dev-pool-user-data.sh`) stops and disables the web
+  service and its standby on first boot (so `/v1/health/ready` fails and the
+  load balancer sends nothing), installs `fm-release` and the router's key, and
+  marks the node as awaiting a release. The first router activation on it
+  enables the services.
+* **Adopted by the router.** With a read-only DigitalOcean token in
+  `~/dev-push/do-token` on the droplet, the router lists the tagged members
+  every minute, adopts each new one (`web-<droplet id>`), stages and activates
+  the current platform release on it (same tree, same name), and includes it in
+  every later release; members that disappear are dropped
+  (`router/fleet.mjs`, `state/fleet.json`).
+* **Flagged otherwise.** Every minute the router also samples the public health
+  check; any instance serving a release that is not the router's appears under
+  `fleet.problems` in the status document and in the router log.
+
+The pool image should still be refreshed from the current web node now and then:
+its `/etc/firstmeasure` configuration (provider and feature environment files
+added since September) comes from the image, not from a release. Production's
+equivalent is the signed release channel (`bootstrap-web-release.sh`); nothing
+here changes production.
+
 ### Adding a lane
 
 A lane is `tools/dev-push/lanes/<lane>/lane.mjs` plus an entry in `LANES`
@@ -279,8 +311,7 @@ release without updating their checkout.
 Built 2026-10-27; setup record:
 [development-measure-internal-lane-20261027](../../deploy/digitalocean/development-measure-internal-lane-20261027.md).
 Code: `tools/dev-push/lanes/measure-internal/` (`lane.mjs`: the router's lane
-module and the direct `deploy(sha)`; `ship.mjs` CLI; `lane-host.sh` host side
-of the direct path). Tests:
+module; `ship.mjs`: builds the lane commit and submits it to the router). Tests:
 `tests/dev-lane-measure-internal.test.mjs`.
 
 **Owns** `public/measure/internal/**` (deployed) and `dev/**` (the editor's
@@ -336,7 +367,8 @@ tests. `deploy({ dir, sha, hosts })` builds the tree (`buildTree`: the commit's
 legacy, web and worker, lints the changed PHP inside the staged release on
 legacy (`hosts.check`), activates the three, checks that dev.1m8.ai serves a
 changed file with its bytes and the lane header, and rolls every role back
-otherwise. Both return `timings` (ms per step and role) for the release record.
+otherwise. Both return flat `timings` (ms per step, `transfer:<role>`,
+`activate:<role>`) for the release record.
 `current({ hosts })` reports each role. On web and worker the release is not
 served: their Node reads `editor_scripts/pdf.js` and `pdf_standalone.js`
 (`pdf_runtime.ts`) and the Google key in `editor.php` (`forms/solar.ts`) from
@@ -345,49 +377,23 @@ in the router's `release.env`. Both fall back to the platform copy when the
 path is missing; `pdf_runtime.ts` reads the files at each render, so a lane
 switch needs no restart.
 
-**Direct, until the router owns the lane** (`deploy(sha, { cwd, log, host })`,
-called by `ship.mjs`):
-
-1. Read the host status (live lane release, serving lane or platform).
-2. Quick checks.
-3. Manifest: sha256 of every deployed file from git blobs (`core.autocrlf`
-   off, so the commit's bytes, never a working copy or a host file).
-4. One SSH stream: a tar with `lane-host.sh`, the manifest and the changed
-   files. The host hard-links the live release, writes the changed files,
-   deletes what the commit deleted, checks every file against the manifest
-   (any mismatch: the client resends every file), lints changed PHP with
-   `php -l`, links the siblings, and swaps `current` with a rename.
-5. Readiness: a changed static file (or `audio/ding.mp3`) comes back with the
-   manifest's bytes and the new lane header; `/measure/internal/`,
-   `editor.php` and `backend_login.php` answer with the statuses they had
-   before the switch (never 5xx). Otherwise `current` is swapped back.
-6. A record is written to `/opt/firstmeasure/lanes/measure-internal/records/`
-   and returned. Twelve releases are kept, plus `current` and `previous`.
-
-`ship.mjs` adds the branch step (`laneCommit` in `lane.mjs`). It takes the
-editor from any commit: a commit on the lane tip that changes only lane paths
-ships as is; otherwise `git merge-tree` merges the commit with the lane tip and
-a new single-parent commit on the tip takes only `public/measure/internal` and
-`dev` from the result (other paths stay as on the lane; they ship on
-`platform`). A conflict in a lane path is refused. After a live deploy
-`lane/measure-internal` on origin is fast-forwarded (`--force-with-lease`); a
-refused push rolls the host back. One deploy at a time (host `flock`). In a
-checkout that has the router's `tools/dev-push/submit.mjs`, `ship.mjs` submits
-to the router instead (`FM_LANE_DIRECT=1` forces the direct path).
-
-Measured on 2026-10-27 with the regression tests still in every ship: 34-110 s
-from command to live, of which the tests took 22-88 s and the host build and
-switch 0.6 s. Without them a direct ship is the SSH round trips plus about a
-second.
-
-**Follow mode.** `ship.mjs follow` points `current` at
-`releases/platform-follow`, whose `public/` entries (`measure/` included) are
-all symlinks into `/opt/firstmeasure/current/public`. nginx is unchanged, but
-the bytes and PHP (`__DIR__` resolves into the platform release) are the
-platform release's, so platform releases and old per-task rollouts of editor
-files show at once. For the hand-over while some sessions still ship editor
-files the old way. A later lane deploy never hard-links from, or writes
-through, a follow release. Responses carry no lane header in follow mode.
+**Shipping from any branch** (`ship.mjs`). Editor work is often committed on
+canonical, whose history the lane branch does not have; the router would merge
+that history onto the lane. So `ship.mjs` builds the lane commit itself
+(`laneCommit`): a commit on the lane tip that changes only lane paths ships as
+is; otherwise `git merge-tree` merges it with the lane tip, from the newest
+commit in the source's history whose lane paths equal the lane tip's (else the
+source a lane commit last recorded, else the usual merge base), and a new
+single-parent commit on the tip takes only `public/measure/internal` and `dev`
+from the result. A second edit of the same lines, or a revert, therefore
+arrives as a change, and other paths stay as on the lane (they ship on
+`platform`). A conflict in a lane path is refused. The commit goes to the
+router with the router's own `submit.mjs` (this checkout's, or canonical's read
+from the router repository), run in a temporary worktree whose index matches
+the commit with every file marked skip-worktree, so nothing is checked out and
+it works from a checkout that does not have the router's tools. Measured on
+2026-10-28 from the shared checkout: 28-35 s from command to live (router
+batch about 12 s).
 
 **What reads editor files outside the editor.** `pdf_runtime.ts` and
 `forms/solar.ts` (above). `firstmeasure/api.ts` and `queue.ts` read untracked
@@ -399,13 +405,17 @@ and canonical are merged into each other on request when work is quiet; until
 canonical has a lane commit, a platform release still carries the older editor
 files, unserved on dev.
 
-**Switch back** to the platform copy: `node tools/dev-push/lanes/measure-internal/ship.mjs uninstall`
-(comments out the `/measure/internal/` line of the map and reloads nginx);
-`install` turns the lane on again. `rollback [<sha>]` returns to the previous
-(or named) lane release.
+**Only the router activates.** Until 2026-10-28 `ship.mjs` could also ship
+directly over SSH (`lane-host.sh`); a direct ship and a router release built on
+an older lane tip overwrote each other, so the direct path, its rollback,
+follow and install commands are gone, and the lane folder on legacy refuses
+old copies of the script. To undo a change, ship a revert. To serve the
+platform release's editor copy again, an operator comments out the
+`/measure/internal/` line of the map in
+`/etc/nginx/conf.d/firstmeasure-lanes.conf` and reloads nginx.
 
 Old per-task rollouts that copy editor files into the platform release on dev
-legacy still succeed but are not served while the lane is active.
+legacy are not served while the lane is active.
 
 ## Config lane
 

@@ -1,12 +1,13 @@
-// Signup Sandbox dev bar. Included on every signup surface (portal, login,
-// landing pages); asks the sandbox API whether the logged-in org is a sandbox
-// test org and, if so, injects a thin bar along the bottom of the screen with
-// one pill per workflow stage. Every pill goes to the stage's REAL surface:
-// wizard steps slide the actual onboarding wizard in place, landing/signup
-// pills open the real pages, and placeholder/bundle pages render as an
-// overlay inside the portal (?sbx_stage=<index>) — there is no separate
-// runner page. For everyone else (and in production, where /v1/signup-sandbox
-// is dead) this script does nothing.
+// Signup Sandbox test runs and the dev console loader. Included on every
+// signup surface (portal, login, landing pages). It asks the sandbox API
+// whether the logged-in org is a sandbox test org and, if so, runs the test
+// run: every stage goes to its REAL surface (wizard steps slide the actual
+// onboarding wizard in place, landing/signup stages open the real pages, and
+// placeholder/bundle pages render as an overlay inside the portal,
+// ?sbx_stage=<index>). The stage list lives in the dev console's Test run
+// section (libraries/dev-console), which this script loads on every
+// development page; window.SignupSandboxRun is what that section drives.
+// In production /v1/signup-sandbox is dead and this script does nothing.
 (function () {
     'use strict';
 
@@ -18,12 +19,8 @@
         return `${location.origin}/v1/signup-sandbox`;
     }
 
-    const barHidden = sessionStorage.getItem('sbxDevbarHidden') === '1';
-
-    const BAR_HEIGHT = 34;
     const ASSET_VERSION = new URL(document.currentScript?.src || location.href).searchParams.get('v') || 'dev';
     let overlayStageIndex = null;
-    let pills = [];
     let currentInstance = null;
     const loadedBundles = {};
 
@@ -42,7 +39,7 @@
     function toastLine(message) {
         const note = document.createElement('div');
         note.textContent = message;
-        note.style.cssText = 'position:fixed;bottom:44px;left:50%;transform:translateX(-50%);background:#202124;color:#fff;border-radius:999px;padding:8px 16px;font:12.5px "Segoe UI",Roboto,sans-serif;z-index:2147483647;box-shadow:0 8px 20px rgba(0,0,0,0.25)';
+        note.style.cssText = 'position:fixed;bottom:16px;left:50%;transform:translateX(-50%);background:#202124;color:#fff;border-radius:999px;padding:8px 16px;font:12.5px "Segoe UI",Roboto,sans-serif;z-index:2147483647;box-shadow:0 8px 20px rgba(0,0,0,0.25)';
         document.body.appendChild(note);
         setTimeout(() => note.remove(), 2400);
     }
@@ -156,7 +153,7 @@
         if (!overlay) {
             overlay = document.createElement('div');
             overlay.id = 'sbx-stage-overlay';
-            overlay.style.cssText = `position:fixed;top:0;left:0;right:0;bottom:${BAR_HEIGHT}px;z-index:2147483200;background:#f6f7f9;overflow:auto;display:flex;align-items:flex-start;justify-content:center;padding:clamp(16px,5vh,48px) clamp(12px,3vw,20px);box-sizing:border-box;font:14px "Segoe UI",Roboto,sans-serif;color:#202124`;
+            overlay.style.cssText = `position:fixed;top:0;left:0;right:0;bottom:0;z-index:2147483200;background:#f6f7f9;overflow:auto;display:flex;align-items:flex-start;justify-content:center;padding:clamp(16px,5vh,48px) clamp(12px,3vw,20px);box-sizing:border-box;font:14px "Segoe UI",Roboto,sans-serif;color:#202124`;
             document.body.appendChild(overlay);
         }
         overlay.innerHTML = '';
@@ -261,9 +258,46 @@
         location.href = stage.target;
     }
 
-    // ---- Bar ---------------------------------------------------------------
+    // ---- Run ----------------------------------------------------------------
 
-    function render(instance) {
+    // Which stage's surface (wizard step / overlay / page) is showing now.
+    function activeStageIndex(instance) {
+        const hook = wizardHook();
+        if (overlayStageIndex !== null) return overlayStageIndex;
+        const wizardCurrent = hook && hook.isVisible() ? hook.currentPage() : null;
+        return (instance.stages || []).findIndex((stage) => {
+            if (wizardCurrent !== null && stageKind(stage) === 'wizard') {
+                return hook.pageIndexForName(String((stage.page.implementation || {}).builtin_ref || 'branding')) === wizardCurrent;
+            }
+            if (String((stage.page.implementation || {}).type) === 'landing_embed' && location.pathname.indexOf('/landing/') !== -1) {
+                const variant = new URLSearchParams(location.search).get('variant') || 'measurements';
+                return String(stage.target).indexOf(`variant=${encodeURIComponent(variant)}`) !== -1;
+            }
+            return String(stage.page.role) === 'signup' && location.pathname.indexOf('login.php') !== -1;
+        });
+    }
+
+    // Opens a stage from the console: wizard steps and portal overlays in
+    // place, other surfaces by navigating.
+    function openStage(instance, index) {
+        const stage = instance.stages[index];
+        if (!stage) return;
+        const kind = stageKind(stage);
+        const onPortal = /\/portal\/(index\.php)?$/.test(location.pathname.replace(/\/+$/, '/'));
+        if (kind === 'wizard' && wizardHook()) {
+            closeStageOverlay();
+            const idx = wizardStepIndex(stage);
+            if (idx !== null) jumpWizardTo(idx);
+            return;
+        }
+        if ((kind === 'placeholder' || kind === 'bundle') && onPortal) {
+            renderStageOverlay(instance, index);
+            return;
+        }
+        location.href = stage.target;
+    }
+
+    function start(instance) {
         currentInstance = instance;
         // The production branding page owns the whole branding interaction.
         // In a composed sandbox workflow, resume the configured next stage
@@ -280,126 +314,6 @@
             event.preventDefault();
             void completeAndAdvance(instance, instance.stages[index], index);
         }, { once: true });
-        const bar = document.createElement('div');
-        bar.id = 'sbx-devbar';
-        bar.style.cssText = [
-            'position:fixed', 'bottom:0', 'left:0', 'right:0', `height:${BAR_HEIGHT}px`,
-            'z-index:2147483647', 'display:flex', 'align-items:center', 'gap:8px',
-            'padding:0 10px', 'background:#ffffff', 'color:#202124',
-            'border-top:1px solid #e2e5ea',
-            'font:12px "Segoe UI", Roboto, sans-serif', 'overflow-x:auto',
-            'white-space:nowrap', 'box-shadow:0 -2px 10px rgba(0,0,0,0.08)'
-        ].join(';');
-
-        const label = document.createElement('span');
-        label.style.cssText = 'font-weight:700;color:#d93025;flex:0 0 auto;display:inline-flex;align-items:center;gap:6px';
-        label.innerHTML = '<i class="fa-solid fa-flask"></i> TEST RUN';
-        label.title = `${instance.workflow.title} — ${instance.test_org.org_name} (${instance.test_org.email} / ${instance.test_org.password})`;
-        bar.appendChild(label);
-
-        pills = [];
-        (instance.stages || []).forEach((stage, index) => {
-            const pill = document.createElement('a');
-            const page = stage.page || {};
-            const done = stageDone(instance, stage);
-            const skippedEntry = isEntryStage(stage);
-            pill.href = stage.target;
-            pill.textContent = `${index + 1} · ${page.title || stage.page_id}`;
-            pill.style.cssText = [
-                'flex:0 0 auto', 'display:inline-flex', 'align-items:center', 'gap:5px',
-                'padding:3px 10px', 'border-radius:999px', 'text-decoration:none',
-                `color:${done ? '#137333' : '#202124'}`,
-                `border:1px solid ${done ? '#137333' : '#d5d9e0'}`,
-                skippedEntry ? 'opacity:0.65;font-style:italic' : ''
-            ].filter(Boolean).join(';');
-            if (done) pill.innerHTML = `<i class="fa-solid fa-check"></i>${pill.textContent}`;
-            if (skippedEntry) pill.title = 'Entry step — already satisfied for this test org, but you can still view the real page.';
-            pill.addEventListener('click', (event) => {
-                const kind = stageKind(stage);
-                const onPortal = /\/portal\/(index\.php)?$/.test(location.pathname.replace(/\/+$/, '/'));
-                if (kind === 'wizard' && wizardHook()) {
-                    event.preventDefault();
-                    closeStageOverlay();
-                    const idx = wizardStepIndex(stage);
-                    if (idx !== null) jumpWizardTo(idx);
-                } else if ((kind === 'placeholder' || kind === 'bundle') && onPortal) {
-                    event.preventDefault();
-                    renderStageOverlay(instance, index);
-                }
-                // External surfaces (landing/signup) navigate via href.
-            });
-            pills.push({ pill, stage, index, done });
-            bar.appendChild(pill);
-        });
-
-        const spacer = document.createElement('span');
-        spacer.style.cssText = 'flex:1 1 auto';
-        bar.appendChild(spacer);
-
-        const builderLink = document.createElement('a');
-        builderLink.href = '/portal/signup-sandbox/';
-        builderLink.textContent = 'Builder';
-        builderLink.style.cssText = 'color:#1a73e8;text-decoration:none;flex:0 0 auto';
-        bar.appendChild(builderLink);
-
-        const hideBtn = document.createElement('button');
-        hideBtn.innerHTML = '&times;';
-        hideBtn.title = 'Hide for this tab session';
-        hideBtn.style.cssText = 'flex:0 0 auto;background:none;border:none;color:#6b7280;font-size:16px;cursor:pointer;padding:0 2px;font-family:inherit';
-        hideBtn.addEventListener('click', () => {
-            sessionStorage.setItem('sbxDevbarHidden', '1');
-            closeStageOverlay();
-            const styleTag = document.getElementById('sbx-devbar-style');
-            if (styleTag) styleTag.remove();
-            bar.remove();
-        });
-        bar.appendChild(hideBtn);
-
-        document.body.appendChild(bar);
-        // Keep the page's own bottom edge (and the wizard overlay, which is a
-        // full-screen fixed element) clear of the bar.
-        const style = document.createElement('style');
-        style.id = 'sbx-devbar-style';
-        style.textContent = `
-            #obOverlay { bottom: ${BAR_HEIGHT}px !important; }
-            #sbx-devbar { scrollbar-width: none; }
-            #sbx-devbar::-webkit-scrollbar { display: none; }
-            body { padding-bottom: ${BAR_HEIGHT}px; }
-            @media (max-width: 520px) {
-                #obOverlay .ob-pages {
-                    height: calc(100vh - ${BAR_HEIGHT}px);
-                    height: calc(100dvh - ${BAR_HEIGHT}px);
-                    max-height: calc(100vh - ${BAR_HEIGHT}px);
-                    max-height: calc(100dvh - ${BAR_HEIGHT}px);
-                }
-            }
-        `;
-        document.head.appendChild(style);
-
-        // Highlight whichever stage's surface (wizard step / overlay / page)
-        // is currently showing.
-        function updateActive() {
-            const hook = wizardHook();
-            const wizardVisible = hook && hook.isVisible() && overlayStageIndex === null;
-            const wizardCurrent = wizardVisible ? hook.currentPage() : null;
-            pills.forEach((entry) => {
-                let active = false;
-                if (overlayStageIndex !== null) {
-                    active = entry.index === overlayStageIndex;
-                } else if (wizardCurrent !== null && stageKind(entry.stage) === 'wizard') {
-                    active = hook.pageIndexForName(String((entry.stage.page.implementation || {}).builtin_ref || 'branding')) === wizardCurrent;
-                } else if (String((entry.stage.page.implementation || {}).type) === 'landing_embed' && location.pathname.indexOf('/landing/') !== -1) {
-                    const variant = new URLSearchParams(location.search).get('variant') || 'measurements';
-                    active = String(entry.stage.target).indexOf(`variant=${encodeURIComponent(variant)}`) !== -1;
-                } else if (String(entry.stage.page.role) === 'signup' && location.pathname.indexOf('login.php') !== -1) {
-                    active = true;
-                }
-                entry.pill.style.background = active ? 'rgba(217,48,37,0.08)' : 'transparent';
-                entry.pill.style.borderColor = active ? '#d93025' : (entry.done ? '#137333' : '#d5d9e0');
-            });
-        }
-        updateActive();
-        setInterval(updateActive, 700);
 
         // When the real wizard is dismissed (Finish/skip posts
         // onboarding_complete), reload into the configured app: the shell
@@ -407,7 +321,6 @@
         // flags/settings, so only a fresh boot shows the real result.
         let wizardWasVisible = false;
         setInterval(() => {
-            if (!document.body.contains(bar)) return;
             const hook = wizardHook();
             const visible = Boolean(hook && hook.isVisible());
             if (wizardWasVisible && !visible && overlayStageIndex === null) {
@@ -440,16 +353,37 @@
         }
     }
 
+    function exposeRun(instance, running) {
+        window.SignupSandboxRun = {
+            instance: () => currentInstance || instance,
+            // A workflow can run without its test-run controls (`dev_bar` false).
+            running,
+            stageDone: (stage) => stageDone(currentInstance || instance, stage),
+            isEntryStage,
+            activeStageIndex: () => activeStageIndex(currentInstance || instance),
+            openStage: (index) => openStage(currentInstance || instance, index),
+            closeStageOverlay
+        };
+        window.dispatchEvent(new CustomEvent('fm:sandbox-run:ready'));
+    }
+
+    function loadConsole() {
+        if (window.top !== window) return;
+        import('/libraries/dev-console/dev-console.js?v=20261028-dock1').then((module) => module.mount()).catch(() => {});
+    }
+
     fetch(`${apiBaseUrl()}/current-instance`, { credentials: 'include' })
-        .then((res) => (res.ok ? res.json() : null))
+        .then((res) => {
+            // Production: the sandbox API is gone, and so is everything here.
+            if (res.status === 404) return null;
+            loadConsole();
+            return res.ok ? res.json() : null;
+        })
         .then((payload) => {
-            if (payload && payload.ok && payload.instance) {
-                // A workflow can run without the bar (its `dev_bar` is false).
-                if (!barHidden && payload.instance.workflow?.dev_bar !== false) render(payload.instance);
-                if (document.getElementById('platformAssistantSlot') && window.top === window) {
-                    import('/libraries/development-tools/development-tools.js?v=20261026-phone-sheet').then(module => module.mount()).catch(() => {});
-                }
-            }
+            if (!payload || !payload.ok || !payload.instance) return;
+            const running = payload.instance.workflow?.dev_bar !== false;
+            if (running) start(payload.instance);
+            exposeRun(payload.instance, running);
         })
         .catch(() => { /* not a dev environment; stay silent */ });
 })();

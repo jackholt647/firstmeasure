@@ -46,7 +46,9 @@ function server(){
   async function handle(route){
     const request=route.request(),url=new URL(request.url()),body=request.postDataBuffer()?JSON.parse(request.postDataBuffer().toString('utf8')):null;
     const json=data=>route.fulfill({contentType:'application/json',body:JSON.stringify({ok:true,...data})});
-    if(url.pathname.startsWith('/libraries/'))return route.fulfill({contentType:'text/javascript',body:await lib(url.pathname.slice(11))});
+    if(url.pathname.startsWith('/libraries/'))return route.fulfill({contentType:url.pathname.endsWith('.css')?'text/css':'text/javascript',body:await lib(url.pathname.slice(11))});
+    // The dev console's audience, as signup-sandbox/api.ts answers it: the development editor.
+    if(url.pathname==='/v1/signup-sandbox/development/console')return state.dev?json({admin:true,sections:{test_run:false,synthetic_data:false,software_layers:false,guided:true,live:false}}):route.fulfill({status:403,contentType:'application/json',body:JSON.stringify({ok:false,code:'dev_console_denied',error:'denied'})});
     if(url.pathname==='/portal/')return route.fulfill({contentType:'text/html',body:page('portal','p1',false,url.searchParams.has('more'))});
     if(url.pathname.startsWith('/project/'))return route.fulfill({contentType:'text/html',body:page('project',url.pathname.split('/')[2],url.searchParams.has('silent'))});
     // As the server: until the tour is finished, Materials shows only on projects with a report.
@@ -88,7 +90,7 @@ function page(kind,project='p1',silent=false,more=false){
     const thread={id:'t1',subject_id:'project:p1'},get=async p=>(await fetch(p)).json(),post=async(p,b)=>(await fetch(p,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(b)})).json();
     window.AssistantAPI={context:async()=>({main_thread:{id:'main'},threads:[],agents:[],dashboard:[]}),projectConversation:async()=>({thread}),thread:async()=>get('/mock-assistant/thread'),send:async(o,t,b)=>post('/mock-assistant/send',b)};`;
   const scripts=LIBS.map(file=>`<script src="/libraries/${file}"></script>`).join('');
-  if(kind==='portal')return `<!doctype html><html><head><style>body{margin:0;font:14px Arial}iframe{position:fixed;inset:0;width:100%;height:100%;border:0}</style></head><body>${more?'<div class="mobile-topbar"><div class="platform-more" id="mobilePlatformMoreSlot"><button type="button" id="mobilePlatformMoreBtn">More</button></div><div class="ptb-menu ptb-menu--more" id="mobilePlatformMoreMenu"><div class="ptb-sheet"><div class="ptb-sheet-group" data-more-group="work"></div><div class="ptb-sheet-group" data-more-group="tools"></div></div></div></div>':''}<main class="main"><div id="mainPanels"></div></main><script>${boot}</script>${scripts}<iframe id="project"></iframe><script>const q=new URLSearchParams(location.search);document.querySelector('#project').src='/project/'+(q.get('project')||'p1')+(q.has('silent')?'?silent=1':'');</script></body></html>`;
+  if(kind==='portal')return `<!doctype html><html><head><style>body{margin:0;font:14px Arial}iframe{position:fixed;inset:0;width:100%;height:100%;border:0}</style></head><body>${more?'<div class="mobile-topbar"><div class="platform-more" id="mobilePlatformMoreSlot"><button type="button" id="mobilePlatformMoreBtn">More</button></div><div class="ptb-menu ptb-menu--more" id="mobilePlatformMoreMenu"><div class="ptb-sheet"><div class="ptb-sheet-group" data-more-group="work"></div><div class="ptb-sheet-group" data-more-group="tools"></div></div></div></div>':''}<main class="main"><div id="mainPanels"></div></main><script>${boot}</script>${scripts}<script type="module">import('/libraries/dev-console/dev-console.js').then(m=>m.mount());</script><iframe id="project"></iframe><script>const q=new URLSearchParams(location.search);document.querySelector('#project').src='/project/'+(q.get('project')||'p1')+(q.has('silent')?'?silent=1':'');</script></body></html>`;
   return `<!doctype html><html><head><style>body{margin:0;font:14px Arial}#rOverlay{position:fixed;inset:0;display:flex;flex-direction:column}.fm-project-tray-tabs{display:flex;justify-content:flex-end}.fm-project-content{flex:1;display:grid;grid-template-columns:1fr 380px}.mt{padding:20px;display:flex;gap:12px;align-items:flex-start}.mt-resource-column{width:240px;height:160px;border:1px solid #ccc}.fm-project-tray{display:flex;flex-direction:column;min-height:0}</style></head><body>
     <div id="rOverlay"><nav id="tabs"></nav><nav class="fm-project-tray-tabs"><button type="button" data-tray="agent" aria-selected="false">Agent</button></nav>
     <div class="fm-project-content"><div class="mt"><button type="button" data-mt-generate-materials>Generate</button><div class="mt-resource-column">Materials</div></div><aside class="fm-project-tray"></aside></div></div>
@@ -303,38 +305,41 @@ test('on a draft the first view plays the setup without saving a project, and Ge
   } finally { await browser.close(); }
 });
 
-test('development: copy is editable in place, saves as you type, shows for everyone, and the tools reset and replay',async()=>{
+/** Opens the dev console's Guided experiences section (libraries/dev-console). */
+async function guidedTools(tab){
+  await tab.waitForSelector('.fm-dc-strip:not([hidden]),.fm-dc:not([hidden])');
+  if(await tab.locator('.fm-dc-strip').isVisible())await tab.click('.fm-dc-strip');
+  await tab.click('[data-dc-section="guided"]');
+  await tab.waitForSelector('.gx-dev-tools [data-gxd-edit]');
+}
+
+test('development: copy is editable in place, saves as you type, shows for everyone, and the dev console resets and replays',async()=>{
   const browser=await launch(),srv=server();
   srv.state.progress[SETUP.id]='completed';srv.state.dev=true;
   try{
     const {tab,errors,frame}=await open(browser,srv,{project:'p1',silent:true});
-    // Copy editing is off until the editor turns it on.
+    // Copy editing is off until the editor turns it on, in the dev console, which starts folded to a strip.
     assert.equal(await frame().evaluate(()=>document.documentElement.classList.contains('gx-editing')),false,'off by default');
-    await tab.waitForSelector('.gx-dev .gx-dev-handle');
-    assert.equal(await tab.locator('.gx-dev [data-gxd=toggle]').getAttribute('aria-pressed'),'false');
-    await tab.click('.gx-dev [data-gxd=collapse]');
-    await tab.click('.gx-dev [data-gxd=toggle]');
-    await tab.click('.gx-dev [data-gxd=collapse]');
+    await tab.waitForSelector('.fm-dc-strip');
+    const strip=await tab.locator('.fm-dc-strip').boundingBox();
+    assert.ok(Math.round(strip.width)===20&&Math.round(strip.x+strip.width)===1280&&Math.round(strip.height)===800,JSON.stringify(strip));
+    assert.equal(await tab.locator('.gx-dev,.gx-dev-pill').count(),0,'no floating pill');
+    await guidedTools(tab);
+    assert.equal(await tab.locator('.gx-dev-tools [data-gxd-edit]').isChecked(),false);
+    await tab.check('.gx-dev-tools [data-gxd-edit]');
     await frame().evaluate(()=>{FirstMateGuides.play('materials.tab_tutorial');});
     await frame().waitForSelector('.gx-pop [data-gx-copy]');
-    // Obvious: editable text is outlined and the pill says so.
+    // Obvious: editable text is outlined.
     assert.equal(await frame().evaluate(()=>document.documentElement.classList.contains('gx-editing')),true);
     assert.equal(await frame().locator('.gx-pop h3 [data-gx-copy]').getAttribute('contenteditable'),'plaintext-only');
-    // One pill, on the page itself at the bottom left of the screen, above the project window; folded to a handle.
-    assert.equal(await frame().locator('.gx-dev').count(),0,'none inside the project window');
-    await tab.waitForSelector('.gx-dev .gx-dev-handle');
-    assert.equal(await tab.locator('.gx-dev').getAttribute('data-collapsed'),'true');
-    await tab.click('.gx-dev [data-gxd=collapse]');
-    const pill=await tab.evaluate(()=>{const el=document.querySelector('.gx-dev'),r=el.getBoundingClientRect(),cs=getComputedStyle(el);return {position:cs.position,z:Number(cs.zIndex),left:r.left,bottom:innerHeight-r.bottom};});
-    assert.equal(pill.position,'fixed');
-    assert.ok(pill.z>2147483200&&pill.left<=16&&pill.bottom<=16,JSON.stringify(pill));
-    assert.equal(await tab.locator('.gx-dev [data-gxd=toggle]').getAttribute('aria-pressed'),'true');
-    assert.equal(await tab.locator('.gx-dev').getAttribute('data-fmr-ignore'),'');
-    // Exactly one panel across every frame, even when the page's library draws an assistant inside the project frame.
+    // One console, on the page itself along the right edge, above the project window, ignored by session replay.
+    const tray=await tab.evaluate(()=>{const el=document.querySelector('.fm-dc'),r=el.getBoundingClientRect(),cs=getComputedStyle(el);return {position:cs.position,z:Number(cs.zIndex),right:document.documentElement.getBoundingClientRect().width-r.right,top:r.top,height:r.height,ignore:el.hasAttribute('data-fmr-ignore')};});
+    assert.ok(tray.position==='fixed'&&tray.z>2147483200&&tray.right===0&&tray.top===0&&tray.height===800&&tray.ignore,JSON.stringify(tray));
+    // Exactly one console across every frame, even when the page's library draws an assistant inside the project frame.
     await tab.evaluate(()=>{const d=document.querySelector('#project').contentDocument,drawer=d.createElement('div');drawer.innerHTML='<div data-fma="composer"><div class="fma-compose-shell"></div></div>';d.body.appendChild(drawer);FirstMateGuides.attachAssistant(drawer,{});});
     await tab.waitForTimeout(300);
-    const panels=(await Promise.all(tab.frames().map(f=>f.evaluate(()=>document.querySelectorAll('.gx-dev').length)))).reduce((a,b)=>a+b,0);
-    assert.equal(panels,1,'one dev panel across all frames');
+    const panels=(await Promise.all(tab.frames().map(f=>f.evaluate(()=>document.querySelectorAll('.fm-dc,.gx-dev-tools').length)))).reduce((a,b)=>a+b,0);
+    assert.equal(panels,2,'one console and one guided section across all frames');
     // Typing saves after a pause, as plain text.
     const title=frame().locator('.gx-pop h3 [data-gx-copy]');
     await title.click();
@@ -347,66 +352,77 @@ test('development: copy is editable in place, saves as you type, shows for every
     await frame().click('.gx-pop [data-gx=next] [data-gx-copy]');
     assert.equal(await frame().locator('.gx-pop h3').innerText(),'Hello from <the> roof','still on the same step');
     await tab.keyboard.press('Escape');
-    // The toggle gives the clean view.
-    await tab.click('.gx-dev [data-gxd=toggle]');
+    // The switch gives the clean view.
+    await tab.uncheck('.gx-dev-tools [data-gxd-edit]');
     assert.equal(await frame().evaluate(()=>document.documentElement.classList.contains('gx-editing')),false);
     assert.equal(await frame().locator('.gx-pop h3 [data-gx-copy]').getAttribute('contenteditable'),null);
     await frame().click('.gx-pop [data-gx=next]');
     await frame().waitForFunction(()=>document.querySelector('.gx-pop h3')?.textContent==='Generate');
-    await tab.click('.gx-dev [data-gxd=toggle]');
-    // The tools: reset this tour for me from the pill.
-    await tab.click('.gx-dev [data-gxd=menu]');
+    // The tools: reset this tour for me.
     await tab.waitForSelector('.gx-dev-panel [data-gxd="reset-me"][data-gxd-id="materials.tab_tutorial"]');
     await tab.click('.gx-dev-panel [data-gxd="reset-me"][data-gxd-id="materials.tab_tutorial"]');
     await tab.waitForFunction(()=>/Reset/.test(document.querySelector('.gx-dev-status')?.textContent||''));
     assert.deepEqual(srv.state.resets,[{experience_id:'materials.tab_tutorial',scope:'me'}]);
     await frame().click('.gx-pop [data-gx=close]');
+    // Folded, it stays folded on the next load; opened, it comes back on the same section.
+    await tab.click('.fm-dc-fold');
+    assert.equal(await tab.locator('.fm-dc').isHidden(),true);
+    assert.equal(await tab.locator('.fm-dc-strip').isVisible(),true);
+    await tab.click('.fm-dc-strip');
+    await tab.reload();
+    await tab.waitForSelector('.fm-dc:not([hidden]) .gx-dev-tools');
+    assert.equal(await tab.locator('.fm-dc-head h2').innerText(),'Guided experiences');
     assert.deepEqual(errors,[]);
-    // Someone else, not an editor: the new copy, nothing editable, no pill.
+    // Someone else, not an editor: the new copy, nothing editable, no console.
     srv.state.dev=false;
     const other=await open(browser,srv,{project:'p1',silent:true});
     await other.frame().evaluate(()=>{FirstMateGuides.play('materials.tab_tutorial',{replay:true});});
     await other.frame().waitForSelector('.gx-pop h3');
     assert.equal(await other.frame().locator('.gx-pop h3').innerText(),'Hello from <the> roof');
     assert.equal(await other.frame().locator('[data-gx-copy]').count(),0);
-    assert.equal(await other.frame().locator('.gx-dev').count(),0);
-    assert.equal(await other.tab.locator('.gx-dev').count(),0);
+    await other.tab.waitForTimeout(500);
+    assert.equal(await other.tab.locator('.fm-dc,.fm-dc-strip').count(),0);
     assert.deepEqual(other.errors,[]);
   } finally { await browser.close(); }
 });
 
-test('development on a phone: no floating pill; the tools are a Guided experiences entry in the shell More sheet that opens a bottom sheet; desktop keeps the pill',async()=>{
+test('development on a phone: the dev console is a tab on the right edge and an entry in the More sheet, and opens across the phone',async()=>{
   const browser=await launch(),srv=server();
   srv.state.progress[SETUP.id]='completed';srv.state.dev=true;
   try{
     const phone=await open(browser,srv,{width:390,height:844,project:'p1',silent:true,more:true});
     const {tab,errors}=phone;
-    await tab.waitForSelector('#mobilePlatformMoreGuides');
-    assert.equal(await tab.locator('.gx-dev').isVisible(),false,'nothing floats over the page');
-    assert.equal(await tab.locator('#mobilePlatformMoreMenu > .ptb-more-item#mobilePlatformMoreGuides').count(),1,'an entry the shell files into its default (Development tools) group');
-    assert.equal(await tab.locator('#mobilePlatformMoreGuides').getAttribute('data-more-group'),null);
-    assert.equal(await tab.locator('#mobilePlatformMoreGuides').innerText(),'Guided experiences');
+    await tab.waitForSelector('#mobilePlatformMoreDevConsole');
+    assert.equal(await tab.locator('#mobilePlatformMoreMenu > .ptb-more-item#mobilePlatformMoreDevConsole').count(),1,'an entry the shell files into its default (Development tools) group');
+    assert.equal(await tab.locator('#mobilePlatformMoreDevConsole').innerText(),'Dev console');
+    const strip=await tab.locator('.fm-dc-strip').boundingBox();
+    assert.ok(Math.round(strip.width)===20&&Math.round(strip.x+strip.width)===390&&strip.height<200,'a small tab, clear of the top bar');
     await tab.locator('#mobilePlatformMoreMenu').evaluate(menu=>menu.classList.add('visible'));
     // This page has no shell styles, so the project frame covers the menu; press the entry directly.
-    await tab.locator('#mobilePlatformMoreGuides').evaluate(button=>button.click());
-    await tab.waitForSelector('.gx-dev-sheet:not([hidden]) [data-gxd="reset-me"][data-gxd-id="materials.tab_tutorial"]');
+    await tab.locator('#mobilePlatformMoreDevConsole').evaluate(button=>button.click());
     assert.equal(await tab.locator('#mobilePlatformMoreMenu').evaluate(menu=>menu.classList.contains('visible')),false,'the More sheet closes behind it');
-    const card=await tab.locator('.gx-dev-sheet-card').boundingBox();
-    assert.ok(Math.round(card.y+card.height)===844&&Math.round(card.width)===390,'a bottom sheet across the phone');
-    assert.ok(await tab.locator('.gx-dev-sheet button').evaluateAll(list=>list.every(b=>b.getBoundingClientRect().height>=40)),'thumb-sized buttons');
-    // Editing copy from the sheet.
-    await tab.check('.gx-dev-sheet [data-gxd-edit]');
+    const tray=await tab.locator('.fm-dc').boundingBox();
+    assert.ok(Math.round(tray.width)===390&&Math.round(tray.height)===844,'across the phone');
+    assert.equal(await tab.locator('.fm-dc-resize').isVisible(),false,'no resize handle on a phone');
+    await guidedTools(tab);
+    await tab.check('.gx-dev-tools [data-gxd-edit]');
     assert.equal(await phone.frame().evaluate(()=>document.documentElement.classList.contains('gx-editing')),true);
-    await tab.click('.gx-dev-sheet [data-gxd="reset-me"][data-gxd-id="materials.tab_tutorial"]');
-    await tab.waitForFunction(()=>/Reset/.test(document.querySelector('.gx-dev-sheet .gx-dev-status')?.textContent||''));
+    await tab.click('.gx-dev-panel [data-gxd="reset-me"][data-gxd-id="materials.tab_tutorial"]');
+    await tab.waitForFunction(()=>/Reset/.test(document.querySelector('.gx-dev-status')?.textContent||''));
     assert.deepEqual(srv.state.resets.at(-1),{experience_id:'materials.tab_tutorial',scope:'me'});
-    await tab.click('.gx-dev-sheet-head [data-gxd-close]');
-    assert.equal(await tab.locator('.gx-dev-sheet').isHidden(),true);
+    assert.ok(await tab.locator('.gx-dev-panel button').evaluateAll(list=>list.every(b=>b.getBoundingClientRect().height>=28)),'buttons big enough to press');
+    assert.equal(await tab.evaluate(()=>document.documentElement.scrollWidth<=document.documentElement.getBoundingClientRect().width),true,'no sideways scroll');
+    await tab.click('.fm-dc-fold');
+    assert.equal(await tab.locator('.fm-dc').isHidden(),true);
     assert.deepEqual(errors,[]);
-    // The same page on a desktop: the pill, as before.
+    // The same page on a desktop: the full-height strip, and the width can be dragged.
     const desk=await open(browser,srv,{project:'p1',silent:true,more:true});
-    await desk.tab.waitForSelector('.gx-dev .gx-dev-handle');
-    assert.equal(await desk.tab.locator('.gx-dev').isVisible(),true);
+    await desk.tab.waitForSelector('.fm-dc-strip');
+    await desk.tab.click('.fm-dc-strip');
+    const before=(await desk.tab.locator('.fm-dc').boundingBox()).width;
+    const handle=await desk.tab.locator('.fm-dc-resize').boundingBox();
+    await desk.tab.mouse.move(handle.x+4,400);await desk.tab.mouse.down();await desk.tab.mouse.move(handle.x-96,400,{steps:5});await desk.tab.mouse.up();
+    assert.equal(Math.round((await desk.tab.locator('.fm-dc').boundingBox()).width),Math.round(before+100));
     assert.deepEqual(desk.errors,[]);
   } finally { await browser.close(); }
 });

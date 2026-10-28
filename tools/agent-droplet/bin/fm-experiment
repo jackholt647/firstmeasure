@@ -1,0 +1,233 @@
+#!/usr/bin/env python3
+"""Hosts standalone experiments at https://<name>.experimental.1m8.ai on the agent droplet.
+
+  fm-experiment add <name> <port> [--desc TEXT]         serve something already listening on 127.0.0.1:<port>
+  fm-experiment run <name> <port> [--desc TEXT] [--dir DIR] -- <command ...>
+                                                         also keep <command> running as a service (fm-exp-<name>), PORT set
+  fm-experiment remove <name>                            stop serving it (and stop its service)
+  fm-experiment list
+  fm-experiment index                                    rebuild the index page (a timer does this every 2 minutes)
+
+Caddy gets a certificate for the name on first request (a few seconds). Every response carries
+X-Robots-Tag: noindex and /robots.txt disallows everything. Logs: /srv/agents/logs/experiments/.
+"""
+import argparse, datetime, html, json, os, re, shlex, socket, subprocess, sys, tempfile
+
+ROOT = "/srv/agents/experiments"
+REGISTRY = f"{ROOT}/registry.json"
+INDEX_DIR = f"{ROOT}/index"
+SITES = "/etc/caddy/experiments"
+CONF = "/etc/fm-agents/experiments.conf"
+LOGS = "/srv/agents/logs/experiments"
+NAME = re.compile(r"^[a-z0-9](?:[a-z0-9-]{0,38}[a-z0-9])?$")
+RESERVED = {"index", "www", "status", "admin", "api"}
+
+
+def conf():
+    c = {"DOMAIN": "experimental.1m8.ai", "INDEX_HOST": "index.experimental.1m8.ai"}
+    if os.path.exists(CONF):
+        for line in open(CONF):
+            m = re.match(r"^\s*([A-Z_]+)=\"?([^\"#\n]*)\"?", line)
+            if m:
+                c[m.group(1)] = m.group(2).strip()
+    return c
+
+
+def load():
+    try:
+        return json.load(open(REGISTRY))
+    except FileNotFoundError:
+        return {}
+
+
+def write(path, text, mode=0o664):
+    d = os.path.dirname(path)
+    fd, tmp = tempfile.mkstemp(dir=d, prefix=".tmp-")
+    with os.fdopen(fd, "w") as f:
+        f.write(text)
+    os.chmod(tmp, mode)
+    os.replace(tmp, path)
+
+
+def save(reg):
+    write(REGISTRY, json.dumps(reg, indent=2, sort_keys=True) + "\n")
+
+
+def sudo(*cmd):
+    full = list(cmd) if os.geteuid() == 0 else ["sudo", "-n", *cmd]
+    return subprocess.run(full, check=True)
+
+
+def reload_caddy():
+    sudo("systemctl", "reload", "caddy")
+
+
+def listening(port):
+    try:
+        with socket.create_connection(("127.0.0.1", int(port)), timeout=0.5):
+            return True
+    except OSError:
+        return False
+
+
+def site(host, body):
+    return f"{host} {{\n\timport experiment\n{body}}}\n"
+
+
+def write_site(name, port):
+    c = conf()
+    write(f"{SITES}/{name}.caddy", site(f"{name}.{c['DOMAIN']}", f"\treverse_proxy 127.0.0.1:{port}\n"))
+
+
+def write_index_site():
+    c = conf()
+    body = ("\thandle_path /_status/* {\n\t\troot * /srv/agents/status\n\t\tfile_server\n\t}\n"
+            "\thandle {\n\t\troot * " + INDEX_DIR + "\n\t\tfile_server\n\t}\n")
+    write(f"{SITES}/_index.caddy", site(c["INDEX_HOST"], body))
+
+
+def build_index(reg):
+    c = conf()
+    now = datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
+    rows = []
+    for name in sorted(reg):
+        e = reg[name]
+        up = listening(e["port"])
+        url = f"https://{name}.{c['DOMAIN']}/"
+        rows.append(
+            f"<tr><td><a href=\"{url}\">{html.escape(name)}</a></td>"
+            f"<td class=\"{'up' if up else 'down'}\">{'running' if up else 'not answering'}</td>"
+            f"<td>{html.escape(e.get('desc') or '')}</td><td>{html.escape(e.get('owner') or '')}</td>"
+            f"<td>{html.escape((e.get('created_at') or '')[:10])}</td></tr>")
+    table = "\n".join(rows) or "<tr><td colspan=5>No experiments yet. Register one with <code>fm-experiment add &lt;name&gt; &lt;port&gt;</code>.</td></tr>"
+    page = f"""<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="robots" content="noindex,nofollow"><title>Experiments</title>
+<style>
+:root{{--bg:#fff;--fg:#1b1f24;--muted:#5b6470;--line:#e3e6ea;--up:#13795b;--down:#b42318}}
+@media (prefers-color-scheme:dark){{:root{{--bg:#111418;--fg:#e6e9ed;--muted:#9aa3ad;--line:#2a3038;--up:#4cc79a;--down:#f97066}}}}
+body{{margin:0;padding:32px 16px;background:var(--bg);color:var(--fg);font:15px/1.5 system-ui,sans-serif}}
+main{{max-width:960px;margin:0 auto}} h1{{font-size:22px;margin:0 0 4px}} p{{color:var(--muted);margin:0 0 20px}}
+.wrap{{overflow-x:auto}} table{{width:100%;border-collapse:collapse}} th,td{{text-align:left;padding:8px 10px;border-bottom:1px solid var(--line);vertical-align:top}}
+th{{font-size:12px;text-transform:uppercase;letter-spacing:.04em;color:var(--muted)}} a{{color:inherit}}
+.up{{color:var(--up)}} .down{{color:var(--down)}} code{{font-size:13px}}
+</style></head><body><main>
+<h1>Experiments on the agent droplet</h1>
+<p>Standalone experiments before they get their own droplet. Updated {now}.</p>
+<div class="wrap"><table><thead><tr><th>Name</th><th>Status</th><th>What</th><th>Owner</th><th>Since</th></tr></thead>
+<tbody>
+{table}
+</tbody></table></div></main></body></html>
+"""
+    write(f"{INDEX_DIR}/index.html", page, 0o644)
+
+
+def stop_service(name):
+    unit = f"fm-exp-{name}.service"
+    if os.path.exists(f"/etc/systemd/system/{unit}"):
+        sudo("systemctl", "disable", "--now", unit)
+        sudo("rm", "-f", f"/etc/systemd/system/{unit}")
+        sudo("systemctl", "daemon-reload")
+
+
+def install_service(name, port, workdir, command):
+    unit = f"fm-exp-{name}.service"
+    text = f"""[Unit]
+Description=Experiment {name} (https://{name}.{conf()['DOMAIN']})
+After=network-online.target
+
+[Service]
+User=agent
+Group=agent
+WorkingDirectory={workdir}
+Environment=PORT={port} HOST=127.0.0.1 NODE_ENV=development
+EnvironmentFile=-/srv/agents/experiments/{name}.env
+ExecStart=/bin/bash -lc {shlex.quote(shlex.join(command))}
+Restart=on-failure
+RestartSec=3
+StandardOutput=append:{LOGS}/{name}.log
+StandardError=append:{LOGS}/{name}.log
+
+[Install]
+WantedBy=multi-user.target
+"""
+    fd, tmp = tempfile.mkstemp(prefix="fm-exp-")
+    with os.fdopen(fd, "w") as f:
+        f.write(text)
+    sudo("install", "-m", "644", tmp, f"/etc/systemd/system/{unit}")
+    os.unlink(tmp)
+    sudo("systemctl", "daemon-reload")
+    sudo("systemctl", "enable", "--now", unit)
+    sudo("systemctl", "restart", unit)
+
+
+def main():
+    argv = sys.argv[1:]
+    command = []
+    if "--" in argv:
+        i = argv.index("--")
+        argv, command = argv[:i], argv[i + 1:]
+    p = argparse.ArgumentParser(prog="fm-experiment", description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    sub = p.add_subparsers(dest="cmd", required=True)
+    for c in ("add", "run"):
+        s = sub.add_parser(c)
+        s.add_argument("name")
+        s.add_argument("port", type=int)
+        s.add_argument("--desc", default="")
+        s.add_argument("--owner", default=os.environ.get("FM_AGENT_NAME") or os.environ.get("USER", ""))
+        if c == "run":
+            s.add_argument("--dir", default=os.getcwd())
+    sub.add_parser("remove").add_argument("name")
+    sub.add_parser("list")
+    sub.add_parser("index")
+    a = p.parse_args(argv)
+    reg = load()
+
+    if a.cmd in ("add", "run"):
+        if not NAME.match(a.name) or a.name in RESERVED:
+            sys.exit(f"Bad name {a.name!r}: lowercase letters, digits and dashes, at most 40, not {sorted(RESERVED)}.")
+        if not 1024 <= a.port <= 65535:
+            sys.exit("Port must be 1024-65535 and listen on 127.0.0.1.")
+        clash = [n for n, e in reg.items() if e["port"] == a.port and n != a.name]
+        if clash:
+            sys.exit(f"Port {a.port} is already registered to {clash[0]}.")
+        if a.cmd == "run" and not command:
+            sys.exit("run needs a command after --")
+        prev = reg.get(a.name, {})
+        reg[a.name] = {"port": a.port, "desc": a.desc or prev.get("desc", ""), "owner": a.owner,
+                       "created_at": prev.get("created_at") or datetime.datetime.now(datetime.timezone.utc).isoformat(timespec="seconds"),
+                       "service": a.cmd == "run"}
+        save(reg)
+        if a.cmd == "run":
+            install_service(a.name, a.port, os.path.abspath(a.dir), command)
+        write_site(a.name, a.port)
+        write_index_site()
+        build_index(reg)
+        reload_caddy()
+        print(f"https://{a.name}.{conf()['DOMAIN']}/ -> 127.0.0.1:{a.port}" + ("" if listening(a.port) else "  (nothing listens on that port yet)"))
+    elif a.cmd == "remove":
+        if a.name not in reg:
+            sys.exit(f"No experiment {a.name}.")
+        stop_service(a.name)
+        reg.pop(a.name)
+        save(reg)
+        try:
+            os.unlink(f"{SITES}/{a.name}.caddy")
+        except FileNotFoundError:
+            pass
+        build_index(reg)
+        reload_caddy()
+        print(f"Removed {a.name}.")
+    elif a.cmd == "list":
+        c = conf()
+        for n in sorted(reg):
+            e = reg[n]
+            print(f"{n:24} 127.0.0.1:{e['port']:<6} {'up  ' if listening(e['port']) else 'down'}  https://{n}.{c['DOMAIN']}/  {e.get('desc','')}")
+        print(f"index: https://{c['INDEX_HOST']}/")
+    elif a.cmd == "index":
+        write_index_site()
+        build_index(reg)
+
+
+if __name__ == "__main__":
+    main()

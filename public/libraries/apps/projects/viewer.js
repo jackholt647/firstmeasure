@@ -500,7 +500,7 @@
     .v-statuspill{display:inline-flex; align-items:center; gap:8px; padding:7px 10px; border-radius:999px; font-weight:1000; font-size:11px; letter-spacing:.3px; text-transform:uppercase; width:fit-content}
     .v-statuspill i,.v-badge i{font-size:.95em}
     .v-stages-shell{height:100%; min-height:0; display:flex; flex-direction:column; gap:10px; padding-bottom:0}
-    .v-mobile-stage-switcher{display:none}
+    .v-mobile-stage-nav,.v-mobile-stage-switcher{display:none}
     .v-stages-summary{position:relative;display:none;align-items:center;min-width:190px;height:40px;box-sizing:border-box;border:1px solid color-mix(in srgb,var(--board-color,#4f7cac) 30%,#dce2e8);border-left:5px solid var(--board-color,#4f7cac);border-radius:10px;background:color-mix(in srgb,var(--board-color,#4f7cac) 8%,#fff);white-space:nowrap}
     .v-stages-summary.visible{display:inline-flex}.v-board-trigger{appearance:none;border:0;background:transparent;color:color-mix(in srgb,var(--board-color,#4f7cac) 78%,#17212b);width:100%;height:100%;min-width:0;padding:0 7px 0 10px;border-radius:7px;display:flex;align-items:center;justify-content:space-between;gap:12px;font-family:inherit;font-size:14px;font-weight:1000;line-height:1;letter-spacing:0;cursor:pointer;outline:none}.v-board-trigger:hover{background:color-mix(in srgb,var(--board-color,#4f7cac) 9%,transparent)}.v-board-trigger:focus-visible{box-shadow:0 0 0 3px color-mix(in srgb,var(--board-color,#4f7cac) 22%,transparent)}.v-board-trigger-label{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:1000}.v-board-trigger-icon{width:26px;height:26px;border-radius:7px;display:inline-flex;align-items:center;justify-content:center;background:#fff;border:1px solid color-mix(in srgb,var(--board-color,#4f7cac) 24%,#d4dae1);color:var(--board-color,#4f7cac);font-size:10px;box-shadow:0 1px 2px rgba(15,23,42,.05);transition:transform .16s ease;flex:0 0 auto}.v-board-trigger[aria-expanded="true"] .v-board-trigger-icon{transform:rotate(180deg)}
     .v-board-menu{position:absolute;top:calc(100% + 7px);left:-5px;z-index:80;min-width:max(220px,100%);max-height:min(70vh,520px);overflow-y:auto;padding:6px;border:1px solid rgba(15,23,42,.10);border-radius:12px;background:#fff;box-shadow:0 18px 44px rgba(15,23,42,.16);white-space:normal}.v-board-menu[hidden],.v-board-unused-list[hidden]{display:none}.v-board-option{appearance:none;width:100%;border:0;background:transparent;border-radius:8px;padding:9px 10px;display:grid;grid-template-columns:12px minmax(0,1fr) auto 16px;align-items:center;gap:9px;color:#263442;text-align:left;font:900 12px/1.25 inherit;cursor:pointer}.v-board-option:hover,.v-board-option:focus-visible{background:#f4f6f8;outline:none}.v-board-option.active{color:color-mix(in srgb,var(--option-color,#4f7cac) 76%,#17212b);background:color-mix(in srgb,var(--option-color,#4f7cac) 8%,#fff)}.v-board-option-dot{width:10px;height:10px;border-radius:999px;background:var(--option-color,#4f7cac);box-shadow:0 0 0 3px color-mix(in srgb,var(--option-color,#4f7cac) 13%,transparent)}.v-board-option-count{min-width:24px;padding:3px 6px;border-radius:999px;background:#eef1f4;color:#667085;font-size:10px;font-weight:1000;text-align:center}.v-board-option.active .v-board-option-count{background:color-mix(in srgb,var(--option-color,#4f7cac) 13%,#fff);color:inherit}.v-board-option i{font-size:10px;color:var(--option-color,#4f7cac);text-align:center}.v-board-unused{margin-top:5px;padding-top:5px;border-top:1px solid #edf0f3}.v-board-unused-toggle{appearance:none;width:100%;border:0;background:transparent;border-radius:8px;padding:8px 10px;display:flex;align-items:center;gap:8px;color:#667085;text-align:left;font:900 11px/1.2 inherit;cursor:pointer}.v-board-unused-toggle:hover,.v-board-unused-toggle:focus-visible{background:#f4f6f8;outline:none}.v-board-unused-toggle .v-board-unused-total{margin-left:auto;min-width:24px;padding:3px 6px;border-radius:999px;background:#eef1f4;text-align:center;font-size:10px}.v-board-unused-toggle i{font-size:9px;transition:transform .16s ease}.v-board-unused-toggle[aria-expanded="true"] i{transform:rotate(180deg)}.v-board-unused-list{padding-top:3px}
@@ -863,19 +863,35 @@
         margin:8px 0;
       }
       /* --- Stages: a focused, touch-friendly single-stage feed --- */
+      .v-mobile-stage-nav{position:relative;display:flex;order:2;flex:0 0 auto;min-width:0}
+      .v-mobile-stage-arrow{position:absolute;top:50%;transform:translateY(-50%);z-index:2;display:grid;place-items:center;width:40px;height:44px;padding:0;border:0;border-radius:10px;background:#fff;color:var(--primary-readable,var(--primary,#d93025));font-size:16px;cursor:pointer}
+      .v-mobile-stage-arrow[data-stage-step="-1"]{left:0}
+      .v-mobile-stage-arrow[data-stage-step="1"]{right:0}
+      .v-mobile-stage-arrow:disabled{color:#c5cad1;cursor:default}
+      .v-mobile-stage-arrow:focus-visible{outline:2px solid var(--primary,#d93025);outline-offset:-2px}
       .v-mobile-stage-switcher{
         display:flex;
+        order:2;
+        flex:1 1 auto;
+        min-width:0;
         gap:8px;
         overflow-x:auto;
-        padding:1px 2px 5px;
+        padding:4px 15% 8px;
         margin:0 -2px;
+        scroll-snap-type:x mandatory;
+        overscroll-behavior-x:contain;
+        -webkit-mask-image:linear-gradient(to right,transparent,black 18%,black 82%,transparent);
+        mask-image:linear-gradient(to right,transparent,black 18%,black 82%,transparent);
         scrollbar-width:none;
         -webkit-overflow-scrolling:touch;
       }
       .v-mobile-stage-switcher::-webkit-scrollbar{display:none}
       .v-mobile-stage-option{
         appearance:none;
-        flex:0 0 auto;
+        flex:0 0 100%;
+        min-width:0;
+        justify-content:center;
+        scroll-snap-align:center;
         display:inline-flex;
         align-items:center;
         gap:7px;
@@ -889,6 +905,7 @@
         white-space:nowrap;
         cursor:pointer;
       }
+      .v-mobile-stage-option > span:first-child{overflow:hidden;text-overflow:ellipsis}
       .v-mobile-stage-option[aria-selected="true"]{
         color:color-mix(in srgb,var(--stage-color,#667085) 80%,#17212b);
         border-color:color-mix(in srgb,var(--stage-color,#667085) 48%,#dce2e8);
@@ -898,23 +915,31 @@
       .v-mobile-stage-option:focus-visible{outline:3px solid color-mix(in srgb,var(--stage-color,#667085) 28%,transparent); outline-offset:2px}
       .v-mobile-stage-count{display:inline-flex; align-items:center; justify-content:center; min-width:19px; height:19px; padding:0 5px; border-radius:999px; background:rgba(15,23,42,.08); color:inherit; font-size:10px}
       .v-stages-board{
+        order:1;
+        position:relative;
         display:block;
         flex:1 1 0;
         height:0;
         min-height:0;
         overflow:hidden;
         padding:2px 2px 10px;
+        touch-action:pan-y;
       }
       .v-stage-col{
-        display:none;
+        position:absolute;
+        inset:2px 2px 10px;
+        display:flex;
+        width:auto;
+        transform:translateX(calc(var(--stage-offset, 0) * 100% + var(--stage-offset, 0) * 14px));
+        transition:none;
         min-width:0;
         min-height:0;
-        height:100%;
-        max-height:100%;
+        height:auto;
+        max-height:none;
         border-radius:14px;
         box-shadow:0 6px 18px rgba(0,0,0,0.07);
       }
-      .v-stage-col.is-mobile-active{display:flex}
+      .v-stages-board.is-dragging .v-stage-col{transition:none}
       .v-stage-head{padding:12px 13px 10px}
       .v-stage-list{min-height:0;padding:10px;gap:8px;overflow-y:auto;overscroll-behavior:contain}
       .v-stage-card{padding:12px; gap:5px; border-radius:11px}
@@ -5158,7 +5183,11 @@
   function renderStagesShell(){
     return `
       <div class="v-stages-shell">
+        <div class="v-mobile-stage-nav">
+          <button type="button" class="v-mobile-stage-arrow" data-stage-step="-1" aria-label="${globalThis.PlatformLanguage?.htmlText('projects','projects_previous_stage','Previous stage') ?? 'Previous stage'}"><i class="fas fa-chevron-left" aria-hidden="true"></i></button>
         <div class="v-mobile-stage-switcher" id="vMobileStageSwitcher" role="tablist" aria-label="${(globalThis.PlatformLanguage?.htmlText("projects","m_46cdcd4517ac63","Project stages") ?? "Project stages")}"></div>
+          <button type="button" class="v-mobile-stage-arrow" data-stage-step="1" aria-label="${globalThis.PlatformLanguage?.htmlText('projects','projects_next_stage','Next stage') ?? 'Next stage'}"><i class="fas fa-chevron-right" aria-hidden="true"></i></button>
+        </div>
         <div class="v-stages-board" id="vStagesBoard"></div>
       </div>
     `;
@@ -5456,29 +5485,10 @@
     if (!switcher || !board) return;
     const available = columns.filter((column) => String(column?.id || ''));
     const current = available.find((column) => String(column.id) === activeMobileStageId);
-    // Until the person picks a stage, the phone shows the first stage that has projects.
     if (!current || (!mobileStageChosen && !current.items?.length)) {
       activeMobileStageId = String((available.find((column) => column.items?.length) || available[0])?.id || '');
     }
     const signature = JSON.stringify(available.map((column) => [String(column.id), column.title || '', column.color || '', column.items?.length || 0]));
-    const applySelection = (stageId, { focus = false, chosen = false } = {}) => {
-      activeMobileStageId = String(stageId || '');
-      if (chosen) mobileStageChosen = true;
-      board.querySelectorAll(':scope > .v-stage-col').forEach((column) => {
-        column.classList.toggle('is-mobile-active', String(column.dataset.stage || '') === activeMobileStageId);
-      });
-      switcher.querySelectorAll('.v-mobile-stage-option').forEach((option) => {
-        const active = String(option.dataset.stage || '') === activeMobileStageId;
-        option.setAttribute('aria-selected', String(active));
-        option.tabIndex = active ? 0 : -1;
-        if (active && focus) option.focus();
-        // Keep the chosen chip in sight when the view opens on a later stage.
-        if (active && !focus && switcher.scrollWidth > switcher.clientWidth) {
-          const bar = switcher.getBoundingClientRect(), chip = option.getBoundingClientRect();
-          if (chip.left < bar.left || chip.right > bar.right) switcher.scrollLeft += chip.left - bar.left - 8;
-        }
-      });
-    };
     if (switcher.__stageSignature !== signature) {
       switcher.innerHTML = available.map((column) => {
         const id = String(column.id);
@@ -5486,21 +5496,127 @@
         return `<button type="button" class="v-mobile-stage-option" role="tab" aria-selected="${active}" tabindex="${active ? '0' : '-1'}" data-stage="${escapeHtml(id)}" style="--stage-color:${escapeHtml(column.color || '#667085')}"><span>${escapeHtml(column.title || (globalThis.PlatformLanguage?.text("projects","m_43f2c4d59757a1","Stage") ?? "Stage"))}</span><span class="v-mobile-stage-count">${Number(column.items?.length || 0)}</span></button>`;
       }).join('');
       switcher.__stageSignature = signature;
-      switcher.querySelectorAll('.v-mobile-stage-option').forEach((option) => {
-        option.addEventListener('click', () => applySelection(option.dataset.stage, { chosen:true }));
-        option.addEventListener('keydown', (event) => {
-          if (!["ArrowLeft", "ArrowRight", "Home", "End"].includes(event.key)) return;
-          const options = Array.from(switcher.querySelectorAll('.v-mobile-stage-option'));
-          const current = options.indexOf(option);
-          const next = event.key === "Home" ? 0
-            : event.key === "End" ? options.length - 1
-              : (current + (event.key === "ArrowRight" ? 1 : -1) + options.length) % options.length;
-          event.preventDefault();
-          applySelection(options[next]?.dataset.stage, { focus:true, chosen:true });
+    }
+    const options = () => Array.from(switcher.querySelectorAll('.v-mobile-stage-option'));
+    const centers = () => {
+      const left = switcher.getBoundingClientRect().left;
+      return options().map((option) => switcher.scrollLeft + option.getBoundingClientRect().left - left + option.offsetWidth / 2 - switcher.clientWidth / 2);
+    };
+    const selectIndex = (index) => {
+      const items = options();
+      activeMobileStageId = String(items[index]?.dataset.stage || '');
+      items.forEach((option, i) => {
+        option.setAttribute('aria-selected', String(i === index));
+        option.tabIndex = i === index ? 0 : -1;
+      });
+      switcher.parentElement.querySelectorAll('[data-stage-step]').forEach((button) => {
+        button.disabled = Number(button.dataset.stageStep) < 0 ? index <= 0 : index >= items.length - 1;
+      });
+      board.querySelectorAll(':scope > .v-stage-col').forEach((column, i) => {
+        column.classList.toggle('is-mobile-active', i === index);
+        column.inert = matchMedia('(max-width: 820px)').matches && i !== index;
+      });
+    };
+    // The native label scroller is the sole position and animation clock for both tracks.
+    const paint = () => {
+      if (!switcher.clientWidth) {
+        board.querySelectorAll(':scope > .v-stage-col').forEach(column => { column.inert = false; });
+        return;
+      }
+      const stops = centers();
+      let position = 0;
+      for (let i = 0; i < stops.length - 1; i++) {
+        if (switcher.scrollLeft >= stops[i]) position = i + Math.min(1, (switcher.scrollLeft - stops[i]) / Math.max(1, stops[i + 1] - stops[i]));
+      }
+      board.querySelectorAll(':scope > .v-stage-col').forEach((column, index) => {
+        column.style.setProperty('--stage-offset', String(index - position));
+      });
+      selectIndex(Math.max(0, Math.min(stops.length - 1, Math.round(position))));
+    };
+    const goTo = (index, smooth = true) => {
+      const stops = centers();
+      if (stops[index] === undefined) return;
+      if (smooth) mobileStageChosen = true;
+      switcher.scrollTo({ left:stops[index], behavior:smooth ? 'smooth' : 'instant' });
+      if (!smooth) paint();
+    };
+    switcher.__carousel = { paint, goTo, centers };
+    if (!switcher.__carouselBound) {
+      switcher.__carouselBound = true;
+      switcher.parentElement.querySelectorAll('[data-stage-step]').forEach((button) => {
+        button.addEventListener('click', () => {
+          const index = options().findIndex(option => option.dataset.stage === activeMobileStageId);
+          switcher.__carousel.goTo(index + Number(button.dataset.stageStep));
         });
       });
+      switcher.addEventListener('scroll', () => switcher.__carousel.paint(), { passive:true });
+      switcher.addEventListener('touchstart', () => { mobileStageChosen = true; }, { passive:true });
+      switcher.addEventListener('click', (event) => {
+        const option = event.target.closest('.v-mobile-stage-option');
+        if (option) switcher.__carousel.goTo(options().indexOf(option));
+      });
+      switcher.addEventListener('keydown', (event) => {
+        if (!['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) return;
+        const items = options();
+        const index = items.indexOf(event.target.closest('.v-mobile-stage-option'));
+        const next = event.key === 'Home' ? 0 : event.key === 'End' ? items.length - 1 : Math.max(0, Math.min(items.length - 1, index + (event.key === 'ArrowRight' ? 1 : -1)));
+        event.preventDefault();
+        items[next]?.focus({ preventScroll:true });
+        switcher.__carousel.goTo(next);
+      });
+      let start = null;
+      let suppressClick = false;
+      const finish = () => {
+        if (!start) return;
+        const horizontal = start.horizontal;
+        start = null;
+        if (!horizontal) return;
+        const stops = switcher.__carousel.centers();
+        const index = stops.reduce((best, stop, i) => Math.abs(stop - switcher.scrollLeft) < Math.abs(stops[best] - switcher.scrollLeft) ? i : best, 0);
+        switcher.style.scrollSnapType = '';
+        switcher.__carousel.goTo(index);
+      };
+      board.addEventListener('touchstart', (event) => {
+        if (event.touches.length !== 1 || !matchMedia('(max-width: 820px)').matches) return;
+        // Stop an in-flight tap animation at its current, shared position.
+        switcher.scrollTo({ left:switcher.scrollLeft, behavior:'instant' });
+        start = { x:event.touches[0].clientX, y:event.touches[0].clientY, scroll:switcher.scrollLeft, horizontal:false };
+        suppressClick = false;
+      }, { passive:true });
+      board.addEventListener('touchmove', (event) => {
+        if (!start || event.touches.length !== 1) return;
+        const dx = event.touches[0].clientX - start.x;
+        const dy = event.touches[0].clientY - start.y;
+        if (!start.horizontal && Math.abs(dy) > 10 && Math.abs(dy) > Math.abs(dx)) { start = null; return; }
+        if (!start.horizontal && Math.abs(dx) > 10 && Math.abs(dx) > Math.abs(dy) * 1.2) {
+          start.horizontal = true;
+          suppressClick = true;
+          mobileStageChosen = true;
+          switcher.style.scrollSnapType = 'none';
+        }
+        if (!start.horizontal) return;
+        event.preventDefault();
+        const stops = switcher.__carousel.centers();
+        const step = stops.length > 1 ? stops[1] - stops[0] : 0;
+        switcher.scrollLeft = start.scroll - dx * step / Math.max(1, board.clientWidth - 4 + 14);
+        switcher.__carousel.paint();
+      }, { passive:false });
+      board.addEventListener('touchend', finish, { passive:true });
+      board.addEventListener('touchcancel', finish, { passive:true });
+      board.addEventListener('click', (event) => {
+        if (suppressClick) { event.preventDefault(); event.stopImmediatePropagation(); suppressClick = false; }
+      }, true);
+      new ResizeObserver(() => {
+        const index = options().findIndex(option => option.dataset.stage === activeMobileStageId);
+        switcher.__carousel.goTo(Math.max(0, index), false);
+      }).observe(switcher);
     }
-    applySelection(activeMobileStageId);
+    const initialIndex = available.findIndex(column => String(column.id) === activeMobileStageId);
+    selectIndex(Math.max(0, initialIndex));
+    if (switcher.clientWidth) {
+      switcher.scrollTo({ left:centers()[Math.max(0, initialIndex)] || 0, behavior:'instant' });
+      paint();
+    }
   }
   function reconcileStageColumns(board, columns){
     const wantedStages = new Set(columns.map((column) => String(column.id)));
@@ -6502,7 +6618,9 @@
     const results = $('#vResults', panelEl); if (!results) return;
     renderSearchCreate();
     if (viewMode === 'map' && window.FirstMateProjectsMap && !filteredProjects.length) {
-      const none = !allProjects.length && !sharedProjectRecords().length && !(hideDrafts && totalUnfilteredCount > 0);
+      // Unfinished drafts do not turn a new organization's welcome into a failed-filter message.
+      const none = !visibleProjectPool(allProjects).length && !sharedProjectRecords().length
+        && !reportSearchQuery.trim() && !projectSharingView()?.filtered;
       renderMapView(results, none ? 'none' : 'filtered');
       return;
     }

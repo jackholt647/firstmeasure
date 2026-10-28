@@ -1,25 +1,21 @@
 // measure-internal dev lane: ships public/measure/internal/** from one commit to
 // dev in seconds (docs/architecture/dev-lanes.md).
 //
-// Two ways in:
-// - The dev push router imports the default export (gates, deploy, current;
-//   docs/architecture/dev-lanes.md "The router") and reaches hosts only through
-//   its `hosts` (fm-release). The release goes to dev legacy (served) and dev web
-//   (server-rendered PDFs read editor_scripts/pdf.js from it).
-// - Until the router owns the lane, ship.mjs calls deploy(sha) below, which
-//   ships to dev legacy over SSH with lane-host.sh.
+// The dev push router imports the default export (gates, deploy, current;
+// docs/architecture/dev-lanes.md "The router") and reaches hosts only through
+// its `hosts` (fm-release); nothing else activates a lane release. The release
+// goes to dev legacy (served) and to web and worker (server-rendered PDFs read
+// editor_scripts/pdf.js from it). ship.mjs builds the lane commit (laneCommit)
+// and submits it to the router.
 //
 // Every ship runs the quick checks (PHP lint and `node --check` of the changed
 // files, seconds). The editor's regression tests (dev/*.test.cjs) run only when
 // asked for, on the server, never on a laptop (runRegression).
 import { spawn, spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
-import { existsSync, mkdtempSync, mkdirSync, readdirSync, readFileSync, readlinkSync, realpathSync, rmSync, statSync, writeFileSync, symlinkSync } from "node:fs";
+import { chmodSync, existsSync, mkdtempSync, mkdirSync, readdirSync, readFileSync, readlinkSync, realpathSync, rmSync, statSync, writeFileSync, symlinkSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { fileURLToPath } from "node:url";
-
-const HERE = path.dirname(fileURLToPath(import.meta.url));
 
 export const LANE = {
   name: "measure-internal",
@@ -31,18 +27,6 @@ export const LANE = {
   host: "dev legacy (firstmeasure-development-compatibility)",
   probe: "audio/ding.mp3"
 };
-
-const DEFAULT_KEY = path.join(os.homedir(), ".ssh", "id_ed25519_firstmeasure_cluster_v2");
-const SEND_ALL_ABOVE = 300; // changed files; past this a full payload is cheaper than a long command line
-
-export function sshTarget() {
-  const target = process.env.FM_LANE_SSH_TARGET || "root@137.184.229.145";
-  const opts = process.env.FM_LANE_SSH_OPTS
-    ? process.env.FM_LANE_SSH_OPTS.split(" ").filter(Boolean)
-    : ["-J", "dev-sync-droplet", "-o", "BatchMode=yes", "-o", "UpdateHostKeys=no", "-o", "ConnectTimeout=15",
-       ...(existsSync(DEFAULT_KEY) ? ["-i", DEFAULT_KEY] : [])];
-  return { target, opts };
-}
 
 export function ownsPath(file) {
   return LANE.owns.some((prefix) => file.startsWith(prefix));
@@ -99,11 +83,36 @@ export function changedPaths(base, sha, cwd, pathspec = LANE.owns) {
  * paths stay as on `tip`; they ship through platform). Null when the lane
  * already has every lane change in `source`. Throws on a conflict in a lane path.
  */
+/**
+ * Where `source` last agreed with the lane: the newest commit in its history whose lane paths equal the
+ * lane tip's, else the newest source a lane commit on `tip` recorded that `source` descends from.
+ */
+export function previousSource(tip, source, cwd) {
+  const owned = LANE.owns.map((p) => p.replace(/\/$/, ""));
+  const lanePaths = (commits) => git(["cat-file", "--batch-check=%(objectname)"], {
+    cwd, input: commits.flatMap((c) => owned.map((p) => `${c}:${p}`)).join("\n") + "\n"
+  }).trim().split("\n");
+  const want = lanePaths([tip]).join(" ");
+  const history = git(["rev-list", "--first-parent", "-n", "300", source], { cwd }).trim().split("\n").filter(Boolean);
+  const trees = lanePaths(history);
+  for (let i = 0; i < history.length; i++) {
+    if (trees.slice(i * owned.length, (i + 1) * owned.length).join(" ") === want) return history[i];
+  }
+  const log = git(["log", "-n", "500", "--format=%B%x00", tip], { cwd });
+  for (const match of log.matchAll(/as merged from ([0-9a-f]{40}) onto/g)) {
+    if (spawnSync("git", ["merge-base", "--is-ancestor", match[1], source], { cwd }).status === 0) return match[1];
+  }
+  return null;
+}
+
 export function laneCommit(source, tip, cwd) {
   source = git(["rev-parse", `${source}^{commit}`], { cwd }).trim();
   const isAncestor = spawnSync("git", ["merge-base", "--is-ancestor", tip, source], { cwd }).status === 0;
   if (isAncestor && changedPaths(tip, source, cwd, ["."]).every(ownsPath)) return source === tip ? null : source;
-  const merge = spawnSync("git", ["merge-tree", "--write-tree", "--name-only", "--no-messages", tip, source], { cwd, encoding: "utf8" });
+  // Merge from the source the lane last took from this line of work (each lane commit records it), so a
+  // second edit of the same file, or a revert, applies as a change on top of what the lane already has.
+  const base = previousSource(tip, source, cwd);
+  const merge = spawnSync("git", ["merge-tree", "--write-tree", "--name-only", "--no-messages", ...(base ? [`--merge-base=${base}`] : []), tip, source], { cwd, encoding: "utf8" });
   if (merge.status > 1 || !merge.stdout) throw new Error(`git merge-tree: ${merge.stderr.trim()}`);
   const [merged, ...conflicted] = merge.stdout.split("\n").filter(Boolean);
   const laneConflicts = [...new Set(conflicted.filter(ownsPath))];
@@ -135,42 +144,6 @@ export function laneCommit(source, tip, cwd) {
   } finally {
     rmSync(work, { recursive: true, force: true });
   }
-}
-
-function ssh(remote, { input, stdinFrom, log }) {
-  const { target, opts } = sshTarget();
-  return new Promise((resolve, reject) => {
-    const child = spawn("ssh", ["-T", ...opts, target, remote], { stdio: ["pipe", "pipe", "pipe"] });
-    let stdout = "";
-    let stderr = "";
-    child.stdout.on("data", (d) => { stdout += d; });
-    child.stderr.on("data", (d) => { stderr += d; for (const l of String(d).split("\n")) if (l.trim()) log?.(`  host: ${l}`); });
-    child.on("error", reject);
-    child.on("close", (code) => resolve({ code, stdout, stderr }));
-    if (stdinFrom) stdinFrom(child.stdin);
-    else child.stdin.end(input ?? "");
-  });
-}
-
-function hostScript() {
-  return path.join(HERE, "lane-host.sh");
-}
-
-async function hostCommand(args, log) {
-  const r = await ssh(`bash -s -- ${args}`, { input: readFileSync(hostScript()), log });
-  return r;
-}
-
-function marker(stdout, name) {
-  const line = stdout.split("\n").reverse().find((l) => l.startsWith(name + " "));
-  return line ? JSON.parse(line.slice(name.length + 1)) : null;
-}
-
-export async function status({ log } = {}) {
-  const r = await hostCommand("status", log);
-  const s = marker(r.stdout, "LANE-STATUS");
-  if (r.code !== 0 || !s) throw new Error(`lane status failed: ${r.stderr.trim()}`);
-  return s;
 }
 
 // ---- gates -----------------------------------------------------------------
@@ -285,7 +258,7 @@ function hasPhp() {
 /**
  * PHP lint and `node --check` of the deployed files `sha` changes against `base`
  * (every file when there is no base). Seconds. PHP is skipped with a note when
- * php is not installed here; lane-host.sh lints on the host as well.
+ * php is not installed here; deploy lints the changed PHP on legacy (hosts.check).
  */
 export async function quickChecks({ sha, base, cwd, log = () => {} }) {
   const began = Date.now();
@@ -367,103 +340,6 @@ export async function runRegression({ sha, base, cwd, tests = "mapped", log = ()
 }
 export const runGates = runRegression;
 
-// ---- deploy ------------------------------------------------------------------
-
-/**
- * Ship one commit's public/measure/internal to dev legacy.
- * @param {string} ref  commit (any ref git resolves)
- * @param {{cwd?: string, log?: (line: string) => void, host?: object}} [options]
- *   host: a status() result read just before, to save a round trip
- * @returns {Promise<object>} release record; throws an Error with .record when not live
- */
-export async function deploy(ref, { cwd = repoRoot(), log = (l) => console.error(l), host: hostStatus } = {}) {
-  const began = Date.now();
-  const sha = git(["rev-parse", `${ref}^{commit}`], { cwd }).trim();
-  const host = hostStatus || await status({ log });
-  const base = host.current && commitExists(host.current, cwd) ? host.current : null;
-  if (host.current && !base) log(`live lane release ${host.current.slice(0, 8)} is not in this repository; sending every file`);
-  if (host.current === sha) {
-    log(`measure-internal ${sha.slice(0, 8)} is already live`);
-    return { lane: LANE.name, sha, status: "unchanged", previous: host.previous, serving: host.serving };
-  }
-
-  const gates = await quickChecks({ sha, base, cwd, log });
-  if (!gates.ok) {
-    const error = new Error(`lane checks failed: ${gates.failures.map((failure) => failure.id).join(", ")}`);
-    error.record = { lane: LANE.name, sha, status: "rejected", reason: "checks", gates };
-    throw error;
-  }
-
-  const files = manifest(sha, cwd);
-  const changed = changedPaths(base, sha, cwd, [LANE.deploys]);
-  const deployedChanged = changed?.filter((f) => f.startsWith(LANE.deploys + "/")).map((f) => f.slice(LANE.deploys.length + 1));
-  let full = !deployedChanged || deployedChanged.length > SEND_ALL_ABOVE;
-  let attempt = 0;
-  for (;;) {
-    attempt++;
-    const present = (deployedChanged || []).filter((f) => files[f]);
-    const probe = present.find((f) => !f.endsWith(".php") && !f.startsWith("unused/")) || LANE.probe;
-    const sent = full ? Object.keys(files) : [...new Set([...present, probe])];
-    const phpLint = (full && !base ? Object.keys(files) : present).filter((f) => f.endsWith(".php") && !f.startsWith("unused/"));
-    const work = mkdtempSync(path.join(os.tmpdir(), "fm-lane-payload-"));
-    try {
-      writeFileSync(path.join(work, "lane-manifest.json"), JSON.stringify({ sha, base, files, sent, php_lint: phpLint, probe }));
-      const archiveArgs = ["-c", "core.autocrlf=false", "-c", "core.eol=lf", "archive", "--format=tar", "--prefix=payload/",
-        `--add-file=${path.join(work, "lane-manifest.json")}`, `--add-file=${hostScript()}`, sha, "--",
-        ...(full ? [LANE.deploys] : sent.map((f) => `${LANE.deploys}/${f}`))];
-      log(`shipping ${sha.slice(0, 8)}: ${full ? "every file" : `${sent.length} file(s)`} over ${host.current ? host.current.slice(0, 8) : "nothing"}`);
-      const remote = 'set -u; mkdir -p /opt/firstmeasure/lanes/measure-internal/incoming; ' +
-        'D=$(mktemp -d /opt/firstmeasure/lanes/measure-internal/incoming/d.XXXXXX); ' +
-        'tar -x -C "$D" && bash "$D/payload/lane-host.sh" deploy "$D/payload"; rc=$?; rm -rf "$D"; exit $rc';
-      const r = await ssh(remote, {
-        log,
-        stdinFrom: (stdin) => {
-          const archive = spawn("git", archiveArgs, { cwd, stdio: ["ignore", "pipe", "inherit"] });
-          archive.stdout.pipe(stdin);
-        }
-      });
-      const record = marker(r.stdout, "LANE-RECORD");
-      if (r.code === 3 && r.stdout.includes("LANE-NEED-FULL") && !full && attempt === 1) {
-        log("live release differs from its commit; sending every file");
-        full = true;
-        continue;
-      }
-      if (r.code !== 0 || !record || record.status !== "live" && record.status !== "unchanged") {
-        const error = new Error(`lane deploy failed (exit ${r.code}): ${r.stderr.trim().split("\n").slice(-5).join(" | ")}`);
-        error.record = { ...(record || { lane: LANE.name, sha, status: "failed" }), gates };
-        throw error;
-      }
-      return { ...record, gates, changed: changed ?? "all", duration_ms: Date.now() - began };
-    } finally {
-      rmSync(work, { recursive: true, force: true });
-    }
-  }
-}
-
-export async function rollback(sha, { log = (l) => console.error(l) } = {}) {
-  const r = await hostCommand(`rollback ${sha || ""}`, log);
-  if (r.code !== 0) throw new Error(`rollback failed: ${r.stderr.trim()}`);
-  return marker(r.stdout, "LANE-RECORD");
-}
-
-export async function install({ log = (l) => console.error(l) } = {}) {
-  const r = await hostCommand("install", log);
-  if (r.code !== 0) throw new Error(`install failed: ${r.stderr.trim()}`);
-  return marker(r.stdout, "LANE-STATUS");
-}
-
-export async function follow({ log = (l) => console.error(l) } = {}) {
-  const r = await hostCommand("follow", log);
-  if (r.code !== 0) throw new Error(`follow failed: ${r.stderr.trim()}`);
-  return marker(r.stdout, "LANE-STATUS");
-}
-
-export async function uninstall({ log = (l) => console.error(l) } = {}) {
-  const r = await hostCommand("uninstall", log);
-  if (r.code !== 0) throw new Error(`uninstall failed: ${r.stderr.trim()}`);
-  return marker(r.stdout, "LANE-STATUS");
-}
-
 // ---- dev push router lane module ----------------------------------------------------
 
 const PLATFORM_PUBLIC = "/opt/firstmeasure/current/public";
@@ -495,12 +371,17 @@ export function buildTree(sha, cwd, out) {
   return out;
 }
 
+// fm-release leaves the host's runtime paths out of a staged tree's check (HOST_PATHS in
+// tools/dev-push/host/fm-release.py); the lane's public/storage link still travels with the tree.
+const HOST_PATHS = new Set(["public/storage", "public/v1/storage", "public/v1/output"]);
+
 /** Same shape and digest as the router's treeManifest (lanes/platform/lane.mjs) and fm-release. */
 export function treeManifest(root) {
   const files = {}, links = {};
   const walk = (dir, prefix) => {
     for (const entry of readdirSync(dir, { withFileTypes: true })) {
       const rel = prefix + entry.name;
+      if (HOST_PATHS.has(rel)) continue;
       const full = path.join(dir, entry.name);
       if (entry.isSymbolicLink()) { links[rel] = readlinkSync(full); continue; }
       if (entry.isDirectory()) { walk(full, `${rel}/`); continue; }
@@ -576,13 +457,16 @@ export default {
   // serves it, and puts every role back if anything fails.
   async deploy({ dir, sha, hosts, log = () => {} }) {
     const began = Date.now();
-    const timings = { stage: {}, activate: {} };
+    // Flat "<step>[:<role>]" keys, like the platform lane's (the router prefixes them with "deploy:").
+    const timings = {};
     const roles = ROLES.filter((role) => hosts.roles.includes(role));
     const before = Object.fromEntries(await Promise.all(roles.map(async (role) => [role, await hosts.status(role, LANE.name)])));
     const broken = roles.filter((role) => !before[role].ok);
     if (broken.length) return { ok: false, error: `status failed: ${broken.map((role) => `${role}: ${before[role].error}`).join("; ")}`, rolledBack: true, infrastructure: true, timings };
     const previous = Object.fromEntries(roles.map((role) => [role, before[role].lanes?.[LANE.name]?.current || null]));
     const build = mkdtempSync(path.join(os.tmpdir(), `fm-lane-tree-${sha.slice(0, 8)}-`));
+    // rsync -a gives the release directory this folder's mode; mkdtemp's 0700 would hide it from nginx.
+    chmodSync(build, 0o755);
     try {
       let mark = Date.now();
       buildTree(sha, dir, build);
@@ -591,7 +475,7 @@ export default {
       log(`staging ${sha.slice(0, 10)} on ${roles.join(", ")} (${Object.keys(tree.files).length} files, tree ${tree.tree_sha256.slice(0, 12)})`);
       const staged = await Promise.all(roles.map(async (role) => {
         const [result, ms] = await timed(() => hosts.stage(role, { lane: LANE.name, sha, dir: build, manifest: tree, releases: before[role].lanes?.[LANE.name]?.releases }));
-        timings.stage[role] = ms;
+        timings[`transfer:${role}`] = ms;
         return result;
       }));
       const stageErrors = roles.filter((_, index) => !staged[index].ok);
@@ -614,7 +498,7 @@ export default {
       const activated = [];
       for (const role of roles) {
         const [result, ms] = await timed(() => hosts.activate(role, { lane: LANE.name, sha, expect: previous[role] }));
-        timings.activate[role] = ms;
+        timings[`activate:${role}`] = ms;
         activated.push(result);
       }
       let error = roles.filter((_, index) => !activated[index].ok).map((role) => `${role}: ${activated[roles.indexOf(role)].error}`).join("; ");
