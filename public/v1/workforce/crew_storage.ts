@@ -664,6 +664,36 @@ export async function listProjectChecklists(
   });
 }
 
+/**
+ * Checklists sent to the crew app (`metadata.sent_to_crew`, written by markChecklistSentToCrew) across the
+ * organization's projects, without items: what shares a project with the people a checklist was sent to.
+ */
+export async function listSentChecklists(orgId: string) {
+  ensureCrewSchema();
+  return (await getWorkforceDatabase().prepare(`SELECT * FROM crew_checklists
+    WHERE organization_id=? AND deleted_at IS NULL AND metadata_json LIKE '%"sent_to_crew"%'`).all(orgId))
+    .map(checklistView)
+    .filter((checklist) => Object.keys(asObject(checklist.metadata.sent_to_crew)).length > 0);
+}
+
+/** Assigns a checklist to the people and groups it is sent to (added to its assignment) and records the send. */
+export async function markChecklistSentToCrew(
+  orgId: string,
+  projectId: string,
+  checklistId: string,
+  refs: Array<{ kind: "organization_user" | "resource_group"; id: string }>,
+  actorUserId: string
+) {
+  const current = (await readChecklistRow(orgId, projectId, checklistId));
+  const users = refs.filter((ref) => ref.kind === "organization_user").map((ref) => ref.id);
+  const groups = refs.filter((ref) => ref.kind === "resource_group").map((ref) => ref.id);
+  return patchProjectChecklist(orgId, projectId, checklistId, {
+    assigned_user_ids: [...new Set([...current.assigned_user_ids, ...users])],
+    assigned_resource_group_ids: [...new Set([...current.assigned_resource_group_ids, ...groups])],
+    metadata: { sent_to_crew: { sent_at: nowIso(), sent_by_user_id: cleanText(actorUserId), assignees: refs } }
+  });
+}
+
 export async function listDeletedProjectChecklists(orgId: string, projectId: string) {
   ensureCrewSchema();
   const checklists = (await getWorkforceDatabase().prepare(`SELECT * FROM crew_checklists

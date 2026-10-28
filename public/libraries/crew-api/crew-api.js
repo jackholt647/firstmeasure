@@ -228,6 +228,9 @@
       if (requirementId) form.append('requirement_id', requirementId);
       return request(projectPath(orgId, projectId, `/checklists/${enc(checklistId)}/items/${enc(itemId)}/attachments`), { method:'POST', body:form });
     },
+    sendChecklistToCrew(orgId, projectId, checklistId, assignees = []){
+      return request(projectPath(orgId, projectId, `/checklists/${enc(checklistId)}/send`), { method:'POST', body:{ assignees } });
+    },
     checklistDocument(orgId, projectId, checklistId){
       return request(projectPath(orgId, projectId, `/checklists/${enc(checklistId)}/document`), { method:'POST', body:{} });
     },

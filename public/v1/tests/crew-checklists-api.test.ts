@@ -693,3 +693,46 @@ test("A checklist is written out as a printable document in the project's Docume
   const refused = await member.client.raw("POST", `${base}/${checklistId}/document`, {});
   assert.equal(refused.statusCode, 403);
 });
+
+test("Sending a checklist to the crew app assigns it and shares its project, behind checklists.crew_send", async () => {
+  const owner = createSessionClient();
+  const { orgId, suffix } = await registerOwner(owner);
+  const { saveCapabilityValues } = await import("../platform/capabilities.js");
+  const member = await createFieldUser(owner, orgId, suffix, "crew_member");
+  const projectId = "checklist_send_project";
+  await seedProject(orgId, projectId, []);
+  const base = `/v1/workforce/organizations/${orgId}/crew/projects/${projectId}/checklists`;
+  const created = await owner.request("POST", base, {
+    title: "Work completion",
+    assignment_policy: { schema_version: 1, mode: "any", allow_unassigned: true, rules: [] },
+    items: [{ title: "Site cleaned" }]
+  });
+  const checklistId = created.checklist.id;
+  const myProjects = async () => (await member.client.request("GET", `/v1/workforce/organizations/${orgId}/crew/me/projects`)).projects.map((project: Json) => project.id);
+
+  await saveCapabilityValues(orgId, { "checklists.crew_send": false });
+  assert.equal((await owner.request("GET", base)).permissions.crew_send, false);
+  const off = await owner.raw("POST", `${base}/${checklistId}/send`, { assignees: [{ kind: "organization_user", id: member.userId }] });
+  assert.equal(off.statusCode, 403);
+  assert.equal(off.data.error, "checklists_crew_send_disabled");
+  assert.ok(!(await myProjects()).includes(projectId));
+  assert.equal((await member.client.raw("GET", `/v1/workforce/organizations/${orgId}/crew/projects/${projectId}`)).statusCode, 403);
+
+  await saveCapabilityValues(orgId, { "checklists.crew_send": true });
+  assert.equal((await owner.request("GET", base)).permissions.crew_send, true);
+  const sent = await owner.request("POST", `${base}/${checklistId}/send`, { assignees: [{ kind: "organization_user", id: member.userId }] });
+  assert.deepEqual(sent.checklist.assigned_user_ids, [member.userId]);
+  assert.ok(sent.checklist.metadata.sent_to_crew.sent_at);
+  assert.ok((await myProjects()).includes(projectId), "the project shows in the member's crew app");
+  assert.equal((await member.client.raw("GET", `/v1/workforce/organizations/${orgId}/crew/projects/${projectId}`)).statusCode, 200);
+  const dashboard = await member.client.request("GET", `/v1/workforce/organizations/${orgId}/crew/me/dashboard`);
+  assert.ok(dashboard.projects.some((tile: Json) => tile.id === projectId && tile.shared_by_checklist === true));
+  const memberView = await member.client.request("GET", base);
+  assert.ok(memberView.checklists.some((entry: Json) => entry.id === checklistId && entry.can_complete === true));
+
+  // Turning the flag off stops sharing; the assignment stays.
+  await saveCapabilityValues(orgId, { "checklists.crew_send": false });
+  assert.ok(!(await myProjects()).includes(projectId));
+  const refused = await member.client.raw("POST", `${base}/${checklistId}/send`, { assignees: [{ kind: "organization_user", id: member.userId }] });
+  assert.equal(refused.statusCode, 403);
+});

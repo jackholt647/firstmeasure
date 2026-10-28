@@ -1,11 +1,11 @@
 {
   "kind": "capability_defaults",
   "id": "platform",
-  "revision": 1,
-  "sha256": "465f28b5bc3f2ade55c4a9496f97d3ea70e2dbb02900954c204d0a1a00c371b1",
+  "revision": 2,
+  "sha256": "b948755282a09cf8f7f8e115f3cfb2df6e69e3402351eaa4733b4b1b388a14e6",
   "title": "Capability defaults",
-  "updated_at": "2026-10-28T00:40:02.983Z",
-  "updated_by": "generator",
+  "updated_at": "2026-10-28T08:35:35.056Z",
+  "updated_by": "router-fm-283",
   "data": {
     "values": {
       "platform.collaboration": true,
@@ -126,6 +126,7 @@
       "crew.field_payments": true,
       "checklists.templates": true,
       "checklists.supervision": true,
+      "checklists.crew_send": true,
       "money.profitability": true,
       "money.payment_schedules": true,
       "money.invoices": false,

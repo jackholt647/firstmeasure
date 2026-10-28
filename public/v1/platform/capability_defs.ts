@@ -861,6 +861,13 @@ const definitions: CapabilityDefinition[] = [
     description: "Create and edit checklist templates. Completing assigned checklists stays available without it."
   },
   {
+    key: "checklists.crew_send",
+    kind: "feature",
+    parent: "apps.checklists",
+    label: "Send Checklists to the Crew App",
+    description: "Send a project checklist to a person or group: it is assigned to them and its project shows in their crew app."
+  },
+  {
     key: "checklists.supervision",
     kind: "feature",
     parent: "apps.checklists",

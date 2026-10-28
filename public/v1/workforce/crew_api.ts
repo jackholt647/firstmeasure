@@ -79,7 +79,9 @@ import {
   readCrewTimeClock,
   readProjectChecklist,
   readProjectChecklistItem,
-  signProjectChecklist
+  signProjectChecklist,
+  listSentChecklists,
+  markChecklistSentToCrew
 } from "./crew_storage.js";
 import { normalizePortalSignature } from "../platform/portal_signatures.js";
 import { isCapabilityEnabled } from "../platform/capabilities.js";
@@ -426,6 +428,7 @@ async function assignedProject(orgId: string, projectId: string, actor: CrewActo
   // work for them. Per-action permissions still gate what they can do inside.
   const salesEvents = assignedSalesAppointmentEvents(project, { userId: actor.ctx.userId });
   if (salesEvents.length) return { document, project, events: salesEvents };
+  if ((await projectsSharedByChecklists(orgId, actor)).has(projectId)) return { document, project, events: [] as JsonObject[] };
   throw forbidden("crew_project_forbidden", "This project is not assigned to this user or their active work group.");
 }
 
@@ -544,7 +547,9 @@ async function checklistCollectionPayload(orgId: string, projectId: string, acto
       view: true,
       complete: actor.management || hasCrewPermission(actor, "crew.checklists.complete|crew.checklists.manage"),
       supervise: actor.management || hasCrewPermission(actor, "crew.checklists.supervise"),
-      manage: actor.management || hasCrewPermission(actor, "crew.checklists.manage")
+      manage: actor.management || hasCrewPermission(actor, "crew.checklists.manage"),
+      crew_send: (actor.management || hasCrewPermission(actor, "crew.checklists.manage"))
+        && await isCapabilityEnabled(orgId, "checklists.crew_send").catch(() => false)
     },
     department_context: relevantDepartmentContext(actor.ctx),
     checklists: checklists.map(enrich),
@@ -727,16 +732,29 @@ function tileSort(left: JsonObject, right: JsonObject) {
   return leftTime - rightTime || projectTitle(left).localeCompare(projectTitle(right));
 }
 
+/**
+ * Projects shared with this person because a checklist on them was sent to the crew app (checklists.crew_send) and
+ * is assigned to them or their group. Sending a checklist shares its project: it shows in their crew app with no
+ * scheduled work. Office users see projects through the office, not through this.
+ */
+async function projectsSharedByChecklists(orgId: string, actor: CrewActor) {
+  if (actor.management) return new Set<string>();
+  if (!(await isCapabilityEnabled(orgId, "checklists.crew_send").catch(() => false))) return new Set<string>();
+  return new Set((await listSentChecklists(orgId))
+    .filter((checklist) => checklistAssignmentMatchesActor(actor, checklist) && checklistVisibleToActor(actor, checklist))
+    .map((checklist) => checklist.project_id));
+}
+
 async function allAssignedProjects(orgId: string, actor: CrewActor) {
-  const documents = await listDocuments(orgId, "projects");
+  const [documents, shared] = await Promise.all([listDocuments(orgId, "projects"), projectsSharedByChecklists(orgId, actor)]);
   const production = hasProductionScope(actor);
   return documents.map((document) => {
     const project = projectData(document);
     // Production-scope actors see every scheduled work event (worked on by
     // anybody); everyone else sees only their own or their group's work.
     const events = production ? projectWorkEvents(project) : assignedWorkEvents(project, actor);
-    return { project, events };
-  }).filter((entry) => entry.events.length > 0);
+    return { project, events, shared: shared.has(cleanText(document.id)) };
+  }).filter((entry) => entry.events.length > 0 || entry.shared);
 }
 
 function bestEventForDate(events: JsonObject[], targetDate: string, includeAny = false) {
@@ -1566,8 +1584,10 @@ export const registerCrewApi: FastifyPluginAsync = async (app) => {
     const actor = await requireCrewActor(request, orgId, "crew.dashboard.view");
     const targetDate = validDate(requestQuery(request).date, todayDate());
     const entries = await allAssignedProjects(orgId, actor);
-    const tiles = (await Promise.all(entries.map(async ({ project, events }) => {
+    const tiles = (await Promise.all(entries.map(async ({ project, events, shared }) => {
       const event = bestEventForDate(events, targetDate);
+      // A project shared by a checklist sent to the crew app shows until the project is done, scheduled or not.
+      if (!event && shared && !projectCompleted(project)) return { ...(await projectTile(orgId, project, {}, targetDate)), shared_by_checklist: true };
       if (!event || projectCompleted(project) && eventDateRange(event).end < targetDate) return null;
       const tile: JsonObject = { ...(await projectTile(orgId, project, event, targetDate)) };
       // Equipment riding along on today's event ("my equipment today").
@@ -1576,6 +1596,7 @@ export const registerCrewApi: FastifyPluginAsync = async (app) => {
         .map((ref) => ({ id: ref.id, name: ref.name || ref.id }));
       if (equipmentRefs.length) tile.equipment = equipmentRefs;
       return tile.overdue === true || (cleanText(asObject(tile.schedule).start_date) <= targetDate && cleanText(asObject(tile.schedule).end_date) >= targetDate)
+        || shared
         ? tile
         : null;
     }))).filter((tile) => tile !== null) as JsonObject[];
@@ -1601,14 +1622,14 @@ export const registerCrewApi: FastifyPluginAsync = async (app) => {
     const to = validDate(query.end || query.to || query.date_to);
     const targetDate = validDate(query.date, todayDate());
     const entries = await allAssignedProjects(orgId, actor);
-    const projects = (await Promise.all(entries.map(async ({ project, events }) => {
+    const projects = (await Promise.all(entries.map(async ({ project, events, shared }) => {
       const rangeEvents = events.filter((event) => {
         const range = eventDateRange(event);
         if (from && range.end < from) return false;
         if (to && range.start > to) return false;
         return true;
       });
-      if (!rangeEvents.length) return null;
+      if (!rangeEvents.length && !shared) return null;
       const haystack = [projectTitle(project), projectAddress(project), projectPrimaryContact(project).name, projectNotes(project)].join(" ").toLowerCase();
       if (search && !haystack.includes(search)) return null;
       return (await publicProjectDetail(orgId, project, rangeEvents, targetDate));
@@ -2927,6 +2948,31 @@ export const registerCrewApi: FastifyPluginAsync = async (app) => {
     };
     const updated = (await addProjectChecklistItemAttachment(orgId, projectId, item.id, attachment, actor.ctx.userId));
     return { ok: true, attachment, item: updated };
+  });
+
+  // Send to the crew app (checklists.crew_send): the checklist is assigned to these people or groups, which shares its
+  // project with them, so it shows in their crew app.
+  app.post("/organizations/:orgId/crew/projects/:projectId/checklists/:checklistId/send", async (request) => {
+    const orgId = getParam(request.params, "orgId");
+    const actor = await requireCrewActor(request, orgId, "crew.checklists.manage", true);
+    const projectId = getParam(request.params, "projectId");
+    await accessibleProject(orgId, projectId, actor);
+    if (!(await isCapabilityEnabled(orgId, "checklists.crew_send").catch(() => false))) {
+      throw forbidden("checklists_crew_send_disabled", "Sending checklists to the crew app is off for this organization.");
+    }
+    const checklist = (await readProjectChecklist(orgId, projectId, getParam(request.params, "checklistId")));
+    if (!checklistEditAllowed(actor, checklist)) throw forbidden("checklist_edit_forbidden", "This checklist is not editable by this user.");
+    const refs = asArray(requestBody(request).assignees).map(asObject)
+      .map((ref) => ({ kind: cleanText(ref.kind) === "resource_group" ? "resource_group" as const : "organization_user" as const, id: cleanText(ref.id) }))
+      .filter((ref) => ref.id);
+    if (!refs.length) throw badRequest("checklist_send_assignee_required", "Choose who to send this checklist to.");
+    const next = {
+      ...checklist,
+      assigned_user_ids: [...new Set([...checklist.assigned_user_ids, ...refs.filter((ref) => ref.kind === "organization_user").map((ref) => ref.id)])],
+      assigned_resource_group_ids: [...new Set([...checklist.assigned_resource_group_ids, ...refs.filter((ref) => ref.kind === "resource_group").map((ref) => ref.id)])]
+    };
+    await assertChecklistAssignmentsAllowed(orgId, next);
+    return { ok: true, checklist: (await markChecklistSentToCrew(orgId, projectId, checklist.id, refs, actor.ctx.userId)) };
   });
 
   // The checklist written out as a document (workforce/checklist-documents.ts) for email, download or print.
