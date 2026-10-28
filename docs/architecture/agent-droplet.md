@@ -111,7 +111,30 @@ there, or its entries are all named `agent-fm-agents-1`.
   Remote Desktop so they stay signed in. It runs in the droplet's desktop session with its own profile
   (`~/.config/chrome-agents`) and DevTools on `127.0.0.1:9222`, so a session on the droplet can drive it with
   Playwright's `connectOverCDP("http://127.0.0.1:9222")`. It runs only while the desktop session is up.
-- **Headless.** Playwright's Chromium for tests and screenshots, no sign-ins.
+- **Headless.** Playwright's Chromium for tests and screenshots. Signed-in dev pages use the dev test login
+  (next section).
+
+## Dev test login
+
+Workers test signed-in flows on dev.1m8.ai without asking anyone. The login is a signup-sandbox test
+organization, made from the sandbox's "Instant full org" workflow (`swf_instant_full_org`: every app on,
+seeded demo data, dev only). It is organization `org_d4ce8c969203ef87`, "Agent Test Co (fm-agents-1)", and
+its owner is a `@signup-sandbox.test` user.
+
+- **Where the login is:** `/srv/agents/secrets/dev-test-login.json` (`base_url`, `email`, `password`,
+  `organization_id`), mode 600. It exists only on the droplet; never print, commit or post it.
+- **`fm-dev-login`:** signs in through `POST /v1/platform/auth/login` and writes a Playwright storageState to
+  `/srv/agents/secrets/dev-storage-state.json`.
+  - `--check` also opens `/portal/` headless and confirms `/v1/platform/auth/session`.
+  - `--new-org "<label>"` makes a throwaway test org for work that changes a lot of data. Its login and state
+    go to `/srv/agents/secrets/dev-test-orgs/`.
+  - In Playwright: `browser.newContext({ storageState: "/srv/agents/secrets/dev-storage-state.json" })`.
+- **If the shared org breaks or disappears:** run `fm-dev-login --new-org "Agent Test Co (fm-agents-1)"` and
+  copy its file over `dev-test-login.json`.
+
+Caveat: dev's signup sandbox lists every test org's login at `GET /v1/signup-sandbox/test-orgs`, because
+registration is not gated on dev. This org is therefore no more private than any other dev test org. Keep
+real data out of it.
 
 ## Its own desktop
 

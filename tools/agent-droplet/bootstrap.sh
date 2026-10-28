@@ -42,7 +42,13 @@ apt-get -yq -o Dpkg::Options::=--force-confold upgrade
 apt-get install -yq git git-lfs tmux jq rsync curl wget ca-certificates gnupg build-essential unzip zip \
   python3 python3-venv python3-pip ripgrep fd-find htop ncdu sqlite3 sshfs fuse3 fail2ban unattended-upgrades \
   php8.3-cli php8.3-common php8.3-curl php8.3-mbstring php8.3-opcache php8.3-pgsql php8.3-readline \
-  php8.3-sqlite3 php8.3-xml php8.3-fpm debian-keyring debian-archive-keyring apt-transport-https
+  php8.3-sqlite3 php8.3-xml php8.3-fpm debian-keyring debian-archive-keyring apt-transport-https \n  postgresql-client ffmpeg poppler-utils xvfb
+
+if ! command -v gh >/dev/null; then   # GitHub CLI (unauthenticated: shipping goes through the router, not GitHub)
+  curl -fsSL https://cli.github.com/packages/githubcli-archive-keyring.gpg -o /usr/share/keyrings/githubcli-archive-keyring.gpg
+  echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/githubcli-archive-keyring.gpg] https://cli.github.com/packages stable main" > /etc/apt/sources.list.d/github-cli.list
+  apt-get update -q && apt-get install -yq gh
+fi
 
 if ! node -v 2>/dev/null | grep -q "^v$NODE_MAJOR\."; then
   curl -fsSL https://deb.nodesource.com/setup_$NODE_MAJOR.x | bash -
@@ -77,6 +83,17 @@ done
 install -d -m 755 /etc/fm-agents /etc/caddy/experiments
 chown root:$AGENT /etc/caddy/experiments && chmod 2775 /etc/caddy/experiments
 ln -sfn $ROOT/work $AGENT_HOME/code
+# Logins agents use on dev (fm-dev-login writes them here). Agents only; never printed or copied.
+install -d -m 700 -o $AGENT -g $AGENT $ROOT/secrets
+# The tracker runner, routers and their workers are systemd user services: give them the shell's settings too.
+install -d -o $AGENT -g $AGENT $AGENT_HOME/.config/environment.d
+cat > $AGENT_HOME/.config/environment.d/90-fm-agents.conf <<EOF
+FM_AGENTS_ROOT=$ROOT
+PLAYWRIGHT_BROWSERS_PATH=$ROOT/cache/ms-playwright
+npm_config_cache=$ROOT/cache/npm
+DEV_PUSH_NO_MIRROR=1
+EOF
+chown $AGENT:$AGENT $AGENT_HOME/.config/environment.d/90-fm-agents.conf
 chown -h $AGENT:$AGENT $AGENT_HOME/code
 
 log "Shared caches and shell environment"
