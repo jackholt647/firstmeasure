@@ -1,0 +1,24 @@
+{
+  "kind": "measurement_schema",
+  "id": "gutters",
+  "revision": 1,
+  "sha256": "ac2aad7ac4a624ea1e84dd0da5b1ccf0aaf6fe22c08d31b168e52e71245f7837",
+  "title": "Gutters",
+  "updated_at": "2026-10-28T00:40:02.983Z",
+  "updated_by": "generator",
+  "data": {
+    "version": "1",
+    "title": "Gutters",
+    "description": "Gutter and downspout replacement.",
+    "measurements": [
+      {
+        "definition": "roof.eave_length",
+        "required": true
+      },
+      {
+        "definition": "roof.rake_length",
+        "required": false
+      }
+    ]
+  }
+}

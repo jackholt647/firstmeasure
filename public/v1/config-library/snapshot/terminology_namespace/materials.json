@@ -1,0 +1,61 @@
+{
+  "kind": "terminology_namespace",
+  "id": "materials",
+  "revision": 1,
+  "sha256": "d8403fabfbf4f844bd51925c8e88a2f3ecafc1d23db0a2c3a608dc2d461a6272",
+  "title": "Materials",
+  "updated_at": "2026-10-28T00:40:02.983Z",
+  "updated_by": "generator",
+  "data": {
+    "title": "Materials",
+    "note": "Material records and crew project navigation.",
+    "position": 80,
+    "terms": [
+      {
+        "key": "crew_project_tab",
+        "label": "Materials",
+        "kind": "navigation"
+      },
+      {
+        "key": "material",
+        "label": "Material",
+        "kind": "entity"
+      },
+      {
+        "key": "materials",
+        "label": "Materials",
+        "kind": "entity"
+      },
+      {
+        "key": "material_list",
+        "label": "Material List",
+        "kind": "entity"
+      },
+      {
+        "key": "material_lists",
+        "label": "Material Lists",
+        "kind": "entity"
+      },
+      {
+        "key": "quantity",
+        "label": "Quantity",
+        "kind": "entity"
+      },
+      {
+        "key": "unit",
+        "label": "Unit",
+        "kind": "entity"
+      },
+      {
+        "key": "supplier",
+        "label": "Supplier",
+        "kind": "entity"
+      },
+      {
+        "key": "order_request",
+        "label": "Order Request",
+        "kind": "entity"
+      }
+    ]
+  }
+}

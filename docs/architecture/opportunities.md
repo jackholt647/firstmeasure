@@ -186,8 +186,9 @@ and the published `projects.lead.create` action. `receiveLead`:
    `target_role_ids` such as a form's "Notify these roles"; `notify: false`
    when the source asked for none).
 
-What happens next is organization rules on `lead.received`
-(`work/rules.ts`), each editable or switchable off in Automations:
+What happens next is organization rules on `lead.received` (platform
+defaults, [config library](config-library.md) kind `automation_rule_default`,
+read live by `work/rules.ts`), each editable or switchable off in Automations:
 
 - `platform_notify_new_lead`: notifies the inside sales and appointment
   roles when the source named none; `platform_notify_new_lead_source_roles`

@@ -1,5 +1,5 @@
 import { IntlMessageFormat } from "intl-messageformat";
-import { terminologyComposer, terminologyOverride, canonicalTerm } from './terminology.js';
+import { terminologyComposer, terminologyOverride, canonicalTerm, terminologyDefault } from './terminology.js';
 
 import { SUPPORTED_LOCALES } from "./languages.js";
 export { SUPPORTED_LOCALES } from "./languages.js";
@@ -30,7 +30,9 @@ export function resolveContext(company: Record<string, unknown> = {}, personal: 
   };
 }
 
-export function createLanguage(initial: LanguageContext = resolveContext(), missing?: (key: string, locale: Locale) => void) {
+/** `frozenTerminology`: an issued document's language, whose English term labels are the frozen catalog's, not the
+ * library's current defaults. */
+export function createLanguage(initial: LanguageContext = resolveContext(), missing?: (key: string, locale: Locale) => void, options: { frozenTerminology?: boolean } = {}) {
   let context = { ...initial };
   const catalogs = new Map<string, Partial<Record<Locale, Catalog>>>();
   const versions = new Map<string, string>();
@@ -43,9 +45,13 @@ export function createLanguage(initial: LanguageContext = resolveContext(), miss
     if(!composers.has(id))composers.set(id,terminologyComposer(namespace,context.locale,terminology,(key,fallback)=>rawTerm(key,fallback),html));
     return composers.get(id)!(value);
   }
+  // English term labels are the config library's terminology entries (live on dev); a language pack translates
+  // them. The `terminology` catalog's English copy is what an issued document froze, and the fallback before the
+  // terms have loaded in a page.
   function rawTerm(key:string, fallback:string) {
     const entries=catalogs.get('terminology');
-    const value=entries?.[context.locale]?.[key] ?? entries?.['en-US']?.[key];
+    const localized=options.frozenTerminology||context.locale!=='en-US'?entries?.[context.locale]?.[key]:undefined;
+    const value=localized ?? (options.frozenTerminology?undefined:terminologyDefault(key)) ?? entries?.['en-US']?.[key];
     return typeof value==='string'?value:fallback;
   }
   function register(bundle: CatalogBundle) {
@@ -109,6 +115,8 @@ export function createLanguage(initial: LanguageContext = resolveContext(), miss
     register, text, term, snapshot,
     htmlText: (namespace:string,key:string,fallback=key,values:Record<string,string|number|boolean|Date>={})=>text(namespace,key,fallback,values,true),
     setTerminology: (next:Terminology={})=>{ terminology=JSON.parse(JSON.stringify(next)); composers.clear(); formatters.clear(); },
+    /** The terms themselves (the terminology contract) changed: compose again. */
+    termsChanged: ()=>{ composers.clear(); formatters.clear(); },
     error: (code: string, fallback: string) => catalogs.get('errors')?.['en-US']?.[code] !== fallback ? fallback : text('errors', code, fallback),
     formatLocale: (legacy?: string) => context.locale === 'en-US' ? legacy : context.locale,
     context: () => ({ ...context }),

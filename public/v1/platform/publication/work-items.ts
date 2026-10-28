@@ -1,3 +1,4 @@
+import { libraryEntries, libraryVersion } from "../../config-library/library.js";
 import { badRequest } from "../errors.js";
 import type { JsonSchema } from "./contracts.js";
 import { listMeasurementDefinitions, listMeasurementSchemas, measurementAmounts, measurementBase } from "./measurement-schemas.js";
@@ -38,23 +39,48 @@ export type WorkSchemaItem = {
 };
 export type WorkSchema = { id: string; version: string; items: WorkSchemaItem[] };
 
-const items = new Map<string, WorkItemDefinition>();
-const schemas = new Map<string, WorkSchema>();
+/**
+ * The dictionary is data: config library entries of the kinds work_item and work_schema (config-library/kinds/),
+ * rebuilt whenever the library changes (`libraryVersion`), so reads stay synchronous and current. The register*
+ * functions add to it in this process only (tests check the dictionary's rules with them); what they add is kept
+ * across rebuilds.
+ */
+type Dictionary = { items: Map<string, WorkItemDefinition>; schemas: Map<string, WorkSchema> };
 const ID = /^[a-z][a-z0-9_]*(\.[a-z][a-z0-9_]*)*$/;
-
-export function registerWorkItem(item: WorkItemDefinition) {
-  if (!ID.test(item.id) || !item.label.trim() || !item.unit.trim() || !["work", "function"].includes(item.kind)) throw badRequest("work_item_invalid", "A work item needs a stable id, a label, a unit and a kind.");
-  if (items.has(item.id)) throw badRequest("work_item_duplicate", `Work item ${item.id} is already defined.`);
-  items.set(item.id, Object.freeze(jsonClone(item)));
+export const WORK_LIBRARY_KINDS = { item: "work_item", schema: "work_schema" } as const;
+let dictionary: Dictionary = { items: new Map(), schemas: new Map() };
+let builtAt = -1;
+const localAdditions: Array<(target: Dictionary) => void> = [];
+function dict(): Dictionary {
+  const version = libraryVersion();
+  if (version !== builtAt) {
+    builtAt = version;
+    const target: Dictionary = { items: new Map(), schemas: new Map() };
+    const problems: string[] = [];
+    const attempt = (what: string, add: () => void) => { try { add(); } catch (error) { problems.push(`${what}: ${(error as Error).message}`); } };
+    for (const entry of libraryEntries<Omit<WorkItemDefinition, "id">>(WORK_LIBRARY_KINDS.item)) attempt(entry.id, () => addItem(target, { ...entry.data, id: entry.id } as WorkItemDefinition));
+    for (const entry of libraryEntries<Omit<WorkSchema, "id">>(WORK_LIBRARY_KINDS.schema)) attempt(entry.id, () => addSchema(target, { ...entry.data, id: entry.id } as WorkSchema));
+    // Entries are checked when they are saved, so this only happens to a snapshot or store written some other way.
+    if (problems.length) console.error(`Work item dictionary: ${problems.length} library entries were left out. ${problems.join(" ")}`);
+    for (const add of localAdditions) { try { add(target); } catch { /* no longer fits the library's dictionary */ } }
+    dictionary = target;
+  }
+  return dictionary;
 }
-export function registerWorkSchema(schema: WorkSchema) {
+
+function addItem(target: Dictionary, item: WorkItemDefinition) {
+  if (!ID.test(item.id) || !item.label.trim() || !item.unit.trim() || !["work", "function"].includes(item.kind)) throw badRequest("work_item_invalid", "A work item needs a stable id, a label, a unit and a kind.");
+  if (target.items.has(item.id)) throw badRequest("work_item_duplicate", `Work item ${item.id} is already defined.`);
+  target.items.set(item.id, Object.freeze(jsonClone(item)));
+}
+function addSchema(target: Dictionary, schema: WorkSchema) {
   const measured = listMeasurementSchemas().find((entry) => entry.id === schema.id);
   if (!measured || !schema.version || !schema.items.length) throw badRequest("work_schema_invalid", "A work schema is for a kind of work that has a measurement schema, and lists at least one item.");
-  if (schemas.has(schema.id)) throw badRequest("work_schema_duplicate", `Work schema ${schema.id} is already registered.`);
+  if (target.schemas.has(schema.id)) throw badRequest("work_schema_duplicate", `Work schema ${schema.id} is already registered.`);
   const allowed = new Set(measured.measurements.map((entry) => entry.definition)), units = new Map(listMeasurementDefinitions().map((definition) => [definition.id, definition.unit]));
   const seen = new Set<string>();
   for (const entry of schema.items) {
-    if (!items.has(entry.item)) throw badRequest("work_schema_unknown_item", `Schema ${schema.id} names ${entry.item}, which is not in the dictionary.`);
+    if (!target.items.has(entry.item)) throw badRequest("work_schema_unknown_item", `Schema ${schema.id} names ${entry.item}, which is not in the dictionary.`);
     if (seen.has(entry.item)) throw badRequest("work_schema_invalid", `Schema ${schema.id} lists ${entry.item} twice.`);
     seen.add(entry.item);
     if ("fixed" in entry.quantity) { if (!(entry.quantity.fixed > 0)) throw badRequest("work_schema_invalid", `${entry.item} needs an amount above zero.`); continue; }
@@ -64,20 +90,24 @@ export function registerWorkSchema(schema: WorkSchema) {
     if (new Set(entry.quantity.measurements.map((definition) => units.get(definition))).size > 1) throw badRequest("work_schema_invalid", `${entry.item} adds measurements in different units.`);
   }
   for (const entry of schema.items) if (entry.under && (!seen.has(entry.under) || entry.under === entry.item)) throw badRequest("work_schema_invalid", `${entry.item} is listed under ${entry.under}, which is not another item of ${schema.id}.`);
-  schemas.set(schema.id, Object.freeze(jsonClone(schema)));
+  target.schemas.set(schema.id, Object.freeze(jsonClone(schema)));
 }
-export function listWorkItems() { return [...items.values()].map((item) => jsonClone(item)); }
-export function listWorkSchemas() { return [...schemas.values()].map((schema) => jsonClone(schema)); }
-export function workItem(id: string) { const item = items.get(id); return item ? jsonClone(item) : null; }
+/** Adds to the dictionary in this process only, with the dictionary's rules. Library entries are the dictionary. */
+function addLocally(add: (target: Dictionary) => void) { add(dict()); localAdditions.push(add); }
+export function registerWorkItem(item: WorkItemDefinition) { addLocally((target) => addItem(target, item)); }
+export function registerWorkSchema(schema: WorkSchema) { addLocally((target) => addSchema(target, schema)); }
+export function listWorkItems() { return [...dict().items.values()].map((item) => jsonClone(item)); }
+export function listWorkSchemas() { return [...dict().schemas.values()].map((schema) => jsonClone(schema)); }
+export function workItem(id: string) { const item = dict().items.get(id); return item ? jsonClone(item) : null; }
 /** Every item the given kinds of work can require. */
 export function workItemsForSchemas(schemaIds: string[]): string[] {
-  return [...new Set(schemaIds.flatMap((id) => schemas.get(id)?.items.map((entry) => entry.item) || []))];
+  return [...new Set(schemaIds.flatMap((id) => dict().schemas.get(id)?.items.map((entry) => entry.item) || []))];
 }
 
 /** The whole measurement an item's amount is in these kinds of work, when it is exactly one measurement; otherwise "". */
 export function workItemMeasure(schemaIds: string[], itemId: string): string {
   for (const schemaId of schemaIds) {
-    const quantity = schemas.get(schemaId)?.items.find((entry) => entry.item === itemId)?.quantity;
+    const quantity = dict().schemas.get(schemaId)?.items.find((entry) => entry.item === itemId)?.quantity;
     if (quantity && "measurements" in quantity && quantity.measurements.length === 1 && (quantity.factor ?? 1) === 1 && !(quantity.scale || []).length) return measurementBase(quantity.measurements[0]!);
   }
   return "";
@@ -115,10 +145,10 @@ function amount(quantity: WorkQuantity, context: { measurements?: unknown; field
 export function workRequirements(schemaIds: string[], context: { measurements?: unknown; fields?: Record<string, number> }, options: { includeEmpty?: boolean } = {}): WorkRequirement[] {
   const rows = new Map<string, WorkRequirement>();
   for (const schemaId of [...new Set(schemaIds)]) {
-    const schema = schemas.get(schemaId);
+    const schema = dict().schemas.get(schemaId);
     if (!schema) continue;
     for (const entry of schema.items) {
-      const definition = items.get(entry.item)!, quantity = amount(entry.quantity, context);
+      const definition = dict().items.get(entry.item)!, quantity = amount(entry.quantity, context);
       if (entry.optional && !(Number(quantity) > 0) && !options.includeEmpty) continue;
       const single = "measurements" in entry.quantity && entry.quantity.measurements.length === 1 && (entry.quantity.factor ?? 1) === 1 && !(entry.quantity.scale || []).length;
       const existing = rows.get(entry.item);
@@ -137,37 +167,6 @@ export function workRequirements(schemaIds: string[], context: { measurements?: 
   }
   return [...rows.values()];
 }
-
-// ---- The dictionary. ----
-const work = (id: string, label: string, unit: string, description: string) => registerWorkItem({ id, label, kind: "work", unit, description });
-work("roofing.tear_off", "Tear off old roofing", "roofing_square", "Remove the existing roofing down to the deck.");
-work("roofing.dry_in", "Underlayment and dry-in", "roofing_square", "Cover the deck with underlayment so the roof is weathertight.");
-work("roofing.install", "Install roofing", "roofing_square", "Lay the new field roofing.");
-work("roofing.edge_metal", "Edge metal", "ft", "Fit drip edge along the eaves and rakes.");
-work("roofing.ridge_cap", "Hip and ridge cap", "ft", "Cap the hips and ridges.");
-work("roofing.valleys", "Valleys", "ft", "Line and finish the valleys.");
-work("roofing.wall_flashing", "Wall flashing", "ft", "Flash where the roof meets a wall.");
-work("roofing.cleanup", "Clean up", "job", "Clear the site and sweep for nails.");
-work("gutters.remove", "Remove existing gutters", "ft", "Take down the gutter runs being replaced.");
-work("gutters.install", "Install gutters", "ft", "Hang the replacement gutter runs.");
-work("siding.remove", "Remove existing siding", "ft2", "Remove the wall covering being replaced.");
-work("siding.install", "Install siding", "ft2", "Install replacement wall covering.");
-// A function is a capacity the job needs, whoever supplies it. It is not specific to one trade.
-registerWorkItem({ id: "disposal.debris", label: "Debris disposal", kind: "function", unit: "yd3", per_load_default: true, description: "Somewhere for the torn-off material to go: a dumpster, a dump trailer or truck, or a company that hauls it away." });
-
-// ---- What each kind of work requires. The amounts are rules of thumb an organization will be able to change. ----
-registerWorkSchema({ id: "roofing", version: "1", items: [
-  { item: "roofing.tear_off", quantity: { measurements: ["roof.squares"] } },
-  // About 0.4 cubic yards of debris for each square of each layer torn off.
-  { item: "disposal.debris", under: "roofing.tear_off", quantity: { measurements: ["roof.squares"], factor: 0.4, scale: [{ field: "existing_layers", default: 1 }] } },
-  { item: "roofing.dry_in", quantity: { measurements: ["roof.squares"] } },
-  { item: "roofing.install", quantity: { measurements: ["roof.squares"] } },
-  { item: "roofing.edge_metal", quantity: { measurements: ["roof.eave_length", "roof.rake_length"] }, optional: true },
-  { item: "roofing.ridge_cap", quantity: { measurements: ["roof.ridge_length", "roof.hip_length"] }, optional: true },
-  { item: "roofing.valleys", quantity: { measurements: ["roof.valley_length"] }, optional: true },
-  { item: "roofing.wall_flashing", quantity: { measurements: ["roof.head_wall_length", "roof.side_wall_length"] }, optional: true },
-  { item: "roofing.cleanup", quantity: { fixed: 1 } }
-] });
 
 // ---- Publication ----
 const itemSchema: JsonSchema = { type: "object", required: ["id", "label", "kind", "unit", "description"], properties: { id: { type: "string" }, label: { type: "string" }, kind: { enum: ["work", "function"] }, unit: { type: "string" }, description: { type: "string" }, per_load_default: { type: "boolean" } }, additionalProperties: false };

@@ -1,0 +1,26 @@
+{
+  "kind": "terminology_namespace",
+  "id": "sales",
+  "revision": 1,
+  "sha256": "d555b5d98a7b2fc2449c9b81698434c534da2a4976aaeae8c226bd42783cfcd8",
+  "title": "Sales",
+  "updated_at": "2026-10-28T00:40:02.983Z",
+  "updated_by": "generator",
+  "data": {
+    "title": "Sales",
+    "note": "Shared display labels. Record identifiers and authored content stay unchanged.",
+    "position": 420,
+    "terms": [
+      {
+        "key": "today_portal_tab",
+        "label": "Today",
+        "kind": "navigation"
+      },
+      {
+        "key": "overview_tab",
+        "label": "Visit",
+        "kind": "navigation"
+      }
+    ]
+  }
+}

@@ -49,6 +49,8 @@ function createSessionClient() {
 before(async () => {
   storageRoot = await mkdtemp(path.join(os.tmpdir(), "firstmate-capabilities-test-"));
   process.env.NODE_ENV = "test";
+  // Presets and the signup preset are config library entries, written by these tests: read the library's store.
+  process.env.CONFIG_LIBRARY_SOURCE = "store";
   process.env.PLATFORM_HEARTBEAT_DISABLED = "1";
   process.env.PLATFORM_STORAGE_ROOT = path.join(storageRoot, "platform");
   process.env.CRM_STORAGE_ROOT = path.join(storageRoot, "crm");

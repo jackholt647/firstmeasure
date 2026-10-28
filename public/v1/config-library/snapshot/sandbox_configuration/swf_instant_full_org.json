@@ -1,0 +1,127 @@
+{
+  "kind": "sandbox_configuration",
+  "id": "swf_instant_full_org",
+  "revision": 1,
+  "sha256": "fda8960345119b510466bcdd1c3bdfc0af547fec6f9ed690c1b38226bfcb8299",
+  "title": "Instant full org (dev)",
+  "updated_at": "2026-10-28T00:40:02.983Z",
+  "updated_by": "generator",
+  "data": {
+    "title": "Instant full org (dev)",
+    "description": "Zero-step dev shortcut: creating the test instance IS the whole signup. A fresh org with a random name and the full platform enabled (Money and merchant processing included; historical weather reports, regular instant reports, Training, Training Studio, and Canvassing off by default) lands straight in the portal — ready to test payments boarding end to end.",
+    "entry_mode": "signup_first",
+    "onboarding_mode": "",
+    "stages": [
+      {
+        "id": "stg_instant_signup",
+        "page_id": "spg_firstmate_signup",
+        "notes": "Skipped by sandbox instances like every signup stage — with no setup stages after it, the instance opens directly in the portal."
+      }
+    ],
+    "tags": [
+      "template",
+      "dev",
+      "instant"
+    ],
+    "sample_data": true,
+    "launch_sample_data": [],
+    "dev_bar": false,
+    "app_flags_base": "all_on",
+    "defaults": {
+      "app_flags": {
+        "canvassing.app": false,
+        "apps.training": false,
+        "firstmeasure.weather_reports": false,
+        "firstmeasure.instant_reports": false,
+        "training.studio": false,
+        "platform.new_button_mode": "selector",
+        "platform.new_button_items": ""
+      },
+      "settings": {
+        "roofing_setup": {
+          "template": "roofing",
+          "completed": true,
+          "services": [
+            "roofing",
+            "gutters",
+            "siding"
+          ],
+          "job_types": [
+            "roof_replacement",
+            "roof_repair",
+            "gutter_replacement",
+            "siding"
+          ],
+          "test_document_pack": 1
+        }
+      },
+      "scope_flags": {}
+    },
+    "terminology": {
+      "partners": {
+        "partner": "Subcontractor",
+        "partners": "Subcontractors"
+      }
+    },
+    "role_app_options": {},
+    "setup": [
+      {
+        "action": "sandbox.appointments.seedCatalog",
+        "input": {},
+        "data_environments": [
+          "development"
+        ],
+        "on_error": "stop"
+      },
+      {
+        "action": "sandbox.roofing.seedDocuments",
+        "input": {},
+        "data_environments": [
+          "development"
+        ],
+        "on_error": "stop"
+      },
+      {
+        "action": "sandbox.roofing.seedMaterialsLibrary",
+        "input": {},
+        "data_environments": [
+          "development"
+        ],
+        "on_error": "stop"
+      },
+      {
+        "action": "sandbox.labor.seedPaySheets",
+        "input": {},
+        "data_environments": [
+          "development"
+        ],
+        "on_error": "stop"
+      },
+      {
+        "action": "sandbox.payroll.seedPayRules",
+        "input": {},
+        "data_environments": [
+          "development"
+        ],
+        "on_error": "stop"
+      },
+      {
+        "action": "sandbox.people.seedRoofing",
+        "input": {},
+        "data_environments": [
+          "development"
+        ],
+        "on_error": "continue",
+        "note": "A roofing company's people: roles, departments, groups, outside companies and pay. Nobody is invited or messaged."
+      },
+      {
+        "action": "sandbox.communications.completeOnboarding",
+        "input": {},
+        "data_environments": [
+          "development"
+        ],
+        "on_error": "stop"
+      }
+    ]
+  }
+}

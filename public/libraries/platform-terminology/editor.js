@@ -4,7 +4,7 @@
     const api=window.PlatformAPI,terms=window.PlatformTerminology,language=window.PlatformLanguage;
     host.innerHTML=`<div role="status">${(globalThis.PlatformLanguage?.htmlText("platform-terminology","m_12b5f179fb821e","Loading terminology…") ?? "Loading terminology…")}</div>`;
     try{
-      await terms.load(orgId,branchId,{refresh:true});
+      await Promise.all([terms.load(orgId,branchId,{refresh:true}),terms.ready?.()]);
       let mappings=structuredClone(terms.current().mappings),locale=language.context().locale,query='',sort='default',saving=false;
       const drafts=new Map(),collapsed=new Set();
       const groups=terms.CATALOG.map(group=>({...group,terms:group.terms.filter(row=>!language.canonicalTerm||language.canonicalTerm(`${group.id}.${row.key}`)===`${group.id}.${row.key}`)}));

@@ -1,0 +1,19 @@
+{
+  "kind": "measurement_definition",
+  "id": "roof.skylight_length",
+  "revision": 1,
+  "sha256": "2bd256ed27ddb70f4ba7d345116381b5fe0640013de174272cae63a4d41aebff",
+  "title": "Skylight perimeter",
+  "updated_at": "2026-10-28T00:40:02.983Z",
+  "updated_by": "generator",
+  "data": {
+    "key": "skylightLf",
+    "label": "Skylight perimeter",
+    "unit": "ft",
+    "levels": [
+      "project",
+      "structure"
+    ],
+    "description": "Perimeter of skylights."
+  }
+}

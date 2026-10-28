@@ -100,6 +100,41 @@ scale). Add an entry when you knowingly ship one, link it from the relevant
 architecture doc, and remove it when it is done. An optimization must return
 exactly the same results.
 
+## Defaults are data: the config library
+
+Every default the platform ships (document, workflow, presentation and form
+templates, the scope library, guided setups and tutorials and their copy,
+tab and app media, rule and terminology defaults, price book setups,
+measurement and work dictionaries, flag defaults and presets, sandbox
+configurations) is an entry in the platform
+[config library](docs/architecture/config-library.md). **Edit defaults as
+data on dev, not in code**: write the entry through the dev console or
+`/v1/config-library` with an access key, and every dev process reads it
+within a second, with no commit, merge or rollout. Never add a default to a
+`.ts`/`.js` file and never hand-edit `public/v1/config-library/snapshot/`
+(it is exported from the store with `scripts/config-library-snapshot.ts`).
+Code declares kinds (structure, checks, how an organization's copy is reset)
+and reads entries; procedural setup is a published action an entry names.
+
+To change a default, use the CLI (it needs a config library access key in
+`FM_CONFIG_LIBRARY_KEY` or `~/.config/firstmate/config-library-key`, created
+by a platform administrator in the dev console; never print or commit it):
+
+```bash
+node tools/config-library/cli.mjs kinds
+node tools/config-library/cli.mjs get document_template tpl_invoice_default --out tpl.json
+node tools/config-library/cli.mjs put document_template tpl_invoice_default tpl.json --note "Shorter footer"
+node tools/config-library/cli.mjs history document_template tpl_invoice_default
+node tools/config-library/cli.mjs revert document_template tpl_invoice_default 3
+```
+
+Saves take milliseconds and run no tests. Only `put`'s checks run (shape,
+append-only dictionaries, references to registered code); a 400 lists what to
+fix, a 409 means someone else saved first (`get` again). This is not a code
+change: no commit, no `submit.mjs`, no rollout.
+Run `tests/config-library.test.ts` and `tests/config-library-api.test.ts` for
+changes to the library.
+
 ## Live frontend iteration on dev
 
 For frontend development where you need fast iteration and feedback on quick

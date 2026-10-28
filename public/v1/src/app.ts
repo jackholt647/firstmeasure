@@ -12,6 +12,7 @@ import { registerSignupSandboxApi } from "../signup-sandbox/api.js";
 import { registerScopesApi } from "../scopes/api.js";
 import { registerCrmAppApi } from "../crm/api.js";
 import { registerGuidedExperiencesApi } from "../guided-experiences/api.js";
+import { registerConfigLibraryApi } from "../config-library/api.js";
 import { registerRoutingApi } from "../routing/api.js";
 import { registerPublicLinksApi } from "../public-links/api.js";
 import { registerPayrollApi } from "../payroll/api.js";
@@ -239,6 +240,14 @@ export async function buildApp() {
   void app.register(registerScopesApi, { prefix: "/v1/scopes" });
   void app.register(registerCrmAppApi, { prefix: "/v1/crm" });
   void app.register(registerGuidedExperiencesApi, { prefix: "/v1/guided-experiences" });
+  void app.register(registerConfigLibraryApi, { prefix: "/v1/config-library" });
+  // Development: read defaults from the live config library store (docs/architecture/config-library.md).
+  app.addHook("onReady", async () => {
+    const library = await import("../config-library/library.js");
+    await library.startLibrarySync().catch((error) => app.log.warn({ err: error }, "Config library sync did not start; serving the snapshot."));
+    // Library saves check entries against the registries; load them now so the first save takes milliseconds too.
+    if (library.libraryWritable()) setImmediate(() => { void import("../config-library/registries.js").then((module) => module.warmRegistryChecks()).catch(() => undefined); });
+  });
   void app.register(registerSignupSandboxApi, { prefix: "/v1/signup-sandbox" });
   void app.register(registerStatsApi, { prefix: "/v1/stats" });
   void app.register(registerTrainingApi, { prefix: "/v1/training" });

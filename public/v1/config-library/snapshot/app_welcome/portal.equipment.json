@@ -1,0 +1,42 @@
+{
+  "kind": "app_welcome",
+  "id": "portal.equipment",
+  "revision": 1,
+  "sha256": "154d2c066220c08c1246d9bacb1939c5629fbb0383cc366a5e5eb360f0aa6369",
+  "title": "portal.equipment: The right equipment for every job.",
+  "updated_at": "2026-10-28T00:40:02.983Z",
+  "updated_by": "generator",
+  "data": {
+    "theme": "equipment",
+    "eyebrow": {
+      "key": "gx_offer_equipment_name",
+      "text": "Equipment"
+    },
+    "headline": {
+      "key": "gx_offer_equipment_headline",
+      "text": "The right equipment for every job."
+    },
+    "description": {
+      "key": "gx_offer_equipment_description",
+      "text": "Connect the equipment you own or rent to the work your projects need."
+    },
+    "benefits": [
+      {
+        "key": "gx_offer_equipment_b1",
+        "text": "Keep your equipment and its capabilities together"
+      },
+      {
+        "key": "gx_offer_equipment_b2",
+        "text": "Match equipment to requirements from your scope of work"
+      },
+      {
+        "key": "gx_offer_equipment_b3",
+        "text": "Plan project equipment alongside materials and work orders"
+      }
+    ],
+    "caption": {
+      "key": "gx_offer_equipment_caption",
+      "text": "Your equipment. Connected to the work."
+    }
+  }
+}

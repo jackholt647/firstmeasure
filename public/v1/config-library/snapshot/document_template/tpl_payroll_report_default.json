@@ -1,0 +1,354 @@
+{
+  "kind": "document_template",
+  "id": "tpl_payroll_report_default",
+  "revision": 1,
+  "sha256": "f6111a9237795c4b765062ce6992e5b16d518258c576b4d205ca1509b20834dc",
+  "title": "Standard Payroll Report",
+  "updated_at": "2026-10-28T00:40:02.983Z",
+  "updated_by": "generator",
+  "data": {
+    "name": "Standard Payroll Report",
+    "document_type": "payroll_report",
+    "description": "Branded payroll report with configurable columns and rows.",
+    "status": "active",
+    "seeding": "every_organization",
+    "definition": {
+      "schema_version": 1,
+      "kind": "document",
+      "settings": {
+        "paper": {
+          "size": "letter",
+          "orientation": "landscape"
+        },
+        "locale": "en-US",
+        "base_font_pt": 11
+      },
+      "theme_ref": {
+        "theme_id": "thm_clean"
+      },
+      "params": {
+        "report_title": {
+          "type": "string",
+          "required": true
+        },
+        "coverage_label": {
+          "type": "string"
+        },
+        "generated_at": {
+          "type": "date"
+        },
+        "columns": {
+          "type": "list",
+          "items": {
+            "type": "object"
+          },
+          "required": true
+        },
+        "rows": {
+          "type": "list",
+          "items": {
+            "type": "object"
+          }
+        }
+      },
+      "computed": {},
+      "outputs": {},
+      "styles": {},
+      "components": {},
+      "chains": {},
+      "assets": [],
+      "edit_policy": {
+        "base_profile": "document",
+        "max_profile": "designer",
+        "features": {},
+        "unlock": {
+          "allowed": true
+        }
+      },
+      "metadata": {
+        "document_type": "payroll_report"
+      },
+      "pages": [
+        {
+          "id": "pg_e0uenl2rdh66d",
+          "role": "body",
+          "name": "Payroll Report",
+          "master_ref": null,
+          "repeat": null,
+          "children": [
+            {
+              "id": "nd_e0uenbz6aqo6p",
+              "type": "frame",
+              "name": "Body",
+              "frame": {
+                "x": 48,
+                "y": 80,
+                "w": 696,
+                "h": 484,
+                "rotation": 0,
+                "z": 0,
+                "layout": "flow",
+                "constraints": {
+                  "h": "stretch",
+                  "v": "top"
+                }
+              },
+              "style": {},
+              "locks": {},
+              "bind": null,
+              "visible": true,
+              "props": {
+                "background": null,
+                "clip": false,
+                "flow": {
+                  "direction": "column",
+                  "gap": 10,
+                  "padding": [
+                    0,
+                    0,
+                    0,
+                    0
+                  ],
+                  "align": "stretch",
+                  "wrap": false
+                },
+                "overflow": "paginate",
+                "page_region": "body"
+              },
+              "children": [
+                {
+                  "id": "nd_e0uenv8866m6g",
+                  "type": "image",
+                  "name": "",
+                  "frame": {
+                    "x": 0,
+                    "y": 0,
+                    "w": 150,
+                    "h": 32,
+                    "rotation": 0,
+                    "z": 0,
+                    "layout": "flow",
+                    "constraints": {
+                      "h": "left",
+                      "v": "top"
+                    }
+                  },
+                  "style": {},
+                  "locks": {},
+                  "bind": {
+                    "props": {
+                      "props.media": "{{org.logo_url}}"
+                    },
+                    "if": "not_empty(org.logo_url)"
+                  },
+                  "visible": true,
+                  "props": {
+                    "media": null,
+                    "fit": "contain",
+                    "focal": {
+                      "x": 0.5,
+                      "y": 0.5
+                    },
+                    "crop": null,
+                    "alt": "Company logo"
+                  },
+                  "anchor": "flow"
+                },
+                {
+                  "id": "nd_e0uene30mod6j",
+                  "type": "text",
+                  "name": "",
+                  "frame": {
+                    "x": 0,
+                    "y": 0,
+                    "w": 0,
+                    "h": "auto",
+                    "rotation": 0,
+                    "z": 0,
+                    "layout": "flow",
+                    "constraints": {
+                      "h": "left",
+                      "v": "top"
+                    }
+                  },
+                  "style": {
+                    "font": {
+                      "family": "var(--fm-display-font)",
+                      "size_pt": 20,
+                      "weight": 800
+                    }
+                  },
+                  "locks": {},
+                  "bind": null,
+                  "visible": true,
+                  "props": {
+                    "blocks": [
+                      {
+                        "id": "blk_e0uen88bq7s6h",
+                        "type": "paragraph",
+                        "align": "left",
+                        "runs": [
+                          {
+                            "text": "",
+                            "bind": "coalesce(params.report_title, 'Payroll Report')"
+                          }
+                        ]
+                      }
+                    ],
+                    "valign": "top",
+                    "auto_fit": false,
+                    "line_height": 1.4,
+                    "letter_spacing": 0
+                  },
+                  "anchor": "flow"
+                },
+                {
+                  "id": "nd_e0uenfb3cvy6m",
+                  "type": "text",
+                  "name": "",
+                  "frame": {
+                    "x": 0,
+                    "y": 0,
+                    "w": 0,
+                    "h": "auto",
+                    "rotation": 0,
+                    "z": 0,
+                    "layout": "flow",
+                    "constraints": {
+                      "h": "left",
+                      "v": "top"
+                    }
+                  },
+                  "style": {
+                    "font": {
+                      "family": "var(--fm-body-font)",
+                      "size_pt": 10,
+                      "weight": 700
+                    }
+                  },
+                  "locks": {},
+                  "bind": null,
+                  "visible": true,
+                  "props": {
+                    "blocks": [
+                      {
+                        "id": "blk_e0uenpejovj6k",
+                        "type": "paragraph",
+                        "align": "left",
+                        "runs": [
+                          {
+                            "text": "",
+                            "bind": "coalesce(params.coverage_label, '')"
+                          },
+                          {
+                            "text": "\nGenerated ",
+                            "font": {
+                              "size_pt": 8,
+                              "color": "var(--fm-color-muted)"
+                            }
+                          },
+                          {
+                            "text": "",
+                            "bind": "params.generated_at | date",
+                            "font": {
+                              "size_pt": 8,
+                              "color": "var(--fm-color-muted)"
+                            }
+                          }
+                        ]
+                      }
+                    ],
+                    "valign": "top",
+                    "auto_fit": false,
+                    "line_height": 1.4,
+                    "letter_spacing": 0
+                  },
+                  "anchor": "flow"
+                },
+                {
+                  "id": "nd_e0uen4hde3o6n",
+                  "type": "frame",
+                  "name": "Spacer",
+                  "frame": {
+                    "x": 0,
+                    "y": 0,
+                    "w": 0,
+                    "h": 4,
+                    "rotation": 0,
+                    "z": 0,
+                    "layout": "flow",
+                    "constraints": {
+                      "h": "left",
+                      "v": "top"
+                    }
+                  },
+                  "style": {},
+                  "locks": {},
+                  "bind": null,
+                  "visible": true,
+                  "props": {
+                    "background": null,
+                    "clip": false,
+                    "flow": {
+                      "direction": "column",
+                      "gap": 8,
+                      "padding": [
+                        0,
+                        0,
+                        0,
+                        0
+                      ],
+                      "align": "stretch",
+                      "wrap": false
+                    },
+                    "overflow": "visible"
+                  },
+                  "children": [],
+                  "anchor": "flow"
+                },
+                {
+                  "id": "nd_e0uen6745ep6o",
+                  "type": "widget",
+                  "name": "",
+                  "frame": {
+                    "x": 0,
+                    "y": 0,
+                    "w": 0,
+                    "h": "auto",
+                    "rotation": 0,
+                    "z": 0,
+                    "layout": "flow",
+                    "constraints": {
+                      "h": "left",
+                      "v": "top"
+                    }
+                  },
+                  "style": {},
+                  "locks": {},
+                  "bind": null,
+                  "visible": true,
+                  "props": {
+                    "widget": "doc.report_table@1",
+                    "config": {
+                      "columns": "params.columns",
+                      "rows": "params.rows"
+                    }
+                  },
+                  "anchor": "flow"
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    "metadata": {
+      "system": true
+    },
+    "initial_metadata": {
+      "default": true
+    },
+    "requires_pricebook_items": [],
+    "pricebook_defaults": []
+  }
+}

@@ -1,0 +1,15 @@
+{
+  "kind": "work_item",
+  "id": "roofing.ridge_cap",
+  "revision": 1,
+  "sha256": "aff70c1d0ea13d15955b300be52d4e83ef4911167319d9af3e220fcea3705f5a",
+  "title": "Hip and ridge cap",
+  "updated_at": "2026-10-28T00:40:02.983Z",
+  "updated_by": "generator",
+  "data": {
+    "label": "Hip and ridge cap",
+    "kind": "work",
+    "unit": "ft",
+    "description": "Cap the hips and ridges."
+  }
+}

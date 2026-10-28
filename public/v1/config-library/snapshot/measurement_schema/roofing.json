@@ -1,0 +1,120 @@
+{
+  "kind": "measurement_schema",
+  "id": "roofing",
+  "revision": 1,
+  "sha256": "b40efbaf78e11a9c5e773fb1dc777bf761c0b0d680567846a98f3e103d79ccc0",
+  "title": "Roofing",
+  "updated_at": "2026-10-28T00:40:02.983Z",
+  "updated_by": "generator",
+  "data": {
+    "version": "2",
+    "title": "Roofing",
+    "description": "Sloped and flat roof replacement, repair and maintenance.",
+    "measurements": [
+      {
+        "definition": "roof.area",
+        "required": true
+      },
+      {
+        "definition": "roof.squares",
+        "required": true
+      },
+      {
+        "definition": "roof.ventilation_squares",
+        "required": false
+      },
+      {
+        "definition": "roof.squares_hand_carried",
+        "required": false
+      },
+      {
+        "definition": "roof.flat_squares",
+        "required": false
+      },
+      {
+        "definition": "roof.squares_2_to_4",
+        "required": false
+      },
+      {
+        "definition": "roof.squares_4_to_6",
+        "required": false
+      },
+      {
+        "definition": "roof.squares_6_to_8",
+        "required": false
+      },
+      {
+        "definition": "roof.squares_9_to_12",
+        "required": false
+      },
+      {
+        "definition": "roof.squares_13_plus",
+        "required": false
+      },
+      {
+        "definition": "roof.squares_at_pitch",
+        "required": false
+      },
+      {
+        "definition": "roof.ridge_length",
+        "required": false
+      },
+      {
+        "definition": "roof.hip_length",
+        "required": false
+      },
+      {
+        "definition": "roof.valley_length",
+        "required": false
+      },
+      {
+        "definition": "roof.rake_length",
+        "required": false
+      },
+      {
+        "definition": "roof.eave_length",
+        "required": false
+      },
+      {
+        "definition": "roof.head_wall_length",
+        "required": false
+      },
+      {
+        "definition": "roof.side_wall_length",
+        "required": false
+      },
+      {
+        "definition": "roof.transition_length",
+        "required": false
+      },
+      {
+        "definition": "roof.parapet_length",
+        "required": false
+      },
+      {
+        "definition": "roof.protrusion_length",
+        "required": false
+      },
+      {
+        "definition": "roof.chimney_back_length",
+        "required": false
+      },
+      {
+        "definition": "roof.chimney_step_length",
+        "required": false
+      },
+      {
+        "definition": "roof.chimney_apron_length",
+        "required": false
+      },
+      {
+        "definition": "roof.skylight_length",
+        "required": false
+      },
+      {
+        "definition": "roof.unclassified_length",
+        "required": false
+      }
+    ]
+  }
+}

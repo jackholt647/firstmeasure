@@ -21,22 +21,36 @@ test('the MVP platform workflow is FirstMeasure plus projects, contacts, feed, o
  assert.ok(workflow);
  assert.deepEqual((workflow!.stages as any[]).map(stage=>stage.page_id),['spg_firstmate_landing','spg_firstmate_signup','spg_firstmate_branding','spg_firstmate_users','spg_firstmate_account_load']);
 
- // A saved copy from an older configuration revision is replaced by the configuration file.
- await sandboxStore.saveWorkflow({...workflow,configuration_revision:1,defaults:{...(workflow!.defaults as any),app_flags:{...(workflow!.defaults as any).app_flags,'platform.top_bar':false}}});
+ // The workflow is a copy of the config library entry sandbox_configuration/swf_mvp_platform and records where it came from.
+ const library=await import('../config-library/library.js');
+ const entry=library.libraryEntry('sandbox_configuration','swf_mvp_platform')!;
+ assert.deepEqual([(workflow as any).library.kind,(workflow as any).library.revision,(workflow as any).library.sha256],['sandbox_configuration',entry.revision,entry.sha256]);
+ assert.deepEqual(await service.libraryWorkflowStatus().then(rows=>rows.find(row=>row.id==='swf_mvp_platform')?.state),'library');
+ // A newer library revision replaces a copy nobody edited.
+ const {saveLibraryEntry}=await import('../platform/capability-library.js');
+ const author={kind:'person' as const,id:'operator@1m8.test'};
+ const newer=structuredClone(entry.data) as any;newer.defaults.app_flags['platform.top_bar']=false;
+ await saveLibraryEntry('sandbox_configuration','swf_mvp_platform',newer,author);
+ await service.ensureSeedData();
+ assert.equal(((await sandboxStore.readWorkflow('swf_mvp_platform'))!.defaults as any).app_flags['platform.top_bar'],false,'an untouched copy follows the library');
+ // A copy edited in the sandbox is never touched by a library change until it is reset.
+ await service.updateWorkflow('swf_mvp_platform',{defaults:{...((await sandboxStore.readWorkflow('swf_mvp_platform'))!.defaults as any),app_flags:{...((await sandboxStore.readWorkflow('swf_mvp_platform'))!.defaults as any).app_flags,'platform.scheduling':true}}});
+ assert.equal((await service.libraryWorkflowStatus()).find(row=>row.id==='swf_mvp_platform')?.state,'changed');
+ await saveLibraryEntry('sandbox_configuration','swf_mvp_platform',structuredClone(entry.data),author);
+ await service.ensureSeedData();
+ const kept=(await sandboxStore.readWorkflow('swf_mvp_platform'))!.defaults as any;
+ assert.equal(kept.app_flags['platform.scheduling'],true,'an edited copy is kept');assert.equal(kept.app_flags['platform.top_bar'],false);
+ await service.resetWorkflowToLibrary('swf_mvp_platform');
+ const reset=(await sandboxStore.readWorkflow('swf_mvp_platform'))!;
+ assert.equal((reset.defaults as any).app_flags['platform.scheduling'],undefined);assert.equal((reset.defaults as any).app_flags['platform.top_bar'],true);
+ assert.equal((await service.libraryWorkflowStatus()).find(row=>row.id==='swf_mvp_platform')?.state,'library');
+ // A copy saved before configurations were library entries (no stamp) is replaced once.
+ const {library:_stamp,...legacy}=reset as any;
+ await sandboxStore.saveWorkflow({...legacy,configuration_revision:22,defaults:{...legacy.defaults,app_flags:{...legacy.defaults.app_flags,'platform.top_bar':false}}});
  await service.ensureSeedData();
  assert.equal(((await sandboxStore.readWorkflow('swf_mvp_platform'))!.defaults as any).app_flags['platform.top_bar'],true);
- // An edited workflow at the current revision is kept: the seed never overwrites it.
- const edited={...(workflow!.defaults as any),app_flags:{...(workflow!.defaults as any).app_flags,'platform.scheduling':true}};
- await sandboxStore.saveWorkflow({...workflow,defaults:edited});
- await service.ensureSeedData();
- assert.equal(((await sandboxStore.readWorkflow('swf_mvp_platform'))!.defaults as any).app_flags['platform.scheduling'],true);
- await sandboxStore.saveWorkflow(workflow!);
- // A capability added after the seed reaches the saved workflow, off; one already set is left as it is.
- const withoutTray={...(workflow!.defaults as any).app_flags};delete withoutTray['channels.project_messages_tray'];
- await sandboxStore.saveWorkflow({...workflow,defaults:{...(workflow!.defaults as any),app_flags:withoutTray}});
- await service.ensureSeedData();
- assert.equal(((await sandboxStore.readWorkflow('swf_mvp_platform'))!.defaults as any).app_flags['channels.project_messages_tray'],false);
- await sandboxStore.saveWorkflow(workflow!);
+ // Capabilities that need expanded access start off whatever the registry adds later: the workflow names a base.
+ assert.equal((workflow as any).app_flags_base,'expanded_access_off');
 
  const instance=await service.createTestInstance('swf_mvp_platform',{label:'MVP platform fixture'});
  const orgId=String(instance.testOrg.org_id);
@@ -46,7 +60,7 @@ test('the MVP platform workflow is FirstMeasure plus projects, contacts, feed, o
  // Money (its project tab and Financials) and Checklists are configured on but wait for Get Started.
  for(const key of ['platform.money','money.profitability','money.take_payment','apps.checklists']) assert.equal(beforeStart.effectiveByKey[key],false,`${key} waits for Get Started`);
  // Merchant processing stays off until Money's setup starts it, so no payments onboarding banner shows before then.
- assert.equal((workflow!.defaults as any).app_flags['money.merchant_processing'],false);
+ assert.equal(beforeStart.effectiveByKey['money.merchant_processing'],false);
  const {computeMoneyOnboardingEntries}=await import('../payments/onboarding_attention.js');
  assert.deepEqual(await computeMoneyOnboardingEntries(orgId),[]);
  const ownerBefore:any=(await storage.listDocuments(orgId,'users')).find((row:any)=>row.data?.role==='owner');
@@ -72,7 +86,6 @@ test('the MVP platform workflow is FirstMeasure plus projects, contacts, feed, o
  // Accepting Equipment enables its standard fixed feature set; the main Scheduling app remains off.
  assert.equal(effectiveByKey['equipment.scheduling'],true);
  // Materials settings has no Resource categories sub-tab in the MVP; the capability is on by default elsewhere.
- assert.equal((workflow!.defaults as any).app_flags['materials.resource_categories'],false);
  assert.equal(effectiveByKey['materials.resource_categories'],false);
  // Report follow-up (the Reports tab's Support view, and so its tour step) is off, named explicitly, as the default
  // FirstMeasure signup leaves it.
@@ -88,8 +101,11 @@ test('the MVP platform workflow is FirstMeasure plus projects, contacts, feed, o
  const {appFlagState}=await import('../platform/app_flags.js');
  assert.deepEqual((await appFlagState(orgId)).project_tabs,projectTabs);
  const {readTerminologyMappings}=await import('../platform/localization/terminology-settings.js');
- assert.equal((await readTerminologyMappings(orgId,'default') as any).labels.scope.project_tab,'Operations');
- // The configuration's setup script: Generic Roofing installed, every new project starts it, other presets off.
+ // Organizations store overrides only: the configuration's "Operations" is the library default, so it reads as no override.
+ await import('../platform/localization/terminology-defaults.js');
+ const {terminologyDefault}=await import('../platform/localization/terminology.js');
+ assert.equal((await readTerminologyMappings(orgId,'default') as any).labels?.scope?.project_tab??terminologyDefault('scope.project_tab'),'Operations');
+ // The configuration's setup steps: Generic Roofing installed, every new project starts it, other presets off.
  const router=await import('../scopes/router.js');const scopes=await import('../scopes/storage.js');const creation=await import('../projects/create.js');
  const routing=await router.readIntakeRouting(orgId);
  assert.equal(routing.manual_template_id,'generic_roofing');assert.equal(routing.default_template_id,'generic_roofing');
@@ -98,14 +114,14 @@ test('the MVP platform workflow is FirstMeasure plus projects, contacts, feed, o
  const roofing=await scopes.readScopeTemplate(orgId,'default','generic_roofing');
  assert.deepEqual((roofing as any).definition?.measurement_schema_ids ?? (roofing as any).measurement_schema_ids,['roofing']);
  assert.equal(String((await creation.creationScopeTemplate(orgId,'default')).id),'generic_roofing');
- assert.equal((workflow as any).dev_bar,false);assert.equal((workflow as any).configuration_revision,22);
+ assert.equal((workflow as any).dev_bar,false);
  const resolved=(await capabilities.effectiveCapabilities(orgId)).values as any;
  assert.equal(resolved['platform.new_button_mode'],'selector');assert.equal(resolved['platform.new_button_items'],'report,project,contact');
  // The left column's footer is stacked: the account on its own row, named explicitly as well as being the default.
  assert.equal((workflow!.defaults as any).app_flags['platform.sidebar_footer_layout'],'stacked');assert.equal(resolved['platform.sidebar_footer_layout'],'stacked');
  // Turned on as configuration even where this checkout's registry does not define it (dev's does).
  assert.equal((workflow!.defaults as any).app_flags['firstmeasure.roof_model_viewer'],true);
- assert.equal((workflow as any).sample_data,true);assert.deepEqual((workflow as any).setup_scripts,['mvp-platform']);assert.deepEqual((workflow as any).launch_sample_data,[]);
+ assert.equal((workflow as any).sample_data,true);assert.deepEqual((workflow as any).setup.map((step:any)=>step.action),['sandbox.scopeTemplate.install','sandbox.intakeRouting.setDefault','sandbox.scopeFlags.only']);assert.deepEqual((workflow as any).launch_sample_data,[]);
  // Generic Roofing's board follows the report and the documents: five stages, in order.
  const definition=(roofing as any).definition;
  assert.deepEqual(definition.work_plan.root_nodes[0].children.map((stage:any)=>stage.title),['New project','Measurements ordered','Measurements received','Proposal created','Materials created']);

@@ -1,0 +1,238 @@
+{
+  "kind": "guided_experience",
+  "id": "materials.tab_tutorial",
+  "revision": 1,
+  "sha256": "d78f13d8f67534d918bc36ee39a36fc5e7c70b79ac2045d6784d9f4fb7d92f7d",
+  "title": "Operations tour",
+  "updated_at": "2026-10-28T00:40:02.983Z",
+  "updated_by": "generator",
+  "data": {
+    "id": "materials.tab_tutorial",
+    "version": 1,
+    "kind": "overlay",
+    "scope": "person",
+    "salt": "2026-10",
+    "title": {
+      "key": "gx_operations_tour_title",
+      "text": "Operations tour"
+    },
+    "tab": "project.materials",
+    "eligibility": {
+      "capabilities": [
+        "platform.materials"
+      ],
+      "permissions": []
+    },
+    "triggers": [
+      {
+        "kind": "after_experience",
+        "experience": "operations.setup",
+        "once": true
+      },
+      {
+        "kind": "tab_opened",
+        "tab": "project.materials",
+        "once": true,
+        "delay_ms": 900,
+        "when": {
+          "match": "any",
+          "rules": [
+            {
+              "field": "organization.finished",
+              "operator": "contains",
+              "value": "operations.setup"
+            },
+            {
+              "field": "person.eligible",
+              "operator": "not_contains",
+              "value": "operations.setup"
+            }
+          ]
+        }
+      }
+    ],
+    "variants": [
+      {
+        "id": "tour",
+        "weight": 1,
+        "content": {}
+      }
+    ],
+    "requires": [],
+    "steps": [
+      {
+        "id": "intro",
+        "title": {
+          "key": "gx_operations_intro_title",
+          "text": "Welcome to Operations"
+        },
+        "body": {
+          "key": "gx_operations_intro_body",
+          "text": "Plan your materials, labor and equipment here. Start a list now, or generate one from measurements when they're ready. Here's a quick look around."
+        },
+        "targets": [],
+        "placement": "center",
+        "advance": "next",
+        "wait_ms": 1500
+      },
+      {
+        "id": "generate",
+        "title": {
+          "key": "gx_mt_generate_title",
+          "text": "Generate"
+        },
+        "body": {
+          "key": "gx_mt_generate_body",
+          "text": "Builds the lists again from the measurements and your price book. Lists you've ordered are never touched."
+        },
+        "targets": [
+          "[data-mt-generate-materials]"
+        ],
+        "placement": "auto",
+        "advance": "next",
+        "wait_ms": 1500
+      },
+      {
+        "id": "lists",
+        "title": {
+          "key": "gx_mt_lists_title",
+          "text": "Your lists"
+        },
+        "body": {
+          "key": "gx_mt_lists_body",
+          "text": "Materials, labor and equipment each get a column. Click any quantity or price to change it."
+        },
+        "targets": [
+          ".mt-resource-column"
+        ],
+        "placement": "auto",
+        "advance": "next",
+        "wait_ms": 1500
+      },
+      {
+        "id": "pricebook",
+        "title": {
+          "key": "gx_mt_pricebook_title",
+          "text": "Price book"
+        },
+        "body": {
+          "key": "gx_mt_pricebook_body",
+          "text": "Add anything from your price book to a list."
+        },
+        "targets": [
+          "[data-mt-open-pricebook]"
+        ],
+        "placement": "auto",
+        "advance": "next",
+        "wait_ms": 1500
+      },
+      {
+        "id": "add",
+        "title": {
+          "key": "gx_mt_add_title",
+          "text": "Add a line"
+        },
+        "body": {
+          "key": "gx_mt_add_body",
+          "text": "Add a one-off item that isn't in your price book."
+        },
+        "targets": [
+          "[data-mt-add-custom]"
+        ],
+        "placement": "auto",
+        "advance": "next",
+        "wait_ms": 1500
+      },
+      {
+        "id": "units",
+        "title": {
+          "key": "gx_mt_units_title",
+          "text": "Squares or bundles"
+        },
+        "body": {
+          "key": "gx_mt_units_body",
+          "text": "Switch between the measured amounts and what you actually order: bundles, rolls and boxes."
+        },
+        "targets": [
+          "[data-mt-units-toggle]"
+        ],
+        "placement": "auto",
+        "advance": "next",
+        "wait_ms": 1500
+      },
+      {
+        "id": "total",
+        "title": {
+          "key": "gx_mt_total_title",
+          "text": "Projected total"
+        },
+        "body": {
+          "key": "gx_mt_total_body",
+          "text": "What every list on this project should cost, delivery included."
+        },
+        "targets": [
+          "[data-mt-projected-total]"
+        ],
+        "placement": "auto",
+        "advance": "next",
+        "wait_ms": 1500
+      },
+      {
+        "id": "order",
+        "title": {
+          "key": "gx_mt_order_title",
+          "text": "Order"
+        },
+        "body": {
+          "key": "gx_mt_order_body",
+          "text": "Email each list to its supplier, make a purchase order or a shopping list."
+        },
+        "targets": [
+          "[data-mt-order-all]"
+        ],
+        "placement": "auto",
+        "advance": "next",
+        "wait_ms": 1500
+      },
+      {
+        "id": "agent",
+        "title": {
+          "key": "gx_mt_agent_title",
+          "text": "Ask me"
+        },
+        "body": {
+          "key": "gx_mt_agent_body",
+          "text": "I can press these buttons for you. Try \"Generate the materials list for me\", or ask how anything here works."
+        },
+        "targets": [
+          ".fm-project-tray-tabs [data-tray=\"agent\"]"
+        ],
+        "placement": "left",
+        "advance": "next",
+        "wait_ms": 1500
+      },
+      {
+        "id": "outro",
+        "title": {
+          "key": "gx_mt_outro_title",
+          "text": "You're all set"
+        },
+        "body": {
+          "key": "gx_mt_outro_body",
+          "text": "Want this tour again? Ask the agent \"Show me the tutorial again\"."
+        },
+        "targets": [],
+        "placement": "center",
+        "advance": "next",
+        "wait_ms": 1500
+      }
+    ],
+    "completion": {
+      "screen": "pricebook",
+      "say": [],
+      "then": []
+    },
+    "replayable": true,
+    "reveal": []
+  }
+}

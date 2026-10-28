@@ -199,14 +199,14 @@ export async function applyCrmPreset(orgId: string, input: { industry: IndustryP
   const rescission = PACK_RESCISSION[pack];
   if (rescission && !(await hasModule(orgId, RESCISSION_MODULE))) { await saveRescission(orgId, rescission); added.rescission = true; }
 
-  const { INDUSTRY_SCOPE_TEMPLATES } = await import("../scopes/presets/industry.js");
-  const { readScopeTemplate, saveScopeTemplate } = await import("../scopes/storage.js");
+  // The pack's scopes are scope library entries (scopes/library.ts), copied once.
+  const { scopeLibraryEntry } = await import("../scopes/library.js");
+  const { installLibraryScopeTemplate, readScopeTemplate } = await import("../scopes/storage.js");
   for (const id of INDUSTRY_PACKS[pack].scopes) {
-    const make = INDUSTRY_SCOPE_TEMPLATES[id];
-    if (!make) continue;
+    if (!scopeLibraryEntry(id)) continue;
     const exists = await readScopeTemplate(orgId, "default", id).then(() => true, (error) => { if (error instanceof PlatformError && error.statusCode === 404) return false; throw error; });
     if (exists) continue;
-    await saveScopeTemplate(orgId, "default", make() as unknown as JsonObject, { systemPreset: true });
+    await installLibraryScopeTemplate(orgId, "default", id);
     (added.scopes as string[]).push(id);
   }
 

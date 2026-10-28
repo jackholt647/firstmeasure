@@ -6,15 +6,6 @@
   const runtime = rootWindow.FirstMateEmbeddableApps;
   const Portal = rootWindow.Portal = rootWindow.Portal || {};
   const rawShowToast = Portal?.ui?.showToast || rootWindow.showToast || (() => {});
-  const MONEY_TERM_DEFAULTS = Object.freeze({
-    workspace:'Money', overview:'Overview', invoices:'Invoices', recurring:'Recurring', expense_lists:'Expense Lists', receipts:'Receipts', commissions:'Commissions', reports:'Reports',
-    ledger:'Ledger', payments:'Payments', expenses:'Expenses', activity:'Activity', transaction:'Transaction', transactions:'Transactions', receipt:'Receipt',
-    money_in:'Money In', money_out:'Money Out', balance:'Balance', revenue:'Revenue', collected:'Collected', remaining:'Remaining', cost_forecast:'Cost Forecast', forecast_profit:'Forecast Profit', profit_to_date:'Profit To Date', payment_schedule:'Payment Schedule',
-    collected_payment:'Collected Payment', collected_payments:'Collected Payments', scheduled_payment:'Scheduled Payment', scheduled_payments:'Scheduled Payments', add_collected_payment:'Add Collected Payment', save_collected_payment:'Save Collected Payment', take_collected_payment:'Take a Collected Payment',
-    expense:'Expense', add_expense:'Add Expense', expense_list:'Expense List', recipient:'Recipient', invoice:'Invoice', invoice_history:'Invoice History', generate_invoice:'Generate Invoice', invoice_items:'Invoice Items', invoice_total:'Invoice Total',
-    recurring_agreements:'Recurring Agreements', recurring_totals:'Recurring Totals', project_expenses:'Project Expenses', projected:'Projected', tracked_actual:'Tracked Actual', variance:'Variance', current_forecast:'Current Forecast',
-    commission_payment:'Commission Payment', commission_payments:'Commission Payments', commission_recipient:'Commission Recipient', commission_recipients:'Commission Recipients', upcoming:'Upcoming', accrued:'Accrued', timing:'Timing'
-  });
 
   function showToast(title, bodyOrStatus = '', okValue){
     const statusOnly = ['success', 'error'].includes(cleanText(bodyOrStatus).toLowerCase()) && okValue == null;
@@ -37,7 +28,6 @@
     events: [],
     invoices: [],
     invoiceSettings: { sales_tax_enabled:true, default_sales_tax_percent:0 },
-    moneyTerms: { ...MONEY_TERM_DEFAULTS },
     reports: null,
     reportTemplates: [],
     reportGenerating: false,
@@ -142,8 +132,13 @@
     return cleanText(state.project?.id, state.context?.projectId, state.context?.entityId);
   }
 
-  function term(key, fallback = ''){
-    return cleanText(state.moneyTerms?.[key], fallback, MONEY_TERM_DEFAULTS[key], titleText(key));
+  // Money's words are config library terminology (namespace `money`), resolved with the organization's
+  // overrides by PlatformTerminology; a key the library lacks reads as the key itself.
+  function term(key){
+    return cleanText(rootWindow.PlatformTerminology?.get?.(`money.${key}`, titleText(key)), titleText(key));
+  }
+  function moneyTerms(){
+    return Object.fromEntries(Object.keys(rootWindow.PlatformTerminology?.DEFAULT_LABELS?.money || {}).map((key) => [key, term(key)]));
   }
 
   function canManageMoney(){
@@ -264,7 +259,6 @@
       state.events = [];
       state.invoices = [];
       state.invoiceSettings = { sales_tax_enabled:true, default_sales_tax_percent:0 };
-      state.moneyTerms = { ...MONEY_TERM_DEFAULTS };
       state.error = 'Payments API is not available for this project.';
       renderAll();
       return;
@@ -276,11 +270,11 @@
     state.error = '';
     renderAll();
     try {
-      const [summaryResult, eventsResult, invoiceResult, terminologyResult, autopayResult] = await Promise.all([
+      const [summaryResult, eventsResult, invoiceResult, , autopayResult] = await Promise.all([
         rootWindow.PaymentsAPI.projects.summary(requestedOrgId, requestedProjectId),
         rootWindow.PaymentsAPI.events?.list ? rootWindow.PaymentsAPI.events.list(requestedOrgId, { project_id: requestedProjectId }).catch(() => ({ events: [] })) : Promise.resolve({ events: [] }),
         rootWindow.PaymentsAPI.invoices?.list ? rootWindow.PaymentsAPI.invoices.list(requestedOrgId, requestedProjectId).catch(() => ({ invoices: [] })) : Promise.resolve({ invoices: [] }),
-        rootWindow.PlatformScheduling?.loadBranchConfig ? rootWindow.PlatformScheduling.loadBranchConfig(requestedOrgId, branchId()).catch(() => null) : Promise.resolve(null),
+        Promise.resolve(rootWindow.PlatformTerminology?.ready?.()).catch(() => null),
         rootWindow.PaymentsAPI.autopay?.get ? rootWindow.PaymentsAPI.autopay.get(requestedOrgId, requestedProjectId).catch(() => ({ autopay: null })) : Promise.resolve({ autopay: null })
       ]);
       if (sequence !== state.loadSequence || requestedProjectId !== projectId() || requestedOrgId !== orgId()) return;
@@ -291,7 +285,6 @@
         sales_tax_enabled: invoiceResult.settings?.sales_tax_enabled !== false,
         default_sales_tax_percent: Math.min(100, Math.max(0, Number(invoiceResult.settings?.default_sales_tax_percent || 0)))
       };
-      state.moneyTerms = { ...MONEY_TERM_DEFAULTS, ...(terminologyResult?.mappings?.labels?.money || {}) };
       state.autopay = autopayResult?.autopay || null;
       // Provider + saved-method availability drives the autopay affordance.
       await refreshPaymentIntakeConfig().catch(() => null);
@@ -305,7 +298,6 @@
       state.events = [];
       state.invoices = [];
       state.invoiceSettings = { sales_tax_enabled:true, default_sales_tax_percent:0 };
-      state.moneyTerms = { ...MONEY_TERM_DEFAULTS };
     } finally {
       if (sequence !== state.loadSequence) return;
       state.loading = false;
@@ -723,7 +715,7 @@
     const route = rootWindow.Portal?.navigation?.read?.() || {};
     state.receiptBrowserHandle = rootWindow.Portal.ReceiptsBrowser.mount(mount, {
       scope:'project', orgId:orgId(), project:state.project, receipts:expenseData().receipts || [],
-      terminology:{ ...state.moneyTerms },
+      terminology:moneyTerms(),
       initialReceiptId:route.moneyView === 'receipts' ? route.receipt : '',
       onReview:(receipt) => {
         state.receiptOperationSequence += 1;
@@ -2512,7 +2504,6 @@
     state.events = [];
     state.invoices = [];
     state.invoiceSettings = { sales_tax_enabled:true, default_sales_tax_percent:0 };
-    state.moneyTerms = { ...MONEY_TERM_DEFAULTS };
     state.error = '';
     state.notice = '';
     state.activeScheduleId = 'all';
@@ -2540,15 +2531,14 @@
     reset();
   }
 
+  // A save of the organization's wording reloads it (PlatformTerminology announces the new words, and every
+  // change of words, including the library terms arriving, repaints the tab).
   async function refreshMoneyTerminology(event){
     if (cleanText(event?.detail?.moduleId) !== 'variable_mappings' || !state.active || !orgId()) return;
-    try {
-      const config = await rootWindow.PlatformScheduling?.refreshBranchConfig?.(orgId(), branchId());
-      state.moneyTerms = { ...MONEY_TERM_DEFAULTS, ...(config?.mappings?.labels?.money || {}) };
-      renderAll();
-    } catch (_) {}
+    try { await rootWindow.PlatformTerminology?.refresh?.(orgId(), branchId()); } catch (_) {}
   }
   rootWindow.addEventListener('fm:branch-module:updated', refreshMoneyTerminology);
+  rootWindow.addEventListener('fm:terminology:updated', () => { if (state.active && state.host) renderAll(); });
 
   const api = {
     mount,

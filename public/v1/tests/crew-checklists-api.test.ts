@@ -180,8 +180,8 @@ test("Project checklists support audiences, ratings, notes, and role permissions
     // Checklists are pure scope data now — no blessed defaults. Instantiate
     // the repairs template's checklists the way a scope activation does.
     const { initializeProjectChecklistsFromScope } = await import("../workforce/crew_storage.js");
-    const { DEFAULT_SCOPE_TEMPLATES } = await import("../scopes/presets/index.js");
-    const repairs = DEFAULT_SCOPE_TEMPLATES.find((template: any) => template.id === "repairs") as any;
+    const { libraryCopy } = await import("../config-library/library.js");
+    const repairs = libraryCopy("scope_template", "repairs") as any;
     (await initializeProjectChecklistsFromScope(orgId, projectId, repairs, "repairs"));
     const memberView = await member.client.request("GET", base);
     assert.equal(memberView.checklists.length, 2);
@@ -473,8 +473,8 @@ test("Project checklists support audiences, ratings, notes, and role permissions
     const scopeProjectId = "scoped_project";
     await seedProject(orgId, scopeProjectId, [member.userId]);
     const { initializeProjectChecklistsFromScope } = await import("../workforce/crew_storage.js");
-    const { DEFAULT_SCOPE_TEMPLATES } = await import("../scopes/presets/index.js");
-    const roofing = DEFAULT_SCOPE_TEMPLATES.find((template: Json) => template.id === "roof_replacement");
+    const { libraryCopy } = await import("../config-library/library.js");
+    const roofing = libraryCopy("scope_template", "roof_replacement") as Json;
     assert.ok(Array.isArray((roofing as Json).checklists) && (roofing as Json).checklists.length === 3);
     (await initializeProjectChecklistsFromScope(orgId, scopeProjectId, roofing, "roof_replacement"));
 

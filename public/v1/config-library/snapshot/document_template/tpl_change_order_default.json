@@ -1,0 +1,2560 @@
+{
+  "kind": "document_template",
+  "id": "tpl_change_order_default",
+  "revision": 1,
+  "sha256": "a38d7d3f75cfcdbdf94495a63cadcfca78fa3b9214462884f90eb97aca280515",
+  "title": "Change Order",
+  "updated_at": "2026-10-28T00:40:02.983Z",
+  "updated_by": "generator",
+  "data": {
+    "name": "Change Order",
+    "document_type": "change_order",
+    "description": "Added or changed work on a signed agreement: what changes, the new contract total, how it is paid, and the customer's approval.",
+    "status": "active",
+    "seeding": "every_organization",
+    "definition": {
+      "schema_version": 1,
+      "kind": "document",
+      "settings": {
+        "paper": {
+          "size": "letter",
+          "orientation": "portrait"
+        },
+        "locale": "en-US",
+        "base_font_pt": 11
+      },
+      "theme_ref": {
+        "theme_id": "thm_margin"
+      },
+      "params": {
+        "project": {
+          "type": "entity",
+          "entity": "project"
+        },
+        "customer": {
+          "type": "entity",
+          "entity": "contact"
+        },
+        "source_document_id": {
+          "type": "string"
+        },
+        "change_date": {
+          "type": "date",
+          "label": "Date"
+        },
+        "reason": {
+          "type": "text",
+          "label": "What is changing and why",
+          "required": true
+        },
+        "scope_items": {
+          "type": "list",
+          "items": {
+            "type": "pricebook_line"
+          },
+          "required": true,
+          "label": "Added or changed work"
+        },
+        "show_line_prices": {
+          "type": "boolean",
+          "default": true
+        },
+        "tax_percent": {
+          "type": "percent",
+          "label": "Tax percent"
+        },
+        "payment_schedule": {
+          "type": "payment_schedule",
+          "label": "Payment",
+          "default": [
+            {
+              "id": "change_order",
+              "label": "Change order",
+              "kind": "percent",
+              "percent": 100,
+              "payment_kind": "change_order",
+              "due_rule": "on_receipt"
+            }
+          ]
+        },
+        "account": {
+          "type": "object",
+          "source": "project_account"
+        },
+        "change_cents": {
+          "type": "currency"
+        },
+        "new_total_cents": {
+          "type": "currency"
+        },
+        "due_now_cents": {
+          "type": "currency"
+        },
+        "deposit_at_signing": {
+          "type": "boolean",
+          "default": false
+        },
+        "customer_choice_count": {
+          "type": "number",
+          "default": 0
+        }
+      },
+      "computed": {
+        "subtotal_cents": "sum(params.scope_items[].amount_cents)",
+        "tax_cents": "round(computed.subtotal_cents * coalesce(params.tax_percent, 0) / 100)",
+        "total_cents": "computed.subtotal_cents + computed.tax_cents"
+      },
+      "outputs": {
+        "sig_customer": {
+          "type": "signature",
+          "required": true,
+          "signer": "customer"
+        },
+        "payment": {
+          "type": "payment"
+        }
+      },
+      "styles": {
+        "li_name": {
+          "family": "var(--fm-body-font)",
+          "size_pt": 10.5,
+          "weight": 700,
+          "color": "var(--fm-text)"
+        },
+        "li_meta": {
+          "family": "var(--fm-body-font)",
+          "size_pt": 8.5,
+          "weight": 400,
+          "color": "var(--fm-color-muted)"
+        },
+        "li_amount": {
+          "family": "var(--fm-body-font)",
+          "size_pt": 10.5,
+          "weight": 700,
+          "color": "var(--fm-text)"
+        },
+        "li_total": {
+          "family": "var(--fm-display-font)",
+          "size_pt": 13,
+          "weight": 800,
+          "color": "var(--fm-text)"
+        }
+      },
+      "components": {
+        "li_header": {
+          "params": {},
+          "root": {
+            "id": "nd_e0uemgnwgwp52",
+            "type": "frame",
+            "name": "",
+            "frame": {
+              "x": 0,
+              "y": 0,
+              "w": 0,
+              "h": "auto",
+              "rotation": 0,
+              "z": 0,
+              "layout": "flow",
+              "constraints": {
+                "h": "left",
+                "v": "top"
+              }
+            },
+            "style": {
+              "fill": {
+                "type": "solid",
+                "color": "var(--fm-primary)"
+              }
+            },
+            "locks": {},
+            "bind": null,
+            "visible": true,
+            "props": {
+              "background": null,
+              "clip": false,
+              "flow": {
+                "direction": "row",
+                "gap": 8,
+                "padding": [
+                  5,
+                  8,
+                  5,
+                  8
+                ],
+                "align": "center",
+                "wrap": false
+              },
+              "overflow": "visible"
+            },
+            "children": [
+              {
+                "id": "nd_e0uem3bwyvd4v",
+                "type": "text",
+                "name": "",
+                "frame": {
+                  "x": 0,
+                  "y": 0,
+                  "w": 0,
+                  "h": "auto",
+                  "rotation": 0,
+                  "z": 0,
+                  "layout": "flow",
+                  "constraints": {
+                    "h": "left",
+                    "v": "top"
+                  },
+                  "grow": 1
+                },
+                "style": {
+                  "font": {
+                    "family": "var(--fm-body-font)",
+                    "size_pt": 8.5,
+                    "weight": 800,
+                    "color": "#ffffff",
+                    "transform": "uppercase"
+                  }
+                },
+                "locks": {},
+                "bind": null,
+                "visible": true,
+                "props": {
+                  "blocks": [
+                    {
+                      "id": "blk_e0uemxjzapt4t",
+                      "type": "paragraph",
+                      "align": "left",
+                      "runs": [
+                        {
+                          "text": "Item"
+                        }
+                      ]
+                    }
+                  ],
+                  "valign": "top",
+                  "auto_fit": false,
+                  "line_height": 1.4,
+                  "letter_spacing": 0
+                },
+                "anchor": "flow"
+              },
+              {
+                "id": "nd_e0uem7k0r8d4y",
+                "type": "text",
+                "name": "",
+                "frame": {
+                  "x": 0,
+                  "y": 0,
+                  "w": 72,
+                  "h": "auto",
+                  "rotation": 0,
+                  "z": 0,
+                  "layout": "flow",
+                  "constraints": {
+                    "h": "left",
+                    "v": "top"
+                  }
+                },
+                "style": {
+                  "font": {
+                    "family": "var(--fm-body-font)",
+                    "size_pt": 8.5,
+                    "weight": 800,
+                    "color": "#ffffff",
+                    "transform": "uppercase"
+                  }
+                },
+                "locks": {},
+                "bind": null,
+                "visible": true,
+                "props": {
+                  "blocks": [
+                    {
+                      "id": "blk_e0uemvsuk1a4w",
+                      "type": "paragraph",
+                      "align": "center",
+                      "runs": [
+                        {
+                          "text": "Qty"
+                        }
+                      ]
+                    }
+                  ],
+                  "valign": "top",
+                  "auto_fit": false,
+                  "line_height": 1.4,
+                  "letter_spacing": 0
+                },
+                "anchor": "flow"
+              },
+              {
+                "id": "nd_e0uemsaxpuf51",
+                "type": "text",
+                "name": "",
+                "frame": {
+                  "x": 0,
+                  "y": 0,
+                  "w": 96,
+                  "h": "auto",
+                  "rotation": 0,
+                  "z": 0,
+                  "layout": "flow",
+                  "constraints": {
+                    "h": "left",
+                    "v": "top"
+                  }
+                },
+                "style": {
+                  "font": {
+                    "family": "var(--fm-body-font)",
+                    "size_pt": 8.5,
+                    "weight": 800,
+                    "color": "#ffffff",
+                    "transform": "uppercase"
+                  }
+                },
+                "locks": {},
+                "bind": null,
+                "visible": true,
+                "props": {
+                  "blocks": [
+                    {
+                      "id": "blk_e0uemnsbtkm4z",
+                      "type": "paragraph",
+                      "align": "right",
+                      "runs": [
+                        {
+                          "text": "Amount"
+                        }
+                      ]
+                    }
+                  ],
+                  "valign": "top",
+                  "auto_fit": false,
+                  "line_height": 1.4,
+                  "letter_spacing": 0
+                },
+                "anchor": "flow"
+              }
+            ]
+          }
+        },
+        "li_row": {
+          "params": {
+            "item": {
+              "type": "pricebook_line"
+            }
+          },
+          "root": {
+            "id": "nd_e0uem8s9oo65f",
+            "type": "frame",
+            "name": "",
+            "frame": {
+              "x": 0,
+              "y": 0,
+              "w": 0,
+              "h": "auto",
+              "rotation": 0,
+              "z": 0,
+              "layout": "flow",
+              "constraints": {
+                "h": "left",
+                "v": "top"
+              }
+            },
+            "style": {},
+            "locks": {},
+            "bind": null,
+            "visible": true,
+            "props": {
+              "background": null,
+              "clip": false,
+              "flow": {
+                "direction": "row",
+                "gap": 8,
+                "padding": [
+                  6,
+                  8,
+                  6,
+                  8
+                ],
+                "align": "start",
+                "wrap": false
+              },
+              "overflow": "visible"
+            },
+            "children": [
+              {
+                "id": "nd_e0uem6ga88958",
+                "type": "text",
+                "name": "",
+                "frame": {
+                  "x": 0,
+                  "y": 0,
+                  "w": 0,
+                  "h": "auto",
+                  "rotation": 0,
+                  "z": 0,
+                  "layout": "flow",
+                  "constraints": {
+                    "h": "left",
+                    "v": "top"
+                  },
+                  "grow": 1
+                },
+                "style": {},
+                "locks": {},
+                "bind": null,
+                "visible": true,
+                "props": {
+                  "blocks": [
+                    {
+                      "id": "blk_e0uemrt2lue53",
+                      "type": "paragraph",
+                      "align": "left",
+                      "style_ref": "li_name",
+                      "runs": [
+                        {
+                          "text": "",
+                          "bind": "coalesce(item.display_name, item.name)"
+                        }
+                      ]
+                    },
+                    {
+                      "id": "blk_e0uem9mgctd54",
+                      "type": "paragraph",
+                      "align": "left",
+                      "style_ref": "li_meta",
+                      "collapse_empty": true,
+                      "runs": [
+                        {
+                          "text": "",
+                          "bind": "coalesce(item.variant_summary, '')"
+                        }
+                      ]
+                    },
+                    {
+                      "id": "blk_e0uem9ciy2955",
+                      "type": "paragraph",
+                      "align": "left",
+                      "style_ref": "li_meta",
+                      "collapse_empty": true,
+                      "runs": [
+                        {
+                          "text": "",
+                          "bind": "coalesce(item.description, '')"
+                        }
+                      ]
+                    },
+                    {
+                      "id": "blk_e0uembfed0s56",
+                      "type": "paragraph",
+                      "align": "left",
+                      "style_ref": "li_badge",
+                      "collapse_empty": true,
+                      "runs": [
+                        {
+                          "text": "",
+                          "bind": "coalesce(item.badge, '')"
+                        }
+                      ]
+                    }
+                  ],
+                  "valign": "top",
+                  "auto_fit": false,
+                  "line_height": 1.4,
+                  "letter_spacing": 0
+                },
+                "anchor": "flow"
+              },
+              {
+                "id": "nd_e0uemgkjouu5b",
+                "type": "text",
+                "name": "",
+                "frame": {
+                  "x": 0,
+                  "y": 0,
+                  "w": 72,
+                  "h": "auto",
+                  "rotation": 0,
+                  "z": 0,
+                  "layout": "flow",
+                  "constraints": {
+                    "h": "left",
+                    "v": "top"
+                  }
+                },
+                "style": {},
+                "locks": {},
+                "bind": null,
+                "visible": true,
+                "props": {
+                  "blocks": [
+                    {
+                      "id": "blk_e0uem4zmnkm59",
+                      "type": "paragraph",
+                      "align": "center",
+                      "style_ref": "body",
+                      "runs": [
+                        {
+                          "text": "",
+                          "bind": "item.quantity | qty(item.unit)"
+                        }
+                      ]
+                    }
+                  ],
+                  "valign": "top",
+                  "auto_fit": false,
+                  "line_height": 1.4,
+                  "letter_spacing": 0
+                },
+                "anchor": "flow"
+              },
+              {
+                "id": "nd_e0uem3ronft5e",
+                "type": "text",
+                "name": "",
+                "frame": {
+                  "x": 0,
+                  "y": 0,
+                  "w": 96,
+                  "h": "auto",
+                  "rotation": 0,
+                  "z": 0,
+                  "layout": "flow",
+                  "constraints": {
+                    "h": "left",
+                    "v": "top"
+                  }
+                },
+                "style": {},
+                "locks": {},
+                "bind": null,
+                "visible": true,
+                "props": {
+                  "blocks": [
+                    {
+                      "id": "blk_e0ueme2sq0k5c",
+                      "type": "paragraph",
+                      "align": "right",
+                      "style_ref": "li_amount",
+                      "runs": [
+                        {
+                          "text": "",
+                          "bind": "(coalesce(item.show_amount, true) || coalesce(params.show_line_prices, false)) ? (item.amount_cents | money) : 'Included'"
+                        }
+                      ]
+                    }
+                  ],
+                  "valign": "top",
+                  "auto_fit": false,
+                  "line_height": 1.4,
+                  "letter_spacing": 0
+                },
+                "anchor": "flow"
+              }
+            ]
+          },
+          "variants": {
+            "child": {
+              "props": {
+                "flow": {
+                  "padding": [
+                    4,
+                    8,
+                    4,
+                    24
+                  ]
+                }
+              }
+            },
+            "group": {
+              "props": {
+                "flow": {
+                  "padding": [
+                    8,
+                    8,
+                    4,
+                    8
+                  ]
+                }
+              }
+            }
+          }
+        },
+        "li_totals": {
+          "params": {},
+          "root": {
+            "id": "nd_e0uemixqzsz5m",
+            "type": "frame",
+            "name": "",
+            "frame": {
+              "x": 0,
+              "y": 0,
+              "w": 0,
+              "h": "auto",
+              "rotation": 0,
+              "z": 0,
+              "layout": "flow",
+              "constraints": {
+                "h": "left",
+                "v": "top"
+              }
+            },
+            "style": {},
+            "locks": {},
+            "bind": null,
+            "visible": true,
+            "props": {
+              "background": null,
+              "clip": false,
+              "flow": {
+                "direction": "column",
+                "gap": 8,
+                "padding": [
+                  8,
+                  8,
+                  4,
+                  8
+                ],
+                "align": "stretch",
+                "wrap": false
+              },
+              "overflow": "visible"
+            },
+            "children": [
+              {
+                "id": "nd_e0uemqsc21g5l",
+                "type": "text",
+                "name": "",
+                "frame": {
+                  "x": 0,
+                  "y": 0,
+                  "w": 0,
+                  "h": "auto",
+                  "rotation": 0,
+                  "z": 0,
+                  "layout": "flow",
+                  "constraints": {
+                    "h": "left",
+                    "v": "top"
+                  }
+                },
+                "style": {},
+                "locks": {},
+                "bind": null,
+                "visible": true,
+                "props": {
+                  "blocks": [
+                    {
+                      "id": "blk_e0uemwe6o755g",
+                      "type": "paragraph",
+                      "align": "right",
+                      "style_ref": "body",
+                      "runs": [
+                        {
+                          "text": "Subtotal   "
+                        },
+                        {
+                          "text": "",
+                          "bind": "computed.subtotal_cents | money"
+                        }
+                      ]
+                    },
+                    {
+                      "id": "blk_e0uemben6k25h",
+                      "type": "paragraph",
+                      "align": "right",
+                      "style_ref": "body",
+                      "collapse_empty": true,
+                      "runs": [
+                        {
+                          "text": "",
+                          "bind": "coalesce(computed.adjustments_cents, 0) != 0 ? concat('Adjustments   ', (computed.adjustments_cents | money)) : ''"
+                        }
+                      ]
+                    },
+                    {
+                      "id": "blk_e0uemfu38o85i",
+                      "type": "paragraph",
+                      "align": "right",
+                      "style_ref": "body",
+                      "runs": [
+                        {
+                          "text": "Tax ("
+                        },
+                        {
+                          "text": "",
+                          "bind": "coalesce(params.tax_percent, 0)"
+                        },
+                        {
+                          "text": "%)   "
+                        },
+                        {
+                          "text": "",
+                          "bind": "computed.tax_cents | money"
+                        }
+                      ]
+                    },
+                    {
+                      "id": "blk_e0uemw1pnyt5j",
+                      "type": "paragraph",
+                      "align": "right",
+                      "style_ref": "li_total",
+                      "runs": [
+                        {
+                          "text": "Total   "
+                        },
+                        {
+                          "text": "",
+                          "bind": "computed.total_cents | money"
+                        }
+                      ]
+                    }
+                  ],
+                  "valign": "top",
+                  "auto_fit": false,
+                  "line_height": 1.4,
+                  "letter_spacing": 0
+                },
+                "anchor": "flow"
+              }
+            ]
+          }
+        }
+      },
+      "chains": {},
+      "assets": [],
+      "edit_policy": {
+        "base_profile": "document",
+        "max_profile": "designer",
+        "features": {},
+        "unlock": {
+          "allowed": true
+        }
+      },
+      "metadata": {
+        "document_type": "change_order"
+      },
+      "pages": [
+        {
+          "id": "pg_e0uel6sgyvd2k",
+          "role": "body",
+          "name": "Change Order",
+          "master_ref": null,
+          "repeat": null,
+          "children": [
+            {
+              "id": "nd_e0uemxlsdtq4s",
+              "type": "frame",
+              "name": "Body",
+              "frame": {
+                "x": 104,
+                "y": 48,
+                "w": 460,
+                "h": 696,
+                "rotation": 0,
+                "z": 0,
+                "layout": "flow",
+                "constraints": {
+                  "h": "stretch",
+                  "v": "top"
+                }
+              },
+              "style": {},
+              "locks": {},
+              "bind": null,
+              "visible": true,
+              "props": {
+                "background": null,
+                "clip": false,
+                "flow": {
+                  "direction": "column",
+                  "gap": 6,
+                  "padding": [
+                    0,
+                    0,
+                    0,
+                    0
+                  ],
+                  "align": "stretch",
+                  "wrap": false
+                },
+                "overflow": "paginate",
+                "page_region": "body"
+              },
+              "children": [
+                {
+                  "id": "nd_e0uel794de72n",
+                  "type": "image",
+                  "name": "",
+                  "frame": {
+                    "x": 0,
+                    "y": 0,
+                    "w": 170,
+                    "h": 36,
+                    "rotation": 0,
+                    "z": 0,
+                    "layout": "flow",
+                    "constraints": {
+                      "h": "left",
+                      "v": "top"
+                    }
+                  },
+                  "style": {},
+                  "locks": {},
+                  "bind": {
+                    "props": {
+                      "props.media": "{{org.logo_url}}"
+                    },
+                    "if": "not_empty(org.logo_url)"
+                  },
+                  "visible": true,
+                  "props": {
+                    "media": null,
+                    "fit": "contain",
+                    "focal": {
+                      "x": 0.5,
+                      "y": 0.5
+                    },
+                    "crop": null,
+                    "alt": "Company logo"
+                  },
+                  "anchor": "flow"
+                },
+                {
+                  "id": "nd_e0uel75ytiz2u",
+                  "type": "frame",
+                  "name": "",
+                  "frame": {
+                    "x": 0,
+                    "y": 0,
+                    "w": 0,
+                    "h": "auto",
+                    "rotation": 0,
+                    "z": 0,
+                    "layout": "flow",
+                    "constraints": {
+                      "h": "left",
+                      "v": "top"
+                    }
+                  },
+                  "style": {},
+                  "locks": {},
+                  "bind": null,
+                  "visible": true,
+                  "props": {
+                    "background": null,
+                    "clip": false,
+                    "flow": {
+                      "direction": "row",
+                      "gap": 16,
+                      "padding": [
+                        0,
+                        0,
+                        0,
+                        0
+                      ],
+                      "align": "end",
+                      "wrap": false
+                    },
+                    "overflow": "visible"
+                  },
+                  "children": [
+                    {
+                      "id": "nd_e0uelb0eko92q",
+                      "type": "text",
+                      "name": "",
+                      "frame": {
+                        "x": 0,
+                        "y": 0,
+                        "w": 0,
+                        "h": "auto",
+                        "rotation": 0,
+                        "z": 0,
+                        "layout": "flow",
+                        "constraints": {
+                          "h": "left",
+                          "v": "top"
+                        },
+                        "grow": 1
+                      },
+                      "style": {
+                        "font": {
+                          "family": "var(--fm-display-font)",
+                          "size_pt": 22,
+                          "weight": 800,
+                          "color": "var(--fm-text)"
+                        }
+                      },
+                      "locks": {},
+                      "bind": null,
+                      "visible": true,
+                      "props": {
+                        "blocks": [
+                          {
+                            "id": "blk_e0uel68kirh2o",
+                            "type": "paragraph",
+                            "align": "left",
+                            "runs": [
+                              {
+                                "text": "Change Order"
+                              }
+                            ]
+                          }
+                        ],
+                        "valign": "top",
+                        "auto_fit": false,
+                        "line_height": 1.4,
+                        "letter_spacing": 0
+                      },
+                      "anchor": "flow"
+                    },
+                    {
+                      "id": "nd_e0uel81gn8h2t",
+                      "type": "text",
+                      "name": "",
+                      "frame": {
+                        "x": 0,
+                        "y": 0,
+                        "w": 130,
+                        "h": "auto",
+                        "rotation": 0,
+                        "z": 0,
+                        "layout": "flow",
+                        "constraints": {
+                          "h": "left",
+                          "v": "top"
+                        }
+                      },
+                      "style": {
+                        "font": {
+                          "family": "var(--fm-body-font)",
+                          "size_pt": 11,
+                          "weight": 700
+                        }
+                      },
+                      "locks": {},
+                      "bind": null,
+                      "visible": true,
+                      "props": {
+                        "blocks": [
+                          {
+                            "id": "blk_e0uelkts5on2r",
+                            "type": "paragraph",
+                            "align": "right",
+                            "runs": [
+                              {
+                                "text": "Date\n",
+                                "font": {
+                                  "size_pt": 8.5,
+                                  "weight": 800,
+                                  "color": "var(--fm-color-muted)",
+                                  "transform": "uppercase"
+                                }
+                              },
+                              {
+                                "text": "",
+                                "bind": "params.change_date | date"
+                              }
+                            ]
+                          }
+                        ],
+                        "valign": "top",
+                        "auto_fit": false,
+                        "line_height": 1.4,
+                        "letter_spacing": 0
+                      },
+                      "anchor": "flow"
+                    }
+                  ],
+                  "anchor": "flow"
+                },
+                {
+                  "id": "nd_e0ueloklpdk31",
+                  "type": "frame",
+                  "name": "",
+                  "frame": {
+                    "x": 0,
+                    "y": 0,
+                    "w": 0,
+                    "h": "auto",
+                    "rotation": 0,
+                    "z": 0,
+                    "layout": "flow",
+                    "constraints": {
+                      "h": "left",
+                      "v": "top"
+                    }
+                  },
+                  "style": {},
+                  "locks": {},
+                  "bind": null,
+                  "visible": true,
+                  "props": {
+                    "background": null,
+                    "clip": false,
+                    "flow": {
+                      "direction": "row",
+                      "gap": 20,
+                      "padding": [
+                        0,
+                        0,
+                        0,
+                        0
+                      ],
+                      "align": "start",
+                      "wrap": false
+                    },
+                    "overflow": "visible"
+                  },
+                  "children": [
+                    {
+                      "id": "nd_e0uel0w0o2d2x",
+                      "type": "text",
+                      "name": "",
+                      "frame": {
+                        "x": 0,
+                        "y": 0,
+                        "w": 0,
+                        "h": "auto",
+                        "rotation": 0,
+                        "z": 0,
+                        "layout": "flow",
+                        "constraints": {
+                          "h": "left",
+                          "v": "top"
+                        },
+                        "grow": 1
+                      },
+                      "style": {
+                        "font": {
+                          "family": "var(--fm-body-font)",
+                          "size_pt": 11,
+                          "weight": 700
+                        }
+                      },
+                      "locks": {},
+                      "bind": null,
+                      "visible": true,
+                      "props": {
+                        "blocks": [
+                          {
+                            "id": "blk_e0uelueyjaq2v",
+                            "type": "paragraph",
+                            "align": "left",
+                            "runs": [
+                              {
+                                "text": "Project\n",
+                                "font": {
+                                  "size_pt": 8.5,
+                                  "weight": 800,
+                                  "color": "var(--fm-color-muted)",
+                                  "transform": "uppercase"
+                                }
+                              },
+                              {
+                                "text": "",
+                                "bind": "coalesce(params.project.title, project.title, 'Project')"
+                              },
+                              {
+                                "text": "\n"
+                              },
+                              {
+                                "text": "",
+                                "bind": "coalesce(params.project.address, project.address, '')",
+                                "font": {
+                                  "size_pt": 9.5,
+                                  "weight": 400,
+                                  "color": "var(--fm-color-muted)"
+                                }
+                              }
+                            ]
+                          }
+                        ],
+                        "valign": "top",
+                        "auto_fit": false,
+                        "line_height": 1.4,
+                        "letter_spacing": 0
+                      },
+                      "anchor": "flow"
+                    },
+                    {
+                      "id": "nd_e0uel7e8upj30",
+                      "type": "text",
+                      "name": "",
+                      "frame": {
+                        "x": 0,
+                        "y": 0,
+                        "w": 0,
+                        "h": "auto",
+                        "rotation": 0,
+                        "z": 0,
+                        "layout": "flow",
+                        "constraints": {
+                          "h": "left",
+                          "v": "top"
+                        },
+                        "grow": 1
+                      },
+                      "style": {
+                        "font": {
+                          "family": "var(--fm-body-font)",
+                          "size_pt": 11,
+                          "weight": 700
+                        }
+                      },
+                      "locks": {},
+                      "bind": null,
+                      "visible": true,
+                      "props": {
+                        "blocks": [
+                          {
+                            "id": "blk_e0uelo4ul8z2y",
+                            "type": "paragraph",
+                            "align": "left",
+                            "runs": [
+                              {
+                                "text": "Customer\n",
+                                "font": {
+                                  "size_pt": 8.5,
+                                  "weight": 800,
+                                  "color": "var(--fm-color-muted)",
+                                  "transform": "uppercase"
+                                }
+                              },
+                              {
+                                "text": "",
+                                "bind": "coalesce(params.customer.name, customer.name, 'Customer')"
+                              }
+                            ]
+                          }
+                        ],
+                        "valign": "top",
+                        "auto_fit": false,
+                        "line_height": 1.4,
+                        "letter_spacing": 0
+                      },
+                      "anchor": "flow"
+                    }
+                  ],
+                  "anchor": "flow"
+                },
+                {
+                  "id": "nd_e0uelwbg40w34",
+                  "type": "text",
+                  "name": "",
+                  "frame": {
+                    "x": 0,
+                    "y": 0,
+                    "w": 0,
+                    "h": "auto",
+                    "rotation": 0,
+                    "z": 0,
+                    "layout": "flow",
+                    "constraints": {
+                      "h": "left",
+                      "v": "top"
+                    }
+                  },
+                  "style": {
+                    "font": {
+                      "family": "var(--fm-body-font)",
+                      "size_pt": 9.5,
+                      "color": "var(--fm-color-muted)"
+                    }
+                  },
+                  "locks": {},
+                  "bind": {
+                    "if": "not_empty(params.account.contract_title)"
+                  },
+                  "visible": true,
+                  "props": {
+                    "blocks": [
+                      {
+                        "id": "blk_e0uelxtmvxp32",
+                        "type": "paragraph",
+                        "align": "left",
+                        "runs": [
+                          {
+                            "text": "This change order amends "
+                          },
+                          {
+                            "text": "",
+                            "bind": "params.account.contract_title",
+                            "weight": 700
+                          },
+                          {
+                            "text": ". Everything else in that agreement stays as signed."
+                          }
+                        ]
+                      }
+                    ],
+                    "valign": "top",
+                    "auto_fit": false,
+                    "line_height": 1.4,
+                    "letter_spacing": 0
+                  },
+                  "anchor": "flow"
+                },
+                {
+                  "id": "nd_e0uelw2odm335",
+                  "type": "frame",
+                  "name": "Spacer",
+                  "frame": {
+                    "x": 0,
+                    "y": 0,
+                    "w": 0,
+                    "h": 6,
+                    "rotation": 0,
+                    "z": 0,
+                    "layout": "flow",
+                    "constraints": {
+                      "h": "left",
+                      "v": "top"
+                    }
+                  },
+                  "style": {},
+                  "locks": {},
+                  "bind": null,
+                  "visible": true,
+                  "props": {
+                    "background": null,
+                    "clip": false,
+                    "flow": {
+                      "direction": "column",
+                      "gap": 8,
+                      "padding": [
+                        0,
+                        0,
+                        0,
+                        0
+                      ],
+                      "align": "stretch",
+                      "wrap": false
+                    },
+                    "overflow": "visible"
+                  },
+                  "children": [],
+                  "anchor": "flow"
+                },
+                {
+                  "id": "nd_e0ueldi6cch38",
+                  "type": "text",
+                  "name": "",
+                  "frame": {
+                    "x": 0,
+                    "y": 0,
+                    "w": 0,
+                    "h": "auto",
+                    "rotation": 0,
+                    "z": 0,
+                    "layout": "flow",
+                    "constraints": {
+                      "h": "left",
+                      "v": "top"
+                    }
+                  },
+                  "style": {},
+                  "locks": {},
+                  "bind": null,
+                  "visible": true,
+                  "props": {
+                    "blocks": [
+                      {
+                        "id": "blk_e0uele8513636",
+                        "type": "paragraph",
+                        "align": "left",
+                        "style_ref": "h2",
+                        "runs": [
+                          {
+                            "text": "What is changing"
+                          }
+                        ]
+                      }
+                    ],
+                    "valign": "top",
+                    "auto_fit": false,
+                    "line_height": 1.4,
+                    "letter_spacing": 0
+                  },
+                  "anchor": "flow"
+                },
+                {
+                  "id": "nd_e0uel78w0q63b",
+                  "type": "text",
+                  "name": "",
+                  "frame": {
+                    "x": 0,
+                    "y": 0,
+                    "w": 0,
+                    "h": "auto",
+                    "rotation": 0,
+                    "z": 0,
+                    "layout": "flow",
+                    "constraints": {
+                      "h": "left",
+                      "v": "top"
+                    }
+                  },
+                  "style": {
+                    "font": {
+                      "family": "var(--fm-body-font)",
+                      "size_pt": 10.5,
+                      "color": "var(--fm-text)"
+                    }
+                  },
+                  "locks": {},
+                  "bind": null,
+                  "visible": true,
+                  "props": {
+                    "blocks": [
+                      {
+                        "id": "blk_e0uelahzxlq39",
+                        "type": "paragraph",
+                        "align": "left",
+                        "runs": [
+                          {
+                            "text": "",
+                            "bind": "coalesce(params.reason, '')"
+                          }
+                        ]
+                      }
+                    ],
+                    "valign": "top",
+                    "auto_fit": false,
+                    "line_height": 1.4,
+                    "letter_spacing": 0
+                  },
+                  "anchor": "flow"
+                },
+                {
+                  "id": "nd_e0ueltxnage3c",
+                  "type": "frame",
+                  "name": "Spacer",
+                  "frame": {
+                    "x": 0,
+                    "y": 0,
+                    "w": 0,
+                    "h": 4,
+                    "rotation": 0,
+                    "z": 0,
+                    "layout": "flow",
+                    "constraints": {
+                      "h": "left",
+                      "v": "top"
+                    }
+                  },
+                  "style": {},
+                  "locks": {},
+                  "bind": null,
+                  "visible": true,
+                  "props": {
+                    "background": null,
+                    "clip": false,
+                    "flow": {
+                      "direction": "column",
+                      "gap": 8,
+                      "padding": [
+                        0,
+                        0,
+                        0,
+                        0
+                      ],
+                      "align": "stretch",
+                      "wrap": false
+                    },
+                    "overflow": "visible"
+                  },
+                  "children": [],
+                  "anchor": "flow"
+                },
+                {
+                  "id": "nd_e0uelgbodqm3d",
+                  "type": "component_ref",
+                  "name": "",
+                  "frame": {
+                    "x": 0,
+                    "y": 0,
+                    "w": 0,
+                    "h": "auto",
+                    "rotation": 0,
+                    "z": 0,
+                    "layout": "flow",
+                    "constraints": {
+                      "h": "left",
+                      "v": "top"
+                    }
+                  },
+                  "style": {},
+                  "locks": {},
+                  "bind": null,
+                  "visible": true,
+                  "props": {
+                    "component": "li_header",
+                    "variant": null,
+                    "input": {},
+                    "detached": false
+                  },
+                  "anchor": "flow"
+                },
+                {
+                  "id": "nd_e0uel47syuf3e",
+                  "type": "repeater",
+                  "name": "",
+                  "frame": {
+                    "x": 0,
+                    "y": 0,
+                    "w": 0,
+                    "h": "auto",
+                    "rotation": 0,
+                    "z": 0,
+                    "layout": "flow",
+                    "constraints": {
+                      "h": "left",
+                      "v": "top"
+                    }
+                  },
+                  "style": {},
+                  "locks": {},
+                  "bind": null,
+                  "visible": true,
+                  "props": {
+                    "source": "{{coalesce(params.scope_rows, params.scope_items)}}",
+                    "component": "li_row",
+                    "variant": null,
+                    "as": "row",
+                    "index_as": "index",
+                    "layout": {
+                      "direction": "column",
+                      "columns": 1,
+                      "gap_pt": 2
+                    },
+                    "break_rules": {
+                      "repeat_header": true,
+                      "min_rows_per_segment": 2,
+                      "keep_with_next": [],
+                      "header_component": "li_header"
+                    },
+                    "empty_text": "Add the work this change order covers."
+                  },
+                  "anchor": "flow"
+                },
+                {
+                  "id": "nd_e0uelf1pb0w3f",
+                  "type": "frame",
+                  "name": "Spacer",
+                  "frame": {
+                    "x": 0,
+                    "y": 0,
+                    "w": 0,
+                    "h": 6,
+                    "rotation": 0,
+                    "z": 0,
+                    "layout": "flow",
+                    "constraints": {
+                      "h": "left",
+                      "v": "top"
+                    }
+                  },
+                  "style": {},
+                  "locks": {},
+                  "bind": null,
+                  "visible": true,
+                  "props": {
+                    "background": null,
+                    "clip": false,
+                    "flow": {
+                      "direction": "column",
+                      "gap": 8,
+                      "padding": [
+                        0,
+                        0,
+                        0,
+                        0
+                      ],
+                      "align": "stretch",
+                      "wrap": false
+                    },
+                    "overflow": "visible"
+                  },
+                  "children": [],
+                  "anchor": "flow"
+                },
+                {
+                  "id": "nd_e0uemx5u9e848",
+                  "type": "frame",
+                  "name": "",
+                  "frame": {
+                    "x": 0,
+                    "y": 0,
+                    "w": 0,
+                    "h": "auto",
+                    "rotation": 0,
+                    "z": 0,
+                    "layout": "flow",
+                    "constraints": {
+                      "h": "left",
+                      "v": "top"
+                    }
+                  },
+                  "style": {
+                    "fill": {
+                      "type": "solid",
+                      "color": "color-mix(in srgb, var(--fm-primary) 6%, var(--fm-color-paper))"
+                    }
+                  },
+                  "locks": {},
+                  "bind": null,
+                  "visible": true,
+                  "props": {
+                    "background": null,
+                    "clip": false,
+                    "flow": {
+                      "direction": "column",
+                      "gap": 5,
+                      "padding": [
+                        12,
+                        14,
+                        12,
+                        14
+                      ],
+                      "align": "stretch",
+                      "wrap": false
+                    },
+                    "overflow": "visible"
+                  },
+                  "children": [
+                    {
+                      "id": "nd_e0uelkpr6vl3m",
+                      "type": "frame",
+                      "name": "",
+                      "frame": {
+                        "x": 0,
+                        "y": 0,
+                        "w": 0,
+                        "h": "auto",
+                        "rotation": 0,
+                        "z": 0,
+                        "layout": "flow",
+                        "constraints": {
+                          "h": "left",
+                          "v": "top"
+                        }
+                      },
+                      "style": {},
+                      "locks": {},
+                      "bind": {
+                        "if": "params.account.has_contract == true"
+                      },
+                      "visible": true,
+                      "props": {
+                        "background": null,
+                        "clip": false,
+                        "flow": {
+                          "direction": "row",
+                          "gap": 8,
+                          "padding": [
+                            0,
+                            0,
+                            0,
+                            0
+                          ],
+                          "align": "start",
+                          "wrap": false
+                        },
+                        "overflow": "visible"
+                      },
+                      "children": [
+                        {
+                          "id": "nd_e0uel1s052o3i",
+                          "type": "text",
+                          "name": "",
+                          "frame": {
+                            "x": 0,
+                            "y": 0,
+                            "w": 0,
+                            "h": "auto",
+                            "rotation": 0,
+                            "z": 0,
+                            "layout": "flow",
+                            "constraints": {
+                              "h": "left",
+                              "v": "top"
+                            },
+                            "grow": 1
+                          },
+                          "style": {
+                            "font": {
+                              "family": "var(--fm-body-font)",
+                              "size_pt": 10.5,
+                              "color": "var(--fm-text)"
+                            }
+                          },
+                          "locks": {},
+                          "bind": null,
+                          "visible": true,
+                          "props": {
+                            "blocks": [
+                              {
+                                "id": "blk_e0uelzzpm323g",
+                                "type": "paragraph",
+                                "align": "left",
+                                "runs": [
+                                  {
+                                    "text": "Original contract"
+                                  }
+                                ]
+                              }
+                            ],
+                            "valign": "top",
+                            "auto_fit": false,
+                            "line_height": 1.4,
+                            "letter_spacing": 0
+                          },
+                          "anchor": "flow"
+                        },
+                        {
+                          "id": "nd_e0uel9h3i0d3l",
+                          "type": "text",
+                          "name": "",
+                          "frame": {
+                            "x": 0,
+                            "y": 0,
+                            "w": 110,
+                            "h": "auto",
+                            "rotation": 0,
+                            "z": 0,
+                            "layout": "flow",
+                            "constraints": {
+                              "h": "left",
+                              "v": "top"
+                            }
+                          },
+                          "style": {
+                            "font": {
+                              "family": "var(--fm-body-font)",
+                              "size_pt": 10.5,
+                              "color": "var(--fm-text)"
+                            }
+                          },
+                          "locks": {},
+                          "bind": null,
+                          "visible": true,
+                          "props": {
+                            "blocks": [
+                              {
+                                "id": "blk_e0uelefizti3j",
+                                "type": "paragraph",
+                                "align": "right",
+                                "runs": [
+                                  {
+                                    "text": "",
+                                    "bind": "params.account.contract_cents | money"
+                                  }
+                                ]
+                              }
+                            ],
+                            "valign": "top",
+                            "auto_fit": false,
+                            "line_height": 1.4,
+                            "letter_spacing": 0
+                          },
+                          "anchor": "flow"
+                        }
+                      ],
+                      "anchor": "flow"
+                    },
+                    {
+                      "id": "nd_e0uelgayshb3t",
+                      "type": "frame",
+                      "name": "",
+                      "frame": {
+                        "x": 0,
+                        "y": 0,
+                        "w": 0,
+                        "h": "auto",
+                        "rotation": 0,
+                        "z": 0,
+                        "layout": "flow",
+                        "constraints": {
+                          "h": "left",
+                          "v": "top"
+                        }
+                      },
+                      "style": {},
+                      "locks": {},
+                      "bind": {
+                        "if": "coalesce(params.account.change_orders_cents, 0) > 0"
+                      },
+                      "visible": true,
+                      "props": {
+                        "background": null,
+                        "clip": false,
+                        "flow": {
+                          "direction": "row",
+                          "gap": 8,
+                          "padding": [
+                            0,
+                            0,
+                            0,
+                            0
+                          ],
+                          "align": "start",
+                          "wrap": false
+                        },
+                        "overflow": "visible"
+                      },
+                      "children": [
+                        {
+                          "id": "nd_e0uelcclybi3p",
+                          "type": "text",
+                          "name": "",
+                          "frame": {
+                            "x": 0,
+                            "y": 0,
+                            "w": 0,
+                            "h": "auto",
+                            "rotation": 0,
+                            "z": 0,
+                            "layout": "flow",
+                            "constraints": {
+                              "h": "left",
+                              "v": "top"
+                            },
+                            "grow": 1
+                          },
+                          "style": {
+                            "font": {
+                              "family": "var(--fm-body-font)",
+                              "size_pt": 10.5,
+                              "color": "var(--fm-text)"
+                            }
+                          },
+                          "locks": {},
+                          "bind": null,
+                          "visible": true,
+                          "props": {
+                            "blocks": [
+                              {
+                                "id": "blk_e0uels3vtpu3n",
+                                "type": "paragraph",
+                                "align": "left",
+                                "runs": [
+                                  {
+                                    "text": "Change orders already approved"
+                                  }
+                                ]
+                              }
+                            ],
+                            "valign": "top",
+                            "auto_fit": false,
+                            "line_height": 1.4,
+                            "letter_spacing": 0
+                          },
+                          "anchor": "flow"
+                        },
+                        {
+                          "id": "nd_e0uel4vz7wk3s",
+                          "type": "text",
+                          "name": "",
+                          "frame": {
+                            "x": 0,
+                            "y": 0,
+                            "w": 110,
+                            "h": "auto",
+                            "rotation": 0,
+                            "z": 0,
+                            "layout": "flow",
+                            "constraints": {
+                              "h": "left",
+                              "v": "top"
+                            }
+                          },
+                          "style": {
+                            "font": {
+                              "family": "var(--fm-body-font)",
+                              "size_pt": 10.5,
+                              "color": "var(--fm-text)"
+                            }
+                          },
+                          "locks": {},
+                          "bind": null,
+                          "visible": true,
+                          "props": {
+                            "blocks": [
+                              {
+                                "id": "blk_e0uelc14o0v3q",
+                                "type": "paragraph",
+                                "align": "right",
+                                "runs": [
+                                  {
+                                    "text": "",
+                                    "bind": "params.account.change_orders_cents | money"
+                                  }
+                                ]
+                              }
+                            ],
+                            "valign": "top",
+                            "auto_fit": false,
+                            "line_height": 1.4,
+                            "letter_spacing": 0
+                          },
+                          "anchor": "flow"
+                        }
+                      ],
+                      "anchor": "flow"
+                    },
+                    {
+                      "id": "nd_e0uelf0eki740",
+                      "type": "frame",
+                      "name": "",
+                      "frame": {
+                        "x": 0,
+                        "y": 0,
+                        "w": 0,
+                        "h": "auto",
+                        "rotation": 0,
+                        "z": 0,
+                        "layout": "flow",
+                        "constraints": {
+                          "h": "left",
+                          "v": "top"
+                        }
+                      },
+                      "style": {},
+                      "locks": {},
+                      "bind": null,
+                      "visible": true,
+                      "props": {
+                        "background": null,
+                        "clip": false,
+                        "flow": {
+                          "direction": "row",
+                          "gap": 8,
+                          "padding": [
+                            0,
+                            0,
+                            0,
+                            0
+                          ],
+                          "align": "start",
+                          "wrap": false
+                        },
+                        "overflow": "visible"
+                      },
+                      "children": [
+                        {
+                          "id": "nd_e0uelya8xv63w",
+                          "type": "text",
+                          "name": "",
+                          "frame": {
+                            "x": 0,
+                            "y": 0,
+                            "w": 0,
+                            "h": "auto",
+                            "rotation": 0,
+                            "z": 0,
+                            "layout": "flow",
+                            "constraints": {
+                              "h": "left",
+                              "v": "top"
+                            },
+                            "grow": 1
+                          },
+                          "style": {
+                            "font": {
+                              "family": "var(--fm-body-font)",
+                              "size_pt": 10.5,
+                              "color": "var(--fm-text)"
+                            }
+                          },
+                          "locks": {},
+                          "bind": null,
+                          "visible": true,
+                          "props": {
+                            "blocks": [
+                              {
+                                "id": "blk_e0uelonqp8h3u",
+                                "type": "paragraph",
+                                "align": "left",
+                                "runs": [
+                                  {
+                                    "text": "This change order"
+                                  },
+                                  {
+                                    "text": "",
+                                    "bind": "coalesce(params.tax_percent, 0) > 0 ? concat(' (includes ', params.tax_percent, '% tax)') : ''"
+                                  }
+                                ]
+                              }
+                            ],
+                            "valign": "top",
+                            "auto_fit": false,
+                            "line_height": 1.4,
+                            "letter_spacing": 0
+                          },
+                          "anchor": "flow"
+                        },
+                        {
+                          "id": "nd_e0uelkx98vb3z",
+                          "type": "text",
+                          "name": "",
+                          "frame": {
+                            "x": 0,
+                            "y": 0,
+                            "w": 110,
+                            "h": "auto",
+                            "rotation": 0,
+                            "z": 0,
+                            "layout": "flow",
+                            "constraints": {
+                              "h": "left",
+                              "v": "top"
+                            }
+                          },
+                          "style": {
+                            "font": {
+                              "family": "var(--fm-body-font)",
+                              "size_pt": 10.5,
+                              "color": "var(--fm-text)"
+                            }
+                          },
+                          "locks": {},
+                          "bind": null,
+                          "visible": true,
+                          "props": {
+                            "blocks": [
+                              {
+                                "id": "blk_e0uelm3b48o3x",
+                                "type": "paragraph",
+                                "align": "right",
+                                "runs": [
+                                  {
+                                    "text": "",
+                                    "bind": "params.change_cents | money"
+                                  }
+                                ]
+                              }
+                            ],
+                            "valign": "top",
+                            "auto_fit": false,
+                            "line_height": 1.4,
+                            "letter_spacing": 0
+                          },
+                          "anchor": "flow"
+                        }
+                      ],
+                      "anchor": "flow"
+                    },
+                    {
+                      "id": "nd_e0uel8unwmz47",
+                      "type": "frame",
+                      "name": "",
+                      "frame": {
+                        "x": 0,
+                        "y": 0,
+                        "w": 0,
+                        "h": "auto",
+                        "rotation": 0,
+                        "z": 0,
+                        "layout": "flow",
+                        "constraints": {
+                          "h": "left",
+                          "v": "top"
+                        }
+                      },
+                      "style": {},
+                      "locks": {},
+                      "bind": {
+                        "if": "params.account.has_contract == true"
+                      },
+                      "visible": true,
+                      "props": {
+                        "background": null,
+                        "clip": false,
+                        "flow": {
+                          "direction": "row",
+                          "gap": 8,
+                          "padding": [
+                            0,
+                            0,
+                            0,
+                            0
+                          ],
+                          "align": "start",
+                          "wrap": false
+                        },
+                        "overflow": "visible"
+                      },
+                      "children": [
+                        {
+                          "id": "nd_e0uela2alm043",
+                          "type": "text",
+                          "name": "",
+                          "frame": {
+                            "x": 0,
+                            "y": 0,
+                            "w": 0,
+                            "h": "auto",
+                            "rotation": 0,
+                            "z": 0,
+                            "layout": "flow",
+                            "constraints": {
+                              "h": "left",
+                              "v": "top"
+                            },
+                            "grow": 1
+                          },
+                          "style": {
+                            "font": {
+                              "family": "var(--fm-display-font)",
+                              "size_pt": 12.5,
+                              "weight": 800,
+                              "color": "var(--fm-text)"
+                            }
+                          },
+                          "locks": {},
+                          "bind": null,
+                          "visible": true,
+                          "props": {
+                            "blocks": [
+                              {
+                                "id": "blk_e0uelg6as9v41",
+                                "type": "paragraph",
+                                "align": "left",
+                                "runs": [
+                                  {
+                                    "text": "New contract total"
+                                  }
+                                ]
+                              }
+                            ],
+                            "valign": "top",
+                            "auto_fit": false,
+                            "line_height": 1.4,
+                            "letter_spacing": 0
+                          },
+                          "anchor": "flow"
+                        },
+                        {
+                          "id": "nd_e0uelgglkh946",
+                          "type": "text",
+                          "name": "",
+                          "frame": {
+                            "x": 0,
+                            "y": 0,
+                            "w": 110,
+                            "h": "auto",
+                            "rotation": 0,
+                            "z": 0,
+                            "layout": "flow",
+                            "constraints": {
+                              "h": "left",
+                              "v": "top"
+                            }
+                          },
+                          "style": {
+                            "font": {
+                              "family": "var(--fm-display-font)",
+                              "size_pt": 12.5,
+                              "weight": 800,
+                              "color": "var(--fm-text)"
+                            }
+                          },
+                          "locks": {},
+                          "bind": null,
+                          "visible": true,
+                          "props": {
+                            "blocks": [
+                              {
+                                "id": "blk_e0uel9hvrd044",
+                                "type": "paragraph",
+                                "align": "right",
+                                "runs": [
+                                  {
+                                    "text": "",
+                                    "bind": "params.new_total_cents | money"
+                                  }
+                                ]
+                              }
+                            ],
+                            "valign": "top",
+                            "auto_fit": false,
+                            "line_height": 1.4,
+                            "letter_spacing": 0
+                          },
+                          "anchor": "flow"
+                        }
+                      ],
+                      "anchor": "flow"
+                    }
+                  ],
+                  "anchor": "flow"
+                },
+                {
+                  "id": "nd_e0uemvifqha49",
+                  "type": "frame",
+                  "name": "Spacer",
+                  "frame": {
+                    "x": 0,
+                    "y": 0,
+                    "w": 0,
+                    "h": 4,
+                    "rotation": 0,
+                    "z": 0,
+                    "layout": "flow",
+                    "constraints": {
+                      "h": "left",
+                      "v": "top"
+                    }
+                  },
+                  "style": {},
+                  "locks": {},
+                  "bind": null,
+                  "visible": true,
+                  "props": {
+                    "background": null,
+                    "clip": false,
+                    "flow": {
+                      "direction": "column",
+                      "gap": 8,
+                      "padding": [
+                        0,
+                        0,
+                        0,
+                        0
+                      ],
+                      "align": "stretch",
+                      "wrap": false
+                    },
+                    "overflow": "visible"
+                  },
+                  "children": [],
+                  "anchor": "flow"
+                },
+                {
+                  "id": "nd_e0uemrpts6c4c",
+                  "type": "text",
+                  "name": "",
+                  "frame": {
+                    "x": 0,
+                    "y": 0,
+                    "w": 0,
+                    "h": "auto",
+                    "rotation": 0,
+                    "z": 0,
+                    "layout": "flow",
+                    "constraints": {
+                      "h": "left",
+                      "v": "top"
+                    }
+                  },
+                  "style": {},
+                  "locks": {},
+                  "bind": null,
+                  "visible": true,
+                  "props": {
+                    "blocks": [
+                      {
+                        "id": "blk_e0uem1014oe4a",
+                        "type": "paragraph",
+                        "align": "left",
+                        "style_ref": "h2",
+                        "runs": [
+                          {
+                            "text": "How this change is paid"
+                          }
+                        ]
+                      }
+                    ],
+                    "valign": "top",
+                    "auto_fit": false,
+                    "line_height": 1.4,
+                    "letter_spacing": 0
+                  },
+                  "anchor": "flow"
+                },
+                {
+                  "id": "nd_e0uemsixmgp4d",
+                  "type": "widget",
+                  "name": "",
+                  "frame": {
+                    "x": 0,
+                    "y": 0,
+                    "w": 0,
+                    "h": "auto",
+                    "rotation": 0,
+                    "z": 0,
+                    "layout": "flow",
+                    "constraints": {
+                      "h": "left",
+                      "v": "top"
+                    }
+                  },
+                  "style": {},
+                  "locks": {},
+                  "bind": null,
+                  "visible": true,
+                  "props": {
+                    "widget": "doc.payment_schedule@1",
+                    "config": {
+                      "source": "params.payment_schedule",
+                      "show_status": false
+                    }
+                  },
+                  "anchor": "flow"
+                },
+                {
+                  "id": "nd_e0uemt9y3ke4g",
+                  "type": "text",
+                  "name": "",
+                  "frame": {
+                    "x": 0,
+                    "y": 0,
+                    "w": 0,
+                    "h": "auto",
+                    "rotation": 0,
+                    "z": 0,
+                    "layout": "flow",
+                    "constraints": {
+                      "h": "left",
+                      "v": "top"
+                    }
+                  },
+                  "style": {
+                    "font": {
+                      "family": "var(--fm-body-font)",
+                      "size_pt": 9.5,
+                      "color": "var(--fm-color-muted)"
+                    }
+                  },
+                  "locks": {},
+                  "bind": {
+                    "if": "params.account.has_contract == true"
+                  },
+                  "visible": true,
+                  "props": {
+                    "blocks": [
+                      {
+                        "id": "blk_e0uem7hsb774e",
+                        "type": "paragraph",
+                        "align": "left",
+                        "runs": [
+                          {
+                            "text": "The payments already scheduled on your agreement do not change."
+                          }
+                        ]
+                      }
+                    ],
+                    "valign": "top",
+                    "auto_fit": false,
+                    "line_height": 1.4,
+                    "letter_spacing": 0
+                  },
+                  "anchor": "flow"
+                },
+                {
+                  "id": "nd_e0uemvlad944h",
+                  "type": "frame",
+                  "name": "Spacer",
+                  "frame": {
+                    "x": 0,
+                    "y": 0,
+                    "w": 0,
+                    "h": 4,
+                    "rotation": 0,
+                    "z": 0,
+                    "layout": "flow",
+                    "constraints": {
+                      "h": "left",
+                      "v": "top"
+                    }
+                  },
+                  "style": {},
+                  "locks": {},
+                  "bind": null,
+                  "visible": true,
+                  "props": {
+                    "background": null,
+                    "clip": false,
+                    "flow": {
+                      "direction": "column",
+                      "gap": 8,
+                      "padding": [
+                        0,
+                        0,
+                        0,
+                        0
+                      ],
+                      "align": "stretch",
+                      "wrap": false
+                    },
+                    "overflow": "visible"
+                  },
+                  "children": [],
+                  "anchor": "flow"
+                },
+                {
+                  "id": "nd_e0uemvyu4ow4r",
+                  "type": "frame",
+                  "name": "",
+                  "frame": {
+                    "x": 0,
+                    "y": 0,
+                    "w": 0,
+                    "h": "auto",
+                    "rotation": 0,
+                    "z": 0,
+                    "layout": "flow",
+                    "constraints": {
+                      "h": "left",
+                      "v": "top"
+                    }
+                  },
+                  "style": {},
+                  "locks": {},
+                  "bind": null,
+                  "visible": true,
+                  "props": {
+                    "background": null,
+                    "clip": false,
+                    "flow": {
+                      "direction": "column",
+                      "gap": 6,
+                      "padding": [
+                        0,
+                        0,
+                        0,
+                        0
+                      ],
+                      "align": "stretch",
+                      "wrap": false
+                    },
+                    "overflow": "visible"
+                  },
+                  "children": [
+                    {
+                      "id": "nd_e0uemrulurx4k",
+                      "type": "text",
+                      "name": "",
+                      "frame": {
+                        "x": 0,
+                        "y": 0,
+                        "w": 0,
+                        "h": "auto",
+                        "rotation": 0,
+                        "z": 0,
+                        "layout": "flow",
+                        "constraints": {
+                          "h": "left",
+                          "v": "top"
+                        }
+                      },
+                      "style": {},
+                      "locks": {},
+                      "bind": null,
+                      "visible": true,
+                      "props": {
+                        "blocks": [
+                          {
+                            "id": "blk_e0uem8puldg4i",
+                            "type": "paragraph",
+                            "align": "left",
+                            "style_ref": "h2",
+                            "runs": [
+                              {
+                                "text": "Approval"
+                              }
+                            ]
+                          }
+                        ],
+                        "valign": "top",
+                        "auto_fit": false,
+                        "line_height": 1.4,
+                        "letter_spacing": 0
+                      },
+                      "anchor": "flow"
+                    },
+                    {
+                      "id": "nd_e0uemlt6nvv4n",
+                      "type": "text",
+                      "name": "",
+                      "frame": {
+                        "x": 0,
+                        "y": 0,
+                        "w": 0,
+                        "h": "auto",
+                        "rotation": 0,
+                        "z": 0,
+                        "layout": "flow",
+                        "constraints": {
+                          "h": "left",
+                          "v": "top"
+                        }
+                      },
+                      "style": {
+                        "font": {
+                          "family": "var(--fm-body-font)",
+                          "size_pt": 10.5,
+                          "color": "var(--fm-text)"
+                        }
+                      },
+                      "locks": {},
+                      "bind": null,
+                      "visible": true,
+                      "props": {
+                        "blocks": [
+                          {
+                            "id": "blk_e0uemfivrmq4l",
+                            "type": "paragraph",
+                            "align": "left",
+                            "runs": [
+                              {
+                                "text": "By signing, you approve the work and price above as a change to your agreement and authorize us to proceed."
+                              }
+                            ]
+                          }
+                        ],
+                        "valign": "top",
+                        "auto_fit": false,
+                        "line_height": 1.4,
+                        "letter_spacing": 0
+                      },
+                      "anchor": "flow"
+                    },
+                    {
+                      "id": "nd_e0uem7jp5uy4q",
+                      "type": "frame",
+                      "name": "",
+                      "frame": {
+                        "x": 0,
+                        "y": 0,
+                        "w": 0,
+                        "h": "auto",
+                        "rotation": 0,
+                        "z": 0,
+                        "layout": "flow",
+                        "constraints": {
+                          "h": "left",
+                          "v": "top"
+                        }
+                      },
+                      "style": {},
+                      "locks": {},
+                      "bind": null,
+                      "visible": true,
+                      "props": {
+                        "background": null,
+                        "clip": false,
+                        "flow": {
+                          "direction": "row",
+                          "gap": 24,
+                          "padding": [
+                            0,
+                            0,
+                            0,
+                            0
+                          ],
+                          "align": "end",
+                          "wrap": false
+                        },
+                        "overflow": "visible"
+                      },
+                      "children": [
+                        {
+                          "id": "nd_e0uem17cub64o",
+                          "type": "widget",
+                          "name": "",
+                          "frame": {
+                            "x": 0,
+                            "y": 0,
+                            "w": 0,
+                            "h": 76,
+                            "rotation": 0,
+                            "z": 0,
+                            "layout": "flow",
+                            "constraints": {
+                              "h": "left",
+                              "v": "top"
+                            },
+                            "grow": 1
+                          },
+                          "style": {},
+                          "locks": {},
+                          "bind": null,
+                          "visible": true,
+                          "props": {
+                            "widget": "doc.signature@1",
+                            "config": {
+                              "output": "sig_customer",
+                              "label": "Customer approval",
+                              "signer": "customer"
+                            }
+                          },
+                          "anchor": "flow"
+                        },
+                        {
+                          "id": "nd_e0uemorrzyq4p",
+                          "type": "widget",
+                          "name": "",
+                          "frame": {
+                            "x": 0,
+                            "y": 0,
+                            "w": 180,
+                            "h": 76,
+                            "rotation": 0,
+                            "z": 0,
+                            "layout": "flow",
+                            "constraints": {
+                              "h": "left",
+                              "v": "top"
+                            }
+                          },
+                          "style": {},
+                          "locks": {},
+                          "bind": {
+                            "if": "coalesce(params.due_now_cents, 0) > 0"
+                          },
+                          "visible": true,
+                          "props": {
+                            "widget": "doc.pay_now@1",
+                            "config": {
+                              "output_key": "payment",
+                              "source": "params.due_now_cents",
+                              "amount_label": "Due on approval"
+                            }
+                          },
+                          "anchor": "flow"
+                        }
+                      ],
+                      "anchor": "flow"
+                    }
+                  ],
+                  "anchor": "flow"
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    "metadata": {
+      "default_workflow_id": "wfl_change_order",
+      "customer_presentation": {
+        "tab": {
+          "id": "documents",
+          "label": "Documents",
+          "icon": "fa-file-lines",
+          "order": 60
+        },
+        "mode": "hybrid",
+        "workflow_cta": "Review & approve"
+      }
+    },
+    "initial_metadata": {
+      "default": true
+    },
+    "requires_pricebook_items": [],
+    "pricebook_defaults": []
+  }
+}

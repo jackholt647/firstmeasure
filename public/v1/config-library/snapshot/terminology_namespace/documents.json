@@ -1,0 +1,56 @@
+{
+  "kind": "terminology_namespace",
+  "id": "documents",
+  "revision": 1,
+  "sha256": "bcbfd8a564b756d9181524aa0a12c995789f7807fe19d82aaff6d0870ec4e5f7",
+  "title": "Documents",
+  "updated_at": "2026-10-28T00:40:02.983Z",
+  "updated_by": "generator",
+  "data": {
+    "title": "Documents",
+    "note": "Project document navigation and document records.",
+    "position": 50,
+    "terms": [
+      {
+        "key": "project_tab",
+        "label": "Docs",
+        "kind": "navigation"
+      },
+      {
+        "key": "settings_tab",
+        "label": "Documents",
+        "kind": "navigation"
+      },
+      {
+        "key": "document",
+        "label": "Document",
+        "kind": "entity"
+      },
+      {
+        "key": "documents",
+        "label": "Documents",
+        "kind": "entity"
+      },
+      {
+        "key": "required_document",
+        "label": "Required Document",
+        "kind": "entity"
+      },
+      {
+        "key": "folder",
+        "label": "Folder",
+        "kind": "entity"
+      },
+      {
+        "key": "attachment",
+        "label": "Attachment",
+        "kind": "entity"
+      },
+      {
+        "key": "markup",
+        "label": "Markup",
+        "kind": "entity"
+      }
+    ]
+  }
+}

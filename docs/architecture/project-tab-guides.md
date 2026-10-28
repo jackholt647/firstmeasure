@@ -33,7 +33,7 @@ option, `show_as_tab`). The window opens on the first tab in this order unless
 Overview is a tab or the person has a default home view.
 
 A configuration sets it as data (`settings.project_tabs`); see
-`signup-sandbox/configurations/mvp-platform.ts`.
+the `sandbox_configuration` library entry `swf_mvp_platform`.
 
 ## Personal: what a person has opened
 

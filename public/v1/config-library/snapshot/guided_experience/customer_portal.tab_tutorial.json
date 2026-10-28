@@ -1,0 +1,180 @@
+{
+  "kind": "guided_experience",
+  "id": "customer_portal.tab_tutorial",
+  "revision": 1,
+  "sha256": "c047c1dbdf0aedf563fe5e11e868b3f17cc578965dd91037f91a05441e97e4f0",
+  "title": "Customer Portal tour",
+  "updated_at": "2026-10-28T00:40:02.983Z",
+  "updated_by": "generator",
+  "data": {
+    "id": "customer_portal.tab_tutorial",
+    "version": 1,
+    "kind": "overlay",
+    "scope": "person",
+    "salt": "2026-10",
+    "title": {
+      "key": "gx_cpt_title",
+      "text": "Customer Portal tour"
+    },
+    "tab": "project.customer_portal",
+    "eligibility": {
+      "capabilities": [
+        "platform.customer_portal"
+      ],
+      "permissions": []
+    },
+    "triggers": [
+      {
+        "kind": "tab_opened",
+        "tab": "project.customer_portal",
+        "once": true,
+        "delay_ms": 900
+      }
+    ],
+    "variants": [
+      {
+        "id": "tour",
+        "weight": 1,
+        "content": {}
+      }
+    ],
+    "requires": [],
+    "steps": [
+      {
+        "id": "intro",
+        "title": {
+          "key": "gx_cpt_intro_title",
+          "text": "Welcome to the Customer Portal"
+        },
+        "body": {
+          "key": "gx_cpt_intro_body",
+          "text": "Your customer gets their own private page for this project. This tab is where you set it up. Here's a quick look around."
+        },
+        "targets": [],
+        "placement": "center",
+        "advance": "next",
+        "wait_ms": 1500
+      },
+      {
+        "id": "link",
+        "title": {
+          "key": "gx_cpt_link_title",
+          "text": "The customer's link"
+        },
+        "body": {
+          "key": "gx_cpt_link_body",
+          "text": "Make their private link here, then copy it, email it or download a QR code. Nothing is sent until you send it."
+        },
+        "targets": [
+          "[data-cpo-link-card]"
+        ],
+        "placement": "auto",
+        "advance": "next",
+        "wait_ms": 1500
+      },
+      {
+        "id": "preview",
+        "title": {
+          "key": "gx_cpt_preview_title",
+          "text": "Preview"
+        },
+        "body": {
+          "key": "gx_cpt_preview_see",
+          "text": "See exactly what the customer sees."
+        },
+        "targets": [
+          "[data-cpo-preview]"
+        ],
+        "placement": "auto",
+        "advance": "next",
+        "wait_ms": 1500
+      },
+      {
+        "id": "options",
+        "title": {
+          "key": "gx_cpt_options_title",
+          "text": "What the customer can do"
+        },
+        "body": {
+          "key": "gx_cpt_options_body",
+          "text": "Choose whether the customer can pick a new appointment time or share a read-only link with someone else."
+        },
+        "targets": [
+          "[data-cpo-resched-switch]",
+          "[data-cpo-guest-switch]"
+        ],
+        "placement": "auto",
+        "advance": "next",
+        "wait_ms": 1500,
+        "eligibility": {
+          "capabilities": [
+            "scheduling.customer_rescheduling|customer_portal.guest_links"
+          ],
+          "permissions": []
+        }
+      },
+      {
+        "id": "media",
+        "title": {
+          "key": "gx_cpt_media_title",
+          "text": "Photos they see"
+        },
+        "body": {
+          "key": "gx_cpt_media_body",
+          "text": "Choose which photos and videos from the Photos tab show in their portal."
+        },
+        "targets": [
+          "[data-cpo-media]"
+        ],
+        "placement": "auto",
+        "advance": "next",
+        "wait_ms": 1500,
+        "eligibility": {
+          "capabilities": [
+            "platform.customer_portal_media"
+          ],
+          "permissions": []
+        }
+      },
+      {
+        "id": "history",
+        "title": {
+          "key": "gx_cpt_history_title",
+          "text": "History"
+        },
+        "body": {
+          "key": "gx_cpt_history_body",
+          "text": "When the customer visited and what they opened. Your own previews don't count."
+        },
+        "targets": [
+          "[data-cpo-history]"
+        ],
+        "placement": "auto",
+        "advance": "next",
+        "wait_ms": 1500
+      },
+      {
+        "id": "outro",
+        "title": {
+          "key": "gx_cpt_outro_title",
+          "text": "You're all set"
+        },
+        "body": {
+          "key": "gx_cpt_outro_body",
+          "text": "Want this tour again? Ask the agent \"Show me the tutorial again\"."
+        },
+        "targets": [],
+        "placement": "center",
+        "advance": "next",
+        "wait_ms": 1500
+      }
+    ],
+    "completion": {
+      "screen": "pricebook",
+      "say": [],
+      "then": []
+    },
+    "replayable": true,
+    "reveal": []
+  }
+}

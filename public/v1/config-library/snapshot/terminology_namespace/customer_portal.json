@@ -1,0 +1,56 @@
+{
+  "kind": "terminology_namespace",
+  "id": "customer_portal",
+  "revision": 1,
+  "sha256": "f8ae9b15ca0d066343b09c949dc9f7a05e19aa69488e51d88c2eb31c395468b7",
+  "title": "Customer Portal",
+  "updated_at": "2026-10-28T00:40:02.983Z",
+  "updated_by": "generator",
+  "data": {
+    "title": "Customer Portal",
+    "note": "Customer portal navigation and shared content views.",
+    "position": 160,
+    "terms": [
+      {
+        "key": "project_tab",
+        "label": "Customer Portal",
+        "kind": "navigation"
+      },
+      {
+        "key": "overview_view",
+        "label": "Overview",
+        "kind": "view"
+      },
+      {
+        "key": "media_view",
+        "label": "Media",
+        "kind": "view"
+      },
+      {
+        "key": "customer_portal",
+        "label": "Customer Portal",
+        "kind": "entity"
+      },
+      {
+        "key": "update",
+        "label": "Update",
+        "kind": "entity"
+      },
+      {
+        "key": "updates",
+        "label": "Updates",
+        "kind": "entity"
+      },
+      {
+        "key": "shared_document",
+        "label": "Shared Document",
+        "kind": "entity"
+      },
+      {
+        "key": "shared_photo",
+        "label": "Shared Photo",
+        "kind": "entity"
+      }
+    ]
+  }
+}

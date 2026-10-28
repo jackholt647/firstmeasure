@@ -13,12 +13,13 @@ eligibility and its chooser.
 | Where | What |
 |---|---|
 | `public/v1/guided-experiences/contracts.ts` | The definition schema (zod): kinds, steps, triggers, variants, completion, FAQs, selection limits. |
-| `public/v1/guided-experiences/registry.ts` | `registerExperience`, `registerTabFaqs`, `addTabFaqs`, `registerGuidedSource`. A malformed definition stops the server. |
+| `public/v1/guided-experiences/registry.ts` | Reads experiences and tab FAQs from the [config library](config-library.md) (kinds `guided_experience`, `guided_tab_faqs`; derives `setup_step.<id>`), parsed once per library change; `registerGuidedSource`. |
+| `public/v1/guided-experiences/sources.ts` | The guided sources (code), registered by id: `pricebook.roofing_setup`, `labor.setup`, `operations.suppliers`, `operations.workforce`. |
+| `public/v1/config-library/kinds/guided_experience.ts`, `guided_tab_faqs.ts`, `setup_step.ts`, `guided_copy.ts` | The library kinds: schema and the checks a save must pass (sources, actions, capabilities, setup steps and experiences it names). |
 | `public/v1/guided-experiences/chooser.ts` | Deterministic bucketing and variant choice; region and size helpers. |
 | `public/v1/guided-experiences/store.ts` | SQL store `guided-experiences`: `guided_progress`, `guided_events`. |
 | `public/v1/guided-experiences/service.ts` | Eligibility, resolving for a person, events, completion, the scripted conversation, the assistant hook. |
 | `public/v1/guided-experiences/api.ts` | Routes under `/v1/guided-experiences`. |
-| `public/v1/guided-experiences/definitions/*.ts` | Domain definitions. `materials.ts` holds the first ones. |
 | `public/libraries/guided-experiences/guided-experiences.js` | `window.FirstMateGuides`: API client, triggers, the overlay engine, assistant FAQs. |
 | `public/libraries/guided-experiences/guided-setup.js` | `window.FirstMateGuidedSetup`: the `modal` and `agentic` players and step widgets. |
 | `public/v1/pricebook/setups/` | Price book setups by trade and the `pricebook.setup.apply` action, plus `pricebook.prices.list` / `pricebook.prices.update` for price sheets. Roofing is the first. |
@@ -70,10 +71,21 @@ An **experience** (`experienceSchema`):
   `FirstMateGuides.projectFacts`: `has_report` (a report delivered: a report link
   or file, or a completed report) and `is_draft`.
 
+**Definitions are config library data.** Every experience is a `guided_experience`
+entry (id = experience id), every tab's questions a `guided_tab_faqs` entry (id =
+tab app id) and every setup step a `setup_step` entry, edited on dev and checked in
+as the library snapshot ([config library](config-library.md)); there are no
+definition files. Organizations keep no copies: the runtime reads the library live.
+What an entry names that is code stays code, registered by id: guided sources
+(`sources.ts`), completion actions (published actions), step widgets and modules
+(browser). A save that names one the running code does not register is refused.
+
 Copy is `{ key, text }`: a `PlatformLanguage` key in the `guided-experiences`
-namespace and its English text. The browser resolves it through
-`PlatformLanguage.text`, so the inline text is the fallback until a catalog
-carries the key. A reworded text needs a new key.
+namespace and its English text, as the library holds it. In English the browser
+shows that text over any catalog English for the key, so an edit in the library
+shows at once; other languages resolve through `PlatformLanguage.text` (the inline
+text is the fallback until a catalog carries the key). A reworded text still wants
+a new key, so translations are redone.
 
 **Tab FAQs** (`faqSchema`): per project tab, up to eight questions. `ask` sends
 the question (or its `prompt`) to the assistant; `play` replays an experience
@@ -277,7 +289,7 @@ question.
 
 ## Materials: the first use
 
-`definitions/materials.ts`:
+Library entries `guided_experience/materials.*` and `operations.*`, with the tab questions in `guided_tab_faqs/*`:
 
 - `materials.pricebook_setup.roofing` (agentic, organization). Eligible to
   people with `manage_company_settings` and `manage_projects` where
@@ -305,8 +317,11 @@ question.
 
 **Price book setup** (`pricebook/setups/roofing.ts`). Products, rules, regions and
 the kinds of roof (`roof_types`, each naming its component systems) come from
-`materials/roofing-research/roofing-catalog-2026.json`, read in its own schema, with
-the roofing library as the fallback. Every manufacturer in the catalog is offered,
+the config library entry `pricebook_setup/roofing.catalog` (the research catalog,
+read in its own schema); the setup's default tables (featured brands, brand looks,
+default slots, ice coverage choices, categories) are `pricebook_setup/roofing.settings`.
+All of it is edited on dev as [config library](config-library.md) data, not in
+code. Every manufacturer in the catalog is offered,
 the four most installed first; a manufacturer's `logo` (a path under
 `public/images/brands/roofing/`, checked by `logoPath`) shows in a common box on its
 card, and the wordmark shows when there is none or it fails to load.
@@ -320,8 +335,8 @@ no document has said otherwise, each a product from a dropdown:
 - underlayment, ice and water, ridge vent, intake vent, box vents: the first
   picked brand that makes one, its `setup_default` accessory else its first
   (another picked brand fills a gap, then a generic item); pipe boot: the generic
-  lead boot first (`DEFAULT_SLOTS`, `slotDefault`);
-- how far ice and water runs (`ICE_COVERAGE`): 18 in at eaves and rakes plus
+  lead boot first (`default_slots`, `slotDefault`);
+- how far ice and water runs (`ice_coverage`): 18 in at eaves and rakes plus
   valleys (default), 36 in or 72 in at the eaves plus valleys, 36 in at the eaves
   only, valleys only, or none. The measurement rule counts 3 ft courses (half a
   course along eaves and rakes at 18 in, one down each valley); the price book
@@ -344,7 +359,7 @@ only and is divided by that product's own coverage (an Owens Corning bundle
 covers 32.8 sq ft; a WeatherWatch roll 2 squares).
 
 **Without shingle** there is no manufacturer catalog. The roof-type components
-(`materials/roofing-research/roof-type-components-2026.json`, `status:
+(`pricebook_setup/roofing.components`, `status:
 provisional`: per system, components with a group, `standard`, dictionary `terms`,
 `waste_percent`, a unit and its coverage, or `entered_by_hand`) are written as
 price book items (`rtc-<system>-<key>`, cost 0 until a price sheet sets it) for
@@ -380,8 +395,9 @@ the apply's `item_ids` include them. A sheet that names a supplier also sets tha
 supplier's costs (`suppliers.prices.update`).
 
 **Suppliers.** With shingle, the suppliers step offers the researched suppliers in
-`materials/roofing-research/roofing-suppliers-2026.json` (which manufacturers each
-stocks, `full_range` or `retail_core`, a brand colour, observed library prices)
+`pricebook_setup/roofing.suppliers` (which manufacturers each
+stocks, `full_range` or `retail_core`, a brand colour, observed prices from
+`material_library/roofing`)
 as pills, and any typed supplier as a tag. A researched supplier starts with the
 picked brands' products it stocks (a big-box store only default lines and
 plain accessories); a typed one starts empty. Without shingle nothing is
@@ -435,19 +451,16 @@ organization's Labor type, never a configuration check.
 
 ## Tab tours: Photos, Reports, Customer Portal
 
-One overlay tour per tab, each in its own file under `definitions/` and
-registered in `ensureGuidedDefinitions`: `photos.tab_tutorial` (`photos.ts`,
-`project.photos`, `platform.project_photos`), `reports.tab_tutorial`
-(`reports.ts`, `project.measurements`, `apps.firstmeasure`) and
-`customer_portal.tab_tutorial` (`customer-portal.ts`, `project.customer_portal`,
+One overlay tour per tab, each its own `guided_experience` entry:
+`photos.tab_tutorial` (`project.photos`, `platform.project_photos`),
+`reports.tab_tutorial` (`project.measurements`, `apps.firstmeasure`) and
+`customer_portal.tab_tutorial` (`project.customer_portal`,
 `platform.customer_portal`). Each is per person and replayable, plays on the
 first `tab_opened` of its tab wherever the tab's capability is on, and has an
 intro, its steps on the tab's own hooks (a step whose control is not on the
 page, such as a report's model before it is ready, is skipped) and an outro
-pointing at "Show me the tutorial again". That replay question is added to the
-tab's existing questions with `addTabFaqs`, which merges with
-`registerTabFaqs` in either order and keeps the limit of eight; a file never
-edits another file's questions. A step on a feature the organization can
+pointing at "Show me the tutorial again". That replay question is one of the
+tab's questions in its `guided_tab_faqs` entry (at most eight). A step on a feature the organization can
 switch off names its capability in its `eligibility`, so it is never sent where
 the feature is off rather than relying on the control being missing: Reports'
 Summary (`firstmeasure.measurement_report_summary`) and Support
@@ -488,15 +501,19 @@ Materials tab audit (October 24), button to published action:
 
 ## Authoring
 
-1. Write the definition in `definitions/<domain>.ts` with `registerExperience`;
-   register it from `ensureGuidedDefinitions` in `service.ts`.
+1. Write the experience as a `guided_experience` library entry on dev (the dev
+   console's library editor, or `PUT /v1/config-library/entries/guided_experience/<id>`
+   with an access key); it plays on the next read everywhere on dev and reaches
+   production with the next snapshot. No code, no rollout. Tab questions are a
+   `guided_tab_faqs` entry, setup steps a `setup_step` entry.
 2. Copy: new `gx_…` keys for every text.
 3. Overlay targets: stable attributes (`data-…`), never generated classes. A step
    whose target is missing is skipped, so a tour survives a hidden button; a step
    about a feature that can be switched off also names its capability in the
    step's `eligibility`.
-4. Setups: a widget per step; data from a `registerGuidedSource` on the server;
-   what is written is a published action named in `completion.action`.
+4. Setups: a widget per step; data from a guided source (`sources.ts`, code, the
+   one part of a setup that is not data); what is written is a published action
+   named in `completion.action`.
 5. Pick eligibility (capabilities and permissions, not configurations) and
    triggers; add a variant for anything that should differ by context.
 6. Tests: `tests/guided-experiences.test.ts` (engine),
@@ -505,8 +522,9 @@ Materials tab audit (October 24), button to published action:
    replay, phone width) and `tests/guided-experiences-flow-browser.test.mjs`
    (portal plus project frame: one experience at a time, fast Next and Back,
    close mid-tour, reopen, reload, switch projects, the tray's lines once, dev
-   editing) and `tests/guided-experiences-dev.test.ts` (dev gating, overrides,
-   history, export, reset). Set `GX_SHOTS=<dir>` to save screenshots.
+   editing) and `tests/guided-experiences-dev.test.ts` (dev gating, copy in the
+   library, history, revert, reset), and `tests/config-library-guided-kinds.test.ts`
+   (the kinds' checks). Set `GX_SHOTS=<dir>` to save screenshots.
 
 ## Development: reset, replay and editing copy
 
@@ -524,23 +542,24 @@ route refuses elsewhere with 404, whoever asks.
 - **Copy** (`PUT /dev/copy`, `GET /dev/copy/history?key=`, `POST /dev/copy/revert`):
   every piece of copy rendered through `copyHtml` carries its language key; for a
   development editor it is plain-text `contenteditable` and saves 700 ms after
-  typing (or on leaving the field). Overrides are platform-wide, keyed by the
-  copy's `gx_` language key (with the experience, step and field where it was
-  edited, for the record), applied over the definitions' English for everyone in
-  development on their next load. Each change is a revision with its author and
-  time; revert to any revision or back to the code's text. Markup is refused,
-  everything is shown as text. Scripted agent lines are editable in the assistant
-  too (their message carries `copy_key`); lines already stored in a conversation
-  keep the text they were written with.
-- **Languages:** overrides are English only. They replace a key's English (also
-  over a catalog entry, when there is one); other languages keep their
-  translation. Production reads no overrides and shows the code's copy.
-- **To code:** `GET /v1/guided-experiences/dev/copy/export` returns each override
-  beside the source text it replaces (`definitions/*.ts`, the guided libraries) and
-  the same text as `guided-experiences` catalog entries. Save it and run
-  `node public/v1/scripts/guided-copy-apply.mjs export.json --write`, review the
-  diff, commit; then revert the overrides on dev to the code's text. A key whose
-  English the catalog already carries needs the catalog entry updated too.
+  typing (or on leaving the field). A save is a new [config library](config-library.md)
+  revision of every entry that holds the copy's `gx_` key (the experience, a tab's
+  questions, a setup step; the experience, step and field where it was edited go in
+  the revision's note): the `{ key, text }` with that key gets the new text, for
+  everyone on their next load. A string the guided browser libraries draw themselves
+  (`L('gx_ui_back', 'Back')`) is a `guided_copy` entry keyed by it, sent as
+  `copy_overrides`. History is that entry's revisions where the key's text changed,
+  with author and time; revert saves an earlier revision's text as a new revision,
+  and revision 0 is the first text the library had (for a library string, its
+  built-in text). Markup is refused, everything is shown as text. Scripted agent
+  lines are editable in the assistant too (their message carries `copy_key`); lines
+  already stored in a conversation keep the text they were written with. Copy
+  overrides saved before copy was library data are moved into it once, at startup
+  on dev (`importLegacyCopyOverrides`).
+- **Languages:** the library holds English. In English it is shown over a catalog
+  entry for the key, when there is one; other languages keep their translation.
+  Production reads the library snapshot, so an edit reaches it with the next
+  snapshot in a release; there is no export to code.
 - **Seeing it:** the tools are the Guided experiences section of the
   [dev console](dev-console.md), drawn by `FirstMateGuides.devPanel`: "Editing copy"
   (off until the editor turns it on, remembered per browser; then editable copy has a

@@ -1,0 +1,16 @@
+{
+  "kind": "measurement_partition",
+  "id": "roof.pitch_exact",
+  "revision": 1,
+  "sha256": "cb8342d6fef0c5a33f4a9d75731022f96fc0c48944c9e4a9593adc0870f726f5",
+  "title": "By exact pitch",
+  "updated_at": "2026-10-28T00:40:02.983Z",
+  "updated_by": "generator",
+  "data": {
+    "of": "roof.squares",
+    "dimension": "roof.pitch",
+    "label": "By exact pitch",
+    "complete": true,
+    "description": "Roof squares at each exact pitch."
+  }
+}

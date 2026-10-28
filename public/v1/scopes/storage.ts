@@ -4,7 +4,7 @@ import { badRequest, conflict, notFound, PlatformError } from "../platform/error
 import { getWorkDatabase, type JsonObject } from "../work/storage.js";
 import { normalizeWorkPlanBindingKeys } from "../work/bindings.js";
 import { scopeTemplateDefinitionSchema, type ScopeTemplateDefinition } from "./schemas.js";
-import { DEFAULT_SCOPE_TEMPLATES } from "./presets/index.js";
+import { defaultScopeLibraryEntries, isIndustryScopeEntry, scopeCopyState, scopeLibraryCopy, scopeLibraryEntries, scopeLibraryEntry } from "./library.js";
 import { assertTemplateCategories, isSalesTemplate, templateCategoryIds, withCategoryIds } from "./categories.js";
 
 function cleanText(value: unknown) {
@@ -111,10 +111,18 @@ async function insertVersion(orgId: string, branchId: string, definitionValue: S
   return (await readScopeTemplateVersion(orgId, branchId, definition.id, version));
 }
 
+/**
+ * Puts the scope library into an organization's branch (scopes/library.ts): on a branch with no templates, a copy of
+ * every default; otherwise a copy of any default it lacks, and the current entry over any untouched copy
+ * (`metadata.preset: true`) made from an older one. An edited copy is never touched. Industry scopes are copied
+ * only by their CRM pack, but an untouched copy of one follows the library the same way.
+ */
 export async function ensureDefaultScopeTemplates(orgId: string, branchId = "default") {
   return (await getWorkDatabase().transaction(async () => {
   if (updatingDefaultTemplates) return;
   const db = getWorkDatabase();
+  const library = scopeLibraryEntries();
+  const defaults = library.filter((entry) => !isIndustryScopeEntry(entry));
   const count = Number(asObject((await db.prepare("SELECT COUNT(*) AS count FROM scope_templates WHERE organization_id = ? AND branch_id = ?").get(orgId, branchId))).count || 0);
   updatingDefaultTemplates = true;
   try {
@@ -124,12 +132,13 @@ export async function ensureDefaultScopeTemplates(orgId: string, branchId = "def
       await db.transaction(async () => {
         const lockedCount = Number(asObject((await db.prepare("SELECT COUNT(*) AS count FROM scope_templates WHERE organization_id = ? AND branch_id = ?").get(orgId, branchId))).count || 0);
         if (lockedCount === 0) {
-          for (const [index, definition] of DEFAULT_SCOPE_TEMPLATES.entries()) {
+          for (const [index, entry] of defaults.entries()) {
+            const definition = scopeLibraryCopy(entry);
             (await db.prepare(`INSERT INTO scope_templates (id, organization_id, branch_id, name, description, details, color,
               icon, status, current_version, sort_order, metadata_json, created_at, updated_at)
               VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'active', 1, ?, ?, ?, ?)`)
               .run(definition.id, orgId, branchId, definition.name, cleanText(definition.description), cleanText(definition.details),
-                cleanText(definition.color), cleanText(definition.icon), index, JSON.stringify(definition.metadata || {}), now, now));
+                cleanText(definition.color), cleanText(definition.icon), librarySortOrder(definition, index), JSON.stringify(definition.metadata || {}), now, now));
             (await insertVersion(orgId, branchId, definition, 1));
           }
           seeded = true;
@@ -138,24 +147,21 @@ export async function ensureDefaultScopeTemplates(orgId: string, branchId = "def
   });
       if (seeded) return;
     }
-    for (const [index, definition] of DEFAULT_SCOPE_TEMPLATES.entries()) {
-      const row = (await db.prepare("SELECT * FROM scope_templates WHERE organization_id = ? AND branch_id = ? AND id = ?")
-        .get(orgId, branchId, definition.id));
-      if (!row) {
-        (await saveScopeTemplate(orgId, branchId, { ...definition, sort_order: index }, { systemPreset: true }));
+    // The template row carries its current version's metadata (every save writes both), so one read covers them all.
+    const rows = new Map((await db.prepare("SELECT * FROM scope_templates WHERE organization_id = ? AND branch_id = ?").all(orgId, branchId))
+      .map((row) => [cleanText(asObject(row).id), templateView(row)] as const));
+    for (const entry of library) {
+      const template = rows.get(entry.id);
+      const index = defaults.indexOf(entry);
+      if (!template) {
+        if (index >= 0) (await saveScopeTemplate(orgId, branchId, { ...scopeLibraryCopy(entry), sort_order: librarySortOrder(entry.data, index) } as JsonObject, { systemPreset: true }));
         continue;
       }
-      const template = templateView(row);
-      const current = (await readScopeTemplateVersion(orgId, branchId, definition.id, Number(template.current_version)));
-      const currentDefinition = asObject(current?.definition);
-      const currentMetadata = asObject(currentDefinition.metadata);
-      const nextRevision = Number(asObject(definition.metadata).preset_revision || 0);
-      if (currentMetadata.preset === true && Number(currentMetadata.preset_revision || 0) < nextRevision) {
-        try {
-          (await saveScopeTemplate(orgId, branchId, { ...definition, sort_order: index, expected_version: Number(template.current_version) }, { systemPreset: true }));
-        } catch (error) {
-          if (!(error instanceof PlatformError) || error.code !== "scope_template_version_conflict") throw error;
-        }
+      if (scopeCopyState(entry, template.metadata) !== "behind") continue;
+      try {
+        (await saveScopeTemplate(orgId, branchId, { ...scopeLibraryCopy(entry), sort_order: Number(template.sort_order || 0), expected_version: Number(template.current_version) } as JsonObject, { systemPreset: true }));
+      } catch (error) {
+        if (!(error instanceof PlatformError) || error.code !== "scope_template_version_conflict") throw error;
       }
     }
   } finally {
@@ -163,6 +169,11 @@ export async function ensureDefaultScopeTemplates(orgId: string, branchId = "def
   }
 
   }));
+}
+
+function librarySortOrder(definition: unknown, fallback: number) {
+  const value = Number(asObject(definition).sort_order);
+  return Number.isInteger(value) ? value : fallback;
 }
 
 export async function listScopeTemplates(orgId: string, branchId = "default", options: JsonObject = {}): Promise<JsonObject[]> {
@@ -187,7 +198,8 @@ export async function listScopeTemplates(orgId: string, branchId = "default", op
 
 export async function listScopeLibrary(orgId: string, branchId = "default"): Promise<JsonObject[]> {
   const installed = (await listScopeTemplates(orgId, branchId, { include_disabled: true, include_archived: true }));
-  return DEFAULT_SCOPE_TEMPLATES.map((definition, index) => {
+  return defaultScopeLibraryEntries().map((entry, index) => {
+    const definition = structuredClone(entry.data) as unknown as ScopeTemplateDefinition;
     const definitionMetadata = asObject(definition.metadata);
     const launch = asObject(definitionMetadata.field_launch);
     const instances = installed.filter((template) => {
@@ -212,9 +224,44 @@ export async function listScopeLibrary(orgId: string, branchId = "default"): Pro
       installed_count: instances.length,
       enabled_count: enabledInstances.length,
       installed_scope_ids: instances.map((template) => cleanText(template.id)).filter(Boolean),
-      definition: structuredClone(definition)
+      library_revision: entry.revision,
+      definition
     };
   });
+}
+
+/** How an organization's copies of the scope library stand in a branch (config library `orgCopies.status`). */
+export async function scopeLibraryCopyStatus(orgId: string, branchId = "default", ids?: string[]) {
+  const rows = new Map((await getWorkDatabase().prepare("SELECT * FROM scope_templates WHERE organization_id = ? AND branch_id = ?").all(orgId, branchId))
+    .map((row) => [cleanText(asObject(row).id), templateView(row)] as const));
+  return scopeLibraryEntries().filter((entry) => !ids || ids.includes(entry.id)).map((entry) => {
+    const template = rows.get(entry.id);
+    if (!template) {
+      return { id: entry.id, state: "missing" as const, library_revision: entry.revision, ...(isIndustryScopeEntry(entry) ? { detail: "Added by the CRM setup for its industry." } : {}) };
+    }
+    const metadata = asObject(template.metadata);
+    const stamp = asObject(metadata.library_stamp);
+    const state = scopeCopyState(entry, metadata);
+    const detail = cleanText(template.status) === "archived" ? "In the trash."
+      : state === "behind" && !stamp.sha256 ? "Made before the scope library; it upgrades the next time the organization's scopes are read." : "";
+    return { id: entry.id, state, library_revision: entry.revision, ...(stamp.revision ? { copy_revision: Number(stamp.revision) } : {}), ...(detail ? { detail } : {}) };
+  });
+}
+
+/** Puts an organization's copy back to the current library entry, as an untouched copy (config library `orgCopies.reset`). */
+export async function resetScopeTemplateToLibrary(orgId: string, branchId: string, templateId: string) {
+  const entry = scopeLibraryEntry(templateId);
+  if (!entry) throw notFound("scope_template_not_in_library", "That scope template is not in the scope library.");
+  const row = (await getWorkDatabase().prepare("SELECT * FROM scope_templates WHERE organization_id = ? AND branch_id = ? AND id = ?").get(orgId, branchId, templateId));
+  const sortOrder = row ? Number(templateView(row).sort_order || 0) : librarySortOrder(entry.data, 0);
+  return (await saveScopeTemplate(orgId, branchId, { ...scopeLibraryCopy(entry), sort_order: sortOrder } as JsonObject, { systemPreset: true }));
+}
+
+/** Copies a library scope template into a branch as an untouched copy, once: an industry pack's scopes (crm/presets.ts). */
+export async function installLibraryScopeTemplate(orgId: string, branchId: string, templateId: string) {
+  const entry = scopeLibraryEntry(templateId);
+  if (!entry) return null;
+  return (await saveScopeTemplate(orgId, branchId, scopeLibraryCopy(entry) as unknown as JsonObject, { systemPreset: true }));
 }
 
 export async function readScopeTemplate(orgId: string, branchId: string, templateId: string) {

@@ -1,0 +1,71 @@
+{
+  "kind": "terminology_namespace",
+  "id": "projects",
+  "revision": 1,
+  "sha256": "5cf9b6516d81bff7f0d47b11a83c9445163d4f70ab3eff756f478a5ed795f555",
+  "title": "Projects",
+  "updated_at": "2026-10-28T00:40:02.983Z",
+  "updated_by": "generator",
+  "data": {
+    "title": "Projects",
+    "note": "Project navigation, views, and the primary project record.",
+    "position": 10,
+    "terms": [
+      {
+        "key": "portal_tab",
+        "label": "My Projects",
+        "kind": "navigation"
+      },
+      {
+        "key": "crew_portal_tab",
+        "label": "Projects",
+        "kind": "navigation"
+      },
+      {
+        "key": "overview_tab",
+        "label": "Overview",
+        "kind": "navigation"
+      },
+      {
+        "key": "map_tab",
+        "label": "Map",
+        "kind": "navigation"
+      },
+      {
+        "key": "project",
+        "label": "Project",
+        "kind": "entity"
+      },
+      {
+        "key": "projects",
+        "label": "Projects",
+        "kind": "entity"
+      },
+      {
+        "key": "stage",
+        "label": "Stage",
+        "kind": "entity"
+      },
+      {
+        "key": "status",
+        "label": "Status",
+        "kind": "entity"
+      },
+      {
+        "key": "owner",
+        "label": "Owner",
+        "kind": "entity"
+      },
+      {
+        "key": "address",
+        "label": "Address",
+        "kind": "entity"
+      },
+      {
+        "key": "submitted_date",
+        "label": "Submitted",
+        "kind": "entity"
+      }
+    ]
+  }
+}

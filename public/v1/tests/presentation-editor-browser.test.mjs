@@ -9,6 +9,9 @@ import {chromium} from 'playwright-core';
 const libraries=new URL('../../libraries/',import.meta.url);
 const shots=new URL('../../../output/presentation-editor-20261007/',import.meta.url);
 const launch=()=>chromium.launch({executablePath:process.env.CHROME_PATH||'C:/Program Files/Google/Chrome/Application/chrome.exe',headless:true});
+// The deck is a config library entry: the checked-in snapshot is what /v1/config-library/read/presentation_deck serves.
+const decks=new URL('../config-library/snapshot/presentation_deck/',import.meta.url);
+const readDecks=async()=>JSON.stringify({ok:true,kind:'presentation_deck',entries:await Promise.all(['roofing_gutters','roofing_itemized','roofing_options'].map(async id=>{const entry=JSON.parse(await readFile(new URL(id+'.json',decks),'utf8'));return {id:entry.id,revision:entry.revision,title:entry.title,data:entry.data};}))});
 const types={js:'application/javascript; charset=utf-8',html:'text/html; charset=utf-8',css:'text/css; charset=utf-8',svg:'image/svg+xml'};
 
 async function open(browser,query=''){
@@ -16,6 +19,7 @@ async function open(browser,query=''){
  page.on('pageerror',e=>errors.push(e.message));
  page.on('dialog',async dialog=>{dialogs.push(dialog.message());if(page.acceptDialogs)await dialog.accept();else await dialog.dismiss();});
  await page.route('http://present.test/**',async route=>{const pathname=new URL(route.request().url()).pathname;
+  if(pathname==='/v1/config-library/read/presentation_deck')return route.fulfill({contentType:'application/json',body:await readDecks()});
   try{return await route.fulfill({contentType:types[pathname.split('.').pop()]||'text/plain',body:await readFile(new URL(pathname.slice('/libraries/'.length),libraries))});}
   catch{return route.fulfill({status:404,body:''});}
  });
@@ -259,6 +263,7 @@ test('the Docs host loads a module layout, publishes an edited one as a new vers
   const page=await browser.newPage({viewport:{width:1600,height:900}}),errors=[];
   page.on('pageerror',e=>errors.push(e.message));
   await page.route('http://present.test/**',async route=>{const pathname=new URL(route.request().url()).pathname;
+   if(pathname==='/v1/config-library/read/presentation_deck')return route.fulfill({contentType:'application/json',body:await readDecks()});
    try{return await route.fulfill({contentType:types[pathname.split('.').pop()]||'text/plain',body:await readFile(new URL(pathname.slice('/libraries/'.length),libraries))});}
    catch{return route.fulfill({status:404,body:''});}
   });

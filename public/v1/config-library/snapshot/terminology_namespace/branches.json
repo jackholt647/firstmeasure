@@ -1,0 +1,41 @@
+{
+  "kind": "terminology_namespace",
+  "id": "branches",
+  "revision": 1,
+  "sha256": "a4956e44a240e921aba032491d6f38ac103ecc7ad18f37ab71e529af0a52adb4",
+  "title": "Branches",
+  "updated_at": "2026-10-28T00:40:02.983Z",
+  "updated_by": "generator",
+  "data": {
+    "title": "Branches",
+    "note": "Shared display labels. Record identifiers and authored content stay unchanged.",
+    "position": 320,
+    "terms": [
+      {
+        "key": "branch",
+        "label": "Branch",
+        "kind": "entity"
+      },
+      {
+        "key": "branches",
+        "label": "Branches",
+        "kind": "entity"
+      },
+      {
+        "key": "region",
+        "label": "Region",
+        "kind": "entity"
+      },
+      {
+        "key": "regions",
+        "label": "Regions",
+        "kind": "entity"
+      },
+      {
+        "key": "main_branch",
+        "label": "Main branch",
+        "kind": "entity"
+      }
+    ]
+  }
+}

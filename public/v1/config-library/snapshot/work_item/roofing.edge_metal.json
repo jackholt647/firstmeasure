@@ -1,0 +1,15 @@
+{
+  "kind": "work_item",
+  "id": "roofing.edge_metal",
+  "revision": 1,
+  "sha256": "a27caf1f6647e87e5284bf231b92111bc8b2042c4a1063c130a749d01b992241",
+  "title": "Edge metal",
+  "updated_at": "2026-10-28T00:40:02.983Z",
+  "updated_by": "generator",
+  "data": {
+    "label": "Edge metal",
+    "kind": "work",
+    "unit": "ft",
+    "description": "Fit drip edge along the eaves and rakes."
+  }
+}

@@ -1,0 +1,19 @@
+{
+  "kind": "measurement_definition",
+  "id": "roof.chimney_back_length",
+  "revision": 1,
+  "sha256": "6bc38ef2c75f513cf4d49ffb1c241a075e4a5d1d5ced6143bf2cc0e316ad63b6",
+  "title": "Chimney backs",
+  "updated_at": "2026-10-28T00:40:02.983Z",
+  "updated_by": "generator",
+  "data": {
+    "key": "chimneyBackLf",
+    "label": "Chimney backs",
+    "unit": "ft",
+    "levels": [
+      "project",
+      "structure"
+    ],
+    "description": "Length across the high side of chimneys."
+  }
+}

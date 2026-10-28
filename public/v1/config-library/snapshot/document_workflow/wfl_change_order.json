@@ -1,0 +1,216 @@
+{
+  "kind": "document_workflow",
+  "id": "wfl_change_order",
+  "revision": 1,
+  "sha256": "6b7129563f9973499a82d9eff33d68a89291699ead49bb8d38e1b85182b8c136",
+  "title": "Change order",
+  "updated_at": "2026-10-28T00:40:02.983Z",
+  "updated_by": "generator",
+  "data": {
+    "name": "Change order",
+    "description": "What is changing, how it is paid, review; then the customer's approval and any payment due on approval.",
+    "status": "active",
+    "seeding": "every_organization",
+    "definition": {
+      "schema_version": 1,
+      "name": "Change order",
+      "contract": {
+        "params": {
+          "project": {
+            "type": "entity",
+            "entity": "project"
+          },
+          "customer": {
+            "type": "entity",
+            "entity": "contact"
+          },
+          "source_document_id": {
+            "type": "string"
+          },
+          "change_date": {
+            "type": "date",
+            "label": "Date"
+          },
+          "reason": {
+            "type": "text",
+            "label": "What is changing and why",
+            "required": true
+          },
+          "scope_items": {
+            "type": "list",
+            "items": {
+              "type": "pricebook_line"
+            },
+            "required": true,
+            "label": "Added or changed work"
+          },
+          "show_line_prices": {
+            "type": "boolean",
+            "default": true
+          },
+          "tax_percent": {
+            "type": "percent",
+            "label": "Tax percent"
+          },
+          "payment_schedule": {
+            "type": "payment_schedule",
+            "label": "Payment",
+            "default": [
+              {
+                "id": "change_order",
+                "label": "Change order",
+                "kind": "percent",
+                "percent": 100,
+                "payment_kind": "change_order",
+                "due_rule": "on_receipt"
+              }
+            ]
+          },
+          "account": {
+            "type": "object",
+            "source": "project_account"
+          },
+          "change_cents": {
+            "type": "currency"
+          },
+          "new_total_cents": {
+            "type": "currency"
+          },
+          "due_now_cents": {
+            "type": "currency"
+          },
+          "deposit_at_signing": {
+            "type": "boolean",
+            "default": false
+          },
+          "customer_choice_count": {
+            "type": "number",
+            "default": 0
+          }
+        },
+        "outputs": {
+          "sig_customer": {
+            "type": "signature",
+            "required": true,
+            "signer": "customer"
+          },
+          "payment": {
+            "type": "payment"
+          }
+        }
+      },
+      "steps": [
+        {
+          "id": "change",
+          "title": "What is changing",
+          "audience": [
+            "internal"
+          ],
+          "items": [
+            {
+              "kind": "text",
+              "writes": "params.reason",
+              "label": "What is changing and why",
+              "required": true,
+              "presentation": {
+                "multiline": true
+              },
+              "placeholder": "During tear-off we found rotted decking along the back eave.",
+              "description": "The customer reads this first. Say what was found or asked for, in plain words."
+            },
+            {
+              "kind": "line_items_review",
+              "writes": "params.scope_items",
+              "label": "Added or changed work",
+              "required": true,
+              "generate": false,
+              "description": "Only what this change adds. The original agreement is not repeated here."
+            }
+          ]
+        },
+        {
+          "id": "payment",
+          "title": "Payment",
+          "description": "When the customer pays for this change. The payments already scheduled on their agreement stay as they are.",
+          "audience": [
+            "internal"
+          ],
+          "items": [
+            {
+              "kind": "payment_schedule",
+              "writes": "params.payment_schedule",
+              "label": "Payment for this change",
+              "required": true,
+              "presets": [
+                {
+                  "label": "Due on receipt",
+                  "title": "Paid in full as soon as the customer approves it",
+                  "parts": [
+                    {
+                      "label": "Change order",
+                      "percent": 100,
+                      "due_rule": "on_receipt"
+                    }
+                  ]
+                },
+                {
+                  "label": "With the final payment",
+                  "title": "Added to what is due when the job is complete",
+                  "parts": [
+                    {
+                      "label": "Change order",
+                      "percent": 100,
+                      "due_rule": "project_completion"
+                    }
+                  ]
+                },
+                {
+                  "label": "Half now, half at completion",
+                  "title": "50% when the customer signs, 50% when the job is complete",
+                  "parts": [
+                    {
+                      "label": "Change order deposit",
+                      "percent": 50,
+                      "due_rule": "on_signature"
+                    },
+                    {
+                      "label": "Change order balance",
+                      "percent": 50,
+                      "due_rule": "project_completion"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "id": "review",
+          "title": "Review & send",
+          "audience": [
+            "internal"
+          ],
+          "items": [
+            {
+              "kind": "review",
+              "label": "Before you send",
+              "total_label": "Change order total"
+            }
+          ],
+          "preview": {
+            "template_ref": "tpl_change_order_default",
+            "live": true
+          }
+        }
+      ],
+      "audiences": {
+        "internal": {},
+        "customer": {
+          "theme": "portal"
+        }
+      }
+    },
+    "metadata": {},
+    "pricebook_defaults": []
+  }
+}

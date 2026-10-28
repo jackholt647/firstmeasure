@@ -69,7 +69,6 @@ export async function receiveLead(org: string, submission: LeadSubmission) {
   const address = text(submission.address), summary = text(submission.summary);
   if (!address && !contacts.length && !summary && !text(submission.title)) throw badRequest("lead_missing_contact_data", "A lead needs at least an address, contact, title, or summary.");
   const api = await import("../platform/api.js");
-  await api.ensureWorkflowModules(org, branchId);
 
   const settings = await contactSettings(org);
   const resolved = [];

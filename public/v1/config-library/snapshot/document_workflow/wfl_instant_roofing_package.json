@@ -1,0 +1,171 @@
+{
+  "kind": "document_workflow",
+  "id": "wfl_instant_roofing_package",
+  "revision": 1,
+  "sha256": "8ab39fae43a9ff17111a11bc80e20d6f2e3f1fa6ade09be6ae7031f3ef9787c8",
+  "title": "Summer roof · Fixed-price proposal",
+  "updated_at": "2026-10-28T00:40:02.983Z",
+  "updated_by": "generator",
+  "data": {
+    "name": "Summer roof · Fixed-price proposal",
+    "description": "A fixed-price HDZ roofing package. The selling price does not change the physical material quantities.",
+    "status": "active",
+    "seeding": "with_template",
+    "definition": {
+      "schema_version": 1,
+      "name": "Summer roof · Fixed-price proposal",
+      "contract": {
+        "params": {
+          "structure": {
+            "type": "string",
+            "label": "Structure",
+            "default": "Main house"
+          },
+          "color": {
+            "type": "string",
+            "label": "Material color",
+            "default": "charcoal"
+          },
+          "roof_squares": {
+            "type": "number",
+            "label": "Roof area (squares)",
+            "default": 20
+          },
+          "waste_percent": {
+            "type": "number",
+            "label": "Material waste (%)",
+            "default": 10
+          },
+          "ridge_vent": {
+            "type": "boolean",
+            "label": "Include ridge ventilation",
+            "default": true
+          },
+          "rate_cents": {
+            "type": "currency",
+            "label": "Price per square",
+            "default": 0
+          },
+          "package_cents": {
+            "type": "currency",
+            "label": "Package price",
+            "default": 2000000
+          },
+          "scope_items": {
+            "type": "list",
+            "items": {
+              "type": "pricebook_line"
+            },
+            "label": "Accepted scope",
+            "default": [
+              {
+                "id": "accepted_work",
+                "name": "Summer HDZ roof package",
+                "quantity": 1,
+                "unit": "job",
+                "pricing": {
+                  "formula": "params.package_cents"
+                }
+              }
+            ]
+          },
+          "scope_pieces": {
+            "type": "list",
+            "items": {
+              "type": "object"
+            },
+            "label": "Project work"
+          },
+          "measurement_requirements": {
+            "type": "list",
+            "items": {
+              "type": "string"
+            }
+          },
+          "measurements": {
+            "type": "measurements",
+            "label": "Measurements"
+          }
+        },
+        "outputs": {
+          "sig_customer": {
+            "type": "signature",
+            "required": true,
+            "signer": "customer"
+          }
+        }
+      },
+      "steps": [
+        {
+          "id": "scope",
+          "title": "Define the work",
+          "audience": [
+            "internal"
+          ],
+          "items": [
+            {
+              "kind": "text",
+              "writes": "params.structure",
+              "label": "Structure",
+              "required": true
+            },
+            {
+              "kind": "number",
+              "writes": "params.roof_squares",
+              "label": "Roof area (squares)",
+              "required": true
+            },
+            {
+              "kind": "number",
+              "writes": "params.waste_percent",
+              "label": "Material waste (%)",
+              "required": true
+            },
+            {
+              "kind": "text",
+              "writes": "params.color",
+              "label": "Material color",
+              "required": true
+            },
+            {
+              "kind": "boolean",
+              "writes": "params.ridge_vent",
+              "label": "Include ridge ventilation",
+              "required": true
+            },
+            {
+              "kind": "currency",
+              "writes": "params.package_cents",
+              "label": "Package price",
+              "required": true
+            }
+          ]
+        },
+        {
+          "id": "review",
+          "title": "Review estimate",
+          "audience": [
+            "internal"
+          ],
+          "items": [
+            {
+              "kind": "review",
+              "label": "Review before sending"
+            }
+          ],
+          "preview": {
+            "template_ref": "tpl_instant_roofing_package",
+            "live": true
+          }
+        }
+      ]
+    },
+    "metadata": {},
+    "pricebook_defaults": [
+      {
+        "param": "rate_cents",
+        "item_id": "gaf_hd"
+      }
+    ]
+  }
+}

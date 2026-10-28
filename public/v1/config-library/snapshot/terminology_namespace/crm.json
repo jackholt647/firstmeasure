@@ -1,0 +1,161 @@
+{
+  "kind": "terminology_namespace",
+  "id": "crm",
+  "revision": 1,
+  "sha256": "f22327dd2ce7a7df2564b9b744f3359d04449b50d36b07edf86bc6c9c7a662de",
+  "title": "CRM",
+  "updated_at": "2026-10-28T00:40:02.983Z",
+  "updated_by": "generator",
+  "data": {
+    "title": "CRM",
+    "note": "CRM navigation, views, lead records and the funnel.",
+    "position": 230,
+    "terms": [
+      {
+        "key": "settings_tab",
+        "label": "CRM",
+        "kind": "navigation"
+      },
+      {
+        "key": "portal_tab",
+        "label": "CRM",
+        "kind": "navigation"
+      },
+      {
+        "key": "stages_view",
+        "label": "Stages",
+        "kind": "view"
+      },
+      {
+        "key": "call_workflows_view",
+        "label": "Call workflows",
+        "kind": "view"
+      },
+      {
+        "key": "projects_view",
+        "label": "Projects",
+        "kind": "view"
+      },
+      {
+        "key": "miscellaneous_view",
+        "label": "Miscellaneous",
+        "kind": "view"
+      },
+      {
+        "key": "lead",
+        "label": "Lead",
+        "kind": "entity"
+      },
+      {
+        "key": "leads",
+        "label": "Leads",
+        "kind": "entity"
+      },
+      {
+        "key": "new_lead",
+        "label": "New lead",
+        "kind": "entity"
+      },
+      {
+        "key": "new_leads",
+        "label": "New leads",
+        "kind": "entity"
+      },
+      {
+        "key": "opportunity",
+        "label": "Opportunity",
+        "kind": "entity"
+      },
+      {
+        "key": "opportunities",
+        "label": "Opportunities",
+        "kind": "entity"
+      },
+      {
+        "key": "pipeline",
+        "label": "Pipeline",
+        "kind": "entity"
+      },
+      {
+        "key": "customer",
+        "label": "Customer",
+        "kind": "entity"
+      },
+      {
+        "key": "lead_state",
+        "label": "Lead state",
+        "kind": "entity"
+      },
+      {
+        "key": "relationship",
+        "label": "Relationship",
+        "kind": "entity"
+      },
+      {
+        "key": "source",
+        "label": "Source",
+        "kind": "entity"
+      },
+      {
+        "key": "sources",
+        "label": "Sources",
+        "kind": "entity"
+      },
+      {
+        "key": "source_type",
+        "label": "Source type",
+        "kind": "entity"
+      },
+      {
+        "key": "disposition",
+        "label": "Result",
+        "kind": "entity"
+      },
+      {
+        "key": "follow_ups",
+        "label": "Follow-ups",
+        "kind": "entity"
+      },
+      {
+        "key": "appointment",
+        "label": "Appointment",
+        "kind": "entity"
+      },
+      {
+        "key": "appointments",
+        "label": "Appointments",
+        "kind": "entity"
+      },
+      {
+        "key": "next_appointment",
+        "label": "Next appointment",
+        "kind": "entity"
+      },
+      {
+        "key": "call_list",
+        "label": "Call list",
+        "kind": "entity"
+      },
+      {
+        "key": "worklist",
+        "label": "Worklist",
+        "kind": "entity"
+      },
+      {
+        "key": "funnel",
+        "label": "Funnel",
+        "kind": "entity"
+      },
+      {
+        "key": "rescission",
+        "label": "Cancellation window",
+        "kind": "entity"
+      },
+      {
+        "key": "rescission_until",
+        "label": "Can cancel until",
+        "kind": "entity"
+      }
+    ]
+  }
+}

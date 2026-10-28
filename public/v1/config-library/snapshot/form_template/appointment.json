@@ -1,0 +1,200 @@
+{
+  "kind": "form_template",
+  "id": "appointment",
+  "revision": 1,
+  "sha256": "4079ba5558aadc0c9a391ba60f4ea13fbdc5223725369af5057e68896e5c943a",
+  "title": "Appointment booking",
+  "updated_at": "2026-10-28T00:40:02.983Z",
+  "updated_by": "generator",
+  "data": {
+    "name": "Appointment booking",
+    "description": "Customers pick an open time from your live schedule. Books a real appointment using one of your appointment types.",
+    "icon": "fa-calendar-check",
+    "category": "Scheduling",
+    "requires": [
+      "appointment_form"
+    ],
+    "sort_order": 4,
+    "definition": {
+      "schema_version": 1,
+      "template": "appointment",
+      "presentation": {
+        "headline": "Book an appointment",
+        "subheadline": "Choose a time that works for you and we will take it from there.",
+        "start_label": "",
+        "next_label": "Next",
+        "back_label": "Back",
+        "submit_label": "Book appointment",
+        "fine_print": "By booking, you agree to be contacted about your appointment.",
+        "layout": "steps",
+        "progress": "bar",
+        "style": {
+          "use_company_colors": true,
+          "primary_color": "#2563eb",
+          "text_color": "#111827",
+          "background_color": "#ffffff",
+          "use_company_font": true,
+          "font_family": "Inter",
+          "corners": "soft",
+          "header": "plain",
+          "logo_enabled": true,
+          "logo_url": ""
+        },
+        "success": {
+          "title": "You are booked",
+          "body": "We have reserved your time and will send a confirmation shortly.",
+          "cta_label": "",
+          "cta_url": ""
+        }
+      },
+      "steps": [
+        {
+          "id": "details",
+          "title": "Your details",
+          "description": "",
+          "visible_when": [],
+          "items": [
+            {
+              "id": "contact",
+              "kind": "contact",
+              "param": "contact",
+              "label": "",
+              "description": "",
+              "placeholder": "",
+              "required": false,
+              "visible_when": [],
+              "maps_to": "",
+              "options": [],
+              "style": "cards",
+              "unit": "",
+              "fields": {
+                "name": {
+                  "enabled": true,
+                  "required": true
+                },
+                "email": {
+                  "enabled": true,
+                  "required": false
+                },
+                "phone": {
+                  "enabled": true,
+                  "required": true
+                }
+              },
+              "preset_id": "",
+              "min_notice_hours": 2,
+              "horizon_days": 45,
+              "source": "",
+              "sms_opt_in": false,
+              "heading": "",
+              "body": "",
+              "image_url": ""
+            },
+            {
+              "id": "address",
+              "kind": "address",
+              "param": "address",
+              "label": "Address",
+              "description": "",
+              "placeholder": "Street, city, state",
+              "required": true,
+              "visible_when": [],
+              "maps_to": "",
+              "options": [],
+              "style": "cards",
+              "unit": "",
+              "fields": {
+                "name": {
+                  "enabled": true,
+                  "required": true
+                },
+                "email": {
+                  "enabled": true,
+                  "required": false
+                },
+                "phone": {
+                  "enabled": true,
+                  "required": true
+                }
+              },
+              "preset_id": "",
+              "min_notice_hours": 2,
+              "horizon_days": 45,
+              "source": "",
+              "sms_opt_in": false,
+              "heading": "",
+              "body": "",
+              "image_url": ""
+            }
+          ]
+        },
+        {
+          "id": "time",
+          "title": "Pick a time",
+          "description": "",
+          "visible_when": [],
+          "items": [
+            {
+              "id": "appointment",
+              "kind": "appointment",
+              "param": "appointment",
+              "label": "Choose a day and time",
+              "description": "",
+              "placeholder": "",
+              "required": true,
+              "visible_when": [],
+              "maps_to": "",
+              "options": [],
+              "style": "cards",
+              "unit": "",
+              "fields": {
+                "name": {
+                  "enabled": true,
+                  "required": true
+                },
+                "email": {
+                  "enabled": true,
+                  "required": false
+                },
+                "phone": {
+                  "enabled": true,
+                  "required": true
+                }
+              },
+              "preset_id": "",
+              "min_notice_hours": 2,
+              "horizon_days": 45,
+              "source": "",
+              "sms_opt_in": false,
+              "heading": "",
+              "body": "",
+              "image_url": ""
+            }
+          ]
+        }
+      ],
+      "calculation": null,
+      "settings": {
+        "stage_id": "new_lead",
+        "notify_role_ids": [
+          "inside_sales",
+          "sales_appointments"
+        ],
+        "tracking_key": "",
+        "staff": {
+          "enabled": false,
+          "only": false,
+          "label": "",
+          "role_ids": []
+        },
+        "customer_email": {
+          "enabled": false,
+          "subject": "",
+          "intro": "",
+          "cta_label": "",
+          "cta_url": ""
+        }
+      }
+    }
+  }
+}

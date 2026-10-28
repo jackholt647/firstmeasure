@@ -2,7 +2,8 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { buildScopeEventMap } from "../scopes/event-map.js";
 import { registerBuiltinWorkAutomations } from "../work/automations/builtins.js";
-import { DEFAULT_SCOPE_TEMPLATES } from "../scopes/presets/index.js";
+import { defaultScopeLibraryEntries } from "../scopes/library.js";
+const LIBRARY_SCOPES = defaultScopeLibraryEntries().map((entry) => structuredClone(entry.data) as any);
 
 registerBuiltinWorkAutomations();
 
@@ -43,7 +44,7 @@ test("timers and organization policies retain their provenance", () => {
 });
 
 test("every bundled scope is inspectable and configured custom events stay visible", () => {
-  for (const definition of DEFAULT_SCOPE_TEMPLATES) {
+  for (const definition of LIBRARY_SCOPES) {
     const map = buildScopeEventMap(definition);
     assert.ok(map.events.length > 80);
     assert.ok(map.actions.length > 10);

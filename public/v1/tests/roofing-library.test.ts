@@ -10,7 +10,8 @@ test('an Instant Full Org starts with the roofing price book library and its sup
   const signup = await import('../signup-sandbox/service.js');
   await signup.ensureSeedData();
   const { authContext: ctx } = await signup.createTestInstance('swf_instant_full_org');
-  const { ROOFING_LIBRARY_ITEMS, ROOFING_LIBRARY_SUPPLIERS } = await import('../materials/roofing-library-data.js');
+  const library = (await import('../materials/material-library.js')).materialLibrary('roofing');
+  const ROOFING_LIBRARY_ITEMS = library.items, ROOFING_LIBRARY_SUPPLIERS = library.suppliers;
   const { seedInstantRoofingLibrary } = await import('../materials/roofing-library.js');
   const { getOrganizationPricebook } = await import('../pricebook/storage.js');
   const { listSuppliers, quoteSupplierDelivery } = await import('../materials/suppliers.js');

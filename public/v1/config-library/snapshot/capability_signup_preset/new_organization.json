@@ -1,0 +1,26 @@
+{
+  "kind": "capability_signup_preset",
+  "id": "new_organization",
+  "revision": 1,
+  "sha256": "098f303cdebb13709bb1331d0c8522b94c0b97ab527260eba8c8ba3497779a6a",
+  "title": "Signup capability preset",
+  "updated_at": "2026-10-28T00:40:02.983Z",
+  "updated_by": "generator",
+  "data": {
+    "preset_id": "",
+    "values": {
+      "platform.expanded_access": false,
+      "platform.more_apps": false,
+      "apps.notifications": false,
+      "platform.money": false,
+      "money.merchant_processing": false,
+      "apps.assistant": false,
+      "platform.connections": false,
+      "platform.left_column_settings": false,
+      "platform.project_boards": false,
+      "platform.project_stages_view": false,
+      "platform.manual_project_stage_movement": false,
+      "firstmeasure.report_localization": true
+    }
+  }
+}

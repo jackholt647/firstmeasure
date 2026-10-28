@@ -1,0 +1,136 @@
+{
+  "kind": "terminology_namespace",
+  "id": "equipment",
+  "revision": 1,
+  "sha256": "6488646b319d200757faefc9a89d86d4de4551b63a3fb984fe9b59cb003bed30",
+  "title": "Equipment",
+  "updated_at": "2026-10-28T00:40:02.983Z",
+  "updated_by": "generator",
+  "data": {
+    "title": "Equipment",
+    "note": "Equipment and fleet navigation, unit records, and maintenance terms.",
+    "position": 220,
+    "terms": [
+      {
+        "key": "portal_tab",
+        "label": "Equipment",
+        "kind": "navigation"
+      },
+      {
+        "key": "settings_tab",
+        "label": "Equipment",
+        "kind": "navigation"
+      },
+      {
+        "key": "fleet_view",
+        "label": "Fleet",
+        "kind": "view"
+      },
+      {
+        "key": "timeline_view",
+        "label": "Timeline",
+        "kind": "view"
+      },
+      {
+        "key": "maintenance_view",
+        "label": "Maintenance",
+        "kind": "view"
+      },
+      {
+        "key": "utilization_view",
+        "label": "Utilization",
+        "kind": "view"
+      },
+      {
+        "key": "equipment",
+        "label": "Equipment",
+        "kind": "entity"
+      },
+      {
+        "key": "equipment_unit",
+        "label": "Unit",
+        "kind": "entity"
+      },
+      {
+        "key": "equipment_units",
+        "label": "Units",
+        "kind": "entity"
+      },
+      {
+        "key": "equipment_type",
+        "label": "Equipment Type",
+        "kind": "entity"
+      },
+      {
+        "key": "equipment_types",
+        "label": "Equipment Types",
+        "kind": "entity"
+      },
+      {
+        "key": "category",
+        "label": "Category",
+        "kind": "entity"
+      },
+      {
+        "key": "categories",
+        "label": "Categories",
+        "kind": "entity"
+      },
+      {
+        "key": "work_order",
+        "label": "Work Order",
+        "kind": "entity"
+      },
+      {
+        "key": "work_orders",
+        "label": "Work Orders",
+        "kind": "entity"
+      },
+      {
+        "key": "service_program",
+        "label": "Service Program",
+        "kind": "entity"
+      },
+      {
+        "key": "meter",
+        "label": "Meter",
+        "kind": "entity"
+      },
+      {
+        "key": "downtime",
+        "label": "Downtime",
+        "kind": "entity"
+      },
+      {
+        "key": "operator",
+        "label": "Operator",
+        "kind": "entity"
+      },
+      {
+        "key": "available_status",
+        "label": "Available",
+        "kind": "status"
+      },
+      {
+        "key": "in_use_status",
+        "label": "In Use",
+        "kind": "status"
+      },
+      {
+        "key": "down_status",
+        "label": "Down",
+        "kind": "status"
+      },
+      {
+        "key": "reserved_status",
+        "label": "Reserved",
+        "kind": "status"
+      },
+      {
+        "key": "retired_status",
+        "label": "Retired",
+        "kind": "status"
+      }
+    ]
+  }
+}

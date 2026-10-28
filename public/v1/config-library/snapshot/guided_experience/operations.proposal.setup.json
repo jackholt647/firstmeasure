@@ -1,0 +1,78 @@
+{
+  "kind": "guided_experience",
+  "id": "operations.proposal.setup",
+  "revision": 1,
+  "sha256": "7ab1d8efe03954c24b074a01354f1b58bf9823e53c3e51796abb09e8628078c2",
+  "title": "Create your proposal",
+  "updated_at": "2026-10-28T00:40:02.983Z",
+  "updated_by": "generator",
+  "data": {
+    "id": "operations.proposal.setup",
+    "version": 1,
+    "kind": "modal",
+    "scope": "organization",
+    "salt": "v1",
+    "title": {
+      "key": "gx_ops_proposal_title",
+      "text": "Create your proposal"
+    },
+    "tab": "project.materials",
+    "eligibility": {
+      "capabilities": [
+        "platform.materials"
+      ],
+      "permissions": [
+        "manage_projects"
+      ]
+    },
+    "triggers": [
+      {
+        "kind": "manual"
+      }
+    ],
+    "variants": [
+      {
+        "id": "default",
+        "weight": 1,
+        "content": {}
+      }
+    ],
+    "requires": [],
+    "steps": [
+      {
+        "id": "document",
+        "widget": "operations-document",
+        "requires": [
+          "company.services"
+        ],
+        "title": {
+          "key": "gx_ops_document_title",
+          "text": "What does this project need?"
+        },
+        "say": [],
+        "options": {
+          "path": "proposal"
+        },
+        "selects": [
+          "operation_path",
+          "operations_document_id",
+          "operations_scope_ready",
+          "operations_project_id"
+        ],
+        "required": true
+      }
+    ],
+    "completion": {
+      "action": {
+        "id": "operations.setup.complete",
+        "target": "project",
+        "input": {}
+      },
+      "screen": "pricebook",
+      "say": [],
+      "then": []
+    },
+    "replayable": true,
+    "reveal": []
+  }
+}

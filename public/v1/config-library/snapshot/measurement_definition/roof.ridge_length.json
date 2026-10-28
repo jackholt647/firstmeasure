@@ -1,0 +1,19 @@
+{
+  "kind": "measurement_definition",
+  "id": "roof.ridge_length",
+  "revision": 1,
+  "sha256": "c611e7f6611cf3fa1fcd8c1ce0f34d4b84d6c701b7469060f7d27949df6dceaf",
+  "title": "Ridges",
+  "updated_at": "2026-10-28T00:40:02.983Z",
+  "updated_by": "generator",
+  "data": {
+    "key": "ridgesLf",
+    "label": "Ridges",
+    "unit": "ft",
+    "levels": [
+      "project",
+      "structure"
+    ],
+    "description": "Total ridge length."
+  }
+}

@@ -1,0 +1,66 @@
+{
+  "kind": "terminology_namespace",
+  "id": "photos",
+  "revision": 1,
+  "sha256": "051223537d9aa0cc18e5a702f009c854b2f3b7988c826bb334cfea43668eb95f",
+  "title": "Photos",
+  "updated_at": "2026-10-28T00:40:02.983Z",
+  "updated_by": "generator",
+  "data": {
+    "title": "Photos",
+    "note": "Photo navigation, galleries, and activity views.",
+    "position": 30,
+    "terms": [
+      {
+        "key": "portal_tab",
+        "label": "Feed",
+        "kind": "navigation"
+      },
+      {
+        "key": "project_tab",
+        "label": "Photos",
+        "kind": "navigation"
+      },
+      {
+        "key": "photos_view",
+        "label": "Photos",
+        "kind": "view"
+      },
+      {
+        "key": "activity_view",
+        "label": "Activity",
+        "kind": "view"
+      },
+      {
+        "key": "photo",
+        "label": "Photo",
+        "kind": "entity"
+      },
+      {
+        "key": "photos",
+        "label": "Photos",
+        "kind": "entity"
+      },
+      {
+        "key": "album",
+        "label": "Album",
+        "kind": "entity"
+      },
+      {
+        "key": "albums",
+        "label": "Albums",
+        "kind": "entity"
+      },
+      {
+        "key": "upload",
+        "label": "Upload",
+        "kind": "entity"
+      },
+      {
+        "key": "caption",
+        "label": "Caption",
+        "kind": "entity"
+      }
+    ]
+  }
+}

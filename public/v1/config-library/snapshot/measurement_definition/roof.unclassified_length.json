@@ -1,0 +1,19 @@
+{
+  "kind": "measurement_definition",
+  "id": "roof.unclassified_length",
+  "revision": 1,
+  "sha256": "ded47c093464e1d054c9d5d11477228ac468ece17c678b41cddc1d74abdc70af",
+  "title": "Unclassified lines",
+  "updated_at": "2026-10-28T00:40:02.983Z",
+  "updated_by": "generator",
+  "data": {
+    "key": "unknownLf",
+    "label": "Unclassified lines",
+    "unit": "ft",
+    "levels": [
+      "project",
+      "structure"
+    ],
+    "description": "Roof lines that were measured but not classified."
+  }
+}

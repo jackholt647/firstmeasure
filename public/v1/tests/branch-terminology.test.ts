@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { mkdtemp, readFile, rm } from "node:fs/promises";
+import { mkdtemp, rm } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import test, { after } from "node:test";
@@ -11,9 +11,9 @@ Object.assign(process.env, { NODE_ENV: "test", PLATFORM_STORAGE_ROOT: path.join(
 after(async () => { await closePlatformFixtureStores(); await rm(dir, { recursive: true, force: true }).catch(() => {}); });
 
 test("the terminology contract has the branch and region words", async () => {
-  const contract = JSON.parse(await readFile(new URL("../platform/localization/terminology-contract.json", import.meta.url), "utf8"));
-  const keys = JSON.stringify(contract);
-  for (const key of ["branches.branch", "branches.branches", "branches.region", "branches.regions", "branches.main_branch"]) assert.ok(keys.includes(`"${key}"`), `${key} is declared`);
+  const { terminologyContract } = await import("../platform/localization/terminology-defaults.js");
+  const contract = terminologyContract();
+  for (const key of ["branches.branch", "branches.branches", "branches.region", "branches.regions", "branches.main_branch"]) assert.ok(Object.hasOwn(contract, key), `${key} is declared`);
 });
 
 test("every branch reads the organization's words from the default branch; a branch's own words win", async () => {

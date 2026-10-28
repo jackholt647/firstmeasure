@@ -18,6 +18,8 @@ if (isFirstMeasurePostgresEnabled()) {
   await ensurePostgresPlatformStorage();
 }
 const app = Fastify({ logger: { level: env.logLevel } });
+// Development: defaults come from the live config library store (docs/architecture/config-library.md).
+await (await import("../config-library/library.js")).startLibrarySync().catch((error) => app.log.warn({ err: error }, "Config library sync did not start; serving the snapshot."));
 const [work, payroll, channels, agents, appointments, stats, sms, calls] = await Promise.all([
   import("../work/scheduler.js"), import("../payroll/service.js"), import("../channels/service.js"),
   import("../channels/agent.js"), import("../appointments/service.js"), import("../stats/sync.js"),

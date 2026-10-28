@@ -1,14 +1,13 @@
-import { existsSync, readFileSync, statSync } from "node:fs";
-import path from "node:path";
 import { z } from "zod";
+import { libraryData, libraryVersion } from "../../config-library/library.js";
+import type { RoofingSettingsContent } from "../../config-library/kinds/pricebook_setup.js";
 import { badRequest } from "../../platform/errors.js";
 import { definitionForKey, listMeasurementDefinitions } from "../../platform/publication/measurement-schemas.js";
-import { ROOFING_LIBRARY_ITEMS } from "../../materials/roofing-library-data.js";
+import { materialLibrary } from "../../materials/material-library.js";
 import { industryMeasurementDefaults, readMeasurementDefaults, ruleLineUnit, saveMeasurementDefaults, type MeasurementDefaults } from "../../materials/measurement-defaults.js";
 import { getOrganizationPricebook, saveOrganizationCatalog } from "../storage.js";
 import type { TradeSetup } from "./index.js";
 import type { PublicationContext } from "../../platform/publication/contracts.js";
-import { ROOFING_LIBRARY_SUPPLIERS } from "../../materials/roofing-library-data.js";
 
 /**
  * The roofing price book setup. What an organization says it installs becomes its price book and the measurement
@@ -18,7 +17,7 @@ import { ROOFING_LIBRARY_SUPPLIERS } from "../../materials/roofing-library-data.
  * - Shingle: the manufacturers it uses. Every product they make goes into the price book, so it is searchable; the
  *   defaults (`defaults`: shingle, underlayment, ice and water and how far it runs, pipe boot, the three vents, the
  *   low-slope system) are what generation uses. Each starts from the first picked manufacturer that makes one.
- * - Any other kind: its components come from roof-type-components-2026.json (data, provisional) as price book
+ * - Any other kind: its components come from the roof-type components (data, provisional) as price book
  *   items; with no shingle, the default material (`default_material`, one of those systems) becomes the measurement
  *   defaults: one rule per standard component, through the same rule model as shingles.
  *
@@ -26,6 +25,11 @@ import { ROOFING_LIBRARY_SUPPLIERS } from "../../materials/roofing-library-data.
  * (an Owens Corning bundle covers 32.8 sq ft, not a flat third of a square). Something the dictionary does not count
  * (pipe boots, box vents, stories, decking sheets) gets no formula and is marked as entered by hand. Both are written
  * through their own writers. Every number is a starting point the organization changes afterwards.
+ *
+ * The data is config library entries of the kind `pricebook_setup` (config-library/kinds/pricebook_setup.ts):
+ * `roofing.catalog` (the research catalog, in its own schema), `roofing.components` (the roof-type components),
+ * `roofing.suppliers` (the supplier research) and `roofing.settings` (the default tables below), plus the
+ * `material_library/roofing` items and suppliers. Edit them on dev; this file is the logic that reads them.
  */
 
 export type Product = {
@@ -55,51 +59,37 @@ type Brand = { id: string; name: string; color: string; tagline: string; logo?: 
 type Region = { id: string; label: string; states: string[]; material: number; labor: number };
 /** A kind of roof the setup asks about and the component systems it covers; `catalog` kinds use the manufacturer catalog. */
 export type RoofType = { id: string; label: string; systems: string[]; catalog: boolean; low_slope?: { cap: string; base?: string } };
-export type RoofingCatalog = { source: "research" | "library"; brands: Brand[]; generic: Product[]; labor: Product[]; rules: Rule[]; regions: Region[]; roof_types: RoofType[] };
+export type RoofingCatalog = { source: "research"; brands: Brand[]; generic: Product[]; labor: Product[]; rules: Rule[]; regions: Region[]; roof_types: RoofType[] };
 /** One system of the roof-type components (standing seam metal, TPO): its components as price book products. */
 export type ComponentSystem = { id: string; label: string; status: string; components: Product[] };
 
-const FEATURED = ["gaf", "owens_corning", "malarkey", "certainteed"];
-const BRAND_LOOK: Record<string, { name: string; color: string; tagline: string }> = {
-  gaf: { name: "GAF", color: "#d71920", tagline: "Timberline, Royal Sovereign" },
-  owens_corning: { name: "Owens Corning", color: "#d6246e", tagline: "Duration, Oakridge, Supreme" },
-  malarkey: { name: "Malarkey", color: "#1f6f43", tagline: "Highlander, Vista, Legacy" },
-  certainteed: { name: "CertainTeed", color: "#0a5aa5", tagline: "Landmark, XT 25, Presidential" }
-};
-/** Research rule ids beside the measurement-default rule keys they fill. */
-const DEFAULT_RULE: Record<string, string> = { field_shingles: "shingles", starter: "starter", hip_ridge: "hip_ridge", ice_water: "ice_water", underlayment: "underlayment", drip_edge: "drip_edge", ridge_vent: "ridge_vent", intake_vent: "intake_vent", step_flashing: "step_flashing", headwall_flashing: "headwall_flashing", valley_metal: "valley_metal", roofing_nails: "coil_nails", cap_nails: "cap_nails" };
-const ACCESSORY_ROLES = ["starter", "hip_ridge", "underlayment", "ice_water", "ridge_vent", "intake_vent", "box_vent", "pipe_boot", "low_slope_membrane", "low_slope_base", "low_slope_cap"];
-/** The research rule an accessory role is measured by, where it is not the role itself. */
-const ROLE_RULE: Record<string, string> = { pipe_boot: "pipe_boots", box_vent: "box_vents", low_slope_membrane: "low_slope", low_slope_base: "low_slope", low_slope_cap: "low_slope" };
-const CATEGORY: Record<string, string> = { line: "shingle_roofs", starter: "shingle_roofs", hip_ridge: "shingle_roofs", underlayment: "shingle_roofs", ice_water: "leak_barriers", ridge_vent: "accessories", intake_vent: "accessories", box_vent: "accessories", ventilation: "accessories", pipe_boot: "accessories", flashing: "flashing", penetrations: "accessories", fasteners: "accessories", sealants: "accessories", decking: "misc", labor: "misc", low_slope_membrane: "flat_roofs", low_slope_base: "flat_roofs", low_slope_cap: "flat_roofs" };
+/** The setup's default tables (`pricebook_setup/roofing.settings`). */
+type RoofingSettings = RoofingSettingsContent;
+function setupPart<T>(part: "catalog" | "components" | "suppliers" | "settings"): T | null {
+  return libraryData<{ content: T }>("pricebook_setup", `roofing.${part}`)?.content ?? null;
+}
+function setupSettings(): RoofingSettings {
+  const value = setupPart<RoofingSettings>("settings");
+  if (!value) throw badRequest("pricebook_setup_missing", "The roofing setup's defaults (config library pricebook_setup/roofing.settings) are missing.");
+  return value;
+}
 /**
- * The slots of the defaults step: which products can fill each (accessory roles of the picked brands, then generic
- * items measured by the same rule). The browser composes the same lists from the same data (guided-setup.js).
+ * The slots of the defaults step. Which products can fill each (accessory roles of the picked brands, then generic
+ * items measured by the same rule) is data (`default_slots`); the browser composes the same lists from the same data
+ * (guided-setup.js).
  */
-export const DEFAULT_SLOTS = {
-  underlayment: { role: "underlayment", rule: "underlayment" },
-  ice_water: { role: "ice_water", rule: "ice_water" },
-  pipe_boot: { role: "pipe_boot", rule: "pipe_boots", generic_first: true },
-  ridge_vent: { role: "ridge_vent", rule: "ridge_vent" },
-  intake_vent: { role: "intake_vent", rule: "intake_vent" },
-  box_vent: { role: "box_vent", rule: "box_vents" }
-} as const;
-export type DefaultSlot = keyof typeof DEFAULT_SLOTS;
+export const DEFAULT_SLOT_IDS = ["underlayment", "ice_water", "pipe_boot", "ridge_vent", "intake_vent", "box_vent"] as const;
+export type DefaultSlot = (typeof DEFAULT_SLOT_IDS)[number];
 /**
- * How far the ice and water barrier runs, in feet up from each edge (a valley gets a course centred in it). The
- * default is 18 in around the eaves and rakes plus the valleys. Quantities follow the choice: the measurement rule
- * counts 3 ft courses (one per foot of eave at 3 ft, half a course at 18 in) and the price book formula square feet.
+ * How far the ice and water barrier runs, in feet up from each edge (a valley gets a course centred in it), by
+ * coverage choice (`ice_coverage`; the default is 18 in around the eaves and rakes plus the valleys). Quantities
+ * follow the choice: the measurement rule counts 3 ft courses (one per foot of eave at 3 ft, half a course at 18 in)
+ * and the price book formula square feet.
  */
-export const ICE_COVERAGE = {
-  perimeter_18_valleys: { eaves: 1.5, rakes: 1.5, valleys: 3 },
-  eaves_36_valleys: { eaves: 3, rakes: 0, valleys: 3 },
-  eaves_72_valleys: { eaves: 6, rakes: 0, valleys: 3 },
-  eaves_36: { eaves: 3, rakes: 0, valleys: 0 },
-  valleys: { eaves: 0, rakes: 0, valleys: 3 },
-  none: null
-} as const;
-export type IceCoverage = keyof typeof ICE_COVERAGE;
-export const DEFAULT_ICE_COVERAGE: IceCoverage = "perimeter_18_valleys";
+export type IceCoverage = string;
+export function iceCoverageChoices() { return setupSettings().ice_coverage.map((choice) => choice.id); }
+export function defaultIceCoverage(): IceCoverage { return setupSettings().default_ice_coverage; }
+function iceWidths(coverage: IceCoverage) { return setupSettings().ice_coverage.find((choice) => choice.id === coverage)?.widths ?? null; }
 const LOW_SLOPE_SYSTEMS = ["tpo", "pvc", "epdm", "mod_bit", "none"] as const;
 const NATIONAL: Region = { id: "national", label: "National average", states: [], material: 1, labor: 1 };
 
@@ -117,9 +107,7 @@ export function logoPath(value: unknown) {
   const site = raw.replace(/^(\.\/)+/, "").replace(/^public\//, "").replace(/^\/+/, "");
   return /\.(svg|png|webp|jpe?g)$/i.test(site) ? `/${site}` : "";
 }
-const RESEARCH_PATH = () => path.resolve(process.cwd(), "materials/roofing-research/roofing-catalog-2026.json");
-const COMPONENTS_PATH = () => path.resolve(process.cwd(), "materials/roofing-research/roof-type-components-2026.json");
-let cache: { file: string; mtime: number; value: RoofingCatalog | null } | null = null;
+let cache: { raw: unknown; version: number; value: RoofingCatalog | null } | null = null;
 
 /** Coverage of one order unit in its rule's unit, from the research's product facts. */
 function coverageFor(rule: string, unit: string, raw: Record<string, unknown>) { return Math.round(rawCoverage(rule, unit, raw) * 1e6) / 1e6; }
@@ -139,13 +127,12 @@ function roofTypesOf(raw: Record<string, unknown>): RoofType[] {
   return types.length ? types : [{ id: "shingle", label: "Shingle", systems: [], catalog: true }];
 }
 
-/** Reads the research catalog in its own schema (schema_version 1). Returns null when it is absent or unreadable. */
-export function readResearchCatalog(file = RESEARCH_PATH()): RoofingCatalog | null {
-  if (!existsSync(file)) return null;
+/** Reads the research catalog (`pricebook_setup/roofing.catalog`) in its own schema (schema_version 1). Null when it is absent or unreadable. */
+export function readResearchCatalog(raw = setupPart<Record<string, unknown>>("catalog")): RoofingCatalog | null {
+  if (!raw) return null;
   try {
-    const mtime = statSync(file).mtimeMs;
-    if (cache && cache.file === file && cache.mtime === mtime) return cache.value;
-    const raw = JSON.parse(readFileSync(file, "utf8")) as Record<string, unknown>;
+    if (cache && cache.raw === raw && cache.version === libraryVersion()) return cache.value;
+    const { brand_looks: BRAND_LOOK, accessory_roles: ACCESSORY_ROLES, role_rules: ROLE_RULE } = setupSettings();
     const rules: Rule[] = list(raw.estimating_rules).map((rule) => ({ id: String(rule.id), label: String(rule.label || rule.id), explanation: String(rule.explanation || ""), group: String(rule.group || ""),
       formula: typeof rule.pricebook_formula === "string" ? rule.pricebook_formula : null, unit: String(rule.unit || "ea"), include_waste: rule.include_waste === true, show: rule.show_in_setup === true, order: Number(rule.order || 0), per_package: num(obj(rule.order_packaging).units_per_package) }));
     // Low-slope products are sold by the roll and cover squares; they have no research rule of their own.
@@ -170,7 +157,7 @@ export function readResearchCatalog(file = RESEARCH_PATH()): RoofingCatalog | nu
       const id = String(maker.pricebook_manufacturer || maker.id), look = BRAND_LOOK[id] || { name: String(maker.name), color: String(obj(maker.logo_hint).primary_color || "#344054"), tagline: "" };
       const manufacturer = String(maker.name || look.name);
       // A brand without a written tagline is described by its first few lines, popular ones first.
-      const named = list(maker.product_lines).sort((a, b) => Number(b.popular === true) - Number(a.popular === true)).map((line) => String(line.name || "")).filter(Boolean);
+      const named = [...list(maker.product_lines)].sort((a, b) => Number(b.popular === true) - Number(a.popular === true)).map((line) => String(line.name || "")).filter(Boolean);
       const tagline = BRAND_LOOK[id]?.tagline || named.slice(0, 3).join(", ");
       return { id, name: manufacturer, color: String(obj(maker.logo_hint).primary_color || look.color), tagline, ...(logoPath(maker.logo) ? { logo: logoPath(maker.logo) } : {}),
         lines: list(maker.product_lines).map((line) => ({ ...product(line, "line", id, manufacturer, "field_shingles"), name: `${manufacturer} ${String(line.name)}` })),
@@ -182,50 +169,31 @@ export function readResearchCatalog(file = RESEARCH_PATH()): RoofingCatalog | nu
     const labor = list(raw.labor_items).map((entry) => ({ ...product(entry, "labor", "", "", String(entry.rule_id || "")), role: "labor" }));
     const regions: Region[] = list(raw.regions).map((region) => ({ id: String(region.id), label: String(region.label || region.id), states: list(region.states).map(String), material: num(region.material_multiplier) || 1, labor: num(region.labor_multiplier, region.price_multiplier) || 1 }));
     const value: RoofingCatalog = { source: "research", brands, generic, labor, rules, regions: regions.some((region) => region.id === "national") ? regions : [NATIONAL, ...regions], roof_types: roofTypesOf(raw) };
-    cache = { file, mtime, value };
+    cache = { raw, version: libraryVersion(), value };
     return value;
   } catch { return null; }
 }
 
-/** The roofing library as a catalog, for a checkout without the research file. */
-export function libraryCatalog(): RoofingCatalog {
-  const brandOf = (manufacturer: string) => FEATURED.find((id) => lower(manufacturer).replace(/\s+/g, "_").includes(id)) || "";
-  const types: Record<string, string> = { "starter": "starter", "hip & ridge": "hip_ridge", "underlayment": "underlayment", "ice & water": "ice_water" };
-  const coverage: Record<string, number> = { field_shingles: 1 / 3, starter: 120, hip_ridge: 25, underlayment: 10, ice_water: 2, ridge_vent: 4 };
-  const products = ROOFING_LIBRARY_ITEMS.map(([id, name, code, type, manufacturer, unit, cost, price, note]) => {
-    const role = lower(type) === "shingles" ? "field_shingles" : types[lower(type)] || (/ridge vent/i.test(name) ? "ridge_vent" : "");
-    return { id, name, code, kind: (lower(type) === "shingles" ? "line" : "accessory") as Product["kind"], role, brand: brandOf(manufacturer), manufacturer, unit, cost, price: cost, note, tier: /3-tab/i.test(name) ? "3_tab" : "architectural", popular: false, confidence: "library", coverage: coverage[role] || 1, rule: role };
-  });
-  const brands = FEATURED.map((id) => ({ id, ...BRAND_LOOK[id]!, lines: products.filter((p) => p.brand === id && p.kind === "line"), accessories: products.filter((p) => p.brand === id && p.kind === "accessory" && ACCESSORY_ROLES.includes(p.role)) })).filter((brand) => brand.lines.length);
-  const rules: Rule[] = [
-    { id: "field_shingles", label: "Shingles", explanation: "Shingles cover every square of roof except the nearly flat part, plus waste for cutting.", group: "shingles", formula: "roofSquares - flatRoofSquares", unit: "sq", include_waste: true, show: true, order: 1 },
-    { id: "starter", label: "Starter strip", explanation: "The first row along the eaves and rakes.", group: "shingles", formula: "eavesLf + rakesLf", unit: "lf", include_waste: false, show: true, order: 2 },
-    { id: "hip_ridge", label: "Hip and ridge cap", explanation: "Caps every hip and ridge.", group: "shingles", formula: "ridgesLf + hipsLf", unit: "lf", include_waste: false, show: true, order: 3 },
-    { id: "ice_water", label: "Ice and water barrier", explanation: "Along the eaves, down every valley and over low-slope sections.", group: "underlayment", formula: "(eavesLf * 6 + valleyLf * 3) / 100 + pitch2to4Squares", unit: "sq", include_waste: false, show: true, order: 4 },
-    { id: "underlayment", label: "Underlayment", explanation: "Covers the whole shingled deck.", group: "underlayment", formula: "roofSquares - flatRoofSquares", unit: "sq", include_waste: false, show: true, order: 5 },
-    { id: "ridge_vent", label: "Ridge vent", explanation: "Runs along the ridges.", group: "ventilation", formula: "ridgesLf", unit: "lf", include_waste: false, show: true, order: 6 }
-  ];
-  return { source: "library", brands, generic: [], labor: [], rules, regions: [NATIONAL], roof_types: [{ id: "shingle", label: "Shingle", systems: [], catalog: true }] };
+export function roofingCatalog(): RoofingCatalog {
+  const catalog = readResearchCatalog();
+  if (!catalog) throw badRequest("pricebook_setup_missing", "The roofing research catalog (config library pricebook_setup/roofing.catalog) is missing.");
+  return catalog;
 }
-
-export function roofingCatalog(): RoofingCatalog { return readResearchCatalog() || libraryCatalog(); }
 
 /** A component's price book item id: rtc-<system>-<key>. */
 export const componentItemId = (system: string, key: string) => `rtc-${system}-${key}`.replace(/_/g, "-").slice(0, 120);
 /** A component's measurement-default rule key: <system>_<key>, so a system's rules are found and replaced together. */
 export const componentRuleKey = (system: string, key: string) => `${system}_${key}`.toLowerCase().replace(/[^a-z0-9_]/g, "_").slice(0, 60);
-let componentsCache: { file: string; mtime: number; value: Map<string, ComponentSystem> } | null = null;
+let componentsCache: { raw: unknown; version: number; value: Map<string, ComponentSystem> } | null = null;
 /**
- * The roof-type components (materials/roofing-research/roof-type-components-2026.json, provisional research): for each
+ * The roof-type components (`pricebook_setup/roofing.components`, provisional research): for each
  * system, what a job needs and how much, as dictionary measurement terms, a waste allowance and a package. A component
  * whose terms are not dictionary measurements in one unit is left out rather than guessed.
  */
-export function roofTypeComponents(file = COMPONENTS_PATH()): Map<string, ComponentSystem> {
-  if (!existsSync(file)) return new Map();
+export function roofTypeComponents(raw = setupPart<Record<string, unknown>>("components")): Map<string, ComponentSystem> {
+  if (!raw) return new Map();
   try {
-    const mtime = statSync(file).mtimeMs;
-    if (componentsCache && componentsCache.file === file && componentsCache.mtime === mtime) return componentsCache.value;
-    const raw = JSON.parse(readFileSync(file, "utf8")) as Record<string, unknown>;
+    if (componentsCache && componentsCache.raw === raw && componentsCache.version === libraryVersion()) return componentsCache.value;
     const known = new Map(listMeasurementDefinitions().map((definition) => [definition.id, definition]));
     const value = new Map<string, ComponentSystem>();
     for (const type of list(raw.types)) {
@@ -245,22 +213,21 @@ export function roofTypeComponents(file = COMPONENTS_PATH()): Map<string, Compon
       }
       value.set(system, { id: system, label: String(type.label || system), status: String(raw.status || "provisional"), components });
     }
-    componentsCache = { file, mtime, value };
+    componentsCache = { raw, version: libraryVersion(), value };
     return value;
   } catch { return new Map(); }
 }
 
 /** A supplier the setup offers: which manufacturers it stocks, how much of each range, and costs we have seen. */
 export type SupplierPreset = { id: string; name: string; kind: string; color: string; manufacturers: string[]; line_scope: "full_range" | "retail_core"; regions: string; prices: Record<string, number> };
-const SUPPLIERS_PATH = () => path.resolve(process.cwd(), "materials/roofing-research/roofing-suppliers-2026.json");
-/** The supplier research (materials/roofing-research/roofing-suppliers-2026.json), with each one's observed library prices. */
-export function roofingSupplierPresets(file = SUPPLIERS_PATH()): SupplierPreset[] {
-  if (!existsSync(file)) return [];
+/** The supplier research (`pricebook_setup/roofing.suppliers`), with each one's observed prices from the material library. */
+export function roofingSupplierPresets(raw = setupPart<Record<string, unknown>>("suppliers")): SupplierPreset[] {
+  if (!raw) return [];
   try {
-    const raw = JSON.parse(readFileSync(file, "utf8")) as Record<string, unknown>;
+    const suppliers = materialLibrary("roofing").suppliers;
     return list(raw.suppliers).map((entry) => {
-      const library = ROOFING_LIBRARY_SUPPLIERS.find((supplier) => supplier.name === String(entry.library_supplier || ""));
-      const prices = Object.fromEntries((library?.offerings || []).filter(([, , cents]) => cents != null).map(([itemId, , cents]) => [itemId, round2(Number(cents) / 100)]));
+      const library = suppliers.find((supplier) => supplier.name === String(entry.library_supplier || ""));
+      const prices = Object.fromEntries((library?.offerings || []).filter((offering) => offering.price_cents != null).map((offering) => [offering.item_id, round2(Number(offering.price_cents) / 100)]));
       return { id: String(entry.id), name: String(entry.name), kind: String(entry.kind || "distributor"), color: String(entry.color || "#344054"), manufacturers: list(entry.manufacturers).map(String),
         line_scope: entry.line_scope === "retail_core" ? "retail_core" as const : "full_range" as const, regions: String(entry.regions || ""), prices };
     }).filter((preset) => preset.id && preset.name);
@@ -302,19 +269,19 @@ export function dictionaryOnly(formula: string | null) {
 const fmtNumber = (value: number) => String(Math.round(value * 10000) / 10000);
 /** The ice and water formula in squares of barrier for a coverage choice, plus the low-slope squares it also covers. */
 export function iceWaterFormula(coverage: IceCoverage) {
-  const widths = ICE_COVERAGE[coverage] || ICE_COVERAGE.eaves_36_valleys;
+  const widths = iceWidths(coverage) || iceWidths("eaves_36_valleys") || setupSettings().ice_coverage.find((choice) => choice.widths)!.widths!;
   const parts = ([["eavesLf", widths.eaves], ["rakesLf", widths.rakes], ["valleyLf", widths.valleys]] as const).filter(([, width]) => width > 0).map(([key, width]) => `${key} * ${fmtNumber(width)}`);
   return `(${parts.join(" + ")}) / 100 + pitch2to4Squares`;
 }
 /** The ice and water measurement-default terms for a coverage choice: lengths of a 3 ft course. Null for none. */
 export function iceWaterTerms(coverage: IceCoverage) {
-  const widths = ICE_COVERAGE[coverage];
+  const widths = iceWidths(coverage);
   if (!widths) return null;
   return ([["roof.eave_length", widths.eaves], ["roof.rake_length", widths.rakes], ["roof.valley_length", widths.valleys]] as const).filter(([, width]) => width > 0).map(([measurement, width]) => ({ measurement, factor: Math.round(width / 3 * 10000) / 10000 }));
 }
 
 /** The rule's formula for one product, in the product's order unit. */
-export function productFormula(rule: Rule, product: Product, iceCoverage: IceCoverage = DEFAULT_ICE_COVERAGE) {
+export function productFormula(rule: Rule, product: Product, iceCoverage: IceCoverage = defaultIceCoverage()) {
   let formula = rule.formula;
   if (rule.id === "ice_water") formula = iceWaterFormula(iceCoverage === "none" ? "eaves_36_valleys" : iceCoverage);
   if (!dictionaryOnly(formula)) return null;
@@ -342,16 +309,16 @@ function pickedBrands(catalog: RoofingCatalog, ids: string[]) { return ids.map((
 const plain = (entry: Product) => !entry.colored_starter;
 /** Every product that can fill a slot: the picked brands' accessories of its role, then generic items of its rule. */
 export function slotCandidates(catalog: RoofingCatalog, brands: Brand[], slot: DefaultSlot) {
-  const { role, rule } = DEFAULT_SLOTS[slot];
+  const { role, rule, generic_first } = setupSettings().default_slots[slot];
   const branded = brands.flatMap((brand) => brand.accessories.filter((entry) => entry.role === role && plain(entry)));
   const generic = catalog.generic.filter((entry) => entry.rule === rule);
-  return "generic_first" in DEFAULT_SLOTS[slot] ? [...generic, ...branded] : [...branded, ...generic];
+  return generic_first ? [...generic, ...branded] : [...branded, ...generic];
 }
 /** A slot's default: the generic default where the slot starts generic (lead pipe boots), else the first picked brand that makes one. */
 export function slotDefault(catalog: RoofingCatalog, brands: Brand[], slot: DefaultSlot) {
-  const { role, rule } = DEFAULT_SLOTS[slot];
+  const { role, rule, generic_first } = setupSettings().default_slots[slot];
   const generic = catalog.generic.filter((entry) => entry.rule === rule);
-  if ("generic_first" in DEFAULT_SLOTS[slot]) { const found = generic.find((entry) => entry.setup_default) || generic[0]; if (found) return found; }
+  if (generic_first) { const found = generic.find((entry) => entry.setup_default) || generic[0]; if (found) return found; }
   for (const brand of brands) {
     const own = brand.accessories.filter((entry) => entry.role === role && plain(entry));
     if (own.length) return own.find((entry) => entry.setup_default) || own[0]!;
@@ -382,7 +349,7 @@ function lowSlopeBase(catalog: RoofingCatalog, systems: Map<string, ComponentSys
 
 // ---- What the setup shows ----
 
-const rank = (id: string) => FEATURED.includes(id) ? FEATURED.indexOf(id) : FEATURED.length;
+const rank = (id: string) => { const featured = setupSettings().featured_brands; return featured.includes(id) ? featured.indexOf(id) : featured.length; };
 export function roofingSetupOptions(state: string, regionId = "") {
   const catalog = roofingCatalog(), region = regionFor(catalog, state, regionId), systems = roofTypeComponents();
   const price = (product: Product) => round2(product.price * (product.kind === "labor" ? region.labor : region.material));
@@ -402,12 +369,13 @@ export function roofingSetupOptions(state: string, regionId = "") {
     // The generic low-slope products by system, from the roof-type components.
     low_slope: Object.fromEntries(LOW_SLOPE_SYSTEMS.filter((id) => id !== "none").map((id) => { const found = lowSlopeGeneric(catalog, systems, id); return [id, { ...(found.cap ? { cap: card(found.cap) } : {}), ...(found.base ? { base: card(found.base) } : {}) }]; })),
     suppliers: roofingSupplierPresets(),
-    ice_coverage: { default: DEFAULT_ICE_COVERAGE, options: Object.keys(ICE_COVERAGE) },
+    ice_coverage: { default: defaultIceCoverage(), options: iceCoverageChoices() },
     components_status: [...systems.values()][0]?.status || ""
   };
 }
 
-const iceCoverage = z.enum(Object.keys(ICE_COVERAGE) as [IceCoverage, ...IceCoverage[]]);
+// The choices are data (`ice_coverage`), so the check reads them when the selections are parsed.
+const iceCoverage = z.string().max(40).refine((id) => iceCoverageChoices().includes(id), { message: "Not one of the ice and water coverage choices." });
 export const roofingSelectionsSchema = z.object({
   /** The kinds of roof the organization installs (catalog `roof_types`); shingle when not said, as before this question. */
   roof_types: z.array(z.string().max(40)).min(1).max(12).default(["shingle"]),
@@ -478,7 +446,7 @@ export function resolveDefaults(selections: RoofingSelections, catalog = roofing
   return {
     shingle, underlayment: pick("underlayment"), ice_water: pick("ice_water"), pipe_boot: pick("pipe_boot"),
     ridge_vent: pick("ridge_vent"), intake_vent: pick("intake_vent"), box_vent: pick("box_vent"),
-    ice_coverage: (chosen.ice_coverage || (selections.ice_eave_width !== undefined ? OLD_ICE[selections.ice_eave_width] : undefined) || DEFAULT_ICE_COVERAGE) as IceCoverage,
+    ice_coverage: (chosen.ice_coverage || (selections.ice_eave_width !== undefined ? OLD_ICE[selections.ice_eave_width] : undefined) || defaultIceCoverage()) as IceCoverage,
     low_slope: { system, cap, base: system === "none" ? null : lowSlopeBase(catalog, systems, cap, system) }
   };
 }
@@ -514,7 +482,7 @@ export function buildRoofingSetup(selections: RoofingSelections, current: Measur
     for (const entry of [resolved!.low_slope.cap, resolved!.low_slope.base]) if (entry && !chosen.some((product) => product.id === entry.id) && !components.some((product) => product.id === entry.id)) chosen.push(entry);
   }
   chosen.push(...components);
-  const iceChoice = resolved?.ice_coverage || DEFAULT_ICE_COVERAGE;
+  const iceChoice = resolved?.ice_coverage || defaultIceCoverage();
   // Hand-entered defaults (pipe boots, box vents) are recorded on the item: the report does not count them.
   const handDefaults = new Map<string, string>(resolved ? [[resolved.pipe_boot?.id || "", "pipe_boots"], [resolved.box_vent?.id || "", "box_vents"]] : []);
   // Costs only: the Materials list totals what the job's materials cost. No markup is assumed; sell prices are a
@@ -529,7 +497,7 @@ export function buildRoofingSetup(selections: RoofingSelections, current: Measur
     const part = product.component;
     const flat = part ? !!catalog.roof_types.find((type) => type.systems.includes(part.system))?.low_slope : product.role.startsWith("low_slope");
     const category = part ? (flat ? (["Membrane system", "Field"].includes(part.group) ? "flat_roofs" : "flat_roof_accessories") : ({ Underlayment: "underlayments", Flashing: "flashing", Field: "misc" } as Record<string, string>)[part.group] || "accessories")
-      : CATEGORY[product.kind === "line" ? "line" : product.role] || "misc";
+      : setupSettings().categories[product.kind === "line" ? "line" : product.role] || "misc";
     const typeName = part ? systems.get(part.system)?.label || part.system : labor ? "Labor" : product.kind === "line" ? "Shingles" : product.role;
     return {
       id: product.id, kind: "atomic", name: product.name, code: product.code, type: typeName, category,
@@ -568,14 +536,14 @@ export function buildRoofingSetup(selections: RoofingSelections, current: Measur
   const keyOf = new Map(listMeasurementDefinitions().map((definition) => [definition.id, definition.key || ""]));
   for (const rule of settings.materials.rules) {
     if (!rule.enabled || !rule.product_id || written.has(rule.product_id)) continue;
-    const row = ROOFING_LIBRARY_ITEMS.find(([id]) => id === rule.product_id);
+    const row = materialLibrary("roofing").items.find((entry) => entry.id === rule.product_id);
     if (!row) continue;
-    const [id, name, code, type, manufacturer, unit, cost, , note] = row;
+    const { id, name, code, type, manufacturer, unit, cost, note } = row;
     const formula = rule.terms.map((term, i) => `${term.factor < 0 ? "- " : i ? "+ " : ""}${Math.abs(term.factor) !== 1 ? `${Math.abs(term.factor)} * ` : ""}${keyOf.get(term.measurement)}`).join(" ");
     const product: Product = { id, name, code, kind: "generic", role: lower(type), brand: "", manufacturer, unit, cost, price: cost, note, tier: "", popular: false, confidence: "library", coverage: rule.package?.coverage || 1, rule: rule.key };
     const tokens = productFormula({ id: rule.key, label: rule.label, explanation: "", group: rule.group, formula, unit: "", include_waste: rule.waste !== 0, show: false, order: 0 }, product, iceChoice);
     const sell = round2(cost * region.material);
-    items.push({ id, kind: "atomic", name, code, type, category: CATEGORY[lower(type)] || (lower(type) === "low slope" ? "flat_roofs" : "misc"), segment: lower(type) === "low slope" ? "flat" : "sloped", manufacturer, unit,
+    items.push({ id, kind: "atomic", name, code, type, category: setupSettings().categories[lower(type)] || (lower(type) === "low slope" ? "flat_roofs" : "misc"), segment: lower(type) === "low slope" ? "flat" : "sloped", manufacturer, unit,
       internal_cost: selections.prices[id] ?? sell, unit_price: selections.prices[id] ?? sell, unitPrice: selections.prices[id] ?? sell, base_price: selections.prices[id] ?? sell, description: note, external_description: "",
       ...(tokens ? { formulaConfig: { tokens: tokens.tokens, includeWaste: tokens.includeWaste } } : {}), autoAdd: false,
       metadata: { source: "guided_setup", setup: "pricebook.roofing", catalog: "library", price_region: region.id, price_confidence: "library", rule: rule.key, ...(tokens ? { measurement_keys: tokens.measurement_keys, coverage_per_unit: product.coverage } : { quantity: "entered_by_hand" }) } });
@@ -603,7 +571,7 @@ function applyShingleDefaults(settings: MeasurementDefaults, selections: Roofing
     shingles: shingle, starter: accessory("starter"), hip_ridge: accessory("hip_ridge"), underlayment: resolved.underlayment, ice_water: resolved.ice_water,
     ridge_vent: resolved.ridge_vent, intake_vent: resolved.intake_vent, low_slope_cap: resolved.low_slope.cap, low_slope_base: resolved.low_slope.base
   };
-  const productFor = (key: string) => key in products ? products[key] ?? null : generic.get(Object.entries(DEFAULT_RULE).find(([, value]) => value === key)?.[0] || "") || null;
+  const productFor = (key: string) => key in products ? products[key] ?? null : generic.get(Object.entries(setupSettings().default_rules).find(([, value]) => value === key)?.[0] || "") || null;
   // Intake vents run along the eaves; a set of defaults saved before they were asked about gets the rule.
   if (resolved.intake_vent && !settings.materials.rules.some((rule) => rule.key === "intake_vent") && settings.materials.rules.length < 60) {
     const at = settings.materials.rules.findIndex((rule) => rule.key === "ridge_vent");

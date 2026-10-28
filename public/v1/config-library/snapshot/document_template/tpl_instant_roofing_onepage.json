@@ -1,0 +1,2083 @@
+{
+  "kind": "document_template",
+  "id": "tpl_instant_roofing_onepage",
+  "revision": 1,
+  "sha256": "c019300aed174853b1c23960bbcbc6bd3c5257bb163c0598f8faab24563d82d1",
+  "title": "Roof replacement · One-page proposal",
+  "updated_at": "2026-10-28T00:40:02.983Z",
+  "updated_by": "generator",
+  "data": {
+    "name": "Roof replacement · One-page proposal",
+    "document_type": "proposal",
+    "description": "The same priced scope on a single page: scope summary, total, terms and signature.",
+    "status": "active",
+    "seeding": "every_organization",
+    "definition": {
+      "schema_version": 1,
+      "kind": "document",
+      "settings": {
+        "paper": {
+          "size": "letter",
+          "orientation": "portrait"
+        },
+        "locale": "en-US",
+        "base_font_pt": 11
+      },
+      "theme_ref": {
+        "theme_id": "thm_clean"
+      },
+      "params": {
+        "structure": {
+          "type": "string",
+          "label": "Structure",
+          "default": "Main house"
+        },
+        "scope_items": {
+          "type": "list",
+          "items": {
+            "type": "pricebook_line"
+          },
+          "label": "Accepted scope",
+          "default": []
+        },
+        "scope_pieces": {
+          "type": "list",
+          "items": {
+            "type": "object"
+          },
+          "label": "Project work",
+          "default": [
+            {
+              "id": "piece_roof_replacement",
+              "template_id": "roof_replacement",
+              "name": "Roof Replacement"
+            }
+          ]
+        },
+        "measurement_requirements": {
+          "type": "list",
+          "items": {
+            "type": "string"
+          }
+        },
+        "measurements": {
+          "type": "measurements",
+          "label": "Measurements"
+        },
+        "payment_schedule": {
+          "type": "payment_schedule",
+          "label": "Payment terms",
+          "default": [
+            {
+              "id": "deposit",
+              "label": "Deposit",
+              "kind": "percent",
+              "percent": 30,
+              "payment_kind": "deposit",
+              "due_rule": "on_signature"
+            },
+            {
+              "id": "final",
+              "label": "Final payment",
+              "kind": "percent",
+              "percent": 70,
+              "payment_kind": "final",
+              "due_rule": "project_completion"
+            }
+          ]
+        },
+        "scope_generated_from": {
+          "type": "string"
+        },
+        "customer_choice_count": {
+          "type": "number",
+          "default": 0
+        },
+        "deposit_at_signing": {
+          "type": "boolean",
+          "default": true
+        }
+      },
+      "computed": {
+        "subtotal_cents": "sum(params.scope_items[].amount_cents)",
+        "tax_cents": "0",
+        "total_cents": "computed.subtotal_cents"
+      },
+      "outputs": {
+        "selections": {
+          "type": "select",
+          "applies": "scope_selections",
+          "label": "Your options"
+        },
+        "sig_customer": {
+          "type": "signature",
+          "required": true,
+          "signer": "customer"
+        },
+        "deposit_payment": {
+          "type": "payment",
+          "obligation": "deposit",
+          "required_for": "completed"
+        }
+      },
+      "styles": {
+        "li_name": {
+          "family": "var(--fm-body-font)",
+          "size_pt": 10.5,
+          "weight": 700,
+          "color": "var(--fm-text)"
+        },
+        "li_meta": {
+          "family": "var(--fm-body-font)",
+          "size_pt": 8.5,
+          "weight": 400,
+          "color": "var(--fm-color-muted)"
+        },
+        "li_amount": {
+          "family": "var(--fm-body-font)",
+          "size_pt": 10.5,
+          "weight": 700,
+          "color": "var(--fm-text)"
+        },
+        "li_total": {
+          "family": "var(--fm-display-font)",
+          "size_pt": 13,
+          "weight": 800,
+          "color": "var(--fm-text)"
+        }
+      },
+      "components": {
+        "li_header": {
+          "params": {},
+          "root": {
+            "id": "nd_e0uf2091hikos",
+            "type": "frame",
+            "name": "",
+            "frame": {
+              "x": 0,
+              "y": 0,
+              "w": 0,
+              "h": "auto",
+              "rotation": 0,
+              "z": 0,
+              "layout": "flow",
+              "constraints": {
+                "h": "left",
+                "v": "top"
+              }
+            },
+            "style": {
+              "fill": {
+                "type": "solid",
+                "color": "var(--fm-primary)"
+              }
+            },
+            "locks": {},
+            "bind": null,
+            "visible": true,
+            "props": {
+              "background": null,
+              "clip": false,
+              "flow": {
+                "direction": "row",
+                "gap": 8,
+                "padding": [
+                  5,
+                  8,
+                  5,
+                  8
+                ],
+                "align": "center",
+                "wrap": false
+              },
+              "overflow": "visible"
+            },
+            "children": [
+              {
+                "id": "nd_e0uf21zf803ol",
+                "type": "text",
+                "name": "",
+                "frame": {
+                  "x": 0,
+                  "y": 0,
+                  "w": 0,
+                  "h": "auto",
+                  "rotation": 0,
+                  "z": 0,
+                  "layout": "flow",
+                  "constraints": {
+                    "h": "left",
+                    "v": "top"
+                  },
+                  "grow": 1
+                },
+                "style": {
+                  "font": {
+                    "family": "var(--fm-body-font)",
+                    "size_pt": 8.5,
+                    "weight": 800,
+                    "color": "#ffffff",
+                    "transform": "uppercase"
+                  }
+                },
+                "locks": {},
+                "bind": null,
+                "visible": true,
+                "props": {
+                  "blocks": [
+                    {
+                      "id": "blk_e0uf2owbjuhoj",
+                      "type": "paragraph",
+                      "align": "left",
+                      "runs": [
+                        {
+                          "text": "Item"
+                        }
+                      ]
+                    }
+                  ],
+                  "valign": "top",
+                  "auto_fit": false,
+                  "line_height": 1.4,
+                  "letter_spacing": 0
+                },
+                "anchor": "flow"
+              },
+              {
+                "id": "nd_e0uf23bs33uoo",
+                "type": "text",
+                "name": "",
+                "frame": {
+                  "x": 0,
+                  "y": 0,
+                  "w": 72,
+                  "h": "auto",
+                  "rotation": 0,
+                  "z": 0,
+                  "layout": "flow",
+                  "constraints": {
+                    "h": "left",
+                    "v": "top"
+                  }
+                },
+                "style": {
+                  "font": {
+                    "family": "var(--fm-body-font)",
+                    "size_pt": 8.5,
+                    "weight": 800,
+                    "color": "#ffffff",
+                    "transform": "uppercase"
+                  }
+                },
+                "locks": {},
+                "bind": null,
+                "visible": true,
+                "props": {
+                  "blocks": [
+                    {
+                      "id": "blk_e0uf2s5grauom",
+                      "type": "paragraph",
+                      "align": "center",
+                      "runs": [
+                        {
+                          "text": "Qty"
+                        }
+                      ]
+                    }
+                  ],
+                  "valign": "top",
+                  "auto_fit": false,
+                  "line_height": 1.4,
+                  "letter_spacing": 0
+                },
+                "anchor": "flow"
+              },
+              {
+                "id": "nd_e0uf2md4ydzor",
+                "type": "text",
+                "name": "",
+                "frame": {
+                  "x": 0,
+                  "y": 0,
+                  "w": 96,
+                  "h": "auto",
+                  "rotation": 0,
+                  "z": 0,
+                  "layout": "flow",
+                  "constraints": {
+                    "h": "left",
+                    "v": "top"
+                  }
+                },
+                "style": {
+                  "font": {
+                    "family": "var(--fm-body-font)",
+                    "size_pt": 8.5,
+                    "weight": 800,
+                    "color": "#ffffff",
+                    "transform": "uppercase"
+                  }
+                },
+                "locks": {},
+                "bind": null,
+                "visible": true,
+                "props": {
+                  "blocks": [
+                    {
+                      "id": "blk_e0uf2z8fa4gop",
+                      "type": "paragraph",
+                      "align": "right",
+                      "runs": [
+                        {
+                          "text": "Amount"
+                        }
+                      ]
+                    }
+                  ],
+                  "valign": "top",
+                  "auto_fit": false,
+                  "line_height": 1.4,
+                  "letter_spacing": 0
+                },
+                "anchor": "flow"
+              }
+            ]
+          }
+        },
+        "li_row": {
+          "params": {
+            "item": {
+              "type": "pricebook_line"
+            }
+          },
+          "root": {
+            "id": "nd_e0uf2d8v3ukp5",
+            "type": "frame",
+            "name": "",
+            "frame": {
+              "x": 0,
+              "y": 0,
+              "w": 0,
+              "h": "auto",
+              "rotation": 0,
+              "z": 0,
+              "layout": "flow",
+              "constraints": {
+                "h": "left",
+                "v": "top"
+              }
+            },
+            "style": {},
+            "locks": {},
+            "bind": null,
+            "visible": true,
+            "props": {
+              "background": null,
+              "clip": false,
+              "flow": {
+                "direction": "row",
+                "gap": 8,
+                "padding": [
+                  6,
+                  8,
+                  6,
+                  8
+                ],
+                "align": "start",
+                "wrap": false
+              },
+              "overflow": "visible"
+            },
+            "children": [
+              {
+                "id": "nd_e0uf28dwdxeoy",
+                "type": "text",
+                "name": "",
+                "frame": {
+                  "x": 0,
+                  "y": 0,
+                  "w": 0,
+                  "h": "auto",
+                  "rotation": 0,
+                  "z": 0,
+                  "layout": "flow",
+                  "constraints": {
+                    "h": "left",
+                    "v": "top"
+                  },
+                  "grow": 1
+                },
+                "style": {},
+                "locks": {},
+                "bind": null,
+                "visible": true,
+                "props": {
+                  "blocks": [
+                    {
+                      "id": "blk_e0uf2u0il2wot",
+                      "type": "paragraph",
+                      "align": "left",
+                      "style_ref": "li_name",
+                      "runs": [
+                        {
+                          "text": "",
+                          "bind": "coalesce(item.display_name, item.name)"
+                        }
+                      ]
+                    },
+                    {
+                      "id": "blk_e0uf2fknuojou",
+                      "type": "paragraph",
+                      "align": "left",
+                      "style_ref": "li_meta",
+                      "collapse_empty": true,
+                      "runs": [
+                        {
+                          "text": "",
+                          "bind": "coalesce(item.variant_summary, '')"
+                        }
+                      ]
+                    },
+                    {
+                      "id": "blk_e0uf2ku4liqov",
+                      "type": "paragraph",
+                      "align": "left",
+                      "style_ref": "li_meta",
+                      "collapse_empty": true,
+                      "runs": [
+                        {
+                          "text": "",
+                          "bind": "coalesce(item.description, '')"
+                        }
+                      ]
+                    },
+                    {
+                      "id": "blk_e0uf2gwdf6eow",
+                      "type": "paragraph",
+                      "align": "left",
+                      "style_ref": "li_badge",
+                      "collapse_empty": true,
+                      "runs": [
+                        {
+                          "text": "",
+                          "bind": "coalesce(item.badge, '')"
+                        }
+                      ]
+                    }
+                  ],
+                  "valign": "top",
+                  "auto_fit": false,
+                  "line_height": 1.4,
+                  "letter_spacing": 0
+                },
+                "anchor": "flow"
+              },
+              {
+                "id": "nd_e0uf26yjfifp1",
+                "type": "text",
+                "name": "",
+                "frame": {
+                  "x": 0,
+                  "y": 0,
+                  "w": 72,
+                  "h": "auto",
+                  "rotation": 0,
+                  "z": 0,
+                  "layout": "flow",
+                  "constraints": {
+                    "h": "left",
+                    "v": "top"
+                  }
+                },
+                "style": {},
+                "locks": {},
+                "bind": null,
+                "visible": true,
+                "props": {
+                  "blocks": [
+                    {
+                      "id": "blk_e0uf2dj7flooz",
+                      "type": "paragraph",
+                      "align": "center",
+                      "style_ref": "body",
+                      "runs": [
+                        {
+                          "text": "",
+                          "bind": "item.quantity | qty(item.unit)"
+                        }
+                      ]
+                    }
+                  ],
+                  "valign": "top",
+                  "auto_fit": false,
+                  "line_height": 1.4,
+                  "letter_spacing": 0
+                },
+                "anchor": "flow"
+              },
+              {
+                "id": "nd_e0uf2z3b2rfp4",
+                "type": "text",
+                "name": "",
+                "frame": {
+                  "x": 0,
+                  "y": 0,
+                  "w": 96,
+                  "h": "auto",
+                  "rotation": 0,
+                  "z": 0,
+                  "layout": "flow",
+                  "constraints": {
+                    "h": "left",
+                    "v": "top"
+                  }
+                },
+                "style": {},
+                "locks": {},
+                "bind": null,
+                "visible": true,
+                "props": {
+                  "blocks": [
+                    {
+                      "id": "blk_e0uf2wb33pdp2",
+                      "type": "paragraph",
+                      "align": "right",
+                      "style_ref": "li_amount",
+                      "runs": [
+                        {
+                          "text": "",
+                          "bind": "(coalesce(item.show_amount, true) || coalesce(params.show_line_prices, false)) ? (item.amount_cents | money) : 'Included'"
+                        }
+                      ]
+                    }
+                  ],
+                  "valign": "top",
+                  "auto_fit": false,
+                  "line_height": 1.4,
+                  "letter_spacing": 0
+                },
+                "anchor": "flow"
+              }
+            ]
+          },
+          "variants": {
+            "child": {
+              "props": {
+                "flow": {
+                  "padding": [
+                    4,
+                    8,
+                    4,
+                    24
+                  ]
+                }
+              }
+            },
+            "group": {
+              "props": {
+                "flow": {
+                  "padding": [
+                    8,
+                    8,
+                    4,
+                    8
+                  ]
+                }
+              }
+            }
+          }
+        },
+        "li_totals": {
+          "params": {},
+          "root": {
+            "id": "nd_e0uf2yl7d4dpc",
+            "type": "frame",
+            "name": "",
+            "frame": {
+              "x": 0,
+              "y": 0,
+              "w": 0,
+              "h": "auto",
+              "rotation": 0,
+              "z": 0,
+              "layout": "flow",
+              "constraints": {
+                "h": "left",
+                "v": "top"
+              }
+            },
+            "style": {},
+            "locks": {},
+            "bind": null,
+            "visible": true,
+            "props": {
+              "background": null,
+              "clip": false,
+              "flow": {
+                "direction": "column",
+                "gap": 8,
+                "padding": [
+                  8,
+                  8,
+                  4,
+                  8
+                ],
+                "align": "stretch",
+                "wrap": false
+              },
+              "overflow": "visible"
+            },
+            "children": [
+              {
+                "id": "nd_e0uf2h957njpb",
+                "type": "text",
+                "name": "",
+                "frame": {
+                  "x": 0,
+                  "y": 0,
+                  "w": 0,
+                  "h": "auto",
+                  "rotation": 0,
+                  "z": 0,
+                  "layout": "flow",
+                  "constraints": {
+                    "h": "left",
+                    "v": "top"
+                  }
+                },
+                "style": {},
+                "locks": {},
+                "bind": null,
+                "visible": true,
+                "props": {
+                  "blocks": [
+                    {
+                      "id": "blk_e0uf2tde03wp6",
+                      "type": "paragraph",
+                      "align": "right",
+                      "style_ref": "body",
+                      "runs": [
+                        {
+                          "text": "Subtotal   "
+                        },
+                        {
+                          "text": "",
+                          "bind": "computed.subtotal_cents | money"
+                        }
+                      ]
+                    },
+                    {
+                      "id": "blk_e0uf2i1lecbp7",
+                      "type": "paragraph",
+                      "align": "right",
+                      "style_ref": "body",
+                      "collapse_empty": true,
+                      "runs": [
+                        {
+                          "text": "",
+                          "bind": "coalesce(computed.adjustments_cents, 0) != 0 ? concat('Adjustments   ', (computed.adjustments_cents | money)) : ''"
+                        }
+                      ]
+                    },
+                    {
+                      "id": "blk_e0uf2ax7tllp8",
+                      "type": "paragraph",
+                      "align": "right",
+                      "style_ref": "body",
+                      "runs": [
+                        {
+                          "text": "Tax ("
+                        },
+                        {
+                          "text": "",
+                          "bind": "coalesce(params.tax_percent, 0)"
+                        },
+                        {
+                          "text": "%)   "
+                        },
+                        {
+                          "text": "",
+                          "bind": "computed.tax_cents | money"
+                        }
+                      ]
+                    },
+                    {
+                      "id": "blk_e0uf2n40fnpp9",
+                      "type": "paragraph",
+                      "align": "right",
+                      "style_ref": "li_total",
+                      "runs": [
+                        {
+                          "text": "Total   "
+                        },
+                        {
+                          "text": "",
+                          "bind": "computed.total_cents | money"
+                        }
+                      ]
+                    }
+                  ],
+                  "valign": "top",
+                  "auto_fit": false,
+                  "line_height": 1.4,
+                  "letter_spacing": 0
+                },
+                "anchor": "flow"
+              }
+            ]
+          }
+        },
+        "scope_summary_row": {
+          "params": {
+            "item": {
+              "type": "pricebook_line"
+            }
+          },
+          "root": {
+            "id": "nd_e0uf2ukg1xzn7",
+            "type": "frame",
+            "name": "",
+            "frame": {
+              "x": 0,
+              "y": 0,
+              "w": 0,
+              "h": "auto",
+              "rotation": 0,
+              "z": 0,
+              "layout": "flow",
+              "constraints": {
+                "h": "left",
+                "v": "top"
+              }
+            },
+            "style": {},
+            "locks": {},
+            "bind": null,
+            "visible": true,
+            "props": {
+              "background": null,
+              "clip": false,
+              "flow": {
+                "direction": "row",
+                "gap": 6,
+                "padding": [
+                  1,
+                  12,
+                  1,
+                  0
+                ],
+                "align": "start",
+                "wrap": false
+              },
+              "overflow": "visible"
+            },
+            "children": [
+              {
+                "id": "nd_e0uf2fx51u1n3",
+                "type": "text",
+                "name": "",
+                "frame": {
+                  "x": 0,
+                  "y": 0,
+                  "w": 0,
+                  "h": "auto",
+                  "rotation": 0,
+                  "z": 0,
+                  "layout": "flow",
+                  "constraints": {
+                    "h": "left",
+                    "v": "top"
+                  },
+                  "grow": 1
+                },
+                "style": {
+                  "font": {
+                    "family": "var(--fm-body-font)",
+                    "size_pt": 8.6,
+                    "color": "var(--fm-text)",
+                    "weight": 500
+                  }
+                },
+                "locks": {},
+                "bind": null,
+                "visible": true,
+                "props": {
+                  "blocks": [
+                    {
+                      "id": "blk_e0uf2d04zgtn1",
+                      "type": "paragraph",
+                      "align": "left",
+                      "runs": [
+                        {
+                          "text": "",
+                          "bind": "coalesce(item.display_name, item.name)"
+                        },
+                        {
+                          "text": "",
+                          "bind": "coalesce(item.variant_summary, '') != '' ? concat('  ·  ', item.variant_summary) : ''",
+                          "font": {
+                            "weight": 400,
+                            "color": "var(--fm-color-muted)"
+                          }
+                        }
+                      ]
+                    }
+                  ],
+                  "valign": "top",
+                  "auto_fit": false,
+                  "line_height": 1.4,
+                  "letter_spacing": 0
+                },
+                "anchor": "flow"
+              },
+              {
+                "id": "nd_e0uf2679kkqn6",
+                "type": "text",
+                "name": "",
+                "frame": {
+                  "x": 0,
+                  "y": 0,
+                  "w": 62,
+                  "h": "auto",
+                  "rotation": 0,
+                  "z": 0,
+                  "layout": "flow",
+                  "constraints": {
+                    "h": "left",
+                    "v": "top"
+                  }
+                },
+                "style": {
+                  "font": {
+                    "family": "var(--fm-body-font)",
+                    "size_pt": 8.6,
+                    "color": "var(--fm-color-muted)"
+                  }
+                },
+                "locks": {},
+                "bind": null,
+                "visible": true,
+                "props": {
+                  "blocks": [
+                    {
+                      "id": "blk_e0uf27pgwesn4",
+                      "type": "paragraph",
+                      "align": "right",
+                      "runs": [
+                        {
+                          "text": "",
+                          "bind": "item.quantity | qty(item.unit)"
+                        }
+                      ]
+                    }
+                  ],
+                  "valign": "top",
+                  "auto_fit": false,
+                  "line_height": 1.4,
+                  "letter_spacing": 0
+                },
+                "anchor": "flow"
+              }
+            ]
+          },
+          "variants": {
+            "group": {
+              "children": [
+                {
+                  "id": "nd_e0uf25lbu5soi",
+                  "type": "text",
+                  "name": "",
+                  "frame": {
+                    "x": 0,
+                    "y": 0,
+                    "w": 0,
+                    "h": "auto",
+                    "rotation": 0,
+                    "z": 0,
+                    "layout": "flow",
+                    "constraints": {
+                      "h": "left",
+                      "v": "top"
+                    },
+                    "grow": 1
+                  },
+                  "style": {
+                    "font": {
+                      "family": "var(--fm-body-font)",
+                      "size_pt": 8.6,
+                      "color": "var(--fm-text)",
+                      "weight": 800
+                    }
+                  },
+                  "locks": {},
+                  "bind": null,
+                  "visible": true,
+                  "props": {
+                    "blocks": [
+                      {
+                        "id": "blk_e0uf2pemft7og",
+                        "type": "paragraph",
+                        "align": "left",
+                        "runs": [
+                          {
+                            "text": "",
+                            "bind": "coalesce(item.display_name, item.name)"
+                          },
+                          {
+                            "text": "",
+                            "bind": "coalesce(item.variant_summary, '') != '' ? concat('  ·  ', item.variant_summary) : ''",
+                            "font": {
+                              "weight": 400,
+                              "color": "var(--fm-color-muted)"
+                            }
+                          }
+                        ]
+                      }
+                    ],
+                    "valign": "top",
+                    "auto_fit": false,
+                    "line_height": 1.4,
+                    "letter_spacing": 0
+                  },
+                  "anchor": "flow"
+                }
+              ]
+            }
+          }
+        }
+      },
+      "chains": {},
+      "assets": [],
+      "edit_policy": {
+        "base_profile": "document",
+        "max_profile": "designer",
+        "features": {},
+        "unlock": {
+          "allowed": true
+        }
+      },
+      "metadata": {
+        "document_type": "proposal"
+      },
+      "pages": [
+        {
+          "id": "pg_e0uf13bm89qmy",
+          "role": "body",
+          "name": "Proposal",
+          "master_ref": null,
+          "repeat": null,
+          "children": [
+            {
+              "id": "nd_e0uf2ksn4tfof",
+              "type": "frame",
+              "name": "Body",
+              "frame": {
+                "x": 48,
+                "y": 80,
+                "w": 516,
+                "h": 664,
+                "rotation": 0,
+                "z": 0,
+                "layout": "flow",
+                "constraints": {
+                  "h": "stretch",
+                  "v": "top"
+                }
+              },
+              "style": {},
+              "locks": {},
+              "bind": null,
+              "visible": true,
+              "props": {
+                "background": null,
+                "clip": false,
+                "flow": {
+                  "direction": "column",
+                  "gap": 8,
+                  "padding": [
+                    0,
+                    0,
+                    0,
+                    0
+                  ],
+                  "align": "stretch",
+                  "wrap": false
+                },
+                "overflow": "paginate",
+                "page_region": "body"
+              },
+              "children": [
+                {
+                  "id": "nd_e0uf2bk1kmkng",
+                  "type": "frame",
+                  "name": "",
+                  "frame": {
+                    "x": 0,
+                    "y": 0,
+                    "w": 0,
+                    "h": "auto",
+                    "rotation": 0,
+                    "z": 0,
+                    "layout": "flow",
+                    "constraints": {
+                      "h": "left",
+                      "v": "top"
+                    }
+                  },
+                  "style": {},
+                  "locks": {},
+                  "bind": null,
+                  "visible": true,
+                  "props": {
+                    "background": null,
+                    "clip": false,
+                    "flow": {
+                      "direction": "row",
+                      "gap": 20,
+                      "padding": [
+                        0,
+                        0,
+                        0,
+                        0
+                      ],
+                      "align": "start",
+                      "wrap": false
+                    },
+                    "overflow": "visible"
+                  },
+                  "children": [
+                    {
+                      "id": "nd_e0uf2xfyt12nc",
+                      "type": "frame",
+                      "name": "",
+                      "frame": {
+                        "x": 0,
+                        "y": 0,
+                        "w": 0,
+                        "h": "auto",
+                        "rotation": 0,
+                        "z": 0,
+                        "layout": "flow",
+                        "constraints": {
+                          "h": "left",
+                          "v": "top"
+                        },
+                        "grow": 1
+                      },
+                      "style": {},
+                      "locks": {},
+                      "bind": null,
+                      "visible": true,
+                      "props": {
+                        "background": null,
+                        "clip": false,
+                        "flow": {
+                          "direction": "column",
+                          "gap": 4,
+                          "padding": [
+                            0,
+                            0,
+                            0,
+                            0
+                          ],
+                          "align": "stretch",
+                          "wrap": false
+                        },
+                        "overflow": "visible"
+                      },
+                      "children": [
+                        {
+                          "id": "nd_e0uf2ka5prtn8",
+                          "type": "image",
+                          "name": "",
+                          "frame": {
+                            "x": 0,
+                            "y": 0,
+                            "w": 150,
+                            "h": 34,
+                            "rotation": 0,
+                            "z": 0,
+                            "layout": "flow",
+                            "constraints": {
+                              "h": "left",
+                              "v": "top"
+                            }
+                          },
+                          "style": {},
+                          "locks": {},
+                          "bind": {
+                            "props": {
+                              "props.media": "{{org.logo_url}}"
+                            },
+                            "if": "not_empty(org.logo_url)"
+                          },
+                          "visible": true,
+                          "props": {
+                            "media": null,
+                            "fit": "contain",
+                            "focal": {
+                              "x": 0.5,
+                              "y": 0.5
+                            },
+                            "crop": null,
+                            "alt": "Company logo"
+                          },
+                          "anchor": "flow"
+                        },
+                        {
+                          "id": "nd_e0uf25uieeynb",
+                          "type": "text",
+                          "name": "",
+                          "frame": {
+                            "x": 0,
+                            "y": 0,
+                            "w": 0,
+                            "h": "auto",
+                            "rotation": 0,
+                            "z": 0,
+                            "layout": "flow",
+                            "constraints": {
+                              "h": "left",
+                              "v": "top"
+                            }
+                          },
+                          "style": {
+                            "font": {
+                              "family": "var(--fm-body-font)",
+                              "size_pt": 10.5,
+                              "color": "var(--fm-color-muted)",
+                              "weight": 700
+                            }
+                          },
+                          "locks": {},
+                          "bind": null,
+                          "visible": true,
+                          "props": {
+                            "blocks": [
+                              {
+                                "id": "blk_e0uf2msqz3hn9",
+                                "type": "paragraph",
+                                "align": "left",
+                                "runs": [
+                                  {
+                                    "text": "",
+                                    "bind": "coalesce(org.name, '')"
+                                  }
+                                ]
+                              }
+                            ],
+                            "valign": "top",
+                            "auto_fit": false,
+                            "line_height": 1.4,
+                            "letter_spacing": 0
+                          },
+                          "anchor": "flow"
+                        }
+                      ],
+                      "anchor": "flow"
+                    },
+                    {
+                      "id": "nd_e0uf2oon6acnf",
+                      "type": "text",
+                      "name": "",
+                      "frame": {
+                        "x": 0,
+                        "y": 0,
+                        "w": 0,
+                        "h": "auto",
+                        "rotation": 0,
+                        "z": 0,
+                        "layout": "flow",
+                        "constraints": {
+                          "h": "left",
+                          "v": "top"
+                        },
+                        "grow": 1
+                      },
+                      "style": {
+                        "font": {
+                          "family": "var(--fm-body-font)",
+                          "size_pt": 11,
+                          "weight": 700
+                        }
+                      },
+                      "locks": {},
+                      "bind": null,
+                      "visible": true,
+                      "props": {
+                        "blocks": [
+                          {
+                            "id": "blk_e0uf2khyjd2nd",
+                            "type": "paragraph",
+                            "align": "right",
+                            "runs": [
+                              {
+                                "text": "Prepared for\n",
+                                "font": {
+                                  "size_pt": 8.5,
+                                  "weight": 800,
+                                  "color": "var(--fm-color-muted)",
+                                  "transform": "uppercase"
+                                }
+                              },
+                              {
+                                "text": "",
+                                "bind": "coalesce(customer.name, 'Customer')"
+                              },
+                              {
+                                "text": "\n"
+                              },
+                              {
+                                "text": "",
+                                "bind": "coalesce(project.address, project.title, '')",
+                                "font": {
+                                  "weight": 400,
+                                  "color": "var(--fm-color-muted)"
+                                }
+                              }
+                            ]
+                          }
+                        ],
+                        "valign": "top",
+                        "auto_fit": false,
+                        "line_height": 1.4,
+                        "letter_spacing": 0
+                      },
+                      "anchor": "flow"
+                    }
+                  ],
+                  "anchor": "flow"
+                },
+                {
+                  "id": "nd_e0uf2qhe0ujnh",
+                  "type": "frame",
+                  "name": "Spacer",
+                  "frame": {
+                    "x": 0,
+                    "y": 0,
+                    "w": 0,
+                    "h": 2,
+                    "rotation": 0,
+                    "z": 0,
+                    "layout": "flow",
+                    "constraints": {
+                      "h": "left",
+                      "v": "top"
+                    }
+                  },
+                  "style": {},
+                  "locks": {},
+                  "bind": null,
+                  "visible": true,
+                  "props": {
+                    "background": null,
+                    "clip": false,
+                    "flow": {
+                      "direction": "column",
+                      "gap": 8,
+                      "padding": [
+                        0,
+                        0,
+                        0,
+                        0
+                      ],
+                      "align": "stretch",
+                      "wrap": false
+                    },
+                    "overflow": "visible"
+                  },
+                  "children": [],
+                  "anchor": "flow"
+                },
+                {
+                  "id": "nd_e0uf2840jt9nw",
+                  "type": "frame",
+                  "name": "",
+                  "frame": {
+                    "x": 0,
+                    "y": 0,
+                    "w": 0,
+                    "h": "auto",
+                    "rotation": 0,
+                    "z": 0,
+                    "layout": "flow",
+                    "constraints": {
+                      "h": "left",
+                      "v": "top"
+                    }
+                  },
+                  "style": {},
+                  "locks": {},
+                  "bind": null,
+                  "visible": true,
+                  "props": {
+                    "background": null,
+                    "clip": false,
+                    "flow": {
+                      "direction": "row",
+                      "gap": 20,
+                      "padding": [
+                        0,
+                        0,
+                        0,
+                        0
+                      ],
+                      "align": "center",
+                      "wrap": false
+                    },
+                    "overflow": "visible"
+                  },
+                  "children": [
+                    {
+                      "id": "nd_e0uf2tm1jgtno",
+                      "type": "frame",
+                      "name": "",
+                      "frame": {
+                        "x": 0,
+                        "y": 0,
+                        "w": 0,
+                        "h": "auto",
+                        "rotation": 0,
+                        "z": 0,
+                        "layout": "flow",
+                        "constraints": {
+                          "h": "left",
+                          "v": "top"
+                        },
+                        "grow": 1
+                      },
+                      "style": {},
+                      "locks": {},
+                      "bind": null,
+                      "visible": true,
+                      "props": {
+                        "background": null,
+                        "clip": false,
+                        "flow": {
+                          "direction": "column",
+                          "gap": 4,
+                          "padding": [
+                            0,
+                            0,
+                            0,
+                            0
+                          ],
+                          "align": "stretch",
+                          "wrap": false
+                        },
+                        "overflow": "visible"
+                      },
+                      "children": [
+                        {
+                          "id": "nd_e0uf2tczrtnnk",
+                          "type": "text",
+                          "name": "",
+                          "frame": {
+                            "x": 0,
+                            "y": 0,
+                            "w": 0,
+                            "h": "auto",
+                            "rotation": 0,
+                            "z": 0,
+                            "layout": "flow",
+                            "constraints": {
+                              "h": "left",
+                              "v": "top"
+                            }
+                          },
+                          "style": {},
+                          "locks": {},
+                          "bind": null,
+                          "visible": true,
+                          "props": {
+                            "blocks": [
+                              {
+                                "id": "blk_e0uf2rk07h8ni",
+                                "type": "paragraph",
+                                "align": "left",
+                                "style_ref": "h2",
+                                "runs": [
+                                  {
+                                    "text": "Roof replacement proposal"
+                                  }
+                                ]
+                              }
+                            ],
+                            "valign": "top",
+                            "auto_fit": false,
+                            "line_height": 1.4,
+                            "letter_spacing": 0
+                          },
+                          "anchor": "flow"
+                        },
+                        {
+                          "id": "nd_e0uf285x5cwnn",
+                          "type": "text",
+                          "name": "",
+                          "frame": {
+                            "x": 0,
+                            "y": 0,
+                            "w": 0,
+                            "h": "auto",
+                            "rotation": 0,
+                            "z": 0,
+                            "layout": "flow",
+                            "constraints": {
+                              "h": "left",
+                              "v": "top"
+                            }
+                          },
+                          "style": {
+                            "font": {
+                              "family": "var(--fm-body-font)",
+                              "size_pt": 9.5,
+                              "color": "var(--fm-color-muted)"
+                            }
+                          },
+                          "locks": {},
+                          "bind": null,
+                          "visible": true,
+                          "props": {
+                            "blocks": [
+                              {
+                                "id": "blk_e0uf2fxio03nl",
+                                "type": "paragraph",
+                                "align": "left",
+                                "runs": [
+                                  {
+                                    "text": "Complete tear-off and replacement of the roof at the address above, as summarized below."
+                                  }
+                                ]
+                              }
+                            ],
+                            "valign": "top",
+                            "auto_fit": false,
+                            "line_height": 1.4,
+                            "letter_spacing": 0
+                          },
+                          "anchor": "flow"
+                        }
+                      ],
+                      "anchor": "flow"
+                    },
+                    {
+                      "id": "nd_e0uf2jkejs1nv",
+                      "type": "frame",
+                      "name": "",
+                      "frame": {
+                        "x": 0,
+                        "y": 0,
+                        "w": 190,
+                        "h": "auto",
+                        "rotation": 0,
+                        "z": 0,
+                        "layout": "flow",
+                        "constraints": {
+                          "h": "left",
+                          "v": "top"
+                        }
+                      },
+                      "style": {
+                        "fill": {
+                          "type": "solid",
+                          "color": "color-mix(in srgb, var(--fm-primary) 7%, var(--fm-color-paper))"
+                        }
+                      },
+                      "locks": {},
+                      "bind": null,
+                      "visible": true,
+                      "props": {
+                        "background": null,
+                        "clip": false,
+                        "flow": {
+                          "direction": "column",
+                          "gap": 0,
+                          "padding": [
+                            10,
+                            14,
+                            10,
+                            14
+                          ],
+                          "align": "stretch",
+                          "wrap": false
+                        },
+                        "overflow": "visible"
+                      },
+                      "children": [
+                        {
+                          "id": "nd_e0uf2wuwhdwnr",
+                          "type": "text",
+                          "name": "",
+                          "frame": {
+                            "x": 0,
+                            "y": 0,
+                            "w": 0,
+                            "h": "auto",
+                            "rotation": 0,
+                            "z": 0,
+                            "layout": "flow",
+                            "constraints": {
+                              "h": "left",
+                              "v": "top"
+                            }
+                          },
+                          "style": {
+                            "font": {
+                              "family": "var(--fm-body-font)",
+                              "size_pt": 8,
+                              "color": "var(--fm-color-muted)",
+                              "weight": 800
+                            }
+                          },
+                          "locks": {},
+                          "bind": null,
+                          "visible": true,
+                          "props": {
+                            "blocks": [
+                              {
+                                "id": "blk_e0uf2kq2q21np",
+                                "type": "paragraph",
+                                "align": "right",
+                                "runs": [
+                                  {
+                                    "text": "TOTAL"
+                                  }
+                                ]
+                              }
+                            ],
+                            "valign": "top",
+                            "auto_fit": false,
+                            "line_height": 1.4,
+                            "letter_spacing": 0
+                          },
+                          "anchor": "flow"
+                        },
+                        {
+                          "id": "nd_e0uf2eddy65nu",
+                          "type": "text",
+                          "name": "",
+                          "frame": {
+                            "x": 0,
+                            "y": 0,
+                            "w": 0,
+                            "h": "auto",
+                            "rotation": 0,
+                            "z": 0,
+                            "layout": "flow",
+                            "constraints": {
+                              "h": "left",
+                              "v": "top"
+                            }
+                          },
+                          "style": {
+                            "font": {
+                              "family": "var(--fm-display-font)",
+                              "size_pt": 24,
+                              "weight": 800,
+                              "color": "var(--fm-text)"
+                            }
+                          },
+                          "locks": {},
+                          "bind": null,
+                          "visible": true,
+                          "props": {
+                            "blocks": [
+                              {
+                                "id": "blk_e0uf2chchhfns",
+                                "type": "paragraph",
+                                "align": "right",
+                                "runs": [
+                                  {
+                                    "text": "",
+                                    "bind": "computed.total_cents | money"
+                                  }
+                                ]
+                              }
+                            ],
+                            "valign": "top",
+                            "auto_fit": false,
+                            "line_height": 1.4,
+                            "letter_spacing": 0
+                          },
+                          "anchor": "flow"
+                        }
+                      ],
+                      "anchor": "flow"
+                    }
+                  ],
+                  "anchor": "flow"
+                },
+                {
+                  "id": "nd_e0uf2bm99vfnz",
+                  "type": "text",
+                  "name": "",
+                  "frame": {
+                    "x": 0,
+                    "y": 0,
+                    "w": 0,
+                    "h": "auto",
+                    "rotation": 0,
+                    "z": 0,
+                    "layout": "flow",
+                    "constraints": {
+                      "h": "left",
+                      "v": "top"
+                    }
+                  },
+                  "style": {
+                    "font": {
+                      "family": "var(--fm-display-font)",
+                      "size_pt": 11,
+                      "weight": 800,
+                      "color": "var(--fm-text)"
+                    }
+                  },
+                  "locks": {},
+                  "bind": null,
+                  "visible": true,
+                  "props": {
+                    "blocks": [
+                      {
+                        "id": "blk_e0uf21qbog7nx",
+                        "type": "paragraph",
+                        "align": "left",
+                        "runs": [
+                          {
+                            "text": "Scope of work"
+                          }
+                        ]
+                      }
+                    ],
+                    "valign": "top",
+                    "auto_fit": false,
+                    "line_height": 1.4,
+                    "letter_spacing": 0
+                  },
+                  "anchor": "flow"
+                },
+                {
+                  "id": "nd_e0uf2o8f50do0",
+                  "type": "repeater",
+                  "name": "",
+                  "frame": {
+                    "x": 0,
+                    "y": 0,
+                    "w": 0,
+                    "h": "auto",
+                    "rotation": 0,
+                    "z": 0,
+                    "layout": "flow",
+                    "constraints": {
+                      "h": "left",
+                      "v": "top"
+                    }
+                  },
+                  "style": {},
+                  "locks": {},
+                  "bind": null,
+                  "visible": true,
+                  "props": {
+                    "source": "{{coalesce(params.scope_rows, params.scope_items)}}",
+                    "component": "scope_summary_row",
+                    "variant": null,
+                    "as": "row",
+                    "index_as": "index",
+                    "layout": {
+                      "direction": "column",
+                      "columns": 2,
+                      "gap_pt": 2
+                    },
+                    "break_rules": {
+                      "repeat_header": false,
+                      "min_rows_per_segment": 1,
+                      "keep_with_next": []
+                    },
+                    "empty_text": "The scope appears here once the line items are generated."
+                  },
+                  "anchor": "flow"
+                },
+                {
+                  "id": "nd_e0uf2gf4k2eo3",
+                  "type": "text",
+                  "name": "",
+                  "frame": {
+                    "x": 0,
+                    "y": 0,
+                    "w": 0,
+                    "h": "auto",
+                    "rotation": 0,
+                    "z": 0,
+                    "layout": "flow",
+                    "constraints": {
+                      "h": "left",
+                      "v": "top"
+                    }
+                  },
+                  "style": {
+                    "font": {
+                      "family": "var(--fm-display-font)",
+                      "size_pt": 11,
+                      "weight": 800,
+                      "color": "var(--fm-text)"
+                    }
+                  },
+                  "locks": {},
+                  "bind": null,
+                  "visible": true,
+                  "props": {
+                    "blocks": [
+                      {
+                        "id": "blk_e0uf2hi7xb9o1",
+                        "type": "paragraph",
+                        "align": "left",
+                        "runs": [
+                          {
+                            "text": "Payment terms"
+                          }
+                        ]
+                      }
+                    ],
+                    "valign": "top",
+                    "auto_fit": false,
+                    "line_height": 1.4,
+                    "letter_spacing": 0
+                  },
+                  "anchor": "flow"
+                },
+                {
+                  "id": "nd_e0uf2o03ahyo4",
+                  "type": "widget",
+                  "name": "",
+                  "frame": {
+                    "x": 0,
+                    "y": 0,
+                    "w": 0,
+                    "h": "auto",
+                    "rotation": 0,
+                    "z": 0,
+                    "layout": "flow",
+                    "constraints": {
+                      "h": "left",
+                      "v": "top"
+                    }
+                  },
+                  "style": {},
+                  "locks": {},
+                  "bind": null,
+                  "visible": true,
+                  "props": {
+                    "widget": "doc.payment_schedule@1",
+                    "config": {
+                      "source": "params.payment_schedule"
+                    }
+                  },
+                  "anchor": "flow"
+                },
+                {
+                  "id": "nd_e0uf2jezremo7",
+                  "type": "text",
+                  "name": "",
+                  "frame": {
+                    "x": 0,
+                    "y": 0,
+                    "w": 0,
+                    "h": "auto",
+                    "rotation": 0,
+                    "z": 0,
+                    "layout": "flow",
+                    "constraints": {
+                      "h": "left",
+                      "v": "top"
+                    }
+                  },
+                  "style": {
+                    "font": {
+                      "family": "var(--fm-display-font)",
+                      "size_pt": 11,
+                      "weight": 800,
+                      "color": "var(--fm-text)"
+                    }
+                  },
+                  "locks": {},
+                  "bind": null,
+                  "visible": true,
+                  "props": {
+                    "blocks": [
+                      {
+                        "id": "blk_e0uf2w41lv9o5",
+                        "type": "paragraph",
+                        "align": "left",
+                        "runs": [
+                          {
+                            "text": "Terms"
+                          }
+                        ]
+                      }
+                    ],
+                    "valign": "top",
+                    "auto_fit": false,
+                    "line_height": 1.4,
+                    "letter_spacing": 0
+                  },
+                  "anchor": "flow"
+                },
+                {
+                  "id": "nd_e0uf2938u04oa",
+                  "type": "text",
+                  "name": "",
+                  "frame": {
+                    "x": 0,
+                    "y": 0,
+                    "w": 0,
+                    "h": "auto",
+                    "rotation": 0,
+                    "z": 0,
+                    "layout": "flow",
+                    "constraints": {
+                      "h": "left",
+                      "v": "top"
+                    }
+                  },
+                  "style": {
+                    "font": {
+                      "family": "var(--fm-body-font)",
+                      "size_pt": 8,
+                      "color": "var(--fm-color-muted)"
+                    }
+                  },
+                  "locks": {},
+                  "bind": null,
+                  "visible": true,
+                  "props": {
+                    "blocks": [
+                      {
+                        "id": "blk_e0uf2flhdwoo8",
+                        "type": "paragraph",
+                        "align": "left",
+                        "runs": [
+                          {
+                            "text": "This proposal is valid for 30 days. Work is scheduled once the signed proposal and deposit are received. Hidden damage found after tear-off, such as rotted decking, and any work not listed here are priced and approved in writing before they are done. Manufacturer warranties cover materials; our workmanship is warranted as stated in your warranty certificate. The balance is due as shown in the payment terms."
+                          }
+                        ]
+                      }
+                    ],
+                    "valign": "top",
+                    "auto_fit": false,
+                    "line_height": 1.4,
+                    "letter_spacing": 0
+                  },
+                  "anchor": "flow"
+                },
+                {
+                  "id": "nd_e0uf2kmypqzob",
+                  "type": "frame",
+                  "name": "Spacer",
+                  "frame": {
+                    "x": 0,
+                    "y": 0,
+                    "w": 0,
+                    "h": 2,
+                    "rotation": 0,
+                    "z": 0,
+                    "layout": "flow",
+                    "constraints": {
+                      "h": "left",
+                      "v": "top"
+                    }
+                  },
+                  "style": {},
+                  "locks": {},
+                  "bind": null,
+                  "visible": true,
+                  "props": {
+                    "background": null,
+                    "clip": false,
+                    "flow": {
+                      "direction": "column",
+                      "gap": 8,
+                      "padding": [
+                        0,
+                        0,
+                        0,
+                        0
+                      ],
+                      "align": "stretch",
+                      "wrap": false
+                    },
+                    "overflow": "visible"
+                  },
+                  "children": [],
+                  "anchor": "flow"
+                },
+                {
+                  "id": "nd_e0uf2907pw3oe",
+                  "type": "frame",
+                  "name": "",
+                  "frame": {
+                    "x": 0,
+                    "y": 0,
+                    "w": 0,
+                    "h": "auto",
+                    "rotation": 0,
+                    "z": 0,
+                    "layout": "flow",
+                    "constraints": {
+                      "h": "left",
+                      "v": "top"
+                    }
+                  },
+                  "style": {},
+                  "locks": {},
+                  "bind": null,
+                  "visible": true,
+                  "props": {
+                    "background": null,
+                    "clip": false,
+                    "flow": {
+                      "direction": "row",
+                      "gap": 24,
+                      "padding": [
+                        0,
+                        0,
+                        0,
+                        0
+                      ],
+                      "align": "start",
+                      "wrap": false
+                    },
+                    "overflow": "visible"
+                  },
+                  "children": [
+                    {
+                      "id": "nd_e0uf2xwgxf9oc",
+                      "type": "widget",
+                      "name": "",
+                      "frame": {
+                        "x": 0,
+                        "y": 0,
+                        "w": 0,
+                        "h": 88,
+                        "rotation": 0,
+                        "z": 0,
+                        "layout": "flow",
+                        "constraints": {
+                          "h": "left",
+                          "v": "top"
+                        },
+                        "grow": 1
+                      },
+                      "style": {},
+                      "locks": {},
+                      "bind": null,
+                      "visible": true,
+                      "props": {
+                        "widget": "doc.signature@1",
+                        "config": {
+                          "output": "sig_customer",
+                          "label": "Customer approval",
+                          "signer": "customer"
+                        }
+                      },
+                      "anchor": "flow"
+                    },
+                    {
+                      "id": "nd_e0uf2bztynwod",
+                      "type": "widget",
+                      "name": "",
+                      "frame": {
+                        "x": 0,
+                        "y": 0,
+                        "w": 190,
+                        "h": 88,
+                        "rotation": 0,
+                        "z": 0,
+                        "layout": "flow",
+                        "constraints": {
+                          "h": "left",
+                          "v": "top"
+                        }
+                      },
+                      "style": {},
+                      "locks": {},
+                      "bind": null,
+                      "visible": true,
+                      "props": {
+                        "widget": "doc.pay_now@1",
+                        "config": {
+                          "label": "Deposit due",
+                          "output_key": "deposit_payment"
+                        }
+                      },
+                      "anchor": "flow"
+                    }
+                  ],
+                  "anchor": "flow"
+                }
+              ]
+            }
+          ]
+        }
+      ],
+      "program": {
+        "enabled": false,
+        "deliverables": [
+          {
+            "type": "materials_calculus",
+            "key": "roofing_onepage",
+            "title": "Roof replacement",
+            "bindings": {
+              "products": {
+                "kind": "data",
+                "policy": "frozen",
+                "required": true,
+                "source": {
+                  "provider": "materials-inputs",
+                  "export": "products",
+                  "target": {
+                    "scope": "organization",
+                    "organizationId": "$organization"
+                  }
+                }
+              },
+              "measurements": {
+                "kind": "data",
+                "policy": "frozen",
+                "required": false,
+                "source": {
+                  "provider": "materials-inputs",
+                  "export": "measurements",
+                  "target": {
+                    "scope": "project",
+                    "organizationId": "$organization",
+                    "projectId": "$project"
+                  }
+                }
+              }
+            },
+            "source": "const p = inputs.document.params;\nconst products = await api.data.read('products');\nconst dataset = await api.data.read('measurements');\n// The document's structures (the estimate's measurements step): which the report measured are on, and any entered\n// by hand. When it has them, its combined measurements are what this job is, not the project's report.\nconst structureState = p.measurement_structures && typeof p.measurement_structures === 'object' ? p.measurement_structures : null;\nconst structures = (Array.isArray(structureState?.structures) ? structureState.structures : []).filter(s => s && s.id);\nconst unitOf = key => /Squares$/.test(key) ? 'roofing_square' : /Lf$/.test(key) ? 'ft' : '';\nconst documented = {};\nif (structures.length) for (const [key, value] of Object.entries(p.measurements || {})) {\n  const unit = unitOf(key);\n  if (unit && typeof value === 'number' && Number.isFinite(value) && value >= 0) documented[key] = { value, unit };\n}\nconst fromDocument = Object.keys(documented).length > 0;\nconst measured = fromDocument ? documented : (dataset?.measurements || {});\n// Each line says which structure it is for: its own section's when the estimate priced each structure on its own,\n// otherwise every structure the estimate includes (one structure is what the document calls it).\nconst included = structures.filter(s => s.included !== false).map(s => String(s.name || '').trim()).filter(Boolean);\nconst structureLabel = (structures.length > 1 ? included.join(' + ') : '') || p.structure || 'Main house';\nconst warnings = [], lines = [];\nconst scoped = true;\nfunction amount(value, label) { if (typeof value !== 'number' || !Number.isFinite(value) || value < 0) throw new Error(label + ' must be a nonnegative number'); return value; }\nfunction length(key, label) {\n  const v = measured[key];\n  if (!v || v.value === null || (v.status && v.status !== 'ready')) { warnings.push('Missing ' + label + ': review and add this accessory before ordering.'); return null; }\n  if (!['ft','lf'].includes(v.unit)) throw new Error(label + ' must be measured in feet');\n  return amount(v.value, label);\n}\nfunction add(key, id, quantity, group, explanation, variant = '', structure = structureLabel) {\n  if (quantity === null || quantity === 0) return;\n  const product = products.find(x => x.id === id);\n  if (!product) throw new Error('The shared price book is missing product ' + id);\n  lines.push({ key, product_id: id, name: product.name, quantity: amount(quantity, product.name), unit: product.unit,\n    ...(product.packaging ? {packaging: product.packaging} : {}), variant, structure, group, explanation });\n}\nif (scoped) {\n  // The accepted scope is the order: options and add-ons the customer passed over are not on it.\n  const physical = new Set(['gaf_hd','gaf_ns','gaf_uhdz','gaf_grand_sequoia','ct_presidential_shake','laminated_shingles','three_tab_shingles','starter','ridge_cap','underlayment','gaf_feltbuster','gaf_tiger_paw','drip_edge','valley_metal','ridge_vent','gutter_replace','downspout','gutter_guard']);\n  function walk(rows, path, structure) { (rows || []).forEach((r, index) => {\n    if (r.selected === false || r.excluded === true || r.selection?.selected === false) return;\n    const key = path + '_' + index;\n    const here = String(r.structure_ref?.name || '').trim() || structure;\n    const id = r.pricebook_ref?.item_id || r.item_ref || r.catalog_item_id || r.id;\n    if (physical.has(id) || products.find(x=>x.id===id)?.packaging) add(key, id, amount(Number(r.quantity), r.name || id), 'Accepted scope', 'Quantity accepted on the proposal', r.variation_id || r.variant_id || r.variables?.color || p.color || '', here);\n    walk(r.children, key, here);\n  }); }\n  walk(p.scope_items, 'scope', structureLabel);\n  // A designer shingle needs its starter strip in the same colour; any other starter strip stays plain.\n  const designer = lines.find(line => ['gaf_grand_sequoia','ct_presidential_shake'].includes(line.product_id));\n  if (designer) lines.filter(line => line.product_id === 'starter').forEach(line => { line.variant = designer.variant || line.variant; line.explanation = (line.explanation ? line.explanation + '. ' : '') + 'Coloured to match ' + designer.name; });\n  if (!lines.length) throw new Error('Select physical price-book materials on the proposal before generating materials.');\n  warnings.push('Quantities follow the accepted scope; check flashing, ventilation and accessories on site before ordering.');\n} else {\n  const squares = amount(p.roof_squares, 'Roof squares');\n  if (!squares) throw new Error('Enter the accepted roof area before generating materials.');\n  const waste = amount(p.waste_percent, 'Waste percent');\n  if (waste > 50) throw new Error('Review waste above 50% before generating materials.');\n  const required = squares * (1 + waste / 100);\n  add('shingles', 'gaf_hd', required, 'Roof covering', 'Accepted roof area plus ' + waste + '% waste', p.color || 'charcoal');\n  add('underlayment', 'underlayment', required, 'Roof covering', 'Roof area plus the accepted waste allowance');\n  const eaves = length('eavesLf','eaves'), rakes = length('rakesLf','rakes');\n  if (eaves !== null && rakes !== null) { add('starter','starter',eaves+rakes,'Perimeter','Measured eaves + rakes'); add('drip','drip_edge',eaves+rakes,'Perimeter','Measured eaves + rakes'); }\n  const hips = length('hipsLf','hips'), ridges = length('ridgesLf','ridges');\n  if (hips !== null && ridges !== null) add('cap','ridge_cap',hips+ridges,'Ridges & hips','Measured hips + ridges');\n  if (p.ridge_vent === true && ridges !== null) add('vent','ridge_vent',ridges,'Ventilation','Measured ridges; verify usable vent length on site');\n  warnings.push('Confirm ice barrier, wall/penetration flashing, fasteners and ventilation requirements on site. These are not inferred from roof area.');\n}\n// What the job includes. Amounts are left to the scope set, which sizes each from the same measurements; a part of\n// the roof that was not measured, or is not there, is not work on this job.\nconst work = [];\nif (true) {\n  const has = (...keys) => keys.some(key => Number(measured[key]?.value) > 0);\n  work.push({item:'roofing.tear_off'},{item:'disposal.debris'},{item:'roofing.dry_in'},{item:'roofing.install'});\n  if (has('eavesLf','rakesLf')) work.push({item:'roofing.edge_metal'});\n  if (has('ridgesLf','hipsLf')) work.push({item:'roofing.ridge_cap'});\n  if (has('valleyLf')) work.push({item:'roofing.valleys'});\n  if (has('headWallLf','sideWallLf')) work.push({item:'roofing.wall_flashing'});\n  work.push({item:'roofing.cleanup'});\n}\n// Work is sized from the same measurements the lines came from.\nreturn {outputs:{lines,warnings,work,...(fromDocument ? {measurements: documented} : {})}};"
+          }
+        ]
+      }
+    },
+    "metadata": {
+      "default_workflow_id": "wfl_instant_roofing_onepage",
+      "customer_presentation": {
+        "tab": {
+          "id": "documents",
+          "label": "Documents",
+          "icon": "fa-file-lines",
+          "order": 60
+        },
+        "mode": "hybrid",
+        "workflow_cta": "Choose options & approve"
+      },
+      "default": false
+    },
+    "initial_metadata": {},
+    "requires_pricebook_items": [
+      "gaf_hd",
+      "gutter_replace"
+    ],
+    "pricebook_defaults": []
+  }
+}

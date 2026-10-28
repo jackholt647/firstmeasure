@@ -160,7 +160,7 @@ do NOT edit that file; import and use):
 `document_snapshots`, `document_events`, `document_themes`.
 
 Storage shapes (in `data`):
-- template: `{ name, document_type, status: "draft"|"active"|"archived", current_version, tags[], description, preview_media_ref, metadata: { preset, preset_revision, based_on_preset } }`
+- template: `{ name, document_type, status: "draft"|"active"|"archived", current_version, tags[], description, preview_media_ref, metadata: { preset, preset_id, library, based_on_preset } }` (`library` is the config library stamp `{ kind, id, revision, sha256 }` an organization's copy of a default was made from; docs/architecture/config-library.md)
 - template version: `{ template_id, version, definition: DocModel, checksum, published_at, published_by }`
 - theme: same versioning pattern, `definition` = theme object
 - document instance: `{ document_type, title, template_ref: { template_id, version } | null, theme_ref, theme_overrides, project_id, contact_ids[], params, param_defs, output_defs, overrides: OverrideOp[], outputs: { [key]: value }, status, delivery: { public_token, sent_at, first_viewed_at, current_snapshot_id, recipients[] }, pdf: { latest_media_id, latest_media_ref, page_count, generated_at }, source: "generated"|"uploaded", ingestion? }`

@@ -1,0 +1,61 @@
+{
+  "kind": "terminology_namespace",
+  "id": "pricebook",
+  "revision": 1,
+  "sha256": "2c00ae72d1aa9b1893e59f55c5ff83af45b1b62bf43a24ef18a1be6b1cbbe65f",
+  "title": "Pricebook",
+  "updated_at": "2026-10-28T00:40:02.983Z",
+  "updated_by": "generator",
+  "data": {
+    "title": "Pricebook",
+    "note": "Pricebook settings navigation and catalog records.",
+    "position": 250,
+    "terms": [
+      {
+        "key": "settings_tab",
+        "label": "Pricebook",
+        "kind": "navigation"
+      },
+      {
+        "key": "pricebook",
+        "label": "Pricebook",
+        "kind": "entity"
+      },
+      {
+        "key": "item",
+        "label": "Item",
+        "kind": "entity"
+      },
+      {
+        "key": "items",
+        "label": "Items",
+        "kind": "entity"
+      },
+      {
+        "key": "category",
+        "label": "Category",
+        "kind": "entity"
+      },
+      {
+        "key": "manufacturer",
+        "label": "Manufacturer",
+        "kind": "entity"
+      },
+      {
+        "key": "unit",
+        "label": "Unit",
+        "kind": "entity"
+      },
+      {
+        "key": "price",
+        "label": "Price",
+        "kind": "entity"
+      },
+      {
+        "key": "formula",
+        "label": "Formula",
+        "kind": "entity"
+      }
+    ]
+  }
+}

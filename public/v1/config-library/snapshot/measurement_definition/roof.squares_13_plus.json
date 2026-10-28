@@ -1,0 +1,27 @@
+{
+  "kind": "measurement_definition",
+  "id": "roof.squares_13_plus",
+  "revision": 1,
+  "sha256": "5de1b2962757737065fdc4161ea599ab15631427e52be8998a58f4ccdc28684f",
+  "title": "Squares over 12/12",
+  "updated_at": "2026-10-28T00:40:02.983Z",
+  "updated_by": "generator",
+  "data": {
+    "key": "pitch13PlusSquares",
+    "label": "Squares over 12/12",
+    "unit": "roofing_square",
+    "levels": [
+      "project",
+      "structure"
+    ],
+    "derive": {
+      "from": "roof.squares_at_pitch",
+      "above": 12,
+      "upTo": null
+    },
+    "slice": {
+      "partition": "roof.pitch_bands"
+    },
+    "description": "Squares pitched steeper than 12/12."
+  }
+}

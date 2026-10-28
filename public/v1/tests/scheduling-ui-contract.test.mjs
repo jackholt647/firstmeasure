@@ -17,7 +17,12 @@ const platformApiSource = await readSource('v1/platform/api.ts');
 const platformSchedulingSource = await readSource('libraries/platform-scheduling/platform-scheduling.js');
 const platformUiSource = await readSource('libraries/platform-ui/platform-ui.js');
 const portalCoreSource = await readSource('portal/scripts/core.js');
-const scopePresetsSource = await readSource('v1/scopes/presets/index.ts');
+// The scope library is config library data (config-library/snapshot/scope_template/), canonical JSON per entry.
+const scopeLibraryDir = path.join(publicRoot, 'v1', 'config-library', 'snapshot', 'scope_template');
+const { readdir } = await import('node:fs/promises');
+const scopeLibraryEntries = await Promise.all((await readdir(scopeLibraryDir)).filter((file) => file.endsWith('.json'))
+  .map(async (file) => JSON.parse(await readFile(path.join(scopeLibraryDir, file), 'utf8'))));
+const scopePresetsSource = JSON.stringify(scopeLibraryEntries.map((entry) => entry.data));
 const companySettingsSource = await readSource('libraries/apps/settings/company.js');
 const terminologyEditorSource = await readSource('libraries/platform-terminology/editor.js');
 const appsManifestSource = await readSource('libraries/apps/firstmate-apps-manifest.js');
@@ -226,8 +231,10 @@ test('scheduling calendars expose a routed four-day view between day and week', 
   assert.match(appsManifestSource, /values:\['day','4day','week','month','appointment_schedule','gantt'\]/);
 });
 
-test('project scheduling mode uses branch-configurable Routing terminology', () => {
-  assert.match(platformSchedulingSource, /ui:\s*\{\s*routing_mode: 'Routing'/);
+test('project scheduling mode uses branch-configurable Routing terminology', async () => {
+  // The default label is a config library terminology entry, not scheduling code.
+  const uiTerms = JSON.parse(await readSource('v1/config-library/snapshot/terminology_namespace/ui.json')).data.terms;
+  assert.deepEqual(uiTerms.find((term) => term.key === 'routing_mode'), { key: 'routing_mode', label: 'Routing', kind: 'view' });
   assert.match(platformSchedulingSource, /Object\.fromEntries\(Object\.entries\(\{ \.\.\.defaultLabels, \.\.\.inputLabels \}\)/);
   assert.match(projectScheduleSource, /terminology\('scheduling\.routing_view', window\.PlatformScheduling\?\.labelFor\?\.\(scheduleCachedConfig, 'ui', 'routing_mode'\) \|\| 'Routing'\)/);
   assert.match(projectScheduleSource, /surfaceButton\('scheduling', escapeHtml\(routingLabel\)\)/);
@@ -1058,10 +1065,12 @@ test('calendar drops immediately reflow and relationship prompts use the shared 
   assert.match(schedulingSource, /\{ value:'cancel', label:'Cancel' \}[\s\S]*?\{ value:'no', label:'No' \}[\s\S]*?\{ value:'yes', label:'Yes', primary:true \}/);
   assert.match(platformUiSource, /function chooseUi\(message, choices = \[\], options = \{\}\)/);
   assert.match(portalCoreSource, /choose: \(\.\.\.args\) => window\.PlatformUI\?\.choose/);
-  assert.doesNotMatch(scopePresetsSource, /reschedule: \{ cascade:|relative_start:|default_duration:/);
-  assert.match(scopePresetsSource, /placement: \{\s*anchor: "start",\s*offset: \{ value: -1, unit: "business_day" \},\s*duration: \{ value: 1, unit: "day" \},\s*all_day: true\s*\}/);
-  assert.match(scopePresetsSource, /placement: \{ anchor: "span" \}/);
-  assert.match(scopePresetsSource, /preset_revision: input\.id === "roof_replacement" \? 34 : 13/);
+  assert.doesNotMatch(scopePresetsSource, /"reschedule":\{"cascade":|"relative_start":|"default_duration":/);
+  assert.match(scopePresetsSource, /"placement":\{"anchor":"start","offset":\{"value":-1,"unit":"business_day"\},"duration":\{"value":1,"unit":"day"\},"all_day":true\}/);
+  assert.match(scopePresetsSource, /"placement":\{"anchor":"span"\}/);
+  // The library entry's revision replaces the old per-preset revision numbers.
+  assert.doesNotMatch(scopePresetsSource, /"preset_revision"/);
+  assert.ok(scopeLibraryEntries.find((entry) => entry.id === 'roof_replacement')?.revision >= 1);
 });
 
 test('bundle preview lanes fill gaps and push down only conflicting calendar bars', () => {

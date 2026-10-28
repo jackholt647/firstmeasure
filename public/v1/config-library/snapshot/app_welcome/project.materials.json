@@ -1,0 +1,43 @@
+{
+  "kind": "app_welcome",
+  "id": "project.materials",
+  "revision": 1,
+  "sha256": "84785dab651820ee055af06b9ca2e0ebbe00c5be726100abd654fdf0fd20af3a",
+  "title": "project.materials: Turn your scope into a plan.",
+  "updated_at": "2026-10-28T00:40:02.983Z",
+  "updated_by": "generator",
+  "data": {
+    "theme": "materials",
+    "layout": "page",
+    "eyebrow": {
+      "key": "gx_offer_operations_name",
+      "text": "Operations"
+    },
+    "headline": {
+      "key": "gx_offer_operations_headline",
+      "text": "Turn your scope into a plan."
+    },
+    "description": {
+      "key": "gx_offer_operations_description",
+      "text": "Bring measurements, materials, work orders and equipment together. Start with what the job needs, then get everything ready to do the work."
+    },
+    "benefits": [
+      {
+        "key": "gx_offer_operations_b1",
+        "text": "Build material lists from your project scope"
+      },
+      {
+        "key": "gx_offer_operations_b2",
+        "text": "Plan work orders and who will do the work"
+      },
+      {
+        "key": "gx_offer_operations_b3",
+        "text": "Match equipment to the project's requirements"
+      }
+    ],
+    "caption": {
+      "key": "gx_offer_operations_caption",
+      "text": "One scope. Everything you need to get it done."
+    }
+  }
+}

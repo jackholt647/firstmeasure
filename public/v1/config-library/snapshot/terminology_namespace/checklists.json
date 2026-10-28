@@ -1,0 +1,46 @@
+{
+  "kind": "terminology_namespace",
+  "id": "checklists",
+  "revision": 1,
+  "sha256": "2fa8b2d91c6ac63f3ef437f0aae4c4e92205dc655acf109370d9ff9aba0b047f",
+  "title": "Checklists",
+  "updated_at": "2026-10-28T00:40:02.983Z",
+  "updated_by": "generator",
+  "data": {
+    "title": "Checklists",
+    "note": "Field project checklist navigation and records.",
+    "position": 210,
+    "terms": [
+      {
+        "key": "crew_project_tab",
+        "label": "Checklists",
+        "kind": "navigation"
+      },
+      {
+        "key": "checklist",
+        "label": "Checklist",
+        "kind": "entity"
+      },
+      {
+        "key": "checklists",
+        "label": "Checklists",
+        "kind": "entity"
+      },
+      {
+        "key": "checklist_item",
+        "label": "Checklist Item",
+        "kind": "entity"
+      },
+      {
+        "key": "checklist_items",
+        "label": "Checklist Items",
+        "kind": "entity"
+      },
+      {
+        "key": "project_tab",
+        "label": "Checklists",
+        "kind": "navigation"
+      }
+    ]
+  }
+}

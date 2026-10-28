@@ -311,6 +311,18 @@ export function formItems(definition: Pick<FormDefinition, "steps">): FormItem[]
   return definition.steps.flatMap((step) => step.items);
 }
 
+/** Blocks, not form types, decide which lead_forms capabilities a form needs. */
+export function requiredFormFlags(definition: Pick<FormDefinition, "steps" | "calculation">) {
+  const flags = new Set<string>();
+  for (const item of formItems(definition)) {
+    const capability = (FORM_BLOCKS[item.kind] as { capability?: string }).capability;
+    if (capability) flags.add(capability);
+  }
+  if (definition.calculation) flags.add("instant_estimate");
+  if (!flags.size) flags.add("contact_form");
+  return [...flags];
+}
+
 function answerAt(answers: Record<string, unknown>, path: string): unknown {
   let value: unknown = answers;
   for (const part of path.split(".")) {

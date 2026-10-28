@@ -1,0 +1,101 @@
+{
+  "kind": "terminology_namespace",
+  "id": "document_engine",
+  "revision": 1,
+  "sha256": "a5793f2826cfbb6f57ddcaa6b7751e438ea387861a7284ee12d433921e9323fa",
+  "title": "Documents (Engine)",
+  "updated_at": "2026-10-28T00:40:02.983Z",
+  "updated_by": "generator",
+  "data": {
+    "title": "Documents (Engine)",
+    "note": "Document engine navigation: templated documents, the project Documents tab, and the studio.",
+    "position": 60,
+    "terms": [
+      {
+        "key": "project_tab",
+        "label": "Documents",
+        "kind": "navigation"
+      },
+      {
+        "key": "studio_tab",
+        "label": "Doc Studio",
+        "kind": "navigation"
+      },
+      {
+        "key": "document",
+        "label": "Document",
+        "kind": "entity"
+      },
+      {
+        "key": "documents",
+        "label": "Documents",
+        "kind": "entity"
+      },
+      {
+        "key": "template",
+        "label": "Template",
+        "kind": "entity"
+      },
+      {
+        "key": "templates",
+        "label": "Templates",
+        "kind": "entity"
+      },
+      {
+        "key": "theme",
+        "label": "Theme",
+        "kind": "entity"
+      },
+      {
+        "key": "themes",
+        "label": "Themes",
+        "kind": "entity"
+      },
+      {
+        "key": "snapshot",
+        "label": "Snapshot",
+        "kind": "entity"
+      },
+      {
+        "key": "draft_status",
+        "label": "Draft",
+        "kind": "status"
+      },
+      {
+        "key": "issued_status",
+        "label": "Issued",
+        "kind": "status"
+      },
+      {
+        "key": "sent_status",
+        "label": "Sent",
+        "kind": "status"
+      },
+      {
+        "key": "viewed_status",
+        "label": "Viewed",
+        "kind": "status"
+      },
+      {
+        "key": "signed_status",
+        "label": "Signed",
+        "kind": "status"
+      },
+      {
+        "key": "completed_status",
+        "label": "Completed",
+        "kind": "status"
+      },
+      {
+        "key": "declined_status",
+        "label": "Declined",
+        "kind": "status"
+      },
+      {
+        "key": "void_status",
+        "label": "Void",
+        "kind": "status"
+      }
+    ]
+  }
+}

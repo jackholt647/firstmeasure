@@ -1,0 +1,19 @@
+{
+  "kind": "measurement_definition",
+  "id": "exterior_wall.opening_perimeter",
+  "revision": 1,
+  "sha256": "4672e737ad68561e393ffd8343b0df29a5b097acec67c46144132c48cd8b1726",
+  "title": "Opening perimeter",
+  "updated_at": "2026-10-28T00:40:02.983Z",
+  "updated_by": "generator",
+  "data": {
+    "key": "wallOpeningPerimeter",
+    "label": "Opening perimeter",
+    "unit": "ft",
+    "levels": [
+      "project",
+      "structure"
+    ],
+    "description": "Perimeter of windows, doors and other openings."
+  }
+}

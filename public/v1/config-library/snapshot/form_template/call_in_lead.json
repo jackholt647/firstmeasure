@@ -1,0 +1,359 @@
+{
+  "kind": "form_template",
+  "id": "call_in_lead",
+  "revision": 1,
+  "sha256": "bb0ba4e1b8b66b76832667a27683f25f8968cb3573338f2f37173d9705cc93c8",
+  "title": "Call-in lead",
+  "updated_at": "2026-10-28T00:40:02.983Z",
+  "updated_by": "generator",
+  "data": {
+    "name": "Call-in lead",
+    "description": "For your team, not your website: who is calling, where, what they need and how they found you. Shows in the New menu.",
+    "icon": "fa-phone-volume",
+    "category": "Staff",
+    "requires": [
+      "contact_form"
+    ],
+    "sort_order": 2,
+    "definition": {
+      "schema_version": 1,
+      "template": "call_in_lead",
+      "presentation": {
+        "headline": "",
+        "subheadline": "Take the caller's details. Saving creates the lead and runs your intake rules.",
+        "start_label": "",
+        "next_label": "Next",
+        "back_label": "Back",
+        "submit_label": "Save lead",
+        "fine_print": "",
+        "layout": "page",
+        "progress": "none",
+        "style": {
+          "use_company_colors": true,
+          "primary_color": "#2563eb",
+          "text_color": "#111827",
+          "background_color": "#ffffff",
+          "use_company_font": true,
+          "font_family": "Inter",
+          "corners": "soft",
+          "header": "plain",
+          "logo_enabled": true,
+          "logo_url": ""
+        },
+        "success": {
+          "title": "Lead saved",
+          "body": "The lead is in New leads and your intake rules have run.",
+          "cta_label": "",
+          "cta_url": ""
+        }
+      },
+      "steps": [
+        {
+          "id": "caller",
+          "title": "",
+          "description": "",
+          "visible_when": [],
+          "items": [
+            {
+              "id": "contact",
+              "kind": "contact",
+              "param": "contact",
+              "label": "Caller",
+              "description": "",
+              "placeholder": "",
+              "required": false,
+              "visible_when": [],
+              "maps_to": "",
+              "options": [],
+              "style": "cards",
+              "unit": "",
+              "fields": {
+                "name": {
+                  "enabled": true,
+                  "required": true
+                },
+                "email": {
+                  "enabled": true,
+                  "required": false
+                },
+                "phone": {
+                  "enabled": true,
+                  "required": true
+                }
+              },
+              "preset_id": "",
+              "min_notice_hours": 2,
+              "horizon_days": 45,
+              "source": "",
+              "sms_opt_in": false,
+              "heading": "",
+              "body": "",
+              "image_url": ""
+            },
+            {
+              "id": "address",
+              "kind": "address",
+              "param": "address",
+              "label": "Address",
+              "description": "",
+              "placeholder": "Street, city, state",
+              "required": false,
+              "visible_when": [],
+              "maps_to": "",
+              "options": [],
+              "style": "cards",
+              "unit": "",
+              "fields": {
+                "name": {
+                  "enabled": true,
+                  "required": true
+                },
+                "email": {
+                  "enabled": true,
+                  "required": false
+                },
+                "phone": {
+                  "enabled": true,
+                  "required": true
+                }
+              },
+              "preset_id": "",
+              "min_notice_hours": 2,
+              "horizon_days": 45,
+              "source": "",
+              "sms_opt_in": false,
+              "heading": "",
+              "body": "",
+              "image_url": ""
+            },
+            {
+              "id": "need",
+              "kind": "select",
+              "param": "need",
+              "label": "What do they need?",
+              "description": "",
+              "placeholder": "",
+              "required": false,
+              "visible_when": [],
+              "maps_to": "",
+              "options": [
+                {
+                  "value": "estimate",
+                  "label": "An estimate",
+                  "description": "",
+                  "image_url": ""
+                },
+                {
+                  "value": "repair",
+                  "label": "A repair",
+                  "description": "",
+                  "image_url": ""
+                },
+                {
+                  "value": "inspection",
+                  "label": "An inspection",
+                  "description": "",
+                  "image_url": ""
+                },
+                {
+                  "value": "other",
+                  "label": "Something else",
+                  "description": "",
+                  "image_url": ""
+                }
+              ],
+              "style": "dropdown",
+              "unit": "",
+              "fields": {
+                "name": {
+                  "enabled": true,
+                  "required": true
+                },
+                "email": {
+                  "enabled": true,
+                  "required": false
+                },
+                "phone": {
+                  "enabled": true,
+                  "required": true
+                }
+              },
+              "preset_id": "",
+              "min_notice_hours": 2,
+              "horizon_days": 45,
+              "source": "",
+              "sms_opt_in": false,
+              "heading": "",
+              "body": "",
+              "image_url": ""
+            },
+            {
+              "id": "found_us",
+              "kind": "select",
+              "param": "found_us",
+              "label": "How did they find us?",
+              "description": "",
+              "placeholder": "",
+              "required": false,
+              "visible_when": [],
+              "maps_to": "",
+              "options": [
+                {
+                  "value": "referral",
+                  "label": "Referral",
+                  "description": "",
+                  "image_url": ""
+                },
+                {
+                  "value": "search",
+                  "label": "Online search",
+                  "description": "",
+                  "image_url": ""
+                },
+                {
+                  "value": "sign",
+                  "label": "Yard sign or truck",
+                  "description": "",
+                  "image_url": ""
+                },
+                {
+                  "value": "repeat",
+                  "label": "Past customer",
+                  "description": "",
+                  "image_url": ""
+                },
+                {
+                  "value": "other",
+                  "label": "Other",
+                  "description": "",
+                  "image_url": ""
+                }
+              ],
+              "style": "dropdown",
+              "unit": "",
+              "fields": {
+                "name": {
+                  "enabled": true,
+                  "required": true
+                },
+                "email": {
+                  "enabled": true,
+                  "required": false
+                },
+                "phone": {
+                  "enabled": true,
+                  "required": true
+                }
+              },
+              "preset_id": "",
+              "min_notice_hours": 2,
+              "horizon_days": 45,
+              "source": "",
+              "sms_opt_in": false,
+              "heading": "",
+              "body": "",
+              "image_url": ""
+            },
+            {
+              "id": "referred_by",
+              "kind": "text",
+              "param": "referred_by",
+              "label": "Who referred them?",
+              "description": "",
+              "placeholder": "",
+              "required": false,
+              "visible_when": [
+                {
+                  "param": "found_us",
+                  "op": "eq",
+                  "value": "referral"
+                }
+              ],
+              "maps_to": "",
+              "options": [],
+              "style": "cards",
+              "unit": "",
+              "fields": {
+                "name": {
+                  "enabled": true,
+                  "required": true
+                },
+                "email": {
+                  "enabled": true,
+                  "required": false
+                },
+                "phone": {
+                  "enabled": true,
+                  "required": true
+                }
+              },
+              "preset_id": "",
+              "min_notice_hours": 2,
+              "horizon_days": 45,
+              "source": "",
+              "sms_opt_in": false,
+              "heading": "",
+              "body": "",
+              "image_url": ""
+            },
+            {
+              "id": "notes",
+              "kind": "paragraph",
+              "param": "notes",
+              "label": "Notes",
+              "description": "",
+              "placeholder": "What they said, best time to call back",
+              "required": false,
+              "visible_when": [],
+              "maps_to": "",
+              "options": [],
+              "style": "cards",
+              "unit": "",
+              "fields": {
+                "name": {
+                  "enabled": true,
+                  "required": true
+                },
+                "email": {
+                  "enabled": true,
+                  "required": false
+                },
+                "phone": {
+                  "enabled": true,
+                  "required": true
+                }
+              },
+              "preset_id": "",
+              "min_notice_hours": 2,
+              "horizon_days": 45,
+              "source": "",
+              "sms_opt_in": false,
+              "heading": "",
+              "body": "",
+              "image_url": ""
+            }
+          ]
+        }
+      ],
+      "calculation": null,
+      "settings": {
+        "stage_id": "new_lead",
+        "notify_role_ids": [],
+        "tracking_key": "",
+        "staff": {
+          "enabled": true,
+          "only": true,
+          "label": "Lead",
+          "role_ids": []
+        },
+        "customer_email": {
+          "enabled": false,
+          "subject": "",
+          "intro": "",
+          "cta_label": "",
+          "cta_url": ""
+        }
+      }
+    }
+  }
+}

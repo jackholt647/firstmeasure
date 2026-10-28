@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {createRequire} from 'node:module';
 import {readFile} from 'node:fs/promises';
+import {readFileSync} from 'node:fs';
 import path from 'node:path';
 import {chromium} from 'playwright-core';
 const require=createRequire(import.meta.url);
@@ -10,7 +11,8 @@ const launch=()=>chromium.launch({executablePath:process.env.CHROME_PATH||'C:/Pr
 
 test('a customer opens a presentation link, chooses, and its sign button takes them to sign',async()=>{
  const deck=require('../../libraries/doc-present/templates/roofing-presentation.js');
- const layout=deck.build();
+ // The deck is a config library entry (presentation_deck roofing_itemized, from the checked-in snapshot).
+ const layout=JSON.parse(readFileSync(path.resolve(import.meta.dirname,'../config-library/snapshot/presentation_deck/roofing_itemized.json'),'utf8')).data.layout;
  // The server's shape for the same sample estimate.
  const serverState=(revision,sample)=>({id:'pres_1',revision,access:'choose',frozen:false,name:'Roof',org:{name:'Summit Roofing',colors:{primary:'#d93025'}},layout,widgetData:{},
   offered:{groups:sample.groups.map(g=>({id:g.id,label:g.title,options:g.options.map(o=>({...o,offered:true}))})),optional:sample.addons,variants:[]},

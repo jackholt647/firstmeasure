@@ -13,7 +13,7 @@ import {
   upsertDocument,
   type JsonObject
 } from "../platform/storage.js";
-import { DEFAULT_PRICEBOOK_TEMPLATE } from "../pricebook/default_template.js";
+import { defaultPricebookTemplate } from "../pricebook/template.js";
 import { listPricebookManifests, readCatalog, readManifest } from "../pricebook/storage.js";
 import { enrichedProposalScopePieces, normalizeScopeItem, resolveScopeItemVariation, scopeItemSelected } from "../proposals/scope.js";
 import { readScopeTemplate, readScopeTemplateVersion } from "../scopes/storage.js";
@@ -1529,7 +1529,7 @@ function scopeMaterialLineItem(fact: ScopeMaterialFact, listId: string, listDefi
 }
 
 async function scopeMaterialFacts(orgId: string, items: JsonObject[]): Promise<ScopeMaterialFact[]> {
-  const defaultCatalog = asObject(DEFAULT_PRICEBOOK_TEMPLATE.catalog);
+  const defaultCatalog = asObject(structuredClone(defaultPricebookTemplate().catalog));
   const defaultItems = (Array.isArray(defaultCatalog.items) ? defaultCatalog.items : []).map(asObject);
   const defaultPricebookId = await resolveDefaultPricebookId(orgId);
   const catalogCache = new Map<string, Promise<{ catalog: JsonObject; manifest: JsonObject }>>();
@@ -1628,14 +1628,14 @@ async function materialDefinitionForPiece(orgId: string, branchId: string, piece
  */
 async function withPresetSchedule(templateId: string, resolved: JsonObject) {
   if (!templateId || !Array.isArray(resolved.lists)) return resolved;
-  const { DEFAULT_SCOPE_TEMPLATES } = await import("../scopes/presets/index.js");
-  const preset = DEFAULT_SCOPE_TEMPLATES.find((template) => cleanText(template.id) === templateId) as unknown as JsonObject | undefined;
+  const { scopeLibraryEntry } = await import("../scopes/library.js");
+  const preset = scopeLibraryEntry(templateId)?.data as JsonObject | undefined;
   const presetLists = (Array.isArray(asObject(asObject(preset).resources).lists) ? asObject(asObject(preset).resources).lists as unknown[] : []).map(asObject);
   if (!presetLists.length) return resolved;
   const lists = resolved.lists.map(asObject).map((list) => {
     const source = asObject(presetLists.find((entry) => cleanText(entry.id) === cleanText(list.id))?.schedule);
     const schedule = asObject(list.schedule), missing: JsonObject = {};
-    for (const key of ["group_id", "group_title", "placement"]) if (schedule[key] === undefined || schedule[key] === null) if (source[key] !== undefined) missing[key] = source[key];
+    for (const key of ["group_id", "group_title", "placement"]) if (schedule[key] === undefined || schedule[key] === null) if (source[key] !== undefined) missing[key] = structuredClone(source[key]);
     return Object.keys(missing).length ? { ...list, schedule: { ...schedule, ...missing } } : list;
   });
   return { ...resolved, lists };

@@ -1399,7 +1399,9 @@ export async function saveBranchModule(orgId: string, branchId: string, moduleId
   }
   if(moduleId==='variable_mappings' && input.data!==undefined){
     const {terminologyMappingsSchema}=await import('./localization/terminology-schema.js');
-    input={...input,data:terminologyMappingsSchema.parse(input.data)};
+    const {withoutDefaultLabels}=await import('./localization/terminology-defaults.js');
+    // An organization keeps overrides only: a label equal to the library default is not stored.
+    input={...input,data:withoutDefaultLabels(terminologyMappingsSchema.parse(input.data))};
   }
   if (moduleId === "custom_fields" && Array.isArray(asObject(input.data).fields)) {
     const defaults=[...(await import("../contacts/contracts.js")).CONTACT_DEFAULT_FIELDS,...(await import("../custom_fields/contracts.js")).PROJECT_DEFAULT_FIELDS];

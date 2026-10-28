@@ -79,6 +79,7 @@ import {
   updateCapabilityPreset,
   validateValueSet
 } from "./capabilities.js";
+import { personAuthor } from "./capability-library.js";
 import {
   authContextFromRequest,
   buildAuthContext,
@@ -323,8 +324,6 @@ const rememberedAccountSchema = objectBodySchema.extend({
   account_id: z.string().trim().min(1).max(120)
 });
 const PLATFORM_STANDARD_USER_ROLES = ["sales_appointments", "inside_sales"];
-const PLATFORM_VARIABLE_MAPPING_MODULE_ID = "variable_mappings";
-const PROJECT_WORK_EVENT_TYPE_ID = "project_work";
 const NOTIFICATION_COLLECTION = "notifications";
 const CUSTOMER_PORTAL_COLLECTION = "customer_portals";
 const PORTAL_GUEST_TOKEN_PREFIX = "psg_";
@@ -1581,7 +1580,7 @@ app.get("/auth/google/config", async () => ({
       name: String(body.name || ""),
       description: String(body.description || ""),
       values
-    });
+    }, personAuthor(operator.identity?.email));
     reply.code(201);
     return { ok: true, preset, violations };
   });
@@ -1595,7 +1594,7 @@ app.get("/auth/google/config", async () => ({
       ...(Object.prototype.hasOwnProperty.call(body, "name") ? { name: String(body.name || "") } : {}),
       ...(Object.prototype.hasOwnProperty.call(body, "description") ? { description: String(body.description || "") } : {}),
       ...(Object.prototype.hasOwnProperty.call(body, "values") ? { values: asObject(body.values) } : {})
-    });
+    }, personAuthor(operator.identity?.email));
     return { ok: true, preset, violations };
   });
 
@@ -1603,7 +1602,7 @@ app.get("/auth/google/config", async () => ({
     const orgId = getParam(request.params, "orgId");
     const operator = await requirePlatformAuth(request, { orgId, csrf: true });
     if (!canManageTestAppFlags(operator)) throw forbidden("app_flags_operator_only", "Only an authorized operator can change app rollout flags.");
-    await deleteCapabilityPreset(getParam(request.params, "presetId"));
+    await deleteCapabilityPreset(getParam(request.params, "presetId"), personAuthor(operator.identity?.email));
     return { ok: true, deleted: true };
   });
 
@@ -1626,7 +1625,7 @@ app.get("/auth/google/config", async () => ({
     const operator = await requirePlatformAuth(request, { orgId, csrf: true });
     if (!canManageTestAppFlags(operator)) throw forbidden("app_flags_operator_only", "Only an authorized operator can change app rollout flags.");
     const body = objectBodySchema.parse(request.body ?? {});
-    const result = await setSignupCapabilityPreset(String(body.preset_id || ""));
+    const result = await setSignupCapabilityPreset(String(body.preset_id || ""), personAuthor(operator.identity?.email));
     return { ok: true, ...result };
   });
 
@@ -3317,69 +3316,6 @@ app.get("/auth/google/config", async () => ({
   await registerNotificationRulesApi(app);
   startPlatformHeartbeat(app);
 };
-
-function defaultVariableMappingsData(existing: Record<string, unknown> = {}) {
-  const labels = asObject(existing.labels);
-  return {
-    schema_version: 1,
-    ...existing,
-    labels: {
-      ...labels,
-      event_types: {
-        sales_appointment: "Sales Appointment",
-        sales_follow_up: "Sales Follow-up",
-        [PROJECT_WORK_EVENT_TYPE_ID]: "Project Work",
-        ...asObject(labels.event_types)
-      },
-      stages: {
-        new_lead: "New Lead",
-        contacting: "Contacting",
-        appointment_scheduled: "Appointment Scheduled",
-        proposal_sent: "Proposal Sent",
-        signed_pending_payment: "Pending Deposit",
-        newly_sold: "Newly Sold",
-        project_started: "Project Started",
-        in_progress: "In Progress",
-        completed: "Completed",
-        lost: "Lost",
-        ...asObject(labels.stages)
-      },
-      ui: {
-        routing_mode: "Routing",
-        ...asObject(labels.ui)
-      },
-      money: {
-        workspace: "Money", overview: "Overview", invoices: "Invoices", recurring: "Recurring", expense_lists: "Expense Lists", receipts: "Receipts", commissions: "Commissions",
-        ledger: "Ledger", payments: "Payments", expenses: "Expenses", activity: "Activity", transaction: "Transaction", transactions: "Transactions", receipt: "Receipt",
-        money_in: "Money In", money_out: "Money Out", balance: "Balance", revenue: "Revenue", collected: "Collected", remaining: "Remaining", cost_forecast: "Cost Forecast", forecast_profit: "Forecast Profit", profit_to_date: "Profit To Date", payment_schedule: "Payment Schedule",
-        collected_payment: "Collected Payment", collected_payments: "Collected Payments", scheduled_payment: "Scheduled Payment", scheduled_payments: "Scheduled Payments", add_collected_payment: "Add Collected Payment", save_collected_payment: "Save Collected Payment", take_collected_payment: "Take a Collected Payment",
-        expense: "Expense", add_expense: "Add Expense", expense_list: "Expense List", recipient: "Recipient", invoice: "Invoice", invoice_history: "Invoice History", generate_invoice: "Generate Invoice", invoice_items: "Invoice Items", invoice_total: "Invoice Total",
-        recurring_agreements: "Recurring Agreements", recurring_totals: "Recurring Totals", project_expenses: "Project Expenses", projected: "Projected", tracked_actual: "Tracked Actual", variance: "Variance", current_forecast: "Current Forecast",
-        commission_payment: "Commission Payment", commission_payments: "Commission Payments", commission_recipient: "Commission Recipient", commission_recipients: "Commission Recipients", upcoming: "Upcoming", accrued: "Accrued", timing: "Timing",
-        ...asObject(labels.money)
-      }
-    }
-  };
-}
-
-async function readBranchModuleDataOrNull(orgId: string, branchId: string, moduleId: string) {
-  try {
-    const module = await readBranchModule(orgId, branchId, moduleId);
-    return asObject(module.data);
-  } catch (error) {
-    if (error instanceof PlatformError && error.statusCode === 404) return null;
-    return null;
-  }
-}
-
-export async function ensureWorkflowModules(orgId: string, branchId: string) {
-  const mappingsRaw = await readBranchModuleDataOrNull(orgId, branchId, PLATFORM_VARIABLE_MAPPING_MODULE_ID);
-  const mappings = defaultVariableMappingsData(asObject(mappingsRaw));
-  if (JSON.stringify(mappingsRaw || {}) !== JSON.stringify(mappings)) {
-    await saveBranchModule(orgId, branchId, PLATFORM_VARIABLE_MAPPING_MODULE_ID, { data: mappings, metadata: { kind: "branch_variable_mappings" } }, { replace: true });
-  }
-  return { mappings };
-}
 
 function normalizeStringArray(value: unknown) {
   return Array.isArray(value) ? value.map((entry) => String(entry || "").trim()).filter(Boolean) : [];
@@ -7620,7 +7556,7 @@ async function publicCustomerPortalPayload(uuid: string, preview: boolean, baseU
   const {readTerminologyMappings}=await import('./localization/terminology-settings.js');
   const [portalLanguage,terminologyModule]=await Promise.all([companyLocalization(found.orgId,languageBranch),readTerminologyMappings(found.orgId,languageBranch)]);
   const publicNamespaces=new Set(['projects','contacts','photos','proposals','documents','document_engine','customer_portal','payments','money','receipts','checklists','change_orders','scheduling','work','workforce']);
-  const {terminologyContract}=await import('./localization/terminology.js');
+  const {terminologyContract:readTerminologyContract}=await import('./localization/terminology-defaults.js');const terminologyContract=readTerminologyContract();
   const projectLabels=(value:unknown)=>Object.fromEntries(Object.entries(asObject(value)).filter(([namespace])=>publicNamespaces.has(namespace)).map(([namespace,labels])=>[namespace,Object.fromEntries(Object.entries(asObject(labels)).filter(([key,label])=>Object.hasOwn(terminologyContract,`${namespace}.${key}`)&&!key.endsWith('_application')&&typeof label==='string'&&label.length<=160))]));
   const terminologyData=asObject(terminologyModule);
   // A customer is offered online payment only while the organization can take one.

@@ -1,0 +1,19 @@
+{
+  "kind": "measurement_definition",
+  "id": "roof.protrusion_length",
+  "revision": 1,
+  "sha256": "050efeb00f02afad81c1dccb72b42c4ba6d55cca6b29e9b77dfb7ceacb49864e",
+  "title": "Protrusions",
+  "updated_at": "2026-10-28T00:40:02.983Z",
+  "updated_by": "generator",
+  "data": {
+    "key": "protrusionLf",
+    "label": "Protrusions",
+    "unit": "ft",
+    "levels": [
+      "project",
+      "structure"
+    ],
+    "description": "Perimeter of roof protrusions."
+  }
+}

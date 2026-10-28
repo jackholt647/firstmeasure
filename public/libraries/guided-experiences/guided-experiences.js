@@ -27,12 +27,15 @@
   const array = (value) => Array.isArray(value) ? value : [];
   const esc = (value) => String(value ?? '').replace(/[&<>"']/g, (c) => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' }[c]));
   /** Copy from a definition ({ key, text }) or a library string, through PlatformLanguage. */
-  // Development copy edits (dev.ts) replace a key's English. Other languages keep their translation.
+  // A definition's English is the config library's (edited on dev), so in English it is shown as it comes, over any
+  // catalog English for its key; this library's own strings take the library's English from `copy_overrides`.
+  // Other languages keep their translation.
   const overrides = {};
   const english = () => { const locale = clean(root.PlatformLanguage?.locale?.() || root.document?.documentElement?.lang || 'en').toLowerCase(); return !locale || locale.startsWith('en'); };
   const L = (copy, fallback) => {
     const key = copy && typeof copy === 'object' ? copy.key : copy;
     if (key && overrides[key] !== undefined && english()) return overrides[key];
+    if (copy && typeof copy === 'object' && english() && typeof copy.text === 'string') return copy.text;
     if (copy && typeof copy === 'object') return root.PlatformLanguage?.text?.(NS, copy.key, copy.text) ?? copy.text;
     return root.PlatformLanguage?.text?.(NS, copy, fallback) ?? fallback;
   };
@@ -983,7 +986,7 @@
     let history = [];
     try { if (root.__gxLastCopyKey) lastKey = root.__gxLastCopyKey; } catch (_) {}
     if (lastKey) history = array((await devApi.history(lastKey).catch(() => ({}))).history);
-    panel.innerHTML = `<h4>${esc(L('gx_dev_field', 'Last edited copy'))}</h4>${lastKey ? `<div class="gx-dev-history">${history.map((entry) => `<div class="gx-dev-row"><span>${esc(entry.text || '(code)')}<small>${esc(entry.author)} · ${esc(new Date(entry.created_at).toLocaleString())} · r${entry.revision}</small></span><button type="button" data-gxd="revert" data-gxd-key="${esc(lastKey)}" data-gxd-revision="${entry.revision}">${esc(L('gx_dev_use', 'Use'))}</button></div>`).join('')}<div class="gx-dev-row"><span>${esc(lastKey)}</span><button type="button" data-gxd="revert" data-gxd-key="${esc(lastKey)}" data-gxd-revision="0">${esc(L('gx_dev_code_text', 'Use the code’s text'))}</button></div></div>` : `<div class="gx-dev-empty">${esc(L('gx_dev_no_field', 'Edit any copy to see its history here.'))}</div>`}
+    panel.innerHTML = `<h4>${esc(L('gx_dev_field', 'Last edited copy'))}</h4>${lastKey ? `<div class="gx-dev-history">${history.map((entry) => `<div class="gx-dev-row"><span>${esc(entry.text || L('gx_dev_builtin_text', '(built-in text)'))}<small>${esc(entry.author)} · ${esc(new Date(entry.created_at).toLocaleString())} · r${entry.revision}</small></span><button type="button" data-gxd="revert" data-gxd-key="${esc(lastKey)}" data-gxd-revision="${entry.revision}">${esc(L('gx_dev_use', 'Use'))}</button></div>`).join('')}<div class="gx-dev-row"><span>${esc(lastKey)}</span><button type="button" data-gxd="revert" data-gxd-key="${esc(lastKey)}" data-gxd-revision="0">${esc(L('gx_dev_first_text', 'Use the first text'))}</button></div></div>` : `<div class="gx-dev-empty">${esc(L('gx_dev_no_field', 'Edit any copy to see its history here.'))}</div>`}
       <h4>${esc(L('gx_dev_experiences', 'Experiences'))}</h4>${list.map((entry) => `<div class="gx-dev-row"><span title="${esc(entry.id)}">${esc(L(entry.title))}</span>${entry.kind === 'overlay' ? `<button type="button" data-gxd="replay" data-gxd-id="${esc(entry.id)}">${esc(L('gx_dev_replay', 'Replay'))}</button>` : `<button type="button" data-gxd="restart" data-gxd-id="${esc(entry.id)}">${esc(L('gx_dev_restart', 'Restart'))}</button>`}<button type="button" data-gxd="reset-me" data-gxd-id="${esc(entry.id)}">${esc(L('gx_dev_reset_me', 'Reset me'))}</button><button type="button" data-gxd="reset-org" data-gxd-id="${esc(entry.id)}">${esc(L('gx_dev_reset_org', 'Reset org'))}</button></div>`).join('') || `<div class="gx-dev-empty">${esc(L('gx_dev_none', 'No experiences.'))}</div>`}`;
   }
   root.FirstMateGuides = {

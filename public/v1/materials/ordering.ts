@@ -6,11 +6,19 @@ import { readDocument, upsertDocument, type JsonObject } from "../platform/stora
 import { createDocumentInstance, patchDocumentInstance, resolveDocumentInstance } from "../documents/service.js";
 import { readDocumentInstance } from "../documents/storage.js";
 import { renderTemplatedArtifact } from "../documents/artifacts.js";
-import { PURCHASE_ORDER_DEFAULT_TERMS, SHOPPING_LIST_DEFAULT_NOTES } from "../documents/supplier-templates.js";
+import { libraryData } from "../config-library/library.js";
 import { sendProjectEmail, sendProjectSms } from "../comms/service.js";
 import { createProjectChecklist, patchProjectChecklistItem, readProjectChecklistDetail } from "../workforce/crew_storage.js";
 import { createPublicLink, publicLinkUrl, resolvePublicLink } from "../public-links/service.js";
 import { feedbackBranding } from "../feedback/service.js";
+
+/** A parameter default of a library document template: the purchase order's terms, the shopping list's notes. */
+function templateDefault(templateId: string, param: string) {
+  const definition = libraryData<{ definition: { params?: Record<string, { default?: unknown }> } }>("document_template", templateId)?.definition;
+  return String(definition?.params?.[param]?.default ?? "");
+}
+const PURCHASE_ORDER_DEFAULT_TERMS = () => templateDefault("tpl_purchase_order_default", "terms");
+const SHOPPING_LIST_DEFAULT_NOTES = () => templateDefault("tpl_shopping_list_default", "notes");
 
 /**
  * How a project's materials are ordered from the Materials order window, beyond the order record itself
@@ -97,7 +105,7 @@ function purchaseOrderParams(input: PurchaseOrderInput, poNumber: string): JsonO
     delivery_label: input.delivery_label,
     supplier: input.supplier, ship_to: input.ship_to, buyer: input.buyer,
     intro: input.intro, notes: input.notes,
-    terms: input.terms ?? PURCHASE_ORDER_DEFAULT_TERMS,
+    terms: input.terms ?? PURCHASE_ORDER_DEFAULT_TERMS(),
     lines,
     subtotal_cents: subtotal, delivery_cents: delivery, total_cents: subtotal + delivery, prices_complete: pricesComplete,
     list_ids: input.list_ids
@@ -126,7 +134,7 @@ export async function preparePurchaseOrder(orgId: string, projectId: string, raw
   const resolved = await resolveDocumentInstance(orgId, written.document);
   return {
     document_id: written.id, po_number: written.poNumber, title: written.title, params: written.params,
-    default_terms: PURCHASE_ORDER_DEFAULT_TERMS,
+    default_terms: PURCHASE_ORDER_DEFAULT_TERMS(),
     preview: { resolved_definition: resolved.resolved_definition, widget_data: resolved.widget_data, theme: resolved.theme, theme_vars: resolved.theme_vars, params: asObject(resolved.scope).params || written.params }
   };
 }
@@ -196,7 +204,7 @@ export async function createShoppingList(orgId: string, projectId: string, raw: 
   const groups = input.assignees.filter((entry) => entry.kind === "resource_group").map((entry) => entry.id);
   const checklist = await createProjectChecklist(orgId, projectId, {
     title: input.title,
-    description: input.notes ?? SHOPPING_LIST_DEFAULT_NOTES,
+    description: input.notes ?? SHOPPING_LIST_DEFAULT_NOTES(),
     kind: "todo", audience: "crew", icon: "fa-basket-shopping",
     items,
     metadata: { source: SHOPPING_LIST_SOURCE, list_date: input.list_date || new Date().toISOString().slice(0, 10), material_list_ids: input.list_ids, assignee_names: input.assignees.map((entry) => entry.name).filter(Boolean), suppliers: input.groups.map((group) => group.supplier) },

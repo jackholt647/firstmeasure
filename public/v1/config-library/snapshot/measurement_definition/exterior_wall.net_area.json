@@ -1,0 +1,19 @@
+{
+  "kind": "measurement_definition",
+  "id": "exterior_wall.net_area",
+  "revision": 1,
+  "sha256": "9e3030f77fae32c13f1d76e70e30d1219f856f5d358e47a30e666515a08594f5",
+  "title": "Net exterior wall area",
+  "updated_at": "2026-10-28T00:40:02.983Z",
+  "updated_by": "generator",
+  "data": {
+    "key": "wallNetArea",
+    "label": "Net exterior wall area",
+    "unit": "ft2",
+    "levels": [
+      "project",
+      "structure"
+    ],
+    "description": "Exterior wall area with openings taken out."
+  }
+}

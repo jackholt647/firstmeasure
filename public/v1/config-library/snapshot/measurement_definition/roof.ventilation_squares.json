@@ -1,0 +1,19 @@
+{
+  "kind": "measurement_definition",
+  "id": "roof.ventilation_squares",
+  "revision": 1,
+  "sha256": "483627f302f6992c7f9b985470767d3c53e983a94e60b62673b85ae98286eb5e",
+  "title": "Ventilated squares",
+  "updated_at": "2026-10-28T00:40:02.983Z",
+  "updated_by": "generator",
+  "data": {
+    "key": "ventilationSquares",
+    "label": "Ventilated squares",
+    "unit": "roofing_square",
+    "levels": [
+      "project",
+      "structure"
+    ],
+    "description": "Roof squares counted toward ventilation."
+  }
+}

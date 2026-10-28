@@ -17,6 +17,7 @@
     "canvassing/**/*.ts",
     "channels/**/*.ts",
     "communications/**/*.ts",
+    "config-library/**/*.ts",
     "documents/**/*.ts",
     "equipment/**/*.ts",
     "domains/**/*.ts",

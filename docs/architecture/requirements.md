@@ -67,8 +67,13 @@ for a pay sheet to read. An amount that cannot be worked out is unknown, not
 zero.
 
 Like the measurement dictionary, this only grows: an item's meaning and unit
-never change. The quantity rules are rules of thumb and are in code today; an
-organization cannot yet change them or add its own items.
+never change. Items and work schemas are [config library](config-library.md)
+entries of the append-only kinds `work_item` and `work_schema`, edited on dev and
+rebuilt into `work-items.ts` whenever the library changes. An item's `kind` and
+`unit` never change (its label and description may); a work schema never drops an
+item, and any change to it, including its quantity rules (which are rules of
+thumb), needs a new `version`. An organization cannot yet change them or add its
+own items.
 
 `workRequirements(schemaIds, context)` is the scope set's sizing: what a job of
 that kind would need if it included everything. It is used for amounts only.
@@ -80,7 +85,7 @@ What a project requires is `requiredWork(sets, context)` over its artifacts.
   `{ lines, warnings, work }`. `work` is `[{ item, quantity?, explanation? }]`.
   It is validated against the dictionary when evaluated and becomes the set's
   `work` when the evaluation is applied, with the material lines. The sample
-  roofing document does this (`signup-sandbox/roofing-documents.ts`).
+  roofing proposals do this (config library templates `tpl_instant_roofing_*`).
 - **By hand.** `saveManualScope` keeps one manual set per project ("Added by
   hand") and replaces its work as a whole, through the ledger's own create,
   evaluate and apply commands. Action `work-requirements.manual.save`, route

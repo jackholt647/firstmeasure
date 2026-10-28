@@ -2,7 +2,9 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFile, mkdir } from 'node:fs/promises';
 import { chromium } from 'playwright-core';
-import { APP_WELCOMES } from '../platform/app-experience/offers.ts';
+import { libraryEntries } from '../config-library/library.ts';
+// Every app's welcome, as the library holds it (kind app_welcome).
+const APP_WELCOMES = Object.fromEntries(libraryEntries('app_welcome').map(entry => [entry.id, structuredClone(entry.data)]));
 
 const source=(await readFile(new URL('../../libraries/app-runtime/app-welcome.js',import.meta.url),'utf8')).replaceAll('export function','function');
 const output=new URL('../../../output/app-welcome-tests/',import.meta.url);

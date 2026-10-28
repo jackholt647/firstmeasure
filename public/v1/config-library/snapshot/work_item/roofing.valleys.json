@@ -1,0 +1,15 @@
+{
+  "kind": "work_item",
+  "id": "roofing.valleys",
+  "revision": 1,
+  "sha256": "c0c155b5eed61e53e521c9fbc69d0b5372c9881bc9654da6f1e1ac225adb3206",
+  "title": "Valleys",
+  "updated_at": "2026-10-28T00:40:02.983Z",
+  "updated_by": "generator",
+  "data": {
+    "label": "Valleys",
+    "kind": "work",
+    "unit": "ft",
+    "description": "Line and finish the valleys."
+  }
+}

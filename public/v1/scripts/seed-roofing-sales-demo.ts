@@ -1,6 +1,6 @@
 /* Configure the test branch to route new projects into the scope-defined
  * roofing sales pipeline and attach two current appointments to that flow. */
-import { ensureDefaultDocumentAssets } from "../documents/seeds.js";
+import { ensureDefaultDocumentAssets } from "../documents/library-copies.js";
 import { listProjectDocuments } from "../documents/service.js";
 import { readDocumentWorkflow, saveDocumentInstance } from "../documents/storage.js";
 import { readDocument, upsertDocument, type JsonObject } from "../platform/storage.js";

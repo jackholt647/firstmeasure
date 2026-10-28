@@ -18,6 +18,11 @@ agent a tool. The publication contracts are in
    operations have an explicit empty permission and require membership or
    record authorization. The mapping is backend code; it is not a tenant
    supplied policy. Read and write operations should use different permissions.
+   The same file declares every app, feature and setting capability; their
+   default values, the capability presets, the signup preset and the
+   new-organization flag defaults are [config library](config-library.md)
+   entries (`capability_defaults`, `capability_preset`,
+   `capability_signup_preset`, `app_flag_defaults`), edited on dev as data.
 3. **Roles:** `workforce/access.ts` stores organization roles that grant sets of
    named permissions. Users receive one or more roles and may have explicit
    per-user overrides. The Settings **Roles & access** and permission views

@@ -8,7 +8,7 @@ import { isFirstMeasurePostgresEnabled } from "../src/database/postgres.js";
 import { createSharedDocument, listSharedDocuments, mutateSharedDocument, readSharedDocument } from "../src/database/shared_documents.js";
 import { deleteSharedObject, getSharedObject, isSpacesArtifactStorageEnabled, putSharedObject } from "../src/storage/project_artifacts.js";
 import { DEFAULT_TEMPLATE_KEY, GLOBAL_MARKET_PRICEBOOK_ID, PRICEBOOK_FILE_NAMES, PRICEBOOK_SCHEMA_VERSION } from "./constants.js";
-import { DEFAULT_PRICEBOOK_TEMPLATE, TEMPLATE_ADDED_ITEM_IDS } from "./default_template.js";
+import { defaultPricebookTemplate, listPricebookTemplates, pricebookTemplate, templateItemsAddedAfter } from "./template.js";
 import { badRequest, conflict, notFound } from "./errors.js";
 import { autoAddScopeItems, resolveCatalogItemToScopeItem, validateCatalogGraph } from "./resolver.js";
 
@@ -127,21 +127,13 @@ function generateAssetId() {
 }
 
 export function listTemplates() {
-  return [
-    {
-      key: DEFAULT_PRICEBOOK_TEMPLATE.key,
-      version: DEFAULT_PRICEBOOK_TEMPLATE.version,
-      name: DEFAULT_PRICEBOOK_TEMPLATE.name,
-      description: DEFAULT_PRICEBOOK_TEMPLATE.description
-    }
-  ];
+  return listPricebookTemplates().map((template) => ({ key: template.key, version: template.version, name: template.name, description: template.description }));
 }
 
 export function readTemplateCatalog(templateKey: string) {
-  if (templateKey !== DEFAULT_TEMPLATE_KEY) {
-    throw notFound("template_not_found", `Template '${templateKey}' does not exist.`);
-  }
-  return clone(DEFAULT_PRICEBOOK_TEMPLATE.catalog);
+  const template = pricebookTemplate(templateKey);
+  if (!template) throw notFound("template_not_found", `Template '${templateKey}' does not exist.`);
+  return clone(template.catalog);
 }
 
 export async function createPricebook(input: JsonObject = {}) {
@@ -175,7 +167,7 @@ export async function createPricebook(input: JsonObject = {}) {
     revision: 1,
     template_ref: {
       key: templateKey,
-      version: DEFAULT_PRICEBOOK_TEMPLATE.version
+      version: pricebookTemplate(templateKey)!.version
     },
     organization_ref: asRecord(input.organization_ref),
     owner_ref: asRecord(input.owner_ref),
@@ -272,7 +264,7 @@ export async function readManifest(pricebookId: string): Promise<PricebookManife
 export async function saveManifest(pricebookId: string, manifest: PricebookManifest) {
   if (isFirstMeasurePostgresEnabled()) {
     await mutateSharedDocument<SharedPricebookRecord>(sharedPricebookKey(pricebookId), (current) => ({ ...current, manifest }), {
-      create: () => ({ manifest, catalog: normalizeCatalog(DEFAULT_PRICEBOOK_TEMPLATE.catalog) })
+      create: () => ({ manifest, catalog: normalizeCatalog(readTemplateCatalog(DEFAULT_TEMPLATE_KEY)) })
     });
     return;
   }
@@ -348,11 +340,6 @@ export async function getGlobalMarketPricebook() {
 /** Fields a newer template may add to an item the market book already has. */
 const TEMPLATE_ADDITIVE_ITEM_FIELDS = ["itemTypeId", "variant_dimensions", "default_variant_selection"];
 
-/** Item ids the template added after `version`. */
-function templateItemsAddedAfter(version: number) {
-  return Object.entries(TEMPLATE_ADDED_ITEM_IDS).filter(([added]) => Number(added) > version).flatMap(([, ids]) => ids);
-}
-
 /**
  * Bring the market book up to the bundled template: add the template's new
  * items and fill classification/variant fields that existing items lack.
@@ -361,7 +348,8 @@ function templateItemsAddedAfter(version: number) {
 async function upgradeGlobalMarketFromTemplate() {
   const manifest = await readManifest(GLOBAL_MARKET_PRICEBOOK_ID);
   const current = Number(asRecord(manifest.template_ref).version || 1);
-  if (current >= DEFAULT_PRICEBOOK_TEMPLATE.version) return;
+  const latest = defaultPricebookTemplate().version;
+  if (current >= latest) return;
   const catalog = await readCatalog(GLOBAL_MARKET_PRICEBOOK_ID);
   const template = normalizeCatalog(readTemplateCatalog(DEFAULT_TEMPLATE_KEY));
   const existing = new Map(catalog.items.map((item) => [String(item.id), item]));
@@ -376,7 +364,7 @@ async function upgradeGlobalMarketFromTemplate() {
   for (const item of template.items) if (added.has(String(item.id)) && !existing.has(String(item.id))) items.push(clone(item));
   await saveCatalog(GLOBAL_MARKET_PRICEBOOK_ID, { ...catalog, items });
   const saved = await readManifest(GLOBAL_MARKET_PRICEBOOK_ID);
-  await saveManifest(GLOBAL_MARKET_PRICEBOOK_ID, { ...saved, template_ref: { ...asRecord(saved.template_ref), key: DEFAULT_TEMPLATE_KEY, version: DEFAULT_PRICEBOOK_TEMPLATE.version } });
+  await saveManifest(GLOBAL_MARKET_PRICEBOOK_ID, { ...saved, template_ref: { ...asRecord(saved.template_ref), key: DEFAULT_TEMPLATE_KEY, version: latest } });
 }
 
 export async function getOrganizationPricebook(organizationIdValue: string) {
@@ -756,7 +744,7 @@ function initialOrganizationOverlay(organizationId: string, global: Awaited<Retu
       overrides: {}
     })),
     settings: clone(global.catalog.settings || {}),
-    metadata: { storage_model: "global_references_with_sparse_overrides", template_version: DEFAULT_PRICEBOOK_TEMPLATE.version }
+    metadata: { storage_model: "global_references_with_sparse_overrides", template_version: defaultPricebookTemplate().version }
   };
 }
 
@@ -767,7 +755,8 @@ function initialOrganizationOverlay(organizationId: string, global: Awaited<Retu
  */
 async function linkTemplateAdditions(pricebookId: string, overlay: OrganizationPricebookOverlay, global: Awaited<ReturnType<typeof getPricebookDetail>>) {
   const version = Number(asRecord(overlay.metadata).template_version || 1);
-  if (version >= DEFAULT_PRICEBOOK_TEMPLATE.version) return overlay;
+  const latest = defaultPricebookTemplate().version;
+  if (version >= latest) return overlay;
   const linked = new Set(overlay.entries.map((entry) => String(entry.id)));
   const market = new Set(global.catalog.items.map((item) => String(item.id)));
   const next: OrganizationPricebookOverlay = {
@@ -781,7 +770,7 @@ async function linkTemplateAdditions(pricebookId: string, overlay: OrganizationP
         overrides: {}
       }))
     ],
-    metadata: { ...asRecord(overlay.metadata), template_version: DEFAULT_PRICEBOOK_TEMPLATE.version }
+    metadata: { ...asRecord(overlay.metadata), template_version: latest }
   };
   await saveOrganizationOverlayRaw(pricebookId, next);
   return next;
@@ -935,7 +924,7 @@ function normalizeCatalog(value: unknown): PricebookCatalog {
   const source = asRecord(value);
   const variationSets = source.variation_sets ?? source.variationSets;
   const catalog = {
-    taxonomy: isRecord(source.taxonomy) ? source.taxonomy : clone(DEFAULT_PRICEBOOK_TEMPLATE.catalog.taxonomy),
+    taxonomy: isRecord(source.taxonomy) ? source.taxonomy : clone(defaultPricebookTemplate().catalog.taxonomy),
     items: Array.isArray(source.items) ? source.items.map((item, index) => normalizeItem(asRecord(item), index)).sort(compareItems) : [],
     variation_sets: Array.isArray(variationSets)
       ? variationSets.map((set, index) => normalizeVariationSet(asRecord(set), index))

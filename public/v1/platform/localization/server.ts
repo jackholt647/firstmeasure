@@ -1,6 +1,8 @@
 import { readFile } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
 import { createLanguage, resolveContext, type CatalogBundle, type LanguageContext, type LanguageSnapshot, type Terminology } from "./core.js";
+// Installs the terminology contract read from the config library.
+import "./terminology-defaults.js";
 
 // Works from the TypeScript tree and the compiled dist/platform tree.
 const roots = [new URL("../../../libraries/platform-language/catalogs/", import.meta.url), new URL("../../../../libraries/platform-language/catalogs/", import.meta.url)];
@@ -26,7 +28,7 @@ export async function frozenCatalogs(snapshot: LanguageSnapshot, namespaces: str
 
 /** Request/job-local instance: no mutable locale shared between tenants or workers. */
 export async function serverLanguage(context: LanguageContext = resolveContext(), namespaces = ["shared"], frozen?: LanguageSnapshot) {
-  const language = createLanguage(frozen || context);
+  const language = createLanguage(frozen || context, undefined, { frozenTerminology: !!frozen });
   language.setTerminology(frozen?.terminology || {});
   const manifest = frozen ? null : await readCatalog("manifest.json");
   for (const namespace of new Set(['terminology', ...namespaces])) {

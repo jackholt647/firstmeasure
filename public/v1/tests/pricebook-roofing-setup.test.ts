@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { mkdtemp, readFile, rm } from "node:fs/promises";
+import { mkdtemp, rm } from "node:fs/promises";
 import { existsSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
@@ -15,15 +15,17 @@ const ORG = "org_roofing_setup";
 const owner = { orgId: ORG, userId: "owner", role: "owner", permissions: { "*": true }, branchId: "default", capabilities: { effectiveByKey: { "platform.materials": true } }, applicationAccess: { management: { enabled: true, permissions: { "*": true } } } } as any;
 const crew = { ...owner, userId: "crew", role: "member", permissions: { view_projects: true }, accessProfile: { roles: [], app_restrictions: [] } } as any;
 
+// The setup's data is config library entries (pricebook_setup/roofing.*), read here as the setup reads them.
+const setupContent = async (part: string) => structuredClone((await import("../config-library/library.js")).libraryData<{ content: any }>("pricebook_setup", `roofing.${part}`)!.content);
 const keysOf = (item: any) => (item.formulaConfig?.tokens || []).filter((token: any) => token.type === "measurement").map((token: any) => token.value);
 const formulaOf = (item: any) => item.formulaConfig.tokens.map((token: any) => token.value).join(" ");
 
-test("the research catalog is read in its own schema, with the library as the fallback", async () => {
+test("the research catalog is read in its own schema from the config library", async () => {
   const roofing = await import("../pricebook/setups/roofing.js");
   const research = roofing.readResearchCatalog();
   assert.ok(research, "the research catalog is in the checkout");
   // Every manufacturer in the catalog file is offered, whatever the research adds.
-  const raw = JSON.parse(await readFile(path.resolve(process.cwd(), "materials/roofing-research/roofing-catalog-2026.json"), "utf8"));
+  const raw = await setupContent("catalog");
   const expected = raw.manufacturers.map((maker: any) => String(maker.pricebook_manufacturer || maker.id)).sort();
   assert.deepEqual(research!.brands.map((brand) => brand.id).sort(), expected);
   for (const id of ["certainteed", "gaf", "malarkey", "owens_corning"]) assert.ok(expected.includes(id));
@@ -56,14 +58,15 @@ test("the research catalog is read in its own schema, with the library as the fa
   assert.deepEqual(options.roof_types.find((type: any) => type.id === "metal")!.systems.map((system: any) => system.id), ["metal_standing_seam", "metal_exposed_fastener", "stone_coated_steel"]);
   assert.equal((options.low_slope as any).tpo.cap.id, "rtc-tpo-membrane", "a generic TPO membrane from the roof-type components");
   assert.deepEqual([(options.low_slope as any).mod_bit.cap.id, (options.low_slope as any).mod_bit.base.id], ["rtc-modified-bitumen-cap-sheet", "rtc-modified-bitumen-base-sheet"]);
-  const library = roofing.readResearchCatalog(path.join(dir, "missing.json"));
-  assert.equal(library, null);
-  assert.ok(roofing.libraryCatalog().brands.length >= 3, "without the research file the library still offers brands");
+  assert.equal(roofing.readResearchCatalog(null), null, "no catalog entry, no catalog");
+  // An edit to the entry is read at once: the parsed catalog follows the entry it came from.
+  const edited = { ...raw, roof_types: raw.roof_types.filter((type: any) => type.id !== "slate") };
+  assert.ok(!roofing.readResearchCatalog(edited)!.roof_types.some((type) => type.id === "slate"));
 });
 
 test("the roof-type components are read whole: every component, in dictionary measurements of one unit", async () => {
   const roofing = await import("../pricebook/setups/roofing.js"), d = await import("../materials/measurement-defaults.js");
-  const raw = JSON.parse(await readFile(path.resolve(process.cwd(), "materials/roofing-research/roof-type-components-2026.json"), "utf8"));
+  const raw = await setupContent("components");
   assert.equal(raw.status, "provisional");
   const systems = roofing.roofTypeComponents();
   for (const type of raw.types) assert.equal(systems.get(type.id)?.components.length, type.components.length, `${type.id}: no component is dropped`);

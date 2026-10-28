@@ -1,0 +1,81 @@
+{
+  "kind": "terminology_namespace",
+  "id": "contacts",
+  "revision": 1,
+  "sha256": "4a91fd8eb9fcf6b6399343f1b8e74fe48ab20119dd0af750a50d122dc9764667",
+  "title": "Contacts",
+  "updated_at": "2026-10-28T00:40:02.983Z",
+  "updated_by": "generator",
+  "data": {
+    "title": "Contacts",
+    "note": "Contact navigation and customer-facing record names.",
+    "position": 20,
+    "terms": [
+      {
+        "key": "portal_tab",
+        "label": "My Contacts",
+        "kind": "navigation"
+      },
+      {
+        "key": "contact",
+        "label": "Contact",
+        "kind": "entity"
+      },
+      {
+        "key": "contacts",
+        "label": "Contacts",
+        "kind": "entity"
+      },
+      {
+        "key": "customer",
+        "label": "Customer",
+        "kind": "entity"
+      },
+      {
+        "key": "customers",
+        "label": "Customers",
+        "kind": "entity"
+      },
+      {
+        "key": "homeowner",
+        "label": "Homeowner",
+        "kind": "entity"
+      },
+      {
+        "key": "homeowners",
+        "label": "Homeowners",
+        "kind": "entity"
+      },
+      {
+        "key": "primary_contact",
+        "label": "Primary Contact",
+        "kind": "entity"
+      },
+      {
+        "key": "linked_projects",
+        "label": "Linked Projects",
+        "kind": "entity"
+      },
+      {
+        "key": "activity",
+        "label": "Activity",
+        "kind": "entity"
+      },
+      {
+        "key": "settings_tab",
+        "label": "Contacts",
+        "kind": "navigation"
+      },
+      {
+        "key": "org",
+        "label": "Org",
+        "kind": "entity"
+      },
+      {
+        "key": "field_customer_tab",
+        "label": "Customer",
+        "kind": "navigation"
+      }
+    ]
+  }
+}

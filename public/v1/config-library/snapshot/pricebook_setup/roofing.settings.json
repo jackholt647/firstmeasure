@@ -1,0 +1,173 @@
+{
+  "kind": "pricebook_setup",
+  "id": "roofing.settings",
+  "revision": 1,
+  "sha256": "2e768ee60c715240354d766111d8d3f407de95f1acbc63ca8bc3794334ea9689",
+  "title": "Roofing setup defaults",
+  "updated_at": "2026-10-28T00:40:02.983Z",
+  "updated_by": "generator",
+  "data": {
+    "trade": "roofing",
+    "part": "settings",
+    "content": {
+      "featured_brands": [
+        "gaf",
+        "owens_corning",
+        "malarkey",
+        "certainteed"
+      ],
+      "brand_looks": {
+        "gaf": {
+          "name": "GAF",
+          "color": "#d71920",
+          "tagline": "Timberline, Royal Sovereign"
+        },
+        "owens_corning": {
+          "name": "Owens Corning",
+          "color": "#d6246e",
+          "tagline": "Duration, Oakridge, Supreme"
+        },
+        "malarkey": {
+          "name": "Malarkey",
+          "color": "#1f6f43",
+          "tagline": "Highlander, Vista, Legacy"
+        },
+        "certainteed": {
+          "name": "CertainTeed",
+          "color": "#0a5aa5",
+          "tagline": "Landmark, XT 25, Presidential"
+        }
+      },
+      "default_rules": {
+        "field_shingles": "shingles",
+        "starter": "starter",
+        "hip_ridge": "hip_ridge",
+        "ice_water": "ice_water",
+        "underlayment": "underlayment",
+        "drip_edge": "drip_edge",
+        "ridge_vent": "ridge_vent",
+        "intake_vent": "intake_vent",
+        "step_flashing": "step_flashing",
+        "headwall_flashing": "headwall_flashing",
+        "valley_metal": "valley_metal",
+        "roofing_nails": "coil_nails",
+        "cap_nails": "cap_nails"
+      },
+      "accessory_roles": [
+        "starter",
+        "hip_ridge",
+        "underlayment",
+        "ice_water",
+        "ridge_vent",
+        "intake_vent",
+        "box_vent",
+        "pipe_boot",
+        "low_slope_membrane",
+        "low_slope_base",
+        "low_slope_cap"
+      ],
+      "role_rules": {
+        "pipe_boot": "pipe_boots",
+        "box_vent": "box_vents",
+        "low_slope_membrane": "low_slope",
+        "low_slope_base": "low_slope",
+        "low_slope_cap": "low_slope"
+      },
+      "categories": {
+        "line": "shingle_roofs",
+        "starter": "shingle_roofs",
+        "hip_ridge": "shingle_roofs",
+        "underlayment": "shingle_roofs",
+        "ice_water": "leak_barriers",
+        "ridge_vent": "accessories",
+        "intake_vent": "accessories",
+        "box_vent": "accessories",
+        "ventilation": "accessories",
+        "pipe_boot": "accessories",
+        "flashing": "flashing",
+        "penetrations": "accessories",
+        "fasteners": "accessories",
+        "sealants": "accessories",
+        "decking": "misc",
+        "labor": "misc",
+        "low_slope_membrane": "flat_roofs",
+        "low_slope_base": "flat_roofs",
+        "low_slope_cap": "flat_roofs"
+      },
+      "default_slots": {
+        "underlayment": {
+          "role": "underlayment",
+          "rule": "underlayment"
+        },
+        "ice_water": {
+          "role": "ice_water",
+          "rule": "ice_water"
+        },
+        "pipe_boot": {
+          "role": "pipe_boot",
+          "rule": "pipe_boots",
+          "generic_first": true
+        },
+        "ridge_vent": {
+          "role": "ridge_vent",
+          "rule": "ridge_vent"
+        },
+        "intake_vent": {
+          "role": "intake_vent",
+          "rule": "intake_vent"
+        },
+        "box_vent": {
+          "role": "box_vent",
+          "rule": "box_vents"
+        }
+      },
+      "ice_coverage": [
+        {
+          "id": "perimeter_18_valleys",
+          "widths": {
+            "eaves": 1.5,
+            "rakes": 1.5,
+            "valleys": 3
+          }
+        },
+        {
+          "id": "eaves_36_valleys",
+          "widths": {
+            "eaves": 3,
+            "rakes": 0,
+            "valleys": 3
+          }
+        },
+        {
+          "id": "eaves_72_valleys",
+          "widths": {
+            "eaves": 6,
+            "rakes": 0,
+            "valleys": 3
+          }
+        },
+        {
+          "id": "eaves_36",
+          "widths": {
+            "eaves": 3,
+            "rakes": 0,
+            "valleys": 0
+          }
+        },
+        {
+          "id": "valleys",
+          "widths": {
+            "eaves": 0,
+            "rakes": 0,
+            "valleys": 3
+          }
+        },
+        {
+          "id": "none",
+          "widths": null
+        }
+      ],
+      "default_ice_coverage": "perimeter_18_valleys"
+    }
+  }
+}

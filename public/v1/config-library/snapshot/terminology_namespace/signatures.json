@@ -1,0 +1,21 @@
+{
+  "kind": "terminology_namespace",
+  "id": "signatures",
+  "revision": 1,
+  "sha256": "3c7fefce4399202885666a8834a5a9c28266e4652faa5b54d9c2879f1e1fff64",
+  "title": "Signatures",
+  "updated_at": "2026-10-28T00:40:02.983Z",
+  "updated_by": "generator",
+  "data": {
+    "title": "Signatures",
+    "note": "Shared display labels. Record identifiers and authored content stay unchanged.",
+    "position": 450,
+    "terms": [
+      {
+        "key": "crew_project_tab",
+        "label": "Work",
+        "kind": "navigation"
+      }
+    ]
+  }
+}

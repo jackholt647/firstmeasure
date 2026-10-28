@@ -1,0 +1,412 @@
+{
+  "kind": "sandbox_configuration",
+  "id": "swf_mvp_platform",
+  "revision": 1,
+  "sha256": "827b757e39131ec4eb4317d47d260ec348a997c65dfe493be3084aedc1347cba",
+  "title": "MVP platform",
+  "updated_at": "2026-10-28T00:40:02.983Z",
+  "updated_by": "generator",
+  "data": {
+    "title": "MVP platform",
+    "description": "The FirstMeasure default signup plus the MVP platform: My Projects (with the project map), My Contacts, Feed and Financials (offered); project tabs Photos, Docs, Operations and Customer Portal, with Money and Checklists offered (no Overview or Reports tab: the project details tray holds them); Agent, Notes, Activity and To Do trays. No Scheduling or calendar. Every project is a generic roof job.",
+    "entry_mode": "landing_first",
+    "onboarding_mode": "",
+    "stages": [
+      {
+        "id": "stg_mvp_landing",
+        "page_id": "spg_firstmate_landing",
+        "notes": "Optional marketing front door."
+      },
+      {
+        "id": "stg_mvp_signup",
+        "page_id": "spg_firstmate_signup",
+        "notes": "Skipped by sandbox test instances."
+      },
+      {
+        "id": "stg_mvp_branding",
+        "page_id": "spg_firstmate_branding",
+        "notes": ""
+      },
+      {
+        "id": "stg_mvp_users",
+        "page_id": "spg_firstmate_users",
+        "notes": "Skipped on mobile in the real wizard."
+      },
+      {
+        "id": "stg_mvp_account_load",
+        "page_id": "spg_firstmate_account_load",
+        "notes": ""
+      }
+    ],
+    "tags": [
+      "template",
+      "firstmate",
+      "mvp"
+    ],
+    "sample_data": true,
+    "launch_sample_data": [],
+    "dev_bar": false,
+    "app_flags_base": "expanded_access_off",
+    "defaults": {
+      "app_flags": {
+        "platform.more_apps": true,
+        "platform.people_access": true,
+        "apps.notifications": true,
+        "platform.project_boards": true,
+        "platform.project_stages_view": true,
+        "platform.contacts": true,
+        "platform.project_photos": true,
+        "platform.photos_feed": true,
+        "platform.documents": true,
+        "platform.manual_project_stage_movement": true,
+        "documents.esign": true,
+        "documents.agent": true,
+        "platform.money": true,
+        "platform.pricebook": true,
+        "platform.materials": true,
+        "platform.customer_portal": true,
+        "platform.customer_portal_media": true,
+        "apps.channels": true,
+        "channels.threads": true,
+        "channels.reactions": true,
+        "channels.attachments": true,
+        "channels.pins": true,
+        "channels.search": true,
+        "channels.project_notes": true,
+        "channels.separate_project_notes": true,
+        "apps.crew": true,
+        "apps.checklists": true,
+        "apps.equipment": true,
+        "checklists.templates": true,
+        "checklists.supervision": true,
+        "money.profitability": true,
+        "money.payment_schedules": true,
+        "money.take_payment": true,
+        "money.expenses": true,
+        "photos.markup": true,
+        "materials.ordering": true,
+        "topbar.global_search": true,
+        "topbar.notifications": true,
+        "platform.top_bar": true,
+        "channels.rich_messages": true,
+        "platform.advanced_app_menu": true,
+        "apps.assistant": true,
+        "platform.expanded_access": true,
+        "apps.projects": true,
+        "apps.project_map": true,
+        "firstmeasure.exteriors": true,
+        "firstmeasure.roof_model_viewer": true,
+        "firstmeasure.report_followup": false,
+        "platform.new_button_mode": "selector",
+        "platform.new_button_items": "report,project,contact",
+        "platform.sidebar_footer_layout": "stacked"
+      },
+      "settings": {
+        "app_placements": {
+          "portal.channels": "hidden",
+          "portal.assistant": "hidden"
+        },
+        "project_tabs": {
+          "order": [
+            "project.photos",
+            "project.docs",
+            "project.materials",
+            "project.customer_portal",
+            "project.money",
+            "project.checklists"
+          ],
+          "pills": {
+            "project.photos": "new",
+            "project.docs": "new",
+            "project.materials": "new",
+            "project.customer_portal": "new"
+          }
+        },
+        "app_offers": [
+          "project.photos",
+          "project.docs",
+          "project.customer_portal",
+          "project.materials",
+          "portal.equipment",
+          "project.money",
+          "portal.financials",
+          "project.checklists"
+        ]
+      },
+      "scope_flags": {}
+    },
+    "terminology": {
+      "scope": {
+        "project_tab": "Operations"
+      },
+      "customer_portal": {
+        "project_tab": "Portal"
+      }
+    },
+    "role_app_options": {
+      "portal.viewer": {
+        "map_first": true
+      },
+      "project.map": {
+        "tab": false
+      },
+      "project.measurements": {
+        "tab": false
+      }
+    },
+    "setup": [
+      {
+        "action": "sandbox.scopeTemplate.install",
+        "input": {
+          "template_id": "generic_roofing",
+          "from": "roof_replacement",
+          "template": {
+            "name": "Roofing",
+            "description": "A roof job that moves through its stages as the report and documents are made.",
+            "details": "New project, Measurements ordered, Measurements received, Proposal created and Materials created. Each stage's to-do finishes itself when the next step happens; you can also tick it or move the card by hand. Measurements use the roofing schema.",
+            "work_plan": {
+              "title": "Roofing",
+              "terminology": {
+                "phase": "Phase",
+                "stage": "Stage",
+                "task": "To-do",
+                "board": "Board"
+              },
+              "metadata": {
+                "board_color": "#dc2626",
+                "canceled_column": {
+                  "id": "cancelled",
+                  "title": "Cancelled",
+                  "color": "#667085"
+                }
+              },
+              "root_nodes": [
+                {
+                  "id": "roofing_phase",
+                  "title": "Roofing",
+                  "terminology_key": "work.phase",
+                  "completion_mode": "all_children",
+                  "children": [
+                    {
+                      "id": "new_project",
+                      "title": "New project",
+                      "terminology_key": "work.stage",
+                      "completion_mode": "all_children",
+                      "metadata": {
+                        "color": "#667085"
+                      },
+                      "children": [
+                        {
+                          "id": "order_report",
+                          "title": "Order measurements",
+                          "terminology_key": "work.task",
+                          "actionable": true,
+                          "external_triggers": [
+                            {
+                              "id": "report_ordered",
+                              "event": "measurement.report.ordered",
+                              "transition": "completed",
+                              "explainer": "Done when this happens on the project."
+                            },
+                            {
+                              "id": "report_delivered",
+                              "event": "measurement.report.completed",
+                              "transition": "completed",
+                              "explainer": "A later step happened first, so this one is done too."
+                            },
+                            {
+                              "id": "proposal_document",
+                              "event": "document.created",
+                              "conditions": {
+                                "payload.document_type": "proposal"
+                              },
+                              "transition": "completed",
+                              "explainer": "A later step happened first, so this one is done too."
+                            },
+                            {
+                              "id": "proposal",
+                              "event": "proposal.created",
+                              "transition": "completed",
+                              "explainer": "A later step happened first, so this one is done too."
+                            },
+                            {
+                              "id": "materials_created",
+                              "event": "material.lines.created",
+                              "transition": "completed",
+                              "explainer": "A later step happened first, so this one is done too."
+                            }
+                          ]
+                        }
+                      ]
+                    },
+                    {
+                      "id": "report_ordered",
+                      "title": "Measurements ordered",
+                      "terminology_key": "work.stage",
+                      "completion_mode": "all_children",
+                      "depends_on": [
+                        "new_project"
+                      ],
+                      "metadata": {
+                        "color": "#0e7490"
+                      },
+                      "children": [
+                        {
+                          "id": "receive_report",
+                          "title": "Receive the measurements",
+                          "terminology_key": "work.task",
+                          "actionable": true,
+                          "external_triggers": [
+                            {
+                              "id": "report_delivered",
+                              "event": "measurement.report.completed",
+                              "transition": "completed",
+                              "explainer": "Done when this happens on the project."
+                            },
+                            {
+                              "id": "proposal_document",
+                              "event": "document.created",
+                              "conditions": {
+                                "payload.document_type": "proposal"
+                              },
+                              "transition": "completed",
+                              "explainer": "A later step happened first, so this one is done too."
+                            },
+                            {
+                              "id": "proposal",
+                              "event": "proposal.created",
+                              "transition": "completed",
+                              "explainer": "A later step happened first, so this one is done too."
+                            },
+                            {
+                              "id": "materials_created",
+                              "event": "material.lines.created",
+                              "transition": "completed",
+                              "explainer": "A later step happened first, so this one is done too."
+                            }
+                          ]
+                        }
+                      ]
+                    },
+                    {
+                      "id": "report_delivered",
+                      "title": "Measurements received",
+                      "terminology_key": "work.stage",
+                      "completion_mode": "all_children",
+                      "depends_on": [
+                        "report_ordered"
+                      ],
+                      "metadata": {
+                        "color": "#7c3aed"
+                      },
+                      "children": [
+                        {
+                          "id": "create_proposal",
+                          "title": "Create the proposal",
+                          "terminology_key": "work.task",
+                          "actionable": true,
+                          "external_triggers": [
+                            {
+                              "id": "proposal_document",
+                              "event": "document.created",
+                              "conditions": {
+                                "payload.document_type": "proposal"
+                              },
+                              "transition": "completed",
+                              "explainer": "Done when this happens on the project."
+                            },
+                            {
+                              "id": "proposal",
+                              "event": "proposal.created",
+                              "transition": "completed",
+                              "explainer": "Done when this happens on the project."
+                            },
+                            {
+                              "id": "materials_created",
+                              "event": "material.lines.created",
+                              "transition": "completed",
+                              "explainer": "A later step happened first, so this one is done too."
+                            }
+                          ]
+                        }
+                      ]
+                    },
+                    {
+                      "id": "proposal_created",
+                      "title": "Proposal created",
+                      "terminology_key": "work.stage",
+                      "completion_mode": "all_children",
+                      "depends_on": [
+                        "report_delivered"
+                      ],
+                      "metadata": {
+                        "color": "#ea580c"
+                      },
+                      "children": [
+                        {
+                          "id": "create_materials",
+                          "title": "Create the materials",
+                          "terminology_key": "work.task",
+                          "actionable": true,
+                          "external_triggers": [
+                            {
+                              "id": "materials_created",
+                              "event": "material.lines.created",
+                              "transition": "completed",
+                              "explainer": "Done when this happens on the project."
+                            }
+                          ]
+                        }
+                      ]
+                    },
+                    {
+                      "id": "materials_created",
+                      "title": "Materials created",
+                      "terminology_key": "work.stage",
+                      "completion_mode": "all_children",
+                      "depends_on": [
+                        "proposal_created"
+                      ],
+                      "metadata": {
+                        "color": "#16a34a"
+                      },
+                      "children": [
+                        {
+                          "id": "review_materials",
+                          "title": "Review the materials",
+                          "terminology_key": "work.task",
+                          "actionable": true
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            },
+            "metadata": {
+              "configuration": "mvp-platform"
+            }
+          }
+        },
+        "on_error": "stop",
+        "note": "Generic Roofing: a roof job whose board follows the report and the documents."
+      },
+      {
+        "action": "sandbox.intakeRouting.setDefault",
+        "input": {
+          "template_id": "generic_roofing"
+        },
+        "on_error": "stop"
+      },
+      {
+        "action": "sandbox.scopeFlags.only",
+        "input": {
+          "template_ids": [
+            "generic_roofing"
+          ]
+        },
+        "on_error": "stop"
+      }
+    ]
+  }
+}

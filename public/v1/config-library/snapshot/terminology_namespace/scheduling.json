@@ -1,0 +1,106 @@
+{
+  "kind": "terminology_namespace",
+  "id": "scheduling",
+  "revision": 1,
+  "sha256": "1306690d101c62ff8e4ec77ef08447433d7b419545044daea08c8b9f2f424e04",
+  "title": "Scheduling",
+  "updated_at": "2026-10-28T00:40:02.983Z",
+  "updated_by": "generator",
+  "data": {
+    "title": "Scheduling",
+    "note": "Scheduling navigation, calendar views, and assignments.",
+    "position": 130,
+    "terms": [
+      {
+        "key": "portal_tab",
+        "label": "Scheduling",
+        "kind": "navigation"
+      },
+      {
+        "key": "project_tab",
+        "label": "Schedule",
+        "kind": "navigation"
+      },
+      {
+        "key": "crew_portal_tab",
+        "label": "Schedule",
+        "kind": "navigation"
+      },
+      {
+        "key": "settings_tab",
+        "label": "Scheduling",
+        "kind": "navigation"
+      },
+      {
+        "key": "calendar_view",
+        "label": "Calendar",
+        "kind": "view"
+      },
+      {
+        "key": "routing_view",
+        "label": "Routing",
+        "kind": "view"
+      },
+      {
+        "key": "production_view",
+        "label": "Production",
+        "kind": "view"
+      },
+      {
+        "key": "sales_view",
+        "label": "Sales",
+        "kind": "view"
+      },
+      {
+        "key": "day_view",
+        "label": "Day",
+        "kind": "view"
+      },
+      {
+        "key": "four_day_view",
+        "label": "4 Day",
+        "kind": "view"
+      },
+      {
+        "key": "week_view",
+        "label": "Week",
+        "kind": "view"
+      },
+      {
+        "key": "month_view",
+        "label": "Month",
+        "kind": "view"
+      },
+      {
+        "key": "appointment",
+        "label": "Appointment",
+        "kind": "entity"
+      },
+      {
+        "key": "visit",
+        "label": "Visit",
+        "kind": "entity"
+      },
+      {
+        "key": "shift",
+        "label": "Shift",
+        "kind": "entity"
+      },
+      {
+        "key": "assignment",
+        "label": "Assignment",
+        "kind": "entity"
+      },
+      {
+        "key": "gantt_view",
+        "label": "Timeline",
+        "kind": "view"
+      },
+      {
+        "key": "sales_portal_tab",
+        "label": "Schedule",
+        "kind": "navigation"
+      }
+    ]
+  }
+}

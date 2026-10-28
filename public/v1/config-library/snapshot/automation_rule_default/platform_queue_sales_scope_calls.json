@@ -1,0 +1,49 @@
+{
+  "kind": "automation_rule_default",
+  "id": "platform_queue_sales_scope_calls",
+  "revision": 1,
+  "sha256": "4eece9971d3b644a63dc06168c2ad8d0d66c3258cf88533f008932b841cf2bf6",
+  "title": "Queue a call when a sales scope starts on a project made by hand",
+  "updated_at": "2026-10-28T00:40:02.983Z",
+  "updated_by": "generator",
+  "data": {
+    "id": "platform_queue_sales_scope_calls",
+    "sort_order": 3,
+    "enabled": true,
+    "title": "Queue a call when a sales scope starts on a project made by hand",
+    "explainer": "When someone starts a sales scope on a project they made themselves, we add it to the New Leads call queue. Leads already got their call when they arrived.",
+    "customer_visible": true,
+    "event": "work.plan.started",
+    "conditions": {
+      "match": "all",
+      "rules": [
+        {
+          "field": "plan.outcome",
+          "operator": "equals",
+          "value": "open"
+        },
+        {
+          "field": "project.lead_source",
+          "operator": "is_missing"
+        }
+      ]
+    },
+    "automation": "crm.callLists.add.v1",
+    "input": {
+      "list": {
+        "key": "new_leads",
+        "title": "New Leads",
+        "description": "Fresh leads that need a first call.",
+        "kind": "lead",
+        "icon": "fa-user-plus",
+        "tone": "lead",
+        "sort_order": 10,
+        "metadata": {
+          "purpose": "new_lead_contact",
+          "managed_by": "automation"
+        }
+      },
+      "title": "Contact lead"
+    }
+  }
+}

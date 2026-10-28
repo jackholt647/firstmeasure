@@ -1,0 +1,450 @@
+{
+  "kind": "document_template",
+  "id": "tpl_operations_scope_v1",
+  "revision": 1,
+  "sha256": "7a8d59d3ca81e0b6c6f58d4f81c460135df113857f2eb9b0cc32df31d0f576c7",
+  "title": "Scope of work",
+  "updated_at": "2026-10-28T00:40:02.983Z",
+  "updated_by": "generator",
+  "data": {
+    "name": "Scope of work",
+    "document_type": "scope_of_work",
+    "description": "",
+    "status": "active",
+    "seeding": "on_request",
+    "definition": {
+      "schema_version": 1,
+      "kind": "document",
+      "settings": {
+        "paper": {
+          "size": "letter",
+          "orientation": "portrait"
+        },
+        "locale": "en-US",
+        "base_font_pt": 11
+      },
+      "theme_ref": {
+        "theme_id": "thm_clean"
+      },
+      "params": {
+        "structure": {
+          "type": "string",
+          "label": "Structure",
+          "default": "Main house"
+        },
+        "scope_items": {
+          "type": "list",
+          "items": {
+            "type": "pricebook_line"
+          },
+          "label": "Scope of work",
+          "default": []
+        },
+        "scope_pieces": {
+          "type": "list",
+          "items": {
+            "type": "object"
+          },
+          "label": "Project work",
+          "default": []
+        },
+        "measurement_requirements": {
+          "type": "list",
+          "items": {
+            "type": "string"
+          }
+        },
+        "measurements": {
+          "type": "measurements",
+          "label": "Measurements"
+        },
+        "scope_generated_from": {
+          "type": "string"
+        },
+        "customer_choice_count": {
+          "type": "number",
+          "default": 0
+        },
+        "show_line_prices": {
+          "type": "boolean",
+          "label": "Print each line price",
+          "default": true
+        },
+        "content_blocks": {
+          "type": "list",
+          "label": "Photos & description",
+          "default": []
+        },
+        "operations_work": {
+          "type": "list",
+          "items": {
+            "type": "object"
+          },
+          "default": []
+        }
+      },
+      "computed": {},
+      "outputs": {},
+      "styles": {},
+      "components": {
+        "scope_row": {
+          "params": {
+            "item": {
+              "type": "object"
+            }
+          },
+          "root": {
+            "id": "nd_e0uf9u4mrsa12a",
+            "type": "frame",
+            "name": "",
+            "frame": {
+              "x": 0,
+              "y": 0,
+              "w": 0,
+              "h": "auto",
+              "rotation": 0,
+              "z": 0,
+              "layout": "flow",
+              "constraints": {
+                "h": "left",
+                "v": "top"
+              }
+            },
+            "style": {},
+            "locks": {},
+            "bind": null,
+            "visible": true,
+            "props": {
+              "background": null,
+              "clip": false,
+              "flow": {
+                "direction": "row",
+                "gap": 16,
+                "padding": [
+                  0,
+                  0,
+                  0,
+                  0
+                ],
+                "align": "start",
+                "wrap": false
+              },
+              "overflow": "visible"
+            },
+            "children": [
+              {
+                "type": "text",
+                "props": {
+                  "blocks": [
+                    {
+                      "runs": [
+                        {
+                          "text": "",
+                          "bind": "item.name"
+                        }
+                      ]
+                    }
+                  ]
+                },
+                "layout": {
+                  "grow": 1
+                }
+              },
+              {
+                "type": "text",
+                "props": {
+                  "blocks": [
+                    {
+                      "runs": [
+                        {
+                          "text": "",
+                          "bind": "item.quantity"
+                        },
+                        {
+                          "text": " "
+                        },
+                        {
+                          "text": "",
+                          "bind": "item.unit"
+                        }
+                      ]
+                    }
+                  ]
+                },
+                "layout": {
+                  "w": 100
+                }
+              }
+            ]
+          }
+        }
+      },
+      "chains": {},
+      "assets": [],
+      "edit_policy": {
+        "base_profile": "document",
+        "max_profile": "designer",
+        "features": {},
+        "unlock": {
+          "allowed": true
+        }
+      },
+      "metadata": {
+        "document_type": "scope_of_work"
+      },
+      "pages": [
+        {
+          "id": "pg_e0uf9njb6qr127",
+          "role": "body",
+          "name": "Scope of work",
+          "master_ref": null,
+          "repeat": null,
+          "children": [
+            {
+              "id": "nd_e0uf91jvbd612l",
+              "type": "frame",
+              "name": "Body",
+              "frame": {
+                "x": 48,
+                "y": 80,
+                "w": 516,
+                "h": 664,
+                "rotation": 0,
+                "z": 0,
+                "layout": "flow",
+                "constraints": {
+                  "h": "stretch",
+                  "v": "top"
+                }
+              },
+              "style": {},
+              "locks": {},
+              "bind": null,
+              "visible": true,
+              "props": {
+                "background": null,
+                "clip": false,
+                "flow": {
+                  "direction": "column",
+                  "gap": 10,
+                  "padding": [
+                    0,
+                    0,
+                    0,
+                    0
+                  ],
+                  "align": "stretch",
+                  "wrap": false
+                },
+                "overflow": "paginate",
+                "page_region": "body"
+              },
+              "children": [
+                {
+                  "id": "nd_e0uf9f6h4dd12d",
+                  "type": "text",
+                  "name": "",
+                  "frame": {
+                    "x": 0,
+                    "y": 0,
+                    "w": 0,
+                    "h": "auto",
+                    "rotation": 0,
+                    "z": 0,
+                    "layout": "flow",
+                    "constraints": {
+                      "h": "left",
+                      "v": "top"
+                    }
+                  },
+                  "style": {
+                    "font": {
+                      "size_pt": 25,
+                      "weight": 800
+                    }
+                  },
+                  "locks": {},
+                  "bind": null,
+                  "visible": true,
+                  "props": {
+                    "blocks": [
+                      {
+                        "id": "blk_e0uf939fe7c12b",
+                        "type": "paragraph",
+                        "align": "left",
+                        "runs": [
+                          {
+                            "text": "Scope of work"
+                          }
+                        ]
+                      }
+                    ],
+                    "valign": "top",
+                    "auto_fit": false,
+                    "line_height": 1.4,
+                    "letter_spacing": 0
+                  },
+                  "anchor": "flow"
+                },
+                {
+                  "id": "nd_e0uf9khxl8812g",
+                  "type": "text",
+                  "name": "",
+                  "frame": {
+                    "x": 0,
+                    "y": 0,
+                    "w": 0,
+                    "h": "auto",
+                    "rotation": 0,
+                    "z": 0,
+                    "layout": "flow",
+                    "constraints": {
+                      "h": "left",
+                      "v": "top"
+                    }
+                  },
+                  "style": {},
+                  "locks": {},
+                  "bind": null,
+                  "visible": true,
+                  "props": {
+                    "blocks": [
+                      {
+                        "id": "blk_e0uf9712qiv12e",
+                        "type": "paragraph",
+                        "align": "left",
+                        "runs": [
+                          {
+                            "text": "",
+                            "bind": "coalesce(project.address, project.title, \"\")"
+                          }
+                        ]
+                      }
+                    ],
+                    "valign": "top",
+                    "auto_fit": false,
+                    "line_height": 1.4,
+                    "letter_spacing": 0
+                  },
+                  "anchor": "flow"
+                },
+                {
+                  "id": "nd_e0uf9bu5wcp12j",
+                  "type": "text",
+                  "name": "",
+                  "frame": {
+                    "x": 0,
+                    "y": 0,
+                    "w": 0,
+                    "h": "auto",
+                    "rotation": 0,
+                    "z": 0,
+                    "layout": "flow",
+                    "constraints": {
+                      "h": "left",
+                      "v": "top"
+                    }
+                  },
+                  "style": {
+                    "font": {
+                      "size_pt": 10
+                    }
+                  },
+                  "locks": {},
+                  "bind": null,
+                  "visible": true,
+                  "props": {
+                    "blocks": [
+                      {
+                        "id": "blk_e0uf9nejgmi12h",
+                        "type": "paragraph",
+                        "align": "left",
+                        "runs": [
+                          {
+                            "text": "Internal project plan. No customer signature or payment is requested."
+                          }
+                        ]
+                      }
+                    ],
+                    "valign": "top",
+                    "auto_fit": false,
+                    "line_height": 1.4,
+                    "letter_spacing": 0
+                  },
+                  "anchor": "flow"
+                },
+                {
+                  "id": "nd_e0uf94ipyrp12k",
+                  "type": "repeater",
+                  "name": "",
+                  "frame": {
+                    "x": 0,
+                    "y": 0,
+                    "w": 0,
+                    "h": "auto",
+                    "rotation": 0,
+                    "z": 0,
+                    "layout": "flow",
+                    "constraints": {
+                      "h": "left",
+                      "v": "top"
+                    }
+                  },
+                  "style": {},
+                  "locks": {},
+                  "bind": null,
+                  "visible": true,
+                  "props": {
+                    "source": "{{coalesce(params.scope_rows, params.scope_items)}}",
+                    "component": "scope_row",
+                    "variant": null,
+                    "as": "row",
+                    "index_as": "index",
+                    "layout": {
+                      "direction": "column",
+                      "columns": 1,
+                      "gap_pt": 6
+                    },
+                    "break_rules": {
+                      "repeat_header": false,
+                      "min_rows_per_segment": 1,
+                      "keep_with_next": []
+                    },
+                    "empty_text": "Define the work in the workflow.",
+                    "props": {
+                      "item": "{{row}}"
+                    }
+                  },
+                  "anchor": "flow"
+                }
+              ]
+            }
+          ]
+        }
+      ],
+      "program": {
+        "enabled": false,
+        "deliverables": [
+          {
+            "type": "materials_calculus",
+            "key": "operations_scope",
+            "title": "Project scope of work",
+            "source": "\nconst p=inputs.document.params || {},lines=[],warnings=[];\nfunction walk(rows,path){(rows||[]).forEach((row,index)=>{\n if(row.selected===false||row.excluded===true||row.selection?.selected===false)return;\n const key=path+'_'+index;\n if(Array.isArray(row.children)&&row.children.length){walk(row.children,key);return;}\n if(row.operations_resource!=='material')return;\n const quantity=Number(row.quantity);if(!Number.isFinite(quantity)||quantity<0)throw Error('Review the quantity for '+row.name);\n if(!quantity)return;\n const pack=row.order_packaging||{},coverage=Number(pack.units_per_package);\n lines.push({key,product_id:String(row.pricebook_ref?.item_id||row.item_ref||row.id),name:String(row.name||'Material'),quantity,unit:String(row.unit||'ea'),variant:String(row.variation_id||row.variant_id||row.variables?.color||''),group:String(row.operations_trade||'Materials'),structure:String(row.structure_ref?.name||p.structure||''),explanation:'Selected in the published project scope',...(coverage>0?{packaging:{unit:String(pack.order_unit||'package'),coverage}}:{})});\n});}\nwalk(p.scope_items,'scope');\nif(!lines.length)throw Error('Choose at least one material with a quantity before generating materials.');\nreturn {outputs:{lines,work:p.operations_work||[],warnings}};",
+            "bindings": {},
+            "inputSchema": {
+              "type": "object",
+              "additionalProperties": false
+            },
+            "defaults": {}
+          }
+        ]
+      }
+    },
+    "metadata": {
+      "default_workflow_id": "wfl_operations_scope_v1"
+    },
+    "initial_metadata": {},
+    "requires_pricebook_items": [],
+    "pricebook_defaults": []
+  }
+}

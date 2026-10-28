@@ -1,0 +1,20 @@
+{
+  "kind": "automation_rule_default",
+  "id": "platform_reconcile_obligation_recognition_plan",
+  "revision": 1,
+  "sha256": "911500c4c3b6e8c87a5c463eed584093ad5cfee156ac5f13be19904b21a69ab0",
+  "title": "Recognize completion-due payments when a scope finishes",
+  "updated_at": "2026-10-28T00:40:02.983Z",
+  "updated_by": "generator",
+  "data": {
+    "id": "platform_reconcile_obligation_recognition_plan",
+    "sort_order": 7,
+    "enabled": true,
+    "title": "Recognize completion-due payments when a scope finishes",
+    "customer_visible": false,
+    "event": "work.plan.completed",
+    "conditions": {},
+    "automation": "payments.reconcileRecognition.v1",
+    "input": {}
+  }
+}

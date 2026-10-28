@@ -1,0 +1,81 @@
+{
+  "kind": "terminology_namespace",
+  "id": "reports",
+  "revision": 1,
+  "sha256": "705d79503bf319a09ab393b4e6d382ed25ea56de8feca37a2fab9ae05a9dfa21",
+  "title": "Reports",
+  "updated_at": "2026-10-28T00:40:02.983Z",
+  "updated_by": "generator",
+  "data": {
+    "title": "Reports",
+    "note": "Project and settings report navigation and report records.",
+    "position": 260,
+    "terms": [
+      {
+        "key": "project_tab",
+        "label": "Reports",
+        "kind": "navigation"
+      },
+      {
+        "key": "settings_tab",
+        "label": "Reports",
+        "kind": "navigation"
+      },
+      {
+        "key": "standard_view",
+        "label": "Standard",
+        "kind": "view"
+      },
+      {
+        "key": "customer_view",
+        "label": "Customer",
+        "kind": "view"
+      },
+      {
+        "key": "weather_view",
+        "label": "Weather",
+        "kind": "view"
+      },
+      {
+        "key": "changes_pending_view",
+        "label": "Changes Pending",
+        "kind": "view"
+      },
+      {
+        "key": "support_view",
+        "label": "Support",
+        "kind": "view"
+      },
+      {
+        "key": "report",
+        "label": "Report",
+        "kind": "entity"
+      },
+      {
+        "key": "reports",
+        "label": "Reports",
+        "kind": "entity"
+      },
+      {
+        "key": "measurement",
+        "label": "Measurement",
+        "kind": "entity"
+      },
+      {
+        "key": "result",
+        "label": "Result",
+        "kind": "entity"
+      },
+      {
+        "key": "export",
+        "label": "Export",
+        "kind": "entity"
+      },
+      {
+        "key": "period",
+        "label": "Period",
+        "kind": "entity"
+      }
+    ]
+  }
+}

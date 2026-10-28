@@ -1,0 +1,392 @@
+{
+  "kind": "document_theme",
+  "id": "thm_triangles",
+  "revision": 1,
+  "sha256": "3335ee22472998145a3d604b43351294f3054f280dcabc2d64a6735739133728",
+  "title": "Triangles",
+  "updated_at": "2026-10-28T00:40:02.983Z",
+  "updated_by": "generator",
+  "data": {
+    "name": "Triangles",
+    "description": "Corner triangle accents with a bold cover treatment.",
+    "definition": {
+      "name": "Triangles",
+      "tokens": {
+        "colors": {
+          "primary": {
+            "from": "org.branding.colors.primary",
+            "fallback": "#2563EB"
+          },
+          "secondary": {
+            "from": "org.branding.colors.secondary",
+            "fallback": "#bfdbfe"
+          },
+          "accent": {
+            "from": "org.branding.colors.secondary",
+            "fallback": "#bfdbfe"
+          },
+          "accent_soft": "color-mix(in srgb, var(--fm-accent) 34%, transparent)",
+          "text": "#111827",
+          "muted": "#667085",
+          "paper": "#ffffff"
+        },
+        "fonts": {
+          "display": "\"Montserrat\", \"Trebuchet MS\", \"Helvetica Neue\", Helvetica, Arial, sans-serif",
+          "body": "\"Montserrat\", \"Segoe UI\", \"Helvetica Neue\", Helvetica, Arial, sans-serif"
+        },
+        "spacing": {
+          "page_margin_pt": 40,
+          "page_margin_top_pt": 40,
+          "page_margin_right_pt": 40,
+          "page_margin_bottom_pt": 40,
+          "page_margin_left_pt": 40,
+          "gap_pt": 12
+        }
+      },
+      "type_styles": {
+        "h1": {
+          "family": "var(--fm-display-font)",
+          "size_pt": 26,
+          "weight": 800,
+          "color": "var(--fm-text)"
+        },
+        "h2": {
+          "family": "var(--fm-display-font)",
+          "size_pt": 16,
+          "weight": 800,
+          "color": "var(--fm-text)"
+        },
+        "body": {
+          "family": "var(--fm-body-font)",
+          "size_pt": 11,
+          "weight": 400,
+          "color": "var(--fm-text)"
+        },
+        "caption": {
+          "family": "var(--fm-body-font)",
+          "size_pt": 8.5,
+          "weight": 600,
+          "color": "var(--fm-color-muted)"
+        },
+        "legal": {
+          "family": "var(--fm-body-font)",
+          "size_pt": 7.5,
+          "weight": 400,
+          "color": "var(--fm-color-muted)"
+        }
+      },
+      "page_masters": [
+        {
+          "id": "m_triangles_cover",
+          "match": {
+            "role": "cover"
+          },
+          "chrome": [
+            {
+              "id": "nd_e0uefm2hv0u3",
+              "type": "shape",
+              "name": "",
+              "frame": {
+                "x": 0,
+                "y": 0,
+                "w": 245,
+                "h": 230,
+                "rotation": 0,
+                "z": 0,
+                "layout": "absolute",
+                "constraints": {
+                  "h": "left",
+                  "v": "top"
+                }
+              },
+              "style": {
+                "fill": {
+                  "type": "solid",
+                  "color": "var(--fm-color-accent-soft)"
+                }
+              },
+              "locks": {},
+              "bind": null,
+              "visible": true,
+              "props": {
+                "shape": "polygon",
+                "points": [
+                  {
+                    "x": 0,
+                    "y": 0
+                  },
+                  {
+                    "x": 1,
+                    "y": 0
+                  },
+                  {
+                    "x": 0,
+                    "y": 1
+                  }
+                ],
+                "d": null,
+                "corner_radius": 0
+              }
+            },
+            {
+              "id": "nd_e0uefie9hsg4",
+              "type": "shape",
+              "name": "",
+              "frame": {
+                "x": 0,
+                "y": 0,
+                "w": 178,
+                "h": 182,
+                "rotation": 0,
+                "z": 1,
+                "layout": "absolute",
+                "constraints": {
+                  "h": "left",
+                  "v": "top"
+                }
+              },
+              "style": {
+                "fill": {
+                  "type": "solid",
+                  "color": "var(--fm-primary)"
+                }
+              },
+              "locks": {},
+              "bind": null,
+              "visible": true,
+              "props": {
+                "shape": "polygon",
+                "points": [
+                  {
+                    "x": 0,
+                    "y": 0
+                  },
+                  {
+                    "x": 1,
+                    "y": 0
+                  },
+                  {
+                    "x": 0,
+                    "y": 1
+                  }
+                ],
+                "d": null,
+                "corner_radius": 0
+              }
+            },
+            {
+              "id": "nd_e0uefxr3wce5",
+              "type": "shape",
+              "name": "",
+              "frame": {
+                "x": 477,
+                "y": 617,
+                "w": 135,
+                "h": 175,
+                "rotation": 0,
+                "z": 0,
+                "layout": "absolute",
+                "constraints": {
+                  "h": "left",
+                  "v": "top"
+                }
+              },
+              "style": {
+                "fill": {
+                  "type": "solid",
+                  "color": "var(--fm-color-accent-soft)"
+                }
+              },
+              "locks": {},
+              "bind": null,
+              "visible": true,
+              "props": {
+                "shape": "polygon",
+                "points": [
+                  {
+                    "x": 1,
+                    "y": 0
+                  },
+                  {
+                    "x": 1,
+                    "y": 1
+                  },
+                  {
+                    "x": 0,
+                    "y": 1
+                  }
+                ],
+                "d": null,
+                "corner_radius": 0
+              }
+            }
+          ],
+          "content_inset": {
+            "top": 160,
+            "left": 64,
+            "right": 64,
+            "bottom": 72
+          }
+        },
+        {
+          "id": "m_triangles_body",
+          "match": {
+            "role": "*"
+          },
+          "chrome": [
+            {
+              "id": "nd_e0uefxsukek6",
+              "type": "shape",
+              "name": "",
+              "frame": {
+                "x": 0,
+                "y": 0,
+                "w": 220,
+                "h": 80,
+                "rotation": 0,
+                "z": 0,
+                "layout": "absolute",
+                "constraints": {
+                  "h": "left",
+                  "v": "top"
+                }
+              },
+              "style": {
+                "fill": {
+                  "type": "solid",
+                  "color": "var(--fm-primary)"
+                }
+              },
+              "locks": {},
+              "bind": null,
+              "visible": true,
+              "props": {
+                "shape": "polygon",
+                "points": [
+                  {
+                    "x": 0,
+                    "y": 0
+                  },
+                  {
+                    "x": 1,
+                    "y": 0
+                  },
+                  {
+                    "x": 0,
+                    "y": 1
+                  }
+                ],
+                "d": null,
+                "corner_radius": 0
+              }
+            },
+            {
+              "id": "nd_e0uefjuyedq7",
+              "type": "shape",
+              "name": "",
+              "frame": {
+                "x": 332,
+                "y": 652,
+                "w": 280,
+                "h": 140,
+                "rotation": 0,
+                "z": 0,
+                "layout": "absolute",
+                "constraints": {
+                  "h": "left",
+                  "v": "top"
+                }
+              },
+              "style": {
+                "fill": {
+                  "type": "solid",
+                  "color": "var(--fm-color-accent-soft)"
+                }
+              },
+              "locks": {},
+              "bind": null,
+              "visible": true,
+              "props": {
+                "shape": "polygon",
+                "points": [
+                  {
+                    "x": 1,
+                    "y": 0
+                  },
+                  {
+                    "x": 1,
+                    "y": 1
+                  },
+                  {
+                    "x": 0,
+                    "y": 1
+                  }
+                ],
+                "d": null,
+                "corner_radius": 0
+              }
+            },
+            {
+              "id": "nd_e0uefna6w6e8",
+              "type": "shape",
+              "name": "",
+              "frame": {
+                "x": 462,
+                "y": 642,
+                "w": 150,
+                "h": 150,
+                "rotation": 0,
+                "z": 1,
+                "layout": "absolute",
+                "constraints": {
+                  "h": "left",
+                  "v": "top"
+                }
+              },
+              "style": {
+                "fill": {
+                  "type": "solid",
+                  "color": "var(--fm-primary)"
+                }
+              },
+              "locks": {},
+              "bind": null,
+              "visible": true,
+              "props": {
+                "shape": "polygon",
+                "points": [
+                  {
+                    "x": 1,
+                    "y": 0
+                  },
+                  {
+                    "x": 1,
+                    "y": 1
+                  },
+                  {
+                    "x": 0,
+                    "y": 1
+                  }
+                ],
+                "d": null,
+                "corner_radius": 0
+              }
+            }
+          ],
+          "content_inset": {
+            "top": 104,
+            "left": 64,
+            "right": 64,
+            "bottom": 104
+          }
+        }
+      ],
+      "widget_skins": {
+        "doc.line_items": {
+          "header_fill": "var(--fm-primary)",
+          "header_color": "#ffffff"
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,153 @@
+{
+  "kind": "document_workflow",
+  "id": "wfl_kitchen_selections",
+  "revision": 1,
+  "sha256": "01556581040c4de43403332eb66c9826c2d53190bf9df7218e3b766c303a0880",
+  "title": "Kitchen finish selections",
+  "updated_at": "2026-10-28T00:40:02.983Z",
+  "updated_by": "generator",
+  "data": {
+    "name": "Kitchen finish selections",
+    "description": "Customer chooses allowance materials per group, reviews the delta, and signs; upgrades bill on the next invoice.",
+    "status": "archived",
+    "seeding": "with_template",
+    "definition": {
+      "schema_version": 1,
+      "name": "Kitchen finish selections",
+      "contract": {
+        "params": {
+          "project": {
+            "type": "entity",
+            "entity": "project"
+          },
+          "customer": {
+            "type": "entity",
+            "entity": "contact"
+          },
+          "reason": {
+            "type": "text"
+          },
+          "scope_items": {
+            "type": "list",
+            "items": {
+              "type": "pricebook_line"
+            },
+            "required": true,
+            "label": "Allowance options"
+          },
+          "payment_schedule": {
+            "type": "payment_schedule"
+          }
+        },
+        "outputs": {
+          "selections": {
+            "type": "select",
+            "required": true,
+            "applies": "scope_selections",
+            "label": "Material selections"
+          },
+          "sig_customer": {
+            "type": "signature",
+            "required": true,
+            "signer": "customer"
+          },
+          "payment": {
+            "type": "payment"
+          }
+        }
+      },
+      "steps": [
+        {
+          "id": "st_prepare",
+          "title": "Prepare selections",
+          "audience": [
+            "internal",
+            "field"
+          ],
+          "items": [
+            {
+              "kind": "line_items_review",
+              "writes": "params.scope_items",
+              "required": true,
+              "label": "Allowance options",
+              "description": "Each group's standard option is covered by the allowance; upgrade prices are the delta the customer pays."
+            }
+          ]
+        },
+        {
+          "id": "st_choose",
+          "title": "Choose your materials",
+          "audience": [
+            "internal",
+            "field",
+            "customer"
+          ],
+          "items": [
+            {
+              "kind": "choice_group",
+              "writes": "outputs.selections",
+              "required": true,
+              "label": "Choose your materials",
+              "description": "Standard options are covered by your allowances. Upgrade prices are added to your next invoice.",
+              "options_from": "scope_items",
+              "presentation": {
+                "style": "cards"
+              }
+            }
+          ]
+        },
+        {
+          "id": "st_review",
+          "title": "Review",
+          "kind": "review",
+          "audience": [
+            "internal",
+            "field",
+            "customer"
+          ],
+          "items": [
+            {
+              "kind": "review",
+              "presentation": {
+                "live": true
+              }
+            }
+          ],
+          "preview": {
+            "template_ref": "tpl_kitchen_selections",
+            "live": true
+          }
+        },
+        {
+          "id": "st_sign",
+          "title": "Approve selections",
+          "audience": [
+            "customer",
+            "field"
+          ],
+          "items": [
+            {
+              "kind": "signature",
+              "writes": "outputs.sig_customer",
+              "required": true,
+              "label": "Approve your selections",
+              "description": "Signing approves the materials above; any upgrade total is added to your payment schedule."
+            }
+          ]
+        }
+      ],
+      "audiences": {
+        "internal": {},
+        "field": {},
+        "customer": {
+          "theme": "portal",
+          "hide_steps": [
+            "st_prepare"
+          ]
+        }
+      }
+    },
+    "metadata": {},
+    "pricebook_defaults": []
+  }
+}

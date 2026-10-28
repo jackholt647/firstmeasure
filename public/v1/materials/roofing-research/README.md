@@ -1,6 +1,16 @@
 # Roofing catalog research (2026)
 
-[roofing-catalog-2026.json](roofing-catalog-2026.json) is source data for the
+> The research files that used to sit here are config library entries now
+> ([config library](../../../../docs/architecture/config-library.md)):
+> `pricebook_setup/roofing.catalog` (was `roofing-catalog-2026.json`),
+> `pricebook_setup/roofing.components` (was `roof-type-components-2026.json`),
+> `pricebook_setup/roofing.suppliers` (was `roofing-suppliers-2026.json`), and the
+> 2026-10-12 library `material_library/roofing` (was `roofing-library-data.ts`).
+> Each keeps the schema described below. Replace or extend them on dev through the
+> library (same fields); nothing else needs to change. This file stays as the
+> record of how the research was done.
+
+The roofing research catalog is source data for the
 guided price book setup for roofing companies. It covers the eight major US
 residential asphalt shingle manufacturers, their logos, their product lines
 and system accessories, common non-brand items, labor and service lines,
@@ -9,8 +19,7 @@ multipliers. Every figure cites a source.
 
 Researched 2026-10-24. The guided price book setup
 ([pricebook/setups/roofing.ts](../../pricebook/setups/roofing.ts)) reads it. It
-is also input for extending
-[roofing-library-data.ts](../roofing-library-data.ts).
+is also input for extending the roofing material library.
 
 ## What is in it
 

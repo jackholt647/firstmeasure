@@ -9,7 +9,8 @@ import Fastify from "fastify";
 test("operator user targeting keeps FirstMeasure defaults and blocks direct platform APIs", async t => {
   const root = await mkdtemp(path.join(os.tmpdir(), "platform-audience-"));
   const url = process.env.TEST_POSTGRES_URL;
-  Object.assign(process.env, { FIRSTMATE_ENV: "test", PLATFORM_STORAGE_ROOT: root,
+  // The signup preset and flag defaults are config library entries, written here, so the library reads its store.
+  Object.assign(process.env, { FIRSTMATE_ENV: "test", PLATFORM_STORAGE_ROOT: root, CONFIG_LIBRARY_SOURCE: "store",
     FIRSTMEASURE_DATABASE_MODE: url ? "postgres" : "local", DATABASE_URL: url || "",
     POSTGRES_POOL_MAX: "1", POSTGRES_AUTO_MIGRATE: "false", PLATFORM_HEARTBEAT_DISABLED: "1",
     PLATFORM_SESSION_SECRET: "isolated-rollout-fixture-secret", EMAIL_OUTBOUND_DISABLED: "1" });
@@ -127,13 +128,14 @@ test("operator user targeting keeps FirstMeasure defaults and blocks direct plat
   assert.equal((await request("GET", `${api}/app-flags`, ownerCookie)).json().effective.platform.expanded_access, false);
   // Even historical global defaults and a full-platform signup preset cannot enroll new customers.
   const { setSignupCapabilityPreset, newOrganizationCapabilityValues } = await import("../platform/capabilities.js");
-  const { newOrganizationAppFlagDefaults } = await import("../platform/app_flags.js");
-  await setSignupCapabilityPreset("full_platform");
+  const { newOrganizationAppFlagDefaults, saveNewOrganizationAppFlagOverrides } = await import("../platform/app_flags.js");
+  const operatorAuthor = { kind: "person" as const, id: "operator@1m8.test" };
+  await setSignupCapabilityPreset("full_platform", operatorAuthor);
   assert.equal((await newOrganizationCapabilityValues())["platform.expanded_access"], false);
-  await storage.mutatePlatformConfiguration("app_flag_defaults", () => ({ app_flags: { platform: { expanded_access: true, more_apps: true } } }));
+  await saveNewOrganizationAppFlagOverrides({ app_flags: { platform: { expanded_access: true, more_apps: true } } }, operatorAuthor);
   assert.equal((await newOrganizationAppFlagDefaults()).platform?.expanded_access, false);
   assert.equal((await newOrganizationAppFlagDefaults()).platform?.more_apps, false);
-  await storage.mutatePlatformConfiguration("app_flag_defaults", () => ({ app_flags: { platform: { expanded_access: true, money: true, connections: true, left_column_settings: true }, apps: { assistant: true, notifications: true }, money: { merchant_processing: true } } }));
+  await saveNewOrganizationAppFlagOverrides({ app_flags: { platform: { expanded_access: true, money: true, connections: true, left_column_settings: true }, apps: { assistant: true, notifications: true }, money: { merchant_processing: true } } }, operatorAuthor);
   const cleanSignup = await newOrganizationAppFlagDefaults();
   for (const [group,flag] of [["platform","money"],["platform","connections"],["platform","left_column_settings"],["apps","assistant"],["apps","notifications"],["money","merchant_processing"]]) assert.equal(cleanSignup[group!]?.[flag!], false, `${group}.${flag}`);
   const fullPresetSignup = await newOrganizationCapabilityValues();

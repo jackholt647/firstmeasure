@@ -6,6 +6,8 @@ A template carries its display metadata, proposal fields, and the complete work-
 
 The scope library is a canonical catalog separate from installed scope instances. A catalog template remains selectable after installation; selecting it creates a new scope with copied board behavior, automations, fields, resources, and checklists. Copies record `library_template_id` / `based_on_preset` provenance without modifying the source template.
 
+The presets themselves are [config library](../../../docs/architecture/config-library.md) entries of the kind `scope_template` (`config-library/kinds/scope_template.ts`), edited as data on dev; `scopes/library.ts` reads them. Each organization's copy records `metadata.library_stamp` (entry revision and sha256) and keeps `metadata.preset: true` until it is edited; an untouched copy of an older entry is replaced by the current one on the next read (`ensureDefaultScopeTemplates`), an edited copy only by a reset (`orgCopies.reset`).
+
 ## The automation engine around scopes
 
 - **Event catalog**: every platform event is registered in `public/v1/work/events.ts` with a description and a visibility (`activity` = human-relevant, shown in the activity feeds at `/v1/work/organizations/:orgId/activity` and `.../projects/:projectId/activity`; `system` = machinery, stored and automatable but hidden from feeds). All events persist in the work event store with actor attribution.

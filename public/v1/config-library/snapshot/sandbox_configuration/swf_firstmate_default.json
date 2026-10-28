@@ -1,0 +1,58 @@
+{
+  "kind": "sandbox_configuration",
+  "id": "swf_firstmate_default",
+  "revision": 1,
+  "sha256": "d83efa016b45a347511bb2df3f5f70c47fbda0c21cb95d4c4cde164065d4c460",
+  "title": "FirstMate default signup",
+  "updated_at": "2026-10-28T00:40:02.983Z",
+  "updated_by": "generator",
+  "data": {
+    "title": "FirstMate default signup",
+    "description": "The current production FirstMate flow rebuilt as a sandbox workflow: landing -> signup -> branding -> users -> credits/checkout -> enter app.",
+    "entry_mode": "landing_first",
+    "onboarding_mode": "",
+    "stages": [
+      {
+        "id": "stg_fm_landing",
+        "page_id": "spg_firstmate_landing",
+        "notes": "Optional marketing front door."
+      },
+      {
+        "id": "stg_fm_signup",
+        "page_id": "spg_firstmate_signup",
+        "notes": "Skipped by sandbox test instances."
+      },
+      {
+        "id": "stg_fm_branding",
+        "page_id": "spg_firstmate_branding",
+        "notes": ""
+      },
+      {
+        "id": "stg_fm_users",
+        "page_id": "spg_firstmate_users",
+        "notes": "Skipped on mobile in the real wizard."
+      },
+      {
+        "id": "stg_fm_account_load",
+        "page_id": "spg_firstmate_account_load",
+        "notes": ""
+      }
+    ],
+    "tags": [
+      "template",
+      "firstmate"
+    ],
+    "sample_data": false,
+    "launch_sample_data": [],
+    "dev_bar": true,
+    "app_flags_base": "new_organization",
+    "defaults": {
+      "app_flags": {},
+      "settings": {},
+      "scope_flags": {}
+    },
+    "terminology": {},
+    "role_app_options": {},
+    "setup": []
+  }
+}

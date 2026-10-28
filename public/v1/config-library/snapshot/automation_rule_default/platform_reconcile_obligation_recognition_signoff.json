@@ -1,0 +1,20 @@
+{
+  "kind": "automation_rule_default",
+  "id": "platform_reconcile_obligation_recognition_signoff",
+  "revision": 1,
+  "sha256": "a2084cc732f2297624552af6b219debd9ccc2bf054d3421e1bc60fd0c22ad34b",
+  "title": "Recognize completion-due payments on customer sign-off",
+  "updated_at": "2026-10-28T00:40:02.983Z",
+  "updated_by": "generator",
+  "data": {
+    "id": "platform_reconcile_obligation_recognition_signoff",
+    "sort_order": 8,
+    "enabled": true,
+    "title": "Recognize completion-due payments on customer sign-off",
+    "customer_visible": false,
+    "event": "project.completion.signed",
+    "conditions": {},
+    "automation": "payments.reconcileRecognition.v1",
+    "input": {}
+  }
+}

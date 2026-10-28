@@ -23,20 +23,19 @@ and validation — nothing in this module reimplements it.
 | `pdf.ts` | Playwright pipeline generalized from `proposals/pdf.ts` (`renderDocumentPdf({ html, paper })`, waits for `window.__fmdocReady`) + pdf-lib fallback |
 | `render.ts` | `buildRenderHarnessHtml` — inlines doc-model/doc-renderer/doc-widgets sources + payload JSON, boots `FMDocRenderer` in static mode; clear error if the renderer libraries are not built yet |
 | `ingestion.ts` | v1 upload pipeline: media store → `source:"uploaded"` instance in `needs_review`; `registerDocumentExtractor` hook (LLM pass not wired yet), filename/type heuristic fallback |
-| `seeds.ts` | `ensureDefaultDocumentAssets(orgId)` — seeds the Margin/Triangles/Clean page styles and the preset templates and workflows; unedited presets upgrade by `preset_revision`, and ids in `RETIRED_TEMPLATE_IDS` are archived |
+| `library-copies.ts` | Organizations' copies of the document defaults, which are config library entries (`document_theme`, `document_template`, `document_workflow`, `presentation_deck`; docs/architecture/config-library.md). `ensureDefaultDocumentAssets(orgId)` makes or upgrades every organization's copies; `ensureLibraryTemplate` makes an `on_request` template (a scope's own, the Operations scope of work) when it is asked for. A copy records the library stamp it came from; an untouched copy follows the library, an edited one is left alone until reset; an entry the library no longer has retires its untouched copies. Brand colors (themes), price book rates (`pricebook_defaults`) and the deck a workflow presents are applied when the copy is made |
 | `account.ts` | The project account for production documents. A template that declares `account: { type: "object", source: "project_account" }` gets `params.account` (contract, change orders, paid, balance, the open payments) from the project receivables, plus what its type derives: a change order new total and amount due on approval, an invoice lines and amount due, a certificate final payment. Refreshed until the document is sent, then frozen. Also: an invoice marks what it bills due when sent, and a payment made from one of these documents pays the receivables it bills |
-| `production-templates.ts` | Change order, invoice and completion certificate: layouts and workflows. `metadata.system: true` on a seed (payment receipt, payroll report) keeps it out of the New document picker |
-| `template-kit.ts` | Builders for seeded templates: each page is one `page_region: "body"` flow frame fitted to the page style's margins (`FMDocModel.themePageMargins`), with content stacked inside it. Rows share width through `frame.grow`. Never author page coordinates in a seeded template |
 | `api.ts` | `registerDocumentsApi(app)` — all routes below; proposals-style auth (`requirePlatformAuth`, CSRF), `view_projects` for reads/instance writes, `manage_company_settings` for template/theme writes; public routes token-only |
 
 ## Page styles and margins
 
 Authored coordinates are final: the renderer never moves content into a
 theme's safe area. Margins are document data, held by the page-region frames.
-Seeded templates start fitted to their own style; choosing another style
+Library templates start fitted to their own style (each page one `page_region: "body"` flow frame inside the style's margins; never author page coordinates in a default); choosing another style
 re-fits the regions with `FMDocModel.pageSetupOverrides(doc, theme)` (the Docs
-tab Theme menu) or the editor's Page setup dialog. `tpl_one_page_legal` is the
-one preset still laid out in absolute coordinates.
+tab Theme menu) or the editor's Page setup dialog. `metadata.system: true` on a
+library template (payment receipt, payroll report, purchase order) keeps it out
+of the New document picker.
 
 ## Routes
 
