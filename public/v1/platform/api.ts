@@ -197,6 +197,7 @@ import {
 import { badRequest, conflict, forbidden, notFound } from "./errors.js";
 import { attachRealtimeConnection, pollRealtimeEvents, realtimeWatchList, registerRealtimeChannelKind, resolveRealtimeChannels } from "./realtime.js";
 import { registerLiveAssetsChannel } from "./live_assets.js";
+import { registerDevPushChannel } from "../development/dev-push-status.js";
 import { organizationUserProfileFields, organizationUserProfileView } from "./user_profile.js";
 import { runTerminologyAgent } from "./terminology_agent.js";
 import { activeResourceGroupIdsForUser, assignedProjectIdsForUser } from "../workforce/assignment_scope.js";
@@ -2770,6 +2771,8 @@ app.get("/auth/google/config", async () => ({
 
   // `watch=live-assets`: development only, files from the live layer (docs/architecture/live-layer.md).
   registerLiveAssetsChannel();
+  // `watch=dev-push`: development only, the dev push router's status for the dev console (docs/architecture/dev-console.md).
+  registerDevPushChannel();
 
   app.get("/organizations/:orgId/events/stream", async (request, reply) => {
     const orgId = getParam(request.params, "orgId");

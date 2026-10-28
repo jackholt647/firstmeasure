@@ -1,6 +1,6 @@
 // On a phone everything in the top bar opens from the bottom, as the project window's trays do: the More (⋯) menu
-// is a bottom sheet (or, with topbar.phone_menu "top", a dropdown at the top right), messages, notifications,
-// To Do and development tools are bottom sheets one at a time, and the assistant is the project window's agent bar
+// is a bottom sheet (or, with topbar.phone_menu "top", a dropdown at the top right), messages, notifications and
+// To Do are bottom sheets one at a time, and the assistant is the project window's agent bar
 // on the person's main conversation. Desktop is unchanged (docs/architecture/app-experience.md, "The mobile top bar").
 import assert from 'node:assert/strict';
 import test from 'node:test';
@@ -88,7 +88,6 @@ async function openShell(browser, viewport, { mobile = true, placement = 'bottom
   });
   await page.goto('https://shell.test/');
   await page.waitForFunction(() => document.querySelector('.mobile-topbar')?.classList.contains('topbar-enabled'));
-  await page.evaluate(async () => { await (await import('/libraries/development-tools/development-tools.js')).mount(); });
   return { context, page, errors };
 }
 
@@ -117,7 +116,7 @@ test('phone: the More menu opens at the top right with separate primary-colored 
       assert.ok(Math.abs(dropdown.right - (viewport.width - 10)) < 1 && dropdown.width <= 300, JSON.stringify(dropdown));
       assert.ok(dropdown.bottom < viewport.height - 100, 'a dropdown, not a sheet');
       assert.equal(await top.page.locator('#mobilePlatformMoreMenu .ptb-sheet-grip').isVisible(), false);
-      assert.deepEqual(await top.page.locator('#mobilePlatformMoreMenu .ptb-more-item:visible span').allTextContents(), ['AI Assistant', 'To Do', 'Messages', 'Notifications', 'Development']);
+      assert.deepEqual(await top.page.locator('#mobilePlatformMoreMenu .ptb-more-item:visible span').allTextContents(), ['AI Assistant', 'To Do', 'Messages', 'Notifications']);
       assert.equal(await top.page.locator('#mobilePlatformMoreMenu .ptb-sheet-close').count(), 0);
       assert.equal(await top.page.locator('#mobilePlatformMoreBtn').getAttribute('aria-label'), 'Close');
       assert.ok(dropdown.width <= 228);
@@ -140,7 +139,7 @@ test('phone: the More menu opens at the top right with separate primary-colored 
   } finally { await browser.close(); }
 });
 
-test('phone: messages, notifications, To Do and development tools open as bottom sheets, one at a time, and slide away', async () => {
+test('phone: messages, notifications and To Do open as bottom sheets, one at a time, and slide away', async () => {
   const browser = await launch();
   try {
     for (const viewport of [{ width: 390, height: 844 }, { width: 360, height: 740 }]) {
@@ -148,8 +147,7 @@ test('phone: messages, notifications, To Do and development tools open as bottom
       const sheets = [
         { item: '#mobilePlatformMoreMessages', id: 'mobilePlatformMessagesMenu', title: 'Messages', content: 'Hi there' },
         { item: '#mobilePlatformMoreNotifications', id: 'mobilePlatformNotificationMenu', title: 'Notifications', content: 'Roof measured' },
-        { item: '#mobilePlatformMoreTodos', id: 'mobilePlatformTodoSheet', title: 'To Do', content: 'Call Jane' },
-        { item: '[data-dev-mobile]', id: 'mobilePlatformDevSheet', title: 'Development tools', content: 'Add synthetic data' }
+        { item: '#mobilePlatformMoreTodos', id: 'mobilePlatformTodoSheet', title: 'To Do', content: 'Call Jane' }
       ];
       for (const { item, id, title, content } of sheets) {
         await openFromMore(page, item);
@@ -168,9 +166,8 @@ test('phone: messages, notifications, To Do and development tools open as bottom
         assert.ok(await popoverOpen(page, id) && midway.top < viewport.height, `${title} animates closed`);
         await page.waitForFunction((key) => !document.getElementById(key).matches(':popover-open'), id);
       }
-      // The To Do list and the development tools go back where they were.
+      // The To Do list goes back where it was.
       assert.equal(await page.locator('#platformTodoTray .fm-todo-body').count(), 1);
-      assert.equal(await page.locator('body > .fm-dev-window:not(.fm-dev-in-sheet)').count(), 1);
       assert.equal(await page.locator('#mobilePlatformMoreTodos').getAttribute('aria-expanded'), 'false');
 
       // Opening one sheet puts away another.
@@ -273,11 +270,6 @@ test('desktop is unchanged: dropdowns under the top bar, the assistant window, t
     assert.equal(await page.locator('#mobilePlatformTodoSheet').count(), 0);
     await shot(page, 'desktop-todo-1600');
     await page.locator('#platformTodoBtn').click();
-    await page.getByRole('button', { name: 'Development tools', exact: true }).first().click();
-    await page.locator('.fm-dev-window').waitFor();
-    const dev = await rect(page, '.fm-dev-window');
-    assert.ok(dev.top > 40 && dev.top < 120 && dev.right > 1500, JSON.stringify(dev));
-    assert.equal(await page.locator('.fm-dev-window.fm-dev-in-sheet').count(), 0);
     assert.deepEqual(errors, []);
   } finally { await browser.close(); }
 });

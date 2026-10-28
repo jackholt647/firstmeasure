@@ -49,7 +49,7 @@ roll out as below to make it permanent; the layer then retires those files by it
   before going on, or the override reverts other people's work on dev for the user.
 - Changes to `public/v1/**`, PHP or HTML pages are listed under "needs a dev rollout": tell the user they will not
   appear until shipped. Guided experience steps and targets are server definitions; copy is editable live
-  with the GX pill.
+  from the dev console's Guided experiences section.
 - Keep a running list in your replies of what changed, file by file. Git is the record (`git diff --stat`,
   `git status`).
 

@@ -2479,7 +2479,6 @@ session_write_close();
   <script src="../libraries/apps/people/people-home.js?v=<?= portalAssetVersion('../libraries/apps/people/people-home.js') ?>"></script>
   <script src="../libraries/apps/people/people-settings.js?v=<?= portalAssetVersion('../libraries/apps/people/people-settings.js') ?>"></script>
   <script src="../libraries/apps/settings/company.js?v=<?= portalAssetVersion('../libraries/apps/settings/company.js') ?>"></script>
-  <script src="scripts/dev_overlay.js?v=<?= portalAssetVersion('scripts/dev_overlay.js') ?>"></script>
   <script src="../libraries/apps/promo-inject/app.js?v=<?= portalAssetVersion('../libraries/apps/promo-inject/app.js') ?>"></script>
   <script src="../libraries/apps/referrals/app.js?v=<?= portalAssetVersion('../libraries/apps/referrals/app.js') ?>"></script>
 

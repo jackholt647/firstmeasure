@@ -403,6 +403,7 @@ async function receiveEvent(event, data) {
     known.clear();
     for (const [path, sha] of Object.entries(data?.files || {})) known.set(path, sha);
     window.FirstMateLiveAssets = { files: () => Object.fromEntries(known), apply, frames, loadedUrls, diagnostics: () => recent.map((entry) => ({ ...entry })) };
+    window.dispatchEvent(new CustomEvent('fm:live-assets', { detail: { event } }));
     if (removed.length) await applyChanges(removed);
     await verify();
     if (Number.isFinite(nextGeneration)) generation = nextGeneration;
@@ -410,6 +411,8 @@ async function receiveEvent(event, data) {
   }
   if (event !== 'changed' || !Array.isArray(data?.files)) return;
   for (const { path, sha } of data.files) { if (sha) known.set(path, sha); else known.delete(path); }
+  // The dev console's Live layer section redraws on this.
+  window.dispatchEvent(new CustomEvent('fm:live-assets', { detail: { event, files: data.files } }));
   await applyChanges(data.files);
   if (Number.isFinite(nextGeneration)) generation = nextGeneration;
 }

@@ -15,7 +15,7 @@ fixed password `test1234`; the whole module answers 404 when `env.isProduction`.
 |---|---|
 | Backend module | `public/v1/signup-sandbox/{api,service,storage}.ts`, mounted at `/v1/signup-sandbox` in `public/v1/src/app.ts` |
 | Builder UI | `public/portal/signup-sandbox/index.php` (+ `sandbox.js`, `sandbox.css`) |
-| Injected dev bar | `public/portal/signup-sandbox/devbar.js`, included by `public/portal/index.php`; renders only when the session org is a sandbox test org |
+| Test run runner and dev console loader | `public/portal/signup-sandbox/devbar.js`, included by `public/portal/index.php`; runs the stages when the session org is a sandbox test org and loads the [dev console](architecture/dev-console.md), whose Test run section lists them |
 | Stage overlay (placeholder-page host) | Rendered by `devbar.js` inside the real portal at `/portal/?sbx_stage=<index>` — there is no separate runner page. |
 | Agent-built pages | `public/portal/signup-sandbox/pages/<page_id>/page.js` (contract in `pages/README.md`) |
 | Sandbox data | `./storage/signup-sandbox/{workflows,pages,test_orgs}/<id>.json` (relative to `public/v1`) |
@@ -39,28 +39,28 @@ fixed password `test1234`; the whole module answers 404 when `env.isProduction`.
   cookies), records it in the test-org registry, and lands you **directly on
   the real surface of the first actionable stage** — the actual portal
   onboarding wizard (`/portal/?onboarding=1`) when that stage is a builtin
-  wizard step, or the dev-bar stage overlay (`?sbx_stage=<n>`) when the page has no real surface yet.
+  wizard step, or the stage overlay (`?sbx_stage=<n>`) when the page has no real surface yet.
   Password is always `test1234`.
-- **Dev bar** — `devbar.js` is included on every signup surface (portal
+- **Test run** — `devbar.js` is included on every signup surface (portal
   `index.php`, `login.php`, the landing router) and asks `GET
   /current-instance` whether the logged-in org is a sandbox test org. If so it
-  injects a thin light-themed bar along the bottom of the screen (the wizard
-  overlay is raised to sit above it) with one pill per stage. Placeholder and
+  runs the stages, and the Test run section of the
+  [dev console](architecture/dev-console.md) (which `devbar.js` loads on every
+  development page) lists one row per stage. Placeholder and
   bundle pages render as a full-screen stage overlay inside the portal
   (`?sbx_stage=<index>`, wizard hidden while it's up; Continue records
-  `complete-stage` and advances). Every other pill goes to the stage's REAL
+  `complete-stage` and advances). Every other stage opens its REAL
   surface: wizard steps call the wizard's own `goToPage` in place (slide
   animation, no reload — `wizard.js` exposes `goToPage`/`currentPage`/
   `pageIndexForName` on `Portal.modules.onboarding_wizard`); from another
-  surface the target is `/portal/?onboarding=1&sbx_step=<name>` and the bar
+  surface the target is `/portal/?onboarding=1&sbx_step=<name>` and the runner
   jumps the wizard after boot. Landing stages open
   `/portal/landing/?variant=<builtin_ref>` (real landing page), signup stages
-  open `/portal/login.php`. The current surface's pill is highlighted (700ms
-  poll of wizard state); completed stages are checked (`onboarding_completed`
+  open `/portal/login.php`. The current surface's stage is marked Showing (700ms
+  poll of wizard state); completed stages are marked Done (`onboarding_completed`
   for wizard steps, `complete-stage` records for overlay stages); entry stages
-  are italic (already satisfied, still viewable). × hides it for the tab
-  session. For non-test orgs — and in production, where the API is dead — it
-  renders nothing.
+  say they are already satisfied (still viewable). For non-test orgs it runs
+  nothing, and in production, where the API is dead, it loads nothing.
 
 ## Data model (schema_version 1)
 
@@ -208,7 +208,7 @@ direction; ids never collide because they are random.
 | `GET /workflows/:id/projection` | Settings projection: baseline → per-stage `state_after` → `final_state`. |
 | `POST /test-orgs/:id/apply-stage/:stageId` | Apply a stage's literal effects to the test org. |
 | `POST /test-orgs/:id/complete-stage/:stageId` | Record a stage done on the instance (+ apply effects when the page is a placeholder); the dev-bar overlay calls this on Continue. |
-| `GET /current-instance` | Resolve the session's org to a sandbox instance (test org + stages with jump `target`s + completion). Powers the dev bar; `instance: null` for non-test orgs. |
+| `GET /current-instance` | Resolve the session's org to a sandbox instance (test org + stages with jump `target`s + completion). Powers the test run; `instance: null` for non-test orgs. |
 | `GET /test-orgs/:id/run-state` | Same payload for a specific instance. |
 | `POST /pages`, `PATCH /pages/:id`, `DELETE /pages/:id[?force=true]` | Page CRUD. Delete 409s if a workflow references the page unless forced. |
 | `POST /pages/:id/variant` | Clone a page as a placeholder variant. |
@@ -302,8 +302,11 @@ scripts it runs in `setup_scripts`; the sandbox runs them after creating a test
 organization, and they change it only through the platform's ordinary writers.
 Whether a workflow's test organizations can take development sample data is
 the workflow field `sample_data`, not a list of workflow ids.
-Whether the test-run bar shows in its test organizations is `dev_bar` (off for
-the MVP platform and Instant full org). A configuration module sets
+Whether the test run drives its test organizations' stages (advancing after
+branding, reloading when the wizard closes, `sbx_stage`/`sbx_step` links) is
+`dev_bar` (off for the MVP platform and Instant full org, which run as a
+customer would see them); the dev console's Test run section lists the stages
+either way. A configuration module sets
 `configuration_revision`; when the file's revision is higher than the saved
 workflow's, the next seed replaces the saved workflow with the file's, so raise
 it whenever the configuration file changes.

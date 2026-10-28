@@ -83,7 +83,7 @@ it. The extension checks every override is in its own folder before redirecting;
 
 - Server code (`public/v1/**`), PHP and static HTML pages, and anything a page's HTML inlines need a rollout.
   `status` lists them. Guided experience **definitions** (steps, targets, eligibility) are server data; their copy
-  can be edited live with the GX pill (guided-experiences.md, "Development"), their players and widgets
+  can be edited live from the dev console's Guided experiences section (guided-experiences.md, "Development"), their players and widgets
   (`public/libraries/guided-experiences/*`) through the bridge.
 - A script served from the extension is cross-origin to the page: `window.onerror` sees "Script error." for its
   exceptions. DevTools and `console` still show them (the console recorder keeps `console.error` text).

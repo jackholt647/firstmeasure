@@ -562,6 +562,15 @@ connections per site across all tabs, and each extra stream silently starves
 ordinary requests. Run `tests/realtime-single-stream.test.ts` and
 `tests/view-presence-client.test.mjs` for changes here.
 
+## Dev console
+
+Read [dev console](docs/architecture/dev-console.md) before adding a development
+control to a page. Every development control is a section of the one dev console
+tray (`public/libraries/dev-console`), shown only to the development tools audience
+on development; do not add another floating pill, bar, dropdown or hidden shortcut.
+Run `tests/dev-console.test.ts`, `tests/guided-experiences-flow-browser.test.mjs`
+and `tests/development-layers-browser.test.mjs` for changes here.
+
 ## Session replay
 
 Read [session replay](docs/architecture/session-replay.md) before changing what
