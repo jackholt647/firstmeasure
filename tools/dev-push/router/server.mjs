@@ -18,7 +18,7 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 import { ROUTER_REPO_PATH, parseArgs, run } from "../lib/common.mjs";
 import { makeHosts } from "./hosts.mjs";
 import { Router } from "./router.mjs";
-import { liveOverlays } from "./live.mjs";
+import { liveOverlays, receiverClient } from "./live.mjs";
 import { makeFleet } from "./fleet.mjs";
 
 const HOME = process.env.DEV_PUSH_HOME || path.join(os.homedir(), "dev-push");
@@ -69,7 +69,8 @@ async function main() {
     host: os.hostname(),
     // Every web node holds the status document (nginx serves it at /__dev-push/status.json on each).
     publish: config.publish === false ? null : async (doc) => {
-      const roles = hosts.roles.filter((role) => role === "web" || role.startsWith("web-"));
+      // A web node the fleet check found down is skipped until it answers again (or is dropped).
+      const roles = hosts.roles.filter((role) => (role === "web" || role.startsWith("web-")) && !hosts.down?.has(role));
       const results = await Promise.all(roles.map((role) => hosts.call(role, ["publish"], { input: JSON.stringify(doc), timeoutMs: 60_000 })));
       const failed = results.map((result, index) => (result.ok ? null : `${roles[index]}: ${result.error}`)).filter(Boolean);
       if (failed.length) throw new Error(failed.join("; "));
@@ -91,7 +92,7 @@ async function main() {
   });
   await router.init();
   // Fleet state first: it says which node is the primary web node and which pool members were adopted.
-  const fleet = makeFleet({ router, hosts, log: (line) => router.log("fleet", line) });
+  const fleet = makeFleet({ router, hosts, receiver: config.live === false ? null : (ip) => receiverClient({ knownHosts: path.join(HOME, "known_hosts"), target: `fmlive@${ip}` }), log: (line) => router.log("fleet", line) });
   // Hold every lane's queue (announced to submitters) or lift the hold; the running router reads the file each pass.
   if (command === "hold") {
     const reason = args._.slice(1).join(" ") || "dev maintenance in progress";

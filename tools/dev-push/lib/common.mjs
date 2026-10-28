@@ -93,4 +93,7 @@ export function parseArgs(argv) {
   return args;
 }
 
+/** A dev web node: "web" (the primary) or an adopted pool member "web-<id>". The pool removes members at any time. */
+export const isWebRole = (role) => role === "web" || role.startsWith("web-");
+
 export const TERMINAL = new Set(["live", "rejected", "superseded", "withdrawn", "passed", "failed"]);

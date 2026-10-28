@@ -346,7 +346,9 @@ const PLATFORM_PUBLIC = "/opt/firstmeasure/current/public";
 const PUBLIC_URL = process.env.DEV_PUSH_PUBLIC_URL || "https://dev.1m8.ai";
 // legacy serves the editor; web and worker Node render shared PDFs from it
 // (FIRSTMEASURE_EDITOR_RUNTIME_ROOT in the router's release.env).
+// Adopted dev pool members ("web-<id>", docs/architecture/dev-lanes.md "New web nodes") are web nodes too.
 const ROLES = ["legacy", "web", "worker"];
+const laneRoles = (hosts) => hosts.roles.filter((role) => ROLES.includes(role) || role.startsWith("web-"));
 
 /**
  * The lane's release tree for `sha` in `out`: public/measure/internal from the
@@ -455,12 +457,16 @@ export default {
   // Stages the tree on every role, lints the changed PHP inside the staged
   // release on legacy, activates legacy, web and worker, checks dev.1m8.ai
   // serves it, and puts every role back if anything fails.
-  async deploy({ dir, sha, hosts, log = () => {} }) {
+  // onlyRoles: the router brings one new pool member to the lane's current release.
+  async deploy({ dir, sha, hosts, log = () => {}, onlyRoles = null }) {
     const began = Date.now();
     // Flat "<step>[:<role>]" keys, like the platform lane's (the router prefixes them with "deploy:").
     const timings = {};
-    const roles = ROLES.filter((role) => hosts.roles.includes(role));
+    let roles = onlyRoles || laneRoles(hosts);
     const before = Object.fromEntries(await Promise.all(roles.map(async (role) => [role, await hosts.status(role, LANE.name)])));
+    // A pool member that no longer answers was removed by the autoscale pool: the release goes ahead without it.
+    const gone = onlyRoles ? [] : roles.filter((role) => role.startsWith("web-") && !before[role].ok);
+    if (gone.length) { log(`leaving out ${gone.join(", ")}: it does not answer (the pool may have removed it)`); roles = roles.filter((role) => !gone.includes(role)); }
     const broken = roles.filter((role) => !before[role].ok);
     if (broken.length) return { ok: false, error: `status failed: ${broken.map((role) => `${role}: ${before[role].error}`).join("; ")}`, rolledBack: true, infrastructure: true, timings };
     const previous = Object.fromEntries(roles.map((role) => [role, before[role].lanes?.[LANE.name]?.current || null]));
@@ -527,7 +533,7 @@ export default {
   },
 
   async current({ hosts }) {
-    const roles = ROLES.filter((role) => hosts.roles.includes(role));
+    const roles = laneRoles(hosts);
     const statuses = await Promise.all(roles.map((role) => hosts.status(role, LANE.name)));
     return Object.fromEntries(roles.map((role, index) => [role, statuses[index].lanes?.[LANE.name]?.current || null]));
   }

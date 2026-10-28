@@ -10,7 +10,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { createRequire } from "node:module";
-import { LANES, laneOf, run } from "../../lib/common.mjs";
+import { LANES, isWebRole, laneOf, run } from "../../lib/common.mjs";
 import { ALWAYS, COMMANDS, AREAS, testsFor } from "./test-map.mjs";
 import { buildDist as transpileDist, transpileSource } from "./transpile.mjs";
 import { missingReferences } from "./references.mjs";
@@ -212,9 +212,21 @@ export default {
   async deploy({ dir, sha, releaseId, previous: previousRelease = null, hosts, log, buildOnly = false, stageOnly = false, onlyRoles = null, releaseName = null }) {
     const timings = {};
     let at = Date.now();
-    const roles = onlyRoles || hosts.roles.filter((role) => !role.startsWith("pending-")); // onlyRoles: bring one new pool member to the current release
+    let roles = onlyRoles || hosts.roles.filter((role) => !role.startsWith("pending-")); // onlyRoles: bring one new pool member to the current release
     const before = Object.fromEntries(await Promise.all(roles.map(async (role) => [role, await hosts.status(role, "platform", sha)])));
     timings.status = since(at);
+    // The autoscale pool removes web nodes whenever it likes: one that no longer answers is left out of this release
+    // while another web node takes it (the fleet check brings a returning node up to date, or drops it).
+    const leftOut = [];
+    const leaveOut = (gone) => {
+      if (onlyRoles || !gone.length || !gone.every(isWebRole) || !roles.some((role) => isWebRole(role) && !gone.includes(role))) return false;
+      log(`leaving out ${gone.join(", ")}: it does not answer (the pool may have removed it)`);
+      leftOut.push(...gone);
+      roles = roles.filter((role) => !gone.includes(role));
+      return true;
+    };
+    const stillThere = async (list) => (await Promise.all(list.map((role) => hosts.status(role, "platform")))).map((status, index) => (status.ok ? null : list[index])).filter(Boolean);
+    leaveOut(roles.filter((role) => !before[role].ok));
     const broken = roles.filter((role) => !before[role].ok);
     if (broken.length) return { ok: false, error: `status failed: ${broken.map((role) => `${role}: ${before[role].error}`).join("; ")}`, rolledBack: true, infrastructure: true, timings };
     // The release directory is named for the commit, or <commit>-dp where the old tooling already made one of that
@@ -305,8 +317,13 @@ export default {
       timings[`transfer:${role}`] = since(started);
       return result;
     }));
-    const stageErrors = roles.filter((_, index) => !staged[index].ok);
-    if (stageErrors.length) return { ok: false, error: `staging failed: ${stageErrors.map((role) => `${role}: ${JSON.stringify(staged[roles.indexOf(role)])}`).join("; ")}`, rolledBack: true, infrastructure: true, timings };
+    const stagedBy = Object.fromEntries(roles.map((role, index) => [role, staged[index]]));
+    const stageErrors = roles.filter((role) => !stagedBy[role].ok);
+    if (stageErrors.length) {
+      const error = `staging failed: ${stageErrors.map((role) => `${role}: ${JSON.stringify(stagedBy[role])}`).join("; ")}`;
+      const gone = await stillThere(stageErrors);
+      if (gone.length !== stageErrors.length || !leaveOut(gone)) return { ok: false, error, rolledBack: true, infrastructure: true, timings };
+    }
     // PHP that changed is linted on a host (the router host has no PHP); a failure stops the release before activation.
     const php = previousRelease?.sha ? (await run("git", ["diff", "--name-only", "--diff-filter=AM", previousRelease.sha, sha, "--", "*.php"], { cwd: dir })).stdout.split("\n").filter(Boolean).slice(0, 200) : [];
     if (php.length && hosts.check) {
@@ -316,7 +333,7 @@ export default {
       // A lint answer names files; anything else (the host refused or was unreachable) is the router's problem.
       if (!checked.ok) return checked.output ? { ok: false, error: `PHP lint failed:\n${tail(checked.output, 3000)}`, rolledBack: true, timings } : { ok: false, error: `PHP lint could not run: ${checked.error}`, rolledBack: true, infrastructure: true, timings };
     }
-    if (stageOnly) return { ok: true, name, staged: Object.fromEntries(roles.map((role, index) => [role, staged[index]])), timings };
+    if (stageOnly) return { ok: true, name, staged: Object.fromEntries(roles.map((role) => [role, stagedBy[role]])), timings };
 
     log(`activating ${name} on ${roles.join(", ")}`);
     const previous = Object.fromEntries(roles.map((role) => [role, before[role].lanes.platform.current]));
@@ -327,6 +344,15 @@ export default {
       return result;
     }));
     let failed = roles.filter((_, index) => !activated[index].ok);
+    // A web node that vanished during activation is left out; the release stands on the others.
+    if (failed.length && failed.every(isWebRole)) {
+      const gone = await stillThere(failed);
+      if (gone.length === failed.length && roles.some((role) => isWebRole(role) && !gone.includes(role))) {
+        log(`leaving out ${gone.join(", ")}: it stopped answering during activation (the pool may have removed it)`);
+        leftOut.push(...gone);
+        failed = [];
+      }
+    }
     if (!failed.length) {
       at = Date.now();
       const publicError = await waitPublic(serverId);
@@ -344,8 +370,10 @@ export default {
       const notBack = back.filter((item) => !item.ok);
       return { ok: false, error: errors + (notBack.length ? `\nROLLBACK FAILED on ${notBack.map((item) => `${item.role}: ${item.error}`).join("; ")}` : ""), rolledBack: notBack.length === 0, timings };
     }
+    const activatedBy = Object.fromEntries(roles.map((role, index) => [role, activated[index]]));
+    roles = roles.filter((role) => !leftOut.includes(role));
     Promise.all(roles.map((role) => hosts.prune(role, { lane: "platform" }))).then((results) => log(`pruned old releases: ${results.map((result, index) => `${roles[index]} ${result.removed ?? result.error}`).join(", ")}`)).catch(() => {});
-    return { ok: true, name, server: serverId, keptServer: keepServer, timings, roles: Object.fromEntries(roles.map((role, index) => [role, { previous: previous[role], tree_sha256: staged[index].tree_sha256, reused: Boolean(activated[index].reused) }])) };
+    return { ok: true, name, server: serverId, keptServer: keepServer, timings, ...(leftOut.length ? { left_out: leftOut } : {}), roles: Object.fromEntries(roles.map((role) => [role, { previous: previous[role], tree_sha256: stagedBy[role].tree_sha256, reused: Boolean(activatedBy[role].reused) }])) };
   },
 
   async current({ hosts }) {

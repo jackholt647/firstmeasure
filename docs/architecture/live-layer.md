@@ -25,10 +25,14 @@ node tools/live-layer/live-sync.mjs clear      # take this checkout's files out 
   public half `.pub` beside it) and on the droplet. It can only run the receiver. To work from another machine,
   copy that pair into its `~/.ssh/`, or create a key there and authorize it: copy
   `tools/live-layer/fm-live-receive.py` and `install-web.sh` to dev web and run
-  `install-web.sh fm-live-receive.py "<its .pub line>"` as root (adds the key; keeps the others).
+  `install-web.sh fm-live-receive.py "<its .pub line>"` as root (adds the key; keeps the others). Dev web is an
+  autoscale pool built from an image: a key added this way reaches only the nodes it was added on, so prefer the
+  existing pair.
 - **Options.** `--root <checkout>`, `--base <ref>` (default the canonical branch), `--source <name>` (who owns
   the files; default `<host>:<checkout path>`), `--jump dev-sync-droplet` if the machine cannot reach dev web's
-  SSH directly, `--key`, `--target` (default `fmlive@143.198.68.11`).
+  SSH directly, `--key`, `--target` (one receiver only). Without `--target` the sync sends each save to every dev
+  web node the dev push router lists in its status document and follows the pool as it changes
+  ([dev lanes](dev-lanes.md), "New web nodes").
 - **Finish.** Commit, roll out to dev and integrate into canonical as usual; the layer retires the files.
 
 ## Parts

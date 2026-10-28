@@ -33,6 +33,8 @@ export class Router {
     this.lanes = options.lanes;
     this.ssh = options.ssh;
     this.paused = new Set();
+    this.retryAt = {}; // lane -> when to try a release again after a host could not be reached
+    this.retryWait = {};
     this.laneState = {};
     this.stopped = false;
     fs.mkdirSync(path.join(this.stateDir, "releases"), { recursive: true });
@@ -447,8 +449,16 @@ export class Router {
       this.log(lane, `deploy ${releaseId} failed: ${deployed.error}`);
       if (accepted.length === 1 && deployed.rolledBack && !deployed.infrastructure) {
         await this.reject(accepted[0], "deploy-failed", `The release built from your merge did not come up on dev and was rolled back:\n${deployed.error}`);
+      } else if (deployed.infrastructure && deployed.rolledBack) {
+        // A host did not answer (the pool replacing a node, a network blip) and nothing changed: try again by itself,
+        // 1, 2, 4 ... up to 15 minutes later. The queue keeps its order; nobody has to resume the lane.
+        await this.update(accepted, { state: "queued", release: null });
+        const wait = this.retryWait[lane] || 60_000;
+        this.retryWait[lane] = Math.min(wait * 2, 15 * 60_000);
+        this.retryAt[lane] = Date.now() + wait;
+        await this.setLane(lane, { state: "waiting", batch: [], note: `deploy ${releaseId} could not reach a host; trying again in ${Math.round(wait / 1000)} s: ${trim(deployed.error, 400)}` });
       } else {
-        // Infrastructure or a batch: stop the lane for a person to look; nothing is lost, the queue stays.
+        // A batch, or a release not rolled back: stop the lane for a person to look; nothing is lost, the queue stays.
         await this.update(accepted, { state: "queued", release: null });
         this.paused.add(lane);
         this.writeJson("paused.json", [...this.paused]);
@@ -457,6 +467,7 @@ export class Router {
       return true;
     }
 
+    delete this.retryWait[lane];
     const push = await timed("push", () => this.git(["push", "--quiet", "origin", `${final.sha}:refs/heads/${module.branch}`], { allowFail: true }));
     timings.batch_total = Date.now() - batchStarted;
     timings.queue_wait_max = Math.max(0, ...accepted.map((entry) => batchStarted - Date.parse(entry.submitted_at)).filter(Number.isFinite));
@@ -528,8 +539,10 @@ export class Router {
         if (this.laneState[lane].state !== "held") await this.setLane(lane, { state: "held", note: `hold: ${this.hold.reason}` });
       } else if (this.hold && lane === "regression") {
         // waits too
+      } else if (this.retryAt[lane] > Date.now()) {
+        // waiting to retry a release a host could not take
       } else if (!this.paused.has(lane)) {
-        if (this.lanes[lane] && this.laneState[lane].state === "held") await this.setLane(lane, { state: "idle", note: null });
+        if (this.lanes[lane] && ["held", "waiting"].includes(this.laneState[lane].state)) await this.setLane(lane, { state: "idle", note: null });
         try { busy = lane === "regression" ? await this.processRegression() : await this.processLane(lane, { overlaysOnly: Boolean(this.hold) }); }
         catch (error) {
           this.log(lane, `error: ${error.stack || error.message}`);
