@@ -68,6 +68,8 @@ export function run(file, args, { cwd, env, input, encoding = "utf8", maxBuffer 
     const child = execFile(file, args, { cwd, env: env ? { ...process.env, ...env } : process.env, encoding, maxBuffer, timeout, windowsHide: true }, (error, stdout, stderr) => {
       resolve({ code: error ? (typeof error.code === "number" ? error.code : 1) : 0, stdout, stderr: String(stderr || (error && !stderr ? error.message : "")) });
     });
+    // A child that exits before reading its input (an unreachable host) must not crash the router with EPIPE.
+    child.stdin?.on("error", () => {});
     if (input !== undefined) child.stdin.end(input);
   });
 }
