@@ -112,8 +112,8 @@ before(async () => {
     FIRSTMEASURE_JOB_WORKERS: "0",
     V1_LOG_LEVEL: "error"
   });
-  await mkdir(path.join(process.env.PLATFORM_STORAGE_ROOT!, "config"), { recursive: true });
-  await writeFile(path.join(process.env.PLATFORM_STORAGE_ROOT!, "config", "app_flag_defaults.json"), JSON.stringify({ data: { app_flags: FLAGS } }));
+  // New organizations' app flags are the config library entry app_flag_defaults/new_organization.
+  await (await import("./helpers/config-library.js")).seedNewOrganizationAppFlags(FLAGS);
   originalFetch = globalThis.fetch;
   globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
     const url = String(input);

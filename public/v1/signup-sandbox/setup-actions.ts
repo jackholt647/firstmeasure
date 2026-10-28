@@ -28,17 +28,15 @@ async function sandboxOwner(ctx: PublicationContext): Promise<PlatformAuthContex
 
 const branchOf = (ctx: PublicationContext, input: Record<string, unknown>) => text(input.branch_id) || ctx.branchId || "default";
 
-/** A scope template to start from: the library's entry when the `scope_template` kind exists, otherwise the preset. */
+/**
+ * A scope template to start from: the library's `scope_template` entry (without its library `sort_order`, which
+ * places presets in the scope library and is not part of the organization's template).
+ */
 async function scopeTemplateSource(id: string): Promise<JsonObject | null> {
-  const { libraryKind } = await import("../config-library/kinds.js");
-  if (libraryKind("scope_template")) {
-    const { libraryCopy } = await import("../config-library/library.js");
-    const copy = libraryCopy<JsonObject>("scope_template", id);
-    if (copy) return copy;
-  }
-  const { DEFAULT_SCOPE_TEMPLATES } = await import("../scopes/presets/index.js");
-  const preset = DEFAULT_SCOPE_TEMPLATES.find((definition) => definition.id === id);
-  return preset ? JSON.parse(JSON.stringify(preset)) as JsonObject : null;
+  const { libraryCopy } = await import("../config-library/library.js");
+  const copy = libraryCopy<JsonObject>("scope_template", id);
+  if (copy) delete copy.sort_order;
+  return copy;
 }
 
 type Step = {
@@ -156,7 +154,8 @@ export function registerSandboxSetupActions() {
       inputSchema: { type: "object", additionalProperties: false, properties: step.input, ...(step.required ? { required: step.required } : {}) },
       outputSchema: { type: "object" },
       effect: "write",
-      executionKinds: ["api"],
+      // Run as the test organization's owner by the sandbox; an agent working in a test organization may run one too.
+      executionKinds: ["api", "agent"],
       idempotency: "required",
       policy: { scopes: ["organization"], permissions: ["manage_company_settings"] },
       execute: async (ctx, _target, input) => step.run(ctx, await sandboxOwner(ctx), input)

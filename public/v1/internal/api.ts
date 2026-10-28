@@ -1,4 +1,3 @@
-import { mutatePlatformConfiguration } from "../platform/storage.js";
 import { countryCode } from "../commerce/regions.js";
 import { countryRecord, organizationCountry, orderPropertyCountry, saveOrganizationCountry } from "../platform/organization_country.js";
 import { profileFromGlobal } from "../commerce/profile.js";
@@ -70,7 +69,8 @@ import {
   upsertDocument
 } from "../platform/storage.js";
 import { authContextFromRequest, buildAuthContext, hashPassword, setPlatformAuthCookies } from "../platform/auth.js";
-import { isAppFlagEnabled } from "../platform/app_flags.js";
+import { isAppFlagEnabled, readNewOrganizationAppFlagDefaultsRecord, saveNewOrganizationAppFlagOverrides } from "../platform/app_flags.js";
+import { personAuthor } from "../platform/capability-library.js";
 import {
   asObject,
   deleteInternalUser,
@@ -965,19 +965,18 @@ export const registerInternalApi: FastifyPluginAsync = async (app) => {
     return { ok: true, success: true, flags: document.data, document };
   });
 
+  // The new-organization flag defaults are the config library entry app_flag_defaults/new_organization
+  // (docs/architecture/config-library.md), in the record shape the old platform configuration document had.
+  app.get("/admin/app-flag-defaults", async (request) => {
+    await requireInternalFeatureFlagAdmin(request);
+    return { ok: true, success: true, defaults: await readNewOrganizationAppFlagDefaultsRecord() };
+  });
+
+  // Saved as a new library revision by this operator; refused where the library is read-only (outside development).
   app.put("/admin/app-flag-defaults", async (request) => {
     const actor = await requireInternalFeatureFlagAdmin(request);
     const body = objectSchema.parse(request.body ?? {});
-    const record = {
-      schema_version: 1,
-      id: "app_flag_defaults",
-      data: {
-        app_flags: asObject(body.app_flags || body.feature_flags || body.flags)
-      },
-      updated_at: new Date().toISOString(),
-      updated_by: cleanText(actor.email).toLowerCase()
-    };
-    await mutatePlatformConfiguration("app_flag_defaults", () => record);
+    const record = await saveNewOrganizationAppFlagOverrides(asObject(body.app_flags || body.feature_flags || body.flags), personAuthor(actor.email));
     return { ok: true, success: true, defaults: record };
   });
 
@@ -2351,10 +2350,6 @@ async function readJsonFile(filePath: string, fallback: unknown = {}) {
 async function writeJsonFile(filePath: string, data: unknown) {
   await mkdir(path.dirname(filePath), { recursive: true });
   await writeFile(filePath, `${JSON.stringify(data, null, 2)}\n`, "utf8");
-}
-
-function platformAppFlagDefaultsConfigPath() {
-  return path.join(path.resolve(process.cwd(), env.platformStorageRoot), "config", "app_flag_defaults.json");
 }
 
 function tutorialDefaultProgress(): JsonObject {

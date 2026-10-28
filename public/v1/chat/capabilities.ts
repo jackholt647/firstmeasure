@@ -12,7 +12,6 @@ registerCapabilities([
     label: "Live Chat",
     description: "Embeddable website live chat, the team chat inbox, and the customer portal chat.",
     catalog_stub: "Website chat and customer conversations.",
-    default: false,
     runtime_app_id: "chat"
   },
   {
@@ -20,16 +19,14 @@ registerCapabilities([
     kind: "feature",
     parent: "apps.live_chat",
     label: "Chat AI Agent",
-    description: "The AI assistant that can front live chat conversations, capture leads, and hand off to the team.",
-    default: false
+    description: "The AI assistant that can front live chat conversations, capture leads, and hand off to the team."
   },
   {
     key: "live_chat.suggested_responses",
     kind: "feature",
     parent: "live_chat.ai_agent",
     label: "Suggested Responses",
-    description: "AI-drafted reply suggestions and composer cleanup inside the team chat inbox.",
-    default: true
+    description: "AI-drafted reply suggestions and composer cleanup inside the team chat inbox."
   },
   {
     key: "permission.view_live_chat",

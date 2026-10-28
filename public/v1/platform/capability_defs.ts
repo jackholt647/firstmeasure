@@ -34,6 +34,11 @@ const NEW_BUTTON_ITEM_OPTIONS: Array<[string, string]> = [
  * `capabilities.ts` (imported for side effect before the API boots); the
  * settings UI, presets, and solver pick new nodes up automatically.
  *
+ * Default values are not declared here: they are the config library entry
+ * capability_defaults/platform (docs/architecture/config-library.md), edited on
+ * dev. A new value capability is off (its minimum, its first option) until that
+ * entry names it.
+ *
  * Value-bearing nodes use two-segment `group.flag` keys because org overrides
  * are stored in the legacy `data.app_flags[group][flag]` document shape.
  * Keys of pre-existing flags MUST NOT change: they are referenced by 26+
@@ -41,7 +46,7 @@ const NEW_BUTTON_ITEM_OPTIONS: Array<[string, string]> = [
  */
 
 const definitions: CapabilityDefinition[] = [
-  {key:"platform.collaboration",kind:"app",label:"Partners",icon:"fa-handshake",category:"Sales & Customers",runtime_app_id:"partners",description:"Authenticated resource sharing and partner relationships.",default:true},
+  {key:"platform.collaboration",kind:"app",label:"Partners",icon:"fa-handshake",category:"Sales & Customers",runtime_app_id:"partners",description:"Authenticated resource sharing and partner relationships."},
   ...([
     ["view_partners","View partners","read","partners","See partner companies, engagements and the documents they send."],
     ["use_external_shares","Use shared work","read","sharing","Open and work on projects and items shared between partners."],
@@ -52,38 +57,37 @@ const definitions: CapabilityDefinition[] = [
     ["view_channels","View shared channels","read","shared_channels","Read channels shared with partners."],
     ["send_channel_messages","Post in shared channels","write","shared_channels","Post messages in channels shared with partners."]
   ] as const).map(([key,label,access,permission_group,description])=>({key:`permission.${key}`,kind:"permission" as const,parent:"platform.collaboration",permission_key:key,access,permission_group,label,description})),
-  { key: "platform.platform_billing", kind: "feature", label: "Platform Billing", description: "Platform subscriptions, usage, storage charges and invoices.", default: true },
+  { key: "platform.platform_billing", kind: "feature", label: "Platform Billing", description: "Platform subscriptions, usage, storage charges and invoices." },
   { key: "permission.view_platform_billing", kind: "permission", parent: "platform.platform_billing", permission_key: "view_platform_billing", access: "read", permission_group: "billing", label: "View platform billing", description: "See platform subscriptions, usage and invoices." },
   { key: "permission.manage_platform_billing", kind: "permission", parent: "platform.platform_billing", permission_key: "manage_platform_billing", access: "write", permission_group: "billing", label: "Manage platform billing", description: "Accept platform pricing, cancel subscriptions and pay platform invoices." },
-  { key: "mobile.app_download", kind: "feature", label: "App Download", description: "Show mobile app download links in Settings.", default: false },
-  { key: "mobile.developer_downloads", kind: "feature", label: "Mobile Test Downloads", description: "Allow private test builds on development deployments only.", requires: ["mobile.app_download"], default: false },
+  { key: "mobile.app_download", kind: "feature", label: "App Download", description: "Show mobile app download links in Settings." },
+  { key: "mobile.developer_downloads", kind: "feature", label: "Mobile Test Downloads", description: "Allow private test builds on development deployments only.", requires: ["mobile.app_download"] },
   {
     key: "firstmeasure.new_report_project",
     kind: "setting",
     type: "select",
     label: "New Reports Start New Projects",
     description: "Automatically skip project selection when New Report is the primary button. Override to always start a new project or always show the project picker.",
-    default: "auto",
     options: [["auto", "Automatic (follow New button)"], ["on", "On (start a new project)"], ["off", "Off (choose a project)"]]
   },
-  { key: "firstmeasure.metric_measurements", kind: "feature", label: "Metric Measurements", description: "Default new reports to metric measurements.", default: false },
-  { key: "firstmeasure.report_localization", kind: "feature", label: "Platform Language and Units", description: "Allow Company settings to customize platform language, report language and measurement units, with optional personal interface language.", default: true },
-  { key: "firstmeasure.exteriors", kind: "feature", label: "Full House Reports", description: "Allow customers to order full-house exterior measurements with mandatory reference photos.", default: false },
-  { key: "firstmeasure.exteriors_photo_review_test", kind: "feature", label: "Full House Photo Review Test", description: "Non-production only: preview review without photos. Does not bypass order validation.", requires: ["firstmeasure.exteriors"], default: false },
-  { key: "firstmeasure.exteriors_commercial", kind: "feature", label: "Commercial Full House Reports", description: "Allow full-house ordering for commercial properties.", requires: ["firstmeasure.exteriors"], default: false },
-  { key: "firstmeasure.exteriors_multifamily", kind: "feature", label: "Multifamily Full House Reports", description: "Allow full-house ordering for multifamily properties.", requires: ["firstmeasure.exteriors"], default: false },
-  { key: "firstmeasure.materials_promo", kind: "feature", label: "Materials Coming Soon Promo", description: "Pilot a Materials advertising tab in projects. Hidden when the real Materials app is enabled; does not grant platform access.", default: false },
-  { key: "platform.expanded_access", kind: "feature", label: "Expanded Platform Access", description: "Operator-controlled access to platform apps beyond FirstMeasure.", default: false },
-  { key: "platform.more_apps", kind: "feature", label: "More Apps", description: "Shows the app catalog and discovery controls.", requires: ["platform.expanded_access"], default: false },
-  { key: "platform.my_settings", kind: "feature", label: "My Settings", description: "Personal language and appearance preferences in Settings.", requires: ["platform.expanded_access"], default: false },
-  { key: "platform.left_column_settings", kind: "feature", label: "Personal Left Column Settings", category: "Platform & Appearance", description: "Show personal left-column width, tabs, resizing and layout controls in My Settings.", default: false },
-  { key: "platform.connections", kind: "feature", label: "Connections", category: "Platform & Appearance", description: "External connections, credentials, published data, webhooks and connection automations.", default: false },
-  { key: "platform.company_extended_palette", kind: "feature", label: "Extended Company Palette", description: "Supporting brand colors and palette generation.", requires: ["platform.expanded_access"], default: false },
-  { key: "platform.company_business_address", kind: "feature", label: "Company Business Address", description: "Business address fields in company settings.", requires: ["platform.expanded_access"], default: false },
-  { key: "platform.company_advanced_logos", kind: "feature", label: "Advanced Company Logos", description: "Alternate logos and advanced logo appearance controls.", requires: ["platform.expanded_access"], default: false },
-  { key: "platform.people_access", kind: "feature", label: "Platform People & Access", description: "Use the platform people, workforce and access management UI instead of the familiar FirstMeasure Users screen.", requires: ["platform.expanded_access"], default: false },
+  { key: "firstmeasure.metric_measurements", kind: "feature", label: "Metric Measurements", description: "Default new reports to metric measurements." },
+  { key: "firstmeasure.report_localization", kind: "feature", label: "Platform Language and Units", description: "Allow Company settings to customize platform language, report language and measurement units, with optional personal interface language." },
+  { key: "firstmeasure.exteriors", kind: "feature", label: "Full House Reports", description: "Allow customers to order full-house exterior measurements with mandatory reference photos." },
+  { key: "firstmeasure.exteriors_photo_review_test", kind: "feature", label: "Full House Photo Review Test", description: "Non-production only: preview review without photos. Does not bypass order validation.", requires: ["firstmeasure.exteriors"] },
+  { key: "firstmeasure.exteriors_commercial", kind: "feature", label: "Commercial Full House Reports", description: "Allow full-house ordering for commercial properties.", requires: ["firstmeasure.exteriors"] },
+  { key: "firstmeasure.exteriors_multifamily", kind: "feature", label: "Multifamily Full House Reports", description: "Allow full-house ordering for multifamily properties.", requires: ["firstmeasure.exteriors"] },
+  { key: "firstmeasure.materials_promo", kind: "feature", label: "Materials Coming Soon Promo", description: "Pilot a Materials advertising tab in projects. Hidden when the real Materials app is enabled; does not grant platform access." },
+  { key: "platform.expanded_access", kind: "feature", label: "Expanded Platform Access", description: "Operator-controlled access to platform apps beyond FirstMeasure." },
+  { key: "platform.more_apps", kind: "feature", label: "More Apps", description: "Shows the app catalog and discovery controls.", requires: ["platform.expanded_access"] },
+  { key: "platform.my_settings", kind: "feature", label: "My Settings", description: "Personal language and appearance preferences in Settings.", requires: ["platform.expanded_access"] },
+  { key: "platform.left_column_settings", kind: "feature", label: "Personal Left Column Settings", category: "Platform & Appearance", description: "Show personal left-column width, tabs, resizing and layout controls in My Settings." },
+  { key: "platform.connections", kind: "feature", label: "Connections", category: "Platform & Appearance", description: "External connections, credentials, published data, webhooks and connection automations." },
+  { key: "platform.company_extended_palette", kind: "feature", label: "Extended Company Palette", description: "Supporting brand colors and palette generation.", requires: ["platform.expanded_access"] },
+  { key: "platform.company_business_address", kind: "feature", label: "Company Business Address", description: "Business address fields in company settings.", requires: ["platform.expanded_access"] },
+  { key: "platform.company_advanced_logos", kind: "feature", label: "Advanced Company Logos", description: "Alternate logos and advanced logo appearance controls.", requires: ["platform.expanded_access"] },
+  { key: "platform.people_access", kind: "feature", label: "Platform People & Access", description: "Use the platform people, workforce and access management UI instead of the familiar FirstMeasure Users screen.", requires: ["platform.expanded_access"] },
   // Branches and regions (docs/architecture/branches.md). Off: the organization has one implicit branch and nothing about branches shows.
-  { key: "platform.multiple_branches", kind: "feature", category: "Platform & Appearance", label: "Multiple Branches", description: "Run more than one branch, group branches into regions, and limit what people see and manage to their own branches.", requires: ["platform.expanded_access"], default: false },
+  { key: "platform.multiple_branches", kind: "feature", category: "Platform & Appearance", label: "Multiple Branches", description: "Run more than one branch, group branches into regions, and limit what people see and manage to their own branches.", requires: ["platform.expanded_access"] },
   // --- Apps: top-level product surfaces -----------------------------------
   {
     key: "apps.notifications",
@@ -91,8 +95,7 @@ const definitions: CapabilityDefinition[] = [
     icon: "fa-bell",
     category: "Platform & Appearance",
     label: "Notifications",
-    description: "Personal notification preferences and delivery across the portal and phone apps.",
-    default: false
+    description: "Personal notification preferences and delivery across the portal and phone apps."
   },
   {
     key: "apps.projects",
@@ -102,7 +105,6 @@ const definitions: CapabilityDefinition[] = [
     label: "Projects",
     description: "Core project management: project records, viewer, and workflows. Most other apps build on it.",
     catalog_stub: "Projects, workflows, and job records.",
-    default: true,
     runtime_app_id: "projects"
   },
   {
@@ -110,24 +112,21 @@ const definitions: CapabilityDefinition[] = [
     kind: "feature",
     parent: "apps.projects",
     label: "Project Boards",
-    description: "Show project boards, stage grouping, board fields and Manage View controls in My Projects.",
-    default: false
+    description: "Show project boards, stage grouping, board fields and Manage View controls in My Projects."
   },
   {
     key: "platform.project_stages_view",
     kind: "feature",
     parent: "apps.projects",
     label: "Project Stages View",
-    description: "Enables the Stages view mode in the Projects tab.",
-    default: false
+    description: "Enables the Stages view mode in the Projects tab."
   },
   {
     key: "platform.project_assignments",
     kind: "feature",
     parent: "apps.projects",
     label: "Project Assignments",
-    description: "Shows scope-provided assignment fields, such as estimator and project manager, on projects.",
-    default: true
+    description: "Shows scope-provided assignment fields, such as estimator and project manager, on projects."
   },
   {
     key: "apps.project_map",
@@ -135,7 +134,6 @@ const definitions: CapabilityDefinition[] = [
     parent: "apps.projects",
     label: "Project Map",
     description: "Map view of projects and territories.",
-    default: true,
     runtime_app_id: "project-map"
   },
   {
@@ -146,7 +144,6 @@ const definitions: CapabilityDefinition[] = [
     label: "Stats",
     description: "The Stats tab: configurable metric dashboards backed by the cached stats warehouse, plus the conversational stats agent.",
     catalog_stub: "Dashboards, metrics, and insights.",
-    default: true,
     runtime_app_id: "stats"
   },
   {
@@ -154,8 +151,7 @@ const definitions: CapabilityDefinition[] = [
     kind: "feature",
     parent: "apps.stats",
     label: "Stats Agent",
-    description: "The conversational stats analyst that answers questions, renders charts inline, and edits stats dashboards.",
-    default: true
+    description: "The conversational stats analyst that answers questions, renders charts inline, and edits stats dashboards."
   },
   {
     // DEPRECATED (2026-08): the legacy proposals app is superseded by the
@@ -167,7 +163,6 @@ const definitions: CapabilityDefinition[] = [
     category: "Sales & Customers",
     label: "Proposals (Legacy)",
     description: "Deprecated legacy proposal builder. Superseded by Documents — kept only so historical signed proposals stay readable.",
-    default: false,
     discoverable: false,
     runtime_app_id: "proposals"
   },
@@ -177,8 +172,7 @@ const definitions: CapabilityDefinition[] = [
     kind: "feature",
     parent: "platform.proposals",
     label: "Proposal Agent (Legacy)",
-    description: "Shows the AI prompt panel inside the legacy proposal builder.",
-    default: false
+    description: "Shows the AI prompt panel inside the legacy proposal builder."
   },
   {
     key: "platform.lead_import",
@@ -187,24 +181,21 @@ const definitions: CapabilityDefinition[] = [
     category: "Sales & Customers",
     label: "Lead Import",
     description: "Lead intake settings and lead import surfaces.",
-    catalog_stub: "Import and organize incoming leads.",
-    default: false
+    catalog_stub: "Import and organize incoming leads."
   },
   {
     key: "platform.website_embed_import",
     kind: "feature",
     parent: "platform.lead_import",
     label: "Website Forms",
-    description: "The Forms settings tab and website lead intake APIs.",
-    default: false
+    description: "The Forms settings tab and website lead intake APIs."
   },
   {
     key: "lead_forms.contact_form",
     kind: "feature",
     parent: "platform.website_embed_import",
     label: "Lead Forms",
-    description: "Website forms built from question blocks that create leads.",
-    default: false
+    description: "Website forms built from question blocks that create leads."
   },
   {
     key: "lead_forms.appointment_form",
@@ -212,24 +203,21 @@ const definitions: CapabilityDefinition[] = [
     parent: "platform.website_embed_import",
     requires: ["platform.scheduling"],
     label: "Appointment Booking in Forms",
-    description: "The appointment picker block: visitors book an appointment type against live scheduling.",
-    default: false
+    description: "The appointment picker block: visitors book an appointment type against live scheduling."
   },
   {
     key: "lead_forms.instant_estimate",
     kind: "feature",
     parent: "platform.website_embed_import",
     label: "Instant Estimates in Forms",
-    description: "Pricing and property-measurement blocks: forms show a calculated price range on submission.",
-    default: false
+    description: "Pricing and property-measurement blocks: forms show a calculated price range on submission."
   },
   {
     key: "email.inbound_lead_import",
     kind: "feature",
     parent: "platform.lead_import",
     label: "Email Inbox Leads",
-    description: "Inbound email lead capture.",
-    default: false
+    description: "Inbound email lead capture."
   },
   {
     key: "platform.scheduling",
@@ -239,7 +227,6 @@ const definitions: CapabilityDefinition[] = [
     label: "Scheduling",
     description: "The Scheduling tab, scheduling settings, and appointment-slot features.",
     catalog_stub: "Appointments, calendars, and availability.",
-    default: false,
     runtime_app_id: "scheduling"
   },
   {
@@ -250,7 +237,6 @@ const definitions: CapabilityDefinition[] = [
     label: "My Contacts",
     description: "The My Contacts tab for contact and project lookup.",
     catalog_stub: "Customer and project contact lookup.",
-    default: false,
     runtime_app_id: "contacts"
   },
   {
@@ -261,7 +247,6 @@ const definitions: CapabilityDefinition[] = [
     label: "CRM",
     description: "Leads, contacts, follow-ups and appointments as views and worklists, with sources, the funnel and CRM settings.",
     catalog_stub: "Work every lead and customer from saved lists.",
-    default: true,
     runtime_app_id: "crm"
   },
   {
@@ -272,7 +257,6 @@ const definitions: CapabilityDefinition[] = [
     label: "Project Photos",
     description: "Project photo galleries and uploads in New Project and project viewer workflows.",
     catalog_stub: "Project photos, galleries, and uploads.",
-    default: false,
     runtime_app_id: "photos"
   },
   {
@@ -283,7 +267,6 @@ const definitions: CapabilityDefinition[] = [
     label: "Feed",
     description: "The organization-wide media, document, and activity feed, including photo comments and markup review workflows.",
     catalog_stub: "Company posts, media, and activity.",
-    default: false,
     runtime_app_id: "photos_feed"
   },
   {
@@ -294,7 +277,6 @@ const definitions: CapabilityDefinition[] = [
     label: "Project Docs",
     description: "Project document storage, required documents, and document markup workflows.",
     catalog_stub: "Project files, storage, and markup.",
-    default: false,
     runtime_app_id: "docs"
   },
   {
@@ -305,7 +287,6 @@ const definitions: CapabilityDefinition[] = [
     label: "Documents",
     description: "The document engine: templated proposals, invoices, change orders, contracts, and other data-driven documents with print, PDF, and portal delivery.",
     catalog_stub: "Proposals, contracts, and invoices.",
-    default: false,
     runtime_app_id: "documents"
   },
   {
@@ -313,64 +294,56 @@ const definitions: CapabilityDefinition[] = [
     kind: "feature",
     parent: "platform.documents",
     label: "Template Studio",
-    description: "Design and publish document templates and themes for the organization.",
-    default: false
+    description: "Design and publish document templates and themes for the organization."
   },
   {
     key: "platform.manual_project_stage_movement",
     kind: "feature",
     parent: "apps.projects",
     label: "Manual Project Stage Movement",
-    description: "Allows project managers to drag projects between board stages or choose a stage from inside a project.",
-    default: false
+    description: "Allows project managers to drag projects between board stages or choose a stage from inside a project."
   },
   {
     key: "documents.workflow_authoring",
     kind: "feature",
     parent: "documents.templates_studio",
     label: "Workflow Authoring",
-    description: "Create, edit, and publish the guided workflows that collect document params and outputs. Published workflows can still run when authoring is off.",
-    default: false
+    description: "Create, edit, and publish the guided workflows that collect document params and outputs. Published workflows can still run when authoring is off."
   },
   {
     key: "documents.theme_authoring",
     kind: "feature",
     parent: "documents.templates_studio",
     label: "Theme Authoring",
-    description: "Create, edit, and publish document themes. Approved published themes remain available when authoring is off.",
-    default: false
+    description: "Create, edit, and publish document themes. Approved published themes remain available when authoring is off."
   },
   {
     key: "documents.advanced_definition_editing",
     kind: "feature",
     parent: "documents.templates_studio",
     label: "Advanced Document Definitions",
-    description: "Edit raw workflow JSON, advanced conditions, bindings, sources, components, repeaters, and other definition-level controls.",
-    default: false
+    description: "Edit raw workflow JSON, advanced conditions, bindings, sources, components, repeaters, and other definition-level controls."
   },
   {
     key: "documents.custom_folders",
     kind: "feature",
     parent: "documents.templates_studio",
     label: "Custom Studio Folders",
-    description: "Create custom folder tabs (beyond the built-in Marketing folder) in Doc Studio.",
-    default: true
+    description: "Create custom folder tabs (beyond the built-in Marketing folder) in Doc Studio."
   },
   {
     key: "documents.designer_profile",
     kind: "feature",
     parent: "platform.documents",
     label: "Designer Editor",
-    description: "The full free-canvas editor tier (free transform, rotation, shapes, filters, page masters) in document editing surfaces.",
-    default: false
+    description: "The full free-canvas editor tier (free transform, rotation, shapes, filters, page masters) in document editing surfaces."
   },
   {
     key: "documents.esign",
     kind: "feature",
     parent: "platform.documents",
     label: "Document E-Signatures",
-    description: "Signature capture on documents delivered through the customer portal.",
-    default: true
+    description: "Signature capture on documents delivered through the customer portal."
   },
   {
     key: "documents.payments",
@@ -378,24 +351,21 @@ const definitions: CapabilityDefinition[] = [
     parent: "platform.documents",
     requires: ["money.take_payment"],
     label: "Document Payments",
-    description: "Payment collection widgets and payment schedule wiring on documents.",
-    default: true
+    description: "Payment collection widgets and payment schedule wiring on documents."
   },
   {
     key: "documents.agent",
     kind: "feature",
     parent: "platform.documents",
     label: "Document Designer Agent",
-    description: "The AI copilot inside the document editors: builds and edits workflows, templates, and documents conversationally.",
-    default: true
+    description: "The AI copilot inside the document editors: builds and edits workflows, templates, and documents conversationally."
   },
   {
     key: "documents.ingestion",
     kind: "feature",
     parent: "platform.documents",
     label: "Document Ingestion",
-    description: "Upload external files (PDF, images) and extract typed document data from them.",
-    default: false
+    description: "Upload external files (PDF, images) and extract typed document data from them."
   },
   {
     key: "documents.enabled_types",
@@ -404,7 +374,6 @@ const definitions: CapabilityDefinition[] = [
     type: "multi_select",
     label: "Enabled Document Types",
     description: "Which document types can be created and configured. Leave empty to allow every registered type.",
-    default: "",
     options: DOCUMENT_TYPE_OPTIONS
   },
   {
@@ -415,7 +384,6 @@ const definitions: CapabilityDefinition[] = [
     label: "Money",
     description: "Project payment schedules, customer payment tracking, profitability, payables, and disbursements.",
     catalog_stub: "Payments, profitability, and payables.",
-    default: false,
     runtime_app_id: "money"
   },
   {
@@ -426,7 +394,6 @@ const definitions: CapabilityDefinition[] = [
     label: "Pricebook",
     description: "The Pricebook settings tab and editor.",
     catalog_stub: "Products, services, and pricing.",
-    default: false,
     runtime_app_id: "pricebook"
   },
   {
@@ -438,7 +405,6 @@ const definitions: CapabilityDefinition[] = [
     label: "Materials",
     description: "Project material lists, ordering, delivery tracking, and material amendments.",
     catalog_stub: "Material lists, orders, and deliveries.",
-    default: false,
     runtime_app_id: "materials"
   },
   {
@@ -449,7 +415,6 @@ const definitions: CapabilityDefinition[] = [
     label: "Customer Portal",
     description: "Secure per-project customer portal links and portal sharing controls.",
     catalog_stub: "Secure project access for customers.",
-    default: false,
     runtime_app_id: "customer-portal"
   },
   {
@@ -458,8 +423,7 @@ const definitions: CapabilityDefinition[] = [
     parent: "platform.customer_portal",
     requires: ["platform.project_photos"],
     label: "Customer Portal Media",
-    description: "Allows project photos and videos to be shared with customer portal visitors.",
-    default: false
+    description: "Allows project photos and videos to be shared with customer portal visitors."
   },
   {
     key: "canvassing.app",
@@ -469,7 +433,6 @@ const definitions: CapabilityDefinition[] = [
     label: "Canvassing",
     description: "Canvassing settings, canvassing APIs, and the Canvassing tab.",
     catalog_stub: "Territories, field leads, and canvassing.",
-    default: false,
     runtime_app_id: "canvassing"
   },
   {
@@ -480,7 +443,6 @@ const definitions: CapabilityDefinition[] = [
     label: "Calls",
     description: "The Calls tab and call workflow settings.",
     catalog_stub: "Call workflows and phone settings.",
-    default: false,
     runtime_app_id: "calls"
   },
   {
@@ -490,16 +452,14 @@ const definitions: CapabilityDefinition[] = [
     category: "Communications",
     label: "Messaging",
     description: "SMS and messaging workflows, conversations, and communications APIs.",
-    catalog_stub: "Customer texts and conversations.",
-    default: true
+    catalog_stub: "Customer texts and conversations."
   },
   {
     key: "platform.sms_settings",
     kind: "feature",
     parent: "apps.messaging",
     label: "SMS Settings / 10DLC Registration",
-    description: "Shows SMS settings and the 10DLC registration workflow.",
-    default: false
+    description: "Shows SMS settings and the 10DLC registration workflow."
   },
   {
     key: "apps.channels",
@@ -509,7 +469,6 @@ const definitions: CapabilityDefinition[] = [
     label: "Channels",
     description: "Internal team messaging: channels, threads, direct messages, and project messages.",
     catalog_stub: "Team channels, DMs, and project chat.",
-    default: true,
     runtime_app_id: "channels"
   },
   {
@@ -517,56 +476,49 @@ const definitions: CapabilityDefinition[] = [
     kind: "feature",
     parent: "apps.channels",
     label: "Threads",
-    description: "Reply to messages in Slack-style threads.",
-    default: true
+    description: "Reply to messages in Slack-style threads."
   },
   {
     key: "channels.reactions",
     kind: "feature",
     parent: "apps.channels",
     label: "Emoji Reactions",
-    description: "React to messages with emoji.",
-    default: true
+    description: "React to messages with emoji."
   },
   {
     key: "channels.dms",
     kind: "feature",
     parent: "apps.channels",
     label: "Direct Messages",
-    description: "One-on-one and small-group direct messages between teammates.",
-    default: true
+    description: "One-on-one and small-group direct messages between teammates."
   },
   {
     key: "channels.attachments",
     kind: "feature",
     parent: "apps.channels",
     label: "Attachments",
-    description: "Attach files and images to channel messages.",
-    default: true
+    description: "Attach files and images to channel messages."
   },
   {
     key: "channels.pins",
     kind: "feature",
     parent: "apps.channels",
     label: "Pins & Saved Messages",
-    description: "Pin messages to channels and save messages for yourself.",
-    default: true
+    description: "Pin messages to channels and save messages for yourself."
   },
   {
     key: "channels.search",
     kind: "feature",
     parent: "apps.channels",
     label: "Message Search",
-    description: "Full-text search across channel messages.",
-    default: true
+    description: "Full-text search across channel messages."
   },
   {
     key: "channels.project_notes",
     kind: "feature",
     parent: "apps.channels",
     label: "Project Messages",
-    description: "The project notes surfaces run on channels: per-project message threads with replies and history.",
-    default: true
+    description: "The project notes surfaces run on channels: per-project message threads with replies and history."
   },
 
   {
@@ -574,16 +526,14 @@ const definitions: CapabilityDefinition[] = [
     kind: "feature",
     parent: "channels.project_notes",
     label: "Separate project notes and messages",
-    description: "Keep project notes in a Notes tab until explicitly shared to the channel. Turning this off shows the same records as messages.",
-    default: false
+    description: "Keep project notes in a Notes tab until explicitly shared to the channel. Turning this off shows the same records as messages."
   },
   {
     key: "channels.project_messages_tray",
     kind: "feature",
     parent: "channels.project_notes",
     label: "Project Messages Tray",
-    description: "Show the project's message channel as a Messages tray in the project window. Off: the Notes tray stays.",
-    default: true
+    description: "Show the project's message channel as a Messages tray in the project window. Off: the Notes tray stays."
   },
   {
     key: "apps.billing",
@@ -591,7 +541,6 @@ const definitions: CapabilityDefinition[] = [
     category: "Billing & Credits",
     label: "Billing",
     description: "Organization billing, credits, and payment methods.",
-    default: true,
     // System surface, not an optional product — never advertised in the
     // add-apps catalog.
     discoverable: false,
@@ -605,7 +554,6 @@ const definitions: CapabilityDefinition[] = [
     label: "Payroll",
     description: "Payroll settings, pay runs, and compensation workflows.",
     catalog_stub: "Pay runs, compensation, and payroll.",
-    default: true,
     runtime_app_id: "payroll"
   },
   {
@@ -616,7 +564,6 @@ const definitions: CapabilityDefinition[] = [
     label: "Crew",
     description: "Apps for people doing the work: today's jobs, assigned projects, receipts, and on-site workflows.",
     catalog_stub: "Field projects, receipts, and workflows.",
-    default: true,
     runtime_app_id: "crew"
   },
   {
@@ -627,7 +574,6 @@ const definitions: CapabilityDefinition[] = [
     label: "Sales",
     description: "Apps for salespeople: appointments, follow-ups, commissions, and proposal status.",
     catalog_stub: "Appointments, follow-ups, and commissions.",
-    default: true,
     runtime_app_id: "sales"
   },
   {
@@ -638,7 +584,6 @@ const definitions: CapabilityDefinition[] = [
     label: "Checklists",
     description: "Project and crew checklists, completion tracking, and supervision.",
     catalog_stub: "Project and crew task checklists.",
-    default: true,
     runtime_app_id: "checklists"
   },
   {
@@ -649,7 +594,6 @@ const definitions: CapabilityDefinition[] = [
     label: "Training",
     description: "Training courses, the training studio, and role-based assignments.",
     catalog_stub: "Courses, assignments, and training tools.",
-    default: true,
     runtime_app_id: "training"
   },
   {
@@ -660,7 +604,6 @@ const definitions: CapabilityDefinition[] = [
     label: "Equipment",
     description: "Equipment and fleet management: the equipment registry, unit records, and (with its features) scheduling, maintenance, and costing.",
     catalog_stub: "Fleet, equipment, and maintenance.",
-    default: false,
     runtime_app_id: "equipment"
   },
   {
@@ -668,8 +611,7 @@ const definitions: CapabilityDefinition[] = [
     kind: "feature",
     parent: "apps.equipment",
     label: "Equipment Scheduling",
-    description: "Assign equipment to schedule events, generate scope equipment events, and surface availability conflicts.",
-    default: true
+    description: "Assign equipment to schedule events, generate scope equipment events, and surface availability conflicts."
   },
   {
     key: "equipment.requirements",
@@ -677,48 +619,42 @@ const definitions: CapabilityDefinition[] = [
     parent: "apps.equipment",
     requires: ["equipment.scheduling"],
     label: "Equipment Requirements",
-    description: "Scope-driven equipment requirements with unit fulfillment on schedule events.",
-    default: false
+    description: "Scope-driven equipment requirements with unit fulfillment on schedule events."
   },
   {
     key: "equipment.maintenance",
     kind: "feature",
     parent: "apps.equipment",
     label: "Equipment Maintenance",
-    description: "Service programs, work orders, inspections, and downtime blocks for equipment units.",
-    default: true
+    description: "Service programs, work orders, inspections, and downtime blocks for equipment units."
   },
   {
     key: "equipment.meters",
     kind: "feature",
     parent: "equipment.maintenance",
     label: "Equipment Meters",
-    description: "Hour and mileage meter readings, fuel entries, and meter-based service intervals.",
-    default: false
+    description: "Hour and mileage meter readings, fuel entries, and meter-based service intervals."
   },
   {
     key: "equipment.operators",
     kind: "feature",
     parent: "apps.equipment",
     label: "Operator Requirements",
-    description: "Operator certification checks (CDL, certified operator) when equipment is assigned.",
-    default: true
+    description: "Operator certification checks (CDL, certified operator) when equipment is assigned."
   },
   {
     key: "equipment.costing",
     kind: "feature",
     parent: "apps.equipment",
     label: "Equipment Costing",
-    description: "Equipment rates, projected and actual equipment costs on projects, and utilization reporting.",
-    default: false
+    description: "Equipment rates, projected and actual equipment costs on projects, and utilization reporting."
   },
   {
     key: "equipment.custody",
     kind: "feature",
     parent: "apps.equipment",
     label: "Custody Tracking",
-    description: "Check-out / check-in custody tracking and printable unit QR labels.",
-    default: false
+    description: "Check-out / check-in custody tracking and printable unit QR labels."
   },
   {
     key: "apps.feedback",
@@ -727,16 +663,14 @@ const definitions: CapabilityDefinition[] = [
     category: "Sales & Customers",
     label: "Feedback",
     description: "Customer feedback and review requests: branded rating pages, SMS/email invitations, review destinations, and rating capture for stats and automations.",
-    catalog_stub: "Customer ratings and review requests.",
-    default: false
+    catalog_stub: "Customer ratings and review requests."
   },
   {
     key: "feedback.review_requests",
     kind: "feature",
     parent: "apps.feedback",
     label: "Review Requests",
-    description: "Sending feedback / review invitations by SMS and email.",
-    default: true
+    description: "Sending feedback / review invitations by SMS and email."
   },
   {
     key: "feedback.portal_card",
@@ -744,8 +678,7 @@ const definitions: CapabilityDefinition[] = [
     parent: "apps.feedback",
     requires: ["platform.customer_portal"],
     label: "Customer Portal Feedback",
-    description: "Shows the feedback card inside the customer portal.",
-    default: false
+    description: "Shows the feedback card inside the customer portal."
   },
   {
     key: "feedback.portal_reviews",
@@ -753,8 +686,7 @@ const definitions: CapabilityDefinition[] = [
     parent: "apps.feedback",
     requires: ["platform.customer_portal", "web_editor.portal_pages"],
     label: "Customer Portal Reviews",
-    description: "Shows collected customer ratings and review excerpts on designed customer portal pages.",
-    default: false
+    description: "Shows collected customer ratings and review excerpts on designed customer portal pages."
   },
   {
     key: "apps.referrals",
@@ -764,7 +696,6 @@ const definitions: CapabilityDefinition[] = [
     label: "Referrals",
     description: "The referral program app and referral tracking.",
     catalog_stub: "Referral programs and tracking.",
-    default: true,
     runtime_app_id: "referrals"
   },
   {
@@ -775,7 +706,6 @@ const definitions: CapabilityDefinition[] = [
     label: "FirstMeasure",
     description: "FirstMeasure roof measurement reports and related workflows.",
     catalog_stub: "Roof measurements and report workflows.",
-    default: true,
     runtime_app_id: "measurements"
   },
 
@@ -785,88 +715,77 @@ const definitions: CapabilityDefinition[] = [
     kind: "feature",
     parent: "apps.firstmeasure",
     label: "Report Orders",
-    description: "Ordering FirstMeasure roof measurement reports.",
-    default: true
+    description: "Ordering FirstMeasure roof measurement reports."
   },
   {
     key: "firstmeasure.gutter_reports",
     kind: "feature",
     parent: "firstmeasure.report_orders",
     label: "Gutter Reports",
-    description: "Roof and gutter measurement report options.",
-    default: true
+    description: "Roof and gutter measurement report options."
   },
   {
     key: "firstmeasure.weather_reports",
     kind: "feature",
     parent: "firstmeasure.report_orders",
     label: "Historical Weather Reports",
-    description: "Historical severe-weather report ordering and project report tabs.",
-    default: false
+    description: "Historical severe-weather report ordering and project report tabs."
   },
   {
     key: "firstmeasure.measurement_report_summary",
     kind: "feature",
     parent: "firstmeasure.report_orders",
     label: "Measurement Report Summary",
-    description: "The gated roof report summary sub-tab in project reports.",
-    default: true
+    description: "The gated roof report summary sub-tab in project reports."
   },
   {
     key: "firstmeasure.roof_model_viewer",
     kind: "feature",
     parent: "firstmeasure.report_orders",
     label: "Roof Model Viewer",
-    description: "The 3D Model & photos tab for roof-only reports. Full House reports always show it.",
-    default: false
+    description: "The 3D Model & photos tab for roof-only reports. Full House reports always show it."
   },
   {
     key: "firstmeasure.report_expedite_options",
     kind: "feature",
     parent: "firstmeasure.report_orders",
     label: "Report Expedite Options",
-    description: "Customer-facing turnaround choices for report orders.",
-    default: true
+    description: "Customer-facing turnaround choices for report orders."
   },
   {
     key: "firstmeasure.report_cancellations",
     kind: "feature",
     parent: "firstmeasure.report_orders",
     label: "Report Cancellations",
-    description: "Customer cancellation of report orders during the grace period.",
-    default: true
+    description: "Customer cancellation of report orders during the grace period."
   },
   {
     key: "firstmeasure.report_followup",
     kind: "feature",
     parent: "firstmeasure.report_orders",
     label: "Report Follow-up",
-    description: "Customer issue reports, correction requests, additional structure requests, and the Changes Pending tab.",
-    default: false
+    description: "Customer issue reports, correction requests, additional structure requests, and the Changes Pending tab."
   },
   {
     key: "firstmeasure.instant_reports",
     kind: "feature",
     parent: "firstmeasure.report_orders",
     label: "Instant Reports",
-    description: "FirstMeasure instant report options.",
-    default: false
+    description: "FirstMeasure instant report options."
   },
   {
     key: "firstmeasure.bonus_upfront_match",
     kind: "feature",
     parent: "apps.firstmeasure",
     label: "Bonus Upfront Match",
-    description: "The upfront credit match offer.",
-    default: false
+    description: "The upfront credit match offer."
   },
   {
     key: "firstmeasure.referral_program_banner",
     kind: "feature",
     parent: "apps.firstmeasure",
     label: "Referral Program Banner",
-    description: "The customer referral banner.",
-    default: false
+    description: "The customer referral banner."
   },
 
   // --- Sub-features of live apps (default on; presets can strip them) -------
@@ -875,32 +794,28 @@ const definitions: CapabilityDefinition[] = [
     kind: "feature",
     parent: "apps.training",
     label: "Training Studio",
-    description: "Authoring: build and edit training courses. Viewing assigned training stays available without it.",
-    default: true
+    description: "Authoring: build and edit training courses. Viewing assigned training stays available without it."
   },
   {
     key: "training.assignments",
     kind: "feature",
     parent: "apps.training",
     label: "Training Assignments",
-    description: "Assign courses to roles and track completion.",
-    default: true
+    description: "Assign courses to roles and track completion."
   },
   {
     key: "training.quizzes",
     kind: "feature",
     parent: "apps.training",
     label: "Training Quizzes",
-    description: "Quizzes and scoring inside training courses.",
-    default: true
+    description: "Quizzes and scoring inside training courses."
   },
   {
     key: "payroll.pay_runs",
     kind: "feature",
     parent: "apps.payroll",
     label: "Pay Runs",
-    description: "Payroll batches and pay-run history.",
-    default: true
+    description: "Payroll batches and pay-run history."
   },
   {
     key: "payroll.self_service_earnings",
@@ -908,7 +823,6 @@ const definitions: CapabilityDefinition[] = [
     parent: "apps.payroll",
     label: "Self-Service Earnings",
     description: "Crew members can view their own payout history.",
-    default: true,
   },
   {
     key: "crew.time_clock",
@@ -916,15 +830,13 @@ const definitions: CapabilityDefinition[] = [
     parent: "apps.crew",
     label: "Time Clock",
     description: "Field clock in/out, for everyone given the time clock permission.",
-    default: true,
   },
   {
     key: "crew.receipts",
     kind: "feature",
     parent: "apps.crew",
     label: "Field Receipts",
-    description: "Receipt capture from the field and the management receipts review tab.",
-    default: true
+    description: "Receipt capture from the field and the management receipts review tab."
   },
   {
     key: "crew.change_orders",
@@ -932,7 +844,6 @@ const definitions: CapabilityDefinition[] = [
     parent: "apps.crew",
     label: "Field Change Orders",
     description: "Crews can view and manage change orders on assigned projects.",
-    default: true,
   },
   {
     key: "crew.field_payments",
@@ -941,95 +852,83 @@ const definitions: CapabilityDefinition[] = [
     requires: ["platform.money"],
     label: "Field Payments",
     description: "Crews can view and collect customer payments in the field.",
-    default: true,
   },
   {
     key: "checklists.templates",
     kind: "feature",
     parent: "apps.checklists",
     label: "Checklist Authoring",
-    description: "Create and edit checklist templates. Completing assigned checklists stays available without it.",
-    default: true
+    description: "Create and edit checklist templates. Completing assigned checklists stays available without it."
   },
   {
     key: "checklists.supervision",
     kind: "feature",
     parent: "apps.checklists",
     label: "Checklist Supervision",
-    description: "Supervisor review and sign-off on completed checklists.",
-    default: true
+    description: "Supervisor review and sign-off on completed checklists."
   },
   {
     key: "money.profitability",
     kind: "feature",
     parent: "platform.money",
     label: "Profitability & Financials",
-    description: "The Financials tab, profitability overview, and ledger views.",
-    default: true
+    description: "The Financials tab, profitability overview, and ledger views."
   },
   {
     key: "money.payment_schedules",
     kind: "feature",
     parent: "platform.money",
     label: "Payment Schedules",
-    description: "Recurring payment schedules and invoicing.",
-    default: true
+    description: "Recurring payment schedules and invoicing."
   },
   {
     key: "money.invoices",
     kind: "feature",
     parent: "platform.money",
     label: "Invoices Tab",
-    description: "The global Invoices tab: outstanding invoices, aging, projects that still need billing, and quick send.",
-    default: false
+    description: "The global Invoices tab: outstanding invoices, aging, projects that still need billing, and quick send."
   },
   {
     key: "money.take_payment",
     kind: "feature",
     parent: "platform.money",
     label: "Take Payments",
-    description: "Collecting customer payments from the Money app.",
-    default: true
+    description: "Collecting customer payments from the Money app."
   },
   {
     key: "money.merchant_processing",
     kind: "feature",
     parent: "platform.money",
     label: "Merchant Processing",
-    description: "Real card and bank payment processing through the boarded merchant account (Forward). Off until the organization completes merchant onboarding.",
-    default: false
+    description: "Real card and bank payment processing through the boarded merchant account (Forward). Off until the organization completes merchant onboarding."
   },
   {
     key: "money.expenses",
     kind: "feature",
     parent: "platform.money",
     label: "Expenses & Payables",
-    description: "Expense tracking, payables, and disbursements.",
-    default: true
+    description: "Expense tracking, payables, and disbursements."
   },
   {
     key: "crm.pipeline",
     kind: "feature",
     parent: "apps.crm",
     label: "Sales Pipeline",
-    description: "The CRM pipeline board and lead workflows.",
-    default: true
+    description: "The CRM pipeline board and lead workflows."
   },
   {
     key: "crm.automations",
     kind: "feature",
     parent: "apps.crm",
     label: "Automations",
-    description: "The Automations settings tab and event-driven automation rules.",
-    default: true
+    description: "The Automations settings tab and event-driven automation rules."
   },
   {
     key: "crm.views",
     kind: "feature",
     parent: "apps.crm",
     label: "CRM Views",
-    description: "The CRM tab: saved views of leads, contacts, follow-ups and appointments as lists and boards, the lead drawer and bulk actions.",
-    default: true
+    description: "The CRM tab: saved views of leads, contacts, follow-ups and appointments as lists and boards, the lead drawer and bulk actions."
   },
   {
     key: "crm.worklists",
@@ -1037,16 +936,14 @@ const definitions: CapabilityDefinition[] = [
     parent: "apps.crm",
     requires: ["crm.views"],
     label: "Worklists",
-    description: "Work any CRM view one record at a time: call, text, record a result and schedule the next touch.",
-    default: true
+    description: "Work any CRM view one record at a time: call, text, record a result and schedule the next touch."
   },
   {
     key: "crm.sources",
     kind: "feature",
     parent: "apps.crm",
     label: "Lead Sources",
-    description: "A catalog of lead sources, sub-sources and campaigns that intake stamps on each lead.",
-    default: true
+    description: "A catalog of lead sources, sub-sources and campaigns that intake stamps on each lead."
   },
   {
     key: "crm.source_spend",
@@ -1054,40 +951,35 @@ const definitions: CapabilityDefinition[] = [
     parent: "apps.crm",
     requires: ["crm.sources"],
     label: "Source Spend",
-    description: "What each lead source cost, so reports show cost per lead, appointment and sale.",
-    default: false
+    description: "What each lead source cost, so reports show cost per lead, appointment and sale."
   },
   {
     key: "crm.funnel",
     kind: "feature",
     parent: "apps.crm",
     label: "Funnel Reports",
-    description: "Funnel milestones read from history and reports by source, rep, setter, scope and period.",
-    default: true
+    description: "Funnel milestones read from history and reports by source, rep, setter, scope and period."
   },
   {
     key: "crm.rescission",
     kind: "feature",
     parent: "apps.crm",
     label: "Rescission Rules",
-    description: "Cancellation windows for sales, by state, age or kind of sale, used by scopes with a rescission step.",
-    default: false
+    description: "Cancellation windows for sales, by state, age or kind of sale, used by scopes with a rescission step."
   },
   {
     key: "crm.call_lists",
     kind: "feature",
     parent: "apps.crm",
     label: "Call Lists",
-    description: "CRM call lists and dialing workflows.",
-    default: true
+    description: "CRM call lists and dialing workflows."
   },
   {
     key: "scheduling.appointment_slots",
     kind: "feature",
     parent: "platform.scheduling",
     label: "Appointment Slots",
-    description: "Bookable appointment slots and the appointment schedule view.",
-    default: true
+    description: "Bookable appointment slots and the appointment schedule view."
   },
   {
     key: "scheduling.appointment_confirmations",
@@ -1096,80 +988,70 @@ const definitions: CapabilityDefinition[] = [
     label: "Appointment Confirmations",
     // The real off switch is the branch module's `enabled` flag, which starts
     // false — this node exists so the whole surface can be hidden per plan.
-    description: "Ask customers to confirm appointments by email or text, and flag unconfirmed appointments on the schedule.",
-    default: true
+    description: "Ask customers to confirm appointments by email or text, and flag unconfirmed appointments on the schedule."
   },
   {
     key: "scheduling.crew_dispatch",
     kind: "feature",
     parent: "platform.scheduling",
     label: "Crew Dispatch",
-    description: "The crew schedule and resource dispatch grid.",
-    default: true
+    description: "The crew schedule and resource dispatch grid."
   },
   {
     key: "scheduling.routing",
     kind: "feature",
     parent: "platform.scheduling",
     label: "Routing View",
-    description: "The resource routing and dispatch view in Scheduling and project schedules.",
-    default: true
+    description: "The resource routing and dispatch view in Scheduling and project schedules."
   },
   {
     key: "scheduling.gantt",
     kind: "feature",
     parent: "platform.scheduling",
     label: "Gantt Project View",
-    description: "The advanced Gantt timeline with grouped work items, dependencies, and zoomable hour-to-month scales.",
-    default: true
+    description: "The advanced Gantt timeline with grouped work items, dependencies, and zoomable hour-to-month scales."
   },
   {
     key: "scheduling.travel_time",
     kind: "feature",
     parent: "platform.scheduling",
     label: "Smart Travel Time",
-    description: "Live travel-time indicators between routed stops on the sales and production schedules.",
-    default: true
+    description: "Live travel-time indicators between routed stops on the sales and production schedules."
   },
   {
     key: "photos.markup",
     kind: "feature",
     parent: "platform.project_photos",
     label: "Photo Markup",
-    description: "Drawing and markup review on project photos.",
-    default: true
+    description: "Drawing and markup review on project photos."
   },
   {
     key: "docs.markup",
     kind: "feature",
     parent: "platform.project_docs",
     label: "Document Markup",
-    description: "Markup and annotation on project documents.",
-    default: true
+    description: "Markup and annotation on project documents."
   },
   {
     key: "proposals.signing",
     kind: "feature",
     parent: "platform.proposals",
     label: "Customer Signing",
-    description: "Sending proposals for customer signature.",
-    default: true
+    description: "Sending proposals for customer signature."
   },
   {
     key: "materials.ordering",
     kind: "feature",
     parent: "platform.materials",
     label: "Material Ordering",
-    description: "Ordering and delivery tracking, beyond plain material lists.",
-    default: true
+    description: "Ordering and delivery tracking, beyond plain material lists."
   },
   {
     key: "materials.resource_categories",
     kind: "feature",
     parent: "platform.materials",
     label: "Resource Categories",
-    description: "Edit the columns on every project's Materials tab (names, icons, colors and line item sources) from Materials settings.",
-    default: true
+    description: "Edit the columns on every project's Materials tab (names, icons, colors and line item sources) from Materials settings."
   },
   {
     key: "customer_portal.payments",
@@ -1177,32 +1059,28 @@ const definitions: CapabilityDefinition[] = [
     parent: "platform.customer_portal",
     requires: ["platform.money"],
     label: "Portal Payments",
-    description: "Customers can pay through the customer portal.",
-    default: true
+    description: "Customers can pay through the customer portal."
   },
   {
     key: "customer_portal.guest_links",
     kind: "feature",
     parent: "platform.customer_portal",
     label: "Customer Guest Links",
-    description: "Customers can make read-only links from their portal to share with someone else.",
-    default: true
+    description: "Customers can make read-only links from their portal to share with someone else."
   },
   {
     key: "topbar.global_search",
     kind: "setting",
     parent: "platform.top_bar",
     label: "Global Search",
-    description: "The global search box in the platform header.",
-    default: true
+    description: "The global search box in the platform header."
   },
   {
     key: "topbar.todos",
     kind: "feature",
     parent: "platform.top_bar",
     label: "To Do Menu",
-    description: "Show the global to-do list in a dockable header tray, independently of the left column.",
-    default: true
+    description: "Show the global to-do list in a dockable header tray, independently of the left column."
   },
   {
     key: "topbar.messages",
@@ -1210,8 +1088,7 @@ const definitions: CapabilityDefinition[] = [
     parent: "platform.top_bar",
     requires: ["apps.channels"],
     label: "Messages Notifications",
-    description: "Show a separate Messages inbox in the header. When off, mentions and message notifications appear in the notification bell instead.",
-    default: true
+    description: "Show a separate Messages inbox in the header. When off, mentions and message notifications appear in the notification bell instead."
   },
   {
     key: "topbar.notifications",
@@ -1219,8 +1096,7 @@ const definitions: CapabilityDefinition[] = [
     parent: "platform.top_bar",
     requires: ["apps.notifications"],
     label: "Notifications Bell",
-    description: "The notifications bell and menu in the platform header.",
-    default: true
+    description: "The notifications bell and menu in the platform header."
   },
   {
     key: "topbar.phone_menu",
@@ -1229,7 +1105,6 @@ const definitions: CapabilityDefinition[] = [
     type: "select",
     label: "Phone More Menu",
     description: "On phones, whether the top bar's More menu opens as a sheet from the bottom or as a dropdown at the top right. What it opens slides up from the bottom either way.",
-    default: "bottom",
     options: [["bottom", "Bottom sheet"], ["top", "Dropdown at the top right"]]
   },
 
@@ -1242,7 +1117,6 @@ const definitions: CapabilityDefinition[] = [
     label: "Web Editor",
     description: "Visual website builder: host public websites and design custom customer-portal pages.",
     catalog_stub: "Build and host customer websites.",
-    default: false,
     runtime_app_id: "web-editor"
   },
   {
@@ -1250,7 +1124,6 @@ const definitions: CapabilityDefinition[] = [
     kind: "feature",
     parent: "apps.web_editor",
     label: "Public websites",
-    default: true,
     description: "Build and host public marketing websites."
   },
   {
@@ -1258,7 +1131,6 @@ const definitions: CapabilityDefinition[] = [
     kind: "feature",
     parent: "apps.web_editor",
     label: "Customer portal pages",
-    default: true,
     description: "Inject custom published pages into the customer portal as tabs."
   },
   {
@@ -1266,7 +1138,6 @@ const definitions: CapabilityDefinition[] = [
     kind: "feature",
     parent: "apps.web_editor",
     label: "Custom domains",
-    default: false,
     description: "Attach custom domains or platform subdomains to hosted sites."
   },
 
@@ -1276,63 +1147,55 @@ const definitions: CapabilityDefinition[] = [
     kind: "setting",
     category: "Platform & Appearance",
     label: "Platform Top Bar",
-    description: "The global search box and notifications bell in the platform header.",
-    default: false
+    description: "The global search box and notifications bell in the platform header."
   },
   {
     key: "channels.attention_v2",
     kind: "feature",
     parent: "apps.channels",
     label: "Unreads, Activity & Threads",
-    description: "Viewport-aware read state, All Unreads, durable Activity, followed threads, and notification preferences.",
-    default: true
+    description: "Viewport-aware read state, All Unreads, durable Activity, followed threads, and notification preferences."
   },
   {
     key: "channels.rich_messages",
     kind: "feature",
     parent: "apps.channels",
     label: "Rich Messages & Drafts",
-    description: "Formatting, synced drafts, scheduling, reminders, forwarding, and advanced message actions.",
-    default: true
+    description: "Formatting, synced drafts, scheduling, reminders, forwarding, and advanced message actions."
   },
   {
     key: "channels.resources",
     kind: "feature",
     parent: "apps.channels",
     label: "Channel Resources",
-    description: "Project-aware Media, Documents, To Dos, tabs, folders, and resource cards.",
-    default: true
+    description: "Project-aware Media, Documents, To Dos, tabs, folders, and resource cards."
   },
   {
     key: "channels.clips",
     kind: "feature",
     parent: "apps.channels",
     label: "Audio, Video & Screen Clips",
-    description: "Record and upload asynchronous audio, camera, and screen clips.",
-    default: true
+    description: "Record and upload asynchronous audio, camera, and screen clips."
   },
   {
     key: "channels.workflows",
     kind: "feature",
     parent: "apps.channels",
     label: "Channel Workflows",
-    description: "Message actions, workflow shortcuts, bots, and signed webhook extension points.",
-    default: true
+    description: "Message actions, workflow shortcuts, bots, and signed webhook extension points."
   },
   {
     key: "channels.ai",
     kind: "feature",
     parent: "apps.channels",
     label: "Channels AI",
-    description: "FirstMate Assistant conversations, summaries, recaps, and confirmed actions.",
-    default: true
+    description: "FirstMate Assistant conversations, summaries, recaps, and confirmed actions."
   },
   {
     key: "calls.rooms",
     kind: "feature",
     label: "Calls",
-    description: "Reusable organization audio/video rooms for Channels, projects, appointments, and customer experiences.",
-    default: true
+    description: "Reusable organization audio/video rooms for Channels, projects, appointments, and customer experiences."
   },
   {
     key: "crew.reimbursements",
@@ -1340,64 +1203,56 @@ const definitions: CapabilityDefinition[] = [
     parent: "apps.crew",
     requires: ["platform.money", "crew.receipts"],
     label: "Employee Reimbursements",
-    description: "Crew members can identify personal purchases, request repayment, and track office or payroll settlement.",
-    default: true
+    description: "Crew members can identify personal purchases, request repayment, and track office or payroll settlement."
   },
   {
     key: "scheduling.customer_rescheduling",
     kind: "feature",
     parent: "platform.scheduling",
     label: "Customer Self-Scheduling",
-    description: "Let eligible customers choose or change appointment times from the customer portal.",
-    default: false
+    description: "Let eligible customers choose or change appointment times from the customer portal."
   },
   {
     key: "scheduling.automated_rescheduling",
     kind: "feature",
     parent: "platform.scheduling",
     label: "Guided SMS & Email Rescheduling",
-    description: "Offer numbered appointment choices and process customer replies without requiring an AI agent.",
-    default: false
+    description: "Offer numbered appointment choices and process customer replies without requiring an AI agent."
   },
   {
     key: "scheduling.resource_availability",
     kind: "feature",
     parent: "platform.scheduling",
     label: "Resource Availability Rules",
-    description: "Apply working hours, capacity, exceptions, buffers, and crew or group rules when calculating slots.",
-    default: false
+    description: "Apply working hours, capacity, exceptions, buffers, and crew or group rules when calculating slots."
   },
   {
     key: "scheduling.agent_availability",
     kind: "feature",
     parent: "platform.scheduling",
     label: "Agent Scheduling Tools",
-    description: "Allow enabled agents to read authoritative availability and hold or reschedule eligible appointments.",
-    default: false
+    description: "Allow enabled agents to read authoritative availability and hold or reschedule eligible appointments."
   },
   {
     key: "scheduling.confirmation_release",
     kind: "feature",
     parent: "scheduling.appointment_confirmations",
     label: "Release Unconfirmed Capacity",
-    description: "Allow explicitly configured appointment policies to release a reservation after its confirmation deadline.",
-    default: false
+    description: "Allow explicitly configured appointment policies to release a reservation after its confirmation deadline."
   },
   {
     key: "calls.recording",
     kind: "feature",
     parent: "calls.rooms",
     label: "Call Recording",
-    description: "Allow visibly indicated call recordings and retained call artifacts.",
-    default: true
+    description: "Allow visibly indicated call recordings and retained call artifacts."
   },
   {
     key: "calls.record_video",
     kind: "feature",
     parent: "calls.recording",
     label: "Call Video Recording",
-    description: "Include cameras and shared screens in retained call recordings when present.",
-    default: true
+    description: "Include cameras and shared screens in retained call recordings when present."
   },
   {
     key: "channels.huddles",
@@ -1405,32 +1260,28 @@ const definitions: CapabilityDefinition[] = [
     parent: "apps.channels",
     requires: ["calls.rooms"],
     label: "Huddles & Screen Sharing",
-    description: "Lightweight audio/video huddles with live screen sharing and a durable channel thread.",
-    default: true
+    description: "Lightweight audio/video huddles with live screen sharing and a durable channel thread."
   },
   {
     key: "channels.recording",
     kind: "feature",
     parent: "channels.huddles",
     label: "Huddle Recording",
-    description: "Allow visibly indicated huddle recordings, transcripts, notes, and follow-up To Dos.",
-    default: true
+    description: "Allow visibly indicated huddle recordings, transcripts, notes, and follow-up To Dos."
   },
   {
     key: "channels.record_video",
     kind: "feature",
     parent: "channels.recording",
     label: "Huddle Video Recording",
-    description: "Include cameras and shared screens in retained huddle recordings when present.",
-    default: true
+    description: "Include cameras and shared screens in retained huddle recordings when present."
   },
   {
     key: "channels.external",
     kind: "feature",
     parent: "apps.channels",
     label: "External Collaboration",
-    description: "Federated external direct messages and shared channels with restricted resource sharing.",
-    default: false
+    description: "Federated external direct messages and shared channels with restricted resource sharing."
   },
 
   {
@@ -1441,7 +1292,6 @@ const definitions: CapabilityDefinition[] = [
     type: "select",
     label: "Sidebar Footer Layout",
     description: "Stacked keeps the account on its own row at the bottom of the left column, with Settings, Apps and Help & support as icons above it. Inline shows all four as icons in one row.",
-    default: "stacked",
     options: [["stacked", "Stacked (account on its own row)"], ["inline", "Inline (one row of icons)"]]
   },
   {
@@ -1449,8 +1299,7 @@ const definitions: CapabilityDefinition[] = [
     kind: "setting",
     category: "Platform & Appearance",
     label: "Advanced App Menu",
-    description: "Replace the More Apps pop-up with the full-screen app launcher and sidebar pinning experience.",
-    default: false
+    description: "Replace the More Apps pop-up with the full-screen app launcher and sidebar pinning experience."
   },
 
 
@@ -1461,32 +1310,28 @@ const definitions: CapabilityDefinition[] = [
     kind: "setting",
     category: "Platform & Appearance",
     label: "Drag to Resize Left Column",
-    description: "Drag the right edge of the left column to set its width. Dragging also locks a compact column open.",
-    default: true
+    description: "Drag the right edge of the left column to set its width. Dragging also locks a compact column open."
   },
   {
     key: "platform.cobrand_sidebar_logo",
     kind: "setting",
     category: "Platform & Appearance",
     label: "Co-Branded Sidebar Logo",
-    description: "Shows the FirstMate logo in the org primary color before the company logo in the portal sidebar.",
-    default: true
+    description: "Shows the FirstMate logo in the org primary color before the company logo in the portal sidebar."
   },
   {
     key: "platform.custom_fields",
     kind: "setting",
     category: "Platform & Appearance",
     label: "Custom Fields Settings",
-    description: "Shows the Custom Fields tab in Company Settings.",
-    default: true
+    description: "Shows the Custom Fields tab in Company Settings."
   },
   {
     key: "platform.terminology_settings",
     kind: "setting",
     category: "Platform & Appearance",
     label: "Terminology Settings",
-    description: "Shows the Terminology tab in Company Settings.",
-    default: true
+    description: "Shows the Terminology tab in Company Settings."
   },
   {
     key: "platform.new_button_mode",
@@ -1495,7 +1340,6 @@ const definitions: CapabilityDefinition[] = [
     type: "select",
     label: "New Button Mode",
     description: "Whether the sidebar New button is hidden, opens the selector, or directly starts one workflow. doc:<type> actions start a new document of that type.",
-    default: "report",
     options: [
       ["off", "Off"],
       ["selector", "Selector menu"],
@@ -1509,7 +1353,6 @@ const definitions: CapabilityDefinition[] = [
     type: "multi_select",
     label: "New Button Menu Items",
     description: "Which actions the New button's selector menu offers. Document actions come from the document type registry; leave empty for the default menu.",
-    default: "",
     options: NEW_BUTTON_ITEM_OPTIONS
   },
   {
@@ -1517,35 +1360,31 @@ const definitions: CapabilityDefinition[] = [
     kind: "setting",
     category: "Platform & Appearance",
     label: "Configuration",
-    description: "Shows the Configuration settings tab.",
-    default: false
+    description: "Shows the Configuration settings tab."
   },
   {
     key: "platform.terminology_agent",
     kind: "setting",
     category: "Platform & Appearance",
     label: "Terminology Assistant",
-    description: "The AI navigation and draft-editing assistant in Company Settings terminology.",
-    default: false
+    description: "The AI navigation and draft-editing assistant in Company Settings terminology."
   },
   {
     key: "platform.user_modals",
     kind: "setting",
     category: "Platform & Appearance",
     label: "User Modals",
-    description: "Clickable user profile modals with uploaded-photo views.",
-    default: false
+    description: "Clickable user profile modals with uploaded-photo views."
   },
   {
     key: "platform.user_activity",
     kind: "setting",
     parent: "platform.user_modals",
     label: "User Activity",
-    description: "Activity streams in user profile modals.",
-    default: false
+    description: "Activity streams in user profile modals."
   },
 
-  { key: "platform.advanced_ai", kind: "feature", label: "Advanced AI", description: "Optional Advanced AI subscription; Basic AI remains included.", requires: ["platform.expanded_access"], default: false },
+  { key: "platform.advanced_ai", kind: "feature", label: "Advanced AI", description: "Optional Advanced AI subscription; Basic AI remains included.", requires: ["platform.expanded_access"] },
 
   // --- Storage --------------------------------------------------------------
   {
@@ -1553,8 +1392,7 @@ const definitions: CapabilityDefinition[] = [
     kind: "setting",
     category: "Storage",
     label: "Storage Limits",
-    description: "Shows storage usage and enforces media upload limits.",
-    default: false
+    description: "Shows storage usage and enforces media upload limits."
   },
   {
     key: "platform.free_storage_gb",
@@ -1563,7 +1401,6 @@ const definitions: CapabilityDefinition[] = [
     type: "number",
     label: "Free Storage GB",
     description: "Included media storage in gigabytes before upload limits apply.",
-    default: 1,
     min: 0,
     step: 0.25
   },
@@ -1572,8 +1409,7 @@ const definitions: CapabilityDefinition[] = [
     kind: "setting",
     parent: "platform.storage_limits",
     label: "Purchasable Storage",
-    description: "Shows storage checkout entry points.",
-    default: false
+    description: "Shows storage checkout entry points."
   },
 
   // --- Permissions -------------------------------------------------------------
