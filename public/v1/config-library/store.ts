@@ -12,7 +12,7 @@ import { openSqlStore, type SqlStore } from "../platform/sql_store.js";
 
 let database: SqlStore | undefined;
 export function libraryStore() {
-  return database ??= openSqlStore({ id: "config-library", filename: path.resolve(env.platformStorageRoot, "config-library.sqlite"), schemaVersion: 1, initialize: async (db) => {
+  return database ??= openSqlStore({ id: "config-library", filename: path.resolve(env.platformStorageRoot, "config-library.sqlite"), schemaVersion: 2, initialize: async (db) => {
     await db.exec(`
       CREATE TABLE IF NOT EXISTS config_library_heads (
         kind TEXT NOT NULL, entry_id TEXT NOT NULL, revision INTEGER NOT NULL, sha256 TEXT NOT NULL, title TEXT NOT NULL DEFAULT '',
@@ -35,14 +35,16 @@ export function libraryStore() {
       );
       CREATE TABLE IF NOT EXISTS config_library_keys (
         id TEXT NOT NULL PRIMARY KEY, name TEXT NOT NULL, key_hash TEXT NOT NULL UNIQUE, prefix TEXT NOT NULL, created_by TEXT NOT NULL,
-        created_at INTEGER NOT NULL, expires_at INTEGER NOT NULL, last_used_at INTEGER NOT NULL DEFAULT 0, uses INTEGER NOT NULL DEFAULT 0,
-        revoked_at INTEGER NOT NULL DEFAULT 0, revoked_by TEXT NOT NULL DEFAULT ''
+        created_at BIGINT NOT NULL, expires_at BIGINT NOT NULL, last_used_at BIGINT NOT NULL DEFAULT 0, uses INTEGER NOT NULL DEFAULT 0,
+        revoked_at BIGINT NOT NULL DEFAULT 0, revoked_by TEXT NOT NULL DEFAULT ''
       );
       CREATE TABLE IF NOT EXISTS config_library_initial_states (
         organization_id TEXT NOT NULL PRIMARY KEY, state_json TEXT NOT NULL, captured_at TEXT NOT NULL, captured_by TEXT NOT NULL DEFAULT '',
         restored_at TEXT NOT NULL DEFAULT '', restored_by TEXT NOT NULL DEFAULT '', restores INTEGER NOT NULL DEFAULT 0
       );
     `);
+    // Schema 2: key times are milliseconds, past a 32-bit Postgres INTEGER.
+    if (db.isPostgres) for (const column of ["created_at", "expires_at", "last_used_at", "revoked_at"]) await db.exec(`ALTER TABLE config_library_keys ALTER COLUMN ${column} TYPE BIGINT`);
     await db.prepare("INSERT INTO config_library_meta(key,value) VALUES('seq',0) ON CONFLICT(key) DO NOTHING").run();
   } });
 }
