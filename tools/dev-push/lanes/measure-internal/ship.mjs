@@ -1,30 +1,31 @@
 #!/usr/bin/env node
 // Ship the measure editor to dev.1m8.ai through the measure-internal lane
-// (docs/architecture/dev-lanes.md).
+// (docs/architecture/dev-lanes.md). Run it from any checkout, by path:
 //
-//   node tools/dev-push/lanes/measure-internal/ship.mjs [<commit>] [--regression[=all]]
-//   node tools/dev-push/lanes/measure-internal/ship.mjs regression [<commit>] [--all]
-//   node tools/dev-push/lanes/measure-internal/ship.mjs status|rollback [<sha>]|follow|install|uninstall
+//   node <...>/tools/dev-push/lanes/measure-internal/ship.mjs [<commit>] [--regression[=all]]
+//   node <...>/tools/dev-push/lanes/measure-internal/ship.mjs regression [<commit>] [--all]
+//   node <...>/tools/dev-push/lanes/measure-internal/ship.mjs status
 //
 // Takes the editor (public/measure/internal, dev) from <commit> (default HEAD)
 // on any branch, canonical included, and builds the lane commit: the lane tip
 // plus only those paths, one parent (laneCommit), so none of the branch's other
-// history comes along. That commit goes to the dev push router with its own
-// submit.mjs, run from an empty temporary worktree, so this works from a
-// checkout that does not have the router's tools yet. The router runs the
-// quick checks (seconds), deploys, and answers; `--regression` adds the
-// editor's regression tests, once, on the server; never on this machine.
-//
-// FM_LANE_DIRECT=1 ships without the router (lane-host.sh over SSH): for
-// emergencies only, since the router owns the lane's hosts.
+// history comes along. That commit goes to the dev push router with the
+// router's submit.mjs (the one beside this file), run from an empty temporary
+// worktree, so the checkout needs none of the router's tools. Only the router
+// activates lane releases; this script never touches a host. The router runs
+// the quick checks (seconds), deploys and answers; `--regression` adds the
+// editor's regression tests, once, on the server, never on this machine.
 import { spawnSync } from "node:child_process";
 import { existsSync, mkdirSync, mkdtempSync, rmSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { LANE, deploy, follow, laneCommit, repoRoot, rollback, status, install, uninstall } from "./lane.mjs";
+import { fileURLToPath } from "node:url";
+import { LANE, laneCommit, repoRoot } from "./lane.mjs";
 
+const HERE = path.dirname(fileURLToPath(import.meta.url));
 const ROUTER_REMOTE = "devpush";
 const ROUTER_URL = "dev-sync-droplet:/home/dev/router/firstmeasure.git";
+const STATUS_URL = "https://dev.1m8.ai/__dev-push/status.json";
 const CANONICAL = "codex/consolidated-firstmeasure-20260923";
 
 const args = process.argv.slice(2);
@@ -39,17 +40,18 @@ function git(gitArgs, { allowFail = false, at = cwd, input } = {}) {
   if (r.status !== 0 && !allowFail) throw new Error(`git ${gitArgs.join(" ")}: ${r.stderr.trim()}`);
   return r.status === 0 ? r.stdout.trim() : null;
 }
-const isAncestor = (a, b) => spawnSync("git", ["merge-base", "--is-ancestor", a, b], { cwd }).status === 0;
 
 function fetchRouter(...branches) {
   if (git(["remote", "get-url", ROUTER_REMOTE], { allowFail: true }) === null) git(["remote", "add", ROUTER_REMOTE, ROUTER_URL]);
   git(["fetch", "-q", ROUTER_REMOTE, ...branches.map((b) => `+refs/heads/${b}:refs/remotes/${ROUTER_REMOTE}/${b}`)]);
 }
 
-/** The router's submit.mjs: this checkout's, or canonical's from the router repository. */
+/** The router's submit.mjs: beside this file, else the checkout's, else canonical's from the router repository. */
 function submitScript() {
-  const own = path.join(cwd, "tools", "dev-push", "submit.mjs");
-  if (existsSync(own)) return own;
+  for (const candidate of [path.resolve(HERE, "..", "..", "submit.mjs"), path.join(cwd, "tools", "dev-push", "submit.mjs")]) {
+    if (existsSync(candidate)) return candidate;
+  }
+  fetchRouter(CANONICAL);
   const tip = git(["rev-parse", `${ROUTER_REMOTE}/${CANONICAL}`]);
   const dir = path.join(os.tmpdir(), "fm-lane-router-tools", tip.slice(0, 12));
   const script = path.join(dir, "tools", "dev-push", "submit.mjs");
@@ -81,21 +83,15 @@ function submitCommit(commit, submitArgs) {
   }
 }
 
-function laneTarget(ref) {
+function ship(ref, { regression, regressionOnly = false }) {
   const sha = git(["rev-parse", `${ref}^{commit}`]);
-  fetchRouter(LANE.branch, CANONICAL);
+  fetchRouter(LANE.branch);
   const tip = git(["rev-parse", `${ROUTER_REMOTE}/${LANE.branch}`]);
   const candidate = laneCommit(sha, tip, cwd);
   if (candidate && candidate !== sha) log(`lane commit ${candidate.slice(0, 8)}: the editor of ${sha.slice(0, 8)} on ${tip.slice(0, 8)}`);
-  return { sha, tip, candidate };
-}
-
-function viaRouter(ref, { regression, regressionOnly = false }) {
-  const { sha, tip, candidate } = laneTarget(ref);
   const subject = git(["log", "-1", "--format=%s", sha]);
   const slug = `editor-${subject.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 40).replace(/-+$/, "") || sha.slice(0, 8)}`;
-  const suite = regression === "all" ? ["--all"] : [];
-  if (regressionOnly) return submitCommit(candidate || tip, ["regression", ...suite, "--slug", slug, "--wait"]);
+  if (regressionOnly) return submitCommit(candidate || tip, ["regression", ...(regression === "all" ? ["--all"] : []), "--slug", slug, "--wait"]);
   if (!candidate) {
     log(`${ROUTER_REMOTE}/${LANE.branch} already has the editor of ${sha.slice(0, 8)}; nothing to ship`);
     return 0;
@@ -104,44 +100,24 @@ function viaRouter(ref, { regression, regressionOnly = false }) {
   return submitCommit(candidate, ["--lane", LANE.name, "--slug", slug, "--wait", ...extra]);
 }
 
-// Emergency path without the router (FM_LANE_DIRECT=1).
-async function direct(ref) {
-  const began = Date.now();
-  const { tip, candidate } = laneTarget(ref);
-  const target = candidate || tip;
-  const host = await status({ log });
-  if (host.current && git(["cat-file", "-t", host.current], { allowFail: true }) && !isAncestor(host.current, target)) {
-    throw new Error(`the live lane release ${host.current.slice(0, 8)} is not on ${ROUTER_REMOTE}/${LANE.branch}`);
-  }
-  const record = await deploy(target, { cwd, log, host });
-  if (target !== tip) {
-    const push = spawnSync("git", ["push", "-q", `--force-with-lease=refs/heads/${LANE.branch}:${tip}`, ROUTER_REMOTE, `${target}:refs/heads/${LANE.branch}`], { cwd, encoding: "utf8" });
-    if (push.status !== 0) {
-      log(`push to ${LANE.branch} refused (${push.stderr.trim()}); rolling the host back`);
-      if (record.status === "live") await rollback(record.previous || undefined, { log });
-      throw new Error(`${LANE.branch} moved while shipping; ship again`);
-    }
-  }
-  log(`measure-internal ${target.slice(0, 8)} is live on dev.1m8.ai/measure/internal/ (${((Date.now() - began) / 1000).toFixed(1)} s)`);
-  return record;
+async function laneStatus() {
+  const response = await fetch(STATUS_URL, { headers: { "cache-control": "no-cache" } });
+  const data = await response.json();
+  const served = await fetch("https://dev.1m8.ai/measure/internal/audio/ding.mp3", { method: "HEAD" }).catch(() => null);
+  return { ...data.lanes?.[LANE.name], served: served?.headers.get("x-firstmate-lane") || null,
+    submissions: (data.submissions || []).filter((item) => item.lane === LANE.name).slice(0, 5).map(({ ref, state, release, updated_at }) => ({ ref, state, release, updated_at })) };
 }
 
 try {
   const command = positional[0];
-  let result = null;
-  let code = 0;
-  if (command === "status") result = await status({ log });
-  else if (command === "rollback") result = await rollback(positional[1], { log });
-  else if (command === "follow") result = await follow({ log });
-  else if (command === "install") result = await install({ log });
-  else if (command === "uninstall") result = await uninstall({ log });
-  else if (command === "regression") code = viaRouter(positional[1] || "HEAD", { regression: flag("all") ? "all" : "mapped", regressionOnly: true });
-  else if (process.env.FM_LANE_DIRECT) result = await direct(command || "HEAD");
-  else code = viaRouter(command || "HEAD", { regression: flagValue("regression", "mapped") });
-  if (result) console.log(JSON.stringify(result, null, 2));
-  process.exitCode = code;
+  if (["rollback", "follow", "install", "uninstall"].includes(command)) {
+    throw new Error(`ship.mjs ${command} is gone: only the dev push router changes the lane's hosts. Ship a revert instead, or ask the router.`);
+  }
+  if (process.env.FM_LANE_DIRECT) throw new Error("FM_LANE_DIRECT is gone: the dev push router is the only way to activate a lane release.");
+  if (command === "status") console.log(JSON.stringify(await laneStatus(), null, 2));
+  else if (command === "regression") process.exitCode = ship(positional[1] || "HEAD", { regression: flag("all") ? "all" : "mapped", regressionOnly: true });
+  else process.exitCode = ship(command || "HEAD", { regression: flagValue("regression", "mapped") });
 } catch (error) {
   log(`\n${error.message}`);
-  if (error.record) console.log(JSON.stringify(error.record, null, 2));
   process.exit(1);
 }

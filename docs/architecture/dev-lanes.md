@@ -281,8 +281,7 @@ release without updating their checkout.
 Built 2026-10-27; setup record:
 [development-measure-internal-lane-20261027](../../deploy/digitalocean/development-measure-internal-lane-20261027.md).
 Code: `tools/dev-push/lanes/measure-internal/` (`lane.mjs`: the router's lane
-module and the direct `deploy(sha)`; `ship.mjs` CLI; `lane-host.sh` host side
-of the direct path). Tests:
+module; `ship.mjs`: builds the lane commit and submits it to the router). Tests:
 `tests/dev-lane-measure-internal.test.mjs`.
 
 **Owns** `public/measure/internal/**` (deployed) and `dev/**` (the editor's
@@ -366,43 +365,6 @@ it works from a checkout that does not have the router's tools. Measured on
 2026-10-28 from the shared checkout: 28-35 s from command to live (router
 batch about 12 s).
 
-**Direct, emergencies only** (`FM_LANE_DIRECT=1 ship.mjs`, which calls
-`deploy(sha, { cwd, log, host })`; the router owns the lane's hosts):
-
-1. Read the host status (live lane release, serving lane or platform).
-2. Quick checks.
-3. Manifest: sha256 of every deployed file from git blobs (`core.autocrlf`
-   off, so the commit's bytes, never a working copy or a host file).
-4. One SSH stream: a tar with `lane-host.sh`, the manifest and the changed
-   files. The host hard-links the live release, writes the changed files,
-   deletes what the commit deleted, checks every file against the manifest
-   (any mismatch: the client resends every file), lints changed PHP with
-   `php -l`, links the siblings, and swaps `current` with a rename.
-5. Readiness: a changed static file (or `audio/ding.mp3`) comes back with the
-   manifest's bytes and the new lane header; `/measure/internal/`,
-   `editor.php` and `backend_login.php` answer with the statuses they had
-   before the switch (never 5xx). Otherwise `current` is swapped back.
-6. A record is written to `/opt/firstmeasure/lanes/measure-internal/records/`
-   and returned. Twelve releases are kept, plus `current` and `previous`.
-
-After a live direct deploy `lane/measure-internal` on the router's remote
-(`devpush`) is fast-forwarded (`--force-with-lease`); a refused push rolls the
-host back. One direct deploy at a time (host `flock`).
-
-Measured on 2026-10-27 with the regression tests still in every ship: 34-110 s
-from command to live, of which the tests took 22-88 s and the host build and
-switch 0.6 s. Without them a direct ship is the SSH round trips plus about a
-second.
-
-**Follow mode.** `ship.mjs follow` points `current` at
-`releases/platform-follow`, whose `public/` entries (`measure/` included) are
-all symlinks into `/opt/firstmeasure/current/public`. nginx is unchanged, but
-the bytes and PHP (`__DIR__` resolves into the platform release) are the
-platform release's, so platform releases and old per-task rollouts of editor
-files show at once. For the hand-over while some sessions still ship editor
-files the old way. A later lane deploy never hard-links from, or writes
-through, a follow release. Responses carry no lane header in follow mode.
-
 **What reads editor files outside the editor.** `pdf_runtime.ts` and
 `forms/solar.ts` (above). `firstmeasure/api.ts` and `queue.ts` read untracked
 `config/` and `storage/` under the platform's `measure/internal`, which editor
@@ -413,13 +375,17 @@ and canonical are merged into each other on request when work is quiet; until
 canonical has a lane commit, a platform release still carries the older editor
 files, unserved on dev.
 
-**Switch back** to the platform copy: `node tools/dev-push/lanes/measure-internal/ship.mjs uninstall`
-(comments out the `/measure/internal/` line of the map and reloads nginx);
-`install` turns the lane on again. `rollback [<sha>]` returns to the previous
-(or named) lane release.
+**Only the router activates.** Until 2026-10-28 `ship.mjs` could also ship
+directly over SSH (`lane-host.sh`); a direct ship and a router release built on
+an older lane tip overwrote each other, so the direct path, its rollback,
+follow and install commands are gone, and the lane folder on legacy refuses
+old copies of the script. To undo a change, ship a revert. To serve the
+platform release's editor copy again, an operator comments out the
+`/measure/internal/` line of the map in
+`/etc/nginx/conf.d/firstmeasure-lanes.conf` and reloads nginx.
 
 Old per-task rollouts that copy editor files into the platform release on dev
-legacy still succeed but are not served while the lane is active.
+legacy are not served while the lane is active.
 
 ## Config lane
 

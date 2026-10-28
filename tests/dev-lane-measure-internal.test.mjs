@@ -6,13 +6,11 @@ import fs, { mkdtempSync, mkdirSync, writeFileSync, rmSync } from 'node:fs';
 import { createHash } from 'node:crypto';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
 import { spawnSync } from 'node:child_process';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import lane, { LANE, ownsPath, manifest, mappedTests, runGates, laneCommit, quickChecks, buildTree, treeManifest } from '../tools/dev-push/lanes/measure-internal/lane.mjs';
 
-const hostScript = fileURLToPath(new URL('../tools/dev-push/lanes/measure-internal/lane-host.sh', import.meta.url));
 
 function scratch() {
   const repo = mkdtempSync(path.join(tmpdir(), 'lane-mi-'));
@@ -210,9 +208,4 @@ test('the release tree is the commit\'s editor plus links into the platform rele
       assert.ok(fs.lstatSync(path.join(out, 'public', 'storage')).isSymbolicLink(), 'but the link is in the tree');
     } finally { rmSync(out, { recursive: true, force: true }); }
   } finally { s.done(); }
-});
-
-test('the host script parses', () => {
-  const r = spawnSync('bash', ['-n', hostScript], { encoding: 'utf8' });
-  assert.equal(r.status, 0, r.stderr);
 });
