@@ -2,7 +2,7 @@ import type { FastifyInstance } from "fastify";
 import { z } from "zod";
 import { zodToJsonSchema } from "zod-to-json-schema";
 import { badRequest, notFound } from "../platform/errors.js";
-import { createAccessKey, listAccessKeys, requireLibraryAdmin, requireLibraryEditor, revokeAccessKey } from "./access.js";
+import { createAccessKey, listAccessKeys, requireLibraryAdmin, requireLibraryEditor, requireLibraryEnvironment, revokeAccessKey } from "./access.js";
 import { listAssets, putAsset, readAsset } from "./assets.js";
 import { listLibraryKinds, libraryKind } from "./kinds.js";
 import { registerAllLibraryKinds } from "./kinds/index.js";
@@ -158,6 +158,18 @@ export async function registerConfigLibraryApi(app: FastifyInstance) {
     const caller = await requireLibraryEditor(request, { csrf: true });
     const body = assetBody.parse(request.body ?? {});
     return { ok: true, asset: await putAsset({ bytes: Buffer.from(body.data_base64, "base64"), file_name: body.file_name }, caller.author) };
+  });
+
+  // An agent machine fetches its own key, proving itself with its listed SSH key (enroll.ts). The key is the response
+  // body (text/plain) and nothing else: never logged, never shown. Development only.
+  app.post("/keys/enroll", { bodyLimit: 16 * 1024 }, async (request, reply) => {
+    requireLibraryEnvironment();
+    const body = z.object({ machine: z.string().max(80), timestamp: z.number().int(), nonce: z.string().max(64), signature: z.string().max(8000) }).strict().parse(request.body ?? {});
+    const signature = /BEGIN SSH SIGNATURE/.test(body.signature) ? body.signature : Buffer.from(body.signature, "base64").toString("utf8");
+    const created = await (await import("./enroll.js")).enrollMachine({ ...body, signature });
+    request.log.info({ config_library_key: created.id, machine: created.name }, "Config library key enrolled for an agent machine");
+    reply.header("Cache-Control", "no-store").header("X-Config-Library-Key-Id", created.id).header("X-Config-Library-Key-Expires", new Date(created.expires_at).toISOString());
+    return reply.type("text/plain; charset=utf-8").send(created.key);
   });
 
   // Access keys for coding agents: a signed-in platform administrator only.
