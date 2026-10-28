@@ -85,7 +85,7 @@ export class Router {
     return {
       v: 1, updated_at: new Date().toISOString(),
       router: { host: this.options.host || "dev-sync-droplet", version: this.options.version || null, started_at: this.startedAt || null, paused: this.paused.size === Object.keys(this.lanes).length },
-      lanes, submissions, releases: this.releases.slice(0, KEEP_RELEASES), fleet: this.fleet || null
+      lanes, submissions, releases: this.releases.slice(0, KEEP_RELEASES), fleet: this.fleet || null, live: this.live || null
     };
   }
 
@@ -354,7 +354,7 @@ export class Router {
       try { overlays = (await this.options.overlays(tip, this)).filter((overlay) => !this.failedOverlays.has(`${overlay.ref}@${overlay.sha}@${tip}`)); }
       catch (error) { this.log(lane, `live overlays unavailable: ${error.message}`); }
     }
-    if (!queue.length && !overlays.some((overlay) => overlay.parked)) return false;
+    if (!queue.length && !overlays.some((overlay) => overlay.parked) && !(this.forceOverlays && overlays.length)) return false;
     const batch = queue.slice(0, module.batchMax || 8);
     const dir = await this.worktree(lane);
     // Every stage is timed; the timings go into the release record and each submission's status entry.
@@ -381,7 +381,7 @@ export class Router {
       }
       candidates.push(entry);
     }
-    if (!candidates.length && !overlays.some((overlay) => overlay.parked)) return true;
+    if (!candidates.length && !overlays.some((overlay) => overlay.parked) && !(this.forceOverlays && overlays.length)) return true;
 
     await this.setLane(lane, { state: "merging", batch: candidates.map((entry) => entry.ref) });
     await this.update(candidates, { state: "merging" });
@@ -478,6 +478,7 @@ export class Router {
     if (this.options.afterRelease) await this.options.afterRelease({ lane, release, overlays: final.overlaysMerged }).catch((error) => this.log(lane, `afterRelease: ${error.message}`));
     if (this.options.overlayProblems && final.overlayConflicts.length) await this.options.overlayProblems(final.overlayConflicts).catch(() => {});
     this.log(lane, `live ${releaseId}`);
+    if (final.overlaysMerged.length) this.forceOverlays = false;
     return true;
   }
 

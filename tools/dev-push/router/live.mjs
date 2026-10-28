@@ -16,7 +16,8 @@ const IDENTITY = { GIT_AUTHOR_NAME: "dev-push live layer", GIT_AUTHOR_EMAIL: "de
 export function receiverClient({ key = path.join(os.homedir(), ".ssh", "dev_push_router_ed25519"), knownHosts, target = RECEIVER, command } = {}) {
   return async function request(ops) {
     const lines = ops.map((op, index) => JSON.stringify({ ...op, id: index + 1 })).join("\n") + "\n";
-    const argv = command || ["ssh", "-T", "-i", key, "-o", "BatchMode=yes", "-o", "IdentitiesOnly=yes", "-o", "StrictHostKeyChecking=accept-new", ...(knownHosts ? ["-o", `UserKnownHostsFile=${knownHosts}`] : []), "-o", "ConnectTimeout=15", target, "serve"];
+    // `target` may be a function: the receiver lives on whichever node is the primary web node.
+    const argv = command || ["ssh", "-T", "-i", key, "-o", "BatchMode=yes", "-o", "IdentitiesOnly=yes", "-o", "StrictHostKeyChecking=accept-new", ...(knownHosts ? ["-o", `UserKnownHostsFile=${knownHosts}`] : []), "-o", "ConnectTimeout=15", typeof target === "function" ? target() : target, "serve"];
     const result = await run(argv[0], argv.slice(1), { input: lines, timeout: 120_000 });
     const answers = new Map();
     for (const line of String(result.stdout).split("\n")) { try { const message = JSON.parse(line); answers.set(message.id, message); } catch {} }
@@ -25,7 +26,7 @@ export function receiverClient({ key = path.join(os.homedir(), ".ssh", "dev_push
   };
 }
 
-export function liveOverlays({ home, log = () => {}, request = receiverClient({ knownHosts: path.join(home, "known_hosts") }), reviewer = CLAUDE } = {}) {
+export function liveOverlays({ home, log = () => {}, target = RECEIVER, request = receiverClient({ knownHosts: path.join(home, "known_hosts"), target }), reviewer = CLAUDE } = {}) {
   const pushed = new Map(); // ref -> sha last pushed
   let lastExport = null;
 
