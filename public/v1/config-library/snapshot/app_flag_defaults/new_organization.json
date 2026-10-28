@@ -1,0 +1,12 @@
+{
+  "kind": "app_flag_defaults",
+  "id": "new_organization",
+  "revision": 1,
+  "sha256": "46a49e3714dcc79e8d387d89b0f3f6b00de62d577f2b8038e3d162ab40d4c0b0",
+  "title": "New organization app flags",
+  "updated_at": "2026-10-27T23:19:27.275Z",
+  "updated_by": "generator",
+  "data": {
+    "app_flags": {}
+  }
+}

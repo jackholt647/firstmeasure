@@ -292,23 +292,37 @@ foundation for onboarding a full-service contractor:
 The two profile pages persist their choices under `home_improvement_setup` in
 the organization global document. No selection page uses checkbox controls.
 
-### Configurations with their own code
+### Configurations are library entries
 
-A configuration may carry code, but only inside its own module in
-`signup-sandbox/configurations/`; the platform never checks which configuration
-an organization uses. A module exports its workflow seed and default state and
-may register setup scripts (`configurations/index.ts`). A workflow names the
-scripts it runs in `setup_scripts`; the sandbox runs them after creating a test
-organization, and they change it only through the platform's ordinary writers.
-Whether a workflow's test organizations can take development sample data is
-the workflow field `sample_data`, not a list of workflow ids.
-Whether the test-run bar shows in its test organizations is `dev_bar` (off for
-the MVP platform and Instant full org). A configuration module sets
-`configuration_revision`; when the file's revision is higher than the saved
-workflow's, the next seed replaces the saved workflow with the file's, so raise
-it whenever the configuration file changes.
+Every sandbox workflow the platform ships is a config library entry of kind
+`sandbox_configuration` (id = workflow id; [config library](architecture/config-library.md),
+`config-library/kinds/sandbox_configuration.ts`), edited on dev as data. There
+is no configuration code and the sandbox never checks a workflow id. An entry
+holds the workflow (stages, `entry_mode`, `onboarding_mode` for the wizard's
+product mode, `sample_data`, `launch_sample_data`, `dev_bar`), the starting
+state (`app_flags_base`, then `defaults.app_flags`, `defaults.settings` by dot
+path, `defaults.scope_flags`), `terminology` labels and `role_app_options`
+written where the organization has none, and an ordered `setup` list. Each
+setup step names a published action and its input (optionally
+`data_environments` and `on_error: "continue"`); the sandbox runs them as the
+new organization's owner after creating it. The sandbox's own steps are in
+`signup-sandbox/setup-actions.ts` (`sandbox.scopeTemplate.install`,
+`sandbox.intakeRouting.setDefault`, `sandbox.scopeFlags.only`, the appointment
+catalog, roofing documents, materials library, pay sheets, pay rules, people,
+development phone onboarding); they refuse anything but a sandbox test
+organization, and production.
 
-The MVP platform (`swf_mvp_platform`, `configurations/mvp-platform.ts`) runs the
+`app_flags_base` is where flags start before the workflow's own, computed from
+the running registry so a capability added later is covered: `new_organization`
+(public signup), `all_off`, `all_on` or `expanded_access_off`.
+
+The saved workflow is a copy that records the entry it came from (`library`).
+The seed replaces a copy nobody edited when the library has a newer revision;
+a copy edited in the sandbox stays as it is (`libraryWorkflowStatus` reports
+`changed`) until `resetWorkflowToLibrary` puts it back. The signup pages
+(`SEED_PAGES`) are still seeded from code.
+
+The MVP platform (`swf_mvp_platform`) runs the
 FirstMeasure default stages and turns on expanded access with an explicit app
 list: My Projects (with stages, boards and the project map), My Contacts and
 Feed; the project Photos, Customer Portal, Materials (with the pricebook it
@@ -317,9 +331,9 @@ trays. Every other capability that needs expanded access is off, including
 Scheduling, CRM, Stats, Money and the project Messages tray; FirstMeasure
 capabilities keep their signup defaults. Channels and the Assistant are on only
 for the Notes and Agent trays, so their main-view tabs are hidden with
-`app_placements`. Its setup script installs a Generic Roofing scope (the
-roofing measurement schema), makes it the scope every new project and lead
-starts, and turns the other preset scopes off. Generic Roofing's board has five
+`app_placements`. Its setup steps install a Generic Roofing scope (the
+roofing measurement schema), make it the scope every new project and lead
+starts, and turn the other preset scopes off. Generic Roofing's board has five
 stages that follow the report and the documents: New project, Report ordered,
 Report delivered, Proposal created and Materials created. Each stage has one
 to-do whose external triggers finish it on the platform events
@@ -327,7 +341,7 @@ to-do whose external triggers finish it on the platform events
 `document.created` (or a legacy `proposal.created`) and `material.lines.created`.
 A stage's to-do also finishes on any later milestone, so a project that skips
 ahead lands on the furthest stage reached and a late event never moves it back;
-a stage set by hand stays until the milestones reach it. The setup script keeps
+a stage set by hand stays until the milestones reach it. The setup step keeps
 an organization's Generic Roofing when it already has one, so test
 organizations made from an earlier revision keep the scope they were given. The
 workflow is seeded once; later seeds only fill in capabilities and fields the

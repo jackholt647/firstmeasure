@@ -238,9 +238,9 @@ test("recorders upload binary frames, and upload often only while someone follow
 });
 
 test("session replay is not an organization capability: no preset, signup or capability screen can switch it on", async () => {
-  const { builtinCapabilityPresets, capabilityDefinition } = await import("../platform/capabilities.js");
+  const { listCapabilityPresets, capabilityDefinition } = await import("../platform/capabilities.js");
   assert.equal(capabilityDefinition("platform.session_replay") ?? null, null);
-  for (const preset of builtinCapabilityPresets()) assert.equal(preset.values["platform.session_replay"], undefined, preset.id);
+  for (const preset of await listCapabilityPresets()) assert.equal(preset.values["platform.session_replay"], undefined, preset.id);
 });
 
 test("platform administrators decide who is recorded: a mode for everyone, rules for people and organizations", async () => {

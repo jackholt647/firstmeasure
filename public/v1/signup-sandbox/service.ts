@@ -1,17 +1,19 @@
 import { env } from '../src/config/env.js';
-import { completeDevelopmentOnboarding } from '../comms/calls/development.js';
-import { PlatformError } from '../platform/errors.js';
 import { gatedAccounts } from "./admin.js";
 import { randomBytes } from "node:crypto";
 
 import { newOrganizationAppFlagDefaults } from "../platform/app_flags.js";
 import { NEW_ORGANIZATION_APP_OFFERS, offeredAppIds } from '../platform/app-experience/offers.js';
-import { CONFIGURATIONS, SETUP_SCRIPTS } from "./configurations/index.js";
 import { valueCapabilities } from "../platform/capabilities.js";
+import { libraryEntries, libraryStamp } from "../config-library/library.js";
+import type { LibraryEntry } from "../config-library/contracts.js";
+import { contentHash } from "../config-library/canonical.js";
+import type { SandboxConfigurationData } from "../config-library/kinds/sandbox_configuration.js";
 import {
   hashPassword,
   loginPlatformIdentity,
-  loginPlatformVerifiedIdentity
+  loginPlatformVerifiedIdentity,
+  type PlatformAuthContext
 } from "../platform/auth.js";
 import {
   addIdentityMembership,
@@ -28,7 +30,7 @@ import {
   upsertDocument
 } from "../platform/storage.js";
 import { organizationUserProfileFields } from "../platform/user_profile.js";
-import { DEFAULT_ACCESS_ROLE_IDS } from "../workforce/access.js";
+import { DEFAULT_ACCESS_ROLE_IDS, listAccessRoles, patchAccessRole } from "../workforce/access.js";
 import { patchScopeFlags, readScopeFlagState } from "../scopes/storage.js";
 import {
   generateSandboxId,
@@ -69,54 +71,19 @@ function asObject(value: unknown): JsonObject {
 
 export const USER_CHOICE = "$user";
 
-function channelsOnlyAppFlags(): JsonObject {
-  const enabled = new Set([
-    "apps.assistant",
-    "apps.channels",
-    "channels.threads",
-    "channels.reactions",
-    "channels.dms",
-    "channels.attachments",
-    "channels.pins",
-    "channels.search",
-    "channels.attention_v2",
-    "channels.rich_messages",
-    "channels.resources",
-    "channels.clips",
-    "channels.workflows",
-    "channels.ai",
-    "calls.rooms",
-    "channels.huddles",
-    "platform.top_bar",
-    "platform.cobrand_sidebar_logo",
-    "topbar.notifications"
-  ]);
+/**
+ * Where a workflow's app flags start before its own are laid over (config-library kind sandbox_configuration,
+ * `app_flags_base`), computed from the running registry so a capability added later is covered too.
+ */
+const APP_FLAG_BASES = ["new_organization", "all_off", "all_on", "expanded_access_off"] as const;
+function appFlagBaseOverrides(base: unknown): JsonObject {
   const overrides: JsonObject = {};
   for (const capability of valueCapabilities()) {
-    if (capability.type === "boolean") overrides[capability.key] = enabled.has(capability.key);
+    if (capability.type !== "boolean") continue;
+    if (base === "all_off") overrides[capability.key] = false;
+    if (base === "all_on") overrides[capability.key] = true;
+    if (base === "expanded_access_off" && capability.requires.includes("platform.expanded_access")) overrides[capability.key] = false;
   }
-  overrides["platform.new_button_mode"] = "off";
-  overrides["platform.new_button_items"] = "";
-  overrides["topbar.global_search"] = false;
-  return overrides;
-}
-
-// Mirrors the "Full Platform" capability preset: every boolean capability on
-// (Money + merchant processing included), except optional reports, Training,
-// Training Studio, and Canvassing.
-// Selects/numbers retain their defaults.
-function instantFullOrgAppFlags(): JsonObject {
-  const overrides: JsonObject = {};
-  for (const capability of valueCapabilities()) {
-    if (capability.type === "boolean") overrides[capability.key] = true;
-  }
-  overrides["firstmeasure.weather_reports"] = false;
-  overrides["firstmeasure.instant_reports"] = false;
-  overrides["apps.training"] = false;
-  overrides["training.studio"] = false;
-  overrides["canvassing.app"] = false;
-  overrides["platform.new_button_mode"] = "selector";
-  overrides["platform.new_button_items"] = "";
   return overrides;
 }
 
@@ -283,10 +250,17 @@ function normalizeWorkflow(input: JsonObject, existing: JsonObject | null = null
       : [],
     // The test-run bar shows inside its test orgs unless the workflow turns it off.
     dev_bar: (input.dev_bar ?? existing?.dev_bar) !== false,
-    // A configuration module's revision (configurations/); a higher one replaces the saved copy.
-    configuration_revision: Number(input.configuration_revision ?? existing?.configuration_revision) || 0,
-    // Configuration setup scripts (configurations/index.ts) run when a test org is created.
-    setup_scripts: Array.isArray(input.setup_scripts ?? existing?.setup_scripts) ? ((input.setup_scripts ?? existing?.setup_scripts) as unknown[]).map(cleanText).filter((name) => Object.prototype.hasOwnProperty.call(SETUP_SCRIPTS, name)) : [],
+    // The onboarding wizard's product mode for builtin wizard stages (empty: the standard one).
+    onboarding_mode: /^[a-z_]{0,40}$/.test(cleanText(input.onboarding_mode ?? existing?.onboarding_mode)) ? cleanText(input.onboarding_mode ?? existing?.onboarding_mode) : "",
+    // Where the workflow's app flags start before its own are laid over (appFlagBaseOverrides).
+    app_flags_base: choice(input.app_flags_base ?? existing?.app_flags_base, APP_FLAG_BASES, "new_organization"),
+    // Terminology labels and role app options written at creation where the organization has none.
+    terminology: asObject(input.terminology ?? existing?.terminology),
+    role_app_options: asObject(input.role_app_options ?? existing?.role_app_options),
+    // Ordered setup steps, each a published action run as the new organization's owner (runSetupSteps).
+    setup: (Array.isArray(input.setup ?? existing?.setup) ? (input.setup ?? existing?.setup) as unknown[] : []).map(asObject).filter((step) => cleanText(step.action)),
+    // The config library entry this copy was made from (never taken from input): see ensureSeedData.
+    library: existing?.library ?? null,
     created_at: existing ? String(existing.created_at) : now,
     updated_at: now
   };
@@ -311,6 +285,7 @@ export async function duplicateWorkflow(workflowId: string, input: JsonObject = 
   if (!source) throw sandboxError(404, "workflow_not_found", `Workflow '${workflowId}' was not found.`);
   return sandboxStore.saveWorkflow(normalizeWorkflow({
     ...source,
+    library: null,
     id: undefined,
     title: cleanText(input.title) || `${source.title} (variant)`,
     variant_of: source.id,
@@ -358,7 +333,7 @@ export async function computeSettingsProjection(workflowId: string) {
   const defaults = normalizeEffects(workflow.defaults);
   const platformFlagDefaults = (await newOrganizationAppFlagDefaults()) as JsonObject;
 
-  let flags = deepMerge(platformFlagDefaults, groupedFlagOverrides(asObject(defaults.app_flags)));
+  let flags = deepMerge(deepMerge(platformFlagDefaults, groupedFlagOverrides(appFlagBaseOverrides(workflow.app_flags_base))), groupedFlagOverrides(asObject(defaults.app_flags)));
   let scopeFlags = normalizeEffectMap(defaults.scope_flags);
   const settings: JsonObject = {};
   for (const [path, value] of Object.entries(asObject(defaults.settings))) {
@@ -424,6 +399,70 @@ function randomFrom<T>(values: readonly T[]): T {
   return values[randomBytes(1).readUInt8(0) % values.length] as T;
 }
 
+/** A workflow's terminology labels (`{namespace: {key: label}}`), keeping any label the organization already has. */
+async function applyWorkflowTerminology(orgId: string, terminology: JsonObject, branchId = "default") {
+  if (!Object.keys(terminology).length) return;
+  const { readBranchModule, saveBranchModule } = await import("../platform/storage.js");
+  const current = await readBranchModule(orgId, branchId, "variable_mappings").catch(() => null);
+  const data = asObject(current?.data);
+  const labels = asObject(data.labels) as Record<string, Record<string, string>>;
+  const next: Record<string, Record<string, string>> = { ...labels };
+  let changed = false;
+  for (const [namespace, terms] of Object.entries(terminology)) {
+    for (const [key, label] of Object.entries(asObject(terms))) {
+      if (next[namespace]?.[key] || !cleanText(label)) continue;
+      next[namespace] = { ...(next[namespace] || {}), [key]: cleanText(label) };
+      changed = true;
+    }
+  }
+  if (changed) await saveBranchModule(orgId, branchId, "variable_mappings", { data: { ...data, labels: next } }, { replace: false });
+}
+
+/** A workflow's app options (`{app id: {option: value}}`) on every active role, keeping anything a role already sets. */
+async function applyWorkflowRoleAppOptions(orgId: string, roleAppOptions: JsonObject) {
+  if (!Object.keys(roleAppOptions).length) return;
+  for (const role of await listAccessRoles(orgId)) {
+    if ((role as JsonObject).status === "archived") continue;
+    const current = asObject((role as JsonObject).app_defaults) as Record<string, JsonObject>;
+    const next: Record<string, JsonObject> = { ...current };
+    let changed = false;
+    for (const [appId, options] of Object.entries(roleAppOptions)) {
+      const setting = asObject(next[appId]);
+      const existing = asObject(setting.options);
+      const missing = Object.entries(asObject(options)).filter(([key]) => !(key in existing));
+      if (!missing.length) continue;
+      next[appId] = { ...setting, options: { ...existing, ...Object.fromEntries(missing) } };
+      changed = true;
+    }
+    if (changed) await patchAccessRole(orgId, String((role as JsonObject).id), { expected_revision: (role as JsonObject).revision, app_defaults: next });
+  }
+}
+
+/**
+ * A workflow's setup steps, in order: each names a published action and its input, and runs as the new
+ * organization's owner (the person the sandbox made). A step limited to other data environments is skipped; one that
+ * fails stops creation unless it says `on_error: "continue"`.
+ */
+async function runSetupSteps(workflow: JsonObject, orgId: string, instanceId: string, owner: PlatformAuthContext) {
+  const steps = (Array.isArray(workflow.setup) ? workflow.setup : []).map(asObject);
+  if (!steps.length) return;
+  const { initializePublication } = await import("../platform/publication/bootstrap.js");
+  const { invokeAction } = await import("../platform/publication/actions.js");
+  const { userPublicationContext } = await import("../platform/publication/context.js");
+  initializePublication();
+  for (const [index, step] of steps.entries()) {
+    const action = cleanText(step.action);
+    const environments = Array.isArray(step.data_environments) ? step.data_environments.map(String) : null;
+    if (!action || (environments && !environments.includes(env.dataEnvironment))) continue;
+    try {
+      await invokeAction(userPublicationContext(owner, { mode: "command" }), { action, ...(cleanText(step.version) ? { version: cleanText(step.version) } : {}), target: { scope: "organization", organizationId: orgId } }, asObject(step.input), { idempotencyKey: `signup-sandbox:${instanceId}:${index}:${action}` });
+    } catch (error) {
+      if (step.on_error !== "continue") throw error;
+      console.error(`Sandbox setup step ${action} did not finish:`, error instanceof Error ? error.message : error);
+    }
+  }
+}
+
 export async function createTestInstance(workflowId: string, input: JsonObject = {}) {
   const password = gatedAccounts() ? randomBytes(24).toString("base64url") : SANDBOX_TEST_PASSWORD;
   const runContext = await resolveWorkflowRunContext(workflowId);
@@ -432,20 +471,13 @@ export async function createTestInstance(workflowId: string, input: JsonObject =
   const orgName = cleanText(input.label) || `${randomFrom(TEST_ORG_ADJECTIVES)} ${randomFrom(TEST_ORG_NOUNS)} Test Co ${suffix}`;
   const email = `sandbox-${suffix}-${randomBytes(3).toString("hex")}@signup-sandbox.test`;
 
-  // Start from the same defaults as real registration, then overlay the
-  // workflow's declared default state (flags + settings).
+  // Start from the same defaults as real registration, then the workflow's flag base, then overlay the
+  // workflow's declared default state (flags + settings). Nothing here depends on which workflow it is.
   const workflowDefaults = normalizeEffects(runContext.workflow.defaults);
-  if (workflowId === "swf_instant_full_org") {
-    const flags = asObject(workflowDefaults.app_flags);
-    flags["firstmeasure.weather_reports"] = false;
-    flags["firstmeasure.instant_reports"] = false;
-    if (!("platform.new_button_mode" in flags)) flags["platform.new_button_mode"] = "selector";
-    if (!("platform.new_button_items" in flags)) flags["platform.new_button_items"] = "";
-    workflowDefaults.app_flags = flags;
-  }
   const defaultAppFlags = (await newOrganizationAppFlagDefaults()) as JsonObject;
+  const baseFlags = deepMerge(defaultAppFlags, groupedFlagOverrides(appFlagBaseOverrides(runContext.workflow.app_flags_base)));
   const globalData: JsonObject = {
-    app_flags: deepMerge(defaultAppFlags, groupedFlagOverrides(asObject(workflowDefaults.app_flags))),
+    app_flags: deepMerge(baseFlags, groupedFlagOverrides(asObject(workflowDefaults.app_flags))),
     ...(env.dataEnvironment==='development'?{communications_development:{enabled:true,onboarding:'pending'},app_groups:{communications:{default:'inbox',members:{center:'standalone'}}}}:{}),
     credits_balance: 0,
     credits_ledger: [],
@@ -463,9 +495,6 @@ export async function createTestInstance(workflowId: string, input: JsonObject =
   // A workflow may name the apps it offers (settings.app_offers); they are written after the demo content is seeded.
   const workflowOffers = Array.isArray(globalData.app_offers) ? offeredAppIds(globalData.app_offers) : null;
   delete globalData.app_offers;
-  if (workflowId === 'swf_instant_full_org') {
-    globalData.roofing_setup = { template: 'roofing', completed: true, services: ['roofing', 'gutters', 'siding'], job_types: ['roof_replacement', 'roof_repair', 'gutter_replacement', 'siding'], test_document_pack: 1 };
-  }
   const organization = await createOrganization({
     name: orgName,
     metadata: {
@@ -483,18 +512,6 @@ export async function createTestInstance(workflowId: string, input: JsonObject =
       expected_revision: scopeState.revision,
       flags: literalScopeFlags
     }));
-  }
-  for (const name of (Array.isArray(runContext.workflow.setup_scripts) ? runContext.workflow.setup_scripts : []).map(String)) {
-    const script = SETUP_SCRIPTS[name];
-    if (script) await script(String(organization.id));
-  }
-  if (env.dataEnvironment === 'development' && workflowId === 'swf_instant_full_org') {
-    await (await import('../appointments/defaults.js')).seedInstantFullAppointmentCatalog(String(organization.id));
-    const {readBranchModule,saveBranchModule}=await import('../platform/storage.js');
-    let mapping:JsonObject={};
-    try{mapping=asObject((await readBranchModule(String(organization.id),'default','variable_mappings')).data);}catch(error:any){if(error.statusCode!==404&&error.code!=='ENOENT')throw error;}
-    const labels=asObject(mapping.labels);
-    await saveBranchModule(String(organization.id),'default','variable_mappings',{data:{...mapping,labels:{...labels,partners:{...asObject(labels.partners),partner:'Subcontractor',partners:'Subcontractors'}}}});
   }
   const identity = await createIdentity({
     email,
@@ -538,27 +555,10 @@ export async function createTestInstance(workflowId: string, input: JsonObject =
     metadata: { source: "signup_sandbox_instance", sandbox_instance_id: instanceId }
   });
 
-  // Instant development organizations start ready to test using the existing
-  // shared transport. Other workflows still exercise their onboarding stages.
-  if (env.dataEnvironment === 'development' && workflowId === 'swf_instant_full_org') {
-    await (await import('./roofing-documents.js')).seedInstantRoofingDocuments(String(organization.id), ctx);
-    await (await import('../materials/roofing-library.js')).seedInstantRoofingLibrary(String(organization.id), ctx);
-    await (await import('../labor/sample-pay-sheets.js')).seedInstantPaySheets(String(organization.id), ctx);
-    await (await import('../payroll/sample-pay-rules.js')).seedSamplePayRules(String(organization.id), ctx);
-    try {
-      // A roofing company's people: roles, departments, crews, subcontractors and pay. Nobody is invited or messaged.
-      await (await import('../development/roofing-people.js')).seedRoofingPeople(ctx);
-    } catch (error) {
-      console.error('Instant Full Org sample people were not added:', error instanceof Error ? error.message : error);
-    }
-    try {
-      await completeDevelopmentOnboarding(ctx);
-    } catch (error) {
-      // A fresh development server may not have a verified transport yet.
-      // Keep setup pending; never fabricate a number or carrier approval.
-      if (!(error instanceof PlatformError) || error.code !== 'development_transport_required') throw error;
-    }
-  }
+  // The workflow's terminology and role app options (never over what is already set), then its setup steps.
+  await applyWorkflowTerminology(String(organization.id), asObject(runContext.workflow.terminology));
+  await applyWorkflowRoleAppOptions(String(organization.id), asObject(runContext.workflow.role_app_options));
+  await runSetupSteps(runContext.workflow, String(organization.id), instanceId, ctx);
 
   const testOrg = await sandboxStore.saveTestOrg({
     schema_version: sandboxStore.schemaVersion,
@@ -594,7 +594,7 @@ export async function createTestInstance(workflowId: string, input: JsonObject =
     ? "/portal/?onboarding=1"
     : (startRole === "landing" || startRole === "signup")
       ? "/portal/"
-      : stageSurfaceUrl(workflowId, instanceId, startStage, runContext.start_stage);
+      : stageSurfaceUrl(cleanText(runContext.workflow.onboarding_mode), startStage, runContext.start_stage);
   // Seed demo content before offers mask the operational apps; viewing a tab never consumes an offer.
   await saveGlobal(String(organization.id), { data: { app_offers: [...(workflowOffers ?? NEW_ORGANIZATION_APP_OFFERS)] } });
   // The dev console restores this starting state in one click (docs/architecture/config-library.md, "Test organizations").
@@ -659,7 +659,7 @@ export async function applyStageEffects(instanceId: string, stageId: string) {
 // wizard steps in the portal wizard, landing/signup on their real pages, and
 // placeholder/bundle pages as a dev-bar overlay inside the portal
 // (?sbx_stage=<index>) — there is no separate runner surface.
-function stageSurfaceUrl(_workflowId: string, _instanceId: string, stage: JsonObject, index: number) {
+function stageSurfaceUrl(onboardingMode: string, stage: JsonObject, index: number) {
   const page = asObject(stage.page);
   const implementation = asObject(page.implementation);
   const implType = String(implementation.type);
@@ -668,11 +668,7 @@ function stageSurfaceUrl(_workflowId: string, _instanceId: string, stage: JsonOb
     // sbx_step lets the dev bar jump the wizard to this step after a
     // cross-surface navigation; same-page clicks call goToPage directly.
     const ref = cleanText(implementation.builtin_ref) || "branding";
-    const productMode = _workflowId === "swf_channels_only"
-      ? "&onboardingMode=channels"
-      : _workflowId === "swf_home_improvement"
-        ? "&onboardingMode=home_improvement"
-        : "";
+    const productMode = onboardingMode ? `&onboardingMode=${encodeURIComponent(onboardingMode)}` : "";
     return `/portal/?onboarding=1&sbx_step=${encodeURIComponent(ref)}${productMode}`;
   }
   if (implType === "landing_embed") {
@@ -702,7 +698,7 @@ export async function instanceRunState(instanceId: string) {
   }
   const stages = runContext.stages.map((stage, index) => ({
     ...stage,
-    target: stageSurfaceUrl(workflowId, instanceId, stage as JsonObject, index)
+    target: stageSurfaceUrl(cleanText(runContext.workflow.onboarding_mode), stage as JsonObject, index)
   }));
   return {
     test_org: record,
@@ -925,7 +921,7 @@ export async function importBundle(bundle: JsonObject, options: { overwrite?: bo
   return summary;
 }
 
-// ---- Seed: the FirstMate default workflow as a rebuildable template --------
+// ---- Seed pages: the signup pages workflows name --------------------------
 // Stable ids so the same seed on two machines produces identical, syncable docs.
 
 const SEED_PAGES: JsonObject[] = [
@@ -1164,96 +1160,51 @@ const SEED_PAGES: JsonObject[] = [
   }
 ];
 
-const SEED_WORKFLOW: JsonObject = {
-  id: "swf_firstmate_default",
-  title: "FirstMate default signup",
-  description: "The current production FirstMate flow rebuilt as a sandbox workflow: landing -> signup -> branding -> users -> credits/checkout -> enter app.",
-  entry_mode: "landing_first",
-  stages: [
-    { id: "stg_fm_landing", page_id: "spg_firstmate_landing", notes: "Optional marketing front door." },
-    { id: "stg_fm_signup", page_id: "spg_firstmate_signup", notes: "Skipped by sandbox test instances." },
-    { id: "stg_fm_branding", page_id: "spg_firstmate_branding", notes: "" },
-    { id: "stg_fm_users", page_id: "spg_firstmate_users", notes: "Skipped on mobile in the real wizard." },
-    { id: "stg_fm_account_load", page_id: "spg_firstmate_account_load", notes: "" }
-  ],
-  tags: ["template", "firstmate"]
-};
+// ---- Seed: workflows from the config library -------------------------------
+// Every signup sandbox configuration is a config library entry (kind sandbox_configuration,
+// docs/architecture/config-library.md). Its saved workflow is a copy that records the entry it came from
+// (`library`: kind, id, revision, sha256 and the hash of what was written). A newer library revision replaces a copy
+// nobody edited; a copy edited in the sandbox stays as it is until it is reset to the library.
 
-const CHANNELS_ONLY_WORKFLOW: JsonObject = {
-  id: "swf_channels_only",
-  title: "FirstMate Channels-only signup",
-  description: "A focused signup for a company buying FirstMate Channels as its complete team workspace. No CRM, projects, app picker, to-do rail, credit purchase, or product-suite language.",
-  entry_mode: "signup_first",
-  stages: [
-    { id: "stg_channels_signup", page_id: "spg_firstmate_signup", notes: "Standard identity and company creation; skipped by sandbox instances." },
-    { id: "stg_channels_brand", page_id: "spg_firstmate_branding", notes: "Use the shared production branding experience: website discovery, logo preview/upload, palette extraction, color editing, and live branded previews." },
-    { id: "stg_channels_team", page_id: "spg_channels_team", notes: "Invite the first teammates and assign simple workspace roles." },
-    { id: "stg_channels_structure", page_id: "spg_channels_structure", notes: "Create a useful starter channel structure." },
-    { id: "stg_channels_preferences", page_id: "spg_channels_preferences", notes: "Set company-wide collaboration defaults." },
-    { id: "stg_channels_launch", page_id: "spg_channels_launch", notes: "Review and enter Channels." }
-  ],
-  tags: ["template", "channels", "channels-only"]
-};
+const SANDBOX_CONFIGURATION_KIND = "sandbox_configuration";
+/** The fields of a saved workflow that come from its library entry. */
+const CONFIGURATION_FIELDS = ["title", "description", "entry_mode", "onboarding_mode", "stages", "tags", "sample_data", "launch_sample_data", "dev_bar", "app_flags_base", "defaults", "terminology", "role_app_options", "setup"] as const;
 
-const HOME_IMPROVEMENT_WORKFLOW: JsonObject = {
-  id: "swf_home_improvement",
-  title: "Generic home improvement company setup",
-  description: "The foundation for a full home improvement company setup: account creation, generic workspace branding, services, and the kinds of work the company performs. Additional setup pages will follow.",
-  entry_mode: "signup_first",
-  defaults: {
-    settings: {
-      "home_improvement_setup.template": "generic",
-      "home_improvement_setup.completed": false
-    }
-  },
-  stages: [
-    { id: "stg_home_improvement_signup", page_id: "spg_firstmate_signup", notes: "Standard identity and company creation; skipped by sandbox instances." },
-    { id: "stg_home_improvement_brand", page_id: "spg_firstmate_branding", notes: "Use the shared production branding flow with a lightweight generic workspace preview: branded left rail, general interface styling, and a sample modal." },
-    { id: "stg_home_improvement_services", page_id: "spg_home_improvement_services", notes: "Select common services or search a broader home improvement catalog." },
-    { id: "stg_home_improvement_work_types", page_id: "spg_home_improvement_work_types", notes: "Select any combination of replacement, repair, and ongoing maintenance work." }
-  ],
-  tags: ["template", "home-improvement", "full-company"]
-};
+function configurationContent(workflow: JsonObject) {
+  return contentHash(Object.fromEntries(CONFIGURATION_FIELDS.map((field) => [field, workflow[field] ?? null])) as never);
+}
 
-const ROOFING_WORKFLOW: JsonObject = {
-  id: "swf_roofing_company",
-  title: "Roofing company setup",
-  description: "Full setup draft for a roofing/exteriors company that sells retail replacements, works insurance claims, and runs repairs and maintenance: profile, lead intake, per-job-type sales workflows with job-specific contracts and payment terms, schedules & commissions, production templates, team, summary, and a data-import finale.",
-  entry_mode: "signup_first",
-  defaults: {
-    settings: {
-      "roofing_setup.template": "roofing",
-      "roofing_setup.completed": false
-    }
-  },
-  stages: [
-    { id: "stg_roofing_signup", page_id: "spg_firstmate_signup", notes: "Standard identity and company creation; skipped by sandbox instances." },
-    { id: "stg_roofing_brand", page_id: "spg_firstmate_branding", notes: "Shared production branding flow: website discovery, logo, palette, live previews." },
-    { id: "stg_roofing_profile", page_id: "spg_roofing_profile", notes: "Services, job types (drives the sales-workflow tabs), team size." },
-    { id: "stg_roofing_lead_intake", page_id: "spg_roofing_lead_intake", notes: "Lead sources, first-contact method, optional lead inbox + web form." },
-    { id: "stg_roofing_sales_workflows", page_id: "spg_roofing_sales_workflows", notes: "Guided per-job-type sales setup: contact strategy, follow-up cycle, bid timing, checklist, payment terms, and job-specific contract/proposal." },
-    { id: "stg_roofing_sales_appointments", page_id: "spg_roofing_schedules_commissions", notes: "Conditional sales-appointment availability, duration, per-day hours, and recurring blocked times." },
-    { id: "stg_roofing_commissions", page_id: "spg_roofing_commissions", notes: "Per-job-type commission plans with same-as shortcuts, custom line items, and optional self-generated rules." },
-    { id: "stg_roofing_production", page_id: "spg_roofing_production", notes: "Per-job-type production to-do templates + crew payment model." },
-    { id: "stg_roofing_team", page_id: "spg_roofing_team", notes: "Office, sales, field, crews; skippable for solo operators." },
-    { id: "stg_roofing_summary", page_id: "spg_roofing_summary", notes: "Read-back, sending identity, SMS add-on recap." },
-    { id: "stg_roofing_import", page_id: "spg_roofing_import", notes: "'One more thing': contact CSV import + active jobs. Skippable." }
-  ],
-  tags: ["template", "roofing", "full-company"]
-};
+function workflowFromEntry(entry: LibraryEntry<SandboxConfigurationData>, existing: JsonObject | null) {
+  // Every configuration field is in the parsed entry, so it replaces the saved one; id and created_at are kept.
+  const workflow = normalizeWorkflow({ ...structuredClone(entry.data), id: entry.id }, existing);
+  workflow.library = { ...libraryStamp(entry as unknown as LibraryEntry), copy_sha256: configurationContent(workflow) };
+  return workflow;
+}
 
-const INSTANT_FULL_ORG_WORKFLOW: JsonObject = {
-  id: "swf_instant_full_org",
-  title: "Instant full org (dev)",
-  description: "Zero-step dev shortcut: creating the test instance IS the whole signup. A fresh org with a random name and the full platform enabled (Money and merchant processing included; historical weather reports, regular instant reports, Training, Training Studio, and Canvassing off by default) lands straight in the portal — ready to test payments boarding end to end.",
-  entry_mode: "signup_first",
-  stages: [
-    { id: "stg_instant_signup", page_id: "spg_firstmate_signup", notes: "Skipped by sandbox instances like every signup stage — with no setup stages after it, the instance opens directly in the portal." }
-  ],
-  sample_data: true,
-  dev_bar: false,
-  tags: ["template", "dev", "instant"]
-};
+/** How a saved workflow stands against its library entry: missing, library, behind (untouched, older) or changed. */
+export function workflowLibraryState(workflow: JsonObject | null, entry: LibraryEntry<SandboxConfigurationData>) {
+  if (!workflow) return "missing" as const;
+  const library = asObject(workflow.library);
+  if (!library.copy_sha256 || library.copy_sha256 !== configurationContent(workflow)) return "changed" as const;
+  return Number(library.revision) === entry.revision && library.sha256 === entry.sha256 ? "library" as const : "behind" as const;
+}
+
+/** Every library configuration's saved workflow and how it stands. */
+export async function libraryWorkflowStatus() {
+  const rows = [];
+  for (const entry of libraryEntries<SandboxConfigurationData>(SANDBOX_CONFIGURATION_KIND)) {
+    const workflow = await sandboxStore.readWorkflow(entry.id);
+    rows.push({ id: entry.id, state: workflowLibraryState(workflow, entry), library_revision: entry.revision, copy_revision: Number(asObject(workflow?.library).revision) || undefined });
+  }
+  return rows;
+}
+
+/** Puts a saved workflow back to its library entry, discarding edits made in the sandbox. */
+export async function resetWorkflowToLibrary(workflowId: string) {
+  const entry = libraryEntries<SandboxConfigurationData>(SANDBOX_CONFIGURATION_KIND).find((item) => item.id === workflowId);
+  if (!entry) throw sandboxError(404, "workflow_not_in_library", `Workflow '${workflowId}' is not a library configuration.`);
+  return sandboxStore.saveWorkflow(workflowFromEntry(entry, await sandboxStore.readWorkflow(workflowId)));
+}
 
 export async function ensureSeedData() {
   for (const page of SEED_PAGES) {
@@ -1261,104 +1212,12 @@ export async function ensureSeedData() {
       await sandboxStore.savePage(normalizePage(page));
     }
   }
-  if (!(await sandboxStore.readWorkflow(String(SEED_WORKFLOW.id)))) {
-    await sandboxStore.saveWorkflow(normalizeWorkflow(SEED_WORKFLOW));
-  }
-  if (!(await sandboxStore.readWorkflow(String(HOME_IMPROVEMENT_WORKFLOW.id)))) {
-    await sandboxStore.saveWorkflow(normalizeWorkflow(HOME_IMPROVEMENT_WORKFLOW));
-  }
-  if (!(await sandboxStore.readWorkflow(String(INSTANT_FULL_ORG_WORKFLOW.id)))) {
-    // defaults are computed (not literal on the const) so the flag list always
-    // reflects the current capability registry at seed time.
-    await sandboxStore.saveWorkflow(normalizeWorkflow({
-      ...INSTANT_FULL_ORG_WORKFLOW,
-      defaults: { app_flags: instantFullOrgAppFlags() }
-    }));
-  } else {
-    const current = (await sandboxStore.readWorkflow(String(INSTANT_FULL_ORG_WORKFLOW.id)))!;
-    const defaults = asObject(current.defaults);
-    const flags = asObject(defaults.app_flags);
-    if (!("platform.new_button_mode" in flags) || !("platform.new_button_items" in flags) || flags["firstmeasure.weather_reports"] !== false || flags["firstmeasure.instant_reports"] !== false || flags["apps.training"] !== false || flags["training.studio"] !== false || flags["canvassing.app"] !== false) {
-      await sandboxStore.saveWorkflow({ ...current, description: INSTANT_FULL_ORG_WORKFLOW.description, defaults: { ...defaults, app_flags: { "platform.new_button_mode": "selector", "platform.new_button_items": "", ...flags, "firstmeasure.weather_reports": false, "firstmeasure.instant_reports": false, "apps.training": false, "training.studio": false, "canvassing.app": false } }, updated_at: nowIso() });
-    }
-  }
-  const existingRoofingWorkflow = await sandboxStore.readWorkflow(String(ROOFING_WORKFLOW.id));
-  if (!existingRoofingWorkflow) {
-    await sandboxStore.saveWorkflow(normalizeWorkflow(ROOFING_WORKFLOW));
-  } else {
-    const stages = Array.isArray(existingRoofingWorkflow.stages) ? existingRoofingWorkflow.stages : [];
-    const needsRoofingMigration = stages.some((stage) => ["stg_roofing_proposal_doc", "stg_roofing_schedules"].includes(String((stage as JsonObject).id || "")))
-      || !stages.some((stage) => String((stage as JsonObject).id || "") === "stg_roofing_commissions");
-    if (needsRoofingMigration) {
-      await sandboxStore.saveWorkflow(normalizeWorkflow({
-        ...existingRoofingWorkflow,
-        description: ROOFING_WORKFLOW.description,
-        stages: ROOFING_WORKFLOW.stages
-      }));
-    }
-  }
-  const channelsOnlyDefaults = {
-    app_flags: channelsOnlyAppFlags(),
-    settings: {
-      "channels_onboarding.product_mode": "channels_only",
-      "channels_onboarding.completed": false
-    }
-  };
-  const existingChannelsWorkflow = await sandboxStore.readWorkflow(String(CHANNELS_ONLY_WORKFLOW.id));
-  if (!existingChannelsWorkflow) {
-    await sandboxStore.saveWorkflow(normalizeWorkflow({
-      ...CHANNELS_ONLY_WORKFLOW,
-      defaults: channelsOnlyDefaults
-    }));
-  } else {
-    // Migrate the first Channels-only seed away from its intentionally thin
-    // branding mock. The shared production wizard already owns a much better
-    // website/logo/palette/live-preview experience, so this workflow must
-    // reference that page rather than maintaining a degraded copy.
-    const stages = (Array.isArray(existingChannelsWorkflow.stages) ? existingChannelsWorkflow.stages : []) as JsonObject[];
-    const existingDefaults = asObject(existingChannelsWorkflow.defaults);
-    const existingFlags = asObject(existingDefaults.app_flags);
-    await sandboxStore.saveWorkflow(normalizeWorkflow({
-      defaults: {
-        ...existingDefaults,
-        app_flags: {
-          ...existingFlags,
-          "platform.cobrand_sidebar_logo": true,
-          "platform.sidebar_footer_layout": "stacked",
-          "platform.custom_fields": false,
-          "platform.terminology_settings": false
-        }
-      },
-      stages: stages.map((stage) => String(stage.page_id) === "spg_channels_brand"
-        ? { ...stage, page_id: "spg_firstmate_branding", notes: "Use the shared production branding experience: website discovery, logo preview/upload, palette extraction, color editing, and live branded previews." }
-        : stage)
-    }, existingChannelsWorkflow));
-  }
-  for (const configuration of CONFIGURATIONS) {
-    const seed: JsonObject = { ...configuration.workflow, defaults: configuration.defaults() };
-    const current = await sandboxStore.readWorkflow(String(seed.id));
-    if (!current) { await sandboxStore.saveWorkflow(normalizeWorkflow(seed)); continue; }
-    // The configuration file is the source of truth: a higher revision there replaces the saved workflow.
-    if (Number(seed.configuration_revision || 0) > Number(current.configuration_revision || 0)) {
-      await sandboxStore.saveWorkflow(normalizeWorkflow(seed, current));
-      continue;
-    }
-    // Capabilities and workflow fields added after the seed are filled in; values already saved are kept.
-    const defaults = asObject(current.defaults);
-    const flags = asObject(defaults.app_flags);
-    const missingFlags = Object.entries(asObject(asObject(seed.defaults).app_flags)).filter(([key]) => !(key in flags));
-    const missingFields = ["sample_data", "launch_sample_data", "setup_scripts"].filter((key) => !(key in current) && key in seed);
-    if (missingFlags.length || missingFields.length) {
-      await sandboxStore.saveWorkflow(normalizeWorkflow({
-        ...Object.fromEntries(missingFields.map((key) => [key, seed[key]])),
-        defaults: { ...defaults, app_flags: { ...flags, ...Object.fromEntries(missingFlags) } }
-      }, current));
-    }
-  }
-  // Instant full org offers sample data and runs without the test-run bar; older saved copies gain both, once.
-  const instantWorkflow = await sandboxStore.readWorkflow(String(INSTANT_FULL_ORG_WORKFLOW.id));
-  if (instantWorkflow && !("dev_bar" in instantWorkflow)) {
-    await sandboxStore.saveWorkflow(normalizeWorkflow({ sample_data: true, dev_bar: false }, instantWorkflow));
+  for (const entry of libraryEntries<SandboxConfigurationData>(SANDBOX_CONFIGURATION_KIND)) {
+    const current = await sandboxStore.readWorkflow(entry.id);
+    // A copy saved before configurations were library entries (no stamp) is replaced once; one edited since it was
+    // made from the library is left as it is.
+    const state = current && !current.library ? "behind" : workflowLibraryState(current, entry);
+    if (state === "missing" || state === "behind") await sandboxStore.saveWorkflow(workflowFromEntry(entry, current));
   }
   const workflows = await sandboxStore.listWorkflows();
   const legacyBrandingReferenced = workflows.some((workflow) =>

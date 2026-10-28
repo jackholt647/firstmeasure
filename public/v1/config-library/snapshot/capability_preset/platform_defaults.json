@@ -1,0 +1,16 @@
+{
+  "kind": "capability_preset",
+  "id": "platform_defaults",
+  "revision": 1,
+  "sha256": "619840c915d33679728d608b4565f68cfc8f155e8a04b4d64a8f5c5ec13a9a60",
+  "title": "Platform Defaults",
+  "updated_at": "2026-10-27T23:19:27.275Z",
+  "updated_by": "generator",
+  "data": {
+    "name": "Platform Defaults",
+    "description": "The registry defaults applied to new organizations when no signup preset is configured.",
+    "builtin": true,
+    "base": "defaults",
+    "values": {}
+  }
+}

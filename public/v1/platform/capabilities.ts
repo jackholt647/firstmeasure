@@ -1,12 +1,17 @@
 import { createHash } from "node:crypto";
-import { readFile } from "node:fs/promises";
-import path from "node:path";
 
-import { env } from "../src/config/env.js";
 import { badRequest, notFound } from "./errors.js";
 import { OTHER_PERMISSION_CATEGORY, PERMISSION_CATEGORIES, WILDCARD_PERMISSION, permissionSubcategory } from "./permission_categories.js";
 import { readGlobal, mutateGlobal, readPlatformConfiguration, mutatePlatformConfiguration, type JsonObject } from "./storage.js";
 import { APP_OFFERS, maskOfferedCapabilities, offeredAppIds, offersWithPrerequisitesMet } from "./app-experience/offers.js";
+import { libraryData, libraryEntries, libraryEntry, libraryVersion } from "../config-library/library.js";
+import type { LibraryEntry } from "../config-library/contracts.js";
+import type { Author } from "../config-library/contracts.js";
+// Types only: the kind files import the capability declarations, which import this module.
+import type { CapabilityPresetData, PresetBase } from "../config-library/kinds/capability_preset.js";
+import type { CapabilitySignupPresetData } from "../config-library/kinds/capability_signup_preset.js";
+import type { CapabilityDefaultsData } from "../config-library/kinds/capability_defaults.js";
+import { importPlatformConfigurationOnce, saveLibraryEntry, deleteLibraryEntry } from "./capability-library.js";
 
 /**
  * Central capability registry.
@@ -44,9 +49,9 @@ export type CapabilityDefinition = {
   kind: CapabilityKind;
   label: string;
   description: string;
-  /** Value nodes only. Defaults to "boolean". Permission nodes carry none. */
+  /** Value nodes only. Defaults to "boolean". Permission nodes carry none. What a value is when nothing sets it is
+   * library data (config-library kind `capability_defaults`), never declared here. */
   type?: CapabilityValueType;
-  default?: CapabilityValue;
   parent?: string;
   requires?: string[];
   options?: Array<string | [string, string]>;
@@ -142,8 +147,11 @@ export type CapabilityPreset = {
   name: string;
   description: string;
   builtin: boolean;
+  /** Where values the preset does not name start (presetBaseValues). */
+  base: PresetBase;
   values: Record<string, CapabilityValue>;
-  created_at?: string;
+  /** The library entry's revision and last save. */
+  revision?: number;
   updated_at?: string;
 };
 
@@ -198,9 +206,6 @@ export function registerCapabilities(definitions: CapabilityDefinition[]) {
       if ((type === "select" || type === "multi_select") && !(definition.options || []).length) {
         throw new Error(`Capability "${key}" is a ${type} but declares no options.`);
       }
-      if (type === "number" && typeof definition.default !== "number") {
-        throw new Error(`Capability "${key}" is a number but its default is not numeric.`);
-      }
     } else {
       if (!cleanText(definition.permission_key)) {
         throw new Error(`Permission capability "${key}" must declare permission_key.`);
@@ -216,7 +221,8 @@ export function registerCapabilities(definitions: CapabilityDefinition[]) {
       label: cleanText(definition.label) || key,
       description: cleanText(definition.description),
       type,
-      default: storesValue ? (definition.default ?? (type === "boolean" ? false : null)) : null,
+      // Laid over from the library whenever the registry is read (applyLibraryDefaults).
+      default: null,
       parent: cleanText(definition.parent),
       requires: (definition.requires || []).map(cleanText).filter(Boolean),
       options: (definition.options || []).map((option) => Array.isArray(option) ? [cleanText(option[0]), cleanText(option[1])] as [string, string] : [cleanText(option), cleanText(option)] as [string, string]),
@@ -240,6 +246,35 @@ export function registerCapabilities(definitions: CapabilityDefinition[]) {
       stores_value: storesValue
     });
     registryValidated = false;
+    defaultsVersion = -1;
+  }
+}
+
+/** A value capability the library names no default for: off, its minimum (or 0), or its first option. */
+function unsetDefault(node: NormalizedCapability): CapabilityValue {
+  if (node.type === "number") return node.min ?? 0;
+  if (node.type === "select") return node.options[0]?.[0] ?? "";
+  if (node.type === "multi_select") return "";
+  return false;
+}
+
+let defaultsVersion = -1;
+/**
+ * Every value capability's default is library data (config-library kind `capability_defaults`, entry `platform`),
+ * laid over the code declarations. Re-applied whenever the library changes, so an edit on dev reaches every process
+ * on its next read. A value that no longer fits its declaration is treated as unset.
+ */
+function applyLibraryDefaults() {
+  const version = libraryVersion();
+  if (version === defaultsVersion) return;
+  defaultsVersion = version;
+  const values = libraryData<CapabilityDefaultsData>("capability_defaults", "platform")?.values || {};
+  for (const node of registry.values()) {
+    if (!node.stores_value) continue;
+    node.default = unsetDefault(node);
+    const value = values[node.key];
+    if (value === undefined || typeof value !== (node.type === "boolean" ? "boolean" : node.type === "number" ? "number" : "string")) continue;
+    node.default = normalizeCapabilityValue(node, value);
   }
 }
 
@@ -248,7 +283,7 @@ export function registerCapabilities(definitions: CapabilityDefinition[]) {
  * fails at server boot (and in tests) instead of resolving inconsistently.
  */
 export function validateCapabilityRegistry() {
-  if (registryValidated) return;
+  if (registryValidated) { applyLibraryDefaults(); return; }
   for (const node of registry.values()) {
     node.children = [];
     node.ancestors = [];
@@ -299,6 +334,7 @@ export function validateCapabilityRegistry() {
     node.ancestors = chain;
   }
   registryValidated = true;
+  applyLibraryDefaults();
 }
 
 export function capabilityRegistry(): ReadonlyMap<string, NormalizedCapability> {
@@ -718,211 +754,63 @@ export async function isCapabilityEnabled(orgId: string, key: string) {
 }
 
 // ---------------------------------------------------------------------------
-// Presets
+// Presets: config-library kind capability_preset, one entry per preset
 // ---------------------------------------------------------------------------
 
-function platformStorageRoot() {
-  return path.resolve(process.cwd(), env.platformStorageRoot);
-}
+const PRESET_KIND = "capability_preset";
 
-function capabilityPresetsPath() {
-  return path.join(platformStorageRoot(), "config", "capability_presets.json");
-}
-
-/** All boolean value nodes off, non-boolean nodes at their defaults. */
-function baselineOffValues() {
+/**
+ * Where a preset's unnamed values start, computed from the running registry so a capability added later is covered:
+ * `off` (on/off capabilities off), `defaults`, or `all_on` (on/off capabilities on). Other values keep their defaults.
+ */
+export function presetBaseValues(base: PresetBase) {
   const values: Record<string, CapabilityValue> = {};
   for (const node of valueCapabilities()) {
-    values[node.key] = node.type === "boolean" ? false : (node.default as CapabilityValue);
+    values[node.key] = node.type === "boolean" && base !== "defaults" ? base === "all_on" : node.default as CapabilityValue;
   }
   return values;
 }
 
-function presetValues(overrides: Record<string, CapabilityValue>) {
-  return { ...baselineOffValues(), ...overrides };
-}
-
-function everythingOnValues() {
-  const values: Record<string, CapabilityValue> = {};
-  for (const node of valueCapabilities()) {
-    values[node.key] = node.type === "boolean" ? true : (node.default as CapabilityValue);
-  }
-  return values;
-}
-
-export function builtinCapabilityPresets(): CapabilityPreset[] {
+/** Values of declared value capabilities only, normalized (a saved key whose capability was removed is dropped). */
+function knownValues(input: Record<string, unknown>) {
   validateCapabilityRegistry();
-  return [
-    {
-      id: "platform_defaults",
-      name: "Platform Defaults",
-      description: "The registry defaults applied to new organizations when no signup preset is configured.",
-      builtin: true,
-      values: capabilityDefaultValues()
-    },
-    {
-      id: "proposals_only",
-      name: "Proposals Only",
-      description: "A focused proposal workflow on the document engine: create and send proposals, collect signatures and payment through the customer portal. Everything else off.",
-      builtin: true,
-      values: presetValues({
-        "apps.projects": true,
-        "platform.contacts": true,
-        "platform.documents": true,
-        "documents.templates_studio": true,
-        "documents.esign": true,
-        "documents.payments": true,
-        "platform.customer_portal": true,
-        "customer_portal.payments": true,
-        "customer_portal.guest_links": true,
-        "platform.money": true,
-        "money.take_payment": true,
-        "money.payment_schedules": true,
-        "apps.billing": true,
-        "platform.pricebook": true,
-        "platform.new_button_mode": "doc:proposal"
-      })
-    },
-    {
-      id: "sales_crm",
-      name: "Sales & CRM",
-      description: "Lead intake, CRM pipeline, scheduling, proposals, and communications for sales-driven teams.",
-      builtin: true,
-      values: presetValues({
-        "apps.projects": true,
-        "apps.crm": true,
-        "crm.pipeline": true,
-        "crm.automations": true,
-        "crm.call_lists": true,
-        "platform.contacts": true,
-        "platform.lead_import": true,
-        "platform.website_embed_import": true,
-        "email.inbound_lead_import": true,
-        "lead_forms.contact_form": true,
-        "lead_forms.appointment_form": true,
-        "lead_forms.instant_estimate": true,
-        "platform.scheduling": true,
-        "scheduling.appointment_slots": true,
-        "platform.documents": true,
-        "documents.templates_studio": true,
-        "documents.esign": true,
-        "platform.customer_portal": true,
-        "customer_portal.payments": true,
-        "customer_portal.guest_links": true,
-        "platform.money": true,
-        "money.take_payment": true,
-        "money.payment_schedules": true,
-        "apps.billing": true,
-        "apps.messaging": true,
-        "platform.sms_settings": true,
-        "apps.channels": true,
-        "channels.threads": true,
-        "channels.reactions": true,
-        "channels.dms": true,
-        "channels.attachments": true,
-        "channels.pins": true,
-        "channels.search": true,
-        "channels.project_notes": true,
-        "canvassing.app": true,
-        "calls.app": true,
-        "platform.pricebook": true,
-        "platform.top_bar": true,
-        "topbar.global_search": true,
-        "topbar.notifications": true,
-        "platform.new_button_mode": "selector"
-      })
-    },
-    {
-      id: "field_operations",
-      name: "Field Operations",
-      description: "Crew scheduling, checklists, time tracking, materials, and payroll for production-heavy teams.",
-      builtin: true,
-      values: presetValues({
-        "apps.projects": true,
-        "apps.crew": true,
-        "crew.time_clock": true,
-        "crew.receipts": true,
-        "crew.change_orders": true,
-        "crew.field_payments": true,
-        "apps.checklists": true,
-        "checklists.templates": true,
-        "checklists.supervision": true,
-        "apps.payroll": true,
-        "payroll.pay_runs": true,
-        "payroll.self_service_earnings": true,
-        "apps.training": true,
-        "training.studio": true,
-        "training.assignments": true,
-        "training.quizzes": true,
-        "apps.equipment": true,
-        "equipment.scheduling": true,
-        "platform.scheduling": true,
-        "scheduling.crew_dispatch": true,
-        "platform.project_photos": true,
-        "photos.markup": true,
-        "platform.photos_feed": true,
-        "platform.project_docs": true,
-        "docs.markup": true,
-        "platform.pricebook": true,
-        "platform.materials": true,
-        "materials.ordering": true,
-        "platform.money": true,
-        "money.take_payment": true,
-        "money.expenses": true,
-        "money.profitability": true,
-        "apps.billing": true,
-        "apps.channels": true,
-        "channels.threads": true,
-        "channels.reactions": true,
-        "channels.project_notes": true,
-        "platform.user_modals": true,
-        "platform.new_button_mode": "project"
-      })
-    },
-    {
-      id: "full_platform",
-      name: "Full Platform",
-      description: "Everything on. Number and select settings keep their defaults.",
-      builtin: true,
-      values: everythingOnValues()
-    }
-  ];
+  return Object.fromEntries(Object.entries(input).flatMap(([key, value]) => {
+    const node = registry.get(cleanText(key));
+    return node?.stores_value ? [[node.key, normalizeCapabilityValue(node, value)]] : [];
+  })) as Record<string, CapabilityValue>;
 }
 
-type PresetFileShape = { presets?: CapabilityPreset[] };
-
-async function readCustomPresets(): Promise<CapabilityPreset[]> {
-  try {
-    const raw = (await readPlatformConfiguration("capability_presets") || {}) as PresetFileShape;
-    return (Array.isArray(raw.presets) ? raw.presets : [])
-      .map((preset) => ({
-        id: cleanText(preset.id),
-        name: cleanText(preset.name),
-        description: cleanText(preset.description),
-        builtin: false,
-        values: Object.fromEntries(
-          Object.entries(asObject(preset.values)).flatMap(([key, value]) => {
-            const node = registry.get(cleanText(key));
-            return node?.stores_value ? [[node.key, normalizeCapabilityValue(node, value)]] : [];
-          })
-        ),
-        created_at: cleanText(preset.created_at),
-        updated_at: cleanText(preset.updated_at)
-      }))
-      .filter((preset) => preset.id && preset.name);
-  } catch (error) {
-    if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
-    return [];
-  }
+function presetFromEntry(entry: LibraryEntry<CapabilityPresetData>): CapabilityPreset {
+  const data = entry.data;
+  const own = knownValues(data.values || {});
+  return {
+    id: entry.id,
+    name: data.name,
+    description: data.description || "",
+    builtin: data.builtin === true,
+    base: data.base || "off",
+    // A built-in preset shows its whole configuration; one an operator made shows what they set.
+    values: data.builtin ? { ...presetBaseValues(data.base || "off"), ...own } : own,
+    revision: entry.revision,
+    updated_at: entry.updated_at
+  };
 }
 
-async function writeCustomPresets(presets: CapabilityPreset[]) {
-  await mutatePlatformConfiguration("capability_presets", () => ({ presets }));
+/** Presets operators saved in the platform configuration before presets were library entries come across once. */
+function importLegacyPresets() {
+  return importPlatformConfigurationOnce("capability_presets", (document) => (Array.isArray(document.presets) ? document.presets : []).flatMap((raw) => {
+    const preset = asObject(raw);
+    const id = cleanText(preset.id), name = cleanText(preset.name);
+    if (!id || !name || libraryEntry(PRESET_KIND, id)) return [];
+    return [{ kind: PRESET_KIND, id, data: { name, description: cleanText(preset.description), builtin: false, base: "off", values: knownValues(asObject(preset.values)) } }];
+  }));
 }
 
 export async function listCapabilityPresets(): Promise<CapabilityPreset[]> {
   validateCapabilityRegistry();
-  return [...builtinCapabilityPresets(), ...(await readCustomPresets())];
+  await importLegacyPresets();
+  const presets = libraryEntries<CapabilityPresetData>(PRESET_KIND).map(presetFromEntry);
+  return [...presets.filter((preset) => preset.builtin), ...presets.filter((preset) => !preset.builtin)];
 }
 
 export async function readCapabilityPreset(presetId: string) {
@@ -933,100 +821,66 @@ export async function readCapabilityPreset(presetId: string) {
 }
 
 function slugifyPresetId(name: string) {
-  const slug = cleanText(name).toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_+|_+$/g, "");
+  const slug = cleanText(name).toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_+|_+$/g, "").slice(0, 70);
   return slug || `preset_${Date.now().toString(36)}`;
 }
 
-export async function createCapabilityPreset(input: { id?: string; name: string; description?: string; values: Record<string, unknown> }) {
+function requireEditablePreset(presetId: string, verb: string) {
+  const entry = libraryEntry<CapabilityPresetData>(PRESET_KIND, cleanText(presetId));
+  if (!entry) throw notFound("preset_not_found", `Capability preset "${cleanText(presetId)}" was not found.`);
+  if (entry.data.builtin) throw badRequest("preset_builtin", verb === "edit" ? "Built-in presets are edited in the config library. Save a copy under a new name instead." : "Built-in presets cannot be deleted.");
+  return entry;
+}
+
+export async function createCapabilityPreset(input: { id?: string; name: string; description?: string; values: Record<string, unknown> }, author: Author) {
   validateCapabilityRegistry();
   const name = cleanText(input.name);
   if (!name) throw badRequest("preset_name_required", "A preset name is required.");
   const { values, violations } = validateValueSet(input.values || {});
-  const existing = await listCapabilityPresets();
-  let id = cleanText(input.id) || slugifyPresetId(name);
-  if (existing.some((preset) => preset.id === id)) {
-    let suffix = 2;
-    while (existing.some((preset) => preset.id === `${id}_${suffix}`)) suffix += 1;
-    id = `${id}_${suffix}`;
-  }
-  const now = new Date().toISOString();
-  const preset: CapabilityPreset = {
-    id,
-    name,
-    description: cleanText(input.description),
-    builtin: false,
-    values,
-    created_at: now,
-    updated_at: now
-  };
-  await mutatePlatformConfiguration("capability_presets", current => {
-    const presets = Array.isArray(current?.presets) ? current.presets as CapabilityPreset[] : [];
-    const used = new Set([...builtinCapabilityPresets(), ...presets].map(item => item.id));
-    const baseId = preset.id;
-    let suffix = 2;
-    while (used.has(preset.id)) preset.id = `${baseId}_${suffix++}`;
-    return { presets: [...presets, preset] };
-  });
-  return { preset, violations };
+  const used = new Set((await listCapabilityPresets()).map((preset) => preset.id));
+  const baseId = cleanText(input.id) || slugifyPresetId(name);
+  let id = baseId;
+  for (let suffix = 2; used.has(id); suffix += 1) id = `${baseId}_${suffix}`;
+  const saved = await saveLibraryEntry(PRESET_KIND, id, { name, description: cleanText(input.description), builtin: false, base: "off", values }, author);
+  return { preset: presetFromEntry(saved.entry as unknown as LibraryEntry<CapabilityPresetData>), violations };
 }
 
-export async function updateCapabilityPreset(presetId: string, input: { name?: string; description?: string; values?: Record<string, unknown> }) {
-  const id = cleanText(presetId);
-  if (builtinCapabilityPresets().some((preset) => preset.id === id)) {
-    throw badRequest("preset_builtin", "Built-in presets cannot be edited. Save a copy under a new name instead.");
-  }
-  const custom = await readCustomPresets();
-  const index = custom.findIndex((preset) => preset.id === id);
-  const current = index >= 0 ? custom[index] : undefined;
-  if (!current) throw notFound("preset_not_found", `Capability preset "${id}" was not found.`);
+export async function updateCapabilityPreset(presetId: string, input: { name?: string; description?: string; values?: Record<string, unknown> }, author: Author) {
+  await importLegacyPresets();
+  const entry = requireEditablePreset(presetId, "edit");
   let violations: ValueSetViolation[] = [];
-  let values = current.values;
+  let values = knownValues(entry.data.values || {});
   if (input.values !== undefined) {
     const validated = validateValueSet(input.values || {});
     values = validated.values;
     violations = validated.violations;
   }
-  const next: CapabilityPreset = {
-    ...current,
-    name: input.name !== undefined ? (cleanText(input.name) || current.name) : current.name,
-    description: input.description !== undefined ? cleanText(input.description) : current.description,
-    values,
-    updated_at: new Date().toISOString()
+  const data: CapabilityPresetData = {
+    name: input.name !== undefined ? (cleanText(input.name) || entry.data.name) : entry.data.name,
+    description: input.description !== undefined ? cleanText(input.description) : entry.data.description,
+    builtin: false,
+    base: entry.data.base || "off",
+    values
   };
-  await mutatePlatformConfiguration("capability_presets", currentConfig => {
-    const presets = Array.isArray(currentConfig?.presets) ? currentConfig.presets as CapabilityPreset[] : [];
-    const latest = presets.find(item => item.id === id);
-    if (!latest) throw notFound("preset_not_found", `Capability preset "${id}" was not found.`);
-    if (latest.updated_at !== current.updated_at) throw badRequest("preset_changed", "The preset changed. Reload before saving.");
-    return { presets: presets.map(item => item.id === id ? next : item) };
-  });
-  return { preset: next, violations };
+  // Another save since this process read the preset is a conflict (409): reload before saving.
+  const saved = await saveLibraryEntry(PRESET_KIND, entry.id, data, author, { expected_revision: entry.revision });
+  return { preset: presetFromEntry(saved.entry as unknown as LibraryEntry<CapabilityPresetData>), violations };
 }
 
-export async function deleteCapabilityPreset(presetId: string) {
-  const id = cleanText(presetId);
-  if (builtinCapabilityPresets().some((preset) => preset.id === id)) {
-    throw badRequest("preset_builtin", "Built-in presets cannot be deleted.");
-  }
-  const custom = await readCustomPresets();
-  const next = custom.filter((preset) => preset.id !== id);
-  if (next.length === custom.length) throw notFound("preset_not_found", `Capability preset "${id}" was not found.`);
-  await mutatePlatformConfiguration("capability_presets", current => {
-    const presets = Array.isArray(current?.presets) ? current.presets as CapabilityPreset[] : [];
-    if (!presets.some(item => item.id === id)) throw notFound("preset_not_found", `Capability preset "${id}" was not found.`);
-    return { presets: presets.filter(item => item.id !== id) };
-  });
+export async function deleteCapabilityPreset(presetId: string, author: Author) {
+  await importLegacyPresets();
+  const entry = requireEditablePreset(presetId, "delete");
+  await deleteLibraryEntry(PRESET_KIND, entry.id, author, { expected_revision: entry.revision });
   return { deleted: true };
 }
 
 /**
- * Applies a preset to an organization. Presets are complete configurations:
- * boolean nodes missing from the preset are turned off; number/select nodes
- * missing keep their registry defaults.
+ * Applies a preset to an organization. Presets are complete configurations: values the preset does not name start
+ * from its base (on/off capabilities off for most presets), settings at their defaults.
  */
 export async function applyCapabilityPreset(orgId: string, presetId: string) {
   const preset = await readCapabilityPreset(presetId);
-  const full = { ...baselineOffValues(), ...preset.values };
+  const full = { ...presetBaseValues(preset.base), ...preset.values };
   // App presets never opt customers into a rollout or change its audience.
   delete full["platform.expanded_access"];
   delete full["platform.more_apps"];
@@ -1035,21 +889,28 @@ export async function applyCapabilityPreset(orgId: string, presetId: string) {
 }
 
 // ---------------------------------------------------------------------------
-// Signup defaults
+// Signup defaults: config-library kind capability_signup_preset, entry new_organization
 // ---------------------------------------------------------------------------
 
-function signupPresetConfigPath() {
-  return path.join(platformStorageRoot(), "config", "capability_signup_preset.json");
+const SIGNUP_KIND = "capability_signup_preset";
+const SIGNUP_ID = "new_organization";
+
+function signupPreset(): CapabilitySignupPresetData {
+  return libraryData<CapabilitySignupPresetData>(SIGNUP_KIND, SIGNUP_ID) || { preset_id: "", values: {} };
 }
 
-/** Public signup always starts with the FirstMeasure-only product, in every environment. */
+/** A signup preset an operator chose in the platform configuration before it was a library entry comes across once. */
+async function importLegacySignupPreset() {
+  await importLegacyPresets();
+  await importPlatformConfigurationOnce("capability_signup_preset", (document) => {
+    const presetId = cleanText(document.preset_id);
+    return presetId && libraryEntry(PRESET_KIND, presetId) ? [{ kind: SIGNUP_KIND, id: SIGNUP_ID, data: { ...structuredClone(signupPreset()), preset_id: presetId } }] : [];
+  });
+}
+
+/** Public signup's fixed start (library data: the signup preset entry's `values`), over whatever else it is given. */
 export function firstMeasureSignupValues(values: Record<string, CapabilityValue>): Record<string, CapabilityValue> {
-  return { ...values, ...Object.fromEntries([
-    "platform.expanded_access", "platform.more_apps", "apps.notifications",
-    "platform.money", "money.merchant_processing", "apps.assistant",
-    "platform.connections", "platform.left_column_settings", "platform.project_boards",
-    "platform.project_stages_view", "platform.manual_project_stage_movement"
-  ].map(key => [key, false])), "firstmeasure.report_localization": true };
+  return { ...values, ...knownValues(signupPreset().values || {}) };
 }
 
 /**
@@ -1057,42 +918,34 @@ export function firstMeasureSignupValues(values: Record<string, CapabilityValue>
  * signup preset when one is set, otherwise registry defaults.
  */
 export async function newOrganizationCapabilityValues() {
-  try {
-    const raw = await readPlatformConfiguration("capability_signup_preset") || {};
-    const presetId = cleanText(raw.preset_id);
-    if (presetId) {
-      const preset = await readCapabilityPreset(presetId).catch(() => null);
-      if (preset) {
-        const defaults = capabilityDefaultValues();
-        const values = { ...baselineOffValues(), ...preset.values };
-        // Signup remains FirstMeasure even when a historical platform preset is configured.
-        for (const key of Object.keys(defaults)) {
-          if (firstMeasureCapabilities.has(key) || key.startsWith("firstmeasure.")) values[key] = defaults[key]!;
-        }
-        return firstMeasureSignupValues(values);
+  await importLegacySignupPreset();
+  const presetId = cleanText(signupPreset().preset_id);
+  if (presetId) {
+    const preset = await readCapabilityPreset(presetId).catch(() => null);
+    if (preset) {
+      const defaults = capabilityDefaultValues();
+      const values = { ...presetBaseValues(preset.base), ...preset.values };
+      // Signup remains FirstMeasure even when a historical platform preset is configured.
+      for (const key of Object.keys(defaults)) {
+        if (firstMeasureCapabilities.has(key) || key.startsWith("firstmeasure.")) values[key] = defaults[key]!;
       }
+      return firstMeasureSignupValues(values);
     }
-  } catch (error) {
-    if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
   }
   return firstMeasureSignupValues(capabilityDefaultValues());
 }
 
-export async function setSignupCapabilityPreset(presetId: string) {
+export async function setSignupCapabilityPreset(presetId: string, author: Author) {
   const id = cleanText(presetId);
   if (id) await readCapabilityPreset(id);
-  await mutatePlatformConfiguration("capability_signup_preset", () => ({ preset_id: id, updated_at: new Date().toISOString() }));
+  else await importLegacySignupPreset();
+  await saveLibraryEntry(SIGNUP_KIND, SIGNUP_ID, { ...structuredClone(signupPreset()), preset_id: id }, author);
   return { preset_id: id };
 }
 
 export async function readSignupCapabilityPresetId() {
-  try {
-    const raw = await readPlatformConfiguration("capability_signup_preset") || {};
-    return cleanText(raw.preset_id);
-  } catch (error) {
-    if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
-    return "";
-  }
+  await importLegacySignupPreset();
+  return cleanText(signupPreset().preset_id);
 }
 
 // ---------------------------------------------------------------------------

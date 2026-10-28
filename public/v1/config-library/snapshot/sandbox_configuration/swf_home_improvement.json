@@ -1,0 +1,57 @@
+{
+  "kind": "sandbox_configuration",
+  "id": "swf_home_improvement",
+  "revision": 1,
+  "sha256": "d397eb707a154131ab5e1c4cca289eb00867de6405defb0e3b46486b45a1065f",
+  "title": "Generic home improvement company setup",
+  "updated_at": "2026-10-27T23:19:27.275Z",
+  "updated_by": "generator",
+  "data": {
+    "title": "Generic home improvement company setup",
+    "description": "The foundation for a full home improvement company setup: account creation, generic workspace branding, services, and the kinds of work the company performs. Additional setup pages will follow.",
+    "entry_mode": "signup_first",
+    "onboarding_mode": "home_improvement",
+    "stages": [
+      {
+        "id": "stg_home_improvement_signup",
+        "page_id": "spg_firstmate_signup",
+        "notes": "Standard identity and company creation; skipped by sandbox instances."
+      },
+      {
+        "id": "stg_home_improvement_brand",
+        "page_id": "spg_firstmate_branding",
+        "notes": "Use the shared production branding flow with a lightweight generic workspace preview: branded left rail, general interface styling, and a sample modal."
+      },
+      {
+        "id": "stg_home_improvement_services",
+        "page_id": "spg_home_improvement_services",
+        "notes": "Select common services or search a broader home improvement catalog."
+      },
+      {
+        "id": "stg_home_improvement_work_types",
+        "page_id": "spg_home_improvement_work_types",
+        "notes": "Select any combination of replacement, repair, and ongoing maintenance work."
+      }
+    ],
+    "tags": [
+      "template",
+      "home-improvement",
+      "full-company"
+    ],
+    "sample_data": false,
+    "launch_sample_data": [],
+    "dev_bar": true,
+    "app_flags_base": "new_organization",
+    "defaults": {
+      "app_flags": {},
+      "settings": {
+        "home_improvement_setup.template": "generic",
+        "home_improvement_setup.completed": false
+      },
+      "scope_flags": {}
+    },
+    "terminology": {},
+    "role_app_options": {},
+    "setup": []
+  }
+}

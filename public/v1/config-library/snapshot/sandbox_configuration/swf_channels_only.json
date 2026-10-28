@@ -1,0 +1,89 @@
+{
+  "kind": "sandbox_configuration",
+  "id": "swf_channels_only",
+  "revision": 1,
+  "sha256": "b8a272af34544e15829240a07bec6e7fc97877f34f3945f9210fcdb9ea9e313d",
+  "title": "FirstMate Channels-only signup",
+  "updated_at": "2026-10-27T23:19:27.275Z",
+  "updated_by": "generator",
+  "data": {
+    "title": "FirstMate Channels-only signup",
+    "description": "A focused signup for a company buying FirstMate Channels as its complete team workspace. No CRM, projects, app picker, to-do rail, credit purchase, or product-suite language.",
+    "entry_mode": "signup_first",
+    "onboarding_mode": "channels",
+    "stages": [
+      {
+        "id": "stg_channels_signup",
+        "page_id": "spg_firstmate_signup",
+        "notes": "Standard identity and company creation; skipped by sandbox instances."
+      },
+      {
+        "id": "stg_channels_brand",
+        "page_id": "spg_firstmate_branding",
+        "notes": "Use the shared production branding experience: website discovery, logo preview/upload, palette extraction, color editing, and live branded previews."
+      },
+      {
+        "id": "stg_channels_team",
+        "page_id": "spg_channels_team",
+        "notes": "Invite the first teammates and assign simple workspace roles."
+      },
+      {
+        "id": "stg_channels_structure",
+        "page_id": "spg_channels_structure",
+        "notes": "Create a useful starter channel structure."
+      },
+      {
+        "id": "stg_channels_preferences",
+        "page_id": "spg_channels_preferences",
+        "notes": "Set company-wide collaboration defaults."
+      },
+      {
+        "id": "stg_channels_launch",
+        "page_id": "spg_channels_launch",
+        "notes": "Review and enter Channels."
+      }
+    ],
+    "tags": [
+      "template",
+      "channels",
+      "channels-only"
+    ],
+    "sample_data": false,
+    "launch_sample_data": [],
+    "dev_bar": true,
+    "app_flags_base": "all_off",
+    "defaults": {
+      "app_flags": {
+        "apps.channels": true,
+        "channels.threads": true,
+        "channels.reactions": true,
+        "channels.dms": true,
+        "channels.attachments": true,
+        "channels.pins": true,
+        "channels.search": true,
+        "topbar.notifications": true,
+        "platform.top_bar": true,
+        "channels.attention_v2": true,
+        "channels.rich_messages": true,
+        "channels.resources": true,
+        "channels.clips": true,
+        "channels.workflows": true,
+        "channels.ai": true,
+        "calls.rooms": true,
+        "channels.huddles": true,
+        "platform.cobrand_sidebar_logo": true,
+        "apps.assistant": true,
+        "platform.new_button_mode": "off",
+        "platform.new_button_items": ""
+      },
+      "settings": {
+        "channels_onboarding.product_mode": "channels_only",
+        "channels_onboarding.completed": false
+      },
+      "scope_flags": {}
+    },
+    "terminology": {},
+    "role_app_options": {},
+    "setup": []
+  }
+}

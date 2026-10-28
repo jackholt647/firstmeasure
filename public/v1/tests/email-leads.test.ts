@@ -1,3 +1,4 @@
+import { seedNewOrganizationAppFlags } from "./helpers/config-library.js";
 import { nextTestPhone, enableExpandedPlatformFixture, closePlatformFixtureStores } from "./helpers/platform-fixture.js";
 import assert from "node:assert/strict";
 import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
@@ -48,18 +49,13 @@ function createSessionClient() {
   return { request, raw };
 }
 
-async function seedAppFlagDefaults(platformRoot: string) {
-  const configDir = path.join(platformRoot, "config");
-  await mkdir(configDir, { recursive: true });
-  await writeFile(path.join(configDir, "app_flag_defaults.json"), JSON.stringify({
-    data: {
-      app_flags: {
-        platform: { lead_import: true, website_embed_import: true, scheduling: true },
-        email: { inbound_lead_import: true },
-        lead_forms: { appointment_form: true, instant_estimate: true }
-      }
-    }
-  }));
+// New organizations' app flags are the config library entry app_flag_defaults/new_organization.
+async function seedAppFlagDefaults(_platformRoot: string) {
+  await seedNewOrganizationAppFlags({
+    platform: { lead_import: true, website_embed_import: true, scheduling: true },
+    email: { inbound_lead_import: true },
+    lead_forms: { appointment_form: true, instant_estimate: true }
+  });
 }
 
 before(async () => {

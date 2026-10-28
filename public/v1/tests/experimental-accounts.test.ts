@@ -99,15 +99,16 @@ test("Experimental signup is admin-only, with independent sessions and workflow 
     assert.notEqual(other.json().test_org.org_id,record.org_id);
     assert.equal((await app.inject({method:"POST",url:`${base}/test-orgs/${other.json().test_org.id}/users/${second.id}/login`,headers,payload:{}})).statusCode,404);
     assert.equal((await app.inject({url:`${base}/state`,headers:{cookie:cookie+'tampered'}})).statusCode,401);
-    // A configuration saved at an older revision is brought up to date before an organization is made from any workflow.
+    // A configuration saved before it was a library entry is brought up to date before an organization is made from any workflow.
     const { sandboxStore } = await import("../signup-sandbox/storage.js");
     const mvp: any = await sandboxStore.readWorkflow("swf_mvp_platform");
-    await sandboxStore.saveWorkflow({ ...mvp, configuration_revision: 1, defaults: { ...mvp.defaults, settings: { app_placements: mvp.defaults.settings.app_placements } } });
+    const { library: _stamp, ...legacy } = mvp;
+    await sandboxStore.saveWorkflow({ ...legacy, configuration_revision: 1, defaults: { ...mvp.defaults, settings: { app_placements: mvp.defaults.settings.app_placements } } });
     const fresh = await app.inject({method:"POST",url:`${base}/workflows/swf_instant_full_org/instances`,headers,payload:{label:"After a stale configuration"}});
     assert.equal(fresh.statusCode,200,fresh.body);
     const reseeded: any = await sandboxStore.readWorkflow("swf_mvp_platform");
-    assert.equal(reseeded.configuration_revision,mvp.configuration_revision);
-    assert.equal(reseeded.defaults.settings.project_tabs.order.at(-1),"project.customer_portal");
+    assert.deepEqual(reseeded.library,mvp.library);
+    assert.deepEqual(reseeded.defaults.settings.project_tabs,mvp.defaults.settings.project_tabs);
     await patchIdentity(String(identity.id), { status: "disabled" });
     assert.equal((await app.inject({url:`${base}/state`,headers})).statusCode,401);
   } finally {

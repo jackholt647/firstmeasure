@@ -180,7 +180,7 @@ use in `external_triggers`, bindings or rules (`work/events.ts`):
 
 Each is published once per project and report, document or set. The MVP
 platform's Generic Roofing scope uses them for its board
-(`signup-sandbox/configurations/mvp-platform.ts`): a stage's to-do finishes on
+(the `sandbox_configuration` library entry `swf_mvp_platform`): a stage's to-do finishes on
 its milestone or any later one, so a project skips ahead and never moves back.
 
 ## Dry run

@@ -79,6 +79,7 @@ import {
   updateCapabilityPreset,
   validateValueSet
 } from "./capabilities.js";
+import { personAuthor } from "./capability-library.js";
 import {
   authContextFromRequest,
   buildAuthContext,
@@ -1579,7 +1580,7 @@ app.get("/auth/google/config", async () => ({
       name: String(body.name || ""),
       description: String(body.description || ""),
       values
-    });
+    }, personAuthor(operator.identity?.email));
     reply.code(201);
     return { ok: true, preset, violations };
   });
@@ -1593,7 +1594,7 @@ app.get("/auth/google/config", async () => ({
       ...(Object.prototype.hasOwnProperty.call(body, "name") ? { name: String(body.name || "") } : {}),
       ...(Object.prototype.hasOwnProperty.call(body, "description") ? { description: String(body.description || "") } : {}),
       ...(Object.prototype.hasOwnProperty.call(body, "values") ? { values: asObject(body.values) } : {})
-    });
+    }, personAuthor(operator.identity?.email));
     return { ok: true, preset, violations };
   });
 
@@ -1601,7 +1602,7 @@ app.get("/auth/google/config", async () => ({
     const orgId = getParam(request.params, "orgId");
     const operator = await requirePlatformAuth(request, { orgId, csrf: true });
     if (!canManageTestAppFlags(operator)) throw forbidden("app_flags_operator_only", "Only an authorized operator can change app rollout flags.");
-    await deleteCapabilityPreset(getParam(request.params, "presetId"));
+    await deleteCapabilityPreset(getParam(request.params, "presetId"), personAuthor(operator.identity?.email));
     return { ok: true, deleted: true };
   });
 
@@ -1624,7 +1625,7 @@ app.get("/auth/google/config", async () => ({
     const operator = await requirePlatformAuth(request, { orgId, csrf: true });
     if (!canManageTestAppFlags(operator)) throw forbidden("app_flags_operator_only", "Only an authorized operator can change app rollout flags.");
     const body = objectBodySchema.parse(request.body ?? {});
-    const result = await setSignupCapabilityPreset(String(body.preset_id || ""));
+    const result = await setSignupCapabilityPreset(String(body.preset_id || ""), personAuthor(operator.identity?.email));
     return { ok: true, ...result };
   });
 

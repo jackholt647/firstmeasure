@@ -1,6 +1,3 @@
-import { readFile } from "node:fs/promises";
-import path from "node:path";
-
 import { env } from "../src/config/env.js";
 import "./capability_defs.js";
 import {
@@ -16,7 +13,12 @@ import {
   type CapabilityValue,
   type NormalizedCapability
 } from "./capabilities.js";
-import { readGlobal, readPlatformConfiguration, type JsonObject } from "./storage.js";
+import { mutatePlatformConfiguration, readGlobal, type JsonObject } from "./storage.js";
+import { libraryData, libraryEntry } from "../config-library/library.js";
+import type { LibraryEntry } from "../config-library/contracts.js";
+import type { AppFlagDefaultsData } from "../config-library/kinds/app_flag_defaults.js";
+import { importPlatformConfigurationOnce, saveLibraryEntry } from "./capability-library.js";
+import type { Author } from "../config-library/contracts.js";
 
 /**
  * Legacy app-flags compatibility layer.
@@ -152,28 +154,72 @@ export function appFlagDefaults() {
   return JSON.parse(JSON.stringify(defaultsByGroup())) as Record<AppFlagGroup, Record<string, AppFlagValue>> & { firstmeasure: Record<string, AppFlagValue> };
 }
 
-function platformStorageRoot() {
-  return path.resolve(process.cwd(), env.platformStorageRoot);
-}
-
-function appFlagDefaultsConfigPath() {
-  return path.join(platformStorageRoot(), "config", "app_flag_defaults.json");
-}
-
 export function normalizeFullAppFlags(input: JsonObject = {}) {
   const source = asObject(input.app_flags || input.flags || input);
   const flat = { ...Object.fromEntries(valueCapabilities().map((node) => [node.key, node.default as CapabilityValue])), ...flattenGroupedValues(source) };
   return groupCapabilityValues(flat) as Record<AppFlagGroup, Record<string, AppFlagValue>>;
 }
 
+const APP_FLAG_DEFAULTS_KIND = "app_flag_defaults";
+/** Only the groups that set something. */
+const sparseFlags = (flags: Record<string, Record<string, AppFlagValue>>) => Object.fromEntries(Object.entries(flags).filter(([, values]) => Object.keys(values).length));
+const APP_FLAG_DEFAULTS_ID = "new_organization";
+
+/** Flag defaults an operator saved in the platform configuration before they were a library entry come across once. */
+function importLegacyAppFlagDefaults() {
+  return importPlatformConfigurationOnce(APP_FLAG_DEFAULTS_KIND, (document) => {
+    const data = asObject(document.data);
+    const flags = normalizeAppFlagInput(asObject(data.app_flags || data.feature_flags || document.app_flags || document.feature_flags));
+    const kept = sparseFlags(flags);
+    return Object.keys(kept).length ? [{ kind: APP_FLAG_DEFAULTS_KIND, id: APP_FLAG_DEFAULTS_ID, data: { app_flags: kept } }] : [];
+  });
+}
+
+/** The operator's flag defaults for new organizations (library kind app_flag_defaults), as stored: grouped, sparse. */
+export async function readNewOrganizationAppFlagOverrides() {
+  await importLegacyAppFlagDefaults();
+  return normalizeAppFlagInput(asObject(libraryData<AppFlagDefaultsData>(APP_FLAG_DEFAULTS_KIND, APP_FLAG_DEFAULTS_ID)?.app_flags));
+}
+
+/** Saves the operator's flag defaults for new organizations as a new revision of the library entry. */
+export async function saveNewOrganizationAppFlagOverrides(input: JsonObject, author: Author) {
+  await importLegacyAppFlagDefaults();
+  const flags = normalizeAppFlagInput(input);
+  const kept = sparseFlags(flags);
+  const saved = await saveLibraryEntry(APP_FLAG_DEFAULTS_KIND, APP_FLAG_DEFAULTS_ID, { app_flags: kept }, author);
+  // TEMPORARY mirror: the internal PHP console (public/measure/internal/index.php, portalFeatureFlagReadDefaultRecord)
+  // still reads config/app_flag_defaults.json directly. Keep writing that document, marked as already imported so it is
+  // never read back into the library, until the console reads GET /v1/internal/admin/app-flag-defaults; then delete this.
+  const record = appFlagDefaultsRecord(saved.entry as unknown as LibraryEntry<AppFlagDefaultsData>);
+  await mutatePlatformConfiguration(APP_FLAG_DEFAULTS_KIND, () => ({ ...record, library_imported_at: new Date().toISOString(), library_mirror: true }));
+  return record;
+}
+
+function appFlagDefaultsRecord(entry: LibraryEntry<AppFlagDefaultsData> | null) {
+  return {
+    schema_version: 1,
+    id: "app_flag_defaults",
+    data: { app_flags: sparseFlags(normalizeAppFlagInput(asObject(entry?.data.app_flags))) },
+    revision: entry?.revision ?? 0,
+    updated_at: entry?.updated_at || "",
+    updated_by: entry?.updated_by || ""
+  };
+}
+
+/** The operator's flag defaults in the record shape the platform configuration document had (`{data: {app_flags}}`). */
+export async function readNewOrganizationAppFlagDefaultsRecord() {
+  await importLegacyAppFlagDefaults();
+  return appFlagDefaultsRecord(libraryEntry<AppFlagDefaultsData>(APP_FLAG_DEFAULTS_KIND, APP_FLAG_DEFAULTS_ID));
+}
+
+/**
+ * What a newly registered organization starts with: the signup preset (or the capability defaults), the operator's
+ * flag defaults over it, and the signup preset's fixed FirstMeasure start last.
+ */
 export async function newOrganizationAppFlagDefaults() {
-  const raw = await readPlatformConfiguration("app_flag_defaults");
-  if (raw) {
-    const data = asObject(raw.data);
-    const defaults = normalizeFullAppFlags(asObject(data.app_flags || data.feature_flags || raw.app_flags || raw.feature_flags));
-    return groupCapabilityValues(firstMeasureSignupValues(flattenGroupedValues(defaults)));
-  }
-  return groupCapabilityValues(await newOrganizationCapabilityValues()) as Record<AppFlagGroup, Record<string, AppFlagValue>>;
+  const overrides = flattenGroupedValues(await readNewOrganizationAppFlagOverrides());
+  const start = await newOrganizationCapabilityValues();
+  return groupCapabilityValues(firstMeasureSignupValues({ ...start, ...overrides })) as Record<AppFlagGroup, Record<string, AppFlagValue>>;
 }
 
 export async function rawAppFlags(orgId: string) {
