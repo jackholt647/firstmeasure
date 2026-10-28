@@ -92,6 +92,25 @@ async function pool(items, limit, work) {
   return results;
 }
 
+/**
+ * Runs suites on the regression runner (DEV_PUSH_RUNNER, e.g. agent@67.205.145.222; tools/dev-push/runner/regress.sh is
+ * its forced command): the merged commit is pushed to the router's repository as regress/<sha> for it to fetch.
+ */
+async function runOnRunner(dir, sha, ids, log) {
+  if (!ids.length) return [];
+  const ref = `refs/heads/regress/${sha}`;
+  await run("git", ["push", "--quiet", "--force", "origin", `${sha}:${ref}`], { cwd: dir });
+  log(`regression on ${process.env.DEV_PUSH_RUNNER}: ${ids.length} suite(s)`);
+  const key = path.join(os.homedir(), ".ssh", "dev_push_router_ed25519");
+  const result = await run("ssh", ["-i", key, "-o", "BatchMode=yes", "-o", "IdentitiesOnly=yes", "-o", "StrictHostKeyChecking=accept-new", "-o", `UserKnownHostsFile=${path.join(HOME, "known_hosts")}`, "-o", "ServerAliveInterval=30", process.env.DEV_PUSH_RUNNER, ["regress", sha, ...ids].join(" ")], { timeout: 90 * 60_000 });
+  await run("git", ["push", "--quiet", "origin", `:${ref}`], { cwd: dir });
+  const results = [];
+  for (const line of String(result.stdout).split("\n")) { try { const item = JSON.parse(line); if (item.id) results.push(item); else if (item.error) results.push({ id: "runner", ok: false, ms: 0, output: item.error }); } catch {} }
+  if (!results.length) results.push({ id: "runner", ok: false, ms: 0, output: `runner ${process.env.DEV_PUSH_RUNNER}: exit ${result.code}: ${tail(result.stderr || result.stdout, 1500)}` });
+  for (const item of results) log(`  ${item.ok ? "pass" : "FAIL"} ${item.id} (${Math.round(item.ms / 1000)} s, runner)`);
+  return results;
+}
+
 /** The incremental type check (opt-in): `tsc --noEmit` with build info kept per checkout. */
 async function typeCheck(dir) {
   const info = path.join(CACHE, `tsbuildinfo-${crypto.createHash("sha1").update(dir).digest("hex").slice(0, 8)}`);
@@ -146,6 +165,19 @@ export default {
     // Suites under two seconds (ALWAYS) run whenever the change maps to them; the type check and every other suite
     // only on request (the mapped ones, or every AGENTS.md suite with "all").
     const mapped = testsFor(server, tests);
+    // Regression on the runner (the agent droplet: more CPU, Chromium) when one is configured: type check and suites.
+    if (regression && process.env.DEV_PUSH_RUNNER && server.length + tests.length > 0) {
+      const ids = [...(want("typecheck") && (regression === "all" || server.some((file) => file.startsWith("public/v1/"))) ? ["v1:npm:check"] : []),
+        ...(regression === "all" ? [...new Set(AREAS.flatMap(([, list]) => list))].sort() : mapped).filter(want).map((id) => (id.startsWith("any:") ? (fs.existsSync(path.join(dir, "public", "v1", id.slice(4))) ? `v1:${id.slice(4)}` : `root:${id.slice(4)}`) : id))];
+      at = Date.now();
+      const results = await runOnRunner(dir, sha, ids, log);
+      timings.regression_runner = since(at);
+      for (const result of results) {
+        timings[`test:${result.id}`] = result.ms;
+        if (!result.ok) failures.push({ id: result.id === "v1:npm:check" ? "typecheck" : result.id, output: result.output || result.error || "" });
+      }
+      return { ok: failures.length === 0, failures, notes, timings };
+    }
     if (regression || mapped.some((id) => ALWAYS.has(id))) {
       await ensureModules(dir, log);
       if (regression && want("typecheck") && (regression === "all" || server.some((file) => file.startsWith("public/v1/")))) {
