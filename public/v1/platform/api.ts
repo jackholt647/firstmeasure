@@ -8877,6 +8877,8 @@ function branchModuleWritePermission(moduleId: string) {
   // routing, confirmations) changes who can be booked when: schedule editors
   // and company-settings admins only.
   if (moduleId === "scheduling") return "manage_schedule|manage_company_settings";
+  // The Money tab's settings (expense categories): whoever manages projects' money, or company settings.
+  if (moduleId === "money_settings") return "manage_projects|manage_company_settings";
   return undefined;
 }
 

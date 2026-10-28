@@ -3343,7 +3343,7 @@ window.PlatformCommerce.onReady(async function(){
     }
   }
   function projectTabHasSidebar(tab = activePreviewTab){
-    return ['proposal','materials','money'].includes(tab);
+    return ['proposal','materials'].includes(tab);
   }
   function syncProjectTabContent(){
     applyProjectModalPresentation();
@@ -6018,7 +6018,6 @@ window.PlatformCommerce.onReady(async function(){
     }
     if (activePreviewTab === 'schedule' && schedulePreviewAvailable()) return;
     if (activePreviewTab === 'materials' && materialsEnabled()) return;
-    if (activePreviewTab === 'money' && moneyEnabled()) return;
     const tab = mountProposalTab();
     if (tab?.renderManager) {
       tab.renderManager();
