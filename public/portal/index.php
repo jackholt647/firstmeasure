@@ -2398,7 +2398,6 @@ session_write_close();
   <script src="../libraries/apps/proposals/project.js?v=<?= portalAssetVersion('../libraries/apps/proposals/project.js') ?>"></script>
   <?php if ($platformExpandedAssets): ?>
   <script src="../libraries/apps/documents/project.js?v=<?= portalAssetVersion('../libraries/apps/documents/project.js') ?>"></script>
-  <script src="../libraries/apps/payroll/project.js?v=<?= portalAssetVersion('../libraries/apps/payroll/project.js') ?>"></script>
   <?php endif; ?>
   <script src="../libraries/apps/money/project.js?v=<?= portalAssetVersion('../libraries/apps/money/project.js') ?>"></script>
   <?php if ($platformExpandedAssets): ?>
