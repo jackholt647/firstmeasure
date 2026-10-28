@@ -328,6 +328,7 @@
       }
       /* Phones: every control in the tab is a full 40px touch target. */
       @media (max-width: 760px){
+        .cpo-title>i{width:32px;height:32px;border-radius:9px;font-size:14px}
         .cpo-btn,.cpo-btn.quiet,.cpo-head-action,.cpo-selbar .cpo-btn,.cpo-link-field{height:40px}
         .cpo-btn.icon{width:40px}
         .cpo-seg button{height:38px}

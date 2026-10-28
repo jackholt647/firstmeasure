@@ -201,8 +201,9 @@
     scopeKey: null,
     selectedId: '',
     hotId: '',
-    // null until the person opens or closes it: open beside the map, a peeking sheet on a phone.
-    trayOpen: (() => { const stored = readStorage(TRAY_STORAGE_KEY, null); return typeof stored === 'boolean' ? stored : null; })(),
+    // Open beside the map; on a phone, keep the first-project action visible until the person collapses it.
+    trayOpen: null,
+    trayPreferenceKey: '',
     mapType: readStorage(MAP_TYPE_STORAGE_KEY, 'roadmap') === 'hybrid' ? 'hybrid' : 'roadmap',
     markers: new Map(),
     clusters: new Map(),
@@ -410,6 +411,13 @@
 
   function update(container, model){
     if (!container) return;
+    // A collapse in another organization must not hide a new organization's first-project action.
+    const trayPreferenceKey = `${TRAY_STORAGE_KEY}:${window.__APP?.userOrgId || 'default'}:${window.__APP?.userId || 'default'}`;
+    if (state.trayPreferenceKey !== trayPreferenceKey) {
+      state.trayPreferenceKey = trayPreferenceKey;
+      const stored = readStorage(trayPreferenceKey, null);
+      state.trayOpen = typeof stored === 'boolean' ? stored : null;
+    }
     window.Portal?.util?.injectCSS?.('projects_map_view', STYLES);
     if (!window.Portal?.util?.injectCSS && !document.getElementById('projects-map-view-css')) {
       const style = document.createElement('style'); style.id = 'projects-map-view-css'; style.textContent = STYLES; document.head.appendChild(style);
@@ -421,7 +429,7 @@
       // Re-attached after another view: the map needs its size again.
       if (state.map) setTimeout(() => { window.google?.maps?.event?.trigger?.(state.map, 'resize'); state.layer?.draw?.(); }, 0);
     }
-    if (state.trayOpen == null) setTrayOpen(!isSheet(), { remember:false });
+    if (state.trayOpen == null) setTrayOpen(model?.empty === 'none' || !isSheet(), { remember:false });
     state.model = model || {};
     const scopeKey = String(model?.scopeKey || '');
     if (scopeKey !== state.scopeKey) { state.scopeKey = scopeKey; state.hiddenGroups.clear(); }
@@ -547,7 +555,7 @@
   function setTrayOpen(open, options = {}){
     const changed = state.trayOpen != null && state.trayOpen !== !!open;
     state.trayOpen = !!open;
-    if (options.remember !== false && changed) writeStorage(TRAY_STORAGE_KEY, state.trayOpen);
+    if (options.remember !== false && changed) writeStorage(state.trayPreferenceKey, state.trayOpen);
     state.root?.classList.toggle('is-tray-open', state.trayOpen);
     const toggle = state.root?.querySelector('.pm-tray-toggle');
     if (toggle) {
