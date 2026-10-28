@@ -45,7 +45,7 @@ export function makeFleet({ router, hosts, home, log = () => {} }) {
 
   async function check() {
     const lane = router.laneState.platform;
-    if (!lane?.release?.name || lane.state !== "idle") return; // never judge the fleet mid-release
+    if (!lane?.release?.name || lane.state !== "idle") return false; // never judge the fleet mid-release; try again soon
     const expected = lane.release.server || lane.release.name; // what /v1/health/ready reports (kept across browser-only releases)
     const problems = [];
     const seen = await sample();
@@ -80,6 +80,7 @@ export function makeFleet({ router, hosts, home, log = () => {} }) {
     if (JSON.stringify(fleet.problems) !== JSON.stringify(router.fleet?.problems || [])) for (const problem of problems) log(`FLEET: ${problem}`);
     router.fleet = fleet;
     await router.saveStatus();
+    return true;
   }
 
   return { check, members, sample };
