@@ -16,6 +16,25 @@ test('signup owner (role "owner", no level) reads as super admin and is protecte
   assert.equal(data.isOwner({ role: 'owner' }), true);
 });
 
+/* 1M8-251: another active super admin may suspend, archive or lower the owner (an owner who left); nobody else may. */
+async function protectionFor(me) {
+  const owner = { id: 'user_owner', email: 'owner@example.test', role: 'owner', permissions: { '*': true }, org_permissions: { level: 'owner', items: {} } };
+  const win = { FirstMatePeople: { kit: { t: (_key, fallback) => fallback, term: (_key, fallback) => fallback, ICONS: {} } }, __APP: { userOrgId: 'org_test', userId: me.id, userEmail: me.email },
+    Portal: { util: { hasPerm: () => true } },
+    PlatformAPI: { users: { list: async () => ({ users: [owner, me] }) } } };
+  vm.runInNewContext(source, { window: win, console, location: { hostname: 'localhost', origin: 'http://localhost' } });
+  const people = win.FirstMatePeople.data;
+  await people.load();
+  return people.protection(people.user('user_owner'));
+}
+
+test('only another active super admin may change the owner', async () => {
+  const superAdmin = { id: 'user_admin', email: 'admin@example.test', role: 'super_admin', status: 'active', org_permissions: { level: 'super_admin', items: {} } };
+  assert.equal(await protectionFor(superAdmin), '');
+  assert.equal(await protectionFor({ ...superAdmin, status: 'disabled' }), 'owner', 'a suspended super admin');
+  assert.equal(await protectionFor({ ...superAdmin, role: 'admin', org_permissions: { level: 'admin', items: {} } }), 'owner', 'an admin');
+});
+
 test('the five FirstMeasure levels keep their own labels', () => {
   for (const level of ['viewer', 'manager', 'admin', 'super_admin']) assert.equal(data.userLegacy({ org_permissions: { level } }).level, level);
   const custom = data.userLegacy({ org_permissions: { level: 'custom', items: { order_reports: true, manage_billing: true } } });
