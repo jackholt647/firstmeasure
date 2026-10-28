@@ -214,11 +214,14 @@ The satellite image is saved into the project's library as an ordinary photo
 (`projects/satellite-media.ts`): when a linked FirstMeasure report completes
 (`firstmeasure/project-events.ts`), and otherwise lazily the first time the Photos
 or Customer Portal tab opens a saved project (`POST .../projects/:id/satellite-media`,
-`PlatformAPI.projectMedia.ensureSatelliteMedia`). The source is the completed
-report's top-down artifact, or Google's static satellite map once the project has
-coordinates (also while an ordered report is still processing; fetched with the Maps
-Static key, `maps_static_api_key`, as reports fetch theirs); the report's image
-replaces a static-map cover this writer chose. The
+`PlatformAPI.projectMedia.ensureSatelliteMedia`). The source is the linked report's
+top-down artifact as soon as the report has one (its imagery is downloaded when it is
+ordered, so this includes a report still processing; only a report of the same
+organization), or else Google's static satellite map once the project has coordinates
+(fetched with the Maps Static key, `maps_static_api_key`, as reports fetch theirs); the
+report's image replaces a static-map cover this writer chose. When nothing can be saved
+the route answers `unavailable` with a short `unavailable_reason` (`no_coordinates`,
+`maps_static_403`, ...), never a key or URL. The
 photo is named "Top-down satellite" with `metadata.source: "satellite_top_down"`
 and `satellite_source`, its media id is derived from organization, project and
 source, and `satellite_media[source]` on the project records the save, so a repeat
@@ -229,7 +232,7 @@ it as a normal tile (pinned as Cover photo when the field holds it; there is no
 "Use satellite image"), the Customer Portal tab shares or hides it like any photo, and
 the customer's portal never treats a cover specially. A cleared cover falls back
 to the saved satellite photo. The generated satellite image remains only as the
-stand-in until the photo can be saved (no completed report, no coordinates).
+stand-in until the photo can be saved (no report imagery yet, no coordinates).
 
 User fields belong to organization membership records (`users`), not global login
 identities. Their definitions are shared across branches from the default branch.

@@ -5,7 +5,8 @@
 // library as a normal photo through the media store, so the photos API lists it like any other photo, it can be
 // shared to the customer portal like any other, and `cover_photo` names it when no cover is chosen.
 //
-// When: when a linked report completes (firstmeasure/project-events.ts), and lazily the first time the Photos tab,
+// When: when a linked report completes (firstmeasure/project-events.ts; an ordered report's imagery is used while it is
+// still processing), and lazily the first time the Photos tab,
 // the Customer Portal tab or the project overview needs the project's media (POST .../satellite-media). Nothing here
 // creates a project: a project that does not exist is left alone.
 //
@@ -77,16 +78,24 @@ export function satelliteMediaId(orgId: string, projectId: string, source: Satel
   return `satellite_${createHash("sha256").update(`${orgId}\u0000${projectId}\u0000${source}`).digest("hex").slice(0, 32)}`;
 }
 
-/** The completed report's top-down image, read from its artifacts as the thumbnail endpoint does. */
+/**
+ * Whether a report's imagery may be this organization's project image: only a report of the organization. Its status
+ * does not matter: the top-down imagery is downloaded when the report is ordered, and the order and the report show it
+ * while it is still processing (FM-292), as the thumbnail endpoint serves it.
+ */
+export function reportImageryUsable(manifest: unknown, orgId: string) {
+  return !!orgId && clean(obj(obj(manifest).organization_ref).id) === orgId;
+}
+
+/** The report's top-down image, read from its artifacts as the thumbnail endpoint does (once it has one). */
 async function defaultFirstMeasureImage(orgId: string, reportId: string) {
   const storage = await import("../firstmeasure/storage.js");
   const manifest = obj(await storage.readManifest(reportId).catch(() => null));
-  // Only a completed report of this organization.
-  if (clean(obj(manifest.organization_ref).id) !== orgId || clean(manifest.status).toLowerCase() !== "completed") return null;
+  if (!reportImageryUsable(manifest, orgId)) return null;
   const names = new Set((await storage.listProjectFiles(reportId).catch(() => [])).map((file) => clean(obj(file).name)));
   const raw = obj(manifest);
   const preferred = clean(raw.thumbnail_source || raw.thumbnail_artifact_name);
-  const candidates = [preferred, "browser_thumbnail.webp", "browser_thumbnail.jpg", "browser_thumbnail.jpeg", "browser_thumbnail.png", "google.png", "azure.png", "apple.png", "rgb.png", "rgb.jpg"]
+  const candidates = [preferred, "browser_thumbnail.webp", "browser_thumbnail.jpg", "browser_thumbnail.jpeg", "browser_thumbnail.png", "google.png", "azure.png", "apple.png", "rgb.png", "rgb.jpg", "rgb.tif"]
     .filter((name) => name && !/^internal-(resource|markup)-/i.test(name));
   for (const name of candidates) {
     if (!names.has(name)) continue;
@@ -142,7 +151,7 @@ async function availableImage(orgId: string, project: JsonObject, saved: JsonObj
   // The report's own image is better; the static map is only for a project that has none (yet).
   if (saved.firstmeasure || saved.google_static_map) return { reason: "already_saved" };
   const point = projectSatellitePoint(project);
-  if (!point) return { reason: reportId ? "report_not_completed_no_coordinates" : "no_coordinates" };
+  if (!point) return { reason: reportId ? "report_has_no_image_no_coordinates" : "no_coordinates" };
   let reason = "maps_static_empty";
   const bytes = await (deps.googleStaticMap || defaultGoogleStaticMap)(point).catch((error) => {
     reason = error instanceof StaticMapUnavailable ? error.message : "maps_static_failed";
