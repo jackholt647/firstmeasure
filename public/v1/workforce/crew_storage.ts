@@ -411,6 +411,7 @@ export type ProjectChecklistDefinition = {
   assigned_role_ids?: string[];
   assigned_resource_group_ids?: string[];
   customer_access?: Record<string, unknown>;
+  signature_required?: boolean;
 };
 
 // No blessed checklists: every checklist is data — instantiated from scope
@@ -456,6 +457,24 @@ export function normalizeChecklistCustomerAccess(value: unknown, authorOnly = fa
   };
 }
 
+/**
+ * A checklist can ask for one sign-off from whoever completes it (`metadata.signature_required`), captured in the
+ * crew app once every item is done (`metadata.crew_signature`, the portal acknowledgment shape from
+ * platform/portal_signatures.ts) and printed as a signature line on its document. Only the summary leaves the
+ * server; the evidence (ip, user agent) stays in metadata.
+ */
+export function checklistSignatureSummary(metadata: Record<string, unknown>) {
+  const signature = asObject(metadata.crew_signature);
+  if (!cleanText(signature.signer_name)) return null;
+  return {
+    signer_name: cleanText(signature.signer_name),
+    signed_at: cleanText(signature.signed_at),
+    signed_by_user_id: cleanText(signature.signed_by_user_id),
+    type: cleanText(signature.type) || "typed",
+    ...(cleanText(signature.image_data) ? { image_data: cleanText(signature.image_data) } : {})
+  };
+}
+
 function checklistView(rowValue: unknown) {
   const row = asObject(rowValue);
   const metadata = asObject(parseJson(row.metadata_json));
@@ -480,6 +499,8 @@ function checklistView(rowValue: unknown) {
     assigned_role_ids: asArray(metadata.assigned_role_ids).map(cleanText).filter(Boolean),
     assigned_resource_group_ids: asArray(metadata.assigned_resource_group_ids).map(cleanText).filter(Boolean),
     customer_access: normalizeChecklistCustomerAccess(metadata.customer_access, isPunchList({ metadata })),
+    signature_required: metadata.signature_required === true,
+    crew_signature: checklistSignatureSummary(metadata),
     metadata,
     revision: Number(row.revision || 1),
     created_at: cleanText(row.created_at),
@@ -538,7 +559,8 @@ async function insertChecklist(
     ...(definition.assigned_user_ids ? { assigned_user_ids: definition.assigned_user_ids.map(cleanText).filter(Boolean) } : {}),
     ...(definition.assigned_role_ids ? { assigned_role_ids: definition.assigned_role_ids.map(cleanText).filter(Boolean) } : {}),
     ...(definition.assigned_resource_group_ids ? { assigned_resource_group_ids: definition.assigned_resource_group_ids.map(cleanText).filter(Boolean) } : {}),
-    ...(definition.customer_access ? { customer_access: normalizeChecklistCustomerAccess(definition.customer_access) } : {})
+    ...(definition.customer_access ? { customer_access: normalizeChecklistCustomerAccess(definition.customer_access) } : {}),
+    ...(definition.signature_required !== undefined ? { signature_required: definition.signature_required === true } : {})
   };
   (await getWorkforceDatabase().prepare(`INSERT INTO crew_checklists
     (id, organization_id, project_id, title, description, kind, audience, crew_editable, source, source_key,
@@ -683,7 +705,8 @@ export async function createProjectChecklist(orgId: string, projectId: string, i
     assigned_user_ids: asArray(input.assigned_user_ids).map(cleanText).filter(Boolean),
     assigned_role_ids: asArray(input.assigned_role_ids).map(cleanText).filter(Boolean),
     assigned_resource_group_ids: asArray(input.assigned_resource_group_ids).map(cleanText).filter(Boolean),
-    customer_access: asObject(input.customer_access)
+    customer_access: asObject(input.customer_access),
+    ...(input.signature_required !== undefined ? { signature_required: input.signature_required === true } : {})
   }, actorUserId));
 
   }));
@@ -732,7 +755,7 @@ export async function patchProjectChecklist(orgId: string, projectId: string, ch
     throw conflict("checklist_revision_conflict", "Checklist revision does not match.", { current_revision: current.revision });
   }
   const has = (field: string) => Object.prototype.hasOwnProperty.call(input, field);
-  const metadata = {
+  const metadata: Record<string, unknown> = {
     ...current.metadata,
     ...(has("metadata") ? asObject(input.metadata) : {}),
     ...(has("department_ids") ? { department_ids: asArray(input.department_ids).map(cleanText).filter(Boolean) } : {}),
@@ -740,8 +763,14 @@ export async function patchProjectChecklist(orgId: string, projectId: string, ch
     ...(has("assigned_user_ids") ? { assigned_user_ids: asArray(input.assigned_user_ids).map(cleanText).filter(Boolean) } : {}),
     ...(has("assigned_role_ids") ? { assigned_role_ids: asArray(input.assigned_role_ids).map(cleanText).filter(Boolean) } : {}),
     ...(has("assigned_resource_group_ids") ? { assigned_resource_group_ids: asArray(input.assigned_resource_group_ids).map(cleanText).filter(Boolean) } : {}),
-    ...(has("customer_access") ? { customer_access: normalizeChecklistCustomerAccess(input.customer_access) } : {})
+    ...(has("customer_access") ? { customer_access: normalizeChecklistCustomerAccess(input.customer_access) } : {}),
+    ...(has("signature_required") ? { signature_required: input.signature_required === true } : {})
   };
+  // The sign-off is not editable through a patch: only signProjectChecklist writes it, and it is cleared when the
+  // list stops asking for one or an item is reopened (patchProjectChecklistItem).
+  if (has("metadata")) metadata.crew_signature = current.metadata.crew_signature;
+  if (metadata.signature_required !== true) delete metadata.crew_signature;
+  if (metadata.crew_signature === undefined) delete metadata.crew_signature;
   const title = has("title") ? cleanText(input.title) : current.title;
   if (!title) throw badRequest("checklist_title_required", "A checklist title is required.");
   (await getWorkforceDatabase().prepare(`UPDATE crew_checklists SET title=?, description=?, kind=?, audience=?,
@@ -823,6 +852,8 @@ export async function createProjectChecklistItem(
       now,
       now
     ));
+  // New work on a signed-off checklist was not part of what was signed.
+  if (!completed) await clearChecklistSignature(orgId, projectId, cleanText(checklistId));
   return checklistItemView((await getWorkforceDatabase().prepare("SELECT * FROM crew_checklist_items WHERE id=?").get(id)));
 
   }));
@@ -940,7 +971,49 @@ export async function patchProjectChecklistItem(
       orgId,
       projectId
     ));
+  // A reopened item means the signed-off work is no longer all done: the sign-off goes with it.
+  if (current.completed && !completed) await clearChecklistSignature(orgId, projectId, current.checklist_id);
   return checklistItemView((await getWorkforceDatabase().prepare("SELECT * FROM crew_checklist_items WHERE id=?").get(itemId)));
+
+  }));
+}
+
+async function clearChecklistSignature(orgId: string, projectId: string, checklistId: string) {
+  if (!cleanText(checklistId)) return;
+  const row = (await getWorkforceDatabase().prepare(`SELECT * FROM crew_checklists
+    WHERE id=? AND organization_id=? AND project_id=? AND deleted_at IS NULL`).get(checklistId, orgId, projectId));
+  if (!row) return;
+  const metadata = asObject(parseJson(asObject(row).metadata_json));
+  if (!metadata.crew_signature) return;
+  delete metadata.crew_signature;
+  (await getWorkforceDatabase().prepare(`UPDATE crew_checklists SET metadata_json=?, revision=revision+1, updated_at=?
+    WHERE id=? AND organization_id=? AND project_id=?`).run(json(metadata), nowIso(), checklistId, orgId, projectId));
+}
+
+/**
+ * Records the one sign-off a checklist asks for (`signature_required`). Every item must be done first; signing again
+ * replaces the earlier sign-off. `signature` is already normalized (normalizePortalSignature).
+ */
+export async function signProjectChecklist(
+  orgId: string,
+  projectId: string,
+  checklistId: string,
+  signature: Record<string, unknown>,
+  actorUserId: string
+) {
+  return (await getWorkforceDatabase().transaction(async () => {
+  const current = (await readProjectChecklistDetail(orgId, projectId, checklistId));
+  if (!current.signature_required) throw badRequest("checklist_signature_not_required", "This checklist does not ask for a signature.");
+  const open = current.items.filter((item) => !item.completed);
+  if (open.length) {
+    throw conflict("checklist_items_open", `Finish every item before signing: ${open.length} ${open.length === 1 ? "is" : "are"} still open.`, {
+      open_item_ids: open.map((item) => item.id)
+    });
+  }
+  const metadata = { ...current.metadata, crew_signature: { ...signature, signed_by_user_id: cleanText(actorUserId) } };
+  (await getWorkforceDatabase().prepare(`UPDATE crew_checklists SET metadata_json=?, revision=revision+1, updated_at=?
+    WHERE id=? AND organization_id=? AND project_id=?`).run(json(metadata), nowIso(), checklistId, orgId, projectId));
+  return checklistView((await getWorkforceDatabase().prepare("SELECT * FROM crew_checklists WHERE id=?").get(checklistId)));
 
   }));
 }

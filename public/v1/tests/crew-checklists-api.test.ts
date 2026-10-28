@@ -606,3 +606,48 @@ test("Project checklists support audiences, ratings, notes, and role permissions
     assert.equal(hiddenMutation.data.error, "customer_checklist_hidden");
   });
 });
+
+test("A checklist can require one sign-off, given in the crew app once every item is done", async () => {
+  const owner = createSessionClient();
+  const { orgId, suffix } = await registerOwner(owner);
+  const member = await createFieldUser(owner, orgId, suffix, "crew_member");
+  const projectId = "checklist_signature_project";
+  await seedProject(orgId, projectId, [member.userId]);
+  const base = `/v1/workforce/organizations/${orgId}/crew/projects/${projectId}/checklists`;
+  const created = await owner.request("POST", base, {
+    title: "Crew safety",
+    signature_required: true,
+    assignment_policy: { schema_version: 1, mode: "any", allow_unassigned: true, rules: [] },
+    items: [{ title: "Harness checked" }]
+  });
+  assert.equal(created.checklist.signature_required, true);
+  assert.equal(created.checklist.crew_signature, null);
+  const checklistId = created.checklist.id;
+  const itemId = (await owner.request("GET", base)).checklists.find((entry: Json) => entry.id === checklistId).items[0].id;
+  const signature = { signature: { type: "drawn", signer_name: "Test crew_member", image_data: "data:image/png;base64,iVBORw0KGgo=" } };
+
+  const early = await member.client.raw("POST", `${base}/${checklistId}/signature`, signature);
+  assert.equal(early.statusCode, 409);
+  assert.equal(early.data.error, "checklist_items_open");
+
+  await member.client.request("PATCH", `${base}/${checklistId}/items/${itemId}`, { completed: true });
+  const signed = await member.client.request("POST", `${base}/${checklistId}/signature`, signature);
+  assert.equal(signed.checklist.crew_signature.signer_name, "Test crew_member");
+  assert.equal(signed.checklist.crew_signature.signed_by_user_id, member.userId);
+  assert.ok(!("evidence" in signed.checklist.crew_signature), "the evidence stays on the server");
+  const ownerView = (await owner.request("GET", base)).checklists.find((entry: Json) => entry.id === checklistId);
+  assert.equal(ownerView.crew_signature.signer_name, "Test crew_member");
+
+  // A patch cannot write a sign-off, and reopening an item takes it away.
+  await owner.request("PATCH", `${base}/${checklistId}`, { metadata: { crew_signature: { signer_name: "Someone else" } } });
+  assert.equal((await owner.request("GET", base)).checklists.find((entry: Json) => entry.id === checklistId).crew_signature.signer_name, "Test crew_member");
+  await member.client.request("PATCH", `${base}/${checklistId}/items/${itemId}`, { completed: false });
+  assert.equal((await owner.request("GET", base)).checklists.find((entry: Json) => entry.id === checklistId).crew_signature, null);
+
+  // A checklist that no longer asks for a signature cannot be signed.
+  await member.client.request("PATCH", `${base}/${checklistId}/items/${itemId}`, { completed: true });
+  await owner.request("PATCH", `${base}/${checklistId}`, { signature_required: false });
+  const refused = await member.client.raw("POST", `${base}/${checklistId}/signature`, signature);
+  assert.equal(refused.statusCode, 400);
+  assert.equal(refused.data.error, "checklist_signature_not_required");
+});

@@ -228,6 +228,9 @@
       if (requirementId) form.append('requirement_id', requirementId);
       return request(projectPath(orgId, projectId, `/checklists/${enc(checklistId)}/items/${enc(itemId)}/attachments`), { method:'POST', body:form });
     },
+    signChecklist(orgId, projectId, checklistId, signature = {}){
+      return request(projectPath(orgId, projectId, `/checklists/${enc(checklistId)}/signature`), { method:'POST', body:{ signature } });
+    },
     removeItemFromChecklist(orgId, projectId, checklistId, itemId){
       return request(projectPath(orgId, projectId, `/checklists/${enc(checklistId)}/items/${enc(itemId)}`), { method:'DELETE' });
     },
