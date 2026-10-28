@@ -157,12 +157,12 @@ including `public/v1/**`, `public/libraries/**` and new language keys in
 `public/libraries/platform-language`, still ships through `platform`.
 
 1. Commit the editor change (on canonical or your own branch).
-2. Run `node tools/dev-push/lanes/measure-internal/ship.mjs` (ships `HEAD`). It
-   takes only the lane's paths from the commit, lints changed PHP and
-   syntax-checks changed JavaScript (about a second), switches the release
-   with a readiness check and rollback, and advances `lane/measure-internal`.
-   Once the checkout has `tools/dev-push/submit.mjs`, it hands the commit to the
-   dev push router instead.
+2. Run `node tools/dev-push/lanes/measure-internal/ship.mjs` (ships `HEAD`;
+   use it rather than `submit.mjs` for editor commits made on canonical). It
+   puts only the lane's paths from the commit onto `lane/measure-internal` and
+   submits that to the dev push router, which lints changed PHP, syntax-checks
+   changed JavaScript, switches the release with a readiness check and
+   rollback, and answers: live in about half a minute.
 3. Check: `curl -sI https://dev.1m8.ai/measure/internal/<file>` shows
    `X-FirstMate-Lane: measure-internal <sha>`.
 

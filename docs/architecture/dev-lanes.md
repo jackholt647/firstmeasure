@@ -348,8 +348,26 @@ in the router's `release.env`. Both fall back to the platform copy when the
 path is missing; `pdf_runtime.ts` reads the files at each render, so a lane
 switch needs no restart.
 
-**Direct, until the router owns the lane** (`deploy(sha, { cwd, log, host })`,
-called by `ship.mjs`):
+**Shipping from any branch** (`ship.mjs`). Editor work is often committed on
+canonical, whose history the lane branch does not have; the router would merge
+that history onto the lane. So `ship.mjs` builds the lane commit itself
+(`laneCommit`): a commit on the lane tip that changes only lane paths ships as
+is; otherwise `git merge-tree` merges it with the lane tip, from the newest
+commit in the source's history whose lane paths equal the lane tip's (else the
+source a lane commit last recorded, else the usual merge base), and a new
+single-parent commit on the tip takes only `public/measure/internal` and `dev`
+from the result. A second edit of the same lines, or a revert, therefore
+arrives as a change, and other paths stay as on the lane (they ship on
+`platform`). A conflict in a lane path is refused. The commit goes to the
+router with the router's own `submit.mjs` (this checkout's, or canonical's read
+from the router repository), run in a temporary worktree whose index matches
+the commit with every file marked skip-worktree, so nothing is checked out and
+it works from a checkout that does not have the router's tools. Measured on
+2026-10-28 from the shared checkout: 28-35 s from command to live (router
+batch about 12 s).
+
+**Direct, emergencies only** (`FM_LANE_DIRECT=1 ship.mjs`, which calls
+`deploy(sha, { cwd, log, host })`; the router owns the lane's hosts):
 
 1. Read the host status (live lane release, serving lane or platform).
 2. Quick checks.
@@ -367,16 +385,9 @@ called by `ship.mjs`):
 6. A record is written to `/opt/firstmeasure/lanes/measure-internal/records/`
    and returned. Twelve releases are kept, plus `current` and `previous`.
 
-`ship.mjs` adds the branch step (`laneCommit` in `lane.mjs`). It takes the
-editor from any commit: a commit on the lane tip that changes only lane paths
-ships as is; otherwise `git merge-tree` merges the commit with the lane tip and
-a new single-parent commit on the tip takes only `public/measure/internal` and
-`dev` from the result (other paths stay as on the lane; they ship on
-`platform`). A conflict in a lane path is refused. After a live deploy
-`lane/measure-internal` on origin is fast-forwarded (`--force-with-lease`); a
-refused push rolls the host back. One deploy at a time (host `flock`). In a
-checkout that has the router's `tools/dev-push/submit.mjs`, `ship.mjs` submits
-to the router instead (`FM_LANE_DIRECT=1` forces the direct path).
+After a live direct deploy `lane/measure-internal` on the router's remote
+(`devpush`) is fast-forwarded (`--force-with-lease`); a refused push rolls the
+host back. One direct deploy at a time (host `flock`).
 
 Measured on 2026-10-27 with the regression tests still in every ship: 34-110 s
 from command to live, of which the tests took 22-88 s and the host build and
