@@ -24,6 +24,22 @@ if [ ! -x /opt/google/chrome-remote-desktop/start-host ]; then
   apt-get install -yq "$TMP/crd.deb"
 fi
 
+# Antigravity App (2.x has no apt package; the tarball is Google's official Linux download).
+ANTIGRAVITY_URL=https://storage.googleapis.com/antigravity-public/antigravity-hub/2.28.0-6410674700681216/linux-x64/Antigravity.tar.gz
+if [ ! -x /opt/antigravity/antigravity ]; then
+  wget -q -O "$TMP/antigravity.tar.gz" "$ANTIGRAVITY_URL"
+  mkdir -p /opt/antigravity && tar xzf "$TMP/antigravity.tar.gz" -C /opt/antigravity --strip-components=1
+  chown root:root /opt/antigravity/chrome-sandbox && chmod 4755 /opt/antigravity/chrome-sandbox
+  ln -sfn /opt/antigravity/antigravity /usr/local/bin/antigravity
+fi
+cat > /usr/share/applications/antigravity.desktop <<'EOF'
+[Desktop Entry]
+Type=Application
+Name=Antigravity
+Exec=/opt/antigravity/antigravity %U
+Categories=Development;
+EOF
+
 echo "exec /etc/X11/Xsession /usr/bin/xfce4-session" > /etc/chrome-remote-desktop-session
 # Older host packages gate access by this group; current ones do not create it.
 getent group chrome-remote-desktop >/dev/null && usermod -aG chrome-remote-desktop $AGENT

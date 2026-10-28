@@ -91,6 +91,21 @@ for f in "$HERE"/bin/*; do install -m 755 "$f" /usr/local/bin/; done
 npm install -g --no-fund --no-audit @openai/codex >/dev/null
 PLAYWRIGHT_BROWSERS_PATH=$ROOT/cache/ms-playwright npx -y playwright@$PLAYWRIGHT_VERSION install --with-deps chromium
 chown -R $AGENT:$AGENT $ROOT/cache
+# Antigravity CLI (agy), Google's installer: downloads the binary, checks its sha512, puts it in ~/.local/bin.
+[ -x $AGENT_HOME/.local/bin/agy ] || sudo -u $AGENT -H bash -c 'curl -fsSL https://antigravity.google/cli/install.sh | bash'
+
+log "One environment file for every agent tool"
+install -m 644 "$HERE/home/ENVIRONMENT.md" $ROOT/ENVIRONMENT.md
+# Claude Code, Codex and Antigravity each load their global rules file; all three are this one file.
+for rules in .claude/CLAUDE.md .codex/AGENTS.md .gemini/GEMINI.md; do
+  link=$AGENT_HOME/$rules
+  sudo -u $AGENT mkdir -p "$(dirname "$link")"
+  if [ -f "$link" ] && [ ! -L "$link" ] && ! grep -q ENVIRONMENT.md "$link"; then
+    echo "left $link as is (not ours); add a line pointing at $ROOT/ENVIRONMENT.md"
+  else
+    sudo -u $AGENT ln -sfn $ROOT/ENVIRONMENT.md "$link"
+  fi
+done
 
 log "SSH, fail2ban, security updates"
 install -m 644 "$HERE/etc/ssh/sshd_config.d/10-fm-agents.conf" /etc/ssh/sshd_config.d/10-fm-agents.conf
