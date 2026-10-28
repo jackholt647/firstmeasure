@@ -197,12 +197,28 @@ build, transfer and activation per role, public readiness, push) into the
 release record and each submission's status entry; `submit.mjs --wait` prints
 them.
 
-A deploy that fails for a single submission and rolls back rejects it
-(`deploy-failed`). One that could not reach a host and changed nothing keeps
-the queue and tries again by itself (lane state `waiting`, after 1, 2, 4 ... up
-to 15 minutes). Any other deploy failure (a batch, or a release that did not
-roll back) pauses the lane with the reason in its `note`, keeps the queue, and
-waits for a person (`node tools/dev-push/router/server.mjs resume <lane>`). Regression runs
+Deploy failures never wait for a person while dev can be put back:
+
+* A release that did not roll back is replaced by the lane's current release
+  on every role (`restore`), then handled as below.
+* One that could not reach a host and changed nothing keeps the queue and
+  tries again by itself (lane state `waiting`, after 1, 2, 4 ... up to 15
+  minutes).
+* One that carried live overlays is tried again without them, so a live save
+  never bounces a submission (the overlays are reported like a merge
+  conflict).
+* A batch whose release did not come up deploys its submissions one at a time,
+  oldest first (`state/deploy-alone.json`, kept across restarts): the good
+  ones ship, and the one that breaks dev is rejected.
+* A single submission whose release did not come up is rejected
+  (`deploy-failed`) with the failure. Every rejection records the tracker
+  issue its title or queue ref names (`issue`, e.g. `FM-283`) next to the
+  details in the status document, for the agent that submitted it to report
+  back.
+
+Only a release that could not be put back pauses the lane with the reason in
+its `note`, keeping the queue, for a person
+(`node tools/dev-push/router/server.mjs resume <lane>`). Regression runs
 (`queue/regression/*`) are taken one at a time beside the lanes and end
 `passed` or `failed`; they never ship. Diagnostics that touch no queue:
 `server.mjs gate <ref> --changed a,b`, `server.mjs build <ref>`,
