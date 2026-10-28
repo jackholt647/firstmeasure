@@ -404,7 +404,7 @@ export class Router {
     for (const [stage, ms] of Object.entries(deployed.timings || {})) timings[`deploy:${stage}`] = ms;
     if (!deployed.ok) {
       this.log(lane, `deploy ${releaseId} failed: ${deployed.error}`);
-      if (accepted.length === 1 && deployed.rolledBack) {
+      if (accepted.length === 1 && deployed.rolledBack && !deployed.infrastructure) {
         await this.reject(accepted[0], "deploy-failed", `The release built from your merge did not come up on dev and was rolled back:\n${deployed.error}`);
       } else {
         // Infrastructure or a batch: stop the lane for a person to look; nothing is lost, the queue stays.

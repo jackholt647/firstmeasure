@@ -446,8 +446,10 @@ def cmd_ssh():
         if argv[1:2] != ["--server"] or "--sender" in argv or any(a.startswith(("--remove-source", "--rsync-path")) for a in argv):
             fail("only rsync uploads are allowed")
         dest = os.path.normpath(argv[-1])
-        allowed = [str(lane_dirs("platform")[0])] + [str(p / "releases") for p in (ROOT / "lanes").glob("*")]
-        if not any(dest.startswith(root + "/") for root in allowed) or not re.search(r"/[0-9a-f]{40}(-dp)?\.staging$", dest):
+        platform_root = str(lane_dirs("platform")[0])
+        lane_match = re.match(r"^/opt/firstmeasure/lanes/([a-z][a-z0-9-]{1,31})/releases/[0-9a-f]{40}(-dp)?\.staging$", dest)
+        platform_match = dest.startswith(platform_root + "/") and re.search(r"/[0-9a-f]{40}(-dp)?\.staging$", dest)
+        if not (lane_match or platform_match):
             fail(f"rsync destination {dest} is not a staging directory")
         for arg in argv:
             if arg.startswith("--link-dest="):
