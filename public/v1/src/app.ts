@@ -248,6 +248,7 @@ export async function buildApp() {
     // Library saves check entries against the registries; load them now so the first save takes milliseconds too.
     if (library.libraryWritable()) setImmediate(() => { void import("../config-library/registries.js").then((module) => module.warmRegistryChecks()).catch(() => undefined); });
   });
+  app.addHook("onClose", async () => { (await import("../config-library/library.js")).stopLibrarySync(); });
   void app.register(registerSignupSandboxApi, { prefix: "/v1/signup-sandbox" });
   void app.register(registerStatsApi, { prefix: "/v1/stats" });
   void app.register(registerTrainingApi, { prefix: "/v1/training" });

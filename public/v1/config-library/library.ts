@@ -15,7 +15,8 @@ import type { JsonData, LibraryChange, LibraryEntry } from "./contracts.js";
  * - **Everywhere else** (production, tests that do not opt in): the checked-in snapshot only. Writes are refused.
  *
  * Reads are synchronous and return frozen values: clone (`libraryCopy`) before changing one. Before the store has
- * loaded, reads return the snapshot, which on a fresh store is the same content.
+ * loaded, reads return the snapshot, which on a fresh store is the same content. Only `startLibrarySync` (server boot,
+ * the platform worker) opens the store; a read never does, and the poll never keeps a process alive.
  */
 
 type Bucket = Map<string, LibraryEntry>;
@@ -68,7 +69,8 @@ function ensureLoaded() {
   for (const file of readSnapshot()) {
     put({ kind: file.kind, id: file.id, revision: file.revision, sha256: file.sha256, title: file.title, data: file.data, updated_at: file.updated_at || "", updated_by: file.updated_by || "snapshot" });
   }
-  if (librarySource() === "store") void startLibrarySync().catch(() => undefined);
+  // Never start the store sync from a read: a process that only imports modules (the cluster primary) must not open
+  // the database or keep its event loop alive. Serving processes call startLibrarySync at boot.
 }
 
 function put(entry: LibraryEntry) {
@@ -140,6 +142,8 @@ export function startLibrarySync() {
   })().catch((error) => { syncing = undefined; throw error; });
 }
 export function stopLibrarySync() { if (timer) clearInterval(timer); timer = undefined; syncing = undefined; seenSeq = -1; }
+/** For tests and health: whether this process started the store sync, and whether its poll would hold the process open. */
+export function librarySyncState() { return { started: !!syncing, polling: !!timer, holdsProcess: !!timer && timer.hasRef() }; }
 
 /** Where this process's entries come from right now: "store" once the store has loaded, otherwise "snapshot". */
 export function libraryLoaded(): "store" | "snapshot" { return seenSeq >= 0 ? "store" : "snapshot"; }

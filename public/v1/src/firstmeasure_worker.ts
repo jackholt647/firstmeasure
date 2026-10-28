@@ -20,6 +20,8 @@ const app = Fastify({
 
 await app.register(registerFirstMeasureApi, { prefix: "/v1/firstmeasure" });
 await app.ready();
+// Development: report work reads defaults from the live config library store (docs/architecture/config-library.md).
+await (await import("../config-library/library.js")).startLibrarySync().catch((error) => app.log.warn({ err: error }, "Config library sync did not start; serving the snapshot."));
 const { stopFirstMeasureJobRuntime } = await import("../firstmeasure/job_runtime.js");
 const { startWorkerSupervision } = await import("./worker_supervision.js");
 const stopSupervision = await startWorkerSupervision();
