@@ -1,0 +1,331 @@
+{
+  "kind": "form_template",
+  "id": "estimate",
+  "revision": 1,
+  "sha256": "56e49a50b21118e1f150f5f23b6e746e73a8f3e881ba69c2da81550304209dc2",
+  "title": "Instant estimate",
+  "updated_at": "2026-10-27T23:15:49.043Z",
+  "updated_by": "generator",
+  "data": {
+    "name": "Instant estimate",
+    "description": "Ask for a size or quantity, then show a price range from your own price table. Works for any trade priced per unit.",
+    "icon": "fa-calculator",
+    "category": "Estimates",
+    "requires": [
+      "instant_estimate"
+    ],
+    "sort_order": 5,
+    "definition": {
+      "schema_version": 1,
+      "template": "estimate",
+      "presentation": {
+        "headline": "Get an instant estimate",
+        "subheadline": "Answer a few questions and see your price range right away.",
+        "start_label": "",
+        "next_label": "Next",
+        "back_label": "Back",
+        "submit_label": "See my estimate",
+        "fine_print": "Estimates are preliminary and confirmed after we review the details with you.",
+        "layout": "steps",
+        "progress": "bar",
+        "style": {
+          "use_company_colors": true,
+          "primary_color": "#2563eb",
+          "text_color": "#111827",
+          "background_color": "#ffffff",
+          "use_company_font": true,
+          "font_family": "Inter",
+          "corners": "soft",
+          "header": "plain",
+          "logo_enabled": true,
+          "logo_url": ""
+        },
+        "success": {
+          "title": "Your estimate",
+          "body": "We will follow up to confirm the details and answer any questions.",
+          "cta_label": "",
+          "cta_url": ""
+        }
+      },
+      "steps": [
+        {
+          "id": "project",
+          "title": "About your project",
+          "description": "",
+          "visible_when": [],
+          "items": [
+            {
+              "id": "size",
+              "kind": "number",
+              "param": "size",
+              "label": "Approximate size",
+              "description": "A rough number is fine. We confirm measurements before final pricing.",
+              "placeholder": "",
+              "required": true,
+              "visible_when": [],
+              "maps_to": "",
+              "options": [],
+              "style": "cards",
+              "min": 1,
+              "unit": "sq ft",
+              "fields": {
+                "name": {
+                  "enabled": true,
+                  "required": true
+                },
+                "email": {
+                  "enabled": true,
+                  "required": false
+                },
+                "phone": {
+                  "enabled": true,
+                  "required": true
+                }
+              },
+              "preset_id": "",
+              "min_notice_hours": 2,
+              "horizon_days": 45,
+              "source": "",
+              "sms_opt_in": false,
+              "heading": "",
+              "body": "",
+              "image_url": ""
+            },
+            {
+              "id": "timing",
+              "kind": "select",
+              "param": "timing",
+              "label": "When would you like to start?",
+              "description": "",
+              "placeholder": "",
+              "required": false,
+              "visible_when": [],
+              "maps_to": "",
+              "options": [
+                {
+                  "value": "asap",
+                  "label": "As soon as possible",
+                  "description": "",
+                  "image_url": ""
+                },
+                {
+                  "value": "months",
+                  "label": "In the next few months",
+                  "description": "",
+                  "image_url": ""
+                },
+                {
+                  "value": "exploring",
+                  "label": "Just exploring",
+                  "description": "",
+                  "image_url": ""
+                }
+              ],
+              "style": "list",
+              "unit": "",
+              "fields": {
+                "name": {
+                  "enabled": true,
+                  "required": true
+                },
+                "email": {
+                  "enabled": true,
+                  "required": false
+                },
+                "phone": {
+                  "enabled": true,
+                  "required": true
+                }
+              },
+              "preset_id": "",
+              "min_notice_hours": 2,
+              "horizon_days": 45,
+              "source": "",
+              "sms_opt_in": false,
+              "heading": "",
+              "body": "",
+              "image_url": ""
+            }
+          ]
+        },
+        {
+          "id": "contact",
+          "title": "Where should we send it?",
+          "description": "",
+          "visible_when": [],
+          "items": [
+            {
+              "id": "contact",
+              "kind": "contact",
+              "param": "contact",
+              "label": "",
+              "description": "",
+              "placeholder": "",
+              "required": false,
+              "visible_when": [],
+              "maps_to": "",
+              "options": [],
+              "style": "cards",
+              "unit": "",
+              "fields": {
+                "name": {
+                  "enabled": true,
+                  "required": true
+                },
+                "email": {
+                  "enabled": true,
+                  "required": true
+                },
+                "phone": {
+                  "enabled": true,
+                  "required": false
+                }
+              },
+              "preset_id": "",
+              "min_notice_hours": 2,
+              "horizon_days": 45,
+              "source": "",
+              "sms_opt_in": false,
+              "heading": "",
+              "body": "",
+              "image_url": ""
+            },
+            {
+              "id": "address",
+              "kind": "address",
+              "param": "address",
+              "label": "Project address",
+              "description": "",
+              "placeholder": "Street, city, state",
+              "required": false,
+              "visible_when": [],
+              "maps_to": "",
+              "options": [],
+              "style": "cards",
+              "unit": "",
+              "fields": {
+                "name": {
+                  "enabled": true,
+                  "required": true
+                },
+                "email": {
+                  "enabled": true,
+                  "required": false
+                },
+                "phone": {
+                  "enabled": true,
+                  "required": true
+                }
+              },
+              "preset_id": "",
+              "min_notice_hours": 2,
+              "horizon_days": 45,
+              "source": "",
+              "sms_opt_in": false,
+              "heading": "",
+              "body": "",
+              "image_url": ""
+            },
+            {
+              "id": "consent",
+              "kind": "consent",
+              "param": "consent",
+              "label": "I agree to be contacted about my estimate.",
+              "description": "",
+              "placeholder": "",
+              "required": true,
+              "visible_when": [],
+              "maps_to": "",
+              "options": [],
+              "style": "cards",
+              "unit": "",
+              "fields": {
+                "name": {
+                  "enabled": true,
+                  "required": true
+                },
+                "email": {
+                  "enabled": true,
+                  "required": false
+                },
+                "phone": {
+                  "enabled": true,
+                  "required": true
+                }
+              },
+              "preset_id": "",
+              "min_notice_hours": 2,
+              "horizon_days": 45,
+              "source": "",
+              "sms_opt_in": false,
+              "heading": "",
+              "body": "",
+              "image_url": ""
+            }
+          ]
+        }
+      ],
+      "calculation": {
+        "mode": "pricing",
+        "pricing": {
+          "currency": "USD",
+          "quantity": {
+            "param": "size",
+            "label": "Size",
+            "unit": "sq ft",
+            "fallback": 0,
+            "waste_percent": 0
+          },
+          "options": [
+            {
+              "id": "standard",
+              "label": "Standard",
+              "description": "Our most popular option.",
+              "low_rate": 4,
+              "high_rate": 6,
+              "flat_low": 0,
+              "flat_high": 0,
+              "minimum": 0,
+              "visible_when": []
+            },
+            {
+              "id": "premium",
+              "label": "Premium",
+              "description": "Upgraded materials and finish.",
+              "low_rate": 6,
+              "high_rate": 9,
+              "flat_low": 0,
+              "flat_high": 0,
+              "minimum": 0,
+              "visible_when": []
+            }
+          ],
+          "adjustments": [],
+          "round_to": 50,
+          "disclaimer": "This is a preliminary estimate. Final pricing is confirmed after we review the details with you."
+        }
+      },
+      "settings": {
+        "stage_id": "new_lead",
+        "notify_role_ids": [
+          "inside_sales",
+          "sales_appointments"
+        ],
+        "tracking_key": "",
+        "staff": {
+          "enabled": false,
+          "only": false,
+          "label": "",
+          "role_ids": []
+        },
+        "customer_email": {
+          "enabled": true,
+          "subject": "Your estimate",
+          "intro": "",
+          "cta_label": "",
+          "cta_url": ""
+        }
+      }
+    }
+  }
+}

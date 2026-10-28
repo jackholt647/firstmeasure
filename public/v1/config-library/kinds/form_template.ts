@@ -1,6 +1,6 @@
 import { z } from "zod";
 
-import { FORM_BLOCKS, formDefinitionSchema, formItems } from "../../forms/contracts.js";
+import { formDefinitionSchema, formItems, requiredFormFlags } from "../../forms/contracts.js";
 import { measurementSource } from "../../forms/sources.js";
 import type { LibraryKind } from "../contracts.js";
 
@@ -28,17 +28,6 @@ export const formTemplateEntrySchema = z.object({
 }).strict();
 export type FormTemplateEntry = z.infer<typeof formTemplateEntrySchema>;
 
-/** The lead_forms flags a definition's blocks need (the same rule as forms/service.ts requiredFormFlags). */
-function flagsFor(definition: FormTemplateEntry["definition"]) {
-  const flags = new Set<string>();
-  for (const item of formItems(definition)) {
-    const capability = (FORM_BLOCKS[item.kind] as { capability?: string }).capability;
-    if (capability) flags.add(capability);
-  }
-  if (definition.calculation) flags.add("instant_estimate");
-  if (!flags.size) flags.add("contact_form");
-  return [...flags];
-}
 
 export const formTemplateKind: LibraryKind<FormTemplateEntry> = {
   kind: FORM_TEMPLATE_KIND,
@@ -52,7 +41,7 @@ export const formTemplateKind: LibraryKind<FormTemplateEntry> = {
     for (const flag of data.requires) {
       if (!ctx.registries.capability(`lead_forms.${flag}`)) problems.push(`requires: there is no capability lead_forms.${flag}.`);
     }
-    for (const flag of flagsFor(data.definition)) {
+    for (const flag of requiredFormFlags(data.definition)) {
       if (!data.requires.includes(flag as never)) problems.push(`requires must include ${flag}: the template's blocks need it.`);
     }
     for (const item of formItems(data.definition)) {

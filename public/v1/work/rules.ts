@@ -3,7 +3,8 @@
 // evaluated by the engine on EVERY event — before any scope instance's
 // bindings — using the same automations, conditions, idempotency, and
 // execution records as scope bindings. This layer is deliberately lean: it
-// exists as infrastructure, and ships with only the platform defaults below.
+// exists as infrastructure, and ships with only the platform defaults (config
+// library kind `automation_rule_default`, read below).
 //
 // Rule shape:
 //   {
@@ -26,6 +27,8 @@
 import { PlatformError } from "../platform/errors.js";
 import { allConditions, validateConditions } from "./conditions.js";
 import { readBranchModule, saveBranchModule, type JsonObject } from "../platform/storage.js";
+import { libraryEntries, libraryVersion } from "../config-library/library.js";
+import { contentHash } from "../config-library/canonical.js";
 
 export const AUTOMATION_RULES_MODULE_ID = "automation_rules";
 
@@ -41,158 +44,6 @@ function asArray(value: unknown) {
   return Array.isArray(value) ? value : [];
 }
 
-// Platform defaults — present for every org unless explicitly disabled by an
-// org rule with the same id. Receivables generation is org billing policy,
-// not scope-of-work behavior, so it lives here rather than in any template.
-export const DEFAULT_AUTOMATION_RULES: JsonObject[] = [
-  {
-    id: "platform_notify_new_lead",
-    enabled: true,
-    title: "Tell the sales team about a new lead",
-    explainer: "When a lead arrives from a source that names nobody to tell, we notify inside sales and appointment setters. Clicking it opens the lead.",
-    customer_visible: true,
-    // Every lead arrives through receiveLead (docs/architecture/opportunities.md); the source's
-    // suggested title, body and roles ride on payload.notice.
-    event: "lead.received",
-    conditions: { match: "all", rules: [
-      { field: "payload.notice.notify", operator: "not_equals", value: "false" },
-      { field: "payload.notice.target_role_ids", operator: "is_missing" }
-    ] },
-    automation: "notification.create.v1",
-    input: {
-      id: "notification_new_lead_{{project.id}}",
-      title: "{{event.payload.notice.title}}",
-      body: "{{event.payload.notice.body}}",
-      target_role_ids: ["inside_sales", "sales_appointments"],
-      push: true,
-      source: "{{event.payload.notice.source}}",
-      context: { lead_source: "{{event.payload.source_kind}}" },
-      frontend_action: { kind: "open_project", project_id: "{{project.id}}", project_tab: "overview" }
-    }
-  },
-  {
-    id: "platform_notify_new_lead_source_roles",
-    enabled: true,
-    title: "Tell a lead source's roles about its leads",
-    explainer: "When a lead arrives from a source that names who to tell (a website form's Notify these roles), we notify those roles.",
-    customer_visible: true,
-    event: "lead.received",
-    conditions: { match: "all", rules: [
-      { field: "payload.notice.notify", operator: "not_equals", value: "false" },
-      { field: "payload.notice.target_role_ids", operator: "is_present" }
-    ] },
-    automation: "notification.create.v1",
-    input: {
-      id: "notification_new_lead_{{project.id}}",
-      title: "{{event.payload.notice.title}}",
-      body: "{{event.payload.notice.body}}",
-      target_role_ids: "{{event.payload.notice.target_role_ids}}",
-      push: true,
-      source: "{{event.payload.notice.source}}",
-      context: { lead_source: "{{event.payload.source_kind}}" },
-      frontend_action: { kind: "open_project", project_id: "{{project.id}}", project_tab: "overview" }
-    }
-  },
-  {
-    id: "platform_queue_new_lead_calls",
-    enabled: true,
-    title: "Queue a call when a new lead arrives",
-    explainer: "When a new lead comes in, we add them to the New Leads call queue so someone reaches out right away.",
-    customer_visible: true,
-    // Every lead, with a scope or not yet: the entry scope's own stages say what happens after the call.
-    event: "lead.received",
-    automation: "crm.callLists.add.v1",
-    input: {
-      list: {
-        key: "new_leads",
-        title: "New Leads",
-        description: "Fresh leads that need a first call.",
-        kind: "lead",
-        icon: "fa-user-plus",
-        tone: "lead",
-        sort_order: 10,
-        metadata: { purpose: "new_lead_contact", managed_by: "automation" }
-      },
-      title: "Contact lead"
-    }
-  },
-  {
-    id: "platform_queue_sales_scope_calls",
-    enabled: true,
-    title: "Queue a call when a sales scope starts on a project made by hand",
-    explainer: "When someone starts a sales scope on a project they made themselves, we add it to the New Leads call queue. Leads already got their call when they arrived.",
-    customer_visible: true,
-    event: "work.plan.started",
-    conditions: { match: "all", rules: [
-      { field: "plan.outcome", operator: "equals", value: "open" },
-      { field: "project.lead_source", operator: "is_missing" }
-    ] },
-    automation: "crm.callLists.add.v1",
-    input: {
-      list: {
-        key: "new_leads",
-        title: "New Leads",
-        description: "Fresh leads that need a first call.",
-        kind: "lead",
-        icon: "fa-user-plus",
-        tone: "lead",
-        sort_order: 10,
-        metadata: { purpose: "new_lead_contact", managed_by: "automation" }
-      },
-      title: "Contact lead"
-    }
-    },
-  {
-    id: "platform_ensure_receivables_on_signature",
-    enabled: true,
-    title: "Create payment schedule when a proposal is signed",
-    customer_visible: false,
-    event: "document.signed",
-    conditions: { "payload.document_source": "proposals" },
-    automation: "payments.ensureReceivables.v1",
-    input: {}
-  },
-  {
-    id: "platform_document_signed_behaviors",
-    enabled: true,
-    title: "Run a signed document's declared behaviors",
-    customer_visible: false,
-    event: "document.signed",
-    conditions: {},
-    automation: "documents.dispatchOnSigned.v1",
-    input: {}
-  },
-  {
-    id: "platform_reconcile_obligation_recognition",
-    enabled: true,
-    title: "Recognize milestone-due payments when work completes",
-    customer_visible: false,
-    event: "work.node.completed",
-    conditions: {},
-    automation: "payments.reconcileRecognition.v1",
-    input: {}
-  },
-  {
-    id: "platform_reconcile_obligation_recognition_plan",
-    enabled: true,
-    title: "Recognize completion-due payments when a scope finishes",
-    customer_visible: false,
-    event: "work.plan.completed",
-    conditions: {},
-    automation: "payments.reconcileRecognition.v1",
-    input: {}
-  },
-  {
-    id: "platform_reconcile_obligation_recognition_signoff",
-    enabled: true,
-    title: "Recognize completion-due payments on customer sign-off",
-    customer_visible: false,
-    event: "project.completion.signed",
-    conditions: {},
-    automation: "payments.reconcileRecognition.v1",
-    input: {}
-  }
-];
 
 // Same visibility contract as the template inventory: no explainer (title
 // counts) = hidden; customer_visible false always hides.
@@ -293,6 +144,53 @@ function assertRulesValid(rules: JsonObject[]) {
   if (issues.length) throw new PlatformError("automation_rules_invalid", 400, issues[0]!, { issues });
 }
 
+// Platform defaults are config library entries of the kind `automation_rule_default`
+// (config-library/kinds/automation_rule_default.ts), present for every org unless it
+// stores a rule with the same id (to switch it off or change it). They are read live and
+// never copied into an organization's rules: a default the organization has not changed
+// follows the library. Receivables generation is org billing policy, not scope-of-work
+// behavior, so it lives here rather than in any template.
+export const AUTOMATION_RULE_DEFAULT_KIND = "automation_rule_default";
+/**
+ * Set on every default `readAutomationRules` returns: the hash of the rule as returned. A
+ * read-modify-save caller (routing, contact rules, the rules editor, an agent) sends it back;
+ * a rule whose content still matches it was not changed, so the save leaves it out and the
+ * library default keeps applying instead of being frozen as an organization rule.
+ */
+export const LIBRARY_DEFAULT_MARKER = "library_default";
+
+let defaultsCache: { version: number; rules: JsonObject[]; hashes: Map<string, string> } | null = null;
+function libraryDefaults() {
+  const version = libraryVersion();
+  if (defaultsCache?.version !== version) {
+    const rules = libraryEntries<JsonObject>(AUTOMATION_RULE_DEFAULT_KIND)
+      .sort((a, b) => Number(a.data.sort_order) - Number(b.data.sort_order) || (a.id < b.id ? -1 : 1))
+      .map((entry, index) => normalizeRule(structuredClone(entry.data), index));
+    defaultsCache = { version, rules, hashes: new Map(rules.map((rule) => [cleanText(rule.id), contentHash(rule)])) };
+  }
+  return defaultsCache;
+}
+
+/** The platform default rules, normalized, in order (fresh copies). */
+export function defaultAutomationRules(): JsonObject[] {
+  return libraryDefaults().rules.map((rule) => ({ ...structuredClone(rule), [LIBRARY_DEFAULT_MARKER]: contentHash(rule) }));
+}
+
+/** The organization's stored rules with every default it has not stored before them. */
+function withDefaults(stored: JsonObject[]) {
+  const { hashes } = libraryDefaults();
+  const storedIds = new Set(stored.map((rule) => cleanText(rule.id)));
+  return [
+    ...defaultAutomationRules().filter((rule) => !storedIds.has(cleanText(rule.id))),
+    // A stored copy identical to its default (saved before defaults were left out of saves) is marked too, so the
+    // next save drops it and the default is live again.
+    ...stored.map((rule) => {
+      const hash = contentHash(rule);
+      return hashes.get(cleanText(rule.id)) === hash ? { ...rule, [LIBRARY_DEFAULT_MARKER]: hash } : rule;
+    })
+  ];
+}
+
 export async function readAutomationRules(orgId: string, branchId = "default") {
   let stored: JsonObject[] = [];
   let revision = 0;
@@ -303,12 +201,17 @@ export async function readAutomationRules(orgId: string, branchId = "default") {
   } catch (error) {
     if (!(error instanceof PlatformError && error.statusCode === 404)) throw error;
   }
-  const storedIds = new Set(stored.map((rule) => cleanText(rule.id)));
-  const rules = [
-    ...DEFAULT_AUTOMATION_RULES.filter((rule) => !storedIds.has(cleanText(rule.id))).map(normalizeRule),
-    ...stored
-  ];
-  return { rules, revision };
+  return { rules: withDefaults(stored), revision };
+}
+
+/**
+ * A rule a save leaves out: a default sent back unchanged (its content still matches the marker it was read with,
+ * or equals the current library default). Anything changed, including switching a default off, is stored.
+ */
+function unchangedDefault(raw: unknown, normalized: JsonObject) {
+  const hash = contentHash(normalized);
+  const marker = cleanText(asObject(raw)[LIBRARY_DEFAULT_MARKER]);
+  return (!!marker && marker === hash) || libraryDefaults().hashes.get(cleanText(normalized.id)) === hash;
 }
 
 /** Who saved the organization's rules last: custom code in a rule runs with that person's permissions. */
@@ -319,8 +222,10 @@ export async function automationRulesAuthor(orgId: string, branchId = "default")
 
 export async function saveAutomationRules(orgId: string, branchId: string, value: unknown, options: { authorUserId?: string } = {}) {
   const input = asObject(value);
-  const rules = asArray(asObject(input.data || input).rules).map(normalizeRule);
-  assertRulesValid(rules);
+  const raw = asArray(asObject(input.data || input).rules);
+  const normalized = raw.map(normalizeRule);
+  assertRulesValid(normalized);
+  const rules = normalized.filter((rule, index) => !unchangedDefault(raw[index], rule));
   // Custom code in a rule reads and writes with the permissions of whoever saved the rules last
   // (work/automations/code.ts), the way a scope's code runs as its publisher.
   const module = await saveBranchModule(orgId, branchId || "default", AUTOMATION_RULES_MODULE_ID, {
@@ -329,5 +234,6 @@ export async function saveAutomationRules(orgId: string, branchId: string, value
     metadata: { kind: "branch_automation_rules", ...(options.authorUserId ? { author_user_id: options.authorUserId } : {}) }
   }, { replace: true });
   await (await import('../integrations/usage.js')).indexConnectionUses(orgId,`organization-rules:${branchId}`,{rules});
-  return { rules: asArray(asObject(module.data).rules).map(normalizeRule), revision: Number(module.revision || 0) };
+  // What the organization now runs, the same view readAutomationRules gives.
+  return { rules: withDefaults(asArray(asObject(module.data).rules).map(normalizeRule)), revision: Number(module.revision || 0) };
 }

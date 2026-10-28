@@ -1,0 +1,454 @@
+{
+  "kind": "scope_template",
+  "id": "maintenance",
+  "revision": 1,
+  "sha256": "a569dc4d13bb74b739e1a753d79eada284ce2222d7262e3f6134355d944788bb",
+  "title": "Maintenance",
+  "updated_at": "2026-10-27T23:15:49.043Z",
+  "updated_by": "generator",
+  "data": {
+    "schema_version": 1,
+    "id": "maintenance",
+    "category_ids": [
+      "production"
+    ],
+    "name": "Maintenance",
+    "description": "Inspections, cleaning, sealing, and recurring upkeep.",
+    "details": "A lightweight service workflow for maintenance work.",
+    "color": "#0f766e",
+    "icon": "fa-clipboard-check",
+    "status": "active",
+    "sort_order": 7,
+    "proposal": {
+      "kind": "maintenance",
+      "piece_types": [
+        "maintenance"
+      ]
+    },
+    "fields": [
+      {
+        "id": "section_name",
+        "type": "text",
+        "label": "Section Name",
+        "required": true
+      }
+    ],
+    "custom_fields": {
+      "groups": [
+        {
+          "path": "assignments",
+          "label": "Assignments",
+          "description": "People and teams responsible for this project.",
+          "order": 10,
+          "collapsed_by_default": true,
+          "location": "project_left",
+          "icon": "fa-user-group"
+        }
+      ],
+      "fields": [
+        {
+          "path": "assignments.project_manager",
+          "label": "Project manager",
+          "description": "Person responsible for this project's production workflow.",
+          "type": "organization_user",
+          "cardinality": "one",
+          "group_path": "assignments",
+          "order": 30,
+          "assignment_policy": {
+            "allow_unassigned": true,
+            "rules": [
+              {
+                "subject_types": [
+                  "organization_user"
+                ]
+              }
+            ]
+          },
+          "ui": {
+            "project_tag": true,
+            "icon": "fa-user-gear"
+          }
+        },
+        {
+          "path": "assignments.production_team",
+          "label": "Production team",
+          "description": "Crew, subcontractor, or person assigned to the first production event.",
+          "type": "assignable_subject",
+          "cardinality": "one",
+          "group_path": "assignments",
+          "order": 40,
+          "assignment_policy": {
+            "allow_unassigned": true,
+            "rules": [
+              {
+                "subject_types": [
+                  "organization_user"
+                ]
+              },
+              {
+                "subject_types": [
+                  "resource_group"
+                ],
+                "group_kind_ids": [
+                  "crew"
+                ]
+              },
+              {
+                "subject_types": [
+                  "organization_connection"
+                ]
+              }
+            ]
+          },
+          "default_from": {
+            "source": "event_assignment",
+            "event_type_id": "project_work",
+            "selection": "first_qualifying",
+            "write_mode": "if_empty"
+          }
+        }
+      ]
+    },
+    "communications": {
+      "email_forwarding": {
+        "enabled": true,
+        "priority": 20,
+        "target": {
+          "kind": "custom_field",
+          "custom_field_path": "assignments.project_manager"
+        }
+      }
+    },
+    "checklists": [
+      {
+        "id": "safety",
+        "title": "Safety checklist",
+        "description": "Site safety items the crew confirms before and during work.",
+        "kind": "todo",
+        "audience": "crew",
+        "crew_editable": false,
+        "icon": "fa-helmet-safety",
+        "sort_order": 10,
+        "assignment_policy": {
+          "schema_version": 1,
+          "mode": "any",
+          "allow_unassigned": true,
+          "rules": [
+            {
+              "id": "production_crews",
+              "subject_types": [
+                "resource_group"
+              ],
+              "group_kind_ids": [
+                "crew"
+              ]
+            },
+            {
+              "id": "field_people",
+              "subject_types": [
+                "organization_user"
+              ],
+              "role_ids": [
+                "crew_member",
+                "crew_foreman"
+              ]
+            }
+          ]
+        },
+        "items": [
+          {
+            "title": "Work area walked and hazards identified"
+          },
+          {
+            "title": "Ladders and equipment inspected"
+          },
+          {
+            "title": "Required protective equipment in use"
+          },
+          {
+            "title": "Customer property protected"
+          }
+        ]
+      },
+      {
+        "id": "work",
+        "title": "Work checklist",
+        "description": "Production items the crew completes during the job.",
+        "kind": "todo",
+        "audience": "crew",
+        "crew_editable": true,
+        "icon": "fa-list-check",
+        "sort_order": 20,
+        "assignment_policy": {
+          "schema_version": 1,
+          "mode": "any",
+          "allow_unassigned": true,
+          "rules": [
+            {
+              "id": "production_crews",
+              "subject_types": [
+                "resource_group"
+              ],
+              "group_kind_ids": [
+                "crew"
+              ]
+            },
+            {
+              "id": "field_people",
+              "subject_types": [
+                "organization_user"
+              ],
+              "role_ids": [
+                "crew_member",
+                "crew_foreman"
+              ]
+            }
+          ]
+        },
+        "items": [
+          {
+            "title": "Materials received and staged"
+          },
+          {
+            "title": "Existing conditions photographed"
+          },
+          {
+            "title": "Scope of work completed"
+          },
+          {
+            "title": "Job site cleaned up"
+          },
+          {
+            "title": "Completion photos uploaded"
+          }
+        ]
+      },
+      {
+        "id": "completion",
+        "title": "Completion checklist",
+        "description": "Supervisor quality review after the crew finishes.",
+        "kind": "quality",
+        "audience": "supervisor",
+        "crew_editable": false,
+        "icon": "fa-clipboard-check",
+        "sort_order": 30,
+        "assignment_policy": {
+          "schema_version": 1,
+          "mode": "any",
+          "allow_unassigned": true,
+          "rules": [
+            {
+              "id": "supervisors",
+              "subject_types": [
+                "organization_user"
+              ],
+              "role_ids": [
+                "supervisor"
+              ]
+            }
+          ]
+        },
+        "items": [
+          {
+            "title": "Overall workmanship",
+            "item_type": "rating"
+          },
+          {
+            "title": "Detail and finish quality",
+            "item_type": "rating"
+          },
+          {
+            "title": "Site cleanup and protection",
+            "item_type": "rating"
+          },
+          {
+            "title": "Customer walkthrough completed",
+            "item_type": "rating"
+          }
+        ]
+      }
+    ],
+    "work_plan": {
+      "title": "Maintenance",
+      "terminology": {
+        "phase": "Phase",
+        "stage": "Stage",
+        "task": "To-do",
+        "board": "Board"
+      },
+      "root_nodes": [
+        {
+          "id": "maintenance_phase",
+          "title": "Maintenance",
+          "terminology_key": "work.phase",
+          "completion_mode": "all_children",
+          "children": [
+            {
+              "id": "service_contract_stage",
+              "title": "Contract",
+              "terminology_key": "work.stage",
+              "completion_mode": "all_children",
+              "children": [
+                {
+                  "id": "sign_proposal",
+                  "title": "Sign proposal",
+                  "terminology_key": "work.task",
+                  "actionable": true,
+                  "external_triggers": [
+                    {
+                      "event": "proposal.signed",
+                      "transition": "completed"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "id": "service_scheduling_stage",
+              "title": "Scheduling",
+              "terminology_key": "work.stage",
+              "completion_mode": "all_children",
+              "depends_on": [
+                "service_contract_stage"
+              ],
+              "children": [
+                {
+                  "id": "welcome_call",
+                  "title": "Welcome call",
+                  "terminology_key": "work.task",
+                  "actionable": true,
+                  "automation_bindings": {
+                    "onReady": [
+                      {
+                        "id": "queue_welcome_call",
+                        "automation": "crm.callLists.add.v1",
+                        "input": {
+                          "list": {
+                            "key": "new_customers",
+                            "title": "New Customers",
+                            "description": "Signed customers whose welcome call is ready.",
+                            "kind": "signature",
+                            "icon": "fa-handshake",
+                            "tone": "customer",
+                            "sort_order": 30,
+                            "assigned_user_ids": [],
+                            "assigned_role_ids": [],
+                            "metadata": {
+                              "purpose": "welcome_call",
+                              "managed_by": "scope_automation"
+                            }
+                          },
+                          "title": "Welcome call"
+                        },
+                        "explainer": "Newly signed customers are added to the Welcome Call queue so the office kicks off the relationship."
+                      }
+                    ],
+                    "onCompleted": [
+                      {
+                        "id": "remove_completed_welcome_call",
+                        "automation": "crm.callLists.remove.v1",
+                        "input": {}
+                      }
+                    ],
+                    "onSkipped": [
+                      {
+                        "id": "remove_skipped_welcome_call",
+                        "automation": "crm.callLists.remove.v1",
+                        "input": {}
+                      }
+                    ],
+                    "onCanceled": [
+                      {
+                        "id": "remove_canceled_welcome_call",
+                        "automation": "crm.callLists.remove.v1",
+                        "input": {}
+                      }
+                    ]
+                  },
+                  "metadata": {
+                    "call_list_key": "new_customers",
+                    "call_list_kind": "signature"
+                  }
+                },
+                {
+                  "id": "schedule_service",
+                  "title": "Schedule service",
+                  "terminology_key": "work.task",
+                  "actionable": true,
+                  "depends_on": [
+                    "welcome_call"
+                  ],
+                  "external_triggers": [
+                    {
+                      "event": "project.event_scheduled",
+                      "transition": "completed",
+                      "conditions": {
+                        "payload.event_kind": "project_work"
+                      }
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "id": "service_work_stage",
+              "title": "Service",
+              "terminology_key": "work.stage",
+              "completion_mode": "all_children",
+              "depends_on": [
+                "service_scheduling_stage"
+              ],
+              "children": [
+                {
+                  "id": "service_arrival",
+                  "title": "Service professional arrives",
+                  "terminology_key": "work.task",
+                  "actionable": true,
+                  "external_triggers": [
+                    {
+                      "event": "project.event.started",
+                      "transition": "completed",
+                      "conditions": {
+                        "payload.event_kind": "project_work"
+                      }
+                    }
+                  ]
+                },
+                {
+                  "id": "service_paid",
+                  "title": "Project paid and closed out",
+                  "terminology_key": "work.task",
+                  "actionable": true,
+                  "depends_on": [
+                    "service_arrival"
+                  ],
+                  "external_triggers": [
+                    {
+                      "event": "payment.received",
+                      "transition": "completed"
+                    }
+                  ]
+                },
+                {
+                  "id": "thank_you_call",
+                  "title": "Thank you call",
+                  "terminology_key": "work.task",
+                  "actionable": true,
+                  "depends_on": [
+                    "service_paid"
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    "metadata": {
+      "preset": true
+    },
+    "measurement_schema_ids": [
+      "roofing"
+    ]
+  }
+}

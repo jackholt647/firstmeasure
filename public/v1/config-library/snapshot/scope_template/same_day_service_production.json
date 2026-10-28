@@ -1,0 +1,363 @@
+{
+  "kind": "scope_template",
+  "id": "same_day_service_production",
+  "revision": 1,
+  "sha256": "63af66cc0b9075426afacd47b3b73183992291e064f41f850970036a0b192a62",
+  "title": "Same-Day Service Production",
+  "updated_at": "2026-10-27T23:15:49.043Z",
+  "updated_by": "generator",
+  "data": {
+    "schema_version": 1,
+    "id": "same_day_service_production",
+    "category_ids": [
+      "production"
+    ],
+    "name": "Same-Day Service Production",
+    "description": "Start authorized service immediately and close it out on the same visit.",
+    "details": "Activated automatically by the signed same-day service authorization; preserves the event-driven sales-to-production handoff.",
+    "color": "#0f766e",
+    "icon": "fa-person-digging",
+    "status": "active",
+    "sort_order": 4,
+    "proposal": {
+      "kind": "same_day_service_production",
+      "piece_types": [
+        "same_day_service_install"
+      ]
+    },
+    "fields": [],
+    "custom_fields": {
+      "groups": [
+        {
+          "path": "assignments",
+          "label": "Assignments",
+          "description": "People and teams responsible for this project.",
+          "order": 10,
+          "collapsed_by_default": true,
+          "location": "project_left",
+          "icon": "fa-user-group"
+        }
+      ],
+      "fields": [
+        {
+          "path": "assignments.estimator",
+          "label": "Estimator",
+          "description": "Salesperson responsible for estimating and selling the project.",
+          "type": "organization_user",
+          "cardinality": "one",
+          "group_path": "assignments",
+          "order": 10,
+          "assignment_policy": {
+            "allow_unassigned": true,
+            "rules": [
+              {
+                "subject_types": [
+                  "organization_user"
+                ],
+                "role_ids": [
+                  "sales_appointments"
+                ]
+              }
+            ]
+          },
+          "default_from": {
+            "source": "event_assignment",
+            "event_type_id": "sales_appointment",
+            "selection": "first_qualifying",
+            "write_mode": "if_empty",
+            "fallback_source": "proposal_creator"
+          },
+          "ui": {
+            "project_tag": true,
+            "icon": "fa-user-tie"
+          }
+        },
+        {
+          "path": "assignments.inside_salesperson",
+          "label": "Inside salesperson",
+          "description": "Person who scheduled or qualified the sales appointment.",
+          "type": "organization_user",
+          "cardinality": "one",
+          "group_path": "assignments",
+          "order": 20,
+          "assignment_policy": {
+            "allow_unassigned": true,
+            "rules": [
+              {
+                "subject_types": [
+                  "organization_user"
+                ],
+                "role_ids": [
+                  "inside_sales"
+                ]
+              }
+            ]
+          },
+          "default_from": {
+            "source": "event_scheduler",
+            "event_type_id": "sales_appointment",
+            "selection": "first_qualifying",
+            "write_mode": "if_empty"
+          }
+        },
+        {
+          "path": "assignments.project_manager",
+          "label": "Project manager",
+          "description": "Person responsible for this project's production workflow.",
+          "type": "organization_user",
+          "cardinality": "one",
+          "group_path": "assignments",
+          "order": 30,
+          "assignment_policy": {
+            "allow_unassigned": true,
+            "rules": [
+              {
+                "subject_types": [
+                  "organization_user"
+                ]
+              }
+            ]
+          },
+          "ui": {
+            "project_tag": true,
+            "icon": "fa-user-gear"
+          }
+        },
+        {
+          "path": "assignments.production_team",
+          "label": "Production team",
+          "description": "Crew, subcontractor, or person assigned to the first production event.",
+          "type": "assignable_subject",
+          "cardinality": "one",
+          "group_path": "assignments",
+          "order": 40,
+          "assignment_policy": {
+            "allow_unassigned": true,
+            "rules": [
+              {
+                "subject_types": [
+                  "organization_user"
+                ]
+              },
+              {
+                "subject_types": [
+                  "resource_group"
+                ],
+                "group_kind_ids": [
+                  "crew"
+                ]
+              },
+              {
+                "subject_types": [
+                  "organization_connection"
+                ]
+              }
+            ]
+          },
+          "default_from": {
+            "source": "event_assignment",
+            "event_type_id": "project_work",
+            "selection": "first_qualifying",
+            "write_mode": "if_empty"
+          }
+        }
+      ]
+    },
+    "communications": {
+      "email_forwarding": {
+        "enabled": true,
+        "priority": 20,
+        "target": {
+          "kind": "custom_field",
+          "custom_field_path": "assignments.project_manager"
+        }
+      }
+    },
+    "checklists": [
+      {
+        "id": "same_day_install",
+        "title": "Same-day installation",
+        "description": "Installation, startup, and customer handoff requirements.",
+        "kind": "todo",
+        "audience": "crew",
+        "crew_editable": true,
+        "icon": "fa-list-check",
+        "sort_order": 10,
+        "assignment_policy": {
+          "schema_version": 1,
+          "mode": "any",
+          "allow_unassigned": true,
+          "rules": []
+        },
+        "items": [
+          {
+            "title": "Protect the work area and verify safe shutoff",
+            "item_type": "todo"
+          },
+          {
+            "title": "Install the authorized equipment and materials",
+            "item_type": "todo"
+          },
+          {
+            "title": "Complete startup and operational testing",
+            "item_type": "todo"
+          },
+          {
+            "title": "Clean the work area and complete customer walkthrough",
+            "item_type": "todo"
+          }
+        ]
+      }
+    ],
+    "work_plan": {
+      "title": "Same-Day Service Production",
+      "terminology": {
+        "phase": "Phase",
+        "stage": "Stage",
+        "task": "To-do",
+        "board": "Board"
+      },
+      "root_nodes": [
+        {
+          "id": "same_day_production_phase",
+          "title": "Same-Day Service",
+          "terminology_key": "work.phase",
+          "completion_mode": "all_children",
+          "metadata": {
+            "color": "#0f766e",
+            "board_id": "same_day_service_production"
+          },
+          "children": [
+            {
+              "id": "perform_install_stage",
+              "title": "Install",
+              "terminology_key": "work.stage",
+              "completion_mode": "all_children",
+              "children": [
+                {
+                  "id": "perform_same_day_install",
+                  "title": "Perform authorized installation",
+                  "terminology_key": "work.task",
+                  "actionable": true,
+                  "show_in_todo_list": true,
+                  "assigned_role_ids": [
+                    "sales_appointments"
+                  ],
+                  "metadata": {
+                    "kind": "project_work"
+                  }
+                }
+              ]
+            },
+            {
+              "id": "closeout_stage",
+              "title": "Closeout",
+              "terminology_key": "work.stage",
+              "completion_mode": "all_children",
+              "depends_on": [
+                "perform_install_stage"
+              ],
+              "children": [
+                {
+                  "id": "complete_same_day_visit",
+                  "title": "Complete visit and customer handoff",
+                  "terminology_key": "work.task",
+                  "actionable": true,
+                  "show_in_todo_list": true,
+                  "assigned_role_ids": [
+                    "sales_appointments"
+                  ],
+                  "external_triggers": [
+                    {
+                      "event": "project.event.completed",
+                      "transition": "completed",
+                      "conditions": {
+                        "payload.event_type_default_id": "sales_appointment"
+                      }
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      ],
+      "metadata": {
+        "board_color": "#0f766e"
+      }
+    },
+    "metadata": {
+      "preset": true,
+      "visit_workflow": {
+        "enabled": true,
+        "id": "same_day_production_visit",
+        "title": "Same-Day Installation",
+        "event_types": [
+          "project_work"
+        ],
+        "steps": [
+          {
+            "id": "en_route",
+            "title": "On my way",
+            "navigation_title": "En route",
+            "kind": "status",
+            "description": "Notify the customer before leaving for the job.",
+            "action": {
+              "label": "I'm on my way",
+              "transition": "en_route",
+              "notify": {
+                "channel": "sms",
+                "message": "Hi {{customer.name}}, {{technician.name}} is on the way to begin your installation at {{project.address}}."
+              }
+            }
+          },
+          {
+            "id": "arrived",
+            "title": "Arrive",
+            "navigation_title": "Arrived",
+            "kind": "status",
+            "description": "Confirm arrival and begin the installation visit.",
+            "action": {
+              "label": "I've arrived",
+              "transition": "arrived"
+            }
+          },
+          {
+            "id": "install",
+            "title": "Complete the installation",
+            "navigation_title": "Install",
+            "kind": "checklist",
+            "description": "Complete every assigned installation and quality-control item."
+          },
+          {
+            "id": "payment",
+            "title": "Collect payment",
+            "navigation_title": "Payment",
+            "kind": "payment",
+            "description": "Review the balance and collect any amount due.",
+            "target_tab": "crew_payments"
+          },
+          {
+            "id": "signoff",
+            "title": "Customer sign-off",
+            "navigation_title": "Sign",
+            "kind": "workflow",
+            "description": "Complete any customer-facing completion document or signature.",
+            "target_tab": "crew_signatures"
+          },
+          {
+            "id": "finish",
+            "title": "Finish the visit",
+            "navigation_title": "Done",
+            "kind": "complete",
+            "description": "Close the visit after all required work is finished.",
+            "action": {
+              "label": "Complete visit",
+              "transition": "completed"
+            }
+          }
+        ]
+      }
+    }
+  }
+}

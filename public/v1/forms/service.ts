@@ -23,7 +23,7 @@ import { withChangeSource } from "../history/source.js";
 import { assertBranchManageable } from "../workforce/branch-guards.js";
 import { collectAnswers, summarizeAnswers } from "./answers.js";
 import { calculationSource, compileFormModule, formInputSchema } from "./compile.js";
-import { FORM_BLOCKS, FORM_FONTS, estimateOutputSchema, formDefinitionSchema, formDraftSchema, formItems, type FormDefinition, type FormItem } from "./contracts.js";
+import { FORM_BLOCKS, FORM_FONTS, estimateOutputSchema, formDefinitionSchema, formDraftSchema, formItems, requiredFormFlags, type FormDefinition, type FormItem } from "./contracts.js";
 import { buildInsights, recordActivity, type ActivityEvent } from "./insights.js";
 import { listMeasurementSources, measurementSource, signMeasurement, verifyMeasurement } from "./sources.js";
 import { ACTIVITY, FORMS, SUBMISSIONS, findRecord, listRecords, newFormId, newPublicKey, parsePublicKey, readFormRecord, removeRecord, saveRecord, type StoredRecord } from "./storage.js";
@@ -42,17 +42,7 @@ type FormRecord = StoredRecord & { name: string; branch_id: string; template: st
 
 const FLAG_LABELS: Record<string, string> = { contact_form: "Contact forms", appointment_form: "Appointment booking forms", instant_estimate: "Instant estimate forms" };
 
-/** Blocks, not form types, decide which lead_forms capabilities a form needs. */
-export function requiredFormFlags(definition: Pick<FormDefinition, "steps" | "calculation">) {
-  const flags = new Set<string>();
-  for (const item of formItems(definition)) {
-    const capability = (FORM_BLOCKS[item.kind] as { capability?: string }).capability;
-    if (capability) flags.add(capability);
-  }
-  if (definition.calculation) flags.add("instant_estimate");
-  if (!flags.size) flags.add("contact_form");
-  return [...flags];
-}
+export { requiredFormFlags };
 
 async function requireFormsEnabled(orgId: string) {
   if (!(await isAppFlagEnabled(orgId, "platform", "website_embed_import"))) throw forbidden("app_flag_disabled", "Website forms are not enabled for this organization.");

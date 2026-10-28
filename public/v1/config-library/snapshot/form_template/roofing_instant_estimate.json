@@ -1,0 +1,588 @@
+{
+  "kind": "form_template",
+  "id": "roofing_instant_estimate",
+  "revision": 1,
+  "sha256": "b3da8636d6536a7145f36450439c15d9033f11d8be78c914dfb151414ad3eeb7",
+  "title": "Roof replacement estimate",
+  "updated_at": "2026-10-27T23:15:49.043Z",
+  "updated_by": "generator",
+  "data": {
+    "name": "Roof replacement estimate",
+    "description": "Measures the roof from satellite imagery at the customer's address and prices each roofing material by measured area and steepness.",
+    "icon": "fa-house-chimney",
+    "category": "Estimates",
+    "industry": "roofing",
+    "requires": [
+      "instant_estimate"
+    ],
+    "sort_order": 6,
+    "definition": {
+      "schema_version": 1,
+      "template": "roofing_instant_estimate",
+      "presentation": {
+        "headline": "Get a free instant roof estimate",
+        "subheadline": "We measure your roof from satellite imagery and show replacement options in minutes.",
+        "start_label": "Get started",
+        "next_label": "Next",
+        "back_label": "Back",
+        "submit_label": "Get my estimate",
+        "fine_print": "This is a preliminary estimate. Final pricing may change after inspection, measurements, materials and scope review.",
+        "layout": "steps",
+        "progress": "bar",
+        "style": {
+          "use_company_colors": true,
+          "primary_color": "#2563eb",
+          "text_color": "#111827",
+          "background_color": "#ffffff",
+          "use_company_font": true,
+          "font_family": "Inter",
+          "corners": "soft",
+          "header": "plain",
+          "logo_enabled": true,
+          "logo_url": ""
+        },
+        "success": {
+          "title": "Your roof estimate",
+          "body": "We will follow up to confirm the measurements and walk through your options.",
+          "cta_label": "",
+          "cta_url": ""
+        }
+      },
+      "steps": [
+        {
+          "id": "property",
+          "title": "Where is the property?",
+          "description": "",
+          "visible_when": [],
+          "items": [
+            {
+              "id": "address",
+              "kind": "address",
+              "param": "address",
+              "label": "Property address",
+              "description": "",
+              "placeholder": "123 Main Street, City, State",
+              "required": true,
+              "visible_when": [],
+              "maps_to": "",
+              "options": [],
+              "style": "cards",
+              "unit": "",
+              "fields": {
+                "name": {
+                  "enabled": true,
+                  "required": true
+                },
+                "email": {
+                  "enabled": true,
+                  "required": false
+                },
+                "phone": {
+                  "enabled": true,
+                  "required": true
+                }
+              },
+              "preset_id": "",
+              "min_notice_hours": 2,
+              "horizon_days": 45,
+              "source": "",
+              "sms_opt_in": false,
+              "heading": "",
+              "body": "",
+              "image_url": ""
+            }
+          ]
+        },
+        {
+          "id": "roof",
+          "title": "We found your roof",
+          "description": "Confirm the highlighted roof matches your property.",
+          "visible_when": [],
+          "items": [
+            {
+              "id": "measurement",
+              "kind": "property_measurement",
+              "param": "measurement",
+              "label": "Roof measurements",
+              "description": "",
+              "placeholder": "",
+              "required": false,
+              "visible_when": [],
+              "maps_to": "",
+              "options": [],
+              "style": "cards",
+              "unit": "",
+              "fields": {
+                "name": {
+                  "enabled": true,
+                  "required": true
+                },
+                "email": {
+                  "enabled": true,
+                  "required": false
+                },
+                "phone": {
+                  "enabled": true,
+                  "required": true
+                }
+              },
+              "preset_id": "",
+              "min_notice_hours": 2,
+              "horizon_days": 45,
+              "source": "solar_roof",
+              "address_param": "address",
+              "sms_opt_in": false,
+              "heading": "",
+              "body": "",
+              "image_url": ""
+            }
+          ]
+        },
+        {
+          "id": "condition",
+          "title": "Tell us about the roof",
+          "description": "",
+          "visible_when": [],
+          "items": [
+            {
+              "id": "roof_age",
+              "kind": "select",
+              "param": "roof_age",
+              "label": "How old is the current roof?",
+              "description": "",
+              "placeholder": "",
+              "required": true,
+              "visible_when": [],
+              "maps_to": "",
+              "options": [
+                {
+                  "value": "0-9",
+                  "label": "Less than 10 years",
+                  "description": "",
+                  "image_url": ""
+                },
+                {
+                  "value": "10-19",
+                  "label": "10 to 20 years",
+                  "description": "",
+                  "image_url": ""
+                },
+                {
+                  "value": "20+",
+                  "label": "More than 20 years",
+                  "description": "",
+                  "image_url": ""
+                },
+                {
+                  "value": "unknown",
+                  "label": "Not sure",
+                  "description": "",
+                  "image_url": ""
+                }
+              ],
+              "style": "list",
+              "unit": "",
+              "fields": {
+                "name": {
+                  "enabled": true,
+                  "required": true
+                },
+                "email": {
+                  "enabled": true,
+                  "required": false
+                },
+                "phone": {
+                  "enabled": true,
+                  "required": true
+                }
+              },
+              "preset_id": "",
+              "min_notice_hours": 2,
+              "horizon_days": 45,
+              "source": "",
+              "sms_opt_in": false,
+              "heading": "",
+              "body": "",
+              "image_url": ""
+            },
+            {
+              "id": "damage",
+              "kind": "select",
+              "param": "damage",
+              "label": "Is there any damage or leaking?",
+              "description": "",
+              "placeholder": "",
+              "required": true,
+              "visible_when": [],
+              "maps_to": "",
+              "options": [
+                {
+                  "value": "none",
+                  "label": "No visible damage",
+                  "description": "",
+                  "image_url": ""
+                },
+                {
+                  "value": "minor",
+                  "label": "Some wear or missing shingles",
+                  "description": "",
+                  "image_url": ""
+                },
+                {
+                  "value": "leak",
+                  "label": "Active leak or storm damage",
+                  "description": "",
+                  "image_url": ""
+                }
+              ],
+              "style": "list",
+              "unit": "",
+              "fields": {
+                "name": {
+                  "enabled": true,
+                  "required": true
+                },
+                "email": {
+                  "enabled": true,
+                  "required": false
+                },
+                "phone": {
+                  "enabled": true,
+                  "required": true
+                }
+              },
+              "preset_id": "",
+              "min_notice_hours": 2,
+              "horizon_days": 45,
+              "source": "",
+              "sms_opt_in": false,
+              "heading": "",
+              "body": "",
+              "image_url": ""
+            }
+          ]
+        },
+        {
+          "id": "timeline",
+          "title": "When are you looking to start?",
+          "description": "",
+          "visible_when": [],
+          "items": [
+            {
+              "id": "timeline",
+              "kind": "select",
+              "param": "timeline",
+              "label": "Project timeline",
+              "description": "",
+              "placeholder": "",
+              "required": true,
+              "visible_when": [],
+              "maps_to": "",
+              "options": [
+                {
+                  "value": "asap",
+                  "label": "As soon as possible",
+                  "description": "",
+                  "image_url": ""
+                },
+                {
+                  "value": "1-3",
+                  "label": "In 1 to 3 months",
+                  "description": "",
+                  "image_url": ""
+                },
+                {
+                  "value": "3+",
+                  "label": "More than 3 months out",
+                  "description": "",
+                  "image_url": ""
+                },
+                {
+                  "value": "exploring",
+                  "label": "Just exploring",
+                  "description": "",
+                  "image_url": ""
+                }
+              ],
+              "style": "list",
+              "unit": "",
+              "fields": {
+                "name": {
+                  "enabled": true,
+                  "required": true
+                },
+                "email": {
+                  "enabled": true,
+                  "required": false
+                },
+                "phone": {
+                  "enabled": true,
+                  "required": true
+                }
+              },
+              "preset_id": "",
+              "min_notice_hours": 2,
+              "horizon_days": 45,
+              "source": "",
+              "sms_opt_in": false,
+              "heading": "",
+              "body": "",
+              "image_url": ""
+            },
+            {
+              "id": "notes",
+              "kind": "paragraph",
+              "param": "notes",
+              "label": "Anything else we should know?",
+              "description": "",
+              "placeholder": "",
+              "required": false,
+              "visible_when": [],
+              "maps_to": "",
+              "options": [],
+              "style": "cards",
+              "unit": "",
+              "fields": {
+                "name": {
+                  "enabled": true,
+                  "required": true
+                },
+                "email": {
+                  "enabled": true,
+                  "required": false
+                },
+                "phone": {
+                  "enabled": true,
+                  "required": true
+                }
+              },
+              "preset_id": "",
+              "min_notice_hours": 2,
+              "horizon_days": 45,
+              "source": "",
+              "sms_opt_in": false,
+              "heading": "",
+              "body": "",
+              "image_url": ""
+            }
+          ]
+        },
+        {
+          "id": "contact",
+          "title": "Where should we send your estimate?",
+          "description": "",
+          "visible_when": [],
+          "items": [
+            {
+              "id": "contact",
+              "kind": "contact",
+              "param": "contact",
+              "label": "",
+              "description": "",
+              "placeholder": "",
+              "required": false,
+              "visible_when": [],
+              "maps_to": "",
+              "options": [],
+              "style": "cards",
+              "unit": "",
+              "fields": {
+                "name": {
+                  "enabled": true,
+                  "required": true
+                },
+                "email": {
+                  "enabled": true,
+                  "required": true
+                },
+                "phone": {
+                  "enabled": true,
+                  "required": false
+                }
+              },
+              "preset_id": "",
+              "min_notice_hours": 2,
+              "horizon_days": 45,
+              "source": "",
+              "sms_opt_in": false,
+              "heading": "",
+              "body": "",
+              "image_url": ""
+            },
+            {
+              "id": "consent",
+              "kind": "consent",
+              "param": "consent",
+              "label": "I agree to be contacted about my roofing estimate.",
+              "description": "",
+              "placeholder": "",
+              "required": true,
+              "visible_when": [],
+              "maps_to": "",
+              "options": [],
+              "style": "cards",
+              "unit": "",
+              "fields": {
+                "name": {
+                  "enabled": true,
+                  "required": true
+                },
+                "email": {
+                  "enabled": true,
+                  "required": false
+                },
+                "phone": {
+                  "enabled": true,
+                  "required": true
+                }
+              },
+              "preset_id": "",
+              "min_notice_hours": 2,
+              "horizon_days": 45,
+              "source": "",
+              "sms_opt_in": false,
+              "heading": "",
+              "body": "",
+              "image_url": ""
+            }
+          ]
+        }
+      ],
+      "calculation": {
+        "mode": "pricing",
+        "pricing": {
+          "currency": "USD",
+          "quantity": {
+            "param": "measurement.roof_area_sqft",
+            "label": "Roof area",
+            "unit": "sq ft",
+            "fallback": 2200,
+            "waste_percent": 0
+          },
+          "options": [
+            {
+              "id": "asphalt",
+              "label": "Asphalt shingle roof",
+              "description": "Architectural shingles, the most common choice.",
+              "low_rate": 6.75,
+              "high_rate": 9.25,
+              "flat_low": 0,
+              "flat_high": 0,
+              "minimum": 0,
+              "visible_when": [
+                {
+                  "param": "measurement.pitch_category",
+                  "op": "neq",
+                  "value": "Flat"
+                }
+              ]
+            },
+            {
+              "id": "metal",
+              "label": "Metal roof",
+              "description": "Standing seam or metal panel systems.",
+              "low_rate": 10.5,
+              "high_rate": 14.5,
+              "flat_low": 0,
+              "flat_high": 0,
+              "minimum": 0,
+              "visible_when": [
+                {
+                  "param": "measurement.pitch_category",
+                  "op": "neq",
+                  "value": "Flat"
+                }
+              ]
+            },
+            {
+              "id": "tile",
+              "label": "Tile roof",
+              "description": "Concrete or clay tile.",
+              "low_rate": 13.5,
+              "high_rate": 18,
+              "flat_low": 0,
+              "flat_high": 0,
+              "minimum": 0,
+              "visible_when": [
+                {
+                  "param": "measurement.pitch_category",
+                  "op": "neq",
+                  "value": "Flat"
+                }
+              ]
+            },
+            {
+              "id": "flat",
+              "label": "Flat roof membrane",
+              "description": "TPO or modified bitumen for low-slope roofs.",
+              "low_rate": 9.5,
+              "high_rate": 14.5,
+              "flat_low": 0,
+              "flat_high": 0,
+              "minimum": 0,
+              "visible_when": [
+                {
+                  "param": "measurement.pitch_category",
+                  "op": "in",
+                  "value": [
+                    "Flat",
+                    "Low"
+                  ]
+                }
+              ]
+            }
+          ],
+          "adjustments": [
+            {
+              "id": "moderate_pitch",
+              "label": "Moderate roof pitch",
+              "percent": 12,
+              "when": [
+                {
+                  "param": "measurement.pitch_category",
+                  "op": "eq",
+                  "value": "Moderate"
+                }
+              ]
+            },
+            {
+              "id": "steep_pitch",
+              "label": "Steep roof pitch",
+              "percent": 30,
+              "when": [
+                {
+                  "param": "measurement.pitch_category",
+                  "op": "eq",
+                  "value": "Steep"
+                }
+              ]
+            }
+          ],
+          "round_to": 50,
+          "disclaimer": "This is a preliminary estimate based on satellite measurements. Final pricing may change after inspection, measurements, materials and scope review."
+        }
+      },
+      "settings": {
+        "stage_id": "new_lead",
+        "notify_role_ids": [
+          "inside_sales",
+          "sales_appointments"
+        ],
+        "tracking_key": "",
+        "staff": {
+          "enabled": false,
+          "only": false,
+          "label": "",
+          "role_ids": []
+        },
+        "customer_email": {
+          "enabled": true,
+          "subject": "Your instant roof estimate",
+          "intro": "",
+          "cta_label": "",
+          "cta_url": ""
+        }
+      }
+    }
+  }
+}

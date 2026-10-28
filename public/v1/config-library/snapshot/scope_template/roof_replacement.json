@@ -1,0 +1,1614 @@
+{
+  "kind": "scope_template",
+  "id": "roof_replacement",
+  "revision": 1,
+  "sha256": "095f6794f4dbaadd613e5871a10c367718a1193fad0c1611e1ceb800a8643001",
+  "title": "Roof Replacement",
+  "updated_at": "2026-10-27T23:15:49.043Z",
+  "updated_by": "generator",
+  "data": {
+    "schema_version": 1,
+    "id": "roof_replacement",
+    "category_ids": [
+      "production"
+    ],
+    "name": "Roof Replacement",
+    "description": "Full or partial roof replacement by structure.",
+    "details": "Includes tear-off and replacement work, material deliveries, crew scheduling, payments, and closeout.",
+    "color": "#dc2626",
+    "icon": "fa-house",
+    "status": "active",
+    "sort_order": 5,
+    "proposal": {
+      "kind": "roof_replacement",
+      "supports_structures": true,
+      "piece_types": [
+        "roof_replacement",
+        "full_roof",
+        "partial_roof"
+      ]
+    },
+    "fields": [
+      {
+        "id": "section_name",
+        "type": "text",
+        "label": "Section Name",
+        "required": true
+      },
+      {
+        "id": "structures",
+        "type": "structures",
+        "label": "Structures"
+      }
+    ],
+    "custom_fields": {
+      "groups": [
+        {
+          "path": "assignments",
+          "label": "Assignments",
+          "description": "People and teams responsible for this project.",
+          "order": 10,
+          "collapsed_by_default": true,
+          "location": "project_left",
+          "icon": "fa-user-group"
+        }
+      ],
+      "fields": [
+        {
+          "path": "assignments.estimator",
+          "label": "Estimator",
+          "description": "Salesperson responsible for estimating and selling the project.",
+          "type": "organization_user",
+          "cardinality": "one",
+          "group_path": "assignments",
+          "order": 10,
+          "assignment_policy": {
+            "allow_unassigned": true,
+            "rules": [
+              {
+                "subject_types": [
+                  "organization_user"
+                ],
+                "role_ids": [
+                  "sales_appointments"
+                ]
+              }
+            ]
+          },
+          "default_from": {
+            "source": "event_assignment",
+            "event_type_id": "sales_appointment",
+            "selection": "first_qualifying",
+            "write_mode": "if_empty",
+            "fallback_source": "proposal_creator"
+          },
+          "ui": {
+            "project_tag": true,
+            "icon": "fa-user-tie"
+          }
+        },
+        {
+          "path": "assignments.inside_salesperson",
+          "label": "Inside salesperson",
+          "description": "Person who scheduled or qualified the sales appointment.",
+          "type": "organization_user",
+          "cardinality": "one",
+          "group_path": "assignments",
+          "order": 20,
+          "assignment_policy": {
+            "allow_unassigned": true,
+            "rules": [
+              {
+                "subject_types": [
+                  "organization_user"
+                ],
+                "role_ids": [
+                  "inside_sales"
+                ]
+              }
+            ]
+          },
+          "default_from": {
+            "source": "event_scheduler",
+            "event_type_id": "sales_appointment",
+            "selection": "first_qualifying",
+            "write_mode": "if_empty"
+          }
+        },
+        {
+          "path": "assignments.project_manager",
+          "label": "Project manager",
+          "description": "Person responsible for this project's production workflow.",
+          "type": "organization_user",
+          "cardinality": "one",
+          "group_path": "assignments",
+          "order": 30,
+          "assignment_policy": {
+            "allow_unassigned": true,
+            "rules": [
+              {
+                "subject_types": [
+                  "organization_user"
+                ]
+              }
+            ]
+          },
+          "ui": {
+            "project_tag": true,
+            "icon": "fa-user-gear"
+          }
+        },
+        {
+          "path": "assignments.production_team",
+          "label": "Production team",
+          "description": "Crew, subcontractor, or person assigned to the first production event.",
+          "type": "assignable_subject",
+          "cardinality": "one",
+          "group_path": "assignments",
+          "order": 40,
+          "assignment_policy": {
+            "allow_unassigned": true,
+            "rules": [
+              {
+                "subject_types": [
+                  "organization_user"
+                ]
+              },
+              {
+                "subject_types": [
+                  "resource_group"
+                ],
+                "group_kind_ids": [
+                  "crew"
+                ]
+              },
+              {
+                "subject_types": [
+                  "organization_connection"
+                ]
+              }
+            ]
+          },
+          "default_from": {
+            "source": "event_assignment",
+            "event_type_id": "project_work",
+            "selection": "first_qualifying",
+            "write_mode": "if_empty"
+          }
+        }
+      ]
+    },
+    "communications": {
+      "email_forwarding": {
+        "enabled": true,
+        "priority": 20,
+        "target": {
+          "kind": "custom_field",
+          "custom_field_path": "assignments.project_manager"
+        }
+      }
+    },
+    "materials": {
+      "enabled": true,
+      "assignment": "first_match",
+      "lists": [
+        {
+          "id": "dry_in",
+          "title": "Dry-In",
+          "color": "#dc2626",
+          "selector": {
+            "match": "any",
+            "pricebook_item_ids": [
+              "underlayment",
+              "ice_water",
+              "gaf_weatherwatch",
+              "owens_weatherlock",
+              "drip_edge",
+              "valley_metal",
+              "pipe_boot",
+              "step_flashing",
+              "headwall_flashing",
+              "sidewall_flashing"
+            ],
+            "tags": [
+              "dry_in",
+              "dry-in"
+            ],
+            "exclude_pricebook_item_ids": [
+              "laminated_shingles",
+              "three_tab_shingles",
+              "gaf_hd",
+              "owens_duration",
+              "malarkey_vista",
+              "starter",
+              "ridge_cap",
+              "ridge_vent"
+            ],
+            "exclude_item_type_ids": [
+              "field_shingles"
+            ],
+            "exclude_tags": [
+              "shingle",
+              "shingles"
+            ]
+          },
+          "schedule": {
+            "enabled": true,
+            "event_type_default_id": "material_delivery_dry_in",
+            "title": "Dry-In",
+            "kind": "material_delivery",
+            "icon": "fa-truck-ramp-box",
+            "color": "#7c3aed",
+            "source_node_template_id": "schedule_dry_in_delivery",
+            "lock_on_order": true,
+            "placement": {
+              "anchor": "start",
+              "offset": {
+                "value": -1,
+                "unit": "business_day"
+              },
+              "duration": {
+                "value": 1,
+                "unit": "day"
+              },
+              "all_day": true
+            },
+            "group_id": "roof_installation",
+            "group_title": "Roof Installation"
+          },
+          "order_source_ids": [
+            "manual",
+            "srs_distribution",
+            "convoy_supply"
+          ],
+          "metadata": {
+            "pricebook_links": [
+              "underlayment",
+              "ice_water",
+              "gaf_weatherwatch",
+              "owens_weatherlock",
+              "drip_edge",
+              "valley_metal",
+              "pipe_boot",
+              "step_flashing",
+              "headwall_flashing",
+              "sidewall_flashing"
+            ]
+          }
+        },
+        {
+          "id": "shingle",
+          "title": "Shingle",
+          "color": "#f97316",
+          "selector": {
+            "match": "any",
+            "pricebook_item_ids": [
+              "laminated_shingles",
+              "three_tab_shingles",
+              "gaf_hd",
+              "owens_duration",
+              "malarkey_vista",
+              "starter",
+              "ridge_cap",
+              "ridge_vent"
+            ],
+            "item_type_ids": [
+              "field_shingles"
+            ],
+            "tags": [
+              "shingle",
+              "shingles"
+            ],
+            "exclude_pricebook_item_ids": [
+              "underlayment",
+              "ice_water",
+              "gaf_weatherwatch",
+              "owens_weatherlock",
+              "drip_edge",
+              "valley_metal",
+              "pipe_boot",
+              "step_flashing",
+              "headwall_flashing",
+              "sidewall_flashing"
+            ],
+            "exclude_tags": [
+              "dry_in",
+              "dry-in"
+            ]
+          },
+          "schedule": {
+            "enabled": true,
+            "event_type_default_id": "material_delivery_shingles",
+            "title": "Shingle",
+            "kind": "material_delivery",
+            "icon": "fa-truck-ramp-box",
+            "color": "#7c3aed",
+            "source_node_template_id": "schedule_shingle_delivery",
+            "lock_on_order": true,
+            "placement": {
+              "anchor": "start",
+              "offset": {
+                "unit": "day",
+                "expression": {
+                  "operator": "floor",
+                  "value": {
+                    "operator": "divide",
+                    "left": {
+                      "operator": "subtract",
+                      "left": {
+                        "ref": "parent.duration.days"
+                      },
+                      "right": 1
+                    },
+                    "right": 2
+                  }
+                },
+                "adjust": {
+                  "calendar": "business_day",
+                  "direction": "previous"
+                }
+              },
+              "duration": {
+                "value": 1,
+                "unit": "day"
+              },
+              "all_day": true
+            },
+            "group_id": "roof_installation",
+            "group_title": "Roof Installation"
+          },
+          "order_source_ids": [
+            "manual",
+            "srs_distribution",
+            "convoy_supply"
+          ],
+          "metadata": {
+            "pricebook_links": [
+              "laminated_shingles",
+              "three_tab_shingles",
+              "gaf_hd",
+              "owens_duration",
+              "malarkey_vista",
+              "starter",
+              "ridge_cap",
+              "ridge_vent"
+            ]
+          }
+        }
+      ],
+      "order_sources": [
+        {
+          "id": "manual",
+          "name": "Manual Order",
+          "kind": "manual",
+          "status": "active"
+        },
+        {
+          "id": "srs_distribution",
+          "name": "SRS Distribution",
+          "kind": "integration",
+          "status": "coming_soon",
+          "provider": "srs_distribution"
+        },
+        {
+          "id": "convoy_supply",
+          "name": "Convoy Supply",
+          "kind": "integration",
+          "status": "coming_soon",
+          "provider": "convoy_supply"
+        }
+      ],
+      "metadata": {
+        "industry": "roofing",
+        "generated_from": "signed_scope"
+      }
+    },
+    "resources": {
+      "enabled": true,
+      "terminology": {
+        "tab": {
+          "singular": "Scope",
+          "plural": "Scope"
+        },
+        "material": {
+          "singular": "Material",
+          "plural": "Materials",
+          "list": "Material list"
+        },
+        "labor": {
+          "singular": "Labor",
+          "plural": "Labor",
+          "list": "Labor work order"
+        },
+        "equipment": {
+          "singular": "Equipment",
+          "plural": "Equipment",
+          "list": "Equipment list"
+        }
+      },
+      "types": {
+        "material": {
+          "icon": "fa-boxes-stacked",
+          "capabilities": [
+            "items",
+            "ordering",
+            "scheduling"
+          ]
+        },
+        "labor": {
+          "icon": "fa-helmet-safety",
+          "capabilities": [
+            "items",
+            "crew_assignment",
+            "scheduling"
+          ]
+        },
+        "equipment": {
+          "icon": "fa-truck-ramp-box",
+          "capabilities": [
+            "items",
+            "scheduling_optional"
+          ]
+        }
+      },
+      "lists": [
+        {
+          "id": "dry_in",
+          "resource_type": "material",
+          "title": "Dry-In",
+          "color": "#dc2626",
+          "selector": {
+            "match": "any",
+            "pricebook_item_ids": [
+              "underlayment",
+              "ice_water",
+              "gaf_weatherwatch",
+              "owens_weatherlock",
+              "drip_edge",
+              "valley_metal",
+              "pipe_boot",
+              "step_flashing",
+              "headwall_flashing",
+              "sidewall_flashing"
+            ],
+            "tags": [
+              "dry_in",
+              "dry-in"
+            ],
+            "exclude_pricebook_item_ids": [
+              "laminated_shingles",
+              "three_tab_shingles",
+              "gaf_hd",
+              "owens_duration",
+              "malarkey_vista",
+              "starter",
+              "ridge_cap",
+              "ridge_vent"
+            ],
+            "exclude_item_type_ids": [
+              "field_shingles"
+            ],
+            "exclude_tags": [
+              "shingle",
+              "shingles"
+            ]
+          },
+          "schedule": {
+            "enabled": true,
+            "event_type_default_id": "material_delivery_dry_in",
+            "title": "Dry-In",
+            "kind": "material_delivery",
+            "icon": "fa-truck-ramp-box",
+            "color": "#7c3aed",
+            "source_node_template_id": "schedule_dry_in_delivery",
+            "lock_on_order": true,
+            "placement": {
+              "anchor": "start",
+              "offset": {
+                "value": -1,
+                "unit": "business_day"
+              },
+              "duration": {
+                "value": 1,
+                "unit": "day"
+              },
+              "all_day": true
+            },
+            "group_id": "roof_installation",
+            "group_title": "Roof Installation"
+          },
+          "order_source_ids": [
+            "manual",
+            "srs_distribution",
+            "convoy_supply"
+          ],
+          "metadata": {
+            "pricebook_links": [
+              "underlayment",
+              "ice_water",
+              "gaf_weatherwatch",
+              "owens_weatherlock",
+              "drip_edge",
+              "valley_metal",
+              "pipe_boot",
+              "step_flashing",
+              "headwall_flashing",
+              "sidewall_flashing"
+            ]
+          }
+        },
+        {
+          "id": "shingle",
+          "resource_type": "material",
+          "title": "Shingle",
+          "color": "#f97316",
+          "selector": {
+            "match": "any",
+            "pricebook_item_ids": [
+              "laminated_shingles",
+              "three_tab_shingles",
+              "gaf_hd",
+              "owens_duration",
+              "malarkey_vista",
+              "starter",
+              "ridge_cap",
+              "ridge_vent"
+            ],
+            "item_type_ids": [
+              "field_shingles"
+            ],
+            "tags": [
+              "shingle",
+              "shingles"
+            ],
+            "exclude_pricebook_item_ids": [
+              "underlayment",
+              "ice_water",
+              "gaf_weatherwatch",
+              "owens_weatherlock",
+              "drip_edge",
+              "valley_metal",
+              "pipe_boot",
+              "step_flashing",
+              "headwall_flashing",
+              "sidewall_flashing"
+            ],
+            "exclude_tags": [
+              "dry_in",
+              "dry-in"
+            ]
+          },
+          "schedule": {
+            "enabled": true,
+            "event_type_default_id": "material_delivery_shingles",
+            "title": "Shingle",
+            "kind": "material_delivery",
+            "icon": "fa-truck-ramp-box",
+            "color": "#7c3aed",
+            "source_node_template_id": "schedule_shingle_delivery",
+            "lock_on_order": true,
+            "placement": {
+              "anchor": "start",
+              "offset": {
+                "unit": "day",
+                "expression": {
+                  "operator": "floor",
+                  "value": {
+                    "operator": "divide",
+                    "left": {
+                      "operator": "subtract",
+                      "left": {
+                        "ref": "parent.duration.days"
+                      },
+                      "right": 1
+                    },
+                    "right": 2
+                  }
+                },
+                "adjust": {
+                  "calendar": "business_day",
+                  "direction": "previous"
+                }
+              },
+              "duration": {
+                "value": 1,
+                "unit": "day"
+              },
+              "all_day": true
+            },
+            "group_id": "roof_installation",
+            "group_title": "Roof Installation"
+          },
+          "order_source_ids": [
+            "manual",
+            "srs_distribution",
+            "convoy_supply"
+          ],
+          "metadata": {
+            "pricebook_links": [
+              "laminated_shingles",
+              "three_tab_shingles",
+              "gaf_hd",
+              "owens_duration",
+              "malarkey_vista",
+              "starter",
+              "ridge_cap",
+              "ridge_vent"
+            ]
+          }
+        },
+        {
+          "id": "roofing_labor",
+          "resource_type": "labor",
+          "title": "Roofing Labor",
+          "color": "#2563eb",
+          "schedule": {
+            "enabled": true,
+            "event_type_default_id": "project_work",
+            "title": "Roofing Labor",
+            "kind": "project_work",
+            "icon": "fa-helmet-safety",
+            "color": "#2563eb",
+            "source_node_template_id": "schedule_crew_arrival",
+            "placement": {
+              "anchor": "span"
+            },
+            "group_id": "roof_installation",
+            "group_title": "Roof Installation",
+            "group_duration": {
+              "unit": "day",
+              "expression": {
+                "operator": "max",
+                "operands": [
+                  1,
+                  {
+                    "operator": "ceil",
+                    "value": {
+                      "operator": "divide",
+                      "left": {
+                        "ref": "measurements.roofSquares"
+                      },
+                      "right": 20
+                    }
+                  }
+                ]
+              }
+            },
+            "depends_on": [
+              {
+                "list_id": "dry_in",
+                "type": "finish_to_start"
+              }
+            ]
+          },
+          "items": [
+            {
+              "id": "shingle_installation",
+              "name": "Shingle installation",
+              "unit": "sq",
+              "quantity": 0,
+              "projected_unit_price": 85,
+              "metadata": {
+                "estimate_mode": "piece_rate",
+                "compensation_kind": "piece_rate",
+                "quantity_measurements": [
+                  "shingleSquares",
+                  "slopeSquares",
+                  "roofSquares"
+                ],
+                "omit_when_zero": true
+              }
+            },
+            {
+              "id": "roof_tear_off",
+              "name": "Roof tear-off",
+              "unit": "sq",
+              "quantity": 0,
+              "projected_unit_price": 40,
+              "metadata": {
+                "estimate_mode": "piece_rate",
+                "compensation_kind": "piece_rate",
+                "quantity_measurement": "roofSquares",
+                "omit_when_zero": true
+              }
+            },
+            {
+              "id": "flat_roof_installation",
+              "name": "Flat roof installation",
+              "unit": "sq",
+              "quantity": 0,
+              "projected_unit_price": 110,
+              "metadata": {
+                "estimate_mode": "piece_rate",
+                "compensation_kind": "piece_rate",
+                "quantity_measurement": "flatRoofSquares",
+                "omit_when_zero": true
+              }
+            },
+            {
+              "id": "steep_slope_9_12",
+              "name": "Steep-slope premium (9/12-12/12)",
+              "unit": "sq",
+              "quantity": 0,
+              "projected_unit_price": 25,
+              "metadata": {
+                "estimate_mode": "piece_rate",
+                "compensation_kind": "piece_rate",
+                "quantity_measurement": "pitch9to12Squares",
+                "omit_when_zero": true
+              }
+            },
+            {
+              "id": "steep_slope_13_plus",
+              "name": "Extreme-slope premium (13/12+)",
+              "unit": "sq",
+              "quantity": 0,
+              "projected_unit_price": 50,
+              "metadata": {
+                "estimate_mode": "piece_rate",
+                "compensation_kind": "piece_rate",
+                "quantity_measurement": "pitch13PlusSquares",
+                "omit_when_zero": true
+              }
+            },
+            {
+              "id": "ridge_installation",
+              "name": "Ridge installation",
+              "unit": "lf",
+              "quantity": 0,
+              "projected_unit_price": 2.5,
+              "metadata": {
+                "estimate_mode": "piece_rate",
+                "compensation_kind": "piece_rate",
+                "quantity_measurement": "ridgesLf",
+                "omit_when_zero": true
+              }
+            },
+            {
+              "id": "hip_installation",
+              "name": "Hip installation",
+              "unit": "lf",
+              "quantity": 0,
+              "projected_unit_price": 2.5,
+              "metadata": {
+                "estimate_mode": "piece_rate",
+                "compensation_kind": "piece_rate",
+                "quantity_measurement": "hipsLf",
+                "omit_when_zero": true
+              }
+            },
+            {
+              "id": "valley_installation",
+              "name": "Valley installation",
+              "unit": "lf",
+              "quantity": 0,
+              "projected_unit_price": 3.5,
+              "metadata": {
+                "estimate_mode": "piece_rate",
+                "compensation_kind": "piece_rate",
+                "quantity_measurement": "valleyLf",
+                "omit_when_zero": true
+              }
+            }
+          ],
+          "controls": {
+            "crew_assignment": true
+          }
+        },
+        {
+          "id": "roofing_equipment",
+          "resource_type": "equipment",
+          "title": "Roofing Equipment",
+          "color": "#0f766e",
+          "schedule": {
+            "enabled": true,
+            "title": "Roofing Equipment",
+            "kind": "equipment",
+            "icon": "fa-truck-pickup",
+            "color": "#0f766e",
+            "placement": {
+              "anchor": "span"
+            },
+            "group_id": "roof_installation",
+            "group_title": "Roof Installation"
+          },
+          "items": [
+            {
+              "id": "disposal_trailer",
+              "name": "Disposal trailer",
+              "unit": "ea",
+              "quantity": 1
+            },
+            {
+              "id": "portable_toilet",
+              "name": "Portable toilet",
+              "unit": "ea",
+              "quantity": 1
+            },
+            {
+              "id": "project_truck",
+              "name": "Truck",
+              "unit": "ea",
+              "quantity": 1
+            }
+          ],
+          "controls": {
+            "scheduling": true
+          }
+        }
+      ],
+      "order_sources": [
+        {
+          "id": "manual",
+          "name": "Manual Order",
+          "kind": "manual",
+          "status": "active"
+        },
+        {
+          "id": "srs_distribution",
+          "name": "SRS Distribution",
+          "kind": "integration",
+          "status": "coming_soon",
+          "provider": "srs_distribution"
+        },
+        {
+          "id": "convoy_supply",
+          "name": "Convoy Supply",
+          "kind": "integration",
+          "status": "coming_soon",
+          "provider": "convoy_supply"
+        }
+      ],
+      "extension_points": [
+        {
+          "id": "resource_list.controls",
+          "target": "list"
+        },
+        {
+          "id": "resource_item.controls",
+          "target": "item"
+        },
+        {
+          "id": "resource_list.actions",
+          "target": "actions"
+        }
+      ],
+      "metadata": {
+        "industry": "roofing",
+        "generated_from": "signed_scope",
+        "schema": "scope_resources.v1"
+      }
+    },
+    "checklists": [
+      {
+        "id": "safety",
+        "title": "Safety checklist",
+        "description": "Site safety items the crew confirms before and during work.",
+        "kind": "todo",
+        "audience": "crew",
+        "crew_editable": false,
+        "icon": "fa-helmet-safety",
+        "sort_order": 10,
+        "assignment_policy": {
+          "schema_version": 1,
+          "mode": "any",
+          "allow_unassigned": true,
+          "rules": [
+            {
+              "id": "production_crews",
+              "subject_types": [
+                "resource_group"
+              ],
+              "group_kind_ids": [
+                "crew"
+              ]
+            },
+            {
+              "id": "field_people",
+              "subject_types": [
+                "organization_user"
+              ],
+              "role_ids": [
+                "crew_member",
+                "crew_foreman"
+              ]
+            }
+          ]
+        },
+        "items": [
+          {
+            "title": "Ladders set, footed, and tied off"
+          },
+          {
+            "title": "Harnesses and fall protection in use on the roof"
+          },
+          {
+            "title": "Ground drop zones flagged and clear"
+          },
+          {
+            "title": "Power lines identified and kept clear"
+          },
+          {
+            "title": "Landscaping, AC units, and driveway protected"
+          }
+        ]
+      },
+      {
+        "id": "work",
+        "title": "Work checklist",
+        "description": "Production items the crew completes during the job.",
+        "kind": "todo",
+        "audience": "crew",
+        "crew_editable": true,
+        "icon": "fa-list-check",
+        "sort_order": 20,
+        "assignment_policy": {
+          "schema_version": 1,
+          "mode": "any",
+          "allow_unassigned": true,
+          "rules": [
+            {
+              "id": "production_crews",
+              "subject_types": [
+                "resource_group"
+              ],
+              "group_kind_ids": [
+                "crew"
+              ]
+            },
+            {
+              "id": "field_people",
+              "subject_types": [
+                "organization_user"
+              ],
+              "role_ids": [
+                "crew_member",
+                "crew_foreman"
+              ]
+            }
+          ]
+        },
+        "items": [
+          {
+            "title": "Materials received and staged"
+          },
+          {
+            "title": "Existing conditions photographed"
+          },
+          {
+            "title": "Tear-off complete and decking inspected"
+          },
+          {
+            "title": "Underlayment, flashing, and vents installed"
+          },
+          {
+            "title": "Shingles installed per manufacturer spec"
+          },
+          {
+            "title": "Job site cleaned and magnet-swept"
+          },
+          {
+            "title": "Completion photos uploaded"
+          }
+        ]
+      },
+      {
+        "id": "completion",
+        "title": "Completion checklist",
+        "description": "Supervisor quality review after the crew finishes.",
+        "kind": "quality",
+        "audience": "supervisor",
+        "crew_editable": false,
+        "icon": "fa-clipboard-check",
+        "sort_order": 30,
+        "assignment_policy": {
+          "schema_version": 1,
+          "mode": "any",
+          "allow_unassigned": true,
+          "rules": [
+            {
+              "id": "supervisors",
+              "subject_types": [
+                "organization_user"
+              ],
+              "role_ids": [
+                "supervisor"
+              ]
+            }
+          ]
+        },
+        "items": [
+          {
+            "title": "Overall workmanship",
+            "item_type": "rating"
+          },
+          {
+            "title": "Flashing and penetration detail",
+            "item_type": "rating"
+          },
+          {
+            "title": "Ridge, valley, and edge lines",
+            "item_type": "rating"
+          },
+          {
+            "title": "Site cleanup and nail sweep",
+            "item_type": "rating"
+          },
+          {
+            "title": "Customer walkthrough completed",
+            "item_type": "rating"
+          }
+        ]
+      }
+    ],
+    "work_plan": {
+      "title": "Roof Replacement",
+      "terminology": {
+        "phase": "Phase",
+        "stage": "Stage",
+        "task": "To-do",
+        "board": "Board"
+      },
+      "automation_bindings": {
+        "proposal.payment.received": [
+          {
+            "id": "notify_roof_proposal_payment_received",
+            "automation": "notification.create.v1",
+            "input": {
+              "id": "notification_proposal_payment_{{project.id}}_{{payment.id}}",
+              "title": "{{project.customer_name}} proposal payment received",
+              "body": "{{payment.label}}: {{payment.formatted_amount}} - {{project.address}}",
+              "source": "scope.roof_replacement.proposal_paid",
+              "kind": "passive",
+              "channel": "passive",
+              "passive": true,
+              "manual_dismissible": true,
+              "frontend_action": {
+                "kind": "open_project",
+                "project_id": "{{project.id}}"
+              },
+              "context": {
+                "proposal_id": "{{proposal.id}}",
+                "snapshot_id": "{{proposal.snapshot_id}}",
+                "payment_id": "{{payment.id}}",
+                "payment_kind": "{{event.payload.payment_kind}}",
+                "amount_cents": "{{payment.amount_cents}}",
+                "scope_piece_id": "{{scope.id}}"
+              }
+            }
+          }
+        ]
+      },
+      "root_nodes": [
+        {
+          "id": "roof_replacement_phase",
+          "title": "Roof Replacement",
+          "terminology_key": "work.phase",
+          "completion_mode": "all_children",
+          "automation_bindings": {
+            "onStarted": [
+              {
+                "id": "notify_roof_proposal_signed",
+                "automation": "notification.create.v1",
+                "input": {
+                  "title": "{{project.customer_name}} proposal signed",
+                  "body": "{{project.address}}",
+                  "source": "scope.roof_replacement.proposal_signed",
+                  "kind": "passive",
+                  "channel": "passive",
+                  "passive": true,
+                  "manual_dismissible": true,
+                  "frontend_action": {
+                    "kind": "open_project",
+                    "project_id": "{{project.id}}"
+                  },
+                  "context": {
+                    "proposal_id": "{{proposal.id}}",
+                    "snapshot_id": "{{proposal.snapshot_id}}",
+                    "scope_piece_id": "{{scope.id}}"
+                  }
+                }
+              }
+            ]
+          },
+          "children": [
+            {
+              "id": "signed_pending_payment_stage",
+              "title": "Pending Deposit",
+              "terminology_key": "work.stage",
+              "completion_mode": "all_children",
+              "children": [
+                {
+                  "id": "deposit_paid",
+                  "title": "Collect deposit",
+                  "terminology_key": "work.task",
+                  "actionable": false,
+                  "show_in_todo_list": false,
+                  "automation_bindings": {
+                    "onCompleted": [
+                      {
+                        "id": "reconcile_scope_resources_after_deposit",
+                        "automation": "scopes.reconcileProjectResources.v1",
+                        "input": {}
+                      },
+                      {
+                        "id": "celebrate_roof_proposal_paid",
+                        "automation": "notification.create.v1",
+                        "input": {
+                          "id": "celebration_proposal_paid_{{project.id}}_{{payment.id}}",
+                          "title": "Proposal paid",
+                          "body": "{{project.customer_name}} paid {{payment.formatted_amount}}.",
+                          "source": "scope.roof_replacement.proposal_paid_celebration",
+                          "kind": "celebration",
+                          "channel": "celebration",
+                          "passive": true,
+                          "manual_dismissible": false,
+                          "celebration": {
+                            "size": "large",
+                            "reason": "proposal_paid",
+                            "text": "{{project.customer_name}} paid {{payment.formatted_amount}}."
+                          },
+                          "context": {
+                            "proposal_id": "{{proposal.id}}",
+                            "payment_id": "{{payment.id}}",
+                            "amount_cents": "{{payment.amount_cents}}",
+                            "celebration": {
+                              "size": "large",
+                              "reason": "proposal_paid",
+                              "text": "{{project.customer_name}} paid {{payment.formatted_amount}}."
+                            }
+                          }
+                        },
+                        "explainer": "When the deposit is paid, the whole team gets a celebration announcement."
+                      }
+                    ]
+                  },
+                  "external_triggers": [
+                    {
+                      "event": "payment.received",
+                      "transition": "completed",
+                      "conditions": {
+                        "payload.payment_kind": "deposit"
+                      }
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "id": "newly_sold_stage",
+              "title": "Newly Sold",
+              "terminology_key": "work.stage",
+              "completion_mode": "all_children",
+              "depends_on": [
+                "signed_pending_payment_stage"
+              ],
+              "children": [
+                {
+                  "id": "welcome_call",
+                  "title": "Welcome call",
+                  "terminology_key": "work.task",
+                  "actionable": true,
+                  "automation_bindings": {
+                    "onReady": [
+                      {
+                        "id": "queue_welcome_call",
+                        "automation": "crm.callLists.add.v1",
+                        "input": {
+                          "list": {
+                            "key": "new_customers",
+                            "title": "New Customers",
+                            "description": "Signed customers whose welcome call is ready.",
+                            "kind": "signature",
+                            "icon": "fa-handshake",
+                            "tone": "customer",
+                            "sort_order": 30,
+                            "assigned_user_ids": [],
+                            "assigned_role_ids": [],
+                            "metadata": {
+                              "purpose": "welcome_call",
+                              "managed_by": "scope_automation"
+                            }
+                          },
+                          "title": "Welcome call"
+                        },
+                        "explainer": "Newly signed customers are added to the Welcome Call queue so the office kicks off the relationship."
+                      }
+                    ],
+                    "onCompleted": [
+                      {
+                        "id": "remove_completed_welcome_call",
+                        "automation": "crm.callLists.remove.v1",
+                        "input": {}
+                      }
+                    ],
+                    "onSkipped": [
+                      {
+                        "id": "remove_skipped_welcome_call",
+                        "automation": "crm.callLists.remove.v1",
+                        "input": {}
+                      }
+                    ],
+                    "onCanceled": [
+                      {
+                        "id": "remove_canceled_welcome_call",
+                        "automation": "crm.callLists.remove.v1",
+                        "input": {}
+                      }
+                    ]
+                  },
+                  "metadata": {
+                    "call_list_key": "new_customers",
+                    "call_list_kind": "signature"
+                  }
+                },
+                {
+                  "id": "schedule_with_customer",
+                  "title": "Schedule project with customer",
+                  "terminology_key": "work.task",
+                  "actionable": true
+                }
+              ]
+            },
+            {
+              "id": "scheduled_stage",
+              "title": "Scheduled",
+              "terminology_key": "work.stage",
+              "completion_mode": "all_children",
+              "depends_on": [
+                "signed_pending_payment_stage"
+              ],
+              "children": [
+                {
+                  "id": "finalize_material_lists",
+                  "title": "Finalize material lists",
+                  "terminology_key": "work.task",
+                  "actionable": true
+                },
+                {
+                  "id": "order_materials",
+                  "title": "Order materials",
+                  "terminology_key": "work.task",
+                  "actionable": true
+                },
+                {
+                  "id": "schedule_material_deliveries",
+                  "title": "Schedule material deliveries",
+                  "terminology_key": "work.group",
+                  "completion_mode": "all_children",
+                  "children": [
+                    {
+                      "id": "schedule_dry_in_delivery",
+                      "title": "Schedule dry-in delivery",
+                      "terminology_key": "work.task",
+                      "actionable": true,
+                      "external_triggers": [
+                        {
+                          "event": "project.event_scheduled",
+                          "transition": "completed",
+                          "conditions": {
+                            "payload.event_type_default_id": "material_delivery_dry_in"
+                          }
+                        }
+                      ]
+                    },
+                    {
+                      "id": "schedule_shingle_delivery",
+                      "title": "Schedule shingle delivery",
+                      "terminology_key": "work.task",
+                      "actionable": true,
+                      "external_triggers": [
+                        {
+                          "event": "project.event_scheduled",
+                          "transition": "completed",
+                          "conditions": {
+                            "payload.event_type_default_id": "material_delivery_shingles"
+                          }
+                        }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "id": "schedule_crew_arrival",
+                  "title": "Schedule crew arrival",
+                  "terminology_key": "work.task",
+                  "actionable": true,
+                  "external_triggers": [
+                    {
+                      "event": "project.event_scheduled",
+                      "transition": "completed",
+                      "conditions": {
+                        "payload.event_kind": "project_work"
+                      }
+                    }
+                  ]
+                },
+                {
+                  "id": "share_project_schedule_with_customer",
+                  "title": "Share project schedule with customer",
+                  "description": "Review the scheduled material deliveries and project work, then share the project schedule with the customer.",
+                  "terminology_key": "work.task",
+                  "actionable": true,
+                  "show_in_todo_list": true,
+                  "depends_on": [
+                    "schedule_material_deliveries",
+                    "schedule_crew_arrival"
+                  ],
+                  "metadata": {
+                    "kind": "share_project_schedule_with_customer",
+                    "frontend_action": {
+                      "kind": "open_project_scheduling",
+                      "tab": "schedule"
+                    }
+                  }
+                }
+              ]
+            },
+            {
+              "id": "pre_production_stage",
+              "title": "Pre-Production",
+              "terminology_key": "work.stage",
+              "completion_mode": "all_children",
+              "depends_on": [
+                "newly_sold_stage",
+                "scheduled_stage"
+              ],
+              "children": [
+                {
+                  "id": "start_project",
+                  "title": "Start project",
+                  "terminology_key": "work.task",
+                  "actionable": true,
+                  "external_triggers": [
+                    {
+                      "event": "project.event.started",
+                      "transition": "completed",
+                      "conditions": {
+                        "payload.event_kind": "project_work"
+                      }
+                    }
+                  ]
+                },
+                {
+                  "id": "progress_payment",
+                  "title": "Collect progress payment",
+                  "terminology_key": "work.task",
+                  "actionable": true,
+                  "depends_on": [
+                    "start_project"
+                  ],
+                  "external_triggers": [
+                    {
+                      "event": "payment.received",
+                      "transition": "completed",
+                      "conditions": {
+                        "payload.payment_kind": "progress"
+                      }
+                    }
+                  ]
+                },
+                {
+                  "id": "finish_project",
+                  "title": "Finish project",
+                  "terminology_key": "work.task",
+                  "actionable": true,
+                  "depends_on": [
+                    "progress_payment"
+                  ],
+                  "external_triggers": [
+                    {
+                      "event": "project.event.completed",
+                      "transition": "completed",
+                      "conditions": {
+                        "payload.event_kind": "project_work"
+                      }
+                    }
+                  ]
+                },
+                {
+                  "id": "first_delivery_followups",
+                  "title": "Materials delivered",
+                  "terminology_key": "work.task",
+                  "actionable": false,
+                  "show_in_todo_list": false,
+                  "automation_bindings": {
+                    "onCompleted": [
+                      {
+                        "id": "todo_confirm_delivery",
+                        "automation": "work.createTodo.v1",
+                        "input": {
+                          "title": "Confirm materials were fully delivered",
+                          "message": "Walk the delivery and confirm everything on the material list arrived undamaged.",
+                          "assigned_role_ids": [
+                            "crew_member",
+                            "crew_foreman",
+                            "supervisor"
+                          ],
+                          "priority": 1,
+                          "metadata": {
+                            "kind": "confirm_material_delivery",
+                            "frontend_action": {
+                              "kind": "open_project",
+                              "project_id": "{{project.id}}",
+                              "tab": "crew_materials"
+                            }
+                          }
+                        },
+                        "explainer": "When materials are delivered, the crew gets a to-do to confirm the delivery arrived complete and undamaged."
+                      },
+                      {
+                        "id": "todo_safety_checklist",
+                        "automation": "work.createTodo.v1",
+                        "input": {
+                          "title": "Complete the safety checklist",
+                          "message": "Work through the site safety checklist before production starts.",
+                          "assigned_role_ids": [
+                            "crew_member",
+                            "crew_foreman"
+                          ],
+                          "metadata": {
+                            "kind": "complete_safety_checklist",
+                            "frontend_action": {
+                              "kind": "open_project",
+                              "project_id": "{{project.id}}",
+                              "tab": "crew_checklists"
+                            }
+                          }
+                        }
+                      },
+                      {
+                        "id": "todo_work_checklist",
+                        "automation": "work.createTodo.v1",
+                        "input": {
+                          "title": "Complete the work and check off the work checklist",
+                          "message": "Finish the scoped work and mark each item on the work checklist.",
+                          "assigned_role_ids": [
+                            "crew_member",
+                            "crew_foreman"
+                          ],
+                          "metadata": {
+                            "kind": "complete_work_checklist",
+                            "frontend_action": {
+                              "kind": "open_project",
+                              "project_id": "{{project.id}}",
+                              "tab": "crew_checklists"
+                            }
+                          }
+                        }
+                      },
+                      {
+                        "id": "todo_collect_final_payment",
+                        "automation": "work.createTodo.v1",
+                        "input": {
+                          "title": "Collect the final payment",
+                          "message": "Complete the final walkthrough checklist and collect the remaining balance.",
+                          "assigned_role_ids": [
+                            "office",
+                            "supervisor"
+                          ],
+                          "priority": 1,
+                          "metadata": {
+                            "kind": "collect_final_payment",
+                            "frontend_action": {
+                              "kind": "open_project",
+                              "project_id": "{{project.id}}",
+                              "tab": "crew_payments"
+                            }
+                          }
+                        }
+                      }
+                    ]
+                  },
+                  "external_triggers": [
+                    {
+                      "event": "material.delivery.completed",
+                      "transition": "completed"
+                    }
+                  ]
+                },
+                {
+                  "id": "second_delivery_followups",
+                  "title": "Shingle delivery verified",
+                  "terminology_key": "work.task",
+                  "actionable": false,
+                  "show_in_todo_list": false,
+                  "automation_bindings": {
+                    "onCompleted": [
+                      {
+                        "id": "todo_verify_second_delivery",
+                        "automation": "work.createTodo.v1",
+                        "input": {
+                          "title": "Verify the shingle delivery was fully received",
+                          "message": "Check the shingle delivery against the material list before installation.",
+                          "assigned_role_ids": [
+                            "crew_member",
+                            "crew_foreman",
+                            "supervisor"
+                          ],
+                          "metadata": {
+                            "kind": "verify_second_delivery",
+                            "frontend_action": {
+                              "kind": "open_project",
+                              "project_id": "{{project.id}}",
+                              "tab": "crew_materials"
+                            }
+                          }
+                        }
+                      }
+                    ]
+                  },
+                  "external_triggers": [
+                    {
+                      "event": "material.delivery.completed",
+                      "transition": "completed",
+                      "conditions": {
+                        "payload.delivery_kind": "shingle"
+                      }
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "id": "production_completed_stage",
+              "title": "Production Completed",
+              "terminology_key": "work.stage",
+              "completion_mode": "all_children",
+              "depends_on": [
+                "pre_production_stage"
+              ],
+              "children": [
+                {
+                  "id": "final_payment",
+                  "title": "Collect final payment",
+                  "terminology_key": "work.task",
+                  "actionable": true,
+                  "external_triggers": [
+                    {
+                      "event": "payment.received",
+                      "transition": "completed",
+                      "conditions": {
+                        "payload.payment_kind": "final"
+                      }
+                    }
+                  ]
+                },
+                {
+                  "id": "thank_you_call",
+                  "title": "Thank you call",
+                  "terminology_key": "work.task",
+                  "actionable": true,
+                  "depends_on": [
+                    "final_payment"
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      ],
+      "metadata": {
+        "board_color": "#dc2626",
+        "canceled_column": {
+          "id": "cancelled",
+          "title": "Cancelled",
+          "color": "#667085"
+        },
+        "legacy_stage_aliases": {
+          "contract_stage": "signed_pending_payment_stage",
+          "onboarding_stage": "newly_sold_stage",
+          "scheduling_stage": "scheduled_stage",
+          "production_stage": "pre_production_stage",
+          "closeout_stage": "production_completed_stage"
+        }
+      }
+    },
+    "metadata": {
+      "preset": true
+    },
+    "measurement_schema_ids": [
+      "roofing"
+    ]
+  }
+}

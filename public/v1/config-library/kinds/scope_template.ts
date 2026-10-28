@@ -152,5 +152,10 @@ export const scopeTemplateKind: LibraryKind<ScopeTemplateEntry> = {
       }
     }
     return problems;
+  },
+  /** Copies live in the organization's default branch (scopes/storage.ts). */
+  orgCopies: {
+    status: async (orgId, ids) => (await import("../../scopes/storage.js")).scopeLibraryCopyStatus(orgId, "default", ids),
+    reset: async (ctx, id) => (await import("../../scopes/storage.js")).resetScopeTemplateToLibrary(ctx.orgId, "default", id)
   }
 };

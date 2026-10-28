@@ -27,8 +27,8 @@ test("the measurement dictionary gives each key one meaning and schemas select f
   assert.throws(() => m.registerMeasurementSchema({ id: "masonry", version: "1", title: "Masonry", description: "", measurements: [{ definition: "brick.count", required: true }] }), /not in the dictionary/);
   assert.deepEqual(m.measurementSchemaIdsForScope({ measurement_schema_ids: ["roofing", "unknown", "roofing"] }), ["roofing"]);
   assert.deepEqual(m.measurementSchemaIdsForScope({}), [], "a scope with no schema is unscoped, as hourly or salaried work is");
-  const presets = (await import("../scopes/presets/index.js")).DEFAULT_SCOPE_TEMPLATES;
-  const preset = (id: string) => { const row = presets.find((entry) => entry.id === id); assert.ok(row, id); return row; };
+  const { libraryCopy } = await import("../config-library/library.js");
+  const preset = (id: string) => { const row = libraryCopy("scope_template", id); assert.ok(row, id); return row; };
   assert.deepEqual(m.measurementSchemaIdsForScope(preset("roof_replacement")), ["roofing"]);
   assert.deepEqual(m.measurementSchemaIdsForScope(preset("repairs")), ["roofing"]);
   assert.deepEqual(m.measurementSchemaIdsForScope(preset("gutters")), ["gutters"]);

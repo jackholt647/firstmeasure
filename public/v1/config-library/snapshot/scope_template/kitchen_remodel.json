@@ -1,0 +1,564 @@
+{
+  "kind": "scope_template",
+  "id": "kitchen_remodel",
+  "revision": 1,
+  "sha256": "611f8b11010d6595c7951543b9ea27121bbbd8600a9bccd1921a2316cbcb083c",
+  "title": "Kitchen Remodel",
+  "updated_at": "2026-10-27T23:15:49.043Z",
+  "updated_by": "generator",
+  "data": {
+    "schema_version": 1,
+    "id": "kitchen_remodel",
+    "category_ids": [
+      "production"
+    ],
+    "name": "Kitchen Remodel",
+    "description": "Interior kitchen remodel: allowance-based estimate, customer material selections from the portal, phase-gated finishes.",
+    "details": "The base estimate carries allowance line items and is signed as a document with a deposit. Material selections are issued later as a portal workflow; signed upgrades append to the payment schedule and unblock finish work.",
+    "color": "#9333ea",
+    "icon": "fa-kitchen-set",
+    "status": "active",
+    "sort_order": 0,
+    "proposal": {
+      "kind": "kitchen_remodel",
+      "selectable": false
+    },
+    "fields": [
+      {
+        "id": "section_name",
+        "type": "text",
+        "label": "Section Name",
+        "required": false
+      }
+    ],
+    "work_plan": {
+      "title": "Kitchen Remodel",
+      "terminology": {
+        "phase": "Phase",
+        "stage": "Stage",
+        "task": "To-do",
+        "board": "Board"
+      },
+      "root_nodes": [
+        {
+          "id": "kitchen_phase",
+          "title": "Kitchen Remodel",
+          "terminology_key": "work.phase",
+          "completion_mode": "all_children",
+          "children": [
+            {
+              "id": "kitchen_contract_stage",
+              "title": "Contract & Allowances",
+              "terminology_key": "work.stage",
+              "completion_mode": "all_children",
+              "children": [
+                {
+                  "id": "kitchen_send_estimate",
+                  "title": "Base estimate signed & deposit paid",
+                  "terminology_key": "work.task",
+                  "actionable": true,
+                  "automation_bindings": {
+                    "onReady": [
+                      {
+                        "id": "issue_kitchen_estimate",
+                        "automation": "documents.issue.v1",
+                        "input": {
+                          "template_id": "tpl_kitchen_estimate",
+                          "deliver": "portal",
+                          "title": "Kitchen Remodel Estimate",
+                          "params": {
+                            "scope_items": [
+                              {
+                                "id": "kit_base",
+                                "name": "Kitchen Remodel — Base Scope",
+                                "quantity": 1,
+                                "unit": "job",
+                                "unit_price": 0,
+                                "children": [
+                                  {
+                                    "id": "kit_demo",
+                                    "name": "Demolition & disposal",
+                                    "quantity": 1,
+                                    "unit": "job",
+                                    "unit_price": 3200
+                                  },
+                                  {
+                                    "id": "kit_cabinet_install",
+                                    "name": "Cabinet installation labor",
+                                    "quantity": 1,
+                                    "unit": "job",
+                                    "unit_price": 4800
+                                  },
+                                  {
+                                    "id": "kit_plumbing",
+                                    "name": "Plumbing rough-in & fixture set",
+                                    "quantity": 1,
+                                    "unit": "job",
+                                    "unit_price": 3600
+                                  },
+                                  {
+                                    "id": "kit_electrical",
+                                    "name": "Electrical: lighting, outlets & code updates",
+                                    "quantity": 1,
+                                    "unit": "job",
+                                    "unit_price": 2900
+                                  },
+                                  {
+                                    "id": "kit_drywall",
+                                    "name": "Drywall repair & paint",
+                                    "quantity": 1,
+                                    "unit": "job",
+                                    "unit_price": 2100
+                                  }
+                                ]
+                              },
+                              {
+                                "id": "kit_allowances",
+                                "name": "Allowances (your selections come later)",
+                                "quantity": 1,
+                                "unit": "job",
+                                "unit_price": 0,
+                                "children": [
+                                  {
+                                    "id": "alw_flooring",
+                                    "name": "Flooring allowance",
+                                    "description": "Standard selection fully covered; upgrades are billed as a selections adjustment.",
+                                    "quantity": 1,
+                                    "unit": "job",
+                                    "unit_price": 3500
+                                  },
+                                  {
+                                    "id": "alw_counters",
+                                    "name": "Countertop allowance",
+                                    "quantity": 1,
+                                    "unit": "job",
+                                    "unit_price": 2800
+                                  },
+                                  {
+                                    "id": "alw_backsplash",
+                                    "name": "Backsplash tile allowance",
+                                    "quantity": 1,
+                                    "unit": "job",
+                                    "unit_price": 900
+                                  },
+                                  {
+                                    "id": "alw_hardware",
+                                    "name": "Cabinet & fixture hardware allowance",
+                                    "quantity": 1,
+                                    "unit": "job",
+                                    "unit_price": 600
+                                  }
+                                ]
+                              }
+                            ],
+                            "tax_percent": 0,
+                            "pricing_adjustments": [],
+                            "deposit_cents": 732000,
+                            "payment_schedule": [
+                              {
+                                "id": "row_deposit",
+                                "label": "Deposit",
+                                "kind": "percent",
+                                "percent_bps": 3000,
+                                "payment_kind": "deposit",
+                                "due_rule": "on_signature"
+                              },
+                              {
+                                "id": "row_rough_in",
+                                "label": "Rough-in draw",
+                                "kind": "percent",
+                                "percent_bps": 4000,
+                                "payment_kind": "progress",
+                                "due_rule": "on_invoice"
+                              },
+                              {
+                                "id": "row_final",
+                                "label": "Final payment",
+                                "kind": "percent",
+                                "percent_bps": 3000,
+                                "payment_kind": "final",
+                                "due_rule": "project_completion"
+                              }
+                            ]
+                          }
+                        },
+                        "explainer": "Issue the allowance-based base estimate to the customer portal."
+                      }
+                    ]
+                  },
+                  "external_triggers": [
+                    {
+                      "event": "document.signed",
+                      "transition": "completed",
+                      "conditions": {
+                        "payload.template_id": "tpl_kitchen_estimate"
+                      },
+                      "explainer": "Completes when the customer signs the base estimate"
+                    }
+                  ],
+                  "metadata": {
+                    "frontend_action": {
+                      "kind": "open_project",
+                      "tab": "signatures"
+                    }
+                  }
+                }
+              ]
+            },
+            {
+              "id": "kitchen_construction_stage",
+              "title": "Demo & Rough-In",
+              "terminology_key": "work.stage",
+              "completion_mode": "all_children",
+              "depends_on": [
+                "kitchen_contract_stage"
+              ],
+              "children": [
+                {
+                  "id": "kitchen_demo",
+                  "title": "Demolition & disposal",
+                  "terminology_key": "work.task",
+                  "actionable": true
+                },
+                {
+                  "id": "kitchen_rough_in",
+                  "title": "Plumbing & electrical rough-in",
+                  "terminology_key": "work.task",
+                  "actionable": true,
+                  "depends_on": [
+                    "kitchen_demo"
+                  ]
+                },
+                {
+                  "id": "kitchen_drywall",
+                  "title": "Drywall & paint",
+                  "terminology_key": "work.task",
+                  "actionable": true,
+                  "depends_on": [
+                    "kitchen_rough_in"
+                  ]
+                }
+              ]
+            },
+            {
+              "id": "kitchen_selections_stage",
+              "title": "Material Selections",
+              "terminology_key": "work.stage",
+              "completion_mode": "all_children",
+              "depends_on": [
+                "kitchen_contract_stage"
+              ],
+              "children": [
+                {
+                  "id": "kitchen_collect_selections",
+                  "title": "Customer finish selections approved",
+                  "terminology_key": "work.task",
+                  "actionable": true,
+                  "automation_bindings": {
+                    "onReady": [
+                      {
+                        "id": "issue_kitchen_selections",
+                        "automation": "documents.issue.v1",
+                        "input": {
+                          "template_id": "tpl_kitchen_selections",
+                          "workflow_id": "wfl_kitchen_selections",
+                          "deliver": "portal",
+                          "title": "Kitchen Finish Selections",
+                          "params": {
+                            "reason": "Allowance selections for finish materials",
+                            "scope_items": [
+                              {
+                                "id": "sel_flooring",
+                                "name": "Flooring",
+                                "quantity": 1,
+                                "unit": "job",
+                                "unit_price": 0,
+                                "selection_groups": [
+                                  {
+                                    "id": "grp_flooring",
+                                    "title": "Flooring — allowance $3,500",
+                                    "behavior": "single"
+                                  }
+                                ],
+                                "children": [
+                                  {
+                                    "id": "floor_oak",
+                                    "name": "Engineered oak — allowance standard",
+                                    "description": "Fully covered by your flooring allowance.",
+                                    "quantity": 1,
+                                    "unit": "job",
+                                    "unit_price": 0,
+                                    "selection": {
+                                      "mode": "choice",
+                                      "group_id": "grp_flooring",
+                                      "selectable_by": [
+                                        "customer"
+                                      ],
+                                      "selected": true
+                                    }
+                                  },
+                                  {
+                                    "id": "floor_lvp",
+                                    "name": "Luxury vinyl plank — allowance standard",
+                                    "description": "Also fully covered by your allowance.",
+                                    "quantity": 1,
+                                    "unit": "job",
+                                    "unit_price": 0,
+                                    "selection": {
+                                      "mode": "choice",
+                                      "group_id": "grp_flooring",
+                                      "selectable_by": [
+                                        "customer"
+                                      ],
+                                      "selected": false
+                                    }
+                                  },
+                                  {
+                                    "id": "floor_walnut",
+                                    "name": "Site-finished walnut (+$2,400)",
+                                    "description": "Upgrade over the flooring allowance.",
+                                    "quantity": 1,
+                                    "unit": "job",
+                                    "unit_price": 2400,
+                                    "selection": {
+                                      "mode": "choice",
+                                      "group_id": "grp_flooring",
+                                      "selectable_by": [
+                                        "customer"
+                                      ],
+                                      "selected": false
+                                    }
+                                  },
+                                  {
+                                    "id": "floor_tile_heated",
+                                    "name": "Porcelain tile with heated floor (+$4,850)",
+                                    "description": "Upgrade over the flooring allowance.",
+                                    "quantity": 1,
+                                    "unit": "job",
+                                    "unit_price": 4850,
+                                    "selection": {
+                                      "mode": "choice",
+                                      "group_id": "grp_flooring",
+                                      "selectable_by": [
+                                        "customer"
+                                      ],
+                                      "selected": false
+                                    }
+                                  }
+                                ]
+                              },
+                              {
+                                "id": "sel_counters",
+                                "name": "Countertops",
+                                "quantity": 1,
+                                "unit": "job",
+                                "unit_price": 0,
+                                "selection_groups": [
+                                  {
+                                    "id": "grp_counters",
+                                    "title": "Countertops — allowance $2,800",
+                                    "behavior": "single"
+                                  }
+                                ],
+                                "children": [
+                                  {
+                                    "id": "counter_granite",
+                                    "name": "Granite (level 1) — allowance standard",
+                                    "description": "Fully covered by your countertop allowance.",
+                                    "quantity": 1,
+                                    "unit": "job",
+                                    "unit_price": 0,
+                                    "selection": {
+                                      "mode": "choice",
+                                      "group_id": "grp_counters",
+                                      "selectable_by": [
+                                        "customer"
+                                      ],
+                                      "selected": true
+                                    }
+                                  },
+                                  {
+                                    "id": "counter_quartz",
+                                    "name": "Quartz (+$1,650)",
+                                    "description": "Upgrade over the countertop allowance.",
+                                    "quantity": 1,
+                                    "unit": "job",
+                                    "unit_price": 1650,
+                                    "selection": {
+                                      "mode": "choice",
+                                      "group_id": "grp_counters",
+                                      "selectable_by": [
+                                        "customer"
+                                      ],
+                                      "selected": false
+                                    }
+                                  },
+                                  {
+                                    "id": "counter_marble",
+                                    "name": "Honed marble (+$3,900)",
+                                    "description": "Upgrade over the countertop allowance.",
+                                    "quantity": 1,
+                                    "unit": "job",
+                                    "unit_price": 3900,
+                                    "selection": {
+                                      "mode": "choice",
+                                      "group_id": "grp_counters",
+                                      "selectable_by": [
+                                        "customer"
+                                      ],
+                                      "selected": false
+                                    }
+                                  }
+                                ]
+                              },
+                              {
+                                "id": "sel_extras",
+                                "name": "Optional add-ons",
+                                "quantity": 1,
+                                "unit": "job",
+                                "unit_price": 0,
+                                "children": [
+                                  {
+                                    "id": "extra_pot_filler",
+                                    "name": "Pot filler rough-in (+$780)",
+                                    "quantity": 1,
+                                    "unit": "job",
+                                    "unit_price": 780,
+                                    "selection": {
+                                      "mode": "optional",
+                                      "selectable_by": [
+                                        "customer"
+                                      ],
+                                      "selected": false
+                                    }
+                                  },
+                                  {
+                                    "id": "extra_under_cabinet",
+                                    "name": "Under-cabinet lighting (+$540)",
+                                    "quantity": 1,
+                                    "unit": "job",
+                                    "unit_price": 540,
+                                    "selection": {
+                                      "mode": "optional",
+                                      "selectable_by": [
+                                        "customer"
+                                      ],
+                                      "selected": false
+                                    }
+                                  }
+                                ]
+                              }
+                            ],
+                            "tax_percent": 0,
+                            "pricing_adjustments": [],
+                            "payment_schedule": [
+                              {
+                                "id": "row_selection_delta",
+                                "label": "Selection upgrades",
+                                "kind": "percent",
+                                "percent_bps": 10000,
+                                "payment_kind": "change_order",
+                                "due_rule": "on_invoice"
+                              }
+                            ]
+                          }
+                        },
+                        "explainer": "Issue the allowance selections workflow to the customer portal."
+                      }
+                    ],
+                    "onCompleted": [
+                      {
+                        "id": "notify_kitchen_selections_signed",
+                        "automation": "notification.create.v1",
+                        "input": {
+                          "title": "Kitchen selections approved",
+                          "body": "The customer signed their finish selections — finish work is unblocked. {{project.address}}",
+                          "source": "scope.kitchen_remodel.selections_signed",
+                          "kind": "passive",
+                          "channel": "passive",
+                          "passive": true,
+                          "manual_dismissible": true,
+                          "frontend_action": {
+                            "kind": "open_project",
+                            "project_id": "{{project.id}}",
+                            "tab": "signatures"
+                          }
+                        }
+                      }
+                    ]
+                  },
+                  "external_triggers": [
+                    {
+                      "event": "document.signed",
+                      "transition": "completed",
+                      "conditions": {
+                        "payload.template_id": "tpl_kitchen_selections"
+                      },
+                      "explainer": "Completes when the customer signs their selections"
+                    }
+                  ],
+                  "metadata": {
+                    "frontend_action": {
+                      "kind": "open_project",
+                      "tab": "signatures"
+                    }
+                  }
+                }
+              ]
+            },
+            {
+              "id": "kitchen_finishes_stage",
+              "title": "Finishes",
+              "terminology_key": "work.stage",
+              "completion_mode": "all_children",
+              "depends_on": [
+                "kitchen_selections_stage",
+                "kitchen_construction_stage"
+              ],
+              "children": [
+                {
+                  "id": "kitchen_install_finishes",
+                  "title": "Install flooring, counters & selected finishes",
+                  "terminology_key": "work.task",
+                  "actionable": true
+                },
+                {
+                  "id": "kitchen_final_walkthrough",
+                  "title": "Final walkthrough & punch items",
+                  "terminology_key": "work.task",
+                  "actionable": true,
+                  "depends_on": [
+                    "kitchen_install_finishes"
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      ],
+      "metadata": {
+        "board_color": "#9333ea"
+      }
+    },
+    "metadata": {
+      "preset": true,
+      "field_launch": {
+        "enabled": true,
+        "title": "Kitchen Remodel",
+        "description": "Allowance-based estimate, customer material selections from the portal, and phase-gated finish work.",
+        "category": "Remodeling",
+        "icon": "fa-kitchen-set",
+        "keywords": [
+          "kitchen",
+          "remodel",
+          "interior",
+          "allowance",
+          "selections",
+          "cabinets",
+          "countertops"
+        ],
+        "frequent": false
+      }
+    }
+  }
+}

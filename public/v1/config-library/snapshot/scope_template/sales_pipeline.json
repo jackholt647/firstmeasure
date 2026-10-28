@@ -1,0 +1,440 @@
+{
+  "kind": "scope_template",
+  "id": "sales_pipeline",
+  "revision": 1,
+  "sha256": "732923ebe331132b2aadc1f163c1fb7df661b52115bff1540ce1d5cf5e16d124",
+  "title": "Sales",
+  "updated_at": "2026-10-27T23:15:49.043Z",
+  "updated_by": "generator",
+  "data": {
+    "schema_version": 1,
+    "id": "sales_pipeline",
+    "category_ids": [
+      "sales"
+    ],
+    "name": "Sales",
+    "description": "Lead contact through signature and deposit.",
+    "details": "The default sales pipeline: contact the lead, run the appointment, send the proposal, and collect the signature and deposit. Signing a proposal activates the production scopes it contains.",
+    "color": "#1769aa",
+    "icon": "fa-filter-circle-dollar",
+    "status": "active",
+    "sort_order": 1,
+    "proposal": {
+      "kind": "sales_pipeline",
+      "selectable": false
+    },
+    "fields": [],
+    "custom_fields": {
+      "groups": [
+        {
+          "path": "assignments",
+          "label": "Assignments",
+          "description": "People and teams responsible for this project.",
+          "order": 10,
+          "collapsed_by_default": true,
+          "location": "project_left",
+          "icon": "fa-user-group"
+        }
+      ],
+      "fields": [
+        {
+          "path": "assignments.estimator",
+          "label": "Estimator",
+          "description": "Salesperson responsible for estimating and selling the project.",
+          "type": "organization_user",
+          "cardinality": "one",
+          "group_path": "assignments",
+          "order": 10,
+          "assignment_policy": {
+            "allow_unassigned": true,
+            "rules": [
+              {
+                "subject_types": [
+                  "organization_user"
+                ],
+                "role_ids": [
+                  "sales_appointments"
+                ]
+              }
+            ]
+          },
+          "default_from": {
+            "source": "event_assignment",
+            "event_type_id": "sales_appointment",
+            "selection": "first_qualifying",
+            "write_mode": "if_empty",
+            "fallback_source": "proposal_creator"
+          },
+          "ui": {
+            "project_tag": true,
+            "icon": "fa-user-tie"
+          }
+        },
+        {
+          "path": "assignments.inside_salesperson",
+          "label": "Inside salesperson",
+          "description": "Person who scheduled or qualified the sales appointment.",
+          "type": "organization_user",
+          "cardinality": "one",
+          "group_path": "assignments",
+          "order": 20,
+          "assignment_policy": {
+            "allow_unassigned": true,
+            "rules": [
+              {
+                "subject_types": [
+                  "organization_user"
+                ],
+                "role_ids": [
+                  "inside_sales"
+                ]
+              }
+            ]
+          },
+          "default_from": {
+            "source": "event_scheduler",
+            "event_type_id": "sales_appointment",
+            "selection": "first_qualifying",
+            "write_mode": "if_empty"
+          }
+        }
+      ]
+    },
+    "communications": {
+      "email_forwarding": {
+        "enabled": true,
+        "priority": 10,
+        "target": {
+          "kind": "custom_field",
+          "custom_field_path": "assignments.estimator"
+        }
+      }
+    },
+    "work_plan": {
+      "title": "Sales",
+      "terminology": {
+        "phase": "Phase",
+        "stage": "Stage",
+        "task": "To-do",
+        "board": "Board"
+      },
+      "root_nodes": [
+        {
+          "id": "sales_phase",
+          "title": "Sales",
+          "terminology_key": "work.phase",
+          "completion_mode": "all_children",
+          "metadata": {
+            "color": "#1769aa",
+            "board_id": "sales_pipeline"
+          },
+          "children": [
+            {
+              "id": "new_lead_stage",
+              "title": "New Lead",
+              "description": "New opportunities that need an initial response.",
+              "terminology_key": "work.stage",
+              "completion_mode": "all_children",
+              "metadata": {
+                "color": "#d49a22"
+              },
+              "children": [
+                {
+                  "id": "contact_lead",
+                  "title": "Contact lead",
+                  "terminology_key": "work.task",
+                  "actionable": true,
+                  "show_in_todo_list": true,
+                  "assigned_role_ids": [
+                    "sales_appointments"
+                  ],
+                  "automation_bindings": {
+                    "onCompleted": [
+                      {
+                        "id": "remove_completed_new_lead_call",
+                        "automation": "crm.callLists.remove.v1",
+                        "input": {}
+                      }
+                    ],
+                    "onSkipped": [
+                      {
+                        "id": "remove_skipped_new_lead_call",
+                        "automation": "crm.callLists.remove.v1",
+                        "input": {}
+                      }
+                    ],
+                    "onCanceled": [
+                      {
+                        "id": "remove_canceled_new_lead_call",
+                        "automation": "crm.callLists.remove.v1",
+                        "input": {}
+                      }
+                    ]
+                  },
+                  "external_triggers": [
+                    {
+                      "event": "project.event_scheduled",
+                      "transition": "completed",
+                      "conditions": {
+                        "payload.event_type_default_id": "sales_appointment"
+                      },
+                      "explainer": "Booking a sales appointment automatically checks off the 'Contact lead' step."
+                    },
+                    {
+                      "event": "proposal.sent",
+                      "transition": "completed"
+                    },
+                    {
+                      "event": "proposal.signed",
+                      "transition": "completed"
+                    }
+                  ],
+                  "metadata": {
+                    "kind": "sales_contact",
+                    "call_list_key": "new_leads",
+                    "call_list_kind": "lead",
+                    "inline_disposition": {
+                      "id": "sales_contact_disposition",
+                      "options": [
+                        {
+                          "id": "answered",
+                          "label": "Answered",
+                          "color": "#12b76a"
+                        },
+                        {
+                          "id": "voicemail",
+                          "label": "Left voicemail",
+                          "color": "#f79009"
+                        },
+                        {
+                          "id": "no_answer",
+                          "label": "No voicemail",
+                          "color": "#f04438"
+                        }
+                      ],
+                      "answered_outcomes": [
+                        "appointment_booked",
+                        "follow_up",
+                        "lost"
+                      ],
+                      "follow_up_quick_options": [
+                        "two_hours",
+                        "tomorrow",
+                        "two_days",
+                        "next_week",
+                        "next_month",
+                        "custom"
+                      ]
+                    }
+                  }
+                }
+              ]
+            },
+            {
+              "id": "appointment_stage",
+              "title": "Appointment",
+              "description": "A sales appointment is scheduled or underway.",
+              "terminology_key": "work.stage",
+              "completion_mode": "all_children",
+              "depends_on": [
+                "new_lead_stage"
+              ],
+              "metadata": {
+                "color": "#6b5ca5"
+              },
+              "children": [
+                {
+                  "id": "complete_sales_appointment",
+                  "title": "Complete appointment",
+                  "terminology_key": "work.task",
+                  "actionable": true,
+                  "show_in_todo_list": true,
+                  "assigned_role_ids": [
+                    "sales_appointments"
+                  ],
+                  "external_triggers": [
+                    {
+                      "event": "proposal.sent",
+                      "transition": "completed"
+                    },
+                    {
+                      "event": "proposal.signed",
+                      "transition": "completed"
+                    }
+                  ],
+                  "metadata": {
+                    "kind": "complete_sales_appointment"
+                  }
+                },
+                {
+                  "id": "sales_appointment_completed",
+                  "title": "Sales appointment finished",
+                  "terminology_key": "work.task",
+                  "actionable": false,
+                  "show_in_todo_list": false,
+                  "automation_bindings": {
+                    "onCompleted": [
+                      {
+                        "id": "notify_appointment_completed",
+                        "automation": "notification.create.v1",
+                        "input": {
+                          "id": "notification_appointment_completed_{{project.id}}_{{event.payload.event_id}}",
+                          "title": "Appointment completed",
+                          "body": "How did the appointment go for {{project.address}}?",
+                          "source": "scope.sales_pipeline.appointment_completed",
+                          "kind": "passive",
+                          "channel": "passive",
+                          "passive": true,
+                          "manual_dismissible": true,
+                          "push": false,
+                          "target_role_ids": [
+                            "sales_appointments"
+                          ],
+                          "frontend_action": {
+                            "kind": "open_project",
+                            "project_id": "{{project.id}}"
+                          },
+                          "context": {
+                            "project_id": "{{project.id}}"
+                          }
+                        },
+                        "explainer": "After a sales appointment wraps up, we ask the salesperson how it went."
+                      }
+                    ]
+                  },
+                  "external_triggers": [
+                    {
+                      "event": "project.event.completed",
+                      "transition": "completed",
+                      "conditions": {
+                        "payload.event_type_default_id": "sales_appointment"
+                      }
+                    },
+                    {
+                      "event": "proposal.sent",
+                      "transition": "skipped"
+                    },
+                    {
+                      "event": "proposal.signed",
+                      "transition": "skipped"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "id": "proposal_stage",
+              "title": "Proposal",
+              "description": "Send the proposal after the appointment.",
+              "terminology_key": "work.stage",
+              "completion_mode": "all_children",
+              "depends_on": [
+                "appointment_stage"
+              ],
+              "metadata": {
+                "color": "#2f855a"
+              },
+              "children": [
+                {
+                  "id": "send_proposal",
+                  "title": "Send proposal",
+                  "terminology_key": "work.task",
+                  "actionable": true,
+                  "show_in_todo_list": true,
+                  "external_triggers": [
+                    {
+                      "event": "proposal.sent",
+                      "transition": "completed"
+                    },
+                    {
+                      "event": "proposal.signed",
+                      "transition": "completed"
+                    }
+                  ],
+                  "metadata": {
+                    "kind": "send_proposal"
+                  }
+                }
+              ]
+            },
+            {
+              "id": "closing_stage",
+              "title": "Pending Deposit",
+              "description": "The proposal has been sent and needs a signature and deposit.",
+              "terminology_key": "work.stage",
+              "completion_mode": "all_children",
+              "depends_on": [
+                "proposal_stage"
+              ],
+              "metadata": {
+                "color": "#d97706"
+              },
+              "children": [
+                {
+                  "id": "sign_sales_proposal",
+                  "title": "Get signature",
+                  "terminology_key": "work.task",
+                  "actionable": true,
+                  "show_in_todo_list": true,
+                  "automation_bindings": {
+                    "onCompleted": [
+                      {
+                        "id": "mark_sale_won",
+                        "automation": "sales.markWon.v1",
+                        "input": {},
+                        "explainer": "Signing is when this pipeline counts the sale as won. Move this to the deposit, or any other step, to count it there instead."
+                      },
+                      {
+                        "id": "activate_signed_scopes",
+                        "automation": "scopes.activateFromProposal.v1",
+                        "input": {},
+                        "explainer": "When the customer signs, the project moves onto the production board for the work they bought and the sales pipeline wraps up."
+                      }
+                    ]
+                  },
+                  "external_triggers": [
+                    {
+                      "event": "proposal.signed",
+                      "transition": "completed"
+                    }
+                  ]
+                },
+                {
+                  "id": "collect_sales_deposit",
+                  "title": "Collect deposit",
+                  "terminology_key": "work.task",
+                  "actionable": true,
+                  "show_in_todo_list": true,
+                  "depends_on": [
+                    "sign_sales_proposal"
+                  ],
+                  "external_triggers": [
+                    {
+                      "event": "payment.received",
+                      "transition": "completed",
+                      "conditions": {
+                        "payload.payment_kind": "deposit"
+                      },
+                      "explainer": "Receiving the deposit completes the sales pipeline."
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      ],
+      "metadata": {
+        "board_color": "#1769aa",
+        "canceled_column": {
+          "id": "lost",
+          "title": "Lost",
+          "color": "#f04438"
+        }
+      }
+    },
+    "metadata": {
+      "preset": true
+    }
+  }
+}

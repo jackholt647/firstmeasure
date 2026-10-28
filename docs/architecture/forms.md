@@ -37,6 +37,16 @@ templates that arrange the same blocks. A new kind of form is a new template; a
 new capability is a new block kind (register it in `forms/contracts.ts`, render
 it in the embed, add it to the editor's block editor).
 
+Templates are [config library](config-library.md) entries of the kind
+`form_template` (`config-library/kinds/form_template.ts`), edited as data on
+dev, not in code: the picker card (name, description, icon, category,
+industry, `requires`, `sort_order`) and the `definition` a new form starts
+as. `forms/templates.ts` reads them. A save checks the definition with
+`formDefinitionSchema`, that `requires` covers what the blocks need
+(`requiredFormFlags`) and names real `lead_forms` capabilities, and that
+measurement sources exist. A form copies its template once and has no tie to
+it, so organizations keep no copies to report or reset.
+
 ## Forms are document modules
 
 Publishing compiles the definition into a **workflow document module**

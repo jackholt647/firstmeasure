@@ -212,6 +212,32 @@ happen. Nothing is executed or saved.
 Dry run is exposed to agents (`dry_run_automations`) and over HTTP for tests and
 tooling. It is intentionally not offered in the product UI.
 
+## Defaults are library entries
+
+The scope templates the platform ships (the scope library) and the platform's
+default organization rules are [config library](config-library.md) entries,
+edited as data on dev, not code:
+
+- **`scope_template`** (`config-library/kinds/scope_template.ts`, read through
+  `scopes/library.ts`). Every organization gets a copy of each entry without
+  `metadata.industry_preset`; an industry scope is copied only by its CRM pack
+  (`crm/presets.ts`). A copy records `metadata.library_stamp` (the entry's
+  revision and sha256) and keeps `metadata.preset: true` until someone edits it.
+  An untouched copy made from an older entry (or before the library, with no
+  stamp) is replaced by the current entry the next time the organization's
+  scopes are read; an edited copy is never touched until it is reset
+  (`POST /v1/config-library/organizations/:orgId/copies/scope_template/:id/reset`).
+  A save checks actions against the catalog, events, conditions, measurement
+  schemas and keys, and scope templates a visit workflow names.
+- **`automation_rule_default`** (`config-library/kinds/automation_rule_default.ts`).
+  Defaults are read live by `readAutomationRules` and never copied: an
+  organization stores a rule with the same id only to switch one off or change
+  it. Each default it returns carries `library_default` (the hash of the rule as
+  returned); `saveAutomationRules` leaves out a rule whose content still matches
+  its marker or equals the current default, so read-modify-save callers
+  (routing, contact rules, the editor, the Automations Agent) do not freeze a
+  default into the organization's rules.
+
 ## Pushing a template change to running instances
 
 A plan runs the template version it was created from, so a saved edit affects
