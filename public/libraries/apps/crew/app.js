@@ -116,6 +116,7 @@
     .crew-cl-drawer{display:grid;grid-template-rows:0fr;transition:grid-template-rows .28s cubic-bezier(.22,1,.36,1)}.crew-cl-drawer.open{grid-template-rows:1fr}.crew-cl-drawer>div{overflow:hidden}.crew-cl-drawer-inner{display:grid;gap:8px;padding:2px 12px 12px}.crew-cl-drawer-inner textarea{width:100%;box-sizing:border-box;border:1px solid #d0d5dd;border-radius:11px;padding:9px 10px;font:inherit;font-size:12px;font-weight:800;min-height:64px;resize:vertical;outline:none}.crew-cl-drawer-inner textarea:focus{border-color:var(--primary,#d93025);box-shadow:0 0 0 4px rgba(var(--primary-rgb,217,48,37),.08)}.crew-cl-drawer-hint{color:#b42318;font-size:10px;font-weight:900}.crew-cl-drawer-actions{display:flex;justify-content:flex-end;gap:7px}
     .crew-cl-evidence{display:grid;gap:7px;margin:0 12px 10px;padding-top:2px}.crew-cl-evidence.hint{border-radius:12px;box-shadow:0 0 0 3px rgba(var(--primary-rgb,217,48,37),.1)}.crew-cl-requirement{display:grid;grid-template-columns:28px minmax(0,1fr) auto;align-items:center;gap:8px;border:1px solid #e4e7ec;border-radius:11px;background:#f8fafc;padding:7px 8px;transition:border-color .18s,background .18s}.crew-cl-requirement.met{border-color:#abefc6;background:#ecfdf3}.crew-cl-requirement.missing{border-color:#fecdca;background:#fff}.crew-cl-requirement>i{width:28px;height:28px;border-radius:8px;background:#fff;color:#667085;display:grid;place-items:center;font-size:11px;box-shadow:0 1px 2px rgba(16,24,40,.06)}.crew-cl-requirement.met>i{color:#067647}.crew-cl-requirement-copy{min-width:0}.crew-cl-requirement-copy strong{display:block;font-size:10px;font-weight:950}.crew-cl-requirement-copy span{display:block;margin-top:1px;color:#667085;font-size:8px;font-weight:850}.crew-cl-upload{min-height:29px;border:1px solid rgba(var(--primary-rgb,217,48,37),.22);border-radius:8px;background:#fff;color:var(--primary-readable,var(--primary,#d93025));padding:0 9px;display:inline-flex;align-items:center;gap:5px;font:inherit;font-size:9px;font-weight:1000;cursor:pointer}.crew-cl-upload:disabled{opacity:.5;cursor:wait}.crew-cl-upload i{font-size:9px}.crew-cl-record{background:var(--primary,#d93025);border-color:var(--primary,#d93025);color:var(--on-primary,#fff)}.crew-cl-evidence-recorder:empty{display:none}.crew-cl-evidence-recorder .fm-an-inline{margin-top:0}.crew-cl-recording-process{min-height:50px;border:1px solid #e4e7ec;border-radius:10px;background:#f8fafc;color:#475467;display:flex;align-items:center;justify-content:center;gap:7px;font-size:9px;font-weight:950}.crew-cl-recording-process i{color:var(--primary-readable,var(--primary,#d93025))}.crew-cl-evidence-hint{display:flex;align-items:center;gap:6px;color:#b42318;font-size:9px;font-weight:900}.crew-cl-evidence-files{display:flex;gap:5px;flex-wrap:wrap}.crew-cl-evidence-file{max-width:180px;border-radius:999px;background:#f2f4f7;color:#475467;padding:4px 7px;display:inline-flex;align-items:center;gap:5px;font-size:8px;font-weight:850}.crew-cl-evidence-file span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
     .crew-cl-actions{display:flex;gap:5px;flex:none}
+    .crew-cl-sign{margin-top:12px;display:flex;align-items:center;gap:8px;border:1px dashed #d0d5dd;border-radius:12px;padding:10px 12px;color:#475467;font-size:12px;font-weight:800}.crew-cl-sign.signed{border-style:solid;border-color:#abefc6;background:#ecfdf3;color:#067647}.crew-cl-sign.ready{flex-direction:column;align-items:stretch;border-style:solid;border-color:#d0d5dd;background:#fcfcfd}.crew-cl-sign.ready input{height:38px;box-sizing:border-box;border:1px solid #d0d5dd;border-radius:11px;padding:0 11px;font:inherit;font-size:13px;font-weight:800}.crew-cl-sign canvas{width:100%;height:120px;border:1px solid #d0d5dd;border-radius:11px;background:#fff;touch-action:none;cursor:crosshair}.crew-cl-sign-actions{display:flex;justify-content:flex-end;gap:8px}
     .crew-cl-add{margin-top:10px;display:flex;gap:8px}.crew-cl-add input{flex:1;min-width:0;height:38px;box-sizing:border-box;border:1px solid #d0d5dd;border-radius:11px;padding:0 11px;font:inherit;font-size:12px;font-weight:850;outline:none}.crew-cl-add input:focus{border-color:var(--primary,#d93025);box-shadow:0 0 0 4px rgba(var(--primary-rgb,217,48,37),.08)}.crew-cl-add select{height:38px;border:1px solid #d0d5dd;border-radius:11px;background:#fff;font:inherit;font-size:11px;font-weight:900;padding:0 8px}
     .crew-modal-back{position:fixed;inset:0;z-index:2147483500;background:rgba(15,23,42,.58);backdrop-filter:blur(7px);display:grid;place-items:center;padding:18px}.crew-modal{position:relative;width:min(560px,100%);max-height:min(760px,calc(100dvh - 36px));overflow:auto;border-radius:24px;background:#fff;box-shadow:0 32px 90px rgba(15,23,42,.32);padding:22px;box-sizing:border-box;display:grid;gap:16px}.crew-modal-close{position:absolute;right:12px;top:12px;width:38px;height:38px;border:0;border-radius:12px;background:#f2f4f7;color:#475467;display:grid;place-items:center;cursor:pointer}.crew-modal h2{margin:0;padding-right:42px;font-size:24px}.crew-shift-hero{display:grid;justify-items:center;text-align:center;gap:8px;padding:18px 8px}.crew-shift-hero i{width:58px;height:58px;border-radius:18px;background:#ecfdf3;color:#067647;display:grid;place-items:center;font-size:24px}.crew-shift-hero strong{font-size:30px}.crew-reminders{display:grid;gap:7px}.crew-reminder{display:flex;gap:9px;align-items:flex-start;border-radius:12px;background:#fffaeb;color:#7a2e0e;padding:10px;font-size:11px;font-weight:850;line-height:1.4}
     .crew-co-lines{display:grid;gap:7px}.crew-co-line{display:grid;grid-template-columns:minmax(0,1fr) 82px 108px 34px;gap:7px;align-items:end;border:1px solid var(--crew-line);border-radius:12px;padding:9px}.crew-co-line .crew-field{min-width:0}
@@ -1110,6 +1111,8 @@
         :(updated.completed_by_user_id===previous.completed_by_user_id?previous.completed_by_name:'');
       list.items[index]=updated;
       list.completed_items=list.items.filter((entry)=>entry.completed).length;
+      // The server drops a sign-off when an item is reopened; say so without a reload.
+      if(previous.completed&&!updated.completed)list.crew_signature=null;
     };
     const patchItem=async(checklistId,itemId,patch)=>{
       const result=await window.CrewAPI.projects.updateItemInChecklist(orgId(context),projectId(context),checklistId,itemId,patch);
@@ -1140,6 +1143,50 @@
       </div>`:'';
       return `<div class="${classes}" data-cl-item="${esc(checklist.id)}::${esc(item.id)}"><div class="crew-cl-main">${check}<div class="crew-cl-item-copy"><strong>${esc(first(item.title,item.label,'Checklist item'))}</strong>${itemSubtitle(item)?`<span>${esc(itemSubtitle(item))}</span>`:''}</div>${control}${noteButton}${actions}</div>${evidenceHtml}${noteLine}${drawerHtml}</div>`;
     };
+    // A checklist that asks for a sign-off (signature_required): signed by whom and when, or, once every item is done,
+    // a name and a drawn signature from whoever may complete it.
+    const signState={};
+    const signatureHtml=(checklist)=>{
+      if(!checklist.signature_required)return '';
+      const signature=obj(checklist.crew_signature);
+      if(clean(signature.signer_name))return `<div class="crew-cl-sign signed"><i class="fas fa-signature"></i><span>Signed by <strong>${esc(signature.signer_name)}</strong>${signature.signed_at?` · ${esc(shortDate(signature.signed_at))}`:''}</span></div>`;
+      const items=arr(checklist.items);
+      const open=items.filter((item)=>!item.completed).length;
+      if(!checklist.can_complete)return `<div class="crew-cl-sign"><i class="fas fa-signature"></i><span>This checklist needs a signature.</span></div>`;
+      if(!items.length||open)return `<div class="crew-cl-sign"><i class="fas fa-signature"></i><span>Sign here once every item is done${open?` (${open} to go)`:''}.</span></div>`;
+      const name=clean(signState[checklist.id]?.name??first(Portal.currentUser?.name,Portal.currentUser?.display_name));
+      return `<div class="crew-cl-sign ready"><strong><i class="fas fa-signature"></i> Sign off this checklist</strong><input data-cl-sign-name value="${esc(name)}" placeholder="Your full name" autocomplete="name"><canvas data-cl-sign-pad aria-label="Draw your signature"></canvas><div class="crew-cl-sign-actions"><button class="crew-btn" type="button" data-cl-sign-clear>Clear</button><button class="crew-btn primary" type="button" data-cl-sign>Sign</button></div></div>`;
+    };
+    const bindSignature=(section,checklistId)=>{
+      const pad=section.querySelector('[data-cl-sign-pad]');
+      if(!pad)return;
+      const ratio=window.devicePixelRatio||1;
+      pad.width=Math.max(1,pad.clientWidth*ratio);pad.height=Math.max(1,pad.clientHeight*ratio);
+      const pen=pad.getContext('2d');
+      pen.scale(ratio,ratio);pen.lineWidth=2.2;pen.lineCap='round';pen.lineJoin='round';pen.strokeStyle='#101828';
+      let drawing=false,drawn=false;
+      const at=(event)=>{const box=pad.getBoundingClientRect();return [event.clientX-box.left,event.clientY-box.top];};
+      pad.addEventListener('pointerdown',(event)=>{drawing=true;drawn=true;pad.setPointerCapture?.(event.pointerId);const [x,y]=at(event);pen.beginPath();pen.moveTo(x,y);event.preventDefault();});
+      pad.addEventListener('pointermove',(event)=>{if(!drawing)return;const [x,y]=at(event);pen.lineTo(x,y);pen.stroke();event.preventDefault();});
+      const stop=()=>{drawing=false;};
+      pad.addEventListener('pointerup',stop);pad.addEventListener('pointercancel',stop);
+      const nameInput=section.querySelector('[data-cl-sign-name]');
+      nameInput?.addEventListener('input',()=>{(signState[checklistId]||(signState[checklistId]={})).name=nameInput.value;});
+      section.querySelector('[data-cl-sign-clear]')?.addEventListener('click',()=>{pen.clearRect(0,0,pad.width,pad.height);drawn=false;});
+      section.querySelector('[data-cl-sign]')?.addEventListener('click',async(event)=>{
+        const name=clean(nameInput?.value);
+        if(!name){showToast('Checklist','Type your name to sign.',false);nameInput?.focus();return;}
+        if(!drawn){showToast('Checklist','Draw your signature in the box.',false);return;}
+        event.currentTarget.disabled=true;
+        try{
+          const result=await window.CrewAPI.projects.signChecklist(orgId(context),projectId(context),checklistId,{type:'drawn',signer_name:name,image_data:pad.toDataURL('image/png')});
+          const list=checklists().find((entry)=>entry.id===checklistId);
+          if(list)list.crew_signature=obj(result?.checklist?.crew_signature);
+          showToast('Checklist','Signed.');
+          render();
+        }catch(error){showToast('Checklist',statusError(error),false);event.currentTarget.disabled=false;}
+      });
+    };
     const checklistHtml=(checklist)=>{
       const items=arr(checklist.items);
       const total=items.length;
@@ -1150,7 +1197,7 @@
       const accessPill=checklist.can_edit?`<span class="crew-pill good">${(globalThis.PlatformLanguage?.htmlText("crew","m_d9e27fdaa430b5","Editable") ?? "Editable")}</span>`:checklist.can_complete?`<span class="crew-pill">${quality?'Rate items':'Check off'}</span>`:`<span class="crew-pill warn">${(globalThis.PlatformLanguage?.htmlText("crew","m_65ed6dd2cd3755","Read only") ?? "Read only")}</span>`;
       const assignedCount=arr(checklist.assigned_user_ids).length+arr(checklist.assigned_role_ids).length+arr(checklist.assigned_resource_group_ids).length;
       const assignmentPill=checklist.assignment_required?`<span class="crew-pill warn">${(globalThis.PlatformLanguage?.htmlText("crew","m_4bde5430c931ff","Needs assignment") ?? "Needs assignment")}</span>`:assignedCount?`<span class="crew-pill good"><i class="fas fa-user-check"></i>${(globalThis.PlatformLanguage?.htmlText("crew","m_5a1e07a6bc5770"," Assigned") ?? " Assigned")}</span>`:Object.keys(obj(checklist.assignment_policy)).length?`<span class="crew-pill"><i class="fas fa-users"></i>${(globalThis.PlatformLanguage?.htmlText("crew","m_c1297bb46922d3"," Any eligible") ?? " Any eligible")}</span>`:'';
-      return `<section class="crew-card" data-cl-list="${esc(checklist.id)}"><div class="crew-cl-head"><span class="crew-cl-icon ${supervisor?'supervisor':''}"><i class="fas ${esc(first(checklist.icon,quality?'fa-clipboard-check':'fa-list-check'))}"></i></span><div class="crew-cl-copy"><h3>${esc(checklist.title)}</h3></div><div class="crew-cl-progress"><span class="crew-cl-count">${doneCount}/${total}</span><span class="crew-cl-bar"><i style="width:${percent}%"></i></span></div></div><div class="crew-cl-meta">${supervisor?`<span class="crew-pill" style="background:#eff8ff;color:#175cd3">${(globalThis.PlatformLanguage?.htmlText("crew","m_80a95b33172678","Supervisor") ?? "Supervisor")}</span>`:`<span class="crew-pill">${(globalThis.PlatformLanguage?.htmlText("crew","m_5b8ee9e9110e54","Crew") ?? "Crew")}</span>`}${quality?`<span class="crew-pill" style="background:#fdf4ff;color:#9f1ab1">${(globalThis.PlatformLanguage?.htmlText("crew","m_c2c285ec01b1b5","Quality review") ?? "Quality review")}</span>`:''}${assignmentPill}${accessPill}</div><div class="crew-cl-items">${items.length?items.map((item)=>itemHtml(checklist,item)).join(''):`<div class="crew-sub">${(globalThis.PlatformLanguage?.htmlText("crew","m_bfe2f5665c1cf0","No items on this checklist yet.") ?? "No items on this checklist yet.")}</div>`}</div>${checklist.can_edit?`<div class="crew-cl-add"><input data-cl-new placeholder="${(globalThis.PlatformLanguage?.htmlText("crew","m_7b2113cc856add","Add an item…") ?? "Add an item…")}"><select data-cl-new-type><option value="todo" ${String(quality?'':'selected')}>${(globalThis.PlatformLanguage?.htmlText("crew","m_dc3195e2b61dfc","Check item") ?? "Check item")}</option><option value="rating" ${String(quality?'selected':'')}>${(globalThis.PlatformLanguage?.htmlText("crew","m_98cd0b14518eb3","Rating item") ?? "Rating item")}</option></select><button class="crew-btn primary" type="button" data-cl-add><i class="fas fa-plus"></i></button></div>`:''}</section>`;
+      return `<section class="crew-card" data-cl-list="${esc(checklist.id)}"><div class="crew-cl-head"><span class="crew-cl-icon ${supervisor?'supervisor':''}"><i class="fas ${esc(first(checklist.icon,quality?'fa-clipboard-check':'fa-list-check'))}"></i></span><div class="crew-cl-copy"><h3>${esc(checklist.title)}</h3></div><div class="crew-cl-progress"><span class="crew-cl-count">${doneCount}/${total}</span><span class="crew-cl-bar"><i style="width:${percent}%"></i></span></div></div><div class="crew-cl-meta">${supervisor?`<span class="crew-pill" style="background:#eff8ff;color:#175cd3">${(globalThis.PlatformLanguage?.htmlText("crew","m_80a95b33172678","Supervisor") ?? "Supervisor")}</span>`:`<span class="crew-pill">${(globalThis.PlatformLanguage?.htmlText("crew","m_5b8ee9e9110e54","Crew") ?? "Crew")}</span>`}${quality?`<span class="crew-pill" style="background:#fdf4ff;color:#9f1ab1">${(globalThis.PlatformLanguage?.htmlText("crew","m_c2c285ec01b1b5","Quality review") ?? "Quality review")}</span>`:''}${assignmentPill}${accessPill}</div><div class="crew-cl-items">${items.length?items.map((item)=>itemHtml(checklist,item)).join(''):`<div class="crew-sub">${(globalThis.PlatformLanguage?.htmlText("crew","m_bfe2f5665c1cf0","No items on this checklist yet.") ?? "No items on this checklist yet.")}</div>`}</div>${checklist.can_edit?`<div class="crew-cl-add"><input data-cl-new placeholder="${(globalThis.PlatformLanguage?.htmlText("crew","m_7b2113cc856add","Add an item…") ?? "Add an item…")}"><select data-cl-new-type><option value="todo" ${String(quality?'':'selected')}>${(globalThis.PlatformLanguage?.htmlText("crew","m_dc3195e2b61dfc","Check item") ?? "Check item")}</option><option value="rating" ${String(quality?'selected':'')}>${(globalThis.PlatformLanguage?.htmlText("crew","m_98cd0b14518eb3","Rating item") ?? "Rating item")}</option></select><button class="crew-btn primary" type="button" data-cl-add><i class="fas fa-plus"></i></button></div>`:''}${signatureHtml(checklist)}</section>`;
     };
     const render=()=>{
       const lists=checklists();
@@ -1278,6 +1325,7 @@
       });
       root.querySelectorAll('[data-cl-list]').forEach((section)=>{
         const checklistId=section.dataset.clList;
+        bindSignature(section,checklistId);
         section.querySelector('[data-cl-add]')?.addEventListener('click',async(event)=>{
           const input=section.querySelector('[data-cl-new]');
           const title=clean(input?.value);
