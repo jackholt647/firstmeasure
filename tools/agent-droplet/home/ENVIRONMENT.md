@@ -4,6 +4,17 @@ Every agent tool on this machine (Claude Code, Codex, Antigravity) loads this fi
 `/srv/agents/ENVIRONMENT.md`; the source is `tools/agent-droplet/home/ENVIRONMENT.md` in the FirstMeasure repo,
 and the full reference is `docs/architecture/agent-droplet.md` there.
 
+## FIRST RULE: never change files in the main clone
+`/srv/agents/work/firstmeasure` is shared: the router branches every worker from it, and Jack opens sessions in
+it. Read and look around there freely. Before you change any file, make your own worktree and work only there:
+
+    git -C /srv/agents/work/firstmeasure fetch devpush
+    git -C /srv/agents/work/firstmeasure worktree add -b claude/<slug> /srv/agents/work/<slug> devpush/codex/consolidated-firstmeasure-20260923
+    cd /srv/agents/work/<slug> && fm-deps
+
+(Codex: `codex/<slug>`, Antigravity: `agy/<slug>`.) Never edit, commit, reset, stash, pull or switch branches
+in the main clone.
+
 ## The machine
 - DigitalOcean droplet `fm-agents-1`, 67.205.145.222, NYC1: 8 dedicated vCPU, 32 GB RAM, Ubuntu 24.04. You are
   user `agent` (passwordless sudo). It is not Jack's PC; Jack watches from his PC.
