@@ -21,8 +21,8 @@
 .fm-dc-main{flex:1;min-width:0;display:flex;flex-direction:column}
 .fm-dc-head{flex:none;display:flex;align-items:center;gap:8px;min-height:44px;padding:6px 8px 6px 14px;border-bottom:1px solid var(--dc-line)}
 .fm-dc-head h2{flex:1;margin:0;font-size:14px;font-weight:650;letter-spacing:-.1px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.fm-dc-fold{width:32px;height:32px;border:0;border-radius:7px;background:transparent;color:var(--dc-muted);cursor:pointer}
-.fm-dc-fold:hover{background:#f2f4f7;color:var(--dc-ink)}
+.fm-dc-headbtn{width:32px;height:32px;border:0;border-radius:7px;background:transparent;color:var(--dc-muted);cursor:pointer}
+.fm-dc-headbtn:hover{background:#f2f4f7;color:var(--dc-ink)}
 .fm-dc-body{flex:1;min-height:0;overflow:auto;overscroll-behavior:contain}
 .fm-dc-pane{padding:14px}
 .fm-dc-pane[hidden]{display:none}
@@ -98,3 +98,12 @@
 .fm-dev-namespace>summary strong{font-weight:600;overflow-wrap:anywhere}
 .fm-dev-namespace>summary small{margin-left:10px;color:var(--dc-muted);font-size:11px}
 .fm-dev-namespace-children{margin:0 12px 12px 20px;padding-left:12px;border-left:1px solid #d0d5dd}
+
+/* Docking (dock.js): the page is a window narrower by the console. <body> is the containing block for every fixed
+   layer and ends where the console (or its folded strip) starts; the console lives on <html>, outside it. */
+html.fm-dc-docked{overflow:hidden!important}
+html.fm-dc-docked>body{position:fixed!important;top:0!important;left:0!important;bottom:0!important;right:var(--fm-dc-width)!important;width:auto!important;height:auto!important;min-width:0!important;max-width:none!important;margin:0!important;contain:layout}
+html.fm-dc-docked.fm-dc-body-scrolls>body{overflow:auto!important}
+/* The top layer ignores containing blocks: keep modal dialogs and backdrops beside the console. */
+html.fm-dc-docked dialog:modal{right:var(--fm-dc-width)}
+html.fm-dc-docked ::backdrop{right:var(--fm-dc-width)}

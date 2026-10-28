@@ -570,8 +570,10 @@ Read [dev console](docs/architecture/dev-console.md) before adding a development
 control to a page. Every development control is a section of the one dev console
 tray (`public/libraries/dev-console`), shown only to the development tools audience
 on development; do not add another floating pill, bar, dropdown or hidden shortcut.
-Run `tests/dev-console.test.ts`, `tests/guided-experiences-flow-browser.test.mjs`
-and `tests/development-layers-browser.test.mjs` for changes here.
+On a desktop the page is docked beside the tray (`dock.js`), never covered.
+Run `tests/dev-console.test.ts`, `tests/guided-experiences-flow-browser.test.mjs`,
+`tests/development-layers-browser.test.mjs` and
+`tests/dev-console-dock-browser.test.mjs` for changes here.
 
 ## Session replay
 
