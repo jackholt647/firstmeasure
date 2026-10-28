@@ -24,7 +24,7 @@ try {
   const store = await import("../documents/storage.js");
   const { FMDocModel } = await import("../documents/schemas.js");
   const { documentType } = await import("../documents/types/registry.js");
-  const { ensureDefaultDocumentAssets } = await import("../documents/seeds.js");
+  const { ensureDefaultDocumentAssets } = await import("../documents/library-copies.js");
   await ensureDefaultDocumentAssets(ctx.orgId, ctx);
   const project = await storage.upsertDocument(ctx.orgId, "projects", { id: "project_template_audit", data: { title: "Audit project", branch_id: "default", address: "1 Ridge Road" } });
   await (await import("../contacts/records.js")).saveProjectContacts(ctx.orgId, String(project.id), [{ name: "Pat Homeowner", email: "pat@example.test", primary: true }]);
@@ -32,7 +32,7 @@ try {
   for (const template of templates) {
     const id = String(template.id), meta = object(template.metadata), kind = String(template.document_type);
     const row: Row = { id, name: template.name, kind, status: template.status };
-    row.source = meta.instant_roofing_pack ? "roofing sales pack" : meta.intake === "upload" ? "paper intake preset" : meta.preset || meta.preset_revision ? "default preset" : meta.scope_preset || meta.industry ? `industry preset (${meta.industry || meta.scope_preset})` : "other";
+    row.source = String(meta.preset_id || "").startsWith("tpl_instant_roofing_") || meta.instant_roofing_pack ? "roofing sales pack" : meta.intake === "upload" ? "paper intake preset" : meta.preset || meta.preset_revision ? "default preset" : meta.scope_preset || meta.industry ? `industry preset (${meta.industry || meta.scope_preset})` : "other";
     const problems: string[] = [];
     try {
       const version = object(await store.readDocumentTemplateVersion(ctx.orgId, id, Number(template.current_version || 1)));
@@ -109,7 +109,12 @@ try {
   // The sales proposals with a scope generated from one roof (29.6 squares,
   // 197 ft of eaves): what the customer is quoted, option by option.
   {
-    const { ROOFING_ESTIMATES } = await import("../signup-sandbox/roofing-documents.js");
+    const { libraryEntries } = await import("../config-library/library.js");
+    // The roofing sales pack in the library, with the scope piece (and variant) each is priced from.
+    const ROOFING_ESTIMATES = libraryEntries<any>("document_template").filter(entry => entry.id.startsWith("tpl_instant_roofing_")).map(entry => {
+      const piece = object(list(object(object(entry.data.definition.params).scope_pieces).default)[0]);
+      return { key: entry.id.slice("tpl_instant_roofing_".length), title: String(entry.data.name), scope: String(piece.template_id || ""), variant: String(piece.variant || "") };
+    });
     const { generatePieceScope } = await import("../pricebook/scope-generation.js");
     const { getOrganizationPricebook } = await import("../pricebook/storage.js");
     const { documentCompletion } = await import("../documents/modules/presentation-service.js");

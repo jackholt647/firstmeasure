@@ -117,17 +117,22 @@ const total = (resolved: any) => (resolved.scope.params.scope_items as Line[]).r
 
 test("a new organization gets the roofing sales documents and none of the retired ones", async () => {
   const { ctx, store } = await organization();
-  const { RETIRED_TEMPLATE_IDS, RETIRED_WORKFLOW_IDS, ensureDefaultDocumentAssets } = await import("../documents/seeds.js");
+  const { ensureDefaultDocumentAssets } = await import("../documents/library-copies.js");
+  const { libraryEntry } = await import("../config-library/library.js");
   await ensureDefaultDocumentAssets(ctx.orgId, ctx);
   const templates = (await store.listDocumentTemplates(ctx.orgId)) as Line[];
   const proposals = templates.filter((template) => template.document_type === "proposal").map((template) => template.id).sort();
   assert.deepEqual(proposals, ["tpl_instant_roofing_detailed", "tpl_instant_roofing_gutters", "tpl_instant_roofing_onepage", "tpl_instant_roofing_options", "tpl_instant_roofing_package", "tpl_instant_roofing_quick"]);
+  // Retired presets left the library; a scope's own templates are made only when the scope issues them.
   for (const id of ["tpl_proposal_default", "tpl_one_page_legal", "tpl_three_option_proposal", "tpl_roofing_good_better_best_workflow", "tpl_kitchen_selections", "tpl_kitchen_estimate", "tpl_same_day_service_authorization"]) {
-    assert.ok(RETIRED_TEMPLATE_IDS.includes(id), `${id} is retired`);
+    const entry = libraryEntry<any>("document_template", id);
+    assert.ok(!entry || entry.data.seeding === "on_request", `${id} is not every organization's`);
     assert.equal(await store.readDocumentTemplate(ctx.orgId, id).catch(() => null), null, `${id} was never created for a new organization`);
   }
   const workflows = (await store.listDocumentWorkflows(ctx.orgId)).map((workflow: Line) => workflow.id);
-  assert.ok(!RETIRED_WORKFLOW_IDS.some((id: string) => workflows.includes(id)), "their workflows are not seeded either");
+  for (const id of ["wfl_roofing_proposal_intake", "wfl_one_page_legal", "wfl_three_option_proposal", "wfl_roofing_customer_workflow", "wfl_kitchen_selections", "wfl_same_day_service_field"]) {
+    assert.ok(!workflows.includes(id), `${id} is not seeded either`);
+  }
   // Every sales proposal names a deck; the Good / Better / Best one has the comparison slide.
   const presentations = await import("../documents/modules/presentation-service.js");
   const decks: Record<string, string> = { detailed: "preset_presentation_roofing_itemized", onepage: "preset_presentation_roofing_itemized", options: "preset_presentation_roofing_options", gutters: "preset_presentation_roofing_gutters" };
@@ -143,7 +148,7 @@ test("a new organization gets the roofing sales documents and none of the retire
 
 test("an existing organization's unedited retired presets are archived; edited ones are left alone", async () => {
   const { ctx, store } = await organization();
-  const { ensureDefaultDocumentAssets } = await import("../documents/seeds.js");
+  const { ensureDefaultDocumentAssets } = await import("../documents/library-copies.js");
   const { FMDocModel } = await import("../documents/schemas.js");
   const definition = FMDocModel.createDocument({ first_page_role: "body" });
   // Stand in for an organization seeded before the retirement.

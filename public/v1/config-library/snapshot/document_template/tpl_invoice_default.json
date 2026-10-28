@@ -1,0 +1,1904 @@
+{
+  "kind": "document_template",
+  "id": "tpl_invoice_default",
+  "revision": 1,
+  "sha256": "6e2f613971f53e31e8f3497f14e5d1b2dc9c0b053b3d00ba08c58caed5d5adb4",
+  "title": "Invoice",
+  "updated_at": "2026-10-27T23:22:05.622Z",
+  "updated_by": "generator",
+  "data": {
+    "name": "Invoice",
+    "document_type": "invoice",
+    "description": "Bill a payment from the signed agreement, the remaining balance, or other charges. The customer pays from the invoice.",
+    "status": "active",
+    "seeding": "every_organization",
+    "definition": {
+      "schema_version": 1,
+      "kind": "document",
+      "settings": {
+        "paper": {
+          "size": "letter",
+          "orientation": "portrait"
+        },
+        "locale": "en-US",
+        "base_font_pt": 11
+      },
+      "theme_ref": {
+        "theme_id": "thm_clean"
+      },
+      "params": {
+        "project": {
+          "type": "entity",
+          "entity": "project"
+        },
+        "customer": {
+          "type": "entity",
+          "entity": "contact"
+        },
+        "invoice_number": {
+          "type": "string",
+          "label": "Invoice number"
+        },
+        "issue_date": {
+          "type": "date",
+          "label": "Issued"
+        },
+        "due_date": {
+          "type": "date",
+          "label": "Due"
+        },
+        "bill": {
+          "type": "string",
+          "label": "What to bill"
+        },
+        "line_items": {
+          "type": "list",
+          "items": {
+            "type": "pricebook_line"
+          },
+          "label": "Other charges"
+        },
+        "tax_percent": {
+          "type": "percent",
+          "label": "Tax on other charges"
+        },
+        "notes": {
+          "type": "text",
+          "label": "Note to the customer"
+        },
+        "status": {
+          "type": "string"
+        },
+        "account": {
+          "type": "object",
+          "source": "project_account"
+        },
+        "billing": {
+          "type": "object"
+        },
+        "amount_due_cents": {
+          "type": "currency",
+          "label": "Amount due"
+        }
+      },
+      "computed": {},
+      "outputs": {
+        "payment": {
+          "type": "payment",
+          "required_for": "completed"
+        }
+      },
+      "styles": {
+        "li_name": {
+          "family": "var(--fm-body-font)",
+          "size_pt": 10.5,
+          "weight": 700,
+          "color": "var(--fm-text)"
+        },
+        "li_meta": {
+          "family": "var(--fm-body-font)",
+          "size_pt": 8.5,
+          "weight": 400,
+          "color": "var(--fm-color-muted)"
+        },
+        "li_amount": {
+          "family": "var(--fm-body-font)",
+          "size_pt": 10.5,
+          "weight": 700,
+          "color": "var(--fm-text)"
+        },
+        "li_total": {
+          "family": "var(--fm-display-font)",
+          "size_pt": 13,
+          "weight": 800,
+          "color": "var(--fm-text)"
+        }
+      },
+      "components": {
+        "inv_header": {
+          "params": {},
+          "root": {
+            "id": "nd_b8lu0gbom1v2b",
+            "type": "frame",
+            "name": "",
+            "frame": {
+              "x": 0,
+              "y": 0,
+              "w": 0,
+              "h": "auto",
+              "rotation": 0,
+              "z": 0,
+              "layout": "flow",
+              "constraints": {
+                "h": "left",
+                "v": "top"
+              }
+            },
+            "style": {
+              "fill": {
+                "type": "solid",
+                "color": "var(--fm-primary)"
+              }
+            },
+            "locks": {},
+            "bind": null,
+            "visible": true,
+            "props": {
+              "background": null,
+              "clip": false,
+              "flow": {
+                "direction": "row",
+                "gap": 8,
+                "padding": [
+                  5,
+                  8,
+                  5,
+                  8
+                ],
+                "align": "center",
+                "wrap": false
+              },
+              "overflow": "visible"
+            },
+            "children": [
+              {
+                "id": "nd_b8lu09q2uls27",
+                "type": "text",
+                "name": "",
+                "frame": {
+                  "x": 0,
+                  "y": 0,
+                  "w": 0,
+                  "h": "auto",
+                  "rotation": 0,
+                  "z": 0,
+                  "layout": "flow",
+                  "constraints": {
+                    "h": "left",
+                    "v": "top"
+                  },
+                  "grow": 1
+                },
+                "style": {
+                  "font": {
+                    "family": "var(--fm-body-font)",
+                    "size_pt": 8.5,
+                    "weight": 800,
+                    "color": "#ffffff",
+                    "transform": "uppercase"
+                  }
+                },
+                "locks": {},
+                "bind": null,
+                "visible": true,
+                "props": {
+                  "blocks": [
+                    {
+                      "id": "blk_b8lu02o33uz25",
+                      "type": "paragraph",
+                      "align": "left",
+                      "runs": [
+                        {
+                          "text": "Description"
+                        }
+                      ]
+                    }
+                  ],
+                  "valign": "top",
+                  "auto_fit": false,
+                  "line_height": 1.4,
+                  "letter_spacing": 0
+                },
+                "anchor": "flow"
+              },
+              {
+                "id": "nd_b8lu0o3t8js2a",
+                "type": "text",
+                "name": "",
+                "frame": {
+                  "x": 0,
+                  "y": 0,
+                  "w": 110,
+                  "h": "auto",
+                  "rotation": 0,
+                  "z": 0,
+                  "layout": "flow",
+                  "constraints": {
+                    "h": "left",
+                    "v": "top"
+                  }
+                },
+                "style": {
+                  "font": {
+                    "family": "var(--fm-body-font)",
+                    "size_pt": 8.5,
+                    "weight": 800,
+                    "color": "#ffffff",
+                    "transform": "uppercase"
+                  }
+                },
+                "locks": {},
+                "bind": null,
+                "visible": true,
+                "props": {
+                  "blocks": [
+                    {
+                      "id": "blk_b8lu0ctfzxo28",
+                      "type": "paragraph",
+                      "align": "right",
+                      "runs": [
+                        {
+                          "text": "Amount"
+                        }
+                      ]
+                    }
+                  ],
+                  "valign": "top",
+                  "auto_fit": false,
+                  "line_height": 1.4,
+                  "letter_spacing": 0
+                },
+                "anchor": "flow"
+              }
+            ]
+          }
+        },
+        "inv_row": {
+          "params": {
+            "item": {
+              "type": "object"
+            }
+          },
+          "root": {
+            "id": "nd_b8lu0araklp2j",
+            "type": "frame",
+            "name": "",
+            "frame": {
+              "x": 0,
+              "y": 0,
+              "w": 0,
+              "h": "auto",
+              "rotation": 0,
+              "z": 0,
+              "layout": "flow",
+              "constraints": {
+                "h": "left",
+                "v": "top"
+              }
+            },
+            "style": {},
+            "locks": {},
+            "bind": null,
+            "visible": true,
+            "props": {
+              "background": null,
+              "clip": false,
+              "flow": {
+                "direction": "row",
+                "gap": 8,
+                "padding": [
+                  6,
+                  8,
+                  6,
+                  8
+                ],
+                "align": "start",
+                "wrap": false
+              },
+              "overflow": "visible"
+            },
+            "children": [
+              {
+                "id": "nd_b8lu0zmdcwh2f",
+                "type": "text",
+                "name": "",
+                "frame": {
+                  "x": 0,
+                  "y": 0,
+                  "w": 0,
+                  "h": "auto",
+                  "rotation": 0,
+                  "z": 0,
+                  "layout": "flow",
+                  "constraints": {
+                    "h": "left",
+                    "v": "top"
+                  },
+                  "grow": 1
+                },
+                "style": {},
+                "locks": {},
+                "bind": null,
+                "visible": true,
+                "props": {
+                  "blocks": [
+                    {
+                      "id": "blk_b8lu0feniai2c",
+                      "type": "paragraph",
+                      "align": "left",
+                      "style_ref": "li_name",
+                      "runs": [
+                        {
+                          "text": "",
+                          "bind": "item.label"
+                        }
+                      ]
+                    },
+                    {
+                      "id": "blk_b8lu06tlmmt2d",
+                      "type": "paragraph",
+                      "align": "left",
+                      "style_ref": "li_meta",
+                      "collapse_empty": true,
+                      "runs": [
+                        {
+                          "text": "",
+                          "bind": "coalesce(item.detail, '')"
+                        }
+                      ]
+                    }
+                  ],
+                  "valign": "top",
+                  "auto_fit": false,
+                  "line_height": 1.4,
+                  "letter_spacing": 0
+                },
+                "anchor": "flow"
+              },
+              {
+                "id": "nd_b8lu03rsmfl2i",
+                "type": "text",
+                "name": "",
+                "frame": {
+                  "x": 0,
+                  "y": 0,
+                  "w": 110,
+                  "h": "auto",
+                  "rotation": 0,
+                  "z": 0,
+                  "layout": "flow",
+                  "constraints": {
+                    "h": "left",
+                    "v": "top"
+                  }
+                },
+                "style": {},
+                "locks": {},
+                "bind": null,
+                "visible": true,
+                "props": {
+                  "blocks": [
+                    {
+                      "id": "blk_b8lu0kc6ee62g",
+                      "type": "paragraph",
+                      "align": "right",
+                      "style_ref": "li_amount",
+                      "runs": [
+                        {
+                          "text": "",
+                          "bind": "item.amount_cents | money"
+                        }
+                      ]
+                    }
+                  ],
+                  "valign": "top",
+                  "auto_fit": false,
+                  "line_height": 1.4,
+                  "letter_spacing": 0
+                },
+                "anchor": "flow"
+              }
+            ]
+          }
+        }
+      },
+      "chains": {},
+      "assets": [],
+      "edit_policy": {
+        "base_profile": "document",
+        "max_profile": "designer",
+        "features": {},
+        "unlock": {
+          "allowed": true
+        }
+      },
+      "metadata": {
+        "document_type": "invoice"
+      },
+      "pages": [
+        {
+          "id": "pg_b8ltydud6eqb",
+          "role": "body",
+          "name": "Invoice",
+          "master_ref": null,
+          "repeat": null,
+          "children": [
+            {
+              "id": "nd_b8lu0ydwf0z24",
+              "type": "frame",
+              "name": "Body",
+              "frame": {
+                "x": 48,
+                "y": 80,
+                "w": 516,
+                "h": 664,
+                "rotation": 0,
+                "z": 0,
+                "layout": "flow",
+                "constraints": {
+                  "h": "stretch",
+                  "v": "top"
+                }
+              },
+              "style": {},
+              "locks": {},
+              "bind": null,
+              "visible": true,
+              "props": {
+                "background": null,
+                "clip": false,
+                "flow": {
+                  "direction": "column",
+                  "gap": 6,
+                  "padding": [
+                    0,
+                    0,
+                    0,
+                    0
+                  ],
+                  "align": "stretch",
+                  "wrap": false
+                },
+                "overflow": "paginate",
+                "page_region": "body"
+              },
+              "children": [
+                {
+                  "id": "nd_b8lty9jrbcue",
+                  "type": "image",
+                  "name": "",
+                  "frame": {
+                    "x": 0,
+                    "y": 0,
+                    "w": 150,
+                    "h": 32,
+                    "rotation": 0,
+                    "z": 0,
+                    "layout": "flow",
+                    "constraints": {
+                      "h": "left",
+                      "v": "top"
+                    }
+                  },
+                  "style": {},
+                  "locks": {},
+                  "bind": {
+                    "props": {
+                      "props.media": "{{org.logo_url}}"
+                    },
+                    "if": "not_empty(org.logo_url)"
+                  },
+                  "visible": true,
+                  "props": {
+                    "media": null,
+                    "fit": "contain",
+                    "focal": {
+                      "x": 0.5,
+                      "y": 0.5
+                    },
+                    "crop": null,
+                    "alt": "Company logo"
+                  },
+                  "anchor": "flow"
+                },
+                {
+                  "id": "nd_b8lty4xzmgnl",
+                  "type": "frame",
+                  "name": "",
+                  "frame": {
+                    "x": 0,
+                    "y": 0,
+                    "w": 0,
+                    "h": "auto",
+                    "rotation": 0,
+                    "z": 0,
+                    "layout": "flow",
+                    "constraints": {
+                      "h": "left",
+                      "v": "top"
+                    }
+                  },
+                  "style": {},
+                  "locks": {},
+                  "bind": null,
+                  "visible": true,
+                  "props": {
+                    "background": null,
+                    "clip": false,
+                    "flow": {
+                      "direction": "row",
+                      "gap": 16,
+                      "padding": [
+                        0,
+                        0,
+                        0,
+                        0
+                      ],
+                      "align": "end",
+                      "wrap": false
+                    },
+                    "overflow": "visible"
+                  },
+                  "children": [
+                    {
+                      "id": "nd_b8lty4rdh1uh",
+                      "type": "text",
+                      "name": "",
+                      "frame": {
+                        "x": 0,
+                        "y": 0,
+                        "w": 0,
+                        "h": "auto",
+                        "rotation": 0,
+                        "z": 0,
+                        "layout": "flow",
+                        "constraints": {
+                          "h": "left",
+                          "v": "top"
+                        },
+                        "grow": 1
+                      },
+                      "style": {
+                        "font": {
+                          "family": "var(--fm-display-font)",
+                          "size_pt": 22,
+                          "weight": 800,
+                          "color": "var(--fm-text)"
+                        }
+                      },
+                      "locks": {},
+                      "bind": null,
+                      "visible": true,
+                      "props": {
+                        "blocks": [
+                          {
+                            "id": "blk_b8ltyltlp4qf",
+                            "type": "paragraph",
+                            "align": "left",
+                            "runs": [
+                              {
+                                "text": "Invoice"
+                              }
+                            ]
+                          }
+                        ],
+                        "valign": "top",
+                        "auto_fit": false,
+                        "line_height": 1.4,
+                        "letter_spacing": 0
+                      },
+                      "anchor": "flow"
+                    },
+                    {
+                      "id": "nd_b8ltyddyfq1k",
+                      "type": "text",
+                      "name": "",
+                      "frame": {
+                        "x": 0,
+                        "y": 0,
+                        "w": 170,
+                        "h": "auto",
+                        "rotation": 0,
+                        "z": 0,
+                        "layout": "flow",
+                        "constraints": {
+                          "h": "left",
+                          "v": "top"
+                        }
+                      },
+                      "style": {
+                        "font": {
+                          "family": "var(--fm-body-font)",
+                          "size_pt": 11,
+                          "weight": 700
+                        }
+                      },
+                      "locks": {},
+                      "bind": null,
+                      "visible": true,
+                      "props": {
+                        "blocks": [
+                          {
+                            "id": "blk_b8ltyh7xmg6i",
+                            "type": "paragraph",
+                            "align": "right",
+                            "runs": [
+                              {
+                                "text": "Invoice no.\n",
+                                "font": {
+                                  "size_pt": 8.5,
+                                  "weight": 800,
+                                  "color": "var(--fm-color-muted)",
+                                  "transform": "uppercase"
+                                }
+                              },
+                              {
+                                "text": "",
+                                "bind": "coalesce(params.invoice_number, '')"
+                              }
+                            ]
+                          }
+                        ],
+                        "valign": "top",
+                        "auto_fit": false,
+                        "line_height": 1.4,
+                        "letter_spacing": 0
+                      },
+                      "anchor": "flow"
+                    }
+                  ],
+                  "anchor": "flow"
+                },
+                {
+                  "id": "nd_b8ltz7opjuby",
+                  "type": "frame",
+                  "name": "",
+                  "frame": {
+                    "x": 0,
+                    "y": 0,
+                    "w": 0,
+                    "h": "auto",
+                    "rotation": 0,
+                    "z": 0,
+                    "layout": "flow",
+                    "constraints": {
+                      "h": "left",
+                      "v": "top"
+                    }
+                  },
+                  "style": {},
+                  "locks": {},
+                  "bind": null,
+                  "visible": true,
+                  "props": {
+                    "background": null,
+                    "clip": false,
+                    "flow": {
+                      "direction": "row",
+                      "gap": 20,
+                      "padding": [
+                        0,
+                        0,
+                        0,
+                        0
+                      ],
+                      "align": "start",
+                      "wrap": false
+                    },
+                    "overflow": "visible"
+                  },
+                  "children": [
+                    {
+                      "id": "nd_b8ltzo0sj0ou",
+                      "type": "text",
+                      "name": "",
+                      "frame": {
+                        "x": 0,
+                        "y": 0,
+                        "w": 0,
+                        "h": "auto",
+                        "rotation": 0,
+                        "z": 0,
+                        "layout": "flow",
+                        "constraints": {
+                          "h": "left",
+                          "v": "top"
+                        },
+                        "grow": 1
+                      },
+                      "style": {
+                        "font": {
+                          "family": "var(--fm-body-font)",
+                          "size_pt": 11,
+                          "weight": 700
+                        }
+                      },
+                      "locks": {},
+                      "bind": null,
+                      "visible": true,
+                      "props": {
+                        "blocks": [
+                          {
+                            "id": "blk_b8ltzxgki5hs",
+                            "type": "paragraph",
+                            "align": "left",
+                            "runs": [
+                              {
+                                "text": "Project\n",
+                                "font": {
+                                  "size_pt": 8.5,
+                                  "weight": 800,
+                                  "color": "var(--fm-color-muted)",
+                                  "transform": "uppercase"
+                                }
+                              },
+                              {
+                                "text": "",
+                                "bind": "coalesce(params.project.title, project.title, 'Project')"
+                              },
+                              {
+                                "text": "\n"
+                              },
+                              {
+                                "text": "",
+                                "bind": "coalesce(params.project.address, project.address, '')",
+                                "font": {
+                                  "size_pt": 9.5,
+                                  "weight": 400,
+                                  "color": "var(--fm-color-muted)"
+                                }
+                              }
+                            ]
+                          }
+                        ],
+                        "valign": "top",
+                        "auto_fit": false,
+                        "line_height": 1.4,
+                        "letter_spacing": 0
+                      },
+                      "anchor": "flow"
+                    },
+                    {
+                      "id": "nd_b8ltzmo9gmvx",
+                      "type": "text",
+                      "name": "",
+                      "frame": {
+                        "x": 0,
+                        "y": 0,
+                        "w": 0,
+                        "h": "auto",
+                        "rotation": 0,
+                        "z": 0,
+                        "layout": "flow",
+                        "constraints": {
+                          "h": "left",
+                          "v": "top"
+                        },
+                        "grow": 1
+                      },
+                      "style": {
+                        "font": {
+                          "family": "var(--fm-body-font)",
+                          "size_pt": 11,
+                          "weight": 700
+                        }
+                      },
+                      "locks": {},
+                      "bind": null,
+                      "visible": true,
+                      "props": {
+                        "blocks": [
+                          {
+                            "id": "blk_b8ltzj2ajj3v",
+                            "type": "paragraph",
+                            "align": "left",
+                            "runs": [
+                              {
+                                "text": "Customer\n",
+                                "font": {
+                                  "size_pt": 8.5,
+                                  "weight": 800,
+                                  "color": "var(--fm-color-muted)",
+                                  "transform": "uppercase"
+                                }
+                              },
+                              {
+                                "text": "",
+                                "bind": "coalesce(params.customer.name, customer.name, 'Customer')"
+                              }
+                            ]
+                          }
+                        ],
+                        "valign": "top",
+                        "auto_fit": false,
+                        "line_height": 1.4,
+                        "letter_spacing": 0
+                      },
+                      "anchor": "flow"
+                    },
+                    {
+                      "id": "nd_b8ltye6b90oo",
+                      "type": "text",
+                      "name": "",
+                      "frame": {
+                        "x": 0,
+                        "y": 0,
+                        "w": 86,
+                        "h": "auto",
+                        "rotation": 0,
+                        "z": 0,
+                        "layout": "flow",
+                        "constraints": {
+                          "h": "left",
+                          "v": "top"
+                        }
+                      },
+                      "style": {
+                        "font": {
+                          "family": "var(--fm-body-font)",
+                          "size_pt": 11,
+                          "weight": 700
+                        }
+                      },
+                      "locks": {},
+                      "bind": null,
+                      "visible": true,
+                      "props": {
+                        "blocks": [
+                          {
+                            "id": "blk_b8lty9fvx2km",
+                            "type": "paragraph",
+                            "align": "left",
+                            "runs": [
+                              {
+                                "text": "Issued\n",
+                                "font": {
+                                  "size_pt": 8.5,
+                                  "weight": 800,
+                                  "color": "var(--fm-color-muted)",
+                                  "transform": "uppercase"
+                                }
+                              },
+                              {
+                                "text": "",
+                                "bind": "params.issue_date | date"
+                              }
+                            ]
+                          }
+                        ],
+                        "valign": "top",
+                        "auto_fit": false,
+                        "line_height": 1.4,
+                        "letter_spacing": 0
+                      },
+                      "anchor": "flow"
+                    },
+                    {
+                      "id": "nd_b8ltykxp6e8r",
+                      "type": "text",
+                      "name": "",
+                      "frame": {
+                        "x": 0,
+                        "y": 0,
+                        "w": 86,
+                        "h": "auto",
+                        "rotation": 0,
+                        "z": 0,
+                        "layout": "flow",
+                        "constraints": {
+                          "h": "left",
+                          "v": "top"
+                        }
+                      },
+                      "style": {
+                        "font": {
+                          "family": "var(--fm-body-font)",
+                          "size_pt": 11,
+                          "weight": 700
+                        }
+                      },
+                      "locks": {},
+                      "bind": null,
+                      "visible": true,
+                      "props": {
+                        "blocks": [
+                          {
+                            "id": "blk_b8ltyeg0eyup",
+                            "type": "paragraph",
+                            "align": "left",
+                            "runs": [
+                              {
+                                "text": "Due\n",
+                                "font": {
+                                  "size_pt": 8.5,
+                                  "weight": 800,
+                                  "color": "var(--fm-color-muted)",
+                                  "transform": "uppercase"
+                                }
+                              },
+                              {
+                                "text": "",
+                                "bind": "params.due_date | date"
+                              }
+                            ]
+                          }
+                        ],
+                        "valign": "top",
+                        "auto_fit": false,
+                        "line_height": 1.4,
+                        "letter_spacing": 0
+                      },
+                      "anchor": "flow"
+                    }
+                  ],
+                  "anchor": "flow"
+                },
+                {
+                  "id": "nd_b8ltzs7dqaaz",
+                  "type": "frame",
+                  "name": "Spacer",
+                  "frame": {
+                    "x": 0,
+                    "y": 0,
+                    "w": 0,
+                    "h": 8,
+                    "rotation": 0,
+                    "z": 0,
+                    "layout": "flow",
+                    "constraints": {
+                      "h": "left",
+                      "v": "top"
+                    }
+                  },
+                  "style": {},
+                  "locks": {},
+                  "bind": null,
+                  "visible": true,
+                  "props": {
+                    "background": null,
+                    "clip": false,
+                    "flow": {
+                      "direction": "column",
+                      "gap": 8,
+                      "padding": [
+                        0,
+                        0,
+                        0,
+                        0
+                      ],
+                      "align": "stretch",
+                      "wrap": false
+                    },
+                    "overflow": "visible"
+                  },
+                  "children": [],
+                  "anchor": "flow"
+                },
+                {
+                  "id": "nd_b8ltzu7rq2110",
+                  "type": "component_ref",
+                  "name": "",
+                  "frame": {
+                    "x": 0,
+                    "y": 0,
+                    "w": 0,
+                    "h": "auto",
+                    "rotation": 0,
+                    "z": 0,
+                    "layout": "flow",
+                    "constraints": {
+                      "h": "left",
+                      "v": "top"
+                    }
+                  },
+                  "style": {},
+                  "locks": {},
+                  "bind": null,
+                  "visible": true,
+                  "props": {
+                    "component": "inv_header",
+                    "variant": null,
+                    "input": {},
+                    "detached": false
+                  },
+                  "anchor": "flow"
+                },
+                {
+                  "id": "nd_b8ltzfoaoc411",
+                  "type": "repeater",
+                  "name": "",
+                  "frame": {
+                    "x": 0,
+                    "y": 0,
+                    "w": 0,
+                    "h": "auto",
+                    "rotation": 0,
+                    "z": 0,
+                    "layout": "flow",
+                    "constraints": {
+                      "h": "left",
+                      "v": "top"
+                    }
+                  },
+                  "style": {},
+                  "locks": {},
+                  "bind": null,
+                  "visible": true,
+                  "props": {
+                    "source": "{{params.billing.lines}}",
+                    "component": "inv_row",
+                    "variant": null,
+                    "as": "row",
+                    "index_as": "index",
+                    "layout": {
+                      "direction": "column",
+                      "columns": 1,
+                      "gap_pt": 2
+                    },
+                    "break_rules": {
+                      "repeat_header": true,
+                      "min_rows_per_segment": 2,
+                      "keep_with_next": [],
+                      "header_component": "inv_header"
+                    },
+                    "empty_text": "Choose what this invoice bills."
+                  },
+                  "anchor": "flow"
+                },
+                {
+                  "id": "nd_b8ltz9o421l18",
+                  "type": "frame",
+                  "name": "",
+                  "frame": {
+                    "x": 0,
+                    "y": 0,
+                    "w": 0,
+                    "h": "auto",
+                    "rotation": 0,
+                    "z": 0,
+                    "layout": "flow",
+                    "constraints": {
+                      "h": "left",
+                      "v": "top"
+                    }
+                  },
+                  "style": {
+                    "fill": {
+                      "type": "solid",
+                      "color": "color-mix(in srgb, var(--fm-primary) 6%, var(--fm-color-paper))"
+                    }
+                  },
+                  "locks": {},
+                  "bind": null,
+                  "visible": true,
+                  "props": {
+                    "background": null,
+                    "clip": false,
+                    "flow": {
+                      "direction": "row",
+                      "gap": 8,
+                      "padding": [
+                        8,
+                        8,
+                        8,
+                        8
+                      ],
+                      "align": "start",
+                      "wrap": false
+                    },
+                    "overflow": "visible"
+                  },
+                  "children": [
+                    {
+                      "id": "nd_b8ltzxq0iwr14",
+                      "type": "text",
+                      "name": "",
+                      "frame": {
+                        "x": 0,
+                        "y": 0,
+                        "w": 0,
+                        "h": "auto",
+                        "rotation": 0,
+                        "z": 0,
+                        "layout": "flow",
+                        "constraints": {
+                          "h": "left",
+                          "v": "top"
+                        },
+                        "grow": 1
+                      },
+                      "style": {
+                        "font": {
+                          "family": "var(--fm-display-font)",
+                          "size_pt": 12.5,
+                          "weight": 800,
+                          "color": "var(--fm-text)"
+                        }
+                      },
+                      "locks": {},
+                      "bind": null,
+                      "visible": true,
+                      "props": {
+                        "blocks": [
+                          {
+                            "id": "blk_b8ltz1dnyj912",
+                            "type": "paragraph",
+                            "align": "left",
+                            "runs": [
+                              {
+                                "text": "",
+                                "bind": "params.status == 'Paid in full' ? 'Paid in full' : 'Amount due'"
+                              }
+                            ]
+                          }
+                        ],
+                        "valign": "top",
+                        "auto_fit": false,
+                        "line_height": 1.4,
+                        "letter_spacing": 0
+                      },
+                      "anchor": "flow"
+                    },
+                    {
+                      "id": "nd_b8ltzpv5e6v17",
+                      "type": "text",
+                      "name": "",
+                      "frame": {
+                        "x": 0,
+                        "y": 0,
+                        "w": 110,
+                        "h": "auto",
+                        "rotation": 0,
+                        "z": 0,
+                        "layout": "flow",
+                        "constraints": {
+                          "h": "left",
+                          "v": "top"
+                        }
+                      },
+                      "style": {
+                        "font": {
+                          "family": "var(--fm-display-font)",
+                          "size_pt": 12.5,
+                          "weight": 800,
+                          "color": "var(--fm-text)"
+                        }
+                      },
+                      "locks": {},
+                      "bind": null,
+                      "visible": true,
+                      "props": {
+                        "blocks": [
+                          {
+                            "id": "blk_b8ltz89dih015",
+                            "type": "paragraph",
+                            "align": "right",
+                            "runs": [
+                              {
+                                "text": "",
+                                "bind": "params.amount_due_cents | money"
+                              }
+                            ]
+                          }
+                        ],
+                        "valign": "top",
+                        "auto_fit": false,
+                        "line_height": 1.4,
+                        "letter_spacing": 0
+                      },
+                      "anchor": "flow"
+                    }
+                  ],
+                  "anchor": "flow"
+                },
+                {
+                  "id": "nd_b8ltzr97t4o1b",
+                  "type": "text",
+                  "name": "",
+                  "frame": {
+                    "x": 0,
+                    "y": 0,
+                    "w": 0,
+                    "h": "auto",
+                    "rotation": 0,
+                    "z": 0,
+                    "layout": "flow",
+                    "constraints": {
+                      "h": "left",
+                      "v": "top"
+                    }
+                  },
+                  "style": {
+                    "font": {
+                      "family": "var(--fm-body-font)",
+                      "size_pt": 10.5,
+                      "color": "var(--fm-text)"
+                    }
+                  },
+                  "locks": {},
+                  "bind": {
+                    "if": "not_empty(params.notes)"
+                  },
+                  "visible": true,
+                  "props": {
+                    "blocks": [
+                      {
+                        "id": "blk_b8ltzbro5f019",
+                        "type": "paragraph",
+                        "align": "left",
+                        "runs": [
+                          {
+                            "text": "",
+                            "bind": "coalesce(params.notes, '')"
+                          }
+                        ]
+                      }
+                    ],
+                    "valign": "top",
+                    "auto_fit": false,
+                    "line_height": 1.4,
+                    "letter_spacing": 0
+                  },
+                  "anchor": "flow"
+                },
+                {
+                  "id": "nd_b8ltzp9ivly1c",
+                  "type": "frame",
+                  "name": "Spacer",
+                  "frame": {
+                    "x": 0,
+                    "y": 0,
+                    "w": 0,
+                    "h": 10,
+                    "rotation": 0,
+                    "z": 0,
+                    "layout": "flow",
+                    "constraints": {
+                      "h": "left",
+                      "v": "top"
+                    }
+                  },
+                  "style": {},
+                  "locks": {},
+                  "bind": null,
+                  "visible": true,
+                  "props": {
+                    "background": null,
+                    "clip": false,
+                    "flow": {
+                      "direction": "column",
+                      "gap": 8,
+                      "padding": [
+                        0,
+                        0,
+                        0,
+                        0
+                      ],
+                      "align": "stretch",
+                      "wrap": false
+                    },
+                    "overflow": "visible"
+                  },
+                  "children": [],
+                  "anchor": "flow"
+                },
+                {
+                  "id": "nd_b8ltzxdoac023",
+                  "type": "frame",
+                  "name": "",
+                  "frame": {
+                    "x": 0,
+                    "y": 0,
+                    "w": 0,
+                    "h": "auto",
+                    "rotation": 0,
+                    "z": 0,
+                    "layout": "flow",
+                    "constraints": {
+                      "h": "left",
+                      "v": "top"
+                    }
+                  },
+                  "style": {},
+                  "locks": {},
+                  "bind": null,
+                  "visible": true,
+                  "props": {
+                    "background": null,
+                    "clip": false,
+                    "flow": {
+                      "direction": "row",
+                      "gap": 28,
+                      "padding": [
+                        0,
+                        0,
+                        0,
+                        0
+                      ],
+                      "align": "start",
+                      "wrap": false
+                    },
+                    "overflow": "visible"
+                  },
+                  "children": [
+                    {
+                      "id": "nd_b8ltz7w9r6f21",
+                      "type": "frame",
+                      "name": "",
+                      "frame": {
+                        "x": 0,
+                        "y": 0,
+                        "w": 0,
+                        "h": "auto",
+                        "rotation": 0,
+                        "z": 0,
+                        "layout": "flow",
+                        "constraints": {
+                          "h": "left",
+                          "v": "top"
+                        },
+                        "grow": 1
+                      },
+                      "style": {},
+                      "locks": {},
+                      "bind": {
+                        "if": "params.account.has_contract == true"
+                      },
+                      "visible": true,
+                      "props": {
+                        "background": null,
+                        "clip": false,
+                        "flow": {
+                          "direction": "column",
+                          "gap": 5,
+                          "padding": [
+                            0,
+                            0,
+                            0,
+                            0
+                          ],
+                          "align": "stretch",
+                          "wrap": false
+                        },
+                        "overflow": "visible"
+                      },
+                      "children": [
+                        {
+                          "id": "nd_b8ltz24xvff1f",
+                          "type": "text",
+                          "name": "",
+                          "frame": {
+                            "x": 0,
+                            "y": 0,
+                            "w": 0,
+                            "h": "auto",
+                            "rotation": 0,
+                            "z": 0,
+                            "layout": "flow",
+                            "constraints": {
+                              "h": "left",
+                              "v": "top"
+                            }
+                          },
+                          "style": {},
+                          "locks": {},
+                          "bind": null,
+                          "visible": true,
+                          "props": {
+                            "blocks": [
+                              {
+                                "id": "blk_b8ltzfpnv2h1d",
+                                "type": "paragraph",
+                                "align": "left",
+                                "style_ref": "h2",
+                                "runs": [
+                                  {
+                                    "text": "Your account"
+                                  }
+                                ]
+                              }
+                            ],
+                            "valign": "top",
+                            "auto_fit": false,
+                            "line_height": 1.4,
+                            "letter_spacing": 0
+                          },
+                          "anchor": "flow"
+                        },
+                        {
+                          "id": "nd_b8ltzognxri1m",
+                          "type": "frame",
+                          "name": "",
+                          "frame": {
+                            "x": 0,
+                            "y": 0,
+                            "w": 0,
+                            "h": "auto",
+                            "rotation": 0,
+                            "z": 0,
+                            "layout": "flow",
+                            "constraints": {
+                              "h": "left",
+                              "v": "top"
+                            }
+                          },
+                          "style": {},
+                          "locks": {},
+                          "bind": null,
+                          "visible": true,
+                          "props": {
+                            "background": null,
+                            "clip": false,
+                            "flow": {
+                              "direction": "row",
+                              "gap": 8,
+                              "padding": [
+                                0,
+                                0,
+                                0,
+                                0
+                              ],
+                              "align": "start",
+                              "wrap": false
+                            },
+                            "overflow": "visible"
+                          },
+                          "children": [
+                            {
+                              "id": "nd_b8ltz58ajby1i",
+                              "type": "text",
+                              "name": "",
+                              "frame": {
+                                "x": 0,
+                                "y": 0,
+                                "w": 0,
+                                "h": "auto",
+                                "rotation": 0,
+                                "z": 0,
+                                "layout": "flow",
+                                "constraints": {
+                                  "h": "left",
+                                  "v": "top"
+                                },
+                                "grow": 1
+                              },
+                              "style": {
+                                "font": {
+                                  "family": "var(--fm-body-font)",
+                                  "size_pt": 10.5,
+                                  "color": "var(--fm-text)"
+                                }
+                              },
+                              "locks": {},
+                              "bind": null,
+                              "visible": true,
+                              "props": {
+                                "blocks": [
+                                  {
+                                    "id": "blk_b8ltzsbusmt1g",
+                                    "type": "paragraph",
+                                    "align": "left",
+                                    "runs": [
+                                      {
+                                        "text": "Contract total"
+                                      },
+                                      {
+                                        "text": "",
+                                        "bind": "coalesce(params.account.change_orders_cents, 0) > 0 ? concat(' (includes ', (params.account.change_orders_cents | money), ' in change orders)') : ''",
+                                        "font": {
+                                          "size_pt": 8.5,
+                                          "color": "var(--fm-color-muted)"
+                                        }
+                                      }
+                                    ]
+                                  }
+                                ],
+                                "valign": "top",
+                                "auto_fit": false,
+                                "line_height": 1.4,
+                                "letter_spacing": 0
+                              },
+                              "anchor": "flow"
+                            },
+                            {
+                              "id": "nd_b8ltzmmpdn91l",
+                              "type": "text",
+                              "name": "",
+                              "frame": {
+                                "x": 0,
+                                "y": 0,
+                                "w": 110,
+                                "h": "auto",
+                                "rotation": 0,
+                                "z": 0,
+                                "layout": "flow",
+                                "constraints": {
+                                  "h": "left",
+                                  "v": "top"
+                                }
+                              },
+                              "style": {
+                                "font": {
+                                  "family": "var(--fm-body-font)",
+                                  "size_pt": 10.5,
+                                  "color": "var(--fm-text)"
+                                }
+                              },
+                              "locks": {},
+                              "bind": null,
+                              "visible": true,
+                              "props": {
+                                "blocks": [
+                                  {
+                                    "id": "blk_b8ltz4qm5bf1j",
+                                    "type": "paragraph",
+                                    "align": "right",
+                                    "runs": [
+                                      {
+                                        "text": "",
+                                        "bind": "params.account.total_cents | money"
+                                      }
+                                    ]
+                                  }
+                                ],
+                                "valign": "top",
+                                "auto_fit": false,
+                                "line_height": 1.4,
+                                "letter_spacing": 0
+                              },
+                              "anchor": "flow"
+                            }
+                          ],
+                          "anchor": "flow"
+                        },
+                        {
+                          "id": "nd_b8ltzl4ox981t",
+                          "type": "frame",
+                          "name": "",
+                          "frame": {
+                            "x": 0,
+                            "y": 0,
+                            "w": 0,
+                            "h": "auto",
+                            "rotation": 0,
+                            "z": 0,
+                            "layout": "flow",
+                            "constraints": {
+                              "h": "left",
+                              "v": "top"
+                            }
+                          },
+                          "style": {},
+                          "locks": {},
+                          "bind": null,
+                          "visible": true,
+                          "props": {
+                            "background": null,
+                            "clip": false,
+                            "flow": {
+                              "direction": "row",
+                              "gap": 8,
+                              "padding": [
+                                0,
+                                0,
+                                0,
+                                0
+                              ],
+                              "align": "start",
+                              "wrap": false
+                            },
+                            "overflow": "visible"
+                          },
+                          "children": [
+                            {
+                              "id": "nd_b8ltzalobzl1p",
+                              "type": "text",
+                              "name": "",
+                              "frame": {
+                                "x": 0,
+                                "y": 0,
+                                "w": 0,
+                                "h": "auto",
+                                "rotation": 0,
+                                "z": 0,
+                                "layout": "flow",
+                                "constraints": {
+                                  "h": "left",
+                                  "v": "top"
+                                },
+                                "grow": 1
+                              },
+                              "style": {
+                                "font": {
+                                  "family": "var(--fm-body-font)",
+                                  "size_pt": 10.5,
+                                  "color": "var(--fm-text)"
+                                }
+                              },
+                              "locks": {},
+                              "bind": null,
+                              "visible": true,
+                              "props": {
+                                "blocks": [
+                                  {
+                                    "id": "blk_b8ltzmsirik1n",
+                                    "type": "paragraph",
+                                    "align": "left",
+                                    "runs": [
+                                      {
+                                        "text": "Payments received"
+                                      }
+                                    ]
+                                  }
+                                ],
+                                "valign": "top",
+                                "auto_fit": false,
+                                "line_height": 1.4,
+                                "letter_spacing": 0
+                              },
+                              "anchor": "flow"
+                            },
+                            {
+                              "id": "nd_b8ltz5mnxiv1s",
+                              "type": "text",
+                              "name": "",
+                              "frame": {
+                                "x": 0,
+                                "y": 0,
+                                "w": 110,
+                                "h": "auto",
+                                "rotation": 0,
+                                "z": 0,
+                                "layout": "flow",
+                                "constraints": {
+                                  "h": "left",
+                                  "v": "top"
+                                }
+                              },
+                              "style": {
+                                "font": {
+                                  "family": "var(--fm-body-font)",
+                                  "size_pt": 10.5,
+                                  "color": "var(--fm-text)"
+                                }
+                              },
+                              "locks": {},
+                              "bind": null,
+                              "visible": true,
+                              "props": {
+                                "blocks": [
+                                  {
+                                    "id": "blk_b8ltzcuqmb81q",
+                                    "type": "paragraph",
+                                    "align": "right",
+                                    "runs": [
+                                      {
+                                        "text": "",
+                                        "bind": "params.account.paid_cents | money"
+                                      }
+                                    ]
+                                  }
+                                ],
+                                "valign": "top",
+                                "auto_fit": false,
+                                "line_height": 1.4,
+                                "letter_spacing": 0
+                              },
+                              "anchor": "flow"
+                            }
+                          ],
+                          "anchor": "flow"
+                        },
+                        {
+                          "id": "nd_b8ltziccoog20",
+                          "type": "frame",
+                          "name": "",
+                          "frame": {
+                            "x": 0,
+                            "y": 0,
+                            "w": 0,
+                            "h": "auto",
+                            "rotation": 0,
+                            "z": 0,
+                            "layout": "flow",
+                            "constraints": {
+                              "h": "left",
+                              "v": "top"
+                            }
+                          },
+                          "style": {},
+                          "locks": {},
+                          "bind": null,
+                          "visible": true,
+                          "props": {
+                            "background": null,
+                            "clip": false,
+                            "flow": {
+                              "direction": "row",
+                              "gap": 8,
+                              "padding": [
+                                0,
+                                0,
+                                0,
+                                0
+                              ],
+                              "align": "start",
+                              "wrap": false
+                            },
+                            "overflow": "visible"
+                          },
+                          "children": [
+                            {
+                              "id": "nd_b8ltzwcmftu1w",
+                              "type": "text",
+                              "name": "",
+                              "frame": {
+                                "x": 0,
+                                "y": 0,
+                                "w": 0,
+                                "h": "auto",
+                                "rotation": 0,
+                                "z": 0,
+                                "layout": "flow",
+                                "constraints": {
+                                  "h": "left",
+                                  "v": "top"
+                                },
+                                "grow": 1
+                              },
+                              "style": {
+                                "font": {
+                                  "family": "var(--fm-body-font)",
+                                  "size_pt": 10.5,
+                                  "color": "var(--fm-text)"
+                                }
+                              },
+                              "locks": {},
+                              "bind": null,
+                              "visible": true,
+                              "props": {
+                                "blocks": [
+                                  {
+                                    "id": "blk_b8ltzmf6kb21u",
+                                    "type": "paragraph",
+                                    "align": "left",
+                                    "runs": [
+                                      {
+                                        "text": "Balance before this invoice"
+                                      }
+                                    ]
+                                  }
+                                ],
+                                "valign": "top",
+                                "auto_fit": false,
+                                "line_height": 1.4,
+                                "letter_spacing": 0
+                              },
+                              "anchor": "flow"
+                            },
+                            {
+                              "id": "nd_b8ltzywi9vg1z",
+                              "type": "text",
+                              "name": "",
+                              "frame": {
+                                "x": 0,
+                                "y": 0,
+                                "w": 110,
+                                "h": "auto",
+                                "rotation": 0,
+                                "z": 0,
+                                "layout": "flow",
+                                "constraints": {
+                                  "h": "left",
+                                  "v": "top"
+                                }
+                              },
+                              "style": {
+                                "font": {
+                                  "family": "var(--fm-body-font)",
+                                  "size_pt": 10.5,
+                                  "color": "var(--fm-text)"
+                                }
+                              },
+                              "locks": {},
+                              "bind": null,
+                              "visible": true,
+                              "props": {
+                                "blocks": [
+                                  {
+                                    "id": "blk_b8ltzm3ars11x",
+                                    "type": "paragraph",
+                                    "align": "right",
+                                    "runs": [
+                                      {
+                                        "text": "",
+                                        "bind": "params.account.balance_cents | money"
+                                      }
+                                    ]
+                                  }
+                                ],
+                                "valign": "top",
+                                "auto_fit": false,
+                                "line_height": 1.4,
+                                "letter_spacing": 0
+                              },
+                              "anchor": "flow"
+                            }
+                          ],
+                          "anchor": "flow"
+                        }
+                      ],
+                      "anchor": "flow"
+                    },
+                    {
+                      "id": "nd_b8ltzuo4ht022",
+                      "type": "widget",
+                      "name": "",
+                      "frame": {
+                        "x": 0,
+                        "y": 0,
+                        "w": 190,
+                        "h": 92,
+                        "rotation": 0,
+                        "z": 0,
+                        "layout": "flow",
+                        "constraints": {
+                          "h": "left",
+                          "v": "top"
+                        }
+                      },
+                      "style": {},
+                      "locks": {},
+                      "bind": {
+                        "if": "coalesce(params.amount_due_cents, 0) > 0"
+                      },
+                      "visible": true,
+                      "props": {
+                        "widget": "doc.pay_now@1",
+                        "config": {
+                          "output_key": "payment",
+                          "source": "params.amount_due_cents",
+                          "amount_label": "Amount due"
+                        }
+                      },
+                      "anchor": "flow"
+                    }
+                  ],
+                  "anchor": "flow"
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    "metadata": {
+      "default_workflow_id": "wfl_invoice",
+      "customer_presentation": {
+        "tab": {
+          "id": "documents",
+          "label": "Documents",
+          "icon": "fa-file-lines",
+          "order": 60
+        },
+        "mode": "hybrid",
+        "workflow_cta": "Pay invoice"
+      }
+    },
+    "initial_metadata": {
+      "default": true
+    },
+    "requires_pricebook_items": [],
+    "pricebook_defaults": []
+  }
+}

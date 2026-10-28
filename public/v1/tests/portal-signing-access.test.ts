@@ -15,7 +15,7 @@ test("the customer's portal can sign its own project's agreement, and nothing el
   const storage = await import("../platform/storage.js");
   const signup = await import("../signup-sandbox/service.js");
   const documents = await import("../documents/service.js");
-  const { ensureDefaultDocumentAssets } = await import("../documents/seeds.js");
+  const { ensureDefaultDocumentAssets } = await import("../documents/library-copies.js");
   const { closeSqlStoresForTests } = await import("../platform/sql_store.js");
   const { buildApp } = await import("../src/app.js");
   await signup.ensureSeedData();

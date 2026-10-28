@@ -25,7 +25,7 @@
 <script src="firstmate-presentation-editor.js"></script>
 <script src="../apps/documents/presentation-editor.js"></script>
 <script>
-(function () {
+(async function () {
   const query = new URLSearchParams(location.search);
   const primary = query.get('primary') || '#1f6feb';
   const rgb = primary.replace('#', '').match(/../g).map((part) => parseInt(part, 16)).join(', ');
@@ -33,10 +33,13 @@
   document.documentElement.style.setProperty('--primary-rgb', rgb);
   const logo = 'data:image/svg+xml;utf8,' + encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 560 144"><path d="M20 96 72 40l52 56" fill="none" stroke="' + primary + '" stroke-width="16" stroke-linecap="round" stroke-linejoin="round"/><text x="150" y="86" font-family="Segoe UI,Arial" font-weight="800" font-size="46" fill="#8fa3bd">Summit Roofing</text></svg>');
   window.saved = [];
+  // The deck is a config library entry (presentation_deck roofing_itemized).
+  const library = await (await fetch('/v1/config-library/read/presentation_deck')).json();
+  const deck = () => JSON.parse(JSON.stringify(library.entries.find((entry) => entry.id === 'roofing_itemized').data.layout));
   const scope = { org: { name: 'Summit Roofing Co.', logo_url: logo }, customer: { name: 'the Alvarez family' }, params: {}, outputs: {} };
   if (query.get('host')) {
     // A stand-in for /v1/document-modules: one presentation module, versions counted.
-    const stored = { moduleId: 'preset_presentation_roofing', version: 'v1', definition: { name: 'Roof presentation', kind: 'presentation', renderer: FMRoofingPresentation.build(), presentation: { pricing: 'scope' } } };
+    const stored = { moduleId: 'preset_presentation_roofing', version: 'v1', definition: { name: 'Roof presentation', kind: 'presentation', renderer: deck(), presentation: { pricing: 'scope' } } };
     window.requests = [];
     window.closed = FMPresentationEditorHost.open({
       orgId: 'org_dev', moduleId: stored.moduleId, scope,
@@ -50,7 +53,7 @@
     return;
   }
   window.editor = FMPresentationEditor.mount(document.getElementById('host'), {
-    document: FMRoofingPresentation.build(),
+    document: deck(),
     themeContext: { overrides: { '--fm-primary': primary } },
     scope,
     sampleState: FMRoofingPresentation.priceSample(FMRoofingPresentation.sampleState()),

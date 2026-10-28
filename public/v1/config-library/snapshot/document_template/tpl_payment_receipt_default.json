@@ -1,0 +1,588 @@
+{
+  "kind": "document_template",
+  "id": "tpl_payment_receipt_default",
+  "revision": 1,
+  "sha256": "af7b6a7ed19aff5666c2f419087b8b7d924dcffb266900cc16521f4af52c13cc",
+  "title": "Standard Payment Receipt",
+  "updated_at": "2026-10-27T23:22:05.622Z",
+  "updated_by": "generator",
+  "data": {
+    "name": "Standard Payment Receipt",
+    "document_type": "payment_receipt",
+    "description": "Branded receipt for a recorded customer payment.",
+    "status": "active",
+    "seeding": "every_organization",
+    "definition": {
+      "schema_version": 1,
+      "kind": "document",
+      "settings": {
+        "paper": {
+          "size": "letter",
+          "orientation": "portrait"
+        },
+        "locale": "en-US",
+        "base_font_pt": 11
+      },
+      "theme_ref": {
+        "theme_id": "thm_clean"
+      },
+      "params": {
+        "project": {
+          "type": "entity",
+          "entity": "project"
+        },
+        "customer": {
+          "type": "entity",
+          "entity": "contact"
+        },
+        "receipt_number": {
+          "type": "string",
+          "required": true
+        },
+        "payment_date": {
+          "type": "date"
+        },
+        "amount_cents": {
+          "type": "currency",
+          "required": true
+        },
+        "payment_method": {
+          "type": "string"
+        },
+        "status": {
+          "type": "string"
+        }
+      },
+      "computed": {},
+      "outputs": {},
+      "styles": {},
+      "components": {},
+      "chains": {},
+      "assets": [],
+      "edit_policy": {
+        "base_profile": "document",
+        "max_profile": "designer",
+        "features": {},
+        "unlock": {
+          "allowed": true
+        }
+      },
+      "metadata": {
+        "document_type": "payment_receipt"
+      },
+      "pages": [
+        {
+          "id": "pg_b8lu3mqluxwb0",
+          "role": "body",
+          "name": "Payment Receipt",
+          "master_ref": null,
+          "repeat": null,
+          "children": [
+            {
+              "id": "nd_b8lu3sewlx5bm",
+              "type": "frame",
+              "name": "Body",
+              "frame": {
+                "x": 48,
+                "y": 80,
+                "w": 516,
+                "h": 664,
+                "rotation": 0,
+                "z": 0,
+                "layout": "flow",
+                "constraints": {
+                  "h": "stretch",
+                  "v": "top"
+                }
+              },
+              "style": {},
+              "locks": {},
+              "bind": null,
+              "visible": true,
+              "props": {
+                "background": null,
+                "clip": false,
+                "flow": {
+                  "direction": "column",
+                  "gap": 10,
+                  "padding": [
+                    0,
+                    0,
+                    0,
+                    0
+                  ],
+                  "align": "stretch",
+                  "wrap": false
+                },
+                "overflow": "paginate",
+                "page_region": "body"
+              },
+              "children": [
+                {
+                  "id": "nd_b8lu3hxvg8ab3",
+                  "type": "image",
+                  "name": "",
+                  "frame": {
+                    "x": 0,
+                    "y": 0,
+                    "w": 150,
+                    "h": 32,
+                    "rotation": 0,
+                    "z": 0,
+                    "layout": "flow",
+                    "constraints": {
+                      "h": "left",
+                      "v": "top"
+                    }
+                  },
+                  "style": {},
+                  "locks": {},
+                  "bind": {
+                    "props": {
+                      "props.media": "{{org.logo_url}}"
+                    },
+                    "if": "not_empty(org.logo_url)"
+                  },
+                  "visible": true,
+                  "props": {
+                    "media": null,
+                    "fit": "contain",
+                    "focal": {
+                      "x": 0.5,
+                      "y": 0.5
+                    },
+                    "crop": null,
+                    "alt": "Company logo"
+                  },
+                  "anchor": "flow"
+                },
+                {
+                  "id": "nd_b8lu32de0pnba",
+                  "type": "frame",
+                  "name": "",
+                  "frame": {
+                    "x": 0,
+                    "y": 0,
+                    "w": 0,
+                    "h": "auto",
+                    "rotation": 0,
+                    "z": 0,
+                    "layout": "flow",
+                    "constraints": {
+                      "h": "left",
+                      "v": "top"
+                    }
+                  },
+                  "style": {},
+                  "locks": {},
+                  "bind": null,
+                  "visible": true,
+                  "props": {
+                    "background": null,
+                    "clip": false,
+                    "flow": {
+                      "direction": "row",
+                      "gap": 16,
+                      "padding": [
+                        0,
+                        0,
+                        0,
+                        0
+                      ],
+                      "align": "start",
+                      "wrap": false
+                    },
+                    "overflow": "visible"
+                  },
+                  "children": [
+                    {
+                      "id": "nd_b8lu3mgvt26b6",
+                      "type": "text",
+                      "name": "",
+                      "frame": {
+                        "x": 0,
+                        "y": 0,
+                        "w": 0,
+                        "h": "auto",
+                        "rotation": 0,
+                        "z": 0,
+                        "layout": "flow",
+                        "constraints": {
+                          "h": "left",
+                          "v": "top"
+                        },
+                        "grow": 1
+                      },
+                      "style": {
+                        "font": {
+                          "family": "var(--fm-display-font)",
+                          "size_pt": 22,
+                          "weight": 800
+                        }
+                      },
+                      "locks": {},
+                      "bind": null,
+                      "visible": true,
+                      "props": {
+                        "blocks": [
+                          {
+                            "id": "blk_b8lu33r2mkmb4",
+                            "type": "paragraph",
+                            "align": "left",
+                            "runs": [
+                              {
+                                "text": "Payment Receipt"
+                              }
+                            ]
+                          }
+                        ],
+                        "valign": "top",
+                        "auto_fit": false,
+                        "line_height": 1.4,
+                        "letter_spacing": 0
+                      },
+                      "anchor": "flow"
+                    },
+                    {
+                      "id": "nd_b8lu3g4dxy9b9",
+                      "type": "text",
+                      "name": "",
+                      "frame": {
+                        "x": 0,
+                        "y": 0,
+                        "w": 164,
+                        "h": "auto",
+                        "rotation": 0,
+                        "z": 0,
+                        "layout": "flow",
+                        "constraints": {
+                          "h": "left",
+                          "v": "top"
+                        }
+                      },
+                      "style": {
+                        "font": {
+                          "family": "var(--fm-body-font)",
+                          "size_pt": 10,
+                          "weight": 700
+                        }
+                      },
+                      "locks": {},
+                      "bind": null,
+                      "visible": true,
+                      "props": {
+                        "blocks": [
+                          {
+                            "id": "blk_b8lu3i0wupvb7",
+                            "type": "paragraph",
+                            "align": "right",
+                            "runs": [
+                              {
+                                "text": "Receipt\n",
+                                "font": {
+                                  "size_pt": 8,
+                                  "weight": 800,
+                                  "color": "var(--fm-color-muted)"
+                                }
+                              },
+                              {
+                                "text": "",
+                                "bind": "coalesce(params.receipt_number, '')"
+                              }
+                            ]
+                          }
+                        ],
+                        "valign": "top",
+                        "auto_fit": false,
+                        "line_height": 1.4,
+                        "letter_spacing": 0
+                      },
+                      "anchor": "flow"
+                    }
+                  ],
+                  "anchor": "flow"
+                },
+                {
+                  "id": "nd_b8lu32gv2zgbb",
+                  "type": "frame",
+                  "name": "Spacer",
+                  "frame": {
+                    "x": 0,
+                    "y": 0,
+                    "w": 0,
+                    "h": 16,
+                    "rotation": 0,
+                    "z": 0,
+                    "layout": "flow",
+                    "constraints": {
+                      "h": "left",
+                      "v": "top"
+                    }
+                  },
+                  "style": {},
+                  "locks": {},
+                  "bind": null,
+                  "visible": true,
+                  "props": {
+                    "background": null,
+                    "clip": false,
+                    "flow": {
+                      "direction": "column",
+                      "gap": 8,
+                      "padding": [
+                        0,
+                        0,
+                        0,
+                        0
+                      ],
+                      "align": "stretch",
+                      "wrap": false
+                    },
+                    "overflow": "visible"
+                  },
+                  "children": [],
+                  "anchor": "flow"
+                },
+                {
+                  "id": "nd_b8lu3y4ggz6bh",
+                  "type": "text",
+                  "name": "",
+                  "frame": {
+                    "x": 0,
+                    "y": 0,
+                    "w": 0,
+                    "h": "auto",
+                    "rotation": 0,
+                    "z": 0,
+                    "layout": "flow",
+                    "constraints": {
+                      "h": "left",
+                      "v": "top"
+                    }
+                  },
+                  "style": {
+                    "font": {
+                      "family": "var(--fm-body-font)",
+                      "size_pt": 11,
+                      "weight": 700
+                    }
+                  },
+                  "locks": {},
+                  "bind": null,
+                  "visible": true,
+                  "props": {
+                    "blocks": [
+                      {
+                        "id": "blk_b8lu3u2v0m5bc",
+                        "type": "paragraph",
+                        "align": "left",
+                        "runs": [
+                          {
+                            "text": "Received from\n",
+                            "font": {
+                              "size_pt": 8,
+                              "weight": 800,
+                              "color": "var(--fm-color-muted)"
+                            }
+                          },
+                          {
+                            "text": "",
+                            "bind": "coalesce(params.customer.name, customer.name, 'Customer')"
+                          }
+                        ]
+                      },
+                      {
+                        "id": "blk_b8lu3szkam4bd",
+                        "type": "paragraph",
+                        "align": "left",
+                        "runs": [
+                          {
+                            "text": "Project\n",
+                            "font": {
+                              "size_pt": 8,
+                              "weight": 800,
+                              "color": "var(--fm-color-muted)"
+                            }
+                          },
+                          {
+                            "text": "",
+                            "bind": "coalesce(params.project.title, project.title, params.project.address, project.address, '')"
+                          }
+                        ]
+                      },
+                      {
+                        "id": "blk_b8lu3schb12be",
+                        "type": "paragraph",
+                        "align": "left",
+                        "runs": [
+                          {
+                            "text": "Payment date\n",
+                            "font": {
+                              "size_pt": 8,
+                              "weight": 800,
+                              "color": "var(--fm-color-muted)"
+                            }
+                          },
+                          {
+                            "text": "",
+                            "bind": "params.payment_date | date"
+                          }
+                        ]
+                      },
+                      {
+                        "id": "blk_b8lu35h83bcbf",
+                        "type": "paragraph",
+                        "align": "left",
+                        "runs": [
+                          {
+                            "text": "Payment method\n",
+                            "font": {
+                              "size_pt": 8,
+                              "weight": 800,
+                              "color": "var(--fm-color-muted)"
+                            }
+                          },
+                          {
+                            "text": "",
+                            "bind": "coalesce(params.payment_method, 'Payment')"
+                          }
+                        ]
+                      }
+                    ],
+                    "valign": "top",
+                    "auto_fit": false,
+                    "line_height": 1.4,
+                    "letter_spacing": 0
+                  },
+                  "anchor": "flow"
+                },
+                {
+                  "id": "nd_b8lu3yo0cpwbi",
+                  "type": "frame",
+                  "name": "Spacer",
+                  "frame": {
+                    "x": 0,
+                    "y": 0,
+                    "w": 0,
+                    "h": 24,
+                    "rotation": 0,
+                    "z": 0,
+                    "layout": "flow",
+                    "constraints": {
+                      "h": "left",
+                      "v": "top"
+                    }
+                  },
+                  "style": {},
+                  "locks": {},
+                  "bind": null,
+                  "visible": true,
+                  "props": {
+                    "background": null,
+                    "clip": false,
+                    "flow": {
+                      "direction": "column",
+                      "gap": 8,
+                      "padding": [
+                        0,
+                        0,
+                        0,
+                        0
+                      ],
+                      "align": "stretch",
+                      "wrap": false
+                    },
+                    "overflow": "visible"
+                  },
+                  "children": [],
+                  "anchor": "flow"
+                },
+                {
+                  "id": "nd_b8lu37ajd7vbl",
+                  "type": "text",
+                  "name": "",
+                  "frame": {
+                    "x": 0,
+                    "y": 0,
+                    "w": 0,
+                    "h": "auto",
+                    "rotation": 0,
+                    "z": 0,
+                    "layout": "flow",
+                    "constraints": {
+                      "h": "left",
+                      "v": "top"
+                    }
+                  },
+                  "style": {
+                    "font": {
+                      "family": "var(--fm-display-font)"
+                    }
+                  },
+                  "locks": {},
+                  "bind": null,
+                  "visible": true,
+                  "props": {
+                    "blocks": [
+                      {
+                        "id": "blk_b8lu31u76z1bj",
+                        "type": "paragraph",
+                        "align": "right",
+                        "runs": [
+                          {
+                            "text": "Amount received\n",
+                            "font": {
+                              "size_pt": 9,
+                              "weight": 800,
+                              "color": "var(--fm-color-muted)"
+                            }
+                          },
+                          {
+                            "text": "",
+                            "bind": "params.amount_cents | money",
+                            "font": {
+                              "size_pt": 28,
+                              "weight": 800,
+                              "color": "var(--fm-color-primary)"
+                            }
+                          },
+                          {
+                            "text": "\n",
+                            "font": {
+                              "size_pt": 5
+                            }
+                          },
+                          {
+                            "text": "",
+                            "bind": "coalesce(params.status, 'Paid')",
+                            "font": {
+                              "size_pt": 10,
+                              "weight": 800
+                            }
+                          }
+                        ]
+                      }
+                    ],
+                    "valign": "top",
+                    "auto_fit": false,
+                    "line_height": 1.4,
+                    "letter_spacing": 0
+                  },
+                  "anchor": "flow"
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    "metadata": {
+      "system": true
+    },
+    "initial_metadata": {
+      "default": true
+    },
+    "requires_pricebook_items": [],
+    "pricebook_defaults": []
+  }
+}

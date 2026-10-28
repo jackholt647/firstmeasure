@@ -2,18 +2,22 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {createRequire} from 'node:module';
 import {readFile} from 'node:fs/promises';
+import {readdirSync,readFileSync} from 'node:fs';
 import path from 'node:path';
 import {chromium} from 'playwright-core';
 const require=createRequire(import.meta.url);
 const libraries=path.resolve(import.meta.dirname,'../../libraries');
+// The decks are config library entries; the checked-in snapshot is what /v1/config-library/read/presentation_deck serves.
+const snapshot=path.resolve(import.meta.dirname,'../config-library/snapshot/presentation_deck');
+const libraryDeck=id=>JSON.parse(readFileSync(path.join(snapshot,id+'.json'),'utf8')).data.layout;
+const READ_DECKS=JSON.stringify({ok:true,kind:'presentation_deck',entries:readdirSync(snapshot).map(file=>JSON.parse(readFileSync(path.join(snapshot,file),'utf8'))).map(entry=>({id:entry.id,revision:entry.revision,title:entry.title,data:entry.data}))});
 const launch=()=>chromium.launch({executablePath:process.env.CHROME_PATH||'C:/Program Files/Google/Chrome/Application/chrome.exe',headless:true});
 
 test('the roofing presentation is a valid document made of slides, steps and assemblies',()=>{
  const M=require('../../libraries/doc-model/firstmate-doc-model.js');
  const P=require('../../libraries/doc-parts/firstmate-doc-parts.js');
- const deck=require('../../libraries/doc-present/templates/roofing-presentation.js');
  const present=require('../../libraries/doc-present/firstmate-doc-present.js');
- const doc=deck.build({M,P});
+ const doc=libraryDeck('roofing_itemized');
  const result=M.validateDocument(doc);
  assert.deepEqual(result.errors,[]);
  assert.deepEqual(M.paperDimensions(doc),{w_pt:960,h_pt:540});
@@ -36,6 +40,7 @@ test('choosing options on the slides changes the price, and the review leads bac
  const browser=await launch();try{
   const page=await browser.newPage({viewport:{width:1280,height:720}}),errors=[];page.on('pageerror',e=>errors.push(e.message));
   await page.route('http://deck.test/**',async route=>{const p=new URL(route.request().url()).pathname;
+   if(p==='/v1/config-library/read/presentation_deck')return route.fulfill({contentType:'application/json',body:READ_DECKS});
    try{return route.fulfill({contentType:p.endsWith('.html')?'text/html; charset=utf-8':'application/javascript; charset=utf-8',body:await readFile(path.join(libraries,p.replace(/^\/libraries\//,'')))});}catch{return route.fulfill({status:404,body:''});}});
   await page.goto('http://deck.test/libraries/doc-present/dev-present.html');
   await page.waitForFunction(()=>window.player);await page.evaluate(()=>player.ready());
@@ -117,19 +122,20 @@ test('quick successive picks keep the last one on screen, and Details works when
  const browser=await launch();try{
   const page=await browser.newPage({viewport:{width:1280,height:720}}),errors=[];page.on('pageerror',e=>errors.push(e.message));
   await page.route('http://deck.test/**',async route=>{const p=new URL(route.request().url()).pathname;
+   if(p==='/v1/config-library/read/presentation_deck')return route.fulfill({contentType:'application/json',body:READ_DECKS});
    try{return route.fulfill({contentType:p.endsWith('.html')?'text/html; charset=utf-8':'application/javascript; charset=utf-8',body:await readFile(path.join(libraries,p.replace(/^\/libraries\//,'')))});}catch{return route.fulfill({status:404,body:''});}});
   await page.goto('http://deck.test/libraries/doc-present/dev-present.html');
   await page.waitForFunction(()=>window.player);await page.evaluate(()=>player.ready());
   // The same deck on a slow server whose group ids carry a scope-piece prefix.
-  await page.evaluate(async()=>{
+  await page.evaluate(async(layout)=>{
    const state=FMRoofingPresentation.priceSample(FMRoofingPresentation.sampleState());
    state.groups.forEach(group=>{group.id='piece_1:'+group.id;});
    window.server=JSON.parse(JSON.stringify(state));window.seen=[];
    document.querySelector('#host').replaceChildren();
-   window.slow=FMDocPresent.mount(document.querySelector('#host'),{document:FMRoofingPresentation.build(),start:{page:5},live:{state,
+   window.slow=FMDocPresent.mount(document.querySelector('#host'),{document:layout,start:{page:5},live:{state,
     onInput:input=>new Promise(resolve=>setTimeout(()=>{seen.push(input.option);const group=server.groups.find(g=>g.id===input.group_id);group.options.forEach(o=>{o.selected=o.id===input.option;});resolve(JSON.parse(JSON.stringify(FMRoofingPresentation.priceSample(server))));},400))}});
    await slow.ready();
-  });
+  },libraryDeck('roofing_itemized'));
   const options=page.locator('.fmdoc-page[data-fmdp-on] [data-part-assembly="asm_underlayment"][data-part-role="option"]');
   const checked=()=>options.evaluateAll(list=>list.map(el=>el.getAttribute('aria-checked')).join());
   const started=await page.evaluate(()=>slow.state().totals.total_cents);
@@ -157,11 +163,10 @@ test('quick successive picks keep the last one on screen, and Details works when
 test('the Good / Better / Best deck compares three options in columns; picking one moves every price',async()=>{
  const M=require('../../libraries/doc-model/firstmate-doc-model.js');
  const P=require('../../libraries/doc-parts/firstmate-doc-parts.js');
- const deck=require('../../libraries/doc-present/templates/roofing-presentation.js');
- const doc=deck.build({M,P,deck:'options'});
+ const doc=libraryDeck('roofing_options');
  assert.deepEqual(M.validateDocument(doc).errors,[]);
  assert.deepEqual(doc.pages.map(page=>page.id),['cover','about','good_roof','anatomy','compare','addons','estimate','sign']);
- assert.deepEqual(deck.build({M,P,deck:'gutters'}).pages.map(page=>page.id),['cover','about','gutter_job','addons','estimate','sign']);
+ assert.deepEqual(libraryDeck('roofing_gutters').pages.map(page=>page.id),['cover','about','gutter_job','addons','estimate','sign']);
  // The comparison is an assembly: its columns cannot lose a name or a price, and a review's Change leads to it.
  assert.equal(doc.assemblies.asm_packages.type,'option_compare');
  const price=M.assemblyParts(doc,'asm_packages').find(part=>part.role==='column.price');
@@ -170,6 +175,7 @@ test('the Good / Better / Best deck compares three options in columns; picking o
  const browser=await launch();try{
   const page=await browser.newPage({viewport:{width:1280,height:720}}),errors=[];page.on('pageerror',e=>errors.push(e.message));
   await page.route('http://deck.test/**',async route=>{const p=new URL(route.request().url()).pathname;
+   if(p==='/v1/config-library/read/presentation_deck')return route.fulfill({contentType:'application/json',body:READ_DECKS});
    try{return route.fulfill({contentType:p.endsWith('.html')?'text/html; charset=utf-8':'application/javascript; charset=utf-8',body:await readFile(path.join(libraries,p.replace(/^\/libraries\//,'')))});}catch{return route.fulfill({status:404,body:''});}});
   await page.goto('http://deck.test/libraries/doc-present/dev-present.html?deck=options');
   await page.waitForFunction(()=>window.player);await page.evaluate(()=>player.ready());

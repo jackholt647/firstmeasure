@@ -169,13 +169,14 @@ test("priced one section per structure, each structure prices from its own measu
 });
 
 test("after signing, materials follow the document's structures and work is sized from its measurements", async () => {
-  const { roofingCalculus } = await import("../signup-sandbox/roofing-documents.js");
+  // The itemized proposal's materials recipe, as the library template carries it.
+  const recipe = (await import("../config-library/library.js")).libraryData<any>("document_template", "tpl_instant_roofing_detailed")!.definition.program.deliverables[0];
   const { runModuleCode } = await import("../documents/modules/runtime.js");
   const { requiredWork } = await import("../labor/scope-artifacts.js");
   const products = ["gaf_hd", "underlayment", "starter", "ridge_cap", "drip_edge"].map((id) => ({ id, name: id, unit: ["gaf_hd", "underlayment"].includes(id) ? "sq" : "lf" }));
   const report = twoStructureReport();
   const dataset = { measurements: Object.fromEntries(Object.entries(report.values).map(([key, value]) => [key, { value, unit: /Squares$/.test(key) ? "roofing_square" : "ft" }])) };
-  const calculate = async (params: Record<string, unknown>) => (await runModuleCode({ source: roofingCalculus("detailed").source, inputs: { document: { params }, values: {} }, state: {}, mode: "evaluate", now: "2026-10-22" },
+  const calculate = async (params: Record<string, unknown>) => (await runModuleCode({ source: recipe.source, inputs: { document: { params }, values: {} }, state: {}, mode: "evaluate", now: "2026-10-22" },
     { read: async (name: string) => (name === "products" ? products : dataset), invoke: async () => { throw new Error("No effects"); } })).outputs as any;
   const state = S.mergeReport(null, report);
   state.structures[0].name = "House"; state.structures[1].name = "Garage";

@@ -1,0 +1,201 @@
+{
+  "kind": "document_workflow",
+  "id": "wfl_roofing_completion_signoff",
+  "revision": 1,
+  "sha256": "eb697341c0de6e61c14034b16995bdddc644160428f79b14020c11d9494075f3",
+  "title": "Completion sign-off",
+  "updated_at": "2026-10-27T23:22:05.622Z",
+  "updated_by": "generator",
+  "data": {
+    "name": "Completion sign-off",
+    "description": "Completed work, open items and warranty; then the customer's walk-through, signature and final payment.",
+    "status": "active",
+    "seeding": "every_organization",
+    "definition": {
+      "schema_version": 1,
+      "name": "Completion sign-off",
+      "contract": {
+        "params": {
+          "project": {
+            "type": "entity",
+            "entity": "project"
+          },
+          "customer": {
+            "type": "entity",
+            "entity": "contact"
+          },
+          "completed_at": {
+            "type": "date",
+            "label": "Completion date"
+          },
+          "work_summary": {
+            "type": "text",
+            "label": "Work completed",
+            "default": "All work in your signed agreement and its approved change orders has been completed, and the property has been cleaned up."
+          },
+          "punch_list": {
+            "type": "text",
+            "label": "Items still to finish"
+          },
+          "warranty_start": {
+            "type": "date",
+            "label": "Warranty starts"
+          },
+          "warranty_summary": {
+            "type": "text",
+            "label": "Warranty",
+            "default": "Our workmanship is warranted as described in your agreement, and the manufacturer's warranty applies to the materials installed."
+          },
+          "collect_final_payment": {
+            "type": "boolean",
+            "label": "Collect the remaining balance",
+            "default": true
+          },
+          "account": {
+            "type": "object",
+            "source": "project_account"
+          },
+          "amount_due_cents": {
+            "type": "currency",
+            "label": "Final payment"
+          }
+        },
+        "outputs": {
+          "completion_ack": {
+            "type": "select",
+            "required": true
+          },
+          "sig_customer": {
+            "type": "signature",
+            "required": true,
+            "signer": "customer"
+          },
+          "final_payment": {
+            "type": "payment",
+            "obligation": "final"
+          }
+        }
+      },
+      "steps": [
+        {
+          "id": "st_completion_details",
+          "title": "Completed work",
+          "audience": [
+            "internal"
+          ],
+          "items": [
+            {
+              "kind": "date",
+              "writes": "params.completed_at",
+              "label": "Completion date",
+              "required": true
+            },
+            {
+              "kind": "text",
+              "writes": "params.work_summary",
+              "label": "Work completed",
+              "required": true,
+              "presentation": {
+                "multiline": true
+              }
+            },
+            {
+              "kind": "text",
+              "writes": "params.punch_list",
+              "label": "Items still to finish",
+              "presentation": {
+                "multiline": true
+              },
+              "placeholder": "Touch up paint on the front fascia",
+              "description": "Anything agreed at the walk-through that is still open, one per line. Leave empty when there is nothing."
+            }
+          ]
+        },
+        {
+          "id": "st_completion_terms",
+          "title": "Warranty & final payment",
+          "audience": [
+            "internal"
+          ],
+          "items": [
+            {
+              "kind": "date",
+              "writes": "params.warranty_start",
+              "label": "Warranty starts",
+              "required": true
+            },
+            {
+              "kind": "text",
+              "writes": "params.warranty_summary",
+              "label": "Warranty",
+              "presentation": {
+                "multiline": true
+              }
+            },
+            {
+              "kind": "boolean",
+              "writes": "params.collect_final_payment",
+              "label": "Collect the remaining balance",
+              "description": "After signing, the customer is asked to pay what is left on the contract. The certificate shows the amount."
+            }
+          ]
+        },
+        {
+          "id": "st_completion_send",
+          "title": "Review & send",
+          "audience": [
+            "internal"
+          ],
+          "items": [
+            {
+              "kind": "review",
+              "label": "Before you send"
+            }
+          ],
+          "preview": {
+            "template_ref": "tpl_roofing_completion_certificate",
+            "live": true
+          }
+        },
+        {
+          "id": "st_completion_review",
+          "title": "Walk-through",
+          "audience": [
+            "customer"
+          ],
+          "items": [
+            {
+              "kind": "choice_group",
+              "writes": "outputs.completion_ack",
+              "required": true,
+              "label": "Is the work complete?",
+              "options": [
+                {
+                  "id": "accepted",
+                  "label": "Yes, the work is complete",
+                  "description": "Everything in my agreement is done, apart from any items still to finish listed on the certificate."
+                },
+                {
+                  "id": "needs_follow_up",
+                  "label": "Not yet",
+                  "description": "Something else needs attention before I sign. The project team will be told and will contact me."
+                }
+              ],
+              "presentation": {
+                "style": "cards"
+              }
+            }
+          ]
+        }
+      ],
+      "audiences": {
+        "internal": {},
+        "customer": {
+          "theme": "portal"
+        }
+      }
+    },
+    "metadata": {},
+    "pricebook_defaults": []
+  }
+}

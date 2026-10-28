@@ -10,7 +10,9 @@ const storage=await import('../platform/storage.js');
 const signup=await import('../signup-sandbox/service.js');
 await signup.ensureSeedData();
 const {authContext:ctx,testOrg}=await signup.createTestInstance('swf_instant_full_org');
-const {seedInstantRoofingDocuments,ROOFING_ESTIMATES}=await import('../signup-sandbox/roofing-documents.js');
+const {ensureDefaultDocumentAssets}=await import('../documents/library-copies.js');
+const ROOFING_ESTIMATES=(await import('../config-library/library.js')).libraryEntries('document_template').filter(entry=>entry.id.startsWith('tpl_instant_roofing_')).map(entry=>({key:entry.id.slice('tpl_instant_roofing_'.length)}));
+assert.equal(ROOFING_ESTIMATES.length,6,'the roofing sales pack is six library templates');
 const documentStorage=await import('../documents/storage.js');
 assert.ok(await documentStorage.readDocumentTemplate(ctx.orgId,'tpl_instant_roofing_quick'));
 const extraUser=await signup.addTestOrgUser(String(testOrg.id),{name:'Second tester',email:'second@roofing.test',role:'admin'});
@@ -18,7 +20,7 @@ const extraContext=await signup.loginAsTestOrgUser(String(testOrg.id),String(ext
 const {publicAuthContext}=await import('../platform/auth.js');
 assert.equal((publicAuthContext(extraContext).identity.preferences as any).left_column_behavior,'tooltip');
 assert.equal((publicAuthContext(extraContext).identity.preferences as any).always_collapsible_left_column,true);
-await seedInstantRoofingDocuments(ctx.orgId,ctx);
+await ensureDefaultDocumentAssets(ctx.orgId,ctx,{refresh:true});
 const {createDocumentInstance,resolveDocumentInstance,sendDocument}=await import('../documents/service.js');
 const project=await storage.upsertDocument(ctx.orgId,'projects',{id:'project_roofing_test',data:{title:'Roofing test',branch_id:'default'}});
 {

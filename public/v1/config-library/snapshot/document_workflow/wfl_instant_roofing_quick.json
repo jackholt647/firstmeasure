@@ -1,0 +1,171 @@
+{
+  "kind": "document_workflow",
+  "id": "wfl_instant_roofing_quick",
+  "revision": 1,
+  "sha256": "64e241c52b645f9eb15d9e646dc971477009e98469ca49bf7ea11c749d3d81db",
+  "title": "Roof replacement · Per-square estimate",
+  "updated_at": "2026-10-27T23:22:05.622Z",
+  "updated_by": "generator",
+  "data": {
+    "name": "Roof replacement · Per-square estimate",
+    "description": "A concise roof estimate priced by area, with measured accessories supplied separately.",
+    "status": "active",
+    "seeding": "with_template",
+    "definition": {
+      "schema_version": 1,
+      "name": "Roof replacement · Per-square estimate",
+      "contract": {
+        "params": {
+          "structure": {
+            "type": "string",
+            "label": "Structure",
+            "default": "Main house"
+          },
+          "color": {
+            "type": "string",
+            "label": "Material color",
+            "default": "charcoal"
+          },
+          "roof_squares": {
+            "type": "number",
+            "label": "Roof area (squares)",
+            "default": 20
+          },
+          "waste_percent": {
+            "type": "number",
+            "label": "Material waste (%)",
+            "default": 10
+          },
+          "ridge_vent": {
+            "type": "boolean",
+            "label": "Include ridge ventilation",
+            "default": true
+          },
+          "rate_cents": {
+            "type": "currency",
+            "label": "Price per square",
+            "default": 0
+          },
+          "package_cents": {
+            "type": "currency",
+            "label": "Package price",
+            "default": 2000000
+          },
+          "scope_items": {
+            "type": "list",
+            "items": {
+              "type": "pricebook_line"
+            },
+            "label": "Accepted scope",
+            "default": [
+              {
+                "id": "accepted_work",
+                "name": "HDZ roof replacement",
+                "quantity": 1,
+                "unit": "job",
+                "pricing": {
+                  "formula": "round(params.roof_squares * params.rate_cents)"
+                }
+              }
+            ]
+          },
+          "scope_pieces": {
+            "type": "list",
+            "items": {
+              "type": "object"
+            },
+            "label": "Project work"
+          },
+          "measurement_requirements": {
+            "type": "list",
+            "items": {
+              "type": "string"
+            }
+          },
+          "measurements": {
+            "type": "measurements",
+            "label": "Measurements"
+          }
+        },
+        "outputs": {
+          "sig_customer": {
+            "type": "signature",
+            "required": true,
+            "signer": "customer"
+          }
+        }
+      },
+      "steps": [
+        {
+          "id": "scope",
+          "title": "Define the work",
+          "audience": [
+            "internal"
+          ],
+          "items": [
+            {
+              "kind": "text",
+              "writes": "params.structure",
+              "label": "Structure",
+              "required": true
+            },
+            {
+              "kind": "number",
+              "writes": "params.roof_squares",
+              "label": "Roof area (squares)",
+              "required": true
+            },
+            {
+              "kind": "number",
+              "writes": "params.waste_percent",
+              "label": "Material waste (%)",
+              "required": true
+            },
+            {
+              "kind": "text",
+              "writes": "params.color",
+              "label": "Material color",
+              "required": true
+            },
+            {
+              "kind": "boolean",
+              "writes": "params.ridge_vent",
+              "label": "Include ridge ventilation",
+              "required": true
+            },
+            {
+              "kind": "currency",
+              "writes": "params.rate_cents",
+              "label": "Price per square",
+              "required": true
+            }
+          ]
+        },
+        {
+          "id": "review",
+          "title": "Review estimate",
+          "audience": [
+            "internal"
+          ],
+          "items": [
+            {
+              "kind": "review",
+              "label": "Review before sending"
+            }
+          ],
+          "preview": {
+            "template_ref": "tpl_instant_roofing_quick",
+            "live": true
+          }
+        }
+      ]
+    },
+    "metadata": {},
+    "pricebook_defaults": [
+      {
+        "param": "rate_cents",
+        "item_id": "gaf_hd"
+      }
+    ]
+  }
+}

@@ -1,0 +1,236 @@
+{
+  "kind": "document_workflow",
+  "id": "wfl_instant_roofing_gutters",
+  "revision": 1,
+  "sha256": "020b34dac4105f4694da11831fbe1ee334c6cf565e280cfc3411fa8c809fcb35",
+  "title": "Gutters · Estimate",
+  "updated_at": "2026-10-27T23:22:05.622Z",
+  "updated_by": "generator",
+  "data": {
+    "name": "Gutters · Estimate",
+    "description": "A gutter job on its own: removal, new seamless gutters and downspouts, with gutter guards as an option.",
+    "status": "active",
+    "seeding": "with_template",
+    "definition": {
+      "schema_version": 1,
+      "name": "Gutters · Estimate",
+      "contract": {
+        "params": {
+          "structure": {
+            "type": "string",
+            "label": "Structure",
+            "default": "Main house"
+          },
+          "scope_items": {
+            "type": "list",
+            "items": {
+              "type": "pricebook_line"
+            },
+            "label": "Accepted scope",
+            "default": []
+          },
+          "scope_pieces": {
+            "type": "list",
+            "items": {
+              "type": "object"
+            },
+            "label": "Project work",
+            "default": [
+              {
+                "id": "piece_gutters",
+                "template_id": "gutters",
+                "name": "Gutter Replacement"
+              }
+            ]
+          },
+          "measurement_requirements": {
+            "type": "list",
+            "items": {
+              "type": "string"
+            }
+          },
+          "measurements": {
+            "type": "measurements",
+            "label": "Measurements"
+          },
+          "payment_schedule": {
+            "type": "payment_schedule",
+            "label": "Payment terms",
+            "default": [
+              {
+                "id": "deposit",
+                "label": "Deposit",
+                "kind": "percent",
+                "percent": 30,
+                "payment_kind": "deposit",
+                "due_rule": "on_signature"
+              },
+              {
+                "id": "final",
+                "label": "Final payment",
+                "kind": "percent",
+                "percent": 70,
+                "payment_kind": "final",
+                "due_rule": "project_completion"
+              }
+            ]
+          },
+          "scope_generated_from": {
+            "type": "string"
+          },
+          "customer_choice_count": {
+            "type": "number",
+            "default": 0
+          },
+          "deposit_at_signing": {
+            "type": "boolean",
+            "default": true
+          },
+          "show_line_prices": {
+            "type": "boolean",
+            "label": "Print each line price",
+            "default": true
+          }
+        },
+        "outputs": {
+          "selections": {
+            "type": "select",
+            "applies": "scope_selections",
+            "label": "Your options"
+          },
+          "sig_customer": {
+            "type": "signature",
+            "required": true,
+            "signer": "customer"
+          },
+          "deposit_payment": {
+            "type": "payment",
+            "obligation": "deposit",
+            "required_for": "completed"
+          }
+        }
+      },
+      "steps": [
+        {
+          "id": "measure",
+          "title": "Gutters",
+          "description": "Enter the gutter run and the downspouts to replace. Every quantity on the estimate follows from these.",
+          "audience": [
+            "internal"
+          ],
+          "items": [
+            {
+              "kind": "measurements",
+              "writes": "params.measurements",
+              "label": "Gutter measurements",
+              "required": true,
+              "fields": [
+                {
+                  "key": "gutterLf",
+                  "label": "Gutter length",
+                  "unit": "ft"
+                },
+                {
+                  "key": "downspoutLf",
+                  "label": "Downspout length",
+                  "unit": "ft",
+                  "default": 0
+                }
+              ],
+              "prefill": "project.measurements"
+            }
+          ]
+        },
+        {
+          "id": "items",
+          "title": "Line items",
+          "audience": [
+            "internal"
+          ],
+          "items": [
+            {
+              "kind": "line_items_review",
+              "writes": "params.scope_items",
+              "required": true,
+              "label": "Line items"
+            }
+          ]
+        },
+        {
+          "id": "terms",
+          "title": "Payment terms",
+          "description": "How the job is paid. The milestone due on signature is the deposit the customer pays when they approve.",
+          "audience": [
+            "internal"
+          ],
+          "items": [
+            {
+              "kind": "payment_schedule",
+              "writes": "params.payment_schedule",
+              "label": "Payment schedule",
+              "required": true
+            }
+          ]
+        },
+        {
+          "id": "review",
+          "title": "Review & send",
+          "audience": [
+            "internal"
+          ],
+          "items": [
+            {
+              "kind": "review",
+              "label": "Before you send"
+            }
+          ],
+          "preview": {
+            "template_ref": "tpl_instant_roofing_gutters",
+            "live": true
+          }
+        },
+        {
+          "id": "choose",
+          "title": "Choose your options",
+          "audience": [
+            "customer"
+          ],
+          "when": "{{coalesce(params.customer_choice_count, 0) > 0}}",
+          "items": [
+            {
+              "kind": "choice_group",
+              "writes": "outputs.selections",
+              "options_from": "scope_items",
+              "label": "Your options",
+              "description": "Pick the products you want. The proposal total updates with each choice."
+            }
+          ]
+        }
+      ],
+      "completion": {
+        "offers": [
+          "present",
+          "send_estimate",
+          "send_presentation"
+        ],
+        "default": "present",
+        "presentation": {
+          "module_id": "preset_presentation_roofing_gutters"
+        }
+      }
+    },
+    "metadata": {
+      "customer_presentation": {
+        "tab": {
+          "id": "documents",
+          "label": "Documents",
+          "icon": "fa-file-lines",
+          "order": 60
+        },
+        "mode": "hybrid",
+        "workflow_cta": "Choose options & approve"
+      }
+    },
+    "pricebook_defaults": []
+  }
+}

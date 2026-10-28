@@ -69,7 +69,7 @@ import { buildRenderHarnessHtml } from "./render.js";
 import { renderDocumentFallbackPdf, renderDocumentPdf } from "./pdf.js";
 import { applyInvoiceOnSend, deriveAccountParams, documentPaymentTarget, persistAccountParams } from "./account.js";
 import { applyDocumentInput, classifyTracedBindings, touchedParamKeys, tracedBindings } from "./inputs.js";
-import { ensureDefaultDocumentAssets, ensureScopeDocumentTemplate } from "./seeds.js";
+import { ensureDefaultDocumentAssets, ensureLibraryTemplate } from "./library-copies.js";
 import { documentRequirementsStatus, documentSignatureRequirement, normalizeCustomerDocumentPresentation } from "./presentation.js";
 import {
   DOCUMENT_CAPABILITIES,
@@ -637,8 +637,8 @@ async function resolveWorkflowForCreate(orgId: string, input: JsonObject, templa
 
 export async function createDocumentInstance(orgId: string, projectId: string, input: JsonObject, ctx: PlatformAuthContext, options: { createOnly?: boolean; departmentPermission?: string } = {}): Promise<{ document: JsonObject; missing_params: string[] }> {
   await ensureDefaultDocumentAssets(orgId).catch(() => null);
-  // A scope may issue a template that only it uses; it is created on first use.
-  if (cleanText(input.template_id)) await ensureScopeDocumentTemplate(orgId, cleanText(input.template_id)).catch(() => null);
+  // A template made only when asked for (a scope's own, the Operations scope of work) is copied on first use.
+  if (cleanText(input.template_id)) await ensureLibraryTemplate(orgId, cleanText(input.template_id)).catch(() => null);
   const capabilityState = await documentCapabilityState(orgId);
   const typeDef = typeDefinitionFor(cleanText(input.document_type));
   requireDocumentTypeEnabled(capabilityState, typeDef.id);
@@ -1217,7 +1217,7 @@ export async function issueDocumentFromAutomation(orgId: string, input: {
     // The type comes from the template, which may not have been seeded yet:
     // this can be the organization's first document, or a scope's own template.
     await ensureDefaultDocumentAssets(orgId).catch(() => null);
-    await ensureScopeDocumentTemplate(orgId, cleanText(input.template_id)).catch(() => null);
+    await ensureLibraryTemplate(orgId, cleanText(input.template_id)).catch(() => null);
     const template = await readDocumentTemplate(orgId, cleanText(input.template_id)).catch(() => null);
     documentTypeId = cleanText(asObject(template).document_type) || "generic";
   }

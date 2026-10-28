@@ -80,7 +80,7 @@ What a project requires is `requiredWork(sets, context)` over its artifacts.
   `{ lines, warnings, work }`. `work` is `[{ item, quantity?, explanation? }]`.
   It is validated against the dictionary when evaluated and becomes the set's
   `work` when the evaluation is applied, with the material lines. The sample
-  roofing document does this (`signup-sandbox/roofing-documents.ts`).
+  roofing proposals do this (config library templates `tpl_instant_roofing_*`).
 - **By hand.** `saveManualScope` keeps one manual set per project ("Added by
   hand") and replaces its work as a whole, through the ledger's own create,
   evaluate and apply commands. Action `work-requirements.manual.save`, route

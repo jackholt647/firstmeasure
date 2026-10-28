@@ -541,7 +541,8 @@ export async function createTestInstance(workflowId: string, input: JsonObject =
   // Instant development organizations start ready to test using the existing
   // shared transport. Other workflows still exercise their onboarding stages.
   if (env.dataEnvironment === 'development' && workflowId === 'swf_instant_full_org') {
-    await (await import('./roofing-documents.js')).seedInstantRoofingDocuments(String(organization.id), ctx);
+    // Every document default, the roofing sales pack included (its price book is the shared roofing one).
+    await (await import('../documents/library-copies.js')).ensureDefaultDocumentAssets(String(organization.id), ctx, { refresh: true });
     await (await import('../materials/roofing-library.js')).seedInstantRoofingLibrary(String(organization.id), ctx);
     await (await import('../labor/sample-pay-sheets.js')).seedInstantPaySheets(String(organization.id), ctx);
     await (await import('../payroll/sample-pay-rules.js')).seedSamplePayRules(String(organization.id), ctx);

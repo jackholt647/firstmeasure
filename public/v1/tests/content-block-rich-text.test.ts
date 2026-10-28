@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { FMDocModel } from "../documents/schemas.js";
-import { roofingEstimateDefinition } from "../signup-sandbox/roofing-documents.js";
+import { libraryCopy } from "../config-library/library.js";
 import { mediaVariantEntry } from "../platform/media_variants.js";
 
 type Node = { type?: string; props?: { blocks?: Array<{ type?: string; list_style?: string; runs?: Array<{ text?: string; weight?: number }> }>; media?: { url?: string }; rows?: unknown[] }; children?: Node[] };
@@ -11,7 +11,8 @@ function walk(nodes: Node[], visit: (node: Node) => void) {
 }
 
 test("a content block's Markdown body resolves to formatted text, lists and tables, with its GIF", () => {
-  const definition = roofingEstimateDefinition("detailed", { roof: 450, gutter: 12 }) as Record<string, unknown>;
+  // The itemized roofing proposal, a config library template.
+  const definition = libraryCopy<{ definition: Record<string, unknown> }>("document_template", "tpl_instant_roofing_detailed")!.definition;
   const resolved = FMDocModel.resolveBindings(definition, {
     params: {
       content_blocks: [

@@ -1,0 +1,172 @@
+{
+  "kind": "document_theme",
+  "id": "thm_margin",
+  "revision": 1,
+  "sha256": "30b9a32fce1ef369e3daf368e1287e530244528c963097dbe0a5e3e2fdd2b6b5",
+  "title": "Margin",
+  "updated_at": "2026-10-27T23:22:05.622Z",
+  "updated_by": "generator",
+  "data": {
+    "name": "Margin",
+    "description": "Bold full-height brand rail on the left of every page.",
+    "definition": {
+      "name": "Margin",
+      "tokens": {
+        "colors": {
+          "primary": {
+            "from": "org.branding.colors.primary",
+            "fallback": "#2563EB"
+          },
+          "secondary": {
+            "from": "org.branding.colors.secondary",
+            "fallback": "#bfdbfe"
+          },
+          "accent": {
+            "from": "org.branding.colors.secondary",
+            "fallback": "#bfdbfe"
+          },
+          "accent_soft": "color-mix(in srgb, var(--fm-accent) 34%, transparent)",
+          "text": "#111827",
+          "muted": "#667085",
+          "paper": "#ffffff"
+        },
+        "fonts": {
+          "display": "\"Montserrat\", \"Trebuchet MS\", \"Helvetica Neue\", Helvetica, Arial, sans-serif",
+          "body": "\"Montserrat\", \"Segoe UI\", \"Helvetica Neue\", Helvetica, Arial, sans-serif"
+        },
+        "spacing": {
+          "page_margin_pt": 40,
+          "page_margin_top_pt": 40,
+          "page_margin_right_pt": 40,
+          "page_margin_bottom_pt": 40,
+          "page_margin_left_pt": 40,
+          "gap_pt": 12
+        }
+      },
+      "type_styles": {
+        "h1": {
+          "family": "var(--fm-display-font)",
+          "size_pt": 26,
+          "weight": 800,
+          "color": "var(--fm-text)"
+        },
+        "h2": {
+          "family": "var(--fm-display-font)",
+          "size_pt": 16,
+          "weight": 800,
+          "color": "var(--fm-text)"
+        },
+        "body": {
+          "family": "var(--fm-body-font)",
+          "size_pt": 11,
+          "weight": 400,
+          "color": "var(--fm-text)"
+        },
+        "caption": {
+          "family": "var(--fm-body-font)",
+          "size_pt": 8.5,
+          "weight": 600,
+          "color": "var(--fm-color-muted)"
+        },
+        "legal": {
+          "family": "var(--fm-body-font)",
+          "size_pt": 7.5,
+          "weight": 400,
+          "color": "var(--fm-color-muted)"
+        }
+      },
+      "page_masters": [
+        {
+          "id": "m_margin_body",
+          "match": {
+            "role": "*"
+          },
+          "chrome": [
+            {
+              "id": "nd_b8l2vaqu0u51",
+              "type": "shape",
+              "name": "",
+              "frame": {
+                "x": 0,
+                "y": 0,
+                "w": 48,
+                "h": 792,
+                "rotation": 0,
+                "z": 0,
+                "layout": "absolute",
+                "constraints": {
+                  "h": "left",
+                  "v": "top"
+                }
+              },
+              "style": {
+                "fill": {
+                  "type": "solid",
+                  "color": "var(--fm-primary)"
+                }
+              },
+              "locks": {},
+              "bind": null,
+              "visible": true,
+              "props": {
+                "shape": "rect",
+                "points": null,
+                "d": null,
+                "corner_radius": 0
+              }
+            },
+            {
+              "id": "nd_b8l2v39qvkw2",
+              "type": "shape",
+              "name": "",
+              "frame": {
+                "x": 48,
+                "y": 0,
+                "w": 10,
+                "h": 792,
+                "rotation": 0,
+                "z": 0,
+                "layout": "absolute",
+                "constraints": {
+                  "h": "left",
+                  "v": "top"
+                }
+              },
+              "style": {
+                "fill": {
+                  "type": "solid",
+                  "color": "var(--fm-accent)"
+                }
+              },
+              "locks": {},
+              "bind": null,
+              "visible": true,
+              "props": {
+                "shape": "rect",
+                "points": null,
+                "d": null,
+                "corner_radius": 0
+              }
+            }
+          ],
+          "content_inset": {
+            "top": 48,
+            "left": 104,
+            "right": 48,
+            "bottom": 48
+          }
+        }
+      ],
+      "widget_skins": {
+        "doc.line_items": {
+          "header_fill": "var(--fm-primary)",
+          "header_color": "#ffffff"
+        },
+        "doc.payment_schedule": {
+          "header_fill": "var(--fm-primary)",
+          "header_color": "#ffffff"
+        }
+      }
+    }
+  }
+}

@@ -422,7 +422,7 @@ test("templates with disabled payment elements still publish and launch with tho
 test("Kitchen finish selections workflow can be copied while document payments are disabled", async () => {
   const client = createSessionClient();
   const { orgId } = await registerOrg(client);
-  await (await import("../documents/seeds.js")).ensureScopeDocumentTemplate(orgId, "tpl_kitchen_selections");
+  await (await import("../documents/library-copies.js")).ensureLibraryTemplate(orgId, "tpl_kitchen_selections");
   const seeded = await client.request("GET", `/v1/documents/organizations/${orgId}/workflows/wfl_kitchen_selections`);
   assert.equal(seeded.workflow.name, "Kitchen finish selections");
   await (await operatorFixtureClient(app, orgId)).request("PUT", `/v1/platform/organizations/${orgId}/capabilities`, { values: { "documents.payments": false } });
