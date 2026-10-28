@@ -72,6 +72,30 @@ in the main clone.
   on dev.1m8.ai in about a second, for everyone. Commit and submit when done.
 - Repo rules are in the checkout's AGENTS.md. Read it before changing anything.
 
+## FirstMate Tracker (tracker.1m8.ai): change and deploy it
+- Separate repo: shared bare repo `/srv/agents/repos/firstmate-screen-recorder.git` (Jack's PC pushes there too),
+  app in `tracker/`. Its `master` is what's deployable. The clone `/srv/agents/work/firstmate-tracker` is shared like
+  the main clone: read there, but work in your own worktree:
+
+      git -C /srv/agents/work/firstmate-tracker pull -q --ff-only
+      git -C /srv/agents/work/firstmate-tracker worktree add -b tracker/<slug> /srv/agents/work/tracker-<slug> origin/master
+      cd /srv/agents/work/tracker-<slug>     # change, test (cd tracker && npm install && node scripts/test-api.mjs), commit
+      git fetch origin && git rebase origin/master && git push origin HEAD:master
+      bash tracker/deploy/deploy-from-git.sh            # deploys origin/master; health-checked, rolls back by itself
+      bash tracker/deploy/deploy-from-git.sh status     # live revision and health; also: history, rollback [tag]
+
+- There is no staging: tracker.1m8.ai is the only instance and Jack uses it all day. Each deploy builds beside the
+  live one, backs up the database, needs /healthz three times through Caddy and otherwise rolls back. Still: deploy
+  only what you tested, and check the site after.
+- The ssh alias `tracker-deploy` (key `~/.ssh/fm_tracker_deploy_ed25519`, never print or copy it) can only run
+  deploy / rollback / status / history on the FirstLook droplet: no shell there, no FirstLook app or data. It can't
+  deploy a change to `tracker/docker-compose.yml` (Jack must), and it won't replace a folder copy Jack deployed from
+  his PC (uncommitted work) for 6 hours. Details: `tracker/README.md`, "Deploy".
+- The tracker's routers, runner and titler run here from `~/.firstmate/` (`router.mjs`, `runner.mjs`, `titler.mjs`)
+  as systemd user units `tracker-router@general`, `tracker-router@bugs`, `tracker-runner`, `tracker-titler`. They are
+  not part of the deploy: copy the committed file in (keep a `.bak-<date>`), `systemctl --user restart <unit>`,
+  check `journalctl --user -u <unit> -n 20`.
+
 ## Experiments
 - `fm-experiment run <name> <port> -- <command>` (or `add <name> <port>` for something already running) serves
   https://<name>.experimental.1m8.ai with HTTPS and noindex. Listen on 127.0.0.1. Index:
