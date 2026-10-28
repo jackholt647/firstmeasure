@@ -22,8 +22,8 @@ in the main clone.
   (`~/code`); the main clone is `/srv/agents/work/firstmeasure` (canonical branch). After making a worktree run
   `fm-deps` in it (links node_modules to a shared build).
 - Can reach: GitHub, the dev push router (submit only), dev web's live layer, the internet.
-  Cannot reach: production (no key, VPC or secret), dev host shells, DigitalOcean's API. Never copy cluster
-  keys, DigitalOcean tokens or production secrets here.
+  Root shells on the dev hosts with `fm-dev-host` (section below). Cannot reach: production (no key, VPC or
+  secret), DigitalOcean's API. Never copy cluster keys, DigitalOcean tokens or production secrets here.
 - `~/reference/synthesizer.js` (private to `agent`) is Jack's helper with model-provider API keys and call
   functions (Luna among them); use it to call those providers. Never print its keys or copy them anywhere:
   no commit, log, experiment, message or other file.
@@ -64,6 +64,26 @@ in the main clone.
   `agents:fm-agents-1`); the CLI reads it by itself. Never ask anyone for a key, and never print, copy or commit it.
   If it is missing or revoked, run `sh tools/config-library/enroll.sh agents:fm-agents-1` from a checkout (it signs
   with `~/.ssh/fm_config_library_ed25519` and writes a fresh key). Dev only: production has no keys.
+
+## Dev is down? Fix the hosts yourself (dev only)
+- `fm-dev-host web|legacy|worker [command]` opens a root shell (or runs one command) on a development host;
+  `fm-dev-host list` shows them. `web` is whichever pool node is primary right now (read from the dev push router),
+  so pool swaps never strand you. Key `~/.ssh/fm_devops_ed25519`: authorized on dev hosts only; never print or
+  copy it, and never try it on anything else.
+- Where things run: dev.1m8.ai -> load balancer `firstmeasure-development-lb` -> the autoscale web pool (1-2 nodes,
+  replaced at any time). `/measure/internal/` and other PHP are proxied to `legacy`
+  (firstmeasure-development-compatibility, private 10.124.16.5), whose PHP calls Node at
+  `FIRSTMEASURE_API_BASE` (`/etc/php/8.3/fpm/pool.d/zz-firstmeasure-development-api.conf`). The `worker` runs
+  automations. Logs: nginx `/var/log/nginx/`, PHP-FPM `/var/log/php8.3-fpm.log`, Node `journalctl`.
+- You may diagnose and fix dev host configuration and services (nginx, PHP-FPM, env, restarts) without asking
+  anyone: when dev is down, fixing it is your job, not a question for Jack. Keep a `.bak-<date>` of any file you
+  change, prove the fix (the page loads with `fm-dev-login`'s state), and put the same change in the repo copy
+  under `deploy/digitalocean/` with your commit. Never point anything at a web node's IP: nodes are replaced; use
+  https://dev.1m8.ai.
+- Still not yours: production (never), the pool's image, template, size or user data, droplets, the load
+  balancer, firewalls and DNS (ask Jack), and releases (ship code only through the dev push router; never copy
+  code onto a host by hand). Example: 2026-10-28 every editor page returned 503 "Staff access could not be
+  verified" because the legacy PHP still called a retired web node's IP; the fix was one line in that conf.
 
 ## Shipping to dev (never production)
 - Commit, `git fetch devpush && git rebase devpush/codex/consolidated-firstmeasure-20260923`, then

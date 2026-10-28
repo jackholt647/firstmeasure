@@ -136,6 +136,20 @@ Caveat: dev's signup sandbox lists every test org's login at `GET /v1/signup-san
 registration is not gated on dev. This org is therefore no more private than any other dev test org. Keep
 real data out of it.
 
+## Dev host access
+
+Agents fix dev outages without Jack. `fm-dev-host web|legacy|worker [command]` (source
+`tools/agent-droplet/bin/fm-dev-host`) opens a root shell on a development host with `~/.ssh/fm_devops_ed25519`,
+a key generated on the droplet and authorized in root's `authorized_keys` on the dev legacy, dev worker and dev
+web hosts only, never production. `web` resolves the current pool primary from
+`https://dev.1m8.ai/__dev-push/status.json`, so pool swaps don't strand it.
+
+A pool node made from the current image (snapshot `fm-dev-web-20261028`) lacks the key until the image or the
+pool's user data carries it; until then `fm-dev-host web` fails after a swap while `legacy` and `worker` keep
+working. What agents may change on those hosts is in `home/ENVIRONMENT.md` ("Dev is down?"). Added after
+2026-10-28, when a worker diagnosed an editor outage (legacy PHP pinned to a retired web node's IP) but had no
+way in.
+
 ## Its own desktop
 
 XFCE with Google's Chrome Remote Desktop host, as a headless session for `agent` (no display manager; Remote
