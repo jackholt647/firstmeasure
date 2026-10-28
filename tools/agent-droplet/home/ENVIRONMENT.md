@@ -44,7 +44,8 @@ and the full reference is `docs/architecture/agent-droplet.md` there.
 ## Experiments
 - `fm-experiment run <name> <port> -- <command>` (or `add <name> <port>` for something already running) serves
   https://<name>.experimental.1m8.ai with HTTPS and noindex. Listen on 127.0.0.1. Index:
-  https://index.experimental.1m8.ai/.
+  https://index.experimental.1m8.ai/. https://experimental.1m8.ai itself is the GEO experiment
+  (`/srv/agents/experiments/geo`, service `firstmate-experiments`), with the game at `/workspace/game/`.
 
 ## Disk
 - If `/srv/agents/status/disk-warning.txt` exists, a disk is over 80 %: free space before large work.

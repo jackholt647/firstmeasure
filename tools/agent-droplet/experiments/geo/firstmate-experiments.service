@@ -1,0 +1,25 @@
+[Unit]
+Description=FirstMate experimental API for the GEO experiment (isolated data)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=firstmate
+Group=firstmate
+WorkingDirectory=/srv/agents/experiments/geo/host/public/v1
+EnvironmentFile=/etc/firstmate-experiments/api.env
+ExecStart=/usr/bin/node --experimental-sqlite --import tsx src/server.ts
+Restart=on-failure
+RestartSec=5
+UMask=0077
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectHome=true
+ProtectSystem=strict
+ReadWritePaths=/srv/agents/experiments/geo/host/public/v1/storage /srv/agents/experiments/geo/host/public/v1/tmp
+StandardOutput=append:/srv/agents/logs/experiments/geo-api.log
+StandardError=append:/srv/agents/logs/experiments/geo-api.log
+
+[Install]
+WantedBy=multi-user.target

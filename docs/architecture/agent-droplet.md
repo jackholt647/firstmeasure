@@ -20,8 +20,8 @@ rather than changing the droplet by hand.
 | Monitoring | metrics agent on; email alerts to `jack@1m8.ai` for CPU > 90 % (10 min), memory > 90 % (10 min), disk > 85 % |
 | Cost | $252/mo droplet + $50/mo volume = **$302/mo**. No paid backups: everything worth keeping is in git. |
 
-The older `firstmate-experiments` droplet (SFO3, `64.23.196.15`, $96/mo) still serves `experimental.1m8.ai`
-itself; this droplet serves the names under it (below).
+It replaced the `firstmate-experiments` droplet (SFO3, `64.23.196.15`, $96/mo). On 2026-10-28 its GEO
+experiment and game moved here and its two Claude Workspace web UIs were dropped. Jack destroys that droplet.
 
 ## Layout
 
@@ -139,9 +139,23 @@ optional settings from `/srv/agents/experiments/<name>.env`, and logs to `/srv/a
 The index of experiments and whether each answers is <https://index.experimental.1m8.ai/>, rebuilt every two
 minutes. `hello` is the test experiment.
 
-DNS: `1m8.ai` is a DigitalOcean zone in Jack's account. `*.experimental` is an A record to this droplet;
-`experimental` itself still points at `firstmate-experiments`. A wildcard never overrides an exact name, so
-both work.
+`experimental.1m8.ai` itself is the GEO experiment, at the same URLs as on the old host. It is a FirstMate host
+snapshot with the GEO external app: `/` redirects to `/portal/?tab=external_geo`, and the portal (PHP) needs
+an experimental account. Its parts:
+
+- Code: `/srv/agents/experiments/geo` (`/srv/firstmate` links there), with `host/` (its own git repository),
+  `apps/geo` and `operations/`. Its data, SQLite under `host/public/v1/storage`, belongs to the `firstmate`
+  user.
+- Server: the API is service `firstmate-experiments` (127.0.0.1:3101, secrets in
+  `/etc/firstmate-experiments/api.env`, log `/srv/agents/logs/experiments/geo-api.log`). The Caddy site is
+  `/etc/caddy/experiments/experimental.caddy`, which also serves the game Sourcebound at `/workspace/game/`
+  from `/srv/agents/experiments/game/www` (sources in `game/src`).
+- In the repository: the unit and the site file are `tools/agent-droplet/experiments/geo/`.
+
+The old host's `/workspace/` and `/workspace-2/` are gone.
+
+DNS: `1m8.ai` is a DigitalOcean zone in Jack's account (nameservers `ns1-3.digitalocean.com`, no longer
+GoDaddy). `experimental` and `*.experimental` are A records to this droplet.
 
 ## Jack's PC as a folder
 
