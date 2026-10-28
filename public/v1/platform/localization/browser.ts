@@ -1,6 +1,6 @@
 import { LANGUAGE_PACKS, TRANSLATION_LANGUAGES } from "./languages.js";
 import { createDeveloperTester } from "./developer-tester.js";
-import { canonicalTerm } from './terminology.js';
+import { canonicalTerm, terminologyContractFrom, useTerminologyContract } from './terminology.js';
 import { createLanguage, resolveContext, SUPPORTED_LOCALES, type CatalogBundle, type LanguageContext } from "./core.js";
 
 const root = window as any;
@@ -56,8 +56,23 @@ async function refresh() {
   await ensure(metadata.eagerNamespaces || []);
   return engine.context();
 }
+// The terms (default English labels and kinds) are config library entries, read once per page. Until they arrive
+// terms resolve from the `terminology` catalog and nothing is composed.
+const termsUrl = new URL("/v1/config-library/read/terminology_namespace", script?.src || location.href).href;
+let terms: Promise<TerminologyNamespace[]> | undefined;
+type TerminologyNamespace = { id: string; title: string; note: string; position: number; terms: { key: string; label: string; kind: string }[] };
+function terminologyNamespaces() {
+  return terms ??= fetch(termsUrl, { credentials: "omit" }).then(r => { if (!r.ok) throw Error("Terminology unavailable"); return r.json(); }).then((body: any) => {
+    const namespaces: TerminologyNamespace[] = (Array.isArray(body?.entries) ? body.entries : []).map((entry: any) => ({ id: String(entry.id), ...entry.data }));
+    useTerminologyContract(terminologyContractFrom(namespaces.map(entry => ({ id: entry.id, data: entry }))));
+    engine.termsChanged();
+    tester.repaint();
+    return namespaces.sort((a, b) => (Number(a.position) || 0) - (Number(b.position) || 0) || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
+  }).catch(error => { terms = undefined; throw error; });
+}
 root.PlatformLanguage = {
   canonicalTerm,
+  terminologyNamespaces,
   previewTerminology(locale:string,mappings:any) { const preview=createLanguage({...engine.context(),locale}); for(const bundle of registered)preview.register(bundle); preview.setTerminology(mappings); return preview; },
   ...engine, text, htmlText, register, configure, refresh, ensure, tester: tester.api, enabled: () => enabled, supportedLocales: SUPPORTED_LOCALES, supportedLanguages: LANGUAGE_PACKS, translationLanguages: TRANSLATION_LANGUAGES, companyContext: () => ({ ...company }),
   forApp(namespace: string) { return { ...engine, text: (key: string, fallback: string, values?: any) => text(namespace, key, fallback, values), htmlText:(key:string,fallback:string,values?:any)=>htmlText(namespace,key,fallback,values) }; }

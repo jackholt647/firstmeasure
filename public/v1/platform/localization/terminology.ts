@@ -1,25 +1,58 @@
-import contract from './terminology-contract.json' with { type: 'json' };
-
 export type TerminologyMappings = { labels?: Record<string, Record<string, string>>; localized_labels?: Record<string, Record<string, Record<string, string>>> };
-export const terminologyContract = contract;
+export type TerminologyTerm = { label: string; kind: string };
+/** Every term as `<namespace>.<key>` with its default English label and kind, in catalog order. */
+export type TerminologyContract = Record<string, TerminologyTerm>;
+export type TerminologyNamespaceEntry = { id: string; data: { position?: number; terms?: { key: string; label: string; kind: string }[] } };
+
+/**
+ * The terms are config library entries (`terminology_namespace`), not code. This module is shared by the server and
+ * the browser language runtime, so it never reads the library itself: the server installs a source that reads it
+ * (`terminology-defaults.ts`), and the browser installs what `/v1/config-library/read/terminology_namespace`
+ * returned. The source is called on every use and returns the same object until the terms change.
+ */
+let source: () => TerminologyContract = () => ({});
+let built: TerminologyContract | undefined;
+let entries: [string, TerminologyTerm][] = [];
+let defaults = new Map<string, string>();
+let relatedKeys = new Map<string, string[]>();
+export function useTerminologyContract(next: TerminologyContract | (() => TerminologyContract)) {
+  source = typeof next === 'function' ? next : () => next;
+  built = undefined;
+}
+/** The contract from terminology namespace entries, ordered by position, then id. */
+export function terminologyContractFrom(namespaces: TerminologyNamespaceEntry[]): TerminologyContract {
+  const ordered = [...namespaces].sort((a, b) => (Number(a.data.position) || 0) - (Number(b.data.position) || 0) || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
+  return Object.fromEntries(ordered.flatMap((entry) => (entry.data.terms || []).map((item) => [`${entry.id}.${item.key}`, { label: item.label, kind: item.kind }])));
+}
+export function terminologyContract(): TerminologyContract {
+  const contract = source();
+  if (contract !== built) {
+    built = contract;
+    entries = Object.entries(contract);
+    defaults = new Map(entries.map(([key, value]) => [key, value.label]));
+    relatedKeys = new Map();
+    for (const [key] of entries) { const canonical = canonicalOf(contract, key); relatedKeys.set(canonical, [...(relatedKeys.get(canonical) || []), key]); }
+  }
+  return contract;
+}
+/** A term's default English label; undefined when the key is not a term or the terms are not loaded yet. */
+export function terminologyDefault(key: string) { terminologyContract(); return defaults.get(key); }
 const namespaces: Record<string, string> = { 'project-request':'projects', 'project-map':'projects', 'project-schedule':'scheduling', 'platform-scheduling':'scheduling', 'platform-schedule-view':'scheduling', 'customer-portal':'customer_portal', documents:'document_engine', docs:'documents', 'calls-runtime':'calls', measurements:'reports', firstmeasure:'reports', 'doc-editor':'document_engine', 'doc-renderer':'document_engine', 'doc-widgets':'document_engine', 'doc-workflow':'document_engine' };
 const shared = new Set(['projects.project','projects.projects','contacts.contact','contacts.contacts','contacts.customer','contacts.customers','contacts.homeowner','contacts.homeowners','workforce.resource_group_singular','workforce.resource_group_plural','workforce.worker_singular','workforce.worker_plural','workforce.organization_connection_singular','workforce.organization_connection_plural','proposals.proposal','proposals.proposals','documents.document','documents.documents','photos.photo','photos.photos','receipts.receipt','receipts.receipts','money.invoice','money.invoices','equipment.equipment','materials.material','materials.materials','work.phase','work.phases','work.stage','work.stages','work.task','work.tasks','work.board','work.boards']);
 const aliases: Record<string,string> = { 'crew.crew_member':'workforce.worker_singular', 'crew.crew_members':'workforce.worker_plural', 'scope.phase':'work.phase', 'scope.phases':'work.phases', 'projects.stage':'work.stage' };
 // Cross-app business concepts. Ambiguous words (unit, item, status, owner,
 // template, source…) deliberately remain within their owning namespace.
 for(const key of ['reports.report','reports.reports','reports.measurement','scope.scope','scope.scope_item','scope.scope_items','materials.material_list','materials.material_lists','checklists.checklist','checklists.checklists','checklists.checklist_item','checklists.checklist_items','change_orders.change_order','change_orders.change_orders','contacts.primary_contact','photos.album','photos.albums','proposals.signature','customer_portal.customer_portal','payroll.payroll_batch','money.collected_payment','money.collected_payments','money.scheduled_payment','money.scheduled_payments','money.expense','money.expenses','money.expense_list','money.expense_lists','money.commission_payment','money.commission_payments','scheduling.appointment','scheduling.visit','scheduling.shift','scheduling.assignment','calls.call','calls.calls','canvassing.lead','canvassing.leads'])shared.add(key);
-export function canonicalTerm(key:string) {
+function canonicalOf(contract:TerminologyContract, key:string) {
   if(aliases[key])return aliases[key];
-  const entry=contract[key as keyof typeof contract];
-  if(entry?.kind==='entity')for(const sharedKey of shared)if(contract[sharedKey as keyof typeof contract]?.label===entry.label)return sharedKey;
+  const entry=contract[key];
+  if(entry?.kind==='entity')for(const sharedKey of shared)if(contract[sharedKey]?.label===entry.label)return sharedKey;
   return key;
 }
+export function canonicalTerm(key:string) { return canonicalOf(terminologyContract(),key); }
 const read = (labels: TerminologyMappings['labels'], key:string) => { const dot=key.indexOf('.'); return labels?.[key.slice(0,dot)]?.[key.slice(dot+1)]; };
-const entries = Object.entries(contract) as [string,{label:string;kind:string}][];
-const defaults = new Map(entries.map(([key,value])=>[key,value.label]));
-const relatedKeys=new Map<string,string[]>();
-for(const [key] of entries){const canonical=canonicalTerm(key);relatedKeys.set(canonical,[...(relatedKeys.get(canonical)||[]),key]);}
 export function terminologyOverride(key:string, locale:string, mappings:TerminologyMappings) {
+  terminologyContract();
   const canonical=canonicalTerm(key);
   const related=[canonical,key,...(relatedKeys.get(canonical)||[])];
   // Empty is an explicit reset: ignore a legacy override and use the pack default.
@@ -45,6 +78,7 @@ const escapePattern=(value:string)=>value.replace(/[.*+?^${}()|[\]\\]/g,'\\$&');
 export function terminologyComposer(namespace:string, locale:string, mappings:TerminologyMappings, translated:(key:string,fallback:string)=>string, html=false) {
   const local=namespaces[namespace]||namespace;
   const candidates=new Map<string,{key:string;replacement:string;whole:boolean}>();
+  terminologyContract();
   for(const [raw,entry] of entries) {
     const key=canonicalTerm(raw);
     if(!(shared.has(key)||raw.startsWith(local+'.')))continue;

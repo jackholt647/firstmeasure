@@ -226,8 +226,10 @@ test('scheduling calendars expose a routed four-day view between day and week', 
   assert.match(appsManifestSource, /values:\['day','4day','week','month','appointment_schedule','gantt'\]/);
 });
 
-test('project scheduling mode uses branch-configurable Routing terminology', () => {
-  assert.match(platformSchedulingSource, /ui:\s*\{\s*routing_mode: 'Routing'/);
+test('project scheduling mode uses branch-configurable Routing terminology', async () => {
+  // The default label is a config library terminology entry, not scheduling code.
+  const uiTerms = JSON.parse(await readSource('v1/config-library/snapshot/terminology_namespace/ui.json')).data.terms;
+  assert.deepEqual(uiTerms.find((term) => term.key === 'routing_mode'), { key: 'routing_mode', label: 'Routing', kind: 'view' });
   assert.match(platformSchedulingSource, /Object\.fromEntries\(Object\.entries\(\{ \.\.\.defaultLabels, \.\.\.inputLabels \}\)/);
   assert.match(projectScheduleSource, /terminology\('scheduling\.routing_view', window\.PlatformScheduling\?\.labelFor\?\.\(scheduleCachedConfig, 'ui', 'routing_mode'\) \|\| 'Routing'\)/);
   assert.match(projectScheduleSource, /surfaceButton\('scheduling', escapeHtml\(routingLabel\)\)/);

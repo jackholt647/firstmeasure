@@ -1,0 +1,31 @@
+{
+  "kind": "terminology_namespace",
+  "id": "change_orders",
+  "revision": 1,
+  "sha256": "eea94efa052a640ecccd6d112fb0cf3b687f813cd6461143586b5d675cdb24b8",
+  "title": "Change Orders",
+  "updated_at": "2026-10-27T23:11:46.751Z",
+  "updated_by": "generator",
+  "data": {
+    "title": "Change Orders",
+    "note": "Field project change-order navigation and records.",
+    "position": 200,
+    "terms": [
+      {
+        "key": "crew_project_tab",
+        "label": "Change Orders",
+        "kind": "navigation"
+      },
+      {
+        "key": "change_order",
+        "label": "Change Order",
+        "kind": "entity"
+      },
+      {
+        "key": "change_orders",
+        "label": "Change Orders",
+        "kind": "entity"
+      }
+    ]
+  }
+}

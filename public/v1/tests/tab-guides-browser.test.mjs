@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import {readFile} from 'node:fs/promises';
 import {chromium} from 'playwright-core';
+import {terminologyNamespaces} from '../scripts/terminology-snapshot.mjs';
 
 // Project tab pills, first-open tutorials, the organization's tab order and the
 // terminology rename (docs/architecture/project-tab-guides.md).
@@ -22,12 +23,15 @@ async function load(browser,store,{width=1280,tutorial=true}={}){
   await page.setContent(`<style>body{margin:0;font:14px Arial}#tabs{display:flex;overflow-x:auto;max-width:100%}.r-tab{display:inline-flex;align-items:center;gap:6px;padding:10px 12px;border:0;background:#fff;white-space:nowrap}
     .stage{position:relative;height:420px}.r-preview-panel{position:absolute;inset:0}</style>
     <nav id="tabs"></nav><div class="stage"><div class="r-preview-panel" data-panel="photos"><button id="upload">Upload</button><p id="grid">Photos</p></div></div>`);
-  await page.evaluate(({store,settings})=>{
+  await page.evaluate(({store,settings,namespaces})=>{
+    // The terminology defaults (config library entries) as PlatformLanguage hands them over; no language catalogs.
+    window.PlatformLanguage={terminologyNamespaces:async()=>namespaces,text:(_n,_k,fallback)=>fallback,htmlText:(_n,_k,fallback)=>fallback,term(){}};
     window.saved=store;
     window.Portal={cfg:{},util:{injectCSS(id,css){if(document.getElementById(id))return;const style=document.createElement('style');style.id=id;style.textContent=css;document.head.append(style);}},currentUser:{identity:{preferences:JSON.parse(JSON.stringify(store))}}};
     window.PlatformAPI={appFlags:{projectTabs:()=>settings},preferences:{get:async()=>({preferences:window.saved}),patch:async(patch)=>{Object.assign(window.saved,patch);return {preferences:window.saved};}}};
-  },{store,settings});
+  },{store,settings,namespaces:terminologyNamespaces()});
   for(const source of [sources.promos,sources.viewer,sources.tutorial,sources.guides,sources.terminology])await page.addScriptTag({content:source});
+  await page.evaluate(()=>window.PlatformTerminology.ready());
   await page.evaluate(({tutorial})=>{
     if(tutorial)window.FirstMateTabGuides.registerTutorial({id:'project.photos.basics',tab:'project.photos',steps:[
       {target:'#upload',title:'Add photos',text:'Upload <b>here</b>.'},
@@ -57,8 +61,8 @@ test('tab pills, order, first-open tutorials and the renamed Project tab',async(
     assert.deepEqual([tabs.photos.pill,tabs.photos.kind],['New','pv-tab-badge--new']);
     assert.deepEqual([tabs.docs.pill,tabs.docs.kind],['Coming soon','pv-tab-badge--coming_soon']);
     assert.equal(tabs.map.pill,'');
-    // Without the organization's terminology the Project tab keeps its name.
-    assert.equal(tabs.materials.label,'Project');
+    // Without the organization's terminology the tab has the library's default name.
+    assert.equal(tabs.materials.label,'Operations');
 
     // Opening Photos clears its pill and plays its tutorial once; steps whose target is missing are skipped.
     await page.click('#tabs [data-tab="photos"]');

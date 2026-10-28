@@ -1,0 +1,21 @@
+{
+  "kind": "terminology_namespace",
+  "id": "assistant",
+  "revision": 1,
+  "sha256": "d136a93056b1777c8e902be35b4054dd85c12b6058ebde1f17eb383189a1cf18",
+  "title": "Assistant",
+  "updated_at": "2026-10-27T23:11:46.751Z",
+  "updated_by": "generator",
+  "data": {
+    "title": "Assistant",
+    "note": "Shared display labels. Record identifiers and authored content stay unchanged.",
+    "position": 430,
+    "terms": [
+      {
+        "key": "portal_tab",
+        "label": "FirstMate Assistant",
+        "kind": "navigation"
+      }
+    ]
+  }
+}

@@ -1,0 +1,61 @@
+{
+  "kind": "terminology_namespace",
+  "id": "receipts",
+  "revision": 1,
+  "sha256": "ffdce2de21e594ab07edf3c062eb54ec14fea4b275d8d6e4bb013cad453f411e",
+  "title": "Receipts",
+  "updated_at": "2026-10-27T23:11:46.751Z",
+  "updated_by": "generator",
+  "data": {
+    "title": "Receipts",
+    "note": "Receipt navigation and receipt-processing records.",
+    "position": 100,
+    "terms": [
+      {
+        "key": "portal_tab",
+        "label": "Receipts",
+        "kind": "navigation"
+      },
+      {
+        "key": "crew_portal_tab",
+        "label": "Receipts",
+        "kind": "navigation"
+      },
+      {
+        "key": "receipt",
+        "label": "Receipt",
+        "kind": "entity"
+      },
+      {
+        "key": "receipts",
+        "label": "Receipts",
+        "kind": "entity"
+      },
+      {
+        "key": "expense_evidence",
+        "label": "Expense Evidence",
+        "kind": "entity"
+      },
+      {
+        "key": "upload_receipts",
+        "label": "Upload Receipts",
+        "kind": "action"
+      },
+      {
+        "key": "recent_receipts",
+        "label": "Recent Receipts",
+        "kind": "entity"
+      },
+      {
+        "key": "extracted_line_items",
+        "label": "Extracted Line Items",
+        "kind": "entity"
+      },
+      {
+        "key": "review_apply",
+        "label": "Review & Apply",
+        "kind": "action"
+      }
+    ]
+  }
+}

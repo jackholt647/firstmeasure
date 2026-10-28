@@ -653,7 +653,7 @@ test('pay is configured through pay rules, not commission workspaces in Money or
   const moneyApp = await readFile(path.join(publicRoot, 'libraries/apps/money/project.js'), 'utf8');
   const settingsApp = await readFile(path.join(publicRoot, 'libraries/apps/settings/company.js'), 'utf8');
   const payrollApi = await readFile(path.join(publicRoot, 'libraries/payroll-api/payroll-api.js'), 'utf8');
-  const terminology = await readFile(path.join(publicRoot, 'libraries/platform-terminology/platform-terminology.js'), 'utf8');
+  const moneyTerms = JSON.parse(await readFile(path.join(publicRoot, 'v1/config-library/snapshot/terminology_namespace/money.json'), 'utf8')).data;
   assert.doesNotMatch(manifest, /moneyView:\{ default:'overview', values:\[[^\]]*'commissions'/);
   assert.doesNotMatch(manifest, /scopeTemplateView:\{ default:'details', values:\[[^\]]*'commissions'/);
   assert.match(manifest, /scopeTemplateView:\{ default:'details', values:\[[^\]]*'automations'[^\]]*'events'[^\]]*\], history:'push' \}/);
@@ -661,7 +661,8 @@ test('pay is configured through pay rules, not commission workspaces in Money or
   assert.doesNotMatch(settingsApp, /scope-editor-panel-commissions|readCommissionEditor|\['commissions','Commissions','fa-percent'\]/);
   assert.doesNotMatch(payrollApi, /projectPayees|commission/);
   for (const action of ['payroll.payRule.save', 'payroll.payPlan.save', 'payroll.paySetup.preview', 'payroll.paySetup.save', 'payroll.earnings.refresh', 'payroll.correction.decline']) assert.ok(payrollApi.includes(`'${action}'`), action);
-  assert.match(terminology, /section\('money', 'Money', 'Project Money navigation/);
+  assert.equal(moneyTerms.title, 'Money');
+  assert.match(moneyTerms.note, /^Project Money navigation/);
   assert.match(settingsApp, /scopeTemplateView:editorSection/);
   assert.match(settingsApp, /editorSection === 'details' \? `<div id="scope-editor-panel-details"/);
   assert.doesNotMatch(settingsApp, /data-scope-details \$\{editorSection === 'details' \? '' : 'hidden'\}/);

@@ -1,0 +1,86 @@
+{
+  "kind": "terminology_namespace",
+  "id": "calls",
+  "revision": 1,
+  "sha256": "05958f89f32d569126be2507e143e43cc8c3f65e25b119e34519e0d1890c45d5",
+  "title": "Calls",
+  "updated_at": "2026-10-27T23:11:46.751Z",
+  "updated_by": "generator",
+  "data": {
+    "title": "Calls",
+    "note": "Call navigation, workflow settings, queues, and outcomes.",
+    "position": 140,
+    "terms": [
+      {
+        "key": "portal_tab",
+        "label": "Calls",
+        "kind": "navigation"
+      },
+      {
+        "key": "workflows_settings_tab",
+        "label": "Call Workflows",
+        "kind": "navigation"
+      },
+      {
+        "key": "call",
+        "label": "Call",
+        "kind": "entity"
+      },
+      {
+        "key": "calls",
+        "label": "Calls",
+        "kind": "entity"
+      },
+      {
+        "key": "call_queue",
+        "label": "Call Queue",
+        "kind": "entity"
+      },
+      {
+        "key": "new_leads_queue",
+        "label": "New Leads",
+        "kind": "entity"
+      },
+      {
+        "key": "follow_ups_queue",
+        "label": "Follow-ups",
+        "kind": "entity"
+      },
+      {
+        "key": "new_customers_queue",
+        "label": "New Customers",
+        "kind": "entity"
+      },
+      {
+        "key": "answered",
+        "label": "Answered",
+        "kind": "status"
+      },
+      {
+        "key": "left_voicemail",
+        "label": "Left Voicemail",
+        "kind": "status"
+      },
+      {
+        "key": "no_answer",
+        "label": "No Answer",
+        "kind": "status"
+      },
+      {
+        "key": "appointment_booked",
+        "label": "Appointment Booked",
+        "kind": "status"
+      },
+      {
+        "key": "not_interested",
+        "label": "Not Interested",
+        "kind": "status"
+      },
+      {
+        "key": "call_notes",
+        "label": "Call Notes",
+        "kind": "entity"
+      }
+    ]
+  }
+}

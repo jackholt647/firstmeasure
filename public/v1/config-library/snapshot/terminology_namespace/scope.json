@@ -1,0 +1,86 @@
+{
+  "kind": "terminology_namespace",
+  "id": "scope",
+  "revision": 1,
+  "sha256": "66ed243fc93b670f09c31a91155353fa8d9b0ed7c29ad277dc493acaf475ff77",
+  "title": "Scope",
+  "updated_at": "2026-10-27T23:11:46.751Z",
+  "updated_by": "generator",
+  "data": {
+    "title": "Scope",
+    "note": "Scope navigation, templates, flags, and scope records.",
+    "position": 70,
+    "terms": [
+      {
+        "key": "project_tab",
+        "label": "Operations",
+        "kind": "navigation"
+      },
+      {
+        "key": "templates_settings_tab",
+        "label": "Scope Templates",
+        "kind": "navigation"
+      },
+      {
+        "key": "flags_settings_tab",
+        "label": "Scope Flags",
+        "kind": "navigation"
+      },
+      {
+        "key": "details_view",
+        "label": "Details",
+        "kind": "view"
+      },
+      {
+        "key": "commissions_view",
+        "label": "Commissions",
+        "kind": "view"
+      },
+      {
+        "key": "scope",
+        "label": "Scope",
+        "kind": "entity"
+      },
+      {
+        "key": "scope_item",
+        "label": "Scope Item",
+        "kind": "entity"
+      },
+      {
+        "key": "scope_items",
+        "label": "Scope Items",
+        "kind": "entity"
+      },
+      {
+        "key": "phase",
+        "label": "Phase",
+        "kind": "entity"
+      },
+      {
+        "key": "phases",
+        "label": "Phases",
+        "kind": "entity"
+      },
+      {
+        "key": "flag",
+        "label": "Flag",
+        "kind": "entity"
+      },
+      {
+        "key": "flags",
+        "label": "Flags",
+        "kind": "entity"
+      },
+      {
+        "key": "template",
+        "label": "Template",
+        "kind": "entity"
+      },
+      {
+        "key": "templates",
+        "label": "Templates",
+        "kind": "entity"
+      }
+    ]
+  }
+}

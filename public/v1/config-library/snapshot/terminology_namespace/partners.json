@@ -1,0 +1,26 @@
+{
+  "kind": "terminology_namespace",
+  "id": "partners",
+  "revision": 1,
+  "sha256": "5694c2da5b2481befae8464cd23c55b1f72265cc73908e710f077de2ba3be648",
+  "title": "Partners",
+  "updated_at": "2026-10-27T23:11:46.751Z",
+  "updated_by": "generator",
+  "data": {
+    "title": "Partners",
+    "note": "Connected organizations and partner collaboration.",
+    "position": 0,
+    "terms": [
+      {
+        "key": "partner",
+        "label": "Partner",
+        "kind": "entity"
+      },
+      {
+        "key": "partners",
+        "label": "Partners",
+        "kind": "navigation"
+      }
+    ]
+  }
+}

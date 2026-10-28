@@ -1,8 +1,7 @@
-import fs from 'node:fs';import path from 'node:path';import vm from 'node:vm';import ts from 'typescript';
+import fs from 'node:fs';import path from 'node:path';import ts from 'typescript';import {terminologyKeys} from './terminology-snapshot.mjs';
 const root=path.resolve(import.meta.dirname,'../../..');
 const files=dir=>fs.readdirSync(dir,{withFileTypes:true}).flatMap(e=>e.isDirectory()&&!['node_modules','vendor','dist'].includes(e.name)?files(path.join(dir,e.name)):e.isFile()&&e.name.endsWith('.js')&&!/\.(min|bundle|umd)\.js$/.test(e.name)?[path.join(dir,e.name)]:[]);
-const window={};vm.runInNewContext(fs.readFileSync(path.join(root,'public/libraries/platform-terminology/platform-terminology.js'),'utf8'),{window});
-const keys=new Set(window.PlatformTerminology.CATALOG.flatMap(group=>group.terms.map(row=>`${group.id}.${row.key}`))),references=[],unknown=[];
+const keys=new Set(terminologyKeys()),references=[],unknown=[];
 for(const file of [...files(path.join(root,'public/libraries')),...files(path.join(root,'public/portal/scripts')), ...files(path.join(root,'public/customer_portal'))]){
 const tree=ts.createSourceFile(file,fs.readFileSync(file,'utf8'),ts.ScriptTarget.Latest,true);
 function visit(node){let key,fallback;

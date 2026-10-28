@@ -1,0 +1,21 @@
+{
+  "kind": "terminology_namespace",
+  "id": "ui",
+  "revision": 1,
+  "sha256": "4c3c49d6a38a86aa93730c455b3b25449185b65613bb46ff99cc137fe7cb0e0f",
+  "title": "Interface",
+  "updated_at": "2026-10-27T23:11:46.751Z",
+  "updated_by": "generator",
+  "data": {
+    "title": "Interface",
+    "note": "Shared interface modes that are intentionally company-configurable.",
+    "position": 300,
+    "terms": [
+      {
+        "key": "routing_mode",
+        "label": "Routing",
+        "kind": "view"
+      }
+    ]
+  }
+}

@@ -1,0 +1,21 @@
+{
+  "kind": "terminology_namespace",
+  "id": "stats",
+  "revision": 1,
+  "sha256": "a67eeeca0457e23d648617c027ae1d8ebc741837135b6f443fdc56c772863015",
+  "title": "Stats",
+  "updated_at": "2026-10-27T23:11:46.751Z",
+  "updated_by": "generator",
+  "data": {
+    "title": "Stats",
+    "note": "Shared display labels. Record identifiers and authored content stay unchanged.",
+    "position": 390,
+    "terms": [
+      {
+        "key": "portal_tab",
+        "label": "Stats",
+        "kind": "navigation"
+      }
+    ]
+  }
+}

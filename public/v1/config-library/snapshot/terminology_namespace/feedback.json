@@ -1,0 +1,21 @@
+{
+  "kind": "terminology_namespace",
+  "id": "feedback",
+  "revision": 1,
+  "sha256": "6784558392fed22365811ac795ba2812adc86346ad491ce19a6e72befd17a10b",
+  "title": "Feedback",
+  "updated_at": "2026-10-27T23:11:46.751Z",
+  "updated_by": "generator",
+  "data": {
+    "title": "Feedback",
+    "note": "Shared display labels. Record identifiers and authored content stay unchanged.",
+    "position": 440,
+    "terms": [
+      {
+        "key": "portal_tab",
+        "label": "Feedback",
+        "kind": "navigation"
+      }
+    ]
+  }
+}

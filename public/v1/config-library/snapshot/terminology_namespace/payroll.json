@@ -1,0 +1,66 @@
+{
+  "kind": "terminology_namespace",
+  "id": "payroll",
+  "revision": 1,
+  "sha256": "104d71612530df1b23b7c5098ce7441445023e098abf12686cec11e455596dc1",
+  "title": "Payroll",
+  "updated_at": "2026-10-27T23:11:46.751Z",
+  "updated_by": "generator",
+  "data": {
+    "title": "Payroll",
+    "note": "Payroll navigation, batch views, and payroll records.",
+    "position": 120,
+    "terms": [
+      {
+        "key": "portal_tab",
+        "label": "Payroll",
+        "kind": "navigation"
+      },
+      {
+        "key": "settings_tab",
+        "label": "Payroll",
+        "kind": "navigation"
+      },
+      {
+        "key": "upcoming_view",
+        "label": "Upcoming payroll",
+        "kind": "view"
+      },
+      {
+        "key": "history_view",
+        "label": "Batch history",
+        "kind": "view"
+      },
+      {
+        "key": "payroll_batch",
+        "label": "Payroll Batch",
+        "kind": "entity"
+      },
+      {
+        "key": "payee",
+        "label": "Payee",
+        "kind": "entity"
+      },
+      {
+        "key": "gross",
+        "label": "Gross",
+        "kind": "entity"
+      },
+      {
+        "key": "deductions",
+        "label": "Deductions",
+        "kind": "entity"
+      },
+      {
+        "key": "net",
+        "label": "Net",
+        "kind": "entity"
+      },
+      {
+        "key": "paid_at",
+        "label": "Paid At",
+        "kind": "entity"
+      }
+    ]
+  }
+}

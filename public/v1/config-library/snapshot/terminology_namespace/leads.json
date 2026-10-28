@@ -1,0 +1,61 @@
+{
+  "kind": "terminology_namespace",
+  "id": "leads",
+  "revision": 1,
+  "sha256": "661ed76e33ca7d290d94de718794a1017d853f63125f807c7fdaeeb6aabc30d3",
+  "title": "Forms and Leads",
+  "updated_at": "2026-10-27T23:11:46.751Z",
+  "updated_by": "generator",
+  "data": {
+    "title": "Forms and Leads",
+    "note": "Lead intake settings, form views, and submissions.",
+    "position": 240,
+    "terms": [
+      {
+        "key": "settings_tab",
+        "label": "Forms and Leads",
+        "kind": "navigation"
+      },
+      {
+        "key": "lead_import_view",
+        "label": "Lead Import",
+        "kind": "view"
+      },
+      {
+        "key": "contact_form_view",
+        "label": "Contact Form",
+        "kind": "view"
+      },
+      {
+        "key": "appointment_form_view",
+        "label": "Appointment Form",
+        "kind": "view"
+      },
+      {
+        "key": "instant_estimate_view",
+        "label": "Instant Estimate",
+        "kind": "view"
+      },
+      {
+        "key": "form",
+        "label": "Form",
+        "kind": "entity"
+      },
+      {
+        "key": "forms",
+        "label": "Forms",
+        "kind": "entity"
+      },
+      {
+        "key": "submission",
+        "label": "Submission",
+        "kind": "entity"
+      },
+      {
+        "key": "submissions",
+        "label": "Submissions",
+        "kind": "entity"
+      }
+    ]
+  }
+}

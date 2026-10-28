@@ -1,0 +1,51 @@
+{
+  "kind": "terminology_namespace",
+  "id": "event_types",
+  "revision": 1,
+  "sha256": "e262c331b93298f56455c98e53b73de8e9ed011b52686db81b8c0885c164bd57",
+  "title": "Event types",
+  "updated_at": "2026-10-27T23:11:46.751Z",
+  "updated_by": "generator",
+  "data": {
+    "title": "Event types",
+    "note": "Shared display labels. Record identifiers and authored content stay unchanged.",
+    "position": 340,
+    "terms": [
+      {
+        "key": "sales_appointment",
+        "label": "Sales Appointment",
+        "kind": "entity"
+      },
+      {
+        "key": "sales_follow_up",
+        "label": "Sales Follow-up",
+        "kind": "entity"
+      },
+      {
+        "key": "project_work",
+        "label": "Project Work",
+        "kind": "entity"
+      },
+      {
+        "key": "material_delivery",
+        "label": "Material Delivery",
+        "kind": "entity"
+      },
+      {
+        "key": "equipment_maintenance",
+        "label": "Equipment Maintenance",
+        "kind": "entity"
+      },
+      {
+        "key": "equipment_booking",
+        "label": "Equipment Booking",
+        "kind": "entity"
+      },
+      {
+        "key": "equipment_reservation",
+        "label": "Equipment Reservation",
+        "kind": "entity"
+      }
+    ]
+  }
+}

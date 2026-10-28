@@ -1,0 +1,21 @@
+{
+  "kind": "terminology_namespace",
+  "id": "chat",
+  "revision": 1,
+  "sha256": "a4bfc168a6a6d4d6de489ba3f6c93c49ccd63fe81ceb2945deb44ba211c768be",
+  "title": "Chat",
+  "updated_at": "2026-10-27T23:11:46.751Z",
+  "updated_by": "generator",
+  "data": {
+    "title": "Chat",
+    "note": "Shared display labels. Record identifiers and authored content stay unchanged.",
+    "position": 400,
+    "terms": [
+      {
+        "key": "portal_tab",
+        "label": "Communications",
+        "kind": "navigation"
+      }
+    ]
+  }
+}

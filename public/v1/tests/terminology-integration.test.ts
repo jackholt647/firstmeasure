@@ -1,11 +1,11 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import {createLanguage} from '../platform/localization/core.js';
-import {terminologyContract} from '../platform/localization/terminology.js';
+import {terminologyContract} from '../platform/localization/terminology-defaults.js';
 import {terminologyAssistantTools} from '../assistant/agent/terminology.js';
 const create=()=>{
  const language=createLanguage({locale:'en-US',measurement_system:'imperial'});
- language.register({version:'test',namespaces:{terminology:{'en-US':Object.fromEntries(Object.entries(terminologyContract).map(([key,item])=>[key,item.label]))},projects:{'en-US':{new:'New Project',many:'My Projects',count:{format:'icu',message:'{count, plural, one {# project} other {# projects}} for {name}'}}},crew:{'en-US':{add:'Add crew member',list:'Crew Members'}},scheduling:{'en-US':{title:'Crew / Subcontractor'}}}});
+ language.register({version:'test',namespaces:{terminology:{'en-US':Object.fromEntries(Object.entries(terminologyContract()).map(([key,item])=>[key,item.label]))},projects:{'en-US':{new:'New Project',many:'My Projects',count:{format:'icu',message:'{count, plural, one {# project} other {# projects}} for {name}'}}},crew:{'en-US':{add:'Add crew member',list:'Crew Members'}},scheduling:{'en-US':{title:'Crew / Subcontractor'}}}});
  return language;
 };
 test('noun changes compose navigation and ICU literals without rewriting supplied values',()=>{

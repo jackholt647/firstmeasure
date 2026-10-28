@@ -1,0 +1,21 @@
+{
+  "kind": "terminology_namespace",
+  "id": "comms",
+  "revision": 1,
+  "sha256": "b212692f26e76a427f2ee54e4edacf5fca3044fb4c6d2b519f0f21f0c8643487",
+  "title": "Comms",
+  "updated_at": "2026-10-27T23:11:46.751Z",
+  "updated_by": "generator",
+  "data": {
+    "title": "Comms",
+    "note": "Shared display labels. Record identifiers and authored content stay unchanged.",
+    "position": 360,
+    "terms": [
+      {
+        "key": "project_tab",
+        "label": "Comms",
+        "kind": "navigation"
+      }
+    ]
+  }
+}

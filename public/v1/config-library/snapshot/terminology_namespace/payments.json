@@ -1,0 +1,31 @@
+{
+  "kind": "terminology_namespace",
+  "id": "payments",
+  "revision": 1,
+  "sha256": "95bf799589aa988544eff603d7e9e413bb5ff43e335fdc50e5126b5d1efbe3ab",
+  "title": "Payments",
+  "updated_at": "2026-10-27T23:11:46.751Z",
+  "updated_by": "generator",
+  "data": {
+    "title": "Payments",
+    "note": "Field project payment navigation.",
+    "position": 190,
+    "terms": [
+      {
+        "key": "crew_project_tab",
+        "label": "Payments",
+        "kind": "navigation"
+      },
+      {
+        "key": "payment",
+        "label": "Payment",
+        "kind": "entity"
+      },
+      {
+        "key": "payments",
+        "label": "Payments",
+        "kind": "entity"
+      }
+    ]
+  }
+}

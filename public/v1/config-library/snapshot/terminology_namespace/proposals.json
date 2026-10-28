@@ -1,0 +1,91 @@
+{
+  "kind": "terminology_namespace",
+  "id": "proposals",
+  "revision": 1,
+  "sha256": "5fcf53bf8da3969d8eb99fac218a4d95219e009304e8cd73dde3aa97ed493f23",
+  "title": "Proposals",
+  "updated_at": "2026-10-27T23:11:46.751Z",
+  "updated_by": "generator",
+  "data": {
+    "title": "Proposals",
+    "note": "Proposal navigation, records, options, and display statuses.",
+    "position": 40,
+    "terms": [
+      {
+        "key": "portal_tab",
+        "label": "Proposals",
+        "kind": "navigation"
+      },
+      {
+        "key": "project_tab",
+        "label": "Proposals",
+        "kind": "navigation"
+      },
+      {
+        "key": "settings_tab",
+        "label": "Proposals",
+        "kind": "navigation"
+      },
+      {
+        "key": "proposal",
+        "label": "Proposal",
+        "kind": "entity"
+      },
+      {
+        "key": "proposals",
+        "label": "Proposals",
+        "kind": "entity"
+      },
+      {
+        "key": "template",
+        "label": "Template",
+        "kind": "entity"
+      },
+      {
+        "key": "option",
+        "label": "Option",
+        "kind": "entity"
+      },
+      {
+        "key": "variation",
+        "label": "Variation",
+        "kind": "entity"
+      },
+      {
+        "key": "signature",
+        "label": "Signature",
+        "kind": "entity"
+      },
+      {
+        "key": "draft_status",
+        "label": "Draft",
+        "kind": "status"
+      },
+      {
+        "key": "sent_status",
+        "label": "Sent",
+        "kind": "status"
+      },
+      {
+        "key": "viewed_status",
+        "label": "Viewed",
+        "kind": "status"
+      },
+      {
+        "key": "signed_status",
+        "label": "Signed",
+        "kind": "status"
+      },
+      {
+        "key": "archived_status",
+        "label": "Archived",
+        "kind": "status"
+      },
+      {
+        "key": "void_status",
+        "label": "Void",
+        "kind": "status"
+      }
+    ]
+  }
+}
