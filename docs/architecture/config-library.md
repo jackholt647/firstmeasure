@@ -182,11 +182,47 @@ is no production write path.
 ## Generation
 
 The library was built in one run from the code seeds it replaced
-(`scripts/config-library-generate.ts` with the per-kind generators in
-`config-library/generate/`), so nothing was typed again by hand. Random ids the
-seed builders made were fixed at that moment. The generators and the seeds were
-then deleted; the commit that ran it is in the history of
-`config-library/generate/all.ts`.
+(`scripts/config-library-generate.ts` with one generator per kind in
+`config-library/generate/`), so nothing was typed again by hand: commit
+`7de32873` (2026-10-28), 27 kinds and 216 entries. Random ids the seed builders
+made were fixed at that moment. The seeds and the generators were then deleted;
+`generate/all.ts` keeps the frame, and its history holds every generator.
+
+## Kinds
+
+| Kind | Entries | Domain doc | Organizations keep copies |
+|---|---|---|---|
+| `document_theme`, `document_template`, `document_workflow` | 3, 21, 13 | [document history](document-history.md) | yes (`documents/library-copies.ts`) |
+| `presentation_deck` (browser) | 3 | [presentation modules](presentation-modules.md) | yes |
+| `form_template` | 7 | [forms](forms.md) | no (a form is copied once) |
+| `scope_template` (the scope library, industry scopes included) | 13 | [automation authoring](automation-authoring.md) | yes (`scopes/library.ts`) |
+| `automation_rule_default` | 9 | [automation authoring](automation-authoring.md) | no (merged live; an organization stores only its changes) |
+| `guided_experience`, `guided_tab_faqs`, `setup_step`, `guided_copy` | 11, 7, 2, 0 | [guided experiences](guided-experiences.md) | no (platform-wide) |
+| `tab_promo` (browser, images as assets), `app_welcome` | 1, 8 | [app experience](app-experience.md) | no |
+| `terminology_namespace` (browser, append-only keys) | 46 | [terminology](terminology.md) | no (an organization stores overrides only) |
+| `app_flag_defaults`, `capability_defaults`, `capability_preset`, `capability_signup_preset` | 1, 1, 5, 1 | [app experience](app-experience.md) | no |
+| `sandbox_configuration` (declarative; setup steps name `sandbox.*` published actions) | 6 | this doc | saved sandbox workflows follow untouched |
+| `measurement_definition`, `measurement_partition`, `measurement_schema`, `measurement_equivalence` (append-only) | 37, 3, 3, 1 | [measurement schemas](measurement-schemas.md) | no |
+| `work_item`, `work_schema` (append-only) | 13, 1 | [requirements](requirements.md) | no |
+| `pricebook_template`, `material_library`, `pricebook_setup` | 1, 1, 4 | [materials calculus](materials-calculus.md) | price books upgrade additively by version |
+
+## Production (not built)
+
+Production reads the snapshot and refuses writes; there is no promote path
+yet. Before this reaches a production release:
+
+- The operator routes that edited capability presets, the signup preset and
+  app flag defaults write the library, so on production they refuse. Anything
+  production saved in its platform configuration documents
+  (`capability_presets`, `capability_signup_preset`, `app_flag_defaults`) is
+  not read there: it must be exported into the snapshot first (on dev those
+  documents are imported once, author `import:platform-configuration`).
+- Organizations' copies made before the library are stamped on first read
+  (documents, scopes), and saved sandbox workflows without a stamp are
+  replaced once.
+- The measure editor (`public/measure/internal/index.php`) still reads
+  `config/app_flag_defaults.json`; the internal PUT keeps writing it until the
+  editor reads `GET /v1/internal/admin/app-flag-defaults`.
 
 ## Rules for agents
 

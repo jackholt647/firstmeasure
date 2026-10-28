@@ -5,6 +5,7 @@
  *   FM_CONFIG_LIBRARY_KEY=fmck_... node --import tsx scripts/config-library-snapshot.ts --from https://dev.1m8.ai
  *   node --experimental-sqlite --import tsx scripts/config-library-snapshot.ts --local   (this machine's store)
  *   ... --check   (exit 1 when the checked-in snapshot differs from the store)
+ * Run from public/v1. Terminology changes also rebuild the language catalogs (`npm run localization:build`).
  */
 const args = process.argv.slice(2);
 const from = args[args.indexOf("--from") + 1] && args.includes("--from") ? args[args.indexOf("--from") + 1]! : "";
@@ -35,4 +36,10 @@ const changed = [...new Set([...current.keys(), ...next.keys()])].filter((key) =
 console.log(changed.length ? `Changed: ${changed.join(", ")}` : "The snapshot matches the store.");
 if (check) process.exit(changed.length ? 1 : 0);
 writeSnapshot(exported.entries, exported.assets.map((asset) => ({ sha256: asset.sha256, content_type: asset.content_type, file_name: asset.file_name, bytes: Buffer.from(asset.data_base64, "base64") })));
+// The terminology language catalog (translations, frozen documents) is built from the snapshot: rebuild it with it.
+if (changed.some((key) => key.startsWith("terminology_namespace/"))) {
+  const { spawnSync } = await import("node:child_process");
+  const built = spawnSync(process.execPath, ["scripts/localization-catalogs.mjs"], { stdio: "inherit" });
+  if (built.status !== 0) { console.error("The snapshot was written, but `npm run localization:build` failed: run it before committing."); process.exit(1); }
+}
 process.exit(0);
