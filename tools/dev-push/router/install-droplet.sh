@@ -23,7 +23,7 @@ if [ "${1:-}" = update ]; then
 fi
 
 line="* * * * * cd $APP && PATH=$NODE_BIN:/usr/local/bin:/usr/bin:/bin flock -n $HOME_DIR/router.lock node tools/dev-push/router/server.mjs serve >> $HOME_DIR/state/router.out 2>&1"
-( crontab -l 2>/dev/null | grep -v 'tools/dev-push/router/server.mjs' ; echo "$line" ) | crontab -
+{ crontab -l 2>/dev/null | grep -v 'tools/dev-push/router/server.mjs' || true; echo "$line"; } | crontab -
 # Keep the output log bounded.
 if [ -f "$HOME_DIR/state/router.out" ] && [ "$(stat -c %s "$HOME_DIR/state/router.out")" -gt 52428800 ]; then mv "$HOME_DIR/state/router.out" "$HOME_DIR/state/router.out.1"; fi
 echo "supervisor installed; the router starts within a minute (state: $HOME_DIR/state, log: state/router.log)"
