@@ -14,8 +14,8 @@ with the same progress and events.
 
 | Where | What |
 |---|---|
-| `public/v1/guided-experiences/setup-steps.ts` | The registry: `registerSetupStep`, the step schema, `checkSetupStepGraph`, `stepSatisfied` (a published data read), `missingSetupSteps`, `injectedStep`. |
-| `public/v1/guided-experiences/steps/index.ts` | Global steps, declared once (`company.type`, `company.services`), and their `setup_step.<id>` experiences. |
+| `public/v1/guided-experiences/setup-steps.ts` | Reads the steps from the config library (kind `setup_step`), the step schema, `checkSetupStepGraph`, `stepSatisfied` (a published data read), `missingSetupSteps`, `injectedStep`. |
+| `public/v1/config-library/kinds/setup_step.ts` | The library kind: the checks a step's save must pass (its export and action are published, its requirements exist and never go in a circle). Steps (`company.type`, `company.services`) are its entries; `registry.ts` derives their `setup_step.<id>` experiences. |
 | `public/v1/guided-experiences/service.ts` | `resolve()` injects unanswered required steps; events accept them; the chooser reads the company profile. |
 | `public/v1/guided-experiences/publication.ts` | The `setup-steps` provider: `catalog` and `status`. |
 | `public/v1/company-profile/` | The first steps' data: `catalog.ts` (kinds of company and kinds of work), `profile.ts` (read, save), `publication.ts` (`company-profile` provider, `company-profile.save`). |
@@ -25,8 +25,12 @@ with the same progress and events.
 
 ## Declaring a step
 
+A step is a `setup_step` [config library](config-library.md) entry, written on dev
+(id = the step id), checked when it is saved:
+
 ```ts
-registerSetupStep({
+// PUT /v1/config-library/entries/setup_step/company.services  { "data": … }
+({
   id: "company.services", version: 1,                 // dotted; the id is stable
   title, subtitle, description,                       // copy: gx_ language keys
   ui: { widget: "module", module: "/libraries/setup-steps/company-profile.js?v=…" },
@@ -46,11 +50,10 @@ registerSetupStep({
   answer saved by signup, another setup, an agent or Settings all count the same.
 - **Who answers** is `eligibility` (capabilities and permissions, `a|b` either). Someone
   who may not answer is never asked; the setup plays without the step.
-- Global steps are registered in `guided-experiences/steps/`; an app registers its
-  own beside its definitions the same way. `ensureGuidedDefinitions` checks that every
-  requirement names a registered step, that requirements never go in a circle, and
-  that no experience has an own step with a required step's id. A bad graph stops the
-  server.
+- Saving a step or an experience is refused when a requirement names no step, when
+  requirements would go in a circle, or when an experience has an own step with a
+  required step's id. `ensureGuidedDefinitions` checks the graph again once per
+  library change and logs a problem (a step deleted since) instead of stopping.
 
 ## Requiring and injecting
 

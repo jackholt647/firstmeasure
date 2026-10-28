@@ -53,10 +53,8 @@ export async function registerGuidedExperiencesApi(app: FastifyInstance) {
     const ctx = await requirePlatformAuth(request, { csrf: true });
     return { ok: true, saved: await (await import("./dev.js")).revertCopy(ctx, request.body) };
   });
-  app.get("/dev/copy/export", async (request) => {
-    const ctx = await requirePlatformAuth(request, {});
-    return { ok: true, ...(await (await import("./dev.js")).exportCopy(ctx)) };
-  });
+  // Copy edits made before copy was library data move into the library once (development only).
+  void import("./dev.js").then((dev) => dev.importLegacyCopyOverrides()).catch(() => undefined);
   // Exposure, step and outcome events for analysis. Organization administrators only.
   app.get("/organizations/:orgId/experiences/:experienceId/events", async (request) => {
     const { orgId, experienceId } = params(request);

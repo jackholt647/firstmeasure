@@ -87,7 +87,7 @@ Photos, Documents, Customer Portal and Materials begin as pending offers in new
 organizations (`global.data.app_offers`). The configured organization switches
 are still the ceiling: an off or commercially unavailable app is not advertised.
 Existing organizations without this field retain their current active apps.
-The welcome definitions and capability groups live in `app-experience/offers.ts`.
+The capability groups live in `app-experience/offers.ts`. Each welcome (the advertisement) is a config library entry of kind `app_welcome`, keyed by the offered app id (`config-library/kinds/app_welcome.ts`), edited on dev and read live into the entitlements.
 Feed (`platform.photos_feed`) is an independent app: an offered project Photos
 app never disables the organization Feed.
 
@@ -290,7 +290,7 @@ Accept a deliberate change with `UPDATE_ACCESS_GATES=1`.
 ## Rules
 
 Operations uses the existing `project.materials` app id. Its welcome is
-`layout: page` (`offers.ts`): one full-width page, the copy centred above the
+`layout: page` (its `app_welcome` entry): one full-width page, the copy centred above the
 illustration, instead of the default two sides. While any welcome shows, the
 project window's side rail for that app (Operations, Money and Proposals keep one)
 is hidden and the welcome takes the width; the rail returns when the app mounts.

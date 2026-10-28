@@ -53,7 +53,7 @@ test("contracts: requires, module steps and require-only experiences are checked
 
 test("the step graph refuses unknown and circular requirements", async () => {
   await setup();
-  const { registerSetupStep, checkSetupStepGraph } = await import("../guided-experiences/setup-steps.js");
+  const { registerSetupStepForTests: registerSetupStep, checkSetupStepGraph } = await import("../guided-experiences/setup-steps.js");
   const step = (id: string, requires: string[]) => ({ id, version: 1, title: t("gx_test_t", "T"), description: t("gx_test_d", "D"), ui: { widget: "brand-cards" }, requires, satisfied: { provider: "company-profile", export: "profile", path: "/answered/type" }, writes: { action: "company-profile.save" } });
   assert.throws(() => checkSetupStepGraph([{ from: "an.experience", requires: ["nobody.here"] }]), /not a registered setup step/);
   registerSetupStep(step("test.loop_a", ["test.loop_b"]));

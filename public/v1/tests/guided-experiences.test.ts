@@ -71,7 +71,7 @@ test("progress: exposure once, step navigation and branches, skip, dismiss, repl
   const s = await import("../platform/storage.js");
   await s.createOrganization({ id: ORG, name: "Guided" });
   await enableExpandedPlatformFixture(ORG, { "platform.materials": true });
-  const { registerExperience } = await import("../guided-experiences/registry.js");
+  const { registerExperienceForTests: registerExperience } = await import("../guided-experiences/registry.js");
   const service = await import("../guided-experiences/service.js");
   registerExperience(TOUR as any);
   registerExperience({ ...TOUR, id: "test.once", replayable: false } as any);

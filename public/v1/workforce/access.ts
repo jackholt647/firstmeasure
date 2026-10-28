@@ -5,7 +5,8 @@ import { getWorkforceDatabase } from "./storage.js";
 import { resolveOrganizationStructure, type OrganizationStructure } from './organization-structure.js';
 import { resolveScopedAccessGrants, type ScopedAccessGrant } from './department-access.js';
 import { availableOfferedApps, effectiveCapabilities } from '../platform/capabilities.js';
-import { APP_WELCOMES, type OfferedAppId } from '../platform/app-experience/offers.js';
+import { libraryData } from '../config-library/library.js';
+import type { AppWelcome } from '../config-library/kinds/app_welcome.js';
 import { appDefinitions, canonicalAppId, type AppDefinition, type AppSurface } from "../platform/app-experience/registry.js";
 import { deviceTypeIds, isDeviceTypeId, type DeviceId } from "../platform/app-experience/devices.js";
 import { CREW_PERMISSION_KEYS, PAYROLL_PERMISSION_KEYS, SALES_PERMISSION_KEYS } from "./permission-keys.js";
@@ -86,7 +87,8 @@ export type AppSettingSource = "app_default" | "role_default" | "department_defa
 export type EffectiveAppEntitlement = AppDefinition & {
   /** Discoverable but not yet operational for the organization. */
   offered?: boolean;
-  welcome?: typeof APP_WELCOMES[OfferedAppId];
+  /** Its advertisement until it is started: the app_welcome library entry for this app id. */
+  welcome?: AppWelcome;
   /** Device type -> shown, for every device the app exists on. */
   visible: Record<DeviceId, boolean>;
   visible_devices: DeviceId[];
@@ -995,7 +997,7 @@ export function resolveAppEntitlements(input: {
     else if (!visibleDevices.length) reasons.push("app_not_selected");
     return {
       ...app,
-      ...(offered.has(app.id) ? { offered: true, welcome: APP_WELCOMES[app.id as OfferedAppId] } : {}),
+      ...(offered.has(app.id) ? { offered: true, welcome: libraryData<AppWelcome>('app_welcome', app.id) ?? undefined } : {}),
       visible,
       visible_devices: visibleDevices,
       allowed: visibleDevices.length > 0,

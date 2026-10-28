@@ -1,4 +1,3 @@
-import { registerOperationsGuidedExperiences } from './definitions/operations.js';
 import { can, hasPermission, type PlatformAuthContext } from "../platform/auth.js";
 import { badRequest, forbidden, notFound } from "../platform/errors.js";
 import { invokeAction } from "../platform/publication/actions.js";
@@ -11,13 +10,8 @@ import { chooseVariant, regionForState, sizeTierFor, unitIdFor, type ChooserCont
 import { EVENT_TYPES, selectionsSchema, type Copy, type ExperienceDefinition, type ExperienceStep, type GuidedEventType } from "./contracts.js";
 import { experience, guidedSource, listExperiences, tabFaqs } from "./registry.js";
 import { listProgress, readProgress, recordEvent, wasExposed, writeProgress, type Progress } from "./store.js";
-import { registerMaterialsGuidedExperiences } from "./definitions/materials.js";
-import { registerEquipmentGuidedExperiences } from "./definitions/equipment.js";
-import { registerPhotosGuidedExperiences } from "./definitions/photos.js";
-import { registerReportsGuidedExperiences } from "./definitions/reports.js";
-import { registerCustomerPortalGuidedExperiences } from "./definitions/customer-portal.js";
-import { registerGlobalSetupSteps } from "./steps/index.js";
-import { checkSetupStepGraph, injectedStep, missingSetupSteps, setupStep, type SatisfactionCache } from "./setup-steps.js";
+import { ensureGuidedSources } from "./sources.js";
+import { checkSetupStepGraph, injectedStep, missingSetupSteps, setupStep, setupStepsVersion, type SatisfactionCache } from "./setup-steps.js";
 import { readCompanyProfile } from "../company-profile/profile.js";
 
 /**
@@ -27,19 +21,29 @@ import { readCompanyProfile } from "../company-profile/profile.js";
  * conversation) and the context the real assistant gets when the person types during one.
  */
 
-let requirementsChecked = false;
+/**
+ * Experiences, tab questions and setup steps are config library entries, read live (registry.ts); this registers the
+ * code they name (guided sources) and, once per library change, checks that every setup step an experience or its
+ * steps require exists and none is also one of its own step ids. Saving an entry already refuses those; a problem
+ * here (an entry it depends on deleted since) is logged and the experience still plays without the missing step.
+ */
+let requirementsChecked = "";
 export function ensureGuidedDefinitions() {
-  registerGlobalSetupSteps(); registerOperationsGuidedExperiences(); registerMaterialsGuidedExperiences(); registerPhotosGuidedExperiences(); registerReportsGuidedExperiences(); registerCustomerPortalGuidedExperiences(); registerEquipmentGuidedExperiences();
-  if (requirementsChecked) return;
-  requirementsChecked = true;
-  // Every setup step an experience or its steps require exists, and none of them is also one of its own step ids.
-  const roots: { from: string; requires: string[] }[] = [];
-  for (const definition of listExperiences()) {
-    const own = new Set(definition.steps.map((step) => step.id));
-    for (const stepId of requiredBy(definition)) if (own.has(stepId)) throw new Error(`${definition.id} has a step called ${stepId}, which is also a setup step it requires.`);
-    roots.push({ from: definition.id, requires: requiredBy(definition) });
+  ensureGuidedSources();
+  const version = setupStepsVersion();
+  if (requirementsChecked === version) return;
+  requirementsChecked = version;
+  try {
+    const roots: { from: string; requires: string[] }[] = [];
+    for (const definition of listExperiences()) {
+      const own = new Set(definition.steps.map((step) => step.id));
+      for (const stepId of requiredBy(definition)) if (own.has(stepId)) throw new Error(`${definition.id} has a step called ${stepId}, which is also a setup step it requires.`);
+      roots.push({ from: definition.id, requires: requiredBy(definition) });
+    }
+    checkSetupStepGraph(roots);
+  } catch (error) {
+    console.warn(`[guided-experiences] ${(error as Error).message}`);
   }
-  checkSetupStepGraph(roots);
 }
 /** Every setup step an experience may inject: the ones it names and, transitively, what they require. */
 function requiredClosure(definition: ExperienceDefinition) {
@@ -190,16 +194,17 @@ export async function availableExperiences(ctx: PlatformAuthContext, surface: { 
   }
   const playable = new Set(out.map((entry) => entry.id));
   const faqs = surface.tab ? tabFaqs(text(surface.tab)) : null;
-  // Development copy edits (dev.ts) are applied over the definitions' English; the library's own strings use the map.
-  const { copyOverrideMap, applyCopyOverrides, guidedDevAccess } = await import("./dev.js");
-  const overrides = await copyOverrideMap();
+  // Definitions carry their English from the library. The browser libraries' own strings edited on dev (guided_copy
+  // entries) replace their built-in English through the map.
+  const { libraryUiCopy, guidedDevAccess } = await import("./dev.js");
+  const overrides = libraryUiCopy();
   const dev = await guidedDevAccess(ctx);
-  return applyCopyOverrides({
+  return {
     experiences: out, reveals,
     faqs: faqs ? { tab: faqs.tab, questions: faqs.questions.filter((question) => question.action !== "play" || playable.has(question.experience!)) } : null,
     ...(Object.keys(overrides).length ? { copy_overrides: overrides } : {}),
     ...(dev.editor ? { dev: { editor: true, experiences: listExperiences().map((definition) => ({ id: definition.id, title: definition.title, kind: definition.kind, scope: definition.scope })) } } : {})
-  }, overrides);
+  };
 }
 
 async function load(ctx: PlatformAuthContext, experienceId: string, surface: { tab?: string; projectId?: string } = {}) {
@@ -283,9 +288,8 @@ export async function guidedConversationTurn(ctx: PlatformAuthContext, experienc
   const { ensureProjectConversation } = await import("../assistant/project-context.js");
   const thread = await ensureProjectConversation(ctx, projectId);
   const threadId = text(object(thread).id);
-  const overrides = await (await import("./dev.js")).copyOverrideMap();
   const sayCopy = phase === "done" ? definition.completion.say : (step as { say?: Copy[] }).say || [];
-  const said = sayCopy.map((copy) => overrides[copy.key] ?? copy.text);
+  const said = sayCopy.map((copy) => copy.text);
   const choiceText = text(body.choice).replace(/[<>]/g, "").slice(0, 300);
   const data = { source: "guided_experience", experience_id: definition.id, variant_id: choice.variant.id, ...(step ? { step_id: step.id } : { phase }) };
   // Idempotent: every scripted line has a stable key, and a line the thread already holds is not written again
