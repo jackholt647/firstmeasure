@@ -9,6 +9,16 @@ lines in this file for dev releases are retired; release records live in the
 router (`https://dev.1m8.ai/__dev-push/status.json`). The pointer lines below
 are history. Production is unchanged.
 
+> **Production gate: config library (since canonical `aff309c4`, 2026-10-28).**
+> A production release from canonical after `aff309c4` needs production's
+> configuration documents (`capability_presets`, `capability_signup_preset`,
+> `app_flag_defaults` in the platform configuration store) exported into the
+> config library snapshot (`public/v1/config-library/snapshot/`) first;
+> otherwise production ignores them and these operator routes refuse: capability
+> presets, the signup preset, `PUT /v1/internal/admin/app-flag-defaults`.
+> Production reads the snapshot only; there is no production write path. See
+> [the config library](docs/architecture/config-library.md#production-not-built).
+
 October 27 measure-internal dev lane: [dev.1m8.ai serves the measure editor from branch `lane/measure-internal` on dev legacy, shipped in about a minute with `tools/dev-push/lanes/measure-internal/ship.mjs`](deploy/digitalocean/development-measure-internal-lane-20261027.md); per-task rollouts of editor files to dev legacy are no longer served.
 
 October 27 Visual recovery: [committed Docs, Photos upload/search, Operations badges, camera and markup; live conflict audit and permanent development activation](deploy/digitalocean/development-visual-recovery-20261027.md) records release `c9d694e1` on development legacy and web.
@@ -1008,6 +1018,7 @@ completed in the September 10 promotion record.
 
 ## Start here
 
+- Before any production release from canonical after `aff309c4`, read the config library gate at the top of this file.
 - Develop locally, test in isolated development, then promote the exact tested release to production when authorized.
 - Routine releases change code. They do not repeat the customer-data migration, archive integrity scan, or DNS cutover.
 - Production is **https://app.1m8.ai**: `/portal/` for customers and `/measure/internal/` for technicians.

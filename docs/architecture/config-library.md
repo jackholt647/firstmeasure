@@ -4,6 +4,13 @@ Status: built 2026-10-27 (the `config` lane of [dev lanes](dev-lanes.md)).
 Development (dev.1m8.ai) edits it live; production reads the checked-in
 snapshot and refuses every write.
 
+> **Production gate.** A production release from canonical after `aff309c4`
+> needs the production configuration documents (`capability_presets`,
+> `capability_signup_preset`, `app_flag_defaults`) exported into the snapshot
+> first; otherwise these operator routes refuse (capability presets, the signup
+> preset, the internal app flag defaults PUT) and production ignores what it
+> saved. See [Production](#production-not-built).
+
 ## What it is
 
 Every **default** the platform ships — document, workflow and presentation
