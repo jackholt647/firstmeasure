@@ -81,7 +81,7 @@ test("each tab's questions are one library entry, checked for the limit, unique 
   const { registerAllLibraryKinds } = await import("../config-library/kinds/index.js"), { checkEntry } = await import("../config-library/writes.js"), { libraryEntries } = await import("../config-library/library.js");
   registerAllLibraryKinds();
   const t = (key: string, text: string) => ({ key, text });
-  assert.deepEqual(libraryEntries("guided_tab_faqs").map((entry) => entry.id), ["portal.equipment", "project.customer_portal", "project.docs", "project.map", "project.materials", "project.measurements", "project.photos"]);
+  assert.deepEqual(libraryEntries("guided_tab_faqs").map((entry) => entry.id), ["portal.equipment", "project.checklists", "project.customer_portal", "project.docs", "project.map", "project.materials", "project.measurements", "project.photos"]);
   const ask = (i: number) => ({ id: `q.n${i}`, text: t(`gx_test_q_${i}`, "More") });
   assert.deepEqual(checkEntry("guided_tab_faqs", "test.tab", { tab: "test.tab", questions: [ask(1)] }, null).errors, []);
   assert.match(checkEntry("guided_tab_faqs", "test.tab", { tab: "test.tab", questions: [ask(1), ask(1)] }, null).errors.join(" "), /same id/);
