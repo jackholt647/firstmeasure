@@ -495,12 +495,17 @@ export function buildTree(sha, cwd, out) {
   return out;
 }
 
+// fm-release leaves the host's runtime paths out of a staged tree's check (HOST_PATHS in
+// tools/dev-push/host/fm-release.py); the lane's public/storage link still travels with the tree.
+const HOST_PATHS = new Set(["public/storage", "public/v1/storage", "public/v1/output"]);
+
 /** Same shape and digest as the router's treeManifest (lanes/platform/lane.mjs) and fm-release. */
 export function treeManifest(root) {
   const files = {}, links = {};
   const walk = (dir, prefix) => {
     for (const entry of readdirSync(dir, { withFileTypes: true })) {
       const rel = prefix + entry.name;
+      if (HOST_PATHS.has(rel)) continue;
       const full = path.join(dir, entry.name);
       if (entry.isSymbolicLink()) { links[rel] = readlinkSync(full); continue; }
       if (entry.isDirectory()) { walk(full, `${rel}/`); continue; }
