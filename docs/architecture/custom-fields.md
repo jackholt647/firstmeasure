@@ -216,7 +216,9 @@ The satellite image is saved into the project's library as an ordinary photo
 or Customer Portal tab opens a saved project (`POST .../projects/:id/satellite-media`,
 `PlatformAPI.projectMedia.ensureSatelliteMedia`). The source is the completed
 report's top-down artifact, or Google's static satellite map once the project has
-coordinates; the report's image replaces a static-map cover this writer chose. The
+coordinates (also while an ordered report is still processing; fetched with the Maps
+Static key, `maps_static_api_key`, as reports fetch theirs); the report's image
+replaces a static-map cover this writer chose. The
 photo is named "Top-down satellite" with `metadata.source: "satellite_top_down"`
 and `satellite_source`, its media id is derived from organization, project and
 source, and `satellite_media[source]` on the project records the save, so a repeat

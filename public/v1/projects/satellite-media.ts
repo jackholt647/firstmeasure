@@ -96,9 +96,14 @@ async function defaultFirstMeasureImage(orgId: string, reportId: string) {
   return null;
 }
 
+/** The key for Maps Static requests: the one reports fetch their google.png with (PROVIDER_KEYS.md, maps_static_api_key). */
+export function staticMapApiKey() {
+  return clean(env.googleMapsStaticApiKey) || clean(env.googleMapsApiKey);
+}
+
 async function defaultGoogleStaticMap(point: { lat: number; lng: number }) {
-  const key = clean(env.googleMapsApiKey);
-  if (!key) return null;
+  const key = staticMapApiKey();
+  if (!key) { console.warn("Satellite image: no Maps Static key is configured"); return null; }
   const url = new URL("https://maps.googleapis.com/maps/api/staticmap");
   url.searchParams.set("center", `${point.lat},${point.lng}`);
   url.searchParams.set("zoom", "20");
@@ -108,10 +113,15 @@ async function defaultGoogleStaticMap(point: { lat: number; lng: number }) {
   url.searchParams.set("key", key);
   try {
     const response = await fetch(url, { signal: AbortSignal.timeout(10_000) });
-    if (!response.ok || !clean(response.headers.get("content-type")).startsWith("image/")) return null;
+    if (!response.ok || !clean(response.headers.get("content-type")).startsWith("image/")) {
+      // Never log the URL: it carries the key.
+      console.warn("Satellite image: Maps Static refused", response.status, clean(response.headers.get("x-staticmap-api-warning")).slice(0, 200));
+      return null;
+    }
     const bytes = Buffer.from(await response.arrayBuffer());
     return bytes.length ? bytes : null;
-  } catch {
+  } catch (error) {
+    console.warn("Satellite image: Maps Static request failed", error instanceof Error ? error.name : "error");
     return null;
   }
 }
