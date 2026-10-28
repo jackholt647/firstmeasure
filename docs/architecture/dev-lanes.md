@@ -338,7 +338,8 @@ tests. `deploy({ dir, sha, hosts })` builds the tree (`buildTree`: the commit's
 legacy, web and worker, lints the changed PHP inside the staged release on
 legacy (`hosts.check`), activates the three, checks that dev.1m8.ai serves a
 changed file with its bytes and the lane header, and rolls every role back
-otherwise. Both return `timings` (ms per step and role) for the release record.
+otherwise. Both return flat `timings` (ms per step, `transfer:<role>`,
+`activate:<role>`) for the release record.
 `current({ hosts })` reports each role. On web and worker the release is not
 served: their Node reads `editor_scripts/pdf.js` and `pdf_standalone.js`
 (`pdf_runtime.ts`) and the Google key in `editor.php` (`forms/solar.ts`) from
