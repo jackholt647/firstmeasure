@@ -42,7 +42,7 @@ export class Router {
     this.failedOverlays = new Set(); // `${ref}@${sha}@${tip}`: overlays that could not be merged onto that tip
     for (const name of Object.keys(this.lanes)) {
       const last = this.releases.find((release) => release.lane === name);
-      this.laneState[name] = { state: "idle", batch: [], release: last ? { id: last.id, sha: last.sha, name: last.name || last.sha, at: last.at } : null, tip: null, note: null };
+      this.laneState[name] = { state: "idle", batch: [], release: last ? { id: last.id, sha: last.sha, name: last.name || last.sha, server: last.server || last.name || last.sha, at: last.at } : null, tip: null, note: null };
     }
   }
 
@@ -468,12 +468,12 @@ export class Router {
     const release = {
       id: releaseId, lane, sha: final.sha, at: new Date().toISOString(), base: tip, branch_pushed: push.code === 0,
       submissions: accepted.map((entry) => entry.ref), works: accepted.map((entry) => entry.work),
-      overlays: final.overlaysMerged.map((overlay) => overlay.ref), roles: deployed.roles || {}, timings, name: deployed.name || final.sha
+      overlays: final.overlaysMerged.map((overlay) => overlay.ref), roles: deployed.roles || {}, timings, name: deployed.name || final.sha, server: deployed.server || deployed.name || final.sha
     };
     this.releases.unshift(release);
     fs.writeFileSync(path.join(this.stateDir, "releases", `${releaseId}.json`), JSON.stringify(release, null, 1));
     await this.update(accepted, { state: "live", release: releaseId, details: null, timings });
-    await this.setLane(lane, { state: "idle", batch: [], tip: push.code === 0 ? final.sha : tip, release: { id: releaseId, sha: final.sha, name: release.name, at: release.at }, note: final.overlayConflicts.length ? `${final.overlayConflicts.length} live overlay(s) need review` : null });
+    await this.setLane(lane, { state: "idle", batch: [], tip: push.code === 0 ? final.sha : tip, release: { id: releaseId, sha: final.sha, name: release.name, server: release.server, at: release.at }, note: final.overlayConflicts.length ? `${final.overlayConflicts.length} live overlay(s) need review` : null });
     for (const entry of accepted) await this.retire(entry);
     if (this.options.afterRelease) await this.options.afterRelease({ lane, release, overlays: final.overlaysMerged }).catch((error) => this.log(lane, `afterRelease: ${error.message}`));
     if (this.options.overlayProblems && final.overlayConflicts.length) await this.options.overlayProblems(final.overlayConflicts).catch(() => {});
@@ -488,7 +488,7 @@ export class Router {
     const dir = await this.worktree(`${lane}-catchup`, current.sha);
     await this.git(["reset", "--quiet", "--hard", current.sha], { cwd: dir });
     const at = Date.now();
-    const result = await this.lanes[lane].deploy({ dir, sha: current.sha, releaseId: current.id, hosts: this.options.hosts, log: (line) => this.log(lane, `[${role}] ${line}`), onlyRoles: [role], releaseName: current.name || current.sha });
+    const result = await this.lanes[lane].deploy({ dir, sha: current.sha, releaseId: current.id, previous: current, hosts: this.options.hosts, log: (line) => this.log(lane, `[${role}] ${line}`), onlyRoles: [role], releaseName: current.name || current.sha });
     this.log(lane, `${role} ${result.ok ? `now serves ${current.id}` : `not brought up: ${trim(result.error, 300)}`} (${Math.round((Date.now() - at) / 1000)} s)`);
     return result;
   }
@@ -506,10 +506,10 @@ export class Router {
     this.log(lane, `releasing the lane tip ${tip.slice(0, 10)} as ${releaseId}`);
     const deployed = await module.deploy({ dir, sha: tip, releaseId, previous: this.laneState[lane].release, hosts: this.options.hosts, ssh: this.ssh, log: (line) => this.log(lane, line) });
     if (!deployed.ok) { await this.setLane(lane, { state: "idle", note: `release of the tip failed: ${trim(deployed.error, 400)}` }); throw new Error(deployed.error); }
-    const release = { id: releaseId, lane, sha: tip, at: new Date().toISOString(), base: tip, branch_pushed: true, submissions: [], works: [], overlays: [], roles: deployed.roles || {}, timings: deployed.timings || {}, name: deployed.name || tip };
+    const release = { id: releaseId, lane, sha: tip, at: new Date().toISOString(), base: tip, branch_pushed: true, submissions: [], works: [], overlays: [], roles: deployed.roles || {}, timings: deployed.timings || {}, name: deployed.name || tip, server: deployed.server || deployed.name || tip };
     this.releases.unshift(release);
     fs.writeFileSync(path.join(this.stateDir, "releases", `${releaseId}.json`), JSON.stringify(release, null, 1));
-    await this.setLane(lane, { state: "idle", release: { id: releaseId, sha: tip, name: release.name, at: release.at }, note: null });
+    await this.setLane(lane, { state: "idle", release: { id: releaseId, sha: tip, name: release.name, server: release.server, at: release.at }, note: null });
     this.log(lane, `live ${releaseId}`);
     return release;
   }

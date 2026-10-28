@@ -12,7 +12,10 @@ flock -n 9 || exit 0
 main=firstmeasure-development-web
 standby=firstmeasure-development-web-standby
 unit=/etc/systemd/system/$standby.service
-release="$(basename "$(readlink -f /opt/firstmeasure/current)")"
+# What the server reports: RELEASE_ID from the active release (a dev push release that changes no server code keeps the
+# running server's id, so it is not always the directory name).
+release="$(sed -n 's/^RELEASE_ID=//p' /opt/firstmeasure/current/release.env 2>/dev/null | head -1)"
+[ -n "$release" ] || release="$(basename "$(readlink -f /opt/firstmeasure/current)")"
 
 tmp="$(mktemp)"
 trap 'rm -f "$tmp"' EXIT

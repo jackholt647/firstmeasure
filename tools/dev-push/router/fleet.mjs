@@ -46,7 +46,7 @@ export function makeFleet({ router, hosts, home, log = () => {} }) {
   async function check() {
     const lane = router.laneState.platform;
     if (!lane?.release?.name || lane.state !== "idle") return; // never judge the fleet mid-release
-    const expected = lane.release.name;
+    const expected = lane.release.server || lane.release.name; // what /v1/health/ready reports (kept across browser-only releases)
     const problems = [];
     const seen = await sample();
     for (const [instance, release] of Object.entries(seen)) if (release !== expected) problems.push(`${instance} serves ${release}, not ${expected}`);
