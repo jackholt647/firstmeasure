@@ -389,9 +389,10 @@ test('project invoice tab is declared and restored through the Money route schem
   assert.match(moneyApp, /id:'payments', icon:'fa-money-check-dollar'/);
   assert.doesNotMatch(moneyApp, /viewTab\('activity'/);
   assert.match(moneyApp, /id:'expenses', icon:'fa-list-check', label:term\('expense_lists'\)/);
-  assert.match(moneyApp, /add_collected_payment:'Add Collected Payment'/);
+  assert.doesNotMatch(moneyApp, /MONEY_TERM_DEFAULTS|add_collected_payment:'/, 'money words are library terminology');
+  assert.equal(JSON.parse(await readFile(path.join(publicRoot, 'v1/config-library/snapshot/terminology_namespace/money.json'), 'utf8')).data.terms.find((item) => item.key === 'add_collected_payment')?.label, 'Add Collected Payment');
   assert.match(moneyApp, /<h3>\$\{escapeHtml\(term\('add_collected_payment'\)\)\}<\/h3>/);
-  assert.match(moneyApp, /PlatformScheduling\.loadBranchConfig/);
+  assert.match(moneyApp, /PlatformTerminology\?\.ready\?\.\(\)/);
   assert.match(moneyApp, /cleanText\(event\.type, event\.event_type\)/);
   assert.doesNotMatch(moneyApp, /paymentHistorySection\(5\)|activitySection\(5\)/);
   assert.match(moneyApp, /Project Financials/);
