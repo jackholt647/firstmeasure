@@ -17,6 +17,7 @@ import { ROUTER_REPO_PATH, parseArgs, run } from "../lib/common.mjs";
 import { makeHosts } from "./hosts.mjs";
 import { Router } from "./router.mjs";
 import { liveOverlays } from "./live.mjs";
+import { makeFleet } from "./fleet.mjs";
 
 const HOME = process.env.DEV_PUSH_HOME || path.join(os.homedir(), "dev-push");
 const STATE = path.join(HOME, "state");
@@ -118,6 +119,12 @@ async function main() {
     return;
   }
   // The repository is local, so an idle pass costs a few milliseconds: poll often to keep the queue wait short.
+  // Every minute: is every web node behind the load balancer on the router's release, and are new pool members adopted?
+  if (lanes.platform && config.fleet !== false) {
+    const fleet = makeFleet({ router, hosts, home: HOME, log: (line) => router.log("fleet", line) });
+    const tick = () => fleet.check().catch((error) => router.log("fleet", `check failed: ${error.message}`)).finally(() => setTimeout(tick, 60_000));
+    setTimeout(tick, 20_000);
+  }
   await router.start({ intervalMs: config.intervalMs || 3_000 });
 }
 

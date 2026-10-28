@@ -177,17 +177,17 @@ export default {
   },
 
   /** Builds the release tree for `sha` and puts it on every role together. */
-  async deploy({ dir, sha, releaseId, previous: previousRelease = null, hosts, log, buildOnly = false, stageOnly = false }) {
+  async deploy({ dir, sha, releaseId, previous: previousRelease = null, hosts, log, buildOnly = false, stageOnly = false, onlyRoles = null, releaseName = null }) {
     const timings = {};
     let at = Date.now();
-    const roles = hosts.roles;
+    const roles = onlyRoles || hosts.roles; // onlyRoles: bring one new pool member to the current release
     const before = Object.fromEntries(await Promise.all(roles.map(async (role) => [role, await hosts.status(role, "platform", sha)])));
     timings.status = since(at);
     const broken = roles.filter((role) => !before[role].ok);
     if (broken.length) return { ok: false, error: `status failed: ${broken.map((role) => `${role}: ${before[role].error}`).join("; ")}`, rolledBack: true, infrastructure: true, timings };
     // The release directory is named for the commit, or <commit>-dp where the old tooling already made one of that
     // name (the running release at the re-baseline). RELEASE_ID equals the directory name; the web standby relies on it.
-    const name = roles.some((role) => before[role].probe?.[sha]?.exists && !before[role].probe[sha].router) ? `${sha}-dp` : sha;
+    const name = releaseName || (roles.some((role) => before[role].probe?.[sha]?.exists && !before[role].probe[sha].router) ? `${sha}-dp` : sha);
     const build = path.join(BUILDS, name);
     if (!fs.existsSync(path.join(build, ".manifest.json"))) {
       at = Date.now();

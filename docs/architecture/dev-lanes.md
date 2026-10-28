@@ -241,6 +241,36 @@ staging directory and run fm-release, nothing else. After the re-baseline
 `current`; the old per-task scripts fail at their first upload) and shows
 every SSH client a banner naming `submit.mjs`.
 
+### New web nodes
+
+dev.1m8.ai's load balancer routes to every droplet tagged
+`firstmeasure-development-autoscale-r1`; the autoscale pool
+(`firstmeasure-development-web-autoscale-r1`) adds members built from its image,
+which carries whatever release the image had. On 2026-10-28 a member built from
+the September 7 image served about 60% of dev's requests unnoticed. Now:
+
+* **Held out until current.** The pool's user data
+  (`deploy/digitalocean/dev-pool-user-data.sh`) stops and disables the web
+  service and its standby on first boot (so `/v1/health/ready` fails and the
+  load balancer sends nothing), installs `fm-release` and the router's key, and
+  marks the node as awaiting a release. The first router activation on it
+  enables the services.
+* **Adopted by the router.** With a read-only DigitalOcean token in
+  `~/dev-push/do-token` on the droplet, the router lists the tagged members
+  every minute, adopts each new one (`web-<droplet id>`), stages and activates
+  the current platform release on it (same tree, same name), and includes it in
+  every later release; members that disappear are dropped
+  (`router/fleet.mjs`, `state/fleet.json`).
+* **Flagged otherwise.** Every minute the router also samples the public health
+  check; any instance serving a release that is not the router's appears under
+  `fleet.problems` in the status document and in the router log.
+
+The pool image should still be refreshed from the current web node now and then:
+its `/etc/firstmeasure` configuration (provider and feature environment files
+added since September) comes from the image, not from a release. Production's
+equivalent is the signed release channel (`bootstrap-web-release.sh`); nothing
+here changes production.
+
 ### Adding a lane
 
 A lane is `tools/dev-push/lanes/<lane>/lane.mjs` plus an entry in `LANES`

@@ -11,7 +11,8 @@ export const INVENTORY = {
   legacy: { address: "root@137.184.229.145" }
 };
 
-export function makeHosts({ inventory = INVENTORY, key = path.join(os.homedir(), ".ssh", "dev_push_router_ed25519"), knownHosts = path.join(os.homedir(), "dev-push", "known_hosts"), log = () => {} } = {}) {
+export function makeHosts({ inventory: given = INVENTORY, key = path.join(os.homedir(), ".ssh", "dev_push_router_ed25519"), knownHosts = path.join(os.homedir(), "dev-push", "known_hosts"), log = () => {} } = {}) {
+  const inventory = Object.fromEntries(Object.entries(given).map(([role, host]) => [role, { ...host }])); // pool members join and leave
   const sshOptions = ["-i", key, "-o", "BatchMode=yes", "-o", "IdentitiesOnly=yes", "-o", "StrictHostKeyChecking=accept-new", "-o", `UserKnownHostsFile=${knownHosts}`, "-o", "ConnectTimeout=15", "-o", "ServerAliveInterval=15"];
   const address = (role) => {
     const host = inventory[role];
@@ -27,7 +28,10 @@ export function makeHosts({ inventory = INVENTORY, key = path.join(os.homedir(),
   }
 
   return {
-    roles: Object.keys(inventory),
+    get roles() { return Object.keys(inventory); },
+    addRole(role, address) { inventory[role] = { address }; },
+    removeRole(role) { delete inventory[role]; },
+    addresses() { return Object.fromEntries(Object.entries(inventory).map(([role, host]) => [role, host.address])); },
     call,
     status: (role, lane = "platform", probe = null) => call(role, ["status", lane, ...(probe ? ["--probe", probe] : [])], { timeoutMs: 60_000 }),
 

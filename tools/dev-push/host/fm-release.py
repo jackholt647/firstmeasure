@@ -39,6 +39,7 @@ LOCK = pathlib.Path("/run/lock/fm-release.lock")
 SHA = re.compile(r"^[0-9a-f]{40}(-dp)?$")  # release name: the commit, or <commit>-dp beside an old-tool directory
 LANE = re.compile(r"^[a-z][a-z0-9-]{1,31}$")
 RECEIPT = "dev-push-release.json"
+AWAITING = pathlib.Path("/var/lib/dev-push/awaiting-release")  # units a new pool node keeps stopped until its first release
 # Never part of a release tree: runtime data carried from the running release, and the router's receipt.
 HOST_PATHS = ("public/storage", "public/v1/storage", "public/v1/output")
 SKIP_IN_TREE = set(HOST_PATHS) | {RECEIPT, "channels-release.json"}
@@ -310,8 +311,14 @@ def cmd_activate(lane, sha, expect, wait_jobs):
             back = wait_ready(previous.name, 120) if lane == "platform" else None
             fail(f"activation failed: {reason}", rolled_back=back is None, rollback_error=back, previous=previous.name)
         fail(f"activation failed: {reason}", rolled_back=False)
+    joined = False
+    if lane == "platform" and AWAITING.is_file():
+        # A new pool node held out of rotation (deploy/digitalocean/dev-pool-user-data.sh) now runs the router's release.
+        subprocess.run(["systemctl", "enable", "--now", *AWAITING.read_text().split()], check=False)
+        AWAITING.unlink()
+        joined = True
     handle.close()
-    out({"ok": True, "release": sha, "previous": previous.name if previous else None})
+    out({"ok": True, "release": sha, "previous": previous.name if previous else None, "joined": joined})
 
 
 def cmd_rollback(lane, sha):
@@ -332,7 +339,7 @@ def cmd_rollback(lane, sha):
 def cmd_status(lane, probe=None):
     settings = config()
     lanes = [lane] if lane else ["platform"] + sorted(p.name for p in (ROOT / "lanes").glob("*") if p.is_dir())
-    result = {"ok": True, "role": settings.get("role"), "host": os.uname().nodename, "lanes": {}}
+    result = {"ok": True, "role": settings.get("role"), "host": os.uname().nodename, "lanes": {}, "awaiting_release": AWAITING.is_file()}
     for name in lanes:
         releases, link = lane_dirs(name)
         current = current_release(link)
