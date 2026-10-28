@@ -4,6 +4,11 @@
  * PlatformRealtime watches `live-assets` on the page's one stream and hands each frame here:
  *   hello   { gen, files: { path: sha } }        the files the layer serves now
  *   changed { gen, files: [{ path, sha|null }] } files written, or gone back to the release (sha null)
+ *   release { release }                          the host switched to another platform release
+ *
+ * A page remembers the release it was loaded on (`release` in its first hello) and reloads onto a newer one
+ * at the first quiet moment (createReleaseWatch): visible, nobody typing in a field, no touch or key for a few
+ * seconds. Open dev pages, the Android development app's among them, so run what was just shipped.
  *
  * For every frame of this page (the page and its same-origin frames that have no receiver of their own):
  * a changed stylesheet <link> or <img> is swapped in place, and so is a script's injected <style> when the
@@ -22,7 +27,7 @@ let work = Promise.resolve();
 let generation = -1;
 const recent = [];
 function record(win, path, action) {
-  recent.push({ at: Date.now(), frame: win === window ? 'page' : (win.name || win.location.pathname), path, action });
+  recent.push({ at: Date.now(), frame: typeof window !== 'undefined' && win === window ? 'page' : (win.name || win.location.pathname), path, action });
   if (recent.length > 50) recent.shift();
 }
 function enqueue(run) { const next = work.then(run); work = next.catch(() => {}); return next; }
@@ -391,9 +396,69 @@ async function verify() {
   if (stale.size) await applyChanges([...stale.values()]);
 }
 
+const EDITABLE_INPUT = /^(?!button$|submit$|reset$|checkbox$|radio$|range$|color$|file$|image$|hidden$)/i;
+/** The focused field someone may be typing in, following focus into same-origin frames. */
+function editing(doc) {
+  let el = doc?.activeElement;
+  for (let depth = 0; el && depth < 5; depth += 1) {
+    if (el.isContentEditable || el.tagName === 'TEXTAREA' || el.tagName === 'SELECT') return true;
+    if (el.tagName === 'INPUT') return EDITABLE_INPUT.test(el.type || 'text');
+    if (el.tagName !== 'IFRAME') return false;
+    try { el = el.contentDocument?.activeElement; } catch { return false; }
+  }
+  return false;
+}
+
+/**
+ * Reloads `win` onto a new platform release once it is quiet. `note(release)` takes each release the stream
+ * reports: the first is the page's own; a different one waits for quiet, and the page's own again (a reconnect
+ * that reached a web host still switching) cancels the wait.
+ */
+export function createReleaseWatch(win, { quietMs = 4000, everyMs = 1000, now = () => Date.now(), reload = () => win.location.reload(), say = notice } = {}) {
+  let own = '';
+  let waiting = '';
+  let lastInput = now();
+  let timer = null;
+  const listened = new WeakSet();
+  const touched = () => { lastInput = now(); };
+  const listen = () => {
+    for (const frame of frames(win)) {
+      if (listened.has(frame)) continue;
+      listened.add(frame);
+      for (const type of ['keydown', 'pointerdown', 'wheel', 'touchstart']) frame.addEventListener?.(type, touched, { capture: true, passive: true });
+    }
+  };
+  const quiet = () => win.document.visibilityState !== 'hidden' && !editing(win.document) && now() - lastInput >= quietMs;
+  const stop = () => { if (timer) win.clearInterval(timer); timer = null; win.document.removeEventListener?.('visibilitychange', check); };
+  function check() {
+    if (!waiting) return stop();
+    listen();
+    if (!quiet()) return false;
+    stop();
+    record(win, waiting, 'reload-release');
+    say(`New release · reloading`);
+    reload();
+    return true;
+  }
+  function note(release) {
+    release = String(release || '');
+    if (!release) return false;
+    listen();
+    if (!own) { own = release; return false; }
+    if (release === own) { waiting = ''; stop(); return false; }
+    if (waiting === release) return false;
+    waiting = release;
+    if (!timer) { timer = win.setInterval(check, everyMs); win.document.addEventListener?.('visibilitychange', check); }
+    return check();
+  }
+  return { note, check, state: () => ({ own, waiting }) };
+}
+let releaseWatch = null;
+
 export function receive(event, data) { return enqueue(() => receiveEvent(event, data)); }
 
 async function receiveEvent(event, data) {
+  if (event === 'hello' || event === 'release') (releaseWatch ||= createReleaseWatch(window)).note(data?.release);
   if (event !== 'hello' && event !== 'changed') return;
   const nextGeneration = Number(data?.gen);
   if (Number.isFinite(nextGeneration) && nextGeneration < generation) return;

@@ -11,6 +11,10 @@ import { registerRealtimeChannelKind, type RealtimeChannelSend } from "./realtim
  * page watching `live-assets` on the platform stream gets the list once (`hello`) and then every
  * change (`changed`), and swaps those files in (libraries/live-assets/live-assets.js). Nothing here
  * writes: the receiver on the web host (tools/live-layer/fm-live-receive.py) owns the folder.
+ *
+ * The channel also says which platform release this host serves (`release` in `hello`, and a `release` frame
+ * when `fm-release activate` switches `current`), so an open dev page reloads onto a new release. A browser-only
+ * release keeps the server running (`activate --keep-server`), so the server's own RELEASE_ID cannot tell.
  */
 
 export type LiveManifest = {
@@ -54,7 +58,13 @@ export function liveChanges(before: LiveManifest, after: LiveManifest): LiveChan
   return changes.sort((a, b) => a.path.localeCompare(b.path));
 }
 
+/** The release this host serves: the directory `current` points at (`fm-release`), else the server's own id. */
+export function servedRelease(link = String(process.env.FIRSTMEASURE_CURRENT_RELEASE_LINK ?? "/opt/firstmeasure/current").trim()) {
+  try { return path.basename(fs.realpathSync(link)); } catch { return env.releaseId; }
+}
+
 const listeners = new Set<RealtimeChannelSend>();
+let release = "";
 let current: LiveManifest = EMPTY;
 let lastText = "";
 let stopWatching: (() => void) | null = null;
@@ -73,7 +83,15 @@ function refresh(dir: string) {
   if (changes.length) for (const send of listeners) send("changed", { gen: next.gen, files: changes });
 }
 
+function refreshRelease() {
+  const next = servedRelease();
+  if (next === release) return;
+  release = next;
+  for (const send of listeners) send("release", { release });
+}
+
 function startWatching(dir: string) {
+  release = servedRelease();
   lastText = readManifest(dir);
   current = lastText ? parseLiveManifest(lastText) : EMPTY;
   // The receiver replaces manifest.json by rename, which fs.watch on the folder sees at once; the poll covers
@@ -85,7 +103,7 @@ function startWatching(dir: string) {
     catch { watcher = null; }
   };
   watch();
-  const poll = setInterval(() => { watch(); refresh(dir); }, POLL_MS);
+  const poll = setInterval(() => { watch(); refresh(dir); refreshRelease(); }, POLL_MS);
   poll.unref?.();
   return () => { clearInterval(poll); watcher?.close(); };
 }
@@ -99,7 +117,7 @@ export function registerLiveAssetsChannel() {
     return (send) => {
       if (!listeners.size) stopWatching = startWatching(dir);
       listeners.add(send);
-      send("hello", { gen: current.gen, files: Object.fromEntries(Object.entries(current.files).map(([file, entry]) => [file, entry.sha])) });
+      send("hello", { gen: current.gen, release, files: Object.fromEntries(Object.entries(current.files).map(([file, entry]) => [file, entry.sha])) });
       return () => {
         listeners.delete(send);
         if (!listeners.size) { stopWatching?.(); stopWatching = null; }
