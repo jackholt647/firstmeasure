@@ -103,7 +103,8 @@ async function main() {
     await router.saveStatus();
     return;
   }
-  await router.start({ intervalMs: config.intervalMs || 15_000 });
+  // The repository is local, so an idle pass costs a few milliseconds: poll often to keep the queue wait short.
+  await router.start({ intervalMs: config.intervalMs || 3_000 });
 }
 
 main().catch((error) => { console.error(error.stack || error.message); process.exit(1); });

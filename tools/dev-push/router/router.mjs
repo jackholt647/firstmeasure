@@ -40,7 +40,10 @@ export class Router {
     this.releases = this.readJson("releases.json", []);
     this.gateCache = new Map(); // `${sha}\0${gate}` -> passed?
     this.failedOverlays = new Set(); // `${ref}@${sha}@${tip}`: overlays that could not be merged onto that tip
-    for (const name of Object.keys(this.lanes)) this.laneState[name] = { state: "idle", batch: [], release: null, tip: null, note: null };
+    for (const name of Object.keys(this.lanes)) {
+      const last = this.releases.find((release) => release.lane === name);
+      this.laneState[name] = { state: "idle", batch: [], release: last ? { id: last.id, sha: last.sha, at: last.at } : null, tip: null, note: null };
+    }
   }
 
   readJson(name, fallback) { try { return JSON.parse(fs.readFileSync(path.join(this.stateDir, name), "utf8")); } catch { return fallback; } }
@@ -192,7 +195,7 @@ export class Router {
       await this.retire(entry);
       return true;
     }
-    const gate = await this.runGates(target, dir, sha, tip, [{ ...entry, regression: entry.regression || "mapped" }]);
+    const gate = await this.runGates(target, dir, sha, tip, [entry]); // regression null = the quick checks only (--gates-only)
     const report = [
       ...gate.failures.map((failure) => `## FAILED ${failure.id}\n${trim(failure.output, 4000)}`),
       ...(gate.notes || []).map((note) => `note: ${note}`)
@@ -345,7 +348,7 @@ export class Router {
     await this.update(candidates, { state: "merging" });
     let { conflicts } = await timed("merge", () => this.mergeOnto(dir, tip, candidates));
     for (const { entry, files } of conflicts) {
-      await this.reject(entry, "conflict", `Conflicts with ${module.branch} ${tip.slice(0, 10)} (or with work merged ahead of it in this batch) in:\n${files.join("\n")}\n\nRebase onto the lane tip and submit again:\n  git fetch origin && git rebase origin/${module.branch}\n  node tools/dev-push/submit.mjs --lane ${lane}`);
+      await this.reject(entry, "conflict", `Conflicts with ${module.branch} ${tip.slice(0, 10)} (or with work merged ahead of it in this batch) in:\n${files.join("\n")}\n\nRebase onto the lane tip and submit again:\n  git fetch devpush && git rebase devpush/${module.branch}\n  node tools/dev-push/submit.mjs --wait`);
     }
     let accepted = candidates.filter((entry) => !conflicts.some((conflict) => conflict.entry === entry));
 
@@ -450,7 +453,7 @@ export class Router {
     this.log(lane, `releasing the lane tip ${tip.slice(0, 10)} as ${releaseId}`);
     const deployed = await module.deploy({ dir, sha: tip, releaseId, previous: this.laneState[lane].release, hosts: this.options.hosts, ssh: this.ssh, log: (line) => this.log(lane, line) });
     if (!deployed.ok) { await this.setLane(lane, { state: "idle", note: `release of the tip failed: ${trim(deployed.error, 400)}` }); throw new Error(deployed.error); }
-    const release = { id: releaseId, lane, sha: tip, at: new Date().toISOString(), base: tip, branch_pushed: true, submissions: [], works: [], overlays: [], roles: deployed.roles || {} };
+    const release = { id: releaseId, lane, sha: tip, at: new Date().toISOString(), base: tip, branch_pushed: true, submissions: [], works: [], overlays: [], roles: deployed.roles || {}, timings: deployed.timings || {} };
     this.releases.unshift(release);
     fs.writeFileSync(path.join(this.stateDir, "releases", `${releaseId}.json`), JSON.stringify(release, null, 1));
     await this.setLane(lane, { state: "idle", release: { id: releaseId, sha: tip, at: release.at }, note: null });
