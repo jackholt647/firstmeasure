@@ -108,7 +108,7 @@ test('photo fields are pinned photos: the field editor, viewer actions and pinne
 
     // The pinned row sits above the gallery groups: one tile per photo field, labelled with the field's name.
     await page.evaluate(()=>{
-      document.querySelector('#rPhotoFeedMount').innerHTML=window.gallery.introHtml()+window.project.photos.map(photo=>`<button class="pf-thumb" data-photo-feed-id="project::${photo.id}">${window.gallery.renderTileBadge({photo})}</button>`).join('');
+      document.querySelector('#rPhotoFeedMount').innerHTML=(window.gallery.pinnedTiles()?.html||'')+window.project.photos.map(photo=>`<button class="pf-thumb" data-photo-feed-id="project::${photo.id}">${window.gallery.renderTileBadge({photo})}</button>`).join('');
       window.writes=[];
     });
     assert.deepEqual(await page.locator('[data-pinned-field] .r-pinned-label').allTextContents(),['Cover photo','Detail photo']);
@@ -193,7 +193,7 @@ test('the saved satellite photo pinned as the cover is an ordinary photo field v
     assert.equal(await page.evaluate(()=>window.project.photos.some(photo=>photo.id==='top_down_thumbnail')),false,'no generated stand-in beside it');
     assert.deepEqual(await page.evaluate(()=>window.project.custom_fields.cover_photo),{media_id:'sat'});
     await page.waitForFunction(()=>(window.galleryPhotos||[]).some(photo=>photo.media_id==='sat') && window.gallery.viewerActions.some(a=>a.id==='pin_field:site_photos'));
-    const paint=()=>page.evaluate(()=>{document.querySelector('#rPhotoFeedMount').innerHTML=window.gallery.introHtml()+window.project.photos.map(photo=>`<button class="pf-thumb" data-photo-feed-id="project::${photo.id}">${window.gallery.renderTileBadge({photo})}</button>`).join('');});
+    const paint=()=>page.evaluate(()=>{document.querySelector('#rPhotoFeedMount').innerHTML=(window.gallery.pinnedTiles()?.html||'')+window.project.photos.map(photo=>`<button class="pf-thumb" data-photo-feed-id="project::${photo.id}">${window.gallery.renderTileBadge({photo})}</button>`).join('');});
     await paint();
     // Only the contract's enabled, shown photo fields are pinned.
     assert.deepEqual(await page.locator('[data-pinned-field] .r-pinned-label').allTextContents(),['Cover photo','Site photos']);

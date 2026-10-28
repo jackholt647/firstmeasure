@@ -857,12 +857,18 @@
     return `<div class="r-pinned-tile${shown ? '' : ' is-empty'}" data-pinned-field="${path}" role="listitem">${face}<div class="r-pinned-foot"><span class="r-pinned-label" title="${label}">${label}</span>${more}</div></div>`;
   }
 
-  // The row above the gallery groups; nothing when the project has no photo fields.
+  // The pinned tiles; nothing when the project has no photo fields. The gallery pins them into the top-left corner of
+  // its first day (above the gallery when it has none, and on a phone).
   function pinnedRowHtml(){
-    if (!activeProjectId()) return '<div data-pinned-photos hidden></div>';
+    if (!activeProjectId()) return '<div data-pinned-photos data-notch-columns="1" hidden></div>';
     const fields = pinnedFields();
-    if (!fields.length) return '<div data-pinned-photos hidden></div>';
-    return `<section class="r-pinned" data-pinned-photos aria-label="${escapeHtml(pinText('pinned_row_label', 'Pinned photos'))}"><div class="r-pinned-strip" role="list">${fields.map(pinnedTileHtml).join('')}</div></section>`;
+    if (!fields.length) return '<div data-pinned-photos data-notch-columns="1" hidden></div>';
+    return `<section class="r-pinned" data-pinned-photos data-notch-columns="${fields.length}" aria-label="${escapeHtml(pinText('pinned_row_label', 'Pinned photos'))}"><div class="r-pinned-strip" role="list">${fields.map(pinnedTileHtml).join('')}</div></section>`;
+  }
+
+  function pinnedGalleryTiles(){
+    const fields = activeProjectId() ? pinnedFields() : [];
+    return fields.length ? { html:pinnedRowHtml(), columns:fields.length } : null;
   }
 
   // Repaints the pinned row and the tile pills in place after a field or its value changes.
@@ -870,6 +876,9 @@
     const root = state.panelRoot;
     if (!root?.isConnected) return;
     const row = root.querySelector('[data-pinned-photos]');
+    // The gallery places the pinned tiles by how many there are: a different number lays it out again.
+    const shown = row && !row.hidden ? Number(row.dataset.notchColumns) || 0 : 0;
+    if (shown !== (activeProjectId() ? pinnedFields().length : 0) && root.querySelector('#rPhotoFeedMount .pf-wrap')) { renderPhotoGallery(); return; }
     if (row) row.outerHTML = pinnedRowHtml();
     root.querySelectorAll('[data-pinned-chip]').forEach((chip) => { chip.outerHTML = pinnedChipHtml(chip.dataset.pinnedChip); });
     state.activeViewer?.refreshActions?.();
@@ -1010,6 +1019,14 @@
   function injectPinnedCss(){
     const css = `
       .r-pinned{margin:0 0 18px}
+      .pf-notch .r-pinned{margin:0;height:100%}
+      .pf-notch .r-pinned-strip{display:grid;grid-auto-flow:column;grid-auto-columns:minmax(0,1fr);gap:6px;height:100%;flex-wrap:nowrap}
+      .pf-notch .r-pinned-tile{width:auto;height:100%;display:flex;flex-direction:column}
+      .pf-notch .r-pinned-face{flex:1 1 auto;height:auto;min-height:72px;border-radius:8px}
+      .pf-notch .r-pinned-foot{margin-top:3px;height:24px}
+      .pf-notch-stacked .pf-notch .r-pinned-strip{display:flex;flex-wrap:wrap}
+      .pf-notch-stacked .pf-notch .r-pinned-tile{width:132px;height:auto}
+      .pf-notch-stacked .pf-notch .r-pinned-face{height:92px;flex:none}
       .r-pinned-strip{display:flex;flex-wrap:wrap;gap:12px}
       .r-pinned-tile{position:relative;flex:0 0 auto;width:132px;min-width:0}
       .r-pinned-face{position:relative;display:flex;align-items:center;justify-content:center;flex-direction:column;gap:6px;width:100%;height:92px;margin:0;padding:0;border:1px solid #eaecf0;border-radius:10px;background:#f2f4f7;overflow:hidden;cursor:pointer;font:inherit;color:#667085;box-shadow:0 1px 2px rgba(16,24,40,.05)}
@@ -1162,7 +1179,7 @@
         routeScope: 'project',
         initialPhotoId: window.pendingRoutePhotoId,
         selectionActions: portalSelectionActions(),
-        introHtml: pinnedRowHtml,
+        pinnedTiles: pinnedGalleryTiles,
         renderTileBadge: renderPinnedTileBadge,
         viewerActions,
         viewerIndicators: portalViewerIndicators(),
