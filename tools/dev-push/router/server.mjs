@@ -53,6 +53,7 @@ async function main() {
     return;
   }
   const config = settings();
+  if (config.runner && !process.env.DEV_PUSH_RUNNER) process.env.DEV_PUSH_RUNNER = config.runner; // regression runner (lanes/platform)
   const names = config.lanes || ["platform", "measure-internal"];
   const lanes = await loadLanes(names);
   const hosts = makeHosts({ knownHosts: path.join(HOME, "known_hosts"), key: KEY });
