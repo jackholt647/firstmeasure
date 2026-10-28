@@ -1,7 +1,7 @@
 {
-  "files": 286,
-  "namespaces": 116,
-  "messages": 16916,
+  "files": 295,
+  "namespaces": 117,
+  "messages": 16975,
   "migration": [
     {
       "file": "public/libraries/account-switcher/account-switcher.js",
@@ -140,8 +140,8 @@
       "file": "public/libraries/apps/checklists/app.js",
       "namespace": "checklists",
       "references": 119,
-      "candidates": 0,
-      "edits": 0
+      "candidates": 19,
+      "edits": 17
     },
     {
       "file": "public/libraries/apps/comms/calling-runtime.js",
@@ -203,8 +203,8 @@
       "file": "public/libraries/apps/crew/app.js",
       "namespace": "crew",
       "references": 185,
-      "candidates": 0,
-      "edits": 0
+      "candidates": 15,
+      "edits": 11
     },
     {
       "file": "public/libraries/apps/crm/app.js",
@@ -678,7 +678,7 @@
     {
       "file": "public/libraries/apps/projects/viewer.js",
       "namespace": "projects",
-      "references": 363,
+      "references": 365,
       "candidates": 0,
       "edits": 0
     },
@@ -769,7 +769,7 @@
     {
       "file": "public/libraries/apps/settings/contacts.js",
       "namespace": "settings",
-      "references": 59,
+      "references": 63,
       "candidates": 20,
       "edits": 9
     },
@@ -944,7 +944,7 @@
     {
       "file": "public/libraries/apps/tab-promos/project.js",
       "namespace": "tab-promos",
-      "references": 13,
+      "references": 6,
       "candidates": 0,
       "edits": 0
     },
@@ -1145,18 +1145,81 @@
       "edits": 2
     },
     {
-      "file": "public/libraries/development-tools/development-tools.js",
-      "namespace": "development-tools",
+      "file": "public/libraries/dev-console/dev-console.js",
+      "namespace": "dev-console",
       "references": 0,
-      "candidates": 18,
-      "edits": 12
+      "candidates": 1,
+      "edits": 1
     },
     {
-      "file": "public/libraries/development-tools/software-layers.js",
-      "namespace": "development-tools",
+      "file": "public/libraries/dev-console/dock.js",
+      "namespace": "dev-console",
+      "references": 0,
+      "candidates": 0,
+      "edits": 0
+    },
+    {
+      "file": "public/libraries/dev-console/sections/config-library.js",
+      "namespace": "dev-console",
+      "references": 0,
+      "candidates": 0,
+      "edits": 0
+    },
+    {
+      "file": "public/libraries/dev-console/sections/guided.js",
+      "namespace": "dev-console",
+      "references": 0,
+      "candidates": 0,
+      "edits": 0
+    },
+    {
+      "file": "public/libraries/dev-console/sections/live-layer.js",
+      "namespace": "dev-console",
+      "references": 0,
+      "candidates": 0,
+      "edits": 0
+    },
+    {
+      "file": "public/libraries/dev-console/sections/org-state.js",
+      "namespace": "dev-console",
+      "references": 0,
+      "candidates": 0,
+      "edits": 0
+    },
+    {
+      "file": "public/libraries/dev-console/sections/push-queue.js",
+      "namespace": "dev-console",
+      "references": 0,
+      "candidates": 1,
+      "edits": 1
+    },
+    {
+      "file": "public/libraries/dev-console/sections/software-layers.js",
+      "namespace": "dev-console",
       "references": 0,
       "candidates": 21,
       "edits": 3
+    },
+    {
+      "file": "public/libraries/dev-console/sections/synthetic-data.js",
+      "namespace": "dev-console",
+      "references": 0,
+      "candidates": 0,
+      "edits": 0
+    },
+    {
+      "file": "public/libraries/dev-console/sections/test-run.js",
+      "namespace": "dev-console",
+      "references": 0,
+      "candidates": 0,
+      "edits": 0
+    },
+    {
+      "file": "public/libraries/dev-console/sections/test-users.js",
+      "namespace": "dev-console",
+      "references": 0,
+      "candidates": 0,
+      "edits": 0
     },
     {
       "file": "public/libraries/doc-agent/doc-agent.js",
@@ -1348,11 +1411,18 @@
       "edits": 0
     },
     {
+      "file": "public/libraries/guided-experiences/checklists-setup.js",
+      "namespace": "guided-experiences",
+      "references": 0,
+      "candidates": 0,
+      "edits": 0
+    },
+    {
       "file": "public/libraries/guided-experiences/guided-experiences.js",
       "namespace": "guided-experiences",
       "references": 0,
-      "candidates": 3,
-      "edits": 3
+      "candidates": 1,
+      "edits": 1
     },
     {
       "file": "public/libraries/guided-experiences/guided-setup.js",
@@ -1969,13 +2039,6 @@
       "references": 45,
       "candidates": 1,
       "edits": 1
-    },
-    {
-      "file": "public/portal/scripts/dev_overlay.js",
-      "namespace": "platform",
-      "references": 13,
-      "candidates": 0,
-      "edits": 0
     },
     {
       "file": "public/portal/scripts/project_viewer.js",

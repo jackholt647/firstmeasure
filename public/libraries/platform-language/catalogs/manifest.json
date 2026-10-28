@@ -90,17 +90,18 @@
     "phone-input",
     "signup",
     "session-replay",
-    "guided-experiences"
+    "guided-experiences",
+    "dev-console"
   ],
   "namespaces": {
     "billing": "billing.19b77e35a93e1525.json",
     "canvassing": "canvassing.97d38dba9a5cc50e.json",
     "channels": "channels.0a1e8c8a958a3b23.json",
     "chat": "chat.5a80b59bb208a0fb.json",
-    "checklists": "checklists.1911fb53f4711f17.json",
+    "checklists": "checklists.fdb74ad1449f9993.json",
     "comms": "comms.6ce88a6f6d3a0d2d.json",
     "contacts": "contacts.fce4b787d9893df8.json",
-    "crew": "crew.78bbf7ed8445957c.json",
+    "crew": "crew.6191aa50b5e885c9.json",
     "customer-portal": "customer-portal.af0bdf7f3055f165.json",
     "docs": "docs.29116a16d45e316b.json",
     "documents": "documents.805208b9281cf6a8.json",
@@ -178,7 +179,7 @@
     "web-widgets": "web-widgets.e728515d924f58e1.json",
     "window-manager": "window-manager.6cb6eadd9e643d59.json",
     "reports": "reports.349636fea983bcc9.json",
-    "errors": "errors.5291c57e1e067dd9.json",
+    "errors": "errors.e32d6df7c02a0190.json",
     "notifications": "notifications.47ceed6a7a52fb6d.json",
     "mobile": "mobile.35647c76c870d74d.json",
     "google-auth": "google-auth.fe5bfb1d435938b4.json",
@@ -208,6 +209,7 @@
     "phone-input": "phone-input.0f7b1d2efc70886c.json",
     "signup": "signup.da4bde81ba505278.json",
     "session-replay": "session-replay.76fd794d35b9f99a.json",
-    "guided-experiences": "guided-experiences.61aa75d7c761e573.json"
+    "guided-experiences": "guided-experiences.61aa75d7c761e573.json",
+    "dev-console": "dev-console.36e83fbbc1b0bbf0.json"
   }
 }

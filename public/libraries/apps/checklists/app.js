@@ -362,7 +362,7 @@
         subjects = records(await (workforce?.assignableResources?.(orgId(context), 'default', {}) || Promise.resolve({})), 'subjects', 'resources')
           .filter((subject) => ['resource_group', 'organization_user'].includes(clean(subject.subject_type)) && clean(subject.id));
       } catch (error) {
-        showToast('Send to crew app', statusError(error, 'Could not load who to send it to.'), false);
+        showToast((globalThis.PlatformLanguage?.text("checklists","m_6baf833ff896ca","Send to crew app") ?? "Send to crew app"), statusError(error, 'Could not load who to send it to.'), false);
         return;
       } finally { if (button) button.disabled = false; }
       // Groups first, then people; whoever it is already assigned to leads.
@@ -371,18 +371,18 @@
         .map((subject) => ({ value:`${clean(subject.subject_type)}:${clean(subject.id)}`, label:first(subject.name, subject.title, subject.user?.name, subject.id), group:clean(subject.subject_type) === 'resource_group' }))
         .sort((left, right) => Number(assigned.has(right.value)) - Number(assigned.has(left.value)) || Number(right.group) - Number(left.group) || left.label.localeCompare(right.label))
         .slice(0, 12);
-      if (!choices.length) return showToast('Send to crew app', 'There is nobody to send it to yet. Add people or groups in People first.', false);
+      if (!choices.length) return showToast((globalThis.PlatformLanguage?.text("checklists","m_6baf833ff896ca","Send to crew app") ?? "Send to crew app"), (globalThis.PlatformLanguage?.text("checklists","m_89991f9f77a63f","There is nobody to send it to yet. Add people or groups in People first.") ?? "There is nobody to send it to yet. Add people or groups in People first."), false);
       const picked = await (Portal.ui?.choose?.(`Send "${clean(checklist.title) || 'this checklist'}" to the crew app. It is assigned to who you pick, and the project shows in their app.`, [
         ...choices.map((choice, index) => ({ value:choice.value, label:choice.label, primary:index === 0 })),
-        { value:'', label:'Cancel' }
-      ], { title:'Send to crew app' }) || Promise.resolve(''));
+        { value:'', label:(globalThis.PlatformLanguage?.text("checklists","m_cbef679b21abb4","Cancel") ?? "Cancel") }
+      ], { title:(globalThis.PlatformLanguage?.text("checklists","m_6baf833ff896ca","Send to crew app") ?? "Send to crew app") }) || Promise.resolve(''));
       if (!picked) return;
       const [kind, ...rest] = String(picked).split(':');
       try {
         await window.CrewAPI.projects.sendChecklistToCrew(orgId(context), projectId(context), checklist.id, [{ kind, id:rest.join(':') }]);
-        showToast('Sent to the crew app', `${choices.find((choice) => choice.value === picked)?.label || 'They'} will see this project and checklist in the crew app.`);
+        showToast((globalThis.PlatformLanguage?.text("checklists","m_09441671887cab","Sent to the crew app") ?? "Sent to the crew app"), ((v0) => globalThis.PlatformLanguage?.text("checklists","m_df1adb4300f56b",`${v0} will see this project and checklist in the crew app.`,{v0}) ?? `${v0} will see this project and checklist in the crew app.`)(choices.find((choice) => choice.value === picked)?.label || 'They'));
         await load();
-      } catch (error) { showToast('Send to crew app', statusError(error), false); }
+      } catch (error) { showToast((globalThis.PlatformLanguage?.text("checklists","m_6baf833ff896ca","Send to crew app") ?? "Send to crew app"), statusError(error), false); }
     };
 
     // The Documents app being on (platform.documents) is what lets a checklist be written out as a document.
@@ -418,18 +418,18 @@
         documentRecord = obj((await window.CrewAPI.projects.checklistDocument(orgId(context), projectId(context), checklist.id))?.document);
         try { window.dispatchEvent(new CustomEvent('fm:documents:refresh', { detail:{ project_id:projectId(context), document_id:clean(documentRecord.id) } })); } catch (_) {}
       } catch (error) {
-        showToast('Checklist document', statusError(error), false);
+        showToast((globalThis.PlatformLanguage?.text("checklists","m_bbb5f3d70ddd66","Checklist document") ?? "Checklist document"), statusError(error), false);
         return;
       } finally { if (button) button.disabled = false; }
       if (!clean(documentRecord.id)) return;
       const pdfUrl = window.DocumentsAPI?.documents?.pdfUrl?.(orgId(context), documentRecord.id)
         || `${location.origin}/v1/documents/organizations/${encodeURIComponent(orgId(context))}/documents/${encodeURIComponent(documentRecord.id)}/pdf`;
       const choice = await (Portal.ui?.choose?.(`${clean(checklist.title) || 'This checklist'} is saved in Documents${checklist.signature_required ? ', with a signature line' : ''}. What would you like to do with it?`, [
-        { value:'email', label:'Email', primary:true },
-        { value:'download', label:'Download' },
-        { value:'print', label:'Print' },
-        { value:'close', label:'Done' }
-      ], { title:'Checklist document', defaultFocus:'email' }) || Promise.resolve('close'));
+        { value:'email', label:(globalThis.PlatformLanguage?.text("checklists","m_5d2b9327181e33","Email") ?? "Email"), primary:true },
+        { value:'download', label:(globalThis.PlatformLanguage?.text("checklists","m_871659bb2df660","Download") ?? "Download") },
+        { value:'print', label:(globalThis.PlatformLanguage?.text("checklists","m_441fd948b74354","Print") ?? "Print") },
+        { value:'close', label:(globalThis.PlatformLanguage?.text("checklists","m_8cb6b086a0e69c","Done") ?? "Done") }
+      ], { title:(globalThis.PlatformLanguage?.text("checklists","m_bbb5f3d70ddd66","Checklist document") ?? "Checklist document"), defaultFocus:'email' }) || Promise.resolve('close'));
       if (choice === 'download') window.open(pdfUrl, '_blank', 'noopener');
       else if (choice === 'print') printPdf(pdfUrl);
       else if (choice === 'email') {
@@ -446,7 +446,7 @@
       const signature = obj(checklist.crew_signature);
       return clean(signature.signer_name)
         ? `<span class="fmcl-signature signed" title="${esc(`Signed by ${signature.signer_name}${signature.signed_at ? ` on ${shortDate(signature.signed_at)}` : ''}`)}"><i class="fas fa-signature"></i>${esc(signature.signer_name)}</span>`
-        : `<span class="fmcl-signature" title="Signed in the crew app once every item is done"><i class="fas fa-signature"></i>To sign</span>`;
+        : `<span class="fmcl-signature" title="${(globalThis.PlatformLanguage?.htmlText("checklists","m_215579be77973e","Signed in the crew app once every item is done") ?? "Signed in the crew app once every item is done")}"><i class="fas fa-signature"></i>${(globalThis.PlatformLanguage?.htmlText("checklists","m_0874ee51f73df9","To sign") ?? "To sign")}</span>`;
     };
 
     const checklistHtml = (checklist, detail = false, order = 0, deleted = false) => {
@@ -509,7 +509,7 @@
         <div class="fmcl-card-body"><div class="fmcl-card-body-inner">
           <div class="fmcl-card-actions">
             <span class="fmcl-menu-wrap"><button class="fmcl-config-btn ${String(assignmentUi.open ? 'open' : '')}" type="button" data-fmcl-assign><i class="fas fa-user-group"></i>${((v16) => globalThis.PlatformLanguage?.htmlText("checklists","m_467cf3556084e7",` Completes: ${v16} `,{v16}) ?? ` Completes: ${v16} `)(esc(assignmentLabel))}<i class="fas fa-chevron-down"></i></button><div class="fmcl-assignment ${String(assignmentUi.open ? 'open' : '')}" data-fmcl-assignment>
-              <div class="fmcl-assignment-top"><div class="fmcl-field-editing"><span>${(globalThis.PlatformLanguage?.htmlText("checklists","m_b983a2145eb15f","Allow field editing") ?? "Allow field editing")}</span><button class="fmcl-switch ${String(checklist.crew_editable ? 'on' : '')}" type="button" data-fmcl-editable-v2 aria-pressed="${String(!!checklist.crew_editable)}"></button></div><div class="fmcl-field-editing" title="Whoever completes this checklist signs it once every item is done, in the crew app. Printed copies get a signature line."><span>Require signature</span><button class="fmcl-switch ${String(checklist.signature_required ? 'on' : '')}" type="button" data-fmcl-signature-required aria-pressed="${String(!!checklist.signature_required)}"></button></div></div>
+              <div class="fmcl-assignment-top"><div class="fmcl-field-editing"><span>${(globalThis.PlatformLanguage?.htmlText("checklists","m_b983a2145eb15f","Allow field editing") ?? "Allow field editing")}</span><button class="fmcl-switch ${String(checklist.crew_editable ? 'on' : '')}" type="button" data-fmcl-editable-v2 aria-pressed="${String(!!checklist.crew_editable)}"></button></div><div class="fmcl-field-editing" title="${(globalThis.PlatformLanguage?.htmlText("checklists","m_ef449324af3761","Whoever completes this checklist signs it once every item is done, in the crew app. Printed copies get a signature line.") ?? "Whoever completes this checklist signs it once every item is done, in the crew app. Printed copies get a signature line.")}"><span>${(globalThis.PlatformLanguage?.htmlText("checklists","m_bd11b7eff758d3","Require signature") ?? "Require signature")}</span><button class="fmcl-switch ${String(checklist.signature_required ? 'on' : '')}" type="button" data-fmcl-signature-required aria-pressed="${String(!!checklist.signature_required)}"></button></div></div>
               <div class="fmcl-assignment-stack">
                 <div class="fmcl-assignment-field"><span class="fmcl-compact-label">${(globalThis.PlatformLanguage?.htmlText("checklists","m_a3b601c625c54a","Eligible type") ?? "Eligible type")}</span><div class="fmcl-eligibility">${String(eligibilityChips || `<span class="fmcl-type-chip">${(globalThis.PlatformLanguage?.htmlText("checklists","m_ba4c0181dbbab5","Everyone") ?? "Everyone")}</span>`)}${String(eligibility.customRules.length ? `<span class="fmcl-type-chip" title="${(globalThis.PlatformLanguage?.htmlText("checklists","m_ef04a14ddff020","Additional filters are inherited from the scope definition.") ?? "Additional filters are inherited from the scope definition.")}">${(globalThis.PlatformLanguage?.htmlText("checklists","m_14b5d0674601b3","Scope filters") ?? "Scope filters")}</span>` : '')}<div class="fmcl-expand-picker ${String(assignmentUi.eligibilityPickerOpen ? 'open' : '')}" data-fmcl-picker="eligibility"><button class="fmcl-expand-trigger" type="button" data-fmcl-picker-toggle="eligibility" aria-expanded="${String(assignmentUi.eligibilityPickerOpen)}"><i class="fas fa-plus"></i><span>${(globalThis.PlatformLanguage?.htmlText("checklists","m_7ce48edf7d0424","Add eligible type") ?? "Add eligible type")}</span></button><div class="fmcl-picker-options">${String(assignmentUi.loading ? `<span class="fmcl-picker-empty">${(globalThis.PlatformLanguage?.htmlText("checklists","m_60869a53c82d79","Loading types…") ?? "Loading types…")}</span>` : `<button type="button" data-fmcl-eligibility-option="everyone">${(globalThis.PlatformLanguage?.htmlText("checklists","m_ba4c0181dbbab5","Everyone") ?? "Everyone")}</button>${eligibilityOptions.map((option) => `<button type="button" data-fmcl-eligibility-option="${esc(option.token)}">${esc(option.label)}</button>`).join('')}`)}</div></div></div></div>
                 <div class="fmcl-assignment-field"><span class="fmcl-compact-label">${(globalThis.PlatformLanguage?.htmlText("checklists","m_6167d42c586703","Assign person") ?? "Assign person")}</span><div class="fmcl-eligibility">${String(assigneeChips || '')}<div class="fmcl-expand-picker ${String(assignmentUi.personPickerOpen ? 'open' : '')}" data-fmcl-picker="person"><button class="fmcl-expand-trigger" type="button" data-fmcl-picker-toggle="person" aria-expanded="${String(assignmentUi.personPickerOpen)}"><i class="fas fa-plus"></i><span>${(globalThis.PlatformLanguage?.htmlText("checklists","m_6167d42c586703","Assign person") ?? "Assign person")}</span></button><div class="fmcl-picker-options">${String(assignmentUi.loading ? `<span class="fmcl-picker-empty">${(globalThis.PlatformLanguage?.htmlText("checklists","m_e35d44ebe92c7e","Loading people…") ?? "Loading people…")}</span>` : subjectChoices.length ? subjectChoices.map((subject) => `<button type="button" data-fmcl-person-option="${esc(subject.value)}">${esc(subject.label)}</button>`).join('') : `<span class="fmcl-picker-empty">${(globalThis.PlatformLanguage?.htmlText("checklists","m_0559904744409b","No eligible people found") ?? "No eligible people found")}</span>`)}</div></div></div></div>
@@ -716,7 +716,7 @@
         section.querySelector('[data-fmcl-document]')?.addEventListener('click', (event) => { event.stopPropagation(); void checklistDocument(checklist, event.currentTarget); });
         section.querySelector('[data-fmcl-signature-required]')?.addEventListener('click', async () => {
           try { await window.CrewAPI.projects.updateChecklist(orgId(context), projectId(context), checklistId, { signature_required: !checklist.signature_required }); await load(); }
-          catch (error) { showToast('Checklist', statusError(error), false); }
+          catch (error) { showToast((globalThis.PlatformLanguage?.text("checklists","m_c0e1c0020eb1c5","Checklist") ?? "Checklist"), statusError(error), false); }
         });
         section.querySelector('[data-fmcl-editable-v2]')?.addEventListener('click', async () => {
           try { await window.CrewAPI.projects.updateChecklist(orgId(context), projectId(context), checklistId, { crew_editable: !checklist.crew_editable }); await load(); }
@@ -1129,11 +1129,15 @@
       window.setTimeout(closeOpenMenus, 0);
     };
     const onDocumentKeyDown = (event) => { if (event.key === 'Escape') closeOpenMenus(); };
+    // The checklists setup adds the lists it preloads on the server: show them before its tour points at them.
+    const guideWindows = [...new Set([window, (() => { try { return window.top; } catch (_) { return null; } })()].filter(Boolean))];
+    const onGuideEnded = (event) => { if (['checklists.setup', 'checklists.tab_tutorial'].includes(clean(event?.detail?.id)) && !destroyed) void load(); };
+    guideWindows.forEach((target) => { try { target.addEventListener('fm:guides:ended', onGuideEnded); target.addEventListener('fm:guides:playing', onGuideEnded); } catch (_) {} });
     window.addEventListener('resize', onResize);
     document.addEventListener('pointerdown', onDocumentPointerDown);
     document.addEventListener('keydown', onDocumentKeyDown);
     load();
-    return { destroy(){ destroyed = true; window.clearTimeout(resizeTimer); window.removeEventListener('resize', onResize); document.removeEventListener('pointerdown', onDocumentPointerDown); document.removeEventListener('keydown', onDocumentKeyDown); if (typeof unregisterRoute === 'function') unregisterRoute(); root.innerHTML = ''; } };
+    return { destroy(){ destroyed = true; guideWindows.forEach((target) => { try { target.removeEventListener('fm:guides:ended', onGuideEnded); target.removeEventListener('fm:guides:playing', onGuideEnded); } catch (_) {} }); window.clearTimeout(resizeTimer); window.removeEventListener('resize', onResize); document.removeEventListener('pointerdown', onDocumentPointerDown); document.removeEventListener('keydown', onDocumentKeyDown); if (typeof unregisterRoute === 'function') unregisterRoute(); root.innerHTML = ''; } };
   }
 
   runtime.registerApp({

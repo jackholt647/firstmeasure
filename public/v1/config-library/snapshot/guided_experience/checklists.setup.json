@@ -1,0 +1,362 @@
+{
+  "kind": "guided_experience",
+  "id": "checklists.setup",
+  "revision": 1,
+  "sha256": "fd3d103e796da2ea73fd94e4e9920b2f99d45894c1e801233c1c0ebb5360fccc",
+  "title": "Set up checklists",
+  "updated_at": "2026-10-28T08:39:48.475Z",
+  "updated_by": "router-fm-283",
+  "data": {
+    "id": "checklists.setup",
+    "version": 1,
+    "kind": "modal",
+    "scope": "organization",
+    "salt": "checklists-v1",
+    "title": {
+      "key": "gx_cl_setup_title",
+      "text": "Set up checklists"
+    },
+    "description": {
+      "key": "gx_cl_setup_description",
+      "text": "Start with the checklists you'd use on a job: a customer punch list, crew safety and work completion."
+    },
+    "tab": "project.checklists",
+    "eligibility": {
+      "capabilities": [
+        "apps.checklists"
+      ],
+      "permissions": [
+        "manage_projects"
+      ]
+    },
+    "triggers": [
+      {
+        "kind": "tab_opened",
+        "tab": "project.checklists",
+        "once": true,
+        "delay_ms": 600
+      }
+    ],
+    "variants": [
+      {
+        "id": "default",
+        "weight": 1,
+        "when": {
+          "match": "any",
+          "rules": [
+            {
+              "field": "organization.industry",
+              "operator": "is_missing"
+            },
+            {
+              "field": "organization.industry",
+              "operator": "not_in",
+              "value": [
+                "roofing",
+                "exteriors",
+                "roofing_and_exteriors"
+              ]
+            }
+          ]
+        },
+        "content": {}
+      },
+      {
+        "id": "roofing",
+        "weight": 1,
+        "when": {
+          "field": "organization.industry",
+          "operator": "in",
+          "value": [
+            "roofing",
+            "exteriors",
+            "roofing_and_exteriors"
+          ]
+        },
+        "content": {
+          "use_cases": {
+            "use_cases": [
+              {
+                "id": "punchlist",
+                "icon": "fa-handshake",
+                "label": {
+                  "key": "gx_cl_uc_punch_label",
+                  "text": "Customer punch list"
+                },
+                "description": {
+                  "key": "gx_cl_uc_punch_body",
+                  "text": "Walk the finished job with your customer and have them tick off each item to sign off on the work."
+                },
+                "checklist": {
+                  "title": "Customer punch list",
+                  "description": "Walked with the customer at the end of the job.",
+                  "audience": "crew",
+                  "crew_editable": false,
+                  "signature_required": false,
+                  "customer": "complete",
+                  "items": [
+                    {
+                      "title": "Walk the finished roof and gutters with the customer"
+                    },
+                    {
+                      "title": "Magnetic sweep done: no nails left in the yard or driveway"
+                    },
+                    {
+                      "title": "Gutters and downspouts cleared of debris"
+                    },
+                    {
+                      "title": "Landscaping and siding checked for damage"
+                    },
+                    {
+                      "title": "Customer happy with the finished roof"
+                    }
+                  ]
+                }
+              },
+              {
+                "id": "crew_safety",
+                "icon": "fa-helmet-safety",
+                "label": {
+                  "key": "gx_cl_uc_safety_label",
+                  "text": "Crew safety checklist"
+                },
+                "description": {
+                  "key": "gx_cl_uc_safety_body",
+                  "text": "What the crew confirms before work starts, signed by whoever completes it."
+                },
+                "checklist": {
+                  "title": "Crew safety",
+                  "description": "Confirmed by the crew before work starts.",
+                  "audience": "crew",
+                  "crew_editable": false,
+                  "signature_required": true,
+                  "customer": "none",
+                  "items": [
+                    {
+                      "title": "Fall protection anchors installed and inspected"
+                    },
+                    {
+                      "title": "Harnesses and lanyards checked"
+                    },
+                    {
+                      "title": "Ladders set at the right angle and tied off"
+                    },
+                    {
+                      "title": "Power lines and skylights marked"
+                    },
+                    {
+                      "title": "Ground area under the roof edge marked off"
+                    },
+                    {
+                      "title": "First aid kit and fire extinguisher on site"
+                    }
+                  ]
+                }
+              },
+              {
+                "id": "work_completion",
+                "icon": "fa-flag-checkered",
+                "label": {
+                  "key": "gx_cl_uc_done_label",
+                  "text": "Work completion"
+                },
+                "description": {
+                  "key": "gx_cl_uc_done_body",
+                  "text": "Everything that has to be done before the job counts as finished."
+                },
+                "checklist": {
+                  "title": "Work completion",
+                  "description": "Finished before the job is closed out.",
+                  "audience": "crew",
+                  "crew_editable": true,
+                  "signature_required": false,
+                  "customer": "none",
+                  "items": [
+                    {
+                      "title": "Underlayment and ice and water shield installed"
+                    },
+                    {
+                      "title": "Flashing at walls, chimneys and pipes finished"
+                    },
+                    {
+                      "title": "Ridge vent and caps installed"
+                    },
+                    {
+                      "title": "Drip edge and gutters checked"
+                    },
+                    {
+                      "title": "Photos of every slope taken"
+                    },
+                    {
+                      "title": "Dumpster removed and site cleaned up"
+                    }
+                  ]
+                }
+              }
+            ]
+          }
+        }
+      }
+    ],
+    "requires": [
+      "company.type"
+    ],
+    "steps": [
+      {
+        "id": "use_cases",
+        "widget": "module",
+        "module": "/libraries/guided-experiences/checklists-setup.js?v=20261028-1",
+        "requires": [],
+        "title": {
+          "key": "gx_cl_uc_title",
+          "text": "Which checklists do you want to start with?"
+        },
+        "subtitle": {
+          "key": "gx_cl_uc_subtitle",
+          "text": "Pick the ones you'd use. We'll add them to this project, ready to change."
+        },
+        "say": [],
+        "options": {
+          "use_cases": [
+            {
+              "id": "punchlist",
+              "icon": "fa-handshake",
+              "label": {
+                "key": "gx_cl_uc_punch_label",
+                "text": "Customer punch list"
+              },
+              "description": {
+                "key": "gx_cl_uc_punch_body",
+                "text": "Walk the finished job with your customer and have them tick off each item to sign off on the work."
+              },
+              "checklist": {
+                "title": "Customer punch list",
+                "description": "Walked with the customer at the end of the job.",
+                "audience": "crew",
+                "crew_editable": false,
+                "signature_required": false,
+                "customer": "complete",
+                "items": [
+                  {
+                    "title": "Walk the finished work with the customer"
+                  },
+                  {
+                    "title": "All debris and leftover materials removed"
+                  },
+                  {
+                    "title": "Touch-ups and small fixes done"
+                  },
+                  {
+                    "title": "Customer's questions answered"
+                  },
+                  {
+                    "title": "Customer happy with the finished job"
+                  }
+                ]
+              }
+            },
+            {
+              "id": "crew_safety",
+              "icon": "fa-helmet-safety",
+              "label": {
+                "key": "gx_cl_uc_safety_label",
+                "text": "Crew safety checklist"
+              },
+              "description": {
+                "key": "gx_cl_uc_safety_body",
+                "text": "What the crew confirms before work starts, signed by whoever completes it."
+              },
+              "checklist": {
+                "title": "Crew safety",
+                "description": "Confirmed by the crew before work starts.",
+                "audience": "crew",
+                "crew_editable": false,
+                "signature_required": true,
+                "customer": "none",
+                "items": [
+                  {
+                    "title": "Hazards reviewed with the whole crew"
+                  },
+                  {
+                    "title": "Hard hats, safety glasses and gloves on"
+                  },
+                  {
+                    "title": "Ladders set, tied off and inspected"
+                  },
+                  {
+                    "title": "Work area marked off"
+                  },
+                  {
+                    "title": "First aid kit and fire extinguisher on site"
+                  }
+                ]
+              }
+            },
+            {
+              "id": "work_completion",
+              "icon": "fa-flag-checkered",
+              "label": {
+                "key": "gx_cl_uc_done_label",
+                "text": "Work completion"
+              },
+              "description": {
+                "key": "gx_cl_uc_done_body",
+                "text": "Everything that has to be done before the job counts as finished."
+              },
+              "checklist": {
+                "title": "Work completion",
+                "description": "Finished before the job is closed out.",
+                "audience": "crew",
+                "crew_editable": true,
+                "signature_required": false,
+                "customer": "none",
+                "items": [
+                  {
+                    "title": "All work in the scope is done"
+                  },
+                  {
+                    "title": "Photos of the finished work taken"
+                  },
+                  {
+                    "title": "Site cleaned up"
+                  },
+                  {
+                    "title": "Tools and equipment packed out"
+                  },
+                  {
+                    "title": "Office told the job is finished"
+                  }
+                ]
+              }
+            }
+          ],
+          "note": {
+            "key": "gx_cl_uc_note",
+            "text": "They go on this project, and you can change every one of them afterwards, by typing or by voice."
+          }
+        },
+        "selects": [
+          "checklist_use_cases",
+          "checklist_definitions"
+        ],
+        "required": true
+      }
+    ],
+    "completion": {
+      "action": {
+        "id": "checklists.setup.apply",
+        "target": "project",
+        "input": {}
+      },
+      "screen": "none",
+      "say": [],
+      "then": [
+        {
+          "play": "checklists.tab_tutorial"
+        }
+      ]
+    },
+    "replayable": true,
+    "reveal": []
+  }
+}

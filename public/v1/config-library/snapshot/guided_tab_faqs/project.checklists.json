@@ -1,0 +1,47 @@
+{
+  "kind": "guided_tab_faqs",
+  "id": "project.checklists",
+  "revision": 1,
+  "sha256": "017b8f65d822d73a4e6bc49553afdce578639edc54722086054c59e927e46531",
+  "title": "Questions on project.checklists",
+  "updated_at": "2026-10-28T08:39:48.487Z",
+  "updated_by": "router-fm-283",
+  "data": {
+    "tab": "project.checklists",
+    "questions": [
+      {
+        "id": "checklists.voice",
+        "text": {
+          "key": "gx_cl_faq_voice",
+          "text": "How do I make a checklist by voice?"
+        },
+        "action": "ask"
+      },
+      {
+        "id": "checklists.signature",
+        "text": {
+          "key": "gx_cl_faq_signature",
+          "text": "How do I get a checklist signed?"
+        },
+        "action": "ask"
+      },
+      {
+        "id": "checklists.print",
+        "text": {
+          "key": "gx_cl_faq_print",
+          "text": "How do I print or email a checklist?"
+        },
+        "action": "ask"
+      },
+      {
+        "id": "checklists.tour",
+        "text": {
+          "key": "gx_cl_faq_tour",
+          "text": "Show me the tutorial again"
+        },
+        "action": "play",
+        "experience": "checklists.tab_tutorial"
+      }
+    ]
+  }
+}

@@ -287,6 +287,23 @@ the composer in every assistant instance (the project's agent tray, the global
 assistant) and follows tab changes. "Show me the tutorial again" is a `play`
 question.
 
+## Checklists: setup and tour
+
+Library entries `guided_experience/checklists.setup`, `checklists.tab_tutorial` and `guided_tab_faqs/project.checklists`:
+
+- `checklists.setup` (modal, organization, replayable): the first time someone who manages projects opens a
+  project's Checklists tab. It `requires` `company.type`, so an organization that has not said what kind of company
+  it is answers that first. One step (module `guided-experiences/checklists-setup.js`) picks the checklists to start
+  with: a customer punch list (the customer ticks items off in their portal), crew safety (signature required) and
+  work completion. What each says is the step's options; the `roofing` variant (chosen when
+  `organization.industry` is roofing or exteriors) has roofing items. Completion: `checklists.setup.apply`
+  (`workforce/checklists-setup.ts`) adds the picked ones to that project once each (source key
+  `setup:<use case>`), then plays the tour.
+- `checklists.tab_tutorial` (overlay, person, replayable): the lists, who completes them and the signature option,
+  adding an item, comments, changing a list by voice, the document button and Send to crew app (each only where its
+  capability is on), and last a step that waits for the person to press New from Audio and ramble about a checklist
+  (or skip). It plays after the setup, or on the tab once the organization has finished it.
+
 ## Materials: the first use
 
 Library entries `guided_experience/materials.*` and `operations.*`, with the tab questions in `guided_tab_faqs/*`:

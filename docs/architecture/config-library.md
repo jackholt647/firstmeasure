@@ -199,12 +199,12 @@ made were fixed at that moment. The seeds and the generators were then deleted;
 
 | Kind | Entries | Domain doc | Organizations keep copies |
 |---|---|---|---|
-| `document_theme`, `document_template`, `document_workflow` | 3, 21, 13 | [document history](document-history.md) | yes (`documents/library-copies.ts`) |
+| `document_theme`, `document_template`, `document_workflow` | 3, 22, 13 | [document history](document-history.md) | yes (`documents/library-copies.ts`) |
 | `presentation_deck` (browser) | 3 | [presentation modules](presentation-modules.md) | yes |
 | `form_template` | 7 | [forms](forms.md) | no (a form is copied once) |
 | `scope_template` (the scope library, industry scopes included) | 13 | [automation authoring](automation-authoring.md) | yes (`scopes/library.ts`) |
 | `automation_rule_default` | 9 | [automation authoring](automation-authoring.md) | no (merged live; an organization stores only its changes) |
-| `guided_experience`, `guided_tab_faqs`, `setup_step`, `guided_copy` | 11, 7, 2, 0 | [guided experiences](guided-experiences.md) | no (platform-wide) |
+| `guided_experience`, `guided_tab_faqs`, `setup_step`, `guided_copy` | 13, 8, 2, 0 | [guided experiences](guided-experiences.md) | no (platform-wide) |
 | `tab_promo` (browser, images as assets), `app_welcome` | 1, 8 | [app experience](app-experience.md) | no |
 | `terminology_namespace` (browser, append-only keys) | 46 | [terminology](terminology.md) | no (an organization stores overrides only) |
 | `app_flag_defaults`, `capability_defaults`, `capability_preset`, `capability_signup_preset` | 1, 1, 5, 1 | [app experience](app-experience.md) | no |
