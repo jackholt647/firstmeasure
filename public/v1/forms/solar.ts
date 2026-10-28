@@ -43,7 +43,10 @@ async function apiKey() {
   if (configured) return configured;
   if (cachedApiKey !== undefined) return cachedApiKey || "";
 
+  // On dev the editor ships through its own lane (docs/architecture/dev-lanes.md); read that copy first.
+  const editorRoot = process.env.FIRSTMEASURE_EDITOR_RUNTIME_ROOT?.trim();
   const candidates = [
+    ...(editorRoot ? [path.join(editorRoot, "editor.php"), path.join(editorRoot, "index.php")] : []),
     path.resolve(MODULE_DIR, "../../measure/internal/editor.php"),
     path.resolve(MODULE_DIR, "../../measure/internal/index.php"),
     path.resolve(MODULE_DIR, "../../measure/internal/editor_scripts/main.js"),

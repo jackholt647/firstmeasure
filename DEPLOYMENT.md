@@ -1,5 +1,16 @@
 # FirstMeasure: local development and production deployment
 
+**Development (dev.1m8.ai) ships only through the dev push router:** commit, then
+`node tools/dev-push/submit.mjs --wait` ([dev lanes](docs/architecture/dev-lanes.md)).
+The router merges, runs the second-scale checks (tests and the type check are opt-in with `--regression`), builds one release from git and
+activates every dev role together. Per-task rollout scripts, SSH activations on
+dev hosts, `deploy/digitalocean/development-*.md` rollout records and pointer
+lines in this file for dev releases are retired; release records live in the
+router (`https://dev.1m8.ai/__dev-push/status.json`). The pointer lines below
+are history. Production is unchanged.
+
+October 27 measure-internal dev lane: [dev.1m8.ai serves the measure editor from branch `lane/measure-internal` on dev legacy, shipped in about a minute with `tools/dev-push/lanes/measure-internal/ship.mjs`](deploy/digitalocean/development-measure-internal-lane-20261027.md); per-task rollouts of editor files to dev legacy are no longer served.
+
 October 27 Visual recovery: [committed Docs, Photos upload/search, Operations badges, camera and markup; live conflict audit and permanent development activation](deploy/digitalocean/development-visual-recovery-20261027.md) records release `c9d694e1` on development legacy and web.
 
 October 27 Project details tray: [project contact, address and measurements move into a left tray that launches report orders](deploy/digitalocean/development-project-details-tray-20261027.md) records release `0bf560cd` on development legacy and web.
@@ -1020,7 +1031,7 @@ release identity and content verification take precedence over historical notes.
 1. **Inspect and branch.** Read applicable instructions, inspect Git status, preserve unrelated changes, and identify the affected roles. Use a `codex/` branch unless the user specifies otherwise.
 2. **Develop locally.** Use `./start-local.ps1` and `./stop-local.ps1`. Default web address: `http://127.0.0.1:8021`; API: `http://127.0.0.1:3111/v1`. Machine-specific paths are in ignored `local-stack.config.json`. See [README.md](README.md) and `deploy/local-cluster/compose.yml`.
 3. **Test the change.** Run appropriate tests and exercise the affected workflow. `.github/workflows/ci.yml` runs smoke and PostgreSQL integration suites. Read current `public/v1/package.json` for commands. A health endpoint does not prove checkout, email, or PDF correctness.
-4. **Test in development.** Deploy the exact version to isolated development with development data and provider settings. Keep its databases, storage, credentials, and sessions separate from production. Do not use the former prerelease environment as development.
+4. **Test in development.** Submit the exact version to the dev push router (`node tools/dev-push/submit.mjs --wait`); it runs on isolated development with development data and provider settings. Keep its databases, storage, credentials, and sessions separate from production. Do not use the former prerelease environment as development.
 5. **Prepare the release.** Record commit/release ID, changed roles, dependencies, database/configuration changes, validation, and rollback steps. Confirm the bundle includes PHP/editor assets as well as Node code. Keep secrets and runtime data out of source bundles.
 6. **Activate within the user's authorization.** If production deployment is not authorized, finish preparation and present the concrete tested release first. Do not ask again when the session already authorizes it. Coordinate roles, database compatibility, and the autoscale template.
 7. **Verify and record.** Verify release identity, actual process configuration, affected workflows, errors, and jobs. Record the outcome and limitations. Do not send test messages or create charges without authorization.

@@ -242,6 +242,61 @@ test("media files are served with byte ranges so video seeking works", async () 
   assert.equal(unsatisfiable.headers["content-range"], `bytes */${payload.length}`);
 });
 
+test("the organization logo is cached by revision and revalidated by ETag", async () => {
+  const client = createSessionClient();
+  const { orgId } = await register(client);
+  const upload = async (bytes: Buffer) => {
+    const result = await client.request("POST", "/v1/platform/portal-action", {
+      action: "org_upload_logo_my",
+      __file: { filename: "logo.png", mimetype: "image/png", bytes_base64: bytes.toString("base64") }
+    });
+    return String(result.logo);
+  };
+  const anonymous = (url: string, headers: Record<string, string> = {}) => (app.inject as any)({ method: "GET", url, headers });
+
+  const first = await upload(Buffer.from("first-logo-bytes"));
+  assert.match(first, /\/logo\?rev=[\w-]{12}$/);
+  const route = first.replace(/\?.*$/, "");
+  // The portal used to add the time to this URL, so every page load fetched the whole logo again.
+  const pinned = await anonymous(first);
+  assert.equal(pinned.statusCode, 200);
+  assert.equal(pinned.body, "first-logo-bytes");
+  assert.equal(pinned.headers["cache-control"], "public, max-age=31536000, immutable");
+  const etag = String(pinned.headers.etag);
+  assert.match(etag, /^"[\w-]+"$/);
+
+  const unversioned = await anonymous(route);
+  assert.equal(unversioned.headers["cache-control"], "public, no-cache");
+  assert.equal(unversioned.headers.etag, etag);
+  const revalidated = await anonymous(route, { "if-none-match": `W/${etag}` });
+  assert.equal(revalidated.statusCode, 304);
+  assert.equal(revalidated.body, "");
+  assert.equal(revalidated.headers.etag, etag);
+  const header = await anonymous(`${route}?variant=thumb_640`);
+  assert.equal(header.statusCode, 200, "a logo too small for a rendition serves the original");
+  assert.notEqual(header.headers.etag, etag);
+
+  // Replacing keeps the media id, so the revision is what moves the URL and the ETag.
+  const second = await upload(Buffer.from("second-logo-bytes"));
+  assert.equal(second.replace(/\?.*$/, ""), route);
+  assert.notEqual(second, first);
+  const stale = await anonymous(route, { "if-none-match": etag });
+  assert.equal(stale.statusCode, 200);
+  assert.equal(stale.body, "second-logo-bytes");
+  assert.notEqual(stale.headers.etag, etag);
+  assert.equal((await anonymous(first)).headers["cache-control"], "public, no-cache", "an old revision is never kept for a year");
+  assert.equal((await anonymous(second)).headers["cache-control"], "public, max-age=31536000, immutable");
+
+  const branding = (await client.request("GET", "/v1/platform/me")).global?.data?.branding || {};
+  assert.equal(branding.logo, second);
+
+  const photo = await client.request("POST", `/v1/platform/organizations/${orgId}/media`, {
+    owner_type: "project", owner_id: "project_logo_cache", slot: "photos", collection: "projects", scope: "projects",
+    file_name: "photo.png", content_type: "image/png", base64: Buffer.from("private-photo").toString("base64")
+  });
+  assert.equal((await anonymous(`/v1/platform/organizations/${orgId}/media/${photo.media.id}/logo`)).statusCode, 403);
+});
+
 test("media can be renamed without disturbing tags or stored bytes", async () => {
   const client = createSessionClient();
   const { orgId } = await register(client);

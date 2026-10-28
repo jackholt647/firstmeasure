@@ -18,6 +18,45 @@ Preserve unrelated changes in the existing workspace. A fresh worktree may lack 
 
 Production deployment requires user authorization; honor authorization already given in the current conversation without requesting it again. Preparing documentation or a release does not itself authorize activation.
 
+## Shipping code to dev: one way
+
+Code reaches dev.1m8.ai only through the dev push router
+([dev lanes](docs/architecture/dev-lanes.md)). Its repository on the dev sync
+droplet is the source of truth for canonical; GitHub is a mirror. Commit on
+your branch, rebased on the lane tip (`git fetch devpush && git rebase
+devpush/codex/consolidated-firstmeasure-20260923`; the remote `devpush` is added
+on first submit), then:
+
+```
+node tools/dev-push/submit.mjs --wait
+```
+
+It picks the lane from your changed paths, queues `HEAD` and waits until it is
+live (exit 0) or rejected with the conflicting files or the failing check and
+what to do next (exit 1: rebase, fix, submit again). `submit.mjs status --mine`
+shows your queue. Lanes: **config** is data in the config library (never
+code), **live** is a browser file you are tuning (live layer below),
+**measure-internal** is `public/measure/internal/**` and `dev/**`,
+**platform** is everything else. One submission holds one lane's files.
+
+**Tests are opt-in.** Every submission gets only checks that take a second or
+two (JavaScript parse, per-file transpile, PHP lint, the few suites under two
+seconds). The type check (`npm run check`, about a minute) and every suite
+named below under "Run ... for changes here" are **regression**: add
+`--regression` (or run `submit.mjs regression` to test without shipping) only
+when you suspect a bug, when Jack asks, or after about 20 minutes or more of
+work. They run once, on the server; do not run them on this PC first. Browser
+files, templates and live saves get no tests. Measured times are in dev lanes,
+"Checks".
+
+Never write or copy per-task rollout scripts (`output/<task>/rollout.py`,
+`deploy.py`, `ship.sh`, `integrate.py`, ...), never SSH to a dev host to stage
+or activate a release, never push canonical or a lane branch directly, and
+never commit a "Record the ... development rollout" file or a DEPLOYMENT.md
+pointer line for a dev release: the router keeps release records outside
+canonical. The router fast-forwards canonical with your merged work; it is your
+integration. Production is unchanged and still needs the user's authorization.
+
 ## Request security
 
 Read [request security](docs/architecture/request-security.md) before adding a
@@ -74,7 +113,7 @@ widgets, CSS, images), use the **instant iteration system**, the
 way to ship frontend work. A file you save is served by dev.1m8.ai within about
 a second, to everyone, and every open dev page swaps it in (stylesheets and
 images in place; a changed script reloads the frame that ran it). The release
-itself is untouched until you commit and roll out as usual.
+itself is untouched until you commit and submit as usual.
 
 1. **Checkout.** Work in your own clean checkout at the canonical tip: a session
    worktree, or `/home/dev/code/firstmeasure` on the dev sync droplet. Never the
@@ -92,9 +131,11 @@ itself is untouched until you commit and roll out as usual.
 4. **Check** in the page: open dev.1m8.ai (Chrome tools, or the frontend
    bridge's `eval`/`console`/`screenshot`); `curl -sI https://dev.1m8.ai/<path>`
    shows `X-FirstMate-Live: 1` for a layer file.
-5. **Finish.** When the user is happy, commit, roll out to dev (DEPLOYMENT.md
-   and the dev rollout tooling) and integrate into canonical; the layer retires
-   those files by itself within 20 seconds. To abandon, revert the files (or
+5. **Finish.** When the user is happy, commit and submit
+   (`node tools/dev-push/submit.mjs --wait`); the release carries the files and
+   the layer retires them as `released`. Saves you never submit are not lost
+   either: the router bakes every live overlay into the next platform release
+   (dev lanes, "Live layer bake-down"). To abandon, revert the files (or
    `live-sync.mjs clear`) and stop the sync.
 
 Everyone on dev sees your saves at once, so do not leave a broken state live.
@@ -110,6 +151,41 @@ For private experiments only your own Chrome should see, use the
 `frontend-czar`): it serves your checkout's changed browser files to your Chrome
 through the FirstMate Dev Bridge extension and touches nothing on the server.
 Run `node --test tests/frontend-bridge.test.mjs` for changes to it.
+
+## Shipping the measure editor to dev
+
+The measure editor has its own dev lane
+([dev lanes](docs/architecture/dev-lanes.md#measure-internal-lane)): dev.1m8.ai
+serves `/measure/internal/` from branch `lane/measure-internal`, not from the
+platform release, and a ship is live in seconds. The lane owns
+`public/measure/internal/**` and `dev/**` (the editor's tests). Everything else,
+including `public/v1/**`, `public/libraries/**` and new language keys in
+`public/libraries/platform-language`, still ships through `platform`.
+
+1. Commit the editor change (on canonical or your own branch).
+2. Run `node tools/dev-push/lanes/measure-internal/ship.mjs` (ships `HEAD`). It
+   takes only the lane's paths from the commit, lints changed PHP and
+   syntax-checks changed JavaScript (about a second), switches the release
+   with a readiness check and rollback, and advances `lane/measure-internal`.
+   Once the checkout has `tools/dev-push/submit.mjs`, it hands the commit to the
+   dev push router instead.
+3. Check: `curl -sI https://dev.1m8.ai/measure/internal/<file>` shows
+   `X-FirstMate-Lane: measure-internal <sha>`.
+
+**Regression tests.** Agents do not run the editor's regression tests
+(`dev/*.test.cjs`) on this machine. Ship with `--regression` (the tests the
+change maps to; `--regression=all` for every one) only when you suspect a bug
+or regression, when Jack asks, or when the work behind the ship took at least
+about 20 minutes; quick changes never run them. They run once, on the server.
+`ship.mjs regression` runs them there without shipping, for when something
+looks broken.
+
+Do not copy editor files into the platform release on dev legacy with a
+per-task rollout: they are not served while the lane serves its own release.
+Other commands: `ship.mjs status`, `rollback [<sha>]`, `follow` (serve the
+platform release's editor through the lane), `uninstall` (serve the platform
+copy directly). Run `node --test tests/dev-lane-measure-internal.test.mjs` for
+changes to the lane tool.
 
 ## Canonical source
 

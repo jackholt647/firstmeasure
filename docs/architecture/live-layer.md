@@ -39,12 +39,15 @@ Before a rollout changes any browser file, inspect `live-sync.mjs status` and
 the live manifest for **every changed path**, including recent `retired` entries.
 The immutable release alone is not the current frontend source: a live overlay
 may contain additional user changes. Capture and merge the active served file
-onto the release payload, or reconcile its owner checkout if it was retired as
-`conflict`. Recheck the live hashes immediately before activation; stop and
-reconcile if an owner edited them while the release was being prepared.
+onto the release payload, or reconcile its owner checkout if it was parked
+(older manifests: retired as `conflict`). Recheck the live hashes immediately
+before activation; stop and reconcile if an owner edited them while the release
+was being prepared. Platform releases through the dev push router do this
+merge themselves (see "Router bake-down" below).
 
-`conflict` means the release changed under an overlay. It does **not** mean the
-overlay's behavior was incorporated. The timer removes that overlay to avoid
+`parked` (formerly `conflict`) means the release changed under an overlay. It
+does **not** mean the overlay's behavior was incorporated. The timer stops
+serving that overlay (its bytes stay in `parked` and the journal) to avoid
 mixing incompatible code, which can expose an older UI. A successful health
 check or released-file hash does not verify preservation. Verify the affected
 workflow and commit the recovered source and regression test before finishing.
@@ -88,10 +91,25 @@ overlay survived while its host callbacks disappeared. See the
 
 - **It never reverts someone's release.** A file is accepted only while the release's copy is still the base it
   was edited from (or already the new bytes). Otherwise the receiver refuses it (`dev-differs`; update the
-  checkout) and drops any live copy (`conflict`).
+  checkout) and parks the sender's own live copy. A stale save from another checkout is only answered; it never
+  retires or parks the owner's file. The one exception is a **continuation**: when the release's copy is a save
+  this same checkout had live before (the last 10 per path are kept in the manifest's `history`), the router
+  baked it in, and the new save is accepted on top of the release.
 - **A rollout ends it by itself.** `fm-live-check.timer` runs the receiver's `check` every 20 seconds (and the
   sync every 15): a file the release now has is retired as `released`; one the release changed underneath is
-  retired as `conflict`. Pages are not reloaded for a released file (same bytes).
+  **parked**. Pages are not reloaded for a released file (same bytes).
+- **Nothing accepted is lost.** Every accepted save is also written by content to
+  `/opt/firstmeasure/live/journal/<sha>` (pruned after 14 days once no live or parked entry names it). A parked
+  file moves to the manifest's `parked` section (`sha, base, source, at, release, commit, reason: "conflict",
+  parked_gen`): no longer served, so pages fall back to the release (retired as `parked`), but kept until the
+  router reports it merged or someone clears it (`live-sync.mjs clear`, or `remove`/`unpark`). `status` lists a
+  checkout's parked files. Each entry records the release it was accepted on (`release`, from `release.env`) and
+  the sender's base commit (`commit`).
+- **Router bake-down.** Before every platform release the dev push router (`tools/dev-push/router/live.mjs`)
+  reads the layer (`export`, `blob`), turns each overlay into a commit on `refs/heads/live/<owner>` on top of the
+  commit it was edited from, and merges those into the release; after activation it reports them (`merged`):
+  a save the release now has is retired as `released` (live or parked), and a newer live save of the same file
+  keeps going with the release's copy as its base. See [dev lanes](dev-lanes.md#live-layer-bake-down).
 - **Git is the record.** Everything live comes from the droplet's checkout. Commit and roll out as usual to make
   it permanent; until then it is dev-only state that a `git status` on the droplet shows.
 - A file put back to its base leaves the layer (`reverted`). Stopping `live-sync` leaves the layer as it is.

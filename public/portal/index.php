@@ -1478,20 +1478,17 @@ session_write_close();
         return raw;
       }
 
-      function cacheBustUrl(url){
-        if (!url || /^(data:|blob:)/i.test(url)) return url;
-        return url + (url.includes('?') ? '&' : '?') + 'v=' + Date.now();
-      }
-
-      function withoutCacheBust(url){
+      // The logo route revalidates by ETag (and caches for good when the URL carries the logo's
+      // rev), so the URL stays stable and the header asks for the small rendition; images
+      // too small for one get the original.
+      function headerLogoUrl(url){
         const raw = String(url || '').trim();
-        if (!raw) return '';
         try {
           const parsed = new URL(raw, location.href);
-          parsed.searchParams.delete('v');
+          if (/\/media\/[^/]+\/logo$/.test(parsed.pathname) && !parsed.searchParams.has('variant')) parsed.searchParams.set('variant', 'thumb_640');
           return parsed.href;
         } catch(e) {
-          return raw.replace(/([?&])v=[^&#]*(&?)/, (match, prefix, suffix) => suffix ? prefix : '');
+          return raw;
         }
       }
 
@@ -1546,12 +1543,13 @@ session_write_close();
             if (tid === 'companyLogoImg') setDefaultLogoPresent(true);
             if (tid === 'companyLogoImg') setSidebarCompanyLogoPresent(false);
           };
-          if (withoutCacheBust(img.src) === withoutCacheBust(resolvedSrc)) {
+          const headerSrc = headerLogoUrl(resolvedSrc);
+          if (img.src === headerSrc) {
             img.style.display = 'block';
             if (tid === 'companyLogoImg') setSidebarCompanyLogoPresent(true);
             continue;
           }
-          img.src = cacheBustUrl(resolvedSrc);
+          img.src = headerSrc;
           img.style.display = 'block';
           if (tid === 'companyLogoImg') setSidebarCompanyLogoPresent(true);
         }
