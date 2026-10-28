@@ -99,6 +99,7 @@ test("without a report the static map is saved once the project has coordinates,
   await storage.upsertDocument(org, "projects", { id: "p_map", data: { title: "No coordinates" } });
   const none = await satellite.ensureProjectSatelliteMedia(org, "p_map", { googleStaticMap: google });
   assert.equal(none.status, "unavailable");
+  assert.equal(none.unavailable_reason, "no_coordinates");
   assert.equal(fetched, 0, "no coordinates, no fetch");
   assert.equal((await photosOf("p_map")).length, 0);
 
@@ -149,6 +150,7 @@ test("a report of another organization or one not yet completed gives no image",
   await storage.upsertDocument(org, "projects", { id: "p_pending", data: { title: "Pending", measurement_project: { id: "report_missing" } } });
   const result = await satellite.ensureProjectSatelliteMedia(org, "p_pending", { googleStaticMap: neverGoogle });
   assert.equal(result.status, "unavailable");
+  assert.equal(result.unavailable_reason, "report_not_completed_no_coordinates");
 });
 
 test("while the report is still processing, the static map is fetched with the Maps Static key and becomes the cover (FM-292)", async () => {
@@ -158,16 +160,25 @@ test("while the report is still processing, the static map is fetched with the M
   const realFetch = globalThis.fetch;
   const asked: URL[] = [];
   const image = await png(1280, 800, { r: 70, g: 80, b: 90 });
+  let refuse = true;
   keys.googleMapsStaticApiKey = "maps-static-key";
   keys.googleMapsApiKey = "server-key";
   globalThis.fetch = (async (input: string | URL | Request) => {
     asked.push(new URL(String(input instanceof Request ? input.url : input)));
+    if (refuse) return new Response("The Google Maps Platform server rejected your request.", { status: 403, headers: { "content-type": "text/plain" } });
     return new Response(new Uint8Array(image), { status: 200, headers: { "content-type": "image/png" } });
   }) as typeof fetch;
   try {
     assert.equal(satellite.staticMapApiKey(), "maps-static-key", "reports fetch google.png with this key; the server key may not allow Maps Static");
     // An ordered report that has not completed: its own image is not used yet, so the static map stands in.
     await storage.upsertDocument(org, "projects", { id: "p_processing", data: { title: "Processing", lat: 38.97, lng: -76.49, measurement_project: { id: "report_processing", status: "processing" } } });
+    // A refused fetch says why, and never with the key.
+    const refused = await satellite.ensureProjectSatelliteMedia(org, "p_processing");
+    assert.equal(refused.status, "unavailable");
+    assert.equal(refused.unavailable_reason, "maps_static_403");
+    assert.doesNotMatch(JSON.stringify(refused), /maps-static-key/);
+    refuse = false;
+    asked.length = 0;
     const result = await satellite.ensureProjectSatelliteMedia(org, "p_processing");
     assert.equal(result.status, "saved");
     assert.equal(result.source, "google_static_map");
