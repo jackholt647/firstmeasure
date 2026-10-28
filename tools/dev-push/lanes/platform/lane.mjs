@@ -166,7 +166,7 @@ export default {
     // only on request (the mapped ones, or every AGENTS.md suite with "all").
     const mapped = testsFor(server, tests);
     // Regression on the runner (the agent droplet: more CPU, Chromium) when one is configured: type check and suites.
-    if (regression && process.env.DEV_PUSH_RUNNER && server.length + tests.length > 0) {
+    if (regression && process.env.DEV_PUSH_RUNNER && (regression === "all" || server.length + tests.length > 0)) {
       const ids = [...(want("typecheck") && (regression === "all" || server.some((file) => file.startsWith("public/v1/"))) ? ["v1:npm:check"] : []),
         ...(regression === "all" ? [...new Set(AREAS.flatMap(([, list]) => list))].sort() : mapped).filter(want).map((id) => (id.startsWith("any:") ? (fs.existsSync(path.join(dir, "public", "v1", id.slice(4))) ? `v1:${id.slice(4)}` : `root:${id.slice(4)}`) : id))];
       at = Date.now();
