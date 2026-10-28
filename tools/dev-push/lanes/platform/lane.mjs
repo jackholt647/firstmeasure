@@ -229,7 +229,8 @@ export default {
       at = Date.now();
       const checked = await hosts.check("legacy", { lane: "platform", sha: name, paths: php });
       timings.php_lint = since(at);
-      if (!checked.ok) return { ok: false, error: `PHP lint failed:\n${tail(checked.output || checked.error, 3000)}`, rolledBack: true, timings };
+      // A lint answer names files; anything else (the host refused or was unreachable) is the router's problem.
+      if (!checked.ok) return checked.output ? { ok: false, error: `PHP lint failed:\n${tail(checked.output, 3000)}`, rolledBack: true, timings } : { ok: false, error: `PHP lint could not run: ${checked.error}`, rolledBack: true, infrastructure: true, timings };
     }
     if (stageOnly) return { ok: true, name, staged: Object.fromEntries(roles.map((role, index) => [role, staged[index]])), timings };
 
