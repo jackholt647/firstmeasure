@@ -1241,6 +1241,7 @@ function perf_render3DFrame() {
             if((e.ctrlKey||e.metaKey)&&['c','v'].includes(e.key.toLowerCase())){const copy=e.key.toLowerCase()==='c',selection=copy&&editingLayer==='base'?baseEditor?.chamferSelection?.():null;if(!copy)setLayer('walls',true);wallEditor?.clipboardCommand(copy?'copy':'paste',selection);e.preventDefault();e.stopImmediatePropagation();return true;}
             if(editingLayer==='base'&&!baseEditor?.busy()&&!wallEditor?.busy()&&!e.ctrlKey&&!e.metaKey&&['m','r','t','y'].includes(e.key.toLowerCase())){const selection=baseEditor?.chamferSelection?.();if(selection?.points?.length>=3){setLayer('walls',true);wallEditor?.geometryCommand(e.key.toLowerCase(),selection);e.preventDefault();e.stopImmediatePropagation();return true;}}
             if(window.ExteriorDistanceInput?.key(e,distanceOwner()))return;
+            if(e.key==='Escape'&&wallEditor?.leaveLock()){e.preventDefault();e.stopImmediatePropagation();return true;}
             if(e.key==='Escape'){setResoffit(false);window.WallFeatures?.closeUI?.();cancelInteraction();menu.hidden=true;e.preventDefault();e.stopImmediatePropagation();return true;}
             if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==='s')return;
             if((e.ctrlKey||e.metaKey)&&['z','y'].includes(e.key.toLowerCase())){undoEdit(e.key.toLowerCase()==='y'||e.shiftKey);e.preventDefault();e.stopImmediatePropagation();return true;}
