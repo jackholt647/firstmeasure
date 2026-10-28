@@ -222,7 +222,7 @@ export default {
         const present = changes.filter((change) => change.status !== "D").map((change) => change.file);
         for (let i = 0; i < present.length; i += 200) {
           const part = present.slice(i, i + 200);
-          const archive = await run("bash", ["-c", `git -C '${dir}' archive --format=tar ${sha} -- "$@" | tar -x --unlink-first -C '${tmp}'`, "archive", ...part], { timeout: 10 * 60_000 });
+          const archive = await run("bash", ["-c", `git -C '${dir}' archive --format=tar ${sha} -- "$@" | tar -x -C '${tmp}'`, "archive", ...part], { timeout: 10 * 60_000 });
           if (archive.code !== 0) throw new Error(`git archive: ${archive.stderr}`);
         }
         for (const file of [".manifest.json", "release.env"]) fs.rmSync(path.join(tmp, file), { force: true });
