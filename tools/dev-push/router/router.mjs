@@ -42,6 +42,8 @@ export class Router {
     this.releases = this.readJson("releases.json", []);
     this.gateCache = new Map(); // `${sha}\0${gate}` -> passed?
     this.failedOverlays = new Set(); // `${ref}@${sha}@${tip}`: overlays that could not be merged onto that tip
+    // Submissions of a batch whose release did not come up: each deploys on its own until it ships or bounces.
+    this.deployAlone = new Set(this.readJson("deploy-alone.json", []));
     for (const name of Object.keys(this.lanes)) {
       const last = this.releases.find((release) => release.lane === name);
       this.laneState[name] = { state: "idle", batch: [], release: last ? { id: last.id, sha: last.sha, name: last.name || last.sha, server: last.server || last.name || last.sha, at: last.at } : null, tip: null, note: null };
@@ -163,8 +165,18 @@ export class Router {
 
   async reject(entry, reason, details) {
     this.log(entry.lane, `rejected ${entry.ref} (${reason})`);
-    await this.update(entry, { state: "rejected", reason, details: trim(details) });
+    // The tracker issue the work is for (FM-283 from "router-fm-283-..." or the title), for whoever reports it back there.
+    const issue = /\b([A-Za-z]{2,10}-\d{1,6})\b/.exec(`${entry.title} ${entry.ref.split("/").pop()}`)?.[1]?.toUpperCase() || null;
+    await this.update(entry, { state: "rejected", reason, details: trim(details), issue });
+    this.alone(entry, false);
     await this.retire(entry);
+  }
+
+  /** Marks a submission to deploy on its own (or clears it), kept across router restarts. */
+  alone(entry, on) {
+    const had = this.deployAlone.has(entry.submission);
+    if (on) this.deployAlone.add(entry.submission); else this.deployAlone.delete(entry.submission);
+    if (had !== on) this.writeJson("deploy-alone.json", [...this.deployAlone]);
   }
 
   // ---------------------------------------------------------------- merging
@@ -357,7 +369,10 @@ export class Router {
       catch (error) { this.log(lane, `live overlays unavailable: ${error.message}`); }
     }
     if (!queue.length && !overlays.some((overlay) => overlay.parked) && !(this.forceOverlays && overlays.length)) return false;
-    const batch = queue.slice(0, module.batchMax || 8);
+    let batch = queue.slice(0, module.batchMax || 8);
+    // After a batch's release did not come up, its submissions deploy one at a time, oldest first: the good ones ship,
+    // the one that breaks dev bounces back to its submitter, and the lane keeps going.
+    if (batch.some((entry) => this.deployAlone.has(entry.submission))) batch = batch.slice(0, 1);
     const dir = await this.worktree(lane);
     // Every stage is timed; the timings go into the release record and each submission's status entry.
     const batchStarted = Date.now();
@@ -447,8 +462,23 @@ export class Router {
     for (const [stage, ms] of Object.entries(deployed.timings || {})) timings[`deploy:${stage}`] = ms;
     if (!deployed.ok) {
       this.log(lane, `deploy ${releaseId} failed: ${deployed.error}`);
-      if (accepted.length === 1 && deployed.rolledBack && !deployed.infrastructure) {
-        await this.reject(accepted[0], "deploy-failed", `The release built from your merge did not come up on dev and was rolled back:\n${deployed.error}`);
+      // A release that did not roll back leaves dev between releases: put the lane's current release back first.
+      if (!deployed.rolledBack) deployed.rolledBack = await this.restore(lane);
+      if (deployed.rolledBack && !deployed.infrastructure && final.overlaysMerged.length) {
+        // Live overlays rode along: try once more without them, so a live save never bounces someone's submission.
+        this.log(lane, `releasing without the ${final.overlaysMerged.length} live overlay(s) next`);
+        for (const overlay of final.overlaysMerged) this.failedOverlays.add(`${overlay.ref}@${overlay.sha}@${tip}`);
+        if (this.options.overlayProblems) await this.options.overlayProblems(final.overlaysMerged.map((overlay) => ({ overlay, files: [], gate: [{ id: "deploy" }] }))).catch(() => {});
+        await this.update(accepted, { state: "queued", release: null });
+        await this.setLane(lane, { state: "idle", batch: [], note: `deploy ${releaseId} failed with live overlays; trying without them` });
+      } else if (deployed.rolledBack && !deployed.infrastructure && accepted.length === 1) {
+        await this.reject(accepted[0], "deploy-failed", `The release built from your merge (on ${module.branch} ${tip.slice(0, 10)}) did not come up on dev and was rolled back:\n${deployed.error}\n\nFix it, rebase onto the lane tip and submit again.`);
+        await this.setLane(lane, { state: "idle", batch: [], note: null });
+      } else if (deployed.rolledBack && !deployed.infrastructure) {
+        this.log(lane, `batch of ${accepted.length} did not come up; deploying each on its own`);
+        for (const entry of accepted) this.alone(entry, true);
+        await this.update(accepted, { state: "queued", release: null });
+        await this.setLane(lane, { state: "idle", batch: [], note: `deploy ${releaseId} failed; deploying its ${accepted.length} submissions one at a time` });
       } else if (deployed.infrastructure && deployed.rolledBack) {
         // A host did not answer (the pool replacing a node, a network blip) and nothing changed: try again by itself,
         // 1, 2, 4 ... up to 15 minutes later. The queue keeps its order; nobody has to resume the lane.
@@ -458,7 +488,7 @@ export class Router {
         this.retryAt[lane] = Date.now() + wait;
         await this.setLane(lane, { state: "waiting", batch: [], note: `deploy ${releaseId} could not reach a host; trying again in ${Math.round(wait / 1000)} s: ${trim(deployed.error, 400)}` });
       } else {
-        // A batch, or a release not rolled back: stop the lane for a person to look; nothing is lost, the queue stays.
+        // Dev could not be put back on its last release: stop the lane for a person to look; the queue stays.
         await this.update(accepted, { state: "queued", release: null });
         this.paused.add(lane);
         this.writeJson("paused.json", [...this.paused]);
@@ -468,6 +498,7 @@ export class Router {
     }
 
     delete this.retryWait[lane];
+    for (const entry of accepted) this.alone(entry, false);
     const push = await timed("push", () => this.git(["push", "--quiet", "origin", `${final.sha}:refs/heads/${module.branch}`], { allowFail: true }));
     timings.batch_total = Date.now() - batchStarted;
     timings.queue_wait_max = Math.max(0, ...accepted.map((entry) => batchStarted - Date.parse(entry.submitted_at)).filter(Number.isFinite));
@@ -491,6 +522,18 @@ export class Router {
     this.log(lane, `live ${releaseId}`);
     if (final.overlaysMerged.length) this.forceOverlays = false;
     return true;
+  }
+
+  /** Puts the lane's current release back on every role after a release that did not roll back; true when it did. */
+  async restore(lane) {
+    const current = this.laneState[lane].release;
+    if (!current) return false;
+    this.log(lane, `putting ${current.id} back on every role`);
+    const dir = await this.worktree(`${lane}-catchup`, current.sha);
+    await this.git(["reset", "--quiet", "--hard", current.sha], { cwd: dir });
+    const result = await this.lanes[lane].deploy({ dir, sha: current.sha, releaseId: current.id, previous: current, hosts: this.options.hosts, log: (line) => this.log(lane, `[restore] ${line}`), releaseName: current.name || current.sha }).catch((error) => ({ ok: false, error: error.message }));
+    this.log(lane, result.ok ? `${current.id} is back on every role` : `could not put ${current.id} back: ${trim(result.error, 300)}`);
+    return Boolean(result.ok);
   }
 
   /** Puts the lane's current release on one role that lacks it (a new pool member), the same tree under the same name. */

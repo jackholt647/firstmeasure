@@ -59,7 +59,14 @@ function scratch() {
       const failures = bad.filter((id) => !only || only.includes(id)).map((id) => ({ id, output: `${id} is in the tree` }));
       return { ok: failures.length === 0, failures };
     },
-    async deploy({ sha, releaseId }) { deployed.push({ sha, releaseId }); return { ok: true, roles: { fake: { tree_sha256: 'x' } } }; }
+    // A release does not come up while its tree holds nodeploy-*.txt (nodeploy-stuck-*.txt: and does not roll back).
+    // Putting the current release back (releaseName set) always works.
+    async deploy({ dir: tree, sha, releaseId, releaseName }) {
+      const bad = spawnSync('git', ['ls-files', 'nodeploy-*.txt'], { cwd: tree, encoding: 'utf8' }).stdout.trim();
+      if (bad && !releaseName) { deployed.failed = (deployed.failed || 0) + 1; return { ok: false, error: `${bad} did not come up`, rolledBack: !bad.includes('stuck') }; }
+      deployed.push({ sha, releaseId, ...(releaseName ? { restore: true } : {}) });
+      return { ok: true, roles: { fake: { tree_sha256: 'x' } } };
+    }
   };
   const makeRouter = (extra = {}) => new Router({ repo: path.join(dir, 'router.git'), remote: origin, stateDir: path.join(dir, 'state'), lanes: { platform: lane }, quiet: true, ...extra });
   const originFile = (rel) => spawnSync('git', ['show', `${BRANCH}:${rel}`], { cwd: origin, encoding: 'utf8' }).stdout;
@@ -331,5 +338,50 @@ test('regression runs on the server, ships nothing, and reports passed or failed
     assert.equal(byRef(router, 'bob-b').state, 'live');
     assert.ok(router.releases[0].timings.batch_total >= 0, 'stage timings recorded');
     assert.deepEqual(s.queueRefs(), []);
+  } finally { s.cleanup(); }
+});
+
+test('a batch whose release does not come up deploys each submission on its own: the good ones ship, the bad one bounces', async () => {
+  const s = scratch();
+  try {
+    const a = s.clone('alice'), b = s.clone('bob'), c = s.clone('carol');
+    a.edit('a.txt', 'from alice\n');
+    b.edit('nodeploy-b.txt', 'breaks the release\n', 'FM-12: a change that does not start');
+    c.edit('c.txt', 'from carol\n');
+    for (const [clone, slug] of [[a, 'a'], [b, 'b'], [c, 'c']]) assert.equal(clone.submit('--slug', slug).code, 0);
+    const router = s.makeRouter();
+    await drain(router);
+    assert.equal(s.deployed.failed, 2, 'the batch, then bob alone');
+    assert.equal(byRef(router, 'alice-a').state, 'live');
+    assert.equal(byRef(router, 'carol-c').state, 'live');
+    const bad = byRef(router, 'bob-b');
+    assert.equal(bad.state, 'rejected');
+    assert.equal(bad.reason, 'deploy-failed');
+    assert.match(bad.details, /nodeploy-b\.txt did not come up/);
+    assert.equal(bad.issue, 'FM-12', 'the tracker issue named in the work');
+    assert.equal(s.originFile('a.txt'), 'from alice\n');
+    assert.equal(s.originFile('c.txt'), 'from carol\n');
+    assert.equal(s.originFile('nodeploy-b.txt'), '');
+    assert.notEqual(router.laneState.platform.state, 'paused');
+    assert.equal(router.deployAlone.size, 0);
+    assert.deepEqual(s.queueRefs(), []);
+  } finally { s.cleanup(); }
+});
+
+test('a release that does not roll back is replaced by the current release, then handled like any other', async () => {
+  const s = scratch();
+  try {
+    const a = s.clone('alice'), b = s.clone('bob');
+    a.edit('a.txt', 'from alice\n');
+    assert.equal(a.submit('--slug', 'a').code, 0);
+    const router = s.makeRouter();
+    await drain(router);
+    b.edit('nodeploy-stuck.txt', 'half started\n');
+    assert.equal(b.submit('--slug', 'b').code, 0);
+    await drain(router);
+    assert.deepEqual(s.deployed.map((item) => Boolean(item.restore)), [false, true], 'the live release went back on');
+    assert.equal(s.deployed[1].sha, s.deployed[0].sha);
+    assert.equal(byRef(router, 'bob-b').state, 'rejected');
+    assert.notEqual(router.laneState.platform.state, 'paused');
   } finally { s.cleanup(); }
 });
