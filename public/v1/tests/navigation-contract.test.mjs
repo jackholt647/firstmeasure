@@ -389,9 +389,10 @@ test('project invoice tab is declared and restored through the Money route schem
   assert.match(moneyApp, /id:'payments', icon:'fa-money-check-dollar'/);
   assert.doesNotMatch(moneyApp, /viewTab\('activity'/);
   assert.match(moneyApp, /id:'expenses', icon:'fa-list-check', label:term\('expense_lists'\)/);
-  assert.match(moneyApp, /add_collected_payment:'Add Collected Payment'/);
+  assert.doesNotMatch(moneyApp, /MONEY_TERM_DEFAULTS|add_collected_payment:'/, 'money words are library terminology');
+  assert.equal(JSON.parse(await readFile(path.join(publicRoot, 'v1/config-library/snapshot/terminology_namespace/money.json'), 'utf8')).data.terms.find((item) => item.key === 'add_collected_payment')?.label, 'Add Collected Payment');
   assert.match(moneyApp, /<h3>\$\{escapeHtml\(term\('add_collected_payment'\)\)\}<\/h3>/);
-  assert.match(moneyApp, /PlatformScheduling\.loadBranchConfig/);
+  assert.match(moneyApp, /PlatformTerminology\?\.ready\?\.\(\)/);
   assert.match(moneyApp, /cleanText\(event\.type, event\.event_type\)/);
   assert.doesNotMatch(moneyApp, /paymentHistorySection\(5\)|activitySection\(5\)/);
   assert.match(moneyApp, /Project Financials/);
@@ -653,7 +654,7 @@ test('pay is configured through pay rules, not commission workspaces in Money or
   const moneyApp = await readFile(path.join(publicRoot, 'libraries/apps/money/project.js'), 'utf8');
   const settingsApp = await readFile(path.join(publicRoot, 'libraries/apps/settings/company.js'), 'utf8');
   const payrollApi = await readFile(path.join(publicRoot, 'libraries/payroll-api/payroll-api.js'), 'utf8');
-  const terminology = await readFile(path.join(publicRoot, 'libraries/platform-terminology/platform-terminology.js'), 'utf8');
+  const moneyTerms = JSON.parse(await readFile(path.join(publicRoot, 'v1/config-library/snapshot/terminology_namespace/money.json'), 'utf8')).data;
   assert.doesNotMatch(manifest, /moneyView:\{ default:'overview', values:\[[^\]]*'commissions'/);
   assert.doesNotMatch(manifest, /scopeTemplateView:\{ default:'details', values:\[[^\]]*'commissions'/);
   assert.match(manifest, /scopeTemplateView:\{ default:'details', values:\[[^\]]*'automations'[^\]]*'events'[^\]]*\], history:'push' \}/);
@@ -661,7 +662,8 @@ test('pay is configured through pay rules, not commission workspaces in Money or
   assert.doesNotMatch(settingsApp, /scope-editor-panel-commissions|readCommissionEditor|\['commissions','Commissions','fa-percent'\]/);
   assert.doesNotMatch(payrollApi, /projectPayees|commission/);
   for (const action of ['payroll.payRule.save', 'payroll.payPlan.save', 'payroll.paySetup.preview', 'payroll.paySetup.save', 'payroll.earnings.refresh', 'payroll.correction.decline']) assert.ok(payrollApi.includes(`'${action}'`), action);
-  assert.match(terminology, /section\('money', 'Money', 'Project Money navigation/);
+  assert.equal(moneyTerms.title, 'Money');
+  assert.match(moneyTerms.note, /^Project Money navigation/);
   assert.match(settingsApp, /scopeTemplateView:editorSection/);
   assert.match(settingsApp, /editorSection === 'details' \? `<div id="scope-editor-panel-details"/);
   assert.doesNotMatch(settingsApp, /data-scope-details \$\{editorSection === 'details' \? '' : 'hidden'\}/);

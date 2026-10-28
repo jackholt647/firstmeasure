@@ -130,48 +130,11 @@
     ],
   };
 
+  // Default labels are config library terminology entries (roles, event_types, ui, money and the rest);
+  // PlatformTerminology adds them here when they load. An organization's variable_mappings hold overrides only.
   const DEFAULT_MAPPINGS = {
     schema_version: 1,
-    labels: {
-      roles: {
-        sales_appointments: 'Sales Appointments',
-        inside_sales: 'Inside Sales',
-      },
-      event_types: {
-        sales_appointment: 'Sales Appointment',
-        sales_follow_up: 'Sales Follow-up',
-        project_work: 'Project Work',
-        material_delivery: 'Material Delivery',
-        equipment_maintenance: 'Equipment Maintenance',
-        equipment_booking: 'Equipment Booking',
-        equipment_reservation: 'Equipment Reservation',
-      },
-      stages: {
-        new_lead: 'New Lead',
-        appointment_scheduled: 'Appointment Scheduled',
-        drafting_proposal: 'Drafting Proposal',
-        proposal_sent: 'Proposal Sent',
-        newly_sold: 'Sold',
-        project_started: 'Project Started',
-        in_progress: 'In Progress',
-        completed: 'Completed',
-        contacting: 'Contacting',
-        cancelled: 'Cancelled',
-        lost: 'Lost',
-      },
-      ui: {
-        routing_mode: 'Routing',
-      },
-      money: {
-        workspace: 'Money', overview: 'Overview', invoices: 'Invoices', recurring: 'Recurring', expense_lists: 'Expense Lists', receipts: 'Receipts', commissions: 'Commissions',
-        ledger: 'Ledger', payments: 'Payments', expenses: 'Expenses', activity: 'Activity', transaction: 'Transaction', transactions: 'Transactions', receipt: 'Receipt',
-        money_in: 'Money In', money_out: 'Money Out', balance: 'Balance', revenue: 'Revenue', collected: 'Collected', remaining: 'Remaining', cost_forecast: 'Cost Forecast', forecast_profit: 'Forecast Profit', profit_to_date: 'Profit To Date', payment_schedule: 'Payment Schedule',
-        collected_payment: 'Collected Payment', collected_payments: 'Collected Payments', scheduled_payment: 'Scheduled Payment', scheduled_payments: 'Scheduled Payments', add_collected_payment: 'Add Collected Payment', save_collected_payment: 'Save Collected Payment', take_collected_payment: 'Take a Collected Payment',
-        expense: 'Expense', add_expense: 'Add Expense', expense_list: 'Expense List', recipient: 'Recipient', invoice: 'Invoice', invoice_history: 'Invoice History', generate_invoice: 'Generate Invoice', invoice_items: 'Invoice Items', invoice_total: 'Invoice Total',
-        recurring_agreements: 'Recurring Agreements', recurring_totals: 'Recurring Totals', project_expenses: 'Project Expenses', projected: 'Projected', tracked_actual: 'Tracked Actual', variance: 'Variance', current_forecast: 'Current Forecast',
-        commission_payment: 'Commission Payment', commission_payments: 'Commission Payments', commission_recipient: 'Commission Recipient', commission_recipients: 'Commission Recipients', upcoming: 'Upcoming', accrued: 'Accrued', timing: 'Timing'
-      },
-    },
+    labels: {},
   };
 
   const cache = new Map();
@@ -1194,7 +1157,7 @@
     cache.set(key, config);
     if (options.ensureDefaults === true) {
       if (!schedulingRaw || !Object.keys(objectValue(schedulingRaw.event_types)).length) saveModule(orgId, branchId, MODULES.scheduling, scheduling).catch(() => null);
-      if (!mappingsRaw || !objectValue(mappingsRaw.labels).roles) saveModule(orgId, branchId, MODULES.mappings, mappings).catch(() => null);
+      // Terminology is never seeded: default labels are library entries and the module keeps only overrides.
     }
     return config;
   }

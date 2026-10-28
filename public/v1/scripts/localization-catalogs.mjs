@@ -6,6 +6,7 @@ import vm from 'node:vm';
 import ts from 'typescript';
 import { build } from 'esbuild';
 import { IntlMessageFormat } from 'intl-messageformat';
+import { terminologyNamespaces } from './terminology-snapshot.mjs';
 // Atomic replacement also works when Windows previewers hold a mapped file open.
 function writeFile(file,contents){
   if(fs.existsSync(file)&&fs.readFileSync(file,'utf8')===contents)return;
@@ -146,12 +147,10 @@ for(const file of targets) {
   }
   stats.push({file:relative,namespace,references:(code.match(/PlatformLanguage\?\.(?:htmlText|text)\(/g)||[]).length,candidates:messages,edits:edits.length});
 }
-// Terminology shares the same catalog while retaining branch overrides.
-const window={};vm.runInNewContext(fs.readFileSync(path.join(root,'public/libraries/platform-terminology/platform-terminology.js'),'utf8'),{window});
-const contractPath=path.join(root,'public/v1/platform/localization/terminology-contract.json');
-const contract=JSON.stringify(Object.fromEntries(window.PlatformTerminology.CATALOG.flatMap(section=>section.terms.map(term=>[section.id+'.'+term.key,{label:term.label,kind:term.kind}]))),null,2)+'\n';
-if(check){if(fs.readFileSync(contractPath,'utf8')!==contract)throw Error('Stale terminology contract');}else writeFile(contractPath,contract);
-catalog.terminology=Object.fromEntries(window.PlatformTerminology.CATALOG.flatMap(section=>section.terms.map(term=>[section.id+'.'+term.key,term.label])));
+// Terminology shares the same catalog while retaining branch overrides. The terms are config library entries; this
+// catalog is their English wording in the checked-in snapshot, which language packs translate and issued documents
+// freeze. Run this build again after a snapshot changes them.
+catalog.terminology=Object.fromEntries(terminologyNamespaces().flatMap(section=>section.terms.map(term=>[section.id+'.'+term.key,term.label])));
 catalog.shared={...(catalog.shared||{}),save:'Save',cancel:'Cancel',loading:'Loading…',item_count:{message:'{count, plural, =0 {No items} one {# item} other {# items}}',format:'icu'}};
 // Only unambiguous, static error messages are catalogued; contextual messages keep their API fallback.
 const errorTexts=new Map();

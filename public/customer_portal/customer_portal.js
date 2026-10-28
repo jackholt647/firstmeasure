@@ -1784,7 +1784,7 @@
   async function refreshPortalPayload(){
     if (!cfg.id || !api?.customerPortals?.publicGet) return;
     const payload = await api.customerPortals.publicGet(cfg.id, { preview: cfg.preview });
-    if(payload.language){root.PlatformLanguage?.configure?.({context:payload.language.context});root.PlatformTerminology?.setConfig?.({mappings:payload.language.terminology});await root.PlatformLanguage?.ensure?.(['customer-portal']);}
+    if(payload.language){root.PlatformLanguage?.configure?.({context:payload.language.context});root.PlatformTerminology?.setConfig?.({mappings:payload.language.terminology});await Promise.all([root.PlatformLanguage?.ensure?.(['customer-portal']),root.PlatformTerminology?.ready?.()]);}
     state.payload = payload;
     state.activeProjectId = cleanText(state.activeProjectId || payload?.contact_portal?.active_project_id || payload?.project?.id);
     applyBranding(payload);
@@ -3717,7 +3717,7 @@
     }
     try {
       const payload = await api.customerPortals.publicGet(cfg.id, { preview: cfg.preview });
-      if(payload.language){root.PlatformLanguage?.configure?.({context:payload.language.context});root.PlatformTerminology?.setConfig?.({mappings:payload.language.terminology});await root.PlatformLanguage?.ensure?.(['customer-portal']);}
+      if(payload.language){root.PlatformLanguage?.configure?.({context:payload.language.context});root.PlatformTerminology?.setConfig?.({mappings:payload.language.terminology});await Promise.all([root.PlatformLanguage?.ensure?.(['customer-portal']),root.PlatformTerminology?.ready?.()]);}
     state.payload = payload;
       state.activeProjectId = cleanText(payload?.contact_portal?.active_project_id || payload?.portal?.active_project_id || payload?.project?.id);
       applyBranding(payload);

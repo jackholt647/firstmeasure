@@ -4570,7 +4570,10 @@
       "message": "Show {v1} more who {v2} not marked for this work",
       "format": "icu"
     },
-    "m_e1a77a52be0af1": "Not marked for this work"
+    "m_e1a77a52be0af1": "Not marked for this work",
+    "m_bcfc52d3ed9f62": "this document",
+    "m_2fc861f59fd0ce": "Roof measurements XML",
+    "m_a620d9a43636cd": "Project documents"
   },
   "measurements": {
     "m_aaf397f737f7b1": "Residential",
@@ -6056,7 +6059,8 @@
     "m_b62bbb8c4dba49": "Choose up to 50 files. Images must be 10 MB or smaller; other files must be 25 MB or smaller.",
     "m_f6c18a9bc9fb27": "Post is too long",
     "m_9e0cad6720003c": "Keep the post under 5,000 characters.",
-    "m_43fc960df3ae8a": "Could not post"
+    "m_43fc960df3ae8a": "Could not post",
+    "m_c7a97e0bb50632": "Upload photos"
   },
   "project-map": {
     "m_85092cc71d4661": "Shrink",
@@ -15150,7 +15154,7 @@
     "materials.unit": "Unit",
     "materials.supplier": "Supplier",
     "materials.order_request": "Order Request",
-    "money.project_tab": "Money",
+    "money.project_tab": "Financials",
     "money.payments_settings_tab": "Payments",
     "money.workspace": "Money",
     "money.overview": "Overview",
@@ -15450,6 +15454,9 @@
     "event_types.sales_follow_up": "Sales Follow-up",
     "event_types.project_work": "Project Work",
     "event_types.material_delivery": "Material Delivery",
+    "event_types.equipment_maintenance": "Equipment Maintenance",
+    "event_types.equipment_booking": "Equipment Booking",
+    "event_types.equipment_reservation": "Equipment Reservation",
     "web_editor.tab": "Web Editor",
     "comms.project_tab": "Comms",
     "training.portal_tab": "Training",
@@ -15544,7 +15551,8 @@
     "m_fcdce0d00f08de": "Close settings",
     "m_ec86a2c6d50051": "Layout saved. Reopen the app to use the new layout.",
     "m_34bda32dd22ac6": "Desktop",
-    "m_ed04c65845180f": "Phone"
+    "m_ed04c65845180f": "Phone",
+    "m_5c4fb8df281140": "FirstMate"
   },
   "app-setup-workflows": {
     "m_3fbcf1137a92ed": "alex@company.com",
@@ -16642,7 +16650,15 @@
     "m_fe99e3347c6980": "Delete unavailable",
     "m_6daba3159863bd": "No comments yet.",
     "m_6e0f86a3137f81": "Comments are available after this photo is saved.",
-    "m_f50f74f52a8c84": "Comments could not load. Please reopen this viewer."
+    "m_f50f74f52a8c84": "Comments could not load. Please reopen this viewer.",
+    "m_0099dbecb99781": "Markup",
+    "m_25cfbd657796a0": "Delete text box",
+    "m_4becef1e8489e1": "Text formatting",
+    "m_4feeaa2c564c4a": "Bold",
+    "m_4ecc62f00b105d": "Italic",
+    "m_b4d977edd26627": "Text size",
+    "m_24a5a5fd84aef4": "Decrease text size",
+    "m_6319e95533b14c": "Increase text size"
   },
   "platform-api": {
     "m_7b2459374254fa": {
@@ -19943,7 +19959,49 @@
     "media_not_paired": "Only photos paired from the Feed can be returned to it.",
     "invalid_page_pattern": "A page is a path such as /portal/billing, optionally with * for anything; no query string.",
     "page_rules_exclude_only": "A page rule can only stop recording on that page.",
-    "session_replay_page_excluded": "This page is not recorded."
+    "session_replay_page_excluded": "This page is not recorded.",
+    "company_profile_revision": "The company profile changed. Reload and try again.",
+    "company_type_unknown": "Choose a kind of company from the list, or Other.",
+    "company_type_other_required": "Say what kind of company you are.",
+    "company_profile_person": "The company profile is saved by a person.",
+    "invalid_library_key": "This config library access key is not valid, has expired or was revoked.",
+    "config_library_denied": "The config library is edited by platform administrators and the development tools audience, in development.",
+    "config_library_kind_unknown": "No such readable kind.",
+    "config_library_key_missing": "No such active key.",
+    "config_library_asset_type": "Only PNG, JPEG, WebP, GIF and AVIF images are taken.",
+    "config_library_asset_missing": "No such asset.",
+    "sandbox_org_required": "Only sandbox test organizations keep a starting state.",
+    "initial_state_missing": "This test organization has no starting state recorded. Record the current state first.",
+    "setup_steps_person": "Setup step status is read as a person.",
+    "materials_internal_scope": "A retained internal scope snapshot is required.",
+    "materials_scope_accepted": "The customer has already accepted this scope; use a change order to change it.",
+    "operations_user_required": "A signed-in person is required.",
+    "operations_project_required": "Save this project before building its scope.",
+    "operations_project_mismatch": "This document belongs to another project.",
+    "operations_document_required": "Choose a document created by this Operations workflow.",
+    "operations_resume_mismatch": "Resume this document in its original project and workflow.",
+    "operations_scope_published": "This scope has been published. Start a new scope to change the project.",
+    "operations_step_invalid": "Unknown workflow step.",
+    "operations_scope_retired": "This scope was removed from the project. Start a new scope.",
+    "operations_scope_missing": "Choose the work included in this project.",
+    "operations_materials_missing": "Choose materials and enter their quantities before publishing your scope.",
+    "operations_quantities_invalid": "Review each material quantity before publishing.",
+    "operations_prices_missing": "Set your siding prices before publishing the proposal. The scope-only path does not require pricing.",
+    "operations_piece_invalid": "Choose roofing, gutters or siding.",
+    "operations_setup_denied": "Project management access is required.",
+    "operations_scope_required": "Build your scope of work first.",
+    "operations_scope_unpublished": "Finish publishing your scope of work first.",
+    "operations_workforce_denied": "Project management access is required.",
+    "operations_workforce_required": "Add someone who will do the work, or return to setup.",
+    "app_offer_reset_denied": "Only a development operator can reset app welcomes.",
+    "app_offer_not_found": "This app has no welcome offer.",
+    "app_offer_denied": "This app is not available in your app experience.",
+    "app_offer_unavailable": "This app is no longer offered by your organization.",
+    "app_offer_changed": "The app offer changed. Open the tab again to continue.",
+    "invalid_doc_key": "A document key is 1 to 100 characters of a-z, 0-9, _ : . or -.",
+    "invalid_markup_page": "Each page is a list of markup items.",
+    "markup_too_large": "This markup is larger than 512 KB.",
+    "invalid_expected_revision": "expected_revision must be a whole number."
   },
   "notifications": {
     "document_greeting": {
