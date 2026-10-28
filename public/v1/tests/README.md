@@ -58,3 +58,5 @@ If any manual behavior fails, add a focused automated test when possible. If bro
 - Do not test FirstMeasure internals from this suite unless the Platform workflow requires them.
 - Any action that should emit triggers must be tested through its API route, not by writing JSON directly.
 - When adding a new trigger action, add one test showing it can be configured from branch trigger data and run from `triggers/emit` or the real API event route.
+
+Regression suites run on the dev push router with `submit.mjs --regression` (docs/architecture/dev-lanes.md).
