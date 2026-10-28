@@ -78,8 +78,10 @@ import {
   performCrewTimeClockAction,
   readCrewTimeClock,
   readProjectChecklist,
-  readProjectChecklistItem
+  readProjectChecklistItem,
+  signProjectChecklist
 } from "./crew_storage.js";
+import { normalizePortalSignature } from "../platform/portal_signatures.js";
 
 type CrewActor = {
   ctx: PlatformAuthContext;
@@ -2923,6 +2925,28 @@ export const registerCrewApi: FastifyPluginAsync = async (app) => {
     };
     const updated = (await addProjectChecklistItemAttachment(orgId, projectId, item.id, attachment, actor.ctx.userId));
     return { ok: true, attachment, item: updated };
+  });
+
+  // The one sign-off a checklist can ask for (signature_required), by whoever may complete it, once every item is done.
+  app.post("/organizations/:orgId/crew/projects/:projectId/checklists/:checklistId/signature", async (request) => {
+    const orgId = getParam(request.params, "orgId");
+    const actor = await requireCrewActor(request, orgId, "", true);
+    const projectId = getParam(request.params, "projectId");
+    await checklistAccessibleProject(orgId, projectId, actor);
+    const checklist = (await readProjectChecklist(orgId, projectId, getParam(request.params, "checklistId")));
+    if (!checklistCompletionAllowed(actor, checklist)) {
+      throw forbidden("checklist_complete_forbidden", "This user cannot sign this checklist.");
+    }
+    const body = requestBody(request);
+    const typed = request as unknown as { ip?: string; headers?: Record<string, unknown> };
+    const signature = normalizePortalSignature(body.signature ?? body, {
+      ip: cleanText(typed.ip),
+      user_agent: cleanText(typed.headers?.["user-agent"]),
+      captured_at: new Date().toISOString(),
+      source: "crew_app"
+    });
+    const signed = (await signProjectChecklist(orgId, projectId, checklist.id, signature, actor.ctx.userId));
+    return { ok: true, checklist: signed };
   });
 
   app.delete("/organizations/:orgId/crew/projects/:projectId/checklists/:checklistId/items/:itemId", async (request) => {
