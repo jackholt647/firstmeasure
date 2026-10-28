@@ -69,6 +69,7 @@ async function main() {
   });
   await router.init();
   await router.git(["remote", "set-url", "origin", config.remote || ROUTER_REPO_PATH]);
+  await router.git(["config", "--unset-all", "remote.origin.pushurl"], { allowFail: true }); // pushes go to the same repository
   if (command === "gate" || command === "build" || command === "stage") {
     // Diagnostics: run a lane's gates, build its release tree, or build and stage it on every role (no activation),
     // for any commit without touching the queue.
