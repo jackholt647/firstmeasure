@@ -36,7 +36,10 @@ const here = path.dirname(fileURLToPath(import.meta.url));
 export function snapshotDir() {
   const configured = String(process.env.CONFIG_LIBRARY_SNAPSHOT_DIR || "").trim();
   if (configured) return path.resolve(configured);
-  const candidates = [path.join(here, "snapshot"), path.resolve(here, "..", "..", "config-library", "snapshot"), path.resolve(process.cwd(), "config-library", "snapshot")];
+  // A compiled build may carry a partial copy (JSON only) under dist/: the source tree's snapshot comes first there.
+  const source = path.resolve(here, "..", "..", "config-library", "snapshot");
+  const compiled = path.basename(path.resolve(here, "..")) === "dist";
+  const candidates = compiled ? [source, path.join(here, "snapshot")] : [path.join(here, "snapshot"), source, path.resolve(process.cwd(), "config-library", "snapshot")];
   return candidates.find((candidate) => existsSync(candidate)) || candidates[0]!;
 }
 

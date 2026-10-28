@@ -56,11 +56,16 @@ export function readSnapshotAssets(dir = snapshotDir()): SnapshotAsset[] {
   const indexFile = path.join(dir, "_assets", "index.json");
   if (!existsSync(indexFile)) return [];
   const index = JSON.parse(readFileSync(indexFile, "utf8")) as Array<{ sha256: string; content_type: string; file_name: string }>;
-  return index.map((item) => {
-    const bytes = readFileSync(path.join(dir, "_assets", `${item.sha256}.${ASSET_TYPES[item.content_type] || "bin"}`));
+  const found: SnapshotAsset[] = [];
+  for (const item of index) {
+    const file = path.join(dir, "_assets", `${item.sha256}.${ASSET_TYPES[item.content_type] || "bin"}`);
+    // A missing file never stops the library loading: the asset is just not available from this snapshot.
+    if (!existsSync(file)) { console.warn(`Config library snapshot asset ${item.sha256} is missing from ${dir}.`); continue; }
+    const bytes = readFileSync(file);
     if (sha256(bytes) !== item.sha256) throw new Error(`Config library snapshot asset ${item.sha256} does not match its hash.`);
-    return { ...item, bytes };
-  });
+    found.push({ ...item, bytes });
+  }
+  return found;
 }
 
 export async function readAsset(hash: string) {
