@@ -299,19 +299,42 @@ export async function publishPresentation(ctx: PublicationContext, definition: u
   if (object(definition).kind !== "presentation") throw badRequest("presentation_module_required", "Publish a presentation definition here.");
   return publishModule(ctx, definition, moduleId);
 }
+/** A library deck as the preset hook takes it: a `presentation_deck` entry (config-library/kinds/presentation-deck.ts). */
+export type PresentationDeckPreset = { id: string; revision: number; sha256: string; data: { name: string; layout: JsonObject; tags?: string[]; customer_contract?: "review" | "direct"; contract?: JsonObject } };
+/** How an organization's copy of a library deck stands: none, untouched (current or older), or its own version. */
+export function presentationPresetState(current: JsonObject | null, deck: Pick<PresentationDeckPreset, "sha256">): "missing" | "library" | "behind" | "changed" {
+  if (!current) return "missing";
+  if (current.version !== current.preset_version) return "changed";
+  const stamp = object(current.library);
+  // Published by the code seed at its last revision (7), which is what the library's first revision holds.
+  if (!text(stamp.sha256)) return Number(current.preset_revision || 0) >= 7 ? "library" : "behind";
+  return text(stamp.sha256) === deck.sha256 ? "library" : "behind";
+}
 /**
- * Seed hook for presentation presets, called from trusted seed code (the caller
- * owns authorization). Publishes `layout` as the standard scope presentation at
- * a stable module id, and republishes when `preset_revision` rises unless the
- * organization has since published its own version. Returns the module id to
- * name in a workflow's `completion.presentation` or a template's metadata.
+ * Seed hook for presentation presets, called from trusted code (the caller owns authorization): publishes a library
+ * deck as the standard scope presentation at a stable module id, `preset_presentation_<deck id>`, recording the
+ * library stamp it came from. An untouched copy is republished when the library entry changes; once the
+ * organization publishes its own version it is left alone, unless `reset`. Returns the module id a workflow's
+ * `completion.presentation` names.
  */
-export async function ensurePresentationPreset(organizationId: string, preset: { id: string; name: string; layout: JsonObject; preset_revision: number; tags?: string[]; customerContract?: "review" | "direct"; contract?: JsonObject; definition?: JsonObject }) {
-  const moduleId = `preset_presentation_${preset.id}`;
-  const current = await getRecord(organizationId, MODULES, moduleId).catch(error => missingRecord<JsonObject>(error));
-  if (current && (Number(current.preset_revision || 0) >= preset.preset_revision || current.version !== current.preset_version)) return { moduleId, version: text(current.version), published: false };
-  const stored = await storeModuleVersion(organizationId, { ...scopePresentationDefinition({ name: preset.name, layout: preset.layout, tags: preset.tags, customerContract: preset.customerContract, contract: preset.contract }), ...preset.definition }, moduleId);
-  await saveRecord(organizationId, MODULES, moduleId, { name: stored.name, kind: stored.kind, tags: stored.tags, version: stored.version, preset_revision: preset.preset_revision, preset_version: stored.version });
+export async function presentationPresetRecord(organizationId: string, deckId: string) {
+  return await getRecord(organizationId, MODULES, `preset_presentation_${deckId}`).catch(error => missingRecord<JsonObject>(error));
+}
+export async function ensurePresentationPreset(organizationId: string, deck: PresentationDeckPreset, options: { reset?: boolean } = {}) {
+  const moduleId = `preset_presentation_${deck.id}`;
+  const current = await presentationPresetRecord(organizationId, deck.id);
+  const stamp = { kind: "presentation_deck", id: deck.id, revision: deck.revision, sha256: deck.sha256 };
+  const state = presentationPresetState(current, deck);
+  if (current && !options.reset && state !== "behind") {
+    // A copy the code seed published at its last revision is stamped, not republished.
+    if (state === "library" && !text(object(current.library).sha256)) {
+      const { id: _id, revision: _revision, ...record } = current;
+      await saveRecord(organizationId, MODULES, moduleId, { ...record, library: stamp });
+    }
+    return { moduleId, version: text(current.version), published: false };
+  }
+  const stored = await storeModuleVersion(organizationId, scopePresentationDefinition({ name: deck.data.name, layout: jsonClone(deck.data.layout), tags: deck.data.tags, customerContract: deck.data.customer_contract, contract: deck.data.contract ? jsonClone(deck.data.contract) : undefined }), moduleId);
+  await saveRecord(organizationId, MODULES, moduleId, { name: stored.name, kind: stored.kind, tags: stored.tags, version: stored.version, preset_version: stored.version, library: stamp });
   return { moduleId, version: text(stored.version), published: true };
 }
 /** What a draft's final step offers. Skipping the presentation is always possible. */

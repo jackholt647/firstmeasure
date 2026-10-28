@@ -7,8 +7,8 @@ import { backendImplementationDigest } from '../platform/publication/implementat
 import { badRequest, conflict, forbidden } from '../platform/errors.js';
 import { readDocument, type JsonObject } from '../platform/storage.js';
 import { createDocumentInstance, patchDocumentInstance, resolveDocumentInstance, createSnapshot, requireDocumentDepartmentAccess } from '../documents/service.js';
-import { createDocumentTemplate, createDocumentWorkflow, readDocumentTemplate, readDocumentWorkflow, readDocumentInstance, readDocumentSnapshot, saveDocumentInstance, listProjectDocuments } from '../documents/storage.js';
-import { ensureDefaultDocumentAssets } from '../documents/seeds.js';
+import { readDocumentInstance, readDocumentSnapshot, saveDocumentInstance, listProjectDocuments } from '../documents/storage.js';
+import { ensureDefaultDocumentAssets, ensureLibraryTemplate } from '../documents/library-copies.js';
 import { withDocumentChange } from '../documents/versions/context.js';
 import { publishInternalDocumentScope, hasPublishedDocumentScope } from '../materials/calculus.js';
 import { readProjectForAccess } from '../projects/access.js';
@@ -16,7 +16,7 @@ import { workRequirements } from '../platform/publication/work-items.js';
 import { listMeasurementDefinitions } from '../platform/publication/measurement-schemas.js';
 import { getOrganizationPricebook, readOrganizationPricebook } from '../pricebook/storage.js';
 import { generatePieceScope } from '../pricebook/scope-generation.js';
-import { OPERATIONS_DOCUMENT_REVISION, OPERATIONS_PIECES, OPERATIONS_MEASUREMENTS, operationsDocumentDefinition, operationsWorkflowDefinition } from './document-definitions.js';
+import { OPERATIONS_PIECES, OPERATIONS_MEASUREMENTS, operationsDefinitions, operationsTemplateId, operationsWorkflowId } from './document-definitions.js';
 const obj=(v:unknown):JsonObject=>v&&typeof v==='object'&&!Array.isArray(v)?v as JsonObject:{};
 const array=(v:unknown):JsonObject[]=>Array.isArray(v)?v.map(obj):[];
 const text=(v:unknown)=>String(v||'').trim();
@@ -52,21 +52,21 @@ export async function prepareOperationsDocument(ctx:PublicationContext,input:{pr
   await (await import('./onboarding.js')).initializeOperationsResources(ctx);
   await ensureDefaultDocumentAssets(ctx.organizationId,auth);
   await getOrganizationPricebook(ctx.organizationId);
-  const suffix=`${input.path}_v${OPERATIONS_DOCUMENT_REVISION}`,templateId=`tpl_operations_${suffix}`,workflowId=`wfl_operations_${suffix}`;
-  const templateDefinition=operationsDocumentDefinition(input.path),workflowDefinition=operationsWorkflowDefinition(input.path,templateDefinition);
-  if(!await readDocumentWorkflow(ctx.organizationId,workflowId).catch(e=>{if(e.statusCode===404)return null;throw e;}))await createDocumentWorkflow(ctx.organizationId,{id:workflowId,name:text(workflowDefinition.name),status:'active',definition:workflowDefinition,metadata:{operations_revision:OPERATIONS_DOCUMENT_REVISION}},auth);
-  if(!await readDocumentTemplate(ctx.organizationId,templateId).catch(e=>{if(e.statusCode===404)return null;throw e;}))await createDocumentTemplate(ctx.organizationId,{id:templateId,name:input.path==='scope'?'Scope of work':'Project proposal',document_type:input.path==='scope'?'scope_of_work':'proposal',status:'active',definition:templateDefinition,metadata:{operations_revision:OPERATIONS_DOCUMENT_REVISION,default_workflow_id:workflowId}},auth);
+  const templateId=operationsTemplateId(input.path),workflowId=operationsWorkflowId(input.path);
+  const {template:templateDefinition,workflow:workflowDefinition}=operationsDefinitions(input.path);
+  // The organization's copies of the library template and workflow, made the first time Operations asks.
+  await ensureLibraryTemplate(ctx.organizationId,templateId,auth);
   let document=input.document_id?await owned(ctx,input.document_id):null;
   if(document&&(obj(document.metadata).operations_path!==input.path||document.project_id!==input.project_id))throw badRequest('operations_resume_mismatch','Resume this document in its original project and workflow.');
   if(!document)document=(await listProjectDocuments(ctx.organizationId,input.project_id)).find(d=>obj(d.metadata).operations_path===input.path&&d.status==='draft')||null;
-  if(!document)document=(await createDocumentInstance(ctx.organizationId,input.project_id,{document_type:input.path==='scope'?'scope_of_work':'proposal',template_id:templateId,workflow_id:workflowId,title:input.path==='scope'?'Scope of work':'Project proposal',metadata:{operations_path:input.path,operations_revision:OPERATIONS_DOCUMENT_REVISION}},auth)).document;
+  if(!document)document=(await createDocumentInstance(ctx.organizationId,input.project_id,{document_type:input.path==='scope'?'scope_of_work':'proposal',template_id:templateId,workflow_id:workflowId,title:input.path==='scope'?'Scope of work':'Project proposal',metadata:{operations_path:input.path}},auth)).document;
   requireDocumentDepartmentAccess(auth,document);
   return {document,workflow:workflowDefinition,template:templateDefinition,preview:input.path==='proposal',piece_catalog:OPERATIONS_PIECES,measurement_fields_by_piece:OPERATIONS_MEASUREMENTS};
 }
 export async function saveOperationsDocument(ctx:PublicationContext,input:{document_id:string;expected_revision:number;params:JsonObject;current_step?:string;completed_steps?:string[]}){
   const document=await owned(ctx,input.document_id);
   if(document.status==='completed'&&obj(document.metadata).operations_path==='scope')throw conflict('operations_scope_published','This scope has been published. Start a new scope to change the project.');
-  const workflow=operationsWorkflowDefinition(obj(document.metadata).operations_path as 'scope'|'proposal');
+  const {workflow}=operationsDefinitions(obj(document.metadata).operations_path as 'scope'|'proposal');
   const steps=new Set(array(workflow.steps).map(s=>text(s.id)));
   if(input.current_step&&!steps.has(input.current_step))throw badRequest('operations_step_invalid','Unknown workflow step.');
   const saved=await patchDocumentInstance(ctx.organizationId,input.document_id,{expected_revision:input.expected_revision,params:{...input.params,operations_work:scopeWork(input.params)}},ctx.auth!);

@@ -19,12 +19,14 @@
 <script src="firstmate-doc-present.js"></script>
 <script src="templates/roofing-presentation.js"></script>
 <script>
-(function () {
+(async function () {
   const query = new URLSearchParams(location.search);
   const primary = query.get('primary') || '#1f6feb';
   const logo = 'data:image/svg+xml;utf8,' + encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 560 144"><path d="M20 96 72 40l52 56" fill="none" stroke="' + primary + '" stroke-width="16" stroke-linecap="round" stroke-linejoin="round"/><text x="150" y="86" font-family="Segoe UI,Arial" font-weight="800" font-size="46" fill="#8fa3bd">Summit Roofing</text></svg>');
   const deck = query.get('deck') || 'itemized';
-  const definition = FMRoofingPresentation.build({ deck });
+  // The decks are config library entries (presentation_deck roofing_<deck>).
+  const library = await (await fetch('/v1/config-library/read/presentation_deck')).json();
+  const definition = library.entries.find((entry) => entry.id === 'roofing_' + deck).data.layout;
   const resolved = FMDocModel.resolveBindings(definition, { org: { name: 'Summit Roofing Co.', logo_url: logo }, customer: { name: 'the Alvarez family' }, params: {}, outputs: {} });
   const state = FMRoofingPresentation.priceSample(FMRoofingPresentation.sampleState(deck));
   window.player = FMDocPresent.mount(document.getElementById('host'), {

@@ -102,9 +102,9 @@ const STEPS: Step[] = [
   },
   {
     id: "sandbox.roofing.seedDocuments",
-    description: "Seeds the sample roofing documents (proposal, contract and the test document pack).",
+    description: "Copies every document default from the library into the organization, the roofing sales pack included (priced from its price book).",
     input: {},
-    async run(ctx, owner) { await (await import("./roofing-documents.js")).seedInstantRoofingDocuments(ctx.organizationId, owner); return { seeded: true }; }
+    async run(ctx, owner) { await (await import("../documents/library-copies.js")).ensureDefaultDocumentAssets(ctx.organizationId, owner, { refresh: true }); return { seeded: true }; }
   },
   {
     id: "sandbox.roofing.seedMaterialsLibrary",

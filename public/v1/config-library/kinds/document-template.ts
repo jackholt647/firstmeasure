@@ -135,5 +135,9 @@ export const documentTemplateKind: LibraryKind<DocumentTemplateEntry> = {
     }
     return errors;
   },
-  titleOf: (data) => data.name
+  titleOf: (data) => data.name,
+  orgCopies: {
+    status: async (orgId, ids) => (await import("../../documents/library-copies.js")).documentCopyStatus("template", orgId, ids),
+    reset: async (ctx, id) => (await import("../../documents/library-copies.js")).resetDocumentCopy("template", ctx, id)
+  }
 };

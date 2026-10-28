@@ -32,5 +32,14 @@ export const presentationDeckKind: LibraryKind<PresentationDeckEntry> = {
     const checked = FMDocModel.validateDocument(data.layout);
     return checked.ok ? [] : checked.errors.slice(0, 20).map((error) => `layout.${error.path}: ${error.message}`);
   },
-  titleOf: (data) => data.name
+  titleOf: (data) => data.name,
+  /** The dev player and editor harnesses (doc-present/dev-present*.html) load the decks directly. */
+  browser: true,
+  orgCopies: {
+    status: async (orgId, ids) => (await import("../../documents/library-copies.js")).deckCopyStatus(orgId, ids),
+    reset: async (ctx, id) => {
+      const { ensureLibraryDeck } = await import("../../documents/library-copies.js");
+      return await ensureLibraryDeck(ctx.orgId, id, { reset: true });
+    }
+  }
 };

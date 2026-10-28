@@ -77,5 +77,9 @@ export const documentWorkflowKind: LibraryKind<DocumentWorkflowEntry> = {
     }
     return errors;
   },
-  titleOf: (data) => data.name
+  titleOf: (data) => data.name,
+  orgCopies: {
+    status: async (orgId, ids) => (await import("../../documents/library-copies.js")).documentCopyStatus("workflow", orgId, ids),
+    reset: async (ctx, id) => (await import("../../documents/library-copies.js")).resetDocumentCopy("workflow", ctx, id)
+  }
 };

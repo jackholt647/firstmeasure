@@ -57,7 +57,7 @@ before(async () => {
   auth = instance.authContext as PlatformAuthContext; orgId = auth.orgId;
   await (await import("../platform/app-experience/activation.js")).startOfferedApp(auth, "project.docs");
   auth = await (await import("../platform/auth.js")).buildAuthContext(auth.sessionId, auth.session);
-  await (await import("../signup-sandbox/roofing-documents.js")).seedInstantRoofingDocuments(orgId, auth);
+  await (await import("../documents/library-copies.js")).ensureDefaultDocumentAssets(orgId, auth, { refresh: true });
   documents = await import("../documents/service.js");
   documentStore = await import("../documents/storage.js");
   // The seeded proposal names the roofing presentation; these tests start from a workflow that names none.
@@ -101,15 +101,15 @@ test("a presentation is a third module kind with its own publish rules", async (
   await assert.rejects(modules.publishModule(ctx, { ...base, kind: "document", source: "return {outputs:{}}" }), code("module_presentation_kind"));
   const { presentation: _spec, ...plain } = base;
   await assert.rejects(modules.publishModule(ctx, { ...plain, kind: "document", source: "" }), code("module_source_required"));
-  // Presets: published once per revision at a stable id, and left alone once the organization edits them.
-  const preset = { id: "roofing", name: "Roofing deck", layout: slides(), preset_revision: 1 };
+  // Presets (library decks): published once per library revision at a stable id, and left alone once the organization edits them.
+  const preset = { id: "roofing", revision: 1, sha256: "a".repeat(64), data: { name: "Roofing deck", layout: slides() } };
   const seeded = await presentations.ensurePresentationPreset(orgId, preset);
   assert.deepEqual([seeded.moduleId, seeded.published], ["preset_presentation_roofing", true]);
   assert.equal((await presentations.ensurePresentationPreset(orgId, preset)).published, false);
-  const upgraded = await presentations.ensurePresentationPreset(orgId, { ...preset, name: "Roofing deck 2", preset_revision: 2 });
+  const upgraded = await presentations.ensurePresentationPreset(orgId, { ...preset, revision: 2, sha256: "b".repeat(64), data: { ...preset.data, name: "Roofing deck 2" } });
   assert.equal(upgraded.published, true); assert.notEqual(upgraded.version, seeded.version);
   await presentations.publishPresentation(ctx, presentations.scopePresentationDefinition({ name: "Edited by the organization", layout: slides() }), seeded.moduleId);
-  assert.equal((await presentations.ensurePresentationPreset(orgId, { ...preset, preset_revision: 3 })).published, false);
+  assert.equal((await presentations.ensurePresentationPreset(orgId, { ...preset, revision: 3, sha256: "c".repeat(64) })).published, false);
   // The generic module lifecycle cannot create or drive a presentation instance.
   await assert.rejects(modules.createModuleInstance(ctx, { moduleId, projectId }), code("module_presentation_route"));
   // A view template whose program carries a presentation contract publishes through the builder path.

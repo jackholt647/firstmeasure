@@ -61,5 +61,9 @@ export const documentThemeKind: LibraryKind<DocumentThemeEntry> = {
     if (!data.definition.page_masters.some((master) => master.match.role === "*")) errors.push("definition.page_masters: one master must match every page (role *).");
     return errors;
   },
-  titleOf: (data) => data.name
+  titleOf: (data) => data.name,
+  orgCopies: {
+    status: async (orgId, ids) => (await import("../../documents/library-copies.js")).documentCopyStatus("theme", orgId, ids),
+    reset: async (ctx, id) => (await import("../../documents/library-copies.js")).resetDocumentCopy("theme", ctx, id)
+  }
 };

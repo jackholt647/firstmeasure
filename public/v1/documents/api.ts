@@ -128,7 +128,7 @@ import { listDocumentTypes } from "./types/registry.js";
 import { refusePreviewDocumentToken } from "./preview-links.js";
 import { listDocumentWidgetResolvers } from "./widgets/registry.js";
 import { registerBuiltinDocumentWidgetResolvers } from "./widgets/builtins.js";
-import { ensureDefaultDocumentAssets } from "./seeds.js";
+import { ensureDefaultDocumentAssets } from "./library-copies.js";
 import { ingestDocumentUpload } from "./ingestion.js";
 import { registerCollabRoutes } from "./collab/routes.js";
 import { registerVersionRoutes } from "./versions/routes.js";

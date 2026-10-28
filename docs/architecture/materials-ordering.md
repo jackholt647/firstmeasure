@@ -31,7 +31,8 @@ An order's `metadata` says how it was placed (`order_method`: `email` or
 ## Purchase orders
 
 `purchase_order` is a document type (`documents/types/registry.ts`) with the
-seeded template `tpl_purchase_order_default` (`documents/supplier-templates.ts`),
+template `tpl_purchase_order_default` (a config library `document_template`
+entry; its default terms are that template's `terms` parameter default),
 a system template an organization can edit like any other to change how every
 purchase order is written. One document per supplier's part of an order: its
 id comes from the project and the order's key (supplier plus lists), so editing

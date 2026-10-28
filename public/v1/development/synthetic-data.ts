@@ -79,10 +79,12 @@ async function materialLists(ctx: PlatformAuthContext) {
  return {created,...(!ps.length?{note:'Enable Projects first, then run Material lists again.'}:{})};
 }
 async function documents(ctx: PlatformAuthContext) {
- const {seedInstantRoofingDocuments,ROOFING_ESTIMATES}=await import('../signup-sandbox/roofing-documents.js');
+ const {ensureDefaultDocumentAssets}=await import('../documents/library-copies.js');
+ // The roofing sales pack: library templates tpl_instant_roofing_<key>.
+ const ROOFING_ESTIMATES=(await import('../config-library/library.js')).libraryEntries('document_template').filter(entry=>entry.id.startsWith('tpl_instant_roofing_')).map(entry=>({key:entry.id.slice('tpl_instant_roofing_'.length)}));
  const {createDocumentInstance}=await import('../documents/service.js');
  const before=await listDocuments(ctx.orgId,'document_templates');
- await seedInstantRoofingDocuments(ctx.orgId,ctx);
+ await ensureDefaultDocumentAssets(ctx.orgId,ctx,{refresh:true});
  let drafts=0;const ps=await projects(ctx.orgId);
  for(const [i,spec] of ROOFING_ESTIMATES.entries()) {
   const p=ps[i%Math.max(1,ps.length)];if(!p)continue;

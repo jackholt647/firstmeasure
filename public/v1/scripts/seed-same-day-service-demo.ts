@@ -1,7 +1,7 @@
 /* Seed two same-day service visits for the field salesperson demo. */
 import { listDocuments, upsertDocument } from "../platform/storage.js";
 import { saveProjectContacts } from "../contacts/records.js";
-import { ensureDefaultDocumentAssets } from "../documents/seeds.js";
+import { ensureDefaultDocumentAssets } from "../documents/library-copies.js";
 import { listProjectDocuments, patchDocumentInstance } from "../documents/service.js";
 import { readDocumentWorkflow, saveDocumentInstance } from "../documents/storage.js";
 import { instantiateScopeTemplateWorkPlan } from "../scopes/service.js";
