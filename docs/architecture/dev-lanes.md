@@ -1,6 +1,6 @@
 # Dev lanes and the dev push router
 
-Status: agreed design (2026-10-27); router, platform lane and live bake-down built in `tools/dev-push/` (cutover pending). Development (dev.1m8.ai) only;
+Status: agreed design (2026-10-27); in service since the cutover of 2026-10-27 (canonical `0c374e3c`: every dev role rebuilt from git; proven with concurrent submissions, a rejected conflict and a live overlay surviving a release). The old-script refusal (`fm-release guard on`) waits for the coordinator. Development (dev.1m8.ai) only;
 production is a separate scope and nothing here changes how production ships.
 
 ## Why
@@ -168,7 +168,9 @@ pre-existing failure); the router does not count a failure the lane tip already 
 the router's own code); its repository is `/home/dev/router/firstmeasure.git`
 (`router/install-repo.sh`). Cron starts it every minute unless the running one
 holds its lock (`router/install-droplet.sh`; the account has no lingering
-systemd session), so a reboot costs at most a minute.
+systemd session), so a reboot costs at most a minute. A platform release that changes
+`tools/dev-push/` moves the router's code to that release and restarts it; if the new
+code will not start, `router/install-droplet.sh update <good sha>` puts it back.
 
 Each lane runs its own loop; inside a lane, submissions are taken in submission
 order, up to `batchMax` at a time (`router/router.mjs`):
