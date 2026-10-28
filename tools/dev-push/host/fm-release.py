@@ -346,6 +346,15 @@ def cmd_activate(lane, sha, expect, wait_jobs, keep_server=False):
     if not (target / RECEIPT).is_file():
         fail(f"{target} was not staged by the router")
     previous = current_release(link)
+    if previous == target.resolve() and lane == "platform" and AWAITING.is_file():
+        # A held-out node built from an image that already has this release: start it and let it join.
+        subprocess.run(["systemctl", "enable", "--now", *AWAITING.read_text().split()], check=False)
+        restart(lane, settings)
+        error = wait_ready(release_id_of(target), 120)
+        if error:
+            fail(f"held-out node not ready on {sha}: {error}")
+        AWAITING.unlink()
+        out({"ok": True, "release": sha, "previous": previous.name, "joined": True, "reused": True})
     if previous == target.resolve():
         error = wait_ready(release_id_of(target), 30) if lane == "platform" else None
         out({"ok": error is None, "reused": True, "previous": previous.name, "error": error}, 0 if error is None else 1)
