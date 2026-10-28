@@ -34,7 +34,7 @@ function scratch() {
   sh(seed, 'add', '-A'); sh(seed, 'commit', '-q', '-m', 'base'); sh(seed, 'push', '-q', 'origin', BRANCH);
   const clone = (name) => {
     const target = path.join(dir, name);
-    sh(dir, 'clone', '-q', '-b', BRANCH, origin, target);
+    sh(dir, 'clone', '-q', '-c', 'core.autocrlf=false', '-b', BRANCH, origin, target);
     for (const [k, v] of [['user.email', `${name}@example.com`], ['user.name', name], ['core.autocrlf', 'false']]) sh(target, 'config', k, v);
     return {
       dir: target,
@@ -277,6 +277,37 @@ test('a parked overlay that cannot merge is reported once, not retried in a loop
     assert.equal(s.deployed.length, 0);
     assert.match(router.laneState.platform.note, /need review/);
   } finally { s.cleanup(); }
+});
+
+test('an editor change made on canonical lands on its lane as one commit with only the lane\'s files', async () => {
+  const s = scratch();
+  const saved = process.env.DEV_PUSH_LANES;
+  process.env.DEV_PUSH_LANES = 'platform,measure-internal';
+  try {
+    // The lane branch forks from canonical; canonical then moves on (a platform file and a rollout record).
+    const seed = s.clone('seed2');
+    seed.edit('public/measure/internal/editor.js', 'one\ntwo\n', 'editor');
+    sh(seed.dir, 'push', '-q', 'origin', `${BRANCH}:${BRANCH}`, `${BRANCH}:refs/heads/lane/measure-internal`);
+    seed.edit('public/v1/later.ts', 'export {};\n', 'platform moves on');
+    seed.edit('deploy/digitalocean/development-x-20261027.md', 'record\n', 'old record');
+    sh(seed.dir, 'push', '-q', 'origin', BRANCH);
+    const a = s.clone('alice'); // on canonical, as editor sessions work
+    a.edit('public/measure/internal/editor.js', 'one\ntwo changed\n', 'editor change');
+    const submitted = a.submit('--slug', 'editor'); assert.equal(submitted.code, 0, submitted.out);
+    const deployed = [];
+    const measure = { name: 'measure-internal', branch: 'lane/measure-internal', batchMax: 8, owns: (file) => laneOf(file) === 'measure-internal', async gates() { return { ok: true, failures: [] }; }, async deploy({ sha }) { deployed.push(sha); return { ok: true, roles: {} }; } };
+    const router = s.makeRouter({ lanes: { platform: { name: 'platform', branch: BRANCH, owns: () => true, async gates() { return { ok: true, failures: [] }; }, async deploy() { return { ok: true }; } }, 'measure-internal': measure } });
+    await router.init();
+    await router.fetch('platform');
+    while (await router.processLane('measure-internal')) { /* drain */ }
+    const entry = byRef(router, 'alice-editor');
+    assert.equal(entry.state, 'live', entry.details);
+    const laneTip = sh(s.origin, 'rev-parse', 'refs/heads/lane/measure-internal');
+    assert.equal(deployed.at(-1), laneTip);
+    assert.equal(sh(s.origin, 'show', `${laneTip}:public/measure/internal/editor.js`), 'one\ntwo changed');
+    assert.equal(sh(s.origin, 'log', '-1', '--format=%P', laneTip).split(' ').length, 1, 'single parent');
+    assert.equal(spawnSync('git', ['cat-file', '-e', `${laneTip}:public/v1/later.ts`], { cwd: s.origin }).status, 128, 'canonical history stays out of the lane');
+  } finally { if (saved === undefined) delete process.env.DEV_PUSH_LANES; else process.env.DEV_PUSH_LANES = saved; s.cleanup(); }
 });
 
 test('regression runs on the server, ships nothing, and reports passed or failed', async () => {
