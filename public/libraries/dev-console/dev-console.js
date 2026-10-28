@@ -2,16 +2,20 @@
  *
  * The dev console (docs/architecture/dev-console.md): one tray over the right edge of every development page that
  * holds every development control. It folds to a 20 px strip, its width is dragged from its left edge, and it
- * remembers open or folded, the section and the width in this browser. Only the development tools audience sees it
+ * remembers open or folded, the section and the width in this browser. On a desktop the page is docked beside it
+ * (dock.js): it behaves as a window narrower by the console's width, folded strip included, and is never covered. Only the development tools audience sees it
  * (GET /v1/signup-sandbox/development/console: development data environment, then a platform administrator or a
  * sandbox organization's settings managers); production answers 404 and nothing is drawn. Everything in it is
  * data-fmr-ignore. Sections are modules in ./sections, loaded when first opened; another library adds one with
  * window.FirstMateDevConsole.register().
  */
-const VERSION = '20261027-console1';
+import { dock, windowWidth } from './dock.js?v=20261028-dock1';
+
+const VERSION = '20261028-dock1';
 const NS = 'dev-console';
 const STORE = 'fm-dev-console';
-const STRIP = 20, MIN_WIDTH = 300, DEFAULT_WIDTH = 400, PHONE = 640;
+// The page keeps at least APP_MIN px beside the console.
+const STRIP = 20, MIN_WIDTH = 300, DEFAULT_WIDTH = 400, PHONE = 640, APP_MIN = 360;
 
 export const T = (key, fallback) => window.PlatformLanguage?.text?.(NS, key, fallback) ?? fallback;
 export const esc = (value) => String(value ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -79,7 +83,7 @@ async function readAccess() {
 
 let mounted = false;
 const extra = [];
-const state = { access: null, open: false, section: '', width: DEFAULT_WIDTH, loaded: new Map() };
+const state = { access: null, open: false, expanded: false, section: '', width: DEFAULT_WIDTH, loaded: new Map() };
 let tray, strip, rail, body, title;
 
 export async function mount() {
@@ -91,8 +95,11 @@ export async function mount() {
   const saved = readStore();
   state.open = saved.open === true;
   state.width = Math.max(MIN_WIDTH, Number(saved.width) || DEFAULT_WIDTH);
+  state.expanded = saved.expanded === true;
   state.section = String(saved.section || '');
-  const css = document.createElement('link'); css.rel = 'stylesheet'; css.href = `/libraries/dev-console/dev-console.css?v=${VERSION}`; document.head.append(css);
+  const css = document.createElement('link'); css.rel = 'stylesheet'; css.setAttribute('data-fm-dc', ''); css.href = `/libraries/dev-console/dev-console.css?v=${VERSION}`; document.head.append(css);
+  // Docking needs the console's stylesheet; a page that cannot load it still gets the console.
+  await new Promise((resolve) => { css.onload = css.onerror = resolve; setTimeout(resolve, 4000); });
   build();
   window.FirstMateDevConsole = { register, open: (id) => setOpen(true, id), fold: () => setOpen(false), sections: () => visible().map((s) => s.id), access: () => state.access };
   window.dispatchEvent(new CustomEvent('fm:dev-console:ready'));
@@ -122,10 +129,14 @@ function build() {
   tray.setAttribute('aria-label', T('dc_title', 'Dev console'));
   tray.innerHTML = `<div class="fm-dc-resize" role="separator" aria-orientation="vertical" aria-label="${esc(T('dc_resize', 'Resize the dev console'))}" tabindex="0"></div>
     <nav class="fm-dc-rail" aria-label="${esc(T('dc_sections', 'Dev console sections'))}"></nav>
-    <section class="fm-dc-main"><header class="fm-dc-head"><h2></h2><button type="button" class="fm-dc-fold" aria-label="${esc(T('dc_fold', 'Fold the dev console'))}" title="${esc(T('dc_fold', 'Fold the dev console'))}"><i class="fas fa-chevron-right" aria-hidden="true"></i></button></header><div class="fm-dc-body"></div></section>`;
+    <section class="fm-dc-main"><header class="fm-dc-head"><h2></h2><button type="button" class="fm-dc-headbtn fm-dc-expand" aria-pressed="false" aria-label="${esc(T('dc_expand', 'Expand the dev console'))}" title="${esc(T('dc_expand', 'Expand the dev console'))}"><i class="fas fa-up-right-and-down-left-from-center" aria-hidden="true"></i></button><button type="button" class="fm-dc-headbtn fm-dc-fold" aria-label="${esc(T('dc_fold', 'Fold the dev console'))}" title="${esc(T('dc_fold', 'Fold the dev console'))}"><i class="fas fa-chevron-right" aria-hidden="true"></i></button></header><div class="fm-dc-body"></div></section>`;
   rail = tray.querySelector('.fm-dc-rail'); body = tray.querySelector('.fm-dc-body'); title = tray.querySelector('.fm-dc-head h2');
   tray.querySelector('.fm-dc-fold').onclick = () => setOpen(false);
-  document.body.append(strip, tray);
+  tray.querySelector('.fm-dc-expand').onclick = () => { state.expanded = !state.expanded; writeStore({ expanded: state.expanded }); layout(); };
+  // On <html>, outside <body>: the docked page's fixed layers are contained by <body> and never reach the console.
+  document.documentElement.append(strip, tray);
+  // Outside <body>, so it takes the page's font from there.
+  tray.style.fontFamily = getComputedStyle(document.body).fontFamily;
   resizer(tray.querySelector('.fm-dc-resize'));
   phoneEntry();
   renderRail();
@@ -192,22 +203,30 @@ export function toast(message) {
   setTimeout(() => note.remove(), 2600);
 }
 
-function phone() { return window.innerWidth <= PHONE; }
+// The window's real width: the docked page is told the remaining width.
+function phone() { return windowWidth() <= PHONE; }
 function layout() {
   if (!tray) return;
-  const width = phone() ? window.innerWidth : Math.min(state.width, Math.max(MIN_WIDTH, Math.round(window.innerWidth * 0.9)));
+  const real = windowWidth(), max = Math.max(MIN_WIDTH, real - APP_MIN);
+  const width = phone() ? real : Math.min(state.expanded ? Math.max(state.width, Math.round(real * 0.6)) : state.width, max);
   tray.style.width = width + 'px';
-  document.documentElement.style.setProperty('--fm-dc-width', (state.open ? width : STRIP) + 'px');
+  const expand = tray.querySelector('.fm-dc-expand');
+  expand.setAttribute('aria-pressed', String(state.expanded));
+  expand.querySelector('i').className = `fas ${state.expanded ? 'fa-down-left-and-up-right-to-center' : 'fa-up-right-and-down-left-from-center'}`;
+  expand.title = state.expanded ? T('dc_restore', 'Restore the dev console width') : T('dc_expand', 'Expand the dev console');
+  expand.setAttribute('aria-label', expand.title);
+  // A phone keeps the console over the page; a desktop page is docked beside it, folded strip included.
+  dock(phone() ? 0 : state.open ? width : STRIP);
 }
 
 function resizer(handle) {
   let startX = 0, startWidth = 0;
   // The handle captures the pointer, so a drag across the project window's frame keeps reaching it.
-  const move = (event) => { state.width = Math.max(MIN_WIDTH, startWidth + (startX - event.clientX)); layout(); };
+  const move = (event) => { state.expanded = false; state.width = Math.max(MIN_WIDTH, startWidth + (startX - event.clientX)); layout(); };
   const up = (event) => {
     handle.removeEventListener('pointermove', move); handle.removeEventListener('pointerup', up); handle.removeEventListener('pointercancel', up);
     try { handle.releasePointerCapture(event.pointerId); } catch (_) {}
-    tray.classList.remove('fm-dc-resizing'); writeStore({ width: state.width });
+    tray.classList.remove('fm-dc-resizing'); writeStore({ width: state.width, expanded: state.expanded });
   };
   handle.addEventListener('pointerdown', (event) => {
     if (phone()) return;
