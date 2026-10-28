@@ -198,9 +198,11 @@ release record and each submission's status entry; `submit.mjs --wait` prints
 them.
 
 A deploy that fails for a single submission and rolls back rejects it
-(`deploy-failed`); any other deploy failure pauses the lane with the reason in
-its `note`, keeps the queue, and waits for a person
-(`node tools/dev-push/router/server.mjs resume <lane>`). Regression runs
+(`deploy-failed`). One that could not reach a host and changed nothing keeps
+the queue and tries again by itself (lane state `waiting`, after 1, 2, 4 ... up
+to 15 minutes). Any other deploy failure (a batch, or a release that did not
+roll back) pauses the lane with the reason in its `note`, keeps the queue, and
+waits for a person (`node tools/dev-push/router/server.mjs resume <lane>`). Regression runs
 (`queue/regression/*`) are taken one at a time beside the lanes and end
 `passed` or `failed`; they never ship. Diagnostics that touch no queue:
 `server.mjs gate <ref> --changed a,b`, `server.mjs build <ref>`,
@@ -264,7 +266,9 @@ which carries whatever release the image had. On 2026-10-28 a member built from
 the September 7 image served about 60% of dev's requests unnoticed. Editing the
 pool's Droplet configuration (image or user data) replaces every member, the
 current web node included (new members first, old ones destroyed after the
-10-minute cooldown). Now:
+10-minute cooldown). The pool also scales in and out by load (CPU 60%, memory
+70%, one to two members) whenever it likes, with nobody watching, and nothing
+below needs a person:
 
 * **Held out until current.** The pool's user data
   (`deploy/digitalocean/dev-pool-user-data.sh`, rendered with the registration
@@ -276,22 +280,42 @@ current web node included (new members first, old ones destroyed after the
 * **Registered and adopted.** Registration is a key whose forced command
   (`router/register-node.sh`) only appends `register <droplet id> <public ip>
   <private ip>` to `state/registrations.jsonl`. Every minute the router adopts
-  each registered node: as `pending-<id>` it stages and activates the current
-  platform release on it (same tree, same name), whose activation starts the
-  services; then it is `web-<id>` and gets every later release and the status
-  document. A member unreachable for 15 minutes is dropped
+  each registered node: as `pending-<id>` it stages and activates every lane's
+  current release on it (platform and measure-internal; same tree, same name),
+  whose activation starts the services; then it is `web-<id>` and gets every
+  later release, the live layer and the status document
   (`router/fleet.mjs`, `state/fleet.json`). `server.mjs adopt <ip>` adopts a
   node that could not register itself.
-* **The primary web node.** Role `web` holds the live-layer receiver and is
-  where lanes stage their web copies. `server.mjs primary <role>` asks the
-  running router to bake every live overlay into a release and then move
-  `web` there. live-sync without `--target` reads the receiver and its pinned
-  host key from the status document (`live`), so it follows the move after a
-  restart. With several web nodes, live overlays are served only by the
-  primary until baked.
+* **Removed at any time.** A release leaves out a web node that does not
+  answer (at status, staging or activation) as long as another web node takes
+  it; worker and legacy are never left out. A web node that answers but runs
+  an older release (it was left out) is brought up to date by the next check.
+  A member unreachable for 15 minutes is dropped, and a dropped node is not
+  adopted again from its old registration unless it shows up behind the load
+  balancer. Status publishing skips a node the check found down.
+* **The primary web node.** Role `web` is where the live layer is exported for
+  baking and where live-sync clients without the fan-out send saves. When it
+  fails three checks in a row (10 s apart once it fails), a member that answers
+  is promoted and the old primary becomes a member that is dropped if it stays
+  gone. With no other web node, the router waits for the pool to add one (the
+  load balancer has nothing to send to meanwhile) and promotes it once adopted.
+  `server.mjs primary <role>` moves it by hand, after baking every live overlay.
+* **Live layer on every web node.** live-sync without `--target` reads the
+  receivers and their pinned host keys from the status document (`live.targets`,
+  primary first), sends each save to every one of them, and reads the list
+  again every minute. Every check the router also copies the primary's live
+  files to each member (what a member lacks or has differently, with its
+  owner, and removes what the primary no longer has once it is 30 s old), so
+  a new node, a save a node missed, and saves of a sync that has stopped all
+  reach every node, and a failover loses nothing. Parked saves stay on the node
+  that parked them; a failover before the next platform release drops them from
+  the layer (the owner's checkout still has them).
 * **Flagged.** Every minute the router samples the public health check; any
   instance not reporting the router's release appears under `fleet.problems`
-  in the status document and in the router log.
+  in the status document and in the router log. Proved 2026-10-28: a scale-out
+  node registered, was brought to the current release and joined the load
+  balancer in under three minutes with nobody involved, and the scale-in that
+  removed it left dev serving from the other node.
 
 The pool image should be a recent snapshot of the primary web node: its
 `/etc/firstmeasure` configuration comes from the image, not from a release.

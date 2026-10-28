@@ -1,38 +1,59 @@
 // Dev web pool members (docs/architecture/dev-lanes.md, "New web nodes"). The dev load balancer routes to every droplet
-// tagged firstmeasure-development-autoscale-r1, and the autoscale pool adds members built from its image. A new member
-// holds itself out of rotation and registers with the router (deploy/digitalocean/dev-pool-user-data.sh,
-// router/register-node.sh); every minute the router adopts each registered node (stages and activates the current
-// platform release on it, which lets it join), drops members that stay unreachable, and samples dev.1m8.ai's public
-// health to flag any instance serving a release that is not its own. Role "web" is the primary web node (status, live
-// layer); `server.mjs primary <role|ip>` moves it after the live overlays are baked into a release.
+// tagged firstmeasure-development-autoscale-r1, and the autoscale pool adds and removes members whenever it likes, with
+// nobody watching. A new member holds itself out of rotation and registers with the router
+// (deploy/digitalocean/dev-pool-user-data.sh, router/register-node.sh). Every check the router:
+//   - adopts each registered node: brings it to every lane's current release, which lets it join;
+//   - brings any web node that fell behind (left out of a release while it did not answer) up to date;
+//   - promotes a healthy member when the primary web node stops answering, and drops members that stay gone;
+//   - copies the primary's live layer to every other web node, so a save is served whichever node answers;
+//   - samples dev.1m8.ai's public health and flags any instance serving a release that is not its own.
+// Role "web" is the primary web node (where lanes stage first, the live layer's export and the receiver live-sync
+// clients without a fan-out use); `server.mjs primary <role|ip>` moves it by hand after baking the live overlays.
 import fs from "node:fs";
 import path from "node:path";
-import { run } from "../lib/common.mjs";
+import { isWebRole, run } from "../lib/common.mjs";
 
 const PUBLIC_URL = process.env.DEV_PUSH_PUBLIC_URL || "https://dev.1m8.ai";
 const GONE_AFTER_MS = 15 * 60_000;
+const PRIMARY_DOWN_CHECKS = 3; // consecutive failed checks (10 s apart while it fails) before a member is promoted
+const LIVE_SETTLE_S = 30; // a live file a member has and the primary lacks is removed only once it is this old
 
-export function makeFleet({ router, hosts, log = () => {} }) {
+const ipOf = (address) => String(address || "").split("@").pop();
+
+/** `receiver(ip)` returns a request function for that node's live receiver (live.mjs receiverClient). */
+export function makeFleet({ router, hosts, receiver = null, log = () => {} }) {
   const stateFile = path.join(router.stateDir, "fleet.json");
   const registrations = path.join(router.stateDir, "registrations.jsonl");
   const read = () => { try { return JSON.parse(fs.readFileSync(stateFile, "utf8")); } catch { return {}; } };
-  const state = { adopted: {}, unreachable: {}, ...read() };
+  const state = { adopted: {}, unreachable: {}, gone: {}, primary_failures: 0, ...read() };
   const save = () => fs.writeFileSync(stateFile, JSON.stringify(state, null, 1));
   if (state.primary) hosts.addRole("web", state.primary);
   for (const [role, address] of Object.entries(state.adopted)) hosts.addRole(role, address);
+  hosts.down ||= new Set();
+  const markDown = () => { hosts.down.clear(); for (const role of Object.keys(state.unreachable)) hosts.down.add(role); if (state.primary_failures) hosts.down.add("web"); };
+  markDown();
   const hostKeys = {};
 
-  /** The live layer's receiver and its SSH host key, for live-sync clients (they read it from the status document). */
-  async function liveInfo() {
-    const address = hosts.addresses().web;
-    if (!address) return null;
-    const ip = address.split("@").pop();
+  async function hostKey(ip) {
     if (!hostKeys[ip]) {
       const scan = await run("ssh-keyscan", ["-t", "ed25519", "-T", "10", ip], { timeout: 20_000 });
       const line = scan.stdout.split("\n").find((item) => item.startsWith(`${ip} ssh-ed25519 `));
       if (line) hostKeys[ip] = line.trim();
     }
-    return { target: `fmlive@${ip}`, host_key: hostKeys[ip] || null };
+    return hostKeys[ip] || null;
+  }
+
+  /**
+   * The live layer's receivers for live-sync clients (they read it from the status document): `target` is the primary,
+   * `targets` every web node that answers, each with its SSH host key. A sync sends each save to all of them.
+   */
+  async function liveInfo() {
+    const address = hosts.addresses().web;
+    if (!address) return null;
+    const members = Object.entries(state.adopted).filter(([role]) => isWebRole(role) && !state.unreachable[role]).map(([, member]) => member);
+    const targets = [];
+    for (const item of [address, ...members]) targets.push({ target: `fmlive@${ipOf(item)}`, host_key: await hostKey(ipOf(item)) });
+    return { target: targets[0].target, host_key: targets[0].host_key, targets };
   }
 
   /** Which release each instance behind the load balancer serves: { instance_id: release_id }. */
@@ -54,65 +75,164 @@ export function makeFleet({ router, hosts, log = () => {} }) {
     return Object.values(byId);
   }
 
-  /** Returns false when it could not judge (a release in progress): the caller retries soon. */
+  const idOf = (address) => registered().find((node) => `root@${node.public}` === address)?.id || null;
+  const settled = (lane) => ["idle", "held", "paused", "waiting"].includes(router.laneState[lane]?.state);
+  const expectedName = (lane) => { const release = router.laneState[lane]?.release; return release ? release.name || release.sha : null; };
+
+  /** Brings `role` to every lane's current release it lacks; returns the problems. */
+  async function bringUp(role, statuses = {}) {
+    const problems = [];
+    for (const lane of Object.keys(router.lanes)) {
+      const want = expectedName(lane);
+      if (!want || !settled(lane)) continue;
+      const status = statuses[lane] || await hosts.status(role, lane);
+      if (!status.ok) { problems.push(`${role} does not answer fm-release for ${lane}: ${String(status.error).slice(0, 200)}`); continue; }
+      if (status.lanes?.[lane]?.current === want) continue;
+      log(`${role} serves ${status.lanes?.[lane]?.current || "nothing"} on ${lane}, not ${want}: bringing it up`);
+      const result = await router.catchUp(lane, role).catch((error) => ({ ok: false, error: error.message }));
+      if (!result.ok) problems.push(`could not bring ${role} to ${lane} ${want}: ${String(result.error).slice(0, 300)}`);
+    }
+    return problems;
+  }
+
+  /** Makes `target` (an adopted role or an IP) the primary web node; the old primary stays a member (dropped if gone). */
+  function setPrimary(target, { oldIsDown = false } = {}) {
+    const addresses = hosts.addresses();
+    const address = addresses[target] || (target.includes("@") ? target : `root@${target}`);
+    const role = Object.keys(state.adopted).find((name) => state.adopted[name] === address);
+    const old = addresses.web;
+    if (role) { hosts.removeRole(role); delete state.adopted[role]; delete state.unreachable[role]; }
+    if (old && old !== address) {
+      const oldRole = `web-${idOf(old) || ipOf(old).replaceAll(".", "-")}`;
+      state.adopted[oldRole] = old;
+      hosts.addRole(oldRole, old);
+      if (oldIsDown) state.unreachable[oldRole] = state.primary_down_since || Date.now();
+    }
+    state.primary = address;
+    state.primary_failures = 0;
+    delete state.primary_down_since;
+    hosts.addRole("web", address);
+    save();
+    markDown();
+    return { primary: address, previous: old };
+  }
+
+  /** Copies the primary's live files to `role`'s receiver: what it lacks or has differently, and removes what the primary no longer has. */
+  async function copyLive(role, exported, primaryRequest) {
+    const request = receiver(ipOf(hosts.addresses()[role]));
+    const [listed] = await request([{ op: "list" }]);
+    if (!listed?.ok) return `${role} live receiver: ${listed?.error || "no answer"}`;
+    const theirs = listed.files || {}, ours = exported.files || {};
+    const now = Math.floor(Date.now() / 1000);
+    const remove = Object.keys(theirs).filter((file) => (ours[file] ? ours[file].source !== theirs[file].source : now - Number(theirs[file].at || 0) > LIVE_SETTLE_S));
+    const put = Object.keys(ours).filter((file) => theirs[file]?.sha !== ours[file].sha || theirs[file]?.source !== ours[file].source);
+    if (!remove.length && !put.length) return null;
+    const batches = [];
+    if (remove.length) batches.push({ op: "batch", source: "dev-push-router", ops: remove.map((file) => ({ op: "remove", path: file, force: true })) });
+    const blobs = put.length ? await primaryRequest(put.map((file) => ({ op: "blob", sha: ours[file].sha }))) : [];
+    const bySource = new Map();
+    put.forEach((file, index) => {
+      if (!blobs[index]?.ok) return;
+      const entry = ours[file];
+      const list = bySource.get(entry.source) || bySource.set(entry.source, []).get(entry.source);
+      list.push({ op: "put", path: file, sha: entry.sha, base: entry.base, ...(entry.commit ? { commit: entry.commit } : {}), data: blobs[index].data });
+    });
+    for (const [source, ops] of bySource) batches.push({ op: "batch", source, ops });
+    const answers = await request(batches);
+    const refused = answers.flatMap((answer) => (answer.results || []).filter((result) => !result.ok).map((result) => `${result.path} ${result.error}`));
+    log(`live layer on ${role}: ${put.length} copied, ${remove.length} removed${refused.length ? `; refused ${refused.join(", ")}` : ""}`);
+    return refused.length ? `${role} refused live files: ${refused.join(", ").slice(0, 300)}` : null;
+  }
+
+  async function replicateLive(problems) {
+    if (!receiver || !hosts.addresses().web || state.primary_failures) return;
+    const members = Object.keys(state.adopted).filter((role) => isWebRole(role) && !state.unreachable[role]);
+    if (!members.length) return;
+    const primaryRequest = receiver(ipOf(hosts.addresses().web));
+    const [exported] = await primaryRequest([{ op: "export" }]).catch((error) => [{ ok: false, error: error.message }]);
+    if (!exported?.ok) { problems.push(`live export from the primary: ${exported?.error}`); return; }
+    for (const role of members) {
+      const problem = await copyLive(role, exported, primaryRequest).catch((error) => `${role} live copy: ${error.message}`);
+      if (problem) problems.push(problem);
+    }
+  }
+
+  /** Returns false when it could not judge or the primary is failing: the caller checks again in 10 s. */
   async function check() {
     const lane = router.laneState.platform;
-    if (!lane?.release?.name || !["idle", "held"].includes(lane.state)) return false;
+    if (!lane?.release?.name || !settled("platform")) return false;
     const expected = lane.release.server || lane.release.name; // what /v1/health/ready reports (kept across browser-only releases)
     const problems = [];
+    const seen = router.fleet?.instances || {};
 
-    // Adopt registered nodes.
+    // Adopt registered nodes. A node the pool destroyed stays gone unless it shows up behind the load balancer again.
     const known = new Set(Object.values(hosts.addresses()));
     for (const node of registered()) {
       const address = `root@${node.public}`;
-      if (known.has(address)) continue;
-      // "pending-" until it serves the current release: status publishing and releases only use web roles.
+      if (known.has(address) || (state.gone[node.id] && !(`do-${node.id}` in seen))) continue;
+      // "pending-" until it serves the current releases: status publishing and releases only use web roles.
       const pending = `pending-${node.id}`, role = `web-${node.id}`;
       hosts.addRole(pending, address);
       const status = await hosts.status(pending, "platform");
-      if (!status.ok) { hosts.removeRole(pending); problems.push(`registered node ${node.id} (${node.public}) does not answer fm-release: ${String(status.error).slice(0, 200)}`); continue; }
+      if (!status.ok) {
+        hosts.removeRole(pending);
+        state.gone[node.id] ||= Date.now();
+        problems.push(`registered node ${node.id} (${node.public}) does not answer fm-release: ${String(status.error).slice(0, 200)}`);
+        continue;
+      }
+      delete state.gone[node.id];
       log(`adopting registered node ${node.id} (${node.public}) as ${role}`);
-      const result = await router.catchUp("platform", pending).catch((error) => ({ ok: false, error: error.message }));
+      const failed = await bringUp(pending, { platform: status });
       hosts.removeRole(pending);
-      if (!result.ok) { problems.push(`could not bring node ${node.id} to ${expected}: ${String(result.error).slice(0, 300)}`); continue; }
+      if (failed.length) { problems.push(...failed); continue; }
       hosts.addRole(role, address);
       state.adopted[role] = address;
       save();
       log(`node ${node.id} serves ${expected}`);
     }
 
-    // Members that stay unreachable are gone (the pool destroyed them); the primary is only ever moved by hand.
-    for (const role of Object.keys(state.adopted)) {
+    // Every web node: answering, and on every lane's current release. Members that stay unreachable are gone.
+    for (const role of ["web", ...Object.keys(state.adopted)]) {
+      if (!hosts.addresses()[role]) continue;
       const status = await hosts.status(role, "platform");
-      if (status.ok) { delete state.unreachable[role]; continue; }
-      state.unreachable[role] ||= Date.now();
-      if (Date.now() - state.unreachable[role] > GONE_AFTER_MS) { hosts.removeRole(role); delete state.adopted[role]; delete state.unreachable[role]; log(`${role} unreachable for 15 min; dropped`); }
-      else problems.push(`${role} does not answer`);
+      if (role === "web") {
+        if (status.ok) { if (state.primary_failures) log(`primary web node answers again`); state.primary_failures = 0; delete state.primary_down_since; }
+        else { state.primary_failures += 1; state.primary_down_since ||= Date.now(); problems.push(`primary web node ${hosts.addresses().web} does not answer (${state.primary_failures})`); continue; }
+      } else if (status.ok) delete state.unreachable[role];
+      else {
+        state.unreachable[role] ||= Date.now();
+        if (Date.now() - state.unreachable[role] > GONE_AFTER_MS) {
+          const id = role.replace(/^web-/, "");
+          if (registered().some((node) => node.id === id)) state.gone[id] = Date.now();
+          hosts.removeRole(role); delete state.adopted[role]; delete state.unreachable[role];
+          log(`${role} unreachable for ${GONE_AFTER_MS / 60_000} min; dropped`);
+        } else problems.push(`${role} does not answer`);
+        continue;
+      }
+      problems.push(...await bringUp(role, { platform: status }));
+    }
+
+    // The primary is gone: a healthy member on the current release takes over (live layer, staging, the status receiver).
+    if (state.primary_failures >= PRIMARY_DOWN_CHECKS) {
+      const candidate = Object.keys(state.adopted).find((role) => isWebRole(role) && !state.unreachable[role]);
+      if (candidate) {
+        const moved = setPrimary(candidate, { oldIsDown: true });
+        log(`primary web node ${moved.previous} stopped answering; promoted ${moved.primary}`);
+      } else problems.push("the primary web node is down and no other web node answers: waiting for the pool to add one");
     }
     save();
+    markDown();
 
-    const seen = await sample();
-    for (const [instance, release] of Object.entries(seen)) if (release !== expected) problems.push(`ALERT: ${instance} behind the load balancer serves ${release}, not ${expected}`);
-    const fleet = { checked_at: new Date().toISOString(), primary: hosts.addresses().web || null, members: { ...state.adopted }, instances: seen, problems };
+    await replicateLive(problems);
+
+    const sampled = await sample();
+    for (const [instance, release] of Object.entries(sampled)) if (release !== expected) problems.push(`ALERT: ${instance} behind the load balancer serves ${release}, not ${expected}`);
+    const fleet = { checked_at: new Date().toISOString(), primary: hosts.addresses().web || null, members: { ...state.adopted }, unreachable: Object.keys(state.unreachable), instances: sampled, problems };
     if (JSON.stringify(problems) !== JSON.stringify(router.fleet?.problems || [])) for (const problem of problems) log(`FLEET: ${problem}`);
     router.fleet = fleet;
     router.live = await liveInfo().catch(() => null);
     await router.saveStatus();
-    return true;
-  }
-
-  /** Makes `target` (an adopted role or an IP) the primary web node; the old primary stays a member if it answers. */
-  function setPrimary(target) {
-    const addresses = hosts.addresses();
-    const address = addresses[target] || (target.includes("@") ? target : `root@${target}`);
-    const role = Object.keys(state.adopted).find((name) => state.adopted[name] === address);
-    const old = addresses.web;
-    if (role) { hosts.removeRole(role); delete state.adopted[role]; }
-    if (old && old !== address) { state.adopted["web-previous"] = old; hosts.addRole("web-previous", old); }
-    state.primary = address;
-    hosts.addRole("web", address);
-    save();
-    return { primary: address, previous: old };
+    return state.primary_failures === 0;
   }
 
   function forget(role) {
@@ -120,6 +240,7 @@ export function makeFleet({ router, hosts, log = () => {} }) {
     delete state.adopted[role];
     delete state.unreachable[role];
     save();
+    markDown();
   }
 
   /** Requests from `server.mjs primary|bake-live|forget` (state/requests.jsonl), handled by the running router. */
@@ -152,5 +273,5 @@ export function makeFleet({ router, hosts, log = () => {} }) {
     fs.writeFileSync(file, keep.map((request) => JSON.stringify(request)).join("\n") + (keep.length ? "\n" : ""));
   }
 
-  return { check, sample, liveInfo, setPrimary, forget, requests };
+  return { check, sample, liveInfo, setPrimary, forget, requests, replicateLive };
 }

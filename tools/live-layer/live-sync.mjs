@@ -15,7 +15,8 @@
 // (`clear <path>` takes it out whoever owns it).
 //
 // The receiver is reached over SSH with a key that can only run it (--target, --key), or run locally for tests
-// (--receiver "python3 tools/live-layer/fm-live-receive.py serve").
+// (--receiver "python3 tools/live-layer/fm-live-receive.py serve"). Without --target, every dev web node the router
+// names in its status document gets each save (the pool adds and removes nodes; the list is read again every minute).
 import crypto from "node:crypto";
 import fs from "node:fs";
 import os from "node:os";
@@ -115,30 +116,32 @@ class Receiver {
   stop() { this.child?.stdin.end(); }
 }
 
-function receiverCommand(args) {
+function receiverCommand(args, target = args.target) {
   if (args.receiver) return String(args.receiver).split(" ").filter(Boolean);
   const jump = args.jump ? ["-J", String(args.jump)] : [];
   const hostKey = args.knownHosts ? ["-o", `UserKnownHostsFile=${args.knownHosts}`, "-o", "StrictHostKeyChecking=yes"] : ["-o", "StrictHostKeyChecking=accept-new"];
-  return ["ssh", "-T", "-o", "BatchMode=yes", ...hostKey, "-o", "ServerAliveInterval=15", "-o", "ConnectTimeout=10", ...jump, "-i", args.key || DEFAULT_KEY, args.target || DEFAULT_TARGET, "serve"];
+  return ["ssh", "-T", "-o", "BatchMode=yes", ...hostKey, "-o", "ServerAliveInterval=15", "-o", "ConnectTimeout=10", ...jump, "-i", args.key || DEFAULT_KEY, target || DEFAULT_TARGET, "serve"];
 }
 
 /**
- * Without --target, the receiver is whichever web node the dev push router names in its status document (fetched
- * over TLS, with the receiver's SSH host key, which is then the only key accepted); the old fixed address otherwise.
+ * Without --target, the receivers are the web nodes the dev push router names in its status document (fetched over
+ * TLS, with each receiver's SSH host key, which are then the only keys accepted): `target` is the primary, `targets`
+ * every web node. The old fixed address otherwise.
  */
 async function resolveReceiver(args) {
-  if (args.target || args.receiver) return args;
+  if (args.target || args.receiver) return { ...args, targets: [args.target || DEFAULT_TARGET] };
   try {
     const response = await fetch(process.env.DEV_PUSH_STATUS_URL || "https://dev.1m8.ai/__dev-push/status.json", { signal: AbortSignal.timeout(8000) });
     const live = (await response.json())?.live;
-    if (live?.target && live?.host_key) {
+    const listed = (live?.targets?.length ? live.targets : [live]).filter((item) => item?.target && item?.host_key);
+    if (listed.length) {
       const knownHosts = path.join(os.homedir(), ".ssh", "fm-live-known-hosts");
       fs.mkdirSync(path.dirname(knownHosts), { recursive: true });
-      fs.writeFileSync(knownHosts, `${live.host_key}\n`);
-      return { ...args, target: live.target, knownHosts };
+      fs.writeFileSync(knownHosts, listed.map((item) => `${item.host_key}\n`).join(""));
+      return { ...args, target: listed[0].target, targets: listed.map((item) => item.target), knownHosts, discovered: true };
     }
   } catch {}
-  return args;
+  return { ...args, targets: [DEFAULT_TARGET] };
 }
 
 /** Who this sync is to the receiver: the files it owns there. */
@@ -181,15 +184,34 @@ async function serve(args) {
   args = await resolveReceiver(args);
   const root = path.resolve(args.root || ".");
   const baseRef = args.base || DEFAULT_BASE;
-  const receiver = new Receiver(receiverCommand(args));
   const source = sourceOf(args, root);
-  const memo = new Map();
+  // One receiver per web node; the first is the primary and the only one whose answers are printed (the others
+  // print only what they refuse). A node that does not answer is retried every pass and catches up when it does.
+  const receivers = new Map();
+  const connect = (targets) => {
+    for (const [target, item] of receivers) if (!targets.includes(target)) { item.receiver.stop(); receivers.delete(target); }
+    for (const target of targets) if (!receivers.has(target)) receivers.set(target, { receiver: new Receiver(receiverCommand(args, target)), memo: new Map() });
+  };
+  connect(args.targets);
   let running = false, again = false, lastRollout = "";
+  const lastError = new Map();
   const run = async () => {
     if (running) { again = true; return; }
     running = true;
     try {
-      const { rollout } = await reconcile(root, baseRef, receiver, memo, console.log, source);
+      const passes = [...receivers].map(async ([target, { receiver, memo }], index) => {
+        const quiet = (line) => { if (line.startsWith("REFUSED")) console.log(`[${target}] ${line}`); };
+        try {
+          const result = await reconcile(root, baseRef, receiver, memo, index === 0 ? console.log : quiet, source);
+          if (lastError.get(target)) { console.log(`live-sync: ${target} answers again`); lastError.delete(target); }
+          return result;
+        } catch (error) {
+          if (lastError.get(target) !== error.message) console.error(`live-sync: ${target}: ${error.message}`);
+          lastError.set(target, error.message);
+          return null;
+        }
+      });
+      const { rollout = [] } = (await Promise.all(passes)).find(Boolean) || {};
       const listed = rollout.join(", ");
       if (listed && listed !== lastRollout) console.log(`needs a rollout (not live): ${listed}`);
       lastRollout = listed;
@@ -197,7 +219,15 @@ async function serve(args) {
     finally { running = false; if (again) { again = false; setTimeout(run, 10); } }
   };
   await run();
-  if (args.once) { receiver.stop(); return; }
+  if (args.once) { for (const { receiver } of receivers.values()) receiver.stop(); return; }
+  if (args.discovered) setInterval(async () => {
+    const next = await resolveReceiver({ ...args, target: undefined, discovered: undefined });
+    if (next.discovered && next.targets.join(" ") !== [...receivers.keys()].join(" ")) {
+      console.log(`live-sync: web nodes now ${next.targets.join(", ")}`);
+      connect(next.targets);
+      run();
+    }
+  }, 60_000);
   let timer = null;
   fs.watch(path.join(root, "public"), { recursive: true }, (_event, name) => {
     const file = String(name || "").replaceAll("\\", "/");
@@ -206,14 +236,15 @@ async function serve(args) {
     timer = setTimeout(run, 40);
   });
   setInterval(run, REFRESH_MS);
-  setInterval(() => receiver.request({ op: "check" }).then((result) => {
+  setInterval(() => [...receivers.values()].forEach(({ receiver }, index) => receiver.request({ op: "check" }).then((result) => {
+    if (index !== 0) return;
     for (const [rel, reason] of Object.entries(result.retired || {})) {
       if (reason === "parked") console.log(`parked   ${rel}: the release changed this file under your edit; the router merges your version into the next release`);
       else console.log(`${reason.padEnd(8)} ${rel} left the layer (${reason === "released" ? "the release has it now" : "the release changed it under this edit"})`);
     }
-  }).catch(() => {}), CHECK_MS);
-  console.log(`live-sync: ${root} -> ${receiverCommand(args).at(-2)} as ${source} (base ${baseRef}). Saves under public/ are live on dev.1m8.ai.`);
-  process.on("SIGINT", () => { receiver.stop(); process.exit(0); });
+  }).catch(() => {})), CHECK_MS);
+  console.log(`live-sync: ${root} -> ${[...receivers.keys()].join(", ")} as ${source} (base ${baseRef}). Saves under public/ are live on dev.1m8.ai.`);
+  process.on("SIGINT", () => { for (const { receiver } of receivers.values()) receiver.stop(); process.exit(0); });
 }
 
 async function status(args) {
@@ -237,7 +268,13 @@ async function status(args) {
 }
 
 async function clear(args) {
-  args = await resolveReceiver(args);
+  if (!args.targets) args = await resolveReceiver(args);
+  if (args.targets.length > 1) {
+    // Every web node: the primary's answers are printed; the router copies the primary's layer to the rest anyway.
+    await Promise.all(args.targets.slice(1).map((target) => clear({ ...args, target, targets: [target], quiet: true }).catch(() => {})));
+    args = { ...args, targets: [args.target] };
+  }
+  const log = args.quiet ? () => {} : console.log;
   const root = path.resolve(args.root || ".");
   const receiver = new Receiver(receiverCommand(args));
   const source = sourceOf(args, root);
@@ -251,9 +288,9 @@ async function clear(args) {
   const unparked = [];
   for (const rel of parked) unparked.push(await receiver.request({ op: "unpark", path: rel }));
   receiver.stop();
-  for (const result of [...(response.results || []), ...unparked]) console.log(`${result.ok ? result.state : `REFUSED (${result.error})`}  ${result.path}`);
-  if (!paths.length && !parked.length) console.log("Nothing of this checkout's is live.");
-  if (args._.length === 1 && !named.length) console.log("A running live-sync puts this checkout's changed files back within 5 s; stop it first to keep them out.");
+  for (const result of [...(response.results || []), ...unparked]) log(`${result.ok ? result.state : `REFUSED (${result.error})`}  ${result.path}`);
+  if (!paths.length && !parked.length) log("Nothing of this checkout's is live.");
+  if (args._.length === 1 && !named.length) log("A running live-sync puts this checkout's changed files back within 5 s; stop it first to keep them out.");
 }
 
 if (process.argv[1] && fileURLToPath(import.meta.url) === path.resolve(process.argv[1])) {
