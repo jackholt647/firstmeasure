@@ -157,12 +157,12 @@ including `public/v1/**`, `public/libraries/**` and new language keys in
 `public/libraries/platform-language`, still ships through `platform`.
 
 1. Commit the editor change (on canonical or your own branch).
-2. Run `node tools/dev-push/lanes/measure-internal/ship.mjs` (ships `HEAD`). It
-   takes only the lane's paths from the commit, lints changed PHP and
-   syntax-checks changed JavaScript (about a second), switches the release
-   with a readiness check and rollback, and advances `lane/measure-internal`.
-   Once the checkout has `tools/dev-push/submit.mjs`, it hands the commit to the
-   dev push router instead.
+2. Run `node tools/dev-push/lanes/measure-internal/ship.mjs` (ships `HEAD`;
+   use it rather than `submit.mjs` for editor commits made on canonical). It
+   puts only the lane's paths from the commit onto `lane/measure-internal` and
+   submits that to the dev push router, which lints changed PHP, syntax-checks
+   changed JavaScript, switches the release with a readiness check and
+   rollback, and answers: live in about half a minute.
 3. Check: `curl -sI https://dev.1m8.ai/measure/internal/<file>` shows
    `X-FirstMate-Lane: measure-internal <sha>`.
 
@@ -176,10 +176,10 @@ looks broken.
 
 Do not copy editor files into the platform release on dev legacy with a
 per-task rollout: they are not served while the lane serves its own release.
-Other commands: `ship.mjs status`, `rollback [<sha>]`, `follow` (serve the
-platform release's editor through the lane), `uninstall` (serve the platform
-copy directly). Run `node --test tests/dev-lane-measure-internal.test.mjs` for
-changes to the lane tool.
+Only the router activates lane releases: to undo a change, ship a revert.
+`ship.mjs status` shows the lane. Run
+`node --test tests/dev-lane-measure-internal.test.mjs` for changes to the lane
+tool.
 
 ## Canonical source
 

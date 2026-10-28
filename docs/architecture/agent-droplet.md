@@ -84,6 +84,14 @@ push queue refs and read lane tips and status, nothing else. The live layer work
 restricted `~/.ssh/fm_live_ed25519` pair is installed, and `node tools/live-layer/live-sync.mjs` in a clean
 checkout makes saves live on dev.1m8.ai ([live layer](live-layer.md)).
 
+The submit key is installed for account `dev` on the dev sync droplet with `from="67.205.145.222",restrict` and
+the forced command `~/dev-push/bin/submit-shell` (source `tools/dev-push/router/submit-shell.sh`). It allows
+only fetch and push of `/home/dev/router/firstmeasure.git` and reading the router status. The repository's
+pre-receive hook accepts only `refs/heads/queue/<lane>/<agent>-<slug>`. The shell sets `DEV_PUSH_NO_MIRROR=1`
+(the background GitHub mirror needs a GitHub login the droplet lacks). Queue entries are named from
+`CLAUDE_CODE_SESSION_ID` or `CODEX_THREAD_ID`. Antigravity sets neither, so set `DEV_PUSH_AGENT=agy-<task>`
+there, or its entries are all named `agent-fm-agents-1`.
+
 ## Browsers
 
 - **Jack's Chrome (preferred for anything Jack is signed in to).** A Claude Code session on the droplet reaches

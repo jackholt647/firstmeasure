@@ -2,6 +2,8 @@
 export FM_AGENTS_ROOT=/srv/agents
 export PLAYWRIGHT_BROWSERS_PATH=/srv/agents/cache/ms-playwright
 export npm_config_cache=/srv/agents/cache/npm
+# submit.mjs's background GitHub mirror needs a GitHub login this machine does not have.
+export DEV_PUSH_NO_MIRROR=1
 case $- in
   *i*)
     if [ -z "${FM_DISK_WARNED:-}" ] && [ -s /srv/agents/status/disk-warning.txt ]; then

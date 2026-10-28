@@ -6,13 +6,11 @@ import fs, { mkdtempSync, mkdirSync, writeFileSync, rmSync } from 'node:fs';
 import { createHash } from 'node:crypto';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
 import { spawnSync } from 'node:child_process';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import lane, { LANE, ownsPath, manifest, mappedTests, runGates, laneCommit, quickChecks, buildTree, treeManifest } from '../tools/dev-push/lanes/measure-internal/lane.mjs';
 
-const hostScript = fileURLToPath(new URL('../tools/dev-push/lanes/measure-internal/lane-host.sh', import.meta.url));
 
 function scratch() {
   const repo = mkdtempSync(path.join(tmpdir(), 'lane-mi-'));
@@ -133,6 +131,33 @@ test('an editor commit from any branch lands on the lane tip with only lane path
   } finally { s.done(); }
 });
 
+test('a second edit and a revert on canonical reach the lane as changes, not conflicts', () => {
+  const s = scratch();
+  try {
+    s.write('public/measure/internal/a.js', 'line1\nline2\nline3\n');
+    s.write('public/v1/api.ts', 'v1;\n');
+    s.commit('fork');
+    s.git('branch', 'canonical');
+    s.write('public/measure/internal/b.js', 'lane only\n');
+    let tip = s.commit('lane-only change');
+    s.git('checkout', '-q', 'canonical');
+    s.write('public/measure/internal/a.js', 'line1\nEDIT ONE\nline3\n');
+    const first = s.commit('first edit');
+    tip = laneCommit(first, tip, s.repo);
+    s.write('public/measure/internal/a.js', 'line1\nEDIT TWO\nline3\n');
+    s.write('public/v1/api.ts', 'v2;\n');
+    const second = s.commit('second edit of the same line');
+    tip = laneCommit(second, tip, s.repo);
+    assert.equal(s.git('show', `${tip}:public/measure/internal/a.js`), 'line1\nEDIT TWO\nline3');
+    s.write('public/measure/internal/a.js', 'line1\nEDIT ONE\nline3\n');
+    const revert = s.commit('revert the second edit');
+    tip = laneCommit(revert, tip, s.repo);
+    assert.equal(s.git('show', `${tip}:public/measure/internal/a.js`), 'line1\nEDIT ONE\nline3');
+    assert.equal(s.git('show', `${tip}:public/measure/internal/b.js`), 'lane only');
+    assert.equal(s.git('show', `${tip}:public/v1/api.ts`), 'v1;');
+  } finally { s.done(); }
+});
+
 test('every ship lints and syntax-checks the changed editor files, in about a second', async () => {
   const s = scratch();
   try {
@@ -183,9 +208,4 @@ test('the release tree is the commit\'s editor plus links into the platform rele
       assert.ok(fs.lstatSync(path.join(out, 'public', 'storage')).isSymbolicLink(), 'but the link is in the tree');
     } finally { rmSync(out, { recursive: true, force: true }); }
   } finally { s.done(); }
-});
-
-test('the host script parses', () => {
-  const r = spawnSync('bash', ['-n', hostScript], { encoding: 'utf8' });
-  assert.equal(r.status, 0, r.stderr);
 });
