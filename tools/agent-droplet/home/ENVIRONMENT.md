@@ -55,6 +55,16 @@ in the main clone.
   state go to `/srv/agents/secrets/dev-test-orgs/`). Other agents share the main org; don't delete their data.
 - The login itself is `/srv/agents/secrets/dev-test-login.json`. Never print, commit or post it. Dev only.
 
+## Changing defaults: the config library (dev)
+- Templates, guided setups and their copy, flag defaults and presets, the scope library, terminology and every
+  other default are data in the config library on dev, not code. Change them with
+  `node tools/config-library/cli.mjs` (get, check, put, history, revert); a save is live on dev.1m8.ai within a
+  second, with no commit, submit or rollout. Read the checkout's AGENTS.md section "Defaults are data".
+- This machine already holds its dev key: `~/.config/firstmate/config-library-key` (mode 600, labelled
+  `agents:fm-agents-1`); the CLI reads it by itself. Never ask anyone for a key, and never print, copy or commit it.
+  If it is missing or revoked, run `sh tools/config-library/enroll.sh agents:fm-agents-1` from a checkout (it signs
+  with `~/.ssh/fm_config_library_ed25519` and writes a fresh key). Dev only: production has no keys.
+
 ## Shipping to dev (never production)
 - Commit, `git fetch devpush && git rebase devpush/codex/consolidated-firstmeasure-20260923`, then
   `node tools/dev-push/submit.mjs --wait` (the router picks the lane: platform, measure-internal, ...).
