@@ -205,16 +205,44 @@ export default {
       at = Date.now();
       const tmp = `${build}.tmp-${process.pid}`;
       fs.rmSync(tmp, { recursive: true, force: true });
-      fs.mkdirSync(tmp, { recursive: true });
-      const archive = await sh(`git -C '${dir}' archive --format=tar ${sha} | tar -x -C '${tmp}'`, { timeout: 10 * 60_000 });
-      if (archive.code !== 0) throw new Error(`git archive: ${archive.stderr}`);
       const v1 = path.join(tmp, "public", "v1");
-      fs.rmSync(path.join(v1, "dist"), { recursive: true, force: true });
-      fs.rmSync(path.join(v1, "node_modules"), { recursive: true, force: true });
-      for (const [from, to] of [[dist.dist, path.join(v1, "dist")], [modules, path.join(v1, "node_modules")]]) {
+      // From the previous build when we have it: hard-link it and apply only the commits' changes (every changed path is
+      // unlinked first, so the previous build is never written through). Otherwise the whole tree from git.
+      const baseName = previousRelease?.name || previousRelease?.sha;
+      const base = baseName && previousRelease?.sha ? path.join(BUILDS, baseName) : null;
+      const diff = base && fs.existsSync(path.join(base, ".manifest.json")) ? (await run("git", ["-c", "core.quotepath=off", "diff", "--name-status", "--no-renames", "-z", previousRelease.sha, sha], { cwd: dir })) : null;
+      const entries = diff?.code === 0 ? diff.stdout.split("\0").filter(Boolean) : null;
+      const changes = [];
+      if (entries) for (let i = 0; i + 1 < entries.length; i += 2) changes.push({ status: entries[i], file: entries[i + 1] });
+      const incremental = Boolean(entries) && changes.length <= 2000;
+      if (incremental) {
+        const copied = await run("cp", ["-al", base, tmp]);
+        if (copied.code !== 0) throw new Error(`cp ${base}: ${copied.stderr}`);
+        for (const { file } of changes) fs.rmSync(path.join(tmp, file), { force: true });
+        const present = changes.filter((change) => change.status !== "D").map((change) => change.file);
+        for (let i = 0; i < present.length; i += 200) {
+          const part = present.slice(i, i + 200);
+          const archive = await run("bash", ["-c", `git -C '${dir}' archive --format=tar ${sha} -- "$@" | tar -x --unlink-first -C '${tmp}'`, "archive", ...part], { timeout: 10 * 60_000 });
+          if (archive.code !== 0) throw new Error(`git archive: ${archive.stderr}`);
+        }
+        for (const file of [".manifest.json", "release.env"]) fs.rmSync(path.join(tmp, file), { force: true });
+      } else {
+        fs.mkdirSync(tmp, { recursive: true });
+        const archive = await sh(`git -C '${dir}' archive --format=tar ${sha} | tar -x -C '${tmp}'`, { timeout: 10 * 60_000 });
+        if (archive.code !== 0) throw new Error(`git archive: ${archive.stderr}`);
+      }
+      // dist and node_modules: swapped in from their caches unless the previous build already links the same ones.
+      const sourcesFile = ".dev-push-sources.json"; // never shipped (rsync and the manifest skip .dev-push-*)
+      const before = incremental ? (() => { try { return JSON.parse(fs.readFileSync(path.join(base, sourcesFile), "utf8")); } catch { return {}; } })() : {};
+      for (const [key, from, to] of [["dist", dist.dist, path.join(v1, "dist")], ["modules", modules, path.join(v1, "node_modules")]]) {
+        if (before[key] === from && fs.existsSync(to)) continue;
+        fs.rmSync(to, { recursive: true, force: true });
         const copied = await run("cp", ["-al", from, to]);
         if (copied.code !== 0) throw new Error(`cp ${from}: ${copied.stderr}`);
       }
+      fs.rmSync(path.join(tmp, sourcesFile), { force: true });
+      fs.writeFileSync(path.join(tmp, sourcesFile), JSON.stringify({ dist: dist.dist, modules }));
+      timings.build_incremental = incremental ? 1 : 0;
       fs.writeFileSync(path.join(tmp, "release.env"), `RELEASE_ID=${serverId}\nRELEASE_COMMIT=${sha}\nDEV_PUSH_RELEASE=${releaseId}\nFIRSTMEASURE_EDITOR_RUNTIME_ROOT=${EDITOR_RUNTIME_ROOT}\n`);
       const manifest = await treeManifest(tmp, path.join(CACHE, "hashes.json"));
       manifest.release_id = releaseId;
@@ -317,7 +345,7 @@ export async function treeManifest(root, cacheFile = null) {
   };
   walk(root, "");
   if (cacheFile) { fs.writeFileSync(`${cacheFile}.tmp`, JSON.stringify(used)); fs.renameSync(`${cacheFile}.tmp`, cacheFile); }
-  delete files[".manifest.json"];
+  for (const rel of Object.keys(files)) if (rel === ".manifest.json" || rel.startsWith(".dev-push-")) delete files[rel]; // build bookkeeping, never shipped
   const digest = crypto.createHash("sha256");
   for (const rel of Object.keys(files).sort()) digest.update(`f ${rel} ${files[rel][0]}\n`);
   for (const rel of Object.keys(links).sort()) digest.update(`l ${rel} ${links[rel]}\n`);
