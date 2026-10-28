@@ -721,6 +721,7 @@ function perf_render2DContent() {
         const had=!!overlayGroup;clearEditorOverlay();if(typeof scene==='undefined'||!scene||!window.THREE?.Group||!enabled)return;
         const group=new THREE.Group();group.name='exteriors-wall-overlay';const vector=p=>getVector3(toPixel(p));withWallScene(()=>wallEditor?.drawOverlay?.(group,vector));
         window.exteriorSurfaceDisplay?.(group,surfaceMode());applyPlaneDisplay(group,vector);applyLineSelectDisplay(group);
+        window.ExteriorDistanceInput?.render(wallEditor?.distanceInput()||baseEditor?.distanceInput());
         if(group.children.length){overlayGroup=group;scene.add(group);}if(had||overlayGroup)window.invalidateScene3D?.();
     }
     function clearNudgePreview(){if(nudgePreviewGroup){nudgePreviewGroup.parent?.remove(nudgePreviewGroup);disposeObject3D(nudgePreviewGroup);nudgePreviewGroup=null;}}
