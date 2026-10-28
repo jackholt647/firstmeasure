@@ -29,6 +29,8 @@ export type SatelliteMediaDeps = {
 };
 export type SatelliteMediaResult = {
   status: "no_project" | "unavailable" | "existing" | "saved";
+  /** Why nothing could be saved (a short code, never a key or URL): no_coordinates, maps_static_403, image_unreadable, ... */
+  unavailable_reason?: string;
   media_id?: string;
   source?: SatelliteSourceKey;
   cover_set?: boolean;
@@ -101,9 +103,12 @@ export function staticMapApiKey() {
   return clean(env.googleMapsStaticApiKey) || clean(env.googleMapsApiKey);
 }
 
+/** A static-map fetch that could not give an image; the message is a short code that is safe to return. */
+class StaticMapUnavailable extends Error {}
+
 async function defaultGoogleStaticMap(point: { lat: number; lng: number }) {
   const key = staticMapApiKey();
-  if (!key) { console.warn("Satellite image: no Maps Static key is configured"); return null; }
+  if (!key) throw new StaticMapUnavailable("maps_static_no_key");
   const url = new URL("https://maps.googleapis.com/maps/api/staticmap");
   url.searchParams.set("center", `${point.lat},${point.lng}`);
   url.searchParams.set("zoom", "20");
@@ -111,34 +116,40 @@ async function defaultGoogleStaticMap(point: { lat: number; lng: number }) {
   url.searchParams.set("scale", "2");
   url.searchParams.set("maptype", "satellite");
   url.searchParams.set("key", key);
+  let response: Response;
   try {
-    const response = await fetch(url, { signal: AbortSignal.timeout(10_000) });
-    if (!response.ok || !clean(response.headers.get("content-type")).startsWith("image/")) {
-      // Never log the URL: it carries the key.
-      console.warn("Satellite image: Maps Static refused", response.status, clean(response.headers.get("x-staticmap-api-warning")).slice(0, 200));
-      return null;
-    }
-    const bytes = Buffer.from(await response.arrayBuffer());
-    return bytes.length ? bytes : null;
+    response = await fetch(url, { signal: AbortSignal.timeout(10_000) });
   } catch (error) {
-    console.warn("Satellite image: Maps Static request failed", error instanceof Error ? error.name : "error");
-    return null;
+    // Never log or return the URL: it carries the key.
+    const cause = clean(obj(obj(error).cause).code) || (error instanceof Error ? error.name : "error");
+    throw new StaticMapUnavailable(`maps_static_${cause.replace(/[^A-Za-z0-9_]/g, "").slice(0, 40)}`);
   }
+  if (!response.ok || !clean(response.headers.get("content-type")).startsWith("image/")) {
+    console.warn("Satellite image: Maps Static refused", response.status, clean(response.headers.get("x-staticmap-api-warning")).slice(0, 200));
+    throw new StaticMapUnavailable(response.ok ? "maps_static_not_image" : `maps_static_${response.status}`);
+  }
+  const bytes = Buffer.from(await response.arrayBuffer());
+  return bytes.length ? bytes : null;
 }
 
-/** The best satellite image the project can have now that it has not saved yet, or null. */
-async function availableImage(orgId: string, project: JsonObject, saved: JsonObject, deps: SatelliteMediaDeps): Promise<SatelliteImage | null> {
+/** The best satellite image the project can have now that it has not saved yet, or why there is none. */
+async function availableImage(orgId: string, project: JsonObject, saved: JsonObject, deps: SatelliteMediaDeps): Promise<SatelliteImage | { reason: string }> {
   const reportId = linkedReportId(project);
   if (reportId && !saved.firstmeasure) {
     const image = await (deps.firstMeasureImage || defaultFirstMeasureImage)(orgId, reportId).catch(() => null);
     if (image?.bytes?.length) return { source: "firstmeasure", bytes: image.bytes, artifact: image.artifact, reportId };
   }
   // The report's own image is better; the static map is only for a project that has none (yet).
-  if (saved.firstmeasure || saved.google_static_map) return null;
+  if (saved.firstmeasure || saved.google_static_map) return { reason: "already_saved" };
   const point = projectSatellitePoint(project);
-  if (!point) return null;
-  const bytes = await (deps.googleStaticMap || defaultGoogleStaticMap)(point).catch(() => null);
-  return bytes?.length ? { source: "google_static_map", bytes } : null;
+  if (!point) return { reason: reportId ? "report_not_completed_no_coordinates" : "no_coordinates" };
+  let reason = "maps_static_empty";
+  const bytes = await (deps.googleStaticMap || defaultGoogleStaticMap)(point).catch((error) => {
+    reason = error instanceof StaticMapUnavailable ? error.message : "maps_static_failed";
+    console.warn("Satellite image: no static map", reason);
+    return null;
+  });
+  return bytes?.length ? { source: "google_static_map", bytes } : { reason };
 }
 
 async function normalizedJpeg(bytes: Buffer) {
@@ -220,13 +231,16 @@ export async function ensureProjectSatelliteMedia(orgId: string, projectId: stri
   if (project.deleted_at || project.in_trash) return { status: "no_project" };
   const saved = obj(project.satellite_media);
   const image = await availableImage(orgId, project, saved, deps);
-  if (!image) return resultFrom(Object.keys(saved).some((key) => obj(saved[key]).media_id) ? "existing" : "unavailable", project);
+  if ("reason" in image) {
+    const existing = Object.keys(saved).some((key) => obj(saved[key]).media_id);
+    return resultFrom(existing ? "existing" : "unavailable", project, existing ? {} : { unavailable_reason: image.reason });
+  }
 
   const mediaId = satelliteMediaId(orgId, id, image.source);
   let media = await mediaExists(orgId, mediaId);
   if (!media) {
-    const bytes = await normalizedJpeg(image.bytes).catch(() => null);
-    if (!bytes?.length) return resultFrom("unavailable", project);
+    const bytes = await normalizedJpeg(image.bytes).catch((error) => { console.warn("Satellite image: unreadable", image.source, error instanceof Error ? error.message : error); return null; });
+    if (!bytes?.length) return resultFrom("unavailable", project, { unavailable_reason: "image_unreadable" });
     media = obj(await storeMediaUpload(orgId, {
       id: mediaId,
       ownerType: "project",
