@@ -13,6 +13,7 @@ import { createRequire } from "node:module";
 import { LANES, laneOf, run } from "../../lib/common.mjs";
 import { ALWAYS, COMMANDS, AREAS, testsFor } from "./test-map.mjs";
 import { buildDist as transpileDist, transpileSource } from "./transpile.mjs";
+import { missingReferences } from "./references.mjs";
 
 const HOME = process.env.DEV_PUSH_HOME || path.join(os.homedir(), "dev-push");
 const CACHE = path.join(HOME, "cache");
@@ -118,6 +119,13 @@ export default {
       if (result.code !== 0) failures.push({ id, output: tail(result.stderr, 2000) });
     }
     timings.parse_js = since(at);
+    // Always: nothing in the tree may point at a file the tree lacks (a release built from git has no host leftovers).
+    if (want("references")) {
+      at = Date.now();
+      const missing = missingReferences(dir);
+      timings.references = since(at);
+      if (missing.length) failures.push({ id: "references", output: missing.map((item) => `${item.path} is missing, referenced by ${item.from}: ${item.ref}`).join("\n") });
+    }
     const server = existing.filter((file) => !isBrowserFile(file));
     const ts = server.filter((file) => file.startsWith("public/v1/") && file.endsWith(".ts") && !file.endsWith(".d.ts"));
     if (ts.length) {
