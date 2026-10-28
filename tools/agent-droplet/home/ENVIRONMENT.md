@@ -34,6 +34,16 @@ and the full reference is `docs/architecture/agent-droplet.md` there.
 - Antigravity: `ssh fm-agents` then `agy`; or the droplet's `agy remote-control` daemon, picked in his
   Antigravity app; or the Antigravity app on the droplet's desktop.
 
+## Signed in on dev.1m8.ai (for testing)
+- There is a dev test login: organization "Agent Test Co (fm-agents-1)", the sandbox "Instant full org"
+  (every app on, demo data). `fm-dev-login` signs in and writes a Playwright storageState to
+  `/srv/agents/secrets/dev-storage-state.json`; `fm-dev-login --check` also opens /portal/ headless to prove it.
+  In Playwright: `browser.newContext({ storageState: "/srv/agents/secrets/dev-storage-state.json" })`
+  (Chromium: `/srv/agents/cache/ms-playwright/chromium-*/chrome-linux64/chrome`). Sessions expire: re-run it.
+- For work that changes a lot of data, make your own org: `fm-dev-login --new-org "<label>"` (its login and
+  state go to `/srv/agents/secrets/dev-test-orgs/`). Other agents share the main org; don't delete their data.
+- The login itself is `/srv/agents/secrets/dev-test-login.json`. Never print, commit or post it. Dev only.
+
 ## Shipping to dev (never production)
 - Commit, `git fetch devpush && git rebase devpush/codex/consolidated-firstmeasure-20260923`, then
   `node tools/dev-push/submit.mjs --wait` (the router picks the lane: platform, measure-internal, ...).

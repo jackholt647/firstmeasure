@@ -1,0 +1,106 @@
+#!/usr/bin/env node
+// Signs in to dev.1m8.ai as the agents' test user and writes a Playwright storageState, so a worker can open
+// signed-in pages headless without asking anyone:
+//   fm-dev-login                    -> /srv/agents/secrets/dev-storage-state.json (the shared agent test org)
+//   fm-dev-login --out <file>       -> write the storageState somewhere else (mode 600)
+//   fm-dev-login --new-org [label]  -> a fresh throwaway test org (sandbox "Instant full org"), for work that
+//                                     changes a lot of data; its login is kept in /srv/agents/secrets/dev-test-orgs/
+//   fm-dev-login --check            -> also open /portal/ headless with the state and report the signed-in org
+// Then in Playwright: browser.newContext({ storageState: "/srv/agents/secrets/dev-storage-state.json" }).
+// The login itself is /srv/agents/secrets/dev-test-login.json ({ base_url, email, password, organization_id }).
+// Never print or copy the password. Development only: production has no sandbox and no such user.
+import fs from "node:fs";
+import path from "node:path";
+
+const SECRETS = "/srv/agents/secrets";
+const LOGIN = `${SECRETS}/dev-test-login.json`;
+const WORKFLOW = "swf_instant_full_org";
+const args = process.argv.slice(2);
+const flag = (name) => args.includes(name);
+const value = (name) => { const i = args.indexOf(name); return i >= 0 && args[i + 1] && !args[i + 1].startsWith("--") ? args[i + 1] : null; };
+
+function writePrivate(file, data) {
+  fs.mkdirSync(path.dirname(file), { recursive: true, mode: 0o700 });
+  const tmp = `${file}.${process.pid}.tmp`;
+  fs.writeFileSync(tmp, JSON.stringify(data, null, 2) + "\n", { mode: 0o600 });
+  fs.renameSync(tmp, file);
+}
+
+// Set-Cookie headers -> Playwright storageState cookies (host-only cookies on the base URL's host).
+function storageState(base, response) {
+  const host = new URL(base).hostname;
+  const cookies = response.headers.getSetCookie().map((line) => {
+    const [pair, ...attrs] = line.split(";").map((s) => s.trim());
+    const eq = pair.indexOf("=");
+    const cookie = { name: pair.slice(0, eq), value: pair.slice(eq + 1), domain: host, path: "/", expires: -1, httpOnly: false, secure: false, sameSite: "Lax" };
+    for (const attr of attrs) {
+      const [k, v = ""] = attr.split("=");
+      const key = k.toLowerCase();
+      if (key === "path") cookie.path = v || "/";
+      else if (key === "domain") cookie.domain = v.startsWith(".") ? v : `.${v}`;
+      else if (key === "httponly") cookie.httpOnly = true;
+      else if (key === "secure") cookie.secure = true;
+      else if (key === "samesite") cookie.sameSite = { strict: "Strict", none: "None" }[v.toLowerCase()] || "Lax";
+      else if (key === "max-age") cookie.expires = Math.floor(Date.now() / 1000) + Number(v);
+      else if (key === "expires" && cookie.expires === -1) cookie.expires = Math.floor(Date.parse(v) / 1000);
+    }
+    return cookie;
+  }).filter((c) => c.value && c.expires !== 0 && !(c.expires > 0 && c.expires < Date.now() / 1000));
+  if (!cookies.length) throw new Error("dev.1m8.ai set no cookies; the login did not create a session.");
+  return { cookies, origins: [] };
+}
+
+async function post(url, body) {
+  const base = new URL(url).origin;
+  const response = await fetch(url, { method: "POST", headers: { "content-type": "application/json", origin: base }, body: JSON.stringify(body) });
+  const json = await response.json().catch(() => ({}));
+  if (!response.ok || json.ok === false) throw new Error(`${url}: HTTP ${response.status} ${json.error || json.message || ""}`.trim());
+  return { response, json };
+}
+
+async function check(base, statePath) {
+  let chromium;
+  try { ({ chromium } = await import("playwright-core")); } catch {
+    const shared = fs.readdirSync("/srv/agents/cache/node_modules").map((k) => `/srv/agents/cache/node_modules/${k}/node_modules/playwright-core/index.mjs`).find((p) => fs.existsSync(p));
+    if (!shared) throw new Error("playwright-core not found; run fm-deps in a checkout first.");
+    ({ chromium } = await import(shared));
+  }
+  const exe = fs.readdirSync("/srv/agents/cache/ms-playwright").filter((d) => d.startsWith("chromium-")).sort().map((d) => `/srv/agents/cache/ms-playwright/${d}/chrome-linux64/chrome`).filter((p) => fs.existsSync(p)).pop();
+  const browser = await chromium.launch({ headless: true, executablePath: exe });
+  try {
+    const context = await browser.newContext({ storageState: statePath });
+    const page = await context.newPage();
+    await page.goto(`${base}/portal/`, { waitUntil: "domcontentloaded", timeout: 60000 });
+    const me = await page.evaluate(async () => { const r = await fetch("/v1/platform/auth/session", { credentials: "include" }); return { status: r.status, body: await r.json().catch(() => null) }; });
+    const org = me.body?.organization?.name || me.body?.membership?.organization_name || me.body?.organization_id || me.body?.membership?.organization_id;
+    console.log(`check: ${page.url()} (title "${await page.title()}"), /v1/platform/auth/session -> ${me.status}${org ? `, organization ${org}` : ""}`);
+    if (me.status !== 200 || /login\.php/.test(page.url())) throw new Error("not signed in");
+  } finally { await browser.close(); }
+}
+
+async function main() {
+  let base, statePath, orgId;
+  if (flag("--new-org")) {
+    const saved = fs.existsSync(LOGIN) ? JSON.parse(fs.readFileSync(LOGIN, "utf8")) : {};
+    base = saved.base_url || "https://dev.1m8.ai";
+    const label = value("--new-org") || `Agent scratch org ${new Date().toISOString().slice(0, 16)}`;
+    const { response, json } = await post(`${base}/v1/signup-sandbox/workflows/${WORKFLOW}/instances`, { label });
+    const t = json.test_org || {};
+    orgId = String(t.org_id || "");
+    writePrivate(`${SECRETS}/dev-test-orgs/${orgId}.json`, { base_url: base, email: t.email, password: t.password, organization_id: orgId, label, workflow: WORKFLOW, created_at: new Date().toISOString() });
+    statePath = value("--out") || `${SECRETS}/dev-test-orgs/${orgId}.storage-state.json`;
+    writePrivate(statePath, storageState(base, response));
+  } else {
+    if (!fs.existsSync(LOGIN)) throw new Error(`${LOGIN} is missing; see docs/architecture/agent-droplet.md, "Dev test login".`);
+    const login = JSON.parse(fs.readFileSync(LOGIN, "utf8"));
+    base = login.base_url;
+    orgId = login.organization_id;
+    const { response } = await post(`${base}/v1/platform/auth/login`, { email: login.email, password: login.password, organization_id: login.organization_id });
+    statePath = value("--out") || `${SECRETS}/dev-storage-state.json`;
+    writePrivate(statePath, storageState(base, response));
+  }
+  console.log(`storageState: ${statePath} (organization ${orgId}, ${base})`);
+  if (flag("--check")) await check(base, statePath);
+}
+
+main().catch((error) => { console.error(`fm-dev-login: ${error.message}`); process.exit(1); });
