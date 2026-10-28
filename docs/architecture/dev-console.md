@@ -1,12 +1,47 @@
 # Dev console
 
 Development only. One tray on the right edge of every development page holds every
-development control. It sits over the app (it does not push the page aside), opens and
-closes, and folds to a 20 px strip down the right edge (on a phone, a 20 px tab in the
-middle of the edge, so it clears the top bar and search; the portal's ⋯ sheet also has a
-**Dev console** entry). Its width is dragged from its left edge. It remembers open or
-folded, the section and the width in this browser (`localStorage` key `fm-dev-console`;
-a convenience, read and written in `try`/`catch`).
+development control. On a desktop it never covers the app: the page is **docked** beside
+it, like Chrome's docked devtools (below). It opens and closes, folds to a 20 px strip
+down the right edge (which also takes its 20 px), its width is dragged from its left
+edge, and **Expand** widens it to 60% of the window. On a phone it covers the page as a
+full-width tray, and folds to a 20 px tab in the middle of the edge so it clears the top
+bar and search; the portal's ⋯ sheet also has a **Dev console** entry. It remembers open
+or folded, expanded, the section and the width in this browser (`localStorage` key
+`fm-dev-console`; a convenience, read and written in `try`/`catch`).
+
+## Docking
+
+`dock.js` makes the page behave as a window narrower by the console's width (or the
+folded strip's 20 px), within the page's own document:
+
+- `<body>` is fixed to the remaining width with layout containment, so it is the
+  containing block for every fixed layer: modals, trays, toasts, guided overlays, the
+  sandbox stage overlay, the left sidebar, anything at `right: 0`, and the project window
+  (whose frame therefore has the remaining width as its own viewport). The console and
+  its strip are mounted on `<html>`, outside `<body>`.
+- In every stylesheet the page can read (including ones added later, watched with a
+  MutationObserver), width media queries are shifted by the console's width and `vw`
+  lengths are rewritten to the remaining width (`--fm-dc-vw`).
+- `window.innerWidth`, `document.documentElement.clientWidth`, `matchMedia()` width
+  queries and existing `MediaQueryList.matches` answer for the remaining width, and a
+  `resize` event fires on every change (folding, opening, dragging, expanding).
+- The top layer ignores containing blocks: modal dialogs and their backdrops are kept
+  beside the console by CSS; a popover placed from element coordinates lands where its
+  element is.
+
+Why not host the app in a frame sized to the remaining width (exact media queries for
+free)? A framed app is no longer the page production runs: `window.top`/`window.parent`
+checks (the project window, guided experiences, live assets) would change meaning in
+development only, the realtime stream and session replay would see a host page, history
+would need syncing, and moving an already loaded page into a frame needs a second load or
+server routing on every PHP entry point.
+
+Limits: stylesheets from another origin (fonts, icons) are not read; inline `style`
+attributes with `vw` keep the full width; a change event on a `MediaQueryList` the page
+made before the console loaded follows the real window (its `matches` does not); a page
+whose document itself scrolls (the portal does not; marketing pages do) scrolls inside
+`<body>` while docked, and its fixed layers scroll with it.
 
 Production never shows it: `/v1/signup-sandbox` answers 404 there and nothing is loaded.
 
@@ -62,8 +97,8 @@ library's API answers on the host.
   layer section redraws on the `fm:live-assets` window event the live-assets library
   dispatches for each change on the `live-assets` channel. The push queue watches the `dev-push`
   channel, which sends the router's status document whenever the router rewrites it.
-- The tray is above the project window (2147483200) and the sandbox stage overlay
-  (z-index 2147483640).
+- On a phone the tray is above the project window (2147483200) and the sandbox stage
+  overlay (z-index 2147483640); on a desktop nothing overlaps it.
 
 ## Tests
 
@@ -71,4 +106,6 @@ library's API answers on the host.
 `tests/guided-experiences-flow-browser.test.mjs` (the guided section, folding,
 remembering, the phone tab and More entry, resizing across the project frame) and
 `tests/development-layers-browser.test.mjs` (software layers and synthetic data at
-desktop and phone widths).
+desktop and phone widths), `tests/dev-console-dock-browser.test.mjs` (docking: fixed
+layers, vw, media queries, matchMedia, innerWidth, a modal, a frame, folded, open,
+expanded, and a phone not docked).

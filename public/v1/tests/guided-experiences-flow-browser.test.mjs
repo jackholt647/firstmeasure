@@ -333,7 +333,7 @@ test('development: copy is editable in place, saves as you type, shows for every
     assert.equal(await frame().evaluate(()=>document.documentElement.classList.contains('gx-editing')),true);
     assert.equal(await frame().locator('.gx-pop h3 [data-gx-copy]').getAttribute('contenteditable'),'plaintext-only');
     // One console, on the page itself along the right edge, above the project window, ignored by session replay.
-    const tray=await tab.evaluate(()=>{const el=document.querySelector('.fm-dc'),r=el.getBoundingClientRect(),cs=getComputedStyle(el);return {position:cs.position,z:Number(cs.zIndex),right:innerWidth-r.right,top:r.top,height:r.height,ignore:el.hasAttribute('data-fmr-ignore')};});
+    const tray=await tab.evaluate(()=>{const el=document.querySelector('.fm-dc'),r=el.getBoundingClientRect(),cs=getComputedStyle(el);return {position:cs.position,z:Number(cs.zIndex),right:document.documentElement.getBoundingClientRect().width-r.right,top:r.top,height:r.height,ignore:el.hasAttribute('data-fmr-ignore')};});
     assert.ok(tray.position==='fixed'&&tray.z>2147483200&&tray.right===0&&tray.top===0&&tray.height===800&&tray.ignore,JSON.stringify(tray));
     // Exactly one console across every frame, even when the page's library draws an assistant inside the project frame.
     await tab.evaluate(()=>{const d=document.querySelector('#project').contentDocument,drawer=d.createElement('div');drawer.innerHTML='<div data-fma="composer"><div class="fma-compose-shell"></div></div>';d.body.appendChild(drawer);FirstMateGuides.attachAssistant(drawer,{});});
@@ -411,7 +411,7 @@ test('development on a phone: the dev console is a tab on the right edge and an 
     await tab.waitForFunction(()=>/Reset/.test(document.querySelector('.gx-dev-status')?.textContent||''));
     assert.deepEqual(srv.state.resets.at(-1),{experience_id:'materials.tab_tutorial',scope:'me'});
     assert.ok(await tab.locator('.gx-dev-panel button').evaluateAll(list=>list.every(b=>b.getBoundingClientRect().height>=28)),'buttons big enough to press');
-    assert.equal(await tab.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true,'no sideways scroll');
+    assert.equal(await tab.evaluate(()=>document.documentElement.scrollWidth<=document.documentElement.getBoundingClientRect().width),true,'no sideways scroll');
     await tab.click('.fm-dc-fold');
     assert.equal(await tab.locator('.fm-dc').isHidden(),true);
     assert.deepEqual(errors,[]);
