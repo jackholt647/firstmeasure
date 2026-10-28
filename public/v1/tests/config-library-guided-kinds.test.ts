@@ -17,7 +17,7 @@ test("every snapshot entry of these kinds passes its kind's checks", () => {
     for (const entry of libraryEntries(kind)) assert.equal(errors(kind, entry.id, structuredClone(entry.data)), "", `${kind}/${entry.id}`);
     counts[kind] = libraryEntries(kind).length;
   }
-  assert.deepEqual(counts, { guided_experience: 11, guided_tab_faqs: 7, setup_step: 2, tab_promo: 1, app_welcome: 8 });
+  assert.deepEqual(counts, { guided_experience: 13, guided_tab_faqs: 8, setup_step: 2, tab_promo: 1, app_welcome: 8 });
 });
 
 test("guided_experience: sources, actions, capabilities, setup steps and other experiences must exist", () => {

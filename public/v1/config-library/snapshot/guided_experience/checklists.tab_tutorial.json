@@ -1,0 +1,235 @@
+{
+  "kind": "guided_experience",
+  "id": "checklists.tab_tutorial",
+  "revision": 2,
+  "sha256": "eae89438daaa6221506bb7240d69612eabe1928fb8902b7e039b012277abb5bc",
+  "title": "Checklists tour",
+  "updated_at": "2026-10-28T08:39:48.478Z",
+  "updated_by": "router-fm-283",
+  "data": {
+    "id": "checklists.tab_tutorial",
+    "version": 1,
+    "kind": "overlay",
+    "scope": "person",
+    "salt": "2026-10",
+    "title": {
+      "key": "gx_cl_tt_title",
+      "text": "Checklists tour"
+    },
+    "tab": "project.checklists",
+    "eligibility": {
+      "capabilities": [
+        "apps.checklists"
+      ],
+      "permissions": []
+    },
+    "triggers": [
+      {
+        "kind": "after_experience",
+        "experience": "checklists.setup",
+        "once": true
+      },
+      {
+        "kind": "tab_opened",
+        "tab": "project.checklists",
+        "once": true,
+        "delay_ms": 900,
+        "when": {
+          "match": "any",
+          "rules": [
+            {
+              "field": "organization.finished",
+              "operator": "contains",
+              "value": "checklists.setup"
+            },
+            {
+              "field": "person.eligible",
+              "operator": "not_contains",
+              "value": "checklists.setup"
+            }
+          ]
+        }
+      }
+    ],
+    "variants": [
+      {
+        "id": "tour",
+        "weight": 1,
+        "content": {}
+      }
+    ],
+    "requires": [],
+    "steps": [
+      {
+        "id": "intro",
+        "title": {
+          "key": "gx_cl_tt_intro_title",
+          "text": "Your checklists"
+        },
+        "body": {
+          "key": "gx_cl_tt_intro_body",
+          "text": "Here are the checklists for this project. Everything you'll see works by voice too: talk, and we'll do the typing."
+        },
+        "targets": [],
+        "placement": "center",
+        "advance": "next",
+        "wait_ms": 1500
+      },
+      {
+        "id": "lists",
+        "title": {
+          "key": "gx_cl_tt_lists_title",
+          "text": "Each checklist"
+        },
+        "body": {
+          "key": "gx_cl_tt_lists_body",
+          "text": "Tick items as they're done. You'll see who did each one, and when."
+        },
+        "targets": [
+          "[data-fmcl-list]"
+        ],
+        "placement": "auto",
+        "advance": "next",
+        "wait_ms": 4000
+      },
+      {
+        "id": "assign",
+        "title": {
+          "key": "gx_cl_tt_assign_title",
+          "text": "Who completes it"
+        },
+        "body": {
+          "key": "gx_cl_tt_assign_body",
+          "text": "Pick who completes it. Turn on Require signature for lists like crew safety: whoever finishes it signs in the crew app."
+        },
+        "targets": [
+          "[data-fmcl-list] [data-fmcl-assign]"
+        ],
+        "placement": "auto",
+        "advance": "next",
+        "wait_ms": 1500
+      },
+      {
+        "id": "add_item",
+        "title": {
+          "key": "gx_cl_tt_add_item_title",
+          "text": "Add an item"
+        },
+        "body": {
+          "key": "gx_cl_tt_add_item_body",
+          "text": "Type an item and press Enter. Make it a task to tick or a rating."
+        },
+        "targets": [
+          "[data-fmcl-list] .fmcl-add"
+        ],
+        "placement": "auto",
+        "advance": "next",
+        "wait_ms": 1500
+      },
+      {
+        "id": "comment",
+        "title": {
+          "key": "gx_cl_tt_comment_title",
+          "text": "Add a comment"
+        },
+        "body": {
+          "key": "gx_cl_tt_comment_body",
+          "text": "Add a note to any item, or ask for a photo, a document or a recording before it can be ticked."
+        },
+        "targets": [
+          "[data-fmcl-list] [data-fmcl-note-open]"
+        ],
+        "placement": "auto",
+        "advance": "next",
+        "wait_ms": 1500
+      },
+      {
+        "id": "voice_update",
+        "title": {
+          "key": "gx_cl_tt_voice_update_title",
+          "text": "Change it by voice"
+        },
+        "body": {
+          "key": "gx_cl_tt_voice_update_body",
+          "text": "Press the microphone and say what changed, like “add checking the gutters and mark the ladder done”. We'll update the list."
+        },
+        "targets": [
+          "[data-fmcl-list] [data-fmcl-voice-update]"
+        ],
+        "placement": "auto",
+        "advance": "next",
+        "wait_ms": 1500
+      },
+      {
+        "id": "document",
+        "title": {
+          "key": "gx_cl_tt_document_title",
+          "text": "Print it or email it"
+        },
+        "body": {
+          "key": "gx_cl_tt_document_body",
+          "text": "Save the checklist to Documents, then email, download or print it, with a signature line when it needs one. Handy for anyone not on the crew app yet."
+        },
+        "targets": [
+          "[data-fmcl-list] [data-fmcl-document]"
+        ],
+        "placement": "auto",
+        "advance": "next",
+        "wait_ms": 1500,
+        "eligibility": {
+          "capabilities": [
+            "platform.documents"
+          ],
+          "permissions": []
+        }
+      },
+      {
+        "id": "send_crew",
+        "title": {
+          "key": "gx_cl_tt_send_crew_title",
+          "text": "Send it to the crew app"
+        },
+        "body": {
+          "key": "gx_cl_tt_send_crew_body",
+          "text": "Send it to a person or a group: it's assigned to them and the project shows in their crew app."
+        },
+        "targets": [
+          "[data-fmcl-list] [data-fmcl-send-crew]"
+        ],
+        "placement": "auto",
+        "advance": "next",
+        "wait_ms": 1500,
+        "eligibility": {
+          "capabilities": [
+            "checklists.crew_send"
+          ],
+          "permissions": []
+        }
+      },
+      {
+        "id": "try_voice",
+        "title": {
+          "key": "gx_cl_tt_try_voice_title",
+          "text": "Now you try"
+        },
+        "body": {
+          "key": "gx_cl_tt_try_voice_body",
+          "text": "Press the microphone and ramble about a checklist you might want, even a made-up one, and we'll build it for you. Or skip this step. Want this tour again? Ask the agent “Show me the tutorial again”."
+        },
+        "targets": [
+          "[data-fmcl-new-audio]"
+        ],
+        "placement": "auto",
+        "advance": "click",
+        "wait_ms": 1500
+      }
+    ],
+    "completion": {
+      "screen": "none",
+      "say": [],
+      "then": []
+    },
+    "replayable": true,
+    "reveal": []
+  }
+}

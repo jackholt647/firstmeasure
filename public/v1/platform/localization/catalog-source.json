@@ -376,7 +376,23 @@
     "m_e35d44ebe92c7e": "Loading people…",
     "m_0559904744409b": "No eligible people found",
     "m_274d5307ddcfc4": "Create the list with just your voice.",
-    "m_2d8f75a3258628": "Create the list with just your voice"
+    "m_2d8f75a3258628": "Create the list with just your voice",
+    "m_6baf833ff896ca": "Send to crew app",
+    "m_89991f9f77a63f": "There is nobody to send it to yet. Add people or groups in People first.",
+    "m_09441671887cab": "Sent to the crew app",
+    "m_df1adb4300f56b": {
+      "message": "{v0} will see this project and checklist in the crew app.",
+      "format": "icu"
+    },
+    "m_bbb5f3d70ddd66": "Checklist document",
+    "m_5d2b9327181e33": "Email",
+    "m_871659bb2df660": "Download",
+    "m_441fd948b74354": "Print",
+    "m_8cb6b086a0e69c": "Done",
+    "m_0874ee51f73df9": "To sign",
+    "m_215579be77973e": "Signed in the crew app once every item is done",
+    "m_bd11b7eff758d3": "Require signature",
+    "m_ef449324af3761": "Whoever completes this checklist signs it once every item is done, in the crew app. Printed copies get a signature line."
   },
   "comms": {
     "m_f6ab2f58b94a8e": "Customer call workspace",
@@ -1559,7 +1575,21 @@
     "m_ca5b642c8cc4c2": "Office / unassigned",
     "m_63b99552978591": "Note (optional)",
     "m_3d7a838b7b1fce": "What was purchased and why?",
-    "m_4b012fc82f667a": "Sign & pay"
+    "m_4b012fc82f667a": "Sign & pay",
+    "m_ad15e2e64ff319": "Signed by ",
+    "m_8bd1e7850715bf": "This checklist needs a signature.",
+    "m_ab530a0e12945f": {
+      "message": "Sign here once every item is done{v0}.",
+      "format": "icu"
+    },
+    "m_1bd25aa06bea93": " Sign off this checklist",
+    "m_506191e24dd383": "Clear",
+    "m_df6b98fab3cda2": "Sign",
+    "m_2d2dbe7ed3c8d7": "Your full name",
+    "m_49c6fd54e8b59c": "Draw your signature",
+    "m_f44bd4ca2b4882": "Type your name to sign.",
+    "m_23b01ca5b00ffb": "Draw your signature in the box.",
+    "m_ad1ad337116e8f": "Signed."
   },
   "customer-portal": {
     "m_fc865c9558abcb": "Preview unavailable",
@@ -20001,7 +20031,20 @@
     "invalid_doc_key": "A document key is 1 to 100 characters of a-z, 0-9, _ : . or -.",
     "invalid_markup_page": "Each page is a list of markup items.",
     "markup_too_large": "This markup is larger than 512 KB.",
-    "invalid_expected_revision": "expected_revision must be a whole number."
+    "invalid_expected_revision": "expected_revision must be a whole number.",
+    "state_path_invalid": "A path is flags.<key>, settings.<key> or scope_flags.<id>.",
+    "dev_console_denied": "The dev console is for the development tools audience.",
+    "scope_template_not_in_library": "That scope template is not in the scope library.",
+    "sandbox_setup_production": "Sandbox setup steps never run in production.",
+    "sandbox_setup_person_required": "Sandbox setup steps run as the test organization's owner.",
+    "sandbox_setup_test_org_required": "Sandbox setup steps only change sandbox test organizations.",
+    "checklist_document_id_taken": "Another document already uses this checklist's id.",
+    "checklists_setup_empty": "Pick at least one checklist to start with.",
+    "checklists_crew_send_disabled": "Sending checklists to the crew app is off for this organization.",
+    "checklist_send_assignee_required": "Choose who to send this checklist to.",
+    "documents_disabled": "Documents are off for this organization.",
+    "checklist_forbidden": "This checklist is not available to this user.",
+    "checklist_signature_not_required": "This checklist does not ask for a signature."
   },
   "notifications": {
     "document_greeting": {
@@ -21211,5 +21254,35 @@
     "m_6dc5ad59ad2b81": "GX",
     "m_c9a7bdf120eceb": "&nbsp;$",
     "m_7e784f9b5540ab": "error"
+  },
+  "dev-console": {
+    "m_2a44a4270ca068": "DEV",
+    "m_8bec4685ff16a7": {
+      "message": "{v8} {v9} · node tools/dev-push/submit.mjs",
+      "format": "icu"
+    },
+    "m_ef74885223639a": "Inspect declared contracts across apps, connections and documents. Expand a namespace to see its declarations, then expand a declaration to browse its schema.",
+    "m_5570cf612ee3b2": "Layer",
+    "m_9d2c14aaaec328": "All layers",
+    "m_10806f54eb984b": "Artifacts",
+    "m_f5d5649c9ab16a": "Widgets",
+    "m_a01037786103e6": "Data (including custom fields)",
+    "m_6067958dea3386": "Actions",
+    "m_65f5a4995fdd46": "Dataset types",
+    "m_27a5f2ce50818a": "Modules",
+    "m_d3fa7a87b710cb": "Declared in",
+    "m_9878efb1fc52a8": "All scopes",
+    "m_38c9b9be8440cc": "Global",
+    "m_84b7f792c9d048": "Organization",
+    "m_aaebd7ccba0b30": "Project",
+    "m_58180d5f349f7e": "Organization declarations",
+    "m_55524759bb89e3": "Search",
+    "m_78973ce0cf3403": "Refresh",
+    "m_6d65892325fb29": "Name, app or nested field",
+    "m_8bb0704cbecd44": {
+      "message": "{v0} of {v1} declarations",
+      "format": "icu"
+    },
+    "m_bc19f4b76353ef": "Loading declarations…"
   }
 }

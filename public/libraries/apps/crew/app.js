@@ -1149,13 +1149,13 @@
     const signatureHtml=(checklist)=>{
       if(!checklist.signature_required)return '';
       const signature=obj(checklist.crew_signature);
-      if(clean(signature.signer_name))return `<div class="crew-cl-sign signed"><i class="fas fa-signature"></i><span>Signed by <strong>${esc(signature.signer_name)}</strong>${signature.signed_at?` · ${esc(shortDate(signature.signed_at))}`:''}</span></div>`;
+      if(clean(signature.signer_name))return `<div class="crew-cl-sign signed"><i class="fas fa-signature"></i><span>${(globalThis.PlatformLanguage?.htmlText("crew","m_ad15e2e64ff319","Signed by ") ?? "Signed by ")}<strong>${esc(signature.signer_name)}</strong>${signature.signed_at?` · ${esc(shortDate(signature.signed_at))}`:''}</span></div>`;
       const items=arr(checklist.items);
       const open=items.filter((item)=>!item.completed).length;
-      if(!checklist.can_complete)return `<div class="crew-cl-sign"><i class="fas fa-signature"></i><span>This checklist needs a signature.</span></div>`;
-      if(!items.length||open)return `<div class="crew-cl-sign"><i class="fas fa-signature"></i><span>Sign here once every item is done${open?` (${open} to go)`:''}.</span></div>`;
+      if(!checklist.can_complete)return `<div class="crew-cl-sign"><i class="fas fa-signature"></i><span>${(globalThis.PlatformLanguage?.htmlText("crew","m_8bd1e7850715bf","This checklist needs a signature.") ?? "This checklist needs a signature.")}</span></div>`;
+      if(!items.length||open)return `<div class="crew-cl-sign"><i class="fas fa-signature"></i><span>${((v0) => globalThis.PlatformLanguage?.text("crew","m_ab530a0e12945f",`Sign here once every item is done${v0}.`,{v0}) ?? `Sign here once every item is done${v0}.`)(open?` (${open} to go)`:'')}</span></div>`;
       const name=clean(signState[checklist.id]?.name??first(Portal.currentUser?.name,Portal.currentUser?.display_name));
-      return `<div class="crew-cl-sign ready"><strong><i class="fas fa-signature"></i> Sign off this checklist</strong><input data-cl-sign-name value="${esc(name)}" placeholder="Your full name" autocomplete="name"><canvas data-cl-sign-pad aria-label="Draw your signature"></canvas><div class="crew-cl-sign-actions"><button class="crew-btn" type="button" data-cl-sign-clear>Clear</button><button class="crew-btn primary" type="button" data-cl-sign>Sign</button></div></div>`;
+      return `<div class="crew-cl-sign ready"><strong><i class="fas fa-signature"></i>${(globalThis.PlatformLanguage?.htmlText("crew","m_1bd25aa06bea93"," Sign off this checklist") ?? " Sign off this checklist")}</strong><input data-cl-sign-name value="${esc(name)}" placeholder="${(globalThis.PlatformLanguage?.htmlText("crew","m_2d2dbe7ed3c8d7","Your full name") ?? "Your full name")}" autocomplete="name"><canvas data-cl-sign-pad aria-label="${(globalThis.PlatformLanguage?.htmlText("crew","m_49c6fd54e8b59c","Draw your signature") ?? "Draw your signature")}"></canvas><div class="crew-cl-sign-actions"><button class="crew-btn" type="button" data-cl-sign-clear>${(globalThis.PlatformLanguage?.htmlText("crew","m_506191e24dd383","Clear") ?? "Clear")}</button><button class="crew-btn primary" type="button" data-cl-sign>${(globalThis.PlatformLanguage?.htmlText("crew","m_df6b98fab3cda2","Sign") ?? "Sign")}</button></div></div>`;
     };
     const bindSignature=(section,checklistId)=>{
       const pad=section.querySelector('[data-cl-sign-pad]');
@@ -1175,16 +1175,16 @@
       section.querySelector('[data-cl-sign-clear]')?.addEventListener('click',()=>{pen.clearRect(0,0,pad.width,pad.height);drawn=false;});
       section.querySelector('[data-cl-sign]')?.addEventListener('click',async(event)=>{
         const name=clean(nameInput?.value);
-        if(!name){showToast('Checklist','Type your name to sign.',false);nameInput?.focus();return;}
-        if(!drawn){showToast('Checklist','Draw your signature in the box.',false);return;}
+        if(!name){showToast((globalThis.PlatformLanguage?.text("crew","m_c0e1c0020eb1c5","Checklist") ?? "Checklist"),(globalThis.PlatformLanguage?.text("crew","m_f44bd4ca2b4882","Type your name to sign.") ?? "Type your name to sign."),false);nameInput?.focus();return;}
+        if(!drawn){showToast((globalThis.PlatformLanguage?.text("crew","m_c0e1c0020eb1c5","Checklist") ?? "Checklist"),(globalThis.PlatformLanguage?.text("crew","m_23b01ca5b00ffb","Draw your signature in the box.") ?? "Draw your signature in the box."),false);return;}
         event.currentTarget.disabled=true;
         try{
           const result=await window.CrewAPI.projects.signChecklist(orgId(context),projectId(context),checklistId,{type:'drawn',signer_name:name,image_data:pad.toDataURL('image/png')});
           const list=checklists().find((entry)=>entry.id===checklistId);
           if(list)list.crew_signature=obj(result?.checklist?.crew_signature);
-          showToast('Checklist','Signed.');
+          showToast((globalThis.PlatformLanguage?.text("crew","m_c0e1c0020eb1c5","Checklist") ?? "Checklist"),(globalThis.PlatformLanguage?.text("crew","m_ad1ad337116e8f","Signed.") ?? "Signed."));
           render();
-        }catch(error){showToast('Checklist',statusError(error),false);event.currentTarget.disabled=false;}
+        }catch(error){showToast((globalThis.PlatformLanguage?.text("crew","m_c0e1c0020eb1c5","Checklist") ?? "Checklist"),statusError(error),false);event.currentTarget.disabled=false;}
       });
     };
     const checklistHtml=(checklist)=>{

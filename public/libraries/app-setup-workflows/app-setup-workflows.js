@@ -193,13 +193,14 @@
       ])
     ], { handoff:{ tab:'viewer' }, capabilityValues:(values) => ({ 'platform.customer_portal_media':array(values.portal_content).includes('photos'), 'customer_portal.payments':array(values.portal_content).includes('payments') }) }),
 
-    workflow('apps.checklists', 'Checklists', 'optional', 'fa-list-check', 'Choose the first checklist use case and supervision model.', [
-      step('use', 'First use case', 'Start with one repeatable checklist', 'A focused rollout makes completion and supervision expectations clear.', [
-        field('checklist_use', 'First checklist', 'select', { required:true, defaultValue:'job_start', options:[option('job_start','Job start'),option('daily','Daily field check'),option('quality','Quality inspection'),option('closeout','Project closeout'),option('safety','Safety review')] }),
+    workflow('apps.checklists', 'Checklists', 'optional', 'fa-list-check', 'Choose the checklists you want to use on jobs and how they reach the crew.', [
+      step('use', 'Use cases', 'Which checklists do you want to use?', 'Pick every one you would use. The first time you open a project\'s Checklists tab, they are added to it and a short tour shows you around.', [
+        field('checklist_uses', 'Checklists', 'multi', { required:true, defaultValue:['punchlist','crew_safety','work_completion'], options:[option('punchlist','Customer punch list','Your customer ticks off each item to sign off on the job.','fa-handshake'),option('crew_safety','Crew safety','The crew confirms it before work starts, and signs it.','fa-helmet-safety'),option('work_completion','Work completion','Everything that has to be done before the job is finished.','fa-flag-checkered')] }),
         field('checklist_owner', 'Checklist owner email', 'email', { required:true }),
+        field('crew_send', 'Send to the crew app', 'checkbox', { defaultValue:true, checkboxLabel:'Let checklists be sent to the crew app, which shares the project with the crew.' }),
         field('supervision', 'Require supervisor review', 'checkbox', { defaultValue:true, checkboxLabel:'Require supervisor review for the first checklist template.' })
       ])
-    ], { handoff:{ tab:'viewer' }, capabilityValues:(values) => ({ 'checklists.templates':true, 'checklists.supervision':values.supervision === true }) }),
+    ], { handoff:{ tab:'viewer' }, capabilityValues:(values) => ({ 'checklists.templates':true, 'checklists.supervision':values.supervision === true, 'checklists.crew_send':values.crew_send !== false }) }),
 
     workflow('apps.training', 'Training', 'optional', 'fa-graduation-cap', 'Choose the first course audience and assignment policy.', [
       step('program', 'Training program', 'Plan the first training rollout', 'No course is published automatically; the Training Studio opens after setup.', [
