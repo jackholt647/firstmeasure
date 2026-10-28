@@ -34,18 +34,40 @@ itself; this droplet serves the names under it (below).
 /srv/agents/logs                  logs; files older than 7 days are deleted nightly
 /srv/agents/experiments           experiment registry and index page
 /srv/agents/status/disk.json      disk use, rewritten every 5 minutes
+/srv/agents/ENVIRONMENT.md        what every agent tool loads first (below)
 /mnt/jack-pc                      Jack's PC home folder, while its tunnel is up
 ```
 
 Software matches the dev hosts: Node 22, PHP 8.3 (same modules as dev web), git, Codex CLI, Playwright's
-Chromium with its system libraries, Caddy, and Google Chrome on the desktop. The desktop app installs Claude
-Code itself on the first SSH session.
+Chromium with its system libraries, Caddy, the Antigravity CLI (`agy`) and App, and Google Chrome on the
+desktop. The desktop app installs Claude Code itself on the first SSH session.
+
+## What every tool reads
+
+Claude Code, Codex and Antigravity all start from one short file, `/srv/agents/ENVIRONMENT.md` (source:
+`tools/agent-droplet/home/ENVIRONMENT.md`): where they are, what they can reach, how to reach Jack's PC and
+browser, how to ship, experiments and disk rules. Each tool's global rules file is a symlink to it:
+`~/.claude/CLAUDE.md` (Claude Code), `~/.codex/AGENTS.md` (Codex) and `~/.gemini/GEMINI.md` (Antigravity's
+global rules, read by its CLI, App and IDE). In a checkout they also read the repository's AGENTS.md. Change the
+source file and run `bootstrap.sh`, or install it with `sudo install -m 644 ... /srv/agents/ENVIRONMENT.md`.
 
 ## Starting a session there
 
-In the desktop app, add an SSH connection: host `67.205.145.222`, user `agent`, key
-`C:\Users\jackh\.ssh\fm_agents_ed25519` (on the PC, `ssh fm-agents` is the same thing). Open the session in
-`/srv/agents/work/firstmeasure`, or in a worktree of it. After creating a worktree run `fm-deps` in it: it
+The SSH details for every tool: host `67.205.145.222`, user `agent`, key `C:\Users\jackh\.ssh\fm_agents_ed25519`.
+On the PC, `~/.ssh/config` has the alias `fm-agents`, so `ssh fm-agents` works. Open sessions in
+`/srv/agents/work/firstmeasure` or a worktree of it.
+
+| Tool | How Jack starts it | One-time sign-in |
+|---|---|---|
+| Claude Code (most work) | Desktop app: new SSH session to `fm-agents` | The app installs and signs in Claude Code on the first session |
+| Codex (cheap tasks) | Codex app: Settings > Connections > enable SSH host `fm-agents`, pick the folder. Or a terminal: `ssh fm-agents`, `cd ~/code/firstmeasure`, `codex` | In ChatGPT security settings allow device code sign-in, then `ssh fm-agents` and `codex login --device-auth`; open the link it prints and enter the code |
+| Antigravity (occasional) | A terminal: `ssh fm-agents`, `cd ~/code/firstmeasure`, `agy`. Or, after `agy remote-control start --name fm-agents-1` once, pick `fm-agents-1` in the instance switcher of his Antigravity app or antigravity.google. Or the Antigravity app on the droplet's desktop (Remote Desktop) | `ssh fm-agents`, `agy`, sign in with Google when it asks. The desktop app signs in separately, inside Remote Desktop |
+
+Antigravity's agent manager (the 2.x App Jack has on the PC) cannot open a folder over SSH; Antigravity IDE (a
+separate download) can, with Remote-SSH, but it is not installed on the PC. The CLI and its remote-control
+daemon are the supported way. The daemon runs as a systemd user service and starts at boot (`agent` lingers).
+
+After creating a worktree run `fm-deps` in it: it
 links each `node_modules` to a shared build keyed by the lockfile, so a new worktree is ready in a second and
 twenty worktrees do not hold twenty copies. Treat the shared copy as read-only; to change dependencies, change
 `package-lock.json` (it builds a new key) or delete the link and `npm install` a private copy.
@@ -64,9 +86,12 @@ checkout makes saves live on dev.1m8.ai ([live layer](live-layer.md)).
 
 ## Browsers
 
-- **Jack's Chrome (preferred for anything Jack is signed in to).** A session on the droplet reaches Jack's own
-  Chrome on his PC through Claude in Chrome, exactly as a local session does. Use it for DigitalOcean, GoDaddy,
-  Google, and anything else that is Jack's account.
+- **Jack's Chrome (preferred for anything Jack is signed in to).** A Claude Code session on the droplet reaches
+  Jack's own Chrome on his PC through Claude in Chrome, exactly as a local session does. Use it for
+  DigitalOcean, GoDaddy, Google, and anything else that is Jack's account. Codex's equivalent is the Codex
+  app's Chrome plugin on the PC (an app feature; the CLI over SSH has none, and whether it serves SSH-host
+  threads is untested). Antigravity's browser agent drives Chrome on the machine Antigravity runs on, so on the
+  droplet that is the droplet's Chrome.
 - **The droplet's Chrome.** For logins agents use often (test accounts, tools), which Jack signs into once over
   Remote Desktop so they stay signed in. It runs in the droplet's desktop session with its own profile
   (`~/.config/chrome-agents`) and DevTools on `127.0.0.1:9222`, so a session on the droplet can drive it with
