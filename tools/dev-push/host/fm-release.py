@@ -80,10 +80,12 @@ def file_sha(path):
     return digest.hexdigest()
 
 
-def walk(tree):
-    """{rel: [sha256, size, mode]} for files and {rel: target} for symlinks, excluding host paths."""
+def walk(tree, trust=None):
+    """{rel: [sha256, size, mode]} for files and {rel: target} for symlinks, excluding host paths. A file that is still
+    the same inode as in `trust` (the verified release it was hard-linked from) is not read again: its sha256 is None."""
     files, links = {}, {}
     tree = str(tree)
+    trust = str(trust) if trust else None
     for dirpath, dirnames, filenames in os.walk(tree):
         rel_dir = os.path.relpath(dirpath, tree).replace(os.sep, "/")
         rel_dir = "" if rel_dir == "." else rel_dir + "/"
@@ -107,8 +109,26 @@ def walk(tree):
                 links[rel] = os.readlink(full)
                 continue
             st = os.stat(full)
-            files[rel] = [file_sha(full), st.st_size, st.st_mode & 0o777]
+            same = False
+            if trust:
+                try:
+                    old = os.stat(os.path.join(trust, rel))
+                    same = (old.st_dev, old.st_ino) == (st.st_dev, st.st_ino)
+                except OSError:
+                    pass
+            files[rel] = [None if same else file_sha(full), st.st_size, st.st_mode & 0o777]
     return files, links
+
+
+def release_id_of(release):
+    """RELEASE_ID from a release's release.env (what its server reports); the directory name otherwise."""
+    try:
+        for line in (pathlib.Path(release) / "release.env").read_text().splitlines():
+            if line.startswith("RELEASE_ID="):
+                return line.split("=", 1)[1].strip()
+    except OSError:
+        pass
+    return pathlib.Path(release).name
 
 
 def tree_digest(files, links):
@@ -232,7 +252,41 @@ def locked():
 
 # ------------------------------------------------------------------------------------------------ commands
 
-def cmd_finish(lane, sha):
+def cmd_assemble(lane, sha, previous_name):
+    """A release staged from the previous one: hard-link it, then apply the changed files (a tar on stdin, with the
+    deleted paths listed in its .dev-push-deleted). `finish --previous` then reads only what changed."""
+    if not SHA.match(sha) or not SHA.match(previous_name):
+        fail("bad release name")
+    releases, _ = lane_dirs(lane)
+    previous = releases / previous_name
+    if not (previous / RECEIPT).is_file():
+        fail(f"{previous} was not staged by the router")
+    staging = releases / f"{sha}.staging"
+    shutil.rmtree(staging, ignore_errors=True)
+    subprocess.run(["cp", "-al", str(previous), str(staging)], check=True)
+    for rel in (*HOST_PATHS, RECEIPT, "channels-release.json"):
+        path = staging / rel
+        if path.is_dir() and not path.is_symlink():
+            shutil.rmtree(path)
+        elif path.exists() or path.is_symlink():
+            path.unlink()
+    # New files replace their links (--unlink-first) so the previous release is never written through.
+    result = subprocess.run(["tar", "-x", "--unlink-first", "-C", str(staging)], stdin=sys.stdin.buffer, capture_output=True)
+    if result.returncode != 0:
+        fail(f"tar: {result.stderr.decode(errors='replace')[-500:]}")
+    deleted = staging / ".dev-push-deleted"
+    removed = 0
+    if deleted.is_file():
+        for rel in deleted.read_text().splitlines():
+            path = (staging / rel)
+            if rel and str(path.resolve()).startswith(str(staging.resolve()) + "/") and (path.is_file() or path.is_symlink()):
+                path.unlink()
+                removed += 1
+        deleted.unlink()
+    out({"ok": True, "staging": str(staging), "removed": removed})
+
+
+def cmd_finish(lane, sha, previous_name=None):
     if not SHA.match(sha):
         fail("bad sha")
     releases, link = lane_dirs(lane)
@@ -241,8 +295,12 @@ def cmd_finish(lane, sha):
     if not staging.is_dir():
         fail(f"nothing staged at {staging}")
     manifest = json.load(sys.stdin)
-    files, links = walk(staging)
     want_files = {rel: list(entry) for rel, entry in manifest["files"].items()}
+    trust = releases / previous_name if previous_name and SHA.match(previous_name) and (releases / previous_name / RECEIPT).is_file() else None
+    files, links = walk(staging, trust)
+    for rel, entry in files.items():  # unchanged links into the verified previous release
+        if entry[0] is None and rel in want_files:
+            entry[0] = want_files[rel][0]
     want_links = manifest.get("links", {})
     extra = sorted(set(files) - set(want_files))[:20]
     missing = sorted(set(want_files) - set(files))[:20]
@@ -276,7 +334,9 @@ def cmd_finish(lane, sha):
     out({"ok": True, "release": str(target), "tree_sha256": digest, "files": len(files)})
 
 
-def cmd_activate(lane, sha, expect, wait_jobs):
+def cmd_activate(lane, sha, expect, wait_jobs, keep_server=False):
+    """keep_server: the release changes no server code (it keeps the running release's RELEASE_ID), so only `current`
+    and PHP move; Node keeps running, which is the release it would restart into."""
     if not SHA.match(sha):
         fail("bad sha")
     handle = locked()
@@ -287,11 +347,12 @@ def cmd_activate(lane, sha, expect, wait_jobs):
         fail(f"{target} was not staged by the router")
     previous = current_release(link)
     if previous == target.resolve():
-        error = wait_ready(sha, 30) if lane == "platform" else None
+        error = wait_ready(release_id_of(target), 30) if lane == "platform" else None
         out({"ok": error is None, "reused": True, "previous": previous.name, "error": error}, 0 if error is None else 1)
     if expect and expect != "-" and (previous is None or previous.name != expect):
         fail(f"current release is {previous.name if previous else None}, not {expect}", previous=previous.name if previous else None)
-    if lane == "platform":
+    keep_server = keep_server and lane == "platform" and previous is not None and release_id_of(previous) == release_id_of(target) and not AWAITING.is_file()
+    if lane == "platform" and not keep_server:
         deadline = time.time() + wait_jobs
         while running_jobs() > 0:
             if time.time() > deadline:
@@ -299,8 +360,13 @@ def cmd_activate(lane, sha, expect, wait_jobs):
             time.sleep(5)
     swap(link, target)
     try:
-        restart(lane, settings)
-        error = wait_ready(sha, 120) if lane == "platform" else None
+        if keep_server:
+            for service in settings.get("reload", []):
+                subprocess.run(["systemctl", "reload", service], check=True)
+            error = wait_ready(release_id_of(target), 15)
+        else:
+            restart(lane, settings)
+            error = wait_ready(release_id_of(target), 120) if lane == "platform" else None
         if error:
             raise RuntimeError(error)
     except Exception as exc:  # noqa: BLE001
@@ -308,7 +374,7 @@ def cmd_activate(lane, sha, expect, wait_jobs):
         if previous:
             swap(link, previous)
             restart(lane, settings)
-            back = wait_ready(previous.name, 120) if lane == "platform" else None
+            back = wait_ready(release_id_of(previous), 120) if lane == "platform" else None
             fail(f"activation failed: {reason}", rolled_back=back is None, rollback_error=back, previous=previous.name)
         fail(f"activation failed: {reason}", rolled_back=False)
     joined = False
@@ -318,7 +384,7 @@ def cmd_activate(lane, sha, expect, wait_jobs):
         AWAITING.unlink()
         joined = True
     handle.close()
-    out({"ok": True, "release": sha, "previous": previous.name if previous else None, "joined": joined})
+    out({"ok": True, "release": sha, "previous": previous.name if previous else None, "joined": joined, "kept_server": keep_server})
 
 
 def cmd_rollback(lane, sha):
@@ -331,7 +397,7 @@ def cmd_rollback(lane, sha):
         fail(f"no release {target}")
     swap(link, target)
     restart(lane, config())
-    error = wait_ready(sha, 120) if lane == "platform" else None
+    error = wait_ready(release_id_of(target), 120) if lane == "platform" else None
     handle.close()
     out({"ok": error is None, "release": sha, "error": error}, 0 if error is None else 1)
 
@@ -370,6 +436,15 @@ def cmd_prune(lane, keep, days):
     releases, link = lane_dirs(lane)
     current = current_release(link)
     keepers = {current.name} if current else set()
+    # A release that kept the server leaves Node running in an older release directory: never remove that one.
+    for service in config().get("services", []):
+        pid = subprocess.run(["systemctl", "show", service, "-p", "MainPID", "--value"], capture_output=True, text=True).stdout.strip()
+        try:
+            cwd = pathlib.Path(os.readlink(f"/proc/{pid}/cwd"))
+            if releases in cwd.parents:
+                keepers.add(cwd.relative_to(releases).parts[0])
+        except (OSError, ValueError):
+            pass
     candidates = sorted((p for p in releases.iterdir() if p.is_dir() and re.match(r"^[0-9a-f]{40}", p.name)), key=lambda p: p.stat().st_mtime, reverse=True)
     newest = {p.name for p in candidates[:keep]}
     cutoff = time.time() - days * 86400
@@ -477,7 +552,7 @@ def cmd_ssh():
         os.execvp("rsync", argv)
     if argv[0] in ("fm-release", "/usr/local/sbin/fm-release"):
         argv = argv[1:]
-    if not argv or argv[0] not in ("finish", "activate", "rollback", "status", "tree", "prune", "publish", "check"):
+    if not argv or argv[0] not in ("finish", "assemble", "activate", "rollback", "status", "tree", "prune", "publish", "check"):
         fail(f"command not allowed: {original[:80]}")
     main(argv)
 
@@ -498,11 +573,16 @@ def main(argv):
     if command == "ssh":
         return cmd_ssh()
     if command == "finish":
-        return cmd_finish(rest[0], rest[1])
+        previous = option("--previous", None)
+        return cmd_finish(rest[0], rest[1], previous)
+    if command == "assemble":
+        return cmd_assemble(rest[0], rest[1], rest[2])
     if command == "activate":
         expect = option("--expect", "-")
         wait_jobs = int(option("--wait-jobs", "600"))
-        return cmd_activate(rest[0], rest[1], expect, wait_jobs)
+        keep_server = "--keep-server" in rest
+        rest = [item for item in rest if item != "--keep-server"]
+        return cmd_activate(rest[0], rest[1], expect, wait_jobs, keep_server)
     if command == "rollback":
         return cmd_rollback(rest[0], rest[1])
     if command == "status":
