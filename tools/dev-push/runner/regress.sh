@@ -36,8 +36,10 @@ if [ ! -d "$modules/node_modules" ]; then
   (cd "$modules.tmp" && npm ci --no-audit --no-fund >/dev/null 2>&1) && mv "$modules.tmp" "$modules" || { echo '{"error":"npm ci failed"}'; exit 4; }
 fi
 ln -sfn "$modules/node_modules" "$tree/public/v1/node_modules"
+# Keep the three newest installs.
+ls -dt "$work"/modules/*/ 2>/dev/null | tail -n +4 | xargs -r rm -rf
 
-chrome=${CHROME_PATH:-$(ls -d "$HOME"/.cache/ms-playwright/chromium-*/chrome-linux/chrome 2>/dev/null | tail -1)}
+chrome=${CHROME_PATH:-$(ls -d "$HOME"/.cache/ms-playwright/chromium-*/chrome-linux*/chrome 2>/dev/null | sort -V | tail -1)}
 export CHROME_PATH=$chrome PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH=$chrome
 export FIRSTMEASURE_INTERNAL_API_SECRET=ci-test-internal-service-secret CI=1 NODE_OPTIONS=--max-old-space-size=4096
 
