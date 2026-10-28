@@ -99,11 +99,36 @@ export function changedPaths(base, sha, cwd, pathspec = LANE.owns) {
  * paths stay as on `tip`; they ship through platform). Null when the lane
  * already has every lane change in `source`. Throws on a conflict in a lane path.
  */
+/**
+ * Where `source` last agreed with the lane: the newest commit in its history whose lane paths equal the
+ * lane tip's, else the newest source a lane commit on `tip` recorded that `source` descends from.
+ */
+export function previousSource(tip, source, cwd) {
+  const owned = LANE.owns.map((p) => p.replace(/\/$/, ""));
+  const lanePaths = (commits) => git(["cat-file", "--batch-check=%(objectname)"], {
+    cwd, input: commits.flatMap((c) => owned.map((p) => `${c}:${p}`)).join("\n") + "\n"
+  }).trim().split("\n");
+  const want = lanePaths([tip]).join(" ");
+  const history = git(["rev-list", "--first-parent", "-n", "300", source], { cwd }).trim().split("\n").filter(Boolean);
+  const trees = lanePaths(history);
+  for (let i = 0; i < history.length; i++) {
+    if (trees.slice(i * owned.length, (i + 1) * owned.length).join(" ") === want) return history[i];
+  }
+  const log = git(["log", "-n", "500", "--format=%B%x00", tip], { cwd });
+  for (const match of log.matchAll(/as merged from ([0-9a-f]{40}) onto/g)) {
+    if (spawnSync("git", ["merge-base", "--is-ancestor", match[1], source], { cwd }).status === 0) return match[1];
+  }
+  return null;
+}
+
 export function laneCommit(source, tip, cwd) {
   source = git(["rev-parse", `${source}^{commit}`], { cwd }).trim();
   const isAncestor = spawnSync("git", ["merge-base", "--is-ancestor", tip, source], { cwd }).status === 0;
   if (isAncestor && changedPaths(tip, source, cwd, ["."]).every(ownsPath)) return source === tip ? null : source;
-  const merge = spawnSync("git", ["merge-tree", "--write-tree", "--name-only", "--no-messages", tip, source], { cwd, encoding: "utf8" });
+  // Merge from the source the lane last took from this line of work (each lane commit records it), so a
+  // second edit of the same file, or a revert, applies as a change on top of what the lane already has.
+  const base = previousSource(tip, source, cwd);
+  const merge = spawnSync("git", ["merge-tree", "--write-tree", "--name-only", "--no-messages", ...(base ? [`--merge-base=${base}`] : []), tip, source], { cwd, encoding: "utf8" });
   if (merge.status > 1 || !merge.stdout) throw new Error(`git merge-tree: ${merge.stderr.trim()}`);
   const [merged, ...conflicted] = merge.stdout.split("\n").filter(Boolean);
   const laneConflicts = [...new Set(conflicted.filter(ownsPath))];
