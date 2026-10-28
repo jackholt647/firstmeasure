@@ -3290,7 +3290,9 @@
     "ob_company_name_label": "Firmanavn",
     "ob_company_name_placeholder": "Navnet på firmaet ditt",
     "ob_names_missing_title": "Navnet ditt og firmaet",
-    "ob_names_missing_body": "Skriv inn navnet ditt og firmanavnet for å fortsette."
+    "ob_names_missing_body": "Skriv inn navnet ditt og firmanavnet for å fortsette.",
+    "ob_name_missing_body": "Skriv inn navnet ditt for å fortsette.",
+    "ob_company_missing_body": "Skriv inn firmanavnet for å fortsette."
   },
   "payroll": {
     "m_4a04382820d2e1": "Annet",
