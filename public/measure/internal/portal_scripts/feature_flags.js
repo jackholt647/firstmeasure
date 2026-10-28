@@ -415,7 +415,8 @@
       const saved = !!record.saved;
       const when = record.updated_at ? ` Last saved ${record.updated_at}` : '';
       const by = record.updated_by ? ` by ${record.updated_by}` : '';
-      meta.textContent = saved ? `Using saved signup defaults.${when}${by}.` : 'Using code defaults until this template is saved.';
+      const fallback = record.source === 'file' ? ' The config library could not be read; showing the last mirrored copy.' : '';
+      meta.textContent = (saved ? `Using saved signup defaults.${when}${by}.` : 'Using code defaults until this template is saved.') + fallback;
     }
   }
 

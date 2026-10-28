@@ -533,17 +533,48 @@ function portalFeatureFlagDefaultConfigPath() {
     return portalPlatformStorageRoot() . '/config/app_flag_defaults.json';
 }
 
+// The new-organization flag defaults are the config library entry app_flag_defaults/new_organization, read through
+// GET /v1/internal/admin/app-flag-defaults (docs/architecture/config-library.md). The JSON file is only the platform's
+// temporary mirror of that entry, read when the internal API cannot be reached.
 function portalFeatureFlagReadDefaultRecord() {
+    $api = portalFeatureFlagReadDefaultRecordViaInternalApi();
+    if (!empty($api['success'])) {
+        $stored = $api['record'];
+        return portalFeatureFlagDefaultRecordFromStored($stored, ((int)($stored['revision'] ?? 0)) > 0, 'config_library');
+    }
     $path = portalFeatureFlagDefaultConfigPath();
     $stored = is_file($path) ? portalFeatureFlagReadJson($path) : [];
+    $record = portalFeatureFlagDefaultRecordFromStored($stored, is_file($path), 'file');
+    $record['source_error'] = (string)($api['error'] ?? 'Internal API read failed');
+    return $record;
+}
+
+function portalFeatureFlagDefaultRecordFromStored($stored, $saved, $source) {
+    $stored = is_array($stored) ? $stored : [];
     $data = is_array($stored['data'] ?? null) ? $stored['data'] : [];
-    $flags = portalFeatureFlagNormalizeFlags($data['app_flags'] ?? $stored['app_flags'] ?? []);
     return [
         'id' => 'app_flag_defaults',
-        'flags' => $flags,
-        'saved' => is_file($path),
+        'flags' => portalFeatureFlagNormalizeFlags($data['app_flags'] ?? $stored['app_flags'] ?? []),
+        'saved' => (bool)$saved,
         'updated_at' => trim((string)($stored['updated_at'] ?? '')),
         'updated_by' => trim((string)($stored['updated_by'] ?? '')),
+        'source' => $source,
+    ];
+}
+
+function portalFeatureFlagReadDefaultRecordViaInternalApi() {
+    if (!function_exists('portalNodeInternalRequest')) {
+        return ['success' => false, 'error' => 'Internal API client unavailable'];
+    }
+    $res = portalNodeInternalRequest('GET', 'admin/app-flag-defaults');
+    $json = is_array($res['json'] ?? null) ? $res['json'] : [];
+    if (!empty($res['ok']) && is_array($json['defaults'] ?? null)) {
+        return ['success' => true, 'record' => $json['defaults']];
+    }
+    $message = (string)($json['message'] ?? $json['error'] ?? ($res['error'] ?? '') ?: 'Internal API read failed');
+    return [
+        'success' => false,
+        'error' => 'Internal API (' . (int)($res['status'] ?? 0) . '): ' . trim(substr($message, 0, 240)),
     ];
 }
 
