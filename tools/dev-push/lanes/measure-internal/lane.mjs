@@ -581,7 +581,8 @@ export default {
   // serves it, and puts every role back if anything fails.
   async deploy({ dir, sha, hosts, log = () => {} }) {
     const began = Date.now();
-    const timings = { stage: {}, activate: {} };
+    // Flat "<step>[:<role>]" keys, like the platform lane's (the router prefixes them with "deploy:").
+    const timings = {};
     const roles = ROLES.filter((role) => hosts.roles.includes(role));
     const before = Object.fromEntries(await Promise.all(roles.map(async (role) => [role, await hosts.status(role, LANE.name)])));
     const broken = roles.filter((role) => !before[role].ok);
@@ -598,7 +599,7 @@ export default {
       log(`staging ${sha.slice(0, 10)} on ${roles.join(", ")} (${Object.keys(tree.files).length} files, tree ${tree.tree_sha256.slice(0, 12)})`);
       const staged = await Promise.all(roles.map(async (role) => {
         const [result, ms] = await timed(() => hosts.stage(role, { lane: LANE.name, sha, dir: build, manifest: tree, releases: before[role].lanes?.[LANE.name]?.releases }));
-        timings.stage[role] = ms;
+        timings[`transfer:${role}`] = ms;
         return result;
       }));
       const stageErrors = roles.filter((_, index) => !staged[index].ok);
@@ -621,7 +622,7 @@ export default {
       const activated = [];
       for (const role of roles) {
         const [result, ms] = await timed(() => hosts.activate(role, { lane: LANE.name, sha, expect: previous[role] }));
-        timings.activate[role] = ms;
+        timings[`activate:${role}`] = ms;
         activated.push(result);
       }
       let error = roles.filter((_, index) => !activated[index].ok).map((role) => `${role}: ${activated[roles.indexOf(role)].error}`).join("; ");
