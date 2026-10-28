@@ -317,8 +317,11 @@ Library entries `guided_experience/materials.*` and `operations.*`, with the tab
 
 **Price book setup** (`pricebook/setups/roofing.ts`). Products, rules, regions and
 the kinds of roof (`roof_types`, each naming its component systems) come from
-`materials/roofing-research/roofing-catalog-2026.json`, read in its own schema, with
-the roofing library as the fallback. Every manufacturer in the catalog is offered,
+the config library entry `pricebook_setup/roofing.catalog` (the research catalog,
+read in its own schema); the setup's default tables (featured brands, brand looks,
+default slots, ice coverage choices, categories) are `pricebook_setup/roofing.settings`.
+All of it is edited on dev as [config library](config-library.md) data, not in
+code. Every manufacturer in the catalog is offered,
 the four most installed first; a manufacturer's `logo` (a path under
 `public/images/brands/roofing/`, checked by `logoPath`) shows in a common box on its
 card, and the wordmark shows when there is none or it fails to load.
@@ -332,8 +335,8 @@ no document has said otherwise, each a product from a dropdown:
 - underlayment, ice and water, ridge vent, intake vent, box vents: the first
   picked brand that makes one, its `setup_default` accessory else its first
   (another picked brand fills a gap, then a generic item); pipe boot: the generic
-  lead boot first (`DEFAULT_SLOTS`, `slotDefault`);
-- how far ice and water runs (`ICE_COVERAGE`): 18 in at eaves and rakes plus
+  lead boot first (`default_slots`, `slotDefault`);
+- how far ice and water runs (`ice_coverage`): 18 in at eaves and rakes plus
   valleys (default), 36 in or 72 in at the eaves plus valleys, 36 in at the eaves
   only, valleys only, or none. The measurement rule counts 3 ft courses (half a
   course along eaves and rakes at 18 in, one down each valley); the price book
@@ -356,7 +359,7 @@ only and is divided by that product's own coverage (an Owens Corning bundle
 covers 32.8 sq ft; a WeatherWatch roll 2 squares).
 
 **Without shingle** there is no manufacturer catalog. The roof-type components
-(`materials/roofing-research/roof-type-components-2026.json`, `status:
+(`pricebook_setup/roofing.components`, `status:
 provisional`: per system, components with a group, `standard`, dictionary `terms`,
 `waste_percent`, a unit and its coverage, or `entered_by_hand`) are written as
 price book items (`rtc-<system>-<key>`, cost 0 until a price sheet sets it) for
@@ -392,8 +395,9 @@ the apply's `item_ids` include them. A sheet that names a supplier also sets tha
 supplier's costs (`suppliers.prices.update`).
 
 **Suppliers.** With shingle, the suppliers step offers the researched suppliers in
-`materials/roofing-research/roofing-suppliers-2026.json` (which manufacturers each
-stocks, `full_range` or `retail_core`, a brand colour, observed library prices)
+`pricebook_setup/roofing.suppliers` (which manufacturers each
+stocks, `full_range` or `retail_core`, a brand colour, observed prices from
+`material_library/roofing`)
 as pills, and any typed supplier as a tag. A researched supplier starts with the
 picked brands' products it stocks (a big-box store only default lines and
 plain accessories); a typed one starts empty. Without shingle nothing is

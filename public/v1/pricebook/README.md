@@ -9,7 +9,7 @@ It follows the same host/module structure as `firstmeasure`, but it is a separat
 - [api.ts](./api.ts): route registration mounted by the shared `v1` host
 - [API_SCHEMA.md](./API_SCHEMA.md): schema and endpoint blueprint for the module
 - [constants.ts](./constants.ts): schema-level enums and defaults
-- [default_template.ts](./default_template.ts): bundled API-owned default template catalog
+- [template.ts](./template.ts): reads the bundled default template, a config library entry (`pricebook_template/default`, see docs/architecture/config-library.md) with its version and the item ids each version added
 - [schemas.ts](./schemas.ts): request validation schemas
 - [storage.ts](./storage.ts): folder-backed pricebook persistence and asset management
 

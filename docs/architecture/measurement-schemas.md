@@ -5,13 +5,39 @@ Measurements are standardized; work is not. Documents, material calculations and
 agreeing on anything else. `platform/publication/measurement-schemas.ts` holds
 that agreement.
 
+## Where the dictionary lives
+
+Definitions, partitions, equivalences and schemas are [config library](config-library.md)
+entries of the append-only kinds `measurement_definition`, `measurement_partition`,
+`measurement_equivalence` and `measurement_schema` (`config-library/kinds/`), one
+entry per definition, partition, equivalence or schema, its id the dictionary id.
+They are edited on dev through the library, never in code; `measurement-schemas.ts`
+rebuilds its maps from them whenever `libraryVersion()` changes, so every read stays
+synchronous. The `register*` functions remain only to check the dictionary's rules
+in tests; what they add lives in that process.
+
+A save is checked as the dictionary always was (one key one meaning, a part in its
+base's unit, a partition of a whole, an equivalence of keyed, unpartitioned
+definitions of one kind of unit, schema members that exist) and, because these
+kinds are append-only, against the revision it replaces, across releases:
+
+- an entry is never deleted;
+- a definition's `key`, `keyPattern`, `unit`, `derive` and `slice` never change, and
+  a level is never taken away (one may be added); `label` and `description` may be
+  reworded;
+- a partition's `of`, `dimension` and `complete` never change;
+- an equivalence's members never change;
+- a schema only grows: a member is never dropped and whether it is required never
+  changes; adding members needs a new `version`, and the version changes only with
+  the selection.
+
 ## Dictionary
 
 A **definition** is the meaning of one measurement: a stable id
 (`roof.ridge_length`), the key measurement datasets store it under (`ridgesLf`),
 its unit, and the levels it can be recorded at (`project`, `structure`). A family
 of keys uses `keyPattern` (`pitch6Squares`, `pitch7.5Squares`, …). One key has
-one meaning: registering a second definition for a claimed key fails.
+one meaning: saving a second definition for a claimed key fails.
 
 `measurementAmount` and `measurementAmounts` are the only place a measurement is
 read as a number: the assessment and pay evaluation both use them. A banded
@@ -109,7 +135,7 @@ state.
 
 Two definitions can be the same quantity in different units: roof area in
 square feet and roof squares of 100 square feet. The dictionary says so with an
-**equivalence** (`registerMeasurementEquivalence`), an addition that changes
+**equivalence** (a `measurement_equivalence` library entry), an addition that changes
 neither definition. Its units must be the same kind in `UNIT_SCALES` (area,
 length), neither may be a part of a partition, and the first member listed is
 the one a person enters. When a schema asks for any member, the editor asks

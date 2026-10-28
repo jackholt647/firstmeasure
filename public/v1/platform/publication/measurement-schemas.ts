@@ -1,3 +1,4 @@
+import { libraryEntries, libraryVersion } from "../../config-library/library.js";
 import { badRequest } from "../errors.js";
 import type { JsonSchema } from "./contracts.js";
 import { registerDataProvider } from "./providers.js";
@@ -51,23 +52,126 @@ export type MeasurementSchema = {
   measurements: { definition: string; required: boolean }[];
 };
 
-const definitions = new Map<string, MeasurementDefinition>();
-const schemas = new Map<string, MeasurementSchema>();
-const partitions = new Map<string, MeasurementPartition>();
-const ID = /^[a-z][a-z0-9_]*(\.[a-z][a-z0-9_]*)*$/;
+/**
+ * Two or more definitions that are the same quantity of the same thing, stated in different units (roof squares and
+ * roof area). Declaring this is an addition to the dictionary: neither definition changes. The first listed is the one a
+ * person enters; the others follow from it. Parts of a partition are never equivalent to anything (they are parts).
+ * `id` names it in the config library; it defaults to the first member's id.
+ */
+export type MeasurementEquivalence = { id?: string; measurements: string[]; description: string };
 
-export function registerMeasurementPartition(partition: MeasurementPartition) {
+/**
+ * The dictionary is data: config library entries of the kinds measurement_definition, measurement_partition,
+ * measurement_equivalence and measurement_schema (config-library/kinds/), edited on dev and checked in as the
+ * snapshot. It is rebuilt from them whenever the library changes (`libraryVersion`), so every read below is
+ * synchronous and current. The register* functions add to it in this process only (tests use them to check the
+ * dictionary's rules); what they add is kept across rebuilds.
+ */
+type Dictionary = {
+  definitions: Map<string, MeasurementDefinition>;
+  partitions: Map<string, MeasurementPartition>;
+  schemas: Map<string, MeasurementSchema>;
+  equivalences: (MeasurementEquivalence & { id: string })[];
+  /** Exact dataset keys, then key families. One key has one meaning. */
+  keys: Map<string, MeasurementDefinition>;
+  patterns: { definition: MeasurementDefinition; pattern: RegExp }[];
+};
+const emptyDictionary = (): Dictionary => ({ definitions: new Map(), partitions: new Map(), schemas: new Map(), equivalences: [], keys: new Map(), patterns: [] });
+const ID = /^[a-z][a-z0-9_]*(\.[a-z][a-z0-9_]*)*$/;
+const ID_ORDER = new Intl.Collator("en", { numeric: true });
+export const MEASUREMENT_LIBRARY_KINDS = { definition: "measurement_definition", partition: "measurement_partition", equivalence: "measurement_equivalence", schema: "measurement_schema" } as const;
+
+let dictionary = emptyDictionary();
+let builtAt = -1;
+const localAdditions: Array<(target: Dictionary) => void> = [];
+function dict(): Dictionary {
+  const version = libraryVersion();
+  if (version !== builtAt) {
+    builtAt = version;
+    dictionary = buildDictionary();
+    for (const add of localAdditions) { try { add(dictionary); } catch { /* no longer fits the library's dictionary */ } }
+  }
+  return dictionary;
+}
+/** The dictionary from the library: whole measurements, then partitions, then their parts, then equivalences and schemas. */
+function buildDictionary() {
+  const target = emptyDictionary();
+  const problems: string[] = [];
+  const attempt = (what: string, add: () => void) => { try { add(); } catch (error) { problems.push(`${what}: ${(error as Error).message}`); } };
+  const definitions = libraryEntries<Omit<MeasurementDefinition, "id">>(MEASUREMENT_LIBRARY_KINDS.definition).map((entry) => ({ ...entry.data, id: entry.id }) as MeasurementDefinition);
+  for (const definition of definitions.filter((entry) => !entry.slice)) attempt(definition.id, () => addDefinition(target, definition));
+  for (const entry of libraryEntries<Omit<MeasurementPartition, "id">>(MEASUREMENT_LIBRARY_KINDS.partition)) attempt(entry.id, () => addPartition(target, { ...entry.data, id: entry.id } as MeasurementPartition));
+  for (const definition of definitions.filter((entry) => entry.slice)) attempt(definition.id, () => addDefinition(target, definition));
+  // Listed by id with numbers compared as numbers, so parts read in order (squares over 2/12 before over 12/12).
+  target.definitions = new Map([...target.definitions].sort(([a], [b]) => ID_ORDER.compare(a, b)));
+  for (const entry of libraryEntries<MeasurementEquivalence>(MEASUREMENT_LIBRARY_KINDS.equivalence)) attempt(entry.id, () => addEquivalence(target, { ...entry.data, id: entry.id }));
+  for (const entry of libraryEntries<Omit<MeasurementSchema, "id">>(MEASUREMENT_LIBRARY_KINDS.schema)) attempt(entry.id, () => addSchema(target, { ...entry.data, id: entry.id } as MeasurementSchema));
+  // Entries are checked when they are saved, so this only happens to a snapshot or store written some other way.
+  if (problems.length) console.error(`Measurement dictionary: ${problems.length} library entries were left out. ${problems.join(" ")}`);
+  return target;
+}
+
+function addPartition(target: Dictionary, partition: MeasurementPartition) {
   if (!ID.test(partition.id) || !ID.test(partition.dimension) || !partition.label.trim()) throw badRequest("measurement_partition_invalid", "A partition needs a stable id, the attribute it cuts by and a label.");
-  if (partitions.has(partition.id)) throw badRequest("measurement_partition_duplicate", `Partition ${partition.id} is already defined.`);
-  const base = definitions.get(partition.of);
+  if (target.partitions.has(partition.id)) throw badRequest("measurement_partition_duplicate", `Partition ${partition.id} is already defined.`);
+  const base = target.definitions.get(partition.of);
   if (!base) throw badRequest("measurement_partition_unknown_base", `Partition ${partition.id} cuts ${partition.of}, which is not in the dictionary.`);
   // A part of a part would need the overlap of two attributes, which is only known where someone measured it.
   if (base.slice) throw badRequest("measurement_partition_invalid", `Partition ${partition.id} must cut a whole measurement, and ${partition.of} is itself a part.`);
-  partitions.set(partition.id, Object.freeze(jsonClone(partition)));
+  target.partitions.set(partition.id, Object.freeze(jsonClone(partition)));
 }
-export function listMeasurementPartitions() { return [...partitions.values()].map((partition) => jsonClone(partition)); }
+function keyOwner(target: Dictionary, key: string) {
+  return target.keys.get(key) || target.patterns.find((entry) => entry.pattern.test(key))?.definition || null;
+}
+function addDefinition(target: Dictionary, definition: MeasurementDefinition) {
+  if (!ID.test(definition.id) || !definition.label.trim() || !definition.unit.trim() || !definition.levels.length) throw badRequest("measurement_definition_invalid", "A measurement needs a stable id, a label, a unit and a level.");
+  if (!definition.key === !definition.keyPattern) throw badRequest("measurement_definition_invalid", "A measurement has either one key or one key pattern.");
+  const pattern = definition.keyPattern ? new RegExp(definition.keyPattern) : null;
+  if (definition.slice) {
+    const partition = target.partitions.get(definition.slice.partition);
+    if (!partition) throw badRequest("measurement_definition_invalid", `Measurement ${definition.id} names partition ${definition.slice.partition}, which is not defined.`);
+    if (target.definitions.get(partition.of)!.unit !== definition.unit) throw badRequest("measurement_definition_invalid", `Measurement ${definition.id} is a part of ${partition.of} and must be in its unit.`);
+  }
+  if (target.definitions.has(definition.id)) throw badRequest("measurement_definition_duplicate", `Measurement ${definition.id} is already defined.`);
+  // One key, one meaning: two definitions may not claim the same dataset key.
+  if (definition.key && keyOwner(target, definition.key)) throw badRequest("measurement_key_claimed", `Key ${definition.key} already belongs to ${keyOwner(target, definition.key)!.id}.`);
+  const frozen = Object.freeze(jsonClone(definition));
+  target.definitions.set(definition.id, frozen);
+  if (frozen.key) target.keys.set(frozen.key, frozen);
+  else target.patterns.push({ definition: frozen, pattern: pattern! });
+}
+function addSchema(target: Dictionary, schema: MeasurementSchema) {
+  if (!/^[a-z][a-z0-9_]*$/.test(schema.id) || !schema.version || !schema.title.trim() || !schema.measurements.length) throw badRequest("measurement_schema_invalid", "A measurement schema needs an id, a version, a title and at least one measurement.");
+  if (target.schemas.has(schema.id)) throw badRequest("measurement_schema_duplicate", `Measurement schema ${schema.id} is already registered.`);
+  const seen = new Set<string>();
+  for (const entry of schema.measurements) {
+    if (!target.definitions.has(entry.definition)) throw badRequest("measurement_schema_unknown_definition", `Schema ${schema.id} names ${entry.definition}, which is not in the dictionary.`);
+    if (seen.has(entry.definition)) throw badRequest("measurement_schema_invalid", `Schema ${schema.id} lists ${entry.definition} twice.`);
+    seen.add(entry.definition);
+  }
+  target.schemas.set(schema.id, Object.freeze(jsonClone(schema)));
+}
+function addEquivalence(target: Dictionary, equivalence: MeasurementEquivalence) {
+  const members = equivalence.measurements.map((id) => target.definitions.get(id));
+  if (members.length < 2 || members.some((definition) => !definition)) throw badRequest("measurement_equivalence_invalid", "An equivalence names two or more defined measurements.");
+  const quantity = UNIT_SCALES[members[0]!.unit]?.quantity;
+  for (const definition of members) {
+    if (!definition!.key || definition!.slice || !quantity || UNIT_SCALES[definition!.unit]?.quantity !== quantity) throw badRequest("measurement_equivalence_invalid", `${definition!.id} cannot be equivalent: it needs its own key, no partition, and a unit of the same kind.`);
+    if (target.equivalences.some((existing) => existing.measurements.includes(definition!.id))) throw badRequest("measurement_equivalence_duplicate", `${definition!.id} is already in an equivalence.`);
+  }
+  target.equivalences.push(Object.freeze(jsonClone({ ...equivalence, id: equivalence.id || equivalence.measurements[0]! })));
+}
+/** Adds to the dictionary in this process only, with the dictionary's rules. Library entries are the dictionary. */
+function addLocally(add: (target: Dictionary) => void) { add(dict()); localAdditions.push(add); }
+export function registerMeasurementPartition(partition: MeasurementPartition) { addLocally((target) => addPartition(target, partition)); }
+export function registerMeasurementDefinition(definition: MeasurementDefinition) { addLocally((target) => addDefinition(target, definition)); }
+export function registerMeasurementSchema(schema: MeasurementSchema) { addLocally((target) => addSchema(target, schema)); }
+export function registerMeasurementEquivalence(equivalence: MeasurementEquivalence) { addLocally((target) => addEquivalence(target, equivalence)); }
+
+export function listMeasurementPartitions() { return [...dict().partitions.values()].map((partition) => jsonClone(partition)); }
 /** The whole measurement a definition is a part of, or the definition itself when it is not a part of anything. */
 export function measurementBase(definitionId: string): string {
+  const { definitions, partitions } = dict();
   const slice = definitions.get(definitionId)?.slice;
   return slice ? partitions.get(slice.partition)!.of : definitionId;
 }
@@ -78,6 +182,7 @@ export function measurementBase(definitionId: string): string {
  */
 export function measurementRelation(first: string, second: string): "same" | "part" | "whole" | "disjoint" | "overlap" | "unrelated" {
   if (first === second) return "same";
+  const { definitions } = dict();
   const a = definitions.get(first), b = definitions.get(second);
   if (!a || !b || measurementBase(first) !== measurementBase(second)) return "unrelated";
   if (!b.slice) return "part";
@@ -91,6 +196,7 @@ export function measurementRelation(first: string, second: string): "same" | "pa
  */
 export function measurementCover(baseId: string, definitionIds: string[]): "whole" | "part" | "none" {
   if (measurementWhole(baseId, definitionIds).length) return "whole";
+  const { definitions } = dict();
   return definitionIds.some((id) => definitions.has(id) && measurementBase(id) === baseId) ? "part" : "none";
 }
 /**
@@ -99,6 +205,7 @@ export function measurementCover(baseId: string, definitionIds: string[]): "whol
  * the same base counts some of the same thing again.
  */
 export function measurementWhole(baseId: string, definitionIds: string[]): string[] {
+  const { definitions, partitions } = dict();
   const set = new Set(definitionIds.filter((id) => definitions.has(id) && measurementBase(id) === baseId));
   if (set.has(baseId)) return [baseId];
   for (const partition of partitions.values()) {
@@ -108,63 +215,22 @@ export function measurementWhole(baseId: string, definitionIds: string[]): strin
   }
   return [];
 }
-export function registerMeasurementDefinition(definition: MeasurementDefinition) {
-  if (!ID.test(definition.id) || !definition.label.trim() || !definition.unit.trim() || !definition.levels.length) throw badRequest("measurement_definition_invalid", "A measurement needs a stable id, a label, a unit and a level.");
-  if (!definition.key === !definition.keyPattern) throw badRequest("measurement_definition_invalid", "A measurement has either one key or one key pattern.");
-  if (definition.keyPattern) new RegExp(definition.keyPattern);
-  if (definition.slice) {
-    const partition = partitions.get(definition.slice.partition);
-    if (!partition) throw badRequest("measurement_definition_invalid", `Measurement ${definition.id} names partition ${definition.slice.partition}, which is not defined.`);
-    if (definitions.get(partition.of)!.unit !== definition.unit) throw badRequest("measurement_definition_invalid", `Measurement ${definition.id} is a part of ${partition.of} and must be in its unit.`);
-  }
-  if (definitions.has(definition.id)) throw badRequest("measurement_definition_duplicate", `Measurement ${definition.id} is already defined.`);
-  // One key, one meaning: two definitions may not claim the same dataset key.
-  if (definition.key && definitionForKey(definition.key)) throw badRequest("measurement_key_claimed", `Key ${definition.key} already belongs to ${definitionForKey(definition.key)!.id}.`);
-  definitions.set(definition.id, Object.freeze(jsonClone(definition)));
-}
-export function registerMeasurementSchema(schema: MeasurementSchema) {
-  if (!/^[a-z][a-z0-9_]*$/.test(schema.id) || !schema.version || !schema.title.trim() || !schema.measurements.length) throw badRequest("measurement_schema_invalid", "A measurement schema needs an id, a version, a title and at least one measurement.");
-  if (schemas.has(schema.id)) throw badRequest("measurement_schema_duplicate", `Measurement schema ${schema.id} is already registered.`);
-  const seen = new Set<string>();
-  for (const entry of schema.measurements) {
-    if (!definitions.has(entry.definition)) throw badRequest("measurement_schema_unknown_definition", `Schema ${schema.id} names ${entry.definition}, which is not in the dictionary.`);
-    if (seen.has(entry.definition)) throw badRequest("measurement_schema_invalid", `Schema ${schema.id} lists ${entry.definition} twice.`);
-    seen.add(entry.definition);
-  }
-  schemas.set(schema.id, Object.freeze(jsonClone(schema)));
-}
 /**
  * Units of the same kind of quantity, as a multiple of that kind's base unit. Only units listed here convert, and only
- * between definitions declared equivalent below; a value is never converted because its unit merely looks similar.
+ * between definitions declared equivalent; a value is never converted because its unit merely looks similar.
  */
 const UNIT_SCALES: Record<string, { quantity: string; factor: number }> = {
   ft: { quantity: "length", factor: 1 },
   ft2: { quantity: "area", factor: 1 },
   roofing_square: { quantity: "area", factor: 100 }
 };
-/**
- * Two or more definitions that are the same quantity of the same thing, stated in different units (roof squares and
- * roof area). Declaring this is an addition to the dictionary: neither definition changes. The first listed is the one a
- * person enters; the others follow from it. Parts of a partition are never equivalent to anything (they are parts).
- */
-export type MeasurementEquivalence = { measurements: string[]; description: string };
-const equivalences: MeasurementEquivalence[] = [];
-export function registerMeasurementEquivalence(equivalence: MeasurementEquivalence) {
-  const members = equivalence.measurements.map((id) => definitions.get(id));
-  if (members.length < 2 || members.some((definition) => !definition)) throw badRequest("measurement_equivalence_invalid", "An equivalence names two or more defined measurements.");
-  const quantity = UNIT_SCALES[members[0]!.unit]?.quantity;
-  for (const definition of members) {
-    if (!definition!.key || definition!.slice || !quantity || UNIT_SCALES[definition!.unit]?.quantity !== quantity) throw badRequest("measurement_equivalence_invalid", `${definition!.id} cannot be equivalent: it needs its own key, no partition, and a unit of the same kind.`);
-    if (equivalences.some((existing) => existing.measurements.includes(definition!.id))) throw badRequest("measurement_equivalence_duplicate", `${definition!.id} is already in an equivalence.`);
-  }
-  equivalences.push(Object.freeze(jsonClone(equivalence)));
-}
-/** Every declared equivalence, in the order declared. */
-export function listMeasurementEquivalences() { return equivalences.map((equivalence) => jsonClone(equivalence)); }
+/** Every declared equivalence, ordered by id. */
+export function listMeasurementEquivalences() { return dict().equivalences.map((equivalence) => jsonClone(equivalence)); }
 /** The kind of quantity a unit measures (length, area), or null for a unit that never converts. */
 export function unitQuantity(unit: string) { return UNIT_SCALES[unit]?.quantity ?? null; }
 /** The definitions equivalent to this one, each with the factor that turns a value of this one into a value of that one. */
 export function measurementEquivalents(definitionId: string): { definition: string; key: string; unit: string; factor: number }[] {
+  const { definitions, equivalences } = dict();
   const group = equivalences.find((equivalence) => equivalence.measurements.includes(definitionId));
   const own = definitions.get(definitionId);
   if (!group || !own) return [];
@@ -175,24 +241,20 @@ export function measurementEquivalents(definitionId: string): { definition: stri
 }
 /** The member of an equivalence a person enters (the first listed), or the definition itself when it has none. */
 export function preferredEquivalent(definitionId: string) {
-  return equivalences.find((equivalence) => equivalence.measurements.includes(definitionId))?.measurements[0] || definitionId;
+  return dict().equivalences.find((equivalence) => equivalence.measurements.includes(definitionId))?.measurements[0] || definitionId;
 }
-export function listMeasurementDefinitions() { return [...definitions.values()].map((definition) => jsonClone(definition)); }
-export function listMeasurementSchemas() { return [...schemas.values()].map((schema) => jsonClone(schema)); }
+export function listMeasurementDefinitions() { return [...dict().definitions.values()].map((definition) => jsonClone(definition)); }
+export function listMeasurementSchemas() { return [...dict().schemas.values()].map((schema) => jsonClone(schema)); }
 export function measurementSchema(id: string) {
-  const schema = schemas.get(id);
+  const schema = dict().schemas.get(id);
   if (!schema) throw badRequest("measurement_schema_unknown", `There is no measurement schema called ${id}.`);
   return jsonClone(schema);
 }
-export function definitionForKey(key: string) {
-  for (const definition of definitions.values()) {
-    if (definition.key ? definition.key === key : new RegExp(definition.keyPattern!).test(key)) return definition;
-  }
-  return null;
-}
+export function definitionForKey(key: string) { return keyOwner(dict(), key); }
 /** The schemas a scope template works in. Templates carry `measurement_schema_ids`; one without them is unscoped. */
 export function measurementSchemaIdsForScope(template: unknown): string[] {
   const ids = template && typeof template === "object" ? (template as Record<string, unknown>).measurement_schema_ids : null;
+  const { schemas } = dict();
   return Array.isArray(ids) ? [...new Set(ids.map(String).filter((id) => schemas.has(id)))] : [];
 }
 
@@ -204,6 +266,7 @@ const numberIn = (key: string) => { const match = key.match(/\d+(?:\.\d+)?/); re
  * summed from the exact values that fall inside it. This is the only place a measurement is read as a number.
  */
 export function measurementAmount(source: unknown, definitionId: string): number | null {
+  const { definitions } = dict();
   const definition = definitions.get(definitionId);
   if (!definition) return null;
   const entries = Object.entries(obj(source));
@@ -258,7 +321,7 @@ export function assessMeasurements(schemaId: string, datasetValue: unknown): Mea
   const structures = (Array.isArray(obj(datasetValue).structures) ? obj(datasetValue).structures as unknown[] : []).map(obj);
   const matching = (source: Obj, definition: MeasurementDefinition) => Object.fromEntries(Object.entries(source).filter(([key]) => (definition.key ? definition.key === key : new RegExp(definition.keyPattern!).test(key)))) as Record<string, Value>;
   const measurements = schema.measurements.map((entry) => {
-    const definition = definitions.get(entry.definition)!;
+    const definition = dict().definitions.get(entry.definition)!;
     const values = matching(totals, definition);
     const perStructure = definition.levels.includes("structure") ? structures.map((structure) => ({ id: String(structure.id || ""), name: String(structure.name || ""), values: matching(obj(structure.measurements), definition) })).filter((structure) => Object.keys(structure.values).length) : [];
     const recorded = [...Object.values(values), ...perStructure.flatMap((structure) => Object.values(structure.values))];
@@ -273,63 +336,6 @@ export function assessMeasurements(schemaId: string, datasetValue: unknown): Mea
     unrecognized: [...keys].filter((key) => !definitionForKey(key)).sort()
   };
 }
-
-// ---- The dictionary. Keys are the ones measurement datasets already use, so existing calculations keep working. ----
-const both: MeasurementLevel[] = ["project", "structure"];
-const define = (id: string, key: string, label: string, unit: string, description: string) => registerMeasurementDefinition({ id, key, label, unit, levels: both, description });
-define("roof.area", "roofArea", "Roof area", "ft2", "Sloped surface area of every roof face.");
-define("roof.squares", "roofSquares", "Roof squares", "roofing_square", "Roof area in roofing squares of 100 square feet.");
-// The same roof area, in square feet or in roofing squares of 100 square feet. Squares are what a roofer enters.
-registerMeasurementEquivalence({ measurements: ["roof.squares", "roof.area"], description: "Roof squares are roof area in units of 100 square feet." });
-define("roof.ventilation_squares", "ventilationSquares", "Ventilated squares", "roofing_square", "Roof squares counted toward ventilation.");
-// Roof squares cut three ways. Every square has a pitch, so both pitch partitions are complete; only some squares are
-// hand-carried, so that partition names one part and leaves the rest unnamed.
-registerMeasurementPartition({ id: "roof.pitch_exact", of: "roof.squares", dimension: "roof.pitch", label: "By exact pitch", complete: true, description: "Roof squares at each exact pitch." });
-registerMeasurementPartition({ id: "roof.pitch_bands", of: "roof.squares", dimension: "roof.pitch", label: "By pitch band", complete: true, description: "Roof squares in the standard pitch bands, from flat to steeper than 12/12." });
-registerMeasurementPartition({ id: "roof.access_carried", of: "roof.squares", dimension: "roof.access", label: "By how material reaches the roof", complete: false, description: "Roof squares whose material has to be carried by hand." });
-registerMeasurementDefinition({ id: "roof.squares_hand_carried", key: "handCarriedSquares", label: "Hand-carried squares", unit: "roofing_square", levels: both, slice: { partition: "roof.access_carried" }, description: "Roof squares that cannot be loaded directly, so material is carried to them and debris carried away by hand." });
-registerMeasurementDefinition({ id: "roof.squares_at_pitch", keyPattern: "^pitch\\d+(?:\\.\\d+)?Squares$", label: "Squares at each pitch", unit: "roofing_square", levels: both, slice: { partition: "roof.pitch_exact" }, description: "Squares at one exact pitch, one key per pitch such as pitch6Squares for 6/12." });
-const band = (id: string, key: string, label: string, description: string, above: number, upTo: number | null) => registerMeasurementDefinition({ id, key, label, unit: "roofing_square", levels: both, description, derive: { from: "roof.squares_at_pitch", above, upTo }, slice: { partition: "roof.pitch_bands" } });
-band("roof.flat_squares", "flatRoofSquares", "Flat roof squares", "Squares pitched 2/12 or lower.", -1, 2);
-band("roof.squares_2_to_4", "pitch2to4Squares", "Squares over 2/12 up to 4/12", "Squares pitched over 2/12 and up to 4/12.", 2, 4);
-band("roof.squares_4_to_6", "pitch4to6Squares", "Squares over 4/12 up to 6/12", "Squares pitched over 4/12 and up to 6/12.", 4, 6);
-band("roof.squares_6_to_8", "pitch6to8Squares", "Squares over 6/12 up to 8/12", "Squares pitched over 6/12 and up to 8/12.", 6, 8);
-band("roof.squares_9_to_12", "pitch9to12Squares", "Squares over 8/12 up to 12/12", "Squares pitched over 8/12 and up to 12/12.", 8, 12);
-band("roof.squares_13_plus", "pitch13PlusSquares", "Squares over 12/12", "Squares pitched steeper than 12/12.", 12, null);
-define("roof.ridge_length", "ridgesLf", "Ridges", "ft", "Total ridge length.");
-define("roof.hip_length", "hipsLf", "Hips", "ft", "Total hip length.");
-define("roof.valley_length", "valleyLf", "Valleys", "ft", "Total valley length.");
-define("roof.rake_length", "rakesLf", "Rakes", "ft", "Total rake length.");
-define("roof.eave_length", "eavesLf", "Eaves", "ft", "Total eave length.");
-define("roof.head_wall_length", "headWallLf", "Head walls", "ft", "Length of roof meeting a wall across its top.");
-define("roof.side_wall_length", "sideWallLf", "Side walls", "ft", "Length of roof meeting a wall along its slope, where step flashing goes.");
-define("roof.transition_length", "transitionsLf", "Transitions", "ft", "Length of pitch transitions.");
-define("roof.parapet_length", "parapetLf", "Parapets", "ft", "Parapet wall length.");
-define("roof.protrusion_length", "protrusionLf", "Protrusions", "ft", "Perimeter of roof protrusions.");
-define("roof.chimney_back_length", "chimneyBackLf", "Chimney backs", "ft", "Length across the high side of chimneys.");
-define("roof.chimney_step_length", "chimneyStepLf", "Chimney sides", "ft", "Length along the sloped sides of chimneys.");
-define("roof.chimney_apron_length", "chimneyApronLf", "Chimney aprons", "ft", "Length across the low side of chimneys.");
-define("roof.skylight_length", "skylightLf", "Skylight perimeter", "ft", "Perimeter of skylights.");
-define("roof.unclassified_length", "unknownLf", "Unclassified lines", "ft", "Roof lines that were measured but not classified.");
-define("exterior_wall.gross_area", "wallGrossArea", "Gross exterior wall area", "ft2", "Exterior wall area including openings.");
-define("exterior_wall.net_area", "wallNetArea", "Net exterior wall area", "ft2", "Exterior wall area with openings taken out.");
-define("exterior_wall.opening_area", "wallOpeningArea", "Opening area", "ft2", "Area of windows, doors and other openings.");
-define("exterior_wall.opening_perimeter", "wallOpeningPerimeter", "Opening perimeter", "ft", "Perimeter of windows, doors and other openings.");
-define("exterior_wall.top_length", "wallTopLf", "Wall tops", "ft", "Length along the top of walls.");
-define("exterior_wall.bottom_length", "wallBottomLf", "Wall bottoms", "ft", "Length along the bottom of walls.");
-define("exterior_wall.transition_length", "wallTransitionsLf", "Wall transitions", "ft", "Length of transitions between wall materials.");
-define("exterior_wall.termination_length", "wallTerminationsLf", "Wall terminations", "ft", "Length where wall cladding terminates.");
-define("exterior_wall.inside_corner_length", "insideCornersLf", "Inside corners", "ft", "Total inside corner length.");
-define("exterior_wall.outside_corner_length", "outsideCornersLf", "Outside corners", "ft", "Total outside corner length.");
-define("exterior_wall.return_area", "wallReturnsArea", "Returns", "ft2", "Area of wall returns.");
-
-// ---- Schemas. A new kind of work is mostly a new selection from the dictionary. ----
-const select = (required: string[], optional: string[]) => [...required.map((definition) => ({ definition, required: true })), ...optional.map((definition) => ({ definition, required: false }))];
-const roofLines = ["roof.ridge_length", "roof.hip_length", "roof.valley_length", "roof.rake_length", "roof.eave_length", "roof.head_wall_length", "roof.side_wall_length", "roof.transition_length", "roof.parapet_length", "roof.protrusion_length", "roof.chimney_back_length", "roof.chimney_step_length", "roof.chimney_apron_length", "roof.skylight_length", "roof.unclassified_length"];
-registerMeasurementSchema({ id: "roofing", version: "2", title: "Roofing", description: "Sloped and flat roof replacement, repair and maintenance.", measurements: select(["roof.area", "roof.squares"], ["roof.ventilation_squares", "roof.squares_hand_carried","roof.flat_squares", "roof.squares_2_to_4", "roof.squares_4_to_6", "roof.squares_6_to_8", "roof.squares_9_to_12", "roof.squares_13_plus", "roof.squares_at_pitch", ...roofLines]) });
-// Gutters run along the eaves, so this schema shares the roofing schema's eave length rather than defining its own.
-registerMeasurementSchema({ id: "gutters", version: "1", title: "Gutters", description: "Gutter and downspout replacement.", measurements: select(["roof.eave_length"], ["roof.rake_length"]) });
-registerMeasurementSchema({ id: "siding", version: "1", title: "Siding", description: "Wall cladding replacement.", measurements: select(["exterior_wall.net_area"], ["exterior_wall.gross_area", "exterior_wall.opening_area", "exterior_wall.opening_perimeter", "exterior_wall.top_length", "exterior_wall.bottom_length", "exterior_wall.transition_length", "exterior_wall.termination_length", "exterior_wall.inside_corner_length", "exterior_wall.outside_corner_length", "exterior_wall.return_area"]) });
 
 // ---- Publication ----
 const definitionSchema: JsonSchema = { type: "object", required: ["id", "label", "unit", "levels", "description"], properties: { id: { type: "string" }, key: { type: "string" }, keyPattern: { type: "string" }, label: { type: "string" }, unit: { type: "string" }, levels: { type: "array", items: { enum: ["project", "structure"] } }, description: { type: "string" }, derive: { type: "object" }, slice: { type: "object", required: ["partition"], properties: { partition: { type: "string" } }, additionalProperties: false } }, additionalProperties: false };

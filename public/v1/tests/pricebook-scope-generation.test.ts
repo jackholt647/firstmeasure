@@ -82,7 +82,7 @@ test("unsupported pieces and missing assemblies fail explicitly", () => {
 });
 
 test("the bundled template offers the GAF lines, more by search, with colors and a finish on the line", async () => {
-  const { DEFAULT_PRICEBOOK_TEMPLATE } = await import("../pricebook/default_template.js");
+  const DEFAULT_PRICEBOOK_TEMPLATE = structuredClone((await import("../pricebook/template.js")).defaultPricebookTemplate());
   const { choiceGroupCandidates } = await import("../pricebook/scope-generation.js");
   const book = DEFAULT_PRICEBOOK_TEMPLATE.catalog;
   const root = record(generatePieceScope(book, "roof_replacement", measurements));

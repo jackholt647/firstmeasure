@@ -67,8 +67,13 @@ for a pay sheet to read. An amount that cannot be worked out is unknown, not
 zero.
 
 Like the measurement dictionary, this only grows: an item's meaning and unit
-never change. The quantity rules are rules of thumb and are in code today; an
-organization cannot yet change them or add its own items.
+never change. Items and work schemas are [config library](config-library.md)
+entries of the append-only kinds `work_item` and `work_schema`, edited on dev and
+rebuilt into `work-items.ts` whenever the library changes. An item's `kind` and
+`unit` never change (its label and description may); a work schema never drops an
+item, and any change to it, including its quantity rules (which are rules of
+thumb), needs a new `version`. An organization cannot yet change them or add its
+own items.
 
 `workRequirements(schemaIds, context)` is the scope set's sizing: what a job of
 that kind would need if it included everything. It is used for amounts only.

@@ -206,7 +206,7 @@
   }
   root.FirstMateSupplierColumns = { mount, priceSheet, sheetMessage };
 
-  // Column accents for well-known suppliers (the brand colours in materials/roofing-research/roofing-suppliers-2026.json).
+  // Column accents for well-known suppliers (the brand colours in the config library entry pricebook_setup/roofing.suppliers).
   const KNOWN_COLORS = { 'abc supply': '#C8102E', 'srs distribution': '#E35205', 'srs building products': '#E35205', 'beacon (qxo)': '#003A70', 'beacon': '#003A70', 'the home depot': '#F96302', 'home depot': '#F96302', "lowe's": '#004990', 'lowe’s': '#004990', 'gulfeagle supply': '#00539B', 'convoy supply': '#D2232A' };
   /** The saved suppliers as columns, saved through the suppliers' own writer (MaterialsAPI.suppliers.save). */
   function mountTools(host, options = {}){

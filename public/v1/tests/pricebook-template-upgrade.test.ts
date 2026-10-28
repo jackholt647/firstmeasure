@@ -10,7 +10,7 @@ test("a newer template adds items and classification to an existing market book 
   try {
     const storage = await import("../pricebook/storage.js");
     const { GLOBAL_MARKET_PRICEBOOK_ID, PRICEBOOK_FILE_NAMES } = await import("../pricebook/constants.js");
-    const { DEFAULT_PRICEBOOK_TEMPLATE } = await import("../pricebook/default_template.js");
+    const DEFAULT_PRICEBOOK_TEMPLATE = (await import("../pricebook/template.js")).defaultPricebookTemplate();
     const orgId = "org_template_upgrade";
 
     // Stand in for a market book and an organization made from template 1:
