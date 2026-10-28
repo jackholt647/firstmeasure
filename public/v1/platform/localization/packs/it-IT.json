@@ -3190,7 +3190,9 @@
     "ob_company_name_label": "Nome dell'azienda",
     "ob_company_name_placeholder": "Il nome della tua azienda",
     "ob_names_missing_title": "Il tuo nome e la tua azienda",
-    "ob_names_missing_body": "Inserisci il tuo nome e il nome dell'azienda per continuare."
+    "ob_names_missing_body": "Inserisci il tuo nome e il nome dell'azienda per continuare.",
+    "ob_name_missing_body": "Inserisci il tuo nome per continuare.",
+    "ob_company_missing_body": "Inserisci il nome dell'azienda per continuare."
   },
   "payroll": {
     "m_4a04382820d2e1": "Altro",

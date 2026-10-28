@@ -79,6 +79,17 @@ test('1M8-246: a new signup names itself and its company on the welcome page bef
     assert.equal(await currentPage(page), 0);
     assert.equal(await company.getAttribute('aria-invalid'), 'true');
     assert.equal(await name.getAttribute('aria-invalid'), 'false');
+    const lastToast = () => page.evaluate(() => window.toasts.at(-1));
+    // Only the missing field is named (1M8-250).
+    assert.equal(await lastToast(), 'Company name: Enter your company name to continue.');
+    await name.fill('');
+    await company.fill('Reyes Roofing LLC');
+    await page.locator('#obSkip0').click();
+    await page.waitForTimeout(150);
+    assert.equal(await currentPage(page), 0);
+    assert.equal(await lastToast(), 'Your name: Enter your name to continue.');
+    assert.equal(await company.getAttribute('aria-invalid'), 'false');
+    await name.fill('Dana Reyes');
 
     await company.fill('  Reyes Roofing LLC ');
     assert.deepEqual(await page.locator('.ob-prev-orgname').allInnerTexts(), ['Reyes Roofing LLC'], 'the sample report shows the name as typed');

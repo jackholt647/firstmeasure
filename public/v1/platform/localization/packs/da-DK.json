@@ -3286,7 +3286,9 @@
     "ob_company_name_label": "Firmanavn",
     "ob_company_name_placeholder": "Dit firmanavn",
     "ob_names_missing_title": "Dit navn og firma",
-    "ob_names_missing_body": "Indtast dit navn og firmanavn for at fortsætte."
+    "ob_names_missing_body": "Indtast dit navn og firmanavn for at fortsætte.",
+    "ob_name_missing_body": "Indtast dit navn for at fortsætte.",
+    "ob_company_missing_body": "Indtast dit firmanavn for at fortsætte."
   },
   "payroll": {
     "m_4a04382820d2e1": "Andet",

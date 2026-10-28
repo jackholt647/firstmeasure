@@ -5315,7 +5315,9 @@
     "ob_company_name_label": "Company name",
     "ob_company_name_placeholder": "Your company name",
     "ob_names_missing_title": "Your name and company",
-    "ob_names_missing_body": "Enter your name and company name to continue."
+    "ob_names_missing_body": "Enter your name and company name to continue.",
+    "ob_name_missing_body": "Enter your name to continue.",
+    "ob_company_missing_body": "Enter your company name to continue."
   },
   "payroll": {
     "m_4a04382820d2e1": "Other",
