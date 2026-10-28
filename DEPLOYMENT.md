@@ -1,5 +1,7 @@
 # FirstMeasure: local development and production deployment
 
+October 28 production hotfix `ef39262b`: [1M8-249 organization-window Impersonate follows the user record, and portal pages use the sign-in email, ending the "switched accounts" lock-out](deploy/digitalocean/production-hotfix-20261028bb.md) on all roles; no production data changed; rollback is `71bf98a2`.
+
 October 27 production hotfix `71bf98a2`: [1M8-248 Customers tab Impersonate follows the user record, not the profile email](deploy/digitalocean/production-hotfix-20261027aa.md) on all roles; no production data changed; rollback is `fc31553b`.
 
 October 27 1M8-248 on dev: [Customers tab impersonation finds the sign-in identity through the user record, so users whose profile email differs from their sign-in email no longer fail with identity_not_found](deploy/digitalocean/development-impersonate-user-20261027.md) records `b49136e1` on `claude/impersonate-by-user-1m8-248` (from `production-live`). Not a regression; code not on production; no production data changed.
