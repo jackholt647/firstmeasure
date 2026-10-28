@@ -1,0 +1,369 @@
+{
+  "kind": "scope_template",
+  "id": "same_day_service_sales",
+  "revision": 1,
+  "sha256": "4efe205fd5b7abe597882d5aede6213dab879818a5b4214ba37ca7cbc60b4731",
+  "title": "Same-Day Service Sales",
+  "updated_at": "2026-10-28T00:40:02.983Z",
+  "updated_by": "generator",
+  "data": {
+    "schema_version": 1,
+    "id": "same_day_service_sales",
+    "category_ids": [
+      "sales"
+    ],
+    "name": "Same-Day Service Sales",
+    "description": "On-site assessment, materials/labor quote, payment and customer authorization.",
+    "details": "A mobile sales visit that creates an editable service quote. The customer's in-person signature activates the predetermined Same-Day Service Production scope through the standard document.signed event.",
+    "color": "#7c3aed",
+    "icon": "fa-bolt",
+    "status": "active",
+    "sort_order": 3,
+    "proposal": {
+      "kind": "same_day_service_sales",
+      "selectable": false
+    },
+    "fields": [],
+    "custom_fields": {
+      "groups": [
+        {
+          "path": "assignments",
+          "label": "Assignments",
+          "description": "People and teams responsible for this project.",
+          "order": 10,
+          "collapsed_by_default": true,
+          "location": "project_left",
+          "icon": "fa-user-group"
+        }
+      ],
+      "fields": [
+        {
+          "path": "assignments.estimator",
+          "label": "Estimator",
+          "description": "Salesperson responsible for estimating and selling the project.",
+          "type": "organization_user",
+          "cardinality": "one",
+          "group_path": "assignments",
+          "order": 10,
+          "assignment_policy": {
+            "allow_unassigned": true,
+            "rules": [
+              {
+                "subject_types": [
+                  "organization_user"
+                ],
+                "role_ids": [
+                  "sales_appointments"
+                ]
+              }
+            ]
+          },
+          "default_from": {
+            "source": "event_assignment",
+            "event_type_id": "sales_appointment",
+            "selection": "first_qualifying",
+            "write_mode": "if_empty",
+            "fallback_source": "proposal_creator"
+          },
+          "ui": {
+            "project_tag": true,
+            "icon": "fa-user-tie"
+          }
+        },
+        {
+          "path": "assignments.inside_salesperson",
+          "label": "Inside salesperson",
+          "description": "Person who scheduled or qualified the sales appointment.",
+          "type": "organization_user",
+          "cardinality": "one",
+          "group_path": "assignments",
+          "order": 20,
+          "assignment_policy": {
+            "allow_unassigned": true,
+            "rules": [
+              {
+                "subject_types": [
+                  "organization_user"
+                ],
+                "role_ids": [
+                  "inside_sales"
+                ]
+              }
+            ]
+          },
+          "default_from": {
+            "source": "event_scheduler",
+            "event_type_id": "sales_appointment",
+            "selection": "first_qualifying",
+            "write_mode": "if_empty"
+          }
+        }
+      ]
+    },
+    "communications": {
+      "email_forwarding": {
+        "enabled": true,
+        "priority": 10,
+        "target": {
+          "kind": "custom_field",
+          "custom_field_path": "assignments.estimator"
+        }
+      }
+    },
+    "checklists": [
+      {
+        "id": "same_day_assessment",
+        "title": "On-site assessment",
+        "description": "Information required before preparing the same-day quote.",
+        "kind": "todo",
+        "audience": "crew",
+        "crew_editable": false,
+        "icon": "fa-clipboard-check",
+        "sort_order": 10,
+        "assignment_policy": {
+          "schema_version": 1,
+          "mode": "any",
+          "allow_unassigned": true,
+          "rules": []
+        },
+        "items": [
+          {
+            "title": "Confirm the requested service and affected equipment",
+            "item_type": "todo"
+          },
+          {
+            "title": "Document existing conditions and take required photos",
+            "item_type": "todo"
+          },
+          {
+            "title": "Confirm materials, labor, and estimated hours",
+            "item_type": "todo"
+          },
+          {
+            "title": "Review the recommended work with the customer",
+            "item_type": "todo"
+          }
+        ]
+      }
+    ],
+    "work_plan": {
+      "title": "Same-Day Service Sales",
+      "terminology": {
+        "phase": "Phase",
+        "stage": "Stage",
+        "task": "To-do",
+        "board": "Board"
+      },
+      "root_nodes": [
+        {
+          "id": "same_day_sales_phase",
+          "title": "Same-Day Service Sales",
+          "terminology_key": "work.phase",
+          "completion_mode": "all_children",
+          "metadata": {
+            "color": "#7c3aed",
+            "board_id": "same_day_service_sales"
+          },
+          "children": [
+            {
+              "id": "on_site_visit_stage",
+              "title": "On-Site Visit",
+              "terminology_key": "work.stage",
+              "completion_mode": "all_children",
+              "metadata": {
+                "color": "#7c3aed"
+              },
+              "children": [
+                {
+                  "id": "authorize_same_day_service",
+                  "title": "Assess, quote, collect payment & authorize",
+                  "terminology_key": "work.task",
+                  "actionable": true,
+                  "show_in_todo_list": true,
+                  "assigned_role_ids": [
+                    "sales_appointments"
+                  ],
+                  "automation_bindings": {
+                    "onReady": [
+                      {
+                        "id": "issue_same_day_service_authorization",
+                        "automation": "documents.issue.v1",
+                        "input": {
+                          "template_id": "tpl_same_day_service_authorization",
+                          "workflow_id": "wfl_same_day_service_field",
+                          "deliver": "none",
+                          "title": "Same-Day Service Authorization",
+                          "params": {
+                            "service_category": "Same-day equipment install",
+                            "diagnosis": "",
+                            "scope_items": [
+                              {
+                                "id": "same_day_materials",
+                                "type": "scope_item",
+                                "name": "Installation materials",
+                                "display_name": "Installation materials",
+                                "description": "Equipment, fittings and installation supplies",
+                                "unit": "job",
+                                "quantity": "1",
+                                "unit_price": 450,
+                                "base_price": 450,
+                                "price_driving": true,
+                                "included": false,
+                                "selection": {
+                                  "mode": "always",
+                                  "selected": true
+                                },
+                                "children": []
+                              },
+                              {
+                                "id": "same_day_labor",
+                                "type": "scope_item",
+                                "name": "Installation labor",
+                                "display_name": "Installation labor",
+                                "description": "Estimated technician hours",
+                                "unit": "hour",
+                                "quantity": "3",
+                                "unit_price": 165,
+                                "base_price": 165,
+                                "price_driving": true,
+                                "included": false,
+                                "selection": {
+                                  "mode": "always",
+                                  "selected": true
+                                },
+                                "children": []
+                              }
+                            ]
+                          }
+                        },
+                        "explainer": "Create the technician's mobile assessment and quote workflow as soon as the visit is ready."
+                      }
+                    ],
+                    "onCompleted": [
+                      {
+                        "id": "mark_sale_won",
+                        "automation": "sales.markWon.v1",
+                        "input": {},
+                        "explainer": "The signed authorization is when this visit counts as a sale. Move this to another step to count it there instead."
+                      },
+                      {
+                        "id": "activate_same_day_service_production",
+                        "automation": "scopes.activateTemplate.v1",
+                        "input": {
+                          "template_id": "same_day_service_production",
+                          "instance_key": "signed_same_day_authorization"
+                        },
+                        "explainer": "The signed authorization places the project into the predetermined same-day production workflow."
+                      }
+                    ]
+                  },
+                  "external_triggers": [
+                    {
+                      "event": "document.signed",
+                      "transition": "completed",
+                      "conditions": {
+                        "payload.template_id": "tpl_same_day_service_authorization"
+                      },
+                      "explainer": "The customer's on-site authorization completes the sales visit."
+                    }
+                  ],
+                  "metadata": {
+                    "kind": "same_day_service_visit",
+                    "frontend_action": {
+                      "kind": "open_project",
+                      "tab": "signatures"
+                    }
+                  }
+                }
+              ]
+            }
+          ]
+        }
+      ],
+      "metadata": {
+        "board_color": "#7c3aed"
+      }
+    },
+    "metadata": {
+      "preset": true,
+      "field_launch": {
+        "enabled": true,
+        "title": "Same-Day Service Install",
+        "description": "Assess the work, build an on-site materials and labor quote, collect payment, and obtain authorization.",
+        "category": "Service installs",
+        "icon": "fa-bolt",
+        "keywords": [
+          "same day",
+          "service",
+          "install",
+          "furnace",
+          "water heater"
+        ],
+        "frequent": true
+      },
+      "visit_workflow": {
+        "enabled": true,
+        "id": "same_day_sales_visit",
+        "title": "Same-Day Service Visit",
+        "event_types": [
+          "sales_appointment"
+        ],
+        "steps": [
+          {
+            "id": "en_route",
+            "title": "On my way",
+            "navigation_title": "En route",
+            "kind": "status",
+            "description": "Let the customer know you are headed to the appointment.",
+            "action": {
+              "label": "I'm on my way",
+              "transition": "en_route",
+              "notify": {
+                "channel": "sms",
+                "message": "Hi {{customer.name}}, {{technician.name}} is on the way to your appointment at {{project.address}}."
+              }
+            }
+          },
+          {
+            "id": "arrived",
+            "title": "Arrive",
+            "navigation_title": "Arrived",
+            "kind": "status",
+            "description": "Confirm that you have arrived and are ready to begin the visit.",
+            "action": {
+              "label": "I've arrived",
+              "transition": "arrived"
+            }
+          },
+          {
+            "id": "assessment",
+            "title": "Complete the assessment",
+            "navigation_title": "Assess",
+            "kind": "checklist",
+            "description": "Work through the assigned on-site checklist before preparing the quote."
+          },
+          {
+            "id": "authorization",
+            "title": "Quote and authorization",
+            "navigation_title": "Authorize",
+            "kind": "workflow",
+            "description": "Build the quote, collect the required payment, and obtain the customer's signature.",
+            "scope_template_id": "same_day_service_sales",
+            "target_tab": "crew_signatures"
+          },
+          {
+            "id": "finish",
+            "title": "Finish the visit",
+            "navigation_title": "Done",
+            "kind": "complete",
+            "description": "Confirm that the appointment workflow is complete.",
+            "action": {
+              "label": "Complete visit",
+              "transition": "completed"
+            }
+          }
+        ]
+      }
+    }
+  }
+}

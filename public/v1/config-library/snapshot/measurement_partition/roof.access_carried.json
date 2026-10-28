@@ -1,0 +1,16 @@
+{
+  "kind": "measurement_partition",
+  "id": "roof.access_carried",
+  "revision": 1,
+  "sha256": "bf55845acf45d577edbd01a2e4217c11a414a04ff96b676835d6c8508975404d",
+  "title": "By how material reaches the roof",
+  "updated_at": "2026-10-28T00:40:02.983Z",
+  "updated_by": "generator",
+  "data": {
+    "of": "roof.squares",
+    "dimension": "roof.access",
+    "label": "By how material reaches the roof",
+    "complete": false,
+    "description": "Roof squares whose material has to be carried by hand."
+  }
+}

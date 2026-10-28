@@ -1,0 +1,136 @@
+{
+  "kind": "document_workflow",
+  "id": "wfl_same_day_service_field",
+  "revision": 1,
+  "sha256": "d123d7bd5202c70db81ad17c3534237f7a7f0ece0d773a70b6bfbb320d9fa58c",
+  "title": "Same-day service visit",
+  "updated_at": "2026-10-28T00:40:02.983Z",
+  "updated_by": "generator",
+  "data": {
+    "name": "Same-day service visit",
+    "description": "Mobile field assessment and materials/labor estimate that hands off to payment and customer authorization.",
+    "status": "archived",
+    "seeding": "with_template",
+    "definition": {
+      "schema_version": 1,
+      "name": "Same-day service visit",
+      "contract": {
+        "params": {
+          "project": {
+            "type": "entity",
+            "entity": "project"
+          },
+          "customer": {
+            "type": "entity",
+            "entity": "contact"
+          },
+          "service_category": {
+            "type": "string",
+            "label": "Service type"
+          },
+          "diagnosis": {
+            "type": "text",
+            "label": "Diagnosis and proposed work"
+          },
+          "scope_items": {
+            "type": "list",
+            "items": {
+              "type": "pricebook_line"
+            },
+            "required": true,
+            "label": "Materials and labor quote"
+          }
+        },
+        "outputs": {
+          "payment": {
+            "type": "payment",
+            "obligation": "full",
+            "required_for": "completed"
+          },
+          "sig_customer": {
+            "type": "signature",
+            "required": true,
+            "signer": "customer"
+          }
+        }
+      },
+      "steps": [
+        {
+          "id": "st_diagnosis",
+          "title": "Assess the service",
+          "navigation_title": "Assess",
+          "description": "Document what you found before building the on-site quote.",
+          "audience": [
+            "field"
+          ],
+          "items": [
+            {
+              "kind": "select",
+              "writes": "params.service_category",
+              "required": true,
+              "label": "Service type",
+              "options": [
+                "Same-day equipment install",
+                "Emergency repair",
+                "Accessory replacement",
+                "Preventive service"
+              ]
+            },
+            {
+              "kind": "text",
+              "writes": "params.diagnosis",
+              "required": true,
+              "label": "Diagnosis and recommended work",
+              "description": "Use customer-friendly language; this appears on the authorization.",
+              "presentation": {
+                "style": "multiline"
+              }
+            }
+          ]
+        },
+        {
+          "id": "st_quote",
+          "title": "Build the quote",
+          "navigation_title": "Quote",
+          "description": "Enter materials, estimated labor hours, and the labor rate. The authorization total updates from these rows.",
+          "audience": [
+            "field"
+          ],
+          "items": [
+            {
+              "kind": "line_item_editor",
+              "writes": "params.scope_items",
+              "required": true,
+              "label": "Materials and labor",
+              "description": "For labor, use quantity for estimated hours and unit price for the hourly rate."
+            }
+          ]
+        },
+        {
+          "id": "st_review",
+          "title": "Confirm with the customer",
+          "navigation_title": "Confirm",
+          "description": "Check the estimate, then open the customer authorization to take payment and sign.",
+          "audience": [
+            "field"
+          ],
+          "items": [
+            {
+              "kind": "review",
+              "presentation": {
+                "live": false
+              }
+            }
+          ]
+        }
+      ],
+      "audiences": {
+        "field": {
+          "theme": "portal"
+        }
+      }
+    },
+    "metadata": {},
+    "pricebook_defaults": []
+  }
+}

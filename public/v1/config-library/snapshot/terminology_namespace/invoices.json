@@ -1,0 +1,21 @@
+{
+  "kind": "terminology_namespace",
+  "id": "invoices",
+  "revision": 1,
+  "sha256": "7f304248923c36dd4bdcbbe88133f45d4257d5df5ba278840cf9914823f14df6",
+  "title": "Invoices",
+  "updated_at": "2026-10-28T00:40:02.983Z",
+  "updated_by": "generator",
+  "data": {
+    "title": "Invoices",
+    "note": "Shared display labels. Record identifiers and authored content stay unchanged.",
+    "position": 380,
+    "terms": [
+      {
+        "key": "portal_tab",
+        "label": "Invoices",
+        "kind": "navigation"
+      }
+    ]
+  }
+}

@@ -1,0 +1,15 @@
+{
+  "kind": "work_item",
+  "id": "roofing.wall_flashing",
+  "revision": 1,
+  "sha256": "ef45de25ed92a70dec9412838f287b8719e8c5397ec34886cd2f4c680cdf5c8d",
+  "title": "Wall flashing",
+  "updated_at": "2026-10-28T00:40:02.983Z",
+  "updated_by": "generator",
+  "data": {
+    "label": "Wall flashing",
+    "kind": "work",
+    "unit": "ft",
+    "description": "Flash where the roof meets a wall."
+  }
+}

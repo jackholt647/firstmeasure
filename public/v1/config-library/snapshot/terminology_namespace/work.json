@@ -1,0 +1,56 @@
+{
+  "kind": "terminology_namespace",
+  "id": "work",
+  "revision": 1,
+  "sha256": "9dd802c51e054dd6721c7ed4e538572183cdab70af53590c9991991d6c4ac6b1",
+  "title": "Work",
+  "updated_at": "2026-10-28T00:40:02.983Z",
+  "updated_by": "generator",
+  "data": {
+    "title": "Work",
+    "note": "Shared display labels. Record identifiers and authored content stay unchanged.",
+    "position": 310,
+    "terms": [
+      {
+        "key": "phase",
+        "label": "Phase",
+        "kind": "entity"
+      },
+      {
+        "key": "phases",
+        "label": "Phases",
+        "kind": "entity"
+      },
+      {
+        "key": "stage",
+        "label": "Stage",
+        "kind": "entity"
+      },
+      {
+        "key": "stages",
+        "label": "Stages",
+        "kind": "entity"
+      },
+      {
+        "key": "task",
+        "label": "To-do",
+        "kind": "entity"
+      },
+      {
+        "key": "tasks",
+        "label": "To-dos",
+        "kind": "entity"
+      },
+      {
+        "key": "board",
+        "label": "Board",
+        "kind": "entity"
+      },
+      {
+        "key": "boards",
+        "label": "Boards",
+        "kind": "entity"
+      }
+    ]
+  }
+}

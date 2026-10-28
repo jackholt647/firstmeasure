@@ -1,0 +1,15 @@
+{
+  "kind": "work_item",
+  "id": "gutters.install",
+  "revision": 1,
+  "sha256": "91257bce4d2c17cb9345dcf2ea672e102b811a4e81fc559d826b621f0aeec845",
+  "title": "Install gutters",
+  "updated_at": "2026-10-28T00:40:02.983Z",
+  "updated_by": "generator",
+  "data": {
+    "label": "Install gutters",
+    "kind": "work",
+    "unit": "ft",
+    "description": "Hang the replacement gutter runs."
+  }
+}

@@ -1,0 +1,20 @@
+{
+  "kind": "automation_rule_default",
+  "id": "platform_reconcile_obligation_recognition",
+  "revision": 1,
+  "sha256": "87ed67759ca8b06dda17d0f3914570ddf625909955ea1c2c138cf66fb8943d22",
+  "title": "Recognize milestone-due payments when work completes",
+  "updated_at": "2026-10-28T00:40:02.983Z",
+  "updated_by": "generator",
+  "data": {
+    "id": "platform_reconcile_obligation_recognition",
+    "sort_order": 6,
+    "enabled": true,
+    "title": "Recognize milestone-due payments when work completes",
+    "customer_visible": false,
+    "event": "work.node.completed",
+    "conditions": {},
+    "automation": "payments.reconcileRecognition.v1",
+    "input": {}
+  }
+}

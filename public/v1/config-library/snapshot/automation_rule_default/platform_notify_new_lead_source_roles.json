@@ -1,0 +1,49 @@
+{
+  "kind": "automation_rule_default",
+  "id": "platform_notify_new_lead_source_roles",
+  "revision": 1,
+  "sha256": "649fae921f07f341fe35fdef6967db080f51ff3d4aba780c5af98d36d3c0d34a",
+  "title": "Tell a lead source's roles about its leads",
+  "updated_at": "2026-10-28T00:40:02.983Z",
+  "updated_by": "generator",
+  "data": {
+    "id": "platform_notify_new_lead_source_roles",
+    "sort_order": 1,
+    "enabled": true,
+    "title": "Tell a lead source's roles about its leads",
+    "explainer": "When a lead arrives from a source that names who to tell (a website form's Notify these roles), we notify those roles.",
+    "customer_visible": true,
+    "event": "lead.received",
+    "conditions": {
+      "match": "all",
+      "rules": [
+        {
+          "field": "payload.notice.notify",
+          "operator": "not_equals",
+          "value": "false"
+        },
+        {
+          "field": "payload.notice.target_role_ids",
+          "operator": "is_present"
+        }
+      ]
+    },
+    "automation": "notification.create.v1",
+    "input": {
+      "id": "notification_new_lead_{{project.id}}",
+      "title": "{{event.payload.notice.title}}",
+      "body": "{{event.payload.notice.body}}",
+      "target_role_ids": "{{event.payload.notice.target_role_ids}}",
+      "push": true,
+      "source": "{{event.payload.notice.source}}",
+      "context": {
+        "lead_source": "{{event.payload.source_kind}}"
+      },
+      "frontend_action": {
+        "kind": "open_project",
+        "project_id": "{{project.id}}",
+        "project_tab": "overview"
+      }
+    }
+  }
+}

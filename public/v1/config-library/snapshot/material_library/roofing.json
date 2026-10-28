@@ -1,0 +1,2379 @@
+{
+  "kind": "material_library",
+  "id": "roofing",
+  "revision": 1,
+  "sha256": "69c13f77a9cf2766373b8dc602c9495f8d2b2b54bdf639a45dcf1f88bdc71163",
+  "title": "Roofing library (supplier research, 2026-10-12)",
+  "updated_at": "2026-10-28T00:40:02.983Z",
+  "updated_by": "generator",
+  "data": {
+    "title": "Roofing library (supplier research, 2026-10-12)",
+    "notes": [
+      "A supplier SKU or price appears only where the research saw it on a public listing; a null price means the supplier carries the item at a price we do not know. Price book base costs without an observed price are estimates.",
+      "Order emails are deliberately absent: these are real companies and this is test data."
+    ],
+    "items": [
+      {
+        "id": "lib-shingle-gaf-hdz",
+        "name": "GAF Timberline HDZ Architectural Shingles",
+        "code": "0489180",
+        "type": "Shingles",
+        "manufacturer": "GAF",
+        "unit": "bundle",
+        "cost": 41,
+        "price": 55.35,
+        "note": "33.33 sq ft per bundle, 3 bundles per square; any standard colour e.g. Charcoal"
+      },
+      {
+        "id": "lib-shingle-gaf-uhdz",
+        "name": "GAF Timberline UHDZ Architectural Shingles",
+        "code": "0585180",
+        "type": "Shingles",
+        "manufacturer": "GAF",
+        "unit": "bundle",
+        "cost": 54.97,
+        "price": 74.21,
+        "note": ""
+      },
+      {
+        "id": "lib-shingle-gaf-royal-sovereign",
+        "name": "GAF Royal Sovereign 3-Tab Shingles",
+        "code": "0201180",
+        "type": "Shingles",
+        "manufacturer": "GAF",
+        "unit": "bundle",
+        "cost": 33,
+        "price": 44.55,
+        "note": ""
+      },
+      {
+        "id": "lib-shingle-oc-duration",
+        "name": "Owens Corning TruDefinition Duration Architectural Shingles",
+        "code": "TD01",
+        "type": "Shingles",
+        "manufacturer": "Owens Corning",
+        "unit": "bundle",
+        "cost": 43.47,
+        "price": 58.68,
+        "note": "e.g. Onyx Black or Driftwood"
+      },
+      {
+        "id": "lib-shingle-oc-oakridge",
+        "name": "Owens Corning Oakridge Architectural Shingles",
+        "code": "HL01",
+        "type": "Shingles",
+        "manufacturer": "Owens Corning",
+        "unit": "bundle",
+        "cost": 45.97,
+        "price": 62.06,
+        "note": ""
+      },
+      {
+        "id": "lib-shingle-oc-supreme",
+        "name": "Owens Corning Supreme 3-Tab Shingles",
+        "code": "EK01",
+        "type": "Shingles",
+        "manufacturer": "Owens Corning",
+        "unit": "bundle",
+        "cost": 33,
+        "price": 44.55,
+        "note": ""
+      },
+      {
+        "id": "lib-shingle-ct-landmark",
+        "name": "CertainTeed Landmark Architectural Shingles",
+        "code": "622905",
+        "type": "Shingles",
+        "manufacturer": "CertainTeed",
+        "unit": "bundle",
+        "cost": 44.48,
+        "price": 60.05,
+        "note": ""
+      },
+      {
+        "id": "lib-shingle-ct-landmark-pro",
+        "name": "CertainTeed Landmark Pro Architectural Shingles",
+        "code": "412293",
+        "type": "Shingles",
+        "manufacturer": "CertainTeed",
+        "unit": "bundle",
+        "cost": 47,
+        "price": 63.45,
+        "note": ""
+      },
+      {
+        "id": "lib-shingle-iko-cambridge",
+        "name": "IKO Cambridge Architectural Shingles",
+        "code": "4220002",
+        "type": "Shingles",
+        "manufacturer": "IKO",
+        "unit": "bundle",
+        "cost": 38,
+        "price": 51.3,
+        "note": ""
+      },
+      {
+        "id": "lib-shingle-malarkey-vista",
+        "name": "Malarkey Vista Architectural Shingles",
+        "code": "251",
+        "type": "Shingles",
+        "manufacturer": "Malarkey",
+        "unit": "bundle",
+        "cost": 44,
+        "price": 59.4,
+        "note": ""
+      },
+      {
+        "id": "lib-shingle-atlas-pinnacle",
+        "name": "Atlas Pinnacle Pristine Architectural Shingles",
+        "code": "618M015",
+        "type": "Shingles",
+        "manufacturer": "Atlas",
+        "unit": "bundle",
+        "cost": 42,
+        "price": 56.7,
+        "note": ""
+      },
+      {
+        "id": "lib-starter-gaf-prostart",
+        "name": "GAF Pro-Start Starter Strip Shingles",
+        "code": "1126000",
+        "type": "Starter",
+        "manufacturer": "GAF",
+        "unit": "bundle",
+        "cost": 54.97,
+        "price": 74.21,
+        "note": "120 lin ft per bundle"
+      },
+      {
+        "id": "lib-starter-oc-starter-strip",
+        "name": "Owens Corning Starter Strip Plus",
+        "code": "SSPL",
+        "type": "Starter",
+        "manufacturer": "Owens Corning",
+        "unit": "bundle",
+        "cost": 62.47,
+        "price": 84.33,
+        "note": ""
+      },
+      {
+        "id": "lib-starter-ct-swiftstart",
+        "name": "CertainTeed SwiftStart Starter Shingles",
+        "code": "411891",
+        "type": "Starter",
+        "manufacturer": "CertainTeed",
+        "unit": "bundle",
+        "cost": 62.47,
+        "price": 84.33,
+        "note": ""
+      },
+      {
+        "id": "lib-ridge-gaf-seal-a-ridge",
+        "name": "GAF Seal-A-Ridge Hip & Ridge Cap Shingles",
+        "code": "0850180",
+        "type": "Hip & Ridge",
+        "manufacturer": "GAF",
+        "unit": "bundle",
+        "cost": 59.97,
+        "price": 80.96,
+        "note": "25 lin ft per bundle"
+      },
+      {
+        "id": "lib-ridge-gaf-timbertex",
+        "name": "GAF TimberTex Premium Hip & Ridge Cap Shingles",
+        "code": "0847180",
+        "type": "Hip & Ridge",
+        "manufacturer": "GAF",
+        "unit": "bundle",
+        "cost": 65.97,
+        "price": 89.06,
+        "note": ""
+      },
+      {
+        "id": "lib-ridge-oc-proedge",
+        "name": "Owens Corning ProEdge Hip & Ridge Shingles",
+        "code": "HPA01",
+        "type": "Hip & Ridge",
+        "manufacturer": "Owens Corning",
+        "unit": "bundle",
+        "cost": 70.97,
+        "price": 95.81,
+        "note": ""
+      },
+      {
+        "id": "lib-ridge-oc-duraridge",
+        "name": "Owens Corning DuraRidge Hip & Ridge Shingles",
+        "code": "",
+        "type": "Hip & Ridge",
+        "manufacturer": "Owens Corning",
+        "unit": "bundle",
+        "cost": 78,
+        "price": 105.3,
+        "note": ""
+      },
+      {
+        "id": "lib-ridge-ct-shadow-ridge",
+        "name": "CertainTeed Shadow Ridge Hip & Ridge Shingles",
+        "code": "621958",
+        "type": "Hip & Ridge",
+        "manufacturer": "CertainTeed",
+        "unit": "bundle",
+        "cost": 62,
+        "price": 83.7,
+        "note": ""
+      },
+      {
+        "id": "lib-underlay-gaf-feltbuster",
+        "name": "GAF FeltBuster Synthetic Underlayment",
+        "code": "0973",
+        "type": "Underlayment",
+        "manufacturer": "GAF",
+        "unit": "roll",
+        "cost": 119,
+        "price": 160.65,
+        "note": "10 square roll"
+      },
+      {
+        "id": "lib-underlay-gaf-tiger-paw",
+        "name": "GAF Tiger Paw Premium Synthetic Underlayment",
+        "code": "0980",
+        "type": "Underlayment",
+        "manufacturer": "GAF",
+        "unit": "roll",
+        "cost": 195.6,
+        "price": 264.06,
+        "note": ""
+      },
+      {
+        "id": "lib-underlay-oc-proarmor",
+        "name": "Owens Corning ProArmor Synthetic Underlayment",
+        "code": "PROA",
+        "type": "Underlayment",
+        "manufacturer": "Owens Corning",
+        "unit": "roll",
+        "cost": 139,
+        "price": 187.65,
+        "note": ""
+      },
+      {
+        "id": "lib-underlay-oc-rhinoroof",
+        "name": "Owens Corning RhinoRoof U20 Synthetic Underlayment",
+        "code": "",
+        "type": "Underlayment",
+        "manufacturer": "Owens Corning",
+        "unit": "roll",
+        "cost": 95,
+        "price": 128.25,
+        "note": ""
+      },
+      {
+        "id": "lib-underlay-ct-roofrunner",
+        "name": "CertainTeed RoofRunner Synthetic Underlayment",
+        "code": "404987",
+        "type": "Underlayment",
+        "manufacturer": "CertainTeed",
+        "unit": "roll",
+        "cost": 159.72,
+        "price": 215.62,
+        "note": ""
+      },
+      {
+        "id": "lib-underlay-felt-15",
+        "name": "#15 Asphalt Felt Underlayment",
+        "code": "STD15",
+        "type": "Underlayment",
+        "manufacturer": "",
+        "unit": "roll",
+        "cost": 32.98,
+        "price": 44.52,
+        "note": "approx 4 square roll (432 sq ft)"
+      },
+      {
+        "id": "lib-underlay-felt-30",
+        "name": "#30 Asphalt Felt Underlayment",
+        "code": "STD30",
+        "type": "Underlayment",
+        "manufacturer": "",
+        "unit": "roll",
+        "cost": 34.97,
+        "price": 47.21,
+        "note": "approx 2 square roll (216 sq ft)"
+      },
+      {
+        "id": "lib-iws-gaf-weatherwatch",
+        "name": "GAF WeatherWatch Ice & Water Shield",
+        "code": "0914000",
+        "type": "Ice & Water",
+        "manufacturer": "GAF",
+        "unit": "roll",
+        "cost": 89.97,
+        "price": 121.46,
+        "note": "2 square roll (36 in x 66.7 ft)"
+      },
+      {
+        "id": "lib-iws-gaf-stormguard",
+        "name": "GAF StormGuard Film-Surfaced Leak Barrier",
+        "code": "0915000",
+        "type": "Ice & Water",
+        "manufacturer": "GAF",
+        "unit": "roll",
+        "cost": 129,
+        "price": 174.15,
+        "note": ""
+      },
+      {
+        "id": "lib-iws-oc-weatherlock-g",
+        "name": "Owens Corning WeatherLock G Granulated Ice & Water Barrier",
+        "code": "AA10",
+        "type": "Ice & Water",
+        "manufacturer": "Owens Corning",
+        "unit": "roll",
+        "cost": 108,
+        "price": 145.8,
+        "note": ""
+      },
+      {
+        "id": "lib-iws-grace",
+        "name": "GCP Grace Ice & Water Shield",
+        "code": "5003002",
+        "type": "Ice & Water",
+        "manufacturer": "GCP Grace",
+        "unit": "roll",
+        "cost": 199,
+        "price": 268.65,
+        "note": "36 in x 75 ft (225 sq ft)"
+      },
+      {
+        "id": "lib-iws-ct-winterguard",
+        "name": "CertainTeed WinterGuard Sand Ice & Water Barrier",
+        "code": "619740",
+        "type": "Ice & Water",
+        "manufacturer": "CertainTeed",
+        "unit": "roll",
+        "cost": 87.97,
+        "price": 118.76,
+        "note": ""
+      },
+      {
+        "id": "lib-drip-edge-alum-white",
+        "name": "Aluminum Drip Edge 10 ft White (Style D / F5)",
+        "code": "5504600120",
+        "type": "Flashing",
+        "manufacturer": "",
+        "unit": "pc",
+        "cost": 8.87,
+        "price": 11.97,
+        "note": ""
+      },
+      {
+        "id": "lib-drip-edge-galv",
+        "name": "Galvanized Steel Drip Edge 10 ft",
+        "code": "08331",
+        "type": "Flashing",
+        "manufacturer": "",
+        "unit": "pc",
+        "cost": 14.58,
+        "price": 19.68,
+        "note": ""
+      },
+      {
+        "id": "lib-gutter-apron",
+        "name": "Aluminum Gutter Apron 10 ft",
+        "code": "GA-WH",
+        "type": "Flashing",
+        "manufacturer": "",
+        "unit": "pc",
+        "cost": 11,
+        "price": 14.85,
+        "note": ""
+      },
+      {
+        "id": "lib-step-flashing",
+        "name": "Step Flashing 5 x 7 in Bundle (100 pc)",
+        "code": "APRO963FRM-100",
+        "type": "Flashing",
+        "manufacturer": "",
+        "unit": "bundle",
+        "cost": 55,
+        "price": 74.25,
+        "note": "aluminum or galvanized, bundle of 100"
+      },
+      {
+        "id": "lib-valley-w-galv",
+        "name": "W-Valley Flashing 20 in x 10 ft Galvanized",
+        "code": "01566",
+        "type": "Flashing",
+        "manufacturer": "",
+        "unit": "pc",
+        "cost": 32,
+        "price": 43.2,
+        "note": ""
+      },
+      {
+        "id": "lib-roll-flashing-alum-20",
+        "name": "Aluminum Roll Flashing 20 in x 50 ft",
+        "code": "68020",
+        "type": "Flashing",
+        "manufacturer": "",
+        "unit": "roll",
+        "cost": 81.88,
+        "price": 110.54,
+        "note": ""
+      },
+      {
+        "id": "lib-roll-valley-galv-20",
+        "name": "Galvanized Roll Valley 20 in x 50 ft",
+        "code": "17438",
+        "type": "Flashing",
+        "manufacturer": "",
+        "unit": "roll",
+        "cost": 69.92,
+        "price": 94.39,
+        "note": ""
+      },
+      {
+        "id": "lib-counter-flashing",
+        "name": "Counter Flashing 10 ft",
+        "code": "CF5G-26",
+        "type": "Flashing",
+        "manufacturer": "",
+        "unit": "pc",
+        "cost": 18,
+        "price": 24.3,
+        "note": ""
+      },
+      {
+        "id": "lib-chimney-flashing-kit",
+        "name": "Chimney Flashing Kit",
+        "code": "310122",
+        "type": "Flashing",
+        "manufacturer": "",
+        "unit": "ea",
+        "cost": 72.28,
+        "price": 97.58,
+        "note": ""
+      },
+      {
+        "id": "lib-pipe-boot-1.5-3",
+        "name": "Pipe Boot Flashing 1-1/2 to 3 in (Oatey No-Calk or equivalent)",
+        "code": "11871",
+        "type": "Penetrations",
+        "manufacturer": "Oatey",
+        "unit": "ea",
+        "cost": 9.85,
+        "price": 13.3,
+        "note": ""
+      },
+      {
+        "id": "lib-pipe-boot-3-4",
+        "name": "Pipe Boot Flashing 3 to 4 in (Oatey No-Calk or equivalent)",
+        "code": "11876",
+        "type": "Penetrations",
+        "manufacturer": "Oatey",
+        "unit": "ea",
+        "cost": 13,
+        "price": 17.55,
+        "note": ""
+      },
+      {
+        "id": "lib-pipe-boot-lead-3",
+        "name": "Lead Pipe Boot 3 in",
+        "code": "LRF3",
+        "type": "Penetrations",
+        "manufacturer": "",
+        "unit": "ea",
+        "cost": 32.48,
+        "price": 43.85,
+        "note": ""
+      },
+      {
+        "id": "lib-pipe-boot-perma",
+        "name": "Perma-Boot Pipe Boot Repair 3 in",
+        "code": "PBR 312-3BK",
+        "type": "Penetrations",
+        "manufacturer": "Perma-Boot",
+        "unit": "ea",
+        "cost": 27.67,
+        "price": 37.35,
+        "note": ""
+      },
+      {
+        "id": "lib-roof-jack-exhaust",
+        "name": "Roof Jack / Exhaust Vent Cap 4 in",
+        "code": "RJVC4",
+        "type": "Penetrations",
+        "manufacturer": "",
+        "unit": "ea",
+        "cost": 49.46,
+        "price": 66.77,
+        "note": ""
+      },
+      {
+        "id": "lib-ridge-vent-cobra-rigid",
+        "name": "GAF Cobra Rigid Vent 3 Ridge Vent 4 ft",
+        "code": "2018000",
+        "type": "Ventilation",
+        "manufacturer": "GAF",
+        "unit": "pc",
+        "cost": 15,
+        "price": 20.25,
+        "note": ""
+      },
+      {
+        "id": "lib-ridge-vent-cobra-roll",
+        "name": "GAF Cobra Exhaust Vent Rolled Ridge Vent 20 ft",
+        "code": "2017",
+        "type": "Ventilation",
+        "manufacturer": "GAF",
+        "unit": "roll",
+        "cost": 65.97,
+        "price": 89.06,
+        "note": ""
+      },
+      {
+        "id": "lib-ridge-vent-oc-ventsure",
+        "name": "Owens Corning VentSure 4 ft Strip Heat & Moisture Ridge Vent",
+        "code": "VS4N",
+        "type": "Ventilation",
+        "manufacturer": "Owens Corning",
+        "unit": "pc",
+        "cost": 12.97,
+        "price": 17.51,
+        "note": ""
+      },
+      {
+        "id": "lib-ridge-vent-shinglevent-ii",
+        "name": "Air Vent ShingleVent II Ridge Vent 4 ft",
+        "code": "SHFVBL",
+        "type": "Ventilation",
+        "manufacturer": "Air Vent",
+        "unit": "pc",
+        "cost": 11.28,
+        "price": 15.23,
+        "note": ""
+      },
+      {
+        "id": "lib-box-vent-750",
+        "name": "Slant-Back Roof Louver / Box Vent (50 sq in NFA, e.g. Lomanco 750)",
+        "code": "750",
+        "type": "Ventilation",
+        "manufacturer": "Lomanco / Air Vent",
+        "unit": "ea",
+        "cost": 19,
+        "price": 25.65,
+        "note": ""
+      },
+      {
+        "id": "lib-turbine-12",
+        "name": "Turbine Vent 12 in with Base",
+        "code": "BIB12",
+        "type": "Ventilation",
+        "manufacturer": "Lomanco / Air Vent",
+        "unit": "ea",
+        "cost": 85.49,
+        "price": 115.41,
+        "note": ""
+      },
+      {
+        "id": "lib-power-vent",
+        "name": "Roof-Mount Power Attic Ventilator",
+        "code": "53847",
+        "type": "Ventilation",
+        "manufacturer": "",
+        "unit": "ea",
+        "cost": 115,
+        "price": 155.25,
+        "note": ""
+      },
+      {
+        "id": "lib-soffit-vent-16x8",
+        "name": "Soffit Vent 16 x 8 in",
+        "code": "84211",
+        "type": "Ventilation",
+        "manufacturer": "",
+        "unit": "ea",
+        "cost": 5.28,
+        "price": 7.13,
+        "note": ""
+      },
+      {
+        "id": "lib-baffle-rafter",
+        "name": "Rafter Vent Baffle 22-1/2 x 48 in",
+        "code": "510266",
+        "type": "Ventilation",
+        "manufacturer": "",
+        "unit": "ea",
+        "cost": 2.2,
+        "price": 2.97,
+        "note": ""
+      },
+      {
+        "id": "lib-coil-nails-1.25",
+        "name": "Coil Roofing Nails 1-1/4 in Electro-Galvanized (7,200 ct box)",
+        "code": "GRCR3DGAL",
+        "type": "Fasteners",
+        "manufacturer": "",
+        "unit": "box",
+        "cost": 49.98,
+        "price": 67.47,
+        "note": ""
+      },
+      {
+        "id": "lib-coil-nails-1.75",
+        "name": "Coil Roofing Nails 1-3/4 in Electro-Galvanized (7,200 ct box)",
+        "code": "GRCR5DGAL",
+        "type": "Fasteners",
+        "manufacturer": "",
+        "unit": "box",
+        "cost": 62,
+        "price": 83.7,
+        "note": ""
+      },
+      {
+        "id": "lib-hand-nails-1.25-5lb",
+        "name": "Roofing Nails 1-1/4 in Hand Drive 5 lb",
+        "code": "114EGRFG5",
+        "type": "Fasteners",
+        "manufacturer": "Grip-Rite",
+        "unit": "box",
+        "cost": 16.46,
+        "price": 22.22,
+        "note": ""
+      },
+      {
+        "id": "lib-cap-nails-1",
+        "name": "Plastic Cap Nails 1 in (approx 3,000 ct pail)",
+        "code": "GCB1",
+        "type": "Fasteners",
+        "manufacturer": "Grip-Rite",
+        "unit": "pail",
+        "cost": 39,
+        "price": 52.65,
+        "note": ""
+      },
+      {
+        "id": "lib-cap-staples",
+        "name": "Cap Staples for Cap Stapler (2,000 ct)",
+        "code": "0136044",
+        "type": "Fasteners",
+        "manufacturer": "Stinger / Bostitch",
+        "unit": "box",
+        "cost": 55.95,
+        "price": 75.53,
+        "note": ""
+      },
+      {
+        "id": "lib-deck-screws-3",
+        "name": "Exterior Deck Screws 3 in (5 lb)",
+        "code": "115985",
+        "type": "Fasteners",
+        "manufacturer": "",
+        "unit": "box",
+        "cost": 29.97,
+        "price": 40.46,
+        "note": ""
+      },
+      {
+        "id": "lib-sealant-roof-cement-tube",
+        "name": "Roof Cement / Flashing Sealant 10 oz Tube (e.g. Henry 208, Karnak 19)",
+        "code": "HE208004",
+        "type": "Sealants",
+        "manufacturer": "Henry / Karnak",
+        "unit": "tube",
+        "cost": 4.97,
+        "price": 6.71,
+        "note": ""
+      },
+      {
+        "id": "lib-sealant-roof-cement-gal",
+        "name": "Plastic Roof Cement 1 gal",
+        "code": "HE204042",
+        "type": "Sealants",
+        "manufacturer": "Henry / Karnak",
+        "unit": "gal",
+        "cost": 17.97,
+        "price": 24.26,
+        "note": ""
+      },
+      {
+        "id": "lib-sealant-geocel-2300",
+        "name": "Geocel 2300 Construction Tripolymer Sealant 10.3 oz",
+        "code": "GC66100",
+        "type": "Sealants",
+        "manufacturer": "Geocel",
+        "unit": "tube",
+        "cost": 9.5,
+        "price": 12.83,
+        "note": ""
+      },
+      {
+        "id": "lib-sealant-np1",
+        "name": "MasterSeal NP1 Polyurethane Sealant 10.1 oz",
+        "code": "NP1LMSTN12",
+        "type": "Sealants",
+        "manufacturer": "MasterSeal / Sika",
+        "unit": "tube",
+        "cost": 9,
+        "price": 12.15,
+        "note": ""
+      },
+      {
+        "id": "lib-sealant-through-the-roof",
+        "name": "Sashco Through the Roof! Clear Sealant 10.5 oz",
+        "code": "14010",
+        "type": "Sealants",
+        "manufacturer": "Sashco",
+        "unit": "tube",
+        "cost": 12,
+        "price": 16.2,
+        "note": ""
+      },
+      {
+        "id": "lib-spray-paint-flashing",
+        "name": "Flashing / Vent Spray Paint 12 oz",
+        "code": "7776830",
+        "type": "Sealants",
+        "manufacturer": "Rust-Oleum",
+        "unit": "can",
+        "cost": 6.98,
+        "price": 9.42,
+        "note": ""
+      },
+      {
+        "id": "lib-osb-7-16",
+        "name": "OSB Sheathing 7/16 in 4 x 8",
+        "code": "386081",
+        "type": "Decking",
+        "manufacturer": "",
+        "unit": "sheet",
+        "cost": 13.98,
+        "price": 18.87,
+        "note": ""
+      },
+      {
+        "id": "lib-plywood-cdx-1-2",
+        "name": "CDX Plywood Sheathing 1/2 in (15/32) 4 x 8",
+        "code": "20159",
+        "type": "Decking",
+        "manufacturer": "",
+        "unit": "sheet",
+        "cost": 27.7,
+        "price": 37.4,
+        "note": ""
+      },
+      {
+        "id": "lib-plywood-cdx-5-8",
+        "name": "CDX Plywood Sheathing 5/8 in (19/32) 4 x 8",
+        "code": "407735",
+        "type": "Decking",
+        "manufacturer": "",
+        "unit": "sheet",
+        "cost": 36,
+        "price": 48.6,
+        "note": ""
+      },
+      {
+        "id": "lib-h-clips-7-16",
+        "name": "Plywood H-Clips 7/16 in (250 ct)",
+        "code": "PSCL 7/16",
+        "type": "Decking",
+        "manufacturer": "Simpson Strong-Tie",
+        "unit": "box",
+        "cost": 26.88,
+        "price": 36.29,
+        "note": ""
+      },
+      {
+        "id": "lib-lumber-1x6-8",
+        "name": "1 x 6 x 8 ft Board (deck/fascia repair)",
+        "code": "769887210628",
+        "type": "Decking",
+        "manufacturer": "",
+        "unit": "pc",
+        "cost": 11.95,
+        "price": 16.13,
+        "note": ""
+      },
+      {
+        "id": "lib-lumber-2x4-8",
+        "name": "2 x 4 x 8 ft Stud",
+        "code": "161640",
+        "type": "Decking",
+        "manufacturer": "",
+        "unit": "pc",
+        "cost": 4.25,
+        "price": 5.74,
+        "note": ""
+      },
+      {
+        "id": "lib-fascia-1x6-12-primed",
+        "name": "1 x 6 x 12 ft Primed Fascia Board",
+        "code": "415312",
+        "type": "Decking",
+        "manufacturer": "",
+        "unit": "pc",
+        "cost": 24,
+        "price": 32.4,
+        "note": ""
+      },
+      {
+        "id": "lib-gutter-k5-alum-10",
+        "name": "K-Style Aluminum Gutter 5 in x 10 ft White",
+        "code": "2600600120",
+        "type": "Gutters",
+        "manufacturer": "Amerimax",
+        "unit": "pc",
+        "cost": 17.98,
+        "price": 24.27,
+        "note": ""
+      },
+      {
+        "id": "lib-downspout-2x3-10",
+        "name": "Aluminum Downspout 2 x 3 in x 10 ft White",
+        "code": "2601000120",
+        "type": "Gutters",
+        "manufacturer": "Amerimax",
+        "unit": "pc",
+        "cost": 15,
+        "price": 20.25,
+        "note": ""
+      },
+      {
+        "id": "lib-gutter-guard",
+        "name": "Gutter Guard 3 ft Section",
+        "code": "85370",
+        "type": "Gutters",
+        "manufacturer": "Amerimax",
+        "unit": "pc",
+        "cost": 3.98,
+        "price": 5.37,
+        "note": ""
+      },
+      {
+        "id": "lib-modbit-cap-sheet",
+        "name": "Modified Bitumen Cap Sheet SBS Self-Adhered (1 sq roll, e.g. GAF Liberty Cap)",
+        "code": "3732920",
+        "type": "Low Slope",
+        "manufacturer": "GAF",
+        "unit": "roll",
+        "cost": 139,
+        "price": 187.65,
+        "note": ""
+      },
+      {
+        "id": "lib-modbit-base-sheet",
+        "name": "Modified Bitumen Base Sheet Self-Adhered (2 sq roll, e.g. GAF Liberty Base)",
+        "code": "3733000",
+        "type": "Low Slope",
+        "manufacturer": "GAF",
+        "unit": "roll",
+        "cost": 125,
+        "price": 168.75,
+        "note": ""
+      },
+      {
+        "id": "lib-rolled-roofing-90",
+        "name": "Mineral Surface Roll Roofing 90 lb (1 sq)",
+        "code": "",
+        "type": "Low Slope",
+        "manufacturer": "GAF / Owens Corning",
+        "unit": "roll",
+        "cost": 60,
+        "price": 81,
+        "note": ""
+      },
+      {
+        "id": "lib-tpo-60-10x100",
+        "name": "TPO Membrane 60 mil 10 x 100 ft White",
+        "code": "",
+        "type": "Low Slope",
+        "manufacturer": "GAF EverGuard / Carlisle / Versico",
+        "unit": "roll",
+        "cost": 950,
+        "price": 1282.5,
+        "note": ""
+      },
+      {
+        "id": "lib-iso-board-1",
+        "name": "Polyiso Roof Insulation Board 1 in 4 x 8",
+        "code": "637900",
+        "type": "Low Slope",
+        "manufacturer": "",
+        "unit": "sheet",
+        "cost": 37,
+        "price": 49.95,
+        "note": ""
+      },
+      {
+        "id": "lib-skylight-velux-fcm-2222",
+        "name": "VELUX FCM 2222 Fixed Curb-Mount Skylight",
+        "code": "FCM 2222 0005",
+        "type": "Skylights",
+        "manufacturer": "VELUX",
+        "unit": "ea",
+        "cost": 260,
+        "price": 351,
+        "note": ""
+      },
+      {
+        "id": "lib-skylight-velux-fs-c06",
+        "name": "VELUX FS C06 Fixed Deck-Mount Skylight",
+        "code": "FS C06 2004",
+        "type": "Skylights",
+        "manufacturer": "VELUX",
+        "unit": "ea",
+        "cost": 330,
+        "price": 445.5,
+        "note": ""
+      },
+      {
+        "id": "lib-skylight-flashing-edl-c06",
+        "name": "VELUX EDL C06 Skylight Flashing Kit",
+        "code": "EDL C06 0000B",
+        "type": "Skylights",
+        "manufacturer": "VELUX",
+        "unit": "ea",
+        "cost": 119,
+        "price": 160.65,
+        "note": ""
+      },
+      {
+        "id": "lib-tarp-20x30",
+        "name": "Heavy Duty Tarp 20 x 30 ft",
+        "code": "",
+        "type": "Jobsite",
+        "manufacturer": "",
+        "unit": "ea",
+        "cost": 75,
+        "price": 101.25,
+        "note": ""
+      },
+      {
+        "id": "lib-magnet-sweeper",
+        "name": "Magnetic Sweeper 24 in",
+        "code": "",
+        "type": "Jobsite",
+        "manufacturer": "",
+        "unit": "ea",
+        "cost": 45,
+        "price": 60.75,
+        "note": ""
+      },
+      {
+        "id": "lib-contractor-bags",
+        "name": "Contractor Trash Bags 42 gal (50 ct)",
+        "code": "",
+        "type": "Jobsite",
+        "manufacturer": "Husky / any",
+        "unit": "box",
+        "cost": 32,
+        "price": 43.2,
+        "note": ""
+      },
+      {
+        "id": "lib-roof-harness-kit",
+        "name": "Roofer Fall Protection Kit (harness, lanyard, anchor, bucket)",
+        "code": "",
+        "type": "Jobsite",
+        "manufacturer": "Guardian / Werner / 3M",
+        "unit": "ea",
+        "cost": 110,
+        "price": 148.5,
+        "note": ""
+      }
+    ],
+    "suppliers": [
+      {
+        "name": "The Home Depot",
+        "delivery_fee_cents": 7900,
+        "offerings": [
+          {
+            "item_id": "lib-shingle-gaf-hdz",
+            "sku": "309755006",
+            "price_cents": null
+          },
+          {
+            "item_id": "lib-shingle-gaf-uhdz",
+            "sku": "325366549",
+            "price_cents": 5497
+          },
+          {
+            "item_id": "lib-shingle-gaf-royal-sovereign",
+            "sku": "100040028",
+            "price_cents": null
+          },
+          {
+            "item_id": "lib-shingle-oc-duration",
+            "sku": "205655965",
+            "price_cents": 4347
+          },
+          {
+            "item_id": "lib-shingle-oc-oakridge",
+            "sku": "206830645",
+            "price_cents": 4597
+          },
+          {
+            "item_id": "lib-shingle-oc-supreme",
+            "sku": "205655958",
+            "price_cents": null
+          },
+          {
+            "item_id": "lib-shingle-iko-cambridge",
+            "sku": "311704105",
+            "price_cents": null
+          },
+          {
+            "item_id": "lib-starter-gaf-prostart",
+            "sku": "202052408",
+            "price_cents": 5497
+          },
+          {
+            "item_id": "lib-starter-oc-starter-strip",
+            "sku": "311784464",
+            "price_cents": 6247
+          },
+          {
+            "item_id": "lib-starter-ct-swiftstart",
+            "sku": "336230461",
+            "price_cents": 6247
+          },
+          {
+            "item_id": "lib-ridge-gaf-seal-a-ridge",
+            "sku": "206593176",
+            "price_cents": 5997
+          },
+          {
+            "item_id": "lib-ridge-gaf-timbertex",
+            "sku": "100658126",
+            "price_cents": 6597
+          },
+          {
+            "item_id": "lib-ridge-oc-proedge",
+            "sku": "313260669",
+            "price_cents": 7097
+          },
+          {
+            "item_id": "lib-underlay-gaf-feltbuster",
+            "sku": "205035868",
+            "price_cents": 11900
+          },
+          {
+            "item_id": "lib-underlay-gaf-tiger-paw",
+            "sku": "206885977",
+            "price_cents": 19560
+          },
+          {
+            "item_id": "lib-underlay-oc-proarmor",
+            "sku": "302659836",
+            "price_cents": 13900
+          },
+          {
+            "item_id": "lib-underlay-ct-roofrunner",
+            "sku": "336309043",
+            "price_cents": 15972
+          },
+          {
+            "item_id": "lib-underlay-felt-15",
+            "sku": "202564196",
+            "price_cents": 3298
+          },
+          {
+            "item_id": "lib-underlay-felt-30",
+            "sku": "202523593",
+            "price_cents": 3497
+          },
+          {
+            "item_id": "lib-iws-gaf-weatherwatch",
+            "sku": "100083257",
+            "price_cents": 8997
+          },
+          {
+            "item_id": "lib-iws-gaf-stormguard",
+            "sku": "100083515",
+            "price_cents": 12900
+          },
+          {
+            "item_id": "lib-iws-oc-weatherlock-g",
+            "sku": "205664211",
+            "price_cents": 10800
+          },
+          {
+            "item_id": "lib-iws-grace",
+            "sku": "202088840",
+            "price_cents": 25117
+          },
+          {
+            "item_id": "lib-iws-ct-winterguard",
+            "sku": "336309051",
+            "price_cents": 8797
+          },
+          {
+            "item_id": "lib-drip-edge-alum-white",
+            "sku": "100080567",
+            "price_cents": 887
+          },
+          {
+            "item_id": "lib-drip-edge-galv",
+            "sku": "202092840",
+            "price_cents": 1458
+          },
+          {
+            "item_id": "lib-gutter-apron",
+            "sku": "202092933",
+            "price_cents": null
+          },
+          {
+            "item_id": "lib-step-flashing",
+            "sku": "204720396",
+            "price_cents": null
+          },
+          {
+            "item_id": "lib-valley-w-galv",
+            "sku": "202092893",
+            "price_cents": null
+          },
+          {
+            "item_id": "lib-roll-flashing-alum-20",
+            "sku": "100043900",
+            "price_cents": 9298
+          },
+          {
+            "item_id": "lib-roll-valley-galv-20",
+            "sku": "100097680",
+            "price_cents": 8378
+          },
+          {
+            "item_id": "lib-counter-flashing",
+            "sku": "202092864",
+            "price_cents": null
+          },
+          {
+            "item_id": "lib-chimney-flashing-kit",
+            "sku": "202093086",
+            "price_cents": 7228
+          },
+          {
+            "item_id": "lib-pipe-boot-1.5-3",
+            "sku": "100148990",
+            "price_cents": 985
+          },
+          {
+            "item_id": "lib-pipe-boot-3-4",
+            "sku": "100122673",
+            "price_cents": null
+          },
+          {
+            "item_id": "lib-pipe-boot-lead-3",
+            "sku": "100324455",
+            "price_cents": null
+          },
+          {
+            "item_id": "lib-pipe-boot-perma",
+            "sku": "202581375",
+            "price_cents": 2767
+          },
+          {
+            "item_id": "lib-roof-jack-exhaust",
+            "sku": "100396960",
+            "price_cents": 4946
+          },
+          {
+            "item_id": "lib-ridge-vent-cobra-rigid",
+            "sku": "202052410",
+            "price_cents": null
+          },
+          {
+            "item_id": "lib-ridge-vent-cobra-roll",
+            "sku": "100000023",
+            "price_cents": 6597
+          },
+          {
+            "item_id": "lib-ridge-vent-oc-ventsure",
+            "sku": "205664213",
+            "price_cents": 1297
+          },
+          {
+            "item_id": "lib-ridge-vent-shinglevent-ii",
+            "sku": "308306135",
+            "price_cents": null
+          },
+          {
+            "item_id": "lib-box-vent-750",
+            "sku": "308306120",
+            "price_cents": null
+          },
+          {
+            "item_id": "lib-turbine-12",
+            "sku": "100557124",
+            "price_cents": 8549
+          },
+          {
+            "item_id": "lib-power-vent",
+            "sku": "205924928",
+            "price_cents": 11500
+          },
+          {
+            "item_id": "lib-soffit-vent-16x8",
+            "sku": "100023618",
+            "price_cents": 548
+          },
+          {
+            "item_id": "lib-baffle-rafter",
+            "sku": "204848302",
+            "price_cents": null
+          },
+          {
+            "item_id": "lib-coil-nails-1.25",
+            "sku": "100394342",
+            "price_cents": 4998
+          },
+          {
+            "item_id": "lib-coil-nails-1.75",
+            "sku": "100159905",
+            "price_cents": null
+          },
+          {
+            "item_id": "lib-hand-nails-1.25-5lb",
+            "sku": "100205882",
+            "price_cents": 1646
+          },
+          {
+            "item_id": "lib-cap-nails-1",
+            "sku": "100111688",
+            "price_cents": 3900
+          },
+          {
+            "item_id": "lib-cap-staples",
+            "sku": "204820118",
+            "price_cents": 5595
+          },
+          {
+            "item_id": "lib-deck-screws-3",
+            "sku": "306587120",
+            "price_cents": 2997
+          },
+          {
+            "item_id": "lib-sealant-roof-cement-tube",
+            "sku": "100082405",
+            "price_cents": 497
+          },
+          {
+            "item_id": "lib-sealant-roof-cement-gal",
+            "sku": "100080447",
+            "price_cents": 1797
+          },
+          {
+            "item_id": "lib-spray-paint-flashing",
+            "sku": "100670370",
+            "price_cents": 698
+          },
+          {
+            "item_id": "lib-osb-7-16",
+            "sku": "202106230",
+            "price_cents": null
+          },
+          {
+            "item_id": "lib-plywood-cdx-1-2",
+            "sku": "206827282",
+            "price_cents": 2770
+          },
+          {
+            "item_id": "lib-plywood-cdx-5-8",
+            "sku": "206821342",
+            "price_cents": null
+          },
+          {
+            "item_id": "lib-h-clips-7-16",
+            "sku": "100375273",
+            "price_cents": 2937
+          },
+          {
+            "item_id": "lib-lumber-1x6-8",
+            "sku": "334853433",
+            "price_cents": 1195
+          },
+          {
+            "item_id": "lib-lumber-2x4-8",
+            "sku": "305472530",
+            "price_cents": 425
+          },
+          {
+            "item_id": "lib-fascia-1x6-12-primed",
+            "sku": "313571495",
+            "price_cents": null
+          },
+          {
+            "item_id": "lib-gutter-k5-alum-10",
+            "sku": "100061750",
+            "price_cents": null
+          },
+          {
+            "item_id": "lib-downspout-2x3-10",
+            "sku": "205636980",
+            "price_cents": null
+          },
+          {
+            "item_id": "lib-gutter-guard",
+            "sku": "205207064",
+            "price_cents": 398
+          },
+          {
+            "item_id": "lib-modbit-cap-sheet",
+            "sku": "100031918",
+            "price_cents": 13900
+          },
+          {
+            "item_id": "lib-modbit-base-sheet",
+            "sku": "100087821",
+            "price_cents": null
+          },
+          {
+            "item_id": "lib-iso-board-1",
+            "sku": "313501508",
+            "price_cents": 3700
+          },
+          {
+            "item_id": "lib-skylight-velux-fcm-2222",
+            "sku": "202038777",
+            "price_cents": null
+          },
+          {
+            "item_id": "lib-skylight-velux-fs-c06",
+            "sku": "202038762",
+            "price_cents": null
+          },
+          {
+            "item_id": "lib-skylight-flashing-edl-c06",
+            "sku": "202038776",
+            "price_cents": 11900
+          }
+        ],
+        "locations": []
+      },
+      {
+        "name": "Lowe's",
+        "delivery_fee_cents": 7900,
+        "offerings": [
+          {
+            "item_id": "lib-shingle-gaf-hdz",
+            "sku": "1001327246",
+            "price_cents": null
+          },
+          {
+            "item_id": "lib-shingle-gaf-uhdz",
+            "sku": "5014377681",
+            "price_cents": null
+          },
+          {
+            "item_id": "lib-shingle-gaf-royal-sovereign",
+            "sku": "50405232",
+            "price_cents": null
+          },
+          {
+            "item_id": "lib-shingle-oc-duration",
+            "sku": "139312",
+            "price_cents": null
+          },
+          {
+            "item_id": "lib-shingle-oc-oakridge",
+            "sku": "3005314",
+            "price_cents": null
+          },
+          {
+            "item_id": "lib-shingle-oc-supreme",
+            "sku": "3009946",
+            "price_cents": null
+          },
+          {
+            "item_id": "lib-shingle-ct-landmark",
+            "sku": "5005337471",
+            "price_cents": 4448
+          },
+          {
+            "item_id": "lib-shingle-ct-landmark-pro",
+            "sku": "5018245345",
+            "price_cents": null
+          },
+          {
+            "item_id": "lib-starter-gaf-prostart",
+            "sku": "50383356",
+            "price_cents": null
+          },
+          {
+            "item_id": "lib-starter-oc-starter-strip",
+            "sku": "3341478",
+            "price_cents": null
+          },
+          {
+            "item_id": "lib-ridge-gaf-seal-a-ridge",
+            "sku": "1000139989",
+            "price_cents": null
+          },
+          {
+            "item_id": "lib-ridge-gaf-timbertex",
+            "sku": "1000515181",
+            "price_cents": null
+          },
+          {
+            "item_id": "lib-ridge-oc-proedge",
+            "sku": "791926",
+            "price_cents": null
+          },
+          {
+            "item_id": "lib-ridge-oc-duraridge",
+            "sku": "50199953",
+            "price_cents": null
+          },
+          {
+            "item_id": "lib-underlay-gaf-feltbuster",
+            "sku": "999989402",
+            "price_cents": null
+          },
+          {
+            "item_id": "lib-underlay-gaf-tiger-paw",
+            "sku": "1000036675",
+            "price_cents": null
+          },
+          {
+            "item_id": "lib-underlay-oc-proarmor",
+            "sku": "577176",
+            "price_cents": null
+          },
+          {
+            "item_id": "lib-underlay-oc-rhinoroof",
+            "sku": "5015669791",
+            "price_cents": null
+          },
+          {
+            "item_id": "lib-underlay-felt-15",
+            "sku": "5016180073",
+            "price_cents": 3497
+          },
+          {
+            "item_id": "lib-underlay-felt-30",
+            "sku": "5016180075",
+            "price_cents": null
+          },
+          {
+            "item_id": "lib-iws-gaf-weatherwatch",
+            "sku": "5013717271",
+            "price_cents": null
+          },
+          {
+            "item_id": "lib-iws-gaf-stormguard",
+            "sku": "5000894415",
+            "price_cents": null
+          },
+          {
+            "item_id": "lib-iws-oc-weatherlock-g",
+            "sku": "3140725",
+            "price_cents": null
+          },
+          {
+            "item_id": "lib-iws-grace",
+            "sku": "169827",
+            "price_cents": 19900
+          },
+          {
+            "item_id": "lib-drip-edge-alum-white",
+            "sku": "50022156",
+            "price_cents": null
+          },
+          {
+            "item_id": "lib-drip-edge-galv",
+            "sku": "3009447",
+            "price_cents": null
+          },
+          {
+            "item_id": "lib-gutter-apron",
+            "sku": "366844",
+            "price_cents": null
+          },
+          {
+            "item_id": "lib-step-flashing",
+            "sku": "12921",
+            "price_cents": null
+          },
+          {
+            "item_id": "lib-valley-w-galv",
+            "sku": "3009710",
+            "price_cents": null
+          },
+          {
+            "item_id": "lib-roll-flashing-alum-20",
+            "sku": "366932",
+            "price_cents": 8188
+          },
+          {
+            "item_id": "lib-roll-valley-galv-20",
+            "sku": "1008139",
+            "price_cents": 6992
+          },
+          {
+            "item_id": "lib-chimney-flashing-kit",
+            "sku": "5014691747",
+            "price_cents": null
+          },
+          {
+            "item_id": "lib-pipe-boot-1.5-3",
+            "sku": "3126793",
+            "price_cents": 1128
+          },
+          {
+            "item_id": "lib-pipe-boot-3-4",
+            "sku": "3126795",
+            "price_cents": null
+          },
+          {
+            "item_id": "lib-pipe-boot-lead-3",
+            "sku": "3714020",
+            "price_cents": 3248
+          },
+          {
+            "item_id": "lib-pipe-boot-perma",
+            "sku": "50371286",
+            "price_cents": null
+          },
+          {
+            "item_id": "lib-roof-jack-exhaust",
+            "sku": "3033082",
+            "price_cents": null
+          },
+          {
+            "item_id": "lib-ridge-vent-cobra-rigid",
+            "sku": "50353098",
+            "price_cents": null
+          },
+          {
+            "item_id": "lib-ridge-vent-cobra-roll",
+            "sku": "9212122",
+            "price_cents": 9600
+          },
+          {
+            "item_id": "lib-ridge-vent-oc-ventsure",
+            "sku": "3311988",
+            "price_cents": null
+          },
+          {
+            "item_id": "lib-ridge-vent-shinglevent-ii",
+            "sku": "3307416",
+            "price_cents": 1128
+          },
+          {
+            "item_id": "lib-box-vent-750",
+            "sku": "3017497",
+            "price_cents": null
+          },
+          {
+            "item_id": "lib-turbine-12",
+            "sku": "3306844",
+            "price_cents": null
+          },
+          {
+            "item_id": "lib-power-vent",
+            "sku": "3013525",
+            "price_cents": null
+          },
+          {
+            "item_id": "lib-soffit-vent-16x8",
+            "sku": "752506",
+            "price_cents": 528
+          },
+          {
+            "item_id": "lib-baffle-rafter",
+            "sku": "3012019",
+            "price_cents": null
+          },
+          {
+            "item_id": "lib-coil-nails-1.25",
+            "sku": "3036969",
+            "price_cents": null
+          },
+          {
+            "item_id": "lib-coil-nails-1.75",
+            "sku": "5968147",
+            "price_cents": null
+          },
+          {
+            "item_id": "lib-hand-nails-1.25-5lb",
+            "sku": "107798",
+            "price_cents": 1798
+          },
+          {
+            "item_id": "lib-cap-nails-1",
+            "sku": "110181",
+            "price_cents": null
+          },
+          {
+            "item_id": "lib-cap-staples",
+            "sku": "5000232689",
+            "price_cents": 5833
+          },
+          {
+            "item_id": "lib-deck-screws-3",
+            "sku": "1000118433",
+            "price_cents": null
+          },
+          {
+            "item_id": "lib-sealant-roof-cement-tube",
+            "sku": "621253",
+            "price_cents": null
+          },
+          {
+            "item_id": "lib-sealant-roof-cement-gal",
+            "sku": "50255581",
+            "price_cents": null
+          },
+          {
+            "item_id": "lib-sealant-geocel-2300",
+            "sku": "8296288",
+            "price_cents": null
+          },
+          {
+            "item_id": "lib-sealant-np1",
+            "sku": "703706",
+            "price_cents": null
+          },
+          {
+            "item_id": "lib-sealant-through-the-roof",
+            "sku": "1000619629",
+            "price_cents": null
+          },
+          {
+            "item_id": "lib-spray-paint-flashing",
+            "sku": "3048639",
+            "price_cents": 698
+          },
+          {
+            "item_id": "lib-osb-7-16",
+            "sku": "12212",
+            "price_cents": 1398
+          },
+          {
+            "item_id": "lib-plywood-cdx-1-2",
+            "sku": "1000105359",
+            "price_cents": 2875
+          },
+          {
+            "item_id": "lib-plywood-cdx-5-8",
+            "sku": "3010129",
+            "price_cents": null
+          },
+          {
+            "item_id": "lib-h-clips-7-16",
+            "sku": "1002717814",
+            "price_cents": 2688
+          },
+          {
+            "item_id": "lib-lumber-1x6-8",
+            "sku": "1000248283",
+            "price_cents": null
+          },
+          {
+            "item_id": "lib-lumber-2x4-8",
+            "sku": "1000051161",
+            "price_cents": null
+          },
+          {
+            "item_id": "lib-fascia-1x6-12-primed",
+            "sku": "1000036763",
+            "price_cents": null
+          },
+          {
+            "item_id": "lib-gutter-k5-alum-10",
+            "sku": "1005159",
+            "price_cents": 1798
+          }
+        ],
+        "locations": [
+          {
+            "name": "S. Arlington #0520",
+            "address": "1000 West Arbrook, Arlington, TX 76015",
+            "phone": "(817) 419-9755"
+          },
+          {
+            "name": "E. Plano #0505",
+            "address": "5001 Central Expy, Plano, TX 75023",
+            "phone": "(972) 633-0424"
+          },
+          {
+            "name": "Garland #0611",
+            "address": "2949 N George Bush Freeway, Garland, TX 75040",
+            "phone": "(972) 496-5600"
+          },
+          {
+            "name": "Mesquite #0510",
+            "address": "4444 N. Galloway Ave., Mesquite, TX 75150",
+            "phone": "(972) 613-6204"
+          },
+          {
+            "name": "Richardson #2779",
+            "address": "501 South Plano Road, Richardson, TX 75081",
+            "phone": "(469) 330-5720"
+          }
+        ]
+      },
+      {
+        "name": "SRS Building Products",
+        "delivery_fee_cents": null,
+        "offerings": [
+          {
+            "item_id": "lib-shingle-gaf-hdz",
+            "sku": "0489180",
+            "price_cents": null
+          },
+          {
+            "item_id": "lib-shingle-gaf-uhdz",
+            "sku": "0585180",
+            "price_cents": null
+          },
+          {
+            "item_id": "lib-shingle-gaf-royal-sovereign",
+            "sku": "0201180",
+            "price_cents": null
+          },
+          {
+            "item_id": "lib-shingle-oc-duration",
+            "sku": "TD01",
+            "price_cents": null
+          },
+          {
+            "item_id": "lib-shingle-oc-oakridge",
+            "sku": "HL01",
+            "price_cents": null
+          },
+          {
+            "item_id": "lib-shingle-oc-supreme",
+            "sku": "EK01",
+            "price_cents": null
+          },
+          {
+            "item_id": "lib-shingle-ct-landmark",
+            "sku": "622905",
+            "price_cents": null
+          },
+          {
+            "item_id": "lib-shingle-ct-landmark-pro",
+            "sku": "412293",
+            "price_cents": null
+          },
+          {
+            "item_id": "lib-shingle-iko-cambridge",
+            "sku": "4220002",
+            "price_cents": null
+          },
+          {
+            "item_id": "lib-shingle-malarkey-vista",
+            "sku": "251",
+            "price_cents": null
+          },
+          {
+            "item_id": "lib-shingle-atlas-pinnacle",
+            "sku": "618M015",
+            "price_cents": null
+          },
+          {
+            "item_id": "lib-starter-gaf-prostart",
+            "sku": "1126000",
+            "price_cents": null
+          },
+          {
+            "item_id": "lib-starter-oc-starter-strip",
+            "sku": "SSPL",
+            "price_cents": null
+          },
+          {
+            "item_id": "lib-starter-ct-swiftstart",
+            "sku": "411891",
+            "price_cents": null
+          },
+          {
+            "item_id": "lib-ridge-gaf-seal-a-ridge",
+            "sku": "0850180",
+            "price_cents": null
+          },
+          {
+            "item_id": "lib-ridge-gaf-timbertex",
+            "sku": "0847180",
+            "price_cents": null
+          },
+          {
+            "item_id": "lib-ridge-oc-proedge",
+            "sku": "HPA01",
+            "price_cents": null
+          },
+          {
+            "item_id": "lib-ridge-oc-duraridge",
+            "sku": "",
+            "price_cents": null
+          },
+          {
+            "item_id": "lib-ridge-ct-shadow-ridge",
+            "sku": "621958",
+            "price_cents": null
+          },
+          {
+            "item_id": "lib-underlay-gaf-feltbuster",
+            "sku": "0973",
+            "price_cents": null
+          },
+          {
+            "item_id": "lib-underlay-gaf-tiger-paw",
+            "sku": "0980",
+            "price_cents": null
+          },
+          {
+            "item_id": "lib-underlay-oc-proarmor",
+            "sku": "PROA",
+            "price_cents": null
+          },
+          {
+            "item_id": "lib-underlay-oc-rhinoroof",
+            "sku": "",
+            "price_cents": null
+          },
+          {
+            "item_id": "lib-underlay-ct-roofrunner",
+            "sku": "404987",
+            "price_cents": null
+          },
+          {
+            "item_id": "lib-underlay-felt-15",
+            "sku": "STD15",
+            "price_cents": null
+          },
+          {
+            "item_id": "lib-underlay-felt-30",
+            "sku": "STD30",
+            "price_cents": null
+          },
+          {
+            "item_id": "lib-iws-gaf-weatherwatch",
+            "sku": "0914000",
+            "price_cents": null
+          },
+          {
+            "item_id": "lib-iws-gaf-stormguard",
+            "sku": "0915000",
+            "price_cents": null
+          },
+          {
+            "item_id": "lib-iws-oc-weatherlock-g",
+            "sku": "AA10",
+            "price_cents": null
+          },
+          {
+            "item_id": "lib-iws-ct-winterguard",
+            "sku": "619740",
+            "price_cents": null
+          },
+          {
+            "item_id": "lib-drip-edge-alum-white",
+            "sku": "5504600120",
+            "price_cents": null
+          },
+          {
+            "item_id": "lib-drip-edge-galv",
+            "sku": "08331",
+            "price_cents": null
+          },
+          {
+            "item_id": "lib-gutter-apron",
+            "sku": "",
+            "price_cents": null
+          },
+          {
+            "item_id": "lib-step-flashing",
+            "sku": "",
+            "price_cents": null
+          },
+          {
+            "item_id": "lib-valley-w-galv",
+            "sku": "01566",
+            "price_cents": null
+          },
+          {
+            "item_id": "lib-roll-flashing-alum-20",
+            "sku": "68020",
+            "price_cents": null
+          },
+          {
+            "item_id": "lib-roll-valley-galv-20",
+            "sku": "17438",
+            "price_cents": null
+          },
+          {
+            "item_id": "lib-counter-flashing",
+            "sku": "",
+            "price_cents": null
+          },
+          {
+            "item_id": "lib-pipe-boot-1.5-3",
+            "sku": "11871",
+            "price_cents": null
+          },
+          {
+            "item_id": "lib-pipe-boot-3-4",
+            "sku": "11876",
+            "price_cents": null
+          },
+          {
+            "item_id": "lib-pipe-boot-lead-3",
+            "sku": "",
+            "price_cents": null
+          },
+          {
+            "item_id": "lib-roof-jack-exhaust",
+            "sku": "RJVC4",
+            "price_cents": null
+          },
+          {
+            "item_id": "lib-ridge-vent-cobra-rigid",
+            "sku": "2018000",
+            "price_cents": null
+          },
+          {
+            "item_id": "lib-ridge-vent-cobra-roll",
+            "sku": "2017",
+            "price_cents": null
+          },
+          {
+            "item_id": "lib-ridge-vent-oc-ventsure",
+            "sku": "VS4N",
+            "price_cents": null
+          },
+          {
+            "item_id": "lib-ridge-vent-shinglevent-ii",
+            "sku": "SHFVBL",
+            "price_cents": null
+          },
+          {
+            "item_id": "lib-box-vent-750",
+            "sku": "750",
+            "price_cents": null
+          },
+          {
+            "item_id": "lib-turbine-12",
+            "sku": "BIB12",
+            "price_cents": null
+          },
+          {
+            "item_id": "lib-power-vent",
+            "sku": "53847",
+            "price_cents": null
+          },
+          {
+            "item_id": "lib-soffit-vent-16x8",
+            "sku": "84211",
+            "price_cents": null
+          },
+          {
+            "item_id": "lib-baffle-rafter",
+            "sku": "510266",
+            "price_cents": null
+          },
+          {
+            "item_id": "lib-coil-nails-1.25",
+            "sku": "GRCR3DGAL",
+            "price_cents": null
+          },
+          {
+            "item_id": "lib-coil-nails-1.75",
+            "sku": "GRCR5DGAL",
+            "price_cents": null
+          },
+          {
+            "item_id": "lib-hand-nails-1.25-5lb",
+            "sku": "114EGRFG5",
+            "price_cents": null
+          },
+          {
+            "item_id": "lib-cap-nails-1",
+            "sku": "GCB1",
+            "price_cents": null
+          },
+          {
+            "item_id": "lib-cap-staples",
+            "sku": "0136044",
+            "price_cents": null
+          },
+          {
+            "item_id": "lib-sealant-roof-cement-tube",
+            "sku": "HE208004",
+            "price_cents": null
+          },
+          {
+            "item_id": "lib-sealant-roof-cement-gal",
+            "sku": "HE204042",
+            "price_cents": null
+          },
+          {
+            "item_id": "lib-sealant-geocel-2300",
+            "sku": "GC66100",
+            "price_cents": null
+          },
+          {
+            "item_id": "lib-spray-paint-flashing",
+            "sku": "",
+            "price_cents": null
+          },
+          {
+            "item_id": "lib-osb-7-16",
+            "sku": "",
+            "price_cents": null
+          },
+          {
+            "item_id": "lib-plywood-cdx-1-2",
+            "sku": "",
+            "price_cents": null
+          },
+          {
+            "item_id": "lib-plywood-cdx-5-8",
+            "sku": "",
+            "price_cents": null
+          },
+          {
+            "item_id": "lib-modbit-cap-sheet",
+            "sku": "3732920",
+            "price_cents": null
+          },
+          {
+            "item_id": "lib-modbit-base-sheet",
+            "sku": "3733000",
+            "price_cents": null
+          },
+          {
+            "item_id": "lib-rolled-roofing-90",
+            "sku": "",
+            "price_cents": null
+          },
+          {
+            "item_id": "lib-tpo-60-10x100",
+            "sku": "",
+            "price_cents": null
+          },
+          {
+            "item_id": "lib-iso-board-1",
+            "sku": "",
+            "price_cents": null
+          },
+          {
+            "item_id": "lib-skylight-velux-fcm-2222",
+            "sku": "FCM 2222 0005",
+            "price_cents": null
+          },
+          {
+            "item_id": "lib-skylight-velux-fs-c06",
+            "sku": "FS C06 2004",
+            "price_cents": null
+          },
+          {
+            "item_id": "lib-skylight-flashing-edl-c06",
+            "sku": "EDL C06 0000B",
+            "price_cents": null
+          },
+          {
+            "item_id": "lib-roof-harness-kit",
+            "sku": "",
+            "price_cents": null
+          }
+        ],
+        "locations": [
+          {
+            "name": "SRS Building Products - Dallas",
+            "address": "1604 Peavy Road, Dallas, TX 75228",
+            "phone": "214-321-6461"
+          },
+          {
+            "name": "SRS Building Products - Fort Worth",
+            "address": "1420 Forum Way South, Fort Worth, TX 76140",
+            "phone": "817-435-5457"
+          },
+          {
+            "name": "SRS Building Products - Arlington TX",
+            "address": "1900 Timberlake Drive, Arlington, TX 76010",
+            "phone": "817-633-9188"
+          },
+          {
+            "name": "SRS Building Products - Richardson",
+            "address": "1800 Jay Ell Dr, Ste 200, Richardson, TX 75081",
+            "phone": "214-920-5090"
+          },
+          {
+            "name": "SRS Building Products - Mesquite",
+            "address": "100 N Sam Houston Road, Mesquite, TX 75149",
+            "phone": "945-788-7663"
+          }
+        ]
+      },
+      {
+        "name": "Convoy Supply",
+        "delivery_fee_cents": null,
+        "offerings": [
+          {
+            "item_id": "lib-shingle-gaf-hdz",
+            "sku": "0489180",
+            "price_cents": null
+          },
+          {
+            "item_id": "lib-shingle-gaf-uhdz",
+            "sku": "0585180",
+            "price_cents": null
+          },
+          {
+            "item_id": "lib-shingle-gaf-royal-sovereign",
+            "sku": "0201180",
+            "price_cents": null
+          },
+          {
+            "item_id": "lib-shingle-ct-landmark",
+            "sku": "",
+            "price_cents": null
+          },
+          {
+            "item_id": "lib-shingle-ct-landmark-pro",
+            "sku": "",
+            "price_cents": null
+          },
+          {
+            "item_id": "lib-shingle-malarkey-vista",
+            "sku": "251",
+            "price_cents": null
+          },
+          {
+            "item_id": "lib-starter-gaf-prostart",
+            "sku": "1126000",
+            "price_cents": null
+          },
+          {
+            "item_id": "lib-starter-ct-swiftstart",
+            "sku": "92754",
+            "price_cents": null
+          },
+          {
+            "item_id": "lib-ridge-gaf-seal-a-ridge",
+            "sku": "0850180",
+            "price_cents": null
+          },
+          {
+            "item_id": "lib-ridge-gaf-timbertex",
+            "sku": "0847180",
+            "price_cents": null
+          },
+          {
+            "item_id": "lib-ridge-ct-shadow-ridge",
+            "sku": "",
+            "price_cents": null
+          },
+          {
+            "item_id": "lib-underlay-gaf-feltbuster",
+            "sku": "0970",
+            "price_cents": null
+          },
+          {
+            "item_id": "lib-underlay-gaf-tiger-paw",
+            "sku": "",
+            "price_cents": null
+          },
+          {
+            "item_id": "lib-underlay-ct-roofrunner",
+            "sku": "",
+            "price_cents": null
+          },
+          {
+            "item_id": "lib-underlay-felt-15",
+            "sku": "",
+            "price_cents": null
+          },
+          {
+            "item_id": "lib-underlay-felt-30",
+            "sku": "",
+            "price_cents": null
+          },
+          {
+            "item_id": "lib-iws-gaf-weatherwatch",
+            "sku": "0914000",
+            "price_cents": null
+          },
+          {
+            "item_id": "lib-iws-gaf-stormguard",
+            "sku": "0939000MV",
+            "price_cents": null
+          },
+          {
+            "item_id": "lib-iws-ct-winterguard",
+            "sku": "",
+            "price_cents": null
+          },
+          {
+            "item_id": "lib-drip-edge-alum-white",
+            "sku": "",
+            "price_cents": null
+          },
+          {
+            "item_id": "lib-drip-edge-galv",
+            "sku": "",
+            "price_cents": null
+          },
+          {
+            "item_id": "lib-step-flashing",
+            "sku": "",
+            "price_cents": null
+          },
+          {
+            "item_id": "lib-valley-w-galv",
+            "sku": "",
+            "price_cents": null
+          },
+          {
+            "item_id": "lib-counter-flashing",
+            "sku": "",
+            "price_cents": null
+          },
+          {
+            "item_id": "lib-pipe-boot-1.5-3",
+            "sku": "11937",
+            "price_cents": null
+          },
+          {
+            "item_id": "lib-pipe-boot-3-4",
+            "sku": "11877",
+            "price_cents": null
+          },
+          {
+            "item_id": "lib-roof-jack-exhaust",
+            "sku": "",
+            "price_cents": null
+          },
+          {
+            "item_id": "lib-ridge-vent-cobra-rigid",
+            "sku": "CRV3",
+            "price_cents": null
+          },
+          {
+            "item_id": "lib-ridge-vent-cobra-roll",
+            "sku": "2005",
+            "price_cents": null
+          },
+          {
+            "item_id": "lib-ridge-vent-shinglevent-ii",
+            "sku": "SHFVBL",
+            "price_cents": null
+          },
+          {
+            "item_id": "lib-box-vent-750",
+            "sku": "750",
+            "price_cents": null
+          },
+          {
+            "item_id": "lib-turbine-12",
+            "sku": "BIB12",
+            "price_cents": null
+          },
+          {
+            "item_id": "lib-power-vent",
+            "sku": "2000",
+            "price_cents": null
+          },
+          {
+            "item_id": "lib-coil-nails-1.25",
+            "sku": "",
+            "price_cents": null
+          },
+          {
+            "item_id": "lib-coil-nails-1.75",
+            "sku": "",
+            "price_cents": null
+          },
+          {
+            "item_id": "lib-sealant-roof-cement-tube",
+            "sku": "19N-CTG",
+            "price_cents": null
+          },
+          {
+            "item_id": "lib-sealant-roof-cement-gal",
+            "sku": "",
+            "price_cents": null
+          },
+          {
+            "item_id": "lib-sealant-np1",
+            "sku": "NP1TAN12",
+            "price_cents": null
+          },
+          {
+            "item_id": "lib-modbit-cap-sheet",
+            "sku": "3730750",
+            "price_cents": null
+          },
+          {
+            "item_id": "lib-modbit-base-sheet",
+            "sku": "3733000",
+            "price_cents": null
+          },
+          {
+            "item_id": "lib-rolled-roofing-90",
+            "sku": "",
+            "price_cents": null
+          },
+          {
+            "item_id": "lib-tpo-60-10x100",
+            "sku": "",
+            "price_cents": null
+          },
+          {
+            "item_id": "lib-iso-board-1",
+            "sku": "",
+            "price_cents": null
+          },
+          {
+            "item_id": "lib-skylight-velux-fcm-2222",
+            "sku": "FCM 2222 0005",
+            "price_cents": null
+          },
+          {
+            "item_id": "lib-skylight-velux-fs-c06",
+            "sku": "FS C06 2004",
+            "price_cents": null
+          },
+          {
+            "item_id": "lib-skylight-flashing-edl-c06",
+            "sku": "EDL C06 0000B",
+            "price_cents": null
+          },
+          {
+            "item_id": "lib-magnet-sweeper",
+            "sku": "",
+            "price_cents": null
+          },
+          {
+            "item_id": "lib-roof-harness-kit",
+            "sku": "",
+            "price_cents": null
+          }
+        ],
+        "locations": [
+          {
+            "name": "Home Office - Surrey",
+            "address": "8183 130th St, Surrey, BC V3W 7X4",
+            "phone": "604-591-5381"
+          },
+          {
+            "name": "US Regional Office - Lynnwood",
+            "address": "5804-204th Street SW, Lynnwood, WA 98036-7555",
+            "phone": "425-678-4983"
+          },
+          {
+            "name": "Prince George",
+            "address": "2261 Quinn St S, Prince George, BC V2N 2X4",
+            "phone": "250-563-4704"
+          },
+          {
+            "name": "Calgary",
+            "address": "3716 64th Ave SE, Calgary, AB",
+            "phone": ""
+          }
+        ]
+      }
+    ]
+  }
+}

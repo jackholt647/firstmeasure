@@ -1,0 +1,170 @@
+{
+  "kind": "guided_experience",
+  "id": "photos.tab_tutorial",
+  "revision": 1,
+  "sha256": "0e0405d5dc2158041d5fe8fdf9499e836dfac545d981322ffa83cf849fdbbe1a",
+  "title": "Photos tour",
+  "updated_at": "2026-10-28T00:40:02.983Z",
+  "updated_by": "generator",
+  "data": {
+    "id": "photos.tab_tutorial",
+    "version": 1,
+    "kind": "overlay",
+    "scope": "person",
+    "salt": "2026-10",
+    "title": {
+      "key": "gx_pt_title",
+      "text": "Photos tour"
+    },
+    "tab": "project.photos",
+    "eligibility": {
+      "capabilities": [
+        "platform.project_photos"
+      ],
+      "permissions": []
+    },
+    "triggers": [
+      {
+        "kind": "tab_opened",
+        "tab": "project.photos",
+        "once": true,
+        "delay_ms": 900
+      }
+    ],
+    "variants": [
+      {
+        "id": "tour",
+        "weight": 1,
+        "content": {}
+      }
+    ],
+    "requires": [],
+    "steps": [
+      {
+        "id": "intro",
+        "title": {
+          "key": "gx_pt_intro_title",
+          "text": "Welcome to Photos"
+        },
+        "body": {
+          "key": "gx_pt_intro_body",
+          "text": "Every photo and video for this project lives here. Here's a quick look around."
+        },
+        "targets": [],
+        "placement": "center",
+        "advance": "next",
+        "wait_ms": 1500
+      },
+      {
+        "id": "upload",
+        "title": {
+          "key": "gx_pt_upload_title",
+          "text": "Upload"
+        },
+        "body": {
+          "key": "gx_pt_upload_body",
+          "text": "Add photos and videos from your computer or phone. You can pick several at once."
+        },
+        "targets": [
+          "#rPhotoFeedMount [data-photo-feed-upload]",
+          "#rPhotoUploadBtn",
+          "#rPhotoUploadEmpty"
+        ],
+        "placement": "auto",
+        "advance": "next",
+        "wait_ms": 1500
+      },
+      {
+        "id": "gallery",
+        "title": {
+          "key": "gx_pt_gallery_title",
+          "text": "Your photos"
+        },
+        "body": {
+          "key": "gx_pt_gallery_body",
+          "text": "Click a photo to open it. From there you can mark it up, comment on it or share it to the customer's portal."
+        },
+        "targets": [
+          "#rPhotoFeedMount [data-photo-feed-dynamic]",
+          "#rPhotoGridOnly"
+        ],
+        "placement": "auto",
+        "advance": "next",
+        "wait_ms": 1500
+      },
+      {
+        "id": "select",
+        "title": {
+          "key": "gx_pt_select_title",
+          "text": "Pick several"
+        },
+        "body": {
+          "key": "gx_pt_select_body",
+          "text": "Tick photos to work on a few at once, such as sharing them all to the customer's portal."
+        },
+        "targets": [
+          "#rPhotoFeedMount .pf-select"
+        ],
+        "placement": "auto",
+        "advance": "next",
+        "wait_ms": 1500
+      },
+      {
+        "id": "search",
+        "title": {
+          "key": "gx_pt_search_title",
+          "text": "Search"
+        },
+        "body": {
+          "key": "gx_pt_search_body",
+          "text": "Find photos by date, who uploaded them or tag."
+        },
+        "targets": [
+          "#rPhotoFeedMount .pf-search"
+        ],
+        "placement": "auto",
+        "advance": "next",
+        "wait_ms": 1500
+      },
+      {
+        "id": "tags",
+        "title": {
+          "key": "gx_pt_tags_title",
+          "text": "Filter by tag"
+        },
+        "body": {
+          "key": "gx_pt_tags_body",
+          "text": "Show only the photos with the tags you choose."
+        },
+        "targets": [
+          "#rPhotoFeedMount [data-local-tags]"
+        ],
+        "placement": "auto",
+        "advance": "next",
+        "wait_ms": 1500
+      },
+      {
+        "id": "outro",
+        "title": {
+          "key": "gx_pt_outro_title",
+          "text": "You're all set"
+        },
+        "body": {
+          "key": "gx_pt_outro_body",
+          "text": "Want this tour again? Ask the agent \"Show me the tutorial again\"."
+        },
+        "targets": [],
+        "placement": "center",
+        "advance": "next",
+        "wait_ms": 1500
+      }
+    ],
+    "completion": {
+      "screen": "pricebook",
+      "say": [],
+      "then": []
+    },
+    "replayable": true,
+    "reveal": []
+  }
+}

@@ -1,0 +1,19 @@
+{
+  "kind": "measurement_definition",
+  "id": "roof.valley_length",
+  "revision": 1,
+  "sha256": "bd383a63cefe924c88b2886c0e75e773f525dbf8d6dc5007f318c07d47663199",
+  "title": "Valleys",
+  "updated_at": "2026-10-28T00:40:02.983Z",
+  "updated_by": "generator",
+  "data": {
+    "key": "valleyLf",
+    "label": "Valleys",
+    "unit": "ft",
+    "levels": [
+      "project",
+      "structure"
+    ],
+    "description": "Total valley length."
+  }
+}

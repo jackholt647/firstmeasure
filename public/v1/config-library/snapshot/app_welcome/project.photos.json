@@ -1,0 +1,42 @@
+{
+  "kind": "app_welcome",
+  "id": "project.photos",
+  "revision": 1,
+  "sha256": "743d318ef090152c49af538e935cc8f0b377beccbf14c540c5eaae867eaf3b60",
+  "title": "project.photos: Every job. Every detail. All together.",
+  "updated_at": "2026-10-28T00:40:02.983Z",
+  "updated_by": "generator",
+  "data": {
+    "theme": "photos",
+    "eyebrow": {
+      "key": "gx_offer_photos_name",
+      "text": "Project Photos"
+    },
+    "headline": {
+      "key": "gx_offer_photos_headline",
+      "text": "Every job. Every detail. All together."
+    },
+    "description": {
+      "key": "gx_offer_photos_description",
+      "text": "Keep the whole story of a project in one place - from the first visit to the final walkthrough."
+    },
+    "benefits": [
+      {
+        "key": "gx_offer_photos_b1",
+        "text": "Capture and upload right from the jobsite"
+      },
+      {
+        "key": "gx_offer_photos_b2",
+        "text": "Keep project photos organized and easy to find"
+      },
+      {
+        "key": "gx_offer_photos_b3",
+        "text": "Share the details with your team"
+      }
+    ],
+    "caption": {
+      "key": "gx_offer_photos_caption",
+      "text": "A clearer picture of every project."
+    }
+  }
+}

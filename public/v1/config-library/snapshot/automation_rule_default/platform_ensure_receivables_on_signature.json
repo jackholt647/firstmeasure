@@ -1,0 +1,22 @@
+{
+  "kind": "automation_rule_default",
+  "id": "platform_ensure_receivables_on_signature",
+  "revision": 1,
+  "sha256": "20cd336d148383750863bd4f49f1165511ed31970688eb663c6af791030d5b89",
+  "title": "Create payment schedule when a proposal is signed",
+  "updated_at": "2026-10-28T00:40:02.983Z",
+  "updated_by": "generator",
+  "data": {
+    "id": "platform_ensure_receivables_on_signature",
+    "sort_order": 4,
+    "enabled": true,
+    "title": "Create payment schedule when a proposal is signed",
+    "customer_visible": false,
+    "event": "document.signed",
+    "conditions": {
+      "payload.document_source": "proposals"
+    },
+    "automation": "payments.ensureReceivables.v1",
+    "input": {}
+  }
+}

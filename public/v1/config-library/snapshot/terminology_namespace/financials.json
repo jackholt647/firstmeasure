@@ -1,0 +1,76 @@
+{
+  "kind": "terminology_namespace",
+  "id": "financials",
+  "revision": 1,
+  "sha256": "5557ae4af2f56e00424ef11b1f5a15cda584fad0b7e7fcb13632935d70a85c3c",
+  "title": "Financials",
+  "updated_at": "2026-10-28T00:40:02.983Z",
+  "updated_by": "generator",
+  "data": {
+    "title": "Financials",
+    "note": "Company financial navigation, views, and summary measures.",
+    "position": 110,
+    "terms": [
+      {
+        "key": "portal_tab",
+        "label": "Financials",
+        "kind": "navigation"
+      },
+      {
+        "key": "profitability_view",
+        "label": "Profitability",
+        "kind": "view"
+      },
+      {
+        "key": "cash_flow_view",
+        "label": "Cash flow",
+        "kind": "view"
+      },
+      {
+        "key": "project_profitability",
+        "label": "Project Profitability",
+        "kind": "entity"
+      },
+      {
+        "key": "projected_revenue",
+        "label": "Projected Revenue",
+        "kind": "entity"
+      },
+      {
+        "key": "projected_profit",
+        "label": "Projected Profit",
+        "kind": "entity"
+      },
+      {
+        "key": "customer_owed",
+        "label": "Customer Owed",
+        "kind": "entity"
+      },
+      {
+        "key": "margin",
+        "label": "Margin",
+        "kind": "entity"
+      },
+      {
+        "key": "revenue",
+        "label": "Revenue",
+        "kind": "entity"
+      },
+      {
+        "key": "expenses",
+        "label": "Expenses",
+        "kind": "entity"
+      },
+      {
+        "key": "reconcile_view",
+        "label": "Reconcile",
+        "kind": "view"
+      },
+      {
+        "key": "payouts_view",
+        "label": "Payouts",
+        "kind": "view"
+      }
+    ]
+  }
+}

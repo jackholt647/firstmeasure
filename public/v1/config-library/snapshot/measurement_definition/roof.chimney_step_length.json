@@ -1,0 +1,19 @@
+{
+  "kind": "measurement_definition",
+  "id": "roof.chimney_step_length",
+  "revision": 1,
+  "sha256": "2c78bb36d99b88ea936809b4fedc45381813c0f0abed9336d7ed33aee707948a",
+  "title": "Chimney sides",
+  "updated_at": "2026-10-28T00:40:02.983Z",
+  "updated_by": "generator",
+  "data": {
+    "key": "chimneyStepLf",
+    "label": "Chimney sides",
+    "unit": "ft",
+    "levels": [
+      "project",
+      "structure"
+    ],
+    "description": "Length along the sloped sides of chimneys."
+  }
+}

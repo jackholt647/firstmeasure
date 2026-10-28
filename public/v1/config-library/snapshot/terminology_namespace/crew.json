@@ -1,0 +1,56 @@
+{
+  "kind": "terminology_namespace",
+  "id": "crew",
+  "revision": 1,
+  "sha256": "34c9592ff1f5376b724c133353acf1b30fc357ba9820a9a11326a90aad484464",
+  "title": "Crew",
+  "updated_at": "2026-10-28T00:40:02.983Z",
+  "updated_by": "generator",
+  "data": {
+    "title": "Crew",
+    "note": "Field application home navigation and crew records.",
+    "position": 170,
+    "terms": [
+      {
+        "key": "today_portal_tab",
+        "label": "Today",
+        "kind": "navigation"
+      },
+      {
+        "key": "crew_member",
+        "label": "Crew Member",
+        "kind": "entity"
+      },
+      {
+        "key": "crew_members",
+        "label": "Crew Members",
+        "kind": "entity"
+      },
+      {
+        "key": "assigned_work",
+        "label": "Assigned Work",
+        "kind": "entity"
+      },
+      {
+        "key": "clock_in",
+        "label": "Clock In",
+        "kind": "action"
+      },
+      {
+        "key": "clock_out",
+        "label": "Clock Out",
+        "kind": "action"
+      },
+      {
+        "key": "break",
+        "label": "Break",
+        "kind": "entity"
+      },
+      {
+        "key": "overview_tab",
+        "label": "Visit",
+        "kind": "navigation"
+      }
+    ]
+  }
+}

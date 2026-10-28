@@ -1,0 +1,19 @@
+{
+  "kind": "measurement_definition",
+  "id": "exterior_wall.opening_area",
+  "revision": 1,
+  "sha256": "c5607b83fca14b39597edd7f241777dbae4ed39a33c94598c114f9a9bc223566",
+  "title": "Opening area",
+  "updated_at": "2026-10-28T00:40:02.983Z",
+  "updated_by": "generator",
+  "data": {
+    "key": "wallOpeningArea",
+    "label": "Opening area",
+    "unit": "ft2",
+    "levels": [
+      "project",
+      "structure"
+    ],
+    "description": "Area of windows, doors and other openings."
+  }
+}

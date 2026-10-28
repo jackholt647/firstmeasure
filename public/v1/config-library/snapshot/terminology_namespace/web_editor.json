@@ -1,0 +1,21 @@
+{
+  "kind": "terminology_namespace",
+  "id": "web_editor",
+  "revision": 1,
+  "sha256": "cd084d89455145cd1548cc6b5c3939ddd3bc78413ab454263cfad2df6b0bb9a3",
+  "title": "Web editor",
+  "updated_at": "2026-10-28T00:40:02.983Z",
+  "updated_by": "generator",
+  "data": {
+    "title": "Web editor",
+    "note": "Shared display labels. Record identifiers and authored content stay unchanged.",
+    "position": 350,
+    "terms": [
+      {
+        "key": "tab",
+        "label": "Web Editor",
+        "kind": "navigation"
+      }
+    ]
+  }
+}

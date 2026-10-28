@@ -1,0 +1,180 @@
+{
+  "kind": "guided_experience",
+  "id": "reports.tab_tutorial",
+  "revision": 1,
+  "sha256": "00ecb50584ba8f74b01195e9f8dbf7ce9542ba28119d8a0923d6bf5042c6124c",
+  "title": "Reports tour",
+  "updated_at": "2026-10-28T00:40:02.983Z",
+  "updated_by": "generator",
+  "data": {
+    "id": "reports.tab_tutorial",
+    "version": 1,
+    "kind": "overlay",
+    "scope": "person",
+    "salt": "2026-10",
+    "title": {
+      "key": "gx_rt_title",
+      "text": "Reports tour"
+    },
+    "tab": "project.measurements",
+    "eligibility": {
+      "capabilities": [
+        "apps.firstmeasure"
+      ],
+      "permissions": []
+    },
+    "triggers": [
+      {
+        "kind": "tab_opened",
+        "tab": "project.measurements",
+        "once": true,
+        "delay_ms": 900
+      }
+    ],
+    "variants": [
+      {
+        "id": "tour",
+        "weight": 1,
+        "content": {}
+      }
+    ],
+    "requires": [],
+    "steps": [
+      {
+        "id": "intro",
+        "title": {
+          "key": "gx_rt_intro_title",
+          "text": "Welcome to Reports"
+        },
+        "body": {
+          "key": "gx_rt_intro_body",
+          "text": "This project's measurement report lives here. Here's a quick look around."
+        },
+        "targets": [],
+        "placement": "center",
+        "advance": "next",
+        "wait_ms": 1500
+      },
+      {
+        "id": "standard",
+        "title": {
+          "key": "gx_rt_standard_title",
+          "text": "The full report"
+        },
+        "body": {
+          "key": "gx_rt_standard_body",
+          "text": "The complete report: every measurement, diagram and page. It shows here as soon as it's ready."
+        },
+        "targets": [
+          "#rMeasureTabs [data-tab=\"standard\"]"
+        ],
+        "placement": "auto",
+        "advance": "next",
+        "wait_ms": 1500
+      },
+      {
+        "id": "customer",
+        "title": {
+          "key": "gx_rt_customer_title",
+          "text": "Customer version"
+        },
+        "body": {
+          "key": "gx_rt_customer_body",
+          "text": "A shorter version of the report, made to share with the homeowner."
+        },
+        "targets": [
+          "#rMeasureTabs [data-tab=\"customer\"]"
+        ],
+        "placement": "auto",
+        "advance": "next",
+        "wait_ms": 1500
+      },
+      {
+        "id": "model",
+        "title": {
+          "key": "gx_rt_model_title",
+          "text": "3D model"
+        },
+        "body": {
+          "key": "gx_rt_model_body",
+          "text": "Turn the roof around and look at it from any side."
+        },
+        "targets": [
+          "#rMeasureTabs [data-tab=\"model\"]"
+        ],
+        "placement": "auto",
+        "advance": "next",
+        "wait_ms": 1500
+      },
+      {
+        "id": "summary",
+        "title": {
+          "key": "gx_rt_summary_title",
+          "text": "Summary"
+        },
+        "body": {
+          "key": "gx_rt_summary_body",
+          "text": "The main measurements at a glance. Download them as a spreadsheet with CSV."
+        },
+        "targets": [
+          "#rMeasureTabs [data-tab=\"summary\"]"
+        ],
+        "placement": "auto",
+        "advance": "next",
+        "wait_ms": 1500,
+        "eligibility": {
+          "capabilities": [
+            "firstmeasure.measurement_report_summary"
+          ],
+          "permissions": []
+        }
+      },
+      {
+        "id": "support",
+        "title": {
+          "key": "gx_rt_support_title",
+          "text": "Support"
+        },
+        "body": {
+          "key": "gx_rt_support_body",
+          "text": "Something on the report looks wrong? Ask for a correction here, with notes and photos."
+        },
+        "targets": [
+          "#rMeasureTabs [data-tab=\"changes\"]",
+          ".r-report-followup-open.visible"
+        ],
+        "placement": "auto",
+        "advance": "next",
+        "wait_ms": 1500,
+        "eligibility": {
+          "capabilities": [
+            "firstmeasure.report_followup"
+          ],
+          "permissions": []
+        }
+      },
+      {
+        "id": "outro",
+        "title": {
+          "key": "gx_rt_outro_title",
+          "text": "You're all set"
+        },
+        "body": {
+          "key": "gx_rt_outro_body",
+          "text": "Want this tour again? Ask the agent \"Show me the tutorial again\"."
+        },
+        "targets": [],
+        "placement": "center",
+        "advance": "next",
+        "wait_ms": 1500
+      }
+    ],
+    "completion": {
+      "screen": "pricebook",
+      "say": [],
+      "then": []
+    },
+    "replayable": true,
+    "reveal": []
+  }
+}

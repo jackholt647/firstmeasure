@@ -1,0 +1,358 @@
+{
+  "kind": "scope_template",
+  "id": "roofing_sales_appointment",
+  "revision": 1,
+  "sha256": "558c5ab99bfce21a5cdec968844988e44c4c0d776181d5a71b122f01930526e4",
+  "title": "Standard Roofing Sales",
+  "updated_at": "2026-10-28T00:40:02.983Z",
+  "updated_by": "generator",
+  "data": {
+    "schema_version": 1,
+    "id": "roofing_sales_appointment",
+    "category_ids": [
+      "sales"
+    ],
+    "name": "Standard Roofing Sales",
+    "description": "A complete roofing sales appointment from en-route notice through proposal, approval, payment, notes and follow-up.",
+    "details": "The sales pipeline owns the appointment workflow. It issues a workflow-only Good / Better / Best roofing proposal and lets the salesperson complete it on device or send it to the customer portal.",
+    "color": "#b42318",
+    "icon": "fa-house-chimney",
+    "status": "active",
+    "sort_order": 2,
+    "proposal": {
+      "kind": "roofing_sales_pipeline",
+      "selectable": false
+    },
+    "fields": [],
+    "custom_fields": {
+      "groups": [
+        {
+          "path": "assignments",
+          "label": "Assignments",
+          "description": "People and teams responsible for this project.",
+          "order": 10,
+          "collapsed_by_default": true,
+          "location": "project_left",
+          "icon": "fa-user-group"
+        }
+      ],
+      "fields": [
+        {
+          "path": "assignments.estimator",
+          "label": "Estimator",
+          "description": "Salesperson responsible for estimating and selling the project.",
+          "type": "organization_user",
+          "cardinality": "one",
+          "group_path": "assignments",
+          "order": 10,
+          "assignment_policy": {
+            "allow_unassigned": true,
+            "rules": [
+              {
+                "subject_types": [
+                  "organization_user"
+                ],
+                "role_ids": [
+                  "sales_appointments"
+                ]
+              }
+            ]
+          },
+          "default_from": {
+            "source": "event_assignment",
+            "event_type_id": "sales_appointment",
+            "selection": "first_qualifying",
+            "write_mode": "if_empty",
+            "fallback_source": "proposal_creator"
+          },
+          "ui": {
+            "project_tag": true,
+            "icon": "fa-user-tie"
+          }
+        },
+        {
+          "path": "assignments.inside_salesperson",
+          "label": "Inside salesperson",
+          "description": "Person who scheduled or qualified the sales appointment.",
+          "type": "organization_user",
+          "cardinality": "one",
+          "group_path": "assignments",
+          "order": 20,
+          "assignment_policy": {
+            "allow_unassigned": true,
+            "rules": [
+              {
+                "subject_types": [
+                  "organization_user"
+                ],
+                "role_ids": [
+                  "inside_sales"
+                ]
+              }
+            ]
+          },
+          "default_from": {
+            "source": "event_scheduler",
+            "event_type_id": "sales_appointment",
+            "selection": "first_qualifying",
+            "write_mode": "if_empty"
+          }
+        }
+      ]
+    },
+    "communications": {
+      "email_forwarding": {
+        "enabled": true,
+        "priority": 10,
+        "target": {
+          "kind": "custom_field",
+          "custom_field_path": "assignments.estimator"
+        }
+      }
+    },
+    "work_plan": {
+      "title": "Standard Roofing Sales",
+      "terminology": {
+        "phase": "Phase",
+        "stage": "Stage",
+        "task": "To-do",
+        "board": "Board"
+      },
+      "root_nodes": [
+        {
+          "id": "roofing_sales_phase",
+          "title": "Roofing Sales",
+          "terminology_key": "work.phase",
+          "completion_mode": "all_children",
+          "metadata": {
+            "color": "#b42318",
+            "board_id": "roofing_sales_appointment"
+          },
+          "children": [
+            {
+              "id": "roofing_appointment_stage",
+              "title": "Appointment",
+              "terminology_key": "work.stage",
+              "completion_mode": "all_children",
+              "children": [
+                {
+                  "id": "roofing_customer_proposal",
+                  "title": "Price and present roofing options",
+                  "terminology_key": "work.task",
+                  "actionable": true,
+                  "show_in_todo_list": true,
+                  "assigned_role_ids": [
+                    "sales_appointments"
+                  ],
+                  "automation_bindings": {
+                    "onCompleted": [
+                      {
+                        "id": "mark_sale_won",
+                        "automation": "sales.markWon.v1",
+                        "input": {},
+                        "explainer": "Signing is when this pipeline counts the sale as won. Move this to another step to count it there instead."
+                      }
+                    ],
+                    "onReady": [
+                      {
+                        "id": "issue_roofing_workflow_proposal",
+                        "automation": "documents.issue.v1",
+                        "input": {
+                          "template_id": "tpl_instant_roofing_options",
+                          "workflow_id": "wfl_instant_roofing_options",
+                          "deliver": "none",
+                          "title": "Roofing Options & Approval"
+                        },
+                        "explainer": "Prepare the Good / Better / Best roofing proposal when the sales appointment becomes ready. Its options are priced from the roof measurements."
+                      }
+                    ]
+                  },
+                  "external_triggers": [
+                    {
+                      "event": "document.signed",
+                      "transition": "completed",
+                      "conditions": {
+                        "payload.template_id": "tpl_instant_roofing_options"
+                      }
+                    }
+                  ],
+                  "metadata": {
+                    "kind": "roofing_sales_visit",
+                    "frontend_action": {
+                      "kind": "open_project",
+                      "tab": "signatures"
+                    }
+                  }
+                }
+              ]
+            }
+          ]
+        }
+      ],
+      "metadata": {
+        "board_color": "#b42318"
+      }
+    },
+    "metadata": {
+      "preset": true,
+      "field_launch": {
+        "enabled": true,
+        "title": "Roofing Proposal (Good / Better / Best)",
+        "description": "Prepare the three-option roofing proposal, present it, and collect the customer's signature and deposit.",
+        "category": "Roofing",
+        "icon": "fa-house-chimney",
+        "keywords": [
+          "roof",
+          "roofing",
+          "proposal",
+          "estimate",
+          "good better best"
+        ],
+        "frequent": true
+      },
+      "visit_workflow": {
+        "enabled": true,
+        "id": "standard_roofing_sales_visit",
+        "title": "Roofing Sales Appointment",
+        "event_types": [
+          "sales_appointment"
+        ],
+        "steps": [
+          {
+            "id": "en_route",
+            "title": "On my way",
+            "navigation_title": "En route",
+            "kind": "notification",
+            "description": "Review the arrival estimate and customer text before starting the trip.",
+            "action": {
+              "label": "Send SMS & start trip",
+              "transition": "en_route",
+              "notify": {
+                "channel": "sms",
+                "message": "Hi {{customer.name}}, {{technician.name}} is on the way and expects to arrive in {{arrival.eta}}. We are headed to {{project.address}}."
+              }
+            }
+          },
+          {
+            "id": "arrived",
+            "title": "Arrive",
+            "navigation_title": "Arrived",
+            "kind": "status",
+            "description": "Confirm that you have arrived and are ready to begin.",
+            "action": {
+              "label": "I've arrived",
+              "transition": "arrived"
+            }
+          },
+          {
+            "id": "appointment",
+            "title": "Run the roofing appointment",
+            "navigation_title": "Appointment",
+            "kind": "status",
+            "description": "Inspect the property, understand the customer's goals, and discuss the roofing system options.",
+            "action": {
+              "label": "Appointment complete",
+              "transition": "appointment_completed"
+            }
+          },
+          {
+            "id": "price",
+            "title": "Build the roofing price",
+            "navigation_title": "Price",
+            "kind": "workflow_prepare",
+            "description": "Open the workflow-only roofing proposal, configure the Good / Better / Best options, and prepare it for the customer.",
+            "scope_template_id": "roofing_sales_appointment",
+            "target_tab": "crew_signatures"
+          },
+          {
+            "id": "delivery",
+            "title": "Choose how the customer will approve",
+            "navigation_title": "Present",
+            "kind": "outcome",
+            "description": "Continue together on this device or make the prepared workflow available in the customer portal.",
+            "actions": [
+              {
+                "id": "on_device",
+                "label": "Complete on this device",
+                "transition": "on_device",
+                "icon": "fa-mobile-screen",
+                "tone": "success"
+              },
+              {
+                "id": "customer_portal",
+                "label": "Send to customer portal",
+                "transition": "customer_portal",
+                "icon": "fa-paper-plane",
+                "tone": "warning",
+                "effect": {
+                  "kind": "send_workflow_to_portal",
+                  "scope_template_id": "roofing_sales_appointment"
+                }
+              }
+            ]
+          },
+          {
+            "id": "approval",
+            "title": "Customer approval & deposit",
+            "navigation_title": "Approve",
+            "kind": "workflow",
+            "description": "Hand the device to the customer to choose an option, sign, and make the deposit.",
+            "scope_template_id": "roofing_sales_appointment",
+            "target_tab": "crew_signatures",
+            "when": {
+              "step_id": "delivery",
+              "action_ids": [
+                "on_device"
+              ]
+            }
+          },
+          {
+            "id": "notes",
+            "title": "Appointment notes & follow-up",
+            "navigation_title": "Notes",
+            "kind": "notes_followup",
+            "description": "Record what happened and decide whether a follow-up should be assigned.",
+            "actions": [
+              {
+                "id": "follow_up",
+                "label": "Save notes & set follow-up",
+                "transition": "notes_saved",
+                "icon": "fa-calendar-plus",
+                "tone": "warning"
+              },
+              {
+                "id": "no_follow_up",
+                "label": "Save notes without follow-up",
+                "transition": "notes_saved",
+                "icon": "fa-floppy-disk",
+                "tone": "neutral"
+              }
+            ]
+          },
+          {
+            "id": "summary",
+            "title": "Sales visit summary",
+            "navigation_title": "Summary",
+            "kind": "summary",
+            "description": "Signature and payment status update automatically. When both are complete, the project is sold.",
+            "scope_template_id": "roofing_sales_appointment",
+            "target_tab": "crew_signatures"
+          },
+          {
+            "id": "finish",
+            "title": "Complete the visit",
+            "navigation_title": "Done",
+            "kind": "complete",
+            "description": "Close the appointment after the proposal is signed, paid, and summarized.",
+            "action": {
+              "label": "Complete visit",
+              "transition": "completed"
+            },
+            "scope_template_id": "roofing_sales_appointment",
+            "requires": "workflow_complete"
+          }
+        ]
+      }
+    }
+  }
+}

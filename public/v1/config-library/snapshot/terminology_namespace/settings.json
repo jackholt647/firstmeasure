@@ -1,0 +1,101 @@
+{
+  "kind": "terminology_namespace",
+  "id": "settings",
+  "revision": 1,
+  "sha256": "61e3640efc2215fa1ec8eea48084faf6d59cb03da67dd791c134bd23870b052c",
+  "title": "Settings",
+  "updated_at": "2026-10-28T00:40:02.983Z",
+  "updated_by": "generator",
+  "data": {
+    "title": "Settings",
+    "note": "Settings shell navigation and administration-only areas.",
+    "position": 280,
+    "terms": [
+      {
+        "key": "portal_tab",
+        "label": "Settings",
+        "kind": "navigation"
+      },
+      {
+        "key": "company_tab",
+        "label": "Company",
+        "kind": "navigation"
+      },
+      {
+        "key": "users_tab",
+        "label": "Users",
+        "kind": "navigation"
+      },
+      {
+        "key": "people_view",
+        "label": "People",
+        "kind": "view"
+      },
+      {
+        "key": "roles_access_view",
+        "label": "Roles & access",
+        "kind": "view"
+      },
+      {
+        "key": "terminology_tab",
+        "label": "Terminology",
+        "kind": "navigation"
+      },
+      {
+        "key": "configuration_tab",
+        "label": "Configuration",
+        "kind": "navigation"
+      },
+      {
+        "key": "storage_tab",
+        "label": "Storage",
+        "kind": "navigation"
+      },
+      {
+        "key": "sms_tab",
+        "label": "SMS",
+        "kind": "navigation"
+      },
+      {
+        "key": "feature_flags_tab",
+        "label": "Feature Flags",
+        "kind": "navigation"
+      },
+      {
+        "key": "developer_settings_tab",
+        "label": "Developer Settings",
+        "kind": "navigation"
+      },
+      {
+        "key": "feedback_tab",
+        "label": "Feedback",
+        "kind": "navigation"
+      },
+      {
+        "key": "live_chat_tab",
+        "label": "Live Chat",
+        "kind": "navigation"
+      },
+      {
+        "key": "comms_tab",
+        "label": "Communications",
+        "kind": "navigation"
+      },
+      {
+        "key": "assistant_tab",
+        "label": "AI Agents",
+        "kind": "navigation"
+      },
+      {
+        "key": "channels_tab",
+        "label": "Channels",
+        "kind": "navigation"
+      },
+      {
+        "key": "domains_tab",
+        "label": "Domains & Hosting",
+        "kind": "navigation"
+      }
+    ]
+  }
+}

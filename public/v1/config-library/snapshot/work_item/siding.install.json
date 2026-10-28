@@ -1,0 +1,15 @@
+{
+  "kind": "work_item",
+  "id": "siding.install",
+  "revision": 1,
+  "sha256": "8125ac6cb344ab5e775b9b1e0c32cd9c9ac5b20138272fc0fb346f38fa82d85b",
+  "title": "Install siding",
+  "updated_at": "2026-10-28T00:40:02.983Z",
+  "updated_by": "generator",
+  "data": {
+    "label": "Install siding",
+    "kind": "work",
+    "unit": "ft2",
+    "description": "Install replacement wall covering."
+  }
+}

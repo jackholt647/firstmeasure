@@ -1,0 +1,51 @@
+{
+  "kind": "terminology_namespace",
+  "id": "earnings",
+  "revision": 1,
+  "sha256": "fd7ab81495c6659fb46ea9a068466e1fab7cc72cc15dbbff835cbd9dc4d12431",
+  "title": "Earnings",
+  "updated_at": "2026-10-28T00:40:02.983Z",
+  "updated_by": "generator",
+  "data": {
+    "title": "Earnings",
+    "note": "Field earnings navigation and payment summaries.",
+    "position": 180,
+    "terms": [
+      {
+        "key": "crew_portal_tab",
+        "label": "Earnings",
+        "kind": "navigation"
+      },
+      {
+        "key": "crew_project_tab",
+        "label": "Earnings",
+        "kind": "navigation"
+      },
+      {
+        "key": "earnings",
+        "label": "Earnings",
+        "kind": "entity"
+      },
+      {
+        "key": "owed",
+        "label": "Owed",
+        "kind": "entity"
+      },
+      {
+        "key": "paid",
+        "label": "Paid",
+        "kind": "entity"
+      },
+      {
+        "key": "projected",
+        "label": "Projected",
+        "kind": "entity"
+      },
+      {
+        "key": "sales_portal_tab",
+        "label": "Earnings",
+        "kind": "navigation"
+      }
+    ]
+  }
+}

@@ -1,0 +1,15 @@
+{
+  "kind": "work_item",
+  "id": "roofing.install",
+  "revision": 1,
+  "sha256": "81847da46f3e921c43e595a7edfc3caaf9818d5d9ae9becb0039c54dc1fbc288",
+  "title": "Install roofing",
+  "updated_at": "2026-10-28T00:40:02.983Z",
+  "updated_by": "generator",
+  "data": {
+    "label": "Install roofing",
+    "kind": "work",
+    "unit": "roofing_square",
+    "description": "Lay the new field roofing."
+  }
+}

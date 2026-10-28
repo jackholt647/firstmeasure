@@ -1,0 +1,19 @@
+{
+  "kind": "measurement_definition",
+  "id": "roof.chimney_apron_length",
+  "revision": 1,
+  "sha256": "7b4fbde001c3f062a521d00daec071a7e003836f7400d49212d27b5ee4a61e76",
+  "title": "Chimney aprons",
+  "updated_at": "2026-10-28T00:40:02.983Z",
+  "updated_by": "generator",
+  "data": {
+    "key": "chimneyApronLf",
+    "label": "Chimney aprons",
+    "unit": "ft",
+    "levels": [
+      "project",
+      "structure"
+    ],
+    "description": "Length across the low side of chimneys."
+  }
+}

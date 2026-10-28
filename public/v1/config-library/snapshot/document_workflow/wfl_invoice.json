@@ -1,0 +1,167 @@
+{
+  "kind": "document_workflow",
+  "id": "wfl_invoice",
+  "revision": 1,
+  "sha256": "e50514fa4e181479cac7b5a0bd0d64636e2a67598d3671fbf6b8d93846904933",
+  "title": "Invoice",
+  "updated_at": "2026-10-28T00:40:02.983Z",
+  "updated_by": "generator",
+  "data": {
+    "name": "Invoice",
+    "description": "What to bill, dates and a note, review; then the customer's payment.",
+    "status": "active",
+    "seeding": "every_organization",
+    "definition": {
+      "schema_version": 1,
+      "name": "Invoice",
+      "contract": {
+        "params": {
+          "project": {
+            "type": "entity",
+            "entity": "project"
+          },
+          "customer": {
+            "type": "entity",
+            "entity": "contact"
+          },
+          "invoice_number": {
+            "type": "string",
+            "label": "Invoice number"
+          },
+          "issue_date": {
+            "type": "date",
+            "label": "Issued"
+          },
+          "due_date": {
+            "type": "date",
+            "label": "Due"
+          },
+          "bill": {
+            "type": "string",
+            "label": "What to bill"
+          },
+          "line_items": {
+            "type": "list",
+            "items": {
+              "type": "pricebook_line"
+            },
+            "label": "Other charges"
+          },
+          "tax_percent": {
+            "type": "percent",
+            "label": "Tax on other charges"
+          },
+          "notes": {
+            "type": "text",
+            "label": "Note to the customer"
+          },
+          "status": {
+            "type": "string"
+          },
+          "account": {
+            "type": "object",
+            "source": "project_account"
+          },
+          "billing": {
+            "type": "object"
+          },
+          "amount_due_cents": {
+            "type": "currency",
+            "label": "Amount due"
+          }
+        },
+        "outputs": {
+          "payment": {
+            "type": "payment",
+            "required_for": "completed"
+          }
+        }
+      },
+      "steps": [
+        {
+          "id": "bill",
+          "title": "What to bill",
+          "description": "Bill a payment from the signed agreement, everything that is still open, or charges that were never in it.",
+          "audience": [
+            "internal"
+          ],
+          "items": [
+            {
+              "kind": "select",
+              "writes": "params.bill",
+              "label": "Bill the customer for",
+              "required": true,
+              "options_from": "params.account.bill_options",
+              "presentation": {
+                "style": "cards"
+              }
+            },
+            {
+              "kind": "line_item_editor",
+              "writes": "params.line_items",
+              "label": "Other charges",
+              "description": "Anything owed that is not in the agreement: a permit, a dump fee, extra material. Leave empty when there is nothing to add."
+            }
+          ]
+        },
+        {
+          "id": "terms",
+          "title": "Dates & note",
+          "audience": [
+            "internal"
+          ],
+          "items": [
+            {
+              "kind": "date",
+              "writes": "params.issue_date",
+              "label": "Issued",
+              "required": true
+            },
+            {
+              "kind": "date",
+              "writes": "params.due_date",
+              "label": "Due",
+              "required": true,
+              "description": "The billed payments become due on this date when the invoice is sent."
+            },
+            {
+              "kind": "text",
+              "writes": "params.notes",
+              "label": "Note to the customer",
+              "presentation": {
+                "multiline": true
+              },
+              "placeholder": "Thank you for your business."
+            }
+          ]
+        },
+        {
+          "id": "review",
+          "title": "Review & send",
+          "audience": [
+            "internal"
+          ],
+          "items": [
+            {
+              "kind": "review",
+              "label": "Before you send",
+              "total_label": "Other charges"
+            }
+          ],
+          "preview": {
+            "template_ref": "tpl_invoice_default",
+            "live": true
+          }
+        }
+      ],
+      "audiences": {
+        "internal": {},
+        "customer": {
+          "theme": "portal"
+        }
+      }
+    },
+    "metadata": {},
+    "pricebook_defaults": []
+  }
+}

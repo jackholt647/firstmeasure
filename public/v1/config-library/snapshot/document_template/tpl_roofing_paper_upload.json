@@ -1,0 +1,145 @@
+{
+  "kind": "document_template",
+  "id": "tpl_roofing_paper_upload",
+  "revision": 1,
+  "sha256": "dc42df01fb00807adf3a820b53a56ef7a0c0ae36b6fb3f720432e593482fc764",
+  "title": "Roofing Contract — Paper Upload",
+  "updated_at": "2026-10-28T00:40:02.983Z",
+  "updated_by": "generator",
+  "data": {
+    "name": "Roofing Contract — Paper Upload",
+    "document_type": "contract",
+    "description": "Upload a signed (or unsigned) paper roofing contract; the agent extracts these fields for review.",
+    "status": "active",
+    "seeding": "every_organization",
+    "definition": {
+      "schema_version": 1,
+      "kind": "document",
+      "settings": {
+        "paper": {
+          "size": "letter",
+          "orientation": "portrait"
+        },
+        "locale": "en-US",
+        "base_font_pt": 11
+      },
+      "theme_ref": null,
+      "params": {
+        "customer_name": {
+          "type": "string",
+          "label": "Customer name",
+          "required": true
+        },
+        "property_address": {
+          "type": "string",
+          "label": "Property address"
+        },
+        "contract_date": {
+          "type": "date",
+          "label": "Contract date"
+        },
+        "shingle_selection": {
+          "type": "string",
+          "label": "Shingle brand & color"
+        },
+        "total_cents": {
+          "type": "currency",
+          "label": "Contract total"
+        },
+        "deposit_cents": {
+          "type": "currency",
+          "label": "Deposit"
+        },
+        "material_notes": {
+          "type": "text",
+          "label": "Materials & selections notes"
+        }
+      },
+      "computed": {},
+      "outputs": {
+        "sig_customer": {
+          "type": "signature",
+          "required": true,
+          "signer": "customer",
+          "label": "Customer signature"
+        },
+        "sig_company": {
+          "type": "signature",
+          "signer": "internal",
+          "label": "Company signature"
+        }
+      },
+      "styles": {},
+      "components": {},
+      "chains": {},
+      "assets": [],
+      "edit_policy": {
+        "base_profile": "document",
+        "max_profile": "designer",
+        "features": {},
+        "unlock": {
+          "allowed": true
+        }
+      },
+      "metadata": {
+        "intake": "upload"
+      },
+      "pages": [
+        {
+          "id": "pg_e0uesfz8c4hef",
+          "role": "body",
+          "name": "Paper upload",
+          "master_ref": null,
+          "repeat": null,
+          "children": [
+            {
+              "id": "nd_e0uetyslm1leh",
+              "type": "text",
+              "name": "",
+              "frame": {
+                "x": 96,
+                "y": 96,
+                "w": 420,
+                "h": 60,
+                "rotation": 0,
+                "z": 0,
+                "layout": "absolute",
+                "constraints": {
+                  "h": "left",
+                  "v": "top"
+                }
+              },
+              "style": {},
+              "locks": {},
+              "bind": null,
+              "visible": true,
+              "props": {
+                "blocks": [
+                  {
+                    "runs": [
+                      {
+                        "text": "Roofing Contract — Paper Upload — the signed record is the uploaded file. Fields captured at upload review live on this document."
+                      }
+                    ]
+                  }
+                ],
+                "valign": "top",
+                "auto_fit": false,
+                "line_height": 1.4,
+                "letter_spacing": 0
+              }
+            }
+          ]
+        }
+      ]
+    },
+    "metadata": {
+      "disable_default_workflow": true,
+      "default": false,
+      "intake": "upload"
+    },
+    "initial_metadata": {},
+    "requires_pricebook_items": [],
+    "pricebook_defaults": []
+  }
+}

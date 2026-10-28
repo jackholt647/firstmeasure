@@ -1,0 +1,66 @@
+{
+  "kind": "terminology_namespace",
+  "id": "workforce",
+  "revision": 1,
+  "sha256": "14eb8344e6f5dab2321ea03b9c8e4b48333a41e28812a58bb0b23b3803db9130",
+  "title": "Workforce",
+  "updated_at": "2026-10-28T00:40:02.983Z",
+  "updated_by": "generator",
+  "data": {
+    "title": "Workforce",
+    "note": "Workforce settings navigation. Detailed workforce nouns remain connected to workforce configuration.",
+    "position": 270,
+    "terms": [
+      {
+        "key": "settings_tab",
+        "label": "Crews and Subcontractors",
+        "kind": "navigation"
+      },
+      {
+        "key": "organization_connections_view",
+        "label": "Organization Connections",
+        "kind": "view"
+      },
+      {
+        "key": "resource_group_singular",
+        "label": "Crew",
+        "kind": "entity"
+      },
+      {
+        "key": "resource_group_plural",
+        "label": "Crews",
+        "kind": "entity"
+      },
+      {
+        "key": "worker_singular",
+        "label": "Crew Member",
+        "kind": "entity"
+      },
+      {
+        "key": "worker_plural",
+        "label": "Crew Members",
+        "kind": "entity"
+      },
+      {
+        "key": "organization_connection_singular",
+        "label": "Subcontractor",
+        "kind": "entity"
+      },
+      {
+        "key": "organization_connection_plural",
+        "label": "Subcontractors",
+        "kind": "entity"
+      },
+      {
+        "key": "management_application",
+        "label": "Main App",
+        "kind": "entity"
+      },
+      {
+        "key": "field_application",
+        "label": "Crew App",
+        "kind": "entity"
+      }
+    ]
+  }
+}

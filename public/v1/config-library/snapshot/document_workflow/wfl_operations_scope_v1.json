@@ -1,0 +1,219 @@
+{
+  "kind": "document_workflow",
+  "id": "wfl_operations_scope_v1",
+  "revision": 1,
+  "sha256": "4d0482ec0dd5afdd388a1677c9fa38ff2cbce1dfb11d06dad4a588d04a951fa6",
+  "title": "Build your scope of work",
+  "updated_at": "2026-10-28T00:40:02.983Z",
+  "updated_by": "generator",
+  "data": {
+    "name": "Build your scope of work",
+    "description": "",
+    "status": "active",
+    "seeding": "with_template",
+    "definition": {
+      "schema_version": 1,
+      "name": "Build your scope of work",
+      "contract": {
+        "params": {
+          "structure": {
+            "type": "string",
+            "label": "Structure",
+            "default": "Main house"
+          },
+          "scope_items": {
+            "type": "list",
+            "items": {
+              "type": "pricebook_line"
+            },
+            "label": "Scope of work",
+            "default": []
+          },
+          "scope_pieces": {
+            "type": "list",
+            "items": {
+              "type": "object"
+            },
+            "label": "Project work",
+            "default": []
+          },
+          "measurement_requirements": {
+            "type": "list",
+            "items": {
+              "type": "string"
+            }
+          },
+          "measurements": {
+            "type": "measurements",
+            "label": "Measurements"
+          },
+          "scope_generated_from": {
+            "type": "string"
+          },
+          "customer_choice_count": {
+            "type": "number",
+            "default": 0
+          },
+          "show_line_prices": {
+            "type": "boolean",
+            "label": "Print each line price",
+            "default": true
+          },
+          "content_blocks": {
+            "type": "list",
+            "label": "Photos & description",
+            "default": []
+          },
+          "operations_work": {
+            "type": "list",
+            "items": {
+              "type": "object"
+            },
+            "default": []
+          }
+        },
+        "outputs": {}
+      },
+      "steps": [
+        {
+          "id": "work",
+          "title": "What are we working on?",
+          "audience": [
+            "internal"
+          ],
+          "items": [
+            {
+              "kind": "piece_select",
+              "writes": "params.scope_pieces",
+              "label": "Choose everything included in this project",
+              "multi": true,
+              "required": true
+            }
+          ]
+        },
+        {
+          "id": "measure",
+          "title": "Measurements",
+          "audience": [
+            "internal"
+          ],
+          "items": [
+            {
+              "kind": "measurements",
+              "writes": "params.measurements",
+              "fields_from": "measurement_requirements",
+              "fields": [
+                {
+                  "key": "roofSquares",
+                  "label": "Roof area",
+                  "unit": "sq"
+                },
+                {
+                  "key": "wastePercent",
+                  "label": "Waste",
+                  "unit": "%",
+                  "default": 10
+                },
+                {
+                  "key": "eavesLf",
+                  "label": "Eaves",
+                  "unit": "ft"
+                },
+                {
+                  "key": "rakesLf",
+                  "label": "Rakes",
+                  "unit": "ft"
+                },
+                {
+                  "key": "ridgesLf",
+                  "label": "Ridges",
+                  "unit": "ft"
+                },
+                {
+                  "key": "hipsLf",
+                  "label": "Hips",
+                  "unit": "ft"
+                },
+                {
+                  "key": "valleyLf",
+                  "label": "Valleys",
+                  "unit": "ft"
+                },
+                {
+                  "key": "sideWallLf",
+                  "label": "Sidewalls",
+                  "unit": "ft"
+                },
+                {
+                  "key": "headWallLf",
+                  "label": "Headwalls",
+                  "unit": "ft"
+                },
+                {
+                  "key": "pipeBootsEa",
+                  "label": "Pipe boots",
+                  "unit": "ea",
+                  "default": 0
+                },
+                {
+                  "key": "skylightsEa",
+                  "label": "Skylights",
+                  "unit": "ea",
+                  "default": 0
+                },
+                {
+                  "key": "chimneysEa",
+                  "label": "Chimneys",
+                  "unit": "ea",
+                  "default": 0
+                },
+                {
+                  "key": "gutterLf",
+                  "label": "Gutters",
+                  "unit": "ft",
+                  "default": 0
+                },
+                {
+                  "key": "downspoutLf",
+                  "label": "Downspouts",
+                  "unit": "ft",
+                  "default": 0
+                },
+                {
+                  "key": "wallNetArea",
+                  "label": "Net wall area",
+                  "unit": "sq ft"
+                },
+                {
+                  "key": "wallTerminationsLf",
+                  "label": "Wall terminations",
+                  "unit": "ft"
+                }
+              ],
+              "prefill": "project.measurements",
+              "label": "Check the measurements",
+              "required": true
+            }
+          ]
+        },
+        {
+          "id": "items",
+          "title": "Build the scope",
+          "audience": [
+            "internal"
+          ],
+          "items": [
+            {
+              "kind": "line_items_review",
+              "writes": "params.scope_items",
+              "label": "Choose the products and work included",
+              "required": true
+            }
+          ]
+        }
+      ]
+    },
+    "metadata": {},
+    "pricebook_defaults": []
+  }
+}

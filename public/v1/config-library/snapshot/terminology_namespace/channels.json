@@ -1,0 +1,21 @@
+{
+  "kind": "terminology_namespace",
+  "id": "channels",
+  "revision": 1,
+  "sha256": "bde97bf72a3617851f8d798be5d1c2554f5a3deefc539ec1b0e74b1d05fcc9c8",
+  "title": "Channels",
+  "updated_at": "2026-10-28T00:40:02.983Z",
+  "updated_by": "generator",
+  "data": {
+    "title": "Channels",
+    "note": "Shared display labels. Record identifiers and authored content stay unchanged.",
+    "position": 410,
+    "terms": [
+      {
+        "key": "portal_tab",
+        "label": "Channels",
+        "kind": "navigation"
+      }
+    ]
+  }
+}

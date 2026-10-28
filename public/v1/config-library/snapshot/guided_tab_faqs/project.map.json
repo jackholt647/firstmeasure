@@ -1,0 +1,30 @@
+{
+  "kind": "guided_tab_faqs",
+  "id": "project.map",
+  "revision": 1,
+  "sha256": "940831e1ed375a714401e37ff5a7d95181261302c53f069b6bc843321614a9fd",
+  "title": "Questions on project.map",
+  "updated_at": "2026-10-28T00:40:02.983Z",
+  "updated_by": "generator",
+  "data": {
+    "tab": "project.map",
+    "questions": [
+      {
+        "id": "overview.next",
+        "text": {
+          "key": "gx_faq_overview_next",
+          "text": "What should I do next on this project?"
+        },
+        "action": "ask"
+      },
+      {
+        "id": "overview.summary",
+        "text": {
+          "key": "gx_faq_overview_summary",
+          "text": "Summarize this project for me"
+        },
+        "action": "ask"
+      }
+    ]
+  }
+}

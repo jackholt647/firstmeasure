@@ -1,0 +1,26 @@
+{
+  "kind": "terminology_namespace",
+  "id": "training",
+  "revision": 1,
+  "sha256": "2c4aa9d452d9a3d2a0bbf045451cc936afa46b61c2c876f839a085350c2dff23",
+  "title": "Training",
+  "updated_at": "2026-10-28T00:40:02.983Z",
+  "updated_by": "generator",
+  "data": {
+    "title": "Training",
+    "note": "Shared display labels. Record identifiers and authored content stay unchanged.",
+    "position": 370,
+    "terms": [
+      {
+        "key": "portal_tab",
+        "label": "Training",
+        "kind": "navigation"
+      },
+      {
+        "key": "studio_portal_tab",
+        "label": "Training Studio",
+        "kind": "navigation"
+      }
+    ]
+  }
+}

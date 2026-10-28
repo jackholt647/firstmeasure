@@ -1,0 +1,61 @@
+{
+  "kind": "terminology_namespace",
+  "id": "canvassing",
+  "revision": 1,
+  "sha256": "8776896bab2b96685ec1fcc5d845f44bdb83dba00e4b3a763692f742f050c815",
+  "title": "Canvassing",
+  "updated_at": "2026-10-28T00:40:02.983Z",
+  "updated_by": "generator",
+  "data": {
+    "title": "Canvassing",
+    "note": "Canvassing navigation, pins, and lead records.",
+    "position": 150,
+    "terms": [
+      {
+        "key": "portal_tab",
+        "label": "Canvassing",
+        "kind": "navigation"
+      },
+      {
+        "key": "pin",
+        "label": "Pin",
+        "kind": "entity"
+      },
+      {
+        "key": "pins",
+        "label": "Pins",
+        "kind": "entity"
+      },
+      {
+        "key": "lead",
+        "label": "Lead",
+        "kind": "entity"
+      },
+      {
+        "key": "leads",
+        "label": "Leads",
+        "kind": "entity"
+      },
+      {
+        "key": "territory",
+        "label": "Territory",
+        "kind": "entity"
+      },
+      {
+        "key": "canvasser",
+        "label": "Canvasser",
+        "kind": "entity"
+      },
+      {
+        "key": "create_lead",
+        "label": "Create Lead",
+        "kind": "action"
+      },
+      {
+        "key": "contact_result",
+        "label": "Contact Result",
+        "kind": "entity"
+      }
+    ]
+  }
+}

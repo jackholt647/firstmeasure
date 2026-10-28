@@ -1,0 +1,32 @@
+{
+  "kind": "capability_preset",
+  "id": "proposals_only",
+  "revision": 1,
+  "sha256": "f5d5624470885a284e893a076d2d1f7b3820a1cbf1a84007d5e58e2698dfd8b0",
+  "title": "Proposals Only",
+  "updated_at": "2026-10-28T00:40:02.983Z",
+  "updated_by": "generator",
+  "data": {
+    "name": "Proposals Only",
+    "description": "A focused proposal workflow on the document engine: create and send proposals, collect signatures and payment through the customer portal. Everything else off.",
+    "builtin": true,
+    "base": "off",
+    "values": {
+      "apps.projects": true,
+      "platform.contacts": true,
+      "platform.documents": true,
+      "documents.templates_studio": true,
+      "documents.esign": true,
+      "documents.payments": true,
+      "platform.money": true,
+      "platform.pricebook": true,
+      "platform.customer_portal": true,
+      "apps.billing": true,
+      "money.payment_schedules": true,
+      "money.take_payment": true,
+      "customer_portal.payments": true,
+      "customer_portal.guest_links": true,
+      "platform.new_button_mode": "doc:proposal"
+    }
+  }
+}

@@ -1,0 +1,2885 @@
+{
+  "kind": "document_template",
+  "id": "tpl_instant_roofing_detailed",
+  "revision": 1,
+  "sha256": "05b7a56eee66c93043eb3967cdb11a440029862236f41aabff66c94f35a74056",
+  "title": "Roof replacement · Itemized proposal",
+  "updated_at": "2026-10-28T00:40:02.983Z",
+  "updated_by": "generator",
+  "data": {
+    "name": "Roof replacement · Itemized proposal",
+    "document_type": "proposal",
+    "description": "Every line priced from the roof measurements and your price book, with the product choices the customer can make.",
+    "status": "active",
+    "seeding": "every_organization",
+    "definition": {
+      "schema_version": 1,
+      "kind": "document",
+      "settings": {
+        "paper": {
+          "size": "letter",
+          "orientation": "portrait"
+        },
+        "locale": "en-US",
+        "base_font_pt": 11
+      },
+      "theme_ref": {
+        "theme_id": "thm_margin"
+      },
+      "params": {
+        "structure": {
+          "type": "string",
+          "label": "Structure",
+          "default": "Main house"
+        },
+        "scope_items": {
+          "type": "list",
+          "items": {
+            "type": "pricebook_line"
+          },
+          "label": "Accepted scope",
+          "default": []
+        },
+        "scope_pieces": {
+          "type": "list",
+          "items": {
+            "type": "object"
+          },
+          "label": "Project work",
+          "default": [
+            {
+              "id": "piece_roof_replacement",
+              "template_id": "roof_replacement",
+              "name": "Roof Replacement"
+            }
+          ]
+        },
+        "measurement_requirements": {
+          "type": "list",
+          "items": {
+            "type": "string"
+          }
+        },
+        "measurements": {
+          "type": "measurements",
+          "label": "Measurements"
+        },
+        "payment_schedule": {
+          "type": "payment_schedule",
+          "label": "Payment terms",
+          "default": [
+            {
+              "id": "deposit",
+              "label": "Deposit",
+              "kind": "percent",
+              "percent": 30,
+              "payment_kind": "deposit",
+              "due_rule": "on_signature"
+            },
+            {
+              "id": "final",
+              "label": "Final payment",
+              "kind": "percent",
+              "percent": 70,
+              "payment_kind": "final",
+              "due_rule": "project_completion"
+            }
+          ]
+        },
+        "scope_generated_from": {
+          "type": "string"
+        },
+        "customer_choice_count": {
+          "type": "number",
+          "default": 0
+        },
+        "deposit_at_signing": {
+          "type": "boolean",
+          "default": true
+        },
+        "show_line_prices": {
+          "type": "boolean",
+          "label": "Print each line price",
+          "default": true
+        },
+        "content_blocks": {
+          "type": "list",
+          "label": "Photos & description",
+          "default": []
+        }
+      },
+      "computed": {
+        "subtotal_cents": "sum(params.scope_items[].amount_cents)",
+        "tax_cents": "0",
+        "total_cents": "computed.subtotal_cents"
+      },
+      "outputs": {
+        "selections": {
+          "type": "select",
+          "applies": "scope_selections",
+          "label": "Your options"
+        },
+        "sig_customer": {
+          "type": "signature",
+          "required": true,
+          "signer": "customer"
+        },
+        "deposit_payment": {
+          "type": "payment",
+          "obligation": "deposit",
+          "required_for": "completed"
+        }
+      },
+      "styles": {
+        "li_name": {
+          "family": "var(--fm-body-font)",
+          "size_pt": 10.5,
+          "weight": 700,
+          "color": "var(--fm-text)"
+        },
+        "li_meta": {
+          "family": "var(--fm-body-font)",
+          "size_pt": 8.5,
+          "weight": 400,
+          "color": "var(--fm-color-muted)"
+        },
+        "li_amount": {
+          "family": "var(--fm-body-font)",
+          "size_pt": 10.5,
+          "weight": 700,
+          "color": "var(--fm-text)"
+        },
+        "li_total": {
+          "family": "var(--fm-display-font)",
+          "size_pt": 13,
+          "weight": 800,
+          "color": "var(--fm-text)"
+        },
+        "cb_title": {
+          "family": "var(--fm-display-font)",
+          "size_pt": 12.5,
+          "weight": 800,
+          "color": "var(--fm-text)",
+          "space_after_pt": 5
+        },
+        "cb_body": {
+          "family": "var(--fm-body-font)",
+          "size_pt": 10,
+          "weight": 400,
+          "color": "var(--fm-color-muted)",
+          "line_height": 1.5
+        },
+        "cb_attribution": {
+          "family": "var(--fm-body-font)",
+          "size_pt": 6.5,
+          "weight": 600,
+          "color": "var(--fm-color-muted)"
+        },
+        "li_badge": {
+          "family": "var(--fm-body-font)",
+          "size_pt": 7.5,
+          "weight": 800,
+          "color": "#047857",
+          "transform": "uppercase"
+        }
+      },
+      "components": {
+        "li_header": {
+          "params": {},
+          "root": {
+            "id": "nd_e0uf0k4bn66md",
+            "type": "frame",
+            "name": "",
+            "frame": {
+              "x": 0,
+              "y": 0,
+              "w": 0,
+              "h": "auto",
+              "rotation": 0,
+              "z": 0,
+              "layout": "flow",
+              "constraints": {
+                "h": "left",
+                "v": "top"
+              }
+            },
+            "style": {
+              "fill": {
+                "type": "solid",
+                "color": "var(--fm-primary)"
+              }
+            },
+            "locks": {},
+            "bind": null,
+            "visible": true,
+            "props": {
+              "background": null,
+              "clip": false,
+              "flow": {
+                "direction": "row",
+                "gap": 8,
+                "padding": [
+                  5,
+                  8,
+                  5,
+                  8
+                ],
+                "align": "center",
+                "wrap": false
+              },
+              "overflow": "visible"
+            },
+            "children": [
+              {
+                "id": "nd_e0uf0g10xukm6",
+                "type": "text",
+                "name": "",
+                "frame": {
+                  "x": 0,
+                  "y": 0,
+                  "w": 0,
+                  "h": "auto",
+                  "rotation": 0,
+                  "z": 0,
+                  "layout": "flow",
+                  "constraints": {
+                    "h": "left",
+                    "v": "top"
+                  },
+                  "grow": 1
+                },
+                "style": {
+                  "font": {
+                    "family": "var(--fm-body-font)",
+                    "size_pt": 8.5,
+                    "weight": 800,
+                    "color": "#ffffff",
+                    "transform": "uppercase"
+                  }
+                },
+                "locks": {},
+                "bind": null,
+                "visible": true,
+                "props": {
+                  "blocks": [
+                    {
+                      "id": "blk_e0uf0um0i8nm4",
+                      "type": "paragraph",
+                      "align": "left",
+                      "runs": [
+                        {
+                          "text": "Item"
+                        }
+                      ]
+                    }
+                  ],
+                  "valign": "top",
+                  "auto_fit": false,
+                  "line_height": 1.4,
+                  "letter_spacing": 0
+                },
+                "anchor": "flow"
+              },
+              {
+                "id": "nd_e0uf0po4w9fm9",
+                "type": "text",
+                "name": "",
+                "frame": {
+                  "x": 0,
+                  "y": 0,
+                  "w": 72,
+                  "h": "auto",
+                  "rotation": 0,
+                  "z": 0,
+                  "layout": "flow",
+                  "constraints": {
+                    "h": "left",
+                    "v": "top"
+                  }
+                },
+                "style": {
+                  "font": {
+                    "family": "var(--fm-body-font)",
+                    "size_pt": 8.5,
+                    "weight": 800,
+                    "color": "#ffffff",
+                    "transform": "uppercase"
+                  }
+                },
+                "locks": {},
+                "bind": null,
+                "visible": true,
+                "props": {
+                  "blocks": [
+                    {
+                      "id": "blk_e0uf0cyy1mym7",
+                      "type": "paragraph",
+                      "align": "center",
+                      "runs": [
+                        {
+                          "text": "Qty"
+                        }
+                      ]
+                    }
+                  ],
+                  "valign": "top",
+                  "auto_fit": false,
+                  "line_height": 1.4,
+                  "letter_spacing": 0
+                },
+                "anchor": "flow"
+              },
+              {
+                "id": "nd_e0uf0m9t5gzmc",
+                "type": "text",
+                "name": "",
+                "frame": {
+                  "x": 0,
+                  "y": 0,
+                  "w": 96,
+                  "h": "auto",
+                  "rotation": 0,
+                  "z": 0,
+                  "layout": "flow",
+                  "constraints": {
+                    "h": "left",
+                    "v": "top"
+                  }
+                },
+                "style": {
+                  "font": {
+                    "family": "var(--fm-body-font)",
+                    "size_pt": 8.5,
+                    "weight": 800,
+                    "color": "#ffffff",
+                    "transform": "uppercase"
+                  }
+                },
+                "locks": {},
+                "bind": null,
+                "visible": true,
+                "props": {
+                  "blocks": [
+                    {
+                      "id": "blk_e0uf0qqn29sma",
+                      "type": "paragraph",
+                      "align": "right",
+                      "runs": [
+                        {
+                          "text": "Amount"
+                        }
+                      ]
+                    }
+                  ],
+                  "valign": "top",
+                  "auto_fit": false,
+                  "line_height": 1.4,
+                  "letter_spacing": 0
+                },
+                "anchor": "flow"
+              }
+            ]
+          }
+        },
+        "li_row": {
+          "params": {
+            "item": {
+              "type": "pricebook_line"
+            }
+          },
+          "root": {
+            "id": "nd_e0uf0xgjym2mq",
+            "type": "frame",
+            "name": "",
+            "frame": {
+              "x": 0,
+              "y": 0,
+              "w": 0,
+              "h": "auto",
+              "rotation": 0,
+              "z": 0,
+              "layout": "flow",
+              "constraints": {
+                "h": "left",
+                "v": "top"
+              }
+            },
+            "style": {},
+            "locks": {},
+            "bind": null,
+            "visible": true,
+            "props": {
+              "background": null,
+              "clip": false,
+              "flow": {
+                "direction": "row",
+                "gap": 8,
+                "padding": [
+                  6,
+                  8,
+                  6,
+                  8
+                ],
+                "align": "start",
+                "wrap": false
+              },
+              "overflow": "visible"
+            },
+            "children": [
+              {
+                "id": "nd_e0uf0x9tl6mmj",
+                "type": "text",
+                "name": "",
+                "frame": {
+                  "x": 0,
+                  "y": 0,
+                  "w": 0,
+                  "h": "auto",
+                  "rotation": 0,
+                  "z": 0,
+                  "layout": "flow",
+                  "constraints": {
+                    "h": "left",
+                    "v": "top"
+                  },
+                  "grow": 1
+                },
+                "style": {},
+                "locks": {},
+                "bind": null,
+                "visible": true,
+                "props": {
+                  "blocks": [
+                    {
+                      "id": "blk_e0uf0ytmiu9me",
+                      "type": "paragraph",
+                      "align": "left",
+                      "style_ref": "li_name",
+                      "runs": [
+                        {
+                          "text": "",
+                          "bind": "coalesce(item.display_name, item.name)"
+                        }
+                      ]
+                    },
+                    {
+                      "id": "blk_e0uf0kw3y5xmf",
+                      "type": "paragraph",
+                      "align": "left",
+                      "style_ref": "li_meta",
+                      "collapse_empty": true,
+                      "runs": [
+                        {
+                          "text": "",
+                          "bind": "coalesce(item.variant_summary, '')"
+                        }
+                      ]
+                    },
+                    {
+                      "id": "blk_e0uf0mmd8jcmg",
+                      "type": "paragraph",
+                      "align": "left",
+                      "style_ref": "li_meta",
+                      "collapse_empty": true,
+                      "runs": [
+                        {
+                          "text": "",
+                          "bind": "coalesce(item.description, '')"
+                        }
+                      ]
+                    },
+                    {
+                      "id": "blk_e0uf0tjhc3nmh",
+                      "type": "paragraph",
+                      "align": "left",
+                      "style_ref": "li_badge",
+                      "collapse_empty": true,
+                      "runs": [
+                        {
+                          "text": "",
+                          "bind": "coalesce(item.badge, '')"
+                        }
+                      ]
+                    }
+                  ],
+                  "valign": "top",
+                  "auto_fit": false,
+                  "line_height": 1.4,
+                  "letter_spacing": 0
+                },
+                "anchor": "flow"
+              },
+              {
+                "id": "nd_e0uf0rnjt1hmm",
+                "type": "text",
+                "name": "",
+                "frame": {
+                  "x": 0,
+                  "y": 0,
+                  "w": 72,
+                  "h": "auto",
+                  "rotation": 0,
+                  "z": 0,
+                  "layout": "flow",
+                  "constraints": {
+                    "h": "left",
+                    "v": "top"
+                  }
+                },
+                "style": {},
+                "locks": {},
+                "bind": null,
+                "visible": true,
+                "props": {
+                  "blocks": [
+                    {
+                      "id": "blk_e0uf03rsj8omk",
+                      "type": "paragraph",
+                      "align": "center",
+                      "style_ref": "body",
+                      "runs": [
+                        {
+                          "text": "",
+                          "bind": "item.quantity | qty(item.unit)"
+                        }
+                      ]
+                    }
+                  ],
+                  "valign": "top",
+                  "auto_fit": false,
+                  "line_height": 1.4,
+                  "letter_spacing": 0
+                },
+                "anchor": "flow"
+              },
+              {
+                "id": "nd_e0uf0uwv38xmp",
+                "type": "text",
+                "name": "",
+                "frame": {
+                  "x": 0,
+                  "y": 0,
+                  "w": 96,
+                  "h": "auto",
+                  "rotation": 0,
+                  "z": 0,
+                  "layout": "flow",
+                  "constraints": {
+                    "h": "left",
+                    "v": "top"
+                  }
+                },
+                "style": {},
+                "locks": {},
+                "bind": null,
+                "visible": true,
+                "props": {
+                  "blocks": [
+                    {
+                      "id": "blk_e0uf074lnximn",
+                      "type": "paragraph",
+                      "align": "right",
+                      "style_ref": "li_amount",
+                      "runs": [
+                        {
+                          "text": "",
+                          "bind": "(coalesce(item.show_amount, true) || coalesce(params.show_line_prices, false)) ? (item.amount_cents | money) : 'Included'"
+                        }
+                      ]
+                    }
+                  ],
+                  "valign": "top",
+                  "auto_fit": false,
+                  "line_height": 1.4,
+                  "letter_spacing": 0
+                },
+                "anchor": "flow"
+              }
+            ]
+          },
+          "variants": {
+            "child": {
+              "props": {
+                "flow": {
+                  "padding": [
+                    4,
+                    8,
+                    4,
+                    24
+                  ]
+                }
+              }
+            },
+            "group": {
+              "props": {
+                "flow": {
+                  "padding": [
+                    8,
+                    8,
+                    4,
+                    8
+                  ]
+                }
+              }
+            }
+          }
+        },
+        "li_totals": {
+          "params": {},
+          "root": {
+            "id": "nd_e0uf0ntc653mx",
+            "type": "frame",
+            "name": "",
+            "frame": {
+              "x": 0,
+              "y": 0,
+              "w": 0,
+              "h": "auto",
+              "rotation": 0,
+              "z": 0,
+              "layout": "flow",
+              "constraints": {
+                "h": "left",
+                "v": "top"
+              }
+            },
+            "style": {},
+            "locks": {},
+            "bind": null,
+            "visible": true,
+            "props": {
+              "background": null,
+              "clip": false,
+              "flow": {
+                "direction": "column",
+                "gap": 8,
+                "padding": [
+                  8,
+                  8,
+                  4,
+                  8
+                ],
+                "align": "stretch",
+                "wrap": false
+              },
+              "overflow": "visible"
+            },
+            "children": [
+              {
+                "id": "nd_e0uf0n7j7a6mw",
+                "type": "text",
+                "name": "",
+                "frame": {
+                  "x": 0,
+                  "y": 0,
+                  "w": 0,
+                  "h": "auto",
+                  "rotation": 0,
+                  "z": 0,
+                  "layout": "flow",
+                  "constraints": {
+                    "h": "left",
+                    "v": "top"
+                  }
+                },
+                "style": {},
+                "locks": {},
+                "bind": null,
+                "visible": true,
+                "props": {
+                  "blocks": [
+                    {
+                      "id": "blk_e0uf0qwyeggmr",
+                      "type": "paragraph",
+                      "align": "right",
+                      "style_ref": "body",
+                      "runs": [
+                        {
+                          "text": "Subtotal   "
+                        },
+                        {
+                          "text": "",
+                          "bind": "computed.subtotal_cents | money"
+                        }
+                      ]
+                    },
+                    {
+                      "id": "blk_e0uf07sl50sms",
+                      "type": "paragraph",
+                      "align": "right",
+                      "style_ref": "body",
+                      "collapse_empty": true,
+                      "runs": [
+                        {
+                          "text": "",
+                          "bind": "coalesce(computed.adjustments_cents, 0) != 0 ? concat('Adjustments   ', (computed.adjustments_cents | money)) : ''"
+                        }
+                      ]
+                    },
+                    {
+                      "id": "blk_e0uf0vujutvmt",
+                      "type": "paragraph",
+                      "align": "right",
+                      "style_ref": "body",
+                      "runs": [
+                        {
+                          "text": "Tax ("
+                        },
+                        {
+                          "text": "",
+                          "bind": "coalesce(params.tax_percent, 0)"
+                        },
+                        {
+                          "text": "%)   "
+                        },
+                        {
+                          "text": "",
+                          "bind": "computed.tax_cents | money"
+                        }
+                      ]
+                    },
+                    {
+                      "id": "blk_e0uf0ve7qwomu",
+                      "type": "paragraph",
+                      "align": "right",
+                      "style_ref": "li_total",
+                      "runs": [
+                        {
+                          "text": "Total   "
+                        },
+                        {
+                          "text": "",
+                          "bind": "computed.total_cents | money"
+                        }
+                      ]
+                    }
+                  ],
+                  "valign": "top",
+                  "auto_fit": false,
+                  "line_height": 1.4,
+                  "letter_spacing": 0
+                },
+                "anchor": "flow"
+              }
+            ]
+          }
+        },
+        "media_text_row": {
+          "params": {
+            "block": {
+              "type": "object"
+            }
+          },
+          "root": {
+            "id": "nd_e0uf07wldqtlj",
+            "type": "frame",
+            "name": "",
+            "frame": {
+              "x": 0,
+              "y": 0,
+              "w": 0,
+              "h": "auto",
+              "rotation": 0,
+              "z": 0,
+              "layout": "flow",
+              "constraints": {
+                "h": "left",
+                "v": "top"
+              }
+            },
+            "style": {},
+            "locks": {},
+            "bind": null,
+            "visible": true,
+            "props": {
+              "background": null,
+              "clip": false,
+              "flow": {
+                "direction": "row",
+                "gap": 20,
+                "padding": [
+                  0,
+                  0,
+                  0,
+                  0
+                ],
+                "align": "center",
+                "wrap": false
+              },
+              "overflow": "visible"
+            },
+            "children": [
+              {
+                "id": "nd_e0uf04j6aw0l8",
+                "type": "image",
+                "name": "",
+                "frame": {
+                  "x": 0,
+                  "y": 0,
+                  "w": 180,
+                  "h": 120,
+                  "rotation": 0,
+                  "z": 0,
+                  "layout": "flow",
+                  "constraints": {
+                    "h": "left",
+                    "v": "top"
+                  }
+                },
+                "style": {},
+                "locks": {},
+                "bind": {
+                  "props": {
+                    "props.media": "{{block.media}}"
+                  },
+                  "if": "not_empty(coalesce(block.media.media_id, block.media.url, '')) && coalesce(block.display, 'inline') != 'popup' && !not_empty(coalesce(block.video.url, block.video, ''))"
+                },
+                "visible": true,
+                "props": {
+                  "media": null,
+                  "fit": "cover",
+                  "focal": {
+                    "x": 0.5,
+                    "y": 0.5
+                  },
+                  "crop": null,
+                  "alt": "Project detail"
+                },
+                "anchor": "flow"
+              },
+              {
+                "id": "nd_e0uf0d9fw79l9",
+                "type": "widget",
+                "name": "",
+                "frame": {
+                  "x": 0,
+                  "y": 0,
+                  "w": 180,
+                  "h": 120,
+                  "rotation": 0,
+                  "z": 0,
+                  "layout": "flow",
+                  "constraints": {
+                    "h": "left",
+                    "v": "top"
+                  }
+                },
+                "style": {},
+                "locks": {},
+                "bind": {
+                  "if": "(coalesce(block.display, 'inline') == 'popup' || not_empty(coalesce(block.video.url, block.video, ''))) && (not_empty(coalesce(block.media.media_id, block.media.url, '')) || not_empty(coalesce(block.video.url, block.video, '')))"
+                },
+                "visible": true,
+                "props": {
+                  "widget": "doc.media_popup@1",
+                  "config": {
+                    "media": "{{block.media}}",
+                    "video_url": "{{coalesce(block.video.url, block.video, '')}}",
+                    "caption": "{{coalesce(block.title, '')}}",
+                    "thumb_size_pt": 132
+                  }
+                },
+                "anchor": "flow"
+              },
+              {
+                "id": "nd_e0uf03tyg7xli",
+                "type": "frame",
+                "name": "",
+                "frame": {
+                  "x": 0,
+                  "y": 0,
+                  "w": 0,
+                  "h": "auto",
+                  "rotation": 0,
+                  "z": 0,
+                  "layout": "flow",
+                  "constraints": {
+                    "h": "left",
+                    "v": "top"
+                  },
+                  "grow": 1
+                },
+                "style": {},
+                "locks": {},
+                "bind": null,
+                "visible": true,
+                "props": {
+                  "background": null,
+                  "clip": false,
+                  "flow": {
+                    "direction": "column",
+                    "gap": 4,
+                    "padding": [
+                      0,
+                      0,
+                      0,
+                      0
+                    ],
+                    "align": "stretch",
+                    "wrap": false
+                  },
+                  "overflow": "visible"
+                },
+                "children": [
+                  {
+                    "id": "nd_e0uf04pq9muld",
+                    "type": "text",
+                    "name": "",
+                    "frame": {
+                      "x": 0,
+                      "y": 0,
+                      "w": 0,
+                      "h": "auto",
+                      "rotation": 0,
+                      "z": 0,
+                      "layout": "flow",
+                      "constraints": {
+                        "h": "left",
+                        "v": "top"
+                      }
+                    },
+                    "style": {},
+                    "locks": {},
+                    "bind": null,
+                    "visible": true,
+                    "props": {
+                      "blocks": [
+                        {
+                          "id": "blk_e0uf0v76jiila",
+                          "type": "paragraph",
+                          "align": "left",
+                          "style_ref": "cb_title",
+                          "runs": [
+                            {
+                              "text": "",
+                              "bind": "coalesce(block.title, '')"
+                            }
+                          ]
+                        },
+                        {
+                          "id": "blk_e0uf06ctd7alb",
+                          "type": "paragraph",
+                          "align": "left",
+                          "style_ref": "cb_body",
+                          "runs": [
+                            {
+                              "text": "",
+                              "bind": "coalesce(block.body, '')",
+                              "format": "markdown"
+                            }
+                          ]
+                        }
+                      ],
+                      "valign": "top",
+                      "auto_fit": false,
+                      "line_height": 1.4,
+                      "letter_spacing": 0
+                    },
+                    "anchor": "flow"
+                  },
+                  {
+                    "id": "nd_e0uf0dsrwixle",
+                    "type": "image",
+                    "name": "",
+                    "frame": {
+                      "x": 0,
+                      "y": 0,
+                      "w": 160,
+                      "h": 120,
+                      "rotation": 0,
+                      "z": 0,
+                      "layout": "flow",
+                      "constraints": {
+                        "h": "left",
+                        "v": "top"
+                      }
+                    },
+                    "style": {},
+                    "locks": {},
+                    "bind": {
+                      "props": {
+                        "props.media": "{{block.gif}}"
+                      },
+                      "if": "not_empty(coalesce(block.gif.media_id, block.gif.url, block.gif))"
+                    },
+                    "visible": true,
+                    "props": {
+                      "media": null,
+                      "fit": "contain",
+                      "focal": {
+                        "x": 0.5,
+                        "y": 0.5
+                      },
+                      "crop": null,
+                      "alt": "GIF"
+                    },
+                    "anchor": "flow"
+                  },
+                  {
+                    "id": "nd_e0uf0llp9lvlh",
+                    "type": "text",
+                    "name": "",
+                    "frame": {
+                      "x": 0,
+                      "y": 0,
+                      "w": 0,
+                      "h": "auto",
+                      "rotation": 0,
+                      "z": 0,
+                      "layout": "flow",
+                      "constraints": {
+                        "h": "left",
+                        "v": "top"
+                      }
+                    },
+                    "style": {},
+                    "locks": {},
+                    "bind": {
+                      "if": "not_empty(coalesce(block.gif.url, ''))"
+                    },
+                    "visible": true,
+                    "props": {
+                      "blocks": [
+                        {
+                          "id": "blk_e0uf0t913rdlf",
+                          "type": "paragraph",
+                          "align": "left",
+                          "style_ref": "cb_attribution",
+                          "runs": [
+                            {
+                              "text": "Powered by GIPHY"
+                            }
+                          ]
+                        }
+                      ],
+                      "valign": "top",
+                      "auto_fit": false,
+                      "line_height": 1.4,
+                      "letter_spacing": 0
+                    },
+                    "anchor": "flow"
+                  }
+                ],
+                "anchor": "flow"
+              }
+            ]
+          },
+          "variants": {
+            "media_left": {},
+            "media_right": {
+              "children": [
+                {
+                  "id": "nd_e0uf03ptnjblu",
+                  "type": "frame",
+                  "name": "",
+                  "frame": {
+                    "x": 0,
+                    "y": 0,
+                    "w": 0,
+                    "h": "auto",
+                    "rotation": 0,
+                    "z": 0,
+                    "layout": "flow",
+                    "constraints": {
+                      "h": "left",
+                      "v": "top"
+                    },
+                    "grow": 1
+                  },
+                  "style": {},
+                  "locks": {},
+                  "bind": null,
+                  "visible": true,
+                  "props": {
+                    "background": null,
+                    "clip": false,
+                    "flow": {
+                      "direction": "column",
+                      "gap": 4,
+                      "padding": [
+                        0,
+                        0,
+                        0,
+                        0
+                      ],
+                      "align": "stretch",
+                      "wrap": false
+                    },
+                    "overflow": "visible"
+                  },
+                  "children": [
+                    {
+                      "id": "nd_e0uf05symwylp",
+                      "type": "text",
+                      "name": "",
+                      "frame": {
+                        "x": 0,
+                        "y": 0,
+                        "w": 0,
+                        "h": "auto",
+                        "rotation": 0,
+                        "z": 0,
+                        "layout": "flow",
+                        "constraints": {
+                          "h": "left",
+                          "v": "top"
+                        }
+                      },
+                      "style": {},
+                      "locks": {},
+                      "bind": null,
+                      "visible": true,
+                      "props": {
+                        "blocks": [
+                          {
+                            "id": "blk_e0uf0imxqlslm",
+                            "type": "paragraph",
+                            "align": "left",
+                            "style_ref": "cb_title",
+                            "runs": [
+                              {
+                                "text": "",
+                                "bind": "coalesce(block.title, '')"
+                              }
+                            ]
+                          },
+                          {
+                            "id": "blk_e0uf0xsogaqln",
+                            "type": "paragraph",
+                            "align": "left",
+                            "style_ref": "cb_body",
+                            "runs": [
+                              {
+                                "text": "",
+                                "bind": "coalesce(block.body, '')",
+                                "format": "markdown"
+                              }
+                            ]
+                          }
+                        ],
+                        "valign": "top",
+                        "auto_fit": false,
+                        "line_height": 1.4,
+                        "letter_spacing": 0
+                      },
+                      "anchor": "flow"
+                    },
+                    {
+                      "id": "nd_e0uf02310eflq",
+                      "type": "image",
+                      "name": "",
+                      "frame": {
+                        "x": 0,
+                        "y": 0,
+                        "w": 160,
+                        "h": 120,
+                        "rotation": 0,
+                        "z": 0,
+                        "layout": "flow",
+                        "constraints": {
+                          "h": "left",
+                          "v": "top"
+                        }
+                      },
+                      "style": {},
+                      "locks": {},
+                      "bind": {
+                        "props": {
+                          "props.media": "{{block.gif}}"
+                        },
+                        "if": "not_empty(coalesce(block.gif.media_id, block.gif.url, block.gif))"
+                      },
+                      "visible": true,
+                      "props": {
+                        "media": null,
+                        "fit": "contain",
+                        "focal": {
+                          "x": 0.5,
+                          "y": 0.5
+                        },
+                        "crop": null,
+                        "alt": "GIF"
+                      },
+                      "anchor": "flow"
+                    },
+                    {
+                      "id": "nd_e0uf0ojo51vlt",
+                      "type": "text",
+                      "name": "",
+                      "frame": {
+                        "x": 0,
+                        "y": 0,
+                        "w": 0,
+                        "h": "auto",
+                        "rotation": 0,
+                        "z": 0,
+                        "layout": "flow",
+                        "constraints": {
+                          "h": "left",
+                          "v": "top"
+                        }
+                      },
+                      "style": {},
+                      "locks": {},
+                      "bind": {
+                        "if": "not_empty(coalesce(block.gif.url, ''))"
+                      },
+                      "visible": true,
+                      "props": {
+                        "blocks": [
+                          {
+                            "id": "blk_e0uf0boccpvlr",
+                            "type": "paragraph",
+                            "align": "left",
+                            "style_ref": "cb_attribution",
+                            "runs": [
+                              {
+                                "text": "Powered by GIPHY"
+                              }
+                            ]
+                          }
+                        ],
+                        "valign": "top",
+                        "auto_fit": false,
+                        "line_height": 1.4,
+                        "letter_spacing": 0
+                      },
+                      "anchor": "flow"
+                    }
+                  ],
+                  "anchor": "flow"
+                },
+                {
+                  "id": "nd_e0uf0n7y7u5lk",
+                  "type": "image",
+                  "name": "",
+                  "frame": {
+                    "x": 0,
+                    "y": 0,
+                    "w": 180,
+                    "h": 120,
+                    "rotation": 0,
+                    "z": 0,
+                    "layout": "flow",
+                    "constraints": {
+                      "h": "left",
+                      "v": "top"
+                    }
+                  },
+                  "style": {},
+                  "locks": {},
+                  "bind": {
+                    "props": {
+                      "props.media": "{{block.media}}"
+                    },
+                    "if": "not_empty(coalesce(block.media.media_id, block.media.url, '')) && coalesce(block.display, 'inline') != 'popup' && !not_empty(coalesce(block.video.url, block.video, ''))"
+                  },
+                  "visible": true,
+                  "props": {
+                    "media": null,
+                    "fit": "cover",
+                    "focal": {
+                      "x": 0.5,
+                      "y": 0.5
+                    },
+                    "crop": null,
+                    "alt": "Project detail"
+                  },
+                  "anchor": "flow"
+                },
+                {
+                  "id": "nd_e0uf09hgkw9ll",
+                  "type": "widget",
+                  "name": "",
+                  "frame": {
+                    "x": 0,
+                    "y": 0,
+                    "w": 180,
+                    "h": 120,
+                    "rotation": 0,
+                    "z": 0,
+                    "layout": "flow",
+                    "constraints": {
+                      "h": "left",
+                      "v": "top"
+                    }
+                  },
+                  "style": {},
+                  "locks": {},
+                  "bind": {
+                    "if": "(coalesce(block.display, 'inline') == 'popup' || not_empty(coalesce(block.video.url, block.video, ''))) && (not_empty(coalesce(block.media.media_id, block.media.url, '')) || not_empty(coalesce(block.video.url, block.video, '')))"
+                  },
+                  "visible": true,
+                  "props": {
+                    "widget": "doc.media_popup@1",
+                    "config": {
+                      "media": "{{block.media}}",
+                      "video_url": "{{coalesce(block.video.url, block.video, '')}}",
+                      "caption": "{{coalesce(block.title, '')}}",
+                      "thumb_size_pt": 132
+                    }
+                  },
+                  "anchor": "flow"
+                }
+              ]
+            },
+            "text_only": {
+              "children": [
+                {
+                  "id": "nd_e0uf078l9v0m3",
+                  "type": "frame",
+                  "name": "",
+                  "frame": {
+                    "x": 0,
+                    "y": 0,
+                    "w": 0,
+                    "h": "auto",
+                    "rotation": 0,
+                    "z": 0,
+                    "layout": "flow",
+                    "constraints": {
+                      "h": "left",
+                      "v": "top"
+                    },
+                    "grow": 1
+                  },
+                  "style": {},
+                  "locks": {},
+                  "bind": null,
+                  "visible": true,
+                  "props": {
+                    "background": null,
+                    "clip": false,
+                    "flow": {
+                      "direction": "column",
+                      "gap": 4,
+                      "padding": [
+                        0,
+                        0,
+                        0,
+                        0
+                      ],
+                      "align": "stretch",
+                      "wrap": false
+                    },
+                    "overflow": "visible"
+                  },
+                  "children": [
+                    {
+                      "id": "nd_e0uf0tz7kkily",
+                      "type": "text",
+                      "name": "",
+                      "frame": {
+                        "x": 0,
+                        "y": 0,
+                        "w": 0,
+                        "h": "auto",
+                        "rotation": 0,
+                        "z": 0,
+                        "layout": "flow",
+                        "constraints": {
+                          "h": "left",
+                          "v": "top"
+                        }
+                      },
+                      "style": {},
+                      "locks": {},
+                      "bind": null,
+                      "visible": true,
+                      "props": {
+                        "blocks": [
+                          {
+                            "id": "blk_e0uf00s0lahlv",
+                            "type": "paragraph",
+                            "align": "left",
+                            "style_ref": "cb_title",
+                            "runs": [
+                              {
+                                "text": "",
+                                "bind": "coalesce(block.title, '')"
+                              }
+                            ]
+                          },
+                          {
+                            "id": "blk_e0uf00g2q4clw",
+                            "type": "paragraph",
+                            "align": "left",
+                            "style_ref": "cb_body",
+                            "runs": [
+                              {
+                                "text": "",
+                                "bind": "coalesce(block.body, '')",
+                                "format": "markdown"
+                              }
+                            ]
+                          }
+                        ],
+                        "valign": "top",
+                        "auto_fit": false,
+                        "line_height": 1.4,
+                        "letter_spacing": 0
+                      },
+                      "anchor": "flow"
+                    },
+                    {
+                      "id": "nd_e0uf0dolc9rlz",
+                      "type": "image",
+                      "name": "",
+                      "frame": {
+                        "x": 0,
+                        "y": 0,
+                        "w": 160,
+                        "h": 120,
+                        "rotation": 0,
+                        "z": 0,
+                        "layout": "flow",
+                        "constraints": {
+                          "h": "left",
+                          "v": "top"
+                        }
+                      },
+                      "style": {},
+                      "locks": {},
+                      "bind": {
+                        "props": {
+                          "props.media": "{{block.gif}}"
+                        },
+                        "if": "not_empty(coalesce(block.gif.media_id, block.gif.url, block.gif))"
+                      },
+                      "visible": true,
+                      "props": {
+                        "media": null,
+                        "fit": "contain",
+                        "focal": {
+                          "x": 0.5,
+                          "y": 0.5
+                        },
+                        "crop": null,
+                        "alt": "GIF"
+                      },
+                      "anchor": "flow"
+                    },
+                    {
+                      "id": "nd_e0uf02pj80nm2",
+                      "type": "text",
+                      "name": "",
+                      "frame": {
+                        "x": 0,
+                        "y": 0,
+                        "w": 0,
+                        "h": "auto",
+                        "rotation": 0,
+                        "z": 0,
+                        "layout": "flow",
+                        "constraints": {
+                          "h": "left",
+                          "v": "top"
+                        }
+                      },
+                      "style": {},
+                      "locks": {},
+                      "bind": {
+                        "if": "not_empty(coalesce(block.gif.url, ''))"
+                      },
+                      "visible": true,
+                      "props": {
+                        "blocks": [
+                          {
+                            "id": "blk_e0uf0t27ed4m0",
+                            "type": "paragraph",
+                            "align": "left",
+                            "style_ref": "cb_attribution",
+                            "runs": [
+                              {
+                                "text": "Powered by GIPHY"
+                              }
+                            ]
+                          }
+                        ],
+                        "valign": "top",
+                        "auto_fit": false,
+                        "line_height": 1.4,
+                        "letter_spacing": 0
+                      },
+                      "anchor": "flow"
+                    }
+                  ],
+                  "anchor": "flow"
+                }
+              ]
+            }
+          }
+        }
+      },
+      "chains": {},
+      "assets": [],
+      "edit_policy": {
+        "base_profile": "document",
+        "max_profile": "designer",
+        "features": {},
+        "unlock": {
+          "allowed": true
+        }
+      },
+      "metadata": {
+        "document_type": "proposal"
+      },
+      "pages": [
+        {
+          "id": "pg_e0ueziv02hljj",
+          "role": "body",
+          "name": "Estimate",
+          "master_ref": null,
+          "repeat": null,
+          "children": [
+            {
+              "id": "nd_e0uezmqb4s4kd",
+              "type": "frame",
+              "name": "Body",
+              "frame": {
+                "x": 104,
+                "y": 48,
+                "w": 460,
+                "h": 696,
+                "rotation": 0,
+                "z": 0,
+                "layout": "flow",
+                "constraints": {
+                  "h": "stretch",
+                  "v": "top"
+                }
+              },
+              "style": {},
+              "locks": {},
+              "bind": null,
+              "visible": true,
+              "props": {
+                "background": null,
+                "clip": false,
+                "flow": {
+                  "direction": "column",
+                  "gap": 4,
+                  "padding": [
+                    0,
+                    0,
+                    0,
+                    0
+                  ],
+                  "align": "stretch",
+                  "wrap": false
+                },
+                "overflow": "paginate",
+                "page_region": "body"
+              },
+              "children": [
+                {
+                  "id": "nd_e0uezmll7k3jv",
+                  "type": "image",
+                  "name": "",
+                  "frame": {
+                    "x": 0,
+                    "y": 0,
+                    "w": 170,
+                    "h": 36,
+                    "rotation": 0,
+                    "z": 0,
+                    "layout": "flow",
+                    "constraints": {
+                      "h": "left",
+                      "v": "top"
+                    }
+                  },
+                  "style": {},
+                  "locks": {},
+                  "bind": {
+                    "props": {
+                      "props.media": "{{org.logo_url}}"
+                    },
+                    "if": "not_empty(org.logo_url)"
+                  },
+                  "visible": true,
+                  "props": {
+                    "media": null,
+                    "fit": "contain",
+                    "focal": {
+                      "x": 0.5,
+                      "y": 0.5
+                    },
+                    "crop": null,
+                    "alt": "Company logo"
+                  },
+                  "anchor": "flow"
+                },
+                {
+                  "id": "nd_e0uez0auw6qjy",
+                  "type": "text",
+                  "name": "",
+                  "frame": {
+                    "x": 0,
+                    "y": 0,
+                    "w": 0,
+                    "h": "auto",
+                    "rotation": 0,
+                    "z": 0,
+                    "layout": "flow",
+                    "constraints": {
+                      "h": "left",
+                      "v": "top"
+                    }
+                  },
+                  "style": {
+                    "font": {
+                      "family": "var(--fm-body-font)",
+                      "size_pt": 12,
+                      "weight": 700,
+                      "color": "var(--fm-color-muted)"
+                    }
+                  },
+                  "locks": {},
+                  "bind": null,
+                  "visible": true,
+                  "props": {
+                    "blocks": [
+                      {
+                        "id": "blk_e0uezk77wqojw",
+                        "type": "paragraph",
+                        "align": "left",
+                        "runs": [
+                          {
+                            "text": "",
+                            "bind": "coalesce(org.name, '')"
+                          }
+                        ]
+                      }
+                    ],
+                    "valign": "top",
+                    "auto_fit": false,
+                    "line_height": 1.4,
+                    "letter_spacing": 0
+                  },
+                  "anchor": "flow"
+                },
+                {
+                  "id": "nd_e0uez9lgg36k1",
+                  "type": "text",
+                  "name": "",
+                  "frame": {
+                    "x": 0,
+                    "y": 0,
+                    "w": 0,
+                    "h": "auto",
+                    "rotation": 0,
+                    "z": 0,
+                    "layout": "flow",
+                    "constraints": {
+                      "h": "left",
+                      "v": "top"
+                    }
+                  },
+                  "style": {},
+                  "locks": {},
+                  "bind": null,
+                  "visible": true,
+                  "props": {
+                    "blocks": [
+                      {
+                        "id": "blk_e0uezqn3xa6jz",
+                        "type": "paragraph",
+                        "align": "left",
+                        "style_ref": "h1",
+                        "runs": [
+                          {
+                            "text": "Roof replacement · Itemized proposal"
+                          }
+                        ]
+                      }
+                    ],
+                    "valign": "top",
+                    "auto_fit": false,
+                    "line_height": 1.4,
+                    "letter_spacing": 0
+                  },
+                  "anchor": "flow"
+                },
+                {
+                  "id": "nd_e0uez3iuf2wk4",
+                  "type": "text",
+                  "name": "",
+                  "frame": {
+                    "x": 0,
+                    "y": 0,
+                    "w": 0,
+                    "h": "auto",
+                    "rotation": 0,
+                    "z": 0,
+                    "layout": "flow",
+                    "constraints": {
+                      "h": "left",
+                      "v": "top"
+                    }
+                  },
+                  "style": {
+                    "font": {
+                      "family": "var(--fm-body-font)",
+                      "size_pt": 11,
+                      "color": "var(--fm-text)"
+                    }
+                  },
+                  "locks": {},
+                  "bind": null,
+                  "visible": true,
+                  "props": {
+                    "blocks": [
+                      {
+                        "id": "blk_e0uezdm1dcrk2",
+                        "type": "paragraph",
+                        "align": "left",
+                        "runs": [
+                          {
+                            "text": "Prepared for "
+                          },
+                          {
+                            "text": "",
+                            "bind": "coalesce(customer.name, 'Customer')"
+                          },
+                          {
+                            "text": " · "
+                          },
+                          {
+                            "text": "",
+                            "bind": "coalesce(project.title, params.structure)"
+                          }
+                        ]
+                      }
+                    ],
+                    "valign": "top",
+                    "auto_fit": false,
+                    "line_height": 1.4,
+                    "letter_spacing": 0
+                  },
+                  "anchor": "flow"
+                },
+                {
+                  "id": "nd_e0ueza0igkpk7",
+                  "type": "text",
+                  "name": "",
+                  "frame": {
+                    "x": 0,
+                    "y": 0,
+                    "w": 0,
+                    "h": "auto",
+                    "rotation": 0,
+                    "z": 0,
+                    "layout": "flow",
+                    "constraints": {
+                      "h": "left",
+                      "v": "top"
+                    }
+                  },
+                  "style": {
+                    "font": {
+                      "family": "var(--fm-body-font)",
+                      "size_pt": 11,
+                      "color": "var(--fm-text)"
+                    }
+                  },
+                  "locks": {},
+                  "bind": null,
+                  "visible": true,
+                  "props": {
+                    "blocks": [
+                      {
+                        "id": "blk_e0uezybuxn6k5",
+                        "type": "paragraph",
+                        "align": "left",
+                        "runs": [
+                          {
+                            "text": "Each line below is priced from the measurements of your roof. Where you have a choice of product, the one priced here is our recommendation; you can change it before you approve."
+                          }
+                        ]
+                      }
+                    ],
+                    "valign": "top",
+                    "auto_fit": false,
+                    "line_height": 1.4,
+                    "letter_spacing": 0
+                  },
+                  "anchor": "flow"
+                },
+                {
+                  "id": "nd_e0uezv7j8jck8",
+                  "type": "frame",
+                  "name": "Spacer",
+                  "frame": {
+                    "x": 0,
+                    "y": 0,
+                    "w": 0,
+                    "h": 10,
+                    "rotation": 0,
+                    "z": 0,
+                    "layout": "flow",
+                    "constraints": {
+                      "h": "left",
+                      "v": "top"
+                    }
+                  },
+                  "style": {},
+                  "locks": {},
+                  "bind": null,
+                  "visible": true,
+                  "props": {
+                    "background": null,
+                    "clip": false,
+                    "flow": {
+                      "direction": "column",
+                      "gap": 8,
+                      "padding": [
+                        0,
+                        0,
+                        0,
+                        0
+                      ],
+                      "align": "stretch",
+                      "wrap": false
+                    },
+                    "overflow": "visible"
+                  },
+                  "children": [],
+                  "anchor": "flow"
+                },
+                {
+                  "id": "nd_e0uez6tl8grjo",
+                  "type": "text",
+                  "name": "",
+                  "frame": {
+                    "x": 0,
+                    "y": 0,
+                    "w": 0,
+                    "h": "auto",
+                    "rotation": 0,
+                    "z": 0,
+                    "layout": "flow",
+                    "constraints": {
+                      "h": "left",
+                      "v": "top"
+                    }
+                  },
+                  "style": {},
+                  "locks": {},
+                  "bind": {
+                    "if": "count(params.content_blocks) > 0"
+                  },
+                  "visible": true,
+                  "props": {
+                    "blocks": [
+                      {
+                        "id": "blk_e0uezkl6p5ljm",
+                        "type": "paragraph",
+                        "align": "left",
+                        "style_ref": "h2",
+                        "runs": [
+                          {
+                            "text": "About this project"
+                          }
+                        ]
+                      }
+                    ],
+                    "valign": "top",
+                    "auto_fit": false,
+                    "line_height": 1.4,
+                    "letter_spacing": 0
+                  },
+                  "anchor": "flow"
+                },
+                {
+                  "id": "nd_e0uezglkisbjp",
+                  "type": "frame",
+                  "name": "Spacer",
+                  "frame": {
+                    "x": 0,
+                    "y": 0,
+                    "w": 0,
+                    "h": 8,
+                    "rotation": 0,
+                    "z": 0,
+                    "layout": "flow",
+                    "constraints": {
+                      "h": "left",
+                      "v": "top"
+                    }
+                  },
+                  "style": {},
+                  "locks": {},
+                  "bind": {
+                    "if": "count(params.content_blocks) > 0"
+                  },
+                  "visible": true,
+                  "props": {
+                    "background": null,
+                    "clip": false,
+                    "flow": {
+                      "direction": "column",
+                      "gap": 8,
+                      "padding": [
+                        0,
+                        0,
+                        0,
+                        0
+                      ],
+                      "align": "stretch",
+                      "wrap": false
+                    },
+                    "overflow": "visible"
+                  },
+                  "children": [],
+                  "anchor": "flow"
+                },
+                {
+                  "id": "nd_e0uezbzbnhrjq",
+                  "type": "repeater",
+                  "name": "",
+                  "frame": {
+                    "x": 0,
+                    "y": 0,
+                    "w": 0,
+                    "h": "auto",
+                    "rotation": 0,
+                    "z": 0,
+                    "layout": "flow",
+                    "constraints": {
+                      "h": "left",
+                      "v": "top"
+                    }
+                  },
+                  "style": {},
+                  "locks": {},
+                  "bind": {
+                    "if": "count(params.content_blocks) > 0"
+                  },
+                  "visible": true,
+                  "props": {
+                    "source": "{{params.content_blocks}}",
+                    "component": "media_text_row",
+                    "variant": null,
+                    "as": "block",
+                    "index_as": "index",
+                    "layout": {
+                      "direction": "column",
+                      "columns": 1,
+                      "gap_pt": 22
+                    },
+                    "break_rules": {
+                      "repeat_header": false,
+                      "min_rows_per_segment": 1,
+                      "keep_with_next": []
+                    },
+                    "empty_text": "No project details added yet.",
+                    "variant_by_index": [
+                      "media_left",
+                      "media_right"
+                    ]
+                  },
+                  "anchor": "flow"
+                },
+                {
+                  "id": "nd_e0uez03nhytjr",
+                  "type": "page_break",
+                  "name": "",
+                  "frame": {
+                    "x": 0,
+                    "y": 0,
+                    "w": 0,
+                    "h": 0,
+                    "rotation": 0,
+                    "z": 0,
+                    "layout": "flow",
+                    "constraints": {
+                      "h": "left",
+                      "v": "top"
+                    }
+                  },
+                  "style": {},
+                  "locks": {},
+                  "bind": {
+                    "if": "count(params.content_blocks) > 0"
+                  },
+                  "visible": true,
+                  "props": {},
+                  "anchor": "flow"
+                },
+                {
+                  "id": "nd_e0uezpu8bsyjt",
+                  "type": "component_ref",
+                  "name": "",
+                  "frame": {
+                    "x": 0,
+                    "y": 0,
+                    "w": 0,
+                    "h": "auto",
+                    "rotation": 0,
+                    "z": 0,
+                    "layout": "flow",
+                    "constraints": {
+                      "h": "left",
+                      "v": "top"
+                    }
+                  },
+                  "style": {},
+                  "locks": {},
+                  "bind": null,
+                  "visible": true,
+                  "props": {
+                    "component": "li_header",
+                    "variant": null,
+                    "input": {},
+                    "detached": false
+                  },
+                  "anchor": "flow"
+                },
+                {
+                  "id": "nd_e0uezlgi5k0ju",
+                  "type": "repeater",
+                  "name": "",
+                  "frame": {
+                    "x": 0,
+                    "y": 0,
+                    "w": 0,
+                    "h": "auto",
+                    "rotation": 0,
+                    "z": 0,
+                    "layout": "flow",
+                    "constraints": {
+                      "h": "left",
+                      "v": "top"
+                    }
+                  },
+                  "style": {},
+                  "locks": {},
+                  "bind": null,
+                  "visible": true,
+                  "props": {
+                    "source": "{{coalesce(params.scope_rows, params.scope_items)}}",
+                    "component": "li_row",
+                    "variant": null,
+                    "as": "row",
+                    "index_as": "index",
+                    "layout": {
+                      "direction": "column",
+                      "columns": 1,
+                      "gap_pt": 2
+                    },
+                    "break_rules": {
+                      "repeat_header": true,
+                      "min_rows_per_segment": 2,
+                      "keep_with_next": [],
+                      "header_component": "li_header"
+                    },
+                    "empty_text": "Choose price-book items in the estimate workflow."
+                  },
+                  "anchor": "flow"
+                },
+                {
+                  "id": "nd_e0uezzpgc46js",
+                  "type": "component_ref",
+                  "name": "",
+                  "frame": {
+                    "x": 0,
+                    "y": 0,
+                    "w": 0,
+                    "h": "auto",
+                    "rotation": 0,
+                    "z": 0,
+                    "layout": "flow",
+                    "constraints": {
+                      "h": "left",
+                      "v": "top"
+                    }
+                  },
+                  "style": {},
+                  "locks": {},
+                  "bind": null,
+                  "visible": true,
+                  "props": {
+                    "component": "li_totals",
+                    "variant": null,
+                    "input": {},
+                    "detached": false
+                  },
+                  "anchor": "flow"
+                },
+                {
+                  "id": "nd_e0uezd0jh18k9",
+                  "type": "frame",
+                  "name": "Spacer",
+                  "frame": {
+                    "x": 0,
+                    "y": 0,
+                    "w": 0,
+                    "h": 12,
+                    "rotation": 0,
+                    "z": 0,
+                    "layout": "flow",
+                    "constraints": {
+                      "h": "left",
+                      "v": "top"
+                    }
+                  },
+                  "style": {},
+                  "locks": {},
+                  "bind": null,
+                  "visible": true,
+                  "props": {
+                    "background": null,
+                    "clip": false,
+                    "flow": {
+                      "direction": "column",
+                      "gap": 8,
+                      "padding": [
+                        0,
+                        0,
+                        0,
+                        0
+                      ],
+                      "align": "stretch",
+                      "wrap": false
+                    },
+                    "overflow": "visible"
+                  },
+                  "children": [],
+                  "anchor": "flow"
+                },
+                {
+                  "id": "nd_e0uezpq17xskc",
+                  "type": "text",
+                  "name": "",
+                  "frame": {
+                    "x": 0,
+                    "y": 0,
+                    "w": 0,
+                    "h": "auto",
+                    "rotation": 0,
+                    "z": 0,
+                    "layout": "flow",
+                    "constraints": {
+                      "h": "left",
+                      "v": "top"
+                    }
+                  },
+                  "style": {},
+                  "locks": {},
+                  "bind": null,
+                  "visible": true,
+                  "props": {
+                    "blocks": [
+                      {
+                        "id": "blk_e0uez5pru47ka",
+                        "type": "paragraph",
+                        "align": "left",
+                        "style_ref": "caption",
+                        "runs": [
+                          {
+                            "text": "Development sample • Confirm the scope and quantities before approval. Prices are sample selling prices, not supplier quotes."
+                          }
+                        ]
+                      }
+                    ],
+                    "valign": "top",
+                    "auto_fit": false,
+                    "line_height": 1.4,
+                    "letter_spacing": 0
+                  },
+                  "anchor": "flow"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "id": "pg_e0uf01euu9ul6",
+          "role": "signature",
+          "name": "Scope & approval",
+          "master_ref": null,
+          "repeat": null,
+          "children": [
+            {
+              "id": "nd_e0uf0xyc2ijl7",
+              "type": "frame",
+              "name": "Body",
+              "frame": {
+                "x": 104,
+                "y": 48,
+                "w": 460,
+                "h": 696,
+                "rotation": 0,
+                "z": 0,
+                "layout": "flow",
+                "constraints": {
+                  "h": "stretch",
+                  "v": "top"
+                }
+              },
+              "style": {},
+              "locks": {},
+              "bind": null,
+              "visible": true,
+              "props": {
+                "background": null,
+                "clip": false,
+                "flow": {
+                  "direction": "column",
+                  "gap": 10,
+                  "padding": [
+                    0,
+                    0,
+                    0,
+                    0
+                  ],
+                  "align": "stretch",
+                  "wrap": false
+                },
+                "overflow": "paginate",
+                "page_region": "body"
+              },
+              "children": [
+                {
+                  "id": "nd_e0uezf3ybhfkg",
+                  "type": "text",
+                  "name": "",
+                  "frame": {
+                    "x": 0,
+                    "y": 0,
+                    "w": 0,
+                    "h": "auto",
+                    "rotation": 0,
+                    "z": 0,
+                    "layout": "flow",
+                    "constraints": {
+                      "h": "left",
+                      "v": "top"
+                    }
+                  },
+                  "style": {},
+                  "locks": {},
+                  "bind": null,
+                  "visible": true,
+                  "props": {
+                    "blocks": [
+                      {
+                        "id": "blk_e0uez1pemzbke",
+                        "type": "paragraph",
+                        "align": "left",
+                        "style_ref": "h2",
+                        "runs": [
+                          {
+                            "text": "Scope & approval"
+                          }
+                        ]
+                      }
+                    ],
+                    "valign": "top",
+                    "auto_fit": false,
+                    "line_height": 1.4,
+                    "letter_spacing": 0
+                  },
+                  "anchor": "flow"
+                },
+                {
+                  "id": "nd_e0uez6irf5kkj",
+                  "type": "text",
+                  "name": "",
+                  "frame": {
+                    "x": 0,
+                    "y": 0,
+                    "w": 0,
+                    "h": "auto",
+                    "rotation": 0,
+                    "z": 0,
+                    "layout": "flow",
+                    "constraints": {
+                      "h": "left",
+                      "v": "top"
+                    }
+                  },
+                  "style": {
+                    "font": {
+                      "family": "var(--fm-body-font)",
+                      "size_pt": 11,
+                      "color": "var(--fm-text)"
+                    }
+                  },
+                  "locks": {},
+                  "bind": null,
+                  "visible": true,
+                  "props": {
+                    "blocks": [
+                      {
+                        "id": "blk_e0uezy8qkr8kh",
+                        "type": "paragraph",
+                        "align": "left",
+                        "runs": [
+                          {
+                            "text": "Replace the roofing on the identified structure with the products, quantities and options listed in this proposal."
+                          }
+                        ]
+                      }
+                    ],
+                    "valign": "top",
+                    "auto_fit": false,
+                    "line_height": 1.4,
+                    "letter_spacing": 0
+                  },
+                  "anchor": "flow"
+                },
+                {
+                  "id": "nd_e0uezsq1lnckm",
+                  "type": "text",
+                  "name": "",
+                  "frame": {
+                    "x": 0,
+                    "y": 0,
+                    "w": 0,
+                    "h": "auto",
+                    "rotation": 0,
+                    "z": 0,
+                    "layout": "flow",
+                    "constraints": {
+                      "h": "left",
+                      "v": "top"
+                    }
+                  },
+                  "style": {
+                    "font": {
+                      "family": "var(--fm-body-font)",
+                      "size_pt": 11,
+                      "color": "var(--fm-text)"
+                    }
+                  },
+                  "locks": {},
+                  "bind": null,
+                  "visible": true,
+                  "props": {
+                    "blocks": [
+                      {
+                        "id": "blk_e0uezr39e4mkk",
+                        "type": "paragraph",
+                        "align": "left",
+                        "runs": [
+                          {
+                            "text": "Structure: "
+                          },
+                          {
+                            "text": "",
+                            "bind": "params.structure"
+                          }
+                        ]
+                      }
+                    ],
+                    "valign": "top",
+                    "auto_fit": false,
+                    "line_height": 1.4,
+                    "letter_spacing": 0
+                  },
+                  "anchor": "flow"
+                },
+                {
+                  "id": "nd_e0uezf1rq62kp",
+                  "type": "text",
+                  "name": "",
+                  "frame": {
+                    "x": 0,
+                    "y": 0,
+                    "w": 0,
+                    "h": "auto",
+                    "rotation": 0,
+                    "z": 0,
+                    "layout": "flow",
+                    "constraints": {
+                      "h": "left",
+                      "v": "top"
+                    }
+                  },
+                  "style": {
+                    "font": {
+                      "family": "var(--fm-body-font)",
+                      "size_pt": 11,
+                      "color": "var(--fm-text)"
+                    }
+                  },
+                  "locks": {},
+                  "bind": null,
+                  "visible": true,
+                  "props": {
+                    "blocks": [
+                      {
+                        "id": "blk_e0uez21zl5pkn",
+                        "type": "paragraph",
+                        "align": "left",
+                        "runs": [
+                          {
+                            "text": "Site review: confirm access, decking condition, flashing, ventilation and disposal arrangements. Hidden damage and additional work require a separately approved change. Schedule and payment terms must be agreed before work starts."
+                          }
+                        ]
+                      }
+                    ],
+                    "valign": "top",
+                    "auto_fit": false,
+                    "line_height": 1.4,
+                    "letter_spacing": 0
+                  },
+                  "anchor": "flow"
+                },
+                {
+                  "id": "nd_e0uezgm927iks",
+                  "type": "text",
+                  "name": "",
+                  "frame": {
+                    "x": 0,
+                    "y": 0,
+                    "w": 0,
+                    "h": "auto",
+                    "rotation": 0,
+                    "z": 0,
+                    "layout": "flow",
+                    "constraints": {
+                      "h": "left",
+                      "v": "top"
+                    }
+                  },
+                  "style": {
+                    "font": {
+                      "family": "var(--fm-body-font)",
+                      "size_pt": 11,
+                      "color": "var(--fm-text)"
+                    }
+                  },
+                  "locks": {},
+                  "bind": null,
+                  "visible": true,
+                  "props": {
+                    "blocks": [
+                      {
+                        "id": "blk_e0uezuan2edkq",
+                        "type": "paragraph",
+                        "align": "left",
+                        "runs": [
+                          {
+                            "text": "Approval accepts the scope and price shown in this estimate. The material list supports fulfillment; changes to that list do not change this signed estimate."
+                          }
+                        ]
+                      }
+                    ],
+                    "valign": "top",
+                    "auto_fit": false,
+                    "line_height": 1.4,
+                    "letter_spacing": 0
+                  },
+                  "anchor": "flow"
+                },
+                {
+                  "id": "nd_e0uezzxmamnkt",
+                  "type": "frame",
+                  "name": "Spacer",
+                  "frame": {
+                    "x": 0,
+                    "y": 0,
+                    "w": 0,
+                    "h": 6,
+                    "rotation": 0,
+                    "z": 0,
+                    "layout": "flow",
+                    "constraints": {
+                      "h": "left",
+                      "v": "top"
+                    }
+                  },
+                  "style": {},
+                  "locks": {},
+                  "bind": null,
+                  "visible": true,
+                  "props": {
+                    "background": null,
+                    "clip": false,
+                    "flow": {
+                      "direction": "column",
+                      "gap": 8,
+                      "padding": [
+                        0,
+                        0,
+                        0,
+                        0
+                      ],
+                      "align": "stretch",
+                      "wrap": false
+                    },
+                    "overflow": "visible"
+                  },
+                  "children": [],
+                  "anchor": "flow"
+                },
+                {
+                  "id": "nd_e0uezoxfwnmkw",
+                  "type": "text",
+                  "name": "",
+                  "frame": {
+                    "x": 0,
+                    "y": 0,
+                    "w": 0,
+                    "h": "auto",
+                    "rotation": 0,
+                    "z": 0,
+                    "layout": "flow",
+                    "constraints": {
+                      "h": "left",
+                      "v": "top"
+                    }
+                  },
+                  "style": {},
+                  "locks": {},
+                  "bind": null,
+                  "visible": true,
+                  "props": {
+                    "blocks": [
+                      {
+                        "id": "blk_e0uezaj3jhoku",
+                        "type": "paragraph",
+                        "align": "left",
+                        "style_ref": "h2",
+                        "runs": [
+                          {
+                            "text": "Payment terms"
+                          }
+                        ]
+                      }
+                    ],
+                    "valign": "top",
+                    "auto_fit": false,
+                    "line_height": 1.4,
+                    "letter_spacing": 0
+                  },
+                  "anchor": "flow"
+                },
+                {
+                  "id": "nd_e0uezaf6hnhkx",
+                  "type": "widget",
+                  "name": "",
+                  "frame": {
+                    "x": 0,
+                    "y": 0,
+                    "w": 0,
+                    "h": "auto",
+                    "rotation": 0,
+                    "z": 0,
+                    "layout": "flow",
+                    "constraints": {
+                      "h": "left",
+                      "v": "top"
+                    }
+                  },
+                  "style": {},
+                  "locks": {},
+                  "bind": null,
+                  "visible": true,
+                  "props": {
+                    "widget": "doc.payment_schedule@1",
+                    "config": {
+                      "source": "params.payment_schedule"
+                    }
+                  },
+                  "anchor": "flow"
+                },
+                {
+                  "id": "nd_e0uezi6p1vsky",
+                  "type": "frame",
+                  "name": "Spacer",
+                  "frame": {
+                    "x": 0,
+                    "y": 0,
+                    "w": 0,
+                    "h": 16,
+                    "rotation": 0,
+                    "z": 0,
+                    "layout": "flow",
+                    "constraints": {
+                      "h": "left",
+                      "v": "top"
+                    }
+                  },
+                  "style": {},
+                  "locks": {},
+                  "bind": null,
+                  "visible": true,
+                  "props": {
+                    "background": null,
+                    "clip": false,
+                    "flow": {
+                      "direction": "column",
+                      "gap": 8,
+                      "padding": [
+                        0,
+                        0,
+                        0,
+                        0
+                      ],
+                      "align": "stretch",
+                      "wrap": false
+                    },
+                    "overflow": "visible"
+                  },
+                  "children": [],
+                  "anchor": "flow"
+                },
+                {
+                  "id": "nd_e0uf0vtw2bal1",
+                  "type": "frame",
+                  "name": "",
+                  "frame": {
+                    "x": 0,
+                    "y": 0,
+                    "w": 0,
+                    "h": "auto",
+                    "rotation": 0,
+                    "z": 0,
+                    "layout": "flow",
+                    "constraints": {
+                      "h": "left",
+                      "v": "top"
+                    }
+                  },
+                  "style": {},
+                  "locks": {},
+                  "bind": null,
+                  "visible": true,
+                  "props": {
+                    "background": null,
+                    "clip": false,
+                    "flow": {
+                      "direction": "row",
+                      "gap": 24,
+                      "padding": [
+                        0,
+                        0,
+                        0,
+                        0
+                      ],
+                      "align": "start",
+                      "wrap": false
+                    },
+                    "overflow": "visible"
+                  },
+                  "children": [
+                    {
+                      "id": "nd_e0uf0vp8ntekz",
+                      "type": "widget",
+                      "name": "",
+                      "frame": {
+                        "x": 0,
+                        "y": 0,
+                        "w": 0,
+                        "h": 100,
+                        "rotation": 0,
+                        "z": 0,
+                        "layout": "flow",
+                        "constraints": {
+                          "h": "left",
+                          "v": "top"
+                        },
+                        "grow": 1
+                      },
+                      "style": {},
+                      "locks": {},
+                      "bind": null,
+                      "visible": true,
+                      "props": {
+                        "widget": "doc.signature@1",
+                        "config": {
+                          "output": "sig_customer",
+                          "label": "Customer approval",
+                          "signer": "customer"
+                        }
+                      },
+                      "anchor": "flow"
+                    },
+                    {
+                      "id": "nd_e0uf0nzvhpil0",
+                      "type": "widget",
+                      "name": "",
+                      "frame": {
+                        "x": 0,
+                        "y": 0,
+                        "w": 190,
+                        "h": 100,
+                        "rotation": 0,
+                        "z": 0,
+                        "layout": "flow",
+                        "constraints": {
+                          "h": "left",
+                          "v": "top"
+                        }
+                      },
+                      "style": {},
+                      "locks": {},
+                      "bind": null,
+                      "visible": true,
+                      "props": {
+                        "widget": "doc.pay_now@1",
+                        "config": {
+                          "label": "Deposit due",
+                          "output_key": "deposit_payment"
+                        }
+                      },
+                      "anchor": "flow"
+                    }
+                  ],
+                  "anchor": "flow"
+                },
+                {
+                  "id": "nd_e0uf0w8tmh4l2",
+                  "type": "frame",
+                  "name": "Spacer",
+                  "frame": {
+                    "x": 0,
+                    "y": 0,
+                    "w": 0,
+                    "h": 16,
+                    "rotation": 0,
+                    "z": 0,
+                    "layout": "flow",
+                    "constraints": {
+                      "h": "left",
+                      "v": "top"
+                    }
+                  },
+                  "style": {},
+                  "locks": {},
+                  "bind": null,
+                  "visible": true,
+                  "props": {
+                    "background": null,
+                    "clip": false,
+                    "flow": {
+                      "direction": "column",
+                      "gap": 8,
+                      "padding": [
+                        0,
+                        0,
+                        0,
+                        0
+                      ],
+                      "align": "stretch",
+                      "wrap": false
+                    },
+                    "overflow": "visible"
+                  },
+                  "children": [],
+                  "anchor": "flow"
+                },
+                {
+                  "id": "nd_e0uf01qe623l5",
+                  "type": "text",
+                  "name": "",
+                  "frame": {
+                    "x": 0,
+                    "y": 0,
+                    "w": 0,
+                    "h": "auto",
+                    "rotation": 0,
+                    "z": 0,
+                    "layout": "flow",
+                    "constraints": {
+                      "h": "left",
+                      "v": "top"
+                    }
+                  },
+                  "style": {},
+                  "locks": {},
+                  "bind": null,
+                  "visible": true,
+                  "props": {
+                    "blocks": [
+                      {
+                        "id": "blk_e0uf0vqhstpl3",
+                        "type": "paragraph",
+                        "align": "left",
+                        "style_ref": "caption",
+                        "runs": [
+                          {
+                            "text": "Sample agreement for development testing. Replace sample terms with your organization’s approved terms before customer use."
+                          }
+                        ]
+                      }
+                    ],
+                    "valign": "top",
+                    "auto_fit": false,
+                    "line_height": 1.4,
+                    "letter_spacing": 0
+                  },
+                  "anchor": "flow"
+                }
+              ]
+            }
+          ]
+        }
+      ],
+      "program": {
+        "enabled": false,
+        "deliverables": [
+          {
+            "type": "materials_calculus",
+            "key": "roofing_detailed",
+            "title": "Roof replacement",
+            "bindings": {
+              "products": {
+                "kind": "data",
+                "policy": "frozen",
+                "required": true,
+                "source": {
+                  "provider": "materials-inputs",
+                  "export": "products",
+                  "target": {
+                    "scope": "organization",
+                    "organizationId": "$organization"
+                  }
+                }
+              },
+              "measurements": {
+                "kind": "data",
+                "policy": "frozen",
+                "required": false,
+                "source": {
+                  "provider": "materials-inputs",
+                  "export": "measurements",
+                  "target": {
+                    "scope": "project",
+                    "organizationId": "$organization",
+                    "projectId": "$project"
+                  }
+                }
+              }
+            },
+            "source": "const p = inputs.document.params;\nconst products = await api.data.read('products');\nconst dataset = await api.data.read('measurements');\n// The document's structures (the estimate's measurements step): which the report measured are on, and any entered\n// by hand. When it has them, its combined measurements are what this job is, not the project's report.\nconst structureState = p.measurement_structures && typeof p.measurement_structures === 'object' ? p.measurement_structures : null;\nconst structures = (Array.isArray(structureState?.structures) ? structureState.structures : []).filter(s => s && s.id);\nconst unitOf = key => /Squares$/.test(key) ? 'roofing_square' : /Lf$/.test(key) ? 'ft' : '';\nconst documented = {};\nif (structures.length) for (const [key, value] of Object.entries(p.measurements || {})) {\n  const unit = unitOf(key);\n  if (unit && typeof value === 'number' && Number.isFinite(value) && value >= 0) documented[key] = { value, unit };\n}\nconst fromDocument = Object.keys(documented).length > 0;\nconst measured = fromDocument ? documented : (dataset?.measurements || {});\n// Each line says which structure it is for: its own section's when the estimate priced each structure on its own,\n// otherwise every structure the estimate includes (one structure is what the document calls it).\nconst included = structures.filter(s => s.included !== false).map(s => String(s.name || '').trim()).filter(Boolean);\nconst structureLabel = (structures.length > 1 ? included.join(' + ') : '') || p.structure || 'Main house';\nconst warnings = [], lines = [];\nconst scoped = true;\nfunction amount(value, label) { if (typeof value !== 'number' || !Number.isFinite(value) || value < 0) throw new Error(label + ' must be a nonnegative number'); return value; }\nfunction length(key, label) {\n  const v = measured[key];\n  if (!v || v.value === null || (v.status && v.status !== 'ready')) { warnings.push('Missing ' + label + ': review and add this accessory before ordering.'); return null; }\n  if (!['ft','lf'].includes(v.unit)) throw new Error(label + ' must be measured in feet');\n  return amount(v.value, label);\n}\nfunction add(key, id, quantity, group, explanation, variant = '', structure = structureLabel) {\n  if (quantity === null || quantity === 0) return;\n  const product = products.find(x => x.id === id);\n  if (!product) throw new Error('The shared price book is missing product ' + id);\n  lines.push({ key, product_id: id, name: product.name, quantity: amount(quantity, product.name), unit: product.unit,\n    ...(product.packaging ? {packaging: product.packaging} : {}), variant, structure, group, explanation });\n}\nif (scoped) {\n  // The accepted scope is the order: options and add-ons the customer passed over are not on it.\n  const physical = new Set(['gaf_hd','gaf_ns','gaf_uhdz','gaf_grand_sequoia','ct_presidential_shake','laminated_shingles','three_tab_shingles','starter','ridge_cap','underlayment','gaf_feltbuster','gaf_tiger_paw','drip_edge','valley_metal','ridge_vent','gutter_replace','downspout','gutter_guard']);\n  function walk(rows, path, structure) { (rows || []).forEach((r, index) => {\n    if (r.selected === false || r.excluded === true || r.selection?.selected === false) return;\n    const key = path + '_' + index;\n    const here = String(r.structure_ref?.name || '').trim() || structure;\n    const id = r.pricebook_ref?.item_id || r.item_ref || r.catalog_item_id || r.id;\n    if (physical.has(id) || products.find(x=>x.id===id)?.packaging) add(key, id, amount(Number(r.quantity), r.name || id), 'Accepted scope', 'Quantity accepted on the proposal', r.variation_id || r.variant_id || r.variables?.color || p.color || '', here);\n    walk(r.children, key, here);\n  }); }\n  walk(p.scope_items, 'scope', structureLabel);\n  // A designer shingle needs its starter strip in the same colour; any other starter strip stays plain.\n  const designer = lines.find(line => ['gaf_grand_sequoia','ct_presidential_shake'].includes(line.product_id));\n  if (designer) lines.filter(line => line.product_id === 'starter').forEach(line => { line.variant = designer.variant || line.variant; line.explanation = (line.explanation ? line.explanation + '. ' : '') + 'Coloured to match ' + designer.name; });\n  if (!lines.length) throw new Error('Select physical price-book materials on the proposal before generating materials.');\n  warnings.push('Quantities follow the accepted scope; check flashing, ventilation and accessories on site before ordering.');\n} else {\n  const squares = amount(p.roof_squares, 'Roof squares');\n  if (!squares) throw new Error('Enter the accepted roof area before generating materials.');\n  const waste = amount(p.waste_percent, 'Waste percent');\n  if (waste > 50) throw new Error('Review waste above 50% before generating materials.');\n  const required = squares * (1 + waste / 100);\n  add('shingles', 'gaf_hd', required, 'Roof covering', 'Accepted roof area plus ' + waste + '% waste', p.color || 'charcoal');\n  add('underlayment', 'underlayment', required, 'Roof covering', 'Roof area plus the accepted waste allowance');\n  const eaves = length('eavesLf','eaves'), rakes = length('rakesLf','rakes');\n  if (eaves !== null && rakes !== null) { add('starter','starter',eaves+rakes,'Perimeter','Measured eaves + rakes'); add('drip','drip_edge',eaves+rakes,'Perimeter','Measured eaves + rakes'); }\n  const hips = length('hipsLf','hips'), ridges = length('ridgesLf','ridges');\n  if (hips !== null && ridges !== null) add('cap','ridge_cap',hips+ridges,'Ridges & hips','Measured hips + ridges');\n  if (p.ridge_vent === true && ridges !== null) add('vent','ridge_vent',ridges,'Ventilation','Measured ridges; verify usable vent length on site');\n  warnings.push('Confirm ice barrier, wall/penetration flashing, fasteners and ventilation requirements on site. These are not inferred from roof area.');\n}\n// What the job includes. Amounts are left to the scope set, which sizes each from the same measurements; a part of\n// the roof that was not measured, or is not there, is not work on this job.\nconst work = [];\nif (true) {\n  const has = (...keys) => keys.some(key => Number(measured[key]?.value) > 0);\n  work.push({item:'roofing.tear_off'},{item:'disposal.debris'},{item:'roofing.dry_in'},{item:'roofing.install'});\n  if (has('eavesLf','rakesLf')) work.push({item:'roofing.edge_metal'});\n  if (has('ridgesLf','hipsLf')) work.push({item:'roofing.ridge_cap'});\n  if (has('valleyLf')) work.push({item:'roofing.valleys'});\n  if (has('headWallLf','sideWallLf')) work.push({item:'roofing.wall_flashing'});\n  work.push({item:'roofing.cleanup'});\n}\n// Work is sized from the same measurements the lines came from.\nreturn {outputs:{lines,warnings,work,...(fromDocument ? {measurements: documented} : {})}};"
+          }
+        ]
+      }
+    },
+    "metadata": {
+      "default_workflow_id": "wfl_instant_roofing_detailed",
+      "customer_presentation": {
+        "tab": {
+          "id": "documents",
+          "label": "Documents",
+          "icon": "fa-file-lines",
+          "order": 60
+        },
+        "mode": "hybrid",
+        "workflow_cta": "Choose options & approve"
+      },
+      "default": true
+    },
+    "initial_metadata": {},
+    "requires_pricebook_items": [
+      "gaf_hd",
+      "gutter_replace"
+    ],
+    "pricebook_defaults": []
+  }
+}

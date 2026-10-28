@@ -1,0 +1,27 @@
+{
+  "kind": "measurement_definition",
+  "id": "roof.squares_4_to_6",
+  "revision": 1,
+  "sha256": "2452fa97a256c95aad517b2d370f2acdd6429687d5c10903aa6fe17563fb4234",
+  "title": "Squares over 4/12 up to 6/12",
+  "updated_at": "2026-10-28T00:40:02.983Z",
+  "updated_by": "generator",
+  "data": {
+    "key": "pitch4to6Squares",
+    "label": "Squares over 4/12 up to 6/12",
+    "unit": "roofing_square",
+    "levels": [
+      "project",
+      "structure"
+    ],
+    "derive": {
+      "from": "roof.squares_at_pitch",
+      "above": 4,
+      "upTo": 6
+    },
+    "slice": {
+      "partition": "roof.pitch_bands"
+    },
+    "description": "Squares pitched over 4/12 and up to 6/12."
+  }
+}

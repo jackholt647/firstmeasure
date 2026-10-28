@@ -1,0 +1,296 @@
+{
+  "kind": "terminology_namespace",
+  "id": "money",
+  "revision": 1,
+  "sha256": "80cdec090dbba06329380db1393e768f3495577648549f3e66f0c6cd227290d7",
+  "title": "Money",
+  "updated_at": "2026-10-28T00:40:02.983Z",
+  "updated_by": "generator",
+  "data": {
+    "title": "Money",
+    "note": "Project Money navigation, views, summaries, ledgers, and entry forms.",
+    "position": 90,
+    "terms": [
+      {
+        "key": "project_tab",
+        "label": "Financials",
+        "kind": "navigation"
+      },
+      {
+        "key": "payments_settings_tab",
+        "label": "Payments",
+        "kind": "navigation"
+      },
+      {
+        "key": "workspace",
+        "label": "Money",
+        "kind": "entity"
+      },
+      {
+        "key": "overview",
+        "label": "Overview",
+        "kind": "view"
+      },
+      {
+        "key": "invoices",
+        "label": "Invoices",
+        "kind": "view"
+      },
+      {
+        "key": "recurring",
+        "label": "Recurring",
+        "kind": "view"
+      },
+      {
+        "key": "expense_lists",
+        "label": "Expense Lists",
+        "kind": "view"
+      },
+      {
+        "key": "receipts",
+        "label": "Receipts",
+        "kind": "view"
+      },
+      {
+        "key": "commissions",
+        "label": "Commissions",
+        "kind": "view"
+      },
+      {
+        "key": "ledger",
+        "label": "Ledger",
+        "kind": "entity"
+      },
+      {
+        "key": "payments",
+        "label": "Payments",
+        "kind": "entity"
+      },
+      {
+        "key": "expenses",
+        "label": "Expenses",
+        "kind": "entity"
+      },
+      {
+        "key": "activity",
+        "label": "Activity",
+        "kind": "entity"
+      },
+      {
+        "key": "transaction",
+        "label": "Transaction",
+        "kind": "entity"
+      },
+      {
+        "key": "transactions",
+        "label": "Transactions",
+        "kind": "entity"
+      },
+      {
+        "key": "receipt",
+        "label": "Receipt",
+        "kind": "entity"
+      },
+      {
+        "key": "money_in",
+        "label": "Money In",
+        "kind": "entity"
+      },
+      {
+        "key": "money_out",
+        "label": "Money Out",
+        "kind": "entity"
+      },
+      {
+        "key": "balance",
+        "label": "Balance",
+        "kind": "entity"
+      },
+      {
+        "key": "revenue",
+        "label": "Revenue",
+        "kind": "entity"
+      },
+      {
+        "key": "collected",
+        "label": "Collected",
+        "kind": "entity"
+      },
+      {
+        "key": "remaining",
+        "label": "Remaining",
+        "kind": "entity"
+      },
+      {
+        "key": "cost_forecast",
+        "label": "Cost Forecast",
+        "kind": "entity"
+      },
+      {
+        "key": "forecast_profit",
+        "label": "Forecast Profit",
+        "kind": "entity"
+      },
+      {
+        "key": "profit_to_date",
+        "label": "Profit To Date",
+        "kind": "entity"
+      },
+      {
+        "key": "payment_schedule",
+        "label": "Payment Schedule",
+        "kind": "entity"
+      },
+      {
+        "key": "collected_payment",
+        "label": "Collected Payment",
+        "kind": "entity"
+      },
+      {
+        "key": "collected_payments",
+        "label": "Collected Payments",
+        "kind": "entity"
+      },
+      {
+        "key": "scheduled_payment",
+        "label": "Scheduled Payment",
+        "kind": "entity"
+      },
+      {
+        "key": "scheduled_payments",
+        "label": "Scheduled Payments",
+        "kind": "entity"
+      },
+      {
+        "key": "add_collected_payment",
+        "label": "Add Collected Payment",
+        "kind": "action"
+      },
+      {
+        "key": "save_collected_payment",
+        "label": "Save Collected Payment",
+        "kind": "action"
+      },
+      {
+        "key": "take_collected_payment",
+        "label": "Take a Collected Payment",
+        "kind": "action"
+      },
+      {
+        "key": "expense",
+        "label": "Expense",
+        "kind": "entity"
+      },
+      {
+        "key": "add_expense",
+        "label": "Add Expense",
+        "kind": "action"
+      },
+      {
+        "key": "expense_list",
+        "label": "Expense List",
+        "kind": "entity"
+      },
+      {
+        "key": "recipient",
+        "label": "Recipient",
+        "kind": "entity"
+      },
+      {
+        "key": "invoice",
+        "label": "Invoice",
+        "kind": "entity"
+      },
+      {
+        "key": "invoice_history",
+        "label": "Invoice History",
+        "kind": "entity"
+      },
+      {
+        "key": "generate_invoice",
+        "label": "Generate Invoice",
+        "kind": "action"
+      },
+      {
+        "key": "invoice_items",
+        "label": "Invoice Items",
+        "kind": "entity"
+      },
+      {
+        "key": "invoice_total",
+        "label": "Invoice Total",
+        "kind": "entity"
+      },
+      {
+        "key": "recurring_agreements",
+        "label": "Recurring Agreements",
+        "kind": "entity"
+      },
+      {
+        "key": "recurring_totals",
+        "label": "Recurring Totals",
+        "kind": "entity"
+      },
+      {
+        "key": "project_expenses",
+        "label": "Project Expenses",
+        "kind": "entity"
+      },
+      {
+        "key": "projected",
+        "label": "Projected",
+        "kind": "entity"
+      },
+      {
+        "key": "tracked_actual",
+        "label": "Tracked Actual",
+        "kind": "entity"
+      },
+      {
+        "key": "variance",
+        "label": "Variance",
+        "kind": "entity"
+      },
+      {
+        "key": "current_forecast",
+        "label": "Current Forecast",
+        "kind": "entity"
+      },
+      {
+        "key": "commission_payment",
+        "label": "Commission Payment",
+        "kind": "entity"
+      },
+      {
+        "key": "commission_payments",
+        "label": "Commission Payments",
+        "kind": "entity"
+      },
+      {
+        "key": "commission_recipient",
+        "label": "Commission Recipient",
+        "kind": "entity"
+      },
+      {
+        "key": "commission_recipients",
+        "label": "Commission Recipients",
+        "kind": "entity"
+      },
+      {
+        "key": "upcoming",
+        "label": "Upcoming",
+        "kind": "entity"
+      },
+      {
+        "key": "accrued",
+        "label": "Accrued",
+        "kind": "entity"
+      },
+      {
+        "key": "timing",
+        "label": "Timing",
+        "kind": "entity"
+      }
+    ]
+  }
+}

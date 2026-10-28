@@ -1,0 +1,46 @@
+{
+  "kind": "terminology_namespace",
+  "id": "billing",
+  "revision": 1,
+  "sha256": "86fde8d6e8bb609fd24b640465bf261d8e5384b338c3f4e5a0420cc62d919042",
+  "title": "Billing",
+  "updated_at": "2026-10-28T00:40:02.983Z",
+  "updated_by": "generator",
+  "data": {
+    "title": "Billing",
+    "note": "Billing settings navigation and subscription records.",
+    "position": 290,
+    "terms": [
+      {
+        "key": "settings_tab",
+        "label": "Billing",
+        "kind": "navigation"
+      },
+      {
+        "key": "subscription",
+        "label": "Subscription",
+        "kind": "entity"
+      },
+      {
+        "key": "plan",
+        "label": "Plan",
+        "kind": "entity"
+      },
+      {
+        "key": "billing_contact",
+        "label": "Billing Contact",
+        "kind": "entity"
+      },
+      {
+        "key": "invoice",
+        "label": "Invoice",
+        "kind": "entity"
+      },
+      {
+        "key": "payment_method",
+        "label": "Payment Method",
+        "kind": "entity"
+      }
+    ]
+  }
+}

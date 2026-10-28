@@ -1,0 +1,19 @@
+{
+  "kind": "measurement_definition",
+  "id": "roof.side_wall_length",
+  "revision": 1,
+  "sha256": "871b78a9dee9833574c4ba1cbe028be0f346132cc484a9245306ffbee3d733c0",
+  "title": "Side walls",
+  "updated_at": "2026-10-28T00:40:02.983Z",
+  "updated_by": "generator",
+  "data": {
+    "key": "sideWallLf",
+    "label": "Side walls",
+    "unit": "ft",
+    "levels": [
+      "project",
+      "structure"
+    ],
+    "description": "Length of roof meeting a wall along its slope, where step flashing goes."
+  }
+}

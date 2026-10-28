@@ -1,0 +1,42 @@
+{
+  "kind": "app_welcome",
+  "id": "project.customer_portal",
+  "revision": 1,
+  "sha256": "2bf7e19640179011522c6f05d163e577b99e72f69df06833a94d5c14c967c9dd",
+  "title": "project.customer_portal: Keep customers in the loop.",
+  "updated_at": "2026-10-28T00:40:02.983Z",
+  "updated_by": "generator",
+  "data": {
+    "theme": "portal",
+    "eyebrow": {
+      "key": "gx_offer_portal_name",
+      "text": "Customer Portal"
+    },
+    "headline": {
+      "key": "gx_offer_portal_headline",
+      "text": "Keep customers in the loop."
+    },
+    "description": {
+      "key": "gx_offer_portal_description",
+      "text": "Give each customer a simple place to follow their project. A professional experience, with fewer things to chase."
+    },
+    "benefits": [
+      {
+        "key": "gx_offer_portal_b1",
+        "text": "Give every project its own customer link"
+      },
+      {
+        "key": "gx_offer_portal_b2",
+        "text": "Choose what you share with the customer"
+      },
+      {
+        "key": "gx_offer_portal_b3",
+        "text": "Bring project information into one place"
+      }
+    ],
+    "caption": {
+      "key": "gx_offer_portal_caption",
+      "text": "Their project. One simple link."
+    }
+  }
+}

@@ -1,0 +1,19 @@
+{
+  "kind": "measurement_definition",
+  "id": "roof.rake_length",
+  "revision": 1,
+  "sha256": "ac3eee76202b4c544acf80e8e71509157641a612acf9eaccb32a9e2c7ad3f00a",
+  "title": "Rakes",
+  "updated_at": "2026-10-28T00:40:02.983Z",
+  "updated_by": "generator",
+  "data": {
+    "key": "rakesLf",
+    "label": "Rakes",
+    "unit": "ft",
+    "levels": [
+      "project",
+      "structure"
+    ],
+    "description": "Total rake length."
+  }
+}

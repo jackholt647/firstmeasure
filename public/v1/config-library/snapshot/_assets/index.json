@@ -1,0 +1,12 @@
+[
+  {
+    "sha256": "8e6e61c4004e4cf1873eb00e666850e6f3acd372d6c0f9ed658e11f275181890",
+    "content_type": "image/png",
+    "file_name": "scope-materials.png"
+  },
+  {
+    "sha256": "dc4908540291e289231bae0872e9125a96f53d5ba60cfab952b6040decdba42c",
+    "content_type": "image/png",
+    "file_name": "scope-pricebook.png"
+  }
+]

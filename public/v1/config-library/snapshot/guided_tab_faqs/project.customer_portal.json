@@ -1,0 +1,39 @@
+{
+  "kind": "guided_tab_faqs",
+  "id": "project.customer_portal",
+  "revision": 1,
+  "sha256": "fb2aaf83a5d0dcc06162318963fb62c3224e58c34d29d3dd898271594796b2de",
+  "title": "Questions on project.customer_portal",
+  "updated_at": "2026-10-28T00:40:02.983Z",
+  "updated_by": "generator",
+  "data": {
+    "tab": "project.customer_portal",
+    "questions": [
+      {
+        "id": "portal.what",
+        "text": {
+          "key": "gx_faq_portal_what",
+          "text": "What does the customer see in their portal?"
+        },
+        "action": "ask"
+      },
+      {
+        "id": "portal.share",
+        "text": {
+          "key": "gx_faq_portal_share",
+          "text": "How do I send the customer their portal link?"
+        },
+        "action": "ask"
+      },
+      {
+        "id": "portal.tour",
+        "text": {
+          "key": "gx_faq_portal_tour",
+          "text": "Show me the tutorial again"
+        },
+        "action": "play",
+        "experience": "customer_portal.tab_tutorial"
+      }
+    ]
+  }
+}
