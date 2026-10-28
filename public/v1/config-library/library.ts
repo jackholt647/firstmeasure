@@ -141,6 +141,9 @@ export function startLibrarySync() {
 }
 export function stopLibrarySync() { if (timer) clearInterval(timer); timer = undefined; syncing = undefined; seenSeq = -1; }
 
+/** Where this process's entries come from right now: "store" once the store has loaded, otherwise "snapshot". */
+export function libraryLoaded(): "store" | "snapshot" { return seenSeq >= 0 ? "store" : "snapshot"; }
+
 /** Reads whatever changed in the store since this process last looked. One query when nothing did. */
 export async function refreshLibrary() {
   if (librarySource() !== "store") return;
