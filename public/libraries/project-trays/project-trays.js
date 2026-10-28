@@ -522,7 +522,7 @@ ${agentBarCss({host:'.fm-project-content',bar:'.fm-project-tray',panel:'.fm-proj
       tabs.dataset.agentCompact=String(open);
       // A phone's other trays are bottom sheets over the app; one shows at a time.
       const shown=selected || lingering;
-      if(phone && shown && shown!=='agent')content.dataset.trayMode='sheet';else delete content.dataset.trayMode;
+      if(phone && !compact && shown!=='agent')content.dataset.trayMode='sheet';else delete content.dataset.trayMode;
       agentBar.update(tray,{open,voice:agentState.voice});
     }
     const agentViewport=()=>{cancelAnimationFrame(agentResize);agentResize=requestAnimationFrame(()=>{if(!disposed){syncPlacement();syncAgentCompact();}});};

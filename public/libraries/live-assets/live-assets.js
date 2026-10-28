@@ -16,6 +16,20 @@
 const TEXT = new Set(['.js', '.mjs', '.css', '.json', '.map', '.txt', '.svg']);
 const IMAGE = /\.(png|jpe?g|gif|webp|avif|svg|ico)$/i;
 const known = new Map();
+// A WindowProxy survives navigation; its Document does not. Never carry applied versions into a new page.
+const documents = new WeakMap();
+let work = Promise.resolve();
+let generation = -1;
+const recent = [];
+function record(win, path, action) {
+  recent.push({ at: Date.now(), frame: win === window ? 'page' : (win.name || win.location.pathname), path, action });
+  if (recent.length > 50) recent.shift();
+}
+function enqueue(run) { const next = work.then(run); work = next.catch(() => {}); return next; }
+function documentState(doc) {
+  if (!documents.has(doc)) documents.set(doc, { sources: new Map(), applied: new Map(), styles: new Map(), observer: null, reloading: false });
+  return documents.get(doc);
+}
 
 const extOf = (path) => (path.match(/\.[^./]+$/)?.[0] || '').toLowerCase();
 const pathOf = (url, base) => { try { const parsed = new URL(url, base); return parsed.origin === location.origin ? decodeURIComponent(parsed.pathname).replace(/^\//, '') : ''; } catch { return ''; } };
@@ -55,11 +69,16 @@ async function served(url, path) {
 }
 
 function swapLink(link, sha) {
-  const next = link.cloneNode();
-  next.href = bust(link.href, sha);
-  next.addEventListener('load', () => link.remove(), { once: true });
-  next.addEventListener('error', () => next.remove(), { once: true });
-  link.after(next);
+  return new Promise((resolve) => {
+    const next = link.cloneNode();
+    next.href = bust(link.href, sha);
+    let settled = false;
+    const finish = (ok) => { if (settled) return; settled = true; clearTimeout(timer); if (ok) link.remove(); else next.remove(); resolve(ok); };
+    const timer = setTimeout(() => finish(false), 5000);
+    next.addEventListener('load', () => finish(true), { once: true });
+    next.addEventListener('error', () => finish(false), { once: true });
+    link.after(next);
+  });
 }
 
 function notice(text) {
@@ -85,12 +104,12 @@ const textOf = (url, cache) => fetch(url, { cache, credentials: 'same-origin' })
 /**
  * Most libraries keep their CSS in the script and inject it as a <style>. When the only difference between the
  * copy the frame ran (the browser's cached copy) and the new one lies inside a stylesheet that appears in the old
- * script word for word, exactly once, that <style> gets the new text in place and nothing reloads. Any other
- * change (logic, several separate edits, a template with ${...} or escapes) returns false and the frame reloads.
+ * script after decoding template escapes, exactly once, that <style> gets the new text in place and nothing
+ * reloads. Unchanged ${...} values come from the existing style, never by evaluating script code. Changes
+ * outside that stylesheet or to its expressions return false so the frame can load the new behavior.
  * The script in memory stays the old one until the next reload; the browser's cache already has the new copy.
  */
-export async function swapInlineStyle(win, path, urls, texts = new Map()) {
-  if (!/\.m?js$/i.test(path)) return false;
+async function scriptTexts(path, urls, texts) {
   const url = [...urls][0];
   if (!texts.has(url)) texts.set(url, (async () => {
     const before = await textOf(url, 'force-cache');
@@ -98,52 +117,160 @@ export async function swapInlineStyle(win, path, urls, texts = new Map()) {
     await Promise.all([...urls].slice(1).map((other) => textOf(other, 'reload')));
     return { before, after };
   })());
-  const { before, after } = await texts.get(url);
-  if (before == null || after == null || before === after) return false;
+  return texts.get(url);
+}
+
+export async function swapInlineStyle(win, path, urls, texts = new Map()) {
+  if (!/\.m?js$/i.test(path)) return false;
+  const { before, after } = await scriptTexts(path, urls, texts);
+  const edit = inlineStyleEdit(before, after);
+  return edit ? installStyleEdit(win.document, edit) : false;
+}
+
+function inlineStyleEdit(before, after) {
+  if (before == null || after == null || before === after) return null;
   let start = 0;
   while (start < before.length && start < after.length && before[start] === after[start]) start++;
   let tail = 0;
   while (tail < before.length - start && tail < after.length - start && before[before.length - 1 - tail] === after[after.length - 1 - tail]) tail++;
   const oldEnd = before.length - tail;
   const grown = after.length - before.length;
-  if (before.slice(start, oldEnd).includes('`') || after.slice(start, oldEnd + grown).includes('`')) return false;
   // The template literal around the edit, before and after.
-  const open = before.lastIndexOf('`', start - 1);
-  const close = before.indexOf('`', oldEnd);
-  if (open < 0 || close < 0) return false;
+  const open = templateDelimiter(before, start - 1, -1);
+  const close = templateDelimiter(before, oldEnd, 1);
+  if (open < 0 || close < 0) return null;
   const oldBody = before.slice(open + 1, close);
   const newBody = after.slice(open + 1, close + grown);
   const oldTemplate = splitTemplate(oldBody), newTemplate = splitTemplate(newBody);
-  if (!oldTemplate || !newTemplate || oldTemplate.expressions.join('\0') !== newTemplate.expressions.join('\0')) return false;
-  // Exactly one <style> in the frame is that template, with the page's own values in its ${...} places.
-  const pattern = new RegExp(`^${oldTemplate.literals.map((part) => part.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('([\\s\\S]*?)')}$`);
-  const hits = [];
-  for (const style of win.document.querySelectorAll('style')) {
-    const match = pattern.exec(style.textContent.replace(/\r\n/g, '\n'));
-    if (match) hits.push({ style, values: match.slice(1) });
+  if (!oldTemplate || !newTemplate || oldTemplate.expressions.join('\0') !== newTemplate.expressions.join('\0')) return null;
+  // Portal.util.injectCSS gives these styles stable IDs, including when an app has not rendered yet.
+  const prefix = before.slice(0, open);
+  let name = prefix.match(/\binjectCSS\(\s*['"]([\w-]+)['"]\s*,\s*$/)?.[1];
+  const variable = prefix.match(/\b(?:const|let|var)\s+([\w$]+)\s*=\s*$/)?.[1];
+  if (!name && variable) {
+    const escaped = variable.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    name = before.match(new RegExp(`\\binjectCSS\\(\\s*['"]([\\w-]+)['"]\\s*,\\s*${escaped}\\s*\\)`))?.[1];
   }
-  if (hits.length !== 1) return false;
-  const { style, values } = hits[0];
-  const next = newTemplate.literals.map((part, index) => part + (index < values.length ? values[index] : '')).join('');
-  guardStyle(style, style.textContent.replace(/\r\n/g, '\n')).next = next;
-  style.textContent = next;
+  return { oldTemplate, newTemplate, id: name ? `css_${name}` : null };
+}
+
+function renderTemplate(template, values) {
+  return template.literals.map((part, index) => part + (index < values.length ? values[index] : '')).join('');
+}
+
+function installStyleEdit(doc, { oldTemplate, newTemplate, id }) {
+  // Exactly one <style> in the frame is that template, with the page's own values in its ${...} places.
+  const hits = [];
+  for (const style of doc.querySelectorAll('style')) {
+    const values = templateValues(oldTemplate.literals, style.textContent.replace(/\r\n/g, '\n'));
+    if (values) hits.push({ style, values });
+  }
+  if (hits.length > 1) return false;
+  if (!hits.length && (!id || doc.getElementById(id))) return false;
+  if (id && doc.head && doc.defaultView?.MutationObserver) {
+    const state = documentState(doc);
+    const prior = state.styles.get(id);
+    state.styles.set(id, { original: prior?.original || oldTemplate, latest: newTemplate });
+    if (!state.observer) {
+      state.observer = new doc.defaultView.MutationObserver(() => {
+        for (const [styleId, entry] of state.styles) {
+          const style = doc.getElementById(styleId);
+          if (!style || style.tagName !== 'STYLE') continue;
+          const values = templateValues(entry.original.literals, style.textContent.replace(/\r\n/g, '\n'));
+          if (!values) continue;
+          const next = renderTemplate(entry.latest, values);
+          if (style.textContent !== next) style.textContent = next;
+        }
+      });
+      state.observer.observe(doc.head, { childList: true, characterData: true, subtree: true });
+    }
+  } else if (!hits.length) {
+    return false; // Cannot retain a deferred style in this document.
+  }
+  if (hits.length) {
+    const { style, values } = hits[0];
+    const next = renderTemplate(newTemplate, values);
+    guardStyle(style, style.textContent.replace(/\r\n/g, '\n')).next = next;
+    style.textContent = next;
+  }
   return true;
 }
 
-/** A template literal's body as literal text and the ${...} between it, or null when it is not plain enough to rebuild. */
-function splitTemplate(body) {
-  if (body.includes('\\') || body.length < 20) return null;
-  const literals = [], expressions = [];
-  let at = 0;
-  for (;;) {
-    const open = body.indexOf('${', at);
-    if (open < 0) { literals.push(body.slice(at)); break; }
-    const close = body.indexOf('}', open);
-    if (close < 0 || body.slice(open + 2, close).includes('{')) return null;
-    literals.push(body.slice(at, open));
-    expressions.push(body.slice(open + 2, close));
-    at = close + 1;
+/** Match literal runs directly; large app stylesheets exceed the engine's regexp size limit. */
+function templateValues(literals, text) {
+  if (literals.length === 1) return text === literals[0] ? [] : null;
+  if (!text.startsWith(literals[0])) return null;
+  const values = [];
+  let at = literals[0].length;
+  for (let i = 1; i < literals.length; i++) {
+    const literal = literals[i];
+    let end;
+    if (i === literals.length - 1) {
+      if (!text.endsWith(literal)) return null;
+      end = text.length - literal.length;
+    } else {
+      // Adjacent expressions or repeated separators do not identify their values unambiguously.
+      if (!literal) return null;
+      end = text.indexOf(literal, at);
+      if (end < 0 || text.indexOf(literal, end + 1) !== -1) return null;
+    }
+    if (end < at) return null;
+    values.push(text.slice(at, end));
+    at = end + literal.length;
   }
+  return values;
+}
+
+function templateDelimiter(source, start, direction) {
+  for (let at = start; at >= 0 && at < source.length; at += direction) {
+    if (source[at] !== '`') continue;
+    let slashes = 0;
+    for (let i = at - 1; i >= 0 && source[i] === '\\'; i--) slashes++;
+    if (slashes % 2 === 0) return at;
+  }
+  return -1;
+}
+
+/** Decode an ordinary template's literal text without executing it or any of its expressions. */
+function splitTemplate(body) {
+  if (body.length < 20) return null;
+  const literals = [], expressions = [];
+  const escapes = { n: '\n', r: '\r', t: '\t', b: '\b', f: '\f', v: '\v', '0': '\0' };
+  let literal = '';
+  for (let at = 0; at < body.length; at++) {
+    const char = body[at];
+    if (char === '`') return null; // The edit crossed a template boundary.
+    if (char === '$' && body[at + 1] === '{') {
+      const close = body.indexOf('}', at + 2);
+      const expression = body.slice(at + 2, close);
+      // Keep the conservative expression grammar: never interpret nested code or quoted delimiters.
+      if (close < 0 || /[{}'"`\\]/.test(expression)) return null;
+      literals.push(literal); literal = '';
+      expressions.push(expression);
+      at = close;
+    } else if (char === '\\') {
+      const escaped = body[++at];
+      if (escaped === undefined || /[1-9]/.test(escaped) || (escaped === '0' && /[0-9]/.test(body[at + 1] || ''))) return null;
+      if (escaped === '\n') continue;
+      if (escaped === '\r') { if (body[at + 1] === '\n') at++; continue; }
+      if (escaped === 'x' || escaped === 'u') {
+        const braced = escaped === 'u' && body[at + 1] === '{';
+        const from = at + (braced ? 2 : 1);
+        const end = braced ? body.indexOf('}', from) : from + (escaped === 'x' ? 2 : 4);
+        const hex = body.slice(from, end);
+        if (end < from || end > body.length || !/^[0-9a-f]+$/i.test(hex)) return null;
+        const point = Number.parseInt(hex, 16);
+        if (point > 0x10ffff) return null;
+        literal += String.fromCodePoint(point);
+        at = braced ? end : end - 1;
+      } else {
+        literal += Object.hasOwn(escapes, escaped) ? escapes[escaped] : escaped;
+      }
+    } else {
+      literal += char;
+    }
+  }
+  literals.push(literal);
   return { literals, expressions };
 }
 
@@ -163,34 +290,81 @@ function guardStyle(style, original) {
 }
 
 /** Applies changes to every frame of this page. Returns what it did, for checking from the console or a test. */
-export async function apply(changes) {
+export function apply(changes) { return enqueue(() => applyChanges(changes)); }
+
+async function applyChanges(changes) {
   const done = { swapped: [], reloaded: [] };
   const all = frames();
   const reloads = [];
   const texts = new Map();
   for (const win of all) {
+    const doc = win.document;
+    const state = documentState(doc);
+    let ancestor = win;
+    let reloading = false;
+    do {
+      if (documentState(ancestor.document).reloading) { reloading = true; break; }
+      if (!ancestor.parent || ancestor === ancestor.parent) break;
+      ancestor = ancestor.parent;
+    } while (all.includes(ancestor));
+    if (reloading) continue;
     const urls = loadedUrls(win);
     let reload = false;
     for (const { path, sha } of changes) {
       if (!urls.has(path)) continue;
+      if (state.applied.has(path) && state.applied.get(path) === sha) { record(win, path, 'already-applied'); continue; }
       const links = [...win.document.querySelectorAll('link[rel~="stylesheet"][href]')].filter((link) => pathOf(link.href, win.location.href) === path);
       const images = IMAGE.test(path) ? [...win.document.querySelectorAll('img[src]')].filter((img) => pathOf(img.src, win.location.href) === path) : [];
-      if (extOf(path) === '.css' && links.length) { links.forEach((link) => swapLink(link, sha)); done.swapped.push(path); continue; }
-      if (images.length) { images.forEach((img) => { img.src = bust(img.src, sha); }); done.swapped.push(path); continue; }
+      if (extOf(path) === '.css' && links.length) {
+        const loaded = await Promise.all(links.map((link) => swapLink(link, sha)));
+        if (win.document === doc && loaded.every(Boolean)) { state.applied.set(path, sha); done.swapped.push(path); record(win, path, 'stylesheet-swapped'); }
+        continue;
+      }
+      if (images.length) { images.forEach((img) => { img.src = bust(img.src, sha); }); state.applied.set(path, sha); done.swapped.push(path); continue; }
       if (IMAGE.test(path)) continue;
-      if (await swapInlineStyle(win, path, urls.get(path), texts)) { done.swapped.push(path); continue; }
+      if (/\.m?js$/i.test(path)) {
+        const fetched = await scriptTexts(path, urls.get(path), texts);
+        if (win.document !== doc) break;
+        // Retain the pre-fetch copy even if a second save overtakes this fetch or the network fails.
+        // Another frame/tab can refresh the HTTP cache; it is not our script's execution state.
+        if (!state.sources.has(path) && fetched.before != null) state.sources.set(path, fetched.before);
+        // Fetch failures are not evidence of a behavior change. A later notification/hello can retry.
+        if (fetched.after == null || !state.sources.has(path)) { record(win, path, 'fetch-unavailable'); continue; }
+        // A rapid second save can reach the server before the first notification's fetch finishes.
+        // Wait for its notification instead of associating newer bytes with the older version.
+        if (/^[a-f0-9]{40}$/i.test(sha || '') && await sha1(new TextEncoder().encode(fetched.after)) !== sha) { record(win, path, 'superseded-fetch'); continue; }
+        const retained = state.sources.get(path);
+        const before = retained ?? fetched.before;
+        const edit = inlineStyleEdit(before, fetched.after);
+        if ((retained != null && before === fetched.after) || (edit && installStyleEdit(doc, edit))) {
+          state.sources.set(path, fetched.after);
+          state.applied.set(path, sha);
+          done.swapped.push(path);
+          record(win, path, before === fetched.after ? 'unchanged' : 'inline-style-applied');
+          continue;
+        }
+        record(win, path, edit ? 'reload-style-not-matched' : 'reload-script-change');
+      } else {
+        record(win, path, 'reload-resource-change');
+      }
       reload = true;
       // The reload must not take these from the browser's cache: refetch each URL the frame used.
       await Promise.all([...urls.get(path)].map((url) => fetch(url, { cache: 'reload', credentials: 'same-origin' }).catch(() => null)));
     }
-    if (reload) reloads.push(win);
+    if (reload && win.document === doc) reloads.push(win);
   }
   // A reload of the page takes its frames with it.
-  const targets = reloads.includes(window) ? [window] : reloads;
+  const targets = reloads.filter((win) => {
+    for (let parent = win.parent; parent && parent !== win; parent = parent.parent) {
+      if (reloads.includes(parent)) return false;
+      if (parent === parent.parent) break;
+    }
+    return true;
+  });
   for (const win of targets) { done.reloaded.push(win === window ? 'page' : win.location.pathname); }
   const names = changes.map((change) => change.path.split('/').pop());
   if (done.swapped.length || targets.length) notice(`Live: ${names.slice(0, 3).join(', ')}${names.length > 3 ? ` +${names.length - 3}` : ''}`);
-  for (const win of targets) win.location.reload();
+  for (const win of targets) { documentState(win.document).reloading = true; win.location.reload(); }
   return done;
 }
 
@@ -199,30 +373,43 @@ export async function apply(changes) {
  * under its ?v= URL) refetches it past the cache and reloads once for that version.
  */
 async function verify() {
-  const stale = [];
+  const stale = new Map();
   for (const win of frames()) {
+    const state = documentState(win.document);
     const urls = loadedUrls(win);
     for (const [path, sha] of known) {
       if (!sha || !urls.has(path) || IMAGE.test(path)) continue;
-      const hashes = await Promise.all([...urls.get(path)].map((url) => served(url, path).catch(() => null)));
+      if (state.applied.get(path) === sha) continue;
+      const retained = state.sources.get(path);
+      const hashes = retained == null
+        ? await Promise.all([...urls.get(path)].map((url) => served(url, path).catch(() => null)))
+        : [await sha1(new TextEncoder().encode(retained))];
       if (hashes.some((hash) => hash && hash === sha)) continue;
-      const key = `fm-live:${path}:${sha}`;
-      try { if (sessionStorage.getItem(key)) continue; sessionStorage.setItem(key, '1'); } catch { continue; }
-      stale.push({ path, sha });
+      stale.set(path, { path, sha });
     }
   }
-  if (stale.length) await apply(stale);
+  if (stale.size) await applyChanges([...stale.values()]);
 }
 
-export async function receive(event, data) {
+export function receive(event, data) { return enqueue(() => receiveEvent(event, data)); }
+
+async function receiveEvent(event, data) {
+  if (event !== 'hello' && event !== 'changed') return;
+  const nextGeneration = Number(data?.gen);
+  if (Number.isFinite(nextGeneration) && nextGeneration < generation) return;
   if (event === 'hello') {
+    // A reconnect can arrive after files were reverted while the page was offline.
+    const removed = [...known.keys()].filter((path) => !Object.hasOwn(data?.files || {}, path)).map((path) => ({ path, sha: null }));
     known.clear();
     for (const [path, sha] of Object.entries(data?.files || {})) known.set(path, sha);
-    window.FirstMateLiveAssets = { files: () => Object.fromEntries(known), apply, frames, loadedUrls };
+    window.FirstMateLiveAssets = { files: () => Object.fromEntries(known), apply, frames, loadedUrls, diagnostics: () => recent.map((entry) => ({ ...entry })) };
+    if (removed.length) await applyChanges(removed);
     await verify();
+    if (Number.isFinite(nextGeneration)) generation = nextGeneration;
     return;
   }
   if (event !== 'changed' || !Array.isArray(data?.files)) return;
   for (const { path, sha } of data.files) { if (sha) known.set(path, sha); else known.delete(path); }
-  await apply(data.files);
+  await applyChanges(data.files);
+  if (Number.isFinite(nextGeneration)) generation = nextGeneration;
 }
