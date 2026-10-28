@@ -14,7 +14,7 @@
 // asked for, on the server, never on a laptop (runRegression).
 import { spawn, spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
-import { existsSync, mkdtempSync, mkdirSync, readdirSync, readFileSync, readlinkSync, realpathSync, rmSync, statSync, writeFileSync, symlinkSync } from "node:fs";
+import { chmodSync, existsSync, mkdtempSync, mkdirSync, readdirSync, readFileSync, readlinkSync, realpathSync, rmSync, statSync, writeFileSync, symlinkSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -588,6 +588,8 @@ export default {
     if (broken.length) return { ok: false, error: `status failed: ${broken.map((role) => `${role}: ${before[role].error}`).join("; ")}`, rolledBack: true, infrastructure: true, timings };
     const previous = Object.fromEntries(roles.map((role) => [role, before[role].lanes?.[LANE.name]?.current || null]));
     const build = mkdtempSync(path.join(os.tmpdir(), `fm-lane-tree-${sha.slice(0, 8)}-`));
+    // rsync -a gives the release directory this folder's mode; mkdtemp's 0700 would hide it from nginx.
+    chmodSync(build, 0o755);
     try {
       let mark = Date.now();
       buildTree(sha, dir, build);
