@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Root shell (or one command) on a DEVELOPMENT host. Never production.
-#   fm-dev-host web|legacy|worker [command...]
+#   fm-dev-host web|legacy|worker|sync [command...]
 #   fm-dev-host list
 # web = the dev pool primary right now, read from the dev push router
 # (https://dev.1m8.ai/__dev-push/status.json), so pool node swaps never strand you.
@@ -9,13 +9,15 @@ set -euo pipefail
 KEY="$HOME/.ssh/fm_devops_ed25519"
 LEGACY=root@137.184.229.145   # firstmeasure-development-compatibility (private 10.124.16.5): PHP, /measure/internal
 WORKER=root@137.184.44.82     # firstmeasure-development-worker
+SYNC=dev@147.182.178.6        # dev-sync-droplet: the dev push router (~/dev-push), live layer, router git repo
 web() { curl -fsS -m 10 https://dev.1m8.ai/__dev-push/status.json | python3 -c 'import json,sys;print(json.load(sys.stdin)["fleet"]["primary"])'; }
 role="${1:-}"; shift || true
 case "$role" in
   web) target=$(web); known=/dev/null; strict=no ;;
   legacy) target=$LEGACY; known="$HOME/.ssh/known_hosts_dev"; strict=accept-new ;;
   worker) target=$WORKER; known="$HOME/.ssh/known_hosts_dev"; strict=accept-new ;;
-  list) echo "web    $(web)  (dev pool primary behind firstmeasure-development-lb)"; echo "legacy $LEGACY"; echo "worker $WORKER"; exit 0 ;;
-  *) echo "usage: fm-dev-host web|legacy|worker|list [command...]" >&2; exit 2 ;;
+  sync) target=$SYNC; known="$HOME/.ssh/known_hosts_dev"; strict=accept-new ;;
+  list) echo "web    $(web)  (dev pool primary behind firstmeasure-development-lb)"; echo "legacy $LEGACY"; echo "worker $WORKER"; echo "sync   $SYNC"; exit 0 ;;
+  *) echo "usage: fm-dev-host web|legacy|worker|sync|list [command...]" >&2; exit 2 ;;
 esac
 exec ssh -i "$KEY" -o IdentitiesOnly=yes -o StrictHostKeyChecking=$strict -o UserKnownHostsFile=$known -o LogLevel=ERROR -o ConnectTimeout=15 "$target" "$@"

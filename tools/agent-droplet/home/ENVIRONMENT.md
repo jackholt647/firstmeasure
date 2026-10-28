@@ -66,7 +66,7 @@ in the main clone.
   with `~/.ssh/fm_config_library_ed25519` and writes a fresh key). Dev only: production has no keys.
 
 ## Dev is down? Fix the hosts yourself (dev only)
-- `fm-dev-host web|legacy|worker [command]` opens a root shell (or runs one command) on a development host;
+- `fm-dev-host web|legacy|worker|sync [command]` opens a root shell (or runs one command) on a development host;
   `fm-dev-host list` shows them. `web` is whichever pool node is primary right now (read from the dev push router),
   so pool swaps never strand you. Key `~/.ssh/fm_devops_ed25519`: authorized on dev hosts only; never print or
   copy it, and never try it on anything else.
@@ -75,6 +75,9 @@ in the main clone.
   (firstmeasure-development-compatibility, private 10.124.16.5), whose PHP calls Node at
   `FIRSTMEASURE_API_BASE` (`/etc/php/8.3/fpm/pool.d/zz-firstmeasure-development-api.conf`). The `worker` runs
   automations. Logs: nginx `/var/log/nginx/`, PHP-FPM `/var/log/php8.3-fpm.log`, Node `journalctl`.
+- `sync` is the dev sync droplet as user `dev` (not root): the dev push router lives in `~/dev-push` (state and
+  `router.log` in `~/dev-push/state`, its git repo in `~/router/firstmeasure.git`). If shipping to dev is stuck,
+  look there; fix it, don't route around it.
 - You may diagnose and fix dev host configuration and services (nginx, PHP-FPM, env, restarts) without asking
   anyone: when dev is down, fixing it is your job, not a question for Jack. Keep a `.bak-<date>` of any file you
   change, prove the fix (the page loads with `fm-dev-login`'s state), and put the same change in the repo copy
