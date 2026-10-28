@@ -84,7 +84,9 @@ second or two. Anything with a real time or CPU cost is **opt-in regression**:
 `submit.mjs --regression` (the suites the changed areas map to;
 `--regression=all` for every suite) or `submit.mjs regression [--all]`, which
 runs them on the server without shipping. It runs once, on the server, never on
-a PC; agents do not run suites locally first. Ask for it only when you suspect
+a PC; agents do not run suites locally first. With a runner configured (`config.json` `runner`,
+the agent droplet fm-agents-1), regression (type check and suites, browser
+suites included) runs there (`tools/dev-push/runner/regress.sh`). Ask for it only when you suspect
 a bug, when Jack asks, or when the work behind the submission took about 20
 minutes or more. Browser files (`public/` outside `public/v1`, not PHP or HTML),
 templates and live overlays get no checks beyond a syntax parse of changed
@@ -259,29 +261,42 @@ dev.1m8.ai's load balancer routes to every droplet tagged
 `firstmeasure-development-autoscale-r1`; the autoscale pool
 (`firstmeasure-development-web-autoscale-r1`) adds members built from its image,
 which carries whatever release the image had. On 2026-10-28 a member built from
-the September 7 image served about 60% of dev's requests unnoticed. Now:
+the September 7 image served about 60% of dev's requests unnoticed. Editing the
+pool's Droplet configuration (image or user data) replaces every member, the
+current web node included (new members first, old ones destroyed after the
+10-minute cooldown). Now:
 
 * **Held out until current.** The pool's user data
-  (`deploy/digitalocean/dev-pool-user-data.sh`) stops and disables the web
-  service and its standby on first boot (so `/v1/health/ready` fails and the
-  load balancer sends nothing), installs `fm-release` and the router's key, and
-  marks the node as awaiting a release. The first router activation on it
-  enables the services.
-* **Adopted by the router.** With a read-only DigitalOcean token in
-  `~/dev-push/do-token` on the droplet, the router lists the tagged members
-  every minute, adopts each new one (`web-<droplet id>`), stages and activates
-  the current platform release on it (same tree, same name), and includes it in
-  every later release; members that disappear are dropped
-  (`router/fleet.mjs`, `state/fleet.json`).
-* **Flagged otherwise.** Every minute the router also samples the public health
-  check; any instance serving a release that is not the router's appears under
-  `fleet.problems` in the status document and in the router log.
+  (`deploy/digitalocean/dev-pool-user-data.sh`, rendered with the registration
+  key by `router/install-registration.sh` into
+  `~/dev-push/secrets/pool-user-data.sh` on the droplet; never committed) stops
+  and disables the web service and its standby on first boot (so
+  `/v1/health/ready` fails and the load balancer sends nothing), installs
+  `fm-release` and the router's key, and registers the node.
+* **Registered and adopted.** Registration is a key whose forced command
+  (`router/register-node.sh`) only appends `register <droplet id> <public ip>
+  <private ip>` to `state/registrations.jsonl`. Every minute the router adopts
+  each registered node: as `pending-<id>` it stages and activates the current
+  platform release on it (same tree, same name), whose activation starts the
+  services; then it is `web-<id>` and gets every later release and the status
+  document. A member unreachable for 15 minutes is dropped
+  (`router/fleet.mjs`, `state/fleet.json`). `server.mjs adopt <ip>` adopts a
+  node that could not register itself.
+* **The primary web node.** Role `web` holds the live-layer receiver and is
+  where lanes stage their web copies. `server.mjs primary <role>` asks the
+  running router to bake every live overlay into a release and then move
+  `web` there. live-sync without `--target` reads the receiver and its pinned
+  host key from the status document (`live`), so it follows the move after a
+  restart. With several web nodes, live overlays are served only by the
+  primary until baked.
+* **Flagged.** Every minute the router samples the public health check; any
+  instance not reporting the router's release appears under `fleet.problems`
+  in the status document and in the router log.
 
-The pool image should still be refreshed from the current web node now and then:
-its `/etc/firstmeasure` configuration (provider and feature environment files
-added since September) comes from the image, not from a release. Production's
-equivalent is the signed release channel (`bootstrap-web-release.sh`); nothing
-here changes production.
+The pool image should be a recent snapshot of the primary web node: its
+`/etc/firstmeasure` configuration comes from the image, not from a release.
+Production's equivalent is the signed release channel
+(`bootstrap-web-release.sh`); nothing here changes production.
 
 ### Adding a lane
 
