@@ -163,6 +163,52 @@ test('a script edit that only touches its injected CSS swaps that <style> in pla
   assert.equal((await run(source('#101828'), source('#101828'))).swapped, false, 'nothing changed');
 });
 
+test('an open page reloads onto a new platform release at the first quiet moment, never while someone types', async () => {
+  const { createReleaseWatch } = await import('../public/libraries/live-assets/live-assets.js');
+  let clock = 0;
+  const intervals = [];
+  const listeners = {};
+  const doc = { visibilityState: 'visible', activeElement: null, querySelectorAll: () => [], addEventListener: (type, fn) => { listeners[type] = fn; }, removeEventListener: () => {} };
+  const win = {
+    document: doc, location: { pathname: '/portal/' },
+    addEventListener: (type, fn) => { listeners[type] = fn; },
+    setInterval: (fn) => intervals.push(fn), clearInterval: () => intervals.splice(0)
+  };
+  let reloads = 0;
+  const watch = createReleaseWatch(win, { quietMs: 4000, now: () => clock, reload: () => { reloads += 1; }, say: () => {} });
+  clock = 10000;
+  assert.equal(watch.note('r1'), false, "the first release is the page's own");
+  assert.equal(watch.note('r1'), false);
+  assert.equal(reloads, 0);
+
+  listeners.keydown();
+  doc.activeElement = { tagName: 'TEXTAREA' };
+  assert.equal(watch.note('r2'), false, 'typing: wait');
+  clock += 60000;
+  assert.equal(watch.check(), false, 'still in the field');
+  doc.activeElement = { tagName: 'INPUT', type: 'checkbox' };
+  doc.visibilityState = 'hidden';
+  assert.equal(watch.check(), false, 'hidden (the app is in the background): wait for it to come back');
+  doc.visibilityState = 'visible';
+  listeners.pointerdown();
+  assert.equal(watch.check(), false, 'just touched');
+  clock += 4000;
+  assert.equal(watch.check(), true);
+  assert.equal(reloads, 1);
+
+  const other = createReleaseWatch(win, { now: () => clock, reload: () => { reloads += 1; }, say: () => {} });
+  other.note('r2');
+  doc.activeElement = { tagName: 'DIV', isContentEditable: true };
+  other.note('r3');
+  assert.equal(other.state().waiting, 'r3');
+  other.note('r2');
+  assert.equal(other.state().waiting, '', "a reconnect that reports the page's own release again cancels the wait");
+  doc.activeElement = null;
+  clock += 10000;
+  assert.equal(other.check(), undefined);
+  assert.equal(reloads, 1);
+});
+
 const hash = (rel, text) => liveHash(rel, Buffer.from(text));
 
 test('every accepted save is journaled by content; old unreferenced journal bytes are pruned', { skip: !python && 'needs Python 3' }, async () => {

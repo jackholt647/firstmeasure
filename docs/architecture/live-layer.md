@@ -66,7 +66,7 @@ overlay survived while its host callbacks disappeared. See the
 | `tools/live-layer/live-sync.mjs` | Runs beside a checkout (droplet or PC). Sends every changed browser file to the receiver; `status` lists the layer, `clear` takes files out. |
 | `tools/live-layer/fm-live-receive.py` | On dev web, the forced command of the `fmlive` SSH key. Owns `/opt/firstmeasure/live`. |
 | `tools/live-layer/install-web.sh` | Sets up dev web: the `fmlive` user, the receiver, the check timer and NGINX, and authorizes one machine's key per run. |
-| `public/v1/platform/live_assets.ts` | The `live-assets` channel on the platform stream: `hello` with the layer's files, `changed` on each write. |
+| `public/v1/platform/live_assets.ts` | The `live-assets` channel on the platform stream: `hello` with the layer's files and the served release, `changed` on each write, `release` when the host switches release. |
 | `public/libraries/platform-realtime/platform-realtime.js` | On dev.1m8.ai only, watches `live-assets` beside `presence:online` (one connection). |
 | `public/libraries/live-assets/live-assets.js` | Applies changes to the page and its project frames. Loaded on first use. |
 
@@ -90,6 +90,18 @@ overlay survived while its host callbacks disappeared. See the
    refetches those URLs past the browser cache and reloads that frame (the whole page only when the page itself
    ran it). A small "Live: …" pill shows what changed. On connect (`hello`) a frame that ran a cached older copy
    of a layer file reloads once.
+
+## A new release reloads open pages
+
+The same channel tells each page which platform release its host serves: the directory
+`/opt/firstmeasure/current` points at (`FIRSTMEASURE_CURRENT_RELEASE_LINK`), checked every second, in `hello` and
+as a `release` frame when `fm-release activate` switches it. It cannot be the server's `RELEASE_ID`, because a
+browser-only release keeps the server running (`activate --keep-server`). A page keeps the release of its first
+`hello` and reloads onto a different one at the first quiet moment (`createReleaseWatch` in `live-assets.js`): the
+page visible, no text field focused (in any of its frames), and no key, touch or wheel for four seconds. A
+reconnect that reports the page's own release again cancels the wait. So every open dev page, the Android
+development app included (it is the dev site in a WebView), runs what was just shipped; an app in the background
+reloads when it comes back. Measure-internal lane releases do not switch `current` and reload nothing.
 
 ## What keeps it honest
 
