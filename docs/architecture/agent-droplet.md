@@ -144,9 +144,8 @@ a key generated on the droplet and authorized in root's `authorized_keys` on the
 web hosts only, never production. `web` resolves the current pool primary from
 `https://dev.1m8.ai/__dev-push/status.json`, so pool swaps don't strand it.
 
-A pool node made from the current image (snapshot `fm-dev-web-20261028`) lacks the key until the image or the
-pool's user data carries it; until then `fm-dev-host web` fails after a swap while `legacy` and `worker` keep
-working. What agents may change on those hosts is in `home/ENVIRONMENT.md` ("Dev is down?"). Added after
+New pool nodes get the key from the pool's user data (`deploy/digitalocean/dev-pool-user-data.sh`), so
+`fm-dev-host web` keeps working across swaps. What agents may change on those hosts is in `home/ENVIRONMENT.md` ("Dev is down?"). Added after
 2026-10-28, when a worker diagnosed an editor outage (legacy PHP pinned to a retired web node's IP) but had no
 way in.
 

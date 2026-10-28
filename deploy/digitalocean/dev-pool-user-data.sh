@@ -27,6 +27,11 @@ for attempt in 1 2 3 4 5 6; do
 done
 bash /tmp/dev-push-install.sh web /tmp/fm-release.py "$ROUTER_KEY"
 
+# Agents on fm-agents-1 get root here to fix dev outages (fm-dev-host; docs/architecture/agent-droplet.md). Dev only.
+DEVOPS_KEY='ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIChfi4l37riFVq2kI21GhXM6UZASNpv355hxUtmgJLyo fm-agents-1 dev-ops (dev hosts only)'
+install -d -m 0700 /root/.ssh
+grep -qF "fm-agents-1 dev-ops" /root/.ssh/authorized_keys 2>/dev/null || echo "$DEVOPS_KEY" >> /root/.ssh/authorized_keys
+
 # Register with the router: a key that can only append "register <id> <public ip> <private ip>" on the droplet.
 install -d -m 0700 /root/.dev-push
 cat > /root/.dev-push/register-key <<'KEY'
