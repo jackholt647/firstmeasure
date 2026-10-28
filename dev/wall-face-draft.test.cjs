@@ -740,11 +740,12 @@ test('selected feature edge nudges toward camera-right from either side and keep
 });
 
 test('contained face M cycles four modes from one snapshot, cancels and restarts on the face',()=>{
- const f=stickerFixture(),start=JSON.stringify(f.state.wallEdits),F=require('../public/measure/internal/editor_scripts/wall_features.js'),bounds=()=>F.bounds(f.d().faces.find(f=>f.feature).points),original=bounds();
+ // M centres the sticker under the pointer, along the axes the mode allows.
+ const f=stickerFixture(),start=JSON.stringify(f.state.wallEdits),F=require('../public/measure/internal/editor_scripts/wall_features.js'),bounds=()=>F.bounds(f.d().faces.find(f=>f.feature).points),original=bounds(),cx=(original.left+original.right)/2,cy=(original.bottom+original.top)/2;
  f.editor.key({key:'m'});assert.match(f.message(),/^Free on face/);f.editor.key({key:'m'});assert.match(f.message(),/^Left\/Right/);f.editor.key({key:'m',repeat:true});assert.match(f.message(),/^Left\/Right/);
- f.listeners.pointermove(f.e(2.4,2.3));assert.ok(Math.abs(bounds().left-original.left-.4)<1e-6,f.message());assert.equal(bounds().bottom,original.bottom);assert.equal(f.state.wallEdits.$surfaces,undefined);
- f.editor.key({key:'m'});assert.match(f.message(),/^Up\/Down/);assert.equal(bounds().left,original.left);f.listeners.pointermove(f.e(2.8,2.6));assert.equal(bounds().left,original.left);assert.ok(Math.abs(bounds().bottom-original.bottom-.3)<1e-6,f.message());
- f.editor.key({key:'m'});assert.match(f.message(),/^In\/Out/);f.editor.key({key:'m'});assert.match(f.message(),/^Free on face/);f.listeners.pointermove(f.e(3.1,2.8));assert.ok(Math.abs(bounds().left-original.left-.3)<1e-6,f.message());assert.ok(Math.abs(bounds().bottom-original.bottom-.2)<1e-6);
+ f.listeners.pointermove(f.e(2.4,2.3));assert.ok(Math.abs(bounds().left-original.left-(2.4-cx))<1e-6,f.message());assert.equal(bounds().bottom,original.bottom);assert.equal(f.state.wallEdits.$surfaces,undefined);
+ f.editor.key({key:'m'});assert.match(f.message(),/^Up\/Down/);assert.equal(bounds().left,original.left);f.listeners.pointermove(f.e(2.8,2.6));assert.equal(bounds().left,original.left);assert.ok(Math.abs(bounds().bottom-original.bottom-(2.6-cy))<1e-6,f.message());
+ f.editor.key({key:'m'});assert.match(f.message(),/^In\/Out/);f.editor.key({key:'m'});assert.match(f.message(),/^Free on face/);f.listeners.pointermove(f.e(3.1,2.8));assert.ok(Math.abs(bounds().left-original.left-(3.1-cx))<1e-6,f.message());assert.ok(Math.abs(bounds().bottom-original.bottom-(2.8-cy))<1e-6);
  f.editor.key({key:'m'});assert.match(f.message(),/^Left\/Right/);assert.equal(bounds().left,original.left);f.editor.key({key:'Escape'});assert.equal(JSON.stringify(f.state.wallEdits),start);f.editor.key({key:'m'});assert.match(f.message(),/^Free on face/);
 });
 test('contained face slide clamps fast overshoot and commits once',()=>{
