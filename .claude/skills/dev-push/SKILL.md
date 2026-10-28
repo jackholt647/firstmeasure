@@ -17,7 +17,9 @@ SSH to a dev host to stage or activate, never push canonical or a lane branch, n
    node tools/dev-push/submit.mjs --wait [--title "what changed"] [--regression]
    ```
    The lane comes from the changed paths: `public/measure/internal/**` and `dev/**` are measure-internal,
-   everything else platform. Files of both lanes in one commit range are refused: split them. Defaults and
+   everything else platform. Files of both lanes in one commit range are refused: split them. Measure editor
+   changes: use `node tools/dev-push/lanes/measure-internal/ship.mjs` (it builds the lane commit, reverts included,
+   and submits it). Defaults and
    templates are config (the config library), not code; a browser file you are still tuning belongs on the live
    layer first.
 3. **Tests are opt-in.** Without `--regression` only second-scale checks run. Add `--regression` (or run
