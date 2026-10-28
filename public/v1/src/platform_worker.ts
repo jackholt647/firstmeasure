@@ -86,6 +86,7 @@ process.send?.({ type: "platform-worker-ready", address: app.server.address() })
 function stop() {
   if (stopping) return;
   stopping = true; clearInterval(timer);
+  void import("../config-library/library.js").then((library) => library.stopLibrarySync()).catch(() => undefined);
   const deadline = setTimeout(() => process.exit(1), 55000);
   deadline.unref();
   void (async () => {
