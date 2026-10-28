@@ -180,7 +180,7 @@ export default {
   async deploy({ dir, sha, releaseId, previous: previousRelease = null, hosts, log, buildOnly = false, stageOnly = false, onlyRoles = null, releaseName = null }) {
     const timings = {};
     let at = Date.now();
-    const roles = onlyRoles || hosts.roles; // onlyRoles: bring one new pool member to the current release
+    const roles = onlyRoles || hosts.roles.filter((role) => !role.startsWith("pending-")); // onlyRoles: bring one new pool member to the current release
     const before = Object.fromEntries(await Promise.all(roles.map(async (role) => [role, await hosts.status(role, "platform", sha)])));
     timings.status = since(at);
     const broken = roles.filter((role) => !before[role].ok);

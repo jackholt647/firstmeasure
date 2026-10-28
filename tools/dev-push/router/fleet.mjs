@@ -66,13 +66,16 @@ export function makeFleet({ router, hosts, log = () => {} }) {
     for (const node of registered()) {
       const address = `root@${node.public}`;
       if (known.has(address)) continue;
-      const role = `web-${node.id}`;
-      hosts.addRole(role, address);
-      const status = await hosts.status(role, "platform");
-      if (!status.ok) { hosts.removeRole(role); problems.push(`registered node ${node.id} (${node.public}) does not answer fm-release: ${String(status.error).slice(0, 200)}`); continue; }
+      // "pending-" until it serves the current release: status publishing and releases only use web roles.
+      const pending = `pending-${node.id}`, role = `web-${node.id}`;
+      hosts.addRole(pending, address);
+      const status = await hosts.status(pending, "platform");
+      if (!status.ok) { hosts.removeRole(pending); problems.push(`registered node ${node.id} (${node.public}) does not answer fm-release: ${String(status.error).slice(0, 200)}`); continue; }
       log(`adopting registered node ${node.id} (${node.public}) as ${role}`);
-      const result = await router.catchUp("platform", role).catch((error) => ({ ok: false, error: error.message }));
-      if (!result.ok) { hosts.removeRole(role); problems.push(`could not bring node ${node.id} to ${expected}: ${String(result.error).slice(0, 300)}`); continue; }
+      const result = await router.catchUp("platform", pending).catch((error) => ({ ok: false, error: error.message }));
+      hosts.removeRole(pending);
+      if (!result.ok) { problems.push(`could not bring node ${node.id} to ${expected}: ${String(result.error).slice(0, 300)}`); continue; }
+      hosts.addRole(role, address);
       state.adopted[role] = address;
       save();
       log(`node ${node.id} serves ${expected}`);
@@ -127,6 +130,11 @@ export function makeFleet({ router, hosts, log = () => {} }) {
     const keep = [];
     for (const request of pending) {
       if (request.command === "forget") { forget(request.target); log(`forgot ${request.target}`); continue; }
+      if (request.command === "adopt") { // a node that could not register itself (it must run fm-release with the router's key)
+        fs.appendFileSync(registrations, JSON.stringify({ id: `manual${String(request.target).replace(/\D/g, "")}`, public: request.target, private: null, from: "router", at: new Date().toISOString() }) + "\n");
+        log(`registered ${request.target} by hand`);
+        continue;
+      }
       // Baking: the lane loop's next pass releases every live overlay (router.forceOverlays).
       const exported = lastExport?.();
       const overlays = exported ? Object.keys(exported.files || {}).length + Object.keys(exported.parked || {}).length : null;
