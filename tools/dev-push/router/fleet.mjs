@@ -57,7 +57,7 @@ export function makeFleet({ router, hosts, log = () => {} }) {
   /** Returns false when it could not judge (a release in progress): the caller retries soon. */
   async function check() {
     const lane = router.laneState.platform;
-    if (!lane?.release?.name || lane.state !== "idle") return false;
+    if (!lane?.release?.name || !["idle", "held"].includes(lane.state)) return false;
     const expected = lane.release.server || lane.release.name; // what /v1/health/ready reports (kept across browser-only releases)
     const problems = [];
 

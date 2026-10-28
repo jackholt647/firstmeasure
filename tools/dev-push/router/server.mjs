@@ -92,6 +92,14 @@ async function main() {
   await router.init();
   // Fleet state first: it says which node is the primary web node and which pool members were adopted.
   const fleet = makeFleet({ router, hosts, log: (line) => router.log("fleet", line) });
+  // Hold every lane's queue (announced to submitters) or lift the hold; the running router reads the file each pass.
+  if (command === "hold") {
+    const reason = args._.slice(1).join(" ") || "dev maintenance in progress";
+    fs.writeFileSync(path.join(STATE, "hold.json"), JSON.stringify({ reason, at: new Date().toISOString() }));
+    console.log(`hold on: ${reason}`);
+    return;
+  }
+  if (command === "unhold") { fs.rmSync(path.join(STATE, "hold.json"), { force: true }); console.log("hold lifted"); return; }
   // Requests for the running router (it alone touches the repository and hosts): primary, bake-live, forget.
   if (["primary", "bake-live", "forget", "adopt"].includes(command)) {
     fs.appendFileSync(path.join(STATE, "requests.jsonl"), JSON.stringify({ command, target: args._[1] || null, at: new Date().toISOString() }) + "\n");
