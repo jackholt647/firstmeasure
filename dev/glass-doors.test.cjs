@@ -45,10 +45,12 @@ test('the report model and opening schedule carry glass doors; other openings ar
  const pdf=fs.readFileSync(SCRIPTS+'exterior_pdf.js','utf8');assert.match(pdf,/reportText\(o\.label\)\+\(o\.glass\?', '\+reportText\('glass'\):''\)/,'the opening schedule names glass doors');
 });
 
-test('Face type panel: a Glass switch for a selected door or garage door only, off until turned on',async()=>{
- // Off Windows the regression server links the Chrome path above to its own Chromium.
+// Off Windows the dev push router links the Chrome path to its Chromium when the host has one; with no browser at all
+// the panel test is skipped (and says so) rather than failing on the host.
+const chromiumPath=(()=>{const {chromium}=require('../public/v1/node_modules/playwright-core');return [process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH,process.env.CHROME_PATH,'C:/Program Files/Google/Chrome/Application/chrome.exe','/usr/bin/chromium',chromium.executablePath()].find(p=>p&&fs.existsSync(p))||null;})();
+test('Face type panel: a Glass switch for a selected door or garage door only, off until turned on',{skip:!chromiumPath&&'no Chromium on this host'},async()=>{
  const {chromium}=require('../public/v1/node_modules/playwright-core');
- const browser=await chromium.launch({headless:true,executablePath:process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH||['C:/Program Files/Google/Chrome/Application/chrome.exe','/usr/bin/chromium'].find(p=>fs.existsSync(p))||chromium.executablePath(),args:['--no-sandbox']});
+ const browser=await chromium.launch({headless:true,executablePath:chromiumPath,args:['--no-sandbox']});
  try{const page=await browser.newPage();await page.setContent('<body class="wall-mode-active"><button id="btnToggleTypes">Types</button><div id="three-view-wrapper" style="position:relative;height:900px"></div></body>');
   for(const name of ['exterior_geometry','wall_solid_geometry'])await page.addScriptTag({path:SCRIPTS+name+'.js'});await page.addScriptTag({path:SCRIPTS+'wall_features.js'});
   await page.evaluate(()=>{const points=[{x:0,y:0,z:0},{x:.9,y:0,z:0},{x:.9,y:0,z:2},{x:0,y:0,z:2}];window.current={points,feature:{type:'window',axis:{x:1,y:0,z:0}}};window.calls=[];
