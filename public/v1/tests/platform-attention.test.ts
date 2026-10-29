@@ -77,14 +77,14 @@ after(async () => {
   }
 });
 
-async function registerOwner(client: TestClient) {
+async function registerOwner(client: TestClient, options: { company?: string } = { company: "Attention Test Org" }) {
   const suffix = `${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`;
   const registered = await client.request("POST", "/v1/platform/auth/register", {
     phone: nextTestPhone(),
     email: `attention-owner-${suffix}@example.test`,
     password: "correct horse battery staple",
     name: "Attention Owner",
-    company: "Attention Test Org",
+    ...(options.company === undefined ? {} : { company: options.company }),
     organization_id: `org_attention_${suffix}`
   });
   await enableExpandedPlatformFixture(registered.organization.id);
@@ -251,10 +251,45 @@ test("attention platform", async (t) => {
     }
   });
 
+  await t.test("a named organization is never asked for its company name", async () => {
+    const listed = await owner.request("GET", `${base}/attention`);
+    assert.ok(!listed.entries.some((entry: any) => entry.id === "attention_company_name_missing"));
+  });
+
   await t.test("existing notifications API behavior is untouched", async () => {
     await owner.request("POST", `${base}/notifications`, { title: "Regular notification", body: "Still works" });
     const notifications = await owner.request("GET", `${base}/notifications`);
     assert.ok(notifications.notifications.some((item: any) => item.title === "Regular notification"));
     assert.equal(typeof notifications.unread_count, "number");
   });
+});
+
+// FM-300 (Linear 1M8-246): organizations that signed up without a company name
+// were left "Your Company". Everyone who may change company settings is asked for
+// the name until a real one is saved; nobody else is.
+test("an organization still named Your Company asks its owners for the name", async () => {
+  const owner = createSessionClient();
+  const { orgId, suffix } = await registerOwner(owner, {});
+  const base = `/v1/platform/organizations/${orgId}`;
+  const { isPlaceholderOrganizationName } = await import("../platform/attention.js");
+  for (const name of ["Your Company", " your company ", "", "Untitled Organization"]) assert.equal(isPlaceholderOrganizationName(name), true, name);
+  for (const name of ["Ridge Roofing", "Your Company Roofing"]) assert.equal(isPlaceholderOrganizationName(name), false, name);
+
+  const listed = await owner.request("GET", `${base}/attention`);
+  const entry = listed.entries.find((item: any) => item.id === "attention_company_name_missing");
+  assert.ok(entry, `owner of an unnamed organization is asked; got ${listed.entries.map((item: any) => item.id).join(",")}`);
+  assert.equal(entry.source, "company_name");
+  assert.deepEqual(entry.frontend_action, { route: { tab: "company_settings", sub: "company" } });
+  assert.deepEqual(entry.visible_surfaces, ["topbar", "notification"]);
+  assert.equal(entry.dismissible.notification, false, "the pinned row stays until the name is saved");
+  assert.equal(entry.dismissible.topbar, true);
+  assert.ok(entry.priority > 100, "takes the topbar ahead of the payments setup banner (priority 100)");
+
+  const viewer = await createViewer(owner, orgId, suffix);
+  const viewerFeed = await viewer.client.request("GET", `${base}/attention`);
+  assert.ok(!viewerFeed.entries.some((item: any) => item.id === "attention_company_name_missing"), "people who cannot change company settings are not asked");
+
+  await owner.request("PATCH", base, { name: "Ridge Roofing" });
+  const named = await owner.request("GET", `${base}/attention`);
+  assert.ok(!named.entries.some((item: any) => item.id === "attention_company_name_missing"), "the banner goes once a real name is saved");
 });

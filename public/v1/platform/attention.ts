@@ -20,7 +20,7 @@
 import type { FastifyInstance } from "fastify";
 import { z } from "zod";
 
-import { requirePlatformAuth } from "./auth.js";
+import { hasPermission, requirePlatformAuth, type PlatformAuthContext } from "./auth.js";
 import { badRequest, notFound } from "./errors.js";
 import {
   deleteDocument,
@@ -43,6 +43,8 @@ type AttentionSourceContext = {
   userId: string;
   branchId: string;
   demo: boolean;
+  /** The signed-in person's own context when the feed is read for their own organization. */
+  auth?: PlatformAuthContext;
 };
 
 export type AttentionSourceResolver = (
@@ -199,12 +201,13 @@ async function computedAttentionEntries(orgId: string, ctx: AttentionSourceConte
 export async function listAttentionEntries(
   orgId: string,
   userId: string,
-  options: { includeDismissed?: boolean; branchId?: string; demo?: boolean } = {}
+  options: { includeDismissed?: boolean; branchId?: string; demo?: boolean; auth?: PlatformAuthContext } = {}
 ) {
   const ctx: AttentionSourceContext = {
     userId,
     branchId: cleanText(options.branchId) || "default",
-    demo: options.demo === true
+    demo: options.demo === true,
+    auth: options.auth && options.auth.orgId === orgId && options.auth.userId === userId ? options.auth : undefined
   };
   const [userDoc, storedDocs, computed] = await Promise.all([
     readDocument(orgId, "users", userId),
@@ -266,6 +269,41 @@ registerAttentionSource("demo", (_orgId, ctx) => {
   }];
 });
 
+// --- company name source ------------------------------------------------------
+// Signup names an organization "Your Company" when no name was typed; from
+// October 20 to 26 2026 onboarding never asked (FM-300, Linear 1M8-246), so
+// those organizations still carry the placeholder on documents, emails and the
+// portal. Until a real name is saved, everyone who may change company settings
+// is asked for it. Read from the request's own context: no extra reads per poll.
+// It outranks the payments setup banner (100, not dismissible) for the one
+// topbar slot; dismissing it for the session hands the slot back.
+const PLACEHOLDER_ORGANIZATION_NAMES = new Set(["", "your company", "untitled organization", "default branch"]);
+
+export function isPlaceholderOrganizationName(name: unknown) {
+  return PLACEHOLDER_ORGANIZATION_NAMES.has(cleanText(name).toLowerCase());
+}
+
+export const COMPANY_NAME_ATTENTION_ID = "attention_company_name_missing";
+
+registerAttentionSource("company_name", (_orgId, ctx) => {
+  const auth = ctx.auth;
+  if (!auth || !isPlaceholderOrganizationName(auth.organization?.name)) return [];
+  if (!hasPermission(auth, "manage_company_settings")) return [];
+  return [{
+    id: COMPANY_NAME_ATTENTION_ID,
+    key: "company_name_missing",
+    priority: 110,
+    surfaces: ["topbar", "notification"],
+    title: "Add your company name",
+    body: "Documents, emails and the portal show a placeholder instead of your company's name.",
+    cta_label: "Add company name",
+    tone: "orange",
+    frontend_action: { route: { tab: "company_settings", sub: "company" } },
+    state: "active",
+    dismissible: { topbar: true }
+  }];
+});
+
 export async function registerAttentionRoutes(app: FastifyInstance) {
   app.get("/organizations/:orgId/attention", async (request) => {
     const orgId = cleanText((request.params as JsonObject).orgId);
@@ -274,7 +312,8 @@ export async function registerAttentionRoutes(app: FastifyInstance) {
     const result = await listAttentionEntries(orgId, ctx.userId, {
       includeDismissed: parseBooleanFlag(query.include_dismissed),
       branchId: cleanText(query.branch_id || query.branchId || ctx.branchId || "default"),
-      demo: parseBooleanFlag(query.demo)
+      demo: parseBooleanFlag(query.demo),
+      auth: ctx
     });
     return { ok: true, ...result };
   });

@@ -540,6 +540,10 @@
     return normalizeOrganizationBusinessAddress(state?.company_address || '');
   }
 
+  // The organization's own name as last read or saved, so autosave renames the
+  // organization only when the name changed (FM-300: without the rename the
+  // branch kept the typed name and the organization stayed "Your Company").
+  let organizationNameOnServer = null;
   async function fetchOrg(){
     const orgId = currentOrgId();
     let o = null;
@@ -663,12 +667,27 @@
     result.palette = normalizeBrandPalette(result.palette, result.primary, result.secondary);
     result.font_family = result.font_family || 'Montserrat';
     result.logo_display = normalizeLogoDisplay(result.logo_display);
+    if (portalState) organizationNameOnServer = String(portalState?.organization?.name || '').trim();
     return result;
   }
   async function saveOrg({ name, primary, secondary, palette, font_family, title_font, logo_display, company_email, company_phone, company_address, company_business_address, report_preferences }){
     const orgId = currentOrgId();
     if (!orgId) return { ok:false, error:'Missing organization.' };
     if (window.PlatformAPI?.branches?.get && window.PlatformAPI?.branches?.save) {
+      // The organization name is authoritative (portal, documents, Internal
+      // Customers); branch names are separate labels and are preserved.
+      const organizationName = String(name ?? '').trim();
+      if (organizationName && organizationName !== organizationNameOnServer) {
+        try {
+          if (window.PlatformAPI?.orgs?.patch) await window.PlatformAPI.orgs.patch(orgId, { name: organizationName });
+          else {
+            const { data } = await postAction('org_update_my', { name: organizationName });
+            if (!data || !data.success) return { ok:false, error: data?.error || 'Could not save the company name.' };
+          }
+        } catch (e) { return { ok:false, error: e?.message || 'Could not save the company name.' }; }
+        organizationNameOnServer = organizationName;
+        window.PlatformBanners?.load?.();
+      }
       const branchId = currentBranchId();
       const branchResp = await window.PlatformAPI.branches.get(orgId, branchId).catch(() => null);
       const branch = branchResp?.document?.data || branchResp?.data || {};
