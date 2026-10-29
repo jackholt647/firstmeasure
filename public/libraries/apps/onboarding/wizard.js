@@ -3000,7 +3000,11 @@
       input.setAttribute('aria-invalid', invalid ? 'true' : 'false');
     });
     if (!missing.length) return true;
-    showToast((globalThis.PlatformLanguage?.text("onboarding","ob_names_missing_title","Your name and company") ?? "Your name and company"), (globalThis.PlatformLanguage?.text("onboarding","ob_names_missing_body","Enter your name and company name to continue.") ?? "Enter your name and company name to continue."), false);
+    // Name only what is missing (1M8-250).
+    const missingKeys = missing.map(({ key }) => key).join(',');
+    if (missingKeys === 'fullName') showToast((globalThis.PlatformLanguage?.text("onboarding","ob_full_name_label","Your name") ?? "Your name"), (globalThis.PlatformLanguage?.text("onboarding","ob_name_missing_body","Enter your name to continue.") ?? "Enter your name to continue."), false);
+    else if (missingKeys === 'companyName') showToast((globalThis.PlatformLanguage?.text("onboarding","ob_company_name_label","Company name") ?? "Company name"), (globalThis.PlatformLanguage?.text("onboarding","ob_company_missing_body","Enter your company name to continue.") ?? "Enter your company name to continue."), false);
+    else showToast((globalThis.PlatformLanguage?.text("onboarding","ob_names_missing_title","Your name and company") ?? "Your name and company"), (globalThis.PlatformLanguage?.text("onboarding","ob_names_missing_body","Enter your name and company name to continue.") ?? "Enter your name and company name to continue."), false);
     missing[0].input.focus();
     missing[0].input.scrollIntoView({ block: 'center', behavior: 'smooth' });
     return false;

@@ -3290,7 +3290,9 @@
     "ob_company_name_label": "Bedrijfsnaam",
     "ob_company_name_placeholder": "De naam van je bedrijf",
     "ob_names_missing_title": "Je naam en bedrijf",
-    "ob_names_missing_body": "Vul je naam en bedrijfsnaam in om verder te gaan."
+    "ob_names_missing_body": "Vul je naam en bedrijfsnaam in om verder te gaan.",
+    "ob_name_missing_body": "Vul je naam in om verder te gaan.",
+    "ob_company_missing_body": "Vul je bedrijfsnaam in om verder te gaan."
   },
   "payroll": {
     "m_4a04382820d2e1": "Overig",
