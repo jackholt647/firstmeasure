@@ -82,11 +82,25 @@ Every operation turns into an outline transform, then the writer:
 | Edge stretch (selected sticker edge nudged) | `moveControls` on the edge's two vertices |
 | Preset size (repeat W/D/G), typed size | `resize(outline, box, anchors)` |
 | Y scale, R rotate, T flip in the move tool | `affine(outline, map)` |
-| Delete some of a sticker's points | `deleteControls(outline, ids)`: the sticker stays a closed face through the rest; all of its points, or too few left, deletes it; deleting an arch control straightens that edge |
+| Delete some of a sticker's points | See "Deleting points" below |
 
 A spline whose controls move is refitted through its controls; one that loses
 an end continues from the neighbouring vertex. Nothing is sheared or
 re-sampled from old tessellation.
+
+## Deleting points
+
+By default a deleted sticker point goes with every line and curve segment attached
+to it, as anywhere in a sketch (`deleteStickerControls` in the face editor). A
+stored sticker is first moved into its wall's draft. Whatever still closes stays
+a sticker; whatever no longer closes stays on the wall as open lines, curve
+segments keeping their exact curve. A point on the wall's own outline stays,
+unless it was only a split in a straight outline edge.
+
+With the wall advanced setting "Deleting a sticker point keeps it closed"
+(`stickerDeleteKeepsFace` on the model) the sticker instead reshapes through its
+other points (`deleteControls`); deleting an arch control straightens that edge,
+and a sticker whose rest cannot close is deleted.
 
 ## Out of scope
 
