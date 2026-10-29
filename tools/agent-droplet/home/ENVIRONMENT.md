@@ -21,9 +21,12 @@ in the main clone.
 - Disks: `/` 100 GB for the system; `/srv/agents` 500 GB for all work. Checkouts live in `/srv/agents/work`
   (`~/code`); the main clone is `/srv/agents/work/firstmeasure` (canonical branch). After making a worktree run
   `fm-deps` in it (links node_modules to a shared build).
-- Can reach: GitHub, the dev push router (submit only), dev web's live layer, the internet.
-  Root shells on the dev hosts with `fm-dev-host` (section below). Cannot reach: production (no key, VPC or
-  secret), DigitalOcean's API. Never copy cluster keys, DigitalOcean tokens or production secrets here.
+- Can reach everything Jack's PC can (since 2026-10-29: Jack wants this machine to need no laptop):
+  GitHub with push (`origin` = git@github.com:jackholt647/firstmeasure.git, deploy key `~/.ssh/fm_github_ed25519`),
+  the dev push router, dev web's live layer, root on the dev hosts (`fm-dev-host`), root on production
+  (`fm-prod-host`, section "Production"), root on the FirstLook/Tracker host (`ssh tracker-host`), the experimental
+  host (`ssh experimental`, user jack, sudo), the internet. Not yet: DigitalOcean's API (no token anywhere; Jack
+  creates one). Never print, copy or commit any key, token or secret.
 - `~/reference/synthesizer.js` (private to `agent`) is Jack's helper with model-provider API keys and call
   functions (Luna among them); use it to call those providers. Never print its keys or copy them anywhere:
   no commit, log, experiment, message or other file.
@@ -83,10 +86,24 @@ in the main clone.
   change, prove the fix (the page loads with `fm-dev-login`'s state), and put the same change in the repo copy
   under `deploy/digitalocean/` with your commit. Never point anything at a web node's IP: nodes are replaced; use
   https://dev.1m8.ai.
-- Still not yours: production (never), the pool's image, template, size or user data, droplets, the load
+- Still not yours here: the pool's image, template, size or user data, droplets, the load
   balancer, firewalls and DNS (ask Jack), and releases (ship code only through the dev push router; never copy
   code onto a host by hand). Example: 2026-10-28 every editor page returned 503 "Staff access could not be
   verified" because the legacy PHP still called a retired web node's IP; the fix was one line in that conf.
+
+## Production (since 2026-10-29)
+- `fm-prod-host list|compat|worker|web|<ip> [cmd]` is a root shell on a production host; plain `ssh root@<ip>` also
+  works for the production IPs (`~/.ssh/config` jumps through `dev-jump`; the firewall only admits SSH from the dev
+  sync droplet). Hosts as of 10-29: compatibility 144.126.222.110, worker 146.190.169.59, six autoscale web nodes
+  (`fm-prod-host web`). New pool nodes won't have the key until the production pool's user data carries it.
+- Production changes need authorization: the "FirstMeasure bug fixes" tracker workspace has Jack's standing
+  authorization to release issues set to "Testing in prod" once verified on dev (its production runs now start
+  here, not on Jack's laptop). Anything else in production needs Jack's explicit OK in the tracker.
+- How: DEPLOYMENT.md in the repo, plus `deploy/digitalocean/release-tooling-20261029/` on branch
+  `codex/prod-release-tooling-20261029` (scripts used for the Oct 22-29 hotfixes; drop their `-J dev-sync-droplet`,
+  your ssh config already jumps; copy archives dev worker -> production directly). Record the rollback target in the
+  issue before activating; one fix per release; verify `https://app.1m8.ai/v1/health/ready` 10/10; record the
+  release on `production-live` and push it to GitHub.
 
 ## Shipping to dev (never production)
 - Commit, `git fetch devpush && git rebase devpush/codex/consolidated-firstmeasure-20260923`, then
@@ -113,7 +130,8 @@ in the main clone.
 - The ssh alias `tracker-deploy` (key `~/.ssh/fm_tracker_deploy_ed25519`, never print or copy it) can only run
   deploy / rollback / status / history on the FirstLook droplet: no shell there, no FirstLook app or data. It can't
   deploy a change to `tracker/docker-compose.yml` (Jack must), and it won't replace a folder copy Jack deployed from
-  his PC (uncommitted work) for 6 hours. Details: `tracker/README.md`, "Deploy".
+  his PC (uncommitted work) for 6 hours. Details: `tracker/README.md`, "Deploy". For anything else on that host
+  (Caddy, compose, a stuck deploy) `ssh tracker-host` is root: keep a `.bak`, never touch FirstLook's data.
 - The tracker's routers, runner and titler run here from `~/.firstmate/` (`router.mjs`, `runner.mjs`, `titler.mjs`)
   as systemd user units `tracker-router@general`, `tracker-router@bugs`, `tracker-runner`, `tracker-titler`. They are
   not part of the deploy: copy the committed file in (keep a `.bak-<date>`), `systemctl --user restart <unit>`,
