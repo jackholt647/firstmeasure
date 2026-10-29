@@ -238,7 +238,7 @@ function serializeEsx(model: RoofplanModel, manifest: ProjectManifest) {
       .map((lineId) => geometry.lineIndexById.get(lineId))
       .filter((value): value is number => typeof value === "number");
     lines.push(
-      `      <SURFACE index="${face.index}" id="${escapeXml(face.id)}" polygon="${escapeXml(face.polygonId)}" pitch="${escapeXml(String(face.pitch ?? ""))}" area="${escapeXml(String(face.size ?? ""))}" line_indexes="${escapeXml(lineIndexes.join(","))}" />`
+      `      <SURFACE index="${face.index}" id="${escapeXml(face.id)}" polygon="${escapeXml(face.polygonId)}" pitch="${escapeXml(String(face.pitch ?? ""))}" pitch_degrees="${face.pitch == null || !Number.isFinite(face.pitch) ? "" : (Math.atan(Math.abs(face.pitch) / 12) * 180 / Math.PI).toFixed(1)}" area="${escapeXml(String(face.size ?? ""))}" line_indexes="${escapeXml(lineIndexes.join(","))}" />`
     );
   }
   lines.push(`    </SURFACES>`);

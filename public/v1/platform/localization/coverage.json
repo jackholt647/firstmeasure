@@ -1,7 +1,7 @@
 {
   "files": 295,
   "namespaces": 117,
-  "messages": 16975,
+  "messages": 17048,
   "migration": [
     {
       "file": "public/libraries/account-switcher/account-switcher.js",
@@ -139,9 +139,9 @@
     {
       "file": "public/libraries/apps/checklists/app.js",
       "namespace": "checklists",
-      "references": 119,
-      "candidates": 19,
-      "edits": 17
+      "references": 138,
+      "candidates": 3,
+      "edits": 2
     },
     {
       "file": "public/libraries/apps/comms/calling-runtime.js",
@@ -202,9 +202,9 @@
     {
       "file": "public/libraries/apps/crew/app.js",
       "namespace": "crew",
-      "references": 185,
-      "candidates": 15,
-      "edits": 11
+      "references": 200,
+      "candidates": 0,
+      "edits": 1
     },
     {
       "file": "public/libraries/apps/crm/app.js",
@@ -392,20 +392,20 @@
       "file": "public/libraries/apps/measurements/roof-viewer.js",
       "namespace": "measurements",
       "references": 2,
-      "candidates": 71,
-      "edits": 33
+      "candidates": 70,
+      "edits": 32
     },
     {
       "file": "public/libraries/apps/money/project.js",
       "namespace": "money",
-      "references": 287,
-      "candidates": 1,
-      "edits": 1
+      "references": 205,
+      "candidates": 0,
+      "edits": 2
     },
     {
       "file": "public/libraries/apps/onboarding/wizard.js",
       "namespace": "onboarding",
-      "references": 118,
+      "references": 122,
       "candidates": 0,
       "edits": 0
     },
@@ -622,7 +622,7 @@
     {
       "file": "public/libraries/apps/photos/feed.js",
       "namespace": "photos",
-      "references": 92,
+      "references": 95,
       "candidates": 84,
       "edits": 58
     },
@@ -755,7 +755,7 @@
     {
       "file": "public/libraries/apps/settings/company.js",
       "namespace": "settings",
-      "references": 1361,
+      "references": 1364,
       "candidates": 131,
       "edits": 76
     },

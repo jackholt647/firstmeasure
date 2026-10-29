@@ -1656,10 +1656,22 @@
     return Math.max(1, Math.round(Math.tan((pitch * Math.PI) / 180) * 12));
   }
 
+  /* Roof pitch (1M8-255): rise over 12 (6/12), or degrees (26.6°) for projects that write pitch in degrees (metric
+     projects without a setting do). Set from the project when the estimate renders; the 3D labels use it too. */
+  let instantPitchNotation = 'rise_12';
+  function instantPitchNotationFor(project){
+    const value = project?.pitch_notation || project?.manifest?.pitch_notation;
+    if (value === 'degrees' || value === 'rise_12') return value;
+    return (project?.measurement_system || project?.manifest?.measurement_system) === 'metric' ? 'degrees' : 'rise_12';
+  }
+  function instantPitchText(rise, digits = 1){
+    if (instantPitchNotation !== 'degrees') return `${rise}/12`;
+    return `${(Math.atan(Math.abs(Number(rise)) / 12) * 180 / Math.PI).toFixed(digits)}°`;
+  }
   function formatPitchRange(pitchRise){
     const rise = toFiniteNumber(pitchRise);
     if (rise == null) return '-';
-    return `${rise}/12`;
+    return instantPitchText(rise);
   }
 
   function predominantPitchDegrees(segments){
@@ -1994,6 +2006,7 @@
   }
 
   function buildInstantStatsMarkup(instant, project){
+    instantPitchNotation = instantPitchNotationFor(project);
     const instantPdfUrl = String(instant?.assets?.instant_pdf_url || '').trim();
     const instantPdfStatus = String(instant?.instant_pdf?.status || '').trim().toLowerCase();
     const instantPdfReady = !!instantPdfUrl && instantPdfStatus !== 'failed';
@@ -3324,7 +3337,7 @@
         ctx.font = '900 12px sans-serif';
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
-        ctx.fillText(pitchRise == null ? '?' : `${pitchRise}/12`, labelPoint.x, labelY);
+        ctx.fillText(pitchRise == null ? '?' : instantPitchText(pitchRise, 0), labelPoint.x, labelY);
       }
     }
   }
@@ -3448,7 +3461,7 @@
         const el = document.createElement('div');
         el.className = 'v-instant-label';
         const rise = pitchToRise12(segment?.pitch_degrees);
-        el.innerHTML = `<div class="v-instant-labelBubble">${rise == null ? '?' : `${rise}/12`}</div><div class="v-instant-labelLine"></div>`;
+        el.innerHTML = `<div class="v-instant-labelBubble">${rise == null ? '?' : instantPitchText(rise, 0)}</div><div class="v-instant-labelLine"></div>`;
         labels.appendChild(el);
         labelEntries.push({ el, world, anchorWorld, type: 'pitch' });
       });

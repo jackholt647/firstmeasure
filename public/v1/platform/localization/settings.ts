@@ -9,6 +9,8 @@ export const localeSchema = z.enum(SUPPORTED_LOCALES);
 export const localizationSchema = z.object({
   locale: localeSchema.optional(),
   measurement_system: z.enum(["imperial", "metric"]).optional(),
+  // 1M8-255: roof pitch as rise over 12 or degrees (firstmeasure/report_preferences.ts).
+  pitch_notation: z.enum(["rise_12", "degrees"]).optional(),
   time_zone: z.string().max(100).refine(value => { try { new Intl.DateTimeFormat("en-US", { timeZone: value }); return true; } catch { return false; } }, "Unsupported time zone").optional()
 }).strict();
 
@@ -22,10 +24,11 @@ export async function companyLocalization(orgId: string, branchId = "default") {
   const data = branch?.data || {};
   const legacy = (data.report_preferences || {}) as Record<string, unknown>;
   const saved = (data.localization || {}) as Record<string, unknown>;
-  const company = enabled ? {
+  const company: Record<string, unknown> = enabled ? {
     ...saved,
     locale: saved.locale || legacy.report_language || profile.locale,
     measurement_system: saved.measurement_system || legacy.measurement_system || (metric ? "metric" : profile.measurement_system)
   } : { locale: "en-US", measurement_system: metric ? "metric" : "imperial" };
+  company.pitch_notation = saved.pitch_notation || legacy.pitch_notation || (company.measurement_system === "metric" ? "degrees" : "rise_12");
   return { enabled, company, context: resolveContext(company) };
 }

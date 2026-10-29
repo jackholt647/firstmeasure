@@ -1528,11 +1528,12 @@ window.PlatformCommerce.onReady(function(){
   function reportSummaryMeasurementsCsv(metrics = []){
     return [
       [(globalThis.PlatformLanguage?.text("measurements","m_85b7e99a08fa9a","Measurement") ?? "Measurement"), (globalThis.PlatformLanguage?.text("measurements","m_ec6b76d100b0ec","Value") ?? "Value"), (globalThis.PlatformLanguage?.text("measurements","m_4b91b73dae1ff3","Unit") ?? "Unit")].map(csvCell).join(','),
-      ...metrics.map((metric) => [
-        summaryMetricLabel(metric.label),
-        csvNumericCell(metric.value),
-        metric.unit || ''
-      ].map(csvCell).join(','))
+      ...metrics.flatMap((metric) => (metric.pitch != null && Number.isFinite(metric.pitch)
+        // Pitch keeps its rise-over-12 row for integrations and adds degrees (1M8-255), whatever the notation shown.
+        ? [[summaryMetricLabel(metric.label), csvNumericCell(formatSummaryNumber(metric.pitch, 1)), '/12'],
+           [(globalThis.PlatformLanguage?.text('measurements', 'main_pitch_degrees', 'Main pitch (degrees)') ?? 'Main pitch (degrees)'), csvNumericCell(formatSummaryNumber(summaryPitchDegrees(metric.pitch), 1)), '°']]
+        : [[summaryMetricLabel(metric.label), csvNumericCell(metric.value), metric.unit || '']]
+      ).map(row => row.map(csvCell).join(',')))
     ].join('\r\n');
   }
 
@@ -1917,8 +1918,26 @@ window.PlatformCommerce.onReady(function(){
       if (label && total > 0) rows.push({ label, value: formatSummaryNumber(total), unit: 'ft' });
     });
     if (faces.length) rows.push({ label: (globalThis.PlatformLanguage?.text("measurements","m_23c27ba7741b73","Facets") ?? "Facets"), value: formatSummaryNumber(faces.length), unit: '' });
-    if (dominantPitch != null) rows.push({ label: (globalThis.PlatformLanguage?.text("measurements","m_fffeb2d8c3e57d","Main pitch") ?? "Main pitch"), value: formatSummaryNumber(dominantPitch, 1), unit: '/12' });
+    if (dominantPitch != null) rows.push(summaryPitchRow(dominantPitch));
     return rows;
+  }
+
+  /* Roof pitch (1M8-255) in the notation the report was ordered with: rise over 12 (6/12), or degrees (26.6°) for
+     roofers outside the US; reports without one use degrees when metric (as ReportUnits does for the PDF). The row
+     keeps the rise so the CSV can carry both. */
+  function summaryPitchNotation(){
+    const manifest = reportOrderManifest();
+    if (manifest.pitch_notation === 'degrees' || manifest.pitch_notation === 'rise_12') return manifest.pitch_notation;
+    return manifest.measurement_system === 'metric' ? 'degrees' : 'rise_12';
+  }
+  function summaryPitchDegrees(rise){
+    return Math.atan(Math.abs(Number(rise)) / 12) * 180 / Math.PI;
+  }
+  function summaryPitchRow(rise){
+    const label = (globalThis.PlatformLanguage?.text("measurements","m_fffeb2d8c3e57d","Main pitch") ?? "Main pitch");
+    return summaryPitchNotation() === 'degrees'
+      ? { label, value: formatSummaryNumber(summaryPitchDegrees(rise), 1), unit: '°', pitch: Number(rise) }
+      : { label, value: formatSummaryNumber(rise, 1), unit: '/12', pitch: Number(rise) };
   }
 
   function reportSummaryMetricCacheKey(projectId, xmlUrl){
@@ -2181,7 +2200,7 @@ window.PlatformCommerce.onReady(function(){
       if (label && total > 0) rows.push({ label, value: formatSummaryNumber(total), unit: 'ft' });
     });
     if (facets != null) rows.push({ label: (globalThis.PlatformLanguage?.text("measurements","m_23c27ba7741b73","Facets") ?? "Facets"), value: formatSummaryNumber(facets), unit: '' });
-    if (pitch != null) rows.push({ label: (globalThis.PlatformLanguage?.text("measurements","m_fffeb2d8c3e57d","Main pitch") ?? "Main pitch"), value: formatSummaryNumber(pitch, 1), unit: '/12' });
+    if (pitch != null) rows.push(summaryPitchRow(pitch));
     if (Array.isArray(xmlRows) && xmlRows.length) {
       const labels = new Set(rows.map((row) => row.label));
       xmlRows.forEach((row) => {
@@ -4018,7 +4037,7 @@ window.PlatformCommerce.onReady(function(){
       roofViewer?.destroy();roofViewerKey=modelKey;
       // Full-house reports also draw the walls, openings and base from the published exterior model.
       const fullHouseModel=reportSummaryIsFullHouse()&&projectId,platformProjectId=activeBaseProject?.id||'',orgId=projectOrgId();
-      const data={xmlUrl:cachedAssets?.xmlUrl,exteriorUrl:fullHouseModel?fmUrl(`projects/${encodeURIComponent(projectId)}/exterior-model`):'',designUrl:fullHouseModel?fmUrl(`projects/${encodeURIComponent(projectId)}/exterior-design`):'',materialsUrl:fullHouseModel&&orgId&&platformProjectId&&isPlatformProjectId(platformProjectId)?`/v1/materials/organizations/${encodeURIComponent(orgId)}/projects/${encodeURIComponent(platformProjectId)}/material-lists`:'',media:cachedAssets?.media||[]};
+      const data={xmlUrl:cachedAssets?.xmlUrl,pitchNotation:summaryPitchNotation(),exteriorUrl:fullHouseModel?fmUrl(`projects/${encodeURIComponent(projectId)}/exterior-model`):'',designUrl:fullHouseModel?fmUrl(`projects/${encodeURIComponent(projectId)}/exterior-design`):'',materialsUrl:fullHouseModel&&orgId&&platformProjectId&&isPlatformProjectId(platformProjectId)?`/v1/materials/organizations/${encodeURIComponent(orgId)}/projects/${encodeURIComponent(platformProjectId)}/material-lists`:'',media:cachedAssets?.media||[]};
       roofViewer=window.FirstMateWidgets.mount(modelRoot,{id:'reports.roof',version:'1',config:{}},{surface:'project',data:{'reports.roof':data}});
     }
     if (map && inlineProjectMapWithReports() && activeMeasurementTab === 'map') {
