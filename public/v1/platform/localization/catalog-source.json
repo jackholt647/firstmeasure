@@ -4877,7 +4877,8 @@
     "m_8658b6cca50dd1": "Squares",
     "m_d7e11daf9d1a5e": "1 roofing square = 100 square feet",
     "m_404407dfdead5e": "Pitch is rise per 12 inches of horizontal run.",
-    "m_d6f00e010cae22": "ft"
+    "m_d6f00e010cae22": "ft",
+    "main_pitch_degrees": "Main pitch (degrees)"
   },
   "money": {
     "m_487adb3f2ba511": "Loading money...",
@@ -13139,7 +13140,10 @@
     "m_76d0a0f6b92b6b": "Start field",
     "m_6945dd9fd27fb0": "The window starts",
     "m_61e1bda0af7448": "Project Summary",
-    "m_2a3205adcd6f09": "Measurement Breakdown"
+    "m_2a3205adcd6f09": "Measurement Breakdown",
+    "pitch_notation_label": "Roof pitch",
+    "pitch_notation_rise": "Rise over 12 (6/12)",
+    "pitch_notation_degrees": "Degrees (26.6°)"
   },
   "signatures": {
     "m_2ebfdc1730afd2": "Add Work",
@@ -19617,7 +19621,11 @@
     "session_replay_not_found": "That replay session does not exist.",
     "missing_page": "A page id is required.",
     "missing_key": "A key id is required.",
-    "replay_key_not_found": "No active key with that id."
+    "replay_key_not_found": "No active key with that id.",
+    "org_user_exists": "That person is already in this account. Change their level in People instead.",
+    "invalid_page_pattern": "A page is a path such as /portal/billing, optionally with * for anything; no query string.",
+    "page_rules_exclude_only": "A page rule can only stop recording on that page.",
+    "session_replay_page_excluded": "This page is not recorded."
   },
   "notifications": {
     "document_greeting": {
@@ -20796,6 +20804,20 @@
     "m_23d5e0c82a8304": "Person",
     "m_c814e4fbc9b9e2": "Device",
     "m_a6c13e38e7e96e": "Pages",
-    "m_345c4a1d9d7ef8": "Open the portal"
+    "m_345c4a1d9d7ef8": "Open the portal",
+    "m_e9d5e8a7822002": "Stop now",
+    "m_c46d4fcfd32aea": "15 min",
+    "m_44a717b6a4cc10": "1 hour",
+    "m_9a59f1aeb7401a": "4 hours",
+    "m_a6519204513246": "Record for",
+    "m_3d303915dce793": "Take it off the list: it is recorded like any other page",
+    "m_e1ac1fa3f059ca": "Every page is recorded for those who are.",
+    "m_6af5a3050c24f9": "Pages never recorded",
+    "m_94d7efb2a20f14": "Nobody is recorded on these pages, whatever the rules above say. A page is its path and hash: ",
+    "m_d44baac9ad3870": "/portal/billing",
+    "m_b1cfce9357fc9e": " stands for anything (",
+    "m_5741722c9a58e0": "/portal/#settings*",
+    "m_906c2998197ec4": " records a page for a while and switches it back off by itself; pages already open start when they are next loaded.",
+    "m_a76046f8374494": "Don’t record this page"
   }
 }

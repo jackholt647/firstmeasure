@@ -7,8 +7,29 @@
       aluminum:'aluminium', gray:'grey', labor:'labour', vapor:'vapour', miter:'mitre', miters:'mitres', story:'storey', stories:'storeys', meters:'metres', meter:'metre',
       millimeters:'millimetres', millimeter:'millimetre', "square footage":'area' }
   };
+  /* Roof pitch (1M8-255): stored as rise over a 12 run; written as `6/12` or, for roofers outside the US, in degrees.
+     A project keeps the notation it was ordered with; metric projects without one use degrees. */
+  function pitchNotation(preferences = {}) {
+    const value = preferences.pitch_notation;
+    if (value === 'degrees' || value === 'rise_12') return value;
+    return preferences.measurement_system === 'metric' ? 'degrees' : 'rise_12';
+  }
+  /** The rise in a pitch written as 6, 6.5, "6/12" or "6 / 12"; null for anything else (N/A, "Flat", edited text). */
+  function pitchRise(input) {
+    if (typeof input === 'number') return Number.isFinite(input) ? input : null;
+    const match = String(input ?? '').trim().match(/^(-?\d+(?:[.,]\d+)?)\s*(?:\/\s*12)?$/);
+    return match ? Number(match[1].replace(',', '.')) : null;
+  }
+  function pitchDegrees(rise) { return Math.atan(Math.abs(rise) / 12) * 180 / Math.PI; }
+  function formatPitch(input, { notation = 'rise_12', language = 'en-US', digits = 1 } = {}) {
+    const rise = pitchRise(input);
+    if (notation !== 'degrees' || rise === null) return typeof input === 'number' ? `${input}/12` : input;
+    return pitchDegrees(rise).toLocaleString(language, { minimumFractionDigits: digits, maximumFractionDigits: digits }) + '°';
+  }
+
   function create(preferences = {}) {
     const metric = preferences.measurement_system === 'metric';
+    const notation = pitchNotation(preferences);
     const requested = preferences.language_snapshot?.locale || preferences.report_language;
     let language = 'en-US';
     if (requested && (Object.hasOwn(catalogs, requested) || preferences.language_snapshot?.report_dictionary || root.PlatformLanguage?.supportedLocales?.includes(requested))) {
@@ -50,7 +71,9 @@
       });
       return result;
     };
-    return { metric, language, value, number, unit, quantity, text, label, formatLegacy,
+    return { metric, language, value, number, unit, quantity, text, label, formatLegacy, pitchNotation: notation,
+      /** A pitch in the project's notation: 6/12 stays as written, or 26.6° (digits: decimals of a degree). */
+      pitch: (input, digits = 1) => formatPitch(input, { notation, language, digits }),
       length: (feet, legacy) => metric ? quantity(feet, 'ft') : formatLegacy(legacy),
       area: (feet, legacy) => metric ? quantity(feet, 'sf') : formatLegacy(legacy),
       squares: (squares, legacy) => metric ? quantity(squares, 'sq') : formatLegacy(legacy),
@@ -61,11 +84,11 @@
   }
   let cachedKey, cachedUnits;
   const current = () => {
-    const preferences = root.currentProjectManifest || {}, key = preferences.id + ":" + preferences.measurement_system + ":" + preferences.report_language + ":" + preferences.language_snapshot?.catalog_versions?.reports;
+    const preferences = root.currentProjectManifest || {}, key = preferences.id + ":" + preferences.measurement_system + ":" + preferences.report_language + ":" + preferences.pitch_notation + ":" + preferences.language_snapshot?.catalog_versions?.reports;
     if (key !== cachedKey) { cachedKey = key; cachedUnits = create(preferences); }
     return cachedUnits;
   };
-  const api = { create, current, catalogs };
+  const api = { create, current, catalogs, pitchNotation, pitchRise, pitchDegrees, formatPitch };
   if (typeof module === 'object' && module.exports) module.exports = api;
   root.ReportUnits = api;
 })(typeof window === 'undefined' ? globalThis : window);

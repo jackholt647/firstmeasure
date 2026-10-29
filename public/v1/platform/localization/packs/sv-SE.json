@@ -2862,7 +2862,8 @@
     "pin_count": {
       "message": "{count, plural, one {# nål} other {# nålar}}",
       "format": "icu"
-    }
+    },
+    "main_pitch_degrees": "Huvudsaklig lutning (grader)"
   },
   "money": {
     "m_487adb3f2ba511": "Läser in ekonomi...",
@@ -7982,7 +7983,10 @@
     },
     "fm_mobile_auto_topup_off": "Automatisk påfyllning av saldo: Av",
     "developer_settings_title": "Utvecklarinställningar",
-    "developer_settings_subtitle": "Utvecklarverktyg, funktionsflaggor och appkonfiguration."
+    "developer_settings_subtitle": "Utvecklarverktyg, funktionsflaggor och appkonfiguration.",
+    "pitch_notation_label": "Taklutning",
+    "pitch_notation_rise": "Höjning per 12 (6/12)",
+    "pitch_notation_degrees": "Grader (26,6°)"
   },
   "signatures": {
     "m_2ebfdc1730afd2": "Lägg till arbete",

@@ -2822,7 +2822,8 @@
     "pin_count": {
       "message": "{count, plural, one {# épingle} other {# épingles}}",
       "format": "icu"
-    }
+    },
+    "main_pitch_degrees": "Pente principale (degrés)"
   },
   "money": {
     "m_487adb3f2ba511": "Chargement des données financières...",
@@ -8098,7 +8099,10 @@
     },
     "fm_mobile_auto_topup_off": "Recharge automatique du crédit : désactivée",
     "developer_settings_title": "Paramètres de développement",
-    "developer_settings_subtitle": "Outils de développement, indicateurs de fonctionnalités et configuration des applications."
+    "developer_settings_subtitle": "Outils de développement, indicateurs de fonctionnalités et configuration des applications.",
+    "pitch_notation_label": "Pente du toit",
+    "pitch_notation_rise": "Hauteur sur 12 (6/12)",
+    "pitch_notation_degrees": "Degrés (26,6°)"
   },
   "signatures": {
     "m_2ebfdc1730afd2": "Ajouter un travail",
