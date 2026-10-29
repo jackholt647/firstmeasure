@@ -2862,7 +2862,8 @@
     "pin_count": {
       "message": "{count, plural, one {# pinezka} few {# pinezki} many {# pinezek} other {# pinezki}}",
       "format": "icu"
-    }
+    },
+    "main_pitch_degrees": "Główne nachylenie (stopnie)"
   },
   "money": {
     "m_487adb3f2ba511": "Wczytywanie finansów...",
@@ -8073,7 +8074,10 @@
     },
     "fm_mobile_auto_topup_off": "Automatyczne doładowanie środków: wyłączone",
     "developer_settings_title": "Ustawienia deweloperskie",
-    "developer_settings_subtitle": "Narzędzia deweloperskie, flagi funkcji i konfiguracja aplikacji."
+    "developer_settings_subtitle": "Narzędzia deweloperskie, flagi funkcji i konfiguracja aplikacji.",
+    "pitch_notation_label": "Nachylenie dachu",
+    "pitch_notation_rise": "Wzniesienie na 12 (6/12)",
+    "pitch_notation_degrees": "Stopnie (26,6°)"
   },
   "signatures": {
     "m_2ebfdc1730afd2": "Dodaj pracę",

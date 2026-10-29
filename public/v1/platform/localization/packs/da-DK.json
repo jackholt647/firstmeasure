@@ -2930,7 +2930,8 @@
     "pin_count": {
       "message": "{count, plural, one {# nål} other {# nåle}}",
       "format": "icu"
-    }
+    },
+    "main_pitch_degrees": "Primær hældning (grader)"
   },
   "money": {
     "m_487adb3f2ba511": "Indlæser økonomi...",
@@ -8293,7 +8294,10 @@
     },
     "fm_mobile_auto_topup_off": "Automatisk saldoopfyldning: Fra",
     "developer_settings_title": "Udviklerindstillinger",
-    "developer_settings_subtitle": "Udviklerværktøjer, funktionsflag og appkonfiguration."
+    "developer_settings_subtitle": "Udviklerværktøjer, funktionsflag og appkonfiguration.",
+    "pitch_notation_label": "Taghældning",
+    "pitch_notation_rise": "Stigning pr. 12 (6/12)",
+    "pitch_notation_degrees": "Grader (26,6°)"
   },
   "signatures": {
     "m_2ebfdc1730afd2": "Tilføj arbejde",

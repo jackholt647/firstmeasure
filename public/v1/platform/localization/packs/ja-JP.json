@@ -2938,7 +2938,8 @@
     "pin_count": {
       "message": "{count, plural, one {# 個のピン} other {# 個のピン}}",
       "format": "icu"
-    }
+    },
+    "main_pitch_degrees": "主勾配 (度)"
   },
   "money": {
     "m_487adb3f2ba511": "金額データを読み込み中...",
@@ -8309,7 +8310,10 @@
     },
     "fm_mobile_auto_topup_off": "クレジット自動チャージ：オフ",
     "developer_settings_title": "開発者設定",
-    "developer_settings_subtitle": "開発者ツール、機能フラグ、アプリ設定。"
+    "developer_settings_subtitle": "開発者ツール、機能フラグ、アプリ設定。",
+    "pitch_notation_label": "屋根勾配",
+    "pitch_notation_rise": "12に対する立ち上がり (6/12)",
+    "pitch_notation_degrees": "度 (26.6°)"
   },
   "signatures": {
     "m_2ebfdc1730afd2": "作業を追加",

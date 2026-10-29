@@ -17,8 +17,8 @@ test("report preferences are opt-in, validated and frozen on orders", async () =
   const { effectiveAppFlags } = await import("../platform/app_flags.js");
   const org = await platform.createOrganization({ name:"Localization fixture" });
   const input = { address:"10 Test Road", organization_ref:{id:org.id} };
-  const us = { measurement_system:"imperial", report_language:"en-US" };
-  const gb = { measurement_system:"metric", report_language:"en-GB" };
+  const us = { measurement_system:"imperial", report_language:"en-US", pitch_notation:"rise_12" };
+  const gb = { measurement_system:"metric", report_language:"en-GB", pitch_notation:"degrees" };
   try {
     const defaults = await effectiveAppFlags(org.id);
     assert.ok(defaults);
@@ -31,7 +31,7 @@ test("report preferences are opt-in, validated and frozen on orders", async () =
     assert.equal(legacy.manifest.measurement_system,"imperial");
     assert.equal(legacy.manifest.report_language,"en-US");
     await platform.saveGlobal(org.id,{data:{app_flags:{firstmeasure:{metric_measurements:true,report_localization:false}}}});
-    assert.deepEqual(await prefs.resolveOrderReportPreferences(input),{...us,measurement_system:"metric"});
+    assert.deepEqual(await prefs.resolveOrderReportPreferences(input),{...us,measurement_system:"metric",pitch_notation:"degrees"});
     await platform.saveGlobal(org.id,{data:{app_flags:{firstmeasure:{metric_measurements:false,report_localization:true}}}});
     const localized = await storage.createProject(input);
     assert.equal(localized.manifest.measurement_system,"metric");
