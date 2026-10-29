@@ -4052,3 +4052,18 @@ test('with keep-closed on, a corner whose sticker could not stay a closed face d
  assert.ok(!d().sketch.nodes.some(n=>['p657','p658'].includes(n.id)),'both old top corners went with the top piece');
  assert.equal(JSON.stringify(f.history[0]),before);
 });
+for(const fresh of [false,true])for(const keep of [false,true])for(const corner of ['p657','p658'])test(`arched transom${fresh?' as freshly drawn':''}: deleting the old top ${corner==='p657'?'right':'left'} corner${keep?' with keep-closed on':''} never touches the arched window, its arch or the arch top`,()=>{
+ // Jack, 2026-10-29: deleting a corner of the piece above the arch must leave the arched
+ // window, its arch and the arch top alone: none of them is attached to that corner.
+ const m=JSON.parse(fs.readFileSync(require.resolve('./fixtures/ce52-arched-transom-20261029.json'),'utf8'));m.stickerDeleteKeepsFace=keep;
+ // As saved, the two windows name the arch by an older id than the sketch; freshly drawn they name the sketch's.
+ if(fresh){const dd=Object.entries(m.wallEdits.$drafts).find(([k])=>k.includes('wall-region-0-1793091747269'))[1],id=dd.sketch.curves[0].id;for(const x of dd.faces)for(const c of x.curves||[])if(c.id==='arch-1793259485933')c.id=id;}
+ const f=fixture({state:m,walls:m.alignedWalls,selected:null,globals:{...renderGlobals(),WallChimneys:require('../public/measure/internal/editor_scripts/wall_chimneys.js'),WallResoffit:require('../public/measure/internal/editor_scripts/wall_resoffit.js')},screen:p=>({x:(p.x*.8+p.y*.6)*100,y:-(p.z+.3*(p.y*.8-p.x*.6))*100})});
+ const key=Object.keys(f.state.wallEdits.$drafts).find(k=>k.includes('wall-region-0-1793091747269')),d=()=>f.state.wallEdits.$drafts[key];
+ const arched=()=>d().faces.find(x=>x.feature&&!x.solidId&&['p642','p643'].every(id=>x.points.some(p=>p.nodeId===id)));
+ const start=arched(),ring=x=>x.points.map(p=>p.x.toFixed(6)+','+p.y.toFixed(6)).sort().join(' ');assert.ok(start&&start.curves.length);
+ f.editor.restoreSelection({activeDraftKey:key,draftSelection:{[key]:[corner]},picked:[corner]});f.editor.key({key:'Delete'});assert.equal(f.history.length,1,f.message());
+ const now=arched();assert.ok(now,'the arched window is still a window: '+f.message());assert.equal(ring(now),ring(start),'with the same outline');assert.ok(now.curves.length>=1,'and its arch');
+ assert.ok(d().sketch.nodes.some(n=>n.id==='p650'),'the arch top stays');assert.ok(!d().sketch.nodes.some(n=>n.id===corner),'the corner is gone');
+ assert.ok(d().sketch.edges.filter(e=>e.curveId).length>=2,'both arch segments stay');
+});

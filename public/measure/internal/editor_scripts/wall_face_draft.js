@@ -2028,9 +2028,14 @@ for(const m of moves){const n=d.sketch.nodes.find(n=>n.id===m.id);if(!n)throw Er
   // Only the building outline stays: a sticker's own edges go even when they are fixed.
   const K=window.ExteriorGeometry,node=id=>d.sketch.nodes.find(n=>n.id===id),curve=id=>(d.sketch.curves||[]).find(c=>c.id===id);
   const onOutline=e=>{const a=node(e.a),b=node(e.b);if(!a||!b)return false;const c=e.curveId&&curve(e.curveId),m=c?K.curvePoint(c,((e.curveRange||[0,1])[0]+(e.curveRange||[0,1])[1])/2):{x:(a.x+b.x)/2,y:(a.y+b.y)/2,z:0};return [a,b,m].every(p=>onDraftOutline(d,p));};
-  d.sketch.edges=d.sketch.edges.filter(e=>onOutline(e)||!ownEdge(e)&&!boundary([e.a,e.b].map(node)));
-  // The region around a sticker carries its curves on its hole; those copies go too.
-  if(own.size)for(const o of d.faces)if(o.curves)o.curves=o.curves.filter(c=>!own.has(c.id));
+  // An edge another sticker is drawn with stays (two stickers sharing an arch).
+  const ring=o=>o.points.map(p=>p.nodeId).filter(id=>id&&d.sketch.nodes.some(n=>n.id===id)),others=d.faces.filter(o=>o!==f&&o.feature&&!o.solidId&&!o.boundaryHole&&!deleted(d,o)).map(ring);
+  const shared=e=>others.some(r=>r.some((id,i)=>{const next=r[(i+1)%r.length];return id===e.a&&next===e.b||id===e.b&&next===e.a;}));
+  d.sketch.edges=d.sketch.edges.filter(e=>onOutline(e)||shared(e)||!ownEdge(e)&&!boundary([e.a,e.b].map(node)));
+  // The region around a sticker carries its curves on its hole; those copies go too,
+  // unless another sticker still has the curve.
+  const gone=new Set([...own].filter(id=>!d.sketch.edges.some(e=>e.curveId===id)));
+  if(gone.size)for(const o of d.faces)if(o.curves)o.curves=o.curves.filter(c=>!gone.has(c.id));
   // Curve records no edge uses are dead: they could otherwise attach to a later shape.
   if(d.sketch.curves?.length)d.sketch.curves=d.sketch.curves.filter(c=>d.sketch.edges.some(e=>e.curveId===c.id));
   // A sticker corner on the outline with just two collinear outline edges was only a
