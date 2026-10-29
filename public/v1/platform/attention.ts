@@ -275,6 +275,8 @@ registerAttentionSource("demo", (_orgId, ctx) => {
 // those organizations still carry the placeholder on documents, emails and the
 // portal. Until a real name is saved, everyone who may change company settings
 // is asked for it. Read from the request's own context: no extra reads per poll.
+// It outranks the payments setup banner (100, not dismissible) for the one
+// topbar slot; dismissing it for the session hands the slot back.
 const PLACEHOLDER_ORGANIZATION_NAMES = new Set(["", "your company", "untitled organization", "default branch"]);
 
 export function isPlaceholderOrganizationName(name: unknown) {
@@ -290,7 +292,7 @@ registerAttentionSource("company_name", (_orgId, ctx) => {
   return [{
     id: COMPANY_NAME_ATTENTION_ID,
     key: "company_name_missing",
-    priority: 80,
+    priority: 110,
     surfaces: ["topbar", "notification"],
     title: "Add your company name",
     body: "Documents, emails and the portal show a placeholder instead of your company's name.",

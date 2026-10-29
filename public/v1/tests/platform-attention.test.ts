@@ -282,6 +282,8 @@ test("an organization still named Your Company asks its owners for the name", as
   assert.deepEqual(entry.frontend_action, { route: { tab: "company_settings", sub: "company" } });
   assert.deepEqual(entry.visible_surfaces, ["topbar", "notification"]);
   assert.equal(entry.dismissible.notification, false, "the pinned row stays until the name is saved");
+  assert.equal(entry.dismissible.topbar, true);
+  assert.ok(entry.priority > 100, "takes the topbar ahead of the payments setup banner (priority 100)");
 
   const viewer = await createViewer(owner, orgId, suffix);
   const viewerFeed = await viewer.client.request("GET", `${base}/attention`);
