@@ -1086,7 +1086,7 @@ function perf_previewPaste(e,pointer=false){if(tool?.kind!=='paste'||!e||viewOf(
    const holder={...published.$drafts};let draft=null;
    withDraftCopy(key,{},()=>{host.state().wallEdits.$drafts=holder;delete holder[key];draft=solidDraft(surface);installInto(draft,t.preview.faces);},surfaces);
    t.light={key,draft,solid:id,surfaces};
-  }catch(error){t.light=null;}
+  }catch(error){t.light=null;t.valid=false;if(t.preview)t.preview.valid=false;host.message(error.message);}
  }
  function placePaste(e){previewPaste(e);const t=tool;if(!t?.valid||!t.preview)return true;try{const edits=host.state().wallEdits||={},prefix='paste-'+t.op,preview=pastedCurveIds(t.preview,prefix);
    if(!workingPlane&&preview.faces.length&&preview.faces.every(f=>f.feature)){installStickers(t.ref,preview.faces);window.ExteriorModel.validateEdits(edits,t.before);host.commit(t.before);tool=null;clearGuides();host.message('Stickers placed. T cycles trim for the selected group.');host.redraw();return true;}

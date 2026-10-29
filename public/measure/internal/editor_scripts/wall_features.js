@@ -88,7 +88,11 @@ function placeGroup(shapes,boundaries,screen,radius=12,regions=boundaries.filter
 
 function containsShape(points,outlines){const area=ps=>Math.abs(ps.reduce((s,p,i)=>{const q=ps[(i+1)%ps.length];return s+p.x*q.y-p.y*q.x;},0)/2);return W.subtract({points},outlines.map(points=>({points}))).reduce((s,p)=>s+area(p),0)<1e-7;}
 
-function validate(points,outlines,others=[]){if(points.length<3||!points.every(p=>[p.x,p.y,p.z].every(Number.isFinite)))throw Error('Feature geometry is invalid.');const b=bounds(points);if(b.right-b.left<.01||b.top-b.bottom<.01)throw Error('Keep the shape at least 0.4 inches wide and high.');if(!containsShape(points,outlines))throw Error('That size or position extends beyond the supporting face.');const area=ps=>Math.abs(ps.reduce((s,p,i)=>{const q=ps[(i+1)%ps.length];return s+p.x*q.y-p.y*q.x;},0)/2);for(const f of others)if(area(points)-W.subtract({points},[{points:f.points}]).reduce((s,r)=>s+area(r),0)>1e-7)throw Error('That position overlaps another feature.');}
+function validate(points,outlines,others=[]){if(points.length<3||!points.every(p=>[p.x,p.y,p.z].every(Number.isFinite)))throw Error('Feature geometry is invalid.');const b=bounds(points);if(b.right-b.left<.01||b.top-b.bottom<.01)throw Error('Keep the shape at least 0.4 inches wide and high.');if(!containsShape(points,outlines))throw Error('That size or position extends beyond the supporting face.');const area=ps=>Math.abs(ps.reduce((s,p,i)=>{const q=ps[(i+1)%ps.length];return s+p.x*q.y-p.y*q.x;},0)/2);// Only shapes whose boxes meet can overlap; the clip's rounding on curve samples
+ // (about 1e-7 m²) must never read as an overlap, so a real one must exceed 10 mm².
+ const box=bounds(points),meets=f=>{const o=bounds(f.points);return o.left<box.right-1e-6&&o.right>box.left+1e-6&&o.bottom<box.top-1e-6&&o.top>box.bottom+1e-6;};
+ for(const f of others)if(meets(f)&&area(points)-W.subtract({points},[{points:f.points}]).reduce((s,r)=>s+area(r),0)>OVERLAP_AREA)throw Error('That position overlaps another feature.');}
+const OVERLAP_AREA=1e-5;
 
 // Trim is derived from the opening, so edits and copies cannot leave orphan strips.
 const trimSizes=[0,2,3,4,6];
