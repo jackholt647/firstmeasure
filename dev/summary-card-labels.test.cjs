@@ -5,9 +5,14 @@ const test=require('node:test'),assert=require('node:assert/strict');
 const {chromium}=require('../public/v1/node_modules/playwright-core');
 const path=require('node:path'),root=path.resolve(__dirname,'..');
 const SCRIPTS=['public/v1/node_modules/jspdf/dist/jspdf.umd.min.js','public/libraries/report-units.js','public/measure/internal/editor_scripts/pdf.js','public/measure/internal/editor_scripts/vendor/clipper-lib-6.4.2-clipper.js','public/measure/internal/editor_scripts/vendor/earcut-3.2.3-earcut.dev.js','public/measure/internal/editor_scripts/exterior_geometry.js','public/measure/internal/editor_scripts/wall_solid_geometry.js','public/measure/internal/editor_scripts/exterior_report_model.js','public/measure/internal/editor_scripts/exterior_pdf.js','public/measure/internal/editor_scripts/pdf_standalone.js'];
-let browser,page;
+let browser,page,noBrowser;
 test.before(async()=>{
- browser=await chromium.launch({executablePath:process.env.CHROME_PATH||'C:/Program Files/Google/Chrome/Application/chrome.exe',headless:true});
+ // CHROME_PATH, Windows Chrome, then Playwright's own Chromium; a host with none (the dev push router) skips.
+ const fs=require('node:fs'),win='C:/Program Files/Google/Chrome/Application/chrome.exe';
+ for(const executablePath of [process.env.CHROME_PATH,fs.existsSync(win)&&win].filter(Boolean).concat(undefined)){
+  try{browser=await chromium.launch({executablePath,headless:true});break;}catch(error){noBrowser='no browser on this host: '+String(error.message).split('\n')[0];}
+ }
+ if(!browser)return;
  page=await browser.newPage();
  await page.route('**/*',async route=>{
   const url=new URL(route.request().url());
@@ -74,7 +79,8 @@ function assertNoOverlap(rows,where){
  return rows;
 }
 const label=(rows,text)=>rows.find(r=>r.label.map(l=>l.value).join(' ').replace(/- /g,'-')===text);
-test('metric summary card: Headwall and Sidewall Flashing never overlap their values, portrait and landscape',async()=>{
+test('metric summary card: Headwall and Sidewall Flashing never overlap their values, portrait and landscape',async t=>{
+ if(!browser)return t.skip(noBrowser);
  for(const orientation of ['portrait','landscape']){
   const rows=assertNoOverlap(cardRows(await render({orientation}),{roofArea:'Roof Area'}),orientation);
   for(const name of ['Headwall Flashing','Sidewall Flashing']){
@@ -91,7 +97,8 @@ test('metric summary card: Headwall and Sidewall Flashing never overlap their va
 const PACKS={"de-DE": {"Roof Area": "Dachfläche", "Facets": "Dachflächen", "Pitch": "Dachneigung", "Skylights": "Dachfenster", "Chimneys": "Schornsteine", "Ridge": "First", "Hip": "Grat", "Valley": "Kehle", "Rake": "Ortgang", "Eave": "Traufe", "Headwall Flashing": "Firstwandanschlussblech", "Sidewall Flashing": "Seitenwandanschlussblech", "Transition": "Übergang", "Parapet Wall": "Attika", "Protrusion": "Dachaufbau", "Chimney Back Pan": "Kamin-Rückblech", "Chimney Step": "Kamin-Stufenblech", "Chimney Apron": "Kamin-Frontblech", "Counter Flashing": "Gegenblech"}, "nl-NL": {"Roof Area": "Dakoppervlakte", "Facets": "Dakvlakken", "Pitch": "Dakhelling", "Skylights": "Dakramen", "Chimneys": "Schoorstenen", "Ridge": "Nok", "Hip": "Hoekkeper", "Valley": "Kilgoot", "Rake": "Gevelrand", "Eave": "Dakrand", "Headwall Flashing": "Aansluiting tegen opgaande wand", "Sidewall Flashing": "Zijaansluiting", "Transition": "Overgang", "Parapet Wall": "Attikamuur", "Protrusion": "Uitstekend deel", "Chimney Back Pan": "Achterplaat schoorsteen", "Chimney Step": "Trapsgewijze aansluiting schoorsteen", "Chimney Apron": "Voorplaat schoorsteen", "Counter Flashing": "Tegenflitsing"}, "da-DK": {"Roof Area": "Tagareal", "Facets": "Tagflader", "Pitch": "Hældning", "Skylights": "Ovenlysvinduer", "Chimneys": "Skorstene", "Ridge": "Tagryg", "Hip": "Valm", "Valley": "Skotrende", "Rake": "Vindskede", "Eave": "Tagfod", "Headwall Flashing": "Inddækning ved gavl", "Sidewall Flashing": "Inddækning ved sidevæg", "Transition": "Overgang", "Parapet Wall": "Brystning", "Protrusion": "Fremspring", "Chimney Back Pan": "Baginddækning ved skorsten", "Chimney Step": "Trininddækning ved skorsten", "Chimney Apron": "Forkantsinddækning ved skorsten", "Counter Flashing": "Modinddækning"}, "sv-SE": {"Roof Area": "Takyta", "Facets": "Takytor", "Pitch": "Taklutning", "Skylights": "Takfönster", "Chimneys": "Skorstenar", "Ridge": "Nock", "Hip": "Höft", "Valley": "Ränndal", "Rake": "Gavelkant", "Eave": "Takfot", "Headwall Flashing": "Anslutningsbeslag vid vägg", "Sidewall Flashing": "Sidoväggsbeslag", "Transition": "Övergång", "Parapet Wall": "Parapetvägg", "Protrusion": "Utskjutande del", "Chimney Back Pan": "Skorstensbeslag, bakstycke", "Chimney Step": "Skorstensstegbeslag", "Chimney Apron": "Skorstensbeslag, framstycke", "Counter Flashing": "Motbeslag"}};
 // Nothing of the label is lost: the lines read as the label once spaces and hyphens are set aside.
 const letters=s=>s.replace(/[\s-]/g,'');
-test('translated line-type names are used in the card, long ones wrap between words and nothing is cut off',async()=>{
+test('translated line-type names are used in the card, long ones wrap between words and nothing is cut off',async t=>{
+ if(!browser)return t.skip(noBrowser);
  for(const [locale,labels] of Object.entries(PACKS))for(const orientation of ['portrait','landscape']){
   const where=locale+' '+orientation,rows=assertNoOverlap(cardRows(await render({orientation,manifest:{report_language:locale},labels}),{roofArea:labels['Roof Area']}),where);
   const shown=rows.map(r=>r.label.map(l=>l.value));
