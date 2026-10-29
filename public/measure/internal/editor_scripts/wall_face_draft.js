@@ -744,7 +744,7 @@ function perf_snap(d,e,raw=null){
    if(!add){draftSelection={};picked=[];solidPoints=[];selectedBasePoints=[];}
    pickedLines=[];solidEdges=[];lineSelection=[];selectedSolid=null;selectedRegion=null;
    if(best.solid){solidPoints=[...new Set([...solidPoints,best.solid])];(host.selectBox||host.select)(null);}
-   else {const d=best.d||ensure(best.w),key=draftKey(d),n=best.n||draftNodes(d).find(n=>distance3(world(d,n),best.p)<.0001);if(!n)return;activeDraftKey=key;const ids=draftSelection[key]||[];draftSelection[key]=[...new Set([...(add?ids:[]),n.id])];picked=draftSelection[key];host.select(best.w?.id||walls().find(w=>d.members.includes(w.id))?.id||null);}
+   else {const d=best.d||ensure(best.w),key=draftKey(d),at=n=>distance3(world(d,n),best.p)<.0001,n=best.n||draftNodes(d).find(at)||d.sketch.nodes.find(n=>at(n)&&!(d.removedPoints||[]).includes(n.id));if(!n)return;activeDraftKey=key;const ids=draftSelection[key]||[];draftSelection[key]=[...new Set([...(add?ids:[]),n.id])];picked=draftSelection[key];host.select(best.w?.id||walls().find(w=>d.members.includes(w.id))?.id||null);}
    const count=selectedWorldPoints().length;host.message(count+(count===1?' point selected':' points selected'));host.redraw();
   };return true;
  }
