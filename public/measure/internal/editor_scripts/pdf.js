@@ -6106,35 +6106,59 @@ function drawSummaryPageLayout(doc, report, imgData, imgRatio, x, y, w, facetCou
 /**
  * One label/value row of the summary page's totals card (1M8-256). The value keeps its width at the right; a label
  * that would reach it shrinks (down to 6 pt), then wraps onto two lines within the row, so long labels (Headwall
- * Flashing, and longer in other languages) never overlap their values. Returns what was laid out.
+ * Flashing, and longer in other languages) never overlap their values. A word is broken inside only when it is
+ * wider than the label at 6 pt, and nothing is cut off (FM-305). Returns what was laid out.
  */
 function drawPdfStatRow(doc, label, value, x, y, width, size = 9) {
-    const text = String(label ?? ''), shown = String(value ?? '');
+    const text = String(label ?? '').trim(), shown = String(value ?? '');
     doc.setFont("Montserrat", "normal"); doc.setFontSize(size);
     const valueW = doc.getTextWidth(shown);
     const labelW = Math.max(8, width - valueW - 2);
     doc.setFont("Montserrat", "bold");
-    // Wrap at spaces and after hyphens (German compounds), never inside a word unless one word alone is too wide.
-    const wrap = () => {
-        const pieces = text.split(/\s+/).flatMap(word => word.split(/(?<=-)/)).filter(Boolean);
-        const lines = [];
-        for (const piece of pieces) {
-            const last = lines[lines.length - 1];
-            const joined = last == null ? piece : last + (last.endsWith('-') ? '' : ' ') + piece;
-            if (last != null && doc.getTextWidth(joined) <= labelW) lines[lines.length - 1] = joined;
-            else lines.push(piece);
+    const fits = line => doc.getTextWidth(line) <= labelW;
+    // Lines break at spaces and after hyphens (German compounds); `space` is whether a space comes before a piece.
+    const words = text.split(/\s+/).filter(Boolean).flatMap(word => word.split(/(?<=-)/).map((part, i) => ({ part, space: i === 0 })));
+    const wrap = pieces => pieces.reduce((lines, { part, space }) => {
+        const joined = lines.length ? lines[lines.length - 1] + (space ? ' ' : '') + part : null;
+        if (joined != null && fits(joined)) lines[lines.length - 1] = joined; else lines.push(part);
+        return lines;
+    }, []);
+    // A piece wider than the label is broken inside with a hyphen: into two halves as even as possible, or (a piece
+    // too long for two lines) where each line reaches the edge.
+    const broken = () => words.flatMap(({ part, space }) => {
+        if (fits(part)) return [{ part, space }];
+        let even = null;
+        for (let n = 1; n < part.length; n++) {
+            const head = part.slice(0, n) + '-', tail = part.slice(n);
+            if (!fits(head) || !fits(tail)) continue;
+            const widest = Math.max(doc.getTextWidth(head), doc.getTextWidth(tail));
+            if (!even || widest < even.widest) even = { head, tail, widest };
         }
-        return lines.some(line => doc.getTextWidth(line) > labelW) ? doc.splitTextToSize(text, labelW) : lines;
-    };
-    // One line down to 7.5 pt, then two lines at 7.5 pt and below, down to 6 pt.
-    let labelSize = size, lines = [text];
-    for (; labelSize >= 6; labelSize -= 0.5) {
+        if (even) return [{ part: even.head, space }, { part: even.tail, space: false }];
+        const out = [];
+        let rest = part;
+        while (!fits(rest) && rest.length > 1) {
+            let n = rest.length - 1;
+            while (n > 1 && !fits(rest.slice(0, n) + '-')) n--;
+            out.push({ part: rest.slice(0, n) + '-', space: out.length ? false : space });
+            rest = rest.slice(n);
+        }
+        out.push({ part: rest, space: out.length ? false : space });
+        return out;
+    });
+    // One line down to 7.5 pt; then one line or two lines broken between words, down to 6 pt.
+    let labelSize, lines = null;
+    for (labelSize = size; labelSize >= 6; labelSize -= 0.5) {
         doc.setFontSize(labelSize);
-        if (doc.getTextWidth(text) <= labelW) { lines = [text]; break; }
-        if (labelSize <= 7.5) { lines = wrap(); if (lines.length <= 2) break; }
+        if (fits(text)) { lines = [text]; break; }
+        if (labelSize <= 7.5) { const wrapped = wrap(words); if (wrapped.length <= 2 && wrapped.every(fits)) { lines = wrapped; break; } }
     }
-    labelSize = Math.max(6, labelSize); doc.setFontSize(labelSize);
-    if (lines.length > 2 || lines.some(line => doc.getTextWidth(line) > labelW)) lines = doc.splitTextToSize(text, labelW).slice(0, 2);
+    // Otherwise a word too wide is broken inside at 6 pt, and the label gets smaller only while it needs a third line.
+    if (!lines) for (labelSize = 6; ; labelSize -= 0.5) {
+        doc.setFontSize(labelSize);
+        lines = wrap(broken());
+        if (lines.length <= 2 || labelSize <= 4) break;
+    }
     const lineH = labelSize * 0.3528 * 1.05;
     lines.forEach((line, i) => doc.text(line, x, y - ((lines.length - 1) * lineH / 2) + i * lineH));
     doc.setFont("Montserrat", "normal"); doc.setFontSize(size);
