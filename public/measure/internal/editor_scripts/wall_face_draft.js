@@ -702,6 +702,9 @@ function perf_snap(d,e,raw=null){
   },before);return true;
  }
  const pickVisible=(p,e)=>viewOf(e)!=='3d'||host.pickVisible?.(p,e)!==false;
+ // Through translucent walls every drawn point marker can be clicked, as the marquee
+ // selects them: a point in front wins, else the nearest one behind a face.
+ function nearestPoint(items,e,at,view=viewOf(e),radius=12){const through=view==='3d'&&host.state()?.translucent!==false&&!['textured','rendered','match-textured'].includes(host.state()?.displayMode);let front=null,back=null;for(const c of items){const p=at(c),q=host.screen(p,view),r=Math.hypot(q.x-e.clientX,q.y-e.clientY);if(q.visible===false||!(r<radius))continue;if(pickVisible(p,e)){if(!front||r<front.r)front={c,r};}else if(through&&(!back||r<back.r))back={c,r};}return (front||back)?.c||null;}
  const pickLineVisible=(pair,e,t=.5)=>viewOf(e)!=='3d'||(host.pickLineVisible?host.pickLineVisible(pair,e):pickVisible({x:pair[0].x+(pair[1].x-pair[0].x)*t,y:pair[0].y+(pair[1].y-pair[0].y)*t,z:pair[0].z+(pair[1].z-pair[0].z)*t},e));
  function pickVisiblePoint(e){
   if(lineSelect||tool||lineMode()||viewOf(e)!=='3d'||e.button!==0||['textured','rendered','match-textured'].includes(host.state()?.displayMode))return false;
@@ -717,7 +720,7 @@ function perf_snap(d,e,raw=null){
    for(const w of walls())if(!Object.values(all()).some(d=>d.members.includes(w.id)))for(const p of [...w.bottom,...w.top])if(!w.sourceId||visible.has(W.vertexKey(p)))candidates.push({p,w});
   }
   if(host.selectBaseEntities)for(const p of basePoints())candidates.push({p,base:true});
-  let best=null,dist=12;for(const c of candidates){const q=host.screen(c.p,'3d'),r=Math.hypot(q.x-e.clientX,q.y-e.clientY);if(q.visible!==false&&r<dist&&pickVisible(c.p,e)){dist=r;best=c;}}
+  let best=nearestPoint(candidates,e,c=>c.p,'3d');
   if(!best)return false;
   if(e.ctrlKey||e.metaKey){beginBox(e,current());box.click=()=>{
    selectedSolid=null;selectedRegion=null;
@@ -757,7 +760,7 @@ function perf_snap(d,e,raw=null){
   if(!tool&&e.button===0&&viewOf(e)==='3d'&&pickLine3D(e))return true;
   if(tool||!viewOf(e))return false;const graph=wire(),nodesById=new Map(graph.nodes.map(n=>[n.id,n])),byId=id=>nodesById.get(id);let nearest=null,distance=12;
   if(lineMode()){for(const edge of graph.edges){const a=host.screen(byId(edge.a),viewOf(e)),b=host.screen(byId(edge.b),viewOf(e)),dx=b.x-a.x,dy=b.y-a.y,t=Math.max(0,Math.min(1,((e.clientX-a.x)*dx+(e.clientY-a.y)*dy)/(dx*dx+dy*dy))),dist=Math.hypot(e.clientX-a.x-t*dx,e.clientY-a.y-t*dy);if(dist<distance&&pickLineVisible([byId(edge.a),byId(edge.b)],e,t)){distance=dist;nearest=edge.id;}}}
-  else for(const n of graph.nodes.filter(n=>!n.curveSample)){const p=host.screen(n,viewOf(e)),dist=Math.hypot(p.x-e.clientX,p.y-e.clientY);if(dist<distance&&pickVisible(n,e)){distance=dist;nearest=n.id;}}
+  else nearest=nearestPoint(graph.nodes.filter(n=>!n.curveSample),e,n=>n)?.id||null;
   if(nearest){beginBox(e,current());box.click=()=>{if(!e.shiftKey)draftSelection={};pickedLines=[];const list=lineMode()?solidEdges:solidPoints,next=e.shiftKey?(list.includes(nearest)?list.filter(id=>id!==nearest):[...list,nearest]):[nearest];solidPoints=lineMode()?[]:next;solidEdges=lineMode()?next:[];selectedSolid=null;selectedRegion=null;picked=[];const w=selected()||walls()[0];host.select(w?.id||null);host.redraw();};return true;}
 
   if(pointsOnly||!solidMeshes.length||viewOf(e)!=='3d')return false;
@@ -883,7 +886,7 @@ function perf_snap(d,e,raw=null){
   const scene=lineSelect?{points:[],lines:lineSelect.lines(),baseSegments:[],curveGroups:new Map()}:sceneLines();
   if(!lineSelect)scene.lines=new Map([...scene.lines,...soffits().map(c=>[c.id,c.pair])]);
   const {points,lines,baseSegments,curveGroups}=scene,screen=p=>host.screen(p,'3d'),valid=p=>p.visible!==false&&Number.isFinite(p.x)&&Number.isFinite(p.y);
-  if(!hitOnly&&!lineSelect&&!lineMode()&&points.some(p=>{const q=screen(p);return valid(q)&&Math.hypot(q.x-e.clientX,q.y-e.clientY)<12&&pickVisible(p,e);}))return false;
+  if(!hitOnly&&!lineSelect&&!lineMode()&&points.some(p=>{const q=screen(p);return valid(q)&&Math.hypot(q.x-e.clientX,q.y-e.clientY)<12&&(host.state()?.translucent!==false||pickVisible(p,e));}))return false;
   let nearest=null,distance=10;for(const [id,pair]of lines){if(dividerOnly&&!lineSelect&&!isDivisionPair(...pair,dividers))continue;if(host.wallsVisible?.()===false&&!baseSegments.some(edge=>W.sharedIntervals(...pair,[{points:edge}]).length))continue;const [a,b]=pair.map(screen);if(!valid(a)||!valid(b))continue;const dx=b.x-a.x,dy=b.y-a.y,l2=dx*dx+dy*dy;if(l2<1)continue;const t=Math.max(0,Math.min(1,((e.clientX-a.x)*dx+(e.clientY-a.y)*dy)/l2)),dist=Math.hypot(e.clientX-a.x-t*dx,e.clientY-a.y-t*dy);if(dist<distance&&(lineSelect?.throughFaces||pickLineVisible(pair,e,t)||(isSoffit(pair)&&host.pickSoffitVisible?.(pair,e)))){distance=dist;nearest={id,pair,...(hitOnly?{t}:{})};}}
   if(hitOnly)return nearest;
   if(!nearest){if(lineSelect&&!hitOnly&&viewOf(e)==='3d'){const add=!!(e.shiftKey||e.ctrlKey||e.metaKey);beginBox(e,current());box.lineSelect=true;box.click=()=>{if(!add&&lineSelection.length){lineSelection=[];host.message('0 lines selected');host.redraw();}};return true;}return false;}const curved=[...curveGroups.values()].find(g=>g.pairs.some(pair=>W.edgeKey(...pair)===W.edgeKey(...nearest.pair)));if(curved){nearest={...nearest,...curved};}const baseLine=baseSegments.some(pair=>W.sharedIntervals(...nearest.pair,[{points:pair}]).reduce((s,[a,b])=>s+b-a,0)>.99999);const wallLine=host.wallsVisible?.()!==false&&[...solids().filter(f=>!f.deleted&&!f.drafted),...Object.values(all()).flatMap(d=>d.faces.filter(f=>!f.boundaryHole&&!f.solidId&&!deleted(d,f)).map(f=>({points:f.points.map(p=>world(d,p)),holes:(f.holes||[]).map(r=>r.map(p=>world(d,p)))}))),...walls().filter(w=>!Object.values(all()).some(d=>d.members.includes(w.id))).map(w=>({points:[w.bottom[0],w.bottom[1],w.top[1],w.top[0]]}))].some(f=>W.sharedIntervals(...nearest.pair,[f]).some(([a,b])=>b-a>1e-6));beginBox(e,current());box.lineClick=true;if(lineSelect)box.lineSelect=true;box.click=()=>{mouse=e;const add=!!lineSelect||e.ctrlKey||e.metaKey||e.shiftKey;if(nearest.draftKey){activeDraftKey=nearest.draftKey;pickedLines=nearest.edgeIds||[nearest.edgeId];picked=[];solidPoints=[];solidEdges=[];lineSelection=[];draftSelection={};selectedSolid=null;selectedRegion=null;host.message('1 curve selected');host.redraw();return;}if(baseLine&&!wallLine&&host.selectBaseEntities&&!lineSelection.some(l=>l.id===nearest.id)){lineSelection=[];host.selectBaseEntities([], [nearest.pair],add,!!(e.ctrlKey||e.metaKey));return;}lineSelection=e.ctrlKey||e.metaKey||lineSelect&&lineSelection.some(l=>l.id===nearest.id)?lineSelection.filter(l=>l.id!==nearest.id):add?[...lineSelection.filter(l=>l.id!==nearest.id),nearest]:[nearest];draftSelection={};picked=[];pickedLines=[];solidPoints=[];solidEdges=[];if(lineSelect?.kind!=='trim'){selectedRegion=null;selectedSolid=null;}host.select(null);host.message(lineSelection.length+' lines selected');host.redraw();};return true;
@@ -1844,7 +1847,7 @@ function perf_moveScene(){
    const p=snap(d,e);if(p){const placed=transaction(()=>{const next=add(d,p);for(const from of picked)if(from!==next)S.connect(d,[from,next]);picked=[next];},tool.before);if(placed){tool=null;clearGuides();}host.redraw();}return true;
   }
   if(lineMode()){let best=null,distance=12;for(const edge of d.sketch.edges){const a=host.screen(world(d,d.sketch.nodes.find(n=>n.id===edge.a)),viewOf(e)),b=host.screen(world(d,d.sketch.nodes.find(n=>n.id===edge.b)),viewOf(e)),dx=b.x-a.x,dy=b.y-a.y,t=Math.max(0,Math.min(1,((e.clientX-a.x)*dx+(e.clientY-a.y)*dy)/(dx*dx+dy*dy))),dist=Math.hypot(e.clientX-a.x-t*dx,e.clientY-a.y-t*dy);if(dist<distance&&pickLineVisible([edge.a,edge.b].map(id=>world(d,d.sketch.nodes.find(n=>n.id===id))),e,t)){distance=dist;best=edge.id;}}if(best){pickedLines=e.shiftKey?(pickedLines.includes(best)?pickedLines.filter(id=>id!==best):[...pickedLines,best]):[best];picked=[];solidPoints=[];solidEdges=[];selectedRegion=null;selectedSolid=null;host.redraw();return true;}}
-  let best=null,distance=12;for(const n of draftNodes(d)){const p=host.screen(world(d,n),viewOf(e)),dist=Math.hypot(p.x-e.clientX,p.y-e.clientY);if(dist<distance&&pickVisible(world(d,n),e)){distance=dist;best=n.id;}}
+  let best=nearestPoint(draftNodes(d),e,n=>world(d,n))?.id||null;
   if(!best){beginBox(e,d);box.click=()=>selectRegion(d,e);return true;}beginBox(e,d);box.click=()=>{if(!e.shiftKey)draftSelection={};selectedRegion=null;pickedLines=[];solidPoints=[];solidEdges=[];picked=e.shiftKey?(picked.includes(best)?picked.filter(n=>n!==best):[...picked,best]):[best];if(e.shiftKey)draftSelection[draftKey(d)]=picked.slice();host.redraw();};return true;
  }
  const draftSupportCache=new Map();
