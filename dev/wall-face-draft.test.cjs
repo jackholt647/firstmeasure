@@ -1141,20 +1141,22 @@ test('resize axis widget highlights and switches axes without committing the pre
 });
 
 
-test('hidden points and lines cannot steal a front-face click through opaque walls',()=>{
- for(const translucent of [false]){const p=(x,y,z)=>({x,y,z}),front={id:'front',points:[p(0,0,0),p(4,0,0),p(4,0,4),p(0,0,4)]},rear={id:'rear',points:[p(2,2,2),p(3,2,2),p(3,2,3),p(2,2,3)]},f=fixture({state:{translucent,wallEdits:{$surfaces:[front,rear]}},walls:[],selected:null,globals:renderGlobals(),pickVisible:p=>p.y===0,pickLineVisible:pair=>pair.every(p=>p.y===0)});
- f.editor.draw3D({add(){}},p=>p);assert.equal(f.editor.pickVisiblePoint(f.e(2,2)),false);assert.equal(f.editor.pickLine3D(f.e(2.5,2)),false);assert.equal(f.editor.pickSolid(f.e(2,2)),true);f.listeners.pointerup(f.e(2,2));assert.equal(f.editor.featureSelection().solid.id,'front');
+test('hidden lines cannot steal a front-face click in either display mode',()=>{
+ for(const translucent of [true,false]){const p=(x,y,z)=>({x,y,z}),front={id:'front',points:[p(0,0,0),p(4,0,0),p(4,0,4),p(0,0,4)]},rear={id:'rear',points:[p(2,2,2),p(3,2,2),p(3,2,3),p(2,2,3)]},f=fixture({state:{translucent,wallEdits:{$surfaces:[front,rear]}},walls:[],selected:null,globals:renderGlobals(),pickVisible:p=>p.y===0,pickLineVisible:pair=>pair.every(p=>p.y===0)});
+ f.editor.draw3D({add(){}},p=>p);assert.equal(f.editor.pickLine3D(f.e(2.5,2)),false);assert.equal(f.editor.pickSolid(f.e(2.5,2.5)),true);f.listeners.pointerup(f.e(2.5,2.5));assert.equal(f.editor.featureSelection().solid.id,'front');
  }
 });
 
-test('through translucent walls a point behind a face is clicked and deleted; a front point still wins',()=>{
+test('a drawn point behind a face is clicked and deleted in either display mode; a front point still wins',()=>{
+ for(const translucent of [true,false]){
  const p=(x,y,z)=>({x,y,z}),front={id:'front',points:[p(0,0,0),p(4,0,0),p(4,0,4),p(0,0,4)]},rear={id:'rear',points:[p(2,2,2),p(3,2,2),p(3,2,3),p(2,2,3)]};
- const make=()=>fixture({state:{translucent:true,wallEdits:{$surfaces:structuredClone([front,rear])}},walls:[],selected:null,globals:renderGlobals(),pickVisible:p=>p.y===0,pickLineVisible:pair=>pair.every(p=>p.y===0)});
+ const make=()=>fixture({state:{translucent,wallEdits:{$surfaces:structuredClone([front,rear])}},walls:[],selected:null,globals:renderGlobals(),pickVisible:p=>p.y===0,pickLineVisible:pair=>pair.every(p=>p.y===0)});
  let f=make();f.editor.draw3D({add(){}},p=>p);assert.equal(f.editor.pickVisiblePoint(f.e(2,2)),true);f.listeners.pointerup(f.e(2,2));assert.equal(JSON.stringify(f.editor.pointSelection().map(({x,y,z})=>({x,y,z}))),JSON.stringify([p(2,2,2)]));
  f.editor.key({key:'Delete',preventDefault(){},stopPropagation(){},stopImmediatePropagation(){}});assert.equal(f.history.length,1,f.message());assert.ok(!f.state.wallEdits.$surfaces.some(s=>!s.deleted&&s.points.some(q=>q.x===2&&q.y===2&&q.z===2)),'the hidden corner is gone');
  f=make();f.editor.draw3D({add(){}},p=>p);assert.equal(f.editor.pickVisiblePoint(f.e(.05,.05)),true);f.listeners.pointerup(f.e(.05,.05));assert.equal(JSON.stringify(f.editor.pointSelection().map(({x,y,z})=>({x,y,z}))),JSON.stringify([p(0,0,0)]));
  f=make();f.editor.draw3D({add(){}},p=>p);assert.equal(f.editor.pickLine3D(f.e(2.5,2)),false,'hidden lines still cannot be clicked through a face');
- f=fixture({state:{translucent:true,displayMode:'textured',wallEdits:{$surfaces:structuredClone([front,rear])}},walls:[],selected:null,globals:renderGlobals(),pickVisible:p=>p.y===0});assert.equal(f.editor.pickVisiblePoint(f.e(2,2)),false,'textured view picks no points');
+ f=fixture({state:{translucent,displayMode:'textured',wallEdits:{$surfaces:structuredClone([front,rear])}},walls:[],selected:null,globals:renderGlobals(),pickVisible:p=>p.y===0});assert.equal(f.editor.pickVisiblePoint(f.e(2,2)),false,'textured view picks no points');
+ }
 });
 
 test('marquee selects through translucent walls but only visible points through opaque walls',()=>{
