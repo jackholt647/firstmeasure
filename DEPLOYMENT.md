@@ -1,5 +1,7 @@
 # FirstMeasure: local development and production deployment
 
+October 29 production hotfix `a8b97899`: [FM-310 doors and garage doors can be glass in the Full Exterior editor, off until someone turns it on](deploy/digitalocean/production-hotfix-20261029-a8b97899.md) on all roles, on top of `f4e8cb35`; editor only, no data changed; rollback is `f4e8cb35`.
+
 October 29 production hotfix `f4e8cb35`: [FM-305 / 1M8-256 summary card labels shrink, then wrap between words, and never run into their values; with FM-304 / 1M8-255 roof pitch in degrees for roofers outside the US](deploy/digitalocean/production-hotfix-20261029-f4e8cb35.md) on all roles; no data changed; rollback is `bbf23641`.
 
 October 29 production hotfix `bbf23641`: [FM-311 the Full Exterior Wall Notes page is always blank on the customer PDF; no "Review: …" warnings or stored notes are written on it](deploy/digitalocean/production-hotfix-20261029-bbf23641.md) on all roles, on top of `9af332be`; no data changed; rollback is `9af332be` everywhere.
