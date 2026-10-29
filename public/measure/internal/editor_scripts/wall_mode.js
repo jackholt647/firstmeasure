@@ -27,8 +27,8 @@
     // Trim mode lasts while the Trim menu is open: the views select lines for trim.
     // Textured views draw finished surfaces only, without the drafting overlays (lines, points, guides, previews)
     // these tools need. This one table decides what is unavailable there; buttons, keys and modes follow it.
-    const TEXTURED_UNAVAILABLE={plane:'Plane mode (P)',resoffit:'Resoffit',trim:'Trim',stickers:'Sticker placement',overlays:'Edit overlays',geometryKeys:'Editing shortcuts',selectionActions:'Selection actions'};
-    const TEXTURED_CONTROLS={resoffit:'#wall-resoffit',trim:'#roof-trim-tool',stickers:'.exterior-sticker-bar .ss-tile,.exterior-sticker-bar .exterior-face-toggle',overlays:'#wall-centers-toggle,#wall-line-centers-toggle,#wall-feature-dimensions,#wall-gap-toggle,#wall-lengths-all,#wall-lengths-moving,#wall-lengths-off'};
+    const TEXTURED_UNAVAILABLE={plane:'Plane mode (P)',resoffit:'Resoffit',stickers:'Sticker placement',overlays:'Edit overlays',geometryKeys:'Editing shortcuts',selectionActions:'Selection actions'};
+    const TEXTURED_CONTROLS={resoffit:'#wall-resoffit',stickers:'.exterior-sticker-bar .ss-tile,.exterior-sticker-bar .exterior-face-toggle',overlays:'#wall-centers-toggle,#wall-line-centers-toggle,#wall-feature-dimensions,#wall-gap-toggle,#wall-lengths-all,#wall-lengths-moving,#wall-lengths-off'};
     const TEXTURED_NOTE='Not available in Textured view — switch to Opaque (Tab)';
     function texturedView(){return enabled&&['textured','match-textured'].includes(surfaceMode());}
     function displaySupports(tool){return !(texturedView()&&Object.hasOwn(TEXTURED_UNAVAILABLE,tool));}
@@ -36,10 +36,12 @@
     function texturedBlockedKey(e){
         if(displaySupports('geometryKeys')||e.target.closest?.('input,textarea,select,[contenteditable=true],#wall-material-picker,#exterior-graphics,[role=menu],[role=dialog]'))return false;
         const k=e.key;if(['Shift','Control','Alt','Meta','Tab','Escape','Delete','Backspace','?'].includes(k)||/^F\d+$/.test(k))return false;
+        // Trim works in Textured: T, a typed width and Enter reach the open Trim menu.
+        if(trimMode&&!e.ctrlKey&&!e.metaKey&&(/^[\dtT.]$/.test(k)||k==='Enter'))return false;
         if(e.ctrlKey||e.metaKey)return ['a','c','v','x'].includes(k.toLowerCase());
         return k.length===1||k.startsWith('Arrow')||k==='Enter';
     }
-    let texturedNoticeTimer=null,syncingDisplay=false;
+    let texturedNoticeTimer=null,syncingDisplay=false,wasTextured=false;
     function texturedNotice(text=TEXTURED_NOTE,ms=2600){
         const host=document.getElementById('three-view-wrapper')||document.body;let el=document.getElementById('textured-notice');
         if(!el){el=document.createElement('div');el.id='textured-notice';el.setAttribute('role','status');el.setAttribute('aria-live','polite');el.style.cssText='position:absolute;left:50%;bottom:64px;transform:translateX(-50%);z-index:3100;background:#202124e6;color:#fff;font:12px system-ui;padding:6px 10px;border-radius:6px;pointer-events:none';host.appendChild(el);}
@@ -49,12 +51,12 @@
     function syncDisplayCapabilities(){
         if(syncingDisplay)return;syncingDisplay=true;
         try{
-            const textured=texturedView();
-            if(textured){
+            // Only on the switch into Textured: a redraw during an edit (Trim applying) must not end it.
+            const textured=texturedView(),entering=textured&&!wasTextured;wasTextured=textured;
+            if(entering){
                 if(wallEditor?.busy?.()&&wallEditor.interaction?.()!=='Paint material')wallEditor.clear();
                 for(let i=0;i<3&&wallEditor?.planeActive?.()&&typeof wallEditor.togglePlane==='function';i++)wallEditor.togglePlane();
                 if(resoffitMode)closeResoffit();
-                if(trimMode||roofTrimEditor?.hasSelection?.()){roofTrimEditor?.finish?.();roofTrimEditor?.clear?.();}
                 if(baseEditor?.busy?.())baseEditor.leave?.();
             }
             for(const selector of Object.values(TEXTURED_CONTROLS))for(const el of document.querySelectorAll(selector)){

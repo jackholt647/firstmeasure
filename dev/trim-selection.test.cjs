@@ -108,3 +108,9 @@ test('the Trim menu and its selection stay open when the window loses focus (a c
  assert.ok(f.listeners['window:blur'],'wall mode listens for blur');f.listeners['window:blur']({});
  assert.equal(menu.summary().total,total,'the selection is kept');assert.equal(dom.nodes.get('roof-trim-options').hidden,false,'the menu stays open');
 });
+test('Trim works in Textured: switching keeps the menu and selection, and T trims the selection there',()=>{
+ const t=setup(),{f,menu,dom}=t,total=menu.summary().total,toggle=f.elements.get('wall-translucency-toggle'),mode=()=>f.ctx.WallMode.serialize().displayMode;
+ for(let i=0;i<4&&mode()!=='textured';i++)toggle.onclick();assert.equal(mode(),'textured');
+ assert.equal(menu.summary().total,total,'the selection is kept');assert.equal(dom.nodes.get('roof-trim-options').hidden,false,'the menu stays open');
+ assert.equal(menu.summary().missing,true);t.key('t');const s=menu.summary();assert.equal(s.missing,false,'T added trim in Textured');assert.ok(s.items.every(i=>i.width>0),'every piece, the wall line included');
+});

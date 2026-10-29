@@ -639,8 +639,8 @@ test('textured views block plane mode and overlay tools, exit them on entry, and
  const f=fixture(true,{createWallEditor:()=>editor});
  // Buttons of every unavailable tool, as the real toolbar provides them.
  const el=id=>{const attrs={title:'Original '+id};return {id,dataset:{},title:attrs.title,classList:{set:new Set(),add(c){this.set.add(c);},remove(c){this.set.delete(c);},contains(c){return this.set.has(c);}},getAttribute(k){return k==='title'?this.title:attrs[k]??null;},setAttribute(k,v){if(k==='title')this.title=v;else attrs[k]=String(v);},removeAttribute(k){if(k==='title')this.title='';else delete attrs[k];},attrs};};
- const buttons=['#wall-resoffit','#roof-trim-tool','.ss-tile','#wall-lengths-all'].map(el),query=f.ctx.document.querySelectorAll;
- f.ctx.document.querySelectorAll=selector=>{const found=buttons.filter(b=>selector.includes(b.id));return found.length?found:query.call(f.ctx.document,selector);};
+ const buttons=['#wall-resoffit','.ss-tile','#wall-lengths-all'].map(el),trimButton=el('#roof-trim-tool'),query=f.ctx.document.querySelectorAll;
+ f.ctx.document.querySelectorAll=selector=>{const found=[...buttons,trimButton].filter(b=>selector.includes(b.id));return found.length?found:query.call(f.ctx.document,selector);};
  const key=(k,extra={})=>{let prevented=false;f.listeners['window:keydown']({key:k,target:{closest:()=>false},preventDefault(){prevented=true;},stopImmediatePropagation(){},...extra});return prevented;};
  f.ctx.WallMode.setEnabled(true);f.soffits[1].onclick();const mode=()=>f.ctx.WallMode.serialize().displayMode,toggle=f.elements.get('wall-translucency-toggle');
  toggle.onclick();assert.equal(mode(),'opaque');assert.equal(f.ctx.WallMode.displaySupports('plane'),true);
@@ -650,6 +650,7 @@ test('textured views block plane mode and overlay tools, exit them on entry, and
  assert.equal(key('ArrowLeft'),true,'nudges are ignored');
  for(const b of buttons){assert.equal(b.attrs['aria-disabled'],'true',b.id);assert.ok(b.classList.contains('textured-unavailable'));assert.match(b.title,/Not available in Textured view/);}
  assert.equal(f.ctx.WallMode.selectionActions().length,0,'no selection actions in Textured');
+ assert.equal(trimButton.attrs['aria-disabled'],undefined,'Trim stays available in Textured');assert.ok(!trimButton.classList.contains('textured-unavailable'));assert.equal(f.ctx.WallMode.displaySupports('trim'),true);
  toggle.onclick();assert.equal(mode(),'translucent');assert.equal(f.ctx.WallMode.displaySupports('plane'),true);
  for(const b of buttons){assert.equal(b.attrs['aria-disabled'],undefined,b.id);assert.ok(!b.classList.contains('textured-unavailable'));assert.equal(b.title,'Original '+b.id,'tooltip restored');}
  key('p');assert.equal(plane,true,'P works again after leaving Textured');
