@@ -695,6 +695,15 @@ test('line M snaps to a retained edge point with a yellow cue and commits the ex
  const objects=[];f.editor.draw3D({add:o=>objects.push(o)},p=>p);assert.ok(objects.some(o=>o.material?.color==='#FFD700'));assert.ok(f.d().faces.every(s=>s.points.some(p=>Math.abs(p.y-2)<1e-6)));
  const preview=JSON.stringify(f.state.wallEdits);f.editor.down(f.e(2,1.96));assert.equal(JSON.stringify(f.state.wallEdits),preview);assert.equal(f.editor.busy(),false);
 });
+test('a shape drawn on a wall and made a sticker with Shift+W moves with M and nudges like any sticker',()=>{
+ const f=fixture({globals:renderGlobals()});f.editor.doubleClick(f.e(1,1),f.w);for(const [x,y]of [[2,1],[2,2],[1,2],[1,1]]){f.editor.key({key:'n'});f.editor.down(f.e(x,y));f.listeners.pointerup(f.e(x,y));}f.editor.down(f.e(1.5,1.5));f.listeners.pointerup(f.e(1.5,1.5));
+ f.editor.key({key:'W',shiftKey:true});const F=require('../public/measure/internal/editor_scripts/wall_features.js'),sticker=()=>f.d().faces.find(face=>face.feature),start=F.bounds(sticker().points);assert.equal(sticker().feature.type,'window',f.message());
+ // Its corners came from drawing, so they may be fixed sketch nodes inside the wall: still no building boundary.
+ for(const n of f.d().sketch.nodes)if(sticker().points.some(p=>p.nodeId===n.id))n.fixed=true;
+ f.listeners.pointermove({...f.e(1.5,1.5),buttons:0});f.editor.key({key:'m'});f.listeners.pointermove({...f.e(2.6,2.3),buttons:0});assert.doesNotMatch(f.message(),/boundary/,f.message());f.editor.down(f.e(2.6,2.3));
+ const moved=F.bounds(sticker().points);assert.ok(Math.abs((moved.left+moved.right)/2-2.6)<.02&&Math.abs((moved.bottom+moved.top)/2-2.3)<.02,JSON.stringify({moved,message:f.message()}));assert.ok(Math.abs(moved.right-moved.left-(start.right-start.left))<1e-8,'same size');
+ f.editor.key({key:'ArrowLeft'});assert.ok(Math.abs(F.bounds(sticker().points).left-moved.left+F.FT/12)<1e-8,f.message());
+});
 test('window labeling, size cycling, nudging and metadata survive resolve and reload',()=>{
  const f=fixture({globals:renderGlobals()});f.editor.doubleClick(f.e(1,1),f.w);for(const [x,y]of [[2,1],[2,2],[1,2],[1,1]]){f.editor.key({key:'n'});f.editor.down(f.e(x,y));f.listeners.pointerup(f.e(x,y));}f.editor.down(f.e(1.5,1.5));f.listeners.pointerup(f.e(1.5,1.5));
  const selected=()=>f.d().faces.find(f=>f.feature),before=f.d().faces.find(f=>f.opening).points.map(p=>({...p}));f.editor.key({key:'W',shiftKey:true});assert.equal(selected().feature.type,'window');assert.equal(JSON.stringify(selected().points),JSON.stringify(before));
