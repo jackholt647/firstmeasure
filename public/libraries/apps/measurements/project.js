@@ -1755,7 +1755,8 @@ window.PlatformCommerce.onReady(function(){
       }
       if (Array.isArray(value)) {
         value.forEach((item) => {
-          const type = reportObstacleType(item?.type || item?.line_type || item?.label || item?.name);
+          if (!item || typeof item !== 'object') return;
+          const type = reportObstacleType(item.type || item.line_type || item.label || item.name);
           const length = reportLineLength(item);
           const [start, end] = reportLinePoints(item);
           if (type && length != null) {
@@ -1772,7 +1773,9 @@ window.PlatformCommerce.onReady(function(){
         return;
       }
       if (typeof value !== 'object') return;
-      Object.values(value).forEach((child) => visit(child, depth + 1));
+      Object.entries(value).forEach(([key, child]) => {
+        if (!REPORT_SUMMARY_NON_MEASUREMENT_KEYS.has(key)) visit(child, depth + 1);
+      });
     };
     sources.forEach((source) => visit(source));
 
@@ -1979,24 +1982,21 @@ window.PlatformCommerce.onReady(function(){
     if (!xmlUrl || !key || measurementSummaryMetricCache.has(key) || measurementSummaryMetricLoads.has(key)) return;
     measurementSummaryMetricLoads.add(key);
     const sharedMeasurements = window.FirstMeasureAPI?.roofMeasurements;
-    const sourceLoad = sharedMeasurements?.load
-      ? sharedMeasurements.load(activeBaseProject || {}, { reportOrderState: window.reportOrderState || {} })
-        .then((result) => {
-          const rows = reportSummaryRowsFromRoofMeasurements(result?.measurements || {});
-          if (rows.length) return rows;
-          return fetch(xmlUrl, { credentials: 'include' })
-            .then((response) => {
-              if (!response.ok) throw new Error(((v0) => globalThis.PlatformLanguage?.text("measurements","m_fc55e992b0fa41",`Measurement XML unavailable (${v0})`,{v0}) ?? `Measurement XML unavailable (${v0})`)(response.status));
-              return response.text();
-            })
-            .then((text) => reportSummaryMetricsFromXml(text));
-        })
-      : fetch(xmlUrl, { credentials: 'include' })
+    const xmlLoad = () => fetch(xmlUrl, { credentials: 'include' })
       .then((response) => {
         if (!response.ok) throw new Error(((v0) => globalThis.PlatformLanguage?.text("measurements","m_fc55e992b0fa41",`Measurement XML unavailable (${v0})`,{v0}) ?? `Measurement XML unavailable (${v0})`)(response.status));
         return response.text();
       })
       .then((text) => reportSummaryMetricsFromXml(text));
+    // A customer cannot read the project measurement dataset (403), so the shared load fails for them: the report's own
+    // XML is then the source, as it was before October 20 (1M8-254).
+    const sourceLoad = sharedMeasurements?.load
+      ? sharedMeasurements.load(activeBaseProject || {}, { reportOrderState: window.reportOrderState || {} })
+        .then((result) => {
+          const rows = reportSummaryRowsFromRoofMeasurements(result?.measurements || {});
+          return rows.length ? rows : xmlLoad();
+        }, () => xmlLoad())
+      : xmlLoad();
     // Wall rows load on their own: a customer cannot read the measurement dataset, so the roof load may fail.
     const wallLoad = reportSummaryIsFullHouse() && projectId
       ? fetch(fmUrl(`projects/${encodeURIComponent(projectId)}/exterior-measurements`), { credentials: 'include' })
@@ -2014,6 +2014,19 @@ window.PlatformCommerce.onReady(function(){
         measurementSummaryMetricLoads.delete(key);
         if (activePreviewTab === 'measurements' && activeMeasurementTab === 'summary') renderMeasurementsPanel();
       });
+  }
+
+  // Parts of an order's record that are never measurements (1M8-254). language_snapshot.report_dictionary holds report
+  // labels such as "Eave Drip Edge (10 ft)", which were read as 10 ft of eave on every order since October 20.
+  const REPORT_SUMMARY_NON_MEASUREMENT_KEYS = new Set(['language_snapshot', 'report_dictionary', 'terminology', 'catalog_versions',
+    'audit', 'timestamps', 'work_history', 'history', 'qa_history', 'qa_threads', 'qa_thread_drafts', 'email_events', 'email_state',
+    'editor_presence', 'workflow', 'public_api', 'pdf_sync', 'delivery', 'issuer', 'resident', 'owner_ref', 'team_ref', 'organization_ref']);
+
+  // A length given directly under a line-type key: a number, or a string that is only a number with an optional unit.
+  function reportDirectLength(value){
+    if (typeof value === 'number') return Number.isFinite(value) ? value : null;
+    if (typeof value !== 'string' || !/^\s*-?\d[\d,]*(?:\.\d+)?\s*(?:ft|feet|lf|')?\s*$/i.test(value)) return null;
+    return numericValue(value);
   }
 
   function collectReportLineTotals(){
@@ -2040,7 +2053,8 @@ window.PlatformCommerce.onReady(function(){
       }
       if (Array.isArray(value)) {
         value.forEach((item) => {
-          const type = reportLineType(item?.type || item?.line_type || item?.label || item?.name);
+          if (!item || typeof item !== 'object') return;
+          const type = reportLineType(item.type || item.line_type || item.label || item.name);
           const length = reportLineLength(item);
           if (type && length != null) totals[type] += length;
           visit(item, depth + 1);
@@ -2049,8 +2063,9 @@ window.PlatformCommerce.onReady(function(){
       }
       if (typeof value !== 'object') return;
       Object.entries(value).forEach(([key, child]) => {
+        if (REPORT_SUMMARY_NON_MEASUREMENT_KEYS.has(key)) return;
         const type = reportLineType(key);
-        const directLength = type ? numericValue(child) : null;
+        const directLength = type ? reportDirectLength(child) : null;
         if (type && directLength != null) {
           totals[type] += directLength;
           return;
