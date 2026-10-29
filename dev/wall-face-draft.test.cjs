@@ -716,7 +716,8 @@ test('library placement creates editable geometry and cancellation leaves no sti
 });
 function stickerFixture(type='window',point=[2,2],options={}){let f;const W=require('../public/measure/internal/editor_scripts/wall_solid_geometry.js');f=fixture({...options,featureHost:()=>{const d=f.d();return {d,f:d.faces[0],points:d.faces[0].points.map(p=>({x:p.x,y:0,z:p.y}))};},globals:renderGlobals(),projectPoint:(d,e)=>d.frame?W.inFrame(d.frame,{x:e.clientX/100,y:0,z:e.clientY/100}):({x:e.clientX/100,y:e.clientY/100,z:0})});f.editor.beginFace(f.e(2,2),f.w);f.listeners.pointerup(f.e(2,2));f.editor.featureCommand(type,0,true);f.listeners.pointermove(f.e(...point));f.editor.down(f.e(...point));return f;}
 test('door resizing keeps its floor anchor and corner with boundary split points intact',()=>{const F=require('../public/measure/internal/editor_scripts/wall_features.js'),f=stickerFixture('door',[.4572,1.04]);let door=()=>f.d().faces.find(f=>f.feature);assert.ok(door(),f.message());assert.ok(Math.abs(F.bounds(door().points).bottom)<1e-8);assert.ok(Math.abs(F.bounds(door().points).left)<1e-8);f.editor.key({key:'D',shiftKey:true});assert.equal(door().feature.preset,1,f.message());assert.ok(Math.abs(F.bounds(door().points).bottom)<1e-8);assert.ok(Math.abs(F.bounds(door().points).left)<1e-8);assert.ok(f.d().faces.length>1);});
-test('vent cycles rectangle square circle and back without losing the host face',()=>{const f=stickerFixture('vent');for(const index of [1,2,0]){f.editor.featureCommand('vent',index);const vent=f.d().faces.find(f=>f.feature);assert.equal(vent?.feature.preset,index,f.message());assert.ok(index===2?vent.points.length===48:vent.points.length>=4);assert.ok(f.d().faces.some(f=>!f.feature));}});
+test('vent cycles rectangle square circle and back without losing the host face',()=>{const f=stickerFixture('vent');for(const index of [1,2,0]){f.editor.featureCommand('vent',index);const vent=f.d().faces.find(f=>f.feature);assert.equal(vent?.feature.preset,index,f.message());// A round vent is two elliptical arcs (wall_stickers.js), not a 48-point polygon.
+ assert.ok(index===2?vent.curves?.length===2&&vent.curves.every(c=>c.type==='ellipse'):vent.points.length>=4&&!vent.curves?.length,JSON.stringify(vent.curves));assert.ok(f.d().faces.some(f=>!f.feature));}});
 test('feature edge nudge stretches the selected edge, and invalid resize is atomic',()=>{const F=require('../public/measure/internal/editor_scripts/wall_features.js'),f=stickerFixture(),feature=()=>f.d().faces.find(f=>f.feature),b=F.bounds(feature().points);f.editor.pickSolid(f.e(b.right,(b.top+b.bottom)/2));f.listeners.pointerup(f.e(b.right,(b.top+b.bottom)/2));f.editor.key({key:'ArrowRight'});assert.ok(Math.abs(F.bounds(feature().points).right-b.right-F.FT/12)<1e-8,f.message());assert.ok(Math.abs(F.bounds(feature().points).left-b.left)<1e-8);const before=JSON.stringify(f.state.wallEdits);f.editor.featureCommand('garage',0);assert.equal(JSON.stringify(f.state.wallEdits),before,f.message());});
 test('arrow nudge moves an unlabeled internal face and shared divider without creating returns',()=>{const f=stickerFixture();f.editor.featureCommand('none');const before=f.d().faces.find(f=>f.opening).points[0].x;f.editor.key({key:'ArrowRight'});assert.ok(f.d().faces.find(f=>f.opening).points[0].x>before);assert.equal(f.state.wallEdits.$surfaces,undefined);});
 test('arrow keys slide an unlabeled shared divider and preserve both adjoining faces',()=>{let cameraReady=false;const f=fixture({screen:p=>({x:p.x*100,y:p.z*100*(cameraReady?-1:1)})});f.editor.doubleClick(f.e(0,1),f.w);f.editor.key({key:'n'});f.editor.down(f.e(4,1));f.listeners.pointerup(f.e(4,1));f.editor.pickSolid(f.e(2,1));f.listeners.pointerup(f.e(2,1));cameraReady=true;f.editor.key({key:'ArrowUp',shiftKey:true});assert.equal(f.d().faces.length,2,f.message());assert.ok(f.d().faces.every(face=>face.points.some(p=>Math.abs(p.y-1-.1524)<1e-7)),f.message());});
@@ -1646,12 +1647,13 @@ test('M moves both selected contained stickers on their face and cancels or comm
   const start=centers[1];f.listeners.pointermove(f.e(start.x,start.y));f.editor.key({key:'m'});
   assert.equal(f.editor.interaction(),'Transform geometry');assert.match(f.message(),/Free on face/);
   f.listeners.pointermove(f.e(start.x+.4,start.y));
-  const moved=f.state.wallEdits.$surfaces.filter(s=>s.feature&&!s.deleted&&!s.drafted);assert.equal(moved.length,2,f.message());
-  for(const [i,face] of moved.entries())for(const [j,p] of face.points.entries()){assert.ok(Math.abs(p.x-original[i][j].x-.4)<1e-8,f.message());assert.equal(p.z,original[i][j].z);assert.equal(p.y,0);}
+  // The stickers stay in their draft; compare them as point sets in the wall plane.
+  const ring=ps=>ps.map(p=>(p.x+0).toFixed(6)+','+(p.z+0).toFixed(6)).sort().join(' '),moved=curveSuite.census(f.state.wallEdits).faces.filter(s=>s.feature);assert.equal(moved.length,2,f.message());
+  for(const o of original)assert.ok(moved.some(face=>ring(face.points)===ring(o.map(p=>({x:p.x+.4,z:p.z})))&&face.points.every(p=>Math.abs(p.y)<1e-12)),f.message());
   f.editor.key({key:'m'});assert.match(f.message(),/Left\/Right/);f.editor.key({key:'m'});assert.match(f.message(),/Up\/Down/);
   f.editor.key({key:'Escape'});assert.equal(JSON.stringify(f.state.wallEdits),before);assert.equal(f.history.length,history);
-  f.editor.key({key:'m'});f.listeners.pointermove(f.e(start.x+.8,start.y));f.editor.key({key:'Enter'});assert.equal(f.history.length,history+1);assert.equal(f.editor.busy(),false);
-  const committed=f.state.wallEdits.$surfaces.filter(s=>!s.deleted&&!s.drafted);assert.equal(committed.filter(s=>s.feature).length,2);assert.ok(committed.every(s=>s.points.every(p=>p.y===0)),'movement creates no extrusion sides');
+  f.editor.key({key:'m'});f.listeners.pointermove(f.e(start.x+.8,start.y));f.editor.key({key:"Enter"});assert.equal(f.history.length,history+1,f.message());assert.equal(f.editor.busy(),false);
+  const committed=curveSuite.census(f.state.wallEdits).faces;assert.equal(committed.filter(s=>s.feature).length,2);assert.ok(committed.every(s=>s.points.every(p=>Math.abs(p.y)<1e-12)),'movement creates no extrusion sides');
  }
 });
 
@@ -1693,8 +1695,8 @@ test('sticker face and four corners nudge repeatedly on the host plane with exac
   if(selectPoints){f.editor.startBox(f.e(.5,.5));f.listeners.pointermove(f.e(3.5,3.5));f.listeners.pointerup(f.e(3.5,3.5));assert.equal(f.editor.pointSelection().length,4);}
   else{f.editor.pickSolid(f.e(2,2));f.listeners.pointerup(f.e(2,2));}
   for(const event of [{key:'ArrowRight'},{key:'ArrowRight'},{key:'ArrowUp',shiftKey:true},{key:'ArrowDown',altKey:true}])assert.equal(f.editor.key(event),true);
-  const moved=f.state.wallEdits.$surfaces.find(s=>s.feature),inch=.3048/12;
-  assert.ok(moved,f.message());assert.ok(Math.abs(moved.points[0].x-1-2*inch)<1e-8,f.message());assert.ok(Math.abs(moved.points[0].z-1+5.75*inch)<1e-8);assert.ok(moved.points.every(p=>p.y===0));assert.equal(f.history.length,4);assert.equal(f.editor.busy(),false);
+  const moved=curveSuite.census(f.state.wallEdits).faces.find(s=>s.feature),inch=.3048/12;
+  assert.ok(moved,f.message());assert.ok(Math.abs(Math.min(...moved.points.map(p=>p.x))-1-2*inch)<1e-8,f.message());assert.ok(Math.abs(Math.min(...moved.points.map(p=>p.z))-1+5.75*inch)<1e-8);assert.ok(moved.points.every(p=>Math.abs(p.y)<1e-12));assert.equal(f.history.length,4);assert.equal(f.editor.busy(),false);
   assert.deepEqual(f.state.wallEdits.$surfaces.find(s=>s.id==='host').points,host.points);
  }
 });
@@ -3651,6 +3653,8 @@ function archedDoorPairFixture(){
  return {f,F,doors,shape,shifted,goldOnFoot,baseNodes};
 }
 const sortPoints=ps=>ps.map(p=>({x:p.x,z:p.z})).sort((a,b)=>a.x-b.x||a.z-b.z);
+// The same ring as a point set, shifted along the wall (the sticker writer may start it elsewhere).
+const sameRing=(face,original,dx)=>JSON.stringify(face.points.map(p=>(p.x+0).toFixed(6)+','+(p.y+0).toFixed(6)).sort())===JSON.stringify(original.points.map(p=>(p.x+dx+0).toFixed(6)+','+(p.y+0).toFixed(6)).sort());
 test('all points of two arched floor doors nudge together, stay selected and leave nothing behind',()=>{
  const {f,F,doors,shape,shifted,goldOnFoot,baseNodes}=archedDoorPairFixture(),d=f.d(),ids=d.sketch.nodes.filter(n=>n.userDraftPoint).map(n=>n.id);assert.equal(ids.length,10);
  f.editor.restoreSelection({activeDraftKey:'w',draftSelection:{w:ids},picked:ids});
@@ -3659,7 +3663,7 @@ test('all points of two arched floor doors nudge together, stay selected and lea
   f.editor.key(e);total+=(e.altKey?.25:e.shiftKey?6:1)*(e.nudgeCount||1)*F.FT/12;assert.equal(f.history.length,count+i+1,f.message());
   const now=sortPoints(f.editor.pointSelection());assert.equal(now.length,10,'the whole selection stays selected');
   now.forEach((p,j)=>{assert.ok(Math.abs(p.x-start[j].x-total)<1e-7&&Math.abs(p.z-start[j].z)<1e-7,'every point moves by the same amount: '+JSON.stringify([p,start[j],total]));});
-  doors().forEach((face,j)=>{assert.deepEqual(shape(face),shifted(originals[j],total),'the door keeps its shape');assert.equal(face.curves.length,1);});
+  doors().forEach((face,j)=>{assert.ok(sameRing(face,originals[j],total),'the door keeps its shape');assert.equal(face.curves.length,1);});
   assert.equal(f.d().sketch.nodes.length,nodeCount,'no point is added or left behind');
   const foot=f.d().sketch.nodes.filter(n=>Math.abs(n.y)<1e-9).map(n=>+n.x.toFixed(6)).sort((a,b)=>a-b);assert.deepEqual(foot,[0,...start.filter(p=>Math.abs(p.z)<1e-9).map(p=>+(p.x+total).toFixed(6)),4]);
   assert.ok(!f.state.wallEdits.$surfaces?.length,'the wall draft is not polygonized');assert.equal(baseNodes(),4,'the base edge gains no points');
@@ -3673,7 +3677,7 @@ test('selected arched floor doors nudge as stickers, one or both, with their arc
   const refs=doors().map(face=>({draft:'w',face:face.id}));f.editor.restoreSelection(both?{selectedRegion:refs[1],faceSelection:refs,activeDraftKey:'w'}:{selectedRegion:refs[0],activeDraftKey:'w'});
   for(let i=1;i<=3;i++){
    f.editor.key({key:'ArrowRight'});assert.equal(f.history.length,count+i,f.message());const total=i*F.FT/12;
-   assert.deepEqual(shape(doors()[0]),shifted(originals[0],total),f.message());assert.deepEqual(shape(doors()[1]),shifted(originals[1],both?total:0));
+   assert.ok(sameRing(doors()[0],originals[0],total),f.message());assert.ok(sameRing(doors()[1],originals[1],both?total:0));
    const snapshot=JSON.parse(JSON.stringify(f.editor.selectionSnapshot())),selected=(both?snapshot.faceSelection:[snapshot.selectedRegion]).map(r=>r.face).sort();
    assert.deepEqual(selected,(both?doors():[doors()[0]]).map(face=>face.id).sort(),'the sticker selection is kept');
    assert.equal(f.d().sketch.nodes.length,nodeCount);assert.ok(!f.state.wallEdits.$surfaces?.length);assert.equal(baseNodes(),4);
@@ -3691,16 +3695,19 @@ test('selected points of stored arched floor doors translate together and leave 
  for(let i=1;i<=3;i++){
   f.editor.key({key:'ArrowRight'});assert.equal(f.history.length,i,f.message());const total=i*.0254,now=sortPoints(f.editor.pointSelection());assert.equal(now.length,10);
   now.forEach((q,j)=>assert.ok(Math.abs(q.x-start[j].x-total)<1e-7&&Math.abs(q.z-start[j].z)<1e-7,JSON.stringify([q,start[j]])));
-  const live=state.wallEdits.$surfaces.filter(s=>!s.deleted&&!s.drafted);
-  for(const door of doors){const moved=live.find(s=>s.feature&&Math.abs(Math.min(...s.points.map(q=>q.x))-Math.min(...door.points.map(q=>q.x))-total)<1e-7);assert.ok(moved,'door moved as a whole');assert.equal(moved.points.length,door.points.length);}
-  const foot=live.filter(s=>!s.feature).flatMap(s=>s.points).filter(q=>Math.abs(q.z)<1e-9).map(q=>+q.x.toFixed(6));assert.deepEqual([...new Set(foot)].sort((a,b)=>a-b),[0,1,3,5,7,8].map(x=>[0,8].includes(x)?x:+(x+total).toFixed(6)),'the wall foot has no point at a former door corner');
+  const live=curveSuite.census(state.wallEdits).faces;
+  for(const door of doors){const moved=live.find(s=>s.feature&&Math.abs(Math.min(...s.points.map(q=>q.x))-Math.min(...door.points.map(q=>q.x))-total)<1e-7);assert.ok(moved,'door moved as a whole');assert.equal(curveSuite.defining(moved).length,curveSuite.defining(door).length);}
+  const foot=live.filter(s=>!s.feature).flatMap(s=>s.points).filter(q=>Math.abs(q.z)<1e-9).map(q=>+q.x.toFixed(6));assert.deepEqual([...new Set(foot)].sort((a,b)=>a-b),[0,8],'the wall keeps only its own corners: a stored door is cut from it where it is drawn and reported');
   assert.equal(JSON.stringify(state.wallEdits.$base?.faces||base.faces),baseBefore,'the base footprint is not edited');
  }
 });
-test('selecting part of an arched door nudges the whole door and never splits the base edge',()=>{
- const {f,F,doors,shape,shifted,baseNodes}=archedDoorPairFixture(),d=f.d(),originals=doors().map(face=>JSON.parse(JSON.stringify(face))),ids=d.sketch.nodes.filter(n=>n.userDraftPoint&&n.fixed).slice(0,2).map(n=>n.id);
- f.editor.restoreSelection({activeDraftKey:'w',draftSelection:{w:ids},picked:ids});for(let i=1;i<=3;i++){f.editor.key({key:'ArrowRight'});const selected=f.editor.pointSelection();assert.equal(selected.length,5,'the whole arched door is selected: '+f.message());
-  assert.deepEqual(shape(doors()[0]),shifted(originals[0],i*F.FT/12),'the door moves as one piece');assert.deepEqual(shape(doors()[1]),shifted(originals[1],0));}
+test('selecting part of an arched door nudges only those points and never splits the base edge',()=>{
+ // Selected points of a sticker move alone and reshape it (dev/EXTERIOR_STICKERS.md).
+ const {f,F,doors,baseNodes}=archedDoorPairFixture(),d=f.d(),originals=doors().map(face=>JSON.parse(JSON.stringify(face))),ids=d.sketch.nodes.filter(n=>n.userDraftPoint&&n.fixed).slice(0,2).map(n=>n.id);
+ f.editor.restoreSelection({activeDraftKey:'w',draftSelection:{w:ids},picked:ids});const picked=f.editor.pointSelection();assert.equal(picked.length,2);
+ for(let i=1;i<=3;i++){f.editor.key({key:'ArrowRight'});const selected=f.editor.pointSelection(),dx=i*F.FT/12;assert.equal(selected.length,2,'only the picked points stay selected: '+f.message());
+  for(const p of picked)assert.ok(selected.some(q=>Math.hypot(q.x-p.x-dx,q.y-p.y,q.z-p.z)<1e-6),'a picked point moved by the nudge');
+  const moved=doors().find(face=>!sameRing(face,originals[1],0)),other=doors().find(face=>sameRing(face,originals[1],0));assert.ok(other,'the other door is untouched');assert.equal(moved.curves.length,1,'the arch is kept');}
  assert.equal(baseNodes(),4,'no base point is inserted or left behind');
 });
 test('Trim line mode selects every line but roof ridges, hips and valleys, by click or box, and shows and picks no points',()=>{
@@ -3767,16 +3774,16 @@ const curveRepresentations=[
 const curveSelections=[
  {name:'all points of both doors',pick:(doors)=>doors.flatMap(d=>d.defining),moves:doors=>doors.map(()=>true)},
  {name:'all points of one door',pick:(doors)=>doors[0].defining,moves:doors=>doors.map((_,i)=>i===0)},
- {name:'the four corners',pick:(doors)=>doors[0].defining.filter(p=>!doors[0].apex(p)),moves:doors=>doors.map((_,i)=>i===0)},
- {name:'the two arch ends',pick:(doors)=>doors[0].defining.filter(p=>!doors[0].apex(p)&&p.z>doors[0].bottom+1e-6),moves:doors=>doors.map((_,i)=>i===0)},
- {name:'the arch control alone',pick:(doors)=>doors[0].defining.filter(p=>doors[0].apex(p)),moves:doors=>doors.map((_,i)=>i===0)},
- {name:'the bottom corners',pick:(doors)=>doors[0].defining.filter(p=>Math.abs(p.z-doors[0].bottom)<1e-6),moves:doors=>doors.map((_,i)=>i===0)},
+ {name:'the four corners',whole:false,pick:(doors)=>doors[0].defining.filter(p=>!doors[0].apex(p)),moves:doors=>doors.map((_,i)=>i===0)},
+ {name:'the two arch ends',whole:false,pick:(doors)=>doors[0].defining.filter(p=>!doors[0].apex(p)&&p.z>doors[0].bottom+1e-6),moves:doors=>doors.map((_,i)=>i===0)},
+ {name:'the arch control alone',whole:false,pick:(doors)=>doors[0].defining.filter(p=>doors[0].apex(p)),moves:doors=>doors.map((_,i)=>i===0)},
+ {name:'the bottom corners',whole:false,pick:(doors)=>doors[0].defining.filter(p=>Math.abs(p.z-doors[0].bottom)<1e-6),moves:doors=>doors.map((_,i)=>i===0)},
  {name:'the door sticker',face:[0],moves:doors=>doors.map((_,i)=>i===0)},
  {name:'both door stickers',face:'all',moves:doors=>doors.map(()=>true)},
 ];
 function selectCurved(f,selection,doors){
  const {WS,close}=curveSuite,edits=f.state.wallEdits;
- if(selection.face){const chosen=selection.face==='all'?doors:selection.face.map(i=>doors[i]);const refs=chosen.map(d=>d.owner.startsWith('surface:')?{solid:d.owner.slice(8)}:{draft:d.owner.split(':')[1],face:d.owner.split(':').slice(2).join(':')});
+ if(selection.face){const chosen=selection.face==='all'?doors:selection.face.map(i=>doors[i]);const refs=chosen.map(d=>{if(d.owner.startsWith('surface:'))return {solid:d.owner.slice(8)};const rest=d.owner.slice(6),cut=rest.lastIndexOf(':');return {draft:rest.slice(0,cut),face:rest.slice(cut+1)};});
   const last=refs.at(-1);f.editor.restoreSelection({faceSelection:refs,selectedSolid:last.solid||null,selectedRegion:last.solid?null:last,activeDraftKey:last.draft||null});return [];}
  const points=selection.pick(doors),draftIds={},solid=[];
  for(const p of points){const owner=Object.entries(edits.$drafts||{}).find(([,d])=>!d.mergedInto&&d.faces.some(face=>!face.solidId&&face.feature&&face.curves?.length)&&d.sketch.nodes.some(n=>close(toWorldNode(d,n),p,1e-5)));
@@ -3788,36 +3795,51 @@ function curvedDoors(f,type=null){
  const {doorsOf,defining}=curveSuite;
  return doorsOf(f.state.wallEdits).filter(d=>!type||d.feature?.type===type).map(d=>{const ps=defining(d),bottom=Math.min(...d.points.map(p=>p.z)),top=Math.max(...ps.map(p=>p.z));return {...d,defining:ps,bottom,apex:p=>Math.abs(p.z-top)<1e-6&&ps.filter(q=>Math.abs(q.z-top)<1e-6).length===1};});
 }
-// One check of a door state against its start: a rigid translation by the expected offset (or none), with the same points and one curve.
+// The sticker engine (dev/EXTERIOR_STICKERS.md): a whole sticker translates rigidly
+// with its exact curve; selected points move alone and reshape it. Doors are matched
+// by position, since an edit may store a sticker in its host's draft.
+const curveShape=c=>{const K=curveSuite.K;return Array.from({length:21},(_,i)=>K.curvePoint(c,i/20));};
+function sameCurve(a,b,offset,tolerance=1e-6){const {close}=curveSuite,pa=curveShape(a).map(p=>({x:p.x+offset.x,y:p.y+offset.y,z:p.z+offset.z})),pb=curveShape(b);return pa.every((p,i)=>close(p,pb[i],tolerance))||pa.every((p,i)=>close(p,pb[pb.length-1-i],tolerance));}
+const shifted=(ps,o)=>ps.map(p=>({x:p.x+o.x,y:p.y+o.y,z:p.z+o.z}));
+function matchDoor(doors,expect){const cost=d=>expect.reduce((s,p)=>s+Math.min(...d.defining.map(q=>Math.hypot(p.x-q.x,p.y-q.y,p.z-q.z))),0);return doors.reduce((best,d)=>!best||cost(d)<cost(best)?d:best,null);}
 function assertRigid(label,start,now,offset){
- const {close}=curveSuite;
- assert.equal(now.points.length,start.points.length,label+': point count');assert.equal(now.curves.length,1,label+': still one curve');
- now.points.forEach((p,i)=>assert.ok(close(p,{x:start.points[i].x+offset.x,y:start.points[i].y+offset.y,z:start.points[i].z+offset.z},1e-6),label+': moved rigidly '+JSON.stringify([start.points[i],p,offset])));
- const c=now.curves[0],c0=start.curves[0];for(const t of [0,.25,.5,.75,1]){const a=curveSuite.K.curvePoint(c0,t),b=curveSuite.K.curvePoint(c,t);assert.ok(close(b,{x:a.x+offset.x,y:a.y+offset.y,z:a.z+offset.z},1e-6),label+': the curve moved with its controls');}
+ const {close}=curveSuite;assert.ok(now,label+': door found');assert.equal(now.curves.length,1,label+': still one curve');
+ for(const p of shifted(start.defining,offset))assert.ok(now.defining.some(q=>close(p,q,1e-6)),label+': moved rigidly '+JSON.stringify(p));
+ assert.equal(now.defining.length,start.defining.length,label+': same defining points');
+ assert.ok(sameCurve(start.curves[0],now.curves[0],offset),label+': the curve moved with its controls');
 }
+function assertReshaped(label,start,now,picked,offset){
+ const {close,K}=curveSuite,isPicked=p=>picked.some(q=>close(p,q,1e-6));assert.ok(now,label+': door found');assert.equal(now.curves.length,1,label+': still one curve');
+ for(const p of start.defining){if(isPicked(p))assert.ok(now.defining.some(q=>close(q,{x:p.x+offset.x,y:p.y+offset.y,z:p.z+offset.z},1e-6)),label+': picked point moved '+JSON.stringify(p));
+  else if(!start.apex(p))assert.ok(now.defining.some(q=>close(q,p,1e-6)),label+': unpicked corner stayed '+JSON.stringify(p));}
+ const c=now.curves[0];for(const e of [K.curvePoint(c,0),K.curvePoint(c,1)])assert.ok(now.defining.some(q=>close(q,e,1e-6)),label+': the curve ends on the sticker');
+}
+const curveExpect=(selection,door,j,picked,offset,moving)=>selection.whole===false&&j===0?door.defining.map(p=>picked.some(q=>curveSuite.close(p,q,1e-6))?{x:p.x+offset.x,y:p.y+offset.y,z:p.z+offset.z}:p):shifted(door.defining,moving[j]&&selection.whole!==false?offset:{x:0,y:0,z:0});
+const doorCheck=(selection,label,door,match,picked,offset,moving,j)=>selection.whole===false&&j===0?assertReshaped(label,door,match,picked,offset):assertRigid(label,door,match,moving[j]&&selection.whole!==false?offset:{x:0,y:0,z:0});
 for(const rep of curveRepresentations)for(const selection of curveSelections){
  if(rep.doors<2&&/both/.test(selection.name))continue;
- test(`arched ${rep.name}: nudging ${selection.name} moves whole doors rigidly, keeps curves and selection, leaves nothing behind, and undoes`,()=>{
+ test(`arched ${rep.name}: nudging ${selection.name} ${selection.whole===false?'moves only those points and reshapes the door':'moves whole doors rigidly'}, keeps curves and selection, leaves nothing behind, and undoes`,()=>{
   const {census,curveCount,WS,FT,close}=curveSuite,f=rep.build(),start=curvedDoors(f,rep.type);assert.equal(start.length,rep.doors,rep.name);
   const picked=selectCurved(f,selection,start),moving=selection.moves(start),before=JSON.stringify(f.state.wallEdits),count=f.history.length,startCensus=census(f.state.wallEdits);
-  const startSurfaces=(f.state.wallEdits.$surfaces||[]).filter(s=>!s.deleted&&!s.drafted).length,loose=JSON.stringify(f.state.wallEdits.$loose||null),removed=JSON.stringify([f.state.wallEdits.$removedSurfacePoints||[],f.state.wallEdits.$removedSurfaceEdges||[]]);
+  const loose=JSON.stringify(f.state.wallEdits.$loose||null),removed=JSON.stringify([f.state.wallEdits.$removedSurfacePoints||[],f.state.wallEdits.$removedSurfaceEdges||[]]);
   let total=0;
   for(const [i,e]of [{key:'ArrowRight'},{key:'ArrowRight'},{key:'ArrowRight',shiftKey:true},{key:'ArrowLeft',altKey:true},{key:'ArrowLeft'}].entries()){
    const previous=census(f.state.wallEdits);f.editor.key(e);total+=(e.key==='ArrowRight'?1:-1)*(e.altKey?.25:e.shiftKey?6:1)*FT/12;
-   const label=rep.name+' / '+selection.name+' / step '+(i+1);assert.equal(f.history.length,count+i+1,label+': one undo step: '+f.message());
+   const label=rep.name+' / '+selection.name+' / step '+(i+1),offset={x:rep.right.x*total,y:rep.right.y*total,z:rep.right.z*total};assert.equal(f.history.length,count+i+1,label+': one undo step: '+f.message());
    const now=curvedDoors(f,rep.type);assert.equal(now.length,start.length,label+': door count');
-   now.forEach((door,j)=>assertRigid(label+' door '+j,start[j],door,moving[j]?{x:rep.right.x*total,y:rep.right.y*total,z:rep.right.z*total}:{x:0,y:0,z:0}));
+   start.forEach((door,j)=>doorCheck(selection,label+' door '+j,door,matchDoor(now,curveExpect(selection,door,j,picked,offset,moving)),picked,offset,moving,j));
    const after=census(f.state.wallEdits);assert.equal(curveCount(after),curveCount(startCensus),label+': curve count');assert.deepEqual(WS.flattenedCurveSamples(previous,after),[],label+': no curve is flattened');
-   assert.equal((f.state.wallEdits.$surfaces||[]).filter(s=>!s.deleted&&!s.drafted).length,startSurfaces,label+': no surface added or lost');
    assert.equal(JSON.stringify(f.state.wallEdits.$loose||null),loose,label+': no loose wire');assert.equal(JSON.stringify([f.state.wallEdits.$removedSurfacePoints||[],f.state.wallEdits.$removedSurfaceEdges||[]]),removed,label+': no removed-wire record');
-   const selected=f.editor.pointSelection();for(const p of picked)assert.ok(selected.some(q=>close(q,{x:p.x+rep.right.x*total,y:p.y+rep.right.y*total,z:p.z+rep.right.z*total},1e-5)),label+': '+JSON.stringify(p)+' stays selected');
+   const selected=f.editor.pointSelection();for(const p of picked)assert.ok(selected.some(q=>close(q,{x:p.x+offset.x,y:p.y+offset.y,z:p.z+offset.z},1e-5)),label+': '+JSON.stringify(p)+' stays selected');
    if(selection.face){const snap=JSON.parse(JSON.stringify(f.editor.selectionSnapshot())),refs=snap.faceSelection.length?snap.faceSelection:[snap.selectedSolid?{solid:snap.selectedSolid}:snap.selectedRegion];assert.equal(refs.filter(Boolean).length,selection.face==='all'?start.length:1,label+': the sticker selection is kept');}
   }
   assert.equal(JSON.stringify(f.history[count]),before,'undo returns to the start in one step per nudge');
-  // Saved and reloaded, the moved doors still nudge as one piece.
+  // Saved and reloaded, the edited doors nudge the same way.
   const reloaded=rep.build===pilotDoorsFixture?fixture({state:JSON.parse(JSON.stringify(f.state)),walls:f.state.alignedWalls,selected:null,globals:{...renderGlobals(),WallChimneys:require('../public/measure/internal/editor_scripts/wall_chimneys.js'),WallResoffit:require('../public/measure/internal/editor_scripts/wall_resoffit.js')},screen:p=>({x:p.y*100,y:-p.z*100})}):fixture({state:JSON.parse(JSON.stringify(f.state)),walls:rep.build===plainWallDoorsFixture?[]:undefined,selected:rep.build===plainWallDoorsFixture?null:undefined,globals:renderGlobals()});
-  const again=curvedDoors(reloaded,rep.type);selectCurved(reloaded,selection,again);reloaded.editor.key({key:'ArrowRight'});const step=FT/12;
-  curvedDoors(reloaded,rep.type).forEach((door,j)=>assertRigid(rep.name+' after reload door '+j,again[j],door,moving[j]?{x:rep.right.x*step,y:rep.right.y*step,z:rep.right.z*step}:{x:0,y:0,z:0}));
+  const again=curvedDoors(reloaded,rep.type),offset0={x:rep.right.x*total,y:rep.right.y*total,z:rep.right.z*total},repicked=shifted(picked,offset0);
+  const order=start.map((door,j)=>matchDoor(again,curveExpect(selection,door,j,picked,offset0,moving)));
+  selectCurved(reloaded,selection.face?selection:{...selection,pick:()=>repicked},order);reloaded.editor.key({key:'ArrowRight'});const step={x:rep.right.x*FT/12,y:rep.right.y*FT/12,z:rep.right.z*FT/12};
+  const after=curvedDoors(reloaded,rep.type);order.forEach((door,j)=>doorCheck(selection,rep.name+' after reload door '+j,door,matchDoor(after,curveExpect(selection,door,j,repicked,step,moving)),repicked,step,moving,j));
  });
 }
 test('M moves an arched door rigidly with its curve, in every stored representation',()=>{
@@ -3825,16 +3847,19 @@ test('M moves an arched door rigidly with its curve, in every stored representat
   const {census,curveCount,WS}=curveSuite,f=rep.build(),start=curvedDoors(f,rep.type),before=census(f.state.wallEdits),count=f.history.length;selectCurved(f,curveSelections[1],start);
   const c=start[0].defining.reduce((s,p)=>({x:s.x+p.x/start[0].defining.length,y:s.y+p.y/start[0].defining.length,z:s.z+p.z/start[0].defining.length}),{x:0,y:0,z:0}),screen=(dx,dz)=>rep.right.y>.5?f.e(c.y+dx,-(c.z+dz)):f.e(c.x+dx,c.z+dz);
   f.listeners.pointermove(screen(0,0));assert.equal(f.editor.geometryCommand('m'),true);f.listeners.pointermove(screen(.31,.02));f.editor.down(screen(.31,.02));assert.equal(f.history.length,count+1,rep.name+': '+f.message());
-  const now=curvedDoors(f,rep.type),offset={x:now[0].points[0].x-start[0].points[0].x,y:now[0].points[0].y-start[0].points[0].y,z:now[0].points[0].z-start[0].points[0].z};
+  // The writer may reorder doors and start their rings elsewhere: compare centres of the
+  // defining points, and take the moved door as the one no unmoved door matches.
+  const mid=door=>door.defining.reduce((s,p)=>({x:s.x+p.x/door.defining.length,y:s.y+p.y/door.defining.length,z:s.z+p.z/door.defining.length}),{x:0,y:0,z:0}),all=curvedDoors(f,rep.type);
+  const moved=all.find(door=>!start.slice(1).some(o=>curveSuite.close(mid(o),mid(door),1e-6)))||all[0],now=[moved],a=mid(start[0]),b=mid(moved),offset={x:b.x-a.x,y:b.y-a.y,z:b.z-a.z};
   assert.ok(Math.hypot(offset.x,offset.y,offset.z)>.01,rep.name+' moved: '+JSON.stringify(offset)+' '+f.message());assertRigid(rep.name+' M',start[0],now[0],offset);
   const after=census(f.state.wallEdits);assert.equal(curveCount(after),curveCount(before),rep.name);assert.deepEqual(WS.flattenedCurveSamples(before,after),[],rep.name);
  }
 });
 test('the commit guard refuses an edit that would flatten a curve and leaves the model as it was',()=>{
- const {WS}=curveSuite,f=plainWallDoorsFixture(),before=JSON.stringify(f.state.wallEdits),count=f.history.length,real=WS.transformSelection,errors=console.error;
- // Simulate an engine regression: a move result that drops the doors' curve records.
- WS.transformSelection=(...args)=>{const result=real(...args);return {...result,faces:result.faces.map(face=>face.feature?{...face,curves:[]}:face)};};console.error=()=>{};
- try{f.editor.restoreSelection({selectedSolid:'d1'});f.editor.key({key:'ArrowRight'});}finally{WS.transformSelection=real;console.error=errors;}
+ const ST=require('../public/measure/internal/editor_scripts/wall_stickers.js'),f=plainWallDoorsFixture(),before=JSON.stringify(f.state.wallEdits),count=f.history.length,real=ST.toWorld,errors=console.error;
+ // Simulate an engine regression: the sticker writer drops the door's curve records.
+ ST.toWorld=(...args)=>({...real(...args),curves:[]});console.error=()=>{};
+ try{f.editor.restoreSelection({selectedSolid:'d1'});f.editor.key({key:'ArrowRight'});}finally{ST.toWorld=real;console.error=errors;}
  assert.equal(f.history.length,count,'nothing was committed');assert.match(f.message(),/refused/i);assert.equal(JSON.stringify(f.state.wallEdits),before,'the model is as it was');
  f.editor.key({key:'ArrowRight'});assert.equal(f.history.length,count+1,'the same nudge commits once the engine keeps the curve: '+f.message());
 });
@@ -3883,5 +3908,89 @@ test('E holds a sticker at a typed distance from where it was, for M and for pas
   assert.match(f.editor.distanceInput()?.label||'',/From point/,f.message());f.editor.distanceInput().set(2*FT);
   f.listeners.pointermove({...f.e(2.8,1.5),buttons:0});f.editor.down(f.e(2.8,1.5));c=centre();
   assert.ok(Math.abs(Math.hypot(c.x-2.8,c.y-3)-2*FT)<1e-6&&Math.abs(c.x-2.8)<1e-6,JSON.stringify({c,m:f.message()}));
+ }
+});
+
+// Sticker pipeline (dev/EXTERIOR_STICKERS.md): every edit of every stored form keeps
+// each sticker a closed face with its exact curves, and undoes in one step.
+const stickerCount=f=>curveSuite.census(f.state.wallEdits).faces.filter(s=>s.feature).length;
+for(const rep of curveRepresentations)test(`deleting one corner of an arched sticker (${rep.name}) leaves the closed face with its arch, and undoes`,()=>{
+ const {census,curveCount,close}=curveSuite,f=rep.build(),start=curvedDoors(f,rep.type),before=JSON.stringify(f.state.wallEdits),count=f.history.length,curves=curveCount(census(f.state.wallEdits)),stickers=stickerCount(f),loose=JSON.stringify(f.state.wallEdits.$loose||null);
+ const corner=start[0].defining.find(p=>Math.abs(p.z-start[0].bottom)<1e-6);selectCurved(f,{pick:()=>[corner]},start);assert.equal(f.editor.pointSelection().length,1);
+ f.editor.key({key:'Delete'});assert.equal(f.history.length,count+1,rep.name+': '+f.message());
+ const now=curvedDoors(f,rep.type);assert.equal(now.length,start.length,'every door keeps its arch');assert.equal(stickerCount(f),stickers,'no sticker is lost');assert.equal(curveCount(census(f.state.wallEdits)),curves);
+ const changed=now.filter(d=>d.defining.length===start[0].defining.length-1);assert.equal(changed.length,1,'one door lost one point');assert.ok(!changed[0].points.some(p=>close(p,corner,1e-6)),'the corner is gone from the door');
+ assert.equal(JSON.stringify(f.state.wallEdits.$loose||null),loose,'no loose wire is left');assert.equal(f.editor.pointSelection().length,0);
+ assert.equal(JSON.stringify(f.history[count]),before,'one undo step returns to the start');
+});
+test('deleting every point of a sticker deletes the sticker, and deleting the arch control straightens it',()=>{
+ const {census,curveCount}=curveSuite;
+ let f=plainWallDoorsFixture(),start=curvedDoors(f);selectCurved(f,{pick:d=>d[0].defining},start);f.editor.key({key:'Delete'});
+ assert.equal(f.history.length,1,f.message());assert.equal(stickerCount(f),1,'the door is deleted');assert.match(f.message(),/Sticker deleted/);
+ f=plainWallDoorsFixture();start=curvedDoors(f);selectCurved(f,{pick:d=>d[0].defining.filter(p=>d[0].apex(p))},start);f.editor.key({key:'Delete'});
+ assert.equal(f.history.length,1,f.message());assert.equal(stickerCount(f),2);assert.equal(curveCount(census(f.state.wallEdits)),1,'one arch is straightened');
+});
+// Jack's ce52 project as saved on 2026-10-29 (location removed): every sticker on it
+// nudges as a whole and by one corner, and loses a corner, without refusals.
+// Select one world point of a sticker: its draft's node, or a stored wire point.
+function selectStickerPoint(f,sticker,p){
+ const {WS,close}=curveSuite;if(sticker.owner.startsWith('surface:')){f.editor.restoreSelection({solidPoints:[WS.vertexKey(p)]});return;}
+ const rest=sticker.owner.slice(6),key=rest.slice(0,rest.lastIndexOf(':')),d=f.state.wallEdits.$drafts[key],n=d.sketch.nodes.find(n=>close(toWorldNode(d,n),p,1e-5));
+ f.editor.restoreSelection({draftSelection:{[key]:[n.id]},activeDraftKey:key,picked:[n.id]});
+}
+function ce52Fixture(){
+ const m=JSON.parse(fs.readFileSync(require.resolve('./fixtures/ce52-sticker-session-20261029.json'),'utf8'));
+ return fixture({state:m,walls:m.alignedWalls,selected:null,globals:{...renderGlobals(),WallChimneys:require('../public/measure/internal/editor_scripts/wall_chimneys.js'),WallResoffit:require('../public/measure/internal/editor_scripts/wall_resoffit.js')},screen:p=>({x:(p.x*.8+p.y*.6)*100,y:-(p.z+.3*(p.y*.8-p.x*.6))*100})});
+}
+test('every sticker on the ce52 project nudges whole, reshapes by a corner and loses a corner, keeping its curves',()=>{
+ const {census,curveCount,defining,close}=curveSuite,base=ce52Fixture(),all=census(base.state.wallEdits).faces.filter(s=>s.feature),problems=[];assert.equal(all.length,12);
+ for(const [i]of all.entries()){
+  for(const op of ['face','corner','delete']){
+   const f=ce52Fixture(),sticker=census(f.state.wallEdits).faces.filter(s=>s.feature)[i],curves=curveCount(census(f.state.wallEdits)),label=op+' '+sticker.owner+' '+sticker.feature.type;
+   if(op==='face')selectCurved(f,{face:[0]},[sticker]);else{const corner=defining(sticker).find(p=>!(sticker.curves||[]).some(c=>[0,.5,1].some(t=>close(curveSuite.K.curvePoint(c,t),p,1e-6))))||defining(sticker)[0];selectStickerPoint(f,sticker,corner);}
+   f.editor.key(op==='delete'?{key:'Delete'}:{key:'ArrowRight'});
+   if(f.history.length!==1){problems.push(label+': '+f.message());continue;}
+   const after=census(f.state.wallEdits);if(after.faces.filter(s=>s.feature).length!==all.length)problems.push(label+': sticker count '+after.faces.filter(s=>s.feature).length);
+   if(curveCount(after)!==curves)problems.push(label+': curves '+curves+' -> '+curveCount(after));
+   if(op!=='delete'){f.editor.key({key:'ArrowLeft'});if(f.history.length!==2)problems.push(label+' back: '+f.message());}
+  }
+ }
+ assert.deepEqual(problems,[]);
+});
+test('a loop redrawn over points a sticker left behind is an opening of its wall, not a second face over it',()=>{
+ // Jack's redrawn window: its loop ran through fixed points kept from the deleted
+ // sticker. A region inside another, off the draft outline, is an opening whatever
+ // its points are (wall_face_draft.js draftOpenings), so it never z-fights its wall.
+ const f=fixture();f.editor.doubleClick(f.e(1,1),f.w);for(const [x,y]of [[3,1],[3,3],[1,3],[1,1]]){f.editor.key({key:'n'});f.editor.down(f.e(x,y));f.listeners.pointerup(f.e(x,y));}
+ for(const n of f.d().sketch.nodes)if(n.x>.5&&n.x<3.5&&n.y>.5&&n.y<3.5)n.fixed=true;
+ f.editor.doubleClick(f.e(3.5,3.5),f.w);for(const [x,y]of [[3.8,3.5],[3.8,3.8],[3.5,3.8],[3.5,3.5]]){f.editor.key({key:'n'});f.editor.down(f.e(x,y));f.listeners.pointerup(f.e(x,y));}
+ const faces=f.d().faces.filter(face=>!face.boundaryHole),openings=faces.filter(face=>face.opening),wall=faces.filter(face=>!face.opening);
+ assert.equal(openings.length,2,f.message());assert.equal(wall.length,1);assert.equal(wall[0].holes.length,2,'the wall is cut where each loop is drawn');
+});
+test('R and Y on all points of an arched sticker rotate and resize it through the sticker writer, keeping its arch',()=>{
+ const {census,curveCount}=curveSuite;
+ // A door on the wall foot can only shrink; the mid-wall window also rotates and grows.
+ for(const [mode,rep,dx,dz]of [['r',curveRepresentations[1],.15,-.1],['y',curveRepresentations[1],.15,-.1],['y',curveRepresentations[0],-.15,.1],['y',curveRepresentations[3],-.15,.1]]){
+  const f=rep.build(),start=curvedDoors(f,rep.type),curves=curveCount(census(f.state.wallEdits)),stickers=stickerCount(f),count=f.history.length;selectCurved(f,curveSelections[1],start);
+  const c=start[0].defining.reduce((s,p)=>({x:s.x+p.x/start[0].defining.length,z:s.z+p.z/start[0].defining.length}),{x:0,z:0});
+  f.listeners.pointermove(f.e(c.x,c.z));assert.equal(f.editor.geometryCommand('m'),true);f.editor.geometryCommand(mode);f.listeners.pointermove(f.e(c.x+dx,c.z+dz));f.editor.down(f.e(c.x+dx,c.z+dz));
+  const label=mode+' '+rep.name;assert.equal(f.history.length,count+1,label+': '+f.message());assert.equal(stickerCount(f),stickers,label);assert.equal(curveCount(census(f.state.wallEdits)),curves,label+': the arch is kept');
+  const now=curvedDoors(f,rep.type);assert.ok(!now.some(d=>d.defining.length===start[0].defining.length&&start[0].defining.every(p=>d.defining.some(q=>curveSuite.close(p,q,1e-6)))),label+': the door changed');
+ }
+});
+test('M on one stored arched sticker slides it through the sticker writer with its arch',()=>{
+ const {census,curveCount}=curveSuite,f=plainWallDoorsFixture(),start=curvedDoors(f),curves=curveCount(census(f.state.wallEdits));selectCurved(f,{face:[0]},start);
+ const c=start[0].defining.reduce((s,p)=>({x:s.x+p.x/start[0].defining.length,z:s.z+p.z/start[0].defining.length}),{x:0,z:0});
+ f.listeners.pointermove(f.e(c.x,c.z));f.editor.key({key:'m'});f.listeners.pointermove(f.e(c.x+.3,c.z));f.editor.down(f.e(c.x+.3,c.z));
+ assert.equal(f.history.length,1,f.message());assert.equal(stickerCount(f),2);assert.equal(curveCount(census(f.state.wallEdits)),curves);
+ const now=curvedDoors(f);assert.ok(now.some(d=>start[0].defining.every(p=>d.defining.some(q=>Math.abs(q.x-p.x-.3)<.05&&Math.abs(q.z-p.z)<1e-6))),'the door slid along the wall: '+JSON.stringify(now.map(d=>d.defining[0])));
+});
+test('copying and pasting an arched sticker places a second sticker with its own arch',()=>{
+ const {census,curveCount}=curveSuite;
+ for(const rep of [curveRepresentations[0],curveRepresentations[3]]){
+  const f=rep.build(),start=curvedDoors(f,rep.type),curves=curveCount(census(f.state.wallEdits)),stickers=stickerCount(f);selectCurved(f,{face:[0]},start);
+  f.editor.key({key:'c',ctrlKey:true});f.listeners.pointermove(f.e(3.6,1));f.editor.key({key:'v',ctrlKey:true});assert.equal(f.editor.interaction(),'Paste geometry',rep.name+': '+f.message());
+  for(const x of [3.7,3.8])f.listeners.pointermove({...f.e(x,1),buttons:0});f.editor.down(f.e(3.8,1));
+  assert.equal(f.editor.busy(),false,rep.name+': '+f.message());assert.equal(stickerCount(f),stickers+1,rep.name+': '+f.message());assert.equal(curveCount(census(f.state.wallEdits)),curves+1,rep.name+': the copy has its own arch');
  }
 });

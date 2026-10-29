@@ -206,7 +206,9 @@ function percentageSticker(face,f,box){
  if(dot(W.normal(points),W.normal(face.points))<0)points.reverse();
  return {points,feature:{type:box.type,preset:null,shape:'rectangle',axis:{...f.u}}};
 }
-const api={percentageFrame,percentageSticker,divisionId,divisionMembers,divisionLayout,divisionSegments,divideSticker,mergeStickerDivider,remapDivisionGroups,groupedStickers,trimTypes,supportsTrim,trimSizes,setTrim,trimFaces,nextPreset,pickerGroups,pickerIndices,FT,defs,register,frame,viewFrame,orientedFrame,bounds,dimensions,label,anchors,resized,shape,place,placeGroup,validate,containsShape};if(typeof module!=='undefined'&&module.exports)module.exports=api;else root.WallFeatures=api;
+const api={percentageFrame,percentageSticker,divisionId,divisionMembers,divisionLayout,divisionSegments,divideSticker,mergeStickerDivider,remapDivisionGroups,groupedStickers,trimTypes,supportsTrim,trimSizes,setTrim,trimFaces,nextPreset,pickerGroups,pickerIndices,FT,defs,register,frame,viewFrame,orientedFrame,bounds,dimensions,label,anchors,resized,shape,place,placeGroup,validate,containsShape};
+// The sticker outline model (wall_stickers.js), reachable wherever the catalog is.
+Object.defineProperty(api,'Stickers',{enumerable:true,get(){return typeof module!=='undefined'&&module.exports?require('./wall_stickers.js'):root.WallStickers;}});if(typeof module!=='undefined'&&module.exports)module.exports=api;else root.WallFeatures=api;
 
 })(typeof window!=='undefined'?window:globalThis);
 

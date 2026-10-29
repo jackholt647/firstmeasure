@@ -638,7 +638,12 @@ function perf_snap(d,e,raw=null){
  window.addEventListener('pointercancel',()=>{box=null;boxEl?.remove?.();boxEl=null;clearGuides();},true);
  function add(d,p){const n=S.add(d,p,.0001),node=d.sketch.nodes.find(v=>v.id===n);node.userDraftPoint=true;delete node.generatedBoundary;if(d.sketch.edges.some(e=>e.fixed&&(()=>{const a=d.sketch.nodes.find(v=>v.id===e.a),b=d.sketch.nodes.find(v=>v.id===e.b),dx=b.x-a.x,dy=b.y-a.y,len=Math.hypot(dx,dy),t=((node.x-a.x)*dx+(node.y-a.y)*dy)/(len*len);return t>=0&&t<=1&&Math.abs((node.x-a.x)*dy-(node.y-a.y)*dx)/len<.002;})()))node.fixed=true;S.resolve(d);return n;}
  function containsRegion(f,h){const outer={points:f.points};if(!h.points.every(p=>G.contains(outer,p)))return false;const K=window.ExteriorGeometry;return K.difference({points:h.points},[outer]).reduce((area,part)=>area+K.area(part),0)<=1e-8;}
- function classify(d){const holes=d.faces.filter(f=>f.boundaryHole||f.points.every(p=>!d.sketch.nodes.find(n=>n.id===p.nodeId)?.fixed));for(const f of d.faces){f.opening=holes.includes(f);f.holes=f.opening?[]:holes.filter(h=>containsRegion(f,h)).map(h=>h.points);}}
+ // The one closed-face rule: a region is an opening in the region around it when
+ // another region of its draft contains it and none of its points lies on the
+ // draft's outline, however those points were drawn (fixed or not).
+ function onDraftOutline(d,p){return (d.sketch?.outlines||[]).some(r=>r.some((a,i)=>onSegment(p,a,r[(i+1)%r.length],1e-5)));}
+ function draftOpenings(d){return d.faces.filter(f=>f.boundaryHole||!f.points.some(p=>onDraftOutline(d,d.sketch.nodes.find(n=>n.id===p.nodeId)||p))&&d.faces.some(o=>o!==f&&!o.boundaryHole&&containsRegion(o,f)));}
+ function classify(d){const holes=draftOpenings(d);for(const f of d.faces){f.opening=holes.includes(f);f.holes=f.opening?[]:holes.filter(h=>containsRegion(f,h)).map(h=>h.points);}}
  // A curve stays a curve. Every edit commits through host.commit; one that
  // would turn a curve's tessellation into ring vertices, loose wire, sketch
  // nodes or retained points is refused and rolled back, and the editor says
@@ -962,13 +967,13 @@ function perf_snap(d,e,raw=null){
    geometryStatus();showResizeAxes();if(resetMove)host.redraw();return true;
   }
   if(tool)return false;
-  if(external?.event)mouse=external.event;const points=geometrySelectionPoints(external);if(points.length<(workingPlane?1:3))return false;
+  if(external?.event)mouse=external.event;const points=geometrySelectionPoints(external),stickerEdit=!external&&!workingPlane&&!!stickerControlSelection(points);if(points.length<(workingPlane||stickerEdit?1:3))return false;
   const before=copy(host.state().wallEdits||{});
-  try{const curveOwner=curveGeometrySelection(points);if(curveOwner){const clip=constrainPlaneClip(curveOwner.clip);tool={kind:'geometryTransform',curveOwner:{key:curveOwner.key,base:curveOwner.base,ids:curveOwner.ids},snapTargets:curveOwner.snapTargets,before,prepared:copy(host.state().wallEdits),base:copy(host.state().wallEdits.$base||host.state().base),scene:[],original:copy(clip),clip,preview:copy(clip),mount:0,op:Date.now(),valid:true};geometryCommand(mode);return true;}
+  try{const curveOwner=stickerEdit?null:curveGeometrySelection(points);if(curveOwner){const clip=constrainPlaneClip(curveOwner.clip);tool={kind:'geometryTransform',curveOwner:{key:curveOwner.key,base:curveOwner.base,ids:curveOwner.ids},snapTargets:curveOwner.snapTargets,before,prepared:copy(host.state().wallEdits),base:copy(host.state().wallEdits.$base||host.state().base),scene:[],original:copy(clip),clip,preview:copy(clip),mount:0,op:Date.now(),valid:true};geometryCommand(mode);return true;}
    const scene=moveScene().filter(f=>!f.snapOnly&&!f.deleted),base=host.state().wallEdits.$base||host.state().base;if(base&&(external||selectedBasePoints.length||workingPlane))scene.push(...base.faces.map(f=>({...f,baseId:f.id,id:'base:'+f.id})));
    const snapScene=workingPlane?{points:planeScene().points,lines:new Map(planeScene().lines.map((p,i)=>[i,p]))}:sceneLines(),clip=constrainPlaneClip(W.copyGeometry(scene,points,[...snapScene.lines.values()])),selected=p=>clip.points.some(q=>distance3(p,q)<=window.ExteriorGeometry.CONTACT);const snapTargets={points:snapScene.points.filter(p=>!selected(p)),edges:[...snapScene.lines.values()].filter(pair=>pair.every(p=>!selected(p)))};
    const stickerMove=clip.faces.length>0&&clip.faces.every(f=>f.feature);if(stickerMove){const filtered=stickerSnapGeometry({points:snapTargets.points,lines:new Map(snapTargets.edges.map((pair,i)=>[i,pair]))},scene);snapTargets.points=filtered.points;snapTargets.edges=[...filtered.lines.values()];}
-   tool={kind:'geometryTransform',stickerMove,snapTargets,before,prepared:copy(host.state().wallEdits),base:copy(base),scene:copy(scene),original:copy(clip),clip,preview:copy(clip),mount:0,op:Date.now(),valid:true};
+   tool={kind:'geometryTransform',stickerMove,stickerEdit,stickerFaces:stickerEdit&&selectedFaceRefs().length>0,snapTargets,before,prepared:copy(host.state().wallEdits),base:copy(base),scene:copy(scene),original:copy(clip),clip,preview:copy(clip),mount:0,op:Date.now(),valid:true};
    geometryCommand(mode);return true;
   }catch(error){host.state().wallEdits=before;host.message(error.message);return true;}
  }
@@ -1008,7 +1013,7 @@ function perf_previewGeometry(e,keepAxis=false,translation=null){
   const previous=host.state().wallEdits;
   // edits is a fresh copy and t.scene, t.original and the candidate are this
   // tool's own copies, so nothing in edits is shared with t.before.
-  const build=candidate=>{if(t.curveOwner)return applyCurveGeometry(t,candidate);const edits=copy(t.prepared),result=W.transformSelection(t.scene,t.original,candidate,{keepTrimStatic:host.state()?.keepTrimStatic===true});applyLineResult(t,result,edits);window.ExteriorModel.validateEdits(edits,t.before,true);return edits;};
+  const build=candidate=>{if(t.stickerEdit){const edits=stickerTransformEdits(t,candidate);if(edits)return edits;}if(t.curveOwner)return applyCurveGeometry(t,candidate);const edits=copy(t.prepared),result=W.transformSelection(t.scene,t.original,candidate,{keepTrimStatic:host.state()?.keepTrimStatic===true});applyLineResult(t,result,edits);window.ExteriorModel.validateEdits(edits,t.before,true);return edits;};
   try{let edits;try{edits=build(preview);}catch(error){
    // Keyboard translations are exact: never replace a rejected nudge with another axis.
    if(t.editMode!=='m'||normalMove||translation)throw error;
@@ -1019,7 +1024,7 @@ function perf_previewGeometry(e,keepAxis=false,translation=null){
   catch(error){host.state().wallEdits=previous;t.invalid=true;t.valid=false;host.message(error.message+' Adjust the preview or press Escape.');}
   host.redraw();
  }
- function placeGeometry(){const t=tool;if(t?.kind!=='geometryTransform'||t.invalid)return true;try{if(t.changed&&host.commit(t.before)===false){tool=null;clearGuides();return true;}if(!t.changed)host.state().wallEdits=copy(t.before);tool=null;const placed=t.preview.points.filter(p=>!p.curveSample);if(workingPlane){workingPlane.selection=copy(placed);workingPlane.selectedLines=[];workingPlane.selectedFaces=[];refreshPlane();}draftSelection={};picked=[];pickedLines=[];lineSelection=[];selectedBasePoints=[];selectedRegion=null;selectedSolid=null;solidPoints=placed.map(W.vertexKey);solidEdges=[];if(t.curveOwner){if(t.curveOwner.base){selectedBasePoints=solidPoints;solidPoints=[];}else{activeDraftKey=t.curveOwner.key;picked=t.curveOwner.ids.slice();draftSelection={[activeDraftKey]:picked.slice()};solidPoints=[];}}clearGuides();host.message('Geometry placed.');host.redraw();}catch(error){host.message(error.message);}return true;}
+ function placeGeometry(){const t=tool;if(t?.kind!=='geometryTransform'||t.invalid)return true;try{if(t.changed&&host.commit(t.before)===false){tool=null;clearGuides();return true;}if(!t.changed)host.state().wallEdits=copy(t.before);tool=null;const placed=t.preview.points.filter(p=>!p.curveSample);if(workingPlane){workingPlane.selection=copy(placed);workingPlane.selectedLines=[];workingPlane.selectedFaces=[];refreshPlane();}draftSelection={};picked=[];pickedLines=[];lineSelection=[];selectedBasePoints=[];selectedRegion=null;selectedSolid=null;solidPoints=placed.map(W.vertexKey);solidEdges=[];if(t.stickerEdit&&!workingPlane){if(t.stickerFaces){const refs=allStickers().filter(s=>ST().controlsWorld(s.outline).some(c=>placed.some(p=>distance3(p,c)<=1e-5))).map(s=>({d:s.d,f:s.f}));if(refs.length)selectStickers(refs);}else selectWorldPoints(placed);}if(t.curveOwner){if(t.curveOwner.base){selectedBasePoints=solidPoints;solidPoints=[];}else{activeDraftKey=t.curveOwner.key;picked=t.curveOwner.ids.slice();draftSelection={[activeDraftKey]:picked.slice()};solidPoints=[];}}clearGuides();host.message('Geometry placed.');host.redraw();}catch(error){host.message(error.message);}return true;}
  function resizeAxis(axis){const t=tool;if(!t||t.editMode!=='y'||t.invalid)return;if(t.kind==='geometryTransform')t.clip=copy(t.preview||t.clip);t.stage=copy(t.clip);t.resizeAxis=axis;t.startEvent=mouse;t.startPoint=mouse&&t.inputFrame?rayPoint({frame:t.inputFrame},mouse):null;t.scaleFactor=1;geometryStatus();showResizeAxes();}
  function showResizeAxes(){const t=tool;if(t?.editMode!=='y'||typeof document==='undefined'||!document.body?.appendChild)return;
   if(t.resizeHud){for(const button of t.resizeHud.querySelectorAll('button')){const selected=button.dataset.axis===t.resizeAxis;button.setAttribute('aria-pressed',String(selected));button.style.background=selected?'#347b99':'#26343d';}return;}
@@ -1916,7 +1921,11 @@ function perf_structuralFaces(includeConsumed=false,skip=null){
  // Feature polygons share the draft graph, so editing their edges edits real faces.
  const F=window.WallFeatures;
  const toLocal=(d,p)=>d.frame?W.inFrame(d.frame,p):{x:(p.x-d.origin.x)*d.u.x+(p.y-d.origin.y)*d.u.y,y:p.z,z:0};
- function solidDraft(f){if(f.curvedSurface?.logical)throw Error('Select the curved surface to move, rotate or resize it; its curved boundaries remain linked.');const key='solid:'+f.id;host.state().wallEdits.$drafts||={};let d=all()[key];if(!d){const frame=F.frame(f.points);d={frame,closedSoffit:f.closedSoffit&&copy(f.closedSoffit),roofLayer:f.roofLayer,joinedChimneys:f.joinedChimneys&&copy(f.joinedChimneys),chimney:f.chimney&&copy(f.chimney),solidHost:f.id,members:[],faces:[{id:'surface-'+f.id,points:f.points.map(p=>W.inFrame(frame,p)),...(f.material?{material:f.material}:{}),finishColor:f.finishColor,trim:f.trim,...(f.trimData?{trimData:copy(f.trimData)}:{}),...window.ExteriorGeometry.mapCurveData(f,p=>W.inFrame(frame,p)),...(f.feature?{feature:copy(f.feature)}:{})}]};S.ensure(d);all()[key]=d;for(const r of f.holes||[])W.importDraft(d,[r.map(p=>W.inFrame(frame,p))]);// Retained anchors from an earlier extrusion can outlive their old face height.
+ function stickerRing(r){const K=window.ExteriorGeometry;return solids().some(s=>s.feature&&!s.deleted&&!s.drafted&&s.points.length===r.length&&s.points.every(p=>r.some(q=>distance3(p,q)<=K.CONTACT)));}
+ function solidDraft(f){if(f.curvedSurface?.logical)throw Error('Select the curved surface to move, rotate or resize it; its curved boundaries remain linked.');const key='solid:'+f.id;host.state().wallEdits.$drafts||={};let d=all()[key];if(!d){const frame=F.frame(f.points);d={frame,closedSoffit:f.closedSoffit&&copy(f.closedSoffit),roofLayer:f.roofLayer,joinedChimneys:f.joinedChimneys&&copy(f.joinedChimneys),chimney:f.chimney&&copy(f.chimney),solidHost:f.id,members:[],faces:[{id:'surface-'+f.id,points:f.points.map(p=>W.inFrame(frame,p)),...(f.material?{material:f.material}:{}),finishColor:f.finishColor,trim:f.trim,...(f.trimData?{trimData:copy(f.trimData)}:{}),...window.ExteriorGeometry.mapCurveData(f,p=>W.inFrame(frame,p)),...(f.feature?{feature:copy(f.feature)}:{})}]};S.ensure(d);all()[key]=d;// A hole kept for a stored sticker is that sticker's derived opening, not drawing;
+ // the copies of that sticker's curves the surface carried go with it.
+ const skipped=(f.holes||[]).filter(stickerRing);for(const r of f.holes||[])if(!skipped.includes(r))W.importDraft(d,[r.map(p=>W.inFrame(frame,p))]);
+ if(skipped.length){const K=window.ExteriorGeometry,rings=skipped.map(r=>r.map(p=>W.inFrame(frame,p))),onSkipped=c=>[.25,.5,.75].every(t=>{const q=K.curvePoint(c,t);return rings.some(r=>r.some((a,i)=>onSegment(q,a,r[(i+1)%r.length],1e-4)));});for(const face of d.faces)if(face.curves)face.curves=face.curves.filter(c=>!onSkipped(c));if(d.sketch?.curves)d.sketch.curves=d.sketch.curves.filter(c=>!onSkipped(c));}// Retained anchors from an earlier extrusion can outlive their old face height.
  // Import only anchors on the current surface; stale anchors must not prevent editing.
  const shape={points:f.points.map(p=>W.inFrame(frame,p)),holes:(f.holes||[]).map(r=>r.map(p=>W.inFrame(frame,p)))},rings=[shape.points,...shape.holes];
  for(const p of f.retainedPoints||[]){const q=window.ExteriorGeometry.local(frame,p);if(Math.abs(q.z)<=window.ExteriorGeometry.CONTACT&&(G.contains(shape,q)||rings.some(r=>r.some((a,i)=>onSegment(q,a,r[(i+1)%r.length],window.ExteriorGeometry.CONTACT)))))S.add(d,{...q,z:0},.0001);}}f.drafted=true;return d;}
@@ -1950,7 +1959,54 @@ function perf_structuralFaces(includeConsumed=false,skip=null){
  function selectFeature(d,f){faceSelection=[];activeDraftKey=draftKey(d);preferredDraft=activeDraftKey;preferredSolid=null;preferredRegion=f.id;selectedRegion={draft:activeDraftKey,face:f.id};selectedSolid=null;picked=[];pickedLines=[];solidPoints=[];solidEdges=[];lineSelection=[];draftSelection={};}
  function asDraft(selection){if(selection.d)return selection;const d=solidDraft(selection.solid),f=d.faces.find(f=>!f.solidId&&!deleted(d,f));return {d,f,points:f.points.map(p=>world(d,p)),feature:f.feature};}
  function matchingRegion(d,points){return d.faces.filter(f=>!f.boundaryHole&&f.points.every(p=>G.contains({points},p))&&points.every(p=>G.contains({points:f.points},p))).sort((a,b)=>a.points.length-b.points.length)[0];}
- function editRegion(d,f,points){if(f.feature)F.validate(points,d.sketch.outlines,d.faces.filter(o=>o!==f&&(o.feature||o.boundaryHole)&&!o.solidId&&!deleted(d,o)));B.validate({points});S.nodeLines(d);const meta=f.feature&&copy(f.feature),old=copy(d.faces),priorPoints=f.points.map(p=>world(d,p));
+ // A sticker region moves, resizes and reshapes through its outline (one writer);
+ // `points` is the new ring in draft coordinates. shape 'circle' asks for a round one.
+ function editStickerRegion(d,f,points,shape){
+  const ref={d,f},next=points.map(p=>world(d,p)),prior=stickerOutline(ref),fr=prior.frame;
+  const affineMap=points.length===f.points.length?ST().fitAffine(f.points.map(p=>ST().local(fr,world(d,p))),next.map(p=>ST().local(fr,p))):null;
+  const outline=shape==='circle'&&prior.loop.some(v=>v.seg?.type!=='ellipse')?ST().read({points:next,feature:{shape:'circle'}}):affineMap?ST().affine(prior,affineMap):points.length===f.points.length?outlineToRing(ref,next):ST().read({points:next,feature:{}});
+  const face=rewriteSticker(d,f,prior,outline,affineMap);selectFeature(d,face);return face;
+ }
+ // Lift a sticker off its draft and install a new outline, carrying what is
+ // attached to it: points and lines drawn inside it and points on its edges follow
+ // an affine edit; a line from a corner stays on that corner; loose anchors follow.
+ function keepStickerIds(d,face,faceId,controlNodes,to){
+  if(!d.faces.some(o=>o!==face&&o.id===faceId))face.id=faceId;
+  const rename=new Map();controlNodes.forEach((old,i)=>{if(!old||d.sketch.nodes.some(n=>n.id===old))return;const n=d.sketch.nodes.find(n=>distance3(world(d,n),to[i])<=window.ExteriorGeometry.CONTACT);if(n&&!rename.has(n.id))rename.set(n.id,old);});
+  if(!rename.size)return;const id=x=>rename.get(x)||x;
+  for(const n of d.sketch.nodes)n.id=id(n.id);for(const e of d.sketch.edges){e.a=id(e.a);e.b=id(e.b);}
+  for(const o of d.faces)for(const r of [o.points,...(o.holes||[])])for(const p of r)if(p.nodeId)p.nodeId=id(p.nodeId);
+ }
+ function rewriteSticker(d,f,prior,outline,affineMap){
+  ST().check(outline);const K=window.ExteriorGeometry,fr=prior.frame;
+  const feature={...copy(f.feature)};delete feature.outline;
+  const material=f.material,finishColor=f.finishColor,from=ST().controlsWorld(prior),to=ST().controlsWorld(outline),sameControls=from.length===to.length&&from.every((c,i)=>c.id===to[i].id);
+  const ring=f.points.map(p=>({...d.sketch.nodes.find(n=>n.id===p.nodeId)||p})),shapeLocal={points:ring},vertex=n=>ring.some(p=>Math.hypot(p.x-n.x,p.y-n.y)<=1e-7);
+  // The node ids of the old controls, kept for the new controls so selections stay valid.
+  const controlNodes=sameControls?from.map(c=>d.sketch.nodes.find(n=>distance3(world(d,n),c)<=K.CONTACT)?.id||null):[],faceId0=f.id;
+  const mapWorld=p=>{const q=ST().local(fr,p),m=affineMap(q);return ST().world(fr,m);};
+  // Points inside the sticker or on its edges that are not ring vertices.
+  const carried=affineMap?d.sketch.nodes.filter(n=>!vertex(n)&&G.contains(shapeLocal,n)).map(n=>copy(n)):[];
+  liftSticker(d,f);
+  // A surviving node on an old control (a corner a line is attached to) moves to the new control.
+  if(sameControls)for(const n of d.sketch.nodes){const i=from.findIndex(c=>distance3(c,world(d,n))<=K.CONTACT);if(i>=0)Object.assign(n,toLocal(d,to[i]),{z:0});}
+  const prefix='sticker-'+(++d.sketch.next),w=ST().toWorld(outline,prefix);
+  const [faceId]=installInto(d,[{points:w.points,curves:w.curves,feature:{...feature,outline},material,finishColor}],false);
+  if(carried.length){
+   for(const c of carried){const at={...toLocal(d,mapWorld(world(d,c))),z:0},live=d.sketch.nodes.find(n=>n.id===c.id);if(live){Object.assign(live,at);continue;}
+    // A point that lay on an edge is put back on the new edge it lies on.
+    const node={...c,...at};d.sketch.nodes.push(node);const edge=d.sketch.edges.find(e=>!e.curveId&&(()=>{const a=d.sketch.nodes.find(n=>n.id===e.a),b=d.sketch.nodes.find(n=>n.id===e.b);return a&&b&&onSegment(node,a,b,1e-6)&&!onSegment(node,a,a,1e-6)&&!onSegment(node,b,b,1e-6);})());
+    if(edge){d.sketch.edges=d.sketch.edges.filter(e=>e!==edge);d.sketch.edges.push({...edge,id:'e'+(++d.sketch.next),b:node.id},{...edge,id:'e'+(++d.sketch.next),a:node.id});}}
+   S.resolve(d);classify(d);
+  }
+  const face=matchingRegion(d,w.points.map(p=>toLocal(d,p)))||d.faces.find(f=>f.id===faceId);if(!face?.feature)throw Error('The sticker crosses an existing divider.');
+  keepStickerIds(d,face,faceId0,controlNodes,to);
+  // Loose anchors and retained points on a moved control go with it.
+  const move=p=>{if(!sameControls)return p;const i=from.findIndex(c=>distance3(c,p)<=K.CONTACT);return i<0?p:{...p,x:to[i].x,y:to[i].y,z:to[i].z};},edits=host.state().wallEdits;
+  if(edits.$loose){edits.$loose.points=edits.$loose.points.map(move);edits.$loose.edges=edits.$loose.edges.map(pair=>pair.map(move));}for(const surface of edits.$surfaces||[])if(surface.retainedPoints)surface.retainedPoints=surface.retainedPoints.map(move);
+  return face;
+ }
+ function editRegion(d,f,points,shape){if(f.feature)return editStickerRegion(d,f,points,shape);if(f.feature)F.validate(points,d.sketch.outlines,d.faces.filter(o=>o!==f&&(o.feature||o.boundaryHole)&&!o.solidId&&!deleted(d,o)));B.validate({points});S.nodeLines(d);const meta=f.feature&&copy(f.feature),old=copy(d.faces),priorPoints=f.points.map(p=>world(d,p));
   if(points.length===f.points.length){const moves=f.points.map((p,i)=>({id:p.nodeId,to:points[i]}));
    // Resolved face loops can omit collinear anchors and coincident sketch nodes.
    // Carry every sticker-owned anchor through the same affine edit as its face.
@@ -1962,24 +2018,47 @@ for(const m of moves){const n=d.sketch.nodes.find(n=>n.id===m.id);if(!n)throw Er
   }else{const boundary=new Set(f.points.map(p=>p.nodeId));d.sketch.edges=d.sketch.edges.filter(e=>e.fixed||!boundary.has(e.a)||!boundary.has(e.b));delete f.feature;S.resolve(d);W.importDraft(d,[points]);}
   restoreMovedRegions(d,old);classify(d);const next=matchingRegion(d,points);if(!next)throw Error('This edit would cross a divider or split the feature.');if(meta)next.feature=meta;if(priorPoints.length===points.length){const moves=priorPoints.map((from,i)=>({from,to:world(d,points[i])})),move=p=>({...p,...(moves.find(m=>distance3(m.from,p)<=window.ExteriorGeometry.CONTACT)?.to||{})}),edits=host.state().wallEdits;if(edits.$loose){edits.$loose.points=edits.$loose.points.map(move);edits.$loose.edges=edits.$loose.edges.map(pair=>pair.map(move));}for(const surface of edits.$surfaces||[])if(surface.retainedPoints)surface.retainedPoints=surface.retainedPoints.map(move);}selectFeature(d,next);return next;
  }
- function removeSticker(ref){
+ // Take a sticker's region out of its draft: its own edges and points go, the
+ // host's outline stays, and the host region closes over where it was.
+ function liftSticker(d,f){
+  const old=copy(d.faces),shape={points:f.points.map(p=>({...p,...(f.solidId?d.sketch.nodes.find(n=>n.id===p.nodeId):null),z:0}))},inside=n=>G.contains(shape,n),boundary=pair=>W.sharedIntervals(...pair,[shape]).reduce((sum,[a,b])=>sum+b-a,0)>.99999;
+  const candidates=new Set(d.sketch.nodes.filter(inside).map(n=>n.id));
+  // A curved edge's chord is not on the outline: the sticker's own curves go by id.
+  const own=new Set((f.curves||[]).map(c=>c.id).filter(Boolean)),ownEdge=e=>e.curveId&&own.has(e.curveId);
+  // Only the building outline stays: a sticker's own edges go even when they are fixed.
+  const K=window.ExteriorGeometry,node=id=>d.sketch.nodes.find(n=>n.id===id),curve=id=>(d.sketch.curves||[]).find(c=>c.id===id);
+  const onOutline=e=>{const a=node(e.a),b=node(e.b);if(!a||!b)return false;const c=e.curveId&&curve(e.curveId),m=c?K.curvePoint(c,((e.curveRange||[0,1])[0]+(e.curveRange||[0,1])[1])/2):{x:(a.x+b.x)/2,y:(a.y+b.y)/2,z:0};return [a,b,m].every(p=>onDraftOutline(d,p));};
+  d.sketch.edges=d.sketch.edges.filter(e=>onOutline(e)||!ownEdge(e)&&!boundary([e.a,e.b].map(node)));
+  // The region around a sticker carries its curves on its hole; those copies go too.
+  if(own.size)for(const o of d.faces)if(o.curves)o.curves=o.curves.filter(c=>!own.has(c.id));
+  // Curve records no edge uses are dead: they could otherwise attach to a later shape.
+  if(d.sketch.curves?.length)d.sketch.curves=d.sketch.curves.filter(c=>d.sketch.edges.some(e=>e.curveId===c.id));
+  // A sticker corner on the outline with just two collinear outline edges was only a
+  // split for the sticker: the outline closes straight over it.
+  for(const p of f.points){const n=d.sketch.nodes.find(q=>q.id===p.nodeId);if(!n||!onDraftOutline(d,n))continue;const edges=d.sketch.edges.filter(e=>e.a===n.id||e.b===n.id);if(edges.length!==2||edges.some(e=>e.curveId))continue;
+   const [a,b]=edges.map(e=>node(e.a===n.id?e.b:e.a));if(!a||!b||!onSegment(n,a,b,1e-6))continue;d.sketch.edges=d.sketch.edges.filter(e=>!edges.includes(e));d.sketch.edges.push({...edges[0],id:'e'+(++d.sketch.next),a:a.id,b:b.id});}
+  const used=new Set(d.sketch.edges.flatMap(e=>[e.a,e.b]));d.sketch.nodes=d.sketch.nodes.filter(n=>!candidates.has(n.id)||used.has(n.id)||onDraftOutline(d,n)&&!f.points.some(p=>p.nodeId===n.id));
+  delete f.feature;delete f.solidId;d.faces=d.faces.filter(other=>other!==f);
+  if(d.faces.length){S.resolve(d);restoreMovedRegions(d,old.filter(o=>o.id!==f.id));classify(d);}else{d.sketch.edges=[];d.sketch.nodes=[];d.sketch.outlines=[];}
+  d.deletedFaces=(d.deletedFaces||[]).filter(key=>d.faces.some(f=>signature(f)===key));
+ }
+ function removeSticker(ref,{keepMasks=false}={}){
   const edits=host.state().wallEdits,points=ref.d?ref.f.points.map(p=>world(ref.d,p)):ref.f.points,K=window.ExteriorGeometry;
   const sameRing=r=>r.length>=3&&r.every(p=>points.some(q=>distance3(p,q)<=K.CONTACT))&&points.every(p=>r.some(q=>distance3(p,q)<=K.CONTACT));
   const sources=[];if(ref.d){const live=ref.d.faces.find(f=>f.id===ref.f.id);if(live)sources.push({d:ref.d,f:live});}
-  else{edits.$surfaces=(edits.$surfaces||[]).filter(f=>f.id!==ref.f.id);for(const d of Object.values(all()))for(const f of d.faces)if(f.solidId===ref.f.id)sources.push({d,f});}
-  for(const {d,f}of sources){
-   const old=copy(d.faces),shape={points:f.points.map(p=>({...p,...(f.solidId?d.sketch.nodes.find(n=>n.id===p.nodeId):null),z:0}))},inside=n=>G.contains(shape,n),boundary=pair=>W.sharedIntervals(...pair,[shape]).reduce((sum,[a,b])=>sum+b-a,0)>.99999;
-   const candidates=new Set(d.sketch.nodes.filter(inside).map(n=>n.id));
-   d.sketch.edges=d.sketch.edges.filter(e=>e.fixed||!boundary([e.a,e.b].map(id=>d.sketch.nodes.find(n=>n.id===id))));
-   const used=new Set(d.sketch.edges.flatMap(e=>[e.a,e.b]));d.sketch.nodes=d.sketch.nodes.filter(n=>n.fixed||!candidates.has(n.id)||used.has(n.id));
-   delete f.feature;delete f.solidId;d.faces=d.faces.filter(other=>other!==f);
-   if(d.faces.length){S.resolve(d);restoreMovedRegions(d,old.filter(o=>o.id!==f.id));classify(d);}else{d.sketch.edges=[];d.sketch.nodes=[];d.sketch.outlines=[];}
-   d.deletedFaces=(d.deletedFaces||[]).filter(key=>d.faces.some(f=>signature(f)===key));
-  }
-  for(const surface of edits.$surfaces||[])if(!surface.deleted){surface.holes=(surface.holes||[]).filter(r=>!sameRing(r));}
+  else{edits.$surfaces=(edits.$surfaces||[]).filter(f=>f.id!==ref.f.id);if(!keepMasks)for(const d of Object.values(all()))for(const f of d.faces)if(f.solidId===ref.f.id)sources.push({d,f});}
+  for(const {d,f}of sources)liftSticker(d,f);
+  for(const surface of edits.$surfaces||[])if(!surface.deleted){const holes=surface.holes||[];surface.holes=holes.filter(r=>!sameRing(r));if(surface.holes.length!==holes.length)keepBoundaryCurves(surface);}
   const boundary=p=>points.some((a,i)=>onSegment(p,a,points[(i+1)%points.length]));
   if(edits.$loose){edits.$loose.edges=edits.$loose.edges.filter(pair=>W.sharedIntervals(...pair,[{points}]).reduce((sum,[a,b])=>sum+b-a,0)<.99999);edits.$loose.points=edits.$loose.points.filter(p=>!boundary(p));}
   for(const surface of edits.$surfaces||[])if(surface.retainedPoints)surface.retainedPoints=surface.retainedPoints.filter(p=>!boundary(p)||[surface.points,...(surface.holes||[])].some(r=>r.some((a,i)=>onSegment(p,a,r[(i+1)%r.length]))));
+ }
+ // Deleting selected sticker points leaves the closed face through the rest; a sticker
+ // left with too few corners (or all of its points selected) is deleted.
+ function deleteStickerControls(){const points=selectedWorldPoints();if(!points.length||lineSelection.length||pickedLines.length)return false;const items=stickerControlSelection(points);if(!items)return false;
+  const changes=items.map(item=>({ref:item.ref,outline:item.all?null:ST().deleteControls(item.outline,item.ids)}));
+  const ok=transaction(()=>{const refs=writeStickers(changes);selectWorldPoints([]);if(refs.length)selectStickers(refs);});
+  if(ok)host.message(changes.some(c=>!c.outline)?'Sticker deleted.':'Sticker point deleted.');return true;
  }
  function deleteSelectedStickers(){const refs=selectedFaces();if(!refs.length||refs.some(r=>!r.f.feature))return false;
   const ok=transaction(()=>{for(const ref of refs)removeSticker(ref);});if(ok){faceSelection=[];selectedSolid=null;selectedRegion=null;preferredSolid=null;preferredRegion=null;picked=[];pickedLines=[];solidPoints=[];solidEdges=[];host.redraw();}return true;
@@ -1987,7 +2066,7 @@ for(const m of moves){const n=d.sketch.nodes.find(n=>n.id===m.id);if(!n)throw Er
  function resizeFeature(selection,type,index){const ref=asDraft(selection),{d,f}=ref,def=F.defs.get(type),preset=def.sizes[index],frame=F.orientedFrame(ref.points,ref.feature?.axis),local=ref.points.map(p=>W.inFrame(frame,p)),boundaries=[...d.sketch.outlines,...d.sketch.edges.filter(e=>{const nodes=[e.a,e.b].map(id=>d.sketch.nodes.find(n=>n.id===id));return nodes.some(n=>!G.contains({points:f.points},n));}).map(e=>[e.a,e.b].map(id=>d.sketch.nodes.find(n=>n.id===id)))].map(r=>r.map(p=>W.inFrame(frame,world(d,p)))),anchor=F.anchors(local,boundaries),next=F.resized(local,preset,anchor).map(p=>toLocal(d,W.fromFrame(frame,p)));
   // Keep vertex ordering and split points when scaling a shape in place.
   let points=next;if((preset.shape==='rectangle'&&f.feature?.shape!=='circle')||(preset.shape==='circle'&&f.feature?.shape==='circle')){const a=F.bounds(local),b=F.bounds(F.resized(local,preset,anchor));points=local.map(p=>toLocal(d,W.fromFrame(frame,{x:b.left+(p.x-a.left)/(a.right-a.left)*(b.right-b.left),y:b.bottom+(p.y-a.bottom)/(a.top-a.bottom)*(b.top-b.bottom),z:0})));}
-  const result=editRegion(d,f,points);result.feature={...(result.feature||{}),type,preset:index,shape:preset.shape,axis:frame.u};return result;
+  const result=editRegion(d,f,points,preset.shape);result.feature={...(result.feature||{}),type,preset:index,shape:preset.shape,axis:frame.u};return result;
  }
  function applySelectedFeature(type){
   const faces=selectedFaces();if(!faces.length)return false;
@@ -2054,8 +2133,147 @@ for(const m of moves){const n=d.sketch.nodes.find(n=>n.id===m.id);if(!n)throw Er
   for(const points of placed)F.validate(points,boundary,holes.map(points=>({points})));
   return {faces:faces.map(f=>({...f,...window.ExteriorGeometry.mapCurveData(f,move),points:f.points.map(move),holes:(f.holes||[]).map(r=>r.map(move)),retainedPoints:(f.retainedPoints||[]).map(move)})),move,alignmentTargets,frame};
  }
- function installInto(d,faces){const ids=[];
-  for(const source of F.remapDivisionGroups(faces)){const local=source.points.map(p=>toLocal(d,p));F.validate(local,d.sketch.outlines,d.faces.filter(f=>(f.feature||f.boundaryHole)&&!f.solidId&&!deleted(d,f)));W.importDraft(d,[local],(source.curves||[]).map(c=>window.ExteriorGeometry.mapCurve(c,p=>toLocal(d,p))));classify(d);const face=matchingRegion(d,local);if(!face)throw Error('The sticker crosses an existing divider.');face.feature=copy(source.feature);if(source.material)face.material=source.material;if(source.finishColor)face.finishColor=source.finishColor;ids.push(face.id);}return ids;
+ function installInto(d,faces,remap=true){const ids=[];
+  for(const source of remap?F.remapDivisionGroups(faces):faces){const local=source.points.map(p=>toLocal(d,p));F.validate(local,d.sketch.outlines,d.faces.filter(f=>(f.feature||f.boundaryHole)&&!f.solidId&&!deleted(d,f)));W.importDraft(d,[local],(source.curves||[]).map(c=>window.ExteriorGeometry.mapCurve(c,p=>toLocal(d,p))));classify(d);const face=matchingRegion(d,local);if(!face)throw Error('The sticker crosses an existing divider.');face.feature=copy(source.feature);if(source.material)face.material=source.material;if(source.finishColor)face.finishColor=source.finishColor;ids.push(face.id);}return ids;
+ }
+ // ---- Sticker edits: one reader, one writer (dev/EXTERIOR_STICKERS.md) ----
+ // A flush sticker edit reads the sticker's outline, transforms it, and writes it
+ // back here: the old geometry is lifted off and the outline installed in its
+ // host's draft, whatever form the sticker was stored in.
+ const ST=()=>window.WallStickers||F.Stickers;
+ function stickerFace(ref){if(!ref.d)return ref.f;const d=ref.d,K=window.ExteriorGeometry;return {...ref.f,points:ref.f.points.map(p=>world(d,p)),curves:(ref.f.curves||[]).map(c=>K.mapCurve(c,p=>world(d,p)))};}
+ function stickerOutline(ref){return ST().read(stickerFace(ref));}
+ // Every sticker on the model with its outline (unreadable shapes are left out).
+ function allStickers(){const out=[];
+  for(const f of solids())if(f.feature&&!f.deleted&&!f.drafted&&!f.trim)out.push({d:null,f});
+  for(const d of Object.values(all()))if(!d.mergedInto)for(const f of d.faces)if(f.feature&&!f.solidId&&!f.boundaryHole&&!deleted(d,f))out.push({d,f});
+  return out.flatMap(ref=>{try{return [{...ref,outline:stickerOutline(ref)}];}catch{return [];}});
+ }
+ // The face a lifted-off sticker sits on: its own draft, else the coplanar draft
+ // region or stored surface that contains it.
+ function stickerHost(ref,points){
+  if(ref.d)return ref.d;
+  // A stored sticker sits on a stored surface or a draft region; the stored surface it
+  // was on wins over any older draft region covering the same place.
+  const K=window.ExteriorGeometry,frame=F.frame(points),onPlane=q=>Math.abs(K.local(frame,q).z)<=1e-4;
+  for(const f of solids()){if(f.feature||f.deleted||f.drafted||f.trim||f.boundaryHole)continue;if(!f.points.every(onPlane))continue;const fr=F.frame(f.points),shape={points:f.points.map(p=>W.inFrame(fr,p)),holes:[]};if(points.every(p=>G.contains(shape,W.inFrame(fr,p))))return solidDraft(f);}
+  for(const d of Object.values(all())){if(!visibleDraft(d)||!points.every(p=>distance3(world(d,toLocal(d,p)),p)<=1e-4))continue;
+   for(const f of d.faces){if(f.feature||f.solidId||f.boundaryHole||deleted(d,f))continue;const shape={points:f.points,holes:[]};if(points.every(p=>G.contains(shape,toLocal(d,p))))return d;}}
+  throw Error('The sticker has no supporting face.');
+ }
+ // Write sticker outlines: [{ref, outline}], outline null deletes. Returns the new refs.
+ function writeStickers(changes){
+  const plans=changes.map(c=>{if(c.outline)ST().check(c.outline);const prior=stickerOutline(c.ref);return {...c,prior,points:stickerFace(c.ref).points,affine:c.outline?ST().fitAffine(ST().controls(prior),ST().controls(c.outline)):null};});
+  const placed=[];
+  // Draft stickers: lifted off their draft and installed again (ids and attachments kept).
+  for(const plan of plans){if(!plan.ref.d)continue;const live=liveSticker(plan);if(!live)throw Error('The sticker changed before it could be written.');
+   if(!plan.outline){removeSticker(live);continue;}placed.push({d:live.d,f:rewriteSticker(live.d,live.f,plan.prior,plan.outline,plan.affine)});}
+  // Stored stickers: rewritten in place. Their wall keeps no hole or notch for them;
+  // the opening is derived from the sticker wherever it is drawn or reported.
+  const stored=plans.filter(plan=>!plan.ref.d);
+  for(const plan of stored){const live=liveSticker(plan);if(!live)throw Error('The sticker changed before it could be written.');plan.live=live;
+   if(!plan.outline){removeSticker(live);continue;}removeStoredOpening(live.f);fillStickerNotch(plan.points);}
+  for(const plan of stored){if(!plan.outline)continue;const f=plan.live.f,w=ST().toWorld(plan.outline,f.id),feature={...copy(f.feature)};delete feature.outline;
+   checkStoredSticker(f,w.points);const {retainedPoints,...rest}=f,next={...copy(rest),points:w.points.map(p=>{const {curveSample,...q}=p;return q;}),curves:w.curves,feature:{...feature,outline:plan.outline},holes:[]};
+   // A new object: the old one may be shared with an undo snapshot.
+   const list=host.state().wallEdits.$surfaces,at=list.indexOf(f);if(at<0)throw Error('The sticker changed before it could be written.');list[at]=next;placed.push({d:null,f:next});}
+  return placed;
+ }
+ // A stored sticker's wall drops the hole it kept for it (and that hole's curves).
+ function removeStoredOpening(f){const K=window.ExteriorGeometry,same=r=>r.length>=3&&r.every(p=>f.points.some(q=>distance3(p,q)<=K.CONTACT))&&f.points.every(p=>r.some(q=>distance3(p,q)<=K.CONTACT));
+  for(const s of solids())if(s!==f&&!s.deleted&&s.holes?.length){const holes=s.holes.filter(r=>!same(r));if(holes.length!==s.holes.length){s.holes=holes;keepBoundaryCurves(s);}}}
+ // The one placement check for a stored sticker: inside the stored wall it sits on (when
+ // it sits on one) and clear of the other stickers on that plane.
+ function checkStoredSticker(f,points){
+  const K=window.ExteriorGeometry,frame=F.frame(points),onPlane=q=>Math.abs(K.local(frame,q).z)<=1e-4,toPlane=p=>W.inFrame(frame,p);
+  const host=solids().find(s=>s!==f&&!s.feature&&!s.deleted&&!s.drafted&&!s.trim&&s.points.every(onPlane)&&s.points.length>=3&&K.area({points:s.points.map(toPlane)})&&points.some(p=>G.contains({points:s.points.map(toPlane),holes:[]},toPlane(p))));
+  const others=[...solids().filter(s=>s!==f&&s.feature&&!s.deleted&&!s.drafted&&s.points.every(onPlane)).map(s=>({points:s.points.map(toPlane)})),...allStickers().filter(s=>s.d&&ST().toWorld(s.outline).points.every(onPlane)).map(s=>({points:ST().toWorld(s.outline).points.map(toPlane)}))];
+  F.validate(points.map(toPlane),host?[host.points.map(toPlane)]:[points.map(toPlane)],others);
+ }
+ // A stored wall whose outline went around a stored sticker (a door notched into
+ // its edge) closes over where the sticker was once the sticker is lifted off.
+ function fillStickerNotch(points){
+  const K=window.ExteriorGeometry,frame=F.frame(points),onPlane=q=>Math.abs(K.local(frame,q).z)<=1e-4,touches=f=>points.some(p=>f.points.some((a,i)=>onSegment(p,a,f.points[(i+1)%f.points.length],1e-5)));
+  for(const f of solids()){if(f.feature||f.deleted||f.trim||f.boundaryHole||!f.points.every(onPlane)||!touches(f))continue;
+   const fr=F.frame(f.points),toPlane=p=>W.inFrame(fr,p),union=K.union([{points:f.points.map(toPlane)},{points:points.map(toPlane)}]);
+   if(union.length!==1||(union[0].holes||[]).length)continue;const before=Math.abs(K.area({points:f.points.map(toPlane)})),after=Math.abs(K.area(union[0]));if(after<=before+1e-9)continue;
+   // The sticker's old corners left on a straight run of the wall are no vertices.
+   let ring=union[0].points.map(p=>W.fromFrame(fr,p));for(let changed=true;changed&&ring.length>3;){changed=false;for(let i=0;i<ring.length;i++){const v=ring[i],a=ring[(i-1+ring.length)%ring.length],b=ring[(i+1)%ring.length];if(points.some(q=>distance3(q,v)<=1e-5)&&onSegment(v,a,b,1e-6)){ring=ring.filter((_,j)=>j!==i);changed=true;break;}}}
+   f.points=ring;keepBoundaryCurves(f);}
+  // Anchors a wall kept at the lifted sticker's corners were the sticker's, not the wall's.
+  for(const f of solids())if(!f.feature&&!f.deleted&&f.retainedPoints?.length&&f.points.every(onPlane))f.retainedPoints=f.retainedPoints.filter(r=>!points.some(q=>distance3(q,r)<=1e-5)||f.points.some(q=>distance3(q,r)<=1e-5));
+ }
+ // A stored face keeps only the curves that still lie on its outline or holes.
+ function keepBoundaryCurves(f){if(!f.curves?.length)return;const K=window.ExteriorGeometry,rings=[f.points,...(f.holes||[])],on=p=>rings.some(r=>r.some((a,i)=>onSegment(p,a,r[(i+1)%r.length],1e-4)));f.curves=f.curves.filter(c=>[.25,.5,.75].some(t=>on(K.curvePoint(c,t))));}
+ // Select world points as draft points (stickers are draft regions once written).
+ // A move-tool result for sticker points, written through the sticker writer:
+ // each sticker's controls go where the tool put them (an affine map when all of
+ // a sticker's controls move together). null when a control leaves its plane.
+ function stickerTransformEdits(t,candidate){
+  const K=window.ExteriorGeometry,from=t.original.points,to=candidate.points,prior=host.state().wallEdits;host.state().wallEdits=copy(t.prepared);
+  try{const changes=[];
+   for(const s of allStickers()){const ctl=ST().controlsWorld(s.outline),hit=ctl.map(c=>from.findIndex(p=>!p.curveSample&&distance3(p,c)<=1e-5));if(hit.every(i=>i<0))continue;
+    const fr=s.outline.frame,targets={};for(const [k,c]of ctl.entries()){if(hit[k]<0)continue;const q=to[hit[k]];if(Math.abs(K.local(fr,q).z)>1e-6)return null;targets[c.id]=ST().local(fr,q);}
+    const map=hit.every(i=>i>=0)?ST().fitAffine(ctl.map(c=>ST().local(fr,c)),ctl.map(c=>targets[c.id])):null;
+    changes.push({ref:{d:s.d,f:s.f},outline:map?ST().affine(s.outline,map):ST().moveControlsTo(s.outline,targets)});}
+   if(!changes.length)return null;writeStickers(changes);window.ExteriorModel.validateEdits(host.state().wallEdits,t.before,true);return host.state().wallEdits;
+  }finally{const result=host.state().wallEdits;host.state().wallEdits=prior;void result;}
+ }
+ function selectWorldPoints(points){
+  draftSelection={};solidPoints=[];picked=[];
+  for(const [key,d]of Object.entries(all())){if(!visibleDraft(d))continue;const ids=d.sketch.nodes.filter(n=>points.some(p=>distance3(world(d,n),p)<=window.ExteriorGeometry.CONTACT)).map(n=>n.id);if(ids.length)draftSelection[key]=ids;}
+  activeDraftKey=Object.keys(draftSelection)[0]||null;picked=activeDraftKey?draftSelection[activeDraftKey].slice():[];selectedRegion=null;selectedSolid=null;faceSelection=[];
+  // Stored stickers' points are wire points.
+  solidPoints=points.length?wire().nodes.filter(n=>!n.curveSample&&points.some(p=>distance3(n,p)<=window.ExteriorGeometry.CONTACT)).map(n=>n.id):[];solidEdges=[];lineSelection=[];pickedLines=[];
+ }
+ // Nudge or move stickers by a view-plane step: whole stickers translate; some of a
+ // sticker's points (or a selected sticker edge) reshape it. null: not a sticker edit.
+ function stickerEditFromSelection(){
+  const faces=selectedFaces(),stickers=faces.filter(({f})=>f.feature);
+  if(faces.length&&stickers.length===faces.length)return {kind:'faces',items:stickers.map(ref=>({ref,outline:stickerOutline(ref),all:true,ids:null}))};
+  if(faces.length)return null;
+  const lines=[...lineSelection.flatMap(l=>(l.pairs||[l.pair])),...selectedDraftLinePairs()];
+  if(lines.length&&!selectedWorldPoints().length){const items=stickerControlSelection(lines.flat());return items?{kind:'lines',items,lines}:null;}
+  const points=selectedWorldPoints();if(!points.length)return null;const items=stickerControlSelection(points);return items?{kind:'points',items,points}:null;
+ }
+ function selectedDraftLinePairs(){const d=current();if(!d||!pickedLines.length)return [];return d.sketch.edges.filter(e=>pickedLines.includes(e.id)).map(e=>[e.a,e.b].map(id=>world(d,d.sketch.nodes.find(n=>n.id===id))));}
+ function stickerViewDelta(outline,dx,dy){const ring=ST().toWorld(outline).points,view=F.viewFrame(ring,p=>host.screen(p,'3d'));return frameDelta(outline,{x:view.u.x*dx+view.v.x*dy,y:view.u.y*dx+view.v.y*dy,z:view.u.z*dx+view.v.z*dy});}
+ function applyStickerEdit(edit,deltaFor,message){
+  const keep={draftSelection:copy(draftSelection),picked:picked.slice(),solidPoints:solidPoints.slice(),lineSelection:copy(lineSelection),pickedLines:pickedLines.slice(),faceSelection:copy(faceSelection),selectedRegion:copy(selectedRegion),selectedSolid,activeDraftKey};
+  let moved=[];const changes=edit.items.map(item=>{const d=deltaFor(item.outline),outline=item.all?ST().translate(item.outline,d.x,d.y):ST().moveControls(item.outline,item.ids,d.x,d.y);
+   moved.push(...ST().controlsWorld(outline).filter(c=>item.all||item.ids.includes(c.id)));return {ref:item.ref,outline};});
+  const ok=transaction(()=>{const refs=writeStickers(changes);if(edit.kind==='faces')selectStickers(refs);else if(edit.kind==='points')selectWorldPoints(moved);
+   else{const at=p=>moved.find(c=>edit.items.some(item=>ST().controlsWorld(item.outline).some(o=>o.id===c.id&&distance3(o,p)<=window.ExteriorGeometry.CONTACT)))||p;const pairs=edit.lines.map(pair=>pair.map(at));selectWorldPoints([]);lineSelection=pairs.map(pair=>({pair,id:W.edgeKey(...pair)}));pickedLines=[];}});
+  if(!ok){Object.assign({},keep);draftSelection=keep.draftSelection;picked=keep.picked;solidPoints=keep.solidPoints;lineSelection=keep.lineSelection;pickedLines=keep.pickedLines;faceSelection=keep.faceSelection;selectedRegion=keep.selectedRegion;selectedSolid=keep.selectedSolid;activeDraftKey=keep.activeDraftKey;host.redraw();}
+  else if(message)host.message(message);
+  return true;
+ }
+ function nudgeStickers(dx,dy){const edit=stickerEditFromSelection();if(!edit)return null;return applyStickerEdit(edit,outline=>stickerViewDelta(outline,dx,dy),edit.kind==='faces'?null:edit.items.every(i=>i.all)?null:'Sticker reshaped.');}
+ function liveSticker(plan){
+  const same=(a,b)=>a.length===b.length&&a.every(p=>b.some(q=>distance3(p,q)<=1e-5));
+  if(!plan.ref.d)return solids().some(f=>f===plan.ref.f&&!f.deleted)?plan.ref:null;
+  const d=plan.ref.d,f=d.faces.find(f=>f.id===plan.ref.f.id&&f.feature&&same(f.points.map(p=>world(d,p)),plan.points))||d.faces.find(f=>f.feature&&!f.solidId&&same(f.points.map(p=>world(d,p)),plan.points));
+  return f?{d,f}:null;
+ }
+ // Select written stickers as a face selection.
+ function selectStickers(refs){if(!refs.length){faceSelection=[];selectedRegion=null;selectedSolid=null;return;}const last=refs.at(-1);
+  if(last.d)selectFeature(last.d,last.f);else{selectWorldPoints([]);selectedSolid=last.f.id;}faceSelection=refs.map(r=>r.d?{draft:draftKey(r.d),face:r.f.id}:{solid:r.f.id});}
+ // The sticker outline transform that takes a sticker's face ring onto new points
+ // (same count, world coordinates): affine when it is one, else by vertex.
+ function outlineToRing(ref,next){
+  const outline=stickerOutline(ref),fr=outline.frame,prior=stickerFace(ref).points,from=prior.map(p=>ST().local(fr,p)),to=next.map(p=>ST().local(fr,p));
+  const map=ST().fitAffine(from,to);if(map)return ST().affine(outline,map);
+  const targets={};for(const c of ST().controls(outline)){const i=from.findIndex(p=>Math.hypot(p.x-c.x,p.y-c.y)<=1e-5);if(i>=0)targets[c.id]=to[i];}
+  return ST().moveControlsTo(outline,targets);
+ }
+ // A world-space nudge or move delta in a sticker's frame.
+ function frameDelta(outline,delta){return {x:delta.x*outline.frame.u.x+delta.y*outline.frame.u.y+delta.z*outline.frame.u.z,y:delta.x*outline.frame.v.x+delta.y*outline.frame.v.y+delta.z*outline.frame.v.z};}
+ // Which sticker controls a set of world points selects: [{ref, outline, ids, all}].
+ function stickerControlSelection(points){
+  if(!points.length)return null;const found=new Map(),claimed=new Set();
+  for(const s of allStickers()){const ids=[];for(const c of ST().controlsWorld(s.outline)){const i=points.findIndex(p=>Math.hypot(p.x-c.x,p.y-c.y,p.z-c.z)<=1e-4);if(i>=0){ids.push(c.id);claimed.add(i);}}if(ids.length)found.set(s,ids);}
+  if(claimed.size!==points.length)return null;// some point is not a sticker control
+  return [...found].map(([s,ids])=>({ref:{d:s.d,f:s.f},outline:s.outline,ids,all:ids.length===ST().controls(s.outline).length}));
  }
  function installStickers(ref,faces){const {d}=asDraft(ref),placed=installInto(d,faces).map(face=>({draft:draftKey(d),face}));
   selectFeature(d,d.faces.find(f=>f.id===placed.at(-1).face));faceSelection=placed;return placed;
@@ -2246,7 +2464,7 @@ function previewFaceSlideBody(e,full,priorWalls){const t=tool;if(t.face.feature)
   });
   return true;
  }
-function perf_nudge(e){const step=(e.altKey ? .25 : e.shiftKey ? 6 : 1)*F.FT/12*(e.nudgeCount||1),dx=e.key==='ArrowRight'?step:e.key==='ArrowLeft'?-step:0,dy=e.key==='ArrowUp'?step:e.key==='ArrowDown'?-step:0;selectWholeCurvedStickers();const points=selectedWorldPoints(),draftMove=draftNudgePlan(points,dx,dy);if(draftMove)return nudgeDraft(draftMove);if(points.length&&!selectedFaceRefs().length&&!completePointGeometry(points))return points.length===1?nudgePoint(e,step):nudgePoints(e,step,points);if(geometrySelectionPoints().length>=3)return nudgeGeometry(dx,dy);if(points.length)return points.length===1?nudgePoint(e,step):nudgePoints(e,step,points);const selection=featureSelection();
+function perf_nudge(e){const step=(e.altKey ? .25 : e.shiftKey ? 6 : 1)*F.FT/12*(e.nudgeCount||1),dx=e.key==='ArrowRight'?step:e.key==='ArrowLeft'?-step:0,dy=e.key==='ArrowUp'?step:e.key==='ArrowDown'?-step:0;const stickerNudge=nudgeStickers(dx,dy);if(stickerNudge!==null)return stickerNudge;selectWholeCurvedStickers();const points=selectedWorldPoints(),draftMove=draftNudgePlan(points,dx,dy);if(draftMove)return nudgeDraft(draftMove);if(points.length&&!selectedFaceRefs().length&&!completePointGeometry(points))return points.length===1?nudgePoint(e,step):nudgePoints(e,step,points);if(geometrySelectionPoints().length>=3)return nudgeGeometry(dx,dy);if(points.length)return points.length===1?nudgePoint(e,step):nudgePoints(e,step,points);const selection=featureSelection();
   if(lineSelection.length){const pairs=copy(lineSelection);return transaction(()=>{
     for(const w of walls())ensure(w);
     const live=(d,f)=>!f.solidId&&!f.boundaryHole&&!deleted(d,f),supports=(face,pair)=>{if(W.sharedIntervals(...pair,[face]).length)return true;const frame=W.faceFrame(face);if(!frame)return false;const local={points:face.points.map(p=>W.inFrame(frame,p)),holes:(face.holes||[]).map(r=>r.map(p=>W.inFrame(frame,p)))};return pair.every(p=>{const q=W.inFrame(frame,p);return Math.abs(q.z)<1e-5&&G.contains(local,q);});},shape=(d,f)=>({points:f.points.map(p=>world(d,p)),holes:(f.holes||[]).map(r=>r.map(p=>world(d,p)))}),matches=d=>d&&!d.mergedInto&&pairs.every(l=>d.faces.some(f=>live(d,f)&&supports(shape(d,f),l.pair)));
@@ -2525,6 +2743,7 @@ function perf_nudge(e){const step=(e.altKey ? .25 : e.shiftKey ? 6 : 1)*F.FT/12*
   }
   if(!tool&&(k==='delete'||k==='backspace')){
    if(deleteSelectedStickers())return true;
+   if(deleteStickerControls())return true;
    if(!solidPoints.length&&solidEdges.length){const graph=wire(),segments=graph.edges.filter(e=>solidEdges.includes(e.id)).map(e=>[graph.nodes.find(n=>n.id===e.a),graph.nodes.find(n=>n.id===e.b)]);transaction(()=>deleteLines3D(segments));solidEdges=[];host.redraw();return true;}
    if(pickedLines.length&&d&&!d.sketch.edges.some(e=>pickedLines.includes(e.id)&&e.curveId)&&viewOf(mouse)==='3d'){const segments=draftSegments(d).filter(e=>pickedLines.includes(e.id)).map(e=>[world(d,e.start),world(d,e.end)]);transaction(()=>deleteLines3D(segments));pickedLines=[];host.redraw();return true;}
    if(solidPoints.length||solidEdges.length){transaction(()=>removeSolidPoints(solidPoints,solidEdges));solidPoints=[];solidEdges=[];host.redraw();return true;}
@@ -2653,7 +2872,7 @@ function perf_movePointer(e){if(workingPlane&&!tool&&!box){mouse=e;if(workingPla
  // selection outlines and points. A sticker gesture's overlay draws its copy alone.
  function drawDraft(group,vector,d,chunked){
   if(!d.faces.length&&!d.sketch.nodes.length&&!d.deletedFaces?.length)return;if(!drawMemoized('visible-draft',d,()=>visibleDraft(d)))return;
-   const key=draftKey(d),inner=drawMemoized('draft-inner',d,()=>d.faces.filter(f=>f.boundaryHole||f.points.every(p=>!d.sketch.nodes.find(n=>n.id===p.nodeId)?.fixed)));
+   const key=draftKey(d),inner=drawMemoized('draft-inner',d,()=>draftOpenings(d));
    for(const source of d.faces)drawnVisibleDraftFaces(d,source).forEach((f,index)=>{
     const draw=target=>{const before=solidMeshes.length;drawDraftPart(target,vector,d,source,f,inner);return solidMeshes.splice(before);};
     const pickable=!!(d.frame||f.feature||host.state()?.chimneys?.items?.length||drawMemoized('draft-unclaimed',d,()=>!d.members.some(id=>walls().some(w=>w.id===id))));
