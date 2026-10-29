@@ -702,9 +702,9 @@ function perf_snap(d,e,raw=null){
   },before);return true;
  }
  const pickVisible=(p,e)=>viewOf(e)!=='3d'||host.pickVisible?.(p,e)!==false;
- // Point markers draw on top of faces, so every drawn point can be clicked: a point
- // in front wins, else the nearest one behind a face. Textured views show no points.
- function nearestPoint(items,e,at,view=viewOf(e),radius=12){const through=view==='3d'&&!['textured','rendered','match-textured'].includes(host.state()?.displayMode);let front=null,back=null;for(const c of items){const p=at(c),q=host.screen(p,view),r=Math.hypot(q.x-e.clientX,q.y-e.clientY);if(q.visible===false||!(r<radius))continue;if(pickVisible(p,e)){if(!front||r<front.r)front={c,r};}else if(through&&(!back||r<back.r))back={c,r};}return (front||back)?.c||null;}
+ // Point markers draw on top of faces, so every drawn point can be clicked: the marker
+ // nearest the cursor wins, a point in front on a near tie. Textured views show no points.
+ function nearestPoint(items,e,at,view=viewOf(e),radius=12){const through=view==='3d'&&!['textured','rendered','match-textured'].includes(host.state()?.displayMode);let front=null,back=null;for(const c of items){const p=at(c),q=host.screen(p,view),r=Math.hypot(q.x-e.clientX,q.y-e.clientY);if(q.visible===false||!(r<radius))continue;if(pickVisible(p,e)){if(!front||r<front.r)front={c,r};}else if(through&&(!back||r<back.r))back={c,r};}return (back&&(!front||back.r+3<front.r)?back:front)?.c||null;}
  const pickLineVisible=(pair,e,t=.5)=>viewOf(e)!=='3d'||(host.pickLineVisible?host.pickLineVisible(pair,e):pickVisible({x:pair[0].x+(pair[1].x-pair[0].x)*t,y:pair[0].y+(pair[1].y-pair[0].y)*t,z:pair[0].z+(pair[1].z-pair[0].z)*t},e));
  function pickVisiblePoint(e){
   if(lineSelect||tool||lineMode()||viewOf(e)!=='3d'||e.button!==0||['textured','rendered','match-textured'].includes(host.state()?.displayMode))return false;
