@@ -240,7 +240,8 @@
         // New From Roof presets use a fixed default; legacy saved Auto retains its inferred sources.
         if(options.soffit==='auto'&&Number.isFinite(options.defaultSoffitInches))options={...options,soffit:options.defaultSoffitInches};
         const faces=surfaces(roof),warnings=[],sources=[],layers=roofLayers(roof,faces);
-        const edges=(roof.connections||[]).map((c,i)=>({id:`R${i+1}`,a:roof.points[c.startIdx],b:roof.points[c.endIdx],type:c.type})).filter(e=>e.a&&e.b&&distance(e.a,e.b)>.01);
+        // A smart rebuild gives each roof line the id it had before (wall_roof_rebuild.js), so walls keep theirs.
+        const edges=(roof.connections||[]).map((c,i)=>({id:c.id||`R${i+1}`,a:roof.points[c.startIdx],b:roof.points[c.endIdx],type:c.type})).filter(e=>e.a&&e.b&&distance(e.a,e.b)>.01);
         const flashing=edges.filter(e=>isFlashing(e.type));
         const zeroClearances=new Map();
         if(options.roofContacts)for(const e of edges){

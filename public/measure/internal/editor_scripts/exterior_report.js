@@ -11,36 +11,67 @@ async function prepareReportImageryConfig(state,refresh=false){
  return files;
 }
 function touchElevationSettings(settings){settings.photoSettingsUpdatedAt=Date.now();}
-function renderHouseOrientation(container,state){
- const PDF=window.ExteriorPDF,settings=state.exteriorSettings||={},card=document.createElement('section');card.style.cssText='border:1px solid #dce3eb;background:#f7f9fc;border-radius:12px;padding:16px;margin:12px 0 20px';container.appendChild(card);
+/* House orientation: the north-up footprint inside a dial. Dragging anywhere on the dial (or the
+ slider, the number or the arrow keys) turns the front. While dragging only the arrow, bar and labels
+ move, once per animation frame; the bearing is saved and 'house-orientation-change' fires on
+ release. Near a dominant wall direction (within 3 degrees) the drag snaps to it; Shift turns the
+ snap off, and the number field takes any angle. */
+const bearingOf=v=>{const n=Number(v);return n>=0&&n<360?n:((n%360)+360)%360;};
+function orientationSnaps(report,count=8){
+ const byKey=new Map();for(const wall of report?.walls||[]){const n=wall.normal;if(!n||Math.hypot(n.x,n.y)<.5)continue;const b=bearingOf(Math.atan2(n.x,-n.y)*180/Math.PI),key=Math.round(b)%360,entry=byKey.get(key)||{bearing:b,weight:0};entry.weight+=wall.gross||1;byKey.set(key,entry);}
+ return [...byKey.values()].sort((a,b)=>b.weight-a.weight).slice(0,count).map(e=>e.bearing);
+}
+function snapBearing(value,snaps,tolerance=3){const d=a=>Math.abs(((value-a+540)%360)-180);let best=null;for(const a of snaps||[])if(best===null||d(a)<d(best))best=a;return best!==null&&d(best)<=tolerance?best:bearingOf(value);}
+let houseOrientationCount=0;
+function renderHouseOrientation(container,state,{fill=false}={}){
+ const PDF=window.ExteriorPDF,settings=state.exteriorSettings||={},card=document.createElement('section');card.dataset.houseOrientation='';card.style.cssText='border:1px solid #dce3eb;background:#f7f9fc;border-radius:12px;padding:16px;margin:12px 0 20px'+(fill?';display:flex;flex-direction:column;flex:1 1 auto;min-height:0;margin:0':'');container.appendChild(card);
  const title=document.createElement('h3');title.textContent='House orientation';title.style.margin='0 0 6px';card.appendChild(title);
- const hint=document.createElement('p');hint.textContent='Set the front entrance side. Left and right are as seen while standing outside facing the front door.';hint.style.cssText='font-size:12px;color:#586779;margin:0 0 10px';card.appendChild(hint);
- const picture=document.createElement('div');picture.style.cssText='max-width:490px;margin:auto';card.appendChild(picture);
- const row=document.createElement('div');row.style.cssText='display:flex;gap:10px;align-items:center;flex-wrap:wrap';card.appendChild(row);
- const label=document.createElement('label');label.textContent='Front bearing ';const input=document.createElement('input');input.type='number';input.min=0;input.max=359;input.step=1;input.value=Math.round(PDF.frontBearing(settings));input.setAttribute('aria-label','Front bearing in degrees clockwise from north');input.style.cssText='width:65px;padding:6px';label.append(input,document.createTextNode('°'));row.appendChild(label);
- const slider=document.createElement('input');slider.type='range';slider.min=0;slider.max=359;slider.value=input.value;slider.style.cssText='flex:1;min-width:130px';slider.setAttribute('aria-label','Rotate front direction');row.appendChild(slider);
- const confirm=document.createElement('button');confirm.type='button';confirm.textContent='Set front';confirm.style.cssText='padding:7px 10px';confirm.onclick=()=>set(input.value);row.appendChild(confirm);
- const walls=document.createElement('select');walls.setAttribute('aria-label','Choose the front wall');walls.style.cssText='max-width:100%;padding:7px';const placeholder=document.createElement('option');placeholder.textContent='Or choose the front wall…';placeholder.value='';walls.appendChild(placeholder);
- for(const wall of state.exteriorReport?.walls||[]){if(/trim/i.test(wall.material))continue;const option=document.createElement('option');option.value=wall.id;option.textContent=wall.id+' — '+wall.material;walls.appendChild(option);}row.appendChild(walls);
- const status=document.createElement('small');status.style.cssText='display:block;margin-top:8px;color:#586779';card.appendChild(status);
- function draw(){
-  const shapes=PDF.planShapes(state.exteriorReport),all=shapes.flat(),minX=Math.min(...all.map(p=>p.x)),maxX=Math.max(...all.map(p=>p.x)),minY=Math.min(...all.map(p=>p.y)),maxY=Math.max(...all.map(p=>p.y)),scale=108/Math.max(maxX-minX,maxY-minY,.01),a=PDF.frontBearing(settings)*Math.PI/180;
-  const marker=(offset,name,color)=>{const angle=a+offset*Math.PI/180,x=142+Math.sin(angle)*87,y=116-Math.cos(angle)*87;return `<text x="${x}" y="${y+4}" text-anchor="middle" font-size="12" font-weight="600" fill="${color}">${name}</text>`;};
-  picture.innerHTML=`<svg viewBox="0 0 440 225" role="img" aria-label="House footprint with front and back markers and a north-up compass"><defs><marker id="frontArrow" markerWidth="6" markerHeight="6" refX="4" refY="3" orient="auto"><path d="M0 0 L5 3 L0 6Z" fill="#d22e40"/></marker></defs><circle cx="142" cy="116" r="70" fill="white" stroke="#dce3eb" stroke-dasharray="3 4"/>${shapes.map(ps=>`<polygon points="${ps.map(p=>`${142+(p.x-(minX+maxX)/2)*scale},${116+(p.y-(minY+maxY)/2)*scale}`).join(' ')}" fill="#b8c9d8" stroke="#6c8396" stroke-width="1.3"/>`).join('')}<line x1="${142+Math.sin(a)*43}" y1="${116-Math.cos(a)*43}" x2="${142+Math.sin(a)*70}" y2="${116-Math.cos(a)*70}" stroke="#d22e40" stroke-width="3" marker-end="url(#frontArrow)"/>${marker(0,'Front','#bd2135')}${marker(180,'Back','#516375')}<g transform="translate(338 116)"><circle r="47" fill="white" stroke="#dce3eb"/><path d="M0 -32 L0 32 M-32 0 L32 0" stroke="#7b8c9d" stroke-width="1.5"/><path d="M0 -37 L-5 -24 L5 -24Z" fill="#d22e40"/><text y="-53" text-anchor="middle" fill="#bd2135" font-size="14" font-weight="700">N</text><text y="64" text-anchor="middle" fill="#516375" font-size="12">S</text><text x="-59" y="4" text-anchor="middle" fill="#516375" font-size="12">W</text><text x="59" y="4" text-anchor="middle" fill="#516375" font-size="12">E</text></g></svg>`;
-  status.textContent=Number.isFinite(settings.frontBearing)?'Front faces '+Math.round(PDF.frontBearing(settings))+'° clockwise from north.':'Choose the front wall or set its bearing. The diagram is north-up.';
+ const hint=document.createElement('p');hint.textContent='Drag the dial or the slider to turn the front of the house. Left and right are as seen while standing outside facing the front door. Hold Shift while dragging to turn off snapping to the walls.';hint.style.cssText='font-size:12px;color:#586779;margin:0 0 10px';card.appendChild(hint);
+ const C=200,R=164,id='hoArrow'+(++houseOrientationCount),shapes=PDF.planShapes(state.exteriorReport),all=shapes.flat(),minX=Math.min(...all.map(p=>p.x)),maxX=Math.max(...all.map(p=>p.x)),minY=Math.min(...all.map(p=>p.y)),maxY=Math.max(...all.map(p=>p.y)),scale=R*.95/Math.max(maxX-minX,maxY-minY,.01);
+ const at=p=>({x:C+(p.x-(minX+maxX)/2)*scale,y:C+(p.y-(minY+maxY)/2)*scale}),pts=all.map(at),snaps=orientationSnaps(state.exteriorReport);
+ const picture=document.createElement('div');picture.style.cssText=fill?'flex:1 1 auto;min-height:240px;display:flex;align-items:center;justify-content:center':'max-width:420px;margin:auto';card.appendChild(picture);
+ const compass=[['N',0,'#bd2135'],['E',90,'#7b8c9d'],['S',180,'#7b8c9d'],['W',270,'#7b8c9d']].map(([t,b,c])=>`<text x="${C+Math.sin(b*Math.PI/180)*(R-14)}" y="${C-Math.cos(b*Math.PI/180)*(R-14)+5}" text-anchor="middle" font-size="14" font-weight="700" fill="${c}">${t}</text>`).join('');
+ picture.innerHTML=`<svg data-orientation-dial viewBox="-58 -4 516 408" tabindex="0" role="slider" aria-label="Front of the house: drag to rotate" aria-valuemin="0" aria-valuemax="359" style="width:100%;height:${fill?'100%':'auto'};max-height:${fill?'min(62vh,640px)':'none'};touch-action:none;cursor:grab;user-select:none;outline:none"><defs><marker id="${id}" markerWidth="6" markerHeight="6" refX="4" refY="3" orient="auto"><path d="M0 0 L5 3 L0 6Z" fill="#d22e40"/></marker></defs><circle cx="${C}" cy="${C}" r="${R}" fill="white" stroke="#dce3eb" stroke-width="2"/>${compass}${shapes.map(ps=>`<polygon points="${ps.map(p=>{const q=at(p);return q.x+','+q.y;}).join(' ')}" fill="#b8c9d8" stroke="#6c8396" stroke-width="1.3"/>`).join('')}<line data-front-bar stroke="#d22e40" stroke-width="6" stroke-linecap="round"/><line data-front-arrow stroke="#d22e40" stroke-width="3.5" marker-end="url(#${id})"/><circle data-front-knob r="10" fill="#d22e40" stroke="white" stroke-width="3"/>${['front','back','left','right'].map(k=>`<text data-side="${k}" text-anchor="middle" font-size="${k==='front'?18:15}" font-weight="${k==='front'?800:600}" fill="${k==='front'?'#bd2135':'#516375'}">${k[0].toUpperCase()+k.slice(1)}</text>`).join('')}</svg>`;
+ const svg=picture.firstElementChild,q=s=>svg.querySelector(s),bar=q('[data-front-bar]'),arrow=q('[data-front-arrow]'),knob=q('[data-front-knob]'),sides=Object.fromEntries(['front','back','left','right'].map(k=>[k,q(`[data-side="${k}"]`)]));
+ const row=document.createElement('div');row.style.cssText='display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-top:10px';card.appendChild(row);
+ const label=document.createElement('label');label.textContent='Front bearing ';const input=document.createElement('input');input.type='number';input.min=0;input.max=359.9;input.step='any';input.setAttribute('aria-label','Front bearing in degrees clockwise from north');input.style.cssText='width:70px;padding:6px';label.append(input,document.createTextNode('°'));row.appendChild(label);
+ const slider=document.createElement('input');slider.type='range';slider.min=0;slider.max=359.9;slider.step=.1;slider.style.cssText='flex:1;min-width:140px';slider.setAttribute('aria-label','Rotate front direction');row.appendChild(slider);
+ const status=document.createElement('div');status.dataset.frontReadout='';status.style.cssText='margin-top:8px;color:#2c333c;font-size:13px;line-height:1.4;min-height:2.8em';/* fixed height: the dial must not shift while dragging */card.appendChild(status);
+ const names=['north','northeast','east','southeast','south','southwest','west','northwest'],shown=b=>String(Math.round(b*10)/10);
+ // Move only what turns: the bar on the front side, the arrow to the knob on the dial, and the four side labels.
+ function paint(b,committed){
+  const a=b*Math.PI/180,ux=Math.sin(a),uy=-Math.cos(a),px=-uy,py=ux,along=pts.length?Math.max(...pts.map(p=>(p.x-C)*ux+(p.y-C)*uy)):0,across=pts.map(p=>(p.x-C)*px+(p.y-C)*py),lo=(pts.length?Math.min(...across):0)-6,hi=(pts.length?Math.max(...across):0)+6,reach=Math.min(along+9,R-34);
+  const attrs=(el,v)=>{for(const k in v)el.setAttribute(k,v[k]);};
+  attrs(bar,{x1:C+ux*reach+px*lo,y1:C+uy*reach+py*lo,x2:C+ux*reach+px*hi,y2:C+uy*reach+py*hi});attrs(arrow,{x1:C+ux*(reach+5),y1:C+uy*(reach+5),x2:C+ux*(R-16),y2:C+uy*(R-16)});attrs(knob,{cx:C+ux*R,cy:C+uy*R});
+  // Side labels sit just outside the dial, anchored away from it so they never cover the knob.
+  for(const [k,offset,r]of [['front',0,R+16],['back',180,R+12],['left',90,R+12],['right',-90,R+12]]){const s=(b+offset)*Math.PI/180,sx=Math.sin(s),sy=-Math.cos(s);attrs(sides[k],{x:C+sx*r,y:C+sy*r+6+sy*8,'text-anchor':sx>.45?'start':sx<-.45?'end':'middle'});}
+  svg.setAttribute('aria-valuenow',shown(b));svg.setAttribute('aria-valuetext','Front faces '+names[Math.round(b/45)%8]+', '+shown(b)+' degrees');
+  status.innerHTML=committed===false||Number.isFinite(settings.frontBearing)?`<strong>${shown(b)}°</strong> · the front faces <strong>${names[Math.round(b/45)%8]}</strong> (clockwise from north; the diagram is north-up)`:'Front not set. Drag the dial or the slider to set it.';
  }
- const set=value=>{if(!Number.isFinite(Number(value)))return;settings.frontBearing=((Number(value)%360)+360)%360;input.value=slider.value=Math.round(settings.frontBearing);touchElevationSettings(settings);draw();card.dispatchEvent(new CustomEvent('house-orientation-change',{bubbles:true}));};input.onchange=()=>set(input.value);slider.oninput=()=>set(slider.value);walls.onchange=()=>{const wall=state.exteriorReport?.walls.find(w=>w.id===walls.value);if(wall)set(Math.atan2(wall.normal.x,-wall.normal.y)*180/Math.PI);};draw();
+ let frame=0,pending=null,dragging=null;
+ const sync=b=>{input.value=shown(b);slider.value=b;};
+ // During a drag or slider move: repaint at most once per animation frame; nothing is saved.
+ const preview=b=>{pending=bearingOf(b);if(!frame)frame=requestAnimationFrame(()=>{frame=0;paint(pending,false);sync(pending);});};
+ // On release (or a typed value): save, repaint and tell listeners (the textured cover re-renders, debounced).
+ const commit=value=>{if(!Number.isFinite(Number(value)))return;if(frame){cancelAnimationFrame(frame);frame=0;}const b=bearingOf(value);settings.frontBearing=b;pending=null;sync(b);touchElevationSettings(settings);paint(b);card.dispatchEvent(new CustomEvent('house-orientation-change',{bubbles:true,detail:{frontBearing:b}}));};
+ const pointerBearing=e=>{const r=svg.getBoundingClientRect();return bearingOf(Math.atan2(e.clientX-(r.left+r.width/2),-(e.clientY-(r.top+r.height/2)))*180/Math.PI);};
+ const dragBearing=e=>e.shiftKey?pointerBearing(e):snapBearing(pointerBearing(e),snaps);
+ svg.addEventListener('pointerdown',e=>{if(e.button!==0)return;e.preventDefault();dragging=e.pointerId;try{svg.setPointerCapture(e.pointerId);}catch(err){}svg.style.cursor='grabbing';svg.focus({preventScroll:true});preview(dragBearing(e));});
+ svg.addEventListener('pointermove',e=>{if(dragging===e.pointerId)preview(dragBearing(e));});
+ const release=e=>{if(dragging!==e.pointerId)return;dragging=null;svg.style.cursor='grab';commit(e.type==='pointercancel'?(pending??PDF.frontBearing(settings)):dragBearing(e));};
+ svg.addEventListener('pointerup',release);svg.addEventListener('pointercancel',release);
+ svg.addEventListener('keydown',e=>{const step={ArrowRight:1,ArrowUp:1,ArrowLeft:-1,ArrowDown:-1}[e.key];if(!step)return;e.preventDefault();commit(PDF.frontBearing(settings)+step*(e.shiftKey?15:1));});
+ slider.oninput=()=>preview(Number(slider.value));slider.onchange=()=>commit(Number(slider.value));input.onchange=()=>commit(input.value);
+ const start=PDF.frontBearing(settings);sync(start);paint(start);
 }
 function renderExteriorReportConfig(container,state){
- const m=state.exteriorReport,s=state.exteriorSettings||={};container.style.padding='24px';
- const heading=document.createElement('h2');heading.textContent='Exterior report';container.appendChild(heading);
- const summary=document.createElement('p');summary.textContent=`${m.walls.length} wall regions / ${m.openings.length} openings / ${(window.ReportUnits?.current().metric ? window.ReportUnits.current().quantity(m.totals.net, 'sf') : `${m.totals.net.toFixed(1)} sq ft`)} net. Eight house-relative elevations, wall and trim dimensions, opening schedule, quantities and allowances.`;container.appendChild(summary);
- const toggle=document.createElement('label'),input=document.createElement('input');input.type='checkbox';if(window.FIRSTMEASURE_CUSTOMER_FULL_HOUSE===true){s.include=true;input.disabled=true;}input.checked=s.include!==false;input.onchange=()=>{s.include=input.checked;};toggle.append(input,document.createTextNode(' Include exterior pages in full PDF'));container.appendChild(toggle);
- renderHouseOrientation(container,state);
- const table=document.createElement('table');table.style.cssText='width:100%;font-size:12px;border-collapse:collapse';const head=table.insertRow();['Wall','Side',(window.ReportUnits?.current().metric?'Net m²':'Net sq ft'),'Material'].forEach(t=>{const th=document.createElement('th');th.textContent=t;th.style.textAlign='left';head.appendChild(th);});
- m.walls.forEach(w=>{const row=table.insertRow();[w.id+(w.chimney?' (chimney)':''),window.ExteriorPDF.relativeSide(w.normal,s),(window.ReportUnits?.current().metric?window.ReportUnits.current().number(w.net,"sf"):w.net.toFixed(1)),w.material||'Unassigned'].forEach(t=>row.insertCell().textContent=t);});container.appendChild(table);
- container.addEventListener('house-orientation-change',()=>{m.walls.forEach((w,i)=>{table.rows[i+1].cells[1].textContent=window.ExteriorPDF.relativeSide(w.normal,s);});});
- const notes=document.createElement('textarea');notes.placeholder='Wall / structure notes. Use wall IDs (for example W01) to reference the diagrams.';notes.setAttribute('aria-label','Wall and structure notes');notes.maxLength=1600;notes.value=s.notes||'';notes.style.cssText='width:100%;min-height:80px;margin-top:16px';notes.oninput=()=>{s.notes=notes.value;};container.appendChild(notes);
+ /* The Exteriors tab is only the house orientation, filling the tab. Report parameters stay in data and
+  keep working when set there, with no control here: exteriorSettings.include (default on; a customer
+  full-house PDF always includes the pages), exteriorSettings.dimensionContext (default: the
+  organization's Company > Reports setting) and exteriorSettings.notes (wall notes page). Page orientation is
+  the organization's Company > Reports setting, not a per-report choice. */
+ state.exteriorSettings||={};container.style.padding='16px';container.style.display='flex';container.style.flexDirection='column';container.style.minHeight='100%';container.style.boxSizing='border-box';
+ renderHouseOrientation(container,state,{fill:true});
 }
 async function renderReportImageryConfig(container,state){
  const settings=state.exteriorSettings||={};container.style.padding='24px';const heading=document.createElement('h2');heading.textContent='Elevation photos';container.appendChild(heading);
@@ -64,3 +95,22 @@ async function renderReportImageryConfig(container,state){
   select.onchange=()=>{const file=choices.find(f=>f.key===select.value);entry.assignment='manual';entry.image=file?{key:file.key,resourceName:file.resourceName,url:file.resourceName?undefined:file.url,label:file.label,role:file.role,frame:file.frame}:null;if(file){entry.enabled=true;check.checked=true;}touchElevationSettings(settings);preview();update();};
  }
 }
+/* Report configuration warns while any wall face has no material, naming the faces; Assign in Walls
+ opens Wall materials with colors on. (The Exteriors tab no longer lists faces.) */
+function assignWallMaterials(){
+ window.closeReportConfig?.();
+ if(!window.WallMode?.enabled)document.getElementById('wall-mode-toggle')?.click();
+ setTimeout(()=>{const trigger=document.getElementById('wall-material-toggle');if(trigger&&trigger.getAttribute('aria-expanded')!=='true')trigger.click();const colors=document.querySelector('#wall-material-picker input[type=checkbox]');if(colors&&!colors.checked){colors.checked=true;colors.dispatchEvent(new Event('change'));}},400);
+}
+function renderUnassignedMaterialWarning(state){
+ const panel=document.getElementById('report-config-panel'),warning=window.ExteriorReportModel?.materialWarning(state?.exteriorReport);let box=document.getElementById('report-unassigned-warning');
+ if(!panel||!warning){box?.remove();return null;}
+ if(!box){box=document.createElement('div');box.id='report-unassigned-warning';box.dataset.unassignedWarning='';box.setAttribute('role','alert');box.style.cssText='display:flex;gap:10px;align-items:flex-start;padding:10px 12px;background:#fff4e5;border-bottom:1px solid #f0c36d;color:#5c3c00;font-size:12px;line-height:1.45;flex:0 0 auto';(panel.querySelector('#reportPreviewContent')||panel.lastChild)?.before(box);}
+ const icon=document.createElement('i');icon.className='fas fa-exclamation-triangle';icon.setAttribute('aria-hidden','true');icon.style.cssText='margin-top:2px;color:#b26a00';
+ const body=document.createElement('div');body.style.flex='1';const title=document.createElement('strong');title.textContent='Unassigned materials. ';body.append(title,document.createTextNode(warning.text));
+ const actions=document.createElement('div');actions.style.cssText='display:flex;gap:6px;margin-top:6px;flex-wrap:wrap';
+ const button=(label,fn)=>{const b=document.createElement('button');b.type='button';b.textContent=label;b.style.cssText='padding:4px 10px;border:1px solid #d9a441;border-radius:4px;background:#fff;color:#5c3c00;font-weight:700;cursor:pointer;font-size:12px';b.onclick=fn;actions.appendChild(b);return b;};
+ button('Assign in Walls',assignWallMaterials);body.appendChild(actions);box.replaceChildren(icon,body);return warning;
+}
+window.renderUnassignedMaterialWarning=renderUnassignedMaterialWarning;
+window.ExteriorReportOrientation={orientationSnaps,snapBearing,renderHouseOrientation};

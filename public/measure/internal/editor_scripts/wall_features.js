@@ -88,23 +88,30 @@ function placeGroup(shapes,boundaries,screen,radius=12,regions=boundaries.filter
 
 function containsShape(points,outlines){const area=ps=>Math.abs(ps.reduce((s,p,i)=>{const q=ps[(i+1)%ps.length];return s+p.x*q.y-p.y*q.x;},0)/2);return W.subtract({points},outlines.map(points=>({points}))).reduce((s,p)=>s+area(p),0)<1e-7;}
 
-function validate(points,outlines,others=[]){if(points.length<3||!points.every(p=>[p.x,p.y,p.z].every(Number.isFinite)))throw Error('Feature geometry is invalid.');const b=bounds(points);if(b.right-b.left<.01||b.top-b.bottom<.01)throw Error('Keep the shape at least 0.4 inches wide and high.');if(!containsShape(points,outlines))throw Error('That size or position extends beyond the supporting face.');const area=ps=>Math.abs(ps.reduce((s,p,i)=>{const q=ps[(i+1)%ps.length];return s+p.x*q.y-p.y*q.x;},0)/2);for(const f of others)if(area(points)-W.subtract({points},[{points:f.points}]).reduce((s,r)=>s+area(r),0)>1e-7)throw Error('That position overlaps another feature.');}
+function validate(points,outlines,others=[]){if(points.length<3||!points.every(p=>[p.x,p.y,p.z].every(Number.isFinite)))throw Error('Feature geometry is invalid.');const b=bounds(points);if(b.right-b.left<.01||b.top-b.bottom<.01)throw Error('Keep the shape at least 0.4 inches wide and high.');if(!containsShape(points,outlines))throw Error('That size or position extends beyond the supporting face.');const area=ps=>Math.abs(ps.reduce((s,p,i)=>{const q=ps[(i+1)%ps.length];return s+p.x*q.y-p.y*q.x;},0)/2);// Only shapes whose boxes meet can overlap; the clip's rounding on curve samples
+ // (about 1e-7 m²) must never read as an overlap, so a real one must exceed 10 mm².
+ const box=bounds(points),meets=f=>{const o=bounds(f.points);return o.left<box.right-1e-6&&o.right>box.left+1e-6&&o.bottom<box.top-1e-6&&o.top>box.bottom+1e-6;};
+ for(const f of others)if(meets(f)&&area(points)-W.subtract({points},[{points:f.points}]).reduce((s,r)=>s+area(r),0)>OVERLAP_AREA)throw Error('That position overlaps another feature.');}
+const OVERLAP_AREA=1e-5;
 
 // Trim is derived from the opening, so edits and copies cannot leave orphan strips.
 const trimSizes=[0,2,3,4,6];
 const trimTypes=['window','door','garage'];
 const supportsTrim=type=>trimTypes.includes(type);
-function setTrim(feature,inches,color='#f5f3ef'){
+function setTrim(feature,inches,color){
  if(!supportsTrim(feature?.type))return feature;
  if(!Number.isFinite(inches)||inches<0)throw Error('Enter a nonnegative trim width.');
- const next={...feature};if(inches===0)delete next.trim;else next.trim={width:inches*.0254,color};return next;
+ const next={...feature};if(inches===0)delete next.trim;else next.trim={width:inches*.0254,...(color?{color}:{})};return next;
 }
 function trimFaces(points,feature){
  const width=feature?.trim?.width;if(!(width>0)||!supportsTrim(feature.type))return [];
  const fr=orientedFrame(points,feature.axis),ps=points.map(p=>W.inFrame(fr,p)),b=bounds(ps),area=ps.reduce((sum,p,i)=>{const q=ps[(i+1)%ps.length];return sum+p.x*q.y-q.x*p.y;},0),sign=area>=0?1:-1;
  const edges=ps.map((p,i)=>{const q=ps[(i+1)%ps.length],dx=q.x-p.x,dy=q.y-p.y,l=Math.hypot(dx,dy),bottom=defs.get(feature.type)?.floor&&Math.abs(p.y-b.bottom)<1e-5&&Math.abs(q.y-b.bottom)<1e-5;return {x:sign*dy/(l||1),y:-sign*dx/(l||1),width:bottom?0:width};});
+ // Its own colour, unless it is the fixed white trims were saved with before sticker defaults existed.
+ // Placement used to copy the wall trim colour in, so a trim equal to it is the default too.
+ const baked=['#f5f3ef',String(root.WallMode?.finishDefaults?.trimColor||'').toLowerCase()],own=typeof feature.trim.color==='string'&&/^#[0-9a-f]{6}$/i.test(feature.trim.color)&&!baked.includes(feature.trim.color.toLowerCase())?feature.trim.color.toLowerCase():null;
  const outer=ps.map((p,i)=>{const a=edges[(i+ps.length-1)%ps.length],b=edges[i],det=a.x*b.y-a.y*b.x;if(Math.abs(det)<1e-8)return {...p,x:p.x+b.x*b.width,y:p.y+b.y*b.width};return {...p,x:p.x+(a.width*b.y-a.y*b.width)/det,y:p.y+(a.x*b.width-a.width*b.x)/det};});
- return ps.flatMap((p,i)=>{if(!edges[i].width)return [];const j=(i+1)%ps.length;return [{points:[p,ps[j],outer[j],outer[i]].map(p=>W.fromFrame(fr,p)),trim:true,finishColor:feature.trim.color||'#f5f3ef',material:Math.abs(ps[j].y-p.y)>Math.abs(ps[j].x-p.x)?'trim-vertical':'trim-horizontal'}];});
+ return ps.flatMap((p,i)=>{if(!edges[i].width)return [];const j=(i+1)%ps.length;return [{points:[p,ps[j],outer[j],outer[i]].map(p=>W.fromFrame(fr,p)),trim:true,stickerType:feature.type,trimOwnColor:own,finishColor:own||root.ExteriorFinishes?.stickerColor?.(feature.type,'trim')||'#f5f3ef',material:Math.abs(ps[j].y-p.y)>Math.abs(ps[j].x-p.x)?'trim-vertical':'trim-horizontal'}];});
 }
 // Divided stickers use real faces with a shared identity. Geometry, rather than
 // a saved list of cuts, defines the current sections and their internal seams.
@@ -199,7 +206,9 @@ function percentageSticker(face,f,box){
  if(dot(W.normal(points),W.normal(face.points))<0)points.reverse();
  return {points,feature:{type:box.type,preset:null,shape:'rectangle',axis:{...f.u}}};
 }
-const api={percentageFrame,percentageSticker,divisionId,divisionMembers,divisionLayout,divisionSegments,divideSticker,mergeStickerDivider,remapDivisionGroups,groupedStickers,trimTypes,supportsTrim,trimSizes,setTrim,trimFaces,nextPreset,pickerGroups,pickerIndices,FT,defs,register,frame,viewFrame,orientedFrame,bounds,dimensions,label,anchors,resized,shape,place,placeGroup,validate,containsShape};if(typeof module!=='undefined'&&module.exports)module.exports=api;else root.WallFeatures=api;
+const api={percentageFrame,percentageSticker,divisionId,divisionMembers,divisionLayout,divisionSegments,divideSticker,mergeStickerDivider,remapDivisionGroups,groupedStickers,trimTypes,supportsTrim,trimSizes,setTrim,trimFaces,nextPreset,pickerGroups,pickerIndices,FT,defs,register,frame,viewFrame,orientedFrame,bounds,dimensions,label,anchors,resized,shape,place,placeGroup,validate,containsShape};
+// The sticker outline model (wall_stickers.js), reachable wherever the catalog is.
+Object.defineProperty(api,'Stickers',{enumerable:true,get(){return typeof module!=='undefined'&&module.exports?require('./wall_stickers.js'):root.WallStickers;}});if(typeof module!=='undefined'&&module.exports)module.exports=api;else root.WallFeatures=api;
 
 })(typeof window!=='undefined'?window:globalThis);
 
@@ -248,10 +257,45 @@ F.mountUI=function(command,selection,busy=()=>false,materials={}){
  .placement-other h5{margin:10px 0 6px;font-size:11px;color:#596579}.placement-other{max-width:480px}
  #wall-material-picker .exterior-material-options{display:grid;grid-template-columns:1fr 1fr;gap:4px}#wall-material-picker .exterior-option{width:100%;text-align:left}#wall-material-picker .exterior-finish-controls{margin-top:12px}#wall-material-picker .exterior-color-options{display:flex;flex-wrap:wrap;gap:6px;margin-top:5px}#wall-material-picker .exterior-palette-heading{font-size:10px;color:#596579;margin-top:9px}#wall-material-picker .exterior-color-swatch{width:30px;height:30px;flex:0 0 30px;padding:0;border:1px solid #929da8;border-radius:5px;cursor:pointer;box-shadow:inset 0 0 0 2px #ffffff70}#wall-material-picker .exterior-color-swatch:hover,#wall-material-picker .exterior-color-swatch:focus-visible{outline:2px solid #1a73e8;outline-offset:2px}#wall-material-picker .exterior-color-reset{display:flex;align-items:center;justify-content:center;color:#394150;background:#f5f7f9;font-size:15px}#wall-material-picker .exterior-palette-empty{font-size:10px;color:#777;line-height:30px}#wall-material-picker input[type=color]{width:38px;height:27px;padding:2px;border:1px solid #aab3ba;border-radius:4px;margin-left:auto}#wall-material-picker{position:absolute;top:60px;left:10px;width:300px;max-width:calc(100% - 20px);max-height:calc(100% - 80px);overflow:auto;z-index:2600}
  #wall-material-picker .exterior-picker-heading{display:flex;align-items:baseline;justify-content:space-between}
- #wall-material-picker .exterior-default-finishes{padding:10px;background:#f5f7f9;border:1px solid #dce1e5;border-radius:6px;margin:8px 0 14px}#wall-material-picker .exterior-default-finishes h4{margin:0 0 10px}#wall-material-picker .default-texture-toggle{display:flex;align-items:center;gap:7px;margin:5px 0 8px}#wall-material-picker .default-texture-label{flex:1}#default-texture-menu{display:grid;grid-template-columns:1fr 1fr;gap:4px;margin-bottom:10px;padding:6px;background:white;border:1px solid #cbd3dc;border-radius:5px}#default-texture-menu[hidden]{display:none}
+ #wall-material-picker .exterior-sticker-finish{margin-top:10px;padding-top:8px;border-top:1px solid #dce1e5}#wall-material-picker .sticker-default-row{display:flex;align-items:center;gap:10px;flex-wrap:wrap}#wall-material-picker .sticker-default-row label{display:flex;align-items:center;gap:6px}#wall-material-picker .sticker-mixed{font-size:11px;color:#617080;font-style:italic}#wall-material-picker .sticker-expand{width:auto!important;margin-left:auto}#wall-material-picker .sticker-default-pieces{display:grid;grid-template-columns:1fr 1fr;gap:6px 10px;margin-top:8px}#wall-material-picker .sticker-default-pieces[hidden]{display:none}#wall-material-picker .sticker-default-pieces label{display:flex;align-items:center;justify-content:space-between;gap:6px;font-size:12px}#wall-material-picker input.mixed{outline:2px dashed #929da8;outline-offset:1px}#wall-material-picker .exterior-roof-finish{margin-top:10px;padding-top:8px;border-top:1px solid #dce1e5}#wall-material-picker .exterior-roof-finish .exterior-color-swatch[aria-pressed=true]{outline:2px solid #1a73e8;outline-offset:2px}#wall-material-picker .exterior-default-finishes{padding:10px;background:#f5f7f9;border:1px solid #dce1e5;border-radius:6px;margin:8px 0 14px}#wall-material-picker .exterior-default-finishes h4{margin:0 0 10px}#wall-material-picker .default-texture-toggle{display:flex;align-items:center;gap:7px;margin:5px 0 8px}#wall-material-picker .default-texture-label{flex:1}#default-texture-menu{display:grid;grid-template-columns:1fr 1fr;gap:4px;margin-bottom:10px;padding:6px;background:white;border:1px solid #cbd3dc;border-radius:5px}#default-texture-menu[hidden]{display:none}
  #wall-material-picker .exterior-picker-heading button{border:0;background:none;color:#666;cursor:pointer;font-size:18px}
  #wall-material-picker p{font-size:10px;line-height:1.4;color:#666;margin:10px 0}
  #wall-material-picker label{display:flex;align-items:center;gap:6px;border-top:1px solid #ddd;padding-top:10px}
+#wall-material-picker{width:280px;padding:0;font:11px sans-serif}
+#wall-material-picker .exterior-picker-heading{align-items:center;padding:4px 6px 4px 10px;border-bottom:1px solid #dce1e5;position:sticky;top:0;background:rgba(255,255,255,.98);z-index:1}
+#wall-material-picker .exterior-picker-heading h4{margin:0;padding:0;border:0;font-size:12px}
+#wall-material-picker .exterior-picker-heading button{font-size:16px;line-height:1;padding:2px 4px}
+#wall-material-picker .wm-section{border-bottom:1px solid #e3e7ea}
+#wall-material-picker .wm-section-toggle{display:flex;align-items:center;gap:6px;width:100%;padding:6px 10px;border:0;background:none;font:600 11px sans-serif;color:#333;cursor:pointer;text-align:left}
+#wall-material-picker .wm-section-toggle:hover{background:#f3f5f7}
+#wall-material-picker .wm-chevron{font-size:9px;color:#7a8794;transition:transform .12s}
+#wall-material-picker .wm-section.open .wm-chevron{transform:rotate(90deg)}
+#wall-material-picker .wm-section-summary{margin-left:auto;display:flex;align-items:center;gap:5px;font-weight:400;color:#617080;max-width:55%;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
+#wall-material-picker .wm-dot{width:10px;height:10px;border-radius:50%;border:1px solid #0003;flex:0 0 10px}
+#wall-material-picker .wm-section-body{padding:2px 10px 8px}
+#wall-material-picker .wm-section-body[hidden]{display:none}
+#wall-material-picker .exterior-material-options{grid-template-columns:repeat(3,1fr);gap:3px}
+#wall-material-picker .exterior-material-options .exterior-option{padding:3px 4px;gap:4px;margin:0;font-size:10.5px;line-height:1.15;min-height:24px}
+#wall-material-picker .exterior-swatch{width:10px;height:10px;flex:0 0 10px}
+#wall-material-picker .wm-row,#wall-material-picker label.wm-row{display:flex;align-items:center;justify-content:space-between;gap:6px;border:0;padding:3px 0;margin:0}
+#wall-material-picker .wm-row>.exterior-color-options{margin:0;gap:4px;flex:1}
+#wall-material-picker .wm-face-colour>span{flex:0 0 auto}
+#wall-material-picker .exterior-color-swatch{width:20px;height:20px;flex:0 0 20px;border-radius:4px}
+#wall-material-picker .exterior-color-reset{font-size:11px}
+#wall-material-picker input[type=color]{width:34px;height:22px}
+#wall-material-picker label.wm-check{border:0;padding:4px 0 0;color:#596579}
+#wall-material-picker .exterior-default-finishes{padding:0;background:none;border:0;margin:0}
+#wall-material-picker .default-texture-toggle{margin:0;width:auto!important;min-width:150px;padding:3px 6px}
+#wall-material-picker #default-texture-menu{display:grid;grid-template-columns:1fr 1fr;gap:3px;padding:4px 0}
+#wall-material-picker #default-texture-menu[hidden]{display:none}
+#wall-material-picker #default-texture-menu .exterior-option{padding:3px 5px;margin:0}
+#wall-material-picker .exterior-roof-finish,#wall-material-picker .exterior-sticker-finish{margin:0;padding:0;border:0}
+#wall-material-picker .exterior-roof-finish .exterior-material-options{grid-template-columns:1fr 1fr}
+#wall-material-picker .sticker-default-row{gap:8px;padding:3px 0}
+#wall-material-picker .sticker-default-row label{border:0;padding:0}
+#wall-material-picker .sticker-expand{padding:3px 6px}
+#wall-material-picker .sticker-default-pieces{gap:3px 10px;margin-top:4px}
+#wall-material-picker .sticker-default-pieces label{border:0;padding:2px 0;font-size:11px}
  `;document.head.appendChild(style);
  const parent=document.getElementById('three-view-wrapper');if(!parent)return;
  const sizeMenu=()=>parent.style.setProperty('--exterior-menu-height',Math.max(80,parent.clientHeight-80)+'px');sizeMenu();if(typeof ResizeObserver!=='undefined')new ResizeObserver(sizeMenu).observe(parent);
@@ -300,32 +344,46 @@ F.mountUI=function(command,selection,busy=()=>false,materials={}){
   for(const {b,index}of placementChoices)b.setAttribute('aria-pressed',String(index===active.index));
  }
  const toggle=document.createElement('button');toggle.className='exterior-sticker-toggle';toggle.innerHTML='<i class="fas fa-chevron-right" aria-hidden="true"></i>';toggle.title='Hide wall stickers';toggle.setAttribute('aria-label',toggle.title);toggle.setAttribute('aria-expanded','true');toggle.onclick=()=>{strip.hidden=!strip.hidden;closeFace();placementPanel.hidden=true;toggle.innerHTML='<i class="fas fa-chevron-'+(strip.hidden?'left':'right')+'" aria-hidden="true"></i>';toggle.title=strip.hidden?'Show wall stickers':'Hide wall stickers';toggle.setAttribute('aria-label',toggle.title);toggle.setAttribute('aria-expanded',String(!strip.hidden));};bar.appendChild(toggle);parent.appendChild(bar);
- const picker=document.createElement('section');picker.id='wall-material-picker';picker.className='exterior-sticker-menu';picker.hidden=true;picker.setAttribute('aria-label','Wall materials');picker.innerHTML='<div class="exterior-picker-heading"><h4>WALL MATERIALS</h4><button type="button" aria-label="Close wall materials">×</button></div><div class="exterior-material-options"></div><p>Select a face to edit its finish, or choose a material first and click sections to paint. Escape finishes painting.</p><div class="exterior-finish-controls"><label>Finish color<input type="color" value="#f5f3ef" aria-label="Finish color"></label><div class="exterior-palette-heading">Common</div><div class="exterior-color-options" data-palette="common" role="group" aria-label="Common colors"></div><div class="exterior-palette-heading">In this project · most used first</div><div class="exterior-color-options" data-palette="project" role="group" aria-label="Project colors"></div><div class="exterior-palette-heading">Recent</div><div class="exterior-color-options" data-palette="recent" role="group" aria-label="Recent colors"></div><p>Color is independent of material. Choose a color to update the selected face.</p></div><label><input type="checkbox">Colors in plain modes</label>';parent.appendChild(picker);
+ const picker=document.createElement('section');picker.id='wall-material-picker';picker.className='exterior-sticker-menu';picker.hidden=true;picker.setAttribute('aria-label','Wall materials');picker.innerHTML='<div class="exterior-picker-heading"><h4>Wall materials</h4><button type="button" aria-label="Close wall materials">×</button></div>';parent.appendChild(picker);
+ // Sections collapse; their open state is remembered across sessions.
+ const sectionState=(()=>{try{return JSON.parse(localStorage.getItem('wall-material-sections')||'{}')||{};}catch(_){return {};}})();
+ function section(key,title,tip,content,open){
+  const wrap=document.createElement('div'),head=document.createElement('button'),body=document.createElement('div');wrap.className='wm-section';wrap.dataset.section=key;head.type='button';head.className='wm-section-toggle';head.id='wm-'+key+'-toggle';if(tip)head.title=tip;body.className='wm-section-body';body.id='wm-'+key+'-body';body.setAttribute('role','region');body.setAttribute('aria-labelledby',head.id);head.setAttribute('aria-controls',body.id);
+  head.innerHTML='<span class="wm-chevron" aria-hidden="true">▸</span><span class="wm-title"></span><span class="wm-section-summary"></span>';head.querySelector('.wm-title').textContent=title;
+  const set=v=>{head.setAttribute('aria-expanded',String(v));body.hidden=!v;wrap.classList.toggle('open',v);};set(typeof sectionState[key]==='boolean'?sectionState[key]:open);
+  head.onclick=()=>{const v=body.hidden;set(v);sectionState[key]=v;try{localStorage.setItem('wall-material-sections',JSON.stringify(sectionState));}catch(_){}};
+  body.appendChild(content);wrap.append(head,body);return wrap;
+ }
+ const faceControls=document.createElement('div');faceControls.innerHTML='<div class="exterior-material-options" role="group" aria-label="Face materials"></div><div class="wm-row wm-face-colour"><span>Colour</span><div class="exterior-color-options" data-palette="project" role="group" aria-label="Project colors" title="Most used in this project"></div><input type="color" value="#f5f3ef" aria-label="Finish color" title="Colour for the selected face, or a colour to paint with"></div>';
+ picker.appendChild(section('faces','Faces','Select a face to change its finish, or pick a material or colour first and click wall sections to paint. Escape finishes painting.',faceControls,true));
  const trigger=document.createElement('button');trigger.id='wall-material-toggle';trigger.className='toolbar-btn';trigger.innerHTML='<i class="fas fa-palette" aria-hidden="true"></i>';trigger.title='Wall materials';trigger.setAttribute('aria-label','Wall materials');trigger.setAttribute('aria-controls',picker.id);trigger.setAttribute('aria-expanded','false');document.getElementById('btnToggleTypes')?.after(trigger);
- const closeMaterials=()=>{closeDefaultTexture();picker.hidden=true;trigger.setAttribute('aria-expanded','false');trigger.classList.remove('active');materials.finish?.();};
- trigger.onclick=()=>{if(!picker.hidden){closeMaterials();return;}picker.hidden=false;trigger.setAttribute('aria-expanded','true');trigger.classList.add('active');refreshMaterials();refreshPalette();};picker.querySelector('.exterior-picker-heading button').onclick=closeMaterials;
+ const closeMaterials=()=>{const open=!picker.hidden;closeDefaultTexture();picker.hidden=true;trigger.setAttribute('aria-expanded','false');trigger.classList.remove('active');materials.finish?.();if(open)materials.pickerClosed?.();};
+ trigger.onclick=()=>{if(!picker.hidden){closeMaterials();return;}picker.hidden=false;trigger.setAttribute('aria-expanded','true');trigger.classList.add('active');materials.pickerOpened?.();refreshMaterials();refreshPalette();};
+ // The picker stays open while anything else is clicked (photos, the house, a colour
+ // wheel); only its button, its × or Escape close it.
+ picker.querySelector('.exterior-picker-heading button').onclick=closeMaterials;
  const option=(parent,label,color,active,fn,disabled=false)=>{const b=document.createElement('button');b.type='button';b.className='exterior-option';b.disabled=disabled;b.setAttribute('aria-pressed',String(active));if(color){const swatch=document.createElement('span');swatch.className='exterior-swatch';swatch.style.background=color;b.appendChild(swatch);}b.appendChild(document.createTextNode(label));b.onclick=fn;parent.appendChild(b);return b;};
  const materialButtons=[];for(const [id,def]of Object.entries(window.ExteriorMaterials||{})){const b=option(picker.querySelector('.exterior-material-options'),def.label,def.color,false,()=>{materials.paint?.(id);refreshMaterials();});materialButtons.push([id,b]);}
- const colorInput=picker.querySelector('input[type=color]'),commonColors=['#f5f3ef','#e8dcc3','#8c9296','#3e454b','#53758a','#6d8071'];
+ const colorInput=picker.querySelector('input[type=color]');
  const normalizeColor=value=>typeof value==='string'&&/^#[0-9a-f]{6}$/i.test(value)?value.toLowerCase():null;
  const recentByProject=new Map(),paletteRows=new Map();
  const paletteKey=()=>String(materials.projectId?.()||window.currentProjectId||'');
  function recentColors(){const key=paletteKey();if(!recentByProject.has(key)){let saved=[];try{saved=JSON.parse(localStorage.getItem('exterior-finish-colors:'+key)||'[]');}catch(_){}recentByProject.set(key,[...new Set((Array.isArray(saved)?saved:[]).map(normalizeColor).filter(Boolean))].slice(0,12));}return recentByProject.get(key);}
- function rememberColor(value){const color=normalizeColor(value);if(!color)return;const key=paletteKey(),recent=[color,...recentColors().filter(c=>c!==color)].slice(0,12);recentByProject.set(key,recent);try{localStorage.setItem('exterior-finish-colors:'+key,JSON.stringify(recent));}catch(_){} }
+ function rememberColor(value){const color=normalizeColor(value);if(!color)return;const key=paletteKey(),recent=[color,...recentColors().filter(c=>c!==color)].slice(0,12);recentByProject.set(key,recent);try{localStorage.setItem('exterior-finish-colors:'+key,JSON.stringify(recent));}catch(_){}window.FirstMateColorPicker?.remember?.(color);}
+ window.firstMateRecentColors=()=>recentColors();
  function chooseColor(color){colorInput.value=color;materials.color?.(color);rememberColor(color);refreshPalette();}
  function fillPalette(kind,values){const row=picker.querySelector('[data-palette="'+kind+'"]'),colors=[...new Set(values.map(normalizeColor).filter(Boolean))],signature=colors.join(',');if(paletteRows.get(kind)===signature)return;paletteRows.set(kind,signature);row.replaceChildren();
   for(const color of colors){const b=document.createElement('button');b.type='button';b.className='exterior-color-swatch';b.style.backgroundColor=color;b.dataset.color=color;b.title=color;b.setAttribute('aria-label','Use color '+color);b.onclick=()=>{chooseColor(color);row.querySelector('[data-color="'+color+'"]')?.focus({preventScroll:true});};row.appendChild(b);}
-  if(kind==='common'){const reset=document.createElement('button');reset.type='button';reset.className='exterior-color-swatch exterior-color-reset';reset.innerHTML='<i class="fas fa-undo" aria-hidden="true"></i>';reset.title='Use default finish color';reset.setAttribute('aria-label',reset.title);reset.onclick=()=>materials.color?.('default');row.appendChild(reset);}
-  else if(!colors.length){const empty=document.createElement('span');empty.className='exterior-palette-empty';empty.textContent=kind==='recent'?'Colors you choose appear here':'No project colors yet';row.appendChild(empty);}
+  if(kind==='project'){const reset=document.createElement('button');reset.type='button';reset.className='exterior-color-swatch exterior-color-reset';reset.innerHTML='<i class="fas fa-undo" aria-hidden="true"></i>';reset.title='Use default finish color';reset.setAttribute('aria-label',reset.title);reset.onclick=()=>materials.color?.('default');row.prepend(reset);}
  }
  // Inventory only at UI boundaries, never in the per-frame refresh path.
- function refreshPalette(){fillPalette('common',commonColors);fillPalette('project',materials.projectColors?.()||[]);fillPalette('recent',recentColors());}
+ function refreshPalette(){fillPalette('project',(materials.projectColors?.()||[]).slice(0,6));}
  picker.addEventListener('pointerenter',refreshPalette);
  picker.addEventListener('focusin',e=>{if(!picker.contains(e.relatedTarget))refreshPalette();});
  colorInput.oninput=()=>materials.color?.(colorInput.value);
  colorInput.onchange=()=>{rememberColor(colorInput.value);refreshPalette();};
- const colors=picker.querySelector('input[type=checkbox]');colors.onchange=()=>materials.colors?.(colors.checked);
- const defaultsPanel=document.createElement('section');defaultsPanel.className='exterior-finish-controls exterior-default-finishes';defaultsPanel.setAttribute('aria-label','Default finishes');defaultsPanel.innerHTML='<h4>Default finishes</h4><div>Default texture<button type="button" class="exterior-option default-texture-toggle" aria-label="Default texture" aria-haspopup="menu" aria-expanded="false" aria-controls="default-texture-menu"><span class="exterior-swatch"></span><span class="default-texture-label"></span><span aria-hidden="true">▾</span></button><div id="default-texture-menu" role="menu" aria-label="Default texture" hidden></div></div><label>Default color<input type="color" aria-label="Default color"></label><label>Default trim color<input type="color" aria-label="Default trim color"></label><p>Applies to current and future faces without an individual override.</p>';picker.querySelector('.exterior-picker-heading').after(defaultsPanel);
+ const defaultsPanel=document.createElement('section');defaultsPanel.className='exterior-finish-controls exterior-default-finishes';defaultsPanel.setAttribute('aria-label','Default finishes');defaultsPanel.innerHTML='<div class="wm-row"><span>Default texture</span><button type="button" class="exterior-option default-texture-toggle" aria-label="Default texture" aria-haspopup="menu" aria-expanded="false" aria-controls="default-texture-menu"><span class="exterior-swatch"></span><span class="default-texture-label"></span><span aria-hidden="true">▾</span></button></div><div id="default-texture-menu" role="menu" aria-label="Default texture" hidden></div><label class="wm-row">Default colour<input type="color" aria-label="Default color"></label><label class="wm-row">Default trim<input type="color" aria-label="Default trim color"></label><label class="wm-check" title="Tints each face with its material or finish colour in the Opaque and Translucent display modes. Off shows them in plain drafting colours."><input type="checkbox">Show material colours in Opaque and Translucent</label>';picker.querySelector('[data-section="faces"]').after(section('walls','Wall defaults','Texture and colours for every face without its own finish',defaultsPanel,true));
+ const colors=defaultsPanel.querySelector('input[type=checkbox]');colors.onchange=()=>materials.colors?.(colors.checked);
  const defaultTexture=defaultsPanel.querySelector('.default-texture-toggle'),textureMenu=defaultsPanel.querySelector('[role=menu]'),defaultColors=defaultsPanel.querySelectorAll('input[type=color]'),textureButtons=[];let defaultMaterial='unassigned';
  function closeDefaultTexture(){textureMenu.hidden=true;defaultTexture.setAttribute('aria-expanded','false');}
  const updateDefaults=()=>materials.defaults?.({material:defaultMaterial,color:defaultColors[0].value,trimColor:defaultColors[1].value});
@@ -334,7 +392,36 @@ F.mountUI=function(command,selection,busy=()=>false,materials={}){
  textureMenu.onkeydown=e=>{const buttons=textureButtons.map(([,b])=>b),i=buttons.indexOf(document.activeElement);if(['ArrowDown','ArrowUp','Home','End'].includes(e.key)){e.preventDefault();e.stopPropagation();buttons[e.key==='Home'?0:e.key==='End'?buttons.length-1:(i+(e.key==='ArrowDown'?1:buttons.length-1))%buttons.length]?.focus();}};
  document.addEventListener('pointerdown',e=>{if(!defaultsPanel.contains(e.target))closeDefaultTexture();},true);
  for(const input of defaultColors)input.onchange=()=>{updateDefaults();rememberColor(input.value);refreshPalette();};
- function refreshMaterials(){const d=materials.defaults?.()||{material:'unassigned',color:'#80868b',trimColor:'#f5f3ef'};defaultMaterial=d.material;const def=window.ExteriorMaterials?.[d.material];defaultTexture.querySelector('.default-texture-label').textContent=def?.label||'Smooth';defaultTexture.querySelector('.exterior-swatch').style.background=def?.color||d.color;for(const [id,b]of textureButtons){b.setAttribute('aria-checked',String(id===d.material));b.setAttribute('aria-pressed',String(id===d.material));}defaultColors.forEach((input,i)=>{if(document.activeElement!==input)input.value=i?d.trimColor:d.color;});const activeMaterial=materials.active?.();for(const [id,b]of materialButtons)b.setAttribute('aria-pressed',String(activeMaterial===id));colors.checked=materials.colors?.()!==false;}
+ // Roof covering for the whole roof: category, then a color suited to it or a custom one. Presets are ExteriorFinishes data.
+ const roofPanel=document.createElement('div');roofPanel.className='exterior-roof-finish';roofPanel.setAttribute('role','group');roofPanel.setAttribute('aria-label','Roof material');roofPanel.innerHTML='<div class="exterior-material-options" data-roof="category" role="group" aria-label="Roof material type"></div><div class="wm-row"><div class="exterior-color-options" data-roof="color" role="group" aria-label="Roof colors"></div><input type="color" aria-label="Custom roof color" title="Custom roof colour"></div><label class="wm-row" title="Eave and rake trim without a colour of its own">Roof trim<input type="color" data-roof="trim" aria-label="Roof trim color"></label>';picker.appendChild(section('roof','Roof','Roof covering, shown in Textured mode and on the PDF cover',roofPanel,true));
+ const roofCategories=roofPanel.querySelector('[data-roof=category]'),roofColors=roofPanel.querySelector('[data-roof=color]'),roofCustom=roofPanel.querySelector('input[type=color]:not([data-roof])'),roofTrim=roofPanel.querySelector('[data-roof=trim]');let roofSignature='';
+ roofTrim.onchange=()=>{const d=materials.defaults?.();if(d)materials.defaults({...d,roofTrimColor:roofTrim.value});rememberColor(roofTrim.value);refreshMaterials();};
+ roofCustom.onchange=()=>{const r=materials.roof?.();if(r)materials.roof({category:r.category,color:roofCustom.value});rememberColor(roofCustom.value);refreshMaterials();};
+ function summary(key,text,color){const el=picker.querySelector('[data-section="'+key+'"] .wm-section-summary');if(!el)return;el.textContent=text||'';if(color){const dot=document.createElement('span');dot.className='wm-dot';dot.style.background=color;el.prepend(dot);}}
+ function refreshRoof(){
+  const presets=window.ExteriorFinishes?.roofMaterials,r=presets&&materials.roof?.();roofPanel.hidden=!r;if(!r)return;
+  const signature=Object.keys(presets).join()+'|'+r.category;
+  if(signature!==roofSignature){roofSignature=signature;roofCategories.replaceChildren();roofColors.replaceChildren();
+   for(const [id,spec]of Object.entries(presets)){const b=option(roofCategories,spec.label,spec.colors[0].color,false,()=>{materials.roof({category:id,color:spec.colors[0].color});refreshMaterials();});b.dataset.category=id;b.title=spec.description;}
+   for(const preset of presets[r.category].colors){const b=document.createElement('button');b.type='button';b.className='exterior-color-swatch';b.style.backgroundColor=preset.color;b.dataset.color=preset.color;b.title=preset.label;b.setAttribute('aria-label',preset.label);b.onclick=()=>{materials.roof({category:r.category,color:preset.color});refreshMaterials();};roofColors.appendChild(b);}
+  }
+  for(const b of roofCategories.children)b.setAttribute('aria-pressed',String(b.dataset.category===r.category));
+  for(const b of roofColors.children)b.setAttribute('aria-pressed',String(b.dataset.color===r.color));
+  if(document.activeElement!==roofCustom)roofCustom.value=r.color;
+  const d=materials.defaults?.();roofTrim.closest('label').hidden=!d;if(d&&document.activeElement!==roofTrim)roofTrim.value=d.roofTrimColor||d.trimColor;
+ }
+ // Sticker defaults: Trim and Main for every sticker kind at once, or each piece. Windows have no main colour.
+ const stickerPanel=document.createElement('div');stickerPanel.className='exterior-sticker-finish';stickerPanel.setAttribute('role','group');stickerPanel.setAttribute('aria-label','Sticker defaults');stickerPanel.innerHTML='<div class="sticker-default-row"><label>Trim<input type="color" data-part="trim" aria-label="Sticker trim"><span class="sticker-mixed" data-mixed="trim" hidden>mixed</span></label><label>Main<input type="color" data-part="main" aria-label="Sticker main"><span class="sticker-mixed" data-mixed="main" hidden>mixed</span></label><button type="button" class="exterior-option sticker-expand" aria-expanded="false" aria-controls="sticker-default-pieces">Each piece <span aria-hidden="true">▾</span></button></div><div id="sticker-default-pieces" class="sticker-default-pieces" role="group" aria-label="Sticker pieces" hidden></div>';picker.appendChild(section('stickers','Stickers',"Default trim and colour for doors, windows and garage doors. Windows are glass, so trim only. A sticker's own colour wins.",stickerPanel,true));
+ const stickerExpand=stickerPanel.querySelector('.sticker-expand'),stickerPieceList=stickerPanel.querySelector('.sticker-default-pieces'),stickerParts=[...stickerPanel.querySelectorAll('input[data-part]')];
+ stickerExpand.onclick=()=>{stickerPieceList.hidden=!stickerPieceList.hidden;stickerExpand.setAttribute('aria-expanded',String(!stickerPieceList.hidden));refreshStickers();};
+ for(const input of stickerParts)input.onchange=()=>{const pieces=window.ExteriorFinishes?.stickerPieces||[];materials.stickers?.(Object.fromEntries(pieces.filter(p=>p.part===input.dataset.part).map(p=>[p.id,input.value])));rememberColor(input.value);refreshMaterials();};
+ function refreshStickers(){
+  const pieces=window.ExteriorFinishes?.stickerPieces,values=pieces&&materials.stickers?.();stickerPanel.hidden=!values;if(!values)return;
+  if(!stickerPieceList.children.length)for(const piece of pieces){const label=document.createElement('label'),input=document.createElement('input');label.textContent=piece.label;input.type='color';input.dataset.piece=piece.id;input.setAttribute('aria-label',piece.label);input.onchange=()=>{materials.stickers?.({[piece.id]:input.value});rememberColor(input.value);refreshMaterials();};label.appendChild(input);stickerPieceList.appendChild(label);}
+  for(const input of stickerParts){const set=[...new Set(pieces.filter(p=>p.part===input.dataset.part).map(p=>values[p.id]))],mixed=set.length>1;stickerPanel.querySelector('[data-mixed="'+input.dataset.part+'"]').hidden=!mixed;input.classList.toggle('mixed',mixed);input.title=mixed?'Mixed: '+set.join(', '):set[0];if(document.activeElement!==input)input.value=set[0];}
+  for(const input of stickerPieceList.querySelectorAll('input[data-piece]'))if(document.activeElement!==input)input.value=values[input.dataset.piece];
+ }
+ function refreshMaterials(){refreshRoof();refreshStickers();const d=materials.defaults?.()||{material:'unassigned',color:'#80868b',trimColor:'#f5f3ef'};defaultMaterial=d.material;const def=window.ExteriorMaterials?.[d.material];summary('walls',def?.label||'Smooth',d.color);const roofNow=materials.roof?.();summary('roof',roofNow?window.ExteriorFinishes?.roofMaterials?.[roofNow.category]?.label:'',roofNow?.color);defaultTexture.querySelector('.default-texture-label').textContent=def?.label||'Smooth';defaultTexture.querySelector('.exterior-swatch').style.background=def?.color||d.color;for(const [id,b]of textureButtons){b.setAttribute('aria-checked',String(id===d.material));b.setAttribute('aria-pressed',String(id===d.material));}defaultColors.forEach((input,i)=>{if(document.activeElement!==input)input.value=i?d.trimColor:d.color;});const activeMaterial=materials.active?.();for(const [id,b]of materialButtons)b.setAttribute('aria-pressed',String(activeMaterial===id));colors.checked=materials.colors?.()!==false;}
  for(const el of [bar,picker,panel,placementPanel])for(const event of ['pointerdown','mousedown','mouseup','click','dblclick','wheel'])el.addEventListener(event,e=>e.stopPropagation());
  F.closeUI=()=>{closeFace();closeMaterials();placementPanel.hidden=true;};
  document.addEventListener('keydown',e=>{if(e.key==='Escape'){if(!textureMenu.hidden){e.preventDefault();e.stopImmediatePropagation();closeDefaultTexture();defaultTexture.focus();}else F.closeUI();}},true);

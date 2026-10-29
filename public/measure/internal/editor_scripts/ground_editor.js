@@ -30,7 +30,7 @@
         function planeMesh(p,extra){return T.fromPlane(T.bounds(state().roof),p,{visible:true,simpleGrade:1,...extra});}
         function fitDSM(){
             const s=state(),samples=T.sampleDSM(layerData.dsm?.[0],s.context,s.roof),r=T.fit(samples);
-            const candidate=planeMesh(r.plane,{source:'DSM',stats:r.stats});
+            const candidate=planeMesh(T.level(r.plane,T.bounds(s.roof),T.DSM_LEVEL_SLOPE),{source:'DSM',stats:r.stats});
             s.groundCandidates={...s.groundCandidates,dsm:copy(candidate)};return candidate;
         }
         function reportError(e){message=e.message;render();}

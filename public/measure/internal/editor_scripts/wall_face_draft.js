@@ -49,7 +49,21 @@ function jsonCopyValue(v){
 }
 function jsonCopy(v){try{return jsonCopyValue(v);}catch{return JSON.parse(JSON.stringify(v));}}
 window.createWallFaceDraft=function(host){
- let resoffitMode=false;
+ // Line selection mode. Resoffit and Trim are two configurations of it: each
+ // names the lines that a click or a box (touching selects, Ctrl removes) can
+ // select, whether a line behind a face can be picked, and whether points
+ // draw. Points are never picked while it is on.
+ let lineSelect=null;
+ const lineSelectModes={
+  // Resoffit dims everything else, so its roof-contact lines pick through
+  // faces. Its highlights come from merged support outlines, which need not
+  // exist verbatim in the sketch (a turret can split or consume return
+  // edges), so it picks the same contact lines that are drawn.
+  resoffit:{kind:'resoffit',throughFaces:true,points:true,lines:()=>new Map(renderDerived('soffit-edges',()=>soffitEdges()).map(c=>[c.id,c.pair]))},
+  // Trim goes on lines: every drawn wall, ground and soffit line except roof
+  // ridges, hips and valleys, which take no trim.
+  trim:{kind:'trim',throughFaces:false,points:false,lines:()=>renderDerived('trim-lines',trimLines)}
+ };
  const faceVisible=f=>f?.closedSoffit&&host.state()?.closedSoffits===false?false:f?.roofLayer?host.roofVisible?.()!==false:host.wallsVisible?.()!==false;
  const commit=host.commit;host={...host,commit(before){const M=window.ExteriorModel,state=host.state();if(M){state.wallEdits=M.prepareEdits(state,state.wallEdits,before);}commit(before);}};
  const S=window.BaseSketchGeometry,B=window.BaseGeometry,G=window.WallGeometry,copy=v=>v===undefined?undefined:jsonCopy(v);
@@ -152,7 +166,7 @@ window.createWallFaceDraft=function(host){
  function togglePlane(source=null){
   if(workingPlane?.rotation){const r=workingPlane.rotation;if(r.single){const axes=r.axes||[{x:0,y:0,z:1},{x:1,y:0,z:0},{x:0,y:1,z:0}];r.axisIndex=(r.axisIndex+1)%axes.length;r.axis=axes[r.axisIndex];setupPlaneRotation();}return true;}
   if(workingPlane&&tool&&!finishToolForSwitch())return true;
-  if(workingPlane){workingPlane=null;clearGuides();host.message('Plane off � drawn geometry kept.');host.redraw();return true;}
+  if(workingPlane){workingPlane=null;clearGuides();host.message('Plane off · drawn geometry kept.');host.redraw();return true;}
   if(tool){host.message('Finish or cancel the current tool before choosing a plane.');return true;}
   const inferred=source?.axisPoints||(!source&&!selectedSolid&&!selectedRegion&&!faceSelection.length&&geometrySelectionPoints());if(inferred?.length){const fit=selectionPlane(inferred);if(!fit){host.message('Selected points and lines must all lie on one plane.');return true;}if(fit.axis)return startPlaneRotation(fit.axis);workingPlane={frame:fit.frame,selection:copy(inferred),drawing:false,display:'faint',hover:null,seed:inferred.map(p=>window.ExteriorGeometry.local(fit.frame,p))};releasePlaneSourceSelection();refreshPlane();host.message('Plane constrained to selected geometry. M: move; R: rotate; T: flip; Y: resize; P: exit.');host.redraw();return true;}
   source=source?.face||source;
@@ -253,9 +267,31 @@ window.createWallFaceDraft=function(host){
    }
   });if(ok){plane.selectedFaces=[];refreshPlane();host.message('Selected region subtracted.');host.redraw();}return true;
  }
+ // Committed plane geometry lands exactly on the plane geometry it nearly
+ // touches (W.conformPlanePoints: model centimetres, not pixels), so a corner
+ // a few millimetres off the base leaves no sliver face. F (free move) turns
+ // it off with the other snaps. Existing scene points
+ // and points off the plane stay put; a landing on a line interpolates that
+ // line's world ends, so it stays exactly collinear with it.
+ function conformPlane(points,links=[],targets=null){
+  const K=window.ExteriorGeometry,frame=workingPlane.frame,scene=targets||planeScene(),lines=targets?targets.edges:scene.lines,local=p=>K.local(frame,p),known=new Set(targets?[]:scene.points.map(W.vertexKey));
+  const list=[...new Map(points.map(p=>[W.vertexKey(p),p])).values()],index=new Map(list.map((p,i)=>[W.vertexKey(p),i]));if(!list.length)return p=>p;
+  const fixed=list.map((p,i)=>known.has(W.vertexKey(p))||!onWorkingPlane(p)?i:-1).filter(i=>i>=0);
+  const result=W.conformPlanePoints(list.map(local),scene.points.map(local),lines.map(pair=>pair.map(local)),links.map(pair=>pair.map(p=>index.get(W.vertexKey(p)))),fixed);
+  const placed=new Map(list.map((p,i)=>{const r=result[i],line=r.edge!=null&&lines[r.edge],[a,b]=line||[];return [W.vertexKey(p),r.node!=null?{...p,...copy(scene.points[r.node])}:line?{...p,x:a.x+(b.x-a.x)*r.t,y:a.y+(b.y-a.y)*r.t,z:a.z+(b.z-a.z)*r.t}:p];}));
+  return p=>placed.get(W.vertexKey(p))||p;
+ }
+ // Moved or pasted plane geometry conforms the same way; curves keep their shape.
+ function conformPlaneGeometry(g,targets){
+  if(!g||(typeof isFreeMove!=='undefined'&&isFreeMove)||g.curves?.length||g.faces?.some(f=>f.curves?.length||f.feature))return g;
+  const ps=g.points.filter(p=>!p.curveSample),keys=new Set(ps.map(W.vertexKey)),map=conformPlane(ps,(g.edges||[]).filter(pair=>pair.every(p=>keys.has(W.vertexKey(p)))),targets);
+  if(ps.every(p=>map(p)===p))return g;const m=p=>map(p);
+  return {...g,points:g.points.map(m),edges:(g.edges||[]).map(r=>r.map(m)),faces:(g.faces||[]).map(f=>({...f,points:f.points.map(m),...(f.holes?{holes:f.holes.map(r=>r.map(m))}:{})}))};
+ }
  function planeEdit(point,pairs=[],curve=null){
   if(!point&&!pairs.length&&!curve)return true;
   const plane=workingPlane,K=window.ExteriorGeometry,frame=plane.frame;
+  if(!curve&&!(typeof isFreeMove!=='undefined'&&isFreeMove)){const conformed=conformPlane([...(point?[point]:[]),...pairs.flat()],pairs);point=point&&conformed(point);pairs=pairs.map(pair=>pair.map(conformed));}
   const ok=transaction(()=>{
    const edits=host.state().wallEdits,loose=edits.$loose||={points:[],edges:[]};
    for(const p of [...(point?[point]:[]),...pairs.flat()]){if(!loose.points.some(q=>W.vertexKey(q)===W.vertexKey(p)))loose.points.push(p);edits.$removedSurfacePoints=(edits.$removedSurfacePoints||[]).filter(id=>id!==W.vertexKey(p));}
@@ -548,6 +584,9 @@ function perf_snap(d,e,raw=null){
  function endBox(e){if(e&&e.button!==undefined&&e.button!==0)return;
   if(!box||e?.button!==undefined&&e.button!==0)return;if(e&&viewOf(e))mouse=e;const b=box;const pointOnly=!selectedSolid&&!selectedRegion&&!lineSelection.length&&!pickedLines.length&&!solidEdges.length&&!selectedBasePoints.length&&!workingPlane?.selectedLines?.length&&!workingPlane?.selectedFaces?.length;box=null;boxEl?.remove?.();boxEl=null;
   const moved=b.moved||Math.hypot((e?.clientX??b.ex)-b.x,(e?.clientY??b.ey)-b.y)>=4;
+  // Line selection mode: a box adds every selectable line it touches (Ctrl removes them); other geometry is not selectable.
+  if(b.lineSelect){if(!moved){if(!e||viewOf(e)===b.view)b.click?.();return;}marqueeCompleted=true;const touched=lineSelectLinesInBox(b.x,b.y,e?.clientX??b.ex,e?.clientY??b.ey),ids=new Set(touched.map(c=>c.id));
+   lineSelection=b.subtract?lineSelection.filter(l=>!ids.has(l.id)):[...lineSelection.filter(l=>!ids.has(l.id)),...touched];draftSelection={};picked=[];pickedLines=[];solidPoints=[];solidEdges=[];if(lineSelect?.kind!=='trim'){selectedRegion=null;selectedSolid=null;}selectedBasePoints=[];host.select(null);host.message(lineSelection.length+' lines selected');host.redraw();e?.stopImmediatePropagation?.();return;}
   if(b.plane&&workingPlane){if(!moved){b.click?.();return;}marqueeCompleted=true;const selected=planeScene().points.filter(p=>{const q=host.screen(p,'3d');return q.visible!==false&&q.x>=Math.min(b.x,e?.clientX??b.ex)&&q.x<=Math.max(b.x,e?.clientX??b.ex)&&q.y>=Math.min(b.y,e?.clientY??b.ey)&&q.y<=Math.max(b.y,e?.clientY??b.ey);}),keys=new Set(selected.map(W.vertexKey));
    workingPlane.selectedLines=[];workingPlane.selectedFaces=[];workingPlane.selection=b.subtract?b.priorPlane.filter(p=>!keys.has(W.vertexKey(p))):[...new Map([...(b.add?b.priorPlane:[]),...selected].map(p=>[W.vertexKey(p),p])).values()];if(!pointOnly||!host.redrawSelection?.(workingPlane.selection))host.redraw();e?.stopImmediatePropagation?.();return;}
   if(!b.add&&(moved||(!b.lineClick&&!b.deferredPick)))lineSelection=[];
@@ -599,8 +638,34 @@ function perf_snap(d,e,raw=null){
  window.addEventListener('pointercancel',()=>{box=null;boxEl?.remove?.();boxEl=null;clearGuides();},true);
  function add(d,p){const n=S.add(d,p,.0001),node=d.sketch.nodes.find(v=>v.id===n);node.userDraftPoint=true;delete node.generatedBoundary;if(d.sketch.edges.some(e=>e.fixed&&(()=>{const a=d.sketch.nodes.find(v=>v.id===e.a),b=d.sketch.nodes.find(v=>v.id===e.b),dx=b.x-a.x,dy=b.y-a.y,len=Math.hypot(dx,dy),t=((node.x-a.x)*dx+(node.y-a.y)*dy)/(len*len);return t>=0&&t<=1&&Math.abs((node.x-a.x)*dy-(node.y-a.y)*dx)/len<.002;})()))node.fixed=true;S.resolve(d);return n;}
  function containsRegion(f,h){const outer={points:f.points};if(!h.points.every(p=>G.contains(outer,p)))return false;const K=window.ExteriorGeometry;return K.difference({points:h.points},[outer]).reduce((area,part)=>area+K.area(part),0)<=1e-8;}
- function classify(d){const holes=d.faces.filter(f=>f.boundaryHole||f.points.every(p=>!d.sketch.nodes.find(n=>n.id===p.nodeId)?.fixed));for(const f of d.faces){f.opening=holes.includes(f);f.holes=f.opening?[]:holes.filter(h=>containsRegion(f,h)).map(h=>h.points);}}
- function transaction(fn,original){const rollback=copy(host.state().wallEdits||{}),before=copy(original??rollback);try{supportSnapshot=structuralFaces();fn();for(const d of Object.values(all()))classify(d);host.commit(before);host.redraw();return true;}catch(e){host.state().wallEdits=rollback;host.message(e.message);return false;}finally{supportSnapshot=null;}}
+ // The one closed-face rule: a region is an opening in the region around it when
+ // another region of its draft contains it and none of its points lies on the
+ // draft's outline, however those points were drawn (fixed or not).
+ function onDraftOutline(d,p){return (d.sketch?.outlines||[]).some(r=>r.some((a,i)=>onSegment(p,a,r[(i+1)%r.length],1e-5)));}
+ function draftOpenings(d){return d.faces.filter(f=>f.boundaryHole||!f.points.some(p=>onDraftOutline(d,d.sketch.nodes.find(n=>n.id===p.nodeId)||p))&&d.faces.some(o=>o!==f&&!o.boundaryHole&&containsRegion(o,f)));}
+ function classify(d){const holes=draftOpenings(d);for(const f of d.faces){f.opening=holes.includes(f);f.holes=f.opening?[]:holes.filter(h=>containsRegion(f,h)).map(h=>h.points);}}
+ // A curve stays a curve. Every edit commits through host.commit; one that
+ // would turn a curve's tessellation into ring vertices, loose wire, sketch
+ // nodes or retained points is refused and rolled back, and the editor says
+ // so, as the area guard does for deletes. Nothing is silently corrupted.
+ function curveCensus(edits){
+  const faces=[],points=[];
+  for(const s of edits?.$surfaces||[])if(!s.deleted&&!s.drafted){faces.push(s);points.push(...(s.retainedPoints||[]));}
+  for(const d of Object.values(edits?.$drafts||{})){if(d.mergedInto)continue;for(const f of d.faces)if(!f.solidId&&!f.boundaryHole&&!deleted(d,f))faces.push({points:f.points.map(p=>world(d,p)),holes:(f.holes||[]).map(r=>r.map(p=>world(d,p))),curves:(f.curves||[]).map(c=>window.ExteriorGeometry.mapCurve(c,p=>world(d,p)))});for(const n of d.sketch?.nodes||[])points.push(world(d,n));}
+  for(const p of edits?.$loose?.points||[])points.push(p);for(const pair of edits?.$loose?.edges||[])points.push(...pair);
+  return {faces,points};
+ }
+ // A nudge only moves geometry: it never adds or removes a curve.
+ let nudging=false;
+ const commitEdit=host.commit;
+ host.commit=before=>{
+  const was=curveCensus(before),now=curveCensus(host.state().wallEdits),flattened=W.flattenedCurveSamples(was,now),curves=c=>new Set(c.faces.flatMap(f=>(f.curves||[]).map(curve=>{const K=window.ExteriorGeometry,key=t=>W.vertexKey(K.curvePoint(curve,t));return [key(0),key(1)].sort().join('|')+'|'+key(.5);}))).size;
+  const reason=flattened.length>=3?'it would break a curve into separate points':nudging&&curves(was)!==curves(now)?'a nudge would add or remove a curve':null;
+  if(!reason)return commitEdit(before);
+  host.state().wallEdits=copy(before);console.error('Refused an edit: '+reason,flattened.slice(0,4),was.faces.length,now.faces.length,curves(was),curves(now));
+  host.message('Edit refused: '+reason+'. Nothing was changed.');host.redraw();return false;
+ };
+ function transaction(fn,original){const rollback=copy(host.state().wallEdits||{}),before=copy(original??rollback);try{supportSnapshot=structuralFaces();fn();for(const d of Object.values(all()))classify(d);if(host.commit(before)===false){host.state().wallEdits=rollback;return false;}host.redraw();return true;}catch(e){host.state().wallEdits=rollback;host.message(e.message);return false;}finally{supportSnapshot=null;}}
  // A plain click only holds an existing drawing face. Converting a surface to
  // a draft or adding the shared point belongs to the edit that follows (edit).
  function holdBoundary(e,edit=false){if(['textured','rendered','match-textured'].includes(host.state()?.displayMode)&&viewOf(e)==='3d')return false;
@@ -642,9 +707,12 @@ function perf_snap(d,e,raw=null){
   },before);return true;
  }
  const pickVisible=(p,e)=>viewOf(e)!=='3d'||host.pickVisible?.(p,e)!==false;
+ // Point markers draw on top of faces, so every drawn point can be clicked: the marker
+ // nearest the cursor wins, a point in front on a near tie. Textured views show no points.
+ function nearestPoint(items,e,at,view=viewOf(e),radius=12){const through=view==='3d'&&!['textured','rendered','match-textured'].includes(host.state()?.displayMode);let front=null,back=null;for(const c of items){const p=at(c),q=host.screen(p,view),r=Math.hypot(q.x-e.clientX,q.y-e.clientY);if(q.visible===false||!(r<radius))continue;if(pickVisible(p,e)){if(!front||r<front.r)front={c,r};}else if(through&&(!back||r<back.r))back={c,r};}return (back&&(!front||back.r+3<front.r)?back:front)?.c||null;}
  const pickLineVisible=(pair,e,t=.5)=>viewOf(e)!=='3d'||(host.pickLineVisible?host.pickLineVisible(pair,e):pickVisible({x:pair[0].x+(pair[1].x-pair[0].x)*t,y:pair[0].y+(pair[1].y-pair[0].y)*t,z:pair[0].z+(pair[1].z-pair[0].z)*t},e));
  function pickVisiblePoint(e){
-  if(resoffitMode||tool||lineMode()||viewOf(e)!=='3d'||e.button!==0||['textured','rendered','match-textured'].includes(host.state()?.displayMode))return false;
+  if(lineSelect||tool||lineMode()||viewOf(e)!=='3d'||e.button!==0||['textured','rendered','match-textured'].includes(host.state()?.displayMode))return false;
   return withSelectionGeometry(()=>pickVisiblePointInScene(e));
  }
  function undraftedWallTopology(){return renderDerived('undrafted-wall-topology',()=>G.topology(walls().filter(w=>!Object.values(all()).some(d=>d.members.includes(w.id)))));}
@@ -657,7 +725,7 @@ function perf_snap(d,e,raw=null){
    for(const w of walls())if(!Object.values(all()).some(d=>d.members.includes(w.id)))for(const p of [...w.bottom,...w.top])if(!w.sourceId||visible.has(W.vertexKey(p)))candidates.push({p,w});
   }
   if(host.selectBaseEntities)for(const p of basePoints())candidates.push({p,base:true});
-  let best=null,dist=12;for(const c of candidates){const q=host.screen(c.p,'3d'),r=Math.hypot(q.x-e.clientX,q.y-e.clientY);if(q.visible!==false&&r<dist&&pickVisible(c.p,e)){dist=r;best=c;}}
+  let best=nearestPoint(candidates,e,c=>c.p,'3d');
   if(!best)return false;
   if(e.ctrlKey||e.metaKey){beginBox(e,current());box.click=()=>{
    selectedSolid=null;selectedRegion=null;
@@ -681,11 +749,12 @@ function perf_snap(d,e,raw=null){
    if(!add){draftSelection={};picked=[];solidPoints=[];selectedBasePoints=[];}
    pickedLines=[];solidEdges=[];lineSelection=[];selectedSolid=null;selectedRegion=null;
    if(best.solid){solidPoints=[...new Set([...solidPoints,best.solid])];(host.selectBox||host.select)(null);}
-   else {const d=best.d||ensure(best.w),key=draftKey(d),n=best.n||draftNodes(d).find(n=>distance3(world(d,n),best.p)<.0001);if(!n)return;activeDraftKey=key;const ids=draftSelection[key]||[];draftSelection[key]=[...new Set([...(add?ids:[]),n.id])];picked=draftSelection[key];host.select(best.w?.id||walls().find(w=>d.members.includes(w.id))?.id||null);}
+   else {const d=best.d||ensure(best.w),key=draftKey(d),at=n=>distance3(world(d,n),best.p)<.0001,n=best.n||draftNodes(d).find(at)||d.sketch.nodes.find(n=>at(n)&&!(d.removedPoints||[]).includes(n.id));if(!n)return;activeDraftKey=key;const ids=draftSelection[key]||[];draftSelection[key]=[...new Set([...(add?ids:[]),n.id])];picked=draftSelection[key];host.select(best.w?.id||walls().find(w=>d.members.includes(w.id))?.id||null);}
    const count=selectedWorldPoints().length;host.message(count+(count===1?' point selected':' points selected'));host.redraw();
   };return true;
  }
  function pickSolid(e,pointsOnly=false){
+  if(lineSelect&&pointsOnly)return false;
   // Shift extends an existing line selection; a face behind a missed edge is
   // not a replacement selection (nor is a nearby point).
   if(!tool&&e.shiftKey&&(lineSelection.length||pickedLines.length||solidEdges.length)&&viewOf(e)==='3d'){
@@ -696,7 +765,7 @@ function perf_snap(d,e,raw=null){
   if(!tool&&e.button===0&&viewOf(e)==='3d'&&pickLine3D(e))return true;
   if(tool||!viewOf(e))return false;const graph=wire(),nodesById=new Map(graph.nodes.map(n=>[n.id,n])),byId=id=>nodesById.get(id);let nearest=null,distance=12;
   if(lineMode()){for(const edge of graph.edges){const a=host.screen(byId(edge.a),viewOf(e)),b=host.screen(byId(edge.b),viewOf(e)),dx=b.x-a.x,dy=b.y-a.y,t=Math.max(0,Math.min(1,((e.clientX-a.x)*dx+(e.clientY-a.y)*dy)/(dx*dx+dy*dy))),dist=Math.hypot(e.clientX-a.x-t*dx,e.clientY-a.y-t*dy);if(dist<distance&&pickLineVisible([byId(edge.a),byId(edge.b)],e,t)){distance=dist;nearest=edge.id;}}}
-  else for(const n of graph.nodes.filter(n=>!n.curveSample)){const p=host.screen(n,viewOf(e)),dist=Math.hypot(p.x-e.clientX,p.y-e.clientY);if(dist<distance&&pickVisible(n,e)){distance=dist;nearest=n.id;}}
+  else nearest=nearestPoint(graph.nodes.filter(n=>!n.curveSample),e,n=>n)?.id||null;
   if(nearest){beginBox(e,current());box.click=()=>{if(!e.shiftKey)draftSelection={};pickedLines=[];const list=lineMode()?solidEdges:solidPoints,next=e.shiftKey?(list.includes(nearest)?list.filter(id=>id!==nearest):[...list,nearest]):[nearest];solidPoints=lineMode()?[]:next;solidEdges=lineMode()?next:[];selectedSolid=null;selectedRegion=null;picked=[];const w=selected()||walls()[0];host.select(w?.id||null);host.redraw();};return true;}
 
   if(pointsOnly||!solidMeshes.length||viewOf(e)!=='3d')return false;
@@ -752,8 +821,10 @@ function perf_snap(d,e,raw=null){
    svg('line',{x1:q.x-x,y1:q.y-y,x2:q.x+x,y2:q.y+y,stroke:'#00FFFF','stroke-width':2*inv,opacity:.7,'data-line-center':'true','pointer-events':'none'},rot);
   }
  }
- function drawLineCenters3D(group,vector){
-  const centers=lineCenterPoints();if(!centers.length)return;
+ function drawLineCenters3D(group,vector,centers=null){
+  // A sticker gesture's wall has its line centers drawn by the overlay.
+  if(!centers){centers=lineCenterPoints();const g=gestureDraftKey(),d=g&&all()[g];if(d){const segs=draftSegments(d).map(e=>[world(d,e.start),world(d,e.end)]);centers=centers.filter(p=>!segs.some(([a,b])=>onSegment(p,a,b)));}}
+  if(!centers.length)return;
   const geo=new THREE.BufferGeometry().setFromPoints(centers.map(vector)),ends=centers.flatMap(p=>{const q=vector(p.pair[1]);return [q.x,q.y,q.z];});
   geo.setAttribute('centerEnd',new THREE.Float32BufferAttribute(ends,3));
   const viewport={value:new THREE.Vector2(1,1)},material=new THREE.PointsMaterial({color:'#00FFFF',size:14,sizeAttenuation:false,depthTest:false,depthWrite:false,transparent:true,opacity:.7});
@@ -796,20 +867,34 @@ function perf_snap(d,e,raw=null){
   });return true;
  }
  function pickLine3D(e){return withSelectionGeometry(()=>pickLineInScene(e));}
- // Whether a press in Resoffit lands on a roof-contact line; anything else closes the menu.
- function resoffitHit(e){if(!resoffitMode||viewOf(e)!=='3d')return false;return withSelectionGeometry(()=>{const screen=p=>host.screen(p,'3d'),valid=p=>p.visible!==false&&Number.isFinite(p.x)&&Number.isFinite(p.y);return renderDerived('soffit-edges',()=>soffitEdges()).some(({pair})=>{const [a,b]=pair.map(screen);if(!valid(a)||!valid(b))return false;const dx=b.x-a.x,dy=b.y-a.y,l2=dx*dx+dy*dy;if(l2<1)return false;const t=Math.max(0,Math.min(1,((e.clientX-a.x)*dx+(e.clientY-a.y)*dy)/l2));return Math.hypot(e.clientX-a.x-t*dx,e.clientY-a.y-t*dy)<10&&(pickLineVisible(pair,e,t)||!!host.pickSoffitVisible?.(pair,e));});});}
+ // Entering a line selection mode keeps only the selected lines it can
+ // select; a mode that shows no points holds no selected points either.
+ function setLineSelectMode(kind){
+  lineSelect=lineSelectModes[kind]||null;
+  if(lineSelect&&lineSelection.length){const lines=[...lineSelect.lines()],keep=l=>lines.find(([id,pair])=>id===l.id||(l.pairs||[l.pair]).some(p=>W.sharedIntervals(...p,[{points:pair}]).some(([a,b])=>b-a>.001)));lineSelection=[...new Map(lineSelection.map(keep).filter(Boolean).map(([id,pair])=>[id,{id,pair}])).values()];host.message(lineSelection.length+' lines selected');}
+  if(lineSelect&&!lineSelect.points){draftSelection={};picked=[];pickedLines=[];solidPoints=[];solidEdges=[];selectedBasePoints=[];}
+  host.redraw();
+ }
+ // Selectable lines whose on-screen segment touches the box (an end inside, or crossing an edge).
+ function lineSelectLinesInBox(x0,y0,x1,y1){const left=Math.min(x0,x1),right=Math.max(x0,x1),top=Math.min(y0,y1),bottom=Math.max(y0,y1),inBox=q=>q.x>=left&&q.x<=right&&q.y>=top&&q.y<=bottom;
+  const crosses=(a,b,c,d)=>{const o=(p,q,r)=>Math.sign((q.x-p.x)*(r.y-p.y)-(q.y-p.y)*(r.x-p.x));return o(a,b,c)!==o(a,b,d)&&o(c,d,a)!==o(c,d,b);},corners=[{x:left,y:top},{x:right,y:top},{x:right,y:bottom},{x:left,y:bottom}];
+  return withSelectionGeometry(()=>{if(!lineSelect)return [];const view3D={closest:s=>s==='#three-view-wrapper'?view3D:null},behind=pair=>!lineSelect.throughFaces&&!pickLineVisible(pair,{target:view3D,clientX:(host.screen(pair[0],'3d').x+host.screen(pair[1],'3d').x)/2,clientY:(host.screen(pair[0],'3d').y+host.screen(pair[1],'3d').y)/2},.5);return [...lineSelect.lines()].filter(([,pair])=>{const [a,b]=pair.map(p=>host.screen(p,'3d'));if(!a||!b||a.visible===false||b.visible===false||![a.x,a.y,b.x,b.y].every(Number.isFinite))return false;return (inBox(a)||inBox(b)||corners.some((c,i)=>crosses(a,b,c,corners[(i+1)%4])))&&!behind(pair);}).map(([id,pair])=>({id,pair}));});}
+ function trimLines(){
+  const roof=host.state()?.roof,untrimmed=(roof?.connections||[]).filter(c=>['ridge','hip','valley'].includes(c.type)).map(c=>({points:[roof.points?.[c.startIdx],roof.points?.[c.endIdx]]})).filter(f=>f.points.every(Boolean));
+  const lines=new Map([...sceneLines().lines,...soffitEdges().map(c=>[c.id,c.pair])]);
+  if(untrimmed.length)for(const [id,pair]of lines)if(W.sharedIntervals(...pair,untrimmed).some(([a,b])=>b-a>.001))lines.delete(id);
+  return lines;
+ }
+ // Whether a press in Resoffit lands on a roof-contact line.
+ function resoffitHit(e){if(lineSelect?.kind!=='resoffit'||viewOf(e)!=='3d')return false;return withSelectionGeometry(()=>{const screen=p=>host.screen(p,'3d'),valid=p=>p.visible!==false&&Number.isFinite(p.x)&&Number.isFinite(p.y);return renderDerived('soffit-edges',()=>soffitEdges()).some(({pair})=>{const [a,b]=pair.map(screen);if(!valid(a)||!valid(b))return false;const dx=b.x-a.x,dy=b.y-a.y,l2=dx*dx+dy*dy;if(l2<1)return false;const t=Math.max(0,Math.min(1,((e.clientX-a.x)*dx+(e.clientY-a.y)*dy)/l2));return Math.hypot(e.clientX-a.x-t*dx,e.clientY-a.y-t*dy)<10&&(pickLineVisible(pair,e,t)||!!host.pickSoffitVisible?.(pair,e));});});}
  function pickLineInScene(e,hitOnly=false){let contacts;const soffits=()=>contacts ||= renderDerived('soffit-edges',()=>soffitEdges());const isSoffit=pair=>soffits().some(c=>W.sharedIntervals(...pair,[{points:c.pair}]).some(([a,b])=>b-a>.001));const dividerOnly=['textured','rendered','match-textured'].includes(host.state()?.displayMode)&&viewOf(e)==='3d',dividers=dividerOnly?indexDividers(divisionSeams()):null;
-  // Resoffit highlights come from merged support outlines. Those edges need
-  // not exist verbatim in the editable sketch (a turret can have split or
-  // consumed return edges). Pick the same contact lines that we draw.
-  const contactsScene=()=>({points:[],lines:new Map(soffits().map(c=>[c.id,c.pair])),baseSegments:[],curveGroups:new Map()});
-  const scene=resoffitMode?contactsScene():sceneLines();
-  if(!resoffitMode)scene.lines=new Map([...scene.lines,...soffits().map(c=>[c.id,c.pair])]);
+  const scene=lineSelect?{points:[],lines:lineSelect.lines(),baseSegments:[],curveGroups:new Map()}:sceneLines();
+  if(!lineSelect)scene.lines=new Map([...scene.lines,...soffits().map(c=>[c.id,c.pair])]);
   const {points,lines,baseSegments,curveGroups}=scene,screen=p=>host.screen(p,'3d'),valid=p=>p.visible!==false&&Number.isFinite(p.x)&&Number.isFinite(p.y);
-  if(!hitOnly&&!resoffitMode&&!lineMode()&&points.some(p=>{const q=screen(p);return valid(q)&&Math.hypot(q.x-e.clientX,q.y-e.clientY)<12&&pickVisible(p,e);}))return false;
-  let nearest=null,distance=10;for(const [id,pair]of lines){if(dividerOnly&&!resoffitMode&&!isDivisionPair(...pair,dividers))continue;if(host.wallsVisible?.()===false&&!baseSegments.some(edge=>W.sharedIntervals(...pair,[{points:edge}]).length))continue;const [a,b]=pair.map(screen);if(!valid(a)||!valid(b))continue;const dx=b.x-a.x,dy=b.y-a.y,l2=dx*dx+dy*dy;if(l2<1)continue;const t=Math.max(0,Math.min(1,((e.clientX-a.x)*dx+(e.clientY-a.y)*dy)/l2)),dist=Math.hypot(e.clientX-a.x-t*dx,e.clientY-a.y-t*dy);if(dist<distance&&(pickLineVisible(pair,e,t)||((resoffitMode||isSoffit(pair))&&host.pickSoffitVisible?.(pair,e)))){distance=dist;nearest={id,pair,...(hitOnly?{t}:{})};}}
+  if(!hitOnly&&!lineSelect&&!lineMode()&&points.some(p=>{const q=screen(p);return valid(q)&&Math.hypot(q.x-e.clientX,q.y-e.clientY)<12;}))return false;
+  let nearest=null,distance=10;for(const [id,pair]of lines){if(dividerOnly&&!lineSelect&&!isDivisionPair(...pair,dividers))continue;if(host.wallsVisible?.()===false&&!baseSegments.some(edge=>W.sharedIntervals(...pair,[{points:edge}]).length))continue;const [a,b]=pair.map(screen);if(!valid(a)||!valid(b))continue;const dx=b.x-a.x,dy=b.y-a.y,l2=dx*dx+dy*dy;if(l2<1)continue;const t=Math.max(0,Math.min(1,((e.clientX-a.x)*dx+(e.clientY-a.y)*dy)/l2)),dist=Math.hypot(e.clientX-a.x-t*dx,e.clientY-a.y-t*dy);if(dist<distance&&(lineSelect?.throughFaces||pickLineVisible(pair,e,t)||(isSoffit(pair)&&host.pickSoffitVisible?.(pair,e)))){distance=dist;nearest={id,pair,...(hitOnly?{t}:{})};}}
   if(hitOnly)return nearest;
-  if(!nearest){if(resoffitMode&&!e.shiftKey&&!e.ctrlKey&&!e.metaKey&&lineSelection.length){lineSelection=[];host.message('0 lines selected');host.redraw();}return false;}const curved=[...curveGroups.values()].find(g=>g.pairs.some(pair=>W.edgeKey(...pair)===W.edgeKey(...nearest.pair)));if(curved){nearest={...nearest,...curved};}const baseLine=baseSegments.some(pair=>W.sharedIntervals(...nearest.pair,[{points:pair}]).reduce((s,[a,b])=>s+b-a,0)>.99999);const wallLine=host.wallsVisible?.()!==false&&[...solids().filter(f=>!f.deleted&&!f.drafted),...Object.values(all()).flatMap(d=>d.faces.filter(f=>!f.boundaryHole&&!f.solidId&&!deleted(d,f)).map(f=>({points:f.points.map(p=>world(d,p)),holes:(f.holes||[]).map(r=>r.map(p=>world(d,p)))}))),...walls().filter(w=>!Object.values(all()).some(d=>d.members.includes(w.id))).map(w=>({points:[w.bottom[0],w.bottom[1],w.top[1],w.top[0]]}))].some(f=>W.sharedIntervals(...nearest.pair,[f]).some(([a,b])=>b-a>1e-6));beginBox(e,current());box.lineClick=true;box.click=()=>{mouse=e;const add=resoffitMode||e.ctrlKey||e.metaKey||e.shiftKey;if(nearest.draftKey){activeDraftKey=nearest.draftKey;pickedLines=nearest.edgeIds||[nearest.edgeId];picked=[];solidPoints=[];solidEdges=[];lineSelection=[];draftSelection={};selectedSolid=null;selectedRegion=null;host.message('1 curve selected');host.redraw();return;}if(baseLine&&!wallLine&&host.selectBaseEntities&&!lineSelection.some(l=>l.id===nearest.id)){lineSelection=[];host.selectBaseEntities([], [nearest.pair],add,!!(e.ctrlKey||e.metaKey));return;}lineSelection=e.ctrlKey||e.metaKey||resoffitMode&&lineSelection.some(l=>l.id===nearest.id)?lineSelection.filter(l=>l.id!==nearest.id):add?[...lineSelection.filter(l=>l.id!==nearest.id),nearest]:[nearest];draftSelection={};picked=[];pickedLines=[];solidPoints=[];solidEdges=[];selectedRegion=null;selectedSolid=null;host.select(null);host.message(lineSelection.length+' lines selected');host.redraw();};return true;
+  if(!nearest){if(lineSelect&&!hitOnly&&viewOf(e)==='3d'){const add=!!(e.shiftKey||e.ctrlKey||e.metaKey);beginBox(e,current());box.lineSelect=true;box.click=()=>{if(!add&&lineSelection.length){lineSelection=[];host.message('0 lines selected');host.redraw();}};return true;}return false;}const curved=[...curveGroups.values()].find(g=>g.pairs.some(pair=>W.edgeKey(...pair)===W.edgeKey(...nearest.pair)));if(curved){nearest={...nearest,...curved};}const baseLine=baseSegments.some(pair=>W.sharedIntervals(...nearest.pair,[{points:pair}]).reduce((s,[a,b])=>s+b-a,0)>.99999);const wallLine=host.wallsVisible?.()!==false&&[...solids().filter(f=>!f.deleted&&!f.drafted),...Object.values(all()).flatMap(d=>d.faces.filter(f=>!f.boundaryHole&&!f.solidId&&!deleted(d,f)).map(f=>({points:f.points.map(p=>world(d,p)),holes:(f.holes||[]).map(r=>r.map(p=>world(d,p)))}))),...walls().filter(w=>!Object.values(all()).some(d=>d.members.includes(w.id))).map(w=>({points:[w.bottom[0],w.bottom[1],w.top[1],w.top[0]]}))].some(f=>W.sharedIntervals(...nearest.pair,[f]).some(([a,b])=>b-a>1e-6));beginBox(e,current());box.lineClick=true;if(lineSelect)box.lineSelect=true;box.click=()=>{mouse=e;const add=!!lineSelect||e.ctrlKey||e.metaKey||e.shiftKey;if(nearest.draftKey){activeDraftKey=nearest.draftKey;pickedLines=nearest.edgeIds||[nearest.edgeId];picked=[];solidPoints=[];solidEdges=[];lineSelection=[];draftSelection={};selectedSolid=null;selectedRegion=null;host.message('1 curve selected');host.redraw();return;}if(baseLine&&!wallLine&&host.selectBaseEntities&&!lineSelection.some(l=>l.id===nearest.id)){lineSelection=[];host.selectBaseEntities([], [nearest.pair],add,!!(e.ctrlKey||e.metaKey));return;}lineSelection=e.ctrlKey||e.metaKey||lineSelect&&lineSelection.some(l=>l.id===nearest.id)?lineSelection.filter(l=>l.id!==nearest.id):add?[...lineSelection.filter(l=>l.id!==nearest.id),nearest]:[nearest];draftSelection={};picked=[];pickedLines=[];solidPoints=[];solidEdges=[];if(lineSelect?.kind!=='trim'){selectedRegion=null;selectedSolid=null;}host.select(null);host.message(lineSelection.length+' lines selected');host.redraw();};return true;
  }
  function stepStatus(text){host.message(text);const button=typeof document!=='undefined'&&document.getElementById('wall-step');if(button)button.textContent=tool?.kind==='step'?'Auto-step: '+tool.count+' (S)':'Auto-step (S)';}
  function finishToolForSwitch(){
@@ -882,13 +967,13 @@ function perf_snap(d,e,raw=null){
    geometryStatus();showResizeAxes();if(resetMove)host.redraw();return true;
   }
   if(tool)return false;
-  if(external?.event)mouse=external.event;const points=geometrySelectionPoints(external);if(points.length<(workingPlane?1:3))return false;
+  if(external?.event)mouse=external.event;const points=geometrySelectionPoints(external),stickerEdit=!external&&!workingPlane&&!!stickerControlSelection(points);if(points.length<(workingPlane||stickerEdit?1:3))return false;
   const before=copy(host.state().wallEdits||{});
-  try{const curveOwner=curveGeometrySelection(points);if(curveOwner){const clip=constrainPlaneClip(curveOwner.clip);tool={kind:'geometryTransform',curveOwner:{key:curveOwner.key,base:curveOwner.base,ids:curveOwner.ids},snapTargets:curveOwner.snapTargets,before,prepared:copy(host.state().wallEdits),base:copy(host.state().wallEdits.$base||host.state().base),scene:[],original:copy(clip),clip,preview:copy(clip),mount:0,op:Date.now(),valid:true};geometryCommand(mode);return true;}
+  try{const curveOwner=stickerEdit?null:curveGeometrySelection(points);if(curveOwner){const clip=constrainPlaneClip(curveOwner.clip);tool={kind:'geometryTransform',curveOwner:{key:curveOwner.key,base:curveOwner.base,ids:curveOwner.ids},snapTargets:curveOwner.snapTargets,before,prepared:copy(host.state().wallEdits),base:copy(host.state().wallEdits.$base||host.state().base),scene:[],original:copy(clip),clip,preview:copy(clip),mount:0,op:Date.now(),valid:true};geometryCommand(mode);return true;}
    const scene=moveScene().filter(f=>!f.snapOnly&&!f.deleted),base=host.state().wallEdits.$base||host.state().base;if(base&&(external||selectedBasePoints.length||workingPlane))scene.push(...base.faces.map(f=>({...f,baseId:f.id,id:'base:'+f.id})));
    const snapScene=workingPlane?{points:planeScene().points,lines:new Map(planeScene().lines.map((p,i)=>[i,p]))}:sceneLines(),clip=constrainPlaneClip(W.copyGeometry(scene,points,[...snapScene.lines.values()])),selected=p=>clip.points.some(q=>distance3(p,q)<=window.ExteriorGeometry.CONTACT);const snapTargets={points:snapScene.points.filter(p=>!selected(p)),edges:[...snapScene.lines.values()].filter(pair=>pair.every(p=>!selected(p)))};
    const stickerMove=clip.faces.length>0&&clip.faces.every(f=>f.feature);if(stickerMove){const filtered=stickerSnapGeometry({points:snapTargets.points,lines:new Map(snapTargets.edges.map((pair,i)=>[i,pair]))},scene);snapTargets.points=filtered.points;snapTargets.edges=[...filtered.lines.values()];}
-   tool={kind:'geometryTransform',stickerMove,snapTargets,before,prepared:copy(host.state().wallEdits),base:copy(base),scene:copy(scene),original:copy(clip),clip,preview:copy(clip),mount:0,op:Date.now(),valid:true};
+   tool={kind:'geometryTransform',stickerMove,stickerEdit,stickerFaces:stickerEdit&&selectedFaceRefs().length>0,snapTargets,before,prepared:copy(host.state().wallEdits),base:copy(base),scene:copy(scene),original:copy(clip),clip,preview:copy(clip),mount:0,op:Date.now(),valid:true};
    geometryCommand(mode);return true;
   }catch(error){host.state().wallEdits=before;host.message(error.message);return true;}
  }
@@ -917,17 +1002,18 @@ function perf_previewGeometry(e,keepAxis=false,translation=null){
    if(workingPlane&&t.numeric!=null)change.angle=t.numeric*Math.PI/180;
   }
   if(t.editMode==='f')change.flip=t.flipAxis;
-  let preview;if(t.editMode==='y'){let factor=Math.exp((e.clientX-t.startEvent.clientX-(e.clientY-t.startEvent.clientY))/160);factor=Math.max(.01,Math.min(100,factor));if(!(typeof isFreeMove!=='undefined'&&isFreeMove)){let targets=t.snapTargets,screen=p=>host.screen(p,'3d');if(t.kind==='paste'&&t.anchor){const src=t.stage.mounts[t.mount].frame,dst=workingPlane?planeClipboardFrame(t.anchor.location):W.clipboardFrame(t.anchor.location,t.anchor.normal),toSource=p=>window.ExteriorGeometry.world(src,window.ExteriorGeometry.local(dst,p)),toWorld=p=>window.ExteriorGeometry.world(dst,window.ExteriorGeometry.local(src,p)),scene=sceneLines();targets={points:scene.points.map(toSource),edges:[...scene.lines.values()].map(r=>r.map(toSource))};screen=p=>host.screen(toWorld(p),'3d');}if(targets)factor=W.snapGeometryScale(t.stage,t.mount,factor,t.resizeAxis||'all',targets.points,targets.edges,screen);}t.scaleFactor=factor;preview=W.geometryScale(t.stage,t.mount,factor,t.resizeAxis||'all');}else preview=W.transformGeometry(t.stage,t.mount,change);if(t.kind==='geometryTransform'&&t.editMode==='m'&&!normalMove&&t.numeric==null&&!translation&&!(typeof isFreeMove!=='undefined'&&isFreeMove))preview=W.snapGeometryOnPlane(preview,t.mount,[...t.snapTargets.points,...(t.stickerMove?W.stickerAlignmentTargets(t.scene,t.stage.mounts[t.mount].frame,t.original.points):[])],t.snapTargets.edges,p=>host.screen(p,'3d'),10,t.stickerMove?window.ExteriorGeometry.world(t.inputFrame,q):null,workingPlane?.tolerance);
+  let preview;if(t.editMode==='y'){let factor=Math.exp((e.clientX-t.startEvent.clientX-(e.clientY-t.startEvent.clientY))/160);factor=Math.max(.01,Math.min(100,factor));if(!(typeof isFreeMove!=='undefined'&&isFreeMove)){let targets=t.snapTargets,screen=p=>host.screen(p,'3d');if(t.kind==='paste'&&t.anchor){const src=t.stage.mounts[t.mount].frame,dst=workingPlane?planeClipboardFrame(t.anchor.location):W.clipboardFrame(t.anchor.location,t.anchor.normal),toSource=p=>window.ExteriorGeometry.world(src,window.ExteriorGeometry.local(dst,p)),toWorld=p=>window.ExteriorGeometry.world(dst,window.ExteriorGeometry.local(src,p)),scene=sceneLines();targets={points:scene.points.map(toSource),edges:[...scene.lines.values()].map(r=>r.map(toSource))};screen=p=>host.screen(toWorld(p),'3d');}if(targets)factor=W.snapGeometryScale(t.stage,t.mount,factor,t.resizeAxis||'all',targets.points,targets.edges,screen);}t.scaleFactor=factor;preview=W.geometryScale(t.stage,t.mount,factor,t.resizeAxis||'all');}else preview=W.transformGeometry(t.stage,t.mount,change);if(t.kind==='geometryTransform'&&t.editMode==='m'&&!normalMove&&t.numeric==null&&!translation&&!(typeof isFreeMove!=='undefined'&&isFreeMove))preview=W.snapGeometryOnPlane(preview,t.mount,[...t.snapTargets.points,...(t.stickerMove?[...W.stickerAlignmentTargets(t.scene,t.stage.mounts[t.mount].frame,t.original.points),...stickerFaceCenter(t.original.points,t.stage.mounts[t.mount].frame,t.scene)]:[])],t.snapTargets.edges,p=>host.screen(p,'3d'),10,t.stickerMove?window.ExteriorGeometry.world(t.inputFrame,q):null,workingPlane?.tolerance);
   if(t.kind==='geometryTransform'&&t.editMode==='m'&&!normalMove&&!workingPlane&&!translation){
    if(t.stickerMove&&t.moveAxis&&!translation){const frame=t.stage.mounts[t.mount].frame,K=window.ExteriorGeometry,a=K.local(frame,t.stage.points[0]),b=K.local(frame,preview.points[0]);preview=W.transformGeometry(t.stage,t.mount,{delta:constrainStickerMove(t,{x:b.x-a.x,y:b.y-a.y})});}
    const frame=t.stage.mounts[t.mount].frame,K=window.ExteriorGeometry,contacts=t.stage.points.map(p=>K.local(frame,p)).filter(p=>Math.abs(p.z)<K.CONTACT),selected=p=>t.original.points.some(q=>distance3(p,q)<K.CONTACT),regions=t.scene.filter(f=>!f.points.every(selected)&&f.points.every(p=>Math.abs(K.local(frame,p).z)<K.CONTACT)).map(f=>({points:f.points.map(p=>K.local(frame,p)),holes:(f.holes||[]).filter(r=>!r.every(selected)).map(r=>r.map(p=>K.local(frame,p)))}));
    if(contacts.length&&regions.length){const a=K.local(frame,t.stage.points[0]),z=K.local(frame,preview.points[0]),fit=W.boundedTranslation(contacts,regions,{x:z.x-a.x,y:z.y-a.y},{requireOrigin:true});if(fit)preview=W.transformGeometry(t.stage,t.mount,{delta:fit});}
   }
+  if(workingPlane&&t.kind==='geometryTransform'&&t.editMode==='m'&&!t.stickerMove&&!normalMove)preview=conformPlaneGeometry(preview,t.snapTargets);
   if(t.kind==='paste'){t.clip=preview;previewPaste(e);return;}
   const previous=host.state().wallEdits;
   // edits is a fresh copy and t.scene, t.original and the candidate are this
   // tool's own copies, so nothing in edits is shared with t.before.
-  const build=candidate=>{if(t.curveOwner)return applyCurveGeometry(t,candidate);const edits=copy(t.prepared),result=W.transformSelection(t.scene,t.original,candidate,{keepTrimStatic:host.state()?.keepTrimStatic===true});applyLineResult(t,result,edits);window.ExteriorModel.validateEdits(edits,t.before,true);return edits;};
+  const build=candidate=>{if(t.stickerEdit){const edits=stickerTransformEdits(t,candidate);if(edits)return edits;}if(t.curveOwner)return applyCurveGeometry(t,candidate);const edits=copy(t.prepared),result=W.transformSelection(t.scene,t.original,candidate,{keepTrimStatic:host.state()?.keepTrimStatic===true});applyLineResult(t,result,edits);window.ExteriorModel.validateEdits(edits,t.before,true);return edits;};
   try{let edits;try{edits=build(preview);}catch(error){
    // Keyboard translations are exact: never replace a rejected nudge with another axis.
    if(t.editMode!=='m'||normalMove||translation)throw error;
@@ -938,7 +1024,7 @@ function perf_previewGeometry(e,keepAxis=false,translation=null){
   catch(error){host.state().wallEdits=previous;t.invalid=true;t.valid=false;host.message(error.message+' Adjust the preview or press Escape.');}
   host.redraw();
  }
- function placeGeometry(){const t=tool;if(t?.kind!=='geometryTransform'||t.invalid)return true;try{if(t.changed)host.commit(t.before);else host.state().wallEdits=copy(t.before);tool=null;const placed=t.preview.points.filter(p=>!p.curveSample);if(workingPlane){workingPlane.selection=copy(placed);workingPlane.selectedLines=[];workingPlane.selectedFaces=[];refreshPlane();}draftSelection={};picked=[];pickedLines=[];lineSelection=[];selectedBasePoints=[];selectedRegion=null;selectedSolid=null;solidPoints=placed.map(W.vertexKey);solidEdges=[];if(t.curveOwner){if(t.curveOwner.base){selectedBasePoints=solidPoints;solidPoints=[];}else{activeDraftKey=t.curveOwner.key;picked=t.curveOwner.ids.slice();draftSelection={[activeDraftKey]:picked.slice()};solidPoints=[];}}clearGuides();host.message('Geometry placed.');host.redraw();}catch(error){host.message(error.message);}return true;}
+ function placeGeometry(){const t=tool;if(t?.kind!=='geometryTransform'||t.invalid)return true;try{if(t.changed&&host.commit(t.before)===false){tool=null;clearGuides();return true;}if(!t.changed)host.state().wallEdits=copy(t.before);tool=null;const placed=t.preview.points.filter(p=>!p.curveSample);if(workingPlane){workingPlane.selection=copy(placed);workingPlane.selectedLines=[];workingPlane.selectedFaces=[];refreshPlane();}draftSelection={};picked=[];pickedLines=[];lineSelection=[];selectedBasePoints=[];selectedRegion=null;selectedSolid=null;solidPoints=placed.map(W.vertexKey);solidEdges=[];if(t.stickerEdit&&!workingPlane){if(t.stickerFaces){const refs=allStickers().filter(s=>ST().controlsWorld(s.outline).some(c=>placed.some(p=>distance3(p,c)<=1e-5))).map(s=>({d:s.d,f:s.f}));if(refs.length)selectStickers(refs);}else selectWorldPoints(placed);}if(t.curveOwner){if(t.curveOwner.base){selectedBasePoints=solidPoints;solidPoints=[];}else{activeDraftKey=t.curveOwner.key;picked=t.curveOwner.ids.slice();draftSelection={[activeDraftKey]:picked.slice()};solidPoints=[];}}clearGuides();host.message('Geometry placed.');host.redraw();}catch(error){host.message(error.message);}return true;}
  function resizeAxis(axis){const t=tool;if(!t||t.editMode!=='y'||t.invalid)return;if(t.kind==='geometryTransform')t.clip=copy(t.preview||t.clip);t.stage=copy(t.clip);t.resizeAxis=axis;t.startEvent=mouse;t.startPoint=mouse&&t.inputFrame?rayPoint({frame:t.inputFrame},mouse):null;t.scaleFactor=1;geometryStatus();showResizeAxes();}
  function showResizeAxes(){const t=tool;if(t?.editMode!=='y'||typeof document==='undefined'||!document.body?.appendChild)return;
   if(t.resizeHud){for(const button of t.resizeHud.querySelectorAll('button')){const selected=button.dataset.axis===t.resizeAxis;button.setAttribute('aria-pressed',String(selected));button.style.background=selected?'#347b99':'#26343d';}return;}
@@ -977,19 +1063,35 @@ function perf_previewGeometry(e,keepAxis=false,translation=null){
   tool={kind:'paste',editMode:'m',clip:copy(clip),mount:0,before:copy(host.state().wallEdits||{}),preview:null,valid:false,op:Date.now()};host.message('Paste: hover a face; Ctrl+wheel changes mounting plane; click places; Escape cancels.');if(mouse)previewPaste(mouse);const activePaste=tool;let lastCamera='';const followCamera=()=>{if(tool!==activePaste)return;const next=[...(camera.matrixWorld?.elements||[]),...(camera.projectionMatrix?.elements||[])].join(',');if(next!==lastCamera&&mouse){lastCamera=next;previewPaste(mouse);}requestAnimationFrame(followCamera);};requestAnimationFrame(followCamera);return true;
  }
  function previewPaste(...args){if(!window.ExteriorPerf?.enabled)return perf_previewPaste.apply(this,args);return window.ExteriorPerf.measure('Paste preview',()=>perf_previewPaste.apply(this,args));}
-function perf_previewPaste(e){if(tool?.kind!=='paste'||!e||viewOf(e)!=='3d')return;const t=tool;t.preview=null;t.valid=false;
+function perf_previewPaste(e,pointer=false){if(tool?.kind!=='paste'||!e||viewOf(e)!=='3d')return;const t=tool,lightBefore=t.light?.key||null,before=pointer&&pasteInOverlay()?JSON.stringify(host.state().wallEdits):null;t.editsJson=null;t.preview=null;t.valid=false;t.light=null;
   if(workingPlane){
    const K=window.ExteriorGeometry,frame=planeClipboardFrame(),q=rayPoint({frame},e);if(!q)return;
    const target={points:[[-1,-1],[1,-1],[1,1],[-1,1]].map(([x,y])=>K.world(frame,{x,y,z:0}))},location=t.editMode!=='m'&&t.anchor?t.anchor.location:K.world(frame,{...q,z:0});
    t.anchor={target,location,normal:frame.n,ref:{points:target.points}};t.ref=t.anchor.ref;
-   t.preview=W.pasteGeometry(t.clip,t.mount,target,location,{frame,unbounded:true,bound:false,screen:p=>host.screen(p,'3d'),points:planeScene().points,snap:t.editMode==='m'&&!(typeof isFreeMove!=='undefined'&&isFreeMove)});t.valid=true;t.anchor.location=t.preview.location;geometryStatus();host.redraw();return;
+   t.preview=W.pasteGeometry(t.clip,t.mount,target,location,{frame,unbounded:true,bound:false,screen:p=>host.screen(p,'3d'),points:planeScene().points,snap:t.editMode==='m'&&!(typeof isFreeMove!=='undefined'&&isFreeMove)});if(t.editMode==='m')t.preview=conformPlaneGeometry(t.preview,{points:planeScene().points,edges:planeScene().lines});t.valid=true;t.anchor.location=t.preview.location;geometryStatus();host.redraw();return;
   }
   try{let anchor=t.editMode!=='m'&&t.anchor;
    if(!anchor){const ref=host.pasteHost?.(e)||placementHost(e)||t.anchor?.ref;if(!ref){host.message('Hover a face to place copied geometry.');host.redraw();return;}const target={points:ref.points,holes:ref.d?(ref.f.holes||[]).map(r=>r.map(p=>world(ref.d,p))):(ref.solid?.holes||ref.f?.holes||[])},n=W.normal(target.points),sign=inwardDistanceSign(target),normal={x:-n.x*sign,y:-n.y*sign,z:-n.z*sign},frame=W.faceFrame(target),local=rayPoint({frame},e);if(!local)return;let location=W.fromFrame(frame,local);const move=t.moveAnchor,same=move&&(move.ref.solid?.id?move.ref.solid.id===ref.solid?.id:move.ref.d?move.ref.d===ref.d&&move.ref.f?.id===ref.f?.id:move.ref.f?.id===ref.f?.id);if(same&&move.start){const a=W.fromFrame(frame,move.start);location={x:move.location.x+location.x-a.x,y:move.location.y+location.y-a.y,z:move.location.z+location.z-a.z};}anchor={ref,target,normal,location,preservePosition:same&&distance3(location,move.location)<1e-7};}
    t.anchor=anchor;const {ref,target,location,normal}=anchor;
-   const stickers=t.clip.faces.length&&t.clip.faces.every(f=>f.feature);t.preview=W.pasteGeometry(t.clip,t.mount,target,location,{normal,bound:!stickers&&t.editMode==='m',screen:p=>host.screen(p,'3d'),points:[...target.points,...sceneLines().points],stickerFaces:t.clip.faces.length&&t.clip.faces.every(f=>f.feature)?moveScene():[],snap:!stickers&&t.editMode==='m'&&!anchor.preservePosition&&!(typeof isFreeMove!=='undefined'&&isFreeMove)});if(stickers){const placed=stickerPlacement(ref,t.preview.faces,t.editMode==='m'&&!anchor.preservePosition),move=placed.move;t.preview={...t.preview,faces:placed.faces,points:t.preview.points.map(move),edges:t.preview.edges.map(r=>r.map(move)),location:move(t.preview.location),valid:true,guides:W.planeAlignmentGuides(placed.faces.flatMap(f=>{const sample=window.ExteriorGeometry.curveSamplePoint(f);return f.points.filter(p=>!sample(p));}),placed.alignmentTargets,placed.frame)};}t.valid=t.preview.valid;t.ref=ref;if(t.preview.valid&&t.preview.location)t.anchor.location=t.preview.location;
+   const stickers=t.clip.faces.length&&t.clip.faces.every(f=>f.feature);t.preview=W.pasteGeometry(t.clip,t.mount,target,location,{normal,bound:!stickers&&t.editMode==='m',screen:p=>host.screen(p,'3d'),points:stickers?[]:[...target.points,...sceneLines().points],stickerFaces:[],snap:!stickers&&t.editMode==='m'&&!anchor.preservePosition&&!(typeof isFreeMove!=='undefined'&&isFreeMove)});if(stickers){const placed=stickerPlacement(ref,t.preview.faces,t.editMode==='m'&&!anchor.preservePosition,pointer?{cache:t.snapScene||={},key:pasteSceneKey}:null),move=lockPaste(t,ref,placed);t.preview={...t.preview,faces:placed.faces,points:t.preview.points.map(move),edges:t.preview.edges.map(r=>r.map(move)),location:move(t.preview.location),valid:true,guides:W.planeAlignmentGuides(placed.faces.flatMap(f=>{const sample=window.ExteriorGeometry.curveSamplePoint(f);return f.points.filter(p=>!sample(p));}),placed.alignmentTargets,placed.frame)};}t.valid=t.preview.valid;t.ref=ref;if(t.preview.valid&&t.preview.location)t.anchor.location=t.preview.location;pasteLight(t,pointer&&stickers);
    if(t.valid){geometryStatus();host.message('Mount '+(t.mount+1)+' / '+t.clip.mounts.length+' · '+(t.preview.snap?'Snapped · ':'')+({m:'Move',r:'Rotate',f:'Flip '+(t.flipAxis==='y'?'vertical':t.flipAxis==='x'?'horizontal':'original'),y:'Resize '+(t.resizeAxis||'all').toUpperCase()}[t.editMode])+' · M / R / T / Y; repeat M/R/Y cycles plane; T cycles vertical / horizontal / original. '+(t.editMode==='f'?'X/V: horizontal/vertical. ':'')+'Click to place; Escape cancels.');}else host.message('Mount extends outside this face. Move or rotate to fit.');
-  }catch(e){host.message(e.message);}host.redraw();
+  }catch(e){t.light=null;host.message(e.message);}// The snap scene key serialized the model after hover, which is all a preview can change; reuse it.
+  if(before!==null&&(t.light?.key||null)===lightBefore&&(t.editsJson??JSON.stringify(host.state().wallEdits))===before)host.redrawOverlay();else host.redraw();
+ }
+ // Pasting runs on the published model, whose identity hover changes (ensure), so its snap scene is keyed by value.
+ function pasteSceneKey(){const state=host.state(),json=JSON.stringify(state.wallEdits);if(tool?.kind==='paste')tool.editsJson=json;return [state,json,host.walls(),host.roofVisible?.(),host.wallsVisible?.(),state.closedSoffits,(state.wallEdits?.$base||state.base)?.visible];}
+ // Pasted stickers on a wall draft preview as that wall with them installed, the
+ // same as a slid sticker; elsewhere the preview stays as drawn before.
+ function pasteLight(t,on){
+  const ref=t.ref;if(!on||!t.valid||!overlayGestures()||!ref)return;
+  try{
+   if(ref.d){const key=draftKey(ref.d),draft=copy(ref.d);if(!key)return;withDraftCopy(key,draft,()=>installInto(draft,t.preview.faces));t.light={key,draft};return;}
+   // A standalone surface becomes a draft when stickers are placed on it (solidDraft); preview that on copies.
+   if(!ref.solid?.id)return;const id=ref.solid.id,key='solid:'+id,published=host.state().wallEdits,surfaces=(published.$surfaces||[]).map(f=>f.id===id?copy(f):f),surface=surfaces.find(f=>f.id===id);if(!surface)return;
+   const holder={...published.$drafts};let draft=null;
+   withDraftCopy(key,{},()=>{host.state().wallEdits.$drafts=holder;delete holder[key];draft=solidDraft(surface);installInto(draft,t.preview.faces);},surfaces);
+   t.light={key,draft,solid:id,surfaces};
+  }catch(error){t.light=null;t.valid=false;if(t.preview)t.preview.valid=false;host.message(error.message);}
  }
  function placePaste(e){previewPaste(e);const t=tool;if(!t?.valid||!t.preview)return true;try{const edits=host.state().wallEdits||={},prefix='paste-'+t.op,preview=pastedCurveIds(t.preview,prefix);
    if(!workingPlane&&preview.faces.length&&preview.faces.every(f=>f.feature)){installStickers(t.ref,preview.faces);window.ExteriorModel.validateEdits(edits,t.before);host.commit(t.before);tool=null;clearGuides();host.message('Stickers placed. T cycles trim for the selected group.');host.redraw();return true;}
@@ -1513,7 +1615,12 @@ function perf_previewLineMove(e){
 function perf_moveScene(){
   window.normalizeWallDraftOwnership(host.state().wallEdits);
   for(const w of walls())ensure(w);
+  // Retained points ask whether each generated boundary point is structural.
+  // Answer every face's points from one support snapshot, not one rebuild each.
+  const prior=[supportSnapshot,supportIndex];
+  try{supportSnapshot||=structuralFaces();supportIndex||=W.structuralIndex(supportSnapshot);
   return [...solids().filter(f=>!f.drafted),...Object.entries(all()).flatMap(([key,d])=>d.sketch.outlines.map((points,i)=>({id:'restore:'+key+':'+i,points:points.map(p=>world(d,p)),holes:[],snapOnly:true,restoreFor:d.faces.map(f=>f.solidId).filter(Boolean),draftKey:key}))),...Object.entries(all()).flatMap(([key,d])=>d.faces.filter(f=>!f.boundaryHole&&!f.solidId&&!deleted(d,f)).map(f=>engineFace(d,f,{id:'draft:'+key+':'+f.id,draft:true,draftKey:key,regionId:f.id,retainedPoints:retainedRegionPoints(d,f)})))];
+  }finally{[supportSnapshot,supportIndex]=prior;}
  }
  // Resolving coincident corners can replace point IDs. Keep consumed regions by
  // their moved boundary as well as their previous graph signature.
@@ -1739,22 +1846,27 @@ function perf_moveScene(){
  function downUnsafe(e,skipSolid=false){
   if(workingPlane)return planeDown(e);
   flushPreview();
-  if(!viewOf(e)||e.button!==0)return false;if(tool?.kind==='arch')return placeArch(e);if(tool?.kind==='divide'){previewDivision(e);return finishDivision();}if(tool?.kind==='multiExtrude')return finishMultiExtrusion();if(tool?.kind==='trim'){finishTrim();return true;}if(tool?.kind==='curveMove'){if(tool.changed)host.commit(tool.before);tool=null;host.redraw();return true;}if(tool?.kind==='curve')return placeCurve(e);if(tool?.kind==='geometryTransform')return placeGeometry();if(tool?.kind==='paste')return placePaste(e);if(tool?.kind==='chamfer'){if(tool.valid){if(tool.changed)host.commit(tool.before);else host.state().wallEdits=tool.before;selectedSolid=tool.additions?.[0]?.id||null;lineSelection=[];picked=[];solidPoints=[];solidEdges=[];pickedLines=[];tool=null;host.redraw();}return true;}if(tool?.kind==='material')return paintMaterial(e);if(tool?.kind==='entityExtrude'){placeEntity(e);return true;}if(tool?.kind==='axisCut'&&!finishAxisCut())return true;if(tool?.kind==='step'){if(tool.valid){host.commit(tool.before);tool=null;stepStatus('Stepped line placed.');host.redraw();}return true;}if(tool?.kind==='feature')return placeFeature(e);if(tool?.kind==='lineMove'){if(tool.invalid)return true;if(tool.changed)host.commit(tool.before);else host.state().wallEdits=tool.before;tool=null;host.redraw();return true;}if(tool?.kind==='extrude'){if(tool.moveMode)previewFaceSlide(e);if(tool.invalid)return true;if(tool.changed)host.commit(tool.before);else host.state().wallEdits=tool.before;if(tool.belowBase)selectedSolid=null;tool=null;clearGuides();host.redraw();return true;}if(skipSolid&&!tool&&viewOf(e)==='3d'&&pickLine3D(e))return true;if(!skipSolid&&!tool&&pickSolid(e))return true;let d=current();if(!d){const w=selected();if(!w){beginBox(e,null);box.click=()=>{if(e.shiftKey||e.ctrlKey||e.metaKey)return;selectFaceRef(null,e);draftSelection={};picked=[];pickedLines=[];solidPoints=[];solidEdges=[];lineSelection=[];selectedBasePoints=[];host.select(null);host.redraw();};return true;}d=ensure(w);}
+  if(!viewOf(e)||e.button!==0)return false;if(tool?.kind==='arch')return placeArch(e);if(tool?.kind==='divide'){previewDivision(e);return finishDivision();}if(tool?.kind==='multiExtrude')return finishMultiExtrusion();if(tool?.kind==='trim'){finishTrim();return true;}if(tool?.kind==='curveMove'){if(tool.changed)host.commit(tool.before);tool=null;host.redraw();return true;}if(tool?.kind==='curve')return placeCurve(e);if(tool?.kind==='geometryTransform')return placeGeometry();if(tool?.kind==='paste')return placePaste(e);if(tool?.kind==='chamfer'){if(tool.valid){if(tool.changed)host.commit(tool.before);else host.state().wallEdits=tool.before;selectedSolid=tool.additions?.[0]?.id||null;lineSelection=[];picked=[];solidPoints=[];solidEdges=[];pickedLines=[];tool=null;host.redraw();}return true;}if(tool?.kind==='material')return paintMaterial(e);if(tool?.kind==='entityExtrude'){placeEntity(e);return true;}if(tool?.kind==='axisCut'&&!finishAxisCut())return true;if(tool?.kind==='step'){if(tool.valid){host.commit(tool.before);tool=null;stepStatus('Stepped line placed.');host.redraw();}return true;}if(tool?.kind==='feature')return placeFeature(e);if(tool?.kind==='lineMove'){if(tool.invalid)return true;if(tool.changed)host.commit(tool.before);else host.state().wallEdits=tool.before;tool=null;host.redraw();return true;}if(tool?.kind==='extrude'){if(tool.moveMode)previewFaceSlide(e,true);if(tool.invalid)return true;if(tool.changed)host.commit(tool.before);else host.state().wallEdits=tool.before;if(tool.belowBase)selectedSolid=null;tool=null;clearGuides();host.redraw();return true;}if(skipSolid&&!tool&&viewOf(e)==='3d'&&pickLine3D(e))return true;if(!skipSolid&&!tool&&pickSolid(e))return true;let d=current();if(!d){const w=selected();if(!w){beginBox(e,null);box.click=()=>{if(e.shiftKey||e.ctrlKey||e.metaKey)return;selectFaceRef(null,e);draftSelection={};picked=[];pickedLines=[];solidPoints=[];solidEdges=[];lineSelection=[];selectedBasePoints=[];host.select(null);host.redraw();};return true;}d=ensure(w);}
   if(tool?.kind==='quad'){const p=snap(d,e);if(!p)return true;if(picked.length===1&&!tool.diagonal){tool.diagonal=p;tool.cornerClick={x:e.clientX,y:e.clientY};return true;}let corners=quadPoints(d,p);if(picked.length===1&&tool.cornerClick&&Math.hypot(e.clientX-tool.cornerClick.x,e.clientY-tool.cornerClick.y)<4){const opposite=tool.diagonal;tool.diagonal=null;corners=quadPoints(d,opposite);}quadFinish={x:e.clientX,y:e.clientY,time:Date.now()};const t=tool,priorPicked=picked.slice(),ok=transaction(()=>{B.validate({points:corners});const ids=corners.map(p=>add(d,p));S.connect(d,[...ids,ids[0]]);picked=[];},t.before);if(ok){tool=null;clearGuides();}else{picked=priorPicked;tool=t;tool.diagonal=null;tool.cornerClick=null;}host.redraw();return true;}
   if(tool){if(['move','scale','rotate'].includes(tool.kind)){host.commit(tool.before);tool=null;clearGuides();host.redraw();return true;}
    const p=snap(d,e);if(p){const placed=transaction(()=>{const next=add(d,p);for(const from of picked)if(from!==next)S.connect(d,[from,next]);picked=[next];},tool.before);if(placed){tool=null;clearGuides();}host.redraw();}return true;
   }
   if(lineMode()){let best=null,distance=12;for(const edge of d.sketch.edges){const a=host.screen(world(d,d.sketch.nodes.find(n=>n.id===edge.a)),viewOf(e)),b=host.screen(world(d,d.sketch.nodes.find(n=>n.id===edge.b)),viewOf(e)),dx=b.x-a.x,dy=b.y-a.y,t=Math.max(0,Math.min(1,((e.clientX-a.x)*dx+(e.clientY-a.y)*dy)/(dx*dx+dy*dy))),dist=Math.hypot(e.clientX-a.x-t*dx,e.clientY-a.y-t*dy);if(dist<distance&&pickLineVisible([edge.a,edge.b].map(id=>world(d,d.sketch.nodes.find(n=>n.id===id))),e,t)){distance=dist;best=edge.id;}}if(best){pickedLines=e.shiftKey?(pickedLines.includes(best)?pickedLines.filter(id=>id!==best):[...pickedLines,best]):[best];picked=[];solidPoints=[];solidEdges=[];selectedRegion=null;selectedSolid=null;host.redraw();return true;}}
-  let best=null,distance=12;for(const n of draftNodes(d)){const p=host.screen(world(d,n),viewOf(e)),dist=Math.hypot(p.x-e.clientX,p.y-e.clientY);if(dist<distance&&pickVisible(world(d,n),e)){distance=dist;best=n.id;}}
+  let best=nearestPoint(draftNodes(d),e,n=>world(d,n))?.id||null;
   if(!best){beginBox(e,d);box.click=()=>selectRegion(d,e);return true;}beginBox(e,d);box.click=()=>{if(!e.shiftKey)draftSelection={};selectedRegion=null;pickedLines=[];solidPoints=[];solidEdges=[];picked=e.shiftKey?(picked.includes(best)?picked.filter(n=>n!==best):[...picked,best]):[best];if(e.shiftKey)draftSelection[draftKey(d)]=picked.slice();host.redraw();};return true;
  }
  const draftSupportCache=new Map();
  function structuralFaces(...args){if(!window.ExteriorPerf?.enabled)return perf_structuralFaces.apply(this,args);return window.ExteriorPerf.measure('Support topology',()=>perf_structuralFaces.apply(this,args));}
-function perf_structuralFaces(includeConsumed=false){
-  const faces=solids().filter(f=>!f.deleted&&!f.drafted).slice();
-  for(const d of Object.values(all()))if(visibleDraft(d)&&!d.mergedInto){
+// skip leaves out one draft or surface: a sticker gesture adds its own copy's faces.
+function perf_structuralFaces(includeConsumed=false,skip=null){
+  const faces=solids().filter(f=>!f.deleted&&!f.drafted&&f.id!==skip?.solid).slice();
+  for(const d of Object.values(all()))if(visibleDraft(d)&&!d.mergedInto&&d!==skip?.draft)faces.push(...draftSupportFaces(d,includeConsumed));
+  for(const w of walls())if(!Object.values(all()).some(d=>d.members.includes(w.id)))faces.push({chimney:w.chimney,generatedMergeGroup:w.mergeGroup,points:[w.bottom[0],w.bottom[1],w.top[1],w.top[0]]});
+  return faces.flatMap(f=>chimneyParts(f)||[f]);
+ }
+ function draftSupportFaces(d,includeConsumed=false){
    const cacheId=draftKey(d)+':'+includeConsumed,cacheKey=JSON.stringify(d),prior=draftSupportCache.get(cacheId);
-   if(prior?.key===cacheKey){faces.push(...prior.faces);continue;}
+   if(prior?.key===cacheKey)return prior.faces;
    const draftFaces=[];
    const live=d.faces.filter(f=>(includeConsumed||!f.solidId)&&!deleted(d,f));
    // A recess is a real boundary of the remaining wall. Unioning only the
@@ -1765,10 +1877,7 @@ function perf_structuralFaces(includeConsumed=false){
    const material=live.map(f=>({...f,holes:(f.holes||[]).filter(r=>!live.some(g=>g.feature&&same(g.points,r)))})),filled=material.filter(f=>!f.feature||!material.some(g=>g!==f&&!g.feature&&f.points.every(p=>G.contains(g,p)))).flatMap(f=>f.holes?.length?W.subtract(f,f.holes.map(points=>({points}))):[f.points]);
    for(const points of B.boundary(filled)){const holes=B.boundary(W.subtract({points},filled.map(points=>({points}))));draftFaces.push(engineFace(d,{points,holes},{retainedPoints:[]}));}
    draftSupportCache.delete(cacheId);draftSupportCache.set(cacheId,{key:cacheKey,faces:draftFaces});if(draftSupportCache.size>512)draftSupportCache.delete(draftSupportCache.keys().next().value);
-   faces.push(...draftFaces);
-  }
-  for(const w of walls())if(!Object.values(all()).some(d=>d.members.includes(w.id)))faces.push({chimney:w.chimney,generatedMergeGroup:w.mergeGroup,points:[w.bottom[0],w.bottom[1],w.top[1],w.top[0]]});
-  return faces.flatMap(f=>chimneyParts(f)||[f]);
+   return draftFaces;
  }
  function structuralDraftPoint(d,n){return structuralPoint(world(d,n),supportSnapshot||structuralFaces());}
  function structuralDraftEdge(d,e){return structuralEdge(world(d,e.start||d.sketch.nodes.find(n=>n.id===e.a)),world(d,e.end||d.sketch.nodes.find(n=>n.id===e.b)),supportSnapshot||structuralFaces());}
@@ -1812,7 +1921,11 @@ function perf_structuralFaces(includeConsumed=false){
  // Feature polygons share the draft graph, so editing their edges edits real faces.
  const F=window.WallFeatures;
  const toLocal=(d,p)=>d.frame?W.inFrame(d.frame,p):{x:(p.x-d.origin.x)*d.u.x+(p.y-d.origin.y)*d.u.y,y:p.z,z:0};
- function solidDraft(f){if(f.curvedSurface?.logical)throw Error('Select the curved surface to move, rotate or resize it; its curved boundaries remain linked.');const key='solid:'+f.id;host.state().wallEdits.$drafts||={};let d=all()[key];if(!d){const frame=F.frame(f.points);d={frame,closedSoffit:f.closedSoffit&&copy(f.closedSoffit),roofLayer:f.roofLayer,joinedChimneys:f.joinedChimneys&&copy(f.joinedChimneys),chimney:f.chimney&&copy(f.chimney),solidHost:f.id,members:[],faces:[{id:'surface-'+f.id,points:f.points.map(p=>W.inFrame(frame,p)),...(f.material?{material:f.material}:{}),finishColor:f.finishColor,trim:f.trim,...(f.trimData?{trimData:copy(f.trimData)}:{}),...window.ExteriorGeometry.mapCurveData(f,p=>W.inFrame(frame,p)),...(f.feature?{feature:copy(f.feature)}:{})}]};S.ensure(d);all()[key]=d;for(const r of f.holes||[])W.importDraft(d,[r.map(p=>W.inFrame(frame,p))]);// Retained anchors from an earlier extrusion can outlive their old face height.
+ function stickerRing(r){const K=window.ExteriorGeometry;return solids().some(s=>s.feature&&!s.deleted&&!s.drafted&&s.points.length===r.length&&s.points.every(p=>r.some(q=>distance3(p,q)<=K.CONTACT)));}
+ function solidDraft(f){if(f.curvedSurface?.logical)throw Error('Select the curved surface to move, rotate or resize it; its curved boundaries remain linked.');const key='solid:'+f.id;host.state().wallEdits.$drafts||={};let d=all()[key];if(!d){const frame=F.frame(f.points);d={frame,closedSoffit:f.closedSoffit&&copy(f.closedSoffit),roofLayer:f.roofLayer,joinedChimneys:f.joinedChimneys&&copy(f.joinedChimneys),chimney:f.chimney&&copy(f.chimney),solidHost:f.id,members:[],faces:[{id:'surface-'+f.id,points:f.points.map(p=>W.inFrame(frame,p)),...(f.material?{material:f.material}:{}),finishColor:f.finishColor,trim:f.trim,...(f.trimData?{trimData:copy(f.trimData)}:{}),...window.ExteriorGeometry.mapCurveData(f,p=>W.inFrame(frame,p)),...(f.feature?{feature:copy(f.feature)}:{})}]};S.ensure(d);all()[key]=d;// A hole kept for a stored sticker is that sticker's derived opening, not drawing;
+ // the copies of that sticker's curves the surface carried go with it.
+ const skipped=(f.holes||[]).filter(stickerRing);for(const r of f.holes||[])if(!skipped.includes(r))W.importDraft(d,[r.map(p=>W.inFrame(frame,p))]);
+ if(skipped.length){const K=window.ExteriorGeometry,rings=skipped.map(r=>r.map(p=>W.inFrame(frame,p))),onSkipped=c=>[.25,.5,.75].every(t=>{const q=K.curvePoint(c,t);return rings.some(r=>r.some((a,i)=>onSegment(q,a,r[(i+1)%r.length],1e-4)));});for(const face of d.faces)if(face.curves)face.curves=face.curves.filter(c=>!onSkipped(c));if(d.sketch?.curves)d.sketch.curves=d.sketch.curves.filter(c=>!onSkipped(c));}// Retained anchors from an earlier extrusion can outlive their old face height.
  // Import only anchors on the current surface; stale anchors must not prevent editing.
  const shape={points:f.points.map(p=>W.inFrame(frame,p)),holes:(f.holes||[]).map(r=>r.map(p=>W.inFrame(frame,p)))},rings=[shape.points,...shape.holes];
  for(const p of f.retainedPoints||[]){const q=window.ExteriorGeometry.local(frame,p);if(Math.abs(q.z)<=window.ExteriorGeometry.CONTACT&&(G.contains(shape,q)||rings.some(r=>r.some((a,i)=>onSegment(q,a,r[(i+1)%r.length],window.ExteriorGeometry.CONTACT)))))S.add(d,{...q,z:0},.0001);}}f.drafted=true;return d;}
@@ -1846,33 +1959,144 @@ function perf_structuralFaces(includeConsumed=false){
  function selectFeature(d,f){faceSelection=[];activeDraftKey=draftKey(d);preferredDraft=activeDraftKey;preferredSolid=null;preferredRegion=f.id;selectedRegion={draft:activeDraftKey,face:f.id};selectedSolid=null;picked=[];pickedLines=[];solidPoints=[];solidEdges=[];lineSelection=[];draftSelection={};}
  function asDraft(selection){if(selection.d)return selection;const d=solidDraft(selection.solid),f=d.faces.find(f=>!f.solidId&&!deleted(d,f));return {d,f,points:f.points.map(p=>world(d,p)),feature:f.feature};}
  function matchingRegion(d,points){return d.faces.filter(f=>!f.boundaryHole&&f.points.every(p=>G.contains({points},p))&&points.every(p=>G.contains({points:f.points},p))).sort((a,b)=>a.points.length-b.points.length)[0];}
- function editRegion(d,f,points){if(f.feature)F.validate(points,d.sketch.outlines,d.faces.filter(o=>o!==f&&(o.feature||o.boundaryHole)&&!o.solidId&&!deleted(d,o)));B.validate({points});S.nodeLines(d);const meta=f.feature&&copy(f.feature),old=copy(d.faces),priorPoints=f.points.map(p=>world(d,p));
+ // A sticker region moves, resizes and reshapes through its outline (one writer);
+ // `points` is the new ring in draft coordinates. shape 'circle' asks for a round one.
+ function editStickerRegion(d,f,points,shape){
+  const ref={d,f},next=points.map(p=>world(d,p)),prior=stickerOutline(ref),fr=prior.frame;
+  const affineMap=points.length===f.points.length?ST().fitAffine(f.points.map(p=>ST().local(fr,world(d,p))),next.map(p=>ST().local(fr,p))):null;
+  const outline=shape==='circle'&&prior.loop.some(v=>v.seg?.type!=='ellipse')?ST().read({points:next,feature:{shape:'circle'}}):affineMap?ST().affine(prior,affineMap):points.length===f.points.length?outlineToRing(ref,next):ST().read({points:next,feature:{}});
+  const face=rewriteSticker(d,f,prior,outline,affineMap);selectFeature(d,face);return face;
+ }
+ // Lift a sticker off its draft and install a new outline, carrying what is
+ // attached to it: points and lines drawn inside it and points on its edges follow
+ // an affine edit; a line from a corner stays on that corner; loose anchors follow.
+ function keepStickerIds(d,face,faceId,controlNodes,to){
+  if(!d.faces.some(o=>o!==face&&o.id===faceId))face.id=faceId;
+  const rename=new Map();controlNodes.forEach((old,i)=>{if(!old||d.sketch.nodes.some(n=>n.id===old))return;const n=d.sketch.nodes.find(n=>distance3(world(d,n),to[i])<=window.ExteriorGeometry.CONTACT);if(n&&!rename.has(n.id))rename.set(n.id,old);});
+  if(!rename.size)return;const id=x=>rename.get(x)||x;
+  for(const n of d.sketch.nodes)n.id=id(n.id);for(const e of d.sketch.edges){e.a=id(e.a);e.b=id(e.b);}
+  for(const o of d.faces)for(const r of [o.points,...(o.holes||[])])for(const p of r)if(p.nodeId)p.nodeId=id(p.nodeId);
+ }
+ function rewriteSticker(d,f,prior,outline,affineMap){
+  ST().check(outline);const K=window.ExteriorGeometry,fr=prior.frame;
+  const feature={...copy(f.feature)};delete feature.outline;
+  const material=f.material,finishColor=f.finishColor,from=ST().controlsWorld(prior),to=ST().controlsWorld(outline),sameControls=from.length===to.length&&from.every((c,i)=>c.id===to[i].id);
+  const ring=f.points.map(p=>({...d.sketch.nodes.find(n=>n.id===p.nodeId)||p})),shapeLocal={points:ring},vertex=n=>ring.some(p=>Math.hypot(p.x-n.x,p.y-n.y)<=1e-7);
+  // The node ids of the old controls, kept for the new controls so selections stay valid.
+  const controlNodes=sameControls?from.map(c=>d.sketch.nodes.find(n=>distance3(world(d,n),c)<=K.CONTACT)?.id||null):[],faceId0=f.id;
+  const mapWorld=p=>{const q=ST().local(fr,p),m=affineMap(q);return ST().world(fr,m);};
+  // Points inside the sticker or on its edges that are not ring vertices.
+  const carried=affineMap?d.sketch.nodes.filter(n=>!vertex(n)&&G.contains(shapeLocal,n)).map(n=>copy(n)):[];
+  liftSticker(d,f);
+  // A surviving node on an old control (a corner a line is attached to) moves to the new control.
+  if(sameControls)for(const n of d.sketch.nodes){const i=from.findIndex(c=>distance3(c,world(d,n))<=K.CONTACT);if(i>=0)Object.assign(n,toLocal(d,to[i]),{z:0});}
+  const prefix='sticker-'+(++d.sketch.next),w=ST().toWorld(outline,prefix);
+  const [faceId]=installInto(d,[{points:w.points,curves:w.curves,feature:{...feature,outline},material,finishColor}],false);
+  if(carried.length){
+   for(const c of carried){const at={...toLocal(d,mapWorld(world(d,c))),z:0},live=d.sketch.nodes.find(n=>n.id===c.id);if(live){Object.assign(live,at);continue;}
+    // A point that lay on an edge is put back on the new edge it lies on.
+    const node={...c,...at};d.sketch.nodes.push(node);const edge=d.sketch.edges.find(e=>!e.curveId&&(()=>{const a=d.sketch.nodes.find(n=>n.id===e.a),b=d.sketch.nodes.find(n=>n.id===e.b);return a&&b&&onSegment(node,a,b,1e-6)&&!onSegment(node,a,a,1e-6)&&!onSegment(node,b,b,1e-6);})());
+    if(edge){d.sketch.edges=d.sketch.edges.filter(e=>e!==edge);d.sketch.edges.push({...edge,id:'e'+(++d.sketch.next),b:node.id},{...edge,id:'e'+(++d.sketch.next),a:node.id});}}
+   S.resolve(d);classify(d);
+  }
+  const face=matchingRegion(d,w.points.map(p=>toLocal(d,p)))||d.faces.find(f=>f.id===faceId);if(!face?.feature)throw Error('The sticker crosses an existing divider.');
+  keepStickerIds(d,face,faceId0,controlNodes,to);
+  // Loose anchors and retained points on a moved control go with it.
+  const move=p=>{if(!sameControls)return p;const i=from.findIndex(c=>distance3(c,p)<=K.CONTACT);return i<0?p:{...p,x:to[i].x,y:to[i].y,z:to[i].z};},edits=host.state().wallEdits;
+  if(edits.$loose){edits.$loose.points=edits.$loose.points.map(move);edits.$loose.edges=edits.$loose.edges.map(pair=>pair.map(move));}for(const surface of edits.$surfaces||[])if(surface.retainedPoints)surface.retainedPoints=surface.retainedPoints.map(move);
+  return face;
+ }
+ function editRegion(d,f,points,shape){if(f.feature)return editStickerRegion(d,f,points,shape);if(f.feature)F.validate(points,d.sketch.outlines,d.faces.filter(o=>o!==f&&(o.feature||o.boundaryHole)&&!o.solidId&&!deleted(d,o)));B.validate({points});S.nodeLines(d);const meta=f.feature&&copy(f.feature),old=copy(d.faces),priorPoints=f.points.map(p=>world(d,p));
   if(points.length===f.points.length){const moves=f.points.map((p,i)=>({id:p.nodeId,to:points[i]}));
    // Resolved face loops can omit collinear anchors and coincident sketch nodes.
    // Carry every sticker-owned anchor through the same affine edit as its face.
    if(meta){const a=f.points[0],b=f.points[1],j=f.points.findIndex(p=>Math.abs((b.x-a.x)*(p.y-a.y)-(b.y-a.y)*(p.x-a.x))>1e-8),c=f.points[j];if(c){const det=(b.x-a.x)*(c.y-a.y)-(b.y-a.y)*(c.x-a.x);for(const n of d.sketch.nodes){if(n.fixed||moves.some(m=>m.id===n.id)||!G.contains(f,n))continue;const u=((n.x-a.x)*(c.y-a.y)-(n.y-a.y)*(c.x-a.x))/det,v=((b.x-a.x)*(n.y-a.y)-(b.y-a.y)*(n.x-a.x))/det;moves.push({id:n.id,to:{x:points[0].x+u*(points[1].x-points[0].x)+v*(points[j].x-points[0].x),y:points[0].y+u*(points[1].y-points[0].y)+v*(points[j].y-points[0].y),z:0}});}}}
-for(const m of moves){const n=d.sketch.nodes.find(n=>n.id===m.id);if(!n)throw Error('Resolve the face boundary before editing it.');if(meta&&n.fixed&&!d.sketch.outlines.some(r=>r.some((a,i)=>{const b=r[(i+1)%r.length],u={x:b.x-a.x,y:b.y-a.y},l2=u.x*u.x+u.y*u.y,t=((m.to.x-a.x)*u.x+(m.to.y-a.y)*u.y)/l2;return t>=-1e-6&&t<=1+1e-6&&Math.hypot(m.to.x-a.x-t*u.x,m.to.y-a.y-t*u.y)<1e-5;})))throw Error('That would move a shared building boundary off its face.');Object.assign(n,m.to);}S.resolve(d);
+// A fixed point on the building outline must stay on it; a fixed point inside the face
+// (a drawn shape made a sticker with Shift+W) is no boundary and moves with its sticker.
+const onOutline=q=>d.sketch.outlines.some(r=>r.some((a,i)=>{const b=r[(i+1)%r.length],u={x:b.x-a.x,y:b.y-a.y},l2=u.x*u.x+u.y*u.y;if(l2<1e-12)return Math.hypot(q.x-a.x,q.y-a.y)<1e-5;const t=((q.x-a.x)*u.x+(q.y-a.y)*u.y)/l2;return t>=-1e-6&&t<=1+1e-6&&Math.hypot(q.x-a.x-t*u.x,q.y-a.y-t*u.y)<1e-5;}));
+for(const m of moves){const n=d.sketch.nodes.find(n=>n.id===m.id);if(!n)throw Error('Resolve the face boundary before editing it.');if(meta&&n.fixed&&onOutline(n)&&!onOutline(m.to))throw Error('That would move a shared building boundary off its face.');Object.assign(n,m.to);}S.resolve(d);
   }else{const boundary=new Set(f.points.map(p=>p.nodeId));d.sketch.edges=d.sketch.edges.filter(e=>e.fixed||!boundary.has(e.a)||!boundary.has(e.b));delete f.feature;S.resolve(d);W.importDraft(d,[points]);}
   restoreMovedRegions(d,old);classify(d);const next=matchingRegion(d,points);if(!next)throw Error('This edit would cross a divider or split the feature.');if(meta)next.feature=meta;if(priorPoints.length===points.length){const moves=priorPoints.map((from,i)=>({from,to:world(d,points[i])})),move=p=>({...p,...(moves.find(m=>distance3(m.from,p)<=window.ExteriorGeometry.CONTACT)?.to||{})}),edits=host.state().wallEdits;if(edits.$loose){edits.$loose.points=edits.$loose.points.map(move);edits.$loose.edges=edits.$loose.edges.map(pair=>pair.map(move));}for(const surface of edits.$surfaces||[])if(surface.retainedPoints)surface.retainedPoints=surface.retainedPoints.map(move);}selectFeature(d,next);return next;
  }
- function removeSticker(ref){
+ // Take a sticker's region out of its draft: its own edges and points go, the
+ // host's outline stays, and the host region closes over where it was.
+ function liftSticker(d,f){
+  const old=copy(d.faces),shape={points:f.points.map(p=>({...p,...(f.solidId?d.sketch.nodes.find(n=>n.id===p.nodeId):null),z:0}))},inside=n=>G.contains(shape,n),boundary=pair=>W.sharedIntervals(...pair,[shape]).reduce((sum,[a,b])=>sum+b-a,0)>.99999;
+  const candidates=new Set(d.sketch.nodes.filter(inside).map(n=>n.id));
+  // A curved edge's chord is not on the outline: the sticker's own curves go by id.
+  const own=new Set((f.curves||[]).map(c=>c.id).filter(Boolean)),ownEdge=e=>e.curveId&&own.has(e.curveId);
+  // Only the building outline stays: a sticker's own edges go even when they are fixed.
+  const K=window.ExteriorGeometry,node=id=>d.sketch.nodes.find(n=>n.id===id),curve=id=>(d.sketch.curves||[]).find(c=>c.id===id);
+  const onOutline=e=>{const a=node(e.a),b=node(e.b);if(!a||!b)return false;const c=e.curveId&&curve(e.curveId),m=c?K.curvePoint(c,((e.curveRange||[0,1])[0]+(e.curveRange||[0,1])[1])/2):{x:(a.x+b.x)/2,y:(a.y+b.y)/2,z:0};return [a,b,m].every(p=>onDraftOutline(d,p));};
+  // An edge another sticker is drawn with stays (two stickers sharing an arch).
+  const ring=o=>o.points.map(p=>p.nodeId).filter(id=>id&&d.sketch.nodes.some(n=>n.id===id)),others=d.faces.filter(o=>o!==f&&o.feature&&!o.solidId&&!o.boundaryHole&&!deleted(d,o)).map(ring);
+  const shared=e=>others.some(r=>r.some((id,i)=>{const next=r[(i+1)%r.length];return id===e.a&&next===e.b||id===e.b&&next===e.a;}));
+  d.sketch.edges=d.sketch.edges.filter(e=>onOutline(e)||shared(e)||!ownEdge(e)&&!boundary([e.a,e.b].map(node)));
+  // The region around a sticker carries its curves on its hole; those copies go too,
+  // unless another sticker still has the curve.
+  const gone=new Set([...own].filter(id=>!d.sketch.edges.some(e=>e.curveId===id)));
+  if(gone.size)for(const o of d.faces)if(o.curves)o.curves=o.curves.filter(c=>!gone.has(c.id));
+  // Curve records no edge uses are dead: they could otherwise attach to a later shape.
+  if(d.sketch.curves?.length)d.sketch.curves=d.sketch.curves.filter(c=>d.sketch.edges.some(e=>e.curveId===c.id));
+  // A sticker corner on the outline with just two collinear outline edges was only a
+  // split for the sticker: the outline closes straight over it.
+  for(const p of f.points){const n=d.sketch.nodes.find(q=>q.id===p.nodeId);if(!n||!onDraftOutline(d,n))continue;const edges=d.sketch.edges.filter(e=>e.a===n.id||e.b===n.id);if(edges.length!==2||edges.some(e=>e.curveId))continue;
+   const [a,b]=edges.map(e=>node(e.a===n.id?e.b:e.a));if(!a||!b||!onSegment(n,a,b,1e-6))continue;d.sketch.edges=d.sketch.edges.filter(e=>!edges.includes(e));d.sketch.edges.push({...edges[0],id:'e'+(++d.sketch.next),a:a.id,b:b.id});}
+  const used=new Set(d.sketch.edges.flatMap(e=>[e.a,e.b]));d.sketch.nodes=d.sketch.nodes.filter(n=>!candidates.has(n.id)||used.has(n.id)||onDraftOutline(d,n)&&!f.points.some(p=>p.nodeId===n.id));
+  delete f.feature;delete f.solidId;d.faces=d.faces.filter(other=>other!==f);
+  if(d.faces.length){S.resolve(d);restoreMovedRegions(d,old.filter(o=>o.id!==f.id));classify(d);}else{d.sketch.edges=[];d.sketch.nodes=[];d.sketch.outlines=[];}
+  d.deletedFaces=(d.deletedFaces||[]).filter(key=>d.faces.some(f=>signature(f)===key));
+ }
+ function removeSticker(ref,{keepMasks=false}={}){
   const edits=host.state().wallEdits,points=ref.d?ref.f.points.map(p=>world(ref.d,p)):ref.f.points,K=window.ExteriorGeometry;
   const sameRing=r=>r.length>=3&&r.every(p=>points.some(q=>distance3(p,q)<=K.CONTACT))&&points.every(p=>r.some(q=>distance3(p,q)<=K.CONTACT));
   const sources=[];if(ref.d){const live=ref.d.faces.find(f=>f.id===ref.f.id);if(live)sources.push({d:ref.d,f:live});}
-  else{edits.$surfaces=(edits.$surfaces||[]).filter(f=>f.id!==ref.f.id);for(const d of Object.values(all()))for(const f of d.faces)if(f.solidId===ref.f.id)sources.push({d,f});}
-  for(const {d,f}of sources){
-   const old=copy(d.faces),shape={points:f.points.map(p=>({...p,...(f.solidId?d.sketch.nodes.find(n=>n.id===p.nodeId):null),z:0}))},inside=n=>G.contains(shape,n),boundary=pair=>W.sharedIntervals(...pair,[shape]).reduce((sum,[a,b])=>sum+b-a,0)>.99999;
-   const candidates=new Set(d.sketch.nodes.filter(inside).map(n=>n.id));
-   d.sketch.edges=d.sketch.edges.filter(e=>e.fixed||!boundary([e.a,e.b].map(id=>d.sketch.nodes.find(n=>n.id===id))));
-   const used=new Set(d.sketch.edges.flatMap(e=>[e.a,e.b]));d.sketch.nodes=d.sketch.nodes.filter(n=>n.fixed||!candidates.has(n.id)||used.has(n.id));
-   delete f.feature;delete f.solidId;d.faces=d.faces.filter(other=>other!==f);
-   if(d.faces.length){S.resolve(d);restoreMovedRegions(d,old.filter(o=>o.id!==f.id));classify(d);}else{d.sketch.edges=[];d.sketch.nodes=[];d.sketch.outlines=[];}
-   d.deletedFaces=(d.deletedFaces||[]).filter(key=>d.faces.some(f=>signature(f)===key));
-  }
-  for(const surface of edits.$surfaces||[])if(!surface.deleted){surface.holes=(surface.holes||[]).filter(r=>!sameRing(r));}
+  else{edits.$surfaces=(edits.$surfaces||[]).filter(f=>f.id!==ref.f.id);if(!keepMasks)for(const d of Object.values(all()))for(const f of d.faces)if(f.solidId===ref.f.id)sources.push({d,f});}
+  for(const {d,f}of sources)liftSticker(d,f);
+  for(const surface of edits.$surfaces||[])if(!surface.deleted){const holes=surface.holes||[];surface.holes=holes.filter(r=>!sameRing(r));if(surface.holes.length!==holes.length)keepBoundaryCurves(surface);}
   const boundary=p=>points.some((a,i)=>onSegment(p,a,points[(i+1)%points.length]));
   if(edits.$loose){edits.$loose.edges=edits.$loose.edges.filter(pair=>W.sharedIntervals(...pair,[{points}]).reduce((sum,[a,b])=>sum+b-a,0)<.99999);edits.$loose.points=edits.$loose.points.filter(p=>!boundary(p));}
   for(const surface of edits.$surfaces||[])if(surface.retainedPoints)surface.retainedPoints=surface.retainedPoints.filter(p=>!boundary(p)||[surface.points,...(surface.holes||[])].some(r=>r.some((a,i)=>onSegment(p,a,r[(i+1)%r.length]))));
+ }
+ // Deleting sticker points deletes them with every line and curve segment attached to
+ // them, as anywhere in a sketch. What still closes stays a sticker; what no longer
+ // closes stays on its wall as open lines (curve segments keep their exact curve).
+ // With "Deleting a sticker point keeps it closed" (advanced settings) the sticker
+ // reshapes through its other points instead.
+ function deleteStickerControls(){const points=selectedWorldPoints();if(!points.length||lineSelection.length||pickedLines.length)return false;const items=stickerControlSelection(points);if(!items)return false;
+  if(host.state()?.stickerDeleteKeepsFace===true)return reshapeStickerDelete(items);
+  const before=allStickers().length;let after=before;
+  const ok=transaction(()=>{const drafts=new Set();for(const item of items)drafts.add(stickerDraft(item.ref));for(const d of drafts)deleteSketchPoints(d,points);after=allStickers().length;selectWorldPoints([]);});
+  if(ok)host.message(after<before?'Point deleted; the sticker is open lines now.':'Point deleted.');return true;
+ }
+ // The sticker stays closed through the rest of its points; a sticker whose rest is no
+ // closed face (too few corners, or a shape that would cross itself) is deleted.
+ function reshapeStickerDelete(items){
+  const closed=outline=>{if(!outline)return null;try{ST().check(outline);return outline;}catch{return null;}};
+  const changes=items.map(item=>({ref:item.ref,outline:item.all?null:closed(ST().deleteControls(item.outline,item.ids))}));
+  const ok=transaction(()=>{const refs=writeStickers(changes);selectWorldPoints([]);if(refs.length)selectStickers(refs);});
+  if(ok)host.message(changes.some(c=>!c.outline)?'Sticker deleted.':'Sticker point deleted.');return true;
+ }
+ // The draft a sticker is drawn in; a stored sticker is moved into its host's draft.
+ function stickerDraft(ref){if(ref.d)return ref.d;const outline=stickerOutline(ref),w=ST().toWorld(outline,ref.f.id),points=stickerFace(ref).points,feature={...copy(ref.f.feature)};delete feature.outline;
+  // Its wall closes over a notch it kept for the sticker before the sticker goes in its draft.
+  // (and over notches it kept for other stored stickers on its plane, whose openings are derived).
+  const K=window.ExteriorGeometry,frame=F.frame(points),onPlane=q=>Math.abs(K.local(frame,q).z)<=1e-4,others=solids().filter(s=>s!==ref.f&&s.feature&&!s.deleted&&!s.drafted&&s.points.every(onPlane)).map(s=>s.points);
+  removeSticker(ref);fillStickerNotch(points);for(const other of others)fillStickerNotch(other);const d=stickerHost(ref,w.points);installInto(d,[{points:w.points.map(p=>{const {curveSample,...q}=p;return q;}),curves:w.curves,feature,...(ref.f.material?{material:ref.f.material}:{}),...(ref.f.finishColor?{finishColor:ref.f.finishColor}:{})}],false);return d;}
+ // Remove the draft nodes at world points with their edges. A node on the draft
+ // outline stays (the wall keeps its edge); it is dropped only when it was just a
+ // split in a straight outline edge.
+ function deleteSketchPoints(d,points){
+  const K=window.ExteriorGeometry,ids=new Set(d.sketch.nodes.filter(n=>points.some(p=>distance3(world(d,n),p)<=K.CONTACT)).map(n=>n.id));if(!ids.size)return;
+  const flat=q=>({x:q.x,y:q.y,z:0}),node=id=>d.sketch.nodes.find(n=>n.id===id),onOutline=q=>d.sketch.outlines.some(r=>r.some((a,i)=>onSegment(flat(q),flat(a),flat(r[(i+1)%r.length]),1e-5)));
+  const outlineEdge=e=>!e.curveId&&onOutline(node(e.a))&&onOutline(node(e.b))&&onOutline({x:(node(e.a).x+node(e.b).x)/2,y:(node(e.a).y+node(e.b).y)/2}),old=copy(d.faces);
+  d.sketch.edges=d.sketch.edges.filter(e=>!(ids.has(e.a)||ids.has(e.b))||outlineEdge(e));
+  for(const id of ids){const n=node(id),kept=d.sketch.edges.filter(e=>e.a===id||e.b===id);if(!kept.length){d.sketch.nodes=d.sketch.nodes.filter(m=>m!==n);continue;}
+   if(kept.length!==2)continue;const ends=kept.map(e=>node(e.a===id?e.b:e.a));if(!onSegment(flat(n),flat(ends[0]),flat(ends[1]),1e-6))continue;
+   d.sketch.edges=d.sketch.edges.filter(e=>!kept.includes(e));d.sketch.edges.push({...kept[0],id:'e'+(++d.sketch.next),a:ends[0].id,b:ends[1].id});d.sketch.nodes=d.sketch.nodes.filter(m=>m!==n);}
+  d.sketch.curves=(d.sketch.curves||[]).filter(c=>d.sketch.edges.some(e=>e.curveId===c.id));
+  S.resolve(d);for(const f of d.faces){const prior=old.find(o=>signature(o)===signature(f));if(prior?.solidId)f.solidId=prior.solidId;}
+  d.deletedFaces=(d.deletedFaces||[]).filter(key=>d.faces.some(f=>signature(f)===key));classify(d);
  }
  function deleteSelectedStickers(){const refs=selectedFaces();if(!refs.length||refs.some(r=>!r.f.feature))return false;
   const ok=transaction(()=>{for(const ref of refs)removeSticker(ref);});if(ok){faceSelection=[];selectedSolid=null;selectedRegion=null;preferredSolid=null;preferredRegion=null;picked=[];pickedLines=[];solidPoints=[];solidEdges=[];host.redraw();}return true;
@@ -1880,7 +2104,7 @@ for(const m of moves){const n=d.sketch.nodes.find(n=>n.id===m.id);if(!n)throw Er
  function resizeFeature(selection,type,index){const ref=asDraft(selection),{d,f}=ref,def=F.defs.get(type),preset=def.sizes[index],frame=F.orientedFrame(ref.points,ref.feature?.axis),local=ref.points.map(p=>W.inFrame(frame,p)),boundaries=[...d.sketch.outlines,...d.sketch.edges.filter(e=>{const nodes=[e.a,e.b].map(id=>d.sketch.nodes.find(n=>n.id===id));return nodes.some(n=>!G.contains({points:f.points},n));}).map(e=>[e.a,e.b].map(id=>d.sketch.nodes.find(n=>n.id===id)))].map(r=>r.map(p=>W.inFrame(frame,world(d,p)))),anchor=F.anchors(local,boundaries),next=F.resized(local,preset,anchor).map(p=>toLocal(d,W.fromFrame(frame,p)));
   // Keep vertex ordering and split points when scaling a shape in place.
   let points=next;if((preset.shape==='rectangle'&&f.feature?.shape!=='circle')||(preset.shape==='circle'&&f.feature?.shape==='circle')){const a=F.bounds(local),b=F.bounds(F.resized(local,preset,anchor));points=local.map(p=>toLocal(d,W.fromFrame(frame,{x:b.left+(p.x-a.left)/(a.right-a.left)*(b.right-b.left),y:b.bottom+(p.y-a.bottom)/(a.top-a.bottom)*(b.top-b.bottom),z:0})));}
-  const result=editRegion(d,f,points);result.feature={...(result.feature||{}),type,preset:index,shape:preset.shape,axis:frame.u};return result;
+  const result=editRegion(d,f,points,preset.shape);result.feature={...(result.feature||{}),type,preset:index,shape:preset.shape,axis:frame.u};return result;
  }
  function applySelectedFeature(type){
   const faces=selectedFaces();if(!faces.length)return false;
@@ -1923,34 +2147,216 @@ for(const m of moves){const n=d.sketch.nodes.find(n=>n.id===m.id);if(!n)throw Er
   return candidates[0]||null;
  }
  function previewFeature(...args){if(!window.ExteriorPerf?.enabled)return perf_previewFeature.apply(this,args);return window.ExteriorPerf.measure('Sticker preview',()=>perf_previewFeature.apply(this,args));}
- function stickerPlacement(ref,faces,snap=true){
-  const frame=F.frame(ref.points),scene=moveScene(),graph=stickerSnapGeometry(sceneLines(),scene),onPlane=p=>Math.abs(window.ExteriorGeometry.local(frame,p).z)<=window.ExteriorGeometry.CONTACT;
-  const alignmentTargets=W.stickerAlignmentTargets(scene.filter(f=>!f.trim&&f.feature?.type!=='trim'),frame),boundary=[ref.points.map(p=>W.inFrame(frame,p))],holes=(ref.f?.holes||ref.solid?.holes||[]).map(r=>r.map(p=>W.inFrame(frame,ref.d?world(ref.d,p):p))),targets=[...boundary,...[...graph.lines.values()].filter(pair=>pair.every(onPlane)).map(pair=>pair.map(p=>W.inFrame(frame,p))),...graph.points.filter(onPlane).map(p=>[W.inFrame(frame,p)]),...alignmentTargets.map(p=>[{...W.inFrame(frame,p),alignmentAxes:p.alignmentAxes,alignmentCenter:p.alignmentCenter}])];
+ // A sticker centres on the face it sits on: the whole draft outline or undrafted surface, never another sticker or trim.
+ function stickerFaceCenter(points,frame,scene=[]){return W.faceCenterTarget([...scene,...Object.values(all()).flatMap(d=>(d.sketch?.outlines||[]).map(r=>({points:r.map(p=>world(d,p))})))].filter(f=>!f.feature&&!f.trim&&!f.deleted).map(f=>f.points),frame,points);}
+ // The snap scene depends on the model, not the pointer. A hover preview passes
+ // `reuse` ({cache, key}) and keeps it for the gesture: rebuilding every wall's
+ // lines on each move stalled placement more with every sticker added.
+ // Identities of everything the snap scene and guide targets are built from. A
+ // hover preview restores all of them, so an equal key means the same model.
+ function modelKey(edits=host.state()?.wallEdits){const state=host.state();return [state,edits,host.walls(),host.roofVisible?.(),host.wallsVisible?.(),state?.closedSoffits,(edits?.$base||state?.base)?.visible];}
+ const sameKey=(a,b)=>!!a&&!!b&&a.length===b.length&&a.every((v,i)=>v===b[i]);
+ function stickerSnapScene(reuse){
+  const key=()=>typeof reuse.key==='function'?reuse.key():reuse.key;if(reuse&&sameKey(reuse.cache.key,key()))return reuse.cache.value;
+  const scene=moveScene(),lines=sceneLines(),value={scene,lines,graph:stickerSnapGeometry(lines,scene)};if(reuse){reuse.cache.key=key();reuse.cache.value=value;}return value;
+ }
+ function stickerPlacement(ref,faces,snap=true,reuse=null){
+  const frame=F.frame(ref.points),snapScene=stickerSnapScene(reuse),{scene,graph}=snapScene,onPlane=p=>Math.abs(window.ExteriorGeometry.local(frame,p).z)<=window.ExteriorGeometry.CONTACT;
+  // What a face offers as targets depends on the snap scene and the face, not the pointer: keep it per face.
+  const planeKey=reuse?JSON.stringify(ref.points):null;let plane=planeKey&&snapScene.planes?.get(planeKey);
+  if(!plane){plane={lines:[...graph.lines.values()].filter(pair=>pair.every(onPlane)).map(pair=>pair.map(p=>W.inFrame(frame,p))),points:graph.points.filter(onPlane).map(p=>[W.inFrame(frame,p)]),align:W.stickerAlignmentTargets(scene.filter(f=>!f.trim&&f.feature?.type!=='trim'),frame),outlines:[...scene,{points:ref.points},...Object.values(all()).flatMap(d=>(d.sketch?.outlines||[]).map(r=>({points:r.map(p=>world(d,p))})))].filter(f=>!f.feature&&!f.trim&&!f.deleted).map(f=>f.points)};if(planeKey)(snapScene.planes||=new Map()).set(planeKey,plane);}
+  const alignmentTargets=[...plane.align,...W.faceCenterTarget(plane.outlines,frame,faces.flatMap(f=>f.points))],boundary=[ref.points.map(p=>W.inFrame(frame,p))],holes=(ref.f?.holes||ref.solid?.holes||[]).map(r=>r.map(p=>W.inFrame(frame,ref.d?world(ref.d,p):p))),targets=[...boundary,...plane.lines,...plane.points,...alignmentTargets.map(p=>[{...W.inFrame(frame,p),alignmentAxes:p.alignmentAxes,alignmentCenter:p.alignmentCenter}])];
   const shapes=faces.map(f=>f.points.map(p=>W.inFrame(frame,p)));if(shapes.flat().some(p=>Math.abs(p.z)>window.ExteriorGeometry.CONTACT))throw Error('Place stickers together on one supporting face.');
   const placed=F.placeGroup(shapes,targets,p=>host.screen(W.fromFrame(frame,p),'3d'),snap&&!(typeof isFreeMove!=='undefined'&&isFreeMove)?12:0,boundary.map(points=>({points,holes}))),a=shapes[0][0],b=placed[0][0],delta={x:frame.u.x*(b.x-a.x)+frame.v.x*(b.y-a.y),y:frame.u.y*(b.x-a.x)+frame.v.y*(b.y-a.y),z:frame.u.z*(b.x-a.x)+frame.v.z*(b.y-a.y)},move=p=>({...p,x:p.x+delta.x,y:p.y+delta.y,z:p.z+delta.z});
   for(const points of placed)F.validate(points,boundary,holes.map(points=>({points})));
   return {faces:faces.map(f=>({...f,...window.ExteriorGeometry.mapCurveData(f,move),points:f.points.map(move),holes:(f.holes||[]).map(r=>r.map(move)),retainedPoints:(f.retainedPoints||[]).map(move)})),move,alignmentTargets,frame};
  }
- function installStickers(ref,faces){const {d}=asDraft(ref),placed=[];
-  for(const source of F.remapDivisionGroups(faces)){const local=source.points.map(p=>toLocal(d,p));F.validate(local,d.sketch.outlines,d.faces.filter(f=>(f.feature||f.boundaryHole)&&!f.solidId&&!deleted(d,f)));W.importDraft(d,[local],(source.curves||[]).map(c=>window.ExteriorGeometry.mapCurve(c,p=>toLocal(d,p))));classify(d);const face=matchingRegion(d,local);if(!face)throw Error('The sticker crosses an existing divider.');face.feature=copy(source.feature);if(source.material)face.material=source.material;if(source.finishColor)face.finishColor=source.finishColor;placed.push({draft:draftKey(d),face:face.id});}
+ function installInto(d,faces,remap=true){const ids=[];
+  for(const source of remap?F.remapDivisionGroups(faces):faces){const local=source.points.map(p=>toLocal(d,p));F.validate(local,d.sketch.outlines,d.faces.filter(f=>(f.feature||f.boundaryHole)&&!f.solidId&&!deleted(d,f)));W.importDraft(d,[local],(source.curves||[]).map(c=>window.ExteriorGeometry.mapCurve(c,p=>toLocal(d,p))));classify(d);const face=matchingRegion(d,local);if(!face)throw Error('The sticker crosses an existing divider.');face.feature=copy(source.feature);if(source.material)face.material=source.material;if(source.finishColor)face.finishColor=source.finishColor;ids.push(face.id);}return ids;
+ }
+ // ---- Sticker edits: one reader, one writer (dev/EXTERIOR_STICKERS.md) ----
+ // A flush sticker edit reads the sticker's outline, transforms it, and writes it
+ // back here: the old geometry is lifted off and the outline installed in its
+ // host's draft, whatever form the sticker was stored in.
+ const ST=()=>window.WallStickers||F.Stickers;
+ function stickerFace(ref){if(!ref.d)return ref.f;const d=ref.d,K=window.ExteriorGeometry;return {...ref.f,points:ref.f.points.map(p=>world(d,p)),curves:(ref.f.curves||[]).map(c=>K.mapCurve(c,p=>world(d,p)))};}
+ function stickerOutline(ref){return ST().read(stickerFace(ref));}
+ // Every sticker on the model with its outline (unreadable shapes are left out).
+ function allStickers(){const out=[];
+  for(const f of solids())if(f.feature&&!f.deleted&&!f.drafted&&!f.trim)out.push({d:null,f});
+  for(const d of Object.values(all()))if(!d.mergedInto)for(const f of d.faces)if(f.feature&&!f.solidId&&!f.boundaryHole&&!deleted(d,f))out.push({d,f});
+  return out.flatMap(ref=>{try{return [{...ref,outline:stickerOutline(ref)}];}catch{return [];}});
+ }
+ // The face a lifted-off sticker sits on: its own draft, else the coplanar draft
+ // region or stored surface that contains it.
+ function stickerHost(ref,points){
+  if(ref.d)return ref.d;
+  // A stored sticker sits on a stored surface or a draft region; the stored surface it
+  // was on wins over any older draft region covering the same place.
+  const K=window.ExteriorGeometry,frame=F.frame(points),onPlane=q=>Math.abs(K.local(frame,q).z)<=1e-4;
+  for(const f of solids()){if(f.feature||f.deleted||f.drafted||f.trim||f.boundaryHole)continue;if(!f.points.every(onPlane))continue;const fr=F.frame(f.points),shape={points:f.points.map(p=>W.inFrame(fr,p)),holes:[]};if(points.every(p=>G.contains(shape,W.inFrame(fr,p))))return solidDraft(f);}
+  for(const d of Object.values(all())){if(!visibleDraft(d)||!points.every(p=>distance3(world(d,toLocal(d,p)),p)<=1e-4))continue;
+   for(const f of d.faces){if(f.feature||f.solidId||f.boundaryHole||deleted(d,f))continue;const shape={points:f.points,holes:[]};if(points.every(p=>G.contains(shape,toLocal(d,p))))return d;}}
+  throw Error('The sticker has no supporting face.');
+ }
+ // Write sticker outlines: [{ref, outline}], outline null deletes. Returns the new refs.
+ function writeStickers(changes){
+  const plans=changes.map(c=>{if(c.outline)ST().check(c.outline);const prior=stickerOutline(c.ref);return {...c,prior,points:stickerFace(c.ref).points,affine:c.outline?ST().fitAffine(ST().controls(prior),ST().controls(c.outline)):null};});
+  const placed=[];
+  // Draft stickers: lifted off their draft and installed again (ids and attachments kept).
+  for(const plan of plans){if(!plan.ref.d)continue;const live=liveSticker(plan);if(!live)throw Error('The sticker changed before it could be written.');
+   if(!plan.outline){removeSticker(live);continue;}placed.push({d:live.d,f:rewriteSticker(live.d,live.f,plan.prior,plan.outline,plan.affine)});}
+  // Stored stickers: rewritten in place. Their wall keeps no hole or notch for them;
+  // the opening is derived from the sticker wherever it is drawn or reported.
+  const stored=plans.filter(plan=>!plan.ref.d);
+  for(const plan of stored){const live=liveSticker(plan);if(!live)throw Error('The sticker changed before it could be written.');plan.live=live;
+   if(!plan.outline){removeSticker(live);continue;}removeStoredOpening(live.f);fillStickerNotch(plan.points);}
+  for(const plan of stored){if(!plan.outline)continue;const f=plan.live.f,w=ST().toWorld(plan.outline,f.id),feature={...copy(f.feature)};delete feature.outline;
+   checkStoredSticker(f,w.points);const {retainedPoints,...rest}=f,next={...copy(rest),points:w.points.map(p=>{const {curveSample,...q}=p;return q;}),curves:w.curves,feature:{...feature,outline:plan.outline},holes:[]};
+   // A new object: the old one may be shared with an undo snapshot.
+   const list=host.state().wallEdits.$surfaces,at=list.indexOf(f);if(at<0)throw Error('The sticker changed before it could be written.');list[at]=next;placed.push({d:null,f:next});}
+  return placed;
+ }
+ // A stored sticker's wall drops the hole it kept for it (and that hole's curves).
+ function removeStoredOpening(f){const K=window.ExteriorGeometry,same=r=>r.length>=3&&r.every(p=>f.points.some(q=>distance3(p,q)<=K.CONTACT))&&f.points.every(p=>r.some(q=>distance3(p,q)<=K.CONTACT));
+  for(const s of solids())if(s!==f&&!s.deleted&&s.holes?.length){const holes=s.holes.filter(r=>!same(r));if(holes.length!==s.holes.length){s.holes=holes;keepBoundaryCurves(s);}}}
+ // The one placement check for a stored sticker: inside the stored wall it sits on (when
+ // it sits on one) and clear of the other stickers on that plane.
+ function checkStoredSticker(f,points){
+  const K=window.ExteriorGeometry,frame=F.frame(points),onPlane=q=>Math.abs(K.local(frame,q).z)<=1e-4,toPlane=p=>W.inFrame(frame,p);
+  const host=solids().find(s=>s!==f&&!s.feature&&!s.deleted&&!s.drafted&&!s.trim&&s.points.every(onPlane)&&s.points.length>=3&&K.area({points:s.points.map(toPlane)})&&points.some(p=>G.contains({points:s.points.map(toPlane),holes:[]},toPlane(p))));
+  const others=[...solids().filter(s=>s!==f&&s.feature&&!s.deleted&&!s.drafted&&s.points.every(onPlane)).map(s=>({points:s.points.map(toPlane)})),...allStickers().filter(s=>s.d&&ST().toWorld(s.outline).points.every(onPlane)).map(s=>({points:ST().toWorld(s.outline).points.map(toPlane)}))];
+  F.validate(points.map(toPlane),host?[host.points.map(toPlane)]:[points.map(toPlane)],others);
+ }
+ // A stored wall whose outline went around a stored sticker (a door notched into
+ // its edge) closes over where the sticker was once the sticker is lifted off.
+ function fillStickerNotch(points){
+  const K=window.ExteriorGeometry,frame=F.frame(points),onPlane=q=>Math.abs(K.local(frame,q).z)<=1e-4,touches=f=>points.some(p=>f.points.some((a,i)=>onSegment(p,a,f.points[(i+1)%f.points.length],1e-5)));
+  for(const f of solids()){if(f.feature||f.deleted||f.trim||f.boundaryHole||!f.points.every(onPlane)||!touches(f))continue;
+   const fr=F.frame(f.points),toPlane=p=>W.inFrame(fr,p),union=K.union([{points:f.points.map(toPlane)},{points:points.map(toPlane)}]);
+   if(union.length!==1||(union[0].holes||[]).length)continue;const before=Math.abs(K.area({points:f.points.map(toPlane)})),after=Math.abs(K.area(union[0]));if(after<=before+1e-9)continue;
+   // The sticker's old corners left on a straight run of the wall are no vertices.
+   let ring=union[0].points.map(p=>W.fromFrame(fr,p));for(let changed=true;changed&&ring.length>3;){changed=false;for(let i=0;i<ring.length;i++){const v=ring[i],a=ring[(i-1+ring.length)%ring.length],b=ring[(i+1)%ring.length];if(points.some(q=>distance3(q,v)<=1e-5)&&onSegment(v,a,b,1e-6)){ring=ring.filter((_,j)=>j!==i);changed=true;break;}}}
+   f.points=ring;keepBoundaryCurves(f);}
+  // Anchors a wall kept at the lifted sticker's corners were the sticker's, not the wall's.
+  for(const f of solids())if(!f.feature&&!f.deleted&&f.retainedPoints?.length&&f.points.every(onPlane))f.retainedPoints=f.retainedPoints.filter(r=>!points.some(q=>distance3(q,r)<=1e-5)||f.points.some(q=>distance3(q,r)<=1e-5));
+ }
+ // A stored face keeps only the curves that still lie on its outline or holes.
+ function keepBoundaryCurves(f){if(!f.curves?.length)return;const K=window.ExteriorGeometry,rings=[f.points,...(f.holes||[])],on=p=>rings.some(r=>r.some((a,i)=>onSegment(p,a,r[(i+1)%r.length],1e-4)));f.curves=f.curves.filter(c=>[.25,.5,.75].some(t=>on(K.curvePoint(c,t))));}
+ // Select world points as draft points (stickers are draft regions once written).
+ // A move-tool result for sticker points, written through the sticker writer:
+ // each sticker's controls go where the tool put them (an affine map when all of
+ // a sticker's controls move together). null when a control leaves its plane.
+ function stickerTransformEdits(t,candidate){
+  const K=window.ExteriorGeometry,from=t.original.points,to=candidate.points,prior=host.state().wallEdits;host.state().wallEdits=copy(t.prepared);
+  try{const changes=[];
+   for(const s of allStickers()){const ctl=ST().controlsWorld(s.outline),hit=ctl.map(c=>from.findIndex(p=>!p.curveSample&&distance3(p,c)<=1e-5));if(hit.every(i=>i<0))continue;
+    const fr=s.outline.frame,targets={};for(const [k,c]of ctl.entries()){if(hit[k]<0)continue;const q=to[hit[k]];if(Math.abs(K.local(fr,q).z)>1e-6)return null;targets[c.id]=ST().local(fr,q);}
+    const map=hit.every(i=>i>=0)?ST().fitAffine(ctl.map(c=>ST().local(fr,c)),ctl.map(c=>targets[c.id])):null;
+    changes.push({ref:{d:s.d,f:s.f},outline:map?ST().affine(s.outline,map):ST().moveControlsTo(s.outline,targets)});}
+   if(!changes.length)return null;writeStickers(changes);window.ExteriorModel.validateEdits(host.state().wallEdits,t.before,true);return host.state().wallEdits;
+  }finally{const result=host.state().wallEdits;host.state().wallEdits=prior;void result;}
+ }
+ function selectWorldPoints(points){
+  draftSelection={};solidPoints=[];picked=[];
+  for(const [key,d]of Object.entries(all())){if(!visibleDraft(d))continue;const ids=d.sketch.nodes.filter(n=>points.some(p=>distance3(world(d,n),p)<=window.ExteriorGeometry.CONTACT)).map(n=>n.id);if(ids.length)draftSelection[key]=ids;}
+  activeDraftKey=Object.keys(draftSelection)[0]||null;picked=activeDraftKey?draftSelection[activeDraftKey].slice():[];selectedRegion=null;selectedSolid=null;faceSelection=[];
+  // Stored stickers' points are wire points.
+  solidPoints=points.length?wire().nodes.filter(n=>!n.curveSample&&points.some(p=>distance3(n,p)<=window.ExteriorGeometry.CONTACT)).map(n=>n.id):[];solidEdges=[];lineSelection=[];pickedLines=[];
+ }
+ // Nudge or move stickers by a view-plane step: whole stickers translate; some of a
+ // sticker's points (or a selected sticker edge) reshape it. null: not a sticker edit.
+ function stickerEditFromSelection(){
+  const faces=selectedFaces(),stickers=faces.filter(({f})=>f.feature);
+  if(faces.length&&stickers.length===faces.length)return {kind:'faces',items:stickers.map(ref=>({ref,outline:stickerOutline(ref),all:true,ids:null}))};
+  if(faces.length)return null;
+  const lines=[...lineSelection.flatMap(l=>(l.pairs||[l.pair])),...selectedDraftLinePairs()];
+  if(lines.length&&!selectedWorldPoints().length){const items=stickerControlSelection(lines.flat());return items?{kind:'lines',items,lines}:null;}
+  const points=selectedWorldPoints();if(!points.length)return null;const items=stickerControlSelection(points);return items?{kind:'points',items,points}:null;
+ }
+ function selectedDraftLinePairs(){const d=current();if(!d||!pickedLines.length)return [];return d.sketch.edges.filter(e=>pickedLines.includes(e.id)).map(e=>[e.a,e.b].map(id=>world(d,d.sketch.nodes.find(n=>n.id===id))));}
+ function stickerViewDelta(outline,dx,dy){const ring=ST().toWorld(outline).points,view=F.viewFrame(ring,p=>host.screen(p,'3d'));return frameDelta(outline,{x:view.u.x*dx+view.v.x*dy,y:view.u.y*dx+view.v.y*dy,z:view.u.z*dx+view.v.z*dy});}
+ function applyStickerEdit(edit,deltaFor,message){
+  const keep={draftSelection:copy(draftSelection),picked:picked.slice(),solidPoints:solidPoints.slice(),lineSelection:copy(lineSelection),pickedLines:pickedLines.slice(),faceSelection:copy(faceSelection),selectedRegion:copy(selectedRegion),selectedSolid,activeDraftKey};
+  let moved=[];const changes=edit.items.map(item=>{const d=deltaFor(item.outline),outline=item.all?ST().translate(item.outline,d.x,d.y):ST().moveControls(item.outline,item.ids,d.x,d.y);
+   moved.push(...ST().controlsWorld(outline).filter(c=>item.all||item.ids.includes(c.id)));return {ref:item.ref,outline};});
+  const ok=transaction(()=>{const refs=writeStickers(changes);if(edit.kind==='faces')selectStickers(refs);else if(edit.kind==='points')selectWorldPoints(moved);
+   else{const at=p=>moved.find(c=>edit.items.some(item=>ST().controlsWorld(item.outline).some(o=>o.id===c.id&&distance3(o,p)<=window.ExteriorGeometry.CONTACT)))||p;const pairs=edit.lines.map(pair=>pair.map(at));selectWorldPoints([]);lineSelection=pairs.map(pair=>({pair,id:W.edgeKey(...pair)}));pickedLines=[];}});
+  if(!ok){Object.assign({},keep);draftSelection=keep.draftSelection;picked=keep.picked;solidPoints=keep.solidPoints;lineSelection=keep.lineSelection;pickedLines=keep.pickedLines;faceSelection=keep.faceSelection;selectedRegion=keep.selectedRegion;selectedSolid=keep.selectedSolid;activeDraftKey=keep.activeDraftKey;host.redraw();}
+  else if(message)host.message(message);
+  return true;
+ }
+ function nudgeStickers(dx,dy){const edit=stickerEditFromSelection();if(!edit)return null;return applyStickerEdit(edit,outline=>stickerViewDelta(outline,dx,dy),edit.kind==='faces'?null:edit.items.every(i=>i.all)?null:'Sticker reshaped.');}
+ function liveSticker(plan){
+  const same=(a,b)=>a.length===b.length&&a.every(p=>b.some(q=>distance3(p,q)<=1e-5));
+  if(!plan.ref.d)return solids().some(f=>f===plan.ref.f&&!f.deleted)?plan.ref:null;
+  const d=plan.ref.d,f=d.faces.find(f=>f.id===plan.ref.f.id&&f.feature&&same(f.points.map(p=>world(d,p)),plan.points))||d.faces.find(f=>f.feature&&!f.solidId&&same(f.points.map(p=>world(d,p)),plan.points));
+  return f?{d,f}:null;
+ }
+ // Select written stickers as a face selection.
+ function selectStickers(refs){if(!refs.length){faceSelection=[];selectedRegion=null;selectedSolid=null;return;}const last=refs.at(-1);
+  if(last.d)selectFeature(last.d,last.f);else{selectWorldPoints([]);selectedSolid=last.f.id;}faceSelection=refs.map(r=>r.d?{draft:draftKey(r.d),face:r.f.id}:{solid:r.f.id});}
+ // The sticker outline transform that takes a sticker's face ring onto new points
+ // (same count, world coordinates): affine when it is one, else by vertex.
+ function outlineToRing(ref,next){
+  const outline=stickerOutline(ref),fr=outline.frame,prior=stickerFace(ref).points,from=prior.map(p=>ST().local(fr,p)),to=next.map(p=>ST().local(fr,p));
+  const map=ST().fitAffine(from,to);if(map)return ST().affine(outline,map);
+  const targets={};for(const c of ST().controls(outline)){const i=from.findIndex(p=>Math.hypot(p.x-c.x,p.y-c.y)<=1e-5);if(i>=0)targets[c.id]=to[i];}
+  return ST().moveControlsTo(outline,targets);
+ }
+ // A world-space nudge or move delta in a sticker's frame.
+ function frameDelta(outline,delta){return {x:delta.x*outline.frame.u.x+delta.y*outline.frame.u.y+delta.z*outline.frame.u.z,y:delta.x*outline.frame.v.x+delta.y*outline.frame.v.y+delta.z*outline.frame.v.z};}
+ // Which sticker controls a set of world points selects: [{ref, outline, ids, all}].
+ function stickerControlSelection(points){
+  if(!points.length)return null;const found=new Map(),claimed=new Set();
+  for(const s of allStickers()){const ids=[];for(const c of ST().controlsWorld(s.outline)){const i=points.findIndex(p=>Math.hypot(p.x-c.x,p.y-c.y,p.z-c.z)<=1e-4);if(i>=0){ids.push(c.id);claimed.add(i);}}if(ids.length)found.set(s,ids);}
+  if(claimed.size!==points.length)return null;// some point is not a sticker control
+  return [...found].map(([s,ids])=>({ref:{d:s.d,f:s.f},outline:s.outline,ids,all:ids.length===ST().controls(s.outline).length}));
+ }
+ function installStickers(ref,faces){const {d}=asDraft(ref),placed=installInto(d,faces).map(face=>({draft:draftKey(d),face}));
   selectFeature(d,d.faces.find(f=>f.id===placed.at(-1).face));faceSelection=placed;return placed;
  }
 // Hover only previews. Finding the host face and its snap scene materializes
 // drafts, so it runs on a scratch copy; placement repeats it for real (live).
-function perf_previewFeature(e,live=false){if(!F||viewOf(e)!=='3d')return;tool.preview=null;const state=host.state(),original=state.wallEdits;if(!live)state.wallEdits=original&&copy(original);try{const ref=placementHost(e);if(!ref)return;const frame=F.frame(ref.points),p=rayPoint({frame},e);if(!p)return;const preset={...F.defs.get(tool.type).sizes[tool.index]};if(tool.rotated)[preset.w,preset.h]=[preset.h,preset.w];
-  const shape=F.shape({left:p.x-preset.w*F.FT/2,right:p.x+preset.w*F.FT/2,bottom:p.y-preset.h*F.FT/2,top:p.y+preset.h*F.FT/2},preset.shape).map(p=>W.fromFrame(frame,p)),placed=stickerPlacement(ref,[{points:shape}]);tool.alignmentTargets=placed.alignmentTargets;const worldPoints=placed.faces[0].points;tool.preview={ref,points:worldPoints,axis:tool.rotated?frame.v:frame.u};host.message(F.defs.get(tool.type).name+' '+F.label(worldPoints)+' � Trim '+(tool.trimInches?tool.trimInches+' in':'off')+' � T cycles trim � click to place');}catch(error){host.message(error.message);}finally{if(!live)state.wallEdits=original;host.redraw();}}
- function placeFeature(e){const original=host.state().wallEdits,before=original&&copy(original);previewFeature(e,true);if(!tool.preview){host.state().wallEdits=before;host.redraw();return true;}const {ref,points,axis}=tool.preview,type=tool.type,index=tool.index,shape=F.defs.get(type).sizes[index].shape;const ok=transaction(()=>installStickers(ref,[{points,feature:F.setTrim({type,preset:index,shape,axis},tool.trimInches||0,host.state()?.finishDefaults?.trimColor||'#f5f3ef')}]),before||{});if(!ok)host.state().wallEdits=before;if(ok&&!e.shiftKey)tool=null;host.redraw();return true;}
+// A pointer move redraws only the preview overlay; commands (size, trim, rotate)
+// also refresh the placement panel, so they redraw in full.
+function perf_previewFeature(e,live=false,pointer=false){if(!F||viewOf(e)!=='3d')return;tool.preview=null;const state=host.state(),original=state.wallEdits,reuse=live?null:{cache:tool.snapScene||={},key:modelKey(original)};if(!live)state.wallEdits=original&&copy(original);try{const ref=placementHost(e);if(!ref)return;const frame=F.frame(ref.points),p=rayPoint({frame},e);if(!p)return;const preset={...F.defs.get(tool.type).sizes[tool.index]};if(tool.rotated)[preset.w,preset.h]=[preset.h,preset.w];
+  const shape=F.shape({left:p.x-preset.w*F.FT/2,right:p.x+preset.w*F.FT/2,bottom:p.y-preset.h*F.FT/2,top:p.y+preset.h*F.FT/2},preset.shape).map(p=>W.fromFrame(frame,p)),placed=stickerPlacement(ref,[{points:shape}],true,reuse);if(tool.eLock)lockPaste(tool,ref,placed,W.fromFrame(frame,{x:p.x,y:p.y,z:0}));tool.alignmentTargets=placed.alignmentTargets;const worldPoints=placed.faces[0].points;tool.preview={ref,points:worldPoints,axis:tool.rotated?frame.v:frame.u};host.message(F.defs.get(tool.type).name+' '+F.label(worldPoints)+' · Trim '+(tool.trimInches?tool.trimInches+' in':'off')+' · T cycles trim · E holds a distance · click to place');}catch(error){host.message(error.message);}finally{if(!live)state.wallEdits=original;if(pointer&&host.redrawOverlay)host.redrawOverlay();else host.redraw();}}
+ function placeFeature(e){const original=host.state().wallEdits,before=original&&copy(original);previewFeature(e,true);if(!tool.preview){host.state().wallEdits=before;host.redraw();return true;}const {ref,points,axis}=tool.preview,type=tool.type,index=tool.index,shape=F.defs.get(type).sizes[index].shape;const ok=transaction(()=>installStickers(ref,[{points,feature:F.setTrim({type,preset:index,shape,axis},tool.trimInches||0)}]),before||{});if(!ok)host.state().wallEdits=before;if(ok&&!e.shiftKey)tool=null;host.redraw();return true;}
  const moveNames=['In/Out','Left/Right','Up/Down','Free on face'];
  function moveModeStatus(){host.message(moveNames[tool.moveMode||0]+' - M switches direction; click to place; Escape cancels.');}
- function cycleFaceMove(e){const t=tool;if(e.repeat)return;host.state().wallEdits=copy(t.before);host.state().wallEdits.$drafts=copy(t.sceneDrafts);selectedSolid=t.priorSolid||null;activeDraftKey=t.priorDraft||null;selectedRegion=copy(t.priorRegion);t.moveMode=t.face.feature?({3:1,1:2,2:0,0:3}[t.moveMode]):(t.moveMode+1)%4;t.inputToken={};t.numeric=null;t.changed=false;t.amount=0;t.baseAmount=0;t.previewCap=null;t.pathSnap=null;t.contained=null;t.belowBase=null;t.roofSnap=null;t.mergeSeams=[];t.invalid=false;t.startX=mouse.clientX;t.startY=mouse.clientY;t.axis=extrudeAxis(t.face);t.moveFrame=F.viewFrame(t.face.points,p=>host.screen(p,'3d'));t.planeStart=rayPoint({frame:t.moveFrame},mouse);moveModeStatus();host.redraw();}
+ function cycleFaceMove(e){const t=tool;if(e.repeat)return;host.state().wallEdits=copy(t.before);host.state().wallEdits.$drafts=copy(t.sceneDrafts);selectedSolid=t.priorSolid||null;activeDraftKey=t.priorDraft||null;selectedRegion=copy(t.priorRegion);t.moveMode=t.face.feature?({3:1,1:2,2:0,0:3}[t.moveMode]):(t.moveMode+1)%4;t.inputToken={};t.numeric=null;t.changed=false;t.amount=0;t.baseAmount=0;t.previewCap=null;if(t.light)t.light.draft=null;t.eLock=null;t.pathSnap=null;t.contained=null;t.belowBase=null;t.roofSnap=null;t.mergeSeams=[];t.invalid=false;t.startX=mouse.clientX;t.startY=mouse.clientY;t.axis=extrudeAxis(t.face);t.moveFrame=F.viewFrame(t.face.points,p=>host.screen(p,'3d'));t.planeStart=slideAnchor(t,mouse);moveModeStatus();host.redraw();}
  function previewFaceSlide(...args){if(!window.ExteriorPerf?.enabled)return perf_previewFaceSlide.apply(this,args);return window.ExteriorPerf.measure('Sticker move preview',()=>perf_previewFaceSlide.apply(this,args));}
-function perf_previewFaceSlide(e){const t=tool;if(t.face.feature)t.snapGeometry=stickerSnapGeometry(t.snapGeometry,t.scene||[]); t.pathSnap=null;const frame=t.moveFrame,raw=rayPoint({frame},e);if(!raw||!t.planeStart){t.invalid=true;host.message('Turn toward the face to move along it.');return;}let dx=t.moveMode===2?0:raw.x-t.planeStart.x,dy=t.moveMode===1?0:raw.y-t.planeStart.y;if(t.numeric!=null){if(t.moveMode===1)dx=t.numeric;else dy=t.numeric;}t.amount=t.moveMode===1?dx:dy;
-  if(t.numeric==null&&!(typeof isFreeMove!=='undefined'&&isFreeMove)){const axes=t.moveMode===1?['u']:t.moveMode===2?['v']:['u','v'],targets=[...t.snapGeometry.points.filter(q=>!t.face.points.some((p,i)=>onSegment(q,p,t.face.points[(i+1)%t.face.points.length]))),...(t.face.feature?W.stickerAlignmentTargets(t.scene||[],t.moveFrame,t.face.points):[])],points=t.face.points.map(p=>({x:p.x+frame.u.x*dx+frame.v.x*dy,y:p.y+frame.u.y*dx+frame.v.y*dy,z:p.z+frame.u.z*dx+frame.v.z*dy})),aligned=W.planeAlignment(points,targets,frame,p=>host.screen(p,'3d'),12,axes,t.face.feature?window.ExteriorGeometry.world(frame,raw):null);dx+=aligned.x;dy+=aligned.y;t.amount=t.moveMode===1?dx:dy;}
+// A slide's snap targets come from the scene and the face as the gesture began;
+// only M (a new move frame) changes them, so they are built once, not per move.
+function faceSlideTargets(t){
+ if(t.face.feature&&t.snapGeometry!==t.stickerSnapGraph)t.snapGeometry=t.stickerSnapGraph=stickerSnapGeometry(t.snapGeometry,t.scene||[]);
+ if(t.slideTargets?.frame===t.moveFrame&&t.slideTargets.graph===t.snapGeometry)return t.slideTargets.targets;
+ const targets=[...t.snapGeometry.points.filter(q=>!t.face.points.some((p,i)=>onSegment(q,p,t.face.points[(i+1)%t.face.points.length]))),...(t.face.feature?[...W.stickerAlignmentTargets(t.scene||[],t.moveFrame,t.face.points),...stickerFaceCenter(t.face.points,t.moveFrame,t.scene||[])]:[])];
+ t.slideTargets={frame:t.moveFrame,graph:t.snapGeometry,targets};return targets;
+}
+// A light slide reads the published model's composed walls once: the model is
+// not republished until the click, and each read otherwise re-keys the composition.
+// A sticker slide is anchored at the sticker's centre, so the sticker centres
+// under the pointer; other faces move by the pointer's travel from where M began.
+function slideAnchor(t,e){if(!t.face.feature)return e&&rayPoint({frame:t.moveFrame},e);const local=t.face.points.map(p=>W.inFrame(t.moveFrame,p)),xs=local.map(p=>p.x),ys=local.map(p=>p.y);return {x:(Math.min(...xs)+Math.max(...xs))/2,y:(Math.min(...ys)+Math.max(...ys))/2,z:0};}
+function perf_previewFaceSlide(e,full=false){const prior=renderWalls;try{if(!full&&overlayGestures())renderWalls=renderWalls||host.walls();return previewFaceSlideBody(e,full,prior);}finally{renderWalls=prior;}}
+function previewFaceSlideBody(e,full,priorWalls){const t=tool;if(t.face.feature)faceSlideTargets(t); t.pathSnap=null;const frame=t.moveFrame,raw=rayPoint({frame},e);if(!raw||!t.planeStart){t.invalid=true;host.message('Turn toward the face to move along it.');return;}let dx=t.moveMode===2?0:raw.x-t.planeStart.x,dy=t.moveMode===1?0:raw.y-t.planeStart.y;if(t.numeric!=null){if(t.moveMode===1)dx=t.numeric;else dy=t.numeric;}t.amount=t.moveMode===1?dx:dy;
+  if(t.numeric==null&&!(typeof isFreeMove!=='undefined'&&isFreeMove)){const axes=t.moveMode===1?['u']:t.moveMode===2?['v']:['u','v'],targets=faceSlideTargets(t),points=t.face.points.map(p=>({x:p.x+frame.u.x*dx+frame.v.x*dy,y:p.y+frame.u.y*dx+frame.v.y*dy,z:p.z+frame.u.z*dx+frame.v.z*dy})),aligned=W.planeAlignment(points,targets,frame,p=>host.screen(p,'3d'),12,axes,t.face.feature?window.ExteriorGeometry.world(frame,raw):null);dx+=aligned.x;dy+=aligned.y;t.amount=t.moveMode===1?dx:dy;}
+  if(t.eLock&&t.face.feature){const c=lockCenter(t.eLock,frame,{x:raw.x,y:raw.y},{x:t.planeStart.x+dx,y:t.planeStart.y+dy});dx=c.x-t.planeStart.x;dy=c.y-t.planeStart.y;}
 
   const owner=t.sceneDrafts[t.moveReference.key],moving=owner.faces.find(f=>f.id===t.moveReference.id),regions=owner.sketch.outlines.map(r=>({points:r.map(p=>window.ExteriorGeometry.local(frame,world(owner,p)))})),obstacles=owner.faces.filter(f=>f!==moving&&(f.feature||f.boundaryHole)&&!f.solidId&&!deleted(owner,f));
   for(const region of regions)region.holes=obstacles.map(f=>f.points.map(p=>window.ExteriorGeometry.local(frame,world(owner,p))));
-  const fit=W.boundedTranslation(t.face.points.map(p=>window.ExteriorGeometry.local(frame,p)),regions,{x:dx,y:dy},{axis:t.moveMode===1?'x':t.moveMode===2?'y':null});if(fit){dx=fit.x;dy=fit.y;t.amount=t.moveMode===1?dx:dy;}
-  const previous=copy(host.state().wallEdits),priorSelection=selectedRegion&&copy(selectedRegion);host.state().wallEdits=copyWithDrafts(t.before,t.sceneDrafts);
+  const fit=W.boundedTranslation(t.face.points.map(p=>window.ExteriorGeometry.local(frame,p)),regions,{x:dx,y:dy},{axis:t.moveMode===1?'x':t.moveMode===2?'y':null});if(fit){dx=fit.x;dy=fit.y;t.amount=t.moveMode===1?dx:dy;}if(t.eLock)t.eLock.center=W.fromFrame(frame,{x:t.planeStart.x+dx,y:t.planeStart.y+dy,z:0});
+  if(!full&&overlayGestures()&&t.face.feature){
+   const key=t.moveReference.key,priorSelection=selectedRegion&&copy(selectedRegion),draft=copy(t.sceneDrafts[key]),first=!t.light;
+   withDraftCopy(key,draft,()=>{try{const f=draft.faces.find(f=>f.id===t.moveReference.id),points=t.face.points.map(p=>toLocal(draft,{x:p.x+frame.u.x*dx+frame.v.x*dy,y:p.y+frame.u.y*dx+frame.v.y*dy,z:p.z+frame.u.z*dx+frame.v.z*dy})),next=editRegion(draft,f,points);t.changed=Math.hypot(dx,dy)>1e-7;t.invalid=false;t.previewCap={...t.face,points:next.points.map(p=>world(draft,p))};t.light={key,draft};moveModeStatus();}
+    catch(error){selectedRegion=priorSelection;t.invalid=true;t.light||={key,draft:null};host.message(error.message+' Shift the pointer or press Escape.');}});
+   if(first)host.redraw();else host.redrawOverlay();return;
+  }
+  renderWalls=priorWalls;
+  // The published edits are replaced below, never changed, so a failed move restores them as they were without a copy.
+  const previous=host.state().wallEdits,priorSelection=selectedRegion&&copy(selectedRegion);host.state().wallEdits=copyWithDrafts(t.before,t.sceneDrafts);
   try{const d=all()[t.moveReference.key],f=d.faces.find(f=>f.id===t.moveReference.id),points=t.face.points.map(p=>toLocal(d,{x:p.x+frame.u.x*dx+frame.v.x*dy,y:p.y+frame.u.y*dx+frame.v.y*dy,z:p.z+frame.u.z*dx+frame.v.z*dy})),next=editRegion(d,f,points);t.changed=Math.hypot(dx,dy)>1e-7;t.invalid=false;t.previewCap={...t.face,points:next.points.map(p=>world(d,p))};host.state().wallEdits=window.ExteriorModel.prepareEdits(host.state(),host.state().wallEdits,t.before);moveModeStatus();}catch(error){host.state().wallEdits=previous;selectedRegion=priorSelection;t.invalid=true;host.message(error.message+' Shift the pointer or press Escape.');}host.redraw();
  }
  function finishAxisCut(){if(tool?.kind!=='axisCut')return false;if(!tool.valid)return false;const t=tool;try{host.commit(t.before);tool=null;}catch(error){host.state().wallEdits=copy(t.before);tool=null;host.message('Cut not created: '+error.message);}host.redraw();return true;}
@@ -2008,7 +2414,10 @@ function perf_previewFaceSlide(e){const t=tool;if(t.face.feature)t.snapGeometry=
    for(const move of curveMoves){const d=all()[move.key];S.move(d,[move.id],move.delta,{boundary:true});classify(d);}
    const straight=moving.filter(plan=>!curveMoves.some(m=>m.plan===plan));if(!straight.length)return;
    const scene=moveScene().filter(f=>!f.snapOnly&&!f.deleted),base=copy(host.state().wallEdits.$base||host.state().base);
-   if(base)for(const f of base.faces)scene.push({...copy(f),id:'base:'+f.id,baseId:f.id});
+   // Only a base corner that moves edits the base. A point sliding along a
+   // base edge (a door corner on the wall's foot) leaves that edge straight;
+   // offering it to the slide inserted the point there and left it behind.
+   if(base)for(const f of base.faces)if(f.points.some(q=>straight.some(p=>distance3(q,p.source)<1e-5)))scene.push({...copy(f),id:'base:'+f.id,baseId:f.id});
    const result=W.slideLines(scene,straight.map(p=>[p.source,p.source]),{x:0,y:0,z:0},1,{pointMoves:straight.map(p=>({from:p.source,to:p.point}))}),edits=copy(host.state().wallEdits);
    applyLineResult({base,scene,op:Date.now()},result,edits);host.state().wallEdits=edits;
   });
@@ -2020,19 +2429,80 @@ function perf_previewFaceSlide(e){const t=tool;if(t.face.feature)t.snapGeometry=
   const {point,direction,amount}=plan;
   const owner=Object.entries(all()).find(([,d])=>d.sketch.edges.some(e=>e.curveId&&[e.a,e.b].some(id=>{const n=d.sketch.nodes.find(n=>n.id===id);return n&&distance3(world(d,n),source)<1e-5;})));
   if(owner){const [key,d]=owner,id=d.sketch.nodes.find(n=>distance3(world(d,n),source)<1e-5).id,a=toLocal(d,source),b=toLocal(d,point);const ok=transaction(()=>{const d=all()[key];S.move(d,[id],{x:b.x-a.x,y:b.y-a.y,z:b.z-a.z},{boundary:true});classify(d);});if(ok){selectPlacedEntity({source,preview:[point]},false);host.redraw();}return true;}
-  const ok=transaction(()=>{const scene=moveScene().filter(f=>!f.snapOnly&&!f.deleted),base=copy(host.state().wallEdits.$base||host.state().base);if(base)for(const f of base.faces)scene.push({...copy(f),id:'base:'+f.id,baseId:f.id});
+  const ok=transaction(()=>{const scene=moveScene().filter(f=>!f.snapOnly&&!f.deleted),base=copy(host.state().wallEdits.$base||host.state().base);if(base)for(const f of base.faces)if(f.points.some(q=>distance3(q,source)<1e-5))scene.push({...copy(f),id:'base:'+f.id,baseId:f.id});
    const result=W.slideLines(scene,[[source,source]],direction,amount),edits=copy(host.state().wallEdits);applyLineResult({base,scene,op:Date.now()},result,edits);host.state().wallEdits=edits;
   });
   if(ok){selectPlacedEntity({source,preview:[point]},false);host.redraw();}return true;
  }
- function nudge(...args){if(!window.ExteriorPerf?.enabled)return perf_nudge.apply(this,args);return window.ExteriorPerf.measure('Nudge',()=>perf_nudge.apply(this,args));}
+ function nudge(...args){nudging=true;try{if(!window.ExteriorPerf?.enabled)return perf_nudge.apply(this,args);return window.ExteriorPerf.measure('Nudge',()=>perf_nudge.apply(this,args));}finally{nudging=false;}}
  function completePointGeometry(points){
   if(points.length<3)return false;
   if(curveGeometrySelection(points))return true;
   const selected=p=>points.some(q=>distance3(p,q)<=window.ExteriorGeometry.CONTACT);
-  return solids().some(f=>!f.deleted&&!f.drafted&&f.points.every(selected))||Object.values(all()).some(d=>d.faces.some(f=>!f.solidId&&!f.boundaryHole&&!deleted(d,f)&&f.points.every(p=>selected(world(d,p)))));
+  // Curve tessellation vertices are never selectable: a face is complete when
+  // its defining points are (corners, curve ends and spline controls).
+  const defining=f=>{const sample=window.ExteriorGeometry.curveSamplePoint(f);return f.points.filter(p=>!sample(p));};
+  return solids().some(f=>!f.deleted&&!f.drafted&&defining(f).every(selected))||Object.values(all()).some(d=>d.faces.some(f=>!f.solidId&&!f.boundaryHole&&!deleted(d,f)&&defining(f).every(p=>selected(world(d,p)))));
  }
-function perf_nudge(e){const step=(e.altKey ? .25 : e.shiftKey ? 6 : 1)*F.FT/12*(e.nudgeCount||1),dx=e.key==='ArrowRight'?step:e.key==='ArrowLeft'?-step:0,dy=e.key==='ArrowUp'?step:e.key==='ArrowDown'?-step:0;const points=selectedWorldPoints();if(points.length&&!selectedFaceRefs().length&&!completePointGeometry(points))return points.length===1?nudgePoint(e,step):nudgePoints(e,step,points);if(geometrySelectionPoints().length>=3)return nudgeGeometry(dx,dy);if(points.length)return points.length===1?nudgePoint(e,step):nudgePoints(e,step,points);const selection=featureSelection();
+ // A curved sticker (an arched door, a round window) moves as one piece: a
+ // nudge of any of its points selects and moves all its defining points,
+ // curve controls included. Sliding single points along their own lines would
+ // shear it and rebuild the arch from moved tessellation samples.
+ function selectWholeCurvedStickers(){
+  const points=selectedWorldPoints();if(!points.length||selectedFaceRefs().length)return;
+  const K=window.ExteriorGeometry,selected=p=>points.some(q=>distance3(p,q)<=K.CONTACT),defining=(f,toWorld)=>{const sample=K.curveSamplePoint(f);return f.points.filter(p=>!sample(p)).map(toWorld);};
+  const extra=[];
+  for(const f of solids())if(!f.deleted&&!f.drafted&&f.feature&&f.curves?.length){const ps=defining(f,p=>p);if(ps.some(selected))extra.push(...ps.filter(p=>!selected(p)));}
+  for(const d of Object.values(all()))if(!d.mergedInto)for(const f of d.faces)if(f.feature&&f.curves?.length&&!f.solidId&&!deleted(d,f)){const ps=defining(f,p=>world(d,p));if(ps.some(selected))extra.push(...ps.filter(p=>!selected(p)));}
+  if(!extra.length)return;
+  const graph=solidPoints.length?wire():null;
+  for(const p of extra){
+   const owner=Object.entries(all()).find(([key,d])=>(draftSelection[key]||(key===activeDraftKey?picked:[])).length&&d.sketch.nodes.some(n=>distance3(world(d,n),p)<=K.CONTACT));
+   if(owner){const [key,d]=owner,id=d.sketch.nodes.find(n=>distance3(world(d,n),p)<=K.CONTACT).id;draftSelection[key]=[...new Set([...(draftSelection[key]||(key===activeDraftKey?picked:[])),id])];if(key===activeDraftKey)picked=draftSelection[key].slice();continue;}
+   const node=(graph||wire()).nodes.find(n=>!n.curveSample&&distance3(n,p)<=K.CONTACT);if(node&&!solidPoints.includes(node.id))solidPoints.push(node.id);
+  }
+ }
+ // A nudge of complete draft geometry (every defining point of a face, or
+ // selected stickers with curved edges) translates it in its own sketch: nodes
+ // and whole curves move together and boundary nodes slide along the outline.
+ // Nothing is polygonized or re-derived, so no point stays at the old place
+ // and point ids, hence the selection, survive repeated nudges.
+ function draftNudgePlan(points,dx,dy){
+  const sampleNodes=(d,f)=>{const sample=window.ExteriorGeometry.curveSamplePoint(f);return f.points.filter(p=>!sample(p)).map(p=>d.sketch.nodes.some(n=>n.id===p.nodeId)?p.nodeId:null);};
+  const refs=selectedFaceRefs();let d=null,ids=[],faces=[],sticker=false;
+  if(points.length){
+   if(refs.length||solidPoints.length||selectedBasePoints.length)return null;
+   for(const owner of Object.values(all())){if(owner.mergedInto)continue;const found=points.map(p=>owner.sketch.nodes.find(n=>distance3(world(owner,n),p)<1e-5)?.id);if(found.every(Boolean)){d=owner;ids=[...new Set(found)];break;}}
+   if(!d)return null;faces=d.faces.filter(f=>!f.solidId&&!f.boundaryHole&&!deleted(d,f)&&sampleNodes(d,f).every(id=>id&&ids.includes(id)));
+  }else{
+   const stickers=selectedStickers();if(!stickers.length||stickers.length!==refs.length||stickers.some(s=>!s.d||s.d!==stickers[0].d)||!stickers.some(s=>s.f.curves?.length))return null;
+   d=stickers[0].d;faces=stickers.map(s=>s.f);sticker=true;
+   if(faces.some(f=>sampleNodes(d,f).some(id=>!id)))return null;
+   ids=[...new Set(faces.flatMap(f=>[...sampleNodes(d,f),...d.sketch.nodes.filter(n=>!n.fixed&&G.contains(f,n)).map(n=>n.id)]))];
+  }
+  if(!faces.length||d.faces.some(f=>f.solidId&&[f.points,...(f.holes||[])].flat().some(p=>ids.includes(p.nodeId))))return null;
+  // A curve with one unselected end would bend instead of translating.
+  if(d.sketch.edges.some(e=>e.curveId&&ids.includes(e.a)!==ids.includes(e.b)))return null;
+  const nodes=d.sketch.nodes.filter(n=>ids.includes(n.id)),world0=nodes.map(n=>world(d,n)),frame=F.viewFrame(world0,p=>host.screen(p,'3d')),a=world0[0],b=toLocal(d,{x:a.x+frame.u.x*dx+frame.v.x*dy,y:a.y+frame.u.y*dx+frame.v.y*dy,z:a.z+frame.u.z*dx+frame.v.z*dy}),o=toLocal(d,a),delta={x:b.x-o.x,y:b.y-o.y,z:0};
+  // Boundary nodes may slide along the outline; leaving it is another edit.
+  // An outline made only of moving nodes (a mid-wall opening's own ring) moves with them.
+  const staying=d.sketch.nodes.filter(n=>!ids.includes(n.id)),anchored=r=>r.some(a=>staying.some(n=>Math.hypot(n.x-a.x,n.y-a.y)<1e-7));
+  const onOutline=q=>d.sketch.outlines.filter(anchored).some(r=>r.some((a,i)=>{const b=r[(i+1)%r.length],u={x:b.x-a.x,y:b.y-a.y},l2=u.x*u.x+u.y*u.y,t=l2?((q.x-a.x)*u.x+(q.y-a.y)*u.y)/l2:0;return t>=-1e-6&&t<=1+1e-6&&Math.hypot(q.x-a.x-t*u.x,q.y-a.y-t*u.y)<1e-5;}));
+  if(nodes.some(n=>n.fixed&&onOutline(n)&&!onOutline({x:n.x+delta.x,y:n.y+delta.y})))return null;
+  return {key:draftKey(d),ids,faces:faces.map(f=>f.id),delta,sticker};
+ }
+ function nudgeDraft(plan){
+  transaction(()=>{
+   const d=all()[plan.key],old=copy(d.faces),others=d.faces.filter(o=>!plan.faces.includes(o.id)&&(o.feature||o.boundaryHole)&&!o.solidId&&!deleted(d,o));
+   const moved=plan.faces.map(id=>{const f=d.faces.find(f=>f.id===id);return {feature:f.feature&&copy(f.feature),points:f.points.map(p=>({...p,x:p.x+plan.delta.x,y:p.y+plan.delta.y}))};});
+   for(const m of moved)if(m.feature)F.validate(m.points,d.sketch.outlines,others);
+   S.move(d,plan.ids,plan.delta,{boundary:true});restoreMovedRegions(d,old);classify(d);
+   const next=moved.map(m=>{const r=matchingRegion(d,m.points);if(!r)throw Error('This edit would cross a divider or split the feature.');if(m.feature)r.feature=m.feature;return r;});
+   if(plan.sticker){faceSelection=next.map(f=>({draft:plan.key,face:f.id}));selectedRegion=faceSelection.at(-1);selectedSolid=null;activeDraftKey=plan.key;preferredDraft=plan.key;preferredRegion=selectedRegion.face;}
+  });
+  return true;
+ }
+function perf_nudge(e){const step=(e.altKey ? .25 : e.shiftKey ? 6 : 1)*F.FT/12*(e.nudgeCount||1),dx=e.key==='ArrowRight'?step:e.key==='ArrowLeft'?-step:0,dy=e.key==='ArrowUp'?step:e.key==='ArrowDown'?-step:0;const stickerNudge=nudgeStickers(dx,dy);if(stickerNudge!==null)return stickerNudge;selectWholeCurvedStickers();const points=selectedWorldPoints(),draftMove=draftNudgePlan(points,dx,dy);if(draftMove)return nudgeDraft(draftMove);if(points.length&&!selectedFaceRefs().length&&!completePointGeometry(points))return points.length===1?nudgePoint(e,step):nudgePoints(e,step,points);if(geometrySelectionPoints().length>=3)return nudgeGeometry(dx,dy);if(points.length)return points.length===1?nudgePoint(e,step):nudgePoints(e,step,points);const selection=featureSelection();
   if(lineSelection.length){const pairs=copy(lineSelection);return transaction(()=>{
     for(const w of walls())ensure(w);
     const live=(d,f)=>!f.solidId&&!f.boundaryHole&&!deleted(d,f),supports=(face,pair)=>{if(W.sharedIntervals(...pair,[face]).length)return true;const frame=W.faceFrame(face);if(!frame)return false;const local={points:face.points.map(p=>W.inFrame(frame,p)),holes:(face.holes||[]).map(r=>r.map(p=>W.inFrame(frame,p)))};return pair.every(p=>{const q=W.inFrame(frame,p);return Math.abs(q.z)<1e-5&&G.contains(local,q);});},shape=(d,f)=>({points:f.points.map(p=>world(d,p)),holes:(f.holes||[]).map(r=>r.map(p=>world(d,p)))}),matches=d=>d&&!d.mergedInto&&pairs.every(l=>d.faces.some(f=>live(d,f)&&supports(shape(d,f),l.pair)));
@@ -2126,7 +2596,7 @@ function perf_nudge(e){const step=(e.altKey ? .25 : e.shiftKey ? 6 : 1)*F.FT/12*
    else edits.$surfaces=(edits.$surfaces||[]).filter(f=>f.id!==face.id);
    edits.$surfaces=[...(edits.$surfaces||[]),...pieces];
   }
-  t.valid=true;host.message('Trim '+(window.ReportUnits?.current().metric ? window.ReportUnits.current().quantity((t.width/.3048), 'ft') : (t.width/.3048).toFixed(2)+" ft")+" · "+(result.corner?'both walls':['first side','opposite side','centered'][t.variant])+' · T cycles sides; type width; click to place; Escape cancels.');
+  t.valid=true;host.message('Trim '+trimText(t.width/.0254)+' · '+(result.corner?'both walls':['first side','opposite side','centered'][t.variant])+' · T cycles sides; type a width; click to place; Escape cancels.');
  }catch(error){host.state().wallEdits=copy(t.prepared);t.valid=false;host.message(error.message);}host.redraw();}
  function autoTrim(width=window.WallTrim?.defaultWidth){
   if(!Number.isFinite(width)||width<=0)return false;
@@ -2167,7 +2637,7 @@ function perf_nudge(e){const step=(e.altKey ? .25 : e.shiftKey ? 6 : 1)*F.FT/12*
   const faces=plane?(plane.selectedFaces||[]).length:selectedFaceRefs().length||(!points&&!lines&&selected()?1:0);
   const feature=featureSelection(),kind=feature?.feature?.type||feature?.feature;
   return {mode:plane?'plane':'walls',points,lines,faces,transform:geometrySelectionPoints().length>=3,
-   canExtrude:!!(faces||lines||points===1),trim:!plane&&!!window.WallTrim&&(lines>0||!!feature?.feature),
+   canExtrude:!!(faces||lines||points===1),trim:!plane&&!!window.WallTrim&&(lines>0||!!feature?.feature||!lines&&!points&&faces>0&&plainFaceTargets().length>0),
    feature:['window','door','garage'].includes(kind),canPaste:!!window.exteriorGeometryClipboard,
    busy:!!tool||!!box||!!plane?.rotation||!!plane?.action||!!plane?.drawing};
  }
@@ -2193,16 +2663,81 @@ function perf_nudge(e){const step=(e.altKey ? .25 : e.shiftKey ? 6 : 1)*F.FT/12*
    window.ExteriorModel.validateEdits(host.state().wallEdits,before);return finishTrim();
   }catch(error){host.state().wallEdits=before;tool=null;host.message(error.message);host.redraw();return false;}
  }
- function nextStickerTrim(feature){const inches=(feature.trim?.width||0)/.0254,index=F.trimSizes.findIndex(n=>Math.abs(n-inches)<1e-6);return F.setTrim(feature,F.trimSizes[(index+1)%F.trimSizes.length],feature.trim?.color||host.state()?.finishDefaults?.trimColor||'#f5f3ef');}
- function cycleStickerTrim(){
-  const refs=selectedStickers().filter(({f})=>F.supportsTrim(f.feature?.type));if(!refs.length)return false;
-  return transaction(()=>{for(const {f}of refs){f.feature=nextStickerTrim(f.feature);}host.message('Sticker trim updated; T cycles off, 2, 3, 4 and 6 inches.');});
+ // Inside trim on selected plain faces (not stickers): a one-sided strip along
+ // every edge of the face, holes included, that never reaches a neighbour.
+ function plainFaceTargets(){return selectedFaces().filter(({f})=>!f.feature&&!f.trim&&!f.curvedSurface).map(({d,f})=>d?{ref:{draft:draftKey(d),face:f.id},draft:draftKey(d),region:f.id}:{ref:{solid:f.id},host:window.WallTrim?.hostOf(f)||f.id});}
+ function faceTrimItems(){const T=window.WallTrim,targets=T?plainFaceTargets():[];if(!targets.length)return [];const stored=solids(),fallback=host.state()?.finishDefaults?.trimColor||'#f5f3ef',items=new Map();
+  for(const t of targets){const key=t.host||t.draft+':'+t.region;if(items.has(key))continue;const layers=t.host?T.insideLayers(stored,[t.host]):[];items.set(key,{key,ref:t.ref,width:layers.length?layers[0].width/.0254:0,widths:[...new Set(layers.map(l=>Math.round(l.width/.0254*1000)/1000))],color:layers.length?(layers[0].finishColor||fallback):null});}
+  return [...items.values()];}
+ function applyFaceTrim(width,finishColor,options={}){
+  const T=window.WallTrim;if(!T||tool&&!finishToolForSwitch())return false;const targets=plainFaceTargets();if(!targets.length){host.message('Select wall faces for inside trim.');return false;}
+  const before=copy(host.state().wallEdits||{}),others=selectedFaceRefs().filter(r=>!targets.some(t=>faceKey(t.ref)===faceKey(r))),fallback=host.state()?.finishDefaults?.trimColor||'#f5f3ef';
+  const scene=()=>moveScene().filter(f=>!f.snapOnly&&!f.deleted),place=(result,tag)=>{const edits=host.state().wallEdits;for(const {face,pieces}of result.replacements){if(face.draft){const region=all()[face.draftKey]?.faces.find(f=>f.id===face.regionId);if(region)region.solidId=tag+face.id;}else edits.$surfaces=(edits.$surfaces||[]).filter(f=>f.id!==face.id);edits.$surfaces=[...(edits.$surfaces||[]),...pieces];}};
+  try{
+   let faces=scene();const hosts=[...new Set(targets.map(t=>t.host||T.hostOf(faces.find(f=>f.draftKey===t.draft&&f.regionId===t.region)||{id:null})).filter(Boolean))],plan=[];
+   for(const id of hosts){const layers=T.insideLayers(faces,[id]),w=width??(layers.length?layers[0].width:null),c=finishColor??(layers.length?layers[0].finishColor:options.color)??undefined;if(options.onlyTrimmed&&!layers.length)continue;plan.push({id,layers,width:w,color:c});}
+   if(!plan.length)return false;
+   const removing=plan.flatMap(p=>p.layers.map(l=>l.id));if(removing.length){place(T.removeLayers(faces,removing),'untrim:');faces=scene();}
+   for(const p of plan){if(!(p.width>0))continue;const pairs=T.faceEdges(faces,p.id);if(!pairs.length)continue;place(T.partition(faces,pairs,0,p.width,pairs,p.color,{inside:[p.id]}),'trim:');faces=scene();}
+   window.ExteriorModel.validateEdits(host.state().wallEdits,before);
+   const refs=[...others,...faces.filter(f=>!f.trim&&!f.draft&&plan.some(p=>p.id===T.hostOf(f))).map(f=>({solid:f.id}))];
+   if(host.commit(before)===false)return false;picked=[];pickedLines=[];solidPoints=[];solidEdges=[];draftSelection={};faceSelection=refs;selectedSolid=refs[0]?.solid||null;selectedRegion=refs[0]?.draft?refs[0]:null;
+   host.message(plan.length+(plan.length===1?' face':' faces')+(width===0?': inside trim removed.':': inside trim updated.'));host.redraw();return true;
+  }catch(error){host.state().wallEdits=before;host.message(error.message);host.redraw();return false;}
  }
- function trimCommand(){
-  if(!tool&&cycleStickerTrim())return true;
-  if(tool?.kind==='trim'){tool.variant=(tool.variant+1)%3;previewTrim();return true;}if(tool||!window.WallTrim)return false;if(removeSelectedTrim())return true;
+ // T on plain faces toggles their inside trim at the default width; a typed width (in) sets it.
+ function faceTrimCommand(inches=null){const items=faceTrimItems();if(!items.length)return false;return applyFaceTrim(inches!=null?inches*.0254:items.some(i=>i.width>0)?0:window.WallTrim.defaultWidth,null);}
+ // T steps through the sizes; a typed width between them goes on to the next larger one.
+ function nextStickerTrim(feature){const inches=(feature.trim?.width||0)/.0254,next=F.trimSizes.find(n=>n>inches+1e-6)??F.trimSizes[0];return F.setTrim(feature,next,feature.trim?.color);}
+ function cycleStickerTrim(inches=null){
+  const refs=selectedStickers().filter(({f})=>F.supportsTrim(f.feature?.type));if(!refs.length)return false;
+  return transaction(()=>{for(const {f}of refs){f.feature=inches==null?nextStickerTrim(f.feature):F.setTrim(f.feature,inches,f.feature.trim?.color);}const widths=[...new Set(refs.map(({f})=>Math.round((f.feature.trim?.width||0)/.0254*1000)/1000))];host.message('Sticker trim '+(widths.length>1?'updated':widths[0]?trimText(widths[0]):'off')+' · type a width, or T for off, 2, 3, 4 and 6 inches.');});
+ }
+ // Typed trim widths. A number typed with something trimmable selected is the
+ // width the next T applies; after T, a number sets the width of the trim T
+ // made (one undo step with it). T straight after a number keeps that number;
+ // T alone cycles: sides for line trim, sizes for stickers, on/off for faces.
+ const TRIM_INPUT={label:'Trim width',unit:'inches',unitsPerInput:.0254};
+ let trimSession=null,trimSessions=0,trimPending={signature:null,token:{}};
+ const toInches=m=>Math.round(m/.0254*1e6)/1e6;
+ function trimText(inches){return window.ReportUnits?.current().metric?Math.round(inches*25.4)+' mm':Math.round(inches*100)/100+' in';}
+ function trimSignature(){return JSON.stringify([selectedFaceRefs(),lineSelection.map(l=>l.id),pickedLines,solidEdges]);}
+ function trimSessionLive(){return !tool&&!!trimSession&&trimSession.signature===trimSignature();}
+ // One T (or typed width) on stickers or faces; steps of one session share an undo step.
+ function trimStep(run,fresh){
+  const live=trimSessionLive();if(!live)trimSession={key:'trim:'+(++trimSessions),token:{}};const session=trimSession;
+  const ok=host.groupEdits?host.groupEdits(session.key,run):run();
+  if(ok){session.signature=trimSignature();if(fresh)session.token={};}else if(!live)trimSession=null;return ok;
+ }
+ function trimStickers(){return selectedStickers().filter(({f})=>F.supportsTrim(f.feature?.type));}
+ function trimSessionInput(){
+  if(!trimSessionLive())return null;const session=trimSession,stickers=trimStickers(),widths=stickers.length?stickers.map(({f})=>f.feature.trim?.width||0):faceTrimItems().map(i=>i.width*.0254);if(!widths.length)return null;
+  return {...TRIM_INPUT,token:session.token,quiet:true,allowZero:true,amount:widths[0],set(value){if(value==null||value<0||trimSession!==session||!trimSessionLive())return;trimStep(()=>stickers.length?cycleStickerTrim(toInches(value)):faceTrimCommand(toInches(value)),false);}};
+ }
+ function pendingTrimInput(){
+  if(tool||workingPlane||!window.WallTrim)return null;
+  if(!(lineSelection.length||solidEdges.length||pickedLines.length||(selectedFaceRefs().length&&(trimStickers().length||plainFaceTargets().length))))return null;
+  const signature=trimSignature();if(trimPending.signature!==signature)trimPending={signature,token:{}};
+  return {...TRIM_INPUT,token:trimPending.token,quiet:true,allowZero:true,hint:'T adds trim',amount:0,set(){}};
+ }
+ // Where typed digits go when no tool or sticker height takes them (wall mode asks last).
+ function trimInput(){return trimSessionInput()||pendingTrimInput();}
+ // Inches typed for trim (in mm when metric), or null.
+ function typedTrim(owner){const text=owner&&window.ExteriorDistanceInput?.typed(owner)||'',n=Number(text);return text.trim()&&Number.isFinite(n)&&n>=0?toInches(n*(window.ReportUnits?.current().inputScale(TRIM_INPUT)??.0254)):null;}
+ // T straight after a typed number. A number typed as a selected sticker's
+ // height becomes its trim width instead: the height preview is dropped.
+ function typedTrimKey(e){
+  const height=tool?.kind==='lineMove'&&tool.stickerHeight,inches=typedTrim(height?distanceInput():trimInput());if(inches==null)return false;
+  if(e.repeat)return true;
+  if(height){flushPreview();host.state().wallEdits=tool.before;tool=null;}
+  else if(trimSessionLive()){trimSession.token={};host.redraw();return true;}
+  if(!trimCommand(inches))host.redraw();return true;
+ }
+ function trimCommand(inches=null){
+  if(!tool&&trimStep(()=>cycleStickerTrim(inches),true))return true;
+  if(tool?.kind==='trim'){tool.variant=(tool.variant+1)%3;tool.inputToken={};previewTrim();return true;}if(tool||!window.WallTrim)return false;if(removeSelectedTrim())return true;if(trimStep(()=>faceTrimCommand(inches),true))return true;
   const pairs=selectedTrimPairs();if(!pairs.length)return false;
-  const before=copy(host.state().wallEdits);try{const scene=moveScene().filter(f=>!f.snapOnly&&!f.deleted);tool={kind:'trim',before,prepared:copy(host.state().wallEdits),scene:copy(scene),pairs:copy(pairs),segments:copy([...sceneLines().lines.values()]),variant:0,width:window.WallTrim.defaultWidth};previewTrim();}catch(error){host.state().wallEdits=before;tool=null;host.message(error.message);}return true;
+  const before=copy(host.state().wallEdits);try{const scene=moveScene().filter(f=>!f.snapOnly&&!f.deleted);tool={kind:'trim',before,prepared:copy(host.state().wallEdits),scene:copy(scene),pairs:copy(pairs),segments:copy([...sceneLines().lines.values()]),variant:0,width:inches>0?inches*.0254:window.WallTrim.defaultWidth};previewTrim();}catch(error){host.state().wallEdits=before;tool=null;host.message(error.message);}return true;
  }
  function selectedStickerHeightInput(){
   if(selectedFaceRefs().length!==1)return null;
@@ -2213,13 +2748,15 @@ function perf_nudge(e){const step=(e.altKey ? .25 : e.shiftKey ? 6 : 1)*F.FT/12*
   const token=ref.f||ref.solid;
   return {token,axis:0,label:'Height',amount:dimensions.height*F.FT,set(value){
    if(value==null)return;
-   if(!tool&&!beginLineMove(false,{pair:[top[0],top.at(-1)],event:mouse}))return;
+   const started=!tool;if(!tool&&!beginLineMove(false,{pair:[top[0],top.at(-1)],event:mouse}))return;
    if(tool?.kind!=='lineMove'||!tool.dimension)return;
-   tool.inputToken=token;distanceInput().set(value);
+   if(started)tool.stickerHeight=true;tool.inputToken=token;distanceInput().set(value);
   }};
  }
- function distanceInput(){if(workingPlane?.drawing&&workingPlane.selection.length){const plane=workingPlane,t=plane.drawInput;return {token:t,label:'Line length',amount:t?.amount||0,set(value){if(workingPlane!==plane||!plane.drawing)return;t.numeric=value==null?null:Math.abs(value);if(mouse)plane.hover=planePoint(mouse);host.redraw();}};}if(workingPlane&&tool?.kind==='geometryTransform'&&['m','r'].includes(tool.editMode)){const t=tool;return {token:t.inputToken||t,unit:t.editMode==='r'?'degrees':undefined,unitsPerInput:t.editMode==='r'?1:undefined,label:t.editMode==='r'?'Rotation':'Distance',allowZero:true,amount:t.numeric||0,set(value){flushPreview();if(tool!==t)return;t.numeric=value;replayPointer(previewGeometry);}};}if(tool?.kind==='divide'){const t=tool;return {token:t.inputToken||t,label:t.orientation==='horizontal'?'Divide from top':'Divide from left',amount:t.amount,allowZero:true,set(value){if(tool!==t)return;t.numeric=value;previewDivision(mouse);}};}if(tool?.kind==='multiExtrude'){const t=tool;return {token:t,label:'Extrusion (each face)',amount:t.amount,allowZero:true,set(value){flushPreview();if(tool!==t)return;t.numeric=value;replayPointer(runPointer);}};}if(tool?.kind==='geometryTransform'&&tool.stickerMove&&tool.editMode==='m'){const t=tool;return {token:t.inputToken||t,label:['Distance','Left/Right','Up/Down','In/Out'][t.moveAxis||0],amount:t.numeric||0,allowZero:true,set(value){if(tool!==t)return;if(value!==null&&!t.moveAxis)t.moveAxis=1;t.numeric=value;geometryStatus();replayPointer(previewGeometry);}};}if(workingPlane?.rotation){const r=workingPlane.rotation;return {token:r,axis:r.axisIndex,unit:'degrees',unitsPerInput:1,allowZero:true,label:'Plane angle',amount:r.angle,set(value){if(workingPlane?.rotation!==r)return;r.numeric=value;r.snap=null;if(value!==null)updatePlaneRotation(value);host.redraw();}};}if(!tool)return selectedStickerHeightInput();if(tool?.kind==='trim'){const t=tool;return {token:t,label:'Trim width',unit:'inches',unitsPerInput:.0254,amount:t.width,set(value){if(value!=null&&value>0){t.width=value;previewTrim();}}};}if(!tool||!['extrude','lineMove','entityExtrude','chamfer'].includes(tool.kind))return null;const t=tool;if(t.kind==='lineMove'&&t.dimension){const d=t.dimension;return {token:t.inputToken||t,axis:t.planeIndex,label:d.label,amount:((t.amount||0)-d.opposite)*d.sign,set(value){flushPreview();if(tool!==t)return;t.numeric=value==null?null:d.opposite+d.sign*value;replayPointer(runPointer);}};}const sign=t.kind==='extrude'&&!t.moveMode?(t.inwardSign||1):1;return {token:t,axis:t.kind==='lineMove'?t.inputToken:t.inputToken||0,allowZero:t.kind==='lineMove',label:t.kind==='lineMove'?(t.extrude?'Extrusion':'Move distance'):t.kind==='chamfer'?'Width':t.moveReference?moveNames[t.moveMode||0]:t.kind==='extrude'?'Extrusion · '+(t.directionLabel||'Face normal'):undefined,amount:t.kind==='chamfer'?chamferWidth(t.metrics?.[0]):t.amount==null?t.amount:t.amount*sign,set(value){flushPreview();if(tool!==t)return;if(t.moveReference&&t.moveMode===3&&value!==null){t.moveMode=1;moveModeStatus();}t.numeric=value==null?null:value*sign;replayPointer(runPointer);}};}
- function key(e){const k=e.key.toLowerCase();if(tool?.kind==='arch')return archKey(e);if(!tool&&k==='a'&&!e.ctrlKey&&!e.metaKey&&!e.altKey&&!e.repeat)return startArch();if(tool?.kind==='lineMove'&&k.startsWith('arrow')&&!e.ctrlKey&&!e.metaKey)return nudgeLineMove(e);if(workingPlane){if(k==='p'&&!e.ctrlKey&&!e.metaKey){if(!e.repeat)togglePlane();return true;}return planeKey(e);}if(!tool&&!e.ctrlKey&&!e.metaKey&&k==='c'&&selectedWorldPoints().length>=2)return connectWorldSelection();if(k==='e'&&!e.ctrlKey&&!e.metaKey&&tool?.kind==='lineMove'&&tool.extrude){if(!e.repeat)toggleLineExtrusion();return true;}if(tool?.kind==='divide'){if(k==='escape'||k==='z'&&(e.ctrlKey||e.metaKey)){restoreExtrusionSelection(tool);tool=null;host.redraw();return true;}if(k==='l'&&!e.ctrlKey&&!e.metaKey){if(!e.repeat){tool.orientation=tool.orientation==='horizontal'?'vertical':'horizontal';tool.numeric=null;tool.inputToken={};previewDivision(mouse);}return true;}if(k==='enter')return finishDivision();return !['shift','control','alt','meta'].includes(k);}if(!tool&&k==='l'&&!e.ctrlKey&&!e.metaKey&&!e.altKey&&startDivision())return true;if(k==='t'&&!e.ctrlKey&&!e.metaKey&&tool?.kind==='feature'&&F.supportsTrim(tool.type)){if(!e.repeat){tool.trimInches=Math.round((nextStickerTrim(F.setTrim({type:tool.type},tool.trimInches||0)).trim?.width||0)/.0254);if(mouse)previewFeature(mouse);host.redraw();}return true;}if(tool?.kind==='multiExtrude'){if(k==='escape'||k==='z'&&(e.ctrlKey||e.metaKey)){host.state().wallEdits=copy(tool.before);restoreExtrusionSelection(tool);tool=null;clearGuides();host.redraw();return true;}if(k==='enter')return down({...mouse,button:0});if(k==='e')return true;}if(!tool&&k==='e'&&!e.ctrlKey&&!e.metaKey&&startMultiExtrusion())return true;if(k==='p'&&!e.ctrlKey&&!e.metaKey){if(!e.repeat)togglePlane();return true;}if(workingPlane&&!e.ctrlKey&&!e.metaKey)return planeKey(e);if(!tool&&k==='v'&&!e.ctrlKey&&!e.metaKey&&selectedWorldPoints().length>=3)return createSelectedFace();if(!tool&&['delete','backspace'].includes(k)&&selectedFinishFace()?.trim&&removeSelectedTrim())return true;if(tool?.kind==='trim'){if(k==='t'&&!e.repeat)trimCommand();else if(k==='escape'||k==='z'&&(e.ctrlKey||e.metaKey)){host.state().wallEdits=tool.before;tool=null;host.redraw();}else if(k==='enter')finishTrim();return true;}if(k==='t'&&!tool&&!e.ctrlKey&&!e.metaKey&&trimCommand())return true;if(tool?.kind==='curveMove'){if(k==='escape'){host.state().wallEdits=tool.before;tool=null;host.redraw();}return true;}if(!tool&&k==='m'&&current()?.sketch.edges.some(e=>pickedLines.includes(e.id)&&e.curveId)){const d=current(),ids=[...new Set(d.sketch.edges.filter(e=>pickedLines.includes(e.id)).flatMap(e=>[e.a,e.b]))];tool={kind:'curveMove',ids,before:copy(host.state().wallEdits),start:rayPoint(d,mouse),draftKey:draftKey(d)};host.message('Move curve on its plane; click to place; Escape cancels.');return true;}if(tool?.kind==='curve'){if(k==='escape'||k==='z'&&(e.ctrlKey||e.metaKey)){host.state().wallEdits=tool.before;tool=null;host.message('Curve preview canceled.');host.redraw();}else if(k==='f'&&typeof isFreeMove!=='undefined'){isFreeMove=!isFreeMove;previewCurve(mouse);}return true;}if(k==='s'&&!e.ctrlKey&&!e.metaKey&&!tool&&mouse&&selectedWorldPoints().length===1)return startCurve();if((e.ctrlKey||e.metaKey)&&['c','v'].includes(k))return clipboardCommand(k==='c'?'copy':'paste');if(tool?.kind==='paste'||tool?.kind==='geometryTransform')return geometryKey(e);if(k==='m'&&!e.ctrlKey&&!e.metaKey&&tool?.kind==='lineMove'){if(!e.repeat)cycleLinePlane();return true;}if(!tool&&!e.ctrlKey&&!e.metaKey&&lineSelection.length&&((k==='e'&&beginLineMove(false,null,true))||(k==='m'&&beginLineMove(false))))return true;if(!tool&&k==='r'&&!e.ctrlKey&&!e.metaKey&&(lineSelection.length||pickedLines.length||solidEdges.length||selectedWorldPoints().length===1))return chamferCommand(null,true);if(!tool&&!e.ctrlKey&&!e.metaKey&&!(k==='f'&&e.shiftKey)&&['m','r','t','y'].includes(k)&&geometrySelectionPoints().length>=3)return geometryCommand(k);
+ function distanceInput(){if(tool?.eLock&&tool.inputFocus!=='trim')return lockInput(tool);if(workingPlane?.drawing&&workingPlane.selection.length){const plane=workingPlane,t=plane.drawInput;return {token:t,label:'Line length',amount:t?.amount||0,set(value){if(workingPlane!==plane||!plane.drawing)return;t.numeric=value==null?null:Math.abs(value);if(mouse)plane.hover=planePoint(mouse);host.redraw();}};}if(workingPlane&&tool?.kind==='geometryTransform'&&['m','r'].includes(tool.editMode)){const t=tool;return {token:t.inputToken||t,unit:t.editMode==='r'?'degrees':undefined,unitsPerInput:t.editMode==='r'?1:undefined,label:t.editMode==='r'?'Rotation':'Distance',allowZero:true,amount:t.numeric||0,set(value){flushPreview();if(tool!==t)return;t.numeric=value;replayPointer(previewGeometry);}};}if(tool?.kind==='divide'){const t=tool;return {token:t.inputToken||t,label:t.orientation==='horizontal'?'Divide from top':'Divide from left',amount:t.amount,allowZero:true,set(value){if(tool!==t)return;t.numeric=value;previewDivision(mouse);}};}if(tool?.kind==='multiExtrude'){const t=tool;return {token:t,label:'Extrusion (each face)',amount:t.amount,allowZero:true,set(value){flushPreview();if(tool!==t)return;t.numeric=value;replayPointer(runPointer);}};}if(tool?.kind==='geometryTransform'&&tool.stickerMove&&tool.editMode==='m'){const t=tool;return {token:t.inputToken||t,label:['Distance','Left/Right','Up/Down','In/Out'][t.moveAxis||0],amount:t.numeric||0,allowZero:true,set(value){if(tool!==t)return;if(value!==null&&!t.moveAxis)t.moveAxis=1;t.numeric=value;geometryStatus();replayPointer(previewGeometry);}};}if(workingPlane?.rotation){const r=workingPlane.rotation;return {token:r,axis:r.axisIndex,unit:'degrees',unitsPerInput:1,allowZero:true,label:'Plane angle',amount:r.angle,set(value){if(workingPlane?.rotation!==r)return;r.numeric=value;r.snap=null;if(value!==null)updatePlaneRotation(value);host.redraw();}};}if(!tool)return trimSessionLive()?null:selectedStickerHeightInput();if(tool?.kind==='trim'){const t=tool;return {...TRIM_INPUT,token:t.inputToken||t,hint:'T cycles sides',amount:t.width,set(value){if(tool===t&&value!=null&&value>0){t.width=value;previewTrim();}}};}if(tool?.kind==='feature'&&F.supportsTrim(tool.type)&&tool.inputFocus==='trim'){const t=tool;return {...TRIM_INPUT,token:t.trimToken||(t.trimToken={}),quiet:true,allowZero:true,amount:(t.trimInches||0)*.0254,set(value){if(tool!==t||value==null||value<0)return;t.trimInches=toInches(value);if(mouse)previewFeature(mouse);host.redraw();}};}if(!tool||!['extrude','lineMove','entityExtrude','chamfer'].includes(tool.kind))return null;const t=tool;if(t.kind==='lineMove'&&t.dimension){const d=t.dimension;return {token:t.inputToken||t,axis:t.planeIndex,label:d.label,amount:((t.amount||0)-d.opposite)*d.sign,set(value){flushPreview();if(tool!==t)return;t.numeric=value==null?null:d.opposite+d.sign*value;replayPointer(runPointer);}};}const sign=t.kind==='extrude'&&!t.moveMode?(t.inwardSign||1):1;return {token:t,axis:t.kind==='lineMove'?t.inputToken:t.inputToken||0,allowZero:t.kind==='lineMove',label:t.kind==='lineMove'?(t.extrude?'Extrusion':'Move distance'):t.kind==='chamfer'?'Width':t.moveReference?moveNames[t.moveMode||0]:t.kind==='extrude'?'Extrusion · '+(t.directionLabel||'Face normal'):undefined,amount:t.kind==='chamfer'?chamferWidth(t.metrics?.[0]):t.amount==null?t.amount:t.amount*sign,set(value){flushPreview();if(tool!==t)return;if(t.moveReference&&t.moveMode===3&&value!==null){t.moveMode=1;moveModeStatus();}t.numeric=value==null?null:value*sign;replayPointer(runPointer);}};}
+ // Escape leaves a distance lock before it cancels the move.
+ function leaveLock(){if(!tool?.eLock)return false;tool.eLock=null;host.message('Distance lock off');replayPointer(runPointer);host.redraw();return true;}
+ function key(e){const k=e.key.toLowerCase();if(k!=='t'&&!['shift','control','alt','meta'].includes(k))trimSession=null;if(k==='e'&&!e.ctrlKey&&!e.metaKey&&!e.altKey&&stickerLockable()){if(!e.repeat)startLock();return true;}if(k==='escape'&&leaveLock())return true;if(k==='t'&&!e.ctrlKey&&!e.metaKey&&!e.altKey&&!workingPlane&&(!tool||tool.stickerHeight)&&typedTrimKey(e))return true;if(tool?.kind==='arch')return archKey(e);if(!tool&&k==='a'&&!e.ctrlKey&&!e.metaKey&&!e.altKey&&!e.repeat)return startArch();if(tool?.kind==='lineMove'&&k.startsWith('arrow')&&!e.ctrlKey&&!e.metaKey)return nudgeLineMove(e);if(workingPlane){if(k==='p'&&!e.ctrlKey&&!e.metaKey){if(!e.repeat)togglePlane();return true;}return planeKey(e);}if(!tool&&!e.ctrlKey&&!e.metaKey&&k==='c'&&selectedWorldPoints().length>=2)return connectWorldSelection();if(k==='e'&&!e.ctrlKey&&!e.metaKey&&tool?.kind==='lineMove'&&tool.extrude){if(!e.repeat)toggleLineExtrusion();return true;}if(tool?.kind==='divide'){if(k==='escape'||k==='z'&&(e.ctrlKey||e.metaKey)){restoreExtrusionSelection(tool);tool=null;host.redraw();return true;}if(k==='l'&&!e.ctrlKey&&!e.metaKey){if(!e.repeat){tool.orientation=tool.orientation==='horizontal'?'vertical':'horizontal';tool.numeric=null;tool.inputToken={};previewDivision(mouse);}return true;}if(k==='enter')return finishDivision();return !['shift','control','alt','meta'].includes(k);}if(!tool&&k==='l'&&!e.ctrlKey&&!e.metaKey&&!e.altKey&&startDivision())return true;if(k==='t'&&!e.ctrlKey&&!e.metaKey&&tool?.kind==='feature'&&F.supportsTrim(tool.type)){if(!e.repeat){const typed=tool.inputFocus==='trim'&&typedTrim(distanceInput())!=null;tool.inputFocus='trim';if(typed)tool.trimToken={};else tool.trimInches=Math.round((nextStickerTrim(F.setTrim({type:tool.type},tool.trimInches||0)).trim?.width||0)/.0254*1000)/1000;if(mouse)previewFeature(mouse);host.redraw();}return true;}if(tool?.kind==='multiExtrude'){if(k==='escape'||k==='z'&&(e.ctrlKey||e.metaKey)){host.state().wallEdits=copy(tool.before);restoreExtrusionSelection(tool);tool=null;clearGuides();host.redraw();return true;}if(k==='enter')return down({...mouse,button:0});if(k==='e')return true;}if(!tool&&k==='e'&&!e.ctrlKey&&!e.metaKey&&startMultiExtrusion())return true;if(k==='p'&&!e.ctrlKey&&!e.metaKey){if(!e.repeat)togglePlane();return true;}if(workingPlane&&!e.ctrlKey&&!e.metaKey)return planeKey(e);if(!tool&&k==='v'&&!e.ctrlKey&&!e.metaKey&&selectedWorldPoints().length>=3)return createSelectedFace();if(!tool&&['delete','backspace'].includes(k)&&selectedFinishFace()?.trim&&removeSelectedTrim())return true;if(tool?.kind==='trim'){if(k==='t'&&!e.repeat)trimCommand();else if(k==='escape'||k==='z'&&(e.ctrlKey||e.metaKey)){host.state().wallEdits=tool.before;tool=null;host.redraw();}else if(k==='enter')finishTrim();return true;}if(k==='t'&&!tool&&!e.ctrlKey&&!e.metaKey&&trimCommand())return true;if(tool?.kind==='curveMove'){if(k==='escape'){host.state().wallEdits=tool.before;tool=null;host.redraw();}return true;}if(!tool&&k==='m'&&current()?.sketch.edges.some(e=>pickedLines.includes(e.id)&&e.curveId)){const d=current(),ids=[...new Set(d.sketch.edges.filter(e=>pickedLines.includes(e.id)).flatMap(e=>[e.a,e.b]))];tool={kind:'curveMove',ids,before:copy(host.state().wallEdits),start:rayPoint(d,mouse),draftKey:draftKey(d)};host.message('Move curve on its plane; click to place; Escape cancels.');return true;}if(tool?.kind==='curve'){if(k==='escape'||k==='z'&&(e.ctrlKey||e.metaKey)){host.state().wallEdits=tool.before;tool=null;host.message('Curve preview canceled.');host.redraw();}else if(k==='f'&&typeof isFreeMove!=='undefined'){isFreeMove=!isFreeMove;previewCurve(mouse);}return true;}if(k==='s'&&!e.ctrlKey&&!e.metaKey&&!tool&&mouse&&selectedWorldPoints().length===1)return startCurve();if((e.ctrlKey||e.metaKey)&&['c','v'].includes(k))return clipboardCommand(k==='c'?'copy':'paste');if(tool?.kind==='paste'||tool?.kind==='geometryTransform')return geometryKey(e);if(k==='m'&&!e.ctrlKey&&!e.metaKey&&tool?.kind==='lineMove'){if(!e.repeat)cycleLinePlane();return true;}if(!tool&&!e.ctrlKey&&!e.metaKey&&lineSelection.length&&((k==='e'&&beginLineMove(false,null,true))||(k==='m'&&beginLineMove(false))))return true;if(!tool&&k==='r'&&!e.ctrlKey&&!e.metaKey&&(lineSelection.length||pickedLines.length||solidEdges.length||selectedWorldPoints().length===1))return chamferCommand(null,true);if(!tool&&!e.ctrlKey&&!e.metaKey&&!(k==='f'&&e.shiftKey)&&['m','r','t','y'].includes(k)&&geometrySelectionPoints().length>=3)return geometryCommand(k);
   if(tool&&e.repeat&&['m','e','c','n','q','h','v','s','w','d','u','y'].includes(k))return true;
   if(k==='e'&&!e.ctrlKey&&!e.metaKey&&tool?.kind==='extrude'&&tool.mode==='extrude')return cycleFaceExtrusion(e);
   // Repeating Move is not a tool switch or a placement. Cycling move tools
@@ -2244,6 +2781,7 @@ function perf_nudge(e){const step=(e.altKey ? .25 : e.shiftKey ? 6 : 1)*F.FT/12*
   }
   if(!tool&&(k==='delete'||k==='backspace')){
    if(deleteSelectedStickers())return true;
+   if(deleteStickerControls())return true;
    if(!solidPoints.length&&solidEdges.length){const graph=wire(),segments=graph.edges.filter(e=>solidEdges.includes(e.id)).map(e=>[graph.nodes.find(n=>n.id===e.a),graph.nodes.find(n=>n.id===e.b)]);transaction(()=>deleteLines3D(segments));solidEdges=[];host.redraw();return true;}
    if(pickedLines.length&&d&&!d.sketch.edges.some(e=>pickedLines.includes(e.id)&&e.curveId)&&viewOf(mouse)==='3d'){const segments=draftSegments(d).filter(e=>pickedLines.includes(e.id)).map(e=>[world(d,e.start),world(d,e.end)]);transaction(()=>deleteLines3D(segments));pickedLines=[];host.redraw();return true;}
    if(solidPoints.length||solidEdges.length){transaction(()=>removeSolidPoints(solidPoints,solidEdges));solidPoints=[];solidEdges=[];host.redraw();return true;}
@@ -2272,7 +2810,7 @@ function perf_nudge(e){const step=(e.altKey ? .25 : e.shiftKey ? 6 : 1)*F.FT/12*
    const upperChimney=face?.chimney?.volume&&!face.chimney.cap;
    const chimneyFootprint=upperChimney?window.WallChimneys?.definitions(host.state()).find(c=>c.id===face.chimney.id)?.points:null;
    if(upperChimney){face={...copy(face),chimney:{...copy(face.chimney),drivesFootprint:false}};scene=scene.map(f=>f.id===face.id?copy(face):f);}
-   if(face){const moveReference=k==='m'&&region&&d.faces.some(f=>f!==region&&!f.boundaryHole&&!f.solidId&&!deleted(d,f))?{key:currentDraftId(),id:region.id}:null;tool={upperChimney,chimneyFootprint:chimneyFootprint&&copy(chimneyFootprint),moveReference,moveMode:0,priorRegion:selectedRegion&&copy(selectedRegion),wholeDraft,mode:k==='e'?'extrude':'move',supports,scene,snapGeometry:sceneLines(),heightPoints:heightPoints(),sceneDrafts:scene?copy(all()):null,kind:'extrude',inwardSign:inwardDistanceSign(face),face:copy(face),before,priorSolid:selectedSolid,priorDraft:activeDraftKey,startX:mouse.clientX,startY:mouse.clientY,baseAmount:0,axis:extrudeAxis(face),baseFaces:copy(window.WallSolidGeometry.baseScope(face,host.state()?.wallEdits?.$base?.faces||host.state()?.base?.faces||[])),op:Date.now(),draftKey:region?currentDraftId():null,regionId:region?.id};if(moveReference){if(face.feature&&k==='m'){tool.moveMode=3;tool.moveFrame=F.viewFrame(face.points,p=>host.screen(p,'3d'));tool.planeStart=rayPoint({frame:tool.moveFrame},mouse);}moveModeStatus();host.redraw();}return true;}
+   if(face){const moveReference=k==='m'&&region&&d.faces.some(f=>f!==region&&!f.boundaryHole&&!f.solidId&&!deleted(d,f))?{key:currentDraftId(),id:region.id}:null;tool={upperChimney,chimneyFootprint:chimneyFootprint&&copy(chimneyFootprint),moveReference,moveMode:0,priorRegion:selectedRegion&&copy(selectedRegion),wholeDraft,mode:k==='e'?'extrude':'move',supports,scene,snapGeometry:sceneLines(),heightPoints:heightPoints(),sceneDrafts:scene?copy(all()):null,kind:'extrude',inwardSign:inwardDistanceSign(face),face:copy(face),before,priorSolid:selectedSolid,priorDraft:activeDraftKey,startX:mouse.clientX,startY:mouse.clientY,baseAmount:0,axis:extrudeAxis(face),baseFaces:copy(window.WallSolidGeometry.baseScope(face,host.state()?.wallEdits?.$base?.faces||host.state()?.base?.faces||[])),op:Date.now(),draftKey:region?currentDraftId():null,regionId:region?.id};if(moveReference){if(face.feature&&k==='m'){tool.moveMode=3;tool.moveFrame=F.viewFrame(face.points,p=>host.screen(p,'3d'));tool.planeStart=slideAnchor(tool,mouse);}moveModeStatus();host.redraw();}return true;}
   }
 if(k==='n'&&!tool){const ps=selectedWorldPoints();if(ps.length){
  // Shared bottom vertices are usually picked through their wall owner. N
@@ -2292,10 +2830,10 @@ if(!d&&['n','q'].includes(k)&&selected())d=ensure(selected());if(!d)return false
  function movePointer(...args){if(!window.ExteriorPerf?.enabled)return perf_movePointer.apply(this,args);return window.ExteriorPerf.measure('Draft pointer update',()=>perf_movePointer.apply(this,args));}
 function perf_movePointer(e){if(workingPlane&&!tool&&!box){mouse=e;if(workingPlane.rotation){if(viewOf(e)==='3d'&&!(e.buttons&6))previewPlaneRotation(e);return;}if(viewOf(e)==='3d'&&!(e.buttons&6)&&(workingPlane.drawing||workingPlane.action)){if(workingPlane.action?.kind==='curve')previewPlaneCurve(e);else workingPlane.hover=planePoint(e);host.redraw();}else{workingPlane.hover=null;clearGuides();host.redraw();}return;}if(tool?.kind==='curveMove'){const t=tool,p=rayPoint(current(),e);if(!p)return;host.state().wallEdits=copy(t.before);try{S.move(all()[t.draftKey],t.ids,{x:p.x-t.start.x,y:p.y-t.start.y});t.changed=true;}catch(error){host.message(error.message);}host.redraw();return;}
   if(box&&!(e.buttons&1)){box=null;boxEl?.remove?.();boxEl=null;}
-  if(!host.active()&&!box)return;if(box){if(e.buttons&6)return;box.ex=e.clientX;box.ey=e.clientY;if(box.moved||Math.hypot(box.ex-box.x,box.ey-box.y)>=4){box.moved=true;e.stopImmediatePropagation();e.preventDefault();if(typeof document!=='undefined'){if(!boxEl){boxEl=document.createElement('div');Object.assign(boxEl.style,{position:'fixed',pointerEvents:'none',border:'1px dashed #1a73e8',background:'rgba(26,115,232,0.2)',zIndex:10001});document.body.appendChild(boxEl);}Object.assign(boxEl.style,{left:Math.min(box.x,box.ex)+'px',top:Math.min(box.y,box.ey)+'px',width:Math.abs(box.ex-box.x)+'px',height:Math.abs(box.ey-box.y)+'px'});}return;}}if(!viewOf(e))return;mouse=e;if(!tool){clearGuides();return;}if(e.buttons&6){clearGuides();tool.navigation=true;if(tool.kind==='geometryTransform'||tool.kind==='paste')tool.reanchor=true;return;}if(tool.kind==='extrude'&&tool.moveMode&&tool.navigation){tool.navigation=false;const now=F.viewFrame(tool.face.points,p=>host.screen(p,'3d')),q=rayPoint({frame:now},e),delta=tool.previewCap?{x:tool.previewCap.points[0].x-tool.face.points[0].x,y:tool.previewCap.points[0].y-tool.face.points[0].y,z:tool.previewCap.points[0].z-tool.face.points[0].z}:{x:0,y:0,z:0};tool.moveFrame=now;tool.planeStart=q&&{x:q.x-delta.x*now.u.x-delta.y*now.u.y-delta.z*now.u.z,y:q.y-delta.x*now.v.x-delta.y*now.v.y-delta.z*now.v.z,z:0};return;}if(tool.kind==='extrude'&&tool.navigation){tool.navigation=false;tool.startX=e.clientX;tool.startY=e.clientY;tool.baseAmount=tool.amount||0;tool.axis=extrudeAxis(tool.face,tool.amount||0,tool.direction);return;}
+  if(!host.active()&&!box)return;if(box){if(e.buttons&6)return;box.ex=e.clientX;box.ey=e.clientY;if(box.moved||Math.hypot(box.ex-box.x,box.ey-box.y)>=4){box.moved=true;e.stopImmediatePropagation();e.preventDefault();if(typeof document!=='undefined'){if(!boxEl){boxEl=document.createElement('div');Object.assign(boxEl.style,{position:'fixed',pointerEvents:'none',border:'1px dashed #1a73e8',background:'rgba(26,115,232,0.2)',zIndex:10001});document.body.appendChild(boxEl);}Object.assign(boxEl.style,{left:Math.min(box.x,box.ex)+'px',top:Math.min(box.y,box.ey)+'px',width:Math.abs(box.ex-box.x)+'px',height:Math.abs(box.ey-box.y)+'px'});}return;}}if(!viewOf(e))return;mouse=e;if(!tool){clearGuides();return;}if(e.buttons&6){clearGuides();tool.navigation=true;if(tool.kind==='geometryTransform'||tool.kind==='paste')tool.reanchor=true;return;}if(tool.kind==='extrude'&&tool.moveMode&&tool.navigation){tool.navigation=false;const now=F.viewFrame(tool.face.points,p=>host.screen(p,'3d')),q=rayPoint({frame:now},e),delta=tool.previewCap?{x:tool.previewCap.points[0].x-tool.face.points[0].x,y:tool.previewCap.points[0].y-tool.face.points[0].y,z:tool.previewCap.points[0].z-tool.face.points[0].z}:{x:0,y:0,z:0};tool.moveFrame=now;tool.planeStart=tool.face.feature?slideAnchor(tool,e):q&&{x:q.x-delta.x*now.u.x-delta.y*now.u.y-delta.z*now.u.z,y:q.y-delta.x*now.v.x-delta.y*now.v.y-delta.z*now.v.z,z:0};return;}if(tool.kind==='extrude'&&tool.navigation){tool.navigation=false;tool.startX=e.clientX;tool.startY=e.clientY;tool.baseAmount=tool.amount||0;tool.axis=extrudeAxis(tool.face,tool.amount||0,tool.direction);return;}
   if(tool.kind==='divide'){e.preventDefault();e.stopImmediatePropagation();previewDivision(e);return;}if(tool.kind==='multiExtrude'){e.preventDefault();e.stopImmediatePropagation();previewMultiExtrusion(e);return;}if(tool.kind==='material'||tool.kind==='axisCut')return;if(tool.kind==='step'){e.stopImmediatePropagation();e.preventDefault();previewStep(e);return;}
   if(tool.kind==='lineMove'){e.stopImmediatePropagation();e.preventDefault();previewLineMove(e);return;}
-  if(tool.kind==='arch'){previewArch(e);return;}if(tool.kind==='curve'){previewCurve(e);return;}if(tool.kind==='geometryTransform'){previewGeometry(e);return;}if(tool.kind==='paste'){if(tool.editMode==='m'){if(!(e.buttons&6))previewPaste(e);}else previewGeometry(e);return;}if(tool.kind==='chamfer'){e.preventDefault();e.stopImmediatePropagation();previewChamfer(e);return;}if(tool.kind==='entityExtrude'){e.preventDefault();e.stopImmediatePropagation();previewEntity(e);return;}if(tool.kind==='feature'){previewFeature(e);return;}if(tool.kind==='extrude'&&tool.moveMode){e.stopImmediatePropagation();e.preventDefault();previewFaceSlide(e);return;}if(tool.kind==='extrude'){e.stopImmediatePropagation();e.preventDefault();const lastMotion={amount:tool.amount,changed:tool.changed,pathSnap:tool.pathSnap,contained:tool.contained,roofSnap:tool.roofSnap,belowBase:tool.belowBase,mergeSeams:tool.mergeSeams};let amount=tool.numeric??(tool.baseAmount+window.WallSolidGeometry.dragAmount(tool.axis,e.clientX-tool.startX,e.clientY-tool.startY));tool.belowBase=null;tool.pathSnap=null;tool.mergeSeams=[];tool.contained=null;tool.roofSnap=null;tool.detached=false;const rawAmount=amount;const snap=!tool.direction&&W.containedSnap(tool.face,amount,tool.scene||[]),pixels=Math.max(Math.hypot(tool.axis.x,tool.axis.y),33.33);if(tool.numeric==null&&snap&&Math.abs(snap.amount-amount)<((typeof isFreeMove!=='undefined'&&isFreeMove)?1e-5:12/pixels)){amount=snap.amount;tool.contained=snap;}if(tool.numeric==null&&!(typeof isFreeMove!=='undefined'&&isFreeMove)){const reference=W.extrusionReference(tool.face,tool.direction,rawAmount),sign=rawAmount<0?-1:1;if(tool.motionSign!==sign){tool.motionCandidates=null;tool.motionSign=sign;}const rings=[reference.points,...(reference.holes||[])];tool.motionCandidates||=W.motionSnapCandidates(rings.flat(),rings.flatMap(r=>r.map((p,i)=>[p,r[(i+1)%r.length]])),tool.direction||W.normal(tool.face.points),tool.scene||[],{heightPoints:tool.heightPoints,points:tool.snapGeometry.points,edges:[...tool.snapGeometry.lines.values()]});const path=W.motionSnap(rings.flat(),rings.flatMap(r=>r.map((p,i)=>[p,r[(i+1)%r.length]])),tool.direction||W.normal(tool.face.points),rawAmount,tool.scene||[],{candidates:tool.motionCandidates,heightPoints:tool.heightPoints,points:tool.snapGeometry.points,edges:[...tool.snapGeometry.lines.values()],screen:p=>host.screen(p,'3d'),radius:12,minPixelsPerMeter:33.33});if(path&&(!tool.contained||Math.abs(path.amount-rawAmount)<Math.abs(amount-rawAmount))){amount=path.amount;tool.pathSnap=path;tool.contained=null;}}const roofSnap=!tool.direction&&tool.numeric==null&&!(typeof isFreeMove!=='undefined'&&isFreeMove)&&roofTarget(tool.face,rawAmount,12/pixels);if(roofSnap){amount=roofSnap.amount;tool.roofSnap=roofSnap;tool.contained=null;tool.pathSnap=null;}if(tool.engineRoof===host.roof?.()&&!tool.invalid&&tool.previewCap&&!roofSnap&&!lastMotion.roofSnap&&Math.abs(amount-lastMotion.amount)<1e-8){Object.assign(tool,lastMotion);return;}tool.amount=amount;tool.changed=Math.abs(amount)>1e-6||!!roofSnap;tool.invalid=false;const lastPreview=copy(host.state().wallEdits);host.state().wallEdits=tool.changed&&tool.sceneDrafts?copyWithDrafts(tool.before,tool.mode==='extrude'||tool.upperChimney?tool.sceneDrafts:null):copy(tool.before);if(!tool.changed){host.redraw();return;}const edits=host.state().wallEdits;let cap,sides=[];try{
+  if(tool.kind==='arch'){previewArch(e);return;}if(tool.kind==='curve'){previewCurve(e);return;}if(tool.kind==='geometryTransform'){previewGeometry(e);return;}if(tool.kind==='paste'){if(tool.editMode==='m'){if(!(e.buttons&6))previewPaste(e,true);}else previewGeometry(e);return;}if(tool.kind==='chamfer'){e.preventDefault();e.stopImmediatePropagation();previewChamfer(e);return;}if(tool.kind==='entityExtrude'){e.preventDefault();e.stopImmediatePropagation();previewEntity(e);return;}if(tool.kind==='feature'){previewFeature(e,false,true);return;}if(tool.kind==='extrude'&&tool.moveMode){e.stopImmediatePropagation();e.preventDefault();previewFaceSlide(e);return;}if(tool.kind==='extrude'){e.stopImmediatePropagation();e.preventDefault();const lastMotion={amount:tool.amount,changed:tool.changed,pathSnap:tool.pathSnap,contained:tool.contained,roofSnap:tool.roofSnap,belowBase:tool.belowBase,mergeSeams:tool.mergeSeams};let amount=tool.numeric??(tool.baseAmount+window.WallSolidGeometry.dragAmount(tool.axis,e.clientX-tool.startX,e.clientY-tool.startY));tool.belowBase=null;tool.pathSnap=null;tool.mergeSeams=[];tool.contained=null;tool.roofSnap=null;tool.detached=false;const rawAmount=amount;const snap=!tool.direction&&W.containedSnap(tool.face,amount,tool.scene||[]),pixels=Math.max(Math.hypot(tool.axis.x,tool.axis.y),33.33);if(tool.numeric==null&&snap&&Math.abs(snap.amount-amount)<((typeof isFreeMove!=='undefined'&&isFreeMove)?1e-5:12/pixels)){amount=snap.amount;tool.contained=snap;}if(tool.numeric==null&&!(typeof isFreeMove!=='undefined'&&isFreeMove)){const reference=W.extrusionReference(tool.face,tool.direction,rawAmount),sign=rawAmount<0?-1:1;if(tool.motionSign!==sign){tool.motionCandidates=null;tool.motionSign=sign;}const rings=[reference.points,...(reference.holes||[])];tool.motionCandidates||=W.motionSnapCandidates(rings.flat(),rings.flatMap(r=>r.map((p,i)=>[p,r[(i+1)%r.length]])),tool.direction||W.normal(tool.face.points),tool.scene||[],{heightPoints:tool.heightPoints,points:tool.snapGeometry.points,edges:[...tool.snapGeometry.lines.values()]});const path=W.motionSnap(rings.flat(),rings.flatMap(r=>r.map((p,i)=>[p,r[(i+1)%r.length]])),tool.direction||W.normal(tool.face.points),rawAmount,tool.scene||[],{candidates:tool.motionCandidates,heightPoints:tool.heightPoints,points:tool.snapGeometry.points,edges:[...tool.snapGeometry.lines.values()],screen:p=>host.screen(p,'3d'),radius:12,minPixelsPerMeter:33.33});if(path&&(!tool.contained||Math.abs(path.amount-rawAmount)<Math.abs(amount-rawAmount))){amount=path.amount;tool.pathSnap=path;tool.contained=null;}}const roofSnap=!tool.direction&&tool.numeric==null&&!(typeof isFreeMove!=='undefined'&&isFreeMove)&&roofTarget(tool.face,rawAmount,12/pixels);if(roofSnap){amount=roofSnap.amount;tool.roofSnap=roofSnap;tool.contained=null;tool.pathSnap=null;}if(tool.engineRoof===host.roof?.()&&!tool.invalid&&tool.previewCap&&!roofSnap&&!lastMotion.roofSnap&&Math.abs(amount-lastMotion.amount)<1e-8){Object.assign(tool,lastMotion);return;}tool.amount=amount;tool.changed=Math.abs(amount)>1e-6||!!roofSnap;tool.invalid=false;const lastPreview=copy(host.state().wallEdits);host.state().wallEdits=tool.changed&&tool.sceneDrafts?copyWithDrafts(tool.before,tool.mode==='extrude'||tool.upperChimney?tool.sceneDrafts:null):copy(tool.before);if(!tool.changed){host.redraw();return;}const edits=host.state().wallEdits;let cap,sides=[];try{
  const sweep=()=>{
   if(tool.chimneyFootprint){edits.$chimneys||={};edits.$chimneys[tool.face.chimney.id]={...(edits.$chimneys[tool.face.chimney.id]||{}),points:copy(tool.chimneyFootprint)};}
   const boundRoof=host.roof?.();if(tool.engineRoof!==boundRoof){tool.engine=null;tool.engineRoof=boundRoof;}
@@ -2365,12 +2903,18 @@ function perf_movePointer(e){if(workingPlane&&!tool&&!box){mouse=e;if(workingPla
   solidMeshes=[];
   // An empty saved draft is not yet editing its walls (has() is false), so they
   // draw as generated walls; the first editing command builds the draft.
-  for(const d of Object.values(all())){if(!d.faces.length&&!d.sketch.nodes.length&&!d.deletedFaces?.length)continue;if(!drawMemoized('visible-draft',d,()=>visibleDraft(d)))continue;
-   const key=draftKey(d),inner=drawMemoized('draft-inner',d,()=>d.faces.filter(f=>f.boundaryHole||f.points.every(p=>!d.sketch.nodes.find(n=>n.id===p.nodeId)?.fixed)));
+  const gesture=gestureDraftKey();
+  for(const d of Object.values(all()))if(!gesture||all()[gesture]!==d)drawDraft(group,vector,d,true);
+ }
+ // One wall draft: its faces (persistent chunks in the full scene), edges,
+ // selection outlines and points. A sticker gesture's overlay draws its copy alone.
+ function drawDraft(group,vector,d,chunked){
+  if(!d.faces.length&&!d.sketch.nodes.length&&!d.deletedFaces?.length)return;if(!drawMemoized('visible-draft',d,()=>visibleDraft(d)))return;
+   const key=draftKey(d),inner=drawMemoized('draft-inner',d,()=>draftOpenings(d));
    for(const source of d.faces)drawnVisibleDraftFaces(d,source).forEach((f,index)=>{
     const draw=target=>{const before=solidMeshes.length;drawDraftPart(target,vector,d,source,f,inner);return solidMeshes.splice(before);};
     const pickable=!!(d.frame||f.feature||host.state()?.chimneys?.items?.length||drawMemoized('draft-unclaimed',d,()=>!d.members.some(id=>walls().some(w=>w.id===id))));
-    const picks=window.WallMode?.renderChunk&&!f.feature?.divisionGroup&&tool?.kind!=='divide'?window.WallMode.renderChunk('draft:'+key+':'+source.id+':'+index,[f,d.frame,d.origin,d.u,d.chimney,inner,faceChosen({draft:key,face:source.id}),pickable,host.state()?.wallCenters,host.state()?.featureDimensions,renderDividers,tool?.mergeSeams,tool?.kind,!!tool?.moveReference],group,draw):draw(group);
+    const picks=chunked&&window.WallMode?.renderChunk&&!f.feature?.divisionGroup&&tool?.kind!=='divide'?window.WallMode.renderChunk('draft:'+key+':'+source.id+':'+index,[f,d.frame,d.origin,d.u,d.chimney,inner,faceChosen({draft:key,face:source.id}),pickable,host.state()?.wallCenters,host.state()?.featureDimensions,renderDividers,tool?.mergeSeams,tool?.kind,!!tool?.moveReference],group,draw):draw(group);
     solidMeshes.push(...picks);
    });
    const isCurrent=current()===d,ids=draftSelection[key]||(isCurrent?picked:[]);
@@ -2379,10 +2923,9 @@ function perf_movePointer(e){if(workingPlane&&!tool&&!box){mouse=e;if(workingPla
    for(const n of drawnDraftNodes(d,ids))selectablePoint(group,vector,world(d,n),drawnDraftPointStructural(d,n)?'#e7ad52':'#6ce4ed',8,ids.includes(n.id),12,selectionMarkers?drawnDraftPointKey(d,n):undefined);
    if(isCurrent&&tool?.preview&&tool.kind==='quad'){const ps=quadPoints(d,tool.preview);if(ps.length){const geo=new THREE.BufferGeometry().setFromPoints([...ps,ps[0]].map(p=>vector(world(d,p))));group.add(new THREE.Line(geo,new THREE.LineBasicMaterial({color:'#fff',depthTest:false})));}}
    if(isCurrent&&tool?.preview&&tool.kind!=='quad')for(const id of picked){const a=d.sketch.nodes.find(n=>n.id===id);if(a){const geo=new THREE.BufferGeometry().setFromPoints([vector(world(d,a)),vector(world(d,tool.preview))]);group.add(new THREE.Line(geo,new THREE.LineBasicMaterial({color:'#fff',depthTest:false})));}}
-  }
  }
  let selectionMarkers=null;
- function selectablePoint(group,vector,p,color,size,selected,selectedSize,key=undefined){if(selectionMarkers){selectionMarkers.push({p,key:key===undefined?W.vertexKey(p):key,color,size,selected,selectedSize});return;}previewPoint(group,vector,p,selected?'#fff':color,selected?selectedSize:size);}
+ function selectablePoint(group,vector,p,color,size,selected,selectedSize,key=undefined){if(lineSelect&&!lineSelect.points)return;if(selectionMarkers){selectionMarkers.push({p,key:key===undefined?W.vertexKey(p):key,color,size,selected,selectedSize});return;}previewPoint(group,vector,p,selected?'#fff':color,selected?selectedSize:size);}
  function previewPoint(group,vector,p,color,size){if(group.point){group.point(vector(p),color,size);return;}const geo=new THREE.BufferGeometry().setFromPoints([vector(p)]);group.add(new THREE.Points(geo,new THREE.PointsMaterial({color,size,sizeAttenuation:false,depthTest:false})));}
  function previewLine(group,vector,a,b,color,depthTest=false){
   const intervals=W.sharedIntervals(a,b,[...(tool?.mergeSeams||[]).map(points=>({points})),...dividerTargets(a,b)]),at=t=>({x:a.x+(b.x-a.x)*t,y:a.y+(b.y-a.y)*t,z:a.z+(b.z-a.z)*t});let start=0;
@@ -2431,18 +2974,117 @@ function perf_movePointer(e){if(workingPlane&&!tool&&!box){mouse=e;if(workingPla
   }
  }
  function drawSolidPart(group,vector,source,f){if(f.deleted||f.drafted)return;if(f.curvedSurface?.logical){const data=window.ExteriorGeometry.surfaceMesh(f),geo=new THREE.BufferGeometry().setFromPoints(data.positions.map(vector));geo.setIndex(data.triangles.flat());if(THREE.Float32BufferAttribute&&geo.setAttribute)geo.setAttribute('uv',new THREE.Float32BufferAttribute(data.uv.flatMap(p=>[p.x,p.y]),2));geo.computeVertexNormals?.();const mesh=new THREE.Mesh(geo,new THREE.MeshBasicMaterial({color:materialColor(f)||'#ffd84d',side:THREE.DoubleSide,transparent:true,opacity:.5,depthWrite:false}));mesh.userData.solidId=source.id;mesh.userData.exteriorSelected=faceChosen({solid:source.id});mesh.userData.exteriorFeature=!!f.feature;if(f.feature){mesh.renderOrder=1;Object.assign(mesh.material,{polygonOffset:true,polygonOffsetFactor:-1,polygonOffsetUnits:-1});}mesh.userData.curvedSurface=true;window.ExteriorFinishes?.prepare(mesh,f,data.positions,data.uv);group.add(mesh);solidMeshes.push(mesh);if(mesh.userData.exteriorSelected)drawSelectionOutline(group,vector,f);return;}const frame=W.faceFrame(f);if(!frame)return;const {origin,u,v}=frame,local=p=>new THREE.Vector2((p.x-origin.x)*u.x+(p.y-origin.y)*u.y+(p.z-origin.z)*u.z,(p.x-origin.x)*v.x+(p.y-origin.y)*v.y+(p.z-origin.z)*v.z),polys=[f.points,...(f.holes||[])];const geo=new THREE.BufferGeometry().setFromPoints(polys.flat().map(vector));geo.setIndex(window.ExteriorGeometry.triangles(polys[0].map(local),polys.slice(1).map(h=>h.map(local))).triangles.flat());const mesh=new THREE.Mesh(geo,new THREE.MeshBasicMaterial({color:f.constructionOnly?'#858b91':f.feature&&F?.defs.get(f.feature.type)?.color||materialColor(f)||(f.roofLayer?'#a9c9bd':f.chimney?window.WallChimneys.COLOR:'#ffd84d'),side:THREE.DoubleSide,transparent:true,opacity:.5,depthWrite:false}));mesh.userData.solidId=source.id;mesh.userData.exteriorSelected=faceChosen({solid:source.id});mesh.userData.exteriorFeature=!!f.feature;if(f.feature){mesh.renderOrder=1;Object.assign(mesh.material,{polygonOffset:true,polygonOffsetFactor:-1,polygonOffsetUnits:-1});}mesh.userData.constructionOnly=!!f.constructionOnly;if(!f.constructionOnly)window.ExteriorFinishes?.prepare(mesh,f,polys.flat());group.add(mesh);solidMeshes.push(mesh);if(mesh.userData.exteriorSelected)drawSelectionOutline(group,vector,f);if(f.feature)featureDimensions(group,vector,f.points,f.feature,mesh.userData.exteriorSelected);else if(!f.curvedSurface&&host.state()?.wallCenters!==false)window.wallCenterMarker?.(group,vector,{x:f.points.reduce((s,p)=>s+p.x,0)/f.points.length,y:f.points.reduce((s,p)=>s+p.y,0)/f.points.length,z:f.points.reduce((s,p)=>s+p.z,0)/f.points.length});}
+ function addGuides(group,vector,guides){for(const guide of guides||[]){const line=new THREE.Line(new THREE.BufferGeometry().setFromPoints([guide.from,guide.target].map(vector)),new THREE.LineBasicMaterial({color:'#FFD700',depthTest:false}));line.renderOrder=1003;line.userData.alignmentGuide=true;group.add(line);}}
+ // The placement hover never changes the model, so wall mode redraws only this
+ // while the pointer moves; without that host it is part of draw3D.
+ function drawFeatureOverlay(group,vector){
+  const t=tool;if(t?.kind!=='feature'||!t.preview)return;
+  drawStickerPreview(group,vector,t.preview.points,F.setTrim({type:t.type,axis:t.preview.axis},t.trimInches||0));
+  if(!(typeof isFreeMove!=='undefined'&&isFreeMove))addGuides(group,vector,W.planeAlignmentGuides(t.preview.points,[...featureGuidePoints(t),...(t.alignmentTargets||[])],F.frame(t.preview.points)));
+ }
+ // The overlay pass, outside draw3D: it shares draw3D's divider seams, built
+ // once per model rather than once per preview edge.
+ let overlayDividers=null;
+ // A sticker gesture (sliding placed stickers with M, or pasting stickers onto a
+ // wall draft) redraws only that wall while the pointer moves: the main scene
+ // leaves its draft out and the overlay draws the gesture's copy of it. The
+ // click recomputes the whole model exactly, as before.
+ // Textured view renders through its own pipeline, so it keeps the full redraw.
+ const overlayGestures=()=>!!host.redrawOverlay&&host.overlayGestures?.()!==false;
+ function gestureDraftKey(){const t=tool;return host.drawsOverlay&&overlayGestures()&&t?.light&&(t.kind==='paste'||t.kind==='extrude'&&t.moveMode)?t.light.key:null;}
+ const lengthMode=()=>host.state()?.lineLengthMode||(host.state()?.wallLengths===false?'off':'moving');
+ // Run fn with one draft replaced, reading the composed walls of the published model.
+ function withDraftCopy(key,draft,fn,surfaces=null){
+  const state=host.state(),published=state.wallEdits,priorWalls=renderWalls;renderWalls=renderWalls||host.walls();
+  if(draft)state.wallEdits={...published,...(surfaces?{$surfaces:surfaces}:{}),$drafts:{...published.$drafts,[key]:draft}};
+  try{return fn();}finally{state.wallEdits=published;renderWalls=priorWalls;}
+ }
+ function drawGestureOverlay(group,vector){
+  const t=tool,key=t.light.key,published=host.state().wallEdits;
+  // Everything but this wall supports it as it did when the gesture began; build that once.
+  if(t.light.support?.edits!==published)t.light.support={edits:published,faces:withDraftCopy(key,null,()=>structuralFaces(false,{draft:published.$drafts?.[key],solid:t.light.solid}))};
+  withDraftCopy(key,t.light.draft,()=>{
+   const d=all()[key];if(!d)return;const kept=solidMeshes.length;
+   selectionMarkers=null;renderedDivisionTrim=new Set();const features=divisionScene();renderDividers=F.divisionSegments(features);renderDividerIndex=indexDividers(renderDividers);renderOpenings=window.ExteriorModel.indexOpenings(features);renderInputs=window.EXTERIOR_DISABLE_RENDER_CACHE===true||window.EXTERIOR_DISABLE_DRAW_MEMO===true?null:JSON.stringify([features,window.WallClosedSoffits?.active?.(host.state())??null]);renderSegments=new Map();
+   // The copy differs on every move, so the render cache starts empty instead of keying the whole model.
+   try{renderCacheActive=true;renderCacheKey=null;renderCache=new Map();drawPass=true;drawFaceRefs=null;supportSnapshot=[...t.light.support.faces,...(visibleDraft(d)&&!d.mergedInto?draftSupportFaces(d).flatMap(f=>chimneyParts(f)||[f]):[])];supportIndex=W.structuralIndex(supportSnapshot);
+    drawDraft(group,vector,d,false);
+    if(host.state()?.lineCenters!==false){const centers=draftSegments(d).filter(e=>!e.curveId).map(e=>{const a=world(d,e.start),b=world(d,e.end);return {x:(a.x+b.x)/2,y:(a.y+b.y)/2,z:(a.z+b.z)/2,pair:[a,b]};});drawLineCenters3D(group,vector,centers);}
+    if(t.kind==='extrude')drawMoveIndicator(group,vector);
+    if(!(typeof isFreeMove!=='undefined'&&isFreeMove)){if(t.kind==='extrude'&&!t.invalid&&t.previewCap)addGuides(group,vector,W.planeAlignmentGuides(t.previewCap.points,faceSlideTargets(t),t.moveFrame));if(t.kind==='paste'&&t.preview?.valid)addGuides(group,vector,t.preview.guides);}
+    if(lengthMode()!=='all')drawLengths(group,vector);
+    drawLock(group,vector);
+   }finally{drawPass=false;drawFaceRefs=null;renderInputs=null;renderedDivisionTrim.clear();renderDividerIndex=null;renderDividers=null;renderOpenings=[];supportSnapshot=null;supportIndex=null;renderSegments=null;renderCacheActive=false;solidMeshes.length=kept;}
+  },t.light.surfaces);
+ }
+ // E on a sticker gesture (M on a sticker, or pasting stickers) holds the
+ // sticker's centre at a distance from where it was when E was pressed. Typing
+ // sets the distance; with nothing typed it moves freely. Either way the centre
+ // also snaps to the horizontal, vertical and diagonal lines through that
+ // point, alongside the gesture's own snaps. E again starts from where it is.
+ const LOCK_ANGLES=[0,1,2,3,4,5,6,7].map(k=>k*Math.PI/4),LOCK_PIXELS=12;
+ function stickerLockable(){const t=tool;return t?.kind==='feature'&&!workingPlane&&!!t.preview||t?.kind==='extrude'&&!!t.moveMode&&!!t.moveReference&&!!t.face?.feature||t?.kind==='paste'&&!workingPlane&&t.editMode==='m'&&!!t.clip?.faces?.length&&t.clip.faces.every(f=>f.feature)&&!!t.preview?.faces?.length;}
+ function boxCenter(points){const frame=F.frame(points),local=points.map(p=>W.inFrame(frame,p)),xs=local.map(p=>p.x),ys=local.map(p=>p.y);return W.fromFrame(frame,{x:(Math.min(...xs)+Math.max(...xs))/2,y:(Math.min(...ys)+Math.max(...ys))/2,z:0});}
+ function startLock(){const t=tool;if(t.kind==='extrude'&&t.moveMode!==3){t.moveMode=3;moveModeStatus();}t.numeric=null;
+  const anchor=t.eLock?.center||boxCenter(t.kind==='extrude'?(t.previewCap||t.face).points:t.kind==='feature'?t.preview.points:t.preview.faces.flatMap(f=>f.points));t.inputFocus='lock';
+  t.eLock={anchor:{x:anchor.x,y:anchor.y,z:anchor.z},distance:null,dir:null,center:{x:anchor.x,y:anchor.y,z:anchor.z},token:{}};
+  host.message('Distance from here: type a distance · Backspace clears it · Escape leaves');replayPointer(runPointer);host.redraw();}
+ // Centre (frame coordinates) for the pointer's centre and the gesture's snapped centre.
+ function lockCenter(lock,frame,cursor,snapped){
+  const A=W.inFrame(frame,lock.anchor),at=p=>host.screen(W.fromFrame(frame,{x:p.x,y:p.y,z:0}),'3d'),px=(a,b)=>{const p=at(a),q=at(b);return Math.hypot(p.x-q.x,p.y-q.y);},snap=!(typeof isFreeMove!=='undefined'&&isFreeMove);
+  if(lock.distance!=null){
+   const v={x:cursor.x-A.x,y:cursor.y-A.y},l=Math.hypot(v.x,v.y);if(l>1e-9)lock.dir={x:v.x/l,y:v.y/l};
+   const dir=lock.dir||{x:1,y:0},d=lock.distance,free={x:A.x+d*dir.x,y:A.y+d*dir.y};if(!snap)return free;
+   // On the circle: the eight directions, and where the gesture's own snaps (an aligned edge or centre) cross it.
+   const candidates=LOCK_ANGLES.map(a=>({x:A.x+d*Math.cos(a),y:A.y+d*Math.sin(a)}));
+   for(const axis of ['x','y']){if(Math.abs(snapped[axis]-cursor[axis])<1e-9)continue;const other=axis==='x'?'y':'x',off=snapped[axis]-A[axis],r2=d*d-off*off;if(r2<0)continue;for(const sign of [1,-1])candidates.push({[axis]:snapped[axis],[other]:A[other]+sign*Math.sqrt(r2)});}
+   let best=free,bestPx=LOCK_PIXELS;for(const c of candidates){const p=px(c,free);if(p<bestPx){bestPx=p;best=c;}}return best;
+  }
+  if(!snap)return snapped;let best=snapped,bestPx=LOCK_PIXELS;
+  for(const a of LOCK_ANGLES.slice(0,4)){const u={x:Math.cos(a),y:Math.sin(a)},t=(snapped.x-A.x)*u.x+(snapped.y-A.y)*u.y,q={x:A.x+u.x*t,y:A.y+u.y*t},p=px(q,snapped);if(p<bestPx){bestPx=p;best=q;}}return best;
+ }
+ // Paste: move the placed stickers so their centre obeys the lock; still inside the face.
+ function lockPaste(t,ref,placed,pointer=null){
+  const lock=t.eLock;if(!lock)return placed.move;const frame=placed.frame,K=window.ExteriorGeometry;
+  const centre=fs=>{const ps=fs.flatMap(f=>f.points).map(p=>W.inFrame(frame,p)),xs=ps.map(p=>p.x),ys=ps.map(p=>p.y);return {x:(Math.min(...xs)+Math.max(...xs))/2,y:(Math.min(...ys)+Math.max(...ys))/2};};
+  const snapped=centre(placed.faces),c=lockCenter(lock,frame,pointer?W.inFrame(frame,pointer):centre(t.preview.faces),snapped),s={x:c.x-snapped.x,y:c.y-snapped.y},delta={x:frame.u.x*s.x+frame.v.x*s.y,y:frame.u.y*s.x+frame.v.y*s.y,z:frame.u.z*s.x+frame.v.z*s.y},shift=p=>({...p,x:p.x+delta.x,y:p.y+delta.y,z:p.z+delta.z}),first=placed.move;
+  placed.faces=placed.faces.map(f=>({...f,...K.mapCurveData(f,shift),points:f.points.map(shift),holes:(f.holes||[]).map(r=>r.map(shift)),retainedPoints:(f.retainedPoints||[]).map(shift)}));
+  const boundary=[ref.points.map(p=>W.inFrame(frame,p))],holes=(ref.f?.holes||ref.solid?.holes||[]).map(r=>r.map(p=>W.inFrame(frame,ref.d?world(ref.d,p):p)));
+  for(const f of placed.faces)F.validate(f.points.map(p=>W.inFrame(frame,p)),boundary,holes.map(points=>({points})));
+  lock.center=W.fromFrame(frame,{x:c.x,y:c.y,z:0});return p=>shift(first(p));
+ }
+ function lockInput(t){const lock=t.eLock,a=lock.anchor,b=lock.center||a;return {token:lock.token,label:'From point',allowZero:true,amount:lock.distance??Math.hypot(b.x-a.x,b.y-a.y,b.z-a.z),set(value){flushPreview();if(tool!==t||t.eLock!==lock)return;lock.distance=value==null?null:Math.abs(value);replayPointer(runPointer);}};}
+ function drawLock(group,vector){const lock=tool?.eLock;if(!lock?.center)return;const a=lock.anchor,b=lock.center,length=Math.hypot(b.x-a.x,b.y-a.y,b.z-a.z);previewLine(group,vector,a,b,'#FFD700');previewPoint(group,vector,a,'#FFD700',9);if(length>1e-6)window.wallLengthMarker?.(group,vector,{a,b,length,selected:lock.distance!=null});}
+ // A sticker paste never changes the model while the pointer moves, so its
+ // preview is overlay work too (the wall copy when it has one, else the outline).
+ function pasteInOverlay(){const t=tool;return t?.kind==='paste'&&!workingPlane&&host.drawsOverlay&&overlayGestures()&&!!t.clip?.faces?.length&&t.clip.faces.every(f=>f.feature);}
+ function drawOverlay(group,vector){
+  if(gestureDraftKey())return drawGestureOverlay(group,vector);
+  const paste=pasteInOverlay();if(paste&&!tool.preview)return;
+  if(!paste&&(tool?.kind!=='feature'||!tool.preview))return;
+  const key=modelKey();if(!sameKey(overlayDividers?.key,key)){const seams=F.divisionSegments(divisionScene());overlayDividers={key,seams,index:indexDividers(seams)};}
+  const prior=[renderDividers,renderDividerIndex];[renderDividers,renderDividerIndex]=[overlayDividers.seams,overlayDividers.index];
+  try{if(paste){drawPastePreview(group,vector);if(tool.preview.valid&&!(typeof isFreeMove!=='undefined'&&isFreeMove))addGuides(group,vector,tool.preview.guides);drawLock(group,vector);}else{drawFeatureOverlay(group,vector);drawLock(group,vector);}}finally{[renderDividers,renderDividerIndex]=prior;}
+ }
+ // Guide targets are the scene's points. A full draw rebuilds them; an overlay
+ // reuses them while the model is the one they were built from.
+ function featureGuidePoints(t){
+  const key=modelKey();if(!renderCacheActive&&sameKey(t.guidePoints?.key,key))return t.guidePoints.points;
+  const points=withSelectionGeometry(()=>sceneLines().points);t.guidePoints={key,points};return points;
+ }
+ function drawPastePreview(group,vector){const p=tool.preview,color=tool.valid?'#8ce9ff':'#ff7575';for(const curve of p.curves||[]){const samples=window.ExteriorGeometry.curveSamples(curve);for(let i=1;i<samples.length;i++)previewLine(group,vector,samples[i-1],samples[i],color,false);}for(const pair of p.edges)if(!p.faces.some(f=>f.feature&&pair.every(p=>f.points.some(q=>distance3(p,q)<1e-7))))previewLine(group,vector,...pair,color,false);for(const f of p.faces){if(f.feature){drawStickerPreview(group,vector,f.points,f.feature,tool.valid);continue;}const frame=W.faceFrame(f),local=q=>{const p=W.inFrame(frame,q);return new THREE.Vector2(p.x,p.y);},geo=new THREE.BufferGeometry().setFromPoints([f.points,...f.holes].flat().map(vector));geo.setIndex(window.ExteriorGeometry.triangles(f.points.map(local),f.holes.map(r=>r.map(local))).triangles.flat());group.add(new THREE.Mesh(geo,new THREE.MeshBasicMaterial({color,side:THREE.DoubleSide,transparent:true,opacity:.35,depthWrite:false})));}if(!p.faces.length||!p.faces.every(f=>f.feature))group.add(new THREE.Points(new THREE.BufferGeometry().setFromPoints(p.points.map(vector)),new THREE.PointsMaterial({color,size:9,sizeAttenuation:false,depthTest:false})));}
  function drawSolids(group,vector){
-  F?.refreshUI?.();if(tool?.kind==='geometryTransform'&&tool.preview){const c=geometryCenter(tool.preview),frame=tool.clip.mounts[tool.mount].frame;for(const [axis,color]of [[frame.u,'#ffba65'],[frame.v,'#8ce9ff']])previewLine(group,vector,{x:c.x-axis.x,y:c.y-axis.y,z:c.z-axis.z},{x:c.x+axis.x,y:c.y+axis.y,z:c.z+axis.z},color,false);group.add(new THREE.Points(new THREE.BufferGeometry().setFromPoints(tool.preview.points.filter(p=>!p.curveSample).map(vector)),new THREE.PointsMaterial({color:'#8ce9ff',size:9,sizeAttenuation:false,depthTest:false})));}if(tool?.kind==='paste'&&tool.preview){const p=tool.preview,color=tool.valid?'#8ce9ff':'#ff7575';for(const curve of p.curves||[]){const samples=window.ExteriorGeometry.curveSamples(curve);for(let i=1;i<samples.length;i++)previewLine(group,vector,samples[i-1],samples[i],color,false);}for(const pair of p.edges)if(!p.faces.some(f=>f.feature&&pair.every(p=>f.points.some(q=>distance3(p,q)<1e-7))))previewLine(group,vector,...pair,color,false);for(const f of p.faces){if(f.feature){drawStickerPreview(group,vector,f.points,f.feature,tool.valid);continue;}const frame=W.faceFrame(f),local=q=>{const p=W.inFrame(frame,q);return new THREE.Vector2(p.x,p.y);},geo=new THREE.BufferGeometry().setFromPoints([f.points,...f.holes].flat().map(vector));geo.setIndex(window.ExteriorGeometry.triangles(f.points.map(local),f.holes.map(r=>r.map(local))).triangles.flat());group.add(new THREE.Mesh(geo,new THREE.MeshBasicMaterial({color,side:THREE.DoubleSide,transparent:true,opacity:.35,depthWrite:false})));}if(!p.faces.length||!p.faces.every(f=>f.feature))group.add(new THREE.Points(new THREE.BufferGeometry().setFromPoints(p.points.map(vector)),new THREE.PointsMaterial({color,size:9,sizeAttenuation:false,depthTest:false})));}drawMoveIndicator(group,vector);drawEntity(group,vector);if(tool?.kind==='axisCut')for(const pair of tool.lines||[])previewLine({add(o){o.renderOrder=1002;group.add(o);}},vector,...pair,'#FFD700');
+  F?.refreshUI?.();if(tool?.kind==='geometryTransform'&&tool.preview){const c=geometryCenter(tool.preview),frame=tool.clip.mounts[tool.mount].frame;for(const [axis,color]of [[frame.u,'#ffba65'],[frame.v,'#8ce9ff']])previewLine(group,vector,{x:c.x-axis.x,y:c.y-axis.y,z:c.z-axis.z},{x:c.x+axis.x,y:c.y+axis.y,z:c.z+axis.z},color,false);group.add(new THREE.Points(new THREE.BufferGeometry().setFromPoints(tool.preview.points.filter(p=>!p.curveSample).map(vector)),new THREE.PointsMaterial({color:'#8ce9ff',size:9,sizeAttenuation:false,depthTest:false})));}if(tool?.kind==='paste'&&tool.preview&&!pasteInOverlay())drawPastePreview(group,vector);if(tool?.eLock&&!gestureDraftKey()&&!pasteInOverlay()&&!(tool.kind==='feature'&&host.drawsOverlay))drawLock(group,vector);if(!gestureDraftKey())drawMoveIndicator(group,vector);drawEntity(group,vector);if(tool?.kind==='axisCut')for(const pair of tool.lines||[])previewLine({add(o){o.renderOrder=1002;group.add(o);}},vector,...pair,'#FFD700');
   if(tool?.kind==='step'&&tool.preview){const t=tool,points=t.preview.points;for(let i=1;i<points.length;i++)previewLine(group,vector,points[i-1],points[i],t.valid?'#FFD700':'#ff6666');const g=new THREE.BufferGeometry().setFromPoints(t.pair.map(vector)),guide=new THREE.Line(g,new THREE.LineDashedMaterial({color:'#FFD700',dashSize:.12,gapSize:.08,depthTest:false,transparent:true,opacity:.6}));guide.computeLineDistances();group.add(guide);const dot=new THREE.BufferGeometry().setFromPoints([vector(t.preview.anchor)]);group.add(new THREE.Points(dot,new THREE.PointsMaterial({color:'#fff',size:11,sizeAttenuation:false,depthTest:false})));}
 
-  if(tool?.kind==='feature'&&tool.preview)drawStickerPreview(group,vector,tool.preview.points,F.setTrim({type:tool.type,axis:tool.preview.axis},tool.trimInches||0,host.state()?.finishDefaults?.trimColor||'#f5f3ef'));
+  // Wall mode draws the placement hover as its own overlay (drawOverlay).
+  if(!host.drawsOverlay)drawFeatureOverlay(group,vector);
 
   if(tool&&!(typeof isFreeMove!=='undefined'&&isFreeMove)){
-   const t=tool;let guides=t.kind==='paste'&&t.preview?.valid?t.preview.guides:[];
-   if(t.kind==='geometryTransform'&&!t.invalid&&t.preview)guides=W.planeAlignmentGuides(t.preview.points,[...(t.snapTargets?.points||[]),...(t.stickerMove?W.stickerAlignmentTargets(t.scene,t.preview.mounts[t.mount].frame,t.original.points):[])],t.preview.mounts[t.mount].frame);
-   if(t.kind==='extrude'&&t.moveMode&&!t.invalid&&t.previewCap){const targets=[...t.snapGeometry.points.filter(q=>!t.face.points.some((p,i)=>onSegment(q,p,t.face.points[(i+1)%t.face.points.length]))),...(t.face.feature?W.stickerAlignmentTargets(t.scene||[],t.moveFrame,t.face.points):[])];guides=W.planeAlignmentGuides(t.previewCap.points,targets,t.moveFrame);}
-   if(t.kind==='feature'&&t.preview)guides=W.planeAlignmentGuides(t.preview.points,[...sceneLines().points,...(t.alignmentTargets||[])],F.frame(t.preview.points));
-   for(const guide of guides||[]){const line=new THREE.Line(new THREE.BufferGeometry().setFromPoints([guide.from,guide.target].map(vector)),new THREE.LineBasicMaterial({color:'#FFD700',depthTest:false}));line.renderOrder=1003;line.userData.alignmentGuide=true;group.add(line);}
+   const t=tool;let guides=t.kind==='paste'&&t.preview?.valid&&!pasteInOverlay()?t.preview.guides:[];
+   if(t.kind==='geometryTransform'&&!t.invalid&&t.preview)guides=W.planeAlignmentGuides(t.preview.points,[...(t.snapTargets?.points||[]),...(t.stickerMove?[...W.stickerAlignmentTargets(t.scene,t.preview.mounts[t.mount].frame,t.original.points),...stickerFaceCenter(t.original.points,t.preview.mounts[t.mount].frame,t.scene)]:[])],t.preview.mounts[t.mount].frame);
+   if(t.kind==='extrude'&&t.moveMode&&!t.invalid&&t.previewCap&&!gestureDraftKey()){const targets=faceSlideTargets(t);guides=W.planeAlignmentGuides(t.previewCap.points,targets,t.moveFrame);}
+   addGuides(group,vector,guides);
   }
   if(tool?.pathSnap){const s=tool.pathSnap;previewLine(group,vector,...(s.edge||[s.from,s.target]),'#FFD700',false);const g=new THREE.BufferGeometry().setFromPoints([vector(s.target)]);group.add(new THREE.Points(g,new THREE.PointsMaterial({color:'#FFD700',size:11,sizeAttenuation:false,depthTest:false})));}
 
@@ -2451,7 +3093,7 @@ function perf_movePointer(e){if(workingPlane&&!tool&&!box){mouse=e;if(workingPla
   if(tool?.belowBase)for(const cut of tool.belowBase.cuts){const geo=new THREE.BufferGeometry().setFromPoints([...cut.points,cut.points[0]].map(vector)),line=new THREE.Line(geo,new THREE.LineDashedMaterial({color:'#fff',dashSize:.15,gapSize:.08,depthTest:false}));line.computeLineDistances();group.add(line);}
 
   for(const source of solids()){
-   if(!faceVisible(source))continue;
+   if(!faceVisible(source)||gestureDraftKey()&&tool.light.solid===source.id)continue;
    const parts=drawMemoized('solid-parts',source,()=>(chimneyParts(source)||[source]).flatMap(part=>window.ExteriorModel.cutOpenings(part,renderOpenings)).flatMap(part=>window.WallClosedSoffits?.presentation(part,host.state())||[part]),renderInputs);
    parts.forEach((f,index)=>{
     const draw=target=>{const before=solidMeshes.length;drawSolidPart(target,vector,source,f);return solidMeshes.splice(before);};
@@ -2515,6 +3157,7 @@ function perf_movePointer(e){if(workingPlane&&!tool&&!box){mouse=e;if(workingPla
   if(points.length)group.add(new THREE.Points(new THREE.BufferGeometry().setFromPoints(points.map(vector)),new THREE.PointsMaterial({color:'#ffffff',size:7,sizeAttenuation:false,depthTest:false,depthWrite:false})));
   for(const pair of pairs)window.wallSelectedLine?.(group,vector,pair);
  }
- return {actionContext,selectedLineLength,drawNudgePreview,openingTrimItems,selectOpeningTrim,applyOpeningTrim,featurePlacement:()=>tool?.kind==='feature'?{type:tool.type,index:tool.index,trimInches:tool.trimInches||0,session:tool.session}:null,resoffit,resoffitHit,soffitEdges,setResoffitMode(value){resoffitMode=!!value;host.redraw();},selectionSnapshot:()=>copy({preferredDraft,preferredSolid,preferredRegion,activeDraftKey,draftSelection,picked,pickedLines,selectedSolid,selectedRegion,solidPoints,solidEdges,selectedBasePoints,lineSelection,faceSelection,workingPlane:workingPlane&&{frame:workingPlane.frame,material:workingPlane.material,finishColor:workingPlane.finishColor,selection:workingPlane.selection,selectedLines:workingPlane.selectedLines,selectedFaces:workingPlane.selectedFaces,tolerance:workingPlane.tolerance,display:workingPlane.display,seed:workingPlane.seed}}),restoreSelection(value){const s=copy(value||{});preferredDraft=s.preferredDraft||null;preferredSolid=s.preferredSolid||null;preferredRegion=s.preferredRegion||null;activeDraftKey=s.activeDraftKey||null;draftSelection=s.draftSelection||{};picked=s.picked||[];pickedLines=s.pickedLines||[];selectedSolid=s.selectedSolid||null;selectedRegion=s.selectedRegion||null;solidPoints=s.solidPoints||[];solidEdges=s.solidEdges||[];selectedBasePoints=s.selectedBasePoints||[];lineSelection=s.lineSelection||[];faceSelection=s.faceSelection||[];workingPlane=s.workingPlane?{...s.workingPlane,drawing:false,hover:null}:null;},togglePlane,planeView:()=>workingPlane&&({frame:workingPlane.frame,display:workingPlane.display,rotating:!!workingPlane.rotation}),setPlaneDisplay(value){if(workingPlane&&['normal','faint','hidden'].includes(value)){workingPlane.display=value;host.redraw();}},planeActive:()=>!!workingPlane,planeDown,pointSelection:()=>(workingPlane?workingPlane.selection:selectedWorldPoints()).map(p=>({...p})),createSelectedFace,extrudeFace,geometryCommand,clipboardCommand,mergeAll,autoTrim,trimMaterials,removeTrim:()=>{const pairs=selectedTrimPairs();return removeSelectedTrim(pairs.length?pairs:null);},selectTrimEdges,applyTrim,pickVisiblePoint,finishToolForSwitch,chamferCommand,trimCommand,materialCommand,colorCommand,activeMaterial:()=>tool?.kind==='material'?tool.type:selectedFinishFace()?.material||null,finishAxisCut,interaction:()=>workingPlane?workingPlane.rotation?'Rotate drawing plane':'Drawing plane':tool?({divide:'Divide window / door',multiExtrude:'Extrude selected faces',geometryTransform:'Transform geometry',paste:'Paste geometry',extrude:tool.mode==='move'?'Move face':'Extrude face',entityExtrude:tool.mode==='move'?'Move point / line':'Extrude point / line',chamfer:tool.rounded?'Fillet':'Chamfer',material:'Paint material',axisCut:'H/V cut',lineMove:tool.extrude?'Extrude lines':'Move line',step:'Auto-step',arch:'Arch line',curve:'Draw curve',draw:'Draw line',quad:'Draw rectangle',feature:'Place feature'}[tool.kind]||tool.kind):box?.moved?'Rectangle selection':null,cancelPointerGesture(){marqueeCompleted=false;box=null;boxEl?.remove?.();boxEl=null;},drawEntity,beginEntity,distanceInput,drawBaseSelection,hasBaseSelection:()=>selectedBasePoints.length>0||!!tool?.external,consumeSelectionClick:()=>marqueeCompleted,startBox(e,click){if(tool||box)return false;beginBox(e,current());box.deferredPick=true;box.click=click;return true;},finishPointer:endBox,cutFromPoint,cutFromPoints,pickPoint:e=>pickSolid(e,true),pickLine3D,stepWheel,stepCommand,featureCommand,featureSelection,featureContext(e){if(tool?.kind==='feature'){featureCommand(tool.type);return 'cycle';}return featureSelection()?'face':false;},mergeWallContained,draw2D(rot,svg,inv){drawArch2D(rot,svg,inv);renderDividers=F.divisionSegments(divisionScene());renderDividerIndex=indexDividers(renderDividers);F?.refreshUI?.();if(tool?.kind==='curve'){const d=current(),t=tool,ps=t.samples||[t.start,t.pointer||t.start];for(const g of t.guides||[])svg('polyline',{points:g.points.map(p=>{const q=host.toPixel(world(d,p));return q.x+','+q.y;}).join(' '),fill:'none',stroke:g.color,'stroke-width':inv,'stroke-dasharray':(5*inv)+' '+(4*inv),'data-curve-guide':g.role,'pointer-events':'none'},rot);svg('polyline',{points:ps.map(p=>{const q=host.toPixel(world(d,p));return q.x+','+q.y;}).join(' '),fill:'none',stroke:t.valid===false?'#ff6666':'#FFD700','stroke-width':2*inv,'pointer-events':'none'},rot);const marker=host.toPixel(world(d,t.center||t.pointer||t.start));svg('circle',{cx:marker.x,cy:marker.y,r:8*inv,fill:'none',stroke:'#72ffb0','stroke-width':1.5*inv,'pointer-events':'none'},rot);if(t.center){const a=host.toPixel(world(d,t.start)),b=host.toPixel(world(d,t.center));svg('line',{x1:a.x,y1:a.y,x2:b.x,y2:b.y,stroke:'#72ffb0','stroke-dasharray':'5 5','stroke-width':inv},rot);}}renderWalls=host.walls();renderSegments=new Map();try{beginRenderCache();drawPass=true;drawFaceRefs=null;supportSnapshot=renderDerived('support',()=>structuralFaces());supportIndex=renderDerived('support-index',()=>W.structuralIndex(supportSnapshot));drawLineCenters2D(rot,svg,inv);for(const d of Object.values(all())){const isCurrent=current()===d,ids=draftSelection[draftKey(d)]||(isCurrent?picked:[]);for(const edge of draftSegments(d)){const start=world(d,edge.start),end=world(d,edge.end),a=host.toPixel(start),b=host.toPixel(end);svg('line',{x1:a.x,y1:a.y,x2:b.x,y2:b.y,stroke:isCurrent&&pickedLines.includes(edge.id)?'#fff':drawnDraftEdgeStructural(d,edge)?'#e7ad52':'#6ce4ed','stroke-dasharray':isDivisionPair(start,end)?(5*inv)+' '+(4*inv):undefined,'stroke-width':2*inv,'pointer-events':'none'},rot);}for(const n of drawnDraftNodes(d,ids)){const p=host.toPixel(world(d,n)),structural=drawnDraftPointStructural(d,n),chosen=ids.includes(n.id);svg('circle',{'data-wall-point-key':drawnDraftPointKey(d,n),'data-wall-point-color':structural?'#e7ad52':'#6ce4ed','data-wall-point-radius':4*inv,cx:p.x,cy:p.y,r:(chosen?6:4)*inv,fill:chosen?'#fff':structural?'#e7ad52':'#6ce4ed','pointer-events':'none'},rot);}}const graph=wire(),view=wireView(graph),byId=view.byId;for(const e of graph.edges){const from=byId(e.a),to=byId(e.b),a=host.toPixel(from),b=host.toPixel(to);svg('line',{x1:a.x,y1:a.y,x2:b.x,y2:b.y,stroke:solidEdges.includes(e.id)?'#fff':wireEdgeStructural(e,byId)?'#e7ad52':'#6ce4ed','stroke-dasharray':isDivisionPair(from,to)?(5*inv)+' '+(4*inv):undefined,'stroke-width':2*inv,'pointer-events':'none'},rot);}for(const n of view.points){const p=host.toPixel(n),structural=wirePointStructural(n),chosen=solidPoints.includes(n.id);svg('circle',{'data-wall-point-key':wirePointKey(n),'data-wall-point-color':structural?'#e7ad52':'#6ce4ed','data-wall-point-radius':4*inv,cx:p.x,cy:p.y,r:(chosen?6:4)*inv,fill:chosen?'#fff':structural?'#e7ad52':'#6ce4ed','pointer-events':'none'},rot);}}finally{drawPass=false;drawFaceRefs=null;renderDividerIndex=null;renderDividers=null;supportSnapshot=null;supportIndex=null;renderWalls=null;renderSegments=null;renderCacheActive=false;}},holdBoundary,repairStoredDrafts,beginFace,pickSolid,reflow,doubleClick,down,key,draw3D(group,vector){selectionMarkers=window.wallSelectablePoints&&THREE.Color?[]:null;renderedDivisionTrim=new Set();const features=divisionScene();renderDividers=F.divisionSegments(features);renderDividerIndex=indexDividers(renderDividers);renderOpenings=window.ExteriorModel.indexOpenings(features);renderInputs=window.EXTERIOR_DISABLE_RENDER_CACHE===true||window.EXTERIOR_DISABLE_DRAW_MEMO===true?null:JSON.stringify([features,window.WallClosedSoffits?.active?.(host.state())??null]);drawBaseSelection(group,vector);renderWalls=host.walls();renderSegments=new Map();const output=window.wallGeometryBatch?.(group)||group;try{beginRenderCache();drawPass=true;drawFaceRefs=null;supportSnapshot=renderDerived('support',()=>structuralFaces());supportIndex=renderDerived('support-index',()=>W.structuralIndex(supportSnapshot));drawLineCenters3D(group,vector);draw3D(output,vector);drawSolids(output,vector);drawLengths(output,vector);drawDivision(output,vector);drawChamfer(output,vector);drawArch3D(output,vector);for(const c of renderDerived('soffit-edges',()=>soffitEdges())){const mid=c.pair.reduce((p,q)=>({x:p.x+q.x/2,y:p.y+q.y/2,z:p.z+q.z/2}),{x:0,y:0,z:0}),at=host.screen(mid,'3d');if(at&&(!host.pickSoffitVisible||host.pickSoffitVisible(c.pair,{clientX:at.x,clientY:at.y}))&&!lineSelection.some(l=>W.sharedIntervals(...c.pair,[{points:l.pair}]).length))window.wallSoffitLine(group,vector,c.pair);}if(tool?.kind==='curve'){const t=tool,d=current(),ps=t.samples||[t.start,t.pointer||t.start];window.wallCurveGuides?.(output,vector,(t.guides||[]).map(g=>({...g,points:g.points.map(p=>world(d,p))})));for(let i=1;i<ps.length;i++)previewLine(output,vector,world(d,ps[i-1]),world(d,ps[i]),t.valid===false?'#ff6666':'#FFD700');if(t.center)previewLine(output,vector,world(d,t.start),world(d,t.center),'#72ffb0');window.wallCurveCenterMarker?.(output,vector,world(d,t.center||t.pointer||t.start));}for(const selection of lineSelection)for(const pair of selection.pairs||[selection.pair]){const line={...selection,pair};if(window.wallSelectedLine&&!isDivisionPair(...line.pair))window.wallSelectedLine(output,vector,line.pair);else previewLine(output,vector,...line.pair,'#fff',false);}output.flush?.();if(selectionMarkers)window.wallSelectablePoints(group,vector,selectionMarkers);}finally{drawPass=false;drawFaceRefs=null;renderInputs=null;selectionMarkers=null;output.disposePending?.();renderedDivisionTrim.clear();renderDividerIndex=null;renderDividers=null;renderOpenings=[];supportSnapshot=null;supportIndex=null;renderWalls=null;renderSegments=null;renderCacheActive=false;}},discardEmpty:id=>{for(const [key,d]of Object.entries(all()))if(d.members.includes(id)&&!d.faces.some(f=>f.material||f.finishColor)&&!(d.deletedFaces||[]).length&&!d.sketch.edges.some(e=>!e.fixed)&&d.sketch.nodes.length===d.sketch.outlines.flat().length)delete all()[key];},modified:id=>Object.values(all()).some(d=>d.members.includes(id)&&(d.sketch.edges.some(e=>!e.fixed)||d.sketch.nodes.length>d.sketch.outlines.flat().length)),has:id=>Object.values(all()).some(d=>d.members.includes(id)&&(d.faces.length||d.sketch.nodes.length||d.deletedFaces?.length)),canBox:()=>walls().length>0||solids().length>0||Object.values(all()).some(visibleDraft),busy:()=>!!tool||!!box||!!workingPlane?.rotation,clear(){resoffitMode=false;pendingPreview=null;if(previewFrame===true)window.ExteriorFramePipeline?.cancel('wall-preview');else if(previewFrame!==null)cancelAnimationFrame(previewFrame);previewFrame=null;workingPlane=null;faceSelection=[];preferredDraft=null;preferredSolid=null;preferredRegion=null;solidMeshes=[];quadFinish=null;selectedBasePoints=[];lineSelection=[];clearGuides();box=null;boxEl?.remove?.();boxEl=null;if(tool?.before)host.state().wallEdits=tool.before;tool=null;const stepButton=typeof document!=='undefined'&&document.getElementById('wall-step');if(stepButton)stepButton.textContent='Auto-step (S)';activeDraftKey=null;draftSelection={};picked=[];pickedLines=[];solidPoints=[];solidEdges=[];selectedSolid=null;selectedRegion=null;}};
+ return {leaveLock,actionContext,trimInput,selectedLineLength,drawNudgePreview,drawOverlay,openingTrimItems,selectOpeningTrim,applyOpeningTrim,featurePlacement:()=>tool?.kind==='feature'?{type:tool.type,index:tool.index,trimInches:tool.trimInches||0,session:tool.session}:null,resoffit,resoffitHit,soffitEdges,setResoffitMode(value){if(value||lineSelect?.kind==='resoffit')setLineSelectMode(value?'resoffit':null);else host.redraw();},setLineSelectMode,lineSelectMode:()=>lineSelect?.kind||null,selectionSnapshot:()=>copy({preferredDraft,preferredSolid,preferredRegion,activeDraftKey,draftSelection,picked,pickedLines,selectedSolid,selectedRegion,solidPoints,solidEdges,selectedBasePoints,lineSelection,faceSelection,workingPlane:workingPlane&&{frame:workingPlane.frame,material:workingPlane.material,finishColor:workingPlane.finishColor,selection:workingPlane.selection,selectedLines:workingPlane.selectedLines,selectedFaces:workingPlane.selectedFaces,tolerance:workingPlane.tolerance,display:workingPlane.display,seed:workingPlane.seed}}),restoreSelection(value){const s=copy(value||{});preferredDraft=s.preferredDraft||null;preferredSolid=s.preferredSolid||null;preferredRegion=s.preferredRegion||null;activeDraftKey=s.activeDraftKey||null;draftSelection=s.draftSelection||{};picked=s.picked||[];pickedLines=s.pickedLines||[];selectedSolid=s.selectedSolid||null;selectedRegion=s.selectedRegion||null;solidPoints=s.solidPoints||[];solidEdges=s.solidEdges||[];selectedBasePoints=s.selectedBasePoints||[];lineSelection=s.lineSelection||[];faceSelection=s.faceSelection||[];workingPlane=s.workingPlane?{...s.workingPlane,drawing:false,hover:null}:null;},togglePlane,planeView:()=>workingPlane&&({frame:workingPlane.frame,display:workingPlane.display,rotating:!!workingPlane.rotation}),setPlaneDisplay(value){if(workingPlane&&['normal','faint','hidden'].includes(value)){workingPlane.display=value;host.redraw();}},planeActive:()=>!!workingPlane,planeDown,pointSelection:()=>(workingPlane?workingPlane.selection:selectedWorldPoints()).map(p=>({...p})),createSelectedFace,extrudeFace,geometryCommand,clipboardCommand,mergeAll,autoTrim,trimMaterials,removeTrim:()=>{const pairs=selectedTrimPairs();return removeSelectedTrim(pairs.length?pairs:null);},selectTrimEdges,applyTrim,faceTrimItems,applyFaceTrim,pickVisiblePoint,finishToolForSwitch,chamferCommand,trimCommand,materialCommand,colorCommand,activeMaterial:()=>tool?.kind==='material'?tool.type:selectedFinishFace()?.material||null,finishAxisCut,interaction:()=>workingPlane?workingPlane.rotation?'Rotate drawing plane':'Drawing plane':tool?({divide:'Divide window / door',multiExtrude:'Extrude selected faces',geometryTransform:'Transform geometry',paste:'Paste geometry',extrude:tool.mode==='move'?'Move face':'Extrude face',entityExtrude:tool.mode==='move'?'Move point / line':'Extrude point / line',chamfer:tool.rounded?'Fillet':'Chamfer',material:'Paint material',axisCut:'H/V cut',lineMove:tool.extrude?'Extrude lines':'Move line',step:'Auto-step',arch:'Arch line',curve:'Draw curve',draw:'Draw line',quad:'Draw rectangle',feature:'Place feature'}[tool.kind]||tool.kind):box?.moved?'Rectangle selection':null,cancelPointerGesture(){marqueeCompleted=false;box=null;boxEl?.remove?.();boxEl=null;},drawEntity,beginEntity,distanceInput,drawBaseSelection,hasBaseSelection:()=>selectedBasePoints.length>0||!!tool?.external,consumeSelectionClick:()=>marqueeCompleted,startBox(e,click){if(tool||box)return false;beginBox(e,current());box.deferredPick=true;if(lineSelect&&viewOf(e)==='3d')box.lineSelect=true;box.click=click;return true;},finishPointer:endBox,cutFromPoint,cutFromPoints,pickPoint:e=>pickSolid(e,true),pickLine3D,stepWheel,stepCommand,featureCommand,featureSelection,featureContext(e){if(tool?.kind==='feature'){featureCommand(tool.type);return 'cycle';}return featureSelection()?'face':false;},mergeWallContained,draw2D(rot,svg,inv){drawArch2D(rot,svg,inv);renderDividers=F.divisionSegments(divisionScene());renderDividerIndex=indexDividers(renderDividers);F?.refreshUI?.();if(tool?.kind==='curve'){const d=current(),t=tool,ps=t.samples||[t.start,t.pointer||t.start];for(const g of t.guides||[])svg('polyline',{points:g.points.map(p=>{const q=host.toPixel(world(d,p));return q.x+','+q.y;}).join(' '),fill:'none',stroke:g.color,'stroke-width':inv,'stroke-dasharray':(5*inv)+' '+(4*inv),'data-curve-guide':g.role,'pointer-events':'none'},rot);svg('polyline',{points:ps.map(p=>{const q=host.toPixel(world(d,p));return q.x+','+q.y;}).join(' '),fill:'none',stroke:t.valid===false?'#ff6666':'#FFD700','stroke-width':2*inv,'pointer-events':'none'},rot);const marker=host.toPixel(world(d,t.center||t.pointer||t.start));svg('circle',{cx:marker.x,cy:marker.y,r:8*inv,fill:'none',stroke:'#72ffb0','stroke-width':1.5*inv,'pointer-events':'none'},rot);if(t.center){const a=host.toPixel(world(d,t.start)),b=host.toPixel(world(d,t.center));svg('line',{x1:a.x,y1:a.y,x2:b.x,y2:b.y,stroke:'#72ffb0','stroke-dasharray':'5 5','stroke-width':inv},rot);}}renderWalls=host.walls();renderSegments=new Map();try{beginRenderCache();drawPass=true;drawFaceRefs=null;supportSnapshot=renderDerived('support',()=>structuralFaces());supportIndex=renderDerived('support-index',()=>W.structuralIndex(supportSnapshot));drawLineCenters2D(rot,svg,inv);for(const d of Object.values(all())){const isCurrent=current()===d,ids=draftSelection[draftKey(d)]||(isCurrent?picked:[]);for(const edge of draftSegments(d)){const start=world(d,edge.start),end=world(d,edge.end),a=host.toPixel(start),b=host.toPixel(end);svg('line',{x1:a.x,y1:a.y,x2:b.x,y2:b.y,stroke:isCurrent&&pickedLines.includes(edge.id)?'#fff':drawnDraftEdgeStructural(d,edge)?'#e7ad52':'#6ce4ed','stroke-dasharray':isDivisionPair(start,end)?(5*inv)+' '+(4*inv):undefined,'stroke-width':2*inv,'pointer-events':'none'},rot);}for(const n of drawnDraftNodes(d,ids)){const p=host.toPixel(world(d,n)),structural=drawnDraftPointStructural(d,n),chosen=ids.includes(n.id);svg('circle',{'data-wall-point-key':drawnDraftPointKey(d,n),'data-wall-point-color':structural?'#e7ad52':'#6ce4ed','data-wall-point-radius':4*inv,cx:p.x,cy:p.y,r:(chosen?6:4)*inv,fill:chosen?'#fff':structural?'#e7ad52':'#6ce4ed','pointer-events':'none'},rot);}}const graph=wire(),view=wireView(graph),byId=view.byId;for(const e of graph.edges){const from=byId(e.a),to=byId(e.b),a=host.toPixel(from),b=host.toPixel(to);svg('line',{x1:a.x,y1:a.y,x2:b.x,y2:b.y,stroke:solidEdges.includes(e.id)?'#fff':wireEdgeStructural(e,byId)?'#e7ad52':'#6ce4ed','stroke-dasharray':isDivisionPair(from,to)?(5*inv)+' '+(4*inv):undefined,'stroke-width':2*inv,'pointer-events':'none'},rot);}for(const n of view.points){const p=host.toPixel(n),structural=wirePointStructural(n),chosen=solidPoints.includes(n.id);svg('circle',{'data-wall-point-key':wirePointKey(n),'data-wall-point-color':structural?'#e7ad52':'#6ce4ed','data-wall-point-radius':4*inv,cx:p.x,cy:p.y,r:(chosen?6:4)*inv,fill:chosen?'#fff':structural?'#e7ad52':'#6ce4ed','pointer-events':'none'},rot);}}finally{drawPass=false;drawFaceRefs=null;renderDividerIndex=null;renderDividers=null;supportSnapshot=null;supportIndex=null;renderWalls=null;renderSegments=null;renderCacheActive=false;}},holdBoundary,repairStoredDrafts,beginFace,pickSolid,reflow,doubleClick,down,key,draw3D(group,vector){selectionMarkers=window.wallSelectablePoints&&THREE.Color?[]:null;renderedDivisionTrim=new Set();const features=divisionScene();renderDividers=F.divisionSegments(features);renderDividerIndex=indexDividers(renderDividers);renderOpenings=window.ExteriorModel.indexOpenings(features);renderInputs=window.EXTERIOR_DISABLE_RENDER_CACHE===true||window.EXTERIOR_DISABLE_DRAW_MEMO===true?null:JSON.stringify([features,window.WallClosedSoffits?.active?.(host.state())??null]);drawBaseSelection(group,vector);renderWalls=host.walls();renderSegments=new Map();const output=window.wallGeometryBatch?.(group)||group;try{beginRenderCache();drawPass=true;drawFaceRefs=null;supportSnapshot=renderDerived('support',()=>structuralFaces());supportIndex=renderDerived('support-index',()=>W.structuralIndex(supportSnapshot));drawLineCenters3D(group,vector);draw3D(output,vector);drawSolids(output,vector);if(!gestureDraftKey()||lengthMode()==='all')drawLengths(output,vector);drawDivision(output,vector);drawChamfer(output,vector);drawArch3D(output,vector);for(const c of renderDerived('soffit-edges',()=>soffitEdges())){const mid=c.pair.reduce((p,q)=>({x:p.x+q.x/2,y:p.y+q.y/2,z:p.z+q.z/2}),{x:0,y:0,z:0}),at=host.screen(mid,'3d');// Resoffit dims the scene, so every contact line shows; elsewhere a hidden one would show through the walls.
+if((lineSelect?.throughFaces||at&&(!host.pickSoffitVisible||host.pickSoffitVisible(c.pair,{clientX:at.x,clientY:at.y})))&&!lineSelection.some(l=>W.sharedIntervals(...c.pair,[{points:l.pair}]).length))window.wallSoffitLine(group,vector,c.pair);}if(tool?.kind==='curve'){const t=tool,d=current(),ps=t.samples||[t.start,t.pointer||t.start];window.wallCurveGuides?.(output,vector,(t.guides||[]).map(g=>({...g,points:g.points.map(p=>world(d,p))})));for(let i=1;i<ps.length;i++)previewLine(output,vector,world(d,ps[i-1]),world(d,ps[i]),t.valid===false?'#ff6666':'#FFD700');if(t.center)previewLine(output,vector,world(d,t.start),world(d,t.center),'#72ffb0');window.wallCurveCenterMarker?.(output,vector,world(d,t.center||t.pointer||t.start));}for(const selection of lineSelection)for(const pair of selection.pairs||[selection.pair]){const line={...selection,pair};if(window.wallSelectedLine&&!isDivisionPair(...line.pair))window.wallSelectedLine(output,vector,line.pair);else previewLine(output,vector,...line.pair,'#fff',false);}output.flush?.();if(selectionMarkers)window.wallSelectablePoints(group,vector,selectionMarkers);}finally{drawPass=false;drawFaceRefs=null;renderInputs=null;selectionMarkers=null;output.disposePending?.();renderedDivisionTrim.clear();renderDividerIndex=null;renderDividers=null;renderOpenings=[];supportSnapshot=null;supportIndex=null;renderWalls=null;renderSegments=null;renderCacheActive=false;}},discardEmpty:id=>{for(const [key,d]of Object.entries(all()))if(d.members.includes(id)&&!d.faces.some(f=>f.material||f.finishColor)&&!(d.deletedFaces||[]).length&&!d.sketch.edges.some(e=>!e.fixed)&&d.sketch.nodes.length===d.sketch.outlines.flat().length)delete all()[key];},modified:id=>Object.values(all()).some(d=>d.members.includes(id)&&(d.sketch.edges.some(e=>!e.fixed)||d.sketch.nodes.length>d.sketch.outlines.flat().length)),has:id=>Object.values(all()).some(d=>d.members.includes(id)&&(d.faces.length||d.sketch.nodes.length||d.deletedFaces?.length)),canBox:()=>walls().length>0||solids().length>0||Object.values(all()).some(visibleDraft),busy:()=>!!tool||!!box||!!workingPlane?.rotation,clear(){if(lineSelect?.kind==='resoffit')lineSelect=null;pendingPreview=null;if(previewFrame===true)window.ExteriorFramePipeline?.cancel('wall-preview');else if(previewFrame!==null)cancelAnimationFrame(previewFrame);previewFrame=null;workingPlane=null;faceSelection=[];preferredDraft=null;preferredSolid=null;preferredRegion=null;solidMeshes=[];quadFinish=null;selectedBasePoints=[];lineSelection=[];clearGuides();box=null;boxEl?.remove?.();boxEl=null;if(tool?.before)host.state().wallEdits=tool.before;tool=null;const stepButton=typeof document!=='undefined'&&document.getElementById('wall-step');if(stepButton)stepButton.textContent='Auto-step (S)';activeDraftKey=null;draftSelection={};picked=[];pickedLines=[];solidPoints=[];solidEdges=[];selectedSolid=null;selectedRegion=null;}};
 };
 })();

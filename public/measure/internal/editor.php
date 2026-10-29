@@ -1457,11 +1457,13 @@ $tutorialStudentEmail = strtolower(trim((string)($_GET['student_email'] ?? $_GET
     <script src="editor_scripts/wall_closed_soffits.js?v=<?=fm_editor_asset_version('editor_scripts/wall_closed_soffits.js')?>"></script>
     <script src="editor_scripts/wall_chimneys.js?v=<?=fm_editor_asset_version('editor_scripts/wall_chimneys.js')?>"></script>
     <script src="editor_scripts/wall_base_binding.js?v=<?=fm_editor_asset_version('editor_scripts/wall_base_binding.js')?>"></script>
+    <script src="editor_scripts/wall_roof_rebuild.js?v=<?=fm_editor_asset_version('editor_scripts/wall_roof_rebuild.js')?>"></script>
     <script src="editor_scripts/wall_axis_cuts.js?v=<?=fm_editor_asset_version('editor_scripts/wall_axis_cuts.js')?>"></script>
     <script src="editor_scripts/wall_steps.js?v=<?=fm_editor_asset_version('editor_scripts/wall_steps.js')?>"></script>
     <script src="editor_scripts/exterior_model.js?v=<?=fm_editor_asset_version('editor_scripts/exterior_model.js')?>"></script>
     <script src="editor_scripts/exterior_report_model.js?v=<?=fm_editor_asset_version('editor_scripts/exterior_report_model.js')?>"></script>
     <script src="editor_scripts/wall_features.js?v=<?=fm_editor_asset_version('editor_scripts/wall_features.js')?>"></script>
+    <script src="editor_scripts/wall_stickers.js?v=<?=fm_editor_asset_version('editor_scripts/wall_stickers.js')?>"></script>
     <script src="editor_scripts/exterior_distance_input.js?v=<?=fm_editor_asset_version('editor_scripts/exterior_distance_input.js')?>"></script>
 <script src="editor_scripts/wall_trim.js?v=<?=fm_editor_asset_version('editor_scripts/wall_trim.js')?>"></script>
 <script src="editor_scripts/exterior_frame_pipeline.js?v=<?=fm_editor_asset_version('editor_scripts/exterior_frame_pipeline.js')?>"></script>
@@ -1472,6 +1474,7 @@ $tutorialStudentEmail = strtolower(trim((string)($_GET['student_email'] ?? $_GET
 <script src="editor_scripts/exterior_performance.js?v=<?=fm_editor_asset_version('editor_scripts/exterior_performance.js')?>"></script>
 <script src="editor_scripts/exterior_rendered.js?v=<?=fm_editor_asset_version('editor_scripts/exterior_rendered.js')?>"></script>
 <script src="editor_scripts/exterior_finishes.js?v=<?=fm_editor_asset_version('editor_scripts/exterior_finishes.js')?>"></script>
+<script src="editor_scripts/exterior_cover.js?v=<?=fm_editor_asset_version('editor_scripts/exterior_cover.js')?>"></script>
 <script src="editor_scripts/wall_face_draft.js?v=<?=fm_editor_asset_version('editor_scripts/wall_face_draft.js')?>"></script>
     <script src="editor_scripts/wall_editor.js?v=<?=fm_editor_asset_version('editor_scripts/wall_editor.js')?>"></script>
     <script src="editor_scripts/exterior_toolbar.js?v=<?=fm_editor_asset_version('editor_scripts/exterior_toolbar.js')?>"></script>
@@ -2841,16 +2844,28 @@ $tutorialStudentEmail = strtolower(trim((string)($_GET['student_email'] ?? $_GET
         const leftCol = paneSlots?.main || document.getElementById('leftColumn');
         const workspace = document.getElementById('workspace');
         let isResizing = false;
-        resizer.addEventListener('mousedown', (e) => { isResizing=true; document.body.style.cursor='col-resize'; e.preventDefault(); });
+        // A divider drag moves on every mouse event, but views re-lay out at most once per frame, and only cheaply
+        // (window.firstMeasurePaneResizing) until the drag ends; the full redraw runs once on release.
+        let paneResizeFrame = 0;
+        // One switch for a divider drag: views read window.firstMeasurePaneResizing; the 3D Tiles (Cesium) render
+        // loop, which resizes its canvas every frame even behind another tab, pauses until release.
+        window.firstMeasureSetPaneResizing = (on) => {
+            on = !!on; if (window.firstMeasurePaneResizing === on) return; window.firstMeasurePaneResizing = on;
+            const viewer = typeof cesiumViewer !== 'undefined' ? cesiumViewer : window.cesiumViewer;
+            try { if (viewer && !viewer.isDestroyed?.()) viewer.useDefaultRenderLoop = !on; } catch (e) {}
+        };
+        const queuePaneResize = () => { if (!paneResizeFrame) paneResizeFrame = requestAnimationFrame(() => { paneResizeFrame = 0; window.dispatchEvent(new Event('resize')); }); };
+        const endPaneResize = () => { if (paneResizeFrame) { cancelAnimationFrame(paneResizeFrame); paneResizeFrame = 0; } window.firstMeasureSetPaneResizing(false); document.body.style.cursor = 'default'; window.dispatchEvent(new Event('resize')); };
+        resizer.addEventListener('mousedown', (e) => { isResizing=true; window.firstMeasureSetPaneResizing(true); document.body.style.cursor='col-resize'; e.preventDefault(); });
         window.addEventListener('mousemove', (e) => {
             if(isResizing) {
                 const w = ((e.clientX-workspace.getBoundingClientRect().left) / workspace.clientWidth) * 100;
                 if(w>20 && w<80) leftCol.style.setProperty('width', w+'%');
-                window.dispatchEvent(new Event('resize'));
+                queuePaneResize();
             }
         });
         window.addEventListener('mouseup', () => { 
-            if(isResizing) { isResizing=false; document.body.style.cursor='default'; window.dispatchEvent(new Event('resize')); }
+            if(isResizing) { isResizing=false; endPaneResize(); }
         });
 
         // NEW: Resizer Logic (Vertical for Right Column)
@@ -2897,7 +2912,7 @@ $tutorialStudentEmail = strtolower(trim((string)($_GET['student_email'] ?? $_GET
         window.resizeEditorPanes = (widthRatio, heightRatio) => {
             if (widthRatio !== null) leftCol.style.width = `${Math.min(.8, Math.max(.2, widthRatio)) * 100}%`;
             if (heightRatio !== null) applyRightColumnSplit(heightRatio);
-            window.dispatchEvent(new Event('resize'));
+            queuePaneResize();
         };
 
         queueRightColumnSplitSync();
@@ -2913,6 +2928,7 @@ $tutorialStudentEmail = strtolower(trim((string)($_GET['student_email'] ?? $_GET
 
         vResizer.addEventListener('mousedown', (e) => { 
             isResizingV = true; 
+            window.firstMeasureSetPaneResizing(true);
             document.body.style.cursor = 'row-resize'; 
             e.preventDefault(); 
         });
@@ -2930,15 +2946,14 @@ $tutorialStudentEmail = strtolower(trim((string)($_GET['student_email'] ?? $_GET
             if (availableHeight > 100 && relativeY > 50 && relativeY < containerRect.height - 50) {
                 rightSplitRatio = clampRightSplitRatio(relativeY / availableHeight);
                 applyRightColumnSplit(rightSplitRatio);
-                window.dispatchEvent(new Event('resize'));
+                queuePaneResize();
             }
         });
 
         window.addEventListener('mouseup', () => {
             if (isResizingV) {
                 isResizingV = false;
-                document.body.style.cursor = 'default';
-                window.dispatchEvent(new Event('resize'));
+                endPaneResize();
             }
         });
 

@@ -22,8 +22,52 @@
     const surfaceModes=()=>window.FIRSTMEASURE_MATCH_TEXTURED===true?['translucent','opaque','textured','match-textured']:['translucent','opaque','textured'];
     const surfaceMode=()=>groundEditor?.sampling?.()?'translucent':state?.displayMode==='rendered'?'textured':state?.displayMode||(state?.translucent===false?'opaque':'translucent');
     const surfaceLabel=mode=>mode==='match-textured'?'Match textured':mode[0].toUpperCase()+mode.slice(1);
-    let resoffitMode=false,drivenSoffits=true,autoParapets=true,closedSoffits=false;
+    let resoffitMode=false,trimMode=false,drivenSoffits=true,autoParapets=true,closedSoffits=false;
     function closeResoffit(){resoffitMode=false;wallEditor?.setResoffitMode?.(false);const menu=document.getElementById('wall-resoffit-menu'),button=document.getElementById('wall-resoffit');if(menu)menu.hidden=true;if(button){button.setAttribute('aria-expanded','false');button.setAttribute('aria-pressed','false');}}
+    // Trim mode lasts while the Trim menu is open: the views select lines for trim.
+    // Textured views draw finished surfaces only, without the drafting overlays (lines, points, guides, previews)
+    // these tools need. This one table decides what is unavailable there; buttons, keys and modes follow it.
+    const TEXTURED_UNAVAILABLE={plane:'Plane mode (P)',resoffit:'Resoffit',stickers:'Sticker placement',overlays:'Edit overlays',geometryKeys:'Editing shortcuts',selectionActions:'Selection actions'};
+    const TEXTURED_CONTROLS={resoffit:'#wall-resoffit',stickers:'.exterior-sticker-bar .ss-tile,.exterior-sticker-bar .exterior-face-toggle',overlays:'#wall-centers-toggle,#wall-line-centers-toggle,#wall-feature-dimensions,#wall-gap-toggle,#wall-lengths-all,#wall-lengths-moving,#wall-lengths-off'};
+    const TEXTURED_NOTE='Not available in Textured view — switch to Opaque (Tab)';
+    function texturedView(){return enabled&&['textured','match-textured'].includes(surfaceMode());}
+    function displaySupports(tool){return !(texturedView()&&Object.hasOwn(TEXTURED_UNAVAILABLE,tool));}
+    // Editing keys that need the overlays. Panels keep their own keys; undo, save, Escape, Tab and Delete still work.
+    function texturedBlockedKey(e){
+        if(displaySupports('geometryKeys')||e.target.closest?.('input,textarea,select,[contenteditable=true],#wall-material-picker,#exterior-graphics,[role=menu],[role=dialog]'))return false;
+        const k=e.key;if(['Shift','Control','Alt','Meta','Tab','Escape','Delete','Backspace','?'].includes(k)||/^F\d+$/.test(k))return false;
+        // Trim works in Textured: T, a typed width and Enter reach the open Trim menu.
+        if(trimMode&&!e.ctrlKey&&!e.metaKey&&(/^[\dtT.]$/.test(k)||k==='Enter'))return false;
+        if(e.ctrlKey||e.metaKey)return ['a','c','v','x'].includes(k.toLowerCase());
+        return k.length===1||k.startsWith('Arrow')||k==='Enter';
+    }
+    let texturedNoticeTimer=null,syncingDisplay=false,wasTextured=false;
+    function texturedNotice(text=TEXTURED_NOTE,ms=2600){
+        const host=document.getElementById('three-view-wrapper')||document.body;let el=document.getElementById('textured-notice');
+        if(!el){el=document.createElement('div');el.id='textured-notice';el.setAttribute('role','status');el.setAttribute('aria-live','polite');el.style.cssText='position:absolute;left:50%;bottom:64px;transform:translateX(-50%);z-index:3100;background:#202124e6;color:#fff;font:12px system-ui;padding:6px 10px;border-radius:6px;pointer-events:none';host.appendChild(el);}
+        el.textContent=text;el.hidden=false;clearTimeout(texturedNoticeTimer);texturedNoticeTimer=setTimeout(()=>{el.hidden=true;},ms);
+    }
+    // Entering a textured view leaves every mode it cannot draw (painting finishes stays); buttons show it.
+    function syncDisplayCapabilities(){
+        if(syncingDisplay)return;syncingDisplay=true;
+        try{
+            // Only on the switch into Textured: a redraw during an edit (Trim applying) must not end it.
+            const textured=texturedView(),entering=textured&&!wasTextured;wasTextured=textured;
+            if(entering){
+                if(wallEditor?.busy?.()&&wallEditor.interaction?.()!=='Paint material')wallEditor.clear();
+                for(let i=0;i<3&&wallEditor?.planeActive?.()&&typeof wallEditor.togglePlane==='function';i++)wallEditor.togglePlane();
+                if(resoffitMode)closeResoffit();
+                if(baseEditor?.busy?.())baseEditor.leave?.();
+            }
+            for(const selector of Object.values(TEXTURED_CONTROLS))for(const el of document.querySelectorAll(selector)){
+                if(textured){if(el.dataset.texturedTitle===undefined)el.dataset.texturedTitle=el.getAttribute('title')||'';el.setAttribute('aria-disabled','true');el.classList.add('textured-unavailable');el.title=TEXTURED_NOTE;}
+                else if(el.dataset.texturedTitle!==undefined){el.removeAttribute('aria-disabled');el.classList.remove('textured-unavailable');if(el.dataset.texturedTitle)el.title=el.dataset.texturedTitle;else el.removeAttribute('title');delete el.dataset.texturedTitle;}
+            }
+        }finally{syncingDisplay=false;}
+    }
+    // While a Selection trim change runs, its writers' own history entries fold into one step.
+    let trimBatch=0,lineLayerCache={surfaces:null,layers:[]};
+    function setTrimMode(on){on=!!on;if(on===trimMode)return;trimMode=on;if(on&&resoffitMode)closeResoffit();wallEditor?.setLineSelectMode?.(on?'trim':resoffitMode?'resoffit':null);requestEditorRender(true);}
     let gapHighlights=true,gapCacheKey='',gapCache=[];
     let enabled=false, roofVisible=true, state=null, projectId='', stage=1, selected=null, group3D=null, lastScene=null;
     let clearedAt=0;
@@ -34,7 +78,7 @@
     const disabledRoofControls=new Map();
     let groundEditor=null,baseEditor=null,wallEditor=null,editingLayer='base',wallsVisible=true,baseTerrainCache=null,baseTerrainKey='';
     // One chronological history for the building, independent of selection layer.
-    let editHistory=[],editFuture=[],pendingEdit=null,nudgeEpoch=0,nudgeKey=null;let localHistoryTimer=null,localHistoryChain=Promise.resolve();
+    let editHistory=[],editFuture=[],pendingEdit=null,nudgeEpoch=0,nudgeKey=null,editGroup=null;let localHistoryTimer=null,localHistoryChain=Promise.resolve();
     const historyKeys=['finishDefaults','roofTrim','base','closedSoffits','closedSoffitWalls','wallEdits','chimneys','extruded','deduplicated','extrusionWarnings','gapRepaired','gapReport','mergedWalls','mergeReport','cleanedWalls','rakeCleanupReport','preCleanupBase','cleanedBase','baseCleanupApplied','alignedWalls','chimneyCleanupReport','preAlignmentBase','alignedBase','baseAlignmentApplied'];
     const editSnapshot=()=>{const value=JSON.parse(JSON.stringify(Object.fromEntries(historyKeys.map(k=>[k,k==='wallEdits'?(state?.[k]||{}):state?.[k]]))));return window.EditorHistory?.share(editHistory.at(-1)?.after,value)||value;};
     let stableSelection=null,pendingSelection=null,selectionTimer=null,selectionRevision=0,restoringHistory=false,gestureSelection=null,selectionInputType='';
@@ -53,7 +97,7 @@
             const busy=typeof interactState3D!=='undefined'&&interactState3D!=='IDLE'||typeof interactState!=='undefined'&&interactState!=='IDLE';
             return A.actions({mode:'roof',points,lines,busy,canPaste:typeof geometryClipboard!=='undefined'&&!!geometryClipboard});
         }
-        if(selectionBusy()||groundEditor?.sampling?.()||editingLayer==='grade')return [];
+        if(selectionBusy()||groundEditor?.sampling?.()||editingLayer==='grade'||!displaySupports('selectionActions'))return [];
         if(wallEditor?.planeActive?.()||editingLayer==='walls')return A.actions(wallEditor?.actionContext());
         const counts=selectionCounts(),geometry=baseEditor?.chamferSelection?.(),entity=baseEditor?.entitySelection?.();
         return A.actions({mode:'base',...counts,transform:(geometry?.points?.length||0)>=3,canExtrude:!!(entity?.point||entity?.pair||counts.faces===1),canPaste:!!window.exteriorGeometryClipboard});
@@ -81,16 +125,22 @@
         if(!enabled||!state)return;flushSelectionHistory();selectionInputType=event?.type||'';
         selectionTimer=setTimeout(()=>{selectionTimer=null;flushSelectionHistory();},0);
     }
-    function recordEdit(before){if(!state||pendingEdit&&nudgeSettleTimer!==null)return;pendingEdit={...editSnapshot(),...JSON.parse(JSON.stringify(before))};}
+    function recordEdit(before){if(!state||trimBatch||pendingEdit&&nudgeSettleTimer!==null)return;pendingEdit={...editSnapshot(),...JSON.parse(JSON.stringify(before))};}
     function finishEdit(...args){if(!window.ExteriorPerf?.enabled)return perf_finishEdit.apply(this,args);return window.ExteriorPerf.measure('Undo commit',()=>perf_finishEdit.apply(this,args));}
 function perf_finishEdit(){
-        if(!pendingEdit||nudgeSettleTimer!==null)return;const before=pendingEdit;pendingEdit=null;const after=editSnapshot();if(JSON.stringify(before)===JSON.stringify(after))return;
+        if(!pendingEdit||trimBatch||nudgeSettleTimer!==null)return;const before=pendingEdit;pendingEdit=null;const after=editSnapshot();if(JSON.stringify(before)===JSON.stringify(after))return;
         const beforeSelection=copy(gestureSelection||stableSelection||selectionSnapshot()),afterSelection=selectionSnapshot(),last=editHistory.at(-1);
-        if(nudgeKey&&last?.nudgeKey===nudgeKey&&!last.selectionOnly&&last.selectionRevision===selectionRevision&&JSON.stringify(last.after)===JSON.stringify(before)){
+        if(editGroup&&last?.editGroup===editGroup&&!last.selectionOnly||nudgeKey&&last?.nudgeKey===nudgeKey&&!last.selectionOnly&&last.selectionRevision===selectionRevision&&JSON.stringify(last.after)===JSON.stringify(before)){
             last.after=after;last.afterSelection=afterSelection;pendingSelection=last;
-        }else{const entry={before,after,nudgeKey,selectionRevision,beforeSelection,afterSelection};editHistory.push(entry);pendingSelection=entry;}
+        }else{const entry={before,after,nudgeKey,editGroup,selectionRevision,beforeSelection,afterSelection};editHistory.push(entry);pendingSelection=entry;}
         editFuture=[];
     }
+    // Edits made under one key (T and the trim width typed with it) are one undo
+    // step while nothing else is recorded between them.
+    function groupEdits(key,run){const prior=editGroup;editGroup=key;try{return run();}finally{editGroup=prior;}}
+    // Who takes typed numbers: the Trim menu's selection while it is open, a running
+    // tool, then a trim width for the next T (or for the trim T just made).
+    function distanceOwner(){return (trimMode&&roofTrimEditor?.distanceInput?.())||wallEditor?.distanceInput()||baseEditor?.distanceInput()||wallEditor?.trimInput?.()||null;}
     function undoEdit(redo=false){
         if(resoffitMode)closeResoffit();
         if(!state&&!editHistory.length&&!editFuture.length)return false;
@@ -391,6 +441,9 @@ function perf_persist(touch=true) {
         const signature=roofSignature();if(state.roofSignature===signature){delete state.keptRoofSignature;return 'same';}
         if(state.keptRoofSignature===signature)return 'kept';
         const lost=wallEditsAtRisk();
+        // With wall work to keep, follow the roof change (wall_roof_rebuild.js). Only when that
+        // cannot be done does the full rebuild below ask before discarding anything.
+        if(lost.length){try{if(smartRebuild(signature))return 'rebuilt';}catch(error){console.warn('[Walls] The roof change could not be followed; asking before a full rebuild.',error);}}
         if(lost.length&&window.confirm?.(`The roof changed after these walls were built. Rebuilding them from the roof discards ${lost.join(', ')}. Undo restores them.\n\nRebuild the walls now? Cancel keeps the current walls; Rebuild from roof updates them later.`)!==true){
             state.keptRoofSignature=signature;persist();render();
             const text='The roof changed after these walls were built. The walls and their edits were kept; Rebuild from roof updates them and discards the edits.';
@@ -398,6 +451,66 @@ function perf_persist(touch=true) {
             return 'kept';
         }
         return generate(state.options.soffit)?'rebuilt':'failed';
+    }
+    // Smart rebuild (docs/architecture/exterior-roof-rebuild.md). Leaving wall mode remembers
+    // which roof point and line objects the walls were built from; on return the change is
+    // diffed against state.roof (the roof the walls reflect) and only affected walls change.
+    let roofIdentity=null,lastRoofRebuild=null;
+    function rememberRoofIdentity(){
+        roofIdentity=null;
+        try{
+            if(!state?.roof||state.phase==='grade'||!activeGeometry?.points?.length||state.roofSignature!==roofSignature())return;
+            const ctx=currentContext(),pointKey=p=>[p.x,p.y,p.z].map(v=>Math.round(v*1e6)).join(','),index=new Map(),lines=new Map(),points=new WeakMap(),connections=new WeakMap();
+            state.roof.points.forEach((p,i)=>{if(!index.has(pointKey(p)))index.set(pointKey(p),i);});
+            for(const p of activeGeometry.points){const i=index.get(pointKey(inWallFrame(toMetric(p,ctx),ctx)));if(i!==undefined)points.set(p,i);}
+            // Two lines can join the same points (a ridge over a head wall); their types tell them apart.
+            const lineKey=(a,b,type)=>Math.min(a,b)+':'+Math.max(a,b)+':'+type;state.roof.connections.forEach((c,i)=>{const k=lineKey(c.startIdx,c.endIdx,c.type);if(!lines.has(k))lines.set(k,[]);lines.get(k).push(i);});
+            for(const c of activeGeometry.connections){const a=points.get(c.start),b=points.get(c.end);if(a===undefined||b===undefined)continue;const i=lines.get(lineKey(a,b,c.type))?.shift();if(i!==undefined)connections.set(c,i);}
+            roofIdentity={points,connections};
+        }catch(error){roofIdentity=null;}
+    }
+    function roofIdentityHints(){
+        if(!roofIdentity||!activeGeometry?.points)return {};
+        const ps=activeGeometry.points,points=[],connections=[];let n=0;
+        ps.forEach((p,i)=>{const o=roofIdentity.points.get(p);if(o!==undefined)points.push([i,o]);});
+        for(const c of activeGeometry.connections){if(ps.indexOf(c.start)<0||ps.indexOf(c.end)<0)continue;const o=roofIdentity.connections.get(c);if(o!==undefined)connections.push([n,o]);n++;}
+        return {points,connections};
+    }
+    // Roof metres are measured from the image centre: the current one for the roof being edited,
+    // the one the walls were built in (state.context) for the walls. Same place, different origin.
+    function inWallFrame(p,ctx=currentContext()){const ref=state?.context;if(!ref)return p;const dx=(ref.lng-ctx.lng)*111132*Math.cos(ctx.lat*Math.PI/180),dy=(ctx.lat-ref.lat)*111132;return dx||dy?{...p,x:p.x-dx,y:p.y-dy}:p;}
+    // The generator as From Roof runs it: no wall edits, the current base and grade.
+    function freshStages(roof,chimneys){
+        const saved=state,key=baseTerrainKey,cache=baseTerrainCache,skip=new Set(['wallEdits','chimneys','roof','sources','warnings','removed',...historyKeys.filter(k=>!['finishDefaults','roofTrim','base','closedSoffits'].includes(k))]);
+        try{
+            state=copy({...Object.fromEntries(Object.entries(saved).filter(([k])=>!skip.has(k))),roof,chimneys:chimneys||undefined,wallEdits:{}});
+            const r=G.buildSources(roof,state.options);state.sources=r.sources;state.warnings=r.warnings;
+            baseTerrainKey='';calculateStage(7);return state;
+        }finally{state=saved;baseTerrainKey=key;baseTerrainCache=cache;}
+    }
+    function smartRebuild(signature=roofSignature()){
+        const R=window.WallRoofRebuild;if(!R||!state?.roof||state.phase==='grade')return null;
+        // A new scale is a new calibration, not a roof edit: every point would move.
+        const ctx=currentContext(),old=state.context;if(!old||!(ctx.mpp>0)||!(old.mpp>0)||Math.abs(ctx.mpp/old.mpp-1)>.01)return null;
+        const captured=captureRoof(true),autoParapets=(state.autoParapets??state.options?.autoParapets)!==false;
+        const at=p=>inWallFrame(p,ctx),roof={...captured.roof,points:captured.roof.points.map(at),faces:captured.roof.faces.map(f=>({...f,points:f.points.map(at),holes:(f.holes||[]).map(r=>r.map(at))}))};
+        const result=R.rebuild({state:copy(state),roof,hints:roofIdentityHints(),run:freshStages,
+            detect:window.WallChimneys?roof=>WallChimneys.detect(roof,{sampleHeight:WallChimneys.heightSampler?.(layerData.dsm?.[0],ctx,state.context)||null,resolution:ctx.mpp}):null,
+            reflow:(before,changed,edits)=>wallEditor?.reflowDrafts?.(before,changed,edits),
+            parapets:autoParapets&&window.WallParapets?(roof,sources,walls)=>WallParapets.build(roof,sources,walls):null,
+            closedSoffits:state.closedSoffits&&window.WallClosedSoffits?(s,walls)=>WallClosedSoffits.build(s,walls):null});
+        closeResoffit();groundEditor?.leave();roofTrimEditor?.finish();wallEditor?.leave?.();baseEditor?.leave?.();pendingEdit=null;nudgeKey=null;nudgeEpoch++;
+        const before={state:copy(state),stage},beforeSelection=selectionSnapshot(),generated=!!state.generatedEditsKey&&state.generatedEditsKey===editsKey(state.wallEdits);
+        state={...result.state,roofSignature:signature};delete state.keptRoofSignature;if(generated)state.generatedEditsKey=editsKey(state.wallEdits);
+        baseTerrainKey='';baseTerrainCache=null;sourceContext=state.context;roofIdentity=null;
+        window.WallChimneys?.normalizeDrafts(state.wallEdits);window.normalizeWallDraftOwnership?.(state.wallEdits);retainGradeDraftOwnership();calculateStage(stage);selected=null;
+        // One undo step returns the walls, their edits and the roof they were built from.
+        // Undo keeps the earlier walls until the roof changes again; it does not re-run on the next stage or mode switch.
+        if(result.changed){before.state.keptRoofSignature=signature;const entry={full:true,before,after:{state:copy(state),stage},beforeSelection,afterSelection:selectionSnapshot()};editHistory.push(entry);editFuture=[];pendingSelection=entry;}
+        lastRoofRebuild=result.report;persist();render();
+        const text=R.summary(result.report);
+        if(text){if(status)status.textContent=text;const note=document.getElementById('base-status');if(note)note.textContent=text;texturedNotice(text,9000);}
+        return result;
     }
     function ensureStage(next) {
         if(!state||state.phase==='grade')return;
@@ -425,8 +538,8 @@ function perf_persist(touch=true) {
             const r=G.buildSources(captured.roof,options);
             roofTrimEditor?.finish();roofTrimEditor?.reset();wallEditor?.leave?.();baseEditor?.leave?.();baseEditor?.clearSelection?.();pendingEdit=null;nudgeKey=null;nudgeEpoch++;
             before={state:copy(state),stage,clearedAt};clearedAt=0;baseTerrainKey=null;baseTerrainCache=null;
-            const finishDefaults=copy(state?.finishDefaults||{}),roofTrim=copy(state?.roofTrim||roofTrimOnly),ground=state?.ground,groundCandidates=state?.groundCandidates,base=resetBase?undefined:state?.base,wallCenters=state?.wallCenters!==false,lineCenters=state?.lineCenters!==false,displayMode=state?.displayMode,translucent=state?.translucent!==false,boundExtrusionToRoof=state?.boundExtrusionToRoof!==false,undoSelections=state?.undoSelections!==false,keepTrimStatic=state?.keepTrimStatic===true,wallTrimWidthInches=state?.wallTrimWidthInches===8?8:6;
-            state={schemaVersion:1,engineVersion:ENGINE,...captured,roofSignature:signature,options,closedSoffits:options.closedSoffits,autoParapets:options.autoParapets,drivenSoffits:options.drivenSoffits,sources:r.sources,warnings:r.warnings,savedAt:Date.now(),ground,groundCandidates,base,wallCenters,lineCenters,featureDimensions:before.state?.featureDimensions??true,translucent,displayMode,boundExtrusionToRoof,undoSelections,keepTrimStatic,wallTrimWidthInches,roofTrim,finishDefaults};
+            const finishDefaults=copy(state?.finishDefaults||{}),roofTrim=copy(state?.roofTrim||roofTrimOnly),ground=state?.ground,groundCandidates=state?.groundCandidates,base=resetBase?undefined:state?.base,wallCenters=state?.wallCenters!==false,lineCenters=state?.lineCenters!==false,displayMode=state?.displayMode,translucent=state?.translucent!==false,boundExtrusionToRoof=state?.boundExtrusionToRoof!==false,undoSelections=state?.undoSelections!==false,keepTrimStatic=state?.keepTrimStatic===true,stickerDeleteKeepsFace=state?.stickerDeleteKeepsFace===true,wallTrimWidthInches=state?.wallTrimWidthInches===8?8:6;
+            state={schemaVersion:1,engineVersion:ENGINE,...captured,roofSignature:signature,options,closedSoffits:options.closedSoffits,autoParapets:options.autoParapets,drivenSoffits:options.drivenSoffits,sources:r.sources,warnings:r.warnings,savedAt:Date.now(),ground,groundCandidates,base,wallCenters,lineCenters,featureDimensions:before.state?.featureDimensions??true,translucent,displayMode,boundExtrusionToRoof,undoSelections,keepTrimStatic,stickerDeleteKeepsFace,wallTrimWidthInches,roofTrim,finishDefaults};
             initializeGround();
             initializeBase(true);applyDisplayPreferences();
             sourceContext=state.context;projectId=currentId();calculateStage(7);stage=7;if(before.state?.phase==='grade')editingLayer='base';
@@ -459,6 +572,7 @@ function perf_persist(touch=true) {
         settleNudges();
         if(on&&!currentId()){alert('Load a project before entering wall mode.');return;}
         roofTrimEditor?.finish();roofTrimEditor?.reset();if(!on){closeResoffit();window.WallFeatures?.closeUI?.();groundEditor?.leave();baseEditor?.leave();wallEditor?.leave();}
+        if(!on&&enabled)rememberRoofIdentity();
         const entering=!!on&&!enabled;
         enabled=!!on;
         if(entering)window.ProjectResources?.open?.();
@@ -593,14 +707,25 @@ function perf_render2DContent() {
     }
     const sceneParts=window.ExteriorSceneCache?new window.ExteriorSceneCache():null;
     function renderChunk(key,input,parent,build){return sceneParts?.pending?sceneParts.part(key,input,parent,build):build(parent);}
-    function disposeGroup() {clearNudgePreview();sceneParts?.clear();window.ExteriorRendered?.stop();if(group3D){disposeObject3D(group3D);group3D.parent?.remove(group3D);group3D=null;}lastScene=null;}
+    function disposeGroup() {clearNudgePreview();clearEditorOverlay();sceneParts?.clear();window.ExteriorRendered?.stop();if(group3D){disposeObject3D(group3D);group3D.parent?.remove(group3D);group3D=null;}lastScene=null;}
     function roofTrimVisible(){return enabled&&roofVisible;}
     function persistRoofTrim(){const value=state?.roofTrim||roofTrimOnly;value.savedAt=Date.now();if(projectId)try{localStorage.setItem(key(projectId)+':roof-trim',JSON.stringify(value));}catch(e){} }
     function roofTrimPickGroup(){return {traverse(fn){roofTrimGroup?.traverse(fn);if(typeof facesGroup!=='undefined')facesGroup?.traverse(o=>{if(o.isMesh){o.userData.pickLayer='roof';}fn(o);});}};}
-    function drawRoofTrim(group,roof,vector){if(!window.RoofTrim)return;const panels=roofTrimEditor?.refresh(roof)||RoofTrim.panels(roof,state?.roofTrim||roofTrimOnly);for(const f of panels){if(f.deleted)continue;const geometry=new THREE.BufferGeometry().setFromPoints(f.points.map(vector));geometry.setIndex([0,1,2,0,2,3]);const mesh=new THREE.Mesh(geometry,new THREE.MeshBasicMaterial({color:roofTrimEditor?.selected(f.id)?'#ffd84d':'#b9b6ae',side:THREE.DoubleSide,transparent:false,opacity:1,depthWrite:true,polygonOffset:true,polygonOffsetFactor:-2,polygonOffsetUnits:-2}));mesh.renderOrder=2;mesh.userData.pickLayer='roof';mesh.userData.roofTrimId=f.id;window.ExteriorFinishes?.prepare(mesh,f,f.points);group.add(mesh);}}
+    function drawRoofTrim(group,roof,vector){if(!window.RoofTrim)return;const panels=roofTrimEditor?.refresh(roof)||RoofTrim.panels(roof,state?.roofTrim||roofTrimOnly);for(const f of panels){if(f.deleted)continue;const geometry=new THREE.BufferGeometry().setFromPoints(f.points.map(vector));geometry.setIndex([0,1,2,0,2,3]);const mesh=new THREE.Mesh(geometry,new THREE.MeshBasicMaterial({color:roofTrimEditor?.selected(f.id)?'#ffd84d':f.finishColor||'#b9b6ae',side:THREE.DoubleSide,transparent:false,opacity:1,depthWrite:true,polygonOffset:true,polygonOffsetFactor:-2,polygonOffsetUnits:-2}));mesh.renderOrder=2;mesh.userData.pickLayer='roof';mesh.userData.roofTrimId=f.id;window.ExteriorFinishes?.prepare(mesh,f,f.points);group.add(mesh);}}
     // Compatibility hook for the roof renderer: exterior trim only renders in wall mode.
     function renderRoofTrim3D(){if(roofTrimGroup){roofTrimGroup.parent?.remove(roofTrimGroup);disposeObject3D(roofTrimGroup);roofTrimGroup=null;}roofTrimEditor?.update();}
-    let editorRenderFrame=null,editorRenderFull=false,nudgeSettleTimer=null,nudgeBackupPending=false,nudgePreviewGroup=null,pendingNudge=null,nudgeInputFrame=null;
+    let editorRenderFrame=null,editorRenderFull=false,editorRenderOverlay=false,overlayGroup=null,nudgeSettleTimer=null,nudgeBackupPending=false,nudgePreviewGroup=null,pendingNudge=null,nudgeInputFrame=null;
+    // A pointer-only preview (placing a sticker) never changes the model. It is drawn as its own group, after
+    // every full rebuild and alone while the pointer moves, instead of rebuilding the whole scene per move.
+    function clearEditorOverlay(){if(overlayGroup){overlayGroup.parent?.remove(overlayGroup);disposeObject3D(overlayGroup);overlayGroup=null;}}
+    function drawEditorOverlay(...args){if(!window.ExteriorPerf?.enabled)return perf_drawEditorOverlay.apply(this,args);return window.ExteriorPerf.measure('Preview overlay',()=>perf_drawEditorOverlay.apply(this,args));}
+    function perf_drawEditorOverlay(){
+        const had=!!overlayGroup;clearEditorOverlay();if(typeof scene==='undefined'||!scene||!window.THREE?.Group||!enabled)return;
+        const group=new THREE.Group();group.name='exteriors-wall-overlay';const vector=p=>getVector3(toPixel(p));withWallScene(()=>wallEditor?.drawOverlay?.(group,vector));
+        window.exteriorSurfaceDisplay?.(group,surfaceMode());applyPlaneDisplay(group,vector);applyLineSelectDisplay(group);
+        window.ExteriorDistanceInput?.render(wallEditor?.distanceInput()||baseEditor?.distanceInput());
+        if(group.children.length){overlayGroup=group;scene.add(group);}if(had||overlayGroup)window.invalidateScene3D?.();
+    }
     function clearNudgePreview(){if(nudgePreviewGroup){nudgePreviewGroup.parent?.remove(nudgePreviewGroup);disposeObject3D(nudgePreviewGroup);nudgePreviewGroup=null;}}
     function drawNudgePreview(){
         clearNudgePreview();if(typeof scene==='undefined'||!scene||!window.THREE?.Group)return;
@@ -623,24 +748,31 @@ function perf_render2DContent() {
         // While a tool or drag runs in the 3D view, the 2D plan is a passive pane: during that gesture it redraws at
     // most every PASSIVE_2D_MS and always once more afterwards, so the active view keeps the frame budget. Full
     // renders (placement, undo, selection, mode changes) and gestures in the 2D view redraw it immediately.
-    const PASSIVE_2D_MS=100;let pointerView=null,last2D=0,passive2DTimer=null;
+    // A slow plan waits PASSIVE_2D_SHARE times its own last cost instead, so it never takes more than that
+    // share of a 3D gesture's main thread (a large house's plan costs ~100 ms per redraw).
+    const PASSIVE_2D_MS=100,PASSIVE_2D_SHARE=4;let pointerView=null,last2D=0,passive2DTimer=null,cost2D=0;
     function trackPointerView(e){const target=e.target;if(!target?.closest)return;if(target.closest('#three-view-wrapper'))pointerView='3d';else if(target.closest('#geoSvg,#canvas-container,#viewport'))pointerView='2d';}
     function passive2D(){return pointerView==='3d'&&!!(wallEditor?.busy?.()||baseEditor?.busy?.());}
     function settle2D(){clearTimeout(passive2DTimer);passive2DTimer=null;last2D=typeof performance!=='undefined'?performance.now():Date.now();}
+    function timed2D(){const start=typeof performance!=='undefined'?performance.now():Date.now();render2D();cost2D=(typeof performance!=='undefined'?performance.now():Date.now())-start;}
     function preview2D(){
-        const now=typeof performance!=='undefined'?performance.now():Date.now();
-        if(!passive2D()||now-last2D>=PASSIVE_2D_MS){settle2D();render2D();return;}
-        if(passive2DTimer===null)passive2DTimer=setTimeout(()=>{passive2DTimer=null;if(!enabled)return;last2D=typeof performance!=='undefined'?performance.now():Date.now();render2D();},PASSIVE_2D_MS-(now-last2D));
+        const now=typeof performance!=='undefined'?performance.now():Date.now(),interval=Math.max(PASSIVE_2D_MS,PASSIVE_2D_SHARE*cost2D);
+        if(!passive2D()||now-last2D>=interval){settle2D();timed2D();return;}
+        if(passive2DTimer===null)passive2DTimer=setTimeout(()=>{passive2DTimer=null;if(!enabled)return;last2D=typeof performance!=='undefined'?performance.now():Date.now();timed2D();},interval-(now-last2D));
     }
-function requestEditorRender(full=false){
+function requestEditorRender(full=false,overlay=false){
         editorRenderFull ||= full;
-        if(editorRenderFrame!==null)return;
-        const flush=()=>{editorRenderFrame=null;const full=editorRenderFull;if(nudgeSettleTimer!==null){preview2D();drawNudgePreview();return;}editorRenderFull=false;withWallScene(()=>{if(full)render();else{preview2D();render3D();}});};
+        // An overlay request is upgraded by any other request in the same frame.
+        if(editorRenderFrame!==null){if(!overlay)editorRenderOverlay=false;return;}
+        editorRenderOverlay=overlay;
+        const flush=()=>{editorRenderFrame=null;const full=editorRenderFull,overlayOnly=editorRenderOverlay;editorRenderOverlay=false;if(nudgeSettleTimer!==null){preview2D();drawNudgePreview();return;}editorRenderFull=false;
+            if(overlayOnly&&!full&&group3D&&lastScene===scene&&group3D.userData.selectionLayer===editingLayer){drawEditorOverlay();return;}
+            withWallScene(()=>{if(full)render();else{preview2D();render3D();}});};
         if(window.ExteriorFramePipeline){editorRenderFrame=true;window.ExteriorFramePipeline.enqueue('wall-view',flush,20);return;}
         if(typeof requestAnimationFrame==='undefined'){flush();return;}
         editorRenderFrame=requestAnimationFrame(flush);
     }
-    function render3D(){window.ExteriorFramePipeline?.retainPrograms?.();if(nudgeSettleTimer!==null){drawNudgePreview();return;}clearNudgePreview();return withWallScene(render3DFrame);}
+    function render3D(){window.ExteriorFramePipeline?.retainPrograms?.();if(nudgeSettleTimer!==null){drawNudgePreview();return;}clearNudgePreview();const result=withWallScene(render3DFrame);drawEditorOverlay();return result;}
     function render3DFrame(...args){if(!window.ExteriorPerf?.enabled)return perf_render3DFrame.apply(this,args);return window.ExteriorPerf.measure('3D scene rebuild',()=>perf_render3DFrame.apply(this,args));}
 function perf_render3DFrame() {
         if(typeof scene==='undefined'||!scene||!window.THREE)return;
@@ -659,15 +791,18 @@ function perf_render3DFrame() {
         if(!enabled){syncVisibility();return;}
         if(roofTrimGroup){roofTrimGroup.parent?.remove(roofTrimGroup);disposeObject3D(roofTrimGroup);roofTrimGroup=null;}
         const vector=p=>getVector3(toPixel(p));
-        const addLines=(points,connections,color)=>{const vertices=[];for(const c of connections){for(const i of [c.startIdx,c.endIdx]){const v=vector(points[i]);vertices.push(v.x,v.y,v.z);}}const geo=new THREE.BufferGeometry();geo.setAttribute('position',new THREE.Float32BufferAttribute(vertices,3));const obj=new THREE.LineSegments(geo,new THREE.LineBasicMaterial({color,depthTest:false,transparent:true,opacity:.95}));obj.renderOrder=10;group3D.add(obj);};
+        const addLines=(points,connections,color,userData=null)=>{const vertices=[];for(const c of connections){for(const i of [c.startIdx,c.endIdx]){const v=vector(points[i]);vertices.push(v.x,v.y,v.z);}}const geo=new THREE.BufferGeometry();geo.setAttribute('position',new THREE.Float32BufferAttribute(vertices,3));const obj=new THREE.LineSegments(geo,new THREE.LineBasicMaterial({color,depthTest:false,transparent:true,opacity:.95}));if(userData)Object.assign(obj.userData,userData);obj.renderOrder=10;group3D.add(obj);};
         let roof=state?.roof;
         if(!roof){try{const c=captureRoof();roof=c.roof;sourceContext=c.context;}catch(e){syncVisibility();return;}}
         if(roofVisible){
-            addLines(roof.points,roof.connections,GREEN);
+            // Ridges, hips and valleys take no trim; Trim mode greys them out.
+            const untrimmed=c=>['ridge','hip','valley'].includes(c.type);addLines(roof.points,roof.connections.filter(c=>!untrimmed(c)),GREEN);addLines(roof.points,roof.connections.filter(untrimmed),GREEN,{untrimmedRoofLine:true});
             const textured=['textured','match-textured'].includes(surfaceMode()),visibleRoof=window.WallChimneys?.roofWithOpenings(state)||roof;
             const presentation=textured?window.ExteriorFinishes.roofPresentation(visibleRoof):{faces:visibleRoof.faces,skylights:[]};
             presentation.faces.forEach((f,index)=>renderChunk('roof:'+index,f,group3D,target=>{for(const mesh of window.ExteriorFinishes.roofMeshes(f,vector,textured))target.add(mesh);}));
             presentation.skylights.forEach((f,index)=>renderChunk('roof-skylight:'+index,f,group3D,target=>target.add(window.ExteriorFinishes.skylightMesh(f,vector))));
+            // Ridge and hip caps (textured modes only): one merged mesh per roof.
+            if(textured)renderChunk('roof-caps',[visibleRoof,window.ExteriorFinishes.resolve({material:'shingles'},state?.finishDefaults||{})],group3D,target=>{const caps=window.ExteriorFinishes.roofCaps?.(visibleRoof,vector);if(caps)target.add(caps);});
             drawRoofTrim(group3D,roof,vector);
         }
         if(wallsVisible&&state&&stage===1){const ps=[],cs=[];for(const s of state.sources){const i=ps.length;ps.push(s.a,s.b);cs.push({startIdx:i,endIdx:i+1});}addLines(ps,cs,YELLOW);}
@@ -688,12 +823,33 @@ function perf_render3DFrame() {
                 group3D.add(new THREE.Points(pg,new THREE.PointsMaterial({color,size:6,sizeAttenuation:false,depthTest:false})));
             }
         }
-        roofTrimEditor?.update();groundEditor?.draw3D(group3D,vector);baseEditor?.draw3D(group3D,vector);wallEditor?.draw3D(group3D,vector);window.ExteriorDistanceInput?.render(wallEditor?.distanceInput()||baseEditor?.distanceInput());
+        roofTrimEditor?.update();groundEditor?.draw3D(group3D,vector);baseEditor?.draw3D(group3D,vector);wallEditor?.draw3D(group3D,vector);window.ExteriorDistanceInput?.render(distanceOwner());
         if(wallsVisible&&gapHighlights&&stage>=2){const points=[],connections=[];for(const gap of currentGaps()){const i=points.length;points.push(gap.bottom,gap.top);connections.push({startIdx:i,endIdx:i+1});}addLines(points,connections,GAP_COLOR);}
         window.exteriorSurfaceDisplay?.(group3D,surfaceMode());
-        applyPlaneDisplay(group3D,vector);
+        applyPlaneDisplay(group3D,vector);applyLineSelectDisplay(group3D);
         syncVisibility();
     }
+    // Line selection modes show what cannot be selected differently:
+    // Resoffit keeps only roof-contact lines and the selection bright, so the mode is obvious and the lines easy to pick;
+    // Trim dims nothing, greys the roof lines that take no trim and hides every point, since trim goes on lines.
+    const lineSelectDisplays={
+        resoffit:{points:true,muted:o=>!(o.userData.exteriorSoffit||o.userData.exteriorSelection||o.userData.planeGuide),mute:dim},
+        trim:{points:false,muted:o=>!!o.userData.untrimmedRoofLine,mute:grey}
+    };
+    // Change a copy of each material, keeping the original, since some scene parts survive between redraws.
+    let lineSelectShown=null;
+    function applyLineSelectDisplay(group){
+        const mode=resoffitMode?'resoffit':trimMode?'trim':null,display=lineSelectDisplays[mode];if(!mode&&!lineSelectShown)return;lineSelectShown=mode;
+        group.traverse(o=>{
+            if(o.isPoints&&display?.points===false){if(o.visible!==false){o.visible=false;o.userData.lineSelectHidden=true;}}else if(o.userData?.lineSelectHidden){o.visible=true;delete o.userData.lineSelectHidden;}
+            if(!o.material)return;const original=o.userData.lineSelectOriginal;
+            if(!display||!display.muted(o)){if(original){o.material=original;delete o.userData.lineSelectOriginal;}return;}
+            const base=original||o.material;o.userData.lineSelectOriginal=base;
+            o.material=Array.isArray(base)?base.map(display.mute):display.mute(base);
+        });
+    }
+    function grey(material){const m=material.clone();m.color?.set?.('#6f767d');m.transparent=true;m.opacity=material.opacity*.6;return m;}
+    function dim(material){const m=material.clone();m.transparent=true;m.opacity=material.opacity*.12;m.depthWrite=false;return m;}
     function applyPlaneDisplay(group,vector){
         const view=wallEditor?.planeView?.();if(!view||view.display==='normal')return;
         const K=window.ExteriorGeometry,f=view.frame,origin=vector(K.world(f,{x:0,y:0,z:0})),u=vector(K.world(f,{x:1,y:0,z:0})).sub(origin),v=vector(K.world(f,{x:0,y:1,z:0})).sub(origin),normal=u.clone().cross(v).normalize(),tolerance=Math.max(u.length(),v.length())*K.CONTACT;
@@ -737,10 +893,11 @@ function perf_render3DFrame() {
     }
     function inspect(id) {selected=id;const s=state?.sources.find(s=>s.id===id),setback=stage>=6?state?.rakeCleanupReport?.setbackCorrections?.find(c=>c.sourceIds.includes(id))?.after:undefined;details.textContent=s?`${s.id} · ${s.kind==='return'?'lower wall return':s.type.replaceAll('_',' ')} · ${s.direction==='up'?'up to next roof':'down to roof or ground'} · ${s.joins?`continues straight to ${s.joins}`:`${window.ReportUnits?.current().metric ? window.ReportUnits.current().quantity((setback??s.setback)/G.INCH, 'inch') : ((setback??s.setback)/G.INCH).toFixed(1)+' in'} setback`}`:'';render2D();}
     function render() {
-        if(!panel)return;settle2D();document.getElementById('wall-clear-model').disabled=!state;if(state?.displayMode==='rendered')state.displayMode='textured';document.body.classList.toggle('exterior-textured',enabled&&['textured','match-textured'].includes(surfaceMode()));
+        if(!panel)return;settle2D();document.getElementById('wall-clear-model').disabled=!state;if(state?.displayMode==='rendered')state.displayMode='textured';document.body.classList.toggle('exterior-textured',enabled&&['textured','match-textured'].includes(surfaceMode()));syncDisplayCapabilities();
         for(const mode of ['all','moving','off'])document.getElementById('wall-lengths-'+mode).setAttribute('aria-pressed',String(mode===(state?.lineLengthMode||(state?.wallLengths===false?'off':'moving'))));document.getElementById('wall-feature-dimensions')?.setAttribute('aria-pressed',String(displayPreference('featureDimensions')));
         document.getElementById('wall-roof-bounds').checked=state?.boundExtrusionToRoof!==false;
         document.getElementById('wall-static-trim').checked=state?.keepTrimStatic===true;
+        document.getElementById('wall-sticker-delete-closed').checked=state?.stickerDeleteKeepsFace===true;
         document.getElementById('wall-auto-parapets').checked=state?.autoParapets??state?.options?.autoParapets??autoParapets;
         document.getElementById('wall-closed-soffits-toggle').setAttribute('aria-pressed',String(state?.closedSoffits??closedSoffits));
         document.getElementById('wall-driven-soffits').checked=state?.drivenSoffits??state?.options?.drivenSoffits??drivenSoffits;
@@ -789,14 +946,14 @@ function perf_render3DFrame() {
         #wall-panel details{margin:5px 0;color:#b9c5cc}#wall-panel summary{cursor:pointer}
         #wall-panel .wall-fields{display:grid;grid-template-columns:minmax(0,1fr);gap:5px}
         #wall-panel .wall-fields label{gap:5px}#wall-panel .wall-fields select{min-width:0;max-width:100px}
-        #wall-status,#ground-status{color:#b9c5cc;font-size:11px}#base-status{overflow-wrap:anywhere}
+        #wall-status,#ground-status{color:#b9c5cc;font-size:11px}.textured-unavailable{opacity:.42!important;cursor:not-allowed!important}#base-status{overflow-wrap:anywhere}
         #wall-panel .wall-row{flex-direction:column;align-items:stretch}#wall-panel button{white-space:normal;overflow-wrap:anywhere}#wall-panel label{gap:5px}#wall-panel select{min-width:0;max-width:100%}#wall-panel .wall-heading{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:6px}
         `;
         document.head.appendChild(style);
         const button=document.createElement('button');button.id='wall-mode-toggle';button.type='button';button.textContent='Wall mode';button.setAttribute('aria-pressed','false');button.addEventListener('click',()=>setEnabled(!enabled));
         document.getElementById('addressBarContainer').appendChild(button);
         panel=document.createElement('section');panel.id='wall-panel';panel.hidden=true;panel.setAttribute('aria-label','Wall development tools');
-        panel.innerHTML=`<div class="wall-heading"><h3>Walls</h3><details id="wall-advanced"><summary aria-label="Advanced settings" title="Advanced settings">&#9881;</summary><div><label><input id="wall-show-dev-controls" type="checkbox">Show Dev Controls</label><label><input id="wall-auto-parapets" type="checkbox" checked>Automatic parapet inside walls</label><p>On the next From Roof rebuild, raise parapet walls 2 ft above the roof, cap 6 in inward, and return to the inset roof surface. The new faces remain editable.</p><label><input id="wall-driven-soffits" type="checkbox" checked>Driven soffits · advanced Z-offset</label><p>In Auto, use adjoining measured soffit depths when they keep connected eaves flatter. Numeric presets and custom lengths keep their selected depth away from roof contacts. Applies on the next From Roof rebuild.</p><label><input id="wall-roof-bounds" type="checkbox" checked>Automatically trim faces to roof line</label><p>Keep extrusions below roof surfaces and follow their slopes, even when the roof is hidden.</p><label><input id="wall-static-trim" type="checkbox">Keep trim static when faces move</label><p>Off by default: trim follows its face and connected trim ends resize with shared edges.</p><label><input id="wall-undo-selections" type="checkbox" checked>Undo selection changes</label><p>Include selection-only steps in Undo and Redo. Geometry edits always restore their selection.</p><button type="button" id="wall-clear-model">Clear exterior model</button></div></details><button id="wall-auto" aria-expanded="false">Auto wall ▾</button></div><button id="wall-roof-visibility" aria-pressed="true">Roof</button><div id="wall-soffit-menu" hidden><div class="soffit-title">Soffit setback</div><div class="soffit-options" role="group" aria-label="Soffit setback"><button data-soffit="auto"><span>Auto</span><small>2 ft</small></button><button data-soffit="0"><span>No soffit</span><small>0 in</small></button><button data-soffit="6"><span>0.5 ft</span><small>6 in</small></button><button data-soffit="12"><span>1 ft</span><small>12 in</small></button><button data-soffit="18"><span>1.5 ft</span><small>18 in</small></button><button data-soffit="24"><span>2 ft</span><small>24 in</small></button></div><label for="wall-custom-soffit">Custom (ft)</label><div class="soffit-custom"><input id="wall-custom-soffit" type="number" min="0" step="any" required placeholder="Feet" aria-label="Custom soffit length in feet"><button type="button" id="wall-custom-soffit-go">Go</button></div><p id="wall-custom-soffit-error" role="alert"></p></div><details id="wall-developer-stages"><summary>Developer stages</summary><div class="wall-stages" role="group" aria-label="Wall generation stage"><button data-stage="1">1 Sources</button><button data-stage="2">2 Extrude</button><button data-stage="3">3 Dedupe</button><button data-stage="4">4 Close gaps</button><button data-stage="5">5 Merge faces</button><button data-stage="6">6 Clean rake returns</button><button data-stage="7">7 Align chimney walls</button></div></details><p id="wall-status" role="status"></p><div class="wall-measurements"><span>Line lengths</span><div id="wall-lengths-toggle" role="group" aria-label="Measurement display"><button type="button" id="wall-lengths-all" title="Show measurements for all lines" aria-label="Show measurements for all lines" aria-pressed="false">All</button><button type="button" id="wall-lengths-moving" title="Show measurements only while moving geometry" aria-label="Show measurements only while moving geometry" aria-pressed="true">Moving</button><button type="button" id="wall-lengths-off" title="Hide line measurements" aria-label="Hide line measurements" aria-pressed="false">Off</button></div></div><div class="wall-grid"><button id="wall-closed-soffits-toggle" aria-pressed="false" title="Toggle editable closed soffits without rebuilding walls">Closed soffits</button><button id="wall-feature-dimensions" aria-pressed="true">Feature dimensions</button><button id="wall-translucency-toggle" aria-pressed="true">Translucency</button><button id="wall-centers-toggle" aria-pressed="true">Face centers</button><button id="wall-line-centers-toggle" aria-pressed="true">Line centers</button><button id="wall-gap-toggle" aria-pressed="true">Open edges</button><button id="wall-step" title="Select a sloped base, diagonal wall line, or collinear angled lines on a drawing plane. S adds steps; move sets offset; Ctrl+wheel adjusts tread width; click to place; Esc cancels.">Auto-step · S</button></div><label>Merge gap (in)<input id="wall-tolerance" type="number" min="0" max="36" step="1" aria-label="Deduplication gap in inches"></label><p id="wall-warning" role="alert"></p><div class="wall-row" id="wall-actions"><button id="wall-auto-trim" title="Apply 6 inch trim to outward wall corners, excluding inside corners and roof/ground boundaries">Auto trim</button><button id="wall-merge-all" title="Merge connected coplanar faces with matching materials">Merge faces</button><button id="wall-save">Save walls</button><button id="wall-rebuild" title="Rebuild from the current roof through all seven generation stages">Rebuild from roof</button></div><details><summary>Details &amp; shortcuts</summary><strong id="wall-stage-label"></strong><p id="wall-soffit-label"></p><p id="wall-details"></p><p id="wall-gap-status"></p><p id="wall-save-note"></p><p>Selected face: P toggles its drawing plane; double-click adds points, C connects, N extends, drag selects.<br>Selected lines: T adds trim; repeat for other side / centered. Default 6 in.<br>Selected wall edges or corners: R rounds (fillet); C chamfers.<br>Selected coplanar points: V creates a face using only those points.<br>Selected angled plane lines: S starts Auto-step; repeat S adds steps, move sets offset, Ctrl+wheel sets width.<br>Selected point: S draws a curve on its face in 2D or 3D; click center, then endpoint. U connects points.<br>Selected geometry: M moves on plane; R rotates; T flips; Y resizes.<br>Repeat M/R/Y to cycle reference planes. T cycles vertical / horizontal / original on the same plane. F toggles snapping.<br>Shared border: M moves along one face; M again switches face.<br>Flip: X horizontal / V vertical. Rotation snaps near 45&deg; increments.<br>Resize starts on All; click X/Y/Z or Ctrl+wheel to change axes.<br>Wheel zooms; Ctrl+wheel changes tool options.<br>Ctrl+C / V copies / pastes complete selected geometry.<br>Switch M / R / T during paste; Esc restores the whole preview.<br>Shift+F: restore a deleted face from selected boundary points.<br>W / D / G: place window / door / garage door.<br>Shift+W / D / G: type selected face; repeat for sizes.<br>Arrows: nudge 1 in · Shift 6 in · Alt ¼ in.<br>H / V: cut; repeat for side / other / both.<br>Click to place · Esc to cancel.</p></details>`;
+        panel.innerHTML=`<div class="wall-heading"><h3>Walls</h3><details id="wall-advanced"><summary aria-label="Advanced settings" title="Advanced settings">&#9881;</summary><div><label><input id="wall-show-dev-controls" type="checkbox">Show Dev Controls</label><label><input id="wall-auto-parapets" type="checkbox" checked>Automatic parapet inside walls</label><p>On the next From Roof rebuild, raise parapet walls 2 ft above the roof, cap 6 in inward, and return to the inset roof surface. The new faces remain editable.</p><label><input id="wall-driven-soffits" type="checkbox" checked>Driven soffits · advanced Z-offset</label><p>In Auto, use adjoining measured soffit depths when they keep connected eaves flatter. Numeric presets and custom lengths keep their selected depth away from roof contacts. Applies on the next From Roof rebuild.</p><label><input id="wall-roof-bounds" type="checkbox" checked>Automatically trim faces to roof line</label><p>Keep extrusions below roof surfaces and follow their slopes, even when the roof is hidden.</p><label><input id="wall-static-trim" type="checkbox">Keep trim static when faces move</label><p>Off by default: trim follows its face and connected trim ends resize with shared edges.</p><label><input id="wall-sticker-delete-closed" type="checkbox">Deleting a sticker point keeps it closed</label><p>Off by default: a deleted point takes the lines and curves attached to it, and a sticker that no longer closes stays on its wall as open lines. On: the sticker reshapes through its other points, and is deleted if they cannot close.</p><label><input id="wall-undo-selections" type="checkbox" checked>Undo selection changes</label><p>Include selection-only steps in Undo and Redo. Geometry edits always restore their selection.</p><button type="button" id="wall-clear-model">Clear exterior model</button></div></details><button id="wall-auto" aria-expanded="false">Auto wall ▾</button></div><button id="wall-roof-visibility" aria-pressed="true">Roof</button><div id="wall-soffit-menu" hidden><div class="soffit-title">Soffit setback</div><div class="soffit-options" role="group" aria-label="Soffit setback"><button data-soffit="auto"><span>Auto</span><small>2 ft</small></button><button data-soffit="0"><span>No soffit</span><small>0 in</small></button><button data-soffit="6"><span>0.5 ft</span><small>6 in</small></button><button data-soffit="12"><span>1 ft</span><small>12 in</small></button><button data-soffit="18"><span>1.5 ft</span><small>18 in</small></button><button data-soffit="24"><span>2 ft</span><small>24 in</small></button></div><label for="wall-custom-soffit">Custom (ft)</label><div class="soffit-custom"><input id="wall-custom-soffit" type="number" min="0" step="any" required placeholder="Feet" aria-label="Custom soffit length in feet"><button type="button" id="wall-custom-soffit-go">Go</button></div><p id="wall-custom-soffit-error" role="alert"></p></div><details id="wall-developer-stages"><summary>Developer stages</summary><div class="wall-stages" role="group" aria-label="Wall generation stage"><button data-stage="1">1 Sources</button><button data-stage="2">2 Extrude</button><button data-stage="3">3 Dedupe</button><button data-stage="4">4 Close gaps</button><button data-stage="5">5 Merge faces</button><button data-stage="6">6 Clean rake returns</button><button data-stage="7">7 Align chimney walls</button></div></details><p id="wall-status" role="status"></p><div class="wall-measurements"><span>Line lengths</span><div id="wall-lengths-toggle" role="group" aria-label="Measurement display"><button type="button" id="wall-lengths-all" title="Show measurements for all lines" aria-label="Show measurements for all lines" aria-pressed="false">All</button><button type="button" id="wall-lengths-moving" title="Show measurements only while moving geometry" aria-label="Show measurements only while moving geometry" aria-pressed="true">Moving</button><button type="button" id="wall-lengths-off" title="Hide line measurements" aria-label="Hide line measurements" aria-pressed="false">Off</button></div></div><div class="wall-grid"><button id="wall-closed-soffits-toggle" aria-pressed="false" title="Toggle editable closed soffits without rebuilding walls">Closed soffits</button><button id="wall-feature-dimensions" aria-pressed="true">Feature dimensions</button><button id="wall-translucency-toggle" aria-pressed="true">Translucency</button><button id="wall-centers-toggle" aria-pressed="true">Face centers</button><button id="wall-line-centers-toggle" aria-pressed="true">Line centers</button><button id="wall-gap-toggle" aria-pressed="true">Open edges</button><button id="wall-step" title="Select a sloped base, diagonal wall line, or collinear angled lines on a drawing plane. S adds steps; move sets offset; Ctrl+wheel adjusts tread width; click to place; Esc cancels.">Auto-step · S</button></div><label>Merge gap (in)<input id="wall-tolerance" type="number" min="0" max="36" step="1" aria-label="Deduplication gap in inches"></label><p id="wall-warning" role="alert"></p><div class="wall-row" id="wall-actions"><button id="wall-auto-trim" title="Apply 6 inch trim to outward wall corners, excluding inside corners and roof/ground boundaries">Auto trim</button><button id="wall-merge-all" title="Merge connected coplanar faces with matching materials">Merge faces</button><button id="wall-save">Save walls</button><button id="wall-rebuild" title="Rebuild from the current roof through all seven generation stages">Rebuild from roof</button></div><details><summary>Details &amp; shortcuts</summary><strong id="wall-stage-label"></strong><p id="wall-soffit-label"></p><p id="wall-details"></p><p id="wall-gap-status"></p><p id="wall-save-note"></p><p>Selected face: P toggles its drawing plane; double-click adds points, C connects, N extends, drag selects.<br>Selected lines: T adds trim; repeat for other side / centered. Default 6 in.<br>Selected wall edges or corners: R rounds (fillet); C chamfers.<br>Selected coplanar points: V creates a face using only those points.<br>Selected angled plane lines: S starts Auto-step; repeat S adds steps, move sets offset, Ctrl+wheel sets width.<br>Selected point: S draws a curve on its face in 2D or 3D; click center, then endpoint. U connects points.<br>Selected geometry: M moves on plane; R rotates; T flips; Y resizes.<br>Repeat M/R/Y to cycle reference planes. T cycles vertical / horizontal / original on the same plane. F toggles snapping.<br>Shared border: M moves along one face; M again switches face.<br>Flip: X horizontal / V vertical. Rotation snaps near 45&deg; increments.<br>Resize starts on All; click X/Y/Z or Ctrl+wheel to change axes.<br>Wheel zooms; Ctrl+wheel changes tool options.<br>Ctrl+C / V copies / pastes complete selected geometry.<br>Switch M / R / T during paste; Esc restores the whole preview.<br>Shift+F: restore a deleted face from selected boundary points.<br>W / D / G: place window / door / garage door.<br>Shift+W / D / G: type selected face; repeat for sizes.<br>Arrows: nudge 1 in · Shift 6 in · Alt ¼ in.<br>H / V: cut; repeat for side / other / both.<br>Click to place · Esc to cancel.</p></details>`;
 
         document.getElementById('workspace').appendChild(panel);
         groundEditor=window.createGroundEditor?.({getState:()=>state,ensureState:ensureGradeSetup,projectId:currentId,enabled:()=>enabled,toPixel,toMetric,context:currentContext,commitGround,prepareSampling:()=>{closeResoffit();wallEditor?.leave?.();baseEditor?.leave?.();roofTrimEditor?.finish();},samplingChanged:on=>{document.body.classList.toggle('ground-sampling',on);},changed:groundChanged,onEditing:on=>{editingLayer=on?'grade':'base';baseEditor?.render();},redraw:()=>requestEditorRender()});
@@ -822,7 +979,7 @@ function perf_render3DFrame() {
             for(const marker of document.querySelectorAll('[data-wall-point-key]')){const on=keys.has(marker.dataset.wallPointKey);marker.setAttribute('fill',on?'#fff':marker.dataset.wallPointColor);marker.setAttribute('r',Number(marker.dataset.wallPointRadius)*(on?1.5:1));}
             window.invalidateScene3D?.();return true;
         },pickVisible:p=>!['textured','match-textured'].includes(surfaceMode())&&window.wallPointPickVisible(group3D,getVector3(toPixel(p))),pickLineVisible:(pair,e)=>!['textured','match-textured'].includes(surfaceMode())&&window.wallLinePickVisible(group3D,...pair.map(p=>getVector3(toPixel(p))),e),pickSoffitVisible:(pair,e)=>window.wallLinePickVisible(group3D,...pair.map(p=>getVector3(toPixel(p))),e,Math.max(.03,state.context.mpp*.2)/state.context.mpp),pasteHost:e=>{const hit=window.wallNearestSurface?.(group3D,e);if(hit?.layer==='base'){const f=(state.wallEdits?.$base||state.base)?.faces.find(f=>f.id===hit.object.userData.baseId);if(f)return {f,points:f.points};}return null;},startBaseLine:points=>baseEditor?.startLine(points),selectBaseEntities:(points,pairs,add,subtract)=>{setLayer('base');baseEditor?.selectEntities(points,pairs,add,subtract);},message:text=>{document.getElementById('base-status').textContent=text||'Walls selected';},setLayer,state:()=>state,enabled:()=>enabled,layer:()=>editingLayer,visible:()=>wallsVisible,roofVisible:()=>roofVisible,walls:currentWalls,toPixel,
-            position:(...args)=>groundEditor.position(...args),floorHeight:p=>GroundGeometry.height(wallFloor(),p),recordHistory:before=>recordEdit({wallEdits:before}),changed:()=>{finishEdit();persist();requestEditorRender(true);},redraw:()=>requestEditorRender()});
+            position:(...args)=>groundEditor.position(...args),floorHeight:p=>GroundGeometry.height(wallFloor(),p),recordHistory:before=>recordEdit({wallEdits:before}),groupEdits,changed:()=>{finishEdit();persist();requestEditorRender(true);},redraw:()=>requestEditorRender(),redrawOverlay:()=>requestEditorRender(false,true),overlayGestures:()=>!texturedView()});
         const resetWall=document.createElement('button');resetWall.id='wall-reset-position';resetWall.textContent='Reset wall position';resetWall.onclick=()=>wallEditor?.resetPosition();document.getElementById('wall-actions').appendChild(resetWall);
         panel.addEventListener('wheel',e=>e.stopPropagation(),{passive:true});
         panel.style.top='140px';panel.style.maxHeight='calc(100% - 152px)';panel.style.overflowY='auto';
@@ -838,7 +995,7 @@ function perf_render3DFrame() {
         resoffitControl.innerHTML='<button id="wall-resoffit" aria-expanded="false" aria-pressed="false" title="Change the depth of selected roof-contact soffits">Resoffit</button><div id="wall-resoffit-menu" hidden><p>Select red-orange roof-contact lines. Click to add or remove; then Apply.</p><label>Soffit depth (ft)<input id="wall-resoffit-depth" type="number" min="0" max="16" step="any" value="2"></label><div id="wall-resoffit-presets"><button data-resoffit="0">0</button><button data-resoffit="0.5">½ ft</button><button data-resoffit="1">1 ft</button><button data-resoffit="1.5">1½ ft</button><button data-resoffit="2">2 ft</button><button data-resoffit="wallless" title="Keep the roof, remove selected walls and continue adjoining walls where supported">Wallless</button></div><p id="wall-resoffit-count" role="status"></p><button id="wall-resoffit-apply">Apply</button><button id="wall-resoffit-done">Done</button><p id="wall-resoffit-result" role="status"></p></div>';
         panel.appendChild(resoffitControl);
         const resoffitButton=document.getElementById('wall-resoffit'),resoffitMenu=document.getElementById('wall-resoffit-menu');
-        function setResoffit(on){resoffitMode=!!on;wallEditor?.setResoffitMode?.(resoffitMode);resoffitMenu.hidden=!resoffitMode;resoffitButton.setAttribute('aria-expanded',String(resoffitMode));resoffitButton.setAttribute('aria-pressed',String(resoffitMode));if(on){document.getElementById('wall-resoffit-result').textContent='';setLayer('walls',true);document.getElementById('base-status').textContent='Select red-orange soffit lines, then choose a depth and Apply.';}}
+        function setResoffit(on){if(on&&trimMode)roofTrimEditor?.clear();resoffitMode=!!on;wallEditor?.setResoffitMode?.(resoffitMode);resoffitMenu.hidden=!resoffitMode;resoffitButton.setAttribute('aria-expanded',String(resoffitMode));resoffitButton.setAttribute('aria-pressed',String(resoffitMode));if(on){document.getElementById('wall-resoffit-result').textContent='';setLayer('walls',true);document.getElementById('base-status').textContent='Select red-orange soffit lines, then choose a depth and Apply.';}}
         resoffitButton.onclick=()=>{if(!state)return;if(!resoffitMode&&(wallEditor?.busy()||baseEditor?.busy())){status.textContent='Finish the current edit before resoffiting.';return;}setResoffit(!resoffitMode);};
         document.getElementById('wall-resoffit-done').onclick=()=>setResoffit(false);
         const resoffitDepth=document.getElementById('wall-resoffit-depth'),resoffitPresets=[...resoffitMenu.querySelectorAll('[data-resoffit]')];
@@ -848,9 +1005,12 @@ function perf_render3DFrame() {
         resoffitDepth.oninput=()=>selectResoffit(resoffitDepth.value.trim()?String(Number(resoffitDepth.value)):'');
         selectResoffit('2');
         document.getElementById('wall-resoffit-apply').onclick=()=>{const wallless=resoffitChoice==='wallless',input=resoffitDepth;if(!wallless&&(!input.value.trim()||!input.checkValidity())){input.reportValidity();return;}const ok=wallEditor?.resoffit(wallless?'wallless':Number(input.value)*.3048);document.getElementById('wall-resoffit-result').textContent=document.getElementById('base-status').textContent;if(ok)setResoffit(false);};
-        // Resoffit is a dropdown: a press anywhere outside it closes it, except on a roof-contact line in the 3D view
-        // (that press toggles the line) and the camera controls (used to reach lines).
-        window.addEventListener('pointerdown',e=>{if(!resoffitMode||e.target.closest?.('#wall-resoffit-control,#axis-gizmo-container,#resource-3d-controls,.controls-3d-actions'))return;if(e.button===0&&e.target.closest?.('#three-view-wrapper')&&wallEditor?.resoffitHit?.(e))return;setResoffit(false);},true);
+        // While Resoffit is open the views select roof-contact lines (click or box), so presses there keep it open;
+        // Done, the Resoffit button, a successful Apply, Escape or a press elsewhere in the toolbars closes it.
+        window.addEventListener('pointerdown',e=>{if(!resoffitMode||e.target.closest?.('#wall-resoffit-control,#axis-gizmo-container,#resource-3d-controls,.controls-3d-actions,#three-view-wrapper,#viewport'))return;setResoffit(false);},true);
+        // Trim works the same way: presses in the views select lines; a press anywhere else closes the menu.
+        // The shared colour dialog (.fm-color-picker) opens outside the menu but belongs to it.
+        window.addEventListener('pointerdown',e=>{if(!trimMode||e.target.closest?.('#roof-trim-control,.fm-color-picker,#axis-gizmo-container,#resource-3d-controls,.controls-3d-actions,#three-view-wrapper,#viewport'))return;roofTrimEditor?.clear();},true);
         window.mountExteriorToolbar?.();
         menu=document.getElementById('wall-soffit-menu');badge=document.getElementById('wall-stage-label');status=document.getElementById('wall-status');details=document.getElementById('wall-details');warning=document.getElementById('wall-warning');stageButtons=[...panel.querySelectorAll('[data-stage]')];
         document.getElementById('wall-auto').onclick=e=>{menu.hidden=!menu.hidden;e.currentTarget.setAttribute('aria-expanded',String(!menu.hidden));};
@@ -869,10 +1029,13 @@ function perf_render3DFrame() {
         document.getElementById('wall-auto-parapets').onchange=e=>{autoParapets=e.target.checked;if(state){state.autoParapets=autoParapets;persist();}};
         document.getElementById('wall-driven-soffits').onchange=e=>{drivenSoffits=e.target.checked;if(state){state.drivenSoffits=drivenSoffits;persist();}};
         document.getElementById('wall-static-trim').onchange=e=>{if(!state)return;wallEditor?.leave?.();state.keepTrimStatic=e.target.checked;persist();render();};
+        document.getElementById('wall-sticker-delete-closed').onchange=e=>{if(!state)return;wallEditor?.leave?.();state.stickerDeleteKeepsFace=e.target.checked;persist();render();};
         document.getElementById('wall-undo-selections').onchange=e=>{if(!state)return;state.undoSelections=e.target.checked;persist();baseEditor?.render();};
         for(const event of ['pointerdown','pointerup','mousedown','mouseup','click','dblclick','keydown','change'])window.addEventListener(event,watchSelectionInput,true);
         document.getElementById('wall-roof-bounds').onchange=e=>{if(!state)return;state.boundExtrusionToRoof=e.target.checked;persist();render();};
-        function cycleSurfaceDisplay(){if(!state)return;const modes=surfaceModes(),mode=surfaceMode();state.displayMode=modes[(modes.indexOf(mode)+1)%modes.length];state.translucent=state.displayMode==='translucent';persist();render();}
+        // Opening Wall materials shows Textured; closing it puts back the mode it replaced, unless the user picked one meanwhile.
+        let pickerDisplay=null;
+        function cycleSurfaceDisplay(){if(!state)return;pickerDisplay=null;const modes=surfaceModes(),mode=surfaceMode();state.displayMode=modes[(modes.indexOf(mode)+1)%modes.length];state.translucent=state.displayMode==='translucent';persist();render();}
         document.getElementById('wall-translucency-toggle').onclick=cycleSurfaceDisplay;
         document.getElementById('wall-line-centers-toggle').onclick=()=>toggleDisplayPreference('lineCenters');
         document.getElementById('wall-centers-toggle').onclick=()=>toggleDisplayPreference('wallCenters');
@@ -889,10 +1052,66 @@ function perf_render3DFrame() {
             if(!Number.isFinite(value)||(prop==='tolerance'&&(value<0||value>36*G.INCH))){render();return;}
             state.options[prop]=value;invalidateWalls();ensureStage(stage);
         };
-        roofTrimEditor=window.createRoofTrimEditor?.({openingTrimItems:type=>wallEditor?.openingTrimItems(type)||[],selectOpeningTrim:(...args)=>{setLayer('walls',true);wallEditor?.selectOpeningTrim(...args);},applyOpeningTrim:(...args)=>wallEditor?.applyOpeningTrim(...args),wallMaterials:()=>wallEditor?.trimMaterials()||[],removeWallTrim:()=>wallEditor?.removeTrim(),selectWallTrim:(kind,materials)=>{setLayer('walls',true);wallEditor?.selectTrimEdges(kind,materials);},applyWallTrim:(width,color,materials)=>{const edges=editingLayer==='base'?baseEditor?.chamferSelection?.()?.edges||[]:[];setLayer('walls',true);wallEditor?.applyTrim(width*G.INCH,color,edges,materials);},wallWidth:()=>state?.wallTrimWidthInches===8?8:6,setWallWidth:value=>{if(state&&[6,8].includes(value)){state.wallTrimWidthInches=value;persist();}},settings:()=>state?.roofTrim||roofTrimOnly,set:value=>{if(state)state.roofTrim=value;else roofTrimOnly=value;},enabled:()=>enabled,prepare:()=>{if(!roofVisible){roofVisible=true;render3D();}},visible:roofTrimVisible,redraw:()=>enabled?render3D():renderRoofTrim3D(),screen:p=>{const r=renderer.domElement.getBoundingClientRect(),q=getVector3(toPixel(p)).project(camera);if(q.z<-1||q.z>1)return null;return {x:r.left+(q.x+1)*r.width/2,y:r.top+(1-q.y)*r.height/2};},clearSelection:()=>{baseEditor?.clearSelection();wallEditor?.clear();if(!enabled){selectedPoints.clear();selectedLines.clear();}},commit:before=>{if(state){recordEdit({roofTrim:before});finishEdit();persist();baseEditor?.render();}else{roofTrimHistory.push(before);roofTrimFuture=[];}persistRoofTrim();},undo:redo=>{if(state)undoEdit(redo);else{const from=redo?roofTrimFuture:roofTrimHistory,to=redo?roofTrimHistory:roofTrimFuture;if(from.length){to.push(copy(roofTrimOnly));roofTrimOnly=copy(from.pop());persistRoofTrim();renderRoofTrim3D();}}}});
+        // One undo step around a Selection change; a failed writer rolls everything back.
+        function trimTransaction(fn){
+            if(!state)return fn()!==false;settleNudges();if(pendingEdit)finishEdit();recordEdit({});const pending=pendingEdit,selection=selectionSnapshot();let ok=false;trimBatch++;
+            try{ok=fn()!==false;}catch(error){console.error(error);ok=false;}finally{trimBatch--;}
+            if(!ok){if(pending)for(const k of historyKeys)state[k]=pending[k]===undefined?undefined:copy(pending[k]);pendingEdit=null;restoreSelection(selection);persist();persistRoofTrim();render();return false;}
+            pendingEdit=pending;finishEdit();persist();persistRoofTrim();render();return true;
+        }
+        const trimDefault=()=>state?.finishDefaults?.trimColor||'#f5f3ef';
+        // The Trim menu's default colours are the Wall materials defaults (walls, roof, each sticker kind's trim).
+        function setTrimDefault(kind,color){
+            if(!enabled||!state||!/^#[0-9a-f]{6}$/i.test(color||''))return false;color=color.toLowerCase();const d={...state.finishDefaults};
+            if(kind==='wall')d.trimColor=color;else if(kind==='roof')d.roofTrimColor=color;else if(['window','door','garage'].includes(kind))d.stickers={...d.stickers,[kind+'Trim']:color};else return false;
+            recordEdit({});state.finishDefaults=d;finishEdit();persist();render();return true;
+        }
+        // Line trim already on the selected lines, read from the saved trim layers (face trim excluded).
+        function lineTrimLayers(){const surfaces=state?.wallEdits?.$surfaces||[];if(lineLayerCache.surfaces===surfaces)return lineLayerCache.layers;const out=new Map();for(const f of surfaces)if(!f.deleted)for(const l of f.trimData?.layers||[])if(l.pair&&!l.joinIds&&!l.side&&!out.has(l.id))out.set(l.id,l);lineLayerCache={surfaces,layers:[...out.values()]};return lineLayerCache.layers;}
+        function lineTrimItems(lines){const layers=lineTrimLayers(),W=window.WallSolidGeometry;return lines.map(line=>{const pairs=line.pairs||[line.pair];return {line,pairs,layers:layers.filter(l=>pairs.some(pair=>W.sharedIntervals(...pair,[{points:l.pair}]).some(([a,b])=>b-a>1e-3)))};});}
+        const faceRefs=d=>{const primary=d?.selectedSolid?{solid:d.selectedSolid}:d?.selectedRegion||null,list=d?.faceSelection||[],key=r=>JSON.stringify(r);return primary?(list.some(r=>key(r)===key(primary))?list:[primary]):[];};
+        function selectionTrimItems(){
+            if(!wallEditor||!state)return [];const draft=wallEditor.selectionSnapshot?.()?.draft||{};
+            const lines=lineTrimItems(draft.lineSelection||[]).map(i=>{const l=i.layers[0];return {kind:'line',width:l?l.width/G.INCH:0,raw:l?.finishColor,color:l?(l.finishColor||trimDefault()):null};});
+            const faces=(wallEditor.faceTrimItems?.()||[]).map(i=>({kind:'face',ref:i.ref,width:i.width,raw:i.color||undefined,color:i.width>0?i.color:null}));
+            const openings=['window','door','garage'].flatMap(type=>(wallEditor.openingTrimItems(type)||[]).filter(i=>i.selected).map(i=>({kind:type,ref:i.ref,width:i.width,raw:i.f.feature.trim?.color,color:i.width>0?(i.f.feature.trim?.color||trimDefault()):null})));
+            return [...lines,...faces,...openings];
+        }
+        // Each type through its own writer: face trim, line trim, opening trim. decide(kind,width,raw,effective) gives null or {width (in), color}.
+        function applySelectionTrim(decide){
+            if(!wallEditor||!state)return true;const snap=wallEditor.selectionSnapshot(),draft=snap.draft||{},W=window.WallSolidGeometry,hostOf=f=>f.trimData?.host||f.id;
+            const select=over=>wallEditor.restoreSelection({...snap,draft:{...draft,picked:[],pickedLines:[],solidPoints:[],solidEdges:[],...over}}),faces=refs=>({faceSelection:refs,selectedSolid:refs[0]?.solid||null,selectedRegion:refs[0]&&!refs[0].solid?refs[0]:null}),lineRefs=pairs=>pairs.map(pair=>({id:W.edgeKey(...pair),pair}));
+            const group=(map,t,value)=>{const k=t.width+'|'+(t.color||'');if(!map.has(k))map.set(k,{width:t.width,color:t.color,items:[]});map.get(k).items.push(value);};
+            const items=selectionTrimItems(),openingItems=items.filter(i=>['window','door','garage'].includes(i.kind)),selectedFaces=items.filter(i=>i.kind==='face');let hosts=new Set();
+            let changed=false;
+            if(selectedFaces.length){const groups=new Map(),addHosts=refs=>{const surfaces=state.wallEdits.$surfaces||[];for(const r of refs){const f=r.solid&&surfaces.find(x=>x.id===r.solid);if(f)hosts.add(hostOf(f));}};addHosts(selectedFaces.map(i=>i.ref));
+                for(const i of selectedFaces){const t=decide('face',i.width,i.raw,i.color);if(t)group(groups,t,i.ref);}
+                for(const g of groups.values()){select({lineSelection:[],...faces(g.items)});if(!wallEditor.applyFaceTrim(g.width*G.INCH,g.color??null,{color:g.color}))return false;changed=true;addHosts(faceRefs(wallEditor.selectionSnapshot().draft));}
+            }
+            const lines=lineTrimItems(draft.lineSelection||[]),seen=new Set(),removing=[],add=new Map();
+            for(const item of lines){if(item.layers.length){for(const l of item.layers){if(seen.has(l.id))continue;seen.add(l.id);const t=decide('line',l.width/G.INCH,l.finishColor,l.finishColor||trimDefault());if(!t)continue;removing.push(l.pair);if(t.width>0)group(add,t,l.pair);}}else{const t=decide('line',0);if(t?.width>0)for(const pair of item.pairs)group(add,t,pair);}}
+            if(removing.length){select({lineSelection:lineRefs(removing),...faces([])});wallEditor.removeTrim();changed=true;}
+            // Lines that cannot hold trim (no wall face along them) are skipped, not fatal.
+            let skipped=0;for(const g of add.values()){select({lineSelection:lineRefs(g.items),...faces([])});if(wallEditor.applyTrim(g.width*G.INCH,g.color||undefined))changed=true;else skipped+=g.items.length;}
+            if(skipped&&!changed&&!removing.length&&!selectedFaces.length&&!openingItems.length)return false;
+            for(const type of ['window','door','garage']){const groups=new Map();for(const i of openingItems.filter(i=>i.kind===type)){const t=decide(type,i.width,i.raw,i.color);if(t)group(groups,t,i.ref);}
+                for(const g of groups.values()){select({lineSelection:[],...faces(g.items)});if(wallEditor.applyOpeningTrim(type,g.width,g.color||undefined)===false)return false;}}
+            // The selection comes back as it was; faces divided by trim are selected by what is left of them.
+            const surfaces=state.wallEdits.$surfaces||[],refs=[...openingItems.map(i=>i.ref),...surfaces.filter(s=>!s.deleted&&!s.trim&&!s.feature&&hosts.has(hostOf(s))).map(s=>({solid:s.id}))];
+            select({lineSelection:draft.lineSelection||[],...faces(changed&&hosts.size?refs:faceRefs(draft))});return true;
+        }
+        // Bulk opening selection adds to (or removes from) the selection while Trim is open.
+        function selectOpeningTrim(type,key,checked=true){
+            const before=wallEditor?.selectionSnapshot?.();wallEditor?.selectOpeningTrim(type,key,checked);if(!trimMode||!before)return;
+            const after=wallEditor.selectionSnapshot(),mine=new Set((wallEditor.openingTrimItems(type)||[]).map(i=>JSON.stringify(i.ref))),keep=faceRefs(before.draft).filter(r=>!mine.has(JSON.stringify(r))),refs=[...keep,...faceRefs(after.draft).filter(r=>mine.has(JSON.stringify(r)))];
+            wallEditor.restoreSelection({...after,draft:{...after.draft,lineSelection:before.draft?.lineSelection||[],faceSelection:refs,selectedSolid:refs[0]?.solid||null,selectedRegion:refs[0]&&!refs[0].solid?refs[0]:null}});requestEditorRender(true);
+        }
+        roofTrimEditor=window.createRoofTrimEditor?.({roofTrimColor:()=>state?.finishDefaults?.roofTrimColor||trimDefault(),trimDefaults:()=>{const d=state?.finishDefaults||{},s=window.ExteriorFinishes?.stickerDefaults?.(d)||{};return state?{wall:trimDefault(),roof:d.roofTrimColor||trimDefault(),window:s.windowTrim,door:s.doorTrim,garage:s.garageTrim}:{};},setTrimDefault,openChanged:setTrimMode,trimTransaction,groupEdits,selectionTrimItems,applySelectionTrim,openingTrimItems:type=>wallEditor?.openingTrimItems(type)||[],selectOpeningTrim:(...args)=>{setLayer('walls',true);selectOpeningTrim(...args);},applyOpeningTrim:(...args)=>wallEditor?.applyOpeningTrim(...args),wallMaterials:()=>wallEditor?.trimMaterials()||[],removeWallTrim:()=>wallEditor?.removeTrim(),selectWallTrim:(kind,materials)=>{setLayer('walls',true);wallEditor?.selectTrimEdges(kind,materials);},applyWallTrim:(width,color,materials)=>{const edges=editingLayer==='base'?baseEditor?.chamferSelection?.()?.edges||[]:[];setLayer('walls',true);wallEditor?.applyTrim(width*G.INCH,color,edges,materials);},wallWidth:()=>state?.wallTrimWidthInches===8?8:6,setWallWidth:value=>{if(state&&[6,8].includes(value)){state.wallTrimWidthInches=value;persist();}},settings:()=>state?.roofTrim||roofTrimOnly,set:value=>{if(state)state.roofTrim=value;else roofTrimOnly=value;},enabled:()=>enabled,prepare:()=>{if(!roofVisible){roofVisible=true;render3D();}},visible:roofTrimVisible,redraw:()=>enabled?render3D():renderRoofTrim3D(),screen:p=>{const r=renderer.domElement.getBoundingClientRect(),q=getVector3(toPixel(p)).project(camera);if(q.z<-1||q.z>1)return null;return {x:r.left+(q.x+1)*r.width/2,y:r.top+(1-q.y)*r.height/2};},clearSelection:()=>{baseEditor?.clearSelection();wallEditor?.clear();if(!enabled){selectedPoints.clear();selectedLines.clear();}},commit:before=>{if(state){recordEdit({roofTrim:before});finishEdit();persist();baseEditor?.render();}else{roofTrimHistory.push(before);roofTrimFuture=[];}persistRoofTrim();},undo:redo=>{if(state)undoEdit(redo);else{const from=redo?roofTrimFuture:roofTrimHistory,to=redo?roofTrimHistory:roofTrimFuture;if(from.length){to.push(copy(roofTrimOnly));roofTrimOnly=copy(from.pop());persistRoofTrim();renderRoofTrim3D();}}}});
         function pickPointer(e){return withWallScene(()=>pickPointerInScene(e));}
         function pickPointerInScene(e){
                     if(resoffitMode){wallEditor?.pickLine?.(e);return true;}
+                    // Trim mode: a roof side keeps its own selection; everything else is a line pick or box.
+                    if(trimMode){if(roofTrimEditor?.pick(e,group3D,p=>getVector3(toPixel(p))))return true;setLayer('walls',true);wallEditor?.pickLine?.(e);return true;}
                     if(wallEditor?.planeActive?.())return wallEditor.planeDown(e);
                     // A tool on an inactive layer cannot consume input for the active one.
                     if(baseEditor?.busy()){if(editingLayer==='base')return baseEditor.down(e);baseEditor.leave();}
@@ -948,7 +1167,7 @@ function perf_render3DFrame() {
         },true);
         function cancelInteraction(){
             if(!enabled)return;settleNudges();if(groundEditor?.sampling?.())groundEditor.leave();
-            if(roofTrimEditor?.busy())roofTrimEditor.cancel();else if(roofTrimEditor?.hasSelection())roofTrimEditor.clear();if(!enabled)return;
+            if(roofTrimEditor?.busy())roofTrimEditor.cancel();else if(!windowBlurred&&roofTrimEditor?.hasSelection())roofTrimEditor.clear();if(!enabled)return;
             if(baseEditor?.busy())baseEditor.leave();
             if(wallEditor?.busy())wallEditor.clear();
             render2D();render3D();
@@ -993,7 +1212,9 @@ function perf_render3DFrame() {
             if(name&&name!=='Drawing plane'){const detail=document.getElementById(groundEditor?.sampling?.()?'ground-status':'base-status')?.textContent||'';const text=name+' · '+(name==='Rectangle selection'?'drag and release':detail||'Click to place; Escape cancels');if(interactionText.textContent!==text)interactionText.textContent=text;}
         };
         setInterval(updateInteraction,150);
-        window.addEventListener('blur',cancelInteraction);
+        // The window losing focus (a colour picker or another window opening) ends a drag or
+        // preview, but the Trim menu and its selection stay: the person did not cancel.
+        let windowBlurred=false;window.addEventListener('blur',()=>{windowBlurred=true;try{cancelInteraction();}finally{windowBlurred=false;}});
         window.addEventListener('pointercancel',cancelInteraction,true);
         function handleEditorKey(e){
             if(e.target.closest?.('#exterior-graphics'))return;
@@ -1026,12 +1247,14 @@ function perf_render3DFrame() {
             if(groundEditor?.sampling?.()&&!e.target.closest?.('input,textarea,select,[contenteditable=true]'))return groundEditor.keyDown(e);
             if(resoffitMode&&!e.target.closest?.('input,textarea,select,[contenteditable=true]')&&!['Shift','Control','Alt','Meta','Tab'].includes(e.key)&&!((e.ctrlKey||e.metaKey)&&['s','c'].includes(e.key.toLowerCase())))setResoffit(false);
             if(e.key==='Tab'&&!e.ctrlKey&&!e.metaKey&&!e.altKey&&!e.target.closest?.('input,textarea,select,[contenteditable=true]')){if(!e.repeat)cycleSurfaceDisplay();e.preventDefault();e.stopImmediatePropagation();return true;}
+            if(texturedBlockedKey(e)){if(!e.repeat)texturedNotice();e.preventDefault();e.stopImmediatePropagation();return true;}
             if(!e.target.closest?.('input,textarea,select,[contenteditable=true]')&&!e.ctrlKey&&!e.metaKey&&(e.key.toLowerCase()==='p'||wallEditor?.planeActive?.())){if(e.key.toLowerCase()==='p'){if(!e.repeat){const entity=editingLayer==='base'?baseEditor?.chamferSelection?.():null,source=entity?.points?.length?{axisPoints:entity.points}:editingLayer==='base'?baseEditor?.selectedFaceGeometry?.():null;setLayer('walls',true);wallEditor?.togglePlane(source);}}else if(!window.ExteriorDistanceInput?.key(e,wallEditor?.distanceInput()))wallEditor?.keyDown(e);e.preventDefault();e.stopImmediatePropagation();return true;}
             if(wallEditor?.planeActive?.()&&(e.ctrlKey||e.metaKey)&&['a','c','v','x'].includes(e.key.toLowerCase())&&!e.target.closest?.('input,textarea,select,[contenteditable=true]')){wallEditor.keyDown(e);e.preventDefault();e.stopImmediatePropagation();return true;}
-            if(e.target.closest?.('input,textarea,select,[contenteditable=true]'))return;if(roofTrimEditor?.key(e))return true;
+            if(window.editorKeyBlockedByField?window.editorKeyBlockedByField(e):e.target.closest?.('input,textarea,select,[contenteditable=true]'))return;if(roofTrimEditor?.key(e))return true;if(trimMode&&!e.ctrlKey&&!e.metaKey&&!['Shift','Control','Alt','Meta','Tab'].includes(e.key))roofTrimEditor?.clear();
             if((e.ctrlKey||e.metaKey)&&['c','v'].includes(e.key.toLowerCase())){const copy=e.key.toLowerCase()==='c',selection=copy&&editingLayer==='base'?baseEditor?.chamferSelection?.():null;if(!copy)setLayer('walls',true);wallEditor?.clipboardCommand(copy?'copy':'paste',selection);e.preventDefault();e.stopImmediatePropagation();return true;}
             if(editingLayer==='base'&&!baseEditor?.busy()&&!wallEditor?.busy()&&!e.ctrlKey&&!e.metaKey&&['m','r','t','y'].includes(e.key.toLowerCase())){const selection=baseEditor?.chamferSelection?.();if(selection?.points?.length>=3){setLayer('walls',true);wallEditor?.geometryCommand(e.key.toLowerCase(),selection);e.preventDefault();e.stopImmediatePropagation();return true;}}
-            if(window.ExteriorDistanceInput?.key(e,wallEditor?.distanceInput()||baseEditor?.distanceInput()))return;
+            if(window.ExteriorDistanceInput?.key(e,distanceOwner()))return;
+            if(e.key==='Escape'&&wallEditor?.leaveLock?.()){e.preventDefault();e.stopImmediatePropagation();return true;}
             if(e.key==='Escape'){setResoffit(false);window.WallFeatures?.closeUI?.();cancelInteraction();menu.hidden=true;e.preventDefault();e.stopImmediatePropagation();return true;}
             if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==='s')return;
             if((e.ctrlKey||e.metaKey)&&['z','y'].includes(e.key.toLowerCase())){undoEdit(e.key.toLowerCase()==='y'||e.shiftKey);e.preventDefault();e.stopImmediatePropagation();return true;}
@@ -1056,6 +1279,8 @@ function perf_render3DFrame() {
         // Document bubble runs after the focused control and before window handlers.
         const keysKeptFromRoof=new WeakSet();document.addEventListener('keydown',e=>{if(keysKeptFromRoof.has(e))e.stopImmediatePropagation();});
         window.addEventListener('keydown',handleEditorKey,true);
+        // Controls unavailable in a textured view are inert there (pointer or keyboard activation).
+        for(const type of ['pointerdown','click'])document.addEventListener(type,e=>{const el=e.target.closest?.('.textured-unavailable');if(!el||!texturedView())return;e.preventDefault();e.stopImmediatePropagation();if(type==='click')texturedNotice();},true);
         window.addEventListener('keyup',e=>{if(e.key.startsWith('Arrow')&&pendingNudge)flushNudgeInput();},true);
         document.getElementById('wall-step').onclick=()=>{if(editingLayer==='base')baseEditor?.stepCommand();else{if(editingLayer!=='walls')setLayer('walls');wallEditor?.stepCommand();}};
         window.WallFeatures?.mountUI((...args)=>{if(editingLayer!=='walls')setLayer('walls');window.SmartStickers?.exitPlacement();return wallEditor?.featureCommand(...args);},()=>wallEditor?.featureSelection(),()=>wallEditor?.busy(),{
@@ -1068,8 +1293,14 @@ function perf_render3DFrame() {
                 add(state.finishDefaults?.color);add(state.finishDefaults?.trimColor);
                 return [...counts].sort((a,b)=>b[1]-a[1]||a[0].localeCompare(b[0])).map(([color])=>color);
             },
-            defaults(value){const current={material:'unassigned',color:'#80868b',trimColor:'#f5f3ef',...state?.finishDefaults};if(!value)return current;if(!enabled||!state||!window.ExteriorMaterials?.[value.material]||value.material==='default'||!/^#[0-9a-f]{6}$/i.test(value.color)||!/^#[0-9a-f]{6}$/i.test(value.trimColor))return current;recordEdit({});state.finishDefaults=copy(value);finishEdit();persist();render();return value;},
+            defaults(value){const current={material:'unassigned',color:'#80868b',trimColor:'#f5f3ef',...state?.finishDefaults};if(!value)return current;if(!enabled||!state||!window.ExteriorMaterials?.[value.material]||value.material==='default'||!/^#[0-9a-f]{6}$/i.test(value.color)||!/^#[0-9a-f]{6}$/i.test(value.trimColor)||value.roofTrimColor!=null&&!/^#[0-9a-f]{6}$/i.test(value.roofTrimColor))return current;recordEdit({});state.finishDefaults={...state.finishDefaults,...copy(value)};finishEdit();persist();render();return value;},
+            // Roof covering for the whole roof: a category from ExteriorFinishes.roofMaterials and a color. Saved with the other defaults; undoable.
+            // Sticker trim and main colours, by piece (ExteriorFinishes.stickerPieces). A partial value changes only its pieces.
+            stickers(value){const F=window.ExteriorFinishes;if(!F?.stickerDefaults)return null;const current=F.stickerDefaults(state?.finishDefaults||{});if(!value)return current;if(!enabled||!state||typeof value!=='object')return current;const ids=new Set(F.stickerPieces.map(p=>p.id)),entries=Object.entries(value);if(!entries.length||entries.some(([id,color])=>!ids.has(id)||!/^#[0-9a-f]{6}$/i.test(color||'')))return current;const next={...state.finishDefaults?.stickers};for(const [id,color]of entries)next[id]=color.toLowerCase();if(entries.every(([id,color])=>current[id]===color.toLowerCase())&&state.finishDefaults?.stickers)return current;recordEdit({});state.finishDefaults={...state.finishDefaults,stickers:next};finishEdit();persist();render();return F.stickerDefaults(state.finishDefaults);},
+            roof(value){const F=window.ExteriorFinishes,current=F?.resolveRoof(state?.finishDefaults?.roof)||{category:'shingles',color:'#4a4c4f'};if(!value)return current;if(!enabled||!state||!F?.roofMaterials?.[value.category]||!/^#[0-9a-f]{6}$/i.test(value.color||''))return current;const next={category:value.category,color:value.color.toLowerCase()};if(state.finishDefaults?.roof&&next.category===current.category&&next.color===current.color)return current;recordEdit({});state.finishDefaults={...state.finishDefaults,roof:next};finishEdit();persist();render();return next;},
             finish(){if(wallEditor?.interaction()==='Paint material'){wallEditor.clear();render();}},
+            pickerOpened(){if(!enabled||!state||['textured','match-textured'].includes(surfaceMode())){pickerDisplay=null;return;}pickerDisplay={displayMode:state.displayMode,translucent:state.translucent};state.displayMode='textured';state.translucent=false;persist();render();},
+            pickerClosed(){const saved=pickerDisplay;pickerDisplay=null;if(!saved||!state||state.displayMode!=='textured')return;state.displayMode=saved.displayMode;state.translucent=saved.translucent;persist();render();},
             colors(value){if(!state)return true;if(typeof value==='boolean'){state.materialColors=value;persist();render();}return state.materialColors!==false;}
         });
         window.addEventListener('beforeunload',()=>persist(false));
@@ -1079,7 +1310,17 @@ function perf_render3DFrame() {
     function reportSnapshot(){
         if(!state||stage<2)return null;
         const faces=window.ExteriorModel.collect(state,currentWalls()).flatMap(f=>window.WallChimneys?.visibleParts(f,state)||[f]).flatMap(f=>window.WallClosedSoffits?.presentation(f,state)||[f]);
-        return window.ExteriorReportModel.build({faces:faces.map(f=>{const finish=window.ExteriorFinishes?.resolve(f,state.finishDefaults);return finish?{...f,material:finish.material,finishColor:finish.color}:f;}),base:state.wallEdits?.$base||state.base,roof:state.roof,context:state.context});
+        return window.ExteriorReportModel.build({faces:faces.map(f=>{const finish=window.ExteriorFinishes?.resolve(f,state.finishDefaults);return finish?{...f,material:finish.material,finishColor:finish.color}:f;}),base:state.wallEdits?.$base||state.base,roof:state.roof,roofTrim:state.roofTrim||roofTrimOnly,context:state.context});
+    }
+    // The PDF cover's textured render travels with the report snapshot: server renders have no editor scene.
+    function reportSnapshotWithCover(){
+        // The textured cover is captured asynchronously before the PDF snapshot is built (ExteriorCover.attach).
+        return reportSnapshot();
+    }
+    // Live sources for the offscreen cover render. The roof is rebuilt from the model, so a hidden roof layer still appears.
+    function coverParts(){
+        if(!enabled||!state?.roof||stage<2||!group3D||typeof scene==='undefined'||!scene||!window.THREE)return null;
+        return withWallScene(()=>({group:group3D,roof:window.WallChimneys?.roofWithOpenings(state)||state.roof,vector:p=>getVector3(toPixel(p))}));
     }
     // Read-only camera experiment bridge; uses the same metric-to-scene mapping as walls.
     function aiGeometry(){
@@ -1143,6 +1384,6 @@ function perf_render3DFrame() {
         }
         return {placed:added.length,ids:added.map(f=>f.id),skipped};
     }
-    window.WallMode={selectionActions,prepareHeightMask:()=>{settleNudges();closeResoffit();groundEditor?.leave();roofTrimEditor?.finish();wallEditor?.leave?.();baseEditor?.leave?.();},applyAIPlacements,aiStickerScene,selectAIFace,prepareAICapture,aiGeometry,renderChunk,get finishDefaults(){return state?.finishDefaults||{};},renderRoofTrim3D,serializeRoofTrim:()=>copy(state?.roofTrim||roofTrimOnly),reportSnapshot,registerLayerVisibility,get enabled(){return enabled;},render2D,render3D,syncVisibility,serialize:exportState,serializeHistory,serializeView:()=>projectId===currentId()?viewSnapshot():null,restore,beforeProjectLoad,setEnabled};
+    window.WallMode={selectionActions,prepareHeightMask:()=>{settleNudges();closeResoffit();groundEditor?.leave();roofTrimEditor?.finish();wallEditor?.leave?.();baseEditor?.leave?.();},applyAIPlacements,aiStickerScene,selectAIFace,prepareAICapture,aiGeometry,renderChunk,get finishDefaults(){return state?.finishDefaults||{};},renderRoofTrim3D,serializeRoofTrim:()=>copy(state?.roofTrim||roofTrimOnly),reportSnapshot:reportSnapshotWithCover,displaySupports,coverParts,registerLayerVisibility,get enabled(){return enabled;},render2D,render3D,syncVisibility,serialize:exportState,serializeHistory,serializeView:()=>projectId===currentId()?viewSnapshot():null,restore,beforeProjectLoad,setEnabled,get roofRebuild(){return lastRoofRebuild;}};
     if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',initialize,{once:true});else initialize();
 })();

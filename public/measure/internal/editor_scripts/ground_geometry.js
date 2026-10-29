@@ -4,6 +4,14 @@
     const G=typeof module!=='undefined'&&module.exports?require('./wall_geometry.js'):root.WallGeometry;
     const at=(p,q)=>p.dx*q.x+p.dy*q.y+p.k;
     const cross=(a,b,c)=>(b.x-a.x)*(c.y-a.y)-(b.y-a.y)*(c.x-a.x);
+    // A placed grade whose rise is within LEVEL_SLOPE (0.5%, about 0.3 degrees)
+    // of level is sensor noise on flat ground: place it exactly level at its
+    // average height over the bounds (a plane's value at their centre).
+    // A grade fitted to the DSM is levelled up to DSM_LEVEL_SLOPE (2 degrees):
+    // on a nearly flat site the fit's tilt is canopy, cars and roof spill, and
+    // a level grade is what points snap to.
+    const LEVEL_SLOPE=.005,DSM_LEVEL_SLOPE=Math.tan(2*Math.PI/180);
+    function level(plane,b,slope=LEVEL_SLOPE){return plane&&Math.hypot(plane.dx,plane.dy)<=slope?{dx:0,dy:0,k:at(plane,{x:(b.x0+b.x1)/2,y:(b.y0+b.y1)/2})}:plane;}
     function bounds(roof,pad=3){
         const ps=(roof.faces||[]).flatMap(f=>f.points);
         if(!ps.length)throw Error('Ground needs a resolved roof extent.');
@@ -41,7 +49,7 @@
     function reference(terrain,roof){
         const b=bounds(roof),source=/usgs/i.test(terrain?.source||'')?'USGS':/dsm/i.test(terrain?.source||'')?'DSM':'Flat';
         const ps=terrain?.points||[],fit=G.plane(ps),center={x:(b.x0+b.x1)/2,y:(b.y0+b.y1)/2};
-        const z=fit?at(fit,center):(ps[0]?.z||0),plane=source==='Flat'?{dx:0,dy:0,k:z}:fit||{dx:0,dy:0,k:z};
+        const z=fit?at(fit,center):(ps[0]?.z||0),plane=source==='Flat'?{dx:0,dy:0,k:z}:level(fit,b,source==='DSM'?DSM_LEVEL_SLOPE:LEVEL_SLOPE)||{dx:0,dy:0,k:z};
         return fromPlane(b,plane,{source:terrain?.sampledPoint?'DSM point':source,...(terrain?.sampledPoint?{sampledPoint:{...terrain.sampledPoint}}:{}),stats:terrain?.stats,visible:terrain?.simpleGrade===1?terrain.visible!==false:true,simpleGrade:1});
     }
     function height(terrain,p){
@@ -82,7 +90,7 @@
     }
     function initial(data,ctx,roof,fallback=0){
         const b=bounds(roof);
-        try{const r=fit(sampleDSM(data,ctx,roof));return fromPlane(b,r.plane,{source:'DSM',stats:r.stats,visible:false,simpleGrade:1});}
+        try{const r=fit(sampleDSM(data,ctx,roof));return fromPlane(b,level(r.plane,b,DSM_LEVEL_SLOPE),{source:'DSM',stats:r.stats,visible:false,simpleGrade:1});}
         catch(e){return fromPlane(b,{dx:0,dy:0,k:Number.isFinite(fallback)?fallback:0},{source:'Flat',visible:false,simpleGrade:1});}
     }
     function sampleDSM(data,ctx,roof){
@@ -104,6 +112,6 @@
         }
         return samples;
     }
-    const api={bounds,triangulate,mesh,fromPlane,reference,height,fit,sampleDSM,sampleDSMPoint,initial,at};
+    const api={bounds,triangulate,mesh,fromPlane,reference,height,fit,sampleDSM,sampleDSMPoint,initial,at,level,LEVEL_SLOPE,DSM_LEVEL_SLOPE};
     if(typeof module!=='undefined'&&module.exports)module.exports=api;else root.GroundGeometry=api;
 })(typeof window!=='undefined'?window:globalThis);

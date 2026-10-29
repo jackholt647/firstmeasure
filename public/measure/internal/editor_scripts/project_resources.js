@@ -40,7 +40,17 @@
  const coreSlots=[['back-left','Back left'],['back','Back'],['back-right','Back right'],['left','Left'],[null,'Video'],['right','Right'],['front-left','Front left'],['front','Front'],['front-right','Front right']];
  const isVideoFile=file=>!file.notes&&/\.(mp4|webm|mov)(?:[?#].*)?$/i.test(file.original_name||file.name||file.src||'');
  function coreViews(files){return coreSlots.map(([slot,title])=>({slot,title,file:slot?files.find(f=>(f.elevation_view||f.slot)===slot&&!f.notes):files.find(isVideoFile)||null}));}
- if(typeof module!=='undefined'&&module.exports){module.exports={referenceCatalog,coreViews,referenceCache};return;}
+ // The report's Sources & Notes lists the tech's own uploads. A video frame saved from Resources is a
+ // tech file too, but derived: the server records source_video in its index (listed by
+ // project_resources.php), and every saved frame also has a frame record
+ // (internal-markup-favorite-*.json) naming it, which covers frames saved before the listing showed
+ // source_video. Anything marked derived_from or generated is left out the same way.
+ const isDerivedResource=(file,frameNames)=>!!(file&&(file.source_video||file.derived_from||file.generated))||frameNames.has(file&&file.name);
+ function submissionUploads(files=[],frameRecords=[]){
+  const frames=new Set(frameRecords.map(r=>r&&r.frame).filter(Boolean));
+  return {uploads:files.filter(f=>String(f.name||'').startsWith('internal-resource-')&&(f.role||'tech')==='tech'&&!isDerivedResource(f,frames)),derived:new Set([...files.filter(f=>isDerivedResource(f,frames)).map(f=>f.name),...frames])};
+ }
+ if(typeof module!=='undefined'&&module.exports){module.exports={referenceCatalog,coreViews,referenceCache,submissionUploads};return;}
  function boot() {
   const host = document.getElementById('google-earth-wrapper'), tabs = host?.querySelector('.map-view-tabs');
   if (!host || !tabs) return;
@@ -480,7 +490,13 @@
    ox = (stage.clientWidth - w * scale) / 2; oy = (stage.clientHeight - h * scale) / 2;
    panel.dataset.aspect = h > w ? 'portrait' : 'landscape'; draw();
   }
+  // During a pane divider drag the canvas keeps its pixel size (the stage just shows more or less of it): reallocating it
+  // at device resolution and redrawing the full photo every frame stalls the GPU. It is resized once when the drag ends.
+  let resizeDeferred = false;
+  window.addEventListener('resize', () => { if (resizeDeferred && !window.firstMeasurePaneResizing) { resizeDeferred = false; resize(); } });
   function resize() {
+   if (window.firstMeasurePaneResizing) { if (!resizeDeferred && stageWidth && stageHeight) Object.assign(canvas.style, { width: stageWidth + 'px', height: stageHeight + 'px' }); resizeDeferred = true; return; }
+   canvas.style.width = ''; canvas.style.height = '';
    const w = stage.clientWidth, h = stage.clientHeight, dpr = window.devicePixelRatio || 1;
    canvas.width = Math.max(1, Math.round(w * dpr)); canvas.height = Math.max(1, Math.round(h * dpr));
    if (fitMode) fit(fitMode); else { ox += (w - stageWidth) / 2; oy += (h - stageHeight) / 2; draw(); }
@@ -895,11 +911,17 @@
    }),...references.filter(f=>f.src&&!f.notes&&!artifacts.some(a=>a.name===f.resource_name)).map(f=>({key:f.name,url:f.src,label:f.original_name,role:f.role,slot:f.slot}))];
   },async mergeSubmission(state){
    const id=String(state.folderId||window.currentProjectId||'');if(!id||currentRole()==='qa')return;
-   const data=await(await request(id)).json(),resources=(data.files||[]).filter(f=>f.name.startsWith(prefix)&&(f.role||'tech')==='tech');
-   state.finalizeSources||={images:[],notes:''};const images=state.finalizeSources.images||=[];
-   for(const f of resources){if(!images.some(i=>i.resource_name===f.name))images.push({resource_name:f.name,url:new URL(url(id,f.name),location.href).href,dataUrl:new URL(url(id,f.name),location.href).href,name:f.original_name||f.name,role:'tech'});
+   const data=await(await request(id)).json(),frameRecords=await Promise.all((data.files||[]).filter(f=>f.name.startsWith(favoritePrefix)).map(f=>request(id,f.name).then(r=>r.json()).catch(()=>({})))),{uploads:resources,derived}=submissionUploads(data.files||[],frameRecords);
+   state.finalizeSources||={images:[],notes:''};
+   // Saved video frames merged by earlier versions come out again; images added by hand have no resource_name.
+   const images=state.finalizeSources.images=(state.finalizeSources.images||[]).filter(i=>!(i&&i.resource_name&&derived.has(i.resource_name)));
+   for(const f of resources){
     const revisions=(data.files||[]).filter(r=>r.name.startsWith(markupPrefix+fileId(f.name)+'-')).sort((a,b)=>String(b.updated_at||'').localeCompare(String(a.updated_at||''))||b.name.localeCompare(a.name));
-    if(revisions.length){const markup=await(await request(id,revisions[0].name)).json();const note=String(markup.notes||'').trim();if(note&&!String(state.finalizeSources.notes||'').includes(note))state.finalizeSources.notes=(state.finalizeSources.notes?state.finalizeSources.notes+'\n\n':'')+(f.original_name||f.name)+':\n'+note;}
+    const markup=revisions.length?await(await request(id,revisions[0].name)).json():null;
+    // A capture whose markup names the video it came from is a derived frame too: leave it (and its note) out.
+    if(markup?.sourceVideo){const at=images.findIndex(i=>i.resource_name===f.name);if(at>=0)images.splice(at,1);continue;}
+    if(!images.some(i=>i.resource_name===f.name))images.push({resource_name:f.name,url:new URL(url(id,f.name),location.href).href,dataUrl:new URL(url(id,f.name),location.href).href,name:f.original_name||f.name,role:'tech'});
+    const note=String(markup?.notes||'').trim();if(note&&!String(state.finalizeSources.notes||'').includes(note))state.finalizeSources.notes=(state.finalizeSources.notes?state.finalizeSources.notes+'\n\n':'')+(f.original_name||f.name)+':\n'+note;
    }
   }};
   for(const event of ['pointerdown','dblclick','wheel'])$('.resource-core-grid').addEventListener(event,e=>e.stopPropagation());

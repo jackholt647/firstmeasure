@@ -199,7 +199,7 @@ if (!$name) {
         if (!preg_match('/^internal-(resource|markup)-/', $file['name']) || strpos($file['name'], 'internal-markup-part-') === 0) continue;
         if (strpos($file['name'], 'internal-resource-v2-') === 0) {
             $index = resource_index($file['name'], resource_api($file['name'])); $file['size'] = $index['size'];
-            foreach (['original_name', 'uploaded_at', 'role', 'elevation_view', 'source'] as $field) if (isset($index[$field])) $file[$field] = $index[$field];
+            foreach (['original_name', 'uploaded_at', 'role', 'elevation_view', 'source', 'source_video'] as $field) if (isset($index[$field])) $file[$field] = $index[$field];
         }
         $files[] = $file;
     }

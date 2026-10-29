@@ -225,8 +225,16 @@ function exposureBands(a,b,state,offset,bottom,top,other=[]){const scene=scenes.
 // Intersect the generated building with a chimney side in (side distance,
 // elevation). Splitting at actual surface planes preserves sloped roof seams;
 // a lower support only hides masonry below its roof, never the full shaft.
+// A chimney with roof all around it, wider than any eave overhang, comes up through
+// the middle of the roof: nothing of it is below the roof, whatever the base says.
+// A chimney at the roof's edge (an overhang or an open side) may run to the ground.
+const ROOF_SURROUND=.75;
+function roofSurrounds(c,state){
+ const faces=state.roof?.faces||[],n=c.points.length,sign=area(c.points)<0?-1:1;if(!faces.length||n<3)return false;
+ return c.points.every((a,i)=>{const b=c.points[(i+1)%n],len=dist(a,b);if(len<EPS)return true;const o={x:sign*(b.y-a.y)/len,y:-sign*(b.x-a.x)/len};return [.1,.5,.9].every(t=>{const p=mix(a,b,t);return [.05,ROOF_SURROUND/2,ROOF_SURROUND].every(d=>{const q={x:p.x+o.x*d,y:p.y+o.y*d};return faces.some(f=>contains(f,q));});});});
+}
 function generatedSide(c,side,state){
- if(c.points.every(p=>buildingBase(state).some(f=>contains(f,p))))return [];
+ if(roofSurrounds(c,state)||c.points.every(p=>buildingBase(state).some(f=>contains(f,p))))return [];
  const scene=scenes.get(state),a=c.points[side],b=c.points[(side+1)%c.points.length],length=dist(a,b),u={x:(b.x-a.x)/length,y:(b.y-a.y)/length},n={x:u.y,y:-u.x};
  const world=p=>({x:a.x+u.x*p.x,y:a.y+u.y*p.x,z:p.y}),lines=[],seen=new Set();
  for(const {f,frame}of scene.faces){
@@ -272,7 +280,7 @@ function buildFoundation(state){
  // Leave manually reshaped foundation pieces alone.
  const overridden=new Set(base.faces.filter(f=>f.chimneyFoundation&&f.chimneyFoundationShape!==shape(f)).map(f=>f.chimneyFoundation));
  const kept=base.faces.filter(f=>!f.chimneyFoundation||overridden.has(f.chimneyFoundation)),added=[];
- for(const c of cs){if(overridden.has(c.id))continue;
+ for(const c of cs){if(overridden.has(c.id)||roofSurrounds(c,state))continue;
   const points=c.points.map(p=>({...p,z:floorAt(state,p)}));
   const pieces=W.joinFragments(W.subtract({points},[...kept,...added])).flatMap(f=>f.holes?.length?W.subtract(f,f.holes.map(points=>({points}))):[f.points]);
   pieces.forEach((ring,i)=>{if(Math.abs(area(ring))<1e-8)return;const f={id:c.id+':foundation-'+i,chimneyFoundation:c.id,points:clean(ring,true).map(p=>({...p,z:floorAt(state,p)}))};B.validate(f);f.chimneyFoundationShape=shape(f);added.push(f);});
@@ -366,10 +374,17 @@ function preserveFilledFace(face,state){
   if(visibleParts(face,candidate).reduce((sum,f)=>sum+measure(f),0)<original-1e-8)face.joinedChimneys=[...(face.joinedChimneys||[]),c.id];
  }
 }
+let fitMemo={key:null,fitted:new Map()};
 function alignRoofContacts(state){
  const edits=state?.wallEdits;if(!edits)return;const cs=definitions(state);if(!cs.length)return;
  const W=root.WallSolidGeometry||(typeof module!=='undefined'&&module.exports?require('./wall_solid_geometry.js'):null);if(!W)return;
- const fit=p=>{for(const c of cs){if(!c.points.some((a,i)=>G.onEdge(p,a,c.points[(i+1)%c.points.length],K.CONTACT)))continue;const anchor=c.points.find(a=>dist(a,p)<1e-5),q=anchor?{...p,x:anchor.x,y:anchor.y}:p,old=capHeight(c,q),fit=fittedRoofContact(c,q,state),z=roofContact(c,q,state);if(Math.abs(p.z-old)<K.CONTACT||Math.abs(p.z-fit)<K.CONTACT)return {...q,z};}return p;};
+ const fitPoint=p=>{for(const c of cs){if(!c.points.some((a,i)=>G.onEdge(p,a,c.points[(i+1)%c.points.length],K.CONTACT)))continue;const anchor=c.points.find(a=>dist(a,p)<1e-5),q=anchor?{...p,x:anchor.x,y:anchor.y}:p,old=capHeight(c,q),fit=fittedRoofContact(c,q,state),z=roofContact(c,q,state);if(Math.abs(p.z-old)<K.CONTACT||Math.abs(p.z-fit)<K.CONTACT)return {...q,z};}return p;};
+ // A corner recurs in faces, sketch nodes and outlines, and its fit depends only
+ // on its coordinates, the chimney definitions and the roof. A drag republishes
+ // the model every move with the same chimneys and roof, so fits are kept while
+ // those are equal by value. A fitted point is always a new object, as before.
+ const memoKey=JSON.stringify([cs,state.roof?.faces||[]]);if(fitMemo.key!==memoKey||fitMemo.fitted.size>200000)fitMemo={key:memoKey,fitted:new Map()};
+ const fitted=fitMemo.fitted,fit=p=>{const key=p.x+','+p.y+','+p.z;let r=fitted.get(key);if(r===undefined){const q=fitPoint(p);r=q===p?null:{x:q.x,y:q.y,z:q.z};fitted.set(key,r);}return r?{...p,x:r.x,y:r.y,z:r.z}:p;};
  for(const f of edits.$surfaces||[]){if(f.deleted||f.curvedSurface)continue;const n=W.normal(f.points);if(!n||Math.abs(n.z)>1e-5)continue;f.points=f.points.map(fit);if(f.holes)f.holes=f.holes.map(r=>r.map(fit));if(f.retainedPoints)f.retainedPoints=f.retainedPoints.map(fit);}
  for(const d of Object.values(edits.$drafts||{})){if(d.frame&&Math.abs(d.frame.n.z)>1e-5)continue;const fix=p=>{const w=d.frame?W.fromFrame(d.frame,p):{x:d.origin.x+d.u.x*p.x,y:d.origin.y+d.u.y*p.x,z:p.y},q=fit(w);if(q===w)return p;return {...p,...(d.frame?W.inFrame(d.frame,q):{x:p.x,y:q.z,z:0})};};
   for(const f of d.faces||[]){f.points=f.points.map(fix);if(f.holes)f.holes=f.holes.map(r=>r.map(fix));}if(d.sketch){d.sketch.nodes=d.sketch.nodes.map(fix);d.sketch.outlines=d.sketch.outlines.map(r=>r.map(fix));}
@@ -424,6 +439,7 @@ function compose(walls,state){
  for(const w of walls){let pieces=[w];for(const c of chimneys)pieces=pieces.flatMap(p=>cutWall(p,c,state));pieces.forEach((p,i)=>normal.push({...p,id:i?w.id+':chimney-cut-'+i:w.id}));}
  const shell=[];
  for(const c of chimneys.filter(c=>!state.wallEdits?.$chimneyVolumes?.[c.id]||state.wallEdits.$chimneyVolumes[c.id].mode==='upper'))for(let side=0;side<c.points.length;side++){
+  if(roofSurrounds(c,state))break;
   if(scenes.get(state)?.generated){shell.push(...generatedSide(c,side,state));continue;}
   const a=c.points[side],b=c.points[(side+1)%c.points.length],len=dist(a,b),outward={x:(b.y-a.y)/len,y:-(b.x-a.x)/len};
   // Sample just outside the volume so a side coincident with a building edge is exposed.
