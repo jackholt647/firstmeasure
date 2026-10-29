@@ -1,5 +1,5 @@
 // FM-299: trim widths are typed in inches with the shared number entry, before
-// or after T, and T keeps cycling (sides for line trim, sizes for stickers).
+// or after T (placing a new sticker: only after T), and T keeps cycling (sides for line trim, sizes for stickers).
 const test=require('node:test'),assert=require('node:assert/strict'),vm=require('node:vm'),fs=require('node:fs');
 const G=require('../public/measure/internal/editor_scripts/wall_geometry.js'),B=require('../public/measure/internal/editor_scripts/base_geometry.js'),S=require('../public/measure/internal/editor_scripts/base_sketch_geometry.js');
 const T=require('../public/measure/internal/editor_scripts/wall_trim.js'),M=require('../public/measure/internal/editor_scripts/exterior_model.js');
@@ -61,10 +61,12 @@ test('faces: T then a number sets the inside trim width',()=>{
  f.type('3','t');assert.ok(T.insideLayers(state.wallEdits.$surfaces,['wall']).every(l=>Math.abs(l.width-3*inch)<1e-9),'3 then T is three inch inside trim');
 });
 
-test('placing a sticker: a typed width and T are interchangeable',()=>{
+test('placing a sticker: numbers set trim only after T',()=>{
  const host={id:'host',points:[p(0,0),p(5,0),p(5,5),p(0,5)]},f=setup({state:{wallEdits:{$surfaces:[host]}},walls:[],selected:null,featureHost:()=>({solid:host,points:host.points})});
  f.editor.featureCommand('window',0,true);f.listeners.pointermove(f.e(2,2));
- f.type('5');assert.equal(f.editor.featurePlacement().trimInches,5);f.type('t');assert.equal(f.editor.featurePlacement().trimInches,5,'T straight after a number keeps it');
+ f.type('5');assert.equal(f.editor.featurePlacement().trimInches,0,'a number before T makes no trim');
+ f.type('t');const first=f.editor.featurePlacement().trimInches;assert.ok(first>0,'T turns trim on');
+ f.type('5');assert.equal(f.editor.featurePlacement().trimInches,5,'after T a number is the trim width');f.type('t');assert.equal(f.editor.featurePlacement().trimInches,5,'T straight after a number keeps it');
  f.type('t');assert.equal(f.editor.featurePlacement().trimInches,6);f.type('t','1','.','5');assert.equal(f.editor.featurePlacement().trimInches,1.5);
  f.editor.down(f.e(2,2));const placed=M.collect(f.state).find(s=>s.feature?.type==='window');assert.ok(Math.abs(placed.feature.trim.width-1.5*inch)<1e-9,f.message());
 });

@@ -3842,6 +3842,22 @@ test('sticker slide and paste with an overlay host re-cut only their wall until 
  assert.deepEqual(fast.steps,plain.steps,'commits are identical');assert.ok(fast.overlays>0,fast.message);
  assert.equal(JSON.parse(fast.steps[1]).$drafts.w.faces.filter(f=>f.feature).length,2,fast.message);
 });
+test('E holds a new sticker (W, D or the tray) at a typed distance from where E was pressed',()=>{
+ for(const overlay of [false,true]){
+  const f=stickerFixture('window',[1,1.5],overlay?{redrawOverlay:()=>{},drawsOverlay:true}:{}),FT=.3048,count=()=>f.d().faces.filter(x=>x.feature).length,before=count();
+  const centres=()=>f.d().faces.filter(x=>x.feature).map(face=>{const xs=face.points.map(p=>p.x),ys=face.points.map(p=>p.y);return {x:(Math.min(...xs)+Math.max(...xs))/2,y:(Math.min(...ys)+Math.max(...ys))/2};});
+  f.editor.featureCommand('window',0,true);f.listeners.pointermove({...f.e(2.6,2.4),buttons:0});const placedAt=f.editor.featurePlacement();assert.ok(placedAt,f.message());
+  f.editor.key({key:'e'});assert.match(f.editor.distanceInput()?.label||'',/From point/,f.message());
+  // The gold point is the anchor: where the snapped sticker sat when E was pressed.
+  const gold=()=>{const objects=[];(overlay?f.editor.drawOverlay:f.editor.draw3D)({add:o=>objects.push(o)},p=>p);return objects.filter(o=>o.material?.color==='#FFD700');};
+  const point=gold().find(o=>o.geometry?.points?.length===1);assert.ok(point,'the lock draws its anchor');const anchor={x:point.geometry.points[0].x,y:point.geometry.points[0].z};
+  f.editor.distanceInput().set(1*FT);
+  // Nearly straight down from the anchor: held one foot away, snapped onto the vertical.
+  f.listeners.pointermove({...f.e(anchor.x+.02,anchor.y+.8),buttons:0});assert.ok(gold().length>1,'the lock line follows the sticker');f.editor.down(f.e(anchor.x+.02,anchor.y+.8));
+  const moved=centres().at(-1);assert.equal(count(),before+1,f.message());
+  assert.ok(Math.abs(Math.hypot(moved.x-anchor.x,moved.y-anchor.y)-FT)<1e-6,JSON.stringify({moved,anchor}));assert.ok(Math.abs(moved.x-anchor.x)<1e-6,'vertical snap');
+ }
+});
 test('E holds a sticker at a typed distance from where it was, for M and for paste, with direction snaps',()=>{
  for(const overlay of [false,true]){
   const f=stickerFixture('window',[1,1.5],overlay?{redrawOverlay:()=>{},drawsOverlay:true}:{}),FT=.3048;
