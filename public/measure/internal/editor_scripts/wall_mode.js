@@ -1164,7 +1164,7 @@ function perf_render3DFrame() {
         },true);
         function cancelInteraction(){
             if(!enabled)return;settleNudges();if(groundEditor?.sampling?.())groundEditor.leave();
-            if(roofTrimEditor?.busy())roofTrimEditor.cancel();else if(roofTrimEditor?.hasSelection())roofTrimEditor.clear();if(!enabled)return;
+            if(roofTrimEditor?.busy())roofTrimEditor.cancel();else if(!windowBlurred&&roofTrimEditor?.hasSelection())roofTrimEditor.clear();if(!enabled)return;
             if(baseEditor?.busy())baseEditor.leave();
             if(wallEditor?.busy())wallEditor.clear();
             render2D();render3D();
@@ -1209,7 +1209,9 @@ function perf_render3DFrame() {
             if(name&&name!=='Drawing plane'){const detail=document.getElementById(groundEditor?.sampling?.()?'ground-status':'base-status')?.textContent||'';const text=name+' · '+(name==='Rectangle selection'?'drag and release':detail||'Click to place; Escape cancels');if(interactionText.textContent!==text)interactionText.textContent=text;}
         };
         setInterval(updateInteraction,150);
-        window.addEventListener('blur',cancelInteraction);
+        // The window losing focus (a colour picker or another window opening) ends a drag or
+        // preview, but the Trim menu and its selection stay: the person did not cancel.
+        let windowBlurred=false;window.addEventListener('blur',()=>{windowBlurred=true;try{cancelInteraction();}finally{windowBlurred=false;}});
         window.addEventListener('pointercancel',cancelInteraction,true);
         function handleEditorKey(e){
             if(e.target.closest?.('#exterior-graphics'))return;

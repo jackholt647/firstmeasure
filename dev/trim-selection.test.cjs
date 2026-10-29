@@ -103,3 +103,8 @@ test('a number then T trims a selected window outside the Trim menu; one Ctrl+Z 
  t.key('t');assert.ok(Math.abs(opening(state).trim.width-4.5*inch)<1e-9,'T straight after a number keeps it');
  t.key('z',{ctrlKey:true});assert.equal(JSON.stringify(state.wallEdits),before,'T and the numbers typed with it are one undo step');
 });
+test('the Trim menu and its selection stay open when the window loses focus (a colour picker opens)',()=>{
+ const t=setup(),{f,menu,dom}=t,total=menu.summary().total;assert.ok(total>0);assert.equal(dom.nodes.get('roof-trim-options').hidden,false);
+ assert.ok(f.listeners['window:blur'],'wall mode listens for blur');f.listeners['window:blur']({});
+ assert.equal(menu.summary().total,total,'the selection is kept');assert.equal(dom.nodes.get('roof-trim-options').hidden,false,'the menu stays open');
+});
