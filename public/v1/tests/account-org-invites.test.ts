@@ -213,7 +213,7 @@ test("when the owner leaves, another active super admin can lower and archive th
   assert.ok(ownerId);
   // People who already have a sign-in elsewhere, added here and signed in to this account.
   const member = async (email: string, level: string) => {
-    await register(browser(), email, `${email.split("@")[0].replace(/\W/g, "_")}_home`);
+    await register(browser(), email, `${email.replace(/@.*$/, "").replace(/\W/g, "_")}_home`);
     const added = await owner.request("POST", "/v1/platform/organizations/handover_org/users", { data: { email, name: email } });
     assert.equal(added.response.statusCode, 201, added.response.body);
     const id = added.data.document.id;
