@@ -2573,9 +2573,9 @@ test('Invite an outside company to link its own organization: invite, resend, wi
   } finally { await browser.close(); }
 });
 
-// 1M8-235: a super admin can suspend, archive or revoke anyone except the account owner, themselves and the last active
-// super admin; a disabled action says why.
-test('suspend and archive stay open for other super admins; the owner, yourself and the last super admin are protected', async () => {
+// 1M8-235: a super admin can suspend, archive or revoke anyone except themselves and the last active super admin; only
+// another active super admin can do it to the account owner (1M8-251). A disabled action says why.
+test('suspend and archive stay open for other super admins and, for a super admin, the owner; yourself and the last super admin are protected', async () => {
   const browser = await launch();
   const actions = (page, key) => page.locator(`[data-row-key="${key}"] .pp-row-actions button`).evaluateAll((buttons) => buttons.map((button) => [button.getAttribute('aria-label'), button.disabled]));
   try {
@@ -2588,7 +2588,7 @@ test('suspend and archive stay open for other super admins; the owner, yourself 
     const { page, errors } = await openPage(browser, { width:1440, height:900 }, invitedAdmin);
     for (const key of ['u1', 'u3', 'u5']) await page.locator(`[data-row-key="${key}"]`).hover();
     assert.deepEqual(await actions(page, 'u5'), [['Edit', false], ['Resend invitation', false], ['Suspend', false], ['Revoke invitation', false]], 'an invited super admin can be revoked');
-    assert.deepEqual(await actions(page, 'u3'), [['Edit', false], ['The account owner cannot be suspended or archived', true], ['The account owner cannot be suspended or archived', true]]);
+    assert.deepEqual(await actions(page, 'u3'), [['Edit', false], ['Suspend', false], ['Archive', false]], 'a super admin can take a departed owner out');
     assert.deepEqual((await actions(page, 'u1')).slice(-2), [['You cannot suspend or archive yourself', true], ['You cannot suspend or archive yourself', true]]);
     // Revoking the invitation archives u5 after the confirmation.
     await page.locator('[data-row-key="u5"] [data-row-action="archive"]').click();
@@ -2602,5 +2602,15 @@ test('suspend and archive stay open for other super admins; the owner, yourself 
     await other.page.locator('[data-row-key="u1"]').hover();
     assert.deepEqual((await actions(other.page, 'u1')).slice(-2), [['Make someone else a super admin first: an account needs at least one', true], ['Make someone else a super admin first: an account needs at least one', true]]);
     assert.deepEqual(other.errors, []);
+
+    // Someone who is not a super admin cannot change the owner (1M8-251).
+    const notSuperAdmin = { ...FIRSTMEASURE_ONLY, setup:[FIRSTMEASURE_ONLY.setup, () => {
+      Object.assign(window.__people.users.find((user) => user.id === 'u3'), { role:'owner', org_permissions:{}, permissions:{ '*':true } });
+      Object.assign(window.__APP, { userId:'u2', userEmail:window.__people.users[1].email });
+    }] };
+    const manager = await openPage(browser, { width:1440, height:900 }, notSuperAdmin);
+    await manager.page.locator('[data-row-key="u3"]').hover();
+    assert.deepEqual((await actions(manager.page, 'u3')).slice(-2), [['Only another super admin can suspend or archive the account owner', true], ['Only another super admin can suspend or archive the account owner', true]]);
+    assert.deepEqual(manager.errors, []);
   } finally { await browser.close(); }
 });
