@@ -8,6 +8,8 @@ function pdfUnit(kind, legacy) { return window.ReportUnits?.current().metric ? w
 function pdfMaterialKind(unit) { return ({SQ:'sq',SF:'sf',LF:'ft',FT:'ft',GAL:'gallon'})[String(unit).toUpperCase()]; }
 function pdfMaterialUnit(unit) { const kind=pdfMaterialKind(unit); return kind ? pdfUnit(kind,unit) : unit; }
 function pdfMaterialAmount(n,unit,legacy) { const kind=pdfMaterialKind(unit); return kind ? pdfMeasure(n,kind,legacy,false) : legacy; }
+/** A roof pitch in the project's notation (1M8-255): 6/12, or 26.6° for degree projects; other text is unchanged. */
+function pdfPitch(pitch, digits = 1) { return window.ReportUnits?.current().pitch(pitch, digits) ?? pitch; }
 function pdfLabel(text, values = {}) { return window.ReportUnits?.current().label(text, values) ?? text.replace(/\{(\w+)\}/g, (all, key) => Object.hasOwn(values, key) ? String(values[key]) : all); }
 
 /* pdf.js - Complete PDF Generation Logic & Helpers (DROP-IN REPLACEMENT)
@@ -2359,7 +2361,7 @@ async function generatePDFFromState(state, mode = 'full', updateStatusCallback, 
         doc.setFont("Montserrat", "normal");
 
         const coverFacetText = pdfLabel("Total Facets: {value1}", {value1: state.manualTotalFacets});
-        const coverPitchText = pdfLabel("Predominant Pitch: {value1}", {value1: domPitch});
+        const coverPitchText = pdfLabel("Predominant Pitch: {value1}", {value1: pdfPitch(domPitch)});
         const coverNetSquaresText = pdfLabel("{value1} (Net): {value2}", {value1: pdfAreaHeading("Total Squares"), value2: pdfMeasure(netSquares, "sq", Math.round(netSquares * 100) / 100, false)});
         const coverWasteSquaresText = pdfLabel("{value1} ({value2}% Waste): {value3}", {value1: pdfAreaHeading("Total Squares"), value2: wastePct, value3: pdfMeasure(wasteSquares, "sq", Math.round(wasteSquares * 100) / 100, false)});
         emitPdfDebug('page:cover:text', {
@@ -3145,7 +3147,7 @@ function drawDynamicCoverPage(doc, state, settings, x, y, w, h, options = {}) {
                     const val = squaresData[p];
                     if (typeof val === 'number' && val > maxArea) { maxArea = val; domPitch = p; }
                 });
-                doc.text(pdfLabel("Pitch: {value1}", {value1: domPitch}), leftColX, cy); cy += statLineH;
+                doc.text(pdfLabel("Pitch: {value1}", {value1: pdfPitch(domPitch)}), leftColX, cy); cy += statLineH;
             }
             if (settings.cover_show_waste) {
                 doc.text(pdfLabel("Waste: {value1}%", {value1: wastePct}), leftColX, cy); cy += statLineH;
@@ -3494,7 +3496,7 @@ async function drawStructuresBatch(doc, structs, state, x, y, w, h) {
     };
     
     drawRow(pdfLabel("Facets:"), String(structureMetrics.activeFaceCount || 0));
-    drawRow(pdfLabel("Pitch:"), structureMetrics.predominantPitch || "N/A");
+    drawRow(pdfLabel("Pitch:"), pdfPitch(structureMetrics.predominantPitch || "N/A"));
     drawRow(window.ReportUnits?.current().metric ? pdfLabel("Square metres:") : pdfLabel("Square Feet:"), pdfMeasure(structureMetrics.netSqFt, "sf", sSqFt.toLocaleString('en-US'), false));
     drawRow(pdfLabel("{value1} ({value2}%):", {value1: pdfAreaHeading("Squares with Waste"), value2: wastePct}), pdfMeasure((structureMetrics.netSquares || 0) * (1 + wastePct/100), "sq", sSquaresWaste.toLocaleString('en-US'), false), true, "#d93025");
     statsY += 2;
@@ -4084,7 +4086,7 @@ async function createFacetCanvasFromState(state, mode, layerFilter = null) {
 
             const text = (mode === 'AREA')
                 ? pdfMeasure(lbl.areaSqFt ?? Number(lbl.areaText), 'sf', String(lbl.areaText ?? ''))
-                : String(lbl.pitchText ?? lbl.text ?? '');
+                : String(pdfPitch(String(lbl.pitchText ?? lbl.text ?? ''), 0));
 
             if (!text) return;
 
@@ -5931,7 +5933,7 @@ function drawSummaryPageLayout(doc, report, imgData, imgRatio, x, y, w, facetCou
 
     doc.setFontSize(9); doc.setTextColor(0);
     doc.setFont("Montserrat", "bold"); doc.text(pdfLabel("Pitch"), pitchTableX+4, cursorY+5);
-    pitches.forEach((p,i)=>doc.text(p, pitchValX(i), cursorY+5, {align:'center'}));
+    pitches.forEach((p,i)=>doc.text(pdfPitch(p), pitchValX(i), cursorY+5, {align:'center'}));
     cursorY += 8;
     
     doc.text(window.ReportUnits?.current().metric ? pdfLabel("Area (m²)") : pdfLabel("Area (sq ft)"), pitchTableX+4, cursorY+5); doc.setFont("Montserrat", "normal");
@@ -6023,12 +6025,7 @@ function drawSummaryPageLayout(doc, report, imgData, imgRatio, x, y, w, facetCou
 
     // --- UPDATED HELPER: Accepts 'showLine' parameter (defaults to true) ---
     const addStat = (l, v, showLine = true) => {
-        doc.setFontSize(rowHeight < 7 ? 8 : 9);
-        doc.setFont("Montserrat","bold"); 
-        doc.text(pdfLabel(l), statsX, statsY);
-        
-        doc.setFont("Montserrat","normal"); 
-        doc.text(v, statsX + statsW, statsY, {align:'right'});
+        drawPdfStatRow(doc, pdfLabel(l), v, statsX, statsY, statsW, rowHeight < 7 ? 8 : 9);
         
         if (showLine) {
             doc.setDrawColor(230, 230, 230); 
@@ -6052,7 +6049,7 @@ function drawSummaryPageLayout(doc, report, imgData, imgRatio, x, y, w, facetCou
     // Always show these
     statRows.push([pdfLabel("Roof Area"), pdfMeasure(totalSq * 100, 'sf', Math.round(totalSq * 100) + " sq ft")]);
     statRows.push([pdfLabel("Facets"), facetCount.toString()]);
-    statRows.push([pdfLabel("Pitch"), domPitch ? domPitch.replace(/\//g, " / ") : pdfLabel("N/A")]);
+    statRows.push([pdfLabel("Pitch"), domPitch ? (window.ReportUnits?.current().pitchNotation === 'degrees' ? pdfPitch(domPitch) : domPitch.replace(/\//g, " / ")) : pdfLabel("N/A")]);
 
     // Counts — only if non-zero
     if (skyCount > 0)  statRows.push([pdfLabel("Skylights"), skyCount.toString()]);
@@ -6077,7 +6074,7 @@ function drawSummaryPageLayout(doc, report, imgData, imgRatio, x, y, w, facetCou
 
     lineStatTypes.forEach(t => {
         const val = Math.round(lin[t.id] || 0);
-        if (val > 0) statRows.push([t.label, pdfMeasure(lin[t.id] || 0, 'ft', val + " ft")]);
+        if (val > 0) statRows.push([pdfLabel(t.label), pdfMeasure(lin[t.id] || 0, 'ft', val + " ft")]);
     });
 
     // Counter Flashing — only if non-zero
@@ -6104,6 +6101,46 @@ function drawSummaryPageLayout(doc, report, imgData, imgRatio, x, y, w, facetCou
 
 }
 
+
+
+/**
+ * One label/value row of the summary page's totals card (1M8-256). The value keeps its width at the right; a label
+ * that would reach it shrinks (down to 6 pt), then wraps onto two lines within the row, so long labels (Headwall
+ * Flashing, and longer in other languages) never overlap their values. Returns what was laid out.
+ */
+function drawPdfStatRow(doc, label, value, x, y, width, size = 9) {
+    const text = String(label ?? ''), shown = String(value ?? '');
+    doc.setFont("Montserrat", "normal"); doc.setFontSize(size);
+    const valueW = doc.getTextWidth(shown);
+    const labelW = Math.max(8, width - valueW - 2);
+    doc.setFont("Montserrat", "bold");
+    // Wrap at spaces and after hyphens (German compounds), never inside a word unless one word alone is too wide.
+    const wrap = () => {
+        const pieces = text.split(/\s+/).flatMap(word => word.split(/(?<=-)/)).filter(Boolean);
+        const lines = [];
+        for (const piece of pieces) {
+            const last = lines[lines.length - 1];
+            const joined = last == null ? piece : last + (last.endsWith('-') ? '' : ' ') + piece;
+            if (last != null && doc.getTextWidth(joined) <= labelW) lines[lines.length - 1] = joined;
+            else lines.push(piece);
+        }
+        return lines.some(line => doc.getTextWidth(line) > labelW) ? doc.splitTextToSize(text, labelW) : lines;
+    };
+    // One line down to 7.5 pt, then two lines at 7.5 pt and below, down to 6 pt.
+    let labelSize = size, lines = [text];
+    for (; labelSize >= 6; labelSize -= 0.5) {
+        doc.setFontSize(labelSize);
+        if (doc.getTextWidth(text) <= labelW) { lines = [text]; break; }
+        if (labelSize <= 7.5) { lines = wrap(); if (lines.length <= 2) break; }
+    }
+    labelSize = Math.max(6, labelSize); doc.setFontSize(labelSize);
+    if (lines.length > 2 || lines.some(line => doc.getTextWidth(line) > labelW)) lines = doc.splitTextToSize(text, labelW).slice(0, 2);
+    const lineH = labelSize * 0.3528 * 1.05;
+    lines.forEach((line, i) => doc.text(line, x, y - ((lines.length - 1) * lineH / 2) + i * lineH));
+    doc.setFont("Montserrat", "normal"); doc.setFontSize(size);
+    doc.text(shown, x + width, y, { align: 'right' });
+    return { lines, labelSize, labelW, valueW };
+}
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Gutter PDF Page
@@ -6946,7 +6983,7 @@ function drawPitchTable(doc, squaresData, x, y, w, highlightDominant = false) {
         }
 
         // Row Data (Adjusted X positions)
-        doc.text(r.pitch, x + pad + 10, cy, {align:'center'}); // Centered under header
+        doc.text(String(pdfPitch(r.pitch)), x + pad + 10, cy, {align:'center'}); // Centered under header
         doc.text(pdfMeasure(r.sq, "sq", r.sq.toFixed(2), false), x + w/2, cy, {align:'center'});
         doc.text(Math.round(r.pct) + "%", x + w - pad - 10, cy, {align:'right'}); // Right-align to padding
         cy += 5;

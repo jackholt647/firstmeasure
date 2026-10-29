@@ -1,7 +1,7 @@
 {
   "files": 265,
   "namespaces": 115,
-  "messages": 16544,
+  "messages": 16572,
   "migration": [
     {
       "file": "public/libraries/account-switcher/account-switcher.js",
@@ -300,7 +300,7 @@
     {
       "file": "public/libraries/apps/help/app.js",
       "namespace": "help",
-      "references": 6,
+      "references": 5,
       "candidates": 0,
       "edits": 0
     },
@@ -349,7 +349,7 @@
     {
       "file": "public/libraries/apps/measurements/project.js",
       "namespace": "measurements",
-      "references": 295,
+      "references": 294,
       "candidates": 0,
       "edits": 0
     },
@@ -357,8 +357,8 @@
       "file": "public/libraries/apps/measurements/roof-viewer.js",
       "namespace": "measurements",
       "references": 0,
-      "candidates": 27,
-      "edits": 10
+      "candidates": 26,
+      "edits": 9
     },
     {
       "file": "public/libraries/apps/money/project.js",
@@ -370,7 +370,7 @@
     {
       "file": "public/libraries/apps/onboarding/wizard.js",
       "namespace": "onboarding",
-      "references": 112,
+      "references": 118,
       "candidates": 0,
       "edits": 0
     },
@@ -706,7 +706,7 @@
     {
       "file": "public/libraries/apps/settings/company.js",
       "namespace": "settings",
-      "references": 1330,
+      "references": 1333,
       "candidates": 131,
       "edits": 76
     },
@@ -1694,8 +1694,8 @@
       "file": "public/libraries/session-replay/session-replay-recording.js",
       "namespace": "session-replay",
       "references": 0,
-      "candidates": 47,
-      "edits": 31
+      "candidates": 67,
+      "edits": 42
     },
     {
       "file": "public/libraries/session-replay/session-replay-viewer.js",
@@ -1819,7 +1819,7 @@
     {
       "file": "public/portal/scripts/core.js",
       "namespace": "platform",
-      "references": 44,
+      "references": 45,
       "candidates": 1,
       "edits": 1
     },

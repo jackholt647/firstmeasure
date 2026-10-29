@@ -2842,7 +2842,8 @@
     "pin_count": {
       "message": "{count, plural, one {# segnaposto} other {# segnaposti}}",
       "format": "icu"
-    }
+    },
+    "main_pitch_degrees": "Pendenza principale (gradi)"
   },
   "money": {
     "m_487adb3f2ba511": "Caricamento dei dati finanziari...",
@@ -8001,7 +8002,10 @@
     },
     "fm_mobile_auto_topup_off": "Ricarica automatica del credito: disattivata",
     "developer_settings_title": "Impostazioni sviluppatore",
-    "developer_settings_subtitle": "Strumenti per sviluppatori, flag delle funzionalità e configurazione dell'applicazione."
+    "developer_settings_subtitle": "Strumenti per sviluppatori, flag delle funzionalità e configurazione dell'applicazione.",
+    "pitch_notation_label": "Pendenza del tetto",
+    "pitch_notation_rise": "Alzata su 12 (6/12)",
+    "pitch_notation_degrees": "Gradi (26,6°)"
   },
   "signatures": {
     "m_2ebfdc1730afd2": "Aggiungi intervento",

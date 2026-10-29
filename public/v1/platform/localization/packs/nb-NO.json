@@ -2934,7 +2934,8 @@
     "pin_count": {
       "message": "{count, plural, one {# nål} other {# nåler}}",
       "format": "icu"
-    }
+    },
+    "main_pitch_degrees": "Hovedvinkel (grader)"
   },
   "money": {
     "m_487adb3f2ba511": "Laster inn betalinger...",
@@ -8301,7 +8302,10 @@
     },
     "fm_mobile_auto_topup_off": "Automatisk kredittpåfylling: Av",
     "developer_settings_title": "Utviklerinnstillinger",
-    "developer_settings_subtitle": "Utviklerverktøy, funksjonsflagg og appkonfigurasjon."
+    "developer_settings_subtitle": "Utviklerverktøy, funksjonsflagg og appkonfigurasjon.",
+    "pitch_notation_label": "Takvinkel",
+    "pitch_notation_rise": "Stigning per 12 (6/12)",
+    "pitch_notation_degrees": "Grader (26,6°)"
   },
   "signatures": {
     "m_2ebfdc1730afd2": "Legg til arbeid",

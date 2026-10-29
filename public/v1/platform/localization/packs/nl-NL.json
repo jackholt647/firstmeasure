@@ -2934,7 +2934,8 @@
     "pin_count": {
       "message": "{count, plural, one {# pin} other {# pins}}",
       "format": "icu"
-    }
+    },
+    "main_pitch_degrees": "Hoofdhelling (graden)"
   },
   "money": {
     "m_487adb3f2ba511": "Financiële gegevens laden...",
@@ -8305,7 +8306,10 @@
     },
     "fm_mobile_auto_topup_off": "Automatisch tegoed opwaarderen: uit",
     "developer_settings_title": "Ontwikkelaarsinstellingen",
-    "developer_settings_subtitle": "Ontwikkelaarstools, functievlaggen en appconfiguratie."
+    "developer_settings_subtitle": "Ontwikkelaarstools, functievlaggen en appconfiguratie.",
+    "pitch_notation_label": "Dakhelling",
+    "pitch_notation_rise": "Stijging per 12 (6/12)",
+    "pitch_notation_degrees": "Graden (26,6°)"
   },
   "signatures": {
     "m_2ebfdc1730afd2": "Werk toevoegen",

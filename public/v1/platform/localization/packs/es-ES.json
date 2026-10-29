@@ -2938,7 +2938,8 @@
     "pin_count": {
       "message": "{count, plural, one {# marcador} other {# marcadores}}",
       "format": "icu"
-    }
+    },
+    "main_pitch_degrees": "Inclinación principal (grados)"
   },
   "money": {
     "m_487adb3f2ba511": "Cargando datos financieros...",
@@ -8293,7 +8294,10 @@
     },
     "fm_mobile_auto_topup_off": "Recarga automática de crédito: desactivada",
     "developer_settings_title": "Configuración de desarrollador",
-    "developer_settings_subtitle": "Herramientas para desarrolladores, indicadores de funciones y configuración de aplicaciones."
+    "developer_settings_subtitle": "Herramientas para desarrolladores, indicadores de funciones y configuración de aplicaciones.",
+    "pitch_notation_label": "Inclinación del tejado",
+    "pitch_notation_rise": "Elevación sobre 12 (6/12)",
+    "pitch_notation_degrees": "Grados (26,6°)"
   },
   "signatures": {
     "m_2ebfdc1730afd2": "Añadir trabajo",
