@@ -2053,14 +2053,45 @@ for(const m of moves){const n=d.sketch.nodes.find(n=>n.id===m.id);if(!n)throw Er
   if(edits.$loose){edits.$loose.edges=edits.$loose.edges.filter(pair=>W.sharedIntervals(...pair,[{points}]).reduce((sum,[a,b])=>sum+b-a,0)<.99999);edits.$loose.points=edits.$loose.points.filter(p=>!boundary(p));}
   for(const surface of edits.$surfaces||[])if(surface.retainedPoints)surface.retainedPoints=surface.retainedPoints.filter(p=>!boundary(p)||[surface.points,...(surface.holes||[])].some(r=>r.some((a,i)=>onSegment(p,a,r[(i+1)%r.length]))));
  }
- // Deleting selected sticker points leaves the closed face through the rest. A point can
- // always be deleted: a sticker whose rest is no closed face (too few corners, or a
- // shape that would cross itself) is deleted with it.
+ // Deleting sticker points deletes them with every line and curve segment attached to
+ // them, as anywhere in a sketch. What still closes stays a sticker; what no longer
+ // closes stays on its wall as open lines (curve segments keep their exact curve).
+ // With "Deleting a sticker point keeps it closed" (advanced settings) the sticker
+ // reshapes through its other points instead.
  function deleteStickerControls(){const points=selectedWorldPoints();if(!points.length||lineSelection.length||pickedLines.length)return false;const items=stickerControlSelection(points);if(!items)return false;
+  if(host.state()?.stickerDeleteKeepsFace===true)return reshapeStickerDelete(items);
+  const before=allStickers().length;let after=before;
+  const ok=transaction(()=>{const drafts=new Set();for(const item of items)drafts.add(stickerDraft(item.ref));for(const d of drafts)deleteSketchPoints(d,points);after=allStickers().length;selectWorldPoints([]);});
+  if(ok)host.message(after<before?'Point deleted; the sticker is open lines now.':'Point deleted.');return true;
+ }
+ // The sticker stays closed through the rest of its points; a sticker whose rest is no
+ // closed face (too few corners, or a shape that would cross itself) is deleted.
+ function reshapeStickerDelete(items){
   const closed=outline=>{if(!outline)return null;try{ST().check(outline);return outline;}catch{return null;}};
   const changes=items.map(item=>({ref:item.ref,outline:item.all?null:closed(ST().deleteControls(item.outline,item.ids))}));
   const ok=transaction(()=>{const refs=writeStickers(changes);selectWorldPoints([]);if(refs.length)selectStickers(refs);});
   if(ok)host.message(changes.some(c=>!c.outline)?'Sticker deleted.':'Sticker point deleted.');return true;
+ }
+ // The draft a sticker is drawn in; a stored sticker is moved into its host's draft.
+ function stickerDraft(ref){if(ref.d)return ref.d;const outline=stickerOutline(ref),w=ST().toWorld(outline,ref.f.id),points=stickerFace(ref).points,feature={...copy(ref.f.feature)};delete feature.outline;
+  // Its wall closes over a notch it kept for the sticker before the sticker goes in its draft.
+  // (and over notches it kept for other stored stickers on its plane, whose openings are derived).
+  const K=window.ExteriorGeometry,frame=F.frame(points),onPlane=q=>Math.abs(K.local(frame,q).z)<=1e-4,others=solids().filter(s=>s!==ref.f&&s.feature&&!s.deleted&&!s.drafted&&s.points.every(onPlane)).map(s=>s.points);
+  removeSticker(ref);fillStickerNotch(points);for(const other of others)fillStickerNotch(other);const d=stickerHost(ref,w.points);installInto(d,[{points:w.points.map(p=>{const {curveSample,...q}=p;return q;}),curves:w.curves,feature,...(ref.f.material?{material:ref.f.material}:{}),...(ref.f.finishColor?{finishColor:ref.f.finishColor}:{})}],false);return d;}
+ // Remove the draft nodes at world points with their edges. A node on the draft
+ // outline stays (the wall keeps its edge); it is dropped only when it was just a
+ // split in a straight outline edge.
+ function deleteSketchPoints(d,points){
+  const K=window.ExteriorGeometry,ids=new Set(d.sketch.nodes.filter(n=>points.some(p=>distance3(world(d,n),p)<=K.CONTACT)).map(n=>n.id));if(!ids.size)return;
+  const flat=q=>({x:q.x,y:q.y,z:0}),node=id=>d.sketch.nodes.find(n=>n.id===id),onOutline=q=>d.sketch.outlines.some(r=>r.some((a,i)=>onSegment(flat(q),flat(a),flat(r[(i+1)%r.length]),1e-5)));
+  const outlineEdge=e=>!e.curveId&&onOutline(node(e.a))&&onOutline(node(e.b))&&onOutline({x:(node(e.a).x+node(e.b).x)/2,y:(node(e.a).y+node(e.b).y)/2}),old=copy(d.faces);
+  d.sketch.edges=d.sketch.edges.filter(e=>!(ids.has(e.a)||ids.has(e.b))||outlineEdge(e));
+  for(const id of ids){const n=node(id),kept=d.sketch.edges.filter(e=>e.a===id||e.b===id);if(!kept.length){d.sketch.nodes=d.sketch.nodes.filter(m=>m!==n);continue;}
+   if(kept.length!==2)continue;const ends=kept.map(e=>node(e.a===id?e.b:e.a));if(!onSegment(flat(n),flat(ends[0]),flat(ends[1]),1e-6))continue;
+   d.sketch.edges=d.sketch.edges.filter(e=>!kept.includes(e));d.sketch.edges.push({...kept[0],id:'e'+(++d.sketch.next),a:ends[0].id,b:ends[1].id});d.sketch.nodes=d.sketch.nodes.filter(m=>m!==n);}
+  d.sketch.curves=(d.sketch.curves||[]).filter(c=>d.sketch.edges.some(e=>e.curveId===c.id));
+  S.resolve(d);for(const f of d.faces){const prior=old.find(o=>signature(o)===signature(f));if(prior?.solidId)f.solidId=prior.solidId;}
+  d.deletedFaces=(d.deletedFaces||[]).filter(key=>d.faces.some(f=>signature(f)===key));classify(d);
  }
  function deleteSelectedStickers(){const refs=selectedFaces();if(!refs.length||refs.some(r=>!r.f.feature))return false;
   const ok=transaction(()=>{for(const ref of refs)removeSticker(ref);});if(ok){faceSelection=[];selectedSolid=null;selectedRegion=null;preferredSolid=null;preferredRegion=null;picked=[];pickedLines=[];solidPoints=[];solidEdges=[];host.redraw();}return true;

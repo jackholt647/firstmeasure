@@ -3914,21 +3914,26 @@ test('E holds a sticker at a typed distance from where it was, for M and for pas
 // Sticker pipeline (dev/EXTERIOR_STICKERS.md): every edit of every stored form keeps
 // each sticker a closed face with its exact curves, and undoes in one step.
 const stickerCount=f=>curveSuite.census(f.state.wallEdits).faces.filter(s=>s.feature).length;
-for(const rep of curveRepresentations)test(`deleting one corner of an arched sticker (${rep.name}) leaves the closed face with its arch, and undoes`,()=>{
- const {census,curveCount,close}=curveSuite,f=rep.build(),start=curvedDoors(f,rep.type),before=JSON.stringify(f.state.wallEdits),count=f.history.length,curves=curveCount(census(f.state.wallEdits)),stickers=stickerCount(f),loose=JSON.stringify(f.state.wallEdits.$loose||null);
- const corner=start[0].defining.find(p=>Math.abs(p.z-start[0].bottom)<1e-6);selectCurved(f,{pick:()=>[corner]},start);assert.equal(f.editor.pointSelection().length,1);
+// Deleting a sticker point deletes it with the lines and curve segments attached to it.
+// What no longer closes stops being a sticker and stays on its wall as open lines.
+const sketchNodesAt=(f,p)=>Object.values(f.state.wallEdits.$drafts||{}).filter(d=>!d.mergedInto).flatMap(d=>d.sketch.nodes.filter(n=>curveSuite.close(toWorldNode(d,n),p,1e-5)));
+const archEdges=(f,door)=>Object.values(f.state.wallEdits.$drafts||{}).filter(d=>!d.mergedInto).flatMap(d=>d.sketch.edges.filter(e=>e.curveId).map(e=>{const c=(d.sketch.curves||[]).find(c=>c.id===e.curveId);return c&&door.curves.some(dc=>[0,.5,1].some(t=>curveSuite.close(curveSuite.K.curvePoint(curveSuite.K.mapCurve(c,q=>toWorldNode(d,q)),.5),curveSuite.K.curvePoint(dc,t),.2)));}).filter(Boolean));
+for(const rep of curveRepresentations)test(`deleting one corner of an arched sticker (${rep.name}) deletes its two lines, leaves the rest as open lines with the arch, and undoes`,()=>{
+ const {close}=curveSuite,f=rep.build(),start=curvedDoors(f,rep.type),before=JSON.stringify(f.state.wallEdits),count=f.history.length,stickers=stickerCount(f);
+ const corner=start[0].defining.find(p=>Math.abs(p.z-start[0].bottom)<1e-6),other=start[0].defining.find(p=>Math.abs(p.z-start[0].bottom)<1e-6&&!close(p,corner)),tops=start[0].defining.filter(p=>p.z>start[0].bottom+1e-6);
+ selectCurved(f,{pick:()=>[corner]},start);assert.equal(f.editor.pointSelection().length,1);
  f.editor.key({key:'Delete'});assert.equal(f.history.length,count+1,rep.name+': '+f.message());
- const now=curvedDoors(f,rep.type);assert.equal(now.length,start.length,'every door keeps its arch');assert.equal(stickerCount(f),stickers,'no sticker is lost');assert.equal(curveCount(census(f.state.wallEdits)),curves);
- const changed=now.filter(d=>d.defining.length===start[0].defining.length-1);assert.equal(changed.length,1,'one door lost one point');assert.ok(!changed[0].points.some(p=>close(p,corner,1e-6)),'the corner is gone from the door');
- assert.equal(JSON.stringify(f.state.wallEdits.$loose||null),loose,'no loose wire is left');assert.equal(f.editor.pointSelection().length,0);
+ assert.equal(stickerCount(f),stickers-1,'the door is no closed face any more');const now=curvedDoors(f,rep.type);assert.equal(now.length,start.length-1,'the other doors keep their arches');
+ assert.equal(sketchNodesAt(f,corner).length,0,'the corner is gone');for(const p of [other,...tops])assert.ok(sketchNodesAt(f,p).length,'the other points stay: '+JSON.stringify(p));
+ assert.ok(archEdges(f,start[0]).length>=1,'the arch stays as open curve segments');
  assert.equal(JSON.stringify(f.history[count]),before,'one undo step returns to the start');
 });
-test('deleting every point of a sticker deletes the sticker, and deleting the arch control straightens it',()=>{
- const {census,curveCount}=curveSuite;
+test('deleting every point of a sticker removes it; deleting the arch top removes both arch segments and leaves three open lines',()=>{
  let f=plainWallDoorsFixture(),start=curvedDoors(f);selectCurved(f,{pick:d=>d[0].defining},start);f.editor.key({key:'Delete'});
- assert.equal(f.history.length,1,f.message());assert.equal(stickerCount(f),1,'the door is deleted');assert.match(f.message(),/Sticker deleted/);
- f=plainWallDoorsFixture();start=curvedDoors(f);selectCurved(f,{pick:d=>d[0].defining.filter(p=>d[0].apex(p))},start);f.editor.key({key:'Delete'});
- assert.equal(f.history.length,1,f.message());assert.equal(stickerCount(f),2);assert.equal(curveCount(census(f.state.wallEdits)),1,'one arch is straightened');
+ assert.equal(f.history.length,1,f.message());assert.equal(stickerCount(f),1);for(const p of start[0].defining)assert.equal(sketchNodesAt(f,p).length,0);assert.equal(archEdges(f,start[0]).length,0);
+ f=plainWallDoorsFixture();start=curvedDoors(f);const apex=start[0].defining.filter(p=>start[0].apex(p));selectCurved(f,{pick:()=>apex},start);f.editor.key({key:'Delete'});
+ assert.equal(f.history.length,1,f.message());assert.equal(stickerCount(f),1,'the door is open: no sticker');assert.equal(archEdges(f,start[0]).length,0,'both arch segments went with the arch top');
+ for(const p of start[0].defining.filter(p=>!start[0].apex(p)))assert.ok(sketchNodesAt(f,p).length,'the corners stay');
 });
 // Jack's ce52 project as saved on 2026-10-29 (location removed): every sticker on it
 // nudges as a whole and by one corner, and loses a corner, without refusals.
@@ -3950,8 +3955,8 @@ test('every sticker on the ce52 project nudges whole, reshapes by a corner and l
    if(op==='face')selectCurved(f,{face:[0]},[sticker]);else{const corner=defining(sticker).find(p=>!(sticker.curves||[]).some(c=>[0,.5,1].some(t=>close(curveSuite.K.curvePoint(c,t),p,1e-6))))||defining(sticker)[0];selectStickerPoint(f,sticker,corner);}
    f.editor.key(op==='delete'?{key:'Delete'}:{key:'ArrowRight'});
    if(f.history.length!==1){problems.push(label+': '+f.message());continue;}
-   const after=census(f.state.wallEdits);if(after.faces.filter(s=>s.feature).length!==all.length)problems.push(label+': sticker count '+after.faces.filter(s=>s.feature).length);
-   if(curveCount(after)!==curves)problems.push(label+': curves '+curves+' -> '+curveCount(after));
+   const after=census(f.state.wallEdits),expect=all.length-(op==='delete'?1:0);if(after.faces.filter(s=>s.feature).length!==expect)problems.push(label+': sticker count '+after.faces.filter(s=>s.feature).length);
+   if(op!=='delete'&&curveCount(after)!==curves)problems.push(label+': curves '+curves+' -> '+curveCount(after));
    if(op!=='delete'){f.editor.key({key:'ArrowLeft'});if(f.history.length!==2)problems.push(label+' back: '+f.message());}
   }
  }
@@ -3994,13 +3999,50 @@ test('copying and pasting an arched sticker places a second sticker with its own
   assert.equal(f.editor.busy(),false,rep.name+': '+f.message());assert.equal(stickerCount(f),stickers+1,rep.name+': '+f.message());assert.equal(curveCount(census(f.state.wallEdits)),curves+1,rep.name+': the copy has its own arch');
  }
 });
-test('a corner whose sticker could not stay a closed face deletes that sticker (an arched transom), never refuses',()=>{
+test('deleting a corner of an arched transom deletes its two lines and keeps what still closes',()=>{
  // ce52 on 2026-10-29: a window split across and the split arched up to its top line is
  // two window stickers; the top one touches itself at the arch top, so no corner of it
  // can be removed with it still closed. Deleting such a corner deletes that piece, and
  // the window below keeps its arch.
  const m=JSON.parse(fs.readFileSync(require.resolve('./fixtures/ce52-arched-transom-20261029.json'),'utf8')),{census,curveCount}=curveSuite;
  const f=fixture({state:m,walls:m.alignedWalls,selected:null,globals:{...renderGlobals(),WallChimneys:require('../public/measure/internal/editor_scripts/wall_chimneys.js'),WallResoffit:require('../public/measure/internal/editor_scripts/wall_resoffit.js')},screen:p=>({x:(p.x*.8+p.y*.6)*100,y:-(p.z+.3*(p.y*.8-p.x*.6))*100})});
+ const key=Object.keys(f.state.wallEdits.$drafts).find(k=>k.includes('wall-region-0-1793091747269')),d=()=>f.state.wallEdits.$drafts[key],before=JSON.stringify(f.state.wallEdits),stickers=stickerCount(f),curves=curveCount(census(f.state.wallEdits));
+ const windows=()=>d().faces.filter(x=>x.feature&&!x.solidId&&x.points.some(p=>Math.abs(p.x-6.5)<.5&&p.y>-2.3&&p.y<-.7));assert.equal(windows().length,2);
+ // The old top-right corner, as selected in Jack's screenshot.
+ f.editor.restoreSelection({activeDraftKey:key,draftSelection:{[key]:['p657']},picked:['p657']});f.editor.key({key:'Delete'});
+ // Its two lines go; the arched window still closes, and so does the cap's left half.
+ assert.equal(f.history.length,1,f.message());assert.equal(stickerCount(f),stickers);assert.equal(windows().length,2);
+ assert.ok(windows().some(w=>w.curves.length>=1&&w.points.some(p=>p.nodeId==='p642')),'the arched window keeps its arch: '+JSON.stringify(windows().map(w=>[w.curves.length,w.points.filter(p=>p.nodeId).map(p=>p.nodeId).join(' ')])));assert.equal(curveCount(census(f.state.wallEdits)),curves);
+ assert.ok(!d().sketch.nodes.some(n=>n.id==='p657'),'the corner is gone');assert.ok(d().sketch.nodes.some(n=>n.id==='p658'),'the other corner stays');
+ assert.equal(JSON.stringify(f.history[0]),before);
+});
+// "Deleting a sticker point keeps it closed" (wall advanced settings): the sticker
+// reshapes through its other points instead of opening up.
+const keepClosed=f=>{f.state.stickerDeleteKeepsFace=true;return f;};
+for(const rep of curveRepresentations)test(`with keep-closed on, deleting one corner of an arched sticker (${rep.name}) leaves the closed face with its arch, and undoes`,()=>{
+ const {census,curveCount,close}=curveSuite,f=keepClosed(rep.build()),start=curvedDoors(f,rep.type),before=JSON.stringify(f.state.wallEdits),count=f.history.length,curves=curveCount(census(f.state.wallEdits)),stickers=stickerCount(f),loose=JSON.stringify(f.state.wallEdits.$loose||null);
+ const corner=start[0].defining.find(p=>Math.abs(p.z-start[0].bottom)<1e-6);selectCurved(f,{pick:()=>[corner]},start);assert.equal(f.editor.pointSelection().length,1);
+ f.editor.key({key:'Delete'});assert.equal(f.history.length,count+1,rep.name+': '+f.message());
+ const now=curvedDoors(f,rep.type);assert.equal(now.length,start.length,'every door keeps its arch');assert.equal(stickerCount(f),stickers,'no sticker is lost');assert.equal(curveCount(census(f.state.wallEdits)),curves);
+ const changed=now.filter(d=>d.defining.length===start[0].defining.length-1);assert.equal(changed.length,1,'one door lost one point');assert.ok(!changed[0].points.some(p=>close(p,corner,1e-6)),'the corner is gone from the door');
+ assert.equal(JSON.stringify(f.state.wallEdits.$loose||null),loose,'no loose wire is left');assert.equal(f.editor.pointSelection().length,0);
+ assert.equal(JSON.stringify(f.history[count]),before,'one undo step returns to the start');
+});
+test('with keep-closed on, deleting every point of a sticker deletes it, and deleting the arch control straightens it',()=>{
+ const {census,curveCount}=curveSuite;
+ let f=keepClosed(plainWallDoorsFixture()),start=curvedDoors(f);selectCurved(f,{pick:d=>d[0].defining},start);f.editor.key({key:'Delete'});
+ assert.equal(f.history.length,1,f.message());assert.equal(stickerCount(f),1,'the door is deleted');assert.match(f.message(),/Sticker deleted/);
+ f=keepClosed(plainWallDoorsFixture());start=curvedDoors(f);selectCurved(f,{pick:d=>d[0].defining.filter(p=>d[0].apex(p))},start);f.editor.key({key:'Delete'});
+ assert.equal(f.history.length,1,f.message());assert.equal(stickerCount(f),2);assert.equal(curveCount(census(f.state.wallEdits)),1,'one arch is straightened');
+});
+
+test('with keep-closed on, a corner whose sticker could not stay a closed face deletes that sticker (an arched transom), never refuses',()=>{
+ // ce52 on 2026-10-29: a window split across and the split arched up to its top line is
+ // two window stickers; the top one touches itself at the arch top, so no corner of it
+ // can be removed with it still closed. Deleting such a corner deletes that piece, and
+ // the window below keeps its arch.
+ const m=JSON.parse(fs.readFileSync(require.resolve('./fixtures/ce52-arched-transom-20261029.json'),'utf8')),{census,curveCount}=curveSuite;
+ m.stickerDeleteKeepsFace=true;const f=fixture({state:m,walls:m.alignedWalls,selected:null,globals:{...renderGlobals(),WallChimneys:require('../public/measure/internal/editor_scripts/wall_chimneys.js'),WallResoffit:require('../public/measure/internal/editor_scripts/wall_resoffit.js')},screen:p=>({x:(p.x*.8+p.y*.6)*100,y:-(p.z+.3*(p.y*.8-p.x*.6))*100})});
  const key=Object.keys(f.state.wallEdits.$drafts).find(k=>k.includes('wall-region-0-1793091747269')),d=()=>f.state.wallEdits.$drafts[key],before=JSON.stringify(f.state.wallEdits),stickers=stickerCount(f),curves=curveCount(census(f.state.wallEdits));
  const windows=()=>d().faces.filter(x=>x.feature&&!x.solidId&&x.points.some(p=>Math.abs(p.x-6.5)<.5&&p.y>-2.3&&p.y<-.7));assert.equal(windows().length,2);
  // The old top-right corner, as selected in Jack's screenshot.

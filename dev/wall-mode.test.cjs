@@ -1138,3 +1138,9 @@ test('Trim mode follows the Trim menu and ends with an outside press, Escape or 
  menu(true);view=shown();assert.ok(view.points.every(o=>!o.visible),'Trim draws no points');assert.notEqual(view.hip[0].material.color.getHexString(),green,'ridges, hips and valleys are greyed');assert.equal(view.roof[0].material.color.getHexString(),green,'other roof lines stay as they are');
  press(false);view=shown();assert.ok(view.points.every(o=>o.visible));assert.equal(view.hip[0].material.color.getHexString(),green);
 });
+test('the sticker point delete setting is off by default, persists and survives a rebuild',()=>{
+ const f=fixture(true);f.ctx.activeGeometry.connections[0].type='eave';f.soffits[1].onclick();const toggle=f.elements.get('wall-sticker-delete-closed');assert.equal(toggle.checked,false);
+ toggle.onchange({target:{checked:true}});assert.equal(f.ctx.WallMode.serialize().stickerDeleteKeepsFace,true);
+ f.elements.get('wall-rebuild').onclick();assert.equal(f.ctx.WallMode.serialize().stickerDeleteKeepsFace,true);
+ toggle.onchange({target:{checked:false}});assert.equal(f.ctx.WallMode.serialize().stickerDeleteKeepsFace,false);
+});
