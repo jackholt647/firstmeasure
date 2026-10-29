@@ -2814,7 +2814,8 @@
     "pin_count": {
       "message": "{count, plural, one {# značka} few {# značky} many {# značek} other {# značky}}",
       "format": "icu"
-    }
+    },
+    "main_pitch_degrees": "Hlavní sklon (stupně)"
   },
   "money": {
     "m_487adb3f2ba511": "Načítání financí...",
@@ -7899,7 +7900,10 @@
     },
     "fm_mobile_auto_topup_off": "Automatické dobíjení kreditu: vypnuto",
     "developer_settings_title": "Nastavení pro vývojáře",
-    "developer_settings_subtitle": "Nástroje pro vývojáře, přepínače funkcí a konfigurace aplikací."
+    "developer_settings_subtitle": "Nástroje pro vývojáře, přepínače funkcí a konfigurace aplikací.",
+    "pitch_notation_label": "Sklon střechy",
+    "pitch_notation_rise": "Převýšení na 12 (6/12)",
+    "pitch_notation_degrees": "Stupně (26,6°)"
   },
   "signatures": {
     "m_2ebfdc1730afd2": "Přidat práci",

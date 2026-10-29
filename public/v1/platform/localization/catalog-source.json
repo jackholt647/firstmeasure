@@ -392,7 +392,8 @@
     "m_0874ee51f73df9": "To sign",
     "m_215579be77973e": "Signed in the crew app once every item is done",
     "m_bd11b7eff758d3": "Require signature",
-    "m_ef449324af3761": "Whoever completes this checklist signs it once every item is done, in the crew app. Printed copies get a signature line."
+    "m_ef449324af3761": "Whoever completes this checklist signs it once every item is done, in the crew app. Printed copies get a signature line.",
+    "m_ca9dd8bc3670c2": "Save to Documents, then email, download or print"
   },
   "comms": {
     "m_f6ab2f58b94a8e": "Customer call workspace",
@@ -5045,7 +5046,8 @@
     "m_29e4b9f7c0859a": "Fascia",
     "m_e839e628a5c743": "Close design",
     "m_c1b810cb6841fe": "Reading material lists…",
-    "m_df13f4ec78c9b6": "No roof, siding, trim or door products with a color were found on this project’s material lists."
+    "m_df13f4ec78c9b6": "No roof, siding, trim or door products with a color were found on this project’s material lists.",
+    "main_pitch_degrees": "Main pitch (degrees)"
   },
   "money": {
     "m_487adb3f2ba511": "Loading money...",
@@ -13497,7 +13499,10 @@
     "m_604e0010493672": "Wall Notes Page",
     "m_8b74c5834063f9": "The elevations with the report's wall notes.",
     "m_0f91b42c832e24": "Waste percent",
-    "m_9b8573b4339e02": "What one package covers"
+    "m_9b8573b4339e02": "What one package covers",
+    "pitch_notation_label": "Roof pitch",
+    "pitch_notation_rise": "Rise over 12 (6/12)",
+    "pitch_notation_degrees": "Degrees (26.6°)"
   },
   "signatures": {
     "m_2ebfdc1730afd2": "Add Work",
@@ -20124,7 +20129,10 @@
     "checklist_send_assignee_required": "Choose who to send this checklist to.",
     "documents_disabled": "Documents are off for this organization.",
     "checklist_forbidden": "This checklist is not available to this user.",
-    "checklist_signature_not_required": "This checklist does not ask for a signature."
+    "checklist_signature_not_required": "This checklist does not ask for a signature.",
+    "enroll_nonce_invalid": "The nonce is 16 to 64 hex digits.",
+    "enroll_stale": "The enrollment is older than five minutes, or this machine's clock is off.",
+    "enroll_replayed": "This enrollment was already used."
   },
   "notifications": {
     "document_greeting": {
