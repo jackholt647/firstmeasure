@@ -75,7 +75,7 @@ window.createBaseSketchEditor=function(host){
   if(mode()==='line'){
    for(const edge of S.curveEdges(sketch())){const a=host.screen(edge.start,v),b=host.screen(edge.end,v),dx=b.x-a.x,dy=b.y-a.y,t=Math.max(0,Math.min(1,((e.clientX-a.x)*dx+(e.clientY-a.y)*dy)/(dx*dx+dy*dy))),d=Math.hypot(e.clientX-a.x-t*dx,e.clientY-a.y-t*dy);if(d<best&&(v!=='3d'||host.pickLineVisible?.([edge.start,edge.end],e)!==false)){id=edge.id;best=d;}}
   }else{
-   // Through translucent walls every drawn point can be clicked: a point in front wins, else the nearest one behind a face.
+   // Every drawn point can be clicked: a point in front wins, else the nearest one behind a face.
    let hidden=null,hiddenDistance=best;
    for(const n of sketch().nodes.filter(n=>inScope(actual(n)))){const p=host.screen(actual(n),v),d=Math.hypot(p.x-e.clientX,p.y-e.clientY);if(!(d<best)&&!(d<hiddenDistance))continue;if(v!=='3d'||host.pickVisible?.(actual(n))!==false){if(d<best){best=d;id=n.id;}}else if(host.pickThrough?.()&&d<hiddenDistance){hiddenDistance=d;hidden=n.id;}}
    if(id===null)id=hidden;
