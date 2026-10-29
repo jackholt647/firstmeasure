@@ -1,0 +1,18 @@
+#!/usr/bin/env bash
+# fm-prod-host <compat|worker|web|IP> [command...] — root on a PRODUCTION host from fm-agents-1.
+# Production firewalls only accept SSH from the dev sync droplet, so this jumps through it.
+# Use only for the documented production workflow (DEPLOYMENT.md) under a tracker workspace's
+# production authorization, or when Jack asks. Never print or copy keys.
+set -euo pipefail
+K=~/.ssh/fm_prod_ed25519
+JUMP="ssh -i $HOME/.ssh/fm_devops_ed25519 -o IdentitiesOnly=yes -o UserKnownHostsFile=$HOME/.ssh/known_hosts_dev -o StrictHostKeyChecking=accept-new -o LogLevel=ERROR -W %h:%p dev@147.182.178.6"
+WEB="137.184.187.218 137.184.88.252 143.198.104.224 143.198.137.97 146.190.150.235 64.23.240.81" # as of 2026-10-29; autoscale pool, may change
+role="${1:-list}"; shift || true
+case "$role" in
+  compat|compatibility|legacy) h=144.126.222.110 ;;
+  worker) h=146.190.169.59 ;;
+  web) echo "$WEB" | tr ' ' '\n'; exit 0 ;;
+  list) echo "compat 144.126.222.110"; echo "worker 146.190.169.59"; for w in $WEB; do echo "web $w"; done; exit 0 ;;
+  *) h="$role" ;;
+esac
+exec ssh -i "$K" -o IdentitiesOnly=yes -o UserKnownHostsFile=$HOME/.ssh/known_hosts_prod -o StrictHostKeyChecking=accept-new -o LogLevel=ERROR -o ProxyCommand="$JUMP" "root@$h" "$@"
