@@ -91,7 +91,7 @@
     /* Disabled actions say why (1M8-235); an invitation nobody accepted is revoked rather than archived. */
     const protectedLabel = (user) => ({
       self:t('protected_self', 'You cannot suspend or archive yourself'),
-      owner:t('protected_owner', 'The account owner cannot be suspended or archived'),
+      owner:t('protected_owner_super_admin', 'Only another super admin can suspend or archive the account owner'),
       last_admin:t('protected_last_admin', 'Make someone else a super admin first: an account needs at least one')
     })[data.protection(user)] || '';
     const archiveLabel = (user) => data.neverSignedIn(user) ? t('revoke_invite', 'Revoke invitation') : t('archive', 'Archive');
@@ -570,11 +570,11 @@
         tabs:[
           legacy ? { id:'permissions', needs:'users.legacy_permissions', label:t('permissions', 'Permissions'), icon:kit.ICONS.permissions, mount(panel){
             /* The admin level is a dropdown; the seven flags are switches. Changing a flag makes the level Custom. */
-            const locked = !can.permissions || data.isMe(current()) || data.isOwner(current());
+            const locked = !can.permissions || data.isMe(current()) || data.ownerLocked(current());
             let flags = null;
             const draw = () => {
               flags?.destroy();
-              panel.innerHTML = `<div style="display:flex;flex-direction:column;height:100%;min-height:0;gap:10px"><div class="pp-tab-bar" style="margin:0"><label class="pp-field" style="width:220px"><span>${esc(t('admin_level', 'Admin level'))}</span>${kit.select({ value:draft.legacy.level, options:[...data.LEGACY_LEVELS, 'custom'].map((level) => ({ value:level, label:t(`level_${level}`, LEVEL_LABELS[level]) })), label:t('admin_level', 'Admin level'), attrs:'data-legacy-level', disabled:locked })}</label>${locked ? kit.info(t('legacy_locked_tip', 'Your own level and an owner\u2019s level cannot be changed here.')) : ''}</div><div data-legacy-flags style="flex:1;min-height:0"></div></div>`;
+              panel.innerHTML = `<div style="display:flex;flex-direction:column;height:100%;min-height:0;gap:10px"><div class="pp-tab-bar" style="margin:0"><label class="pp-field" style="width:220px"><span>${esc(t('admin_level', 'Admin level'))}</span>${kit.select({ value:draft.legacy.level, options:[...data.LEGACY_LEVELS, 'custom'].map((level) => ({ value:level, label:t(`level_${level}`, LEVEL_LABELS[level]) })), label:t('admin_level', 'Admin level'), attrs:'data-legacy-level', disabled:locked })}</label>${locked ? kit.info(t('legacy_locked_tip_super_admin', 'Your own level cannot be changed here, and only another super admin can change the owner\u2019s.')) : ''}</div><div data-legacy-flags style="flex:1;min-height:0"></div></div>`;
               flags = People.permissionsPanel.mount(panel.querySelector('[data-legacy-flags]'), { level:'legacy', groups:[{ id:'general', label:t('permissions', 'Permissions'), icon:kit.ICONS.permissions, permissions:data.LEGACY_FLAGS.map((key) => ({ key, label:t(`flag_${key}`, FLAG_LABELS[key]) })) }], value:Object.fromEntries(Object.entries(draft.legacy.items).filter(([, on]) => on)), readOnly:locked, onChange(value){ draft.legacy = { level:'custom', items:Object.fromEntries(data.LEGACY_FLAGS.map((key) => [key, value[key] === true])) }; panel.querySelector('[data-legacy-level]').value = 'custom'; sync(); } });
             };
             draw();

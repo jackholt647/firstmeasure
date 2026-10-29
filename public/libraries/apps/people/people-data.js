@@ -13,7 +13,7 @@
  * Reading (all synchronous, from the loaded state)
  *   data.user(id)  data.role(id)  data.activeRoles()
  *   data.userRoleIds(user)  data.userRoles(user)  data.userDepartments(user)  data.userGroups(user)
- *   data.neverSignedIn(user)  data.isSuspended(user)  data.isMe(user)  data.isOwner(user)
+ *   data.neverSignedIn(user)  data.isSuspended(user)  data.isMe(user)  data.isOwner(user)  data.ownerLocked(user)
  *   data.roleMembers(roleId)
  *   data.permissionGroups()                groups for permissionsPanel
  *   data.inheritedPermission(roleIds)      (key) => { allowed, sources }
@@ -396,8 +396,11 @@
   const isOwner = (entry = {}) => text(entry.role).toLowerCase() === 'owner' && ['', 'owner'].includes(text(entry.org_permissions?.level, entry.org_permission_level).toLowerCase());
   const isLastAdmin = (entry = {}) => !entry.deleted && !isSuspended(entry) && userLegacy(entry).level === 'super_admin'
     && !state.users.some((other) => other.id !== entry.id && !other.deleted && !isSuspended(other) && userLegacy(other).level === 'super_admin');
+  /* Only another active super admin may suspend, archive or lower the owner, e.g. when the owner leaves (1M8-251). */
+  const ownerLocked = (entry = {}) => isOwner(entry)
+    && !state.users.some((other) => other.id !== entry.id && isMe(other) && !other.deleted && !isSuspended(other) && userLegacy(other).level === 'super_admin');
   /* Why this person cannot be suspended, archived or demoted here, or '' when they can. */
-  const protection = (entry = {}) => isMe(entry) ? 'self' : isOwner(entry) ? 'owner' : isLastAdmin(entry) ? 'last_admin' : '';
+  const protection = (entry = {}) => isMe(entry) ? 'self' : ownerLocked(entry) ? 'owner' : isLastAdmin(entry) ? 'last_admin' : '';
   const roleMembers = (roleId) => state.users.filter((entry) => userRoleIds(entry).includes(String(roleId)));
 
   const sentence = (value) => { const words = String(value || '').replace(/[_-]+/g, ' ').trim(); return words ? words.charAt(0).toUpperCase() + words.slice(1) : ''; };
@@ -659,7 +662,7 @@
     }
     /* Organizations that have not moved to roles keep an admin level and the seven original flags on the user. */
     if (can.permissions && patch.legacy !== undefined) {
-      if (isMe(current) || isOwner(current)) throw new Error(t('legacy_locked', 'This level cannot be changed here.'));
+      if (isMe(current) || ownerLocked(current)) throw new Error(t('legacy_locked', 'This level cannot be changed here.'));
       if (isLastAdmin(current) && patch.legacy.level !== 'super_admin') throw new Error(t('last_admin_locked', 'Make someone else a super admin first: an account needs at least one.'));
       await platform.users.setPermissions(orgId(), id, patch.legacy.level || 'viewer', obj(patch.legacy.items));
     }
@@ -790,7 +793,7 @@
     structure, multipleBranches, branches, regions, branch, region, branchName, branchIdsOf, branchWords, bt,
     state, load, subscribe(listener){ listeners.add(listener); return () => listeners.delete(listener); }, can, orgId, branchId, assetUrl,
     user, role, activeRoles, userRoleIds, userRoles, userPermissionOverrides, userAppOverrides, userDepartments, userDirectDepartmentIds, userGroups,
-    neverSignedIn, isSuspended, isMe, isOwner, isLastAdmin, protection, roleMembers, permissionGroups, inheritedPermission, inheritedApp, roleAppValue, appSettings, catalogDefaultApp, userSummary,
+    neverSignedIn, isSuspended, isMe, isOwner, ownerLocked, isLastAdmin, protection, roleMembers, permissionGroups, inheritedPermission, inheritedApp, roleAppValue, appSettings, catalogDefaultApp, userSummary,
     invite, resendInvite, setSuspended, removeUser, restoreUser, saveUser, uploadPhoto, saveUserDepartments, saveRole, createRole, archiveRole, setRoleMembership
   };
 })();

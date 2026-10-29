@@ -186,7 +186,7 @@ test("the owner and the last active super admin cannot be suspended, archived or
   const revoke = await owner.request("DELETE", `/v1/platform/organizations/admin_guard_org/users/${invitedAdmin}`);
   assert.equal(revoke.response.statusCode, 200, revoke.response.body);
 
-  // Nobody can suspend, archive or demote the owner.
+  // The owner cannot change themselves, and nothing without another super admin acting can change the owner (1M8-251).
   const promoted = await create("guard.admin@example.test", "super_admin");
   assert.ok(ownerId);
   const suspendOwner = await owner.request("PATCH", `/v1/platform/organizations/admin_guard_org/users/${ownerId}`, { data: { status: "disabled" } });
@@ -204,6 +204,46 @@ test("the owner and the last active super admin cannot be suspended, archived or
   assert.equal(suspendPromoted.response.statusCode, 200, suspendPromoted.response.body);
   await assert.rejects(assertOrganizationKeepsAdmin("admin_guard_org", ownerId, { disabled: true }), /at least one/);
   await assert.rejects(assertOrganizationKeepsAdmin("admin_guard_org", ownerId, { level: "admin" }), /at least one/);
+});
+
+test("when the owner leaves, another active super admin can lower and archive them; nobody else can (1M8-251)", async () => {
+  const owner = browser();
+  const registered = await register(owner, "handover.owner@example.test", "handover_org");
+  const ownerId = registered.user?.id || registered.membership?.user_id;
+  assert.ok(ownerId);
+  // People who already have a sign-in elsewhere, added here and signed in to this account.
+  const member = async (email: string, level: string) => {
+    await register(browser(), email, `${email.replace(/@.*$/, "").replace(/\W/g, "_")}_home`);
+    const added = await owner.request("POST", "/v1/platform/organizations/handover_org/users", { data: { email, name: email } });
+    assert.equal(added.response.statusCode, 201, added.response.body);
+    const id = added.data.document.id;
+    const set = await owner.request("PATCH", `/v1/platform/organizations/handover_org/users/${id}`, { data: { role: level, org_permissions: { level, items: {} } } });
+    assert.equal(set.response.statusCode, 200, set.response.body);
+    const client = browser();
+    const login = await client.request("POST", "/v1/platform/auth/legacy-action", { action: "login", email, password: PASSWORD, organization_id: "handover_org" });
+    assert.equal(login.data.organization?.id, "handover_org", login.response.body);
+    return { id, client };
+  };
+  const manager = await member("handover.manager@example.test", "admin");
+  const admin = await member("handover.admin@example.test", "super_admin");
+  const ownerRecord = async () => (await admin.client.request("GET", "/v1/platform/organizations/handover_org/users")).data.documents.find((doc: any) => doc.id === ownerId)?.data;
+
+  // An admin who manages users but is not a super admin cannot touch the owner.
+  const managerArchive = await manager.client.request("POST", "/v1/platform/portal-action", { action: "org_users_delete_my", user_id: ownerId });
+  assert.equal(managerArchive.data.error, "owner_protected", JSON.stringify(managerArchive.data));
+  assert.equal((await ownerRecord()).role, "owner");
+
+  // Another active super admin lowers the departed owner, then archives them; the account keeps its super admin.
+  const lowered = await admin.client.request("POST", "/v1/platform/portal-action", { action: "org_users_set_perms_my", user_id: ownerId, perm_level: "viewer", perm_items_json: "{}" });
+  assert.equal(lowered.data.success, true, JSON.stringify(lowered.data));
+  assert.equal((await ownerRecord()).role, "viewer");
+  const archived = await admin.client.request("DELETE", `/v1/platform/organizations/handover_org/users/${ownerId}`);
+  assert.equal(archived.response.statusCode, 200, archived.response.body);
+  assert.equal((await ownerRecord())?.deleted, true);
+
+  // The guard itself is unchanged: the last active super admin is still kept.
+  const lastAdmin = await manager.client.request("POST", "/v1/platform/portal-action", { action: "org_users_delete_my", user_id: admin.id });
+  assert.equal(lastAdmin.data.error, "last_admin_protected", JSON.stringify(lastAdmin.data));
 });
 
 test("a user's email stays their sign-in email: invitations move with it, signed-in accounts refuse (1M8-244)", async () => {
