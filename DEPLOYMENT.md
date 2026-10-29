@@ -1,5 +1,7 @@
 # FirstMeasure: local development and production deployment
 
+October 29 production hotfix `f4e8cb35`: [FM-305 / 1M8-256 summary card labels shrink, then wrap between words, and never run into their values; with FM-304 / 1M8-255 roof pitch in degrees for roofers outside the US](deploy/digitalocean/production-hotfix-20261029-f4e8cb35.md) on all roles; no data changed; rollback is `bbf23641`.
+
 October 29 production hotfix `bbf23641`: [FM-311 the Full Exterior Wall Notes page is always blank on the customer PDF; no "Review: …" warnings or stored notes are written on it](deploy/digitalocean/production-hotfix-20261029-bbf23641.md) on all roles, on top of `9af332be`; no data changed; rollback is `9af332be` everywhere.
 
 October 29 production hotfix `9af332be`: [FM-300 / 1M8-246 owners of an organization still named "Your Company" are asked for the company name, and Settings › Company saves it to the organization again](deploy/digitalocean/production-hotfix-20261029-9af332be.md) on all roles, on top of `784b7bd0`; no data changed (the dry-run name backfill was not run); rollback is `784b7bd0` everywhere.
