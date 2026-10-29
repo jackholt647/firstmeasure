@@ -1,5 +1,7 @@
 # FirstMeasure: local development and production deployment
 
+October 29 production hotfix `9af332be`: [FM-300 / 1M8-246 owners of an organization still named "Your Company" are asked for the company name, and Settings › Company saves it to the organization again](deploy/digitalocean/production-hotfix-20261029-9af332be.md) on all roles, on top of `784b7bd0`; no data changed (the dry-run name backfill was not run); rollback is `784b7bd0` everywhere.
+
 October 29 production hotfix `784b7bd0`: [FM-302 / 1M8-250 onboarding step 1 names only the missing field (your name or the company name)](deploy/digitalocean/production-hotfix-20261029-784b7bd0.md) on all roles; frontend and language packs only, no data changed; rollback is `3d1fdb12` everywhere.
 
 October 29 production hotfix `3d1fdb12`: [1M8-254 the portal Roof Report Summary and CSV show each report's own measurements again (regression from 31f87be5)](deploy/digitalocean/production-hotfix-20261029cc.md) on all roles, including the `091e5c36` Exteriors engine; no data changed; rollback is `091e5c36` on compatibility and `ef39262b` elsewhere.
