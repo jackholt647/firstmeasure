@@ -39,7 +39,7 @@ test('a roof-only summary renders exactly as before, even when its dataset holds
  const {context,rows}=await loadedRows('roof');
  assert.deepEqual(JSON.parse(JSON.stringify(rows)),JSON.parse(JSON.stringify(context.reportSummaryRowsFromRoofMeasurements(roofValues))));
  assert.ok(!rows.some(r=>r.wall));assert.equal(context.requested.length,0,'a roof-only summary makes no exterior request');
- const refused=await loadedRows('roof',{roofLoadFails:true});assert.equal(refused.rows.length,0);assert.equal(refused.context.requested.length,0);
+ const refused=await loadedRows('roof',{roofLoadFails:true});assert.equal(refused.rows.length,0);assert.deepEqual(refused.context.requested,['model_data.xml'],'a refused roof load falls back to the report XML, never an exterior request (1M8-254)');
  const roofRows=[{label:'Roof squares',value:'43.6',unit:'sq'},{label:'Eaves',value:'336',unit:'ft'}];
  assert.deepEqual(JSON.parse(JSON.stringify(context.reportSummaryWithWallRows(roofRows,rows))),roofRows);
  assert.equal(context.reportSummaryStandardDetail(false,true),'Main roof measurement PDF with gutter measurements');
