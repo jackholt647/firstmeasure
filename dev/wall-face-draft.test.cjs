@@ -3829,3 +3829,16 @@ test('sticker slide and paste with an overlay host re-cut only their wall until 
  assert.deepEqual(fast.steps,plain.steps,'commits are identical');assert.ok(fast.overlays>0,fast.message);
  assert.equal(JSON.parse(fast.steps[1]).$drafts.w.faces.filter(f=>f.feature).length,2,fast.message);
 });
+test('glass doors: the selected door or garage door turns glass and back as one undo step each; windows have no glass option',()=>{
+ const F=require('../public/measure/internal/editor_scripts/wall_features.js');
+ for(const type of ['door','garage']){const f=stickerFixture('door',[2,1.04]),sticker=()=>f.d().faces.find(face=>face.feature),b=F.bounds(sticker().points),at=f.e((b.left+b.right)/2,(b.top+b.bottom)/2);
+  // Every garage preset is wider than the test wall: retype the placed door, keeping its size.
+  f.editor.pickSolid(at);f.listeners.pointerup(at);if(type==='garage')f.editor.featureCommand('garage',null);assert.equal(f.editor.featureSelection()?.feature?.type,type,f.message());assert.equal(sticker().feature.glass,undefined,'off until turned on');
+  const steps=f.history.length;assert.equal(f.editor.glassCommand(true),true,f.message());assert.equal(sticker().feature.glass,true);assert.equal(f.history.length,steps+1);assert.match(f.message(),/set to glass/);
+  assert.equal(f.editor.glassCommand(false),true);assert.equal('glass' in sticker().feature,false,'off is stored as absent');assert.equal(f.history.length,steps+2);}
+ const f=stickerFixture('window',[2,2]),win=()=>f.d().faces.find(face=>face.feature),b=F.bounds(win().points),at=f.e((b.left+b.right)/2,(b.top+b.bottom)/2);f.editor.pickSolid(at);f.listeners.pointerup(at);const steps=f.history.length;
+ assert.equal(f.editor.glassCommand(true),false);assert.equal(win().feature.glass,undefined);assert.equal(f.history.length,steps);assert.match(f.message(),/Select a door or garage door/);
+ // Every section of a divided door shares its material.
+ const p=(x,y,z)=>({x,y,z}),back={id:'back',points:[p(-5,0,-5),p(5,0,-5),p(5,0,5),p(-5,0,5)]},sections=F.divideSticker([{id:'d',points:[p(-3,0,0),p(-1,0,0),p(-1,0,2),p(-3,0,2)],feature:{type:'door'},holes:[]}],'vertical',1).faces,state={wallEdits:{$surfaces:[back,...sections]}},g=fixture({state,walls:[],selected:null});
+ g.editor.restoreSelection({selectedSolid:sections[0].id});assert.equal(g.editor.glassCommand(true),true,g.message());const doors=state.wallEdits.$surfaces.filter(s=>s.feature?.type==='door');assert.equal(doors.length,2);assert.ok(doors.every(s=>s.feature.glass===true),'both sections are glass');
+});

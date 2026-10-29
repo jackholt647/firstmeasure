@@ -275,7 +275,7 @@ function texture(type){
 // Opening maps cover one whole opening instead of repeating wall-sized tiles.
 const openingMaps=new Map();
 function openingTexture(finish){
- const type=finish.featureType,w=Math.max(.25,Math.round(finish.width*4)/4),h=Math.max(.25,Math.round(finish.height*4)/4),color=finish.color||(type==='door'||type==='garage'?stickerColor(type,'main'):type==='window'?stickerColor(type,'trim'):null)||({window:'#e8e7e1',skylight:'#41494e',door:'#c8c3b9',garage:'#deddd6',vent:'#d5d5ce'})[type]||'#deddd6',key=[type,w,h,color].join(':');
+ const type=finish.featureType,w=Math.max(.25,Math.round(finish.width*4)/4),h=Math.max(.25,Math.round(finish.height*4)/4),color=finish.color||(type==='door'||type==='garage'?stickerColor(type,'main'):type==='window'?stickerColor(type,'trim'):null)||({window:'#e8e7e1',skylight:'#41494e',door:'#c8c3b9',garage:'#deddd6',vent:'#d5d5ce'})[type]||'#deddd6',glass=!!finish.glass&&(type==='door'||type==='garage'),key=[type,w,h,color,glass?'glass':''].join(':');
  if(openingMaps.has(key)){const t=openingMaps.get(key);openingMaps.delete(key);openingMaps.set(key,t);return t;}
  const canvas=document.createElement('canvas');canvas.width=canvas.height=512;const c=canvas.getContext('2d'),N=512;
  const fill=(x,y,w,h,color)=>{c.fillStyle=color;c.fillRect(x,y,w,h);};
@@ -283,8 +283,9 @@ function openingTexture(finish){
  const bevel=(x,y,w,h,b=5)=>{fill(x,y,w,h,'#777d7c');fill(x+b,y+b,w-2*b,h-2*b,color);fill(x+1,y+1,w-2,Math.max(1,b/2),'#ffffffa0');fill(x+1,y+1,Math.max(1,b/2),h-2,'#ffffff70');fill(x+b,y+h-b,w-b,b,'#00000036');fill(x+w-b,y+b,b,h-b,'#00000028');};
  const bx=Math.min(40,Math.max(5,.045/w*N)),by=Math.min(40,Math.max(5,.045/h*N));
  fill(0,0,N,N,'#343a3c');fill(bx*.4,by*.4,N-bx*.8,N-by*.8,color);
- if(type==='window'||type==='skylight'){
-  const cols=type==='skylight'?1:Math.max(1,Math.min(4,Math.round(w/.95))),rows=type==='skylight'?1:h>1.05?2:1,gx=bx*.8,gy=by*.8,inner={x:bx*1.6,y:by*1.6,w:N-bx*3.2,h:N-by*3.2};
+ if(type==='window'||type==='skylight'||glass){
+  // A glass door is glazed like a window in its own frame colour: a pane per leaf, a garage door a pane per section.
+  const cols=type==='skylight'?1:type==='door'?(w>1.35?2:1):type==='garage'?Math.max(2,Math.min(8,Math.round(w/.65))):Math.max(1,Math.min(4,Math.round(w/.95))),rows=type==='skylight'||type==='door'?1:type==='garage'?Math.max(3,Math.min(6,Math.round(h/.52))):h>1.05?2:1,gx=bx*.8,gy=by*.8,inner={x:bx*1.6,y:by*1.6,w:N-bx*3.2,h:N-by*3.2};
   for(let row=0;row<rows;row++)for(let col=0;col<cols;col++){
    const x=inner.x+col*inner.w/cols+gx/2,y=inner.y+row*inner.h/rows+gy/2,pw=inner.w/cols-gx,ph=inner.h/rows-gy;
    fill(x-3,y-3,pw+6,ph+6,'#616c6e');
@@ -298,7 +299,7 @@ function openingTexture(finish){
    fill(x,y,2,ph,'#101e2355');fill(x,y,pw,2,'#101e2366');fill(x+pw-1,y,1,ph,'#d5e6e977');
   }
   gradient(bx, N-by*1.5,N-bx*2,by,[[0,'#ffffff88'],[.3,'#ffffff22'],[1,'#00000055']]);
-  if(rows===2){fill(N/2-8,N/2-2,16,4,'#a5a8a5');fill(N/2-4,N/2-4,8,3,'#ebede6');}
+  if(type==='window'&&rows===2){fill(N/2-8,N/2-2,16,4,'#a5a8a5');fill(N/2-4,N/2-4,8,3,'#ebede6');}
  }else if(type==='door'){
   const leaves=w>1.35?2:1;for(let leaf=0;leaf<leaves;leaf++){
    const x0=bx+leaf*(N-2*bx)/leaves,lw=(N-2*bx)/leaves;
@@ -340,7 +341,7 @@ function prepare(mesh,face,points,parameters){
  if(face.feature)mesh.userData.renderedOpening={points:face.points||points,feature:face.feature,color:face.finishColor||null};
  const W=root.WallSolidGeometry;
  if(face.feature&&['window','skylight','door','garage','vent'].includes(face.feature.type)){
-  const d=root.WallFeatures?.dimensions(face.points||points,face.feature);if(d){const uv=points.flatMap(p=>{const q=W.inFrame(d.frame,p);return [(q.x-d.bounds.left)/Math.max(1e-8,d.bounds.right-d.bounds.left),(q.y-d.bounds.bottom)/Math.max(1e-8,d.bounds.top-d.bounds.bottom)];});mesh.geometry.setAttribute('uv',new THREE.Float32BufferAttribute(uv,2));mesh.userData.exteriorFinish={feature:true,featureType:face.feature.type,width:d.width*.3048,height:d.height*.3048,color:face.finishColor||null,normal:d.frame.n};return;}
+  const d=root.WallFeatures?.dimensions(face.points||points,face.feature);if(d){const uv=points.flatMap(p=>{const q=W.inFrame(d.frame,p);return [(q.x-d.bounds.left)/Math.max(1e-8,d.bounds.right-d.bounds.left),(q.y-d.bounds.bottom)/Math.max(1e-8,d.bounds.top-d.bounds.bottom)];});mesh.geometry.setAttribute('uv',new THREE.Float32BufferAttribute(uv,2));mesh.userData.exteriorFinish={feature:true,featureType:face.feature.type,width:d.width*.3048,height:d.height*.3048,color:face.finishColor||null,normal:d.frame.n,...(root.WallFeatures?.isGlass?.(face.feature)?{glass:true}:{})};return;}
  }
  if(face.openingTrim){
   const fr=W.faceFrame(face),a=face.points[0],b=face.points[1],length=Math.hypot(b.x-a.x,b.y-a.y,b.z-a.z),u={x:(b.x-a.x)/length,y:(b.y-a.y)/length,z:(b.z-a.z)/length},v={x:fr.n.y*u.z-fr.n.z*u.y,y:fr.n.z*u.x-fr.n.x*u.z,z:fr.n.x*u.y-fr.n.y*u.x},dot=(p,axis)=>(p.x-a.x)*axis.x+(p.y-a.y)*axis.y+(p.z-a.z)*axis.z,ys=points.map(p=>dot(p,v)),lo=Math.min(...ys),span=Math.max(...ys)-lo;

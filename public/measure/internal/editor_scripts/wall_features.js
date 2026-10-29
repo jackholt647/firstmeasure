@@ -99,6 +99,12 @@ function setTrim(feature,inches,color){
  if(!Number.isFinite(inches)||inches<0)throw Error('Enter a nonnegative trim width.');
  const next={...feature};if(inches===0)delete next.trim;else next.trim={width:inches*.0254,...(color?{color}:{})};return next;
 }
+// Doors and garage doors are their default door material unless glass is turned on for one; windows and
+// skylights are always glass and have no choice. Stored as feature.glass, absent when off.
+const glassTypes=['door','garage'];
+const supportsGlass=type=>glassTypes.includes(type);
+const isGlass=feature=>feature?.glass===true&&supportsGlass(feature.type);
+function setGlass(feature,on){if(!supportsGlass(feature?.type))return feature;const next={...feature};if(on)next.glass=true;else delete next.glass;return next;}
 function trimFaces(points,feature){
  const width=feature?.trim?.width;if(!(width>0)||!supportsTrim(feature.type))return [];
  const fr=orientedFrame(points,feature.axis),ps=points.map(p=>W.inFrame(fr,p)),b=bounds(ps),area=ps.reduce((sum,p,i)=>{const q=ps[(i+1)%ps.length];return sum+p.x*q.y-q.x*p.y;},0),sign=area>=0?1:-1;
@@ -202,7 +208,7 @@ function percentageSticker(face,f,box){
  if(dot(W.normal(points),W.normal(face.points))<0)points.reverse();
  return {points,feature:{type:box.type,preset:null,shape:'rectangle',axis:{...f.u}}};
 }
-const api={percentageFrame,percentageSticker,divisionId,divisionMembers,divisionLayout,divisionSegments,divideSticker,mergeStickerDivider,remapDivisionGroups,groupedStickers,trimTypes,supportsTrim,trimSizes,setTrim,trimFaces,nextPreset,pickerGroups,pickerIndices,FT,defs,register,frame,viewFrame,orientedFrame,bounds,dimensions,label,anchors,resized,shape,place,placeGroup,validate,containsShape};if(typeof module!=='undefined'&&module.exports)module.exports=api;else root.WallFeatures=api;
+const api={percentageFrame,percentageSticker,divisionId,divisionMembers,divisionLayout,divisionSegments,divideSticker,mergeStickerDivider,remapDivisionGroups,groupedStickers,trimTypes,supportsTrim,trimSizes,setTrim,glassTypes,supportsGlass,isGlass,setGlass,trimFaces,nextPreset,pickerGroups,pickerIndices,FT,defs,register,frame,viewFrame,orientedFrame,bounds,dimensions,label,anchors,resized,shape,place,placeGroup,validate,containsShape};if(typeof module!=='undefined'&&module.exports)module.exports=api;else root.WallFeatures=api;
 
 })(typeof window!=='undefined'?window:globalThis);
 
@@ -243,6 +249,7 @@ F.mountUI=function(command,selection,busy=()=>false,materials={}){
  .exterior-size-options button:hover{background:#f1f5f9;border-color:#9cabb8}
  .exterior-size-options button[aria-pressed=true]{background:#e8f0fe;border-color:#1a73e8;color:#1a73e8}
  .exterior-size-options button:disabled{opacity:.55}
+ .exterior-glass-option{display:flex;align-items:center;gap:6px;margin-top:8px;padding:6px;border:1px solid #e1e5e8;border-radius:4px;color:#444;cursor:pointer}.exterior-glass-option[hidden]{display:none}.exterior-glass-option small{color:#737b83}
 
  #wall-placement-options{width:max-content;max-width:calc(100% - 24px)}#wall-placement-options[hidden]{display:none}
  #wall-placement-options .placement-current{margin:8px 0;color:#596579;font-size:11px}
@@ -301,8 +308,10 @@ F.mountUI=function(command,selection,busy=()=>false,materials={}){
  const placementTiles=new Map(),lastPlacementSizes=new Map();
  for(const def of F.defs.values()){const b=tile(def.name,paths[def.id]||paths.none,def.color);b.title=def.name+(def.key?' ('+def.key.toUpperCase()+')':'')+' — place on a face'+(['window','door','garage'].includes(def.id)?'; L divides the selected sticker':'');b.onclick=()=>{command(def.id,lastPlacementSizes.get(def.id)??def.defaultPreset??0,true);placementPanel.hidden=false;F.refreshUI();};placementTiles.set(def.id,b);b.setAttribute('aria-haspopup','dialog');b.setAttribute('aria-controls','wall-placement-options');}
  const face=document.createElement('button');face.type='button';face.className='exterior-face-toggle';face.innerHTML='Face type <span aria-hidden="true">▴</span>';face.title='Choose a face type and size';face.setAttribute('aria-label','Face type');face.setAttribute('aria-haspopup','dialog');face.setAttribute('aria-expanded','false');face.setAttribute('aria-controls','wall-face-options');bar.appendChild(face);
- const panel=document.createElement('div');panel.id='wall-face-options';panel.className='exterior-selection exterior-sticker-menu';panel.hidden=true;panel.setAttribute('role','dialog');panel.setAttribute('aria-label','Face type and dimensions');panel.innerHTML='<div class="exterior-face-heading"><h4>FACE TYPE &amp; SIZE</h4><button type="button" aria-label="Close face types">×</button></div><p role="status"></p><table class="exterior-face-table"><thead><tr><th scope="col">Type</th><th scope="col">Width × height</th></tr></thead><tbody></tbody></table>';parent.appendChild(panel);
+ const panel=document.createElement('div');panel.id='wall-face-options';panel.className='exterior-selection exterior-sticker-menu';panel.hidden=true;panel.setAttribute('role','dialog');panel.setAttribute('aria-label','Face type and dimensions');panel.innerHTML='<div class="exterior-face-heading"><h4>FACE TYPE &amp; SIZE</h4><button type="button" aria-label="Close face types">×</button></div><p role="status"></p><table class="exterior-face-table"><thead><tr><th scope="col">Type</th><th scope="col">Width × height</th></tr></thead><tbody></tbody></table><label class="exterior-glass-option" hidden><input type="checkbox" aria-label="Glass door">Glass <small>Off uses the default door material. Windows are always glass.</small></label>';parent.appendChild(panel);
  const closeFace=()=>{panel.hidden=true;face.setAttribute('aria-expanded','false');};
+ // Doors and garage doors only, and only when turned on here: glass instead of the default door material.
+ const glassOption=panel.querySelector('.exterior-glass-option'),glass=glassOption.querySelector('input');glass.onchange=()=>{if(busy()||materials.glass?.(glass.checked)===false)glass.checked=!glass.checked;F.refreshUI();};
  face.onclick=()=>{placementPanel.hidden=true;panel.hidden=!panel.hidden;face.setAttribute('aria-expanded',String(!panel.hidden));};
  panel.querySelector('.exterior-face-heading button').onclick=()=>{closeFace();face.focus();};
  // Build the complete catalog once so opening never waits on a render or rebuild.
@@ -416,8 +425,9 @@ F.mountUI=function(command,selection,busy=()=>false,materials={}){
  for(const el of [bar,picker,panel,placementPanel])for(const event of ['pointerdown','mousedown','mouseup','click','dblclick','wheel'])el.addEventListener(event,e=>e.stopPropagation());
  F.closeUI=()=>{closeFace();closeMaterials();placementPanel.hidden=true;};
  document.addEventListener('keydown',e=>{if(e.key==='Escape'){if(!textureMenu.hidden){e.preventDefault();e.stopImmediatePropagation();closeDefaultTexture();defaultTexture.focus();}else F.closeUI();}},true);
- let last='';F.refreshUI=function(){refreshMaterials();refreshPlacement();const ref=selection(),locked=busy(),type=ref?.feature?.type||'none',label=ref?(F.defs.get(type)?.name||'Untyped face')+' · '+F.label(ref.points,ref.feature):'Choose a size to place a new feature on a face.',signature=JSON.stringify([label,type,ref?.feature?.preset,locked]);if(signature===last)return;last=signature;
+ let last='';F.refreshUI=function(){refreshMaterials();refreshPlacement();const ref=selection(),locked=busy(),type=ref?.feature?.type||'none',glazed=F.isGlass(ref?.feature),label=ref?(F.defs.get(type)?.name||'Untyped face')+(glazed?' · Glass':'')+' · '+F.label(ref.points,ref.feature):'Choose a size to place a new feature on a face.',signature=JSON.stringify([label,type,ref?.feature?.preset,locked,glazed]);if(signature===last)return;last=signature;
  panel.querySelector('p').textContent=locked?'Finish the current tool to change a face.':label;
+ glassOption.hidden=!ref||!F.supportsGlass(type);glass.checked=glazed;glass.disabled=locked;
  for(const choice of choices){choice.b.disabled=locked||(!ref&&choice.preset===null);choice.b.setAttribute('aria-pressed',String(!!ref&&type===choice.type&&(ref.feature?.preset??null)===choice.preset));}
  };F.refreshUI();
 };F.formatSize=n=>String(Math.round(n*100)/100);

@@ -1262,7 +1262,7 @@ function perf_render3DFrame() {
         window.addEventListener('keyup',e=>{if(e.key.startsWith('Arrow')&&pendingNudge)flushNudgeInput();},true);
         document.getElementById('wall-step').onclick=()=>{if(editingLayer==='base')baseEditor?.stepCommand();else{if(editingLayer!=='walls')setLayer('walls');wallEditor?.stepCommand();}};
         window.WallFeatures?.mountUI((...args)=>{if(editingLayer!=='walls')setLayer('walls');window.SmartStickers?.exitPlacement();return wallEditor?.featureCommand(...args);},()=>wallEditor?.featureSelection(),()=>wallEditor?.busy(),{
-            color(color){if(editingLayer!=='walls')setLayer('walls');window.SmartStickers?.exitPlacement();wallEditor?.colorCommand(color);},paint(type){if(editingLayer!=='walls')setLayer('walls');window.SmartStickers?.exitPlacement();wallEditor?.materialCommand(type);},
+            color(color){if(editingLayer!=='walls')setLayer('walls');window.SmartStickers?.exitPlacement();wallEditor?.colorCommand(color);},glass(on){if(editingLayer!=='walls')setLayer('walls');window.SmartStickers?.exitPlacement();return wallEditor?.glassCommand(on);},paint(type){if(editingLayer!=='walls')setLayer('walls');window.SmartStickers?.exitPlacement();wallEditor?.materialCommand(type);},
             placement:()=>wallEditor?.featurePlacement?.(),active:()=>wallEditor?.activeMaterial()||'default',
             projectId:currentId,
             projectColors(){
