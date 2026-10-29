@@ -39,3 +39,13 @@ test('the Wall materials picker reports open and every close route, and stays op
  await page.getByRole('button',{name:'Wall materials',exact:true}).click();assert.deepEqual(await events(),['close'],'toggling the trigger closes it');
  await page.evaluate(()=>WallFeatures.closeUI());assert.deepEqual(await events(),[],'closing an already closed picker restores nothing');
 });
+test('Wall materials › Roof sets the roof trim colour, shown as the default trim until set',async t=>{
+ const page=await (await browser(t)).newPage();
+ await page.setContent('<body class="wall-mode-active"><button id="btnToggleTypes">Types</button><div id="three-view-wrapper" style="position:relative;height:900px;width:1200px"></div></body>');
+ await page.addScriptTag({path:SCRIPTS+'exterior_finishes.js'});await page.addScriptTag({path:SCRIPTS+'wall_features.js'});
+ await page.evaluate(()=>{window.saved={material:'siding',color:'#123456',trimColor:'#abcdef'};let roof={category:Object.keys(ExteriorFinishes.roofMaterials)[0],color:'#333333'};WallFeatures.mountUI(()=>{},()=>null,()=>false,{defaults:v=>{if(v)saved={...saved,...v};return saved;},roof:v=>{if(v)roof=v;return roof;}});});
+ await page.getByRole('button',{name:'Wall materials',exact:true}).click();
+ const input=page.getByLabel('Roof trim color');assert.equal(await input.inputValue(),'#abcdef','until set it shows the default trim');
+ await input.evaluate(el=>{el.value='#445566';el.dispatchEvent(new Event('change',{bubbles:true}));});
+ assert.equal(await page.evaluate(()=>saved.roofTrimColor),'#445566');assert.equal(await page.evaluate(()=>saved.trimColor),'#abcdef','the default trim is untouched');
+});

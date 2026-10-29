@@ -38,7 +38,7 @@ root.createRoofTrimEditor=function(host){
  // is one undo step; a field changes only its own property.
  const ROOF_COLOR='#b9b6ae',LABELS={line:['wall line','wall lines'],face:['face (inside trim)','faces (inside trim)'],eave:['eave','eaves'],rake:['rake','rakes'],window:['window','windows'],door:['door','doors'],garage:['garage','garages']};
  // Read from the saved settings, which a change updates before the next render.
- function roofItems(){const edges=host.settings?.()?.edges||{};return panels.filter(p=>selected.has(p.id)).map(p=>{const saved=edges[p.id],h=Number.isFinite(saved?.height)&&saved.height>1e-6?saved.height/root.RoofTrim.INCH:0;return {kind:p.type==='rake'?'rake':'eave',id:p.id,width:h,raw:saved?.finishColor||undefined,color:h?(saved?.finishColor||ROOF_COLOR):null};});}
+ function roofItems(){const edges=host.settings?.()?.edges||{};return panels.filter(p=>selected.has(p.id)).map(p=>{const saved=edges[p.id],h=Number.isFinite(saved?.height)&&saved.height>1e-6?saved.height/root.RoofTrim.INCH:0;return {kind:p.type==='rake'?'rake':'eave',id:p.id,width:h,raw:saved?.finishColor||undefined,color:h?(saved?.finishColor||host.roofTrimColor?.()||ROOF_COLOR):null};});}
  function selectionItems(){return [...(host.selectionTrimItems?.()||[]),...roofItems()];}
  function summary(items=selectionItems()){
   const counts={};for(const i of items)counts[i.kind]=(counts[i.kind]||0)+1;
