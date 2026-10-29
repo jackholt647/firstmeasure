@@ -212,3 +212,12 @@ test('merging the upper and lower sections of one chimney side retains chimney a
  const lower={id:'lower',chimney:{id:'shaft',side:0,inferred:true},points:[p(0,0,0),p(2,0,0),p(2,0,4),p(0,0,4)]},upper={id:'upper',chimney:{id:'shaft',side:0,volume:true,drivesFootprint:true},points:[p(0,0,4),p(2,0,4),p(2,0,6),p(0,0,6)]};
  for(const faces of [[lower,upper],[upper,lower]]){const result=W.mergeConnectedFaces(faces)[0].pieces[0];assert.equal(result.chimney.id,'shaft');assert.equal(result.chimney.side,0);assert.equal(result.chimney.drivesFootprint,false);assert.equal(result.chimney.volume,false);assert.equal(result.chimney.derived,true);assert.deepEqual(result.joinedChimneys,['shaft']);assert.equal(area(result),12);}
 });
+test('a chimney through the middle of the roof never runs below it, even with the house base gone; eave chimneys still do',()=>{
+ const G=require('../public/measure/internal/editor_scripts/wall_geometry.js'),shafts=removeHouseBase=>{
+  const x=structuredClone(require('./fixtures/ce52-from-roof-walls.json')),state={roof:x.roof,sources:x.sources,base:x.base,ground:x.ground,chimneys:x.chimneys,options:x.options,wallEdits:{}};
+  C.syncFoundation(state);C.syncVolumes(state);if(removeHouseBase){state.base={...state.base,faces:state.base.faces.filter(f=>f.chimneyFoundation)};delete state.base.chimneyFoundationParts;}
+  const walls=G.canonicalGeneratedWalls(x.walls.filter(w=>Math.hypot(w.bottom[1].x-w.bottom[0].x,w.bottom[1].y-w.bottom[0].y)>.005)),count={};
+  for(const w of C.compose(walls,state).filter(w=>w.chimney))count[w.chimney.id]=(count[w.chimney.id]||0)+1;return count;};
+ const middle='roof-chimney-93-94-95-98-99',eaves=['roof-chimney-29-30-31-130-131','roof-chimney-101-102-103-139-140'];
+ for(const removed of [false,true]){const count=shafts(removed);assert.equal(count[middle],undefined,'middle chimney shaft below the roof');for(const id of eaves)assert.ok(count[id]>0,id+' keeps its shaft at the eave');}
+});
