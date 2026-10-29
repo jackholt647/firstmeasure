@@ -2053,10 +2053,12 @@ for(const m of moves){const n=d.sketch.nodes.find(n=>n.id===m.id);if(!n)throw Er
   if(edits.$loose){edits.$loose.edges=edits.$loose.edges.filter(pair=>W.sharedIntervals(...pair,[{points}]).reduce((sum,[a,b])=>sum+b-a,0)<.99999);edits.$loose.points=edits.$loose.points.filter(p=>!boundary(p));}
   for(const surface of edits.$surfaces||[])if(surface.retainedPoints)surface.retainedPoints=surface.retainedPoints.filter(p=>!boundary(p)||[surface.points,...(surface.holes||[])].some(r=>r.some((a,i)=>onSegment(p,a,r[(i+1)%r.length]))));
  }
- // Deleting selected sticker points leaves the closed face through the rest; a sticker
- // left with too few corners (or all of its points selected) is deleted.
+ // Deleting selected sticker points leaves the closed face through the rest. A point can
+ // always be deleted: a sticker whose rest is no closed face (too few corners, or a
+ // shape that would cross itself) is deleted with it.
  function deleteStickerControls(){const points=selectedWorldPoints();if(!points.length||lineSelection.length||pickedLines.length)return false;const items=stickerControlSelection(points);if(!items)return false;
-  const changes=items.map(item=>({ref:item.ref,outline:item.all?null:ST().deleteControls(item.outline,item.ids)}));
+  const closed=outline=>{if(!outline)return null;try{ST().check(outline);return outline;}catch{return null;}};
+  const changes=items.map(item=>({ref:item.ref,outline:item.all?null:closed(ST().deleteControls(item.outline,item.ids))}));
   const ok=transaction(()=>{const refs=writeStickers(changes);selectWorldPoints([]);if(refs.length)selectStickers(refs);});
   if(ok)host.message(changes.some(c=>!c.outline)?'Sticker deleted.':'Sticker point deleted.');return true;
  }
