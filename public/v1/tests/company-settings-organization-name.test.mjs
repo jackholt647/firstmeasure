@@ -43,7 +43,13 @@ test("Company Settings keeps organization and branch names separate", async () =
   assert.match(source, /name:\s*portalState\?\.organization\?\.name\s*\|\|\s*''/);
   assert.doesNotMatch(source, /name:\s*branchData\.name\s*\|\|\s*portalState\?\.organization\?\.name/);
   assert.doesNotMatch(source, /if\s*\(branch\?\.name\)\s*result\.name\s*=\s*branch\.name/);
-  assert.match(source, /PlatformAPI\?\.orgs\?\.patch/);
+  // FM-300: saving the company name must rename the organization itself, not only the branch's presentation
+  // copy; without it every signup left "Your Company" kept the placeholder whatever the owner typed here.
+  const saveOrg = source.slice(source.indexOf("async function saveOrg("), source.indexOf("async function saveReportSettings("));
+  assert.ok(saveOrg.length > 0, "saveOrg is found");
+  const rename = saveOrg.search(/window\.PlatformAPI\.orgs\.patch\(orgId,\s*\{\s*name:/);
+  assert.ok(rename > 0, "saveOrg renames the organization with PlatformAPI.orgs.patch");
+  assert.ok(rename < saveOrg.indexOf("PlatformAPI.branches.save("), "the organization is renamed on the platform (branch) save path");
   assert.match(source, /name:\s*branch\.name\s*\?\?\s*''/);
   assert.match(source, /name:\s*String\(window\.__APP\?\.userCompany\s*\|\|\s*''\)\.trim\(\)/);
   assert.doesNotMatch(source, /state\.name\s*=\s*\(bootTheme\.name/);
