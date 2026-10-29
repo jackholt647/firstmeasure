@@ -1007,7 +1007,8 @@ function perf_render3DFrame() {
         // Done, the Resoffit button, a successful Apply, Escape or a press elsewhere in the toolbars closes it.
         window.addEventListener('pointerdown',e=>{if(!resoffitMode||e.target.closest?.('#wall-resoffit-control,#axis-gizmo-container,#resource-3d-controls,.controls-3d-actions,#three-view-wrapper,#viewport'))return;setResoffit(false);},true);
         // Trim works the same way: presses in the views select lines; a press anywhere else closes the menu.
-        window.addEventListener('pointerdown',e=>{if(!trimMode||e.target.closest?.('#roof-trim-control,#axis-gizmo-container,#resource-3d-controls,.controls-3d-actions,#three-view-wrapper,#viewport'))return;roofTrimEditor?.clear();},true);
+        // The shared colour dialog (.fm-color-picker) opens outside the menu but belongs to it.
+        window.addEventListener('pointerdown',e=>{if(!trimMode||e.target.closest?.('#roof-trim-control,.fm-color-picker,#axis-gizmo-container,#resource-3d-controls,.controls-3d-actions,#three-view-wrapper,#viewport'))return;roofTrimEditor?.clear();},true);
         window.mountExteriorToolbar?.();
         menu=document.getElementById('wall-soffit-menu');badge=document.getElementById('wall-stage-label');status=document.getElementById('wall-status');details=document.getElementById('wall-details');warning=document.getElementById('wall-warning');stageButtons=[...panel.querySelectorAll('[data-stage]')];
         document.getElementById('wall-auto').onclick=e=>{menu.hidden=!menu.hidden;e.currentTarget.setAttribute('aria-expanded',String(!menu.hidden));};
