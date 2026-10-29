@@ -496,15 +496,14 @@ function drawExteriorReportPages(doc,model,settings,begin,colors,pages={}){
 }
 /* The Wall Notes page has the Roof Notes page's layout and notes card (pdf.js pdfNotesLayout and
  drawPdfNotesCard): the four elevations as reference images (2 x 2) on the left, the ruled notes card
- on the right in landscape; stacked in portrait. The report's notes and model warnings are written on
- the card's rules; whatever does not fit continues on a page with a full notes card. */
+ on the right in landscape; stacked in portrait. The card is left blank for the customer's own notes,
+ like Roof Notes: nothing the system produces (model warnings, review text, exteriorSettings.notes) is
+ ever written on it (FM-311). */
 function drawExteriorNotes(doc,model,settings,begin,colors){
  const {text}=writer(doc,colors),heading=reportText('Wall Notes');begin(heading);
  const {cells,notes}=root.pdfNotesLayout(doc,4);
  houseDirections(settings).slice(0,4).forEach((view,i)=>{const c=cells[i];root.drawPdfCard(doc,c.x,c.y,c.w,c.h);text(reportText(view.name),c.x+4,c.y+6,9,true);drawDiagram(doc,houseFaces(model),{x:c.x+2,y:c.y+8,w:c.w-4,h:c.h-10},view);});
- const written=String(settings.notes||'').trim(),paragraphs=[...(written?[written]:[]),...(model.warnings||[]).map(n=>reportText('Review: ')+reportText(n))];
- let rest=root.drawPdfNotesCard(doc,notes,paragraphs,colors);
- while(rest.length){begin(heading+reportText(' - continued'));rest=root.drawPdfNotesCard(doc,root.pdfNotesLayout(doc,0).page,rest,colors);}
+ root.drawPdfNotesCard(doc,notes,[],colors);
 }
 async function loadReportImage(item,state){
  const img=new Image();img.crossOrigin='anonymous';
