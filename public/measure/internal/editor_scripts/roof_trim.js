@@ -25,7 +25,7 @@ function perimeter(roof){
 }
 function panels(roof,settings={}){return perimeter(roof).map(edge=>{
  const saved=settings.edges?.[edge.id],height=Number.isFinite(saved?.height)?Math.max(0,saved.height):DEFAULT,a=edge.a,b=edge.b,u=unit(sub(b,a)),down={x:0,y:0,z:-1},along=dot(down,u),v=unit({x:down.x-u.x*along,y:down.y-u.y*along,z:down.z-u.z*along});
- return {...edge,height,deleted:height<=K.CONTACT,material:'trim-horizontal',finishColor:saved?.finishColor||null,textureAxes:{u,v},points:[a,b,{...b,z:b.z-height},{...a,z:a.z-height}],holes:[]};
+ return {...edge,height,deleted:height<=K.CONTACT,material:'trim-horizontal',roofTrim:true,finishColor:saved?.finishColor||null,textureAxes:{u,v},points:[a,b,{...b,z:b.z-height},{...a,z:a.z-height}],holes:[]};
 });}
 function setHeight(settings,ids,inches){if(!Number.isFinite(inches)||inches<0)throw Error('Enter a roof trim height of zero inches or more.');const next={...JSON.parse(JSON.stringify(settings||{}))};next.edges={...(next.edges||{})};for(const id of ids)next.edges[id]={...(next.edges[id]||{}),height:inches*INCH};return next;}
 // A side's colour; null returns it to the default trim colour.

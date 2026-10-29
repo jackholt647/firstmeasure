@@ -29,6 +29,8 @@ const stickerTrimOwnColor=(trim,settings=root.WallMode?.finishDefaults||{})=>typ
 function resolve(face={},settings=root.WallMode?.finishDefaults||{}){
  const normal=face.normal||(face.points&&root.WallSolidGeometry?.faceFrame(face)?.n),d={...defaults,...settings},source=face.material||(face.chimney?.cap&&!face.chimney.derived&&!face.trim?'chimney-top':normal?.z<-.5?'soffit':'default'),type=source==='default'?d.material:source;
  if(source==='shingles'){const roof=resolveRoof(face.roofMaterial||d.roof);return {material:'shingles',category:roof.category,color:face.finishColor||face.color||roof.color};}
+ // Roof trim has its own default (Wall materials › Roof), else the default trim colour.
+ if(face.roofTrim)return {material:type,color:face.finishColor||face.color||d.roofTrimColor||d.trimColor};
  if(type==='opening-trim'&&face.stickerType!==undefined)return {material:type,color:face.finishColor||face.color||stickerColor(face.stickerType,'trim',settings)||d.trimColor};
  return {material:type==='default'?'unassigned':type,color:face.finishColor||face.color||((face.trim||type.startsWith('trim-')||type==='opening-trim')?d.trimColor:source==='chimney-top'?'#d4d0c8':d.color)};
 }
