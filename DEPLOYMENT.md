@@ -1,5 +1,7 @@
 # FirstMeasure: local development and production deployment
 
+October 29 production hotfix `3d1fdb12`: [1M8-254 the portal Roof Report Summary and CSV show each report's own measurements again (regression from 31f87be5)](deploy/digitalocean/production-hotfix-20261029cc.md) on all roles, including the `091e5c36` Exteriors engine; no data changed; rollback is `091e5c36` on compatibility and `ef39262b` elsewhere.
+
 October 29 production release `091e5c36`: [the Exteriors engine from dev (lane `a57dbbd9`) on compatibility, full-house switched on for jack@1m8.ai and ben@1m8.ai, and the Full Exterior training course with seven copied sources](deploy/digitalocean/production-exteriors-engine-20261029.md); roof reports unchanged except the Ventilation and Notes layouts; rollback is `ef39262b`.
 
 October 28 production hotfix `ef39262b`: [1M8-249 organization-window Impersonate follows the user record, and portal pages use the sign-in email, ending the "switched accounts" lock-out](deploy/digitalocean/production-hotfix-20261028bb.md) on all roles; no production data changed; rollback is `71bf98a2`.
