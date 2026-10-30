@@ -19,6 +19,6 @@ test('the Resources file list carries the frame marker the server writes, and th
  const php=fs.readFileSync('public/measure/internal/project_resources.php','latin1'),frames=fs.readFileSync('public/measure/internal/_resource_frames.php','utf8');
  assert.match(frames,/'source_video' => \['name' => \$job\['source'\]/,'frame jobs record the source video');
  assert.match(php,/\['original_name', 'uploaded_at', 'role', 'elevation_view', 'source', 'source_video'\] as \$field/,'the listing passes source_video to the browser');
- const js=fs.readFileSync('public/measure/internal/editor_scripts/project_resources.js','utf8'),merge=js.slice(js.indexOf('async mergeSubmission'));
+ const js=fs.readFileSync('public/measure/internal/editor_scripts/project_resources.js','utf8'),merge=js.slice(js.indexOf('async function mergeSubmissionSources'));
  assert.match(merge,/submissionUploads\(/);assert.match(merge,/derived\.has\(i\.resource_name\)/,'frames merged by earlier versions are removed');assert.match(merge,/markup\?\.sourceVideo/,'captures marked with their video are left out');
 });
