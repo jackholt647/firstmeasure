@@ -209,9 +209,9 @@ window.PlatformCommerce.onReady(function(){
   function reportModelViewerEnabled(){
     return reportSummaryIsFullHouse() || firstMeasureFlagEnabled('roof_model_viewer', false);
   }
-  // Free add-on, off by default: the roof at night with lights along its edges (holiday-lights.js).
+  // Free add-on, off by default and chosen per order: the roof at night with lights along its edges (holiday-lights.js).
   function holidayLightsEnabled(){
-    return firstMeasureFlagEnabled('holiday_lights', false);
+    return firstMeasureFlagEnabled('holiday_lights', false) && reportOrderIncludesHolidayLights();
   }
   const fmtCredit = value => window.PlatformCommerce.credit(value);
   function fmtMoney(value){ return callHost('fmtMoney', value) || String(Math.round((Number(value) || 0) * 100) / 100); }
@@ -856,6 +856,12 @@ window.PlatformCommerce.onReady(function(){
       || ''
     ).trim().toLowerCase();
     return !!(reportOrderState?.includeInspection || measurement.include_instant || manifest.instant_enabled || mode === 'instant' || mode === 'both');
+  }
+
+  function reportOrderIncludesHolidayLights(){
+    const measurement = reportOrderMeasurement();
+    const manifest = reportOrderManifest();
+    return [reportOrderState?.includeHolidayLights, activeBaseProject?.include_holiday_lights, measurement.include_holiday_lights, manifest.include_holiday_lights].some(truthyOrderFlag);
   }
 
   function reportOrderIncludesGutters(){

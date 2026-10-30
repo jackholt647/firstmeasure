@@ -104,6 +104,7 @@ export const createProjectSchema = z.object({
   report_language: z.enum(SUPPORTED_LOCALES).optional(),
   include_gutter_measurements: z.boolean().optional(),
   include_weather_report: z.boolean().optional(),
+  include_holiday_lights: z.boolean().optional(),
   weather_report_tier: optionalString,
   weather_report_id: optionalString,
   weather_report_pdf_url: optionalString,

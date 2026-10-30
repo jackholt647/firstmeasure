@@ -303,7 +303,7 @@
       kind: 'modal_app',
       surfaces: ['modal', 'project_modal'],
       dependencies: ['firstmeasure.order', 'project.map', 'project.photos', 'project.proposal', 'project.materials', 'project.money', 'project.customer_portal', 'project.schedule', 'project.measurements', 'project.checklists'],
-      bundles: [...channelsLibBundles, versionedBundle('../window-manager/project-windows.js', '20261026-open-link-safe'), versionedBundle('project-request/app.js', '20261028-money-no-rail')]
+      bundles: [...channelsLibBundles, versionedBundle('../window-manager/project-windows.js', '20261026-open-link-safe'), versionedBundle('project-request/app.js', '20261030-holiday-lights-order')]
     },
     {
       id: 'firstmeasure.order',
@@ -312,7 +312,7 @@
       kind: 'overview_details',
       surfaces: ['project_modal'],
       regions: ['main'],
-      bundles: [...channelsLibBundles, versionedBundle('firstmeasure/order/app.js', '20261006-firstmeasure-localization-v1')]
+      bundles: [...channelsLibBundles, versionedBundle('firstmeasure/order/app.js', '20261030-holiday-lights-order')]
     },
     {
       id: 'project.map',
@@ -363,7 +363,7 @@
       kind: 'project_modal_app',
       surfaces: ['project_modal'],
       requiresContext: ['project'],
-      bundles: [...widgetBundles, versionedBundle('measurements/roof-viewer.js', '20261029-pitch-degrees-v1'), versionedBundle('measurements/holiday-lights.js', '20261030-holiday-lights-v1'), versionedBundle('measurements/project.js', '20261030-holiday-lights-v1')]
+      bundles: [...widgetBundles, versionedBundle('measurements/roof-viewer.js', '20261029-pitch-degrees-v1'), versionedBundle('measurements/holiday-lights.js', '20261030-holiday-lights-v1'), versionedBundle('measurements/project.js', '20261030-holiday-lights-order')]
     },
     {
       id: 'project.checklists',
