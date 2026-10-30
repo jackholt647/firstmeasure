@@ -21,8 +21,8 @@ test('exterior curriculum defaults, isolated PHP editing/resources, completion a
   await saveInternalUser({email:'manager@example.test',role:'admin',status:'active'});
   await saveInternalUser({email:'student@example.test',role:'trainee',status:'active'});
   await saveInternalUser({email:'other@example.test',role:'trainee',status:'active'});
-  const source = 'fullhouse_' + 'a'.repeat(32), incomplete = 'fullhouse_' + 'b'.repeat(32);
-  for (const id of [source,incomplete]) {
+  const source = 'fullhouse_' + 'a'.repeat(32), incomplete = 'fullhouse_' + 'b'.repeat(32), noRight = 'fullhouse_' + 'c'.repeat(32), noHeight = 'fullhouse_' + 'd'.repeat(32);
+  for (const id of [source,incomplete,noRight,noHeight]) {
     await storage.createProject({id,address:'Synthetic training house',measurement_scope:'full_house'}, {fullHouse:true});
     await storage.saveArtifact(id,'google.png','synthetic image'); await storage.saveArtifact(id,'dsm.tif','synthetic height');
   }
@@ -35,10 +35,17 @@ test('exterior curriculum defaults, isolated PHP editing/resources, completion a
     await storage.saveArtifact(source,name,JSON.stringify({format:'firstmeasure-resource-chunks-v1',id,size:5,chunkSize:8*1024*1024,parts:1,elevation_view:side,role:'customer',original_name:side+'.jpg'}));
     referenceNames.push(name);
   }
+  for (const [i,side] of ['front','back','left'].entries()) for (const id of [noRight,noHeight]) {
+    const ref = `12345678-1234-4234-8235-${String(i).padStart(12,'0')}`;
+    await storage.saveArtifact(id,`internal-markup-part-${ref}-00000000.bin`,'photo');
+    await storage.saveArtifact(id,`internal-resource-v2-${ref}-${side}.jpg`,JSON.stringify({format:'firstmeasure-resource-chunks-v1',id:ref,size:5,chunkSize:8*1024*1024,parts:1,elevation_view:side,role:'customer',original_name:side+'.jpg'}));
+  }
+  await storage.saveArtifact(noHeight,'dsm.tif','');
   assert.equal((await exteriorTrainingCapability(source)).available,true);
   assert.deepEqual((await exteriorTrainingCapability(incomplete)).missing,['front','back','left','right']);
   const curriculumFile=path.join(root,'tutorials/master/curriculum.json');await mkdir(path.dirname(curriculumFile),{recursive:true});
-  const entries=[{project_id:source,curriculum_project_id:'auto'}, {project_id:source,curriculum_project_id:'roof',measurement_scope:'roof'}, {project_id:incomplete,curriculum_project_id:'missing'}];
+  const entries=[{project_id:source,curriculum_project_id:'auto'}, {project_id:source,curriculum_project_id:'roof',measurement_scope:'roof'}, {project_id:incomplete,curriculum_project_id:'missing'},
+    {project_id:noRight,curriculum_project_id:'no-right-auto'}, {project_id:noRight,curriculum_project_id:'no-right',measurement_scope:'full_house'}, {project_id:noHeight,curriculum_project_id:'no-height',measurement_scope:'full_house'}];
   await writeFile(curriculumFile,JSON.stringify({chapters:[{projects:entries}]}));
   const app=await buildApp(); await app.listen({host:'127.0.0.1',port:0});
   const nodePort=(app.server.address() as {port:number}).port;
@@ -69,6 +76,16 @@ test('exterior curriculum defaults, isolated PHP editing/resources, completion a
     assert.equal((await app.inject({url:`/v1/firstmeasure/projects/${source}/editor`})).statusCode,404,'source remains private outside training');
     entries[2]!.measurement_scope='full_house';await writeFile(curriculumFile,JSON.stringify({chapters:[{projects:entries}]}));
     assert.equal((await signed({operation:'start',source:incomplete,chapter_id:1,curriculum_project_id:'missing'})).statusCode,409,'explicit exterior selection cannot silently lose scope');
+
+    // FM-315: a missing photo view must not stop a trainee when the instructor set the assignment to exteriors.
+    assert.deepEqual((await exteriorTrainingCapability(noRight)).missing,['right']);
+    const noRightAssigned=await start('no-right',noRight);
+    assert.equal((await manifest(noRightAssigned)).measurement_scope,'full_house','an assigned exterior source keeps its scope with a view missing');
+    assert.equal((await manifest(noRightAssigned)).tutorial_grading_enabled,false);
+    assert.equal((await manifest(await start('no-right-auto',noRight))).measurement_scope,'roof','the default for an unselected scope still needs all four views');
+    const noHeightStart=await signed({operation:'start',source:noHeight,chapter_id:1,curriculum_project_id:'no-height'});
+    assert.equal(noHeightStart.statusCode,409,'no height map is still refused');
+    assert.match(noHeightStart.json().error,/height map/);
 
     const reservation=createServer();await new Promise<void>(resolve=>reservation.listen(0,'127.0.0.1',resolve));const phpPort=(reservation.address() as {port:number}).port;await new Promise<void>(resolve=>reservation.close(()=>resolve()));
     const internal=path.resolve('../measure/internal').replace(/\\/g,'/');
