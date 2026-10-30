@@ -6485,68 +6485,73 @@ async function drawHolidayLightsPage(doc, state, model, x, y, w, h, brandingColo
     const gap = 5;
     const pColor = (brandingColors && brandingColors.primary) ? brandingColors.primary : { r: 200, g: 40, b: 40 };
     const feet = (value) => pdfMeasure(value, 'ft', `${Math.round(value).toLocaleString('en-US')} ft`);
-    // Runs list in up to two columns; the spacing table in two columns (one bulb and one clip per space).
-    const runCols = metrics.runs.length > 4 ? 2 : 1;
-    const runRowH = 6.5;
-    const topH = Math.max(30, 15 + Math.ceil(Math.max(1, metrics.runs.length) / runCols) * runRowH);
-    const tableRowH = 8;
-    const tableH = 24 + metrics.bySpacing.length * tableRowH;
-    const viewH = Math.max(90, h - topH - tableH - gap * 2);
 
-    // Lights needed, and the runs (each in its colour on the drawing).
+    // Top row, kept short so the drawing gets the page: lights needed, and the runs in a line, each a numbered
+    // badge in its colour (as on the drawing) with its length.
     const totalW = w * 0.24;
+    const runsX = x + totalW + gap, runsW = w - totalW - gap;
+    const itemW = 30, perLine = Math.max(1, Math.floor((runsW - 12) / itemW));
+    const lines = Math.max(1, Math.ceil(metrics.runs.length / perLine));
+    const topH = 20 + (lines - 1) * 7;
     drawSummaryBox(doc, x, y, totalW, topH, "Lights Needed");
     doc.setFont("Montserrat", "bold");
-    doc.setFontSize(16);
+    doc.setFontSize(14);
     doc.setTextColor(pColor.r, pColor.g, pColor.b);
-    doc.text(feet(metrics.totalFt), x + totalW / 2, y + topH / 2 + 5, { align: 'center' });
+    doc.text(feet(metrics.totalFt), x + totalW / 2, y + 16, { align: 'center' });
 
-    const runsX = x + totalW + gap, runsW = w - totalW - gap;
     drawSummaryBox(doc, runsX, y, runsW, topH, "Runs");
-    const colW = runsW / runCols;
-    const perCol = Math.ceil(metrics.runs.length / runCols);
     metrics.runs.forEach((run, index) => {
-        const colX = runsX + Math.floor(index / perCol) * colW;
-        const rowY = y + 16 + (index % perCol) * runRowH;
+        const cx = runsX + 9 + (index % perLine) * itemW;
+        const cy = y + 14.5 + Math.floor(index / perLine) * 7;
         const rgb = hexToRgbReport(run.color);
         doc.setFillColor(rgb.r, rgb.g, rgb.b);
-        doc.circle(colX + 9, rowY - 1.2, 2.2, 'F');
+        doc.circle(cx, cy, 2.6, 'F');
         doc.setFont("Montserrat", "bold");
+        doc.setFontSize(6.5);
+        doc.setTextColor(255, 255, 255);
+        doc.text(String(run.number), cx, cy + 0.9, { align: 'center' });
+        doc.setFont("Montserrat", "normal");
         doc.setFontSize(8.5);
         doc.setTextColor(60);
-        doc.text(pdfLabel('Run {number}', { number: run.number }), colX + 14, rowY);
-        doc.setFont("Montserrat", "normal");
-        doc.text(feet(run.length), colX + colW - 8, rowY, { align: 'right' });
+        doc.text(feet(run.length), cx + 4, cy + 1.1);
     });
 
+    // Bottom: bulbs and clips by spacing, one column per spacing, three rows.
+    const rowH = 6.5;
+    const tableH = 13 + rowH * 3;
+    const tableY = y + h - tableH;
     const viewY = y + topH + gap;
+    const viewH = tableY - gap - viewY;
     drawSummaryBox(doc, x, viewY, w, viewH, "Light Runs");
     const canvasH = Math.round(1600 * Math.max(0.4, (viewH - 19) / (w - 6)));
     const canvas = createHolidayLightsCanvas(model, metrics, { width: 1600, height: canvasH });
     placeImageCentered(doc, canvas.toDataURL('image/jpeg', 0.85), canvas.width / canvas.height, x + 3, viewY + 15, viewY + viewH - 4, w - 6);
 
-    const tableY = viewY + viewH + gap;
     drawSummaryBox(doc, x, tableY, w, tableH, "Bulbs And Clips By Spacing");
-    const left = x + 12, right = x + w - 12;
-    doc.setFont("Montserrat", "bold");
-    doc.setFontSize(9);
-    doc.setTextColor(120);
-    doc.text(pdfLabel('Spacing'), left, tableY + 17);
-    doc.text(pdfLabel('Bulbs And Clips'), right, tableY + 17, { align: 'right' });
-    doc.setDrawColor(228, 228, 228);
-    doc.setLineWidth(0.3);
-    doc.line(left, tableY + 19.5, right, tableY + 19.5);
-    metrics.bySpacing.forEach((row, index) => {
-        const rowY = tableY + 26 + index * tableRowH;
-        const standard = row.inches === PDF_HOLIDAY_STANDARD_SPACING_IN;
-        doc.setFont("Montserrat", standard ? "bold" : "normal");
-        doc.setFontSize(11);
-        doc.setTextColor(standard ? pColor.r : 50, standard ? pColor.g : 50, standard ? pColor.b : 50);
-        doc.text(pdfLabel('{inches} in', { inches: row.inches }), left, rowY);
-        doc.text(row.bulbs.toLocaleString('en-US'), right, rowY, { align: 'right' });
-        if (index < metrics.bySpacing.length - 1) {
-            doc.setDrawColor(240, 240, 240);
-            doc.line(left, rowY + 2.6, right, rowY + 2.6);
+    const labelW = 26;
+    const colW = (w - 12 - labelW) / metrics.bySpacing.length;
+    const rows = [
+        ['Spacing', (row) => pdfLabel('{inches} in', { inches: row.inches })],
+        ['Bulbs', (row) => row.bulbs.toLocaleString('en-US')],
+        ['Clips', (row) => row.clips.toLocaleString('en-US')]
+    ];
+    rows.forEach(([label, value], r) => {
+        const rowY = tableY + 15 + r * rowH;
+        doc.setFont("Montserrat", "bold");
+        doc.setFontSize(9);
+        doc.setTextColor(120);
+        doc.text(pdfLabel(label), x + 8, rowY);
+        metrics.bySpacing.forEach((row, c) => {
+            const standard = row.inches === PDF_HOLIDAY_STANDARD_SPACING_IN;
+            doc.setFont("Montserrat", standard || r === 0 ? "bold" : "normal");
+            doc.setFontSize(10.5);
+            if (standard) doc.setTextColor(pColor.r, pColor.g, pColor.b); else doc.setTextColor(r === 0 ? 90 : 50);
+            doc.text(value(row), x + 8 + labelW + colW * (c + 0.5), rowY, { align: 'center' });
+        });
+        if (r < rows.length - 1) {
+            doc.setDrawColor(236, 236, 236);
+            doc.setLineWidth(0.25);
+            doc.line(x + 8, rowY + 2.3, x + w - 8, rowY + 2.3);
         }
     });
 }
