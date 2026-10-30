@@ -1343,15 +1343,18 @@
        panel keeps the compact strip above. */
     @container ext-desk (min-width:641px) and (min-height:600px){
       .ext-desk-guide{grid-template-columns:clamp(240px,42%,340px) minmax(0,1fr);align-items:center;gap:36px;margin:14px 0 10px}
-      .ext-desk .ext-desk-film .ext-orbit{width:100%;height:auto;aspect-ratio:1/1}
-      .ext-desk .ext-desk-film .ext-orbit-world{scale:1.15}
+      /* More specific than the narrower-panel rules below, which set a fixed 150px height. */
+      .ext-desk .ext-desk-guide .ext-desk-film{container-type:inline-size}
+      .ext-desk .ext-desk-guide .ext-desk-film .ext-orbit{width:100%;height:100cqi;aspect-ratio:auto}
+      .ext-desk .ext-desk-guide .ext-desk-film .ext-orbit-world{scale:1.1}
       .ext-desk-steps{gap:22px}
       .ext-desk .ext-desk-steps .ext-orbit-steps{gap:24px}
       .ext-desk .ext-desk-steps .ext-orbit-steps li{font-size:14px;line-height:1.55}
     }
     @container ext-desk (max-width:900px){.ext-desk-mid{padding:20px 20px 16px;gap:14px}.ext-desk-side{padding:20px 18px 16px}.ext-desk-guide{gap:16px}.ext-desk .ext-desk-steps .ext-orbit-steps li{font-size:12.5px}.ext-desk-drop-label{font-size:13px}}
     @container ext-desk (max-width:640px){.ext-desk{grid-template-columns:minmax(0,1fr);overflow:auto}.ext-desk-side{border-left:0;border-top:1px solid #eaecf0}.ext-desk-guide{grid-template-columns:minmax(0,1fr)}}
-    @media(max-height:820px){.ext-desk-mid{padding-top:18px;gap:12px}.ext-desk-side{padding-top:18px;gap:12px}.ext-desk .ext-desk-film .ext-orbit{height:150px}}
+    /* A short order panel (not a short screen: the panel sits in the project window) packs tighter. */
+    @container ext-desk (max-height:599px){.ext-desk-mid{padding-top:18px;gap:12px}.ext-desk-side{padding-top:18px;gap:12px}.ext-desk .ext-desk-film .ext-orbit{height:150px}}
     @media(prefers-reduced-motion:reduce){.ext-desk *{transition:none!important}.ext-desk-bar.is-indeterminate i{animation:none}.ext-desk-alert{animation:none}}
   `);
   P.ExteriorOrder={active,reset,render,renderPhotos:renderPhotoWorkspace,offersChoice:type=>allowed(type),selectedScope:type=>['commercial','multifamily'].includes(type)?'roof':ctx?.type===type?scope:null,
