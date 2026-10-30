@@ -1339,6 +1339,15 @@
     .ext-video-preview img{max-width:100%;max-height:calc(100dvh - 32px);border-radius:12px;background:#000}
     @keyframes extDeskIndeterminate{from{transform:translateX(-100%)}to{transform:translateX(340%)}}
     @keyframes extDeskIn{from{opacity:0;transform:translateY(-4px)}to{opacity:1;transform:none}}
+    /* With room to spare (a tall window, two-column layout), the walkaround animation is square at the same width and
+       the steps spread down beside it; a shorter window keeps the compact strip above. */
+    @media (min-height:820px){@container ext-desk (min-width:641px){
+      .ext-desk-guide{align-items:stretch;gap:32px}
+      .ext-desk .ext-desk-film .ext-orbit{height:auto;aspect-ratio:1/1}
+      .ext-desk-steps{justify-content:center;gap:14px}
+      .ext-desk .ext-desk-steps .ext-orbit-steps{gap:22px}
+      .ext-desk .ext-desk-steps .ext-orbit-steps li{font-size:14px;line-height:1.55}
+    }}
     @container ext-desk (max-width:900px){.ext-desk-mid{padding:20px 20px 16px;gap:14px}.ext-desk-side{padding:20px 18px 16px}.ext-desk-guide{gap:16px}.ext-desk .ext-desk-steps .ext-orbit-steps li{font-size:12.5px}.ext-desk-drop-label{font-size:13px}}
     @container ext-desk (max-width:640px){.ext-desk{grid-template-columns:minmax(0,1fr);overflow:auto}.ext-desk-side{border-left:0;border-top:1px solid #eaecf0}.ext-desk-guide{grid-template-columns:minmax(0,1fr)}}
     @media(max-height:820px){.ext-desk-mid{padding-top:18px;gap:12px}.ext-desk-side{padding-top:18px;gap:12px}.ext-desk .ext-desk-film .ext-orbit{height:150px}}
