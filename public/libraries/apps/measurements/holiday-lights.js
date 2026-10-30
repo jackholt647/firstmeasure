@@ -73,11 +73,14 @@
       .fm-hl-run i{width:20px;height:20px;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;color:#fff;font-style:normal;font-size:11px;font-weight:700}
       .fm-hl-run b{font-weight:600;font-variant-numeric:tabular-nums}
       .fm-hl-empty{font-size:12px;color:#667085}
-      .fm-hl-table{width:100%;border-collapse:collapse;font-size:13px;font-variant-numeric:tabular-nums}
-      .fm-hl-table th{font-size:11px;font-weight:600;color:#667085;text-align:right;padding:4px 6px;border-bottom:1px solid #e4e7ec}
-      .fm-hl-table th:first-child,.fm-hl-table td:first-child{text-align:left}
-      .fm-hl-table td{text-align:right;padding:6px;border-bottom:1px solid #f2f4f7}
-      .fm-hl-table tr.is-standard td{font-weight:700;color:#b42318}
+      .fm-hl-spacing{display:flex;flex-direction:column;gap:4px;font-variant-numeric:tabular-nums}
+      .fm-hl-spacing-head,.fm-hl-spacing button{display:grid;grid-template-columns:1fr 1fr 1fr;align-items:center;gap:6px;padding:7px 10px}
+      .fm-hl-spacing-head{font-size:11px;font-weight:600;color:#667085;padding-top:0;padding-bottom:2px}
+      .fm-hl-spacing-head span+span,.fm-hl-spacing button span+span{text-align:right}
+      .fm-hl-spacing button{font:inherit;font-size:13px;color:#344054;background:#fff;border:1px solid #e4e7ec;border-radius:8px;cursor:pointer;text-align:left}
+      .fm-hl-spacing button:hover{background:#f9fafb;border-color:#d0d5dd}
+      .fm-hl-spacing button[aria-pressed=true]{border:1.5px solid #344054;background:#f2f4f7;font-weight:700;color:#101828}
+      .fm-hl-spacing button:focus-visible{outline:2px solid #1a73e8;outline-offset:1px}
       .fm-hl-note{margin:0;font-size:11px;line-height:1.45;color:#667085}
       @container (max-width:760px){.fm-hl{grid-template-columns:1fr;grid-template-rows:minmax(320px,56vh) auto;height:auto}.fm-hl-panel{overflow:visible}}
     `;
@@ -89,7 +92,7 @@
 
   function mount(root, { xmlUrl } = {}){
     injectStyle();
-    let disposed = false, renderer, scene, camera, controls, observer, runGroup, scale = 1, point = null, discMap = null;
+    let disposed = false, renderer, scene, camera, controls, observer, runGroup, scale = 1, point = null, spacingIn = STANDARD_SPACING;
     const enabled = Object.fromEntries(EDGES.map((edge) => [edge.type, edge.on]));
     const controller = new AbortController();
     const owned = [];
@@ -111,7 +114,7 @@
           <div class="fm-hl-total"><strong data-hl-total>—</strong><span data-hl-total-label></span></div>
           <div class="fm-hl-section" data-hl-edges><h4></h4></div>
           <div class="fm-hl-section"><h4 data-hl-runs-title></h4><div data-hl-runs></div></div>
-          <div class="fm-hl-section"><h4 data-hl-spacing-title></h4><table class="fm-hl-table"><thead><tr><th></th><th></th><th></th></tr></thead><tbody data-hl-spacing></tbody></table></div>
+          <div class="fm-hl-section"><h4 data-hl-spacing-title></h4><div class="fm-hl-spacing"><div class="fm-hl-spacing-head"><span></span><span></span><span></span></div><div class="fm-hl-spacing" data-hl-spacing role="group"></div></div></div>
           <p class="fm-hl-note"></p>
         </aside>
       </div></div>`;
@@ -124,7 +127,8 @@
     root.querySelector('[data-hl-edges] h4').textContent = t('hl_edges_title', 'Edges to light');
     root.querySelector('[data-hl-runs-title]').textContent = t('hl_runs_title', 'Separate runs');
     root.querySelector('[data-hl-spacing-title]').textContent = t('hl_spacing_table_title', 'Bulbs and clips by spacing');
-    const heads = root.querySelectorAll('.fm-hl-table th');
+    const heads = root.querySelectorAll('.fm-hl-spacing-head span');
+    root.querySelector('[data-hl-spacing]').setAttribute('aria-label', t('hl_spacing_choose', 'Bulb spacing shown on the roof'));
     heads[0].textContent = t('hl_col_spacing', 'Spacing');
     heads[1].textContent = t('hl_col_bulbs', 'Bulbs');
     heads[2].textContent = t('hl_col_clips', 'Clips');
@@ -199,15 +203,18 @@
       }
       root.querySelector('[data-hl-runs]').replaceChildren(...runRows);
       const lit = runs.flatMap((run) => run.edges);
+      // Each spacing is a choice: the selected one is what the roof shows.
       root.querySelector('[data-hl-spacing]').replaceChildren(...SPACINGS.map((inches) => {
         const bulbs = lit.reduce((sum, edge) => sum + bulbsOn(edge.length, inches), 0);
-        const row = document.createElement('tr');
-        if (inches === STANDARD_SPACING) row.className = 'is-standard';
+        const row = document.createElement('button');
+        row.type = 'button';
+        row.setAttribute('aria-pressed', String(inches === spacingIn));
         for (const text of [t('hl_spacing_inches', `${inches} in`, { inches }), bulbs.toLocaleString(), bulbs.toLocaleString()]) {
-          const cell = document.createElement('td');
+          const cell = document.createElement('span');
           cell.textContent = text;
           row.append(cell);
         }
+        row.onclick = () => { if (spacingIn !== inches) { spacingIn = inches; update(); } };
         return row;
       }));
     }
@@ -230,14 +237,6 @@
       draw();
     }
 
-    function discTexture(T){
-      const size = 64, c = document.createElement('canvas');
-      c.width = c.height = size;
-      const ctx = c.getContext('2d');
-      ctx.fillStyle = '#fff';
-      ctx.beginPath(); ctx.arc(size / 2, size / 2, size / 2 - 2, 0, Math.PI * 2); ctx.fill();
-      return own(new T.CanvasTexture(c));
-    }
     function badgeTexture(T, color, number){
       const size = 96, c = document.createElement('canvas');
       c.width = c.height = size;
@@ -254,18 +253,18 @@
       scene.remove(runGroup);
       runGroup.traverse((o) => {
         o.geometry?.dispose();
-        if (o.material) { if (o.material.map && o.material.map !== discMap) o.material.map.dispose(); o.material.dispose(); }
+        if (o.material) { o.material.map?.dispose(); o.material.dispose(); }
       });
       runGroup = null;
     }
-    // Each run is a tube in its colour with red and green bulbs at the standard spacing and its number above it.
+    // Each run is a tube in its colour with red and green bulbs on it at the selected spacing, and its number above it.
     function buildRunScene(runs){
       const T = window.THREE;
       disposeRuns();
       runGroup = new T.Group();
       scene.add(runGroup);
       const red = new T.Color(BULB_RED), green = new T.Color(BULB_GREEN);
-      const positions = [], colors = [];
+      const bulbs = [];
       let n = 0;
       for (const run of runs) {
         const material = new T.MeshBasicMaterial({ color: run.color });
@@ -273,13 +272,8 @@
           const a = point(edge.a), b = point(edge.b);
           a.y += LIFT_FT * scale; b.y += LIFT_FT * scale;
           runGroup.add(new T.Mesh(new T.TubeGeometry(new T.LineCurve3(a, b), 1, 0.16 * scale, 6, false), material));
-          const count = bulbsOn(edge.length, STANDARD_SPACING);
-          for (let i = 0; i < count; i++) {
-            const p = a.clone().lerp(b, (i + 0.5) / count);
-            positions.push(p.x, p.y + 0.45 * scale, p.z);
-            const color = n++ % 2 ? green : red;
-            colors.push(color.r, color.g, color.b);
-          }
+          const count = bulbsOn(edge.length, spacingIn);
+          for (let i = 0; i < count; i++) bulbs.push({ at: a.clone().lerp(b, (i + 0.5) / count), color: n++ % 2 ? green : red });
         }
         const longest = run.edges.reduce((best, edge) => (!best || edge.length > best.length ? edge : best), null);
         const badge = new T.Sprite(new T.SpriteMaterial({ map: badgeTexture(T, run.color, run.number), depthTest: false }));
@@ -289,11 +283,15 @@
         badge.renderOrder = 5;
         runGroup.add(badge);
       }
-      if (positions.length) {
-        const geo = new T.BufferGeometry();
-        geo.setAttribute('position', new T.Float32BufferAttribute(positions, 3));
-        geo.setAttribute('color', new T.Float32BufferAttribute(colors, 3));
-        runGroup.add(new T.Points(geo, new T.PointsMaterial({ size: 1.15 * scale, sizeAttenuation: true, vertexColors: true, map: discMap, transparent: true, alphaTest: 0.5 })));
+      if (bulbs.length) {
+        // Small spheres centred on the line, a little wider than it, never touching their neighbours.
+        const radius = Math.min(0.27, spacingIn / 12 * 0.3) * scale;
+        const mesh = new T.InstancedMesh(new T.SphereGeometry(radius, 10, 8), new T.MeshStandardMaterial({ roughness: 0.5 }), bulbs.length);
+        const matrix = new T.Matrix4();
+        bulbs.forEach((bulb, i) => { mesh.setMatrixAt(i, matrix.makeTranslation(bulb.at.x, bulb.at.y, bulb.at.z)); mesh.setColorAt(i, bulb.color); });
+        mesh.instanceMatrix.needsUpdate = true;
+        if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true;
+        runGroup.add(mesh);
       }
       draw();
     }
@@ -343,7 +341,6 @@
       const sun = new T.DirectionalLight(0xffffff, 0.3);
       sun.position.set(30, 80, 40);
       scene.add(new T.HemisphereLight(0xffffff, 0x8a93a3, 0.55), sun);
-      discMap = discTexture(T);
 
       const roofMaterial = own(new T.MeshStandardMaterial({ color: '#c9cfd8', side: T.DoubleSide, roughness: 1, polygonOffset: true, polygonOffsetFactor: 1, polygonOffsetUnits: 1 }));
       const roofGroup = new T.Group();
