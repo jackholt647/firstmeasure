@@ -65,6 +65,8 @@ window.PlatformCommerce.onReady(function(){
   let userMeasurementTabProject = '';
   let roofViewer = null;
   let roofViewerKey = '';
+  let holidayLights = null;
+  let holidayLightsKey = '';
   // The route's report view as last applied or as it read after a chosen tab was pushed.
   let appliedRouteView = '';
   let activeInstantMountKey = '';
@@ -133,6 +135,7 @@ window.PlatformCommerce.onReady(function(){
       <div class="r-measure-tabs" id="rMeasureTabs"></div>
       <div class="r-measure-body">
         <div class="r-measure-pane" data-measure-pane="model"><div id="rMeasurementModel" style="height:100%"></div></div>
+        <div class="r-measure-pane" data-measure-pane="lights"><div id="rMeasurementLights" style="height:100%"></div></div>
         <div class="r-measure-pane" data-measure-pane="map"><div id="rMeasurementMap" style="height:100%"></div></div>
         <div class="r-measure-pane" data-measure-pane="summary"><div id="rMeasurementSummary" style="height:100%"></div></div>
         <div class="r-measure-pane" data-measure-pane="instant"><div id="rMeasurementInstant" style="height:100%"></div></div>
@@ -205,6 +208,10 @@ window.PlatformCommerce.onReady(function(){
   // The 3D viewer is part of Full House; roof-only reports show it once the organization turns on roof_model_viewer.
   function reportModelViewerEnabled(){
     return reportSummaryIsFullHouse() || firstMeasureFlagEnabled('roof_model_viewer', false);
+  }
+  // Free add-on, off by default: the roof at night with lights along its edges (holiday-lights.js).
+  function holidayLightsEnabled(){
+    return firstMeasureFlagEnabled('holiday_lights', false);
   }
   const fmtCredit = value => window.PlatformCommerce.credit(value);
   function fmtMoney(value){ return callHost('fmtMoney', value) || String(Math.round((Number(value) || 0) * 100) / 100); }
@@ -343,6 +350,7 @@ window.PlatformCommerce.onReady(function(){
     const cachedAssets = projectId ? primeMeasurementAssetCacheFromKnownUrls(projectId) : null;
     const hasXml = ready && !!cachedAssets?.xmlUrl;
     if(ready && reportModelViewerEnabled()) tabs.push({id:'model',get label(){ return (globalThis.PlatformLanguage?.text("measurements","report_model_tab","Model") ?? "Model"); },icon:'fa-cube',active:activeMeasurementTab==='model',disabled:false,pending:false});
+    if(hasXml && holidayLightsEnabled()) tabs.push({id:'lights',get label(){ return (globalThis.PlatformLanguage?.text("measurements","hl_tab","Holiday Lights") ?? "Holiday Lights"); },icon:'fa-lightbulb',active:activeMeasurementTab==='lights',disabled:false,pending:false});
     const changes = reportFollowupEnabled() ? reportChangeRequests() : [];
     const supportView = !changes.length || reportRequestsAreSupportOnly(changes);
     if (inlineProjectMapWithReports()) {
@@ -4003,7 +4011,7 @@ window.PlatformCommerce.onReady(function(){
     const reportTabs = measurementTabs();
     const context = callHost('reportNavigationContext') || {};
     const compactTabs = reportHeaderTabs(context.tabs || [], reportTabs, context.ordered);
-    const tabs = compactTabs ? reportTabs.filter(tab => ['model','customer','standard','summary','xml'].includes(tab.id)) : reportTabs;
+    const tabs = compactTabs ? reportTabs.filter(tab => ['model','lights','customer','standard','summary','xml'].includes(tab.id)) : reportTabs;
     if (!tabs.some((tab) => tab.id === activeMeasurementTab)) {
       activeMeasurementTab = tabs.find((tab) => tab.id === 'standard' && !tab.disabled)?.id || tabs.find((tab) => !tab.disabled)?.id || 'standard';
     }
@@ -4039,6 +4047,13 @@ window.PlatformCommerce.onReady(function(){
       const fullHouseModel=reportSummaryIsFullHouse()&&projectId,platformProjectId=activeBaseProject?.id||'',orgId=projectOrgId();
       const data={xmlUrl:cachedAssets?.xmlUrl,pitchNotation:summaryPitchNotation(),exteriorUrl:fullHouseModel?fmUrl(`projects/${encodeURIComponent(projectId)}/exterior-model`):'',designUrl:fullHouseModel?fmUrl(`projects/${encodeURIComponent(projectId)}/exterior-design`):'',materialsUrl:fullHouseModel&&orgId&&platformProjectId&&isPlatformProjectId(platformProjectId)?`/v1/materials/organizations/${encodeURIComponent(orgId)}/projects/${encodeURIComponent(platformProjectId)}/material-lists`:'',media:cachedAssets?.media||[]};
       roofViewer=window.FirstMateWidgets.mount(modelRoot,{id:'reports.roof',version:'1',config:{}},{surface:'project',data:{'reports.roof':data}});
+    }
+    const lightsRoot = root.querySelector('#rMeasurementLights');
+    const lightsKey = JSON.stringify([projectId,cachedAssets?.xmlUrl]);
+    if(activeMeasurementTab !== 'lights' || terminalWithoutReport){holidayLights?.destroy();holidayLights=null;holidayLightsKey='';}
+    else if(lightsRoot && window.FirstMeasureHolidayLights && (holidayLightsKey!==lightsKey || !holidayLights)){
+      holidayLights?.destroy();holidayLightsKey=lightsKey;
+      holidayLights=window.FirstMeasureHolidayLights.mount(lightsRoot,{xmlUrl:cachedAssets?.xmlUrl||''});
     }
     if (map && inlineProjectMapWithReports() && activeMeasurementTab === 'map') {
       mountInlineProjectMap(map);
@@ -4178,6 +4193,7 @@ window.PlatformCommerce.onReady(function(){
     disposeInstantMeasurement();
     pendingExpediteSelection = '';
     roofViewer?.destroy();roofViewer=null;roofViewerKey='';
+    holidayLights?.destroy();holidayLights=null;holidayLightsKey='';
     activeMeasurementTab = 'model';
     appliedRouteView = '';
     reportRequestModalState = null;

@@ -2379,6 +2379,7 @@ session_write_close();
   <script src="../libraries/apps/comms/project.js?v=<?= portalAssetVersion('../libraries/apps/comms/project.js') ?>"></script>
   <?php endif; ?>
   <script src="../libraries/apps/measurements/roof-viewer.js?v=<?= portalAssetVersion('../libraries/apps/measurements/roof-viewer.js') ?>"></script>
+  <script src="../libraries/apps/measurements/holiday-lights.js?v=<?= portalAssetVersion('../libraries/apps/measurements/holiday-lights.js') ?>"></script>
   <script src="../libraries/apps/measurements/project.js?v=<?= portalAssetVersion('../libraries/apps/measurements/project.js') ?>"></script>
   <script src="../libraries/apps/firstmeasure/order/exteriors.js?v=<?= portalAssetVersion('../libraries/apps/firstmeasure/order/exteriors.js') ?>"></script>
   <script src="../libraries/apps/firstmeasure/order/app.js?v=<?= portalAssetVersion('../libraries/apps/firstmeasure/order/app.js') ?>"></script>
