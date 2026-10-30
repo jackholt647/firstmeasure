@@ -156,6 +156,7 @@ window.PlatformCommerce.onReady(async function(){
   };
   let includeGutterMeasurements = false;
   let includeWeatherReport = false;
+  let includeHolidayLights = false;
   let includeInstantPreview = false;
   let addonInfoHideTimer = null;
   let activePreviewTab = 'map';
@@ -3378,6 +3379,9 @@ window.PlatformCommerce.onReady(async function(){
   }
   function hasGutterAddon(){ return gutterReportsEnabled() && selectedType === 'residential' && includeGutterMeasurements; }
   function hasWeatherAddon(){ return weatherReportsEnabled() && includeWeatherReport; }
+  // Free: the report gets a Holiday Lights tab built from its roof edges (measurements/holiday-lights.js).
+  function holidayLightsEnabled(){ return firstMeasureReportOrdersEnabled() && appFeatureEnabled('firstmeasure', 'holiday_lights', false); }
+  function hasHolidayLightsAddon(){ return holidayLightsEnabled() && includeHolidayLights; }
   function roofDecisionMade(){ return reportSelection !== null; }
   function reportExpediteChoiceComplete(){ return !reportExpediteOptionsEnabled() || !hasSelectedAddons() || reportOrderingClosed() || !!selectedReportExpediteOption(); }
   function roofStepComplete(){ return isProposalChoice() || isScheduleChoice() || (hasSelectedAddons() && locationConfirmed && reportExpediteChoiceComplete()); }
@@ -3455,6 +3459,7 @@ window.PlatformCommerce.onReady(async function(){
     if (!instantReportsEnabled()) includeInstantPreview = false;
     if (!gutterReportsEnabled() || selectedType !== 'residential') includeGutterMeasurements = false;
     if (!weatherReportsEnabled()) includeWeatherReport = false;
+    if (!holidayLightsEnabled()) includeHolidayLights = false;
     if (!firstMeasureReportOrdersEnabled() && reportSelection === 'roof') reportSelection = null;
     if (!proposalsEnabled() && isProposalChoice()) reportSelection = null;
     if (reportSelection && !actionAvailable(reportSelection)) reportSelection = null;
@@ -3465,6 +3470,7 @@ window.PlatformCommerce.onReady(async function(){
       includeInstantPreview = false;
       includeGutterMeasurements = false;
       includeWeatherReport = false;
+      includeHolidayLights = false;
     }
   }
 
@@ -6078,6 +6084,18 @@ window.PlatformCommerce.onReady(async function(){
         sample: null
       };
     }
+    if (key === 'holiday_lights') {
+      return {
+        title: (globalThis.PlatformLanguage?.text("project-request","hl_order_title","Holiday lights") ?? "Holiday lights"),
+        body: (globalThis.PlatformLanguage?.text("project-request","hl_order_body","Adds a free Holiday Lights view to the finished report.") ?? "Adds a free Holiday Lights view to the finished report."),
+        bullets: [
+          (globalThis.PlatformLanguage?.text("project-request","hl_order_bullet_view","The roof in 3D at night with lights along its edges.") ?? "The roof in 3D at night with lights along its edges."),
+          (globalThis.PlatformLanguage?.text("project-request","hl_order_bullet_feet","Feet of lights along eaves and rakes, with ridges and hips optional.") ?? "Feet of lights along eaves and rakes, with ridges and hips optional."),
+          (globalThis.PlatformLanguage?.text("project-request","hl_order_bullet_counts","Bulb, clip and run counts for the spacing you choose.") ?? "Bulb, clip and run counts for the spacing you choose.")
+        ],
+        sample: null
+      };
+    }
     if (key === 'weather') {
       return {
         title: (globalThis.PlatformLanguage?.text("project-request","m_a3126077e6d02c","Historical weather report") ?? "Historical weather report"),
@@ -6884,6 +6902,7 @@ window.PlatformCommerce.onReady(async function(){
     renderReportExpediteChoice(availableActions);
     const showGutters = gutterReportsEnabled() && selectedType === 'residential';
     const showWeather = weatherReportsEnabled();
+    const showHolidayLights = holidayLightsEnabled();
     const showInspection = instantReportsEnabled();
     const showAddonGroup = hasSelectedAddons();
     const showReportControls = showAddonGroup && roofReportControlsUnlocked();
@@ -6900,6 +6919,7 @@ window.PlatformCommerce.onReady(async function(){
     updateScheduleChoiceCard();
     document.querySelector('[data-report-addon="gutters"]')?.classList.toggle('selected', hasGutterAddon());
     document.querySelector('[data-report-addon="weather"]')?.classList.toggle('selected', hasWeatherAddon());
+    document.querySelector('[data-report-addon="holiday_lights"]')?.classList.toggle('selected', hasHolidayLightsAddon());
     document.querySelector('[data-report-addon="inspection"]')?.classList.toggle('selected', includeInstantPreview);
     const gutters = document.querySelector('[data-report-addon="gutters"]');
     if (gutters) {
@@ -6912,6 +6932,12 @@ window.PlatformCommerce.onReady(async function(){
       const visible = showReportControls && showWeather;
       weather.classList.toggle('visible', visible);
       weather.style.display = visible ? '' : 'none';
+    }
+    const holidayLights = document.querySelector('[data-report-addon="holiday_lights"]');
+    if (holidayLights) {
+      const visible = showReportControls && showHolidayLights;
+      holidayLights.classList.toggle('visible', visible);
+      holidayLights.style.display = visible ? '' : 'none';
     }
     const inspection = document.querySelector('[data-report-addon="inspection"]');
     if (inspection) {
@@ -9977,6 +10003,7 @@ window.PlatformCommerce.onReady(async function(){
       includeInspection: payload?.report_mode === 'both',
       includeGutters: payload?.include_gutter_measurements === '1' || payload?.include_gutter_measurements === true,
       includeWeather: payload?.include_weather_report === '1' || payload?.include_weather_report === true,
+      includeHolidayLights: payload?.include_holiday_lights === '1' || payload?.include_holiday_lights === true,
       weatherReportId: data?.manifest?.weather_report_id || data?.project?.weather_report_id || '',
       weatherReportPdfUrl: data?.manifest?.weather_report_pdf_url || data?.project?.weather_report_pdf_url || '',
       isExpedited: payload?.is_expedited === '1' || payload?.is_expedited === true,
@@ -10201,6 +10228,7 @@ window.PlatformCommerce.onReady(async function(){
       const addOns = [];
       if (hasGutterAddon()) addOns.push(globalThis.PlatformLanguage?.text('project-request','overview_gutters','gutters') ?? 'gutters');
       if (hasWeatherAddon()) addOns.push(globalThis.PlatformLanguage?.text('project-request','overview_weather','weather') ?? 'weather');
+      if (hasHolidayLightsAddon()) addOns.push(globalThis.PlatformLanguage?.text('project-request','overview_holiday_lights','holiday lights') ?? 'holiday lights');
       if (includeInstantPreview && hasSelectedAddons()) addOns.push(globalThis.PlatformLanguage?.text('project-request','overview_instant','instant report') ?? 'instant report');
       const expedite = hasSelectedAddons() ? selectedReportExpediteOption() : null;
       if (expedite && expedite.key !== 'no_rush') addOns.push(expedite.label);
@@ -10828,6 +10856,10 @@ window.PlatformCommerce.onReady(async function(){
         if (!weatherReportsEnabled()) return;
         includeWeatherReport = !includeWeatherReport;
       }
+      if (addon.dataset.reportAddon === 'holiday_lights') {
+        if (!holidayLightsEnabled()) return;
+        includeHolidayLights = !includeHolidayLights;
+      }
       if (addon.dataset.reportAddon === 'inspection') {
         if (!instantReportsEnabled()) return;
         includeInstantPreview = !includeInstantPreview;
@@ -10935,6 +10967,7 @@ window.PlatformCommerce.onReady(async function(){
         ...selectedReportExpeditePayload(),
         include_gutter_measurements: hasGutterAddon() ? '1' : '0',
         include_weather_report: hasWeatherAddon() ? '1' : '0',
+        include_holiday_lights: hasHolidayLightsAddon() ? '1' : '0',
         report_options: JSON.stringify({ selection: reportSelection, instant_preview: includeInstantPreview, weather_report: includeWeatherReport, expedite_option: selectedReportExpediteOption()?.key || null }),
         pins: JSON.stringify(getMarkersData()),
         cc_emails: JSON.stringify(collectCcEmails()),
@@ -11333,6 +11366,7 @@ window.PlatformCommerce.onReady(async function(){
       ...selectedReportExpeditePayload(),
       include_gutter_measurements: hasGutterAddon() ? '1' : '0',
       include_weather_report: hasWeatherAddon() ? '1' : '0',
+      include_holiday_lights: hasHolidayLightsAddon() ? '1' : '0',
       report_options: JSON.stringify({ selection: reportSelection, instant_preview: includeInstantPreview, weather_report: includeWeatherReport, expedite_option: selectedReportExpediteOption()?.key || null }),
       pins: JSON.stringify(pins),
       cc_emails: JSON.stringify(collectCcEmails()),
@@ -11449,6 +11483,7 @@ window.PlatformCommerce.onReady(async function(){
       || base.include_weather_report
       || base.weather_report_id
     );
+    includeHolidayLights = !!(base.measurement?.include_holiday_lights || base.measurement_project?.include_holiday_lights || base.include_holiday_lights);
     includeInstantPreview = !!base.measurement?.include_instant;
     selectedReportExpedite = base.report_expedite_option || base.measurement?.report_expedite_option || null;
     if ($('#rAddress')) $('#rAddress').value = base.address || '';
@@ -11551,6 +11586,7 @@ window.PlatformCommerce.onReady(async function(){
         address: base.address || '',
         includeInspection: !!measurementSource?.include_instant,
         includeGutters: !!measurementSource?.include_gutters,
+        includeHolidayLights: !!(measurementSource?.include_holiday_lights || measurementManifest.include_holiday_lights || base.include_holiday_lights),
         includeWeather: !!(measurementSource?.include_weather_report || measurementManifest.include_weather_report || base.include_weather_report || measurementSource?.weather_report_id || measurementManifest.weather_report_id || base.weather_report_id),
         weatherReportId: measurementSource?.weather_report_id || measurementManifest.weather_report_id || base.weather_report_id || '',
         weatherReportPdfUrl: measurementSource?.weather_report_pdf_url || measurementManifest.weather_report_pdf_url || base.weather_report_pdf_url || '',
@@ -11622,6 +11658,7 @@ window.PlatformCommerce.onReady(async function(){
     selectedReportExpedite = null;
     includeGutterMeasurements = false;
     includeWeatherReport = false;
+    includeHolidayLights = false;
     includeInstantPreview = false;
     activePreviewTab = 'map';
     activePhotoIndex = 0;
@@ -11764,7 +11801,7 @@ window.PlatformCommerce.onReady(async function(){
     if (requestedWorkflow !== 'report' || hasReportOrdered() || !$('#rOverlay')?.classList.contains('active') || projectShellLoading) return null;
     return {
       page:mobileOrderPage, tab:activePreviewTab, locationConfirmed,
-      selectedType, reportSelection, includeGutterMeasurements, includeWeatherReport,
+      selectedType, reportSelection, includeGutterMeasurements, includeWeatherReport, includeHolidayLights,
       includeInstantPreview, selectedReportExpedite,
       fields:Object.fromEntries(['rAddress','rLat','rLng','rComps','rTechNotes'].map(id=>[id,document.getElementById(id)?.value || ''])),
       pins:getMarkersData(), contacts:collectContacts(), cc:collectCcEmails(),
@@ -11778,6 +11815,7 @@ window.PlatformCommerce.onReady(async function(){
     reportSelection = session.reportSelection || 'roof';
     includeGutterMeasurements = !!session.includeGutterMeasurements;
     includeWeatherReport = !!session.includeWeatherReport;
+    includeHolidayLights = !!session.includeHolidayLights;
     includeInstantPreview = !!session.includeInstantPreview;
     selectedReportExpedite = session.selectedReportExpedite || null;
     for (const id of ['rAddress','rLat','rLng','rComps','rTechNotes']) {

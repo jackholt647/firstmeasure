@@ -12688,6 +12688,7 @@ function normalizedPortalQueuePayload(body: JsonObject, actor: ReturnType<typeof
     is_expedited: parseBooleanField(body.is_expedited, false),
     include_gutter_measurements: parseBooleanField(body.include_gutter_measurements, false),
     include_weather_report: parseBooleanField(body.include_weather_report, false),
+    include_holiday_lights: parseBooleanField(body.include_holiday_lights, false),
     amount_charged: amount,
     report_original_amount: charge.gross_amount,
     report_currency: currentProfile().currency,
@@ -12763,6 +12764,9 @@ async function portalQueueProjectForMarket(portal: PortalCaller, body: JsonObjec
   }
   if (parseBooleanField(body.include_weather_report, false)) {
     await assertPortalFirstMeasureFlag(orgId, "weather_reports", "Historical weather reports are not enabled for this organization.");
+  }
+  if (parseBooleanField(body.include_holiday_lights, false)) {
+    await assertPortalFirstMeasureFlag(orgId, "holiday_lights", "Holiday Lights is not enabled for this organization.");
   }
   const projectType = cleanText(body.project_type) || "residential";
   const reportMode = cleanText(body.report_mode) || "full";

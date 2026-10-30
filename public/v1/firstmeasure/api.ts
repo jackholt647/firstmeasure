@@ -12464,6 +12464,8 @@ async function reopenRejectedProjectForReorder(
 
     include_weather_report: Boolean(input.include_weather_report ?? false),
 
+    include_holiday_lights: Boolean(input.include_holiday_lights ?? false),
+
     weather_report_tier: input.weather_report_tier == null ? null : String(input.weather_report_tier),
 
     weather_report_id: input.weather_report_id == null ? null : String(input.weather_report_id),

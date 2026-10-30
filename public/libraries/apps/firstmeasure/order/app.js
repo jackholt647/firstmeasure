@@ -133,6 +133,10 @@ ${String(expanded ? `    <section class="r-step is-open" id="rStepCustomer" data
             <span class="r-addon-copy"><span class="r-addon-title"><i class="fas fa-cloud-showers-heavy"></i>${((v7) => globalThis.PlatformLanguage?.htmlText("firstmeasure","m_b318a6c0bce8d9",` Historical Weather ${v7}`,{v7}) ?? ` Historical Weather ${v7}`)(addonInfoIcon('weather'))}</span></span>
             <span class="r-addon-side"><span class="r-addon-price" data-addon-price="weather">+${String(window.PlatformCommerce.credit(WEATHER_REPORT_ADDON))}</span><span class="r-switch" aria-hidden="true"></span></span>
           </button>
+          <button type="button" class="r-addon-toggle r-addon-inline r-holiday-lights-inline" data-report-addon="holiday_lights" data-addon-info="holiday_lights" style="display:none">
+            <span class="r-addon-copy"><span class="r-addon-title"><i class="fas fa-lightbulb"></i>${((v8) => globalThis.PlatformLanguage?.htmlText("firstmeasure","hl_order_toggle",` Holiday Lights ${v8}`,{v8}) ?? ` Holiday Lights ${v8}`)(addonInfoIcon('holiday_lights'))}</span></span>
+            <span class="r-addon-side"><span class="r-addon-price" data-addon-price="holiday_lights">${(globalThis.PlatformLanguage?.htmlText("firstmeasure","hl_order_free","Free") ?? "Free")}</span><span class="r-switch" aria-hidden="true"></span></span>
+          </button>
           <button type="button" class="r-addon-toggle r-addon-inline r-instant-inline" data-report-addon="inspection" data-addon-info="inspection">
             <span class="r-addon-copy"><span class="r-addon-title"><i class="fas fa-bolt"></i>${((v9) => globalThis.PlatformLanguage?.htmlText("firstmeasure","m_bd0257416e7c2e",` Instant Report ${v9}`,{v9}) ?? ` Instant Report ${v9}`)(addonInfoIcon('inspection'))}</span></span>
             <span class="r-addon-side"><span class="r-addon-price" data-addon-price="inspection">${(globalThis.PlatformLanguage?.htmlText("firstmeasure","m_0e5addb4bc1dfe","Choose type") ?? "Choose type")}</span><span class="r-switch" aria-hidden="true"></span></span>

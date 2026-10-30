@@ -67,6 +67,7 @@ export type ProjectManifest = JsonObject & {
   pins: Array<{ lat: number; lng: number }>;
   include_gutter_measurements: boolean;
   include_weather_report: boolean;
+  include_holiday_lights?: boolean;
   weather_report_tier: string | null;
   weather_report_id: string | null;
   weather_report_pdf_url: string | null;
@@ -284,6 +285,7 @@ export async function createProject(input: JsonObject & { address: string }, opt
       ?? false
     ),
     include_weather_report: Boolean(input.include_weather_report ?? false),
+    include_holiday_lights: Boolean(input.include_holiday_lights ?? false),
     weather_report_tier: input.weather_report_tier == null ? null : String(input.weather_report_tier),
     weather_report_id: input.weather_report_id == null ? null : String(input.weather_report_id),
     weather_report_pdf_url: input.weather_report_pdf_url == null ? null : String(input.weather_report_pdf_url),
