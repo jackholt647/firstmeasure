@@ -2514,8 +2514,9 @@ async function createTutorialProjectInstance(
   const sourceManifest = asObject(sourceBundle.manifest);
   const capability = await withTutorialSource(sourceProjectId, () => exteriorTrainingCapability(sourceProjectId, sourceBundle));
   // Exams retain roof grading until an exterior rubric exists. Practice defaults to usable source data.
-  const exterior = fullHouseEnabled() && !options.test_attempt_id && capability.available && assignment?.measurement_scope !== 'roof';
-  if (assignment?.measurement_scope === 'full_house' && !capability.available && !options.test_attempt_id) {
+  const exteriorAssigned = assignment?.measurement_scope === 'full_house';
+  const exterior = fullHouseEnabled() && !options.test_attempt_id && (exteriorAssigned ? capability.startable : capability.available) && assignment?.measurement_scope !== 'roof';
+  if (exteriorAssigned && !capability.startable && !options.test_attempt_id) {
     return { success: false, status_code: 409, error: `Exterior source data is missing: ${capability.missing.join(', ')}. Update the references or select Roof only.` };
   }
   const manifest: JsonObject = {

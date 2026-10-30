@@ -51,8 +51,13 @@ export async function exteriorTrainingCapability(source: string, detail?: Awaite
       } catch { /* A broken or unfinished upload is not usable reference data. */ }
     }
   }
-  const missing = ['front','back','left','right'].filter(side => !sides.has(side));
-  if (!(names.get('dsm.tif')! > 0)) missing.push('height map');
-  if (!['google.png','google.jpg','rgb.tif'].some(name => names.get(name)! > 0)) missing.push('roof imagery');
-  return { available: missing.length === 0, missing, measurement_scope: missing.length ? 'roof' : 'full_house' };
+  const missingViews = ['front','back','left','right'].filter(side => !sides.has(side));
+  const missingData: string[] = [];
+  if (!(names.get('dsm.tif')! > 0)) missingData.push('height map');
+  if (!['google.png','google.jpg','rgb.tif'].some(name => names.get(name)! > 0)) missingData.push('roof imagery');
+  const missing = [...missingViews, ...missingData];
+  // `available` picks the default for a new assignment. `startable` is what an assignment an instructor
+  // already set to exteriors needs: a missing photo view leaves an empty slot in the editor, as on customer orders.
+  const startable = sides.size > 0 && missingData.length === 0;
+  return { available: missing.length === 0, startable, missing, measurement_scope: missing.length ? 'roof' : 'full_house' };
 }
