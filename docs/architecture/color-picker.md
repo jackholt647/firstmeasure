@@ -15,6 +15,11 @@ not rewritten while focused, preserving typing/caret state. The active backing
 field can be rebound after a consumer rerender using its ID or identifying data
 attributes. Consumers should preserve these identifiers when replacing controls.
 
+The popover is appended to `body` when it opens, at the highest z-index, so it
+is above any layer holding its field (the onboarding wizard's full-screen overlay
+and other modals sit at similar values). Run
+`public/v1/tests/onboarding-color-picker-browser.test.mjs` for changes here.
+
 API: `FirstMateColorPicker.open(input)`, `.close()`, `.refresh(scope)`. Parsing
 and RGB/HSV conversion helpers are also exported. No per-app mount is required.
 
