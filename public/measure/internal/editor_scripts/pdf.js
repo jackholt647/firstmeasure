@@ -6184,8 +6184,8 @@ function drawPdfStatRow(doc, label, value, x, y, width, size = 9) {
 
 // =============================================================================
 // Holiday Lights (a free add-on chosen when the report is ordered: manifest.include_holiday_lights)
-// Lights along every eave and rake: why, the separate runs (each in its own colour on the drawing) and bulbs and
-// clips at common spacings. Everything comes from the roof model (the same geometry as model_data.xml); nothing is
+// Lights along every eave and rake: the total, the separate runs (each in its own colour on the drawing) and bulbs
+// and clips at common spacings. Everything comes from the roof model (the same geometry as model_data.xml); nothing is
 // entered in the editor. The model travels with the PDF snapshot (holidayLightsModel) because the server render has
 // no XML generator.
 // =============================================================================
@@ -6404,75 +6404,71 @@ function createHolidayLightsCanvas(model, metrics, { width = 1600, height = 1000
 async function drawHolidayLightsPage(doc, state, model, x, y, w, h, brandingColors) {
     const metrics = buildPdfHolidayLightsMetrics(model);
     const gap = 5;
-    const whyH = 30;
-    const tablesH = Math.max(44, 22 + Math.max(metrics.runs.length, PDF_HOLIDAY_SPACINGS_IN.length) * 7);
-    const viewH = Math.max(90, h - whyH - tablesH - gap * 2);
     const pColor = (brandingColors && brandingColors.primary) ? brandingColors.primary : { r: 200, g: 40, b: 40 };
     const feet = (value) => pdfMeasure(value, 'ft', `${Math.round(value).toLocaleString('en-US')} ft`);
+    // Runs list in up to two columns; the spacing table in two columns (one bulb and one clip per space).
+    const runCols = metrics.runs.length > 4 ? 2 : 1;
+    const runRowH = 6.5;
+    const topH = Math.max(30, 15 + Math.ceil(Math.max(1, metrics.runs.length) / runCols) * runRowH);
+    const tableRowH = 8;
+    const tableH = 24 + metrics.bySpacing.length * tableRowH;
+    const viewH = Math.max(90, h - topH - tableH - gap * 2);
 
-    // Why: what is lit, and how much.
+    // Lights needed, and the runs (each in its colour on the drawing).
     const totalW = w * 0.24;
-    drawSummaryBox(doc, x, y, totalW, whyH, "Lights Needed");
+    drawSummaryBox(doc, x, y, totalW, topH, "Lights Needed");
     doc.setFont("Montserrat", "bold");
     doc.setFontSize(16);
     doc.setTextColor(pColor.r, pColor.g, pColor.b);
-    doc.text(feet(metrics.totalFt), x + totalW / 2, y + 20, { align: 'center' });
-    doc.setFont("Montserrat", "normal");
-    doc.setFontSize(6.5);
-    doc.setTextColor(120);
-    doc.text(pdfLabel('{count} separate runs', { count: metrics.runs.length }), x + totalW / 2, y + 26, { align: 'center' });
+    doc.text(feet(metrics.totalFt), x + totalW / 2, y + topH / 2 + 5, { align: 'center' });
 
-    const whyX = x + totalW + gap, whyW = w - totalW - gap;
-    drawSummaryBox(doc, whyX, y, whyW, whyH, "Why");
-    doc.setFont("Montserrat", "normal");
-    doc.setFontSize(7.5);
-    doc.setTextColor(70);
-    const why = pdfLabel('Holiday lights follow the roofline: every eave (the bottom edge, where gutters hang) and every rake (the sloped edge of a gable). Eaves {eaves} + rakes {rakes}. Ridges ({ridges}) and hips ({hips}) are not included; add them to outline the peaks.', {
-        eaves: feet(metrics.lengths.EAVE), rakes: feet(metrics.lengths.RAKE),
-        ridges: metrics.lengths.RIDGE > 0 ? feet(metrics.lengths.RIDGE) : '—', hips: metrics.lengths.HIP > 0 ? feet(metrics.lengths.HIP) : '—'
+    const runsX = x + totalW + gap, runsW = w - totalW - gap;
+    drawSummaryBox(doc, runsX, y, runsW, topH, "Runs");
+    const colW = runsW / runCols;
+    const perCol = Math.ceil(metrics.runs.length / runCols);
+    metrics.runs.forEach((run, index) => {
+        const colX = runsX + Math.floor(index / perCol) * colW;
+        const rowY = y + 16 + (index % perCol) * runRowH;
+        const rgb = hexToRgbReport(run.color);
+        doc.setFillColor(rgb.r, rgb.g, rgb.b);
+        doc.circle(colX + 9, rowY - 1.2, 2.2, 'F');
+        doc.setFont("Montserrat", "bold");
+        doc.setFontSize(8.5);
+        doc.setTextColor(60);
+        doc.text(pdfLabel('Run {number}', { number: run.number }), colX + 14, rowY);
+        doc.setFont("Montserrat", "normal");
+        doc.text(feet(run.length), colX + colW - 8, rowY, { align: 'right' });
     });
-    doc.text(doc.splitTextToSize(why, whyW - 12), whyX + 6, y + 14);
 
-    const viewY = y + whyH + gap;
+    const viewY = y + topH + gap;
     drawSummaryBox(doc, x, viewY, w, viewH, "Light Runs");
     const canvasH = Math.round(1600 * Math.max(0.4, (viewH - 19) / (w - 6)));
     const canvas = createHolidayLightsCanvas(model, metrics, { width: 1600, height: canvasH });
     placeImageCentered(doc, canvas.toDataURL('image/jpeg', 0.85), canvas.width / canvas.height, x + 3, viewY + 15, viewY + viewH - 4, w - 6);
 
-    // Runs, each in its colour, and bulbs and clips at common spacings.
-    const tablesY = viewY + viewH + gap;
-    const runsW = (w - gap) * 0.45, spacingX = x + runsW + gap, spacingW = w - runsW - gap;
-    drawSummaryBox(doc, x, tablesY, runsW, tablesH, "Runs");
-    metrics.runs.forEach((run, index) => {
-        const rowY = tablesY + 16 + index * 7;
-        const rgb = hexToRgbReport(run.color);
-        doc.setFillColor(rgb.r, rgb.g, rgb.b);
-        doc.circle(x + 9, rowY - 1.2, 2.2, 'F');
-        doc.setFont("Montserrat", "bold");
-        doc.setFontSize(7.5);
-        doc.setTextColor(60);
-        doc.text(pdfLabel('Run {number}', { number: run.number }), x + 14, rowY);
-        doc.setFont("Montserrat", "normal");
-        doc.text(feet(run.length), x + runsW - 8, rowY, { align: 'right' });
-    });
-
-    drawSummaryBox(doc, spacingX, tablesY, spacingW, tablesH, "Bulbs And Clips By Spacing");
-    const cols = [spacingX + 8, spacingX + spacingW * 0.5, spacingX + spacingW - 8];
+    const tableY = viewY + viewH + gap;
+    drawSummaryBox(doc, x, tableY, w, tableH, "Bulbs And Clips By Spacing");
+    const left = x + 12, right = x + w - 12;
     doc.setFont("Montserrat", "bold");
-    doc.setFontSize(6.5);
+    doc.setFontSize(9);
     doc.setTextColor(120);
-    doc.text(pdfLabel('Spacing'), cols[0], tablesY + 15);
-    doc.text(pdfLabel('Bulbs'), cols[1], tablesY + 15, { align: 'center' });
-    doc.text(pdfLabel('Clips'), cols[2], tablesY + 15, { align: 'right' });
+    doc.text(pdfLabel('Spacing'), left, tableY + 17);
+    doc.text(pdfLabel('Bulbs And Clips'), right, tableY + 17, { align: 'right' });
+    doc.setDrawColor(228, 228, 228);
+    doc.setLineWidth(0.3);
+    doc.line(left, tableY + 19.5, right, tableY + 19.5);
     metrics.bySpacing.forEach((row, index) => {
-        const rowY = tablesY + 22 + index * 7;
+        const rowY = tableY + 26 + index * tableRowH;
         const standard = row.inches === PDF_HOLIDAY_STANDARD_SPACING_IN;
         doc.setFont("Montserrat", standard ? "bold" : "normal");
-        doc.setFontSize(7.5);
-        doc.setTextColor(standard ? pColor.r : 60, standard ? pColor.g : 60, standard ? pColor.b : 60);
-        doc.text(pdfLabel('{inches} in', { inches: row.inches }), cols[0], rowY);
-        doc.text(row.bulbs.toLocaleString('en-US'), cols[1], rowY, { align: 'center' });
-        doc.text(row.clips.toLocaleString('en-US'), cols[2], rowY, { align: 'right' });
+        doc.setFontSize(11);
+        doc.setTextColor(standard ? pColor.r : 50, standard ? pColor.g : 50, standard ? pColor.b : 50);
+        doc.text(pdfLabel('{inches} in', { inches: row.inches }), left, rowY);
+        doc.text(row.bulbs.toLocaleString('en-US'), right, rowY, { align: 'right' });
+        if (index < metrics.bySpacing.length - 1) {
+            doc.setDrawColor(240, 240, 240);
+            doc.line(left, rowY + 2.6, right, rowY + 2.6);
+        }
     });
 }
 window.shouldIncludePdfHolidayLights = shouldIncludePdfHolidayLights;
