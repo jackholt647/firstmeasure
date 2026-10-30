@@ -91,9 +91,14 @@ export async function readFirstMeasureMeasurements(manifest:ProjectManifest) {
  }
  return payload;
  }
-/** Retry-safe completion projection. Report remains authoritative; importer retains local overrides. */
+/** A completed report held for its release window is not delivered yet: the project shows it as on order. */
+export function reportHeldForRelease(manifest:ProjectManifest){
+ const hold=obj(obj(manifest).delivery_release_hold||obj(obj(manifest).delivery).release_hold);
+ return String(obj(manifest).delivery_hold_status||hold.status||"")==="holding";
+}
+/** Retry-safe completion projection, run on every report update, so a held report publishes once it is released. */
 export async function publishCompletedFirstMeasureDataset(manifest:ProjectManifest,onlyProjectId?:string){
- if(manifest.status!=="completed")return;
+ if(manifest.status!=="completed"||reportHeldForRelease(manifest))return;
  const orgId=String(obj(manifest.organization_ref).id||"");if(!orgId)return;
  const payload=await readFirstMeasureMeasurements(manifest);
  if(!Object.keys(payload.measurements).length)return;
@@ -124,7 +129,7 @@ export async function importProjectFirstMeasure(ctx:PublicationContext,projectId
  if(!reportId)throw badRequest("measurement_report_unlinked","The project has no linked measurement report.");
  const manifest=await (await import("../../firstmeasure/storage.js")).readManifest(reportId);
  if(String(obj(manifest.organization_ref).id)!==ctx.organizationId)throw forbidden("measurement_report_owner","The report belongs to another organization.");
- if(manifest.status!=="completed")throw badRequest("measurement_report_pending","The report must be completed before importing measurements.");
+ if(manifest.status!=="completed"||reportHeldForRelease(manifest))throw badRequest("measurement_report_pending","The report must be delivered before importing measurements.");
  await publishCompletedFirstMeasureDataset(manifest,projectId);
  const reader=systemPublicationContext({kind:"work",organizationId:ctx.organizationId,projectId,operations:["datasets.value"]});
  const result=await effectiveProjectMeasurements(reader,projectId);
