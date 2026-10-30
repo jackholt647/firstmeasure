@@ -6295,7 +6295,39 @@ function buildPdfHolidayLightsMetrics(model) {
     return { lengths, totalFt, runs, bySpacing };
 }
 
-/** The roof from the south-east on white, each run in its own colour with alternating red and green bulbs. */
+// Triangles of a roof face, by ear clipping in plan (roof faces are never vertical).
+function triangulateHolidayFace(pts) {
+    const n = pts.length;
+    if (n < 3) return [];
+    let area = 0;
+    for (let i = 0; i < n; i++) { const a = pts[i], b = pts[(i + 1) % n]; area += a[0] * b[1] - b[0] * a[1]; }
+    const sign = area >= 0 ? 1 : -1;
+    const cross = (a, b, c) => ((b[0] - a[0]) * (c[1] - a[1]) - (b[1] - a[1]) * (c[0] - a[0])) * sign;
+    const inside = (p, a, b, c) => cross(a, b, p) >= 0 && cross(b, c, p) >= 0 && cross(c, a, p) >= 0;
+    const idx = pts.map((_, i) => i);
+    const tris = [];
+    let guard = n * n;
+    while (idx.length > 3 && guard-- > 0) {
+        let clipped = false;
+        for (let i = 0; i < idx.length; i++) {
+            const ia = idx[(i + idx.length - 1) % idx.length], ib = idx[i], ic = idx[(i + 1) % idx.length];
+            const a = pts[ia], b = pts[ib], c = pts[ic];
+            if (cross(a, b, c) <= 1e-9) continue;
+            if (idx.some((j) => j !== ia && j !== ib && j !== ic && inside(pts[j], a, b, c))) continue;
+            tris.push([ia, ib, ic]);
+            idx.splice(i, 1);
+            clipped = true;
+            break;
+        }
+        if (!clipped) break;
+    }
+    if (idx.length === 3) tris.push([idx[0], idx[1], idx[2]]);
+    return tris;
+}
+
+/** The roof from the south-east on white, each run in its own colour with alternating red and green bulbs.
+ *  Roofs go into a depth buffer, and every piece of a run line, outline and bulb is drawn only where nothing on
+ *  the roof is in front of it, so a roof that sits over another hides the lights beneath it. */
 function createHolidayLightsCanvas(model, metrics, { width = 1600, height = 1000 } = {}) {
     const canvas = document.createElement('canvas');
     canvas.width = width;
@@ -6322,17 +6354,14 @@ function createHolidayLightsCanvas(model, metrics, { width = 1600, height = 1000
     const offY = (height - (maxY - minY) * scale) / 2 - minY * scale;
     const screen = (p) => { const v = view(p); return { x: v.sx * scale + offX, y: v.sy * scale + offY, depth: v.depth }; };
 
-    const runOf = new Map();
-    (metrics?.runs || []).forEach((run) => run.edges.forEach((edge) => runOf.set(edge.line, run)));
-    // Faces and run edges are painted far to near; an edge sorts just in front of the faces that meet at it.
-    const items = [];
+    // Roof faces: rasterised with a depth buffer (the view is orthographic, so depth is linear across a triangle).
+    const depth = new Float32Array(width * height).fill(Infinity);
+    const image = ctx.getImageData(0, 0, width, height);
+    const px = image.data;
     const light = [0.35, -0.55, 0.76];
-    const lineW = Math.max(5, Math.min(12, width / 150));
-    const bulbR = Math.max(3.5, Math.min(7, width / 260));
     roofs.forEach((roof) => {
         roof.faces.forEach((ring) => {
             const pts = ring.map((id) => roof.points[id]);
-            const s = pts.map(screen);
             let nx = 0, ny = 0, nz = 0;
             for (let i = 0; i < pts.length; i++) {
                 const [x1, y1, z1] = pts[i], [x2, y2, z2] = pts[(i + 1) % pts.length];
@@ -6341,54 +6370,104 @@ function createHolidayLightsCanvas(model, metrics, { width = 1600, height = 1000
             const nl = Math.hypot(nx, ny, nz) || 1;
             if (nz < 0) { nx = -nx; ny = -ny; nz = -nz; }
             const shade = Math.max(0, (nx * light[0] + ny * light[1] + nz * light[2]) / nl);
-            items.push({ depth: s.reduce((sum, p) => sum + p.depth, 0) / s.length, draw: () => {
-                ctx.beginPath();
-                s.forEach((p, i) => (i ? ctx.lineTo(p.x, p.y) : ctx.moveTo(p.x, p.y)));
-                ctx.closePath();
-                const l = Math.round(200 + shade * 45);
-                ctx.fillStyle = `rgb(${l},${l + 2},${l + 6})`;
-                ctx.fill();
-                ctx.strokeStyle = '#a3abb8';
-                ctx.lineWidth = 1.5;
-                ctx.stroke();
-            } });
-        });
-        roof.lines.forEach((line) => {
-            const run = runOf.get(line);
-            if (!run) return;
-            const a = roof.points[line.a], b = roof.points[line.b];
-            const sa = screen(a), sb = screen(b);
-            const length = Math.hypot(a[0] - b[0], a[1] - b[1], a[2] - b[2]);
-            items.push({ depth: (sa.depth + sb.depth) / 2 - 0.5, draw: () => {
-                ctx.lineCap = 'round';
-                ctx.strokeStyle = run.color;
-                ctx.lineWidth = lineW;
-                ctx.beginPath(); ctx.moveTo(sa.x, sa.y); ctx.lineTo(sb.x, sb.y); ctx.stroke();
-                // Bulbs a foot apart, thinned where the drawing is too small, so the run's colour shows between them.
-                const px = Math.hypot(sb.x - sa.x, sb.y - sa.y);
-                const count = Math.max(1, Math.min(Math.round(length), Math.floor(px / (bulbR * 5))));
-                for (let i = 0; i < count; i++) {
-                    const t = (i + 0.5) / count;
-                    ctx.fillStyle = i % 2 ? PDF_HOLIDAY_BULB_GREEN : PDF_HOLIDAY_BULB_RED;
-                    ctx.beginPath(); ctx.arc(sa.x + (sb.x - sa.x) * t, sa.y + (sb.y - sa.y) * t, bulbR, 0, Math.PI * 2); ctx.fill();
-                    ctx.strokeStyle = '#ffffff';
-                    ctx.lineWidth = 1;
-                    ctx.stroke();
+            const l = Math.round(200 + shade * 45), rgb = [l, l + 2, Math.min(255, l + 6)];
+            const s = pts.map(screen);
+            for (const [ia, ib, ic] of triangulateHolidayFace(pts)) {
+                const a = s[ia], b = s[ib], c = s[ic];
+                const det = (b.y - c.y) * (a.x - c.x) + (c.x - b.x) * (a.y - c.y);
+                if (Math.abs(det) < 1e-9) continue;
+                const x0 = Math.max(0, Math.floor(Math.min(a.x, b.x, c.x))), x1 = Math.min(width - 1, Math.ceil(Math.max(a.x, b.x, c.x)));
+                const y0 = Math.max(0, Math.floor(Math.min(a.y, b.y, c.y))), y1 = Math.min(height - 1, Math.ceil(Math.max(a.y, b.y, c.y)));
+                for (let yy = y0; yy <= y1; yy++) {
+                    for (let xx = x0; xx <= x1; xx++) {
+                        const cx = xx + 0.5, cy = yy + 0.5;
+                        const w0 = ((b.y - c.y) * (cx - c.x) + (c.x - b.x) * (cy - c.y)) / det;
+                        const w1 = ((c.y - a.y) * (cx - c.x) + (a.x - c.x) * (cy - c.y)) / det;
+                        const w2 = 1 - w0 - w1;
+                        if (w0 < -1e-6 || w1 < -1e-6 || w2 < -1e-6) continue;
+                        const d = w0 * a.depth + w1 * b.depth + w2 * c.depth;
+                        const k = yy * width + xx;
+                        if (d >= depth[k]) continue;
+                        depth[k] = d;
+                        px[k * 4] = rgb[0]; px[k * 4 + 1] = rgb[1]; px[k * 4 + 2] = rgb[2]; px[k * 4 + 3] = 255;
+                    }
                 }
-            } });
+            }
         });
     });
-    items.sort((p, q) => q.depth - p.depth).forEach((item) => item.draw());
+    ctx.putImageData(image, 0, 0);
 
-    // Each run's number at the middle of its longest edge.
+    // A point on an edge shows unless every nearby pixel holds roof clearly in front of it.
+    const tolerance = 1.0;
+    const visible = (p) => {
+        const cx = Math.round(p.x), cy = Math.round(p.y);
+        for (let dy = -2; dy <= 2; dy++) for (let dx = -2; dx <= 2; dx++) {
+            const xx = cx + dx, yy = cy + dy;
+            if (xx < 0 || yy < 0 || xx >= width || yy >= height) return true;
+            if (depth[yy * width + xx] >= p.depth - tolerance) return true;
+        }
+        return false;
+    };
+    const lerp = (a, b, t) => ({ x: a.x + (b.x - a.x) * t, y: a.y + (b.y - a.y) * t, depth: a.depth + (b.depth - a.depth) * t });
+    // Stroke only the visible stretches of a segment, tested every few pixels.
+    const strokeVisible = (sa, sb, style, lineWidth) => {
+        const steps = Math.max(1, Math.ceil(Math.hypot(sb.x - sa.x, sb.y - sa.y) / 3));
+        ctx.strokeStyle = style;
+        ctx.lineWidth = lineWidth;
+        ctx.lineCap = 'round';
+        let start = null;
+        for (let i = 0; i <= steps; i++) {
+            const shown = i < steps && visible(lerp(sa, sb, (i + 0.5) / steps));
+            if (shown && start === null) start = i;
+            if (!shown && start !== null) {
+                const p = lerp(sa, sb, start / steps), q = lerp(sa, sb, i / steps);
+                ctx.beginPath(); ctx.moveTo(p.x, p.y); ctx.lineTo(q.x, q.y); ctx.stroke();
+                start = null;
+            }
+        }
+    };
+
+    roofs.forEach((roof) => roof.lines.forEach((line) => strokeVisible(screen(roof.points[line.a]), screen(roof.points[line.b]), '#a3abb8', 1.5)));
+
+    const runOf = new Map();
+    (metrics?.runs || []).forEach((run) => run.edges.forEach((edge) => runOf.set(edge.line, run)));
+    const lineW = Math.max(5, Math.min(12, width / 150));
+    const bulbR = Math.max(3.5, Math.min(7, width / 260));
+    const badgeSpots = new Map();
+    roofs.forEach((roof) => roof.lines.forEach((line) => {
+        const run = runOf.get(line);
+        if (!run) return;
+        const a = roof.points[line.a], b = roof.points[line.b];
+        const sa = screen(a), sb = screen(b);
+        strokeVisible(sa, sb, run.color, lineW);
+        // Bulbs a foot apart, thinned where the drawing is too small, so the run's colour shows between them.
+        const length = Math.hypot(a[0] - b[0], a[1] - b[1], a[2] - b[2]);
+        const span = Math.hypot(sb.x - sa.x, sb.y - sa.y);
+        const count = Math.max(1, Math.min(Math.round(length), Math.floor(span / (bulbR * 5))));
+        for (let i = 0; i < count; i++) {
+            const p = lerp(sa, sb, (i + 0.5) / count);
+            if (!visible(p)) continue;
+            ctx.fillStyle = i % 2 ? PDF_HOLIDAY_BULB_GREEN : PDF_HOLIDAY_BULB_RED;
+            ctx.beginPath(); ctx.arc(p.x, p.y, bulbR, 0, Math.PI * 2); ctx.fill();
+            ctx.strokeStyle = '#ffffff';
+            ctx.lineWidth = 1;
+            ctx.stroke();
+        }
+        // The run's number goes on its longest visible stretch, nearest the middle.
+        for (let i = 0; i <= 20; i++) {
+            const t = 0.5 + (i % 2 ? 1 : -1) * Math.ceil(i / 2) * 0.025;
+            const p = lerp(sa, sb, t);
+            if (!visible(p)) continue;
+            const score = length * (1 - Math.abs(t - 0.5));
+            if (!badgeSpots.has(run) || badgeSpots.get(run).score < score) badgeSpots.set(run, { p, score });
+            break;
+        }
+    }));
+
     const badgeR = Math.max(14, Math.min(24, width / 66));
-    (metrics?.runs || []).forEach((run) => {
-        const longest = run.edges.reduce((best, edge) => (!best || edge.length > best.length ? edge : best), null);
-        const roof = roofs[longest.roof];
-        const sa = screen(roof.points[longest.line.a]), sb = screen(roof.points[longest.line.b]);
-        const cx = (sa.x + sb.x) / 2, cy = (sa.y + sb.y) / 2;
+    badgeSpots.forEach(({ p }, run) => {
         ctx.fillStyle = run.color;
-        ctx.beginPath(); ctx.arc(cx, cy, badgeR, 0, Math.PI * 2); ctx.fill();
+        ctx.beginPath(); ctx.arc(p.x, p.y, badgeR, 0, Math.PI * 2); ctx.fill();
         ctx.strokeStyle = '#ffffff';
         ctx.lineWidth = 2.5;
         ctx.stroke();
@@ -6396,7 +6475,7 @@ function createHolidayLightsCanvas(model, metrics, { width = 1600, height = 1000
         ctx.font = `700 ${Math.round(badgeR * 1.15)}px Arial`;
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
-        ctx.fillText(String(run.number), cx, cy + 1);
+        ctx.fillText(String(run.number), p.x, p.y + 1);
     });
     return canvas;
 }
