@@ -6184,9 +6184,10 @@ function drawPdfStatRow(doc, label, value, x, y, width, size = 9) {
 
 // =============================================================================
 // Holiday Lights (a free add-on chosen when the report is ordered: manifest.include_holiday_lights)
-// The roof at night with string lights along its eaves and rakes, and what an installer needs. Everything comes
-// from the roof model (the same geometry as model_data.xml); nothing is entered in the editor. The model travels
-// with the PDF snapshot (holidayLightsModel) because the server render has no XML generator.
+// Lights along every eave and rake: why, the separate runs (each in its own colour on the drawing) and bulbs and
+// clips at common spacings. Everything comes from the roof model (the same geometry as model_data.xml); nothing is
+// entered in the editor. The model travels with the PDF snapshot (holidayLightsModel) because the server render has
+// no XML generator.
 // =============================================================================
 const PDF_HOLIDAY_LIGHT_EDGES = [
     { type: 'EAVE', label: 'Eaves', lit: true },
@@ -6194,8 +6195,12 @@ const PDF_HOLIDAY_LIGHT_EDGES = [
     { type: 'RIDGE', label: 'Ridges', lit: false },
     { type: 'HIP', label: 'Hips', lit: false }
 ];
-const PDF_HOLIDAY_BULB_SPACING_IN = 12;
-const PDF_HOLIDAY_BULB_COLOR = '#ffd27a';
+const PDF_HOLIDAY_SPACINGS_IN = [6, 8, 12, 15, 18];
+const PDF_HOLIDAY_STANDARD_SPACING_IN = 12;
+const PDF_HOLIDAY_BULB_RED = '#d93025';
+const PDF_HOLIDAY_BULB_GREEN = '#188038';
+// Run colours avoid the bulbs' red and green.
+const PDF_HOLIDAY_RUN_COLORS = ['#1a73e8', '#f29900', '#9334e6', '#12b5cb', '#e52592', '#795548', '#3949ab', '#5f6368'];
 
 function shouldIncludePdfHolidayLights(state) {
     if (typeof state?.includeHolidayLights === 'boolean') return state.includeHolidayLights;
@@ -6261,7 +6266,6 @@ function resolvePdfHolidayLightsModel(state) {
 function buildPdfHolidayLightsMetrics(model) {
     const lengths = Object.fromEntries(PDF_HOLIDAY_LIGHT_EDGES.map((edge) => [edge.type, 0]));
     const lit = [];
-    let bulbs = 0;
     (model?.roofs || []).forEach((roof, r) => {
         roof.lines.forEach((line) => {
             if (!(line.type in lengths)) return;
@@ -6269,37 +6273,41 @@ function buildPdfHolidayLightsMetrics(model) {
             const length = Math.hypot(a[0] - b[0], a[1] - b[1], a[2] - b[2]);
             if (!(length > 0.01)) return;
             lengths[line.type] += length;
-            if (PDF_HOLIDAY_LIGHT_EDGES.find((edge) => edge.type === line.type)?.lit) {
-                lit.push([`${r}:${line.a}`, `${r}:${line.b}`]);
-                bulbs += Math.max(1, Math.round(length * 12 / PDF_HOLIDAY_BULB_SPACING_IN));
-            }
+            if (PDF_HOLIDAY_LIGHT_EDGES.find((edge) => edge.type === line.type)?.lit) lit.push({ roof: r, line, length, keys: [`${r}:${line.a}`, `${r}:${line.b}`] });
         });
     });
-    // Separate runs: connected stretches of lit edges, each one continuous string.
+    // Runs: connected stretches of lit edges, each one continuous string, longest first.
     const parent = new Map();
     const find = (key) => { while (parent.get(key) !== key) { parent.set(key, parent.get(parent.get(key))); key = parent.get(key); } return key; };
-    lit.forEach(([a, b]) => { if (!parent.has(a)) parent.set(a, a); if (!parent.has(b)) parent.set(b, b); parent.set(find(a), find(b)); });
-    const runs = new Set(lit.map(([a]) => find(a))).size;
-    const totalFt = PDF_HOLIDAY_LIGHT_EDGES.filter((edge) => edge.lit).reduce((sum, edge) => sum + lengths[edge.type], 0);
-    return { lengths, totalFt, bulbs, clips: bulbs, runs };
+    lit.forEach(({ keys: [a, b] }) => { if (!parent.has(a)) parent.set(a, a); if (!parent.has(b)) parent.set(b, b); parent.set(find(a), find(b)); });
+    const byRoot = new Map();
+    lit.forEach((edge) => { const root = find(edge.keys[0]); if (!byRoot.has(root)) byRoot.set(root, []); byRoot.get(root).push(edge); });
+    const runs = [...byRoot.values()]
+        .map((edges) => ({ edges, length: edges.reduce((sum, edge) => sum + edge.length, 0) }))
+        .sort((p, q) => q.length - p.length)
+        .map((run, index) => ({ ...run, number: index + 1, color: PDF_HOLIDAY_RUN_COLORS[index % PDF_HOLIDAY_RUN_COLORS.length] }));
+    const totalFt = runs.reduce((sum, run) => sum + run.length, 0);
+    // One bulb and one clip every `inches` along each edge, at least one per edge.
+    const bySpacing = PDF_HOLIDAY_SPACINGS_IN.map((inches) => {
+        const bulbs = lit.reduce((sum, edge) => sum + Math.max(1, Math.round(edge.length * 12 / inches)), 0);
+        return { inches, bulbs, clips: bulbs };
+    });
+    return { lengths, totalFt, runs, bySpacing };
 }
 
-/** The roof at night from the south-east, drawn on a 2D canvas (no WebGL), lights along the lit edges. */
-function createHolidayLightsCanvas(model, { width = 1600, height = 1000 } = {}) {
+/** The roof from the south-east on white, each run in its own colour with alternating red and green bulbs. */
+function createHolidayLightsCanvas(model, metrics, { width = 1600, height = 1000 } = {}) {
     const canvas = document.createElement('canvas');
     canvas.width = width;
     canvas.height = height;
     const ctx = canvas.getContext('2d');
-    const sky = ctx.createLinearGradient(0, 0, 0, height);
-    sky.addColorStop(0, '#060c1a');
-    sky.addColorStop(1, '#142240');
-    ctx.fillStyle = sky;
+    ctx.fillStyle = '#ffffff';
     ctx.fillRect(0, 0, width, height);
     const roofs = model?.roofs || [];
     const all = roofs.flatMap((roof) => Object.values(roof.points));
     if (!all.length) return canvas;
 
-    const az = -Math.PI * 0.2, el = Math.PI * 0.2;
+    const az = -Math.PI * 0.2, el = Math.PI * 0.22;
     const cosA = Math.cos(az), sinA = Math.sin(az), cosE = Math.cos(el), sinE = Math.sin(el);
     const view = ([x, y, z]) => {
         const rx = x * cosA - y * sinA, ry = x * sinA + y * cosA;
@@ -6308,15 +6316,19 @@ function createHolidayLightsCanvas(model, { width = 1600, height = 1000 } = {}) 
     const projected = all.map(view);
     const minX = Math.min(...projected.map((p) => p.sx)), maxX = Math.max(...projected.map((p) => p.sx));
     const minY = Math.min(...projected.map((p) => p.sy)), maxY = Math.max(...projected.map((p) => p.sy));
-    const pad = 0.1;
+    const pad = 0.08;
     const scale = Math.min(width * (1 - pad * 2) / Math.max(maxX - minX, 1), height * (1 - pad * 2) / Math.max(maxY - minY, 1));
     const offX = (width - (maxX - minX) * scale) / 2 - minX * scale;
     const offY = (height - (maxY - minY) * scale) / 2 - minY * scale;
     const screen = (p) => { const v = view(p); return { x: v.sx * scale + offX, y: v.sy * scale + offY, depth: v.depth }; };
 
-    // Faces and bulbs are painted far to near; a bulb sorts just in front of the faces that meet at its edge.
+    const runOf = new Map();
+    (metrics?.runs || []).forEach((run) => run.edges.forEach((edge) => runOf.set(edge.line, run)));
+    // Faces and run edges are painted far to near; an edge sorts just in front of the faces that meet at it.
     const items = [];
     const light = [0.35, -0.55, 0.76];
+    const lineW = Math.max(5, Math.min(12, width / 150));
+    const bulbR = Math.max(3.5, Math.min(7, width / 260));
     roofs.forEach((roof) => {
         roof.faces.forEach((ring) => {
             const pts = ring.map((id) => roof.points[id]);
@@ -6333,99 +6345,134 @@ function createHolidayLightsCanvas(model, { width = 1600, height = 1000 } = {}) 
                 ctx.beginPath();
                 s.forEach((p, i) => (i ? ctx.lineTo(p.x, p.y) : ctx.moveTo(p.x, p.y)));
                 ctx.closePath();
-                const l = Math.round(48 + shade * 42);
-                ctx.fillStyle = `rgb(${l},${l + 3},${l + 12})`;
+                const l = Math.round(200 + shade * 45);
+                ctx.fillStyle = `rgb(${l},${l + 2},${l + 6})`;
                 ctx.fill();
-                ctx.strokeStyle = 'rgba(160,172,196,0.35)';
-                ctx.lineWidth = 1.2;
+                ctx.strokeStyle = '#a3abb8';
+                ctx.lineWidth = 1.5;
                 ctx.stroke();
             } });
         });
         roof.lines.forEach((line) => {
-            if (!PDF_HOLIDAY_LIGHT_EDGES.find((edge) => edge.type === line.type)?.lit) return;
+            const run = runOf.get(line);
+            if (!run) return;
             const a = roof.points[line.a], b = roof.points[line.b];
-            const length = Math.hypot(a[0] - b[0], a[1] - b[1], a[2] - b[2]);
-            const count = Math.max(1, Math.round(length * 12 / PDF_HOLIDAY_BULB_SPACING_IN));
             const sa = screen(a), sb = screen(b);
+            const length = Math.hypot(a[0] - b[0], a[1] - b[1], a[2] - b[2]);
             items.push({ depth: (sa.depth + sb.depth) / 2 - 0.5, draw: () => {
-                ctx.strokeStyle = 'rgba(40,70,48,0.9)';
-                ctx.lineWidth = 1.5;
+                ctx.lineCap = 'round';
+                ctx.strokeStyle = run.color;
+                ctx.lineWidth = lineW;
                 ctx.beginPath(); ctx.moveTo(sa.x, sa.y); ctx.lineTo(sb.x, sb.y); ctx.stroke();
-                const glowR = Math.max(6, Math.min(22, scale * 1.6));
-                const coreR = Math.max(1.6, Math.min(5, scale * 0.28));
+                // Bulbs a foot apart, thinned where the drawing is too small, so the run's colour shows between them.
+                const px = Math.hypot(sb.x - sa.x, sb.y - sa.y);
+                const count = Math.max(1, Math.min(Math.round(length), Math.floor(px / (bulbR * 5))));
                 for (let i = 0; i < count; i++) {
                     const t = (i + 0.5) / count;
-                    const x = sa.x + (sb.x - sa.x) * t, y = sa.y + (sb.y - sa.y) * t - coreR * 0.6;
-                    ctx.globalCompositeOperation = 'lighter';
-                    const glow = ctx.createRadialGradient(x, y, 0, x, y, glowR);
-                    glow.addColorStop(0, 'rgba(255,210,122,0.55)');
-                    glow.addColorStop(0.35, 'rgba(255,190,90,0.18)');
-                    glow.addColorStop(1, 'rgba(255,180,80,0)');
-                    ctx.fillStyle = glow;
-                    ctx.fillRect(x - glowR, y - glowR, glowR * 2, glowR * 2);
-                    ctx.globalCompositeOperation = 'source-over';
-                    ctx.fillStyle = PDF_HOLIDAY_BULB_COLOR;
-                    ctx.beginPath(); ctx.arc(x, y, coreR, 0, Math.PI * 2); ctx.fill();
+                    ctx.fillStyle = i % 2 ? PDF_HOLIDAY_BULB_GREEN : PDF_HOLIDAY_BULB_RED;
+                    ctx.beginPath(); ctx.arc(sa.x + (sb.x - sa.x) * t, sa.y + (sb.y - sa.y) * t, bulbR, 0, Math.PI * 2); ctx.fill();
+                    ctx.strokeStyle = '#ffffff';
+                    ctx.lineWidth = 1;
+                    ctx.stroke();
                 }
             } });
         });
     });
     items.sort((p, q) => q.depth - p.depth).forEach((item) => item.draw());
+
+    // Each run's number at the middle of its longest edge.
+    const badgeR = Math.max(14, Math.min(24, width / 66));
+    (metrics?.runs || []).forEach((run) => {
+        const longest = run.edges.reduce((best, edge) => (!best || edge.length > best.length ? edge : best), null);
+        const roof = roofs[longest.roof];
+        const sa = screen(roof.points[longest.line.a]), sb = screen(roof.points[longest.line.b]);
+        const cx = (sa.x + sb.x) / 2, cy = (sa.y + sb.y) / 2;
+        ctx.fillStyle = run.color;
+        ctx.beginPath(); ctx.arc(cx, cy, badgeR, 0, Math.PI * 2); ctx.fill();
+        ctx.strokeStyle = '#ffffff';
+        ctx.lineWidth = 2.5;
+        ctx.stroke();
+        ctx.fillStyle = '#ffffff';
+        ctx.font = `700 ${Math.round(badgeR * 1.15)}px Arial`;
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(String(run.number), cx, cy + 1);
+    });
     return canvas;
 }
 
 async function drawHolidayLightsPage(doc, state, model, x, y, w, h, brandingColors) {
     const metrics = buildPdfHolidayLightsMetrics(model);
     const gap = 5;
-    const summaryH = 28;
-    const breakdownH = 34;
-    const viewH = Math.max(90, h - summaryH - breakdownH - (gap * 2));
+    const whyH = 30;
+    const tablesH = Math.max(44, 22 + Math.max(metrics.runs.length, PDF_HOLIDAY_SPACINGS_IN.length) * 7);
+    const viewH = Math.max(90, h - whyH - tablesH - gap * 2);
     const pColor = (brandingColors && brandingColors.primary) ? brandingColors.primary : { r: 200, g: 40, b: 40 };
     const feet = (value) => pdfMeasure(value, 'ft', `${Math.round(value).toLocaleString('en-US')} ft`);
 
-    const cards = [
-        ['Lights Needed', feet(metrics.totalFt)],
-        [pdfLabel('Bulbs at {spacing} in', { spacing: PDF_HOLIDAY_BULB_SPACING_IN }), metrics.bulbs.toLocaleString('en-US')],
-        ['Clips', metrics.clips.toLocaleString('en-US')],
-        ['Separate Runs', String(metrics.runs)]
-    ];
-    const cardW = (w - gap * (cards.length - 1)) / cards.length;
-    cards.forEach(([title, value], index) => {
-        const bx = x + index * (cardW + gap);
-        drawSummaryBox(doc, bx, y, cardW, summaryH, title);
-        doc.setFont("Montserrat", "bold");
-        doc.setFontSize(15);
-        doc.setTextColor(pColor.r, pColor.g, pColor.b);
-        doc.text(String(value), bx + cardW / 2, y + 20, { align: 'center' });
+    // Why: what is lit, and how much.
+    const totalW = w * 0.24;
+    drawSummaryBox(doc, x, y, totalW, whyH, "Lights Needed");
+    doc.setFont("Montserrat", "bold");
+    doc.setFontSize(16);
+    doc.setTextColor(pColor.r, pColor.g, pColor.b);
+    doc.text(feet(metrics.totalFt), x + totalW / 2, y + 20, { align: 'center' });
+    doc.setFont("Montserrat", "normal");
+    doc.setFontSize(6.5);
+    doc.setTextColor(120);
+    doc.text(pdfLabel('{count} separate runs', { count: metrics.runs.length }), x + totalW / 2, y + 26, { align: 'center' });
+
+    const whyX = x + totalW + gap, whyW = w - totalW - gap;
+    drawSummaryBox(doc, whyX, y, whyW, whyH, "Why");
+    doc.setFont("Montserrat", "normal");
+    doc.setFontSize(7.5);
+    doc.setTextColor(70);
+    const why = pdfLabel('Holiday lights follow the roofline: every eave (the bottom edge, where gutters hang) and every rake (the sloped edge of a gable). Eaves {eaves} + rakes {rakes}. Ridges ({ridges}) and hips ({hips}) are not included; add them to outline the peaks.', {
+        eaves: feet(metrics.lengths.EAVE), rakes: feet(metrics.lengths.RAKE),
+        ridges: metrics.lengths.RIDGE > 0 ? feet(metrics.lengths.RIDGE) : '—', hips: metrics.lengths.HIP > 0 ? feet(metrics.lengths.HIP) : '—'
     });
+    doc.text(doc.splitTextToSize(why, whyW - 12), whyX + 6, y + 14);
 
-    const viewY = y + summaryH + gap;
-    drawSummaryBox(doc, x, viewY, w, viewH, "Night View");
-    const canvas = createHolidayLightsCanvas(model, { width: 1600, height: Math.round(1600 * Math.max(0.4, (viewH - 19) / (w - 6))) });
-    placeImageCentered(doc, canvas.toDataURL('image/jpeg', 0.82), canvas.width / canvas.height, x + 3, viewY + 15, viewY + viewH - 4, w - 6);
+    const viewY = y + whyH + gap;
+    drawSummaryBox(doc, x, viewY, w, viewH, "Light Runs");
+    const canvasH = Math.round(1600 * Math.max(0.4, (viewH - 19) / (w - 6)));
+    const canvas = createHolidayLightsCanvas(model, metrics, { width: 1600, height: canvasH });
+    placeImageCentered(doc, canvas.toDataURL('image/jpeg', 0.85), canvas.width / canvas.height, x + 3, viewY + 15, viewY + viewH - 4, w - 6);
 
-    const breakdownY = viewY + viewH + gap;
-    drawSummaryBox(doc, x, breakdownY, w, breakdownH, "Length By Edge");
-    const colW = w / PDF_HOLIDAY_LIGHT_EDGES.length;
-    PDF_HOLIDAY_LIGHT_EDGES.forEach((edge, index) => {
-        const colX = x + colW * index;
-        const centerX = colX + colW / 2;
-        if (index > 0) {
-            doc.setDrawColor(228, 228, 228);
-            doc.setLineWidth(0.25);
-            doc.line(colX, breakdownY + 8, colX, breakdownY + breakdownH - 4);
-        }
+    // Runs, each in its colour, and bulbs and clips at common spacings.
+    const tablesY = viewY + viewH + gap;
+    const runsW = (w - gap) * 0.45, spacingX = x + runsW + gap, spacingW = w - runsW - gap;
+    drawSummaryBox(doc, x, tablesY, runsW, tablesH, "Runs");
+    metrics.runs.forEach((run, index) => {
+        const rowY = tablesY + 16 + index * 7;
+        const rgb = hexToRgbReport(run.color);
+        doc.setFillColor(rgb.r, rgb.g, rgb.b);
+        doc.circle(x + 9, rowY - 1.2, 2.2, 'F');
         doc.setFont("Montserrat", "bold");
         doc.setFontSize(7.5);
         doc.setTextColor(60);
-        doc.text(pdfLabel(edge.label), centerX, breakdownY + 14, { align: 'center' });
-        doc.setFontSize(12);
-        if (edge.lit) doc.setTextColor(pColor.r, pColor.g, pColor.b); else doc.setTextColor(120);
-        doc.text(metrics.lengths[edge.type] > 0 ? feet(metrics.lengths[edge.type]) : '—', centerX, breakdownY + 22.5, { align: 'center' });
+        doc.text(pdfLabel('Run {number}', { number: run.number }), x + 14, rowY);
         doc.setFont("Montserrat", "normal");
-        doc.setFontSize(6.5);
-        doc.setTextColor(130);
-        doc.text(pdfLabel(edge.lit ? 'Included' : 'Optional'), centerX, breakdownY + 28.5, { align: 'center' });
+        doc.text(feet(run.length), x + runsW - 8, rowY, { align: 'right' });
+    });
+
+    drawSummaryBox(doc, spacingX, tablesY, spacingW, tablesH, "Bulbs And Clips By Spacing");
+    const cols = [spacingX + 8, spacingX + spacingW * 0.5, spacingX + spacingW - 8];
+    doc.setFont("Montserrat", "bold");
+    doc.setFontSize(6.5);
+    doc.setTextColor(120);
+    doc.text(pdfLabel('Spacing'), cols[0], tablesY + 15);
+    doc.text(pdfLabel('Bulbs'), cols[1], tablesY + 15, { align: 'center' });
+    doc.text(pdfLabel('Clips'), cols[2], tablesY + 15, { align: 'right' });
+    metrics.bySpacing.forEach((row, index) => {
+        const rowY = tablesY + 22 + index * 7;
+        const standard = row.inches === PDF_HOLIDAY_STANDARD_SPACING_IN;
+        doc.setFont("Montserrat", standard ? "bold" : "normal");
+        doc.setFontSize(7.5);
+        doc.setTextColor(standard ? pColor.r : 60, standard ? pColor.g : 60, standard ? pColor.b : 60);
+        doc.text(pdfLabel('{inches} in', { inches: row.inches }), cols[0], rowY);
+        doc.text(row.bulbs.toLocaleString('en-US'), cols[1], rowY, { align: 'center' });
+        doc.text(row.clips.toLocaleString('en-US'), cols[2], rowY, { align: 'right' });
     });
 }
 window.shouldIncludePdfHolidayLights = shouldIncludePdfHolidayLights;
