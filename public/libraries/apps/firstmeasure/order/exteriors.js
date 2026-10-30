@@ -1051,12 +1051,14 @@
       else if(done||angles===8){state='done';text=many?deskStructureName(i):video||done?(globalThis.PlatformLanguage?.text("firstmeasure","ext_desk_chip_done","Walkaround uploaded") ?? "Walkaround uploaded"):(globalThis.PlatformLanguage?.text("firstmeasure","ext_desk_chip_angles_done","All eight angles") ?? "All eight angles");}
       else if(!video){state='needed';text=many?((v0,v1) => globalThis.PlatformLanguage?.text("firstmeasure","ext_desk_chip_angles_structure",`Structure ${v0} · ${v1} of 8 angles`,{v0,v1}) ?? `Structure ${v0} · ${v1} of 8 angles`)(i+1,angles):((v0) => globalThis.PlatformLanguage?.text("firstmeasure","ext_desk_chip_angles",`${v0} of 8 angles`,{v0}) ?? `${v0} of 8 angles`)(angles);}
       else{state='needed';text=many?((v0) => globalThis.PlatformLanguage?.text("firstmeasure","ext_desk_chip_need_structure",`Structure ${v0} needs a walkaround`,{v0}) ?? `Structure ${v0} needs a walkaround`)(i+1):(globalThis.PlatformLanguage?.text("firstmeasure","ext_desk_chip_need","Needs a video walkaround") ?? "Needs a video walkaround");}
+      // One structure that is done needs no chip: the uploaded walkaround is listed right below.
+      if(state==='done'&&!many)return '';
       const icon=state==='done'?'<i class="fas fa-check" aria-hidden="true"></i>':state==='busy'?'<i class="ext-desk-spin" aria-hidden="true"></i>':state==='failed'?'<i class="fas fa-triangle-exclamation" aria-hidden="true"></i>':'<i class="ext-desk-dot" aria-hidden="true"></i>';
       return `<span class="ext-desk-chip is-${state}${video&&many&&i===target?' is-target':''}" data-desk-drop-structure="${i}">${icon}${esc(text)}</span>`;
     });
     const extras=[...files.keys()].filter(k=>k.includes(':additional')).length;
     if(extras)chips.push(`<span class="ext-desk-chip is-extra" data-desk-drop-extra tabindex="0" data-fm-tooltip="${(globalThis.PlatformLanguage?.htmlText("firstmeasure","m_27b7e868698f63","Add close-ups of anything the video does not show well, like dormers, additions or tight side yards.") ?? "Add close-ups of anything the video does not show well, like dormers, additions or tight side yards.")}"><i class="fas fa-images" aria-hidden="true"></i>${extras===1?(globalThis.PlatformLanguage?.htmlText("firstmeasure","ext_desk_one_closeup","1 close-up") ?? "1 close-up"):((v0) => globalThis.PlatformLanguage?.htmlText("firstmeasure","ext_desk_closeup_count",`${v0} close-ups`,{v0}) ?? `${v0} close-ups`)(extras)}</span>`);
-    return chips.join('');
+    return chips.filter(Boolean).join('');
   }
   // Ordering is a column of its own, styled like the roof report's: what you're ordering, delivery, total and the button.
   function deskBlocker(){const saved=error;error='';try{return orderBlocker();}finally{error=saved;}}
@@ -1255,7 +1257,7 @@
     .ext-desk-chip .ext-desk-spin{width:11px;height:11px}
     .ext-desk .is-drop-target{box-shadow:0 0 0 3px color-mix(in srgb,var(--primary,#d93025) 22%,transparent)!important}
     .ext-desk-spin{display:inline-block;width:14px;height:14px;border:2px solid currentColor;border-right-color:transparent;border-radius:50%;animation:extPhotoUploadSpin .8s linear infinite;vertical-align:-2px}
-    .ext-desk-list{position:relative;flex:1;min-height:0;overflow:auto;display:flex;flex-direction:column;gap:2px;margin:-6px -8px 0;padding:2px 8px 0;scrollbar-width:thin;overscroll-behavior:contain}
+    .ext-desk-list{position:relative;flex:1;min-height:0;overflow:auto;display:flex;flex-direction:column;gap:2px;margin:8px -8px 0;padding:2px 8px 0;scrollbar-width:thin;overscroll-behavior:contain}
     .ext-desk-list{-webkit-mask-image:linear-gradient(to bottom,transparent,#000 var(--fade-top,0px),#000 calc(100% - var(--fade-bottom,0px)),transparent);mask-image:linear-gradient(to bottom,transparent,#000 var(--fade-top,0px),#000 calc(100% - var(--fade-bottom,0px)),transparent)}
     .ext-desk-file{position:relative;flex:none;display:grid;grid-template-columns:56px minmax(0,1fr) auto;align-items:center;gap:12px;padding:6px 6px 6px 6px;border-radius:12px;overflow:hidden;cursor:grab;transition:background .15s}
     .ext-desk-file:hover{background:#f9fafb}
