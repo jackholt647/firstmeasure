@@ -60,7 +60,7 @@ window.PlatformCommerce.onReady(function(){
 
   let cancellationCountdownTimer = null;
   let pendingExpediteSelection = '';
-  let activeMeasurementTab = 'model';
+  let activeMeasurementTab = 'summary';
   let userMeasurementTab = '';
   let userMeasurementTabProject = '';
   let roofViewer = null;
@@ -349,6 +349,17 @@ window.PlatformCommerce.onReady(function(){
     const projectId = activeMeasurementProjectId();
     const cachedAssets = projectId ? primeMeasurementAssetCacheFromKnownUrls(projectId) : null;
     const hasXml = ready && !!cachedAssets?.xmlUrl;
+    // Order: Summary, Model, Holiday Lights, then the PDFs (Standard, Customer) and XML.
+    if (measurementReportSummaryEnabled()) {
+      tabs.push({
+        id: 'summary',
+        get label(){ return (globalThis.PlatformLanguage?.text("measurements","m_9b03ccb29ba168","Summary") ?? "Summary"); },
+        icon: 'fa-clipboard-list',
+        active: activeMeasurementTab === 'summary',
+        disabled: false,
+        pending
+      });
+    }
     if(ready && reportModelViewerEnabled()) tabs.push({id:'model',get label(){ return (globalThis.PlatformLanguage?.text("measurements","report_model_tab","Model") ?? "Model"); },icon:'fa-cube',active:activeMeasurementTab==='model',disabled:false,pending:false});
     if(hasXml && holidayLightsEnabled()) tabs.push({id:'lights',get label(){ return (globalThis.PlatformLanguage?.text("measurements","hl_tab","Holiday Lights") ?? "Holiday Lights"); },icon:'fa-lightbulb',active:activeMeasurementTab==='lights',disabled:false,pending:false});
     const changes = reportFollowupEnabled() ? reportChangeRequests() : [];
@@ -361,16 +372,6 @@ window.PlatformCommerce.onReady(function(){
         active: activeMeasurementTab === 'map',
         disabled: false,
         pending: false
-      });
-    }
-    if (measurementReportSummaryEnabled()) {
-      tabs.push({
-        id: 'summary',
-        get label(){ return (globalThis.PlatformLanguage?.text("measurements","m_9b03ccb29ba168","Summary") ?? "Summary"); },
-        icon: 'fa-clipboard-list',
-        active: activeMeasurementTab === 'summary',
-        disabled: false,
-        pending
       });
     }
     if (reportOrderState?.includeInspection) {
@@ -1464,7 +1465,7 @@ window.PlatformCommerce.onReady(function(){
     }
     return `
       <div class="r-report-frame">
-        <iframe class="r-report-iframe" src="${safeUrl}#view=FitH"></iframe>
+        <iframe class="r-report-iframe" src="${safeUrl}#view=Fit"></iframe>
       </div>
     `;
   }
@@ -3621,7 +3622,7 @@ window.PlatformCommerce.onReady(function(){
   }
 
   // Hydrating a project picks its opening report view. A view the route names or the user picked wins;
-  // otherwise the 3D model opens only where it is offered, then the caller's fallback, then Standard.
+  // otherwise Summary opens where it is offered, then the 3D model where that is, then the caller's fallback, then Standard.
   function selectInitialMeasurementTab(fallback = 'standard', options = {}){
     const available = measurementTabs().filter((entry) => !entry.disabled);
     const offered = (id) => !!id && available.some((entry) => entry.id === id);
@@ -3629,7 +3630,7 @@ window.PlatformCommerce.onReady(function(){
     const projectId = activeMeasurementProjectId() || '';
     const chosen = userMeasurementTab && userMeasurementTabProject === projectId ? userMeasurementTab : '';
     const model = options.model && reportModelViewerEnabled() ? 'model' : '';
-    const next = [routed, chosen, model, fallback, 'standard'].find(offered) || fallback || 'standard';
+    const next = [routed, chosen, 'summary', model, fallback, 'standard'].find(offered) || fallback || 'standard';
     setActiveMeasurementTab(next, { updateRoute:false });
     return activeMeasurementTab;
   }
@@ -4019,7 +4020,7 @@ window.PlatformCommerce.onReady(function(){
     const compactTabs = reportHeaderTabs(context.tabs || [], reportTabs, context.ordered);
     const tabs = compactTabs ? reportTabs.filter(tab => ['model','lights','customer','standard','summary','xml'].includes(tab.id)) : reportTabs;
     if (!tabs.some((tab) => tab.id === activeMeasurementTab)) {
-      activeMeasurementTab = tabs.find((tab) => tab.id === 'standard' && !tab.disabled)?.id || tabs.find((tab) => !tab.disabled)?.id || 'standard';
+      activeMeasurementTab = ['summary', 'model', 'standard'].map((id) => tabs.find((tab) => tab.id === id && !tab.disabled)).find(Boolean)?.id || tabs.find((tab) => !tab.disabled)?.id || 'standard';
     }
     renderReportNavigation();
     root.querySelectorAll('.r-measure-pane').forEach((pane) => {
@@ -4200,7 +4201,7 @@ window.PlatformCommerce.onReady(function(){
     pendingExpediteSelection = '';
     roofViewer?.destroy();roofViewer=null;roofViewerKey='';
     holidayLights?.destroy();holidayLights=null;holidayLightsKey='';
-    activeMeasurementTab = 'model';
+    activeMeasurementTab = 'summary';
     appliedRouteView = '';
     reportRequestModalState = null;
     weatherReportPollAttempt = 0;
