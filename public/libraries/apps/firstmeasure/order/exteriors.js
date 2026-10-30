@@ -1342,10 +1342,11 @@
        fixed), the walkaround animation is square at the same width and the steps spread down beside it; a shorter
        panel keeps the compact strip above. */
     @container ext-desk (min-width:641px) and (min-height:600px){
-      .ext-desk-guide{align-items:stretch;gap:32px}
-      .ext-desk .ext-desk-film .ext-orbit{height:auto;aspect-ratio:1/1}
-      .ext-desk-steps{justify-content:center;gap:14px}
-      .ext-desk .ext-desk-steps .ext-orbit-steps{gap:22px}
+      .ext-desk-guide{grid-template-columns:clamp(240px,42%,340px) minmax(0,1fr);align-items:center;gap:36px;margin:14px 0 10px}
+      .ext-desk .ext-desk-film .ext-orbit{width:100%;height:auto;aspect-ratio:1/1}
+      .ext-desk .ext-desk-film .ext-orbit-world{scale:1.15}
+      .ext-desk-steps{gap:22px}
+      .ext-desk .ext-desk-steps .ext-orbit-steps{gap:24px}
       .ext-desk .ext-desk-steps .ext-orbit-steps li{font-size:14px;line-height:1.55}
     }
     @container ext-desk (max-width:900px){.ext-desk-mid{padding:20px 20px 16px;gap:14px}.ext-desk-side{padding:20px 18px 16px}.ext-desk-guide{gap:16px}.ext-desk .ext-desk-steps .ext-orbit-steps li{font-size:12.5px}.ext-desk-drop-label{font-size:13px}}
