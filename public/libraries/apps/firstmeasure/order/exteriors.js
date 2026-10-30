@@ -1077,7 +1077,7 @@
   function updateDesk(){
     if(!deskNode||!ctx)return;
     const video=captureMode==='video',recordingNow=deskRecording(),list=[...files].sort((a,b)=>(a[1].sequence||0)-(b[1].sequence||0));
-    deskNode.classList.toggle('is-photos',!video);deskNode.classList.toggle('is-recording',recordingNow);deskNode.classList.toggle('has-files',list.length>0);deskNode.setAttribute('aria-busy',String(busy));
+    deskNode.classList.toggle('is-photos',!video);deskNode.classList.toggle('is-recording',recordingNow);deskNode.classList.toggle('has-files',list.length>0);deskNode.classList.toggle('is-ready',ready());deskNode.setAttribute('aria-busy',String(busy));
     deskHTML(deskNode.querySelector('[data-desk-head]'),deskHeadUI());
     deskHTML(deskNode.querySelector('[data-desk-alert]'),error?`<div class="ext-desk-alert" role="alert"><i class="fas fa-circle-exclamation" aria-hidden="true"></i><span>${esc(error)}</span><button type="button" data-desk-dismiss>${(globalThis.PlatformLanguage?.htmlText("firstmeasure","ext_48845bff334a50","Dismiss") ?? "Dismiss")}</button></div>`:'');
     const guide=deskNode.querySelector('[data-desk-guide]');deskHTML(guide,deskGuideUI());guide.classList.toggle('is-angles',!video);
@@ -1205,6 +1205,14 @@
     .ext-desk-mid{min-width:0;min-height:0;display:flex;flex-direction:column;gap:16px;padding:24px 28px 20px;container:ext-mid/inline-size}
     @container ext-mid (max-width:540px){.ext-desk-drop{gap:8px;padding-left:12px}.ext-desk-drop-icon{display:none}.ext-desk .ext-desk-drop .ext-desk-btn{padding:0 11px}.ext-desk .ext-desk-drop [data-desk-record]{width:36px;padding:0;justify-content:center}.ext-desk [data-desk-record] .ext-desk-btn-text{display:none}.ext-desk-drop-label{font-size:12.5px}.ext-desk .ext-desk-mid .ext-desk-guide{grid-template-columns:136px minmax(0,1fr);gap:16px}.ext-desk .ext-desk-mid .ext-desk-film .ext-orbit-world{scale:.82}.ext-desk .ext-desk-mid .ext-desk-link{font-size:12px}.ext-desk .ext-desk-mid .ext-orbit-rec{left:8px;top:8px}.ext-desk .ext-desk-mid .ext-orbit-done{top:auto;right:8px;bottom:8px;white-space:nowrap}}
     .ext-desk-side{min-width:0;min-height:0;display:flex;flex-direction:column;gap:14px;padding:24px 24px 20px;border-left:1px solid #eaecf0;background:#fcfcfd;overflow:auto;scrollbar-width:thin;container:ext-side/inline-size}
+    /* The order tray waits until every structure has its walkaround (or all eight photos): until then the capture
+       column has the full width, then the tray's column opens and the tray slides in at its own width. */
+    .ext-desk{transition:grid-template-columns .45s cubic-bezier(.2,.7,.2,1)}
+    .ext-desk:not(.is-ready){grid-template-columns:minmax(0,1fr) 0px}
+    .ext-desk-side>*{min-width:272px}
+    .ext-desk-side{transition:opacity .3s ease .12s,transform .45s cubic-bezier(.2,.7,.2,1)}
+    .ext-desk:not(.is-ready) .ext-desk-side{opacity:0;transform:translateX(48px);visibility:hidden;overflow:hidden;border-left-color:transparent;transition:opacity .2s ease,transform .3s ease,visibility 0s .3s}
+    @media (prefers-reduced-motion:reduce){.ext-desk,.ext-desk-side{transition:none}}
     @container ext-side (max-width:370px){.ext-desk-side .r-expedite-options{grid-template-columns:minmax(0,1fr)}.ext-desk-side .r-expedite-btn{min-height:52px}.ext-desk-side .r-expedite-copy{flex-direction:row;align-items:center;flex-wrap:wrap;gap:6px}.ext-desk-side .r-expedite-pill{margin:0;align-self:center}.ext-desk-side .r-expedite-status span{display:none}.ext-desk-side .r-expedite-price{font-size:21px}}
     .ext-desk .ext-desk-head{flex:none;display:flex;align-items:flex-start;gap:16px}
     .ext-desk-title{flex:1;min-width:0}
