@@ -1307,6 +1307,9 @@ function buildPagePlan(layers, state) {
     if (shouldIncludeGutters(state)) {
         plan.push({ key: 'gutters' });
     }
+    if (typeof shouldIncludePdfHolidayLights === 'function' && shouldIncludePdfHolidayLights(state)) {
+        plan.push({ key: 'holiday_lights' });
+    }
     if (state.structures && state.structures.length > 1) {
         plan.push({ key: 'structures' });
     }
@@ -1337,6 +1340,7 @@ function getConfigPageNavMeta(item, fallbackIndex = 0) {
     else if (item.key === 'images') { label = "Images";     tooltip = "Map & Crop Settings"; }
     else if (item.key === 'labels') { label = "Labels";     tooltip = "Diagram Editor"; }
     else if (item.key === 'gutters') { label = "Gutters";   tooltip = "Gutter Configuration"; }
+    else if (item.key === 'holiday_lights') { label = "Lights"; tooltip = "Holiday Lights (ordered with the report; nothing to fill in)"; }
     else if (item.key === 'layer')  { label = "L" + item.layer; tooltip = "Layer " + item.layer; }
     else if (item.key === 'structures') { label = "Structures"; tooltip = "Structure Breakdown"; }
     else if (item.key === 'elev')   { label = "Quad View";  tooltip = "3D Elevations / Four Direction Views"; }
@@ -2447,6 +2451,31 @@ function mountGutterDiagramViewer({
     };
 }
 
+// Holiday Lights was ordered with the report: a preview of the PDF page, built from the roof. Nothing to enter.
+function renderHolidayLightsPage(container) {
+    const state = reportConfigState;
+    const model = typeof resolvePdfHolidayLightsModel === 'function' ? resolvePdfHolidayLightsModel(state) : null;
+    container.innerHTML = `
+        <h2 style="color:#d93025; border-bottom:2px solid #d93025; margin:0 0 10px 0;">Holiday Lights</h2>
+        <p style="margin:0 0 12px; font-size:12px; color:#555;">The customer ordered Holiday Lights with this report. This page is built from the roof: lights along every eave and rake, with ridges and hips listed as optional. Nothing to fill in.</p>`;
+    if (!model) {
+        container.insertAdjacentHTML('beforeend', '<div style="padding:16px; border:1px solid #f2c6c2; background:#fff5f5; border-radius:10px; color:#b3261e; font-size:13px; font-weight:700;">The roof model is not ready yet, so the Holiday Lights page will be left out. Finish the roof faces and edges, then open this page again.</div>');
+        return;
+    }
+    const metrics = buildPdfHolidayLightsMetrics(model);
+    const feet = (value) => `${Math.round(value).toLocaleString('en-US')} ft`;
+    const card = (title, value, muted = false) => `<div style="flex:1; min-width:120px; border:1px solid #e3e3e3; border-radius:10px; padding:10px 12px; background:#fff;"><div style="font-size:11px; text-transform:uppercase; color:#888; font-weight:700;">${title}</div><div style="font-size:22px; font-weight:800; color:${muted ? '#666' : '#222'}; margin-top:6px;">${value}</div></div>`;
+    const cards = document.createElement('div');
+    cards.style.cssText = 'display:flex; gap:8px; flex-wrap:wrap; margin-bottom:10px;';
+    cards.innerHTML = card('Lights needed', feet(metrics.totalFt)) + card(`Bulbs at ${PDF_HOLIDAY_BULB_SPACING_IN} in`, metrics.bulbs.toLocaleString('en-US')) + card('Clips', metrics.clips.toLocaleString('en-US')) + card('Separate runs', String(metrics.runs));
+    const canvas = createHolidayLightsCanvas(model, { width: 1600, height: 1000 });
+    canvas.style.cssText = 'width:100%; height:auto; display:block; border-radius:10px;';
+    const edges = document.createElement('div');
+    edges.style.cssText = 'display:flex; gap:8px; flex-wrap:wrap; margin-top:10px;';
+    edges.innerHTML = PDF_HOLIDAY_LIGHT_EDGES.map((edge) => card(`${edge.label} · ${edge.lit ? 'included' : 'optional'}`, metrics.lengths[edge.type] > 0 ? feet(metrics.lengths[edge.type]) : '—', !edge.lit)).join('');
+    container.append(cards, canvas, edges);
+}
+
 async function renderGuttersPage(container) {
     const state = reportConfigState;
     if (!state) return;
@@ -2705,6 +2734,7 @@ async function renderConfigPage() {
         else if (planItem.key === 'images')     await renderImagesPage(pageDiv);
         else if (planItem.key === 'labels')     await renderLabelsPitchPage(pageDiv);
         else if (planItem.key === 'gutters')    await renderGuttersPage(pageDiv);
+        else if (planItem.key === 'holiday_lights') renderHolidayLightsPage(pageDiv);
         else if (planItem.key === 'layer')      await renderLayerPage(pageDiv, planItem.layer);
         else if (planItem.key === 'structures') await renderStructuresPreview(pageDiv, reportConfigState);
         else if (planItem.key === 'elev')       await renderElevationsPage(pageDiv);

@@ -952,6 +952,8 @@ function createStandalonePdfSnapshot(sourceState) {
         manualWastePct: (typeof sourceState.manualWastePct === 'number') ? sourceState.manualWastePct : null,
         manualLayerFacets: cloneJsonSafe(sourceState.manualLayerFacets, {}),
         gutterSettings: cloneJsonSafe(sourceState.gutterSettings, null),
+        // The server render has no XML generator: the Holiday Lights roof model travels with the snapshot.
+        holidayLightsModel: shouldIncludePdfHolidayLights(sourceState) ? cloneJsonSafe(resolvePdfHolidayLightsModel(sourceState), null) : null,
         ventSettings: cloneJsonSafe(sourceState.ventSettings, null),
         structureSettings: cloneJsonSafe(sourceState.structureSettings, null),
         elevationSettings: firstMeasurePdfQuadViewsDisabled()
@@ -2849,6 +2851,16 @@ async function generatePDFFromState(state, mode = 'full', updateStatusCallback, 
             if (updateStatusCallback) updateStatusCallback("Generating Gutter Page...");
             beginReportPage(pdfLabel("Gutters"));
             await drawGutterPage(doc, state, gutterMetrics, marginLeft, 35, availableW, pageHeight - 60, brandingColors);
+        }
+    }
+
+    // Holiday Lights: ordered with the report (free); no setting hides it.
+    if (shouldIncludePdfHolidayLights(state)) {
+        const holidayModel = resolvePdfHolidayLightsModel(state);
+        if (holidayModel) {
+            if (updateStatusCallback) updateStatusCallback("Generating Holiday Lights Page...");
+            beginReportPage(pdfLabel("Holiday Lights"));
+            await drawHolidayLightsPage(doc, state, holidayModel, marginLeft, 35, availableW, pageHeight - 60, brandingColors);
         }
     }
 
@@ -6169,6 +6181,257 @@ function drawPdfStatRow(doc, label, value, x, y, width, size = 9) {
 // ─────────────────────────────────────────────────────────────────────────────
 // Gutter PDF Page
 // ─────────────────────────────────────────────────────────────────────────────
+
+// =============================================================================
+// Holiday Lights (a free add-on chosen when the report is ordered: manifest.include_holiday_lights)
+// The roof at night with string lights along its eaves and rakes, and what an installer needs. Everything comes
+// from the roof model (the same geometry as model_data.xml); nothing is entered in the editor. The model travels
+// with the PDF snapshot (holidayLightsModel) because the server render has no XML generator.
+// =============================================================================
+const PDF_HOLIDAY_LIGHT_EDGES = [
+    { type: 'EAVE', label: 'Eaves', lit: true },
+    { type: 'RAKE', label: 'Rakes', lit: true },
+    { type: 'RIDGE', label: 'Ridges', lit: false },
+    { type: 'HIP', label: 'Hips', lit: false }
+];
+const PDF_HOLIDAY_BULB_SPACING_IN = 12;
+const PDF_HOLIDAY_BULB_COLOR = '#ffd27a';
+
+function shouldIncludePdfHolidayLights(state) {
+    if (typeof state?.includeHolidayLights === 'boolean') return state.includeHolidayLights;
+    const manifest = window.currentProjectManifest || {};
+    return manifest.include_holiday_lights === true || manifest.include_holiday_lights === '1';
+}
+
+function parseHolidayLightsXml(xml) {
+    if (!xml || typeof DOMParser !== 'function') return null;
+    const doc = new DOMParser().parseFromString(xml, 'application/xml');
+    if (doc.querySelector('parsererror')) return null;
+    const roofs = [];
+    const seenLines = new Set();
+    for (const roof of doc.querySelectorAll('ROOF')) {
+        const points = {};
+        for (const p of roof.querySelectorAll('POINT')) {
+            const xyz = String(p.getAttribute('data') || '').split(',').map(Number);
+            if (xyz.length === 3 && xyz.every(Number.isFinite)) points[p.getAttribute('id')] = xyz;
+        }
+        const lineById = {};
+        const lines = [];
+        for (const l of roof.querySelectorAll('LINE')) {
+            const ids = String(l.getAttribute('path') || '').split(',').map((id) => id.trim());
+            if (ids.length !== 2 || !points[ids[0]] || !points[ids[1]]) continue;
+            const line = { id: l.getAttribute('id'), a: ids[0], b: ids[1], type: String(l.getAttribute('type') || '').toUpperCase() };
+            lineById[line.id] = line;
+            // A line shared by two structures is counted once.
+            const key = [points[ids[0]], points[ids[1]]].map((p) => p.map((v) => v.toFixed(2)).join(',')).sort().join('|');
+            if (seenLines.has(key)) continue;
+            seenLines.add(key);
+            lines.push(line);
+        }
+        const faces = [];
+        for (const face of roof.querySelectorAll('FACE')) {
+            if (String(face.getAttribute('type') || 'ROOF').toUpperCase() !== 'ROOF') continue;
+            const edges = String(face.querySelector('POLYGON')?.getAttribute('path') || '').split(',').map((id) => lineById[id.trim()]);
+            if (edges.length < 3 || edges.some((edge) => !edge)) continue;
+            // Walk the boundary; stored line directions need not agree.
+            const pending = edges.slice(1);
+            const ring = [edges[0].a, edges[0].b];
+            while (pending.length) {
+                const end = ring[ring.length - 1];
+                const i = pending.findIndex((edge) => edge.a === end || edge.b === end);
+                if (i < 0) break;
+                const [edge] = pending.splice(i, 1);
+                ring.push(edge.a === end ? edge.b : edge.a);
+            }
+            if (!pending.length && ring[0] === ring[ring.length - 1]) faces.push(ring.slice(0, -1));
+        }
+        const used = new Set([...lines.flatMap((line) => [line.a, line.b]), ...faces.flat()]);
+        roofs.push({ points: Object.fromEntries(Object.entries(points).filter(([id]) => used.has(id))), lines, faces });
+    }
+    return roofs.some((roof) => roof.lines.length) ? { roofs } : null;
+}
+
+// The editor builds it from the current roof each time; a server render (no XML generator) uses the snapshot's copy.
+function resolvePdfHolidayLightsModel(state) {
+    if (typeof generateRoofXML !== 'function') return state?.holidayLightsModel?.roofs?.length ? state.holidayLightsModel : null;
+    try { return parseHolidayLightsXml(generateRoofXML(state)); }
+    catch (error) { console.warn('[Holiday Lights] Roof model unavailable:', error); return null; }
+}
+
+function buildPdfHolidayLightsMetrics(model) {
+    const lengths = Object.fromEntries(PDF_HOLIDAY_LIGHT_EDGES.map((edge) => [edge.type, 0]));
+    const lit = [];
+    let bulbs = 0;
+    (model?.roofs || []).forEach((roof, r) => {
+        roof.lines.forEach((line) => {
+            if (!(line.type in lengths)) return;
+            const a = roof.points[line.a], b = roof.points[line.b];
+            const length = Math.hypot(a[0] - b[0], a[1] - b[1], a[2] - b[2]);
+            if (!(length > 0.01)) return;
+            lengths[line.type] += length;
+            if (PDF_HOLIDAY_LIGHT_EDGES.find((edge) => edge.type === line.type)?.lit) {
+                lit.push([`${r}:${line.a}`, `${r}:${line.b}`]);
+                bulbs += Math.max(1, Math.round(length * 12 / PDF_HOLIDAY_BULB_SPACING_IN));
+            }
+        });
+    });
+    // Separate runs: connected stretches of lit edges, each one continuous string.
+    const parent = new Map();
+    const find = (key) => { while (parent.get(key) !== key) { parent.set(key, parent.get(parent.get(key))); key = parent.get(key); } return key; };
+    lit.forEach(([a, b]) => { if (!parent.has(a)) parent.set(a, a); if (!parent.has(b)) parent.set(b, b); parent.set(find(a), find(b)); });
+    const runs = new Set(lit.map(([a]) => find(a))).size;
+    const totalFt = PDF_HOLIDAY_LIGHT_EDGES.filter((edge) => edge.lit).reduce((sum, edge) => sum + lengths[edge.type], 0);
+    return { lengths, totalFt, bulbs, clips: bulbs, runs };
+}
+
+/** The roof at night from the south-east, drawn on a 2D canvas (no WebGL), lights along the lit edges. */
+function createHolidayLightsCanvas(model, { width = 1600, height = 1000 } = {}) {
+    const canvas = document.createElement('canvas');
+    canvas.width = width;
+    canvas.height = height;
+    const ctx = canvas.getContext('2d');
+    const sky = ctx.createLinearGradient(0, 0, 0, height);
+    sky.addColorStop(0, '#060c1a');
+    sky.addColorStop(1, '#142240');
+    ctx.fillStyle = sky;
+    ctx.fillRect(0, 0, width, height);
+    const roofs = model?.roofs || [];
+    const all = roofs.flatMap((roof) => Object.values(roof.points));
+    if (!all.length) return canvas;
+
+    const az = -Math.PI * 0.2, el = Math.PI * 0.2;
+    const cosA = Math.cos(az), sinA = Math.sin(az), cosE = Math.cos(el), sinE = Math.sin(el);
+    const view = ([x, y, z]) => {
+        const rx = x * cosA - y * sinA, ry = x * sinA + y * cosA;
+        return { sx: rx, sy: -(z * cosE) - ry * sinE, depth: ry * cosE - z * sinE };
+    };
+    const projected = all.map(view);
+    const minX = Math.min(...projected.map((p) => p.sx)), maxX = Math.max(...projected.map((p) => p.sx));
+    const minY = Math.min(...projected.map((p) => p.sy)), maxY = Math.max(...projected.map((p) => p.sy));
+    const pad = 0.1;
+    const scale = Math.min(width * (1 - pad * 2) / Math.max(maxX - minX, 1), height * (1 - pad * 2) / Math.max(maxY - minY, 1));
+    const offX = (width - (maxX - minX) * scale) / 2 - minX * scale;
+    const offY = (height - (maxY - minY) * scale) / 2 - minY * scale;
+    const screen = (p) => { const v = view(p); return { x: v.sx * scale + offX, y: v.sy * scale + offY, depth: v.depth }; };
+
+    // Faces and bulbs are painted far to near; a bulb sorts just in front of the faces that meet at its edge.
+    const items = [];
+    const light = [0.35, -0.55, 0.76];
+    roofs.forEach((roof) => {
+        roof.faces.forEach((ring) => {
+            const pts = ring.map((id) => roof.points[id]);
+            const s = pts.map(screen);
+            let nx = 0, ny = 0, nz = 0;
+            for (let i = 0; i < pts.length; i++) {
+                const [x1, y1, z1] = pts[i], [x2, y2, z2] = pts[(i + 1) % pts.length];
+                nx += (y1 - y2) * (z1 + z2); ny += (z1 - z2) * (x1 + x2); nz += (x1 - x2) * (y1 + y2);
+            }
+            const nl = Math.hypot(nx, ny, nz) || 1;
+            if (nz < 0) { nx = -nx; ny = -ny; nz = -nz; }
+            const shade = Math.max(0, (nx * light[0] + ny * light[1] + nz * light[2]) / nl);
+            items.push({ depth: s.reduce((sum, p) => sum + p.depth, 0) / s.length, draw: () => {
+                ctx.beginPath();
+                s.forEach((p, i) => (i ? ctx.lineTo(p.x, p.y) : ctx.moveTo(p.x, p.y)));
+                ctx.closePath();
+                const l = Math.round(48 + shade * 42);
+                ctx.fillStyle = `rgb(${l},${l + 3},${l + 12})`;
+                ctx.fill();
+                ctx.strokeStyle = 'rgba(160,172,196,0.35)';
+                ctx.lineWidth = 1.2;
+                ctx.stroke();
+            } });
+        });
+        roof.lines.forEach((line) => {
+            if (!PDF_HOLIDAY_LIGHT_EDGES.find((edge) => edge.type === line.type)?.lit) return;
+            const a = roof.points[line.a], b = roof.points[line.b];
+            const length = Math.hypot(a[0] - b[0], a[1] - b[1], a[2] - b[2]);
+            const count = Math.max(1, Math.round(length * 12 / PDF_HOLIDAY_BULB_SPACING_IN));
+            const sa = screen(a), sb = screen(b);
+            items.push({ depth: (sa.depth + sb.depth) / 2 - 0.5, draw: () => {
+                ctx.strokeStyle = 'rgba(40,70,48,0.9)';
+                ctx.lineWidth = 1.5;
+                ctx.beginPath(); ctx.moveTo(sa.x, sa.y); ctx.lineTo(sb.x, sb.y); ctx.stroke();
+                const glowR = Math.max(6, Math.min(22, scale * 1.6));
+                const coreR = Math.max(1.6, Math.min(5, scale * 0.28));
+                for (let i = 0; i < count; i++) {
+                    const t = (i + 0.5) / count;
+                    const x = sa.x + (sb.x - sa.x) * t, y = sa.y + (sb.y - sa.y) * t - coreR * 0.6;
+                    ctx.globalCompositeOperation = 'lighter';
+                    const glow = ctx.createRadialGradient(x, y, 0, x, y, glowR);
+                    glow.addColorStop(0, 'rgba(255,210,122,0.55)');
+                    glow.addColorStop(0.35, 'rgba(255,190,90,0.18)');
+                    glow.addColorStop(1, 'rgba(255,180,80,0)');
+                    ctx.fillStyle = glow;
+                    ctx.fillRect(x - glowR, y - glowR, glowR * 2, glowR * 2);
+                    ctx.globalCompositeOperation = 'source-over';
+                    ctx.fillStyle = PDF_HOLIDAY_BULB_COLOR;
+                    ctx.beginPath(); ctx.arc(x, y, coreR, 0, Math.PI * 2); ctx.fill();
+                }
+            } });
+        });
+    });
+    items.sort((p, q) => q.depth - p.depth).forEach((item) => item.draw());
+    return canvas;
+}
+
+async function drawHolidayLightsPage(doc, state, model, x, y, w, h, brandingColors) {
+    const metrics = buildPdfHolidayLightsMetrics(model);
+    const gap = 5;
+    const summaryH = 28;
+    const breakdownH = 34;
+    const viewH = Math.max(90, h - summaryH - breakdownH - (gap * 2));
+    const pColor = (brandingColors && brandingColors.primary) ? brandingColors.primary : { r: 200, g: 40, b: 40 };
+    const feet = (value) => pdfMeasure(value, 'ft', `${Math.round(value).toLocaleString('en-US')} ft`);
+
+    const cards = [
+        ['Lights Needed', feet(metrics.totalFt)],
+        [pdfLabel('Bulbs at {spacing} in', { spacing: PDF_HOLIDAY_BULB_SPACING_IN }), metrics.bulbs.toLocaleString('en-US')],
+        ['Clips', metrics.clips.toLocaleString('en-US')],
+        ['Separate Runs', String(metrics.runs)]
+    ];
+    const cardW = (w - gap * (cards.length - 1)) / cards.length;
+    cards.forEach(([title, value], index) => {
+        const bx = x + index * (cardW + gap);
+        drawSummaryBox(doc, bx, y, cardW, summaryH, title);
+        doc.setFont("Montserrat", "bold");
+        doc.setFontSize(15);
+        doc.setTextColor(pColor.r, pColor.g, pColor.b);
+        doc.text(String(value), bx + cardW / 2, y + 20, { align: 'center' });
+    });
+
+    const viewY = y + summaryH + gap;
+    drawSummaryBox(doc, x, viewY, w, viewH, "Night View");
+    const canvas = createHolidayLightsCanvas(model, { width: 1600, height: Math.round(1600 * Math.max(0.4, (viewH - 19) / (w - 6))) });
+    placeImageCentered(doc, canvas.toDataURL('image/jpeg', 0.82), canvas.width / canvas.height, x + 3, viewY + 15, viewY + viewH - 4, w - 6);
+
+    const breakdownY = viewY + viewH + gap;
+    drawSummaryBox(doc, x, breakdownY, w, breakdownH, "Length By Edge");
+    const colW = w / PDF_HOLIDAY_LIGHT_EDGES.length;
+    PDF_HOLIDAY_LIGHT_EDGES.forEach((edge, index) => {
+        const colX = x + colW * index;
+        const centerX = colX + colW / 2;
+        if (index > 0) {
+            doc.setDrawColor(228, 228, 228);
+            doc.setLineWidth(0.25);
+            doc.line(colX, breakdownY + 8, colX, breakdownY + breakdownH - 4);
+        }
+        doc.setFont("Montserrat", "bold");
+        doc.setFontSize(7.5);
+        doc.setTextColor(60);
+        doc.text(pdfLabel(edge.label), centerX, breakdownY + 14, { align: 'center' });
+        doc.setFontSize(12);
+        if (edge.lit) doc.setTextColor(pColor.r, pColor.g, pColor.b); else doc.setTextColor(120);
+        doc.text(metrics.lengths[edge.type] > 0 ? feet(metrics.lengths[edge.type]) : '—', centerX, breakdownY + 22.5, { align: 'center' });
+        doc.setFont("Montserrat", "normal");
+        doc.setFontSize(6.5);
+        doc.setTextColor(130);
+        doc.text(pdfLabel(edge.lit ? 'Included' : 'Optional'), centerX, breakdownY + 28.5, { align: 'center' });
+    });
+}
+window.shouldIncludePdfHolidayLights = shouldIncludePdfHolidayLights;
+window.resolvePdfHolidayLightsModel = resolvePdfHolidayLightsModel;
+window.buildPdfHolidayLightsMetrics = buildPdfHolidayLightsMetrics;
+window.createHolidayLightsCanvas = createHolidayLightsCanvas;
 
 async function drawGutterPage(doc, state, metrics, x, y, w, h, brandingColors) {
     const gap = 5;
