@@ -363,7 +363,7 @@
       kind: 'project_modal_app',
       surfaces: ['project_modal'],
       requiresContext: ['project'],
-      bundles: [...widgetBundles, versionedBundle('measurements/roof-viewer.js', '20261029-pitch-degrees-v1'), versionedBundle('measurements/holiday-lights.js', '20261030-holiday-lights-spacing'), versionedBundle('measurements/project.js', '20261030-holiday-lights-order')]
+      bundles: [...widgetBundles, versionedBundle('measurements/roof-viewer.js', '20261029-pitch-degrees-v1'), versionedBundle('measurements/holiday-lights.js', '20261030-holiday-lights-spacing'), versionedBundle('measurements/project.js', '20261030-report-tab-order')]
     },
     {
       id: 'project.checklists',
