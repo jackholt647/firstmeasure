@@ -1,5 +1,7 @@
 # FirstMeasure: local development and production deployment
 
+October 30 production hotfix `e2a69846`: [FM-312 a roof edit can no longer leave Full Exterior wall mode black and the project unloadable ("The face does not define a valid planar region")](deploy/digitalocean/production-hotfix-20261030-e2a69846.md) on all roles, on top of `a8b97899`; editor only, no data changed; rollback is `a8b97899`.
+
 October 29 production hotfix `a8b97899`: [FM-310 doors and garage doors can be glass in the Full Exterior editor, off until someone turns it on](deploy/digitalocean/production-hotfix-20261029-a8b97899.md) on all roles, on top of `f4e8cb35`; editor only, no data changed; rollback is `f4e8cb35`.
 
 October 29 production hotfix `f4e8cb35`: [FM-305 / 1M8-256 summary card labels shrink, then wrap between words, and never run into their values; with FM-304 / 1M8-255 roof pitch in degrees for roofers outside the US](deploy/digitalocean/production-hotfix-20261029-f4e8cb35.md) on all roles; no data changed; rollback is `bbf23641`.
