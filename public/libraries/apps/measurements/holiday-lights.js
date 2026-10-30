@@ -1,24 +1,23 @@
-/* Holiday Lights: the measured roof at night with string lights along the edges an installer lights.
-   Read-only and free. Everything comes from the report's model_data.xml (parsed by FirstMeasureRoofViewer):
-   nobody enters anything in the editor. Which edges are lit, bulb spacing and colour are viewer choices with
-   industry defaults (eaves and rakes, 12 in C9 spacing, warm white); nothing is saved. */
+/* Holiday Lights: the measured roof with string lights along the edges an installer lights, matching the report's
+   Holiday Lights page (measure/internal/editor_scripts/pdf.js drawHolidayLightsPage). Read-only and free. Everything
+   comes from the report's model_data.xml (parsed by FirstMeasureRoofViewer): nobody enters anything in the editor.
+   Eaves and rakes are lit; ridges and hips can be added. Each separate run has its own colour and number, bulbs
+   alternate red and green, and bulbs and clips are counted at common spacings. Nothing is saved. */
 (function(){
   const t = (key, fallback, values) => globalThis.PlatformLanguage?.text('measurements', key, fallback, values) ?? fallback;
   // Edges an installer may light, in panel order. Eaves and rakes are the roofline; ridges and hips outline the peaks.
   const EDGES = [
-    { type: 'EAVE', key: 'hl_edge_eaves', label: 'Eaves', hint: 'hl_edge_eaves_hint', hintText: 'Gutter line along the bottom of the roof', on: true },
-    { type: 'RAKE', key: 'hl_edge_rakes', label: 'Rakes', hint: 'hl_edge_rakes_hint', hintText: 'Sloped gable edges', on: true },
-    { type: 'RIDGE', key: 'hl_edge_ridges', label: 'Ridges', hint: 'hl_edge_ridges_hint', hintText: 'Peak lines along the top', on: false },
-    { type: 'HIP', key: 'hl_edge_hips', label: 'Hips', hint: 'hl_edge_hips_hint', hintText: 'Sloped outside corners of hip roofs', on: false }
+    { type: 'EAVE', key: 'hl_edge_eaves', label: 'Eaves', hint: 'hl_edge_eaves_where', hintText: 'Bottom edge, where gutters hang', on: true },
+    { type: 'RAKE', key: 'hl_edge_rakes', label: 'Rakes', hint: 'hl_edge_rakes_where', hintText: 'Sloped edge of a gable', on: true },
+    { type: 'RIDGE', key: 'hl_edge_ridges', label: 'Ridges', hint: 'hl_edge_ridges_optional', hintText: 'Optional: outlines the peaks', on: false },
+    { type: 'HIP', key: 'hl_edge_hips', label: 'Hips', hint: 'hl_edge_hips_optional', hintText: 'Optional: sloped corners of hip roofs', on: false }
   ];
-  const SPACINGS = [6, 8, 12, 15];
-  const COLORS = [
-    { id: 'warm', key: 'hl_color_warm', label: 'Warm white', bulbs: ['#ffd27a'] },
-    { id: 'cool', key: 'hl_color_cool', label: 'Cool white', bulbs: ['#e6f1ff'] },
-    { id: 'multi', key: 'hl_color_multi', label: 'Multicolor', bulbs: ['#ff3b30', '#34c759', '#0a84ff', '#ffcc00', '#ff9500'] },
-    { id: 'redgreen', key: 'hl_color_redgreen', label: 'Red and green', bulbs: ['#ff3b30', '#30d158'] }
-  ];
-  const BULB_LIFT_FT = 0.25;
+  // Same spacings, bulb colours and run colours as the report page.
+  const SPACINGS = [6, 8, 12, 15, 18];
+  const STANDARD_SPACING = 12;
+  const BULB_RED = '#d93025', BULB_GREEN = '#188038';
+  const RUN_COLORS = ['#1a73e8', '#f29900', '#9334e6', '#12b5cb', '#e52592', '#795548', '#3949ab', '#5f6368'];
+  const LIFT_FT = 0.2;
 
   let libraries;
   function script(src){
@@ -39,127 +38,123 @@
   }
 
   function injectStyle(){
-    if (document.getElementById('fm-holiday-lights-style')) return;
+    if (document.getElementById('fm-holiday-lights-style-v2')) return;
+    document.getElementById('fm-holiday-lights-style')?.remove();
     const el = document.createElement('style');
-    el.id = 'fm-holiday-lights-style';
+    el.id = 'fm-holiday-lights-style-v2';
     el.textContent = `
       .fm-hl-host{height:100%;container-type:inline-size}
-      .fm-hl{height:100%;min-height:420px;display:grid;grid-template-columns:minmax(0,1fr) 300px;gap:12px;padding:12px;box-sizing:border-box;background:#f5f6f8}
+      .fm-hl{height:100%;min-height:420px;display:grid;grid-template-columns:minmax(0,1fr) 320px;gap:12px;padding:12px;box-sizing:border-box;background:#f5f6f8}
       .fm-hl *{box-sizing:border-box}.fm-hl [hidden]{display:none!important}
-      .fm-hl-stage{position:relative;min-width:0;min-height:320px;border-radius:12px;overflow:hidden;background:#0b1426;border:1px solid #1d2a44}
-      .fm-hl.is-day .fm-hl-stage{background:#eef1f5;border-color:#e4e7ec}
+      .fm-hl-stage{position:relative;min-width:0;min-height:320px;border-radius:12px;overflow:hidden;background:#fff;border:1px solid #e4e7ec}
       .fm-hl-canvas{position:absolute;inset:0}.fm-hl-canvas canvas{width:100%;height:100%;display:block;touch-action:none}
       .fm-hl-tools{position:absolute;left:12px;top:12px;display:flex;gap:6px;z-index:2}
-      .fm-hl-tools button{font:inherit;font-size:12px;height:32px;padding:0 12px;border-radius:8px;border:1px solid rgba(255,255,255,.22);background:rgba(255,255,255,.1);color:#fff;cursor:pointer;display:inline-flex;align-items:center;gap:6px}
-      .fm-hl.is-day .fm-hl-tools button{background:#fff;border-color:#cbd5e1;color:#344054}
-      .fm-hl-tools button:hover{background:rgba(255,255,255,.18)}.fm-hl.is-day .fm-hl-tools button:hover{background:#f2f4f7}
-      .fm-hl-hint{position:absolute;left:12px;bottom:10px;font-size:11px;color:rgba(255,255,255,.62);pointer-events:none}
-      .fm-hl.is-day .fm-hl-hint{color:#667085}
-      .fm-hl-message{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;padding:24px;text-align:center;font-size:13px;color:rgba(255,255,255,.8)}
-      .fm-hl.is-day .fm-hl-message{color:#475467}
+      .fm-hl-tools button{font:inherit;font-size:12px;height:32px;padding:0 12px;border-radius:8px;border:1px solid #cbd5e1;background:#fff;color:#344054;cursor:pointer;display:inline-flex;align-items:center;gap:6px}
+      .fm-hl-tools button:hover{background:#f2f4f7}
+      .fm-hl-legend{position:absolute;right:12px;top:12px;display:flex;gap:6px;align-items:center;font-size:11px;color:#475467;background:rgba(255,255,255,.92);border:1px solid #e4e7ec;border-radius:8px;padding:6px 10px;z-index:2}
+      .fm-hl-legend i{width:8px;height:8px;border-radius:50%;display:inline-block}
+      .fm-hl-hint{position:absolute;left:12px;bottom:10px;font-size:11px;color:#667085;pointer-events:none}
+      .fm-hl-message{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;padding:24px;text-align:center;font-size:13px;color:#475467}
       .fm-hl-panel{min-width:0;background:#fff;border:1px solid #e4e7ec;border-radius:12px;padding:16px;overflow:auto;display:flex;flex-direction:column;gap:16px;color:#101828}
       .fm-hl-panel h3{margin:0;font-size:15px;font-weight:650;display:flex;align-items:center;gap:8px}
-      .fm-hl-panel h3 i{color:#d4a017}
-      .fm-hl-total{display:flex;flex-direction:column;gap:2px;padding:14px;border-radius:10px;background:#fff8e6;border:1px solid #f5e1a4}
+      .fm-hl-panel h3 i{color:#d93025}
+      .fm-hl-total{display:flex;flex-direction:column;gap:2px;padding:14px;border-radius:10px;background:#f8fafc;border:1px solid #e4e7ec}
       .fm-hl-total strong{font-size:28px;line-height:1.1;font-weight:700;font-variant-numeric:tabular-nums}
-      .fm-hl-total span{font-size:12px;color:#7a5b00}
+      .fm-hl-total span{font-size:12px;color:#475467}
+      .fm-hl-why{margin:0;font-size:12px;line-height:1.5;color:#475467}
       .fm-hl-section{display:flex;flex-direction:column;gap:6px}
       .fm-hl-section h4{margin:0 0 2px;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.04em;color:#667085}
       .fm-hl-edge{display:grid;grid-template-columns:auto 1fr auto;align-items:center;gap:10px;padding:8px 10px;border:1px solid #e4e7ec;border-radius:8px;cursor:pointer;font-size:13px}
-      .fm-hl-edge:has(input:checked){border-color:#e3c35a;background:#fffbf0}
-      .fm-hl-edge input{margin:0;width:16px;height:16px;accent-color:#b7860b}
+      .fm-hl-edge:has(input:checked){border-color:#98a2b3;background:#f9fafb}
+      .fm-hl-edge input{margin:0;width:16px;height:16px;accent-color:#344054}
       .fm-hl-edge small{display:block;font-size:11px;color:#667085;margin-top:1px}
       .fm-hl-edge b{font-weight:600;font-variant-numeric:tabular-nums;white-space:nowrap}
       .fm-hl-edge.is-empty{opacity:.55;cursor:default}
-      .fm-hl-chips{display:flex;flex-wrap:wrap;gap:6px}
-      .fm-hl-chips button{font:inherit;font-size:12px;height:30px;padding:0 10px;border-radius:999px;border:1px solid #d0d5dd;background:#fff;color:#344054;cursor:pointer;display:inline-flex;align-items:center;gap:6px}
-      .fm-hl-chips button[aria-pressed=true]{background:#101828;border-color:#101828;color:#fff}
-      .fm-hl-swatch{display:inline-flex;gap:2px}.fm-hl-swatch i{width:8px;height:8px;border-radius:50%;display:block;box-shadow:0 0 0 1px rgba(0,0,0,.12)}
-      .fm-hl-counts{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px}
-      .fm-hl-counts div{border:1px solid #e4e7ec;border-radius:8px;padding:8px 10px;display:flex;flex-direction:column;gap:2px}
-      .fm-hl-counts strong{font-size:16px;font-weight:650;font-variant-numeric:tabular-nums}
-      .fm-hl-counts span{font-size:11px;color:#667085}
+      .fm-hl-run{display:grid;grid-template-columns:auto 1fr auto;align-items:center;gap:10px;font-size:13px;padding:3px 2px}
+      .fm-hl-run i{width:20px;height:20px;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;color:#fff;font-style:normal;font-size:11px;font-weight:700}
+      .fm-hl-run b{font-weight:600;font-variant-numeric:tabular-nums}
+      .fm-hl-empty{font-size:12px;color:#667085}
+      .fm-hl-table{width:100%;border-collapse:collapse;font-size:13px;font-variant-numeric:tabular-nums}
+      .fm-hl-table th{font-size:11px;font-weight:600;color:#667085;text-align:right;padding:4px 6px;border-bottom:1px solid #e4e7ec}
+      .fm-hl-table th:first-child,.fm-hl-table td:first-child{text-align:left}
+      .fm-hl-table td{text-align:right;padding:6px;border-bottom:1px solid #f2f4f7}
+      .fm-hl-table tr.is-standard td{font-weight:700;color:#b42318}
       .fm-hl-note{margin:0;font-size:11px;line-height:1.45;color:#667085}
       @container (max-width:760px){.fm-hl{grid-template-columns:1fr;grid-template-rows:minmax(320px,56vh) auto;height:auto}.fm-hl-panel{overflow:visible}}
     `;
     document.head.append(el);
   }
 
-  const feet = (value) => `${Math.round(value).toLocaleString()} ft`;
-  const count = (value) => Math.round(value).toLocaleString();
+  const feet = (value) => t('hl_feet', `${Math.round(value).toLocaleString()} ft`, { value: Math.round(value) });
+  const bulbsOn = (length, inches) => Math.max(1, Math.round(length * 12 / inches));
 
   function mount(root, { xmlUrl } = {}){
     injectStyle();
-    let disposed = false, renderer, scene, camera, controls, observer, hemi, sun, roofMaterial, bulbGroup;
-    let night = true, spacingIn = 12, colorId = 'warm';
+    let disposed = false, renderer, scene, camera, controls, observer, runGroup, scale = 1, point = null, discMap = null;
     const enabled = Object.fromEntries(EDGES.map((edge) => [edge.type, edge.on]));
     const controller = new AbortController();
     const owned = [];
     const own = (object) => { owned.push(object); return object; };
-    // Edges by type in feet: [{a:[x,y,z], b:[x,y,z], length, ids:[pointKey, pointKey]}]
+    // Edges by type, in feet: [{a:[x,y,z], b:[x,y,z], length, keys:[pointKey, pointKey]}]
     const edges = Object.fromEntries(EDGES.map((edge) => [edge.type, []]));
-    let point = null;
 
     root.innerHTML = `<div class="fm-hl-host">
       <div class="fm-hl">
         <div class="fm-hl-stage">
           <div class="fm-hl-canvas"></div>
-          <div class="fm-hl-tools">
-            <button type="button" data-hl-night aria-pressed="true"></button>
-            <button type="button" data-hl-reset></button>
-          </div>
+          <div class="fm-hl-tools"><button type="button" data-hl-reset></button></div>
+          <div class="fm-hl-legend"><i style="background:${BULB_RED}"></i><i style="background:${BULB_GREEN}"></i><span data-hl-legend></span></div>
           <div class="fm-hl-hint"></div>
           <div class="fm-hl-message" role="status"></div>
         </div>
-        <aside class="fm-hl-panel" aria-label="${t('hl_panel_label', 'Holiday lights')}">
+        <aside class="fm-hl-panel">
           <h3><i class="fa-solid fa-lightbulb" aria-hidden="true"></i><span></span></h3>
           <div class="fm-hl-total"><strong data-hl-total>—</strong><span data-hl-total-label></span></div>
+          <p class="fm-hl-why"></p>
           <div class="fm-hl-section" data-hl-edges><h4></h4></div>
-          <div class="fm-hl-section"><h4 data-hl-counts-title></h4><div class="fm-hl-counts" data-hl-counts></div></div>
-          <div class="fm-hl-section"><h4 data-hl-spacing-title></h4><div class="fm-hl-chips" data-hl-spacing></div></div>
-          <div class="fm-hl-section"><h4 data-hl-color-title></h4><div class="fm-hl-chips" data-hl-colors></div></div>
+          <div class="fm-hl-section"><h4 data-hl-runs-title></h4><div data-hl-runs></div></div>
+          <div class="fm-hl-section"><h4 data-hl-spacing-title></h4><table class="fm-hl-table"><thead><tr><th></th><th></th><th></th></tr></thead><tbody data-hl-spacing></tbody></table></div>
           <p class="fm-hl-note"></p>
         </aside>
       </div></div>`;
-    const shell = root.querySelector('.fm-hl');
     const canvasHost = root.querySelector('.fm-hl-canvas');
     const message = root.querySelector('.fm-hl-message');
-    const nightButton = root.querySelector('[data-hl-night]');
     const resetButton = root.querySelector('[data-hl-reset]');
+    root.querySelector('.fm-hl-panel').setAttribute('aria-label', t('hl_panel_label', 'Holiday lights'));
     root.querySelector('.fm-hl-panel h3 span').textContent = t('hl_title', 'Holiday Lights');
-    root.querySelector('[data-hl-total-label]').textContent = t('hl_total_label', 'of lights along the lit edges');
+    root.querySelector('[data-hl-legend]').textContent = t('hl_legend_runs', 'Bulbs · each coloured line is one run');
+    root.querySelector('.fm-hl-why').textContent = t('hl_why', 'Holiday lights follow the roofline: every eave (the bottom edge, where gutters hang) and every rake (the sloped edge of a gable). Add ridges or hips to outline the peaks.');
     root.querySelector('[data-hl-edges] h4').textContent = t('hl_edges_title', 'Edges to light');
-    root.querySelector('[data-hl-counts-title]').textContent = t('hl_counts_title', 'Estimate');
-    root.querySelector('[data-hl-spacing-title]').textContent = t('hl_spacing_title', 'Bulb spacing');
-    root.querySelector('[data-hl-color-title]').textContent = t('hl_color_title', 'Light color');
-    root.querySelector('.fm-hl-note').textContent = t('hl_note', 'Lengths are measured along each roof edge from the report. Add cord to reach power; clips assume one per bulb.');
+    root.querySelector('[data-hl-runs-title]').textContent = t('hl_runs_title', 'Separate runs');
+    root.querySelector('[data-hl-spacing-title]').textContent = t('hl_spacing_table_title', 'Bulbs and clips by spacing');
+    const heads = root.querySelectorAll('.fm-hl-table th');
+    heads[0].textContent = t('hl_col_spacing', 'Spacing');
+    heads[1].textContent = t('hl_col_bulbs', 'Bulbs');
+    heads[2].textContent = t('hl_col_clips', 'Clips');
+    root.querySelector('.fm-hl-note').textContent = t('hl_note_runs', 'Lengths are measured along each roof edge from the report. A run is one unbroken string, and each needs its own power. Clips: one per bulb.');
     const touch = matchMedia?.('(hover: none)').matches;
     root.querySelector('.fm-hl-hint').textContent = touch ? t('hl_hint_touch', 'Drag to orbit · Pinch to zoom') : t('hl_hint', 'Drag to orbit · Scroll to zoom · Right-drag to pan');
     resetButton.innerHTML = `<i class="fa-solid fa-arrows-rotate" aria-hidden="true"></i>${t('hl_reset', 'Reset view')}`;
-    function renderNightButton(){
-      nightButton.innerHTML = night
-        ? `<i class="fa-solid fa-sun" aria-hidden="true"></i>${t('hl_day', 'Day view')}`
-        : `<i class="fa-solid fa-moon" aria-hidden="true"></i>${t('hl_night', 'Night view')}`;
-      nightButton.setAttribute('aria-pressed', String(night));
-      shell.classList.toggle('is-day', !night);
-    }
-    renderNightButton();
     message.textContent = t('hl_loading', 'Loading the roof…');
 
     function lengthOf(type){ return edges[type].reduce((sum, edge) => sum + edge.length, 0); }
     function litEdges(){ return EDGES.filter((edge) => enabled[edge.type]).flatMap((edge) => edges[edge.type]); }
-    // Connected stretches of lit edges: each is one continuous string an installer runs.
-    function runCount(list){
+    // Runs: connected stretches of lit edges, each one continuous string, longest first, coloured like the report.
+    function buildRuns(){
+      const list = litEdges();
       const parent = new Map();
       const find = (key) => { while (parent.get(key) !== key) { parent.set(key, parent.get(parent.get(key))); key = parent.get(key); } return key; };
-      for (const edge of list) for (const key of edge.ids) if (!parent.has(key)) parent.set(key, key);
-      for (const edge of list) parent.set(find(edge.ids[0]), find(edge.ids[1]));
-      return new Set(list.map((edge) => find(edge.ids[0]))).size;
+      for (const edge of list) for (const key of edge.keys) if (!parent.has(key)) parent.set(key, key);
+      for (const edge of list) parent.set(find(edge.keys[0]), find(edge.keys[1]));
+      const groups = new Map();
+      for (const edge of list) { const key = find(edge.keys[0]); if (!groups.has(key)) groups.set(key, []); groups.get(key).push(edge); }
+      return [...groups.values()]
+        .map((group) => ({ edges: group, length: group.reduce((sum, edge) => sum + edge.length, 0) }))
+        .sort((p, q) => q.length - p.length)
+        .map((run, index) => ({ ...run, number: index + 1, color: RUN_COLORS[index % RUN_COLORS.length] }));
     }
-    // Bulbs sit mid-spacing along each edge, so edges that meet at a corner never stack two bulbs there.
-    function bulbsOn(edge){ return Math.max(1, Math.round(edge.length * 12 / spacingIn)); }
 
-    function renderPanel(){
+    function renderPanel(runs){
       const host = root.querySelector('[data-hl-edges]');
       host.querySelectorAll('.fm-hl-edge').forEach((row) => row.remove());
       for (const edge of EDGES) {
@@ -181,47 +176,42 @@
         row.append(input, text, value);
         host.append(row);
       }
-      const spacingHost = root.querySelector('[data-hl-spacing]');
-      spacingHost.replaceChildren(...SPACINGS.map((inches) => {
-        const button = document.createElement('button');
-        button.type = 'button';
-        button.textContent = t('hl_spacing_inches', `${inches} in`, { inches });
-        button.setAttribute('aria-pressed', String(inches === spacingIn));
-        button.onclick = () => { spacingIn = inches; update(); };
-        return button;
-      }));
-      const colorHost = root.querySelector('[data-hl-colors]');
-      colorHost.replaceChildren(...COLORS.map((color) => {
-        const button = document.createElement('button');
-        button.type = 'button';
-        button.setAttribute('aria-pressed', String(color.id === colorId));
-        const swatch = document.createElement('span');
-        swatch.className = 'fm-hl-swatch';
-        for (const hex of color.bulbs.slice(0, 3)) { const dot = document.createElement('i'); dot.style.background = hex; swatch.append(dot); }
-        button.append(swatch, document.createTextNode(t(color.key, color.label)));
-        button.onclick = () => { colorId = color.id; update(); };
-        return button;
-      }));
-    }
-
-    function renderTotals(){
-      const list = litEdges();
-      const total = list.reduce((sum, edge) => sum + edge.length, 0);
-      const bulbs = list.reduce((sum, edge) => sum + bulbsOn(edge), 0);
+      const total = runs.reduce((sum, run) => sum + run.length, 0);
       root.querySelector('[data-hl-total]').textContent = feet(total);
-      const counts = [
-        [count(bulbs), t('hl_bulbs', 'Bulbs')],
-        [count(bulbs), t('hl_clips', 'Clips')],
-        [count(runCount(list)), t('hl_runs', 'Runs')]
-      ];
-      root.querySelector('[data-hl-counts]').replaceChildren(...counts.map(([value, label]) => {
-        const cell = document.createElement('div');
-        const strong = document.createElement('strong');
-        strong.textContent = list.length ? value : '0';
-        const span = document.createElement('span');
-        span.textContent = label;
-        cell.append(strong, span);
-        return cell;
+      root.querySelector('[data-hl-total-label]').textContent = runs.length === 1
+        ? t('hl_total_one_run', 'of lights in 1 run')
+        : t('hl_total_runs', `of lights in ${runs.length} separate runs`, { count: runs.length });
+      const runRows = runs.map((run) => {
+        const row = document.createElement('div');
+        row.className = 'fm-hl-run';
+        const badge = document.createElement('i');
+        badge.style.background = run.color;
+        badge.textContent = String(run.number);
+        const name = document.createElement('span');
+        name.textContent = t('hl_run_name', `Run ${run.number}`, { number: run.number });
+        const value = document.createElement('b');
+        value.textContent = feet(run.length);
+        row.append(badge, name, value);
+        return row;
+      });
+      if (!runRows.length) {
+        const empty = document.createElement('div');
+        empty.className = 'fm-hl-empty';
+        empty.textContent = t('hl_runs_none', 'No edges are lit.');
+        runRows.push(empty);
+      }
+      root.querySelector('[data-hl-runs]').replaceChildren(...runRows);
+      const lit = runs.flatMap((run) => run.edges);
+      root.querySelector('[data-hl-spacing]').replaceChildren(...SPACINGS.map((inches) => {
+        const bulbs = lit.reduce((sum, edge) => sum + bulbsOn(edge.length, inches), 0);
+        const row = document.createElement('tr');
+        if (inches === STANDARD_SPACING) row.className = 'is-standard';
+        for (const text of [t('hl_spacing_inches', `${inches} in`, { inches }), bulbs.toLocaleString(), bulbs.toLocaleString()]) {
+          const cell = document.createElement('td');
+          cell.textContent = text;
+          row.append(cell);
+        }
+        return row;
       }));
     }
 
@@ -243,80 +233,77 @@
       draw();
     }
 
-    function glowTexture(T){
-      const size = 64, c = document.createElement('canvas');
-      c.width = c.height = size;
-      const ctx = c.getContext('2d'), g = ctx.createRadialGradient(size / 2, size / 2, 0, size / 2, size / 2, size / 2);
-      g.addColorStop(0, 'rgba(255,255,255,1)');
-      g.addColorStop(0.18, 'rgba(255,255,255,.75)');
-      g.addColorStop(0.45, 'rgba(255,255,255,.18)');
-      g.addColorStop(1, 'rgba(255,255,255,0)');
-      ctx.fillStyle = g;
-      ctx.fillRect(0, 0, size, size);
-      return own(new T.CanvasTexture(c));
-    }
-    // A solid round bulb for the cores: the glow gradient alone leaves only a few pixels above the alpha test.
     function discTexture(T){
       const size = 64, c = document.createElement('canvas');
       c.width = c.height = size;
       const ctx = c.getContext('2d');
       ctx.fillStyle = '#fff';
-      ctx.beginPath();
-      ctx.arc(size / 2, size / 2, size / 2 - 2, 0, Math.PI * 2);
-      ctx.fill();
+      ctx.beginPath(); ctx.arc(size / 2, size / 2, size / 2 - 2, 0, Math.PI * 2); ctx.fill();
       return own(new T.CanvasTexture(c));
     }
-    let glowMap = null, discMap = null;
-    function buildBulbs(){
+    function badgeTexture(T, color, number){
+      const size = 96, c = document.createElement('canvas');
+      c.width = c.height = size;
+      const ctx = c.getContext('2d');
+      ctx.fillStyle = color;
+      ctx.beginPath(); ctx.arc(size / 2, size / 2, size / 2 - 6, 0, Math.PI * 2); ctx.fill();
+      ctx.lineWidth = 6; ctx.strokeStyle = '#fff'; ctx.stroke();
+      ctx.fillStyle = '#fff'; ctx.font = '700 46px Arial'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      ctx.fillText(String(number), size / 2, size / 2 + 2);
+      return new T.CanvasTexture(c);
+    }
+    function disposeRuns(){
+      if (!runGroup) return;
+      scene.remove(runGroup);
+      runGroup.traverse((o) => {
+        o.geometry?.dispose();
+        if (o.material) { if (o.material.map && o.material.map !== discMap) o.material.map.dispose(); o.material.dispose(); }
+      });
+      runGroup = null;
+    }
+    // Each run is a tube in its colour with red and green bulbs at the standard spacing and its number above it.
+    function buildRunScene(runs){
       const T = window.THREE;
-      if (bulbGroup) { scene.remove(bulbGroup); bulbGroup.traverse((o) => { o.geometry?.dispose(); o.material?.dispose(); }); }
-      bulbGroup = new T.Group();
-      scene.add(bulbGroup);
-      const palette = COLORS.find((color) => color.id === colorId).bulbs.map((hex) => new T.Color(hex));
-      const positions = [], colors = [], wire = [];
+      disposeRuns();
+      runGroup = new T.Group();
+      scene.add(runGroup);
+      const red = new T.Color(BULB_RED), green = new T.Color(BULB_GREEN);
+      const positions = [], colors = [];
       let n = 0;
-      for (const edge of litEdges()) {
-        const a = point(edge.a), b = point(edge.b);
-        a.y += BULB_LIFT_FT * scale; b.y += BULB_LIFT_FT * scale;
-        wire.push(a, b);
-        const bulbs = bulbsOn(edge);
-        for (let i = 0; i < bulbs; i++) {
-          const along = (i + 0.5) / bulbs;
-          const p = a.clone().lerp(b, along);
-          positions.push(p.x, p.y, p.z);
-          const color = palette[n++ % palette.length];
-          colors.push(color.r, color.g, color.b);
+      for (const run of runs) {
+        const material = new T.MeshBasicMaterial({ color: run.color });
+        for (const edge of run.edges) {
+          const a = point(edge.a), b = point(edge.b);
+          a.y += LIFT_FT * scale; b.y += LIFT_FT * scale;
+          runGroup.add(new T.Mesh(new T.TubeGeometry(new T.LineCurve3(a, b), 1, 0.16 * scale, 6, false), material));
+          const count = bulbsOn(edge.length, STANDARD_SPACING);
+          for (let i = 0; i < count; i++) {
+            const p = a.clone().lerp(b, (i + 0.5) / count);
+            positions.push(p.x, p.y + 0.45 * scale, p.z);
+            const color = n++ % 2 ? green : red;
+            colors.push(color.r, color.g, color.b);
+          }
         }
+        const longest = run.edges.reduce((best, edge) => (!best || edge.length > best.length ? edge : best), null);
+        const badge = new T.Sprite(new T.SpriteMaterial({ map: badgeTexture(T, run.color, run.number), depthTest: false }));
+        const mid = point(longest.a).lerp(point(longest.b), 0.5);
+        badge.position.set(mid.x, mid.y + 2.2 * scale, mid.z);
+        badge.scale.setScalar(3.2 * scale);
+        badge.renderOrder = 5;
+        runGroup.add(badge);
       }
-      if (!positions.length) { draw(); return; }
-      const wireGeo = new T.BufferGeometry().setFromPoints(wire);
-      bulbGroup.add(new T.LineSegments(wireGeo, new T.LineBasicMaterial({ color: night ? '#1f3d2a' : '#2f4f3a' })));
-      const geo = new T.BufferGeometry();
-      geo.setAttribute('position', new T.Float32BufferAttribute(positions, 3));
-      geo.setAttribute('color', new T.Float32BufferAttribute(colors, 3));
-      // Bulb cores: small, bright, depth-tested so the far side of the roof hides them.
-      bulbGroup.add(new T.Points(geo, new T.PointsMaterial({ size: (night ? 0.7 : 1) * scale, sizeAttenuation: true, vertexColors: true, map: discMap, transparent: true, alphaTest: 0.5 })));
-      // Glow halo: additive, only at night.
-      if (night) {
-        const halo = new T.Points(geo.clone(), new T.PointsMaterial({ size: 4.2 * scale, sizeAttenuation: true, vertexColors: true, map: glowMap, transparent: true, opacity: 0.85, depthWrite: false, blending: T.AdditiveBlending }));
-        bulbGroup.add(halo);
+      if (positions.length) {
+        const geo = new T.BufferGeometry();
+        geo.setAttribute('position', new T.Float32BufferAttribute(positions, 3));
+        geo.setAttribute('color', new T.Float32BufferAttribute(colors, 3));
+        runGroup.add(new T.Points(geo, new T.PointsMaterial({ size: 1.15 * scale, sizeAttenuation: true, vertexColors: true, map: discMap, transparent: true, alphaTest: 0.5 })));
       }
       draw();
     }
-    function applyLighting(){
-      if (!scene) return;
-      scene.background = new window.THREE.Color(night ? '#0b1426' : '#eef1f5');
-      hemi.intensity = night ? 0.5 : 0.85;
-      hemi.color.set(night ? '#8fa6d6' : '#ffffff');
-      sun.intensity = night ? 0.22 : 0.5;
-      roofMaterial.color.set(night ? '#6a6d78' : '#77756f');
-    }
-    function update(){ renderPanel(); renderTotals(); if (scene) { applyLighting(); buildBulbs(); } }
+    function update(){ const runs = buildRuns(); renderPanel(runs); if (scene) buildRunScene(runs); }
 
-    nightButton.onclick = () => { night = !night; renderNightButton(); update(); };
     resetButton.onclick = reset;
 
-    let scale = 1;
     (async () => {
       if (!xmlUrl) throw new Error(t('hl_no_model', 'This report has no saved roof geometry yet.'));
       const viewer = window.FirstMeasureRoofViewer;
@@ -326,12 +313,17 @@
       const roofs = viewer.parseModel(await response.text());
       if (disposed) return;
       const T = window.THREE;
+      // A line shared by two structures is counted once.
+      const seen = new Set();
       for (const [r, roof] of roofs.entries()) {
         for (const line of roof.lines.values()) {
           if (!edges[line.type]) continue;
           const [a, b] = line.ids.map((id) => roof.points.get(id));
+          const key = [a, b].map((p) => p.map((v) => v.toFixed(2)).join(',')).sort().join('|');
           const length = Math.hypot(a[0] - b[0], a[1] - b[1], a[2] - b[2]);
-          if (length > 0.01) edges[line.type].push({ a, b, length, ids: line.ids.map((id) => `${r}:${id}`) });
+          if (seen.has(key) || !(length > 0.01)) continue;
+          seen.add(key);
+          edges[line.type].push({ a, b, length, keys: line.ids.map((id) => `${r}:${id}`) });
         }
       }
       const all = roofs.flatMap((roof) => [...roof.points.values()]);
@@ -342,6 +334,7 @@
       point = (p) => new T.Vector3((p[0] - (min[0] + max[0]) / 2) * scale, (p[2] - (min[2] + max[2]) / 2) * scale, -(p[1] - (min[1] + max[1]) / 2) * scale);
 
       scene = new T.Scene();
+      scene.background = new T.Color('#f8fafc');
       camera = new T.PerspectiveCamera(40, 1, 1, 3000);
       renderer = new T.WebGLRenderer({ antialias: true });
       renderer.setPixelRatio(Math.min(devicePixelRatio || 1, 2));
@@ -350,18 +343,16 @@
       controls.enableDamping = false;
       controls.minDistance = 4;
       controls.addEventListener('change', draw);
-      hemi = new T.HemisphereLight(0xffffff, 0x283044, 0.8);
-      sun = new T.DirectionalLight(0xffffff, 0.5);
+      const sun = new T.DirectionalLight(0xffffff, 0.3);
       sun.position.set(30, 80, 40);
-      scene.add(hemi, sun);
-      glowMap = glowTexture(T);
+      scene.add(new T.HemisphereLight(0xffffff, 0x8a93a3, 0.55), sun);
       discMap = discTexture(T);
 
-      roofMaterial = own(new T.MeshStandardMaterial({ color: '#5d5f66', side: T.DoubleSide, roughness: 1, polygonOffset: true, polygonOffsetFactor: 1, polygonOffsetUnits: 1 }));
+      const roofMaterial = own(new T.MeshStandardMaterial({ color: '#c9cfd8', side: T.DoubleSide, roughness: 1, polygonOffset: true, polygonOffsetFactor: 1, polygonOffsetUnits: 1 }));
       const roofGroup = new T.Group();
       for (const roof of roofs) {
         for (const face of roof.faces) {
-          const rings = [face.points, ...face.holes], flat = rings.flat();
+          const flat = [face.points, ...face.holes].flat();
           const project = (ring) => ring.map((p) => new T.Vector2(p[0], p[1]));
           const triangles = T.ShapeUtils.triangulateShape(project(face.points), face.holes.map(project));
           const positions = [];
@@ -371,11 +362,10 @@
           geo.computeVertexNormals();
           roofGroup.add(new T.Mesh(geo, roofMaterial));
         }
-        // Every roof edge as a faint line so unlit edges still read.
+        // Every roof edge as a thin line so unlit edges still read.
         const outline = [];
         for (const line of roof.lines.values()) outline.push(...line.ids.map((id) => point(roof.points.get(id))));
-        const outlineGeo = own(new T.BufferGeometry().setFromPoints(outline));
-        roofGroup.add(new T.LineSegments(outlineGeo, own(new T.LineBasicMaterial({ color: '#9aa4b2', transparent: true, opacity: 0.35 }))));
+        roofGroup.add(new T.LineSegments(own(new T.BufferGeometry().setFromPoints(outline)), own(new T.LineBasicMaterial({ color: '#98a2b3' }))));
       }
       scene.add(roofGroup);
 
@@ -391,11 +381,9 @@
       if (disposed || error?.name === 'AbortError') return;
       message.hidden = false;
       message.textContent = error?.message || t('hl_model_error', 'The roof model could not be loaded.');
-      renderPanel();
-      renderTotals();
+      renderPanel([]);
     });
-    renderPanel();
-    renderTotals();
+    renderPanel([]);
 
     return {
       destroy(){
@@ -403,7 +391,7 @@
         controller.abort();
         observer?.disconnect();
         controls?.dispose();
-        if (bulbGroup) bulbGroup.traverse((o) => { o.geometry?.dispose(); o.material?.dispose(); });
+        if (scene) disposeRuns();
         scene?.traverse((o) => { o.geometry?.dispose?.(); });
         owned.forEach((object) => object.dispose?.());
         renderer?.dispose();
