@@ -271,7 +271,7 @@
         for (const edge of run.edges) {
           const a = point(edge.a), b = point(edge.b);
           a.y += LIFT_FT * scale; b.y += LIFT_FT * scale;
-          runGroup.add(new T.Mesh(new T.TubeGeometry(new T.LineCurve3(a, b), 1, 0.16 * scale, 6, false), material));
+          runGroup.add(new T.Mesh(new T.TubeGeometry(new T.LineCurve3(a, b), 1, 0.1 * scale, 6, false), material));
           const count = bulbsOn(edge.length, spacingIn);
           for (let i = 0; i < count; i++) bulbs.push({ at: a.clone().lerp(b, (i + 0.5) / count), color: n++ % 2 ? green : red });
         }
@@ -284,8 +284,8 @@
         runGroup.add(badge);
       }
       if (bulbs.length) {
-        // Small spheres centred on the line, a little wider than it, never touching their neighbours.
-        const radius = Math.min(0.27, spacingIn / 12 * 0.3) * scale;
+        // Small spheres centred on the line: one size at every spacing, always wider than the line.
+        const radius = 0.24 * scale;
         const mesh = new T.InstancedMesh(new T.SphereGeometry(radius, 10, 8), new T.MeshStandardMaterial({ roughness: 0.5 }), bulbs.length);
         const matrix = new T.Matrix4();
         bulbs.forEach((bulb, i) => { mesh.setMatrixAt(i, matrix.makeTranslation(bulb.at.x, bulb.at.y, bulb.at.z)); mesh.setColorAt(i, bulb.color); });
