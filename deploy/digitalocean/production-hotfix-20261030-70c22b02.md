@@ -12,7 +12,7 @@ Before the PDF build starts, the PDF step copies the project's Resources into So
 
 ## What the production log shows
 
-On compatibility's nginx log for October 30, `project_resources.php` returned 502 92 times up to the report and 0 times with success on that project. All 92 came from one tutorial project opened with `editor.php?tutorial=1`, including 8 between 15:05:38 and 15:07:43 UTC, the minutes around the report at about 15:07.
+On compatibility's nginx log for October 30, up to this release, `project_resources.php` returned 502 92 times and never returned 200 for any project. All 92 came from one tutorial project opened with `editor.php?tutorial=1`, from 05:52 to 17:50 UTC, including 8 between 15:05:38 and 15:07:43 UTC, the minutes around the report at about 15:07.
 
 Each 502 has a 48-byte body. That length fits `Training references are unavailable.`, the message `project_resources.php` sends when `fm_tutorial_fetch_source_bundle` returns nothing. This is inferred from the length and the code path: the log holds neither the response text nor the user, so it does not prove this is the session that was reported.
 
@@ -55,7 +55,7 @@ After activation:
 
 ## Disk
 
-After this release, compatibility is at 90% (12 GB free), five web nodes at 89% (11–12 GB free) and `64.23.240.81` at 92% (8.6 GB free). Each release adds about 1.2 GB, so `64.23.240.81` has room for about six more. Nothing was deleted; old `/opt/firstmeasure/releases` directories and `/var/tmp/firstmeasure-release-*` archives need a cleanup soon.
+After this release, compatibility is at 90% (12 GB free), five web nodes at 89% (11–12 GB free) and `64.23.240.81` at 92% (8.6 GB free). Each release adds about 1.2 GB, so `64.23.240.81` fills up first. Nothing was deleted; old `/opt/firstmeasure/releases` directories and `/var/tmp/firstmeasure-release-*` archives need a cleanup soon.
 
 ## Rollback
 
