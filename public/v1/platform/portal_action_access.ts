@@ -37,6 +37,7 @@ export const PORTAL_ACTION_PERMISSIONS: Record<string, string> = {
   org_monthly_statement: "manage_billing",
   stripe_create_checkout: "manage_billing",
   stripe_fulfill_session: "manage_billing",
+  stripe_pending_order: "manage_billing",
   billing_autotopup_setup_start: "manage_billing",
   billing_autotopup_setup_finish: "manage_billing",
   org_upload_logo_my: "manage_company_settings",

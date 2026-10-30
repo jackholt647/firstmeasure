@@ -9194,6 +9194,8 @@ async function handlePortalAction(app: FastifyInstance, action: string, body: Js
       return await portalStripeCreateCheckout(ctx.orgId, actor.email, body);
     case "stripe_fulfill_session":
       return await portalStripeFulfillSession(cleanText(body.session_id), "stripe_manual_fulfill", ctx.orgId);
+    case "stripe_pending_order":
+      return await portalStripePendingOrder(ctx.orgId, actor.email, cleanText(body.session_id));
     case "billing_autotopup_setup_finish":
       return await portalStripeFinishSetup(cleanText(body.session_id), ctx.orgId);
     case "billing_autotopup_setup_start":
@@ -11250,12 +11252,46 @@ async function portalStripeCreateCheckout(orgId: string, email: string, body: Js
   const created = await stripeApiRequest("POST", "/v1/checkout/sessions", fields);
   if (!created.success) return { success: false, error: created.error || "Stripe checkout failed.", stripe: created.stripe || created.data };
   const session = asObject(created.data);
+  await rememberStripePendingOrder(orgId, email, cleanText(session.id), body.pending_order);
   return {
     success: true,
     url: session.url || null,
     session,
     ...(useBonus ? { deal_applied: offerId, offer_id: offerId, deal_org_id: orgId, bonus_dollars: bonus, total_credited: totalCredit, offer_quote: { valid: true, tier_id: offerTierId, set_id: offerSetId, token: offerToken, label: offerLabel, offer_instance_id: offerInstanceMetaId, rollout_id: offerRolloutId, match_percent: matchPercent, bonus_dollars: bonus, total_account_value: totalCredit } } : {})
   };
+}
+
+// A report order waiting on this checkout travels with the session, not only in the browser: the return page may
+// not have it (another tab or account, cleared storage). It is handed back once, to the person who started it.
+const STRIPE_PENDING_ORDER_MAX_CHARS = 64_000;
+const STRIPE_PENDING_ORDER_TTL_MS = 7 * 24 * 60 * 60 * 1000;
+async function rememberStripePendingOrder(orgId: string, email: string, sessionId: string, raw: unknown) {
+  const text = typeof raw === "string" ? raw : "";
+  if (!sessionId || !text || text.length > STRIPE_PENDING_ORDER_MAX_CHARS) return;
+  let order: JsonObject;
+  try { order = asObject(JSON.parse(text)); } catch { return; }
+  if (!cleanText(asObject(order.fields).address)) return;
+  const now = Date.now();
+  await mutateGlobal(orgId, (global) => {
+    const kept = Object.fromEntries(Object.entries(asObject(asObject(global.data).stripe_pending_orders))
+      .filter(([, entry]) => now - Date.parse(cleanText(asObject(entry).created_at)) < STRIPE_PENDING_ORDER_TTL_MS));
+    return { data: { stripe_pending_orders: { ...kept, [sessionId]: { order, user_email: email.toLowerCase(), created_at: new Date(now).toISOString() } } } };
+  });
+}
+
+async function portalStripePendingOrder(orgId: string, email: string, sessionId: string) {
+  if (!sessionId) return { success: false, error: "Missing session_id" };
+  let found: JsonObject | null = null;
+  await mutateGlobal(orgId, (global) => {
+    const all = asObject(asObject(global.data).stripe_pending_orders);
+    const entry = asObject(all[sessionId]);
+    if (!entry.order || cleanText(entry.user_email) !== email.toLowerCase()) return {};
+    found = asObject(entry.order);
+    const rest = { ...all };
+    delete rest[sessionId];
+    return { data: { stripe_pending_orders: rest } };
+  });
+  return { success: true, order: found };
 }
 
 async function portalStripeStartSetup(orgId: string, body: JsonObject) {
