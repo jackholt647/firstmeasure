@@ -1207,12 +1207,11 @@
     .ext-desk-side{min-width:0;min-height:0;display:flex;flex-direction:column;gap:14px;padding:24px 24px 20px;border-left:1px solid #eaecf0;background:#fcfcfd;overflow:auto;scrollbar-width:thin;container:ext-side/inline-size}
     /* The order tray waits until every structure has its walkaround (or all eight photos): until then the capture
        column has the full width, then the tray's column opens and the tray slides in at its own width. */
-    .ext-desk{transition:grid-template-columns .45s cubic-bezier(.2,.7,.2,1)}
-    .ext-desk:not(.is-ready){grid-template-columns:minmax(0,1fr) 0px}
+    .ext-desk{grid-template-columns:minmax(0,1fr) auto}
+    .ext-desk-side{width:clamp(320px,36cqw,390px);overflow-x:hidden;transition:width .45s cubic-bezier(.2,.7,.2,1),padding .45s cubic-bezier(.2,.7,.2,1),opacity .3s ease .15s,transform .45s cubic-bezier(.2,.7,.2,1)}
     .ext-desk-side>*{min-width:272px}
-    .ext-desk-side{transition:opacity .3s ease .12s,transform .45s cubic-bezier(.2,.7,.2,1)}
-    .ext-desk:not(.is-ready) .ext-desk-side{opacity:0;transform:translateX(48px);visibility:hidden;overflow:hidden;border-left-color:transparent;transition:opacity .2s ease,transform .3s ease,visibility 0s .3s}
-    @media (prefers-reduced-motion:reduce){.ext-desk,.ext-desk-side{transition:none}}
+    .ext-desk:not(.is-ready) .ext-desk-side{width:0;padding-left:0;padding-right:0;border-left-width:0;opacity:0;transform:translateX(48px);visibility:hidden;transition:width .3s ease,padding .3s ease,opacity .2s ease,transform .3s ease,visibility 0s .3s}
+    @media (prefers-reduced-motion:reduce){.ext-desk-side{transition:none}}
     @container ext-side (max-width:370px){.ext-desk-side .r-expedite-options{grid-template-columns:minmax(0,1fr)}.ext-desk-side .r-expedite-btn{min-height:52px}.ext-desk-side .r-expedite-copy{flex-direction:row;align-items:center;flex-wrap:wrap;gap:6px}.ext-desk-side .r-expedite-pill{margin:0;align-self:center}.ext-desk-side .r-expedite-status span{display:none}.ext-desk-side .r-expedite-price{font-size:21px}}
     .ext-desk .ext-desk-head{flex:none;display:flex;align-items:flex-start;gap:16px}
     .ext-desk-title{flex:1;min-width:0}
