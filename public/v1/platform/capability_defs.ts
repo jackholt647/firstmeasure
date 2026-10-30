@@ -746,6 +746,13 @@ const definitions: CapabilityDefinition[] = [
     description: "The 3D Model & photos tab for roof-only reports. Full House reports always show it."
   },
   {
+    key: "firstmeasure.holiday_lights",
+    kind: "feature",
+    parent: "firstmeasure.report_orders",
+    label: "Holiday Lights",
+    description: "Free Holiday Lights tab on finished reports: the roof at night with lights along its eaves and rakes, and the feet of lights, bulbs and clips needed."
+  },
+  {
     key: "firstmeasure.report_expedite_options",
     kind: "feature",
     parent: "firstmeasure.report_orders",
