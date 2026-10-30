@@ -61,7 +61,6 @@
       .fm-hl-total{display:flex;flex-direction:column;gap:2px;padding:14px;border-radius:10px;background:#f8fafc;border:1px solid #e4e7ec}
       .fm-hl-total strong{font-size:28px;line-height:1.1;font-weight:700;font-variant-numeric:tabular-nums}
       .fm-hl-total span{font-size:12px;color:#475467}
-      .fm-hl-why{margin:0;font-size:12px;line-height:1.5;color:#475467}
       .fm-hl-section{display:flex;flex-direction:column;gap:6px}
       .fm-hl-section h4{margin:0 0 2px;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.04em;color:#667085}
       .fm-hl-edge{display:grid;grid-template-columns:auto 1fr auto;align-items:center;gap:10px;padding:8px 10px;border:1px solid #e4e7ec;border-radius:8px;cursor:pointer;font-size:13px}
@@ -110,7 +109,6 @@
         <aside class="fm-hl-panel">
           <h3><i class="fa-solid fa-lightbulb" aria-hidden="true"></i><span></span></h3>
           <div class="fm-hl-total"><strong data-hl-total>—</strong><span data-hl-total-label></span></div>
-          <p class="fm-hl-why"></p>
           <div class="fm-hl-section" data-hl-edges><h4></h4></div>
           <div class="fm-hl-section"><h4 data-hl-runs-title></h4><div data-hl-runs></div></div>
           <div class="fm-hl-section"><h4 data-hl-spacing-title></h4><table class="fm-hl-table"><thead><tr><th></th><th></th><th></th></tr></thead><tbody data-hl-spacing></tbody></table></div>
@@ -123,7 +121,6 @@
     root.querySelector('.fm-hl-panel').setAttribute('aria-label', t('hl_panel_label', 'Holiday lights'));
     root.querySelector('.fm-hl-panel h3 span').textContent = t('hl_title', 'Holiday Lights');
     root.querySelector('[data-hl-legend]').textContent = t('hl_legend_runs', 'Bulbs · each coloured line is one run');
-    root.querySelector('.fm-hl-why').textContent = t('hl_why', 'Holiday lights follow the roofline: every eave (the bottom edge, where gutters hang) and every rake (the sloped edge of a gable). Add ridges or hips to outline the peaks.');
     root.querySelector('[data-hl-edges] h4').textContent = t('hl_edges_title', 'Edges to light');
     root.querySelector('[data-hl-runs-title]').textContent = t('hl_runs_title', 'Separate runs');
     root.querySelector('[data-hl-spacing-title]').textContent = t('hl_spacing_table_title', 'Bulbs and clips by spacing');
