@@ -332,3 +332,19 @@ test('merged source overlaps produce one filled region, while holes and disconne
  assert.equal(holed.faces.length,2);assert.equal(holed.faces.reduce((a,f)=>a+f.area,0),13);assert.equal(holed.faces.filter(f=>f.holes?.length).length,1);
  for(const geo of [overlap,holed])for(const face of geo.faces){K.validateFace({points:face.pointIndices.map(i=>geo.points[i]),holes:(face.holes||[]).map(r=>r.map(i=>geo.points[i]))});assert.deepEqual(new Set(face.triangles.flat()),new Set([...face.pointIndices,...(face.holes||[]).flat()]));}
 });
+
+test('FM-312: a merged wall touched a fraction of a micron off its corner still meshes instead of stopping walls from drawing, saving or loading',()=>{
+ // Two walls after a roof edit on a real house: the eave wall's top corner sits
+ // 5e-8 m beside the merged wall's corner, which twisted the merged outline below
+ // the polygon grid. topology threw "The face does not define a valid planar
+ // region" from render, serialize and restore, so the project could not open.
+ const walls=[
+  {id:'envelope-0-30-3',sourceId:'R105.1',kind:'perimeter',type:'eave',bottom:[p(5.5344029195994,-11.83268717540892,63.709999084472656),p(6.194613,-11.176371,63.709999084472656)],top:[p(5.5344029195994,-11.83268717540892,69.8420177518614),p(6.194612948418327,-11.176370951824193,69.84227460815869)],mergeGroup:'envelope-0-30-1|envelope-0-30-3'},
+  {id:'envelope-0-0-1:roof-1',sourceId:'envelope-0-0',kind:'perimeter',type:'wall',bottom:[p(6.194613,-11.176371,63.709999084472656),p(6.27090956010378,-11.25312037273506,63.709999084472656)],top:[p(6.194613,-11.176371,69.84296310753994),p(6.27090956010378,-11.25312037273506,69.74048822518337)],mergeGroup:'envelope-0-0-1:roof-1|envelope-0-0-1:roof-2|envelope-0-0-1:roof-3'}];
+ const warn=console.warn;console.warn=()=>{};let geo;try{geo=G.topology(walls);}finally{console.warn=warn;}
+ assert.equal(geo.faces.length,2);
+ for(const [i,w] of walls.entries()){
+  const face=geo.faces.find(f=>f.mergeGroup===w.mergeGroup),width=Math.hypot(w.bottom[1].x-w.bottom[0].x,w.bottom[1].y-w.bottom[0].y),height=(w.top[0].z-w.bottom[0].z+w.top[1].z-w.bottom[1].z)/2;
+  assert.ok(face.triangles.length>=2,'wall '+i+' is filled');assert.ok(Math.abs(face.area-width*height)<1e-3,`wall ${i}: ${face.area} vs ${width*height}`);
+ }
+});
