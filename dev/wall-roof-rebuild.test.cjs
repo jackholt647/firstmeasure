@@ -168,6 +168,38 @@ test('D: adding a roof facet (a raised bump-out on the main roof) adds walls onl
  assert.match(h.note(),/8 lines added\): \d+ new walls; everything else was kept/);
 });
 
+test('FM-312: a roof edit that leaves a merged wall a micron off its neighbour still opens wall mode, saves and reloads',()=>{
+ // Two roof corners dragged in roof mode, as in the training project: one merged
+ // wall outline came out twisted below the polygon grid. Wall mode went black and
+ // every reload stopped with "Load Error: The face does not define a valid planar region."
+ const h=house(),warn=console.warn;console.warn=()=>{};
+ try{
+  h.toRoof();h.movePoints([104],-0.7032000327796861,1.1270847774117665);h.movePoints([92],-1.7749465434945915,3.203106422243907);
+  h.toWalls();assert.ok(h.ctx.WallMode.roofRebuild?.walls,'the walls followed the roof');
+  const saved=copy(h.saved());assert.ok(saved.geometry.faces.length>0);
+  for(const f of saved.geometry.faces)assert.ok(f.triangles.length,'every wall face is filled');
+  // Newer than the reloading page's own local backup of the fixture.
+  const reload=house();reload.ctx.WallMode.restore('ce52',{exteriorsWalls:{...saved,savedAt:Date.now()+1e6}});
+  assert.deepEqual(copy(reload.saved()).alignedWalls,saved.alignedWalls,'the saved walls load again');
+ }finally{console.warn=warn;}
+});
+
+test('FM-312: walls a roof edit cannot draw are never kept: the earlier walls stay, saved and undoable',()=>{
+ const h=house(),roof=h.W.roof,line=roof.connections[UNDER_EAVE],before=copy(h.saved()),old=JSON.stringify(before.alignedWalls.find(w=>w.id==='R26:0:body-1').bottom);
+ const topology=G.topology,warn=console.warn;let refused=0;
+ // The wall the roof edit moves cannot be drawn where it moved to.
+ G.topology=walls=>{const moved=walls.find(w=>w.id==='R26:0:body-1');if(moved&&JSON.stringify(moved.bottom)!==old){refused++;throw Error('The face does not define a valid planar region.');}return topology(walls);};
+ h.ctx.confirm=()=>false;console.warn=()=>{};
+ try{
+  h.toRoof();h.movePoints([line.startIdx,line.endIdx],.15,0);h.toWalls();
+  assert.ok(refused>0,'the moved walls were tried');
+  const after=copy(h.saved());
+  assert.deepEqual(after.alignedWalls,before.alignedWalls,'the earlier walls are kept');assert.deepEqual(after.wallEdits,before.wallEdits);
+  assert.ok(after.keptRoofSignature,'Rebuild from roof is still offered');
+  h.key('z');assert.deepEqual(copy(h.saved()).alignedWalls,before.alignedWalls,'no half-applied undo step was recorded');
+ }finally{G.topology=topology;console.warn=warn;}
+});
+
 test('patch applies only the roof change to walls as they are now, and a neighbouring id pairs with its line',()=>{
  const w=(id,x0,x1,y=0,top=3,src='R1')=>({id,sourceId:src+'.0',kind:'perimeter',bottom:[{x:x0,y,z:0},{x:x1,y,z:0}],top:[{x:x0,y,z:top},{x:x1,y,z:top}]});
  const A=[w('R1.0:0',0,4),w('R2.0:0',4,8,0,3,'R2'),w('R3.0:1',8,9,0,3,'R3')],B=[w('R1.0:0',0,4,.2),w('R2.0:0',4,8,0,3,'R2'),w('R3.0:0',8,9.5,0,3,'R3')];

@@ -501,6 +501,10 @@ function perf_persist(touch=true) {
             closedSoffits:state.closedSoffits&&window.WallClosedSoffits?(s,walls)=>WallClosedSoffits.build(s,walls):null});
         closeResoffit();groundEditor?.leave();roofTrimEditor?.finish();wallEditor?.leave?.();baseEditor?.leave?.();pendingEdit=null;nudgeKey=null;nudgeEpoch++;
         const before={state:copy(state),stage},beforeSelection=selectionSnapshot(),generated=!!state.generatedEditsKey&&state.generatedEditsKey===editsKey(state.wallEdits);
+        // All or nothing (FM-312): walls that cannot be drawn are never kept or
+        // saved. The caller then asks before a full rebuild, with the earlier walls.
+        const undoDepth=editHistory.length,future=editFuture,priorSelection=pendingSelection,priorKept=before.state.keptRoofSignature,priorReport=lastRoofRebuild;
+        try{
         state={...result.state,roofSignature:signature};delete state.keptRoofSignature;if(generated)state.generatedEditsKey=editsKey(state.wallEdits);
         baseTerrainKey='';baseTerrainCache=null;sourceContext=state.context;roofIdentity=null;
         window.WallChimneys?.normalizeDrafts(state.wallEdits);window.normalizeWallDraftOwnership?.(state.wallEdits);retainGradeDraftOwnership();calculateStage(stage);selected=null;
@@ -508,6 +512,13 @@ function perf_persist(touch=true) {
         // Undo keeps the earlier walls until the roof changes again; it does not re-run on the next stage or mode switch.
         if(result.changed){before.state.keptRoofSignature=signature;const entry={full:true,before,after:{state:copy(state),stage},beforeSelection,afterSelection:selectionSnapshot()};editHistory.push(entry);editFuture=[];pendingSelection=entry;}
         lastRoofRebuild=result.report;persist();render();
+        }catch(error){
+            editHistory.length=undoDepth;editFuture=future;pendingSelection=priorSelection;lastRoofRebuild=priorReport;
+            if(priorKept===undefined)delete before.state.keptRoofSignature;else before.state.keptRoofSignature=priorKept;
+            state=before.state;stage=before.stage;sourceContext=state.context;baseTerrainKey='';baseTerrainCache=null;selected=null;persist();
+            try{render();}catch(e){console.warn('[Walls] The earlier walls could not be redrawn.',e);}
+            throw error;
+        }
         const text=R.summary(result.report);
         if(text){if(status)status.textContent=text;const note=document.getElementById('base-status');if(note)note.textContent=text;texturedNotice(text,9000);}
         return result;
