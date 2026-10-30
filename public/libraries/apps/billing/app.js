@@ -491,10 +491,31 @@ window.PlatformCommerce.onReady(function(){
     }catch(e){ return null; }
   }
   function clearPending(){ try{ localStorage.removeItem(PENDING_ORDER_KEY); }catch(e){} }
+  // Back from Stripe without the order in this browser: take it from the checkout (once) and keep it here.
+  async function stripePendingOrderFromCheckout(sessionId){
+    const sid = String(sessionId || '').trim();
+    if (!sid) return readPending();
+    try {
+      // Always taken, so a reloaded return page cannot place the same order twice.
+      const order = (await postAction('stripe_pending_order', { session_id: sid }))?.data?.order;
+      // The boot attempt may be placing this browser's copy right now: never restore an order it placed.
+      for (let waited = 0; inFlightAutoSubmit && waited < 10000; waited += 250) await wait(250);
+      if (readPending() || !order?.fields?.address || submittedOrders.has(JSON.stringify(order.fields))) return readPending();
+      const app = window.__APP || {};
+      const restored = { ...order, organization_id: String(app.userOrgId || '').trim(), user_id: String(app.userId || '').trim() || String(app.userEmail || '').trim().toLowerCase() };
+      localStorage.setItem(PENDING_ORDER_KEY, JSON.stringify(restored));
+      return readPending();
+    } catch (error) {
+      console.warn('The order waiting on this checkout could not be read', error);
+      return null;
+    }
+  }
   function pendingOrderProjectId(pending){
     const f = pending?.fields || {};
     return String(f.platform_project_id || f.base_project_id || '').trim();
   }
+  // Orders this page placed (by their fields), so a checkout's copy of one is not placed again.
+  const submittedOrders = new Set();
   /* A Stripe return lands on a page that has not read the ordered project. Read it before linking the
      report so the link is an edit of the stored project (a PATCH of what changed), never a create-only
      save, which the server refuses for a project that exists (project_exists) and which lost the link. */
@@ -1405,7 +1426,10 @@ window.PlatformCommerce.onReady(function(){
         }
         btn.innerHTML = `<i class="fas fa-circle-notch fa-spin"></i> ${(globalThis.PlatformLanguage?.htmlText("billing","redirecting","Redirecting") ?? "Redirecting")}`;
       }
-      const { data } = await postAction('stripe_create_checkout', { qty, ...metaAttributionPayload() });
+      // The server keeps the waiting report order with the checkout, so the return can place it even when this
+      // browser no longer has it (stripePendingOrderFromCheckout).
+      const pendingOrder = readPending();
+      const { data } = await postAction('stripe_create_checkout', { qty, ...metaAttributionPayload(), ...(pendingOrder?.fields?.address ? { pending_order: JSON.stringify(pendingOrder) } : {}) });
 
       if (!data || !data.success || !data.url){
         errEl.textContent = data?.error || (globalThis.PlatformLanguage?.text("billing","checkout_failed","Failed to start checkout.") ?? "Failed to start checkout.");
@@ -1487,6 +1511,7 @@ window.PlatformCommerce.onReady(function(){
         is_expedited: f.is_expedited === true || f.is_expedited === '1' || String(f.is_expedited || '').trim().toLowerCase() === 'true',
         include_gutter_measurements: f.include_gutter_measurements === true || f.include_gutter_measurements === '1' || String(f.include_gutter_measurements || '').trim().toLowerCase() === 'true',
         include_weather_report: f.include_weather_report === true || f.include_weather_report === '1' || String(f.include_weather_report || '').trim().toLowerCase() === 'true',
+        include_holiday_lights: f.include_holiday_lights === true || f.include_holiday_lights === '1',
         report_options: f.report_options || '',
         pins: f.pins || '[]',
         cc_emails: f.cc_emails || '[]',
@@ -1506,6 +1531,7 @@ window.PlatformCommerce.onReady(function(){
 
       // The charge and order already succeeded. Never repeat them if saving
       // the platform link fails; keep the successful result in the project cache.
+      submittedOrders.add(JSON.stringify(f));
       clearPending();
       const linkedProjectId = pendingOrderProjectId(po);
       await readOrderedProject(linkedProjectId);
@@ -1580,8 +1606,10 @@ window.PlatformCommerce.onReady(function(){
     if (stripeReconcilePromise) return await stripeReconcilePromise;
     const initialPending = readStripeCheckoutPending(sid);
     // Read before any await: the boot auto-submit may clear the pending order first.
-    const orderProjectId = reason === 'stripe_return' ? pendingOrderProjectId(readPending()) : '';
+    let orderProjectId = reason === 'stripe_return' ? pendingOrderProjectId(readPending()) : '';
     stripeReconcilePromise = (async () => {
+      const checkoutOrder = sid ? await stripePendingOrderFromCheckout(sid) : null;
+      if (reason === 'stripe_return' && !orderProjectId) orderProjectId = pendingOrderProjectId(checkoutOrder);
       let reconciled = false;
       let fulfillData = null;
       let attempts = 0;
@@ -1628,6 +1656,8 @@ window.PlatformCommerce.onReady(function(){
         const suppressAutoSubmit = !pendingOrder && autoSubmitSuppressed();
         showToast((globalThis.PlatformLanguage?.text("billing","m_c5e73b482b12dd","Credits updated") ?? "Credits updated"), pendingOrder ? 'Submitting your report order now.' : (suppressAutoSubmit ? 'You can continue with the add-on purchase.' : 'You can submit orders now.'));
         close();
+        // The boot attempt may still be running (it found no order before the checkout's order was restored).
+        for (let waited = 0; inFlightAutoSubmit && waited < 10000; waited += 250) await wait(250);
         if (!suppressAutoSubmit) await tryAutoSubmitPending(reason || 'stripe_return');
         reconciled = true;
         return true;

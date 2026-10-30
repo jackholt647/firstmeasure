@@ -54,3 +54,31 @@ test('a Stripe return reopens the project window the order was placed from', asy
   assert.ok(reconcile.indexOf('pendingOrderProjectId(readPending())') < reconcile.indexOf('stripeReconcilePromise = (async'));
   assert.match(reconcile, /finally \{[\s\S]*reopenOrderProject\(orderProjectId\)/);
 });
+
+test('a Stripe return without the order in this browser takes it from the checkout, once', async () => {
+  const start = source.indexOf('  function readPending(');
+  const block = source.slice(start, source.indexOf('  /* A Stripe return lands on a page', start));
+  const store = {};
+  const taken = [];
+  let serverOrder = { fields: { address: '1 Test St', platform_project_id: 'project-9' } };
+  const context = {
+    PENDING_ORDER_KEY: 'fm_pending_order_v1', inFlightAutoSubmit: false, wait: async () => {}, console: { warn() {} },
+    localStorage: { getItem: key => store[key] ?? null, setItem: (key, value) => { store[key] = String(value); }, removeItem: key => { delete store[key]; } },
+    postAction: async (action, payload) => { assert.equal(action, 'stripe_pending_order'); taken.push(payload.session_id); const order = serverOrder; serverOrder = null; return { data: { success: true, order } }; },
+    window: { __APP: { userOrgId: 'org-1', userId: 'user-1' } }
+  };
+  vm.createContext(context);
+  vm.runInContext(block + '\nthis.restore = stripePendingOrderFromCheckout; this.projectOf = pendingOrderProjectId; this.placed = submittedOrders;', context);
+  const restored = await context.restore('cs_1');
+  assert.equal(context.projectOf(restored), 'project-9');
+  assert.equal(JSON.parse(store.fm_pending_order_v1).organization_id, 'org-1');
+  // Reloading the return page finds nothing left on the server and keeps what this browser has.
+  delete store.fm_pending_order_v1;
+  assert.equal(await context.restore('cs_1'), null);
+  assert.deepEqual(taken, ['cs_1', 'cs_1']);
+  // An order this page already placed is never restored from the checkout's copy.
+  serverOrder = { fields: { address: '2 Test St' } };
+  context.placed.add(JSON.stringify(serverOrder.fields));
+  assert.equal(await context.restore('cs_2'), null);
+  assert.equal(store.fm_pending_order_v1, undefined);
+});
