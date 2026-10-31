@@ -12780,13 +12780,43 @@ async function portalQueueProject(portal: PortalCaller, rawBody: JsonObject) {
   // owns (organization, charge, status, refund flags) comes from the client.
   const body = customerOrderInput(rawBody);
   const reorderId = cleanText(body.reorder_project_id || body.source_project_id);
-  const queue = () => withReportPropertyMarket(body, country => portalQueueProjectForMarket(portal, { ...body, report_property_country: country }));
+  const clientOrderId = cleanText(body.client_order_id).slice(0, 80);
+  const place = () => withReportPropertyMarket(body, country => portalQueueProjectForMarket(portal, { ...body, report_property_country: country }));
+  const queue = clientOrderId ? () => placeClientOrderOnce(portal.orgId, clientOrderId, place) : place;
   if (!reorderId) return queue();
   // Reordering reopens an existing rejected project: it must be the caller's.
   return withPortalProjectLock(reorderId, async () => {
     await firstMeasureProjectDetail(portal, reorderId);
     return queue();
   });
+}
+
+/* An order the browser names (client_order_id, made when the order form captures it) is placed and charged
+   once. Every copy of it (the page back from Stripe, a project window, another tab) may try to submit it; a
+   repeat is answered with the order already placed, before any balance check, so a spent balance never reads
+   as "not enough credit" for an order that went through. */
+const PLACED_CLIENT_ORDER_TTL_MS = 30 * 24 * 60 * 60 * 1000;
+const PLACED_CLIENT_ORDER_MAX = 500;
+
+async function placeClientOrderOnce(orgId: string, clientOrderId: string, place: () => Promise<JsonObject>) {
+  return withPublicFirstMeasureLock(`platform-client-order:${orgId}:${clientOrderId}`, async () => {
+    const placed = asObject(asObject(asObject((await readGlobal(orgId)).data).placed_client_orders)[clientOrderId]);
+    if (cleanText(placed.folder)) {
+      return { success: true, already_placed: true, folder: cleanText(placed.folder), project: null, manifest: null, report_mode: cleanText(placed.report_mode) || null };
+    }
+    const result = await place();
+    const folder = cleanText(asObject(result).folder);
+    if (asObject(result).success === true && folder) {
+      const now = Date.now();
+      await mutateGlobal(orgId, (global) => {
+        const kept = Object.entries(asObject(asObject(global.data).placed_client_orders))
+          .filter(([, entry]) => now - Date.parse(cleanText(asObject(entry).placed_at)) < PLACED_CLIENT_ORDER_TTL_MS)
+          .slice(-(PLACED_CLIENT_ORDER_MAX - 1));
+        return { data: { placed_client_orders: { ...Object.fromEntries(kept), [clientOrderId]: { folder, report_mode: cleanText(asObject(result).report_mode), placed_at: new Date(now).toISOString() } } } };
+      });
+    }
+    return result;
+  }, { timeoutMs: 60_000 });
 }
 
 async function portalQueueProjectForMarket(portal: PortalCaller, body: JsonObject) {

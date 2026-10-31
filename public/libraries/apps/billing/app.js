@@ -1466,17 +1466,21 @@ window.PlatformCommerce.onReady(function(){
       await window.Portal.credits.refreshCredits().catch(()=>null);
       const bal = window.Portal.credits.lastCredits ?? 0;
       const requiredAmount = pendingOrderAmount(po.fields);
-      if (bal < requiredAmount) {
+      const f = po.fields;
+      const needsCredit = (balance) => {
         if (reason && reason !== 'boot') {
-          showToast((globalThis.PlatformLanguage?.text("billing","order_not_submitted","Order not submitted yet") ?? "Order not submitted yet"), (globalThis.PlatformLanguage?.text("billing","order_needs_credit","This order needs {required}; your balance is {balance}. Add the difference to submit it.",{required:fmtCredit(requiredAmount),balance:fmtCredit(bal)}) ?? `This order needs ${fmtCredit(requiredAmount)}; your balance is ${fmtCredit(bal)}. Add the difference to submit it.`), false);
+          showToast((globalThis.PlatformLanguage?.text("billing","order_not_submitted","Order not submitted yet") ?? "Order not submitted yet"), (globalThis.PlatformLanguage?.text("billing","order_needs_credit","This order needs {required}; your balance is {balance}. Add the difference to submit it.",{required:fmtCredit(requiredAmount),balance:fmtCredit(balance)}) ?? `This order needs ${fmtCredit(requiredAmount)}; your balance is ${fmtCredit(balance)}. Add the difference to submit it.`), false);
         }
         return false;
-      }
+      };
+      // An order with an id may already be placed (by another page or tab, which spent the balance): only
+      // the server can say, so it is asked before anyone is told they are short.
+      if (bal < requiredAmount && !f.client_order_id) return needsCredit(bal);
 
-      showToast((globalThis.PlatformLanguage?.text("billing","m_6dd3d30653a1b5","Submitting order…") ?? "Submitting order…"), po.fields.address, true);
+      if (bal >= requiredAmount) showToast((globalThis.PlatformLanguage?.text("billing","m_6dd3d30653a1b5","Submitting order…") ?? "Submitting order…"), po.fields.address, true);
 
-      const f = po.fields;
       const { data } = await postAction('queue', {
+        client_order_id: f.client_order_id || '',
         address: f.address || '',
         residentName: f.residentName || '',
         residentEmail: f.residentEmail || '',
@@ -1524,9 +1528,21 @@ window.PlatformCommerce.onReady(function(){
         client_note: `auto_submit_after_${reason || 'credit'}`
       });
 
+      if (data?.error === 'insufficient_credits') {
+        await window.Portal.credits.refreshCredits().catch(()=>null);
+        return needsCredit(Number(data.balance ?? window.Portal.credits.lastCredits ?? 0));
+      }
       if (!data || !data.success){
         showToast((globalThis.PlatformLanguage?.text("billing","m_cb54e163f7df44","Couldn’t submit order") ?? "Couldn’t submit order"), data?.message || data?.error || 'Order submission failed.', false);
         return false;
+      }
+      if (data.already_placed) {
+        // Placed and charged earlier from another copy of this order: nothing more to do here.
+        submittedOrders.add(JSON.stringify(f));
+        clearPending();
+        renderPendingSafe();
+        window.dispatchEvent(new CustomEvent('fm:projects:refresh', { detail:{ redraw:true } }));
+        return true;
       }
 
       // The charge and order already succeeded. Never repeat them if saving
