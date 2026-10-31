@@ -1085,6 +1085,13 @@ window.PlatformCommerce.onReady(async function(){
     .r-overlay.flat-report-navigation .r-modal-header :is(#rMeasureTabs,#rOpeningReportTabs) .r-measure-tab.active{color:var(--primary-readable,var(--primary));box-shadow:inset 0 -3px 0 var(--primary)}
     .r-overlay.flat-report-navigation .r-modal-header :is(#rMeasureTabs,#rOpeningReportTabs) .r-measure-tab i{font-size:17px}
     .r-overlay.flat-report-navigation .r-measure-body{inset:0}
+    /* With only report tabs, this row stands in for the window's tabs, so the open details tray pushes it right
+       as it does #rProjectViewerTabs; otherwise the tray covers the first tab. */
+    .r-overlay.flat-report-navigation .r-modal-header :is(#rMeasureTabs,#rOpeningReportTabs){transition:margin-left .34s var(--r-details-tray-ease)}
+    .r-overlay.flat-report-navigation.details-tray-open:not(.details-tray-sheet) .r-modal-header :is(#rMeasureTabs,#rOpeningReportTabs){margin-left:var(--r-details-tray-px,var(--r-details-tray-w));width:auto}
+    /* Its panes have no .fm-project-content to push, so the project body moves beside the tray instead. */
+    .r-overlay.flat-report-navigation .r-project-body:not(:has(.fm-project-content)){transition:margin-left .34s var(--r-details-tray-ease)}
+    .r-overlay.flat-report-navigation.details-tray-open:not(.details-tray-sheet) .r-project-body:not(:has(.fm-project-content)){margin-left:var(--r-details-tray-w)}
 
     .r-measure-body{position:absolute;inset:46px 0 0;background:#eef2f6}
     .r-measure-pane{position:absolute;inset:0;display:none}
@@ -10990,7 +10997,13 @@ window.PlatformCommerce.onReady(async function(){
 
   async function ensureCreditsOrGate(){
     const price = currentPrice();
-    const cachedBalance = Number(window.Portal?.credits?.lastCredits);
+    let cachedBalance = Number(window.Portal?.credits?.lastCredits);
+    // The page's balance can be from before a top-up or a credit made elsewhere: read it again before
+    // telling anyone they are short.
+    if (Number.isFinite(cachedBalance) && cachedBalance < price) {
+      const fresh = await window.Portal.credits.refreshCredits().catch(() => null);
+      if (fresh?.ok) cachedBalance = Number(window.Portal.credits.lastCredits);
+    }
     if (Number.isFinite(cachedBalance) && cachedBalance < price) {
       capturePendingOrder();
       showToast((globalThis.PlatformLanguage?.text("project-request","m_a394c59c2a89db_currency","No credits") ?? "No credits"), ((v0) => globalThis.PlatformLanguage?.text("project-request","m_b97feb346e3fae_currency",`You need ${v0} to place this report order.`,{v0}) ?? `You need ${v0} to place this report order.`)(fmtCredit(price)), false);
