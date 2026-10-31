@@ -1251,7 +1251,8 @@ window.PlatformCommerce.onReady(function(){
     const balance = currentBalance() ?? purchaseTopupContext?.balance ?? 0;
     const required = (purchaseActive || reportGateActive) ? (Number(purchaseTopupContext.required) || pendingOrderAmount(pending?.fields || {}) || 0) : ROOF_COST;
     const needed = (purchaseActive || reportGateActive)
-      ? Math.max(MIN_CREDIT_AMOUNT, Math.ceil(Number(purchaseTopupContext.needed ?? (required - balance)) || required || MIN_CREDIT_AMOUNT))
+      // The live balance, once read, wins over the one the opener passed (which may be stale).
+      ? Math.max(MIN_CREDIT_AMOUNT, Math.ceil(Number(currentBalance() !== null ? (required - balance) : (purchaseTopupContext.needed ?? (required - balance))) || required || MIN_CREDIT_AMOUNT))
       : (readAmountInput() ?? defaultCreditAmountForContext());
     const kicker = $('#bFirstReportCard .b-first-kicker');
     const copy = $('#bFirstReportCard .b-first-copy');
@@ -1757,7 +1758,18 @@ window.PlatformCommerce.onReady(function(){
     renderPendingSafe();
     renderFundingContext();
     Promise.resolve(window.Portal?.credits?.refreshCredits?.())
-      .then(()=>refreshFirstReportTopupEligibility())
+      .then(async ()=>{
+        // Opened for an order on a balance the page had not refreshed: if the live balance already covers
+        // it, place the order rather than ask for credit that is not needed.
+        const live = currentBalance();
+        const required = Number(purchaseTopupContext?.required);
+        if (openSeq === billingOpenSeq && purchaseTopupContext && hasPendingOrder() && Number.isFinite(live) && required > 0 && live >= required) {
+          close();
+          await tryAutoSubmitPending('credit_gate');
+          return;
+        }
+        return refreshFirstReportTopupEligibility();
+      })
       .catch(()=>refreshFirstReportTopupEligibility())
       .catch(()=>null);
     loadAutoTopupSettings().catch(()=>null);
