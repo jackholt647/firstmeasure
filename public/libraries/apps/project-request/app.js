@@ -1089,9 +1089,11 @@ window.PlatformCommerce.onReady(async function(){
        as it does #rProjectViewerTabs; otherwise the tray covers the first tab. */
     .r-overlay.flat-report-navigation .r-modal-header :is(#rMeasureTabs,#rOpeningReportTabs){transition:margin-left .34s var(--r-details-tray-ease)}
     .r-overlay.flat-report-navigation.details-tray-open:not(.details-tray-sheet) .r-modal-header :is(#rMeasureTabs,#rOpeningReportTabs){margin-left:var(--r-details-tray-px,var(--r-details-tray-w));width:auto}
-    /* Its panes have no .fm-project-content to push, so the project body moves beside the tray instead. */
-    .r-overlay.flat-report-navigation .r-project-body:not(:has(.fm-project-content)){transition:margin-left .34s var(--r-details-tray-ease)}
-    .r-overlay.flat-report-navigation.details-tray-open:not(.details-tray-sheet) .r-project-body:not(:has(.fm-project-content)){margin-left:var(--r-details-tray-w)}
+    /* A window without .fm-project-content (only report tabs, or a new report order in an organization without
+       other apps) has nothing else the tray pushes, so the project body moves beside the tray instead; otherwise
+       its panes (the report pages, the order map, the Full Exterior walkthrough) run underneath it. */
+    #rOverlay .r-project-body:not(:has(.fm-project-content)){transition:margin-left .34s var(--r-details-tray-ease)}
+    #rOverlay.details-tray-open:not(.details-tray-sheet) .r-project-body:not(:has(.fm-project-content)){margin-left:var(--r-details-tray-w)}
 
     .r-measure-body{position:absolute;inset:46px 0 0;background:#eef2f6}
     .r-measure-pane{position:absolute;inset:0;display:none}
