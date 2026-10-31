@@ -3848,10 +3848,13 @@
       container.appendChild(settingsButton);
       settingsButtonRef = settingsButton;
       if (split && !integratedUser) {
+        // Settings leads the row. With the More apps launcher off there is nothing after the divider yet (the
+        // help divider follows); append() would write a missing node as the text "null", so only real nodes move.
         const moreButton = container.querySelector('[data-launcher="more"]');
-        const divider = container.querySelector('.sidebar-launcher-divider');
+        const divider = moreButton ? container.querySelector('.sidebar-launcher-divider') : null;
         const popover = container.querySelector('.fm-more-apps-popover');
-        container.append(settingsButton, divider, moreButton, popover);
+        if (!moreButton) container.querySelector('.sidebar-launcher-divider')?.remove();
+        container.append(...[settingsButton, divider, moreButton, popover].filter(Boolean));
       }
     }
     // Help & support is offered to everyone, whatever their permissions or apps (1M8-243): it opens the help card
@@ -3910,6 +3913,11 @@
       accountButton.setAttribute('aria-label', (globalThis.PlatformLanguage?.text("platform","m_306d6be0a27c61","Choose account") ?? "Choose account"));
       accountButton.removeAttribute('title');
     }
+    // The row holds only launchers and dividers: a stray text node (a missing launcher written as "null") is
+    // never shown, and nor is a divider with nothing after it.
+    [...container.childNodes].forEach((node) => { if (node.nodeType !== Node.ELEMENT_NODE) node.remove(); });
+    const shown = [...container.children].filter((node) => !node.classList.contains('fm-more-apps-popover'));
+    if (shown.at(-1)?.classList.contains('sidebar-launcher-divider')) shown.at(-1).remove();
   }
 
   // Pinned app subviews are personal (left-column-pins.js). Each follows its

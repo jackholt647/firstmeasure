@@ -10946,6 +10946,8 @@ window.PlatformCommerce.onReady(async function(){
       // The account that placed it: another account signed in on this browser must never submit it (1M8-204).
       organization_id: String(window.__APP?.userOrgId || '').trim(),
       fields: {
+        // Names this order to the server, which places it once however many copies of it are submitted.
+        client_order_id: `order_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 10)}`,
         address: ($('#rAddress').value || '').trim(),
         residentName: primary.name || '',
         residentEmail: primary.email || '',
@@ -12359,6 +12361,15 @@ window.PlatformCommerce.onReady(async function(){
     if (!id || !window.PlatformAPI?.projects?.get) return project;
     const oid = projectOrgId();
     if (!oid) return project;
+    // Without expanded access an organization's projects are never stored on the server (the projects API
+    // refuses them); they live in this browser's project cache, so that copy is the project. Read it, never
+    // create one, and never ask the server, whose answer is always "not found".
+    if (typeof window.Portal?.platformExpandedAccess === 'function' && !window.Portal.platformExpandedAccess()) {
+      const store = window.Portal?.ProjectStore;
+      const cached = store?.get?.(id) || store?.findByMeasurement?.(project) || null;
+      if (cached) return mergeProjectForViewing(cached, project);
+      throw projectOpenFailure(id, null, true);
+    }
     const earlyRead = projectWindowBridge?.takeProjectRead?.(projectWindowToken, window, oid, id);
     let readError = null;
     const result = (earlyRead ? await earlyRead : null)

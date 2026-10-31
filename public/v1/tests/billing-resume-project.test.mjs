@@ -82,3 +82,40 @@ test('a Stripe return without the order in this browser takes it from the checko
   assert.equal(await context.restore('cs_2'), null);
   assert.equal(store.fm_pending_order_v1, undefined);
 });
+
+test('an order another page already placed is not reported as short of credit', async () => {
+  // The balance this order spent reads 0 here; only the server knows the order went through.
+  let pending = { fields: { client_order_id:'order_abc', address:'1850 N 34th St' } };
+  const toasts = [], sent = [];
+  const context = {
+    inFlightAutoSubmit:false, autoSubmitSuppressed:() => false, readPending:() => pending,
+    pendingOrderAmount:() => 7, showToast:(title) => toasts.push(title), pendingIncludesGutters:() => false,
+    pendingIncludesWeather:() => false, pendingReportMode:() => 'full', fmtCredit:(v) => `$${v}`,
+    postAction: async (action, payload) => { sent.push(payload.client_order_id); return { data:{ success:true, already_placed:true, folder:'cdbbe186' } }; },
+    clearPending:() => { pending = null; }, renderPendingSafe:() => {}, close:() => {},
+    CustomEvent:class { constructor(type, options) { this.type=type; this.detail=options.detail; } },
+    window:{ dispatchEvent() {}, Portal:{ credits:{ lastCredits:0, refreshCredits:async () => {} } } },
+    submittedOrders:new Set()
+  };
+  vm.createContext(context);
+  vm.runInContext(`${body}; this.run = tryAutoSubmitPending;`, context);
+  assert.equal(await context.run('stripe_return'), true);
+  assert.deepEqual(sent, ['order_abc']);
+  assert.equal(pending, null);
+  assert.equal(toasts.some((title) => /not submitted/i.test(title)), false);
+});
+
+test('the server places a named order once, before any balance check', async () => {
+  const api = await readFile(new URL('../platform/api.ts', import.meta.url), 'utf8');
+  const once = api.slice(api.indexOf('async function placeClientOrderOnce('), api.indexOf('async function portalQueueProjectForMarket('));
+  assert.match(once, /placed_client_orders/);
+  assert.ok(once.indexOf('already_placed') < once.indexOf('await place()'));
+  assert.match(api, /clientOrderId \? \(\) => placeClientOrderOnce\(portal\.orgId, clientOrderId, place\)/);
+});
+
+test('the sidebar launcher row never writes a missing launcher as text', async () => {
+  const core = await readFile(new URL('../../portal/scripts/core.js', import.meta.url), 'utf8');
+  const launchers = core.slice(core.indexOf('  function renderSidebarLaunchers('), core.indexOf('  function insertSidebarSubviewLinks('));
+  assert.doesNotMatch(launchers, /container\.append\(settingsButton, divider, moreButton, popover\)/);
+  assert.match(launchers, /node\.nodeType !== Node\.ELEMENT_NODE\) node\.remove\(\)/);
+});
