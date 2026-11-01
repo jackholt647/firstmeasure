@@ -3,6 +3,7 @@ import type { FastifyRequest } from 'fastify';
 import { env } from '../src/config/env.js';
 import { fullHouseContext, fullHouseEnabled, isFullHouseId } from '../firstmeasure/full_house.js';
 import { getProjectDetail, readArtifact } from '../firstmeasure/storage.js';
+import { readProjectGoogle3dManifest, readProjectGoogle3dTile } from '../firstmeasure/google3d.js';
 import { readInternalUser } from './storage.js';
 import { forbidden } from '../platform/errors.js';
 
@@ -31,7 +32,15 @@ export async function withTutorialSource<T>(source: string, work: () => Promise<
 
 export function tutorialSourceFile(name: string) {
   // Never expose the answer geometry, report snapshots, generated PDFs or source markups.
-  return /^(google\.(png|jpg)|rgb\.tif|dsm\.tif|mask\.tif|insights\.json|internal-resource-[a-zA-Z0-9._-]+|internal-markup-part-[a-zA-Z0-9._-]+)$/.test(name);
+  // The same list is in fm_tutorial_source_file (_tutorial_source.php).
+  return /^(google\.(png|jpg)|azure\.png|apple\.png|rgb\.tif|dsm\.tif|mask\.tif|insights\.json|instant-structures\.json|structure-[0-9]+-(rgb|dsm|mask)\.tif|structure-[0-9]+-apple\.png|internal-resource-[a-zA-Z0-9._-]+|internal-markup-part-[a-zA-Z0-9._-]+)$/.test(name);
+}
+
+// The source's saved Google 3D capture is reference imagery too; it lives beside the artifacts, not among them.
+export async function readTutorialSourceCapture(source: string, name: string) {
+  if (name === 'google-3d/manifest.json') return Buffer.from(JSON.stringify(await readProjectGoogle3dManifest(source)));
+  const tile = /^google-3d\/tiles\/([a-zA-Z0-9._-]+)$/.exec(name);
+  return tile ? (await readProjectGoogle3dTile(source, tile[1]!)).content : null;
 }
 
 export async function exteriorTrainingCapability(source: string, detail?: Awaited<ReturnType<typeof getProjectDetail>>) {
