@@ -20,7 +20,7 @@ export function exteriorQuote(count=1) {
   return {ordering_closed:orderingClosed,pricing_revision:pricingContext.getStore()?.revision ?? 0,structure_count:count,base_price:config.exteriors_base_price,
     busy_label:roof.busy_label,estimated_wait_minutes:Math.round((18+6*ratio)*60),
     options:[{key:"exteriors_standard",label:"Standard · 24 hours",minutes:1440,fee:0},
-      {key:"exteriors_same_day",label:"Same day · under 6 hours",minutes:360,fee:config.exteriors_same_day_fee},
+      {key:"exteriors_same_day",label:"Under 6 hours",minutes:360,fee:config.exteriors_same_day_fee},
       {key:"exteriors_priority",label:"Priority · under 3 hours",minutes:180,fee:config.exteriors_priority_fee}]
       .filter(o=>o.key==="exteriors_standard" || reportExpeditingAllowed())
       .map(o=>({...o,unit_price:Math.round((config.exteriors_base_price+o.fee)*100)/100,
