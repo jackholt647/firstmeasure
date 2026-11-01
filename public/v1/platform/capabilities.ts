@@ -12,6 +12,7 @@ import type { CapabilityPresetData, PresetBase } from "../config-library/kinds/c
 import type { CapabilitySignupPresetData } from "../config-library/kinds/capability_signup_preset.js";
 import type { CapabilityDefaultsData } from "../config-library/kinds/capability_defaults.js";
 import { importPlatformConfigurationOnce, saveLibraryEntry, deleteLibraryEntry } from "./capability-library.js";
+import { applyExplicitLayers, applyRolloutPercents, FLAG_OVERRIDES_KEY, flagOverrides, readFlagRollouts } from "./flag-rollouts.js";
 
 /**
  * Central capability registry.
@@ -638,7 +639,9 @@ export async function saveCapabilityValues(orgId: string, partial: Record<string
   const saved = await mutateGlobal(orgId, global => {
     const data = asObject(global.data);
     const current = { ...capabilityDefaultValues(), ...flattenGroupedValues(asObject(data.app_flags || data.feature_flags)) };
-    return { data: { app_flags: groupCapabilityValues({ ...current, ...values }) } };
+    // Saving a value here replaces an explicit console value for that flag: the latest deliberate write wins.
+    const overrides = Object.fromEntries(Object.entries(flagOverrides(data)).filter(([key]) => !(key in values)));
+    return { data: { app_flags: groupCapabilityValues({ ...current, ...values }), [FLAG_OVERRIDES_KEY]: overrides } };
   });
   return { values: flattenGroupedValues(asObject(asObject(saved.data).app_flags)), violations };
 }
@@ -711,9 +714,13 @@ async function withCountryRules(orgId: string, values: Record<string, Capability
   return applyCapabilityCountryRules(values, await organizationCountryCode(orgId), rules);
 }
 
-export async function capabilityValuesForUser(orgId: string, userId?: string, raw?: Record<string, CapabilityValue>, includeOffered = false) {
-  const global = includeOffered && raw ? null : await readGlobal(orgId);
-  let values = await withCountryRules(orgId, raw || capabilityValuesFromGlobal(global!));
+export async function capabilityValuesForUser(orgId: string, userId?: string, raw?: Record<string, CapabilityValue>, includeOffered = false, globalDoc?: JsonObject) {
+  const global = globalDoc ?? await readGlobal(orgId);
+  // docs/architecture/feature-flags.md: stored, then percentage, then country rules, then explicit, then off for everyone.
+  const rollouts = await readFlagRollouts();
+  let values = applyExplicitLayers(
+    await withCountryRules(orgId, applyRolloutPercents(orgId, raw || capabilityValuesFromGlobal(global), rollouts)),
+    flagOverrides(global.data), rollouts);
   if (values["platform.expanded_access"] === true) {
     values = await (await import("../platform-billing/service.js")).applyEntitlements(orgId, values);
   }
@@ -728,7 +735,7 @@ export async function capabilityValuesForUser(orgId: string, userId?: string, ra
 /** Resolve visibility and operational features from the same organization snapshot. */
 export async function capabilityAccessState(orgId: string, userId?: string) {
   const global = await readGlobal(orgId);
-  const values = await capabilityValuesForUser(orgId, userId, capabilityValuesFromGlobal(global), true);
+  const values = await capabilityValuesForUser(orgId, userId, capabilityValuesFromGlobal(global), true, global);
   const pending = offeredAppIds(asObject(global.data).app_offers);
   const ceiling = pending.length ? resolveCapabilities(values).effectiveByKey : {};
   // A pending offer stays masked either way; one whose prerequisite setup is not reached is just not advertised yet.

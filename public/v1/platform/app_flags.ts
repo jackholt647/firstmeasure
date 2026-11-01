@@ -13,6 +13,7 @@ import {
   type CapabilityValue,
   type NormalizedCapability
 } from "./capabilities.js";
+import { FLAG_OVERRIDES_KEY } from "./flag-rollouts.js";
 import { mutatePlatformConfiguration, readGlobal, type JsonObject } from "./storage.js";
 import { libraryData, libraryEntry } from "../config-library/library.js";
 import type { LibraryEntry } from "../config-library/contracts.js";
@@ -398,7 +399,7 @@ export async function isAppFlagEnabled(orgId: string, groupValue: string, flagVa
 
 export function containsAppFlagMutation(input: JsonObject = {}) {
   const data = asObject(input.data);
-  if (['app_offers', 'app_activations'].some(key => Object.prototype.hasOwnProperty.call(data, key) || Object.prototype.hasOwnProperty.call(input, key))) return true;
+  if (['app_offers', 'app_activations', FLAG_OVERRIDES_KEY].some(key => Object.prototype.hasOwnProperty.call(data, key) || Object.prototype.hasOwnProperty.call(input, key))) return true;
   return Object.prototype.hasOwnProperty.call(data, "app_flags")
     || Object.prototype.hasOwnProperty.call(data, "feature_flags")
     || Object.prototype.hasOwnProperty.call(data, "app_variants")

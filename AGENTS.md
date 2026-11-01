@@ -617,6 +617,19 @@ Run `tests/dev-console.test.ts`, `tests/guided-experiences-flow-browser.test.mjs
 `tests/development-layers-browser.test.mjs` and
 `tests/dev-console-dock-browser.test.mjs` for changes here.
 
+## Feature flags
+
+Read [feature flags](docs/architecture/feature-flags.md) before changing how an
+organization's flags are read or written, or rolling one out. A flag is an
+organization switch, never who sees an app. Ctrl+Shift+F on any
+`/measure/internal` page opens the console; agents use
+`node tools/feature-flags/cli.mjs` with a key a platform administrator created.
+Percentages are evaluated when read, never written per organization. A stored
+`false` is not an explicit off: only the console's value is. Who orders exterior
+reports is `firstmeasure.exteriors`, not the `FIRSTMEASURE_FULL_HOUSE_*` env,
+which gates staff drafts and training. Run `tests/feature-flags.test.ts` for
+changes here.
+
 ## Session replay
 
 Read [session replay](docs/architecture/session-replay.md) before changing what

@@ -52,6 +52,7 @@ import { registerPricingAdmin } from "../firstmeasure/pricing_admin.js";
 import { registerFirstMeasureRemoteApi } from "../firstmeasure-remote/api.js";
 import { registerEmailApi } from "../email/api.js";
 import { registerInternalApi } from "../internal/api.js";
+import { registerFlagConsoleApi } from "../internal/flags-api.js";
 import { installDiagnostics } from "../internal/diagnostics.js";
 import { registerFormsApi } from "../forms/api.js";
 import { registerMaterialsApi } from "../materials/api.js";
@@ -199,6 +200,7 @@ export async function buildApp() {
     }
     void app.register(registerCommunicationsApi, { prefix: "/v1/communications" });
     void app.register(registerCrmApi, { prefix: "/v1/internal/crm" });
+    void app.register(registerFlagConsoleApi, { prefix: "/v1/internal/flags" });
     void app.register(registerInternalApi, { prefix: "/v1/internal" });
   }
   void app.register(registerEmailApi, { prefix: "/v1/email" });
