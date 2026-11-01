@@ -7,6 +7,7 @@ import { readCapabilityCountryRules, saveCapabilityCountryRules } from "../platf
 import { assignedTutorialCourses, hasTutorialCourse, OPTIONAL_TUTORIAL_COURSES } from "./tutorial_courses.js";
 import { assertFullHouseEligible, fullHouseEligible, isCustomerFullHouse, FULL_HOUSE_QUALITY_CATEGORIES } from '../firstmeasure/full_house_workflow.js';
 import { managerReviewCsv } from "./manager_review_export.js";
+import { writeJsonFileAtomic } from "./tutorial_project_storage.js";
 import { tutorialBridgeActor, withTutorialSource, exteriorTrainingCapability, tutorialSourceFile } from './tutorial_exteriors.js';
 import { fullHouseEnabled } from '../firstmeasure/full_house.js';
 import { listFullHouseProjects } from '../firstmeasure/project_index.js';
@@ -2285,8 +2286,7 @@ async function readJsonFile(filePath: string, fallback: unknown = {}) {
 }
 
 async function writeJsonFile(filePath: string, data: unknown) {
-  await mkdir(path.dirname(filePath), { recursive: true });
-  await writeFile(filePath, `${JSON.stringify(data, null, 2)}\n`, "utf8");
+  await writeJsonFileAtomic(filePath, data);
 }
 
 function platformAppFlagDefaultsConfigPath() {
