@@ -14,7 +14,7 @@ import { readArtifact } from '../firstmeasure/storage.js';
 import { customerExportBatch } from "./customer_export.js";
 import { creditExportPage } from "./credit_export.js";
 import { trackTutorialResult } from "../staff_tracking/api.js";
-import { ensureTutorialProjectNodeWritable, isTutorialStoragePermissionError, makeTutorialProjectPhpWritable } from "./tutorial_project_storage.js";
+import { ensureTutorialProjectNodeWritable, isTutorialStoragePermissionError, makeTutorialProjectPhpWritable, writeJsonFileAtomic } from "./tutorial_project_storage.js";
 import type { FastifyInstance, FastifyPluginAsync, FastifyReply, FastifyRequest } from "fastify";
 import { createHash, randomBytes } from "node:crypto";
 import { chmod, copyFile, cp, mkdir, mkdtemp, readdir, readFile, rename, rm, stat, writeFile } from "node:fs/promises";
@@ -2348,8 +2348,7 @@ async function readJsonFile(filePath: string, fallback: unknown = {}) {
 }
 
 async function writeJsonFile(filePath: string, data: unknown) {
-  await mkdir(path.dirname(filePath), { recursive: true });
-  await writeFile(filePath, `${JSON.stringify(data, null, 2)}\n`, "utf8");
+  await writeJsonFileAtomic(filePath, data);
 }
 
 function tutorialDefaultProgress(): JsonObject {
