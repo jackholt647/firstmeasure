@@ -27,7 +27,8 @@ const SUMMARY = [constant('REPORT_SUMMARY_NON_MEASUREMENT_KEYS'), ...['numericVa
   'reportDimensionLabel', 'reportObstacleDimension', 'collectReportObstacleRows', 'collectReportLineTotals', 'formatSummaryNumber', 'finiteMetricValue',
   'calculateReportSummarySuggestedWaste', 'reportSummaryWastePercent', 'reportSummaryWithWallRows', 'reportSummaryMetricRows', 'reportSummarySources',
   'xmlAttr', 'xmlPointCoordinates', 'distanceBetweenPoints', 'reportSummaryMetricsFromXml', 'reportSummaryMetricCacheKey',
-  'reportSummaryRowsFromRoofMeasurements', 'reportSummaryWallRows', 'loadReportSummaryMetricsFromXml']
+  'reportSummaryRowsFromRoofMeasurements', 'reportSummaryWallRows', 'loadReportSummaryMetricsFromXml',
+  'summaryPitchNotation', 'summaryPitchDegrees', 'summaryPitchRow', 'csvCell', 'csvNumericCell', 'summaryMetricLabel', 'reportSummaryMeasurementsCsv']
   .filter(name => name !== 'reportDirectLength' || source.includes('  function reportDirectLength('))
   .filter(name => name !== 'calculateReportSummarySuggestedWaste' || source.includes('  function calculateReportSummarySuggestedWaste('))
   .map(fn)].join('\n');
@@ -83,6 +84,13 @@ async function summary(browser) {
       for (let i = 0; i < 50 && !measurementSummaryMetricCache.has(id); i++) await new Promise(resolve => setTimeout(resolve, 20));
       return reportSummaryMetricRows(measurementSummaryMetricCache.get(id) || []);
     };
+    window.pitchFor = async (id, extra) => {
+      manifest = { ...${JSON.stringify(MANIFEST)}, id, ...extra };
+      loadReportSummaryMetricsFromXml('https://portal.test/v1/firstmeasure/projects/' + id + '/artifacts/model_data.xml', id);
+      for (let i = 0; i < 50 && !measurementSummaryMetricCache.has(id); i++) await new Promise(resolve => setTimeout(resolve, 20));
+      const rows = reportSummaryMetricRows(measurementSummaryMetricCache.get(id) || []);
+      return { pitch: rows.find(row => row.label === 'Main pitch'), csv: reportSummaryMeasurementsCsv(rows) };
+    };
   ` });
   return { page, errors };
 }
@@ -117,5 +125,32 @@ test('1M8-254: when the measurement dataset is refused, each report shows its ow
     assert.equal(row(b, 'Roof area'), '900', JSON.stringify(b));
     assert.ok(!a.some(item => item.value === '10' && item.label !== 'Suggested waste'), JSON.stringify(a));
     assert.deepEqual(errors, []);
+  } finally { await browser.close(); }
+});
+
+test('1M8-255: the main pitch follows the pitch notation of the order; the CSV keeps rise over 12 and adds degrees', async () => {
+  const browser = await chromium.launch({ channel: 'chrome', headless: true });
+  try {
+    const { page, errors } = await summary(browser);
+    // The XML's largest face is 6 (rise over 12). Each call uses its own project id (the summary caches per id).
+    const imperial = await page.evaluate(() => window.pitchFor('a', {}));
+    assert.equal(imperial.pitch.value, '6'); assert.equal(imperial.pitch.unit, '/12');
+    const metric = await page.evaluate(() => window.pitchFor('b', { measurement_system: 'metric' }));
+    assert.equal(metric.pitch.value, '26.6'); assert.equal(metric.pitch.unit, '°', 'metric orders default to degrees');
+    for (const { csv } of [imperial, metric]) {
+      assert.ok(csv.includes('\r\nMain pitch,6,/12\r\nMain pitch (degrees),26.6,°'), csv);
+    }
+    assert.deepEqual(errors, []);
+  } finally { await browser.close(); }
+});
+
+test('1M8-255: the company setting wins over the measurement system', async () => {
+  const browser = await chromium.launch({ channel: 'chrome', headless: true });
+  try {
+    const { page } = await summary(browser);
+    const rise = await page.evaluate(() => window.pitchFor('a', { measurement_system: 'metric', pitch_notation: 'rise_12' }));
+    assert.equal(rise.pitch.unit, '/12');
+    const degrees = await page.evaluate(() => window.pitchFor('b', { pitch_notation: 'degrees' }));
+    assert.equal(degrees.pitch.unit, '°');
   } finally { await browser.close(); }
 });
