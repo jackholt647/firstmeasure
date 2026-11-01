@@ -4,7 +4,7 @@
   const Portal=window.Portal=window.Portal||{};
   if(Portal.PhoneModal)return;
   const ui=Portal.CommunicationsUI,{esc,icon,request}=ui;
-  const contactModalUrl=new URL('../contacts/modal.js?v=20261008-contact-loader-v1',document.currentScript?.src||location.origin+'/libraries/apps/comms/phone-modal.js');
+  const contactModalUrl=new URL('../contacts/modal.js?v=20261101-prod-sync',document.currentScript?.src||location.origin+'/libraries/apps/comms/phone-modal.js');
   const tabs=[['text','Text','comment-sms'],['call','Call','phone'],['voicemail','Voicemail','voicemail'],['history','History','clock-rotate-left']];
   const state={open:false,tab:'text',ticket:0,threads:[],threadId:'',thread:null,newTextContact:null,contactMatches:[],textSearch:'',sender:'',pickingContact:false,
     recent:[],recentSearch:'',voicemails:[],voicemailId:'',voicemailFilter:'inbox',history:[],historyId:'',historyCursor:'',historyTotal:0,

@@ -63,9 +63,15 @@ test("Customers tab impersonation uses the user record's identity when its email
   const listed = (detailBody.organization?.users ?? detailBody.users ?? []).find((entry: any) => entry.email === "crystal@impersonate.example.test");
   assert.equal(listed?.id, user.id, JSON.stringify((detailBody.users ?? []).map((u: any) => [u.id, u.email, u.identity_id])) + " want " + user.id);
 
-  const byEmailOnly = await impersonate({ email: "crystal@impersonate.example.test", org_id: "org_impersonate" });
+  // Without the organization there is no user record to follow, and no identity has the record's email.
+  const byEmailOnly = await impersonate({ email: "crystal@impersonate.example.test" });
   assert.equal(byEmailOnly.status, 404);
   assert.equal(byEmailOnly.data.error, "identity_not_found");
+
+  // A page loaded before the tab sent ids (or a caller that drops it) still finds the user by the record's email (1M8-249).
+  const byRecordEmail = await impersonate({ email: "crystal@impersonate.example.test", org_id: "org_impersonate" });
+  assert.equal(byRecordEmail.status, 200, JSON.stringify(byRecordEmail.data));
+  assert.equal(byRecordEmail.data.user_id, user.id);
 
   const byUser = await impersonate({ email: "crystal@impersonate.example.test", org_id: "org_impersonate", user_id: user.id });
   assert.equal(byUser.status, 200, JSON.stringify(byUser.data));
@@ -87,4 +93,13 @@ test("the Customers tab sends the user id with an impersonation", async () => {
   const source = await readFile(new URL("../../measure/internal/portal_scripts/customers.js", import.meta.url), "utf8");
   assert.match(source, /impersonateUser\('\$\{esc\(u\.email\)\}', '\$\{esc\(u\.name\|\|u\.email\)\}', '\$\{esc\(u\.id\|\|''\)\}'\)/);
   assert.match(source, /user_id: userId \|\| ''/);
+  // The row calls the public Customers.impersonateUser, which must pass the id on (it dropped it in 1M8-248, 1M8-249).
+  assert.match(source, /impersonateUser\(email, name, userId\)\{ impersonateUser\(email, name, userId\); \}/);
+  assert.doesNotMatch(source, /impersonateUser\(email, name\)\{/);
+});
+
+test("portal pages announce the sign-in email, which the account guard compares with the session (1M8-249)", async () => {
+  const { readFile } = await import("node:fs/promises");
+  const source = await readFile(new URL("../../portal/scripts/core.js", import.meta.url), "utf8");
+  assert.match(source, /const nextEmail = cleanText\(identity\.email, user\.email, APP\.userEmail\);/);
 });
