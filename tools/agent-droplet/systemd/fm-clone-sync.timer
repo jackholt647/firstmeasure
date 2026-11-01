@@ -1,0 +1,10 @@
+[Unit]
+Description=Keep the shared main clones current every 5 minutes
+
+[Timer]
+OnBootSec=2min
+OnUnitActiveSec=5min
+Persistent=true
+
+[Install]
+WantedBy=timers.target

@@ -1,0 +1,9 @@
+[Unit]
+Description=Fast-forward the shared main clones to canonical
+After=network-online.target
+
+[Service]
+Type=oneshot
+User=agent
+Nice=10
+ExecStart=/usr/local/bin/fm-clone-sync

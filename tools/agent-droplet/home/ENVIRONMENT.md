@@ -13,7 +13,8 @@ it. Read and look around there freely. Before you change any file, make your own
     cd /srv/agents/work/<slug> && fm-deps
 
 (Codex: `codex/<slug>`, Antigravity: `agy/<slug>`.) Never edit, commit, reset, stash, pull or switch branches
-in the main clone.
+in the main clone. `fm-clone-sync.timer` fast-forwards it (and `/srv/agents/work/firstmate-tracker`) to its remote
+branch every 5 minutes while it is clean; log `/srv/agents/logs/clone-sync.log`.
 
 ## The machine
 - DigitalOcean droplet `fm-agents-1`, 67.205.145.222, NYC1: 8 dedicated vCPU, 32 GB RAM, Ubuntu 24.04. You are
