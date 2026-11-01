@@ -2246,7 +2246,8 @@
         'default'
       ) || 'default';
       const nextName = cleanText(user.name, identity.name, APP.userName);
-      const nextEmail = cleanText(user.email, identity.email, APP.userEmail);
+      // The sign-in email: a user record's email can differ, and the account guard compares with the session (1M8-249).
+      const nextEmail = cleanText(identity.email, user.email, APP.userEmail);
       const nextCompany = cleanText(session.organization?.name, APP.userCompany);
       const nextUserId = cleanText(user.id, membership.user_id, membership.userId, APP.userId, APP.user_id);
       const roleIds = uniqueTextList(accessProfile.access_role_ids, accessProfile.role_ids, user.roles, user.role_ids, membership.roles, membership.role_ids, user.role, membership.role, user.org_permissions?.level, membership.org_permissions?.level);
