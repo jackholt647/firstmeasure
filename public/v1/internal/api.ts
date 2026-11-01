@@ -8,7 +8,7 @@ import { assignedTutorialCourses, hasTutorialCourse, OPTIONAL_TUTORIAL_COURSES }
 import { assertFullHouseEligible, fullHouseEligible, isCustomerFullHouse, FULL_HOUSE_QUALITY_CATEGORIES } from '../firstmeasure/full_house_workflow.js';
 import { managerReviewCsv } from "./manager_review_export.js";
 import { writeJsonFileAtomic } from "./tutorial_project_storage.js";
-import { tutorialBridgeActor, withTutorialSource, exteriorTrainingCapability, tutorialSourceFile } from './tutorial_exteriors.js';
+import { tutorialBridgeActor, withTutorialSource, exteriorTrainingCapability, tutorialSourceFile, readTutorialSourceCapture } from './tutorial_exteriors.js';
 import { fullHouseEnabled } from '../firstmeasure/full_house.js';
 import { listFullHouseProjects } from '../firstmeasure/project_index.js';
 import { buildEditorBundle } from '../firstmeasure/api.js';
@@ -211,6 +211,8 @@ export const registerInternalApi: FastifyPluginAsync = async (app) => {
     return withTutorialSource(source, async () => {
       if (body.name) {
         const name = String(body.name);
+        const capture = await readTutorialSourceCapture(source, name);
+        if (capture) return reply.type('application/octet-stream').send(capture);
         if (!tutorialSourceFile(name)) throw forbidden('source_file_forbidden', 'This source file is not a training reference.');
         const file = await readArtifact(source, name);
         return reply.type('application/octet-stream').send(file.content);

@@ -73,6 +73,18 @@ test('exterior curriculum defaults, isolated PHP editing/resources, completion a
     assert.equal((await signed({operation:'source',tutorial_id:exterior,student_email:'student@example.test',name:'google.png'},'other@example.test')).statusCode,403);
     assert.equal((await signed({operation:'source',tutorial_id:exterior,name:'app_metadata.json'})).statusCode,403);
     assert.equal((await signed({operation:'source',tutorial_id:exterior,name:'google.png'})).body,'synthetic image');
+    // FM-319: everything the source keeps as reference imagery reaches the practice project; nothing that holds the answer does.
+    const {tutorialSourceFile}=await import('../internal/tutorial_exteriors.js');
+    for (const name of ['azure.png','apple.png','structure-1-rgb.tif','structure-2-dsm.tif','structure-1-mask.tif','structure-1-apple.png','instant-structures.json']) assert.equal(tutorialSourceFile(name),true,name);
+    for (const name of ['app_metadata.json','pdf_state.json','Report.pdf','Summary.pdf','model_data.xml','quad_crop.png','structure-1-apple.png/../app_metadata.json','azure.png\n','customer-references.json']) assert.equal(tutorialSourceFile(name),false,name);
+    await storage.saveArtifact(source,'azure.png','synthetic azure');
+    assert.equal((await signed({operation:'source',tutorial_id:exterior,name:'azure.png'})).body,'synthetic azure');
+    const capture=path.join(storage.projectDir(source),'google_3d');await mkdir(path.join(capture,'tiles'),{recursive:true});
+    await writeFile(path.join(capture,'manifest.json'),JSON.stringify({tiles:[{file:'tile-0.glb'}]}));await writeFile(path.join(capture,'tiles','tile-0.glb'),'synthetic tile');
+    assert.deepEqual((await signed({operation:'source',tutorial_id:exterior,name:'google-3d/manifest.json'})).json(),{tiles:[{file:'tile-0.glb'}]});
+    assert.equal((await signed({operation:'source',tutorial_id:exterior,name:'google-3d/tiles/tile-0.glb'})).body,'synthetic tile');
+    assert.equal((await signed({operation:'source',tutorial_id:exterior,name:'google-3d/../app_metadata.json'})).statusCode,403);
+    assert.equal((await signed({operation:'source',tutorial_id:exterior,student_email:'student@example.test',name:'google-3d/manifest.json'},'other@example.test')).statusCode,403);
     assert.equal((await app.inject({url:`/v1/firstmeasure/projects/${source}/editor`})).statusCode,404,'source remains private outside training');
     entries[2]!.measurement_scope='full_house';await writeFile(curriculumFile,JSON.stringify({chapters:[{projects:entries}]}));
     assert.equal((await signed({operation:'start',source:incomplete,chapter_id:1,curriculum_project_id:'missing'})).statusCode,409,'explicit exterior selection cannot silently lose scope');
