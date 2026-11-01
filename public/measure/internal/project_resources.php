@@ -28,6 +28,8 @@ if (strpos($project, 'tutorial_') === 0) {
     $tutorialOwner = fm_editor_tutorial_request_user_email($_SESSION['user_email'], $project, $tutorialCourse);
     $tutorialResource = fm_tutorial_find_project($project, $tutorialOwner, $tutorialCourse);
     if (!$tutorialResource || ($tutorialResource['manifest']['measurement_scope'] ?? '') !== 'full_house') resource_error(404, 'Not found.');
+    // The editor's resource requests name no course; use the one the project was found in (FM-318).
+    $tutorialCourse = $tutorialResource['course_id'];
     if ($customerOrder) resource_error(403, 'Student uploads cannot replace customer references.');
     if ($_SERVER['REQUEST_METHOD'] === 'POST' && (!empty($tutorialResource['manifest']['locked_for_student']) || $tutorialOwner !== strtolower($_SESSION['user_email']))) resource_error(403, 'This training project is read only.');
 } elseif (!fm_is_full_house_id($project) || !fm_full_house_allowed()) resource_error(404, 'Not found.');

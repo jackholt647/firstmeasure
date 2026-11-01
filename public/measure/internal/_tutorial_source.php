@@ -31,6 +31,8 @@ function fm_tutorial_source_request($tutorialId, $student, $course, $name = '') 
 function fm_tutorial_fetch_source_bundle($tutorialId, $student, $course) {
     $found = fm_tutorial_find_project($tutorialId, $student, $course);
     if (!$found) return null;
+    // Callers such as project_resources.php send no course: Node reads the project from the one it lives in (FM-318).
+    $course = $found['course_id'];
     $source = $found['manifest']['source_project_id'] ?? '';
     // Preserve legacy roof sources and environments without the experimental feature.
     if (!fm_is_full_house_id($source) && ($found['manifest']['measurement_scope'] ?? '') !== 'full_house') return fm_fetch_project_bundle($source);
