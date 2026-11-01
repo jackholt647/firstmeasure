@@ -585,6 +585,7 @@ app.post("/auth/google", async (request, reply) => {
     const requestedGlobal = asObject(body.global);
     delete requestedGlobal.app_flags;
     delete requestedGlobal.feature_flags;
+    delete requestedGlobal.app_flag_overrides;
     delete requestedGlobal.app_variants;
     delete requestedGlobal.feature_variants;
     const attribution = signupAttributionPayload(withAcquisitionRequestMetadata(body, request));
@@ -1075,6 +1076,7 @@ app.get("/auth/google/config", async () => ({
     const requestedGlobal = asObject(body.global);
     delete requestedGlobal.app_flags;
     delete requestedGlobal.feature_flags;
+    delete requestedGlobal.app_flag_overrides;
     delete requestedGlobal.app_variants;
     delete requestedGlobal.feature_variants;
     const registered = await withNewIdentityRegistration(body.email, async (transaction) => {

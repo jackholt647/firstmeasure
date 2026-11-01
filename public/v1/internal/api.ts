@@ -3,6 +3,7 @@ import { countryRecord, organizationCountry, orderPropertyCountry, saveOrganizat
 import { profileFromGlobal } from "../commerce/profile.js";
 import { commercialProfileLock, reassignCommercialProfile } from "../commerce/reassign.js";
 import { readCapabilityCountryRules, saveCapabilityCountryRules } from "../platform/capabilities.js";
+import { recordFlagAudit } from "../platform/flag-console.js";
 import { assignedTutorialCourses, hasTutorialCourse, OPTIONAL_TUTORIAL_COURSES } from "./tutorial_courses.js";
 import { assertFullHouseEligible, fullHouseEligible, isCustomerFullHouse, FULL_HOUSE_QUALITY_CATEGORIES } from '../firstmeasure/full_house_workflow.js';
 import { managerReviewCsv } from "./manager_review_export.js";
@@ -821,13 +822,15 @@ export const registerInternalApi: FastifyPluginAsync = async (app) => {
     return { ok: true, success: true, rules: await readCapabilityCountryRules(true) };
   });
   app.put("/admin/capability-country-rules", async (request) => {
-    const actor = await requireInternalFeatureFlagAdmin(request);
+    const actor = await requirePlatformAdminForFlagChange(request);
+    const before = await readCapabilityCountryRules(true);
     const rules = await saveCapabilityCountryRules(objectSchema.parse(request.body ?? {}), cleanText(actor.email).toLowerCase());
+    await recordFlagAudit({ kind: "staff", label: cleanText(actor.email).toLowerCase(), can_write: true }, { action: "country_rules", summary: `Country rules saved (${rules.length})`, before, after: rules });
     return { ok: true, success: true, rules };
   });
 
   app.post("/admin/organizations/:orgId/app-flags", async (request) => {
-    const actor = await requireInternalFeatureFlagAdmin(request);
+    const actor = await requirePlatformAdminForFlagChange(request);
     const orgId = param(request.params, "orgId");
     if (!orgId) throw badRequest("missing_organization_id", "An organization is required.");
     const body = objectSchema.parse(request.body ?? {});
@@ -846,6 +849,7 @@ export const registerInternalApi: FastifyPluginAsync = async (app) => {
         app_flags_source: "measure_internal_feature_flags"
       }
     });
+    await recordFlagAudit({ kind: "staff", label: cleanText(actor.email).toLowerCase(), can_write: true }, { action: "legacy_org_write", summary: `Direct flag write to ${orgId}`, after: patchData, orgs: [{ org_id: orgId, org_name: "", before: null, after: patchData }] });
     return { ok: true, success: true, org_id: orgId, global };
   });
 
@@ -976,7 +980,7 @@ export const registerInternalApi: FastifyPluginAsync = async (app) => {
 
   // Saved as a new library revision by this operator; refused where the library is read-only (outside development).
   app.put("/admin/app-flag-defaults", async (request) => {
-    const actor = await requireInternalFeatureFlagAdmin(request);
+    const actor = await requirePlatformAdminForFlagChange(request);
     const body = objectSchema.parse(request.body ?? {});
     const record = await saveNewOrganizationAppFlagOverrides(asObject(body.app_flags || body.feature_flags || body.flags), personAuthor(actor.email));
     return { ok: true, success: true, defaults: record };
@@ -1505,6 +1509,14 @@ async function requireInternalFeatureFlagAdmin(request: FastifyRequest) {
     ...actor,
     user: user ? publicInternalUser(user) : null
   };
+}
+
+/** Changing a flag is for platform administrators; reading them stays with requireInternalFeatureFlagAdmin. */
+async function requirePlatformAdminForFlagChange(request: FastifyRequest) {
+  const actor = await requireInternalFeatureFlagAdmin(request);
+  const user = await readInternalUser(cleanText(actor.email).toLowerCase()).catch(() => null);
+  if (!isStrictInternalAdmin(user) && !asObject(user?.permissions).platform_admin) throw forbidden("platform_admin_required", "Only platform administrators can change feature flags.");
+  return actor;
 }
 
 function normalizeFirstMeasureApiKeyMode(value: unknown): "test" | "live" {
@@ -5331,8 +5343,10 @@ async function handleLegacyAction(app: FastifyInstance, body: JsonObject, reques
       return { ok: true, success: true, rules: await readCapabilityCountryRules(true) };
     }
     case "capability_country_rules_save": {
-      const admin = await requireInternalFeatureFlagAdmin(request);
+      const admin = await requirePlatformAdminForFlagChange(request);
+      const before = await readCapabilityCountryRules(true);
       const rules = await saveCapabilityCountryRules({ rules: parseJsonish(body.rules, []) }, cleanText(admin.email).toLowerCase());
+      await recordFlagAudit({ kind: "staff", label: cleanText(admin.email).toLowerCase(), can_write: true }, { action: "country_rules", summary: `Country rules saved (${rules.length})`, before, after: rules });
       return { ok: true, success: true, rules };
     }
     case "org_set_country": {

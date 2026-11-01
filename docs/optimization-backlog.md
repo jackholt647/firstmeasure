@@ -7,6 +7,18 @@ optimization here must return exactly the same results.
 Add an entry when you knowingly ship something that reads more than it needs, repeats work, or will not scale, and
 link the entry from the architecture doc's "Not built" section. Remove an entry when it is done.
 
+## Feature flag counts scan every organization
+
+**Today.** The feature flag console's counts (`scanOrganizations` in `platform/flag-console.ts`) read every
+organization's `app_flags` in pages of 2000, keep one byte per flag per organization, and work out each flag's count in
+Node, cached for a minute. At 50,000 organizations that is about 10 MB and a few seconds on the compatibility host,
+yielding between batches. It runs only when an administrator opens the console or recounts.
+
+**Where the change goes.** Counters kept current by the flag writers, or a summary table refreshed by the worker.
+
+**Why it can wait.** A handful of people use it, it never runs on a customer's request, and a percentage is evaluated
+per organization at read time without any of this.
+
 ## Customer summaries load every order's manifest
 
 **Today.** Each internal Customers row (`buildOrganizationSummaryRow` in `internal/api.ts`) is built from the

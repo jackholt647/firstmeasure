@@ -10,6 +10,7 @@ import { registerRouteAccessTable, type RouteAccess } from "../platform/security
 const any: RouteAccess = { staff: "any" };
 const manager: RouteAccess = { staff: "manager" };
 const admin: RouteAccess = { staff: "admin" };
+const flagConsole: RouteAccess = { public: "feature flag console: the plugin's preHandler requires an administrator session, a staff reader or a live access key" };
 
 registerRouteAccessTable({
   "GET /v1/internal": any,
@@ -56,7 +57,23 @@ registerRouteAccessTable({
   "GET /v1/internal/bonus-offers/rollouts": any,
   "POST /v1/internal/bonus-offers/rollouts": admin,
   "POST /v1/internal/bonus-offers/rollouts/:rolloutId/cancel": admin,
-  // The handler also requires a feature-flag admin (admin or manage_sales_users).
+  // Feature flag console (internal/flags-api.ts). An access key is its own proof, so these are public here and the
+  // plugin-wide preHandler requires a verified administrator session, a staff reader or a live key. docs/architecture/feature-flags.md
+  "GET /v1/internal/flags/me": flagConsole,
+  "GET /v1/internal/flags/catalog": flagConsole,
+  "GET /v1/internal/flags/catalog/:key/coverage": flagConsole,
+  "PUT /v1/internal/flags/catalog/:key/rollout": flagConsole,
+  "GET /v1/internal/flags/orgs": flagConsole,
+  "GET /v1/internal/flags/orgs/:orgId": flagConsole,
+  "PUT /v1/internal/flags/orgs/:orgId/flags/:key": flagConsole,
+  "POST /v1/internal/flags/resolve": flagConsole,
+  "POST /v1/internal/flags/bulk": flagConsole,
+  "GET /v1/internal/flags/audit": flagConsole,
+  "GET /v1/internal/flags/audit/:id": flagConsole,
+  "GET /v1/internal/flags/keys": admin,
+  "POST /v1/internal/flags/keys": admin,
+  "DELETE /v1/internal/flags/keys/:keyId": admin,
+  // The handler also requires a platform administrator.
   "POST /v1/internal/admin/organizations/:orgId/app-flags": any,
   "GET /v1/internal/admin/app-flag-defaults": any,
   "PUT /v1/internal/admin/app-flag-defaults": any,
