@@ -147,7 +147,7 @@ for c in disk-watch.conf jack-pc.conf experiments.conf; do
   [ -f /etc/fm-agents/$c ] || install -m 644 "$HERE/etc/fm-agents/$c" /etc/fm-agents/$c
 done
 systemctl daemon-reload
-systemctl enable --now fm-disk-watch.timer fm-agents-cleanup.timer fm-experiments-index.timer fm-jack-pc-mount.timer
+systemctl enable --now fm-disk-watch.timer fm-agents-cleanup.timer fm-experiments-index.timer fm-jack-pc-mount.timer fm-clone-sync.timer
 
 log "Experimental hosting (Caddy)"
 install -m 644 "$HERE/etc/caddy/Caddyfile" /etc/caddy/Caddyfile

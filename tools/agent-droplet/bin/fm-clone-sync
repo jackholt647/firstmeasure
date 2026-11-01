@@ -1,0 +1,28 @@
+#!/usr/bin/env bash
+# Keeps the shared main clones current, so a session Jack opens in one (or anything that reads them) is never days
+# behind: /srv/agents/work/firstmeasure follows devpush's canonical branch, /srv/agents/work/firstmate-tracker
+# follows origin/master. Fast-forward only, and only when the clone is on that branch with nothing uncommitted and
+# no commits of its own; otherwise it logs why and leaves the clone alone. Runs as `agent` every 5 minutes.
+set -uo pipefail
+LOG=/srv/agents/logs/clone-sync.log
+mkdir -p "$(dirname "$LOG")"
+log() { echo "$(date -u +%Y-%m-%dT%H:%M:%SZ) $*" >>"$LOG"; }
+
+sync_clone() { # dir remote branch
+  local dir=$1 remote=$2 branch=$3 target
+  [ -d "$dir/.git" ] || { log "$dir: not a clone, skipped"; return; }
+  git -C "$dir" fetch --quiet "$remote" || { log "$dir: fetch $remote failed"; return; }
+  [ "$(git -C "$dir" branch --show-current)" = "$branch" ] || { log "$dir: not on $branch, left alone"; return; }
+  [ -z "$(git -C "$dir" status --porcelain --untracked-files=no)" ] || { log "$dir: uncommitted changes, left alone"; return; }
+  target="$remote/$branch"
+  [ "$(git -C "$dir" rev-parse HEAD)" = "$(git -C "$dir" rev-parse "$target")" ] && return
+  git -C "$dir" merge-base --is-ancestor HEAD "$target" || { log "$dir: has commits not on $target, left alone"; return; }
+  if git -C "$dir" merge --quiet --ff-only "$target" >/dev/null 2>&1; then
+    log "$dir: fast-forwarded to $(git -C "$dir" rev-parse --short HEAD)"
+  else
+    log "$dir: fast-forward to $target failed"
+  fi
+}
+
+sync_clone /srv/agents/work/firstmeasure devpush codex/consolidated-firstmeasure-20260923
+sync_clone /srv/agents/work/firstmate-tracker origin master
