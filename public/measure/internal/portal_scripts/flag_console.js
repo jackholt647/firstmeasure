@@ -91,6 +91,7 @@
   .ffc-seg button:last-child{border-right:0}
   .ffc-seg button:disabled{cursor:not-allowed;opacity:.6}
   .ffc-seg button[aria-pressed="true"][data-v="on"]{background:#067647;color:#fff}
+  .ffc-seg button[aria-pressed="true"][data-v="introduce"]{background:#175cd3;color:#fff}
   .ffc-seg button[aria-pressed="true"][data-v="off"]{background:#b42318;color:#fff}
   .ffc-seg button[aria-pressed="true"][data-v="auto"]{background:#475467;color:#fff}
   .ffc-orgflag{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:12px;align-items:center;padding:9px 12px;border-bottom:1px solid #f2f4f7;background:#fff}
@@ -188,7 +189,7 @@
         <input class="ffc-range" type="range" min="0" max="100" step="1" value="${esc(draft)}" data-percent aria-label="Percentage slider" style="flex:1;min-width:120px" ${canWrite() ? '' : 'disabled'}>
       </div>
       <div class="ffc-sub" style="margin:6px 0 10px" id="ffcCoverage">${S.coverage && Number(S.coverage.percent) === Number(draft) ? `Covers ${num(S.coverage.covered)} of ${num(S.coverage.total_orgs)} organizations, before explicit values. Raising it later keeps everyone it covers now.` : 'Raising a percentage later keeps everyone it covers now.'}</div>
-      ${flag.introduction ? `<label class="ffc-pick" style="margin-bottom:8px"><input type="checkbox" data-percent-introduce ${S.percentIntroduce ? 'checked' : ''} ${canWrite() ? '' : 'disabled'}><span>Introduce it to organizations this adds<br><span class="ffc-sub">They see its announcement once, the next time someone loads the app. Organizations created later never do.</span></span></label>` : ''}
+      ${flag.introduction ? `<label class="ffc-pick" style="margin-bottom:8px;padding:0;border:0"><input type="checkbox" style="flex:none;width:auto;margin-top:3px" data-percent-introduce ${S.percentIntroduce ? 'checked' : ''} ${canWrite() ? '' : 'disabled'}><span>Introduce it to organizations this adds<br><span class="ffc-sub">They see its announcement once, the next time someone loads the app. Organizations created later never do.</span></span></label>` : ''}
       <div class="ffc-row-actions"><button class="ffc-btn ffc-primary" type="button" data-action="save-percent" ${changed && canWrite() ? '' : 'disabled'}>Save percentage</button></div>`
       : '<div class="ffc-note ffc-info">This one is set per organization, never by percentage.</div>'}
       <hr style="border:0;border-top:1px solid #eaecf0;margin:14px 0">
