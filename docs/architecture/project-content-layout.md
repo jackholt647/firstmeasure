@@ -262,6 +262,17 @@ content width beside the right tray, rather than only the browser viewport.
 
 To Do is registered immediately after Notes and reuses `PlatformActionItems.renderTodayList` with a project filter, including its future and completed sections. The legacy project to-do dock is suppressed when this tray is available. The agent's compact pin occupies 100px below an open tray or floats at the bottom right when no tray is selected. Pinning moves the same renderer and preserves the conversation; session ownership and global transfer are described in [global assistant architecture](global-assistant.md#project-tray-session-lifetime).
 
+### Project details tray
+
+The left project details tray (`#rDetailsTray`) starts open whenever the window opens a project: new, existing, with
+an order or without. Nothing is remembered in the browser. A person's close holds for that project, including when a
+new project takes its id through an autosave or a placed order, until another project opens or the window closes. On
+a phone the tray is a sheet over the content, so it starts closed unless the project has no record yet or its report
+order or picker is in progress. A link or a placed order that asks for Reports' measurements in an organization with
+no Reports tab still opens it, because the tray is where they show. The report order's phone pages keep the form in
+Overview. Full Exterior's capture panel closes only an open right-hand tray and restores it, never this one.
+Test: `public/v1/tests/project-details-tray-browser.test.mjs`.
+
 ### Phone trays
 
 On a phone (the window manager's `data-window-mobile`, else a 760px top-window
