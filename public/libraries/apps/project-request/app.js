@@ -6069,7 +6069,7 @@ window.PlatformCommerce.onReady(async function(){
       title: (globalThis.PlatformLanguage?.text("project-request","full_exterior_report","Full Exterior report") ?? "Full Exterior report"),
       body: (globalThis.PlatformLanguage?.text("project-request","m_0d21d7d3136fc9","Exterior measurements for the whole house, including the roof.") ?? "Exterior measurements for the whole house, including the roof."),
       bullets: [(globalThis.PlatformLanguage?.text("project-request","m_97e57acb52769a","Walls, windows, doors, and siding areas.") ?? "Walls, windows, doors, and siding areas."), (globalThis.PlatformLanguage?.text("project-request","full_exterior_roof_included","Roof measurements included.") ?? "Roof measurements included."), (globalThis.PlatformLanguage?.text("project-request","full_exterior_gutters_included","Gutters are always included.") ?? "Gutters are always included.")],
-      sample: {label: (globalThis.PlatformLanguage?.text("project-request","full_exterior_sample_download","Download sample Full Exterior report") ?? "Download sample Full Exterior report"), url: 'samples/full_house_sample.pdf'}
+      sample: {label: (globalThis.PlatformLanguage?.text("project-request","full_exterior_sample_download","Download sample Full Exterior report") ?? "Download sample Full Exterior report"), url: 'samples/full_house_sample.pdf?v=20261102'}
     };
     if (key === 'roof') return {
       title: (globalThis.PlatformLanguage?.text("project-request","m_874db260d86062","Roof Only report") ?? "Roof Only report"), body: (globalThis.PlatformLanguage?.text("project-request","m_f1775523edde74","Your roof measurement report.") ?? "Your roof measurement report."),
