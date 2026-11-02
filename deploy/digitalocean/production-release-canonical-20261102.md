@@ -7,7 +7,7 @@ This is the first production release cut from canonical since production moved t
 | | Commit | Note |
 | --- | --- | --- |
 | Canonical (platform) | `CANON_SHA` (`e05b5f5b` on Nov 2 00:30 UTC, with the feature flag console API and keys; take the tip at go time) | `devpush/codex/consolidated-firstmeasure-20260923` |
-| Lane (editor) | `LANE_SHA` (`0cc7604f` on Nov 2 00:30 UTC, with the flag console page, Ctrl+Shift+F) | `devpush/lane/measure-internal` |
+| Lane (editor) | `LANE_SHA` = **`a64f67a7`** (Nov 2 20:35 UTC: student progress per curriculum and FM-320). **Not the lane tip:** editor modeling work from `4691f0fe` onward (line centers in plane mode, ground arc selection, repeat extrusion of curved faces, extruding floating lines and curves) stays on dev until Jack releases it as a batch. A tracker FirstMeasure bug fix that lands on the lane after `a64f67a7` must be cherry-picked onto the candidate, not taken with the tip. | `devpush/lane/measure-internal` |
 | Candidate | `CANDIDATE_SHA` | The commit from "Build the candidate" |
 | Production today | `226e87fd56341e0701358de9dfe22e5d5637781d` | All 8 hosts; production-live `cd686cca` |
 | Rollback | `226e87fd…`, channel archive `a2f4e4f4c753e03144bbd26f680f04ce837d05fa513a345ef731dabccaf596b8` | Kept on every role |
@@ -100,13 +100,13 @@ None need porting, and all must survive. Verified present on November 1 unless n
 
 **Gated off by default** (reach only organizations that switch them on): Documents history, Operations and materials, Money ledger, customer portal payments, scheduling, assistant, CRM additions, Holiday Lights, Full Exterior ordering.
 
-**Added on Nov 2 after this record was written** (all live on dev, in canonical or the lane, taken with the tips):
+**Added on Nov 2 after this record was written** (all live on dev; canonical taken at its tip, the lane at `a64f67a7`):
 - **Release blocker fixed:** customers without expanded access open their orders from any browser (`e311bddb`). Before it, canonical showed "This project could not be found" from a second device; production does not.
 - **Measurements widget** never shows a bare "No measurements." (`f512f924`): order status, the report's model, or a way to get measurements.
 - **Project details column** starts open on desktop for every project, including after ordering.
 - **Full Exterior:** "Under 6 hours" / "Under 3 hours" labels; after-the-fact expedite for the fee difference ($5 / $10 per structure); one report-kind tag on My Projects; what was ordered on the order card; new sample PDF (`portal/samples/full_house_sample.pdf`) and Settings preview sample.
 - **Technician points for a Full Exterior:** walls weigh 1.1x a roof of the same complexity (was 2x), for jobs scored after release. This changes pay (Jack, Nov 1).
-- **Editor (lane):** `/measure/internal/.user.ini` raises PHP's upload limits to 64M (saves of full houses failed with "Upload failed" 400 at the stock 2M); the PDF step shows gutter stories only as a reminder; Sources & Notes holds only what the tech adds; training reads Apple imagery stored as JPEG.
+- **Editor (lane):** `/measure/internal/.user.ini` raises PHP's upload limits to 64M (saves of full houses failed with "Upload failed" 400 at the stock 2M); the PDF step shows gutter stories only as a reminder; Sources & Notes holds only what the tech adds; training reads Apple imagery stored as JPEG; Student Progress counts and names only the open curriculum.
 - **Exteriors intro popup:** an `introduce` flag state and its guide (`guided_experience/exteriors.introduction`, exported into the snapshot alone). Inert on production until Ben's page `https://1m8.ai/billboards/exteriors_popup/` is live and staff Introduce an organization in the console; its Try It Now button must have id `try-it-now`.
 
 **No capability default flips.** Production's runtime defaults (186 keys) against the snapshot (205): none changed. New keys that default on sit under switches that are off for FirstMeasure organizations; this was checked from the definitions, not walked in a browser.
