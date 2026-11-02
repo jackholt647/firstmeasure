@@ -48,31 +48,32 @@ test("the completed model is counted from the reviewed snapshot", () => {
   assert.deepEqual(countFullHouseModel(null), { roof_facets: 0, windows: 0, doors: 0, wall_planes: 0 });
 });
 
-test("total points are roof points plus twice the wall points, mapped to one project complexity", () => {
-  // Roof complexity 2 (3 pts), walls complexity 3 (4 pts): 3 + 2 x 4 = 11.
+test("total points are roof points plus 1.1x the wall points, mapped to one project complexity", () => {
+  // Roof complexity 2 (3 pts), walls complexity 3 (4 pts): 3 + 1.1 x 4 = 7.4.
   const result = computeFullHousePoints({ roof_facets: 8, windows: 15, doors: 3, wall_planes: 16 });
-  assert.equal(result.point_value, 11);
-  assert.equal(result.complexity, 3, "11 is nearest the full-house total of complexity 3 (12)");
+  assert.equal(result.point_value, 7.4);
+  assert.equal(result.complexity, 3, "7.4 is nearest the full-house total of complexity 3 (8.4)");
   assert.deepEqual(result.point_calculation.roof, { facets: 8, complexity: 2, points: 3 });
   assert.deepEqual(result.point_calculation.walls, { windows: 15, doors: 3, wall_planes: 16, score: 25, complexity: 3, points: 4 });
   assert.equal(result.point_calculation.mode, "full_house");
-  assert.equal(result.point_calculation.total_points, 11);
+  assert.equal(result.point_calculation.total_points, 7.4);
+  assert.equal(result.point_calculation.wall_multiplier, 1.1);
 
   // When the walls score the same complexity as the roof, a full house is
-  // exactly 3x the same roof and keeps the roof's complexity.
+  // exactly 2.1x the same roof and keeps the roof's complexity.
   for (const [facets, walls] of [[4, { windows: 2, doors: 1, wall_planes: 4 }], [8, { windows: 6, doors: 2, wall_planes: 8 }], [15, { windows: 15, doors: 3, wall_planes: 16 }], [30, { windows: 30, doors: 4, wall_planes: 30 }], [40, { windows: 60, doors: 6, wall_planes: 40 }]] as const) {
     const roofComplexity = firstMeasureComplexityForRoofSegments(facets);
     const full = computeFullHousePoints({ roof_facets: facets, ...walls });
-    assert.equal(full.point_value, 3 * firstMeasurePointValueForComplexity(roofComplexity)!);
+    assert.equal(full.point_value, Math.round(2.1 * firstMeasurePointValueForComplexity(roofComplexity)! * 100) / 100);
     assert.equal(full.complexity, roofComplexity);
   }
 
   // The dev pilot: roof complexity 2 was 3 points, 54 minutes and P30-57.
-  // With a complexity-2 wall proxy it is 9 points: 162 minutes and P90-171.
+  // With a complexity-2 wall proxy it is 6.3 points: about 113 minutes and P63-120.
   const pilot = computeFullHousePoints({ roof_facets: 8, windows: 10, doors: 2, wall_planes: 10 });
-  assert.equal(pilot.point_value, 9);
-  assert.equal(18 * pilot.point_value, 162);
-  assert.deepEqual([10, 19].map(rate => rate * pilot.point_value), [90, 171]);
+  assert.equal(pilot.point_value, 6.3);
+  assert.equal(Math.round(18 * pilot.point_value), 113);
+  assert.deepEqual([10, 19].map(rate => Math.round(rate * pilot.point_value)), [63, 120]);
 
   assert.equal(computeFullHousePoints({ roof_facets: 8, windows: 10, doors: 2, wall_planes: 10 }, { ...FULL_HOUSE_POINTS_DEFAULTS, wall_multiplier: 1 }).point_value, 6, "the wall weight is a parameter");
 });
@@ -121,8 +122,8 @@ test("stored point values: roof jobs follow complexity; a scored full house keep
   assert.equal((await storage.readManifest(fullId)).point_value, 3, "unscored until submission");
   const scored = computeFullHousePoints({ roof_facets: 8, windows: 15, doors: 3, wall_planes: 16 });
   await storage.patchManifest(fullId, scored as never);
-  assert.equal((await storage.readManifest(fullId)).point_value, 11);
+  assert.equal((await storage.readManifest(fullId)).point_value, 7.4);
   assert.equal((await storage.readManifest(fullId)).complexity, 3);
   await storage.patchManifest(fullId, { status: "awaiting_review" });
-  assert.equal((await storage.readManifest(fullId)).point_value, 11, "later writes keep the full-house total");
+  assert.equal((await storage.readManifest(fullId)).point_value, 7.4, "later writes keep the full-house total");
 });
