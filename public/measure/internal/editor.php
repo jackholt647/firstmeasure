@@ -3082,5 +3082,6 @@ $tutorialStudentEmail = strtolower(trim((string)($_GET['student_email'] ?? $_GET
         });
 
     </script>
+<script src="portal_scripts/flag_console.js?v=<?=@filemtime(__DIR__ . '/portal_scripts/flag_console.js')?>"></script>
 </body>
 </html>

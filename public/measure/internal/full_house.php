@@ -112,4 +112,5 @@ $googleKey = fm_google_provider_key('browser_internal');
 <?php else: ?>
 <script>fullHouseAddressUnavailable();</script>
 <?php endif; ?>
+<script src="portal_scripts/flag_console.js?v=<?=@filemtime(__DIR__ . '/portal_scripts/flag_console.js')?>"></script>
 </body></html>
