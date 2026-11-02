@@ -6,7 +6,7 @@ const hasPhp=spawnSync('php',['-v']).status===0;
 
 test('the source bundle carries reference imagery and no answer files',{skip:!hasPhp},()=>{
  const stub=fs.mkdtempSync(path.join(os.tmpdir(),'tutorial-imagery-'));
- const names=['google.png','azure.png','apple.png','rgb.tif','dsm.tif','structure-1-rgb.tif','structure-1-apple.png','instant-structures.json','internal-resource-v2-a-front.jpg','internal-markup-part-a-00000000.bin','app_metadata.json','pdf_state.json','Report.pdf','model_data.xml','quad_crop.png','internal-markup-a-1.json'];
+ const names=['google.png','azure.png','apple.png','apple.jpg','rgb.tif','dsm.tif','structure-1-rgb.tif','structure-1-apple.png','instant-structures.json','internal-resource-v2-a-front.jpg','internal-markup-part-a-00000000.bin','app_metadata.json','pdf_state.json','Report.pdf','model_data.xml','quad_crop.png','internal-markup-a-1.json'];
  fs.writeFileSync(stub+'/_full_house.php',"<?php function fm_is_full_house_id($id){return true;} function fm_legacy_manifest($m){return $m;} function fm_staff_session_email(){return 's@e.test';}");
  const source=fs.readFileSync(dir+'_tutorial_source.php','utf8').replace(/function fm_tutorial_bridge\(\$body\) \{/,`function fm_tutorial_bridge($body) { return ['status'=>200,'json'=>['manifest'=>[],'assets'=>['google_3d_manifest'=>'https://node.test/manifest.json'],'files'=>array_map(fn($name)=>['name'=>$name],${JSON.stringify(names)})]]; }\nfunction fm_tutorial_bridge_unused($body) {`);
  fs.writeFileSync(stub+'/_tutorial_source.php',source);
@@ -18,7 +18,7 @@ echo json_encode(['files'=>array_column($b['files'],'name'),'assets'=>$b['assets
 `);
  const run=spawnSync('php',[stub+'/run.php'],{encoding:'utf8'});assert.equal(run.status,0,run.stdout+run.stderr);
  const out=JSON.parse(run.stdout);fs.rmSync(stub,{recursive:true,force:true});
- assert.deepEqual(out.files,names.slice(0,10));
+ assert.deepEqual(out.files,names.slice(0,11));
  for(const key of ['azure','apple','structure-1-rgb','structure-1-apple','instant-structures'])assert.match(out.assets[key],/^tutorial_sources\.php\?/,key);
  assert.equal(out.assets.app_metadata,undefined);assert.equal(out.assets.report,undefined);
  const manifestUrl=new URL(out.assets.google_3d_manifest,'https://x.test/');

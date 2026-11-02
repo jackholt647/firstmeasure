@@ -31,7 +31,7 @@ function fm_tutorial_source_request($tutorialId, $student, $course, $name = '') 
 // Reference imagery only: never the answer geometry, report snapshots, generated PDFs or source markups.
 // The same list is in tutorialSourceFile (public/v1/internal/tutorial_exteriors.ts).
 function fm_tutorial_source_file($name) {
-    return preg_match('/^(google\.(png|jpg)|azure\.png|apple\.png|rgb\.tif|dsm\.tif|mask\.tif|insights\.json|instant-structures\.json|structure-[0-9]+-(rgb|dsm|mask)\.tif|structure-[0-9]+-apple\.png|internal-resource-[a-zA-Z0-9._-]+|internal-markup-part-[a-zA-Z0-9._-]+)$/D', (string)$name) === 1;
+    return preg_match('/^(google\.(png|jpg)|azure\.png|apple\.(png|jpg)|rgb\.tif|dsm\.tif|mask\.tif|insights\.json|instant-structures\.json|structure-[0-9]+-(rgb|dsm|mask)\.tif|structure-[0-9]+-apple\.(png|jpg)|internal-resource-[a-zA-Z0-9._-]+|internal-markup-part-[a-zA-Z0-9._-]+)$/D', (string)$name) === 1;
 }
 
 function fm_tutorial_source_url($tutorialId, $student, $course, $name) {
