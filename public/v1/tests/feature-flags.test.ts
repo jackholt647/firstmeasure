@@ -192,6 +192,8 @@ test("the three layers reach the gate exterior ordering uses, and stored values 
   await saveCapabilityValues(carried, { [FLAG]: false });
 });
 
+const row = (catalog: any, key: string) => catalog.flags.find((flag: any) => flag.key === key);
+
 test("counts agree with resolving each organization, and a percentage preview matches what it covers", async () => {
   const admin = await caller("counts-admin", { role: "admin" });
   const { effectiveCapabilities, valueCapabilities } = await import("../platform/capabilities.js");
@@ -210,6 +212,13 @@ test("counts agree with resolving each organization, and a percentage preview ma
     // Entitlements and the expanded access ceiling come from elsewhere; only the FirstMeasure flags are comparable here.
     if (node.key.startsWith("firstmeasure.")) assert.equal(row.stats.on, expected, node.key);
   }
+  // A write here keeps the counts current without another full read.
+  const target = String(orgs.find((org) => String(org.id) !== "legacy_internal")!.id);
+  const before = row(catalog, "firstmeasure.exteriors_multifamily").stats.explicit_on;
+  ok(await flags(admin, "PUT", `/orgs/${target}/flags/firstmeasure.exteriors_multifamily`, { value: true }));
+  assert.equal(row(ok(await flags(admin, "GET", "/catalog")), "firstmeasure.exteriors_multifamily").stats.explicit_on, before + 1);
+  ok(await flags(admin, "PUT", `/orgs/${target}/flags/firstmeasure.exteriors_multifamily`, { value: null }));
+  assert.equal(row(ok(await flags(admin, "GET", "/catalog")), "firstmeasure.exteriors_multifamily").stats.explicit_on, before);
   const preview = ok(await flags(admin, "GET", `/catalog/${FLAG}/coverage?percent=33.3`));
   assert.equal(preview.covered, orgs.filter((org) => percentCovers(33.3, FLAG, String(org.id))).length);
   ok(await flags(admin, "PUT", `/catalog/firstmeasure.exteriors_commercial/rollout`, { percent: 0 }));
@@ -234,6 +243,11 @@ test("a pasted list resolves with a preview, and turning a flag on for it is one
   assert.equal(entry(byEmail.email).matched_by, "email");
   assert.equal(entry(byEmail.email).organizations[0].id, byEmail.orgId);
   assert.equal(entry(byEmail.email).organizations[0].owner_email, byEmail.email.toLowerCase());
+  // Several memberships in one organization are one organization, not a choice.
+  const owner = await storage.findIdentityByEmail(byEmail.email);
+  const userId = String((await storage.listIdentityMemberships(String(owner!.id)))[0]!.user.id);
+  await storage.patchIdentity(String(owner!.id), { memberships: [...(owner!.memberships as unknown[]), { organization_id: byEmail.orgId, user_id: userId, role: "member", status: "active" }] });
+  assert.equal(ok(await flags(admin, "POST", "/resolve", { text: byEmail.email })).entries[0].status, "matched");
   assert.equal(entry(byId.orgId).status, "matched");
   assert.equal(entry(byId.orgId).matched_by, "id");
   assert.equal(entry("nobody-here@example.test").status, "unmatched");
@@ -299,4 +313,32 @@ test("access keys read or change flags as created, are audited, and cannot manag
 
   ok(await flags(admin, "DELETE", `/keys/${writeKey.id}`));
   assert.equal((await withKey(writeKey.key, "GET", "/catalog")).statusCode, 401);
+});
+
+test("the CLI reads and changes flags with a key, and a read key cannot change them", async () => {
+  const admin = await caller("cli-admin", { role: "admin" });
+  const target = await caller("cli-target");
+  const { createFlagKey } = await import("../platform/flag-console.js");
+  const write = await createFlagKey({ name: "cli test", scope: "write", createdBy: admin.email });
+  const read = await createFlagKey({ name: "cli reader", scope: "read", createdBy: admin.email });
+  const origin = await app.listen({ port: 0, host: "127.0.0.1" });
+  const { execFile } = await import("node:child_process");
+  const cli = path.resolve(process.cwd(), "../../tools/feature-flags/cli.mjs");
+  const run = (key: string, ...args: string[]) => new Promise<{ code: number; out: string; err: string }>((resolve) => {
+    execFile(process.execPath, [cli, ...args], { env: { ...process.env, FM_FLAGS_ORIGIN: origin, FM_FLAGS_KEY: key } }, (error, stdout, stderr) => resolve({ code: error ? Number(error.code) || 1 : 0, out: stdout, err: stderr }));
+  });
+  const flagLine = await run(read.key, "list", "firstmeasure.exteriors_multifamily");
+  assert.equal(flagLine.code, 0, flagLine.err);
+  assert.match(flagLine.out, /firstmeasure\.exteriors_multifamily/);
+  const refused = await run(read.key, "set", target.orgId, FLAG, "on");
+  assert.equal(refused.code, 1);
+  assert.match(refused.err, /403/);
+  const set = await run(write.key, "set", target.orgId, FLAG, "on", "--note", "from the cli");
+  assert.equal(set.code, 0, set.err);
+  assert.equal(await enabled(target.orgId), true);
+  const shown = await run(read.key, "org", target.email);
+  assert.match(shown.out, /on\s+firstmeasure\.exteriors\s+\(explicit/);
+  const history = await run(read.key, "audit", "--org", target.orgId);
+  assert.match(history.out, /cli test.*from the cli/);
+  assert.ok(![flagLine, set, shown, history].some((result) => result.out.includes(write.key) || result.out.includes(read.key)), "the CLI never prints a key");
 });
