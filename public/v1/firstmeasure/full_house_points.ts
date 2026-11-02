@@ -34,9 +34,11 @@ export type WallComplexityProxyParams = {
 };
 
 // Defaults chosen so the average house's walls score about the same complexity
-// as its roof, which makes a full house about 3x the same property's roof.
+// as its roof. Walls of a given complexity are worth 1.1x a roof of that
+// complexity (Jack, 2026-11-01; was 2x), so a full house is about 2.1x the
+// same property's roof.
 export const FULL_HOUSE_POINTS_DEFAULTS: FullHousePointsParams = {
-  wall_multiplier: 2,
+  wall_multiplier: 1.1,
   wall_proxy: {
     window_weight: 0.5,
     door_weight: 0.5,
@@ -116,7 +118,8 @@ export function computeFullHousePoints(counts: ReturnType<typeof countFullHouseM
   const roofPoints = pointsForComplexity(roofComplexity);
   const wall = wallComplexityProxy(counts, params.wall_proxy);
   const wallPoints = pointsForComplexity(wall.complexity);
-  const total = roofPoints + params.wall_multiplier * wallPoints;
+  // Rounded to cents of a point, so 3 + 1.1 x 3 is 6.3 and not 6.300000000000001.
+  const total = Math.round((roofPoints + params.wall_multiplier * wallPoints) * 100) / 100;
   const complexity = fullHouseProjectComplexity(total, params.wall_multiplier);
   return {
     complexity,
