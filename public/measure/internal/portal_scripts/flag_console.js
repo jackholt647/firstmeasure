@@ -82,6 +82,7 @@
   .ffc-pill.off{background:#fee4e2;color:#b42318}
   .ffc-pill.pct{background:#d1e9ff;color:#175cd3}
   .ffc-stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(92px,1fr));gap:8px;margin:10px 0}
+  .ffc-side .ffc-stats{grid-template-columns:repeat(2,minmax(0,1fr))}
   .ffc-stat{border:1px solid #eaecf0;border-radius:7px;padding:7px 9px}
   .ffc-stat b{display:block;font-size:17px;font-variant-numeric:tabular-nums}
   .ffc-stat span{font-size:11px;color:#667085}
@@ -365,7 +366,7 @@
     if (el.dataset.setOrgFlag) {
       const value = { on:true, off:false, auto:null }[el.dataset.v];
       const org = S.org.organization;
-      await act(async () => { await call('PUT', `/orgs/${encodeURIComponent(org.id)}/flags/${encodeURIComponent(el.dataset.setOrgFlag)}`, { value }); S.org = await call('GET', `/orgs/${encodeURIComponent(org.id)}`); S.orgHistory = (await call('GET', `/audit?org=${encodeURIComponent(org.id)}&limit=8`)).entries; S.audit = null; await loadCatalog(); }, 'Saved. Live within 15 seconds.');
+      await act(async () => { await call('PUT', `/orgs/${encodeURIComponent(org.id)}/flags/${encodeURIComponent(el.dataset.setOrgFlag)}`, { value }); S.org = await call('GET', `/orgs/${encodeURIComponent(org.id)}`); S.orgHistory = (await call('GET', `/audit?org=${encodeURIComponent(org.id)}&limit=8`)).entries; S.audit = null; loadCatalog().then(render, () => {}); }, 'Saved. Live within 15 seconds.');
       return;
     }
     if (el.dataset.pasteValue) { S.pasteValue = el.dataset.pasteValue; return render(); }
