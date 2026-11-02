@@ -100,6 +100,15 @@ None need porting, and all must survive. Verified present on November 1 unless n
 
 **Gated off by default** (reach only organizations that switch them on): Documents history, Operations and materials, Money ledger, customer portal payments, scheduling, assistant, CRM additions, Holiday Lights, Full Exterior ordering.
 
+**Added on Nov 2 after this record was written** (all live on dev, in canonical or the lane, taken with the tips):
+- **Release blocker fixed:** customers without expanded access open their orders from any browser (`e311bddb`). Before it, canonical showed "This project could not be found" from a second device; production does not.
+- **Measurements widget** never shows a bare "No measurements." (`f512f924`): order status, the report's model, or a way to get measurements.
+- **Project details column** starts open on desktop for every project, including after ordering.
+- **Full Exterior:** "Under 6 hours" / "Under 3 hours" labels; after-the-fact expedite for the fee difference ($5 / $10 per structure); one report-kind tag on My Projects; what was ordered on the order card; new sample PDF (`portal/samples/full_house_sample.pdf`) and Settings preview sample.
+- **Technician points for a Full Exterior:** walls weigh 1.1x a roof of the same complexity (was 2x), for jobs scored after release. This changes pay (Jack, Nov 1).
+- **Editor (lane):** `/measure/internal/.user.ini` raises PHP's upload limits to 64M (saves of full houses failed with "Upload failed" 400 at the stock 2M); the PDF step shows gutter stories only as a reminder; Sources & Notes holds only what the tech adds; training reads Apple imagery stored as JPEG.
+- **Exteriors intro popup:** an `introduce` flag state and its guide (`guided_experience/exteriors.introduction`, exported into the snapshot alone). Inert on production until Ben's page `https://1m8.ai/billboards/exteriors_popup/` is live and staff Introduce an organization in the console; its Try It Now button must have id `try-it-now`.
+
 **No capability default flips.** Production's runtime defaults (186 keys) against the snapshot (205): none changed. New keys that default on sit under switches that are off for FirstMeasure organizations; this was checked from the definitions, not walked in a browser.
 
 ## Configuration
@@ -148,7 +157,7 @@ Connections: `max_connections` is 800, with 145 active at the last check; pool 4
 5. **Compat first,** in a quiet window, reloading nginx with it: `activate-release.sh CANDIDATE_SHA firstmeasure-legacy.service`. See Risk 1.
 6. Worker, after no running jobs. Then publish the channel.
 7. Web nodes, one at a time, using the drain from `web_activate.py` (about 95 s each, about 10 minutes). Check `FIRSTMEASURE_FULL_HOUSE_*`, pool and worker counts in each process.
-8. Verify: readiness returns the candidate 40 of 40; staff sign-in reaches the console without signing in again; a customer login opening `/measure/internal/` goes to staff sign-in; open and save the editor, including a Full Exterior project; render a roof PDF and a Full Exterior PDF; a customer's Roof Report Summary and CSV show that report's measurements (1M8-254); impersonate a user whose emails differ (1M8-249); place no real orders. The Stripe negative-signature probe returns 400. Watch 5xx and worker exits for 30 minutes.
+8. Verify: readiness returns the candidate 40 of 40; staff sign-in reaches the console without signing in again; a customer login opening `/measure/internal/` goes to staff sign-in; open and save the editor, including a Full Exterior project; render a roof PDF and a Full Exterior PDF; a customer's Roof Report Summary and CSV show that report's measurements (1M8-254); impersonate a user whose emails differ (1M8-249); save a full house in the editor without "Upload failed" (`.user.ini`); a FirstMeasure-only customer opens an order from a fresh browser; place no real orders. The Stripe negative-signature probe returns 400. Watch 5xx and worker exits for 30 minutes.
 9. Merge the candidate into `production-live` and push, so the tracker's hotfixes start from it. Record the outcome here. **Unpause the tracker only after this.**
 10. Later, separately: nginx hardening per `security-php-nginx-20261024.md` (host filtering, blocked paths). Give the bootstrap endpoint its own `server_name` first or new web nodes won't boot, and update the image template. It is not part of this release because the rollout helpers assert one `server {` block. Remove `sites-enabled/firstmeasure-development` from compat, which still needs Jack.
 
