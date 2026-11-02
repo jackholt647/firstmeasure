@@ -2972,7 +2972,9 @@
               userPermission,
               (user.orderCount || 0) > 0 ? 'Yes' : 'No',
               user.orderCount || 0,
-              userEmail && String(orgContact.email || '').trim().toLowerCase() === String(userEmail).trim().toLowerCase() ? 'Yes' : 'No'
+              userEmail && String(orgContact.email || '').trim().toLowerCase() === String(userEmail).trim().toLowerCase() ? 'Yes' : 'No',
+              org.country || '',
+              org.country_name || ''
             ]);
           });
       });
@@ -3044,7 +3046,9 @@
       'user_permission_level',
       'user_has_orders',
       'user_order_count',
-      'user_matches_org_contact_email'
+      'user_matches_org_contact_email',
+      'organization_country',
+      'organization_country_name'
     ];
     const tsv = [header, ...rows]
       .map(cols => cols.map(tsvCell).join('\t'))
