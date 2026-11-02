@@ -92,6 +92,17 @@ test('plane line centers keep their own bright batch and join the plane move sna
  }
 });
 
+test('shift-click keeps a draft curve with other lines and V makes one ruled surface from the four',()=>{
+ const f=fixture({state:{lineCenters:true,wallEdits:{$surfaces:[],$loose:{points:[],edges:[]}}},walls:[],selected:null,globals:renderGlobals()}),K=require('../public/measure/internal/editor_scripts/exterior_geometry.js'),Sketch=require('../public/measure/internal/editor_scripts/base_sketch_geometry.js');
+ const arc=z=>K.arcPreview({x:2,y:0,z},{x:0,y:0,z},{x:-2,y:0,z},{x:0,y:0,z:1},{},false);
+ const d={constructionPlane:true,frame:{origin:{x:0,y:0,z:0},u:{x:1,y:0,z:0},v:{x:0,y:1,z:0},n:{x:0,y:0,z:1}},members:[],faces:[],sketch:{version:2,next:0,nodes:[],edges:[],outlines:[]}};Sketch.addCurve(d,arc(0));f.state.wallEdits.$drafts={'plane-curves-0':d};
+ const top={...arc(3),id:'top'},v=x=>[{x,y:0,z:0},{x,y:0,z:3}],vertical=x=>({id:'v'+x,pair:v(x)});f.state.wallEdits.$surfaces.push({id:'cap',points:K.curveSamples(top).map(({x,y,z})=>({x,y,z})),holes:[],curves:[top]});
+ const samples=K.curveSamples(top),pairs=samples.slice(1).map((p,i)=>[samples[i],p]);
+ const edgeIds=d.sketch.edges.map(e=>e.id);f.editor.restoreSelection({activeDraftKey:'plane-curves-0',pickedLines:edgeIds,lineSelection:[vertical(2),vertical(-2),{id:'spline:top',pair:pairs[0],pairs}]});
+ assert.equal(f.editor.createFaceFromLines(),true,f.message());
+ const face=f.state.wallEdits.$surfaces.at(-1);assert.equal(face.curvedSurface.type,'conic-ruled');assert.equal(face.points.length,4);assert.ok(Math.abs(K.surfaceArea(face)-Math.PI*2*3)<.05);
+});
+
 test('repeated M never commits or rebases point moves before placement',()=>{
  for(const z of [2,4]){
   const f=fixture({globals:{isFreeMove:true}});f.editor.doubleClick(f.e(2,z),f.w);f.listeners.pointermove(f.e(2,z));const before=JSON.stringify(f.state.wallEdits),count=f.history.length;

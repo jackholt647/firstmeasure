@@ -1172,6 +1172,7 @@ function perf_render3DFrame() {
                     document.activeElement?.blur?.();
                     if(editingLayer!=='base'&&baseEditor?.busy())baseEditor.leave();
                     if(editingLayer!=='walls'&&wallEditor?.busy())wallEditor.clear();
+                    if(editingLayer==='base'&&e.shiftKey&&!baseEditor?.busy()&&!wallEditor?.busy()&&wallEditor?.adoptBaseLines?.(baseEditor?.chamferSelection?.().edges||[],e))setLayer('walls',true);
                     const free=!baseEditor?.busy()&&!wallEditor?.busy();
                     if(free&&!wallEditor?.planeActive?.()&&e.target.closest?.('#three-view-wrapper')&&wallEditor?.startBox?.(e,()=>{pickPointer(e);wallEditor?.finishPointer?.(e);baseEditor?.finishPointer?.(e);})){e.stopImmediatePropagation();e.preventDefault();return;}
                     if(pickPointer(e)){e.stopImmediatePropagation();e.preventDefault();return;}
@@ -1279,6 +1280,7 @@ function perf_render3DFrame() {
             if(editingLayer==='base'&&e.key.toLowerCase()==='c'&&!baseEditor?.busy()&&!wallEditor?.busy()&&!e.ctrlKey&&!e.metaKey){const selection=baseEditor?.chamferSelection?.();if(selection?.points?.length>=2&&!selection.edges?.length)return baseEditor.keyDown(e);setLayer('walls',true);wallEditor?.chamferCommand(selection);e.preventDefault();e.stopImmediatePropagation();return true;}
             if(editingLayer==='base'&&e.key.toLowerCase()==='v'&&!baseEditor?.busy()&&!wallEditor?.busy()&&!e.ctrlKey&&!e.metaKey){const selection=baseEditor?.chamferSelection?.();if(selection?.points?.length>=3){setLayer('walls',true);wallEditor?.createSelectedFace(selection);e.preventDefault();e.stopImmediatePropagation();return true;}}
             if(editingLayer==='base'&&['h','v'].includes(e.key.toLowerCase())&&!baseEditor?.busy()&&!e.ctrlKey&&!e.metaKey){const selected=baseEditor?.chamferSelection?.()?.points||[],p=baseEditor?.singlePoint(),points=selected.length?selected:p?[p]:[],preferred=baseEditor?.selectedFaceId();if(points.length){setLayer('walls',true);wallEditor?.cutFromPoints(points,e.key.toLowerCase(),preferred);e.preventDefault();e.stopImmediatePropagation();return true;}}
+            if(e.key.toLowerCase()==='v'&&!e.ctrlKey&&!e.metaKey&&!wallEditor?.busy()&&!baseEditor?.busy()&&wallEditor?.createFaceFromLines?.()){e.preventDefault();e.stopImmediatePropagation();return true;}
             if(e.key.toLowerCase()==='v'&&!e.ctrlKey&&!e.metaKey&&!wallEditor?.busy()&&!baseEditor?.busy()){const points=wallEditor?.pointSelection?.();if(points?.length>=3){wallEditor.createSelectedFace({points});e.preventDefault();e.stopImmediatePropagation();return true;}}
             if(e.key.toLowerCase()==='g'&&!e.altKey&&!e.ctrlKey&&!e.metaKey){setLayer('walls',true);if(wallEditor?.keyDown(e))return true;}
             if(baseEditor?.keyDown(e)||wallEditor?.keyDown(e))return true; if(e.key==='Escape'){menu.hidden=true;return;}
