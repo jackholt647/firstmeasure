@@ -5,7 +5,7 @@ import { env } from "../src/config/env.js";
 import { isFirstMeasurePostgresEnabled, queryPostgres } from "../src/database/postgres.js";
 import "./capability_defs.js";
 import { capabilityDefinition, effectiveCapabilities, EQUIPMENT_SIMPLE_CAPABILITIES, readCapabilityCountryRules, valueCapabilities, type NormalizedCapability } from "./capabilities.js";
-import { badRequest, notFound } from "./errors.js";
+import { badRequest, forbidden, notFound, unauthorized } from "./errors.js";
 import { FLAG_OVERRIDES_KEY, flagBucket, flagOverrides, flagValueSource, percentCovers, readFlagRollouts, saveFlagRollout, type FlagRollouts } from "./flag-rollouts.js";
 import { openSqlStore, type SqlStore } from "./sql_store.js";
 import { findIdentityByEmail, listDocuments, listIdentityMemberships, listOrganizations, mutateGlobal, readGlobal, readOrganization, searchIdentities, searchOrganizations, type JsonObject } from "./storage.js";
@@ -150,11 +150,11 @@ function keyFromRow(row: Record<string, unknown>) {
 }
 
 /** Only a hash is stored; the key is returned once, here. */
-export async function createFlagKey(input: { name: string; scope: "read" | "write"; days?: number; createdBy: string }) {
+export async function createFlagKey(input: { name: string; scope: "read" | "write"; days?: number; createdBy: string; createdAt?: number }) {
   const key = FLAG_KEY_PREFIX + randomBytes(32).toString("base64url");
   const row = {
     id: "ffk_" + randomUUID().replace(/-/g, "").slice(0, 16), name: input.name.slice(0, 120), prefix: key.slice(0, FLAG_KEY_PREFIX.length + 6), scope: input.scope,
-    created_by: input.createdBy, created_at: Date.now(), expires_at: Date.now() + Math.min(365, Math.max(1, Math.round(input.days ?? 90))) * DAY_MS
+    created_by: input.createdBy, created_at: input.createdAt ?? Date.now(), expires_at: Date.now() + Math.min(365, Math.max(1, Math.round(input.days ?? 90))) * DAY_MS
   };
   await store().prepare(`INSERT INTO feature_flag_keys (id, name, key_hash, prefix, scope, created_by, created_at, expires_at) VALUES (?,?,?,?,?,?,?,?)`)
     .run(row.id, row.name, keyHash(key), row.prefix, row.scope, row.created_by, row.created_at, row.expires_at);
@@ -167,6 +167,31 @@ export async function listFlagKeys() {
 
 export async function revokeFlagKey(id: string, by: string) {
   return (await store().prepare("UPDATE feature_flag_keys SET revoked_at=?, revoked_by=? WHERE id=? AND revoked_at=0").run(Date.now(), by, id)).changes > 0;
+}
+
+/**
+ * An agent machine fetches its own dev key, as for the config library (docs/architecture/feature-flags.md, "Agent
+ * machines"): same machine list, its own signing namespace, so a config library enrollment cannot be replayed here. The
+ * machine's earlier key is revoked. The route refuses outside development; production keys are made by a person.
+ */
+export const FLAG_ENROLL_NAMESPACE = "fm-feature-flags";
+export const flagEnrollMessage = (machine: string, timestamp: number, nonce: string) => `fm-feature-flags-enroll\n${machine}\n${timestamp}\n${nonce}`;
+export async function enrollFlagKey(input: { machine: string; timestamp: number; nonce: string; signature: string }) {
+  const { agentMachines, verifySshSignature } = await import("../config-library/enroll.js");
+  const machine = agentMachines().find((entry) => entry.name === input.machine);
+  if (!machine) throw forbidden("enroll_machine_unknown", `${input.machine} is not a listed agent machine (config-library/agent-machines.json).`);
+  if (!/^[a-f0-9]{16,64}$/.test(input.nonce)) throw badRequest("enroll_nonce_invalid", "The nonce is 16 to 64 hex digits.");
+  if (Math.abs(Date.now() - input.timestamp) > 5 * 60 * 1000) throw unauthorized("enroll_stale", "The enrollment is older than five minutes, or this machine's clock is off.");
+  let valid = false;
+  try { valid = verifySshSignature(input.signature, flagEnrollMessage(machine.name, input.timestamp, input.nonce), machine.public_key, FLAG_ENROLL_NAMESPACE); } catch { valid = false; }
+  if (!valid) throw unauthorized("enroll_signature_invalid", "The signature does not match this machine's listed key.");
+  const db = store();
+  // A signed enrollment is used once: it must be newer than the machine's last key.
+  if (input.timestamp <= num((await db.prepare("SELECT MAX(created_at) AS at FROM feature_flag_keys WHERE name=?").get(machine.name))?.at)) throw unauthorized("enroll_replayed", "This enrollment was already used.");
+  await db.prepare("UPDATE feature_flag_keys SET revoked_at=?, revoked_by=? WHERE name=? AND revoked_at=0").run(Date.now(), `enroll:${machine.name}`, machine.name);
+  const created = await createFlagKey({ name: machine.name, scope: "write", days: 365, createdBy: `enroll:${machine.name}`, createdAt: input.timestamp });
+  await recordFlagAudit({ kind: "system", label: `enroll:${machine.name}`, can_write: true }, { action: "key_created", summary: `Access key for ${machine.name} (write) enrolled`, after: { id: created.id, name: created.name, prefix: created.prefix, scope: created.scope, expires_at: created.expires_at } });
+  return created;
 }
 
 export function bearerFlagKey(header: unknown) {

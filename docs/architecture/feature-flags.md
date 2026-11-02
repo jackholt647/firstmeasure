@@ -135,6 +135,36 @@ Keys live in `~/.config/firstmate/feature-flags-key`, or `FM_FLAGS_KEY`. Add
 `--prod` for production, which reads its own file,
 `feature-flags-key-prod`, so a dev key is never sent there by accident.
 
+## Agent machines
+
+Tracker workers and other agents on a listed machine set flags themselves on dev.
+Each machine in `public/v1/config-library/agent-machines.json` fetches its own
+write key, never in a transcript, chat or log:
+
+```bash
+sh tools/feature-flags/enroll.sh agents:fm-agents-1
+```
+
+It signs with the machine's `~/.ssh/fm_config_library_ed25519`, in its own
+namespace, and writes `~/.config/firstmate/feature-flags-key` (mode 600), printing
+only the key's id. Enrolling again replaces and revokes the earlier key. The
+route exists only in the development data environment. The CLI then works from any
+checkout on that machine, and every change is in the audit log under the machine's
+name.
+
+**Production.** There is no enrollment, and no agent creates a production key. A
+platform administrator (Jack) makes one and hands it over without it entering a
+chat or a transcript:
+
+1. In production, Ctrl+Shift+F, Agent keys: create it, named for the machine and
+   read-only unless changes are needed, with the fewest days that will do.
+2. Copy it, then on the PC run this. It prompts without echoing, so the key is in
+   neither shell history nor the process list:
+   ```bash
+   ssh -t fm-agents 'umask 077; mkdir -p ~/.config/firstmate; read -rs -p "Key: " k; printf "%s" "$k" > ~/.config/firstmate/feature-flags-key-prod; unset k; echo'
+   ```
+3. Agents then add `--prod`. Revoke it in the same tab when it is no longer needed.
+
 This is not in the [agent how-to index](agent-how-to-index.md): those recipes are
 for the assistant customers talk to, which must never reach this API.
 

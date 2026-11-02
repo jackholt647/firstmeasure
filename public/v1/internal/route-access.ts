@@ -70,6 +70,7 @@ registerRouteAccessTable({
   "POST /v1/internal/flags/bulk": flagConsole,
   "GET /v1/internal/flags/audit": flagConsole,
   "GET /v1/internal/flags/audit/:id": flagConsole,
+  "POST /v1/internal/flags/keys/enroll": { public: "agent machine enrollment: the handler requires a signature by a listed SSH key, development only" },
   "GET /v1/internal/flags/keys": admin,
   "POST /v1/internal/flags/keys": admin,
   "DELETE /v1/internal/flags/keys/:keyId": admin,
