@@ -60,6 +60,8 @@ window.PlatformCommerce.onReady(function(){
 
   let cancellationCountdownTimer = null;
   let pendingExpediteSelection = '';
+  // A Full Exterior order's faster deliveries come from the exterior quote, priced as the difference in delivery fees.
+  let exteriorExpediteQuote = null, exteriorExpediteQuoteFor = '', exteriorExpediteQuoteLoading = false;
   let activeMeasurementTab = 'summary';
   let userMeasurementTab = '';
   let userMeasurementTabProject = '';
@@ -1127,7 +1129,44 @@ window.PlatformCommerce.onReady(function(){
     scheduleCancellationCountdown(cancelState);
   }
 
+  function reportOrderIsExterior(){
+    return reportOrderManifest().measurement_scope === 'full_house' || reportOrderExpediteKey().startsWith('exteriors_');
+  }
+
+  function loadExteriorExpediteQuote(){
+    const projectId = activeMeasurementProjectId();
+    if (!projectId || exteriorExpediteQuoteLoading || exteriorExpediteQuoteFor === projectId) return;
+    exteriorExpediteQuoteLoading = true; exteriorExpediteQuoteFor = projectId; exteriorExpediteQuote = null;
+    const manifest = reportOrderManifest();
+    postAction('exteriors_quote', {project_type:'residential', structure_count:reportOrderBillingPinCount(), address:manifest.address || activeBaseProject?.address || '', pins:JSON.stringify(Array.isArray(manifest.pins) ? manifest.pins : [])})
+      .then(({ data }) => { if (exteriorExpediteQuoteFor === projectId && data?.success) exteriorExpediteQuote = data; })
+      .catch(() => null)
+      .finally(() => { exteriorExpediteQuoteLoading = false; if (exteriorExpediteQuoteFor === projectId) { renderMeasurementsPanel(); document.dispatchEvent(new CustomEvent('fm:measure-order-status')); } });
+  }
+
+  function exteriorExpediteOptions(){
+    const options = Array.isArray(exteriorExpediteQuote?.options) ? exteriorExpediteQuote.options : [];
+    const current = options.find((option) => option.key === reportOrderExpediteKey()) || options.find((option) => option.key === 'exteriors_standard');
+    const remaining = reportOrderRemainingMinutes();
+    return options.filter((option) => option.key !== 'exteriors_standard').map((option) => {
+      const delta = current ? Math.round((Number(option.amount) - Number(current.amount)) * 100) / 100 : 0;
+      const faster = !!current && option.minutes < current.minutes && (remaining == null || option.minutes < remaining);
+      return { option: {...option, exterior:true, endMinutes:option.minutes, pricing_revision:exteriorExpediteQuote.pricing_revision}, disabled:!faster || !(delta > 0), availableWhenPriced:faster, priceLoading:false, delta };
+    });
+  }
+
+  // What was ordered: the kind of report, and for a Full Exterior its delivery.
+  function reportOrderKindHtml(){
+    const exterior = reportOrderIsExterior();
+    const kind = exterior ? (globalThis.PlatformLanguage?.text("measurements","report_kind_full_exterior","Full Exterior") ?? "Full Exterior") : (reportOrderIncludesGutters() ? (globalThis.PlatformLanguage?.text("measurements","report_kind_roof_gutters","Roof + Gutters") ?? "Roof + Gutters") : (globalThis.PlatformLanguage?.text("measurements","report_kind_roof_only","Roof Only") ?? "Roof Only"));
+    const delivery = exterior ? (exteriorExpediteQuote?.options || []).find((option) => option.key === reportOrderExpediteKey())?.label || reportOrderManifest().report_expedite_label || '' : '';
+    const structures = reportOrderBillingPinCount();
+    const value = [kind, delivery, exterior && structures > 1 ? (globalThis.PlatformLanguage?.text("measurements","report_kind_structures",`${structures} structures`,{structures}) ?? `${structures} structures`) : ''].filter(Boolean).join(' · ');
+    return `<div class="r-pending-detail"><strong>${(globalThis.PlatformLanguage?.htmlText("measurements","report_kind_ordered","Ordered") ?? "Ordered")}</strong><span>${escapeHtml(value)}</span>${exterior ? `<span class="r-pending-detail-note">${escapeHtml((globalThis.PlatformLanguage?.text("measurements","report_kind_full_exterior_includes","Roof, walls, windows, doors and gutters included.") ?? "Roof, walls, windows, doors and gutters included."))}</span>` : ''}</div>`;
+  }
+
   function pendingExpediteOptions(){
+    if (reportOrderIsExterior()) return exteriorExpediteOptions();
     const remaining = reportOrderRemainingMinutes();
     const currentKey = reportOrderExpediteKey();
     const currentOption = reportExpediteOption(currentKey) || defaultReportExpediteOption();
@@ -1170,7 +1209,9 @@ window.PlatformCommerce.onReady(function(){
       ? (globalThis.PlatformLanguage?.text("measurements","m_0ca6847627b5d8","Instant Report Generating") ?? "Instant Report Generating")
       : (kind === 'customer'
         ? (globalThis.PlatformLanguage?.text("measurements","m_4f9decb4fef708","Customer Report Processing") ?? "Customer Report Processing")
-        : (stage === 'processing' ? (globalThis.PlatformLanguage?.text("measurements","m_cb27e9cd4b71dc","Standard Report Processing") ?? "Standard Report Processing") : (globalThis.PlatformLanguage?.text("measurements","m_b754ff36345be0","Standard Report Pending") ?? "Standard Report Pending")));
+        : (reportOrderIsExterior()
+          ? (stage === 'processing' ? (globalThis.PlatformLanguage?.text("measurements","full_exterior_report_processing","Full Exterior Report Processing") ?? "Full Exterior Report Processing") : (globalThis.PlatformLanguage?.text("measurements","full_exterior_report_pending","Full Exterior Report Pending") ?? "Full Exterior Report Pending"))
+          : (stage === 'processing' ? (globalThis.PlatformLanguage?.text("measurements","m_cb27e9cd4b71dc","Standard Report Processing") ?? "Standard Report Processing") : (globalThis.PlatformLanguage?.text("measurements","m_b754ff36345be0","Standard Report Pending") ?? "Standard Report Pending"))));
     if (reportOrderIsRejected()) return rejectedReportHtml();
     if (reportOrderIsCancelled()) return cancelledReportHtml();
     if (reportOrderIsStaleSubmitted()) return staleSubmittedReportHtml();
@@ -1180,19 +1221,23 @@ window.PlatformCommerce.onReady(function(){
     const due = reportOrderCustomerDeliveryText();
     const cancelState = reportOrderCancelState();
     const closed = reportOrderingClosed();
-    const showExpediteUpgrade = reportExpediteOptionsEnabled() && reportOrderManifest().measurement_scope !== 'full_house' && !reportOrderExpediteKey().startsWith('exteriors_');
-    if (showExpediteUpgrade && !closed && !reportExpeditePricingReady() && !reportExpeditePricingLoading()) {
+    const exterior = reportOrderIsExterior();
+    if (exterior) loadExteriorExpediteQuote();
+    const showExpediteUpgrade = exterior
+      ? exteriorExpediteOptions().some((entry) => entry.availableWhenPriced)
+      : reportExpediteOptionsEnabled();
+    if (showExpediteUpgrade && !exterior && !closed && !reportExpeditePricingReady() && !reportExpeditePricingLoading()) {
       loadReportExpediteOptions();
     }
     const showCancellation = reportCancellationsEnabled();
     const options = showExpediteUpgrade ? pendingExpediteOptions() : [];
-    const pricingReady = reportExpeditePricingReady();
+    const pricingReady = exterior || reportExpeditePricingReady();
     const hasFasterOption = pricingReady
       ? options.some((entry) => !entry.disabled)
       : options.some((entry) => entry.availableWhenPriced);
     const selectedUpgrade = options.find((entry) => entry.option?.key === pendingExpediteSelection && !entry.disabled) || null;
     const selectedUpgradeLabel = selectedUpgrade
-      ? reportExpediteDurationLabel(selectedUpgrade.option)
+      ? (selectedUpgrade.option.exterior ? selectedUpgrade.option.label : reportExpediteDurationLabel(selectedUpgrade.option))
       : '';
     const deliveryText = reportExpediteOptionsEnabled() ? (due || (globalThis.PlatformLanguage?.text("measurements","m_6c2b94bfbe7de4","Estimating delivery window") ?? "Estimating delivery window")) : '';
     const statusLabel = stage === 'processing' ? (globalThis.PlatformLanguage?.text("measurements","m_813568092a909a","In progress") ?? "In progress") : (stage === 'review' ? (globalThis.PlatformLanguage?.text("measurements","m_a5adb64bece6bf","In review") ?? "In review") : (globalThis.PlatformLanguage?.text("measurements","m_2175240180a38e","Pending") ?? "Pending"));
@@ -1204,15 +1249,16 @@ window.PlatformCommerce.onReady(function(){
         <div class="r-report-pending-card${String(expedited ? ' is-expedited' : '')}">
           ${String(expedited ? `<h3 class="r-pending-title is-expedited"><i class="fas fa-bolt"></i>${(globalThis.PlatformLanguage?.htmlText("measurements","m_54ba2332f79022"," Expedited") ?? " Expedited")}</h3>` : `<i class="fas fa-circle-notch fa-spin"></i><h3>${title}</h3>`)}
           ${String(reportExpediteRefundNoticeHtml())}
+          ${String(reportOrderKindHtml())}
           <div class="r-pending-detail"><strong>${(globalThis.PlatformLanguage?.htmlText("measurements","m_1352cafa75b8da","Status") ?? "Status")}</strong><span>${String(escapeHtml(statusLabel))}</span></div>
           ${String(deliveryText ? `<div class="r-pending-detail"><strong>${(globalThis.PlatformLanguage?.htmlText("measurements","m_c486a31c8bace9","Estimated delivery") ?? "Estimated delivery")}</strong><span>${escapeHtml(deliveryText)}</span></div>` : '')}
-          ${String(expedited ? `<p>${(globalThis.PlatformLanguage?.htmlText("measurements","m_73f0c7891fb978","Expedited reports begin work immediately.") ?? "Expedited reports begin work immediately.")}</p>` : (showExpediteUpgrade ? `
+          ${String(expedited && !(exterior && showExpediteUpgrade) ? `<p>${(globalThis.PlatformLanguage?.htmlText("measurements","m_73f0c7891fb978","Expedited reports begin work immediately.") ?? "Expedited reports begin work immediately.")}</p>` : (showExpediteUpgrade ? `
             <div class="r-pending-actions">
               ${closed ? `<p>${(globalThis.PlatformLanguage?.htmlText("measurements","m_a224df77674f7b","Expediting is unavailable while we are closed.") ?? "Expediting is unavailable while we are closed.")}</p>` : (!pricingReady && hasFasterOption ? `<p>${(globalThis.PlatformLanguage?.htmlText("measurements","m_9fa315d0910b1c","Checking current expedite pricing...") ?? "Checking current expedite pricing...")}</p>` : (hasFasterOption ? `<p>${(globalThis.PlatformLanguage?.htmlText("measurements","m_c188f7f88aef46","Need it sooner? Expedite this order from now.") ?? "Need it sooner? Expedite this order from now.")}</p>` : `<p>${(globalThis.PlatformLanguage?.htmlText("measurements","m_03fb30e02367e6","This project is already being worked on, so expediting is too late.") ?? "This project is already being worked on, so expediting is too late.")}</p>`))}
               <div class="r-pending-action-row">
                 ${options.map(({ option, disabled, delta, priceLoading }) => {
                   const selected = option.key === pendingExpediteSelection && !disabled;
-                  return `<button type="button" class="r-pending-action${selected ? ' selected' : ''}" data-select-upgrade-expedite="${escapeHtml(option.key)}" aria-pressed="${selected ? 'true' : 'false'}" ${disabled ? 'disabled' : ''}><span class="r-pending-action-copy"><strong>${escapeHtml(reportExpediteDurationLabel(option))}</strong><span>${escapeHtml(reportExpediteCustomerPromiseLabel(option))}</span></span>${pendingExpeditePriceHtml(delta, priceLoading)}</button>`;
+                  return `<button type="button" class="r-pending-action${selected ? ' selected' : ''}" data-select-upgrade-expedite="${escapeHtml(option.key)}" aria-pressed="${selected ? 'true' : 'false'}" ${disabled ? 'disabled' : ''}><span class="r-pending-action-copy"><strong>${escapeHtml(option.exterior ? option.label : reportExpediteDurationLabel(option))}</strong><span>${escapeHtml(reportExpediteCustomerPromiseLabel(option))}</span></span>${pendingExpeditePriceHtml(delta, priceLoading)}</button>`;
                 }).join('')}
               </div>
               ${selectedUpgrade ? `<button type="button" class="r-pending-expedite-confirm" data-confirm-upgrade-expedite="${escapeHtml(selectedUpgrade.option.key)}">${((v1) => globalThis.PlatformLanguage?.htmlText("measurements","m_83fc76d4bd7a18",`Expedite Report${v1}`,{v1}) ?? `Expedite Report${v1}`)(selectedUpgradeLabel ? ` - ${escapeHtml(selectedUpgradeLabel)}` : '')}</button>` : ''}
@@ -2406,7 +2452,7 @@ window.PlatformCommerce.onReady(function(){
       <div class="r-report-summary">
         <div class="r-report-summary-head">
           <div class="r-report-summary-title">
-            <h3>${String(reportOrderManifest().measurement_scope === 'full_house' ? (globalThis.PlatformLanguage?.htmlText("measurements","m_d5a4d5eab0934e","Full House Report Summary") ?? "Full House Report Summary") : (globalThis.PlatformLanguage?.htmlText("measurements","m_ac57bd5edb01bf","Roof Report Summary") ?? "Roof Report Summary"))}</h3>
+            <h3>${String(reportOrderManifest().measurement_scope === 'full_house' ? (globalThis.PlatformLanguage?.htmlText("measurements","full_exterior_report_summary","Full Exterior Report Summary") ?? "Full Exterior Report Summary") : (globalThis.PlatformLanguage?.htmlText("measurements","m_ac57bd5edb01bf","Roof Report Summary") ?? "Roof Report Summary"))}</h3>
             ${String(address ? `<p>${escapeHtml(address)}</p>` : '')}
             <p>${String(escapeHtml(orderParts.join(' + ')))}${String(orderedAt ? ` · ${escapeHtml((globalThis.PlatformLanguage?.text("measurements","ordered_at",`Ordered ${formatDate(orderedAt)}`,{date:formatDate(orderedAt)}) ?? `Ordered ${formatDate(orderedAt)}`))}` : '')}</p>
           </div>
@@ -3820,11 +3866,12 @@ window.PlatformCommerce.onReady(function(){
   }
 
   async function upgradePendingReportExpedite(optionKey, button){
-    if (!reportExpediteOptionsEnabled()) {
+    const exterior = reportOrderIsExterior();
+    if (!exterior && !reportExpediteOptionsEnabled()) {
       showToast((globalThis.PlatformLanguage?.text("measurements","m_f046ac228c08ff","Expediting unavailable") ?? "Expediting unavailable"), (globalThis.PlatformLanguage?.text("measurements","m_c1d047a0b94b30","Report expediting is not enabled for this account.") ?? "Report expediting is not enabled for this account."), false);
       return;
     }
-    if (reportOrderingClosed()) {
+    if (!exterior && reportOrderingClosed()) {
       pendingExpediteSelection = '';
       renderMeasurementsPanel();
       showToast((globalThis.PlatformLanguage?.text("measurements","m_f046ac228c08ff","Expediting unavailable") ?? "Expediting unavailable"), (globalThis.PlatformLanguage?.text("measurements","m_4d2965584aa9c2","Expedited turnaround is unavailable while we are closed.") ?? "Expedited turnaround is unavailable while we are closed."), false);
@@ -3852,7 +3899,7 @@ window.PlatformCommerce.onReady(function(){
       const { data } = await postAction('expedite_queued_report', {
         project_id: projectId,
         report_expedite_option: optionKey,
-        report_pricing_revision: reportExpediteOption(optionKey)?.pricing_revision ?? 0,
+        report_pricing_revision: exterior ? (upgrade?.option?.pricing_revision ?? 0) : (reportExpediteOption(optionKey)?.pricing_revision ?? 0),
         report_market_revision: reportExpediteOption(optionKey)?.report_market_revision ?? 0
       });
       if (!data?.success) throw new Error(data?.error || data?.message || (globalThis.PlatformLanguage?.text("measurements","m_2ba158e4424efb","Could not expedite this report.") ?? "Could not expedite this report."));

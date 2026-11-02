@@ -4770,13 +4770,20 @@
       renderPagination();
     }, 80);
   }
-  function gutterThumbBadgeHtml(p){
-    if (!projectIncludesGutters(p)) return '';
-    return `<div class="v-addon-badge" data-role="gutter-badge"><i class="fas fa-water"></i>${(globalThis.PlatformLanguage?.htmlText("projects","m_63c27a0d67e876"," Gutters") ?? " Gutters")}</div>`;
+  // What was ordered, as one tag on every report: Full Exterior, Roof + Gutters or Roof Only.
+  function reportKindMeta(p){
+    if (projectStatusGroup(p) === 'project') return null;
+    if (p?.measurement_scope === 'full_house' || String(p?.id || '').startsWith('exteriors_')) return {icon:'fa-house', label:(globalThis.PlatformLanguage?.text("projects","report_kind_full_exterior","Full Exterior") ?? "Full Exterior")};
+    if (projectIncludesGutters(p)) return {icon:'fa-water', label:(globalThis.PlatformLanguage?.text("projects","report_kind_roof_gutters","Roof + Gutters") ?? "Roof + Gutters")};
+    return {icon:'fa-house-chimney', label:(globalThis.PlatformLanguage?.text("projects","report_kind_roof_only","Roof Only") ?? "Roof Only")};
   }
-  function gutterMetaTagHtml(p){
-    if (!projectIncludesGutters(p)) return '';
-    return `<div class="v-meta-tags" data-role="gutter-meta"><span class="v-meta-tag v-meta-tag-addon"><i class="fas fa-water"></i>${(globalThis.PlatformLanguage?.htmlText("projects","m_7aebd8c2405a7e"," Roof + Gutters") ?? " Roof + Gutters")}</span></div>`;
+  function reportKindThumbBadgeHtml(p){
+    const kind = reportKindMeta(p);
+    return kind ? `<div class="v-addon-badge" data-role="kind-badge"><i class="fas ${kind.icon}"></i> ${escapeHtml(kind.label)}</div>` : '';
+  }
+  function reportKindRowTagHtml(p){
+    const kind = reportKindMeta(p);
+    return kind ? `<span class="v-meta-tag v-meta-tag-addon" data-role="kind-meta-row"><i class="fas ${kind.icon}"></i> ${escapeHtml(kind.label)}</span>` : '';
   }
   function projectReportMode(p){
     const explicitMode = String(p?.report_mode || '').trim().toLowerCase();
@@ -6322,7 +6329,7 @@
     const contactName = contact.displayName || contact.name || '';
     const addressHtml = named ? `<div>${escapeHtml(named.title || '—')}</div>${named.address ? `<div class="l2">${escapeHtml(named.address)}</div>` : ''}` : displayAddress(p);
     const contactHtml = named && contactName && contactName === named.title ? '' : `<div class="v-meta"><i class="fas fa-user"></i> ${String(escapeHtml(contactName || (globalThis.PlatformLanguage?.text('projects','fm_contact_unavailable','Not provided') ?? 'Not provided')))}</div>`;
-    div.innerHTML = `<div class="v-thumb${String((!hasThumbnail && isProcessing) ? ' loading' : '')}"><img src="${String(escapeHtml(thumbSrc))}" loading="lazy" alt="">${String(typeBadge)}${String(deliveryBadge)}${String(gutterThumbBadgeHtml(p))}${String(statusBadge)}</div><div class="v-body"><div class="v-addr">${String(addressHtml)}</div>${contactHtml}<div class="v-foot"><span>${String(escapeHtml(formatDate(p.created_at)))}</span><span class="v-card-end">${cameraButtonHtml(id)}<span class="cta">${(globalThis.PlatformLanguage?.htmlText("projects","m_589c6431619da0","View ") ?? "View ")}<i class="fas fa-chevron-right"></i></span></span></div></div>`;
+    div.innerHTML = `<div class="v-thumb${String((!hasThumbnail && isProcessing) ? ' loading' : '')}"><img src="${String(escapeHtml(thumbSrc))}" loading="lazy" alt="">${String(typeBadge)}${String(deliveryBadge)}${String(reportKindThumbBadgeHtml(p))}${String(statusBadge)}</div><div class="v-body"><div class="v-addr">${String(addressHtml)}</div>${contactHtml}<div class="v-foot"><span>${String(escapeHtml(formatDate(p.created_at)))}</span><span class="v-card-end">${cameraButtonHtml(id)}<span class="cta">${(globalThis.PlatformLanguage?.htmlText("projects","m_589c6431619da0","View ") ?? "View ")}<i class="fas fa-chevron-right"></i></span></span></div></div>`;
     div.querySelector('.v-body')?.insertAdjacentHTML('beforeend', projectSharingView()?.badge(p) || '');
     div.addEventListener('click', ()=>openModal(lastProjectsById.get(id) || p));
 
@@ -6385,7 +6392,7 @@
     const row = document.createElement('div'); row.className = 'v-lrow'; row.dataset.id = id;
     const a1 = displayAddressLine1(p); const a2 = displayAddressLine2(p);
     const expediteTag = projectIsExpedited(p) ? `<span class="v-meta-tag v-meta-tag-expedite"><i class="fas fa-bolt"></i>${(globalThis.PlatformLanguage?.htmlText("projects","m_54ba2332f79022"," Expedited") ?? " Expedited")}</span>` : '';
-    const rowTags = `${groupedByStage ? '' : stageChipsHtml(p)}${instantMetaTagHtml(p)}${expediteTag}${projectIncludesGutters(p) ? `<span class="v-meta-tag v-meta-tag-addon" data-role="gutter-meta-row"><i class="fas fa-water"></i>${(globalThis.PlatformLanguage?.htmlText("projects","m_7aebd8c2405a7e"," Roof + Gutters") ?? " Roof + Gutters")}</span>` : ''}`;
+    const rowTags = `${groupedByStage ? '' : stageChipsHtml(p)}${instantMetaTagHtml(p)}${expediteTag}${reportKindRowTagHtml(p)}`;
     const reportStatus = statusBadgeClasses(p);
     // A phone names the row as every other view does: the project's name, its address beneath.
     // The desktop table keeps its Address and Primary contact columns.
@@ -6709,10 +6716,9 @@
         }
         const thumb = tile.querySelector('.v-thumb');
         if (thumb){
-          const addon = thumb.querySelector('[data-role="gutter-badge"]');
-          if (projectIncludesGutters(project)){
-            if (!addon) thumb.insertAdjacentHTML('beforeend', gutterThumbBadgeHtml(project));
-          } else if (addon) addon.remove();
+          const addon = thumb.querySelector('[data-role="kind-badge"]'), nextKind = reportKindThumbBadgeHtml(project);
+          if (addon) addon.remove();
+          if (nextKind) thumb.insertAdjacentHTML('beforeend', nextKind);
           const delivery = thumb.querySelector('[data-role="delivery-badge"]');
           const nextDelivery = instantDeliveryBadgeHtml(project);
           if (nextDelivery) {
@@ -6758,7 +6764,8 @@
           const instantMeta = instantMetaTagHtml(project);
           if (instantMeta) tags.push(instantMeta);
           if (projectIsExpedited(project)) tags.push(`<span class="v-meta-tag v-meta-tag-expedite"><i class="fas fa-bolt"></i>${(globalThis.PlatformLanguage?.htmlText("projects","m_54ba2332f79022"," Expedited") ?? " Expedited")}</span>`);
-          if (projectIncludesGutters(project)) tags.push(`<span class="v-meta-tag v-meta-tag-addon" data-role="gutter-meta-row"><i class="fas fa-water"></i>${(globalThis.PlatformLanguage?.htmlText("projects","m_7aebd8c2405a7e"," Roof + Gutters") ?? " Roof + Gutters")}</span>`);
+          const kindTag = reportKindRowTagHtml(project);
+          if (kindTag) tags.push(kindTag);
           const existingTags = addr.querySelector('.v-meta-tags');
           if (existingTags) existingTags.outerHTML = tags.length ? `<div class="v-meta-tags">${tags.join('')}</div>` : '';
         }

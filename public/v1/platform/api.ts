@@ -12106,15 +12106,16 @@ async function portalExpediteQueuedProject(portal: PortalCaller, body: JsonObjec
 
 async function portalExpediteQueuedProjectForMarket(portal: PortalCaller, body: JsonObject) {
   const { app, orgId, actor } = portal;
-  assertReportPricingRevision(body);
-  await assertPortalFirstMeasureFlag(orgId, "report_expedite_options", "Report expediting is not enabled for this organization.");
   const projectId = portalProjectId(body);
   const optionKey = cleanText(body.report_expedite_option).toLowerCase();
-  if (!isReportExpediteKey(optionKey)) {
+  const { manifest } = await firstMeasureProjectDetail(portal, projectId);
+  // A Full Exterior order moves up to a faster delivery for the difference between the two delivery fees.
+  const exterior = manifest.measurement_scope === "full_house";
+  if (!exterior) assertReportPricingRevision(body);
+  if (!exterior) await assertPortalFirstMeasureFlag(orgId, "report_expedite_options", "Report expediting is not enabled for this organization.");
+  if (exterior ? !["exteriors_same_day", "exteriors_priority"].includes(optionKey) : !isReportExpediteKey(optionKey)) {
     throw badRequest("invalid_expedite_option", "Choose a valid expedited delivery option.");
   }
-  const { manifest } = await firstMeasureProjectDetail(portal, projectId);
-  if (manifest.measurement_scope === "full_house") throw badRequest("exterior_delivery_locked", "Full House delivery is selected when ordering and cannot be changed here.");
   const status = cleanText(manifest.status).toLowerCase();
   if (["completed", "rejected", "rejected_no_coverage", "cancelled"].includes(status)) {
     throw badRequest("project_not_expeditable", "This report can no longer be expedited.");
@@ -12122,8 +12123,19 @@ async function portalExpediteQueuedProjectForMarket(portal: PortalCaller, body: 
 
   const projectType = cleanText(manifest.project_type) || "residential";
   const pinCount = Math.max(1, Array.isArray(manifest.pins) ? manifest.pins.length : 1);
-  const option = reportExpediteOptionFromQuote(projectType, optionKey, pinCount);
-  if (!option || !option.expedited || option.end_minutes == null) throw badRequest("invalid_expedite_option", "Choose a valid expedited delivery option.");
+  const exteriorPrices = exterior ? exteriorQuote(pinCount) : null;
+  if (exteriorPrices) {
+    assertCommercialRevision(body);
+    if (Number(body.report_pricing_revision) !== exteriorPrices.pricing_revision) throw badRequest("pricing_changed", "Prices changed. Refresh the delivery options before expediting.");
+  }
+  const exteriorOptions = exteriorPrices?.options ?? [];
+  const exteriorOption = exteriorOptions.find((entry) => entry.key === optionKey);
+  const exteriorCurrent = exteriorOptions.find((entry) => entry.key === (cleanText(manifest.report_expedite_option) || "exteriors_standard"));
+  if (exterior && (!exteriorOption || !exteriorCurrent)) throw badRequest("invalid_expedite_option", "Choose a valid expedited delivery option.");
+  const option = exteriorOption
+    ? { key: exteriorOption.key, label: exteriorOption.label, start_minutes: 0, end_minutes: exteriorOption.minutes, production_deadline_minutes: exteriorOption.minutes }
+    : reportExpediteOptionFromQuote(projectType, optionKey, pinCount);
+  if (!option || (!exterior && !(option as { expedited?: boolean }).expedited) || option.end_minutes == null) throw badRequest("invalid_expedite_option", "Choose a valid expedited delivery option.");
   const now = new Date();
   const currentDueEnd = firstMeasureManifestDueEnd(manifest);
   const newDueStart = addMinutes(now, numericValue(option.start_minutes));
@@ -12136,12 +12148,15 @@ async function portalExpediteQueuedProjectForMarket(portal: PortalCaller, body: 
   const global = await readGlobal(orgId);
   const freeExpediteUses = numericValue(asObject(global.data).free_expedite_uses);
   const currentCharged = moneyAmount(manifest.amount_charged);
-  const currentExpediteBaseline = firstMeasureManifestExpediteUpgradeBaseline(manifest);
-  const upgradeCredit = currentCharged > 0 ? Math.min(currentCharged, currentExpediteBaseline) : currentCharged;
-  const newTotal = firstMeasureManifestOrderAmount(manifest, option.key);
+  const currentExpediteBaseline = exteriorCurrent ? exteriorCurrent.amount : firstMeasureManifestExpediteUpgradeBaseline(manifest);
+  const upgradeCredit = exterior ? currentCharged : currentCharged > 0 ? Math.min(currentCharged, currentExpediteBaseline) : currentCharged;
+  const newTotal = exteriorOption && exteriorCurrent
+    ? moneyAmount(currentCharged + exteriorOption.amount - exteriorCurrent.amount)
+    : firstMeasureManifestOrderAmount(manifest, option.key);
   const delta = moneyAmount(newTotal - upgradeCredit);
   if (delta <= 0) throw badRequest("expedite_not_billable", "This expedite option would not increase the order total.");
-  const freeExpediteApplied = freeExpediteUses > 0;
+  // Free expedites apply to roof reports only, as when ordering.
+  const freeExpediteApplied = !exterior && freeExpediteUses > 0;
   const expediteDiscount = freeExpediteApplied ? delta : 0;
   const chargeDelta = moneyAmount(Math.max(0, delta - expediteDiscount));
   const finalCharged = moneyAmount(currentCharged + chargeDelta);
@@ -12186,7 +12201,7 @@ async function portalExpediteQueuedProjectForMarket(portal: PortalCaller, body: 
     report_expedite_label: option.label,
     report_due_window_start: newDueStart.toISOString(),
     report_due_window_end: newDueEnd.toISOString(),
-    report_due_window_label: reportExpediteWindowLabel(newDueStart, newDueEnd),
+    report_due_window_label: exterior ? option.label : reportExpediteWindowLabel(newDueStart, newDueEnd),
     report_production_deadline_at: newProductionDeadline.toISOString(),
     amount_charged: finalCharged,
     report_original_amount: newTotal,

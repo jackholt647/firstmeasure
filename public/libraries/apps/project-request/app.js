@@ -1114,6 +1114,7 @@ window.PlatformCommerce.onReady(async function(){
     .r-pending-badge i{font-size:10px;color:#b77900}
     .r-pending-detail{display:flex;flex-direction:column;gap:4px;padding:10px 12px;border-radius:14px;background:#f8fafc;border:1px solid rgba(15,23,42,.07);font-size:12px;font-weight:900;color:#344054}
     .r-pending-detail strong{font-size:11px;color:#667085;text-transform:uppercase;letter-spacing:.04em}
+    .r-pending-detail .r-pending-detail-note{font-size:11.5px;font-weight:500;color:#667085}
 
     /* Mobile processing uses the whole tab; short screens scroll instead of clipping controls. */
     .r-overlay:has(.r-window-bar[data-window-mobile=true]) :is(#rMeasurementStandard,#rMeasurementCustomer) .r-report-pending{box-sizing:border-box;width:100%;height:100%;padding:clamp(24px,6vw,36px);background:#fff;overflow:auto;align-items:flex-start}
@@ -4960,7 +4961,7 @@ window.PlatformCommerce.onReady(async function(){
   }
   function mountMeasurementOrderStatus(node,{onEnter}={}){
     let timer=0,busy=false,disposed=false;
-    const stop=()=>{disposed=true;clearTimeout(timer);node.removeEventListener('click',onClick);};
+    const stop=()=>{disposed=true;clearTimeout(timer);node.removeEventListener('click',onClick);document.removeEventListener('fm:measure-order-status',draw);};
     const draw=()=>{
       clearTimeout(timer);
       if(disposed)return;
@@ -4989,6 +4990,8 @@ window.PlatformCommerce.onReady(async function(){
       finally{busy=false;draw();syncTrayMeasurements();}
     }
     node.addEventListener('click',onClick);
+    // The measurements app asks for a redraw when something the card shows arrives (a Full Exterior's delivery prices).
+    document.addEventListener('fm:measure-order-status',draw);
     draw();
     return {update:draw,destroy:stop};
   }
@@ -6056,7 +6059,7 @@ window.PlatformCommerce.onReady(async function(){
     if (key === 'full_house') return {
       title: (globalThis.PlatformLanguage?.text("project-request","full_exterior_report","Full Exterior report") ?? "Full Exterior report"),
       body: (globalThis.PlatformLanguage?.text("project-request","m_0d21d7d3136fc9","Exterior measurements for the whole house, including the roof.") ?? "Exterior measurements for the whole house, including the roof."),
-      bullets: [(globalThis.PlatformLanguage?.text("project-request","m_97e57acb52769a","Walls, windows, doors, and siding areas.") ?? "Walls, windows, doors, and siding areas."), (globalThis.PlatformLanguage?.text("project-request","full_exterior_roof_included","Roof measurements included.") ?? "Roof measurements included."), (globalThis.PlatformLanguage?.text("project-request","full_exterior_gutters_included","Gutters are always included.") ?? "Gutters are always included."), (globalThis.PlatformLanguage?.text("project-request","m_b120ceb5e3ac9e","Eight reference photos per structure are required.") ?? "Eight reference photos per structure are required.")],
+      bullets: [(globalThis.PlatformLanguage?.text("project-request","m_97e57acb52769a","Walls, windows, doors, and siding areas.") ?? "Walls, windows, doors, and siding areas."), (globalThis.PlatformLanguage?.text("project-request","full_exterior_roof_included","Roof measurements included.") ?? "Roof measurements included."), (globalThis.PlatformLanguage?.text("project-request","full_exterior_gutters_included","Gutters are always included.") ?? "Gutters are always included.")],
       sample: {label: (globalThis.PlatformLanguage?.text("project-request","full_exterior_sample_download","Download sample Full Exterior report") ?? "Download sample Full Exterior report"), url: 'samples/full_house_sample.pdf'}
     };
     if (key === 'roof') return {
