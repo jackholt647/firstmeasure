@@ -40,34 +40,26 @@
  const coreSlots=[['back-left','Back left'],['back','Back'],['back-right','Back right'],['left','Left'],[null,'Video'],['right','Right'],['front-left','Front left'],['front','Front'],['front-right','Front right']];
  const isVideoFile=file=>!file.notes&&/\.(mp4|webm|mov)(?:[?#].*)?$/i.test(file.original_name||file.name||file.src||'');
  function coreViews(files){return coreSlots.map(([slot,title])=>({slot,title,file:slot?files.find(f=>(f.elevation_view||f.slot)===slot&&!f.notes):files.find(isVideoFile)||null}));}
- // The report's Sources & Notes lists the tech's own uploads. A video frame saved from Resources is a
- // tech file too, but derived: the server records source_video in its index (listed by
- // project_resources.php), and every saved frame also has a frame record
- // (internal-markup-favorite-*.json) naming it, which covers frames saved before the listing showed
- // source_video. Anything marked derived_from or generated is left out the same way.
- const isDerivedResource=(file,frameNames)=>!!(file&&(file.source_video||file.derived_from||file.generated))||frameNames.has(file&&file.name);
- function submissionUploads(files=[],frameRecords=[]){
-  const frames=new Set(frameRecords.map(r=>r&&r.frame).filter(Boolean));
-  return {uploads:files.filter(f=>String(f.name||'').startsWith('internal-resource-')&&(f.role||'tech')==='tech'&&!isDerivedResource(f,frames)),derived:new Set([...files.filter(f=>isDerivedResource(f,frames)).map(f=>f.name),...frames])};
- }
  const favoritePrefix = 'internal-markup-favorite-', markupPrefix = 'internal-markup-';
  const fileId = name => name.replace(/^internal-resource-(?:v2-)?/, '').slice(0, 36);
- // Adds the tech's uploads and their notes to Sources & Notes. One unreadable record leaves out that note, never the report.
- async function mergeSubmissionSources(state,files,read,resourceUrl){
-  const frameRecords=await Promise.all(files.filter(f=>f.name.startsWith(favoritePrefix)).map(f=>read(f.name).catch(()=>({})))),{uploads:resources,derived}=submissionUploads(files,frameRecords);
+ // The report's Sources & Notes holds only what the tech adds there (Jack, 2026-11-01): screenshots and
+ // uploads in Resources stay in Resources. Earlier versions copied every Resources upload in (those copies
+ // carry resource_name; images added by hand have none) and appended each one's markup note as
+ // "<file name>:\n<note>", so both come out again here. One unreadable markup leaves its note, never the report.
+ async function mergeSubmissionSources(state,files,read){
   state.finalizeSources||={images:[],notes:''};
-  // Saved video frames merged by earlier versions come out again; images added by hand have no resource_name.
-  const images=state.finalizeSources.images=(state.finalizeSources.images||[]).filter(i=>i&&!(i.resource_name&&derived.has(i.resource_name)));
-  for(const f of resources){
+  state.finalizeSources.images=(state.finalizeSources.images||[]).filter(i=>i&&!i.resource_name);
+  let notes=String(state.finalizeSources.notes||'');
+  for(const f of notes?files.filter(f=>String(f.name||'').startsWith('internal-resource-')):[]){
    const revisions=files.filter(r=>r.name.startsWith(markupPrefix+fileId(f.name)+'-')).sort((a,b)=>String(b.updated_at||'').localeCompare(String(a.updated_at||''))||b.name.localeCompare(a.name));
    const markup=revisions.length?await read(revisions[0].name).catch(error=>{console.warn('Markup could not be read for Sources & Notes:',revisions[0].name,error);return null;}):null;
-   // A capture whose markup names the video it came from is a derived frame too: leave it (and its note) out.
-   if(markup?.sourceVideo){const at=images.findIndex(i=>i.resource_name===f.name);if(at>=0)images.splice(at,1);continue;}
-   if(!images.some(i=>i.resource_name===f.name))images.push({resource_name:f.name,url:resourceUrl(f.name),dataUrl:resourceUrl(f.name),name:f.original_name||f.name,role:'tech'});
-   const note=String(markup?.notes||'').trim();if(note&&!String(state.finalizeSources.notes||'').includes(note))state.finalizeSources.notes=(state.finalizeSources.notes?state.finalizeSources.notes+'\n\n':'')+(f.original_name||f.name)+':\n'+note;
+   const note=String(markup?.notes||'').trim();if(!note)continue;
+   const block=(f.original_name||f.name)+':\n'+note;
+   notes=notes.split('\n\n'+block).join('').split(block+'\n\n').join('').split(block).join('');
   }
+  state.finalizeSources.notes=notes.trim()?notes:'';
  }
- if(typeof module!=='undefined'&&module.exports){module.exports={referenceCatalog,coreViews,referenceCache,submissionUploads,mergeSubmissionSources};return;}
+ if(typeof module!=='undefined'&&module.exports){module.exports={referenceCatalog,coreViews,referenceCache,mergeSubmissionSources};return;}
  function boot() {
   const host = document.getElementById('google-earth-wrapper'), tabs = host?.querySelector('.map-view-tabs');
   if (!host || !tabs) return;

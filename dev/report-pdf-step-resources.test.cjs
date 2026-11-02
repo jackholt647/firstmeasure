@@ -38,19 +38,8 @@ test('every caller of the merge goes through the guard, and the error page names
  assert.match(slice('async function uploadSubmissionSourcesAndPersist('),/await mergeProjectResourcesIntoSources\(state\)/);
  assert.match(source,/Error rendering preview: \$\{escapeHtml\(e\?\.message/);
 });
-const upload={name:'internal-resource-v2-aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa-site.png',original_name:'Site.png',role:'tech'};
-const other={name:'internal-resource-v2-bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb-roof.png',original_name:'Roof.png',role:'tech'};
-const markup=id=>({name:`internal-markup-${id}-1-x.json`});
-test('one unreadable markup leaves out that note and keeps every upload',async()=>{
- const state={},bad=markup('aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa'),good=markup('bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb');
- const warn=console.warn;console.warn=()=>{};
- try{await mergeSubmissionSources(state,[upload,other,bad,good],async name=>{if(name===bad.name)throw Error('Resource request failed (500).');return {notes:'Ridge checked'};},name=>'https://x/'+name);}
- finally{console.warn=warn;}
- assert.deepEqual(state.finalizeSources.images.map(i=>i.name),['Site.png','Roof.png']);
- assert.match(state.finalizeSources.notes,/Roof\.png:\nRidge checked/);
-});
 test('an empty entry saved earlier does not stop the merge',async()=>{
  const state={finalizeSources:{images:[null],notes:''}};
- await mergeSubmissionSources(state,[upload],async()=>({}),name=>'https://x/'+name);
- assert.deepEqual(state.finalizeSources.images.map(i=>i.name),['Site.png']);
+ await mergeSubmissionSources(state,[{name:'internal-resource-v2-aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa-site.png',role:'tech'}],async()=>({}));
+ assert.deepEqual(state.finalizeSources.images,[]);
 });

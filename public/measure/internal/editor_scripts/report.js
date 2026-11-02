@@ -6844,9 +6844,8 @@ async function renderLegacyFinalizeChecklistPage(container) {
     const storiesReady = !guttersRequired || missingGutterStories.length === 0;
     const srcChecked = qaPdfReviewMode ? true : state.finalizeSourcesConfirmed;
     const allDone = finalizeCategories.every(c => !!state.finalizeChecklist[c.key]) && srcChecked && storiesReady;
-    const storiesHint = storiesReady
-        ? 'All gutter stories are filled in.'
-        : `Set stories for ${missingGutterStories.map((dir) => GUTTER_DIRECTION_LABELS[dir]).join(', ')} before submission.`;
+    // A reminder only while gutter stories are missing; filled in, it takes no space (Jack, 2026-11-01).
+    const storiesHint = `Set gutter stories for ${missingGutterStories.map((dir) => GUTTER_DIRECTION_LABELS[dir]).join(', ')} before submitting.`;
 
     container.innerHTML = `
         <div class="fin-wrap">
@@ -6882,8 +6881,8 @@ async function renderLegacyFinalizeChecklistPage(container) {
             </div>`}
 
             ${guttersRequired ? `
-                <div id="finGutterStoriesReq" style="margin:0 0 8px 0; padding:10px 12px; border:1px solid ${storiesReady ? '#c5d8c9' : '#f2c6c2'}; background:${storiesReady ? '#f7fbf8' : '#fff5f5'}; border-radius:10px; font-size:12px; color:${storiesReady ? '#188038' : '#b3261e'}; font-weight:700;">
-                    Gutter stories requirement: ${storiesHint}
+                <div id="finGutterStoriesReq" ${storiesReady ? 'hidden ' : ''}style="margin:0 0 8px 0; padding:10px 12px; border:1px solid ${storiesReady ? '#c5d8c9' : '#f2c6c2'}; background:${storiesReady ? '#f7fbf8' : '#fff5f5'}; border-radius:10px; font-size:12px; color:${storiesReady ? '#188038' : '#b3261e'}; font-weight:700;">
+                    ${storiesHint}
                 </div>
             ` : ''}
 
@@ -6921,12 +6920,11 @@ async function renderLegacyFinalizeChecklistPage(container) {
             hint.textContent = 'All checks passed - ready to submit!';
         }
         if (reqBox && currentGuttersRequired) {
+            reqBox.hidden = currentStoriesReady;
             reqBox.style.borderColor = currentStoriesReady ? '#c5d8c9' : '#f2c6c2';
             reqBox.style.background = currentStoriesReady ? '#f7fbf8' : '#fff5f5';
             reqBox.style.color = currentStoriesReady ? '#188038' : '#b3261e';
-            reqBox.textContent = currentStoriesReady
-                ? 'Gutter stories requirement: All gutter stories are filled in.'
-                : `Gutter stories requirement: Set stories for ${currentMissingStories.map((dir) => GUTTER_DIRECTION_LABELS[dir]).join(', ')} before submission.`;
+            if (!currentStoriesReady) reqBox.textContent = `Set gutter stories for ${currentMissingStories.map((dir) => GUTTER_DIRECTION_LABELS[dir]).join(', ')} before submitting.`;
         }
 
         // Dots
@@ -7662,9 +7660,8 @@ async function renderFinalizePage(container) {
     const guttersRequired = shouldIncludeGutters(state);
     const missingGutterStories = getMissingRequiredGutterStories(state);
     const storiesReady = !guttersRequired || missingGutterStories.length === 0;
-    const storiesHint = storiesReady
-        ? 'All gutter stories are filled in.'
-        : `Set stories for ${missingGutterStories.map((dir) => GUTTER_DIRECTION_LABELS[dir]).join(', ')} before submission.`;
+    // A reminder only while gutter stories are missing; filled in, it takes no space (Jack, 2026-11-01).
+    const storiesHint = `Set gutter stories for ${missingGutterStories.map((dir) => GUTTER_DIRECTION_LABELS[dir]).join(', ')} before submitting.`;
     const qaPdfReviewMode = isQaPortalPdfReviewMode();
 
     container.innerHTML = `
@@ -7712,12 +7709,12 @@ async function renderFinalizePage(container) {
             </div>`}
 
             ${guttersRequired ? `
-                <div id="finGutterStoriesReq" style="margin:0; padding:10px 12px; border:1px solid ${storiesReady ? '#c5d8c9' : '#f2c6c2'}; background:${storiesReady ? '#f7fbf8' : '#fff5f5'}; border-radius:10px; font-size:12px; color:${storiesReady ? '#188038' : '#b3261e'}; font-weight:700;">
-                    Gutter stories requirement: ${storiesHint}
+                <div id="finGutterStoriesReq" ${storiesReady ? 'hidden ' : ''}style="margin:0; padding:10px 12px; border:1px solid ${storiesReady ? '#c5d8c9' : '#f2c6c2'}; background:${storiesReady ? '#f7fbf8' : '#fff5f5'}; border-radius:10px; font-size:12px; color:${storiesReady ? '#188038' : '#b3261e'}; font-weight:700;">
+                    ${storiesHint}
                 </div>
             ` : ''}
 
-            ${window.FIRSTMEASURE_FULL_HOUSE === true && !window.FIRSTMEASURE_CUSTOMER_FULL_HOUSE && !window.FIRSTMEASURE_TUTORIAL?.enabled ? '<p>Internal draft · Download from the preview above.</p>' : qaPdfReviewMode ? renderQaPdfReviewHtml(state) : `
+            ${window.FIRSTMEASURE_FULL_HOUSE === true && !window.FIRSTMEASURE_CUSTOMER_FULL_HOUSE && !window.FIRSTMEASURE_TUTORIAL?.enabled ? '' : qaPdfReviewMode ? renderQaPdfReviewHtml(state) : `
                 <div class="fin-submit-area">
                     <button class="fin-submit-btn ${storiesReady ? 'enabled' : 'disabled'}" id="finalSubmitBtn" ${storiesReady ? '' : 'disabled'}>
                         <i class="fas fa-file-pdf"></i> Submit PDF
@@ -7945,12 +7942,11 @@ async function renderFinalizePage(container) {
             : (missingStories.length ? 'Fill in all gutter stories to enable submission.' : 'Waiting for the reviewed PDF revision to be accepted...');
         if (reqBox) {
             const storiesFilled = missingStories.length === 0;
+            reqBox.hidden = storiesFilled;
             reqBox.style.borderColor = storiesFilled ? '#c5d8c9' : '#f2c6c2';
             reqBox.style.background = storiesFilled ? '#f7fbf8' : '#fff5f5';
             reqBox.style.color = storiesFilled ? '#188038' : '#b3261e';
-            reqBox.textContent = storiesFilled
-                ? 'Gutter stories requirement: All gutter stories are filled in.'
-                : `Gutter stories requirement: Set stories for ${missingStories.map((dir) => GUTTER_DIRECTION_LABELS[dir]).join(', ')} before submission.`;
+            if (!storiesFilled) reqBox.textContent = `Set gutter stories for ${missingStories.map((dir) => GUTTER_DIRECTION_LABELS[dir]).join(', ')} before submitting.`;
         }
     };
 
