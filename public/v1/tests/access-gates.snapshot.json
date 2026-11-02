@@ -1,7 +1,7 @@
 {
   "summary": {
     "routes": {
-      "total": 1984,
+      "total": 1985,
       "by_kind": {
         "any:login_only": 169,
         "any:login_only+handler_checks": 385,
@@ -31,7 +31,7 @@
         "mixed(any:login_only,any:permission)": 7,
         "mixed(any:permission,app(contact.media|portal.photos_feed|portal.viewer|project.photos):login_only)": 2,
         "mixed(app(documents.studio|portal.proposals|project.docs|project.documents|project.proposal):login_only,app(documents.studio|portal.proposals|project.docs|project.documents|project.proposal):permission)": 5,
-        "no_platform_session": 388,
+        "no_platform_session": 389,
         "publication_policy": 6
       }
     },
@@ -1577,6 +1577,7 @@
     "POST /v1/internal/diagnostics/rum": {"file":"internal/diagnostics.ts","kind":"no_platform_session"},
     "POST /v1/internal/flags/bulk": {"file":"internal/flags-api.ts","kind":"no_platform_session"},
     "POST /v1/internal/flags/keys": {"file":"internal/flags-api.ts","kind":"no_platform_session"},
+    "POST /v1/internal/flags/keys/enroll": {"file":"internal/flags-api.ts","kind":"no_platform_session"},
     "POST /v1/internal/flags/resolve": {"file":"internal/flags-api.ts","kind":"no_platform_session"},
     "POST /v1/internal/impersonation": {"file":"internal/api.ts","kind":"no_platform_session"},
     "POST /v1/internal/legacy-action": {"file":"internal/api.ts","checks":["authContextFromRequest"],"kind":"no_platform_session"},

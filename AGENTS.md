@@ -623,7 +623,9 @@ Read [feature flags](docs/architecture/feature-flags.md) before changing how an
 organization's flags are read or written, or rolling one out. A flag is an
 organization switch, never who sees an app. Ctrl+Shift+F on any
 `/measure/internal` page opens the console; agents use
-`node tools/feature-flags/cli.mjs` with a key a platform administrator created.
+`node tools/feature-flags/cli.mjs`: agent machines on dev hold their own key
+(`sh tools/feature-flags/enroll.sh agents:<machine>`, never ask for one), and a
+production key is created only by a platform administrator.
 Percentages are evaluated when read, never written per organization. A stored
 `false` is not an explicit off: only the console's value is. Who orders exterior
 reports is `firstmeasure.exteriors`, not the `FIRSTMEASURE_FULL_HOUSE_*` env,

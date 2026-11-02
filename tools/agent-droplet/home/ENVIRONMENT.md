@@ -69,6 +69,16 @@ branch every 5 minutes while it is clean; log `/srv/agents/logs/clone-sync.log`.
   If it is missing or revoked, run `sh tools/config-library/enroll.sh agents:fm-agents-1` from a checkout (it signs
   with `~/.ssh/fm_config_library_ed25519` and writes a fresh key). Dev only: production has no keys.
 
+## Feature flags: set them yourself (dev)
+- To read or set an organization's flags, for example turning `firstmeasure.exteriors` on for one organization:
+  `node tools/feature-flags/cli.mjs list exteriors`, `org <id|name|email>`, `set <org id> <flag> on|off|auto --note "why"`,
+  `bulk`, `percent`, `audit`, from any checkout. Do not call `saveCapabilityValues` by hand: it skips the audit log.
+- This machine holds its dev key: `~/.config/firstmate/feature-flags-key` (mode 600, labelled `agents:fm-agents-1`); the
+  CLI reads it by itself. Never ask anyone for a key, and never print, copy or commit it. If it is missing or revoked, run
+  `sh tools/feature-flags/enroll.sh agents:fm-agents-1` from a checkout.
+- Production: `--prod`, only with a key Jack put in `~/.config/firstmate/feature-flags-key-prod` from the console, and only
+  when asked to change production. Never create a production key. How: `docs/architecture/feature-flags.md`.
+
 ## Dev is down? Fix the hosts yourself (dev only)
 - `fm-dev-host web|legacy|worker|sync [command]` opens a root shell (or runs one command) on a development host;
   `fm-dev-host list` shows them. `web` is whichever pool node is primary right now (read from the dev push router),

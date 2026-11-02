@@ -342,3 +342,40 @@ test("the CLI reads and changes flags with a key, and a read key cannot change t
   assert.match(history.out, /cli test.*from the cli/);
   assert.ok(![flagLine, set, shown, history].some((result) => result.out.includes(write.key) || result.out.includes(read.key)), "the CLI never prints a key");
 });
+
+test("an agent machine enrolls its own write key by SSH signature; only development serves the route", async () => {
+  const { execFileSync } = await import("node:child_process");
+  const { writeFileSync, readFileSync } = await import("node:fs");
+  const dir = await mkdtemp(path.join(os.tmpdir(), "firstmate-flag-enroll-"));
+  const signing = path.join(dir, "signing");
+  execFileSync("ssh-keygen", ["-t", "ed25519", "-N", "", "-q", "-f", signing]);
+  const machines = path.join(dir, "machines.json");
+  writeFileSync(machines, JSON.stringify({ machines: [{ name: "agents:test-box", public_key: readFileSync(`${signing}.pub`, "utf8").trim() }] }));
+  process.env.CONFIG_LIBRARY_AGENT_MACHINES = machines;
+  const { enrollFlagKey, flagEnrollMessage, FLAG_ENROLL_NAMESPACE, verifyFlagKey } = await import("../platform/flag-console.js");
+  const sign = (message: string, namespace = FLAG_ENROLL_NAMESPACE) => {
+    const file = path.join(dir, `m${Math.random().toString(36).slice(2)}`);
+    writeFileSync(file, message);
+    execFileSync("ssh-keygen", ["-Y", "sign", "-q", "-f", signing, "-n", namespace, file], { stdio: "ignore" });
+    return readFileSync(`${file}.sig`, "utf8");
+  };
+  const attempt = (timestamp: number, nonce: string, namespace?: string, machine = "agents:test-box") =>
+    enrollFlagKey({ machine, timestamp, nonce, signature: sign(flagEnrollMessage(machine, timestamp, nonce), namespace) });
+  const at = Date.now();
+  const first = await attempt(at, "a".repeat(32));
+  const found = await verifyFlagKey(first.key);
+  assert.equal(found?.scope, "write");
+  assert.equal(found?.name, "agents:test-box");
+  await assert.rejects(attempt(at, "b".repeat(32)), /already used/, "a signature is used once");
+  await assert.rejects(attempt(at + 1, "c".repeat(32), "fm-config-library"), /does not match/, "a config library signature does not enroll here");
+  await assert.rejects(attempt(at + 2, "d".repeat(32), undefined, "agents:unlisted"), /not a listed/);
+  await assert.rejects(attempt(at - 600_000, "e".repeat(32)), /older than five minutes/);
+  const second = await attempt(at + 3, "f".repeat(32));
+  assert.equal(await verifyFlagKey(first.key), null, "enrolling again revokes the earlier key");
+  assert.equal((await verifyFlagKey(second.key))?.name, "agents:test-box");
+  delete process.env.CONFIG_LIBRARY_AGENT_MACHINES;
+  // This test server is not development, as production is not: the route answers as if it did not exist.
+  const refused = await app.inject({ method: "POST", url: "/v1/internal/flags/keys/enroll", payload: { machine: "agents:test-box", timestamp: Date.now(), nonce: "a".repeat(32), signature: "x" } });
+  assert.equal(refused.statusCode, 404);
+  await rm(dir, { recursive: true, force: true }).catch(() => {});
+});

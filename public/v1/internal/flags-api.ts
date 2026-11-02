@@ -1,9 +1,10 @@
 import type { FastifyPluginAsync, FastifyRequest } from "fastify";
 import { z } from "zod";
 
+import { libraryDevEnvironment } from "../config-library/access.js";
 import { forbidden, notFound, unauthorized } from "../platform/errors.js";
 import {
-  bearerFlagKey, createFlagKey, flagCoverage, listFlagAudit, listFlagKeys, listFlags, readFlagAuditEntry, readOrganizationFlags, recordFlagAudit, resolveOrganizationList,
+  bearerFlagKey, createFlagKey, enrollFlagKey, flagCoverage, listFlagAudit, listFlagKeys, listFlags, readFlagAuditEntry, readOrganizationFlags, recordFlagAudit, resolveOrganizationList,
   revokeFlagKey, searchFlagOrganizations, setFlagForOrganizations, setFlagRollout, verifyFlagKey, type FlagActor
 } from "../platform/flag-console.js";
 import { requestPrincipal, type Principal } from "../platform/security/principal.js";
@@ -52,6 +53,22 @@ async function keyManager(request: FastifyRequest) {
 const param = (params: unknown, name: string) => String((params as Record<string, unknown>)[name] ?? "").trim();
 const flagValue = z.union([z.boolean(), z.null()]);
 const note = z.string().trim().max(500).optional();
+
+/**
+ * An agent machine's own dev key, proven by its listed SSH key. Outside the plugin below: the signature is the
+ * credential. The key is the response body and nothing else, never logged or shown. Development only.
+ */
+export const registerFlagEnrollApi: FastifyPluginAsync = async (app) => {
+  app.post("/keys/enroll", { bodyLimit: 16 * 1024 }, async (request, reply) => {
+    if (!libraryDevEnvironment()) throw notFound("not_found", "Not found.");
+    const body = z.object({ machine: z.string().max(80), timestamp: z.number().int(), nonce: z.string().max(64), signature: z.string().max(8000) }).strict().parse(request.body ?? {});
+    const signature = /BEGIN SSH SIGNATURE/.test(body.signature) ? body.signature : Buffer.from(body.signature, "base64").toString("utf8");
+    const created = await enrollFlagKey({ ...body, signature });
+    request.log.info({ flag_key: created.id, machine: created.name }, "Feature flag key enrolled for an agent machine");
+    reply.header("Cache-Control", "no-store").header("X-Flag-Key-Id", created.id);
+    return reply.type("text/plain; charset=utf-8").send(created.key);
+  });
+};
 
 export const registerFlagConsoleApi: FastifyPluginAsync = async (app) => {
   app.addHook("preHandler", async (request, reply) => {
