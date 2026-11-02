@@ -33,7 +33,7 @@ export async function withTutorialSource<T>(source: string, work: () => Promise<
 export function tutorialSourceFile(name: string) {
   // Never expose the answer geometry, report snapshots, generated PDFs or source markups.
   // The same list is in fm_tutorial_source_file (_tutorial_source.php).
-  return /^(google\.(png|jpg)|azure\.png|apple\.png|rgb\.tif|dsm\.tif|mask\.tif|insights\.json|instant-structures\.json|structure-[0-9]+-(rgb|dsm|mask)\.tif|structure-[0-9]+-apple\.png|internal-resource-[a-zA-Z0-9._-]+|internal-markup-part-[a-zA-Z0-9._-]+)$/.test(name);
+  return /^(google\.(png|jpg)|azure\.png|apple\.(png|jpg)|rgb\.tif|dsm\.tif|mask\.tif|insights\.json|instant-structures\.json|structure-[0-9]+-(rgb|dsm|mask)\.tif|structure-[0-9]+-apple\.(png|jpg)|internal-resource-[a-zA-Z0-9._-]+|internal-markup-part-[a-zA-Z0-9._-]+)$/.test(name);
 }
 
 // The source's saved Google 3D capture is reference imagery too; it lives beside the artifacts, not among them.
