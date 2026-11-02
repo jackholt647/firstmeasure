@@ -192,7 +192,7 @@ export async function verifyFlagKey(key: string) {
 // ---------------------------------------------------------------------------
 
 type OrgRow = { id: string; stored: Uint8Array; overrides: Record<string, boolean> | null };
-type Snapshot = { at: number; orgs: OrgRow[]; rollouts: FlagRollouts; stats: Map<string, FlagStats> };
+type Snapshot = { at: number; orgs: OrgRow[]; rollouts: FlagRollouts; stats: Map<string, FlagStats>; dirty?: boolean };
 export type FlagStats = { on: number; stored_on: number; explicit_on: number; explicit_off: number; percent_added: number; percent_covered: number };
 
 const STORED_UNSET = 0, STORED_ON = 1, STORED_OFF = 2;
@@ -284,21 +284,37 @@ async function computeStats(orgs: OrgRow[], nodes: NormalizedCapability[], rollo
 async function readSnapshot(fresh = false) {
   const rollouts = await readFlagRollouts(fresh);
   const rolloutsMatch = (value: FlagRollouts) => JSON.stringify(value) === JSON.stringify(rollouts);
-  if (!fresh && snapshot && Date.now() - snapshot.at < SNAPSHOT_TTL_MS && rolloutsMatch(snapshot.rollouts)) return snapshot;
+  if (!fresh && snapshot && !snapshot.dirty && Date.now() - snapshot.at < SNAPSHOT_TTL_MS && rolloutsMatch(snapshot.rollouts)) return snapshot;
   if (scanning) return scanning;
-  // A changed percentage changes the counts, not what is stored: no need to read every organization again.
+  // A changed percentage or a value this process just wrote changes the counts, not the need to read every organization.
   const reusable = !fresh && snapshot && Date.now() - snapshot.at < SNAPSHOT_TTL_MS ? snapshot : null;
   scanning = (async () => {
     const nodes = valueCapabilities();
     const orgs = reusable ? reusable.orgs : await scanOrganizations(nodes);
     await breathe();
-    snapshot = { at: Date.now(), orgs, rollouts, stats: await computeStats(orgs, nodes, rollouts) };
+    const stats = await computeStats(orgs, nodes, rollouts);
+    snapshot = { at: reusable?.at ?? Date.now(), orgs, rollouts, stats };
     return snapshot;
   })().finally(() => { scanning = null; });
   return scanning;
 }
 
-function forgetSnapshot() { snapshot = null; }
+/** Keeps the scan current after a write here, so one toggle does not read every organization again. */
+function patchSnapshot(node: NormalizedCapability, value: boolean | null, orgIds: string[]) {
+  // A scan in flight may have read these before the write: its result is not kept.
+  if (scanning) void scanning.finally(() => { snapshot = null; });
+  if (!snapshot) return;
+  const index = valueCapabilities().findIndex((candidate) => candidate.key === node.key);
+  const changed = new Set(orgIds);
+  for (const org of snapshot.orgs) {
+    if (!changed.has(org.id)) continue;
+    org.stored[index] = value === null ? STORED_UNSET : value ? STORED_ON : STORED_OFF;
+    const overrides = { ...(org.overrides ?? {}) };
+    if (value === null) delete overrides[node.key]; else overrides[node.key] = value;
+    org.overrides = Object.keys(overrides).length ? overrides : null;
+  }
+  snapshot.dirty = true;
+}
 
 function requireBooleanFlag(key: string) {
   const node = capabilityDefinition(key);
@@ -395,7 +411,9 @@ const looksLikeEmail = (value: string) => /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(valu
 async function orgsForEmail(email: string) {
   const identity = await findIdentityByEmail(email).catch(() => null);
   if (!identity) return [];
-  return (await listIdentityMemberships(text(identity.id)).catch(() => [])).map((membership) => asObject(membership.organization)).filter((org) => text(org.id));
+  // An identity can hold several memberships in one organization.
+  const orgs = (await listIdentityMemberships(text(identity.id)).catch(() => [])).map((membership) => asObject(membership.organization)).filter((org) => text(org.id));
+  return [...new Map(orgs.map((org) => [text(org.id), org])).values()];
 }
 async function orgById(id: string) {
   if (!/^[A-Za-z0-9_.:-]{1,200}$/.test(id)) return null;
@@ -499,7 +517,7 @@ export async function setFlagForOrganizations(input: { flag: string; value: bool
       }
     }
   }));
-  forgetSnapshot();
+  patchSnapshot(node, input.value, changes.map((change) => change.org_id));
   let audit_id = "";
   if (changes.length) {
     const only = changes.length === 1 ? ` for ${changes[0]!.org_name || changes[0]!.org_id}` : ` for ${changes.length} organizations`;
