@@ -67,6 +67,7 @@ async function openOrder(browser, kind, options = {}) {
       // Capabilities loaded; this organization has no platform expanded access.
       capabilities: { current: () => ({ loaded_at: '1', org_id: 'org_test', definitions: [], definitions_by_key: {}, effective_by_key: new Proxy({}, { get: (t, k) => k !== 'platform.expanded_access' }) }),
         value: (k, f) => (k === 'platform.expanded_access' ? false : f) },
+      platformExpandedAccess: () => false,
       appFlags: { current: () => ({}), has: (a, f) => f === 'measurement_report_summary', value: (a, f, d) => d }
     };
     window.PlatformAPI = { projects: { list: async () => ({ documents: [] }), get: async () => null, save: async () => { throw new Error('No platform writes without expanded access'); } }, appFlags: { current: () => ({}) } };
@@ -86,8 +87,8 @@ async function openOrder(browser, kind, options = {}) {
         delivery_release_hold: hold, platform_project_id: '', base_project_id: '' };
     }
     if (options.seedDrafts) {
-      // Drafts already in this browser's cache for the customer (the per-organization project store).
-      localStorage.setItem('fm_platform_project_store_v1:org_test', JSON.stringify({ version: 1, projects: Object.fromEntries(options.seedDrafts.map(d => [d.id, d])), measurementIndex: {} }));
+      // Drafts already in this browser's cache for the customer (the per-organization, per-person project store).
+      localStorage.setItem('fm_platform_project_store_v1:org_test:owner@example.test', JSON.stringify({ version: 1, org_id: 'org_test', user_id: 'owner@example.test', projects: Object.fromEntries(options.seedDrafts.map(d => [d.id, d])), measurementIndex: {} }));
     }
   }, { id: ID, order: ORDERS[kind], options });
   for (const src of SCRIPTS) await page.addScriptTag({ url: 'https://portal.test' + src });
@@ -95,14 +96,27 @@ async function openOrder(browser, kind, options = {}) {
   await page.waitForTimeout(1200);
   // The board's FirstMeasure-only listing (core.js list_projects) runs before any order is opened.
   if (options.listPass) await page.evaluate(() => { window.__discarded = Portal.ProjectStore.discardDraftsShadowingOrders([window.__row]); });
+  await page.evaluate(() => { window.__cachedBeforeOpen = Portal.ProjectStore.cachedIds(); });
   // The order opens from this page's copy (no platform read), for cases about the card rather than about opening.
   if (options.localOpen) await page.evaluate(() => { Portal.ProjectStore.hasPendingSave = () => true; });
-  await page.evaluate(() => Portal.modules.request.openProject(window.__row, {}));
+  // A link names the project by id alone (a reload of the project's address, an emailed link).
+  if (options.linkId) await page.evaluate(id => {
+    window.__lookups = [];
+    Portal.firstMeasureOrderForProject = async asked => { window.__lookups.push(asked); return asked === window.__row.id ? window.__row : null; };
+    return Portal.modules.request.openProject({ id }, {}).catch(error => { window.__openError = error.code; });
+  }, options.linkId);
+  else await page.evaluate(() => Portal.modules.request.openProject(window.__row, {}));
   await page.waitForTimeout(1200);
   return { page, errors };
 }
 
 const visibleText = (page, selector) => page.evaluate(sel => [...document.querySelectorAll(sel)].filter(e => e.offsetParent).map(e => e.innerText.replace(/\s+/g, ' ').trim()), selector);
+// An order opens on its Summary tab; the report's own card is on the Standard tab.
+async function standardPane(page) {
+  await page.locator('#rOverlay [data-tab="standard"]').first().click();
+  await page.waitForTimeout(300);
+  return (await visibleText(page, '.r-measure-pane.active')).join(' ');
+}
 async function summary(page) {
   await page.locator('#rOverlay [data-tab="summary"]').first().click();
   await page.waitForTimeout(300);
@@ -130,13 +144,32 @@ test('1M8-234: an order still in work opens on its report with no new-order offe
   try {
     for (const kind of ['processing', 'queued', 'held']) {
       const { page } = await openOrder(browser, kind);
-      const standard = await visibleText(page, '.r-measure-pane.active');
-      assert.match(standard.join(' '), /Standard Report Processing/, `${kind}: ${standard.join(' ').slice(0, 200)}`);
-      assert.doesNotMatch(standard.join(' '), /cancelled|canceled|not available/i, kind);
+      const standard = await standardPane(page);
+      assert.match(standard, /Standard Report Processing/, `${kind}: ${standard.slice(0, 200)}`);
+      assert.doesNotMatch(standard, /cancelled|canceled|not available/i, kind);
       const orderOffers = await page.evaluate(() => [...document.querySelectorAll('#rOverlay .r-overview-initial-actions button')].filter(b => b.offsetParent && /order report/i.test(b.textContent)).length);
       assert.equal(orderOffers, 0, `${kind} offers to order again`);
       await page.close();
     }
+  } finally { await browser.close(); }
+});
+
+test('Without expanded access, an order opens in a browser with no cached copy, from the board and from a link', async () => {
+  const browser = await chromium.launch({ channel: 'chrome', headless: true });
+  try {
+    for (const [name, options] of [['board row', {}], ['full board row', { fullRow: true }], ['link', { linkId: 'project_1e0697y1uw90eq' }]]) {
+      const { page, errors } = await openOrder(browser, 'processing', options);
+      assert.deepEqual(await page.evaluate(() => window.__cachedBeforeOpen), [], name);
+      assert.equal(await page.locator('#rOverlay .r-project-open-failure').count(), 0, name);
+      assert.match(await standardPane(page), /Standard Report Processing/, name);
+      assert.deepEqual(errors, [], name);
+      await page.close();
+    }
+    // A link to something this organization has no order for still says so, and creates nothing.
+    const { page } = await openOrder(browser, 'processing', { linkId: 'project_someone_elses' });
+    assert.deepEqual(await page.evaluate(() => [window.__lookups, window.__openError, Portal.ProjectStore.cachedIds()]), [['project_someone_elses'], 'project_not_found', []]);
+    assert.match((await page.locator('#rOverlay').innerText()), /could not be found/);
+    await page.close();
   } finally { await browser.close(); }
 });
 
@@ -161,7 +194,7 @@ test('1M8-234: impersonating a customer, active orders open as orders and stale 
       assert.deepEqual(await page.evaluate(() => window.__discarded), ['project_mvk3j5kc_ffp4ewq6'], kind);
       const cached = await page.evaluate(() => Portal.ProjectStore.cachedIds());
       assert.ok(!cached.includes('project_mvk3j5kc_ffp4ewq6') && ['withnote', 'justnow', 'otheraddr'].every(s => cached.includes('project_mvk3j5kc_' + s)), JSON.stringify(cached));
-      const standard = (await visibleText(page, '.r-measure-pane.active')).join(' ');
+      const standard = await standardPane(page);
       assert.match(standard, /Standard Report Processing/, `${kind}: ${standard.slice(0, 200)}`);
       const orderOffers = await page.evaluate(() => [...document.querySelectorAll('#rOverlay .r-overview-initial-actions button')].filter(b => b.offsetParent && /order report/i.test(b.textContent)).length);
       assert.equal(orderOffers, 0, `${kind} offers to order again`);

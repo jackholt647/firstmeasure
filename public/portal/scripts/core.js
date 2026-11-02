@@ -1800,6 +1800,14 @@
     return projects;
   }
 
+  // The listed order a project id names: the board's project id, or the order's own id from a link.
+  window.Portal.firstMeasureOrderForProject = async (projectId) => {
+    const id = cleanText(projectId);
+    if (!id) return null;
+    const orders = await listFirstMeasureProjectCandidates({ max_pages: 5 });
+    return orders.find((order) => cleanText(order.id) === id || projectMeasurementKeys(order).includes(id)) || null;
+  };
+
   const withTimeout = (promise, timeoutMs, fallback = null) => new Promise((resolve) => {
     let settled = false;
     const timer = setTimeout(() => {
