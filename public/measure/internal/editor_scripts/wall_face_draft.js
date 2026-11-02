@@ -203,7 +203,7 @@ window.createWallFaceDraft=function(host){
    const anchor=local(workingPlane.drawInput.anchor),length=Math.hypot(constrained.x-anchor.x,constrained.y-anchor.y);
    // Retain the last aim direction when the pointer sits exactly on its anchor.
    const raw=Math.hypot(p.x-anchor.x,p.y-anchor.y)<1e-9?constrained:p;
-   const result=W.radialDraftSnap(raw,anchor,length,scene.points.map(local),scene.lines.map(pair=>pair.map(local)),q=>host.screen(K.world(d.frame,q),viewOf(e)),typeof snapRadius!=='undefined'?snapRadius:20);
+   const result=W.radialDraftSnap(raw,anchor,length,[...scene.points,...planeCenterTargets()].map(local),scene.lines.map(pair=>pair.map(local)),q=>host.screen(K.world(d.frame,q),viewOf(e)),typeof snapRadius!=='undefined'?snapRadius:20);
    snapGuides=result.guides;showGuides(d,e);return result.point;
   }
   if(typeof isFreeMove!=='undefined'&&isFreeMove)return p;
@@ -373,7 +373,7 @@ window.createWallFaceDraft=function(host){
  function previewPlaneCurve(e){
   const plane=workingPlane,t=plane.action,K=window.ExteriorGeometry,raw=rayPoint({frame:plane.frame},e);clearGuides();if(!raw)return;
   const local=p=>K.local(plane.frame,p),scene=planeScene(),curves=Object.values(all()).filter(d=>d.constructionPlane&&JSON.stringify(d.frame)===JSON.stringify(plane.frame)).flatMap(d=>d.sketch.curves||[]);
-  t.snap=K.curveDrawSnap({start:t.start,center:t.center,point:raw,normal:{x:0,y:0,z:1},points:scene.points.map(local),curves,screen:p=>host.screen(K.world(plane.frame,p),'3d'),snap:!(typeof isFreeMove!=='undefined'&&isFreeMove),radius:typeof snapRadius!=='undefined'?snapRadius:20});
+  t.snap=K.curveDrawSnap({start:t.start,center:t.center,point:raw,normal:{x:0,y:0,z:1},points:[...scene.points,...planeCenterTargets()].map(local),curves,screen:p=>host.screen(K.world(plane.frame,p),'3d'),snap:!(typeof isFreeMove!=='undefined'&&isFreeMove),radius:typeof snapRadius!=='undefined'?snapRadius:20});
   t.pointer=t.snap.point;t.track.close=t.snap.close;t.valid=false;
   if(t.center)try{t.curve=K.arcPreview(t.start,t.center,t.pointer,{x:0,y:0,z:1},t.track,false);t.samples=K.curveSamples(t.curve);t.pointer=t.samples.at(-1);t.valid=Math.abs(t.curve.sweep)>1e-5;}catch(error){host.message(error.message);}
   t.guides=K.curveDrawGuides({start:t.start,center:t.center,pointer:t.pointer,snap:t.snap,normal:{x:0,y:0,z:1}});
@@ -807,12 +807,17 @@ function perf_snap(d,e,raw=null){
   if(host.state()?.lineCenters===false)return [];
   const graph=sceneLines(),curves=[...graph.curveGroups.values()].flatMap(c=>c.pairs),base=host.state()?.wallEdits?.$base||host.state()?.base;
   if(base)curves.push(...S.curveEdges(S.read(base)).filter(e=>e.curveId).map(e=>[e.start,e.end]));
-  const centers=new Map();for(const pair of graph.lines.values()){
+  const centers=new Map();for(const pair of [...graph.lines.values(),...(workingPlane?planeScene().lines:[])]){
    if(curves.some(c=>pair.every(p=>onSegment(p,...c))))continue;
    const p={x:(pair[0].x+pair[1].x)/2,y:(pair[0].y+pair[1].y)/2,z:(pair[0].z+pair[1].z)/2};
-   if(workingPlane&&Math.abs(W.inFrame(workingPlane.frame,p).z)>.002)continue;
    centers.set(W.vertexKey(p),{...p,pair});
   }return [...centers.values()];
+ }
+ // Centers of the plane's own lines, as plain points other snaps can target.
+ function planeCenterTargets(skip=()=>false){
+  if(host.state()?.lineCenters===false)return [];
+  const scene=planeScene();scene.centers||=lineCenterPoints().filter(c=>c.pair.every(onWorkingPlane));
+  return scene.centers.filter(c=>!c.pair.some(skip)).map(({x,y,z})=>({x,y,z}));
  }
  function drawLineCenters2D(rot,svg,inv){
   for(const p of lineCenterPoints()){
@@ -824,6 +829,13 @@ function perf_snap(d,e,raw=null){
  function drawLineCenters3D(group,vector,centers=null){
   // A sticker gesture's wall has its line centers drawn by the overlay.
   if(!centers){centers=lineCenterPoints();const g=gestureDraftKey(),d=g&&all()[g];if(d){const segs=draftSegments(d).map(e=>[world(d,e.start),world(d,e.end)]);centers=centers.filter(p=>!segs.some(([a,b])=>onSegment(p,a,b)));}}
+  // Keep plane centers in their own marked batch: mixing them with off-plane
+  // centers makes applyPlaneDisplay dim the entire batch, including these.
+  if(!workingPlane)return drawLineCenterBatch(group,vector,centers);
+  const on=p=>p.pair.every(onWorkingPlane);
+  drawLineCenterBatch(group,vector,centers.filter(p=>!on(p)));drawLineCenterBatch(group,vector,centers.filter(on),true);
+ }
+ function drawLineCenterBatch(group,vector,centers,planeGuide=false){
   if(!centers.length)return;
   const geo=new THREE.BufferGeometry().setFromPoints(centers.map(vector)),ends=centers.flatMap(p=>{const q=vector(p.pair[1]);return [q.x,q.y,q.z];});
   geo.setAttribute('centerEnd',new THREE.Float32BufferAttribute(ends,3));
@@ -838,7 +850,7 @@ function perf_snap(d,e,raw=null){
    shader.fragmentShader=shader.fragmentShader.replace('void main() {','void main() { vec2 pixel = (gl_PointCoord - vec2(0.5)) * vec2(14.0, -14.0); if (abs(dot(pixel, centerDirection)) > 1.0 || abs(dot(pixel, vec2(-centerDirection.y, centerDirection.x))) > 6.0) discard;');
   };
   material.customProgramCacheKey=()=> 'wall-line-center-tick-v1';
-  const marker=new THREE.Points(geo,material);marker.userData||={};marker.userData.lineCenters=true;
+  const marker=new THREE.Points(geo,material);marker.userData||={};marker.userData.lineCenters=true;if(planeGuide)marker.userData.planeGuide=true;
   marker.onBeforeRender=renderer=>{const r=renderer.domElement.getBoundingClientRect();viewport.value.set(r.width,r.height);};group.add(marker);
  }
  function heightPoints(){const state=host.state(),base=state.wallEdits?.$base||state.base;return [...(state.roof?.points||[]),...(base?.faces||[]).filter(f=>!f.deleted).flatMap(f=>[...f.points,...(f.holes||[]).flat(),...(f.retainedPoints||[])])];}
@@ -971,7 +983,7 @@ function perf_snap(d,e,raw=null){
   const before=copy(host.state().wallEdits||{});
   try{const curveOwner=stickerEdit?null:curveGeometrySelection(points);if(curveOwner){const clip=constrainPlaneClip(curveOwner.clip);tool={kind:'geometryTransform',curveOwner:{key:curveOwner.key,base:curveOwner.base,ids:curveOwner.ids},snapTargets:curveOwner.snapTargets,before,prepared:copy(host.state().wallEdits),base:copy(host.state().wallEdits.$base||host.state().base),scene:[],original:copy(clip),clip,preview:copy(clip),mount:0,op:Date.now(),valid:true};geometryCommand(mode);return true;}
    const scene=moveScene().filter(f=>!f.snapOnly&&!f.deleted),base=host.state().wallEdits.$base||host.state().base;if(base&&(external||selectedBasePoints.length||workingPlane))scene.push(...base.faces.map(f=>({...f,baseId:f.id,id:'base:'+f.id})));
-   const snapScene=workingPlane?{points:planeScene().points,lines:new Map(planeScene().lines.map((p,i)=>[i,p]))}:sceneLines(),clip=constrainPlaneClip(W.copyGeometry(scene,points,[...snapScene.lines.values()])),selected=p=>clip.points.some(q=>distance3(p,q)<=window.ExteriorGeometry.CONTACT);const snapTargets={points:snapScene.points.filter(p=>!selected(p)),edges:[...snapScene.lines.values()].filter(pair=>pair.every(p=>!selected(p)))};
+   const snapScene=workingPlane?{points:planeScene().points,lines:new Map(planeScene().lines.map((p,i)=>[i,p]))}:sceneLines(),clip=constrainPlaneClip(W.copyGeometry(scene,points,[...snapScene.lines.values()])),selected=p=>clip.points.some(q=>distance3(p,q)<=window.ExteriorGeometry.CONTACT);const snapTargets={points:[...snapScene.points.filter(p=>!selected(p)),...(workingPlane?planeCenterTargets(selected):[])],edges:[...snapScene.lines.values()].filter(pair=>pair.every(p=>!selected(p)))};
    const stickerMove=clip.faces.length>0&&clip.faces.every(f=>f.feature);if(stickerMove){const filtered=stickerSnapGeometry({points:snapTargets.points,lines:new Map(snapTargets.edges.map((pair,i)=>[i,pair]))},scene);snapTargets.points=filtered.points;snapTargets.edges=[...filtered.lines.values()];}
    tool={kind:'geometryTransform',stickerMove,stickerEdit,stickerFaces:stickerEdit&&selectedFaceRefs().length>0,snapTargets,before,prepared:copy(host.state().wallEdits),base:copy(base),scene:copy(scene),original:copy(clip),clip,preview:copy(clip),mount:0,op:Date.now(),valid:true};
    geometryCommand(mode);return true;
@@ -1068,7 +1080,7 @@ function perf_previewPaste(e,pointer=false){if(tool?.kind!=='paste'||!e||viewOf(
    const K=window.ExteriorGeometry,frame=planeClipboardFrame(),q=rayPoint({frame},e);if(!q)return;
    const target={points:[[-1,-1],[1,-1],[1,1],[-1,1]].map(([x,y])=>K.world(frame,{x,y,z:0}))},location=t.editMode!=='m'&&t.anchor?t.anchor.location:K.world(frame,{...q,z:0});
    t.anchor={target,location,normal:frame.n,ref:{points:target.points}};t.ref=t.anchor.ref;
-   t.preview=W.pasteGeometry(t.clip,t.mount,target,location,{frame,unbounded:true,bound:false,screen:p=>host.screen(p,'3d'),points:planeScene().points,snap:t.editMode==='m'&&!(typeof isFreeMove!=='undefined'&&isFreeMove)});if(t.editMode==='m')t.preview=conformPlaneGeometry(t.preview,{points:planeScene().points,edges:planeScene().lines});t.valid=true;t.anchor.location=t.preview.location;geometryStatus();host.redraw();return;
+   t.preview=W.pasteGeometry(t.clip,t.mount,target,location,{frame,unbounded:true,bound:false,screen:p=>host.screen(p,'3d'),points:[...planeScene().points,...planeCenterTargets()],snap:t.editMode==='m'&&!(typeof isFreeMove!=='undefined'&&isFreeMove)});if(t.editMode==='m')t.preview=conformPlaneGeometry(t.preview,{points:planeScene().points,edges:planeScene().lines});t.valid=true;t.anchor.location=t.preview.location;geometryStatus();host.redraw();return;
   }
   try{let anchor=t.editMode!=='m'&&t.anchor;
    if(!anchor){const ref=host.pasteHost?.(e)||placementHost(e)||t.anchor?.ref;if(!ref){host.message('Hover a face to place copied geometry.');host.redraw();return;}const target={points:ref.points,holes:ref.d?(ref.f.holes||[]).map(r=>r.map(p=>world(ref.d,p))):(ref.solid?.holes||ref.f?.holes||[])},n=W.normal(target.points),sign=inwardDistanceSign(target),normal={x:-n.x*sign,y:-n.y*sign,z:-n.z*sign},frame=W.faceFrame(target),local=rayPoint({frame},e);if(!local)return;let location=W.fromFrame(frame,local);const move=t.moveAnchor,same=move&&(move.ref.solid?.id?move.ref.solid.id===ref.solid?.id:move.ref.d?move.ref.d===ref.d&&move.ref.f?.id===ref.f?.id:move.ref.f?.id===ref.f?.id);if(same&&move.start){const a=W.fromFrame(frame,move.start);location={x:move.location.x+location.x-a.x,y:move.location.y+location.y-a.y,z:move.location.z+location.z-a.z};}anchor={ref,target,normal,location,preservePosition:same&&distance3(location,move.location)<1e-7};}

@@ -81,6 +81,17 @@ test('drawing-plane midpoint snapping respects the line center toggle',()=>{
  }
 });
 
+test('plane line centers keep their own bright batch and join the plane move snap',()=>{
+ for(const enabled of [true,false]){
+  const p=(x,z)=>({x,y:0,z}),a=p(1,1.5),b=p(3,1.5),face={id:'face',points:[p(0,0),p(4,0),p(4,4),p(0,4)]},side={id:'side',points:[{x:0,y:0,z:0},{x:0,y:3,z:0},{x:0,y:3,z:3},{x:0,y:0,z:3}]},f=fixture({state:{lineCenters:enabled,wallEdits:{$surfaces:[face,side],$loose:{points:[a,b],edges:[[a,b]]}}},walls:[],selected:null,globals:renderGlobals()});
+  f.editor.togglePlane(face);const objects=[];f.editor.draw3D({add:o=>objects.push(o)},q=>q);
+  const markers=objects.filter(o=>o.userData?.lineCenters),plane=markers.filter(o=>o.userData.planeGuide),other=markers.filter(o=>!o.userData.planeGuide);
+  assert.equal(plane.length,enabled?1:0);assert.equal(other.length,enabled?1:0);
+  if(enabled){assert.ok(plane[0].geometry.points.every(q=>Math.abs(q.y)<1e-9));assert.ok(plane[0].geometry.points.some(q=>q.x===2&&q.z===1.5),'a loose plane line has its center');assert.ok(other[0].geometry.points.every(q=>q.y>0));}
+  f.editor.doubleClick(f.e(1.94,1.53));const point=f.editor.pointSelection()[0];assert.ok(Math.abs(point.x-(enabled?2:1.94))<1e-6);assert.equal(point.z,1.5);
+ }
+});
+
 test('repeated M never commits or rebases point moves before placement',()=>{
  for(const z of [2,4]){
   const f=fixture({globals:{isFreeMove:true}});f.editor.doubleClick(f.e(2,z),f.w);f.listeners.pointermove(f.e(2,z));const before=JSON.stringify(f.state.wallEdits),count=f.history.length;
