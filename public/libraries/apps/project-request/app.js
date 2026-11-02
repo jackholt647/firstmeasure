@@ -12386,19 +12386,30 @@ window.PlatformCommerce.onReady(async function(){
     return remote && platformProjectId(remote) !== platformProjectId(project) ? remote : null;
   }
 
+  // An order's own record as the FirstMeasure-only board passes it, unlike a link's bare id or an unordered draft.
+  function carriesFirstMeasureOrder(project = {}){
+    const measurement = project.measurement_project || project.measurement || {};
+    return !!projectText(measurement.id, measurement.project_id, measurement.folder, project.folder, project.project_id, project.status);
+  }
+
   async function hydratePlatformProjectForOpen(project = {}, options = {}){
     const id = platformProjectId(project);
     if (!id || !window.PlatformAPI?.projects?.get) return project;
     const oid = projectOrgId();
     if (!oid) return project;
     // Without expanded access an organization's projects are never stored on the server (the projects API
-    // refuses them); they live in this browser's project cache, so that copy is the project. Read it, never
-    // create one, and never ask the server, whose answer is always "not found".
+    // refuses them), so never ask it, whose answer is always "not found". A project is this browser's cached
+    // copy or, on any other browser or device, its FirstMeasure order: the record the board passed, or for a
+    // link's bare id the order the server lists under that id. Never create one.
     if (typeof window.Portal?.platformExpandedAccess === 'function' && !window.Portal.platformExpandedAccess()) {
       const store = window.Portal?.ProjectStore;
       const cached = store?.get?.(id) || store?.findByMeasurement?.(project) || null;
       if (cached) return mergeProjectForViewing(cached, project);
-      throw projectOpenFailure(id, null, true);
+      if (carriesFirstMeasureOrder(project)) return project;
+      let readError = null;
+      const order = await Promise.resolve(window.Portal?.firstMeasureOrderForProject?.(id)).catch((error) => { readError = error; return null; });
+      if (order) return order;
+      throw projectOpenFailure(id, readError, !readError);
     }
     const earlyRead = projectWindowBridge?.takeProjectRead?.(projectWindowToken, window, oid, id);
     let readError = null;
