@@ -69,7 +69,7 @@ switch (command) {
     if (organizations.length !== 1) { print({ matches: organizations }); break; }
     const detail = await call("GET", `/orgs/${enc(organizations[0].id)}`);
     print(detail.organization);
-    for (const flag of detail.flags.filter((row) => row.type === "boolean")) console.log(`${flag.effective ? "on " : "off"}  ${flag.key}  (${flag.source}${flag.explicit === null ? "" : ", explicit"})`);
+    for (const flag of detail.flags.filter((row) => row.type === "boolean")) console.log(`${flag.effective ? "on " : "off"}  ${flag.key}  (${flag.source})`);
     break;
   }
   case "set": {
