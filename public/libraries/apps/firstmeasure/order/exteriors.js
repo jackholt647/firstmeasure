@@ -521,7 +521,7 @@
   function pick(key,multiple=false){const input=root.querySelector('[data-picker]');input.multiple=multiple;input.onchange=()=>{const picked=[...input.files];input.value='';for(const file of picked)void upload(file,key||'tray:'+crypto.randomUUID());};input.click();}
 
   function deliveryLabel(option){
-    const labels={"exteriors_standard":(globalThis.PlatformLanguage?.text("firstmeasure","exteriors_standard_label","Standard · 24 hours") ?? "Standard · 24 hours"),"exteriors_same_day":(globalThis.PlatformLanguage?.text("firstmeasure","exteriors_under_6h_label","Under 6 hours") ?? "Under 6 hours"),"exteriors_priority":(globalThis.PlatformLanguage?.text("firstmeasure","exteriors_priority_label","Priority · under 3 hours") ?? "Priority · under 3 hours")};
+    const labels={"exteriors_standard":(globalThis.PlatformLanguage?.text("firstmeasure","exteriors_standard_label","Standard · 24 hours") ?? "Standard · 24 hours"),"exteriors_same_day":(globalThis.PlatformLanguage?.text("firstmeasure","exteriors_under_6h_label","Under 6 hours") ?? "Under 6 hours"),"exteriors_priority":(globalThis.PlatformLanguage?.text("firstmeasure","exteriors_under_3h_label","Under 3 hours") ?? "Under 3 hours")};
     return labels[option?.key] || '';
   }
   function deliveryBusyLabel(){
