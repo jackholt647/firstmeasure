@@ -105,7 +105,7 @@ test('a draft shows the whole tab with empty states, reads nothing about the pro
       loadingCard: document.querySelector('#main').textContent.includes('Loading scope')
     }));
     assert.equal(view.railLoading, false, 'the rail is drawn, not loading');
-    assert.match(view.railText, /No measurements yet/);
+    assert.match(view.railText, /Save to add measurements/);
     assert.ok(view.tabs.includes('roof') && view.tabs.includes('documents') && view.tabs.includes('aerial'), JSON.stringify(view.tabs));
     assert.equal(view.tray, 'empty');
     assert.equal(view.traySpinning, false, 'requirements do not spin on a draft');

@@ -4918,7 +4918,7 @@ window.PlatformCommerce.onReady(async function(){
   // report model and entries made by hand), or the measurement ordering widget when there are none. Hidden while
   // a report order or the new-project picker is using the form.
   const trayMeasurements={key:'',loadedAt:0,loading:null,documents:[],error:'',overrides:{}};
-  const scopeWorkspaceModuleUrl='/libraries/apps/materials/scope-of-work.js?v=20261027-details-tray';
+  const scopeWorkspaceModuleUrl='/libraries/apps/materials/scope-of-work.js?v=20261102-order-or-status';
   function syncTrayMeasurements(){
     const details=document.querySelector('#rOverlay .r-overview-details');
     if(!details)return;
@@ -4939,12 +4939,17 @@ window.PlatformCommerce.onReady(async function(){
     const loadDocs=projectId && Date.now()-trayMeasurements.loadedAt>60000;
     trayMeasurements.loading=import(scopeWorkspaceModuleUrl).then(async module=>{
       const root=section.querySelector('[data-tray-measure-root]');
-      const mount=loaded=>{
+      // Without expanded access the platform refuses published project data, so nothing asks for it: a report's
+      // measurements come from the order this person can already read.
+      const publishedData=window.Portal?.platformExpandedAccess?.()!==false;
+      const mount=(loaded,reportModel=null)=>{
         const documents=trayMeasurements.documents.filter(doc=>['measurement','manual'].includes(doc.source));
+        if(reportModel)documents.push({id:'report:order',source:'measurement',title:'Measurements',value:{measurements:{},artifacts:[]}});
         module.mountSidebar(root,documents,trayMeasurements.error,key,{measurementsOnly:true,draft:!projectId,documentsLoaded:loaded,
           canOrderMeasurements:firstMeasureReportOrdersEnabled() && hasPerm('order_reports') && !hasReportOrdered(),
+          orderBlocked:firstMeasureReportOrdersEnabled()?'permission':'feature',reportModel,
           reportPending:reportOrderIsActivelyPending(),onOrderMeasurements:()=>startMeasurementOrder(),
-          widgetContext:{surface:'project',target:{scope:'project',organizationId:orgId,projectId}},
+          widgetContext:{surface:'project',target:{scope:'project',organizationId:orgId,projectId},...(publishedData?{}:{read:async()=>({status:'missing',message:''})})},
           measurementOverrides:trayMeasurements.overrides,onMeasurementChange:(name,value)=>{trayMeasurements.overrides={...trayMeasurements.overrides,[name]:value};}});
         const startShown=!!root.querySelector('[data-scope-measurement-start]:not([hidden])') || !!root.querySelector('[data-scope-draft-empty]');
         section.classList.toggle('is-start',startShown);
@@ -4952,12 +4957,16 @@ window.PlatformCommerce.onReady(async function(){
       // Until the project's first read finishes, the widget is a skeleton, not an empty or "no report" state.
       if(loadDocs && !trayMeasurements.loadedAt)mount(false);
       if(loadDocs){
-        const result=await module.loadDocuments(orgId,projectId,{loadReportAssets:async()=>null}).catch(error=>({documents:[],error:error.message||'Measurements could not load.'}));
+        const result=publishedData?await module.loadDocuments(orgId,projectId,{loadReportAssets:async()=>null}).catch(error=>({documents:[],error:error.message||'Measurements could not load.'})):{documents:[],error:''};
         if(trayMeasurements.key!==key)return;
         trayMeasurements.documents=result.documents||[];trayMeasurements.error=result.error||'';trayMeasurements.loadedAt=Date.now();
       }
       if(trayMeasurements.key!==key || !section.isConnected)return;
-      mount(true);
+      // A finished report with no readable measurement data still has its model on the order.
+      const hasReport=trayMeasurements.documents.some(doc=>doc.source==='measurement' || (doc.source==='manual' && doc.reportReady));
+      const reportModel=!hasReport && hasReportOrdered() ? await projectMeasurementsInvoke('reportOrderModelData') : null;
+      if(trayMeasurements.key!==key || !section.isConnected)return;
+      mount(true,reportModel||null);
     }).catch(()=>{}).finally(()=>{trayMeasurements.loading=null;if(trayMeasurements.again){trayMeasurements.again=false;syncTrayMeasurements();}});
   }
 
@@ -4965,8 +4974,9 @@ window.PlatformCommerce.onReady(async function(){
   // tab's processing card, drawn and acted on by the measurements app (status, delivery, expedite and cancel within
   // their windows, reorder after a cancellation), so it does not depend on the Reports tab being present.
   // scope-of-work.js mounts it through window.Portal.MeasurementOrderStatus, in the tray and in Operations alike.
+  // It applies to any order whose measurements are not shown: a finished report nobody can read here says it is ready.
   function measurementOrderStatusApplies(){
-    return hasReportOrdered() && !reportOrderHasReadyAssets();
+    return hasReportOrdered();
   }
   function mountMeasurementOrderStatus(node,{onEnter}={}){
     let timer=0,busy=false,disposed=false;
@@ -4975,7 +4985,8 @@ window.PlatformCommerce.onReady(async function(){
       clearTimeout(timer);
       if(disposed)return;
       if(!node.isConnected){stop();return;}
-      const card=projectMeasurementsInvoke('pendingReportHtml',['standard']) || '';
+      const ready=reportOrderHasReadyAssets();
+      const card=ready ? `<div class="r-report-pending"><div class="r-report-pending-card" data-measure-order-ready><i class="fas fa-circle-check" aria-hidden="true"></i><h3>${escapeHtml(detailsTrayText('measurement_status_ready','Measurement report ready'))}</h3><p>${escapeHtml(detailsTrayText('measurement_status_ready_body','Open the report to see this project\'s measurements.'))}</p><button type="button" class="r-pending-action" data-measure-order-open>${escapeHtml(detailsTrayText('measurement_status_open','View report'))}</button></div></div>` : (projectMeasurementsInvoke('pendingReportHtml',['standard']) || '');
       const manual=onEnter ? `<button type="button" class="r-measure-order-manual" data-measure-order-manual>${escapeHtml(detailsTrayText('measurement_status_manual','Add measurements manually'))}</button>` : '';
       node.innerHTML=`<div class="r-measure-order-status" data-measure-order-status>${card}${manual}</div>`;
       // The cancellation countdown ticks every second in its last five minutes; otherwise the card refreshes twice a minute.
@@ -4987,6 +4998,7 @@ window.PlatformCommerce.onReady(async function(){
       if(!button || button.disabled || busy || !node.contains(button))return;
       const data=button.dataset;let action;
       if('measureOrderManual' in data){onEnter?.();return;}
+      if('measureOrderOpen' in data){if(detailsTraySheet())setDetailsTrayOpen(false,{user:true});setActivePreviewTab('measurements');return;}
       if('selectUpgradeExpedite' in data)action=['selectPendingReportExpedite',[data.selectUpgradeExpedite]];
       else if('confirmUpgradeExpedite' in data)action=['upgradePendingReportExpedite',[data.confirmUpgradeExpedite,button]];
       else if('cancelReportOrder' in data)action=['cancelPendingReportOrder',[button]];

@@ -3595,6 +3595,22 @@ window.PlatformCommerce.onReady(function(){
     });
   }
 
+  function reportModelData(projectId,assets){
+    const fullHouseModel=reportSummaryIsFullHouse()&&projectId,platformProjectId=activeBaseProject?.id||'',orgId=projectOrgId();
+    return {xmlUrl:assets?.xmlUrl,pitchNotation:summaryPitchNotation(),exteriorUrl:fullHouseModel?fmUrl(`projects/${encodeURIComponent(projectId)}/exterior-model`):'',designUrl:fullHouseModel?fmUrl(`projects/${encodeURIComponent(projectId)}/exterior-design`):'',materialsUrl:fullHouseModel&&orgId&&platformProjectId&&isPlatformProjectId(platformProjectId)?`/v1/materials/organizations/${encodeURIComponent(orgId)}/projects/${encodeURIComponent(platformProjectId)}/material-lists`:'',media:assets?.media||[]};
+  }
+
+  // The finished report's model, from the order alone, for a surface that cannot read published measurements.
+  async function reportOrderModelData(){
+    const projectId=activeMeasurementProjectId();
+    if(!projectId || !reportOrderHasReadyAssets())return null;
+    let assets=await loadMeasurementAssets(projectId);
+    // Null also means another caller is still loading them.
+    for(let tries=0;!assets&&tries<20;tries++){await new Promise(resolve=>setTimeout(resolve,250));assets=await loadMeasurementAssets(projectId);}
+    const data=reportModelData(projectId,assets);
+    return data.xmlUrl||data.exteriorUrl?data:null;
+  }
+
   async function loadMeasurementAssets(projectId){
     if (!projectId || !fmJson || !fmUrl) return null;
     const cached = measurementAssetCache.get(projectId) || null;
@@ -4115,8 +4131,7 @@ window.PlatformCommerce.onReady(function(){
     else if(modelRoot && window.FirstMateWidgets && (roofViewerKey!==modelKey || !roofViewer)){
       roofViewer?.destroy();roofViewerKey=modelKey;
       // Full-house reports also draw the walls, openings and base from the published exterior model.
-      const fullHouseModel=reportSummaryIsFullHouse()&&projectId,platformProjectId=activeBaseProject?.id||'',orgId=projectOrgId();
-      const data={xmlUrl:cachedAssets?.xmlUrl,pitchNotation:summaryPitchNotation(),exteriorUrl:fullHouseModel?fmUrl(`projects/${encodeURIComponent(projectId)}/exterior-model`):'',designUrl:fullHouseModel?fmUrl(`projects/${encodeURIComponent(projectId)}/exterior-design`):'',materialsUrl:fullHouseModel&&orgId&&platformProjectId&&isPlatformProjectId(platformProjectId)?`/v1/materials/organizations/${encodeURIComponent(orgId)}/projects/${encodeURIComponent(platformProjectId)}/material-lists`:'',media:cachedAssets?.media||[]};
+      const data=reportModelData(projectId,cachedAssets);
       roofViewer=window.FirstMateWidgets.mount(modelRoot,{id:'reports.roof',version:'1',config:{}},{surface:'project',data:{'reports.roof':data}});
     }
     const lightsRoot = root.querySelector('#rMeasurementLights');
@@ -4296,6 +4311,7 @@ window.PlatformCommerce.onReady(function(){
     reportOrderKnownAssetUrls,
     primeMeasurementAssetCacheFromKnownUrls,
     reportOrderHasReadyAssets,
+    reportOrderModelData,
     reportOrderIsCompleteLike,
     reportOrderIsActivelyPending,
     reportOrderPendingStage,

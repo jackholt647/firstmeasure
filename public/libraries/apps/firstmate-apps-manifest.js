@@ -282,7 +282,7 @@
       surfaces: ['project_modal'],
       requiresContext: ['project'],
       dependencies: ['pricebook.bridge'],
-    bundles: [...channelsLibBundles, versionedBundle('../materials-api/materials-api.js', '20261022-ordering'), versionedBundle('../payments-api/payments-api.js', '20261019-forward-cert'), bundle('../comms-api/comms-api.js'), versionedBundle('../equipment-api/equipment-api.js', '20261013-functions'), versionedBundle('materials/settings.js', '20261026-materials-settings-agent'), versionedBundle('materials/project.js', '20261027-widget-states')]
+    bundles: [...channelsLibBundles, versionedBundle('../materials-api/materials-api.js', '20261022-ordering'), versionedBundle('../payments-api/payments-api.js', '20261019-forward-cert'), bundle('../comms-api/comms-api.js'), versionedBundle('../equipment-api/equipment-api.js', '20261013-functions'), versionedBundle('materials/settings.js', '20261026-materials-settings-agent'), versionedBundle('materials/project.js', '20261102-order-or-status')]
     },
     {
       id: 'project.money',
@@ -303,7 +303,7 @@
       kind: 'modal_app',
       surfaces: ['modal', 'project_modal'],
       dependencies: ['firstmeasure.order', 'project.map', 'project.photos', 'project.proposal', 'project.materials', 'project.money', 'project.customer_portal', 'project.schedule', 'project.measurements', 'project.checklists'],
-      bundles: [...channelsLibBundles, versionedBundle('../window-manager/project-windows.js', '20261026-open-link-safe'), versionedBundle('project-request/app.js', '20261102-exterior-intro-v2')]
+      bundles: [...channelsLibBundles, versionedBundle('../window-manager/project-windows.js', '20261026-open-link-safe'), versionedBundle('project-request/app.js', '20261102-order-or-status')]
     },
     {
       id: 'firstmeasure.order',
@@ -363,7 +363,7 @@
       kind: 'project_modal_app',
       surfaces: ['project_modal'],
       requiresContext: ['project'],
-      bundles: [...widgetBundles, versionedBundle('measurements/roof-viewer.js', '20261101-prod-sync'), versionedBundle('measurements/holiday-lights.js', '20261030-holiday-lights-bulb-size'), versionedBundle('measurements/project.js', '20261101-exterior-order-card-b')]
+      bundles: [...widgetBundles, versionedBundle('measurements/roof-viewer.js', '20261101-prod-sync'), versionedBundle('measurements/holiday-lights.js', '20261030-holiday-lights-bulb-size'), versionedBundle('measurements/project.js', '20261102-order-or-status')]
     },
     {
       id: 'project.checklists',
