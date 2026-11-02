@@ -4803,13 +4803,19 @@ window.PlatformCommerce.onReady(async function(){
   }
 
   // The project details tray is the one owner of the project's contacts, address and measurements (the Overview
-  // details form lives here). A new project, or one whose report order or picker is in progress, opens it; otherwise
-  // it keeps the person's last choice in this browser.
+  // details form lives here). It starts open whenever the window opens a project. On a phone, where it is a sheet over
+  // the content, it starts closed unless the project has no record yet or its report order or picker is in progress,
+  // since the form is the work then. A person's close holds until another project opens.
   const detailsTrayText=(key,fallback)=>globalThis.PlatformLanguage?.text('project-request',key,fallback) ?? fallback;
-  const DETAILS_TRAY_PREF='firstmate.project.detailsTray';
   let detailsTrayOpen=false,detailsTrayProjectKey=null,detailsTrayUserChoice=false;
   function detailsTraySheet(){
     return document.querySelector('#rOverlay .r-window-bar')?.dataset.windowMobile==='true' || isMobileProjectOrder();
+  }
+  function detailsTrayStartsOpen(){
+    return !detailsTraySheet() || !projectOpenId() || detailsTrayWorkflow();
+  }
+  function detailsTrayWorkflow(){
+    return !!overviewWorkflowMode || (requestedWorkflow==='report' && !hasReportOrdered());
   }
   function ensureDetailsTray(){
     const win=document.querySelector('#rOverlay > .r-win');
@@ -4851,7 +4857,7 @@ window.PlatformCommerce.onReady(async function(){
   function setDetailsTrayOpen(open,options={}){
     const overlay=document.getElementById('rOverlay'),tray=ensureDetailsTray();
     if(!overlay || !tray)return;
-    if(options.user){detailsTrayUserChoice=true;try{localStorage.setItem(DETAILS_TRAY_PREF,open?'open':'closed');}catch{}}
+    if(options.user)detailsTrayUserChoice=true;
     const sheet=detailsTraySheet();overlay.classList.toggle('details-tray-sheet',sheet);
     syncDetailsTrayTop();
     if(open)placeOverviewDetails();
@@ -4874,14 +4880,13 @@ window.PlatformCommerce.onReady(async function(){
     if(!ensureDetailsTray())return;
     syncDetailsTrayTitle();
     const key=String(projectOpenId() || (activeBaseProject ? 'unsaved' : 'new'));
-    const workflow=!!overviewWorkflowMode || (requestedWorkflow==='report' && !hasReportOrdered());
     if(key!==detailsTrayProjectKey){
-      const fresh=detailsTrayProjectKey===null || !projectOpenId();
-      detailsTrayProjectKey=key;detailsTrayUserChoice=false;
-      let remembered='';try{remembered=localStorage.getItem(DETAILS_TRAY_PREF)||'';}catch{}
-      setDetailsTrayOpen(!projectOpenId() || workflow || detailsTrayAsked || (fresh && remembered==='open') || remembered==='open');
+      // A new project taking its id (an autosave, a placed order) is still the same project on screen.
+      const saved=!!projectOpenId() && (detailsTrayProjectKey==='new' || detailsTrayProjectKey==='unsaved');
+      detailsTrayProjectKey=key;
+      if(!saved){detailsTrayUserChoice=false;setDetailsTrayOpen(detailsTrayStartsOpen() || detailsTrayAsked);}
       detailsTrayAsked=false;
-    }else if(workflow && !detailsTrayOpen && !detailsTrayUserChoice)setDetailsTrayOpen(true);
+    }else if(detailsTrayWorkflow() && !detailsTrayOpen && !detailsTrayUserChoice)setDetailsTrayOpen(true);
     placeOverviewDetails();
     syncTrayMeasurements();
   }
@@ -4899,7 +4904,11 @@ window.PlatformCommerce.onReady(async function(){
     const overlay=document.getElementById('rOverlay');if(!overlay?.querySelector('#rDetailsTray'))return;
     syncDetailsTrayTop();
     const sheet=detailsTraySheet();
-    if(sheet!==overlay.classList.contains('details-tray-sheet')){overlay.classList.toggle('details-tray-sheet',sheet);placeOverviewDetails();}
+    if(sheet!==overlay.classList.contains('details-tray-sheet')){
+      overlay.classList.toggle('details-tray-sheet',sheet);
+      if(!detailsTrayUserChoice)setDetailsTrayOpen(detailsTrayStartsOpen());
+      placeOverviewDetails();
+    }
   });
   window.addEventListener('keydown',event=>{
     if(event.key==='Escape' && detailsTrayOpen && document.getElementById('rOverlay')?.classList.contains('details-tray-sheet')){event.preventDefault();event.stopImmediatePropagation();setDetailsTrayOpen(false,{user:true});}
@@ -10293,7 +10302,7 @@ window.PlatformCommerce.onReady(async function(){
     } else if (!preserveRouteTab && !proposalWorkspaceOpen && isProposalChoice() && proposalsEnabled() && customerOpen) {
       setActivePreviewTab(projectDefaultPreviewTab());
     } else if (!preserveRouteTab && hasReportOrdered() && !validPreviewTabs().includes(activePreviewTab)) {
-      setActivePreviewTab('measurements');
+      setActivePreviewTab('measurements',{keepTrayClosed:true});
     } else if (!preserveRouteTab && !window.Portal.ExteriorOrder?.active() && hasSelectedAddons() && !hasReportOrdered() && activePreviewTab !== 'map' && !(activePreviewTab === 'schedule' && schedulePreviewAvailable())) {
       setActivePreviewTab('map');
     }
@@ -11637,7 +11646,7 @@ window.PlatformCommerce.onReady(async function(){
       };
       selectInitialMeasurementTab(!cancelledMeasurement && reportOrderState.includeInspection ? 'instant' : 'standard', { model:!cancelledMeasurement && reportOrderState.hasReadyReport });
       setProjectionMode(true);
-      if (!options.preferredTab) setActivePreviewTab('measurements');
+      if (!options.preferredTab) setActivePreviewTab('measurements',{keepTrayClosed:true});
     }
     } finally { projectFormHydrating--; }
   }
@@ -11964,6 +11973,7 @@ window.PlatformCommerce.onReady(async function(){
       && newProjectCreationSession
       && projectOpenId(baseProject) === projectOpenId(activeBaseProject);
     const unfinishedReportDraft = !!baseProject && isUnfinishedReportDraft(baseProject);
+    if (!baseProject || projectOpenId(baseProject) !== projectOpenId(activeBaseProject)) detailsTrayProjectKey = null;
     const nextRequestedWorkflow = baseProject
       ? (options.workflow === 'report' ? 'report' : 'project')
       : normalizeWorkflow(options.workflow || options.createWorkflow || options.intent);
@@ -12097,6 +12107,7 @@ window.PlatformCommerce.onReady(async function(){
     closeProjectIdentityPopover();
     closeManualStagePicker();
     if (!projectWindowBridge && window.FirstMateProjectWindows?.active) return window.FirstMateProjectWindows.close();
+    detailsTrayProjectKey = null;
     projectLayout?.clear();
     projectTrays?.close();
     projectModalWindow?.setVisible(false);
