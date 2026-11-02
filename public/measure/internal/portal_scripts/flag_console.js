@@ -118,6 +118,8 @@
     .ffc-count{text-align:left}
     .ffc-count b{display:inline;margin-right:6px}
     .ffc-orgflag{grid-template-columns:minmax(0,1fr)}
+    .ffc-orgflag .ffc-seg{justify-self:start}
+    .ffc-tabs{flex-wrap:wrap;overflow:visible}
     .ffc-body{padding:12px 12px 24px}
     .ffc-head{padding:12px 12px 0}
   }
