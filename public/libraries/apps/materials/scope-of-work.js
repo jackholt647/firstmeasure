@@ -162,7 +162,7 @@ export function mountSidebar(root,documents,error,contextKey,options={}) {
         stage.textContent='Loading photos…';
         railMedia().then(module=>{if(disposed)return;handle=module.mountRailPhotos(stage,{context:options.widgetContext||{},host:railHost});handle.setVisible(visible);}).catch(()=>{if(!disposed)stage.textContent='The photo viewer could not load.';});
       // A project that is not saved yet has no report and no scope to ask for measurements: say so, read nothing.
-      }else if(options.draft)stage.innerHTML=`<div class="sw-doc-empty" role="status" data-scope-draft-empty><i class="fas fa-ruler-combined" aria-hidden="true"></i><strong>${esc(text('sw_draft_measurements_title','No measurements yet'))}</strong><span>${esc(text('sw_draft_measurements_body','A measurement report or measurements entered by hand show here once the project is saved.'))}</span></div>`;
+      }else if(options.draft)stage.innerHTML=`<div class="sw-doc-empty" role="status" data-scope-draft-empty><i class="fas fa-ruler-combined" aria-hidden="true"></i><strong>${esc(text('sw_draft_measurements_save','Save to add measurements'))}</strong><span>${esc(text('sw_draft_measurements_body','A measurement report or measurements entered by hand show here once the project is saved.'))}</span></div>`;
       else if(window.FirstMateWidgets)state.widgets[key]=window.FirstMateWidgets.mount(stage,{id:'reports.roof',version:'1',config:{}},{...options.widgetContext,getMeasurements:()=>Object.assign({},...(state.documents||[]).filter(d=>d.source==='measurement').map(d=>d.value?.measurements||{}),Object.fromEntries(Object.entries(state.options.measurementOverrides||{}).map(([key,value])=>[key,{value}]))),onMeasurementChange:(key,value)=>state.editMeasurement?.(key,value),subscribeMeasurements:listener=>{state.measurementViewers.add(listener);return ()=>state.measurementViewers.delete(listener);},read:options.widgetContext?.read||((source,target)=>window.PlatformAPI.publication.read(target.organizationId,{...source,target}))});
       else stage.textContent='The report viewer could not load.';
     }
@@ -179,6 +179,9 @@ export function mountSidebar(root,documents,error,contextKey,options={}) {
     showViews(root,state);
   }
   state.options=options;
+  // A report this person reads from its order, not from published project data: the model the Reports tab shows.
+  const reportModelKey=JSON.stringify(options.reportModel||null);
+  if(options.reportModel&&state.reportModelKey!==reportModelKey){state.reportModelKey=reportModelKey;state.widgets.roof?.update?.({surface:'project',data:{'reports.roof':options.reportModel}});}
   const loading=!options.draft && !error && options.documentsLoaded!==true && !loadedDocumentLists.has(documents);
   const fingerprint=JSON.stringify([documents,error,loading,options.measurementOverrides,options.canOrderMeasurements,options.reportPending]);
   if(state.fingerprint===fingerprint)return;
@@ -234,17 +237,17 @@ function ensureSkeletonStyles(){
   document.head.append(style);
 }
 /**
- * The measurement ordering widget: No measurements, Order measurement report and Add measurements manually. The
+ * The measurement ordering widget: Order measurement report and Add measurements manually, or why neither is possible. The
  * Operations Measurements view and the project details tray both start a report order here; ordering itself is the
  * host's existing order session (onOrder) and is unchanged.
  */
-export function mountMeasurementStart(node,{canOrder=false,pending=false,canEnter=false,onOrder,onEnter}={}){
+export function mountMeasurementStart(node,{canOrder=false,pending=false,canEnter=false,orderBlocked='',onOrder,onEnter}={}){
   // Once a report is ordered, the widget is its order status (the project window's processing card, with expedite
-  // and cancel), until the finished measurements replace it.
+  // and cancel, or that the report is ready), until the finished measurements replace it.
   const status=window.Portal?.MeasurementOrderStatus;
   node.__orderStatus?.destroy?.();node.__orderStatus=null;
   if(status?.applies?.()){node.__orderStatus=status.mount(node,{onEnter:canEnter?onEnter:null});return;}
-  node.innerHTML=`<div class="sw-doc-empty sw-measurement-start" role="status" data-measurement-start><i class="fas fa-ruler-combined" aria-hidden="true"></i><strong>${esc(text('measurement_start_empty','No measurements.'))}</strong>${pending?`<span>${esc(text('measurement_start_pending','Your measurement report is on order. You can enter measurements while you wait.'))}</span>`:''}${canOrder?`<button type="button" class="smm-btn primary" data-scope-order>${esc(text('measurement_start_order','Order measurement report'))}</button>`:''}<button type="button" class="smm-btn" data-scope-enter ${canEnter?'':'disabled'}>${esc(text('measurement_start_manual','Add measurements manually'))}</button></div>`;
+  node.innerHTML=`<div class="sw-doc-empty sw-measurement-start" role="status" data-measurement-start><i class="fas fa-ruler-combined" aria-hidden="true"></i><strong>${esc(pending?text('measurement_start_on_order','Measurement report on order'):canOrder||canEnter?text('measurement_start_title','Get measurements'):text('measurement_start_unavailable','Measurements aren\'t available here'))}</strong>${pending?`<span>${esc(canEnter?text('measurement_start_pending','Your measurement report is on order. You can enter measurements while you wait.'):text('measurement_start_pending_wait','Your measurement report is on order. Its measurements show here when it is ready.'))}</span>`:canOrder?'':`<span>${esc(orderBlocked==='feature'?text('measurement_start_blocked_feature','Measurement reports aren\'t turned on for this company.'):text('measurement_start_blocked_permission','Your account can\'t order measurement reports. Ask a company administrator for access.'))}</span>`}${canOrder?`<button type="button" class="smm-btn primary" data-scope-order>${esc(text('measurement_start_order','Order measurement report'))}</button>`:''}${canEnter?`<button type="button" class="smm-btn" data-scope-enter>${esc(text('measurement_start_manual','Add measurements manually'))}</button>`:''}</div>`;
   node.querySelector('[data-scope-order]')?.addEventListener('click',()=>onOrder?.());
   node.querySelector('[data-scope-enter]')?.addEventListener('click',()=>onEnter?.());
 }
@@ -266,7 +269,7 @@ function drawManual(root,state,contextKey){
     start.__orderStatus?.destroy?.();start.__orderStatus=null;
     start.innerHTML=measurementSkeletonHtml();ensureSkeletonStyles();
   }else if(state.measurementStartShown){
-    mountMeasurementStart(start,{canOrder:state.options?.canOrderMeasurements===true,pending:state.options?.reportPending===true,canEnter:mode==='edit',
+    mountMeasurementStart(start,{canOrder:state.options?.canOrderMeasurements===true,pending:state.options?.reportPending===true,canEnter:mode==='edit',orderBlocked:state.options?.orderBlocked||'',
       onOrder:()=>state.options?.onOrderMeasurements?.(),onEnter:()=>{state.manualEntryRequested=true;drawManual(root,state,contextKey);}});
     if(!state.manualStyled){state.manualStyled=true;import(manualEditorUrl()).then(module=>module.ensureStyles?.()).catch(()=>{state.manualStyled=false;});}
   }

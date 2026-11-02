@@ -66,7 +66,7 @@ test('the Measurements view becomes the editor without a report, saves through t
       window.manualDoc=f=>({id:'manual-measurements',source:'manual',title:'Measurements entered by hand',form:f,reportReady:false});
       helper.mountSidebar(document.querySelector('aside'),[manualDoc(form)],'','org:project',{canOrderMeasurements:true,onOrderMeasurements:()=>{window.orderOpened=true;}});
     },form());
-    await page.getByText('No measurements.',{exact:true}).waitFor();
+    await page.getByText('Get measurements',{exact:true}).waitFor();
     await page.getByRole('button',{name:'Order measurement report'}).click();
     assert.equal(await page.evaluate(()=>window.orderOpened),true);
     assert.equal(await page.evaluate(()=>invocations.length),0,'opening ordering does not write measurements');

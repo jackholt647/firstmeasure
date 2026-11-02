@@ -60,14 +60,14 @@ async function openOrder(browser, kind, options = {}) {
             { key: 'exteriors_priority', label: 'Under 3 hours', minutes: 180, amount: 35 }] } };
           return { data: { success: false } };
         }, hasPerm: () => true, formatDate: v => String(v || ''),
-        fmUrl: p => 'https://portal.test/fm/' + p, fmJson: async () => ({}), fmPost: async () => ({ projects: [] }), platformJson: async () => ({}),
+        fmUrl: p => 'https://portal.test/fm/' + p, fmJson: async () => ({ project: { files: options.orderFiles || [] } }), fmPost: async () => ({ projects: [] }), platformJson: async () => ({}),
         currentActor: () => ({ email: 'owner@example.test', organization_id: 'org_test' })
       },
       ui: { showToast: () => {} },
       // Capabilities loaded; this organization has no platform expanded access.
       capabilities: { current: () => ({ loaded_at: '1', org_id: 'org_test', definitions: [], definitions_by_key: {}, effective_by_key: new Proxy({}, { get: (t, k) => k !== 'platform.expanded_access' }) }),
         value: (k, f) => (k === 'platform.expanded_access' ? false : f) },
-      platformExpandedAccess: () => false,
+      platformExpandedAccess: () => options.expanded === true,
       appFlags: { current: () => ({}), has: (a, f) => f === 'measurement_report_summary', value: (a, f, d) => d }
     };
     window.PlatformAPI = { projects: { list: async () => ({ documents: [] }), get: async () => null, save: async () => { throw new Error('No platform writes without expanded access'); } }, appFlags: { current: () => ({}) } };
@@ -90,6 +90,17 @@ async function openOrder(browser, kind, options = {}) {
       // Drafts already in this browser's cache for the customer (the per-organization, per-person project store).
       localStorage.setItem('fm_platform_project_store_v1:org_test:owner@example.test', JSON.stringify({ version: 1, org_id: 'org_test', user_id: 'owner@example.test', projects: Object.fromEntries(options.seedDrafts.map(d => [d.id, d])), measurementIndex: {} }));
     }
+    if (options.trayWidgets) {
+      // The report viewer's mount: what the tray hands it is what the customer's model is drawn from.
+      window.__model = [];
+      window.FirstMateWidgets = { mount: (root, ref, context) => { const handle = { ready: Promise.resolve(), setVisible() {}, destroy() {}, update(next) { window.__model.push(next.data?.['reports.roof'] || null); root.innerHTML = '<div data-test-model>3D model</div>'; }, refresh() {} }; return handle; } };
+    }
+    if (options.refusedReads) {
+      // Published project data refused: a person with expanded access but without permission to read it.
+      const refuse = async () => { window.__refused = (window.__refused || 0) + 1; throw Object.assign(new Error('Refused'), { status: 403 }); };
+      Object.assign(window.PlatformAPI, { baseUrl: () => 'https://portal.test/v1/platform', request: refuse, publication: { list: refuse, read: refuse } });
+    }
+    if (options.countReads) window.PlatformAPI.publication = new Proxy({}, { get: () => async () => { window.__published = (window.__published || 0) + 1; throw Object.assign(new Error('Refused'), { status: 403 }); } });
   }, { id: ID, order: ORDERS[kind], options });
   for (const src of SCRIPTS) await page.addScriptTag({ url: 'https://portal.test' + src });
   // Let the app's startup route restore finish before opening, as a board click does.
@@ -170,6 +181,91 @@ test('Without expanded access, an order opens in a browser with no cached copy, 
     assert.deepEqual(await page.evaluate(() => [window.__lookups, window.__openError, Portal.ProjectStore.cachedIds()]), [['project_someone_elses'], 'project_not_found', []]);
     assert.match((await page.locator('#rOverlay').innerText()), /could not be found/);
     await page.close();
+  } finally { await browser.close(); }
+});
+
+// Jack's rule: the measurement widget shows the order status, the measurements or the order option, never "No measurements."
+const tray = page => page.locator('#rTrayMeasurements').innerText().catch(() => '');
+async function settledTray(page) {
+  // The Overview's form is a page fragment this harness does not serve; the widget sits under its address step.
+  await page.evaluate(() => { document.querySelector('#rOverlay .r-overview-details')?.insertAdjacentHTML('afterbegin', '<div id="rStepAddress"></div>'); document.querySelector('#rOverlay')?.classList.contains('details-tray-open') && document.querySelector('#rProjectIdentityTrigger')?.click(); document.querySelector('#rProjectIdentityTrigger')?.click(); });
+  await page.waitForFunction(() => document.querySelector('#rTrayMeasurements') && !document.querySelector('#rTrayMeasurements .sw-measure-skeleton'), null, { timeout: 15000 });
+  await page.waitForTimeout(300);
+  return (await tray(page)).replace(/\s+/g, ' ');
+}
+test('The measurement widget of an order shows its status or its measurements, never an empty state', async () => {
+  const browser = await chromium.launch({ channel: 'chrome', headless: true });
+  try {
+    for (const [kind, status] of [['processing', /Standard Report Processing/], ['queued', /Standard Report Pending|Standard Report Processing/], ['held', /Standard Report Processing/]]) {
+      const { page, errors } = await openOrder(browser, kind, { trayWidgets: true, countReads: true });
+      const text = await settledTray(page);
+      assert.match(text, status, kind);
+      assert.doesNotMatch(text, /No measurements|Order measurement report/, kind);
+      assert.equal(await page.evaluate(() => window.__published || 0), 0, kind + ': nothing asks for data the platform refuses this customer');
+      assert.deepEqual(errors, [], kind);
+      await page.close();
+    }
+    // A cancelled order can be ordered again.
+    {
+      const { page } = await openOrder(browser, 'cancelled', { trayWidgets: true, countReads: true });
+      const text = await settledTray(page);
+      assert.match(text, /Order measurement report/);
+      assert.doesNotMatch(text, /No measurements/);
+      await page.close();
+    }
+    // Finished, for someone who cannot read published project data: the report's own model, from the order.
+    const model = [{ name: 'Report.pdf' }, { name: 'Summary.pdf' }, { name: 'model_data.xml' }];
+    for (const [name, options] of [['no expanded access', { countReads: true }], ['expanded, reads refused', { expanded: true, refusedReads: true, localOpen: true }]]) {
+      const { page, errors } = await openOrder(browser, 'completed', { trayWidgets: true, orderFiles: model, ...options });
+      const text = await settledTray(page);
+      assert.doesNotMatch(text, /No measurements|Get measurements|Measurement report ready/, name);
+      assert.match(await page.evaluate(() => window.__model.at(-1)?.xmlUrl || ''), /artifacts\/model_data\.xml$/, name);
+      assert.equal(await page.locator('#rTrayMeasurements [data-test-model]').isVisible(), true, name);
+      assert.deepEqual(errors, [], name);
+      await page.close();
+    }
+    // Finished with no model to draw: it says the report is ready and opens it.
+    const { page, errors } = await openOrder(browser, 'completed', { trayWidgets: true, orderFiles: [{ name: 'Report.pdf' }, { name: 'Summary.pdf' }] });
+    assert.match(await settledTray(page), /Measurement report ready/);
+    await page.locator('#rTrayMeasurements [data-measure-order-open]').click();
+    await page.waitForTimeout(400);
+    assert.equal(await page.locator('#rOverlay .r-measure-pane.active').isVisible(), true);
+    assert.deepEqual(errors, []);
+    await page.close();
+  } finally { await browser.close(); }
+});
+test('With no order, the measurement widget offers the order, or manual entry, or says why not', async () => {
+  const browser = await chromium.launch({ channel: 'chrome', headless: true });
+  try {
+    const page = await browser.newPage();
+    await page.route('https://portal.test/**', async route => {
+      const url = new URL(route.request().url());
+      if (url.pathname.startsWith('/libraries/')) return route.fulfill({ contentType: 'text/javascript', body: await readFile(new URL(url.pathname.slice(1), publicDir)) });
+      return route.fulfill({ contentType: 'text/html', body: '<!doctype html><html><body><div id="start"></div></body></html>' });
+    });
+    await page.goto('https://portal.test/');
+    const draw = options => page.evaluate(async options => {
+      const { mountMeasurementStart } = await import('/libraries/apps/materials/scope-of-work.js');
+      const node = document.querySelector('#start');
+      mountMeasurementStart(node, options);
+      return { text: node.innerText.replace(/\s+/g, ' '), buttons: [...node.querySelectorAll('button')].map(b => [b.textContent, b.disabled]) };
+    }, options);
+    const order = 'Order measurement report', manual = 'Add measurements manually';
+    const cases = [
+      [{ canOrder: true, canEnter: true }, [[order, false], [manual, false]], /Get measurements/],
+      [{ canOrder: true }, [[order, false]], /Get measurements/],
+      [{ canEnter: true, orderBlocked: 'permission' }, [[manual, false]], /Ask a company administrator/],
+      [{ orderBlocked: 'permission' }, [], /aren't available here.*Ask a company administrator/],
+      [{ orderBlocked: 'feature' }, [], /aren't available here.*aren't turned on for this company/],
+      [{}, [], /aren't available here/],
+      [{ pending: true }, [], /Measurement report on order.*when it is ready/]
+    ];
+    for (const [options, buttons, message] of cases) {
+      const shown = await draw(options);
+      assert.deepEqual(shown.buttons, buttons, JSON.stringify(options));
+      assert.match(shown.text, message, JSON.stringify(options));
+      assert.doesNotMatch(shown.text, /No measurements/, JSON.stringify(options));
+    }
   } finally { await browser.close(); }
 });
 
