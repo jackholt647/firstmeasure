@@ -1,0 +1,70 @@
+{
+  "kind": "guided_experience",
+  "id": "exteriors.introduction",
+  "revision": 1,
+  "sha256": "062f4a9d0b41b6d9514aa4c130bd388a2702f517b8c9b7ff46df78b48314a3b5",
+  "title": "Exteriors are here",
+  "updated_at": "2026-11-02T05:47:05.360Z",
+  "updated_by": "key:ck_7897b5259beb4fa3 agents:jack-pc",
+  "data": {
+    "id": "exteriors.introduction",
+    "version": 1,
+    "kind": "announcement",
+    "scope": "organization",
+    "salt": "2026-11",
+    "title": {
+      "key": "gx_ext_intro_title",
+      "text": "Exteriors are here"
+    },
+    "introduces": "firstmeasure.exteriors",
+    "eligibility": {
+      "capabilities": [
+        "firstmeasure.exteriors"
+      ],
+      "permissions": [
+        "order_reports"
+      ]
+    },
+    "triggers": [
+      {
+        "kind": "app_loaded",
+        "once": true,
+        "delay_ms": 800
+      }
+    ],
+    "variants": [
+      {
+        "id": "default",
+        "weight": 1,
+        "content": {}
+      }
+    ],
+    "requires": [],
+    "steps": [
+      {
+        "id": "billboard",
+        "widget": "billboard",
+        "requires": [],
+        "title": {
+          "key": "gx_ext_intro_title",
+          "text": "Exteriors are here"
+        },
+        "say": [],
+        "options": {
+          "billboard": "exteriors_popup",
+          "workflow": "report",
+          "order_scope": "full_house"
+        },
+        "selects": [],
+        "required": false
+      }
+    ],
+    "completion": {
+      "screen": "none",
+      "say": [],
+      "then": []
+    },
+    "replayable": false,
+    "reveal": []
+  }
+}
