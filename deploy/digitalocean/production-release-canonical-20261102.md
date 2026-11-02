@@ -6,8 +6,8 @@ This is the first production release cut from canonical since production moved t
 
 | | Commit | Note |
 | --- | --- | --- |
-| Canonical (platform) | `CANON_SHA` (at writing `9189bcb3` plus this record) | `devpush/codex/consolidated-firstmeasure-20260923` |
-| Lane (editor) | `LANE_SHA` (at writing `bb2b22fc`) | `devpush/lane/measure-internal` |
+| Canonical (platform) | `CANON_SHA` (`e05b5f5b` on Nov 2 00:30 UTC, with the feature flag console API and keys; take the tip at go time) | `devpush/codex/consolidated-firstmeasure-20260923` |
+| Lane (editor) | `LANE_SHA` (`0cc7604f` on Nov 2 00:30 UTC, with the flag console page, Ctrl+Shift+F) | `devpush/lane/measure-internal` |
 | Candidate | `CANDIDATE_SHA` | The commit from "Build the candidate" |
 | Production today | `226e87fd56341e0701358de9dfe22e5d5637781d` | All 8 hosts; production-live `cd686cca` |
 | Rollback | `226e87fd…`, channel archive `a2f4e4f4c753e03144bbd26f680f04ce837d05fa513a345ef731dabccaf596b8` | Kept on every role |
