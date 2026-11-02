@@ -1130,7 +1130,9 @@ window.PlatformCommerce.onReady(function(){
   }
 
   function reportOrderIsExterior(){
-    return reportOrderManifest().measurement_scope === 'full_house' || reportOrderExpediteKey().startsWith('exteriors_');
+    const measurement = reportOrderMeasurement();
+    return [reportOrderManifest().measurement_scope, measurement.measurement_scope, measurement.raw?.measurement_scope, activeBaseProject?.measurement_scope].includes('full_house')
+      || reportOrderExpediteKey().startsWith('exteriors_');
   }
 
   function loadExteriorExpediteQuote(){
@@ -1159,9 +1161,9 @@ window.PlatformCommerce.onReady(function(){
   function reportOrderKindHtml(){
     const exterior = reportOrderIsExterior();
     const kind = exterior ? (globalThis.PlatformLanguage?.text("measurements","report_kind_full_exterior","Full Exterior") ?? "Full Exterior") : (reportOrderIncludesGutters() ? (globalThis.PlatformLanguage?.text("measurements","report_kind_roof_gutters","Roof + Gutters") ?? "Roof + Gutters") : (globalThis.PlatformLanguage?.text("measurements","report_kind_roof_only","Roof Only") ?? "Roof Only"));
-    const delivery = exterior ? (exteriorExpediteQuote?.options || []).find((option) => option.key === reportOrderExpediteKey())?.label || reportOrderManifest().report_expedite_label || '' : '';
+    const delivery = exterior ? (exteriorExpediteQuote?.options || []).find((option) => option.key === reportOrderExpediteKey())?.label || reportOrderMeasurement().report_expedite_label || reportOrderMeasurement().raw?.report_expedite_label || reportOrderManifest().report_expedite_label || '' : '';
     const structures = reportOrderBillingPinCount();
-    const value = [kind, delivery, exterior && structures > 1 ? (globalThis.PlatformLanguage?.text("measurements","report_kind_structures",`${structures} structures`,{structures}) ?? `${structures} structures`) : ''].filter(Boolean).join(' · ');
+    const value = [kind, delivery, exterior && structures > 1 ? (globalThis.PlatformLanguage?.text("measurements","report_kind_structures",`${structures} structures`,{structures}) ?? `${structures} structures`) : ''].filter(Boolean).join(' \u00b7 ');
     return `<div class="r-pending-detail"><strong>${(globalThis.PlatformLanguage?.htmlText("measurements","report_kind_ordered","Ordered") ?? "Ordered")}</strong><span>${escapeHtml(value)}</span>${exterior ? `<span class="r-pending-detail-note">${escapeHtml((globalThis.PlatformLanguage?.text("measurements","report_kind_full_exterior_includes","Roof, walls, windows, doors and gutters included.") ?? "Roof, walls, windows, doors and gutters included."))}</span>` : ''}</div>`;
   }
 

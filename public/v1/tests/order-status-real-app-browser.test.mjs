@@ -21,7 +21,10 @@ const ORDERS = {
   held: { status: 'completed', has_report_pdf: true, has_summary_pdf: true, delivery: { release_hold: hold } },
   completed: { status: 'completed', has_report: true, has_report_pdf: true, has_summary_pdf: true,
     report_url: `/v1/firstmeasure/projects/${ID}/artifacts/Report.pdf`, summary_url: `/v1/firstmeasure/projects/${ID}/artifacts/Summary.pdf` },
-  cancelled: { status: 'cancelled', cancelled_at: '2026-10-22T19:00:00Z' }
+  cancelled: { status: 'cancelled', cancelled_at: '2026-10-22T19:00:00Z' },
+  exterior: { status: 'processing', measurement_scope: 'full_house', include_gutter_measurements: true, report_expedite_option: 'exteriors_standard',
+    report_expedite_label: 'Standard · 24 hours', report_due_window_end: '2099-10-23T00:00:00Z', amount_charged: 25,
+    manifest: { measurement_scope: 'full_house', report_expedite_option: 'exteriors_standard' } }
 };
 
 async function openOrder(browser, kind, options = {}) {
@@ -49,7 +52,14 @@ async function openOrder(browser, kind, options = {}) {
       util: {
         $: (sel, root = document) => root.querySelector(sel),
         injectCSS: (key, css) => { if (document.getElementById('css-' + key)) return; const s = document.createElement('style'); s.id = 'css-' + key; s.textContent = css; document.head.append(s); },
-        postAction: async () => ({ data: { success: false } }), hasPerm: () => true, formatDate: v => String(v || ''),
+        postAction: async (action, fields) => {
+          (window.__actions ||= []).push({ action, ...fields });
+          if (action === 'exteriors_quote' && options.exteriorQuote) return { data: { success: true, pricing_revision: 3, options: [
+            { key: 'exteriors_standard', label: 'Standard · 24 hours', minutes: 1440, amount: 25 },
+            { key: 'exteriors_same_day', label: 'Under 6 hours', minutes: 360, amount: 30 },
+            { key: 'exteriors_priority', label: 'Under 3 hours', minutes: 180, amount: 35 }] } };
+          return { data: { success: false } };
+        }, hasPerm: () => true, formatDate: v => String(v || ''),
         fmUrl: p => 'https://portal.test/fm/' + p, fmJson: async () => ({}), fmPost: async () => ({ projects: [] }), platformJson: async () => ({}),
         currentActor: () => ({ email: 'owner@example.test', organization_id: 'org_test' })
       },
@@ -85,6 +95,8 @@ async function openOrder(browser, kind, options = {}) {
   await page.waitForTimeout(1200);
   // The board's FirstMeasure-only listing (core.js list_projects) runs before any order is opened.
   if (options.listPass) await page.evaluate(() => { window.__discarded = Portal.ProjectStore.discardDraftsShadowingOrders([window.__row]); });
+  // The order opens from this page's copy (no platform read), for cases about the card rather than about opening.
+  if (options.localOpen) await page.evaluate(() => { Portal.ProjectStore.hasPendingSave = () => true; });
   await page.evaluate(() => Portal.modules.request.openProject(window.__row, {}));
   await page.waitForTimeout(1200);
   return { page, errors };
@@ -171,4 +183,26 @@ test('1M8-234: autosave never starts a draft inside an existing project', async 
   const start = source.indexOf('  function persistActiveBaseProject(');
   const body = source.slice(start, source.indexOf('\n  }', start));
   assert.match(body, /if \(!activeBaseProject && addressSelected && !viewingExistingProject\) ensureDraftBaseProject\(\);/);
+});
+
+test('A Full Exterior order says what was ordered and offers the faster deliveries for the difference', async () => {
+  const browser = await chromium.launch({ channel: 'chrome', headless: true });
+  try {
+    const { page, errors } = await openOrder(browser, 'exterior', { exteriorQuote: true, localOpen: true });
+    assert.match((await visibleText(page, '.r-measure-pane.active h3')).join(' '), /Full Exterior Report Summary/);
+    await page.locator('#rOverlay [data-tab="standard"]').first().click();
+    await page.waitForTimeout(300);
+    const card = (await visibleText(page, '#rOverlay .r-report-pending-card'))[0] || await page.evaluate(() => document.querySelector('#rOverlay')?.innerText.slice(0, 1500) || 'no overlay');
+    assert.match(card, /Full Exterior Report Processing/, card);
+    assert.match(card, /Ordered Full Exterior · Standard · 24 hours/i, card);
+    assert.match(card, /Roof, walls, windows, doors and gutters included\./, card);
+    const offers = await page.evaluate(() => [...document.querySelectorAll('#rOverlay [data-select-upgrade-expedite]')].filter(b => b.offsetParent)
+      .map(b => [b.dataset.selectUpgradeExpedite, b.innerText.replace(/\s+/g, ' ').trim(), b.disabled]).slice(0, 2));
+    assert.deepEqual(offers.map(([key, , disabled]) => [key, disabled]), [['exteriors_same_day', false], ['exteriors_priority', false]], JSON.stringify(offers));
+    assert.match(offers[0][1], /^Under 6 hours .*\+\$5(\.00)?$/, offers[0][1]);
+    assert.match(offers[1][1], /^Under 3 hours .*\+\$10(\.00)?$/, offers[1][1]);
+    assert.deepEqual(await page.evaluate(() => window.__actions.filter(a => a.action === 'exteriors_quote').map(a => a.structure_count)), [1]);
+    assert.deepEqual(errors, []);
+    await page.close();
+  } finally { await browser.close(); }
 });
