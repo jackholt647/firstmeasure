@@ -99,3 +99,12 @@ test('closed circle reuses its starting node and stores its center without spoke
  assert.equal(edge.a,edge.b);assert.ok(center.curveCenter);assert.ok(base.sketch.edges.every(e=>e.a!==center.id&&e.b!==center.id));assert.equal(base.faces.length,3);assert.ok(Math.abs(base.faces.reduce((s,f)=>s+K.area({points:f.points}),0)-100)<1e-6);
  const loaded=JSON.parse(JSON.stringify(base));S.upgrade(loaded);assert.equal(loaded.sketch.curves[0].centerId,center.id);assert.ok(loaded.sketch.nodes.some(n=>n.id===center.id));
 });
+
+test('a face closed against a curved wall edge keeps the curve through repeated extrusion in either direction',()=>{
+ const c={...curve,radiusY:2},wall=W.extrude({id:'source',points:K.curveSamples(c),curves:[c]},3).sides.find(f=>f.curvedSurface?.logical),surfaces=[wall],moved=q=>({x:q.x+wall.curvedSurface.offset.x,y:q.y+wall.curvedSurface.offset.y,z:q.z+wall.curvedSurface.offset.z});
+ const ring=K.curveSamples(wall.curvedSurface.curve).map(({x,y,z})=>moved({x,y,z})),sampled={id:'plane-face',points:ring,holes:[]};
+ assert.ok(W.extrude(sampled,1).sides.every(f=>!f.curvedSurface),'a ring of samples alone sweeps into facets');
+ assert.equal(K.attachBoundaryCurves([sampled],surfaces),true);assert.equal(sampled.curves.length,1);
+ for(const [a,b]of [[1,-2.5],[1,1],[-1,1],[-1,-1]]){const first=W.extrude(sampled,a),second=W.extrude(first.cap,b);for(const r of [first,second]){assert.equal(r.cap.curves.length,1);assert.equal(r.sides.filter(f=>f.curvedSurface?.logical).length,1);assert.ok(r.sides.length<=2,'one curved wall and the straight side');}}
+ const a=ring[0],b=ring.at(-1),wire=W.surfaceWire({$surfaces:surfaces,$loose:{points:[a,b],edges:[[a,b]]}});assert.ok(wire.edges.some(e=>e.id===W.edgeKey(a,b)),'a chord across the surface stays in the wire');
+});
