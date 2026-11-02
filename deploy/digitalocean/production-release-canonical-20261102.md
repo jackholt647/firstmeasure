@@ -36,7 +36,7 @@ Then build on the dev worker as for every release since October 22 (npm ci, chec
 | Fix | What | Production commit | Canonical + lane |
 | --- | --- | --- | --- |
 | **1M8-254** | Portal summary and CSV show each report's own measurements | `f67c79a2`, `3d1fdb12` | **Was missing; ported** `177e5696` |
-| **1M8-249** | Impersonate from the organization window; portal stays on the sign-in email | `ef39262b` | **Was missing; ported** `b425d580`, lane `54c114f2` |
+| **1M8-249** | Impersonate from the organization window; portal stays on the sign-in email | `ef39262b` | **Was missing; ported** `b425d580`, lane `64c53a83` |
 | FM-319 | Practice shows the source's reference imagery | `a79f2ea5`, `226e87fd` | Present (equivalent commits) |
 | FM-318 | Training saves; training files in any course | `bcdd8205`, `bcf1e43d` | Present (`a12dd9b6`, lane) |
 | FM-316 | Colour picker above the signup wizard | `20fd2f8a` | Present (`d2edc4c0`) |
