@@ -13,6 +13,8 @@ import { listProgress, readProgress, recordEvent, wasExposed, writeProgress, typ
 import { ensureGuidedSources } from "./sources.js";
 import { checkSetupStepGraph, injectedStep, missingSetupSteps, setupStep, setupStepsVersion, type SatisfactionCache } from "./setup-steps.js";
 import { readCompanyProfile } from "../company-profile/profile.js";
+import { introductionRequested } from "../platform/flag-introductions.js";
+import { readGlobal } from "../platform/storage.js";
 
 /**
  * The guided-experience runtime on the server: which experiences a person may play now (eligibility, the chooser,
@@ -95,6 +97,7 @@ async function allowed(ctx: PlatformAuthContext, rules: { capabilities?: string[
 
 async function eligible(definition: ExperienceDefinition, ctx: PlatformAuthContext, chooser: ChooserContext) {
   if (!(await allowed(ctx, definition.eligibility))) return false;
+  if (definition.introduces && !(await introductionRequested(ctx.orgId, definition.introduces, (await readGlobal(ctx.orgId)).data, object(ctx.organization).created_at))) return false;
   return !definition.eligibility.when || evaluateConditions(definition.eligibility.when, chooser as unknown as Record<string, unknown>);
 }
 

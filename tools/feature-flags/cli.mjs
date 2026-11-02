@@ -8,15 +8,17 @@
 //
 //   node tools/feature-flags/cli.mjs list [filter]                      every flag, how many organizations have it on
 //   node tools/feature-flags/cli.mjs org <id|name|email>                one organization's flags
-//   node tools/feature-flags/cli.mjs set <org id> <flag> on|off|auto [--note "why"]
+//   node tools/feature-flags/cli.mjs set <org id> <flag> on|off|auto|introduce [--note "why"]
 //   node tools/feature-flags/cli.mjs resolve <file|->                   what a pasted list of ids, names, emails matches
-//   node tools/feature-flags/cli.mjs bulk <flag> on|off|auto <file|-> [--note "why"] [--include-ambiguous]
+//   node tools/feature-flags/cli.mjs bulk <flag> on|off|auto|introduce <file|-> [--note "why"] [--include-ambiguous]
 //   node tools/feature-flags/cli.mjs coverage <flag> <percent>          how many a percentage would cover, without saving
-//   node tools/feature-flags/cli.mjs percent <flag> <percent> [--note "why"]
+//   node tools/feature-flags/cli.mjs percent <flag> <percent> [--note "why"] [--introduce]
 //   node tools/feature-flags/cli.mjs kill <flag> | restore <flag>       off for everyone, and back
 //   node tools/feature-flags/cli.mjs audit [--flag key] [--org id] [--limit n]
 //
-// `auto` clears an explicit value, so the organization follows the default and any percentage again.
+// `auto` clears an explicit value, so the organization follows the default and any percentage again. `introduce` is on,
+// and shows the flag's announcement the next time someone in the organization loads the app; --introduce does that for
+// the organizations a raised percentage adds.
 import { existsSync, readFileSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
@@ -41,11 +43,12 @@ async function call(method, route, body) {
 const enc = encodeURIComponent;
 const print = (value) => console.log(JSON.stringify(value, null, 2));
 const stdinOrFile = (source) => readFileSync(source === "-" ? 0 : source, "utf8");
+const change = (word) => word === "introduce" ? { value: true, introduce: true } : { value: value(word) };
 function value(word) {
   if (word === "on") return true;
   if (word === "off") return false;
   if (word === "auto") return null;
-  console.error(`Expected on, off or auto, got "${word}".`);
+  console.error(`Expected on, off, auto or introduce, got "${word}".`);
   process.exit(2);
 }
 const usage = () => { console.error(readFileSync(new URL(import.meta.url), "utf8").split("\n").filter((line) => line.startsWith("//   ")).map((line) => line.slice(5)).join("\n")); process.exit(2); };
@@ -74,7 +77,7 @@ switch (command) {
   }
   case "set": {
     if (!first || !second || !third) usage();
-    print(await call("PUT", `/orgs/${enc(first)}/flags/${enc(second)}`, { value: value(third), ...(note ? { note } : {}) }));
+    print(await call("PUT", `/orgs/${enc(first)}/flags/${enc(second)}`, { ...change(third), ...(note ? { note } : {}) }));
     break;
   }
   case "resolve": {
@@ -91,7 +94,7 @@ switch (command) {
     if (!includeAmbiguous) for (const row of resolved.entries.filter((entry) => entry.status === "ambiguous")) console.error(`ambiguous, skipped: ${row.input} (${row.organizations.map((org) => org.id).join(", ")})`);
     const orgIds = [...new Set(chosen.flatMap((row) => row.organizations.map((org) => org.id)))];
     if (!orgIds.length) { console.error("Nothing to apply."); process.exit(1); }
-    print(await call("POST", "/bulk", { flag: first, value: value(second), org_ids: orgIds, ...(note ? { note } : {}) }));
+    print(await call("POST", "/bulk", { flag: first, ...change(second), org_ids: orgIds, ...(note ? { note } : {}) }));
     break;
   }
   case "coverage": {
@@ -101,7 +104,7 @@ switch (command) {
   }
   case "percent": {
     if (!first || second === undefined) usage();
-    print(await call("PUT", `/catalog/${enc(first)}/rollout`, { percent: Number(second), ...(note ? { note } : {}) }));
+    print(await call("PUT", `/catalog/${enc(first)}/rollout`, { percent: Number(second), ...(toggle("--introduce") ? { introduce: true } : {}), ...(note ? { note } : {}) }));
     break;
   }
   case "kill":

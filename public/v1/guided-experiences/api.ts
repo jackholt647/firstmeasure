@@ -3,6 +3,7 @@ import { requirePlatformAuth } from "../platform/auth.js";
 import { experience } from "./registry.js";
 import { notFound } from "../platform/errors.js";
 import { listEvents } from "./store.js";
+import { BILLBOARD_CSP, readBillboard } from "./billboards.js";
 import { availableExperiences, completeGuided, ensureGuidedDefinitions, guidedConversationTurn, recordGuidedEvent } from "./service.js";
 
 /**
@@ -35,6 +36,13 @@ export async function registerGuidedExperiencesApi(app: FastifyInstance) {
     const { orgId, experienceId } = params(request);
     const ctx = await requirePlatformAuth(request, { orgId, csrf: true });
     return { ok: true, ...(await guidedConversationTurn(ctx, text(experienceId), request.body)) };
+  });
+  // A website billboard, sandboxed, for an announcement's frame. A listed page with no customer data; sign-in only so it is not a public fetcher.
+  app.get("/billboards/:id", async (request, reply) => {
+    await requirePlatformAuth(request, {});
+    const html = await readBillboard(text((request.params as { id?: string }).id));
+    if (html === null) throw notFound("billboard_unavailable", "That billboard is not published.");
+    return reply.header("Content-Security-Policy", BILLBOARD_CSP).header("Cache-Control", "private, max-age=60").type("text/html; charset=utf-8").send(html);
   });
   // Development tools (dev.ts): development data environment only, refused elsewhere whoever asks.
   app.post("/organizations/:orgId/dev/reset", async (request) => {

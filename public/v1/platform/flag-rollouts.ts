@@ -16,12 +16,16 @@ import { mutatePlatformConfiguration, readPlatformConfiguration, type JsonObject
  * percentage unless it is an explicit one.
  */
 export const FLAG_OVERRIDES_KEY = "app_flag_overrides";
+/** Organizations a flag was turned on for that are still to be told (flag-introductions.ts). Operators only, like the overrides. */
+export const FLAG_INTRODUCTIONS_KEY = "flag_introductions";
 const CONFIGURATION = "capability_flag_rollouts";
 const TTL_MS = 15_000;
 /** Whole basis points, so 0.01% steps work and a bucket is an integer. */
 const BUCKETS = 10_000;
 
-export type FlagRollout = { percent: number; killed: boolean; updated_at?: string; updated_by?: string; note?: string };
+/** One raise of a percentage on a flag with an introduction: when, and whether the organizations it added are to be told. */
+export type FlagRolloutStep = { percent: number; at: string; introduce: boolean };
+export type FlagRollout = { percent: number; killed: boolean; updated_at?: string; updated_by?: string; note?: string; steps?: FlagRolloutStep[] };
 export type FlagRollouts = Record<string, FlagRollout>;
 type Values = Record<string, boolean | number | string>;
 
@@ -38,7 +42,8 @@ function normalize(raw: JsonObject | null | undefined): FlagRollouts {
       percent: Math.max(0, Math.min(100, Number.isFinite(percent) ? percent : 0)), killed,
       ...(value.updated_at ? { updated_at: String(value.updated_at) } : {}),
       ...(value.updated_by ? { updated_by: String(value.updated_by) } : {}),
-      ...(value.note ? { note: String(value.note) } : {})
+      ...(value.note ? { note: String(value.note) } : {}),
+      ...(Array.isArray(value.steps) ? { steps: value.steps as unknown as FlagRolloutStep[] } : {})
     };
   }
   return rollouts;
@@ -85,6 +90,24 @@ export function flagOverrides(globalData: unknown): Record<string, boolean> {
   const source = globalData && typeof globalData === "object" ? (globalData as JsonObject)[FLAG_OVERRIDES_KEY] : null;
   if (!source || typeof source !== "object" || Array.isArray(source)) return {};
   return Object.fromEntries(Object.entries(source).filter(([, value]) => typeof value === "boolean")) as Record<string, boolean>;
+}
+
+export function flagIntroductions(globalData: unknown): Record<string, JsonObject> {
+  const source = globalData && typeof globalData === "object" ? (globalData as JsonObject)[FLAG_INTRODUCTIONS_KEY] : null;
+  return source && typeof source === "object" && !Array.isArray(source) ? source as Record<string, JsonObject> : {};
+}
+
+/** The raises of a percentage, with this one added if it goes above them all. What was covered before they were kept counts as told. */
+export function nextRolloutSteps(current: FlagRollout | null, percent: number, introduce: boolean, at: string) {
+  const steps = [...(current?.steps ?? [])];
+  if (!steps.length && current && current.percent > 0) steps.push({ percent: current.percent, at: current.updated_at || at, introduce: false });
+  if (percent > Math.max(0, ...steps.map((step) => step.percent))) steps.push({ percent, at, introduce });
+  return steps;
+}
+
+/** The raise that first covered this organization, which stays the same however far the percentage goes after it. */
+export function firstRolloutStepCovering(rollout: FlagRollout, key: string, orgId: string) {
+  return (rollout.steps ?? []).find((step) => percentCovers(step.percent, key, orgId)) ?? null;
 }
 
 /** Turns on flags a percentage covers. A stored `true` is untouched; nothing here ever turns a flag off. */

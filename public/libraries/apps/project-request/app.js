@@ -12206,6 +12206,7 @@ window.PlatformCommerce.onReady(async function(){
         return;
       }
       open(null, { workflow, documentType: event?.detail?.documentType || '' });
+      if (event?.detail?.orderScope) window.Portal.ExteriorOrder?.prefer?.(event.detail.orderScope);
     });
     loadBranchPresentationStyle().catch(() => null);
     loadBranchProposalTemplates().catch(() => null);

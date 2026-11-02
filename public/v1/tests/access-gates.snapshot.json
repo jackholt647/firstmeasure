@@ -1,9 +1,9 @@
 {
   "summary": {
     "routes": {
-      "total": 1985,
+      "total": 1986,
       "by_kind": {
-        "any:login_only": 169,
+        "any:login_only": 170,
         "any:login_only+handler_checks": 385,
         "any:permission": 710,
         "app(contact.media|portal.crew_receipts|portal.photos_feed|portal.receipts|portal.viewer|project.crew_materials|project.photos):login_only+handler_checks": 1,
@@ -523,6 +523,7 @@
     "GET /v1/forms/organizations/:orgId/staff-forms/:formId/availability": {"file":"forms/api.ts","gates":[{"app":"any","permission":"manage_projects","csrf":{"dynamic":"![\"GET\", \"HEAD\"].includes(request.method)"}}],"checks":["hasPermission(manage_company_settings)","hasPermission(manage_company_user_permissions)","hasPermission(dynamic)"],"kind":"any:permission"},
     "GET /v1/forms/public/:formKey": {"file":"forms/api.ts","kind":"no_platform_session"},
     "GET /v1/forms/public/:formKey/availability": {"file":"forms/api.ts","checks":["hasPermission(manage_company_settings)","hasPermission(manage_company_user_permissions)","hasPermission(dynamic)"],"kind":"no_platform_session"},
+    "GET /v1/guided-experiences/billboards/:id": {"file":"guided-experiences/api.ts","gates":[{"app":"any"}],"kind":"any:login_only"},
     "GET /v1/guided-experiences/dev/copy/history": {"file":"guided-experiences/api.ts","gates":[{"app":"any"}],"checks":["hasPermission(manage_company_settings)"],"kind":"any:login_only+handler_checks"},
     "GET /v1/guided-experiences/organizations/:orgId/experiences": {"file":"guided-experiences/api.ts","gates":[{"app":"any"}],"checks":["can(apps.assistant)","can(platform.materials)","hasPermission(dynamic)","can(dynamic)"],"publication":true,"kind":"any:login_only+handler_checks"},
     "GET /v1/guided-experiences/organizations/:orgId/experiences/:experienceId/events": {"file":"guided-experiences/api.ts","gates":[{"app":"any","permission":"manage_company_settings"}],"kind":"any:permission"},

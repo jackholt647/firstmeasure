@@ -59,6 +59,39 @@ as they are; they are not a substitute for a flag. The emergency stop for
 customer ordering is Off for everyone on the flag, which takes 15 seconds and
 needs no host access.
 
+## Introducing a flag
+
+A flag can be **on but not yet introduced**: the organization has it, and the next
+person who loads the app and may use it is shown an announcement once. This is for
+an existing organization that gains something. An organization that starts with
+the flag on (a new instant full organization, a platform signup) never sees it,
+because nothing is new to it. What can be introduced is data: a flag has an
+introduction when a [guided experience](guided-experiences.md#announcements) of
+kind `announcement` names it as `introduces`. Exteriors: entry
+`guided_experience/exteriors.introduction` on `firstmeasure.exteriors`.
+
+The flag is simply on throughout, so ordering works before the popup is closed. The
+state only decides whether the announcement may play (`platform/flag-introductions.ts`):
+
+| Turned on by | Introduced? |
+|---|---|
+| Console or API with `introduce` (one organization, or a pasted list) | Yes, unless it already had the flag on, which is reported as `already_on` |
+| A percentage saved with `introduce` | The organizations that raise added, if they existed when it was saved |
+| Plain On, signup, a sandbox configuration, a preset, a country rule | No |
+
+A percentage stays one document: each raise on such a flag is a step
+(`steps: [{ percent, at, introduce }]`) and the first step covering an organization
+decides, so a later raise never changes the answer for those it already covered. An
+organization created after that step started with the flag.
+
+Stored per organization in `data.flag_introductions`, refused from customers like
+`app_flag_overrides`. Plain On, Auto or Off clear it. Being told is **per
+organization** in the guide's own server progress (`guided_progress`, subject `''`):
+whoever closes it or presses Try It Now finishes it for everyone there. Once finished
+it never plays again, even if the state is set again. On dev, Reset org in the dev
+console's Guided experiences section plays it again. The console shows Waiting or
+Introduced on the organization's row. There is no count of organizations waiting.
+
 ## Counts
 
 Each flag's "on" count applies the stored value, percentage, explicit value,
@@ -110,12 +143,12 @@ Send `Authorization: Bearer <key>`, or a staff session cookie.
 | `GET /me` | who you are, whether you can change flags |
 | `GET /catalog` (`?fresh=1` recounts) | every flag, description, counts, rollout |
 | `GET /catalog/:key/coverage?percent=` | how many a percentage would cover, without saving |
-| `PUT /catalog/:key/rollout` `{percent?, killed?, note?}` | set a percentage or off for everyone |
+| `PUT /catalog/:key/rollout` `{percent?, killed?, introduce?, note?}` | set a percentage or off for everyone; `introduce` announces it to organizations a raise adds |
 | `GET /orgs?q=` | find by name, id or anyone's email |
 | `GET /orgs/:orgId` | one organization's flags and why each has its value |
-| `PUT /orgs/:orgId/flags/:key` `{value: true\|false\|null, note?}` | explicit on, off, or Auto |
+| `PUT /orgs/:orgId/flags/:key` `{value: true\|false\|null, introduce?, note?}` | explicit on, off, or Auto; `introduce` with on |
 | `POST /resolve` `{text}` | what a pasted list matches; changes nothing |
-| `POST /bulk` `{flag, value, org_ids, note?}` | one action for up to 5000 organizations |
+| `POST /bulk` `{flag, value, introduce?, org_ids, note?}` | one action for up to 5000 organizations |
 | `GET /audit` (`?flag= &org= &before= &limit=`), `GET /audit/:id` | the log |
 | `GET, POST /keys`, `DELETE /keys/:id` | administrator session only |
 
@@ -125,9 +158,10 @@ Send `Authorization: Bearer <key>`, or a staff session cookie.
 node tools/feature-flags/cli.mjs list exteriors
 node tools/feature-flags/cli.mjs org owner@example.com
 node tools/feature-flags/cli.mjs set org_abc firstmeasure.exteriors on --note "pilot"
+node tools/feature-flags/cli.mjs set org_abc firstmeasure.exteriors introduce --note "tell them"
 node tools/feature-flags/cli.mjs bulk firstmeasure.exteriors on pilot-orgs.txt --note "pilot"
 node tools/feature-flags/cli.mjs coverage firstmeasure.exteriors 10
-node tools/feature-flags/cli.mjs percent firstmeasure.exteriors 10 --note "first 10%"
+node tools/feature-flags/cli.mjs percent firstmeasure.exteriors 10 --introduce --note "first 10%"
 node tools/feature-flags/cli.mjs kill firstmeasure.exteriors
 ```
 
@@ -179,5 +213,5 @@ for the assistant customers talk to, which must never reach this API.
 
 ## Tests
 
-`tests/feature-flags.test.ts`, `tests/route-access.test.ts`,
+`tests/feature-flags.test.ts`, `tests/flag-introductions.test.ts`, `tests/route-access.test.ts`,
 `tests/access-gates.test.ts`.

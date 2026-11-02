@@ -94,7 +94,7 @@ export const registerFlagConsoleApi: FastifyPluginAsync = async (app) => {
 
   app.put("/catalog/:key/rollout", async (request) => {
     const actor = writer(request);
-    const body = z.object({ percent: z.number().min(0).max(100).optional(), killed: z.boolean().optional(), note }).strict().parse(request.body ?? {});
+    const body = z.object({ percent: z.number().min(0).max(100).optional(), killed: z.boolean().optional(), introduce: z.boolean().optional(), note }).strict().parse(request.body ?? {});
     return { ok: true, ...(await setFlagRollout(param(request.params, "key"), body, actor)) };
   });
 
@@ -107,8 +107,8 @@ export const registerFlagConsoleApi: FastifyPluginAsync = async (app) => {
 
   app.put("/orgs/:orgId/flags/:key", async (request) => {
     const actor = writer(request);
-    const body = z.object({ value: flagValue, note }).strict().parse(request.body ?? {});
-    const result = await setFlagForOrganizations({ flag: param(request.params, "key"), value: body.value, org_ids: [param(request.params, "orgId")], ...(body.note ? { note: body.note } : {}) }, actor);
+    const body = z.object({ value: flagValue, introduce: z.boolean().optional(), note }).strict().parse(request.body ?? {});
+    const result = await setFlagForOrganizations({ flag: param(request.params, "key"), value: body.value, ...(body.introduce ? { introduce: true } : {}), org_ids: [param(request.params, "orgId")], ...(body.note ? { note: body.note } : {}) }, actor);
     if (result.failed.length) throw notFound("organization_not_found", result.failed[0]!.error);
     return { ok: true, ...result };
   });
@@ -121,8 +121,8 @@ export const registerFlagConsoleApi: FastifyPluginAsync = async (app) => {
 
   app.post("/bulk", { bodyLimit: 1024 * 1024 }, async (request) => {
     const actor = writer(request);
-    const body = z.object({ flag: z.string().trim().min(1).max(120), value: flagValue, org_ids: z.array(z.string().trim().min(1).max(200)).min(1).max(5000), note }).strict().parse(request.body ?? {});
-    return { ok: true, ...(await setFlagForOrganizations({ flag: body.flag, value: body.value, org_ids: body.org_ids, ...(body.note ? { note: body.note } : {}) }, actor)) };
+    const body = z.object({ flag: z.string().trim().min(1).max(120), value: flagValue, introduce: z.boolean().optional(), org_ids: z.array(z.string().trim().min(1).max(200)).min(1).max(5000), note }).strict().parse(request.body ?? {});
+    return { ok: true, ...(await setFlagForOrganizations({ flag: body.flag, value: body.value, ...(body.introduce ? { introduce: true } : {}), org_ids: body.org_ids, ...(body.note ? { note: body.note } : {}) }, actor)) };
   });
 
   app.get("/audit", async (request) => {

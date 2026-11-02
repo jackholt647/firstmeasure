@@ -24,6 +24,7 @@ export const guidedExperienceKind: LibraryKind<ExperienceDefinition> = {
     if (data.id !== ctx.id) errors.push(`The experience's id ${data.id} is not the entry's id ${ctx.id}.`);
     if (ctx.id.startsWith(SETUP_STEP_EXPERIENCE_PREFIX)) errors.push(`${SETUP_STEP_EXPERIENCE_PREFIX}* experiences are played from setup steps; edit the setup_step entry.`);
     errors.push(...capabilityErrors(data.eligibility.capabilities, registries, "eligibility.capabilities"));
+    if (data.introduces) errors.push(...capabilityErrors([data.introduces], registries, "introduces"));
     // Save-time checks are in-memory lookups only (sources, capabilities, actions, other entries).
     ensureGuidedSources();
     const own = new Set(data.steps.map((step) => step.id));
