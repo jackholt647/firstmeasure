@@ -103,6 +103,18 @@ test('shift-click keeps a draft curve with other lines and V makes one ruled sur
  const face=f.state.wallEdits.$surfaces.at(-1);assert.equal(face.curvedSurface.type,'conic-ruled');assert.equal(face.points.length,4);assert.ok(Math.abs(K.surfaceArea(face)-Math.PI*2*3)<.05);
 });
 
+test('E on floating lines: a curve sweeps a real surface, a connected line offers planes, a lone line asks for one',()=>{
+ const K=require('../public/measure/internal/editor_scripts/exterior_geometry.js'),Sketch=require('../public/measure/internal/editor_scripts/base_sketch_geometry.js');
+ const arc=K.arcPreview({x:2,y:0,z:0},{x:0,y:0,z:0},{x:-2,y:0,z:0},{x:0,y:0,z:1},{},false),d={constructionPlane:true,frame:{origin:{x:0,y:0,z:0},u:{x:1,y:0,z:0},v:{x:0,y:1,z:0},n:{x:0,y:0,z:1}},members:[],faces:[],sketch:{version:2,next:0,nodes:[],edges:[],outlines:[]}};Sketch.addCurve(d,arc);
+ const up=[{x:2,y:0,z:0},{x:2,y:0,z:3}],lone=[{x:6,y:0,z:1},{x:7,y:0,z:1}],state={lineCenters:true,wallEdits:{$drafts:{a:d},$loose:{points:[...up,...lone],edges:[up,lone]}}};
+ const f=fixture({state,walls:[],selected:null,globals:renderGlobals()}),before=JSON.stringify(state.wallEdits);f.listeners.pointermove(f.e(1,1));
+ f.editor.restoreSelection({activeDraftKey:'a',pickedLines:d.sketch.edges.map(e=>e.id)});f.editor.key({key:'e'});assert.match(f.message(),/Perpendicular to its plane/);f.editor.distanceInput().set(3);
+ const wall=state.wallEdits.$surfaces.at(-1);assert.equal(wall.curvedSurface.type,'ellipse-extrusion');assert.equal(wall.curvedSurface.logical,true);assert.ok(Math.abs(K.surfaceArea(wall)-Math.PI*2*3)<.05);assert.equal(wall.curvedSurface.offset.z,3);
+ f.editor.key({key:'Escape'});assert.equal(JSON.stringify(state.wallEdits),before);
+ f.editor.restoreSelection({lineSelection:[{id:'up',pair:up}]});f.editor.key({key:'e'});assert.match(f.message(),/Plane of a connected line/);f.editor.distanceInput().set(1);const side=state.wallEdits.$surfaces.at(-1);assert.ok(side.points.every(p=>Math.abs(p.x-2)<1e-6||p.y!==0));f.editor.key({key:'Escape'});
+ f.editor.restoreSelection({lineSelection:[{id:'lone',pair:lone}]});f.editor.key({key:'e'});assert.match(f.message(),/no connected lines/);assert.equal(f.editor.planeActive(),true);f.editor.key({key:'Escape'});assert.equal(f.editor.planeActive(),false);assert.equal(JSON.stringify(state.wallEdits),before);
+});
+
 test('repeated M never commits or rebases point moves before placement',()=>{
  for(const z of [2,4]){
   const f=fixture({globals:{isFreeMove:true}});f.editor.doubleClick(f.e(2,z),f.w);f.listeners.pointermove(f.e(2,z));const before=JSON.stringify(f.state.wallEdits),count=f.history.length;
