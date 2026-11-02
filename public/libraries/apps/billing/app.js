@@ -1351,7 +1351,7 @@ window.PlatformCommerce.onReady(function(){
     const typeLabel = projectType === 'commercial'
       ? (globalThis.PlatformLanguage?.text("billing","commercial","Commercial") ?? "Commercial")
       : (projectType === 'multifamily' ? (globalThis.PlatformLanguage?.text("billing","multifamily","Multi-Family") ?? "Multi-Family") : (globalThis.PlatformLanguage?.text("billing","residential","Residential") ?? "Residential"));
-    const scopeLabel = po.fields.measurement_scope === 'full_house' ? (globalThis.PlatformLanguage?.text("billing","full_house_included","Full House · roof + gutters included") ?? "Full House · roof + gutters included") : pendingIncludesGutters(po.fields) ? (globalThis.PlatformLanguage?.text("billing","roof_gutters","Roof & Gutters") ?? "Roof & Gutters") : (globalThis.PlatformLanguage?.text("billing","roof_only","Roof Only") ?? "Roof Only");
+    const scopeLabel = po.fields.measurement_scope === 'full_house' ? (globalThis.PlatformLanguage?.text("billing","full_exterior","Full Exterior") ?? "Full Exterior") : pendingIncludesGutters(po.fields) ? (globalThis.PlatformLanguage?.text("billing","roof_gutters","Roof & Gutters") ?? "Roof & Gutters") : (globalThis.PlatformLanguage?.text("billing","roof_only","Roof Only") ?? "Roof Only");
     const packageLabel = `${pendingReportModeLabel(po.fields)} - ${scopeLabel}`;
     const quote = pendingOrderQuote(po.fields);
     const priceLabel = quote.active
@@ -1378,7 +1378,7 @@ window.PlatformCommerce.onReady(function(){
     const typeLabel = projectType === 'commercial'
       ? (globalThis.PlatformLanguage?.text("billing","commercial","Commercial") ?? "Commercial")
       : (projectType === 'multifamily' ? (globalThis.PlatformLanguage?.text("billing","multifamily","Multi-Family") ?? "Multi-Family") : (globalThis.PlatformLanguage?.text("billing","residential","Residential") ?? "Residential"));
-    const scopeLabel = po.fields.measurement_scope === 'full_house' ? (globalThis.PlatformLanguage?.text("billing","full_house_included","Full House · roof + gutters included") ?? "Full House · roof + gutters included") : pendingIncludesGutters(po.fields) ? (globalThis.PlatformLanguage?.text("billing","roof_gutters","Roof & Gutters") ?? "Roof & Gutters") : (globalThis.PlatformLanguage?.text("billing","roof_only","Roof Only") ?? "Roof Only");
+    const scopeLabel = po.fields.measurement_scope === 'full_house' ? (globalThis.PlatformLanguage?.text("billing","full_exterior","Full Exterior") ?? "Full Exterior") : pendingIncludesGutters(po.fields) ? (globalThis.PlatformLanguage?.text("billing","roof_gutters","Roof & Gutters") ?? "Roof & Gutters") : (globalThis.PlatformLanguage?.text("billing","roof_only","Roof Only") ?? "Roof Only");
     const packageLabel = `${pendingReportModeLabel(po.fields)} · ${scopeLabel}`;
     const quote = pendingOrderQuote(po.fields);
     const priceLabel = quote.active
