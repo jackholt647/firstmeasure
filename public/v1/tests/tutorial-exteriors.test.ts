@@ -75,7 +75,7 @@ test('exterior curriculum defaults, isolated PHP editing/resources, completion a
     assert.equal((await signed({operation:'source',tutorial_id:exterior,name:'google.png'})).body,'synthetic image');
     // FM-319: everything the source keeps as reference imagery reaches the practice project; nothing that holds the answer does.
     const {tutorialSourceFile}=await import('../internal/tutorial_exteriors.js');
-    for (const name of ['azure.png','apple.png','structure-1-rgb.tif','structure-2-dsm.tif','structure-1-mask.tif','structure-1-apple.png','instant-structures.json']) assert.equal(tutorialSourceFile(name),true,name);
+    for (const name of ['azure.png','apple.png','apple.jpg','structure-1-rgb.tif','structure-2-dsm.tif','structure-1-mask.tif','structure-1-apple.png','structure-1-apple.jpg','instant-structures.json']) assert.equal(tutorialSourceFile(name),true,name);
     for (const name of ['app_metadata.json','pdf_state.json','Report.pdf','Summary.pdf','model_data.xml','quad_crop.png','structure-1-apple.png/../app_metadata.json','azure.png\n','customer-references.json']) assert.equal(tutorialSourceFile(name),false,name);
     await storage.saveArtifact(source,'azure.png','synthetic azure');
     assert.equal((await signed({operation:'source',tutorial_id:exterior,name:'azure.png'})).body,'synthetic azure');
