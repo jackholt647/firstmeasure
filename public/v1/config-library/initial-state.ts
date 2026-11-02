@@ -17,7 +17,7 @@ import { libraryStore } from "./store.js";
 const object = (value: unknown): JsonObject => value && typeof value === "object" && !Array.isArray(value) ? value as JsonObject : {};
 /** Global settings that are an account's money, not its configuration. */
 const NOT_STATE = new Set(["credits_balance", "credits_ledger", "billing", "platform_billing"]);
-const FLAG_KEYS = new Set(["app_flags", "feature_flags", "app_flag_overrides"]);
+const FLAG_KEYS = new Set(["app_flags", "feature_flags", "app_flag_overrides", "flag_introductions"]);
 const same = (a: unknown, b: unknown) => JSON.stringify(a ?? null) === JSON.stringify(b ?? null);
 
 type Captured = { global: JsonObject; scope_flags: Record<string, boolean> };

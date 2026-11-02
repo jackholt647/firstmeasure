@@ -15,7 +15,8 @@
   const css = `
     .gxa-host{position:fixed;inset:0;z-index:2147483300;display:flex;align-items:center;justify-content:center;padding:16px;box-sizing:border-box;background:rgba(16,24,40,.62);opacity:0;transition:opacity .22s ease}
     .gxa-host.gxa-in{opacity:1}
-    .gxa-card{position:relative;display:flex;flex-direction:column;width:min(760px,100%);height:min(560px,100%);background:#fff;border-radius:18px;overflow:hidden;box-shadow:0 24px 60px rgba(16,24,40,.35);transform:translateY(10px) scale(.98);transition:transform .28s cubic-bezier(.22,1,.36,1)}
+    .gxa-host[hidden],.gxa-foot[hidden]{display:none}
+    .gxa-card{outline:none;position:relative;display:flex;flex-direction:column;width:min(760px,100%);height:min(560px,100%);background:#fff;border-radius:18px;overflow:hidden;box-shadow:0 24px 60px rgba(16,24,40,.35);transform:translateY(10px) scale(.98);transition:transform .28s cubic-bezier(.22,1,.36,1)}
     .gxa-host.gxa-in .gxa-card{transform:none}
     .gxa-card iframe{flex:1;min-height:0;width:100%;border:0;display:block}
     .gxa-close{position:absolute;top:10px;right:10px;width:36px;height:36px;border:0;border-radius:50%;background:rgba(255,255,255,.92);color:#344054;cursor:pointer;box-shadow:0 1px 4px rgba(16,24,40,.25);display:flex;align-items:center;justify-content:center}
@@ -44,7 +45,7 @@
     G().injectCss('gxa-css', css);
     const host = document.createElement('div');
     host.className = 'gxa-host'; host.hidden = true; host.setAttribute('data-fmr-ignore', ''); host.dataset.gxExperience = experience.id;
-    host.innerHTML = `<div class="gxa-card" role="dialog" aria-modal="true" aria-label="${esc(L(step.title))}">
+    host.innerHTML = `<div class="gxa-card" tabindex="-1" role="dialog" aria-modal="true" aria-label="${esc(L(step.title))}">
       <iframe title="${esc(L(step.title))}" sandbox="allow-scripts allow-popups allow-popups-to-escape-sandbox"></iframe>
       <button type="button" class="gxa-close" aria-label="${esc(L('gx_announce_close', 'Close'))}"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg></button>
       <div class="gxa-foot" hidden><button type="button" class="gxa-try">${esc(L('gx_announce_try', 'Try It Now'))}</button></div>
@@ -78,7 +79,7 @@
         // The page has no button by the expected id: it still works, with the platform's own.
         if (!buttonFound) { foot.hidden = false; console.warn(`Announcement ${experience.id}: the billboard has no button with the expected id.`); }
         host.hidden = false;
-        requestAnimationFrame(() => { host.classList.add('gxa-in'); host.querySelector('.gxa-close').focus({ preventScroll: true }); });
+        requestAnimationFrame(() => { host.classList.add('gxa-in'); host.querySelector('.gxa-card').focus({ preventScroll: true }); });
       };
       // Only this frame's window: the page has an opaque origin, so its origin says nothing.
       const onMessage = (event) => {

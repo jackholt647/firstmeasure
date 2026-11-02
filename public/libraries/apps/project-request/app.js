@@ -12003,6 +12003,7 @@ window.PlatformCommerce.onReady(async function(){
     if (!baseProject && overviewWorkflowMode === 'report' && options.reportProject === 'new') reportProjectChoice = 'new';
     const trayGeneration = ++projectTrayOpenGeneration;
     requestedDocumentType = baseProject ? '' : String(options.documentType || '').trim().toLowerCase();
+    window.Portal.ExteriorOrder?.prefer?.(baseProject ? '' : options.orderScope);
     requestedDocumentResume = baseProject ? null : (options.resumeDocument && typeof options.resumeDocument === 'object' ? options.resumeDocument : null);
     viewingExistingProject = !!baseProject;
     newProjectCreationSession = !baseProject || continuingCreationSession || unfinishedReportDraft;
@@ -12205,8 +12206,7 @@ window.PlatformCommerce.onReady(async function(){
         window.Portal.modules.contacts.open();
         return;
       }
-      open(null, { workflow, documentType: event?.detail?.documentType || '' });
-      if (event?.detail?.orderScope) window.Portal.ExteriorOrder?.prefer?.(event.detail.orderScope);
+      open(null, { workflow, documentType: event?.detail?.documentType || '', orderScope: event?.detail?.orderScope || '' });
     });
     loadBranchPresentationStyle().catch(() => null);
     loadBranchProposalTemplates().catch(() => null);
