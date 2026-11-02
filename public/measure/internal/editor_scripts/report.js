@@ -183,6 +183,8 @@ function mergeReportConfigStateIntoLatestState(targetState, sourceState) {
         }
     });
 
+    targetState.exteriorSettings = exteriorSettingsObject(targetState.exteriorSettings);
+
     if (Array.isArray(sourceState.excludedSignatures)) {
         targetState.excludedSignatures = sourceState.excludedSignatures.slice();
         window.reportExcludedSignatures = new Set(sourceState.excludedSignatures);

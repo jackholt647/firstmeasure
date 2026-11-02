@@ -803,11 +803,17 @@ function emitPdfDebug(stage, payload = {}) {
     return entry;
 }
 
+// Saved through PHP, an empty settings object comes back as []; named settings set on an array
+// are dropped by the next JSON copy, so the front bearing and photo slots never reached the PDF (FM-320).
+function exteriorSettingsObject(value) {
+    return (value && typeof value === 'object' && !Array.isArray(value)) ? value : {};
+}
+
 function serializePdfConfigForSave(sourceState) {
     if (!sourceState || typeof sourceState !== 'object') return null;
 
     const config = {
-        exteriorSettings: cloneJsonSafe(sourceState.exteriorSettings, {}),
+        exteriorSettings: cloneJsonSafe(exteriorSettingsObject(sourceState.exteriorSettings), {}),
         customLabels: cloneJsonSafe(sourceState.customLabels, []),
         manualWastePct: (typeof sourceState.manualWastePct === 'number') ? sourceState.manualWastePct : undefined,
         manualTotalFacets: (typeof sourceState.manualTotalFacets === 'number') ? sourceState.manualTotalFacets : undefined,
@@ -920,7 +926,7 @@ function createStandalonePdfSnapshot(sourceState) {
 
     const snapshot = {
         exteriorReport: cloneJsonSafe(sourceState.exteriorReport, null),
-        exteriorSettings: cloneJsonSafe(sourceState.exteriorSettings, {}),
+        exteriorSettings: cloneJsonSafe(exteriorSettingsObject(sourceState.exteriorSettings), {}),
         snapshotVersion: PDF_SNAPSHOT_VERSION,
         savedAt: new Date().toISOString(),
         pdfSyncRevision: sourceState.pdfSyncRevision || sourceState.pdf_sync_revision || null,
@@ -1398,7 +1404,7 @@ async function captureStateForPDF(options = {}) {
 
         const state = {
             exteriorReport: window.WallMode?.reportSnapshot?.() || null,
-            exteriorSettings: cloneJsonSafe(currentConfig.exteriorSettings, {}),
+            exteriorSettings: cloneJsonSafe(exteriorSettingsObject(currentConfig.exteriorSettings), {}),
             folderId: window.currentProjectId,
             geometry, report, address, center, dims,
             radiusMeters: Number.isFinite(capturedRadiusMeters) && capturedRadiusMeters > 0 ? capturedRadiusMeters : null,

@@ -64,3 +64,23 @@ test('the slider moves the dial while sliding and saves when released',async()=>
   assert.equal(await page.evaluate(()=>ExteriorReportOrientation.snapBearing(358.5,[0])),0);assert.equal(await page.evaluate(()=>ExteriorReportOrientation.snapBearing(350,[0])),350);
  }finally{await browser.close();}
 });
+
+// PHP saves an empty settings object as [] (FM-320). An array keeps no named setting through a JSON
+// copy, so the front set on the dial never reached the save or the PDF. Production project tutorial_3e1d…
+test('a front set on settings saved as [] survives the save and reaches the PDF',async()=>{
+ const browser=await launch();try{const page=await browser.newPage({viewport:{width:900,height:900}});
+  await mount(page,[]);
+  await page.addScriptTag({content:require('node:fs').readFileSync(ROOT+'pdf.js','utf8').match(/function exteriorSettingsObject[\s\S]*?\n}/)[0]});
+  await page.locator('#tab input[type=number]').fill('110');await page.locator('#tab input[type=number]').dispatchEvent('change');
+  const saved=await page.evaluate(()=>JSON.parse(JSON.stringify(exteriorSettingsObject(state.exteriorSettings))));
+  assert.equal(saved.frontBearing,110,'the bearing survives a JSON copy');
+  assert.deepEqual(await page.evaluate(()=>exteriorSettingsObject([])),{},'[] reads as empty settings');
+ }finally{await browser.close();}
+});
+const {readFileSync}=require('node:fs');
+test('every path into the report state reads exteriorSettings through the guard',()=>{
+ const pdf=readFileSync(ROOT+'pdf.js','utf8'),report=readFileSync(ROOT+'report.js','utf8');
+ assert.equal((pdf.match(/cloneJsonSafe\((?:sourceState|currentConfig)\.exteriorSettings/g)||[]).length,0,'no unguarded copy in pdf.js');
+ assert.equal((pdf.match(/cloneJsonSafe\(exteriorSettingsObject\(/g)||[]).length,3,'save, snapshot and capture');
+ assert.match(report,/targetState\.exteriorSettings = exteriorSettingsObject\(targetState\.exteriorSettings\)/,'merge of a saved report state');
+});
