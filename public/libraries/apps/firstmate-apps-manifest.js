@@ -363,7 +363,7 @@
       kind: 'project_modal_app',
       surfaces: ['project_modal'],
       requiresContext: ['project'],
-      bundles: [...widgetBundles, versionedBundle('measurements/roof-viewer.js', '20261101-prod-sync'), versionedBundle('measurements/holiday-lights.js', '20261030-holiday-lights-bulb-size'), versionedBundle('measurements/project.js', '20261101-exterior-order-card')]
+      bundles: [...widgetBundles, versionedBundle('measurements/roof-viewer.js', '20261101-prod-sync'), versionedBundle('measurements/holiday-lights.js', '20261030-holiday-lights-bulb-size'), versionedBundle('measurements/project.js', '20261101-exterior-order-card-b')]
     },
     {
       id: 'project.checklists',
