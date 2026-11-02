@@ -4736,6 +4736,7 @@ $ver = time(); // cache busting
                 <div style="display:flex; align-items:center; gap:15px;">
                     <button class="btn-secondary" onclick="switchView('tutorials')" title="Back"><i class="fas fa-arrow-left"></i></button>
                     <h1>Student Progress</h1>
+                    <span id="studentProgressCourse" style="font-size:13px; font-weight:800; color:#1d4ed8; background:#eef4ff; border:1px solid #c7d7fe; border-radius:999px; padding:5px 12px;"></span>
                 </div>
                 <div style="display:flex; align-items:center; gap:12px; flex-wrap:wrap;">
                     <label style="display:inline-flex; align-items:center; gap:8px; font-size:12px; font-weight:800; color:#344054; background:#fff; border:1px solid #e6e8ef; border-radius:8px; padding:9px 11px;">
@@ -5017,6 +5018,7 @@ $ver = time(); // cache busting
                 <div style="display:grid; grid-template-columns: 1fr 2fr; gap:20px; height:100%;">
                     <div style="background:#f9f9f9; padding:20px; border-radius:8px;">
                         <h3 style="margin-top:0;">Progress</h3>
+                        <div id="stCourseLabel" style="margin:-6px 0 12px; font-size:12px; font-weight:800; color:#1d4ed8;"></div>
                         <div class="meta-group">
                             <div class="meta-label">Current Chapter</div>
                             <div class="meta-val" id="stCurrentChap" style="font-size:18px; font-weight:bold; color:var(--primary);"></div>
