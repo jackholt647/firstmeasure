@@ -19,7 +19,8 @@ const conditions = z.unknown().superRefine((value, context) => {
 /** A step's next step: one id, or the first branch whose conditions match the selections so far, then `otherwise`. */
 const next = z.union([id, z.object({ branches: z.array(z.object({ when: conditions, to: id }).strict()).min(1).max(12), otherwise: id.optional() }).strict()]);
 
-export const KINDS = ["overlay", "modal", "agentic"] as const;
+/** `announcement`: one step, a billboard the person closes or acts on. Played once; never a per-app modal of its own. */
+export const KINDS = ["overlay", "modal", "agentic", "announcement"] as const;
 export type ExperienceKind = (typeof KINDS)[number];
 
 /**
@@ -98,6 +99,8 @@ const trigger = z.discriminatedUnion("kind", [
   z.object({ kind: z.literal("tab_opened"), tab: id, once: z.boolean().default(true), delay_ms: z.number().int().min(0).max(10000).default(700), when: conditions.optional() }).strict(),
   /** Another experience finished (its `then` names this one) or code asked for it by name. */
   z.object({ kind: z.literal("after_experience"), experience: id, once: z.boolean().default(true), when: conditions.optional() }).strict(),
+  /** The app loads: once per page load in the top window, whatever page it opens on. */
+  z.object({ kind: z.literal("app_loaded"), once: z.boolean().default(true), delay_ms: z.number().int().min(0).max(10000).default(800), when: conditions.optional() }).strict(),
   z.object({ kind: z.literal("manual") }).strict()
 ]);
 
@@ -129,6 +132,8 @@ export const experienceSchema = z.object({
   description: copySchema.optional(),
   /** The project tab this belongs to, for "show me again" and FAQs. */
   tab: id.optional(),
+  /** The flag this announces: it plays only where that flag is on and was asked to be introduced (flag-introductions.ts). */
+  introduces: z.string().max(120).optional(),
   eligibility: z.object({
     capabilities: z.array(z.string().max(120)).max(12).default([]),
     /** Each entry is required; an entry may be a|b. */
@@ -176,6 +181,7 @@ export const experienceSchema = z.object({
   const ids = new Set<string>();
   if (!value.steps.length && !value.requires.length) context.addIssue({ code: z.ZodIssueCode.custom, message: "An experience needs a step, or a setup step it requires." });
   if (value.requires.length && value.kind === "overlay") context.addIssue({ code: z.ZodIssueCode.custom, message: "A tour cannot require setup steps." });
+  if (value.kind === "announcement" && (value.steps.length !== 1 || value.requires.length || value.completion.action)) context.addIssue({ code: z.ZodIssueCode.custom, message: "An announcement is one step that requires and runs nothing." });
   for (const step of value.steps) {
     if ("widget" in step && step.widget === "module" && !step.module) context.addIssue({ code: z.ZodIssueCode.custom, message: `Step ${step.id} is a module step without a module.` });
     if (ids.has(step.id)) context.addIssue({ code: z.ZodIssueCode.custom, message: `Two steps are called ${step.id}.` });

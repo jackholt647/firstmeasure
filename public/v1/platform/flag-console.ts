@@ -6,7 +6,8 @@ import { isFirstMeasurePostgresEnabled, queryPostgres } from "../src/database/po
 import "./capability_defs.js";
 import { capabilityDefinition, effectiveCapabilities, EQUIPMENT_SIMPLE_CAPABILITIES, readCapabilityCountryRules, valueCapabilities, type NormalizedCapability } from "./capabilities.js";
 import { badRequest, forbidden, notFound, unauthorized } from "./errors.js";
-import { FLAG_OVERRIDES_KEY, flagBucket, flagOverrides, flagValueSource, percentCovers, readFlagRollouts, saveFlagRollout, type FlagRollouts } from "./flag-rollouts.js";
+import { introductionRequested } from "./flag-introductions.js";
+import { FLAG_INTRODUCTIONS_KEY, FLAG_OVERRIDES_KEY, flagBucket, flagIntroductions, flagOverrides, flagValueSource, nextRolloutSteps, percentCovers, readFlagRollouts, saveFlagRollout, type FlagRollout, type FlagRollouts } from "./flag-rollouts.js";
 import { openSqlStore, type SqlStore } from "./sql_store.js";
 import { findIdentityByEmail, listDocuments, listIdentityMemberships, listOrganizations, mutateGlobal, readGlobal, readOrganization, searchIdentities, searchOrganizations, type JsonObject } from "./storage.js";
 
@@ -348,23 +349,34 @@ function requireBooleanFlag(key: string) {
   return node;
 }
 
-function flagView(node: NormalizedCapability, rollouts: FlagRollouts) {
+/** The announcements that introduce a flag, by flag: a guided experience naming it as `introduces`. */
+async function flagAnnouncements() {
+  const { listExperiences } = await import("../guided-experiences/registry.js");
+  return new Map(listExperiences().filter((entry) => entry.introduces).map((entry) => [entry.introduces!, entry]));
+}
+async function requireAnnouncement(key: string) {
+  const announcement = (await flagAnnouncements()).get(key);
+  if (!announcement) throw badRequest("flag_no_introduction", `"${key}" has no announcement to introduce it with.`);
+  return announcement;
+}
+
+function flagView(node: NormalizedCapability, rollouts: FlagRollouts, announcements: Map<string, { id: string }>) {
   return {
     key: node.key, label: node.label, description: node.description, kind: node.kind, type: node.type, group: node.group, default: node.default,
     parent: node.parent, requires: node.requires, percentage_allowed: node.type === "boolean" && !NO_PERCENTAGE.has(node.key),
-    rollout: rollouts[node.key] ?? null
+    rollout: rollouts[node.key] ?? null, introduction: announcements.get(node.key)?.id ?? null
   };
 }
 
 /** Every flag with its counts. Only on/off flags are counted; settings carry a value, not on or off. */
 export async function listFlags(fresh = false) {
   const current = await readSnapshot(fresh);
-  const rules = await readCapabilityCountryRules();
+  const [rules, announcements] = await Promise.all([readCapabilityCountryRules(), flagAnnouncements()]);
   return {
     total_orgs: current.orgs.length,
     computed_at: current.at,
     flags: valueCapabilities().map((node) => ({
-      ...flagView(node, current.rollouts),
+      ...flagView(node, current.rollouts, announcements),
       stats: node.type === "boolean" ? current.stats.get(node.key) : null,
       country_rules: rules.filter((rule) => node.key in rule.values).length
     }))
@@ -383,21 +395,27 @@ export async function flagCoverage(key: string, percent: number) {
   return { key, percent, covered, total_orgs: current.orgs.length };
 }
 
-export async function setFlagRollout(key: string, input: { percent?: number; killed?: boolean; note?: string }, actor: FlagActor) {
+export async function setFlagRollout(key: string, input: { percent?: number; killed?: boolean; introduce?: boolean; note?: string }, actor: FlagActor) {
   const node = requireBooleanFlag(key);
+  if (input.introduce) await requireAnnouncement(key);
+  const tracked = (await flagAnnouncements()).has(key);
   if (input.percent !== undefined) {
     if (!Number.isFinite(input.percent) || input.percent < 0 || input.percent > 100) throw badRequest("invalid_percent", "A percentage is from 0 to 100.");
     if (input.percent > 0 && NO_PERCENTAGE.has(key)) throw badRequest("percentage_not_allowed", `"${key}" cannot be rolled out by percentage. Set it per organization.`);
   }
-  const { before, after } = await saveFlagRollout(key, (current) => ({
-    percent: input.percent === undefined ? (current?.percent ?? 0) : Math.round(input.percent * 100) / 100,
-    killed: input.killed === undefined ? (current?.killed ?? false) : input.killed,
-    updated_at: new Date().toISOString(), updated_by: actor.label, ...(input.note ? { note: input.note.slice(0, 300) } : {})
-  }));
+  const { before, after } = await saveFlagRollout(key, (current) => {
+    const percent = input.percent === undefined ? (current?.percent ?? 0) : Math.round(input.percent * 100) / 100;
+    const at = new Date().toISOString();
+    return {
+      percent, killed: input.killed === undefined ? (current?.killed ?? false) : input.killed,
+      updated_at: at, updated_by: actor.label, ...(input.note ? { note: input.note.slice(0, 300) } : {}),
+      ...(tracked || current?.steps ? { steps: nextRolloutSteps(current, percent, input.introduce === true, at) } : {})
+    };
+  });
   const shape = (value: typeof before) => ({ percent: value?.percent ?? 0, killed: value?.killed ?? false });
   const coverage = await flagCoverage(key, after?.percent ?? 0);
   const changes = [];
-  if (shape(before).percent !== shape(after).percent) changes.push(`percentage ${shape(before).percent}% to ${shape(after).percent}%, covering ${coverage.covered} of ${coverage.total_orgs}`);
+  if (shape(before).percent !== shape(after).percent) changes.push(`percentage ${shape(before).percent}% to ${shape(after).percent}%, covering ${coverage.covered} of ${coverage.total_orgs}${input.introduce ? ", introduced to organizations this adds" : ""}`);
   if (shape(before).killed !== shape(after).killed) changes.push(shape(after).killed ? "off for everyone" : "no longer off for everyone");
   const warnings = node.default === true && (after?.percent ?? 0) > 0 ? ["This flag is on by default, so a percentage turns on only organizations with it stored off."] : [];
   if (changes.length) await recordFlagAudit(actor, { action: "rollout", flag_key: key, summary: `${node.label}: ${changes.join("; ")}`, before: shape(before), after: { ...shape(after), covered: coverage.covered, total_orgs: coverage.total_orgs }, note: input.note });
@@ -467,7 +485,16 @@ export async function readOrganizationFlags(orgId: string) {
   const data = asObject((await readGlobal(orgId)).data);
   const flags = asObject(data.app_flags || data.feature_flags);
   const overrides = flagOverrides(data);
-  const [rollouts, resolution, rules] = await Promise.all([readFlagRollouts(), effectiveCapabilities(orgId), readCapabilityCountryRules()]);
+  const [rollouts, resolution, rules, announcements] = await Promise.all([readFlagRollouts(), effectiveCapabilities(orgId), readCapabilityCountryRules(), flagAnnouncements()]);
+  const introductions = new Map<string, "waiting" | "introduced">();
+  if (announcements.size) {
+    const { readProgress } = await import("../guided-experiences/store.js");
+    for (const [key, announcement] of announcements) {
+      if (!(await introductionRequested(orgId, key, data, org.created_at))) continue;
+      const progress = await readProgress(orgId, "", announcement.id);
+      introductions.set(key, progress && progress.status !== "started" ? "introduced" : "waiting");
+    }
+  }
   return {
     organization: summary!,
     flags: valueCapabilities().map((node) => {
@@ -477,7 +504,8 @@ export async function readOrganizationFlags(orgId: string) {
         ? flagValueSource({ key: node.key, orgId, stored: stored === undefined ? undefined : stored !== false, override: overrides[node.key], rollout, defaultValue: node.default === true })
         : { value: false, source: "default" as const };
       return {
-        ...flagView(node, rollouts),
+        ...flagView(node, rollouts, announcements),
+        introduction_state: introductions.get(node.key) ?? null,
         value: resolution.values[node.key],
         effective: resolution.effectiveByKey[node.key] === true,
         reason: resolution.reasons[node.key] ?? null,
@@ -496,25 +524,33 @@ export async function readOrganizationFlags(orgId: string) {
  * the organization follows the default and any percentage again. Written to app_flags too, for code that reads the
  * stored document directly (for example the expanded access query).
  */
-async function writeOrganizationFlag(orgId: string, node: NormalizedCapability, value: boolean | null, actor: FlagActor) {
-  let before = { explicit: null as boolean | null, stored: null as unknown }, changed = false;
+async function writeOrganizationFlag(orgId: string, node: NormalizedCapability, value: boolean | null, actor: FlagActor, introduce: boolean, rollout: FlagRollout | undefined) {
+  let before = { explicit: null as boolean | null, stored: null as unknown }, changed = false, waiting = false;
   await mutateGlobal(orgId, (global) => {
     const data = asObject(global.data);
     const flags = { ...asObject(data.app_flags || data.feature_flags) };
     const group = { ...asObject(flags[node.group]) };
     const overrides = flagOverrides(data);
     before = { explicit: overrides[node.key] ?? null, stored: group[node.flag] ?? null };
-    changed = before.explicit !== value;
+    // Introducing a flag an organization already has would announce nothing new: it just stays on.
+    const introductions = { ...flagIntroductions(data) };
+    const stored = group[node.flag];
+    const alreadyOn = flagValueSource({ key: node.key, orgId, stored: stored === undefined ? undefined : stored !== false, override: overrides[node.key], rollout, defaultValue: node.default === true }).value;
+    const wasWaiting = !!introductions[node.key];
+    waiting = value === true && introduce && (wasWaiting || !alreadyOn);
+    changed = before.explicit !== value || waiting !== wasWaiting;
     if (!changed) return { data: {} };
+    if (waiting) introductions[node.key] = introductions[node.key] ?? { at: new Date().toISOString(), by: actor.label };
+    else delete introductions[node.key];
     if (value === null) { delete overrides[node.key]; delete group[node.flag]; }
     else { overrides[node.key] = value; group[node.flag] = value; }
     flags[node.group] = group;
     return {
-      data: { app_flags: flags, [FLAG_OVERRIDES_KEY]: overrides },
+      data: { app_flags: flags, [FLAG_OVERRIDES_KEY]: overrides, [FLAG_INTRODUCTIONS_KEY]: introductions },
       metadata: { app_flags_updated_by_email: actor.label, app_flags_updated_at: new Date().toISOString(), app_flags_source: "flag_console" }
     };
   });
-  return { changed, before, after: { explicit: value, stored: value } };
+  return { changed, waiting, before, after: { explicit: value, stored: value, ...(waiting ? { introduce: true } : {}) } };
 }
 
 function describeValue(value: boolean | null) {
@@ -522,19 +558,26 @@ function describeValue(value: boolean | null) {
 }
 
 /** The one writer of per-organization flag values: one audit entry however many organizations it touches. */
-export async function setFlagForOrganizations(input: { flag: string; value: boolean | null; org_ids: string[]; note?: string }, actor: FlagActor) {
+export async function setFlagForOrganizations(input: { flag: string; value: boolean | null; introduce?: boolean; org_ids: string[]; note?: string }, actor: FlagActor) {
   const node = requireBooleanFlag(input.flag);
+  const introduce = input.introduce === true;
+  if (introduce) {
+    if (input.value !== true) throw badRequest("flag_introduce_needs_on", "Only turning a flag on can introduce it.");
+    await requireAnnouncement(node.key);
+  }
+  const rollout = (await readFlagRollouts())[node.key];
   const orgIds = [...new Set(input.org_ids.map(text).filter(Boolean))];
   if (!orgIds.length) throw badRequest("no_organizations", "Choose at least one organization.");
   if (orgIds.length > MAX_BULK_ORGS) throw badRequest("too_many_organizations", `At most ${MAX_BULK_ORGS} organizations at once. Use a percentage for more.`);
   const changes: OrgChange[] = [], failed: Array<{ org_id: string; error: string }> = [];
-  let unchanged = 0, next = 0;
+  let unchanged = 0, next = 0, waiting = 0;
   await Promise.all(Array.from({ length: Math.min(8, orgIds.length) }, async () => {
     while (next < orgIds.length) {
       const orgId = orgIds[next++]!;
       try {
         const org = await readOrganization(orgId);
-        const result = await writeOrganizationFlag(orgId, node, input.value, actor);
+        const result = await writeOrganizationFlag(orgId, node, input.value, actor, introduce, rollout);
+        if (result.waiting) waiting += 1;
         if (result.changed) changes.push({ org_id: orgId, org_name: text(org.name), before: result.before, after: result.after });
         else unchanged += 1;
       } catch (error) {
@@ -546,9 +589,9 @@ export async function setFlagForOrganizations(input: { flag: string; value: bool
   let audit_id = "";
   if (changes.length) {
     const only = changes.length === 1 ? ` for ${changes[0]!.org_name || changes[0]!.org_id}` : ` for ${changes.length} organizations`;
-    audit_id = await recordFlagAudit(actor, { action: changes.length === 1 ? "set" : "bulk_set", flag_key: node.key, summary: `${node.label}: ${describeValue(input.value)}${only}`, after: { value: input.value }, note: input.note, orgs: changes });
+    audit_id = await recordFlagAudit(actor, { action: changes.length === 1 ? "set" : "bulk_set", flag_key: node.key, summary: `${node.label}: ${describeValue(input.value)}${introduce ? ", to be introduced" : ""}${only}`, after: { value: input.value, ...(introduce ? { introduce: true } : {}) }, note: input.note, orgs: changes });
   }
-  return { flag: node.key, value: input.value, changed: changes.length, unchanged, failed, audit_id };
+  return { flag: node.key, value: input.value, changed: changes.length, unchanged, failed, audit_id, ...(introduce ? { to_introduce: waiting, already_on: orgIds.length - failed.length - waiting } : {}) };
 }
 
 /**

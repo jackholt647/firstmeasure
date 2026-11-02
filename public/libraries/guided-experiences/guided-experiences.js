@@ -13,7 +13,8 @@
  *     registerKind(kind, player)    a player for a kind of experience (guided-setup.js registers modal and agentic)
  *
  * Triggers are data: `before_action` holds a click on a matching button, plays the experience and then lets the
- * click through; `tab_opened` plays when a project tab opens; `after_experience` follows another experience. What
+ * click through; `tab_opened` plays when a project tab opens; `after_experience` follows another experience;
+ * `app_loaded` plays once when the portal loads, for announcements. What
  * someone has seen is kept on the server (progress), never in this page. The overlay and every popover are left out
  * of session replays (data-fmr-ignore).
  */
@@ -82,7 +83,8 @@
     list: (tab, projectId) => request(orgPath(`/experiences?tab=${encodeURIComponent(tab || '')}&project_id=${encodeURIComponent(projectId || '')}`)),
     event: (id, body) => request(orgPath(`/experiences/${encodeURIComponent(id)}/events`), { method:'POST', body }),
     complete: (id, body) => request(orgPath(`/experiences/${encodeURIComponent(id)}/complete`), { method:'POST', body }),
-    conversation: (id, body) => request(orgPath(`/experiences/${encodeURIComponent(id)}/conversation`), { method:'POST', body })
+    conversation: (id, body) => request(orgPath(`/experiences/${encodeURIComponent(id)}/conversation`), { method:'POST', body }),
+    billboardUrl: (id) => `${baseUrl()}/billboards/${encodeURIComponent(id)}`
   };
 
   // ── Where the person is ────────────────────────────────────────────────
@@ -477,6 +479,26 @@
     if (state.visit.key && state.visit.isActive) { let showing = true; try { showing = !!state.visit.isActive(); } catch (_) { showing = false; } if (!showing) leave(); }
     refresh();
   });
+
+  /*
+   * app_loaded: once per page load, in the top window only (project windows are frames of the portal), after the first
+   * list. The queue holds it behind anything already playing and the play reads progress again first. Staff acting as
+   * a customer do not use up what is meant for the customer.
+   */
+  let appLoadedArmed = false;
+  function armAppLoaded(){
+    if (appLoadedArmed) return;
+    appLoadedArmed = true;
+    let top = true;
+    try { top = root.top === root; } catch (_) { top = false; }
+    if (!top) return;
+    for (const experience of state.experiences.values()) {
+      const trigger = array(experience.triggers).find((entry) => entry.kind === 'app_loaded');
+      if (!trigger || (experience.progress && experience.progress.status !== 'started')) continue;
+      setTimeout(() => { if (!document.getElementById('impersonationBanner')) play(experience.id); }, Number(trigger.delay_ms ?? 800));
+    }
+  }
+  root.addEventListener?.('fm:guides:updated', armAppLoaded);
 
   // ── Overlay tutorials ──────────────────────────────────────────────────
   const overlayCss = `

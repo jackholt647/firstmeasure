@@ -33,7 +33,7 @@ are part of this runtime: see [setup steps](setup-steps.md).
 
 An **experience** (`experienceSchema`):
 
-- `id`, `version`, `kind` (`overlay` | `modal` | `agentic`), `scope`
+- `id`, `version`, `kind` (`overlay` | `modal` | `agentic` | `announcement`), `scope`
   (`organization`: done once for the company, such as a setup; `person`: once per
   person, such as a tour), optional `unit` (what the A/B bucket is keyed on;
   defaults to the scope) and `salt`.
@@ -42,7 +42,7 @@ An **experience** (`experienceSchema`):
   required, `a|b` allowed) and `when`, conditions over the chooser context.
 - `triggers`: `before_action` (a selector; the click is held, the experience
   plays, then the click goes through), `tab_opened` (a project tab app id),
-  `after_experience`, `manual`. Each has `once` and optional `when`.
+  `after_experience`, `app_loaded`, `manual`. Each has `once` and optional `when`.
 - `variants`: `id`, `weight`, `when`, optional `kind` (a modal where the assistant
   is off), `steps` (an order or a subset) and `content` (options merged per step).
 - `steps`. Overlay steps: `title`, `body`, `targets` (selectors left undimmed;
@@ -272,6 +272,42 @@ waits for the server) and a burst of presses within 250 ms counts once; in a
 tour, only the first step with a target waits for it, later missing targets are
 skipped at once, and a newer move cancels an older one. Back works at any time.
 `tab-guides.js` no longer plays its own tutorials when this library is present.
+
+## Announcements
+
+"Something new is here, once." Kind `announcement`, trigger `app_loaded`, one step,
+no action: an announcement is a definition played by this runtime, not a modal of
+its own. `guided-announcement.js` draws a website billboard in a popup with a close
+button. Close and the page's own button each finish it (`dismiss`, `complete`), in
+the experience's server progress, so a popup's `scope` decides whether that is per
+organization or per person. A step's `options` name `billboard` and what the button
+opens: `workflow` and `order_scope` (`fm:new-project-workflow`, which
+`ExteriorOrder.prefer` answers for Roof or Full Exterior).
+
+`app_loaded` runs once per page load in the top window, after the first list, and
+not while staff act as a customer (`#impersonationBanner`), who would otherwise use
+it up. An experience naming a flag as `introduces` is eligible only while that flag
+is in the [introduced state](feature-flags.md#introducing-a-flag).
+
+**Billboards** (`guided-experiences/billboards.ts`). The website is another origin,
+so a frame of it could not be reached to add a click handler. The app serves its own
+copy at `GET /v1/guided-experiences/billboards/:id`: signed-in callers, listed ids
+only, read from the website with a 60 second cache, with a `<base>` to the website
+and a small script added. The element id is one constant per billboard
+(`EXTERIORS_POPUP_TRY_BUTTON_ID`); the page may otherwise change freely. That copy
+runs in a sandbox with an opaque origin (`Content-Security-Policy: sandbox`, and on
+the frame), so whatever a page does, it has no cookies, storage or app access, and
+the script's only way out is `postMessage`, which the runtime accepts only from that
+frame's window. A consequence for the page: a font on the website needs
+`Access-Control-Allow-Origin`, or the fallback font shows; images and stylesheets do
+not.
+
+Nothing shows, and nothing is used up, until the page has loaded and said so: an
+unpublished billboard (404, on production) or one that does not answer in 8 seconds
+leaves the announcement to play on a later load. On the development data environment
+an unpublished page is replaced by a stand-in with the right button. If the page has
+no element with the id, it still shows, with the platform's own Try It Now under it
+and a console warning, so a renamed button cannot strand anyone.
 
 ## Assistant suggestions
 
