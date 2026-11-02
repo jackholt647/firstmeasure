@@ -5,7 +5,7 @@
   const API = '/v1/internal/flags';
   const HINT = 'Ctrl+Shift+F';
   const TABS = [['flags','Flags'],['org','Organization'],['paste','Paste a list'],['audit','Audit log'],['keys','Agent keys'],['country','Country rules']];
-  const S = { tab:'flags', me:null, catalog:null, filter:'', selected:null, coverage:null, percentDraft:null, orgQuery:'', orgResults:null, org:null, orgFilter:'', orgHistory:null, flagHistory:null,
+  const S = { tab:'flags', me:null, catalog:null, filter:'', selected:null, coverage:null, percentDraft:null, percentIntroduce:true, orgQuery:'', orgResults:null, org:null, orgFilter:'', orgHistory:null, flagHistory:null,
     pasteText:'', resolved:null, picked:{}, pasteFlag:'firstmeasure.exteriors', pasteValue:'on', pasteNote:'', pasteResult:null, audit:null, auditFlag:'', auditOpen:{}, keys:null, newKey:null, country:null, status:'', error:'' };
   let root = null, overlay = null, opened = false, coverageTimer = 0, returnFocus = null;
 
@@ -188,6 +188,7 @@
         <input class="ffc-range" type="range" min="0" max="100" step="1" value="${esc(draft)}" data-percent aria-label="Percentage slider" style="flex:1;min-width:120px" ${canWrite() ? '' : 'disabled'}>
       </div>
       <div class="ffc-sub" style="margin:6px 0 10px" id="ffcCoverage">${S.coverage && Number(S.coverage.percent) === Number(draft) ? `Covers ${num(S.coverage.covered)} of ${num(S.coverage.total_orgs)} organizations, before explicit values. Raising it later keeps everyone it covers now.` : 'Raising a percentage later keeps everyone it covers now.'}</div>
+      ${flag.introduction ? `<label class="ffc-pick" style="margin-bottom:8px"><input type="checkbox" data-percent-introduce ${S.percentIntroduce ? 'checked' : ''} ${canWrite() ? '' : 'disabled'}><span>Introduce it to organizations this adds<br><span class="ffc-sub">They see its announcement once, the next time someone loads the app. Organizations created later never do.</span></span></label>` : ''}
       <div class="ffc-row-actions"><button class="ffc-btn ffc-primary" type="button" data-action="save-percent" ${changed && canWrite() ? '' : 'disabled'}>Save percentage</button></div>`
       : '<div class="ffc-note ffc-info">This one is set per organization, never by percentage.</div>'}
       <hr style="border:0;border-top:1px solid #eaecf0;margin:14px 0">
@@ -218,19 +219,20 @@
     const rows = flags.filter((flag) => !needle || `${flag.key} ${flag.label}`.toLowerCase().includes(needle));
     const body = rows.map((flag) => {
       if (flag.type !== 'boolean') return `<div class="ffc-orgflag"><span><b>${esc(flag.label)}</b><br><span class="ffc-key">${esc(flag.key)}</span></span><span class="ffc-sub">${esc(String(flag.value ?? ''))}</span></div>`;
-      const selected = flag.explicit === true ? 'on' : flag.explicit === false ? 'off' : 'auto';
+      const selected = flag.explicit === true ? (flag.introduction_state ? 'introduce' : 'on') : flag.explicit === false ? 'off' : 'auto';
       const why = [SOURCE[flag.source] || flag.source];
       if (flag.rollout?.percent > 0) why.push(`rollout ${flag.rollout.percent}%, this organization is at ${flag.bucket}`);
       if (!flag.effective && flag.reason && String(flag.reason).startsWith('requires')) why.push(flag.reason);
       if (flag.country_rules) why.push('a country rule may apply');
-      const seg = [['on','On'],['auto','Auto'],['off','Off']].map(([value, label]) => `<button type="button" data-v="${value}" data-set-org-flag="${esc(flag.key)}" aria-pressed="${selected === value}" ${canWrite() ? '' : 'disabled'}>${label}</button>`).join('');
+      if (flag.introduction_state) why.push(flag.introduction_state === 'waiting' ? 'not yet introduced: shows the next time someone loads the app' : 'introduced');
+      const seg = [['on','On'],...(flag.introduction ? [['introduce','Introduce']] : []),['auto','Auto'],['off','Off']].map(([value, label]) => `<button type="button" data-v="${value}" data-set-org-flag="${esc(flag.key)}" aria-pressed="${selected === value}" ${canWrite() ? '' : 'disabled'}>${label}</button>`).join('');
       return `<div class="ffc-orgflag"><span><b>${esc(flag.label)}</b> <span class="ffc-pill ${flag.effective ? 'on' : ''}">${flag.effective ? 'On' : 'Off'}</span><br><span class="ffc-key">${esc(flag.key)}</span><br><span class="ffc-why">${esc(why.join(' · '))}</span></span><span class="ffc-seg" role="group" aria-label="${esc(flag.label)}">${seg}</span></div>`;
     }).join('');
     const history = (S.orgHistory || []).slice(0, 8).map((entry) => `<div class="ffc-why">${esc(when(entry.at))} · ${esc(entry.actor)} · ${esc(entry.summary)}${entry.note ? ` (${esc(entry.note)})` : ''}</div>`).join('');
     return `<div class="ffc-panel">
       <div class="ffc-row-actions"><div style="flex:1;min-width:0"><h3 style="margin:0">${esc(org.name)}</h3><div class="ffc-key">${esc(org.id)}${org.owner_email ? ` · ${esc(org.owner_email)}` : ''}</div></div>
       <button class="ffc-btn" type="button" data-action="org-back">Back to results</button></div>
-      <p class="ffc-sub" style="margin:8px 0 0">Auto follows the default and any percentage. On and Off are explicit and beat a percentage.</p>
+      <p class="ffc-sub" style="margin:8px 0 0">Auto follows the default and any percentage. On and Off are explicit and beat a percentage. Introduce is On, plus an announcement once for an organization that did not have it.</p>
       ${history ? `<details style="margin-top:8px"><summary class="ffc-sub" style="cursor:pointer">Changes to this organization</summary>${history}</details>` : ''}
     </div>
     <input class="ffc-input" data-bind="orgFilter" placeholder="Filter this organization's flags" value="${esc(S.orgFilter)}" aria-label="Filter flags" style="width:100%;margin-bottom:10px">
@@ -242,6 +244,8 @@
   function renderPaste(){
     const flags = (S.catalog?.flags || []).filter((flag) => flag.type === 'boolean');
     const resolved = S.resolved;
+    const introducible = !!flags.find((flag) => flag.key === S.pasteFlag)?.introduction;
+    if (S.pasteValue === 'introduce' && !introducible) S.pasteValue = 'on';
     const orgLine = (org) => `<b>${esc(org.name)}</b> <span class="ffc-key">${esc(org.id)}${org.owner_email ? ` · ${esc(org.owner_email)}` : ''}</span>`;
     const pick = (org) => `<label class="ffc-pick"><input type="checkbox" data-pick="${esc(org.id)}" ${S.picked[org.id] ? 'checked' : ''}><span>${orgLine(org)}</span></label>`;
     const preview = resolved ? `
@@ -256,12 +260,12 @@
       <div class="ffc-panel"><h3>Apply to ${num(pickedIds().length)} organization${pickedIds().length === 1 ? '' : 's'}</h3>
         <div class="ffc-form">
           <div style="flex:1;min-width:220px"><label class="ffc-field" for="ffcPasteFlag">Flag</label><select id="ffcPasteFlag" class="ffc-select" data-bind="pasteFlag" style="width:100%">${flags.map((flag) => `<option value="${esc(flag.key)}" ${flag.key === S.pasteFlag ? 'selected' : ''}>${esc(flag.label)} (${esc(flag.key)})</option>`).join('')}</select></div>
-          <div><span class="ffc-field">Turn</span><span class="ffc-seg" role="group" aria-label="Value">${[['on','On'],['off','Off'],['auto','Auto']].map(([value, label]) => `<button type="button" data-v="${value}" data-paste-value="${value}" aria-pressed="${S.pasteValue === value}">${label}</button>`).join('')}</span></div>
+          <div><span class="ffc-field">Turn</span><span class="ffc-seg" role="group" aria-label="Value">${[['on','On'],...(introducible ? [['introduce','Introduce']] : []),['off','Off'],['auto','Auto']].map(([value, label]) => `<button type="button" data-v="${value}" data-paste-value="${value}" aria-pressed="${S.pasteValue === value}">${label}</button>`).join('')}</span></div>
           <div style="flex:1;min-width:200px"><label class="ffc-field" for="ffcPasteNote">Why (kept in the audit log)</label><input id="ffcPasteNote" class="ffc-input" data-bind="pasteNote" value="${esc(S.pasteNote)}" style="width:100%"></div>
           <button class="ffc-btn ffc-primary" type="button" data-action="apply-bulk" ${pickedIds().length && canWrite() ? '' : 'disabled'}>Apply</button>
         </div>
       </div>` : '';
-    const result = S.pasteResult ? `<div class="ffc-note ${S.pasteResult.failed.length ? 'ffc-warn' : 'ffc-ok'}">${num(S.pasteResult.changed)} changed, ${num(S.pasteResult.unchanged)} already that way${S.pasteResult.failed.length ? `, ${num(S.pasteResult.failed.length)} failed: ${S.pasteResult.failed.slice(0, 5).map((row) => esc(row.org_id)).join(', ')}` : ''}.</div>` : '';
+    const result = S.pasteResult ? `<div class="ffc-note ${S.pasteResult.failed.length ? 'ffc-warn' : 'ffc-ok'}">${num(S.pasteResult.changed)} changed, ${num(S.pasteResult.unchanged)} already that way${S.pasteResult.to_introduce !== undefined ? `, ${num(S.pasteResult.to_introduce)} will see the announcement, ${num(S.pasteResult.already_on)} already had it and will not` : ''}${S.pasteResult.failed.length ? `, ${num(S.pasteResult.failed.length)} failed: ${S.pasteResult.failed.slice(0, 5).map((row) => esc(row.org_id)).join(', ')}` : ''}.</div>` : '';
     return `${result}<div class="ffc-panel"><label class="ffc-field" for="ffcPaste">Organization ids, names or emails, mixed, one per line or comma separated</label>
       <textarea id="ffcPaste" class="ffc-text" data-bind="pasteText" spellcheck="false" placeholder="org_abc123&#10;owner@example.com&#10;Acme Roofing, LLC">${esc(S.pasteText)}</textarea>
       <div class="ffc-row-actions" style="margin-top:8px"><button class="ffc-btn" type="button" data-action="resolve" ${S.pasteText.trim() ? '' : 'disabled'}>Preview matches</button><span class="ffc-sub">Nothing changes until you press Apply.</span></div>
@@ -343,7 +347,7 @@
     }
   }
   async function selectFlag(key){
-    S.selected = key; S.percentDraft = null; S.coverage = null; S.flagHistory = null; render();
+    S.selected = key; S.percentDraft = null; S.percentIntroduce = true; S.coverage = null; S.flagHistory = null; render();
     const history = await call('GET', `/audit?flag=${encodeURIComponent(key)}&limit=5`).catch(() => null);
     if (S.selected === key) { S.flagHistory = history?.entries || []; render(); }
   }
@@ -366,9 +370,9 @@
     if (flagKey) return void selectFlag(flagKey);
     if (orgId) return void openOrg(orgId);
     if (el.dataset.setOrgFlag) {
-      const value = { on:true, off:false, auto:null }[el.dataset.v];
+      const value = { on:true, introduce:true, off:false, auto:null }[el.dataset.v];
       const org = S.org.organization;
-      await act(async () => { await call('PUT', `/orgs/${encodeURIComponent(org.id)}/flags/${encodeURIComponent(el.dataset.setOrgFlag)}`, { value }); S.org = await call('GET', `/orgs/${encodeURIComponent(org.id)}`); S.orgHistory = (await call('GET', `/audit?org=${encodeURIComponent(org.id)}&limit=8`)).entries; S.audit = null; loadCatalog().then(render, () => {}); }, 'Saved. Live within 15 seconds.');
+      await act(async () => { await call('PUT', `/orgs/${encodeURIComponent(org.id)}/flags/${encodeURIComponent(el.dataset.setOrgFlag)}`, { value, ...(el.dataset.v === 'introduce' ? { introduce:true } : {}) }); S.org = await call('GET', `/orgs/${encodeURIComponent(org.id)}`); S.orgHistory = (await call('GET', `/audit?org=${encodeURIComponent(org.id)}&limit=8`)).entries; S.audit = null; loadCatalog().then(render, () => {}); }, 'Saved. Live within 15 seconds.');
       return;
     }
     if (el.dataset.pasteValue) { S.pasteValue = el.dataset.pasteValue; return render(); }
@@ -392,7 +396,7 @@
         const percent = Number(S.percentDraft ?? flag.rollout?.percent ?? 0);
         const before = Number(flag.rollout?.percent || 0);
         if (percent < before && !window.confirm(`Lower ${flag.label} from ${before}% to ${percent}%? Organizations above ${percent}% lose it unless set explicitly.`)) return;
-        await act(async () => { const result = await call('PUT', `/catalog/${encodeURIComponent(flag.key)}/rollout`, { percent }); S.percentDraft = null; S.coverage = result.coverage; S.audit = null; await loadCatalog(); S.flagHistory = (await call('GET', `/audit?flag=${encodeURIComponent(flag.key)}&limit=5`)).entries; return result; }, (result) => `${flag.label} is at ${percent}%, covering ${num(result.coverage.covered)} of ${num(result.coverage.total_orgs)} organizations. Live within 15 seconds.${result.warnings?.length ? ` ${result.warnings.join(' ')}` : ''}`);
+        await act(async () => { const result = await call('PUT', `/catalog/${encodeURIComponent(flag.key)}/rollout`, { percent, ...(flag.introduction && S.percentIntroduce ? { introduce:true } : {}) }); S.percentDraft = null; S.coverage = result.coverage; S.audit = null; await loadCatalog(); S.flagHistory = (await call('GET', `/audit?flag=${encodeURIComponent(flag.key)}&limit=5`)).entries; return result; }, (result) => `${flag.label} is at ${percent}%, covering ${num(result.coverage.covered)} of ${num(result.coverage.total_orgs)} organizations. Live within 15 seconds.${result.warnings?.length ? ` ${result.warnings.join(' ')}` : ''}`);
         return;
       }
       case 'kill':
@@ -411,9 +415,9 @@
         return;
       case 'apply-bulk': {
         const ids = pickedIds();
-        const word = { on:'on', off:'off', auto:'back to automatic' }[S.pasteValue];
+        const word = { on:'on', introduce:'on, with its announcement,', off:'off', auto:'back to automatic' }[S.pasteValue];
         if (!window.confirm(`Turn ${S.pasteFlag} ${word} for ${ids.length} organization${ids.length === 1 ? '' : 's'}?`)) return;
-        await act(async () => { S.pasteResult = await call('POST', '/bulk', { flag:S.pasteFlag, value:{ on:true, off:false, auto:null }[S.pasteValue], org_ids:ids, ...(S.pasteNote.trim() ? { note:S.pasteNote.trim() } : {}) }); S.audit = null; await loadCatalog(); });
+        await act(async () => { S.pasteResult = await call('POST', '/bulk', { flag:S.pasteFlag, value:{ on:true, introduce:true, off:false, auto:null }[S.pasteValue], ...(S.pasteValue === 'introduce' ? { introduce:true } : {}), org_ids:ids, ...(S.pasteNote.trim() ? { note:S.pasteNote.trim() } : {}) }); S.audit = null; await loadCatalog(); });
         return;
       }
       case 'audit-more': {
@@ -453,6 +457,7 @@
       scheduleCoverage(S.selected, S.percentDraft);
       return;
     }
+    if (el.dataset.percentIntroduce !== undefined) { S.percentIntroduce = el.checked; return; }
     if (el.dataset.pick) { S.picked[el.dataset.pick] = el.checked; render(); }
   }
   async function onSubmit(event){
