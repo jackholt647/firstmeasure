@@ -291,11 +291,13 @@ is in the [introduced state](feature-flags.md#introducing-a-flag).
 
 **Previewing.** `FirstMateGuides.preview(id)` (from the console, for example
 `FirstMateGuides.preview('exteriors.introduction')`) plays one experience as this
-person would see it the first time: `GET .../experiences/:id/preview` resolves it with
-no progress and its introduction counted as asked for, while its capability,
-permission and condition rules still apply. The player runs with a `track` that sends
-nothing, so a preview records no event or progress and the real one still plays on
-its trigger. Try It Now still opens the order.
+person would see it the first time: `GET .../experiences/:id/preview` resolves it for
+any signed-in person in the organization, with no progress and without its
+eligibility (capabilities, permissions, conditions) or introduction checked; steps
+keep their own eligibility. The player runs with a `track` that sends nothing, so a
+preview records no event or progress and the real one still plays on its trigger.
+Try It Now still opens the order, which checks access itself: an organization
+without Exteriors can preview the popup but cannot order a Full Exterior.
 
 **Billboards** (`guided-experiences/billboards.ts`). The website is another origin,
 so a frame of it could not be reached to add a click handler. The app serves its own
