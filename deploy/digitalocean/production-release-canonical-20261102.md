@@ -1,6 +1,6 @@
-# Production release from canonical: prepared, not activated (November 2, 2026)
+# Production release from canonical: live since November 3, 2026, 02:53 UTC
 
-This is the first production release cut from canonical since production moved to `production-live` on October 26. Nothing here has been activated. Jack authorizes production; "go" means run the steps below.
+This is the first production release cut from canonical since production moved to `production-live` on October 26. Jack said go on November 2 (evening, PST); it is live on all 8 hosts. Outcome below, under "Released".
 
 **To update the candidate, change this table and re-run "Build the candidate".**
 
@@ -160,6 +160,38 @@ Connections: `max_connections` is 800, with 145 active at the last check; pool 4
 8. Verify: readiness returns the candidate 40 of 40; staff sign-in reaches the console without signing in again; a customer login opening `/measure/internal/` goes to staff sign-in; open and save the editor, including a Full Exterior project; render a roof PDF and a Full Exterior PDF; a customer's Roof Report Summary and CSV show that report's measurements (1M8-254); impersonate a user whose emails differ (1M8-249); save a full house in the editor without "Upload failed" (`.user.ini`); a FirstMeasure-only customer opens an order from a fresh browser; place no real orders. The Stripe negative-signature probe returns 400. Watch 5xx and worker exits for 30 minutes.
 9. Merge the candidate into `production-live` and push, so the tracker's hotfixes start from it. Record the outcome here. **Unpause the tracker only after this.**
 10. Later, separately: nginx hardening per `security-php-nginx-20261024.md` (host filtering, blocked paths). Give the bootstrap endpoint its own `server_name` first or new web nodes won't boot, and update the image template. It is not part of this release because the rollout helpers assert one `server {` block. Remove `sites-enabled/firstmeasure-development` from compat, which still needs Jack.
+
+## Released (November 3, 2026)
+
+**Candidate `ac09d330d94e850a2fc782a0f069c4aa6a4c12e6`**: canonical `4cbae6a0` with `public/measure/internal` and `dev` from lane `a64f67a7` (identical to the lane there). Branch `release/prod-canonical-20261102` on GitHub. Archive sha256 `b7a3775568868702eb84318ccf69bcae0214e980db26850af163c829668b9258`, 371,105,283 bytes, built on the dev worker (`build.sh`: npm ci, check, build, prune; 278 s), verified there and again on compatibility and the worker after copying.
+
+| Time (UTC) | Step |
+| --- | --- |
+| 02:23:23 | Tracker FirstMeasure bug-fix router stopped (`systemctl --user stop tracker-router@bugs` on fm-agents-1); it was idle, last release FM-320 at 21:08 |
+| 02:35–02:37 | Archive on compatibility and the worker, sha256 matched, installed without activating. `nginx -T` saved to `/root/nginx-T-before-ac09d330.txt`, site config to `/root/firstmeasure.nginx.before-ac09d330`; `fastcgi_param FIRSTMEASURE_API_BASE https://app.1m8.ai/v1/firstmeasure;` added, `nginx -t` ok |
+| 02:37:56–02:38:09 | **Compatibility** activated (`firstmeasure-legacy` and PHP-FPM restarted), nginx reloaded. Ready on `ac09d330`. Background loops still off, full house on |
+| 02:38:29 | **Worker** activated after no running jobs: 8 slots, production, email on, heartbeat off |
+| ~02:39 | **Signed channel** published against `eb8a98be…`; a web node's download now returns `ac09d330`/`b7a37755…` |
+| 02:40:07–02:53:45 | **Six web nodes**, one at a time, drained from the load balancer (~95 s each), each back behind the LB on the new release before the next. Every node: ready, served assets match, pool 4, 8 workers, `FIRSTMEASURE_FULL_HOUSE_ENABLED=1` with the email list set, signup sandbox 404 |
+
+**Publish trap:** `publish-web-release.sh` run through `/opt/firstmeasure/current/...` exits 0 and does nothing, because `release-channel.mjs` compares its symlinked path with `import.meta.url` and skips `main()`. Run it from `/opt/firstmeasure/releases/<sha>/deploy/digitalocean/`. Confirm with a web node's channel download.
+
+**Checks after activation:**
+- Readiness `ac09d330` 40 of 40 across all six instances right after the rollout, and 10 of 10 at 03:10 and 03:24.
+- Anonymous: `/measure/internal/` redirects to `backend_login.php`; `POST /v1/internal/legacy-action` and `GET /v1/firstmeasure/projects` return 401. The Stripe bad-signature probe on `server.php` returns 400.
+- Served files equal the candidate's on 6 of 6 requests each: the guided-experience runtime and announcement, the measurements card, the projects viewer, the editor's `report.js` and `wall_mode.js`, `tutorials.js` and `portal/samples/full_house_sample.pdf`.
+- Staff console opens on an existing staff session; Student Progress shows Full House Drawing with per-curriculum counts. The customer portal loads the new code for a report-only login, with no popup and no tour.
+- `firstmeasure.exteriors` on for 0 of 13,146 organizations under the new code.
+- **Not checked** (no production customer login with projects): a customer opening an order from a fresh browser, Roof Report Summary and CSV (1M8-254), impersonation (1M8-249), an editor save of a full house. Nothing was saved or ordered.
+
+**30 minutes after (to 03:24):**
+- Web nodes: 5xx 0.10–0.14% after against 0.17–0.34% in the half hour before; no worker exits, no restarts.
+- Compatibility: nginx 5xx 0.50% (93 of 18,420) against 1.18% before; 91 are the existing `top_view_reroll_proxy.php`. The only release-time errors were 14 `editor.php` 503s from 02:38:05 to 02:38:07 while Node started. Node logged six isolated 500s on routes that already failed before (`legacy-action`, `/v1/internal/users`, `qa/me/status`).
+- Worker: 343 jobs completed since activation, none failed, no restarts.
+
+**production-live** fast-forwarded to `b0a441a3`: parents `ac09d330` and `c03bca5d`; the tree is the candidate plus production-live's two hotfix records (FM-309, FM-320). Tracker hotfixes now start from this release. **Rollback target:** `51c70f90` (see Rollback), kept on every role.
+
+**Disk:** compatibility is at 95% (5.8 GB free) after this release. It holds 92 releases (58 GB) and 20 GB of old staging in `/var/tmp`; prune before the next release, keeping the current release and two rollback targets.
 
 ## Rollback
 
