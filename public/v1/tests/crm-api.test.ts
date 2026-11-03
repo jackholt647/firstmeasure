@@ -352,6 +352,88 @@ test("Acquisition campaigns balance bonus offer assignments and carry them to si
   assert.ok(report.bonus_offers.some((row: any) => row.token === firstView.bonus_offer.token && row.signups === 1));
 });
 
+test("Changing an offer set's tiers reaches the visitors and organizations already assigned to it", async () => {
+  // FM-321: Meta 6/19 B went from a split test to one offer (50% match from $100) by saving the
+  // same sets, tokens kept, with the new tiers. Nobody assigned earlier may keep the old offer.
+  const suffix = Math.random().toString(36).slice(2, 10);
+  const campaignCode = `BONUS-UNIFY-${suffix}`.toUpperCase();
+  const landingPage = "/portal/landing/variants/measurements/";
+  const fullMatch = [
+    { customer_pays: 100, match_percent: 50 },
+    { customer_pays: 250, match_percent: 50 },
+    { customer_pays: 500, match_percent: 50 }
+  ];
+  const saved = await staffInject("POST", "/v1/internal/crm/referrals/acquisition/campaigns", {
+    display_name: `Bonus Unify ${suffix}`,
+    code: campaignCode,
+    campaign_type: "facebook",
+    landing_page: landingPage,
+    bonus_offer_sets: [
+      { id: "offer-set-1", label: "Offer Set 1", tiers: [{ customer_pays: 100, match_percent: 25 }, { customer_pays: 250, match_percent: 50 }, { customer_pays: 500, match_percent: 50 }] },
+      { id: "offer-set-2", label: "Offer Set 2", tiers: fullMatch }
+    ]
+  });
+  const setsBefore = saved.campaign.metadata.bonus_offer_sets;
+  const smallToken = String(setsBefore["offer-set-1"].token);
+  const track = (extra: Record<string, unknown>) => inject("POST", "/v1/platform/acquisition/public/track", {
+    cid: campaignCode,
+    landing_page: landingPage,
+    page_url: `https://app.1m8.ai${landingPage}?cid=${campaignCode}`,
+    browser_user_agent: "node-test",
+    ...extra
+  });
+  const view = await track({ client_ip: "203.0.113.71", xid: smallToken });
+  assert.equal(view.bonus_offer.token, smallToken);
+  assert.equal(view.bonus_offer.tiers[0].match_percent, 25);
+  const registered = await inject("POST", "/v1/platform/auth/legacy-action", {
+    action: "register",
+    name: "Bonus Unify Owner",
+    company: `Bonus Unify Co ${suffix}`,
+    phone: nextTestPhone(),
+    email: `bonus-unify-${suffix}@example.test`,
+    password: "secret123",
+    acquisition_code: campaignCode,
+    acquisition_attribution_id: view.acquisition_attribution_id,
+    acquisition_bonus_token: smallToken,
+    xid: smallToken,
+    landing_variant: "measurements",
+    campaign_type: "facebook"
+  });
+  const orgId = registered.organization?.id || registered.membership?.organization_id;
+  assert.ok(orgId);
+  const referrals = await import("../internal/crm/referrals.js");
+  assert.equal((await referrals.acquisitionBonusQuoteForOrganization(orgId, 100)).bonus_dollars, 25);
+
+  // What the admin sends: every set, with its id and token, now carrying the one offer.
+  const unified = await staffInject("POST", "/v1/internal/crm/referrals/acquisition/campaigns", {
+    id: saved.campaign.id,
+    display_name: saved.campaign.display_name,
+    code: campaignCode,
+    campaign_type: "facebook",
+    landing_page: landingPage,
+    bonus_offer_sets: Object.values(setsBefore).map((set: any) => ({ id: set.id, token: set.token, label: set.label, status: set.status, tiers: fullMatch }))
+  });
+  const setsAfter = unified.campaign.metadata.bonus_offer_sets;
+  assert.deepEqual(Object.values(setsAfter).map((set: any) => set.token).sort(), Object.values(setsBefore).map((set: any) => set.token).sort());
+
+  const offer = await referrals.acquisitionBonusOfferForOrganization(orgId);
+  assert.equal(offer.token, smallToken);
+  assert.deepEqual(offer.tiers.map((tier: any) => [tier.customer_pays, tier.match_percent]), [[100, 50], [250, 50], [500, 50]]);
+  const quote = await referrals.acquisitionBonusQuoteForOrganization(orgId, 100, smallToken);
+  assert.equal(quote.valid, true);
+  assert.equal(quote.match_percent, 50);
+  assert.equal(quote.bonus_dollars, 50);
+  assert.equal((await referrals.acquisitionBonusQuoteForOrganization(orgId, 99)).reason, "below_bonus_threshold");
+
+  const returning = await track({ client_ip: "203.0.113.71", xid: smallToken });
+  assert.equal(returning.bonus_offer.token, smallToken);
+  assert.equal(returning.bonus_offer.tiers[0].match_percent, 50);
+  for (const ip of ["203.0.113.72", "203.0.113.73", "203.0.113.74"]) {
+    const fresh = await track({ client_ip: ip });
+    assert.deepEqual(fresh.bonus_offer.tiers.map((tier: any) => [tier.customer_pays, tier.match_percent]), [[100, 50], [250, 50], [500, 50]]);
+  }
+});
+
 test("Acquisition lookup resolves cloned landing pages when template campaign data is stale", async () => {
   const suffix = Math.random().toString(36).slice(2, 10);
   const campaignCode = `META619A-${suffix}`.toUpperCase();
