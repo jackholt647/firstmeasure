@@ -9,8 +9,8 @@ This is the first production release cut from canonical since production moved t
 | Canonical (platform) | `CANON_SHA` (`e05b5f5b` on Nov 2 00:30 UTC, with the feature flag console API and keys; take the tip at go time) | `devpush/codex/consolidated-firstmeasure-20260923` |
 | Lane (editor) | `LANE_SHA` = **`a64f67a7`** (Nov 2 20:35 UTC: student progress per curriculum and FM-320). **Not the lane tip:** editor modeling work from `4691f0fe` onward (line centers in plane mode, ground arc selection, repeat extrusion of curved faces, extruding floating lines and curves) stays on dev until Jack releases it as a batch. A tracker FirstMeasure bug fix that lands on the lane after `a64f67a7` must be cherry-picked onto the candidate, not taken with the tip. | `devpush/lane/measure-internal` |
 | Candidate | `CANDIDATE_SHA` | The commit from "Build the candidate" |
-| Production today | `226e87fd56341e0701358de9dfe22e5d5637781d` | All 8 hosts; production-live `cd686cca` |
-| Rollback | `226e87fd…`, channel archive `a2f4e4f4c753e03144bbd26f680f04ce837d05fa513a345ef731dabccaf596b8` | Kept on every role |
+| Production today | `51c70f907423ed8245495838a9939908f7038700` | Compat and worker checked Nov 3 01:15 UTC; production-live `c03bca5d`. Two tracker hotfixes after this record was written, both already in lane `a64f67a7`: FM-309 `f9c88a71` (users export country, lane `72f3a91a`, same file hashes) and FM-320 `51c70f90` (lane `a64f67a7`, every added line present) |
+| Rollback | `51c70f90…`, channel archive `eb8a98be95df042cd874ba1c8e00be7eb4c100db07ee6e689fe06ab932d84b60` | Kept on every role (record: `production-hotfix-20261102-51c70f90.md` on production-live) |
 
 ## Build the candidate
 
@@ -163,7 +163,7 @@ Connections: `max_connections` is 800, with 145 active at the last check; pool 4
 
 ## Rollback
 
-Every role keeps `226e87fd`: republish `a2f4e4f4…` to the channel, then `activate-release.sh 226e87fd… <service>`, web nodes first this time.
+Every role keeps `51c70f90`: republish `eb8a98be…` to the channel, then `activate-release.sh 51c70f90… <service>`, web nodes first this time. Confirm the rollback release is still on every role before step 5.
 
 - **One trap:** production has no `document_checkpoints` table. After the candidate writes version 2 for that store, old code skips creating the table and document history fails. On rollback run `DELETE FROM platform_sql_schemas WHERE store_id='document-checkpoints'` so old code recreates what it needs. New revision tables stay and are ignored.
 - **Not reversed:** emails, charges, republished template copies.
