@@ -38,7 +38,11 @@
   return result;
  }
  const coreSlots=[['back-left','Back left'],['back','Back'],['back-right','Back right'],['left','Left'],[null,'Video'],['right','Right'],['front-left','Front left'],['front','Front'],['front-right','Front right']];
- const isVideoFile=file=>!file.notes&&/\.(mp4|webm|mov)(?:[?#].*)?$/i.test(file.original_name||file.name||file.src||'');
+ // A file's type comes from the first of its label, its name and its stored URL that has an extension:
+ // a Full House customer reference is labelled "Structure 1 · front-left" but stored as customer-reference-0.jpg.
+ const extensionOf=value=>(/\.([a-z0-9]{2,5})(?:[?#].*)?$/i.exec(String(value||''))?.[1]||'').toLowerCase();
+ const fileExtension=file=>extensionOf(file.original_name)||extensionOf(file.name)||(/^data:/i.test(file.src||'')?'':extensionOf(file.src));
+ const isVideoFile=file=>!file.notes&&/^(mp4|webm|mov)$/.test(fileExtension(file));
  function coreViews(files){return coreSlots.map(([slot,title])=>({slot,title,file:slot?files.find(f=>(f.elevation_view||f.slot)===slot&&!f.notes):files.find(isVideoFile)||null}));}
  const favoritePrefix = 'internal-markup-favorite-', markupPrefix = 'internal-markup-';
  const fileId = name => name.replace(/^internal-resource-(?:v2-)?/, '').slice(0, 36);
@@ -59,7 +63,7 @@
   }
   state.finalizeSources.notes=notes.trim()?notes:'';
  }
- if(typeof module!=='undefined'&&module.exports){module.exports={referenceCatalog,coreViews,referenceCache,mergeSubmissionSources};return;}
+ if(typeof module!=='undefined'&&module.exports){module.exports={referenceCatalog,coreViews,referenceCache,mergeSubmissionSources,fileExtension,isVideoFile};return;}
  function boot() {
   const host = document.getElementById('google-earth-wrapper'), tabs = host?.querySelector('.map-view-tabs');
   if (!host || !tabs) return;
@@ -305,7 +309,7 @@
    await settleMarkup();epoch++;reset();inspector='';updateDrawers();coreActive=true;empty.hidden=true;
    $('.resource-core-grid').hidden=false;$('[data-action="coreViews"]').setAttribute('aria-pressed','true');$('.resource-filename').textContent='';renderList();remember();
   }
-  const isImageFile=file=>!file.notes&&(/\.(png|jpe?g|gif|webp|avif|bmp)$/i.test(file.original_name||file.name||'')||/^data:image\//.test(file.src||''));
+  const isImageFile=file=>!file.notes&&(/^(png|jpe?g|gif|webp|avif|bmp)$/.test(fileExtension(file))||/^data:image\//.test(file.src||''));
   const slotNames={front:'Front',back:'Back',left:'Left',right:'Right','front-left':'Front Left','front-right':'Front Right','back-left':'Back Left','back-right':'Back Right'};
   const displayName=file=>(file.elevation_view?(slotNames[file.elevation_view]||file.elevation_view)+' · ':'')+label(file.name);
   // Categories are QA, Tech and Customer; within each, videos lead, then newest first.
@@ -428,7 +432,7 @@
   async function open(file, options = {}) {
    if (!file) return; await settleMarkup(); const ticket = ++epoch; reset(); current = file; markActive(); panel.classList.add('is-loading');
    if (!options.keepInspector) inspector = ''; updateDrawers();
-   empty.textContent = 'Loading reference…'; const src = sourceUrl(file), ext = (file.original_name||file.name).split('.').pop().toLowerCase();
+   empty.textContent = 'Loading reference…'; const src = sourceUrl(file), ext = fileExtension(file);
    try {
     const saved = await latestMarkup(file); if (ticket !== epoch) return;
     const favorite = favorites.find(item => item.frame === file.name);
@@ -771,7 +775,7 @@
    delete: () => { if (selected >= 0) { snapshot(); marks.splice(selected, 1); selected = -1; controls(); draw(); } },
    frame: captureFrame, favorites: () => { renderFavorites(); showInspector('favorites'); }, favorite: () => startFavorite(),
    returnVideo: async () => {if(media?.videoWidth){const saved=savedFrameAtPlayhead();if(saved)await open(saved);else startFavorite(true);}else if (frameSource) { const source = frameSource; await open(source.file, { time: source.time }); } },
-   download: () => { if (current&&!current.notes) { const link = document.createElement('a'); link.href = sourceUrl(current); link.download = label(current.name); link.click(); } },
+   download: () => { if (current&&!current.notes) { const link = document.createElement('a'); link.href = sourceUrl(current); const name = label(current.name), ext = fileExtension(current); link.download = ext && extensionOf(name) !== ext ? name + '.' + ext : name; link.click(); } },
    applyText: () => { if (marks[selected]?.type === 'note') { snapshot(); marks[selected].text = $('.resource-note input').value; draw(); } }
   };
   panel.addEventListener('click', event => {
