@@ -2986,28 +2986,13 @@
       </div>`;
   }
 
-  /* The name inputs on the welcome page, if shown: false (and marked) while one is empty. */
-  function welcomeNamesComplete(){
-    const fields = [
+  /* The name inputs on the welcome page, if shown. Both are optional (Jack, 2026-11-03): whatever was typed is
+     saved with the branding, and an empty field leaves the saved value as it is. */
+  function readWelcomeNames(){
+    [
       { input: document.getElementById('obFullName'), key: 'fullName' },
       { input: document.getElementById('obCompanyName'), key: 'companyName' },
-    ].filter(field => field.input);
-    fields.forEach(({ input, key }) => { profileState[key] = String(input.value || '').trim(); });
-    const missing = fields.filter(({ key }) => !profileState[key] || (key === 'companyName' && isPlaceholderOrgName(profileState[key])));
-    fields.forEach(({ input }) => {
-      const invalid = missing.some(field => field.input === input);
-      input.classList.toggle('ob-input-invalid', invalid);
-      input.setAttribute('aria-invalid', invalid ? 'true' : 'false');
-    });
-    if (!missing.length) return true;
-    // Name only what is missing (1M8-250).
-    const missingKeys = missing.map(({ key }) => key).join(',');
-    if (missingKeys === 'fullName') showToast((globalThis.PlatformLanguage?.text("onboarding","ob_full_name_label","Your name") ?? "Your name"), (globalThis.PlatformLanguage?.text("onboarding","ob_name_missing_body","Enter your name to continue.") ?? "Enter your name to continue."), false);
-    else if (missingKeys === 'companyName') showToast((globalThis.PlatformLanguage?.text("onboarding","ob_company_name_label","Company name") ?? "Company name"), (globalThis.PlatformLanguage?.text("onboarding","ob_company_missing_body","Enter your company name to continue.") ?? "Enter your company name to continue."), false);
-    else showToast((globalThis.PlatformLanguage?.text("onboarding","ob_names_missing_title","Your name and company") ?? "Your name and company"), (globalThis.PlatformLanguage?.text("onboarding","ob_names_missing_body","Enter your name and company name to continue.") ?? "Enter your name and company name to continue."), false);
-    missing[0].input.focus();
-    missing[0].input.scrollIntoView({ block: 'center', behavior: 'smooth' });
-    return false;
+    ].filter(field => field.input).forEach(({ input, key }) => { profileState[key] = String(input.value || '').trim(); });
   }
 
   function renderPage0(){
@@ -3533,7 +3518,7 @@
 
     async function saveBrandingAndContinue(){
       if (skip0.disabled || next0.disabled) return;
-      if (!welcomeNamesComplete()) return;
+      readWelcomeNames();
       skip0.disabled = true;
       next0.disabled = true;
       try {
@@ -3668,7 +3653,7 @@
         } catch(e){ /* silent */ }
       }
       try {
-        const companyName = isPlaceholderOrgName(ORG_NAME) ? profileState.companyName : '';
+        const companyName = isPlaceholderOrgName(ORG_NAME) && !isPlaceholderOrgName(profileState.companyName) ? profileState.companyName : '';
         const fullName = savedFullName() ? '' : profileState.fullName;
         const { data } = await postAction('org_update_my', {
           accent: brandState.primary,
