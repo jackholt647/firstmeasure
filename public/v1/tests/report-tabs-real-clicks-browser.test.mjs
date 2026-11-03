@@ -138,7 +138,7 @@ for (const support of [false, true]) for (const route of [true, false]) {
       for (const id of ['measurement-a', 'measurement-b', 'measurement-a']) {
         await page.evaluate(next => openProject(next), project(id));
         let state = await view(page);
-        assert.deepEqual(state.tabs.filter(t => !t.startsWith('project:')), ['summary', 'standard', 'customer', 'xml', ...(support ? ['changes'] : [])], JSON.stringify(state));
+        assert.deepEqual(state.tabs.filter(t => !t.startsWith('project:')), [...(support ? ['summary', 'model'] : ['model', 'summary']), 'standard', 'customer', 'xml', ...(support ? ['changes'] : [])], JSON.stringify(state));
         for (const [step, script] of Object.entries(between)) {
           for (const tabId of ['summary', 'standard', 'customer', 'xml']) {
             await clickTab(page, tabId);
