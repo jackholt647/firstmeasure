@@ -1,11 +1,11 @@
 {
   "kind": "guided_tab_faqs",
   "id": "project.measurements",
-  "revision": 1,
-  "sha256": "6e6cd6c9770484731844d94ec78c4cfe1c59b61817ea316713e5aa1e6494f67a",
+  "revision": 2,
+  "sha256": "e1648cd9cdc0c8ac6503bf806f43441da48006624e36fd07c1dec0be254af718",
   "title": "Questions on project.measurements",
-  "updated_at": "2026-10-28T00:40:02.983Z",
-  "updated_by": "generator",
+  "updated_at": "2026-11-03T02:15:23.923Z",
+  "updated_by": "key:ck_7897b5259beb4fa3 agents:jack-pc",
   "data": {
     "tab": "project.measurements",
     "questions": [
@@ -24,15 +24,6 @@
           "text": "How do I order another report?"
         },
         "action": "ask"
-      },
-      {
-        "id": "reports.tour",
-        "text": {
-          "key": "gx_faq_reports_tour",
-          "text": "Show me the tutorial again"
-        },
-        "action": "play",
-        "experience": "reports.tab_tutorial"
       }
     ]
   }
