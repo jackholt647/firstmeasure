@@ -1209,7 +1209,25 @@
         }
         return group.map(w=>w.id);
     }
-    const api={canonicalGeneratedWalls,chimneyContact,layerSetback,roofLayers:roof=>roofLayers(roof,surfaces(roof)),soffitWithoutSources,splitParameters,mergeCoplanar,build,buildSources,extrude,deduplicate,topology,simplifyGeneratedRing,surveyedGeneratedRun,cleanSurveyRings,cleanSurveyedFaces,generatedGroupOutline,plane,contains,onEdge,generatedMoveGroup,INCH};
+    // A chimney splits a generated wall into `<id>:chimney-cut-N` pieces
+    // (WallChimneys.compose). A draft made before the chimney reached that
+    // wall lists only <id>, but its outline already covers the new pieces:
+    // they belong to the draft. Otherwise a piece is drawn a second time as a
+    // generated wall that no selection reaches, so it cannot be deleted. A
+    // piece outside the draft's outline stays a wall of its own.
+    function draftOwnsWall(d,w) {
+        if(!d||!w) return false;
+        const members=d.members||[];if(members.includes(w.id)) return true;
+        const cut=String(w.id).indexOf(':chimney-cut-');
+        if(cut<0||d.frame||!d.origin||!d.u||!members.includes(w.id.slice(0,cut))) return false;
+        const outlines=d.sketch?.outlines||[];if(!outlines.length) return false;
+        const ps=[w.bottom[0],w.bottom[1],w.top[1],w.top[0]];
+        if(ps.some(p=>Math.abs((p.x-d.origin.x)*d.u.y-(p.y-d.origin.y)*d.u.x)>.01)) return false;
+        const qs=ps.map(p=>({x:(p.x-d.origin.x)*d.u.x+(p.y-d.origin.y)*d.u.y,y:p.z}));
+        const centre={x:qs.reduce((s,p)=>s+p.x,0)/qs.length,y:qs.reduce((s,p)=>s+p.y,0)/qs.length};
+        return [...qs,centre].every(p=>outlines.some(points=>inside(p,points)));
+    }
+    const api={canonicalGeneratedWalls,chimneyContact,layerSetback,roofLayers:roof=>roofLayers(roof,surfaces(roof)),soffitWithoutSources,splitParameters,mergeCoplanar,build,buildSources,extrude,deduplicate,topology,simplifyGeneratedRing,surveyedGeneratedRun,cleanSurveyRings,cleanSurveyedFaces,generatedGroupOutline,plane,contains,onEdge,generatedMoveGroup,draftOwnsWall,INCH};
     if(typeof module!=='undefined'&&module.exports)module.exports=api;
     else root.WallGeometry=api;
 })(typeof window!=='undefined'?window:globalThis);
