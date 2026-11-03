@@ -1,11 +1,11 @@
 {
   "kind": "capability_defaults",
   "id": "platform",
-  "revision": 2,
-  "sha256": "b948755282a09cf8f7f8e115f3cfb2df6e69e3402351eaa4733b4b1b388a14e6",
+  "revision": 3,
+  "sha256": "8bb8f66261a0a828d4704ca052c5d1cdf159cb9c250e5399e742b629bc284743",
   "title": "Capability defaults",
-  "updated_at": "2026-10-28T08:35:35.056Z",
-  "updated_by": "router-fm-283",
+  "updated_at": "2026-11-03T22:44:19.023Z",
+  "updated_by": "key:ck_7897b5259beb4fa3 agents:jack-pc",
   "data": {
     "values": {
       "platform.collaboration": true,
@@ -126,7 +126,6 @@
       "crew.field_payments": true,
       "checklists.templates": true,
       "checklists.supervision": true,
-      "checklists.crew_send": true,
       "money.profitability": true,
       "money.payment_schedules": true,
       "money.invoices": false,
@@ -212,7 +211,9 @@
       "comms.auto_response": false,
       "apps.live_chat": false,
       "live_chat.ai_agent": false,
-      "live_chat.suggested_responses": true
+      "live_chat.suggested_responses": true,
+      "firstmeasure.holiday_lights": true,
+      "checklists.crew_send": true
     }
   }
 }
