@@ -95,7 +95,7 @@
         { id: 'tiles', label: (globalThis.PlatformLanguage?.text("firstmate-apps-manifest","subview_projects_tiles","Tiles") ?? "Tiles"), icon: 'fa-grip', route: { projectView: 'tiles' } },
         { id: 'map', label: (globalThis.PlatformLanguage?.text("firstmate-apps-manifest","subview_projects_map","Map") ?? "Map"), icon: 'fa-map-location-dot', route: { projectView: 'map' }, requires: { appFlags: [['apps', 'project_map']] } }
       ],
-      bundles: [versionedBundle('partners/shared-list.js','20261001-sharing-polish-v1'), versionedBundle('projects/map-view.js', '20261026-mobile-fixes-b'), versionedBundle('projects/viewer.js', '20261101-report-kind-tag')]
+      bundles: [versionedBundle('partners/shared-list.js','20261001-sharing-polish-v1'), versionedBundle('projects/map-view.js', '20261026-mobile-fixes-b'), versionedBundle('projects/viewer.js', '20261103-report-tags-roof')]
     },
     {
       id: 'portal.crm',
@@ -363,7 +363,7 @@
       kind: 'project_modal_app',
       surfaces: ['project_modal'],
       requiresContext: ['project'],
-      bundles: [...widgetBundles, versionedBundle('measurements/roof-viewer.js', '20261101-prod-sync'), versionedBundle('measurements/holiday-lights.js', '20261030-holiday-lights-bulb-size'), versionedBundle('measurements/project.js', '20261102-order-or-status')]
+      bundles: [...widgetBundles, versionedBundle('measurements/roof-viewer.js', '20261103-report-rounding'), versionedBundle('measurements/holiday-lights.js', '20261030-holiday-lights-bulb-size'), versionedBundle('measurements/project.js', '20261103-reports-3d-tab')]
     },
     {
       id: 'project.checklists',
