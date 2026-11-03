@@ -69,3 +69,20 @@ test('Face type panel: a Glass switch for a selected door or garage door only, o
   await glass.click();assert.equal(await glass.isChecked(),false);assert.equal(await page.evaluate(()=>'glass' in current.feature),false);
  }finally{await browser.close();}
 });
+
+test('placement menu: a Glass box for doors and garage doors that sets glass for the placement session',{skip:!chromiumPath&&'no Chromium on this host'},async()=>{
+ const {chromium}=require('../public/v1/node_modules/playwright-core');
+ const browser=await chromium.launch({headless:true,executablePath:chromiumPath,args:['--no-sandbox']});
+ try{const page=await browser.newPage();await page.setContent('<body class="wall-mode-active"><button id="btnToggleTypes">Types</button><div id="three-view-wrapper" style="position:relative;height:900px"></div></body>');
+  for(const name of ['exterior_geometry','wall_solid_geometry'])await page.addScriptTag({path:SCRIPTS+name+'.js'});await page.addScriptTag({path:SCRIPTS+'wall_features.js'});
+  await page.evaluate(()=>{window.active=null;window.calls=[];
+   WallFeatures.mountUI((type,index)=>{active={type,index,trimInches:0,glass:active?.type&&active.session===1?active.glass:false,session:1};},()=>null,()=>false,{placement:()=>active,placementGlass(on){calls.push(on);if(!active)return false;active={...active,glass:on};return true;}});});
+  await page.getByRole('button',{name:/^Door/}).first().click();
+  const glass=page.getByRole('checkbox',{name:'Place as glass'});
+  assert.equal(await glass.isVisible(),true,'shown for doors');assert.equal(await glass.isChecked(),false,'off until ticked');
+  await glass.check();assert.deepEqual(await page.evaluate(()=>calls),[true]);assert.equal(await page.evaluate(()=>active.glass),true);assert.equal(await glass.isChecked(),true);
+  await page.evaluate(()=>{active={...active,type:'window'};WallFeatures.refreshUI();});assert.equal(await glass.isVisible(),false,'no box for windows');
+  await page.evaluate(()=>{active={...active,type:'garage'};WallFeatures.refreshUI();});assert.equal(await glass.isChecked(),true,'garage doors in the same session stay glass');
+  await page.evaluate(()=>{active={type:'door',index:0,trimInches:0,glass:false,session:2};WallFeatures.refreshUI();});assert.equal(await glass.isChecked(),false,'a new session starts unticked');
+ }finally{await browser.close();}
+});
