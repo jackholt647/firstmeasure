@@ -10,8 +10,8 @@ import { env } from "../src/config/env.js";
  * when opened directly, so it has no cookies, storage or same-origin access. Only ids listed here are ever fetched.
  */
 
-/** The element id of Try It Now on Ben's page. This one line is all that changes if the page uses another id. */
-export const EXTERIORS_POPUP_TRY_BUTTON_ID = "try-it-now";
+/** The element id of the action button on Ben's page ("Get Started"). This one line is all that changes if the page uses another id. */
+export const EXTERIORS_POPUP_TRY_BUTTON_ID = "exteriors-popup-get-started";
 
 type Billboard = { url: string; actionElementId: string; standIn: string };
 
