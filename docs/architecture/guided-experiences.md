@@ -516,7 +516,11 @@ One overlay tour per tab, each its own `guided_experience` entry:
 `photos.tab_tutorial` (`project.photos`, `platform.project_photos`),
 `reports.tab_tutorial` (`project.measurements`, `apps.firstmeasure`) and
 `customer_portal.tab_tutorial` (`project.customer_portal`,
-`platform.customer_portal`). Each is per person and replayable, plays on the
+`platform.customer_portal`). **The Reports tour is off for now** (Jack, Nov 2):
+its entry and its replay question were removed from the library, so it is in no
+snapshot; revert `reports.tab_tutorial` to revision 1 and
+`guided_tab_faqs/project.measurements` to revision 1 on dev, export, and un-skip
+its browser tests to bring it back. Each is per person and replayable, plays on the
 first `tab_opened` of its tab wherever the tab's capability is on, and has an
 intro, its steps on the tab's own hooks (a step whose control is not on the
 page, such as a report's model before it is ready, is skipped) and an outro

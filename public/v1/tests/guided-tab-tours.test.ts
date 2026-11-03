@@ -6,9 +6,10 @@ import path from "node:path";
 import test, { after } from "node:test";
 import { closePlatformFixtureStores, enableExpandedPlatformFixture } from "./helpers/platform-fixture.js";
 
-// The project tab tours beside Materials (docs/architecture/guided-experiences.md): Photos, Reports and Customer
-// Portal. Each is valid data, plays the first time its tab opens where the tab is available, and can be replayed
-// from the agent's "Show me the tutorial again" question on that tab.
+// The project tab tours beside Materials (docs/architecture/guided-experiences.md): Photos and Customer Portal.
+// Each is valid data, plays the first time its tab opens where the tab is available, and can be replayed from the
+// agent's "Show me the tutorial again" question on that tab. The Reports tour is off for now (removed from the library
+// on Nov 2; library revision 1 of reports.tab_tutorial brings it back).
 const dir = await mkdtemp(path.join(os.tmpdir(), "guided-tab-tours-"));
 Object.assign(process.env, { NODE_ENV: "test", PLATFORM_STORAGE_ROOT: path.join(dir, "platform"), PRICEBOOK_STORAGE_ROOT: path.join(dir, "pricebook"), FIRSTMEASURE_STORAGE_ROOT: path.join(dir, "firstmeasure"), FIRSTMEASURE_INDEX_DB_PATH: path.join(dir, "index.sqlite"), PLATFORM_HEARTBEAT_DISABLED: "1" });
 after(async () => { await closePlatformFixtureStores(); await rm(dir, { recursive: true, force: true }).catch(() => {}); });
@@ -16,7 +17,6 @@ after(async () => { await closePlatformFixtureStores(); await rm(dir, { recursiv
 // `sources`: the files that draw the tab, where every target's hooks must be found.
 const TOURS = [
   { id: "photos.tab_tutorial", tab: "project.photos", capability: "platform.project_photos", sources: ["libraries/apps/photos/project.js", "libraries/apps/photos/feed.js"] },
-  { id: "reports.tab_tutorial", tab: "project.measurements", capability: "apps.firstmeasure", sources: ["libraries/apps/measurements/project.js", "portal/scripts/project_viewer.js"] },
   { id: "customer_portal.tab_tutorial", tab: "project.customer_portal", capability: "platform.customer_portal", sources: ["libraries/apps/customer-portal/project.js"] }
 ];
 const ORG = "org_tab_tours";
@@ -63,6 +63,8 @@ test("each tab tour registers, validates, and words every step with a gx_ key", 
     assert.ok(faqs.questions.length <= 8);
   }
   assert.equal(experience("documents.tab_tutorial"), null, "no Docs tour while the Documents tab is being changed");
+  assert.equal(experience("reports.tab_tutorial"), null, "no Reports tour for now");
+  assert.equal(tabFaqs("project.measurements")!.questions.some((question) => question.action === "play"), false, "and no replay question for it");
 });
 
 test("every tour target names hooks the tab's own source draws", async () => {
@@ -113,8 +115,6 @@ test("a fresh organization's people get each tour on first view where the tab is
 // Steps on features an organization can switch off, and the capability each names (step eligibility, checked on the
 // server). `a|b` is either.
 const GATED = [
-  { tour: "reports.tab_tutorial", tab: "project.measurements", step: "support", capability: "firstmeasure.report_followup" },
-  { tour: "reports.tab_tutorial", tab: "project.measurements", step: "summary", capability: "firstmeasure.measurement_report_summary" },
   { tour: "customer_portal.tab_tutorial", tab: "project.customer_portal", step: "options", capability: "scheduling.customer_rescheduling|customer_portal.guest_links" },
   { tour: "customer_portal.tab_tutorial", tab: "project.customer_portal", step: "media", capability: "platform.customer_portal_media" }
 ];
@@ -145,11 +145,6 @@ test("a tour is served without a step whose feature is off, and with it when it 
       assert.ok((await stepsFor("gate_one", gate.tour, gate.tab, one)).includes(gate.step), `${gate.tour}/${gate.step} is sent with ${key} alone`);
     }
   }
-  // Reports with Support off (the default, and the MVP platform's): every other step still plays, in order.
-  assert.deepEqual(await stepsFor("support_off", "reports.tab_tutorial", "project.measurements", { ...ALL_ON, "firstmeasure.measurement_report_summary": true, "firstmeasure.report_followup": false }), ["intro", "standard", "customer", "model", "summary", "outro"]);
-  assert.deepEqual(await stepsFor("support_on", "reports.tab_tutorial", "project.measurements", { ...ALL_ON, "firstmeasure.measurement_report_summary": true, "firstmeasure.report_followup": true }), ["intro", "standard", "customer", "model", "summary", "support", "outro"]);
-  // A fresh organization resolves its own capabilities: report follow-up is off by default, so there is no Support step.
-  assert.equal((await service.availableExperiences(person("fresh_reports", null), { tab: "project.measurements" })).experiences.find((item) => item.id === "reports.tab_tutorial")!.steps.some((step: any) => step.id === "support"), false);
 });
 
 test("finishing a tour disarms its first-view trigger; the replay chip still plays it", async () => {

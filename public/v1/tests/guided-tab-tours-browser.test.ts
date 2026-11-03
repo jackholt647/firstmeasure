@@ -23,6 +23,9 @@ const core = await readFile(new URL("../../libraries/guided-experiences/guided-e
 const OVERRIDES: Record<string, Record<string, boolean>> = {};
 const person = (userId: string) => ({ orgId: ORG, userId, role: "member", permissions: { view_projects: true }, branchId: "default", organization: { data: {} }, capabilities: { effectiveByKey: { ...CAPABILITIES, ...OVERRIDES[userId] } } }) as any;
 
+// The Reports tour is off for now (removed from the config library on Nov 2; revision 1 of reports.tab_tutorial brings
+// it back). Its tests stay, skipped, for when it returns.
+const REPORTS_OFF = "the Reports tour is off for now";
 const TABS = {
   photos: {
     id: "photos.tab_tutorial", route: "photos", app: "project.photos",
@@ -134,7 +137,7 @@ async function walk(page: Page, experienceId: string) {
 }
 
 for (const [name, tab] of Object.entries(TABS)) {
-  test(`${name}: the tour plays on first view, finishes, stays finished, and replays from the agent's question`, async () => {
+  test(`${name}: the tour plays on first view, finishes, stays finished, and replays from the agent's question`, { skip: name === "reports" && REPORTS_OFF }, async () => {
     const userId = `user_${name}`;
     const first = await open(tab, userId);
     try {
@@ -168,7 +171,7 @@ for (const [name, tab] of Object.entries(TABS)) {
   });
 }
 
-test("reports: a report without its model or support yet skips those steps", async () => {
+test("reports: a report without its model or support yet skips those steps", { skip: REPORTS_OFF }, async () => {
   const html = TABS.reports.html.replace('<button data-tab="model">Model</button>', "").replace('<button data-tab="changes">Support</button>', "");
   const { page, errors } = await open(TABS.reports, "user_reports_pending", html);
   try {
@@ -178,7 +181,7 @@ test("reports: a report without its model or support yet skips those steps", asy
   } finally { await page.close(); }
 });
 
-test("reports: with report follow-up off the Support step is never played, even with its button on the page", async () => {
+test("reports: with report follow-up off the Support step is never played, even with its button on the page", { skip: REPORTS_OFF }, async () => {
   OVERRIDES.user_reports_no_support = { "firstmeasure.report_followup": false };
   const { page, errors } = await open(TABS.reports, "user_reports_no_support");
   try {
@@ -309,22 +312,22 @@ test("photos: a tab's tour waits for the app welcome's cover to finish before it
   } finally { await page.close(); }
 });
 
-test("reports: a preloaded tour the server says is already done fades away and records nothing", async () => {
-  const userId = "user_reports_done_elsewhere";
-  const { page, errors } = await open(TABS.reports, userId);
+test("portal: a preloaded tour the server says is already done fades away and records nothing", async () => {
+  const userId = "user_portal_done_elsewhere";
+  const { page, errors } = await open(TABS.portal, userId);
   try {
     await page.evaluate(() => (window as any).FirstMateGuides.preload("p1"));
     // Finished in another browser tab after this page preloaded.
     const service = await import("../guided-experiences/service.js");
-    await service.recordGuidedEvent(person(userId), TABS.reports.id, { type: "dismiss", tab: TABS.reports.app, project_id: "p1" });
+    await service.recordGuidedEvent(person(userId), TABS.portal.id, { type: "dismiss", tab: TABS.portal.app, project_id: "p1" });
     serverDelay = 800;
-    const ms = await timeToFirstFrame(page, TABS.reports.app);
+    const ms = await timeToFirstFrame(page, TABS.portal.app);
     assert.ok(ms < 150, `first frame after ${Math.round(ms)} ms`);
     await page.waitForFunction(() => !document.querySelector(".gx-pop") && !document.querySelector(".gx-ov"), null, { timeout: 4000 });
     await page.waitForTimeout(1500);
     assert.equal(await page.locator(".gx-pop").count(), 0, "it does not come back");
     const { listEvents } = await import("../guided-experiences/store.js");
-    const recorded = (await listEvents(ORG, TABS.reports.id)).filter((event: any) => event.user_id === userId).map((event: any) => event.type);
+    const recorded = (await listEvents(ORG, TABS.portal.id)).filter((event: any) => event.user_id === userId).map((event: any) => event.type);
     assert.deepEqual(recorded, ["dismiss"], "only the other tab's close");
     assert.deepEqual(errors, []);
   } finally { serverDelay = 0; await page.close(); }
