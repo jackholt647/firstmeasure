@@ -504,6 +504,16 @@ export async function listDocuments(orgId: string, collectionValue: string) {
   const result = await queryPostgres<DocumentRow>("SELECT document FROM platform_documents WHERE organization_id = $1 AND collection = $2 ORDER BY updated_at DESC", [id, collection]);
   return result.rows.map((row) => asObject(row.document));
 }
+/** listDocuments with only `id` and the named top-level `data` fields; absent fields are left out. */
+export async function listDocumentFields(orgId: string, collectionValue: string, fields: string[]) {
+  await ensurePostgresPlatformStorage();
+  const collection = assertCollection(collectionValue);
+  const id = await ensureOrg({ query: queryPostgres } as DbExecutor, orgId);
+  const result = await queryPostgres<DocumentRow>(`SELECT jsonb_build_object('id', document->'id', 'data',
+      COALESCE((SELECT jsonb_object_agg(key, value) FROM jsonb_each(document->'data') WHERE key = ANY($3::text[])), '{}'::jsonb)) AS document
+    FROM platform_documents WHERE organization_id = $1 AND collection = $2 ORDER BY updated_at DESC`, [id, collection, fields]);
+  return result.rows.map((row) => asObject(row.document));
+}
 export async function readDocument(orgId: string, collectionValue: string, documentId: string) {
   await ensurePostgresPlatformStorage();
   const collection = assertCollection(collectionValue);

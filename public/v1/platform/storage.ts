@@ -1168,6 +1168,18 @@ export async function listDocuments(orgId: string, collectionValue: string) {
     .sort((a, b) => String(b.updated_at).localeCompare(String(a.updated_at)));
 }
 
+/**
+ * The collection's documents with only `id` and the named `data` fields, in listDocuments order. For per-request
+ * readers of large collections (auth reads every user of the organization): Postgres sends only those fields.
+ */
+export async function listDocumentFields(orgId: string, collectionValue: string, fields: string[]): Promise<Array<{ id: string; data: JsonObject }>> {
+  if (isFirstMeasurePostgresEnabled()) return (await postgresStorage()).listDocumentFields(orgId, collectionValue, fields) as Promise<Array<{ id: string; data: JsonObject }>>;
+  return (await listDocuments(orgId, collectionValue)).map((document) => ({
+    id: document.id,
+    data: Object.fromEntries(fields.filter((field) => Object.hasOwn(document.data ?? {}, field)).map((field) => [field, (document.data as JsonObject)[field]]))
+  }));
+}
+
 export async function readDocument(orgId: string, collectionValue: string, documentId: string) {
   if (isFirstMeasurePostgresEnabled()) return (await postgresStorage()).readDocument(orgId, collectionValue, documentId) as Promise<StoredDocument>;
   const collection = assertCollection(collectionValue);
