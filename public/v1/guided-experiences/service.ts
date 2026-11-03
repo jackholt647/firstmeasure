@@ -95,9 +95,9 @@ async function allowed(ctx: PlatformAuthContext, rules: { capabilities?: string[
   return true;
 }
 
-async function eligible(definition: ExperienceDefinition, ctx: PlatformAuthContext, chooser: ChooserContext, preview = false) {
+async function eligible(definition: ExperienceDefinition, ctx: PlatformAuthContext, chooser: ChooserContext) {
   if (!(await allowed(ctx, definition.eligibility))) return false;
-  if (definition.introduces && !preview && !(await introductionRequested(ctx.orgId, definition.introduces, (await readGlobal(ctx.orgId)).data, object(ctx.organization).created_at))) return false;
+  if (definition.introduces && !(await introductionRequested(ctx.orgId, definition.introduces, (await readGlobal(ctx.orgId)).data, object(ctx.organization).created_at))) return false;
   return !definition.eligibility.when || evaluateConditions(definition.eligibility.when, chooser as unknown as Record<string, unknown>);
 }
 
@@ -211,16 +211,17 @@ export async function availableExperiences(ctx: PlatformAuthContext, surface: { 
 }
 
 /**
- * One experience as this person would see it the first time, for previewing it (FirstMateGuides.preview): no
- * progress, and the introduction it makes counts as asked for. Its capability, permission and condition rules still
- * apply. Reads only; the browser records nothing while a preview plays.
+ * One experience as it is seen the first time, for previewing it (FirstMateGuides.preview): any signed-in person in the
+ * organization, whether or not they could play it for real (its capability, permission and condition rules and the
+ * introduction it makes are not checked), and with no progress. Steps keep their own eligibility. Reads only; the
+ * browser records nothing while a preview plays, and whatever a step opens still checks access on its own (a preview of
+ * the Exteriors popup does not let an organization without Exteriors order one).
  */
 export async function previewExperience(ctx: PlatformAuthContext, experienceId: string, surface: { tab?: string; projectId?: string } = {}) {
   ensureGuidedDefinitions();
   const definition = experience(experienceId);
   if (!definition) throw notFound("guided_experience_missing", "That guided experience does not exist.");
   const chooser = await chooserContext(ctx, surface);
-  if (!(await eligible(definition, ctx, chooser, true))) throw forbidden("guided_experience_ineligible", "This guided experience is not available to you.");
   const resolved = await resolve(definition, ctx, chooser, null);
   if (!resolved) throw forbidden("guided_experience_no_variant", "No version of this guided experience suits you.");
   return resolved;

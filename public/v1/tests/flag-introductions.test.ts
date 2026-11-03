@@ -114,11 +114,18 @@ test("an organization that already had it, or got it some other way, never sees 
   assert.equal(await offered(started), false, "a list that includes it announces nothing to it");
 });
 
-test("a preview shows it as the first time, records nothing, and still needs the flag", async () => {
+test("a preview shows it as the first time to anyone in the organization, and records nothing", async () => {
   const { setFlagForOrganizations } = await console_();
   const preview = (who: Caller) => app.inject({ method: "GET", url: `/v1/guided-experiences/organizations/${who.orgId}/experiences/${ID}/preview`, headers: { cookie: who.cookie } });
+  // Without Exteriors it still previews (ordering one stays refused by the order flow itself), and announces nothing.
   const off = await register("previewoff");
-  assert.equal((await preview(off)).statusCode, 403, "without the flag there is nothing to preview");
+  const offShown = await preview(off);
+  assert.equal(offShown.statusCode, 200, offShown.body);
+  assert.equal(offShown.json().experience.steps[0].options.billboard, "exteriors_popup");
+  assert.equal(await offered(off), false, "previewing does not offer it for real");
+  const { isCapabilityEnabled } = await import("../platform/capabilities.js");
+  assert.equal(await isCapabilityEnabled(off.orgId, FLAG), false, "and does not turn Exteriors on");
+  assert.equal((await app.inject({ method: "GET", url: `/v1/guided-experiences/organizations/${off.orgId}/experiences/${ID}/preview` })).statusCode, 401, "signed in only");
 
   // Plain On is never announced, but can be previewed.
   const plain = await register("previewplain");
