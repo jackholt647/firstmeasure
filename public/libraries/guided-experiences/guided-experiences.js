@@ -6,6 +6,7 @@
  *     refresh()                     reload what this person may play for the current page
  *     preload(projectId)            read once what may play on a project's tabs, so a tab's tour starts at once
  *     play(id, { replay })          play one now (a tutorial replay, a setup from a button)
+ *     preview(id)                   play one as if seen for the first time, recording nothing (trying an announcement)
  *     require(stepId)               ask a setup step (and what it requires) only if the data says it is unanswered
  *     faqs(tab)                     the assistant's suggested questions for a project tab
  *     attachAssistant(drawer, api)  draws those questions above an assistant composer (platform-assistant.js)
@@ -84,6 +85,7 @@
     event: (id, body) => request(orgPath(`/experiences/${encodeURIComponent(id)}/events`), { method:'POST', body }),
     complete: (id, body) => request(orgPath(`/experiences/${encodeURIComponent(id)}/complete`), { method:'POST', body }),
     conversation: (id, body) => request(orgPath(`/experiences/${encodeURIComponent(id)}/conversation`), { method:'POST', body }),
+    preview: (id, tab, projectId) => request(orgPath(`/experiences/${encodeURIComponent(id)}/preview?tab=${encodeURIComponent(tab || '')}&project_id=${encodeURIComponent(projectId || '')}`)),
     billboardUrl: (id) => `${baseUrl()}/billboards/${encodeURIComponent(id)}`
   };
 
@@ -245,6 +247,30 @@
       if (shared.active === token) shared.active = null;
       if (experience) root.dispatchEvent?.(new CustomEvent('fm:guides:ended', { detail: { id: experience.id } }));
       refresh(true).finally(nextInQueue);
+    }
+  }
+
+  /**
+   * Plays an experience as this person would see it the first time, for trying an announcement or tour: whatever they
+   * have seen, and whether its introduction was asked for. Nothing is recorded, so the real one still plays when its
+   * trigger comes. From the console: FirstMateGuides.preview('exteriors.introduction').
+   */
+  async function preview(id){
+    if (shared.active) return { status: 'busy' };
+    const here = where();
+    const experience = object((await api.preview(clean(id), here.tab, here.projectId)).experience);
+    const player = kinds.get(experience.kind);
+    if (!player) return { status: 'unavailable' };
+    const token = { id: experience.id, frame: root };
+    shared.active = token;
+    try {
+      const outcome = await player({ experience, api, track: async () => null, where, L, esc, reducedMotion, options: { preview: true }, control: {}, playChild: async () => ({ status: 'unavailable' }) }) || { status: 'ended' };
+      // An announcement whose billboard is not published shows nothing; say so rather than appear broken.
+      if (outcome.status === 'ended' && experience.kind === 'announcement') console.warn(`Preview ${experience.id}: nothing was shown. Its billboard is not published or did not load.`);
+      return outcome;
+    } finally {
+      if (shared.active === token) shared.active = null;
+      nextInQueue();
     }
   }
 
@@ -1018,7 +1044,7 @@
     /** Development: draws the guided experiences tools into a dev console section (development editors only). */
     devPanel: (container) => devState.editor ? devPanel(container) : null,
     filterProjectTabs, projectFacts,
-    refresh: () => refresh(true), play, faqs, attachAssistant, overlay, where, follow,
+    refresh: () => refresh(true), play, preview, faqs, attachAssistant, overlay, where, follow,
     /**
      * Makes sure a setup step is answered (docs/architecture/setup-steps.md): asks it, and the steps it requires, in
      * the standard setup frame when the data says it is not answered yet; does nothing when it is. Resolves

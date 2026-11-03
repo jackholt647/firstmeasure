@@ -4,7 +4,7 @@ import { experience } from "./registry.js";
 import { notFound } from "../platform/errors.js";
 import { listEvents } from "./store.js";
 import { BILLBOARD_CSP, readBillboard } from "./billboards.js";
-import { availableExperiences, completeGuided, ensureGuidedDefinitions, guidedConversationTurn, recordGuidedEvent } from "./service.js";
+import { availableExperiences, completeGuided, ensureGuidedDefinitions, guidedConversationTurn, previewExperience, recordGuidedEvent } from "./service.js";
 
 /**
  * Guided experiences (docs/architecture/guided-experiences.md), mounted at /v1/guided-experiences. Every route acts
@@ -21,6 +21,13 @@ export async function registerGuidedExperiencesApi(app: FastifyInstance) {
     const ctx = await requirePlatformAuth(request, { orgId });
     const query = (request.query || {}) as Record<string, unknown>;
     return { ok: true, ...(await availableExperiences(ctx, { tab: text(query.tab), projectId: text(query.project_id) })) };
+  });
+  // One experience as this person would first see it (previewing an announcement); reads only.
+  app.get("/organizations/:orgId/experiences/:experienceId/preview", async (request) => {
+    const { orgId, experienceId } = params(request);
+    const ctx = await requirePlatformAuth(request, { orgId });
+    const query = (request.query || {}) as Record<string, unknown>;
+    return { ok: true, experience: await previewExperience(ctx, text(experienceId), { tab: text(query.tab), projectId: text(query.project_id) }) };
   });
   app.post("/organizations/:orgId/experiences/:experienceId/events", async (request) => {
     const { orgId, experienceId } = params(request);
