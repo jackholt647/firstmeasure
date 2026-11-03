@@ -207,9 +207,10 @@ window.PlatformCommerce.onReady(function(){
   function measurementReportSummaryEnabled(){
     return firstMeasureFlagEnabled('measurement_report_summary', false);
   }
-  // The 3D viewer is part of Full House; roof-only reports show it once the organization turns on roof_model_viewer.
+  // Every finished report has Reports › 3D Model, the full-size view of the model the details tray shows small
+  // (Jack, 2026-11-03); roof_model_viewer no longer gates it.
   function reportModelViewerEnabled(){
-    return reportSummaryIsFullHouse() || firstMeasureFlagEnabled('roof_model_viewer', false);
+    return true;
   }
   // Free add-on, off by default and chosen per order: the roof at night with lights along its edges (holiday-lights.js).
   function holidayLightsEnabled(){
@@ -362,7 +363,8 @@ window.PlatformCommerce.onReady(function(){
         pending
       });
     }
-    if(ready && reportModelViewerEnabled()) tabs.push({id:'model',get label(){ return (globalThis.PlatformLanguage?.text("measurements","report_model_tab","Model") ?? "Model"); },icon:'fa-cube',active:activeMeasurementTab==='model',disabled:false,pending:false});
+    // Reports › 3D Model: the full-size viewer of the model the project details tray shows small.
+    if(ready && reportModelViewerEnabled()) tabs.push({id:'model',get label(){ return (globalThis.PlatformLanguage?.text("measurements","report_model_3d_tab","3D Model") ?? "3D Model"); },icon:'fa-cube',active:activeMeasurementTab==='model',disabled:false,pending:false});
     if(hasXml && holidayLightsEnabled()) tabs.push({id:'lights',get label(){ return (globalThis.PlatformLanguage?.text("measurements","hl_tab","Holiday Lights") ?? "Holiday Lights"); },icon:'fa-lightbulb',active:activeMeasurementTab==='lights',disabled:false,pending:false});
     const changes = reportFollowupEnabled() ? reportChangeRequests() : [];
     const supportView = !changes.length || reportRequestsAreSupportOnly(changes);
@@ -1160,7 +1162,7 @@ window.PlatformCommerce.onReady(function(){
   // What was ordered: the kind of report, and for a Full Exterior its delivery.
   function reportOrderKindHtml(){
     const exterior = reportOrderIsExterior();
-    const kind = exterior ? (globalThis.PlatformLanguage?.text("measurements","report_kind_full_exterior","Full Exterior") ?? "Full Exterior") : (reportOrderIncludesGutters() ? (globalThis.PlatformLanguage?.text("measurements","report_kind_roof_gutters","Roof + Gutters") ?? "Roof + Gutters") : (globalThis.PlatformLanguage?.text("measurements","report_kind_roof_only","Roof Only") ?? "Roof Only"));
+    const kind = exterior ? (globalThis.PlatformLanguage?.text("measurements","report_kind_full_exterior","Full Exterior") ?? "Full Exterior") : (reportOrderIncludesGutters() ? (globalThis.PlatformLanguage?.text("measurements","report_kind_roof_and_gutters","Roof & Gutters") ?? "Roof & Gutters") : (globalThis.PlatformLanguage?.text("measurements","report_kind_roof","Roof") ?? "Roof"));
     const delivery = exterior ? (exteriorExpediteQuote?.options || []).find((option) => option.key === reportOrderExpediteKey())?.label || reportOrderMeasurement().report_expedite_label || reportOrderMeasurement().raw?.report_expedite_label || reportOrderManifest().report_expedite_label || '' : '';
     const structures = reportOrderBillingPinCount();
     const value = [kind, delivery, exterior && structures > 1 ? (globalThis.PlatformLanguage?.text("measurements","report_kind_structures",`${structures} structures`,{structures}) ?? `${structures} structures`) : ''].filter(Boolean).join(' \u00b7 ');

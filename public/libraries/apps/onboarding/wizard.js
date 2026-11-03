@@ -3681,6 +3681,10 @@
             ORG_NAME = companyName;
             APP.orgName = companyName;
             APP.userCompany = companyName;
+            // The attention feed was read at page load, while the organization still had the signup placeholder.
+            // Refresh it now, so "Add your company name" is gone before the wizard closes rather than showing on
+            // the dashboard until the next 10 s poll.
+            window.PlatformBanners?.load?.();
           }
           if (fullName) {
             APP.userName = fullName;
