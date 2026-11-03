@@ -1,6 +1,6 @@
 import {DEFAULT_BRANCH_ID,type DepartmentCatalog} from './department-contracts.js';
 import {readOrganizationDepartments} from './departments.js';
-import {listDocuments} from '../platform/storage.js';
+import {listDocumentFields,listDocuments} from '../platform/storage.js';
 import {listAssignmentGroups} from './storage.js';
 import {listOrganizationConnections} from '../connections/storage.js';
 
@@ -86,9 +86,11 @@ export async function readStructureBranches(orgId:string):Promise<StructureBranc
   if(!branches.some(b=>b.id===DEFAULT_BRANCH_ID))branches.unshift({id:DEFAULT_BRANCH_ID,name:'',status:'active',is_default:true});
   return branches.sort((a,b)=>Number(b.is_default)-Number(a.is_default)||a.name.localeCompare(b.name)||a.id.localeCompare(b.id));
 }
+// Auth resolves the structure on every request, so it reads only these user fields, not whole user documents.
+const STRUCTURE_USER_FIELDS=['status','branch_id','branch_ids','roles','access_role_ids'];
 export async function resolveOrganizationStructure(orgId:string):Promise<OrganizationStructure>{
   const branches=await readStructureBranches(orgId);
-  const [catalog,documents,groups,connections]=await Promise.all([readOrganizationDepartments(orgId,branches.map(b=>b.id)),listDocuments(orgId,'users'),listAssignmentGroups(orgId,true),listOrganizationConnections(orgId)]);
+  const [catalog,documents,groups,connections]=await Promise.all([readOrganizationDepartments(orgId,branches.map(b=>b.id)),listDocumentFields(orgId,'users',STRUCTURE_USER_FIELDS),listAssignmentGroups(orgId,true),listOrganizationConnections(orgId)]);
   const users=documents.map(d=>({id:d.id,status:String(d.data.status||'active'),branch_id:String(d.data.branch_id||DEFAULT_BRANCH_ID),branch_ids:Array.isArray(d.data.branch_ids)?d.data.branch_ids.map(String):[],role_ids:unique([...(Array.isArray(d.data.roles)?d.data.roles.map(String):[]),...(Array.isArray(d.data.access_role_ids)?d.data.access_role_ids.map(String):[])])}));
   return buildOrganizationStructure(catalog,users,groups,connections.map(c=>({id:String(c.id),status:String(c.status),branch_ids:Array.isArray(c.branch_ids)?c.branch_ids.map(String):[]})),branches);
 }
