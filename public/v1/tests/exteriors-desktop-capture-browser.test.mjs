@@ -194,6 +194,115 @@ test('a long upload list scrolls on its own and keeps the newest file in view at
  assert.ok(view.orderBottom<=800,'the order button stays on screen');
 });
 
+// Real, distinct images so the photo viewer shows something (drawn in the page, returned as PNG files).
+async function photoFiles(page,count){
+ const urls=await page.evaluate(count=>Array.from({length:count},(_,i)=>{const c=document.createElement('canvas');c.width=640;c.height=480;const g=c.getContext('2d');g.fillStyle=`hsl(${i*41},55%,48%)`;g.fillRect(0,0,640,480);g.fillStyle='#fff';g.fillRect(170,190,300,200);g.fillStyle='#333';g.beginPath();g.moveTo(150,200);g.lineTo(320,90);g.lineTo(490,200);g.fill();g.font='bold 54px Arial';g.fillText('IMG '+(i+1),220,320);return c.toDataURL('image/png');}),count);
+ return urls.map((url,i)=>({name:`IMG_20${String(i+1).padStart(2,'0')}.PNG`,mimeType:'image/png',buffer:Buffer.from(url.split(',')[1],'base64')}));
+}
+async function photosPanel(t,options){
+ const env=await setup(t,options);const {page,confirm,settle}=env;
+ // The order window stacks like the platform's, so anything opened from the panel has to rise above it.
+ await page.evaluate(()=>{document.getElementById('rOverlay').style.cssText='position:fixed;inset:0;z-index:2147483100;overflow:hidden';});
+ await confirm();await settle();
+ await page.locator('[data-desk-mode=photos]').click();await settle();
+ return env;
+}
+async function uploadPhotos(page,count){
+ const chooser=page.waitForEvent('filechooser');await page.locator('[data-desk-pick]').click();
+ await (await chooser).setFiles(await photoFiles(page,count));
+ await page.waitForFunction(count=>document.querySelectorAll('.ext-desk-file.is-done').length===count,count);
+}
+// Every option of the open list sits on screen and is the element a click there would hit.
+const reachable=page=>page.evaluate(()=>{
+ const pop=document.querySelector('.ext-desk-role-pop');
+ return [...pop.querySelectorAll('[role=option]')].map(o=>{
+  o.scrollIntoView({block:'nearest'});const r=o.getBoundingClientRect(),x=r.left+r.width/2,y=r.top+r.height/2;
+  const hit=document.elementFromPoint(x,y);
+  return {value:o.dataset.value,ok:r.top>=0&&r.bottom<=innerHeight&&r.left>=0&&r.right<=innerWidth&&!!hit&&o.contains(hit)};
+ });
+});
+
+for(const [width,height] of [[1280,800],[1440,640]])test(`photo orders: the angle dropdown on every row, the last one included, opens where each option can be picked at ${width}x${height}`,async t=>{
+ const {page,settle}=await photosPanel(t,{width,height});
+ assert.equal(await page.locator('.ext-desk-risk').count(),0,'no "photos alone may not be enough" line under the angle grid');
+ assert.doesNotMatch(await page.locator('.ext-desk-guide').innerText(),/may not be enough/i);
+ assert.equal(await page.locator('.ext-desk-angles-foot [data-desk-mode=video]').count(),1,'the switch to video walkaround stays');
+ await uploadPhotos(page,9);await settle();
+ assert.equal(await page.evaluate(()=>{const l=document.querySelector('.ext-desk-list');return l.scrollHeight>l.clientHeight;}),true,'the upload list scrolls');
+ const rows=await page.locator('.ext-desk-file').count();
+ for(let i=rows-1;i>=0;i--){
+  const control=role(page).nth(i);
+  await control.click();await page.locator('.ext-desk-role-pop').waitFor();
+  const options=await reachable(page);
+  assert.equal(options.length,9,'eight angles and a close-up');
+  assert.deepEqual(options.filter(o=>!o.ok).map(o=>o.value),[],`row ${i+1}: every option can be reached`);
+  await page.keyboard.press('Escape');await page.waitForFunction(()=>!document.querySelector('.ext-desk-role-pop'));
+ }
+ // The last row: the mouse picks the bottom option, and the keyboard reaches the end of the list and picks it.
+ await page.locator('.ext-desk-list').evaluate(l=>{l.scrollTop=l.scrollHeight;});
+ const last=role(page).nth(rows-1);
+ await chooseRole(page,last,'0:front-right');
+ assert.equal(await page.locator('[data-desk-angle="0:front-right"].has-file').count(),1,'the bottom angle was picked from the last row');
+ const control=page.locator('.ext-desk-file [data-desk-role].needs-choice').last();
+ const name=await page.locator('.ext-desk-file:has([data-desk-role].needs-choice)').last().locator('[data-desk-name]').innerText();
+ await control.focus();await page.keyboard.press('ArrowDown');await page.locator('.ext-desk-role-pop').waitFor();
+ await page.keyboard.press('End');
+ const end=await page.evaluate(()=>{const o=document.querySelector('.ext-desk-role-pop .is-active'),r=o.getBoundingClientRect(),hit=document.elementFromPoint(r.left+r.width/2,r.top+r.height/2);return {value:o.dataset.value,visible:r.top>=0&&r.bottom<=innerHeight&&o.contains(hit)};});
+ assert.deepEqual(end,{value:'0:extra',visible:true},'End highlights the bottom option where it can be seen');
+ await page.keyboard.press('ArrowUp');await page.keyboard.press('Enter');
+ await page.waitForFunction(()=>!document.querySelector('.ext-desk-role-pop'));
+ assert.equal(await page.evaluate(()=>Portal.test.files.get('0:front-right')?.name),name,'the keyboard picked the option above the end');
+});
+
+test('photo orders: a photo opens large over the order window, shows its name and angle, steps through the photos and changes the angle',async t=>{
+ const {page,settle}=await photosPanel(t,{width:1280,height:800});
+ await uploadPhotos(page,9);await settle();
+ await chooseRole(page,role(page).nth(0),'0:front');
+ const tile=page.locator('.ext-desk-grid [data-desk-preview="0:front"]');
+ assert.equal(await tile.getAttribute('aria-label'),'View Front photo');
+ await tile.click();
+ const viewer=page.locator('dialog.ext-photo-viewer[open]');await viewer.waitFor();
+ const top=await page.evaluate(()=>{const img=document.querySelector('.ext-photo-viewer [data-viewer-img]'),r=img.getBoundingClientRect();return {modal:document.querySelector('.ext-photo-viewer').matches(':modal'),onTop:!!document.elementFromPoint(r.left+r.width/2,r.top+r.height/2)?.closest('.ext-photo-viewer'),large:r.width>500,loaded:img.complete&&img.naturalWidth===640};});
+ assert.deepEqual(top,{modal:true,onTop:true,large:true,loaded:true},'the viewer is a modal dialog above the order window showing the full photo');
+ assert.equal(await viewer.getAttribute('aria-labelledby'),'extViewerName');
+ assert.equal(await viewer.locator('#extViewerName').innerText(),'IMG_2001.PNG');
+ assert.equal(await viewer.locator('[data-viewer-count]').innerText(),'Photo 1 of 9');
+ assert.equal(await viewer.locator('[data-viewer-role]').innerText(),'Front');
+ assert.equal(await page.evaluate(()=>document.activeElement?.matches('.ext-photo-viewer [data-viewer-close]')),true,'focus moves into the viewer');
+ await page.keyboard.press('ArrowRight');
+ assert.equal(await viewer.locator('#extViewerName').innerText(),'IMG_2002.PNG');
+ assert.equal(await viewer.locator('[data-viewer-count]').innerText(),'Photo 2 of 9');
+ assert.equal(await viewer.locator('[data-viewer-role]').innerText(),'Choose an angle…');
+ await viewer.locator('[data-viewer-step="-1"]').click();
+ assert.equal(await viewer.locator('#extViewerName').innerText(),'IMG_2001.PNG','the previous button steps back');
+ await viewer.locator('[data-viewer-step="-1"]').click();
+ assert.equal(await viewer.locator('#extViewerName').innerText(),'IMG_2009.PNG','stepping wraps around');
+ // The angle is set right there, with the same dropdown, and the viewer stays on that photo.
+ const control=viewer.locator('[data-desk-role]');
+ await control.click();
+ const option=page.locator('.ext-photo-viewer .ext-desk-role-pop [role=option][data-value="0:back"]');await option.waitFor();
+ assert.equal(await option.evaluate(o=>{const r=o.getBoundingClientRect();return o.contains(document.elementFromPoint(r.left+r.width/2,r.top+r.height/2));}),true,'the dropdown opens above the viewer');
+ await option.click();
+ await page.waitForFunction(()=>!document.querySelector('.ext-desk-role-pop'));
+ assert.equal(await viewer.locator('[data-viewer-role]').innerText(),'Back');
+ assert.equal(await page.locator('[data-desk-angle="0:back"].has-file').count(),1,'the angle grid shows the new assignment');
+ assert.equal(await viewer.locator('#extViewerName').innerText(),'IMG_2009.PNG');
+ // Escape closes the open dropdown first, then the viewer, and focus returns to the panel.
+ await control.focus();await page.keyboard.press('ArrowDown');await page.locator('.ext-desk-role-pop').waitFor();
+ await page.keyboard.press('Escape');await page.waitForFunction(()=>!document.querySelector('.ext-desk-role-pop'));
+ assert.equal(await page.locator('dialog.ext-photo-viewer[open]').count(),1,'Escape only closed the dropdown');
+ await page.keyboard.press('Escape');
+ await page.waitForFunction(()=>!document.querySelector('.ext-photo-viewer'));
+ assert.equal(await page.evaluate(()=>!!document.activeElement?.closest('.ext-desk')),true,'focus returns to the panel');
+ // A thumbnail in the upload list opens the viewer on that file; the close button dismisses it.
+ await page.locator('.ext-desk-file').nth(4).locator('[data-desk-preview]').click();
+ await viewer.waitFor();
+ assert.equal(await viewer.locator('#extViewerName').innerText(),await page.locator('.ext-desk-file').nth(4).locator('[data-desk-name]').innerText());
+ await viewer.locator('[data-viewer-close]').click();
+ await page.waitForFunction(()=>!document.querySelector('.ext-photo-viewer'));
+ assert.equal(await page.evaluate(()=>document.activeElement?.matches('.ext-desk-file [data-desk-preview]')),true,'focus returns to the thumbnail');
+});
+
 test('unconfirming folds the panel away and gives the tray back; mobile never sees the panel',async t=>{
  const {page,confirm,settle}=await setup(t);
  await confirm();await settle();
