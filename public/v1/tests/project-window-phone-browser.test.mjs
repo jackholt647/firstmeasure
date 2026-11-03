@@ -251,11 +251,29 @@ test('on a touch screen the roof viewer speaks touch, sizes its key for fingers 
       await page.evaluate(() => { window.viewer = FirstMeasureRoofViewer.mount(document.querySelector('#viewer'), {xmlUrl: '/model.xml', standalone: true, layout: 'stacked'}); });
       await page.waitForFunction(() => document.querySelector('.fm-roof-canvas canvas') && document.querySelector('.fm-roof-message').hidden, {}, {timeout: 45000});
       const viewer = await page.evaluate(() => ({
-        hint: document.querySelector('.fm-roof-hint').textContent,
+        // The hint is an info button's name and tooltip, hidden until hovered, focused or tapped.
+        hint: document.querySelector('.fm-roof-help-button').getAttribute('aria-label'),
+        tooltip: document.querySelector('.fm-roof-hint').textContent,
+        tooltipShown: getComputedStyle(document.querySelector('.fm-roof-hint')).visibility === 'visible',
         columns: getComputedStyle(document.querySelector('.fm-roof-key')).gridTemplateColumns.split(' ').length,
         rows: [...document.querySelectorAll('.fm-roof-key-row')].map(row => ({name: row.querySelector('button').textContent.trim(), height: Math.round(row.getBoundingClientRect().height), input: Math.round(row.querySelector('input')?.getBoundingClientRect().height || 0), cut: row.querySelector('button').scrollWidth > row.querySelector('button').clientWidth + 1}))
       }));
       const names = viewer.rows.map(row => row.name);
+      assert.equal(viewer.tooltip, viewer.hint, 'the tooltip says what the button is named');
+      assert.equal(viewer.tooltipShown, false, 'the hint is not shown until asked for');
+      if (touch) {
+        await page.locator('.fm-roof-help-button').tap();
+        await page.waitForTimeout(200);
+        assert.equal(await page.locator('.fm-roof-hint').evaluate(el => getComputedStyle(el).visibility), 'visible', 'a tap shows the hint');
+        const stage = await page.locator('.fm-roof-canvas').boundingBox();
+        await page.touchscreen.tap(stage.x + stage.width / 2, stage.y + 20);
+        await page.waitForTimeout(200);
+        assert.equal(await page.locator('.fm-roof-hint').evaluate(el => getComputedStyle(el).visibility), 'hidden', 'tapping elsewhere hides it');
+      } else {
+        await page.locator('.fm-roof-help-button').hover();
+        await page.waitForTimeout(200);
+        assert.equal(await page.locator('.fm-roof-hint').evaluate(el => getComputedStyle(el).visibility), 'visible', 'hovering shows the hint');
+      }
       assert.ok(names.includes('Chimney step') && names.includes('Chimney apron') && !names.includes('Chimney'), `${width}: ${names}`);
       if (touch) {
         assert.equal(viewer.hint, 'Drag to orbit · Pinch to zoom · Tap to inspect');
