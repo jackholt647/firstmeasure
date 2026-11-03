@@ -1,7 +1,7 @@
 // Jack, November 3: Reports keeps a 3D Model sub-tab, so the full-size model is a click away beside the small one in
 // the project details tray. Chrome runs the real measurements app, the real report navigation, the real widget runtime
 // and project widgets, and the real roof viewer; the tab follows the viewer's rule (Full House reports, or roof-only
-// reports when the organization turns on firstmeasure.roof_model_viewer).
+// reports; no longer gated by firstmeasure.roof_model_viewer).
 // REPORT_MODEL_SCREENSHOT=<path.png> saves what the open tab shows.
 import test from 'node:test';
 import assert from 'node:assert/strict';
@@ -101,12 +101,12 @@ test('Reports › 3D Model shows the full-size viewer for a roof report when the
   } finally { await browser.close(); }
 });
 
-test('Reports › 3D Model follows the viewer rule: Full House always, roof-only only with roof_model_viewer', async () => {
+test('Reports › 3D Model is on every finished report, roof-only and Full House, without roof_model_viewer', async () => {
   const browser = await chromium.launch({ channel: 'chrome', headless: true });
   try {
     let { page } = await boot(browser, { roof_model_viewer: false });
     await page.evaluate(next => openProject(next), project('measurement-roof'));
-    assert.deepEqual((await tabs(page)).map(tab => tab.id), ['summary', 'standard', 'customer', 'xml']);
+    assert.deepEqual((await tabs(page)).map(tab => tab.id), ['summary', 'model', 'standard', 'customer', 'xml']);
     await page.close();
     ({ page } = await boot(browser, { roof_model_viewer: false }));
     await page.evaluate(next => openProject(next), project('exteriors_x', { manifest: { measurement_scope: 'full_house' } }));

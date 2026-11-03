@@ -207,9 +207,10 @@ window.PlatformCommerce.onReady(function(){
   function measurementReportSummaryEnabled(){
     return firstMeasureFlagEnabled('measurement_report_summary', false);
   }
-  // The 3D viewer is part of Full House; roof-only reports show it once the organization turns on roof_model_viewer.
+  // Every finished report has Reports › 3D Model, the full-size view of the model the details tray shows small
+  // (Jack, 2026-11-03); roof_model_viewer no longer gates it.
   function reportModelViewerEnabled(){
-    return reportSummaryIsFullHouse() || firstMeasureFlagEnabled('roof_model_viewer', false);
+    return true;
   }
   // Free add-on, off by default and chosen per order: the roof at night with lights along its edges (holiday-lights.js).
   function holidayLightsEnabled(){
