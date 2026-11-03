@@ -114,6 +114,31 @@ test("an organization that already had it, or got it some other way, never sees 
   assert.equal(await offered(started), false, "a list that includes it announces nothing to it");
 });
 
+test("a preview shows it as the first time, records nothing, and still needs the flag", async () => {
+  const { setFlagForOrganizations } = await console_();
+  const preview = (who: Caller) => app.inject({ method: "GET", url: `/v1/guided-experiences/organizations/${who.orgId}/experiences/${ID}/preview`, headers: { cookie: who.cookie } });
+  const off = await register("previewoff");
+  assert.equal((await preview(off)).statusCode, 403, "without the flag there is nothing to preview");
+
+  // Plain On is never announced, but can be previewed.
+  const plain = await register("previewplain");
+  await setFlagForOrganizations({ flag: FLAG, value: true, org_ids: [plain.orgId] }, SYSTEM);
+  const shown = await preview(plain);
+  assert.equal(shown.statusCode, 200, shown.body);
+  assert.equal(shown.json().experience.kind, "announcement");
+  assert.equal(shown.json().experience.progress, null);
+  assert.equal(shown.json().experience.steps[0].options.billboard, "exteriors_popup");
+  assert.equal(await offered(plain), false, "previewing does not announce it");
+
+  // Already finished: the preview still shows it fresh, and the organization stays introduced.
+  const done = await register("previewdone");
+  await setFlagForOrganizations({ flag: FLAG, value: true, introduce: true, org_ids: [done.orgId] }, SYSTEM);
+  await event(done, "dismiss");
+  assert.equal((await preview(done)).json().experience.progress, null);
+  assert.equal(await offered(done), false);
+  assert.equal((await stateOf(done.orgId)).introduction_state, "introduced");
+});
+
 test("changing your mind: plain On, Off or Auto clear it, and introduce needs On", async () => {
   const org = await register("mind");
   const { setFlagForOrganizations } = await console_();

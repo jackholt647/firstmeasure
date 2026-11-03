@@ -289,6 +289,14 @@ not while staff act as a customer (`#impersonationBanner`), who would otherwise 
 it up. An experience naming a flag as `introduces` is eligible only while that flag
 is in the [introduced state](feature-flags.md#introducing-a-flag).
 
+**Previewing.** `FirstMateGuides.preview(id)` (from the console, for example
+`FirstMateGuides.preview('exteriors.introduction')`) plays one experience as this
+person would see it the first time: `GET .../experiences/:id/preview` resolves it with
+no progress and its introduction counted as asked for, while its capability,
+permission and condition rules still apply. The player runs with a `track` that sends
+nothing, so a preview records no event or progress and the real one still plays on
+its trigger. Try It Now still opens the order.
+
 **Billboards** (`guided-experiences/billboards.ts`). The website is another origin,
 so a frame of it could not be reached to add a click handler. The app serves its own
 copy at `GET /v1/guided-experiences/billboards/:id`: signed-in callers, listed ids
