@@ -93,7 +93,7 @@ None need porting, and all must survive. Verified present on November 1 unless n
 **Every customer, no switch:**
 - Request security: anonymous calls to `/v1/firstmeasure`, `/v1/internal`, `/v1/communications` are refused; `portal-action` is checked per action; cross-site cookie writes are refused; customer logins no longer open `/measure/internal`.
 - Project details tray: contact, address, measurements and order move from Overview to a left tray.
-- Reports tab tour on first open, and tab order Summary, Model, Standard, Customer, XML.
+- Reports tab order Summary, Model, Standard, Customer, XML. (The Reports tab tour is off; see Decisions.)
 - Orders placed once; a Stripe-paid order is placed on return even if the browser lost state.
 - Checklists print and signature where the tab shows, plus a setup modal for `manage_projects`.
 - Phone layouts.
@@ -175,12 +175,15 @@ Every role keeps `51c70f90`: republish `eb8a98be…` to the channel, then `activ
 2. **An unidentified client is reading data without a session.** `Python-urllib/3.12` calls `POST /v1/internal/legacy-action` with no session; 175–236 hits per web node in the current log, responses over 100 KB. It gets 401 after release. Real IP isn't logged. If it's something of Jack's, it needs an API key or staff session first.
 3. **Apple key harvester.** Writes need the new token. The audit saw frequent writes in October; today's logs on compat and one web node show none, so it may have stopped. Jack knows; the editor's Apple imagery depends on the key.
 4. **Dev has never run in snapshot mode with production-shaped data.** Dev reads the store. The small drift above is the only known difference, but the first real run is on production. Watch the first web node before continuing.
-5. **Not exercised:** the unflagged UI (project details tray, Reports tour) on a report-only organization and on a cache-only project, in a browser.
+5. **Partly exercised:** on dev with FirstMeasure-only signup organizations (production-shaped), orders open from a fresh browser, the details tray opens, and the measurements widget shows order status, the model or a way to order at 1440 and 390 wide. Not walked: a cache-only project on a report-only organization end to end.
 6. **Compat disk** at 92% (11 GB free), and `64.23.240.81` at 89%.
 7. **Minor:** `DEPLOYMENT.md` lines 40 and 127 hold leftover conflict markers.
 
-## Decisions Jack should make
+## Decisions (Jack, Nov 2 evening)
 
-- **FM-303:** canonical lets any other active super admin lower, suspend or archive the owner (Cat 6 Roofing's case). Production refuses it. The tracker issue still asks Jack; this release turns it on. Say if an explicit "Make owner" transfer is wanted instead.
-- **Reports tab tour** for every customer on first open: keep or switch off in the snapshot.
+- **FM-303: ship as built.** Any other active super admin may lower, suspend or archive the owner (Cat 6 Roofing's case); no "Make owner" transfer for now.
+- **Reports tab tour: off.** Removed from the library on dev with its replay question and exported into the snapshot (`ded758f8`), so no customer gets it. Checked on dev: the Reports tab offers no tour and no "Show me the tutorial again".
+- **The unidentified `Python-urllib` client (Risk 2): refuse it.** It gets 401 after release.
+- **Apple key harvester (Risk 3): no token for now.** Add `FIRSTMEASURE_APPLE_KEY_INGEST_TOKEN` if the editor's Apple imagery stops refreshing.
+- **Exteriors stays off by default.** Production on Nov 3 02:20 UTC: 0 of 13,139 organizations have `firstmeasure.exteriors` on (resolved by the running code); the snapshot's `capability_defaults/platform` has it `false` and the signup preset does not name it. It reaches an organization only when staff turn it on or Introduce it in the console.
 - **Platform stays off for production organizations.** This release deploys the code only: background loops stay off and capability defaults are unchanged. Turning the platform on for anyone is a separate step.
