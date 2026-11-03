@@ -656,3 +656,18 @@ read-state and collaboration preference reads for the same viewer. A future
 request-scoped cache/batch must preserve media/project access, per-message audience,
 thread/channel mute, deletion and read-sequence results exactly. See
 [notifications](architecture/notifications.md).
+
+## Every signed-in request resolves the organization structure
+
+**Today.** `buildAuthContext` (`platform/auth.ts`) calls `resolveOrganizationStructure` on every request without
+expanded access, which reads every user of the organization plus its departments, groups and connections. Since the
+November 3, 2026 hotfix the users are read with `listDocumentFields` (five fields, about 41 KB for the 394 staff users
+instead of 1.2 MB), but the work still grows with the organization's size on every request. Before that, staff
+traffic on the compatibility host spent most of its time parsing whole user documents (legacy actions went from a
+9 ms to a 4 s median).
+
+**Where the change goes.** Resolve the structure only for requests that read it, or cache it per organization and
+invalidate on writes to users, groups, departments, branches and connections.
+
+**Why it can wait.** With the projected read the cost is a few milliseconds even for the staff organization; the
+largest customer organizations are smaller.
