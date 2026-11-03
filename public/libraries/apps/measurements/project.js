@@ -1160,7 +1160,7 @@ window.PlatformCommerce.onReady(function(){
   // What was ordered: the kind of report, and for a Full Exterior its delivery.
   function reportOrderKindHtml(){
     const exterior = reportOrderIsExterior();
-    const kind = exterior ? (globalThis.PlatformLanguage?.text("measurements","report_kind_full_exterior","Full Exterior") ?? "Full Exterior") : (reportOrderIncludesGutters() ? (globalThis.PlatformLanguage?.text("measurements","report_kind_roof_gutters","Roof + Gutters") ?? "Roof + Gutters") : (globalThis.PlatformLanguage?.text("measurements","report_kind_roof_only","Roof Only") ?? "Roof Only"));
+    const kind = exterior ? (globalThis.PlatformLanguage?.text("measurements","report_kind_full_exterior","Full Exterior") ?? "Full Exterior") : (reportOrderIncludesGutters() ? (globalThis.PlatformLanguage?.text("measurements","report_kind_roof_and_gutters","Roof & Gutters") ?? "Roof & Gutters") : (globalThis.PlatformLanguage?.text("measurements","report_kind_roof","Roof") ?? "Roof"));
     const delivery = exterior ? (exteriorExpediteQuote?.options || []).find((option) => option.key === reportOrderExpediteKey())?.label || reportOrderMeasurement().report_expedite_label || reportOrderMeasurement().raw?.report_expedite_label || reportOrderManifest().report_expedite_label || '' : '';
     const structures = reportOrderBillingPinCount();
     const value = [kind, delivery, exterior && structures > 1 ? (globalThis.PlatformLanguage?.text("measurements","report_kind_structures",`${structures} structures`,{structures}) ?? `${structures} structures`) : ''].filter(Boolean).join(' \u00b7 ');

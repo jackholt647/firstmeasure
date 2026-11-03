@@ -4770,12 +4770,12 @@
       renderPagination();
     }, 80);
   }
-  // What was ordered, as one tag on every report: Full Exterior, Roof + Gutters or Roof Only.
+  // What was ordered, as one tag on every report: Full Exterior, Roof & Gutters or Roof.
   function reportKindMeta(p){
     if (projectStatusGroup(p) === 'project') return null;
     if (p?.measurement_scope === 'full_house' || String(p?.id || '').startsWith('exteriors_')) return {icon:'fa-house', label:(globalThis.PlatformLanguage?.text("projects","report_kind_full_exterior","Full Exterior") ?? "Full Exterior")};
-    if (projectIncludesGutters(p)) return {icon:'fa-water', label:(globalThis.PlatformLanguage?.text("projects","report_kind_roof_gutters","Roof + Gutters") ?? "Roof + Gutters")};
-    return {icon:'fa-house-chimney', label:(globalThis.PlatformLanguage?.text("projects","report_kind_roof_only","Roof Only") ?? "Roof Only")};
+    if (projectIncludesGutters(p)) return {icon:'fa-water', label:(globalThis.PlatformLanguage?.text("projects","report_kind_roof_and_gutters","Roof & Gutters") ?? "Roof & Gutters")};
+    return {icon:'fa-house-chimney', label:(globalThis.PlatformLanguage?.text("projects","report_kind_roof","Roof") ?? "Roof")};
   }
   function reportKindThumbBadgeHtml(p){
     const kind = reportKindMeta(p);
@@ -4860,7 +4860,7 @@
   }
   function projectScopeLabel(p){
     const delivery = projectReportMode(p);
-    const scope = projectIncludesGutters(p) ? (globalThis.PlatformLanguage?.text('projects','m_bf38bfda2125d1',"Roof + Gutters") ?? "Roof + Gutters") : (globalThis.PlatformLanguage?.text('projects','m_d2a894582092f8',"Roof Only") ?? "Roof Only");
+    const scope = projectIncludesGutters(p) ? (globalThis.PlatformLanguage?.text('projects','report_kind_roof_and_gutters',"Roof & Gutters") ?? "Roof & Gutters") : (globalThis.PlatformLanguage?.text('projects','report_kind_roof',"Roof") ?? "Roof");
     if (delivery === 'instant') return (globalThis.PlatformLanguage?.text('projects','m_b347d50e8516d3',"Instant") ?? "Instant");
     if (delivery === 'both') return ((v0) => globalThis.PlatformLanguage?.text("projects","m_3f723bd3e62c0a",`Both - ${v0}`,{v0}) ?? `Both - ${v0}`)(scope);
     return ((v0) => globalThis.PlatformLanguage?.text("projects","m_5620f285aec9d3",`Standard - ${v0}`,{v0}) ?? `Standard - ${v0}`)(scope);
