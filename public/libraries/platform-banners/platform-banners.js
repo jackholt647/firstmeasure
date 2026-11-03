@@ -27,6 +27,7 @@
   let mergedEntries = [];
   let loadedAt = null;
   let currentOrgId = '';
+  let loadSequence = 0;
   let pollTimer = null;
   let layoutListenerBound = false;
   let renderedTopbarSignature = '';
@@ -154,8 +155,12 @@
       return getState();
     }
     currentOrgId = org;
+    const sequence = ++loadSequence;
     try {
       const data = await root.PlatformAPI.attention.list(org, options);
+      // The latest read wins: a poll already in flight when something was fixed (the company name saved) must not
+      // put back the entry that a refresh after the fix removed.
+      if (sequence !== loadSequence) return getState();
       serverEntries = Array.isArray(data?.entries) ? data.entries : [];
       loadedAt = new Date().toISOString();
     } catch (error) {}
