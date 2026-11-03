@@ -247,6 +247,26 @@ function perf_finishEdit(){
         if(!faces.length)throw new Error('Resolve the roof faces before using Auto wall.');
         return {context:ctx,roof:{points,connections,faces}};
     }
+    // The roof drawing is kept only by a project Save; the walls also resume from their browser backup. After a
+    // reload before any Save the house came back with no roof drawing, so Measurements and the report had nothing
+    // to measure (FM-322). The walls' roofSignature is that drawing, exactly: put it back when the roof is empty.
+    function recoverRoofFromWalls(){
+        if(!state?.roof?.points?.length||!activeGeometry||activeGeometry.points?.length)return false;
+        let drawn=null;try{drawn=JSON.parse(state.roofSignature||'null');}catch(e){return false;}
+        if(!Array.isArray(drawn?.points)||!drawn.points.length||!Array.isArray(drawn.connections)||!(drawn.context?.mpp>0))return false;
+        const ctx=currentContext(),from=drawn.context,same=['lat','lng','width','height','mpp'].every(k=>Number(from[k])===Number(ctx[k]));
+        if(!same&&!(ctx.mpp>0))return false;
+        const points=drawn.points.map(([x,y,z])=>same?{x,y,z}:toPixel({x:(x-from.width/2)*from.mpp,y:(y-from.height/2)*from.mpp,z},from));
+        if(!points.every(p=>Number.isFinite(p.x)&&Number.isFinite(p.y)))return false;
+        const connections=drawn.connections.filter(([a,b])=>points[a]&&points[b]&&a!==b).map(([a,b,type])=>({start:points[a],end:points[b],type:type||'unknown',manualType:false}));
+        const index=new Map(drawn.points.map(([x,y],i)=>[x+','+y,i])),ref=p=>points[index.get(p?.x+','+p?.y)];
+        const manualFaces=(drawn.manualFaces||[]).map(f=>({points:(f.points||[]).map(ref),holes:(f.holes||[]).map(h=>h.map(ref))})).filter(f=>f.points.length>=3&&f.points.every(Boolean)&&f.holes.every(h=>h.every(Boolean)));
+        activeGeometry.points=points;activeGeometry.connections=connections;activeGeometry.manualFaces=manualFaces;if(!Array.isArray(activeGeometry.vents))activeGeometry.vents=[];
+        window.__geoMutStamp=(window.__geoMutStamp||0)+1;
+        console.warn('[Walls] The roof drawing was missing; restored the roof these walls were built from ('+points.length+' points). Save to keep it.');
+        if(typeof triggerLiveUpdate==='function')triggerLiveUpdate();else window.renderGeometry2D?.();
+        return true;
+    }
     function estimateGround() {
         // DSM minimum is an explicit, editable starting estimate, not surveyed terrain.
         return Number.isFinite(dsmMin)?dsmMin:0;
@@ -422,6 +442,7 @@ function perf_persist(touch=true) {
         const resumedLocal=clearedAt?local:candidates[0]===local?local:null,localStamp=resumedLocal?.savedAt??null;
         if(candidates.length){state=copy(candidates[0]);sourceContext=state.context;stage=Math.max(1,Math.min(7,state.stage||1));roofVisible=state.roofVisible!==false;gapHighlights=state.gapHighlights!==false;initializeGround();}
         if(state?.roof?.faces)state.roof.faces=usableRoofFaces(state.roof.faces);
+        recoverRoofFromWalls();
         applyDisplayPreferences();if(state&&!state.roofTrim)state.roofTrim=copy(roofTrimOnly);wallsVisible=state?.wallsVisible!==false;editingLayer=state?.editingLayer||'base';
         const upgraded=upgradeEngine(),contactsRepaired=window.BaseGeometry?.repairStoredRoofContacts?.(state);retainGradeDraftOwnership();window.WallChimneys?.normalizeDrafts(state?.wallEdits);window.normalizeWallDraftOwnership?.(state?.wallEdits);window.WallBaseBinding?.upgrade(state?.wallEdits);window.WallSolidGeometry?.cleanupSweepRemnants(state?.wallEdits);if(state)calculateStage(stage);const draftsRepaired=!!state&&wallEditor?.repairStoredDrafts?.();
         restoreView(metadata,local);const prepared=enabled&&(!state||state.phase==='grade')&&ensureGradeSetup();if(upgraded||contactsRepaired||draftsRepaired||prepared)persist();setModeUI();render();stableSelection=selectionSnapshot();pendingSelection=null;gestureSelection=null;restoreHistory(history,metadata?.exteriorsWalls,localStamp!==null&&localHistory?.stamp===localStamp&&String(localHistory?.history?.version)==='1'?localHistory.history:null);
