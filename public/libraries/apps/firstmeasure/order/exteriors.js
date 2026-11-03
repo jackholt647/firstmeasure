@@ -28,7 +28,7 @@
   let guideNode=null, guideIndex=0, photoSummary=false, cameraStream=null, nativeCameraCleanup=null, cameraEpoch=0, cameraStarting=false, cameraFallback=false, cameraNeedsUpdate=false, cameraMessage='', capturing=false;
   // Orbital video is the default capture; the eight guided photos are the fallback.
   let captureMode='video', videoStage='intro', photoIntroSeen=false, photosFromVideo=false, recNode=null;
-  let recorder=null, recTake=null, recElapsed=0, recResumedAt=0, recTimer=null, wakeLock=null, videoPreview=null;
+  let recorder=null, recTake=null, recElapsed=0, recResumedAt=0, recTimer=null, wakeLock=null, videoPreview=null, photoViewer=null;
   const VIDEO_MAX_BYTES=120*1024*1024, SEGMENT_MAX_MS=150000, VIDEO_BITRATE=5000000;
   const VIDEO_TYPES='video/mp4,video/quicktime,video/webm', IMAGE_TYPES='image/jpeg,image/png,image/webp';
   function videoPoster(){
@@ -390,7 +390,7 @@
     probe.onloadeddata=()=>{if(Number.isFinite(probe.duration))entry.duration=probe.duration;entry.thumbnail=framePoster(probe)||entry.thumbnail;done();};
     probe.onerror=done;probe.src=entry.url;
   }
-  function closeVideoPreview(){videoPreview?.remove();videoPreview=null;}
+  function closeVideoPreview(){videoPreview?.remove();videoPreview=null;closePhotoViewer(false);}
   function previewVideo(entry){
     const src=entry&&referenceSource(entry);if(!src)return;closeVideoPreview();
     videoPreview=document.createElement('div');videoPreview.className='ext-video-preview';videoPreview.setAttribute('role','dialog');videoPreview.setAttribute('aria-label',(globalThis.PlatformLanguage?.text("firstmeasure","ext_fc63d3e097f799","Video preview") ?? "Video preview"));
@@ -670,7 +670,7 @@
     .ext-thumb-busy [data-upload-progress]{position:absolute;left:0;right:0;bottom:5px;text-align:center;color:#fff;font-size:10px;font-weight:700}
     .ext-photo-tile.is-video.uploading .ext-thumb-video{display:none}
     .ext-review-videos{display:flex;gap:8px;overflow-x:auto;margin-bottom:12px}.ext-review-video{position:relative;flex:0 0 104px;height:78px;border-radius:10px;overflow:hidden;background:#1d2939}.ext-review-video img{width:100%;height:100%;object-fit:cover;display:block}.ext-review-video span{position:absolute;left:5px;bottom:5px;display:flex;align-items:center;gap:5px;padding:2px 7px;border-radius:999px;background:#101828cc;color:#fff;font-size:10px;font-weight:700}.ext-review-video span i{font-size:8px}
-    .ext-video-preview{position:fixed;inset:0;z-index:100002;display:grid;place-items:center;padding:16px;background:#101828f2}.ext-video-preview video{max-width:100%;max-height:calc(100dvh - 32px);border-radius:12px;background:#000}.ext-video-preview button{position:absolute;top:max(14px,env(safe-area-inset-top,0px));right:14px;width:40px;height:40px;border:0;border-radius:50%;background:#fff;color:#1d2939;font-size:22px;line-height:1;cursor:pointer}
+    .ext-video-preview{position:fixed;inset:0;z-index:2147483500;display:grid;place-items:center;padding:16px;background:#101828f2}.ext-video-preview video{max-width:100%;max-height:calc(100dvh - 32px);border-radius:12px;background:#000}.ext-video-preview button{position:absolute;top:max(14px,env(safe-area-inset-top,0px));right:14px;width:40px;height:40px;border:0;border-radius:50%;background:#fff;color:#1d2939;font-size:22px;line-height:1;cursor:pointer}
     @media(min-width:721px){.ext-order .ext-extra-drop{min-height:120px}.ext-order .ext-summary-tiles{grid-template-columns:repeat(auto-fill,minmax(76px,1fr))}}
     @media(prefers-reduced-motion:reduce){.ext-orbit *,.ext-orbit-rec i,.ext-rec-badge i{animation:none!important}.ext-orbit-arm{transform:rotateY(55deg)}.ext-orbit-bill{transform:rotateY(-55deg) rotateY(32deg) rotateX(27deg)}.ext-orbit-bob svg{scale:-1 1}.ext-orbit-trail{--ext-sweep:55deg}}
   `);
@@ -911,12 +911,64 @@
     input.onchange=()=>{const chosen=Array.from(input.files||[]);input.remove();if(epoch===generation)deskAdd(chosen,options);};input.oncancel=()=>input.remove();input.click();
   }
   function deskRemove(key){const f=files.get(key);if(!f)return;try{f.xhr?.abort();}catch{}if(selectedPhoto===key)selectedPhoto=null;removeGuided(key);}
-  function deskPreview(key){
+  function deskPreview(key,opener=null){
     const f=files.get(key);if(!f)return;if(f.kind==='video'){previewVideo(f);return;}
-    const src=referenceSource(f);if(!src)return;closeVideoPreview();
-    videoPreview=document.createElement('div');videoPreview.className='ext-video-preview';videoPreview.setAttribute('role','dialog');videoPreview.setAttribute('aria-label',f.name||'');
-    videoPreview.innerHTML=`<img alt=""><button type="button" aria-label="${(globalThis.PlatformLanguage?.htmlText("firstmeasure","ext_desk_close_preview","Close preview") ?? "Close preview")}">×</button>`;
-    videoPreview.querySelector('img').src=src;videoPreview.onclick=e=>{if(e.target.tagName!=='IMG')closeVideoPreview();};document.body.append(videoPreview);
+    if(!referenceSource(f))return;closeVideoPreview();openPhotoViewer(f,opener);
+  }
+  // A photo opens large in the photo viewer: its name, what it is used as (changed right there with the same
+  // dropdown as its row), and the previous or next photo. It is a modal dialog, so it sits in the top layer above
+  // the order window, keeps focus inside, and Escape or the close button dismisses it.
+  const viewerPhotos=()=>[...files].filter(([,f])=>f.kind!=='video'&&referenceSource(f)).sort((a,b)=>(a[1].sequence||0)-(b[1].sequence||0));
+  const viewerChevron=d=>`<svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true" focusable="false"><path d="${d}" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
+  function openPhotoViewer(entry,opener){
+    closePhotoViewer(false);
+    const dialog=document.createElement('dialog');dialog.className='ext-photo-viewer';dialog.setAttribute('aria-labelledby','extViewerName');
+    dialog.innerHTML=`<header class="ext-viewer-head"><div class="ext-viewer-title" aria-live="polite" aria-atomic="true"><h2 id="extViewerName" data-viewer-name></h2><span data-viewer-count></span></div><button type="button" class="ext-viewer-close" data-viewer-close aria-label="${(globalThis.PlatformLanguage?.htmlText("firstmeasure","ext_desk_close_preview","Close preview") ?? "Close preview")}">×</button></header>`
+      +`<div class="ext-viewer-stage" data-viewer-stage><button type="button" class="ext-viewer-step is-prev" data-viewer-step="-1" aria-label="${(globalThis.PlatformLanguage?.htmlText("firstmeasure","ext_viewer_previous_photo","Previous photo") ?? "Previous photo")}">${viewerChevron('M15 5l-7 7 7 7')}</button><img data-viewer-img alt=""><button type="button" class="ext-viewer-step is-next" data-viewer-step="1" aria-label="${(globalThis.PlatformLanguage?.htmlText("firstmeasure","ext_viewer_next_photo","Next photo") ?? "Next photo")}">${viewerChevron('M9 5l7 7-7 7')}</button></div>`
+      +`<footer class="ext-viewer-foot"><span class="ext-viewer-use" id="extViewerUse">${(globalThis.PlatformLanguage?.htmlText("firstmeasure","ext_viewer_use_as","Use as") ?? "Use as")}</span><button type="button" class="ext-viewer-role" data-desk-role aria-haspopup="listbox" aria-expanded="false" aria-labelledby="extViewerUse extViewerRole"><span id="extViewerRole" data-viewer-role></span>${viewerChevron('M6 9l6 6 6-6')}</button></footer>`;
+    document.body.append(dialog);
+    photoViewer={dialog,entry,opener};
+    const step=delta=>{const list=viewerPhotos(),at=list.findIndex(([,f])=>f===photoViewer?.entry);if(list.length<2||at<0)return;photoViewer.entry=list[(at+delta+list.length)%list.length][1];fillPhotoViewer();};
+    dialog.addEventListener('click',e=>{
+      const button=e.target.closest('button');
+      if(!button){if(e.target===dialog||e.target.matches('[data-viewer-stage]'))closePhotoViewer();return;}
+      if('viewerClose' in button.dataset)closePhotoViewer();
+      else if(button.dataset.viewerStep)step(Number(button.dataset.viewerStep));
+      else if('deskRole' in button.dataset&&!button.disabled&&!(e.detail===0&&Date.now()-(button.__spacePicked||0)<500))openDeskMenu(button);
+    });
+    dialog.addEventListener('keydown',e=>{
+      if(deskMenu||e.altKey||e.ctrlKey||e.metaKey)return;
+      const role=e.target.closest?.('[data-desk-role]');
+      if(role&&(e.key==='ArrowDown'||e.key==='ArrowUp')){e.preventDefault();if(!role.disabled)openDeskMenu(role);}
+      else if(e.key==='ArrowLeft'||e.key==='ArrowRight'){e.preventDefault();step(e.key==='ArrowLeft'?-1:1);}
+    });
+    // Escape that closes the dropdown is cancelled there, so the viewer stays open.
+    dialog.addEventListener('cancel',e=>{if(deskMenu)e.preventDefault();});
+    dialog.addEventListener('close',()=>{if(photoViewer?.dialog===dialog)closePhotoViewer();});
+    fillPhotoViewer();
+    dialog.showModal();dialog.querySelector('[data-viewer-close]').focus({preventScroll:true});
+  }
+  function fillPhotoViewer(){
+    const viewer=photoViewer;if(!viewer)return;const {dialog,entry}=viewer;
+    const list=viewerPhotos(),at=list.findIndex(([,f])=>f===entry);if(at<0){closePhotoViewer();return;}
+    const key=list[at][0],name=entry.name||'',options=deskRoleOptions(key,entry),value=deskRole(key),chosen=options.find(o=>o.value===value);
+    dialog.querySelector('[data-viewer-name]').textContent=name;
+    dialog.querySelector('[data-viewer-count]').textContent=list.length>1?(globalThis.PlatformLanguage?.text("firstmeasure","ext_viewer_photo_count","Photo {number} of {total}",{number:at+1,total:list.length}) ?? `Photo ${at+1} of ${list.length}`):'';
+    const img=dialog.querySelector('[data-viewer-img]'),src=referenceSource(entry);if(img.getAttribute('src')!==src)img.setAttribute('src',src);img.alt=chosen&&!chosen.placeholder?`${chosen.label} · ${name}`:name;
+    dialog.querySelectorAll('[data-viewer-step]').forEach(b=>b.hidden=list.length<2);
+    const role=dialog.querySelector('[data-desk-role]');role.__roleOptions=options;role.dataset.deskRole=key;role.dataset.value=chosen?value:'';
+    role.querySelector('[data-viewer-role]').textContent=chosen?.label||'';role.classList.toggle('needs-choice',key.startsWith('tray:'));role.disabled=busy;
+    if(deskMenu?.button===role&&busy)closeDeskMenu();
+  }
+  function closePhotoViewer(restore=true){
+    const viewer=photoViewer;if(!viewer)return;photoViewer=null;
+    if(deskMenu&&viewer.dialog.contains(deskMenu.button))closeDeskMenu();
+    if(viewer.dialog.open)viewer.dialog.close();viewer.dialog.remove();
+    if(!restore)return;
+    // Focus returns to the photo that opened it, or to the shown photo's thumbnail when that one was redrawn.
+    const key=[...files].find(([,f])=>f===viewer.entry)?.[0];
+    const back=viewer.opener?.isConnected?viewer.opener:key&&(deskNode?.querySelector(`.ext-desk-grid [data-desk-preview="${CSS.escape(key)}"]`)||deskRows.get(viewer.entry)?.querySelector('[data-desk-preview]'));
+    if(back?.isConnected)back.focus({preventScroll:true});
   }
   const deskRole=key=>key.startsWith('tray:')?'tray':isVideoKey(key)?key.split(':')[0]+':walk':key.includes(':additional')?key.split(':')[0]+':extra':key;
   function deskReassign(from,role){
@@ -939,7 +991,7 @@
   // or the arrows open it; the arrows, Home and End move; Enter or Space picks; Escape or Tab closes.
   let deskMenu=null;
   function closeDeskMenu(focus=false){
-    if(!deskMenu)return;const {pop,button,cleanup}=deskMenu;deskMenu=null;cleanup();pop.remove();button.setAttribute('aria-expanded','false');button.removeAttribute('aria-activedescendant');
+    if(!deskMenu)return;const {pop,button,cleanup}=deskMenu;deskMenu=null;cleanup();try{pop.hidePopover?.();}catch{}pop.remove();button.setAttribute('aria-expanded','false');button.removeAttribute('aria-activedescendant');
     if(focus&&button.isConnected)button.focus({preventScroll:true});
   }
   function openDeskMenu(button){
@@ -951,12 +1003,27 @@
     let group=null;
     list.innerHTML=options.map((o,i)=>{const head=o.group&&o.group!==group?`<div class="ext-desk-role-group" role="presentation">${esc(o.group)}</div>`:'';group=o.group||group;
       return `${head}<div class="ext-desk-role-opt" role="option" id="extRoleOpt${i}" data-value="${esc(o.value)}" aria-selected="${o.value===current}">${esc(o.group?o.short:o.label)}${o.value===current?'<i class="fas fa-check" aria-hidden="true"></i>':''}</div>`;}).join('');
-    pop.append(list);document.body.append(pop);
+    // The list lives in the top layer (a manual popover) where supported, so no ancestor's overflow, stacking or
+    // modal dialog can cover or clip it; inside the photo viewer it stays in the dialog so the dialog keeps it live.
+    if(typeof pop.showPopover==='function')pop.popover='manual';
+    pop.append(list);(button.closest('dialog')||document.body).append(pop);try{pop.showPopover?.();}catch{}
     const opts=[...list.querySelectorAll('[role=option]')];let active=Math.max(0,opts.findIndex(o=>o.dataset.value===current));
     const show=i=>{active=(i+opts.length)%opts.length;opts.forEach((o,n)=>o.classList.toggle('is-active',n===active));button.setAttribute('aria-activedescendant',opts[active].id);const o=opts[active];if(o.offsetTop<list.scrollTop)list.scrollTop=o.offsetTop-4;else if(o.offsetTop+o.offsetHeight>list.scrollTop+list.clientHeight)list.scrollTop=o.offsetTop+o.offsetHeight-list.clientHeight+4;};
-    const place=()=>{const box=button.getBoundingClientRect(),height=pop.offsetHeight,below=innerHeight-box.bottom-8;
-      pop.style.minWidth=Math.max(box.width,200)+'px';pop.style.left=Math.max(8,Math.min(box.right-pop.offsetWidth,innerWidth-pop.offsetWidth-8))+'px';
-      pop.style.top=(below>=Math.min(height,180)?box.bottom+4:Math.max(8,box.top-height-4))+'px';};
+    // A row low in the scrolling upload list is first brought fully into that list's view.
+    const strip=button.closest('.ext-desk-list'),row=button.closest('.ext-desk-file');
+    if(strip&&row){const s=strip.getBoundingClientRect(),r=row.getBoundingClientRect(),fade=24;if(r.bottom>s.bottom-fade)strip.scrollTop+=r.bottom-s.bottom+fade;else if(r.top<s.top)strip.scrollTop-=s.top-r.top;}
+    // It opens below its button when the whole list fits there, else above when it fits there, else on the roomier
+    // side with its height cut to that room so the list scrolls: every option can always be reached.
+    const place=()=>{
+      const box=button.getBoundingClientRect(),vv=window.visualViewport,top=vv?.offsetTop||0,left=vv?.offsetLeft||0,height=vv?.height||innerHeight,width=vv?.width||innerWidth,edge=8,gap=4;
+      pop.style.minWidth=Math.max(box.width,200)+'px';pop.style.maxHeight='';
+      const natural=pop.offsetHeight,below=top+height-box.bottom-gap-edge,above=box.top-top-gap-edge;
+      const down=natural<=below||(natural>above&&below>=above),room=Math.max(0,down?below:above);
+      if(natural>room)pop.style.maxHeight=room+'px';
+      const tall=pop.offsetHeight;
+      pop.style.left=Math.max(left+edge,Math.min(box.right-pop.offsetWidth,left+width-pop.offsetWidth-edge))+'px';
+      pop.style.top=(down?box.bottom+gap:box.top-gap-tall)+'px';pop.dataset.side=down?'below':'above';
+    };
     place();button.setAttribute('aria-expanded','true');button.setAttribute('aria-controls',list.id);show(active);
     const pick=value=>{closeDeskMenu(true);if(value&&value!==current&&files.has(from))deskReassign(from,value);};
     pop.addEventListener('pointerdown',e=>e.preventDefault());
@@ -970,11 +1037,12 @@
       else if(e.key==='Enter'||e.key===' '){e.preventDefault();e.stopPropagation();if(e.key===' ')button.__spacePicked=Date.now();pick(opts[active]?.dataset.value);}
     };
     const onDown=e=>{if(!pop.contains(e.target)&&!button.contains(e.target))closeDeskMenu();};
-    // A scroll around it moves it with its button; once the button leaves the screen it closes.
-    const onScroll=e=>{if(pop.contains(e.target))return;const box=button.getBoundingClientRect();if(!button.isConnected||box.bottom<0||box.top>innerHeight)closeDeskMenu();else place();};
-    const onResize=()=>closeDeskMenu();
-    document.addEventListener('keydown',onKey,true);document.addEventListener('pointerdown',onDown,true);document.addEventListener('scroll',onScroll,true);window.addEventListener('resize',onResize);
-    deskMenu={pop,button,cleanup(){document.removeEventListener('keydown',onKey,true);document.removeEventListener('pointerdown',onDown,true);document.removeEventListener('scroll',onScroll,true);window.removeEventListener('resize',onResize);}};
+    // A scroll or resize around it moves it with its button; once the button leaves the screen, or scrolls out of
+    // the upload list, it closes.
+    const onScroll=e=>{if(pop.contains(e.target))return;const box=button.getBoundingClientRect(),clip=strip?.getBoundingClientRect();if(!button.isConnected||box.bottom<0||box.top>innerHeight||(clip&&(box.bottom<=clip.top||box.top>=clip.bottom)))closeDeskMenu();else place();};
+    const onResize=()=>{if(button.isConnected)place();else closeDeskMenu();};
+    document.addEventListener('keydown',onKey,true);document.addEventListener('pointerdown',onDown,true);document.addEventListener('scroll',onScroll,true);window.addEventListener('resize',onResize);window.visualViewport?.addEventListener('resize',onResize);
+    deskMenu={pop,button,cleanup(){document.removeEventListener('keydown',onKey,true);document.removeEventListener('pointerdown',onDown,true);document.removeEventListener('scroll',onScroll,true);window.removeEventListener('resize',onResize);window.visualViewport?.removeEventListener('resize',onResize);}};
   }
   function deskStatus(f){
     if(f.error)return ['failed',f.error];
@@ -985,7 +1053,7 @@
   }
   function deskRow(){
     const row=document.createElement('div');row.className='ext-desk-file';row.setAttribute('role','listitem');row.draggable=true;
-    row.innerHTML=`<button type="button" class="ext-desk-thumb" data-desk-preview><img alt=""><span class="ext-desk-play" hidden><i class="fas fa-play" aria-hidden="true"></i><b></b></span></button><div class="ext-desk-file-info"><div class="ext-desk-file-top"><strong data-desk-name></strong><span data-desk-status></span></div><button type="button" class="ext-desk-role" data-desk-role aria-haspopup="listbox" aria-expanded="false" aria-label="${(globalThis.PlatformLanguage?.htmlText("firstmeasure","ext_desk_use_as","Use this file as") ?? "Use this file as")}"><span data-desk-role-label></span><i class="fas fa-chevron-down" aria-hidden="true"></i></button></div><div class="ext-desk-file-actions"><button type="button" class="ext-desk-iconbtn" data-desk-retry data-fm-tooltip="${(globalThis.PlatformLanguage?.htmlText("firstmeasure","m_0dd87f826c8c39","Retry upload") ?? "Retry upload")}" aria-label="${(globalThis.PlatformLanguage?.htmlText("firstmeasure","m_0dd87f826c8c39","Retry upload") ?? "Retry upload")}"><i class="fas fa-rotate" aria-hidden="true"></i></button><button type="button" class="ext-desk-iconbtn" data-desk-remove data-fm-tooltip="${(globalThis.PlatformLanguage?.htmlText("firstmeasure","ext_desk_remove","Remove") ?? "Remove")}">×</button></div><small class="ext-desk-file-error" data-desk-error role="alert" hidden></small><div class="ext-desk-bar" aria-hidden="true"><i></i></div>`;
+    row.innerHTML=`<button type="button" class="ext-desk-thumb" data-desk-preview aria-haspopup="dialog"><img alt=""><span class="ext-desk-play" hidden><i class="fas fa-play" aria-hidden="true"></i><b></b></span></button><div class="ext-desk-file-info"><div class="ext-desk-file-top"><strong data-desk-name></strong><span data-desk-status></span></div><button type="button" class="ext-desk-role" data-desk-role aria-haspopup="listbox" aria-expanded="false" aria-label="${(globalThis.PlatformLanguage?.htmlText("firstmeasure","ext_desk_use_as","Use this file as") ?? "Use this file as")}"><span data-desk-role-label></span><i class="fas fa-chevron-down" aria-hidden="true"></i></button></div><div class="ext-desk-file-actions"><button type="button" class="ext-desk-iconbtn" data-desk-retry data-fm-tooltip="${(globalThis.PlatformLanguage?.htmlText("firstmeasure","m_0dd87f826c8c39","Retry upload") ?? "Retry upload")}" aria-label="${(globalThis.PlatformLanguage?.htmlText("firstmeasure","m_0dd87f826c8c39","Retry upload") ?? "Retry upload")}"><i class="fas fa-rotate" aria-hidden="true"></i></button><button type="button" class="ext-desk-iconbtn" data-desk-remove data-fm-tooltip="${(globalThis.PlatformLanguage?.htmlText("firstmeasure","ext_desk_remove","Remove") ?? "Remove")}">×</button></div><small class="ext-desk-file-error" data-desk-error role="alert" hidden></small><div class="ext-desk-bar" aria-hidden="true"><i></i></div>`;
     if(!reduceCaptureMotion())row.animate([{opacity:0,transform:'translateY(-8px)'},{opacity:1,transform:'none'}],{duration:280,easing:'cubic-bezier(.22,1,.36,1)'});
     return row;
   }
@@ -1030,9 +1098,9 @@
     const cells=layout.map(v=>{
       if(!v)return `<div class="ext-desk-house"><svg viewBox="0 0 80 60" aria-label="${(globalThis.PlatformLanguage?.htmlText("firstmeasure","m_9e22418c14100e","House viewed from above, front at bottom") ?? "House viewed from above, front at bottom")}" role="img"><rect x="14" y="7" width="52" height="42" rx="4" fill="currentColor" opacity=".12"/><path d="M14 7L40 18L66 7M40 18V38M14 49L40 38L66 49" fill="none" stroke="currentColor" stroke-width="2"/><rect x="32" y="45" width="16" height="10" rx="2" fill="currentColor"/></svg><strong>${(globalThis.PlatformLanguage?.htmlText("firstmeasure","m_4042bd99ed30d1","FRONT ↓") ?? "FRONT ↓")}</strong></div>`;
       const key=i+':'+v,f=files.get(key),name=esc(label(v));
-      return `<div class="ext-desk-cell ${f?'has-file':''} ${f?.media_id?'is-done':''} ${f?.error?'is-failed':''}" data-desk-angle="${key}">${f?`<button type="button" class="ext-desk-cell-thumb" data-desk-preview="${key}" aria-label="${(globalThis.PlatformLanguage?.htmlText("firstmeasure","select_angle_photo","Select {angle} photo",{angle:label(v)}) ?? `Select ${name} photo`)}"><img src="${esc(referenceThumbnail(f))}" alt=""></button><button type="button" class="ext-desk-cell-remove" data-desk-remove="${key}" aria-label="${((v1) => globalThis.PlatformLanguage?.htmlText("firstmeasure","m_94fef39d56d52f",`Remove ${v1} photo`,{v1}) ?? `Remove ${v1} photo`)(name)}">×</button>`:`<button type="button" class="ext-desk-cell-add" data-desk-angle-pick="${key}" aria-label="${(globalThis.PlatformLanguage?.htmlText("firstmeasure","upload_angle_photo","Upload {angle} photo",{angle:label(v)}) ?? `Upload ${name} photo`)}"><span aria-hidden="true">+</span></button>`}<span class="ext-desk-cell-label">${name}${f&&(f.uploading||f.encoding)?' · <i class="ext-desk-spin"></i>':f?.error?' · !':''}</span></div>`;
+      return `<div class="ext-desk-cell ${f?'has-file':''} ${f?.media_id?'is-done':''} ${f?.error?'is-failed':''}" data-desk-angle="${key}">${f?`<button type="button" class="ext-desk-cell-thumb" data-desk-preview="${key}" aria-haspopup="dialog" aria-label="${(globalThis.PlatformLanguage?.htmlText("firstmeasure","ext_desk_view_angle_photo","View {angle} photo",{angle:label(v)}) ?? `View ${name} photo`)}"><img src="${esc(referenceThumbnail(f))}" alt=""></button><button type="button" class="ext-desk-cell-remove" data-desk-remove="${key}" aria-label="${((v1) => globalThis.PlatformLanguage?.htmlText("firstmeasure","m_94fef39d56d52f",`Remove ${v1} photo`,{v1}) ?? `Remove ${v1} photo`)(name)}">×</button>`:`<button type="button" class="ext-desk-cell-add" data-desk-angle-pick="${key}" aria-label="${(globalThis.PlatformLanguage?.htmlText("firstmeasure","upload_angle_photo","Upload {angle} photo",{angle:label(v)}) ?? `Upload ${name} photo`)}"><span aria-hidden="true">+</span></button>`}<span class="ext-desk-cell-label">${name}${f&&(f.uploading||f.encoding)?' · <i class="ext-desk-spin"></i>':f?.error?' · !':''}</span></div>`;
     });
-    return `${pills}<div class="ext-desk-grid">${cells.join('')}</div><div class="ext-desk-angles-foot"><span class="ext-desk-risk" tabindex="0" data-fm-tooltip="${esc(PHOTO_RISK)}"><i class="fas fa-triangle-exclamation" aria-hidden="true"></i>${(globalThis.PlatformLanguage?.htmlText("firstmeasure","ext_desk_photo_risk","Photos alone may not be enough to model the house.") ?? "Photos alone may not be enough to model the house.")}</span>${deskModeLink('video')}</div>`;
+    return `${pills}<div class="ext-desk-grid">${cells.join('')}</div><div class="ext-desk-angles-foot">${deskModeLink('video')}</div>`;
   }
   // One thin upload strip: drop, choose files, or record. Formats and limits live in its tooltip.
   function deskDropUI(){
@@ -1095,6 +1163,7 @@
     if(reveal){const bottom=reveal.offsetTop+reveal.offsetHeight-strip.clientHeight;if(bottom>strip.scrollTop)strip.scrollTop=bottom;else if(reveal.offsetTop<strip.scrollTop)strip.scrollTop=reveal.offsetTop;}
     deskListEdge(strip);
     deskHTML(deskNode.querySelector('[data-desk-side]'),deskSideUI());
+    fillPhotoViewer();
   }
   // A long upload list scrolls on its own; an edge fades while more rows sit beyond it.
   function deskListEdge(strip){if(!strip)return;strip.style.setProperty('--fade-top',strip.scrollTop>2?'20px':'0px');strip.style.setProperty('--fade-bottom',strip.scrollHeight-strip.scrollTop-strip.clientHeight>2?'32px':'0px');}
@@ -1109,7 +1178,7 @@
     else if(d.deskPill!=null){structure=Number(d.deskPill);render();}
     else if(d.deskRetry)void send(files.get(d.deskRetry));
     else if(d.deskRemove)deskRemove(d.deskRemove);
-    else if(d.deskPreview)deskPreview(d.deskPreview);
+    else if(d.deskPreview)deskPreview(d.deskPreview,target);
     else if('deskDismiss' in d){error='';render();}
     else if(d.delivery){delivery=d.delivery;render();}
     else if(d.details){e.stopPropagation();ctx.showInfo?.(d.details);}
@@ -1182,7 +1251,7 @@
     return host;
   }
   function closeDesk(animate){
-    const node=deskNode;deskShown=false;document.getElementById('rOverlay')?.classList.remove('exteriors-capture');
+    const node=deskNode;deskShown=false;closePhotoViewer(false);document.getElementById('rOverlay')?.classList.remove('exteriors-capture');
     if(recNode&&node?.contains(recNode)){stopCamera();recNode.remove();videoStage='intro';}
     if(deskLeaving)return;
     if(!node?.isConnected){restoreDeskTray();return;}
@@ -1299,13 +1368,39 @@
     .ext-desk .ext-desk-role.needs-choice{border-color:#fdb022;background:#fffaeb;color:#93370d;font-weight:600}
     .ext-desk .ext-desk-role.needs-choice>i{color:#93370d}
     .ext-desk-role-pop{position:fixed;z-index:2147483600;max-width:320px;max-height:300px;display:flex;flex-direction:column;border:1px solid #e4e7ec;border-radius:10px;background:#fff;box-shadow:0 16px 40px rgba(16,24,40,.16),0 2px 6px rgba(16,24,40,.06);overflow:hidden;color:#101828;font-family:var(--ext-role-font,inherit);font-size:12.5px;animation:extRolePop .14s ease-out}
-    @keyframes extRolePop{from{opacity:0;transform:translateY(-4px)}to{opacity:1;transform:none}}
-    .ext-desk-role-list{overflow:auto;padding:4px;scrollbar-width:thin}
+    @keyframes extRolePop{from{opacity:0;transform:translateY(-4px)}to{opacity:1;transform:none}}@keyframes extRolePopUp{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:none}}
+    .ext-desk-role-pop{inset:auto;margin:0;padding:0}.ext-desk-role-pop[data-side="above"]{animation-name:extRolePopUp}
+    .ext-desk-role-list{min-height:0;overflow:auto;padding:4px;scrollbar-width:thin;overscroll-behavior:contain}
     .ext-desk-role-group{padding:8px 8px 3px;font-size:10.5px;font-weight:650;color:#98a2b3;letter-spacing:.03em;text-transform:uppercase}
     .ext-desk-role-opt{display:flex;align-items:center;gap:8px;min-height:30px;padding:5px 8px;border-radius:7px;cursor:pointer;white-space:nowrap}
     .ext-desk-role-opt:hover,.ext-desk-role-opt.is-active{background:#f2f4f7}
     .ext-desk-role-opt[aria-selected="true"]{font-weight:600}
     .ext-desk-role-opt i{margin-left:auto;padding-left:10px;font-size:10px;color:var(--primary,#d93025)}
+    /* The photo viewer: a modal dialog over the whole window. Its layout follows its own size. */
+    .ext-photo-viewer{position:fixed;inset:0;width:100%;height:100%;max-width:none;max-height:none;margin:0;padding:0;border:0;background:#0c111df0;color:#fff;font-size:14px;line-height:1.4;container:ext-viewer/size;overscroll-behavior:contain}
+    .ext-photo-viewer[open]{display:grid;grid-template-rows:auto minmax(0,1fr) auto}
+    .ext-photo-viewer::backdrop{background:transparent}
+    .ext-viewer-head{display:flex;align-items:center;gap:16px;padding:14px 16px 10px 24px;padding-top:max(14px,env(safe-area-inset-top,0px))}
+    .ext-viewer-title{flex:1;min-width:0;display:flex;align-items:baseline;gap:12px}
+    .ext-photo-viewer .ext-viewer-title h2{margin:0;min-width:0;font-size:16px;font-weight:650;line-height:1.3;color:#fff;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+    .ext-viewer-title span{flex:none;font-size:13px;color:#d0d5dd;font-variant-numeric:tabular-nums}
+    .ext-photo-viewer .ext-viewer-close{flex:none;width:40px;height:40px;border:0;border-radius:50%;background:#fff;color:#1d2939;font:inherit;font-size:24px;line-height:1;cursor:pointer;display:grid;place-items:center;padding:0 0 2px}
+    .ext-viewer-stage{position:relative;min-height:0;display:grid;place-items:center;padding:4px 72px}
+    .ext-viewer-stage img{display:block;max-width:100%;max-height:100%;object-fit:contain;border-radius:10px;background:#000;box-shadow:0 12px 48px #0008;user-select:none}
+    .ext-photo-viewer .ext-viewer-step{position:absolute;top:50%;width:48px;height:48px;margin-top:-24px;border:0;border-radius:50%;background:#ffffffeb;color:#1d2939;cursor:pointer;display:grid;place-items:center;padding:0;box-shadow:0 2px 10px #0004}
+    .ext-viewer-step.is-prev{left:14px}.ext-viewer-step.is-next{right:14px}
+    .ext-photo-viewer .ext-viewer-step:hover,.ext-photo-viewer .ext-viewer-close:hover{background:#fff;box-shadow:0 0 0 4px #ffffff40}
+    .ext-viewer-foot{display:flex;align-items:center;justify-content:center;gap:10px;padding:12px 16px 18px;padding-bottom:max(18px,env(safe-area-inset-bottom,0px))}
+    .ext-viewer-use{font-size:13px;font-weight:600;color:#d0d5dd}
+    .ext-photo-viewer .ext-viewer-role{display:inline-flex;align-items:center;gap:10px;min-width:180px;max-width:min(360px,70cqw);height:40px;padding:0 12px 0 14px;border:1px solid #fff;border-radius:10px;background:#fff;color:#101828;font:inherit;font-size:14px;font-weight:600;cursor:pointer;text-align:left}
+    .ext-viewer-role>span{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+    .ext-viewer-role>svg{flex:none;width:16px;height:16px;color:#667085;transition:transform .15s}
+    .ext-viewer-role[aria-expanded="true"]>svg{transform:rotate(180deg)}
+    .ext-photo-viewer .ext-viewer-role.needs-choice{border-color:#fdb022;background:#fffaeb;color:#93370d}
+    .ext-photo-viewer .ext-viewer-role:disabled{opacity:.6;cursor:default}
+    .ext-photo-viewer button:focus-visible{outline:3px solid #fff;outline-offset:3px;box-shadow:0 0 0 6px var(--primary,#d93025)}
+    .ext-photo-viewer [hidden]{display:none!important}
+    @container ext-viewer (max-width:600px){.ext-viewer-head{padding-left:16px}.ext-viewer-stage{padding:4px 8px}.ext-photo-viewer .ext-viewer-step{top:auto;bottom:12px;margin-top:0;width:44px;height:44px}.ext-viewer-title{flex-direction:column;gap:0}.ext-photo-viewer .ext-viewer-role{min-width:0;flex:1}}
     @media(prefers-reduced-motion:reduce){.ext-desk-role-pop{animation:none}.ext-desk .ext-desk-role>i{transition:none}}
     .ext-desk-file-error{grid-column:2/-1;font-size:12px;line-height:1.35;color:#b42318;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
     .ext-desk-sr{position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap}
@@ -1329,7 +1424,6 @@
     .ext-desk .ext-desk-cell-remove{position:absolute;top:4px;right:4px;width:24px;height:24px;border:0;border-radius:50%;background:#fff;color:#344054;font:inherit;font-size:16px;line-height:1;cursor:pointer;box-shadow:0 1px 3px #0003;display:grid;place-items:center;padding:0}
     .ext-desk-house{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;overflow:hidden;min-height:0;color:var(--primary-readable,var(--primary,#d93025))}.ext-desk-house svg{width:56px;max-width:70%;height:auto;max-height:70%}.ext-desk-house strong{font-size:9px;letter-spacing:.08em}
     .ext-desk-angles-foot{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}
-    .ext-desk-risk{display:inline-flex;gap:8px;align-items:center;font-size:12px;color:#93370d;cursor:help}
     .ext-desk-what{display:flex;align-items:center;gap:12px}
     .ext-desk-what-icon{width:42px;height:42px;flex:none;border-radius:12px;display:grid;place-items:center;background:color-mix(in srgb,var(--primary,#d93025) 9%,white);color:var(--primary-readable,var(--primary,#d93025))}
     .ext-desk-what-icon .ext-scope-icon{width:20px;height:20px}
