@@ -53,6 +53,33 @@ function fixture(withBase=false,editors={}){
     listeners.DOMContentLoaded();ctx.WallMode.restore('fixture',{});
     return {ctx,elements,stages,soffits,resoffits,el,listeners,flushTimers(){for(const [id,fn] of [...timers]){timers.delete(id);fn();}}};
 }
+// FM-322: walls resume from the browser backup after a reload, the roof drawing only from the last Save. A house
+// with no roof drawing could not run Measurements or submit its report; the roof the walls were built from comes back.
+test('walls restored over an empty roof drawing bring back the roof they were built from',()=>{
+ const f=fixture(true);f.ctx.activeGeometry.connections[0].type='eave';f.ctx.WallMode.setEnabled(true);f.soffits[1].onclick();
+ const saved=f.ctx.WallMode.serialize(),drawn=f.ctx.activeGeometry,shape=g=>JSON.parse(JSON.stringify({points:g.points.map(p=>[p.x,p.y,p.z]),connections:g.connections.map(c=>[g.points.indexOf(c.start),g.points.indexOf(c.end),c.type]),manualFaces:g.manualFaces.map(m=>m.points.map(p=>g.points.indexOf(p)))})),warn=console.warn;
+ assert.ok(saved.roofSignature&&saved.base,'walls were built');
+ console.warn=()=>{};
+ try{
+  const reloaded=fixture(true);reloaded.ctx.activeGeometry={points:[],connections:[],vents:[]};
+  reloaded.ctx.WallMode.restore('fixture',{exteriorsWalls:JSON.parse(JSON.stringify(saved)),geometry:{points:[],connections:[]}});
+  const roof=reloaded.ctx.activeGeometry;
+  assert.deepEqual(shape(roof),shape(drawn),'same points, lines, types and manual faces as the drawing');
+  assert.ok(roof.manualFaces[0].points.every(p=>roof.points.includes(p)),'manual faces share the restored points');
+  assert.ok(reloaded.ctx.WallMode.serialize().base,'the walls are kept');
+  assert.equal(reloaded.ctx.WallMode.serialize().roofSignature,saved.roofSignature);
+
+  // Another image context (a different calibration): the drawing is placed where it was on the ground.
+  const moved=fixture(true,{getMetersPerPx:()=>.5,imageWidth:20,imageHeight:20});moved.ctx.activeGeometry={points:[],connections:[],vents:[]};
+  moved.ctx.WallMode.restore('fixture',{exteriorsWalls:JSON.parse(JSON.stringify(saved))});
+  assert.deepEqual(JSON.parse(JSON.stringify(moved.ctx.activeGeometry.points.map(p=>[p.x,p.y,p.z]))),drawn.points.map(p=>[10+(p.x-5)*2,10+(p.y-5)*2,p.z]));
+
+  // A roof drawing that is there is never replaced.
+  const kept=fixture(true),own=kept.ctx.activeGeometry,before=JSON.stringify(own);
+  kept.ctx.WallMode.restore('fixture',{exteriorsWalls:JSON.parse(JSON.stringify(saved))});
+  assert.equal(kept.ctx.activeGeometry,own);assert.equal(JSON.stringify(kept.ctx.activeGeometry),before);
+ }finally{console.warn=warn;}
+});
 test('Show Dev Controls settings checkbox gates the panel across roof/wall mode switches',()=>{
  let panel;
  const perf={controlsVisible:false,mount(target){panel=target;},setControlsVisible(value){this.controlsVisible=value;panel.hidden=!value;}};
