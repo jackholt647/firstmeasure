@@ -12,6 +12,13 @@
   const document = root.document;
   const G = () => root.FirstMateGuides;
   const READY_TIMEOUT_MS = 8000;
+  // The billboard is laid out for a 760 x 560 card. Where the window has room the whole card is zoomed up, page and
+  // all, so the page keeps its layout and simply reads larger.
+  const CARD = { width: 760, height: 560, margin: 48, maxZoom: 1.35 };
+  function fitCard(card){
+    const zoom = Math.min(CARD.maxZoom, (root.innerWidth - CARD.margin) / CARD.width, (root.innerHeight - CARD.margin) / CARD.height);
+    card.style.zoom = zoom > 1.01 ? zoom.toFixed(3) : '';
+  }
   const css = `
     .gxa-host{position:fixed;inset:0;z-index:2147483300;display:flex;align-items:center;justify-content:center;padding:16px;box-sizing:border-box;background:rgba(16,24,40,.62);opacity:0;transition:opacity .22s ease}
     .gxa-host.gxa-in{opacity:1}
@@ -46,16 +53,18 @@
     const host = document.createElement('div');
     host.className = 'gxa-host'; host.hidden = true; host.setAttribute('data-fmr-ignore', ''); host.dataset.gxExperience = experience.id;
     host.innerHTML = `<div class="gxa-card" tabindex="-1" role="dialog" aria-modal="true" aria-label="${esc(L(step.title))}">
-      <iframe title="${esc(L(step.title))}" sandbox="allow-scripts allow-popups allow-popups-to-escape-sandbox"></iframe>
+      <iframe aria-label="${esc(L(step.title))}" sandbox="allow-scripts allow-popups allow-popups-to-escape-sandbox"></iframe>
       <button type="button" class="gxa-close" aria-label="${esc(L('gx_announce_close', 'Close'))}"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg></button>
       <div class="gxa-foot" hidden><button type="button" class="gxa-try">${esc(L('gx_announce_try', 'Try It Now'))}</button></div>
     </div>`;
-    const frame = host.querySelector('iframe'), foot = host.querySelector('.gxa-foot');
+    const frame = host.querySelector('iframe'), foot = host.querySelector('.gxa-foot'), card = host.querySelector('.gxa-card');
     document.body.append(host);
     return new Promise((resolve) => {
       let finished = false, shown = false;
       const previousFocus = document.activeElement;
+      const onResize = () => fitCard(card);
       const remove = () => {
+        root.removeEventListener('resize', onResize);
         root.removeEventListener('message', onMessage);
         document.removeEventListener('keydown', onKey, true);
         clearTimeout(timer);
@@ -89,6 +98,8 @@
       };
       const onKey = (event) => { if (event.key === 'Escape' && shown) { event.preventDefault(); event.stopPropagation(); finish('dismiss'); } };
       const timer = setTimeout(() => { if (!shown) { finished = true; remove(); resolve({ status: 'ended' }); } }, READY_TIMEOUT_MS);
+      fitCard(card);
+      root.addEventListener('resize', onResize);
       root.addEventListener('message', onMessage);
       document.addEventListener('keydown', onKey, true);
       host.querySelector('.gxa-close').addEventListener('click', () => finish('dismiss'));
