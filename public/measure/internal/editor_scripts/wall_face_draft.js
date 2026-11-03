@@ -2563,8 +2563,8 @@ function perf_previewFeature(e,live=false,pointer=false){if(!F||viewOf(e)!=='3d'
   const ok=transaction(()=>{
    const surfaces=host.state().wallEdits.$surfaces,f=surfaces.find(f=>f.id===t.id),s=f.curvedSurface,corners=s.boundaryControls||s.domains.flatMap(d=>d.points);
    if(t.edge){const d=s.domains[t.edge.di],ring=[d.points,...(d.holes||[])][t.edge.ri],forward=(t.edge.i+1)%ring.length===t.edge.j,from=forward?t.edge.i:t.edge.j,inner=(forward?path:[...path].reverse()).slice(1,-1);ring.splice(from+1,0,...inner);s.boundaryControls=corners;f.points=corners.map(p=>K.surfacePoint(s,p.x,p.y));K.validateFace(f);selectedSolid=f.id;lineSelection=[];return;}
-   const region={points:path,holes:[]},ends=[path[0],path.at(-1)],domains=s.domains.flatMap(d=>K.difference(d,[region])),inside=K.intersection(s.domains,[region]);if(!domains.length||!inside.length)throw Error('The arch must lie on this curved face.');
-   s.domains=domains;s.boundaryControls=[...corners,...ends];f.points=s.boundaryControls.map(p=>K.surfacePoint(s,p.x,p.y));K.validateFace(f);
+   const region={points:path,holes:[]},ends=[path[0],path[path.length>>1],path.at(-1)],domains=s.domains.flatMap(d=>K.difference(d,[region])),inside=K.intersection(s.domains,[region]);if(!domains.length||!inside.length)throw Error('The arch must lie on this curved face.');
+   s.domains=domains;s.boundaryControls=[...corners,ends[0],ends[2]];f.points=s.boundaryControls.map(p=>K.surfacePoint(s,p.x,p.y));K.validateFace(f);
    const patch={id:'surface-patch-'+Date.now(),holes:[],...(f.material?{material:f.material}:{}),...(f.finishColor?{finishColor:f.finishColor}:{}),curvedSurface:{...K.surfaceDefinition(s),logical:true,domains:inside,boundaryControls:ends},points:ends.map(p=>K.surfacePoint(s,p.x,p.y))};K.validateFace(patch);surfaces.push(patch);selectedSolid=patch.id;
   },before);
   tool=null;if(ok)host.message('Arch placed on the curved surface.');else host.state().wallEdits=before;host.redraw();return true;
