@@ -116,7 +116,8 @@ function mesh(face){
 function surfaceColor(face,camera,muted=false){
  const hex=/^#?([0-9a-f]{6})$/i.exec(face.finishColor||'');
  let color=hex?[0,2,4].map(i=>parseInt(hex[1].slice(i,i+2),16)):face.surface==='roof'?[193,204,215]:face.chimney?[213,197,192]:/brick/i.test(face.material)?[219,185,174]:/stone|masonry/i.test(face.material)?[210,204,192]:/stucco/i.test(face.material)?[230,219,190]:isTrim(face)?[233,229,217]:[210,226,238];
- if(face.featureType)color=/door|garage/i.test(face.featureType)?[225,198,155]:/vent/i.test(face.featureType)?[181,210,181]:[150,194,212];
+ // A glass door or garage door is drawn in the window colour.
+ if(face.featureType)color=face.glass?[150,194,212]:/door|garage/i.test(face.featureType)?[225,198,155]:/vent/i.test(face.featureType)?[181,210,181]:[150,194,212];
  const n=face.normal||K.normal(face.points),len=n?Math.hypot(n.x,n.y,n.z||0)||1:1,facing=n&&camera?Math.abs(n.x*camera.x+n.y*camera.y+(n.z||0)*camera.z)/len:1;
  const tint=muted?.1:face.featureType?.55:face.surface==='roof'?.34:.42,shade=muted?.98+.02*facing:.84+.16*facing;
  return color.map(v=>Math.round(Math.min(246,255-(255-v)*tint)*shade));
@@ -475,7 +476,7 @@ function drawExteriorReportPages(doc,model,settings,begin,colors,pages={}){
    const ty=frame.y+frame.h+2;text(reportText('W ')+measure(a.width,"ft",number(a.width)+"'")+reportText("  x  H ")+measure(a.height,"ft",number(a.height)+"'"),xx+2,ty,7);doc.setFontSize(6.5);text(doc.splitTextToSize(material(a)+(a.chimney?' / Chimney':''),ww-4)[0],xx+2,ty+4.5,6.5);
   });});
  }
- if(want('openings'))paginate(begin,reportText('Opening Schedule'),[reportText('Opening'),reportText('Type'),reportText('Wall'),(metric()?'W x H (m)':'W x H (ft)'),(metric()?'Area m²':'Area ft2'),(metric()?'Trim m':'Trim ft')],model.openings.map(o=>[o.id,reportText(o.label),o.wall,measure(o.width,"ft",number(o.width),false)+' x '+measure(o.height,"ft",number(o.height),false),measure(o.area,"sf",number(o.area),false),(t=>t>0?measure(t,"ft",number(t),false):'-')(openingTrimLength(o))]),[1.4,1.9,1,2,1.3,1.3],reportText('Dimensions are drawn extents, not manufacturer or rough-opening sizes. Trim {value1} is measured along the outside edge of the trim; - means the opening has no trim.', {value1:unit('ft','ft')}));
+ if(want('openings'))paginate(begin,reportText('Opening Schedule'),[reportText('Opening'),reportText('Type'),reportText('Wall'),(metric()?'W x H (m)':'W x H (ft)'),(metric()?'Area m²':'Area ft2'),(metric()?'Trim m':'Trim ft')],model.openings.map(o=>[o.id,reportText(o.label)+(o.glass?', '+reportText('glass'):''),o.wall,measure(o.width,"ft",number(o.width),false)+' x '+measure(o.height,"ft",number(o.height),false),measure(o.area,"sf",number(o.area),false),(t=>t>0?measure(t,"ft",number(t),false):'-')(openingTrimLength(o))]),[1.4,1.9,1,2,1.3,1.3],reportText('Dimensions are drawn extents, not manufacturer or rough-opening sizes. Trim {value1} is measured along the outside edge of the trim; - means the opening has no trim.', {value1:unit('ft','ft')}));
  const byMaterial={};model.walls.forEach(a=>byMaterial[material(a)]=(byMaterial[material(a)]||0)+a.net);
  if(want('quantities')){begin(reportText('Exterior Quantities'));
  // Measured lengths on the left, trim by kind on the right.
@@ -496,15 +497,14 @@ function drawExteriorReportPages(doc,model,settings,begin,colors,pages={}){
 }
 /* The Wall Notes page has the Roof Notes page's layout and notes card (pdf.js pdfNotesLayout and
  drawPdfNotesCard): the four elevations as reference images (2 x 2) on the left, the ruled notes card
- on the right in landscape; stacked in portrait. The report's notes and model warnings are written on
- the card's rules; whatever does not fit continues on a page with a full notes card. */
+ on the right in landscape; stacked in portrait. The card is left blank for the customer's own notes,
+ like Roof Notes: nothing the system produces (model warnings, review text, exteriorSettings.notes) is
+ ever written on it (FM-311). */
 function drawExteriorNotes(doc,model,settings,begin,colors){
  const {text}=writer(doc,colors),heading=reportText('Wall Notes');begin(heading);
  const {cells,notes}=root.pdfNotesLayout(doc,4);
  houseDirections(settings).slice(0,4).forEach((view,i)=>{const c=cells[i];root.drawPdfCard(doc,c.x,c.y,c.w,c.h);text(reportText(view.name),c.x+4,c.y+6,9,true);drawDiagram(doc,houseFaces(model),{x:c.x+2,y:c.y+8,w:c.w-4,h:c.h-10},view);});
- const written=String(settings.notes||'').trim(),paragraphs=[...(written?[written]:[]),...(model.warnings||[]).map(n=>reportText('Review: ')+reportText(n))];
- let rest=root.drawPdfNotesCard(doc,notes,paragraphs,colors);
- while(rest.length){begin(heading+reportText(' - continued'));rest=root.drawPdfNotesCard(doc,root.pdfNotesLayout(doc,0).page,rest,colors);}
+ root.drawPdfNotesCard(doc,notes,[],colors);
 }
 async function loadReportImage(item,state){
  const img=new Image();img.crossOrigin='anonymous';

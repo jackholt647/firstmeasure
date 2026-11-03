@@ -82,5 +82,6 @@ $nodeInternalBase = rtrim(dataAgentBrowserV1BaseUrl(), '/') . '/internal';
         };
     </script>
     <script src="portal_scripts/data_agent.js?v=<?php echo time(); ?>"></script>
+<script src="portal_scripts/flag_console.js?v=<?=@filemtime(__DIR__ . '/portal_scripts/flag_console.js')?>"></script>
 </body>
 </html>

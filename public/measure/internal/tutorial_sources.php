@@ -21,6 +21,7 @@ $result = fm_tutorial_source_request($id, $owner, $course, $name);
 http_response_code($result['status']);
 header('X-Content-Type-Options: nosniff');
 header("Content-Security-Policy: sandbox; default-src 'none'");
-$types = ['png'=>'image/png', 'jpg'=>'image/jpeg', 'tif'=>'image/tiff', 'json'=>'application/json'];
+$types = ['png'=>'image/png', 'jpg'=>'image/jpeg', 'tif'=>'image/tiff', 'json'=>'application/json', 'glb'=>'model/gltf-binary'];
 header('Content-Type: ' . ($types[strtolower(pathinfo($name, PATHINFO_EXTENSION))] ?? 'application/octet-stream'));
+if ($result['status'] === 200 && $name === 'google-3d/manifest.json') $result['body'] = fm_tutorial_source_capture_manifest($result['body'], $id, $owner, $course);
 if ($_SERVER['REQUEST_METHOD'] !== 'HEAD') echo $result['body'];

@@ -88,7 +88,11 @@ function placeGroup(shapes,boundaries,screen,radius=12,regions=boundaries.filter
 
 function containsShape(points,outlines){const area=ps=>Math.abs(ps.reduce((s,p,i)=>{const q=ps[(i+1)%ps.length];return s+p.x*q.y-p.y*q.x;},0)/2);return W.subtract({points},outlines.map(points=>({points}))).reduce((s,p)=>s+area(p),0)<1e-7;}
 
-function validate(points,outlines,others=[]){if(points.length<3||!points.every(p=>[p.x,p.y,p.z].every(Number.isFinite)))throw Error('Feature geometry is invalid.');const b=bounds(points);if(b.right-b.left<.01||b.top-b.bottom<.01)throw Error('Keep the shape at least 0.4 inches wide and high.');if(!containsShape(points,outlines))throw Error('That size or position extends beyond the supporting face.');const area=ps=>Math.abs(ps.reduce((s,p,i)=>{const q=ps[(i+1)%ps.length];return s+p.x*q.y-p.y*q.x;},0)/2);for(const f of others)if(area(points)-W.subtract({points},[{points:f.points}]).reduce((s,r)=>s+area(r),0)>1e-7)throw Error('That position overlaps another feature.');}
+function validate(points,outlines,others=[]){if(points.length<3||!points.every(p=>[p.x,p.y,p.z].every(Number.isFinite)))throw Error('Feature geometry is invalid.');const b=bounds(points);if(b.right-b.left<.01||b.top-b.bottom<.01)throw Error('Keep the shape at least 0.4 inches wide and high.');if(!containsShape(points,outlines))throw Error('That size or position extends beyond the supporting face.');const area=ps=>Math.abs(ps.reduce((s,p,i)=>{const q=ps[(i+1)%ps.length];return s+p.x*q.y-p.y*q.x;},0)/2);// Only shapes whose boxes meet can overlap; the clip's rounding on curve samples
+ // (about 1e-7 m²) must never read as an overlap, so a real one must exceed 10 mm².
+ const box=bounds(points),meets=f=>{const o=bounds(f.points);return o.left<box.right-1e-6&&o.right>box.left+1e-6&&o.bottom<box.top-1e-6&&o.top>box.bottom+1e-6;};
+ for(const f of others)if(meets(f)&&area(points)-W.subtract({points},[{points:f.points}]).reduce((s,r)=>s+area(r),0)>OVERLAP_AREA)throw Error('That position overlaps another feature.');}
+const OVERLAP_AREA=1e-5;
 
 // Trim is derived from the opening, so edits and copies cannot leave orphan strips.
 const trimSizes=[0,2,3,4,6];
@@ -99,6 +103,12 @@ function setTrim(feature,inches,color){
  if(!Number.isFinite(inches)||inches<0)throw Error('Enter a nonnegative trim width.');
  const next={...feature};if(inches===0)delete next.trim;else next.trim={width:inches*.0254,...(color?{color}:{})};return next;
 }
+// Doors and garage doors are their default door material unless glass is turned on for one; windows and
+// skylights are always glass and have no choice. Stored as feature.glass, absent when off.
+const glassTypes=['door','garage'];
+const supportsGlass=type=>glassTypes.includes(type);
+const isGlass=feature=>feature?.glass===true&&supportsGlass(feature.type);
+function setGlass(feature,on){if(!supportsGlass(feature?.type))return feature;const next={...feature};if(on)next.glass=true;else delete next.glass;return next;}
 function trimFaces(points,feature){
  const width=feature?.trim?.width;if(!(width>0)||!supportsTrim(feature.type))return [];
  const fr=orientedFrame(points,feature.axis),ps=points.map(p=>W.inFrame(fr,p)),b=bounds(ps),area=ps.reduce((sum,p,i)=>{const q=ps[(i+1)%ps.length];return sum+p.x*q.y-q.x*p.y;},0),sign=area>=0?1:-1;
@@ -202,7 +212,9 @@ function percentageSticker(face,f,box){
  if(dot(W.normal(points),W.normal(face.points))<0)points.reverse();
  return {points,feature:{type:box.type,preset:null,shape:'rectangle',axis:{...f.u}}};
 }
-const api={percentageFrame,percentageSticker,divisionId,divisionMembers,divisionLayout,divisionSegments,divideSticker,mergeStickerDivider,remapDivisionGroups,groupedStickers,trimTypes,supportsTrim,trimSizes,setTrim,trimFaces,nextPreset,pickerGroups,pickerIndices,FT,defs,register,frame,viewFrame,orientedFrame,bounds,dimensions,label,anchors,resized,shape,place,placeGroup,validate,containsShape};if(typeof module!=='undefined'&&module.exports)module.exports=api;else root.WallFeatures=api;
+const api={percentageFrame,percentageSticker,divisionId,divisionMembers,divisionLayout,divisionSegments,divideSticker,mergeStickerDivider,remapDivisionGroups,groupedStickers,trimTypes,supportsTrim,trimSizes,setTrim,glassTypes,supportsGlass,isGlass,setGlass,trimFaces,nextPreset,pickerGroups,pickerIndices,FT,defs,register,frame,viewFrame,orientedFrame,bounds,dimensions,label,anchors,resized,shape,place,placeGroup,validate,containsShape};
+// The sticker outline model (wall_stickers.js), reachable wherever the catalog is.
+Object.defineProperty(api,'Stickers',{enumerable:true,get(){return typeof module!=='undefined'&&module.exports?require('./wall_stickers.js'):root.WallStickers;}});if(typeof module!=='undefined'&&module.exports)module.exports=api;else root.WallFeatures=api;
 
 })(typeof window!=='undefined'?window:globalThis);
 
@@ -243,6 +255,7 @@ F.mountUI=function(command,selection,busy=()=>false,materials={}){
  .exterior-size-options button:hover{background:#f1f5f9;border-color:#9cabb8}
  .exterior-size-options button[aria-pressed=true]{background:#e8f0fe;border-color:#1a73e8;color:#1a73e8}
  .exterior-size-options button:disabled{opacity:.55}
+ .exterior-glass-option{display:flex;align-items:center;gap:6px;margin-top:8px;padding:6px;border:1px solid #e1e5e8;border-radius:4px;color:#444;cursor:pointer}.exterior-glass-option[hidden]{display:none}.exterior-glass-option small{color:#737b83}
 
  #wall-placement-options{width:max-content;max-width:calc(100% - 24px)}#wall-placement-options[hidden]{display:none}
  #wall-placement-options .placement-current{margin:8px 0;color:#596579;font-size:11px}
@@ -301,8 +314,10 @@ F.mountUI=function(command,selection,busy=()=>false,materials={}){
  const placementTiles=new Map(),lastPlacementSizes=new Map();
  for(const def of F.defs.values()){const b=tile(def.name,paths[def.id]||paths.none,def.color);b.title=def.name+(def.key?' ('+def.key.toUpperCase()+')':'')+' — place on a face'+(['window','door','garage'].includes(def.id)?'; L divides the selected sticker':'');b.onclick=()=>{command(def.id,lastPlacementSizes.get(def.id)??def.defaultPreset??0,true);placementPanel.hidden=false;F.refreshUI();};placementTiles.set(def.id,b);b.setAttribute('aria-haspopup','dialog');b.setAttribute('aria-controls','wall-placement-options');}
  const face=document.createElement('button');face.type='button';face.className='exterior-face-toggle';face.innerHTML='Face type <span aria-hidden="true">▴</span>';face.title='Choose a face type and size';face.setAttribute('aria-label','Face type');face.setAttribute('aria-haspopup','dialog');face.setAttribute('aria-expanded','false');face.setAttribute('aria-controls','wall-face-options');bar.appendChild(face);
- const panel=document.createElement('div');panel.id='wall-face-options';panel.className='exterior-selection exterior-sticker-menu';panel.hidden=true;panel.setAttribute('role','dialog');panel.setAttribute('aria-label','Face type and dimensions');panel.innerHTML='<div class="exterior-face-heading"><h4>FACE TYPE &amp; SIZE</h4><button type="button" aria-label="Close face types">×</button></div><p role="status"></p><table class="exterior-face-table"><thead><tr><th scope="col">Type</th><th scope="col">Width × height</th></tr></thead><tbody></tbody></table>';parent.appendChild(panel);
+ const panel=document.createElement('div');panel.id='wall-face-options';panel.className='exterior-selection exterior-sticker-menu';panel.hidden=true;panel.setAttribute('role','dialog');panel.setAttribute('aria-label','Face type and dimensions');panel.innerHTML='<div class="exterior-face-heading"><h4>FACE TYPE &amp; SIZE</h4><button type="button" aria-label="Close face types">×</button></div><p role="status"></p><table class="exterior-face-table"><thead><tr><th scope="col">Type</th><th scope="col">Width × height</th></tr></thead><tbody></tbody></table><label class="exterior-glass-option" hidden><input type="checkbox" aria-label="Glass door">Glass <small>Off uses the default door material. Windows are always glass.</small></label>';parent.appendChild(panel);
  const closeFace=()=>{panel.hidden=true;face.setAttribute('aria-expanded','false');};
+ // Doors and garage doors only, and only when turned on here: glass instead of the default door material.
+ const glassOption=panel.querySelector('.exterior-glass-option'),glass=glassOption.querySelector('input');glass.onchange=()=>{if(busy()||materials.glass?.(glass.checked)===false)glass.checked=!glass.checked;F.refreshUI();};
  face.onclick=()=>{placementPanel.hidden=true;panel.hidden=!panel.hidden;face.setAttribute('aria-expanded',String(!panel.hidden));};
  panel.querySelector('.exterior-face-heading button').onclick=()=>{closeFace();face.focus();};
  // Build the complete catalog once so opening never waits on a render or rebuild.
@@ -353,8 +368,9 @@ F.mountUI=function(command,selection,busy=()=>false,materials={}){
  const trigger=document.createElement('button');trigger.id='wall-material-toggle';trigger.className='toolbar-btn';trigger.innerHTML='<i class="fas fa-palette" aria-hidden="true"></i>';trigger.title='Wall materials';trigger.setAttribute('aria-label','Wall materials');trigger.setAttribute('aria-controls',picker.id);trigger.setAttribute('aria-expanded','false');document.getElementById('btnToggleTypes')?.after(trigger);
  const closeMaterials=()=>{const open=!picker.hidden;closeDefaultTexture();picker.hidden=true;trigger.setAttribute('aria-expanded','false');trigger.classList.remove('active');materials.finish?.();if(open)materials.pickerClosed?.();};
  trigger.onclick=()=>{if(!picker.hidden){closeMaterials();return;}picker.hidden=false;trigger.setAttribute('aria-expanded','true');trigger.classList.add('active');materials.pickerOpened?.();refreshMaterials();refreshPalette();};
- // A press outside the picker closes it, except in the 3D view where faces are painted while it is open; the sticker strip is another tool.
- document.addEventListener('pointerdown',e=>{if(picker.hidden||picker.contains(e.target)||trigger.contains(e.target))return;const view=document.getElementById('three-view-wrapper');if(view?.contains(e.target)&&!bar.contains(e.target))return;closeMaterials();},true);picker.querySelector('.exterior-picker-heading button').onclick=closeMaterials;
+ // The picker stays open while anything else is clicked (photos, the house, a colour
+ // wheel); only its button, its × or Escape close it.
+ picker.querySelector('.exterior-picker-heading button').onclick=closeMaterials;
  const option=(parent,label,color,active,fn,disabled=false)=>{const b=document.createElement('button');b.type='button';b.className='exterior-option';b.disabled=disabled;b.setAttribute('aria-pressed',String(active));if(color){const swatch=document.createElement('span');swatch.className='exterior-swatch';swatch.style.background=color;b.appendChild(swatch);}b.appendChild(document.createTextNode(label));b.onclick=fn;parent.appendChild(b);return b;};
  const materialButtons=[];for(const [id,def]of Object.entries(window.ExteriorMaterials||{})){const b=option(picker.querySelector('.exterior-material-options'),def.label,def.color,false,()=>{materials.paint?.(id);refreshMaterials();});materialButtons.push([id,b]);}
  const colorInput=picker.querySelector('input[type=color]');
@@ -386,8 +402,9 @@ F.mountUI=function(command,selection,busy=()=>false,materials={}){
  document.addEventListener('pointerdown',e=>{if(!defaultsPanel.contains(e.target))closeDefaultTexture();},true);
  for(const input of defaultColors)input.onchange=()=>{updateDefaults();rememberColor(input.value);refreshPalette();};
  // Roof covering for the whole roof: category, then a color suited to it or a custom one. Presets are ExteriorFinishes data.
- const roofPanel=document.createElement('div');roofPanel.className='exterior-roof-finish';roofPanel.setAttribute('role','group');roofPanel.setAttribute('aria-label','Roof material');roofPanel.innerHTML='<div class="exterior-material-options" data-roof="category" role="group" aria-label="Roof material type"></div><div class="wm-row"><div class="exterior-color-options" data-roof="color" role="group" aria-label="Roof colors"></div><input type="color" aria-label="Custom roof color" title="Custom roof colour"></div>';picker.appendChild(section('roof','Roof','Roof covering, shown in Textured mode and on the PDF cover',roofPanel,true));
- const roofCategories=roofPanel.querySelector('[data-roof=category]'),roofColors=roofPanel.querySelector('[data-roof=color]'),roofCustom=roofPanel.querySelector('input[type=color]');let roofSignature='';
+ const roofPanel=document.createElement('div');roofPanel.className='exterior-roof-finish';roofPanel.setAttribute('role','group');roofPanel.setAttribute('aria-label','Roof material');roofPanel.innerHTML='<div class="exterior-material-options" data-roof="category" role="group" aria-label="Roof material type"></div><div class="wm-row"><div class="exterior-color-options" data-roof="color" role="group" aria-label="Roof colors"></div><input type="color" aria-label="Custom roof color" title="Custom roof colour"></div><label class="wm-row" title="Eave and rake trim without a colour of its own">Roof trim<input type="color" data-roof="trim" aria-label="Roof trim color"></label>';picker.appendChild(section('roof','Roof','Roof covering, shown in Textured mode and on the PDF cover',roofPanel,true));
+ const roofCategories=roofPanel.querySelector('[data-roof=category]'),roofColors=roofPanel.querySelector('[data-roof=color]'),roofCustom=roofPanel.querySelector('input[type=color]:not([data-roof])'),roofTrim=roofPanel.querySelector('[data-roof=trim]');let roofSignature='';
+ roofTrim.onchange=()=>{const d=materials.defaults?.();if(d)materials.defaults({...d,roofTrimColor:roofTrim.value});rememberColor(roofTrim.value);refreshMaterials();};
  roofCustom.onchange=()=>{const r=materials.roof?.();if(r)materials.roof({category:r.category,color:roofCustom.value});rememberColor(roofCustom.value);refreshMaterials();};
  function summary(key,text,color){const el=picker.querySelector('[data-section="'+key+'"] .wm-section-summary');if(!el)return;el.textContent=text||'';if(color){const dot=document.createElement('span');dot.className='wm-dot';dot.style.background=color;el.prepend(dot);}}
  function refreshRoof(){
@@ -400,6 +417,7 @@ F.mountUI=function(command,selection,busy=()=>false,materials={}){
   for(const b of roofCategories.children)b.setAttribute('aria-pressed',String(b.dataset.category===r.category));
   for(const b of roofColors.children)b.setAttribute('aria-pressed',String(b.dataset.color===r.color));
   if(document.activeElement!==roofCustom)roofCustom.value=r.color;
+  const d=materials.defaults?.();roofTrim.closest('label').hidden=!d;if(d&&document.activeElement!==roofTrim)roofTrim.value=d.roofTrimColor||d.trimColor;
  }
  // Sticker defaults: Trim and Main for every sticker kind at once, or each piece. Windows have no main colour.
  const stickerPanel=document.createElement('div');stickerPanel.className='exterior-sticker-finish';stickerPanel.setAttribute('role','group');stickerPanel.setAttribute('aria-label','Sticker defaults');stickerPanel.innerHTML='<div class="sticker-default-row"><label>Trim<input type="color" data-part="trim" aria-label="Sticker trim"><span class="sticker-mixed" data-mixed="trim" hidden>mixed</span></label><label>Main<input type="color" data-part="main" aria-label="Sticker main"><span class="sticker-mixed" data-mixed="main" hidden>mixed</span></label><button type="button" class="exterior-option sticker-expand" aria-expanded="false" aria-controls="sticker-default-pieces">Each piece <span aria-hidden="true">▾</span></button></div><div id="sticker-default-pieces" class="sticker-default-pieces" role="group" aria-label="Sticker pieces" hidden></div>';picker.appendChild(section('stickers','Stickers',"Default trim and colour for doors, windows and garage doors. Windows are glass, so trim only. A sticker's own colour wins.",stickerPanel,true));
@@ -416,8 +434,9 @@ F.mountUI=function(command,selection,busy=()=>false,materials={}){
  for(const el of [bar,picker,panel,placementPanel])for(const event of ['pointerdown','mousedown','mouseup','click','dblclick','wheel'])el.addEventListener(event,e=>e.stopPropagation());
  F.closeUI=()=>{closeFace();closeMaterials();placementPanel.hidden=true;};
  document.addEventListener('keydown',e=>{if(e.key==='Escape'){if(!textureMenu.hidden){e.preventDefault();e.stopImmediatePropagation();closeDefaultTexture();defaultTexture.focus();}else F.closeUI();}},true);
- let last='';F.refreshUI=function(){refreshMaterials();refreshPlacement();const ref=selection(),locked=busy(),type=ref?.feature?.type||'none',label=ref?(F.defs.get(type)?.name||'Untyped face')+' · '+F.label(ref.points,ref.feature):'Choose a size to place a new feature on a face.',signature=JSON.stringify([label,type,ref?.feature?.preset,locked]);if(signature===last)return;last=signature;
+ let last='';F.refreshUI=function(){refreshMaterials();refreshPlacement();const ref=selection(),locked=busy(),type=ref?.feature?.type||'none',glazed=F.isGlass(ref?.feature),label=ref?(F.defs.get(type)?.name||'Untyped face')+(glazed?' · Glass':'')+' · '+F.label(ref.points,ref.feature):'Choose a size to place a new feature on a face.',signature=JSON.stringify([label,type,ref?.feature?.preset,locked,glazed]);if(signature===last)return;last=signature;
  panel.querySelector('p').textContent=locked?'Finish the current tool to change a face.':label;
+ glassOption.hidden=!ref||!F.supportsGlass(type);glass.checked=glazed;glass.disabled=locked;
  for(const choice of choices){choice.b.disabled=locked||(!ref&&choice.preset===null);choice.b.setAttribute('aria-pressed',String(!!ref&&type===choice.type&&(ref.feature?.preset??null)===choice.preset));}
  };F.refreshUI();
 };F.formatSize=n=>String(Math.round(n*100)/100);

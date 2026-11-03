@@ -66,3 +66,15 @@ test('a nearly level DSM grade is placed exactly level at its average height; a 
     const sloped={dx:.05,dy:0,k:63.64},kept=T.reference(T.fromPlane(b,sloped,{source:'DSM'}),roof);near(kept.plane.dx,.05,1e-9);near(kept.plane.k,63.64,1e-9);
     assert.deepEqual(T.level(sloped,b),sloped);assert.equal(T.LEVEL_SLOPE,.005);
 });
+test('a DSM grade under 2 degrees is placed level; steeper DSM and gentle USGS grades keep their slope',()=>{
+    const roof={faces:[{points:[p(0,0,9),p(12,0,9),p(12,8,9),p(0,8,9)]}]},b=T.bounds(roof),center={x:(b.x0+b.x1)/2,y:(b.y0+b.y1)/2};
+    near(T.DSM_LEVEL_SLOPE,Math.tan(2*Math.PI/180),1e-12);
+    const gentle={dx:.025,dy:-.015,k:50},dsm=T.reference(T.fromPlane(b,gentle,{source:'DSM'}),roof);
+    assert.deepEqual([dsm.plane.dx,dsm.plane.dy],[0,0]);near(dsm.plane.k,T.at(gentle,center),1e-9);assert.ok(dsm.points.every(q=>q.z===dsm.points[0].z));
+    const steep={dx:.04,dy:0,k:50};near(T.reference(T.fromPlane(b,steep,{source:'DSM'}),roof).plane.dx,.04,1e-9);
+    near(T.reference(T.fromPlane(b,gentle,{source:'USGS grade'}),roof).plane.dx,.025,1e-9);
+    // The automatic DSM fit when the exterior opens is levelled the same way.
+    const ctx={width:240,height:240,mpp:.5},data=new Float32Array(240*240);
+    for(let iy=0;iy<240;iy++)for(let ix=0;ix<240;ix++){const x=(ix-120)*.5,y=(iy-120)*.5;data[iy*240+ix]=50+x*.02+y*.01;}
+    const auto=T.initial(data,ctx,roof);assert.equal(auto.source,'DSM');assert.deepEqual([auto.plane.dx,auto.plane.dy],[0,0]);near(auto.stats.grade,Math.hypot(.02,.01)*100,.05);
+});

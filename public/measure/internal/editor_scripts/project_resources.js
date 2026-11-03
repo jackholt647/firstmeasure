@@ -40,17 +40,26 @@
  const coreSlots=[['back-left','Back left'],['back','Back'],['back-right','Back right'],['left','Left'],[null,'Video'],['right','Right'],['front-left','Front left'],['front','Front'],['front-right','Front right']];
  const isVideoFile=file=>!file.notes&&/\.(mp4|webm|mov)(?:[?#].*)?$/i.test(file.original_name||file.name||file.src||'');
  function coreViews(files){return coreSlots.map(([slot,title])=>({slot,title,file:slot?files.find(f=>(f.elevation_view||f.slot)===slot&&!f.notes):files.find(isVideoFile)||null}));}
- // The report's Sources & Notes lists the tech's own uploads. A video frame saved from Resources is a
- // tech file too, but derived: the server records source_video in its index (listed by
- // project_resources.php), and every saved frame also has a frame record
- // (internal-markup-favorite-*.json) naming it, which covers frames saved before the listing showed
- // source_video. Anything marked derived_from or generated is left out the same way.
- const isDerivedResource=(file,frameNames)=>!!(file&&(file.source_video||file.derived_from||file.generated))||frameNames.has(file&&file.name);
- function submissionUploads(files=[],frameRecords=[]){
-  const frames=new Set(frameRecords.map(r=>r&&r.frame).filter(Boolean));
-  return {uploads:files.filter(f=>String(f.name||'').startsWith('internal-resource-')&&(f.role||'tech')==='tech'&&!isDerivedResource(f,frames)),derived:new Set([...files.filter(f=>isDerivedResource(f,frames)).map(f=>f.name),...frames])};
+ const favoritePrefix = 'internal-markup-favorite-', markupPrefix = 'internal-markup-';
+ const fileId = name => name.replace(/^internal-resource-(?:v2-)?/, '').slice(0, 36);
+ // The report's Sources & Notes holds only what the tech adds there (Jack, 2026-11-01): screenshots and
+ // uploads in Resources stay in Resources. Earlier versions copied every Resources upload in (those copies
+ // carry resource_name; images added by hand have none) and appended each one's markup note as
+ // "<file name>:\n<note>", so both come out again here. One unreadable markup leaves its note, never the report.
+ async function mergeSubmissionSources(state,files,read){
+  state.finalizeSources||={images:[],notes:''};
+  state.finalizeSources.images=(state.finalizeSources.images||[]).filter(i=>i&&!i.resource_name);
+  let notes=String(state.finalizeSources.notes||'');
+  for(const f of notes?files.filter(f=>String(f.name||'').startsWith('internal-resource-')):[]){
+   const revisions=files.filter(r=>r.name.startsWith(markupPrefix+fileId(f.name)+'-')).sort((a,b)=>String(b.updated_at||'').localeCompare(String(a.updated_at||''))||b.name.localeCompare(a.name));
+   const markup=revisions.length?await read(revisions[0].name).catch(error=>{console.warn('Markup could not be read for Sources & Notes:',revisions[0].name,error);return null;}):null;
+   const note=String(markup?.notes||'').trim();if(!note)continue;
+   const block=(f.original_name||f.name)+':\n'+note;
+   notes=notes.split('\n\n'+block).join('').split(block+'\n\n').join('').split(block).join('');
+  }
+  state.finalizeSources.notes=notes.trim()?notes:'';
  }
- if(typeof module!=='undefined'&&module.exports){module.exports={referenceCatalog,coreViews,referenceCache,submissionUploads};return;}
+ if(typeof module!=='undefined'&&module.exports){module.exports={referenceCatalog,coreViews,referenceCache,mergeSubmissionSources};return;}
  function boot() {
   const host = document.getElementById('google-earth-wrapper'), tabs = host?.querySelector('.map-view-tabs');
   if (!host || !tabs) return;
@@ -144,7 +153,6 @@
   let uploading = false, savingPromise = null, projectEpoch = 0, refreshSeq = 0, serverFiles = [], referenceFiles = [];
   const defaultLibraryWidth = 336; let libraryWidth = defaultLibraryWidth;
   const frameJobs = new Map(), pendingFrames = new Map();
-  const favoritePrefix = 'internal-markup-favorite-';
   let frameLinks=new Map();
   const imageCache=referenceCache(),markupCache=referenceCache({maxBytes:2*1024*1024,maxEntries:64});
   let retainedMedia=null;
@@ -158,11 +166,10 @@
   function atPlayhead(time){if(!media)return false;if(scrub?.element===media)return Math.abs(time-scrub.target)<.02;const shown=shownFrameTime(media),info=frameInfo.get(media),span=info?.known?info.duration:.02;return Math.abs(time-media.currentTime)<.02||time>=shown-.001&&time<shown+span-.001;}
   function savedFrameAtPlayhead(){return media?.videoWidth&&files.find(f=>{const link=frameLink(f);return !f.pending&&link?.source===current?.name&&atPlayhead(link.time);});}
   function updateFrameAction(){const button=$('[data-action="returnVideo"]'),video=!!media?.videoWidth,saved=video&&savedFrameAtPlayhead(),saving=video&&!saved&&pendingFrameAt(current?.name);button.hidden=!frameSource&&!video;button.textContent=video?(saved?'Saved Frame':saving?'Saving frame…':'Save Frame'):'Jump to video frame';button.classList.toggle('is-saved',!!saved);button.classList.toggle('is-saving',!!saving);button.disabled=!!favoriteDraft||!!saving;button.title=saved?'Open the saved frame':video?'Save this frame without a title (the server extracts it)':'Open the source video at this frame';}
-  const uuid = () => crypto.randomUUID(), prefix = 'internal-resource-', markupPrefix = 'internal-markup-';
+  const uuid = () => crypto.randomUUID(), prefix = 'internal-resource-';
   const url = (id, name = '', action = '') => 'project_resources.php?' + new URLSearchParams({ project: id, ...(name ? { name } : {}), ...(action ? { action } : {}) });
   // Resource names allow only ASCII letters, digits, dot, dash and underscore.
   const safeName = text => String(text).normalize('NFKD').replace(/\p{M}/gu, '').replace(/[^a-zA-Z0-9._-]+/g, '_').replace(/^[._-]+|_+$/g, '');
-  const fileId = name => name.replace(/^internal-resource-(?:v2-)?/, '').slice(0, 36);
   const label = name => files.find(file => file.name === name)?.original_name || name.replace(/^internal-resource-(?:v2-)?/, '').slice(37);
   const sourceUrl = file => file.src || url(project,file.name);
   const viewKey = id => 'firstmeasure:resources:view:'+id;
@@ -170,7 +177,8 @@
   function savedView(id){try{return JSON.parse(localStorage.getItem(viewKey(id)))||{};}catch{return {};}}
   function remember(){if(!project||restoring)return;try{localStorage.setItem(viewKey(project),JSON.stringify({active,coreActive,name:current?.name,collapsedGroups,filesOpen,inspector,expanded:panel.classList.contains('expanded'),libraryWidth,time:media?.currentTime||0,scale,ox,oy,stageWidth:stage.clientWidth,stageHeight:stage.clientHeight}));}catch{}}
   async function restoreView(saved=savedView(project)){restoring=true;try{const file=files.find(f=>f.name===saved.name);if(file&&!saved.coreActive)await open(file,{time:saved.time});else await showCoreViews();filesOpen=saved.filesOpen!==false;inspector=['notes','markup','favorites'].includes(saved.inspector)?saved.inspector:'';panel.classList.toggle('expanded',!!saved.expanded);setLibraryWidth(saved.libraryWidth);updateDrawers();if(file&&image&&saved.scale>0&&saved.stageWidth===stage.clientWidth&&saved.stageHeight===stage.clientHeight){scale=saved.scale;ox=saved.ox;oy=saved.oy;draw();}}finally{restoring=false;}}
-  async function feedback(id){for(const action of ['project_feedback','project_bundle']){const response=await fetch(window.location.pathname+'?'+new URLSearchParams({action,folder:id}),{cache:'no-store'});if(response.ok&&response.headers.get('content-type')?.includes('application/json'))return response.json();if(response.status===401||response.status===403)break;}throw Error('Reference notes could not be loaded. Refresh Files to retry.');}
+  // A training project has no feedback of its own: its notes are the manifest it loaded with.
+  async function feedback(id){if(window.firstMeasureIsTutorialProjectId?.(id))return {manifest:window.currentProjectManifest,app_metadata:window.currentProjectLoadedAppMetadata};for(const action of ['project_feedback','project_bundle']){const response=await fetch(window.location.pathname+'?'+new URLSearchParams({action,folder:id}),{cache:'no-store'});if(response.ok&&response.headers.get('content-type')?.includes('application/json'))return response.json();if(response.status===401||response.status===403)break;}throw Error('Reference notes could not be loaded. Refresh Files to retry.');}
   async function uploadFile(id,name,file){
    if(!file.size)throw Error('The file is empty.');
    const chunkSize=8*1024*1024,parts=Math.ceil(file.size/chunkSize),resourceId=fileId(name),sha256=[];
@@ -911,18 +919,8 @@
    }),...references.filter(f=>f.src&&!f.notes&&!artifacts.some(a=>a.name===f.resource_name)).map(f=>({key:f.name,url:f.src,label:f.original_name,role:f.role,slot:f.slot}))];
   },async mergeSubmission(state){
    const id=String(state.folderId||window.currentProjectId||'');if(!id||currentRole()==='qa')return;
-   const data=await(await request(id)).json(),frameRecords=await Promise.all((data.files||[]).filter(f=>f.name.startsWith(favoritePrefix)).map(f=>request(id,f.name).then(r=>r.json()).catch(()=>({})))),{uploads:resources,derived}=submissionUploads(data.files||[],frameRecords);
-   state.finalizeSources||={images:[],notes:''};
-   // Saved video frames merged by earlier versions come out again; images added by hand have no resource_name.
-   const images=state.finalizeSources.images=(state.finalizeSources.images||[]).filter(i=>!(i&&i.resource_name&&derived.has(i.resource_name)));
-   for(const f of resources){
-    const revisions=(data.files||[]).filter(r=>r.name.startsWith(markupPrefix+fileId(f.name)+'-')).sort((a,b)=>String(b.updated_at||'').localeCompare(String(a.updated_at||''))||b.name.localeCompare(a.name));
-    const markup=revisions.length?await(await request(id,revisions[0].name)).json():null;
-    // A capture whose markup names the video it came from is a derived frame too: leave it (and its note) out.
-    if(markup?.sourceVideo){const at=images.findIndex(i=>i.resource_name===f.name);if(at>=0)images.splice(at,1);continue;}
-    if(!images.some(i=>i.resource_name===f.name))images.push({resource_name:f.name,url:new URL(url(id,f.name),location.href).href,dataUrl:new URL(url(id,f.name),location.href).href,name:f.original_name||f.name,role:'tech'});
-    const note=String(markup?.notes||'').trim();if(note&&!String(state.finalizeSources.notes||'').includes(note))state.finalizeSources.notes=(state.finalizeSources.notes?state.finalizeSources.notes+'\n\n':'')+(f.original_name||f.name)+':\n'+note;
-   }
+   const data=await(await request(id)).json();
+   await mergeSubmissionSources(state,data.files||[],name=>request(id,name).then(r=>r.json()),name=>new URL(url(id,name),location.href).href);
   }};
   for(const event of ['pointerdown','dblclick','wheel'])$('.resource-core-grid').addEventListener(event,e=>e.stopPropagation());
   if(window.WallMode?.enabled)window.switchMapLayer('resources');

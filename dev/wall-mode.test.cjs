@@ -639,8 +639,8 @@ test('textured views block plane mode and overlay tools, exit them on entry, and
  const f=fixture(true,{createWallEditor:()=>editor});
  // Buttons of every unavailable tool, as the real toolbar provides them.
  const el=id=>{const attrs={title:'Original '+id};return {id,dataset:{},title:attrs.title,classList:{set:new Set(),add(c){this.set.add(c);},remove(c){this.set.delete(c);},contains(c){return this.set.has(c);}},getAttribute(k){return k==='title'?this.title:attrs[k]??null;},setAttribute(k,v){if(k==='title')this.title=v;else attrs[k]=String(v);},removeAttribute(k){if(k==='title')this.title='';else delete attrs[k];},attrs};};
- const buttons=['#wall-resoffit','#roof-trim-tool','.ss-tile','#wall-lengths-all'].map(el),query=f.ctx.document.querySelectorAll;
- f.ctx.document.querySelectorAll=selector=>{const found=buttons.filter(b=>selector.includes(b.id));return found.length?found:query.call(f.ctx.document,selector);};
+ const buttons=['#wall-resoffit','.ss-tile','#wall-lengths-all'].map(el),trimButton=el('#roof-trim-tool'),query=f.ctx.document.querySelectorAll;
+ f.ctx.document.querySelectorAll=selector=>{const found=[...buttons,trimButton].filter(b=>selector.includes(b.id));return found.length?found:query.call(f.ctx.document,selector);};
  const key=(k,extra={})=>{let prevented=false;f.listeners['window:keydown']({key:k,target:{closest:()=>false},preventDefault(){prevented=true;},stopImmediatePropagation(){},...extra});return prevented;};
  f.ctx.WallMode.setEnabled(true);f.soffits[1].onclick();const mode=()=>f.ctx.WallMode.serialize().displayMode,toggle=f.elements.get('wall-translucency-toggle');
  toggle.onclick();assert.equal(mode(),'opaque');assert.equal(f.ctx.WallMode.displaySupports('plane'),true);
@@ -650,6 +650,7 @@ test('textured views block plane mode and overlay tools, exit them on entry, and
  assert.equal(key('ArrowLeft'),true,'nudges are ignored');
  for(const b of buttons){assert.equal(b.attrs['aria-disabled'],'true',b.id);assert.ok(b.classList.contains('textured-unavailable'));assert.match(b.title,/Not available in Textured view/);}
  assert.equal(f.ctx.WallMode.selectionActions().length,0,'no selection actions in Textured');
+ assert.equal(trimButton.attrs['aria-disabled'],undefined,'Trim stays available in Textured');assert.ok(!trimButton.classList.contains('textured-unavailable'));assert.equal(f.ctx.WallMode.displaySupports('trim'),true);
  toggle.onclick();assert.equal(mode(),'translucent');assert.equal(f.ctx.WallMode.displaySupports('plane'),true);
  for(const b of buttons){assert.equal(b.attrs['aria-disabled'],undefined,b.id);assert.ok(!b.classList.contains('textured-unavailable'));assert.equal(b.title,'Original '+b.id,'tooltip restored');}
  key('p');assert.equal(plane,true,'P works again after leaving Textured');
@@ -829,8 +830,8 @@ test('DSM sampling restores image visibility on completion, cancellation and lea
 });
 
 test('From Roof uses a supported automatic ground plane when DSM evidence exists',()=>{
- const width=100,height=100,mpp=1,data=new Float32Array(width*height);for(let y=0;y<height;y++)for(let x=0;x<width;x++)data[y*width+x]=2+.02*(x-50)+.01*(y-50);
- const f=fixture(true,{imageWidth:width,imageHeight:height,layerData:{dsm:[data]}}),points=[{x:45,y:45,z:8},{x:55,y:45,z:8},{x:55,y:55,z:8},{x:45,y:55,z:8}];f.ctx.activeGeometry={points,connections:[{start:points[0],end:points[1],type:'eave'}],manualFaces:[{points}]};f.ctx.WallMode.setEnabled(true);f.soffits[1].onclick();const s=f.ctx.WallMode.serialize();assert.equal(s.ground.source,'DSM');assert.ok(Math.abs(s.ground.plane.dx-.02)<1e-5);assert.ok(Math.abs(s.ground.plane.dy-.01)<1e-5);assert.ok(s.base.faces.every(f=>f.points.every(p=>Math.abs(p.z-(2+.02*p.x+.01*p.y))<1e-5)));
+ const width=100,height=100,mpp=1,data=new Float32Array(width*height);for(let y=0;y<height;y++)for(let x=0;x<width;x++)data[y*width+x]=2+.05*(x-50)+.03*(y-50);
+ const f=fixture(true,{imageWidth:width,imageHeight:height,layerData:{dsm:[data]}}),points=[{x:45,y:45,z:8},{x:55,y:45,z:8},{x:55,y:55,z:8},{x:45,y:55,z:8}];f.ctx.activeGeometry={points,connections:[{start:points[0],end:points[1],type:'eave'}],manualFaces:[{points}]};f.ctx.WallMode.setEnabled(true);f.soffits[1].onclick();const s=f.ctx.WallMode.serialize();assert.equal(s.ground.source,'DSM');assert.ok(Math.abs(s.ground.plane.dx-.05)<1e-5);assert.ok(Math.abs(s.ground.plane.dy-.03)<1e-5);assert.ok(s.base.faces.every(f=>f.points.every(p=>Math.abs(p.z-(2+.05*p.x+.03*p.y))<1e-5)));
 });
 
 
@@ -1137,4 +1138,10 @@ test('Trim mode follows the Trim menu and ends with an outside press, Escape or 
  let view=shown();assert.ok(view.points.length&&view.points.every(o=>o.visible),'points draw normally');assert.equal(view.hip.length,1);const green=view.hip[0].material.color.getHexString();assert.equal(view.roof[0].material.color.getHexString(),green);
  menu(true);view=shown();assert.ok(view.points.every(o=>!o.visible),'Trim draws no points');assert.notEqual(view.hip[0].material.color.getHexString(),green,'ridges, hips and valleys are greyed');assert.equal(view.roof[0].material.color.getHexString(),green,'other roof lines stay as they are');
  press(false);view=shown();assert.ok(view.points.every(o=>o.visible));assert.equal(view.hip[0].material.color.getHexString(),green);
+});
+test('the sticker point delete setting is off by default, persists and survives a rebuild',()=>{
+ const f=fixture(true);f.ctx.activeGeometry.connections[0].type='eave';f.soffits[1].onclick();const toggle=f.elements.get('wall-sticker-delete-closed');assert.equal(toggle.checked,false);
+ toggle.onchange({target:{checked:true}});assert.equal(f.ctx.WallMode.serialize().stickerDeleteKeepsFace,true);
+ f.elements.get('wall-rebuild').onclick();assert.equal(f.ctx.WallMode.serialize().stickerDeleteKeepsFace,true);
+ toggle.onchange({target:{checked:false}});assert.equal(f.ctx.WallMode.serialize().stickerDeleteKeepsFace,false);
 });

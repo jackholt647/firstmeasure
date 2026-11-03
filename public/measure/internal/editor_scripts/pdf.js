@@ -8,6 +8,8 @@ function pdfUnit(kind, legacy) { return window.ReportUnits?.current().metric ? w
 function pdfMaterialKind(unit) { return ({SQ:'sq',SF:'sf',LF:'ft',FT:'ft',GAL:'gallon'})[String(unit).toUpperCase()]; }
 function pdfMaterialUnit(unit) { const kind=pdfMaterialKind(unit); return kind ? pdfUnit(kind,unit) : unit; }
 function pdfMaterialAmount(n,unit,legacy) { const kind=pdfMaterialKind(unit); return kind ? pdfMeasure(n,kind,legacy,false) : legacy; }
+/** A roof pitch in the project's notation (1M8-255): 6/12, or 26.6° for degree projects; other text is unchanged. */
+function pdfPitch(pitch, digits = 1) { return window.ReportUnits?.current?.()?.pitch?.(pitch, digits) ?? pitch; }
 function pdfLabel(text, values = {}) { return window.ReportUnits?.current().label(text, values) ?? text.replace(/\{(\w+)\}/g, (all, key) => Object.hasOwn(values, key) ? String(values[key]) : all); }
 
 /* pdf.js - Complete PDF Generation Logic & Helpers (DROP-IN REPLACEMENT)
@@ -801,11 +803,17 @@ function emitPdfDebug(stage, payload = {}) {
     return entry;
 }
 
+// Saved through PHP, an empty settings object comes back as []; named settings set on an array
+// are dropped by the next JSON copy, so the front bearing and photo slots never reached the PDF (FM-320).
+function exteriorSettingsObject(value) {
+    return (value && typeof value === 'object' && !Array.isArray(value)) ? value : {};
+}
+
 function serializePdfConfigForSave(sourceState) {
     if (!sourceState || typeof sourceState !== 'object') return null;
 
     const config = {
-        exteriorSettings: cloneJsonSafe(sourceState.exteriorSettings, {}),
+        exteriorSettings: cloneJsonSafe(exteriorSettingsObject(sourceState.exteriorSettings), {}),
         customLabels: cloneJsonSafe(sourceState.customLabels, []),
         manualWastePct: (typeof sourceState.manualWastePct === 'number') ? sourceState.manualWastePct : undefined,
         manualTotalFacets: (typeof sourceState.manualTotalFacets === 'number') ? sourceState.manualTotalFacets : undefined,
@@ -918,7 +926,7 @@ function createStandalonePdfSnapshot(sourceState) {
 
     const snapshot = {
         exteriorReport: cloneJsonSafe(sourceState.exteriorReport, null),
-        exteriorSettings: cloneJsonSafe(sourceState.exteriorSettings, {}),
+        exteriorSettings: cloneJsonSafe(exteriorSettingsObject(sourceState.exteriorSettings), {}),
         snapshotVersion: PDF_SNAPSHOT_VERSION,
         savedAt: new Date().toISOString(),
         pdfSyncRevision: sourceState.pdfSyncRevision || sourceState.pdf_sync_revision || null,
@@ -950,6 +958,8 @@ function createStandalonePdfSnapshot(sourceState) {
         manualWastePct: (typeof sourceState.manualWastePct === 'number') ? sourceState.manualWastePct : null,
         manualLayerFacets: cloneJsonSafe(sourceState.manualLayerFacets, {}),
         gutterSettings: cloneJsonSafe(sourceState.gutterSettings, null),
+        // The server render has no XML generator: the Holiday Lights roof model travels with the snapshot.
+        holidayLightsModel: shouldIncludePdfHolidayLights(sourceState) ? cloneJsonSafe(resolvePdfHolidayLightsModel(sourceState), null) : null,
         ventSettings: cloneJsonSafe(sourceState.ventSettings, null),
         structureSettings: cloneJsonSafe(sourceState.structureSettings, null),
         elevationSettings: firstMeasurePdfQuadViewsDisabled()
@@ -1394,7 +1404,7 @@ async function captureStateForPDF(options = {}) {
 
         const state = {
             exteriorReport: window.WallMode?.reportSnapshot?.() || null,
-            exteriorSettings: cloneJsonSafe(currentConfig.exteriorSettings, {}),
+            exteriorSettings: cloneJsonSafe(exteriorSettingsObject(currentConfig.exteriorSettings), {}),
             folderId: window.currentProjectId,
             geometry, report, address, center, dims,
             radiusMeters: Number.isFinite(capturedRadiusMeters) && capturedRadiusMeters > 0 ? capturedRadiusMeters : null,
@@ -2359,7 +2369,7 @@ async function generatePDFFromState(state, mode = 'full', updateStatusCallback, 
         doc.setFont("Montserrat", "normal");
 
         const coverFacetText = pdfLabel("Total Facets: {value1}", {value1: state.manualTotalFacets});
-        const coverPitchText = pdfLabel("Predominant Pitch: {value1}", {value1: domPitch});
+        const coverPitchText = pdfLabel("Predominant Pitch: {value1}", {value1: pdfPitch(domPitch)});
         const coverNetSquaresText = pdfLabel("{value1} (Net): {value2}", {value1: pdfAreaHeading("Total Squares"), value2: pdfMeasure(netSquares, "sq", Math.round(netSquares * 100) / 100, false)});
         const coverWasteSquaresText = pdfLabel("{value1} ({value2}% Waste): {value3}", {value1: pdfAreaHeading("Total Squares"), value2: wastePct, value3: pdfMeasure(wasteSquares, "sq", Math.round(wasteSquares * 100) / 100, false)});
         emitPdfDebug('page:cover:text', {
@@ -2850,6 +2860,16 @@ async function generatePDFFromState(state, mode = 'full', updateStatusCallback, 
         }
     }
 
+    // Holiday Lights: ordered with the report (free); no setting hides it.
+    if (shouldIncludePdfHolidayLights(state)) {
+        const holidayModel = resolvePdfHolidayLightsModel(state);
+        if (holidayModel) {
+            if (updateStatusCallback) updateStatusCallback("Generating Holiday Lights Page...");
+            beginReportPage(pdfLabel("Holiday Lights"));
+            await drawHolidayLightsPage(doc, state, holidayModel, marginLeft, 35, availableW, pageHeight - 60, brandingColors);
+        }
+    }
+
     // A full-house customer summary carries the Full Exterior pages the organization chose (customerExteriorPages;
     // by default only the Exterior Summary). The full report keeps every exterior page.
     const summaryExteriorPages = mode === 'summary' && isCustomerFullHousePdf(state) && state.exteriorReport?.walls?.length ? customerExteriorPages(s) : null;
@@ -3145,7 +3165,7 @@ function drawDynamicCoverPage(doc, state, settings, x, y, w, h, options = {}) {
                     const val = squaresData[p];
                     if (typeof val === 'number' && val > maxArea) { maxArea = val; domPitch = p; }
                 });
-                doc.text(pdfLabel("Pitch: {value1}", {value1: domPitch}), leftColX, cy); cy += statLineH;
+                doc.text(pdfLabel("Pitch: {value1}", {value1: pdfPitch(domPitch)}), leftColX, cy); cy += statLineH;
             }
             if (settings.cover_show_waste) {
                 doc.text(pdfLabel("Waste: {value1}%", {value1: wastePct}), leftColX, cy); cy += statLineH;
@@ -3494,7 +3514,7 @@ async function drawStructuresBatch(doc, structs, state, x, y, w, h) {
     };
     
     drawRow(pdfLabel("Facets:"), String(structureMetrics.activeFaceCount || 0));
-    drawRow(pdfLabel("Pitch:"), structureMetrics.predominantPitch || "N/A");
+    drawRow(pdfLabel("Pitch:"), pdfPitch(structureMetrics.predominantPitch || "N/A"));
     drawRow(window.ReportUnits?.current().metric ? pdfLabel("Square metres:") : pdfLabel("Square Feet:"), pdfMeasure(structureMetrics.netSqFt, "sf", sSqFt.toLocaleString('en-US'), false));
     drawRow(pdfLabel("{value1} ({value2}%):", {value1: pdfAreaHeading("Squares with Waste"), value2: wastePct}), pdfMeasure((structureMetrics.netSquares || 0) * (1 + wastePct/100), "sq", sSquaresWaste.toLocaleString('en-US'), false), true, "#d93025");
     statsY += 2;
@@ -4084,7 +4104,7 @@ async function createFacetCanvasFromState(state, mode, layerFilter = null) {
 
             const text = (mode === 'AREA')
                 ? pdfMeasure(lbl.areaSqFt ?? Number(lbl.areaText), 'sf', String(lbl.areaText ?? ''))
-                : String(lbl.pitchText ?? lbl.text ?? '');
+                : String(pdfPitch(String(lbl.pitchText ?? lbl.text ?? ''), 0));
 
             if (!text) return;
 
@@ -5931,7 +5951,7 @@ function drawSummaryPageLayout(doc, report, imgData, imgRatio, x, y, w, facetCou
 
     doc.setFontSize(9); doc.setTextColor(0);
     doc.setFont("Montserrat", "bold"); doc.text(pdfLabel("Pitch"), pitchTableX+4, cursorY+5);
-    pitches.forEach((p,i)=>doc.text(p, pitchValX(i), cursorY+5, {align:'center'}));
+    pitches.forEach((p,i)=>doc.text(pdfPitch(p), pitchValX(i), cursorY+5, {align:'center'}));
     cursorY += 8;
     
     doc.text(window.ReportUnits?.current().metric ? pdfLabel("Area (m²)") : pdfLabel("Area (sq ft)"), pitchTableX+4, cursorY+5); doc.setFont("Montserrat", "normal");
@@ -6023,12 +6043,7 @@ function drawSummaryPageLayout(doc, report, imgData, imgRatio, x, y, w, facetCou
 
     // --- UPDATED HELPER: Accepts 'showLine' parameter (defaults to true) ---
     const addStat = (l, v, showLine = true) => {
-        doc.setFontSize(rowHeight < 7 ? 8 : 9);
-        doc.setFont("Montserrat","bold"); 
-        doc.text(pdfLabel(l), statsX, statsY);
-        
-        doc.setFont("Montserrat","normal"); 
-        doc.text(v, statsX + statsW, statsY, {align:'right'});
+        drawPdfStatRow(doc, pdfLabel(l), v, statsX, statsY, statsW, rowHeight < 7 ? 8 : 9);
         
         if (showLine) {
             doc.setDrawColor(230, 230, 230); 
@@ -6052,7 +6067,7 @@ function drawSummaryPageLayout(doc, report, imgData, imgRatio, x, y, w, facetCou
     // Always show these
     statRows.push([pdfLabel("Roof Area"), pdfMeasure(totalSq * 100, 'sf', Math.round(totalSq * 100) + " sq ft")]);
     statRows.push([pdfLabel("Facets"), facetCount.toString()]);
-    statRows.push([pdfLabel("Pitch"), domPitch ? domPitch.replace(/\//g, " / ") : pdfLabel("N/A")]);
+    statRows.push([pdfLabel("Pitch"), domPitch ? (window.ReportUnits?.current?.()?.pitchNotation === 'degrees' ? pdfPitch(domPitch) : domPitch.replace(/\//g, " / ")) : pdfLabel("N/A")]);
 
     // Counts — only if non-zero
     if (skyCount > 0)  statRows.push([pdfLabel("Skylights"), skyCount.toString()]);
@@ -6077,7 +6092,7 @@ function drawSummaryPageLayout(doc, report, imgData, imgRatio, x, y, w, facetCou
 
     lineStatTypes.forEach(t => {
         const val = Math.round(lin[t.id] || 0);
-        if (val > 0) statRows.push([t.label, pdfMeasure(lin[t.id] || 0, 'ft', val + " ft")]);
+        if (val > 0) statRows.push([pdfLabel(t.label), pdfMeasure(lin[t.id] || 0, 'ft', val + " ft")]);
     });
 
     // Counter Flashing — only if non-zero
@@ -6105,9 +6120,451 @@ function drawSummaryPageLayout(doc, report, imgData, imgRatio, x, y, w, facetCou
 }
 
 
+
+/**
+ * One label/value row of the summary page's totals card (1M8-256). The value keeps its width at the right; a label
+ * that would reach it shrinks (down to 6 pt), then wraps onto two lines within the row, so long labels (Headwall
+ * Flashing, and longer in other languages) never overlap their values. A word is broken inside only when it is
+ * wider than the label at 6 pt, and nothing is cut off (FM-305). Returns what was laid out.
+ */
+function drawPdfStatRow(doc, label, value, x, y, width, size = 9) {
+    const text = String(label ?? '').trim(), shown = String(value ?? '');
+    doc.setFont("Montserrat", "normal"); doc.setFontSize(size);
+    const valueW = doc.getTextWidth(shown);
+    const labelW = Math.max(8, width - valueW - 2);
+    doc.setFont("Montserrat", "bold");
+    const fits = line => doc.getTextWidth(line) <= labelW;
+    // Lines break at spaces and after hyphens (German compounds); `space` is whether a space comes before a piece.
+    const words = text.split(/\s+/).filter(Boolean).flatMap(word => word.split(/(?<=-)/).map((part, i) => ({ part, space: i === 0 })));
+    const wrap = pieces => pieces.reduce((lines, { part, space }) => {
+        const joined = lines.length ? lines[lines.length - 1] + (space ? ' ' : '') + part : null;
+        if (joined != null && fits(joined)) lines[lines.length - 1] = joined; else lines.push(part);
+        return lines;
+    }, []);
+    // A piece wider than the label is broken inside with a hyphen: into two halves as even as possible, or (a piece
+    // too long for two lines) where each line reaches the edge.
+    const broken = () => words.flatMap(({ part, space }) => {
+        if (fits(part)) return [{ part, space }];
+        let even = null;
+        for (let n = 1; n < part.length; n++) {
+            const head = part.slice(0, n) + '-', tail = part.slice(n);
+            if (!fits(head) || !fits(tail)) continue;
+            const widest = Math.max(doc.getTextWidth(head), doc.getTextWidth(tail));
+            if (!even || widest < even.widest) even = { head, tail, widest };
+        }
+        if (even) return [{ part: even.head, space }, { part: even.tail, space: false }];
+        const out = [];
+        let rest = part;
+        while (!fits(rest) && rest.length > 1) {
+            let n = rest.length - 1;
+            while (n > 1 && !fits(rest.slice(0, n) + '-')) n--;
+            out.push({ part: rest.slice(0, n) + '-', space: out.length ? false : space });
+            rest = rest.slice(n);
+        }
+        out.push({ part: rest, space: out.length ? false : space });
+        return out;
+    });
+    // One line down to 7.5 pt; then one line or two lines broken between words, down to 6 pt.
+    let labelSize, lines = null;
+    for (labelSize = size; labelSize >= 6; labelSize -= 0.5) {
+        doc.setFontSize(labelSize);
+        if (fits(text)) { lines = [text]; break; }
+        if (labelSize <= 7.5) { const wrapped = wrap(words); if (wrapped.length <= 2 && wrapped.every(fits)) { lines = wrapped; break; } }
+    }
+    // Otherwise a word too wide is broken inside at 6 pt, and the label gets smaller only while it needs a third line.
+    if (!lines) for (labelSize = 6; ; labelSize -= 0.5) {
+        doc.setFontSize(labelSize);
+        lines = wrap(broken());
+        if (lines.length <= 2 || labelSize <= 4) break;
+    }
+    const lineH = labelSize * 0.3528 * 1.05;
+    lines.forEach((line, i) => doc.text(line, x, y - ((lines.length - 1) * lineH / 2) + i * lineH));
+    doc.setFont("Montserrat", "normal"); doc.setFontSize(size);
+    doc.text(shown, x + width, y, { align: 'right' });
+    return { lines, labelSize, labelW, valueW };
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // Gutter PDF Page
 // ─────────────────────────────────────────────────────────────────────────────
+
+// =============================================================================
+// Holiday Lights (a free add-on chosen when the report is ordered: manifest.include_holiday_lights)
+// Lights along every eave and rake: the total, the separate runs (each in its own colour on the drawing) and bulbs
+// and clips at common spacings. Everything comes from the roof model (the same geometry as model_data.xml); nothing is
+// entered in the editor. The model travels with the PDF snapshot (holidayLightsModel) because the server render has
+// no XML generator.
+// =============================================================================
+const PDF_HOLIDAY_LIGHT_EDGES = [
+    { type: 'EAVE', label: 'Eaves', lit: true },
+    { type: 'RAKE', label: 'Rakes', lit: true },
+    { type: 'RIDGE', label: 'Ridges', lit: false },
+    { type: 'HIP', label: 'Hips', lit: false }
+];
+const PDF_HOLIDAY_SPACINGS_IN = [6, 8, 12, 15, 18];
+const PDF_HOLIDAY_STANDARD_SPACING_IN = 12;
+const PDF_HOLIDAY_BULB_RED = '#d93025';
+const PDF_HOLIDAY_BULB_GREEN = '#188038';
+// Run colours avoid the bulbs' red and green.
+const PDF_HOLIDAY_RUN_COLORS = ['#1a73e8', '#f29900', '#9334e6', '#12b5cb', '#e52592', '#795548', '#3949ab', '#5f6368'];
+
+function shouldIncludePdfHolidayLights(state) {
+    if (typeof state?.includeHolidayLights === 'boolean') return state.includeHolidayLights;
+    const manifest = window.currentProjectManifest || {};
+    return manifest.include_holiday_lights === true || manifest.include_holiday_lights === '1';
+}
+
+function parseHolidayLightsXml(xml) {
+    if (!xml || typeof DOMParser !== 'function') return null;
+    const doc = new DOMParser().parseFromString(xml, 'application/xml');
+    if (doc.querySelector('parsererror')) return null;
+    const roofs = [];
+    const seenLines = new Set();
+    for (const roof of doc.querySelectorAll('ROOF')) {
+        const points = {};
+        for (const p of roof.querySelectorAll('POINT')) {
+            const xyz = String(p.getAttribute('data') || '').split(',').map(Number);
+            if (xyz.length === 3 && xyz.every(Number.isFinite)) points[p.getAttribute('id')] = xyz;
+        }
+        const lineById = {};
+        const lines = [];
+        for (const l of roof.querySelectorAll('LINE')) {
+            const ids = String(l.getAttribute('path') || '').split(',').map((id) => id.trim());
+            if (ids.length !== 2 || !points[ids[0]] || !points[ids[1]]) continue;
+            const line = { id: l.getAttribute('id'), a: ids[0], b: ids[1], type: String(l.getAttribute('type') || '').toUpperCase() };
+            lineById[line.id] = line;
+            // A line shared by two structures is counted once.
+            const key = [points[ids[0]], points[ids[1]]].map((p) => p.map((v) => v.toFixed(2)).join(',')).sort().join('|');
+            if (seenLines.has(key)) continue;
+            seenLines.add(key);
+            lines.push(line);
+        }
+        const faces = [];
+        for (const face of roof.querySelectorAll('FACE')) {
+            if (String(face.getAttribute('type') || 'ROOF').toUpperCase() !== 'ROOF') continue;
+            const edges = String(face.querySelector('POLYGON')?.getAttribute('path') || '').split(',').map((id) => lineById[id.trim()]);
+            if (edges.length < 3 || edges.some((edge) => !edge)) continue;
+            // Walk the boundary; stored line directions need not agree.
+            const pending = edges.slice(1);
+            const ring = [edges[0].a, edges[0].b];
+            while (pending.length) {
+                const end = ring[ring.length - 1];
+                const i = pending.findIndex((edge) => edge.a === end || edge.b === end);
+                if (i < 0) break;
+                const [edge] = pending.splice(i, 1);
+                ring.push(edge.a === end ? edge.b : edge.a);
+            }
+            if (!pending.length && ring[0] === ring[ring.length - 1]) faces.push(ring.slice(0, -1));
+        }
+        const used = new Set([...lines.flatMap((line) => [line.a, line.b]), ...faces.flat()]);
+        roofs.push({ points: Object.fromEntries(Object.entries(points).filter(([id]) => used.has(id))), lines, faces });
+    }
+    return roofs.some((roof) => roof.lines.length) ? { roofs } : null;
+}
+
+// The editor builds it from the current roof each time; a server render (no XML generator) uses the snapshot's copy.
+function resolvePdfHolidayLightsModel(state) {
+    if (typeof generateRoofXML !== 'function') return state?.holidayLightsModel?.roofs?.length ? state.holidayLightsModel : null;
+    try { return parseHolidayLightsXml(generateRoofXML(state)); }
+    catch (error) { console.warn('[Holiday Lights] Roof model unavailable:', error); return null; }
+}
+
+function buildPdfHolidayLightsMetrics(model) {
+    const lengths = Object.fromEntries(PDF_HOLIDAY_LIGHT_EDGES.map((edge) => [edge.type, 0]));
+    const lit = [];
+    (model?.roofs || []).forEach((roof, r) => {
+        roof.lines.forEach((line) => {
+            if (!(line.type in lengths)) return;
+            const a = roof.points[line.a], b = roof.points[line.b];
+            const length = Math.hypot(a[0] - b[0], a[1] - b[1], a[2] - b[2]);
+            if (!(length > 0.01)) return;
+            lengths[line.type] += length;
+            if (PDF_HOLIDAY_LIGHT_EDGES.find((edge) => edge.type === line.type)?.lit) lit.push({ roof: r, line, length, keys: [`${r}:${line.a}`, `${r}:${line.b}`] });
+        });
+    });
+    // Runs: connected stretches of lit edges, each one continuous string, longest first.
+    const parent = new Map();
+    const find = (key) => { while (parent.get(key) !== key) { parent.set(key, parent.get(parent.get(key))); key = parent.get(key); } return key; };
+    lit.forEach(({ keys: [a, b] }) => { if (!parent.has(a)) parent.set(a, a); if (!parent.has(b)) parent.set(b, b); parent.set(find(a), find(b)); });
+    const byRoot = new Map();
+    lit.forEach((edge) => { const root = find(edge.keys[0]); if (!byRoot.has(root)) byRoot.set(root, []); byRoot.get(root).push(edge); });
+    const runs = [...byRoot.values()]
+        .map((edges) => ({ edges, length: edges.reduce((sum, edge) => sum + edge.length, 0) }))
+        .sort((p, q) => q.length - p.length)
+        .map((run, index) => ({ ...run, number: index + 1, color: PDF_HOLIDAY_RUN_COLORS[index % PDF_HOLIDAY_RUN_COLORS.length] }));
+    const totalFt = runs.reduce((sum, run) => sum + run.length, 0);
+    // One bulb and one clip every `inches` along each edge, at least one per edge.
+    const bySpacing = PDF_HOLIDAY_SPACINGS_IN.map((inches) => {
+        const bulbs = lit.reduce((sum, edge) => sum + Math.max(1, Math.round(edge.length * 12 / inches)), 0);
+        return { inches, bulbs, clips: bulbs };
+    });
+    return { lengths, totalFt, runs, bySpacing };
+}
+
+// Triangles of a roof face, by ear clipping in plan (roof faces are never vertical).
+function triangulateHolidayFace(pts) {
+    const n = pts.length;
+    if (n < 3) return [];
+    let area = 0;
+    for (let i = 0; i < n; i++) { const a = pts[i], b = pts[(i + 1) % n]; area += a[0] * b[1] - b[0] * a[1]; }
+    const sign = area >= 0 ? 1 : -1;
+    const cross = (a, b, c) => ((b[0] - a[0]) * (c[1] - a[1]) - (b[1] - a[1]) * (c[0] - a[0])) * sign;
+    const inside = (p, a, b, c) => cross(a, b, p) >= 0 && cross(b, c, p) >= 0 && cross(c, a, p) >= 0;
+    const idx = pts.map((_, i) => i);
+    const tris = [];
+    let guard = n * n;
+    while (idx.length > 3 && guard-- > 0) {
+        let clipped = false;
+        for (let i = 0; i < idx.length; i++) {
+            const ia = idx[(i + idx.length - 1) % idx.length], ib = idx[i], ic = idx[(i + 1) % idx.length];
+            const a = pts[ia], b = pts[ib], c = pts[ic];
+            if (cross(a, b, c) <= 1e-9) continue;
+            if (idx.some((j) => j !== ia && j !== ib && j !== ic && inside(pts[j], a, b, c))) continue;
+            tris.push([ia, ib, ic]);
+            idx.splice(i, 1);
+            clipped = true;
+            break;
+        }
+        if (!clipped) break;
+    }
+    if (idx.length === 3) tris.push([idx[0], idx[1], idx[2]]);
+    return tris;
+}
+
+/** The roof from the south-east on white, each run in its own colour with alternating red and green bulbs.
+ *  Roofs go into a depth buffer, and every piece of a run line, outline and bulb is drawn only where nothing on
+ *  the roof is in front of it, so a roof that sits over another hides the lights beneath it. */
+function createHolidayLightsCanvas(model, metrics, { width = 1600, height = 1000 } = {}) {
+    const canvas = document.createElement('canvas');
+    canvas.width = width;
+    canvas.height = height;
+    const ctx = canvas.getContext('2d');
+    ctx.fillStyle = '#ffffff';
+    ctx.fillRect(0, 0, width, height);
+    const roofs = model?.roofs || [];
+    const all = roofs.flatMap((roof) => Object.values(roof.points));
+    if (!all.length) return canvas;
+
+    const az = -Math.PI * 0.2, el = Math.PI * 0.22;
+    const cosA = Math.cos(az), sinA = Math.sin(az), cosE = Math.cos(el), sinE = Math.sin(el);
+    const view = ([x, y, z]) => {
+        const rx = x * cosA - y * sinA, ry = x * sinA + y * cosA;
+        return { sx: rx, sy: -(z * cosE) - ry * sinE, depth: ry * cosE - z * sinE };
+    };
+    const projected = all.map(view);
+    const minX = Math.min(...projected.map((p) => p.sx)), maxX = Math.max(...projected.map((p) => p.sx));
+    const minY = Math.min(...projected.map((p) => p.sy)), maxY = Math.max(...projected.map((p) => p.sy));
+    const pad = 0.08;
+    const scale = Math.min(width * (1 - pad * 2) / Math.max(maxX - minX, 1), height * (1 - pad * 2) / Math.max(maxY - minY, 1));
+    const offX = (width - (maxX - minX) * scale) / 2 - minX * scale;
+    const offY = (height - (maxY - minY) * scale) / 2 - minY * scale;
+    const screen = (p) => { const v = view(p); return { x: v.sx * scale + offX, y: v.sy * scale + offY, depth: v.depth }; };
+
+    // Roof faces: rasterised with a depth buffer (the view is orthographic, so depth is linear across a triangle).
+    const depth = new Float32Array(width * height).fill(Infinity);
+    const image = ctx.getImageData(0, 0, width, height);
+    const px = image.data;
+    const light = [0.35, -0.55, 0.76];
+    roofs.forEach((roof) => {
+        roof.faces.forEach((ring) => {
+            const pts = ring.map((id) => roof.points[id]);
+            let nx = 0, ny = 0, nz = 0;
+            for (let i = 0; i < pts.length; i++) {
+                const [x1, y1, z1] = pts[i], [x2, y2, z2] = pts[(i + 1) % pts.length];
+                nx += (y1 - y2) * (z1 + z2); ny += (z1 - z2) * (x1 + x2); nz += (x1 - x2) * (y1 + y2);
+            }
+            const nl = Math.hypot(nx, ny, nz) || 1;
+            if (nz < 0) { nx = -nx; ny = -ny; nz = -nz; }
+            const shade = Math.max(0, (nx * light[0] + ny * light[1] + nz * light[2]) / nl);
+            const l = Math.round(200 + shade * 45), rgb = [l, l + 2, Math.min(255, l + 6)];
+            const s = pts.map(screen);
+            for (const [ia, ib, ic] of triangulateHolidayFace(pts)) {
+                const a = s[ia], b = s[ib], c = s[ic];
+                const det = (b.y - c.y) * (a.x - c.x) + (c.x - b.x) * (a.y - c.y);
+                if (Math.abs(det) < 1e-9) continue;
+                const x0 = Math.max(0, Math.floor(Math.min(a.x, b.x, c.x))), x1 = Math.min(width - 1, Math.ceil(Math.max(a.x, b.x, c.x)));
+                const y0 = Math.max(0, Math.floor(Math.min(a.y, b.y, c.y))), y1 = Math.min(height - 1, Math.ceil(Math.max(a.y, b.y, c.y)));
+                for (let yy = y0; yy <= y1; yy++) {
+                    for (let xx = x0; xx <= x1; xx++) {
+                        const cx = xx + 0.5, cy = yy + 0.5;
+                        const w0 = ((b.y - c.y) * (cx - c.x) + (c.x - b.x) * (cy - c.y)) / det;
+                        const w1 = ((c.y - a.y) * (cx - c.x) + (a.x - c.x) * (cy - c.y)) / det;
+                        const w2 = 1 - w0 - w1;
+                        if (w0 < -1e-6 || w1 < -1e-6 || w2 < -1e-6) continue;
+                        const d = w0 * a.depth + w1 * b.depth + w2 * c.depth;
+                        const k = yy * width + xx;
+                        if (d >= depth[k]) continue;
+                        depth[k] = d;
+                        px[k * 4] = rgb[0]; px[k * 4 + 1] = rgb[1]; px[k * 4 + 2] = rgb[2]; px[k * 4 + 3] = 255;
+                    }
+                }
+            }
+        });
+    });
+    ctx.putImageData(image, 0, 0);
+
+    // A point on an edge shows unless every nearby pixel holds roof clearly in front of it.
+    const tolerance = 1.0;
+    const visible = (p) => {
+        const cx = Math.round(p.x), cy = Math.round(p.y);
+        for (let dy = -2; dy <= 2; dy++) for (let dx = -2; dx <= 2; dx++) {
+            const xx = cx + dx, yy = cy + dy;
+            if (xx < 0 || yy < 0 || xx >= width || yy >= height) return true;
+            if (depth[yy * width + xx] >= p.depth - tolerance) return true;
+        }
+        return false;
+    };
+    const lerp = (a, b, t) => ({ x: a.x + (b.x - a.x) * t, y: a.y + (b.y - a.y) * t, depth: a.depth + (b.depth - a.depth) * t });
+    // Stroke only the visible stretches of a segment, tested every few pixels.
+    const strokeVisible = (sa, sb, style, lineWidth) => {
+        const steps = Math.max(1, Math.ceil(Math.hypot(sb.x - sa.x, sb.y - sa.y) / 3));
+        ctx.strokeStyle = style;
+        ctx.lineWidth = lineWidth;
+        ctx.lineCap = 'round';
+        let start = null;
+        for (let i = 0; i <= steps; i++) {
+            const shown = i < steps && visible(lerp(sa, sb, (i + 0.5) / steps));
+            if (shown && start === null) start = i;
+            if (!shown && start !== null) {
+                const p = lerp(sa, sb, start / steps), q = lerp(sa, sb, i / steps);
+                ctx.beginPath(); ctx.moveTo(p.x, p.y); ctx.lineTo(q.x, q.y); ctx.stroke();
+                start = null;
+            }
+        }
+    };
+
+    roofs.forEach((roof) => roof.lines.forEach((line) => strokeVisible(screen(roof.points[line.a]), screen(roof.points[line.b]), '#a3abb8', 1.5)));
+
+    const runOf = new Map();
+    (metrics?.runs || []).forEach((run) => run.edges.forEach((edge) => runOf.set(edge.line, run)));
+    const lineW = Math.max(5, Math.min(12, width / 150));
+    const bulbR = Math.max(3.5, Math.min(7, width / 260));
+    const badgeSpots = new Map();
+    roofs.forEach((roof) => roof.lines.forEach((line) => {
+        const run = runOf.get(line);
+        if (!run) return;
+        const a = roof.points[line.a], b = roof.points[line.b];
+        const sa = screen(a), sb = screen(b);
+        strokeVisible(sa, sb, run.color, lineW);
+        // Bulbs a foot apart, thinned where the drawing is too small, so the run's colour shows between them.
+        const length = Math.hypot(a[0] - b[0], a[1] - b[1], a[2] - b[2]);
+        const span = Math.hypot(sb.x - sa.x, sb.y - sa.y);
+        const count = Math.max(1, Math.min(Math.round(length), Math.floor(span / (bulbR * 5))));
+        for (let i = 0; i < count; i++) {
+            const p = lerp(sa, sb, (i + 0.5) / count);
+            if (!visible(p)) continue;
+            ctx.fillStyle = i % 2 ? PDF_HOLIDAY_BULB_GREEN : PDF_HOLIDAY_BULB_RED;
+            ctx.beginPath(); ctx.arc(p.x, p.y, bulbR, 0, Math.PI * 2); ctx.fill();
+            ctx.strokeStyle = '#ffffff';
+            ctx.lineWidth = 1;
+            ctx.stroke();
+        }
+        // The run's number goes on its longest visible stretch, nearest the middle.
+        for (let i = 0; i <= 20; i++) {
+            const t = 0.5 + (i % 2 ? 1 : -1) * Math.ceil(i / 2) * 0.025;
+            const p = lerp(sa, sb, t);
+            if (!visible(p)) continue;
+            const score = length * (1 - Math.abs(t - 0.5));
+            if (!badgeSpots.has(run) || badgeSpots.get(run).score < score) badgeSpots.set(run, { p, score });
+            break;
+        }
+    }));
+
+    const badgeR = Math.max(14, Math.min(24, width / 66));
+    badgeSpots.forEach(({ p }, run) => {
+        ctx.fillStyle = run.color;
+        ctx.beginPath(); ctx.arc(p.x, p.y, badgeR, 0, Math.PI * 2); ctx.fill();
+        ctx.strokeStyle = '#ffffff';
+        ctx.lineWidth = 2.5;
+        ctx.stroke();
+        ctx.fillStyle = '#ffffff';
+        ctx.font = `700 ${Math.round(badgeR * 1.15)}px Arial`;
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(String(run.number), p.x, p.y + 1);
+    });
+    return canvas;
+}
+
+async function drawHolidayLightsPage(doc, state, model, x, y, w, h, brandingColors) {
+    const metrics = buildPdfHolidayLightsMetrics(model);
+    const gap = 5;
+    const pColor = (brandingColors && brandingColors.primary) ? brandingColors.primary : { r: 200, g: 40, b: 40 };
+    const feet = (value) => pdfMeasure(value, 'ft', `${Math.round(value).toLocaleString('en-US')} ft`);
+
+    // Top row, kept short so the drawing gets the page: lights needed, and the runs in a line, each a numbered
+    // badge in its colour (as on the drawing) with its length.
+    const totalW = w * 0.24;
+    const runsX = x + totalW + gap, runsW = w - totalW - gap;
+    const itemW = 30, perLine = Math.max(1, Math.floor((runsW - 12) / itemW));
+    const lines = Math.max(1, Math.ceil(metrics.runs.length / perLine));
+    const topH = 20 + (lines - 1) * 7;
+    drawSummaryBox(doc, x, y, totalW, topH, "Lights Needed");
+    doc.setFont("Montserrat", "bold");
+    doc.setFontSize(14);
+    doc.setTextColor(pColor.r, pColor.g, pColor.b);
+    doc.text(feet(metrics.totalFt), x + totalW / 2, y + 16, { align: 'center' });
+
+    drawSummaryBox(doc, runsX, y, runsW, topH, "Runs");
+    metrics.runs.forEach((run, index) => {
+        const cx = runsX + 9 + (index % perLine) * itemW;
+        const cy = y + 14.5 + Math.floor(index / perLine) * 7;
+        const rgb = hexToRgbReport(run.color);
+        doc.setFillColor(rgb.r, rgb.g, rgb.b);
+        doc.circle(cx, cy, 2.6, 'F');
+        doc.setFont("Montserrat", "bold");
+        doc.setFontSize(6.5);
+        doc.setTextColor(255, 255, 255);
+        doc.text(String(run.number), cx, cy + 0.9, { align: 'center' });
+        doc.setFont("Montserrat", "normal");
+        doc.setFontSize(8.5);
+        doc.setTextColor(60);
+        doc.text(feet(run.length), cx + 4, cy + 1.1);
+    });
+
+    // Bottom: bulbs and clips by spacing, one column per spacing, three rows.
+    const rowH = 6.5;
+    const tableH = 13 + rowH * 3;
+    const tableY = y + h - tableH;
+    const viewY = y + topH + gap;
+    const viewH = tableY - gap - viewY;
+    drawSummaryBox(doc, x, viewY, w, viewH, "Light Runs");
+    const canvasH = Math.round(1600 * Math.max(0.4, (viewH - 19) / (w - 6)));
+    const canvas = createHolidayLightsCanvas(model, metrics, { width: 1600, height: canvasH });
+    placeImageCentered(doc, canvas.toDataURL('image/jpeg', 0.85), canvas.width / canvas.height, x + 3, viewY + 15, viewY + viewH - 4, w - 6);
+
+    drawSummaryBox(doc, x, tableY, w, tableH, "Bulbs And Clips By Spacing");
+    const labelW = 26;
+    const colW = (w - 12 - labelW) / metrics.bySpacing.length;
+    const rows = [
+        ['Spacing', (row) => pdfLabel('{inches} in', { inches: row.inches })],
+        ['Bulbs', (row) => row.bulbs.toLocaleString('en-US')],
+        ['Clips', (row) => row.clips.toLocaleString('en-US')]
+    ];
+    rows.forEach(([label, value], r) => {
+        const rowY = tableY + 15 + r * rowH;
+        doc.setFont("Montserrat", "bold");
+        doc.setFontSize(9);
+        doc.setTextColor(120);
+        doc.text(pdfLabel(label), x + 8, rowY);
+        metrics.bySpacing.forEach((row, c) => {
+            const standard = row.inches === PDF_HOLIDAY_STANDARD_SPACING_IN;
+            doc.setFont("Montserrat", standard || r === 0 ? "bold" : "normal");
+            doc.setFontSize(10.5);
+            if (standard) doc.setTextColor(pColor.r, pColor.g, pColor.b); else doc.setTextColor(r === 0 ? 90 : 50);
+            doc.text(value(row), x + 8 + labelW + colW * (c + 0.5), rowY, { align: 'center' });
+        });
+        if (r < rows.length - 1) {
+            doc.setDrawColor(236, 236, 236);
+            doc.setLineWidth(0.25);
+            doc.line(x + 8, rowY + 2.3, x + w - 8, rowY + 2.3);
+        }
+    });
+}
+window.shouldIncludePdfHolidayLights = shouldIncludePdfHolidayLights;
+window.resolvePdfHolidayLightsModel = resolvePdfHolidayLightsModel;
+window.buildPdfHolidayLightsMetrics = buildPdfHolidayLightsMetrics;
+window.createHolidayLightsCanvas = createHolidayLightsCanvas;
 
 async function drawGutterPage(doc, state, metrics, x, y, w, h, brandingColors) {
     const gap = 5;
@@ -6946,7 +7403,7 @@ function drawPitchTable(doc, squaresData, x, y, w, highlightDominant = false) {
         }
 
         // Row Data (Adjusted X positions)
-        doc.text(r.pitch, x + pad + 10, cy, {align:'center'}); // Centered under header
+        doc.text(String(pdfPitch(r.pitch)), x + pad + 10, cy, {align:'center'}); // Centered under header
         doc.text(pdfMeasure(r.sq, "sq", r.sq.toFixed(2), false), x + w/2, cy, {align:'center'});
         doc.text(Math.round(r.pct) + "%", x + w - pad - 10, cy, {align:'right'}); // Right-align to padding
         cy += 5;

@@ -484,6 +484,9 @@ async function requestProjectGoogleTileCapture(force = false) {
     if (!window.currentProjectId) {
         throw new Error('Save or load the project before generating Google 3D tiles.');
     }
+    if (window.FIRSTMEASURE_TUTORIAL?.enabled) {
+        throw new Error('This training source has no saved Google 3D tile capture.');
+    }
     if (!Number.isFinite(mapCenterLat) || !Number.isFinite(mapCenterLng)) {
         throw new Error('Project coordinates are missing for Google 3D tile generation.');
     }
@@ -987,7 +990,7 @@ function scheduleDeferredGoogleTilePreload() {
         update3DSurfaceButtons();
         try {
             await ensureGoogleTileSurfaceLoaded({
-                allowGenerate: !hasManifestUrl,
+                allowGenerate: !hasManifestUrl && !window.FIRSTMEASURE_TUTORIAL?.enabled,
                 background: true,
                 workerCount: 2,
                 backgroundTileDelayMs: GOOGLE_TILE_BACKGROUND_TILE_DELAY_MS
@@ -1266,7 +1269,8 @@ async function ensureGoogleTileSurfaceLoaded(options = {}) {
                 if (tileIndex >= tiles.length) return;
                 const tile = tiles[tileIndex];
                 if (!tile || !tile.file) continue;
-                const gltf = await loadGltfScene(tileBaseUrl + tile.file, loader);
+                // A training project serves each tile from its source (tutorial_sources.php).
+                const gltf = await loadGltfScene(tile.url ? new URL(tile.url, manifestUrl).href : tileBaseUrl + tile.file, loader);
                 if (token !== googleTileState.loadToken) return;
                 gltf.scene.traverse(obj => {
                     if (!obj.isMesh) return;

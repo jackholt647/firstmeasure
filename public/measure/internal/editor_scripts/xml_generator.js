@@ -82,10 +82,11 @@ function generateRoofXML(pdfState) {
             lineRefs.forEach((lineId) => lineIdsForStructure.add(lineId));
             const pitchRise12 = resolveXmlFacePitchRise12(face, metersPerPx, labelMap);
             const pitch = Math.max(0, Math.round(Math.abs(pitchRise12)));
+            // `pitch` stays rise over 12 for integrations; `pitch_degrees` is the same pitch in degrees (1M8-255).
             const areaSqFt = calculateXmlFaceAreaSqFt(face, feetPerPx, pitchRise12);
             const childrenAttr = childFaceIds.length ? ` children="${childFaceIds.join(",")}"` : "";
             facesXML.push(
-                `<FACE id="${faceId}" type="ROOF"${childrenAttr}><POLYGON id="${polygonId}" path="${lineRefs.join(",")}" pitch="${pitch}" size="${Math.round(areaSqFt)}"/></FACE>${holeXML.join("")}`
+                `<FACE id="${faceId}" type="ROOF"${childrenAttr}><POLYGON id="${polygonId}" path="${lineRefs.join(",")}" pitch="${pitch}" pitch_degrees="${(Math.atan(pitch / 12) * 180 / Math.PI).toFixed(1)}" size="${Math.round(areaSqFt)}"/></FACE>${holeXML.join("")}`
             );
         });
 

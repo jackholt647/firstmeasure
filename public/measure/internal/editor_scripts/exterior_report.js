@@ -1,9 +1,11 @@
 /* House-relative elevation assignments are saved with the project's PDF settings. */
+// Saved through PHP an empty settings object comes back as []; settings set on an array are lost (FM-320).
+function settingsOf(state){const s=state.exteriorSettings;return state.exteriorSettings=s&&typeof s==='object'&&!Array.isArray(s)?s:{};}
 const reportImageCatalogCache=new WeakMap();
 async function prepareReportImageryConfig(state,refresh=false){
  const metadata=window.currentProjectLoadedAppMetadata?.pdfConfig?.exteriorSettings;
- if(String(state.folderId)===String(window.currentProjectId)&&Number(metadata?.photoSettingsUpdatedAt)>Number(state.exteriorSettings?.photoSettingsUpdatedAt||0))Object.assign(state.exteriorSettings||={},JSON.parse(JSON.stringify(metadata)));
- const settings=state.exteriorSettings||={};
+ if(String(state.folderId)===String(window.currentProjectId)&&Number(metadata?.photoSettingsUpdatedAt)>Number(state.exteriorSettings?.photoSettingsUpdatedAt||0))Object.assign(settingsOf(state),JSON.parse(JSON.stringify(metadata)));
+ const settings=settingsOf(state);
  window.ExteriorPDF.initializePhotoSlots(settings);
  if(!refresh&&reportImageCatalogCache.has(state))return reportImageCatalogCache.get(state);
  const files=await window.ProjectResources.reportImages(state.folderId);reportImageCatalogCache.set(state,files);window.ExteriorPDF.initializePhotoSlots(settings,files);
@@ -24,7 +26,7 @@ function orientationSnaps(report,count=8){
 function snapBearing(value,snaps,tolerance=3){const d=a=>Math.abs(((value-a+540)%360)-180);let best=null;for(const a of snaps||[])if(best===null||d(a)<d(best))best=a;return best!==null&&d(best)<=tolerance?best:bearingOf(value);}
 let houseOrientationCount=0;
 function renderHouseOrientation(container,state,{fill=false}={}){
- const PDF=window.ExteriorPDF,settings=state.exteriorSettings||={},card=document.createElement('section');card.dataset.houseOrientation='';card.style.cssText='border:1px solid #dce3eb;background:#f7f9fc;border-radius:12px;padding:16px;margin:12px 0 20px'+(fill?';display:flex;flex-direction:column;flex:1 1 auto;min-height:0;margin:0':'');container.appendChild(card);
+ const PDF=window.ExteriorPDF,settings=settingsOf(state),card=document.createElement('section');card.dataset.houseOrientation='';card.style.cssText='border:1px solid #dce3eb;background:#f7f9fc;border-radius:12px;padding:16px;margin:12px 0 20px'+(fill?';display:flex;flex-direction:column;flex:1 1 auto;min-height:0;margin:0':'');container.appendChild(card);
  const title=document.createElement('h3');title.textContent='House orientation';title.style.margin='0 0 6px';card.appendChild(title);
  const hint=document.createElement('p');hint.textContent='Drag the dial or the slider to turn the front of the house. Left and right are as seen while standing outside facing the front door. Hold Shift while dragging to turn off snapping to the walls.';hint.style.cssText='font-size:12px;color:#586779;margin:0 0 10px';card.appendChild(hint);
  const C=200,R=164,id='hoArrow'+(++houseOrientationCount),shapes=PDF.planShapes(state.exteriorReport),all=shapes.flat(),minX=Math.min(...all.map(p=>p.x)),maxX=Math.max(...all.map(p=>p.x)),minY=Math.min(...all.map(p=>p.y)),maxY=Math.max(...all.map(p=>p.y)),scale=R*.95/Math.max(maxX-minX,maxY-minY,.01);
@@ -70,11 +72,11 @@ function renderExteriorReportConfig(container,state){
   full-house PDF always includes the pages), exteriorSettings.dimensionContext (default: the
   organization's Company > Reports setting) and exteriorSettings.notes (wall notes page). Page orientation is
   the organization's Company > Reports setting, not a per-report choice. */
- state.exteriorSettings||={};container.style.padding='16px';container.style.display='flex';container.style.flexDirection='column';container.style.minHeight='100%';container.style.boxSizing='border-box';
+ settingsOf(state);container.style.padding='16px';container.style.display='flex';container.style.flexDirection='column';container.style.minHeight='100%';container.style.boxSizing='border-box';
  renderHouseOrientation(container,state,{fill:true});
 }
 async function renderReportImageryConfig(container,state){
- const settings=state.exteriorSettings||={};container.style.padding='24px';const heading=document.createElement('h2');heading.textContent='Elevation photos';container.appendChild(heading);
+ const settings=settingsOf(state);container.style.padding='24px';const heading=document.createElement('h2');heading.textContent='Elevation photos';container.appendChild(heading);
  const hint=document.createElement('p');hint.textContent='Assign one photo to each standard view. Customer assignments fill these slots automatically. Front, Back, Left and Right are included by default; add corner views when available. Missing photos do not prevent you from continuing.';container.appendChild(hint);
  renderHouseOrientation(container,state);
  const status=document.createElement('p');container.appendChild(status);let files;

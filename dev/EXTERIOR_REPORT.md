@@ -21,7 +21,8 @@ front-wall picker or notes box in the tab; these stay report parameters in data 
 unchanged keys and defaults: `exteriorSettings.include` (default on; a customer
 full-house PDF always includes the pages), `exteriorSettings.dimensionContext`
 (default: the organization's Company › Reports setting) and `exteriorSettings.notes`
-(the Wall Notes page). The full PDF appends exterior pages.
+(kept in data but never printed: the Wall Notes card is always blank for the customer's
+own notes, FM-311). The full PDF appends exterior pages.
 Roof-only projects and roof summary PDFs retain their existing page flow.
 
 ## Coverage and sources
@@ -64,7 +65,8 @@ visualization is separate from assignments and reporting.
 Report regions union adjacent coplanar faces of the same material; distinct
 materials and chimneys stay separate. Modeled openings are reunited with their
 host region for gross area, then subtracted once for net area. Openings must have
-a supporting wall; unsupported features appear in review notes. Openings spanning
+a supporting wall; unsupported features are listed in the model's `warnings` (for the
+editor only; never printed on a customer PDF). Openings spanning
 multiple independently assigned material regions are not currently apportioned
 across those regions; keep a feature on one host section for this prototype.
 Horizontal/sloped returns are listed separately from vertical cladding area.

@@ -6,11 +6,13 @@ function render(owner){
  const anchor=document.getElementById('btnTogglePitch');
  if(anchor&&!badge){badge=document.createElement('span');badge.id='exterior-distance';badge.setAttribute('aria-live','polite');Object.assign(badge.style,{color:'#fff',fontSize:'13px',padding:'5px 9px',whiteSpace:'nowrap',fontVariantNumeric:'tabular-nums',pointerEvents:'none'});anchor.after(badge);}
  if(anchor&&badge&&badge.parentElement!==anchor.parentElement)anchor.after(badge);
- if(badge){const angle=owner?.unit==='degrees',scale=root.ReportUnits?.current().inputScale(owner)??owner?.unitsPerInput??.3048;badge.hidden=!owner;badge.textContent=owner?((owner.label?owner.label+' ': '')+(buffer||((owner.amount||0)/scale).toFixed(2))+(angle?'\u00b0':root.ReportUnits?.current().metric?(owner.unit==='inches'?' mm':' m'):owner.unit==='inches'?' in':' ft')+(buffer?'':angle?' · type angle':' · type '+(owner.label?.toLowerCase()||'distance'))):'';}
+ if(badge){const angle=owner?.unit==='degrees',scale=root.ReportUnits?.current().inputScale(owner)??owner?.unitsPerInput??.3048;badge.hidden=!owner||!!owner.quiet&&!buffer;badge.textContent=owner?((owner.label?owner.label+' ': '')+(buffer||((owner.amount||0)/scale).toFixed(2))+(angle?'\u00b0':root.ReportUnits?.current().metric?(owner.unit==='inches'?' mm':' m'):owner.unit==='inches'?' in':' ft')+(buffer?(owner.hint?' · '+owner.hint:''):angle?' · type angle':' · type '+(owner.label?.toLowerCase()||'distance'))):'';}
 }
+// A quiet owner collects a number for a key pressed after it (T after a trim
+// width): it shows nothing and leaves Backspace and Escape alone until typed.
 function key(e,owner){
  render(owner);if(!owner||e.ctrlKey||e.metaKey||e.altKey)return false;
- const k=e.key;let next=buffer;
+ const k=e.key;let next=buffer;if(owner.quiet&&!buffer&&(k==='Backspace'||k==='Escape'))return false;
  if(/^\d$/.test(k))next+=k;
  else if(k==='.'||k==='Decimal'){if(!next.includes('.'))next+='.';}
  else if(k==='-'||k==='+')next=(k==='-'?'-':'')+next.replace(/^[+-]/,'');
@@ -20,5 +22,7 @@ function key(e,owner){
  e.preventDefault();e.stopImmediatePropagation();buffer=next;
  const n=Number(buffer);owner.set(buffer.trim()!==''&&Number.isFinite(n)&&(n!==0||owner.allowZero)?n*(root.ReportUnits?.current().inputScale(owner)??owner.unitsPerInput??.3048):null);render(owner);return true;
 }
-root.ExteriorDistanceInput={key,render};
+// What was typed for this owner, as text in its input units ('' if nothing).
+function typed(owner){return owner&&owner.token===current&&owner.axis===currentAxis?buffer:'';}
+root.ExteriorDistanceInput={key,render,typed};
 })(window);
