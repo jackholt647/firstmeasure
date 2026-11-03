@@ -53,50 +53,44 @@ async function skipToEnd(page) {
   }
 }
 
-test('1M8-246: a new signup names itself and its company on the welcome page before anything else', async () => {
+test('1M8-246: the welcome page offers name and company, both optional (Jack, 2026-11-03)', async () => {
   const browser = await chromium.launch({ channel: 'chrome', headless: true });
   try {
-    const { page, errors } = await onboarding(browser, { orgName: 'Your Company', userName: '' });
-    const company = page.locator('#obCompanyName');
-    const name = page.locator('#obFullName');
+    // Left empty: the page continues and saves no name.
+    let { page, errors } = await onboarding(browser, { orgName: 'Your Company', userName: '' });
+    let company = page.locator('#obCompanyName');
+    let name = page.locator('#obFullName');
     assert.equal(await company.isVisible(), true);
     assert.equal(await name.isVisible(), true);
     assert.equal(await company.inputValue(), '', 'the placeholder is never offered as the name');
     assert.doesNotMatch(await page.locator('#obPage0').innerText(), /Your Company/);
-
-    // Empty: the page refuses to continue, marks both and saves nothing.
     await skipToEnd(page);
-    assert.equal(await currentPage(page), 0);
-    assert.equal(await company.getAttribute('aria-invalid'), 'true');
-    assert.equal(await name.getAttribute('aria-invalid'), 'true');
-    assert.ok((await page.evaluate(() => window.toasts)).some(t => /name and company/i.test(t)));
+    assert.notEqual(await currentPage(page), 0, 'empty names never block the welcome page');
     assert.deepEqual((await updates(page)).filter(p => 'name' in p || 'full_name' in p), []);
+    assert.deepEqual(await page.evaluate(() => window.toasts), []);
+    assert.deepEqual(errors, []);
+    await page.close();
 
-    // "Your Company" typed back in is still the placeholder.
-    await name.fill('Dana Reyes');
-    await company.fill('your company');
-    await page.locator('#obSkip0').click();
-    await page.waitForTimeout(150);
-    assert.equal(await currentPage(page), 0);
-    assert.equal(await company.getAttribute('aria-invalid'), 'true');
-    assert.equal(await name.getAttribute('aria-invalid'), 'false');
-    const lastToast = () => page.evaluate(() => window.toasts.at(-1));
-    // Only the missing field is named (1M8-250).
-    assert.equal(await lastToast(), 'Company name: Enter your company name to continue.');
-    await name.fill('');
-    await company.fill('Reyes Roofing LLC');
-    await page.locator('#obSkip0').click();
-    await page.waitForTimeout(150);
-    assert.equal(await currentPage(page), 0);
-    assert.equal(await lastToast(), 'Your name: Enter your name to continue.');
-    assert.equal(await company.getAttribute('aria-invalid'), 'false');
-    await name.fill('Dana Reyes');
+    // Only one given, and "your company" typed back is still the placeholder: only the real name is saved.
+    ({ page, errors } = await onboarding(browser, { orgName: 'Your Company', userName: '' }));
+    await page.locator('#obFullName').fill('Dana Reyes');
+    await page.locator('#obCompanyName').fill('your company');
+    await skipToEnd(page);
+    assert.notEqual(await currentPage(page), 0);
+    let saved = (await updates(page)).filter(p => 'name' in p || 'full_name' in p);
+    assert.deepEqual(saved.map(p => [p.name, p.full_name]), [[undefined, 'Dana Reyes']]);
+    await page.close();
 
+    // Both given: both saved as typed.
+    ({ page, errors } = await onboarding(browser, { orgName: 'Your Company', userName: '' }));
+    company = page.locator('#obCompanyName');
+    name = page.locator('#obFullName');
+    await name.fill('Dana Reyes');
     await company.fill('  Reyes Roofing LLC ');
     assert.deepEqual(await page.locator('.ob-prev-orgname').allInnerTexts(), ['Reyes Roofing LLC'], 'the sample report shows the name as typed');
     await skipToEnd(page);
     assert.notEqual(await currentPage(page), 0);
-    const saved = (await updates(page)).filter(p => 'name' in p);
+    saved = (await updates(page)).filter(p => 'name' in p);
     assert.equal(saved.length, 1, JSON.stringify(await updates(page)));
     assert.equal(saved[0].name, 'Reyes Roofing LLC');
     assert.equal(saved[0].full_name, 'Dana Reyes');
