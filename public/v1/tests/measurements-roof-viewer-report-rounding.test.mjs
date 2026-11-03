@@ -37,6 +37,38 @@ test('the report rounding the viewer copies is still the report generator\'s rou
   assert.match(pdf, /function splitSquaresByPitch\(squaresData, threshold\) \{\s*if \(threshold === undefined\) threshold = 2;[\s\S]{0,400}if \(rise <= threshold\)/);
 });
 
+test('the report\'s totals are still summed unrounded and rounded once, as the viewer copies', async () => {
+  const pdf = await source('measure/internal/editor_scripts/pdf.js');
+  const measurements = await source('measure/internal/editor_scripts/measurements.js');
+  // Line types: unrounded line lengths summed per type, the total printed Math.round whole feet (cover, summary page).
+  assert.match(measurements, /report\.linear\[item\.type\] \+= item\.length;/);
+  assert.match(pdf, /const val = Math\.round\(state\.report\.materials\.linear\[key\]\);/);
+  assert.match(pdf, /const val = matchKey \? Math\.round\(lin\[matchKey\]\) : 0;/);
+  assert.match(pdf, /const val = Math\.round\(lin\[t\.id\] \|\| 0\);/);
+  // Squares: each face's unrounded outline area added to its whole-number pitch bucket and to the total.
+  assert.match(pdf, /const sq = areaSqFt \/ 100;\s*const pitchBucket12 = Math\.round\(Math\.abs\(rise12\)\);/);
+  assert.match(pdf, /totalSquares \+= sq;[\s\S]{0,200}squaresByPitch\[pKey\] \+= sq;/);
+  // Pitch Breakdown prints two decimals; the cover's Total Squares Math.round(x * 100) / 100.
+  assert.match(pdf, /doc\.text\(pdfMeasure\(r\.sq, "sq", r\.sq\.toFixed\(2\), false\)/);
+  assert.match(pdf, /pdfMeasure\(val, "sq", Math\.round\(val \* 100\) \/ 100, false\)/);
+  // Chimneys and skylights: shortest x longest edge, each rounded to whole feet.
+  assert.match(pdf, /const lengths = c\.map\(l => Math\.round\(l\.length\)\);\s*const unique = \[\.\.\.new Set\(lengths\)\]\.sort\(\(a, b\) => a - b\);/);
+});
+
+test('totals are formatted as the report prints them', async () => {
+  const V = await viewer();
+  // Sum then round: three 10.4 ft lines print 31, never 30.
+  assert.equal(V.reportLineTotal(10.4 + 10.4 + 10.4), '31');
+  assert.deepEqual([84.6, 40.1, 6.7, 0, 166.4845].map(v => V.reportLineTotal(v)), ['85', '40', '7', '0', '166']);
+  assert.deepEqual([4.1, 13.3249, 0].map(v => V.reportPitchSquares(v)), ['4.10', '13.32', '0.00']);
+  assert.deepEqual([17.333, 17.3, 1234.567, 5].map(v => V.reportTotalSquares(v)), ['17.33', '17.3', '1234.57', '5']);
+  assert.equal(V.reportObstacleSize([4, 4, Math.hypot(4, 2.4), Math.hypot(4, 2.4)]), '4 × 5 ft');
+  assert.equal(V.reportObstacleSize([]), null);
+  // The unrounded report area of a face is what the totals sum.
+  const outline = [[0, 0], [30, 0], [30, 15], [0, 15]];
+  assert.ok(Math.abs(V.reportFaceExactSqFt(xmlFace(outline, [], 7)) - plan(outline) * slope(7)) < 1e-9);
+});
+
 test('a face shows the report\'s square feet as whole squares rounded up', async () => {
   const V = await viewer();
   // No holes: size= is the report label exactly.
@@ -62,7 +94,7 @@ test('a face shows the report\'s square feet as whole squares rounded up', async
 test('line lengths carry the report\'s precision and no more', async () => {
   const V = await viewer();
   assert.deepEqual([12.49, 12.5, 0.4, 166.48].map(V.reportRoofFeet), [12, 13, 0, 166]);
-  assert.deepEqual([12.34, 3, 0.04, 0].map(V.reportWallFeet), ['12.3', '3.0', '<0.1', '0.0']);
+  assert.deepEqual([12.34, 3, 0.04, 0, 1234.56].map(v => V.reportWallFeet(v)), ['12.3', '3.0', '<0.1', '0.0', '1,234.6']);
   assert.deepEqual([0, 1, 2, 2.4, 2.5, 3, 7].map(V.isLowSlope), [true, true, true, true, false, false, false]);
 });
 
@@ -101,6 +133,29 @@ test('the selected face card shows only whole squares, at the lower right clear 
     for (let i = 0; i < 12; i++) await page.mouse.wheel(0, 240);
     await page.waitForTimeout(200);
     assert.deepEqual(await labelPx(), before, 'zoomed out');
+    // Without a measurement dataset the key, Pitches and Summary are totalled from the model the report's way.
+    const legend = name => page.getByRole('textbox', {name: name + ' length', exact: true}).inputValue();
+    assert.equal(await legend('Ridge'), '30');
+    assert.equal(await legend('Rake'), '35', 'two 17.49 ft rakes sum to 34.99 and print 35, not 17 + 17');
+    await page.getByRole('tab', {name: 'Pitches', exact: true}).click();
+    assert.equal(await page.getByRole('textbox', {name: '7/12 pitch squares', exact: true}).inputValue(), '5.21');
+    await page.getByRole('tab', {name: 'Summary', exact: true}).click();
+    assert.match(await page.locator('.fm-roof-summary').innerText(), /Roof squares\s+5\.21/);
+    assert.deepEqual(errors, []);
+    await page.evaluate(() => window.viewer.destroy());
+    // With the measurement dataset, its stored values are shown at the report's precision and stay stored as they are.
+    await page.evaluate(() => { window.edits = []; window.viewer = FirstMeasureRoofViewer.mount(document.querySelector('#viewer'), {xmlUrl: '/model.xml', standalone: true, layout: 'stacked', measurements: {hipsLf: {value: 84.6}, rakesLf: {value: 40.1}, chimneyStepLf: {value: 6.7}, unknownLf: {value: 2.34}, roofSquares: {value: 17.333}, pitch7Squares: {value: 4.1}, pitch6Squares: {value: 13.3249}}, onMeasurementChange: (key, value) => window.edits.push([key, value])}); });
+    await page.waitForFunction(() => document.querySelector('.fm-roof-message').hidden && document.querySelector('[data-edge-measure="HIP"]')?.value);
+    assert.deepEqual(await Promise.all(['Hip', 'Rake', 'Chimney Step', 'Unknown'].map(legend)), ['85', '40', '7', '2.3'], 'Unknown is printed nowhere in the report and keeps one decimal');
+    await page.getByRole('tab', {name: 'Pitches', exact: true}).click();
+    assert.deepEqual(await Promise.all(['6/12', '7/12'].map(p => page.getByRole('textbox', {name: p + ' pitch squares', exact: true}).inputValue())), ['13.32', '4.10']);
+    await page.getByRole('tab', {name: 'Summary', exact: true}).click();
+    assert.match(await page.locator('.fm-roof-summary').innerText(), /Roof squares\s+17\.33/);
+    await page.getByRole('tab', {name: 'Line types', exact: true}).click();
+    const hip = page.getByRole('textbox', {name: 'Hip length', exact: true});
+    await hip.fill('84.62');await hip.press('Tab');
+    assert.equal(await hip.inputValue(), '85');
+    assert.deepEqual(await page.evaluate(() => window.edits), [['hipsLf', 84.62]], 'an edit is stored exactly as typed');
     assert.deepEqual(errors, []);
     await page.evaluate(() => window.viewer.destroy());
   } finally { await browser.close(); }

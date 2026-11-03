@@ -87,7 +87,7 @@ test('full-house viewer draws walls, openings, base and fascia with editor finis
     assert.ok(meshes.filter(m=>m.category==='material:brick').every(m=>m.lit)&&meshes.filter(m=>m.category==='material:siding').every(m=>!m.lit));
     await page.getByRole('button',{name:'Highlight Windows',exact:true}).click();meshes=await scene();assert.ok(kinds('opening').filter(m=>m.category==='opening:window').every(m=>m.lit));
     await page.getByRole('button',{name:'Highlight Windows',exact:true}).click();
-    assert.equal(await page.getByRole('textbox',{name:'Top of walls length',exact:true}).inputValue(),'120','saved wall measurements fill the edge rows');
+    assert.equal(await page.getByRole('textbox',{name:'Top of walls length',exact:true}).inputValue(),'120.0','saved wall measurements fill the edge rows, at the exterior report\'s one decimal');
     assert.match(await page.locator('[data-key-panel="openings"]').innerText(),/Windows[\s\S]*Doors/);
     assert.match(await page.locator('[data-key-panel="summary"]').innerText(),/Net wall area[\s\S]*359 sq ft/);
 
