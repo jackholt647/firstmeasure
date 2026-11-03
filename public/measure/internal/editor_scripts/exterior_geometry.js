@@ -295,6 +295,18 @@ function surfaceUV(c,p,range=[0,1]){
  const at=u=>{const a=surfacePoint(c,u,0),b=surfacePoint(c,u,1),d=sub(b,a),v=dot(sub(p,a),d)/dot(d,d),q={x:a.x+d.x*v,y:a.y+d.y*v,z:a.z+d.z*v};return {u,v,error:distance(q,p)};};
  const [lower,upper]=range,step=(upper-lower)/32;let best=at(lower);for(let i=1;i<=32;i++){const q=at(lower+i*step);if(q.error<best.error)best=q;}let lo=Math.max(lower,best.u-step),hi=Math.min(upper,best.u+step);for(let i=0;i<42;i++){const a=at(lo+(hi-lo)/3),b=at(hi-(hi-lo)/3);if(a.error<b.error)hi=b.u;else lo=a.u;}const q=at((lo+hi)/2),clean=x=>Math.abs(x)<1e-6?0:Math.abs(x-1)<1e-6?1:x;return {x:clean(q.u),y:clean(q.v),z:0};
 }
+// What a surface is, apart from where it is trimmed: two faces with the same definition lie on one surface.
+function surfaceDefinition(c){const {range,domains,logical,boundaryControls,...definition}=c;return definition;}
+// Metres along and up a surface. u is a curve parameter, not a distance, so sizes and
+// nudges work here and (u,v) stays what is stored. A quadric corner has no such chart.
+function surfaceChart(c){
+ if(c.type==='quadric-corner')return null;
+ const steps=128,mid=u=>surfacePoint(c,u,.5),table=[0];for(let i=1;i<=steps;i++)table.push(table[i-1]+distance(mid((i-1)/steps),mid(i/steps)));
+ const height=[0,.5,1].reduce((s,u)=>s+distance(surfacePoint(c,u,0),surfacePoint(c,u,1)),0)/3,width=table[steps];
+ const along=u=>{const t=Math.max(0,Math.min(steps,u*steps)),i=Math.min(steps-1,Math.floor(t));return table[i]+(table[i+1]-table[i])*(t-i);};
+ const back=x=>{let lo=0,hi=steps;while(hi-lo>1){const m=(lo+hi)>>1;if(table[m]<=x)lo=m;else hi=m;}const d=table[hi]-table[lo];return (lo+(d>0?(x-table[lo])/d:0))/steps;};
+ return {width,height,toChart:p=>({x:along(p.x),y:p.y*height,z:0}),fromChart:p=>({x:back(p.x),y:height>0?p.y/height:0,z:0})};
+}
 function surfaceDomain(c){return c.domains||[{points:c.type==='quadric-corner'?[{x:0,y:0},{x:1,y:0},{x:0,y:1}]:[{x:0,y:0},{x:1,y:0},{x:1,y:1},{x:0,y:1}],holes:[]}];}
 // Parameter-space boundaries remain exact even for trimmed curved surfaces.
 function surfaceBoundaryCurves(face){const c=face.curvedSurface;return surfaceDomain(c).map(d=>[d.points,...(d.holes||[])].map(r=>{
@@ -396,6 +408,6 @@ function arcPreview(start,center,p,normal0,track={},snap=true){
  const priorSweep=track.sweep||0;let delta=angle-(track.angle||0);while(delta>Math.PI)delta-=2*Math.PI;while(delta< -Math.PI)delta+=2*Math.PI;let sweep=(track.sweep||0)+delta;if(Math.abs(sweep)>=Math.PI*2)sweep%=Math.PI*2;if(track.close&&Math.abs(priorSweep)>Math.PI)sweep=Math.sign(priorSweep)*Math.PI*2;track.angle=angle;track.sweep=sweep;
  return {type:'ellipse',version:1,center:{...center},u,v,radiusX,radiusY,sweep};
 }
-const api={curveEdgeRange,curveSamplePoint,annotateCurveGraph,splineThrough,archSnap,archFaces,normalizeFaces,normalizeFace,pointRemovalChangesRegion,curveDrawGuides,curveDrawSnap,surfaceBoundaryCurves,surfaceOutline,attachBoundaryCurves,surfaceArea,surfacePoint,surfaceUV,surfaceMesh,surfaceFacets,compactSurfaces,curveSvg,mapCurveData,curvePoint,curveSamples,mapCurve,arcPreview,version:2,partition,GRID,CONTACT,finite3,signedArea,area,union,difference,intersection,pieces,triangles,normal,frame,local,world,validateFace,pointKey,edgeKey,topology};
+const api={surfaceDefinition,surfaceChart,surfaceDomain,curveEdgeRange,curveSamplePoint,annotateCurveGraph,splineThrough,archSnap,archFaces,normalizeFaces,normalizeFace,pointRemovalChangesRegion,curveDrawGuides,curveDrawSnap,surfaceBoundaryCurves,surfaceOutline,attachBoundaryCurves,surfaceArea,surfacePoint,surfaceUV,surfaceMesh,surfaceFacets,compactSurfaces,curveSvg,mapCurveData,curvePoint,curveSamples,mapCurve,arcPreview,version:2,partition,GRID,CONTACT,finite3,signedArea,area,union,difference,intersection,pieces,triangles,normal,frame,local,world,validateFace,pointKey,edgeKey,topology};
 if(typeof module==='object'&&module.exports)module.exports=api;else root.ExteriorGeometry=api;
 })(typeof window!=='undefined'?window:globalThis);

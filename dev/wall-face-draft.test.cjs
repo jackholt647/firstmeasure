@@ -115,6 +115,13 @@ test('E on floating lines: a curve sweeps a real surface, a connected line offer
  f.editor.restoreSelection({lineSelection:[{id:'lone',pair:lone}]});f.editor.key({key:'e'});assert.match(f.message(),/no connected lines/);assert.equal(f.editor.planeActive(),true);f.editor.key({key:'Escape'});assert.equal(f.editor.planeActive(),false);assert.equal(JSON.stringify(state.wallEdits),before);
 });
 
+test('a nudged point on a curved face stays on the surface and stays selected',()=>{
+ const K=require('../public/measure/internal/editor_scripts/exterior_geometry.js'),arc=K.arcPreview({x:2,y:0,z:0},{x:0,y:0,z:0},{x:-2,y:0,z:0},{x:0,y:0,z:-1},{},false),domains=[{points:[{x:0,y:0},{x:1,y:0},{x:1,y:1},{x:0,y:1}],holes:[]}],c={type:'ellipse-extrusion',curve:arc,offset:{x:0,y:0,z:3},logical:true,domains},bay={id:'bay',holes:[],points:domains[0].points.map(p=>K.surfacePoint(c,p.x,p.y)),curvedSurface:c},state={lineCenters:true,wallEdits:{$surfaces:[bay]}};
+ const f=fixture({state,walls:[],selected:null,globals:renderGlobals()}),corner=bay.points[0],key=[corner.x,corner.y,corner.z].map(v=>v.toFixed(6)).join(',');f.editor.restoreSelection({solidPoints:[key]});
+ const press=key=>f.editor.key({key,shiftKey:true,preventDefault(){},stopPropagation(){}}),inside=()=>state.wallEdits.$surfaces[0].curvedSurface.domains[0].points.some(p=>p.y===0&&p.x>0&&p.x<1);press('ArrowRight');if(!inside())press('ArrowLeft');const first=state.wallEdits.$surfaces[0].points.map(p=>p.x);press(inside()?'ArrowLeft':'ArrowRight');
+ const moved=state.wallEdits.$surfaces[0];assert.ok(moved.points.every(p=>Math.abs(Math.hypot(p.x,p.y)-2)<1e-6),'every corner is still on the circle');const travelled=moved.curvedSurface.domains[0].points.some(p=>p.y===0&&p.x>0&&p.x<1);assert.ok(travelled,f.message());
+});
+
 test('repeated M never commits or rebases point moves before placement',()=>{
  for(const z of [2,4]){
   const f=fixture({globals:{isFreeMove:true}});f.editor.doubleClick(f.e(2,z),f.w);f.listeners.pointermove(f.e(2,z));const before=JSON.stringify(f.state.wallEdits),count=f.history.length;
