@@ -61,7 +61,7 @@ function collect(state,rawWalls=[]){
  for(const f of edits.$surfaces||[])if(!f.deleted&&!f.drafted)faces.push({...f});
  for(const [key,d]of drafts)for(const f of d.faces||[]){const signature=f.points.map(p=>p.nodeId).sort().join('|');if(f.solidId||f.boundaryHole||(d.deletedFaces||[]).includes(signature)||f.points.some(p=>(d.removedPoints||[]).includes(p.nodeId)))continue;
  faces.push(draftFace(d,f,{id:'draft:'+key+':'+f.id,draft:true,draftKey:key,regionId:f.id}));}
- for(const w of rawWalls)if(!claimed.has(w.id))faces.push({id:'wall:'+w.id,points:[...w.bottom,...w.top.slice().reverse()],chimney:w.chimney});
+ for(const w of rawWalls)if(!claimed.has(w.id)&&!drafts.some(([,d])=>G.draftOwnsWall(d,w)))faces.push({id:'wall:'+w.id,points:[...w.bottom,...w.top.slice().reverse()],chimney:w.chimney});
  return faces;
 }
 // Resolve openings from current geometry, without baking stale cutouts into a

@@ -193,7 +193,7 @@ function updateScene(walls,state,cs){
  const drafts=Object.values(edits.$drafts||{}).filter(d=>!d.chimney&&!d.mergedInto),claimed=new Set(drafts.flatMap(d=>d.members||[]).map(id=>id.split(':chimney-cut-')[0]));
  const world=(d,p)=>d.frame?W.fromFrame(d.frame,p):{x:d.origin.x+d.u.x*p.x,y:d.origin.y+d.u.y*p.x,z:p.y},faces=[...surfaces];
  for(const d of drafts)for(const f of d.faces||[]){const signature=f.points.map(p=>p.nodeId).sort().join('|');if(f.boundaryHole||f.solidId||(d.deletedFaces||[]).includes(signature))continue;faces.push({...f,points:f.points.map(p=>world(d,p)),holes:(f.holes||[]).map(r=>r.map(p=>world(d,p)))});}
- for(const w of walls){const face={points:[w.bottom[0],w.bottom[1],w.top[1],w.top[0]]};if(!claimed.has(w.id)){faces.push(face);continue;}
+ for(const w of walls){const face={points:[w.bottom[0],w.bottom[1],w.top[1],w.top[0]]};if(!claimed.has(w.id)&&!drafts.some(d=>G.draftOwnsWall(d,w))){faces.push(face);continue;}
   // Drafts created on either side of a chimney omit its covered siding.
   // Restore that covered interval solely for the building-inside query.
   for(const c of cs)for(const [lo,hi]of volumeIntervals(...w.bottom,c)){const p=sliceWall(w,lo,hi,w.id);faces.push({points:[p.bottom[0],p.bottom[1],p.top[1],p.top[0]]});}}

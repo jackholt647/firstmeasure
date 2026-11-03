@@ -4090,3 +4090,26 @@ test('the placement menu Glass box makes every door placed in that placement ses
  f.editor.featureCommand('door',0,true);assert.equal(f.editor.featurePlacement().glass,false,'a new placement session starts without glass');
  const plain=stickerFixture('door',[1,1.04]);assert.equal('glass' in plain.d().faces.find(x=>x.feature?.type==='door').feature,false,'without the box a door has no glass key');
 });
+test('a chimney piece of a drafted wall belongs to that draft, not an undeletable extra wall',()=>{
+ // Distilled from exteriors_c0db68879966185ccd88f0df6701e340 (QA, Nov 3 2026). The rake draft
+ // listed envelope-0-6-1 before a chimney side was moved onto that wall; WallChimneys.compose then
+ // split off envelope-0-6-1:chimney-cut-1. No draft listed the piece, so it was drawn again as a
+ // generated wall, and a click on it reached the merged draft, whose only region is consumed.
+ const M=require('../public/measure/internal/editor_scripts/exterior_model.js');
+ const key='envelope-0-6-1|envelope-0-6-5:roof-2',origin={x:-8.2946,y:-4.2681,z:0},u={x:-.018,y:.99984},piece='envelope-0-6-1:chimney-cut-1';
+ const outline=[[9.4106,169.8179],[5.1698,171.2636],[4.2408,171.2636],[0,169.8178],[0,164.27],[9.4106,164.27]].map(([x,y])=>({x,y,z:0})),nodes=outline.map((p,i)=>({...p,id:'p'+i,fixed:true}));
+ const world=p=>({x:origin.x+u.x*p.x,y:origin.y+u.y*p.x,z:p.y}),wall=(id,a,b,za,zb,extra={})=>({id,kind:'perimeter',type:'rake',sourceId:'R12.0',...extra,bottom:[{...a,z:164.27},{...b,z:164.27}],top:[{...a,z:za},{...b,z:zb}]});
+ const walls=[wall('envelope-0-6-1',{x:-8.464,y:5.141},{x:-8.4142,y:2.3757},169.8179,170.7608,{mergeGroup:key}),wall(piece,{x:-8.3977,y:1.4614},{x:-8.3876,y:.9009},171.0725,171.2636,{mergeGroup:key}),wall('envelope-0-6-5:roof-2',{x:-8.3876,y:.9009},{x:-8.3709,y:-.0279},171.2636,171.2636,{mergeGroup:key})];
+ const state={wallEdits:{$drafts:{[key]:{origin,u,members:['envelope-0-6-1','envelope-0-6-5:roof-2'],faces:[{id:'wall-region-0',points:nodes.map(n=>({x:n.x,y:n.y,z:0,nodeId:n.id})),holes:[],solidId:'rake-wall'}],sketch:{version:2,next:nodes.length,nodes,edges:[],outlines:[outline]}}},$surfaces:[{id:'rake-wall',points:outline.map(world)}]}};
+ const f=fixture({state,walls,selected:null});
+ assert.equal(f.editor.has(piece),true,'wall mode draws only walls without a draft');
+ assert.deepEqual(M.collect(state,walls).filter(face=>face.id.startsWith('wall:')).map(face=>face.id),[],'no duplicate face reaches the report');
+ // A piece outside the draft's outline (the draft was made after the cut) stays its own wall and deletes.
+ const p=(x,z)=>({x,y:0,z}),opts={selectedId:'wall-x',select:id=>opts.selectedId=id};
+ const separate={wallEdits:{$drafts:{'wall-x':{origin:p(0,0),u:{x:1,y:0},members:['wall-x'],faces:[{id:'wall-region-0',points:[{x:0,y:0,z:0,nodeId:'a'},{x:2,y:0,z:0,nodeId:'b'},{x:2,y:4,z:0,nodeId:'c'},{x:0,y:4,z:0,nodeId:'d'}]}],sketch:{version:2,next:4,nodes:[{id:'a',x:0,y:0,fixed:true},{id:'b',x:2,y:0,fixed:true},{id:'c',x:2,y:4,fixed:true},{id:'d',x:0,y:4,fixed:true}],edges:[],outlines:[[{x:0,y:0},{x:2,y:0},{x:2,y:4},{x:0,y:4}]]}}}}};
+ const cut={id:'wall-x:chimney-cut-1',bottom:[p(3,0),p(4,0)],top:[p(3,4),p(4,4)]},g=fixture(Object.assign(opts,{state:separate,walls:[{id:'wall-x',bottom:[p(0,0),p(2,0)],top:[p(0,4),p(2,4)]},cut]}));
+ assert.equal(g.editor.has(cut.id),false);
+ // The draft projection is face-local: the new draft starts at the piece.
+ g.editor.beginFace(g.e(.5,2),cut);g.listeners.pointerup(g.e(.5,2));assert.match(g.message(),/1 face selected/);
+ g.editor.key({key:'Delete'});assert.equal(g.history.length,1,g.message());assert.equal(separate.wallEdits.$drafts[cut.id].deletedFaces.length,1);assert.equal(separate.wallEdits.$drafts['wall-x'].deletedFaces,undefined);
+});
