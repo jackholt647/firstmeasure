@@ -20,7 +20,7 @@ No Node code, migration, configuration, environment or data change. The trainee'
 
 ## Rollout
 
-- Compatibility at 05:14:46–05:14:58 UTC, from `cb4034d8`: ready on `e7a0f853`, production data, full house on, heartbeat off as before, 8 workers, pool 4. 3 `POST backend_login.php` got 502 during the restart (05:14:52–55). No Node 500s or HTTP worker exits in the next 20 s.
+- Compatibility at 05:14:46–05:14:58 UTC, from `cb4034d8`: ready on `e7a0f853`, production data, full house on, heartbeat on (unchanged from `cb4034d8`), 8 workers, pool 4. 3 `POST backend_login.php` got 502 during the restart (05:14:52–55). No Node 500s or HTTP worker exits in the next 20 s.
 - Worker at 05:15:28 UTC, after no running jobs: 8 slots, production, email on, heartbeat off.
 - Signed channel published against `4e2b59ff…` (cb4034d8's archive), from the release's real path, with archive `94a2c8c5…`, so new pool nodes get this release.
 - Six web nodes from 05:16:29 to 05:29:31 UTC, one at a time. Each was drained from the load balancer, ready in about 94 s with served assets matching the release, pool 4, 8 workers and full house on. The next node started only after public readiness answered from that node on the new release.
