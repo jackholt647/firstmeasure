@@ -101,13 +101,38 @@ function bevelBox(w,h,d,r){
  s.moveTo(x,y);s.lineTo(x+W,y);s.lineTo(x+W,y+H);s.lineTo(x,y+H);s.closePath();
  const g=new THREE.ExtrudeGeometry(s,{depth:d-2*r,bevelEnabled:true,bevelThickness:r,bevelSize:r,bevelSegments:2,steps:1,curveSegments:1});g.translate(0,0,-d/2+r);return g;
 }
+// Which side of an opening is outside comes from the house itself, as auto trim decides corners: a point just off
+// the opening is inside when most of three level rays from it cross the shell an odd number of times. Neither face
+// winding (imported walls need not share one) nor the model's centre (an inside corner faces it) can tell.
+function shellOf(context){
+ if(context.shell)return context.shell;context.shell=[];
+ for(const o of context.solids||[]){
+  const pos=o.geometry.attributes.position,index=o.geometry.index;if(isGrade(o)||!pos)continue;const count=index?index.count:pos.count;
+  const at=i=>new THREE.Vector3().fromBufferAttribute(pos,index?index.getX(i):i).applyMatrix4(o.matrixWorld),tris=[],box=new THREE.Box3();
+  for(let i=0;i+2<count;i+=3){const t=[at(i),at(i+1),at(i+2)];t.forEach(p=>box.expandByPoint(p));tris.push(t);}
+  if(tris.length)context.shell.push({box,tris});
+ }
+ return context.shell;
+}
+function insideShell(p,context){
+ const shell=shellOf(context);if(!shell.length)return null;
+ const zero=context.vector({x:0,y:0,z:0}).clone(),contact=(root.ExteriorGeometry?.CONTACT||1e-5)*(context.unit||unitOf(context)),hit=new THREE.Vector3();
+ let votes=0;
+ for(const d of [{x:1,y:.37139,z:0},{x:-.52713,y:1,z:0},{x:.19371,y:-1,z:0}]){
+  const ray=new THREE.Ray(p,context.vector(d).clone().sub(zero).normalize()),hits=[];
+  for(const {box,tris}of shell)if(ray.intersectsBox(box))for(const [a,b,c]of tris)if(ray.intersectTriangle(a,b,c,false,hit)){const t=hit.distanceTo(p);if(t>contact)hits.push(t);}
+  hits.sort((a,b)=>a-b);if(hits.filter((t,i)=>!i||t-hits[i-1]>contact).length%2)votes++;
+ }
+ return votes>=2;
+}
 function openingDetails(source,target,context){
  const data=source.userData.renderedOpening;if(!data||!root.WallFeatures)return;
  const dimensions=root.WallFeatures.dimensions(data.points,data.feature);if(!dimensions)return;
  const {frame,bounds:b}=dimensions,W=root.WallSolidGeometry,world=p=>context.vector(W.fromFrame(frame,p)),origin=world({x:b.left,y:b.bottom});
  const u=world({x:b.left+1,y:b.bottom}).sub(origin),v=world({x:b.left,y:b.bottom+1}).sub(origin),su=u.length(),sv=v.length();u.normalize();v.normalize();
  const n=new THREE.Vector3().crossVectors(u,v).normalize(),center=world({x:(b.left+b.right)/2,y:(b.bottom+b.top)/2});
- if(n.dot(center.clone().sub(context.center))<0){n.negate();u.negate();origin.copy(world({x:b.right,y:b.bottom}));}
+ const step=.01*(context.unit||unitOf(context)),ahead=insideShell(center.clone().addScaledVector(n,step),context),behind=insideShell(center.clone().addScaledVector(n,-step),context);
+ if(ahead!==null&&ahead!==behind?ahead:n.dot(center.clone().sub(context.center))<0){n.negate();u.negate();origin.copy(world({x:b.right,y:b.bottom}));}
 
  const matrix=new THREE.Matrix4().makeBasis(u,v,n),q=new THREE.Quaternion().setFromRotationMatrix(matrix),group=new THREE.Group();group.position.copy(origin);group.quaternion.copy(q);group.scale.set(su,sv,(su+sv)/2);target.add(group);
  const width=b.right-b.left,height=b.top-b.bottom,type=data.feature.type,glazed=type==='window'||type==='skylight';
@@ -126,25 +151,33 @@ function openingDetails(source,target,context){
  // Frames take their sticker's trim default unless the sticker has its own colour (doors keep their own colour for the leaf).
  const white=new THREE.MeshStandardMaterial({color:color(doorSpec?(F.stickerColor?.(type,'trim')||'#ebe9e1'):data.color||(type==='window'?F.stickerColor?.('window','trim'):null)||(type==='skylight'?'#41494e':'#ebe9e1')),roughness:.38,metalness:.08,envMapIntensity:.75});
  const rubber=glazed?new THREE.MeshStandardMaterial({color:color('#202829'),roughness:.8}):null;
- const box=(x,y,z,w,h,d,m=white)=>{const o=new THREE.Mesh(bevelBox(w,h,d,.006),m);o.position.set(x,y,z);o.castShadow=o.receiveShadow=true;group.add(o);return o;};
+ const box=(x,y,z,w,h,d,m=white,parent=group)=>{const o=new THREE.Mesh(bevelBox(w,h,d,.006),m);o.position.set(x,y,z);o.castShadow=o.receiveShadow=true;parent.add(o);return o;};
+ // Both faces of an opening are dressed alike, mirrored through the wall, so it reads as a window or door from
+ // either side whichever way it was placed. Frames straddle the wall; each face has its own sill and handle.
+ // What only makes sense in front of the glass (its shaded recess and warm floor) draws only from that face.
+ const faces=[1,-1].map(s=>{const g=new THREE.Group();g.scale.z=s;group.add(g);return {s,g};});
+ const eye=new THREE.Vector3(),fromFront=(o,s)=>{const normal=n.clone().multiplyScalar(s),point=origin.clone();o.castShadow=false;o.onBeforeRender=(renderer,scene,camera)=>{const shown=camera.isOrthographicCamera?camera.getWorldDirection(eye).dot(normal)<0:camera.getWorldPosition(eye).sub(point).dot(normal)>0;o.material.colorWrite=o.material.depthWrite=shown;};return o;};
  const frameWidth=Math.min(.055,width*.08,height*.07);
  if(glazed){
-  // A shaded recess behind the glass gives the glazing depth rather than painting a blue rectangle.
-  box(width/2,height/2,-.16,width-.04,height-.04,.015,new THREE.MeshStandardMaterial({color:color('#262b2c'),roughness:1}));
-  for(const x of [frameWidth/2,width-frameWidth/2])box(x,height/2,.018,frameWidth,height,.09);
-  for(const y of [frameWidth/2,height-frameWidth/2])box(width/2,y,.018,width,frameWidth,.09);
-  for(const x of [frameWidth,width-frameWidth])box(x,height/2,-.005,.012,height-frameWidth,.025,rubber);
-  for(const y of [frameWidth,height-frameWidth])box(width/2,y,-.005,width-frameWidth,.012,.025,rubber);
-  if(type!=='skylight')box(width/2,-.012,.04,width+.045,.035,.13);
-  // Thin warm interior floor catches light behind the glass without affecting model geometry.
-  if(type!=='skylight')box(width/2,.035,-.085,width-.08,.015,.17,new THREE.MeshStandardMaterial({color:color('#b2a493'),roughness:.9}));
+  for(const x of [frameWidth/2,width-frameWidth/2])box(x,height/2,0,frameWidth,height,.126);
+  for(const y of [frameWidth/2,height-frameWidth/2])box(width/2,y,0,width,frameWidth,.126);
+  for(const x of [frameWidth,width-frameWidth])box(x,height/2,0,.012,height-frameWidth,.035,rubber);
+  for(const y of [frameWidth,height-frameWidth])box(width/2,y,0,width-frameWidth,.012,.035,rubber);
+  for(const {s,g}of faces){
+   // A shaded recess behind the glass gives the glazing depth rather than painting a blue rectangle.
+   fromFront(box(width/2,height/2,-.16,width-.04,height-.04,.015,new THREE.MeshStandardMaterial({color:color('#262b2c'),roughness:1}),g),s);
+   if(type==='skylight')continue;
+   box(width/2,-.012,.04,width+.045,.035,.13,white,g);
+   // Thin warm interior floor catches light behind the glass without affecting model geometry.
+   fromFront(box(width/2,.035,-.085,width-.08,.015,.17,new THREE.MeshStandardMaterial({color:color('#b2a493'),roughness:.9}),g),s);
+  }
  }else if(type==='door'||type==='garage'){
   // Panels are the recessed grooves of the door's inset map; the frame is real geometry.
-  for(const x of [0,width])box(x,height/2,.015,.055,height+.04,.1);
-  box(width/2,height,.015,width+.07,.055,.1);
+  for(const x of [0,width])box(x,height/2,0,.055,height+.04,.13);
+  box(width/2,height,0,width+.07,.055,.13);
   if(type==='door'){
    const metal=new THREE.MeshStandardMaterial({color:color('#b5b8bb'),metalness:.95,roughness:.2});
-   box(width-.1,Math.min(1,height*.48),.054,.035,.18,.018,metal);box(width-.14,Math.min(1,height*.48),.075,.13,.016,.022,metal);
+   for(const {g}of faces){box(width-.1,Math.min(1,height*.48),.054,.035,.18,.018,metal,g);box(width-.14,Math.min(1,height*.48),.075,.13,.016,.022,metal,g);}
   }
  }else if(type==='vent'){
   for(let y=.04;y<height-.03;y+=.07){const l=box(width/2,y,.025,width-.02,.045,.035);l.rotation.x=-.3;}
@@ -190,7 +223,7 @@ function perf_update(group,options){
  const bounds=new THREE.Box3();for(const o of solids){o.geometry.computeBoundingBox();bounds.union(o.geometry.boundingBox.clone().applyMatrix4(o.matrixWorld));}
  if(bounds.isEmpty()){active=null;presentationParts?.clear();if(graphics){graphics.hidden=true;graphics.open=false;}document.body.classList.remove('exterior-rendered');releaseScene(previous);return;}
  const center=bounds.getCenter(new THREE.Vector3()),size=bounds.getSize(new THREE.Vector3()),radius=Math.max(size.x,size.y,size.z,1);
- const context={...options,center,capColors:chimneyCapColors(solids)};
+ const context={...options,center,solids,capColors:chimneyCapColors(solids)};
  presentationParts?.begin(root.WallMode?.finishDefaults||{});
  try{
  for(const o of solids){
