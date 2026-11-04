@@ -8,15 +8,18 @@ const object = (value) => value && typeof value === 'object' && !Array.isArray(v
 const clean = (value) => String(value ?? '').trim();
 
 const css = `
-.gxk{display:flex;flex-direction:column;gap:12px;min-width:0;padding-bottom:6px}
-.gxk-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:10px}
-.gxk-tile{position:relative;display:flex;flex-direction:column;align-items:flex-start;gap:6px;min-height:132px;padding:14px 40px 14px 14px;border:1px solid #e4e7ec;border-radius:14px;background:#fff;font:inherit;text-align:left;color:#101828;cursor:pointer;transition:border-color .15s,background .15s,box-shadow .2s,transform .15s;animation:gxkIn .3s cubic-bezier(.22,1,.36,1) both}
+.gxk{display:flex;flex-direction:column;gap:10px;min-width:0;padding-bottom:4px}
+.gxk-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:10px}
+/* A card is the icon beside its text: the name, then the description with the item count on the same line. */
+.gxk-tile{position:relative;display:flex;align-items:flex-start;gap:12px;padding:12px 38px 12px 12px;border:1px solid #e4e7ec;border-radius:14px;background:#fff;font:inherit;text-align:left;color:#101828;cursor:pointer;transition:border-color .15s,background .15s,box-shadow .2s,transform .15s;animation:gxkIn .3s cubic-bezier(.22,1,.36,1) both}
 .gxk-tile:hover{border-color:#c4c9d2;transform:translateY(-1px)}
 .gxk-tile:focus-visible{outline:2px solid var(--primary,#d93025);outline-offset:2px}
-.gxk-icon{width:32px;height:32px;border-radius:10px;display:grid;place-items:center;background:#f2f4f7;color:#344054;font-size:15px}
-.gxk-tile strong{font-size:14px;font-weight:750;line-height:1.25}
-.gxk-tile small{font-size:12px;color:#667085;line-height:1.4}
-.gxk-tile em{font-style:normal;font-size:11px;font-weight:700;color:#475467}
+.gxk-icon{flex:none;width:32px;height:32px;border-radius:10px;display:grid;place-items:center;background:#f2f4f7;color:#344054;font-size:15px}
+.gxk-text{display:block;min-width:0}
+.gxk-tile strong{display:block;margin:1px 0 2px;font-size:14px;font-weight:750;line-height:1.25}
+.gxk-tile small{font-size:12px;color:#667085;line-height:1.35}
+.gxk-tile em{font-style:normal;font-size:11.5px;font-weight:650;color:#475467;line-height:1.35;white-space:nowrap}
+.gxk-tile small+em::before{content:"\u00a0\u00b7\u00a0";color:#98a2b3}
 .gxk-tile[aria-pressed=true]{border-color:var(--primary,#d93025);background:rgba(var(--primary-rgb,217,48,37),.05);box-shadow:0 0 0 1px var(--primary,#d93025)}
 .gxk-tile[aria-pressed=true] .gxk-icon{background:var(--primary,#d93025);color:#fff}
 .gxk-tick{position:absolute;top:12px;right:12px;width:22px;height:22px;border-radius:50%;border:1.5px solid #d0d5dd;display:grid;place-items:center;transition:background .15s,border-color .15s}
@@ -27,7 +30,6 @@ const css = `
 .gxk-all{height:32px;padding:0 12px;border:1px solid #d0d5dd;border-radius:9px;background:#fff;color:#344054;font:inherit;font-size:13px;font-weight:650;cursor:pointer;white-space:nowrap}
 .gxk-all:hover{background:#f9fafb}
 @keyframes gxkIn{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:none}}
-@media(max-width:560px){.gxk-grid{grid-template-columns:1fr}.gxk-tile{min-height:0}}
 @media(prefers-reduced-motion:reduce){.gxk *{animation:none!important;transition:none!important}}
 `;
 const tick = '<span class="gxk-tick" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="m5 12 4 4 10-10"/></svg></span>';
@@ -54,9 +56,7 @@ export function mount(el, ctx){
   el.innerHTML = `<div class="gxk">
     <div class="gxk-grid" role="group">${useCases.map((entry, index) => `<button type="button" class="gxk-tile" data-use-case="${esc(entry.id)}" aria-pressed="false" style="animation-delay:${index * 40}ms">
       <span class="gxk-icon" aria-hidden="true"><i class="fas ${esc(clean(entry.icon) || 'fa-list-check')}"></i></span>
-      <strong>${esc(text(entry.label))}</strong>
-      <small>${esc(text(entry.description))}</small>
-      ${array(object(entry.checklist).items).length ? `<em>${esc(L('gx_cl_setup_items', '{count} items to start', { count: array(object(entry.checklist).items).length }).replace('{count}', String(array(object(entry.checklist).items).length)))}</em>` : ''}
+      <span class="gxk-text"><strong>${esc(text(entry.label))}</strong><small>${esc(text(entry.description))}</small>${array(object(entry.checklist).items).length ? `<em>${esc(L('gx_cl_setup_items', '{count} items to start', { count: array(object(entry.checklist).items).length }).replace('{count}', String(array(object(entry.checklist).items).length)))}</em>` : ''}</span>
       ${tick}</button>`).join('')}</div>
     <p class="gxk-note">${esc(text(ctx.options?.note, 'They go on this project, and you can change every one of them afterwards, by typing or by voice.'))}</p>
   </div>`;

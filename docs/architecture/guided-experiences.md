@@ -163,8 +163,14 @@ underneath; the card fades only once the tray shows the conversation. Reduced
 motion opens the tray at once. Each step change has one owner: a generation
 counter removes every pane but the one on screen and stale animation callbacks
 do nothing, so fast Back/Continue never stacks steps.
-Under 760px the sheet fills the screen and the assistant folds below it behind an
-Agent handle. `prefers-reduced-motion` turns every animation off. Without the
+The sheet is a wide landscape rectangle (960px modal, 1120px agentic) as tall as
+the step on screen: the player measures the step's own content (the pane let go of
+the stage's bottom edge) into `--gxs-fit` whenever it changes size, and the CSS
+caps it at `min(760px, 100vh - 32px)`, past which the step scrolls. A step that
+fills (`data-fill`) has no fit and takes the full height; the agentic sheet keeps
+at least 600px for the conversation. Under 760px a modal setup is a sheet from the
+bottom edge, as tall as its step; the agentic one fills the screen and the
+assistant folds below it behind an Agent handle. `prefers-reduced-motion` turns every animation off. Without the
 assistant (or without a project) the same steps play as a modal.
 
 **Preprogrammed workflows in the assistant** (`platform-assistant.js`). A host
@@ -184,9 +190,11 @@ Widgets are registered with `FirstMateGuidedSetup.registerWidget(id, { render(el
 { step, options, selections, change, actions }) })`. `change(patch, summary)` merges a
 selection patch and gives the plain summary the agent repeats in the person's
 words (an empty summary posts nothing). `actions` is the step's title row, for a
-control such as "Use all". A widget declared `fill: true` gets the step's height
-(the logo grid, supplier columns); other steps scroll with a fade at the bottom
-while there is more. `hint()` says why Continue is disabled, as its tooltip.
+control such as "Use all". A widget declared `fill: true` gets the full sheet height
+(the logo grid, supplier columns, the Operations workflow); a widget may switch it
+by toggling `data-fill` on its step (the supplier step fills only once it has
+columns). Other steps make the sheet as tall as they are and scroll with a fade at
+the bottom past the cap. Do not size the sheet per guide. `hint()` says why Continue is disabled, as its tooltip.
 Steps can branch: the player follows a step's fixed `next` itself, waits for the
 server's answer only after a step with `branches`, remembers the way taken (Back
 returns along it). There is no step count or progress bar: a setup's length is not

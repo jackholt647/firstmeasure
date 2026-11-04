@@ -4,7 +4,7 @@ import {mkdtemp} from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 
-test('the MVP platform workflow is FirstMeasure plus projects, contacts, feed, offered Money and Checklists, and the project tabs and trays, without scheduling',async()=>{
+test('the MVP platform workflow is FirstMeasure plus projects, contacts, feed, offered Money and Checklists, Scheduling, and the project tabs and trays',async()=>{
  const root=await mkdtemp(path.join(os.tmpdir(),'fm-sandbox-mvp-'));
  Object.assign(process.env,{FIRSTMATE_ENV:'development',FIRSTMEASURE_DATA_ENVIRONMENT:'development',FIRSTMEASURE_DATABASE_MODE:'sqlite',PLATFORM_STORAGE_ROOT:path.join(root,'platform'),SIGNUP_SANDBOX_STORAGE_ROOT:path.join(root,'sandbox'),PLATFORM_SESSION_SECRET:'isolated-sandbox-mvp-platform-test-secret',FIRSTMEASURE_STORAGE_ROOT:path.join(root,'firstmeasure'),FIRSTMEASURE_INDEX_DB_PATH:path.join(root,'firstmeasure-index.sqlite')});
  // No capability modules are loaded here: the configuration registers the ones it turns off itself, whichever
@@ -34,15 +34,15 @@ test('the MVP platform workflow is FirstMeasure plus projects, contacts, feed, o
  await service.ensureSeedData();
  assert.equal(((await sandboxStore.readWorkflow('swf_mvp_platform'))!.defaults as any).app_flags['platform.top_bar'],false,'an untouched copy follows the library');
  // A copy edited in the sandbox is never touched by a library change until it is reset.
- await service.updateWorkflow('swf_mvp_platform',{defaults:{...((await sandboxStore.readWorkflow('swf_mvp_platform'))!.defaults as any),app_flags:{...((await sandboxStore.readWorkflow('swf_mvp_platform'))!.defaults as any).app_flags,'platform.scheduling':true}}});
+ await service.updateWorkflow('swf_mvp_platform',{defaults:{...((await sandboxStore.readWorkflow('swf_mvp_platform'))!.defaults as any),app_flags:{...((await sandboxStore.readWorkflow('swf_mvp_platform'))!.defaults as any).app_flags,'apps.crm':true}}});
  assert.equal((await service.libraryWorkflowStatus()).find(row=>row.id==='swf_mvp_platform')?.state,'changed');
  await saveLibraryEntry('sandbox_configuration','swf_mvp_platform',structuredClone(entry.data),author);
  await service.ensureSeedData();
  const kept=(await sandboxStore.readWorkflow('swf_mvp_platform'))!.defaults as any;
- assert.equal(kept.app_flags['platform.scheduling'],true,'an edited copy is kept');assert.equal(kept.app_flags['platform.top_bar'],false);
+ assert.equal(kept.app_flags['apps.crm'],true,'an edited copy is kept');assert.equal(kept.app_flags['platform.top_bar'],false);
  await service.resetWorkflowToLibrary('swf_mvp_platform');
  const reset=(await sandboxStore.readWorkflow('swf_mvp_platform'))!;
- assert.equal((reset.defaults as any).app_flags['platform.scheduling'],undefined);assert.equal((reset.defaults as any).app_flags['platform.top_bar'],true);
+ assert.equal((reset.defaults as any).app_flags['apps.crm'],undefined);assert.equal((reset.defaults as any).app_flags['platform.top_bar'],true);
  assert.equal((await service.libraryWorkflowStatus()).find(row=>row.id==='swf_mvp_platform')?.state,'library');
  // A copy saved before configurations were library entries (no stamp) is replaced once.
  const {library:_stamp,...legacy}=reset as any;
@@ -75,7 +75,11 @@ test('the MVP platform workflow is FirstMeasure plus projects, contacts, feed, o
  assert.equal(beforeStart.effectiveByKey['platform.photos_feed'],true,'Feed is available at MVP launch');
  assert.equal(beforeStart.effectiveByKey['platform.project_photos'],true,'project Photos is on from the start');
  assert.equal(beforeStart.effectiveByKey['platform.documents'],true,'Docs is on from the start');
- for(const id of ['project.photos','project.docs']){
+ // Scheduling is on from the start too: the Scheduling tab and the project Schedule tab, with customer appointments
+ // (the scheduling setup's default tool); dispatch, routing, the timeline and travel time wait for its setup.
+ for(const key of ['platform.scheduling','scheduling.appointment_slots']) assert.equal(beforeStart.effectiveByKey[key],true,`${key} is on from the start`);
+ for(const key of ['scheduling.crew_dispatch','scheduling.routing','scheduling.gantt','scheduling.travel_time']) assert.notEqual(beforeStart.effectiveByKey[key],true,`${key} waits for the scheduling setup`);
+ for(const id of ['project.photos','project.docs','portal.scheduling','project.schedule']){
   const entitlement:any=offeredProfile.app_entitlements_by_id[id];
   assert.equal(entitlement?.allowed,true,`${id} is shown to the owner`);assert.notEqual(entitlement?.offered,true,`${id} is not an offer`);
  }
@@ -85,11 +89,11 @@ test('the MVP platform workflow is FirstMeasure plus projects, contacts, feed, o
  await storage.mutateGlobal(orgId,current=>{current.data={...(current.data as Record<string,unknown>),app_offers:[]};return current;});
  instance.authContext=await (await import('../platform/auth.js')).buildAuthContext(instance.authContext.sessionId,instance.authContext.session);
  const {effectiveByKey}=await capabilities.effectiveCapabilities(orgId);
- const on=['platform.money','money.profitability','apps.checklists','platform.more_apps','platform.advanced_app_menu','firstmeasure.exteriors','platform.top_bar','topbar.global_search','topbar.notifications','platform.expanded_access','apps.projects','apps.project_map','platform.project_stages_view','platform.contacts','platform.photos_feed','platform.project_photos','platform.customer_portal','platform.materials','platform.documents','apps.firstmeasure','firstmeasure.report_orders','apps.assistant','channels.project_notes','apps.equipment'];
+ const on=['platform.money','money.profitability','apps.checklists','platform.more_apps','platform.advanced_app_menu','firstmeasure.exteriors','platform.top_bar','topbar.global_search','topbar.notifications','platform.expanded_access','apps.projects','apps.project_map','platform.project_stages_view','platform.contacts','platform.photos_feed','platform.project_photos','platform.customer_portal','platform.materials','platform.documents','apps.firstmeasure','firstmeasure.report_orders','apps.assistant','channels.project_notes','apps.equipment','platform.scheduling','scheduling.appointment_slots'];
  for(const key of on) assert.equal(effectiveByKey[key],true,key);
- const off=['topbar.messages','customer_portal.guest_links','platform.project_assignments','topbar.todos','channels.project_messages_tray','platform.scheduling','scheduling.gantt','apps.crm','apps.stats','apps.payroll','apps.training','apps.sales','apps.comms','apps.live_chat','assistant.actions','money.merchant_processing','money.invoices'];
+ const off=['topbar.messages','customer_portal.guest_links','platform.project_assignments','topbar.todos','channels.project_messages_tray','scheduling.gantt','apps.crm','apps.stats','apps.payroll','apps.training','apps.sales','apps.comms','apps.live_chat','assistant.actions','money.merchant_processing','money.invoices'];
  for(const key of off) assert.notEqual(effectiveByKey[key],true,key);
- // Accepting Equipment enables its standard fixed feature set; the main Scheduling app remains off.
+ // Accepting Equipment enables its standard fixed feature set, including equipment on scheduled events.
  assert.equal(effectiveByKey['equipment.scheduling'],true);
  // Materials settings has no Resource categories sub-tab in the MVP; the capability is on by default elsewhere.
  assert.equal(effectiveByKey['materials.resource_categories'],false);
@@ -101,8 +105,8 @@ test('the MVP platform workflow is FirstMeasure plus projects, contacts, feed, o
  // apps.crew and platform.people_access are on for testing for now (mvp-platform.ts).
  const global=await storage.readGlobal(orgId);
  assert.deepEqual((global.data as any).app_placements,{'portal.channels':'hidden','portal.assistant':'hidden'});
- // Project tabs: Photos (first, so the window opens on it), Docs, Operations, Customer Portal, Money and Checklists.
- const projectTabs={order:['project.photos','project.docs','project.materials','project.customer_portal','project.money','project.checklists'],pills:{'project.photos':'new','project.docs':'new','project.materials':'new','project.customer_portal':'new'}};
+ // Project tabs: Photos (first, so the window opens on it), Docs, Operations, Customer Portal, Schedule, Money and Checklists.
+ const projectTabs={order:['project.photos','project.docs','project.materials','project.customer_portal','project.schedule','project.money','project.checklists'],pills:{'project.photos':'new','project.docs':'new','project.materials':'new','project.customer_portal':'new','project.schedule':'new'}};
  assert.deepEqual((global.data as any).project_tabs,projectTabs);
  const {appFlagState}=await import('../platform/app_flags.js');
  assert.deepEqual((await appFlagState(orgId)).project_tabs,projectTabs);
@@ -190,23 +194,23 @@ test('the MVP platform workflow is FirstMeasure plus projects, contacts, feed, o
  assert.ok(roles.length>0);
  for(const role of roles as any[]){
   assert.equal(role.app_defaults?.['portal.viewer']?.options?.map_first,true,String(role.id));
-  // Overview and Reports are not project window tabs here; the people still have them (report ordering, its routes).
-  for(const app of ['project.map','project.measurements']) assert.equal(role.app_defaults?.[app]?.options?.tab,false,`${role.id} ${app}`);
+  // Overview is not a project window tab here; the people still have it (its routes). Reports is a tab (revision 4).
+  for(const [app,tab] of [['project.map',false],['project.measurements',true]] as const) assert.equal(role.app_defaults?.[app]?.options?.tab,tab,`${role.id} ${app}`);
  }
  // The tester is the owner, with the Super admin role like a real signup's owner, so the role's map_first reaches them.
  const owner:any=(await storage.listDocuments(orgId,'users')).find((row:any)=>row.data?.role==='owner');
  const profile=await access.resolveAccessProfile(orgId,{...owner.data,id:owner.id});
  assert.deepEqual(profile.access_role_ids,['super_admin']);
  assert.equal(profile.app_entitlements_by_id['portal.viewer']?.option_values.map_first,true);
- for(const app of ['project.map','project.measurements']){
+ for(const [app,tab] of [['project.map',false],['project.measurements',true]] as const){
   const entitlement:any=profile.app_entitlements_by_id[app];
-  assert.equal(entitlement?.allowed,true,`${app} stays available`);assert.equal(entitlement.params.show_as_tab,false,`${app} is not a tab`);
+  assert.equal(entitlement?.allowed,true,`${app} stays available`);assert.equal(entitlement.params.show_as_tab,tab,`${app} tab`);
  }
- // After accepting the offers, their main view includes Equipment, My Projects, My Contacts and Feed: the portal tabs they have, less those hidden by placement,
+ // After accepting the offers, their main view includes Equipment, My Projects, My Contacts, Scheduling and Feed: the portal tabs they have, less those hidden by placement,
  // Settings (its own control) and Pricebook (opened full screen from the Apps overlay and Settings).
  const placements=(global.data as any).app_placements||{};
  const tabs=profile.app_entitlements.filter((app:any)=>app.surface==='portal_tab'&&app.allowed);
- assert.deepEqual(tabs.filter((app:any)=>placements[app.id]!=='hidden'&&app.launcher!==false&&app.id!=='portal.pricebook').map((app:any)=>app.title).sort(),['Equipment','Feed','Financials','My Contacts','My Projects']);
+ assert.deepEqual(tabs.filter((app:any)=>placements[app.id]!=='hidden'&&app.launcher!==false&&app.id!=='portal.pricebook').map((app:any)=>app.title).sort(),['Equipment','Feed','Financials','My Contacts','My Projects','Scheduling']);
  assert.ok(tabs.some((app:any)=>app.id==='portal.pricebook'));
  assert.ok(!tabs.some((app:any)=>app.id==='portal.chat'),'no Communications or Call center');
  // A launched MVP test org starts with no sample projects or customers: they come only from "Add sample data".
