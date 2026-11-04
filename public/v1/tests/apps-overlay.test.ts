@@ -64,7 +64,9 @@ function portal(org: Org) {
     PlatformAPI: { appFlags: { current: () => ({ app_placements: org.placements }) }, capabilities: { current: () => ({ definitions_by_key: {} }) } },
     FirstMateEmbeddableApps: {
       getApp: (id: string) => manifest.find((app) => app.id === id),
-      evaluateAccess: () => ({ reasons: [] })
+      // App experience as a person whose roles say nothing gets it: an app that is not shown by default (Today and
+      // Schedule of the field app) is not theirs.
+      evaluateAccess: (id: string) => ({ reasons: appDefinitions().find((app) => app.id === id)?.default_visible === false ? ["entitlement"] : [] })
     }
   };
   const context: any = vm.createContext({
@@ -117,12 +119,12 @@ test("the MVP platform organization", async () => {
   assert.equal(mvp.placements["portal.channels"], "hidden");
 });
 
-test("the overlay lists only apps a person opens: MVP shows My Projects, My Contacts, Feed and Pricebook", () => {
+test("the overlay lists only apps a person opens: MVP shows My Projects, My Contacts, Scheduling, Feed and Pricebook", () => {
   const { labels } = portal(mvp);
   // Not Referrals (a banner), Documents, Project Photos, Materials, Customer
   // Portal or FirstMeasure (project window tabs and switches), the Assistant
   // (header control) or Channels (hidden: it backs project notes).
-  assert.deepEqual(labels(), ["Feed", "My Contacts", "My Projects", "Pricebook"]);
+  assert.deepEqual(labels(), ["Feed", "My Contacts", "My Projects", "Pricebook", "Scheduling"]);
 });
 
 test("only portal tabs are in the launcher, and Settings and the Assistant opt out", () => {

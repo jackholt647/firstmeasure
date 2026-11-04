@@ -1,14 +1,14 @@
 {
   "kind": "sandbox_configuration",
   "id": "swf_mvp_platform",
-  "revision": 4,
-  "sha256": "55dba6ec092e953ac0c3ff9e81e6279f7288476f84c95881c84c4712e88f34fe",
+  "revision": 5,
+  "sha256": "64913b23aa275fa9162dbfd74eb523abd65301b86b12168253453f6716c614b0",
   "title": "MVP platform",
-  "updated_at": "2026-11-04T02:55:46.253Z",
+  "updated_at": "2026-11-04T03:20:05.423Z",
   "updated_by": "key:ck_7897b5259beb4fa3 agents:jack-pc",
   "data": {
     "title": "MVP platform",
-    "description": "The FirstMeasure default signup plus the MVP platform: My Projects (with the project map), My Contacts, Feed and Financials (offered); project tabs Photos and Docs (on from the start, each with its tour), Operations and Customer Portal, with Money and Checklists offered (no Overview or Reports tab: the project details tray holds them); Agent, Notes, Activity and To Do trays. No Scheduling or calendar. Every project is a generic roof job.",
+    "description": "The FirstMeasure default signup plus the MVP platform: My Projects (with the project map), My Contacts, Scheduling, Feed and Financials (offered); project tabs Photos and Docs (on from the start, each with its tour), Schedule (on from the start), Operations and Customer Portal, with Money and Checklists offered (no Overview or Reports tab: the project details tray holds them); Agent, Notes, Activity and To Do trays. Every project is a generic roof job.",
     "entry_mode": "landing_first",
     "onboarding_mode": "",
     "stages": [
@@ -101,7 +101,9 @@
         "platform.new_button_items": "report,project,contact",
         "platform.sidebar_footer_layout": "stacked",
         "mobile.app_download": true,
-        "mobile.developer_downloads": true
+        "mobile.developer_downloads": true,
+        "platform.scheduling": true,
+        "scheduling.appointment_slots": true
       },
       "settings": {
         "app_placements": {
@@ -114,6 +116,7 @@
             "project.docs",
             "project.materials",
             "project.customer_portal",
+            "project.schedule",
             "project.money",
             "project.checklists"
           ],
@@ -121,7 +124,8 @@
             "project.photos": "new",
             "project.docs": "new",
             "project.materials": "new",
-            "project.customer_portal": "new"
+            "project.customer_portal": "new",
+            "project.schedule": "new"
           }
         },
         "app_offers": [
