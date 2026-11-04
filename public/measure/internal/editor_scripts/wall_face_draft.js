@@ -2095,13 +2095,14 @@ function perf_structuralFaces(includeConsumed=false,skip=null){
  faceSelection=refs;selectedSolid=refs[0]?.solid||null;selectedRegion=refs[0]?.draft?refs[0]:null;host.redraw();
  }
  // Replace the selection with these faces ({solid}, {draft,face} or {wall} refs), as a click on each would: a
- // generated wall that is not drawn yet becomes a draft (ensure), and all its regions are selected.
+ // generated wall that is not drawn yet becomes a draft (ensure), and all its regions are selected. A wall whose
+ // draft already exists without owning it (a chimney piece the draft does not list) has no face to select: hidden.
  function selectFaces(refs){
- if(tool&&!finishToolForSwitch())return false;
- refs=refs.flatMap(r=>{if(r.wall==null)return [r];const w=walls().find(w=>String(w.id)===String(r.wall));if(!w)return [];const d=ensure(w),key=draftKey(d);return d.faces.filter(f=>!f.solidId&&!f.boundaryHole&&!f.feature&&!deleted(d,f)).map(f=>({draft:key,face:f.id}));});
+ if(tool&&!finishToolForSwitch())return {selected:0,hidden:0};let hidden=0;
+ refs=refs.flatMap(r=>{if(r.wall==null)return [r];const w=walls().find(w=>String(w.id)===String(r.wall));if(!w)return [];const prior=all()[id(w)];if(prior&&(prior.faces?.length||prior.sketch?.nodes.length)&&!G.draftOwnsWall(prior,w)){hidden++;return [];}const d=ensure(w),key=draftKey(d);return d.faces.filter(f=>!f.solidId&&!f.boundaryHole&&!f.feature&&!deleted(d,f)).map(f=>({draft:key,face:f.id}));});
  refs=[...new Map(refs.map(r=>[faceKey(r),r])).values()].filter(r=>r.solid?solids().some(f=>f.id===r.solid&&!f.deleted&&!f.drafted):all()[r.draft]?.faces.some(f=>f.id===r.face&&!f.solidId&&!f.boundaryHole&&!deleted(all()[r.draft],f)));
  picked=[];pickedLines=[];solidPoints=[];solidEdges=[];lineSelection=[];draftSelection={};selectedBasePoints=[];
- faceSelection=refs;const last=refs.at(-1);selectedSolid=last?.solid||null;selectedRegion=last&&!last.solid?last:null;host.redraw();return refs.length;
+ faceSelection=refs;const last=refs.at(-1);selectedSolid=last?.solid||null;selectedRegion=last&&!last.solid?last:null;host.redraw();return {selected:refs.length,hidden};
  }
  function applyOpeningTrim(type,inches,color){if(tool&&!finishToolForSwitch())return false;const faces=selectedFaces().filter(({f})=>f.feature?.type===type);if(!faces.length){host.message('Select '+type+' faces to change their trim.');return false;}return transaction(()=>{for(const {f}of faces)f.feature=F.setTrim(f.feature,inches,color);host.message(faces.length+' '+type+' trim settings updated.');});}
  // Glass on the selected doors and garage doors; every section of a divided door shares it.
