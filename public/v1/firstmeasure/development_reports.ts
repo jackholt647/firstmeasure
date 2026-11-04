@@ -83,7 +83,9 @@ export async function copyDevelopmentReport(auth: PlatformAuthContext, body: Jso
   const created = await createProject({...(scope === 'full_house' ? {id: 'exteriors_' + randomBytes(16).toString('hex')} : {}), address: source.address, project_type: type, lat: source.lat, lng: source.lng, pins: source.pins,
     organization_ref: {id: auth.orgId}, owner_ref: {id: auth.userId, email: auth.identity.email}, issuer: {email: auth.identity.email}, status: 'development_copying',
     ...(scope === 'full_house' ? {measurement_scope: scope} : {}), // A full-exterior report always measures gutters; the editor requires them to submit.
-    include_gutter_measurements: scope === 'full_house' ? true : source.include_gutter_measurements}, {customerExteriors: scope === 'full_house'});
+    include_gutter_measurements: scope === 'full_house' ? true : source.include_gutter_measurements,
+    // The add-on as ordered, so the report's Holiday Lights view survives a reload like a real order's.
+    include_holiday_lights: body.include_holiday_lights === true || body.include_holiday_lights === '1'}, {customerExteriors: scope === 'full_house'});
   const id = created.manifest.id;
   try {
     for (const file of files) await saveArtifact(id, file.name, (await readArtifact(source.id, file.name)).content);
