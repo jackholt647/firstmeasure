@@ -14968,7 +14968,8 @@ ${String(companyBusinessAddress ? `                  <div class="cs-field wide">
       let brandSaveQueue = Promise.resolve();
       const scheduleBrandSave = () => {
         clearTimeout(brandSaveTimer);
-        csStatus.textContent = (globalThis.PlatformLanguage?.text("settings","m_6fd299432247c1","Saving Brand Kit…") ?? "Saving Brand Kit…");
+        // FM-324: no "Saving" line; it opened above the form and pushed it down.
+        csStatus.textContent = '';
         brandSaveTimer = window.setTimeout(() => {
           const snapshot = {
             name:state.name, primary:state.primary, secondary:state.secondary,
@@ -15195,7 +15196,8 @@ ${String(companyBusinessAddress ? `                  <div class="cs-field wide">
         })();
       });
       async function saveCompanyFields(){
-        csStatus.textContent = (globalThis.PlatformLanguage?.text("settings","m_b82c4e12389843","Saving...") ?? "Saving...");
+        // FM-324: autosave runs this after each pause in typing; a "Saving..."
+        // line here opened above the form and pushed it down while it ran.
         const toSaveName = String(csName.value || '').trim();
         state.primary = csPrimary.value;
         state.secondary = csSecondary.value;
