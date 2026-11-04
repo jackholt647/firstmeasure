@@ -17,7 +17,7 @@ if (!fm_signup_sandbox_available()) {
     <link rel="icon" type="image/png" href="/images/icon.png">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
     <link rel="stylesheet" href="/fonts.css">
-    <link rel="stylesheet" href="sandbox.css?v=3">
+    <link rel="stylesheet" href="sandbox.css?v=4">
 </head>
 <body>
     <header class="sbx-topbar">
@@ -46,6 +46,6 @@ if (!fm_signup_sandbox_available()) {
     </div>
     <div class="sbx-menu" id="sbx-menu" hidden></div>
     <div class="sbx-toast" id="sbx-toast" hidden></div>
-    <script src="sandbox.js?v=5"></script>
+    <script src="sandbox.js?v=6"></script>
 </body>
 </html>

@@ -122,6 +122,15 @@ export const registerSignupSandboxApi: FastifyPluginAsync = async (app) => {
   app.get("/workflows/:id/run-context", async (request) => ({ ok: true, ...(await resolveWorkflowRunContext(param(request, "id"))) }));
   app.get("/workflows/:id/projection", async (request) => ({ ok: true, projection: await computeSettingsProjection(param(request, "id")) }));
 
+  // The Apps tab: every app's starting state in a configuration, read from its library entry and written back to it
+  // (signup-sandbox/apps.ts). Writing is the config library's own editor check, never the sandbox's.
+  app.get("/workflows/:id/apps", async (request) => (await import("./apps-api.js")).readConfigurationApps(param(request, "id")));
+  app.put("/workflows/:id/apps/:appId", async (request) => {
+    const { requireLibraryEditor } = await import("../config-library/access.js");
+    const caller = await requireLibraryEditor(request, { csrf: true });
+    return (await import("./apps-api.js")).writeConfigurationApp(param(request, "id"), param(request, "appId"), request.body, caller.author);
+  });
+
   // Pages
   app.post("/pages", async (request) => ({ ok: true, page: await createPage(body(request)) }));
   app.post("/pages/:id/variant", async (request) => ({ ok: true, page: await createPageVariant(param(request, "id"), body(request)) }));

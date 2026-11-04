@@ -206,6 +206,8 @@ direction; ids never collide because they are random.
 | `GET /workflows/:id/export` | Bundle of the workflow + its pages. |
 | `GET /workflows/:id/run-context` | `{workflow, stages(with resolved page), start_stage}`. |
 | `GET /workflows/:id/projection` | Settings projection: baseline → per-stage `state_after` → `final_state`. |
+| `GET /workflows/:id/apps` | The Apps tab: every registry app's starting state (`on`, `offered`, `off`), its features and options, read from the configuration's library entry (read-only for a sandbox-only workflow). |
+| `PUT /workflows/:id/apps/:appId` | Change one app (`state`, `features`, `options`, `pill`, `placement`) with `expected_revision`; saved as a new revision of `sandbox_configuration/<id>`. Needs a config library editor (platform session + CSRF, `requireLibraryEditor`); a stale revision answers 409. |
 | `POST /test-orgs/:id/apply-stage/:stageId` | Apply a stage's literal effects to the test org. |
 | `POST /test-orgs/:id/complete-stage/:stageId` | Record a stage done on the instance (+ apply effects when the page is a placeholder); the dev-bar overlay calls this on Continue. |
 | `GET /current-instance` | Resolve the session's org to a sandbox instance (test org + stages with jump `target`s + completion). Powers the test run; `instance: null` for non-test orgs. |
@@ -236,6 +238,32 @@ experimental admin session controls these operations when registration is gated.
 Sandbox-launched owner and admin sessions can manage that organization's
 Features & Apps flags in development. Platform rollout targeting and global
 preset controls retain their operator-only gate.
+
+### Apps tab
+
+A workflow opens on **Apps** (the second view is **Sign-up flow**; Launch test
+instance stays in the sticky header on both). Each app in
+`platform/app-experience/registry.ts` is a tile, grouped as portal apps, project
+tabs and contact tabs, with its state in this configuration
+(`signup-sandbox/apps.ts`, computed as `createTestInstance` makes the
+organization: registration flag defaults, then `app_flags_base`, then
+`defaults.app_flags`):
+
+- **On**: one of the app's switches resolves on after offers mask theirs, and
+  `settings.app_placements` does not hide it. An app with no switch is always on.
+- **Offered**: in `settings.app_offers` (no list: the new-organization offers)
+  with an offer switch on underneath, so it shows its welcome and Get Started.
+- **Off**: anything else (switch off, a dependency off, masked by another
+  app's offer, or `hidden`).
+
+Choosing a state writes only those fields: On and Offered turn on the switches
+and what they depend on; On drops any offer masking them (an offer's siblings,
+Money's tab and its Financials page, move together); Off turns the switches
+off. A flag equal to what the base gives is removed rather than written. The
+popover's Advanced section edits the value-bearing features under the app's
+switches, its role app options (`role_app_options`), a project tab's pill and a
+portal app's placement. A copy edited in the sandbox (`copy_state: changed`)
+does not follow library saves; the tab says so.
 
 ## Seeded template
 
