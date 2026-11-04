@@ -779,7 +779,7 @@
       body+=`<div class="ext-nav">${page?`<button type="button" data-back ${busy?'disabled':''}>${(globalThis.PlatformLanguage?.htmlText("firstmeasure","m_121372231b5699","Back") ?? "Back")}</button>`:''}<button type="button" class="primary" data-next ${busy||!!error||!quote||!pinsConfirmed()||(page===1&&!photosReviewable())||(page===2&&!!orderBlocker())?'disabled':''}>${busy?'Please wait…':page===2?'Order Full Exterior · '+money(q?.amount):page===0?'Continue to capture →':(globalThis.PlatformLanguage?.htmlText("firstmeasure","ext_12ff7ed621202f","Review order →") ?? "Review order →")}</button></div>`;
     }
     guideNode?.remove();if(!deskRecording())recNode?.remove();
-    root.innerHTML=`<div class="ext-choices ${scope?'compact':''}">${[['roof',(globalThis.PlatformLanguage?.htmlText("firstmeasure","ext_37e437d86dea02","Roof Only") ?? "Roof Only"),'fa-house-chimney'],['full_house',(globalThis.PlatformLanguage?.htmlText("firstmeasure","ext_full_exterior","Full Exterior") ?? "Full Exterior"),'fa-house']].map(([key,title,icon])=>`<div class="ext-choice-wrap"><button type="button" class="ext-choice ${String(scope===key?'selected':'')}" data-scope="${String(key)}" aria-pressed="${String(scope===key)}"><strong>${String(scopeIcon(key))} ${String(title)}</strong></button><button type="button" class="ext-choice-info r-info-tip" data-details="${String(key)}" data-addon-info="${String(key)}" aria-label="${((v7) => globalThis.PlatformLanguage?.htmlText("firstmeasure","m_79e68d505c1bac",`${v7} report information`,{v7}) ?? `${v7} report information`)(title)}"><i class="fas fa-info" aria-hidden="true"></i></button></div>`).join('')}</div><div class="ext-pages">${body}</div>${error&&!desk?`<p class="ext-error" role="alert">${esc(error)} <button type="button" data-dismiss-error>${(globalThis.PlatformLanguage?.htmlText("firstmeasure","ext_48845bff334a50","Dismiss") ?? "Dismiss")}</button></p>`:''}`;
+    root.innerHTML=`<div class="ext-choices ${scope?'compact':''}">${[['roof',(globalThis.PlatformLanguage?.htmlText("firstmeasure","ext_scope_roof","Roof") ?? "Roof"),'fa-house-chimney'],['full_house',(globalThis.PlatformLanguage?.htmlText("firstmeasure","ext_full_exterior","Full Exterior") ?? "Full Exterior"),'fa-house']].map(([key,title,icon])=>`<div class="ext-choice-wrap"><button type="button" class="ext-choice ${String(scope===key?'selected':'')}" data-scope="${String(key)}" aria-pressed="${String(scope===key)}"><strong>${String(scopeIcon(key))} ${String(title)}</strong></button><button type="button" class="ext-choice-info r-info-tip" data-details="${String(key)}" data-addon-info="${String(key)}" aria-label="${((v7) => globalThis.PlatformLanguage?.htmlText("firstmeasure","m_79e68d505c1bac",`${v7} report information`,{v7}) ?? `${v7} report information`)(title)}"><i class="fas fa-info" aria-hidden="true"></i></button></div>`).join('')}</div><div class="ext-pages">${body}</div>${error&&!desk?`<p class="ext-error" role="alert">${esc(error)} <button type="button" data-dismiss-error>${(globalThis.PlatformLanguage?.htmlText("firstmeasure","ext_48845bff334a50","Dismiss") ?? "Dismiss")}</button></p>`:''}`;
     if(active()&&(page===0||desk)){mountShared('rPinInfo','[data-pin-mount]');if(!mobileOrder)mountShared('rMobilePinStage','[data-confirm-mount]');mountShared('rTechNotes','[data-notes-mount]',true);mountShared('rCcList','[data-cc-mount]',true);}
     root.querySelectorAll('[data-details]').forEach(b=>{b.onclick=e=>{e.stopPropagation();ctx.showInfo?.(b.dataset.details);};});
     root.querySelectorAll('[data-addon-info]').forEach(b=>{b.onmouseenter=()=>ctx.hoverInfo?.(b);b.onmouseleave=()=>ctx.hideInfo?.();b.onfocus=()=>ctx.hoverInfo?.(b);b.onblur=()=>ctx.hideInfo?.();});
@@ -789,7 +789,7 @@
         let control=document.getElementById('rScopeSelect');
         if(!control){control=document.createElement('label');control.id='rScopeSelect';control.className='r-order-select';pill.append(control);}
         if(control.dataset.scope!==scope||control.dataset.busy!==String(busy)){
-          control.innerHTML=(String(scopeIcon(scope)) + "<select aria-label=\"" + (globalThis.PlatformLanguage?.htmlText("firstmeasure","m_09612fd6ab85db","Report scope") ?? "Report scope") + "\" " + String(busy?'disabled':'') + "><option value=\"roof\" " + String(scope==='roof'?'selected':'') + ">" + (globalThis.PlatformLanguage?.htmlText("firstmeasure","m_d2a894582092f8","Roof Only") ?? "Roof Only") + "</option><option value=\"full_house\" " + String(scope==='full_house'?'selected':'') + ">" + (globalThis.PlatformLanguage?.htmlText("firstmeasure","ext_full_exterior","Full Exterior") ?? "Full Exterior") + "</option></select><i class=\"fas fa-chevron-down\" aria-hidden=\"true\"></i>");
+          control.innerHTML=(String(scopeIcon(scope)) + "<select aria-label=\"" + (globalThis.PlatformLanguage?.htmlText("firstmeasure","m_09612fd6ab85db","Report scope") ?? "Report scope") + "\" " + String(busy?'disabled':'') + "><option value=\"roof\" " + String(scope==='roof'?'selected':'') + ">" + (globalThis.PlatformLanguage?.htmlText("firstmeasure","ext_scope_roof","Roof") ?? "Roof") + "</option><option value=\"full_house\" " + String(scope==='full_house'?'selected':'') + ">" + (globalThis.PlatformLanguage?.htmlText("firstmeasure","ext_full_exterior","Full Exterior") ?? "Full Exterior") + "</option></select><i class=\"fas fa-chevron-down\" aria-hidden=\"true\"></i>");
           control.dataset.scope=scope;control.dataset.busy=String(busy);
           control.querySelector('select').onchange=e=>root.querySelector(`[data-scope="${e.target.value}"]`)?.click();
         }
@@ -1084,7 +1084,12 @@
   const deskModeLink=mode=>`<button type="button" class="ext-desk-link" data-desk-mode="${mode}" ${busy?'disabled':''}>${mode==='photos'?(globalThis.PlatformLanguage?.htmlText("firstmeasure","m_cab762c293af5c","Can’t take a video? Order from photos instead") ?? "Can’t take a video? Order from photos instead"):(globalThis.PlatformLanguage?.htmlText("firstmeasure","ext_switch_to_video_walkaround","Have a video? Switch to video walkaround (recommended)") ?? "Have a video? Switch to video walkaround (recommended)")}</button>`;
   function deskHeadUI(){
     const video=captureMode==='video';
-    return `<div class="ext-desk-title"><h2>${video?(globalThis.PlatformLanguage?.htmlText("firstmeasure","ext_add_a_video_walkaround","Add a video walkaround") ?? "Add a video walkaround"):(globalThis.PlatformLanguage?.htmlText("firstmeasure","m_1cb496d81d0d8a","Order from photos") ?? "Order from photos")}</h2><p>${video?(globalThis.PlatformLanguage?.htmlText("firstmeasure","ext_desk_loop_upload_lead","Record one full loop around the house on your phone or tablet, then upload it here.") ?? "Record one full loop around the house on your phone or tablet, then upload it here."):(globalThis.PlatformLanguage?.htmlText("firstmeasure","ext_photo_intro_lead","No video? Simply provide eight photos for eight angles of the house and we will use those instead.") ?? "No video? Simply provide eight photos for eight angles of the house and we will use those instead.")}</p></div><button type="button" class="ext-desk-map" data-desk-pins ${busy?'disabled':''} data-fm-tooltip="${(globalThis.PlatformLanguage?.htmlText("firstmeasure","ext_desk_map_tip","Back to the map to move or add pins") ?? "Back to the map to move or add pins")}"><i class="fas fa-map-location-dot" aria-hidden="true"></i><span>${(globalThis.PlatformLanguage?.htmlText("firstmeasure","ext_desk_map","Map") ?? "Map")}</span></button>`;
+    return `<div class="ext-desk-title"><h2>${video?(globalThis.PlatformLanguage?.htmlText("firstmeasure","ext_add_a_video_walkaround","Add a video walkaround") ?? "Add a video walkaround"):(globalThis.PlatformLanguage?.htmlText("firstmeasure","m_1cb496d81d0d8a","Order from photos") ?? "Order from photos")}</h2><p>${video?(globalThis.PlatformLanguage?.htmlText("firstmeasure","ext_desk_loop_upload_or_phone","Record one full loop around the house on your phone or tablet, then upload it here. Or, order directly from your phone.") ?? "Record one full loop around the house on your phone or tablet, then upload it here. Or, order directly from your phone."):(globalThis.PlatformLanguage?.htmlText("firstmeasure","ext_photo_intro_lead","No video? Simply provide eight photos for eight angles of the house and we will use those instead.") ?? "No video? Simply provide eight photos for eight angles of the house and we will use those instead.")}</p></div>`;
+  }
+  // Back to the map sits at the start of the upload strip, in video and photo orders alike.
+  function deskBackUI(){
+    const name=(globalThis.PlatformLanguage?.htmlText("firstmeasure","ext_desk_back_to_map","Back to Map") ?? "Back to Map");
+    return `<button type="button" class="ext-desk-map" data-desk-pins ${busy?'disabled':''} aria-label="${name}" data-fm-tooltip="${(globalThis.PlatformLanguage?.htmlText("firstmeasure","ext_desk_map_tip","Back to the map to move or add pins") ?? "Back to the map to move or add pins")}"><i class="fas fa-arrow-left" aria-hidden="true"></i><span class="ext-desk-btn-text">${name}</span></button>`;
   }
   // The walkaround guidance: the loop animation beside the three steps (the eight-angle grid when ordering from photos).
   function deskGuideUI(){
@@ -1121,8 +1126,8 @@
       else if(done||angles===8){state='done';text=many?deskStructureName(i):video||done?(globalThis.PlatformLanguage?.text("firstmeasure","ext_desk_chip_done","Walkaround uploaded") ?? "Walkaround uploaded"):(globalThis.PlatformLanguage?.text("firstmeasure","ext_desk_chip_angles_done","All eight angles") ?? "All eight angles");}
       else if(!video){state='needed';text=many?((v0,v1) => globalThis.PlatformLanguage?.text("firstmeasure","ext_desk_chip_angles_structure",`Structure ${v0} · ${v1} of 8 angles`,{v0,v1}) ?? `Structure ${v0} · ${v1} of 8 angles`)(i+1,angles):((v0) => globalThis.PlatformLanguage?.text("firstmeasure","ext_desk_chip_angles",`${v0} of 8 angles`,{v0}) ?? `${v0} of 8 angles`)(angles);}
       else{state='needed';text=many?((v0) => globalThis.PlatformLanguage?.text("firstmeasure","ext_desk_chip_need_structure",`Structure ${v0} needs a walkaround`,{v0}) ?? `Structure ${v0} needs a walkaround`)(i+1):(globalThis.PlatformLanguage?.text("firstmeasure","ext_desk_chip_need","Needs a video walkaround") ?? "Needs a video walkaround");}
-      // One structure that is done needs no chip: the uploaded walkaround is listed right below.
-      if(state==='done'&&!many)return '';
+      // One structure needs no "done" or "still needed" chip: the uploads are listed right below and the order column says what is missing.
+      if((state==='done'||state==='needed')&&!many)return '';
       const icon=state==='done'?'<i class="fas fa-check" aria-hidden="true"></i>':state==='busy'?'<i class="ext-desk-spin" aria-hidden="true"></i>':state==='failed'?'<i class="fas fa-triangle-exclamation" aria-hidden="true"></i>':'<i class="ext-desk-dot" aria-hidden="true"></i>';
       return `<span class="ext-desk-chip is-${state}${video&&many&&i===target?' is-target':''}" data-desk-drop-structure="${i}">${icon}${esc(text)}</span>`;
     });
@@ -1135,7 +1140,7 @@
   function deskSideUI(){
     const q=option(),blocker=deskBlocker(),many=ctx.count>1;
     const structures=many?((v0) => globalThis.PlatformLanguage?.htmlText("firstmeasure","ext_desk_structure_count",`${v0} structures`,{v0}) ?? `${v0} structures`)(ctx.count):(globalThis.PlatformLanguage?.htmlText("firstmeasure","ext_desk_one_structure","1 structure") ?? "1 structure");
-    const summary=`<div class="ext-desk-what"><span class="ext-desk-what-icon" aria-hidden="true">${scopeIcon('full_house')}</span><div class="ext-desk-what-text"><strong>${(globalThis.PlatformLanguage?.htmlText("firstmeasure","ext_full_exterior","Full Exterior") ?? "Full Exterior")}</strong><small>${structures}</small></div></div><p class="ext-desk-includes"><button type="button" class="ext-desk-info" data-details="full_house" aria-label="${(globalThis.PlatformLanguage?.htmlText("firstmeasure","ext_full_exterior_info","Full Exterior report information") ?? "Full Exterior report information")}"><i class="fas fa-circle-info" aria-hidden="true"></i>${(globalThis.PlatformLanguage?.htmlText("firstmeasure","m_76a7f763084e05"," What’s included") ?? " What’s included")}</button></p>`;
+    const summary=`<div class="ext-desk-what"><span class="ext-desk-what-icon" aria-hidden="true">${scopeIcon('full_house')}</span><div class="ext-desk-what-text"><strong>${(globalThis.PlatformLanguage?.htmlText("firstmeasure","ext_full_exterior","Full Exterior") ?? "Full Exterior")}</strong><small>${structures}</small></div></div><p class="ext-desk-includes"><button type="button" class="ext-desk-info" data-details="full_house" aria-controls="extDeskInfoPop" aria-expanded="false" aria-label="${(globalThis.PlatformLanguage?.htmlText("firstmeasure","ext_full_exterior_info","Full Exterior report information") ?? "Full Exterior report information")}"><i class="fas fa-circle-info" aria-hidden="true"></i>${(globalThis.PlatformLanguage?.htmlText("firstmeasure","m_76a7f763084e05"," What’s included") ?? " What’s included")}</button></p>`;
     const choices=quote?`<div class="r-expedite-wait"><div class="r-expedite-default-head"><div class="r-expedite-status"><strong>${esc(deliveryBusyLabel())}</strong><span>${(globalThis.PlatformLanguage?.htmlText("firstmeasure","m_484b63459c1357","Estimated wait time right now") ?? "Estimated wait time right now")}</span></div><div class="r-expedite-eta">${((v2) => globalThis.PlatformLanguage?.htmlText("firstmeasure","m_7b8bab306cc5c2",`${v2} hr estimate`,{v2}) ?? `${v2} hr estimate`)(Math.round(quote.estimated_wait_minutes/60))}</div></div><div class="r-expedite-bar" style="--wait-position:${Math.max(0,Math.min(98,(quote.estimated_wait_minutes/60-18)/6*98))}%"><span class="r-expedite-marker" aria-hidden="true"></span></div><div class="r-expedite-bar-labels"><span>${(globalThis.PlatformLanguage?.htmlText("firstmeasure","m_1d63663ae56e2a","18 hrs") ?? "18 hrs")}</span><span>${(globalThis.PlatformLanguage?.htmlText("firstmeasure","m_e731322b674a97","24 hrs") ?? "24 hrs")}</span></div></div><div class="r-expedite-options" role="group" aria-label="${(globalThis.PlatformLanguage?.htmlText("firstmeasure","m_b73185deef6d79","Delivery") ?? "Delivery")}">${quote.options.map(o=>`<button type="button" class="r-expedite-btn ${o.key==='exteriors_standard'?'r-expedite-default':''} ${o.key===delivery?'selected':''}" data-delivery="${o.key}" aria-pressed="${o.key===delivery}" ${(o.key!=='exteriors_standard'&&closed())||busy?'disabled':''}><span class="r-expedite-copy"><span class="r-expedite-name">${esc(deliveryLabel(o))}</span>${o.key!=='exteriors_standard'?`<span class="r-expedite-pill">${(globalThis.PlatformLanguage?.htmlText("firstmeasure","m_b51f2220e8185c","Expedited") ?? "Expedited")}</span>`:''}</span><span class="r-expedite-price">${o.key!=='exteriors_standard'?'+':''}${money(o.key==='exteriors_standard'?o.unit_price:o.fee)}</span></button>`).join('')}</div>${closed()?`<p class="ext-desk-closed">${(globalThis.PlatformLanguage?.htmlText("firstmeasure","closed_expedite","Expediting unavailable while closed") ?? "Expediting unavailable while closed")}</p>`:''}`
       :quoteError?`<p class="ext-desk-quote" role="alert">${esc(quoteError)} <button type="button" data-reload>${(globalThis.PlatformLanguage?.htmlText("firstmeasure","ext_942087cc2d41e0","Retry") ?? "Retry")}</button></p>`
       :`<p class="ext-desk-quote">${(globalThis.PlatformLanguage?.htmlText("firstmeasure","m_29ee01b139b644","Loading prices…") ?? "Loading prices…")}</p>`;
@@ -1152,6 +1157,7 @@
     deskHTML(deskNode.querySelector('[data-desk-head]'),deskHeadUI());
     deskHTML(deskNode.querySelector('[data-desk-alert]'),error?`<div class="ext-desk-alert" role="alert"><i class="fas fa-circle-exclamation" aria-hidden="true"></i><span>${esc(error)}</span><button type="button" data-desk-dismiss>${(globalThis.PlatformLanguage?.htmlText("firstmeasure","ext_48845bff334a50","Dismiss") ?? "Dismiss")}</button></div>`:'');
     const guide=deskNode.querySelector('[data-desk-guide]');deskHTML(guide,deskGuideUI());guide.classList.toggle('is-angles',!video);
+    deskHTML(deskNode.querySelector('[data-desk-back]'),deskBackUI());
     deskHTML(deskNode.querySelector('[data-desk-drop]'),deskDropUI());
     deskHTML(deskNode.querySelector('[data-desk-chips]'),deskChipsUI());
     if(recordingNow)mountRecorder();else if(recNode&&deskNode.contains(recNode)){stopCamera();recNode.remove();}
@@ -1163,6 +1169,7 @@
     if(reveal){const bottom=reveal.offsetTop+reveal.offsetHeight-strip.clientHeight;if(bottom>strip.scrollTop)strip.scrollTop=bottom;else if(reveal.offsetTop<strip.scrollTop)strip.scrollTop=reveal.offsetTop;}
     deskListEdge(strip);
     deskHTML(deskNode.querySelector('[data-desk-side]'),deskSideUI());
+    if(deskInfoOpen()){const b=deskNode.querySelector(`.ext-desk-side [data-details="${deskInfoPop().dataset.key}"]`);if(b){b.setAttribute('aria-expanded','true');placeDeskInfo(b);}else hideDeskInfo();}
     fillPhotoViewer();
   }
   // A long upload list scrolls on its own; an edge fades while more rows sit beyond it.
@@ -1181,15 +1188,59 @@
     else if(d.deskPreview)deskPreview(d.deskPreview,target);
     else if('deskDismiss' in d){error='';render();}
     else if(d.delivery){delivery=d.delivery;render();}
-    else if(d.details){e.stopPropagation();ctx.showInfo?.(d.details);}
+    else if(d.details){e.stopPropagation();toggleDeskInfo(target);}
     else if('reload' in d){quoteError='';render();void load();}
     else if('deskOrder' in d)void deskOrder();
+  }
+  // "What's included" is a card anchored to its link, like the scope choice's hover help: hover or focus shows it,
+  // a click keeps it open, and there is no sheet or backdrop over the order window.
+  let deskInfoTimer=null,deskInfoPinned=false,deskInfoBound=false;
+  const deskInfoPop=()=>deskNode?.querySelector('.ext-desk-infopop');
+  const deskInfoOpen=()=>!!deskInfoPop()?.classList.contains('is-open');
+  function placeDeskInfo(button){
+    const pop=deskInfoPop();if(!pop||!button?.isConnected)return;
+    const d=deskNode.getBoundingClientRect(),b=button.getBoundingClientRect(),gap=10,edge=8;
+    const width=Math.min(340,d.width-edge*2);pop.style.width=width+'px';
+    const left=Math.max(edge,Math.min(d.width-width-edge,b.left-d.left));
+    const h=pop.offsetHeight,below=b.bottom-d.top+gap,above=b.top-d.top-gap-h,up=below+h>d.height-edge&&above>=edge;
+    pop.style.left=left+'px';pop.style.top=Math.max(edge,up?above:below)+'px';
+    pop.style.setProperty('--caret-x',Math.max(14,Math.min(width-14,b.left+b.width/2-d.left-left))+'px');
+    pop.classList.toggle('is-above',up);
+  }
+  function showDeskInfo(button,pin=false){
+    const pop=deskInfoPop(),key=button?.dataset.details,html=key&&ctx?.infoHtml?.(key);
+    // A host without the card's content still gets the information, in its own dialog.
+    if(!pop||!html){if(pin)ctx?.showInfo?.(key);return;}
+    clearTimeout(deskInfoTimer);
+    if(pop.dataset.key!==key||!pop.innerHTML){pop.innerHTML=html;pop.dataset.key=key;}
+    if(pin)deskInfoPinned=true;
+    pop.hidden=false;pop.classList.add('is-open');button.setAttribute('aria-expanded','true');
+    placeDeskInfo(button);
+  }
+  function hideDeskInfo(delay=0){
+    clearTimeout(deskInfoTimer);
+    const close=()=>{deskInfoPinned=false;const pop=deskInfoPop();if(pop){pop.classList.remove('is-open');pop.hidden=true;}deskNode?.querySelectorAll('[data-details][aria-expanded="true"]').forEach(b=>b.setAttribute('aria-expanded','false'));};
+    if(delay>0)deskInfoTimer=setTimeout(close,delay);else close();
+  }
+  function toggleDeskInfo(button){if(deskInfoOpen()&&deskInfoPinned)hideDeskInfo();else showDeskInfo(button,true);}
+  function bindDeskInfo(node){
+    const trigger=e=>e.target.closest?.('.ext-desk-side [data-details]'),inside=el=>!!el?.closest?.('.ext-desk-infopop,.ext-desk-side [data-details]');
+    node.addEventListener('mouseover',e=>{const b=trigger(e);if(b&&!b.disabled)showDeskInfo(b);else if(e.target.closest?.('.ext-desk-infopop'))clearTimeout(deskInfoTimer);});
+    node.addEventListener('mouseout',e=>{if(!inside(e.target)||inside(e.relatedTarget)||deskInfoPinned)return;hideDeskInfo(120);});
+    node.addEventListener('focusin',e=>{const b=trigger(e);if(b)showDeskInfo(b);else if(inside(e.target))clearTimeout(deskInfoTimer);});
+    node.addEventListener('focusout',e=>{if(inside(e.target)&&!inside(e.relatedTarget))hideDeskInfo(120);});
+    node.querySelector('[data-desk-side]').addEventListener('scroll',()=>{if(deskInfoOpen())hideDeskInfo();},{passive:true});
+    if(deskInfoBound)return;deskInfoBound=true;
+    document.addEventListener('pointerdown',e=>{if(deskInfoOpen()&&!inside(e.target))hideDeskInfo();},true);
+    document.addEventListener('keydown',e=>{if(e.key!=='Escape'||!deskInfoOpen())return;const b=deskNode.querySelector('.ext-desk-side [data-details][aria-expanded="true"]');hideDeskInfo();e.stopPropagation();b?.focus();},true);
+    window.addEventListener('resize',()=>{if(deskInfoOpen())hideDeskInfo();});
   }
   async function deskOrder(){if(busy||orderBlocker())return;busy=true;render();try{await ctx.submit();}finally{busy=false;render();}}
   function buildDesk(){
     const node=document.createElement('section');node.className='ext-order ext-desk';node.setAttribute('aria-label',(globalThis.PlatformLanguage?.text("firstmeasure","ext_desk_label","Footage and order") ?? "Footage and order"));
-    node.innerHTML=`<div class="ext-desk-mid" data-desk-reveal><header class="ext-desk-head" data-desk-head></header><div data-desk-alert></div><div class="ext-desk-guide" data-desk-guide></div><div class="ext-desk-rec" data-guide-mount></div><div class="ext-desk-drop" data-desk-drop></div><div data-desk-chips role="status"></div><div class="ext-desk-list" data-desk-list role="list" aria-label="${(globalThis.PlatformLanguage?.htmlText("firstmeasure","ext_desk_uploads","Your uploads") ?? "Your uploads")}"></div></div><aside class="ext-desk-side" data-desk-side data-desk-reveal></aside><div class="ext-desk-dropping" aria-hidden="true"><span><i class="fas fa-cloud-arrow-up"></i>${(globalThis.PlatformLanguage?.htmlText("firstmeasure","ext_desk_drop_to_upload","Drop to upload") ?? "Drop to upload")}</span></div>`;
+    node.innerHTML=`<div class="ext-desk-mid" data-desk-reveal><header class="ext-desk-head" data-desk-head></header><div data-desk-alert></div><div class="ext-desk-guide" data-desk-guide></div><div class="ext-desk-rec" data-guide-mount></div><div class="ext-desk-droprow"><span class="ext-desk-back" data-desk-back></span><div class="ext-desk-drop" data-desk-drop></div></div><div data-desk-chips role="status"></div><div class="ext-desk-list" data-desk-list role="list" aria-label="${(globalThis.PlatformLanguage?.htmlText("firstmeasure","ext_desk_uploads","Your uploads") ?? "Your uploads")}"></div></div><aside class="ext-desk-side" data-desk-side data-desk-reveal></aside><div class="ext-desk-infopop" id="extDeskInfoPop" hidden></div><div class="ext-desk-dropping" aria-hidden="true"><span><i class="fas fa-cloud-arrow-up"></i>${(globalThis.PlatformLanguage?.htmlText("firstmeasure","ext_desk_drop_to_upload","Drop to upload") ?? "Drop to upload")}</span></div>`;
     node.addEventListener('click',deskClick);
+    bindDeskInfo(node);
     node.querySelector('[data-desk-list]').addEventListener('scroll',e=>deskListEdge(e.currentTarget),{passive:true});
     node.addEventListener('keydown',e=>{const role=e.target.closest?.('[data-desk-role]');if(!role||deskMenu?.button===role||role.disabled)return;if(e.key==='ArrowDown'||e.key==='ArrowUp'){e.preventDefault();openDeskMenu(role);}});
     node.addEventListener('dragstart',e=>{const row=e.target.closest?.('.ext-desk-file');if(!row||busy)return;e.dataTransfer.setData('application/x-exterior-reference',row.dataset.key);e.dataTransfer.effectAllowed='move';});
@@ -1275,7 +1326,7 @@
     .ext-desk{position:absolute;inset:0;z-index:12;margin:0!important;display:grid;grid-template-columns:minmax(0,1fr) clamp(320px,36%,390px);background:#fff;color:#344054;font-size:13px;line-height:1.45;container:ext-desk/size;overflow:hidden}
     .ext-desk [hidden]{display:none!important}
     .ext-desk-mid{min-width:0;min-height:0;display:flex;flex-direction:column;gap:16px;padding:24px 28px 20px;container:ext-mid/inline-size}
-    @container ext-mid (max-width:540px){.ext-desk-drop{gap:8px;padding-left:12px}.ext-desk-drop-icon{display:none}.ext-desk .ext-desk-drop .ext-desk-btn{padding:0 11px}.ext-desk .ext-desk-drop [data-desk-record]{width:36px;padding:0;justify-content:center}.ext-desk [data-desk-record] .ext-desk-btn-text{display:none}.ext-desk-drop-label{font-size:12.5px}.ext-desk .ext-desk-mid .ext-desk-guide{grid-template-columns:136px minmax(0,1fr);gap:16px}.ext-desk .ext-desk-mid .ext-desk-film .ext-orbit-world{scale:.82}.ext-desk .ext-desk-mid .ext-desk-link{font-size:12px}.ext-desk .ext-desk-mid .ext-orbit-rec{left:8px;top:8px}.ext-desk .ext-desk-mid .ext-orbit-done{top:auto;right:8px;bottom:8px;white-space:nowrap}}
+    @container ext-mid (max-width:540px){.ext-desk-drop{gap:8px;padding-left:12px}.ext-desk-drop-icon{display:none}.ext-desk .ext-desk-drop .ext-desk-btn{padding:0 11px}.ext-desk .ext-desk-drop [data-desk-record]{width:36px;padding:0;justify-content:center}.ext-desk [data-desk-record] .ext-desk-btn-text,.ext-desk .ext-desk-map .ext-desk-btn-text{display:none}.ext-desk .ext-desk-droprow .ext-desk-map{padding:0 12px}.ext-desk-drop-label{font-size:12.5px}.ext-desk .ext-desk-mid .ext-desk-guide{grid-template-columns:136px minmax(0,1fr);gap:16px}.ext-desk .ext-desk-mid .ext-desk-film .ext-orbit-world{scale:.82}.ext-desk .ext-desk-mid .ext-desk-link{font-size:12px}.ext-desk .ext-desk-mid .ext-orbit-rec{left:8px;top:8px}.ext-desk .ext-desk-mid .ext-orbit-done{top:auto;right:8px;bottom:8px;white-space:nowrap}}
     .ext-desk-side{min-width:0;min-height:0;display:flex;flex-direction:column;gap:14px;padding:24px 24px 20px;border-left:1px solid #eaecf0;background:#fcfcfd;overflow:auto;scrollbar-width:thin;container:ext-side/inline-size}
     /* The order tray waits until every structure has its walkaround (or all eight photos): until then the capture
        column has the full width, then the tray's column opens and the tray slides in at its own width. */
@@ -1291,6 +1342,16 @@
     .ext-desk .ext-desk-title p{margin:4px 0 0;font-size:13px;line-height:1.45;color:#667085}
     .ext-desk .ext-desk-map{flex:none;display:inline-flex;align-items:center;gap:7px;height:34px;padding:0 12px;border:1px solid #d0d5dd;border-radius:10px;background:#fff;color:#344054;font:inherit;font-weight:600;cursor:pointer;transition:background .15s,border-color .15s}
     .ext-desk .ext-desk-map:hover{background:#f9fafb;border-color:#98a2b3}
+    .ext-desk .ext-desk-map:disabled{opacity:.55;cursor:default}
+    .ext-desk-droprow{flex:none;display:flex;align-items:stretch;gap:10px}
+    .ext-desk-droprow>.ext-desk-drop{flex:1;min-width:0}
+    .ext-desk-back{display:contents}
+    .ext-desk .ext-desk-droprow .ext-desk-map{height:auto;min-height:40px;border-radius:14px;padding:0 14px;white-space:nowrap}
+    .ext-desk-infopop{position:absolute;z-index:30;box-sizing:border-box;padding:14px 16px;border:1px solid rgba(15,23,42,.12);border-radius:14px;background:#fff;box-shadow:0 18px 44px rgba(15,23,42,.18);text-align:left;color:#344054}
+    .ext-desk-infopop:not(.is-open){display:none}
+    .ext-desk-infopop::before{content:'';position:absolute;top:-6px;left:calc(var(--caret-x,24px) - 6px);width:10px;height:10px;background:#fff;border-left:1px solid rgba(15,23,42,.12);border-top:1px solid rgba(15,23,42,.12);transform:rotate(45deg)}
+    .ext-desk-infopop.is-above::before{top:auto;bottom:-6px;transform:rotate(225deg)}
+    .ext-desk-infopop .r-addon-info-card{position:relative}
     .ext-desk .ext-desk-link{border:0;background:none;color:#475467;font:inherit;font-size:12.5px;text-decoration:underline;text-underline-offset:3px;padding:4px 0;cursor:pointer;text-align:left}
     .ext-desk .ext-desk-link:hover{color:#101828}
     .ext-desk-alert{flex:none;display:flex;align-items:center;gap:10px;padding:9px 12px;background:#fef3f2;color:#b42318;border-radius:10px;animation:extDeskIn .24s ease-out}
@@ -1306,14 +1367,12 @@
     .ext-desk-guide.is-angles{flex:1 0 230px;min-height:0;display:flex;flex-direction:column;align-items:stretch;gap:10px}
     .ext-desk.is-photos .ext-desk-list{flex:0 1 auto;min-height:56px}
     .ext-desk-rec{display:none}
-    .ext-desk.is-recording .ext-desk-guide,.ext-desk.is-recording .ext-desk-drop,.ext-desk.is-recording .ext-desk-list{display:none}
+    .ext-desk.is-recording .ext-desk-guide,.ext-desk.is-recording .ext-desk-droprow,.ext-desk.is-recording .ext-desk-list{display:none}
     .ext-desk.is-recording .ext-desk-rec{display:flex;flex-direction:column;flex:1;min-height:0}
-    /* Recording has one header: the recorder's own (it follows the take), with Map at its top right. */
+    /* Recording has one header: the recorder's own (it follows the take, and has its own way back). */
     .ext-desk-mid{position:relative}
-    .ext-desk.is-recording .ext-desk-title{display:none}
-    .ext-desk.is-recording .ext-desk-head{position:absolute;top:24px;right:28px;z-index:2}
+    .ext-desk.is-recording .ext-desk-head{display:none}
     .ext-desk.is-recording .ext-rec-guide{display:none}
-    .ext-desk.is-recording .ext-rec .ext-capture-heading{padding-right:110px}
     .ext-desk .ext-rec{flex:1;min-height:0;display:grid;grid-template-rows:auto minmax(0,1fr) auto;gap:10px}
     .ext-desk .ext-rec .ext-camera{height:100%;min-height:0}
     .ext-desk .ext-rec .ext-capture-heading h3{font-size:19px}
