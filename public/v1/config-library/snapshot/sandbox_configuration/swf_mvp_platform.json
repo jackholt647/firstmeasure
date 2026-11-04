@@ -1,14 +1,14 @@
 {
   "kind": "sandbox_configuration",
   "id": "swf_mvp_platform",
-  "revision": 1,
-  "sha256": "827b757e39131ec4eb4317d47d260ec348a997c65dfe493be3084aedc1347cba",
+  "revision": 2,
+  "sha256": "897a03951588c9f6f9265b401054cfc403878d8de3c88697cbda107efa6668fd",
   "title": "MVP platform",
-  "updated_at": "2026-10-28T00:40:02.983Z",
-  "updated_by": "generator",
+  "updated_at": "2026-11-04T02:50:12.654Z",
+  "updated_by": "agent:claude",
   "data": {
     "title": "MVP platform",
-    "description": "The FirstMeasure default signup plus the MVP platform: My Projects (with the project map), My Contacts, Feed and Financials (offered); project tabs Photos, Docs, Operations and Customer Portal, with Money and Checklists offered (no Overview or Reports tab: the project details tray holds them); Agent, Notes, Activity and To Do trays. No Scheduling or calendar. Every project is a generic roof job.",
+    "description": "The FirstMeasure default signup plus the MVP platform: My Projects (with the project map), My Contacts, Feed and Financials (offered); project tabs Photos and Docs (on from the start, each with its tour), Operations and Customer Portal, with Money and Checklists offered (no Overview or Reports tab: the project details tray holds them); Agent, Notes, Activity and To Do trays. No Scheduling or calendar. Every project is a generic roof job.",
     "entry_mode": "landing_first",
     "onboarding_mode": "",
     "stages": [
@@ -123,8 +123,6 @@
           }
         },
         "app_offers": [
-          "project.photos",
-          "project.docs",
           "project.customer_portal",
           "project.materials",
           "portal.equipment",

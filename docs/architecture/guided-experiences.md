@@ -512,10 +512,11 @@ has; where `apps.crew` is off it always shows. The setting is data on the
 organization's Labor type, never a configuration check.
 
 
-## Tab tours: Photos, Reports, Customer Portal
+## Tab tours: Photos, Docs, Reports, Customer Portal
 
 One overlay tour per tab, each its own `guided_experience` entry:
 `photos.tab_tutorial` (`project.photos`, `platform.project_photos`),
+`docs.tab_tutorial` (`project.docs`, `platform.documents`),
 `reports.tab_tutorial` (`project.measurements`, `apps.firstmeasure`) and
 `customer_portal.tab_tutorial` (`project.customer_portal`,
 `platform.customer_portal`). **The Reports tour is off for now** (Jack, Nov 2):
@@ -533,8 +534,13 @@ the feature is off rather than relying on the control being missing: Reports'
 Summary (`firstmeasure.measurement_report_summary`) and Support
 (`firstmeasure.report_followup`), the portal's customer options
 (`scheduling.customer_rescheduling|customer_portal.guest_links`) and the photos
-the customer sees (`platform.customer_portal_media`). There is no Docs tour yet: the Documents tab
-is being reworked first. `tests/guided-tab-tours.test.ts` checks the data and
+the customer sees (`platform.customer_portal_media`). Photos (revision 2) is
+basic: upload or take photos, open one, and the cover photo (set from the viewer's "Set as cover photo"; its tile
+shows a Cover pill, `[data-project-cover-current]`). Docs: measurement reports land in the tab, the Shown filter,
+Upload, and New, whose dialog starts proposals, contracts, change orders, invoices and work orders. The tour points
+at New and names those types rather than stepping inside the New dialog: the documents modal
+(`.fmdx-modal-back`, z-index 2147483530) sits above the tour's scrim and card (2147483300/2147483400), so a step
+there would be hidden behind it. `tests/guided-tab-tours.test.ts` checks the data and
 that every target's hooks are in the tab's source;
 `tests/guided-tab-tours-browser.test.ts` plays each tour against the real
 service.

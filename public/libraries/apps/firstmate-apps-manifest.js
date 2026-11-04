@@ -27,7 +27,7 @@
   const bookingBundle = versionedBundle('../appointment-booking/booking.js', '20261005-appointment-picker-v1');
   const priorityFieldsBundle = versionedBundle('../priority-fields/priority-fields.js', '20261015-ready-event');
   const gifDisplayBundle=versionedBundle('../platform-widgets/gifs.js','20261012-composer-media-fixes-v1');
-  const widgetBundles = [gifDisplayBundle,...['scope-data','runtime','project-widgets'].map(name=>versionedBundle('../platform-widgets/'+name+'.js',name==='runtime'?'20261012-composer-media-fixes-v1':name==='project-widgets'?'20261026-touch-key':'20261003-project-widgets-v1'))];
+  const widgetBundles = [gifDisplayBundle,...['scope-data','runtime','project-widgets'].map(name=>versionedBundle('../platform-widgets/'+name+'.js',name==='runtime'?'20261012-composer-media-fixes-v1':name==='project-widgets'?'20261103-lights-expand':'20261003-project-widgets-v1'))];
   const channelsLibBundles = [
     ...widgetBundles, bookingBundle, priorityFieldsBundle,
     versionedBundle('../platform-realtime/platform-realtime.js', '20261026-live-layer'),
@@ -56,7 +56,7 @@
     versionedBundle('../payments-api/payments-api.js', '20261019-forward-cert'),
     versionedBundle('../doc-widgets/firstmate-doc-widgets.js', '20261026-sign-own-choices'),
     versionedBundle('../doc-renderer/firstmate-doc-renderer.js', '20261022-as-sent-inputs'),
-    versionedBundle('../doc-workflow/firstmate-doc-workflow.js', '20261026-mobile-documents-2'),
+    versionedBundle('../doc-workflow/firstmate-doc-workflow.js', '20261103-pinned-preview'),
     versionedBundle('signatures/project.js', '20261019-forward-cert')
   ];
   const crewBundles = [
@@ -95,7 +95,7 @@
         { id: 'tiles', label: (globalThis.PlatformLanguage?.text("firstmate-apps-manifest","subview_projects_tiles","Tiles") ?? "Tiles"), icon: 'fa-grip', route: { projectView: 'tiles' } },
         { id: 'map', label: (globalThis.PlatformLanguage?.text("firstmate-apps-manifest","subview_projects_map","Map") ?? "Map"), icon: 'fa-map-location-dot', route: { projectView: 'map' }, requires: { appFlags: [['apps', 'project_map']] } }
       ],
-      bundles: [versionedBundle('partners/shared-list.js','20261001-sharing-polish-v1'), versionedBundle('projects/map-view.js', '20261026-mobile-fixes-b'), versionedBundle('projects/viewer.js', '20261103-report-tags-roof')]
+      bundles: [versionedBundle('partners/shared-list.js','20261001-sharing-polish-v1'), versionedBundle('projects/map-view.js', '20261103-map-cover'), versionedBundle('projects/viewer.js', '20261103-map-cover')]
     },
     {
       id: 'portal.crm',
@@ -164,7 +164,7 @@
       kind: 'project_modal_app',
       surfaces: ['project_modal'],
       requiresContext: ['project'],
-      bundles: [versionedBundle('../camera-capture/camera-capture.js', '20261027-viewer-2'), versionedBundle('photos/project.js', '20261027-pinned-photos')]
+      bundles: [versionedBundle('../camera-capture/camera-capture.js', '20261027-viewer-2'), versionedBundle('photos/project.js', '20261103-cover-pill')]
     },
     {
       // DEPRECATED (2026-08): legacy Proposals project tab — hidden by its
@@ -294,7 +294,7 @@
       surfaces: ['project_modal'],
       requiresContext: ['project'],
       dependencies: ['project.proposal', 'project.materials'],
-      bundles: [gifDisplayBundle,versionedBundle('../payments-api/payments-api.js', '20261019-forward-cert'), versionedBundle('../payroll-api/payroll-api.js', '20261019-payroll-closeout-v1'), versionedBundle('../documents-api/documents-api.js', '20261022-document-history'), versionedBundle('photos/feed.js', '20261027-viewer-2'), versionedBundle('receipts/app.js', '20260714-receipt-pdf-preview'), versionedBundle('money/project.js', '20261028-one-ledger')]
+      bundles: [gifDisplayBundle,versionedBundle('../payments-api/payments-api.js', '20261019-forward-cert'), versionedBundle('../payroll-api/payroll-api.js', '20261019-payroll-closeout-v1'), versionedBundle('../documents-api/documents-api.js', '20261022-document-history'), versionedBundle('photos/feed.js', '20261027-viewer-2'), versionedBundle('receipts/app.js', '20260714-receipt-pdf-preview'), versionedBundle('money/project.js', '20261103-metrics-one-row')]
     },
     {
       id: 'project.request',
@@ -363,7 +363,7 @@
       kind: 'project_modal_app',
       surfaces: ['project_modal'],
       requiresContext: ['project'],
-      bundles: [...widgetBundles, versionedBundle('measurements/roof-viewer.js', '20261103-report-rounding'), versionedBundle('measurements/holiday-lights.js', '20261030-holiday-lights-bulb-size'), versionedBundle('measurements/project.js', '20261103-reports-3d-tab')]
+      bundles: [...widgetBundles, versionedBundle('measurements/roof-viewer.js', '20261103-lights-expand'), versionedBundle('measurements/holiday-lights.js', '20261030-holiday-lights-bulb-size'), versionedBundle('measurements/project.js', '20261103-lights-in-model')]
     },
     {
       id: 'project.checklists',

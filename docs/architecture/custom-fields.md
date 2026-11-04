@@ -174,13 +174,18 @@ another photo replaces the reference.
 ### Pinned photos in the Photos tab
 
 Every `photo` field on a project is a **pinned photo**; the cover is one of
-them and nothing in Photos names it. The row above the gallery groups has one
-tile per field the project's `custom-fields-project` contract lists (enabled,
-not background-only), labelled with the field's name: a filled field shows its
+them, written the same way, but has no tile in the pinned row. The only sign of
+the cover in the project window is a "Cover" pill in the top-right corner of its
+gallery tile (the saved satellite photo's when none is chosen); it is set and
+removed from the viewer ("Set as cover photo", "Remove cover photo"; the
+satellite fallback has nothing to remove), and there is no hover control on
+other tiles. The row above the gallery groups has one tile per other field the
+project's `custom-fields-project` contract lists (enabled, not background-only),
+labelled with the field's name: a filled field shows its
 photo and opens it in the viewer; an empty one offers "Choose photo" (the
 project media picker, with upload); a small ⋯ changes or removes it. On a phone
 the row is a horizontal strip. The viewer offers "Pin as <field>" and "Unpin
-from <field>" for each field, and a pinned tile in the gallery carries a pill
+from <field>" for each other field, and a pinned tile in the gallery carries a pill
 with the field's name. All of it writes the field's ordinary value through
 `custom-fields.project.write` with the field's `writable` permission
 (`apps/photos/project.js`, `writePhotoField`), so project tiles, map pins, the
@@ -228,7 +233,7 @@ source, and `satellite_media[source]` on the project records the save, so a repe
 writes nothing and a satellite photo someone removed is not put back. It becomes
 `cover_photo` when no cover is chosen. A project that does not exist is never
 created. After the save the photo is library media like any other: Photos shows
-it as a normal tile (pinned as Cover photo when the field holds it; there is no
+it as a normal tile (with the Cover pill when it is the cover; there is no
 "Use satellite image"), the Customer Portal tab shares or hides it like any photo, and
 the customer's portal never treats a cover specially. A cleared cover falls back
 to the saved satellite photo. The generated satellite image remains only as the

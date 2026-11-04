@@ -4569,6 +4569,16 @@
   function isQuadThumbnailUrl(url){
     return /(?:^|\/)quad(?:_crop)?(?:\.[a-z0-9]+)?(?:$|\?)/i.test(String(url || ''));
   }
+  // The cover a person chose (custom field cover_photo), as a thumbnail URL; '' when there is none.
+  // The satellite photo the server sets as the cover until someone picks one (satellite_media.auto_cover_media_id)
+  // is not a chosen cover, and a cover in the trash or a video gives way, as in primaryPhoto.
+  function chosenCoverUrl(p){
+    const coverId = String((p?.custom_field_values || p?.custom_fields || {}).cover_photo?.media_id || '').trim();
+    if (!coverId || coverId === String(p?.satellite_media?.auto_cover_media_id || '').trim()) return '';
+    const photo = window.PlatformAPI?.projectMedia?.primaryPhoto?.(p, {orgId:window.__APP?.userOrgId || window.Portal?.cfg?.orgId}) || {};
+    if (String(photo.media_id || '').trim() !== coverId) return '';
+    return [photo.thumb, photo.thumbnail, photo.src, photo.url].find((url) => url && !isQuadThumbnailUrl(url)) || '';
+  }
   function dedupeUrls(urls){
     const out = [];
     const seen = new Set();
@@ -6597,6 +6607,7 @@
         groupId:String(entry.group.id),
         groupTitle:entry.group.title || '',
         color:(String(entry.group.id || '').startsWith('__no_') && projectOwnStageColor(p)) || entry.group.color || '#667085',
+        cover:chosenCoverUrl(p),
         project:p
       };
     });

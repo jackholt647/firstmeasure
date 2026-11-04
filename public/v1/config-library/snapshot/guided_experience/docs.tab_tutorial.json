@@ -1,0 +1,150 @@
+{
+  "kind": "guided_experience",
+  "id": "docs.tab_tutorial",
+  "revision": 1,
+  "sha256": "4f348e91def10c78921c238d0d2e61bfabcd62d61fb0f18056b93833447f0c45",
+  "title": "Docs tour",
+  "updated_at": "2026-11-04T02:50:12.638Z",
+  "updated_by": "agent:claude",
+  "data": {
+    "id": "docs.tab_tutorial",
+    "version": 1,
+    "kind": "overlay",
+    "scope": "person",
+    "salt": "2026-11",
+    "title": {
+      "key": "gx_dt_title",
+      "text": "Docs tour"
+    },
+    "tab": "project.docs",
+    "eligibility": {
+      "capabilities": [
+        "platform.documents"
+      ],
+      "permissions": []
+    },
+    "triggers": [
+      {
+        "kind": "tab_opened",
+        "tab": "project.docs",
+        "once": true,
+        "delay_ms": 900
+      }
+    ],
+    "variants": [
+      {
+        "id": "tour",
+        "weight": 1,
+        "content": {}
+      }
+    ],
+    "requires": [],
+    "steps": [
+      {
+        "id": "intro",
+        "title": {
+          "key": "gx_dt_intro_title",
+          "text": "Welcome to Docs"
+        },
+        "body": {
+          "key": "gx_dt_intro_body",
+          "text": "Every document for this project lives here: measurement reports, proposals, contracts, invoices and the files you upload."
+        },
+        "targets": [],
+        "placement": "center",
+        "advance": "next",
+        "wait_ms": 1500
+      },
+      {
+        "id": "reports",
+        "title": {
+          "key": "gx_dt_reports_title",
+          "text": "Reports land here"
+        },
+        "body": {
+          "key": "gx_dt_reports_body",
+          "text": "When a measurement report is delivered, it appears here by itself. Click any document to open it."
+        },
+        "targets": [
+          "[data-docs-root] [data-photo-feed-dynamic]"
+        ],
+        "placement": "auto",
+        "advance": "next",
+        "wait_ms": 1500
+      },
+      {
+        "id": "shown",
+        "title": {
+          "key": "gx_dt_shown_title",
+          "text": "Choose what's shown"
+        },
+        "body": {
+          "key": "gx_dt_shown_body",
+          "text": "Show or hide proposals and reports, invoices, receipts and other files."
+        },
+        "targets": [
+          "[data-docs-root] [data-gallery-toolbar-action=\"shown\"]"
+        ],
+        "placement": "auto",
+        "advance": "next",
+        "wait_ms": 1500
+      },
+      {
+        "id": "upload",
+        "title": {
+          "key": "gx_dt_upload_title",
+          "text": "Upload files"
+        },
+        "body": {
+          "key": "gx_dt_upload_body",
+          "text": "Add PDFs, spreadsheets or photos of paper documents you already have."
+        },
+        "targets": [
+          "[data-docs-root] [data-photo-feed-upload]"
+        ],
+        "placement": "auto",
+        "advance": "next",
+        "wait_ms": 1500
+      },
+      {
+        "id": "new",
+        "title": {
+          "key": "gx_dt_new_title",
+          "text": "Make a new document"
+        },
+        "body": {
+          "key": "gx_dt_new_body",
+          "text": "Press New to start a proposal, contract, change order, invoice or work order from a template, or from a blank page."
+        },
+        "targets": [
+          "[data-docs-root] [data-gallery-toolbar-action=\"new_document\"]"
+        ],
+        "placement": "auto",
+        "advance": "next",
+        "wait_ms": 1500
+      },
+      {
+        "id": "outro",
+        "title": {
+          "key": "gx_dt_outro_title",
+          "text": "You're all set"
+        },
+        "body": {
+          "key": "gx_dt_outro_body",
+          "text": "Want this tour again? Ask the agent \"Show me the tutorial again\"."
+        },
+        "targets": [],
+        "placement": "center",
+        "advance": "next",
+        "wait_ms": 1500
+      }
+    ],
+    "completion": {
+      "screen": "none",
+      "say": [],
+      "then": []
+    },
+    "replayable": true,
+    "reveal": []
+  }
+}

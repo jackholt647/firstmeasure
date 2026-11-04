@@ -55,7 +55,8 @@ test('the MVP platform workflow is FirstMeasure plus projects, contacts, feed, o
  const instance=await service.createTestInstance('swf_mvp_platform',{label:'MVP platform fixture'});
  const orgId=String(instance.testOrg.org_id);
  const offered=await storage.readGlobal(orgId);
- assert.deepEqual((offered.data as any).app_offers,['project.photos','project.docs','project.customer_portal','project.materials','portal.equipment','project.money','portal.financials','project.checklists']);
+ // Photos and Docs are on from the start (each plays its tour on first open); the rest wait for Get Started.
+ assert.deepEqual((offered.data as any).app_offers,['project.customer_portal','project.materials','portal.equipment','project.money','portal.financials','project.checklists']);
  const beforeStart=await capabilities.effectiveCapabilities(orgId);
  // Money (its project tab and Financials) and Checklists are configured on but wait for Get Started.
  for(const key of ['platform.money','money.profitability','money.take_payment','apps.checklists']) assert.equal(beforeStart.effectiveByKey[key],false,`${key} waits for Get Started`);
@@ -72,7 +73,12 @@ test('the MVP platform workflow is FirstMeasure plus projects, contacts, feed, o
  }
  assert.equal((offeredProfile.app_entitlements_by_id['project.money'] as any).welcome.setup,'platform.money','Money continues into its setup');
  assert.equal(beforeStart.effectiveByKey['platform.photos_feed'],true,'Feed is available at MVP launch');
- assert.equal(beforeStart.effectiveByKey['platform.project_photos'],false,'project Photos waits for Get Started');
+ assert.equal(beforeStart.effectiveByKey['platform.project_photos'],true,'project Photos is on from the start');
+ assert.equal(beforeStart.effectiveByKey['platform.documents'],true,'Docs is on from the start');
+ for(const id of ['project.photos','project.docs']){
+  const entitlement:any=offeredProfile.app_entitlements_by_id[id];
+  assert.equal(entitlement?.allowed,true,`${id} is shown to the owner`);assert.notEqual(entitlement?.offered,true,`${id} is not an offer`);
+ }
  assert.equal(beforeStart.effectiveByKey['apps.equipment'],false,'Equipment is only offered until setup is chosen');
  assert.equal(beforeStart.effectiveByKey['equipment.scheduling'],false,'offered Equipment exposes no scheduling integration');
  // The remainder exercises the configured apps after the organization has opted in.
