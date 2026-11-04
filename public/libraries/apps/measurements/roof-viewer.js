@@ -627,8 +627,8 @@
     // ---- Full-house surfaces, openings and edges: built and textured by the editor's own code ----
     function buildExterior({T,point,defaults}){
       const F=finishes,toScene=p=>point(frame.toFeet(p)),obj=a=>({x:a[0],y:a[1],z:a[2]}),vector=p=>point(frame.toFeet([p.x,p.y,p.z])),roofFinish=exterior.roofFinish||null;
-      const labelFor=key=>({siding:'Horizontal siding','siding-vertical':'Vertical siding',soffit:'Soffit','trim-horizontal':'Horizontal trim','trim-vertical':'Vertical trim',brick:'Brick',masonry:'Masonry',stucco:'Stucco',stone:'Stone',other:'Other',unassigned:'Unassigned'})[key]||'Unassigned';
-      const flatColor=(key,color)=>color||({brick:'#a65d4b',stone:'#9a948a',stucco:'#e0d8c8',masonry:'#a39f96',soffit:'#eceae4','trim-horizontal':defaults.trimColor||'#f5f3ef','trim-vertical':defaults.trimColor||'#f5f3ef'})[key]||defaults.color||'#b9bec6';
+      const labelFor=key=>({siding:'Horizontal siding','siding-vertical':'Vertical siding',soffit:'Soffit','trim-horizontal':'Horizontal trim','trim-vertical':'Vertical trim',brick:'Brick',masonry:'Masonry',stucco:'Stucco',concrete:'Concrete',stone:'Stone',other:'Other',unassigned:'Unassigned'})[key]||'Unassigned';
+      const flatColor=(key,color)=>color||({brick:'#a65d4b',stone:'#9a948a',stucco:'#e0d8c8',concrete:'#c4c7c8',masonry:'#a39f96',soffit:'#eceae4','trim-horizontal':defaults.trimColor||'#f5f3ef','trim-vertical':defaults.trimColor||'#f5f3ef'})[key]||defaults.color||'#b9bec6';
       // Solid display as the editor's exteriorSurfaceDisplay sets it: opaque, depth-written, features and fascia in front.
       const solid=(mesh,offset=1,order=0)=>{const m=mesh.material;Object.assign(m,{opacity:1,transparent:false,depthWrite:true,depthTest:true,polygonOffset:true,polygonOffsetFactor:offset,polygonOffsetUnits:offset});mesh.renderOrder=order;objects.push(m);return mesh;};
       // The organization's finish defaults, which the editor reads from its own state.
@@ -705,7 +705,7 @@
     function wallAnchor(wall){const n=newell(wall.points);if(!n)return null;const l=Math.hypot(n[0],n[1]);if(l<.5)return null;const u=[-n[1]/l,n[0]/l,0],o=wall.points[0],to2=p=>[dot3([p[0]-o[0],p[1]-o[1],p[2]-o[2]],u),p[2]-o[2],0];
       const anchor=faceLabelAnchor({points:wall.points.map(to2),holes:(wall.holes||[]).map(r=>r.map(to2)),area:1,pitch:0});if(!anchor)return null;const [s,h]=anchor.point;return [o[0]+u[0]*s+n[0]*.15,o[1]+u[1]*s+n[1]*.15,o[2]+h];}
     // ---- Projected design: the customer's finish choices layered over the as-built report (full house only) ----
-    const WALL_CHOICES=[['unassigned','Smooth'],['siding','Horizontal siding'],['siding-vertical','Vertical siding'],['brick','Brick'],['masonry','Masonry'],['stucco','Stucco'],['stone','Stone'],['other','Other']];
+    const WALL_CHOICES=[['unassigned','Smooth'],['siding','Horizontal siding'],['siding-vertical','Vertical siding'],['brick','Brick'],['masonry','Masonry'],['stucco','Stucco'],['concrete','Concrete'],['stone','Stone'],['other','Other']];
     const blankDesign=()=>({version:1,mode:'built',defaults:{},walls:{},openings:{},source:null});
     let design=blankDesign(),designMode='built',designOpen=false,designStatus='',saveTimer=null,designPanelKey='',designSaving=Promise.resolve();
     const designBar=root.querySelector('[data-design-bar]'),designPanel=root.querySelector('[data-design-panel]');
@@ -811,7 +811,7 @@
         const preset=c&&F.roofMaterials[category].colors.find(p=>norm(p.label)===norm(c.label)||norm(p.id)===norm(c.id));const color=c?.hex||preset?.color||F.roofMaterials[category].colors[0].color;
         out.defaults.roof={category,color};out.applied.push(`Roof: ${covering.name||F.roofMaterials[category].label}${c?' · '+c.label:''}`);}
       const siding=pick(/siding|board.?and.?batten|lap\b/i)[0];if(siding){const t=text(siding),c=colorOf(siding);out.defaults.material=/vertical|board.?and.?batten/i.test(t)?'siding-vertical':'siding';if(c?.hex)out.defaults.color=c.hex;out.applied.push(`Walls: ${siding.name}${c?' · '+c.label:''}`);}
-      else{for(const [re,material] of [[/brick/i,'brick'],[/stucco/i,'stucco'],[/stone/i,'stone']]){const line=pick(re)[0];if(line){const c=colorOf(line);out.defaults.material=material;if(c?.hex)out.defaults.color=c.hex;out.applied.push(`Walls: ${line.name}${c?' · '+c.label:''}`);break;}}}
+      else{for(const [re,material] of [[/brick/i,'brick'],[/stucco/i,'stucco'],[/concrete/i,'concrete'],[/stone/i,'stone']]){const line=pick(re)[0];if(line){const c=colorOf(line);out.defaults.material=material;if(c?.hex)out.defaults.color=c.hex;out.applied.push(`Walls: ${line.name}${c?' · '+c.label:''}`);break;}}}
       const trim=pick(/\btrim\b|fascia/i).find(l=>colorOf(l)?.hex);if(trim){out.defaults.trimColor=colorOf(trim).hex;out.applied.push(`Trim: ${trim.name} · ${colorOf(trim).label}`);}
       const garage=pick(/garage door/i).find(l=>colorOf(l)?.hex);if(garage){(out.defaults.stickers||={}).garageMain=colorOf(garage).hex;out.applied.push(`Garage doors: ${colorOf(garage).label}`);}
       const door=pick(/\bdoor\b/i).filter(l=>!/garage/i.test(text(l))).find(l=>colorOf(l)?.hex);if(door){(out.defaults.stickers||={}).doorMain=colorOf(door).hex;out.applied.push(`Doors: ${colorOf(door).label}`);}
