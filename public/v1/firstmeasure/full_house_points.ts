@@ -9,7 +9,8 @@
 // Every production consumer (the editor's post-submit summary, earnings,
 // payroll, queue bands, QA ranking and QA shift points) reads the manifest's
 // point_value, so the drafter and QA see one complexity, one allotted time and
-// one pay tier derived from the total. Roof jobs never pass through here.
+// one pay tier derived from the total. The total is rounded up to a whole
+// point. Roof jobs never pass through here.
 import {
   FIRSTMEASURE_COMPLEXITY_POINT_VALUES,
   firstMeasureComplexityForRoofSegments
@@ -118,9 +119,12 @@ export function computeFullHousePoints(counts: ReturnType<typeof countFullHouseM
   const roofPoints = pointsForComplexity(roofComplexity);
   const wall = wallComplexityProxy(counts, params.wall_proxy);
   const wallPoints = pointsForComplexity(wall.complexity);
-  // Rounded to cents of a point, so 3 + 1.1 x 3 is 6.3 and not 6.300000000000001.
-  const total = Math.round((roofPoints + params.wall_multiplier * wallPoints) * 100) / 100;
-  const complexity = fullHouseProjectComplexity(total, params.wall_multiplier);
+  // Rounded to cents of a point first, so 3 + 1.1 x 3 is 6.3 and not
+  // 6.300000000000001, and a whole 6.000000001 stays 6.
+  const rawPoints = Math.round((roofPoints + params.wall_multiplier * wallPoints) * 100) / 100;
+  // Technician points are whole numbers: a full house always rounds up (FM-326).
+  const total = Math.ceil(rawPoints);
+  const complexity = fullHouseProjectComplexity(rawPoints, params.wall_multiplier);
   return {
     complexity,
     point_value: total,
@@ -131,6 +135,7 @@ export function computeFullHousePoints(counts: ReturnType<typeof countFullHouseM
       roof: { facets: counts.roof_facets, complexity: roofComplexity, points: roofPoints },
       walls: { windows: counts.windows, doors: counts.doors, wall_planes: counts.wall_planes, score: wall.score, complexity: wall.complexity, points: wallPoints },
       wall_multiplier: params.wall_multiplier,
+      raw_points: rawPoints,
       total_points: total,
       project_complexity: complexity
     }
