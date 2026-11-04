@@ -119,6 +119,8 @@
         </aside>
       </div></div>`;
     const canvasHost = root.querySelector('.fm-hl-canvas');
+    // The counts panel may be moved out of root (the roof viewer's left column), so later lookups go through it.
+    const panel = root.querySelector('.fm-hl-panel');
     const message = root.querySelector('.fm-hl-message');
     const resetButton = root.querySelector('[data-hl-reset]');
     root.querySelector('.fm-hl-panel').setAttribute('aria-label', t('hl_panel_label', 'Holiday lights'));
@@ -156,7 +158,7 @@
     }
 
     function renderPanel(runs){
-      const host = root.querySelector('[data-hl-edges]');
+      const host = panel.querySelector('[data-hl-edges]');
       host.querySelectorAll('.fm-hl-edge').forEach((row) => row.remove());
       for (const edge of EDGES) {
         const length = lengthOf(edge.type);
@@ -178,8 +180,8 @@
         host.append(row);
       }
       const total = runs.reduce((sum, run) => sum + run.length, 0);
-      root.querySelector('[data-hl-total]').textContent = feet(total);
-      root.querySelector('[data-hl-total-label]').textContent = runs.length === 1
+      panel.querySelector('[data-hl-total]').textContent = feet(total);
+      panel.querySelector('[data-hl-total-label]').textContent = runs.length === 1
         ? t('hl_total_one_run', 'of lights in 1 run')
         : t('hl_total_runs', `of lights in ${runs.length} separate runs`, { count: runs.length });
       const runRows = runs.map((run) => {
@@ -201,10 +203,10 @@
         empty.textContent = t('hl_runs_none', 'No edges are lit.');
         runRows.push(empty);
       }
-      root.querySelector('[data-hl-runs]').replaceChildren(...runRows);
+      panel.querySelector('[data-hl-runs]').replaceChildren(...runRows);
       const lit = runs.flatMap((run) => run.edges);
       // Each spacing is a choice: the selected one is what the roof shows.
-      root.querySelector('[data-hl-spacing]').replaceChildren(...SPACINGS.map((inches) => {
+      panel.querySelector('[data-hl-spacing]').replaceChildren(...SPACINGS.map((inches) => {
         const bulbs = lit.reduce((sum, edge) => sum + bulbsOn(edge.length, inches), 0);
         const row = document.createElement('button');
         row.type = 'button';

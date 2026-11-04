@@ -150,7 +150,7 @@ test('require: a setup step that is answered asks nothing',async()=>{
   }finally{await browser.close();}
 });
 
-test('phone: the company step fills the screen without sideways scrolling',async()=>{
+test('phone: the company step fits the screen without sideways scrolling',async()=>{
   const browser=await chromium.launch({channel:'chrome',headless:true});
   try{
     const {page,errors}=await load(browser,{width:390,height:844});
@@ -169,6 +169,50 @@ test('phone: the company step fills the screen without sideways scrolling',async
     await page.waitForSelector('.gxc [data-service]');
     await page.click('[data-service=roof_replacement]');await page.click('[data-service=roof_repair]');
     await page.waitForTimeout(350);await shot(page,'company-services-phone');
+    assert.deepEqual(errors,[]);
+  }finally{await browser.close();}
+});
+
+// The sheet follows its step (guided-setup.js fit): a landscape rectangle as tall as the step, footer close below the
+// content, growing when a taller step comes and capped (the step scrolls) at the screen; on a phone a modal setup is a
+// sheet from the bottom edge, as tall as its step.
+const sheetFit=page=>page.evaluate(()=>{
+  const sheet=document.querySelector('.gxs-sheet').getBoundingClientRect(),pane=document.querySelector('.gxs-step:not(.gxs-above)');
+  let bottom=pane.querySelector('.gxs-titlebar').getBoundingClientRect().bottom;
+  for(const el of pane.querySelectorAll('.gxs-body *')){const r=el.getBoundingClientRect();if(r.width&&r.height)bottom=Math.max(bottom,r.bottom);}
+  return {width:sheet.width,height:sheet.height,top:sheet.top,bottom:sheet.bottom,gap:document.querySelector('.gxs-foot').getBoundingClientRect().top-Math.min(bottom,sheet.bottom),scrolls:pane.scrollHeight>pane.clientHeight+1};
+});
+test('the sheet is as tall as its step: landscape, footer close to the content, growing with a taller step',async()=>{
+  const browser=await chromium.launch({channel:'chrome',headless:true});
+  try{
+    const {page,errors}=await load(browser,{width:1280,height:820});
+    page.evaluate(()=>FirstMateGuides.play('ops.test')).catch(()=>{});
+    await onStep(page,'Start with the work');
+    await page.waitForTimeout(700);
+    const small=await sheetFit(page);
+    assert.ok(small.height<300&&small.width>small.height*2,`a short step makes a short, wide sheet (${JSON.stringify(small)})`);
+    assert.ok(small.gap>=0&&small.gap<40,`the footer sits just below the content (${small.gap})`);
+    await page.click('[data-test-pick]');await next(page);
+    await onStep(page,'What kind of company are you?');
+    await page.waitForSelector('.gxc-tile');
+    await page.waitForTimeout(700);
+    const tall=await sheetFit(page);
+    assert.ok(tall.height>small.height+150&&tall.height<=820-32+1,`a taller step grows the sheet, within the screen (${JSON.stringify(tall)})`);
+    assert.ok(tall.width===small.width,'the width stays');
+    assert.ok(tall.scrolls||tall.gap<40,`no empty space under the content (${tall.gap})`);
+    assert.deepEqual(errors,[]);
+  }finally{await browser.close();}
+});
+test('phone: a modal setup is a sheet from the bottom edge, as tall as its step',async()=>{
+  const browser=await chromium.launch({channel:'chrome',headless:true});
+  try{
+    const {page,errors}=await load(browser,{width:390,height:844});
+    page.evaluate(()=>FirstMateGuides.play('ops.test')).catch(()=>{});
+    await onStep(page,'Start with the work');
+    await page.waitForTimeout(700);
+    const box=await sheetFit(page);
+    assert.ok(Math.abs(box.width-390)<1&&Math.abs(box.bottom-844)<1,`full width, on the bottom edge (${JSON.stringify(box)})`);
+    assert.ok(box.height<400&&box.gap<40,`as tall as the step (${JSON.stringify(box)})`);
     assert.deepEqual(errors,[]);
   }finally{await browser.close();}
 });

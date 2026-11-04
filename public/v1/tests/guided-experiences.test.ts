@@ -183,6 +183,15 @@ test("Operations uses the shared document workflow and optional setup hub before
    assert.deepEqual(optional.triggers.map(trigger=>trigger.kind),['manual'],`${id} only starts when chosen`);
  }
  assert.equal((experience('operations.proposal.setup')!.steps[0] as any).options.path,'proposal');
+ // The proposal tutorial: one per-person tour the Operations proposal path plays as a sub-guide and the Docs tab plays
+ // the first time a proposal workflow opens. Its targets are the document workflow's own, not the Operations sheet's.
+ const proposal=experience('documents.proposal_tutorial')!;
+ assert.equal(experienceSchema.safeParse(proposal).success,true);
+ assert.equal(proposal.kind,'overlay');assert.equal(proposal.scope,'person');assert.equal(proposal.replayable,true);
+ assert.deepEqual(proposal.triggers,[{kind:'workflow_opened',document_type:'proposal',once:true,delay_ms:400}]);
+ assert.deepEqual(proposal.eligibility.capabilities,['platform.documents'],'eligibility, never a configuration check');
+ for(const step of proposal.steps as any[])for(const target of step.targets)assert.match(target,/^\[data-fmdw-root\] /,`${step.id} points into any document workflow`);
+ assert.equal(experienceSchema.safeParse({...proposal,triggers:[{kind:'workflow_opened'}]}).success,false,'a workflow_opened trigger names the kind of document');
  const operator=person('operations-editor',{permissions:{manage_projects:true}});
  const listed=await service.availableExperiences(operator,{tab:'project.materials'});
  assert.ok(listed.experiences.some(item=>item.id==='operations.setup'),'a project editor does not need company-settings permission to build a scope');

@@ -2281,6 +2281,8 @@
             completed_steps: arrayValue(objectValue(record.state).completed_steps)
           },
           scope: { project: project() },
+          // Announced with the opened workflow, so a guide can play the first time a kind of document is built.
+          document: { id: doc.id, type: cleanText(doc.document_type) },
           onWrite: (path, value) => queueWorkflowWrite(path, value),
           onStepState: (stepState) => { persistWorkflowStepState(stepState); syncDeliverableButtons(objectValue(stepState).ready); },
           labels: { finish: 'Send' },

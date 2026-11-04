@@ -1447,7 +1447,8 @@ function collectPricedProjection(nodes: PricedRowNode[]) {
   // the same expressions when checkout variables change (frozen but reactive).
   const inventory = (node: PricedRowNode) => {
     if (node.conditional) {
-      conditional.push({ ...node.item, children: undefined, depth: node.depth, included: node.included });
+      const { children: _children, ...item } = node.item;
+      conditional.push({ ...item, depth: node.depth, included: node.included });
     }
     node.children.forEach(inventory);
   };
@@ -1457,9 +1458,10 @@ function collectPricedProjection(nodes: PricedRowNode[]) {
   const project = (node: PricedRowNode) => {
     if (!node.included || node.item.selected === false) return;
     const includedChild = node.item.included === true && node.depth > 0;
+    // A projection row has no children key at all (an undefined value is not JSON, and published actions refuse it).
+    const { children: _children, ...item } = node.item;
     flat.push({
-      ...node.item,
-      children: undefined,
+      ...item,
       // The row this projection line shows, so a value typed into the
       // rendered document is stored on the row (FMDocModel bindingTarget).
       ...(node.path ? { source_path: node.path } : {}),

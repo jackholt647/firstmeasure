@@ -1,11 +1,11 @@
 {
   "kind": "guided_experience",
   "id": "checklists.setup",
-  "revision": 1,
-  "sha256": "fd3d103e796da2ea73fd94e4e9920b2f99d45894c1e801233c1c0ebb5360fccc",
+  "revision": 2,
+  "sha256": "95b2ca188ca415e2cd4fb543c345efab0b476268259f3ca3d475b74208c88df7",
   "title": "Set up checklists",
-  "updated_at": "2026-10-28T08:39:48.475Z",
-  "updated_by": "router-fm-283",
+  "updated_at": "2026-11-04T03:33:05.453Z",
+  "updated_by": "key:ck_7897b5259beb4fa3 agents:jack-pc",
   "data": {
     "id": "checklists.setup",
     "version": 1,
@@ -205,7 +205,7 @@
       {
         "id": "use_cases",
         "widget": "module",
-        "module": "/libraries/guided-experiences/checklists-setup.js?v=20261028-1",
+        "module": "/libraries/guided-experiences/checklists-setup.js?v=20261103-fit",
         "requires": [],
         "title": {
           "key": "gx_cl_uc_title",

@@ -42,7 +42,8 @@ An **experience** (`experienceSchema`):
   required, `a|b` allowed) and `when`, conditions over the chooser context.
 - `triggers`: `before_action` (a selector; the click is held, the experience
   plays, then the click goes through), `tab_opened` (a project tab app id),
-  `after_experience`, `app_loaded`, `manual`. Each has `once` and optional `when`.
+  `after_experience`, `app_loaded`, `workflow_opened` (a `document_type`: a document
+  workflow opened for that kind of document), `manual`. Each has `once` and optional `when`.
 - `variants`: `id`, `weight`, `when`, optional `kind` (a modal where the assistant
   is off), `steps` (an order or a subset) and `content` (options merged per step).
 - `steps`. Overlay steps: `title`, `body`, `targets` (selectors left undimmed;
@@ -162,8 +163,14 @@ underneath; the card fades only once the tray shows the conversation. Reduced
 motion opens the tray at once. Each step change has one owner: a generation
 counter removes every pane but the one on screen and stale animation callbacks
 do nothing, so fast Back/Continue never stacks steps.
-Under 760px the sheet fills the screen and the assistant folds below it behind an
-Agent handle. `prefers-reduced-motion` turns every animation off. Without the
+The sheet is a wide landscape rectangle (960px modal, 1120px agentic) as tall as
+the step on screen: the player measures the step's own content (the pane let go of
+the stage's bottom edge) into `--gxs-fit` whenever it changes size, and the CSS
+caps it at `min(760px, 100vh - 32px)`, past which the step scrolls. A step that
+fills (`data-fill`) has no fit and takes the full height; the agentic sheet keeps
+at least 600px for the conversation. Under 760px a modal setup is a sheet from the
+bottom edge, as tall as its step; the agentic one fills the screen and the
+assistant folds below it behind an Agent handle. `prefers-reduced-motion` turns every animation off. Without the
 assistant (or without a project) the same steps play as a modal.
 
 **Preprogrammed workflows in the assistant** (`platform-assistant.js`). A host
@@ -183,9 +190,11 @@ Widgets are registered with `FirstMateGuidedSetup.registerWidget(id, { render(el
 { step, options, selections, change, actions }) })`. `change(patch, summary)` merges a
 selection patch and gives the plain summary the agent repeats in the person's
 words (an empty summary posts nothing). `actions` is the step's title row, for a
-control such as "Use all". A widget declared `fill: true` gets the step's height
-(the logo grid, supplier columns); other steps scroll with a fade at the bottom
-while there is more. `hint()` says why Continue is disabled, as its tooltip.
+control such as "Use all". A widget declared `fill: true` gets the full sheet height
+(the logo grid, supplier columns, the Operations workflow); a widget may switch it
+by toggling `data-fill` on its step (the supplier step fills only once it has
+columns). Other steps make the sheet as tall as they are and scroll with a fade at
+the bottom past the cap. Do not size the sheet per guide. `hint()` says why Continue is disabled, as its tooltip.
 Steps can branch: the player follows a step's fixed `next` itself, waits for the
 server's answer only after a step with `branches`, remembers the way taken (Back
 returns along it). There is no step count or progress bar: a setup's length is not
@@ -221,7 +230,12 @@ bypass (found again by its selector if the page redrew it). A dismissed setup
 also lets the click through. `tab_opened` listens for `fm:project-tab:opened`,
 which `tab-guides.js` `opened()` dispatches in the frame that shows the tab;
 route changes only refresh what is offered. `after_experience` is the `play` in
-`then`.
+`then`. `workflow_opened` listens for `fm:doc-workflow:opened`, which `FMDocWorkflow.mount`
+dispatches in its own frame with the document its host names (`document: { id, type }`; the
+documents app passes the document's `document_type`). It plays once that workflow is laid out
+and nothing covers it (checked with `elementFromPoint`), so the documents New dialog (z-index
+2147483530, above the tour layer) closes first; a hidden host never starts it, and a play still
+queued when the workflow goes away is dropped (`options.showing`).
 
 **Preload and instant tab tours.** As soon as a frame knows its project (the
 first read, `fm:project-modal:hydrated`, or `FirstMateGuides.preload(projectId)`)
@@ -512,10 +526,11 @@ has; where `apps.crew` is off it always shows. The setting is data on the
 organization's Labor type, never a configuration check.
 
 
-## Tab tours: Photos, Reports, Customer Portal
+## Tab tours: Photos, Docs, Reports, Customer Portal
 
 One overlay tour per tab, each its own `guided_experience` entry:
 `photos.tab_tutorial` (`project.photos`, `platform.project_photos`),
+`docs.tab_tutorial` (`project.docs`, `platform.documents`),
 `reports.tab_tutorial` (`project.measurements`, `apps.firstmeasure`) and
 `customer_portal.tab_tutorial` (`project.customer_portal`,
 `platform.customer_portal`). **The Reports tour is off for now** (Jack, Nov 2):
@@ -533,8 +548,13 @@ the feature is off rather than relying on the control being missing: Reports'
 Summary (`firstmeasure.measurement_report_summary`) and Support
 (`firstmeasure.report_followup`), the portal's customer options
 (`scheduling.customer_rescheduling|customer_portal.guest_links`) and the photos
-the customer sees (`platform.customer_portal_media`). There is no Docs tour yet: the Documents tab
-is being reworked first. `tests/guided-tab-tours.test.ts` checks the data and
+the customer sees (`platform.customer_portal_media`). Photos (revision 2) is
+basic: upload or take photos, open one, and the cover photo (set from the viewer's "Set as cover photo"; its tile
+shows a Cover pill, `[data-project-cover-current]`). Docs: measurement reports land in the tab, the Shown filter,
+Upload, and New, whose dialog starts proposals, contracts, change orders, invoices and work orders. The tour points
+at New and names those types rather than stepping inside the New dialog: the documents modal
+(`.fmdx-modal-back`, z-index 2147483530) sits above the tour's scrim and card (2147483300/2147483400), so a step
+there would be hidden behind it. `tests/guided-tab-tours.test.ts` checks the data and
 that every target's hooks are in the tab's source;
 `tests/guided-tab-tours-browser.test.ts` plays each tour against the real
 service.
@@ -644,6 +664,17 @@ preview and has no payment or signing step. The proposal keeps its ordinary
 preview, payment terms and customer lifecycle. Completion publishes an explicit
 internal planning scope; it does not claim customer acceptance. The hub requires
 that retained artifact before allowing materials generation.
+
+**The proposal tutorial** (`documents.proposal_tutorial`: overlay, per person, replayable,
+`platform.documents`) is one tour over any proposal's document workflow: the step list, the work
+picker, the live preview and Next, by the workflow's own hooks (`[data-fmdw-root] …`). The
+proposal path (in `operations.setup` and in the hub's `operations.proposal.setup`) plays it as a
+sub-guide over its workflow (`runGuide`, the scope path plays `operations.workflow_tutorial`); the
+Docs tab plays it with its `workflow_opened` trigger (`document_type: proposal`) the first time a
+proposal workflow opens. Progress is the person's, on the server, so finishing it in one place
+finishes it in the other. The Operations save carries on when something else saved the same
+document first (its Send or Present editor, the document reopened after a reload): it reads the
+latest revision and saves over it once, and the preview never waits on a save succeeding.
 
 The hub offers optional supplier, equipment, workforce and proposal setup with
 estimates of 5, 3, 5 and 10 minutes. Each writer is a published action run as the

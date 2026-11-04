@@ -5047,7 +5047,8 @@
     "m_e839e628a5c743": "Close design",
     "m_c1b810cb6841fe": "Reading material lists…",
     "m_df13f4ec78c9b6": "No roof, siding, trim or door products with a color were found on this project’s material lists.",
-    "main_pitch_degrees": "Main pitch (degrees)"
+    "main_pitch_degrees": "Main pitch (degrees)",
+    "m_906d58f5ce0ae8": "Use the roof, siding, trim and door products on this project’s material lists"
   },
   "money": {
     "m_487adb3f2ba511": "Loading money...",
@@ -6619,7 +6620,8 @@
     "m_fca1a80d4d5f2f": {
       "message": "Change board stage, currently {v1}",
       "format": "icu"
-    }
+    },
+    "m_ae873abaa56707": "Measurements"
   },
   "project-schedule": {
     "m_88e13d64071885": "Schedule locked",
@@ -16406,6 +16408,7 @@
     },
     "m_08781c4c9e5c9b": "No measurements yet.",
     "m_641beeb7a2ff91": " Load from project",
+    "m_5bf330924a659a": " Reload from project",
     "m_f236362c34b933": "No project photos are available to choose from yet.",
     "m_4f893b8c92cc5a": " Clear selection",
     "m_414b43a606b221": "Layout\n                ",
@@ -16654,7 +16657,8 @@
     "m_8844d0bc7a261b": "Progress payment",
     "m_1ed494293f1cc3": "Payment in full",
     "m_8e318bf7d3e722": " Balance",
-    "m_e1bbf40bfd14ef": "About this step"
+    "m_e1bbf40bfd14ef": "About this step",
+    "m_b4ff33c54a8197": "Full screen"
   },
   "insights": {
     "m_89b8c4efe6661d": "Insight",
@@ -18903,7 +18907,7 @@
     "measurement_import_mode": "Measurement import requires command execution.",
     "measurement_report_unlinked": "The project has no linked measurement report.",
     "measurement_report_owner": "The report belongs to another organization.",
-    "measurement_report_pending": "The report must be completed before importing measurements.",
+    "measurement_report_pending": "The report must be delivered before importing measurements.",
     "measurement_values_unavailable": "The report does not contain supported measurement values yet.",
     "binding_project_required": "This template needs a project instance.",
     "snapshot_viewer_denied": "This snapshot contains another user's view.",
@@ -20132,7 +20136,15 @@
     "checklist_signature_not_required": "This checklist does not ask for a signature.",
     "enroll_nonce_invalid": "The nonce is 16 to 64 hex digits.",
     "enroll_stale": "The enrollment is older than five minutes, or this machine's clock is off.",
-    "enroll_replayed": "This enrollment was already used."
+    "enroll_replayed": "This enrollment was already used.",
+    "full_house_claim_required": "Claim this project from the queue before submitting it.",
+    "billboard_unavailable": "That billboard is not published.",
+    "flag_console_staff_only": "The feature flag console is for platform staff.",
+    "invalid_flag_key": "That access key is not valid, has expired or was revoked.",
+    "audit_entry_not_found": "That audit entry was not found.",
+    "invalid_percent": "A percentage is from 0 to 100.",
+    "flag_introduce_needs_on": "Only turning a flag on can introduce it.",
+    "no_organizations": "Choose at least one organization."
   },
   "notifications": {
     "document_greeting": {

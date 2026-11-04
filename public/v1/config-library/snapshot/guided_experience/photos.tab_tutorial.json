@@ -1,14 +1,14 @@
 {
   "kind": "guided_experience",
   "id": "photos.tab_tutorial",
-  "revision": 1,
-  "sha256": "0e0405d5dc2158041d5fe8fdf9499e836dfac545d981322ffa83cf849fdbbe1a",
+  "revision": 2,
+  "sha256": "748077b46c6f3c3f29f9a1fd948e46973a5e3ebb743564cf21c1aa4cfd4914ee",
   "title": "Photos tour",
-  "updated_at": "2026-10-28T00:40:02.983Z",
-  "updated_by": "generator",
+  "updated_at": "2026-11-04T02:55:45.794Z",
+  "updated_by": "key:ck_7897b5259beb4fa3 agents:jack-pc",
   "data": {
     "id": "photos.tab_tutorial",
-    "version": 1,
+    "version": 2,
     "kind": "overlay",
     "scope": "person",
     "salt": "2026-10",
@@ -62,8 +62,8 @@
           "text": "Upload"
         },
         "body": {
-          "key": "gx_pt_upload_body",
-          "text": "Add photos and videos from your computer or phone. You can pick several at once."
+          "key": "gx_pt_add_body",
+          "text": "Add photos and videos from your computer, or take them with your phone's camera. You can pick several at once."
         },
         "targets": [
           "#rPhotoFeedMount [data-photo-feed-upload]",
@@ -75,10 +75,10 @@
         "wait_ms": 1500
       },
       {
-        "id": "gallery",
+        "id": "open",
         "title": {
-          "key": "gx_pt_gallery_title",
-          "text": "Your photos"
+          "key": "gx_pt_open_title",
+          "text": "Open a photo"
         },
         "body": {
           "key": "gx_pt_gallery_body",
@@ -93,51 +93,19 @@
         "wait_ms": 1500
       },
       {
-        "id": "select",
+        "id": "cover",
         "title": {
-          "key": "gx_pt_select_title",
-          "text": "Pick several"
+          "key": "gx_pt_cover_title",
+          "text": "The cover photo"
         },
         "body": {
-          "key": "gx_pt_select_body",
-          "text": "Tick photos to work on a few at once, such as sharing them all to the customer's portal."
+          "key": "gx_pt_cover_body",
+          "text": "In an open photo, choose \"Set as cover photo\" to make it the project's picture. Its tile then shows a Cover pill."
         },
         "targets": [
-          "#rPhotoFeedMount .pf-select"
-        ],
-        "placement": "auto",
-        "advance": "next",
-        "wait_ms": 1500
-      },
-      {
-        "id": "search",
-        "title": {
-          "key": "gx_pt_search_title",
-          "text": "Search"
-        },
-        "body": {
-          "key": "gx_pt_search_body",
-          "text": "Find photos by date, who uploaded them or tag."
-        },
-        "targets": [
-          "#rPhotoFeedMount .pf-search"
-        ],
-        "placement": "auto",
-        "advance": "next",
-        "wait_ms": 1500
-      },
-      {
-        "id": "tags",
-        "title": {
-          "key": "gx_pt_tags_title",
-          "text": "Filter by tag"
-        },
-        "body": {
-          "key": "gx_pt_tags_body",
-          "text": "Show only the photos with the tags you choose."
-        },
-        "targets": [
-          "#rPhotoFeedMount [data-local-tags]"
+          "#rPhotoFeedMount [data-project-cover-current]",
+          "#rPhotoFeedMount [data-photo-feed-dynamic]",
+          "#rPhotoGridOnly"
         ],
         "placement": "auto",
         "advance": "next",

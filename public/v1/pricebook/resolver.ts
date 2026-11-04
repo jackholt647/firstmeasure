@@ -283,7 +283,9 @@ function scopeItemFromCatalogItem(catalog: JsonObject, item: JsonObject, compone
     base_price: resolvedItem.base_price ?? resolvedItem.basePrice ?? unitPrice,
     unit_price: unitPrice,
     internal_cost: variant.internal_cost,
-    amount: resolvedItem.amount,
+    // A scope item is JSON: a catalog item without a fixed amount has none (an
+    // `amount: undefined` key is refused by the published-action layer).
+    ...(resolvedItem.amount === undefined ? {} : { amount: resolvedItem.amount }),
     sku_key: variant.sku_key,
     selected_variants: variant.selection,
     variant_combination_key: variant.combination_key,

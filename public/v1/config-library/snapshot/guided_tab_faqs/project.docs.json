@@ -1,11 +1,11 @@
 {
   "kind": "guided_tab_faqs",
   "id": "project.docs",
-  "revision": 1,
-  "sha256": "7ab88a97083253baf32b061f7231a608238739ae6ec6f66bed67ed693ae8bce4",
+  "revision": 2,
+  "sha256": "8f7934799adacbcd4914dc3b70945fc55828a514630519db4e2e13fd13d74807",
   "title": "Questions on project.docs",
-  "updated_at": "2026-10-28T00:40:02.983Z",
-  "updated_by": "generator",
+  "updated_at": "2026-11-04T02:55:45.994Z",
+  "updated_by": "key:ck_7897b5259beb4fa3 agents:jack-pc",
   "data": {
     "tab": "project.docs",
     "questions": [
@@ -24,6 +24,15 @@
           "text": "How does the customer sign?"
         },
         "action": "ask"
+      },
+      {
+        "id": "docs.tour",
+        "text": {
+          "key": "gx_faq_docs_tour",
+          "text": "Show me the tutorial again"
+        },
+        "action": "play",
+        "experience": "docs.tab_tutorial"
       }
     ]
   }

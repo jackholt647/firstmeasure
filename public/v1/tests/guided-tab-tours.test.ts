@@ -6,7 +6,7 @@ import path from "node:path";
 import test, { after } from "node:test";
 import { closePlatformFixtureStores, enableExpandedPlatformFixture } from "./helpers/platform-fixture.js";
 
-// The project tab tours beside Materials (docs/architecture/guided-experiences.md): Photos and Customer Portal.
+// The project tab tours beside Materials (docs/architecture/guided-experiences.md): Photos, Docs and Customer Portal.
 // Each is valid data, plays the first time its tab opens where the tab is available, and can be replayed from the
 // agent's "Show me the tutorial again" question on that tab. The Reports tour is off for now (removed from the library
 // on Nov 2; library revision 1 of reports.tab_tutorial brings it back).
@@ -17,7 +17,8 @@ after(async () => { await closePlatformFixtureStores(); await rm(dir, { recursiv
 // `sources`: the files that draw the tab, where every target's hooks must be found.
 const TOURS = [
   { id: "photos.tab_tutorial", tab: "project.photos", capability: "platform.project_photos", sources: ["libraries/apps/photos/project.js", "libraries/apps/photos/feed.js"] },
-  { id: "customer_portal.tab_tutorial", tab: "project.customer_portal", capability: "platform.customer_portal", sources: ["libraries/apps/customer-portal/project.js"] }
+  { id: "customer_portal.tab_tutorial", tab: "project.customer_portal", capability: "platform.customer_portal", sources: ["libraries/apps/customer-portal/project.js"] },
+  { id: "docs.tab_tutorial", tab: "project.docs", capability: "platform.documents", sources: ["libraries/apps/docs/project.js", "libraries/apps/photos/feed.js"] }
 ];
 const ORG = "org_tab_tours";
 const ALL_ON = Object.fromEntries(TOURS.map((tour) => [tour.capability, true]));
@@ -62,7 +63,14 @@ test("each tab tour registers, validates, and words every step with a gx_ key", 
     assert.ok(faqs.questions.filter((question) => question.action === "ask").length >= 2, `${entry.tab} keeps its questions`);
     assert.ok(faqs.questions.length <= 8);
   }
-  assert.equal(experience("documents.tab_tutorial"), null, "no Docs tour while the Documents tab is being changed");
+  // Docs: reports land there, and New makes proposals, contracts, change orders, invoices and work orders.
+  const docs = experience("docs.tab_tutorial")!.steps as any[];
+  assert.deepEqual(docs.map((step) => step.id), ["intro", "reports", "shown", "upload", "new", "outro"]);
+  assert.match(docs.find((step) => step.id === "reports").body.text, /measurement report/);
+  assert.match(docs.find((step) => step.id === "new").body.text, /proposal/);
+  assert.equal(experience("documents.tab_tutorial"), null, "one Docs tour, under the tab's own name");
+  // Photos is basic: upload or take photos, open one, and the cover photo set from the viewer.
+  assert.deepEqual((experience("photos.tab_tutorial")!.steps as any[]).map((step) => step.id), ["intro", "upload", "open", "cover", "outro"]);
   assert.equal(experience("reports.tab_tutorial"), null, "no Reports tour for now");
   assert.equal(tabFaqs("project.measurements")!.questions.some((question) => question.action === "play"), false, "and no replay question for it");
 });

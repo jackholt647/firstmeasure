@@ -28,6 +28,10 @@ test('Operations prefills the native workflow from an existing report without im
     });
     await page.waitForFunction(()=>document.querySelector('[data-fmdw-meas="roofSquares"]')?.value==='24.5');
     assert.equal(await page.locator('[data-fmdw-meas="eavesLf"]').inputValue(),'130');
+    // One structure, one section: its header and the values typed here, with no wrapper, disclaimer or separate total.
+    assert.deepEqual(await page.evaluate(()=>[...document.querySelector('.fmdw-meas-step').children].filter(c=>c.tagName==='SECTION').map(c=>c.className.trim())),['fmdw-ms']);
+    assert.equal(await page.evaluate(()=>/override/i.test(document.querySelector('.fmdw-meas-step').innerText)),false);
+    assert.equal((await page.locator('[data-fmdw-meas-reload]').textContent()).trim(),'Reload from project');
     assert.deepEqual(await page.evaluate(()=>reads),[['org','project_a']]);
     assert.equal(requests.some(r=>r.method!=='GET'),false,'prefill performs no import or domain writes');
     const selected=await page.evaluate(async()=>{

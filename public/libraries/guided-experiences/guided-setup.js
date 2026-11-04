@@ -39,8 +39,13 @@
     .gxs-settled .gxs-card,.gxs-settled .gxs-rule{animation:none}
     .gxs{position:fixed;inset:0;z-index:2147483250;display:grid;place-items:center;font:14px/1.5 system-ui,-apple-system,Segoe UI,Roboto,sans-serif;color:#101828}
     .gxs-scrim{position:absolute;inset:0;background:rgba(16,24,40,.55);backdrop-filter:blur(3px);animation:gxsFade .35s ease both}
-    .gxs-sheet{position:relative;display:grid;grid-template-columns:minmax(0,1fr) 360px;width:min(1120px,calc(100vw - 32px));height:min(760px,calc(100vh - 32px));background:#fff;border-radius:20px;box-shadow:0 40px 100px rgba(16,24,40,.45);overflow:hidden;animation:gxsRise .5s cubic-bezier(.22,1,.36,1) both}
-    .gxs[data-kind=modal] .gxs-sheet{grid-template-columns:minmax(0,1fr);width:min(820px,calc(100vw - 32px))}
+    /* The sheet is a landscape rectangle as tall as the step on screen needs (--gxs-fit, measured by the player), up to
+       the cap; a step that fills (logos, supplier columns, a workflow) has no fit and takes the full height. */
+    .gxs-sheet{position:relative;display:grid;grid-template-columns:minmax(0,1fr) 360px;width:min(1120px,calc(100vw - 32px));height:min(var(--gxs-fit,760px),calc(100vh - 32px));background:#fff;border-radius:20px;box-shadow:0 40px 100px rgba(16,24,40,.45);overflow:hidden;animation:gxsRise .5s cubic-bezier(.22,1,.36,1) both}
+    .gxs[data-kind=modal] .gxs-sheet{grid-template-columns:minmax(0,1fr);width:min(960px,calc(100vw - 32px))}
+    /* The conversation beside the steps needs room of its own, however short the step. */
+    .gxs[data-kind=agentic] .gxs-sheet{min-height:min(600px,calc(100vh - 32px))}
+    .gxs.gxs-fit-now .gxs-sheet{transition:none}
     /* The price book after the finish needs room for its list and an item side by side: the sheet widens to show it. */
     .gxs-sheet{transition:width .45s cubic-bezier(.22,1,.36,1),height .45s cubic-bezier(.22,1,.36,1)}
     .gxs.gxs-wide .gxs-sheet{width:min(1480px,calc(100vw - 32px));height:min(880px,calc(100vh - 32px))}
@@ -134,6 +139,10 @@
     .gxs.gxs-leaving[data-kind=modal] .gxs-sheet{opacity:0;transform:scale(.97);transition:opacity .3s,transform .3s}
     @media(max-width:760px){
       .gxs-sheet{grid-template-columns:minmax(0,1fr);grid-template-rows:minmax(0,1fr) auto;width:100vw;height:100dvh;border-radius:0}
+      /* On a phone a modal setup is a sheet from the bottom edge, as tall as its step; the agentic one keeps the screen. */
+      .gxs[data-kind=modal]{place-items:end center}
+      .gxs[data-kind=modal] .gxs-sheet{width:100vw;height:min(var(--gxs-fit,100dvh),calc(100dvh - 12px));border-radius:18px 18px 0 0}
+      .gxs[data-kind=agentic] .gxs-sheet{min-height:0}
       .gxs-chat{border-left:0;border-top:1px solid #eaecf0;max-height:48px;overflow:hidden;transition:max-height .35s cubic-bezier(.22,1,.36,1)}
       .gxs-chat[data-open=true]{max-height:58dvh}
       .gxs-chat-handle{display:flex;align-items:center;gap:8px;flex:none;height:48px;padding:0 16px;border:0;background:#fff;font:inherit;font-weight:700;color:#101828;cursor:pointer;text-align:left}
@@ -216,6 +225,36 @@
       document.body.appendChild(host);
       const $ = (selector) => host.querySelector(selector);
       const stage = $('.gxs-stage'), status = $('.gxs-status'), chat = $('.gxs-chat');
+      /**
+       * The sheet's height follows the step on screen (--gxs-fit; the CSS caps it and the step scrolls past the cap). The
+       * pane is measured let go of the stage's bottom edge, so it is the content's own height and not the space it was
+       * given; a pane that fills (data-fill) has no fit and the sheet takes its full height. Measured again whenever the
+       * step's content changes size or it starts or stops filling. The first fit is not animated.
+       */
+      const sheet = $('.gxs-sheet');
+      let fitFrame = 0, fitted = false;
+      function fit(){
+        fitFrame = 0;
+        const pane = currentPane;
+        if (closed || !pane?.isConnected) return;
+        if (pane.hasAttribute('data-fill')) sheet.style.removeProperty('--gxs-fit');
+        else {
+          const bottom = pane.style.bottom; pane.style.bottom = 'auto';
+          const natural = pane.offsetHeight; pane.style.bottom = bottom;
+          const foot = $('.gxs-foot'), chrome = $('.gxs-head').offsetHeight + (foot.hidden ? 0 : foot.offsetHeight);
+          sheet.style.setProperty('--gxs-fit', `${Math.ceil(natural + chrome + 1)}px`);
+        }
+        if (!fitted) { fitted = true; host.classList.add('gxs-fit-now'); requestAnimationFrame(() => requestAnimationFrame(() => host.classList.remove('gxs-fit-now'))); }
+      }
+      const refit = () => { if (!fitFrame) fitFrame = requestAnimationFrame(fit); };
+      const fitSize = root.ResizeObserver ? new root.ResizeObserver(refit) : null;
+      const fitFill = root.MutationObserver ? new root.MutationObserver(refit) : null;
+      function fitTo(pane){
+        fitSize?.disconnect(); fitFill?.disconnect();
+        [...pane.children].forEach((child) => fitSize?.observe(child));
+        fitFill?.observe(pane, { attributes: true, attributeFilter: ['data-fill'] });
+        fit();
+      }
       const previousFocus = document.activeElement;
 
       // The agent: a platform assistant instance running this setup as a preprogrammed workflow.
@@ -392,6 +431,7 @@
           }
         }
         footer();
+        fitTo(el);
         setTimeout(() => { if (generation === paneGeneration) el.querySelector('button,input')?.focus?.({ preventScroll: true }); }, reduced() ? 0 : 450);
         track('step_view', { step_id: step.id, selections });
       }
@@ -470,6 +510,7 @@
           const generate = button('gxs-btn primary', 'generate', H('gx_ui_done_generate', 'Start generating materials'));
           view.style.marginLeft = 'auto'; bookBack.style.marginRight = 'auto';
           foot.append(bookBack, view, generate);
+          fitTo(done);
           generate.focus({ preventScroll: true });
           const lines = array(experience.completion?.say).map((copy) => L(copy));
           persist({ phase: 'done', choice: choice || '' });
@@ -582,6 +623,7 @@
       /** Closes the sheet. `handoff` flies the conversation to the project's agent tray, which opens with it. */
       async function close(mode){
         closed = true;
+        fitSize?.disconnect(); fitFill?.disconnect();
         document.removeEventListener('keydown', onKey, true);
         mounted?.destroy?.();
         if (mode === 'handoff') await flyToTray();
@@ -698,12 +740,13 @@
       };
     }
   });
+  // The first page (two choices) is as tall as it is; the workflow and the ready page fill the sheet.
   for (const id of ['operations-path','operations-document','operations-ready']) registerWidget(id, {
-    fill:true, handlesNavigation:true,
+    fill:id!=='operations-path', handlesNavigation:true,
     render(el,ctx){
       let disposed=false, handle=null;
       el.textContent=L('gx_operations_loading','Opening Operations…');
-      import(new URL('./operations-setup.js?v=20261027-equipment-gate',scriptUrl).href).then(module=>{
+      import(new URL('./operations-setup.js?v=20261103-sheet-fit',scriptUrl).href).then(module=>{
         if(!disposed)handle=module.mountWidget(id,el,ctx);
       }).catch(error=>{if(!disposed)el.textContent=error?.message||L('gx_operations_load_error','Could not open this step. Close and try again.');});
       return {valid:()=>handle?.valid?.()!==false,destroy(){disposed=true;handle?.destroy?.();}};
@@ -1105,6 +1148,8 @@
         el.querySelector('.gxs-supplier-custom').innerHTML = chosen.filter((entry) => !entry.preset).map((entry) => `<span class="gxs-chip gxs-supplier-tag" aria-pressed="true">${esc(entry.name)}<button type="button" data-remove="${esc(entry.key)}" aria-label="${esc(L('gx_sup_remove', 'Remove'))} ${esc(entry.name)}">&times;</button></span>`).join('');
         el.querySelector('.gxs-supplier-empty').hidden = chosen.length > 0;
         colsEl.hidden = !chosen.length;
+        // The columns fill the sheet; with none yet, the step is as tall as its empty state.
+        el.closest('.gxs-step')?.toggleAttribute('data-fill', chosen.length > 0);
         if (!root.FirstMateSupplierColumns) { colsEl.textContent = ''; report(); return; }
         // With one supplier the agent's own upload line covers its price sheet, so the column does not repeat it;
         // without a catalog every column keeps its own upload, as that is how its items arrive.
