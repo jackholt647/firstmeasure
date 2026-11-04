@@ -61,8 +61,9 @@ needs no host access.
 
 ## Introducing a flag
 
-A flag can be **on but not yet introduced**: the organization has it, and the next
-person who loads the app and may use it is shown an announcement once. This is for
+A flag can be **on but not yet introduced**: the organization has it, and each
+person there who may use it is shown an announcement once, the first time they load
+the app after it was turned on. This is for
 an existing organization that gains something. An organization that starts with
 the flag on (a new instant full organization, a platform signup) never sees it,
 because nothing is new to it. What can be introduced is data: a flag has an
@@ -85,12 +86,17 @@ decides, so a later raise never changes the answer for those it already covered.
 organization created after that step started with the flag.
 
 Stored per organization in `data.flag_introductions`, refused from customers like
-`app_flag_overrides`. Plain On, Auto or Off clear it. Being told is **per
-organization** in the guide's own server progress (`guided_progress`, subject `''`):
-whoever closes it or presses Try It Now finishes it for everyone there. Once finished
-it never plays again, even if the state is set again. On dev, Reset org in the dev
-console's Guided experiences section plays it again. The console shows Waiting or
-Introduced on the organization's row. There is no count of organizations waiting.
+`app_flag_overrides`. Plain On, Auto or Off clear it. Being told is **per person** in
+the guide's own server progress (`guided_progress`, subject the user id): closing it or
+pressing Try It Now finishes it for that person only, and everyone else in the
+organization (someone who joins later too) still sees it once while the state is set.
+An experience that `introduces` a flag must have `scope: "person"`; the schema refuses
+an organization-wide one, which only the first person to load the app would see
+(FM-327). Once a person finished it, it never plays again for them, even if the state
+is set again. On dev, the dev console's Guided experiences section plays it again (reset for
+yourself, or for the whole organization). The console shows Waiting (nobody there has seen it yet) or Introduced, with how
+many people have (`introduced_people`), on the organization's row. There is no count
+of organizations waiting.
 
 ## Counts
 
