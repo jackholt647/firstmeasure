@@ -2094,10 +2094,12 @@ function perf_structuralFaces(includeConsumed=false,skip=null){
  picked=[];pickedLines=[];solidPoints=[];solidEdges=[];lineSelection=[];draftSelection={};selectedBasePoints=[];
  faceSelection=refs;selectedSolid=refs[0]?.solid||null;selectedRegion=refs[0]?.draft?refs[0]:null;host.redraw();
  }
- // Replace the selection with these faces ({solid} or {draft,face} refs), as a click on each would.
+ // Replace the selection with these faces ({solid}, {draft,face} or {wall} refs), as a click on each would: a
+ // generated wall that is not drawn yet becomes a draft (ensure), and all its regions are selected.
  function selectFaces(refs){
  if(tool&&!finishToolForSwitch())return false;
- refs=refs.filter(r=>r.solid?solids().some(f=>f.id===r.solid&&!f.deleted&&!f.drafted):all()[r.draft]?.faces.some(f=>f.id===r.face&&!f.solidId&&!f.boundaryHole&&!deleted(all()[r.draft],f)));
+ refs=refs.flatMap(r=>{if(r.wall==null)return [r];const w=walls().find(w=>String(w.id)===String(r.wall));if(!w)return [];const d=ensure(w),key=draftKey(d);return d.faces.filter(f=>!f.solidId&&!f.boundaryHole&&!f.feature&&!deleted(d,f)).map(f=>({draft:key,face:f.id}));});
+ refs=[...new Map(refs.map(r=>[faceKey(r),r])).values()].filter(r=>r.solid?solids().some(f=>f.id===r.solid&&!f.deleted&&!f.drafted):all()[r.draft]?.faces.some(f=>f.id===r.face&&!f.solidId&&!f.boundaryHole&&!deleted(all()[r.draft],f)));
  picked=[];pickedLines=[];solidPoints=[];solidEdges=[];lineSelection=[];draftSelection={};selectedBasePoints=[];
  faceSelection=refs;const last=refs.at(-1);selectedSolid=last?.solid||null;selectedRegion=last&&!last.solid?last:null;host.redraw();return refs.length;
  }
