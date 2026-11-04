@@ -21,7 +21,11 @@
         testOrgUsers: [],
         selectedTestOrgId: null,
         selectedWorkflowId: null,
-        sidebarTab: 'workflows'
+        sidebarTab: 'workflows',
+        // The open workflow's view: its apps (the default) or its sign-up flow.
+        mainView: 'apps',
+        // Apps tab data per workflow id: { data, loading, error, status }.
+        apps: {}
     };
 
     // ---- API ---------------------------------------------------------------
@@ -70,6 +74,8 @@
 
     async function patchWorkflow(workflow, body) {
         await api(`/workflows/${encodeURIComponent(workflow.id)}`, { method: 'PATCH', body });
+        // An edited copy no longer follows its library entry; the Apps tab reads that again.
+        delete state.apps[workflow.id];
         await refresh();
     }
 
@@ -414,6 +420,7 @@
 
     function renderMain() {
         const main = document.getElementById('sbx-main');
+        closeAppPopover(false);
         main.innerHTML = '';
         if (state.sidebarTab === 'orgs') {
             renderTestOrgMain(main);
@@ -454,6 +461,12 @@
         }));
         head.appendChild(toolbar);
         main.appendChild(head);
+        main.appendChild(renderViewTabs(workflow));
+
+        if (state.mainView === 'apps') {
+            main.appendChild(renderAppsPanel(workflow));
+            return;
+        }
 
         const metaRow = el('div', 'sbx-wf-meta-row');
         const idNode = el('span', 'sbx-wf-id', workflow.id);
@@ -489,6 +502,481 @@
         grid.appendChild(addTile);
         main.appendChild(grid);
     }
+
+    // ---- Views of the open workflow: Apps (default) and Sign-up flow -----
+
+    function renderViewTabs(workflow) {
+        const views = [{ id: 'apps', label: 'Apps', icon: 'fa-table-cells-large' }, { id: 'flow', label: 'Sign-up flow', icon: 'fa-diagram-project' }];
+        const bar = el('div', 'sbx-view-tabs');
+        bar.setAttribute('role', 'tablist');
+        bar.setAttribute('aria-label', 'Workflow views');
+        views.forEach((view, index) => {
+            const tab = el('button', `sbx-view-tab${state.mainView === view.id ? ' active' : ''}`);
+            tab.type = 'button';
+            tab.id = `sbx-view-${view.id}`;
+            tab.setAttribute('role', 'tab');
+            tab.setAttribute('aria-selected', String(state.mainView === view.id));
+            tab.tabIndex = state.mainView === view.id ? 0 : -1;
+            tab.innerHTML = `<i class="fa-solid ${view.icon}" aria-hidden="true"></i><span>${view.label}</span>`;
+            tab.addEventListener('click', () => { if (state.mainView !== view.id) { state.mainView = view.id; closeAppPopover(); renderMain(); focusViewTab(); } });
+            tab.addEventListener('keydown', (event) => {
+                if (!['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) return;
+                event.preventDefault();
+                const next = event.key === 'Home' ? 0 : event.key === 'End' ? views.length - 1 : (index + (event.key === 'ArrowRight' ? 1 : -1) + views.length) % views.length;
+                state.mainView = views[next].id;
+                closeAppPopover();
+                renderMain();
+                focusViewTab();
+            });
+            bar.appendChild(tab);
+        });
+        if (workflow) bar.dataset.workflow = workflow.id;
+        return bar;
+    }
+
+    function focusViewTab() {
+        const tab = document.getElementById(`sbx-view-${state.mainView}`);
+        if (tab) tab.focus();
+    }
+
+    // ---- Apps tab ----------------------------------------------------------
+    // Every app's starting state in this configuration, read from and saved to its config library entry
+    // (v1/signup-sandbox/apps.ts holds the mapping; this page only shows it and sends the change).
+
+    const APP_STATES = [
+        { id: 'on', label: 'On', hint: 'Available from the start.' },
+        { id: 'offered', label: 'Offered', hint: 'Off, with its welcome page and Get Started until someone starts it.' },
+        { id: 'off', label: 'Off', hint: 'Not available.' }
+    ];
+    const APP_STATE_LABEL = Object.fromEntries(APP_STATES.map((entry) => [entry.id, entry.label]));
+
+    function appsEntry(workflowId) {
+        if (!state.apps[workflowId]) state.apps[workflowId] = { data: null, loading: false, error: '', status: null };
+        return state.apps[workflowId];
+    }
+
+    async function loadApps(workflowId) {
+        const entry = appsEntry(workflowId);
+        entry.loading = true;
+        try {
+            entry.data = (await api(`/workflows/${encodeURIComponent(workflowId)}/apps`));
+            entry.error = '';
+        } catch (error) {
+            entry.error = String(error.message || error);
+        } finally {
+            entry.loading = false;
+        }
+        if (state.selectedWorkflowId === workflowId && state.mainView === 'apps' && state.sidebarTab !== 'orgs') renderMain();
+    }
+
+    function platformCsrf(cookieName) {
+        if (!/^[A-Za-z0-9_-]{1,120}$/.test(String(cookieName || ''))) return '';
+        const prefix = `${encodeURIComponent(cookieName)}=`;
+        let jar = '';
+        try { jar = document.cookie; } catch (_) { /* no cookies */ }
+        const cookie = jar.split(';').map((part) => part.trim()).find((part) => part.startsWith(prefix));
+        try { return cookie ? decodeURIComponent(cookie.slice(prefix.length)) : ''; } catch (_) { return ''; }
+    }
+
+    // A config library write: the platform session and its CSRF token, never the sandbox's admin redirect.
+    async function saveAppChange(workflowId, appId, change) {
+        const entry = appsEntry(workflowId);
+        const data = entry.data;
+        if (!data || !data.configuration.editable) return;
+        entry.status = { kind: 'saving', text: 'Saving…' };
+        renderAppsStatus(workflowId);
+        const headers = { 'Content-Type': 'application/json', Accept: 'application/json' };
+        const token = platformCsrf(data.csrf_cookie);
+        if (token) headers['X-Platform-CSRF'] = token;
+        let response = null;
+        let payload = null;
+        try {
+            response = await fetch(`${apiBaseUrl()}/workflows/${encodeURIComponent(workflowId)}/apps/${encodeURIComponent(appId)}`, {
+                method: 'PUT', credentials: 'include', headers, body: JSON.stringify({ expected_revision: data.configuration.revision, ...change })
+            });
+            try { payload = await response.json(); } catch (_) { /* non-JSON */ }
+        } catch (error) {
+            entry.status = { kind: 'error', text: `Not saved: ${String(error.message || error)}` };
+            renderAppsStatus(workflowId);
+            return;
+        }
+        if (response.ok && payload && payload.ok !== false) {
+            entry.data = payload;
+            entry.status = { kind: 'saved', text: payload.changed === false ? 'No change' : `Saved · revision ${payload.configuration.revision}` };
+            rerenderApps(workflowId, appId);
+            return;
+        }
+        const message = (payload && (payload.error || payload.message)) || `Request failed (${response.status}).`;
+        if (response.status === 409) {
+            entry.status = { kind: 'conflict', text: 'Someone saved this configuration first. It has been reloaded: check it and make your change again.' };
+            await loadApps(workflowId);
+            rerenderApps(workflowId, appId);
+            return;
+        }
+        entry.status = {
+            kind: 'error',
+            text: response.status === 401 || response.status === 403
+                ? `Not saved: ${message} Sign in to the portal as a platform administrator, or launch a test instance, then try again.`
+                : `Not saved: ${message}`
+        };
+        renderAppsStatus(workflowId);
+    }
+
+    function rerenderApps(workflowId, reopenAppId) {
+        if (state.selectedWorkflowId !== workflowId || state.mainView !== 'apps') return;
+        const keepAdvanced = !!document.querySelector('.sbx-app-pop details[open]');
+        const reopen = !!reopenAppId && appPopover.appId === reopenAppId;
+        const focusKey = document.activeElement && document.activeElement.dataset ? document.activeElement.dataset.focusKey : '';
+        renderMain();
+        if (!reopen) return;
+        const tile = document.querySelector(`.sbx-app-tile[data-app="${CSS.escape(reopenAppId)}"]`);
+        if (tile) openAppPopover(workflowId, reopenAppId, tile, { keepFocus: true, advanced: keepAdvanced, focusKey });
+    }
+
+    function renderAppsStatus(workflowId) {
+        const node = document.getElementById('sbx-apps-status');
+        if (!node || state.selectedWorkflowId !== workflowId) return;
+        const status = appsEntry(workflowId).status;
+        node.className = `sbx-apps-status${status ? ` is-${status.kind}` : ''}`;
+        node.textContent = status ? status.text : '';
+        const pop = document.querySelector('.sbx-app-pop');
+        if (pop) pop.classList.toggle('is-saving', !!status && status.kind === 'saving');
+    }
+
+    function renderAppsPanel(workflow) {
+        const panel = el('section', 'sbx-apps');
+        panel.setAttribute('role', 'tabpanel');
+        panel.setAttribute('aria-labelledby', 'sbx-view-apps');
+        const entry = appsEntry(workflow.id);
+        if (!entry.data && !entry.loading && !entry.error) loadApps(workflow.id);
+        if (!entry.data) {
+            panel.appendChild(el('div', 'sbx-empty-note', entry.error ? `Apps could not be loaded: ${entry.error}` : 'Loading apps…'));
+            return panel;
+        }
+        const data = entry.data;
+
+        const bar = el('div', 'sbx-apps-bar');
+        const legend = el('ul', 'sbx-apps-legend');
+        legend.setAttribute('aria-label', 'App states');
+        for (const item of APP_STATES) {
+            const row = el('li', `sbx-legend-item is-${item.id}`);
+            row.title = item.hint;
+            row.appendChild(el('span', 'sbx-state-dot'));
+            const text = el('span');
+            text.appendChild(el('strong', '', item.label));
+            text.appendChild(document.createTextNode(` ${item.hint}`));
+            row.appendChild(text);
+            legend.appendChild(row);
+        }
+        bar.appendChild(legend);
+        const meta = el('div', 'sbx-apps-meta');
+        const source = data.configuration.source === 'library'
+            ? `sandbox_configuration/${data.configuration.id} · revision ${data.configuration.revision}`
+            : 'Made in the sandbox · read-only';
+        meta.appendChild(el('span', 'sbx-apps-source', source));
+        const status = el('span', 'sbx-apps-status');
+        status.id = 'sbx-apps-status';
+        status.setAttribute('role', 'status');
+        status.setAttribute('aria-live', 'polite');
+        meta.appendChild(status);
+        bar.appendChild(meta);
+        panel.appendChild(bar);
+
+        if (data.configuration.copy_state === 'changed') {
+            panel.appendChild(el('div', 'sbx-apps-note', 'This workflow was edited in the sandbox, so test instances use that edited copy, not these library defaults, until it is reset to the library.'));
+        } else if (!data.configuration.editable) {
+            panel.appendChild(el('div', 'sbx-apps-note', data.configuration.source === 'library'
+                ? 'The config library is read-only here, so these defaults cannot be changed on this server.'
+                : 'This workflow is not a config library configuration, so its apps are shown but not edited here.'));
+        }
+
+        for (const group of data.groups) {
+            if (!group.apps.length) continue;
+            const section = el('section', 'sbx-apps-group');
+            const headingId = `sbx-apps-group-${group.id}`;
+            section.setAttribute('aria-labelledby', headingId);
+            const heading = el('h3', 'sbx-apps-group-title');
+            heading.id = headingId;
+            heading.appendChild(el('span', '', group.title));
+            const counts = APP_STATES.map((item) => [item, group.apps.filter((app) => app.state === item.id).length]).filter(([, count]) => count);
+            heading.appendChild(el('span', 'sbx-apps-group-count', counts.map(([item, count]) => `${count} ${item.label.toLowerCase()}`).join(' · ')));
+            section.appendChild(heading);
+            const grid = el('div', 'sbx-apps-grid');
+            for (const app of group.apps) grid.appendChild(renderAppTile(workflow.id, app));
+            section.appendChild(grid);
+            panel.appendChild(section);
+        }
+        requestAnimationFrame(() => renderAppsStatus(workflow.id));
+        return panel;
+    }
+
+    function renderAppTile(workflowId, app) {
+        const tile = el('button', `sbx-app-tile is-${app.state}`);
+        tile.type = 'button';
+        tile.dataset.app = app.id;
+        tile.setAttribute('aria-haspopup', 'dialog');
+        tile.setAttribute('aria-expanded', 'false');
+        tile.setAttribute('aria-label', `${app.title}: ${APP_STATE_LABEL[app.state]}`);
+        tile.title = `${app.title} (${app.id}): ${APP_STATE_LABEL[app.state]}`;
+        const icon = el('span', 'sbx-app-icon');
+        icon.innerHTML = `<i class="fa-solid ${/^fa-[a-z0-9-]+$/.test(app.icon) ? app.icon : 'fa-cube'}" aria-hidden="true"></i>`;
+        tile.appendChild(icon);
+        tile.appendChild(el('span', 'sbx-app-title', app.title));
+        const badge = el('span', 'sbx-app-state');
+        badge.setAttribute('aria-hidden', 'true');
+        badge.appendChild(el('span', 'sbx-state-dot'));
+        badge.appendChild(el('span', 'sbx-app-state-text', APP_STATE_LABEL[app.state]));
+        tile.appendChild(badge);
+        if (app.pill) {
+            tile.classList.add('has-pill');
+            tile.appendChild(el('span', 'sbx-app-pill', app.pill === 'new' ? 'New' : 'Soon'));
+        }
+        tile.addEventListener('click', (event) => {
+            event.stopPropagation();
+            if (appPopover.appId === app.id) closeAppPopover(true);
+            else openAppPopover(workflowId, app.id, tile);
+        });
+        return tile;
+    }
+
+    function findApp(workflowId, appId) {
+        const data = appsEntry(workflowId).data;
+        return data ? data.groups.flatMap((group) => group.apps).find((app) => app.id === appId) || null : null;
+    }
+
+    const SURFACE_LABEL = { portal_tab: 'portal app', project_modal: 'project tab', contact_modal: 'contact tab' };
+
+    // Another app's title, with where it lives when that differs from `from` (Money's tab and its Financials page).
+    function appTitleById(workflowId, appId, from) {
+        const app = findApp(workflowId, appId);
+        if (!app) return appId;
+        return from && from.surface !== app.surface ? `${app.title} (${SURFACE_LABEL[app.surface] || app.surface})` : app.title;
+    }
+
+    const REASONS = {
+        hidden: 'Its switch is on, but its placement hides it from the apps menu.',
+        flag_disabled: 'Its organization switch is off.'
+    };
+
+    function appExplanation(workflowId, app) {
+        if (app.state === 'on') return app.switches.length ? `On: ${app.switches.filter((entry) => entry.on).map((entry) => entry.label).join(', ')}.` : 'Always on: this app has no organization switch.';
+        if (app.state === 'offered') return 'Offered: shows its welcome and Get Started until someone starts it.';
+        if (REASONS[app.reason]) return REASONS[app.reason];
+        if (app.reason.startsWith('offered:')) return `Its switch is held off by the ${appTitleById(workflowId, app.reason.slice(8))} offer.`;
+        if (app.reason.startsWith('requires ')) return `Off until ${app.reason.slice(9)} is on (On turns it on).`;
+        return 'Off.';
+    }
+
+    const appPopover = { node: null, appId: null, workflowId: null, tile: null };
+
+    function closeAppPopover(returnFocus) {
+        if (!appPopover.node) return;
+        const tile = appPopover.tile;
+        appPopover.node.remove();
+        appPopover.node = null;
+        appPopover.appId = null;
+        if (tile) tile.setAttribute('aria-expanded', 'false');
+        if (returnFocus && tile && document.body.contains(tile)) tile.focus();
+        appPopover.tile = null;
+    }
+
+    function openAppPopover(workflowId, appId, tile, options = {}) {
+        closeAppPopover(false);
+        const app = findApp(workflowId, appId);
+        const data = appsEntry(workflowId).data;
+        if (!app || !data) return;
+        const editable = data.configuration.editable;
+        const pop = el('div', 'sbx-app-pop');
+        pop.setAttribute('role', 'dialog');
+        pop.setAttribute('aria-modal', 'false');
+        const titleId = `sbx-app-pop-title-${app.id.replace(/[^a-z0-9]/gi, '-')}`;
+        pop.setAttribute('aria-labelledby', titleId);
+
+        const head = el('div', 'sbx-app-pop-head');
+        const icon = el('span', 'sbx-app-icon');
+        icon.innerHTML = `<i class="fa-solid ${/^fa-[a-z0-9-]+$/.test(app.icon) ? app.icon : 'fa-cube'}" aria-hidden="true"></i>`;
+        head.appendChild(icon);
+        const titles = el('div', 'sbx-app-pop-titles');
+        const title = el('div', 'sbx-app-pop-title', app.title);
+        title.id = titleId;
+        titles.appendChild(title);
+        titles.appendChild(el('div', 'sbx-app-pop-id', app.id));
+        head.appendChild(titles);
+        const close = iconBtn('fa-xmark', 'Close', () => closeAppPopover(true));
+        close.setAttribute('aria-label', 'Close');
+        head.appendChild(close);
+        pop.appendChild(head);
+
+        const choices = el('div', 'sbx-app-choices');
+        choices.setAttribute('role', 'group');
+        choices.setAttribute('aria-label', `Default for ${app.title}`);
+        for (const item of APP_STATES) {
+            const button = el('button', `sbx-app-choice is-${item.id}${app.state === item.id ? ' active' : ''}`);
+            button.type = 'button';
+            button.setAttribute('aria-pressed', String(app.state === item.id));
+            button.dataset.focusKey = `state:${item.id}`;
+            button.appendChild(el('span', 'sbx-state-dot'));
+            button.appendChild(el('span', '', item.label));
+            let unavailable = '';
+            if (item.id === 'offered' && !app.offerable) unavailable = 'This app has no welcome page, so it cannot be offered.';
+            if (item.id === 'off' && !app.switches.length && app.surface !== 'portal_tab') unavailable = 'This view has no organization switch, so it is always on.';
+            button.disabled = !editable || !!unavailable;
+            button.title = unavailable || item.hint;
+            button.addEventListener('click', () => {
+                if (app.state === item.id) return;
+                saveAppChange(workflowId, app.id, { state: item.id });
+            });
+            choices.appendChild(button);
+        }
+        pop.appendChild(choices);
+        pop.appendChild(el('p', 'sbx-app-pop-why', appExplanation(workflowId, app)));
+
+        const together = [...new Set([...(app.offer_siblings || []), ...(app.shared_with || [])])];
+        if (together.length) {
+            pop.appendChild(el('p', 'sbx-app-pop-shared', `Shares its switch with ${together.map((id) => appTitleById(workflowId, id, app)).join(', ')}: changing this changes them too.`));
+        }
+
+        const advanced = renderAppAdvanced(workflowId, app, editable);
+        if (advanced) {
+            if (options.advanced) advanced.open = true;
+            pop.appendChild(advanced);
+        }
+
+        pop.addEventListener('keydown', (event) => {
+            if (event.key === 'Escape') { event.stopPropagation(); closeAppPopover(true); return; }
+            if (event.key !== 'Tab') return;
+            const focusable = [...pop.querySelectorAll('button:not(:disabled), select:not(:disabled), input:not(:disabled), summary')].filter((node) => node.offsetParent !== null);
+            if (!focusable.length) return;
+            const first = focusable[0];
+            const last = focusable[focusable.length - 1];
+            if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last.focus(); }
+            else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first.focus(); }
+        });
+        pop.addEventListener('click', (event) => event.stopPropagation());
+        document.body.appendChild(pop);
+        appPopover.node = pop;
+        appPopover.appId = app.id;
+        appPopover.workflowId = workflowId;
+        appPopover.tile = tile;
+        tile.setAttribute('aria-expanded', 'true');
+        placeAppPopover();
+        renderAppsStatus(workflowId);
+        if (!options.keepFocus) {
+            const first = pop.querySelector('.sbx-app-choice.active:not(:disabled)') || pop.querySelector('.sbx-app-choice:not(:disabled)') || close;
+            first.focus();
+        } else {
+            const again = (options.focusKey && pop.querySelector(`[data-focus-key="${CSS.escape(options.focusKey)}"]`)) || pop.querySelector('.sbx-app-choice.active') || close;
+            again.focus({ preventScroll: true });
+        }
+    }
+
+    function placeAppPopover() {
+        const pop = appPopover.node;
+        const tile = appPopover.tile;
+        if (!pop || !tile) return;
+        const margin = 8;
+        const rect = tile.getBoundingClientRect();
+        const width = Math.min(340, window.innerWidth - margin * 2);
+        pop.style.width = `${width}px`;
+        pop.style.maxHeight = `${Math.max(200, window.innerHeight - margin * 2)}px`;
+        const height = pop.getBoundingClientRect().height;
+        let left = rect.left + rect.width / 2 - width / 2;
+        left = Math.min(Math.max(margin, left), window.innerWidth - width - margin);
+        let top = rect.bottom + 6;
+        if (top + height > window.innerHeight - margin) top = rect.top - height - 6;
+        if (top < margin) top = Math.max(margin, window.innerHeight - height - margin);
+        pop.style.left = `${Math.round(left)}px`;
+        pop.style.top = `${Math.round(top)}px`;
+    }
+
+    function renderAppAdvanced(workflowId, app, editable) {
+        const rows = [];
+        const field = (label, description, control, focusKey) => {
+            control.dataset.focusKey = focusKey;
+            const row = el('label', 'sbx-adv-row');
+            const text = el('span', 'sbx-adv-text');
+            text.appendChild(el('span', 'sbx-adv-label', label));
+            if (description) text.appendChild(el('span', 'sbx-adv-desc', description));
+            row.appendChild(text);
+            control.disabled = control.disabled || !editable;
+            row.appendChild(control);
+            return row;
+        };
+        const select = (options, value, onChange) => {
+            const node = el('select', 'sbx-adv-select');
+            for (const [optionValue, optionLabel] of options) {
+                const opt = el('option', '', optionLabel);
+                opt.value = optionValue;
+                node.appendChild(opt);
+            }
+            node.value = value;
+            node.addEventListener('change', () => onChange(node.value));
+            return node;
+        };
+        const checkbox = (checked, onChange) => {
+            const node = el('input', 'sbx-adv-check');
+            node.type = 'checkbox';
+            node.checked = !!checked;
+            node.addEventListener('change', () => onChange(node.checked));
+            return node;
+        };
+
+        if (app.surface === 'portal_tab') {
+            rows.push(field('Placement', 'Where the app sits for the organization; hidden takes it out of the apps menu.',
+                select([['', 'Default'], ['sidebar', 'Sidebar'], ['more', 'More apps'], ['settings', 'In Settings'], ['hidden', 'Hidden']], app.placement || '',
+                    (value) => saveAppChange(workflowId, app.id, { placement: value })), 'placement'));
+        }
+        if (app.surface === 'project_modal') {
+            rows.push(field('Tab pill', 'A pill on the project window tab.',
+                select([['', 'None'], ['new', 'New'], ['coming_soon', 'Coming soon']], app.pill || '',
+                    (value) => saveAppChange(workflowId, app.id, { pill: value })), 'pill'));
+        }
+        for (const option of app.options) {
+            rows.push(field(option.label, `${option.description} App option for every role.`,
+                checkbox(option.value, (value) => saveAppChange(workflowId, app.id, { options: { [option.key]: value } })), `option:${option.key}`));
+        }
+        for (const feature of app.features) {
+            let control;
+            if (feature.type === 'boolean') {
+                control = checkbox(feature.value === true, (value) => saveAppChange(workflowId, app.id, { features: { [feature.key]: value } }));
+            } else if (feature.type === 'select') {
+                control = select(feature.options, String(feature.value ?? ''), (value) => saveAppChange(workflowId, app.id, { features: { [feature.key]: value } }));
+            } else {
+                control = el('input', 'sbx-adv-input');
+                control.type = feature.type === 'number' ? 'number' : 'text';
+                control.value = feature.value === null || feature.value === undefined ? '' : String(feature.value);
+                control.addEventListener('change', () => saveAppChange(workflowId, app.id, { features: { [feature.key]: feature.type === 'number' ? Number(control.value) : control.value } }));
+            }
+            if (feature.locked) { control.disabled = true; control.title = 'Fixed by the platform.'; }
+            const row = field(feature.label, feature.description, control, `feature:${feature.key}`);
+            row.classList.toggle('is-unavailable', !feature.available);
+            row.style.setProperty('--sbx-adv-depth', String(Math.max(0, Math.min(4, feature.depth - 1))));
+            row.title = `${feature.key}${feature.configured ? ' · set by this configuration' : ' · from the base'}${feature.available ? '' : ' · its parent is off'}`;
+            rows.push(row);
+        }
+        if (!rows.length) return null;
+        const details = el('details', 'sbx-app-adv');
+        const summary = el('summary');
+        const count = app.features.length + app.options.length;
+        summary.textContent = count ? `Advanced · ${count} feature${count === 1 ? '' : 's'} and option${count === 1 ? '' : 's'}` : 'Advanced';
+        details.appendChild(summary);
+        const body = el('div', 'sbx-adv-body');
+        rows.forEach((row) => body.appendChild(row));
+        details.appendChild(body);
+        details.addEventListener('toggle', placeAppPopover);
+        return details;
+    }
+
+    document.addEventListener('click', (event) => {
+        if (appPopover.node && !appPopover.node.contains(event.target)) closeAppPopover(false);
+    });
+    document.addEventListener('keydown', (event) => {
+        if (event.key === 'Escape' && appPopover.node) closeAppPopover(true);
+    });
+    window.addEventListener('resize', placeAppPopover);
+    window.addEventListener('scroll', (event) => {
+        if (appPopover.node && !appPopover.node.contains(event.target)) placeAppPopover();
+    }, true);
 
     async function loadTestOrgUsers(orgId) {
         const payload = await api(`/test-orgs/${encodeURIComponent(orgId)}/users`);

@@ -589,3 +589,308 @@ button { font-family: inherit; }
     .sbx-layout { grid-template-columns: 1fr; }
     .sbx-sidebar { position: static; height: auto; max-height: 45vh; }
 }
+
+/* ── Workflow views: Apps and Sign-up flow ──────────── */
+
+.sbx-main { container: sbx-main / inline-size; }
+
+/* The workflow's title and Launch test instance stay in view on every tab. */
+.sbx-wf-head {
+    position: sticky;
+    top: 49px;
+    z-index: 15;
+    background: var(--sbx-bg);
+    margin: -22px -26px 6px;
+    padding: 16px 26px 8px;
+}
+
+.sbx-view-tabs {
+    display: flex;
+    gap: 4px;
+    border-bottom: 1px solid var(--sbx-border);
+    margin: 4px 0 16px;
+}
+
+.sbx-view-tab {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    border: none;
+    background: transparent;
+    padding: 8px 12px 10px;
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--sbx-muted);
+    cursor: pointer;
+    border-bottom: 2px solid transparent;
+    margin-bottom: -1px;
+}
+
+.sbx-view-tab:hover { color: var(--secondary); }
+.sbx-view-tab.active { color: var(--primary); border-bottom-color: var(--primary); }
+.sbx-view-tab:focus-visible, .sbx-app-tile:focus-visible, .sbx-app-choice:focus-visible, .sbx-app-adv summary:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+}
+
+/* ── Apps tab ───────────────────────────────────────── */
+
+:root {
+    --sbx-on: #137333;
+    --sbx-on-bg: #e6f4ea;
+    --sbx-offered: #a35c00;
+    --sbx-offered-bg: #fef3e0;
+    --sbx-off: #8a919c;
+}
+
+.sbx-apps-bar {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px 16px;
+    margin-bottom: 14px;
+}
+
+.sbx-apps-legend {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px 16px;
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    font-size: 12px;
+    color: var(--sbx-muted);
+}
+
+.sbx-legend-item { display: inline-flex; align-items: center; gap: 6px; }
+.sbx-legend-item strong { color: var(--secondary); font-weight: 600; }
+
+/* A filled dot is on, a thick ring offered, a thin ring off: told apart without color too. */
+.sbx-state-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    flex: 0 0 auto;
+    background: transparent;
+    box-shadow: inset 0 0 0 1.5px var(--sbx-off);
+}
+
+.is-on .sbx-state-dot { background: var(--sbx-on); box-shadow: none; }
+.is-offered .sbx-state-dot { box-shadow: inset 0 0 0 2.5px var(--sbx-offered); }
+
+.sbx-apps-meta { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 12px; font-size: 11.5px; color: var(--sbx-muted); }
+.sbx-apps-source { font-family: Consolas, monospace; font-size: 10.5px; overflow-wrap: anywhere; }
+.sbx-apps-status:empty { display: none; }
+.sbx-apps-status { font-weight: 600; border-radius: 999px; padding: 2px 9px; background: #eef0f3; }
+.sbx-apps-status.is-saved { background: var(--sbx-on-bg); color: var(--sbx-on); }
+.sbx-apps-status.is-conflict { background: var(--sbx-offered-bg); color: var(--sbx-offered); border-radius: 8px; }
+.sbx-apps-status.is-error { background: #fde8e6; color: #b3261e; border-radius: 8px; }
+
+.sbx-apps-note {
+    font-size: 12.5px;
+    color: #7a4b00;
+    background: #fef7e0;
+    border: 1px solid #f6e2a8;
+    border-radius: 8px;
+    padding: 8px 12px;
+    margin-bottom: 14px;
+}
+
+.sbx-apps-group { margin-bottom: 18px; }
+
+.sbx-apps-group-title {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: 2px 10px;
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: var(--sbx-muted);
+    margin: 0 0 8px;
+}
+
+.sbx-apps-group-count { font-weight: 500; letter-spacing: 0; text-transform: none; font-size: 11.5px; }
+
+.sbx-apps-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(104px, 1fr));
+    gap: 8px;
+}
+
+/* Like the apps overlay's tiles, compact: icon and title, its state in the corner. */
+.sbx-app-tile {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    min-width: 0;
+    min-height: 92px;
+    padding: 20px 6px 9px;
+    border: 1px solid #dfe3e8;
+    border-radius: 12px;
+    background: #fff;
+    color: #344054;
+    cursor: pointer;
+    font: inherit;
+    text-align: center;
+    transition: border-color .15s ease, box-shadow .15s ease, transform .15s ease;
+}
+
+.sbx-app-tile:hover { border-color: #c6cbd4; box-shadow: 0 6px 16px rgba(16, 24, 40, .1); transform: translateY(-1px); }
+.sbx-app-tile[aria-expanded="true"] { border-color: var(--accent); box-shadow: 0 0 0 2px rgba(26, 115, 232, .18); }
+
+.sbx-app-icon {
+    display: grid;
+    place-items: center;
+    width: 34px;
+    height: 34px;
+    flex: 0 0 auto;
+    border-radius: 9px;
+    font-size: 17px;
+    color: #344054;
+    background: #f2f4f7;
+}
+
+.sbx-app-title {
+    max-width: 100%;
+    font-size: 11.5px;
+    font-weight: 700;
+    line-height: 1.2;
+    overflow-wrap: anywhere;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+}
+
+.sbx-app-state {
+    position: absolute;
+    top: 6px;
+    left: 7px;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 9.5px;
+    font-weight: 700;
+    letter-spacing: .02em;
+    color: var(--sbx-off);
+}
+
+.sbx-app-tile.is-on .sbx-app-state { color: var(--sbx-on); }
+.sbx-app-tile.is-on .sbx-app-icon { background: var(--sbx-on-bg); color: var(--sbx-on); }
+.sbx-app-tile.is-offered { border-style: dashed; border-color: #e3bd7e; }
+.sbx-app-tile.is-offered .sbx-app-state { color: var(--sbx-offered); }
+.sbx-app-tile.is-offered .sbx-app-icon { background: var(--sbx-offered-bg); color: var(--sbx-offered); }
+.sbx-app-tile.is-off { background: #fafbfc; color: var(--sbx-muted); }
+.sbx-app-tile.is-off .sbx-app-icon { background: transparent; color: #a3a9b3; }
+
+.sbx-app-pill {
+    position: absolute;
+    top: 5px;
+    right: 6px;
+    font-size: 9px;
+    font-weight: 700;
+    color: #fff;
+    background: var(--accent);
+    border-radius: 999px;
+    padding: 1px 6px;
+}
+
+.sbx-topbar { min-height: 49px; }
+
+@container sbx-main (max-width: 560px) {
+    .sbx-wf-head { flex-wrap: wrap; gap: 8px; margin: -16px -14px 6px; padding: 10px 14px 8px; }
+    /* Kept short so the sticky head leaves room; the description is edited on a wider screen. */
+    .sbx-wf-head .sbx-desc-input { display: none; }
+    .sbx-wf-head .sbx-title-input { font-size: 18px; }
+    .sbx-wf-toolbar { width: 100%; }
+    .sbx-wf-toolbar .sbx-btn-primary { flex: 1; justify-content: center; }
+    .sbx-apps-legend { display: grid; gap: 4px; }
+    .sbx-apps-grid { grid-template-columns: repeat(auto-fill, minmax(78px, 1fr)); gap: 6px; }
+    .sbx-app-tile { min-height: 80px; padding: 18px 4px 7px; gap: 5px; }
+    .sbx-app-icon { width: 30px; height: 30px; font-size: 15px; }
+    .sbx-app-title { font-size: 10.5px; }
+    /* Beside a pill, the state is its dot alone (the legend says which is which). */
+    .sbx-app-tile.has-pill .sbx-app-state-text { display: none; }
+}
+
+@media (max-width: 600px) { .sbx-main { padding: 16px 14px 48px; } }
+
+@media (prefers-reduced-motion: reduce) { .sbx-app-tile { transition: none; } .sbx-app-tile:hover { transform: none; } }
+
+/* ── App popover ────────────────────────────────────── */
+
+.sbx-app-pop {
+    position: fixed;
+    z-index: 65;
+    overflow-y: auto;
+    background: var(--sbx-card);
+    border: 1px solid var(--sbx-border);
+    border-radius: 12px;
+    box-shadow: 0 12px 32px rgba(16, 24, 40, .18);
+    padding: 12px;
+}
+
+.sbx-app-pop.is-saving .sbx-app-choices, .sbx-app-pop.is-saving .sbx-adv-body { opacity: .6; pointer-events: none; }
+
+.sbx-app-pop-head { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
+.sbx-app-pop-titles { flex: 1; min-width: 0; }
+.sbx-app-pop-title { font-weight: 700; font-size: 14px; }
+.sbx-app-pop-id { font-family: Consolas, monospace; font-size: 10.5px; color: var(--sbx-muted); }
+
+.sbx-app-choices {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 4px;
+    padding: 3px;
+    border-radius: 9px;
+    background: #f2f4f7;
+}
+
+.sbx-app-choice {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    border: 1px solid transparent;
+    border-radius: 7px;
+    background: transparent;
+    padding: 7px 6px;
+    font-size: 12.5px;
+    font-weight: 600;
+    color: var(--sbx-muted);
+    cursor: pointer;
+}
+
+.sbx-app-choice:hover:not(:disabled) { color: var(--secondary); background: rgba(255, 255, 255, .7); }
+.sbx-app-choice.active { background: #fff; color: var(--secondary); border-color: var(--sbx-border); box-shadow: 0 1px 2px rgba(16, 24, 40, .08); }
+.sbx-app-choice:disabled { cursor: not-allowed; opacity: .45; }
+
+.sbx-app-pop-why, .sbx-app-pop-shared { font-size: 12px; color: var(--sbx-muted); margin: 9px 2px 0; line-height: 1.4; }
+.sbx-app-pop-shared { color: #7a4b00; }
+
+.sbx-app-adv { margin-top: 10px; border-top: 1px solid var(--sbx-border); padding-top: 8px; }
+.sbx-app-adv summary { cursor: pointer; font-size: 12.5px; font-weight: 600; color: var(--secondary); padding: 2px; border-radius: 5px; }
+.sbx-adv-body { display: grid; gap: 2px; margin-top: 6px; }
+
+.sbx-adv-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 6px 4px 6px calc(4px + var(--sbx-adv-depth, 0) * 12px);
+    border-radius: 7px;
+    cursor: pointer;
+}
+
+.sbx-adv-row:hover { background: #f6f7f9; }
+.sbx-adv-row.is-unavailable .sbx-adv-label { color: var(--sbx-muted); }
+.sbx-adv-text { flex: 1; min-width: 0; display: grid; gap: 1px; }
+.sbx-adv-label { font-size: 12.5px; font-weight: 600; }
+.sbx-adv-desc { font-size: 11px; color: var(--sbx-muted); line-height: 1.35; }
+.sbx-adv-check { width: 16px; height: 16px; flex: 0 0 auto; accent-color: var(--primary); }
+.sbx-adv-select, .sbx-adv-input { flex: 0 0 auto; max-width: 128px; font: inherit; font-size: 12px; border: 1px solid var(--sbx-border); border-radius: 6px; padding: 4px 6px; background: #fff; }

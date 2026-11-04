@@ -76,7 +76,7 @@ export const USER_CHOICE = "$user";
  * `app_flags_base`), computed from the running registry so a capability added later is covered too.
  */
 const APP_FLAG_BASES = ["new_organization", "all_off", "all_on", "expanded_access_off"] as const;
-function appFlagBaseOverrides(base: unknown): JsonObject {
+export function appFlagBaseOverrides(base: unknown): JsonObject {
   const overrides: JsonObject = {};
   for (const capability of valueCapabilities()) {
     if (capability.type !== "boolean") continue;
