@@ -162,7 +162,20 @@
   let retainedMedia=null;
   const referenceKey=file=>JSON.stringify([project,sourceUrl(file),file.updated_at||'',file.size||0]);
   function cachedImage(src,key=src){return imageCache.get(key,()=>new Promise((resolve,reject)=>{const img=new Image();img.onload=()=>resolve(img);img.onerror=()=>reject(Error('Image could not be previewed. Download the original from More actions.'));img.src=src;}),img=>img.naturalWidth*img.naturalHeight*4);}
-  function releaseMedia(){if(retainedMedia){retainedMedia.element.pause();retainedMedia.element.removeAttribute('src');retainedMedia.element.load();retainedMedia=null;}}
+  function releaseMedia(){if(retainedMedia){retainedMedia.download?.abort();retainedMedia.element.pause();retainedMedia.element.removeAttribute('src');retainedMedia.element.load();if(retainedMedia.local)URL.revokeObjectURL(retainedMedia.local);retainedMedia=null;}}
+  // Chrome buffers a paused video only a little way ahead, so the whole file is downloaded as soon as it is shown
+  // and the player switches to that copy where it stands; until then it streams, seeking by byte ranges.
+  const WHOLE_MEDIA_LIMIT=1024*1024*1024;
+  function downloadWholeMedia(entry,src){
+   const controller=new AbortController();entry.download=controller;
+   fetch(src,{signal:controller.signal,credentials:'same-origin'}).then(response=>{if(!response.ok||Number(response.headers.get('content-length'))>WHOLE_MEDIA_LIMIT){controller.abort();return null;}return response.blob();}).then(function swap(blob){
+    const element=entry.element;if(!blob||retainedMedia!==entry||controller.signal.aborted)return;
+    if(scrub?.element===element||element.seeking){setTimeout(()=>swap(blob),250);return;}
+    const playing=!element.paused&&!element.ended,rate=element.playbackRate;
+    entry.local=URL.createObjectURL(blob);entry.pendingTime=element.currentTime;element.defaultPlaybackRate=rate;element.src=entry.local;element.playbackRate=rate;
+    if(playing)element.play().catch(()=>{});
+   }).catch(()=>{});
+  }
 
   const frameLink=file=>{const link=frameLinks.get(file?.name);return link&&files.some(f=>f.name===link.source)?link:null;};
   async function jumpToFrame(file){const link=frameLink(file);if(link)await open(files.find(f=>f.name===link.source),{time:link.time});}
@@ -451,14 +464,14 @@
       const element=document.createElement(isVideo?'video':'audio'),entry={key,element,pendingTime:null};retainedMedia=entry;
       // Audio starts muted; the mute button turns it on for this video.
       element.controls=false;element.preload='auto';element.playsInline=true;element.muted=true;element.defaultMuted=true;
-      element.onerror=()=>{if(element!==media)return;panel.classList.remove('is-loading','is-buffering');empty.hidden=false;empty.textContent='This video cannot play in this browser.';message('This format cannot play in this browser. Download the original from More actions.',true);};
+      element.onerror=()=>{if(entry.local){URL.revokeObjectURL(entry.local);entry.local=null;element.src=src;return;}if(element!==media)return;panel.classList.remove('is-loading','is-buffering');empty.hidden=false;empty.textContent='This video cannot play in this browser.';message('This format cannot play in this browser. Download the original from More actions.',true);};
       if(isVideo)watchFrames(element);
       for(const event of ['waiting','seeking'])element.addEventListener(event,()=>{if(element===media)panel.classList.add('is-buffering');});
       for(const event of ['playing','seeked','canplay','pause','loadeddata'])element.addEventListener(event,()=>{if(element===media&&!element.seeking&&element.readyState>=2)panel.classList.remove('is-buffering');});
       element.addEventListener('loadedmetadata',()=>{if(element!==media)return;if(entry.pendingTime!=null){element.currentTime=Math.min(entry.pendingTime,Number.isFinite(element.duration)?element.duration:entry.pendingTime);entry.pendingTime=null;}fit();controls();updateTransport();});
       for(const event of ['timeupdate','durationchange','play','pause','ended','volumechange'])element.addEventListener(event,()=>{if(element===media)updateTransport();});
       element.addEventListener('seeked',()=>{if(element===media)queueScrub();});
-      element.src=src;
+      element.src=src;downloadWholeMedia(entry,src);
      }
      const entry=retainedMedia,element=media=entry.element;player.append(element);player.hidden=!isVideo;empty.hidden=true;
      const targetTime=options.time??entry.pendingTime;if(targetTime!=null){if(element.readyState>=1){element.currentTime=Math.min(targetTime,Number.isFinite(element.duration)?element.duration:targetTime);entry.pendingTime=null;}else entry.pendingTime=targetTime;}
