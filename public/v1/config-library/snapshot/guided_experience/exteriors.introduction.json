@@ -1,16 +1,16 @@
 {
   "kind": "guided_experience",
   "id": "exteriors.introduction",
-  "revision": 1,
-  "sha256": "062f4a9d0b41b6d9514aa4c130bd388a2702f517b8c9b7ff46df78b48314a3b5",
+  "revision": 2,
+  "sha256": "f1dce74a3ffc6e88353b58a264e59d15f13373f935b1c7931953c5fb83c5f422",
   "title": "Exteriors are here",
-  "updated_at": "2026-11-02T05:47:05.360Z",
-  "updated_by": "key:ck_7897b5259beb4fa3 agents:jack-pc",
+  "updated_at": "2026-11-04T16:22:35.053Z",
+  "updated_by": "key:ck_1e1f09bdc222484f agents:fm-agents-1",
   "data": {
     "id": "exteriors.introduction",
     "version": 1,
     "kind": "announcement",
-    "scope": "organization",
+    "scope": "person",
     "salt": "2026-11",
     "title": {
       "key": "gx_ext_intro_title",

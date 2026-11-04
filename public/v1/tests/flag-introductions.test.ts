@@ -8,7 +8,7 @@ import { closePlatformFixtureStores, nextTestPhone } from "./helpers/platform-fi
 import { TEST_LIBRARY_AUTHOR, useLibraryStore } from "./helpers/config-library.js";
 
 // Turning a flag on for an existing organization with an announcement (docs/architecture/feature-flags.md, "Introducing
-// a flag"): the state, who gets it and who never does, one finish for the organization, and the billboard's copy.
+// a flag"): the state, who gets it and who never does, once for each person in the organization, and the billboard's copy.
 
 let app: any = null;
 let storageRoot = "";
@@ -16,7 +16,7 @@ const FLAG = "firstmeasure.exteriors";
 const ID = "exteriors.introduction";
 const t = (key: string, text: string) => ({ key, text });
 const ANNOUNCEMENT = {
-  id: ID, version: 1, kind: "announcement", scope: "organization", salt: "2026-11", title: t("gx_ext_intro_title", "Exteriors are here"), introduces: FLAG,
+  id: ID, version: 1, kind: "announcement", scope: "person", salt: "2026-11", title: t("gx_ext_intro_title", "Exteriors are here"), introduces: FLAG,
   eligibility: { capabilities: [FLAG], permissions: ["order_reports"] }, triggers: [{ kind: "app_loaded" }], variants: [{ id: "default", weight: 1 }],
   steps: [{ id: "billboard", widget: "billboard", title: t("gx_ext_intro_title", "Exteriors are here"), required: false, options: { billboard: "exteriors_popup", workflow: "report", order_scope: "full_house" } }],
   completion: { screen: "none" }
@@ -31,6 +31,19 @@ async function register(label: string): Promise<Caller> {
   const cookie = String(created.headers["set-cookie"]).match(/fm_platform_session=[^;,]+/)?.[0] || "";
   const session = await app.inject({ method: "GET", url: "/v1/platform/auth/session", headers: { cookie } });
   return { email, cookie, csrf: String(session.json().csrf_token || ""), orgId };
+}
+/** Another person in the same organization, signed in with their own session. */
+async function teammate(org: Caller, label: string): Promise<Caller> {
+  const storage = await import("../platform/storage.js");
+  const { env } = await import("../src/config/env.js");
+  const { createHmac } = await import("node:crypto");
+  const email = `${label}-${Math.random().toString(36).slice(2, 10)}@example.test`, userId = `user_${label}_${Math.random().toString(36).slice(2, 8)}`;
+  const identity = await storage.createIdentity({ email, name: label });
+  await storage.addIdentityMembership(String(identity.id), org.orgId, userId, "owner");
+  await storage.upsertDocument(org.orgId, "users", { id: userId, data: { identity_id: identity.id, email, status: "active", org_permissions: { level: "owner", items: {} } } });
+  const auth = await storage.createAuthSession({ identity_id: identity.id, organization_id: org.orgId, user_id: userId, role: "owner" });
+  const signature = createHmac("sha256", env.platformSessionSecret).update(auth.sessionId).digest("base64url");
+  return { email, cookie: `fm_platform_session=${auth.sessionId}.${signature}`, csrf: String(auth.session.csrf_token), orgId: org.orgId };
 }
 const SYSTEM = { kind: "system" as const, label: "test", can_write: true };
 const console_ = () => import("../platform/flag-console.js");
@@ -69,7 +82,7 @@ after(async () => {
   try { await rm(storageRoot, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 }); } catch (error: any) { if (!["EBUSY", "EPERM"].includes(error?.code)) throw error; }
 });
 
-test("turned on to be introduced: announced once for the whole organization, on stays on", async () => {
+test("turned on to be introduced: announced once to each person, on stays on", async () => {
   const org = await register("intro");
   const { setFlagForOrganizations } = await console_();
   assert.equal(await offered(org), false, "not on yet");
@@ -88,6 +101,24 @@ test("turned on to be introduced: announced once for the whole organization, on 
   assert.equal((await stateOf(org.orgId)).effective, true);
   const { isCapabilityEnabled } = await import("../platform/capabilities.js");
   assert.equal(await isCapabilityEnabled(org.orgId, FLAG), true);
+});
+
+test("each person in the organization is told once, not only the first to load the app (FM-327)", async () => {
+  const org = await register("each");
+  await (await console_()).setFlagForOrganizations({ flag: FLAG, value: true, introduce: true, org_ids: [org.orgId] }, SYSTEM);
+  const second = await teammate(org, "second"), third = await teammate(org, "third");
+  assert.equal(await offered(second), true, "a teammate is offered it before anyone has seen it");
+  assert.equal((await event(org, "dismiss")).statusCode, 200);
+  assert.equal(await offered(org), false, "the first person saw it");
+  assert.equal(await offered(second), true, "the first person closing it does not finish it for the others");
+  assert.equal((await stateOf(org.orgId)).introduction_state, "introduced");
+  assert.equal((await stateOf(org.orgId)).introduced_people, 1);
+  assert.equal((await event(second, "complete")).statusCode, 200);
+  assert.equal(await offered(second), false);
+  assert.equal(await offered(third), true);
+  assert.equal((await stateOf(org.orgId)).introduced_people, 2);
+  // A person who joins later, while the flag is still in its introduced state, is told too.
+  assert.equal(await offered(await teammate(org, "later")), true);
 });
 
 test("Try It Now finishes it the same way", async () => {
@@ -191,10 +222,21 @@ test("customers cannot set the state", async () => {
   assert.equal(containsAppFlagMutation({ data: { flag_introductions: {} } }), true);
 });
 
-test("an announcement is one step that runs nothing", async () => {
+test("an announcement is one step that runs nothing, and one that introduces a flag is per person", async () => {
   const { experienceSchema } = await import("../guided-experiences/contracts.js");
   assert.equal(experienceSchema.safeParse(ANNOUNCEMENT).success, true);
   assert.equal(experienceSchema.safeParse({ ...ANNOUNCEMENT, steps: [...ANNOUNCEMENT.steps, { ...ANNOUNCEMENT.steps[0], id: "second" }] }).success, false);
+  const orgWide = experienceSchema.safeParse({ ...ANNOUNCEMENT, scope: "organization" });
+  assert.equal(orgWide.success, false, "an organization-wide introduction would be seen only by whoever loads the app first");
+  assert.match(JSON.stringify(orgWide.error?.issues), /scope must be person/);
+  assert.equal(experienceSchema.safeParse({ ...ANNOUNCEMENT, scope: "organization", introduces: undefined }).success, true, "a plain announcement may still be organization-wide");
+});
+
+test("the shipped Exteriors introduction is told to each person", async () => {
+  const { readSnapshot } = await import("../config-library/library.js");
+  const entry = readSnapshot().find((file: { kind: string; id: string }) => file.kind === "guided_experience" && file.id === ID) as { data: { scope: string; introduces: string } } | undefined;
+  assert.equal(entry?.data.introduces, FLAG);
+  assert.equal(entry?.data.scope, "person");
 });
 
 test("the billboard is served sandboxed with the watcher added; unpublished is a 404 outside development", async () => {
