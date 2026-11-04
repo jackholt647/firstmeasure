@@ -61,6 +61,12 @@ test('typing in the company name while autosaves are in flight keeps every chara
         $('#csCompanyEmail', paneCompany), $('#csCompanyPhone', paneCompany), false, false, false, false, () => ({}), () => '',
         () => ({}), noop, true, (value) => value, '#f0d030', '#000000', (palette) => palette || [], (value) => value || {}, noop, noop, noop, noop, noop, noop);
       window.FirstMateSettingsPages.installAutosave(panel, { source: 'company-settings', inputDelay: 350 });
+      // FM-324 follow-up: a "Saving..." line above the form pushed it down while a
+      // save ran. Record any text the company status line ever shows.
+      window.statusTexts = [];
+      const csStatus = $('#csStatus', paneCompany);
+      new MutationObserver(() => { if (csStatus.textContent) window.statusTexts.push(csStatus.textContent); })
+        .observe(csStatus, { childList: true, characterData: true, subtree: true });
     }, { saveHandler, renderCompany });
 
     const name = page.locator('#csName');
@@ -78,6 +84,7 @@ test('typing in the company name while autosaves are in flight keeps every chara
     assert.equal(await page.evaluate(() => window.maxInFlight), 1, 'company saves run one at a time');
     assert.equal(await page.evaluate(() => window.saves.at(-1)), 'Tri Roofing Co', 'the last save carries the whole name');
     assert.equal(await page.evaluate(() => window.inFlight), 0);
+    assert.deepEqual(await page.evaluate(() => window.statusTexts), [], 'autosave shows no saving text above the form');
 
     // A load that answers late (renderCompany writing inputs from state) leaves
     // the field being typed in alone and still fills the others.
