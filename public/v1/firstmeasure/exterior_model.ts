@@ -13,7 +13,7 @@ const color = (value: unknown): string | null => (typeof value === 'string' && /
 // exterior_report_model.js publishes labels; the viewer needs the editor keys ExteriorFinishes understands.
 const MATERIAL_KEYS: Record<string, string> = {
   'Soffit': 'soffit', 'Horizontal siding': 'siding', 'Vertical siding': 'siding-vertical', 'Horizontal trim': 'trim-horizontal',
-  'Vertical trim': 'trim-vertical', 'Brick': 'brick', 'Masonry': 'masonry', 'Stucco': 'stucco', 'Stone': 'stone', 'Other': 'other',
+  'Vertical trim': 'trim-vertical', 'Brick': 'brick', 'Masonry': 'masonry', 'Stucco': 'stucco', 'Concrete': 'concrete', 'Stone': 'stone', 'Other': 'other',
   'Unassigned': 'unassigned', 'Chimney top': 'chimney-top', 'Roof trim': 'trim-horizontal'
 };
 const ROOF_CATEGORIES = new Set(['shingles', 'shake', 'slate', 'metal']);

@@ -215,3 +215,21 @@ test('a saved exterior design keeps only known finishes, colors and face keys',a
   assert.deepEqual(design.openings,{'1:2:3|4:5:6':{color:'#010203',trimColor:'#040506'}});
   assert.equal(sanitizeExteriorDesign({mode:'nope'}).mode,'built');
 });
+
+// FM-325: a wall finish the editor offers (concrete was added) must survive the saved design, the published model
+// and the viewer's design choices, or customers see it as Unassigned.
+test('every editor wall finish survives the saved design, the customer model and the viewer choices',async()=>{
+  const vm=await import('node:vm'),ctx={console};ctx.window=ctx;vm.createContext(ctx);
+  for(const name of ['wall_solid_geometry','wall_features'])vm.runInContext(await readFile(new URL('../../measure/internal/editor_scripts/'+name+'.js',import.meta.url),'utf8'),ctx);
+  const {sanitizeExteriorDesign,WALL_MATERIALS}=await import('../firstmeasure/exterior_design.ts'),{exteriorModelProjection}=await import('../firstmeasure/exterior_model.ts');
+  const viewer=await readFile(new URL('../../libraries/apps/measurements/roof-viewer.js',import.meta.url),'utf8');
+  const wall=(id,material)=>({id,points:[{x:0,y:0,z:0},{x:1,y:0,z:0},{x:1,y:0,z:1},{x:0,y:0,z:1}],holes:[],material,elevation:'North',gross:10.76,net:10.76,openingArea:0,width:3.28,height:3.28,openings:[]});
+  const finishes=Object.entries(ctx.ExteriorMaterials).filter(([id])=>!['default','chimney-top','soffit'].includes(id)&&!id.startsWith('trim-'));
+  // Canonical's editor copy can lag the measure-internal lane, so concrete is also named here.
+  for(const [id,def] of [...finishes.filter(([id])=>id!=='concrete'),['concrete',{label:'Concrete'}]]){
+    assert.ok(WALL_MATERIALS.includes(id),id+' is a design wall material');
+    assert.deepEqual(sanitizeExteriorDesign({defaults:{material:id},walls:{W01:{material:id}}}).walls,{W01:{material:id}},id);
+    assert.ok(viewer.includes(`['${id}','${def.label}']`),id+' is a viewer wall choice');
+    if(id!=='unassigned')assert.equal(exteriorModelProjection({walls:[wall('W01',def.label)],edges:[],roof:[],totals:{}}).walls[0].materialKey,id,id+' keeps its key in the customer model');
+  }
+});

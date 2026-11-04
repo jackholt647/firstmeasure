@@ -7,7 +7,7 @@ const object = (value: unknown): Obj => (value && typeof value === 'object' && !
 const color = (value: unknown): string | null => (typeof value === 'string' && /^#[0-9a-f]{6}$/i.test(value) ? value.toLowerCase() : null);
 
 // The editor's wall finishes (window.ExteriorMaterials) a customer may choose, and its roof coverings.
-export const WALL_MATERIALS = ['unassigned', 'siding', 'siding-vertical', 'brick', 'masonry', 'stucco', 'stone', 'other'] as const;
+export const WALL_MATERIALS = ['unassigned', 'siding', 'siding-vertical', 'brick', 'masonry', 'stucco', 'concrete', 'stone', 'other'] as const;
 export const ROOF_CATEGORIES = ['shingles', 'shake', 'slate', 'metal'] as const;
 // ExteriorFinishes.stickerPieces ids.
 export const STICKER_PIECES = ['doorTrim', 'doorMain', 'windowTrim', 'garageTrim', 'garageMain', 'untypedTrim', 'untypedMain'] as const;
