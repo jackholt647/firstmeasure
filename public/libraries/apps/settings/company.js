@@ -13580,7 +13580,10 @@ ${String(companyBusinessAddress ? `                  <div class="cs-field wide">
         // Roof pitch (1M8-255): the saved choice, else degrees for metric companies and rise over 12 otherwise.
         const pitchNotation = $('#csPitchNotation', paneCompany);
         if (pitchNotation) pitchNotation.value = state.report_preferences?.pitch_notation || ((units?.value || state.report_preferences?.measurement_system) === 'metric' ? 'degrees' : 'rise_12');
-        if(csName) csName.value = state.name;
+        // FM-324: never write over a text field the person is typing in; a load
+        // or save that answers late would wipe what they typed since.
+        const writeText = (input, value) => { if (input && input.getRootNode?.().activeElement !== input) input.value = value; };
+        writeText(csName, state.name);
         if(csPrimary) csPrimary.value = clampHex(state.primary, DEFAULT_PRIMARY);
         if(csSecondary) csSecondary.value = clampHex(state.secondary, DEFAULT_SECONDARY);
         if(csBrandFont) csBrandFont.value = state.font_family || 'Montserrat';
@@ -13590,15 +13593,15 @@ ${String(companyBusinessAddress ? `                  <div class="cs-field wide">
         if(field) field.hidden=!state.title_font;
         if(csPrimaryHex) csPrimaryHex.value = clampHex(csPrimary.value, DEFAULT_PRIMARY).slice(1);
         if(csSecondaryHex) csSecondaryHex.value = clampHex(csSecondary.value, DEFAULT_SECONDARY).slice(1);
-        if (csCompanyEmail) csCompanyEmail.value = state.company_email || '';
-        if (csCompanyPhone) csCompanyPhone.value = state.company_phone || '';
+        writeText(csCompanyEmail, state.company_email || '');
+        writeText(csCompanyPhone, state.company_phone || '');
         const businessAddress = organizationBusinessAddressFromState();
-        if (csCompanyAddress1) csCompanyAddress1.value = businessAddress.address1 || '';
-        if (csCompanyAddress2) csCompanyAddress2.value = businessAddress.address2 || '';
-        if (csCompanyCity) csCompanyCity.value = businessAddress.city || '';
-        if (csCompanyState) csCompanyState.value = businessAddress.state || '';
-        if (csCompanyPostalCode) csCompanyPostalCode.value = businessAddress.postal_code || '';
-        if (csCompanyCountry) csCompanyCountry.value = businessAddress.country || 'US';
+        writeText(csCompanyAddress1, businessAddress.address1 || '');
+        writeText(csCompanyAddress2, businessAddress.address2 || '');
+        writeText(csCompanyCity, businessAddress.city || '');
+        writeText(csCompanyState, businessAddress.state || '');
+        writeText(csCompanyPostalCode, businessAddress.postal_code || '');
+        writeText(csCompanyCountry, businessAddress.country || 'US');
       }
       state.palette = normalizeBrandPalette(state.palette, state.primary, state.secondary);
       state.logo_display = normalizeLogoDisplay(state.logo_display);
@@ -15179,7 +15182,19 @@ ${String(companyBusinessAddress ? `                  <div class="cs-field wide">
         }
       });
       void loadAlternateLogos();
-      $('#csSave', paneCompany).addEventListener('click', async ()=>{
+      // FM-324: autosave clicks Save after each pause in typing, and a save takes
+      // several requests. Run one at a time; a click during a save runs once
+      // more afterwards with the fields as they are then.
+      let companySaveRunning = null;
+      let companySaveAgain = false;
+      $('#csSave', paneCompany).addEventListener('click', ()=>{
+        if (companySaveRunning) { companySaveAgain = true; return; }
+        companySaveRunning = (async ()=>{
+          try { do { companySaveAgain = false; await saveCompanyFields(); } while (companySaveAgain); }
+          finally { companySaveRunning = null; }
+        })();
+      });
+      async function saveCompanyFields(){
         csStatus.textContent = (globalThis.PlatformLanguage?.text("settings","m_b82c4e12389843","Saving...") ?? "Saving...");
         const toSaveName = String(csName.value || '').trim();
         state.primary = csPrimary.value;
@@ -15210,12 +15225,13 @@ ${String(companyBusinessAddress ? `                  <div class="cs-field wide">
         const previousLocale = window.PlatformLanguage?.context?.().locale;
         await window.PlatformLanguage?.refresh?.();
         if (previousLocale !== window.PlatformLanguage?.context?.().locale) window.location.reload();
-        state.name = toSaveName;
-        csName.value = state.name;
+        // FM-324: the fields stay as typed. Writing the saved (trimmed, by now
+        // older) values back deleted whatever was typed while the save ran.
+        state.name = csName.value;
         csStatus.textContent = '';
-        renderCompany({ writeInputs:true, forceLogo:false });
+        renderCompany({ writeInputs:false, forceLogo:false });
         showToast((globalThis.PlatformLanguage?.text("settings","m_4bb4688766e904","Saved") ?? "Saved"), (globalThis.PlatformLanguage?.text("settings","m_643fb7cf94f255","Company updated.") ?? "Company updated."), true);
-      });
+      }
       if(csLogoFile) csLogoFile.addEventListener('change', async ()=>{
         const f = csLogoFile.files && csLogoFile.files[0];
         if (!f) return;
