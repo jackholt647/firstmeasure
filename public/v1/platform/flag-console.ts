@@ -360,11 +360,22 @@ async function requireAnnouncement(key: string) {
   return announcement;
 }
 
-function flagView(node: NormalizedCapability, rollouts: FlagRollouts, announcements: Map<string, { id: string }>) {
+/**
+ * Who in an organization is told: the permissions its announcement requires, as their labels (`a|b` is either). A person
+ * without them is never shown it, so the console says so rather than "each person".
+ */
+function introductionAudience(announcement: { eligibility?: { permissions?: string[] } } | undefined) {
+  if (!announcement) return null;
+  return (announcement.eligibility?.permissions || []).map((rule) => rule.split("|").map((key) => key.trim()).filter(Boolean)
+    .map((key) => capabilityDefinition(`permission.${key}`)?.label || key).join(" or "));
+}
+
+function flagView(node: NormalizedCapability, rollouts: FlagRollouts, announcements: Map<string, { id: string; eligibility?: { permissions?: string[] } }>) {
   return {
     key: node.key, label: node.label, description: node.description, kind: node.kind, type: node.type, group: node.group, default: node.default,
     parent: node.parent, requires: node.requires, percentage_allowed: node.type === "boolean" && !NO_PERCENTAGE.has(node.key),
-    rollout: rollouts[node.key] ?? null, introduction: announcements.get(node.key)?.id ?? null
+    rollout: rollouts[node.key] ?? null, introduction: announcements.get(node.key)?.id ?? null,
+    introduction_audience: introductionAudience(announcements.get(node.key))
   };
 }
 
@@ -486,7 +497,8 @@ export async function readOrganizationFlags(orgId: string) {
   const flags = asObject(data.app_flags || data.feature_flags);
   const overrides = flagOverrides(data);
   const [rollouts, resolution, rules, announcements] = await Promise.all([readFlagRollouts(), effectiveCapabilities(orgId), readCapabilityCountryRules(), flagAnnouncements()]);
-  // An introduction is told to each person (its scope is person): Introduced once anyone there has seen it, with how many.
+  // An introduction is told to each person it is for (its scope is person, and its eligibility says who, e.g. those who
+  // may order reports): Introduced once anyone there has seen it, with how many.
   const introductions = new Map<string, { state: "waiting" | "introduced"; people: number }>();
   if (announcements.size) {
     const { countFinishedPeople } = await import("../guided-experiences/store.js");
