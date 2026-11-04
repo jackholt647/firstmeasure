@@ -134,7 +134,7 @@ export const experienceSchema = z.object({
   description: copySchema.optional(),
   /** The project tab this belongs to, for "show me again" and FAQs. */
   tab: id.optional(),
-  /** The flag this announces: it plays only where that flag is on and was asked to be introduced (flag-introductions.ts). */
+  /** The flag this announces: it plays only where that flag is on and was asked to be introduced (flag-introductions.ts), once to each person. */
   introduces: z.string().max(120).optional(),
   eligibility: z.object({
     capabilities: z.array(z.string().max(120)).max(12).default([]),
@@ -184,6 +184,8 @@ export const experienceSchema = z.object({
   if (!value.steps.length && !value.requires.length) context.addIssue({ code: z.ZodIssueCode.custom, message: "An experience needs a step, or a setup step it requires." });
   if (value.requires.length && value.kind === "overlay") context.addIssue({ code: z.ZodIssueCode.custom, message: "A tour cannot require setup steps." });
   if (value.kind === "announcement" && (value.steps.length !== 1 || value.requires.length || value.completion.action)) context.addIssue({ code: z.ZodIssueCode.custom, message: "An announcement is one step that requires and runs nothing." });
+  // Introducing a flag tells each person in the organization once (feature-flags.md, "Introducing a flag"), not whoever loads the app first.
+  if (value.introduces && value.scope !== "person") context.addIssue({ code: z.ZodIssueCode.custom, message: "An experience that introduces a flag is shown once to each person: its scope must be person." });
   for (const step of value.steps) {
     if ("widget" in step && step.widget === "module" && !step.module) context.addIssue({ code: z.ZodIssueCode.custom, message: `Step ${step.id} is a module step without a module.` });
     if (ids.has(step.id)) context.addIssue({ code: z.ZodIssueCode.custom, message: `Two steps are called ${step.id}.` });

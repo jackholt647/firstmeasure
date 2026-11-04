@@ -486,13 +486,14 @@ export async function readOrganizationFlags(orgId: string) {
   const flags = asObject(data.app_flags || data.feature_flags);
   const overrides = flagOverrides(data);
   const [rollouts, resolution, rules, announcements] = await Promise.all([readFlagRollouts(), effectiveCapabilities(orgId), readCapabilityCountryRules(), flagAnnouncements()]);
-  const introductions = new Map<string, "waiting" | "introduced">();
+  // An introduction is told to each person (its scope is person): Introduced once anyone there has seen it, with how many.
+  const introductions = new Map<string, { state: "waiting" | "introduced"; people: number }>();
   if (announcements.size) {
-    const { readProgress } = await import("../guided-experiences/store.js");
+    const { countFinishedPeople } = await import("../guided-experiences/store.js");
     for (const [key, announcement] of announcements) {
       if (!(await introductionRequested(orgId, key, data, org.created_at))) continue;
-      const progress = await readProgress(orgId, "", announcement.id);
-      introductions.set(key, progress && progress.status !== "started" ? "introduced" : "waiting");
+      const people = await countFinishedPeople(orgId, announcement.id);
+      introductions.set(key, { state: people ? "introduced" : "waiting", people });
     }
   }
   return {
@@ -505,7 +506,8 @@ export async function readOrganizationFlags(orgId: string) {
         : { value: false, source: "default" as const };
       return {
         ...flagView(node, rollouts, announcements),
-        introduction_state: introductions.get(node.key) ?? null,
+        introduction_state: introductions.get(node.key)?.state ?? null,
+        introduced_people: introductions.get(node.key)?.people ?? null,
         value: resolution.values[node.key],
         effective: resolution.effectiveByKey[node.key] === true,
         reason: resolution.reasons[node.key] ?? null,
