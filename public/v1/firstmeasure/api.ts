@@ -16776,7 +16776,10 @@ export async function updateStatusForSubmission(projectId: string, requestedStat
   const manifest = await readManifest(projectId);
   if (isCustomerFullHouse(manifest) && isReviewSubmissionStatus(requestedStatus)) {
     const assigned = asRecord(asRecord(manifest.workflow).assigned_to);
-    await assertFullHouseEligible(manifest, assigned.email ?? manifest.assigned_to_email, 'draft');
+    const assignedEmail = String(assigned.email ?? manifest.assigned_to_email ?? '').trim();
+    // Opened straight in the editor without a claim: nobody is the drafter yet, which is not a qualification problem.
+    if (!assignedEmail) throw conflict('full_house_claim_required', 'Claim this project from the queue before submitting it.');
+    await assertFullHouseEligible(manifest, assignedEmail, 'draft');
     const sync = await resolveProjectPdfSyncReference(projectId);
     const status = String(manifest.status ?? "").trim().toLowerCase();
     if (sync && !REVIEW_SUBMISSION_STATUSES.has(status) && !IMMUTABLE_TERMINAL_PROJECT_STATUSES.has(status)) {

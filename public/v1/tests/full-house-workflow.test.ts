@@ -51,6 +51,8 @@ test('full-house qualifications, reviewed PDFs, QA and quality audits; roof comp
     assert.equal(denied.statusCode, 403, denied.body);
     const next = await queue.claimNextInQueue({ actor: { ...roof, drafter_rank: 'senior' } });
     assert.equal(next.project.id, roofId, 'unqualified worker skips full house without blocking roof work');
+    const { updateStatusForSubmission } = await import('../firstmeasure/api.js');
+    await assert.rejects(updateStatusForSubmission(id, 'awaiting_review'), { code: 'full_house_claim_required' }, 'unclaimed, not unqualified');
     await queue.reserveProject(id, { reserved_for: tech });
     assert.equal((await queue.claimNextInQueue({ actor: { ...tech, drafter_rank: 'senior' } })).project.id, id);
     await assert.rejects(storage.patchManifest(id, { include_gutter_measurements: false }), { code: 'full_house_gutters_required' });
