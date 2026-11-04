@@ -65,6 +65,11 @@ export async function setupReached(orgId: string, experienceId: string, stepId: 
     AND (type='complete' OR (type IN ('step_view','step_done') AND step_id=?)) LIMIT 1`).get(orgId, experienceId, stepId);
   return !!row;
 }
+/** How many people in the organization finished a per-person experience. */
+export async function countFinishedPeople(orgId: string, experienceId: string) {
+  const row = await guidedStore().prepare("SELECT COUNT(*) AS n FROM guided_progress WHERE organization_id=? AND experience_id=? AND subject_id<>'' AND status<>'started'").get(orgId, experienceId);
+  return Number(row?.n || 0);
+}
 export async function listProgress(orgId: string, subjectIds: string[]) {
   if (!subjectIds.length) return [];
   const rows = await guidedStore().prepare(`SELECT * FROM guided_progress WHERE organization_id=? AND subject_id IN (${subjectIds.map(() => "?").join(",")})`).all(orgId, ...subjectIds);

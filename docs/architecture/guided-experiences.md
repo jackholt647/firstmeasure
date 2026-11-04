@@ -280,7 +280,7 @@ no action: an announcement is a definition played by this runtime, not a modal o
 its own. `guided-announcement.js` draws a website billboard in a popup with a close
 button. Close and the page's own button each finish it (`dismiss`, `complete`), in
 the experience's server progress, so a popup's `scope` decides whether that is per
-organization or per person. A step's `options` name `billboard` and what the button
+organization or per person; one that introduces a flag is always per person. A step's `options` name `billboard` and what the button
 opens: `workflow` and `order_scope` (`fm:new-project-workflow`, which
 `ExteriorOrder.prefer` answers for Roof or Full Exterior).
 
