@@ -72,3 +72,20 @@ test("every default price book item resolves to a plain JSON scope item", async 
     assert.doesNotThrow(() => jsonClone(line), `${item.id} resolves to plain JSON`);
   }
 });
+
+test("a proposal with generated lines resolves through the published action", async () => {
+  const p = `project_${randomUUID()}`; await storage.upsertDocument(ORG, "projects", { id: p, data: {} });
+  const { invokeAction } = await import("../platform/publication/actions.js");
+  const target = { scope: "project" as const, organizationId: ORG, projectId: p };
+  const pctx = { ...ctx, projectId: p };
+  const run = async (action: string, input: Record<string, unknown>) => ((await invokeAction(pctx, { action, target }, input, { idempotencyKey: randomUUID() })) as { value: any }).value;
+  const prepared = await run("operations.document.prepare", { project_id: p, path: "proposal" });
+  const doc = prepared.document || prepared;
+  const pieces = [{ id: "piece_roof", template_id: "roof_replacement", name: "Roof replacement" }];
+  const measurements = { roofSquares: 22, wastePercent: 10, eavesLf: 120, rakesLf: 80, ridgesLf: 40 };
+  const items = (await run("operations.scope.generate", { selection: pieces, measurements })).items;
+  const saved = await run("operations.document.save", { document_id: doc.id, expected_revision: doc.revision ?? 1, params: { scope_pieces: pieces, measurements, scope_items: items } });
+  assert.ok(saved);
+  const resolved = await run("operations.document.resolve", { document_id: doc.id });
+  assert.ok(resolved, "the proposal resolves for the live preview");
+});
