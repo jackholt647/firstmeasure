@@ -343,3 +343,18 @@ test('trim is measured: opening boards along their outside edge by kind, wall tr
  assert.ok(near(totals.wallHorizontal,12)&&near(totals.wallVertical,9)&&near(totals.roof,10));
  assert.ok(near(totals.total,2*doorLength+12+9+10));
 });
+test('a face seen exactly edge-on still prints its edge line (FM-323): an overhang past the wall shows, a hidden one stays hidden',()=>{
+ const P=(x,y,z)=>({x,y,z}),front=wall('W',0),pixel=(scene,p)=>{const q=scene.at(p),i=Math.floor(q.y)*scene.width+Math.floor(q.x);return {owner:scene.surfaces[scene.owners[i]],rgb:[...scene.pixels.subarray(i*4,i*4+3)]};};
+ // A flat roof slab 50 cm past both ends of the wall, and a soffit-like slab behind the wall: both horizontal, so edge-on in an elevation.
+ const roof={id:'',surface:'roof',points:[P(-.5,-.5,4),P(4.5,-.5,4),P(4.5,3,4),P(-.5,3,4)],openings:[]},hidden={id:'',points:[P(1,1,2),P(3,1,2),P(3,3,2),P(1,3,2)],openings:[]};
+ for(const order of [[front,roof,hidden],[hidden,roof,front]]){const s=PDF.rasterScene(order,{x:0,y:-1},400,400,false,20);
+  for(const x of [-.4,-.25,4.25,4.4]){const p=pixel(s,P(x,0,4));assert.equal(p.owner,roof,'overhang at x='+x+' is drawn');assert.deepEqual(p.rgb,[34,41,49],'overhang at x='+x+' prints as an edge line');}
+  assert.equal(pixel(s,P(2,1,2)).owner?.id,'W','an edge-on face behind the wall stays hidden');
+  assert.equal(s.counts[s.surfaces.indexOf(roof)],0,'an edge-on line is not visible area');assert.ok(s.counts[s.surfaces.indexOf(front)]>1000);
+ }
+ // A gable roof seen from its gable end: both planes are edge-on and overhang the gable wall by 40 cm on each side.
+ const gable={id:'G',points:[P(0,0,0),P(0,4,0),P(0,4,3),P(0,2,4),P(0,0,3)],openings:[]},left={id:'',surface:'roof',points:[P(-.3,-.4,2.8),P(5,-.4,2.8),P(5,2,4),P(-.3,2,4)],openings:[]},right={id:'',surface:'roof',points:[P(-.3,2,4),P(5,2,4),P(5,4.4,2.8),P(-.3,4.4,2.8)],openings:[]};
+ const s=PDF.rasterScene([gable,left,right],{x:-1,y:0},400,400,false,20);
+ for(const p of [P(0,-.2,2.9),P(0,4.2,2.9)])assert.equal(pixel(s,p).owner?.surface,'roof','the rake overhang past the gable wall is drawn');
+ assert.equal(pixel(s,P(0,2,1.5)).owner?.id,'G');
+});
