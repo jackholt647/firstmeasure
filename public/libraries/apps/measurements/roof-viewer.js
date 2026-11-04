@@ -109,6 +109,12 @@
     const area=face.area??Math.max(0,planArea(outer)-face.holes.reduce((sum,hole)=>sum+planArea(hole),0))*Math.hypot(...n)/Math.abs(n[2]);
     return {area,point:[best.x,best.y,z],pitch:face.pitch??Math.round(Math.hypot(n[0],n[1])/Math.abs(n[2])*120)/10,clearance:best.d};
   }
+  // Picking the default wall material changes every wall (FM-332): it is the newest choice, so it replaces each face's
+  // own material choice made before it (a face's own color stays). Walls the drafter gave another material keep it.
+  function designWithWallDefault(design,material){
+    const walls={};for(const [key,own] of Object.entries(design?.walls||{})){const {material:_,...rest}=own||{};if(Object.keys(rest).length)walls[key]=rest;}
+    return {...design,defaults:{...(design?.defaults||{}),material},walls};
+  }
   // ---- Full-house geometry helpers (metres in, feet frame out) ----
   const newell=points=>{const n=[0,0,0];points.forEach((p,i)=>{const q=points[(i+1)%points.length];n[0]+=(p[1]-q[1])*(p[2]+q[2]);n[1]+=(p[2]-q[2])*(p[0]+q[0]);n[2]+=(p[0]-q[0])*(p[1]+q[1]);});const l=Math.hypot(...n);return l>1e-12?n.map(v=>v/l):null;};
   const dot3=(a,b)=>a[0]*b[0]+a[1]*b[1]+a[2]*b[2],cross3=(a,b)=>[a[1]*b[2]-a[2]*b[1],a[2]*b[0]-a[0]*b[2],a[0]*b[1]-a[1]*b[0]];
@@ -791,7 +797,7 @@
       if(designMode!=='projected'){const note=el('p','fm-design-note','You are looking at the house as it was measured. Any change below switches to the projected design.');designPanel.append(note);}
       // Defaults: what every face uses unless it has its own choice.
       const defaults=el('section');defaults.append(el('h4','','Defaults'));
-      defaults.append(el('h5','','Walls'),chips(WALL_CHOICES.map(([id,text])=>[id,text,window.ExteriorMaterials?.[id]?.color]),d.material||'unassigned',id=>changeDesign(x=>{x.defaults={...x.defaults,material:id};}),'Wall material'));
+      defaults.append(el('h5','','Walls'),chips(WALL_CHOICES.map(([id,text])=>[id,text,window.ExteriorMaterials?.[id]?.color]),d.material||'unassigned',id=>changeDesign(x=>{Object.assign(x,designWithWallDefault(x,id));}),'Wall material'));
       defaults.append(colorRow('Wall color',d.color,v=>changeDesign(x=>{x.defaults={...x.defaults,color:v};})),colorRow('Trim and fascia',d.trimColor,v=>changeDesign(x=>{x.defaults={...x.defaults,trimColor:v};})));
       defaults.append(el('h5','','Roof'),chips(Object.entries(F.roofMaterials).map(([id,spec])=>[id,spec.label,spec.colors[0].color]),roof.category,id=>changeDesign(x=>{x.defaults={...x.defaults,roof:{category:id,color:F.roofMaterials[id].colors[0].color}};}),'Roof type'));
       const swatches=el('div','fm-design-swatches');for(const preset of F.roofMaterials[roof.category].colors){const b=el('button','fm-design-swatch');b.type='button';b.style.background=preset.color;b.title=preset.label;b.setAttribute('aria-label',preset.label);b.setAttribute('aria-pressed',String(preset.color===roof.color));b.onclick=()=>changeDesign(x=>{x.defaults={...x.defaults,roof:{category:roof.category,color:preset.color}};});swatches.append(b);}
@@ -867,5 +873,5 @@
     for(const name of ['pointerdown','wheel','keydown'])designPanel?.addEventListener(name,e=>e.stopPropagation());
     return {serialize(){return {texture:textureEnabled,lines:coloredLinesEnabled,key:keyVisible,keyTab,pitch:pitchEnabled,area:areaEnabled,lengths:lengthsEnabled,layers:{...layers},category:selectedCategory,selectedType:selectedCategory?.startsWith('line:')?selectedCategory.slice(5):null};},setVisible(value){if(!value&&expanded)setExpanded(false);if(value)resize();},destroy(){if(expanded)setExpanded(false);disposed=true;applyLights();clearPreview?.();if(renderedKey){try{window.ExteriorRendered?.update(null,{enabled:false});}catch(_){}}if(ownsWallMode&&window.WallMode?.viewerShim)delete window.WallMode;unsubscribeMeasurements?.();controller.abort();observer.disconnect();controls?.dispose();objects.forEach(o=>o.dispose());texture?.dispose();renderer?.dispose();ownedUrls.forEach(URL.revokeObjectURL);root.replaceChildren();}};
   }
-  window.FirstMeasureRoofViewer={mount,parseModel,faceTextureUVs,faceLabelAnchor,exteriorFrame,exteriorOutwards,finishUVs,reportFaceSqFt,reportFaceExactSqFt,reportSquares,reportRoofFeet,reportWallFeet,reportLineTotal,reportPitchSquares,reportTotalSquares,reportObstacleSize,isLowSlope};
+  window.FirstMeasureRoofViewer={mount,parseModel,faceTextureUVs,faceLabelAnchor,exteriorFrame,exteriorOutwards,designWithWallDefault,finishUVs,reportFaceSqFt,reportFaceExactSqFt,reportSquares,reportRoofFeet,reportWallFeet,reportLineTotal,reportPitchSquares,reportTotalSquares,reportObstacleSize,isLowSlope};
 })();
