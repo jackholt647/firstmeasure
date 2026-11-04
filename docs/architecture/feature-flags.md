@@ -99,12 +99,12 @@ many people have (`introduced_people`), on the organization's row. There is no c
 of organizations waiting.
 
 "Each person" means each person the announcement is for: its `eligibility` still
-applies. Exteriors' requires the `order_reports` permission, because its button orders a
-report, so someone whose role has Order reports off is never shown it (FM-327, reopened:
-the second person tried on production had a custom role without it). The console reads
-that from the announcement (`introduction_audience`, the required permissions' labels)
-and says "each person there who may order reports". To test with two people, both
-must be allowed to order reports.
+applies. Exteriors' names no permission, so everyone in the organization is told, including
+people who cannot order reports (Ben, FM-327 reopened: the second person tried on production
+had a custom role with Order reports off, and the entry then required it). An announcement
+that does require one is never shown to someone without it; the console reads that from the
+announcement (`introduction_audience`, the required permissions' labels) and says, e.g.,
+"each person there who may order reports" instead of "each person".
 
 ## Counts
 
