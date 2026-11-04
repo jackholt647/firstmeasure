@@ -9171,6 +9171,9 @@ async function buildQueueOverviewCompat(
 
     }) : Promise.resolve([]),
 
+    // The queue's In Progress group, not a status list: a project a
+    // technician has claimed can still be "ready" until it is opened
+    // (FM-333), and the dashboard must show everyone the queue shows.
     wants("in_progress") ? readQueueCompatRows({
 
       request,
@@ -9181,7 +9184,7 @@ async function buildQueueOverviewCompat(
 
       limit: bucketLimit,
 
-      statuses: ["processing", "in_progress"]
+      queueGroup: "in_progress"
 
     }) : Promise.resolve([]),
 
@@ -9365,7 +9368,10 @@ async function readQueueCompatRows(input: {
 
   limit?: number;
 
-  statuses: string[];
+  statuses?: string[];
+
+  /** Read one queue group exactly as the queue counts it, instead of statuses. */
+  queueGroup?: FirstMeasureQueueGroup;
 
   activityStartMs?: number | null;
 
@@ -9375,7 +9381,16 @@ async function readQueueCompatRows(input: {
 
 }) {
 
-  const result = await queryIndexedProjectManifests({
+  const result = input.queueGroup ? {
+    projects: (await queryIndexedQueueBucket({
+      group: input.queueGroup,
+      team_id: input.teamId,
+      limit: input.limit ?? QUEUE_OVERVIEW_COMPAT_DEFAULT_BUCKET_LIMIT,
+      activityStartMs: input.activityStartMs ?? null,
+      activityEndMs: input.activityEndMs ?? null,
+      activityFields: input.activityFields
+    })).rows.map((row) => row.manifest)
+  } : await queryIndexedProjectManifests({
 
     statuses: input.statuses,
 
