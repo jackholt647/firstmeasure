@@ -665,7 +665,7 @@
     // ---- Projected design: the customer's finish choices layered over the as-built report (full house only) ----
     const WALL_CHOICES=[['unassigned','Smooth'],['siding','Horizontal siding'],['siding-vertical','Vertical siding'],['brick','Brick'],['masonry','Masonry'],['stucco','Stucco'],['concrete','Concrete'],['stone','Stone'],['other','Other']];
     const blankDesign=()=>({version:1,mode:'built',defaults:{},walls:{},openings:{},source:null});
-    let design=blankDesign(),designMode='built',designOpen=false,designStatus='',saveTimer=null,designPanelKey='',designSaving=Promise.resolve();
+    let design=blankDesign(),designMode='built',designOpen=false,designStatus='',saveTimer=null,designPanelKey='',designSaving=Promise.resolve(),materialsUsable=false,materialsProbe=null;
     const designBar=root.querySelector('[data-design-bar]'),designPanel=root.querySelector('[data-design-panel]');
     const asBuiltDefaults=()=>exterior?.finishDefaults||{};
     // The editor's finish defaults with the projected choices over them (WallMode.finishDefaults shape).
@@ -742,21 +742,31 @@
         else if(item.kind==='roofFace'||item.kind==='caps')selected.append(el('p','fm-design-note','The roof covering is the whole roof: change it under Defaults.'));
         else selected.append(el('p','fm-design-note','This part follows the defaults.'));}
       designPanel.append(selected);
-      const actions=el('footer');const generate=el('button','fm-design-primary','Generate from materials');generate.type='button';generate.disabled=!materialsUrl;generate.title=materialsUrl?'Use the roof, siding, trim and door products on this project’s material lists':'Open this from a project to use its material lists';generate.onclick=()=>generateFromMaterials(generate);
-      const reset=el('button','fm-design-secondary','Reset to as built');reset.type='button';reset.onclick=()=>changeDesign(x=>{Object.assign(x,blankDesign());});actions.append(generate,reset);designPanel.append(actions);
+      // Generate from materials is offered only when this project's material lists hold a product it can use (FM-330):
+      // material lists are off for most organizations, and a button that can only fail is not shown.
+      const actions=el('footer');if(materialsUsable){const generate=el('button','fm-design-primary','Generate from materials');generate.type='button';generate.dataset.designGenerate='';generate.title='Use the roof, siding, trim and door products on this project’s material lists';generate.onclick=()=>generateFromMaterials(generate);actions.append(generate);}
+      const reset=el('button','fm-design-secondary','Reset to as built');reset.type='button';reset.onclick=()=>changeDesign(x=>{Object.assign(x,blankDesign());});actions.append(reset);designPanel.append(actions);
       const result=el('p','fm-design-result');result.dataset.designResult='';designPanel.append(result);designPanel.scrollTop=scroll;
     }
     // Generate from the project's material lists: roof covering type and color from the covering line's name and its
     // selected color option; siding, trim, doors and garage doors from lines named for them.
+    async function readMaterials(){
+      const response=await fetch(materialsUrl,{credentials:'same-origin',headers:{Accept:'application/json'}});if(!response.ok)throw Error('The material lists could not be read.');
+      const data=await response.json(),lists=data.material_lists||data.lists||[],lines=lists.filter(l=>!l.resource_type||l.resource_type==='material').flatMap(l=>l.current_items||l.items||[]);
+      return materialsDesign(lines);
+    }
+    // Asked quietly each time the panel opens; any failure leaves the button hidden.
+    function probeMaterials(){
+      if(!materialsUrl||materialsProbe)return;
+      materialsProbe=readMaterials().then(found=>found.applied.length>0,()=>false).then(usable=>{materialsProbe=null;if(disposed||usable===materialsUsable)return;materialsUsable=usable;renderDesignPanel(true);});
+    }
     async function generateFromMaterials(button){
       const out=designPanel.querySelector('[data-design-result]');button.disabled=true;out.textContent='Reading material lists…';
       try{
-        const response=await fetch(materialsUrl,{credentials:'same-origin',headers:{Accept:'application/json'}});if(!response.ok)throw Error('The material lists could not be read.');
-        const data=await response.json(),lists=data.material_lists||data.lists||[],lines=lists.filter(l=>!l.resource_type||l.resource_type==='material').flatMap(l=>l.current_items||l.items||[]);
-        const found=materialsDesign(lines);if(!found.applied.length){out.textContent='No roof, siding, trim or door products with a color were found on this project’s material lists.';return;}
+        const found=await readMaterials();if(!found.applied.length){out.textContent='No roof, siding, trim or door products with a color were found on this project’s material lists.';return;}
         changeDesign(x=>{x.defaults={...x.defaults,...found.defaults,stickers:{...(x.defaults.stickers||{}),...(found.defaults.stickers||{})}};x.source='materials';});
         designPanel.querySelector('[data-design-result]').textContent='From materials: '+found.applied.join(' · ');
-      }catch(error){out.textContent=error.message||'The material lists could not be read.';}finally{button.disabled=!materialsUrl;}
+      }catch(error){out.textContent=error.message||'The material lists could not be read.';}finally{button.disabled=false;}
     }
     function materialsDesign(lines){
       const F=finishes,text=line=>[line.name,line.description,line.product_selection?.item_type_name,line.product_selection?.variant_name,line.pricebook_snapshot?.item?.name].filter(Boolean).join(' '),qty=line=>Number(line.quantity)||0;
@@ -781,7 +791,7 @@
         design={...blankDesign(),...data.design};designMode=data.design.mode==='projected'?'projected':'built';if(designMode==='projected')applyDesign();renderDesignBar();renderDesignPanel(true);}catch(_){}
     }
     designBar?.querySelectorAll('[data-design-mode]').forEach(b=>b.onclick=()=>setDesignMode(b.dataset.designMode));
-    designBar?.querySelector('[data-design-open]')?.addEventListener('click',()=>{designOpen=!designOpen;renderDesignBar();renderDesignPanel(true);});
+    designBar?.querySelector('[data-design-open]')?.addEventListener('click',()=>{designOpen=!designOpen;renderDesignBar();renderDesignPanel(true);if(designOpen)probeMaterials();});
     for(const name of ['pointerdown','wheel','keydown'])designPanel?.addEventListener(name,e=>e.stopPropagation());
     return {serialize(){return {texture:textureEnabled,lines:coloredLinesEnabled,key:keyVisible,keyTab,pitch:pitchEnabled,area:areaEnabled,lengths:lengthsEnabled,layers:{...layers},category:selectedCategory,selectedType:selectedCategory?.startsWith('line:')?selectedCategory.slice(5):null};},setVisible(value){if(value)resize();},destroy(){disposed=true;clearPreview?.();if(renderedKey){try{window.ExteriorRendered?.update(null,{enabled:false});}catch(_){}}if(ownsWallMode&&window.WallMode?.viewerShim)delete window.WallMode;unsubscribeMeasurements?.();controller.abort();observer.disconnect();controls?.dispose();objects.forEach(o=>o.dispose());texture?.dispose();renderer?.dispose();ownedUrls.forEach(URL.revokeObjectURL);root.replaceChildren();}};
   }

@@ -187,6 +187,44 @@ test('projected design: as built and projected, defaults, a face of its own, mat
   }finally{await browser.close();}
 });
 
+// FM-330: material lists are off for most organizations, so Generate from materials is shown only when the project's
+// lists hold a product it can use; a refused, empty or unusable list (or no list address) never shows a failing button.
+test('Generate from materials is hidden unless the material lists hold a usable product',async()=>{
+  const browser=await chromium.launch({executablePath:process.env.CHROME_PATH||'C:/Program Files/Google/Chrome/Application/chrome.exe',headless:true,args:['--enable-webgl','--use-angle=swiftshader']});
+  try{
+    const page=await browser.newPage({viewport:{width:1280,height:800}}),errors=[];page.on('pageerror',e=>errors.push(e.message));
+    let materials={status:403,body:{ok:false,error:'forbidden'}},asked=0;
+    await page.route('http://house.test/**',async route=>{const url=route.request().url();
+      if(url.endsWith('/model.xml'))return route.fulfill({contentType:'application/xml',body:xml()});
+      if(url.endsWith('/exterior-model'))return route.fulfill({contentType:'application/json',body:JSON.stringify({ok:true,model})});
+      if(url.endsWith('/exterior-design'))return route.fulfill({contentType:'application/json',body:'{"ok":true,"design":null}'});
+      if(url.endsWith('/material-lists')){asked++;return route.fulfill({status:materials.status,contentType:'application/json',body:JSON.stringify(materials.body)});}
+      if(url.includes('/measure/internal/')){const path=new URL(url).pathname.split('/measure/internal/')[1];return readFile(new URL('../../measure/internal/'+path,import.meta.url)).then(body=>route.fulfill({contentType:path.endsWith('.js')?'text/javascript':'application/octet-stream',body}),()=>route.fulfill({status:404,body:''}));}
+      return route.fulfill({contentType:'text/html',body:'<style>body{margin:0;font-family:Arial}#viewer{height:780px}</style><div id="viewer"></div>'});});
+    await page.goto('http://house.test/');
+    await page.addScriptTag({url:'https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js'});
+    await page.addScriptTag({content:await readFile(new URL('../../libraries/apps/measurements/roof-viewer.js',import.meta.url),'utf8')});
+    const generate=page.locator('[data-design-panel]').getByRole('button',{name:'Generate from materials',exact:true});
+    const open=async materialsUrl=>{const before=asked;
+      await page.evaluate(materialsUrl=>{window.roof?.destroy();window.roof=FirstMeasureRoofViewer.mount(document.querySelector('#viewer'),{xmlUrl:'/model.xml',exteriorUrl:'/exterior-model',designUrl:'/exterior-design',materialsUrl,standalone:true});},materialsUrl);
+      await page.waitForFunction(()=>document.querySelector('.fm-roof-message').hidden&&!document.querySelector('[data-design-bar]').hidden,{},{timeout:45000});
+      await page.getByRole('button',{name:'Design',exact:true}).click();
+      for(let i=0;materialsUrl&&asked===before&&i<250;i++)await page.waitForTimeout(20);if(materialsUrl)assert.ok(asked>before,'opening Design asks for the material lists');
+      await page.waitForTimeout(300);assert.equal(await page.locator('[data-design-panel]').isVisible(),true);};
+    for(const [label,url,status,body] of [['refused','/material-lists',403,{ok:false}],['empty','/material-lists',200,{ok:true,material_lists:[]}],
+      ['no usable product','/material-lists',200,{ok:true,material_lists:[{resource_type:'material',current_items:[{name:'Ice and water shield',quantity:2}]}]}],['no list address','',200,{}]]){
+      materials={status,body};await open(url);
+      assert.equal(await generate.count(),0,label+': Generate from materials is hidden');
+      assert.doesNotMatch(await page.locator('[data-design-panel]').innerText(),/could not be read/,label);
+      assert.equal(await page.locator('[data-design-panel]').getByRole('button',{name:'Reset to as built',exact:true}).count(),1,label);
+    }
+    materials={status:200,body:{ok:true,material_lists:[{resource_type:'material',current_items:[{name:'Vinyl Lap Siding',quantity:20,selected_options:{color:'sage'},pricebook_snapshot:{item:{variant_dimensions:[{id:'color',values:[{id:'sage',label:'Sage',hex:'#8a9a7b'}]}]}}}]}]}};
+    await open('/material-lists');await generate.waitFor({timeout:5000});assert.equal(await generate.count(),1,'a usable product shows the button');
+    assert.deepEqual(errors,[]);
+    await page.evaluate(()=>roof.destroy());
+  }finally{await browser.close();}
+});
+
 test('the exterior model projection keeps geometry and finishes and drops editor state',async()=>{
   const {exteriorModelProjection}=await import('../firstmeasure/exterior_model.ts');
   const report={walls:[{id:'W01',points:[{x:0,y:0,z:0},{x:1,y:0,z:0},{x:1,y:0,z:1},{x:0,y:0,z:1}],holes:[],material:'Brick',finishColor:'#A65D4B',elevation:'North',chimney:false,gross:10.76,net:10.76,openingArea:0,width:3.28,height:3.28,openings:[{id:'W01-1',type:'window',points:[{x:.2,y:0,z:.2},{x:.4,y:0,z:.2},{x:.4,y:0,z:.6},{x:.2,y:0,z:.6}],area:1,perimeter:2,width:1,height:1,trimFaces:[{points:[]}]}],key:'k'}],
