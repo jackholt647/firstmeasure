@@ -33,15 +33,15 @@ async function register(label: string): Promise<Caller> {
   return { email, cookie, csrf: String(session.json().csrf_token || ""), orgId };
 }
 /** Another person in the same organization, signed in with their own session. */
-async function teammate(org: Caller, label: string): Promise<Caller> {
+async function teammate(org: Caller, label: string, permissions: { level: string; items: Record<string, boolean> } = { level: "owner", items: {} }): Promise<Caller> {
   const storage = await import("../platform/storage.js");
   const { env } = await import("../src/config/env.js");
   const { createHmac } = await import("node:crypto");
   const email = `${label}-${Math.random().toString(36).slice(2, 10)}@example.test`, userId = `user_${label}_${Math.random().toString(36).slice(2, 8)}`;
   const identity = await storage.createIdentity({ email, name: label });
-  await storage.addIdentityMembership(String(identity.id), org.orgId, userId, "owner");
-  await storage.upsertDocument(org.orgId, "users", { id: userId, data: { identity_id: identity.id, email, status: "active", org_permissions: { level: "owner", items: {} } } });
-  const auth = await storage.createAuthSession({ identity_id: identity.id, organization_id: org.orgId, user_id: userId, role: "owner" });
+  await storage.addIdentityMembership(String(identity.id), org.orgId, userId, permissions.level);
+  await storage.upsertDocument(org.orgId, "users", { id: userId, data: { identity_id: identity.id, email, status: "active", org_permissions: permissions } });
+  const auth = await storage.createAuthSession({ identity_id: identity.id, organization_id: org.orgId, user_id: userId, role: permissions.level });
   const signature = createHmac("sha256", env.platformSessionSecret).update(auth.sessionId).digest("base64url");
   return { email, cookie: `fm_platform_session=${auth.sessionId}.${signature}`, csrf: String(auth.session.csrf_token), orgId: org.orgId };
 }
@@ -119,6 +119,21 @@ test("each person in the organization is told once, not only the first to load t
   assert.equal((await stateOf(org.orgId)).introduced_people, 2);
   // A person who joins later, while the flag is still in its introduced state, is told too.
   assert.equal(await offered(await teammate(org, "later")), true);
+});
+
+test("it is told to each person who may order reports, and the console says so (FM-327 reopened)", async () => {
+  const org = await register("audience");
+  await (await console_()).setFlagForOrganizations({ flag: FLAG, value: true, introduce: true, org_ids: [org.orgId] }, SYSTEM);
+  // Production, 2026-11-04: the second person tried had a custom role with Order reports off, so it was never offered.
+  const cannotOrder = await teammate(org, "custom", { level: "custom", items: { view_reports: true, order_reports: false } });
+  const canOrder = await teammate(org, "manager", { level: "manager", items: {} });
+  assert.equal((await event(org, "dismiss")).statusCode, 200);
+  assert.equal(await offered(cannotOrder), false, "its button orders a report, which they may not");
+  assert.equal(await offered(canOrder), true, "someone else who may order reports is still told after the first closed it");
+  const state = await stateOf(org.orgId);
+  assert.deepEqual(state.introduction_audience, ["Order reports"]);
+  const listed = (await (await console_()).listFlags()).flags.find((flag: { key: string }) => flag.key === FLAG);
+  assert.deepEqual(listed?.introduction_audience, ["Order reports"]);
 });
 
 test("Try It Now finishes it the same way", async () => {

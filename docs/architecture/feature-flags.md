@@ -98,6 +98,14 @@ yourself, or for the whole organization). The console shows Waiting (nobody ther
 many people have (`introduced_people`), on the organization's row. There is no count
 of organizations waiting.
 
+"Each person" means each person the announcement is for: its `eligibility` still
+applies. Exteriors' requires the `order_reports` permission, because its button orders a
+report, so someone whose role has Order reports off is never shown it (FM-327, reopened:
+the second person tried on production had a custom role without it). The console reads
+that from the announcement (`introduction_audience`, the required permissions' labels)
+and says "each person there who may order reports". To test with two people, both
+must be allowed to order reports.
+
 ## Counts
 
 Each flag's "on" count applies the stored value, percentage, explicit value,
