@@ -121,10 +121,11 @@ test("each person in the organization is told once, not only the first to load t
   assert.equal(await offered(await teammate(org, "later")), true);
 });
 
-test("it is told to each person who may order reports, and the console says so (FM-327 reopened)", async () => {
+test("an introduction that requires a permission is told to each person who has it, and the console says so (FM-327 reopened)", async () => {
   const org = await register("audience");
   await (await console_()).setFlagForOrganizations({ flag: FLAG, value: true, introduce: true, org_ids: [org.orgId] }, SYSTEM);
-  // Production, 2026-11-04: the second person tried had a custom role with Order reports off, so it was never offered.
+  // Production, 2026-11-04: the second person tried had a custom role with Order reports off and the shipped entry then
+  // required it, so it was never offered. This fixture still requires it; the shipped entry no longer does (below).
   const cannotOrder = await teammate(org, "custom", { level: "custom", items: { view_reports: true, order_reports: false } });
   const canOrder = await teammate(org, "manager", { level: "manager", items: {} });
   assert.equal((await event(org, "dismiss")).statusCode, 200);
@@ -247,11 +248,31 @@ test("an announcement is one step that runs nothing, and one that introduces a f
   assert.equal(experienceSchema.safeParse({ ...ANNOUNCEMENT, scope: "organization", introduces: undefined }).success, true, "a plain announcement may still be organization-wide");
 });
 
-test("the shipped Exteriors introduction is told to each person", async () => {
+test("the shipped Exteriors introduction is told to each person, whatever their permissions", async () => {
   const { readSnapshot } = await import("../config-library/library.js");
-  const entry = readSnapshot().find((file: { kind: string; id: string }) => file.kind === "guided_experience" && file.id === ID) as { data: { scope: string; introduces: string } } | undefined;
+  const entry = readSnapshot().find((file: { kind: string; id: string }) => file.kind === "guided_experience" && file.id === ID) as { data: { scope: string; introduces: string; eligibility: { permissions?: string[] } } } | undefined;
   assert.equal(entry?.data.introduces, FLAG);
   assert.equal(entry?.data.scope, "person");
+  // Ben, FM-327: every user in the organization sees it, including people who cannot order reports.
+  assert.deepEqual(entry?.data.eligibility.permissions || [], []);
+});
+
+test("without a permission rule the console says each person, and someone who cannot order reports is told too", async () => {
+  const { saveLibraryEntry } = await import("../platform/capability-library.js");
+  const { libraryEntry } = await import("../config-library/library.js");
+  const current = libraryEntry("guided_experience", ID) as { revision: number } | null;
+  await saveLibraryEntry("guided_experience", ID, { ...ANNOUNCEMENT, eligibility: { capabilities: [FLAG] } }, TEST_LIBRARY_AUTHOR, { expected_revision: current?.revision });
+  try {
+    const org = await register("everyone");
+    await (await console_()).setFlagForOrganizations({ flag: FLAG, value: true, introduce: true, org_ids: [org.orgId] }, SYSTEM);
+    const cannotOrder = await teammate(org, "viewer", { level: "custom", items: { view_reports: true, order_reports: false } });
+    assert.equal((await event(org, "dismiss")).statusCode, 200);
+    assert.equal(await offered(cannotOrder), true);
+    assert.deepEqual((await stateOf(org.orgId)).introduction_audience, []);
+  } finally {
+    const now = libraryEntry("guided_experience", ID) as { revision: number } | null;
+    await saveLibraryEntry("guided_experience", ID, ANNOUNCEMENT, TEST_LIBRARY_AUTHOR, { expected_revision: now?.revision });
+  }
 });
 
 test("the billboard is served sandboxed with the watcher added; unpublished is a 404 outside development", async () => {

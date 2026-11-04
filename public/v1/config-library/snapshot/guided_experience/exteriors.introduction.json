@@ -1,10 +1,10 @@
 {
   "kind": "guided_experience",
   "id": "exteriors.introduction",
-  "revision": 2,
-  "sha256": "f1dce74a3ffc6e88353b58a264e59d15f13373f935b1c7931953c5fb83c5f422",
+  "revision": 3,
+  "sha256": "72be7bb8c520b0f0c2bc0702ec5b389deca8df98fe951e6a0370ba22092a8dd8",
   "title": "Exteriors are here",
-  "updated_at": "2026-11-04T16:22:35.053Z",
+  "updated_at": "2026-11-04T18:09:17.179Z",
   "updated_by": "key:ck_1e1f09bdc222484f agents:fm-agents-1",
   "data": {
     "id": "exteriors.introduction",
@@ -21,9 +21,7 @@
       "capabilities": [
         "firstmeasure.exteriors"
       ],
-      "permissions": [
-        "order_reports"
-      ]
+      "permissions": []
     },
     "triggers": [
       {
