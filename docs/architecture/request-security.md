@@ -223,10 +223,12 @@ that may read the project.
   left to each page (forms and the chat widget are embedded on customers'
   sites).
 - **Files people upload** are served with their stored type only when it is on
-  a safe list (images, PDF, JSON, plain text, gzip, glTF). Anything else,
-  including XML, SVG and HTML, is served `Content-Disposition: attachment` with
-  `Content-Security-Policy: sandbox`. Customer artifacts are `private`, never
-  `public`, in `Cache-Control`.
+  a safe list (images, PDF, JSON, plain text, gzip, glTF, MP4/WebM/QuickTime
+  video). Anything else, including XML, SVG and HTML, is served
+  `Content-Disposition: attachment` with `Content-Security-Policy: sandbox`.
+  Customer artifacts are `private`, never `public`, in `Cache-Control`.
+  Project artifacts answer a single `Range` with `206`, so a video can seek
+  before it has downloaded.
 - **Debug output** (`X-FirstMeasure-Debug`, `?debug=1`, traces, internal
   error messages, stack traces) is returned only to staff with debug access
   (full admins, or the `firstmeasure_debugger` permission).

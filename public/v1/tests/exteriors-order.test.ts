@@ -83,7 +83,7 @@ test('Full House ordering validates flags, references, prices and paid queue art
  // Videos seek before they finish loading only when a Range request gets just those bytes.
  const video=(await readArtifact(videoOrder.json().folder,'customer-reference-0.mp4')).content,videoUrl='/v1/firstmeasure/projects/'+videoOrder.json().folder+'/artifacts/customer-reference-0.mp4';
  const ranged=(range:string)=>app.inject({method:'GET',url:videoUrl,headers:{cookie,range}});
- const middle=await ranged('bytes=2-5');assert.equal(middle.statusCode,206,middle.body);assert.equal(middle.headers['content-range'],`bytes 2-5/${video.length}`);assert.equal(middle.headers['accept-ranges'],'bytes');assert.deepEqual(middle.rawPayload,video.subarray(2,6));
+ const middle=await ranged('bytes=2-5');assert.equal(middle.statusCode,206,middle.body);assert.equal(middle.headers['content-range'],`bytes 2-5/${video.length}`);assert.equal(middle.headers['accept-ranges'],'bytes');assert.equal(middle.headers['content-type'],'video/mp4');assert.deepEqual(middle.rawPayload,video.subarray(2,6));
  const open=await ranged('bytes=1-');assert.equal(open.statusCode,206);assert.deepEqual(open.rawPayload,video.subarray(1));
  const suffix=await ranged('bytes=-3');assert.equal(suffix.headers['content-range'],`bytes ${video.length-3}-${video.length-1}/${video.length}`);assert.deepEqual(suffix.rawPayload,video.subarray(-3));
  const outside=await ranged(`bytes=${video.length}-`);assert.equal(outside.statusCode,416);assert.equal(outside.headers['content-range'],`bytes */${video.length}`);

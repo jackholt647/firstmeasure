@@ -24474,7 +24474,7 @@ function mergeBrandingVariant(...variants: Array<Record<string, unknown>>) {
 
 
 
-const INLINE_ARTIFACT_TYPES = ["application/pdf", "image/png", "image/jpeg", "image/gif", "image/webp", "image/tiff", "application/json", "model/gltf-binary", "text/plain"];
+const INLINE_ARTIFACT_TYPES = ["application/pdf", "image/png", "image/jpeg", "image/gif", "image/webp", "image/tiff", "application/json", "model/gltf-binary", "text/plain", "video/mp4", "video/webm", "video/quicktime"];
 
 function getMimeType(fileName: string) {
 
@@ -24503,6 +24503,12 @@ function getMimeType(fileName: string) {
     case ".tiff": return "image/tiff";
 
     case ".txt": return "text/plain; charset=utf-8";
+
+    case ".mp4": return "video/mp4";
+
+    case ".webm": return "video/webm";
+
+    case ".mov": return "video/quicktime";
 
     default: return "application/octet-stream";
 
