@@ -4858,6 +4858,9 @@ window.PlatformCommerce.onReady(async function(){
     const overlay=document.getElementById('rOverlay'),tray=ensureDetailsTray();
     if(!overlay || !tray)return;
     if(options.user)detailsTrayUserChoice=true;
+    // The order pages hold the form, so nothing opens the tray over them by itself: opening it focused its close
+    // button and closing it again at once left nothing focused, which shut the phone's keyboard on every letter typed.
+    if(open && !options.user && detailsTraySheet() && (shouldUseMobileOrderPagination() || overlay.classList.contains('mobile-order')))open=false;
     const sheet=detailsTraySheet();overlay.classList.toggle('details-tray-sheet',sheet);
     syncDetailsTrayTop();
     if(open)placeOverviewDetails();
