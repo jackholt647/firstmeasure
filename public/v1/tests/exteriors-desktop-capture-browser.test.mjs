@@ -37,7 +37,7 @@ async function setup(t,{width=1600,height=1000,count=1,mobileOrder=false,fail=()
   window.PlatformCommerce={credit:n=>'$'+n};
   window.submitted=0;
   window.ctx={type:'residential',count,pins:Array.from({length:count},(_,i)=>({lat:39+i/1000,lng:-105})),ordered:false,orderWorkflow:true,mobileOrder,addressSelected:true,locationConfirmed:false,
-   getAddress:()=>'3245 S Lowell Blvd',refresh:()=>window.Portal.ExteriorOrder.sync(window.ctx),setPinConfirmed:value=>{window.ctx.locationConfirmed=!!value;},submit:async()=>{window.submitted++;}};
+   getAddress:()=>'3245 S Lowell Blvd',infoShown:0,showInfo:()=>{window.ctx.infoShown++;},infoHtml:key=>`<div class="r-addon-info-card"><h4>${key==='full_house'?'Full Exterior report':'Roof report'}</h4><ul><li>Walls, windows, doors, and siding areas.</li></ul><div class="r-addon-info-actions"><a class="r-addon-info-sample" href="#sample">Download sample</a></div></div>`,refresh:()=>window.Portal.ExteriorOrder.sync(window.ctx),setPinConfirmed:value=>{window.ctx.locationConfirmed=!!value;},submit:async()=>{window.submitted++;}};
  },{count,mobileOrder});
  await page.addScriptTag({content:instrumented});
  await page.evaluate(()=>{const order=Portal.ExteriorOrder;order.sync(ctx);order.restore({measurement_scope:'full_house',report_expedite_option:'exteriors_standard'});});
@@ -87,9 +87,9 @@ for(const [width,height] of [[1600,1000],[1280,800]])test(`confirming the pins t
  assert.ok((await page.locator('.ext-desk-drop').boundingBox()).height<70,'the upload strip is thin');
  // Middle column: title, one-line lead, then the animation and steps, then the upload strip, with no headings between.
  assert.equal(await page.locator('.ext-desk-title h2').innerText(),'Add a video walkaround');
- assert.equal(await page.locator('.ext-desk-title p').innerText(),'Record one full loop around the house on your phone or tablet, then upload it here.');
+ assert.equal(await page.locator('.ext-desk-title p').innerText(),'Record one full loop around the house on your phone or tablet, then upload it here. Or, order directly from your phone.');
  const mid=await page.evaluate(()=>{const m=document.querySelector('.ext-desk-mid');return {order:[...m.children].filter(e=>e.offsetParent&&e.getBoundingClientRect().height>0).map(e=>e.className.split(' ')[0]),headings:[...m.querySelectorAll('h3,h4,h5,h6')].filter(e=>e.offsetParent).map(e=>e.innerText),text:m.innerText};});
- assert.deepEqual(mid.order.slice(0,3),['ext-desk-head','ext-desk-guide','ext-desk-drop'],JSON.stringify(mid.order));
+ assert.deepEqual(mid.order.slice(0,3),['ext-desk-head','ext-desk-guide','ext-desk-droprow'],JSON.stringify(mid.order));
  assert.deepEqual(mid.headings,[],'no section headings in the middle column');
  assert.doesNotMatch(mid.text,/FirstMate app|How to film|What we need|Your uploads/i);
  assert.equal(await page.locator('.ext-desk [data-add-walk], .ext-desk [data-add-closeup], .ext-desk-need').count(),0,'no separate walkaround and close-up rows');
@@ -100,7 +100,7 @@ for(const [width,height] of [[1600,1000],[1280,800]])test(`confirming the pins t
  assert.equal(await page.locator('.ext-desk-side .r-expedite-btn').evaluateAll(b=>new Set(b.map(e=>Math.round(e.getBoundingClientRect().left))).size),1,'delivery choices are stacked');
  assert.equal(await page.locator('.ext-desk-order').isDisabled(),true);
  assert.match(await page.locator('.ext-desk-status').innerText(),/video walkaround/i,'what is missing is said next to the order button');
- assert.match(await page.locator('.ext-desk-chip').first().innerText(),/Needs a video walkaround/);
+ assert.equal(await page.locator('.ext-desk-chip').count(),0,'no "Needs a video walkaround" chip under the upload strip');
  assert.equal(await page.evaluate(()=>Portal.ExteriorOrder.ready()),false);
 });
 
@@ -227,6 +227,8 @@ for(const [width,height] of [[1280,800],[1440,640]])test(`photo orders: the angl
  assert.equal(await page.locator('.ext-desk-risk').count(),0,'no "photos alone may not be enough" line under the angle grid');
  assert.doesNotMatch(await page.locator('.ext-desk-guide').innerText(),/may not be enough/i);
  assert.equal(await page.locator('.ext-desk-angles-foot [data-desk-mode=video]').count(),1,'the switch to video walkaround stays');
+ assert.equal(await page.locator('.ext-desk-chip').count(),0,'no "0 of 8 angles" chip');
+ assert.equal(await page.locator('.ext-desk-droprow > .ext-desk-back > [data-desk-pins]').innerText(),'Back to Map','photo orders keep the same Back to Map');
  await uploadPhotos(page,9);await settle();
  assert.equal(await page.evaluate(()=>{const l=document.querySelector('.ext-desk-list');return l.scrollHeight>l.clientHeight;}),true,'the upload list scrolls');
  const rows=await page.locator('.ext-desk-file').count();
@@ -303,6 +305,55 @@ test('photo orders: a photo opens large over the order window, shows its name an
  assert.equal(await page.evaluate(()=>document.activeElement?.matches('.ext-desk-file [data-desk-preview]')),true,'focus returns to the thumbnail');
 });
 
+for(const [width,height] of [[1600,1000],[1280,800]])test(`video orders: the lead says a phone can order too, Back to Map starts the upload strip, and no chip says what is missing at ${width}x${height}`,async t=>{
+ const {page,confirm,settle}=await setup(t,{width,height});
+ await confirm();await settle();
+ assert.equal(await page.locator('.ext-desk-title p').innerText(),'Record one full loop around the house on your phone or tablet, then upload it here. Or, order directly from your phone.');
+ // Back to the map is the first thing on the upload strip's line, not a header button.
+ assert.equal(await page.locator('.ext-desk-head [data-desk-pins]').count(),0,'no Map button in the header');
+ const back=page.locator('.ext-desk-droprow > .ext-desk-back > [data-desk-pins]');
+ assert.equal(await back.innerText(),'Back to Map');
+ const [backBox,dropBox]=await Promise.all([back.boundingBox(),page.locator('.ext-desk-drop').boundingBox()]);
+ assert.ok(backBox.x+backBox.width<=dropBox.x&&Math.abs((backBox.y+backBox.height/2)-(dropBox.y+dropBox.height/2))<2,'Back to Map sits left of the upload strip, on its line');
+ assert.equal((await page.locator('#rExteriorOrder .ext-choice[data-scope=roof]').innerText()).trim(),'Roof','the scope is "Roof", not "Roof Only"');
+ assert.equal(await page.locator('.ext-desk-chip').count(),0,'no "Needs a video walkaround" chip');
+ assert.equal(await page.locator('#rExteriorOrder').evaluate(e=>/Roof Only/.test(e.innerText)),false);
+ await page.locator('.ext-desk-droprow [data-desk-pins]').click();
+ assert.equal(await page.evaluate(()=>ctx.locationConfirmed),false,'Back to Map unconfirms the pins');
+});
+
+test('What’s included opens a card anchored to the link, with no sheet or backdrop over the order window',async t=>{
+ const {page,confirm,settle}=await setup(t,{width:1280,height:800});
+ await confirm();await settle();
+ const chooser=page.waitForEvent('filechooser');await page.locator('[data-desk-pick]').click();
+ await (await chooser).setFiles([{name:'IMG_0001.MOV',mimeType:'video/quicktime',buffer:Buffer.alloc(40000,1)}]);
+ await page.waitForSelector('.ext-desk.is-ready');await settle();
+ const link=page.locator('.ext-desk-side .ext-desk-info'),pop=page.locator('.ext-desk-infopop');
+ assert.equal(await pop.isVisible(),false);
+ await link.hover();
+ await pop.waitFor({state:'visible'});
+ assert.match(await pop.innerText(),/Full Exterior report/);
+ assert.equal(await link.getAttribute('aria-expanded'),'true');
+ const [l,p,desk]=await Promise.all([link.boundingBox(),pop.boundingBox(),page.locator('.ext-desk').boundingBox()]);
+ assert.ok(p.y>=l.y+l.height&&p.y-(l.y+l.height)<20,'the card opens right under the link: '+JSON.stringify({l,p}));
+ assert.ok(p.x>=desk.x&&p.x+p.width<=desk.x+desk.width&&p.y+p.height<=desk.y+desk.height,'the card stays inside the panel');
+ assert.equal(await page.locator('.r-addon-info-modal,#rAddonInfoModal').count(),0,'no bottom sheet');
+ assert.equal(await page.evaluate(()=>ctx.infoShown),0,'the modal sheet is not opened');
+ // The pointer can travel onto the card (to its sample link) without it closing.
+ await page.mouse.move(p.x+p.width/2,p.y+p.height/2,{steps:4});await page.waitForTimeout(200);
+ assert.equal(await pop.isVisible(),true);
+ await page.mouse.move(desk.x+20,desk.y+desk.height-20);await page.waitForTimeout(250);
+ assert.equal(await pop.isVisible(),false,'leaving closes it, like hover help');
+ // A click keeps it open; Escape or a click elsewhere closes it.
+ await link.click();await page.mouse.move(desk.x+20,desk.y+desk.height-20);await page.waitForTimeout(250);
+ assert.equal(await pop.isVisible(),true,'a click keeps it open');
+ await page.keyboard.press('Escape');
+ assert.equal(await pop.isVisible(),false);assert.equal(await link.getAttribute('aria-expanded'),'false');
+ await link.click();await page.mouse.click(desk.x+20,desk.y+desk.height-20);
+ assert.equal(await pop.isVisible(),false);
+ assert.equal(await page.evaluate(()=>ctx.infoShown),0);
+});
+
 test('unconfirming folds the panel away and gives the tray back; mobile never sees the panel',async t=>{
  const {page,confirm,settle}=await setup(t);
  await confirm();await settle();
@@ -314,4 +365,15 @@ test('unconfirming folds the panel away and gives the tray back; mobile never se
  const mobile=await setup(t,{width:390,height:844,mobileOrder:true});
  await mobile.confirm();
  assert.equal(await mobile.page.locator('.ext-desk').count(),0);
+});
+
+test('the order workflow says "Roof", never "Roof Only", on mobile and desktop, with its own language keys',async()=>{
+ // A reused key would keep showing "Roof Only" from the compiled catalog.
+ assert.doesNotMatch(source,/Roof Only|ext_37e437d86dea02|m_d2a894582092f8/);
+ assert.match(source,/"ext_scope_roof","Roof"/);
+ const app=await readFile(new URL('../../libraries/apps/project-request/app.js',import.meta.url),'utf8');
+ const info=app.slice(app.indexOf('function reportAddonInfo('),app.indexOf('function reportAddonInfoHtml('));
+ assert.doesNotMatch(info,/Roof Only|m_874db260d86062/);
+ assert.match(info,/"roof_report_title","Roof report"/);
+ assert.match(app,/infoHtml:key=>reportAddonInfoHtml\(key\)/,'the order panel can anchor the What’s included card itself');
 });
