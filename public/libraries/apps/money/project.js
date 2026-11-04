@@ -437,7 +437,8 @@
       .mn-muted{color:#667085;font-size:12px;font-weight:600}
       .mn-spin{animation:mn-spin .9s linear infinite}
       @keyframes mn-spin{to{transform:rotate(360deg)}}
-      @container money (max-width:1100px){.mn-metrics{grid-template-columns:repeat(3,minmax(0,1fr))}.mn-tools .mn-btn.collapse span{display:none}.mn-tools .mn-btn.collapse{width:38px;padding:0}}
+      @container money (max-width:1100px){.mn-metric{padding:9px 10px}.mn-metric strong{font-size:clamp(14px,1.65cqi,18px)}.mn-tools .mn-btn.collapse span{display:none}.mn-tools .mn-btn.collapse{width:38px;padding:0}}
+      @container money (max-width:760px){.mn-metrics{grid-template-columns:repeat(3,minmax(0,1fr))}.mn-metric strong{font-size:17px}}
       @container money (max-width:820px){.mn-table .mn-col-balance{display:none}.mn-table .mn-col-status{width:96px}.mn-table .mn-col-cat{width:120px}.mn-receipt-modal-body{grid-template-columns:1fr}.mn-receipt-review{border-right:0;border-bottom:1px solid #eaecf0}}
       @container money (max-width:640px){
         .mn-shell{padding:10px;gap:10px;overflow:auto}

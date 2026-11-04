@@ -580,9 +580,10 @@
   }
 
   // ---- Pinned photos ----
-  // Every photo-type custom field on the project is a pinned photo. The cover is one of them, not a special case.
-  // Each field is a tile in the row at the top of the gallery, labelled with the field's name, and the viewer
-  // offers "Pin as <field>" for each. The value is the field's ordinary media reference ({media_id}, or a list for
+  // Every photo-type custom field on the project is a pinned photo. Each field other than the cover is a tile in the
+  // row at the top of the gallery, labelled with the field's name, and the viewer offers "Pin as <field>" for each.
+  // The cover (`cover_photo`) has no tile there: it is set from the viewer ("Set as cover photo") and the only sign of
+  // it in the tab is a "Cover" pill on its gallery tile (the saved satellite photo's when none is chosen). The value is the field's ordinary media reference ({media_id}, or a list for
   // cardinality many), written by writePhotoField through the field's revision-checked writer. Everything else
   // that reads a field (project tiles, map pins, the portal, documents) reads the same value.
   const pinned = { projectId:'', fields:null, loading:null, menu:null, menuCleanup:null };
@@ -689,6 +690,26 @@
     finally { if (pinned.loading?.promise === promise) pinned.loading = null; }
   }
 
+  const COVER_PATH = 'cover_photo';
+  const isCoverField = (field) => field?.path === COVER_PATH;
+  // The fields with a tile in the pinned row: every photo field but the cover.
+  function pinnedRowFields(){
+    return activeProjectId() ? pinnedFields().filter((field) => !isCoverField(field)) : [];
+  }
+
+  // The photo the project shows as its cover: the chosen one, else the saved satellite photo.
+  function effectiveCoverId(){
+    const chosen = pinnedIds({ path:COVER_PATH })[0];
+    if (chosen) return chosen;
+    return projectPhotoId(projectPhotoLibrary()?.savedSatellitePhoto?.(projectPhotosList()) || {}) || '';
+  }
+
+  // Removing the cover falls back to the saved satellite photo, so the satellite photo itself has nothing to remove.
+  function coverRemovable(photo){
+    const id = projectPhotoId(photo);
+    return !!id && pinnedIds({ path:COVER_PATH }).includes(id) && !projectPhotoLibrary()?.isSatelliteMedia?.(photo);
+  }
+
   function pinnedLabelsFor(photoId){
     const id = String(photoId || '').trim();
     if (!id) return [];
@@ -754,7 +775,7 @@
     const value = field.many ? [...new Set([...pinnedIds(field), id])].map((media_id) => ({ media_id })) : { media_id:id };
     try {
       await writePhotoField(field.path, value, [photo], viewer);
-      showToast(field.label, pinText('pinned_saved', 'Photo pinned.'), true);
+      showToast(field.label, isCoverField(field) ? pinText('cover_set_toast', 'Cover photo updated.') : pinText('pinned_saved', 'Photo pinned.'), true);
     } catch (error) { pinNotChanged(error); }
   }
 
@@ -763,14 +784,32 @@
     const value = field.many ? kept.map((media_id) => ({ media_id })) : null;
     try {
       await writePhotoField(field.path, value, [], viewer);
-      showToast(field.label, pinText('pinned_removed', 'Photo unpinned.'), true);
+      showToast(field.label, isCoverField(field) ? pinText('cover_removed_toast', 'Cover photo removed.') : pinText('pinned_removed', 'Photo unpinned.'), true);
     } catch (error) { pinNotChanged(error); }
   }
 
-  // "Pin as <field>" and "Unpin from <field>" for each photo field. They live in the viewer's action list, which
+  // "Pin as <field>" and "Unpin from <field>" for each photo field ("Set as cover photo" and "Remove cover photo" for
+  // the cover). They live in the viewer's action list, which
   // the viewer keeps by reference, so syncPinViewerActions can swap them in place once the fields are known.
   function pinViewerActions(){
-    return pinnedFields().flatMap((field) => [
+    return pinnedFields().flatMap((field) => isCoverField(field) ? [
+      {
+        id:`pin_field:${field.path}`,
+        pinField:true,
+        label:pinText('cover_set_photo_action', 'Set as cover photo'),
+        icon:'image',
+        visible:({ photo }) => field.writable !== false && pinEligible(photo) && effectiveCoverId() !== projectPhotoId(photo),
+        onClick:({ photo, viewer }) => pinPhoto(field, photo, viewer)
+      },
+      {
+        id:`unpin_field:${field.path}`,
+        pinField:true,
+        label:pinText('cover_remove_photo_action', 'Remove cover photo'),
+        icon:'xmark',
+        visible:({ photo }) => field.writable !== false && coverRemovable(photo),
+        onClick:({ photo, viewer }) => unpinPhoto(field, projectPhotoId(photo), viewer)
+      }
+    ] : [
       {
         id:`pin_field:${field.path}`,
         pinField:true,
@@ -811,15 +850,17 @@
     };
   }
 
-  // The gallery tile of a pinned photo carries a small pill naming its field. Every image tile has the (hidden)
-  // pill so a pin can be shown or cleared in place, without rebuilding the gallery.
+  // The gallery tile of a pinned photo carries a small pill in its top-right corner: "Cover" on the cover, else the
+  // field's name. Every image tile has the (hidden) pill so a pin can be shown or cleared in place, without
+  // rebuilding the gallery.
   function pinnedChipHtml(photoId){
     const id = String(photoId || '').trim();
     if (!id) return '';
-    const labels = pinnedLabelsFor(id);
+    const cover = id === effectiveCoverId();
+    const labels = [...(cover ? [pinText('cover_pill', 'Cover')] : []), ...pinnedFields().filter((field) => !isCoverField(field) && pinnedIds(field).includes(id)).map((field) => field.label)];
     if (!labels.length) return `<span class="r-photo-pin-chip" data-pinned-chip="${escapeHtml(id)}" hidden></span>`;
     const more = labels.length > 1 ? ` +${labels.length - 1}` : '';
-    return `<span class="r-photo-pin-chip" data-pinned-chip="${escapeHtml(id)}" title="${escapeHtml(labels.join(', '))}"><i class="fas fa-thumbtack" aria-hidden="true"></i><span>${escapeHtml(labels[0])}${escapeHtml(more)}</span></span>`;
+    return `<span class="r-photo-pin-chip${cover ? ' is-cover' : ''}" data-pinned-chip="${escapeHtml(id)}"${cover ? ' data-project-cover-current' : ''} title="${escapeHtml(labels.join(', '))}"><i class="fas fa-${cover ? 'image' : 'thumbtack'}" aria-hidden="true"></i><span>${escapeHtml(labels[0])}${escapeHtml(more)}</span></span>`;
   }
 
   function renderPinnedTileBadge(item){
@@ -857,17 +898,16 @@
     return `<div class="r-pinned-tile${shown ? '' : ' is-empty'}" data-pinned-field="${path}" role="listitem">${face}<div class="r-pinned-foot"><span class="r-pinned-label" title="${label}">${label}</span>${more}</div></div>`;
   }
 
-  // The pinned tiles; nothing when the project has no photo fields. The gallery pins them into the top-left corner of
-  // its first day (above the gallery when it has none, and on a phone).
+  // The pinned tiles; nothing when the project has no photo fields but the cover. The gallery pins them into the
+  // top-left corner of its first day (above the gallery when it has none, and on a phone).
   function pinnedRowHtml(){
-    if (!activeProjectId()) return '<div data-pinned-photos data-notch-columns="1" hidden></div>';
-    const fields = pinnedFields();
+    const fields = pinnedRowFields();
     if (!fields.length) return '<div data-pinned-photos data-notch-columns="1" hidden></div>';
     return `<section class="r-pinned" data-pinned-photos data-notch-columns="${fields.length}" aria-label="${escapeHtml(pinText('pinned_row_label', 'Pinned photos'))}"><div class="r-pinned-strip" role="list">${fields.map(pinnedTileHtml).join('')}</div></section>`;
   }
 
   function pinnedGalleryTiles(){
-    const fields = activeProjectId() ? pinnedFields() : [];
+    const fields = pinnedRowFields();
     return fields.length ? { html:pinnedRowHtml(), columns:fields.length } : null;
   }
 
@@ -878,7 +918,7 @@
     const row = root.querySelector('[data-pinned-photos]');
     // The gallery places the pinned tiles by how many there are: a different number lays it out again.
     const shown = row && !row.hidden ? Number(row.dataset.notchColumns) || 0 : 0;
-    if (shown !== (activeProjectId() ? pinnedFields().length : 0) && root.querySelector('#rPhotoFeedMount .pf-wrap')) { renderPhotoGallery(); return; }
+    if (shown !== pinnedRowFields().length && root.querySelector('#rPhotoFeedMount .pf-wrap')) { renderPhotoGallery(); return; }
     if (row) row.outerHTML = pinnedRowHtml();
     root.querySelectorAll('[data-pinned-chip]').forEach((chip) => { chip.outerHTML = pinnedChipHtml(chip.dataset.pinnedChip); });
     state.activeViewer?.refreshActions?.();

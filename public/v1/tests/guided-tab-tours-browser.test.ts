@@ -34,7 +34,7 @@ const TABS = {
       <div class="pf-shown-wrap"><button type="button" class="pf-toolbar-action" data-local-tags>Tags</button></div>
       <button type="button" class="pf-upload" data-photo-feed-upload>Upload</button></div></div>
       <div data-photo-feed-dynamic><div class="pf-grid"><button type="button" class="pf-thumb"><span class="pf-select">✓</span></button><button type="button" class="pf-thumb"><span class="pf-select">✓</span></button></div></div></div></div>`,
-    titles: ["Welcome to Photos", "Upload", "Your photos", "Pick several", "Search", "Filter by tag", "You're all set"]
+    titles: ["Welcome to Photos", "Upload", "Open a photo", "The cover photo", "You're all set"]
   },
   reports: {
     id: "reports.tab_tutorial", route: "measurements", app: "project.measurements",
@@ -191,7 +191,7 @@ test("reports: with report follow-up off the Support step is never played, even 
   } finally { await page.close(); }
 });
 
-// Materials, then Docs straight after: Docs has no tour, and the Materials tour (started at once from the preload) must
+// Materials, then Docs straight after: Docs' tour is not on here (no platform.documents), and the Materials tour (started at once from the preload) must
 // never show there. A tab's trigger belongs to the visit it was armed in; leaving the tab cancels it, and a tour the tab
 // change interrupts ends quietly (also before the server confirmed it) and plays again on the next visit.
 test("materials: a tab's tour never plays on the tab the person moved on to, and plays on the next real visit", async () => {

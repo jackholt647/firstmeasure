@@ -61,12 +61,12 @@ test('photo fields are pinned photos: the field editor, viewer actions and pinne
     await page.locator('[data-custom-field-path="detail_photo"] [data-fm-cf-media-remove]').click();
     assert.equal(await page.locator('[data-fm-cf-input="detail_photo"]').inputValue(),'');
     assert.equal(await page.evaluate(()=>window.changes),2);
-    // Photos: every photo field is a pinned photo, the cover included. One generic action pair per field in the
-    // viewer; nothing names the cover.
+    // Photos: every photo field is a pinned photo, the cover included. One action pair per field in the viewer; the
+    // cover's pair reads "Set as cover photo" and "Remove cover photo".
     const run=async(id,index)=>page.evaluate(async([id,index])=>{const photo=window.project.photos[index];await window.gallery.viewerActions.find(a=>a.id===id).onClick({photo,viewer:{refreshActions(){},refreshIndicators(){}}});},[id,index]);
     const visible=(id,index)=>page.evaluate(([id,index])=>window.gallery.viewerActions.find(a=>a.id===id).visible({photo:window.project.photos[index]}),[id,index]);
     assert.deepEqual(await page.evaluate(()=>window.gallery.viewerActions.filter(a=>a.pinField).map(a=>[a.id,a.label])),[
-      ['pin_field:cover_photo','Pin as Cover photo'],['unpin_field:cover_photo','Unpin from Cover photo'],
+      ['pin_field:cover_photo','Set as cover photo'],['unpin_field:cover_photo','Remove cover photo'],
       ['pin_field:detail_photo','Pin as Detail photo'],['unpin_field:detail_photo','Unpin from Detail photo']
     ]);
     assert.equal(await page.evaluate(()=>window.gallery.viewerActions.some(a=>/cover/i.test(a.id)&&!a.pinField)),false,'no cover-only action');
@@ -106,26 +106,39 @@ test('photo fields are pinned photos: the field editor, viewer actions and pinne
     await page.evaluate(()=>{window.project.photos=window.project.photos.map(photo=>({...photo,in_trash:false}));});
     await run('unpin_field:detail_photo',0);
 
-    // The pinned row sits above the gallery groups: one tile per photo field, labelled with the field's name.
+    // The pinned row sits above the gallery groups: one tile per photo field but the cover, labelled with the field's
+    // name. The cover has no tile there: its gallery tile carries a "Cover" pill in its top-right corner.
     await page.evaluate(()=>{
       document.querySelector('#rPhotoFeedMount').innerHTML=(window.gallery.pinnedTiles()?.html||'')+window.project.photos.map(photo=>`<button class="pf-thumb" data-photo-feed-id="project::${photo.id}">${window.gallery.renderTileBadge({photo})}</button>`).join('');
       window.writes=[];
     });
-    assert.deepEqual(await page.locator('[data-pinned-field] .r-pinned-label').allTextContents(),['Cover photo','Detail photo']);
+    assert.deepEqual(await page.locator('[data-pinned-field] .r-pinned-label').allTextContents(),['Detail photo']);
+    assert.equal(await page.locator('[data-pinned-field="cover_photo"]').count(),0,'no cover section in the corner');
     assert.equal(await page.locator('[data-project-cover-set],.r-photo-cover-chip').count(),0,'no "Set as cover" chip');
-    const coverPin=page.locator('[data-pinned-field="cover_photo"]');
+    assert.equal(await page.locator('[data-pinned-chip]:not([hidden])').count(),0,'no cover chosen and no satellite photo: no pill');
+    // Setting the cover from the viewer moves the pill without rebuilding the gallery.
+    await run('pin_field:cover_photo',1);
+    assert.equal(await page.locator('[data-pinned-chip="b"]').textContent(),'Cover');
+    assert.equal(await page.locator('[data-pinned-chip="b"].is-cover[data-project-cover-current]').count(),1);
+    await run('pin_field:cover_photo',0);
+    assert.equal(await page.locator('[data-pinned-chip="a"]').textContent(),'Cover');
+    assert.equal(await page.locator('[data-pinned-chip="b"]').isHidden(),true);
+    await run('unpin_field:cover_photo',0);
+    assert.equal(await page.locator('[data-pinned-chip="a"]').isHidden(),true);
+    await page.evaluate(()=>{window.writes=[];});
+    const coverPin=page.locator('[data-pinned-field="detail_photo"]');
     assert.equal((await coverPin.locator('[data-pinned-choose]').textContent()).trim(),'Choose photo');
     assert.equal(await coverPin.locator('[data-pinned-menu]').count(),0,'an empty field has nothing to change or remove');
     // Choose photo picks from the project's images (or uploads) and saves through the field's writer.
     await page.evaluate(()=>{window.Portal.PhotoFeed.openProjectMediaPicker=options=>{window.pinPicker=options;return {close(){}};};});
     await coverPin.locator('[data-pinned-choose]').click();
-    assert.deepEqual(await page.evaluate(()=>[window.pinPicker.title,window.pinPicker.multiple,window.pinPicker.imageOnly,window.pinPicker.photos.map(photo=>photo.id),typeof window.pinPicker.onUpload]),['Cover photo',false,true,['a','b'],'function']);
+    assert.deepEqual(await page.evaluate(()=>[window.pinPicker.title,window.pinPicker.multiple,window.pinPicker.imageOnly,window.pinPicker.photos.map(photo=>photo.id),typeof window.pinPicker.onUpload]),['Detail photo',false,true,['a','b'],'function']);
     assert.equal(await page.evaluate(()=>window.pinPicker.onConfirm([{id:'local_1',uploading:true,content_type:'image/png'}])),false,'an upload without a library id keeps the picker open');
     await page.evaluate(()=>window.pinPicker.onConfirm([window.pinPicker.photos[1]]));
-    await page.waitForFunction(()=>window.project.custom_fields.cover_photo?.media_id==='b');
-    assert.deepEqual(await page.evaluate(()=>window.writes.at(-1)[3].values),{cover_photo:{media_id:'b'}});
+    await page.waitForFunction(()=>window.project.custom_fields.detail_photo?.media_id==='b');
+    assert.deepEqual(await page.evaluate(()=>window.writes.at(-1)[3].values),{detail_photo:{media_id:'b'}});
     assert.equal(await coverPin.locator('[data-pinned-open]').count(),1,'a filled field shows its photo');
-    assert.equal(await page.locator('[data-pinned-chip="b"]').textContent(),'Cover photo');
+    assert.equal(await page.locator('[data-pinned-chip="b"]').textContent(),'Detail photo');
     assert.equal(await page.locator('[data-pinned-chip="a"]').isHidden(),true);
     assert.equal(await page.evaluate(()=>window.gallery.renderTileBadge({photo:window.project.photos[2]})),'');
     // Clicking a filled tile opens its photo in the gallery's viewer.
@@ -137,7 +150,7 @@ test('photo fields are pinned photos: the field editor, viewer actions and pinne
     assert.deepEqual(await page.locator('.r-pinned-menu button').allTextContents(),['Change photo','Remove']);
     assert.equal(await page.locator('.r-pinned-menu select').count(),0);
     await page.locator('.r-pinned-menu [data-pinned-menu-remove]').click();
-    await page.waitForFunction(()=>window.project.custom_fields.cover_photo===null);
+    await page.waitForFunction(()=>window.project.custom_fields.detail_photo===null);
     assert.equal(await page.locator('.r-pinned-menu').count(),0);
     assert.equal(await coverPin.locator('[data-pinned-choose]').count(),1);
     assert.equal(await page.locator('[data-pinned-chip="b"]').isHidden(),true);
@@ -195,13 +208,13 @@ test('the saved satellite photo pinned as the cover is an ordinary photo field v
     await page.waitForFunction(()=>(window.galleryPhotos||[]).some(photo=>photo.media_id==='sat') && window.gallery.viewerActions.some(a=>a.id==='pin_field:site_photos'));
     const paint=()=>page.evaluate(()=>{document.querySelector('#rPhotoFeedMount').innerHTML=(window.gallery.pinnedTiles()?.html||'')+window.project.photos.map(photo=>`<button class="pf-thumb" data-photo-feed-id="project::${photo.id}">${window.gallery.renderTileBadge({photo})}</button>`).join('');});
     await paint();
-    // Only the contract's enabled, shown photo fields are pinned.
-    assert.deepEqual(await page.locator('[data-pinned-field] .r-pinned-label').allTextContents(),['Cover photo','Site photos']);
-    assert.equal(await page.locator('[data-pinned-field="cover_photo"] [data-pinned-open]').count(),1);
-    assert.equal(await page.locator('[data-pinned-chip="sat"]').textContent(),'Cover photo');
+    // Only the contract's enabled, shown photo fields are pinned; the cover is a pill on its tile, not a pinned tile.
+    assert.deepEqual(await page.locator('[data-pinned-field] .r-pinned-label').allTextContents(),['Site photos']);
+    assert.equal(await page.locator('[data-pinned-field="cover_photo"]').count(),0);
+    assert.equal(await page.locator('[data-pinned-chip="sat"]').textContent(),'Cover');
     const visible=(id,photoId)=>page.evaluate(([id,photoId])=>window.gallery.viewerActions.find(a=>a.id===id).visible({photo:window.project.photos.find(photo=>(photo.media_id||photo.id)===photoId)}),[id,photoId]);
     assert.equal(await visible('pin_field:cover_photo','sat'),false);
-    assert.equal(await visible('unpin_field:cover_photo','sat'),true,'the cover is unpinned like any field');
+    assert.equal(await visible('unpin_field:cover_photo','sat'),false,'the satellite photo is the fallback: nothing to remove');
     assert.equal(await visible('pin_field:cover_photo','a'),true);
     assert.equal(await page.evaluate(()=>window.gallery.viewerActions.some(a=>/satellite/i.test(a.label))),false,'no "Use satellite image"');
     // A field that holds several photos adds to its list and shows how many.
@@ -210,13 +223,13 @@ test('the saved satellite photo pinned as the cover is an ordinary photo field v
     await run('pin_field:site_photos','sat');
     assert.deepEqual(await page.evaluate(()=>window.project.custom_fields.site_photos),[{media_id:'a'},{media_id:'sat'}]);
     assert.equal(await page.locator('[data-pinned-field="site_photos"] .r-pinned-count').textContent(),'2');
-    assert.equal(await page.locator('[data-pinned-chip="sat"]').textContent(),'Cover photo +1');
+    assert.equal(await page.locator('[data-pinned-chip="sat"]').textContent(),'Cover +1');
     await run('unpin_field:site_photos','a');
     assert.deepEqual(await page.evaluate(()=>window.project.custom_fields.site_photos),[{media_id:'sat'}]);
-    // Unpinning the cover stores no cover; other places still show the saved satellite photo as before.
+    // A cleared cover stores no cover; the saved satellite photo still carries the pill and other places still show it.
     await run('unpin_field:cover_photo','sat');
     assert.equal(await page.evaluate(()=>window.project.custom_fields.cover_photo),null);
-    assert.equal(await page.locator('[data-pinned-field="cover_photo"] [data-pinned-choose]').count(),1);
+    assert.equal(await page.locator('[data-pinned-chip="sat"]').textContent(),'Cover +1');
     assert.equal(await page.evaluate(()=>window.PlatformAPI.projectMedia.primaryPhoto(window.project,{orgId:'org'}).media_id),'sat','project tiles and Overview still fall back to it');
     // Opening Photos again does not ask for the satellite photo again; it reads the fields again.
     const reads=await page.evaluate(()=>window.contractReads);

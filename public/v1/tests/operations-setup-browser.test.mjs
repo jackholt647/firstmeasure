@@ -68,6 +68,14 @@ test('a proposal explicitly starts Documents and shows the native live preview',
     assert.equal(await page.evaluate(()=>activations.length),1);
     assert.match(await page.evaluate(()=>activations[0]),/app-offers\/project.docs\/start$/);
     assert.equal(await page.locator('[data-fmdw-piece-type]').count(),3);
+    assert.equal(await page.locator('.ops-notice').count(),0,'no notice above the proposal workflow');
+    assert.equal(await page.locator('[data-fmdw-preview-toggle],[data-fmdw-preview-hide],[data-fmdw-resizer]').count(),0,'the setup keeps its preview pinned');
+    const split=await page.evaluate(()=>({root:document.querySelector('[data-fmdw-root]').getBoundingClientRect().width,preview:document.querySelector('[data-fmdw-preview]').getBoundingClientRect().width}));
+    assert.ok(Math.abs(split.preview-split.root/2)<=2,`the preview is half the width (${split.preview} of ${split.root})`);
+    await page.setViewportSize({width:600,height:850});
+    await page.waitForFunction(()=>document.querySelector('[data-fmdw-root]').classList.contains('narrow'));
+    assert.equal(await page.locator('[data-fmdw-preview]').isVisible(),true,'a narrow panel stacks the preview instead of hiding it');
+    await page.setViewportSize({width:1100,height:850});
     await page.getByRole('button',{name:'Send proposal',exact:true}).click();
     await page.waitForFunction(()=>proposalTools.includes('send:doc1'));
     await page.getByRole('button',{name:'Present',exact:true}).click();

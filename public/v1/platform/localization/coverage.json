@@ -1,7 +1,7 @@
 {
-  "files": 295,
+  "files": 297,
   "namespaces": 117,
-  "messages": 17048,
+  "messages": 17058,
   "migration": [
     {
       "file": "public/libraries/account-switcher/account-switcher.js",
@@ -300,14 +300,14 @@
     {
       "file": "public/libraries/apps/firstmeasure/order/app.js",
       "namespace": "firstmeasure",
-      "references": 63,
+      "references": 65,
       "candidates": 2,
       "edits": 1
     },
     {
       "file": "public/libraries/apps/firstmeasure/order/exteriors.js",
       "namespace": "firstmeasure",
-      "references": 309,
+      "references": 308,
       "candidates": 4,
       "edits": 11
     },
@@ -382,17 +382,24 @@
       "edits": 0
     },
     {
+      "file": "public/libraries/apps/measurements/holiday-lights.js",
+      "namespace": "measurements",
+      "references": 1,
+      "candidates": 4,
+      "edits": 4
+    },
+    {
       "file": "public/libraries/apps/measurements/project.js",
       "namespace": "measurements",
-      "references": 295,
+      "references": 302,
       "candidates": 0,
       "edits": 0
     },
     {
       "file": "public/libraries/apps/measurements/roof-viewer.js",
       "namespace": "measurements",
-      "references": 2,
-      "candidates": 70,
+      "references": 3,
+      "candidates": 71,
       "edits": 32
     },
     {
@@ -405,7 +412,7 @@
     {
       "file": "public/libraries/apps/onboarding/wizard.js",
       "namespace": "onboarding",
-      "references": 122,
+      "references": 116,
       "candidates": 0,
       "edits": 0
     },
@@ -657,9 +664,9 @@
     {
       "file": "public/libraries/apps/project-request/app.js",
       "namespace": "project-request",
-      "references": 404,
-      "candidates": 1,
-      "edits": 3
+      "references": 409,
+      "candidates": 2,
+      "edits": 4
     },
     {
       "file": "public/libraries/apps/project-schedule/panel.js",
@@ -678,7 +685,7 @@
     {
       "file": "public/libraries/apps/projects/viewer.js",
       "namespace": "projects",
-      "references": 365,
+      "references": 364,
       "candidates": 0,
       "edits": 0
     },
@@ -1309,8 +1316,8 @@
       "file": "public/libraries/doc-workflow/firstmate-doc-workflow.js",
       "namespace": "doc-workflow",
       "references": 62,
-      "candidates": 77,
-      "edits": 55
+      "candidates": 78,
+      "edits": 57
     },
     {
       "file": "public/libraries/doc-workflow/firstmate-workflow-editor.js",
@@ -1412,6 +1419,13 @@
     },
     {
       "file": "public/libraries/guided-experiences/checklists-setup.js",
+      "namespace": "guided-experiences",
+      "references": 0,
+      "candidates": 0,
+      "edits": 0
+    },
+    {
+      "file": "public/libraries/guided-experiences/guided-announcement.js",
       "namespace": "guided-experiences",
       "references": 0,
       "candidates": 0,

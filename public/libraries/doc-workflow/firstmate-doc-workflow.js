@@ -15,7 +15,8 @@
  *   FMDocWorkflow.mount(container, {
  *     workflow, audience, state:{params,outputs,current_step,completed_steps},
  *     contract, onWrite(path,value), onStepState(state), onComplete(),
- *     preview:{ resolve():Promise<resolved>, mount(el,resolved)? },
+ *     preview:{ resolve():Promise<resolved>, mount(el,resolved)?, pinned? },  pinned: always shown, half the width
+ *       (stacked below when narrow), with no Preview toggle, hide button or resizer
  *     services:{ pricebook, pieceCatalog, generateScopeItems, media }, scope:{...extra}, theme
  *   }) -> { destroy, goTo(stepId), refresh(state) }
  *
@@ -3383,6 +3384,7 @@
     const contract = obj(opts.contract && Object.keys(obj(opts.contract)).length ? opts.contract : workflow.contract);
     const services = obj(opts.services);
     const preview = opts.preview && typeof obj(opts.preview).resolve === 'function' ? obj(opts.preview) : null;
+    const pinnedPreview = !!preview && preview.pinned === true;
     const extraScope = obj(opts.scope);
     const theme = firstText(opts.theme, obj(obj(workflow.audiences)[audience]).theme);
     const showWorkflowTitle = opts.showWorkflowTitle !== false;
@@ -3500,7 +3502,7 @@
 
     // -------------------------------------------------------------- layout
     container.innerHTML = `
-      <div class="fmdw ${String(theme === 'portal' ? 'fmdw-portal' : '')} ${String(preview ? 'has-preview' : '')}" data-fmdw-root>
+      <div class="fmdw ${String(theme === 'portal' ? 'fmdw-portal' : '')} ${String(preview ? 'has-preview' : '')} ${String(pinnedPreview ? 'preview-pinned' : '')}" data-fmdw-root>
         <aside class="fmdw-rail">
           <div class="fmdw-rail-head ${String(showWorkflowTitle ? '' : 'titleless')}">
             ${String(showWorkflowTitle ? `<strong>${esc(firstText(workflow.name, 'Workflow'))}</strong>` : '')}
@@ -3514,13 +3516,13 @@
           <footer class="fmdw-foot">
             <button type="button" class="fmdw-btn" data-fmdw-back><i class="fas fa-arrow-left"></i>${(globalThis.PlatformLanguage?.htmlText("doc-workflow","m_9c5b830c019950"," Previous") ?? " Previous")}</button>
             <span class="fmdw-foot-note" data-fmdw-foot-note></span>
-            ${String(preview && typeof services.openFullPreview !== 'function' ? `<button type="button" class="fmdw-btn ghost fmdw-preview-toggle" data-fmdw-preview-toggle title="Show or hide the live preview"><i class="fas fa-eye"></i><span> Preview</span></button>` : '')}
+            ${String(preview && !pinnedPreview && typeof services.openFullPreview !== 'function' ? `<button type="button" class="fmdw-btn ghost fmdw-preview-toggle" data-fmdw-preview-toggle title="Show or hide the live preview"><i class="fas fa-eye"></i><span> Preview</span></button>` : '')}
             <span class="fmdw-foot-deliver" data-fmdw-foot-deliver></span>
             <button type="button" class="fmdw-btn primary" data-fmdw-continue>${(globalThis.PlatformLanguage?.htmlText("doc-workflow","m_854c72abba5166","Continue ") ?? "Continue ")}<i class="fas fa-arrow-right"></i></button>
           </footer>
         </section>
         ${String(preview ? `
-        <div class="fmdw-resizer" data-fmdw-resizer title="Drag to resize the preview" role="separator" aria-orientation="vertical"></div>
+        ${String(pinnedPreview ? '' : `<div class="fmdw-resizer" data-fmdw-resizer title="Drag to resize the preview" role="separator" aria-orientation="vertical"></div>`)}
         <aside class="fmdw-preview" data-fmdw-preview>
           <div class="fmdw-preview-head" data-fmdw-preview-head>
             <strong><i class="fas fa-eye"></i>${(globalThis.PlatformLanguage?.htmlText("doc-workflow","m_a979f59edfcd90"," Live preview") ?? " Live preview")}</strong>
@@ -3530,7 +3532,7 @@
               <button type="button" class="fmdw-icon-btn" data-fmdw-zoom-in title="${(globalThis.PlatformLanguage?.htmlText("doc-workflow","m_a593d968057ce9","Zoom in") ?? "Zoom in")}"><i class="fas fa-magnifying-glass-plus"></i></button>
               <button type="button" class="fmdw-icon-btn" data-fmdw-preview-refresh title="${(globalThis.PlatformLanguage?.htmlText("doc-workflow","m_acf1841e689f24","Refresh preview") ?? "Refresh preview")}"><i class="fas fa-rotate"></i></button>
               ${String(typeof services.openFullPreview === 'function' ? `<button type="button" class="fmdw-icon-btn" data-fmdw-preview-full title="Full screen"><i class="fas fa-expand"></i></button>` : '')}
-              <button type="button" class="fmdw-icon-btn" data-fmdw-preview-hide title="Hide the preview"><i class="fas fa-xmark"></i></button>
+              ${String(pinnedPreview ? '' : `<button type="button" class="fmdw-icon-btn" data-fmdw-preview-hide title="Hide the preview"><i class="fas fa-xmark"></i></button>`)}
             </div>
           </div>
           <div class="fmdw-preview-stage" data-fmdw-preview-stage>
@@ -3899,7 +3901,7 @@
       try { root.localStorage?.setItem(PREVIEW_PREF_KEY, JSON.stringify(previewPref)); } catch (e) { /* storage unavailable */ }
     }
     function previewVisible(){
-      return !!preview && previewPref.hidden !== true && !el.root.classList.contains('narrow');
+      return pinnedPreview || (!!preview && previewPref.hidden !== true && !el.root.classList.contains('narrow'));
     }
     function applyPreviewLayout(){
       if (!preview || st.destroyed) return;
@@ -3909,7 +3911,7 @@
       el.root.classList.toggle('compact-rail', width > 0 && width < COMPACT_RAIL_PX);
       const visible = previewVisible();
       el.root.classList.toggle('preview-hidden', !visible);
-      if (Number(previewPref.width) > 0) {
+      if (!pinnedPreview && Number(previewPref.width) > 0) {
         const max = Math.max(280, width - (el.root.querySelector('.fmdw-rail')?.offsetWidth || 0) - 340);
         el.root.style.setProperty('--fmdw-preview-w', `${Math.round(Math.min(Math.max(280, Number(previewPref.width)), max))}px`);
       }
@@ -4003,7 +4005,7 @@
        *  document changes: theme switch, Data-panel saves, etc.). */
       /** Show or hide the docked live preview. Returns false when it cannot be docked (no preview, or the window is too narrow). */
       togglePreview(){
-        if (!preview || st.destroyed || el.root.classList.contains('narrow')) return false;
+        if (!preview || pinnedPreview || st.destroyed || el.root.classList.contains('narrow')) return false;
         previewPref.hidden = previewPref.hidden !== true;
         savePreviewPref();
         applyPreviewLayout();
@@ -4523,6 +4525,10 @@
 .fmdw.resizing .fmdw-preview-stage{pointer-events:none}
 .fmdw.preview-hidden .fmdw-preview,.fmdw.preview-hidden .fmdw-resizer{display:none}
 .fmdw-preview-toggle.active{border-color:var(--fmdw-primary);color:var(--fmdw-primary)}
+/* pinned preview: half the width beside the steps; stacked below them when narrow, never hidden */
+.fmdw.preview-pinned .fmdw-preview{flex-basis:50%;border-left:1px solid var(--fmdw-line)}
+.fmdw.preview-pinned.narrow{display:grid;grid-template-columns:auto minmax(0,1fr);grid-template-rows:minmax(0,1fr) minmax(0,1fr)}
+.fmdw.preview-pinned.narrow .fmdw-preview{grid-column:1/-1;border-left:0;border-top:1px solid var(--fmdw-line)}
 /* compact rail: numbered dots only, titles on hover */
 .fmdw.compact-rail .fmdw-rail{width:58px}
 .fmdw.compact-rail .fmdw-rail-head{display:none}
@@ -4567,6 +4573,7 @@
   .fmdw-step{flex:none}
   .fmdw-step-title{max-width:120px}
   .fmdw-section-items{grid-template-columns:1fr}
+  .fmdw.preview-pinned.narrow{grid-template-columns:minmax(0,1fr);grid-template-rows:auto minmax(0,1fr) minmax(0,1fr)}
 }`;
 
   function ensureStyles(){
