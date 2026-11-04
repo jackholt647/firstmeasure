@@ -269,7 +269,7 @@ function texture(type){
  if(type==='soffit'){for(let x=0;x<256;x+=32){c.fillStyle='#9ca0a2';c.fillRect(x,0,2,256);c.fillStyle='#fafafa';c.fillRect(x+2,0,2,256);for(let y=8;y<256;y+=12){c.fillStyle='#9ca0a2';c.fillRect(x+13,y,2,2);c.fillRect(x+19,y,2,2);}}}
  if(type==='shingles'){c.fillStyle='#d3d3d3';c.fillRect(0,0,256,256);for(let row=0;row<4;row++){const y=row*64;for(let col=-1;col<4;col++){const x=col*85+(row%2?42:0);c.fillStyle=['#c6c6c6','#dedede','#cecece'][(col+row+3)%3];c.fillRect(x,y,84,63);c.fillStyle='#777';c.fillRect(x,y+61,85,3);c.fillStyle='#a0a0a0';c.fillRect(x,y,1,61);}}for(let i=0;i<8000;i++){c.fillStyle=i%2?'#ffffff18':'#00000018';c.fillRect((i*73)%256,(i*139+Math.floor(i/256)*31)%256,1,1);}}
  if(type==='brick'||type==='masonry'){c.strokeStyle='#a0a0a0';c.lineWidth=3;for(let y=0;y<256;y+=32){c.beginPath();c.moveTo(0,y);c.lineTo(256,y);for(let x=(y%64?32:0);x<=256;x+=64){c.moveTo(x,y);c.lineTo(x,y+32);}c.stroke();}}
- if(['stucco','stone','other'].includes(type)){for(let i=0;i<1800;i++){const x=(i*137)%256,y=(i*73+Math.floor(i/256)*17)%256;c.fillStyle=i%2?'#dadada':'#f8f8f8';c.fillRect(x,y,type==='stone'?7:1,type==='stone'?5:1);}}
+ if(['stucco','concrete','stone','other'].includes(type)){for(let i=0;i<1800;i++){const x=(i*137)%256,y=(i*73+Math.floor(i/256)*17)%256;c.fillStyle=i%2?'#dadada':'#f8f8f8';c.fillRect(x,y,type==='stone'?7:1,type==='stone'?5:1);}}
  const t=new THREE.CanvasTexture(canvas);t.wrapS=t.wrapT=THREE.RepeatWrapping;if(type==='opening-trim')t.wrapT=THREE.ClampToEdgeWrapping;t.anisotropy=4;if(THREE.SRGBColorSpace)t.colorSpace=THREE.SRGBColorSpace;else if(THREE.sRGBEncoding)t.encoding=THREE.sRGBEncoding;cache.set(type,t);return t;
 }
 // Opening maps cover one whole opening instead of repeating wall-sized tiles.
