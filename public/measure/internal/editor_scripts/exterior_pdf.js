@@ -154,6 +154,12 @@ function roofDepthBias(a,b,c,den){
 }
 // Resolve depth at each pixel, including holes, openings and curved triangles.
 // A single average depth per wall cannot resolve intersecting/overlapping faces.
+/* A face seen edge-on (exactly or within EDGE_ON of 90 degrees to the view: a soffit or flat roof in an
+ elevation, a roof plane or overhang seen from its gable end) projects to a line with little or no area,
+ so no pixel centre falls inside its triangles. Its triangles' sides are drawn as depth-tested one-pixel
+ lines instead, so the edge pass still prints the roof line where no wall stands behind it. Those line
+ pixels are not counted as the face's visible area. */
+const EDGE_ON=.02;
 /* `focus` (a count) makes a context render: the first `focus` faces are framed and drawn as usual;
  the faces after them are a dimmed context, kept only behind the focus faces' frontmost depth (so
  nothing between the camera and the measured face can hide it) and clipped to the frame. */
@@ -164,14 +170,21 @@ function rasterScene(faces,view,width,height,iso=false,pad=30,{focus=null}={}){
  const pixels=new Uint8ClampedArray(width*height*4),depth=new Float64Array(width*height).fill(-Infinity),owners=new Int32Array(width*height).fill(-1),dim=surfaces.map((s,i)=>focus!=null&&parents[i]>=focus);
  let minX=Infinity,maxX=-Infinity,minY=Infinity,maxY=-Infinity,front=-Infinity;
  for(const [i,m]of meshes.entries()){if(dim[i])continue;for(const p of m.positions){const q=project(p);minX=Math.min(minX,q.x);maxX=Math.max(maxX,q.x);minY=Math.min(minY,q.y);maxY=Math.max(maxY,q.y);front=Math.max(front,q.z);}}
- const clip=front+1e-3,FOCUS_BIAS=1,roofOwner=new Uint8Array(width*height),roofBias=new Float32Array(width*height);
+ const clip=front+1e-3,FOCUS_BIAS=1,roofOwner=new Uint8Array(width*height),roofBias=new Float32Array(width*height),lineOnly=new Uint8Array(width*height);
  if(!Number.isFinite(minX)){minX=minY=0;maxX=maxY=1;}
  const scale=Math.min((width-2*pad)/Math.max(maxX-minX,.01),(height-2*pad)/Math.max(maxY-minY,.01));
  const at=p=>{const q=project(p);return {x:width/2+(q.x-(minX+maxX)/2)*scale,y:height/2+(q.y-(minY+maxY)/2)*scale,z:q.z};};
  surfaces.forEach((face,id)=>{
   const m=meshes[id],ps=m.positions.map(at),roofish=face.surface==='roof'||!!face.roofTrim,context=dim[id],lift=focus!=null&&!context?FOCUS_BIAS:0,bias=roofish?0:lift+(face.openingTrim?2e-4:face.featureType?1e-4:0);
+  // One pixel of an edge-on side, at depth `raw`, under the same depth rules as the triangles below.
+  const plot=(x,y,raw)=>{if(x<0||x>=width||y<0||y>=height||context&&raw>clip)return;const z=raw+bias,index=y*width+x,other=owners[index]<0?roofish:roofOwner[index]===1,rb=roofish?ROOF_DEPTH_BIAS:0;
+   if(roofish===other?z>depth[index]+1e-8:roofish?z+rb>depth[index]+1e-8:z>depth[index]+roofBias[index]+1e-8){if(owners[index]!==id)lineOnly[index]=1;depth[index]=z;owners[index]=id;roofOwner[index]=roofish?1:0;roofBias[index]=rb;}};
+  const side=(p,q)=>{const steps=Math.ceil(Math.max(Math.abs(q.x-p.x),Math.abs(q.y-p.y)));for(let i=0;i<=steps;i++){const t=steps?i/steps:0;plot(Math.floor(p.x+(q.x-p.x)*t),Math.floor(p.y+(q.y-p.y)*t),p.z+(q.z-p.z)*t);}};
   for(const tri of m.triangles){
-   const [a,b,c]=tri.map(i=>ps[i]),den=(b.y-c.y)*(a.x-c.x)+(c.x-b.x)*(a.y-c.y);if(Math.abs(den)<1e-8)continue;
+   const [a,b,c]=tri.map(i=>ps[i]),den=(b.y-c.y)*(a.x-c.x)+(c.x-b.x)*(a.y-c.y);
+   const [A,B,C]=tri.map(i=>m.positions[i]),ux=B.x-A.x,uy=B.y-A.y,uz=(B.z||0)-(A.z||0),vx=C.x-A.x,vy=C.y-A.y,vz=(C.z||0)-(A.z||0),wx=uy*vz-uz*vy,wy=uz*vx-ux*vz,wz=ux*vy-uy*vx,wl=Math.hypot(wx,wy,wz);
+   if(wl>1e-12&&Math.abs(wx*camera.x+wy*camera.y+wz*camera.z)<=EDGE_ON*wl){side(a,b);side(b,c);side(c,a);}
+   if(Math.abs(den)<1e-8)continue;
    // The roof bias applies only against non-roof surfaces; roof against roof compares exact depths.
    const rb=roofish?roofDepthBias(a,b,c,den):0;
    const x0=Math.max(0,Math.floor(Math.min(a.x,b.x,c.x))),x1=Math.min(width-1,Math.ceil(Math.max(a.x,b.x,c.x))),y0=Math.max(0,Math.floor(Math.min(a.y,b.y,c.y))),y1=Math.min(height-1,Math.ceil(Math.max(a.y,b.y,c.y)));
@@ -180,17 +193,17 @@ function rasterScene(faces,view,width,height,iso=false,pad=30,{focus=null}={}){
     if(u< -1e-9||v< -1e-9||u+v>1+1e-9)continue;
     const raw=u*a.z+v*b.z+(1-u-v)*c.z;if(context&&raw>clip)continue;
     const z=raw+bias,index=y*width+x,other=owners[index]<0?roofish:roofOwner[index]===1;
-    if(roofish===other?z>depth[index]+1e-8:roofish?z+rb>depth[index]+1e-8:z>depth[index]+roofBias[index]+1e-8){depth[index]=z;owners[index]=id;roofOwner[index]=roofish?1:0;roofBias[index]=rb;}
+    if(roofish===other?z>depth[index]+1e-8:roofish?z+rb>depth[index]+1e-8:z>depth[index]+roofBias[index]+1e-8){depth[index]=z;owners[index]=id;roofOwner[index]=roofish?1:0;roofBias[index]=rb;lineOnly[index]=0;}
    }
   }
  });
  const counts=new Array(surfaces.length).fill(0),sums=surfaces.map(()=>({x:0,y:0})),bounds=surfaces.map(()=>({x0:Infinity,y0:Infinity,x1:-Infinity,y1:-Infinity}));
  for(let y=0;y<height;y++)for(let x=0;x<width;x++){
-  const index=y*width+x,id=owners[index];if(id<0)continue;counts[id]++;sums[id].x+=x;sums[id].y+=y;const b=bounds[id];if(x<b.x0)b.x0=x;if(x>b.x1)b.x1=x;if(y<b.y0)b.y0=y;if(y>b.y1)b.y1=y;
+  const index=y*width+x,id=owners[index];if(id<0||lineOnly[index])continue;counts[id]++;sums[id].x+=x;sums[id].y+=y;const b=bounds[id];if(x<b.x0)b.x0=x;if(x>b.x1)b.x1=x;if(y<b.y0)b.y0=y;if(y>b.y1)b.y1=y;
  }
  const labels=surfaces.map((face,id)=>({face,count:counts[id],point:null,distance:Infinity}));
  for(let y=8;y<height-8;y+=4)for(let x=12;x<width-12;x+=4){
-  const id=owners[y*width+x];if(id<0||!surfaces[id].id)continue;
+  const id=owners[y*width+x];if(id<0||!surfaces[id].id||!counts[id])continue;
   if(![-10,0,10].every(dx=>[-6,0,6].every(dy=>owners[(y+dy)*width+x+dx]===id)))continue;
   const d=(x-sums[id].x/counts[id])**2+(y-sums[id].y/counts[id])**2;
   if(d<labels[id].distance){labels[id].point={x,y};labels[id].distance=d;}
