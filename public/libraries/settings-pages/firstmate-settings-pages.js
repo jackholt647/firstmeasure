@@ -266,13 +266,19 @@
     const saveButtonFor = (target, fallbackScope = null) => {
       if (!target) return null;
       const pane = (root.contains(target) ? target.closest?.('[data-settings-pane],[data-settings-page-id]') : null) || fallbackScope || root;
+      // A button still in its short post-click guard is a candidate too: an edit
+      // typed in that moment must be saved after it, not dropped (FM-324).
       const candidates = Array.from(pane.querySelectorAll?.('button[data-settings-autosave-trigger="true"]') || [])
-        .filter((button) => !button.disabled && button.dataset.settingsAutosaveBusy !== 'true');
+        .filter((button) => !button.disabled);
       if (!candidates.length) return null;
       return candidates.sort((left, right) => distance(target, left) - distance(target, right))[0] || null;
     };
     const run = (button) => {
-      if (!button?.isConnected || button.disabled || button.dataset.settingsAutosaveBusy === 'true') return;
+      if (!button?.isConnected || button.disabled) return;
+      if (button.dataset.settingsAutosaveBusy === 'true') {
+        window.setTimeout(() => run(button), 260);
+        return;
+      }
       button.dataset.settingsAutosaveBusy = 'true';
       const sequence = ++saveSequence;
       showStatus('saving', 'Saving...');
