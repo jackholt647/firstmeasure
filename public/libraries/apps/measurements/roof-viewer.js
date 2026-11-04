@@ -112,6 +112,32 @@
   // ---- Full-house geometry helpers (metres in, feet frame out) ----
   const newell=points=>{const n=[0,0,0];points.forEach((p,i)=>{const q=points[(i+1)%points.length];n[0]+=(p[1]-q[1])*(p[2]+q[2]);n[1]+=(p[2]-q[2])*(p[0]+q[0]);n[2]+=(p[0]-q[0])*(p[1]+q[1]);});const l=Math.hypot(...n);return l>1e-12?n.map(v=>v/l):null;};
   const dot3=(a,b)=>a[0]*b[0]+a[1]*b[1]+a[2]*b[2],cross3=(a,b)=>[a[1]*b[2]-a[2]*b[1],a[2]*b[0]-a[0]*b[2],a[0]*b[1]-a[1]*b[0]];
+  // Each wall's outward normal, for standing openings and their trim off the wall (FM-331). The report orients a wall
+  // by the base footprint; with no base its saved normal is only the face's winding and can point into the house. So:
+  // the base footprint as the report reads it, then the walls themselves (a level ray from a point on the wall that
+  // heads inside crosses an odd number of other walls), then the saved normal, then the side away from the house centre.
+  function exteriorOutwards(walls=[],base=[]){
+    const planes=walls.map(w=>{const n=newell(w.points);if(!n)return null;const a=[0,1,2].reduce((m,i)=>Math.abs(n[i])>Math.abs(n[m])?i:m,0),axes=[0,1,2].filter(i=>i!==a);return {n,axes,rings:[w.points,...(w.holes||[])].map(r=>r.map(p=>axes.map(i=>p[i])))};});
+    const inRing=(x,y,ring)=>{let inside=false;for(let i=0,j=ring.length-1;i<ring.length;j=i++){const a=ring[i],b=ring[j];if((a[1]>y)!==(b[1]>y)&&x<(b[0]-a[0])*(y-a[1])/(b[1]-a[1])+a[0])inside=!inside;}return inside;};
+    const inBase=(x,y)=>base.some(f=>inRing(x,y,f.points||[])&&!(f.holes||[]).some(h=>inRing(x,y,h)));
+    const crossings=(p,d,skip)=>planes.reduce((count,plane,k)=>{if(!plane||k===skip)return count;const denom=dot3(plane.n,d);if(Math.abs(denom)<1e-6)return count;
+      const t=dot3(plane.n,walls[k].points[0].map((v,i)=>v-p[i]))/denom;if(t<=.01)return count;const q=p.map((v,i)=>v+d[i]*t),[x,y]=plane.axes.map(i=>q[i]);
+      return inRing(x,y,plane.rings[0])&&!plane.rings.slice(1).some(r=>inRing(x,y,r))?count+1:count;},0);
+    const all=walls.flatMap(w=>w.points),houseCenter=all.reduce((a,p)=>a.map((v,i)=>v+p[i]/all.length),[0,0,0]);
+    return walls.map((wall,k)=>{
+      const n=planes[k]?.n,saved=Array.isArray(wall.normal)&&Math.hypot(...wall.normal)>.5?wall.normal:null,center=wall.points.reduce((a,p)=>a.map((v,i)=>v+p[i]/wall.points.length),[0,0,0]);
+      if(!n)return saved||[0,0,0];
+      const level=Math.hypot(n[0],n[1]);
+      if(level>.98){const flat=[n[0]/level,n[1]/level,0],back=flat.map(v=>-v);
+        if(base.length)for(const d of [.005,.02,.1]){const a=inBase(center[0]+flat[0]*d,center[1]+flat[1]*d),b=inBase(center[0]-flat[0]*d,center[1]-flat[1]*d);if(a!==b)return a?back:flat;}
+        // Sample the wall where it matters (its openings) and its own centre; a seam hit exactly can miscount one ray.
+        const samples=[...(wall.openings||[]).map(o=>o.points.reduce((a,p)=>a.map((v,i)=>v+p[i]/o.points.length),[0,0,0])),center];
+        const vote=samples.reduce((sum,p)=>{const ahead=crossings(p,flat,k)%2,behind=crossings(p,back,k)%2;return ahead===behind?sum:sum+(ahead?-1:1);},0);
+        if(vote)return vote>0?flat:back;}
+      if(saved)return saved;
+      return dot3(n,center.map((v,i)=>v-houseCenter[i]))<0?n.map(v=>-v):n;
+    });
+  }
   // The exported XML is the same roof in feet, centred, with y flipped. Fit that frame from both roofs so walls
   // and roof lines coincide; a mismatch falls back to a centred frame and the model's own roof.
   function exteriorFrame(model,roofs){
@@ -606,7 +632,7 @@
       const chimneyCaps=(exterior.caps||[]).map((face,index)=>{const xs=face.points.map(p=>p[0]),ys=face.points.map(p=>p[1]);return {face,id:'viewer-chimney-'+index,box:[Math.min(...xs)-.15,Math.max(...xs)+.15,Math.min(...ys)-.15,Math.max(...ys)+.15],center:[(Math.min(...xs)+Math.max(...xs))/2,(Math.min(...ys)+Math.max(...ys))/2]};});
       const chimneyOf=wall=>{if(!wall.chimney||!chimneyCaps.length)return null;const c=wall.points.reduce((a,p)=>[a[0]+p[0]/wall.points.length,a[1]+p[1]/wall.points.length],[0,0]);
         return (chimneyCaps.find(cap=>c[0]>=cap.box[0]&&c[0]<=cap.box[1]&&c[1]>=cap.box[2]&&c[1]<=cap.box[3])||chimneyCaps.reduce((best,cap)=>Math.hypot(cap.center[0]-c[0],cap.center[1]-c[1])<Math.hypot(best.center[0]-c[0],best.center[1]-c[1])?cap:best)).id;};
-      const allWallPoints=exterior.walls.flatMap(w=>w.points),houseCenter=allWallPoints.reduce((a,p)=>a.map((v,i)=>v+p[i]/allWallPoints.length),[0,0,0]);
+      const outwards=new Map(exteriorOutwards(exterior.walls,exterior.base||[]).map((normal,i)=>[exterior.walls[i],normal]));
       for(const wall of exterior.walls){
         const category=wall.chimney?'chimney':'material:'+wall.materialKey,swatch=flatColor(wall.materialKey,wall.finishColor);
         const item={kind:'wall',category,categoryName:wall.chimney?'Chimneys':labelFor(wall.materialKey),area:wall.net,swatch,flat:swatch,title:`${wall.chimney?'Chimney':'Wall'} ${wall.id}`,
@@ -615,12 +641,12 @@
         const chimneyId=chimneyOf(wall),mesh=safe(()=>editorMesh({...faceOf(wall),material:followsDefault?'default':wall.materialKey,finishColor:wall.finishColor,...(wall.chimney?{chimney:{id:chimneyId}}:{})},{part:'wall',key:wall.key||wall.id}),null);if(!mesh)continue;own(item,[mesh],'walls');
         // Wall area pills sit just off the face, outside its holes.
         const anchor=wallAnchor(wall);if(anchor){const sprite=labelSprite(toScene(anchor),{item});paintLabel(sprite,[{icon:'area',text:decimal(wall.net,0)+' sf'}]);groups.wallLabels.add(sprite);}
-        const wallCenter=wall.points.reduce((a,p)=>a.map((v,i)=>v+p[i]/wall.points.length),[0,0,0]),savedNormal=Array.isArray(wall.normal)&&Math.hypot(...wall.normal)>.5?wall.normal:null,wallNormal=savedNormal||newell(wall.points)||[0,0,0],outward=savedNormal?1:dot3(wallNormal,wallCenter.map((v,i)=>v-houseCenter[i]))<0?-1:1;
+        const wallNormal=outwards.get(wall);
         for(const opening of wall.openings){const type=openingKind(opening.type);if(!openingKinds[type])continue;
-          const proud=opening.points.map(p=>p.map((v,i)=>v+wallNormal[i]*outward*.03)),openingKey=opening.points.map(p=>p.map(v=>Math.round(v*100)).join(':')).join('|');
+          const proud=opening.points.map(p=>p.map((v,i)=>v+wallNormal[i]*.03)),openingKey=opening.points.map(p=>p.map(v=>Math.round(v*100)).join(':')).join('|');
           const feature=safe(()=>editorMesh({points:ring(proud),feature:{type}},{offset:-1,order:1,part:'feature',key:openingKey}),null);if(!feature)continue;feature.userData.exteriorFeature=true;
           // Sticker trim (door and window casing): opening-trim finish in the sticker's trim colour, in front of the wall.
-          const trims=(opening.trimFaces||[]).map(face=>{const mesh=safe(()=>editorMesh({points:ring(face.points.map(p=>p.map((v,i)=>v+wallNormal[i]*outward*.03))),openingTrim:true,trim:true,stickerType:face.stickerType,trimOwnColor:face.ownColor||null},{offset:-2,order:2,part:'trim',key:openingKey}),null);if(mesh){mesh.userData.openingTrim=true;Object.assign(mesh.userData.exteriorFinish||{},{stickerType:face.stickerType});}return mesh;}).filter(Boolean);
+          const trims=(opening.trimFaces||[]).map(face=>{const mesh=safe(()=>editorMesh({points:ring(face.points.map(p=>p.map((v,i)=>v+wallNormal[i]*.03))),openingTrim:true,trim:true,stickerType:face.stickerType,trimOwnColor:face.ownColor||null},{offset:-2,order:2,part:'trim',key:openingKey}),null);if(mesh){mesh.userData.openingTrim=true;Object.assign(mesh.userData.exteriorFinish||{},{stickerType:face.stickerType});}return mesh;}).filter(Boolean);
           const on=newell(opening.points)||[0,0,0],middle=opening.points.reduce((a,p)=>a.map((v,i)=>v+p[i]/opening.points.length),[0,0,0]);
           own({kind:'opening',labelAnchor:toScene(middle.map((v,i)=>v+on[i]*.2)),labelParts:()=>[{text:openingSize(opening.width,opening.height)}],category:'opening:'+type,openingType:type,priority:3,area:opening.area,width:opening.width,height:opening.height,swatch:flatOpening[type],flat:flatOpening[type],title:`${openingKinds[type][1]} ${opening.id}`,
             details:()=>[['Size',openingSize(opening.width,opening.height)],['Area',`${decimal(opening.area,1)} sq ft`],['Perimeter',`${decimal(opening.perimeter,1)} ft`],['Wall',`${wall.id} · ${wall.elevation}`]]},[feature,...trims],'walls');}
@@ -795,5 +821,5 @@
     for(const name of ['pointerdown','wheel','keydown'])designPanel?.addEventListener(name,e=>e.stopPropagation());
     return {serialize(){return {texture:textureEnabled,lines:coloredLinesEnabled,key:keyVisible,keyTab,pitch:pitchEnabled,area:areaEnabled,lengths:lengthsEnabled,layers:{...layers},category:selectedCategory,selectedType:selectedCategory?.startsWith('line:')?selectedCategory.slice(5):null};},setVisible(value){if(value)resize();},destroy(){disposed=true;clearPreview?.();if(renderedKey){try{window.ExteriorRendered?.update(null,{enabled:false});}catch(_){}}if(ownsWallMode&&window.WallMode?.viewerShim)delete window.WallMode;unsubscribeMeasurements?.();controller.abort();observer.disconnect();controls?.dispose();objects.forEach(o=>o.dispose());texture?.dispose();renderer?.dispose();ownedUrls.forEach(URL.revokeObjectURL);root.replaceChildren();}};
   }
-  window.FirstMeasureRoofViewer={mount,parseModel,faceTextureUVs,faceLabelAnchor,exteriorFrame,finishUVs,reportFaceSqFt,reportFaceExactSqFt,reportSquares,reportRoofFeet,reportWallFeet,reportLineTotal,reportPitchSquares,reportTotalSquares,reportObstacleSize,isLowSlope};
+  window.FirstMeasureRoofViewer={mount,parseModel,faceTextureUVs,faceLabelAnchor,exteriorFrame,exteriorOutwards,finishUVs,reportFaceSqFt,reportFaceExactSqFt,reportSquares,reportRoofFeet,reportWallFeet,reportLineTotal,reportPitchSquares,reportTotalSquares,reportObstacleSize,isLowSlope};
 })();
