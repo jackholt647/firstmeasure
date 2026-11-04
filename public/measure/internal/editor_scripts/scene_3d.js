@@ -6155,9 +6155,11 @@ function getGeometryBounds3D() {
     if (!hasPoint || box.isEmpty()) return null;
     return { box, sphere: box.getBoundingSphere(new THREE.Sphere()) };
 }
+// options.points (THREE.Vector3s) fits those instead of the whole measurement.
 function fitCameraToActiveGeometry(options = {}) {
     if (typeof THREE === 'undefined' || typeof camera === 'undefined' || !camera || typeof controls === 'undefined' || !controls) return false;
-    const bounds = getGeometryBounds3D();
+    const pointBox = Array.isArray(options.points) && options.points.length ? new THREE.Box3().setFromPoints(options.points) : null;
+    const bounds = pointBox && !pointBox.isEmpty() ? { box: pointBox, sphere: pointBox.getBoundingSphere(new THREE.Sphere()) } : getGeometryBounds3D();
     if (!bounds || !bounds.sphere || !Number.isFinite(bounds.sphere.radius)) return false;
 
     const { sphere } = bounds;
