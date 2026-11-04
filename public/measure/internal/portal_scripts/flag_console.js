@@ -189,7 +189,7 @@
         <input class="ffc-range" type="range" min="0" max="100" step="1" value="${esc(draft)}" data-percent aria-label="Percentage slider" style="flex:1;min-width:120px" ${canWrite() ? '' : 'disabled'}>
       </div>
       <div class="ffc-sub" style="margin:6px 0 10px" id="ffcCoverage">${S.coverage && Number(S.coverage.percent) === Number(draft) ? `Covers ${num(S.coverage.covered)} of ${num(S.coverage.total_orgs)} organizations, before explicit values. Raising it later keeps everyone it covers now.` : 'Raising a percentage later keeps everyone it covers now.'}</div>
-      ${flag.introduction ? `<label class="ffc-pick" style="margin-bottom:8px;padding:0;border:0"><input type="checkbox" style="flex:none;width:auto;margin-top:3px" data-percent-introduce ${S.percentIntroduce ? 'checked' : ''} ${canWrite() ? '' : 'disabled'}><span>Introduce it to organizations this adds<br><span class="ffc-sub">They see its announcement once, the next time someone loads the app. Organizations created later never do.</span></span></label>` : ''}
+      ${flag.introduction ? `<label class="ffc-pick" style="margin-bottom:8px;padding:0;border:0"><input type="checkbox" style="flex:none;width:auto;margin-top:3px" data-percent-introduce ${S.percentIntroduce ? 'checked' : ''} ${canWrite() ? '' : 'disabled'}><span>Introduce it to organizations this adds<br><span class="ffc-sub">Each person there sees its announcement once, the first time they load the app. Organizations created later never do.</span></span></label>` : ''}
       <div class="ffc-row-actions"><button class="ffc-btn ffc-primary" type="button" data-action="save-percent" ${changed && canWrite() ? '' : 'disabled'}>Save percentage</button></div>`
       : '<div class="ffc-note ffc-info">This one is set per organization, never by percentage.</div>'}
       <hr style="border:0;border-top:1px solid #eaecf0;margin:14px 0">
@@ -225,7 +225,7 @@
       if (flag.rollout?.percent > 0) why.push(`rollout ${flag.rollout.percent}%, this organization is at ${flag.bucket}`);
       if (!flag.effective && flag.reason && String(flag.reason).startsWith('requires')) why.push(flag.reason);
       if (flag.country_rules) why.push('a country rule may apply');
-      if (flag.introduction_state) why.push(flag.introduction_state === 'waiting' ? 'not yet introduced: shows the next time someone loads the app' : 'introduced');
+      if (flag.introduction_state) why.push(flag.introduction_state === 'waiting' ? 'not yet introduced: each person sees it once, the first time they load the app' : `introduced to ${num(flag.introduced_people || 0)} ${flag.introduced_people === 1 ? 'person' : 'people'} so far; each other person sees it once`);
       const seg = [['on','On'],...(flag.introduction ? [['introduce','Introduce']] : []),['auto','Auto'],['off','Off']].map(([value, label]) => `<button type="button" data-v="${value}" data-set-org-flag="${esc(flag.key)}" aria-pressed="${selected === value}" ${canWrite() ? '' : 'disabled'}>${label}</button>`).join('');
       return `<div class="ffc-orgflag"><span><b>${esc(flag.label)}</b> <span class="ffc-pill ${flag.effective ? 'on' : ''}">${flag.effective ? 'On' : 'Off'}</span><br><span class="ffc-key">${esc(flag.key)}</span><br><span class="ffc-why">${esc(why.join(' · '))}</span></span><span class="ffc-seg" role="group" aria-label="${esc(flag.label)}">${seg}</span></div>`;
     }).join('');
@@ -233,7 +233,7 @@
     return `<div class="ffc-panel">
       <div class="ffc-row-actions"><div style="flex:1;min-width:0"><h3 style="margin:0">${esc(org.name)}</h3><div class="ffc-key">${esc(org.id)}${org.owner_email ? ` · ${esc(org.owner_email)}` : ''}</div></div>
       <button class="ffc-btn" type="button" data-action="org-back">Back to results</button></div>
-      <p class="ffc-sub" style="margin:8px 0 0">Auto follows the default and any percentage. On and Off are explicit and beat a percentage. Introduce is On, plus an announcement once for an organization that did not have it.</p>
+      <p class="ffc-sub" style="margin:8px 0 0">Auto follows the default and any percentage. On and Off are explicit and beat a percentage. Introduce is On, plus an announcement shown once to each person in an organization that did not have it.</p>
       ${history ? `<details style="margin-top:8px"><summary class="ffc-sub" style="cursor:pointer">Changes to this organization</summary>${history}</details>` : ''}
     </div>
     <input class="ffc-input" data-bind="orgFilter" placeholder="Filter this organization's flags" value="${esc(S.orgFilter)}" aria-label="Filter flags" style="width:100%;margin-bottom:10px">
