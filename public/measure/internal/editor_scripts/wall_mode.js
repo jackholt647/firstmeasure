@@ -1344,7 +1344,7 @@ function perf_render3DFrame() {
                 if(!state||stage<2||!window.ExteriorReportModel?.unassignedFace)return {count:0};
                 if(editingLayer!=='walls')setLayer('walls');window.SmartStickers?.exitPlacement();
                 const faces=window.ExteriorModel.collect(state,currentWalls()).filter(f=>reportParts(f).some(window.ExteriorReportModel.unassignedFace));
-                const refs=faces.map(f=>f.draftKey?{draft:f.draftKey,face:f.regionId}:String(f.id).startsWith('wall:')?{wall:String(f.id).slice(5)}:{solid:f.id});
+                const refs=faces.map(f=>f.draft===true?{draft:f.draftKey,face:f.regionId}:String(f.id).startsWith('wall:')?{wall:String(f.id).slice(5)}:{solid:f.id});
                 const count=refs.length?wallEditor?.selectFaces?.(refs)||0:0;
                 if(count){window.fit3DViewToActiveGeometry?.({points:faces.flatMap(f=>f.points).map(p=>getVector3(toPixel(p))),padding:1.15});render();}
                 return {count};
