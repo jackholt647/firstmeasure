@@ -297,7 +297,7 @@
       const host=document.createElement('div'),title=document.createElement('h4');host.dataset.keyPanel='lights';host.setAttribute('role','tabpanel');host.hidden=true;title.className='fm-roof-section-title';title.textContent=t('hl_tab','Holiday Lights');
       lightsSwitch=document.createElement('button');lightsSwitch.type='button';lightsSwitch.className='fm-roof-hl-switch';lightsSwitch.onclick=()=>showKeyTab(keyTab==='lights'?'lines':'lights');host.append(title,lightsSwitch);legend.querySelector('.fm-roof-key-body').prepend(host);
     }
-    function loadLights(){return lightsLibrary ||= (window.FirstMeasureHolidayLights?Promise.resolve():script(new URL('holiday-lights.js?v=20261030-holiday-lights-bulb-size',scriptBase).href)).then(()=>{if(!window.FirstMeasureHolidayLights)throw new Error('The holiday lights view could not load.');return window.FirstMeasureHolidayLights;}).catch(e=>{lightsLibrary=null;throw e;});}
+    function loadLights(){return lightsLibrary ||= (window.FirstMeasureHolidayLights?Promise.resolve():script(new URL('holiday-lights.js?v=20261104-panel-moves',scriptBase).href)).then(()=>{if(!window.FirstMeasureHolidayLights)throw new Error('The holiday lights view could not load.');return window.FirstMeasureHolidayLights;}).catch(e=>{lightsLibrary=null;throw e;});}
     function applyLights(){
       const on=lightsAvailable&&keyTab==='lights'&&selection==='model'&&!disposed;stage.classList.toggle('is-lights',on);gallery.classList.toggle('is-lights',on);lightsHost.hidden=!on;
       if(lightsSwitch)lightsSwitch.textContent=on?t('roof_hl_back_to_model','Back to the 3D model'):t('roof_hl_show','Show holiday lights');
