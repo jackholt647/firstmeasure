@@ -69,9 +69,21 @@ test('a proposal explicitly starts Documents and shows the native live preview',
     assert.match(await page.evaluate(()=>activations[0]),/app-offers\/project.docs\/start$/);
     assert.equal(await page.locator('[data-fmdw-piece-type]').count(),3);
     assert.equal(await page.locator('.ops-notice').count(),0,'no notice above the proposal workflow');
-    assert.equal(await page.locator('[data-fmdw-preview-toggle],[data-fmdw-preview-hide],[data-fmdw-resizer]').count(),0,'the setup keeps its preview pinned');
-    const split=await page.evaluate(()=>({root:document.querySelector('[data-fmdw-root]').getBoundingClientRect().width,preview:document.querySelector('[data-fmdw-preview]').getBoundingClientRect().width}));
-    assert.ok(Math.abs(split.preview-split.root/2)<=2,`the preview is half the width (${split.preview} of ${split.root})`);
+    assert.equal(await page.locator('[data-fmdw-preview-toggle],[data-fmdw-preview-hide]').count(),0,'the setup keeps its preview pinned');
+    assert.equal(await page.locator('[data-fmdw-resizer]').isVisible(),true,'the pinned preview can still be resized');
+    const widths=()=>page.evaluate(()=>({main:document.querySelector('.fmdw-main').getBoundingClientRect().width,preview:document.querySelector('[data-fmdw-preview]').getBoundingClientRect().width}));
+    const split=await widths();
+    assert.ok(Math.abs(split.preview-split.main)<=3,`the questions and the preview split the space after the steps equally (${split.main} and ${split.preview})`);
+    const handle=await page.locator('[data-fmdw-resizer]').boundingBox();
+    await page.mouse.move(handle.x+handle.width/2,handle.y+200);await page.mouse.down();await page.mouse.move(handle.x-80,handle.y+200,{steps:4});await page.mouse.up();
+    const dragged=await widths();
+    assert.ok(dragged.preview>split.preview+60,`dragging widens the preview (${split.preview} to ${dragged.preview})`);
+    assert.deepEqual(await page.evaluate(()=>[JSON.parse(localStorage.getItem('fmdw:preview-pinned')||'{}').width>0,localStorage.getItem('fmdw:preview')]),[true,null],'a pinned width is kept apart from the ordinary preview width');
+    await page.locator('[data-fmdw-resizer]').dblclick();
+    const reset=await widths();
+    assert.ok(Math.abs(reset.preview-reset.main)<=3,'double-click returns to the equal split');
+    await page.waitForFunction(()=>nested.includes('documents.proposal_tutorial'));
+    assert.equal((await page.evaluate(()=>nested)).includes('operations.workflow_tutorial'),false,'the proposal path plays the proposal tutorial');
     await page.setViewportSize({width:600,height:850});
     await page.waitForFunction(()=>document.querySelector('[data-fmdw-root]').classList.contains('narrow'));
     assert.equal(await page.locator('[data-fmdw-preview]').isVisible(),true,'a narrow panel stacks the preview instead of hiding it');
@@ -184,6 +196,80 @@ test('the workflow walkthrough leaves all work cards interactive and never auto-
     assert.equal(outcome.status,'done');
     assert.equal(await page.locator('.gx-pop').count(),0);
     assert.equal(await page.evaluate(()=>guideEvents.filter(event=>event.path.includes('operations.workflow_tutorial')&&event.type==='replay').length),0);
+  }finally{await browser.close();}
+});
+
+// The real proposal workflow and template from the library: the review step, its footer and its live preview.
+async function openProposalReview(browser,width,{resume=false}={}){
+  const library=name=>readFile(new URL(`../config-library/snapshot/${name}.json`,import.meta.url),'utf8').then(text=>JSON.parse(text).data.definition);
+  const [workflow,template]=await Promise.all([library('document_workflow/wfl_operations_proposal_v1'),library('document_template/tpl_operations_proposal_v1')]);
+  const page=await open(browser,'proposal',width);
+  await page.evaluate(({workflow,template,resume})=>{
+    const params={scope_pieces:[{template_id:'roof_replacement',name:'Roof replacement'}],measurements:{roofSquares:30},scope_items:[{id:'roof',name:'Roof replacement',quantity:1,unit:'ea',unit_price:18836,selected:true,children:[]}],payment_schedule:[{id:'deposit',label:'Deposit',kind:'percent',percent:30,payment_kind:'deposit',due_rule:'on_signature'},{id:'final',label:'Final payment',kind:'percent',percent:70,payment_kind:'final',due_rule:'project_completion'}]};
+    window.record={id:'doc1',revision:5,project_id:'p1',status:'draft',params,outputs:{},workflow_state:{current_step:resume?'review':'terms',completed_steps:resume?['work','measure','items','terms']:['work','measure','items']}};
+    // After a reload the setup resumes the document it saved: its id is in the guide's selections.
+    if(resume)Object.assign(selections,{operations_project_id:'p1',operations_document_id:'doc1'});
+    window.resolves=0;window.saveConflicts=0;
+    const invoke=PlatformAPI.publication.invoke;
+    PlatformAPI.publication.invoke=async(org,action,target,input)=>{
+      if(action==='operations.document.prepare'){calls.push({action,input});return {value:{document:structuredClone(record),workflow:{definition:workflow},piece_catalog:[{id:'roof_replacement',name:'Roof replacement'}],measurement_fields_by_piece:{}}};}
+      if(action==='operations.document.save'&&input.expected_revision!==record.revision){saveConflicts++;const error=Error('Document revision does not match.');error.status=409;error.data={error:'document_revision_conflict'};throw error;}
+      if(action==='operations.document.save'){calls.push({action,input});record={...record,revision:record.revision+2,params:input.params};return {value:{document:structuredClone(record)}};}
+      if(action==='operations.document.resolve'){resolves++;return {value:{resolved_definition:template,widget_data:{}}};}
+      return invoke(org,action,target,input);
+    };
+  },{workflow,template,resume});
+  await page.evaluate(()=>operations.mountWidget('operations-document',document.getElementById('host'),widgetContext));
+  return page;
+}
+async function footerFits(page){
+  return page.evaluate(()=>{
+    const column=document.querySelector('.fmdw-main').getBoundingClientRect();
+    return [...document.querySelectorAll('.fmdw-foot button')].filter(button=>button.offsetParent).map(button=>{const box=button.getBoundingClientRect();return {name:button.getAttribute('aria-label')||button.textContent.trim(),inside:box.left>=column.left-0.5&&box.right<=column.right+0.5&&box.width>=30,box:[Math.round(box.left),Math.round(box.right)],column:[Math.round(column.left),Math.round(column.right)]};});
+  });
+}
+async function previewRendered(page){
+  await page.waitForFunction(()=>resolves>0&&!document.querySelector('[data-fmdw-preview].loading'));
+  await page.waitForTimeout(200);
+  return page.evaluate(()=>{const stage=document.querySelector('[data-fmdw-preview-stage]');return !stage.querySelector('.fmdw-preview-empty')&&stage.children.length>0;});
+}
+
+test('the proposal review step keeps every footer action inside its column and its preview renders',async()=>{
+  const browser=await chromium.launch({channel:'chrome',headless:true});
+  try{
+    for(const width of [1500,1180,900]){
+      const page=await openProposalReview(browser,width);
+      await page.locator('.fmdw-step.current',{hasText:'Payment terms'}).waitFor();
+      await page.locator('[data-fmdw-continue]').click();
+      await page.getByRole('button',{name:'Send proposal'}).waitFor();
+      const buttons=await footerFits(page);
+      assert.equal(buttons.length,4,`Previous, Send proposal, Present and Finish at ${width}px`);
+      for(const button of buttons)assert.ok(button.inside,`${button.name} sits inside the column at ${width}px: ${JSON.stringify(button)}`);
+      assert.equal(await page.getByRole('button',{name:'Present'}).isVisible(),true,'an icon-only action keeps its name');
+      assert.equal(await previewRendered(page),true,`the review step shows the live preview at ${width}px`);
+      await page.close();
+    }
+  }finally{await browser.close();}
+});
+
+test('after a reload the resumed review step renders its preview, and a save another editor overtook recovers',async()=>{
+  const browser=await chromium.launch({channel:'chrome',headless:true});
+  try{
+    const page=await openProposalReview(browser,1180,{resume:true});
+    await page.getByRole('button',{name:'Send proposal'}).waitFor();
+    assert.match(await page.locator('.fmdw-step.current').innerText(),/Review your proposal/,'resumes on the saved step');
+    assert.equal(await previewRendered(page),true,'the resumed review step shows the preview');
+    assert.equal(await page.evaluate(()=>calls.find(call=>call.action==='operations.document.prepare').input.document_id),'doc1');
+    // Send proposal opens the ordinary document editor on the same document, which saves it (a newer revision).
+    await page.getByRole('button',{name:'Send proposal'}).click();
+    await page.waitForFunction(()=>proposalTools.includes('send:doc1'));
+    await page.evaluate(()=>{record={...record,revision:record.revision+3};window.resolves=0;});
+    // Back to the terms: a change saves over the newer revision and the preview still resolves.
+    await page.locator('[data-fmdw-back]').click();
+    await page.getByRole('button',{name:'50 / 50'}).click();
+    assert.equal(await previewRendered(page),true,'the preview survives a revision another editor made');
+    await page.waitForFunction(()=>saveConflicts>0&&calls.some(call=>call.action==='operations.document.save'&&call.input.params.payment_schedule?.[0]?.percent===50));
+    assert.equal(await page.locator('.ops-error').innerText(),'','the recovered save shows no error');
   }finally{await browser.close();}
 });
 

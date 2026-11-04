@@ -78,10 +78,15 @@ function pathWidget(el,ctx){
   const click=event=>{const path=event.target.closest('[data-path]')?.dataset.path;if(!path)return;ctx.change({operation_path:path,...(ctx.selections.operation_path&&ctx.selections.operation_path!==path?{operations_document_id:'',operations_scope_ready:false}:{})},path==='proposal'?copy('gx_ops_create_proposal','Create a proposal'):copy('gx_ops_quick_scope','Just build my scope of work'));ctx.advance();};
   el.addEventListener('click',click);return {destroy(){el.removeEventListener('click',click);}};
 }
+const revisionConflict=exception=>Number(exception?.status)===409&&/revision/i.test(String(exception?.data?.code||exception?.data?.error||exception?.message||''));
+// The proposal path plays the shared proposal tutorial (the Docs tab plays the same one the first time a proposal opens).
+const WORKFLOW_TUTORIALS={proposal:'documents.proposal_tutorial',scope:'operations.workflow_tutorial'};
 function documentWidget(el,ctx){
   const env=environment(ctx),path=ctx.options.path||ctx.selections.operation_path||'scope';
   let alive=true,documentRecord=null,handle=null,saving=null,timer=null,changed=0,saved=0,busy=false,stepState={},documentEngine=null,documentEngineHost=null;
   let values={params:{},outputs:{}};
+  // Save keys are per mount: a reload starts counting again, and must never replay an earlier mount's receipt.
+  const session=crypto.randomUUID().slice(0,8);
   el.innerHTML=`<div class="ops-setup">${path==='proposal'?'':`<p class="ops-notice">${esc(copy('gx_ops_scope_work_hint','Choose the work, confirm the measurements, then review what this project needs.'))}</p>`}<div class="ops-workflow"><div class="ops-loading">${esc(copy('gx_operations_loading','Opening Operations…'))}</div></div><p class="ops-error" role="alert"></p><p class="ops-status" role="status"></p></div>`;
   const host=el.querySelector('.ops-workflow'),error=el.querySelector('.ops-error'),status=el.querySelector('.ops-status');
   const fail=exception=>{if(alive){error.textContent=exception?.message||copy('gx_ops_save_error','Could not save. Please try again.');status.textContent='';}};
@@ -89,7 +94,15 @@ function documentWidget(el,ctx){
     clearTimeout(timer);if(saving){await saving;if(saved<changed)return flush();return;}
     if(saved>=changed||!documentRecord)return;
     const revision=changed,params=structuredClone(values.params);
-    saving=env.invoke('operations.document.save',{document_id:documentRecord.id,expected_revision:documentRecord.revision,params,...stepState},`operations.save:${documentRecord.id}:${documentRecord.revision}:${revision}`).then(result=>{documentRecord=result.document;saved=revision;}).finally(()=>{saving=null;});
+    const save=()=>env.invoke('operations.document.save',{document_id:documentRecord.id,expected_revision:documentRecord.revision,params,...stepState},`operations.save:${documentRecord.id}:${documentRecord.revision}:${revision}:${session}`);
+    // Something else saved this document since it was read (its own Send or Present editor, the
+    // document reopened after a reload, another tab): read the latest revision once and save this
+    // workflow's answers over it, instead of failing every later save and preview.
+    saving=save().catch(async exception=>{
+      if(!revisionConflict(exception))throw exception;
+      const latest=await env.invoke('operations.document.prepare',{project_id:env.projectId,path,document_id:documentRecord.id},`operations.resume:${documentRecord.id}:${crypto.randomUUID()}`);
+      documentRecord=latest.document;return save();
+    }).then(result=>{documentRecord=result.document;saved=revision;}).finally(()=>{saving=null;});
     await saving;if(saved<changed)return flush();
   }
   async function finish(){
@@ -145,7 +158,8 @@ function documentWidget(el,ctx){
       onWrite(name,value){setPath(values,name,value);changed++;clearTimeout(timer);timer=setTimeout(()=>flush().catch(fail),500);},
       onStepState(next){stepState={current_step:next.current_step,completed_steps:next.completed_steps};changed++;clearTimeout(timer);timer=setTimeout(()=>flush().catch(fail),500);},
       onComplete:()=>{void finish();},
-      ...(path==='proposal'?{preview:{pinned:true,resolve:async()=>{await flush();return env.invoke('operations.document.resolve',{document_id:documentRecord.id});}}}:{}),
+      // A failed save is shown in the error line and retried on the next change; the preview still shows the saved document.
+      ...(path==='proposal'?{preview:{pinned:true,resolve:async()=>{await flush().catch(fail);return env.invoke('operations.document.resolve',{document_id:documentRecord.id});}}}:{}),
       services:{
         ...(path==='proposal'?{deliverables:async()=>[
           {id:'send_proposal',label:copy('gx_ops_send_proposal','Send proposal'),icon:'fa-paper-plane',run:()=>openProposalAction('send').catch(fail)},
@@ -160,7 +174,7 @@ function documentWidget(el,ctx){
     });
     // This is the ordinary tutorial player over the ordinary workflow. It keeps the
     // work cards interactive, and a dismissed/completed walkthrough never auto-replays.
-    await ctx.runGuide?.('operations.workflow_tutorial',{keepVisible:true,replay:false});
+    await ctx.runGuide?.(ctx.options.tutorial||WORKFLOW_TUTORIALS[path]||WORKFLOW_TUTORIALS.scope,{keepVisible:true,replay:false});
   }
   function startupError(exception){
     fail(exception);if(!alive)return;

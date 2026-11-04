@@ -15,7 +15,8 @@
  *
  * Triggers are data: `before_action` holds a click on a matching button, plays the experience and then lets the
  * click through; `tab_opened` plays when a project tab opens; `after_experience` follows another experience;
- * `app_loaded` plays once when the portal loads, for announcements. What
+ * `app_loaded` plays once when the portal loads, for announcements; `workflow_opened` plays when a document workflow
+ * opens for a kind of document (`document_type`). What
  * someone has seen is kept on the server (progress), never in this page. The overlay and every popover are left out
  * of session replays (data-fmr-ignore).
  */
@@ -227,6 +228,8 @@
       if (experience.progress && experience.progress.status !== 'started' && !options.replay && !options.force) return { status: 'done' };
       // Asked again after the server answered: the person may have changed tab while the delay ran or this loaded.
       if (!onItsTab(experience, options.bound)) return { status: 'dropped' };
+      // A play tied to something on screen (a workflow that opened) is dropped once that is gone.
+      if (options.showing && !options.showing()) return { status: 'dropped' };
       const player = kinds.get(experience.kind);
       if (!player) return { status: 'unavailable' };
       state.playing = experience.id;
@@ -525,6 +528,42 @@
     }
   }
   root.addEventListener?.('fm:guides:updated', armAppLoaded);
+
+  /*
+   * workflow_opened: a document workflow (FMDocWorkflow) opened in this frame for a kind of document; the host names the
+   * document (`document: { type }`) and the runtime announces `fm:doc-workflow:opened`. An experience whose trigger
+   * names that `document_type` plays once the workflow is on screen and nothing covers it (a dialog closing over it,
+   * a hidden host), and is dropped if the workflow goes away first. Progress is the server's, as for every trigger.
+   */
+  function workflowShowing(element){
+    if (!element?.isConnected || !element.getClientRects().length) return false;
+    const box = element.getBoundingClientRect();
+    if (box.width < 40 || box.height < 40) return false;
+    let hit = null;
+    try { hit = document.elementFromPoint(box.left + box.width / 2, box.top + Math.min(box.height / 2, 120)); } catch (_) { hit = null; }
+    return !!hit && element.contains(hit);
+  }
+  function onWorkflowOpened(event){
+    const detail = object(event?.detail), type = clean(detail.document_type), element = detail.root || null;
+    if (!type || !element) return;
+    const start = () => {
+      for (const experience of state.experiences.values()) {
+        const trigger = array(experience.triggers).find((entry) => entry.kind === 'workflow_opened' && entry.document_type === type);
+        if (!trigger || (experience.progress && experience.progress.status !== 'started')) continue;
+        // Wait for the workflow to be uncovered (the New dialog fading out), at most a few seconds.
+        const began = Date.now(), wait = Number(trigger.delay_ms ?? 400);
+        const attempt = () => {
+          if (!element.isConnected) return;
+          if (Date.now() - began >= wait && workflowShowing(element)) { play(experience.id, { trigger, showing: () => workflowShowing(element) }); return; }
+          if (Date.now() - began < wait + 8000) setTimeout(attempt, 250);
+        };
+        setTimeout(attempt, Math.min(wait, 250));
+        return;
+      }
+    };
+    if (state.loaded) start(); else refresh().then((loaded) => { if (loaded) start(); });
+  }
+  root.addEventListener?.('fm:doc-workflow:opened', onWorkflowOpened);
 
   // ── Overlay tutorials ──────────────────────────────────────────────────
   const overlayCss = `

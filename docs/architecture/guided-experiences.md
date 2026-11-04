@@ -42,7 +42,8 @@ An **experience** (`experienceSchema`):
   required, `a|b` allowed) and `when`, conditions over the chooser context.
 - `triggers`: `before_action` (a selector; the click is held, the experience
   plays, then the click goes through), `tab_opened` (a project tab app id),
-  `after_experience`, `app_loaded`, `manual`. Each has `once` and optional `when`.
+  `after_experience`, `app_loaded`, `workflow_opened` (a `document_type`: a document
+  workflow opened for that kind of document), `manual`. Each has `once` and optional `when`.
 - `variants`: `id`, `weight`, `when`, optional `kind` (a modal where the assistant
   is off), `steps` (an order or a subset) and `content` (options merged per step).
 - `steps`. Overlay steps: `title`, `body`, `targets` (selectors left undimmed;
@@ -221,7 +222,12 @@ bypass (found again by its selector if the page redrew it). A dismissed setup
 also lets the click through. `tab_opened` listens for `fm:project-tab:opened`,
 which `tab-guides.js` `opened()` dispatches in the frame that shows the tab;
 route changes only refresh what is offered. `after_experience` is the `play` in
-`then`.
+`then`. `workflow_opened` listens for `fm:doc-workflow:opened`, which `FMDocWorkflow.mount`
+dispatches in its own frame with the document its host names (`document: { id, type }`; the
+documents app passes the document's `document_type`). It plays once that workflow is laid out
+and nothing covers it (checked with `elementFromPoint`), so the documents New dialog (z-index
+2147483530, above the tour layer) closes first; a hidden host never starts it, and a play still
+queued when the workflow goes away is dropped (`options.showing`).
 
 **Preload and instant tab tours.** As soon as a frame knows its project (the
 first read, `fm:project-modal:hydrated`, or `FirstMateGuides.preload(projectId)`)
@@ -650,6 +656,17 @@ preview and has no payment or signing step. The proposal keeps its ordinary
 preview, payment terms and customer lifecycle. Completion publishes an explicit
 internal planning scope; it does not claim customer acceptance. The hub requires
 that retained artifact before allowing materials generation.
+
+**The proposal tutorial** (`documents.proposal_tutorial`: overlay, per person, replayable,
+`platform.documents`) is one tour over any proposal's document workflow: the step list, the work
+picker, the live preview and Next, by the workflow's own hooks (`[data-fmdw-root] …`). The
+proposal path (in `operations.setup` and in the hub's `operations.proposal.setup`) plays it as a
+sub-guide over its workflow (`runGuide`, the scope path plays `operations.workflow_tutorial`); the
+Docs tab plays it with its `workflow_opened` trigger (`document_type: proposal`) the first time a
+proposal workflow opens. Progress is the person's, on the server, so finishing it in one place
+finishes it in the other. The Operations save carries on when something else saved the same
+document first (its Send or Present editor, the document reopened after a reload): it reads the
+latest revision and saves over it once, and the preview never waits on a save succeeding.
 
 The hub offers optional supplier, equipment, workforce and proposal setup with
 estimates of 5, 3, 5 and 10 minutes. Each writer is a published action run as the

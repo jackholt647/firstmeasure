@@ -1,11 +1,11 @@
 {
   "kind": "terminology_namespace",
   "id": "money",
-  "revision": 1,
-  "sha256": "80cdec090dbba06329380db1393e768f3495577648549f3e66f0c6cd227290d7",
+  "revision": 2,
+  "sha256": "266afe339e7cc3c1a374f1ea124225eacee511fed6e7ed8d6f8a7c525d692def",
   "title": "Money",
-  "updated_at": "2026-10-28T00:40:02.983Z",
-  "updated_by": "generator",
+  "updated_at": "2026-10-28T20:42:40.172Z",
+  "updated_by": "key:ck_1e1f09bdc222484f agents:fm-agents-1",
   "data": {
     "title": "Money",
     "note": "Project Money navigation, views, summaries, ledgers, and entry forms.",
@@ -173,7 +173,7 @@
       },
       {
         "key": "take_collected_payment",
-        "label": "Take a Collected Payment",
+        "label": "Take a Payment",
         "kind": "action"
       },
       {

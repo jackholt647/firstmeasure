@@ -1,0 +1,139 @@
+{
+  "kind": "guided_experience",
+  "id": "documents.proposal_tutorial",
+  "revision": 1,
+  "sha256": "03ef62885b2cef1f83ecd60bb69b9b5fa4cae748746595d8efda5b2920d4b6c5",
+  "title": "Proposal tutorial",
+  "updated_at": "2026-11-04T03:08:15.327Z",
+  "updated_by": "agent:claude (local generate; replace with the dev export)",
+  "data": {
+    "id": "documents.proposal_tutorial",
+    "version": 1,
+    "kind": "overlay",
+    "scope": "person",
+    "salt": "2026-11",
+    "title": {
+      "key": "gx_prt_title",
+      "text": "Proposal tutorial"
+    },
+    "description": {
+      "key": "gx_prt_description",
+      "text": "How a proposal is built, step by step, with its live preview."
+    },
+    "tab": "project.docs",
+    "eligibility": {
+      "capabilities": [
+        "platform.documents"
+      ],
+      "permissions": []
+    },
+    "triggers": [
+      {
+        "kind": "workflow_opened",
+        "document_type": "proposal",
+        "once": true,
+        "delay_ms": 400
+      }
+    ],
+    "variants": [
+      {
+        "id": "default",
+        "weight": 1,
+        "content": {}
+      }
+    ],
+    "requires": [],
+    "steps": [
+      {
+        "id": "intro",
+        "title": {
+          "key": "gx_prt_intro_title",
+          "text": "Let’s build your proposal"
+        },
+        "body": {
+          "key": "gx_prt_intro_body",
+          "text": "Answer a few steps and the proposal fills itself in. You can change any answer before it goes out."
+        },
+        "targets": [],
+        "placement": "center",
+        "advance": "next",
+        "wait_ms": 1500
+      },
+      {
+        "id": "steps",
+        "title": {
+          "key": "gx_prt_steps_title",
+          "text": "One step at a time"
+        },
+        "body": {
+          "key": "gx_prt_steps_body",
+          "text": "Each step fills in part of the proposal. Go back to any step you’ve finished to change it."
+        },
+        "targets": [
+          "[data-fmdw-root] [data-fmdw-steps]"
+        ],
+        "placement": "right",
+        "advance": "next",
+        "wait_ms": 3000
+      },
+      {
+        "id": "work",
+        "title": {
+          "key": "gx_prt_work_title",
+          "text": "Pick every kind of work"
+        },
+        "body": {
+          "key": "gx_prt_work_body",
+          "text": "Choose everything this project includes. You can pick more than one."
+        },
+        "targets": [
+          "[data-fmdw-root] .fmdw-piece-grid"
+        ],
+        "placement": "bottom",
+        "advance": "next",
+        "wait_ms": 1500
+      },
+      {
+        "id": "preview",
+        "title": {
+          "key": "gx_prt_preview_title",
+          "text": "Watch it take shape"
+        },
+        "body": {
+          "key": "gx_prt_preview_body",
+          "text": "The live preview is the proposal your customer gets. It updates as you answer."
+        },
+        "targets": [
+          "[data-fmdw-root] [data-fmdw-preview]"
+        ],
+        "placement": "left",
+        "advance": "next",
+        "wait_ms": 1500
+      },
+      {
+        "id": "next",
+        "title": {
+          "key": "gx_prt_next_title",
+          "text": "Send it when it’s ready"
+        },
+        "body": {
+          "key": "gx_prt_next_body",
+          "text": "Use Next when a step is done. On the last step you review the proposal, then send it or present it to your customer."
+        },
+        "targets": [
+          "[data-fmdw-root] [data-fmdw-continue]"
+        ],
+        "placement": "top",
+        "advance": "next",
+        "wait_ms": 1500
+      }
+    ],
+    "completion": {
+      "screen": "none",
+      "say": [],
+      "then": []
+    },
+    "replayable": true,
+    "reveal": []
+  }
+}

@@ -101,6 +101,8 @@ const trigger = z.discriminatedUnion("kind", [
   z.object({ kind: z.literal("after_experience"), experience: id, once: z.boolean().default(true), when: conditions.optional() }).strict(),
   /** The app loads: once per page load in the top window, whatever page it opens on. */
   z.object({ kind: z.literal("app_loaded"), once: z.boolean().default(true), delay_ms: z.number().int().min(0).max(10000).default(800), when: conditions.optional() }).strict(),
+  /** A document workflow opens for a kind of document (document_type, such as proposal), wherever it is built; plays once it is on screen. */
+  z.object({ kind: z.literal("workflow_opened"), document_type: id, once: z.boolean().default(true), delay_ms: z.number().int().min(0).max(10000).default(400), when: conditions.optional() }).strict(),
   z.object({ kind: z.literal("manual") }).strict()
 ]);
 

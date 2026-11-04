@@ -15,9 +15,11 @@
  *   FMDocWorkflow.mount(container, {
  *     workflow, audience, state:{params,outputs,current_step,completed_steps},
  *     contract, onWrite(path,value), onStepState(state), onComplete(),
- *     preview:{ resolve():Promise<resolved>, mount(el,resolved)?, pinned? },  pinned: always shown, half the width
- *       (stacked below when narrow), with no Preview toggle, hide button or resizer
- *     services:{ pricebook, pieceCatalog, generateScopeItems, media }, scope:{...extra}, theme
+ *     preview:{ resolve():Promise<resolved>, mount(el,resolved)?, pinned? },  pinned: always shown, sharing the space
+ *       after the step list equally with the questions until dragged (its own remembered width), stacked below when
+ *       narrow, with no Preview toggle or hide button
+ *     services:{ pricebook, pieceCatalog, generateScopeItems, media }, scope:{...extra}, theme,
+ *     document:{ id, type }?  the document this fills; announced with `fm:doc-workflow:opened` (guided experiences)
  *   }) -> { destroy, goTo(stepId), refresh(state) }
  *
  *   FMDocWorkflow.registerKind(kind, renderer(el, ctx) -> { validate?, destroy? })
@@ -1068,14 +1070,15 @@
       return firstText(field?.unit, STRUCTURE_UNIT_LABELS[cleanText(unit)], unit);
     }
     function formatMeasure(value){ return String(roundMeasure(value)); }
-    function structureFigures(structure){
+    /** A structure's own measurements as compact read-only rows. A report structure shows the
+     *  step's measurements it has; one entered by hand shows everything entered. */
+    function structureRows(structure){
       const values = measureNumbers(structure.values);
-      // A report structure shows the step's own measurements; one entered by hand shows everything entered.
       const order = [...new Set([...fields().map((field) => field.key), ...(isManualStructure(structure) ? Object.keys(values) : [])])].filter((key) => Number(values[key]) > 0);
-      return order.slice(0, isManualStructure(structure) ? order.length : 4).map((key) => {
-        const field = fields().find((entry) => entry.key === key);
+      return order.map((key) => {
+        const label = firstText(fields().find((entry) => entry.key === key)?.label, measurementLabelFor(key));
         const unit = unitLabel(key, obj(structure.units)[key]);
-        return `${firstText(field?.label, measurementLabelFor(key))} ${formatMeasure(values[key])}${unit ? ` ${unit}` : ''}`;
+        return `<div class="fmdw-meas-field ro"><span class="fmdw-meas-label" title="${esc(label)}">${esc(label)}</span><span class="fmdw-meas-input"><b>${esc(formatMeasure(values[key]))}</b>${unit ? `<i>${esc(unit)}</i>` : ''}</span></div>`;
       });
     }
     function originHtml(structure){
@@ -1091,7 +1094,7 @@
       const values = obj(form.values);
       const editing = !!cleanText(form.id);
       return `
-        <div class="fmdw-struct-form" data-fmdw-sform>
+        <section class="fmdw-ms form" data-fmdw-sform>
           <label class="fmdw-struct-form-name"><span>${esc(L('structure_form_name', 'Structure name'))}</span>
             <input type="text" data-fmdw-sform-name value="${esc(firstText(form.name))}" placeholder="${esc(L('structure_form_name_placeholder', 'Garage, shed, porch…'))}"></label>
           ${form.loading ? `<p class="fmdw-hint"><i class="fas fa-circle-notch fa-spin"></i> ${esc(L('structure_form_loading', 'Finding the measurements this work needs…'))}</p>` : `
@@ -1104,7 +1107,7 @@
                   : values[field.key];
                 return `
                   <label class="fmdw-meas-field ${derived ? 'derived' : ''}">
-                    <span>${esc(firstText(field.label, field.key))}${field.required ? '<i class="fmdw-req">*</i>' : ''}${derived ? ` <em>${esc(L('structure_form_sum', 'sum'))}</em>` : ''}</span>
+                    <span class="fmdw-meas-label">${esc(firstText(field.label, field.key))}${field.required ? '<i class="fmdw-req">*</i>' : ''}${derived ? ` <em>${esc(L('structure_form_sum', 'sum'))}</em>` : ''}</span>
                     <span class="fmdw-meas-input">
                       <input type="number" step="any" min="0" ${derived ? `data-fmdw-sform-derived="${esc(field.key)}" disabled` : `data-fmdw-sform-value="${esc(field.key)}"`} value="${value === undefined || value === null || value === '' || (derived && !value) ? '' : esc(roundMeasure(value))}" placeholder="—">
                       ${firstText(field.unit_label, field.unit) ? `<i>${esc(firstText(field.unit_label, field.unit))}</i>` : ''}
@@ -1117,53 +1120,33 @@
             <button type="button" class="fmdw-btn primary" data-fmdw-sform-save ${form.loading ? 'disabled' : ''}><i class="fas fa-check"></i> ${esc(editing ? L('structure_form_save', 'Save structure') : L('structure_form_add', 'Add structure'))}</button>
             <button type="button" class="fmdw-btn ghost" data-fmdw-sform-cancel>${esc(L('structure_form_cancel', 'Cancel'))}</button>
           </div>
-        </div>`;
+        </section>`;
     }
-    function structuresHtml(){
-      const state = structureState();
-      const list = structureList(state);
-      if (!list.length && (ctx.readonly || report.status === 'loading')) return '';
-      const on = includedStructures(state).length;
+    /** A structure's header: on/off, its name, where it came from, and edit/remove for one entered by hand. */
+    function structureHeadHtml(structure){
+      const included = structureIncluded(structure);
+      return `
+        <header class="fmdw-ms-head">
+          <label class="fmdw-struct-toggle" title="${esc(included ? L('structure_turn_off', 'Leave this structure out of the estimate') : L('structure_turn_on', 'Put this structure back in the estimate'))}">
+            <input type="checkbox" data-fmdw-struct-toggle="${esc(structure.id)}" ${included ? 'checked' : ''} ${ctx.readonly ? 'disabled' : ''}>
+            <span class="fmdw-struct-switch"></span>
+          </label>
+          ${ctx.readonly ? `<strong class="fmdw-ms-title">${esc(structure.name)}</strong>` : `<input type="text" class="fmdw-struct-name" data-fmdw-struct-name="${esc(structure.id)}" value="${esc(structure.name)}" aria-label="${esc(L('structure_form_name', 'Structure name'))}">`}
+          ${originHtml(structure)}
+          ${included ? '' : `<span class="fmdw-ms-off">${esc(L('structure_left_out', 'Left out of this estimate'))}</span>`}
+          ${isManualStructure(structure) && !ctx.readonly ? `
+            <span class="fmdw-struct-actions">
+              <button type="button" class="fmdw-btn ghost" data-fmdw-struct-edit="${esc(structure.id)}" title="${esc(L('structure_edit', 'Edit the measurements'))}"><i class="fas fa-pen"></i></button>
+              <button type="button" class="fmdw-btn ghost" data-fmdw-struct-remove="${esc(structure.id)}" title="${esc(L('structure_remove', 'Remove this structure'))}"><i class="fas fa-trash-can"></i></button>
+            </span>` : ''}
+        </header>`;
+    }
+    function pricingHtml(state){
       const perStructure = cleanText(state.pricing) === 'per_structure';
       return `
-        <div class="fmdw-structs" data-fmdw-structs>
-          <div class="fmdw-structs-head">
-            <strong>${esc(L('structures_title', 'Structures'))}</strong>
-            ${list.length ? `<span>${esc(L('structures_count', '{on} of {total} in this estimate', { on, total: list.length }))}</span>` : ''}
-          </div>
-          ${list.map((structure) => {
-            const included = structureIncluded(structure);
-            const manual = isManualStructure(structure);
-            const figures = structureFigures(structure);
-            return `
-              <div class="fmdw-struct ${included ? '' : 'off'} ${manual ? 'manual' : ''}">
-                <label class="fmdw-struct-toggle" title="${esc(included ? L('structure_turn_off', 'Leave this structure out of the estimate') : L('structure_turn_on', 'Put this structure back in the estimate'))}">
-                  <input type="checkbox" data-fmdw-struct-toggle="${esc(structure.id)}" ${included ? 'checked' : ''} ${ctx.readonly ? 'disabled' : ''}>
-                  <span class="fmdw-struct-switch"></span>
-                </label>
-                <div class="fmdw-struct-main">
-                  <div class="fmdw-struct-title">
-                    ${ctx.readonly ? `<strong>${esc(structure.name)}</strong>` : `<input type="text" class="fmdw-struct-name" data-fmdw-struct-name="${esc(structure.id)}" value="${esc(structure.name)}" aria-label="${esc(L('structure_form_name', 'Structure name'))}">`}
-                    ${originHtml(structure)}
-                  </div>
-                  <span class="fmdw-struct-figures">${included ? esc(figures.join(' · ') || L('structure_no_values', 'No measurements')) : esc(L('structure_left_out', 'Left out of this estimate'))}</span>
-                </div>
-                ${manual && !ctx.readonly ? `
-                  <div class="fmdw-struct-actions">
-                    <button type="button" class="fmdw-btn ghost" data-fmdw-struct-edit="${esc(structure.id)}" title="${esc(L('structure_edit', 'Edit the measurements'))}"><i class="fas fa-pen"></i></button>
-                    <button type="button" class="fmdw-btn ghost" data-fmdw-struct-remove="${esc(structure.id)}" title="${esc(L('structure_remove', 'Remove this structure'))}"><i class="fas fa-trash-can"></i></button>
-                  </div>` : ''}
-              </div>`;
-          }).join('')}
-          ${structureForm ? structureFormHtml() : (ctx.readonly ? '' : `
-            <div class="fmdw-row-actions">
-              <button type="button" class="fmdw-btn ghost" data-fmdw-struct-add><i class="fas fa-plus"></i> ${esc(L('structure_add', 'Add a structure'))}</button>
-            </div>`)}
-          ${on > 1 ? `
-            <div class="fmdw-struct-pricing" role="radiogroup" aria-label="${esc(L('structures_pricing_label', 'How the structures are priced'))}">
-              <label><input type="radio" name="fmdw-struct-pricing" value="combined" data-fmdw-struct-pricing ${perStructure ? '' : 'checked'} ${ctx.readonly ? 'disabled' : ''}> ${esc(L('structures_pricing_combined', 'Price them together'))}</label>
-              <label><input type="radio" name="fmdw-struct-pricing" value="per_structure" data-fmdw-struct-pricing ${perStructure ? 'checked' : ''} ${ctx.readonly ? 'disabled' : ''}> ${esc(L('structures_pricing_each', 'One section of line items per structure'))}</label>
-            </div>` : ''}
+        <div class="fmdw-struct-pricing" role="radiogroup" aria-label="${esc(L('structures_pricing_label', 'How the structures are priced'))}">
+          <label><input type="radio" name="fmdw-struct-pricing" value="combined" data-fmdw-struct-pricing ${perStructure ? '' : 'checked'} ${ctx.readonly ? 'disabled' : ''}> ${esc(L('structures_pricing_combined', 'Price them together'))}</label>
+          <label><input type="radio" name="fmdw-struct-pricing" value="per_structure" data-fmdw-struct-pricing ${perStructure ? 'checked' : ''} ${ctx.readonly ? 'disabled' : ''}> ${esc(L('structures_pricing_each', 'One section of line items per structure'))}</label>
         </div>`;
     }
     /** The structure list to change, starting one when the document has none yet. */
@@ -1282,52 +1265,72 @@
       const keys = list.map((field) => field.key);
       const extra = Object.entries(current).filter(([key, value]) => !keys.includes(key) && hasValue(value) && typeof value !== 'object');
       const missing = list.filter((field) => !hasValue(current[field.key]));
-      const manualKeys = hasStructures() ? combineStructures(structureState()).manualKeys : [];
-      const sourceLine = report.status === 'loading'
+      const state = structureState();
+      const structures = structureList(state);
+      const manualKeys = structures.length ? combineStructures(state).manualKeys : [];
+      const statusLine = report.status === 'loading'
         ? `<p class="fmdw-hint fmdw-meas-source"><i class="fas fa-circle-notch fa-spin"></i> Reading this project's measurements…</p>`
-        : hasProject
-          ? `<p class="fmdw-hint fmdw-meas-source ok"><i class="fas fa-ruler-combined"></i> From ${esc(firstText(report.source, 'this project'))}. Edit any value to override it for this document.</p>`
-          : (cleanText(ctx.item.prefill) ? `<p class="fmdw-hint fmdw-meas-source"><i class="fas fa-circle-info"></i> ${esc(report.status === 'error' ? 'This project\'s measurements could not be read. Enter them by hand.' : 'This project has no measurement report yet. Enter the measurements by hand.')}</p>` : '');
-      el.innerHTML = `
-        <div class="fmdw-field">
-          <span class="fmdw-field-label">${esc(itemLabel(ctx.item))}${ctx.item.required ? '<i class="fmdw-req">*</i>' : ''}</span>
-          ${ctx.item.description ? `<span class="fmdw-field-desc">${esc(ctx.item.description)}</span>` : ''}
-          <div class="fmdw-card">
-            ${sourceLine}
-            ${structuresHtml()}
-            ${list.length ? `
-              ${hasStructures() ? `<p class="fmdw-structs-combined">${esc(pricesPerStructure(structureState()) ? L('structures_combined_each', 'All structures together. Each structure is priced from its own measurements; a value changed here applies to the first one.') : L('structures_combined', 'All structures together: what this estimate prices from.'))}</p>` : ''}
-              <div class="fmdw-meas-grid">
-                ${list.map((field) => {
-                  const filled = hasValue(current[field.key]);
-                  const edited = filled && hasValue(fromProject[field.key]) && Number(current[field.key]) !== Number(fromProject[field.key]);
-                  const manual = !edited && filled && manualKeys.includes(field.key);
-                  return `
-                    <label class="fmdw-meas-field ${filled ? '' : 'needed'} ${edited ? 'edited' : ''} ${manual ? 'manual' : ''}" ${edited ? `title="Report value: ${esc(fromProject[field.key])}"` : (manual ? `title="${esc(L('structures_manual_value_title', 'Includes measurements entered by hand'))}"` : '')}>
-                      <span>${esc(field.label)}${edited ? ' <em>edited</em>' : (manual ? ` <em class="manual">${esc(L('structures_manual_tag', 'incl. by hand'))}</em>` : '')}</span>
-                      <span class="fmdw-meas-input">
-                        <input type="number" step="any" min="0" data-fmdw-meas="${esc(field.key)}" ${ctx.readonly ? 'disabled' : ''} value="${filled ? esc(Number(current[field.key])) : ''}" placeholder="—">
-                        ${cleanText(field.unit) ? `<i>${esc(field.unit)}</i>` : ''}
-                      </span>
-                    </label>`;
-                }).join('')}
-              </div>
-              ${missing.length ? `<p class="fmdw-meas-note"><i class="fas fa-triangle-exclamation"></i> ${missing.length} measurement${missing.length === 1 ? '' : 's'} still needed</p>` : ''}` : (extra.length ? '' : `<p class="fmdw-hint">${(globalThis.PlatformLanguage?.htmlText("doc-workflow","m_08781c4c9e5c9b","No measurements yet.") ?? "No measurements yet.")}</p>`)}
-            ${extra.length ? `
-              <details class="fmdw-meas-extra">
-                <summary>${extra.length} more value${extra.length === 1 ? '' : 's'} from the report</summary>
-                <div class="fmdw-stat-grid">
-                  ${extra.map(([key, value]) => `<span class="fmdw-stat"><i>${esc(measurementLabelFor(key))}</i><b>${esc(String(value))}</b></span>`).join('')}
-                </div>
-              </details>` : ''}
-            ${ctx.readonly ? '' : `
-              <div class="fmdw-row-actions">
-                <button type="button" class="fmdw-btn ghost" data-fmdw-meas-reload ${hasProject ? '' : 'disabled'} title="${hasProject ? 'Replace every value with the project\'s measurements' : 'This project has no measurements to load'}"><i class="fas fa-rotate"></i>${(globalThis.PlatformLanguage?.htmlText("doc-workflow","m_641beeb7a2ff91"," Load from project") ?? " Load from project")}</button>
-                ${Object.keys(current).length ? `<button type="button" class="fmdw-btn ghost" data-fmdw-meas-clear><i class="fas fa-xmark"></i>${(globalThis.PlatformLanguage?.htmlText("doc-workflow","m_687e1653230514"," Clear") ?? " Clear")}</button>` : ''}
-              </div>`}
+        : (!hasProject && cleanText(ctx.item.prefill) ? `<p class="fmdw-hint fmdw-meas-source"><i class="fas fa-circle-info"></i> ${esc(report.status === 'error' ? 'This project\'s measurements could not be read. Enter them by hand.' : 'This project has no measurement report yet. Enter the measurements by hand.')}</p>` : '');
+      // The values the estimate prices from, and the only ones typed here: under the one structure, or under the total.
+      const valuesHtml = `
+        ${list.length ? `
+          <div class="fmdw-meas-grid">
+            ${list.map((field) => {
+              const filled = hasValue(current[field.key]);
+              const edited = filled && hasValue(fromProject[field.key]) && Number(current[field.key]) !== Number(fromProject[field.key]);
+              const manual = !edited && filled && manualKeys.includes(field.key);
+              return `
+                <label class="fmdw-meas-field ${filled ? '' : 'needed'} ${edited ? 'edited' : ''} ${manual ? 'manual' : ''}" ${edited ? `title="Report value: ${esc(fromProject[field.key])}"` : (manual ? `title="${esc(L('structures_manual_value_title', 'Includes measurements entered by hand'))}"` : `title="${esc(field.label)}"`)}>
+                  <span class="fmdw-meas-label">${esc(field.label)}${edited ? ' <em>edited</em>' : (manual ? ` <em class="manual">${esc(L('structures_manual_tag', 'incl. by hand'))}</em>` : '')}</span>
+                  <span class="fmdw-meas-input">
+                    <input type="number" step="any" min="0" data-fmdw-meas="${esc(field.key)}" ${ctx.readonly ? 'disabled' : ''} value="${filled ? esc(Number(current[field.key])) : ''}" placeholder="—">
+                    ${cleanText(field.unit) ? `<i>${esc(field.unit)}</i>` : ''}
+                  </span>
+                </label>`;
+            }).join('')}
           </div>
-          <span class="fmdw-field-error" data-fmdw-error hidden></span>
-        </div>`;
+          ${missing.length ? `<p class="fmdw-meas-note"><i class="fas fa-triangle-exclamation"></i> ${missing.length} measurement${missing.length === 1 ? '' : 's'} still needed</p>` : ''}` : (extra.length ? '' : `<p class="fmdw-hint">${(globalThis.PlatformLanguage?.htmlText("doc-workflow","m_08781c4c9e5c9b","No measurements yet.") ?? "No measurements yet.")}</p>`)}
+        ${extra.length ? `
+          <details class="fmdw-meas-extra">
+            <summary>${extra.length} more value${extra.length === 1 ? '' : 's'} from the report</summary>
+            <div class="fmdw-stat-grid">
+              ${extra.map(([key, value]) => `<span class="fmdw-stat"><i>${esc(measurementLabelFor(key))}</i><b>${esc(String(value))}</b></span>`).join('')}
+            </div>
+          </details>` : ''}`;
+      const editingId = cleanText(obj(structureForm).id);
+      const structureHtml = (structure) => {
+        if (editingId && editingId === structure.id) return structureFormHtml();
+        const included = structureIncluded(structure);
+        const rows = structures.length > 1 && included ? structureRows(structure) : [];
+        return `
+          <section class="fmdw-ms ${included ? '' : 'off'} ${isManualStructure(structure) ? 'manual' : ''}" data-fmdw-struct="${esc(structure.id)}">
+            ${structureHeadHtml(structure)}
+            ${structures.length === 1 ? valuesHtml : (!included ? '' : (rows.length ? `<div class="fmdw-meas-grid">${rows.join('')}</div>` : `<p class="fmdw-hint">${esc(L('structure_no_values', 'No measurements'))}</p>`))}
+          </section>`;
+      };
+      const reloading = hasProject && Object.keys(current).length > 0;
+      // The step is its sections: each structure, then (with more than one) the total; no wrapper around them.
+      el.classList.add('fmdw-meas-step');
+      el.innerHTML = `
+        ${el.classList.contains('fmdw-item-sole') ? '' : `<span class="fmdw-field-label">${esc(itemLabel(ctx.item))}${ctx.item.required ? '<i class="fmdw-req">*</i>' : ''}</span>`}
+        ${ctx.item.description ? `<span class="fmdw-field-desc">${esc(ctx.item.description)}</span>` : ''}
+        ${statusLine}
+        ${structures.map(structureHtml).join('')}
+        ${structureForm && !editingId ? structureFormHtml() : ''}
+        ${structures.length > 1 ? `
+          <section class="fmdw-ms total" data-fmdw-meas-total>
+            <header class="fmdw-ms-head"><strong class="fmdw-ms-title">${(globalThis.PlatformLanguage?.htmlText("doc-workflow","m_9403c7637d4905","Total") ?? "Total")}</strong></header>
+            ${pricesPerStructure(state) ? `<p class="fmdw-ms-note">${esc(L('structures_combined_each', 'All structures together. Each structure is priced from its own measurements; a value changed here applies to the first one.'))}</p>` : ''}
+            ${valuesHtml}
+            ${includedStructures(state).length > 1 ? pricingHtml(state) : ''}
+          </section>` : (structures.length ? '' : `<section class="fmdw-ms">${valuesHtml}</section>`)}
+        ${ctx.readonly ? '' : `
+          <div class="fmdw-row-actions">
+            ${structureForm || (!structures.length && report.status === 'loading') ? '' : `<button type="button" class="fmdw-btn ghost" data-fmdw-struct-add><i class="fas fa-plus"></i> ${esc(L('structure_add', 'Add a structure'))}</button>`}
+            <button type="button" class="fmdw-btn ghost" data-fmdw-meas-reload ${hasProject ? '' : 'disabled'} title="${hasProject ? 'Replace every value with the project\'s measurements' : 'This project has no measurements to load'}"><i class="fas fa-rotate"></i>${reloading ? (globalThis.PlatformLanguage?.htmlText("doc-workflow","m_5bf330924a659a"," Reload from project") ?? " Reload from project") : (globalThis.PlatformLanguage?.htmlText("doc-workflow","m_641beeb7a2ff91"," Load from project") ?? " Load from project")}</button>
+            ${Object.keys(current).length ? `<button type="button" class="fmdw-btn ghost" data-fmdw-meas-clear><i class="fas fa-xmark"></i>${(globalThis.PlatformLanguage?.htmlText("doc-workflow","m_687e1653230514"," Clear") ?? " Clear")}</button>` : ''}
+          </div>`}
+        <span class="fmdw-field-error" data-fmdw-error hidden></span>`;
       el.querySelectorAll('[data-fmdw-meas]').forEach((input) => input.addEventListener('change', () => {
         const next = obj(clone(ctx.value()));
         const key = input.dataset.fmdwMeas;
@@ -2496,7 +2499,9 @@
           generateNote = 'Generation produced no lines — add them by hand or from the price book.';
         }
       } catch (e) {
-        generateNote = 'Could not generate lines — add them by hand or from the price book.';
+        // The server says why (e.g. the organization removed the assembly this work uses); keep its reason.
+        const why = String(e?.message || '').trim().replace(/\.$/, '');
+        generateNote = `Could not generate lines${why ? `: ${why}` : ''} — add them by hand or from the price book.`;
       }
       generating = false;
       if (el.isConnected) render();
@@ -3514,7 +3519,7 @@
           <header class="fmdw-step-head" data-fmdw-step-head></header>
           <div class="fmdw-items" data-fmdw-items></div>
           <footer class="fmdw-foot">
-            <button type="button" class="fmdw-btn" data-fmdw-back><i class="fas fa-arrow-left"></i>${(globalThis.PlatformLanguage?.htmlText("doc-workflow","m_9c5b830c019950"," Previous") ?? " Previous")}</button>
+            <button type="button" class="fmdw-btn" data-fmdw-back title="${(globalThis.PlatformLanguage?.htmlText("doc-workflow","m_9c5b830c019950"," Previous") ?? " Previous").trim()}"><i class="fas fa-arrow-left"></i><span class="fmdw-btn-label">${(globalThis.PlatformLanguage?.htmlText("doc-workflow","m_9c5b830c019950"," Previous") ?? " Previous")}</span></button>
             <span class="fmdw-foot-note" data-fmdw-foot-note></span>
             ${String(preview && !pinnedPreview && typeof services.openFullPreview !== 'function' ? `<button type="button" class="fmdw-btn ghost fmdw-preview-toggle" data-fmdw-preview-toggle title="Show or hide the live preview"><i class="fas fa-eye"></i><span> Preview</span></button>` : '')}
             <span class="fmdw-foot-deliver" data-fmdw-foot-deliver></span>
@@ -3522,7 +3527,7 @@
           </footer>
         </section>
         ${String(preview ? `
-        ${String(pinnedPreview ? '' : `<div class="fmdw-resizer" data-fmdw-resizer title="Drag to resize the preview" role="separator" aria-orientation="vertical"></div>`)}
+        <div class="fmdw-resizer" data-fmdw-resizer title="Drag to resize the preview" role="separator" aria-orientation="vertical"></div>
         <aside class="fmdw-preview" data-fmdw-preview>
           <div class="fmdw-preview-head" data-fmdw-preview-head>
             <strong><i class="fas fa-eye"></i>${(globalThis.PlatformLanguage?.htmlText("doc-workflow","m_a979f59edfcd90"," Live preview") ?? " Live preview")}</strong>
@@ -3692,7 +3697,7 @@
           Promise.resolve().then(() => services.deliverables()).then((actions) => {
             if (st.destroyed || st.currentId !== forStep) return;
             const list = arr(actions).map(obj).filter((action) => cleanText(action.label));
-            deliver.innerHTML = list.map((action, at) => `<button type="button" class="fmdw-btn ${action.quiet ? 'ghost' : ''}" data-fmdw-deliver-run="${at}" ${action.disabled ? 'disabled' : ''} title="${esc(cleanText(action.title))}"><i class="fas ${esc(firstText(action.icon, 'fa-arrow-right'))}"></i> ${esc(action.label)}</button>`).join('');
+            deliver.innerHTML = list.map((action, at) => `<button type="button" class="fmdw-btn ${action.quiet ? 'ghost' : ''}" data-fmdw-deliver-run="${at}" ${action.disabled ? 'disabled' : ''} title="${esc(firstText(action.title, action.label))}" aria-label="${esc(action.label)}"><i class="fas ${esc(firstText(action.icon, 'fa-arrow-right'))}"></i><span class="fmdw-btn-label"> ${esc(action.label)}</span></button>`).join('');
             deliver.querySelectorAll('[data-fmdw-deliver-run]').forEach((button) => button.addEventListener('click', () => {
               try { list[Number(button.dataset.fmdwDeliverRun)].run?.(); } catch (e) { /* host action */ }
             }));
@@ -3798,7 +3803,7 @@
         if (el.root.classList.contains('preview-hidden')) { st.lastResolved = resolved; return; }
         renderPreview(resolved);
       } catch (error) {
-        if (!st.destroyed) renderPreviewUnavailable();
+        if (!st.destroyed) { console.warn('FMDocWorkflow preview could not be resolved', error); renderPreviewUnavailable(); }
       } finally {
         st.previewBusy = false;
         el.preview?.classList.remove('loading');
@@ -3891,7 +3896,9 @@
     // The preview can be hidden and its width dragged; both choices persist
     // per browser. Below NARROW_PX the pane cannot fit beside the form, so it
     // hides until the window is wider.
-    const PREVIEW_PREF_KEY = 'fmdw:preview';
+    // A pinned preview remembers its dragged width apart, so a width chosen for the ordinary preview never replaces
+    // the pinned default (an equal split).
+    const PREVIEW_PREF_KEY = pinnedPreview ? 'fmdw:preview-pinned' : 'fmdw:preview';
     const NARROW_PX = 780;
     const COMPACT_RAIL_PX = 980;
     const previewPref = (() => {
@@ -3911,7 +3918,9 @@
       el.root.classList.toggle('compact-rail', width > 0 && width < COMPACT_RAIL_PX);
       const visible = previewVisible();
       el.root.classList.toggle('preview-hidden', !visible);
-      if (!pinnedPreview && Number(previewPref.width) > 0) {
+      // A pinned preview splits the space after the step list equally until the person drags it (`preview-sized`).
+      el.root.classList.toggle('preview-sized', Number(previewPref.width) > 0);
+      if (Number(previewPref.width) > 0) {
         const max = Math.max(280, width - (el.root.querySelector('.fmdw-rail')?.offsetWidth || 0) - 340);
         el.root.style.setProperty('--fmdw-preview-w', `${Math.round(Math.min(Math.max(280, Number(previewPref.width)), max))}px`);
       }
@@ -3975,6 +3984,13 @@
     renderStep();
     applyPreviewLayout();
     if (preview) refreshPreview();
+    // Announce the opened workflow in its own frame, with the document the host says it fills (`document: { id, type }`),
+    // so guided experiences can play the first time a kind of document is built (trigger `workflow_opened`).
+    try {
+      const view = container.ownerDocument?.defaultView || root;
+      const documentInfo = obj(opts.document);
+      view.dispatchEvent?.(new view.CustomEvent('fm:doc-workflow:opened', { detail: { document_type: cleanText(documentInfo.type), document_id: cleanText(documentInfo.id), workflow_id: cleanText(workflow.id), audience, root: el.root } }));
+    } catch (e) { /* announcing is optional */ }
 
     const handle = {
       destroy(){
@@ -4087,6 +4103,15 @@
 .fmdw-foot-deliver:not(:empty)+[data-fmdw-continue]{margin-left:0}
 .fmdw-foot .fmdw-btn{white-space:nowrap}
 .fmdw-foot-deliver:empty{display:none}
+/* The footer keeps every action on screen at any column width: the hand-over actions (Send, Present) and then
+   Previous fold to their icons (the label stays as the title and accessible name), and a very narrow column gives
+   the primary button its own row. Anything still too wide wraps; nothing is clipped. */
+.fmdw-foot{flex-wrap:wrap;row-gap:8px;container:fmdw-foot / inline-size}
+.fmdw-foot-note{min-width:0;overflow-wrap:anywhere}
+/* Icons only while a preview sits beside the questions; stacked (narrow) layouts keep their labelled, wrapping footer. */
+@container fmdw-foot (max-width:640px){.fmdw.has-preview:not(.narrow):not(.preview-hidden) .fmdw-foot-deliver .fmdw-btn{width:38px;padding:0}.fmdw.has-preview:not(.narrow):not(.preview-hidden) .fmdw-foot-deliver .fmdw-btn-label{display:none}}
+@container fmdw-foot (max-width:400px){.fmdw.has-preview:not(.narrow):not(.preview-hidden) .fmdw-foot [data-fmdw-back]{width:38px;padding:0}.fmdw.has-preview:not(.narrow):not(.preview-hidden) .fmdw-foot [data-fmdw-back] .fmdw-btn-label{display:none}}
+@container fmdw-foot (max-width:330px){.fmdw-foot [data-fmdw-continue]{flex:1 1 100%;order:5}}
 .fmdw-hint{margin:0;font-size:11.5px;font-weight:800;color:var(--fmdw-muted);line-height:1.5;text-transform:none;letter-spacing:0}
 .fmdw-hint i{margin-right:5px}
 .fmdw-card{border:1px solid var(--fmdw-line);border-radius:14px;background:var(--fmdw-card);padding:14px;display:flex;flex-direction:column;gap:11px}
@@ -4132,32 +4157,40 @@
 .fmdw-choice-price{font-size:11px;font-weight:1000;color:var(--fmdw-primary)}
 .fmdw-choice-tick{position:absolute;top:9px;right:9px;width:20px;height:20px;border-radius:99px;background:var(--fmdw-primary);color:var(--fmdw-on-primary);display:none;place-items:center;font-size:9px}
 .fmdw-choice-card.active .fmdw-choice-tick{display:grid}
-/* measurements */
-.fmdw-meas-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(128px,1fr));gap:9px 12px}
-.fmdw-meas-field{display:flex;flex-direction:column;gap:4px}
-.fmdw-meas-field span{font-size:10px;font-weight:1000;text-transform:uppercase;letter-spacing:.04em;color:var(--fmdw-muted)}
+/* measurements: the step is its sections (each structure, then the total), with no wrapper
+   around them; each section lays its rows out by its own width, up to three columns */
+.fmdw-section:has(>.fmdw-section-items>.fmdw-item-sole.fmdw-meas-step){border:0;background:transparent;padding:0;box-shadow:none}
+.fmdw-meas-step{display:flex;flex-direction:column;gap:8px;min-width:0}
+.fmdw-ms{container-type:inline-size;display:flex;flex-direction:column;gap:6px;min-width:0;border:1px solid var(--fmdw-line);border-radius:12px;background:#fff;padding:8px 12px 10px}
+.fmdw-ms.off{background:#f8fafc}
+.fmdw-ms.manual{border-color:#e9d7fe}
+.fmdw-ms.form{border-style:dashed;border-color:#d6bbfb;background:#fcfaff;gap:8px}
+.fmdw-ms-head{display:flex;align-items:center;gap:8px;min-width:0;min-height:26px;flex-wrap:wrap}
+.fmdw-ms-title{font-size:12.5px;font-weight:1000}
+.fmdw-ms-off{font-size:11px;font-weight:800;color:var(--fmdw-muted)}
+.fmdw-ms-note{margin:0;font-size:11px;font-weight:800;color:var(--fmdw-muted);line-height:1.45}
+.fmdw-meas-grid{display:grid;grid-template-columns:minmax(0,1fr);column-gap:16px}
+@container (min-width:360px){.fmdw-meas-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@container (min-width:540px){.fmdw-meas-grid{grid-template-columns:repeat(3,minmax(0,1fr))}}
+.fmdw-meas-field{display:flex;align-items:center;gap:6px;min-width:0;min-height:30px;border-bottom:1px solid #f0f2f7}
+.fmdw-meas-label{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:11.5px;font-weight:800;color:#475467}
+.fmdw-meas-label em{font-style:normal;font-size:10px;font-weight:900;color:#b58a00}
+.fmdw-meas-label em.manual{color:#6941c6}
+.fmdw-meas-input{display:flex;align-items:center;gap:4px;flex:none}
+.fmdw-meas-input input{width:58px;height:26px;border:1px solid #d4d9e6;border-radius:7px;background:#fff;color:var(--fmdw-ink);padding:0 6px;font:inherit;font-size:12.5px;font-weight:900;text-align:right;outline:none;min-width:0}
+.fmdw-meas-input input:focus{border-color:var(--fmdw-primary);box-shadow:0 0 0 3px color-mix(in srgb,var(--fmdw-primary) 12%,transparent)}
+.fmdw-meas-input input:disabled{background:#f5f7fb;color:#667085;cursor:not-allowed}
+.fmdw-meas-input b{font-size:12.5px;font-weight:900;font-variant-numeric:tabular-nums}
+.fmdw-meas-input i{flex:none;font-style:normal;font-size:10.5px;font-weight:900;color:var(--fmdw-muted);min-width:18px;text-transform:none}
 .fmdw-meas-field.needed input{border-color:#e8b93c;background:#fffdf4}
+.fmdw-meas-field.edited input{border-color:#e8b93c}
+.fmdw-meas-field.manual input{border-color:#d6bbfb;background:#faf8ff}
+.fmdw-meas-field.derived input{background:#f2f4f7}
 .fmdw-meas-note{margin:0;font-size:11px;font-weight:900;color:#b58a00}
 .fmdw-meas-source{margin:0}
-.fmdw-meas-source.ok{color:#067647}
-.fmdw-meas-input{display:flex;align-items:center;gap:6px}
-.fmdw-meas-input input{min-width:0;flex:1}
-.fmdw-meas-input i{flex:none;font-style:normal;font-size:10.5px;font-weight:900;color:var(--fmdw-muted);min-width:16px;text-transform:none}
-.fmdw-meas-field span em{font-style:normal;font-weight:900;color:#b58a00;text-transform:none;letter-spacing:0}
-.fmdw-meas-field.edited input{border-color:#e8b93c}
 .fmdw-meas-extra summary{cursor:pointer;font-size:11px;font-weight:900;color:var(--fmdw-muted)}
 .fmdw-meas-extra .fmdw-stat-grid{margin-top:8px}
-.fmdw-meas-field em.manual{color:#6941c6}
-.fmdw-meas-field.manual input{border-color:#d6bbfb;background:#faf8ff}
-.fmdw-structs{display:flex;flex-direction:column;gap:8px;border:1px solid var(--fmdw-line);border-radius:12px;padding:10px 12px;background:#fcfcfd}
-.fmdw-structs-head{display:flex;align-items:baseline;justify-content:space-between;gap:10px}
-.fmdw-structs-head strong{font-size:12px;font-weight:1000}
-.fmdw-structs-head span{font-size:11px;font-weight:800;color:var(--fmdw-muted)}
-.fmdw-structs-combined{margin:4px 0 0;font-size:10.5px;font-weight:1000;text-transform:uppercase;letter-spacing:.04em;color:var(--fmdw-muted)}
-.fmdw-struct{display:flex;align-items:center;gap:10px;border:1px solid rgba(15,23,42,.08);border-radius:10px;background:#fff;padding:8px 10px}
-.fmdw-struct.off{background:#f8fafc}
-.fmdw-struct.off .fmdw-struct-main{opacity:.6}
-.fmdw-struct.manual{border-color:#e9d7fe}
+.fmdw-meas-step>.fmdw-row-actions .fmdw-btn{min-height:30px;padding:0 8px}
 .fmdw-struct-toggle{position:relative;display:inline-flex;flex:none;cursor:pointer}
 .fmdw-struct-toggle input{position:absolute;opacity:0;width:1px;height:1px}
 .fmdw-struct-switch{width:32px;height:18px;border-radius:999px;background:#d0d5dd;position:relative;transition:background .15s}
@@ -4165,26 +4198,20 @@
 .fmdw-struct-toggle input:checked + .fmdw-struct-switch{background:var(--fmdw-primary)}
 .fmdw-struct-toggle input:checked + .fmdw-struct-switch::after{transform:translateX(14px)}
 .fmdw-struct-toggle input:focus-visible + .fmdw-struct-switch{outline:2px solid var(--fmdw-primary);outline-offset:2px}
-.fmdw-struct-main{display:flex;flex-direction:column;gap:3px;min-width:0;flex:1}
-.fmdw-struct-title{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
-.fmdw-struct-title strong{font-size:12.5px}
-.fmdw-struct-name{font:inherit;font-size:12.5px;font-weight:900;border:1px solid transparent;border-radius:6px;padding:2px 5px;margin-left:-5px;background:transparent;min-width:0;max-width:220px}
-.fmdw-struct-name:hover,.fmdw-struct-name:focus{border-color:rgba(15,23,42,.18);background:#fff}
+.fmdw-struct-name{font:inherit;font-size:12.5px;font-weight:1000;color:var(--fmdw-ink);border:1px solid transparent;border-radius:6px;padding:2px 6px;margin-left:-4px;background:transparent;flex:0 1 auto;width:160px;field-sizing:content;min-width:60px;max-width:240px;outline:none}
+.fmdw-struct-name:hover,.fmdw-struct-name:focus{border-color:#d4d9e6;background:#fff}
 .fmdw-struct-origin{display:inline-flex;align-items:center;gap:4px;font-size:10.5px;font-weight:900;color:#067647;background:#ecfdf3;border-radius:999px;padding:2px 8px}
 .fmdw-struct-origin.manual{color:#6941c6;background:#f4ebff}
 .fmdw-struct-origin small{font-weight:700;font-size:10px}
-.fmdw-struct-figures{font-size:11px;font-weight:700;color:var(--fmdw-muted);overflow-wrap:anywhere}
-.fmdw-struct-actions{display:flex;gap:4px;flex:none}
-.fmdw-struct-form{display:flex;flex-direction:column;gap:8px;border:1px dashed #d6bbfb;border-radius:10px;padding:10px;background:#fcfaff}
-.fmdw-struct-form-name{display:flex;flex-direction:column;gap:4px;max-width:280px}
-.fmdw-struct-form-name span{font-size:10px;font-weight:1000;text-transform:uppercase;letter-spacing:.04em;color:var(--fmdw-muted)}
-.fmdw-meas-field.derived input{background:#f2f4f7}
-.fmdw-struct-pricing{display:flex;flex-wrap:wrap;gap:6px 16px;font-size:12px;font-weight:800}
+.fmdw-struct-actions{display:flex;gap:2px;flex:none;margin-left:auto}
+.fmdw-struct-actions .fmdw-btn{min-height:26px;padding:0 7px}
+.fmdw-struct-form-name{display:flex;align-items:center;gap:8px;max-width:340px}
+.fmdw-struct-form-name span{flex:none;font-size:11.5px;font-weight:800;color:#475467}
+.fmdw-struct-form-name input{flex:1;min-width:0;height:28px;border:1px solid #d4d9e6;border-radius:7px;background:#fff;color:var(--fmdw-ink);padding:0 8px;font:inherit;font-size:12.5px;font-weight:900;outline:none}
+.fmdw-struct-form-name input:focus{border-color:var(--fmdw-primary)}
+.fmdw-struct-pricing{display:flex;flex-wrap:wrap;gap:6px 16px;font-size:12px;font-weight:800;padding-top:2px}
 .fmdw-struct-pricing label{display:inline-flex;align-items:center;gap:6px;cursor:pointer}
-.fmdw-field .fmdw-struct-pricing input{width:auto;max-width:none;padding:0;margin:0;flex:none;accent-color:var(--fmdw-primary)}
-.fmdw-field .fmdw-struct-name{width:auto;flex:0 1 240px;padding:4px 8px;font-size:12.5px;font-weight:900;border-color:transparent;background:transparent}
-.fmdw-field .fmdw-struct-name:hover,.fmdw-field .fmdw-struct-name:focus{border-color:#d4d9e6;background:#fff}
-.fmdw-field .fmdw-struct-form-name input{max-width:280px}
+.fmdw-struct-pricing input{width:auto;padding:0;margin:0;flex:none;accent-color:var(--fmdw-primary)}
 /* line items review */
 /* the lines are the content: no card around the whole list */
 .fmdw-section:has(>.fmdw-section-items>.fmdw-item>.fmdw-lir-field){border:0;background:transparent;padding:0;box-shadow:none}
@@ -4514,6 +4541,11 @@
 .fmdw-review-row span em{font-style:normal;font-size:10px;color:#98a2b3}
 .fmdw-review-row b{font-weight:1000;text-align:right;min-width:0;overflow-wrap:anywhere}
 .fmdw-review-row.muted{opacity:.65}
+/* In a narrow column each answer stacks under its question instead of both wrapping side by side. */
+.fmdw-review{container-type:inline-size}
+.fmdw-review-row span{flex:1 1 auto;min-width:0}
+.fmdw-review-row b{flex:0 1 auto;max-width:60%}
+@container (max-width:440px){.fmdw-review-row{flex-direction:column;align-items:stretch;gap:1px;padding:7px 0}.fmdw-review-row span{font-size:11px}.fmdw-review-row b{max-width:none;text-align:left}}
 /* widgets */
 .fmdw-widget-host{min-height:60px}
 /* preview pane — same flex basis as the step content (~50/50 after the rail) */
@@ -4526,7 +4558,9 @@
 .fmdw.preview-hidden .fmdw-preview,.fmdw.preview-hidden .fmdw-resizer{display:none}
 .fmdw-preview-toggle.active{border-color:var(--fmdw-primary);color:var(--fmdw-primary)}
 /* pinned preview: half the width beside the steps; stacked below them when narrow, never hidden */
-.fmdw.preview-pinned .fmdw-preview{flex-basis:50%;border-left:1px solid var(--fmdw-line)}
+.fmdw.preview-pinned .fmdw-preview{flex:1 1 0}
+.fmdw.preview-pinned.preview-sized .fmdw-preview{flex:0 0 var(--fmdw-preview-w,50%)}
+.fmdw.preview-pinned.narrow .fmdw-resizer{display:none}
 .fmdw.preview-pinned.narrow{display:grid;grid-template-columns:auto minmax(0,1fr);grid-template-rows:minmax(0,1fr) minmax(0,1fr)}
 .fmdw.preview-pinned.narrow .fmdw-preview{grid-column:1/-1;border-left:0;border-top:1px solid var(--fmdw-line)}
 /* compact rail: numbered dots only, titles on hover */
