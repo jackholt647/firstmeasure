@@ -725,3 +725,56 @@ test('the Materials settings mount: saved suppliers as columns, saved through th
     assert.deepEqual(errors,[]);
   } finally { await browser.close(); }
 });
+
+// workflow_opened: the first time a proposal's document workflow opens (the Docs tab's New, after the dialog), the
+// proposal tutorial plays over it; a hidden workflow, another kind of document or a covered workflow does not start it.
+test('a workflow_opened trigger plays the proposal tutorial once the proposal workflow is on screen and uncovered', async () => {
+  const browser = await launch();
+  try {
+    const page = await browser.newPage({ viewport: { width: 1280, height: 800 } });
+    const errors = []; page.on('pageerror', (error) => errors.push(error.message));
+    await page.route('https://gx.test/**', async (route) => {
+      const path = new URL(route.request().url()).pathname;
+      if (path.startsWith('/libraries/')) return route.fulfill({ contentType: 'text/javascript', body: await read(path.slice(1)) });
+      return route.fulfill({ contentType: 'text/html', body: '<html><body style="margin:0"><div id="hidden" hidden style="height:600px"></div><div id="host" style="height:700px"></div></body></html>' });
+    });
+    await page.goto('https://gx.test/');
+    await page.evaluate(() => {
+      window.__APP = { userOrgId: 'o', userId: 'u' }; window.events = []; window.done = false;
+      const text = (key) => ({ key, text: key });
+      const tour = { id: 'documents.proposal_tutorial', version: 1, kind: 'overlay', scope: 'person', tab: 'project.docs', title: text('Proposal tutorial'), replayable: true, variant: { id: 'default' },
+        triggers: [{ kind: 'workflow_opened', document_type: 'proposal', once: true, delay_ms: 100 }],
+        steps: [{ id: 'steps', targets: ['[data-fmdw-root] [data-fmdw-steps]'], placement: 'right', title: text('One step at a time'), body: text('Each step fills in the proposal.'), advance: 'next', wait_ms: 1000 }], completion: { then: [] } };
+      window.fetch = async (url, options = {}) => {
+        const path = String(url), body = options.body ? JSON.parse(options.body) : {};
+        if (path.endsWith('/events')) { events.push(body.type); if (['complete', 'dismiss'].includes(body.type)) done = true; }
+        const value = path.includes('/experiences?') ? { reveals: [], experiences: [{ ...tour, ...(done ? { progress: { status: 'completed' } } : {}) }] } : {};
+        return { ok: true, status: 200, text: async () => JSON.stringify({ ok: true, ...value }) };
+      };
+    });
+    await page.addScriptTag({ url: 'https://gx.test/libraries/guided-experiences/guided-experiences.js' });
+    await page.addScriptTag({ url: 'https://gx.test/libraries/doc-workflow/firstmate-doc-workflow.js' });
+    const workflow = { schema_version: 1, steps: [{ id: 'one', title: 'One', items: [{ kind: 'text', writes: 'params.name', label: 'Name' }] }, { id: 'two', title: 'Two', items: [] }] };
+    const mount = (selector, type) => page.evaluate(({ selector, type, workflow }) => { window.handles = window.handles || []; handles.push(FMDocWorkflow.mount(document.querySelector(selector), { workflow, audience: 'internal', document: { id: 'd-' + type, type } })); }, { selector, type, workflow });
+    // An invoice, and a proposal in a hidden host (the Operations setup's Send/Present editor), start nothing.
+    await mount('#host', 'invoice');
+    await mount('#hidden', 'proposal');
+    await page.waitForTimeout(900);
+    assert.equal(await page.locator('.gx-pop').count(), 0);
+    // The New dialog (z-index 2147483530, above the tour layer) still covers the workflow: the tour waits for it to close.
+    await page.evaluate(() => { handles.forEach((handle) => handle.destroy()); const back = document.createElement('div'); back.className = 'fmdx-modal-back'; back.style.cssText = 'position:fixed;inset:0;z-index:2147483530;background:rgba(0,0,0,.4)'; document.body.append(back); });
+    await mount('#host', 'proposal');
+    await page.waitForTimeout(700);
+    assert.equal(await page.locator('.gx-pop').count(), 0, 'nothing plays under the New dialog');
+    await page.evaluate(() => document.querySelector('.fmdx-modal-back').remove());
+    await page.getByText('One step at a time', { exact: true }).waitFor();
+    await page.locator('.gx-pop [data-gx=close]').click();
+    await page.waitForFunction(() => done);
+    // Finished once: opening another proposal does not play it again.
+    await page.evaluate(() => { handles.forEach((handle) => handle.destroy()); handles.length = 0; });
+    await mount('#host', 'proposal');
+    await page.waitForTimeout(900);
+    assert.equal(await page.locator('.gx-pop').count(), 0);
+    assert.deepEqual(errors, []);
+  } finally { await browser.close(); }
+});

@@ -1,7 +1,7 @@
 {
   "files": 297,
   "namespaces": 117,
-  "messages": 17058,
+  "messages": 17059,
   "migration": [
     {
       "file": "public/libraries/account-switcher/account-switcher.js",
@@ -1315,9 +1315,9 @@
     {
       "file": "public/libraries/doc-workflow/firstmate-doc-workflow.js",
       "namespace": "doc-workflow",
-      "references": 62,
-      "candidates": 78,
-      "edits": 57
+      "references": 65,
+      "candidates": 75,
+      "edits": 54
     },
     {
       "file": "public/libraries/doc-workflow/firstmate-workflow-editor.js",
