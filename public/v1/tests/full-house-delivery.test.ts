@@ -3,7 +3,7 @@ import { readFile } from 'node:fs/promises';
 import test from 'node:test';
 import vm from 'node:vm';
 import ts from 'typescript';
-import { isCustomerFullHouse, assertFullHouseReview, FULL_HOUSE_REVIEW_FIELDS } from '../firstmeasure/full_house_workflow.js';
+import { isCustomerFullHouse } from '../firstmeasure/full_house_workflow.js';
 
 test('delivery attaches the saved full report, records receipt, and refuses an unreviewed revision', async () => {
   const source = await readFile(new URL('../firstmeasure/api.ts', import.meta.url), 'utf8');
@@ -11,12 +11,13 @@ test('delivery attaches the saved full report, records receipt, and refuses an u
   const code = section('async function sendProjectEmail(', 'function projectEmailFailureMessage(')
     + section('function buildReportEmailTextBody(', 'function projectTypeLabelForCustomer(');
   const pdf = Buffer.from('%PDF full house with gutters');
-  const review = { ...Object.fromEntries(FULL_HOUSE_REVIEW_FIELDS.map(key => [key, true])), revision: 'reviewed' };
+  // An approval stamp names the approved PDF revision; there are no checklist fields (FM-345).
+  const review = { revision: 'reviewed', reviewed_by: 'qa@example.test', reviewed_at: '2026-11-05T00:00:00.000Z' };
   const manifest: Record<string, any> = { id: 'exteriors_' + 'b'.repeat(32), measurement_scope: 'full_house', status: 'completed',
     address: 'Synthetic house', issuer: { email: 'customer@example.test' }, qa_full_house_review: review };
   const messages: any[] = [];
   const context = vm.createContext({
-    isCustomerFullHouse, assertFullHouseReview, asRecord: (value: unknown) => value || {},
+    isCustomerFullHouse, asRecord: (value: unknown) => value || {},
     conflict: (code: string, message: string) => Object.assign(new Error(message), { code }),
     readManifest: async () => manifest, buildLegacyManifest: (value: unknown) => value,
     resolveProjectPdfSyncReference: async () => ({ revision: 'reviewed' }),

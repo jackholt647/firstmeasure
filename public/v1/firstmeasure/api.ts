@@ -1,7 +1,7 @@
 import { isTransientProviderFailure } from './transient_failure.js';
 import { catalogState, catalogReadsEnabled } from "../src/storage/artifact_catalog.js";
 import { projectPageChanges } from "./project_refresh.js";
-import { assertFullHouseEligible, assertFullHouseReview, assertFullHouseSnapshot, fullHouseEligible, isCustomerFullHouse } from './full_house_workflow.js';
+import { assertFullHouseEligible, assertFullHouseSnapshot, fullHouseEligible, isCustomerFullHouse } from './full_house_workflow.js';
 import { computeFullHousePoints, countFullHouseModel } from './full_house_points.js';
 import { withReportPropertyMarket } from "../commerce/property-market.js";
 import { reportPrice, assertCommercialRevision } from "../commerce/profile.js";
@@ -6644,7 +6644,6 @@ export const registerFirstMeasureApi: FastifyPluginAsync = async (app) => {
 
 
     if (decision === "approved") {
-      assertFullHouseReview(manifest, body.full_house_review);
 
       const pdfSync = await resolveProjectPdfSyncReference(
 
@@ -6676,7 +6675,7 @@ export const registerFirstMeasureApi: FastifyPluginAsync = async (app) => {
 
           status: "completed",
 
-          ...(isCustomerFullHouse(manifest) ? { qa_full_house_review: { ...asRecord(body.full_house_review), revision: pdfSync?.revision, reviewed_by: actorEmail, reviewed_at: nowIso } } : {}),
+          ...(isCustomerFullHouse(manifest) ? { qa_full_house_review: { revision: pdfSync?.revision, reviewed_by: actorEmail, reviewed_at: nowIso } } : {}),
           submission_status: "submitting",
 
           submission_failure: null,
@@ -6778,7 +6777,7 @@ export const registerFirstMeasureApi: FastifyPluginAsync = async (app) => {
       await patchManifest(projectId, {
 
         ...qaDecisionTracking,
-        ...(isCustomerFullHouse(manifest) ? { qa_full_house_review: { ...asRecord(body.full_house_review), revision: pdfSync?.revision, reviewed_by: actorEmail, reviewed_at: nowIso } } : {}),
+        ...(isCustomerFullHouse(manifest) ? { qa_full_house_review: { revision: pdfSync?.revision, reviewed_by: actorEmail, reviewed_at: nowIso } } : {}),
 
         ...(qaDecisionTracking.qa_corrected_by_qa ? rushBonusRemovalPatch("qa_corrected", nowSql) : {}),
 
@@ -7184,7 +7183,6 @@ export const registerFirstMeasureApi: FastifyPluginAsync = async (app) => {
 
 
     if (decision === "approved") {
-      assertFullHouseReview(manifest, body.full_house_review);
 
       const pdfSync = await resolveProjectPdfSyncReference(
 
@@ -7215,7 +7213,7 @@ export const registerFirstMeasureApi: FastifyPluginAsync = async (app) => {
       await patchManifest(projectId, {
 
         ...buildCustomerReworkCompletionPatch(legacy, nowIso, actorEmail, actorName),
-        ...(isCustomerFullHouse(manifest) ? { manager_full_house_review: { ...asRecord(body.full_house_review), revision: pdfSync?.revision, reviewed_by: actorEmail, reviewed_at: nowIso } } : {}),
+        ...(isCustomerFullHouse(manifest) ? { manager_full_house_review: { revision: pdfSync?.revision, reviewed_by: actorEmail, reviewed_at: nowIso } } : {}),
 
         manager_threads: threads,
 
@@ -14550,9 +14548,9 @@ async function sendProjectEmail(projectId: string, force: boolean) {
   const manifest = await readManifest(projectId);
   if (isCustomerFullHouse(manifest)) {
     const sync = await resolveProjectPdfSyncReference(projectId);
+    // QA and manager approval stamp the PDF revision they approved (there is no checklist since FM-345).
     const review = [manifest.manager_full_house_review, manifest.qa_full_house_review].map(asRecord).find(value => value.revision === sync?.revision);
     if (manifest.status !== 'completed' || !review) throw conflict('full_house_qa_required', 'The current full-house PDF must pass QA before delivery.');
-    assertFullHouseReview(manifest, review);
   }
 
   const legacy = buildLegacyManifest(manifest);
