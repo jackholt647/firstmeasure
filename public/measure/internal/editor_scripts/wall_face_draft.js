@@ -7,6 +7,36 @@ function syncConsumedSketchRegions(d,accept=()=>true){
  const nodes=new Map((d.sketch?.nodes||[]).map(n=>[n.id,n]));
  const moved=ring=>ring.map(p=>{const n=nodes.get(p.nodeId);return n&&(n.x!==p.x||n.y!==p.y)?{...p,x:n.x,y:n.y}:p;});
  for(const f of (d.faces||[]).filter(f=>f.solidId&&accept(f))){f.points=moved(f.points);f.holes=(f.holes||[]).map(moved);}
+ repairDraftRegions(d,f=>f.solidId&&accept(f),true);
+}
+// A line move or Resoffit that pulls a notch edge onto the outline simplifies
+// the replacement face, but its consumed mask follows the sketch nodes and keeps
+// a zero-width spike, repeated corners or no area at all. Whatever reveals such
+// a region later, triangulation can refuse it and then no wall can be shown.
+// Rebuild such a region from its valid parts, the normalization a committed face
+// gets: a mask the sketch sync touched whenever that changes it, any region
+// (on load) when it cannot be triangulated. One with no area left shows
+// nothing, so it is marked deleted and can never be drawn, yet stays in the
+// draft that owns its walls.
+function repairDraftRegions(d,accept=()=>true,simplify=false){
+ const K=window.ExteriorGeometry;if(!K?.triangles||!K.normalizeFaces||!d?.faces?.length)return false;
+ const showable=f=>{try{K.triangles(f.points,f.holes||[]);return true;}catch(e){return false;}};
+ const signature=f=>f.points.map(p=>p.nodeId).sort().join('|'),ids=new Set(d.faces.map(f=>f.id)),nodes=d.sketch?.nodes||[],flat=p=>({...p,z:0}),rings=g=>[g.points,...(g.holes||[])];let changed=false;
+ for(const f of d.faces.slice()){
+  if(f.boundaryHole||f.curves?.length||f.curvedSurface||!accept(f)||(d.deletedFaces||[]).includes(signature(f)))continue;
+  const ok=showable(f);if(ok&&!simplify)continue;
+  let parts;try{parts=K.normalizeFaces({...f,points:f.points.map(flat),holes:(f.holes||[]).map(r=>r.map(flat))},ids);}catch(e){parts=[];}
+  // normalizeFace returns a simple region unchanged.
+  if(ok&&parts.length===1&&rings(parts[0]).length===rings(f).length&&rings(parts[0]).every((r,i)=>r.length===rings(f)[i].length&&r.every((p,j)=>p.x===rings(f)[i][j].x&&p.y===rings(f)[i][j].y)))continue;
+  const anchors=rings(f).flat(),owner=p=>{const a=anchors.find(a=>a.nodeId&&Math.hypot(a.x-p.x,a.y-p.y)<=K.CONTACT)||nodes.find(n=>Math.hypot(n.x-p.x,n.y-p.y)<=K.CONTACT);return {x:p.x,y:p.y,z:0,...(a?{nodeId:a.nodeId||a.id}:{})};};
+  parts=parts.map(part=>({id:part.id,points:part.points.map(owner),holes:(part.holes||[]).map(r=>r.map(owner))})).filter(part=>part.points.length>=3&&showable(part));
+  if(ok&&!parts.length)continue;
+  changed=true;
+  if(!parts.length){d.deletedFaces=[...new Set([...(d.deletedFaces||[]),signature(f)])];continue;}
+  Object.assign(f,{points:parts[0].points,holes:parts[0].holes});
+  for(const part of parts.slice(1)){ids.add(part.id);d.faces.push({...f,points:part.points,holes:part.holes,id:part.id});}
+ }
+ return changed;
 }
 // A merged draft owns its source walls even after regeneration changes mergeGroup.
 window.normalizeWallDraftOwnership=function(edits){
@@ -21,6 +51,9 @@ window.normalizeWallDraftOwnership=function(edits){
  // Repair drafts saved by earlier line-move/Resoffit commits on reload too.
  const replacements=new Set((edits.$surfaces||[]).map(f=>f.id));
  for(const d of Object.values(drafts))syncConsumedSketchRegions(d,f=>f.solidId.startsWith('line-move-')&&replacements.has(f.solidId));
+ // Projects and local backups saved before that repair can already hold such
+ // a region, consumed or revealed again: every region must be showable on load.
+ for(const d of Object.values(drafts))if(!d.mergedInto)repairDraftRegions(d);
  for(const [key,d]of Object.entries(drafts)){
   if(d.frame||!d.members?.length||d.deletedFaces?.length||d.removedPoints?.length||d.faces.some(f=>f.solidId||f.feature||f.material||!/^wall-(region|hole)-/.test(f.id))||d.sketch?.edges.some(e=>!e.fixed)||d.sketch?.nodes.some(n=>n.userDraftPoint))continue;
   const entry=Object.entries(drafts).filter(([k,o])=>k!==key&&!o.frame&&o.members?.length>d.members.length&&d.members.every(id=>o.members.includes(id))).sort((a,b)=>b[1].members.length-a[1].members.length)[0];

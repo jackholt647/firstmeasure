@@ -2644,6 +2644,59 @@ test('reload repairs stale consumed Resoffit masks without moving replacement fa
 });
 
 
+// A line move that pulls a notch edge onto the outline (as on a chimney side,
+// Nov 4) simplifies the replacement face. Its consumed mask follows the sketch
+// nodes and once kept a repeated corner and a zero-width spike, which the
+// triangulation can refuse if the region is ever shown again.
+test('a line move that closes an outline notch leaves a consumed mask matching its replacement face',()=>{
+ const K=require('../public/measure/internal/editor_scripts/exterior_geometry.js'),P=(x,z)=>({x,y:0,z});
+ const walls=[{id:'a',mergeGroup:'g',bottom:[P(0,1),P(3,1)],top:[P(0,4),P(3,4)]},{id:'b',mergeGroup:'g',bottom:[P(3,0),P(4,0)],top:[P(3,4),P(4,4)]}];
+ const state={wallEdits:{$surfaces:[{id:'beside',points:[P(0,0),P(3,0),P(3,1),P(0,1)]}]}},f=fixture({state,walls,selected:null,globals:renderGlobals()});
+ f.editor.doubleClick(f.e(2,3),walls[0]);f.editor.key({key:'Escape'});f.editor.clear();const drafted=f.history.length;
+ let d=state.wallEdits.$drafts.g;const ring=ps=>ps.map(p=>[p.x,p.y].map(v=>(+v.toFixed(6)+0).toFixed(6)).join(','));
+ assert.deepEqual(ring(d.faces[0].points),ring([[0,1],[3,1],[3,0],[4,0],[4,4],[3,4],[0,4]].map(([x,y])=>({x,y}))),'the outline steps down into a tab');
+ // The notch edge goes onto the tab's outer edge: the tab closes to zero width.
+ f.editor.restoreSelection({lineSelection:[{pair:[P(3,0),P(3,1)]}]});f.listeners.pointermove(f.e(3,.5));f.editor.key({key:'m'});f.editor.distanceInput().set(-1);f.editor.key({key:'Enter'});
+ assert.equal(f.history.length,drafted+1,f.message());
+ d=state.wallEdits.$drafts.g;const mask=d.faces.find(r=>r.solidId),replacement=state.wallEdits.$surfaces.find(s=>s.id===mask?.solidId&&!s.deleted);assert.ok(replacement,'the region is consumed by a replacement face');
+ const local=p=>({x:(p.x-d.origin.x)*d.u.x+(p.y-d.origin.y)*d.u.y,y:p.z});
+ assert.deepEqual(ring(mask.points).sort(),ring(replacement.points.map(local)).sort(),'no repeated corner or zero-width spike');
+ assert.equal(new Set(ring(mask.points)).size,mask.points.length);assert.ok(mask.points.every(p=>d.sketch.nodes.some(n=>n.id===p.nodeId)),'the mask still follows sketch nodes');
+ // Shown again by any later edit, it triangulates.
+ K.triangles(mask.points,mask.holes||[]);
+ const lines=[];f.editor.draw3D({add:o=>{if(o.material?.color==='#6ce4ed'&&o.geometry?.points?.length===2)lines.push(o);}},p=>p);assert.equal(lines.length,0,'the closed tab leaves no loose wire');
+});
+
+// Renz's and Joanne's training projects (Nov 4) hold masks like these: a
+// zero-width spike on a chimney side and a 1 cm wall pulled to zero width.
+// Revealed, either one stopped every wall from showing after a reload.
+test('regions a line move collapsed load and show, whether still consumed or revealed again',()=>{
+ const K=require('../public/measure/internal/editor_scripts/exterior_geometry.js'),P=(x,z)=>({x,y:0,z});
+ const spike=[[0,64.97900299072265],[0,63.709999],[-1.3530569261637878e-7,63.709999084472706],[-1.3530569261637878e-7,64.97900299072265],[0.681644,65.659003],[0.681644,69.39753205946121],[0.378044,69.094]];
+ const sliver=[[0.038641459804510614,69.23138826993251],[0.038641459804510614,69.23138826993251],[0.038641459804510614,67.10521887924413],[0.038641459804510614,67.10521887924413]];
+ const saved=consumed=>{const nodes=[],region=(id,ps,dx)=>{const points=ps.map(([x,y])=>{const n={x:x+dx,y,z:0,id:'p'+nodes.length,fixed:true};nodes.push(n);return {x:n.x,y:n.y,z:0,nodeId:n.id};});return {id,points,holes:[],opening:false,...(consumed?{solidId:'line-move-draft:w:'+id+'-1'}:{})};};
+  const faces=[region('wall-region-0',spike,0),region('wall-region-1',sliver,2)],edges=faces.flatMap(f=>f.points.map((p,i)=>({id:'e'+p.nodeId,a:p.nodeId,b:f.points[(i+1)%f.points.length].nodeId,fixed:true})));
+  const d={members:['w'],origin:{x:0,y:0,z:0},u:{x:1,y:0},faces,sketch:{nodes,edges,outlines:[[{x:-1,y:63,z:0},{x:4,y:63,z:0},{x:4,y:70,z:0},{x:-1,y:70,z:0}]],next:nodes.length}};
+  // The spike's replacement is live; the 1 cm wall's was deleted afterwards.
+  const surfaces=consumed?[{id:faces[0].solidId,points:[P(0,63.71),P(.681644,63.71),P(.681644,69.397532),P(0,69.397532)],draftKey:'w',regionId:'wall-region-0'},{id:faces[1].solidId,deleted:true,points:[P(2,67.105219),P(2.009654,67.105219),P(2.009654,69.273836),P(2,69.273836)],draftKey:'w',regionId:'wall-region-1'}]:[];
+  return {wallEdits:{$drafts:{w:d},$surfaces:surfaces}};
+ };
+ const w={id:'w',bottom:[P(-1,63),P(4,63)],top:[P(-1,70),P(4,70)]},draw=f=>f.editor.draw3D({add(){}},p=>p);
+ // Revealed: the saved model cannot be drawn as it is.
+ let state=saved(false),f=fixture({state,walls:[w],selected:null,globals:renderGlobals()});
+ assert.throws(()=>draw(f),/does not define a valid planar region/);
+ f.normalize();assert.doesNotThrow(()=>draw(f));
+ const d=state.wallEdits.$drafts.w,signature=r=>r.points.map(p=>p.nodeId).sort().join('|'),shown=d.faces.filter(r=>!(d.deletedFaces||[]).includes(signature(r)));
+ assert.deepEqual(shown.map(r=>r.id),['wall-region-0'],'the zero-area wall shows nothing and is marked deleted');
+ assert.equal(new Set(shown[0].points.map(p=>p.x.toFixed(6)+','+p.y.toFixed(6))).size,shown[0].points.length,'the spike is gone');
+ assert.ok(Math.abs(K.area(shown[0])-K.area({points:spike.map(([x,y])=>({x,y,z:0}))}))<1e-6,'the region keeps its area');
+ const repaired=JSON.stringify(state.wallEdits);f.normalize();assert.equal(JSON.stringify(state.wallEdits),repaired,'repair is idempotent');
+ // Still consumed: nothing the person sees changes and the masks become showable.
+ state=saved(true);f=fixture({state,walls:[w],selected:null,globals:renderGlobals()});const surfaces=JSON.stringify(state.wallEdits.$surfaces);
+ assert.doesNotThrow(()=>draw(f));f.normalize();assert.doesNotThrow(()=>draw(f));assert.equal(JSON.stringify(state.wallEdits.$surfaces),surfaces);
+ for(const r of state.wallEdits.$drafts.w.faces){assert.ok(r.solidId);if(!(state.wallEdits.$drafts.w.deletedFaces||[]).includes(signature(r)))K.triangles(r.points,r.holes||[]);}
+});
+
 test('Q crosses the top and side of a wall without discarding existing draft points',()=>{
  const f=fixture({globals:{isFreeMove:true}});f.editor.doubleClick(f.e(2,4),f.w);
  f.editor.doubleClick(f.e(1,1),f.w);const original=JSON.parse(JSON.stringify(f.d().sketch.nodes));
