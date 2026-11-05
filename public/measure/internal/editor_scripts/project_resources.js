@@ -701,15 +701,18 @@
    chip.title = failed ? jobs.filter(job => job.status === 'failed').map(job => timeLabel(job.time) + ': ' + job.error).join('\n') : 'Frames are extracted on the server; keep working.';
    updateFrameAction();
   }
+  // A busy server can drop or stall one status check while the job keeps
+  // running, so only a definite answer ends polling before the deadline.
   async function pollFrameJob(job) {
    for (let attempt = 0; ; attempt++) {
     await new Promise(resolve => setTimeout(resolve, Math.min(2000, 400 + attempt * 200)));
-    const response = await fetch(url(job.project, job.record), { cache: 'no-store' });
-    if (response.ok) {
+    const abort = new AbortController(), timer = setTimeout(() => abort.abort(), 20000);
+    const response = await fetch(url(job.project, job.record), { cache: 'no-store', signal: abort.signal }).catch(() => null).finally(() => clearTimeout(timer));
+    if (response?.ok) {
      const record = await response.json().catch(() => ({}));
      if (record.status === 'done') return record;
      if (record.status === 'failed') throw Error(record.error || 'The server could not extract this frame.');
-    } else if (response.status !== 404) { const data = await response.json().catch(() => ({})); throw Error(data.error || `Frame status unavailable (${response.status}).`); }
+    } else if (response && response.status !== 404 && response.status !== 408 && response.status !== 429 && response.status < 500) { const data = await response.json().catch(() => ({})); throw Error(data.error || `Frame status unavailable (${response.status}).`); }
     if (Date.now() - job.startedAt > 5 * 60 * 1000) throw Error('Frame extraction is taking too long. Refresh project files later.');
    }
   }

@@ -49,22 +49,27 @@ function fm_resource_run(array $command, $timeoutSeconds) {
 
 // Returns the PNG of the frame a browser shows at $time: the last frame whose
 // presentation time is at or before $time. Decoding starts up to three
-// seconds earlier so the choice does not depend on keyframe placement.
+// seconds earlier so the choice does not depend on keyframe placement. Each
+// decoded frame overwrites one uncompressed PAM file and only the last one is
+// encoded as PNG: encoding every frame of the window (180 at 60 fps) made a
+// save take a minute or more on a busy server (FM-343).
 function fm_resource_extract_frame($videoPath, $time, $ffmpeg = null) {
     $ffmpeg = $ffmpeg ?: fm_resource_ffmpeg_path();
     if (!is_float($time) && !is_int($time) || !is_finite((float)$time) || $time < 0) throw new InvalidArgumentException('Invalid frame time.');
     $time = (float)$time;
     $start = max(0.0, $time - 3.0);
     $out = tempnam(sys_get_temp_dir(), 'fmframe');
-    $png = $out . '.png'; @unlink($out);
+    $png = $out . '.png'; $pam = $out . '.pam'; @unlink($out);
     try {
         $fmt = fn($value) => number_format($value, 6, '.', '');
         [$code, $stderr] = fm_resource_run([$ffmpeg, '-nostdin', '-v', 'error', '-y', '-ss', $fmt($start), '-i', $videoPath,
-            '-t', $fmt($time - $start + 0.0005), '-map', '0:v:0', '-fps_mode', 'passthrough', '-update', '1', '-c:v', 'png', '-f', 'image2', $png], 120);
-        if (!is_file($png) || !filesize($png)) {
+            '-t', $fmt($time - $start + 0.0005), '-map', '0:v:0', '-fps_mode', 'passthrough', '-update', '1', '-c:v', 'pam', '-f', 'image2', $pam], 120);
+        if (!is_file($pam) || !filesize($pam)) {
             // A timestamp before the first frame: use the first frame instead.
             [$code, $stderr] = fm_resource_run([$ffmpeg, '-nostdin', '-v', 'error', '-y', '-ss', $fmt($time), '-i', $videoPath,
                 '-map', '0:v:0', '-frames:v', '1', '-c:v', 'png', '-f', 'image2', $png], 120);
+        } elseif ($code === 0) {
+            [$code, $stderr] = fm_resource_run([$ffmpeg, '-nostdin', '-v', 'error', '-y', '-i', $pam, '-frames:v', '1', '-c:v', 'png', '-f', 'image2', $png], 60);
         }
         if ($code !== 0 || !is_file($png) || !filesize($png)) {
             $detail = trim(preg_replace('/\s+/', ' ', (string)$stderr));
@@ -73,7 +78,7 @@ function fm_resource_extract_frame($videoPath, $time, $ffmpeg = null) {
         $bytes = file_get_contents($png);
         if (strncmp($bytes, "\x89PNG\r\n\x1a\n", 8) !== 0) throw new RuntimeException('The video frame could not be decoded.');
         return $bytes;
-    } finally { @unlink($png); }
+    } finally { @unlink($png); @unlink($pam); }
 }
 
 // Writes the stored video to a local file, reusing a recent copy so several
