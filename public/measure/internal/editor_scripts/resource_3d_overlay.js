@@ -3,7 +3,11 @@
  'use strict';
  let layer, panel, photo, owner='', source='', width=0, height=0, x=0, y=0, scale=1, rotation=0, opacity=.65, ticket=0, drag=null, binding=null, observer=null, imageName='', seenProject='', saveTimer=null;
  const icon='<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="2"/><circle cx="8" cy="9" r="1.5"/><path d="m4 17 5-5 4 4 3-3 5 5"/></svg>';
- const validName=name=>typeof name==='string'&&/^internal-resource-[a-zA-Z0-9._-]+\.(png|jpe?g|gif|webp|avif|bmp)$/i.test(name);
+ // Alignment is kept per image name: a stored upload (internal-resource-*) or a reference from the order's catalog
+ // (a customer's or QA's photo, FM-344), which is not a stored file and is reloaded from its own URL.
+ const storedName=name=>typeof name==='string'&&/^internal-resource-[a-zA-Z0-9._-]+\.(png|jpe?g|gif|webp|avif|bmp)$/i.test(name);
+ const validName=name=>typeof name==='string'&&name!=='active'&&/^[a-zA-Z0-9._-]{1,200}$/.test(name);
+ const referenceSrc=src=>{try{const u=new URL(String(src||''),location.href);return /^https?:$/.test(u.protocol)?u.href:'';}catch{return '';}};
  const resourceUrl=(project,name)=>'project_resources.php?'+new URLSearchParams({project,name});
  const cacheKey=(project,name)=>'firstmeasure:photo-overlay:'+project+':'+name;
  const queues=new Map();
@@ -19,7 +23,7 @@
  function settings(){const c=layer.parentNode;return {version:1,updatedAt:Date.now(),x:x/Math.max(1,c.clientWidth),y:y/Math.max(1,c.clientHeight),scale,rotation,opacity};}
  function saveSettings(){if(!owner||!validName(imageName))return;clearTimeout(saveTimer);const project=owner,name=imageName,value=settings();cache(project,name,value);saveTimer=setTimeout(()=>{saveTimer=null;writeRecord(project,name,value);},200);}
  function flushSettings(){if(saveTimer&&owner&&validName(imageName)){clearTimeout(saveTimer);saveTimer=null;writeRecord(owner,imageName,settings());}}
- async function restoreProject(project){const generation=ticket,active=await readRecord(project,'active');if(generation!==ticket||String(window.currentProjectId||'')!==project||source||!validName(active?.name))return;const img=new Image();img.onload=()=>{if(generation===ticket&&String(window.currentProjectId||'')===project&&!source)show({image:img,label:active.label||active.name,project,name:active.name,restoring:true}).catch(()=>{});};img.src=resourceUrl(project,active.name);}
+ async function restoreProject(project){const generation=ticket,active=await readRecord(project,'active');if(generation!==ticket||String(window.currentProjectId||'')!==project||source||!validName(active?.name))return;const src=storedName(active.name)?resourceUrl(project,active.name):referenceSrc(active.src);if(!src)return;const img=new Image();img.onload=()=>{if(generation===ticket&&String(window.currentProjectId||'')===project&&!source)show({image:img,label:active.label||active.name,project,name:active.name,src:active.src,restoring:true}).catch(()=>{});};img.src=src;}
  window.addEventListener('pagehide',flushSettings);
  function build(){
   const container=document.getElementById('three-container');if(!container)return false;
@@ -48,13 +52,15 @@
  function restore(){if(!binding)return;const {scene,renderer,background,alpha,color}=binding;scene.background=background;renderer.setClearColor(color,alpha);renderer.domElement.classList.remove('resource-3d-model-canvas');binding=null;}
  function remove(persist=true){flushSettings();if(persist&&owner&&imageName)writeRecord(owner,'active',{version:1,updatedAt:Date.now(),name:null});ticket++;drag=null;source='';owner='';imageName='';if(photo)photo.removeAttribute('src');if(layer)layer.hidden=true;if(panel)panel.hidden=true;restore();if(objectUrl){URL.revokeObjectURL(objectUrl);objectUrl='';}window.dispatchEvent(new CustomEvent('resource-3d-overlay-change'));}
  let objectUrl='';
- async function show({image,label,project,name,restoring=false}){
+ async function show({image,label,project,name,src='',restoring=false}){
   flushSettings();
   if(!image?.naturalWidth&&!image?.width)throw Error('Open a still image first.');if(!build())throw Error('The 3D view is unavailable.');const token=++ticket;
   const canvas=document.createElement('canvas'),ratio=Math.min(1,4096/Math.max(image.naturalWidth||image.width,image.naturalHeight||image.height));canvas.width=Math.max(1,Math.round((image.naturalWidth||image.width)*ratio));canvas.height=Math.max(1,Math.round((image.naturalHeight||image.height)*ratio));canvas.getContext('2d').drawImage(image,0,0,canvas.width,canvas.height);
-  const saved=validName(name)?await readRecord(String(project),name):null;const blob=await new Promise(resolve=>canvas.toBlob(resolve,'image/png'));if(token!==ticket||String(window.currentProjectId||'')!==String(project||''))return;if(!blob)throw Error('The photo could not be prepared.');
-  if(objectUrl)URL.revokeObjectURL(objectUrl);objectUrl=URL.createObjectURL(blob);source=label||'Photo';owner=String(project||'');imageName=validName(name)?name:'';seenProject=owner;width=canvas.width;height=canvas.height;x=y=0;scale=1;rotation=0;opacity=.65;if(saved){const c=layer.parentNode;x=Number.isFinite(saved.x)?saved.x*c.clientWidth:0;y=Number.isFinite(saved.y)?saved.y*c.clientHeight:0;scale=Number.isFinite(saved.scale)?Math.max(.1,Math.min(5,saved.scale)):1;rotation=Number.isFinite(saved.rotation)?Math.max(-15,Math.min(15,saved.rotation)):0;opacity=Number.isFinite(saved.opacity)?Math.max(0,Math.min(1,saved.opacity)):.65;}photo.src=objectUrl;panel.querySelector('.photo-save-status').textContent='';panel.querySelector('.photo-name').textContent=source;panel.querySelector('.photo-name').title=source;
-  if(imageName&&!restoring){writeRecord(owner,'active',{version:1,updatedAt:Date.now(),name:imageName,label:source});saveSettings();}window.refreshResource3DOverlay?.();layer.hidden=false;panel.hidden=false;layout();window.dispatchEvent(new CustomEvent('resource-3d-overlay-change'));
+  const saved=validName(name)?await readRecord(String(project),name):null;const blob=await new Promise(resolve=>{try{canvas.toBlob(resolve,'image/png');}catch{resolve(null);}});if(token!==ticket||String(window.currentProjectId||'')!==String(project||''))return;
+  // A photo from another site without CORS cannot be read back from the canvas; it is shown from its own URL.
+  const direct=blob?'':referenceSrc(image.currentSrc||image.src);if(!blob&&!direct)throw Error('The photo could not be prepared.');
+  if(objectUrl)URL.revokeObjectURL(objectUrl);objectUrl=blob?URL.createObjectURL(blob):'';source=label||'Photo';owner=String(project||'');imageName=validName(name)?name:'';const imageSrc=imageName&&!storedName(imageName)?referenceSrc(src):'';seenProject=owner;width=canvas.width;height=canvas.height;x=y=0;scale=1;rotation=0;opacity=.65;if(saved){const c=layer.parentNode;x=Number.isFinite(saved.x)?saved.x*c.clientWidth:0;y=Number.isFinite(saved.y)?saved.y*c.clientHeight:0;scale=Number.isFinite(saved.scale)?Math.max(.1,Math.min(5,saved.scale)):1;rotation=Number.isFinite(saved.rotation)?Math.max(-15,Math.min(15,saved.rotation)):0;opacity=Number.isFinite(saved.opacity)?Math.max(0,Math.min(1,saved.opacity)):.65;}photo.src=objectUrl||direct;panel.querySelector('.photo-save-status').textContent='';panel.querySelector('.photo-name').textContent=source;panel.querySelector('.photo-name').title=source;
+  if(imageName&&!restoring){writeRecord(owner,'active',{version:1,updatedAt:Date.now(),name:imageName,label:source,...imageSrc?{src:imageSrc}:{}});saveSettings();}window.refreshResource3DOverlay?.();layer.hidden=false;panel.hidden=false;layout();window.dispatchEvent(new CustomEvent('resource-3d-overlay-change'));
  }
  // Capture controls before editor shortcuts and picking. The model canvas keeps
  // its normal orbit, selection, and drawing gestures; only the drag pad moves the photo.
