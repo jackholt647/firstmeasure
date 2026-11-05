@@ -851,15 +851,13 @@ function buildProjectWhere(query: ProjectIndexManifestQuery) {
   return { where, values };
 }
 
-// isCustomerFullHouse (full_house_workflow.ts) in SQL; internal fullhouse_
-// drafts never reach the queue. The per-team counters do not split by report
-// type, so a filtered queue counts its rows (FM-335).
+// isCustomerExteriorId (exteriors.ts) in SQL. createProject gives a customer
+// full-house scope only to these ids, so the manifest is never read; internal
+// fullhouse_ drafts never reach the queue. The per-team counters do not split
+// by report type, so a filtered queue counts its rows (FM-335).
 function appendReportType(where: string[], reportType: QueueReportType | undefined) {
   if (!reportType) return;
-  const fullHouse = `(p.id ~ '^exteriors_[a-f0-9]{32}$'
-    OR (COALESCE(p.manifest_json->>'measurement_scope', '') = 'full_house'
-      AND COALESCE(p.manifest_json->'internal_only', 'false'::jsonb) <> 'true'::jsonb))`;
-  where.push(reportType === "full_house" ? fullHouse : `NOT ${fullHouse}`);
+  where.push(`p.id ${reportType === "full_house" ? "~" : "!~"} '^exteriors_[a-f0-9]{32}$'`);
 }
 
 export async function getPostgresQueueCounts(query: QueueCountsQuery = {}) {
