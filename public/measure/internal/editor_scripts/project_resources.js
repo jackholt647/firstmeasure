@@ -169,13 +169,16 @@
   // download skips the HTTP cache, whose lock on the URL would otherwise hold it behind the player's range requests.
   const WHOLE_MEDIA_LIMIT=1024*1024*1024;
   function downloadWholeMedia(entry,src){
-   const controller=new AbortController();entry.download=controller;
-   fetch(src,{signal:controller.signal,credentials:'same-origin',cache:'no-store'}).then(response=>{if(!response.ok||Number(response.headers.get('content-length'))>WHOLE_MEDIA_LIMIT){controller.abort();return null;}return response.blob();}).then(function swap(blob){
+   const controller=new AbortController();entry.download=controller;entry.downloading=true;
+   // A copy arriving while the stream still reads a WebM's length replaces it at once and carries the
+   // time asked for; a stuck seek on the stream holds the swap back only briefly.
+   fetch(src,{signal:controller.signal,credentials:'same-origin',cache:'no-store'}).then(response=>{if(!response.ok||Number(response.headers.get('content-length'))>WHOLE_MEDIA_LIMIT){controller.abort();return null;}return response.blob();}).then(function swap(blob,tries=0){
     const element=entry.element;if(!blob||retainedMedia!==entry||controller.signal.aborted)return;
-    if(scrub?.element===element||element.seeking||entry.probe){setTimeout(()=>swap(blob),250);return;}
-    const playing=!element.paused&&!element.ended,rate=element.playbackRate;
-    entry.local=URL.createObjectURL(blob);entry.pendingTime=element.currentTime;entry.resume=playing;element.defaultPlaybackRate=rate;element.src=entry.local;element.playbackRate=rate;
-   }).catch(()=>{});
+    if(scrub?.element===element||element.seeking&&!entry.probe&&tries<12){setTimeout(()=>swap(blob,tries+1),250);return;}
+    const playing=!element.paused&&!element.ended,rate=element.playbackRate,at=entry.probe?entry.pendingTime:element.currentTime;
+    clearTimeout(entry.probe);entry.probe=null;
+    entry.local=URL.createObjectURL(blob);entry.pendingTime=at;entry.resume=entry.resume||playing;element.defaultPlaybackRate=rate;element.src=entry.local;element.playbackRate=rate;
+   }).catch(()=>{}).finally(()=>{entry.downloading=false;});
   }
 
   const frameLink=file=>{const link=frameLinks.get(file?.name);return link&&files.some(f=>f.name===link.source)?link:null;};
@@ -472,7 +475,7 @@
       // A recorder-made WebM (no Cues, Duration 0) loads with an infinite duration, which leaves nothing to
       // scrub. Seeking past the end makes Chrome read its length; the player then returns to where it was.
       const endProbe=()=>{clearTimeout(entry.probe);entry.probe=null;ready();};
-      element.addEventListener('loadedmetadata',()=>{clearTimeout(entry.probe);entry.probe=null;if(Number.isFinite(element.duration)){ready();return;}if(entry.pendingTime==null)entry.pendingTime=0;entry.probe=setTimeout(endProbe,10000);element.currentTime=1e101;});
+      element.addEventListener('loadedmetadata',()=>{clearTimeout(entry.probe);entry.probe=null;if(Number.isFinite(element.duration)){ready();return;}if(entry.pendingTime==null)entry.pendingTime=0;entry.probe=setTimeout(function wait(){if(entry.downloading){entry.probe=setTimeout(wait,2000);return;}endProbe();},10000);element.currentTime=1e101;});
       element.addEventListener('durationchange',()=>{if(entry.probe&&Number.isFinite(element.duration))endProbe();});
       for(const event of ['timeupdate','durationchange','play','pause','ended','volumechange'])element.addEventListener(event,()=>{if(element===media)updateTransport();});
       element.addEventListener('seeked',()=>{if(element===media)queueScrub();});
