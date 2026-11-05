@@ -55,7 +55,7 @@ test('complete imagery orchestration stops on no coverage and still completes wi
     collectStructureInsights:async()=>({primaryText:'{}',primaryInsights:{},artifact:{structures:[]},segmentCount:0,hasCoverageAtAnyPin:false}),
     resolveProjectImageryArea:(_m:any,_i:any,l:any)=>({...l,radius_meters:60}),resolveSolarPixelSizeMeters:()=>0.1,
     saveArtifact:async(_p:string,n:string)=>saved.push(n),INSTANT_STRUCTURE_INSIGHTS_FILE_NAME:'structures.json',computeComplexityRating:()=>1,
-    generateStructureSupplementalImagery:async()=>{},fetchBinary:async()=>null,env:{},patchManifest:async(_p:string,p:any)=>{patches.push(p);return {...manifest,...p};},
+    generateStructureSupplementalImagery:async()=>{},fetchBinary:async()=>null,RENDERABLE_IMAGERY_FILES:['rgb.tif','google.png','azure.png'],env:{},patchManifest:async(_p:string,p:any)=>{patches.push(p);return {...manifest,...p};},
     buildMultiStructurePointPatch:()=>({}),solarImageryQualityPatchFromSolarResponse:()=>({}),buildPartialInstantRefundPatch:()=>({}),
     readBrandingDefaults:async()=>null,ensureInstantPdfArtifact:async()=>null,readArtifactBytes:async()=>new Uint8Array(),badRequest:(code:string,message:string)=>Object.assign(new Error(message),{code})});
    vm.runInContext(ts.transpileModule(code,{compilerOptions:{target:ts.ScriptTarget.ES2022}}).outputText,context);
