@@ -121,6 +121,30 @@ test('every face in an elevation table is labeled in its drawing, and every labe
  assert.ok(xs.length&&xs.every(x=>Math.abs(x-31)<1e-9||Math.abs(x-(25+(170-5)/2+5+6))<1e-9),'wall ids sit in the left or right column: '+xs);
  for(const p of elevations)assert.equal(p.text.filter(t=>/^Total/.test(t.value)).length,1,p.title+' has one totals box');
 });
+// FM-337: elevation pages label the openings of the faces they count, with the Opening Schedule ids.
+test('every opening of a face counted on an elevation is labeled in its drawing with its Opening Schedule id',()=>{
+ const fs=require('fs'),vm=require('vm'),K=require('../public/measure/internal/editor_scripts/exterior_geometry.js'),context={ExteriorGeometry:K};context.window=context;vm.createContext(context);
+ vm.runInContext(fs.readFileSync('public/measure/internal/editor_scripts/exterior_pdf.js','utf8'),context);
+ const model=boxHouse(),byId=Object.fromEntries(model.walls.map(w=>[w.id,w]));
+ // W03 is the front (y=6, facing +y), W01 the back (y=0, facing -y); the small window needs a leader line.
+ const opening=(wall,type,x0,x1,z0,z1)=>{const w=byId[wall],y=w.points[0].y,o={type,label:type,points:[{x:x0,y,z:z0},{x:x1,y,z:z0},{x:x1,y,z:z1},{x:x0,y,z:z1}],trimFaces:[],width:3,height:3,area:9,perimeter:12};o.id=wall+'-'+(w.openings.length+1);o.wall=wall;w.openings.push(o);model.openings.push(o);return o;};
+ opening('W03','Window',2,3.2,1,2.2);opening('W03','Window',6,6.15,1.5,1.65);opening('W03','Door',4,5,0,2.1);opening('W01','Window',3,4.5,1,2.2);
+ const pages=[];let page,font='normal',size=9;
+ const doc=new Proxy({internal:{pageSize:{getWidth:()=>210,getHeight:()=>297}},getTextWidth:s=>String(s).length,splitTextToSize:s=>[s],setFont:(f,style)=>{font=style;},setFontSize:s=>{size=s;},text:(value,x,y)=>page.text.push({value:String(value),bold:font==='bold',size,x,y}),line:(...a)=>page.lines.push(a),circle:()=>page.circles++},{get:(o,k)=>k in o?o[k]:()=>{}});
+ context.drawExteriorReportPages(doc,model,{frontBearing:180},title=>{page={title,text:[],lines:[],circles:0};pages.push(page);},{});
+ const labels=p=>p.text.filter(t=>t.bold&&t.size<=7&&/^W\d+-\d+$/.test(t.value)).map(t=>t.value).sort();
+ const elevation=name=>pages.find(p=>p.title===name+' Elevation');
+ assert.deepEqual(labels(elevation('Front')),['W03-1','W03-2','W03-3']);
+ assert.deepEqual(labels(elevation('Back')),['W01-1']);
+ assert.deepEqual(labels(elevation('Left')),[]);assert.deepEqual(labels(elevation('Right')),[]);
+ // Same label style as the Exterior Summary (bold, 5.5 when it fits inside the opening).
+ assert.ok(elevation('Front').text.some(t=>t.value==='W03-1'&&t.size===5.5));
+ // Each opening is labeled on exactly one elevation, and every labeled id is a row in the Opening Schedule.
+ const all=['Front','Back','Left','Right'].flatMap(n=>labels(elevation(n))).sort(),schedule=pages.find(p=>p.title==='Opening Schedule').text.filter(t=>/^W\d+-\d+$/.test(t.value)).map(t=>t.value).sort();
+ assert.deepEqual(all,model.openings.map(o=>o.id).sort());assert.deepEqual(schedule,all);
+ // Wall labels are unchanged: every wall label is still a table row.
+ for(const p of pages.filter(p=>/ Elevation$/.test(p.title))){const walls=p.text.filter(t=>t.bold&&t.size<=7&&/^W\d+$/.test(t.value)).map(t=>t.value).sort(),rows=p.text.filter(t=>!t.bold&&t.size===8&&/^W\d+$/.test(t.value)).map(t=>t.value).sort();assert.deepEqual(walls,rows,p.title);}
+});
 test('a landscape elevation side panel is only as wide as its table, its rows are never cut, and the drawing gets the rest',()=>{
  const ctx=loadPDF(),pages=[];let page,font='normal',size=9;
  const doc=new Proxy({internal:{pageSize:{getWidth:()=>279.4,getHeight:()=>215.9}},getTextWidth:s=>String(s).length*size*.16,splitTextToSize:s=>[s],setFont:(f,style)=>{font=style;},setFontSize:s=>{size=s;},text:(value,x,y)=>page.text.push({value:String(value),bold:font==='bold',size,x,y}),roundedRect:(...a)=>page.rounded.push(a)},{get:(o,k)=>k in o?o[k]:()=>{}});
