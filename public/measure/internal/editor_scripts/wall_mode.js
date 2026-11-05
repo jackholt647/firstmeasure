@@ -1337,16 +1337,27 @@ function perf_render3DFrame() {
             finish(){if(wallEditor?.interaction()==='Paint material'){wallEditor.clear();render();}},
             pickerOpened(){if(!enabled||!state||['textured','match-textured'].includes(surfaceMode())){pickerDisplay=null;return;}pickerDisplay={displayMode:state.displayMode,translucent:state.translucent};state.displayMode='textured';state.translucent=false;persist();render();},
             pickerClosed(){const saved=pickerDisplay;pickerDisplay=null;if(!saved||!state||state.displayMode!=='textured')return;state.displayMode=saved.displayMode;state.translucent=saved.translucent;persist();render();},
+            // Select every face the report's missing-material warning counts, and bring them into view.
+            selectUnassigned(){
+                if(!state||stage<2||!window.ExteriorReportModel?.unassignedFace)return {count:0};
+                if(editingLayer!=='walls')setLayer('walls');window.SmartStickers?.exitPlacement();
+                const faces=window.ExteriorModel.collect(state,currentWalls()).filter(f=>reportParts(f).some(window.ExteriorReportModel.unassignedFace));
+                const refs=faces.map(f=>f.draft===true?{draft:f.draftKey,face:f.regionId}:String(f.id).startsWith('wall:')?{wall:String(f.id).slice(5)}:{solid:f.id});
+                const {selected:count=0,hidden=0}=refs.length&&wallEditor?.selectFaces?.(refs)||{};
+                if(count){window.fit3DViewToActiveGeometry?.({points:faces.flatMap(f=>f.points).map(p=>getVector3(toPixel(p))),padding:1.15});render();}
+                return {count,hidden};
+            },
             colors(value){if(!state)return true;if(typeof value==='boolean'){state.materialColors=value;persist();render();}return state.materialColors!==false;}
         });
         window.addEventListener('beforeunload',()=>persist(false));
         window.ExteriorPerf?.mount(panel);
         setModeUI();render();
     }
+    // Faces as the report reads them: chimney and closed-soffit parts, each with its finish resolved.
+    function reportParts(face){const finished=f=>{const finish=window.ExteriorFinishes?.resolve(f,state.finishDefaults);return finish?{...f,material:finish.material,finishColor:finish.color}:f;};return (window.WallChimneys?.visibleParts(face,state)||[face]).flatMap(f=>window.WallClosedSoffits?.presentation(f,state)||[f]).map(finished);}
     function reportSnapshot(){
         if(!state||stage<2)return null;
-        const faces=window.ExteriorModel.collect(state,currentWalls()).flatMap(f=>window.WallChimneys?.visibleParts(f,state)||[f]).flatMap(f=>window.WallClosedSoffits?.presentation(f,state)||[f]);
-        return window.ExteriorReportModel.build({faces:faces.map(f=>{const finish=window.ExteriorFinishes?.resolve(f,state.finishDefaults);return finish?{...f,material:finish.material,finishColor:finish.color}:f;}),base:state.wallEdits?.$base||state.base,roof:state.roof,roofTrim:state.roofTrim||roofTrimOnly,context:state.context});
+        return window.ExteriorReportModel.build({faces:window.ExteriorModel.collect(state,currentWalls()).flatMap(reportParts),base:state.wallEdits?.$base||state.base,roof:state.roof,roofTrim:state.roofTrim||roofTrimOnly,context:state.context});
     }
     // The PDF cover's textured render travels with the report snapshot: server renders have no editor scene.
     function reportSnapshotWithCover(){
