@@ -679,7 +679,7 @@
    const video = media; if (!video || favoriteDraft) return;
    cancelScrub(); stepQueue = 0; video.currentTime = clampTime(video, video.currentTime + seconds); updateTransport();
   }
-  function playMedia(video = media) { return video?.play().catch(error => { if (error.name !== 'AbortError') message(error.message, true); }); }
+  function playMedia(video = media) { if (retainedMedia?.probe && retainedMedia.element === video) { retainedMedia.resume = true; return Promise.resolve(); } return video?.play().catch(error => { if (error.name !== 'AbortError') message(error.message, true); }); }
   function togglePlay() { if (!media || favoriteDraft) return; if (media.paused) { cancelScrub(); stepQueue = 0; playMedia(); } else media.pause(); }
 
   // Saved frames are decoded on the server from the stored video: the browser
