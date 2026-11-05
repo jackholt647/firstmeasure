@@ -431,11 +431,25 @@ function perf_persist(touch=true) {
     }
 
     function valid(s) {return s?.schemaVersion===1 && s.roof?.points?.length && Array.isArray(s.sources) && Number.isFinite(s.options?.ground) && s.context?.mpp>0;}
+    // The browser's local backup is newer than the last Save whenever there is unsaved work. If that backup
+    // cannot be shown, load the last Save instead of no walls at all; the backup is set aside, not deleted.
     function restore(id,metadata,history=null,localHistory=null) {
+        try{return restoreFrom(id,metadata,history,localHistory,false);}
+        catch(error){
+            const backupKey=key(String(id||''));let raw=null,local=null;try{raw=localStorage.getItem(backupKey);local=JSON.parse(raw||'null');}catch(e){}
+            if(!local||local.cleared||!valid(metadata?.exteriorsWalls)||(local.savedAt||0)<=(metadata.exteriorsWalls.savedAt||0))throw error;
+            console.error('[Walls] The local wall backup could not be shown; loading the last Save.',error);
+            try{localStorage.setItem(backupKey+':unshown',raw);localStorage.removeItem(backupKey);}catch(e){}
+            restoreFrom(id,metadata,history,null,true);
+            storageError='Unsaved wall changes in this browser could not be shown ('+error.message+'). The walls from the last Save are loaded.';
+            render();window.alert?.(storageError);
+        }
+    }
+    function restoreFrom(id,metadata,history,localHistory,ignoreLocal) {
         if(nudgeSettleTimer!==null){clearTimeout(nudgeSettleTimer);nudgeSettleTimer=null;nudgeBackupPending=false;}pendingNudge=null;clearNudgePreview();
         editHistory=[];editFuture=[];pendingEdit=null;nudgeKey=null;nudgeEpoch++;
         roofTrimEditor?.reset();roofTrimHistory=[];roofTrimFuture=[];projectId=String(id||'');roofTrimOnly=copy(metadata?.exteriorsRoofTrim||{});try{const localTrim=JSON.parse(localStorage.getItem(key(projectId)+':roof-trim')||'null');if(localTrim&&(localTrim.savedAt||0)>(roofTrimOnly.savedAt||0))roofTrimOnly=localTrim;}catch(e){}state=null;sourceContext=null;selected=null;stage=1;
-        let local=null;try{local=JSON.parse(localStorage.getItem(key(projectId))||'null');}catch(e){storageError='Local wall backup could not be read.';}
+        let local=null;storageError='';if(!ignoreLocal)try{local=JSON.parse(localStorage.getItem(key(projectId))||'null');}catch(e){storageError='Local wall backup could not be read.';}
         const server=metadata?.exteriorsWalls;
         clearedAt=local?.cleared&&local.savedAt>=(server?.savedAt||0)?local.savedAt:0;
         const candidates=(clearedAt?[]:[server,local]).filter(valid).sort((a,b)=>(b.savedAt||0)-(a.savedAt||0));
