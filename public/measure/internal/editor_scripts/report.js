@@ -7038,9 +7038,9 @@ const QA_PDF_REVIEW_ITEMS = [
 ];
 
 // The seven confirmations the server requires before a customer full-house
-// report is approved (full_house_workflow.ts FULL_HOUSE_REVIEW_FIELDS). In
-// embedded QA the portal's own checklist is hidden, so the PDF page shows them
-// and sends them with the QA or manager decision.
+// report is approved (full_house_workflow.ts FULL_HOUSE_REVIEW_FIELDS). There is
+// no checklist to tick: approving the report is the confirmation, as for roofs,
+// so every decision sends them all confirmed.
 const QA_FULL_HOUSE_REVIEW_ITEMS = [
     { key: 'roof', label: 'Roof measurements' },
     { key: 'walls', label: 'Exterior walls and dimensions' },
@@ -7050,22 +7050,14 @@ const QA_FULL_HOUSE_REVIEW_ITEMS = [
     { key: 'references', label: 'Customer photos and walkthroughs' },
     { key: 'pdf', label: 'Complete full-house PDF' }
 ];
-let qaFullHouseReviewChecks = { folder: '', checks: {} };
 
 function isQaFullHouseReviewMode() {
     return window.FIRSTMEASURE_CUSTOMER_FULL_HOUSE === true;
 }
 
-function getQaFullHouseReviewChecks() {
-    const folder = String(window.currentProjectId || '');
-    if (qaFullHouseReviewChecks.folder !== folder) qaFullHouseReviewChecks = { folder, checks: {} };
-    return qaFullHouseReviewChecks.checks;
-}
-
 function qaFullHouseReviewPayload() {
     if (!isQaFullHouseReviewMode()) return null;
-    const checks = getQaFullHouseReviewChecks();
-    return Object.fromEntries(QA_FULL_HOUSE_REVIEW_ITEMS.map((item) => [item.key, checks[item.key] === true]));
+    return Object.fromEntries(QA_FULL_HOUSE_REVIEW_ITEMS.map((item) => [item.key, true]));
 }
 
 function isQaFullHouseReviewComplete() {
@@ -7073,27 +7065,8 @@ function isQaFullHouseReviewComplete() {
     return !payload || QA_FULL_HOUSE_REVIEW_ITEMS.every((item) => payload[item.key] === true);
 }
 
-function postQaFullHouseReviewState() {
-    const review = qaFullHouseReviewPayload();
-    if (!review || window.parent === window) return;
-    window.parent.postMessage({
-        type: 'firstmeasure:qa_full_house_review',
-        folder: window.currentProjectId || reportConfigState?.folderId || '',
-        full_house_review: review
-    }, window.location.origin);
-}
-
 function renderQaFullHouseReviewHtml() {
-    if (!isQaFullHouseReviewMode()) return '';
-    const checks = getQaFullHouseReviewChecks();
-    return `
-        <fieldset class="qa-full-house-review" id="qaPdfFullHouseReview" style="margin:0 0 10px; padding:10px 12px; border:1px solid #d0d5dd; border-radius:10px;">
-            <legend style="font-weight:700; padding:0 4px;">Full-house review</legend>
-            ${QA_FULL_HOUSE_REVIEW_ITEMS.map((item) => `
-                <label style="display:block; margin:6px 0;"><input type="checkbox" data-full-house-review="${item.key}" ${checks[item.key] === true ? 'checked' : ''}> ${escapeHtml(item.label)}</label>
-            `).join('')}
-        </fieldset>
-    `;
+    return '';
 }
 
 // Each PDF preview render synchronizes a new server revision. Approval waits for
@@ -7551,15 +7524,6 @@ function setupQaPdfReviewControls(container, state, storiesReady) {
         }
     };
 
-    container.querySelectorAll('#qaPdfFullHouseReview [data-full-house-review]').forEach((input) => {
-        input.addEventListener('change', () => {
-            getQaFullHouseReviewChecks()[input.getAttribute('data-full-house-review')] = input.checked;
-            postQaFullHouseReviewState();
-            refresh();
-        });
-    });
-    postQaFullHouseReviewState();
-
     container.querySelectorAll('.qa-pdf-check').forEach((card) => {
         const key = card.getAttribute('data-qa-review');
         card.querySelectorAll('.qa-pdf-mark').forEach((btn) => {
@@ -7672,6 +7636,12 @@ async function renderFinalizePage(container) {
                 <div class="pdf-preview-toolbar">
                     <div class="pdf-preview-title"><i class="fas fa-file-pdf"></i> Report PDF</div>
                     <div class="pdf-preview-status" id="pdfPreviewStatus">Preparing preview...</div>
+                    <button type="button" class="pdf-preview-refresh" id="pdfPreviewOpen" disabled title="Open the PDF in a new tab">
+                        <i class="fas fa-external-link-alt"></i> Open
+                    </button>
+                    <button type="button" class="pdf-preview-refresh" id="pdfPreviewDownload" disabled title="Download the PDF">
+                        <i class="fas fa-download"></i> Download
+                    </button>
                     <button type="button" class="pdf-preview-refresh" id="pdfPreviewRefresh">
                         <i class="fas fa-sync-alt"></i> Regenerate
                     </button>
@@ -7731,6 +7701,25 @@ async function renderFinalizePage(container) {
     const previewFrame = container.querySelector('#pdfPreviewFrame');
     const placeholder = container.querySelector('#pdfPreviewPlaceholder');
     const refreshBtn = container.querySelector('#pdfPreviewRefresh');
+    // Chrome hides its own PDF toolbar once the preview scrolls, so the preview
+    // has its own Open and Download, enabled whenever a preview is showing.
+    const openBtn = container.querySelector('#pdfPreviewOpen');
+    const downloadBtn = container.querySelector('#pdfPreviewDownload');
+    const syncPreviewFileButtons = () => {
+        [openBtn, downloadBtn].forEach((button) => { if (button) button.disabled = !_pdfPreviewUrl; });
+    };
+    if (openBtn) openBtn.addEventListener('click', () => {
+        if (_pdfPreviewUrl) window.open(_pdfPreviewUrl, '_blank', 'noopener');
+    });
+    if (downloadBtn) downloadBtn.addEventListener('click', () => {
+        if (!_pdfPreviewUrl) return;
+        const link = document.createElement('a');
+        link.href = _pdfPreviewUrl;
+        link.download = `${String(state.address || 'Report').replace(/[^a-zA-Z0-9]+/g, '_').replace(/^_+|_+$/g, '') || 'Report'}.pdf`;
+        document.body.appendChild(link);
+        link.click();
+        link.remove();
+    });
     let previewSyncReady = false;
     if (qaPdfReviewMode) wireQaSubmissionSourcesReview(container, state);
 
@@ -7861,6 +7850,7 @@ async function renderFinalizePage(container) {
                             previewFrame.src = `${_pdfPreviewUrl}#toolbar=1&navpanes=0&view=FitH`;
                             previewFrame.style.display = 'block';
                             placeholder.style.display = 'none';
+                            syncPreviewFileButtons();
                             setPreviewStatus('Main report ready; verifying summary...');
                         }
                     }
@@ -7919,6 +7909,7 @@ async function renderFinalizePage(container) {
             setPreviewStatus('Preview failed', true);
         } finally {
             finishPreviewTracking();
+            syncPreviewFileButtons();
             if (typeof refreshSubmitState === 'function') refreshSubmitState();
             if (refreshBtn) {
                 refreshBtn.disabled = false;
