@@ -10,6 +10,7 @@ import { fetchSolarWithRetry, isTransientHttpStatus, isTransientProviderFailure 
 import { fetchRequiredSolarLayers, fetchRequiredSolarDsm } from '../firstmeasure/solar_imagery.js';
 import { FirstMeasureError, badRequest } from '../firstmeasure/errors.js';
 
+const REFUSED_KEY = 'The Google Maps Platform server rejected your request. This API is not activated on your API project. (key=fake)';
 const compile = (code: string) => ts.transpileModule(code, { compilerOptions: { target: ts.ScriptTarget.ES2022 } }).outputText;
 
 test('database pool, connection and transport failures are transient; real failures are not', () => {
@@ -67,8 +68,8 @@ test('imagery fails retryably when every map download was only busy, and complet
   const original = globalThis.fetch;
   const tiff = new Uint8Array([73, 73, 42, 0, 8, 0, 0, 0]);
   try {
-    for (const staticMapStatus of [503, 200]) {
-      const saved: string[] = [], patches: any[] = [];
+    for (const staticMapStatus of [503, 403, 200]) {
+      const saved: string[] = [], patches: any[] = [], warnings: string[] = [];
       const calls = new Map<string, number>();
       globalThis.fetch = (async (input: any) => {
         const url = String(input);
@@ -77,7 +78,9 @@ test('imagery fails retryably when every map download was only busy, and complet
         if (kind === 'layers') return new Response(JSON.stringify({ dsmUrl: 'https://solar.example/dsm?id=1', rgbUrl: 'https://solar.example/rgb?id=1', maskUrl: 'https://solar.example/mask?id=1' }));
         if (kind === 'dsm' || kind === 'mask') return new Response(tiff);
         if (kind === 'rgb') return new Response('', { status: 503 });
-        if (kind === 'static') return staticMapStatus === 200 ? new Response(new Uint8Array([137, 80, 78, 71])) : new Response('', { status: staticMapStatus });
+        if (kind === 'static') return staticMapStatus === 200 ? new Response(new Uint8Array([137, 80, 78, 71]))
+          : staticMapStatus === 403 ? new Response(REFUSED_KEY, { status: 403, headers: { 'content-type': 'text/plain; charset=UTF-8' } })
+          : new Response('', { status: staticMapStatus });
         return new Response('', { status: 404 });
       }) as typeof fetch;
       const manifest = { instant_enabled: false, pins: [{ lat: 39.1, lng: -86.9 }] };
@@ -92,7 +95,7 @@ test('imagery fails retryably when every map download was only busy, and complet
         generateStructureSupplementalImagery: async () => {}, env: {}, patchManifest: async (_p: string, p: any) => { patches.push(p); return { ...manifest, ...p }; },
         buildMultiStructurePointPatch: () => ({}), solarImageryQualityPatchFromSolarResponse: () => ({}), buildPartialInstantRefundPatch: () => ({}),
         readBrandingDefaults: async () => null, ensureInstantPdfArtifact: async () => null, readArtifactBytes: async () => new Uint8Array(),
-        badRequest, URL, Response, Uint8Array, AbortSignal
+        badRequest, URL, Response, Uint8Array, AbortSignal, console: { warn: (...parts: unknown[]) => warnings.push(parts.join(' ')) }
       });
       vm.runInContext(compile(helpers + '\n' + body), context);
       const run = vm.runInContext("processProjectImagery('fixture',{})", context);
@@ -105,6 +108,14 @@ test('imagery fails retryably when every map download was only busy, and complet
           return true;
         });
         assert.equal(patches.length, 0, 'the order is never marked ready without a map');
+      } else if (staticMapStatus === 403) {
+        // FM-339: a refused key used to drop google.png without a word. The worker log now says why.
+        await run.catch(() => undefined);
+        const refusal = warnings.find((line) => line.includes('google.png (Maps Static) for fixture'));
+        assert.ok(refusal, warnings.join('\n'));
+        assert.match(refusal!, / 403 .*This API is not activated on your API project/);
+        assert.ok(!refusal!.includes('fake'), 'the key is never logged');
+        assert.ok(warnings.some((line) => line.includes('rgb.tif for fixture failed 503')));
       } else {
         const result = await run;
         assert.equal(result.project.status, 'ready');

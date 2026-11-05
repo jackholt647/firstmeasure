@@ -514,14 +514,23 @@ async function fetchJson<T>(url: string): Promise<T | null> {
   return await response.json() as T;
 }
 
-async function fetchBinary(url: string, headers?: Record<string, string>, outcome?: ProviderFetchOutcome) {
+async function fetchBinary(url: string, headers: Record<string, string> | undefined, outcome: ProviderFetchOutcome | undefined, label: string) {
   const response = await fetchSolarWithRetry(url, { headers });
   if (!response.ok) {
     if (outcome && isTransientHttpStatus(response.status)) outcome.transientMiss = true;
-    await response.body?.cancel();
+    // FM-339: a refused key (Maps Static "API not activated") cost most orders their google.png for months
+    // with nothing logged. Say what the provider answered; never the URL, which carries the key.
+    console.warn(`FirstMeasure imagery: ${label} failed`, response.status, await providerRefusalReason(response));
     return null;
   }
   return new Uint8Array(await response.arrayBuffer());
+}
+
+async function providerRefusalReason(response: Response) {
+  const type = String(response.headers.get("content-type") ?? "");
+  if (!/^text\/|json|xml/i.test(type)) { await response.body?.cancel(); return type || "no body"; }
+  const text = await response.text().catch(() => "");
+  return text.replace(/key=[^&\s"']+/gi, "key=***").replace(/\s+/g, " ").trim().slice(0, 300);
 }
 
 const RENDERABLE_IMAGERY_FILES = ["rgb.tif", "google.png", "azure.png"];
@@ -837,7 +846,9 @@ async function generateStructureSupplementalImagery(input: {
         if (!download.rawUrl) continue;
         const bytes = await fetchBinary(
           normalizeSolarGeoTiffUrl(`${download.rawUrl}&key=${encodeURIComponent(input.key)}`),
-          { Accept: "image/tiff,application/octet-stream,*/*" }
+          { Accept: "image/tiff,application/octet-stream,*/*" },
+          undefined,
+          `structure-${structureIndex}-${download.suffix}.tif for ${input.projectId}`
         );
         if (!bytes) continue;
         const fileName = `structure-${structureIndex}-${download.suffix}.tif`;
@@ -955,7 +966,7 @@ async function generateMask(projectId: string, manifest: ProjectManifest, input:
   }
   const bytes = await fetchBinary(normalizeSolarGeoTiffUrl(`${layers.maskUrl}&key=${encodeURIComponent(key)}`), {
     Accept: "image/tiff,application/octet-stream,*/*"
-  });
+  }, undefined, `mask.tif for ${projectId}`);
   if (!bytes) {
     throw badRequest("mask_download_failed", "Unable to download mask.tif.");
   }
@@ -1051,7 +1062,8 @@ export async function processProjectImagery(projectId: string, input: Processing
       const bytes = await fetchBinary(
         normalizeSolarGeoTiffUrl(`${rawUrl}&key=${encodeURIComponent(key)}`),
         { Accept: "image/tiff,application/octet-stream,*/*" },
-        RENDERABLE_IMAGERY_FILES.includes(fileName) ? renderableFetch : undefined
+        RENDERABLE_IMAGERY_FILES.includes(fileName) ? renderableFetch : undefined,
+        `${fileName} for ${projectId}`
       );
       if (!bytes) return;
       await saveArtifact(projectId, fileName, bytes);
@@ -1073,7 +1085,8 @@ export async function processProjectImagery(projectId: string, input: Processing
   const googleStaticMap = await fetchBinary(
     `https://maps.googleapis.com/maps/api/staticmap?center=${projectArea.lat},${projectArea.lng}&zoom=20&size=640x640&scale=2&maptype=satellite&key=${encodeURIComponent(googleStaticMapKey)}`,
     undefined,
-    renderableFetch
+    renderableFetch,
+    `google.png (Maps Static) for ${projectId}`
   );
   if (googleStaticMap) {
     await saveArtifact(projectId, "google.png", googleStaticMap);
@@ -1089,7 +1102,8 @@ export async function processProjectImagery(projectId: string, input: Processing
       + `&center=${encodeURIComponent(`${projectArea.lng},${projectArea.lat}`)}`
       + "&width=800&height=800&language=en-US",
     undefined,
-    renderableFetch
+    renderableFetch,
+    `azure.png (Azure Maps) for ${projectId}`
   ) : null;
   if (azureMap) {
     await saveArtifact(projectId, "azure.png", azureMap);
