@@ -106,8 +106,7 @@ export type ProjectIndexManifestQuery = {
 
 /**
  * The queue's Report type filter (FM-335): a customer full-house (full
- * exterior) report, as isCustomerFullHouse defines it, or any other report
- * (a roof). Unset means every report.
+ * exterior) order or any other report (a roof). Unset means every report.
  */
 export type QueueReportType = "roof" | "full_house";
 
@@ -120,14 +119,12 @@ export function normalizeQueueReportType(value: unknown): QueueReportType | unde
 
 const QUEUE_FULL_HOUSE_ID_GLOB = `exteriors_${"[0-9a-f]".repeat(32)}`;
 
-// isCustomerFullHouse (full_house_workflow.ts) in SQL; internal fullhouse_
-// drafts never reach the queue.
+// isCustomerExteriorId (exteriors.ts) in SQL. createProject gives a customer
+// full-house scope only to these ids, so the manifest is never read; internal
+// fullhouse_ drafts never reach the queue.
 function appendReportTypeClause(where: string[], reportType: QueueReportType | undefined) {
   if (!reportType) return;
-  const fullHouse = `(p.id GLOB '${QUEUE_FULL_HOUSE_ID_GLOB}'
-    OR (IFNULL(json_extract(p.manifest_json, '$.measurement_scope'), '') = 'full_house'
-      AND IFNULL(json_extract(p.manifest_json, '$.internal_only'), 0) <> 1))`;
-  where.push(reportType === "full_house" ? fullHouse : `NOT ${fullHouse}`);
+  where.push(`p.id ${reportType === "full_house" ? "" : "NOT "}GLOB '${QUEUE_FULL_HOUSE_ID_GLOB}'`);
 }
 
 export type QueueBucketQuery = {
