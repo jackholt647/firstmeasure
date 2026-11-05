@@ -164,11 +164,12 @@
   function cachedImage(src,key=src){return imageCache.get(key,()=>new Promise((resolve,reject)=>{const img=new Image();img.onload=()=>resolve(img);img.onerror=()=>reject(Error('Image could not be previewed. Download the original from More actions.'));img.src=src;}),img=>img.naturalWidth*img.naturalHeight*4);}
   function releaseMedia(){if(retainedMedia){retainedMedia.download?.abort();retainedMedia.element.pause();retainedMedia.element.removeAttribute('src');retainedMedia.element.load();if(retainedMedia.local)URL.revokeObjectURL(retainedMedia.local);retainedMedia=null;}}
   // Chrome buffers a paused video only a little way ahead, so the whole file is downloaded as soon as it is shown
-  // and the player switches to that copy where it stands; until then it streams, seeking by byte ranges.
+  // and the player switches to that copy where it stands; until then it streams, seeking by byte ranges. The
+  // download skips the HTTP cache, whose lock on the URL would otherwise hold it behind the player's range requests.
   const WHOLE_MEDIA_LIMIT=1024*1024*1024;
   function downloadWholeMedia(entry,src){
    const controller=new AbortController();entry.download=controller;
-   fetch(src,{signal:controller.signal,credentials:'same-origin'}).then(response=>{if(!response.ok||Number(response.headers.get('content-length'))>WHOLE_MEDIA_LIMIT){controller.abort();return null;}return response.blob();}).then(function swap(blob){
+   fetch(src,{signal:controller.signal,credentials:'same-origin',cache:'no-store'}).then(response=>{if(!response.ok||Number(response.headers.get('content-length'))>WHOLE_MEDIA_LIMIT){controller.abort();return null;}return response.blob();}).then(function swap(blob){
     const element=entry.element;if(!blob||retainedMedia!==entry||controller.signal.aborted)return;
     if(scrub?.element===element||element.seeking){setTimeout(()=>swap(blob),250);return;}
     const playing=!element.paused&&!element.ended,rate=element.playbackRate;
