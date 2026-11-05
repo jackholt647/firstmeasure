@@ -5,6 +5,10 @@ require_once dirname(__DIR__, 2) . '/includes/provider_keys.php';
 function fm_is_full_house_id($id) {
     return preg_match('/^fullhouse_[a-f0-9]{32}$/D', (string)$id) === 1;
 }
+// A customer's Full House order. Staff reach its internal resources; Node checks each request.
+function fm_is_customer_full_house_id($id) {
+    return preg_match('/^exteriors_[a-f0-9]{32}$/D', (string)$id) === 1;
+}
 function fm_full_house_secret() {
     // Some clusters use a different provider-key file on the PHP compatibility
     // node. This override signs only full-house traffic for the web API.

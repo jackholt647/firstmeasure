@@ -14,7 +14,8 @@ function fm_resource_frame_name_valid($name) {
 }
 function fm_resource_frame_source_valid($name) {
     return is_string($name) && strlen($name) <= 100
-        && preg_match('/^internal-resource-[a-zA-Z0-9._-]+\.(mp4|webm|mov|m4v)$/Di', $name) === 1;
+        && (preg_match('/^internal-resource-[a-zA-Z0-9._-]+\.(mp4|webm|mov|m4v)$/Di', $name) === 1
+            || preg_match('/^customer-reference-\d{1,3}\.(mp4|webm|mov|m4v)$/Di', $name) === 1);
 }
 function fm_resource_frame_job_name($frameName) {
     return 'internal-markup-framejob-' . substr($frameName, strlen('internal-resource-v2-'), 36) . '.json';
@@ -77,14 +78,32 @@ function fm_resource_extract_frame($videoPath, $time, $ffmpeg = null) {
 
 // Writes the stored video to a local file, reusing a recent copy so several
 // frames from one walkthrough fetch it once. Part checksums are verified.
-function fm_resource_frame_video_file($project, $source, callable $get, $cacheDir = null) {
+// A plain (unchunked) video such as a customer walkthrough is streamed to disk
+// with $download($name, $path) when given; $version (size, tag) then keys the copy.
+function fm_resource_frame_video_file($project, $source, callable $get, $cacheDir = null, $download = null, $version = null) {
     $cacheDir = $cacheDir ?: sys_get_temp_dir() . DIRECTORY_SEPARATOR . 'firstmeasure-resource-frames';
     if (!is_dir($cacheDir) && !@mkdir($cacheDir, 0700, true) && !is_dir($cacheDir)) throw new RuntimeException('Frame workspace is unavailable.');
     foreach (glob($cacheDir . DIRECTORY_SEPARATOR . '*') ?: [] as $old) {
         if (is_file($old) && filemtime($old) < time() - FM_RESOURCE_FRAME_CACHE_SECONDS) @unlink($old);
     }
+    $chunked = strpos($source, 'internal-resource-v2-') === 0;
+    if (!$chunked && $download && is_array($version) && ($version['size'] ?? 0) > 0) {
+        $path = $cacheDir . DIRECTORY_SEPARATOR . hash('sha256', $project . "
+" . $source . "
+" . $version['size'] . "
+" . ($version['tag'] ?? '')) . '.' . strtolower(pathinfo($source, PATHINFO_EXTENSION));
+        $lock = fopen($path . '.lock', 'c');
+        if (!$lock || !flock($lock, LOCK_EX)) throw new RuntimeException('Frame workspace is unavailable.');
+        try {
+            if (is_file($path) && filesize($path) === $version['size']) { touch($path); return $path; }
+            $download($source, $path . '.partial');
+            if (filesize($path . '.partial') !== $version['size']) { @unlink($path . '.partial'); throw new RuntimeException('Stored video is incomplete.'); }
+            rename($path . '.partial', $path);
+            return $path;
+        } finally { flock($lock, LOCK_UN); fclose($lock); @unlink($path . '.lock'); }
+    }
     $raw = $get($source);
-    $index = strpos($source, 'internal-resource-v2-') === 0 ? json_decode($raw, true) : null;
+    $index = $chunked ? json_decode($raw, true) : null;
     if ($index !== null && (!is_array($index) || ($index['format'] ?? '') !== 'firstmeasure-resource-chunks-v1' || !is_int($index['size'] ?? null))) throw new RuntimeException('The video index is invalid.');
     $ext = strtolower(pathinfo($source, PATHINFO_EXTENSION));
     $key = hash('sha256', $project . "\n" . $source . "\n" . ($index ? json_encode($index['sha256'] ?? $index['size']) : hash('sha256', $raw)));
@@ -130,7 +149,7 @@ function fm_resource_publish_bytes($name, $bytes, array $meta, callable $put) {
 // Runs one frame job. $job: project, frame, source, time, original_name, role,
 // actor and optionally favorite {record, label}. Returns the job result.
 function fm_resource_frame_run(array $job, callable $get, callable $put, $options = []) {
-    $video = fm_resource_frame_video_file($job['project'], $job['source'], $get, $options['cache_dir'] ?? null);
+    $video = fm_resource_frame_video_file($job['project'], $job['source'], $get, $options['cache_dir'] ?? null, $options['download'] ?? null, $options['version'] ?? null);
     $png = fm_resource_extract_frame($video, (float)$job['time'], $options['ffmpeg'] ?? null);
     $now = gmdate('c');
     $index = fm_resource_publish_bytes($job['frame'], $png, [

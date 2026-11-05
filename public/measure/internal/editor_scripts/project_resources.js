@@ -21,7 +21,8 @@
     const item=typeof value==='string'?{url:value}:value;if(!item)continue;
     const raw=String(item.dataUrl||item.url||item.file_name||item.name||'');if(!raw)continue;
     const src=/^(https?:|data:image\/|\/)/i.test(raw)?raw:!/[\\/]/.test(raw)?artifactUrl(raw):'';if(!src||seen.has(role+src))continue;seen.add(role+src);
-    result.push({name:'reference-'+key+'-'+i,original_name:item.original_name||item.name||item.file_name||raw.split('/').pop()||'Reference',role,src,resource_name:item.resource_name,slot:item.elevation_view||item.slot,reference:true,size:item.size||0});
+    // A stored file is named by its artifact, so a frame saved from a walkthrough links back to it.
+    result.push({name:/^[a-zA-Z0-9._-]+$/.test(raw)&&!result.some(r=>r.name===raw)?raw:'reference-'+key+'-'+i,original_name:item.original_name||item.name||item.file_name||raw.split('/').pop()||'Reference',role,src,resource_name:item.resource_name,slot:item.elevation_view||item.slot,reference:true,size:item.size||0});
    }
   };
   add('customer','order',manifest.tech_notes);
@@ -162,7 +163,7 @@
   let retainedMedia=null;
   const referenceKey=file=>JSON.stringify([project,sourceUrl(file),file.updated_at||'',file.size||0]);
   function cachedImage(src,key=src){return imageCache.get(key,()=>new Promise((resolve,reject)=>{const img=new Image();img.onload=()=>resolve(img);img.onerror=()=>reject(Error('Image could not be previewed. Download the original from More actions.'));img.src=src;}),img=>img.naturalWidth*img.naturalHeight*4);}
-  function releaseMedia(){if(retainedMedia){retainedMedia.download?.abort();retainedMedia.element.pause();retainedMedia.element.removeAttribute('src');retainedMedia.element.load();if(retainedMedia.local)URL.revokeObjectURL(retainedMedia.local);retainedMedia=null;}}
+  function releaseMedia(){if(retainedMedia){clearTimeout(retainedMedia.probe);retainedMedia.download?.abort();retainedMedia.element.pause();retainedMedia.element.removeAttribute('src');retainedMedia.element.load();if(retainedMedia.local)URL.revokeObjectURL(retainedMedia.local);retainedMedia=null;}}
   // Chrome buffers a paused video only a little way ahead, so the whole file is downloaded as soon as it is shown
   // and the player switches to that copy where it stands; until then it streams, seeking by byte ranges. The
   // download skips the HTTP cache, whose lock on the URL would otherwise hold it behind the player's range requests.
@@ -171,10 +172,9 @@
    const controller=new AbortController();entry.download=controller;
    fetch(src,{signal:controller.signal,credentials:'same-origin',cache:'no-store'}).then(response=>{if(!response.ok||Number(response.headers.get('content-length'))>WHOLE_MEDIA_LIMIT){controller.abort();return null;}return response.blob();}).then(function swap(blob){
     const element=entry.element;if(!blob||retainedMedia!==entry||controller.signal.aborted)return;
-    if(scrub?.element===element||element.seeking){setTimeout(()=>swap(blob),250);return;}
+    if(scrub?.element===element||element.seeking||entry.probe){setTimeout(()=>swap(blob),250);return;}
     const playing=!element.paused&&!element.ended,rate=element.playbackRate;
-    entry.local=URL.createObjectURL(blob);entry.pendingTime=element.currentTime;element.defaultPlaybackRate=rate;element.src=entry.local;element.playbackRate=rate;
-    if(playing)element.play().catch(()=>{});
+    entry.local=URL.createObjectURL(blob);entry.pendingTime=element.currentTime;entry.resume=playing;element.defaultPlaybackRate=rate;element.src=entry.local;element.playbackRate=rate;
    }).catch(()=>{});
   }
 
@@ -213,7 +213,7 @@
    // The index makes the completed file visible only after all parts are stored.
    return request(id,name,JSON.stringify({format:'firstmeasure-resource-chunks-v1',id:resourceId,size:file.size,chunkSize,parts,sha256,original_name:file.name||label(name),content_type:file.type||'application/octet-stream'}));
   }
-  async function request(id,name='',body,headers={},action=''){if(/^exteriors_[a-f0-9]{32}$/.test(id)&&!name&&body===undefined)return new Response(JSON.stringify({files:[]}),{headers:{'Content-Type':'application/json'}});const response=await fetch(url(id,name,action),body===undefined?{cache:'no-store'}:{method:'POST',headers:{'X-Resource-Request':'1','X-Resource-Role':currentRole(),'Content-Type':'application/octet-stream',...headers},body});if(!response.ok){const data=await response.json().catch(()=>({}));throw Error(data.error||`Resource request failed (${response.status}).`);}return response;}
+  async function request(id,name='',body,headers={},action=''){const response=await fetch(url(id,name,action),body===undefined?{cache:'no-store'}:{method:'POST',headers:{'X-Resource-Request':'1','X-Resource-Role':currentRole(),'Content-Type':'application/octet-stream',...headers},body});if(!response.ok){const data=await response.json().catch(()=>({}));throw Error(data.error||`Resource request failed (${response.status}).`);}return response;}
   function message(text, error = false) {
    status.textContent = text; status.classList.toggle('error', error); status.classList.add('visible'); clearTimeout(messageTimer);
    if (!error) messageTimer = setTimeout(() => { if (!busy && !uploading) status.classList.remove('visible'); }, 3500);
@@ -221,7 +221,6 @@
   function dimensions() { return image ? { w: image.width, h: image.height } : { w: media?.videoWidth || 0, h: media?.videoHeight || 0 }; }
   function controls() {
    for (const action of ['upload', 'refresh']) $(`[data-action="${action}"]`).disabled = uploading || !project;
-   if(/^exteriors_[a-f0-9]{32}$/.test(project||'')) $('[data-action="upload"]').disabled=true;
    const saveButton = $('[data-action="save"]'); saveButton.hidden = !dirty; saveButton.disabled = busy || !current || !dirty; saveButton.textContent = busy && dirty ? 'Saving…' : 'Save';
    $('.resource-description').disabled = !current || !!current.reference;
    $('[data-action="favorite"]').disabled = !media?.videoWidth || !!favoriteDraft;
@@ -437,7 +436,7 @@
   function updateTransport() {
    updateFrameAction();
    if (!media) return; const duration = Number.isFinite(media.duration) ? media.duration : 0;
-   const time = scrub?.element === media ? scrub.target : media.currentTime;
+   const time = scrub?.element === media ? scrub.target : retainedMedia?.probe && retainedMedia.element === media ? retainedMedia.pendingTime || 0 : media.currentTime;
    $('.resource-seek').max = duration || 1; $('.resource-seek').value = time || 0; $('.resource-seek').disabled = !duration || !!favoriteDraft;
    $('.resource-time').textContent = timeLabel(time) + ' / ' + timeLabel(duration);
    $('[data-action="play"]').textContent = media.paused ? '▶' : 'Ⅱ'; $('[data-action="play"]').setAttribute('aria-label', media.paused ? 'Play' : 'Pause');
@@ -469,13 +468,18 @@
       if(isVideo)watchFrames(element);
       for(const event of ['waiting','seeking'])element.addEventListener(event,()=>{if(element===media)panel.classList.add('is-buffering');});
       for(const event of ['playing','seeked','canplay','pause','loadeddata'])element.addEventListener(event,()=>{if(element===media&&!element.seeking&&element.readyState>=2)panel.classList.remove('is-buffering');});
-      element.addEventListener('loadedmetadata',()=>{if(element!==media)return;if(entry.pendingTime!=null){element.currentTime=Math.min(entry.pendingTime,Number.isFinite(element.duration)?element.duration:entry.pendingTime);entry.pendingTime=null;}fit();controls();updateTransport();});
+      const ready=()=>{if(element!==media)return;if(entry.pendingTime!=null){element.currentTime=Math.min(entry.pendingTime,Number.isFinite(element.duration)?element.duration:entry.pendingTime);entry.pendingTime=null;}fit();controls();updateTransport();if(entry.resume){entry.resume=false;if(active)element.play().catch(()=>{});}};
+      // A recorder-made WebM (no Cues, Duration 0) loads with an infinite duration, which leaves nothing to
+      // scrub. Seeking past the end makes Chrome read its length; the player then returns to where it was.
+      const endProbe=()=>{clearTimeout(entry.probe);entry.probe=null;ready();};
+      element.addEventListener('loadedmetadata',()=>{clearTimeout(entry.probe);entry.probe=null;if(Number.isFinite(element.duration)){ready();return;}if(entry.pendingTime==null)entry.pendingTime=0;entry.probe=setTimeout(endProbe,10000);element.currentTime=1e101;});
+      element.addEventListener('durationchange',()=>{if(entry.probe&&Number.isFinite(element.duration))endProbe();});
       for(const event of ['timeupdate','durationchange','play','pause','ended','volumechange'])element.addEventListener(event,()=>{if(element===media)updateTransport();});
       element.addEventListener('seeked',()=>{if(element===media)queueScrub();});
       element.src=src;downloadWholeMedia(entry,src);
      }
      const entry=retainedMedia,element=media=entry.element;player.append(element);player.hidden=!isVideo;empty.hidden=true;
-     const targetTime=options.time??entry.pendingTime;if(targetTime!=null){if(element.readyState>=1){element.currentTime=Math.min(targetTime,Number.isFinite(element.duration)?element.duration:targetTime);entry.pendingTime=null;}else entry.pendingTime=targetTime;}
+     const targetTime=options.time??entry.pendingTime;if(targetTime!=null){if(element.readyState>=1&&!entry.probe){element.currentTime=Math.min(targetTime,Number.isFinite(element.duration)?element.duration:targetTime);entry.pendingTime=null;}else entry.pendingTime=targetTime;}
      if(!isVideo){empty.hidden=false;empty.textContent='Audio reference';}
      $('.resource-transport').hidden=false;panel.classList.toggle('has-video',isVideo);$('.resource-rate').value=String(element.playbackRate);fit();controls();updateTransport();
     } else if(ext==='pdf'){const frame=document.createElement('iframe');frame.title=label(file.name);frame.src=src;frame.style.cssText='width:100%;height:100%;border:0';player.append(frame);player.hidden=false;empty.hidden=true;}
