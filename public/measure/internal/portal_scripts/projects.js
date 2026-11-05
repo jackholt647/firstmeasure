@@ -88,6 +88,7 @@ Note: Our coverage is based on individual structure, not area - so we may have c
       const p = payload || {};
       return JSON.stringify({
         team: String(p.team ?? p.team_id ?? 'all').trim() || 'all',
+        reportType: String(p.reportType ?? p.report_type ?? 'all').trim() || 'all',
         view: String(p.view ?? p.row_view ?? p.fields ?? 'card').trim() || 'card',
         include: p.include ?? null,
         limit: Math.max(1, Math.min(250, parseInt(p.bucketLimit ?? p.limit ?? 50, 10) || 50)),
@@ -118,6 +119,8 @@ Note: Our coverage is based on individual structure, not area - so we may have c
       if (!['completed', 'rejected', 'cancelled'].includes(group)) body.include_all = true;
       const team = String(base.team ?? base.team_id ?? 'all').trim();
       if (team && team !== 'all') body.team_id = team;
+      const reportType = String(base.reportType ?? base.report_type ?? 'all').trim();
+      if (reportType && reportType !== 'all') body.report_type = reportType;
       if (['completed', 'rejected', 'cancelled'].includes(group)) {
         Object.assign(body, localDayWindow());
         if (group === 'rejected') body.activity_fields = ['rejected'];
@@ -156,6 +159,8 @@ Note: Our coverage is based on individual structure, not area - so we may have c
       const countsPayload = { view: body.view || 'card', include_all: true };
       const team = String(body.team ?? body.team_id ?? 'all').trim();
       if (team && team !== 'all') countsPayload.team_id = team;
+      const reportType = String(body.reportType ?? body.report_type ?? 'all').trim();
+      if (reportType && reportType !== 'all') countsPayload.report_type = reportType;
       const [countsRes, ...bucketResponses] = await Promise.all([
         fmPost('queue/counts', countsPayload).catch(() => null),
         ...queueGroups.map(group => {
@@ -258,6 +263,8 @@ Note: Our coverage is based on individual structure, not area - so we may have c
     queueAdminHasLoaded: false,
     queueAdminTeam: 'all',
     queueAdminLastTeam: 'all',
+    queueAdminReportType: 'all',
+    queueAdminLastReportType: 'all',
     queueAdminTeams: [],
     queueAdminBucketLimit: 50,
     queueAdminBucketOffsets: {},
@@ -7830,8 +7837,11 @@ Note: Our coverage is based on individual structure, not area - so we may have c
       this.ensureCollapsibleStyle(); this.ensureQueueStructurePinsUI(); this.ensureQueueReworkRequestsUI(); this.ensureQueueRequeueUI(); this.ensureQueueWaitingUI(); this.ensureQueueQASplitUI(); this.ensureQueueReleaseHoldingUI(); this.ensureQueueFillerToggleUI(); this.ensureQueueRejectedUI(); this.ensureQueueCancelledUI();
       const sel = document.getElementById('queueTeamSelect');
       if (sel) this.queueAdminTeam = sel.value || 'all';
-      if (this.queueAdminTeam !== this.queueAdminLastTeam) {
+      const reportTypeSel = document.getElementById('queueReportTypeSelect');
+      if (reportTypeSel) this.queueAdminReportType = reportTypeSel.value || 'all';
+      if (this.queueAdminTeam !== this.queueAdminLastTeam || this.queueAdminReportType !== this.queueAdminLastReportType) {
         this.queueAdminLastTeam = this.queueAdminTeam;
+        this.queueAdminLastReportType = this.queueAdminReportType;
         this.resetQueueBucketOffsets();
         queueOverviewStore.invalidate();
       }
@@ -7840,6 +7850,7 @@ Note: Our coverage is based on individual structure, not area - so we may have c
       try {
         const data = await queueOverviewStore.get({
           team: this.queueAdminTeam,
+          reportType: this.queueAdminReportType,
           view: 'card',
           bucketLimit: this.queueAdminBucketLimit,
           offsets: this.queueAdminBucketOffsets || {}
