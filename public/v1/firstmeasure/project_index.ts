@@ -104,9 +104,36 @@ export type ProjectIndexManifestQuery = {
   activityFields?: ProjectActivityField[];
 };
 
+/**
+ * The queue's Report type filter (FM-335): a customer full-house (full
+ * exterior) report, as isCustomerFullHouse defines it, or any other report
+ * (a roof). Unset means every report.
+ */
+export type QueueReportType = "roof" | "full_house";
+
+export function normalizeQueueReportType(value: unknown): QueueReportType | undefined {
+  const normalized = String(value ?? "").trim().toLowerCase().replace(/[\s-]+/g, "_");
+  if (["roof", "roofs"].includes(normalized)) return "roof";
+  if (["full_house", "full_exterior", "exterior", "exteriors"].includes(normalized)) return "full_house";
+  return undefined;
+}
+
+const QUEUE_FULL_HOUSE_ID_GLOB = `exteriors_${"[0-9a-f]".repeat(32)}`;
+
+// isCustomerFullHouse (full_house_workflow.ts) in SQL; internal fullhouse_
+// drafts never reach the queue.
+function appendReportTypeClause(where: string[], reportType: QueueReportType | undefined) {
+  if (!reportType) return;
+  const fullHouse = `(p.id GLOB '${QUEUE_FULL_HOUSE_ID_GLOB}'
+    OR (IFNULL(json_extract(p.manifest_json, '$.measurement_scope'), '') = 'full_house'
+      AND IFNULL(json_extract(p.manifest_json, '$.internal_only'), 0) <> 1))`;
+  where.push(reportType === "full_house" ? fullHouse : `NOT ${fullHouse}`);
+}
+
 export type QueueBucketQuery = {
   group: string;
   team_id?: string;
+  report_type?: QueueReportType;
   limit?: number;
   offset?: number;
   includeInstantOnly?: boolean;
@@ -117,6 +144,7 @@ export type QueueBucketQuery = {
 
 export type QueueCountsQuery = {
   team_id?: string;
+  report_type?: QueueReportType;
   includeInstantOnly?: boolean;
   activityStartMs?: number | null;
   activityEndMs?: number | null;
@@ -533,6 +561,7 @@ export async function getIndexedQueueCounts(
     params.teamId = String(query.team_id).trim();
   }
   appendInstantVisibilityClause(where, params, query.includeInstantOnly);
+  appendReportTypeClause(where, query.report_type);
   appendActivityWindowClause({
     where,
     params,
@@ -602,6 +631,7 @@ export async function queryIndexedQueueBucket(
     params.teamId = String(query.team_id).trim();
   }
   appendInstantVisibilityClause(where, params, query.includeInstantOnly);
+  appendReportTypeClause(where, query.report_type);
   appendActivityWindowClause({
     where,
     params,
