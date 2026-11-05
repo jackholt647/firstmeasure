@@ -1,6 +1,7 @@
-import { badRequest } from "./errors.js";
+import { badRequest, FirstMeasureError } from "./errors.js";
 import { firstMeasureComplexityForRoofSegments } from "./constants.js";
 import { fetchRequiredSolarLayers, fetchRequiredSolarDsm } from './solar_imagery.js';
+import { fetchSolarWithRetry, isTransientHttpStatus } from './transient_failure.js';
 import { env } from "../src/config/env.js";
 import { INSTANT_STRUCTURE_INSIGHTS_FILE_NAME } from "./instant.js";
 import { ensureInstantPdfArtifact } from "./instant_pdf.js";
@@ -177,9 +178,11 @@ async function fetchBuildingInsightsText(
   key: string
 ) {
   const url = `https://solar.googleapis.com/v1/buildingInsights:findClosest?location.latitude=${location.lat}&location.longitude=${location.lng}&requiredQuality=LOW&key=${encodeURIComponent(key)}`;
-  const response = await fetch(url);
+  const response = await fetchSolarWithRetry(url);
   if (!response.ok) {
-    throw badRequest(response.status === 404 ? "insights_no_coverage" : "insights_fetch_failed", `Building insights request failed with status ${response.status}.`);
+    await response.body?.cancel();
+    throw new FirstMeasureError(response.status === 404 ? "insights_no_coverage" : "insights_fetch_failed",
+      isTransientHttpStatus(response.status) ? 503 : 400, `Building insights request failed with status ${response.status}.`);
   }
   return await response.text();
 }
@@ -501,17 +504,27 @@ function normalizeSolarGeoTiffUrl(url: string) {
   return parsed.toString();
 }
 
+// Provider fetches time out and retry throttling, outages and dropped connections (fetchSolarWithRetry). A
+// response that still fails is skipped as before; `outcome` records when it failed only for a passing reason.
+type ProviderFetchOutcome = { transientMiss: boolean };
+
 async function fetchJson<T>(url: string): Promise<T | null> {
-  const response = await fetch(url);
-  if (!response.ok) return null;
+  const response = await fetchSolarWithRetry(url);
+  if (!response.ok) { await response.body?.cancel(); return null; }
   return await response.json() as T;
 }
 
-async function fetchBinary(url: string, headers?: Record<string, string>) {
-  const response = await fetch(url, { headers });
-  if (!response.ok) return null;
+async function fetchBinary(url: string, headers?: Record<string, string>, outcome?: ProviderFetchOutcome) {
+  const response = await fetchSolarWithRetry(url, { headers });
+  if (!response.ok) {
+    if (outcome && isTransientHttpStatus(response.status)) outcome.transientMiss = true;
+    await response.body?.cancel();
+    return null;
+  }
   return new Uint8Array(await response.arrayBuffer());
 }
+
+const RENDERABLE_IMAGERY_FILES = ["rgb.tif", "google.png", "azure.png"];
 
 async function geocodeProjectAddress(requestedAddress: string, key: string): Promise<ResolvedProjectLocation> {
   if (!requestedAddress) {
@@ -1030,13 +1043,15 @@ export async function processProjectImagery(projectId: string, input: Processing
   await saveArtifact(projectId, "dsm.tif", dsm);
   generated.add("dsm.tif");
 
+  const renderableFetch: ProviderFetchOutcome = { transientMiss: false };
   const downloads: Array<Promise<void>> = [];
   const queueDownload = (fileName: string, rawUrl?: string) => {
     if (!rawUrl) return;
     downloads.push((async () => {
       const bytes = await fetchBinary(
         normalizeSolarGeoTiffUrl(`${rawUrl}&key=${encodeURIComponent(key)}`),
-        { Accept: "image/tiff,application/octet-stream,*/*" }
+        { Accept: "image/tiff,application/octet-stream,*/*" },
+        RENDERABLE_IMAGERY_FILES.includes(fileName) ? renderableFetch : undefined
       );
       if (!bytes) return;
       await saveArtifact(projectId, fileName, bytes);
@@ -1056,7 +1071,9 @@ export async function processProjectImagery(projectId: string, input: Processing
 
   const googleStaticMapKey = requireGoogleKey("maps_static");
   const googleStaticMap = await fetchBinary(
-    `https://maps.googleapis.com/maps/api/staticmap?center=${projectArea.lat},${projectArea.lng}&zoom=20&size=640x640&scale=2&maptype=satellite&key=${encodeURIComponent(googleStaticMapKey)}`
+    `https://maps.googleapis.com/maps/api/staticmap?center=${projectArea.lat},${projectArea.lng}&zoom=20&size=640x640&scale=2&maptype=satellite&key=${encodeURIComponent(googleStaticMapKey)}`,
+    undefined,
+    renderableFetch
   );
   if (googleStaticMap) {
     await saveArtifact(projectId, "google.png", googleStaticMap);
@@ -1070,11 +1087,19 @@ export async function processProjectImagery(projectId: string, input: Processing
       + "&tilesetId=microsoft.imagery"
       + "&zoom=19"
       + `&center=${encodeURIComponent(`${projectArea.lng},${projectArea.lat}`)}`
-      + "&width=800&height=800&language=en-US"
+      + "&width=800&height=800&language=en-US",
+    undefined,
+    renderableFetch
   ) : null;
   if (azureMap) {
     await saveArtifact(projectId, "azure.png", azureMap);
     generated.add("azure.png");
+  }
+
+  // Without any of these the editor has no map to draw on ("no renderable map assets"). When a provider was
+  // only busy, fail retryably so the durable job tries again instead of handing drafters an order without a map.
+  if (renderableFetch.transientMiss && !RENDERABLE_IMAGERY_FILES.some((fileName) => generated.has(fileName))) {
+    throw new FirstMeasureError("imagery_provider_busy", 503, "Map imagery providers were temporarily unavailable; the imagery job will retry.");
   }
 
   if (!generated.has("dsm.tif")) {
