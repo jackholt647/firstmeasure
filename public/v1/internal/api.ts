@@ -4800,6 +4800,10 @@ async function organizationDetail(orgId: string, options: JsonObject = {}) {
     ...summary,
     ...organization,
     ...globalData,
+    // FM-334: the stored country record (globalData.country, an object) must not replace the summary's country code.
+    country: summary.country,
+    country_name: summary.country_name,
+    country_source: summary.country_source,
     branding,
     users: users.map((user) => organizationUserView(user, projectRows)),
     contacts,

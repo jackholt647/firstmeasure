@@ -31,11 +31,12 @@ language, with report localization on.
 The country of record and the currency come from location:
 
 1. a chosen country;
-2. the edge header;
-3. the time zone;
-4. a North American phone number;
-5. the hand-off language's region;
-6. if none of these, `US`.
+2. a North American (+1) phone number, by area code (FM-334: it outranks the IP country);
+3. the edge header;
+4. the time zone;
+5. the browser locale's region;
+6. the hand-off language's region;
+7. if none of these, `US`.
 
 ## Pages
 

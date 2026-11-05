@@ -11,16 +11,27 @@ const count = (value: unknown) => Array.isArray(value) ? value.length : Object.k
 
 /** Platform billing records that mean money has been charged or committed in the current currency. */
 const CHARGE_RECORD_KINDS = ["purchase", "invoice", "stripe-invoice", "subscription", "adjustment"];
+/**
+ * Billing events that move no money (FM-334): a Stripe customer is created when someone opens the card form, a card
+ * can be saved, and an auto top-up can be attempted and fail. A Stripe customer has no currency until its first charge.
+ * Any other event (a successful top-up, or a type this list does not know) counts as a charge.
+ */
+const NO_CHARGE_BILLING_EVENTS = new Set([
+  "stripe_customer_created", "stripe_setup_return", "stripe_setup_webhook", "setup_intent_succeeded",
+  "autotopup_missing_payment_method", "autotopup_attempting", "autotopup_payment_intent_failed", "autotopup_non_succeeded"
+]);
+const chargeEvents = (value: unknown) => (Array.isArray(value) ? value : Object.values(asObject(value)))
+  .filter(event => !NO_CHARGE_BILLING_EVENTS.has(String(asObject(event).type || "")));
 
 /**
  * Why an organization's commercial profile can no longer be reassigned, or "" when it can.
  * The credits ledger stores amounts without a currency, so any ledger entry, balance or
- * Stripe charge fixes the profile for good.
+ * Stripe charge fixes the profile for good. Opening the card form or saving a card does not.
  */
 export async function commercialProfileLock(orgId: string) {
   const data = asObject((await readGlobal(orgId)).data);
   if (count(data.credits_ledger) || Number(data.credits_balance || 0) !== 0) return "credits_ledger";
-  if (count(data.stripe_fulfilled_sessions) || count(asObject(data.billing).events)) return "stripe_charges";
+  if (count(data.stripe_fulfilled_sessions) || chargeEvents(asObject(data.billing).events).length) return "stripe_charges";
   for (const kind of CHARGE_RECORD_KINDS) if ((await records(orgId, kind)).length) return "stripe_charges";
   return "";
 }

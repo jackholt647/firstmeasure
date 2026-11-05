@@ -6,6 +6,7 @@ import path from "node:path";
 
 // 1M8-228: every organization has a country of record — set at signup, backfilled, edited by staff —
 // that feature-flag country rules and pricing can select on.
+let staffHeaders:Record<string,string>={};
 let app:any,storage:typeof import("../platform/storage.js"),country:typeof import("../platform/organization_country.js"),profile:typeof import("../commerce/profile.js");
 before(async()=>{
   const root=await mkdtemp(path.join(os.tmpdir(),"organization-country-"));
@@ -13,8 +14,8 @@ before(async()=>{
   for(const name of ["PLATFORM","INTERNAL","CRM","FIRSTMEASURE","MESSAGING","CHANNELS","CALLS","PRICEBOOK"])process.env[name+"_STORAGE_ROOT"]=path.join(root,name.toLowerCase());
   app=await(await import("../src/app.js")).buildApp();await app.ready();
   storage=await import("../platform/storage.js");country=await import("../platform/organization_country.js");profile=await import("../commerce/profile.js");
-  const internal=await import("../internal/storage.js");
-  await internal.saveInternalUser({email:"staff@country.example.test",name:"Staff",role:"admin",status:"active",permissions:{}});
+  // A staff session, not an email header (request security).
+  staffHeaders=(await(await import("./helpers/security-fixture.js")).staffFixture({email:"staff@country.example.test",name:"Staff",role:"admin",permissions:{}})).headers;
 });
 after(async()=>{await app?.close();await(await import("./helpers/platform-fixture.js")).closePlatformFixtureStores();});
 
@@ -24,7 +25,7 @@ async function signup(payload:Record<string,unknown>){
   assert.equal(response.statusCode,201,response.body);
   return String(response.json().organization.id);
 }
-const staff=(action:string,payload:Record<string,unknown>)=>app.inject({method:"POST",url:"/v1/internal/legacy-action",headers:{"x-internal-user-email":"staff@country.example.test"},payload:{action,...payload}});
+const staff=(action:string,payload:Record<string,unknown>)=>app.inject({method:"POST",url:"/v1/internal/legacy-action",headers:staffHeaders,payload:{action,...payload}});
 const stored=async(org:string)=>country.storedOrganizationCountry((await storage.readGlobal(org)).data as any);
 
 test("signup stores the country of record with the billing profile",async()=>{
@@ -64,6 +65,36 @@ test("staff set the country; billing follows only before credit history",async()
   assert.equal(list.statusCode,200,list.body);
   assert.deepEqual(list.json().organizations.map((row:any)=>row.id),[org]);
   assert.equal(list.json().organizations[0].country_source,"staff");
+});
+
+test("FM-334: a Stripe customer with no charges does not lock billing, and the staff page gets the country code",async()=>{
+  const org=await signup({signup_country:"VE",phone:"+584121234567"});
+  assert.equal((await profile.organizationProfile(org)).currency,"EUR");
+  // Opening the card form creates a Stripe customer; saving a card and a failed top-up move no money either.
+  await storage.saveGlobal(org,{data:{billing:{events:[
+    {ts:new Date().toISOString(),type:"stripe_customer_created",meta:{customer_id:"cus_fixture"}},
+    {ts:new Date().toISOString(),type:"setup_intent_succeeded",meta:{}},
+    {ts:new Date().toISOString(),type:"autotopup_payment_intent_failed",meta:{}}
+  ]}}});
+  const moved=await staff("org_set_country",{org_id:org,country:"US"});
+  assert.equal(moved.statusCode,200,moved.body);assert.equal(moved.json().billing,"reassigned");assert.equal(moved.json().billing_locked_reason,null);
+  const billing=await profile.organizationProfile(org);assert.equal(billing.country,"US");assert.equal(billing.currency,"USD");
+
+  const detail=await staff("customer_org_detail",{org_id:org});
+  assert.equal(detail.statusCode,200,detail.body);
+  for(const view of [detail.json(),detail.json().org,detail.json().organization]){
+    assert.equal(view.country,"US","the country is a code, not the stored {code, source} record ([object Object])");
+    assert.equal(view.country_name,"United States");assert.equal(view.country_source,"staff");
+  }
+
+  // A successful top-up is a charge, and an event type this release does not know stays a charge.
+  for(const type of ["autotopup_succeeded","legacy_unknown_event"]){
+    const charged=await signup({signup_country:"FR",phone:type==="autotopup_succeeded"?"+33612345690":"+33612345691"});
+    await storage.saveGlobal(charged,{data:{billing:{events:[{ts:new Date().toISOString(),type,meta:{}}]}}});
+    const locked=await staff("org_set_country",{org_id:charged,country:"US"});
+    assert.equal(locked.json().billing,"locked",type);assert.equal(locked.json().billing_locked_reason,"stripe_charges");
+    assert.equal((await profile.organizationProfile(charged)).currency,"EUR");
+  }
 });
 
 test("country rules set capability values by country of record",async()=>{

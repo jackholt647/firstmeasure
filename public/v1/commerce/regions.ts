@@ -2,6 +2,8 @@ import regionData from "./region-data.json" with { type: "json" };
 import { TERRITORY_DEFAULTS } from "./territory-defaults.js";
 import { TIME_ZONE_COUNTRIES } from "./timezone-countries.js";
 import { SUPPORTED_LOCALES } from "../platform/localization/core.js";
+import { parsePhoneNumberFromString } from "libphonenumber-js/min";
+import CALLING_CODES from "./calling-codes.json" with { type: "json" };
 
 // Policy regions are independent of UI language and the currency of a visitor's card.
 export const DOMESTIC_COUNTRIES = new Set(regionData.domestic_countries);
@@ -81,12 +83,34 @@ export function resolveSignupLanguage(headers:Record<string,unknown>, input:Reco
   return {language:"en-US",source:"default"};
 }
 
+/**
+ * The country a signup's North American (+1) phone belongs to, by its area code: US, Canada or the Caribbean country
+ * that owns it (809 -> DO). A +1 number whose area code is not assigned counts as the US. "" when the phone is not +1:
+ * an E.164 number with another calling code, or a national number typed after another country's calling code.
+ * A local ten-digit number with no calling code is the existing US/Canada signup convention.
+ */
+export function northAmericanPhoneCountry(phone:unknown, phoneCountry?:unknown) {
+  const raw=String(phone ?? "").trim(),digits=raw.replace(/\D/g,"");
+  const dial=(CALLING_CODES as Record<string,string>)[countryCode(phoneCountry)] || "";
+  const national=raw.startsWith("+") ? (/^1\d{10}$/.test(digits) ? digits.slice(1) : "")
+    : dial && dial!=="1" ? ""
+    : digits.length===11 && digits.startsWith("1") ? digits.slice(1) : digits;
+  // NXX-NXX-XXXX: a ten-digit number starting with 0 or 1 (06 12 34 56 78) is another country's national number.
+  if(!/^[2-9]\d{2}[2-9]\d{6}$/.test(national))return "";
+  return countryCode(parsePhoneNumberFromString("+1"+national)?.country) || "US";
+}
+
 /** Used once during registration. Never called on login or when changing a branch. */
 export function detectSignupCountry(headers:Record<string,unknown>, input:Record<string,unknown>={}) {
   // The country the person chose at signup wins. Choosing a non-domestic country only
   // raises prices, and property-market pricing still applies to every order.
   const chosen=countryCode(input.signup_country);
   if(chosen)return {country:chosen,source:"signup_choice"};
+  // FM-334: a North American (+1) phone outranks the IP country. A US company's signup is often done from abroad (an
+  // assistant, a VPN); the IP shows where the person is, the phone where the business is. Property-market pricing still
+  // prices every order on a property outside the US and Canada internationally, so a +1 number buys nothing cheaper.
+  const phoneCountry=northAmericanPhoneCountry(input.phone,input.phone_country);
+  if(phoneCountry)return {country:phoneCountry,source:"north_american_phone"};
   for(const name of ["cf-ipcountry","x-vercel-ip-country","x-appengine-country"]) {
     const country=countryCode(headers[name]); if(country)return {country,source:name};
   }
@@ -97,9 +121,6 @@ export function detectSignupCountry(headers:Record<string,unknown>, input:Record
   const language=(String(input.signup_locale || headers["accept-language"] || "").split(",")[0] || "").split(";")[0] || "";
   const country=countryCode(language.split(/[-_]/)[1]);
   if(country)return {country,source:"browser_locale"};
-  // A local ten-digit phone is the existing US/Canada signup convention.
-  const raw=String(input.phone || ""),digits=raw.replace(/\D/g,"");
-  if((!raw.startsWith("+")&&digits.length===10)||/^1\d{10}$/.test(digits))return {country:"US",source:"north_american_phone"};
   // 1M8-240: a signup is never refused for its location. Without any location signal, the region of the language the
   // visitor saw (es-ES -> Spain), else the domestic default.
   const fromLanguage=countryCode(String(input.signup_language || input.lang || "").split(/[-_]/)[1]);
