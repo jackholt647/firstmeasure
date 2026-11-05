@@ -2383,7 +2383,7 @@
 
   /* ───────────── IMPERSONATE USER ───────────── */
 
-  async function impersonateUser(email, displayName, userId){
+  async function impersonateUser(email, displayName, userId, orgId){
     if (!confirm(
       'Switch to "' + displayName + '" (' + email + ')?\n\n' +
       'A new tab will open with the customer portal as this user.\n' +
@@ -2402,7 +2402,7 @@
         action: 'admin_impersonate_user',
         email,
         user_id: userId || '',
-        org_id: (currentOrg && currentOrg.id) ? currentOrg.id : '',
+        org_id: orgId || ((currentOrg && currentOrg.id) ? currentOrg.id : ''),
         actor_email: actor.email || actor.user_email || '',
         actor_name: actor.name || actor.user_name || '',
         actor_role: actor.role || actor.user_role || '',
@@ -3257,7 +3257,7 @@
     },
     async onShow(){ await loadCustomers(); },
     openOrgDetail(orgId){ openOrgDetail(orgId); },
-    impersonateUser(email, name, userId){ impersonateUser(email, name, userId); }
+    impersonateUser(email, name, userId, orgId){ impersonateUser(email, name, userId, orgId); }
   };
 
   const origSwitch = Portal.switchView ? Portal.switchView.bind(Portal) : null;

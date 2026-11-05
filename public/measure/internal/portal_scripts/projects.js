@@ -4883,6 +4883,7 @@ Note: Our coverage is based on individual structure, not area - so we may have c
       if (pmDate)   pmDate.innerText   = m.created_at || '-';
       // ★ ENHANCED: comprehensive modal instead of basic fields
       this.renderProjectModalAdminMeta(m, { loading: false });
+      this.renderProjectModalImpersonate(m);
       this.renderProjectModalComprehensive(m, id, data);
       const pdfBtn = document.getElementById('pmPdfBtn');
       if (pdfBtn) { if (data.pdf_url) { pdfBtn.href = data.pdf_url; pdfBtn.style.display='flex'; } else pdfBtn.style.display='none'; }
@@ -5118,6 +5119,54 @@ Note: Our coverage is based on individual structure, not area - so we may have c
         else metaCol.appendChild(box);
       }
     },
+    // Sign in as the customer who ordered the report, through the same
+    // admin_impersonate_user action as Customers > Users (the server refuses
+    // anyone below full admin and audits it; the portal shows the way back).
+    canImpersonateProjectOwner(){
+      const user = cfg().user || {};
+      return user.is_admin === true || cfg().perms?.is_admin_legacy === true;
+    },
+    renderProjectModalImpersonate(project){
+      let btn = document.getElementById('pmImpersonateBtn');
+      if (!this.canImpersonateProjectOwner()) {
+        if (btn) btn.remove();
+        return;
+      }
+      const pdfBtn = document.getElementById('pmPdfBtn');
+      if (!btn) {
+        if (!pdfBtn || !pdfBtn.parentNode) return;
+        btn = document.createElement('button');
+        btn.id = 'pmImpersonateBtn';
+        btn.type = 'button';
+        btn.className = 'btn-secondary';
+        btn.style.cssText = 'justify-content:center; gap:10px;';
+        btn.innerHTML = '<i class="fas fa-user-secret"></i> Impersonate customer';
+        pdfBtn.parentNode.insertBefore(btn, pdfBtn);
+      }
+      if (!project) {
+        btn.style.display = 'none';
+        btn.onclick = null;
+        return;
+      }
+      const email = String(project.owner_email || project.issuer?.email || '').trim().toLowerCase();
+      const name = String(project.issuer?.name || project.owner_name || '').trim() || email;
+      const orgId = String(project.organization_id || project.organization_ref?.id || '').trim();
+      const reason = project.is_tutorial_instance ? 'Training projects have no customer to impersonate'
+        : !email ? 'No ordering user is recorded on this order'
+        : '';
+      btn.style.display = 'flex';
+      btn.disabled = !!reason;
+      btn.style.opacity = reason ? '0.55' : '';
+      btn.style.cursor = reason ? 'not-allowed' : '';
+      btn.title = reason || `Open the customer portal as ${name}${name !== email ? ` (${email})` : ''}`;
+      btn.onclick = reason ? null : () => {
+        if (!window.Customers || typeof window.Customers.impersonateUser !== 'function') {
+          alert('Impersonation is not available on this page.');
+          return;
+        }
+        window.Customers.impersonateUser(email, name, '', orgId);
+      };
+    },
     isProjectModalRequestCurrent(folderId, requestToken){
       const activeId = String(this._projectModalActiveId || '').trim();
       const targetId = String(folderId || '').trim();
@@ -5158,6 +5207,7 @@ Note: Our coverage is based on individual structure, not area - so we may have c
         isTutorial: !!seed.is_tutorial_instance
       });
       this.renderProjectModalAdminMeta(seed, { loading: true });
+      this.renderProjectModalImpersonate(null);
       const pdfBtn = document.getElementById('pmPdfBtn');
       if (pdfBtn) {
         pdfBtn.removeAttribute('href');
@@ -5196,6 +5246,7 @@ Note: Our coverage is based on individual structure, not area - so we may have c
         isTutorial: !!seed.is_tutorial_instance
       });
       this.renderProjectModalAdminMeta(seed, { loading: false });
+      this.renderProjectModalImpersonate(null);
       const gal = document.getElementById('pmGallery');
       if (gal) {
         gal.classList.add('pm-gallery-loading');
