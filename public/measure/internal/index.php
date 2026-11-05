@@ -4548,6 +4548,14 @@ $ver = time(); // cache busting
                         <span style="font-size:12px; color:#666; font-weight:800;">Team</span>
                         <select id="queueTeamSelect" onchange="refreshQueueAdmin(true)"></select>
                     </div>
+                    <div class="queue-team-filter">
+                        <span style="font-size:12px; color:#666; font-weight:800;">Report type</span>
+                        <select id="queueReportTypeSelect" onchange="refreshQueueAdmin(true)">
+                            <option value="all">All</option>
+                            <option value="roof">Roof</option>
+                            <option value="full_house">Full exterior</option>
+                        </select>
+                    </div>
                     <button class="btn-secondary" onclick="refreshQueueAdmin(true)"><i class="fas fa-sync"></i> Refresh</button>
                 </div>
             </div>
