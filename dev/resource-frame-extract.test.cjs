@@ -45,6 +45,15 @@ test('server extracts the displayed video frame and publishes it as a chunked re
   const record=JSON.parse(fs.readFileSync(path.join(store,'internal-markup-favorite-33333333-3333-4333-8333-333333333333.json'),'utf8'));
   assert.deepEqual({label:record.label,source:record.source,time:record.time,frame:record.frame,version:record.version},{label:'Back of house',source:video,time:1,frame:frameName(6),version:1});
   assert.ok(Math.abs(red(frameName(6)).red-120)<=3);
+  // Only the chosen frame is encoded as PNG; the window before it is decoded without encoding (FM-343: 180 PNGs per save at 60 fps).
+  if(process.platform!=='win32'){
+   const log=path.join(dir,'ffmpeg.log'),shim=path.join(dir,'ffmpeg-shim');fs.writeFileSync(shim,`#!/bin/sh\nprintf '%s\\n' "$*" >> ${JSON.stringify(log)}\nexec ${JSON.stringify(ffmpeg)} "$@"\n`,{mode:0o755});
+   fs.rmSync(path.join(store,'cache'),{recursive:true});
+   for(const [n,time,expected]of [[10,1.5,15],[11,0,0]]){
+    fs.rmSync(log,{force:true});const result=run({ffmpeg:shim,job:job(n,time)});assert.equal(result.status,'done',result.error);assert.ok(Math.abs(red(frameName(n)).red-expected*12)<=3);
+    for(const line of fs.readFileSync(log,'utf8').trim().split('\n'))if(/-c:v png/.test(line))assert.match(line,/-frames:v 1 /,'a PNG encode of more than one frame: '+line);
+   }
+  }
   // A customer's walkthrough is a plain stored file: streamed to disk once, never held in PHP memory.
   assert.deepEqual(run({valid:['customer-reference-0.webm','customer-reference-12.MP4','customer-reference-x.webm','customer-reference-0.webm.php','manifest.json']}),[true,true,false,false,false]);
   fs.copyFileSync(source,path.join(store,'customer-reference-0.mp4'));
