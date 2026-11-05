@@ -6,7 +6,7 @@ test('Speed panel collects nested timings, freezes captures, copies JSON, and le
  const page=await browser.newPage();const errors=[];page.on('pageerror',e=>errors.push(e.message));
  await page.route('http://localhost/**',route=>route.fulfill({contentType:'text/html',body:'<section id="wall-panel"><button id="existing">Existing control</button></section>'}));
  await page.goto('http://localhost/');
- await page.evaluate(()=>{window.WallMode={enabled:true};window.clock=100;Object.defineProperty(performance,'now',{value:()=>window.clock});Object.defineProperty(navigator,'clipboard',{value:{writeText:async text=>window.copied=text}});});
+ await page.evaluate(()=>{window.FIRSTMEASURE_DEV_TOOLS=true;window.WallMode={enabled:true};window.clock=100;Object.defineProperty(performance,'now',{value:()=>window.clock});Object.defineProperty(navigator,'clipboard',{value:{writeText:async text=>window.copied=text}});});
  await page.addScriptTag({path:'public/measure/internal/editor_scripts/exterior_performance.js'});
  await page.evaluate(()=>{window.ExteriorAI={available:true,mount(){throw Error('Removed AI tab must not mount');}};ExteriorPerf.mount(document.getElementById('wall-panel'));});
  assert.equal(await page.locator('#wall-panel').isVisible(),false);
@@ -41,13 +41,26 @@ test('Speed panel collects nested timings, freezes captures, copies JSON, and le
  assert.equal(await page.evaluate(()=>ExteriorPerf.snapshot().rolling.length),0);
  await page.getByRole('tab',{name:'General',exact:true}).click();assert.equal(await page.locator('#existing').isVisible(),true);assert.equal(await page.evaluate(()=>ExteriorPerf.enabled),false);
  await page.reload();
+ await page.evaluate(()=>{window.FIRSTMEASURE_DEV_TOOLS=true;});
  await page.addScriptTag({path:'public/measure/internal/editor_scripts/exterior_performance.js'});
  await page.evaluate(()=>ExteriorPerf.mount(document.getElementById('wall-panel')));
  assert.equal(await page.locator('#wall-panel').isVisible(),true);
  await page.evaluate(()=>ExteriorPerf.setControlsVisible(false));
  await page.reload();
+ await page.evaluate(()=>{window.FIRSTMEASURE_DEV_TOOLS=true;});
  await page.addScriptTag({path:'public/measure/internal/editor_scripts/exterior_performance.js'});
  await page.evaluate(()=>ExteriorPerf.mount(document.getElementById('wall-panel')));
+ assert.equal(await page.locator('#wall-panel').isVisible(),false);
+ // FM-336: off development (no FIRSTMEASURE_DEV_TOOLS) a stored "true" is ignored and nothing turns the panel on.
+ await page.evaluate(()=>ExteriorPerf.setControlsVisible(true));
+ await page.reload();
+ await page.addScriptTag({path:'public/measure/internal/editor_scripts/exterior_performance.js'});
+ await page.evaluate(()=>{window.WallMode={enabled:true};ExteriorPerf.mount(document.getElementById('wall-panel'));});
+ assert.equal(await page.evaluate(()=>localStorage.getItem('firstmeasure:editor:show-dev-controls')),'true');
+ assert.equal(await page.evaluate(()=>ExteriorPerf.controlsVisible),false);
+ assert.equal(await page.locator('#wall-panel').isVisible(),false);
+ await page.evaluate(()=>ExteriorPerf.setControlsVisible(true));
+ assert.equal(await page.evaluate(()=>ExteriorPerf.controlsVisible),false);
  assert.equal(await page.locator('#wall-panel').isVisible(),false);
  assert.deepEqual(errors,[]);
  }finally{await browser.close();}

@@ -56,7 +56,8 @@ function fixture(withBase=false,editors={}){
 test('Show Dev Controls settings checkbox gates the panel across roof/wall mode switches',()=>{
  let panel;
  const perf={controlsVisible:false,mount(target){panel=target;},setControlsVisible(value){this.controlsVisible=value;panel.hidden=!value;}};
- const {ctx,elements}=fixture(false,{ExteriorPerf:perf});
+ const {ctx,elements}=fixture(false,{ExteriorPerf:perf,FIRSTMEASURE_DEV_TOOLS:true});
+ assert.match(panel.innerHTML,/id="wall-show-dev-controls"/);
  const checkbox=elements.get('wall-show-dev-controls');
  assert.equal(checkbox.checked,false);
  ctx.WallMode.setEnabled(true);assert.equal(panel.hidden,true);
@@ -65,8 +66,18 @@ test('Show Dev Controls settings checkbox gates the panel across roof/wall mode 
  ctx.WallMode.setEnabled(true);assert.equal(panel.hidden,false);
  checkbox.checked=false;checkbox.onchange();assert.equal(panel.hidden,true);
  ctx.WallMode.setEnabled(false);ctx.WallMode.setEnabled(true);assert.equal(panel.hidden,true);
- const restored=fixture(false,{ExteriorPerf:{...perf,controlsVisible:true}});
+ const restored=fixture(false,{ExteriorPerf:{...perf,controlsVisible:true},FIRSTMEASURE_DEV_TOOLS:true});
  assert.equal(restored.elements.get('wall-show-dev-controls').checked,true);
+});
+
+test('FM-336: off development the settings menu has no Show Dev Controls toggle and the panel stays hidden',()=>{
+ let panel;
+ const perf={controlsVisible:false,mount(target){panel=target;},setControlsVisible(){throw Error('nothing may turn dev controls on');}};
+ const {ctx,elements}=fixture(false,{ExteriorPerf:perf});
+ assert.doesNotMatch(panel.innerHTML,/wall-show-dev-controls|Show Dev Controls/);
+ assert.match(panel.innerHTML,/id="wall-auto-parapets"/,'the other settings stay');
+ assert.equal(elements.has('wall-show-dev-controls'),false);
+ ctx.WallMode.setEnabled(true);assert.equal(panel.hidden,true);
 });
 
 test('confirmed exterior reset keeps the roof, survives stale saved metadata, and supports undo, redo and regeneration',()=>{
