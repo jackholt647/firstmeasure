@@ -44,6 +44,9 @@
  const extensionOf=value=>(/\.([a-z0-9]{2,5})(?:[?#].*)?$/i.exec(String(value||''))?.[1]||'').toLowerCase();
  const fileExtension=file=>extensionOf(file.original_name)||extensionOf(file.name)||(/^data:/i.test(file.src||'')?'':extensionOf(file.src));
  const isVideoFile=file=>!file.notes&&/^(mp4|webm|mov)$/.test(fileExtension(file));
+ // Reference photos the report's elevation slots can use. A customer's walkthrough video is not a photo: an <img>
+ // cannot show it (FM-340); frames saved from it in Resources are stored artifacts and are offered as those.
+ const photoReferences=(references,artifacts=[])=>references.filter(f=>f.src&&!f.notes&&!isVideoFile(f)&&!artifacts.some(a=>a.name===f.resource_name));
  function coreViews(files){return coreSlots.map(([slot,title])=>({slot,title,file:slot?files.find(f=>(f.elevation_view||f.slot)===slot&&!f.notes):files.find(isVideoFile)||null}));}
  const favoritePrefix = 'internal-markup-favorite-', markupPrefix = 'internal-markup-';
  const fileId = name => name.replace(/^internal-resource-(?:v2-)?/, '').slice(0, 36);
@@ -64,7 +67,7 @@
   }
   state.finalizeSources.notes=notes.trim()?notes:'';
  }
- if(typeof module!=='undefined'&&module.exports){module.exports={referenceCatalog,coreViews,referenceCache,mergeSubmissionSources,fileExtension,isVideoFile};return;}
+ if(typeof module!=='undefined'&&module.exports){module.exports={referenceCatalog,coreViews,photoReferences,referenceCache,mergeSubmissionSources,fileExtension,isVideoFile};return;}
  function boot() {
   const host = document.getElementById('google-earth-wrapper'), tabs = host?.querySelector('.map-view-tabs');
   if (!host || !tabs) return;
@@ -944,7 +947,7 @@
    const savedFrames=await Promise.all(artifacts.filter(f=>f.name.startsWith(favoritePrefix)).map(async f=>(await request(id,f.name)).json()));
    return [...artifacts.filter(f=>f.name.startsWith(prefix)&&/\.(png|jpe?g|gif|webp|avif|bmp)$/i.test(f.name)).map(f=>{
     const frame=savedFrames.find(s=>s.frame===f.name),reference=references.find(r=>r.resource_name===f.name);return {key:f.name,resourceName:f.name,url:new URL(url(id,f.name),location.href).href,label:frame?.label||f.original_name||f.name,role:reference?.role||f.role||'tech',slot:reference?.slot||f.elevation_view,frame:!!frame};
-   }),...references.filter(f=>f.src&&!f.notes&&!artifacts.some(a=>a.name===f.resource_name)).map(f=>({key:f.name,url:f.src,label:f.original_name,role:f.role,slot:f.slot}))];
+   }),...photoReferences(references,artifacts).map(f=>({key:f.name,url:f.src,label:f.original_name,role:f.role,slot:f.slot}))];
   },async mergeSubmission(state){
    const id=String(state.folderId||window.currentProjectId||'');if(!id||currentRole()==='qa')return;
    const data=await(await request(id)).json();

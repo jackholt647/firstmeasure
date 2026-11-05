@@ -29,16 +29,17 @@ test('From Roof resolves chimney heights once, shares them with the base, and pr
  const fresh=fixture(true,{imageWidth:width,imageHeight:height,getMetersPerPx:()=>mpp,activeGeometry});fresh.ctx.WallMode.restore('fixture',{exteriorsWalls:saved});
  assert.equal(fresh.ctx.WallMode.serialize().chimneys.items[0].extension.distance,saved.chimneys.items[0].extension.distance,'saved inference survives without a loaded height map');
 });
-function fixture(withBase=false,editors={}){
+function fixture(withBase=false,editors={},{bodyClasses=[]}={}){
     const elements=new Map(),listeners={},storage=new Map(),timers=new Map();let timerId=0;
     const el=(id='')=>({id,hidden:false,disabled:false,value:'',textContent:'',dataset:{},style:{},
         classList:{toggle(){},add(){},remove(){}},attributes:{},setAttribute(k,v){this.attributes[k]=v;},addEventListener(){},
-        prepend(...children){children.forEach(c=>this.appendChild(c));},append(...children){children.forEach(c=>this.appendChild(c));},querySelector(){return null;},appendChild(child){if(child.id)elements.set(child.id,child);},remove(){elements.delete(this.id);},
+        prepend(...children){children.forEach(c=>this.appendChild(c));},append(...children){children.forEach(c=>this.appendChild(c));},querySelector(){return null;},appendChild(child){(this.children||=[]).push(child);if(child.id)elements.set(child.id,child);},remove(){elements.delete(this.id);},
         querySelectorAll(selector){return selector==='[data-stage]'?stages:selector==='[data-soffit]'?soffits:selector==='[data-resoffit]'?resoffits:[];}});
     const stages=[1,2,3,4,5,6,7].map(n=>({...el(),dataset:{stage:String(n)}}));
     const soffits=['auto','12','18','24'].map(n=>({...el(),dataset:{soffit:n}}));
     const resoffits=['0','0.5','1','1.5','2','wallless'].map(n=>({...el(),dataset:{resoffit:n}}));
-    const document={readyState:'loading',head:el(),body:el(),createElement:()=>el(),
+    const body=el();body.classList={...body.classList,contains:name=>bodyClasses.includes(name)};
+    const document={readyState:'loading',head:el(),body,createElement:()=>el(),
         addEventListener:(name,fn)=>listeners[name]=fn,querySelectorAll:()=>[],
         getElementById(id){if(id==='geoSvg'||id==='measurement-panel')return elements.get(id)||null;if(!elements.has(id))elements.set(id,el(id));return elements.get(id);}};
     const points=[{x:0,y:0,z:8},{x:10,y:0,z:8},{x:10,y:10,z:8},{x:0,y:10,z:8}];
@@ -95,6 +96,17 @@ test('Show Dev Controls settings checkbox gates the panel across roof/wall mode 
  ctx.WallMode.setEnabled(false);ctx.WallMode.setEnabled(true);assert.equal(panel.hidden,true);
  const restored=fixture(false,{ExteriorPerf:{...perf,controlsVisible:true},FIRSTMEASURE_DEV_TOOLS:true});
  assert.equal(restored.elements.get('wall-show-dev-controls').checked,true);
+});
+
+// FM-340: QA opens the editor embedded with its header hidden (editor.php hide_header -> body.editor-embedded), so a
+// toggle in the address bar could not be seen and QA had no way back from wall mode to the roof.
+test('FM-340: with the header hidden the Wall mode / Return to roof toggle is in the toolbar',()=>{
+ const toggle=elements=>elements.get('wall-mode-toggle'),parentOf=(elements,id)=>['toolbar-action-group','addressBarContainer'].find(p=>(elements.get(p)?.children||[]).includes(toggle(elements)));
+ const qa=fixture(false,{},{bodyClasses:['editor-embedded']});
+ assert.equal(parentOf(qa.elements,'wall-mode-toggle'),'toolbar-action-group');
+ qa.ctx.WallMode.setEnabled(true);assert.equal(toggle(qa.elements).textContent,'Return to roof');assert.equal(toggle(qa.elements).attributes['aria-pressed'],'true');
+ qa.ctx.WallMode.setEnabled(false);assert.equal(toggle(qa.elements).textContent,'Wall mode');
+ const tech=fixture();assert.equal(parentOf(tech.elements,'wall-mode-toggle'),'addressBarContainer','with the header shown it stays in the address bar');
 });
 
 test('FM-336: off development the settings menu has no Show Dev Controls toggle and the panel stays hidden',()=>{
