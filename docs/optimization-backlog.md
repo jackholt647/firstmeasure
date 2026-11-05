@@ -42,18 +42,23 @@ the rows first (queued, unassigned, unreserved or reserved to the drafter), so t
 candidates, not the whole table. The "PostgreSQL hot queue paths do not search JSON documents" check in
 `tests/firstmeasure-postgres-indexed-queue.test.ts` fails because of it.
 
-The Queue Monitor's Report type filter (FM-335, `appendReportType` in `firstmeasure/project_index_postgres.ts`) reads
-the same JSON. The per-team counters do not split by report type, so with a report type chosen `queue/counts` counts
-every project's group from the table and reads each manifest: about 0.5 s on dev (51,000 projects), every 5 s while a
-filtered Queue Monitor is open. Unfiltered, the queue still uses the counters.
-
 **Where the change goes.** A derived `measurement_scope` column on `projects`, filled by `migrateDerivedQueueColumns`
-like the other queue columns (schema version bump), and the condition on that column instead of the JSON. For the
-Report type filter, also split `project_queue_counters` by report type so filtered counts stay a counter read.
+like the other queue columns (schema version bump), and the condition on that column instead of the JSON.
 
 **Why it can wait.** The candidate set is small (the queued backlog), and adding a column to the core order queue
-was not done on the October 20 production release day. The Report type filter is used by a few queue admins, only
-while they choose a report type.
+was not done on the October 20 production release day.
+
+## Queue Monitor counts by report type scan the projects table
+
+**Today.** With a report type chosen in the Queue Monitor (FM-335), `queue/counts` cannot use
+`project_queue_counters`, which do not split by report type, so `getPostgresQueueCounts` groups every project in the
+table by queue group, testing the id (`appendReportType` in `firstmeasure/project_index_postgres.ts`). It reads no
+manifest: about 90 ms on production (120,000 projects), every 5 s while a filtered Queue Monitor is open. Unfiltered,
+the queue still reads the counters.
+
+**Where the change goes.** A report type dimension on `project_queue_counters`, kept by its trigger like `team_id`.
+
+**Why it can wait.** A few queue admins use the filter, and only while a report type is chosen.
 
 ## The price book setup sends its options once per step
 
