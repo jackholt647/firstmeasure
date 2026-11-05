@@ -28,9 +28,15 @@ funding and the prepaid ledger remain in the organization's currency.
 
 ## Region detection and presentation
 
-Signup resolves country from country headers (`CF-IPCountry`, then
-`X-Vercel-IP-Country`, then `X-AppEngine-Country`), browser time zone, browser
-locale region, and the existing North American phone fallback. New US/Canada
+Signup resolves country (`detectSignupCountry`) from a chosen country, then a
+North American (+1) phone, then country headers (`CF-IPCountry`, then
+`X-Vercel-IP-Country`, then `X-AppEngine-Country`), browser time zone and browser
+locale region. The +1 phone comes before the IP country (FM-334): a US company's
+signup is often done from abroad (an assistant, a VPN), and the IP shows where the
+person is, not the business. Its area code picks US, Canada or the Caribbean
+country that owns it (809 is the Dominican Republic); an unassigned one counts as
+the US. Property-market pricing still prices every order on a property outside the
+US and Canada internationally, so a +1 number buys nothing cheaper. New US/Canada
 accounts receive USD; every other country receives EUR, including the UK.
 Non-US accounts default to metric; US accounts default to imperial. Language
 comes from installed packs in `platform/localization/languages.json` and is
@@ -88,7 +94,9 @@ workload estimates, QA requirements and release scheduling remain; none is an
 A commercial profile is assigned at signup and protected from customer global
 writes. Travel, browser language and the billboard header never reassign it.
 Existing prepaid funds and accepted subscriptions are not silently converted or
-repriced. Development was audited before rollout: no saved international
+repriced. Staff can reassign it (`commerce/reassign.ts`) until the organization
+has credit history or a Stripe charge; a Stripe customer created by opening the
+card form, a saved card or a failed top-up is not a charge (FM-334). Development was audited before rollout: no saved international
 profiles required currency migration. Production was not changed; before a
 future production rollout, audit legacy international profiles/balances and
 agree any migration explicitly. Unprofiled legacy accounts retain USD.

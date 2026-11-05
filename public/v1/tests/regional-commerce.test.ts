@@ -34,7 +34,7 @@ test("signup assigns organization prices, currency and localization once; custom
       ["GB","EUR","currency",25,"en-GB","metric"],["FR","EUR","currency",25,"fr-FR","metric"],["JP","EUR","currency",25,"ja-JP","metric"]
     ] as const){
       const c=client(country);accounts.set(country,c);
-      const registration=await c.request("POST","/v1/platform/auth/register",{email:country.toLowerCase()+"@regional.example.test",password:"regional-password-123",phone:country==="GB"?"+447700900001":"+120255501"+String(accounts.size).padStart(2,"0"),company:"Regional fixture",global:{commercial_profile:{currency:"JPY",tier:"domestic"}}});
+      const registration=await c.request("POST","/v1/platform/auth/register",{email:country.toLowerCase()+"@regional.example.test",password:"regional-password-123",phone:{GB:"+447700900001",FR:"+33612345611",JP:"+819012345611",CA:"+141655501"+String(accounts.size).padStart(2,"0")}[country as string]||"+120255501"+String(accounts.size).padStart(2,"0"),company:"Regional fixture",global:{commercial_profile:{currency:"JPY",tier:"domestic"}}});
       c.org=registration.organization.id;
       const view=await c.request("GET",`/v1/platform/organizations/${c.org}/commerce`,undefined,"US");
       assert.equal(view.currency,currency);assert.equal(view.credit_display,display);assert.equal(view.report_prices.residential,price);
