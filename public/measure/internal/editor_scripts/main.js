@@ -1150,9 +1150,14 @@ function initHeaderAutocomplete() {
 async function initCesium() {
     if (!Cesium) return console.error("Cesium not loaded");
 
-    // Initialize Viewer
+    // Initialize Viewer. Without a WebGL context the 3D Tiles view is unavailable; the editor carries on.
+    // requestRenderMode: draw only when the camera, tiles or size change, not every frame while hidden
+    // (it runs in every editor, including QA's preloaded next project).
+    try {
     cesiumViewer = new Cesium.Viewer('google-map-container', {
-        terrainProvider: undefined, 
+        requestRenderMode: true,
+        maximumRenderTimeChange: Infinity,
+        terrainProvider: undefined,
         imageryProvider: false,      
         baseLayerPicker: false,
         geocoder: false,
@@ -1166,6 +1171,11 @@ async function initCesium() {
         skyBox: false,
         creditContainer: document.createElement('div')
     });
+    } catch (error) {
+        console.error("3D Tiles view unavailable (no WebGL context):", error);
+        cesiumViewer = null;
+        return;
+    }
 
     // --- FIX START: Disable the "Gray Plane" (Globe Surface) ---
     

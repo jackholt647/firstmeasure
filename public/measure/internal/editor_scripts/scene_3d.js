@@ -1483,7 +1483,9 @@ function buildAxisWidget() {
         border:'1px solid rgba(255,255,255,0.15)'
     });
     container.appendChild(_enh.axisContainer);
-    _enh.axisRenderer = new THREE.WebGLRenderer({ antialias:true, alpha:true });
+    // The axis gizmo is optional: without a context of its own the 3D view works without it.
+    try { _enh.axisRenderer = new THREE.WebGLRenderer({ antialias:true, alpha:true }); }
+    catch (e) { console.warn('[3D] Axis gizmo has no WebGL context:', e); _enh.axisRenderer = null; _enh.axisContainer.remove(); return; }
     _enh.axisRenderer.setSize(SIZE, SIZE);
     _enh.axisRenderer.setPixelRatio(window.devicePixelRatio || 1);
     _enh.axisRenderer.setClearColor(0x000000, 0);
@@ -1582,25 +1584,105 @@ function toggle3DLoader(show) {
 // =========================================================
 // §3  INIT 3D  (core setup + UI build)
 // =========================================================
+// The browser can refuse a WebGL context or take one back (GPU reset, driver crash, too many contexts in the
+// browser). That must not stop the project loading: the 3D view says what happened, retries, and offers a restart.
+const _ctx3D = { retryTimer: 0, retries: 0, lostTimer: 0 };
+const CONTEXT_RETRY_DELAYS_3D = [1500, 4000, 10000];
+function show3DContextNotice(state) {
+    const wrapper = document.getElementById('three-view-wrapper');
+    let box = document.getElementById('three-context-notice');
+    if (!state) { box?.remove(); return; }
+    if (!wrapper) return;
+    if (!box) {
+        box = document.createElement('div');
+        box.id = 'three-context-notice';
+        box.setAttribute('role', 'status');
+        Object.assign(box.style, { position:'absolute', inset:'0', zIndex:'200', display:'flex', alignItems:'center', justifyContent:'center', padding:'16px', background:'rgba(32,33,36,0.92)', color:'#e8eaed', font:'13px/1.45 system-ui, sans-serif', textAlign:'center' });
+        wrapper.appendChild(box);
+    }
+    const retrying = state === 'retrying' || state === 'lost';
+    const title = state === 'lost' ? 'The 3D view lost its graphics context' : 'The 3D view could not start';
+    const detail = state === 'lost'
+        ? 'The browser reset the graphics card. Your project and edits are safe; restoring the 3D view…'
+        : retrying
+            ? 'The browser did not give this page graphics (WebGL). The rest of the project is loaded; trying again…'
+            : 'The browser did not give this page graphics (WebGL). The rest of the project is loaded. Close other editor tabs and try again; if it keeps happening, restart Chrome and check that hardware acceleration is on (Settings › System).';
+    box.innerHTML = '<div style="max-width:420px"><div style="font-weight:600;font-size:14px;margin-bottom:6px"></div><div></div>'
+        + (retrying ? '' : '<div style="margin-top:12px;display:flex;gap:8px;justify-content:center"><button type="button" data-act="retry" style="padding:6px 12px;border-radius:6px;border:0;background:#1a73e8;color:#fff;cursor:pointer">Try again</button><button type="button" data-act="reload" style="padding:6px 12px;border-radius:6px;border:1px solid #5f6368;background:transparent;color:#e8eaed;cursor:pointer">Reload page</button></div>')
+        + '</div>';
+    box.firstChild.children[0].textContent = title;
+    box.firstChild.children[1].textContent = detail;
+    box.querySelector('[data-act="retry"]')?.addEventListener('click', () => { _ctx3D.retries = 0; restart3DView(); });
+    box.querySelector('[data-act="reload"]')?.addEventListener('click', () => window.location.reload());
+}
+function restart3DView() {
+    clearTimeout(_ctx3D.retryTimer); clearTimeout(_ctx3D.lostTimer);
+    init3D();
+    if (typeof renderer === 'undefined' || !renderer || renderer._fmRetired) return;
+    if (typeof renderGeometry3D === 'function') renderGeometry3D();
+    if (typeof triggerLiveUpdate === 'function') triggerLiveUpdate();
+    window.invalidateScene3D?.();
+}
+function watch3DContext(next) {
+    const canvas = next.domElement;
+    canvas.addEventListener('webglcontextlost', () => {
+        // forceContextLoss on a renderer being replaced also fires this; only the live renderer matters.
+        if (next._fmRetired || next !== renderer) return;
+        console.warn('[3D] WebGL context lost');
+        show3DContextNotice('lost');
+        clearTimeout(_ctx3D.lostTimer);
+        // Three.js keeps the scene and re-uploads it on restore; when the browser never restores, start over.
+        _ctx3D.lostTimer = setTimeout(() => { if (next === renderer && !next._fmRetired) restart3DView(); }, 6000);
+    });
+    canvas.addEventListener('webglcontextrestored', () => {
+        if (next._fmRetired || next !== renderer) return;
+        console.warn('[3D] WebGL context restored');
+        clearTimeout(_ctx3D.lostTimer);
+        show3DContextNotice(null);
+        if (typeof renderGeometry3D === 'function') renderGeometry3D();
+        if (typeof triggerLiveUpdate === 'function') triggerLiveUpdate();
+        window.invalidateScene3D?.();
+    });
+}
+function create3DRenderer() {
+    try {
+        const next = new THREE.WebGLRenderer({ antialias:true, alpha:window.FIRSTMEASURE_FULL_HOUSE === true, preserveDrawingBuffer:true, powerPreference:'high-performance' });
+        clearTimeout(_ctx3D.retryTimer); _ctx3D.retries = 0;
+        show3DContextNotice(null);
+        watch3DContext(next);
+        return next;
+    } catch (e) {
+        console.error('[3D] WebGL context could not be created:', e);
+        const delay = CONTEXT_RETRY_DELAYS_3D[_ctx3D.retries];
+        show3DContextNotice(delay ? 'retrying' : 'failed');
+        clearTimeout(_ctx3D.retryTimer);
+        if (delay) { _ctx3D.retries++; _ctx3D.retryTimer = setTimeout(restart3DView, delay); }
+        return null;
+    }
+}
+function retire3DRenderer(old) {
+    if (!old || old._fmRetired) return;
+    old._fmRetired = true;
+    old.dispose();
+    old.forceContextLoss();
+}
 function init3D() {
     if (!layerData.dsm || !layerData.rgb) return;
     const container = document.getElementById('three-container');
     const wrapper = document.getElementById('three-view-wrapper');
     if (!container || !wrapper) return;
+    // Get the context first: if the browser refuses one, the current view (if any) stays as it is.
+    const nextRenderer = create3DRenderer();
+    if (!nextRenderer) return;
     if (window.FIRSTMEASURE_FULL_HOUSE === true) {
     // Removing a canvas does not release its WebGL resources or controls.
     // Address changes and DSM rebuilds can initialize this view repeatedly.
     if (typeof controls !== 'undefined' && controls) controls.dispose();
     if (typeof scene !== 'undefined' && scene) disposeObject3D(scene);
-    if (typeof renderer !== 'undefined' && renderer) {
-        renderer.dispose();
-        renderer.forceContextLoss();
-    }
+    if (typeof renderer !== 'undefined' && renderer) retire3DRenderer(renderer);
     if (_enh.axisScene) disposeObject3D(_enh.axisScene);
-    if (_enh.axisRenderer) {
-        _enh.axisRenderer.dispose();
-        _enh.axisRenderer.forceContextLoss();
-    }
+    if (_enh.axisRenderer) retire3DRenderer(_enh.axisRenderer);
+    _enh.axisRenderer = null;
     disposeGoogleTileProjectionTexture();
     // Editor controls must survive imagery/terrain rebuilding the Three.js scene.
     const exteriorToolbar = container.querySelector('#exterior-toolbar');
@@ -1616,7 +1698,7 @@ function init3D() {
     camera = new THREE.PerspectiveCamera(_enh.perspectiveFov, w/h, 0.01, 2000);
     _enh.isOrthographic = false;
     camera.position.set(0, 80, 100);
-    renderer = new THREE.WebGLRenderer({ antialias:true, alpha:window.FIRSTMEASURE_FULL_HOUSE === true, preserveDrawingBuffer:true, powerPreference:'high-performance' });
+    renderer = nextRenderer;
     renderer.setPixelRatio(window.devicePixelRatio || 1);
     renderer.setSize(w, h, false);
     if ('toneMapping' in renderer && typeof THREE.NoToneMapping !== 'undefined') {
