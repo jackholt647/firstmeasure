@@ -5215,22 +5215,8 @@
     return [document.getElementById(primaryId), document.getElementById(embeddedId)].filter(Boolean);
   }
 
-  const fullHouseReviewFields = [['roof','Roof measurements'],['walls','Exterior walls and dimensions'],['openings','Windows and doors'],['finishes_trim','Finishes and trim'],['gutters','Gutters and stories'],['references','Customer photos and walkthroughs'],['pdf','Complete full-house PDF']];
   function isFullHouseReview(){return currentManifest?.measurement_scope==='full_house'||/^exteriors_[a-f0-9]{32}$/.test(String(currentId||''));}
-  // No checklist to tick: approving a full-house report is the confirmation the
-  // server asks for (full_house_workflow.ts), as approving a roof report is.
-  function renderFullHouseReview(){
-    document.getElementById('qaFullHouseReview')?.remove();
-  }
-  function fullHouseReviewPayload(){
-    if(!isFullHouseReview())return{};
-    return{full_house_review:Object.fromEntries(fullHouseReviewFields.map(([key])=>[key,true]))};
-  }
-  function fullHouseReviewReady(){
-    return true;
-  }
   function updateActionButtons(){
-    renderFullHouseReview();
     const stats = getThreadStats();
     const summary = document.getElementById('qaThreadSummary');
     const buttonsDiv = document.getElementById('qaActionButtons');
@@ -5422,7 +5408,6 @@
     if (qaSubmitting) return;
     requestedPdfSync = resolveQaReviewedPdfSync(requestedPdfSync);
     const apiStatus = status === 'corrected_approved' ? 'approved' : status;
-    if(apiStatus==='approved'&&!fullHouseReviewReady())return;
     if (apiStatus === 'rejected' && isCurrentCustomerReworkQaJob()) {
       alert('Customer rework jobs should be corrected and approved, or approved without changes. They cannot be sent back to the technician.');
       return;
@@ -5486,7 +5471,6 @@
       const res = await fmPost(`projects/${encodeURIComponent(currentId)}/qa/decision`, {
         status: apiStatus,
         ...buildQaDecisionTracking(status),
-        ...fullHouseReviewPayload(),
         pdf_sync_job_id: reviewedPdfSync?.jobId || '',
         pdf_sync_revision: reviewedPdfSync?.revision || '',
         threads: qaThreads,
@@ -5628,7 +5612,6 @@
 
   // ----------------- MANAGER DECISION -----------------
   async function submitManagerDecision(status, requestedPdfSync){
-    if(status==='approved'&&!fullHouseReviewReady())return;
     if (!currentId || !isManagerReviewMode) return;
     requestedPdfSync = resolveQaReviewedPdfSync(requestedPdfSync);
     if (status === 'rejected' && isCurrentCustomerReworkQaJob()) {
@@ -5679,7 +5662,6 @@
       }
       const res = await fmPost(`projects/${encodeURIComponent(currentId)}/manager/decision`, {
         status: status,
-        ...fullHouseReviewPayload(),
         pdf_sync_job_id: reviewedPdfSync?.jobId || '',
         pdf_sync_revision: reviewedPdfSync?.revision || '',
         threads: qaThreads,
@@ -9974,7 +9956,6 @@
       if (String(data.type || '').indexOf('firstmeasure:') === 0) markQaActivity();
       if (data.type === 'firstmeasure:qa_decision_request') {
         if (!currentId || String(data.folder || '') !== String(currentId)) return;
-        setEmbeddedFullHouseReview(data.folder, data.full_house_review);
         if (Array.isArray(data.threads)) {
           qaThreads = mergeThreadDrafts(qaThreads, data.threads);
           renderChecklist();
