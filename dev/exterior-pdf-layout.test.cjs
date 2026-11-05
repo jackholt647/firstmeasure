@@ -145,6 +145,28 @@ test('every opening of a face counted on an elevation is labeled in its drawing 
  // Wall labels are unchanged: every wall label is still a table row.
  for(const p of pages.filter(p=>/ Elevation$/.test(p.title))){const walls=p.text.filter(t=>t.bold&&t.size<=7&&/^W\d+$/.test(t.value)).map(t=>t.value).sort(),rows=p.text.filter(t=>!t.bold&&t.size===8&&/^W\d+$/.test(t.value)).map(t=>t.value).sort();assert.deepEqual(walls,rows,p.title);}
 });
+// FM-337 follow-up: a label too big for its window sits just outside the window, on the same wall,
+// clear of face lines, other openings, trim and labels; the leader line is the last resort.
+test('an opening label that does not fit inside sits just outside the opening on its own wall, without a leader',()=>{
+ const wall=box('W20',{x:0,y:0},{x:12,y:0},0,7,{x:0,y:-1,z:0}),lines=[],circles=[];
+ // Small windows (one framed by trim) on a big wall, and a big door whose label fits inside.
+ const opening=(id,x0,x1,z0,z1,trim)=>{const o={id,wall:'W20',type:'Window',label:'Window',points:[{x:x0,y:0,z:z0},{x:x1,y:0,z:z0},{x:x1,y:0,z:z1},{x:x0,y:0,z:z1}],trimFaces:trim?[{points:[{x:x0-.06,y:-.01,z:z0-.06},{x:x1+.06,y:-.01,z:z0-.06},{x:x1+.06,y:-.01,z:z1+.06},{x:x0-.06,y:-.01,z:z1+.06}],holes:[[{x:x0,y:-.01,z:z0},{x:x1,y:-.01,z:z0},{x:x1,y:-.01,z:z1},{x:x0,y:-.01,z:z1}]]}]:[]};wall.openings.push(o);return o;};
+ opening('W20-1',2,2.6,4,4.8,true);opening('W20-2',8,8.6,1.5,2.1);opening('W20-3',8,8.6,4,4.6);opening('W20-4',4.5,6.5,0,2.5).type='Door';
+ const doc=new Proxy({getTextWidth:s=>String(s).length*1.6,line:(...a)=>lines.push(a),circle:(...a)=>circles.push(a)},{get:(o,k)=>k in o?o[k]:()=>{}});
+ const rect={x:0,y:0,w:150,h:90},scene=PDF.rasterScene([wall],{x:0,y:-1},rect.w*8,rect.h*8,false,40),placed=PDF.placeLabels(doc,scene,rect,new Set(['W20']));
+ const by=Object.fromEntries(placed.map(p=>[p.id,p])),wallIds=new Set(scene.surfaces.map((s,k)=>s.id==='W20'&&!s.featureType?k:-1));
+ assert.deepEqual(Object.keys(by).sort(),['W20','W20-1','W20-2','W20-3','W20-4']);
+ assert.equal(lines.length,0,'no leader line');assert.equal(circles.length,0,'no leader dot');assert.ok(placed.every(p=>!p.leader));
+ assert.ok(!by['W20-4'].adjacent,'the door label fits inside the door');
+ for(const id of ['W20-1','W20-2','W20-3']){
+  const {box:r,adjacent}=by[id],k=scene.surfaces.findIndex(s=>s.id===id),o=scene.bounds[k];assert.ok(adjacent,id+' sits beside its window');
+  // Every pixel under the label (and a margin) is the window's wall: no face line, opening or trim.
+  for(let y=r.y0-2;y<=r.y1+2;y++)for(let x=r.x0-2;x<=r.x1+2;x++)assert.ok(wallIds.has(scene.owners[y*scene.width+x]),id+' covers only its wall');
+  // Just outside an edge: within 3 mm of the window's visible bounds.
+  const gap=Math.max(o.x0-r.x1,r.x0-o.x1,o.y0-r.y1,r.y0-o.y1);assert.ok(gap>0&&gap<=3*8,id+' gap '+gap);
+ }
+ for(const a of placed)for(const b of placed)if(a!==b)assert.ok(a.box.x1<b.box.x0||b.box.x1<a.box.x0||a.box.y1<b.box.y0||b.box.y1<a.box.y0,a.id+' overlaps '+b.id);
+});
 test('a landscape elevation side panel is only as wide as its table, its rows are never cut, and the drawing gets the rest',()=>{
  const ctx=loadPDF(),pages=[];let page,font='normal',size=9;
  const doc=new Proxy({internal:{pageSize:{getWidth:()=>279.4,getHeight:()=>215.9}},getTextWidth:s=>String(s).length*size*.16,splitTextToSize:s=>[s],setFont:(f,style)=>{font=style;},setFontSize:s=>{size=s;},text:(value,x,y)=>page.text.push({value:String(value),bold:font==='bold',size,x,y}),roundedRect:(...a)=>page.rounded.push(a)},{get:(o,k)=>k in o?o[k]:()=>{}});
