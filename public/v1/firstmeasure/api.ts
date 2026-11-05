@@ -126,6 +126,8 @@ import {
 
   getIndexedQueueCounts,
 
+  normalizeQueueReportType,
+
   queryIndexedQueueBucket,
 
   queryIndexedQaCandidateManifests,
@@ -3975,6 +3977,8 @@ export const registerFirstMeasureApi: FastifyPluginAsync = async (app) => {
 
       team_id: toOptionalString(input.team_id ?? input.team),
 
+      report_type: normalizeQueueReportType(input.report_type),
+
       includeInstantOnly: parsedQuery.includeInstantOnly,
 
       activityStartMs: parsedQuery.activityStartMs ?? null,
@@ -4028,6 +4032,8 @@ export const registerFirstMeasureApi: FastifyPluginAsync = async (app) => {
       group,
 
       team_id: toOptionalString(input.team_id ?? input.team),
+
+      report_type: normalizeQueueReportType(input.report_type),
 
       limit: clampQueueBucketLimit(input.limit, 50, 500),
 
