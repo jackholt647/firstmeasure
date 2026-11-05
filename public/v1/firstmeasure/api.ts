@@ -3579,13 +3579,18 @@ export const registerFirstMeasureApi: FastifyPluginAsync = async (app) => {
 
 
 
-  // Resource media and editable markup are internal-only, including direct artifact URLs.
+  // Resource media and editable markup are internal-only, including direct artifact URLs. A customer
+  // full-house order keeps its drafting resources (uploads, saved frames, markup) for staff only.
+  const isCustomerFullHouseId = (id: string) => /^exteriors_[a-f0-9]{32}$/.test(id);
 
   async function requireResourceAccess(request: FastifyRequest, name: string) {
 
     if (!/^internal-(resource|markup)-/i.test(sanitizeFileName(name))) return;
 
-    if (!isFullHouseId(getProjectId(request.params)) || !await authorizeFullHouseRequest(request)) {
+    const projectId = getProjectId(request.params);
+    if (isCustomerFullHouseId(projectId) && (await requestPrincipal(request)).kind === "staff") return;
+
+    if (!isFullHouseId(projectId) || !await authorizeFullHouseRequest(request)) {
 
       throw new FirstMeasureError('internal_resource_forbidden', 403, 'Internal resource access required.');
 
@@ -3599,7 +3604,7 @@ export const registerFirstMeasureApi: FastifyPluginAsync = async (app) => {
 
     ok: true,
 
-    files: (await listProjectFiles(getProjectId(request.params))).filter(file => !/^internal-(resource|markup)-/i.test(file.name) || isFullHouseId(getProjectId(request.params)))
+    files: (await listProjectFiles(getProjectId(request.params))).filter(file => !/^internal-(resource|markup)-/i.test(file.name) || isFullHouseId(getProjectId(request.params)) || isCustomerFullHouseId(getProjectId(request.params)))
 
   }));
 
