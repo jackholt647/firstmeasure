@@ -1,6 +1,6 @@
-// Embedded QA: the editor's PDF page carries the seven full-house checks to the
-// portal's QA and manager decisions, and approval waits for PDF renders in
-// flight and names the newest revision the review produced. Runs the real
+// Embedded QA: a full-house PDF page has no full-house checklist (FM-345) and
+// approves exactly like a roof page; approval waits for PDF renders in flight
+// and names the newest revision the review produced. Runs the real
 // report.js and qa.js code in an isolated browser (parent portal + editor iframe).
 const {chromium}=require('../public/v1/node_modules/playwright-core');
 const fs=require('node:fs'),path=require('node:path'),assert=require('node:assert/strict');
@@ -26,13 +26,14 @@ async function main(){
   sliceFunction(report,'setupQaPdfReviewControls'),
   sliceFunction(report,'escapeHtml')
  ].join('\n');
- const portalReview=slice(qa,'  const fullHouseReviewFields =','  function updateActionButtons(){','qa review');
- const portalHandler=slice(qa,"      if (data.type === 'firstmeasure:qa_full_house_review') {","      if (data.type !== 'firstmeasure:qa_threads_updated') return;",'qa handler');
+ const portalHandler=slice(qa,"      if (data.type === 'firstmeasure:qa_decision_request') {","      if (data.type !== 'firstmeasure:qa_threads_updated') return;",'qa handler');
  const portalSettle=slice(qa,'  let qaPdfRendersInFlight = 0;','  async function renderQaPdfPreviewNow(options){','qa settle');
  for(const [label,text] of [['QA',qa.slice(qa.indexOf('async function submitDecision('),qa.indexOf('async function verifyQaDecisionPersisted('))],['manager',qa.slice(qa.indexOf('async function submitManagerDecision('),qa.indexOf('// ----------------- SPLITTER'))]]){
-  assert.match(text,/\.\.\.fullHouseReviewPayload\(\)/,`${label} decision sends the full-house review`);
+  assert.doesNotMatch(text,/fullHouseReview|full_house_review/,`${label} decision neither gates on nor sends a full-house checklist`);
   assert.match(text,/settleQaReviewedPdfSync\(reviewedPdfSync\)/,`${label} approval settles the PDF revision`);
  }
+ for(const gone of ['qaPdfFullHouseReview','QA_FULL_HOUSE_REVIEW_ITEMS','firstmeasure:qa_full_house_review','full_house_review'])
+  assert.ok(!report.includes(gone),`report.js no longer has ${gone}`);
 
  const folder='exteriors_'+'b'.repeat(32);
  const editorHtml=(fullHouse)=>`<!doctype html><body><div id="page"></div><script>
@@ -54,15 +55,13 @@ async function main(){
   const getActiveQaEditorFrame=()=>document.getElementById('qaEmbeddedEditorFrame');
   const Portal={fmUrl:(p)=>'/v1/firstmeasure/'+p};
   window.alerts=[];window.alert=(m)=>window.alerts.push(m);window.decisions=[];window.messages=[];
-  function submitDecision(status,sync){window.decisions.push({kind:'qa',status,sync,...fullHouseReviewPayload()});}
-  function submitManagerDecision(status,sync){window.decisions.push({kind:'manager',status,sync,...fullHouseReviewPayload()});}
-  ${portalReview}
+  function submitDecision(status,sync){window.decisions.push({kind:'qa',status,sync});}
+  function submitManagerDecision(status,sync){window.decisions.push({kind:'manager',status,sync});}
   ${portalSettle}
   async function renderQaPdfPreviewNow(){}
   const handle=new Function('data',${JSON.stringify(portalHandler)});
   window.addEventListener('message',(event)=>{const data=event.data||{};window.messages.push(data);handle(data);});
-  renderFullHouseReview();
-  window.fixture={ready:()=>fullHouseReviewReady(),payload:()=>fullHouseReviewPayload(),settle:settleQaReviewedPdfSync,
+  window.fixture={settle:settleQaReviewedPdfSync,
    setOwn:(j,r)=>{qaPdfLastSyncJobId=j;qaPdfLastSyncRevision=r;},setManager:(on)=>{isManagerReviewMode=on;},setRender:(n)=>{qaPdfRendersInFlight=n;}};
  </script></body>`;
 
@@ -81,21 +80,15 @@ async function main(){
   await page.goto('http://fixture.test/portal');
   const editor=page.frameLocator('#qaEmbeddedEditorFrame');
   const frame=()=>page.frames().find(f=>f.url().endsWith('/editor-fullhouse'));
-  await editor.locator('#qaPdfFullHouseReview').waitFor();
+  await editor.locator('#qaPdfApproveBtn').waitFor();
 
-  // The portal's own checklist is hidden in embedded QA; nothing ticked yet.
-  assert.equal(await page.locator('#qaFullHouseReview').isVisible(),false);
-  assert.equal(await page.evaluate(()=>fixture.ready()),false);
-  assert.match(await page.evaluate(()=>alerts.at(-1)),/PDF page/);
-
-  // The editor's PDF page shows the seven checks; approval needs them and the roof checks.
-  assert.equal(await editor.locator('#qaPdfFullHouseReview input').count(),7);
+  // The PDF page shows only the roof checks: no full-house checklist, and approval
+  // is enabled once they pass, as on a roof report.
+  assert.equal(await editor.locator('#qaPdfFullHouseReview, #qaPdfReviewPanel fieldset, #qaPdfReviewPanel input[type=checkbox]').count(),0);
+  assert.doesNotMatch(await editor.locator('#qaPdfReviewPanel').innerText(),/Full-house review/i);
+  assert.equal(await editor.locator('#qaPdfApproveBtn').isDisabled(),true,'approve waits for the roof checks');
   for(const pass of await editor.locator('.qa-pdf-mark.pass').all())await pass.click();
-  assert.equal(await editor.locator('#qaPdfApproveBtn').isDisabled(),true,'approve waits for the full-house checks');
-  assert.match(await editor.locator('#qaPdfApproveBtn').getAttribute('title'),/full-house/);
-  for(const box of await editor.locator('#qaPdfFullHouseReview input').all())await box.check();
   assert.equal(await editor.locator('#qaPdfApproveBtn').isDisabled(),false);
-  await page.waitForFunction(()=>fixture.ready()===true);
   const out=path.join(__dirname,'../output/full-house-workflow-pdfs');fs.mkdirSync(out,{recursive:true});
   await page.screenshot({path:path.join(out,'qa-embedded-full-house.png')});
 
@@ -110,16 +103,15 @@ async function main(){
   const qaDecision=await page.evaluate(()=>decisions[0]);
   assert.equal(qaDecision.kind,'qa');assert.equal(qaDecision.status,'approved');
   assert.deepEqual(qaDecision.sync,{jobId:'job2',revision:'r2'});
-  assert.deepEqual(Object.keys(qaDecision.full_house_review).sort(),['finishes_trim','gutters','openings','pdf','references','roof','walls']);
-  assert.ok(Object.values(qaDecision.full_house_review).every(v=>v===true),'QA decision carries all seven checks');
+  assert.ok(!(await page.evaluate(()=>messages.some(m=>'full_house_review' in m||m.type==='firstmeasure:qa_full_house_review'))),'the editor sends no full-house checklist');
 
-  // Manager sign-off uses the same page and sends the same checks.
+  // Manager sign-off uses the same page.
   await page.evaluate(()=>fixture.setManager(true));
   await editor.locator('#qaPdfApproveBtn').click();
   await page.waitForFunction(()=>decisions.length===2);
   const managerDecision=await page.evaluate(()=>decisions[1]);
   assert.equal(managerDecision.kind,'manager');
-  assert.ok(Object.values(managerDecision.full_house_review).every(v=>v===true),'manager decision carries all seven checks');
+  assert.equal(managerDecision.status,'approved');
 
   // Approval settles: waits for the inspector's render, adopts a newer revision this review made, ignores others.
   assert.deepEqual(await page.evaluate(()=>fixture.settle({jobId:'job2',revision:'r2'})),{jobId:'job2',revision:'r2'});
@@ -132,14 +124,14 @@ async function main(){
   await page.waitForFunction(()=>window.settled);
   assert.deepEqual(await page.evaluate(()=>window.settled),{jobId:'job3',revision:'r3'},'adopts the newest revision this review synchronized');
 
-  // A roof project's PDF page is unchanged: no full-house checks, none sent.
+  // A roof project's PDF page is unchanged.
   await page.evaluate(()=>{document.getElementById('qaEmbeddedEditorFrame').src='/editor-roof';});
   const roof=page.frameLocator('#qaEmbeddedEditorFrame');
   await roof.locator('#qaPdfApproveBtn').waitFor();
   assert.equal(await roof.locator('#qaPdfFullHouseReview').count(),0);
   for(const pass of await roof.locator('.qa-pdf-mark.pass').all())await pass.click();
   assert.equal(await roof.locator('#qaPdfApproveBtn').isDisabled(),false);
-  console.log('Embedded QA checks passed: seven full-house checks on the PDF page reach the QA and manager decisions; approval waits for renders and adopts this review\'s newest revision; roof page unchanged.');
+  console.log('Embedded QA checks passed: the full-house PDF page has no checklist and reaches the QA and manager decisions; approval waits for renders and adopts this review\'s newest revision; roof page unchanged.');
  }finally{await browser.close();}
 }
 main().catch(error=>{console.error(error);process.exitCode=1;});
