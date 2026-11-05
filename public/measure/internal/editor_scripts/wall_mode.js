@@ -1179,7 +1179,7 @@ function perf_render3DFrame() {
         let groundSampleClick=false;
         for(const type of ['pointerdown','mousedown','dblclick','click'])window.addEventListener(type,e=>{if(type==='pointerdown')trackPointerView(e);
             if(type==='pointerdown'){settleNudges(true);nudgeEpoch++;nudgeKey=null;}
-            if(!enabled)return;if(e.target.closest?.('#exterior-graphics,#resource-3d-controls,#roof-trim-control,#wall-panel,#exterior-toolbar,#axis-gizmo-container,.enh-control-panel,.controls-3d-actions,.exterior-sticker-bar,.exterior-sticker-menu'))return;
+            if(!enabled)return;if(e.target.closest?.('#exterior-graphics,#resource-3d-controls,#roof-trim-control,#wall-panel,#exterior-toolbar,#axis-gizmo-container,#three-context-notice,.enh-control-panel,.controls-3d-actions,.exterior-sticker-bar,.exterior-sticker-menu'))return;
             if(e.target.closest?.('#viewport,#three-view-wrapper') && e.button===0){
                 if(groundSampleClick&&type!=='pointerdown'){if(type==='click')groundSampleClick=false;e.stopImmediatePropagation();e.preventDefault();return;}
                 if(type==='pointerdown')groundSampleClick=false;
