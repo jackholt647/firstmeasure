@@ -232,7 +232,8 @@
    $('[data-action="favorite"]').disabled = !media?.videoWidth || !!favoriteDraft;
    $('[data-action="overlay"]').setAttribute('aria-pressed',String(!!current&&window.Resource3DOverlay?.imageName===current.name));
    $('[data-action="overlay"]').setAttribute('aria-label',current&&window.Resource3DOverlay?.imageName===current.name?'Remove image from 3D background':'Use image as 3D background');
-   $('[data-action="overlay"]').disabled = busy || !image || !!media || !!current?.reference || !window.Resource3DOverlay;
+   // Any still photo can sit behind the model, a customer's or QA's reference as much as the tech's upload (FM-344).
+   $('[data-action="overlay"]').disabled = busy || !image || !!media || !window.Resource3DOverlay;
    $('[data-action="markup"]').disabled = !current || busy || !!current.reference || (!image && !media?.videoWidth);
    $('[data-action="notes"]').disabled = !current; $('[data-action="download"]').disabled = !current;
    $('.resource-notes-dot').hidden = !$('.resource-description').value.trim();
@@ -360,7 +361,7 @@
     button.prepend(preview);
    }
    if(link){const jump=document.createElement('button');jump.className='resource-frame-shortcut';jump.innerHTML=icon('frames');jump.title='Video frame · '+timeLabel(link.time)+' · Jump to video';jump.setAttribute('aria-label','Jump to video frame for '+label(file.name));jump.onclick=()=>jumpToFrame(file).catch(error=>message(error.message,true));card.append(jump);}
-   if (!file.reference&&!file.pending&&/\.(png|jpe?g|gif|webp|avif|bmp)$/i.test(file.name)) {const overlay=document.createElement('button');overlay.className='resource-overlay-shortcut';overlay.innerHTML=icon('overlay');overlay.title=overlayOn?'Remove from 3D background':'Show behind 3D model';overlay.setAttribute('aria-label',(overlayOn?'Remove ':'Use ')+label(file.name)+(overlayOn?' from 3D background':' as 3D background'));overlay.setAttribute('aria-pressed',String(overlayOn));overlay.onclick=()=>sendBackground(file).catch(error=>message(error.message,true));card.append(overlay);}
+   if (!file.pending&&photo) {const overlay=document.createElement('button');overlay.className='resource-overlay-shortcut';overlay.innerHTML=icon('overlay');overlay.title=overlayOn?'Remove from 3D background':'Show behind 3D model';overlay.setAttribute('aria-label',(overlayOn?'Remove ':'Use ')+label(file.name)+(overlayOn?' from 3D background':' as 3D background'));overlay.setAttribute('aria-pressed',String(overlayOn));overlay.onclick=()=>sendBackground(file).catch(error=>message(error.message,true));card.append(overlay);}
    cardNodes.set(file.name,{signature,card,button});return card;
   }
   function markActive(){for(const [name,{button}]of cardNodes){const on=current?.name===name;button.classList.toggle('active',on);if(on)button.setAttribute('aria-current','true');else button.removeAttribute('aria-current');}}
@@ -399,7 +400,7 @@
    if(window.Resource3DOverlay.imageName===file.name){window.Resource3DOverlay.remove();message('3D background removed.');return;}
    const img=await cachedImage(sourceUrl(file),referenceKey(file));
    if(project!==id||requestId!==overlayRequest)return;
-   await window.Resource3DOverlay.show({image:img,label:label(file.name),project:id,name:file.name});
+   await window.Resource3DOverlay.show({image:img,label:label(file.name),project:id,name:file.name,src:file.reference?sourceUrl(file):''});
    panel.classList.remove('expanded');$('[data-action="expand"]').setAttribute('aria-label','Expand resources');renderList();message('3D background ready. Alignment is saved per image.');
   }
   window.addEventListener('resource-3d-overlay-change',()=>{if(project){renderList();controls();}});
