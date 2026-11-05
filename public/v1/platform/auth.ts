@@ -17,7 +17,11 @@ export async function loginPlatformVerifiedIdentity(input: VerifiedLoginInput) {
     throw unauthorized("identity_inactive", "This account is not active.");
   }
   const memberships = await listIdentityMemberships(String(identity.id || ""));
-  const selected = memberships.find((entry) => membershipMatchesOrg(entry, input.organizationId)) || memberships[0];
+  // The requested organization if the person belongs to it, otherwise one where they are still a member. Someone archived in one
+  // organization (their own sign-up, say) and since added to their employer's keeps both memberships; the archived
+  // one listed first used to refuse the sign-in as disabled (FM-341).
+  const selected = (input.organizationId && memberships.find((entry) => membershipMatchesOrg(entry, input.organizationId)))
+    || memberships.find(membershipCanSignIn) || memberships[0];
   if (!selected) throw forbidden("membership_required", "This user is not assigned to an organization.");
   const organization = asObject((selected as JsonObject).organization);
   const userDocument = asObject((selected as JsonObject).user);
@@ -564,6 +568,12 @@ export async function logoutAllRememberedPlatformAccounts(request: FastifyReques
   if (deviceId) await deleteAccountDevice(deviceId);
   clearPlatformAuthCookies(request, reply);
   clearPlatformAccountDeviceCookie(request, reply);
+}
+
+/** A membership whose organization user is not archived or suspended. */
+export function membershipCanSignIn(entry: unknown) {
+  const user = asObject(asObject(asObject(entry).user).data);
+  return user.deleted !== true && String(user.status || "active") !== "disabled";
 }
 
 function membershipMatchesOrg(entry: unknown, orgId?: string) {
