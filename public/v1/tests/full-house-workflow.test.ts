@@ -83,20 +83,21 @@ test('full-house qualifications, reviewed PDFs, QA and quality audits; roof comp
     assert.ok(!peek.json().projects.some((p: { id: string }) => p.id === id));
     const qaClaim = await post(`projects/${id}/qa/claim`, { actor: qa });
     assert.equal(qaClaim.statusCode, 200, qaClaim.body);
-    const incomplete = await post(`projects/${id}/qa/decision`, { actor: qa, status: 'approved' });
-    assert.equal(incomplete.statusCode, 409, incomplete.body);
-    const review = Object.fromEntries(contracts.FULL_HOUSE_REVIEW_FIELDS.map(key => [key, true]));
+    // FM-345: there is no full-house checklist; approval needs only the qualification and the current PDF.
+    assert.equal('assertFullHouseReview' in contracts, false);
     await storage.saveStoredPdf(id, 'main', Buffer.from('replaced artifact'));
-    const replaced = await post(`projects/${id}/qa/decision`, { actor: qa, status: 'approved', full_house_review: review });
+    const replaced = await post(`projects/${id}/qa/decision`, { actor: qa, status: 'approved' });
     assert.equal(replaced.statusCode, 409, replaced.body);
     await storage.saveStoredPdf(id, 'main', pdf);
     await users.saveInternalUser({ ...qa, can_qa_full_house: false });
-    assert.equal((await post(`projects/${id}/qa/decision`, { actor: qa, status: 'approved', full_house_review: review })).statusCode, 403);
+    assert.equal((await post(`projects/${id}/qa/decision`, { actor: qa, status: 'approved' })).statusCode, 403);
     await users.saveInternalUser({ ...qa, can_qa_full_house: true });
-    const approved = await post(`projects/${id}/qa/decision`, { actor: qa, status: 'approved', full_house_review: review });
+    const approved = await post(`projects/${id}/qa/decision`, { actor: qa, status: 'approved' });
     assert.equal(approved.statusCode, 200, approved.body);
     assert.equal((await storage.readManifest(id)).status, 'completed');
-    assert.equal(((await storage.readManifest(id)).qa_full_house_review as Record<string, unknown>).revision, revision);
+    const stamp = (await storage.readManifest(id)).qa_full_house_review as Record<string, unknown>;
+    assert.deepEqual(Object.keys(stamp).sort(), ['reviewed_at', 'reviewed_by', 'revision']);
+    assert.equal(stamp.revision, revision);
     const delivery = await jobs.getFirstMeasureJob(approved.json().delivery_job_id);
     assert.equal(delivery?.type, 'report.delivery');
     assert.equal(delivery?.payload.pdf_sync_revision, revision);

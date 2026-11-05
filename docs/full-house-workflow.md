@@ -32,15 +32,17 @@ Submission requires roof and exterior measurements, mandatory gutter settings on
 all four sides, and a completed synchronized main PDF. The PDF renderer includes
 the exterior and gutter pages even if older saved preferences hide those pages.
 The submission and delivery checks verify the saved PDF against the pinned render
-job's SHA-256 digest. Direct completion and bulk QA approval cannot bypass the
-full-house review.
+job's SHA-256 digest. Direct completion and bulk QA approval cannot bypass full-house
+QA.
 
-Full-house QA adds seven confirmations: roof, walls, openings, finishes and trim,
-gutters, references, and the complete PDF. Confirmations are tied to the PDF
-revision; a newly rendered revision needs a new review. Manager escalation also
-requires the full-house qualification and confirmations. Delivery requires an
-approved current revision and attaches the saved main PDF through the existing
-delivery service, including its normal receipt and retry handling.
+Full-house QA uses the ordinary QA controls; it has no separate checklist (the
+seven full-house confirmations were removed in FM-345). QA or manager approval
+stamps the PDF revision it approved (`qa_full_house_review` /
+`manager_full_house_review`: revision, reviewer, time); a newly rendered revision
+needs a new approval. Manager escalation also requires the full-house
+qualification. Delivery requires an approved current revision and attaches the
+saved main PDF through the existing delivery service, including its normal
+receipt and retry handling.
 
 The **QA Quality** tab adds exterior-specific error categories only for full-house
 reports. Results can be filtered by report scope when full-house results exist;
@@ -65,6 +67,7 @@ Relevant repeatable checks:
 - `public/v1/tests/full-house-delivery.test.ts`
 - `dev/full-house-workflow.browser.cjs`
 - `dev/full-house-review-ui.browser.cjs`
+- `dev/full-house-embedded-qa.browser.cjs`
 - Existing manager-review, QA, exterior PDF, PHP and tutorial regression tests.
 
 The shared PDF recipe is `2026-10-06.1`. Deploy matching editor and backend/worker

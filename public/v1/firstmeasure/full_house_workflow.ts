@@ -45,14 +45,6 @@ export function assertFullHouseSnapshot(manifest: RecordValue, value: unknown) {
   }
 }
 
-export const FULL_HOUSE_REVIEW_FIELDS = ['roof', 'walls', 'openings', 'finishes_trim', 'gutters', 'references', 'pdf'] as const;
-export function assertFullHouseReview(manifest: RecordValue, value: unknown) {
-  if (!isCustomerFullHouse(manifest)) return;
-  if (FULL_HOUSE_REVIEW_FIELDS.some(key => record(value)[key] !== true)) {
-    throw conflict('full_house_review_required', 'Confirm the roof, walls, openings, finishes and trim, gutters, references and full PDF before approving.');
-  }
-}
-
 export const FULL_HOUSE_QUALITY_CATEGORIES = [
   'missing_exterior_wall', 'incorrect_wall_dimensions', 'incorrect_openings',
   'incorrect_finishes_trim', 'missing_or_incorrect_gutters', 'incomplete_exterior_references'
