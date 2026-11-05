@@ -435,8 +435,8 @@
   function finishScrub() { if (scrub) { scrub.dragging = false; queueScrub(); } }
   function updateTransport() {
    updateFrameAction();
-   if (!media) return; const duration = Number.isFinite(media.duration) ? media.duration : 0;
-   const time = scrub?.element === media ? scrub.target : retainedMedia?.probe && retainedMedia.element === media ? retainedMedia.pendingTime || 0 : media.currentTime;
+   if (!media) return; const probing = retainedMedia?.probe && retainedMedia.element === media, duration = Number.isFinite(media.duration) ? media.duration : probing ? retainedMedia.duration || 0 : 0;
+   const time = scrub?.element === media ? scrub.target : probing ? retainedMedia.pendingTime || 0 : media.currentTime;
    $('.resource-seek').max = duration || 1; $('.resource-seek').value = time || 0; $('.resource-seek').disabled = !duration || !!favoriteDraft;
    $('.resource-time').textContent = timeLabel(time) + ' / ' + timeLabel(duration);
    $('[data-action="play"]').textContent = media.paused ? '▶' : 'Ⅱ'; $('[data-action="play"]').setAttribute('aria-label', media.paused ? 'Play' : 'Pause');
@@ -468,7 +468,7 @@
       if(isVideo)watchFrames(element);
       for(const event of ['waiting','seeking'])element.addEventListener(event,()=>{if(element===media)panel.classList.add('is-buffering');});
       for(const event of ['playing','seeked','canplay','pause','loadeddata'])element.addEventListener(event,()=>{if(element===media&&!element.seeking&&element.readyState>=2)panel.classList.remove('is-buffering');});
-      const ready=()=>{if(element!==media)return;if(entry.pendingTime!=null){element.currentTime=Math.min(entry.pendingTime,Number.isFinite(element.duration)?element.duration:entry.pendingTime);entry.pendingTime=null;}fit();controls();updateTransport();if(entry.resume){entry.resume=false;if(active)element.play().catch(()=>{});}};
+      const ready=()=>{if(Number.isFinite(element.duration))entry.duration=element.duration;if(element!==media)return;if(entry.pendingTime!=null){element.currentTime=Math.min(entry.pendingTime,Number.isFinite(element.duration)?element.duration:entry.pendingTime);entry.pendingTime=null;}fit();controls();updateTransport();if(entry.resume){entry.resume=false;if(active)element.play().catch(()=>{});}};
       // A recorder-made WebM (no Cues, Duration 0) loads with an infinite duration, which leaves nothing to
       // scrub. Seeking past the end makes Chrome read its length; the player then returns to where it was.
       const endProbe=()=>{clearTimeout(entry.probe);entry.probe=null;ready();};
@@ -807,7 +807,10 @@
    event.target.setPointerCapture(event.pointerId);
   });
   seek.addEventListener('input', event => {
-   if (favoriteDraft || !media) return; const target = Number(event.target.value); if (!scrub) beginScrub(false); if (!scrub) return;
+   if (favoriteDraft || !media) return; const target = Number(event.target.value);
+   // While the player reads a recorder WebM's length, a drag is kept and applied once it is known.
+   if (retainedMedia?.probe && retainedMedia.element === media) { retainedMedia.pendingTime = Math.max(0, target); updateTransport(); return; }
+   if (!scrub) beginScrub(false); if (!scrub) return;
    scrub.target = Math.max(0, Math.min(media.duration, target)); scrub.pending = true; updateTransport(); queueScrub();
   });
   for (const event of ['change', 'pointerup', 'pointercancel', 'lostpointercapture', 'blur']) seek.addEventListener(event, finishScrub);
