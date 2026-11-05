@@ -7037,38 +7037,6 @@ const QA_PDF_REVIEW_ITEMS = [
     { key: 'diagram_labels', label: 'Diagram Labels' }
 ];
 
-// The seven confirmations the server requires before a customer full-house
-// report is approved (full_house_workflow.ts FULL_HOUSE_REVIEW_FIELDS). There is
-// no checklist to tick: approving the report is the confirmation, as for roofs,
-// so every decision sends them all confirmed.
-const QA_FULL_HOUSE_REVIEW_ITEMS = [
-    { key: 'roof', label: 'Roof measurements' },
-    { key: 'walls', label: 'Exterior walls and dimensions' },
-    { key: 'openings', label: 'Windows and doors' },
-    { key: 'finishes_trim', label: 'Finishes and trim' },
-    { key: 'gutters', label: 'Gutters and stories' },
-    { key: 'references', label: 'Customer photos and walkthroughs' },
-    { key: 'pdf', label: 'Complete full-house PDF' }
-];
-
-function isQaFullHouseReviewMode() {
-    return window.FIRSTMEASURE_CUSTOMER_FULL_HOUSE === true;
-}
-
-function qaFullHouseReviewPayload() {
-    if (!isQaFullHouseReviewMode()) return null;
-    return Object.fromEntries(QA_FULL_HOUSE_REVIEW_ITEMS.map((item) => [item.key, true]));
-}
-
-function isQaFullHouseReviewComplete() {
-    const payload = qaFullHouseReviewPayload();
-    return !payload || QA_FULL_HOUSE_REVIEW_ITEMS.every((item) => payload[item.key] === true);
-}
-
-function renderQaFullHouseReviewHtml() {
-    return '';
-}
-
 // Each PDF preview render synchronizes a new server revision. Approval waits for
 // renders in flight so it names the newest revision, not one replaced seconds later.
 let firstMeasurePdfPreviewsInFlight = 0;
@@ -7149,7 +7117,6 @@ function renderQaPdfReviewHtml(state) {
     return `
         <div class="qa-pdf-review-panel" id="qaPdfReviewPanel">
             <div class="qa-pdf-review-grid">${itemsHtml}</div>
-            ${renderQaFullHouseReviewHtml()}
             <div class="qa-pdf-review-actions">
                 <button class="fin-submit-btn qa-sendback disabled" id="qaPdfSendBackBtn" disabled>
                     <i class="fas fa-undo"></i> Request Tech Correction
@@ -7414,7 +7381,6 @@ function postQaPdfDecision(status, threads) {
         folder: window.currentProjectId || reportConfigState?.folderId || '',
         pdf_sync_job_id: reviewedSync.jobId || reviewedSync.job_id || '',
         pdf_sync_revision: reviewedSync.revision || '',
-        ...(isQaFullHouseReviewMode() ? { full_house_review: qaFullHouseReviewPayload() } : {}),
         threads: Array.isArray(threads) ? threads : (window.DrafterQA?.getThreads ? window.DrafterQA.getThreads() : [])
     }, window.location.origin);
 }
@@ -7503,15 +7469,13 @@ function setupQaPdfReviewControls(container, state, storiesReady) {
         const allPass = allReviewed && values.every((item) => item.status === 'pass');
         const failed = values.filter((item) => item.status === 'fail');
         const failedWithComments = failed.length > 0 && failed.every((item) => String(item.comment || '').trim().length > 0);
-        const fullHouseReady = isQaFullHouseReviewComplete();
-        const canApprove = storiesReady && allPass && fullHouseReady;
-        const canCorrectApprove = storiesReady && failedWithComments && fullHouseReady;
+        const canApprove = storiesReady && allPass;
+        const canCorrectApprove = storiesReady && failedWithComments;
         const canSendBack = failedWithComments && !fixOnlyMode;
 
         if (approveBtn) {
             approveBtn.disabled = !canApprove;
             approveBtn.className = `fin-submit-btn qa-approve ${canApprove ? 'enabled' : 'disabled'}`;
-            approveBtn.title = fullHouseReady ? '' : 'Tick every full-house review check first.';
         }
         if (correctApproveBtn) {
             correctApproveBtn.disabled = !canCorrectApprove;
