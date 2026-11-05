@@ -48,22 +48,35 @@ function fm_resource_run(array $command, $timeoutSeconds) {
 }
 
 // Returns the PNG of the frame a browser shows at $time: the last frame whose
-// presentation time is at or before $time. Decoding starts up to three
-// seconds earlier so the choice does not depend on keyframe placement. Each
-// decoded frame overwrites one uncompressed PAM file and only the last one is
-// encoded as PNG: encoding every frame of the window (180 at 60 fps) made a
-// save take a minute or more on a busy server (FM-343).
+// presentation time is at or before $time, found by decoding a window that
+// ends at $time. Each decoded frame overwrites one uncompressed PAM file and
+// only the last one is encoded as PNG: encoding every frame of the window
+// (180 at 60 fps) made a save take a minute or more on a busy server (FM-343).
+// Every frame in the window is still converted and written, so the window is a
+// quarter second (any video of 4 fps or more has a frame in it) and widens to
+// three seconds only when it holds none; three seconds every time kept a save
+// at 7-10 s of ffmpeg on production's busy compatibility host. The window ends
+// with trim, measured from the seek point: an output -t counts from the first
+// frame after it, which let a frame up to one frame interval late in.
+const FM_RESOURCE_FRAME_WINDOWS = [0.25, 3.0];
 function fm_resource_extract_frame($videoPath, $time, $ffmpeg = null) {
     $ffmpeg = $ffmpeg ?: fm_resource_ffmpeg_path();
     if (!is_float($time) && !is_int($time) || !is_finite((float)$time) || $time < 0) throw new InvalidArgumentException('Invalid frame time.');
     $time = (float)$time;
-    $start = max(0.0, $time - 3.0);
     $out = tempnam(sys_get_temp_dir(), 'fmframe');
     $png = $out . '.png'; $pam = $out . '.pam'; @unlink($out);
     try {
         $fmt = fn($value) => number_format($value, 6, '.', '');
-        [$code, $stderr] = fm_resource_run([$ffmpeg, '-nostdin', '-v', 'error', '-y', '-ss', $fmt($start), '-i', $videoPath,
-            '-t', $fmt($time - $start + 0.0005), '-map', '0:v:0', '-fps_mode', 'passthrough', '-update', '1', '-c:v', 'pam', '-f', 'image2', $pam], 120);
+        $tried = null;
+        foreach (FM_RESOURCE_FRAME_WINDOWS as $window) {
+            $start = max(0.0, $time - $window);
+            if ($start === $tried) continue;
+            $tried = $start;
+            [$code, $stderr] = fm_resource_run([$ffmpeg, '-nostdin', '-v', 'error', '-y', '-ss', $fmt($start), '-i', $videoPath,
+                '-map', '0:v:0', '-vf', 'trim=end=' . $fmt($time - $start + 0.0005), '-t', $fmt($time - $start + 1.0),
+                '-fps_mode', 'passthrough', '-update', '1', '-c:v', 'pam', '-f', 'image2', $pam], 120);
+            if ($code !== 0 || is_file($pam) && filesize($pam)) break;
+        }
         if (!is_file($pam) || !filesize($pam)) {
             // A timestamp before the first frame: use the first frame instead.
             [$code, $stderr] = fm_resource_run([$ffmpeg, '-nostdin', '-v', 'error', '-y', '-ss', $fmt($time), '-i', $videoPath,
