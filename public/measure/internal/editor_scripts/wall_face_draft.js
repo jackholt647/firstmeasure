@@ -558,7 +558,13 @@ window.createWallFaceDraft=function(host){
    const outline=G.generatedGroupOutline(walls(),members),own=members.flatMap(v=>[...v.bottom,...v.top]),strip=p=>own.some(q=>Math.hypot(p.x-q.x,p.y-q.y,p.z-q.z)<=.0011);
    const ring=r=>r.filter(strip).map(local).filter((p,i,a)=>{const q=a[(i+a.length-1)%a.length];return a.length<2||Math.hypot(p.x-q.x,p.y-q.y)>=.0001;}),signed=r=>r.reduce((s,p,i)=>{const q=r[(i+1)%r.length];return s+p.x*q.y-q.x*p.y;},0)/2;
    const faces=outline?.map(f=>({points:ring(f.points),holes:f.holes.map(ring)}));
-   if(faces?.length&&faces.every(f=>f.points.length>=3&&f.holes.every(h=>h.length>=3))){
+   // The clean-up can move a run's real corner a little past the strip
+   // tolerance (1.5 mm beside a turret), so the filter drops it and the ring
+   // crosses itself; the edit's validation then splits it at a point no sketch
+   // node holds and refuses every edit. Such a ring is no outline: build the
+   // strips' union instead.
+   const simple=f=>{try{return window.ExteriorGeometry.normalizeFaces({points:f.points.map(p=>({...p,z:0})),holes:f.holes.map(r=>r.map(p=>({...p,z:0})))}).length===1;}catch{return false;}};
+   if(faces?.length&&faces.every(f=>f.points.length>=3&&f.holes.every(h=>h.length>=3)&&simple(f))){
     // The preview's local frame can run the other way along the wall.
     if(signed(faces[0].points)<0)for(const f of faces){f.points.reverse();for(const h of f.holes)h.reverse();}
     union=faces;

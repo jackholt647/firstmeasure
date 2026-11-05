@@ -2486,6 +2486,27 @@ test('the reconciled lower-tower junction remains editable with Resoffit',()=>{
  f.editor.restoreSelection({lineSelection:[{pair:line.pair}]});assert.equal(f.editor.resoffit(.1524),true,f.message());assert.equal(f.history.length,1);assert.equal(JSON.stringify(f.history[0]),before);
  const contacts=f.editor.soffitEdges().filter(c=>c.source.id===line.source.id);assert.ok(contacts.length);assert.ok(contacts.every(c=>Math.abs(c.inset-.1524)<.002));
 });
+// Renz, Nov 4 (training house with three octagonal turrets): two turret lines at 0.5 ft were
+// refused with "The split wall needs a connected sketch point", and so was every other edit.
+// Each edit drafts the walls it builds its scene from. Two surveyed runs beside the turrets
+// end where the survey clean-up moved the outline's far corners 1.5 mm off the walls, so
+// keeping only the walls' own outline vertices left a crossed (bow-tie) ring.
+test('Resoffit on a turret is not refused because a neighbouring run drafts a crossed outline',()=>{
+ const R=require('../public/measure/internal/editor_scripts/wall_resoffit'),C=require('../public/measure/internal/editor_scripts/wall_chimneys'),K=require('../public/measure/internal/editor_scripts/exterior_geometry');
+ const state=structuredClone(require('./fixtures/turret-house-sliver-run.json')),f=fixture({state,walls:state.alignedWalls,selected:null,globals:{WallResoffit:R,WallChimneys:C}}),before=JSON.stringify(state.wallEdits);
+ const lines=f.editor.soffitEdges().filter(c=>['R31.0','R32.0'].includes(c.source.id));assert.equal(lines.length,2);
+ f.editor.restoreSelection({lineSelection:lines.map(c=>({pair:c.pair}))});assert.equal(f.editor.resoffit(.1524),true,f.message());
+ assert.equal(f.history.length,1);assert.equal(JSON.stringify(f.history[0]),before);
+ assert.ok(f.editor.soffitEdges().filter(c=>['R31.0','R32.0'].includes(c.source.id)).every(c=>Math.abs(c.inset-.1524)<.002),'both turret walls sit 0.5 ft in');
+ // The two runs are drafted, each as one simple region that keeps all four corners.
+ for(const run of ['R117','R127']){const [key,d]=Object.entries(state.wallEdits.$drafts).find(([k])=>k.startsWith(run+':0:body-1'));const live=d.faces.filter(r=>!r.boundaryHole&&!r.solidId&&!r.feature);
+  assert.ok(live.length,key);for(const r of live){assert.equal(K.normalizeFaces(structuredClone(r)).length,1,key+' '+JSON.stringify(r.points));}
+  const xs=d.faces.filter(r=>!r.boundaryHole).flatMap(r=>r.points.map(p=>p.x));assert.ok(Math.max(...xs)-Math.min(...xs)>1,key+' spans the whole run');}
+ // Validation is unchanged: a new draft whose region crosses itself is still refused.
+ const ring=[[.0516,63.71],[.0516,66.5593],[0,66.611],[0,66.9261]],nodes=ring.map(([x,y],i)=>({id:'p'+i,x,y,z:0}));
+ const M=require('../public/measure/internal/editor_scripts/exterior_model'),crossed={$drafts:{x:{origin:{x:0,y:0,z:0},u:{x:1,y:0},members:['x'],sketch:{nodes,edges:[]},faces:[{id:'wall-region-0',points:nodes.map(n=>({x:n.x,y:n.y,z:0,nodeId:n.id}))}]}}};
+ assert.throws(()=>M.validateEdits(crossed,{}),/connected sketch point/);
+});
 
 
 test('roof-contact highlights use screen coordinates and render above the roof only when visible',()=>{
