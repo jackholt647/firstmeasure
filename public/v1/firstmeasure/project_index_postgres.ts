@@ -26,6 +26,7 @@ import {
   type QueueBucketQuery,
   type QueueChangesQuery,
   type QueueCountsQuery,
+  type QueueReportType,
   type RebuildProjectIndexResult
 } from "./project_index.js";
 import type { ProjectManifest } from "./storage.js";
@@ -850,9 +851,20 @@ function buildProjectWhere(query: ProjectIndexManifestQuery) {
   return { where, values };
 }
 
+// isCustomerFullHouse (full_house_workflow.ts) in SQL; internal fullhouse_
+// drafts never reach the queue. The per-team counters do not split by report
+// type, so a filtered queue counts its rows (FM-335).
+function appendReportType(where: string[], reportType: QueueReportType | undefined) {
+  if (!reportType) return;
+  const fullHouse = `(p.id ~ '^exteriors_[a-f0-9]{32}$'
+    OR (COALESCE(p.manifest_json->>'measurement_scope', '') = 'full_house'
+      AND COALESCE(p.manifest_json->'internal_only', 'false'::jsonb) <> 'true'::jsonb))`;
+  where.push(reportType === "full_house" ? fullHouse : `NOT ${fullHouse}`);
+}
+
 export async function getPostgresQueueCounts(query: QueueCountsQuery = {}) {
   await ensurePostgresProjectIndexReady();
-  if (query.activityStartMs == null && query.activityEndMs == null) {
+  if (query.activityStartMs == null && query.activityEndMs == null && !query.report_type) {
     const scope = query.team_id ? "team" : "all";
     const teamId = query.team_id ? String(query.team_id).trim() : "";
     const values: unknown[] = [scope, teamId];
@@ -878,6 +890,7 @@ export async function getPostgresQueueCounts(query: QueueCountsQuery = {}) {
   const values: unknown[] = [];
   if (query.team_id) { values.push(String(query.team_id).trim()); where.push(`p.team_id = $${values.length}`); }
   if (!query.includeInstantOnly) where.push("p.instant_only = 0");
+  appendReportType(where, query.report_type);
   appendActivity(where, values, query.activityStartMs ?? null, query.activityEndMs ?? null, query.activityFields);
   const result = await queryPostgres<{ group_id: string; count: string }>(`
     SELECT p.queue_group AS group_id, COUNT(*)::text AS count
@@ -902,9 +915,10 @@ export async function queryPostgresQueueBucket(query: QueueBucketQuery) {
   const values: unknown[] = [group];
   if (query.team_id) { values.push(String(query.team_id).trim()); where.push(`p.team_id = $${values.length}`); }
   if (!query.includeInstantOnly) where.push("p.instant_only = 0");
+  appendReportType(where, query.report_type);
   appendActivity(where, values, query.activityStartMs ?? null, query.activityEndMs ?? null, query.activityFields);
   let count = 0;
-  if (query.activityStartMs == null && query.activityEndMs == null) {
+  if (query.activityStartMs == null && query.activityEndMs == null && !query.report_type) {
     const countResult = await queryPostgres<{ count: string }>(`
       SELECT COALESCE(SUM(project_count), 0)::text AS count
       FROM project_queue_counters
