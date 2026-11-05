@@ -80,6 +80,15 @@ test('Full House ordering validates flags, references, prices and paid queue art
  assert.deepEqual(videoManifest.exterior_reference_videos.map((v:any)=>[v.file_name,v.view,v.content_type]),[['customer-reference-0.mp4','orbital_video','video/mp4'],['customer-reference-2.webm','additional','video/webm']]);
  assert.deepEqual(videoManifest.elevation_photos.map((p:any)=>p.file_name),['customer-reference-1.png']);
  assert.ok(await readArtifact(videoOrder.json().folder,'customer-reference-0.mp4'));assert.equal((await readGlobal(orgId)).data.credits_balance,75);
+ // Videos seek before they finish loading only when a Range request gets just those bytes.
+ const video=(await readArtifact(videoOrder.json().folder,'customer-reference-0.mp4')).content,videoUrl='/v1/firstmeasure/projects/'+videoOrder.json().folder+'/artifacts/customer-reference-0.mp4';
+ const ranged=(range:string)=>app.inject({method:'GET',url:videoUrl,headers:{cookie,range}});
+ const middle=await ranged('bytes=2-5');assert.equal(middle.statusCode,206,middle.body);assert.equal(middle.headers['content-range'],`bytes 2-5/${video.length}`);assert.equal(middle.headers['accept-ranges'],'bytes');assert.equal(middle.headers['content-type'],'video/mp4');assert.deepEqual(middle.rawPayload,video.subarray(2,6));
+ const open=await ranged('bytes=1-');assert.equal(open.statusCode,206);assert.deepEqual(open.rawPayload,video.subarray(1));
+ const suffix=await ranged('bytes=-3');assert.equal(suffix.headers['content-range'],`bytes ${video.length-3}-${video.length-1}/${video.length}`);assert.deepEqual(suffix.rawPayload,video.subarray(-3));
+ const outside=await ranged(`bytes=${video.length}-`);assert.equal(outside.statusCode,416);assert.equal(outside.headers['content-range'],`bytes */${video.length}`);
+ const whole=await app.inject({method:'GET',url:videoUrl,headers:{cookie}});assert.equal(whole.statusCode,200);assert.equal(whole.headers['accept-ranges'],'bytes');assert.deepEqual(whole.rawPayload,video);
+ const stale=await app.inject({method:'GET',url:videoUrl,headers:{cookie,range:'bytes=2-5','if-range':'"old"'}});assert.equal(stale.statusCode,200,'a changed file is sent whole');
  // The customer's summary reads a completed full-house report's wall totals; other projects and accounts get none.
  const wallsUrl=(project:string)=>'/v1/firstmeasure/projects/'+project+'/exterior-measurements';
  assert.deepEqual((await app.inject({method:'GET',url:wallsUrl(id),headers:{cookie}})).json().measurements,{},'not before delivery');

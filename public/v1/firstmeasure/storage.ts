@@ -3,13 +3,14 @@ import { assertFullHouseProjectAccess, isFullHouseId } from './full_house.js';
 import { freezeReportLanguage } from "../platform/localization/reports.js";
 import { resolveOrderReportPreferences, reportPreferencesSchema } from "./report_preferences.js";
 import { randomBytes } from "node:crypto";
-import { mkdir, readdir, readFile, rename, rm, stat, writeFile } from "node:fs/promises";
+import { mkdir, open, readdir, readFile, rename, rm, stat, writeFile } from "node:fs/promises";
 import path from "node:path";
 
 import { env } from "../src/config/env.js";
 import { isFirstMeasurePostgresEnabled } from "../src/database/postgres.js";
 import {
   getProjectArtifact,
+  getProjectArtifactRange,
   isSpacesArtifactStorageEnabled,
   listProjectArtifacts,
   readListedProjectJson,
@@ -780,6 +781,36 @@ export async function readArtifact(projectId: string, fileName: string) {
     path: filePath,
     content
   };
+}
+
+// Reads one byte range without loading the whole file (video seeking).
+// start null asks for the last `end` bytes; content is null when the range
+// lies outside the file, which answers 416.
+export async function readArtifactRange(projectId: string, fileName: string, start: number | null, end: number | null) {
+  await assertProjectExists(projectId);
+  const safeName = sanitizeFileName(fileName);
+  const missing = () => notFound("artifact_not_found", `Artifact '${safeName}' was not found for project '${projectId}'.`);
+  if (isSpacesArtifactStorageEnabled()) {
+    const part = await getProjectArtifactRange(projectId, safeName, start, end);
+    if (!part) throw missing();
+    return { name: safeName, path: projectArtifactReference(projectId, safeName), ...part };
+  }
+  const filePath = path.join(projectDir(projectId), safeName);
+  const handle = await open(filePath, "r").catch((error: NodeJS.ErrnoException) => {
+    if (error.code === "ENOENT") throw missing();
+    throw error;
+  });
+  try {
+    const size = (await handle.stat()).size;
+    const first = start === null ? Math.max(0, size - (end ?? 0)) : start;
+    const last = start === null ? size - 1 : Math.min(end ?? size - 1, size - 1);
+    if (first > last || first >= size) return { name: safeName, path: filePath, content: null, start: 0, end: 0, size };
+    const content = Buffer.alloc(last - first + 1);
+    const { bytesRead } = await handle.read(content, 0, content.length, first);
+    return { name: safeName, path: filePath, content: content.subarray(0, bytesRead), start: first, end: first + bytesRead - 1, size };
+  } finally {
+    await handle.close();
+  }
 }
 
 export async function readStoredPdf(projectId: string, type: PdfType | PdfSlot) {

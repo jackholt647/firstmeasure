@@ -298,29 +298,46 @@ function objectUploadRetryDelayMs(attempt: number) {
   return exponential + Math.floor(Math.random() * Math.max(1, Math.floor(exponential / 4)));
 }
 
-async function getProjectArtifactVersion(projectId: string, fileName: string) {
+async function getProjectArtifactVersion(projectId: string, fileName: string, range?: string) {
   const key = projectArtifactKey(projectId, fileName);
-  try {
-    const response = await client().send(new GetObjectCommand({ Bucket: env.spacesBucket, Key: key }));
+  const read = async (Key: string) => {
+    const response = await client().send(new GetObjectCommand({ Bucket: env.spacesBucket, Key, ...(range ? { Range: range } : {}) }));
     if (!response.Body) return null;
-    return { content: Buffer.from(await response.Body.transformToByteArray()), etag: response.ETag || "" };
+    return { content: Buffer.from(await response.Body.transformToByteArray()), etag: response.ETag || "", contentRange: response.ContentRange || "" };
+  };
+  try {
+    return await read(key);
   } catch (error) {
     if (isMissingObjectError(error)) {
       const logicalKey = logicalProjectArtifactKey(projectId, fileName);
       if (!overlayEnabled() || await isTombstoned(logicalKey)) return null;
       try {
-        const response = await client().send(new GetObjectCommand({
-          Bucket: env.spacesBucket,
-          Key: `${fallbackProjectPrefix(projectId)}${safeObjectPath(fileName)}`
-        }));
-        if (!response.Body) return null;
-        return { content: Buffer.from(await response.Body.transformToByteArray()), etag: response.ETag || "" };
+        return await read(`${fallbackProjectPrefix(projectId)}${safeObjectPath(fileName)}`);
       } catch (fallbackError) {
         if (isMissingObjectError(fallbackError)) return null;
         throw fallbackError;
       }
     }
     throw error;
+  }
+}
+
+// One byte range of an artifact, so a video seek reads only what it shows.
+// start null asks for the last `end` bytes. Returns null when the artifact is
+// missing and content null when the range lies outside it.
+export async function getProjectArtifactRange(projectId: string, fileName: string, start: number | null, end: number | null) {
+  const range = start === null ? `bytes=-${end}` : `bytes=${start}-${end ?? ""}`;
+  try {
+    const part = await getProjectArtifactVersion(projectId, fileName, range);
+    if (!part) return null;
+    const match = /^bytes (\d+)-(\d+)\/(\d+)$/.exec(part.contentRange);
+    if (!match) return { content: part.content, start: 0, end: part.content.length - 1, size: part.content.length };
+    return { content: part.content, start: Number(match[1]), end: Number(match[2]), size: Number(match[3]) };
+  } catch (error) {
+    const value = error as { name?: string; $metadata?: { httpStatusCode?: number } };
+    if (value?.name !== "InvalidRange" && value?.$metadata?.httpStatusCode !== 416) throw error;
+    const head = await headProjectArtifact(projectId, fileName);
+    return head.exists ? { content: null, start: 0, end: 0, size: head.size } : null;
   }
 }
 

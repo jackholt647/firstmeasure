@@ -304,6 +304,8 @@ import {
 
   readArtifact,
 
+  readArtifactRange,
+
   readBrandingDefaults,
 
   readManifest,
@@ -3675,27 +3677,43 @@ export const registerFirstMeasureApi: FastifyPluginAsync = async (app) => {
 
     const requestedName = getFileName(request.params);
 
-    let artifact;
+    const readNamed = async <T>(read: (name: string) => Promise<T>) => {
 
-    try {
+      try {
 
-      artifact = await readArtifact(projectId, requestedName);
+        return await read(requestedName);
 
-    } catch (error) {
+      } catch (error) {
 
-      if (String(asRecord(request.query).submission_source ?? "") !== "1") throw error;
+        if (String(asRecord(request.query).submission_source ?? "") !== "1") throw error;
 
-      const files = await listProjectFiles(projectId).catch(() => []);
+        const files = await listProjectFiles(projectId).catch(() => []);
 
-      const fallbackName = findSubmissionSourceArtifactName(requestedName, files);
+        const fallbackName = findSubmissionSourceArtifactName(requestedName, files);
 
-      if (!fallbackName) throw error;
+        if (!fallbackName) throw error;
 
-      artifact = await readArtifact(projectId, fallbackName);
+        return read(fallbackName);
+
+      }
+
+    };
+
+    // A video can only seek before it has fully downloaded when a Range request
+
+    // gets 206 with just those bytes; a 200 with the whole file snaps it back.
+
+    const range = parseByteRange(request.headers.range);
+
+    if (range) {
+
+      const part = await readNamed((name) => readArtifactRange(projectId, name, range.start, range.end));
+
+      if (await ifRangeMatches(request, part.path, part.name)) return sendArtifactRange(part, reply);
 
     }
 
-    return sendArtifactContent(artifact, reply);
+    return sendArtifactContent(await readNamed((name) => readArtifact(projectId, name)), reply);
 
   });
 
@@ -22738,6 +22756,55 @@ function buildProjectThumbnailUrl(
 
 
 
+// One "bytes=a-b", "bytes=a-" or "bytes=-n" range; anything else (several
+// ranges, other units) is answered with the whole file.
+function parseByteRange(header: unknown) {
+  const match = /^bytes=(\d*)-(\d*)$/i.exec(String(header ?? "").trim());
+  if (!match || (!match[1] && !match[2])) return null;
+  const start = match[1] ? Number(match[1]) : null;
+  const end = match[2] ? Number(match[2]) : null;
+  if ((start !== null && !Number.isSafeInteger(start)) || (end !== null && !Number.isSafeInteger(end))) return null;
+  if (start !== null && end !== null && end < start) return null;
+  return { start, end };
+}
+
+// If-Range names the copy the browser already holds; a changed file gets the whole new body.
+async function ifRangeMatches(request: FastifyRequest, filePath: string, name: string) {
+  const validator = String(request.headers["if-range"] ?? "").trim();
+  if (!validator) return true;
+  const fileStat = await stat(filePath).catch(() => null);
+  if (!fileStat) return false;
+  return validator === buildWeakEtag(name, fileStat.size, fileStat.mtimeMs) || validator === fileStat.mtime.toUTCString();
+}
+
+function setArtifactHeaders(name: string, reply: FastifyReply) {
+  const mimeType = getMimeType(name);
+  reply.type(mimeType);
+  // Uploaded files render inline only when the type cannot run script on
+  // this origin (docs/architecture/request-security.md#browser-protections).
+  const inline = INLINE_ARTIFACT_TYPES.some((prefix) => mimeType.startsWith(prefix));
+  reply.header("Content-Disposition", `${inline ? "inline" : "attachment"}; filename="${name.replace(/["\\\r\n]/g, "_")}"`);
+  if (!inline) reply.header("Content-Security-Policy", "sandbox");
+  reply.header("X-Content-Type-Options", "nosniff");
+  reply.header("Cache-Control", /^internal-(resource|markup)-/i.test(name) ? "private, no-store" : "private, max-age=300, stale-while-revalidate=3600");
+  reply.header("Accept-Ranges", "bytes");
+}
+
+function sendArtifactRange(
+  part: { name: string; content: Buffer | null; start: number; end: number; size: number },
+  reply: FastifyReply
+) {
+  setArtifactHeaders(part.name, reply);
+  if (!part.content) {
+    reply.code(416);
+    reply.header("Content-Range", `bytes */${part.size}`);
+    return reply.send();
+  }
+  reply.code(206);
+  reply.header("Content-Range", `bytes ${part.start}-${part.end}/${part.size}`);
+  return reply.send(part.content);
+}
+
 async function sendArtifactContent(
 
   artifact: { name: string; path: string; content: Buffer },
@@ -22758,24 +22825,7 @@ async function sendArtifactContent(
 
   }
 
-  const mimeType = getMimeType(artifact.name);
-
-  reply.type(mimeType);
-
-  // Uploaded files render inline only when the type cannot run script on
-
-  // this origin (docs/architecture/request-security.md#browser-protections).
-
-  const inline = INLINE_ARTIFACT_TYPES.some((prefix) => mimeType.startsWith(prefix));
-
-  reply.header("Content-Disposition", `${inline ? "inline" : "attachment"}; filename="${artifact.name.replace(/["\\\r\n]/g, "_")}"`);
-
-  if (!inline) reply.header("Content-Security-Policy", "sandbox");
-
-  reply.header("X-Content-Type-Options", "nosniff");
-
-  reply.header("Cache-Control", /^internal-(resource|markup)-/i.test(artifact.name) ? "private, no-store" : "private, max-age=300, stale-while-revalidate=3600");
-
+  setArtifactHeaders(artifact.name, reply);
   if (etag) reply.header("ETag", etag);
 
   if (fileStat) reply.header("Last-Modified", fileStat.mtime.toUTCString());
@@ -24424,7 +24474,7 @@ function mergeBrandingVariant(...variants: Array<Record<string, unknown>>) {
 
 
 
-const INLINE_ARTIFACT_TYPES = ["application/pdf", "image/png", "image/jpeg", "image/gif", "image/webp", "image/tiff", "application/json", "model/gltf-binary", "text/plain"];
+const INLINE_ARTIFACT_TYPES = ["application/pdf", "image/png", "image/jpeg", "image/gif", "image/webp", "image/tiff", "application/json", "model/gltf-binary", "text/plain", "video/mp4", "video/webm", "video/quicktime"];
 
 function getMimeType(fileName: string) {
 
@@ -24453,6 +24503,12 @@ function getMimeType(fileName: string) {
     case ".tiff": return "image/tiff";
 
     case ".txt": return "text/plain; charset=utf-8";
+
+    case ".mp4": return "video/mp4";
+
+    case ".webm": return "video/webm";
+
+    case ".mov": return "video/quicktime";
 
     default: return "application/octet-stream";
 
