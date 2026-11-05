@@ -159,7 +159,7 @@ function roofDepthBias(a,b,c,den){
 function rasterScene(faces,view,width,height,iso=false,pad=30,{focus=null}={}){
  const angle=iso?35*Math.PI/180:0,len=Math.hypot(view.x,view.y),nx=view.x/len,ny=view.y/len,camera={x:nx*Math.cos(angle),y:ny*Math.cos(angle),z:Math.sin(angle)};
  const project=p=>({x:p.x*ny-p.y*nx,y:-p.z*Math.cos(angle)+(p.x*nx+p.y*ny)*Math.sin(angle),z:(p.x*nx+p.y*ny)*Math.cos(angle)+p.z*Math.sin(angle)});
- const parents=[],surfaces=faces.flatMap((face,i)=>{const list=[face,...(face.openings||[]).map(o=>({...o,featureType:o.type,normal:face.normal})),...(face.openings||[]).flatMap(o=>(o.trimFaces||[]).map(t=>({...t,id:'',normal:face.normal,openingTrim:true})))];for(const s of list)parents.push(i);return list;}),meshes=surfaces.map(mesh);
+ const parents=[],surfaces=faces.flatMap((face,i)=>{const list=[face,...(face.openings||[]).map(o=>({...o,featureType:o.type,normal:face.normal,wall:o.wall||face.id})),...(face.openings||[]).flatMap(o=>(o.trimFaces||[]).map(t=>({...t,id:'',normal:face.normal,openingTrim:true})))];for(const s of list)parents.push(i);return list;}),meshes=surfaces.map(mesh);
  const pixels=new Uint8ClampedArray(width*height*4),depth=new Float64Array(width*height).fill(-Infinity),owners=new Int32Array(width*height).fill(-1),dim=surfaces.map((s,i)=>focus!=null&&parents[i]>=focus);
  let minX=Infinity,maxX=-Infinity,minY=Infinity,maxY=-Infinity,front=-Infinity;
  for(const [i,m]of meshes.entries()){if(dim[i])continue;for(const p of m.positions){const q=project(p);minX=Math.min(minX,q.x);maxX=Math.max(maxX,q.x);minY=Math.min(minY,q.y);maxY=Math.max(maxY,q.y);front=Math.max(front,q.z);}}
@@ -286,13 +286,15 @@ function writer(doc,colors){
 const DENSITY=8,LONG_TABLE=10;
 // Room under a wall dimension drawing for its size and material lines.
 const DIMENSION_TEXT=8;
-// Label placement. With `ids`, every listed face gets a label: inside the face when it fits
-// (full size, then smaller), otherwise beside it with a leader line to a visible point of the
-// face. Labels never overlap each other. Without `ids` (overview diagrams), faces large
-// enough for an inside label are labeled and the rest are left to the elevation pages.
+// Label placement. With `ids` (elevation pages), every listed wall face and every visible
+// opening in one of those faces gets a label (an opening's id is its Opening Schedule id):
+// inside it when it fits (full size, then smaller), otherwise beside it with a leader line to a
+// visible point of it. Labels never overlap each other. Without `ids` (overview diagrams), faces
+// and openings large enough for an inside label are labeled and the rest are left to the
+// elevation pages.
 function placeLabels(doc,scene,rect,ids=null){
  const {width,height,owners,counts,sums,bounds,surfaces}=scene,density=DENSITY,boxes=[],placed=[],mm=(x,y)=>({x:rect.x+x/density,y:rect.y+y/density});
- const targets=surfaces.map((face,id)=>({face,id})).filter(({face,id})=>face.id&&counts[id]>0&&(ids?ids.has(face.id)&&!face.featureType:counts[id]>=150)).sort((a,b)=>counts[b.id]-counts[a.id]);
+ const targets=surfaces.map((face,id)=>({face,id})).filter(({face,id})=>face.id&&counts[id]>0&&(ids?ids.has(face.featureType?face.wall:face.id):counts[id]>=150)).sort((a,b)=>counts[b.id]-counts[a.id]);
  const measureBox=(label,size)=>{doc.setFont('Montserrat','bold');doc.setFontSize(size);return {w:(doc.getTextWidth(label)+1.4)*density,h:3.3*size/7*density};};
  const box=(cx,cy,{w,h})=>({x0:Math.round(cx-w/2),y0:Math.round(cy-h/2),x1:Math.round(cx+w/2),y1:Math.round(cy+h/2)});
  const inImage=b=>b.x0>=1&&b.y0>=1&&b.x1<width-1&&b.y1<height-1,clear=(b,gap=density*.6)=>boxes.every(q=>b.x1+gap<q.x0||q.x1+gap<b.x0||b.y1+gap<q.y0||q.y1+gap<b.y0);
@@ -306,7 +308,7 @@ function placeLabels(doc,scene,rect,ids=null){
   candidates.sort((p,q)=>p.d-q.d);target.anchor=candidates[0]||{x:Math.round(cx),y:Math.round(cy)};
   if(!candidates.length)for(let y=b.y0;y<=b.y1;y++)for(let x=b.x0;x<=b.x1;x++)if(owners[y*width+x]===id){const d=(x-cx)**2+(y-cy)**2;if(target.anchor.d==null||d<target.anchor.d)target.anchor={x,y,d};}
   let done=false;
-  for(const size of face.featureType?[5.5]:ids?[7,5.5,4.5]:[7]){const dims=measureBox(face.id,size);for(const c of candidates){const r=box(c.x,c.y,dims);if(inside(r,id)&&clear(r)){draw(face,r,size,false);done=true;break;}}if(done)break;}
+  for(const size of face.featureType?ids?[5.5,4.5]:[5.5]:ids?[7,5.5,4.5]:[7]){const dims=measureBox(face.id,size);for(const c of candidates){const r=box(c.x,c.y,dims);if(inside(r,id)&&clear(r)){draw(face,r,size,false);done=true;break;}}if(done)break;}
   if(!done&&ids)pending.push(target);
  }
  const sample=(b,fn)=>{let n=0;for(let y=Math.max(0,b.y0);y<=Math.min(height-1,b.y1);y+=4)for(let x=Math.max(0,b.x0);x<=Math.min(width-1,b.x1);x+=4)n+=fn(owners[y*width+x]);return n;};
