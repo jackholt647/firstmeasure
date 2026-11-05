@@ -5139,7 +5139,7 @@ Note: Our coverage is based on individual structure, not area - so we may have c
         btn.id = 'pmImpersonateBtn';
         btn.type = 'button';
         btn.className = 'btn-secondary';
-        btn.style.cssText = 'justify-content:center; gap:10px;';
+        btn.style.cssText = 'justify-content:center; gap:10px; font:inherit;';
         btn.innerHTML = '<i class="fas fa-user-secret"></i> Impersonate customer';
         pdfBtn.parentNode.insertBefore(btn, pdfBtn);
       }
