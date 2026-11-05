@@ -72,10 +72,12 @@ It is release `6249b30a` (tracker FM-336, what every host ran) plus five commits
   each carries the built Node change, the editor's length probe and the PHP customer-order gate.
 - Not exercised on production by me: an upload or a saved frame would write into a customer's order. The first
   technician's Save Frame on a customer order should answer 202 on compatibility (it answered 404 before).
-- Tracker router started again after this record was pushed.
+- The only 5xx since activation are in the minute compatibility restarted (04:47 UTC: `/v1/internal/*` through
+  the web nodes and `backend_login.php`); none after it. No cluster watchdog kills on compatibility from 04:46
+  to 05:03 UTC.
+- Tracker router started again at 05:04 UTC.
 
 Rollback target: `6249b30a`.
 
-Note: the tracker's FM-335 release (`ab5e8a9f`, rolled out 03:49 UTC) is not an ancestor of `6249b30a`, so
-FM-336's release may have replaced FM-335's change on production; neither had a record on production-live
-when this was written.
+FM-335 (`ab5e8a9f`) is not in this release: it was rolled back before FM-336 (see
+`production-release-20261105-6249b30a.md`).
