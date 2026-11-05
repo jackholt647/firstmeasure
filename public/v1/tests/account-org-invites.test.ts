@@ -319,3 +319,39 @@ test("adding a person who is already in the account never replaces them, and no 
   await assert.rejects(createOrInviteCanvassingUser("readd_guard_org", "default", { email: "readd.owner@example.test", role: "canvasser" }), /at least one/);
   assert.equal((await ownerRecord()).org_permissions.level, "super_admin");
 });
+
+test("someone archived in their own sign-up's account and added to their employer's signs in to the employer's (FM-341)", async () => {
+  // They signed up on their own, handed that account to someone else and were archived from it.
+  const person = browser();
+  const registered = await register(person, "fm341.person@example.test", "fm341_own");
+  const personId = registered.user?.id || registered.membership?.user_id;
+  await register(browser(), "fm341.successor@example.test", "fm341_successor_home");
+  const added = await person.request("POST", "/v1/platform/organizations/fm341_own/users", { data: { email: "fm341.successor@example.test", name: "Successor" } });
+  assert.equal(added.response.statusCode, 201, added.response.body);
+  await person.request("PATCH", `/v1/platform/organizations/fm341_own/users/${added.data.document.id}`, { data: { role: "super_admin", org_permissions: { level: "super_admin", items: {} } } });
+  const successor = browser();
+  await successor.request("POST", "/v1/platform/auth/legacy-action", { action: "login", email: "fm341.successor@example.test", password: PASSWORD, organization_id: "fm341_own" });
+  await successor.request("POST", "/v1/platform/portal-action", { action: "org_users_set_perms_my", user_id: personId, perm_level: "viewer", perm_items_json: "{}" });
+  const archived = await successor.request("DELETE", `/v1/platform/organizations/fm341_own/users/${personId}`);
+  assert.equal(archived.response.statusCode, 200, archived.response.body);
+  const login = (body: Record<string, unknown> = {}) => browser().request("POST", "/v1/platform/auth/legacy-action", { action: "login", email: "fm341.person@example.test", password: PASSWORD, ...body });
+  const refused = await login();
+  assert.equal(refused.response.statusCode, 403, "archived everywhere: refused");
+  assert.match(refused.response.body, /user_disabled/);
+
+  // Their employer invites the same email from People; the account keeps the archived membership listed first.
+  const employer = browser();
+  await register(employer, "fm341.employer@example.test", "fm341_employer");
+  const invited = await employer.request("POST", "/v1/platform/portal-action", { action: "org_users_add_my", email: "fm341.person@example.test", name: "Person", perm_level: "viewer" });
+  assert.equal(invited.data.success, true, JSON.stringify(invited.data));
+
+  // Typing their email and password (not the invitation's link) opens the employer's account.
+  const signIn = await login();
+  assert.equal(signIn.response.statusCode, 200, signIn.response.body);
+  assert.equal(signIn.data.organization?.id, "fm341_employer");
+  const plain = await browser().request("POST", "/v1/platform/auth/login", { identifier: "fm341.person@example.test", password: PASSWORD });
+  assert.equal(plain.data.organization?.id, "fm341_employer", plain.response.body);
+  // The organization they were archived from still refuses them.
+  const own = await login({ organization_id: "fm341_own" });
+  assert.equal(own.response.statusCode, 403, own.response.body);
+});
