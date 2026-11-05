@@ -19,7 +19,7 @@ test('portal verifies property country before charging and persists account curr
   const anonymous=await app.inject({method:'GET',url:'/v1/firstmeasure/report-expedite-options?lat=48.85&lng=2.35'});assert.equal(anonymous.statusCode,401);
   let index=0;
   for(const [account,lat,lng,amount,currency] of [['US',40.71,-74.00,7,'USD'],['US',48.85,2.35,29,'USD'],['GB',40.71,-74.00,25,'EUR'],['FR',48.85,2.35,25,'EUR']] as const){
-   const reg=await app.inject({method:'POST',url:'/v1/platform/auth/register',headers:{'cf-ipcountry':account},payload:{email:`${account}-${lat}@example.test`,password:'Property-fixture-123!',phone:'+12025550'+String(++index).padStart(3,'0')}});assert.equal(reg.statusCode,201,reg.body);
+   const reg=await app.inject({method:'POST',url:'/v1/platform/auth/register',headers:{'cf-ipcountry':account},payload:{email:`${account}-${lat}@example.test`,password:'Property-fixture-123!',phone:account==='GB'?'+447700900003':account==='FR'?'+33612345604':'+12025550'+String(++index).padStart(3,'0')}});assert.equal(reg.statusCode,201,reg.body);
    const cookie=String(reg.headers['set-cookie']).match(/fm_platform_session=[^;,]+/)![0];const session=(await app.inject({method:'GET',url:'/v1/platform/auth/session',headers:{cookie}})).json();const orgId=session.membership.organization_id;const headers={cookie,'x-platform-csrf':session.csrf_token};
    await store.saveGlobal(orgId,{data:{credits_balance:100}});
    const quote=await app.inject({method:'GET',url:`/v1/firstmeasure/report-expedite-options?project_type=residential&lat=${lat}&lng=${lng}`,headers});assert.equal(quote.statusCode,200,quote.body);assert.equal(quote.json().options[0].unit_price,amount);

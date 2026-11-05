@@ -57,6 +57,35 @@ test("a chosen country decides the billing profile even from a US connection",as
   assert.equal(domestic.identity.phone,"(415) 555-0142");
 });
 
+test("FM-334: a North American (+1) phone outranks the IP country, by area code",async()=>{
+  const regions=await import("../commerce/regions.js");
+  const detect=(edge:string,input:Record<string,unknown>)=>regions.detectSignupCountry(edge?{"cf-ipcountry":edge}:{},input);
+  // A US company signed up from Colombia (Brite Roofing) or from a Venezuelan IP (Pro Lux): the phone decides.
+  assert.deepEqual(detect("CO",{phone:"+12125550123",phone_country:"US",signup_locale:"es-CO",signup_time_zone:"America/Bogota"}),{country:"US",source:"north_american_phone"});
+  assert.deepEqual(detect("VE",{phone:"(415) 555-0142"}),{country:"US",source:"north_american_phone"});
+  assert.deepEqual(detect("PA",{phone:"1 202 555 0101"}),{country:"US",source:"north_american_phone"});
+  // The area code tells the +1 countries apart; an unassigned one (555) counts as the US.
+  assert.equal(detect("DE",{phone:"+14165550199"}).country,"CA");
+  assert.equal(detect("PH",{phone:"+18095551234",phone_country:"DO"}).country,"DO");
+  assert.equal(detect("PH",{phone:"+15555550123"}).country,"US");
+  // Other calling codes leave the IP country in charge.
+  assert.deepEqual(detect("DE",{phone:"+4915123456789",phone_country:"DE"}),{country:"DE",source:"cf-ipcountry"});
+  assert.equal(detect("CO",{phone:"3001234567",phone_country:"CO"}).country,"CO","a national number after another calling code is not +1");
+  assert.equal(detect("FR",{phone:"06 12 34 56 78"}).country,"FR","ten digits starting with 0 are not a North American number");
+  // A chosen country still wins over the phone.
+  assert.equal(detect("US",{signup_country:"FR",phone:"+12125550123"}).country,"FR");
+  // The signup page's offer is shown before a phone is typed: the IP still sets it there.
+  const options=await client("CO").request("GET","/v1/platform/auth/signup-options");
+  assert.equal(options.detected_country,"CO");
+
+  const remote=client("CO");
+  const registration=await remote.request("POST","/v1/platform/auth/register",{email:"remote-va@signup.example.test",password:"signup-region-password-11",company:"Remote assistant fixture",signup_time_zone:"America/Bogota",signup_locale:"es-CO",phone:"+12125550124",phone_country:"US"});
+  const saved=await profile.organizationProfile(registration.organization.id);
+  assert.equal(saved.country,"US");assert.equal(saved.source,"north_american_phone");assert.equal(saved.currency,"USD");assert.equal(saved.tier,"domestic");
+  const german=await client("DE").request("POST","/v1/platform/auth/register",{email:"de-detected@signup.example.test",password:"signup-region-password-12",phone:"+4915123456780",phone_country:"DE"});
+  assert.equal((await profile.organizationProfile(german.organization.id)).currency,"EUR");
+});
+
 test("signup language becomes the company language for the app and reports",async()=>{
   const c=client("US");
   const registration=await c.request("POST","/v1/platform/auth/register",{email:"lang-de@signup.example.test",password:"signup-region-password-3",signup_country:"AT",signup_language:"de-DE",phone:"+43 664 1234567"});
@@ -107,12 +136,14 @@ test("operators can reassign a commercial profile only before credits or Stripe 
   assert.equal((await owner.raw("POST",endpoint,{country:"FR"})).statusCode,403);
   assert.equal((await owner.raw("PATCH",`/v1/platform/organizations/${org}/global`,{data:{commercial_profile:profile.profileForCountry("FR")}})).statusCode,403);
 
-  const internal=await import("../internal/storage.js");
-  await internal.saveInternalUser({email:"reassign-owner@signup.example.test",name:"Reassign operator",role:"admin",status:"active",permissions:{}});
-  const status=await owner.request("GET",endpoint);
+  // Operators use a staff session (request security): a customer account is never staff.
+  const staff=(await(await import("./helpers/security-fixture.js")).staffFixture({email:"reassign-operator@signup.example.test",name:"Reassign operator",role:"admin",permissions:{}})).headers;
+  const operator={async raw(method:string,url:string,payload?:any){return app.inject({method,url,payload,headers:staff});},
+    async request(method:string,url:string,payload?:any){const result=await this.raw(method,url,payload);assert.ok(result.statusCode<400,result.body);return result.json();}};
+  const status=await operator.request("GET",endpoint);
   assert.equal(status.reassignable,true);assert.equal(status.profile.currency,"USD");
-  assert.equal((await owner.raw("POST",endpoint,{country:"QQ"})).statusCode,400);
-  const moved=await owner.request("POST",endpoint,{country:"FR"});
+  assert.equal((await operator.raw("POST",endpoint,{country:"QQ"})).statusCode,400);
+  const moved=await operator.request("POST",endpoint,{country:"FR"});
   assert.equal(moved.previous.currency,"USD");assert.equal(moved.profile.currency,"EUR");assert.equal(moved.profile.source,"operator_reassigned");
   assert.equal((await owner.request("GET",`/v1/platform/organizations/${org}/commerce`)).report_prices.residential,25);
   const flags=(await storage.readGlobal(org)).data.app_flags as any;
@@ -120,8 +151,8 @@ test("operators can reassign a commercial profile only before credits or Stripe 
 
   // The ledger has no currency field: once credits exist the profile is fixed.
   await storage.saveGlobal(org,{data:{credits_ledger:[{ts:new Date().toISOString(),delta:10,reason:"fixture"}],credits_balance:10}});
-  const locked=await owner.request("GET",endpoint);assert.equal(locked.reassignable,false);assert.equal(locked.locked_reason,"credits_ledger");
-  const refused=await owner.raw("POST",endpoint,{country:"US"});
+  const locked=await operator.request("GET",endpoint);assert.equal(locked.reassignable,false);assert.equal(locked.locked_reason,"credits_ledger");
+  const refused=await operator.raw("POST",endpoint,{country:"US"});
   assert.equal(refused.statusCode,409);assert.equal(refused.json().error,"commercial_profile_in_use");
   assert.equal((await profile.organizationProfile(org)).currency,"EUR");
 
@@ -129,8 +160,16 @@ test("operators can reassign a commercial profile only before credits or Stripe 
   const other=client("US");
   const second=(await other.request("POST","/v1/platform/auth/register",{email:"reassign-charged@signup.example.test",password:"signup-region-password-7",phone:"(415) 555-0145"})).organization.id;
   await storage.saveGlobal(second,{data:{stripe_fulfilled_sessions:{cs_test_fixture:{at:new Date().toISOString()}}}});
-  const charged=await owner.raw("POST",`/v1/firstmeasure/admin/prices/organizations/${second}/commercial-profile`,{country:"FR"});
+  const charged=await operator.raw("POST",`/v1/firstmeasure/admin/prices/organizations/${second}/commercial-profile`,{country:"FR"});
   assert.equal(charged.statusCode,409);assert.equal(charged.json().error,"commercial_profile_in_use");
+
+  // FM-334: opening the card form creates a Stripe customer, which is not a charge.
+  const third=(await client("VE").request("POST","/v1/platform/auth/register",{email:"reassign-customer@signup.example.test",password:"signup-region-password-8",phone:"+584121234560",phone_country:"VE"})).organization.id;
+  assert.equal((await profile.organizationProfile(third)).currency,"EUR");
+  await storage.saveGlobal(third,{data:{billing:{events:[{ts:new Date().toISOString(),type:"stripe_customer_created",meta:{customer_id:"cus_fixture"}}]}}});
+  const customerOnly=await operator.request("GET",`/v1/firstmeasure/admin/prices/organizations/${third}/commercial-profile`);
+  assert.equal(customerOnly.reassignable,true,customerOnly.locked_reason);
+  assert.equal((await operator.request("POST",`/v1/firstmeasure/admin/prices/organizations/${third}/commercial-profile`,{country:"US"})).profile.currency,"USD");
 });
 
 test("the onboarding wizard formats account amounts in the organization's currency (1M8-215)",async()=>{
