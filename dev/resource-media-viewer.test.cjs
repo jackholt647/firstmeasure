@@ -18,7 +18,7 @@ test('media viewer opens reliably, steps frames by keyboard and saves frames on 
    {name:id(5)+'-Order.png',original_name:'Order.png',role:'customer',updated_at:'2026-05-05'},
    {name:id(6)+'-Drive_by.webm',original_name:'Drive by.webm',role:'customer',updated_at:'2026-01-01'},
   ];
-  const records={},frameRequests=[],posted=[];let failNextFrame=false,uploadGate=null,jobDelay=1200;
+  const records={},frameRequests=[],posted=[];let failNextFrame=false,uploadGate=null,jobDelay=1200,failPolls=0;
   const script=fs.readFileSync('public/measure/internal/editor_scripts/project_resources.js','utf8'),css=fs.readFileSync('public/measure/internal/editor_scripts/project_resources.css','utf8');
   const html=`<meta charset="utf-8"><style>#google-earth-wrapper{position:relative;width:1250px;height:850px}${css}</style><div id="google-earth-wrapper"><div class="map-view-tabs"></div></div><script>window.currentProjectId='fullhouse_viewer';window.switchMapLayer=()=>{};window.firstMeasureBuildUrl=p=>p;</script><script>${script}</script>`;
   await page.route('**/*',async route=>{
@@ -38,6 +38,7 @@ test('media viewer opens reliably, steps frames by keyboard and saves frames on 
     return route.fulfill({json:{ok:true,sha256:request.headers()['x-resource-sha256']}});
    }
    if(!name)return route.fulfill({json:{files}});
+   if(name.startsWith('internal-markup-framejob-')&&failPolls>0){failPolls--;return route.fulfill({status:504,contentType:'text/html',body:'<html>504 Gateway Time-out</html>'});}
    if(records[name])return route.fulfill({json:records[name]});
    if(name.startsWith('internal-markup-'))return route.fulfill({status:404,json:{error:'Not found.'}});
    if(name.endsWith('.webm')){const range=request.headers().range?.match(/bytes=(\d+)-(\d*)/),start=range?Number(range[1]):0,end=range&&range[2]?Math.min(Number(range[2]),VIDEO.length-1):VIDEO.length-1;return route.fulfill({status:range?206:200,contentType:'video/webm',headers:{'Accept-Ranges':'bytes',...(range?{'Content-Range':'bytes '+start+'-'+end+'/'+VIDEO.length}:{})},body:VIDEO.subarray(start,end+1)});}
@@ -136,6 +137,11 @@ test('media viewer opens reliably, steps frames by keyboard and saves frames on 
   assert.match(await page.locator('#project-resources footer').textContent(),/could not be decoded/);
   await page.getByRole('button',{name:'1 frame not saved · Retry',exact:true}).click();await page.getByRole('button',{name:'✓ Frame saved',exact:true}).waitFor();
   assert.equal(frameRequests.at(-1).name,frameRequests.at(-2).name,'retry reuses the frame name');
+  // A status check that times out on a busy server does not fail a job that is still running (FM-343).
+  failPolls=2;await video().evaluate(v=>{v.currentTime=1.05;});await ready();await page.waitForTimeout(100);
+  await page.getByRole('button',{name:'Save Frame',exact:true}).click();await page.getByRole('button',{name:'Saving 1 frame…',exact:true}).waitFor();
+  await page.getByRole('button',{name:'✓ Frame saved',exact:true}).waitFor();
+  assert.equal(failPolls,0,'the failed checks were made');assert.equal(await page.getByRole('button',{name:/not saved/}).count(),0);
 
   // Drawing on a video frame starts at once on a local still while the server saves the frame.
   jobDelay=1500;await video().evaluate(v=>{v.currentTime=.55;});await ready();await page.waitForTimeout(100);

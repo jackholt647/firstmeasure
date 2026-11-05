@@ -42,6 +42,15 @@ test('server extracts the displayed video frame and publishes it as a chunked re
   const record=JSON.parse(fs.readFileSync(path.join(store,'internal-markup-favorite-33333333-3333-4333-8333-333333333333.json'),'utf8'));
   assert.deepEqual({label:record.label,source:record.source,time:record.time,frame:record.frame,version:record.version},{label:'Back of house',source:video,time:1,frame:frameName(6),version:1});
   assert.ok(Math.abs(red(frameName(6)).red-120)<=3);
+  // Only the chosen frame is encoded as PNG; the window before it is decoded without encoding (FM-343: 180 PNGs per save at 60 fps).
+  if(process.platform!=='win32'){
+   const log=path.join(dir,'ffmpeg.log'),shim=path.join(dir,'ffmpeg-shim');fs.writeFileSync(shim,`#!/bin/sh\nprintf '%s\\n' "$*" >> ${JSON.stringify(log)}\nexec ${JSON.stringify(ffmpeg)} "$@"\n`,{mode:0o755});
+   fs.rmSync(path.join(store,'cache'),{recursive:true});
+   for(const [n,time,expected]of [[10,1.5,15],[11,0,0]]){
+    fs.rmSync(log,{force:true});const result=run({ffmpeg:shim,job:job(n,time)});assert.equal(result.status,'done',result.error);assert.ok(Math.abs(red(frameName(n)).red-expected*12)<=3);
+    for(const line of fs.readFileSync(log,'utf8').trim().split('\n'))if(/-c:v png/.test(line))assert.match(line,/-frames:v 1 /,'a PNG encode of more than one frame: '+line);
+   }
+  }
   // Failures are reported, never published.
   const missingBinary=run({ffmpeg:path.join(dir,'no-ffmpeg-here'),job:job(7,.5)});assert.equal(missingBinary.status,'failed');assert.match(missingBinary.error,/not available|not installed/);assert.equal(fs.existsSync(path.join(store,frameName(7))),false);
   fs.rmSync(path.join(store,'cache'),{recursive:true});const part=path.join(store,'internal-markup-part-11111111-1111-4111-8111-111111111111-00000000.bin'),bytes=fs.readFileSync(part);fs.writeFileSync(part,Buffer.concat([bytes.subarray(0,-1),Buffer.from([bytes.at(-1)^1])]));
