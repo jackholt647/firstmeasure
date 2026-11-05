@@ -2,9 +2,11 @@
 (function(root){'use strict';
 let selected=false,paused=false,panel=null,body=null,stats=null,rows=null,graph=null,lastFrame=0,frames=[],buckets=[],stack=[],totals=new Map(),started=performance.now(),longCount=0,longMax=0,drawInfo=null;
 const controlsKey='firstmeasure:editor:show-dev-controls';
-let controlsVisible=false;try{controlsVisible=root.localStorage.getItem(controlsKey)==='true';}catch(e){}
+// Development only (window.FIRSTMEASURE_DEV_TOOLS, set by editor.php): elsewhere a stored 'true' is ignored and nothing can turn it on.
+const allowed=root.FIRSTMEASURE_DEV_TOOLS===true;
+let controlsVisible=false;if(allowed)try{controlsVisible=root.localStorage.getItem(controlsKey)==='true';}catch(e){}
 const active=()=>controlsVisible&&selected&&!paused&&root.WallMode?.enabled!==false&&document.visibilityState!=='hidden';
-function setControlsVisible(value){controlsVisible=!!value;try{root.localStorage.setItem(controlsKey,String(controlsVisible));}catch(e){}lastFrame=0;if(panel)panel.hidden=!controlsVisible||root.WallMode?.enabled===false;refresh();}
+function setControlsVisible(value){if(!allowed)return;controlsVisible=!!value;try{root.localStorage.setItem(controlsKey,String(controlsVisible));}catch(e){}lastFrame=0;if(panel)panel.hidden=!controlsVisible||root.WallMode?.enabled===false;refresh();}
 const empty=()=>({calls:0,total:0,self:0,max:0});
 function bucket(now){const id=Math.floor(now/250);let b=buckets.at(-1);if(!b||b.id!==id){b={id,timings:new Map(),frames:[],renders:0};buckets.push(b);}while(buckets.length&&(buckets[0].id<id-19))buckets.shift();return b;}
 function add(map,name,elapsed,self){const v=map.get(name)||empty();v.calls++;v.total+=elapsed;v.self+=self;v.max=Math.max(v.max,elapsed);map.set(name,v);}
