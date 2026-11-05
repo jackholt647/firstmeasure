@@ -1134,7 +1134,8 @@ export const registerFirstMeasureApi: FastifyPluginAsync = async (app) => {
       // request records the failure on the project and moves it to review.
       if (job.payload.structure_pins === true) await patchManifest(projectId, imageryFailurePatch(error));
       else console.warn(JSON.stringify({ event: "firstmeasure_order_imagery_failed", project_id: projectId,
-        code: String((error as { code?: string })?.code || ""), transient: isTransientProviderFailure(error) }));
+        code: String((error as { code?: string })?.code || ""), transient: isTransientProviderFailure(error),
+        message: String((error as Error)?.message || error).replace(/key=[^&\s]+/g, "key=***").slice(0, 300) }));
       if (isTransientProviderFailure(error)) throw error;
       return { processed: false, needs_attention: true };
     }
