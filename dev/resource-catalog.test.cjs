@@ -17,3 +17,12 @@ test('Full House customer references are typed by their stored file, not their "
  assert.equal(fileExtension({original_name:'Customer notes',name:'reference-note-order'}),'');
  assert.equal(fileExtension({original_name:'Pasted',src:'data:image/png;base64,AAAA'}),'');
 });
+// FM-340: a Full House order with only a walkthrough video offered the video as a "Customer photo" for every
+// elevation slot, and the slot's <img> could not show it. Elevation photos are photos; frames saved from it are artifacts.
+test('elevation photo choices leave out the customer walkthrough video and keep photos',()=>{
+ const {photoReferences}=require('../public/measure/internal/editor_scripts/project_resources.js');
+ const result=referenceCatalog({manifest:{tech_notes:'Order notes',elevation_photos:[{file_name:'customer-reference-1.jpg',original_name:'Structure 1 · front',elevation_view:'front',structure:0}],exterior_reference_videos:[{file_name:'customer-reference-0.mov',original_name:'Structure 1 · video walkaround',content_type:'video/quicktime',view:'orbital_video',structure:0}],resubmissions:[{images:[{name:'internal-resource-v2-x-front.png',resource_name:'internal-resource-v2-x-front.png'}]}]}},name=>'/v1/firstmeasure/projects/p/artifacts/'+name);
+ const photos=photoReferences(result,[{name:'internal-resource-v2-x-front.png'}]);
+ assert.deepEqual(photos.map(f=>f.name),['customer-reference-1.jpg'],'no video, no notes, and no reference already listed as a stored artifact');
+ assert.ok(result.some(f=>f.name==='customer-reference-0.mov'),'the video is still a Resources reference');
+});
