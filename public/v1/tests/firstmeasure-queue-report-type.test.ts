@@ -9,7 +9,7 @@ import type { ProjectManifest } from "../firstmeasure/storage.js";
 // FM-335: the internal portal's Queue Monitor filters by report type. The
 // queue is counted and paged on the server, so queue/counts and queue/bucket
 // filter before counting and paging: a full exterior report is a customer
-// full-house order (isCustomerFullHouse), every other report is a roof.
+// full-house order (an exteriors_ id), every other report is a roof.
 test("queue counts and buckets filter by report type", async () => {
   const root = await mkdtemp(path.join(os.tmpdir(), "firstmeasure-queue-report-type-test-"));
   process.env.FIRSTMATE_ENV = "test";
@@ -41,11 +41,12 @@ test("queue counts and buckets filter by report type", async () => {
     };
 
     const exteriorOrder = `exteriors_${"a1".repeat(16)}`;
+    const secondExteriorOrder = `exteriors_${"b2".repeat(16)}`;
     await saveProject("roof-one");
     await saveProject("roof-two");
-    await saveProject("roof-internal-scope", { measurement_scope: "full_house", internal_only: true });
-    await saveProject(exteriorOrder);
-    await saveProject("exterior-scope", { measurement_scope: "full_house" });
+    await saveProject("exteriors_not-an-order");
+    await saveProject(exteriorOrder, { measurement_scope: "full_house" });
+    await saveProject(secondExteriorOrder, { measurement_scope: "full_house" });
 
     const app = await buildApp();
     await app.ready();
@@ -73,16 +74,16 @@ test("queue counts and buckets filter by report type", async () => {
     };
     try {
       const all = await queued();
-      assert.deepEqual(all.ids, [exteriorOrder, "exterior-scope", "roof-internal-scope", "roof-one", "roof-two"].sort());
+      assert.deepEqual(all.ids, [exteriorOrder, secondExteriorOrder, "exteriors_not-an-order", "roof-one", "roof-two"].sort());
       assert.equal(all.count, 5);
 
       const roofs = await queued("roof");
-      assert.deepEqual(roofs.ids, ["roof-internal-scope", "roof-one", "roof-two"]);
+      assert.deepEqual(roofs.ids, ["exteriors_not-an-order", "roof-one", "roof-two"]);
       assert.equal(roofs.count, 3, "the Queued count counts only roofs");
       assert.equal(roofs.total, 3);
 
       const exteriors = await queued("full_house");
-      assert.deepEqual(exteriors.ids, [exteriorOrder, "exterior-scope"].sort());
+      assert.deepEqual(exteriors.ids, [exteriorOrder, secondExteriorOrder].sort());
       assert.equal(exteriors.count, 2, "the Queued count counts only full exterior reports");
       assert.equal(exteriors.total, 2);
 
