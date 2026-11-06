@@ -55,3 +55,18 @@ test('a portal page with the Meta Pixel or Google tag also has the TikTok pixel'
   assert.ok(tracked.length >= 10, `found tracked pages: ${tracked.join(', ')}`);
   for (const file of tracked) assertPrintsPixel(file);
 });
+
+// FM-351: Purchase is sent from the server (public/v1/platform/tiktok-events.ts) with event id
+// stripe_purchase:<checkout session>. A browser Purchase would be counted again unless it used that same id.
+test('no browser code sends a TikTok Purchase beside the server one', () => {
+  const offenders = [];
+  const walk = dir => {
+    for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+      const file = path.join(dir, entry.name);
+      if (entry.isDirectory()) { if (!['unused', 'node_modules', 'v1', 'dist', 'media'].includes(entry.name)) walk(file); }
+      else if (/\.(js|php|html)$/.test(entry.name) && /ttq\.track\(\s*['"]Purchase['"]/.test(fs.readFileSync(file, 'utf8'))) offenders.push(path.relative(root, file));
+    }
+  };
+  walk(path.join(root, 'public'));
+  assert.deepEqual(offenders, []);
+});

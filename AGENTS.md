@@ -671,6 +671,14 @@ variant from one include, `public/portal/tiktok-pixel.php`
 A new portal page or variant with the Meta Pixel or Google tag needs it too.
 Run `tests/portal-tracking-pixels.test.mjs` for changes here.
 
+A TikTok Purchase is sent from the server only (`platform/tiktok-events.ts`),
+beside the Meta Conversions API purchase: once per paid credit checkout, when
+its credit is committed; spending credit is not a purchase. It is queued and
+delivered with retries, never inline in checkout; the access token is
+`TIKTOK_EVENTS_ACCESS_TOKEN`, and a Stripe test payment is sent only with
+`TIKTOK_EVENTS_TEST_EVENT_CODE`. Run `tests/tiktok-events.test.ts` and
+`tests/stripe-credit-fulfillment.test.ts` for changes here.
+
 ## Project window content ownership
 
 Read [project content layout](docs/architecture/project-content-layout.md) before changing project modal tabs or sidebars. The project details tray (`#rDetailsTray`) owns the project-details form and measurements; Overview is just the overview. Other apps own their own content rails. There is no configurable shared modal left region or left-column override API; do not recreate one.

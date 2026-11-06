@@ -47,6 +47,7 @@ import { saveInternalDocument } from "../internal/storage.js";
 import { creditLedgerEntryKind, creditStatementTotals } from "./credit_statement.js";
 import { acquisitionBonusOfferForCampaignToken, acquisitionBonusOfferForOrganization, acquisitionBonusQuoteForOrganization, acquisitionEventInputs, completeAcquisitionSignup, customerReferralEvent, customerReferralStatus, publicAcquisitionLookup, publicReferralLookup, trackAcquisitionEvent, trackAcquisitionEvents } from "../internal/crm/referrals_service.js";
 import { acquisitionVisitorAddress, consumeAcquisitionEventTokens } from "./acquisition_event_limits.js";
+import { enqueueTiktokPurchase, startTiktokEventsOutbox, tiktokCheckoutAttribution } from "./tiktok-events.js";
 import { clearMaterialListScheduleEvent, syncMaterialListFromScheduleEvent } from "../materials/storage.js";
 import {
   appointmentAvailability,
@@ -506,6 +507,7 @@ export const registerPlatformApi: FastifyPluginAsync<PlatformApiOptions> = async
     return { ok: true };
   });
   app.addHook("preClose", async () => closePresenceStreams());
+  startTiktokEventsOutbox(app);
   // The signup form embedded on the FirstMate websites: exact-origin allowlist for /auth/*, catalogs and phone examples.
   registerSignupEmbed(app);
 app.post("/auth/google", async (request, reply) => {
@@ -9195,7 +9197,7 @@ async function handlePortalAction(app: FastifyInstance, action: string, body: Js
     case "scrape_logos":
       return await portalScrapeLogos(body);
     case "stripe_create_checkout":
-      return await portalStripeCreateCheckout(ctx.orgId, actor.email, body);
+      return await portalStripeCreateCheckout(ctx.orgId, actor.email, body, request);
     case "stripe_fulfill_session":
       return await portalStripeFulfillSession(cleanText(body.session_id), "stripe_manual_fulfill", ctx.orgId);
     case "stripe_pending_order":
@@ -10480,6 +10482,8 @@ function signupAttributionPayload(input: JsonObject) {
     "fbclid",
     "_fbc",
     "_fbp",
+    "ttclid",
+    "_ttp",
     "page_path",
     "page_search",
     "page_hash",
@@ -11170,9 +11174,12 @@ async function stripeBonusQuote(orgId: string, qty: number, offerInstanceId = ""
   return { valid: false, reason: "campaign_required", tier_id: "", bonus_dollars: 0, total_account_value: qty };
 }
 
-async function portalStripeCreateCheckout(orgId: string, email: string, body: JsonObject) {
+async function portalStripeCreateCheckout(orgId: string, email: string, body: JsonObject, request?: FastifyRequest) {
   const qty = Math.max(1, Math.min(50_000, Math.round(numericValue(body.qty || body.amount || 1, 1))));
   const metaAttribution = metaAttributionFields(body);
+  // The TikTok click id from the signup's landing page, when this browser no longer has one.
+  const signupTtclid = cleanText(asObject((await findIdentityByEmail(email).catch(() => null))?.metadata).ttclid);
+  const tiktokAttribution = tiktokCheckoutAttribution(body, request, { ttclid: signupTtclid });
   const offerId = cleanText(body.offer_id);
   const offerToken = cleanText(body.offer_token || body.acquisition_bonus_token || body.xid);
   const offerInstanceId = cleanText(body.offer_instance_id || body.bonus_offer_instance_id);
@@ -11224,7 +11231,7 @@ async function portalStripeCreateCheckout(orgId: string, email: string, body: Js
     "metadata[paid_minor]": creditMinorAmount(qty),
     "adaptive_pricing[enabled]": currentProfile().credit_display === "credits" ? "true" : "false"
   };
-  for (const [key, value] of Object.entries(metaAttribution)) {
+  for (const [key, value] of Object.entries({ ...metaAttribution, ...tiktokAttribution })) {
     fields[`metadata[${key}]`] = value;
   }
   if (useBonus) {
@@ -11451,6 +11458,23 @@ async function stripeFulfillFromSession(session: JsonObject, source: string) {
     eventSourceUrl: `${env.stripeBaseUrl.replace(/\/+$/, "")}/index.php?paid=1`,
     source
   }).catch((error) => ({ ok: false, skipped: false, error: cleanText((error as Error)?.message || "meta_capi_error") }));
+  // The credit is committed; TikTok is told after, from the outbox, and never holds up checkout.
+  const tiktokEvents = await enqueueTiktokPurchase({
+    sessionId,
+    orgId,
+    email,
+    phone: cleanText(asObject(session.customer_details).phone),
+    amountMinor: numericValue(session.amount_total),
+    currency: cleanText(session.currency).toUpperCase(),
+    quantity: numericValue(meta.paid_dollars, dollars),
+    paidAtMs: Date.now(),
+    livemode: liveMode,
+    pageUrl: `${env.stripeBaseUrl.replace(/\/+$/, "")}/index.php?paid=1`,
+    ttclid: cleanText(meta.ttclid),
+    ttp: cleanText(meta.ttp),
+    ip: cleanText(meta.client_ip),
+    userAgent: cleanText(meta.client_user_agent)
+  });
   const latest = await readGlobal(orgId);
   const latestData = asObject(latest.data);
   const offerInstanceId = cleanText(meta.offer_instance_id);
@@ -11477,7 +11501,7 @@ async function stripeFulfillFromSession(session: JsonObject, source: string) {
     data: {
       stripe_fulfilled_sessions: {
         ...asObject(latestData.stripe_fulfilled_sessions),
-        [sessionId]: { fulfilled: true, source, user_email: email, credit_dollars: dollars, paid_dollars: purchaseValue, meta_capi: metaCapi, ts: new Date().toISOString() }
+        [sessionId]: { fulfilled: true, source, user_email: email, credit_dollars: dollars, paid_dollars: purchaseValue, meta_capi: metaCapi, tiktok_events: tiktokEvents, ts: new Date().toISOString() }
       },
       ...(offerInstanceId ? { bonus_offer_instances: nextBonusOfferInstances } : {}),
       ...(asObject(latestData.stripe_payment_reviews)[sessionId]
@@ -11489,7 +11513,7 @@ async function stripeFulfillFromSession(session: JsonObject, source: string) {
     }
   });
   await stripeSavePaymentMethodFromCheckout(orgId, session).catch(() => null);
-  return { success: true, currency: profile.currency, credited: dollars, paid_dollars: purchaseValue, email, scope: "org", org_id: orgId, session_id: sessionId, balance: credit.balance, meta_capi: metaCapi };
+  return { success: true, currency: profile.currency, credited: dollars, paid_dollars: purchaseValue, email, scope: "org", org_id: orgId, session_id: sessionId, balance: credit.balance, meta_capi: metaCapi, tiktok_events: tiktokEvents };
 }
 
 // A paid checkout that cannot be credited automatically is held for an

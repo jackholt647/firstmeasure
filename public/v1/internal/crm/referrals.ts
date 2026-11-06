@@ -32,6 +32,8 @@ const ATTRIBUTION_FIELDS = [
   "fbclid",
   "_fbc",
   "_fbp",
+  "ttclid",
+  "_ttp",
   "landing_variant",
   "landing_page",
   "page_path",

@@ -867,7 +867,11 @@ src="https://www.facebook.com/tr?id=636685175264715&ev=PageView&noscript=1"
     const mobileReferralQuery = window.matchMedia('(max-width: 760px)');
 
     // UTM fields to forward to server on registration
-    const UTM_FIELDS = ['utm_source', 'utm_medium', 'utm_campaign', 'utm_content', 'utm_term', 'fbclid', '_fbc', '_fbp', 'xid', 'acquisition_bonus_token', 'bonus_token'];
+    const UTM_FIELDS = ['utm_source', 'utm_medium', 'utm_campaign', 'utm_content', 'utm_term', 'fbclid', '_fbc', '_fbp', 'ttclid', '_ttp', 'xid', 'acquisition_bonus_token', 'bonus_token'];
+    // A TikTok ad's click id, kept for a later purchase's server-side event (FM-351; read by Node at checkout).
+    if (/^[\w.-]{1,500}$/.test(urlParams.get('ttclid') || '')) {
+        document.cookie = `fm_ttclid=${encodeURIComponent(urlParams.get('ttclid'))}; Max-Age=${30 * 86400}; Path=/; SameSite=Lax${location.protocol === 'https:' ? '; Secure' : ''}`;
+    }
     const TRACKING_TIMEOUT_MS = 3500;
     const SIGNUP_EMAIL_VERIFICATION_ENABLED = false;
 
