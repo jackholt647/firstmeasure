@@ -18,14 +18,19 @@ const sessions = new Map<string, any>();
 const control = { unitAmount: 100, tax: 0, discount: 0 };
 let seq = 0;
 let originalFetch: typeof fetch;
+const tiktokRequests: any[] = [];
 
 before(async () => {
   const root = await mkdtemp(path.join(os.tmpdir(), "stripe-credit-fulfillment-"));
-  Object.assign(process.env, { NODE_ENV: "test", FIRSTMATE_ENV: "test", FIRSTMEASURE_DATABASE_MODE: "sqlite", DATABASE_URL: "", PLATFORM_HEARTBEAT_DISABLED: "1", WORK_SCHEDULER_DISABLED: "1", EMAIL_OUTBOUND_DISABLED: "1", CUSTOMER_CALL_WORKER_DISABLED: "1", FIRSTMEASURE_JOB_WORKERS: "0", V1_LOG_LEVEL: "error", STRIPE_TEST_MODE: "1", STRIPE_TEST_SECRET_KEY: "sk_test_fulfillment_fixture", STRIPE_BASE_URL: "https://dev.1m8.ai/portal", FIRSTMEASURE_INDEX_DB_PATH: path.join(root, "measure/index.sqlite") });
+  Object.assign(process.env, { NODE_ENV: "test", FIRSTMATE_ENV: "test", FIRSTMEASURE_DATABASE_MODE: "sqlite", DATABASE_URL: "", PLATFORM_HEARTBEAT_DISABLED: "1", WORK_SCHEDULER_DISABLED: "1", EMAIL_OUTBOUND_DISABLED: "1", CUSTOMER_CALL_WORKER_DISABLED: "1", FIRSTMEASURE_JOB_WORKERS: "0", V1_LOG_LEVEL: "error", STRIPE_TEST_MODE: "1", STRIPE_TEST_SECRET_KEY: "sk_test_fulfillment_fixture", STRIPE_BASE_URL: "https://dev.1m8.ai/portal", TIKTOK_EVENTS_ACCESS_TOKEN: "tiktok_fixture_token", TIKTOK_EVENTS_TEST_EVENT_CODE: "TEST_FM351", FIRSTMEASURE_INDEX_DB_PATH: path.join(root, "measure/index.sqlite") });
   for (const name of ["PLATFORM", "INTERNAL", "CRM", "FIRSTMEASURE", "MESSAGING", "CHANNELS", "CALLS", "PRICEBOOK"]) process.env[name + "_STORAGE_ROOT"] = path.join(root, name.toLowerCase());
   originalFetch = globalThis.fetch;
   globalThis.fetch = (async (input: any, options: any = {}) => {
     const url = new URL(String(input));
+    if (url.hostname === "business-api.tiktok.com") {
+      tiktokRequests.push({ url: String(input), headers: options.headers, body: JSON.parse(String(options.body)) });
+      return new Response(JSON.stringify({ code: 0, message: "OK", request_id: "fixture" }), { status: 200, headers: { "content-type": "application/json" } });
+    }
     if (url.hostname !== "api.stripe.com") return new Response("unavailable", { status: 503 });
     const fields = new URLSearchParams(options.body);
     let value: any;
@@ -57,8 +62,8 @@ function client(country: string) {
   let cookie = "", csrf = "";
   return {
     org: "",
-    async request(method: string, url: string, payload?: any) {
-      const response = await app.inject({ method, url, payload, headers: { cookie, "cf-ipcountry": country, ...(csrf ? { "x-platform-csrf": csrf } : {}) } });
+    async request(method: string, url: string, payload?: any, extra: Record<string, string> = {}) {
+      const response = await app.inject({ method, url, payload, headers: { ...extra, cookie: [cookie, extra.cookie].filter(Boolean).join("; "), "cf-ipcountry": country, ...(csrf ? { "x-platform-csrf": csrf } : {}) } });
       const set = response.headers["set-cookie"];
       if (set) {
         const pairs = (Array.isArray(set) ? set : [set]).map((v: string) => v.split(";")[0] || "");
@@ -78,7 +83,7 @@ async function register(country: string, email: string) {
   return c;
 }
 
-const action = (c: any, body: any) => c.request("POST", "/v1/platform/portal-action", body);
+const action = (c: any, body: any, headers?: Record<string, string>) => c.request("POST", "/v1/platform/portal-action", body, headers);
 
 test("amount check accepts configured totals and holds genuine mismatches", () => {
   const meta = { credit_currency: "USD", paid_minor: "25000" };
@@ -113,6 +118,51 @@ test("US Price ID checkout with tax added is credited once", async () => {
   assert.equal(ledger[0].delta, 90);
 });
 
+// FM-351: the paid checkout, not the credit spent later, is the TikTok Purchase; it carries the browser's context.
+test("a paid checkout queues one TikTok Purchase for the amount actually paid, with the checkout's browser context", async () => {
+  const c = await register("US", "tiktok@fulfillment.example.test");
+  Object.assign(control, { unitAmount: 100, tax: 731, discount: 0 });
+  const created = await action(c, { action: "stripe_create_checkout", qty: 90 }, {
+    cookie: "_ttp=ttp_fixture; fm_ttclid=click_fixture",
+    "user-agent": "Mozilla/5.0 (FM-351 fixture)",
+    "x-forwarded-for": "203.0.113.50, 10.10.0.3"
+  });
+  const session = sessions.get(created.session.id);
+  assert.equal(session.metadata.ttclid, "click_fixture");
+  assert.equal(session.metadata.ttp, "ttp_fixture");
+  assert.equal(session.metadata.client_ip, "203.0.113.50");
+  assert.equal(session.metadata.client_user_agent, "Mozilla/5.0 (FM-351 fixture)");
+  const before = tiktokRequests.length;
+  // Fulfilled from a server-to-server callback: none of that request's context may be used.
+  const first = await action(c, { action: "stripe_fulfill_session", session_id: session.id }, { "user-agent": "Stripe/1.0", "x-forwarded-for": "54.187.174.169" });
+  assert.equal(first.success, true, JSON.stringify(first));
+  assert.equal(first.tiktok_events.status, "queued");
+  assert.equal(first.tiktok_events.event_id, `stripe_purchase:${session.id}`);
+  for (let i = 0; i < 50 && tiktokRequests.length === before; i += 1) await new Promise((resolve) => setTimeout(resolve, 20));
+  assert.equal(tiktokRequests.length, before + 1);
+  const sent = tiktokRequests.at(-1);
+  assert.equal(sent.headers["Access-Token"], "tiktok_fixture_token");
+  assert.equal(sent.body.event_source_id, "DBN2ED3C77UF91065S40");
+  assert.equal(sent.body.test_event_code, "TEST_FM351", "a Stripe test payment goes to Test Events only");
+  const event = sent.body.data[0];
+  assert.equal(event.event, "Purchase");
+  assert.equal(event.event_id, `stripe_purchase:${session.id}`);
+  assert.equal(event.properties.value, 97.31, "the amount charged, tax included, in dollars");
+  assert.equal(event.properties.currency, "USD");
+  assert.equal(event.user.ttclid, "click_fixture");
+  assert.equal(event.user.ttp, "ttp_fixture");
+  assert.equal(event.user.ip, "203.0.113.50");
+  assert.equal(event.user.user_agent, "Mozilla/5.0 (FM-351 fixture)");
+  assert.match(event.user.email, /^[0-9a-f]{64}$/);
+  const record = ((await storage.readGlobal(c.org)).data.stripe_fulfilled_sessions as any)[session.id];
+  assert.equal(record.tiktok_events.status, "queued");
+  // The webhook arriving after the browser's return sends nothing more.
+  const again = await action(c, { action: "stripe_fulfill_session", session_id: session.id });
+  assert.equal(again.duplicate, true);
+  await new Promise((resolve) => setTimeout(resolve, 100));
+  assert.equal(tiktokRequests.length, before + 1);
+});
+
 test("a Price above the credit value is credited with an operator warning", async () => {
   const c = await register("US", "above@fulfillment.example.test");
   Object.assign(control, { unitAmount: 105, tax: 0, discount: 0 });
@@ -135,6 +185,7 @@ test("a paid session below the credit value is held for review, alerted once and
   const warn = console.warn;
   console.warn = (...args: unknown[]) => { warnings.push(args.map(String).join(" ")); };
   let sessionId = "";
+  const tiktokBefore = tiktokRequests.length;
   try {
     const created = await action(c, { action: "stripe_create_checkout", qty: 50 });
     sessionId = created.session.id;
@@ -152,6 +203,8 @@ test("a paid session below the credit value is held for review, alerted once and
   assert.equal(data.stripe_payment_reviews[sessionId].status, "open");
   assert.equal(data.stripe_payment_reviews[sessionId].attempts, 2);
   assert.equal(data.stripe_payment_reviews[sessionId].configured_minor, 4500);
+  assert.equal(tiktokRequests.length, tiktokBefore, "a payment that is not credited is not a TikTok Purchase");
+  assert.equal(await internalStorage.readInternalDocument("tiktok_events_outbox", (await import("../platform/tiktok-events.js")).tiktokOutboxId(sessionId)), null);
   const queued = (await internalStorage.listInternalDocuments("stripe_payment_reviews")).map((doc: any) => doc.data ?? doc);
   assert.ok(queued.some((review: any) => review.session_id === sessionId && review.org_id === c.org && review.expected_minor === 5000));
 });

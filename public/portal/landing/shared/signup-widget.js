@@ -2,7 +2,7 @@
   'use strict';
 
   const ATTR = 'data-firstmate-signup';
-  const UTM_FIELDS = ['utm_source', 'utm_medium', 'utm_campaign', 'utm_content', 'utm_term', 'fbclid', '_fbc', '_fbp', 'xid', 'acquisition_bonus_token', 'bonus_token'];
+  const UTM_FIELDS = ['utm_source', 'utm_medium', 'utm_campaign', 'utm_content', 'utm_term', 'fbclid', '_fbc', '_fbp', 'ttclid', '_ttp', 'xid', 'acquisition_bonus_token', 'bonus_token'];
   const SCRIPT_SRC = document.currentScript && document.currentScript.src ? document.currentScript.src : '';
   const TRACKING_TIMEOUT_MS = 3500;
   const SIGNUP_EMAIL_VERIFICATION_ENABLED = false;
@@ -421,11 +421,22 @@
     return value;
   }
 
+  // A TikTok ad's click id, kept for a later purchase's server-side event (FM-351; read by Node at checkout).
+  // Only on the app's own pages: a website embedding the widget keeps its own cookies.
+  function rememberTiktokClickId(params) {
+    const ttclid = params.get('ttclid') || '';
+    let sameOrigin = false;
+    try { sameOrigin = !!SCRIPT_SRC && new URL(SCRIPT_SRC).origin === location.origin; } catch (_) {}
+    if (!sameOrigin || !/^[\w.-]{1,500}$/.test(ttclid)) return;
+    document.cookie = `fm_ttclid=${encodeURIComponent(ttclid)}; Max-Age=${30 * 86400}; Path=/; SameSite=Lax${location.protocol === 'https:' ? '; Secure' : ''}`;
+  }
+
   function buildWidget(host, options = {}) {
     if (host.__firstMateSignupMounted) return;
     host.__firstMateSignupMounted = true;
 
     const params = new URLSearchParams(location.search);
+    rememberTiktokClickId(params);
     const shadow = host.attachShadow({ mode: 'open' });
     const css = document.createElement('style');
     css.textContent = styles;

@@ -196,6 +196,10 @@ export const env = {
   metaCapiVersion: process.env.META_CAPI_VERSION ?? process.env.FB_CAPI_VERSION ?? "v21.0",
   metaCapiTestEventCode: process.env.META_CAPI_TEST_EVENT_CODE ?? process.env.FB_CAPI_TEST_EVENT_CODE ?? "",
   metaCapiTestMode: process.env.META_CAPI_TEST_MODE === "1" || process.env.META_CAPI_TEST_MODE === "true",
+  // TikTok Events API (server-side Purchase, FM-351). The pixel is the one public/portal/tiktok-pixel.php loads.
+  tiktokPixelId: process.env.TIKTOK_PIXEL_ID ?? "DBN2ED3C77UF91065S40",
+  tiktokEventsAccessToken: process.env.TIKTOK_EVENTS_ACCESS_TOKEN ?? "",
+  tiktokEventsTestEventCode: process.env.TIKTOK_EVENTS_TEST_EVENT_CODE ?? "",
   statsigEnabled: process.env.STATSIG_ENABLED === "1" || process.env.STATSIG_ENABLED === "true",
   statsigClientKey: process.env.STATSIG_CLIENT_KEY ?? "",
   postmarkServerToken: process.env.POSTMARK_SERVER_TOKEN ?? process.env.POSTMARK_TOKEN ?? "",
