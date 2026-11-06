@@ -38,6 +38,10 @@ const PRIVATE_ADDRESS = /^(?:10\.|127\.|192\.168\.|172\.(?:1[6-9]|2\d|3[01])\.|1
  * X-Forwarded-For (NGINX then appends the balancer's private address); entries before it are whatever the visitor
  * sent, so only the rightmost public entry is trusted.
  */
+export function isPrivateAddress(address: string) {
+  return PRIVATE_ADDRESS.test(String(address || "").trim().replace(/^::ffff:/i, ""));
+}
+
 export function acquisitionVisitorAddress(forwardedFor: string, socketAddress: string) {
   const entries = String(forwardedFor || "").split(",").map((entry) => entry.trim().replace(/^::ffff:/i, "")).filter(Boolean);
   for (const entry of entries.reverse()) {
