@@ -77,7 +77,7 @@ after(async () => {
   }
 });
 
-async function registerOwner(client: TestClient, options: { company?: string } = { company: "Attention Test Org" }) {
+async function registerOwner(client: TestClient, options: { company?: string; asSignedUp?: boolean } = { company: "Attention Test Org" }) {
   const suffix = `${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`;
   const registered = await client.request("POST", "/v1/platform/auth/register", {
     phone: nextTestPhone(),
@@ -87,7 +87,7 @@ async function registerOwner(client: TestClient, options: { company?: string } =
     ...(options.company === undefined ? {} : { company: options.company }),
     organization_id: `org_attention_${suffix}`
   });
-  await enableExpandedPlatformFixture(registered.organization.id);
+  if (!options.asSignedUp) await enableExpandedPlatformFixture(registered.organization.id);
   return { orgId: String(registered.organization.id), suffix, userId: String(registered.user.id) };
 }
 
@@ -326,6 +326,24 @@ test("the company name banner needs documents, email or the portal on", async ()
   assert.equal(await companyNameEntry(), undefined, "email is off with its Project Comms app");
 
   assert.equal(companyNamePlaceholderBody(undefined), "");
+  assert.equal(companyNamePlaceholderBody({ "apps.firstmeasure": true, "platform.expanded_access": false }), "");
   assert.equal(companyNamePlaceholderBody({ "platform.documents": true, "platform.customer_portal": true }),
     "Documents and the portal show a placeholder instead of your company's name.");
+});
+
+// FM-350 reopened: an organization exactly as signup leaves it (no company name,
+// no flag saved, no expanded access) is not asked, from the capabilities a new
+// signup really resolves rather than flags a test turned off.
+test("a new signup with only FirstMeasure is not asked for its company name", async () => {
+  const owner = createSessionClient();
+  const { orgId } = await registerOwner(owner, { asSignedUp: true });
+  const { effectiveCapabilities } = await import("../platform/capabilities.js");
+  const { effectiveByKey } = await effectiveCapabilities(orgId);
+  assert.equal(effectiveByKey["apps.firstmeasure"], true, "a new signup has FirstMeasure");
+  for (const key of ["platform.expanded_access", "platform.documents", "comms.email", "platform.customer_portal"]) {
+    assert.notEqual(effectiveByKey[key], true, `a new signup has ${key} off`);
+  }
+  const listed = await owner.request("GET", `/v1/platform/organizations/${orgId}/attention`);
+  assert.ok(!listed.entries.some((item: any) => item.id === "attention_company_name_missing"),
+    `a new FirstMeasure-only signup sees no company name banner; got ${listed.entries.map((item: any) => item.id).join(",")}`);
 });
