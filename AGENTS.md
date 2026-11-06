@@ -669,6 +669,10 @@ The TikTok Pixel is printed on every customer portal page and landing page
 variant from one include, `public/portal/tiktok-pixel.php`
 (`<?= fm_tiktok_pixel() ?>` in `<head>`); never paste the snippet into a page.
 A new portal page or variant with the Meta Pixel or Google tag needs it too.
+That include also sends TikTok's `CompleteRegistration`, from the signup
+widget's `firstmate:auth-success` with `first_login: true`; the widget never
+calls `ttq` itself, because the website embeds it and counts signups with its
+own listener.
 Run `tests/portal-tracking-pixels.test.mjs` for changes here.
 
 A TikTok Purchase is sent from the server only (`platform/tiktok-events.ts`),
