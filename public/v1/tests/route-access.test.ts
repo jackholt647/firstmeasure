@@ -259,6 +259,42 @@ test("credentialed CORS and cookie writes are for our own origin only", async ()
   assert.equal(foreign.headers["x-content-type-options"], "nosniff");
 });
 
+// FM-349: the signup form embedded on 1m8.ai calls signup with credentials:'include'.
+test("the websites' embedded signup form gets credentialed CORS on its own routes only", async () => {
+  const site = "https://1m8.ai";
+  const preflight = (url: string, origin = site) => app.inject({ method: "OPTIONS", url, headers: { origin, "access-control-request-method": "POST", "access-control-request-headers": "content-type" } });
+  for (const url of ["/v1/platform/auth/legacy-action", "/v1/platform/auth/login", "/v1/platform/acquisition/event"]) {
+    const answer = await preflight(url);
+    assert.equal(answer.statusCode, 204, url);
+    assert.equal(answer.headers["access-control-allow-origin"], site, url);
+    assert.equal(answer.headers["access-control-allow-credentials"], "true", url);
+  }
+  const lookalike = await preflight("/v1/platform/auth/legacy-action", "https://1m8.ai.evil.example");
+  assert.notEqual(lookalike.headers["access-control-allow-credentials"], "true");
+  // The websites are not our app: nothing else shares a signed-in answer with them.
+  assert.notEqual((await preflight("/v1/firstmeasure/projects/list")).headers["access-control-allow-credentials"], "true");
+
+  const email = `embed-${randomUUID()}@example.test`;
+  const registered = await app.inject({ method: "POST", url: "/v1/platform/auth/legacy-action", headers: { origin: site }, payload: {
+    action: "register", email, phone: "2025550148", password: "embed-fixture-password", confirm_password: "embed-fixture-password"
+  } });
+  assert.ok(registered.statusCode < 300, registered.body);
+  assert.equal(registered.headers["access-control-allow-credentials"], "true");
+  assert.equal(registered.headers["access-control-allow-origin"], site);
+  assert.equal(JSON.parse(registered.body).first_login, true);
+  const cookie = String(registered.headers["set-cookie"]).match(/fm_platform_session=[^;,]+/)![0];
+
+  // A visitor who is already signed in can still use the form; errors keep their CORS headers.
+  const failedLogin = await app.inject({ method: "POST", url: "/v1/platform/auth/legacy-action", headers: { origin: site, cookie }, payload: { action: "login", identifier: email, password: "wrong-password" } });
+  assert.notEqual(JSON.parse(failedLogin.body).error, "cross_site_request");
+  assert.equal(failedLogin.headers["access-control-allow-credentials"], "true");
+  const event = await app.inject({ method: "POST", url: "/v1/platform/acquisition/event", headers: { origin: site, cookie, "content-type": "application/json" }, payload: JSON.stringify({ event_type: "signup_view" }) });
+  assert.notEqual(event.statusCode, 403, event.body);
+  // ...but the website still cannot write anything else with the session.
+  const elsewhere = await app.inject({ method: "POST", url: "/v1/firstmeasure/projects/list", headers: { origin: site, cookie }, payload: {} });
+  assert.equal(elsewhere.statusCode, 403);
+});
+
 test("signup cannot claim a verified email, and a squatted staff address loses its password and sessions", async () => {
   const email = `new-hire-${randomUUID()}@firstmate.example.test`;
   const registered = await app.inject({ method: "POST", url: "/v1/platform/auth/register", headers: { origin: "https://app.example.test" }, payload: {
