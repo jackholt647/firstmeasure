@@ -275,6 +275,9 @@ test("an organization still named Your Company asks its owners for the name", as
   for (const name of ["Your Company", " your company ", "", "Untitled Organization"]) assert.equal(isPlaceholderOrganizationName(name), true, name);
   for (const name of ["Ridge Roofing", "Your Company Roofing"]) assert.equal(isPlaceholderOrganizationName(name), false, name);
 
+  const { saveCapabilityValues } = await import("../platform/capabilities.js");
+  await saveCapabilityValues(orgId, { "platform.documents": true, "apps.comms": true, "comms.email": true, "platform.customer_portal": true });
+
   const listed = await owner.request("GET", `${base}/attention`);
   const entry = listed.entries.find((item: any) => item.id === "attention_company_name_missing");
   assert.ok(entry, `owner of an unnamed organization is asked; got ${listed.entries.map((item: any) => item.id).join(",")}`);
@@ -284,6 +287,7 @@ test("an organization still named Your Company asks its owners for the name", as
   assert.equal(entry.dismissible.notification, false, "the pinned row stays until the name is saved");
   assert.equal(entry.dismissible.topbar, true);
   assert.ok(entry.priority > 100, "takes the topbar ahead of the payments setup banner (priority 100)");
+  assert.equal(entry.body, "Documents, emails and the portal show a placeholder instead of your company's name.");
 
   const viewer = await createViewer(owner, orgId, suffix);
   const viewerFeed = await viewer.client.request("GET", `${base}/attention`);
@@ -292,4 +296,36 @@ test("an organization still named Your Company asks its owners for the name", as
   await owner.request("PATCH", base, { name: "Ridge Roofing" });
   const named = await owner.request("GET", `${base}/attention`);
   assert.ok(!named.entries.some((item: any) => item.id === "attention_company_name_missing"), "the banner goes once a real name is saved");
+});
+
+// FM-350: a new FirstMeasure-only organization has no documents, email or
+// portal, so it is not asked about where its name shows; the copy names only
+// the apps the organization has on.
+test("the company name banner needs documents, email or the portal on", async () => {
+  const owner = createSessionClient();
+  const { orgId } = await registerOwner(owner, {});
+  const base = `/v1/platform/organizations/${orgId}`;
+  const { saveCapabilityValues } = await import("../platform/capabilities.js");
+  const { companyNamePlaceholderBody } = await import("../platform/attention.js");
+  const companyNameEntry = async () => (await owner.request("GET", `${base}/attention`)).entries
+    .find((item: any) => item.id === "attention_company_name_missing");
+
+  await saveCapabilityValues(orgId, { "platform.documents": false, "comms.email": false, "platform.customer_portal": false });
+  assert.equal(await companyNameEntry(), undefined, "no banner while documents, email and the portal are all off");
+
+  await saveCapabilityValues(orgId, { "platform.documents": true });
+  assert.equal((await companyNameEntry())?.body, "Documents show a placeholder instead of your company's name.");
+
+  await saveCapabilityValues(orgId, { "platform.documents": false, "platform.customer_portal": true });
+  assert.equal((await companyNameEntry())?.body, "The portal shows a placeholder instead of your company's name.");
+
+  await saveCapabilityValues(orgId, { "platform.customer_portal": false, "apps.comms": true, "comms.email": true });
+  assert.equal((await companyNameEntry())?.body, "Emails show a placeholder instead of your company's name.");
+
+  await saveCapabilityValues(orgId, { "apps.comms": false });
+  assert.equal(await companyNameEntry(), undefined, "email is off with its Project Comms app");
+
+  assert.equal(companyNamePlaceholderBody(undefined), "");
+  assert.equal(companyNamePlaceholderBody({ "platform.documents": true, "platform.customer_portal": true }),
+    "Documents and the portal show a placeholder instead of your company's name.");
 });
