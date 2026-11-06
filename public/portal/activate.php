@@ -1,4 +1,5 @@
 <?php
+require_once __DIR__ . '/tiktok-pixel.php';
 // activate.php — FirstMate user activation
 // Uses existing "forgot_password" -> "verify_otp" -> "set_new_password" flow
 // Includes auto-login and checks for existing verification.
@@ -117,6 +118,7 @@ function esc($s) { return htmlspecialchars($s ?? '', ENT_QUOTES, 'UTF-8'); }
         }
         .center-links { text-align:center; margin-top:15px; font-size:12px; }
     </style>
+<?= fm_tiktok_pixel() ?>
 </head>
 <body>
 

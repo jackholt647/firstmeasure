@@ -663,6 +663,14 @@ administrators, or a coding agent holding an access key one of them created
 nothing else. Run `tests/session-replay-insights-browser.test.mjs` and
 `tests/session-replay-agent-access.test.ts` for changes here.
 
+## Marketing pixels
+
+The TikTok Pixel is printed on every customer portal page and landing page
+variant from one include, `public/portal/tiktok-pixel.php`
+(`<?= fm_tiktok_pixel() ?>` in `<head>`); never paste the snippet into a page.
+A new portal page or variant with the Meta Pixel or Google tag needs it too.
+Run `tests/portal-tracking-pixels.test.mjs` for changes here.
+
 ## Project window content ownership
 
 Read [project content layout](docs/architecture/project-content-layout.md) before changing project modal tabs or sidebars. The project details tray (`#rDetailsTray`) owns the project-details form and measurements; Overview is just the overview. Other apps own their own content rails. There is no configurable shared modal left region or left-column override API; do not recreate one.

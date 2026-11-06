@@ -1,5 +1,6 @@
 <?php
 declare(strict_types=1);
+require_once dirname(__DIR__, 3) . '/tiktok-pixel.php';
 
 $query = $_SERVER['QUERY_STRING'] ?? '';
 $scriptName = str_replace('\\', '/', (string)($_SERVER['SCRIPT_NAME'] ?? ''));
@@ -183,6 +184,7 @@ $mediaBase = 'media';
       text-decoration: underline;
     }
   </style>
+<?= fm_tiktok_pixel() ?>
 </head>
 <body>
   <main class="signup-page">
