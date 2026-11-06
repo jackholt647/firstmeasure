@@ -212,7 +212,11 @@ that may read the project.
 ## Browser protections
 
 - **CORS** allows credentials only for `CORS_ALLOWED_ORIGINS`
-  (production: `https://app.1m8.ai`). Other origins get no CORS headers.
+  (production: `https://app.1m8.ai`), and for the signup form embedded on the
+  websites (`SIGNUP_EMBED_ORIGINS`: 1m8.ai, www.1m8.ai, eu.1m8.ai; see
+  [signup language](signup-language.md#the-form-embedded-on-the-websites))
+  only on `/v1/platform/auth/*` and `/v1/platform/acquisition/event`. Other
+  origins may read public answers but never get credentials.
 - **Cross-site writes:** a request that carries a platform session cookie and
   is not `GET`/`HEAD`/`OPTIONS` must have an `Origin` (or, failing that, a
   `Referer`) in the allowed origins. This covers every route, including those
