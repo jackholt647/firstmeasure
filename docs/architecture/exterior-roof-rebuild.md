@@ -108,6 +108,19 @@ The rebuild is one full undo step (walls, edits, chimneys and the roof they were
 Undo also marks that roof as kept, so the next stage click or mode switch does not redo it; the
 next roof change follows from the restored walls.
 
+## A roof change that came with the saved project
+
+A follow normally runs right after the person edited the roof. A roof drawing can also be saved
+without returning to the walls (FM-347: a whole roof dragged 3.6 m down in roof mode, saved, QA
+reviewed the walls as saved). Then the change arrives with the project, often for someone else.
+`restore` records whether the stored walls matched the roof drawing the project opened with
+(`staleAtOpen`). While they did not, a follow that would remove anything (walls, edited walls,
+windows, doors, stickers or drawn faces: `WallRoofRebuild.discards`) asks first, and says how far
+the roof moved when most of its points moved together (`roofShift`). Cancel keeps the walls as
+saved (`keptRoofSignature`, as for a declined full rebuild); changing the roof again asks again.
+A follow that only moves walls, and every roof edit made in the session, is applied without
+asking, as above.
+
 ## When it still falls back
 
 The smart rebuild is tried whenever the walls carry edits. It is not tried, and the earlier
