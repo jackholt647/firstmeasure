@@ -1,5 +1,6 @@
 <?php
 declare(strict_types=1);
+require_once dirname(__DIR__, 3) . '/tiktok-pixel.php';
 
 $assetBase = 'https://1m8.ai';
 $query = $_SERVER['QUERY_STRING'] ?? '';
@@ -44,6 +45,7 @@ $landingCampaignType = (string)($_GET['campaign_type'] ?? $_GET['utm_source'] ??
     gtag('js', new Date());
     gtag('config', 'G-W7MP6MZNMZ');
   </script>
+  <?= fm_tiktok_pixel() ?>
   <style>
     :root {
       --brand: #d93025;

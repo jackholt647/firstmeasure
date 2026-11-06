@@ -1,4 +1,5 @@
 <?php
+require_once dirname(__DIR__) . '/tiktok-pixel.php';
 require_once __DIR__ . '/../session_bootstrap.php';
 portalStartSession();
 
@@ -52,6 +53,7 @@ session_write_close();
     };
   </script>
   <script defer src="../../libraries/date-time-picker/date-time-picker.js?v=<?= (int)filemtime(__DIR__ . '/../../libraries/date-time-picker/date-time-picker.js') ?>"></script>
+<?= fm_tiktok_pixel() ?>
 </head>
 <body>
   <div id="mobileApp" class="mobile-app">

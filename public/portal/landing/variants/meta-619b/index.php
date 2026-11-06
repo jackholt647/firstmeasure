@@ -1,5 +1,6 @@
 <?php
 declare(strict_types=1);
+require_once dirname(__DIR__, 3) . '/tiktok-pixel.php';
 
 $query = $_SERVER['QUERY_STRING'] ?? '';
 $scriptName = str_replace('\\', '/', (string)($_SERVER['SCRIPT_NAME'] ?? ''));
@@ -140,6 +141,7 @@ $faqs = [
     gtag('js', new Date());
     gtag('config', 'G-W7MP6MZNMZ');
   </script>
+  <?= fm_tiktok_pixel() ?>
   <style>
     :root {
       --brand: #d93025;

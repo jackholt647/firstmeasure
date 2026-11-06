@@ -35,7 +35,8 @@ export const AREAS = [
   [[`${V1}pricebook/`], ["v1:tests/pricebook-roofing-setup.test.ts"]],
   [[/^public\/v1\/platform\/realtime/, `${LIB}platform-realtime/`], ["v1:tests/realtime-single-stream.test.ts", "v1:tests/view-presence-client.test.mjs"]],
   [[`${V1}session-replay/`, `${LIB}session-replay/`], ["v1:tests/session-replay.test.ts", "v1:tests/session-replay-archive.test.ts", "v1:tests/session-replay-agent-access.test.ts"]],
-  [[`${V1}platform/localization/`, `${LIB}platform-language/`], ["v1:cmd:localization-check"]]
+  [[`${V1}platform/localization/`, `${LIB}platform-language/`], ["v1:cmd:localization-check"]],
+  [[/^public\/portal\/.*\.php$/], ["root:tests/portal-tracking-pixels.test.mjs"]]
 ];
 
 /**
@@ -49,7 +50,8 @@ export const ALWAYS = new Set([
   "v1:tests/schedule-events.test.ts", // 0.54 s
   "v1:tests/assignee-roster.test.ts", // 0.74 s
   "v1:tests/view-presence-client.test.mjs", // 0.78 s
-  "root:tests/frontend-bridge.test.mjs" // 1.6 s
+  "root:tests/frontend-bridge.test.mjs", // 1.6 s
+  "root:tests/portal-tracking-pixels.test.mjs" // 0.1 s, reads files only
 ]);
 
 /** Cheap checks that need no test file: what `cmd:` ids run, from public/v1. */

@@ -1,4 +1,5 @@
 <?php
+require_once __DIR__ . '/tiktok-pixel.php';
 $publicRegistrationEnabled = (getenv('PUBLIC_REGISTRATION_ENABLED') ?: ($_SERVER['PUBLIC_REGISTRATION_ENABLED'] ?? 'true')) !== 'false';
 $initialReferralCode = $publicRegistrationEnabled ? strtoupper(trim((string)($_GET['ref'] ?? ''))) : '';
 $hasReferralInvite = $initialReferralCode !== '';
@@ -612,6 +613,7 @@ src="https://www.facebook.com/tr?id=636685175264715&ev=PageView&noscript=1"
 
   gtag('config', 'G-W7MP6MZNMZ');
 </script>
+<?= fm_tiktok_pixel() ?>
 </head>
 <body class="<?= $hasReferralInvite ? 'referral-active referral-pending' : '' ?>">
 
