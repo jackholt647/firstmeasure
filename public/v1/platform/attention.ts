@@ -277,6 +277,8 @@ registerAttentionSource("demo", (_orgId, ctx) => {
 // is asked for it. Read from the request's own context: no extra reads per poll.
 // It outranks the payments setup banner (100, not dismissible) for the one
 // topbar slot; dismissing it for the session hands the slot back.
+// Only organizations with one of those apps on are asked, and the copy names
+// only those (FM-350): a FirstMeasure-only organization has never seen them.
 const PLACEHOLDER_ORGANIZATION_NAMES = new Set(["", "your company", "untitled organization", "default branch"]);
 
 export function isPlaceholderOrganizationName(name: unknown) {
@@ -285,17 +287,35 @@ export function isPlaceholderOrganizationName(name: unknown) {
 
 export const COMPANY_NAME_ATTENTION_ID = "attention_company_name_missing";
 
+const COMPANY_NAME_PLACES = [
+  { capability: "platform.documents", label: "documents" },
+  { capability: "comms.email", label: "emails" },
+  { capability: "platform.customer_portal", label: "the portal" }
+] as const;
+
+/** "Documents, emails and the portal show ...", naming only the apps the organization has on; "" when none is. */
+export function companyNamePlaceholderBody(effectiveByKey: Record<string, boolean> | undefined) {
+  const labels = COMPANY_NAME_PLACES.filter((place) => effectiveByKey?.[place.capability] === true).map((place) => place.label);
+  const last = labels.pop();
+  if (!last) return "";
+  const list = labels.length ? `${labels.join(", ")} and ${last}` : last;
+  const verb = list === "the portal" ? "shows" : "show";
+  return `${list.charAt(0).toUpperCase()}${list.slice(1)} ${verb} a placeholder instead of your company's name.`;
+}
+
 registerAttentionSource("company_name", (_orgId, ctx) => {
   const auth = ctx.auth;
   if (!auth || !isPlaceholderOrganizationName(auth.organization?.name)) return [];
   if (!hasPermission(auth, "manage_company_settings")) return [];
+  const body = companyNamePlaceholderBody(auth.capabilities?.effectiveByKey);
+  if (!body) return [];
   return [{
     id: COMPANY_NAME_ATTENTION_ID,
     key: "company_name_missing",
     priority: 110,
     surfaces: ["topbar", "notification"],
     title: "Add your company name",
-    body: "Documents, emails and the portal show a placeholder instead of your company's name.",
+    body,
     cta_label: "Add company name",
     tone: "orange",
     frontend_action: { route: { tab: "company_settings", sub: "company" } },
