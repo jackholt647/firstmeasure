@@ -5,6 +5,7 @@
  */
 import type { FastifyInstance, FastifyRequest } from "fastify";
 import { env } from "../../src/config/env.js";
+import { signupEmbedOrigins } from "../../commerce/signup-embed.js";
 import { forbidden } from "../errors.js";
 
 function originOf(value: string) {
@@ -31,13 +32,29 @@ export function isAllowedOrigin(origin: string) {
 }
 
 /**
+ * The routes the signup form embedded on the websites (1m8.ai, www, eu;
+ * commerce/signup-embed.ts) calls with credentials: signup and login set the
+ * session cookie, and the widget's funnel beacon is always credentialed.
+ */
+function isSignupEmbedRoute(url: string) {
+  const path = url.split("?", 1)[0] ?? "";
+  return path.startsWith("/v1/platform/auth/") || path === "/v1/platform/acquisition/event";
+}
+
+/** Our origins anywhere, plus the signup embed origins on the signup embed's own routes only. */
+export function isCredentialedOrigin(request: Pick<FastifyRequest, "url">, origin: string) {
+  if (isAllowedOrigin(origin)) return true;
+  return isSignupEmbedRoute(request.url) && signupEmbedOrigins().has(originOf(origin));
+}
+
+/**
  * @fastify/cors per-request options: our origins get credentials; any other
  * origin may still read public, cookie-free answers (embedded forms, the
  * public API), but the browser never shares a signed-in response with it.
  */
 export function corsDelegator(request: FastifyRequest, callback: (error: Error | null, options?: Record<string, unknown>) => void) {
   const origin = String(request.headers.origin ?? "");
-  callback(null, { origin: origin ? true : false, credentials: origin ? isAllowedOrigin(origin) : false });
+  callback(null, { origin: origin ? true : false, credentials: origin ? isCredentialedOrigin(request, origin) : false });
 }
 
 const SAFE_METHODS = new Set(["GET", "HEAD", "OPTIONS"]);
@@ -57,11 +74,11 @@ export function assertSameOriginWrite(request: FastifyRequest) {
   if (!carriesSessionCookie(request)) return;
   const origin = String(request.headers.origin ?? "").trim();
   if (origin) {
-    if (origin === "null" || !isAllowedOrigin(origin)) throw forbidden("cross_site_request", "This request came from another site.");
+    if (origin === "null" || !isCredentialedOrigin(request, origin)) throw forbidden("cross_site_request", "This request came from another site.");
     return;
   }
   const referer = String(request.headers.referer ?? "").trim();
-  if (referer && !isAllowedOrigin(referer)) throw forbidden("cross_site_request", "This request came from another site.");
+  if (referer && !isCredentialedOrigin(request, referer)) throw forbidden("cross_site_request", "This request came from another site.");
 }
 
 export function installBrowserProtections(app: FastifyInstance) {
