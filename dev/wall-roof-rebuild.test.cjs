@@ -8,7 +8,8 @@ const copy=v=>JSON.parse(JSON.stringify(v));
 // side-wall flashing under the upper eave R3, and the dormer's front head wall.
 const CRICKET=[96,97],UNDER_EAVE=25,EAVE_ABOVE=2,DORMER_FRONT=51;
 
-function house(stored=fixture.walls,facesOf=null){
+// opened(points) edits the roof drawing before the project opens, as a saved project carries it.
+function house(stored=fixture.walls,facesOf=null,{opened=null,confirm=null}={}){
  const soffitButtons=[{dataset:{soffit:'auto'},setAttribute(){}}];
  const W=copy(stored),C=W.context,elements=new Map(),listeners={},storage=new Map(),timers=new Map();let timerId=0,host=null;
  const el=(id='')=>({id,hidden:false,disabled:false,value:'',textContent:'',dataset:{},style:{},classList:{toggle(){},add(){},remove(){}},attributes:{},setAttribute(k,v){this.attributes[k]=v;},getAttribute(k){return this.attributes[k]??null;},removeAttribute(k){delete this.attributes[k];},addEventListener(){},
@@ -18,9 +19,10 @@ function house(stored=fixture.walls,facesOf=null){
  // Faces share the roof's point objects, as the face resolver's faces do: moving a point moves its faces.
  const toPixel=p=>({x:p.x/C.mpp+C.width/2,y:p.y/C.mpp+C.height/2,z:p.z}),shared=p=>{const q=toPixel(p);return points.find(r=>Math.hypot(r.x-q.x,r.y-q.y)<1e-6&&Math.abs(r.z-q.z)<1e-9)||q;};
  const manualFaces=(facesOf?facesOf(W.roof.faces):W.roof.faces).map(f=>({points:f.points.map(shared),holes:(f.holes||[]).map(r=>r.map(shared))}));
+ opened?.(points);
  const ctx={console,performance,setTimeout:fn=>{timers.set(++timerId,fn);return timerId;},clearTimeout:id=>timers.delete(id),setInterval:()=>0,clearInterval(){},document,location:{origin:'http://rebuild-test'},localStorage:{getItem:k=>storage.get(k)||null,setItem:(k,v)=>storage.set(k,v),removeItem:k=>storage.delete(k)},
   activeGeometry:{points,connections,manualFaces},imageWidth:C.width,imageHeight:C.height,mapCenterLat:C.lat,mapCenterLng:C.lng,dsmMin:0,viewRotation:0,currentZoom:1,selectedPoints:new Set(),selectedLines:new Set(),tempPoint:null,layerData:{},isMeasurementMode:false,
-  addEventListener:(name,fn)=>listeners['window:'+name]=fn,currentProjectId:'ce52',getMetersPerPx:()=>C.mpp,confirm:()=>{throw Error('A smart rebuild never asks to discard work.');},
+  addEventListener:(name,fn)=>listeners['window:'+name]=fn,currentProjectId:'ce52',getMetersPerPx:()=>C.mpp,confirm:confirm||(()=>{throw Error('A smart rebuild never asks to discard work.');}),
   ExteriorGeometry:req('exterior_geometry.js'),ExteriorModel:req('exterior_model.js'),WallGeometry:G,WallChimneyCleanup:req('wall_chimney_cleanup.js'),WallRakeCleanup:req('wall_rake_cleanup.js'),WallChimneys:req('wall_chimneys.js'),WallGaps:req('wall_gaps.js'),GroundGeometry:req('ground_geometry.js'),
   BaseGeometry:req('base_geometry.js'),BaseSketchGeometry:req('base_sketch_geometry.js'),WallSolidGeometry:req('wall_solid_geometry.js'),WallBaseBinding:req('wall_base_binding.js'),WallParapets:req('wall_parapets.js'),WallClosedSoffits:req('wall_closed_soffits.js'),RoofTrim:T,WallRoofRebuild:R,EditorHistory:req('editor_history.js'),
   WallAxisCuts:req('wall_axis_cuts.js'),WallTrim:req('wall_trim.js'),WallSteps:req('wall_steps.js'),WallFeatures:{...req('wall_features.js'),mountUI(){},closeUI(){}},getVector3:p=>({...p,distanceTo:q=>Math.hypot(p.x-(q.x||0),p.y-(q.y||0),p.z-(q.z||0))}),camera:{position:{x:0,y:-10,z:2}},requestAnimationFrame:()=>0,cancelAnimationFrame(){}};
@@ -222,7 +224,8 @@ test('a roof face that is its own hole is left out of the walls instead of stopp
  assert.equal(opened.state().roof.faces.length,bad.length-1);assert.ok(!opened.state().roof.faces.some(f=>f.id===holed.id));
  assert.ok(opened.state().alignedWalls.length>0,'the walls are kept');
  // From Roof builds the walls on a roof that has the bad face.
- const f=house(fixture.walls,selfHoled);f.soffitButtons[0].onclick();
+ // Its walls were built on the roof before the bad face: opening asks before following that (FM-347).
+ const f=house(fixture.walls,selfHoled,{confirm:()=>true});f.soffitButtons[0].onclick();
  assert.doesNotMatch(f.elements.get('wall-status')?.textContent||'',/Could not rebuild/);
  assert.ok(f.state().alignedWalls.length>0,'From Roof built walls');assert.ok(!f.state().roof.faces.some(f=>(f.holes||[]).some(h=>h.length&&h[0].x===f.points[0].x&&h.length===f.points.length)));
 });
@@ -242,4 +245,44 @@ test('a local wall backup that cannot be shown falls back to the last Save and i
  // A Save that cannot be shown itself still reports the error (the editor keeps the roof).
  const broken={...copy(h.W),wallEdits:{...h.W.wallEdits,$unshowable:true}};h.storage.delete(backupKey);
  assert.throws(()=>h.ctx.WallMode.restore('ce52',{exteriorsWalls:broken}),/valid planar region/);
+});
+
+// FM-347: a drafter's whole roof drawing was dragged 3.6 m down in roof mode and saved without
+// returning to the walls; QA reviewed the walls as saved. When the drafter reopened the order after
+// QA, entering wall mode followed the drop by itself and removed walls, doors and windows.
+const dropped=points=>{for(const p of points)p.z-=3.6;};
+// Saved walls carry the drawing they were built on (roofSignature); the fixture predates it.
+const built={...fixture.walls,roofSignature:JSON.stringify({points:fixture.pixels.points.map(p=>[p.x,p.y,p.z])})};
+test('FM-347: walls saved against another roof drawing are not followed on open without a yes',()=>{
+ const asked=[],h=house(built,null,{opened:dropped,confirm:text=>{asked.push(text);return false;}}),saved=copy(built);
+ assert.equal(asked.length,1,'opening wall mode asks once');
+ assert.match(asked[0],/Every roof point is 3\.60 m \(11\.8 ft\) lower than the roof these walls stand on\./);
+ assert.match(asked[0],/Following the roof would remove \d+ walls?/);
+ const kept=copy(h.saved());
+ assert.deepEqual(kept.alignedWalls,saved.alignedWalls,'every wall is kept as saved');assert.deepEqual(kept.wallEdits,saved.wallEdits,'every edit is kept as saved');
+ assert.equal(kept.roofSignature,saved.roofSignature,'the walls still stand on the roof they were built from');
+ assert.match(h.note(),/walls were kept as they were saved/);
+ // The choice holds: switching modes and stages does not ask again or follow.
+ h.toRoof();h.toWalls();assert.equal(asked.length,1);assert.deepEqual(copy(h.saved()).alignedWalls,saved.alignedWalls);
+ // Putting the roof back where the walls stand clears it; nothing was lost.
+ h.toRoof();for(const p of h.points)p.z+=3.6;h.toWalls();assert.equal(asked.length,1);assert.equal(copy(h.saved()).keptRoofSignature,undefined);
+});
+test('FM-347: following a roof change that came with the project needs the yes, and undo returns the saved walls',()=>{
+ let asked=0;const h=house(fixture.walls,null,{opened:dropped,confirm:()=>{asked++;return true;}}),report=h.ctx.WallMode.roofRebuild;
+ assert.equal(asked,1);assert.ok(report&&report.walls.removed+report.drafts.removed>0,'the drop removes walls: '+JSON.stringify(report?.walls));
+ assert.notDeepEqual(copy(h.saved()).alignedWalls,fixture.walls.alignedWalls);
+ h.key('z');assert.deepEqual(copy(h.saved()).alignedWalls,fixture.walls.alignedWalls);assert.deepEqual(copy(h.saved()).wallEdits,fixture.walls.wallEdits);
+});
+test('FM-347: the same roof change made in this session is still followed without asking',()=>{
+ const h=house();h.toRoof();dropped(h.points);h.toWalls();
+ const report=h.ctx.WallMode.roofRebuild;assert.ok(report&&!report.unchanged,'followed');
+});
+test('FM-347: what a follow discards, and a roof that moved as one',()=>{
+ assert.deepEqual(R.discards({walls:{removed:9},drafts:{removed:10},features:['door','window','door'],surfaces:{removed:1}}),['9 walls','10 edited walls','2 doors','1 window','1 drawn face']);
+ assert.deepEqual(R.discards({walls:{moved:3,removed:0},drafts:{removed:0},features:[],surfaces:{moved:2,removed:0}}),[]);
+ const roof={points:[{x:0,y:0,z:5},{x:4,y:0,z:6},{x:4,y:3,z:5}]},lower=(p,i,dz=3.6)=>({...p,z:p.z-dz});
+ const all=R.roofShift(roof,{points:roof.points.map(p=>lower(p))});assert.ok(all&&all.x===0&&all.y===0&&Math.abs(all.z+3.6)<1e-9&&all.count===3&&all.of===3,JSON.stringify(all));
+ const most=R.roofShift(roof,{points:roof.points.map((p,i)=>lower(p,i,i?3.6:4.02))});assert.ok(most&&Math.abs(most.z+3.6)<1e-9&&most.count===2,'most points moved together: '+JSON.stringify(most));
+ assert.equal(R.roofShift(roof,{points:roof.points.map((p,i)=>lower(p,i,i+1))}),null,'points that each moved differently');
+ assert.equal(R.roofShift(roof,copy(roof)),null,'a roof that did not move');
 });
