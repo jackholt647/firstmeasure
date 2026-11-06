@@ -2,6 +2,10 @@
 // TikTok Pixel for the customer portal and every landing page (FM-348).
 // Pages require this file and echo fm_tiktok_pixel() in <head>, beside the Meta Pixel and Google tag.
 // Requested directly this file defines the function and prints nothing.
+// It also owns the browser CompleteRegistration event (FM-352): the shared signup widget
+// (landing/shared/signup-widget.js) only emits firstmate:auth-success, and this listener sends
+// the event once when that success created a new account. The widget itself never calls ttq,
+// because the website (1m8.ai) embeds it too and counts signups with its own listener.
 
 const FM_TIKTOK_PIXEL_ID = 'DBN2ED3C77UF91065S40';
 
@@ -18,6 +22,26 @@ var e=ttq._i[t]||[],n=0;n<ttq.methods.length;n++)ttq.setAndDefer(e,ttq.methods[n
   ttq.load({$id});
   ttq.page();
 }(window, document, 'ttq');
+(function () {
+  if (window.__firstmateTikTokSignupTracking) return;
+  window.__firstmateTikTokSignupTracking = true;
+  var reported = false;
+  document.addEventListener('firstmate:auth-success', function (event) {
+    var host = event.target;
+    // The API sets first_login only when it created the account (email or Google);
+    // logins, existing Google accounts, errors and verification never do.
+    if (reported || !event.detail || event.detail.first_login !== true ||
+        !host || typeof host.matches !== 'function' || !host.matches('[data-firstmate-signup]')) return;
+    var pixel = window.ttq;
+    if (!pixel || typeof pixel.track !== 'function') return;
+    try {
+      pixel.track('CompleteRegistration');
+      reported = true;
+    } catch (e) {
+      // Tracking never interrupts account creation or its redirect.
+    }
+  }, true);
+})();
 </script>
 <!-- TikTok Pixel Code End -->
 
