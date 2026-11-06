@@ -1,4 +1,5 @@
 <?php
+require_once __DIR__ . '/tiktok-pixel.php';
 require_once __DIR__ . '/session_bootstrap.php';
 portalStartSession();
 
@@ -1840,6 +1841,7 @@ session_write_close();
 
   gtag('config', 'G-W7MP6MZNMZ');
 </script>
+<?= fm_tiktok_pixel() ?>
   <script defer src="../libraries/date-time-picker/date-time-picker.js?v=<?= (int)filemtime(__DIR__ . '/../libraries/date-time-picker/date-time-picker.js') ?>"></script>
 </head>
 <body class="platform-booting">
