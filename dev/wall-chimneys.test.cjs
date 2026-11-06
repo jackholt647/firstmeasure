@@ -76,6 +76,16 @@ test('legacy chimney draft repair separates side ownership and preserves manuall
  C.normalizeDrafts(edits);assert.deepEqual(d.members,['chimney:side-1','chimney:side-1:part-1']);assert.equal(d.sketch.nodes.length,5);assert.equal(d.sketch.nodes.filter(n=>n.generatedBoundary).length,1);assert.equal(d.sketch.nodes[0].generatedBoundary,true);assert.equal(JSON.stringify(d.faces),geometry);const once=JSON.stringify(edits);C.normalizeDrafts(edits);assert.equal(JSON.stringify(edits),once);
 });
 
+// FM-346: an edit to an exposure-clipped chimney side owns the side's cells
+// (generatedSide ids). Reload must keep them, or the generated side, double
+// walls included, shows again and the edit looks lost.
+test('reload keeps a chimney side draft that owns exposure-clipped cells',()=>{
+ const d={chimney:{id:'roof-chimney-12-13-14',inferred:true,exposureClipped:true,side:0},members:['roof-chimney-12-13-14:side-0:cell-0','roof-chimney-12-13-14:side-0:cell-1','roof-chimney-12-13-14:side-1:cell-0'],faces:[{points:box(0,0,2,4)}],removedPoints:['p2','p3'],sketch:{outlines:[box(0,0,2,4)],edges:[],nodes:[{id:'p0',x:0,y:1,fixed:false}]}},edits={$drafts:{'roof-chimney-12-13-14:side-0':d}},sketch=JSON.stringify(d.sketch);
+ C.normalizeDrafts(edits);
+ assert.deepEqual(d.members,['roof-chimney-12-13-14:side-0:cell-0','roof-chimney-12-13-14:side-0:cell-1']);assert.deepEqual(d.chimney.side,0);assert.equal(JSON.stringify(d.sketch),sketch);
+ const once=JSON.stringify(edits);C.normalizeDrafts(edits);assert.equal(JSON.stringify(edits),once);
+});
+
 
 test('generated upper chimney starts at the roof and reaches a flat cap one foot above its highest roof contact',()=>{
  const {state,walls}=fixture(box(4,4,6,6,5));state.roof.faces=[{id:'slope',points:box(0,0,10,10).map(p=>({...p,z:5+p.x/4}))}];

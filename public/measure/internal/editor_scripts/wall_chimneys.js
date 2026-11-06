@@ -144,8 +144,11 @@ function normalizeDrafts(edits){
   if(group.some(id=>!id.startsWith(d.chimney.id+':'))){
    d.members=group;d.joinedChimneys=[...new Set([...(d.joinedChimneys||[]),d.chimney.id])];delete d.chimney;continue;
   }
+  // A side's own walls are the side, its parts, or (exposure-clipped sides,
+  // generatedSide) its cells. Dropping a cell detaches the person's edit and
+  // the generated side shows again on every reload.
   const prefix=d.chimney.id+':side-'+d.chimney.side,fragmented=(d.members||[]).some(id=>id.startsWith(prefix+':part-'));
-  d.members=(d.members||[]).filter(id=>id===prefix||id.startsWith(prefix+':part-'));
+  d.members=(d.members||[]).filter(id=>id===prefix||id.startsWith(prefix+':part-')||id.startsWith(prefix+':cell-'));
   if(!fragmented)continue;
   for(const n of d.sketch?.nodes||[]){if(n.fixed||n.userDraftPoint||d.sketch.edges.some(e=>e.a===n.id||e.b===n.id))continue;
    if(d.sketch.outlines.some(r=>r.some((a,i)=>G.onEdge(n,a,r[(i+1)%r.length],1e-6))))n.generatedBoundary=true;
