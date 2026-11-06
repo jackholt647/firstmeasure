@@ -445,9 +445,11 @@ function perf_persist(touch=true) {
         recoverRoofFromWalls();
         applyDisplayPreferences();if(state&&!state.roofTrim)state.roofTrim=copy(roofTrimOnly);wallsVisible=state?.wallsVisible!==false;editingLayer=state?.editingLayer||'base';
         const upgraded=upgradeEngine(),contactsRepaired=window.BaseGeometry?.repairStoredRoofContacts?.(state);retainGradeDraftOwnership();window.WallChimneys?.normalizeDrafts(state?.wallEdits);window.normalizeWallDraftOwnership?.(state?.wallEdits);window.WallBaseBinding?.upgrade(state?.wallEdits);window.WallSolidGeometry?.cleanupSweepRemnants(state?.wallEdits);if(state)calculateStage(stage);const draftsRepaired=!!state&&wallEditor?.repairStoredDrafts?.();
+        // Walls saved against another roof drawing than the one this project opened with (FM-347).
+        staleAtOpen=!!state&&state.phase!=='grade'&&state.roofSignature!==roofSignature();
         restoreView(metadata,local);const prepared=enabled&&(!state||state.phase==='grade')&&ensureGradeSetup();if(upgraded||contactsRepaired||draftsRepaired||prepared)persist();setModeUI();render();stableSelection=selectionSnapshot();pendingSelection=null;gestureSelection=null;restoreHistory(history,metadata?.exteriorsWalls,localStamp!==null&&localHistory?.stamp===localStamp&&String(localHistory?.history?.version)==='1'?localHistory.history:null);
     }
-    function beforeProjectLoad() {if(localHistoryTimer)saveLocalHistory(true);drivenSoffits=true;autoParapets=true;closedSoffits=false;settleNudges();closeResoffit();wallEditor?.leave?.();baseEditor?.leave?.();window.ExteriorFramePipeline?.cancel('wall-view');if(editorRenderFrame!==null&&editorRenderFrame!==true)cancelAnimationFrame(editorRenderFrame);editorRenderFrame=null;editorRenderFull=false;roofTrimEditor?.finish();roofTrimEditor?.reset();if(roofTrimGroup){roofTrimGroup.parent?.remove(roofTrimGroup);disposeObject3D(roofTrimGroup);roofTrimGroup=null;}roofTrimOnly={};editHistory=[];editFuture=[];pendingEdit=null;stableSelection=null;pendingSelection=null;gestureSelection=null;groundEditor?.leave();persist(false);enabled=false;state=null;sourceContext=null;projectId='';setModeUI();disposeGroup();syncVisibility();}
+    function beforeProjectLoad() {if(localHistoryTimer)saveLocalHistory(true);staleAtOpen=false;drivenSoffits=true;autoParapets=true;closedSoffits=false;settleNudges();closeResoffit();wallEditor?.leave?.();baseEditor?.leave?.();window.ExteriorFramePipeline?.cancel('wall-view');if(editorRenderFrame!==null&&editorRenderFrame!==true)cancelAnimationFrame(editorRenderFrame);editorRenderFrame=null;editorRenderFull=false;roofTrimEditor?.finish();roofTrimEditor?.reset();if(roofTrimGroup){roofTrimGroup.parent?.remove(roofTrimGroup);disposeObject3D(roofTrimGroup);roofTrimGroup=null;}roofTrimOnly={};editHistory=[];editFuture=[];pendingEdit=null;stableSelection=null;pendingSelection=null;gestureSelection=null;groundEditor?.leave();persist(false);enabled=false;state=null;sourceContext=null;projectId='';setModeUI();disposeGroup();syncVisibility();}
     // A roof change rebuilds generated walls, but a rebuild starts wall edits
     // over. Fingerprint the edits From Roof produced so a later rebuild can
     // tell whether anything the person did would be lost.
@@ -468,19 +470,22 @@ function perf_persist(touch=true) {
         const lost=wallEditsAtRisk();
         // With wall work to keep, follow the roof change (wall_roof_rebuild.js). Only when that
         // cannot be done does the full rebuild below ask before discarding anything.
-        if(lost.length){try{if(smartRebuild(signature))return 'rebuilt';}catch(error){console.warn('[Walls] The roof change could not be followed; asking before a full rebuild.',error);}}
-        if(lost.length&&window.confirm?.(`The roof changed after these walls were built. Rebuilding them from the roof discards ${lost.join(', ')}. Undo restores them.\n\nRebuild the walls now? Cancel keeps the current walls; Rebuild from roof updates them later.`)!==true){
+        const keep=text=>{
             state.keptRoofSignature=signature;persist();render();
-            const text='The roof changed after these walls were built. The walls and their edits were kept; Rebuild from roof updates them and discards the edits.';
             if(status)status.textContent=text;const note=document.getElementById('base-status');if(note)note.textContent=text;
             return 'kept';
-        }
+        };
+        if(lost.length){try{const followed=smartRebuild(signature);if(followed?.declined)return keep('The roof drawing does not match these walls. The walls were kept as they were saved; correct the roof drawing (the next change asks again) or use Rebuild from roof.');if(followed)return 'rebuilt';}catch(error){console.warn('[Walls] The roof change could not be followed; asking before a full rebuild.',error);}}
+        if(lost.length&&window.confirm?.(`The roof changed after these walls were built. Rebuilding them from the roof discards ${lost.join(', ')}. Undo restores them.\n\nRebuild the walls now? Cancel keeps the current walls; Rebuild from roof updates them later.`)!==true)
+            return keep('The roof changed after these walls were built. The walls and their edits were kept; Rebuild from roof updates them and discards the edits.');
         return generate(state.options.soffit)?'rebuilt':'failed';
     }
     // Smart rebuild (docs/architecture/exterior-roof-rebuild.md). Leaving wall mode remembers
     // which roof point and line objects the walls were built from; on return the change is
     // diffed against state.roof (the roof the walls reflect) and only affected walls change.
-    let roofIdentity=null,lastRoofRebuild=null;
+    // staleAtOpen: the walls did not match the roof drawing when the project opened, so a roof
+    // change they have not followed came with the saved project, not from this session (FM-347).
+    let roofIdentity=null,lastRoofRebuild=null,staleAtOpen=false;
     function rememberRoofIdentity(){
         roofIdentity=null;
         try{
@@ -524,6 +529,18 @@ function perf_persist(touch=true) {
             reflow:(before,changed,edits)=>wallEditor?.reflowDrafts?.(before,changed,edits),
             parapets:autoParapets&&window.WallParapets?(roof,sources,walls)=>WallParapets.build(roof,sources,walls):null,
             closedSoffits:state.closedSoffits&&window.WallClosedSoffits?(s,walls)=>WallClosedSoffits.build(s,walls):null});
+        // FM-347: walls saved against another roof drawing (a select-all drag in roof mode, saved
+        // without returning to the walls) are not followed silently on the next open, often by
+        // someone else after QA: when following would discard walls or work, ask first.
+        const discards=staleAtOpen&&result.changed?R.discards?.(result.report)||[]:[];
+        if(discards.length){
+            // Point by point in drawing order: the roof the walls were built from is in their signature.
+            const drawing=sig=>{try{return {points:JSON.parse(sig).points.map(([x,y,z])=>({x:x*ctx.mpp,y:y*ctx.mpp,z:Number(z)}))};}catch(e){return null;}};
+            const shift=R.roofShift?.(drawing(state.roofSignature),drawing(signature)),m=shift&&Math.hypot(shift.x,shift.y,shift.z),size=m&&`${m.toFixed(2)} m (${(m*3.28084).toFixed(1)} ft)`;
+            const which=shift&&(shift.count===shift.of?'Every roof point':`${shift.count} of the ${shift.of} roof points`),moved=!shift?'':Math.hypot(shift.x,shift.y)<.01?` ${which} ${shift.count===shift.of||shift.count===1?'is':'are'} ${size} ${shift.z<0?'lower':'higher'} than the roof these walls stand on.`:` ${which} moved ${size} from the roof these walls stand on.`;
+            const list=discards.length>1?discards.slice(0,-1).join(', ')+' and '+discards.at(-1):discards[0];
+            if(window.confirm?.(`This project was saved with a roof drawing that does not match its walls.${moved} Following the roof would remove ${list}. Undo restores them.\n\nFollow the roof change now? Cancel keeps the walls as they were saved.`)!==true)return {declined:true,report:result.report};
+        }
         closeResoffit();groundEditor?.leave();roofTrimEditor?.finish();wallEditor?.leave?.();baseEditor?.leave?.();pendingEdit=null;nudgeKey=null;nudgeEpoch++;
         const before={state:copy(state),stage},beforeSelection=selectionSnapshot(),generated=!!state.generatedEditsKey&&state.generatedEditsKey===editsKey(state.wallEdits);
         // All or nothing (FM-312): walls that cannot be drawn are never kept or
@@ -536,7 +553,7 @@ function perf_persist(touch=true) {
         // One undo step returns the walls, their edits and the roof they were built from.
         // Undo keeps the earlier walls until the roof changes again; it does not re-run on the next stage or mode switch.
         if(result.changed){before.state.keptRoofSignature=signature;const entry={full:true,before,after:{state:copy(state),stage},beforeSelection,afterSelection:selectionSnapshot()};editHistory.push(entry);editFuture=[];pendingSelection=entry;}
-        lastRoofRebuild=result.report;persist();render();
+        lastRoofRebuild=result.report;staleAtOpen=false;persist();render();
         }catch(error){
             editHistory.length=undoDepth;editFuture=future;pendingSelection=priorSelection;lastRoofRebuild=priorReport;
             if(priorKept===undefined)delete before.state.keptRoofSignature;else before.state.keptRoofSignature=priorKept;
@@ -584,7 +601,7 @@ function perf_persist(touch=true) {
             state.generatedEditsKey=editsKey(state.wallEdits);
             selected=null;menu.hidden=true;document.getElementById('wall-auto').setAttribute('aria-expanded','false');
             details.textContent='';persist();render();
-            if(before){const entry={full:true,before,after:{state:copy(state),stage},beforeSelection,afterSelection:selectionSnapshot()};editHistory.push(entry);pendingSelection=entry;}editFuture=[];return true;
+            staleAtOpen=false;if(before){const entry={full:true,before,after:{state:copy(state),stage},beforeSelection,afterSelection:selectionSnapshot()};editHistory.push(entry);pendingSelection=entry;}editFuture=[];return true;
         }catch(e){if(before){state=before.state;clearedAt=before.clearedAt||0;stage=before.stage;sourceContext=state?.context||null;baseTerrainKey='';persist();render();}status.textContent=`Could not rebuild walls: ${e.message}`;return false;}
     }
     function clearExteriorModel() {
