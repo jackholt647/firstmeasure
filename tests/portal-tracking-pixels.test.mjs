@@ -119,6 +119,64 @@ test('the signup widget never sends TikTok events itself', () => {
   assert.match(widget, /emit\(host, 'auth-success', \{ mode: state\.active, first_login: !!\(data && data\.first_login\)/);
 });
 
+// FM-352: login.php has its own signup form (not the widget). It calls the include's
+// window.firstmateTikTokCompleteRegistration() beside each Meta CompleteRegistration, on first_login only.
+test('the include helper shares the listener once-per-page guard', () => {
+  const page = {};
+  const dispatch = runPixelScript(page, 2);
+  const pixel = spyPixel();
+  page.ttq = pixel;
+  page.firstmateTikTokCompleteRegistration();
+  page.firstmateTikTokCompleteRegistration();
+  dispatch('firstmate:auth-success', widgetHost, { mode: 'register', first_login: true });
+  assert.deepEqual(pixel.calls, [['CompleteRegistration']]);
+  page.ttq = undefined;
+  const empty = {};
+  runPixelScript(empty);
+  assert.doesNotThrow(() => empty.firstmateTikTokCompleteRegistration());
+});
+
+function loginReporter(page) {
+  const source = read('login.php');
+  const start = source.indexOf('    function reportTikTokRegistration(data) {');
+  assert.ok(start > 0, 'login.php defines reportTikTokRegistration');
+  const body = source.slice(start, source.indexOf('\n    }\n', start) + 6);
+  return new Function('window', `${body}; return reportTikTokRegistration;`)(page);
+}
+
+test('login.php sends TikTok CompleteRegistration only for an account the API created', () => {
+  const calls = [];
+  const page = { firstmateTikTokCompleteRegistration: () => calls.push('CompleteRegistration') };
+  const report = loginReporter(page);
+  report({ success: true, first_login: true });
+  report({ success: true, first_login: false });
+  report({ success: true });
+  report({ ok: true, first_login: 'true' });
+  report({ require_otp: true });
+  report(undefined);
+  assert.deepEqual(calls, ['CompleteRegistration']);
+  assert.doesNotThrow(() => loginReporter({})({ first_login: true }), 'a missing pixel include changes nothing');
+  assert.doesNotThrow(() => loginReporter({ firstmateTikTokCompleteRegistration() { throw new Error('blocked'); } })({ first_login: true }));
+});
+
+test('login.php pairs every Meta CompleteRegistration with TikTok and sends it before the redirect', () => {
+  const source = read('login.php');
+  assert.ok(!/\bttq\b/.test(source.replace(/<\?= fm_tiktok_pixel\(\) \?>/, '')), 'login.php leaves ttq to the include');
+  const lines = source.split('\n');
+  const meta = lines.flatMap((line, i) => line.includes("fbq('track', 'CompleteRegistration')") ? [i] : []);
+  const tiktok = lines.flatMap((line, i) => /^\s*reportTikTokRegistration\(data\);/.test(line) ? [i] : []);
+  assert.equal(meta.length, 3, 'Google signup, email register and its fallback');
+  assert.deepEqual(tiktok, meta.map(i => i + 1), 'each Meta CompleteRegistration is followed by the TikTok one');
+  for (const i of tiktok) assert.match(lines[i + 1], /window\.location\.href = /, 'the event is queued before the redirect');
+  // Login, password recovery (OTP) and reset never report a registration.
+  for (const marker of ['// 1. LOGIN SUBMIT', '// 3. FORGOT PASS', '// 4. OTP SUBMIT', '// 5. RESET PASS']) {
+    const at = source.indexOf(marker);
+    assert.ok(at > 0, marker);
+    const next = source.indexOf('});\n', at);
+    assert.ok(!source.slice(at, next).includes('reportTikTokRegistration'), `${marker} does not send CompleteRegistration`);
+  }
+});
+
 // FM-351: Purchase is sent from the server (public/v1/platform/tiktok-events.ts) with event id
 // stripe_purchase:<checkout session>. A browser Purchase would be counted again unless it used that same id.
 test('no browser code sends a TikTok Purchase beside the server one', () => {
