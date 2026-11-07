@@ -672,7 +672,9 @@ A new portal page or variant with the Meta Pixel or Google tag needs it too.
 That include also sends TikTok's `CompleteRegistration`, from the signup
 widget's `firstmate:auth-success` with `first_login: true`; the widget never
 calls `ttq` itself, because the website embeds it and counts signups with its
-own listener.
+own listener. `portal/login.php` has its own signup form and calls the include's
+`window.firstmateTikTokCompleteRegistration()` (same once-per-page guard) beside
+each Meta `CompleteRegistration`, only when the API answers `first_login: true`.
 Run `tests/portal-tracking-pixels.test.mjs` for changes here.
 
 A TikTok Purchase is sent from the server only (`platform/tiktok-events.ts`),

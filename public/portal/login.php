@@ -990,8 +990,16 @@ src="https://www.facebook.com/tr?id=636685175264715&ev=PageView&noscript=1"
         return payload;
     }
 
+    // TikTok's CompleteRegistration is sent by tiktok-pixel.php (FM-352), once per page, only when
+    // the API created the account (first_login). A missing or blocked pixel changes nothing here.
+    function reportTikTokRegistration(data) {
+        if (!data || data.first_login !== true || typeof window.firstmateTikTokCompleteRegistration !== 'function') return;
+        try { window.firstmateTikTokCompleteRegistration(); } catch (_) {}
+    }
+
     function handleGoogleSuccess(data) {
         if (data && data.first_login && window.fbq) window.fbq('track', 'CompleteRegistration');
+        reportTikTokRegistration(data);
         window.location.href = data && data.first_login ? onboardingDestination() : redirectTarget;
     }
 
@@ -1512,6 +1520,7 @@ src="https://www.facebook.com/tr?id=636685175264715&ev=PageView&noscript=1"
             const data = await authLegacyRequest(fd);
             if(data.success) {
                 if (window.fbq) window.fbq('track', 'CompleteRegistration');
+                reportTikTokRegistration(data);
                 window.location.href = data.first_login ? onboardingDestination() : redirectTarget;
             }
             else if(data.require_otp) {
@@ -1519,6 +1528,7 @@ src="https://www.facebook.com/tr?id=636685175264715&ev=PageView&noscript=1"
                     showOtp(data.email, T('account_created_verify', "Account created! Verify your email."));
                 } else {
                     if (window.fbq) window.fbq('track', 'CompleteRegistration');
+                    reportTikTokRegistration(data);
                     window.location.href = onboardingDestination();
                 }
             }
