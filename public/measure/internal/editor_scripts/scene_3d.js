@@ -1437,7 +1437,7 @@ function build3DControlPanel() {
     fovGroup.id = 'perspective-fov-controls';
     fovGroup.style.userSelect = 'none';
     fovGroup.title = 'Smaller angles flatten perspective; larger angles give a wider lens. Camera distance compensates to keep the orbit target framed at the same size.';
-    fovGroup.innerHTML = '<span>FOV</span><input id="perspectiveFovRange" type="range" min="15" max="100" step="1" aria-label="Perspective field of view"><span id="perspectiveFovValue"></span>';
+    fovGroup.innerHTML = '<span>FOV</span><input id="perspectiveFovRange" type="range" min="15" max="180" step="1" aria-label="Perspective field of view"><span id="perspectiveFovValue"></span>';
     const fovInput = fovGroup.querySelector('input');
     fovInput.style.touchAction = 'none';
     fovGroup.querySelector('#perspectiveFovValue').style.cssText = 'display:inline-block;width:4ch;font-variant-numeric:tabular-nums';
@@ -6156,6 +6156,12 @@ window.toggle3DImage = function(forceState=null) {
 // =========================================================
 // §19  PROJECTION TOGGLE (Iso / Tri)
 // =========================================================
+// The slider goes to a 180° lens, but a vertical 180° frustum is degenerate (tan(90°) is infinite),
+// so the camera stops just short of it and the slider shows that camera FOV as 180°.
+const PERSPECTIVE_FOV_MIN = 15, PERSPECTIVE_FOV_MAX = 180, PERSPECTIVE_CAMERA_FOV_MAX = 179.5;
+function perspectiveFovSliderValue(fov) {
+    return fov >= PERSPECTIVE_CAMERA_FOV_MAX ? PERSPECTIVE_FOV_MAX : fov;
+}
 function sync3DPerspectiveFovUI() {
     const group = document.getElementById('perspective-fov-controls');
     if (!group || typeof camera === 'undefined' || !camera) return;
@@ -6164,13 +6170,14 @@ function sync3DPerspectiveFovUI() {
     _enh.perspectiveFov = camera.fov;
     const input = document.getElementById('perspectiveFovRange');
     const value = document.getElementById('perspectiveFovValue');
-    if (input && !input.dataset.dragging && Number(input.value) !== camera.fov) input.value = String(camera.fov);
-    const label = Math.round(camera.fov) + '°';
+    const shown = perspectiveFovSliderValue(camera.fov);
+    if (input && !input.dataset.dragging && Number(input.value) !== shown) input.value = String(shown);
+    const label = Math.round(shown) + '°';
     if (value && value.textContent !== label) value.textContent = label;
 }
 window.set3DPerspectiveFov = function(value) {
     if (typeof camera === 'undefined' || !camera?.isPerspectiveCamera || !Number.isFinite(Number(value))) return;
-    const nextFov = Math.max(15, Math.min(100, Number(value)));
+    const nextFov = Math.max(PERSPECTIVE_FOV_MIN, Math.min(PERSPECTIVE_CAMERA_FOV_MAX, Number(value)));
     // Preserve the visible span at the orbit target: distance * tan(FOV / 2).
     // Move along the existing orbit ray, so heading and target do not change.
     const ratio = Math.tan(camera.fov * Math.PI / 360) / Math.tan(nextFov * Math.PI / 360);
@@ -6179,7 +6186,10 @@ window.set3DPerspectiveFov = function(value) {
         // Keep orbit zoom limits consistent with the compensated distance.
         if (Number.isFinite(controls.minDistance)) controls.minDistance *= ratio;
         if (Number.isFinite(controls.maxDistance)) controls.maxDistance *= ratio;
-        camera.far = Math.max(camera.far, camera.position.distanceTo(controls.target) * 4);
+        const distance = camera.position.distanceTo(controls.target);
+        camera.far = Math.max(camera.far, distance * 4);
+        // A very wide lens brings the camera close to the target: keep the target in front of the near plane.
+        if (camera.near > distance / 2) camera.near = distance / 2;
         camera.updateMatrixWorld();
     }
     camera.fov = nextFov;
