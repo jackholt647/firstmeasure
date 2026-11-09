@@ -7,6 +7,17 @@ optimization here must return exactly the same results.
 Add an entry when you knowingly ship something that reads more than it needs, repeats work, or will not scale, and
 link the entry from the architecture doc's "Not built" section. Remove an entry when it is done.
 
+## A lowered owner lists their organization's users on each request
+
+**Today.** `restoreOwnerWithoutSuperAdmin` in `platform/auth.ts` (FM-353) lists the organization's users on every
+request by a person whose identity membership says `owner` but whose record is no longer a super admin, to see whether
+anyone active still is. Usually that is an owner another super admin lowered (1M8-251), in an account that has one.
+
+**Where the change goes.** Mark the membership when another super admin lowers the owner, or cache the organization's
+"has an active super admin" answer briefly.
+
+**Why it can wait.** Few people are in that state, and the list is one query of a small organization's users.
+
 ## Feature flag counts scan every organization
 
 **Today.** The feature flag console's counts (`scanOrganizations` in `platform/flag-console.ts`) read every

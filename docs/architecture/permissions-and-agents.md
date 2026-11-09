@@ -61,6 +61,17 @@ role labels into modern grants after that field is present. A rollout must
 compare each user's seven effective flags before and after enabling expanded
 access; a code deployment alone does not flip that organization feature.
 
+An organization always keeps an active super admin (owner or `super_admin`):
+the owner and the last active super admin cannot be suspended, archived or
+lowered, and adding a person never replaces a member (`platform/api.ts`,
+`assertOrganizationKeepsAdmin`, `assertOrgUserWriteKeepsAdmin`). Accounts left
+without one before those guards (FM-353) recover by themselves: while nobody
+active is a super admin, `buildAuthContext` restores the person whose identity
+membership says `owner` to owner, as sign-up made them, adding `super_admin` to
+an explicit `access_role_ids`, and records `owner_restored_*` in the record's
+metadata. The check lists the organization's users on each request of such an
+owner ([optimization backlog](../optimization-backlog.md#a-lowered-owner-lists-their-organizations-users-on-each-request)).
+
 All other app permissions are development contracts and can be revised. Do
 not reuse a FirstMeasure key for an unrelated new operation merely to make a
 role pass. Keep cross-app grants explicit and business meaningful.
