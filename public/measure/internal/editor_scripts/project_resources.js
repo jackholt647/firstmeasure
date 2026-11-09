@@ -82,7 +82,8 @@
    qa:'<path d="m12 3 8 3v6c0 5-8 9-8 9s-8-4-8-9V6zm-4 9 3 3 5-6"/>',
    tech:'<path d="M14 6a5 5 0 0 0-6 6L3 17l4 4 5-5a5 5 0 0 0 6-6l-3 3-4-4z"/>',
    customer:'<circle cx="12" cy="7" r="4"/><path d="M4 21v-3a8 8 0 0 1 16 0v3"/>',
-   expand:'<path d="M8 3H3v5m13-5h5v5M3 16v5h5m13-5v5h-5"/>'
+   expand:'<path d="M8 3H3v5m13-5h5v5M3 16v5h5m13-5v5h-5"/>',
+   perspective:'<path d="M7 5h10l4 14H3z"/><circle cx="7" cy="5" r="1.6" fill="currentColor"/><circle cx="17" cy="5" r="1.6" fill="currentColor"/><circle cx="21" cy="19" r="1.6" fill="currentColor"/><circle cx="3" cy="19" r="1.6" fill="currentColor"/>'
   }[name]||'')+'</svg>';
   const panel = document.createElement('section'); panel.id = 'project-resources'; panel.hidden = true; panel.setAttribute('aria-label', 'Internal project resources');
   panel.innerHTML = `
@@ -94,6 +95,7 @@
     <button data-action="jobs" class="resource-jobs" hidden aria-live="polite"></button>
     <button data-action="overlay" disabled title="Use this still image behind the 3D model" aria-label="Use image as 3D background">${icon('overlay')}<span>Overlay</span></button>
     <button data-action="markup" aria-expanded="false" aria-controls="resource-inspector" title="Open markup tools">${icon('markup')} <span class="resource-action-label">Markup</span></button>
+    <button data-action="perspective" aria-expanded="false" aria-controls="resource-inspector" title="Correct perspective: drag four corners and save a straightened copy">${icon('perspective')} <span class="resource-action-label">Perspective</span></button>
     <button data-action="favorites" aria-expanded="false" title="Saved video frames">${icon('frames')} <span class="resource-action-label">Frames</span></button>
     <button data-action="notes" aria-expanded="false" aria-controls="resource-inspector" title="Reference notes">${icon('notes')} <span class="resource-action-label">Notes</span><span class="resource-notes-dot" hidden>•</span></button>
     <button data-action="save" class="resource-save" hidden>Save</button>
@@ -133,12 +135,21 @@
      <div class="resource-markup-pane">
       <div class="resource-frame-help" hidden><span>Draw on a still frame. The source video stays unchanged.</span><button data-action="frame">Mark this frame</button></div>
       <div class="resource-tools" role="toolbar" aria-label="Markup tools">
-       <button data-tool="select">↖ Select</button><button data-tool="pen">✎ Pen</button><button data-tool="circle">○ Circle</button><button data-tool="arrow">↗ Arrow</button><button data-tool="line">╱ Line</button><button data-tool="rect">□ Box</button><button data-tool="note">T Text</button>
+       <button data-tool="select">↖ Select</button><button data-tool="pen">✎ Pen</button><button data-tool="circle">○ Circle</button><button data-tool="arrow">↗ Arrow</button><button data-tool="line">╱ Line</button><button data-tool="rect">□ Box</button><button data-tool="note">T Text</button><button data-tool="ratio">⟷ Ratio</button>
       </div>
       <div class="resource-stroke"><label>Color <input type="color" class="resource-color" value="#ffcc33" aria-label="Markup color"></label><div class="resource-width" role="group" aria-label="Stroke width"><button data-width="2" aria-label="Thin stroke" title="Thin stroke" aria-pressed="false"><span style="--dot:6px"></span></button><button data-width="4" aria-label="Medium stroke" title="Medium stroke" aria-pressed="true"><span style="--dot:12px"></span></button><button data-width="8" aria-label="Thick stroke" title="Thick stroke" aria-pressed="false"><span style="--dot:18px"></span></button></div></div>
       <div class="resource-note" hidden><label>Text label<input placeholder="Type a label, then click to place it" aria-label="Text to place on image" maxlength="1000"></label><button data-action="applyText" hidden>Update selected text</button></div>
+      <div class="resource-ratio" hidden><strong>Ratio line</strong><ol class="resource-ratio-segments"></ol><p class="resource-help">Drag across the image to draw a line. Click the line to add a point, drag a point to move it, right-click a point to remove it. Each part is shown as a percentage of the whole line.</p></div>
       <div class="resource-edit-actions"><button data-action="undo" title="Undo">↶ Undo</button><button data-action="redo" title="Redo">↷ Redo</button><button data-action="delete">Delete mark</button></div>
       <p class="resource-help">Click the selected tool again to pan. Closing Markup also returns to pan.<br>Wheel to zoom. Middle-drag pans while drawing.</p>
+     </div>
+     <div class="resource-perspective-pane" hidden>
+      <p class="resource-help resource-persp-intro">Drag the four corners onto the corners of something rectangular in real life, such as a wall, window or door. Wheel to zoom in for accuracy; drag elsewhere to pan.</p>
+      <label class="resource-check"><input type="checkbox" class="resource-persp-crop"> <span>Crop to the largest rectangle inside</span></label>
+      <p class="resource-help resource-persp-crop-help">Off: the whole photo is warped to the new shape, leaving empty corners. On: only the largest upright rectangle the photo fills is kept.</p>
+      <div class="resource-persp-actions resource-persp-adjust"><button data-action="perspPreview" class="resource-primary">Preview</button><button data-action="perspReset">Reset corners</button></div>
+      <div class="resource-persp-actions resource-persp-result" hidden><button data-action="perspSave" class="resource-primary">Save as new file</button><button data-action="perspDownload">Download</button><button data-action="perspAdjust">Adjust corners</button></div>
+      <p class="resource-help resource-persp-size"></p>
      </div>
      <div class="resource-notes-pane" hidden><label>Notes for technicians<textarea class="resource-description" placeholder="Add a reference note…" aria-label="Reference notes" maxlength="20000"></textarea></label><p class="resource-help">Saved with this file. Internal use only.</p></div>
     </aside>
@@ -146,7 +157,7 @@
    <footer role="status" aria-live="polite"></footer>`;
   host.append(panel);
   const $ = selector => panel.querySelector(selector);
-  const markupKeys={c:'circle',a:'arrow',p:'pen',l:'line',b:'rect',t:'note',s:'select'};
+  const markupKeys={c:'circle',a:'arrow',p:'pen',l:'line',b:'rect',t:'note',r:'ratio',s:'select'};
   for(const [key,name]of Object.entries(markupKeys)){const button=$('[data-tool="'+name+'"]');button.title=button.textContent.trim()+' ('+key.toUpperCase()+')';button.setAttribute('aria-keyshortcuts',key.toUpperCase());}
   $('[data-action="delete"]').setAttribute('aria-keyshortcuts','Delete');
   $('[data-action="upload"]').title='Upload to '+roleName(currentRole())+' references (You)';
@@ -164,6 +175,8 @@
   let frameLinks=new Map();
   const imageCache=referenceCache(),markupCache=referenceCache({maxBytes:2*1024*1024,maxEntries:64});
   let retainedMedia=null;
+  // Perspective correction: corners in image pixels, the preview canvas once rendered, and the crop choice.
+  let persp=null,perspCrop=false,ratioIndex=-1;
   const referenceKey=file=>JSON.stringify([project,sourceUrl(file),file.updated_at||'',file.size||0]);
   function cachedImage(src,key=src){return imageCache.get(key,()=>new Promise((resolve,reject)=>{const img=new Image();img.onload=()=>resolve(img);img.onerror=()=>reject(Error('Image could not be previewed. Download the original from More actions.'));img.src=src;}),img=>img.naturalWidth*img.naturalHeight*4);}
   function releaseMedia(){if(retainedMedia){clearTimeout(retainedMedia.probe);retainedMedia.download?.abort();retainedMedia.element.pause();retainedMedia.element.removeAttribute('src');retainedMedia.element.load();if(retainedMedia.local)URL.revokeObjectURL(retainedMedia.local);retainedMedia=null;}}
@@ -224,7 +237,8 @@
    status.textContent = text; status.classList.toggle('error', error); status.classList.add('visible'); clearTimeout(messageTimer);
    if (!error) messageTimer = setTimeout(() => { if (!busy && !uploading) status.classList.remove('visible'); }, 3500);
   }
-  function dimensions() { return image ? { w: image.width, h: image.height } : { w: media?.videoWidth || 0, h: media?.videoHeight || 0 }; }
+  const shown = () => persp?.preview || image;
+  function dimensions() { const view = shown(); return view ? { w: view.width, h: view.height } : { w: media?.videoWidth || 0, h: media?.videoHeight || 0 }; }
   function controls() {
    for (const action of ['upload', 'refresh']) $(`[data-action="${action}"]`).disabled = uploading || !project;
    const saveButton = $('[data-action="save"]'); saveButton.hidden = !dirty; saveButton.disabled = busy || !current || !dirty; saveButton.textContent = busy && dirty ? 'Saving…' : 'Save';
@@ -235,6 +249,8 @@
    // Any still photo can sit behind the model, a customer's or QA's reference as much as the tech's upload (FM-344).
    $('[data-action="overlay"]').disabled = busy || !image || !!media || !window.Resource3DOverlay;
    $('[data-action="markup"]').disabled = !current || busy || !!current.reference || (!image && !media?.videoWidth);
+   $('[data-action="perspective"]').disabled = !current || busy || !image || !!media || !window.ResourcePerspective;
+   perspControls(); ratioReadout();
    $('[data-action="notes"]').disabled = !current; $('[data-action="download"]').disabled = !current;
    $('.resource-notes-dot').hidden = !$('.resource-description').value.trim();
    $('.resource-filename').textContent = current ? roleName(current.role)+' · '+label(current.name) : 'Project resources'; $('.resource-filename').title = current ? label(current.name) : 'Internal project references';
@@ -248,18 +264,22 @@
   function snapshot() { history.push(JSON.stringify(marks)); if (history.length > 100) history.shift(); redo = []; changed(); }
   function updateDrawers() {
    const opening=inspector==='markup';if(opening!==markupOpen){markupOpen=opening;gesture=null;setTool(opening?'pen':'pan');}
+   if(inspector!=='perspective'&&persp){const hadPreview=!!persp.preview;persp=null;gesture=null;if(hadPreview)fit();else draw();}
    panel.classList.toggle('files-open', filesOpen); panel.classList.toggle('inspector-open', !!inspector);
    $('#resource-library').hidden = !filesOpen; $('.resource-splitter').hidden = !filesOpen; $('#resource-inspector').hidden = !inspector;
    $('[data-action="files"]').setAttribute('aria-expanded', String(filesOpen));
-   for (const kind of ['markup', 'notes', 'favorites']) $('[data-action="' + kind + '"]').setAttribute('aria-expanded', String(inspector === kind));
-   $('.resource-inspector-title').textContent = inspector === 'favorites' ? 'Favorite frames' : inspector === 'notes' ? 'Reference notes' : 'Markup';
+   for (const kind of ['markup', 'notes', 'favorites', 'perspective']) $('[data-action="' + kind + '"]').setAttribute('aria-expanded', String(inspector === kind));
+   $('.resource-inspector-title').textContent = inspector === 'favorites' ? 'Favorite frames' : inspector === 'notes' ? 'Reference notes' : inspector === 'perspective' ? 'Perspective' : 'Markup';
+   $('.resource-perspective-pane').hidden = inspector !== 'perspective';
    $('.resource-favorites-pane').hidden = inspector !== 'favorites';
    $('.resource-markup-pane').hidden = inspector !== 'markup'; $('.resource-notes-pane').hidden = inspector !== 'notes';
   }
   async function showInspector(kind) {
    inspector = inspector === kind ? '' : kind;
    if (inspector && panel.clientWidth < 760) filesOpen = false;
-   if (inspector === 'markup') media?.pause(); updateDrawers(); controls();
+   if (inspector === 'markup') media?.pause();
+   if (inspector === 'perspective') { if (!image || media) { inspector = ''; message('Open a photo to correct its perspective.', true); } else startPerspective(); }
+   updateDrawers(); controls();
    if(inspector==='markup'&&media?.videoWidth&&!await captureFrame())setTool('pan');
    if (inspector === 'notes') $('.resource-description').focus();
   }
@@ -274,7 +294,7 @@
    favoriteDraft = null; $('.resource-favorite-entry').hidden = true;
    scrub = null; cancelAnimationFrame(seekFrame); seekFrame = 0;
    if (media) media.pause();
-   media = null; player.replaceChildren(); image = null; marks = []; history = []; redo = []; selected = -1;
+   persp = null; ratioIndex = -1; media = null; player.replaceChildren(); image = null; marks = []; history = []; redo = []; selected = -1;
    frameTime = null; frameSource = null; current = null; dirty = false; gesture = null; fitMode = 'contain';
    canvas.hidden = true; player.hidden = true; empty.hidden = false; $('.resource-transport').hidden = true;
    $('.resource-description').value = ''; $('.resource-note input').value = ''; panel.classList.remove('has-video'); setTool('pan'); controls(); draw();
@@ -544,7 +564,7 @@
    const next = Math.min(base * 32, Math.max(base * .25, scale * factor));
    ox = x - (x - ox) * next / scale; oy = y - (y - oy) * next / scale; scale = next; fitMode = null; draw();
   }
-  function pathMark(m){const a=m.points[0],b=m.points[m.points.length-1];ctx.strokeStyle=m.color;ctx.fillStyle=m.color;ctx.lineWidth=m.width;ctx.lineCap='round';ctx.lineJoin='round';ctx.beginPath();if(m.type==='circle'){ctx.ellipse((a.x+b.x)/2,(a.y+b.y)/2,Math.max(.1,Math.abs(b.x-a.x)/2),Math.max(.1,Math.abs(b.y-a.y)/2),0,0,Math.PI*2);}else if(m.type==='rect'){ctx.rect(a.x,a.y,b.x-a.x,b.y-a.y);}else if(m.type==='note'){ctx.font=`${m.fontSize||24}px sans-serif`;String(m.text).split('\n').forEach((line,i)=>ctx.fillText(line,a.x,a.y+i*(m.fontSize||24)*1.3));}else{ctx.moveTo(a.x,a.y);for(const p of m.points.slice(1))ctx.lineTo(p.x,p.y);}ctx.stroke();if(m.type==='arrow'){const angle=Math.atan2(b.y-a.y,b.x-a.x),n=Math.max(12,m.width*4);ctx.beginPath();ctx.moveTo(b.x-n*Math.cos(angle-.5),b.y-n*Math.sin(angle-.5));ctx.lineTo(b.x,b.y);ctx.lineTo(b.x-n*Math.cos(angle+.5),b.y-n*Math.sin(angle+.5));ctx.stroke();}}
+  function pathMark(m){if(m.type==='ratio')return ratioMark(m);const a=m.points[0],b=m.points[m.points.length-1];ctx.strokeStyle=m.color;ctx.fillStyle=m.color;ctx.lineWidth=m.width;ctx.lineCap='round';ctx.lineJoin='round';ctx.beginPath();if(m.type==='circle'){ctx.ellipse((a.x+b.x)/2,(a.y+b.y)/2,Math.max(.1,Math.abs(b.x-a.x)/2),Math.max(.1,Math.abs(b.y-a.y)/2),0,0,Math.PI*2);}else if(m.type==='rect'){ctx.rect(a.x,a.y,b.x-a.x,b.y-a.y);}else if(m.type==='note'){ctx.font=`${m.fontSize||24}px sans-serif`;String(m.text).split('\n').forEach((line,i)=>ctx.fillText(line,a.x,a.y+i*(m.fontSize||24)*1.3));}else{ctx.moveTo(a.x,a.y);for(const p of m.points.slice(1))ctx.lineTo(p.x,p.y);}ctx.stroke();if(m.type==='arrow'){const angle=Math.atan2(b.y-a.y,b.x-a.x),n=Math.max(12,m.width*4);ctx.beginPath();ctx.moveTo(b.x-n*Math.cos(angle-.5),b.y-n*Math.sin(angle-.5));ctx.lineTo(b.x,b.y);ctx.lineTo(b.x-n*Math.cos(angle+.5),b.y-n*Math.sin(angle+.5));ctx.stroke();}}
   function bounds(m){const xs=m.points.map(p=>p.x),ys=m.points.map(p=>p.y);let x=Math.min(...xs),y=Math.min(...ys),w=Math.max(...xs)-x,h=Math.max(...ys)-y;if(m.type==='note'){const size=m.fontSize||24;w=String(m.text).length*size*.65;h=size*1.4;y-=size;}return{x,y,w,h};}
   function draw() {
    const dpr = window.devicePixelRatio || 1;
@@ -553,17 +573,131 @@
    if (w && h) $('.resource-zoom-level').textContent = Math.round(scale / Math.min(stage.clientWidth / w, stage.clientHeight / h) * 100) + '%';
    if (media?.videoWidth) { media.style.width = media.videoWidth + 'px'; media.style.height = media.videoHeight + 'px'; media.style.transform = `translate(${ox}px, ${oy}px) scale(${scale})`; }
    if (!image) return;
+   if (persp) { ctx.save(); ctx.translate(ox, oy); ctx.scale(scale, scale); ctx.drawImage(shown(), 0, 0); ctx.restore(); if (!persp.preview) drawPerspective(); return; }
    ctx.save(); ctx.translate(ox, oy); ctx.scale(scale, scale); ctx.drawImage(image, 0, 0); marks.forEach(pathMark);
    if (gesture?.mark) pathMark(gesture.mark);
    if (marks[selected]) { const b = bounds(marks[selected]); ctx.strokeStyle = '#69b9ff'; ctx.lineWidth = 1 / scale; ctx.setLineDash([4 / scale, 4 / scale]); ctx.strokeRect(b.x - 5 / scale, b.y - 5 / scale, b.w + 10 / scale, b.h + 10 / scale); }
    ctx.restore();
   }
+  // Ratio lines: stops are fractions of the line from its first end, so moving or stretching the line keeps them.
+  const ratioStops = m => (m.stops || []).filter(t => t > 0 && t < 1).sort((a, b) => a - b);
+  const percent = v => (v * 100).toFixed(1) + '%';
+  function ratioT(m, p) { const [a, b] = m.points, dx = b.x - a.x, dy = b.y - a.y, len2 = dx * dx + dy * dy || 1; return Math.min(.999, Math.max(.001, ((p.x - a.x) * dx + (p.y - a.y) * dy) / len2)); }
+  // Shift snaps a ratio line to horizontal or vertical.
+  function straighten(from, p) { return Math.abs(p.x - from.x) >= Math.abs(p.y - from.y) ? { x: p.x, y: from.y } : { x: from.x, y: p.y }; }
+  function ratioHit(p) {
+   const tol = 10 / scale;
+   for (let index = marks.length - 1; index >= 0; index--) {
+    const m = marks[index]; if (m.type !== 'ratio') continue; const [a, b] = m.points;
+    for (const end of [0, 1]) if (Math.hypot(p.x - m.points[end].x, p.y - m.points[end].y) < tol) return { index, end, stop: -1 };
+    const stops = m.stops || [], at = t => ({ x: a.x + (b.x - a.x) * t, y: a.y + (b.y - a.y) * t });
+    for (let stop = 0; stop < stops.length; stop++) { const q = at(stops[stop]); if (Math.hypot(p.x - q.x, p.y - q.y) < tol) return { index, end: -1, stop }; }
+    const t = ratioT(m, p), q = at(t); if (t > .005 && t < .995 && Math.hypot(p.x - q.x, p.y - q.y) < tol) return { index, end: -1, stop: -1, t };
+   }
+   return null;
+  }
+  function ratioMark(m) {
+   const [a, b] = m.points, dx = b.x - a.x, dy = b.y - a.y, len = Math.hypot(dx, dy); if (len < 1e-6) return;
+   const k = 1 / scale, lw = Math.max(m.width, 1.5 * k), ts = [0, ...ratioStops(m), 1], at = t => ({ x: a.x + dx * t, y: a.y + dy * t });
+   let nx = -dy / len, ny = dx / len; if (ny > 0 || (ny === 0 && nx > 0)) { nx = -nx; ny = -ny; } // labels sit above (or left of) the line
+   ctx.save(); ctx.strokeStyle = m.color; ctx.lineWidth = lw; ctx.lineCap = 'round'; ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(b.x, b.y);
+   ts.forEach((t, i) => { const p = at(t), n = (i === 0 || i === ts.length - 1 ? 11 : 8) * k + lw / 2; ctx.moveTo(p.x - nx * n, p.y - ny * n); ctx.lineTo(p.x + nx * n, p.y + ny * n); }); ctx.stroke();
+   ctx.fillStyle = '#fff'; ctx.lineWidth = 1.5 * k; for (const t of ts.slice(1, -1)) { const p = at(t); ctx.beginPath(); ctx.arc(p.x, p.y, 4 * k + lw / 2, 0, Math.PI * 2); ctx.fill(); ctx.stroke(); }
+   ctx.font = `600 ${12 * k}px system-ui,sans-serif`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+   for (let i = 1; i < ts.length; i++) {
+    const text = percent(ts[i] - ts[i - 1]), mid = at((ts[i] + ts[i - 1]) / 2), off = 20 * k + lw / 2, x = mid.x + nx * off, y = mid.y + ny * off, w = ctx.measureText(text).width + 10 * k, h = 17 * k;
+    ctx.fillStyle = 'rgba(17,24,39,.82)'; ctx.beginPath(); ctx.roundRect(x - w / 2, y - h / 2, w, h, 4 * k); ctx.fill(); ctx.fillStyle = '#fff'; ctx.fillText(text, x, y + .5 * k);
+   }
+   ctx.restore();
+  }
+  function ratioReadout() {
+   const box = $('.resource-ratio'), list = $('.resource-ratio-segments');
+   const m = marks[selected]?.type === 'ratio' ? marks[selected] : marks[ratioIndex]?.type === 'ratio' ? marks[ratioIndex] : null;
+   box.hidden = inspector !== 'markup' || (tool !== 'ratio' && !m); list.hidden = !m;
+   if (!m) { list.replaceChildren(); return; }
+   const ts = [0, ...ratioStops(m), 1];
+   list.replaceChildren(...ts.slice(1).map((t, i) => { const item = document.createElement('li'); item.textContent = percent(t - ts[i]); return item; }));
+  }
+  // Perspective: four corners in image pixels over the photo; the preview replaces the photo until saved or adjusted.
+  function startPerspective() { const w = image.width, h = image.height, ix = w * .12, iy = h * .12; persp = { corners: [{ x: ix, y: iy }, { x: w - ix, y: iy }, { x: w - ix, y: h - iy }, { x: ix, y: h - iy }], preview: null, rendering: false }; fit(); }
+  function nearestCorner(event) { const r = stage.getBoundingClientRect(), x = event.clientX - r.left, y = event.clientY - r.top; let best = -1, distance = 18; persp.corners.forEach((c, i) => { const d = Math.hypot(ox + c.x * scale - x, oy + c.y * scale - y); if (d < distance) { distance = d; best = i; } }); return best; }
+  function hoverCursor(event) {
+   let cursor = !image || tool === 'pan' || inspector !== 'markup' ? 'grab' : 'crosshair';
+   if (persp && !persp.preview && nearestCorner(event) >= 0) cursor = 'move';
+   else if (inspector === 'markup' && image && tool === 'ratio') { const hit = ratioHit(pos(event)); if (hit) cursor = hit.stop >= 0 || hit.end >= 0 ? 'move' : 'copy'; }
+   if (stage.style.cursor !== cursor) stage.style.cursor = cursor;
+  }
+  function drawPerspective() {
+   const P = window.ResourcePerspective, q = persp.corners.map(c => ({ x: ox + c.x * scale, y: oy + c.y * scale })), ok = P.usableQuad(P.orderQuad(persp.corners));
+   ctx.save(); ctx.fillStyle = 'rgba(15,23,42,.45)'; ctx.beginPath(); ctx.rect(0, 0, stage.clientWidth, stage.clientHeight);
+   ctx.moveTo(q[0].x, q[0].y); for (const c of q.slice(1)) ctx.lineTo(c.x, c.y); ctx.closePath(); ctx.fill('evenodd');
+   ctx.strokeStyle = ok ? '#1a73e8' : '#d92d20'; ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(q[0].x, q[0].y); for (const c of q.slice(1)) ctx.lineTo(c.x, c.y); ctx.closePath(); ctx.stroke();
+   if (ok) { // thirds as they will lie after correction, to line up with siding courses or window grids
+    const o = P.orderQuad(q), H = P.homography([{ x: 0, y: 0 }, { x: 1, y: 0 }, { x: 1, y: 1 }, { x: 0, y: 1 }], o);
+    ctx.strokeStyle = 'rgba(255,255,255,.55)'; ctx.lineWidth = 1; ctx.setLineDash([5, 5]); ctx.beginPath();
+    for (const t of [1 / 3, 2 / 3]) { for (const [u, v] of [[[t, 0], [t, 1]], [[0, t], [1, t]]]) { const s = P.apply(H, { x: u[0], y: u[1] }), e = P.apply(H, { x: v[0], y: v[1] }); ctx.moveTo(s.x, s.y); ctx.lineTo(e.x, e.y); } }
+    ctx.stroke(); ctx.setLineDash([]);
+   }
+   for (const [i, c] of q.entries()) { const active = gesture?.corner === i; ctx.beginPath(); ctx.arc(c.x, c.y, active ? 9 : 7, 0, Math.PI * 2); ctx.fillStyle = active ? '#1a73e8' : '#fff'; ctx.fill(); ctx.strokeStyle = ok ? '#1a73e8' : '#d92d20'; ctx.lineWidth = 2; ctx.stroke(); }
+   if (gesture?.corner != null) { // magnifier beside the corner being dragged
+    const c = persp.corners[gesture.corner], s = q[gesture.corner], R = 64, z = 3; let lx = s.x + R + 28, ly = s.y - R - 28;
+    if (lx + R > stage.clientWidth) lx = s.x - R - 28; if (ly - R < 0) ly = s.y + R + 28;
+    ctx.save(); ctx.beginPath(); ctx.arc(lx, ly, R, 0, Math.PI * 2); ctx.clip(); ctx.fillStyle = '#111827'; ctx.fill();
+    ctx.translate(lx, ly); ctx.scale(scale * z, scale * z); ctx.translate(-c.x, -c.y); ctx.drawImage(image, 0, 0); ctx.restore();
+    ctx.strokeStyle = '#fff'; ctx.lineWidth = 3; ctx.beginPath(); ctx.arc(lx, ly, R, 0, Math.PI * 2); ctx.stroke();
+    ctx.strokeStyle = '#1a73e8'; ctx.lineWidth = 1; ctx.beginPath(); ctx.moveTo(lx - 10, ly); ctx.lineTo(lx + 10, ly); ctx.moveTo(lx, ly - 10); ctx.lineTo(lx, ly + 10); ctx.stroke();
+   }
+   ctx.restore();
+  }
+  const canUpload = () => !!project && !/^exteriors_[a-f0-9]{32}$/.test(project);
+  function perspControls() {
+   const preview = !!persp?.preview, rendering = !!persp?.rendering;
+   $('.resource-persp-adjust').hidden = preview; $('.resource-persp-result').hidden = !preview; $('.resource-persp-intro').hidden = preview;
+   $('[data-action="perspPreview"]').disabled = !persp || rendering; $('[data-action="perspPreview"]').textContent = rendering ? 'Working…' : 'Preview';
+   $('[data-action="perspSave"]').disabled = !preview || rendering || uploading || !canUpload(); $('[data-action="perspSave"]').textContent = uploading && preview ? 'Saving…' : 'Save as new file';
+   $('[data-action="perspSave"]').title = canUpload() ? 'Upload the corrected image to this project as a new file' : 'This project cannot take uploads; use Download';
+   $('[data-action="perspDownload"]').disabled = !preview || rendering; $('[data-action="perspReset"]').disabled = !persp || rendering;
+   $('.resource-persp-crop').checked = perspCrop;
+   $('.resource-persp-size').textContent = preview ? `Corrected image: ${persp.preview.width} × ${persp.preview.height} px` : '';
+  }
+  async function perspPreview() {
+   if (!persp || persp.rendering || !image) return; const job = persp; job.rendering = true; controls();
+   try {
+    const plan = window.ResourcePerspective.plan({ width: image.width, height: image.height, corners: job.corners, crop: perspCrop });
+    const canvas = await window.ResourcePerspective.render(image, plan, { onProgress: f => { if (persp === job) message(`Correcting perspective… ${Math.round(f * 100)}%`); } });
+    if (persp !== job) return; job.preview = canvas; fit(); message('Preview ready. Save it as a new file, download it, or adjust the corners.');
+   } catch (error) { message(error.message, true); }
+   finally { job.rendering = false; controls(); }
+  }
+  const perspBlob = () => new Promise(resolve => persp.preview.toBlob(resolve, perspCrop ? 'image/jpeg' : 'image/png', .92));
+  const perspFileName = () => (label(current.name).replace(/\.[^.]+$/, '') || 'image') + ' (perspective).' + (perspCrop ? 'jpg' : 'png');
+  async function perspSave() {
+   if (!persp?.preview || uploading || !canUpload()) return;
+   const id = project, ticket = projectEpoch, fileName = perspFileName(), blob = await perspBlob(); if (!blob) throw Error('Could not encode the corrected image.');
+   const name = prefix + 'v2-' + uuid() + '-' + (safeName(fileName).slice(-42) || 'perspective'); uploading = true; controls();
+   try { await uploadFile(id, name, new File([blob], fileName, { type: blob.type })); } finally { uploading = false; controls(); }
+   if (ticket !== projectEpoch) return; await refresh({ quiet: true });
+   const saved = files.find(f => f.name === name); message('Saved ' + fileName + ' to the project.');
+   if (saved) { inspector = ''; await open(saved); }
+  }
+  async function perspDownload() { if (!persp?.preview) return; const fileName = perspFileName(), blob = await perspBlob(); if (!blob) throw Error('Could not encode the corrected image.'); const link = document.createElement('a'); link.href = URL.createObjectURL(blob); link.download = fileName; link.click(); setTimeout(() => URL.revokeObjectURL(link.href), 60000); }
   const pos = event => { const r = stage.getBoundingClientRect(); return { x: (event.clientX - r.left - ox) / scale, y: (event.clientY - r.top - oy) / scale }; };
   const isControl = target => !!target.closest('button,input,select,textarea,a');
   stage.addEventListener('pointerdown', event => {
    if (isControl(event.target) || !dimensions().w || busy || ![0, 1, 2].includes(event.button)) return;
    event.preventDefault(); stage.focus({ preventScroll: true }); stage.setPointerCapture(event.pointerId);
-   const p = pos(event), pan = inspector!=='markup' || !image || tool === 'pan' || event.button !== 0 || spaceDown;
+   const p = pos(event);
+   if (persp && !persp.preview && event.button === 0 && !spaceDown) { const corner = nearestCorner(event); if (corner >= 0) { gesture = { id: event.pointerId, corner }; stage.style.cursor = 'grabbing'; draw(); return; } }
+   if (inspector === 'markup' && image && tool === 'ratio' && !spaceDown && (event.button === 0 || event.button === 2)) {
+    const hit = ratioHit(p);
+    if (hit) {
+     ratioIndex = hit.index; const m = marks[hit.index];
+     if (event.button === 2) { if (hit.stop >= 0) { snapshot(); m.stops.splice(hit.stop, 1); } gesture = null; controls(); draw(); return; }
+     snapshot(); if (hit.stop < 0 && hit.end < 0) { m.stops = [...(m.stops || []), hit.t]; hit.stop = m.stops.length - 1; }
+     gesture = { id: event.pointerId, ratio: hit }; stage.style.cursor = 'grabbing'; controls(); draw(); return;
+    }
+   }
+   const pan = inspector!=='markup' || !image || tool === 'pan' || event.button !== 0 || spaceDown;
    gesture = { id: event.pointerId, start: p, x: event.clientX, y: event.clientY, ox, oy, pan };
    if (pan) { fitMode = null; stage.style.cursor = 'grabbing'; return; }
    if (tool === 'select') {
@@ -572,17 +706,23 @@
     controls(); draw(); return;
    }
    if (tool === 'note' && !$('.resource-note input').value.trim()) { message('Type a label in the markup tray, then click to place it.', true); gesture = null; return; }
-   gesture.mark = { type: tool, points: [p, p], color: $('.resource-color').value, width: strokeWidth / scale, fontSize: 20 / scale, text: $('.resource-note input').value }; draw();
+   gesture.mark = { type: tool, points: [p, p], color: $('.resource-color').value, width: strokeWidth / scale, fontSize: 20 / scale, text: $('.resource-note input').value, ...(tool === 'ratio' ? { stops: [] } : {}) }; draw();
   });
   stage.addEventListener('pointermove', event => {
-   if (!gesture || gesture.id !== event.pointerId) return; const p = pos(event);
+   if (!gesture) { hoverCursor(event); return; }
+   if (gesture.id !== event.pointerId) return; const p = pos(event);
+   if (gesture.corner != null) { persp.corners[gesture.corner] = p; draw(); return; }
+   if (gesture.ratio) { const m = marks[gesture.ratio.index]; if (gesture.ratio.end >= 0) m.points[gesture.ratio.end] = event.shiftKey ? straighten(m.points[1 - gesture.ratio.end], p) : p; else m.stops[gesture.ratio.stop] = ratioT(m, p); ratioReadout(); draw(); return; }
+   if (gesture.mark?.type === 'ratio') { gesture.mark.points[1] = event.shiftKey ? straighten(gesture.mark.points[0], p) : p; draw(); return; }
    if (gesture.pan) { ox = gesture.ox + event.clientX - gesture.x; oy = gesture.oy + event.clientY - gesture.y; }
    else if (gesture.original) marks[selected].points = gesture.original.points.map(q => ({ x: q.x + p.x - gesture.start.x, y: q.y + p.y - gesture.start.y }));
    else if (gesture.mark) { if (tool === 'pen') gesture.mark.points.push(p); else gesture.mark.points[1] = p; } draw();
   });
   function finish(event) {
    if (!gesture || gesture.id !== event.pointerId) return;
-   if (event.type === 'pointerup' && gesture.mark) { snapshot(); marks.push(gesture.mark); }
+   if (gesture.corner != null || gesture.ratio) { const m = gesture.ratio && marks[gesture.ratio.index]; if (m) m.stops = ratioStops(m); gesture = null; hoverCursor(event); controls(); draw(); return; }
+   const tooShort = gesture.mark?.type === 'ratio' && Math.hypot(gesture.mark.points[1].x - gesture.mark.points[0].x, gesture.mark.points[1].y - gesture.mark.points[0].y) * scale < 6;
+   if (event.type === 'pointerup' && gesture.mark && !tooShort) { snapshot(); marks.push(gesture.mark); if (gesture.mark.type === 'ratio') ratioIndex = marks.length - 1; }
    else if (event.type !== 'pointerup' && gesture.original) marks[selected] = gesture.original;
    gesture = null; stage.style.cursor = !image || tool === 'pan' ? 'grab' : 'crosshair'; controls(); draw();
   }
@@ -791,7 +931,10 @@
    files: () => { filesOpen = !filesOpen; if (filesOpen && panel.clientWidth < 760) inspector = ''; updateDrawers(); },
    coreViews:showCoreViews,
    upload: () => $('.resource-files').click(), refresh,
-   markup: () => showInspector('markup'), notes: () => showInspector('notes'), closeInspector: () => { inspector = ''; updateDrawers(); },
+   markup: () => showInspector('markup'), perspective: () => showInspector('perspective'),
+   perspPreview, perspSave, perspDownload,
+   perspReset: () => { if (persp && !persp.rendering) { startPerspective(); controls(); } },
+   perspAdjust: () => { if (persp) { persp.preview = null; fit(); controls(); } }, notes: () => showInspector('notes'), closeInspector: () => { inspector = ''; updateDrawers(); },
    more: () => { $('.resource-more').hidden = !$('.resource-more').hidden; $('[data-action="more"]').setAttribute('aria-expanded', String(!$('.resource-more').hidden)); },
    save,
    overlay: async () => { if (!image || media || busy || !current) return; await sendBackground(current); },
@@ -811,6 +954,7 @@
    if (button.dataset.action !== 'more') { $('.resource-more').hidden = true; $('[data-action="more"]').setAttribute('aria-expanded', 'false'); }
    Promise.resolve().then(() => button.dataset.tool ? chooseTool(button.dataset.tool) : actions[button.dataset.action]?.()).catch(error => message(error.message, true));
   });
+  $('.resource-persp-crop').addEventListener('change', event => { perspCrop = event.target.checked; if (persp?.preview) { persp.preview = null; perspPreview(); } else controls(); });
   const seek = $('.resource-seek');
   seek.addEventListener('pointerdown', event => {
    if (event.button !== 0 || favoriteDraft) return; stepQueue = 0; beginScrub(true);

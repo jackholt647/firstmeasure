@@ -252,7 +252,9 @@ test('every exterior table uses the boxed roof-table style with unchanged values
  for(const title of ['Hidden Wall Faces','Opening Schedule','Exterior Quantities','Material Allowances']){const p=pages.find(p=>p.title===title);assert.ok(p,title);
   assert.ok(p.bars>0,title+' tables have the accent bar');assert.ok(!p.rounded.some(r=>r[3]===9&&r[2]>150),title+' has no old full-width header strip');}
  const q=pages.find(p=>p.title==='Exterior Quantities').text.map(t=>t.value);for(const v of ['Top of walls','Exposed vertical terminations','Not assigned','Area (sq ft)','Squares'])assert.ok(q.includes(v),v);
- const sched=pages.find(p=>p.title==='Opening Schedule').text.map(t=>t.value);for(const v of ['W01-1','Window','W01','3.0 x 4.0','12.0'])assert.ok(sched.includes(v),v);
+ const sched=pages.find(p=>p.title==='Opening Schedule').text.map(t=>t.value);for(const v of ['W01-1','Window','W01','36" x 48"','12.0','W x H'])assert.ok(sched.includes(v),v);
+ // Windows and doors are ordered in inches, garage doors in feet and inches.
+ for(const [label,width,height,want] of [['Window',2.9583,4.0208,'35 1/2" x 48 1/4"'],['Door',3,6.6667,'36" x 80"'],['Garage door',16,7,"16' 0\" x 7' 0\""],['Gable vent',1.5,2,"1.5' x 2.0'"]])assert.equal(PDF.openingSize({label,width,height}),want);
  assert.ok(!sched.includes('14.0'),'an opening without trim does not report its perimeter as trim');
  for(const v of ['Measured lengths','Trim','Window trim','Door trim','Garage door trim','Roof trim (fascia)','Total trim'])assert.ok(q.includes(v),v);
  const allow=pages.find(p=>p.title==='Material Allowances').text;assert.ok(['0%','20%','Area including waste (sq ft)','Squares including waste'].every(v=>allow.some(t=>t.value===v)));
