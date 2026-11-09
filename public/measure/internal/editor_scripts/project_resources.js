@@ -649,7 +649,7 @@
    }
    ctx.restore();
   }
-  const canUpload = () => !!project && !/^exteriors_[a-f0-9]{32}$/.test(project);
+  const canUpload = () => !!project; // same rule as the Upload button
   function perspControls() {
    const preview = !!persp?.preview, rendering = !!persp?.rendering;
    $('.resource-persp-adjust').hidden = preview; $('.resource-persp-result').hidden = !preview; $('.resource-persp-intro').hidden = preview;
