@@ -156,3 +156,37 @@ test('mobile ordering owns its pager, fills the project window and preserves oth
     await browser.close();
   } finally { if(browser.isConnected()) await browser.close(); }
 });
+
+test('a phone types the order address above the map, so the keyboard never covers it (FM-324)', async () => {
+  const typing = source.slice(source.indexOf('  if(!window.__fmAddressTypingOnTop'), source.indexOf("window.addEventListener('resize',placeAll);}", source.indexOf('  if(!window.__fmAddressTypingOnTop')) + "window.addEventListener('resize',placeAll);}".length);
+  assert.ok(typing.length > 200, 'the address typing block is found');
+  const browser = await chromium.launch({channel:'chrome', headless:true});
+  try {
+    const page = await browser.newPage({viewport:{width:390,height:664}, isMobile:true, hasTouch:true});
+    await page.setContent(`<!doctype html><meta name="viewport" content="width=device-width,initial-scale=1"><div id="rOverlay" class="r-overlay active fullscreen mobile-order mobile-order-location"><div class="r-win"><div class="r-preview-panel active" data-panel="map" style="position:absolute;inset:49px 0 0;display:flex;flex-direction:column"><div class="r-tab-content" style="display:flex;flex-direction:column;flex:1;min-height:0"><div class="r-tab-main" style="background:#9ab"><div id="map" style="flex:1"></div></div><div class="r-overview-details"><form id="rForm" class="r-form"><input id="rAddress" class="r-inp" placeholder="Start typing an address"></form></div></div></div></div></div><button id="other">Other</button>`);
+    await page.addStyleTag({content:css});
+    await page.addScriptTag({content:typing});
+    const order = () => page.evaluate(()=>{const r=s=>document.querySelector(s).getBoundingClientRect();return {field:r('#rAddress').top,map:r('#map').top,mapBottom:r('#map').bottom};});
+    const resting = await order();
+    assert.ok(resting.field > resting.mapBottom, `at rest the address is under the map: ${JSON.stringify(resting)}`);
+    await page.locator('#rAddress').tap();
+    const typingBoxes = await order();
+    assert.ok(typingBoxes.field < typingBoxes.map && typingBoxes.field < 160, `while typing the address is above the map, near the top: ${JSON.stringify(typingBoxes)}`);
+    // Google's list opens under the field; it is only capped, never moved above the field (out of view on an iPhone).
+    await page.evaluate(()=>{const box=document.getElementById('rAddress').getBoundingClientRect();const pac=document.createElement('div');pac.className='pac-container';pac.style.cssText=`position:absolute;left:0;width:300px;top:${box.bottom}px`;pac.innerHTML='<div class="pac-item" style="height:48px">1600 Pennsylvania Avenue</div>'.repeat(5);document.body.append(pac);});
+    await page.locator('#rAddress').pressSequentially('1600 Penn');
+    await page.waitForTimeout(60);
+    const list = await page.evaluate(()=>{const pac=document.querySelector('.pac-container'),field=document.getElementById('rAddress').getBoundingClientRect();return {top:pac.getBoundingClientRect().top,fieldBottom:field.bottom,maxHeight:pac.style.maxHeight};});
+    assert.ok(list.top >= list.fieldBottom - 1, `suggestions open below the field: ${JSON.stringify(list)}`);
+    assert.match(list.maxHeight, /^\d+px$/, 'suggestions are capped to the room above the keyboard');
+    assert.equal(await page.locator('#rAddress').inputValue(), '1600 Penn');
+    // Tapping elsewhere keeps the field in place briefly (a tapped suggestion stays under the finger), then it returns.
+    await page.locator('#other').focus();
+    assert.ok((await order()).field < (await order()).map, 'still above the map right after the field loses focus');
+    await page.waitForTimeout(450);
+    const after = await order();
+    assert.ok(after.field > after.mapBottom, `the address returns under the map: ${JSON.stringify(after)}`);
+    assert.equal(await page.evaluate(()=>document.querySelector('.pac-container').style.maxHeight), '', 'the cap is removed');
+    await browser.close();
+  } finally { if(browser.isConnected()) await browser.close(); }
+});
