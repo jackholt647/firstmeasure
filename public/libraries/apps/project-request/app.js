@@ -2413,6 +2413,7 @@ window.PlatformCommerce.onReady(async function(){
       .r-overlay.mobile-order.mobile-order-location .r-scroll{flex:0 1 auto;scrollbar-gutter:auto}
       .r-overlay.mobile-order.mobile-order-location #rStepAddress .r-step-body{padding:0 0 6px}
       .r-overlay.mobile-order.mobile-order-location .r-overview-details #rStepAddress{border-top:0!important;padding-top:0!important}
+      .r-overlay.mobile-order.mobile-order-location.address-typing .r-tab-content>.r-overview-details{order:0;border-top:0;border-bottom:1px solid #eaecf0}
       .r-overlay.mobile-order.mobile-order-location #rAddress:focus{box-shadow:inset 0 0 0 3px rgba(217,48,37,.12);transform:none}
       .r-overlay.mobile-order.mobile-order-location .r-step-shell{transition:none}
       .r-overlay.mobile-order.mobile-order-location .r-step-body{gap:9px;padding-bottom:6px}
@@ -6197,24 +6198,30 @@ window.PlatformCommerce.onReady(async function(){
     return text;
   }
 
-  // The first order page puts the address under the map on phones, so Google's suggestions open above the field,
-  // never over it or under the keyboard. Google moves and resizes the list whenever results change, so each list is
-  // watched itself (style, rows and size) and put back; its height is capped to the room above the field.
-  if(!window.__fmAddressSuggestionsAbove&&typeof MutationObserver==='function'){window.__fmAddressSuggestionsAbove=true;
-    let addressFocused=false;document.addEventListener('focusin',event=>{addressFocused=event.target?.id==='rAddress';},true);
-    const field=()=>{const input=document.getElementById('rAddress');return addressFocused&&input?.closest('.r-overlay.mobile-order.mobile-order-location')?input:null;};
-    const place=pac=>{const input=field();
-      if(!input){if(pac.dataset.fmAbove){delete pac.dataset.fmAbove;pac.style.maxHeight='';pac.style.overflowY='';}return;}
-      if(getComputedStyle(pac).display==='none')return;const box=input.getBoundingClientRect(),room=Math.max(96,Math.floor(box.top-10))+'px';
-      if(pac.style.maxHeight!==room){pac.dataset.fmAbove='1';pac.style.maxHeight=room;pac.style.overflowY='auto';}
-      const top=Math.round(window.scrollY+box.top-pac.offsetHeight-6)+'px';if(pac.style.top!==top)pac.style.top=top;};
+  // The first order page puts the address under the map on phones. While it is typed in, it moves above the map
+  // (address-typing), so the keyboard never has to cover it: on iPhones, revealing a field at the bottom of the
+  // project window panned the page until the field sat at the top of a grey screen, with Google's suggestions out of
+  // view (FM-324). Google's suggestions then open below the field, capped to the room left above the keyboard; Google
+  // moves and resizes the list whenever results change, so each list is watched itself and capped again.
+  if(!window.__fmAddressTypingOnTop&&typeof MutationObserver==='function'){window.__fmAddressTypingOnTop=true;
+    const typingOverlay=input=>input?.id==='rAddress'?input.closest('.r-overlay.mobile-order.mobile-order-location'):null;
+    let typingTimer=0;
+    document.addEventListener('focusin',event=>{const overlay=typingOverlay(event.target);if(overlay){clearTimeout(typingTimer);overlay.classList.add('address-typing');}},true);
+    // Kept briefly after the field loses focus, so a tapped suggestion is not moved out from under the finger.
+    document.addEventListener('focusout',event=>{if(event.target?.id!=='rAddress')return;clearTimeout(typingTimer);
+      typingTimer=setTimeout(()=>{if(document.activeElement?.id!=='rAddress')document.querySelectorAll('.r-overlay.address-typing').forEach(overlay=>overlay.classList.remove('address-typing'));placeAll();},350);},true);
+    const keyboardTop=()=>{try{const top=window.top,view=top.visualViewport;return (view?.height||top.innerHeight)-(window.frameElement?.getBoundingClientRect().top||0);}catch{return window.visualViewport?.height||window.innerHeight;}};
+    const place=pac=>{const input=document.activeElement?.id==='rAddress'&&document.activeElement.closest('.r-overlay.address-typing')?document.activeElement:null;
+      if(!input){if(pac.dataset.fmCapped){delete pac.dataset.fmCapped;pac.style.maxHeight='';pac.style.overflowY='';}return;}
+      if(getComputedStyle(pac).display==='none')return;const room=Math.max(160,Math.floor(keyboardTop()-input.getBoundingClientRect().bottom-12))+'px';
+      if(pac.style.maxHeight!==room){pac.dataset.fmCapped='1';pac.style.maxHeight=room;pac.style.overflowY='auto';}};
     const placeAll=()=>document.querySelectorAll('.pac-container').forEach(place);
     const watched=new WeakSet(),sized=typeof ResizeObserver==='function'?new ResizeObserver(entries=>entries.forEach(entry=>place(entry.target))):null;
     const watch=pac=>{if(watched.has(pac))return;watched.add(pac);new MutationObserver(()=>place(pac)).observe(pac,{attributes:true,attributeFilter:['style'],childList:true,subtree:true});sized?.observe(pac);place(pac);};
     new MutationObserver(records=>{for(const record of records)for(const added of record.addedNodes||[])if(added.classList?.contains('pac-container'))watch(added);}).observe(document.body,{childList:true});
     document.querySelectorAll('.pac-container').forEach(watch);
     document.addEventListener('input',event=>{if(event.target?.id==='rAddress')requestAnimationFrame(placeAll);},true);
-    window.visualViewport?.addEventListener('resize',placeAll);window.addEventListener('resize',placeAll);}
+    try{window.top.visualViewport?.addEventListener('resize',placeAll);}catch{}window.visualViewport?.addEventListener('resize',placeAll);window.addEventListener('resize',placeAll);}
   // Order pills (property type, report scope) open this list rather than the browser's, which always opened
   // downward past the bottom of the order panel. It flips above the pill when there is less room below.
   if(!window.__fmOrderSelectMenus){window.__fmOrderSelectMenus=true;
