@@ -1385,6 +1385,7 @@ $tutorialStudentEmail = strtolower(trim((string)($_GET['student_email'] ?? $_GET
     <script src="editor_scripts/scene_3d.js?v=<?=fm_editor_asset_version('editor_scripts/scene_3d.js')?>"></script>
     <script src="editor_scripts/interaction_2d.js?v=<?=fm_editor_asset_version('editor_scripts/interaction_2d.js')?>"></script>
     <?php if ($fmFullHouseEditor): ?>
+    <script defer src="editor_scripts/resource_perspective.js?v=<?=fm_editor_asset_version('editor_scripts/resource_perspective.js')?>"></script>
     <script defer src="editor_scripts/project_resources.js?v=<?=fm_editor_asset_version('editor_scripts/project_resources.js')?>"></script>
     <?php endif; ?>
     <script src="editor_scripts/pane_layout.js?v=<?=fm_editor_asset_version('editor_scripts/pane_layout.js')?>"></script>

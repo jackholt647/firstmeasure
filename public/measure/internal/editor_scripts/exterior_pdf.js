@@ -77,6 +77,19 @@ const isTrim=a=>a.trim||/^trim-/.test(a.materialKey||'')||/\btrim\b/i.test(a.mat
 const FEET=1/.3048,span=(a,b)=>Math.hypot(a.x-b.x,a.y-b.y,(a.z||0)-(b.z||0))*FEET;
 const openingTrimLength=o=>(o?.trimFaces||[]).reduce((sum,f)=>sum+(f.points?.length===4?span(f.points[2],f.points[3]):0),0);
 const openingTrimKind={Window:'window',Door:'door','Garage door':'garage','Gable vent':'vent'};
+// Opening sizes are written the way the trade orders them: windows and entry/patio doors in inches (36" x 60",
+// to the nearest 1/4"), garage doors in feet and inches (16' 0" x 7' 0"), anything else in decimal feet.
+// Metric reports give windows and doors in millimetres and everything else in metres. Inputs are feet.
+const FRACTIONS={1:'1/4',2:'1/2',3:'3/4'};
+const inchText=feet=>{const quarters=Math.round(feet*48),whole=Math.floor(quarters/4),part=FRACTIONS[quarters%4];return (part?(whole?whole+' '+part:part):String(whole))+'"';};
+const feetInchText=feet=>{const total=Math.round(feet*12);return Math.floor(total/12)+"' "+total%12+'"';};
+function openingSize(o){
+ const kind=openingTrimKind[o.label],inches=kind==='window'||kind==='door';
+ if(metric())return inches?Math.round(o.width*304.8)+' x '+Math.round(o.height*304.8)+' mm':measure(o.width,'ft',number(o.width),false)+' x '+measure(o.height,'ft',number(o.height),false)+' m';
+ if(inches)return inchText(o.width)+' x '+inchText(o.height);
+ if(kind==='garage')return feetInchText(o.width)+' x '+feetInchText(o.height);
+ return number(o.width)+"' x "+number(o.height)+"'";
+}
 function trimTotals(model){
  const out={window:0,door:0,garage:0,vent:0,other:0,wallHorizontal:0,wallVertical:0,roof:0,total:0};
  for(const o of model?.openings||[])out[openingTrimKind[o.label]||'other']+=openingTrimLength(o);
@@ -475,7 +488,7 @@ function drawExteriorReportPages(doc,model,settings,begin,colors,pages={}){
    const ty=frame.y+frame.h+2;text(reportText('W ')+measure(a.width,"ft",number(a.width)+"'")+reportText("  x  H ")+measure(a.height,"ft",number(a.height)+"'"),xx+2,ty,7);doc.setFontSize(6.5);text(doc.splitTextToSize(material(a)+(a.chimney?' / Chimney':''),ww-4)[0],xx+2,ty+4.5,6.5);
   });});
  }
- if(want('openings'))paginate(begin,reportText('Opening Schedule'),[reportText('Opening'),reportText('Type'),reportText('Wall'),(metric()?'W x H (m)':'W x H (ft)'),(metric()?'Area m²':'Area ft2'),(metric()?'Trim m':'Trim ft')],model.openings.map(o=>[o.id,reportText(o.label),o.wall,measure(o.width,"ft",number(o.width),false)+' x '+measure(o.height,"ft",number(o.height),false),measure(o.area,"sf",number(o.area),false),(t=>t>0?measure(t,"ft",number(t),false):'-')(openingTrimLength(o))]),[1.4,1.9,1,2,1.3,1.3],reportText('Dimensions are drawn extents, not manufacturer or rough-opening sizes. Trim {value1} is measured along the outside edge of the trim; - means the opening has no trim.', {value1:unit('ft','ft')}));
+ if(want('openings'))paginate(begin,reportText('Opening Schedule'),[reportText('Opening'),reportText('Type'),reportText('Wall'),reportText('W x H'),(metric()?'Area m²':'Area ft2'),(metric()?'Trim m':'Trim ft')],model.openings.map(o=>[o.id,reportText(o.label),o.wall,openingSize(o),measure(o.area,"sf",number(o.area),false),(t=>t>0?measure(t,"ft",number(t),false):'-')(openingTrimLength(o))]),[1.4,1.9,1,2,1.3,1.3],reportText('Dimensions are drawn extents, not manufacturer or rough-opening sizes. Trim {value1} is measured along the outside edge of the trim; - means the opening has no trim.', {value1:unit('ft','ft')}));
  const byMaterial={};model.walls.forEach(a=>byMaterial[material(a)]=(byMaterial[material(a)]||0)+a.net);
  if(want('quantities')){begin(reportText('Exterior Quantities'));
  // Measured lengths on the left, trim by kind on the right.
@@ -612,6 +625,6 @@ async function drawReportImagery(doc,state,begin,colors){
   doc.addImage(r.aspect>aspects[index]+1e-6?reportImageData(img,r.aspect):item.dataUrl||reportImageData(img),'JPEG',r.x,r.y,r.w,r.h);
  });}
 }
-const api={trimTotals,openingTrimLength,directions,photoSlots,houseDirections,relativeSide,initializePhotoSlots,selectedPhotos,photosComplete,planShapes,frontBearing,dimensionPages,mosaicPlace,mosaicRows,mosaicLayout,mosaicPages,fitHeight,rasterScene,paintScene,placeLabels,elevationPlan,elevationViews,houseFaces,roofDepthBias,ROOF_DEPTH_BIAS,dimensionContext,reportOrientation,evenBottom,writer,coverView,drawDiagram,drawOrientationKey,drawElevationKey,drawRoofElevations,drawExteriorCover,drawExteriorSummaryPage,drawExteriorReportPages,drawExteriorNotes,drawReportImagery,prepareImagerySnapshot};
+const api={trimTotals,openingTrimLength,openingSize,directions,photoSlots,houseDirections,relativeSide,initializePhotoSlots,selectedPhotos,photosComplete,planShapes,frontBearing,dimensionPages,mosaicPlace,mosaicRows,mosaicLayout,mosaicPages,fitHeight,rasterScene,paintScene,placeLabels,elevationPlan,elevationViews,houseFaces,roofDepthBias,ROOF_DEPTH_BIAS,dimensionContext,reportOrientation,evenBottom,writer,coverView,drawDiagram,drawOrientationKey,drawElevationKey,drawRoofElevations,drawExteriorCover,drawExteriorSummaryPage,drawExteriorReportPages,drawExteriorNotes,drawReportImagery,prepareImagerySnapshot};
 if(typeof module==='object'&&module.exports)module.exports=api;else {root.ExteriorPDF=api;Object.assign(root,{drawExteriorReportPages,drawExteriorNotes,drawExteriorCover,drawReportImagery});}
 })(typeof window==='undefined'?globalThis:window);

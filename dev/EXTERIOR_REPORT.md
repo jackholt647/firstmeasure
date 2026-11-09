@@ -114,6 +114,13 @@ one box. Long tables continue on "- continued" pages, and no row is drawn below 
 page footer. "Openings" is the area of modeled
 windows, doors and other openings cut from the face.
 
+The Opening Schedule's W x H column writes each opening the way it is ordered:
+windows and entry/patio doors in inches to the nearest 1/4" (`36" x 60"`), garage
+doors in feet and inches (`16' 0" x 7' 0"`), anything else in decimal feet. Metric
+reports give windows and doors in millimetres and the rest in metres
+(`openingSize` in `exterior_pdf.js`). Sizes are still drawn extents, not rough
+openings.
+
 ### Landscape PDFs
 
 Every page of the PDF (roof and exterior) can be laid out in landscape. The orientation
