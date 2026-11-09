@@ -35,6 +35,28 @@ test('chimney faces point away from their own chimney',()=>{
  const chimney=m.walls.filter(w=>w.chimney).sort((a,b)=>a.points[0].y-b.points[0].y);
  assert.equal(chimney.length,2);assert.ok(chimney[0].normal.y<0);assert.ok(chimney[1].normal.y>0);
 });
+test('walls with no base face out of the house, so a wall seen through the step under a sliding door stays on its own elevation (FM-355)',()=>{
+ // A 10 x 6 m house drawn with its base deleted. The front (north) and right (east) walls are wound into the house, as
+ // on 9241 Fairway Dr: the report counted the whole front wall on the Back elevation, seen only through the gap in the
+ // back wall's foundation strip under its sliding door, and left the Front elevation with no faces.
+ const K=require('../public/measure/internal/editor_scripts/exterior_geometry.js'),PDF=require('../public/measure/internal/editor_scripts/exterior_pdf.js');
+ const plane=(a,b,z0,z1,out)=>{const ps=[{x:a.x,y:a.y,z:z0},{x:b.x,y:b.y,z:z0},{x:b.x,y:b.y,z:z1},{x:a.x,y:a.y,z:z1}],n=K.normal(ps);return n.x*out.x+n.y*out.y>0?ps:ps.reverse();};
+ const N={x:0,y:-1},S={x:0,y:1},E={x:1,y:0},Wd={x:-1,y:0},inward=d=>({x:-d.x,y:-d.y}),p=(x,y)=>({x,y});
+ const faces=[
+  {points:plane(p(0,0),p(10,0),.2,3,inward(N)),material:'siding'},{points:plane(p(0,0),p(10,0),0,.2,inward(N)),material:'masonry'},{points:plane(p(4,0),p(5,0),.2,2.2,inward(N)),feature:{type:'door'}},
+  {points:plane(p(10,0),p(10,6),.2,3,inward(E)),material:'siding'},{points:plane(p(10,0),p(10,6),0,.2,inward(E)),material:'masonry'},
+  {points:plane(p(0,6),p(10,6),.2,3,S),material:'siding'},{points:plane(p(0,6),p(6,6),0,.2,S),material:'masonry'},{points:plane(p(7.6,6),p(10,6),0,.2,S),material:'masonry'},{points:plane(p(6,6),p(7.6,6),.2,2.2,S),feature:{type:'door'}},
+  {points:plane(p(0,0),p(0,6),.2,3,Wd),material:'siding'},{points:plane(p(0,0),p(0,6),0,.2,Wd),material:'masonry'}];
+ for(const base of [undefined,{faces:[]}]){
+  const m=R.build({faces,base});
+  for(const w of m.walls){const c=w.points.reduce((a,q)=>({x:a.x+q.x/w.points.length,y:a.y+q.y/w.points.length}),{x:0,y:0});assert.ok(w.normal.x*(c.x-5)+w.normal.y*(c.y-3)>0,w.id+' ('+w.material+' at '+c.x.toFixed(1)+','+c.y.toFixed(1)+') faces out of the house');}
+  const by=name=>m.walls.filter(w=>w.elevation===name).map(w=>w.material).sort();
+  assert.deepEqual(by('North'),['Horizontal siding','Masonry']);assert.deepEqual(by('East'),['Horizontal siding','Masonry']);assert.deepEqual(by('West'),['Horizontal siding','Masonry']);assert.deepEqual(by('South'),['Horizontal siding','Masonry','Masonry']);
+  const plan=PDF.elevationPlan(m,{frontBearing:0},{x:25,y:33,w:170,h:110}),on=Object.fromEntries(plan.views.map(v=>[v.view.name,[...v.ids,...v.small].map(id=>m.walls.find(w=>w.id===id).elevation).sort()]));
+  assert.deepEqual(on,{Front:['North','North'],Back:['South','South','South'],Left:['East','East'],Right:['West','West']});
+  assert.deepEqual(m.openings.map(o=>o.elevation).sort(),['North','South']);
+ }
+});
 test('report configuration warns about wall faces without a material',()=>{
  const m=R.build({faces:[{points:rect(0,0,4,2),material:'brick'},{points:rect(0,2,4,4)},{points:rect(0,4,4,6),material:'unassigned'}]});
  const warning=R.materialWarning(m);assert.equal(warning.count,1);assert.equal(warning.total,2);assert.deepEqual(warning.ids,R.unassigned(m).map(w=>w.id));
