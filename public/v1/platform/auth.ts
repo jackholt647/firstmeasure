@@ -71,7 +71,7 @@ import "./capability_defs.js";
 import { capabilityAccessState, capabilityDefinition, effectiveCapabilities, type CapabilityResolution } from "./capabilities.js";
 import { forbidden, unauthorized } from "./errors.js";
 import { organizationUserProfileView } from "./user_profile.js";
-import { notificationAccessPermissions, resolveAccessProfile, resolveAppEntitlements, type EffectiveAppEntitlement, type ResolvedAccessProfile } from "../workforce/access.js";
+import { DEFAULT_ACCESS_ROLE_IDS, notificationAccessPermissions, resolveAccessProfile, resolveAppEntitlements, type EffectiveAppEntitlement, type ResolvedAccessProfile } from "../workforce/access.js";
 import { deviceTypesForClient } from "./app-experience/devices.js";
 import { appIds, launcherAppIds } from "./app-experience/registry.js";
 import { relevantDepartmentContext, resolveScopedAccessGrants, canUseScopedPermission, type ScopedAccessGrant, type OrganizationStructureAccess } from '../workforce/department-access.js';
@@ -83,6 +83,7 @@ import {
   deleteAccountDevice,
   deleteAuthSession,
   findIdentityByEmail,
+  listDocuments,
   listIdentityMemberships,
   patchIdentity,
   readAccountDevice,
@@ -601,19 +602,51 @@ export async function loginPlatformIdentity(input: LoginInput) {
   });
 }
 
+/* An organization always has an active super admin (1M8-235). Before the guards, inviting the owner's own email
+   re-created the owner as a viewer (1M8-245), and an owner could lower themselves; those accounts were left with nobody
+   able to undo it (FM-353). While nobody active is a super admin, the person the organization's sign-up made its owner
+   (their identity membership still says owner) is restored to owner, as sign-up made them, when they next use it. */
+async function restoreOwnerWithoutSuperAdmin(identity: JsonObject, orgId: string, userDocument: JsonObject) {
+  const user = asObject(userDocument.data);
+  const isSuperAdmin = (data: JsonObject) => asObject(orgUserPermissionState(data).permissions)["*"] === true;
+  const isActive = (data: JsonObject) => String(data.status || "active") !== "disabled" && data.deleted !== true;
+  if (!isActive(user) || isSuperAdmin(user)) return userDocument;
+  const membership = asObject((Array.isArray(identity.memberships) ? identity.memberships : []).find((entry) => {
+    const item = asObject(entry);
+    return item.organization_id === orgId && item.user_id === userDocument.id;
+  }));
+  if (cleanText(membership.role).toLowerCase() !== "owner" || ["disabled", "removed", "inactive"].includes(cleanText(membership.status))) return userDocument;
+  const users = await listDocuments(orgId, "users");
+  if (users.some((doc) => isActive(asObject(doc.data)) && isSuperAdmin(asObject(doc.data)))) return userDocument;
+  return await upsertDocument(orgId, "users", {
+    id: String(userDocument.id),
+    data: {
+      role: "owner", org_permission_level: "owner", org_permissions: { level: "owner", items: {} }, permissions: { "*": true },
+      // An explicit list of access roles (expanded access) replaces the level, so it gains super admin too.
+      ...(Array.isArray(user.access_role_ids) ? { access_role_ids: [...new Set([...user.access_role_ids, DEFAULT_ACCESS_ROLE_IDS.super_admin])] } : {})
+    },
+    metadata: {
+      owner_restored_at: new Date().toISOString(),
+      owner_restored_reason: "FM-353: the organization had no active super admin",
+      owner_restored_from: { role: user.role ?? null, org_permissions: user.org_permissions ?? null, permissions: user.permissions ?? null }
+    }
+  }, { mustExist: true });
+}
+
 export async function buildAuthContext(sessionId: string, session: JsonObject): Promise<PlatformAuthContext> {
   if (asObject(session.metadata).mobile_pkce) throw unauthorized("handoff_only", "Complete app sign-in to use this ticket.");
   const identityId = String(session.identity_id || "");
   const orgId = String(session.organization_id || "");
   const userId = String(session.user_id || "");
-  const [identity, organization, userDocument] = await Promise.all([
+  const [identity, organization, storedUserDocument] = await Promise.all([
     readIdentity(identityId),
     readOrganization(orgId),
     readDocument(orgId, "users", userId)
   ]);
-  const user = asObject(userDocument.data);
   if (identityStatusBlocksLogin(identity)) throw unauthorized("identity_inactive", "This account is not active.");
-  if (String(user.status || "active") === "disabled") throw forbidden("user_disabled", "This organization user is disabled.");
+  if (String(asObject(storedUserDocument.data).status || "active") === "disabled") throw forbidden("user_disabled", "This organization user is disabled.");
+  const userDocument = await restoreOwnerWithoutSuperAdmin(identity, orgId, storedUserDocument);
+  const user = asObject(userDocument.data);
   const permissionState = orgUserPermissionState(user);
   const { capabilities, offeredAppIds } = await capabilityAccessState(orgId, userId);
   const accessProfile = capabilities.effectiveByKey["platform.expanded_access"] === true

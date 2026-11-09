@@ -320,6 +320,41 @@ test("adding a person who is already in the account never replaces them, and no 
   assert.equal((await ownerRecord()).org_permissions.level, "super_admin");
 });
 
+test("an account whose owner was left a viewer with no super admin gives the owner back their access (FM-353)", async () => {
+  const owner = browser();
+  const registered = await register(owner, "fm353.owner@example.test", "fm353_org");
+  const ownerId = registered.user?.id || registered.membership?.user_id;
+  const added = await owner.request("POST", "/v1/platform/organizations/fm353_org/users", { data: { email: "fm353.member@example.test", name: "Member", role: "viewer", status: "active" } });
+  assert.equal(added.response.statusCode, 201, added.response.body);
+  const memberId = added.data.document.id;
+  // Production's state: before 1M8-245 inviting the owner's own email re-created them as a viewer, and nobody could undo it.
+  const { readDocument, upsertDocument } = await import("../platform/storage.js");
+  const viewer = { role: "viewer", org_permission_level: "viewer", org_permissions: { level: "viewer", items: {} }, permissions: { view_reports: true }, access_role_ids: [] };
+  await upsertDocument("fm353_org", "users", { id: ownerId, data: viewer }, { replace: false });
+  const session = await owner.request("GET", "/v1/platform/auth/session");
+  assert.equal(session.data.membership?.role, "owner", session.response.body);
+  const stored = await readDocument("fm353_org", "users", ownerId);
+  assert.equal(stored.data.role, "owner");
+  assert.deepEqual(stored.data.org_permissions, { level: "owner", items: {} });
+  assert.deepEqual(stored.data.permissions, { "*": true });
+  assert.deepEqual(stored.data.access_role_ids, ["super_admin"]);
+  assert.match(String(stored.metadata.owner_restored_reason), /FM-353/);
+  assert.equal(stored.data.email, "fm353.owner@example.test", "the rest of the record is kept");
+  const perms = await owner.request("POST", "/v1/platform/portal-action", { action: "org_users_set_perms_my", user_id: memberId, perm_level: "manager", perm_items_json: "{}" });
+  assert.equal(perms.data.success, true, JSON.stringify(perms.data));
+
+  // Another member is never promoted, and an owner another super admin lowered (1M8-251) stays lowered.
+  const { buildAuthContext } = await import("../platform/auth.js");
+  await upsertDocument("fm353_org", "users", { id: ownerId, data: viewer }, { replace: false });
+  const memberDoc = await readDocument("fm353_org", "users", memberId);
+  const memberContext = await buildAuthContext("", { identity_id: memberDoc.data.identity_id, organization_id: "fm353_org", user_id: memberId });
+  assert.equal(memberContext.role, "manager");
+  await upsertDocument("fm353_org", "users", { id: memberId, data: { role: "super_admin", org_permission_level: "super_admin", org_permissions: { level: "super_admin", items: {} } } }, { replace: false });
+  const lowered = await owner.request("GET", "/v1/platform/auth/session");
+  assert.equal(lowered.data.membership?.role, "viewer", lowered.response.body);
+  assert.equal((await readDocument("fm353_org", "users", ownerId)).data.role, "viewer");
+});
+
 test("someone archived in their own sign-up's account and added to their employer's signs in to the employer's (FM-341)", async () => {
   // They signed up on their own, handed that account to someone else and were archived from it.
   const person = browser();
