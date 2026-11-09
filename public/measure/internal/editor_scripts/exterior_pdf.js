@@ -128,8 +128,9 @@ function mesh(face){
 // adjacent planes apart. Muted faces (counted on another elevation) are paler still.
 function surfaceColor(face,camera,muted=false){
  const hex=/^#?([0-9a-f]{6})$/i.exec(face.finishColor||'');
- let color=hex?[0,2,4].map(i=>parseInt(hex[1].slice(i,i+2),16)):face.surface==='roof'?[193,204,215]:face.chimney?[213,197,192]:/brick/i.test(face.material)?[219,185,174]:/stone|masonry/i.test(face.material)?[210,204,192]:/stucco/i.test(face.material)?[230,219,190]:isTrim(face)?[233,229,217]:[210,226,238];
- if(face.featureType)color=/door|garage/i.test(face.featureType)?[225,198,155]:/vent/i.test(face.featureType)?[181,210,181]:[150,194,212];
+ let color=hex?[0,2,4].map(i=>parseInt(hex[1].slice(i,i+2),16)):face.surface==='roof'?[193,204,215]:face.chimney?[213,197,192]:/brick/i.test(face.material)?[219,185,174]:/stone|masonry/i.test(face.material)?[210,204,192]:/stucco/i.test(face.material)?[230,219,190]:/concrete/i.test(face.material)?[214,216,216]:isTrim(face)?[233,229,217]:[210,226,238];
+ // A glass door or garage door is drawn in the window colour.
+ if(face.featureType)color=face.glass?[150,194,212]:/door|garage/i.test(face.featureType)?[225,198,155]:/vent/i.test(face.featureType)?[181,210,181]:[150,194,212];
  const n=face.normal||K.normal(face.points),len=n?Math.hypot(n.x,n.y,n.z||0)||1:1,facing=n&&camera?Math.abs(n.x*camera.x+n.y*camera.y+(n.z||0)*camera.z)/len:1;
  const tint=muted?.1:face.featureType?.55:face.surface==='roof'?.34:.42,shade=muted?.98+.02*facing:.84+.16*facing;
  return color.map(v=>Math.round(Math.min(246,255-(255-v)*tint)*shade));
@@ -166,24 +167,37 @@ function roofDepthBias(a,b,c,den){
 }
 // Resolve depth at each pixel, including holes, openings and curved triangles.
 // A single average depth per wall cannot resolve intersecting/overlapping faces.
+/* A face seen edge-on (exactly or within EDGE_ON of 90 degrees to the view: a soffit or flat roof in an
+ elevation, a roof plane or overhang seen from its gable end) projects to a line with little or no area,
+ so no pixel centre falls inside its triangles. Its triangles' sides are drawn as depth-tested one-pixel
+ lines instead, so the edge pass still prints the roof line where no wall stands behind it. Those line
+ pixels are not counted as the face's visible area. */
+const EDGE_ON=.02;
 /* `focus` (a count) makes a context render: the first `focus` faces are framed and drawn as usual;
  the faces after them are a dimmed context, kept only behind the focus faces' frontmost depth (so
  nothing between the camera and the measured face can hide it) and clipped to the frame. */
 function rasterScene(faces,view,width,height,iso=false,pad=30,{focus=null}={}){
  const angle=iso?35*Math.PI/180:0,len=Math.hypot(view.x,view.y),nx=view.x/len,ny=view.y/len,camera={x:nx*Math.cos(angle),y:ny*Math.cos(angle),z:Math.sin(angle)};
  const project=p=>({x:p.x*ny-p.y*nx,y:-p.z*Math.cos(angle)+(p.x*nx+p.y*ny)*Math.sin(angle),z:(p.x*nx+p.y*ny)*Math.cos(angle)+p.z*Math.sin(angle)});
- const parents=[],surfaces=faces.flatMap((face,i)=>{const list=[face,...(face.openings||[]).map(o=>({...o,featureType:o.type,normal:face.normal})),...(face.openings||[]).flatMap(o=>(o.trimFaces||[]).map(t=>({...t,id:'',normal:face.normal,openingTrim:true})))];for(const s of list)parents.push(i);return list;}),meshes=surfaces.map(mesh);
+ const parents=[],surfaces=faces.flatMap((face,i)=>{const list=[face,...(face.openings||[]).map(o=>({...o,featureType:o.type,normal:face.normal,wall:o.wall||face.id})),...(face.openings||[]).flatMap(o=>(o.trimFaces||[]).map(t=>({...t,id:'',normal:face.normal,openingTrim:true})))];for(const s of list)parents.push(i);return list;}),meshes=surfaces.map(mesh);
  const pixels=new Uint8ClampedArray(width*height*4),depth=new Float64Array(width*height).fill(-Infinity),owners=new Int32Array(width*height).fill(-1),dim=surfaces.map((s,i)=>focus!=null&&parents[i]>=focus);
  let minX=Infinity,maxX=-Infinity,minY=Infinity,maxY=-Infinity,front=-Infinity;
  for(const [i,m]of meshes.entries()){if(dim[i])continue;for(const p of m.positions){const q=project(p);minX=Math.min(minX,q.x);maxX=Math.max(maxX,q.x);minY=Math.min(minY,q.y);maxY=Math.max(maxY,q.y);front=Math.max(front,q.z);}}
- const clip=front+1e-3,FOCUS_BIAS=1,roofOwner=new Uint8Array(width*height),roofBias=new Float32Array(width*height);
+ const clip=front+1e-3,FOCUS_BIAS=1,roofOwner=new Uint8Array(width*height),roofBias=new Float32Array(width*height),lineOnly=new Uint8Array(width*height);
  if(!Number.isFinite(minX)){minX=minY=0;maxX=maxY=1;}
  const scale=Math.min((width-2*pad)/Math.max(maxX-minX,.01),(height-2*pad)/Math.max(maxY-minY,.01));
  const at=p=>{const q=project(p);return {x:width/2+(q.x-(minX+maxX)/2)*scale,y:height/2+(q.y-(minY+maxY)/2)*scale,z:q.z};};
  surfaces.forEach((face,id)=>{
   const m=meshes[id],ps=m.positions.map(at),roofish=face.surface==='roof'||!!face.roofTrim,context=dim[id],lift=focus!=null&&!context?FOCUS_BIAS:0,bias=roofish?0:lift+(face.openingTrim?2e-4:face.featureType?1e-4:0);
+  // One pixel of an edge-on side, at depth `raw`, under the same depth rules as the triangles below.
+  const plot=(x,y,raw)=>{if(x<0||x>=width||y<0||y>=height||context&&raw>clip)return;const z=raw+bias,index=y*width+x,other=owners[index]<0?roofish:roofOwner[index]===1,rb=roofish?ROOF_DEPTH_BIAS:0;
+   if(roofish===other?z>depth[index]+1e-8:roofish?z+rb>depth[index]+1e-8:z>depth[index]+roofBias[index]+1e-8){if(owners[index]!==id)lineOnly[index]=1;depth[index]=z;owners[index]=id;roofOwner[index]=roofish?1:0;roofBias[index]=rb;}};
+  const side=(p,q)=>{const steps=Math.ceil(Math.max(Math.abs(q.x-p.x),Math.abs(q.y-p.y)));for(let i=0;i<=steps;i++){const t=steps?i/steps:0;plot(Math.floor(p.x+(q.x-p.x)*t),Math.floor(p.y+(q.y-p.y)*t),p.z+(q.z-p.z)*t);}};
   for(const tri of m.triangles){
-   const [a,b,c]=tri.map(i=>ps[i]),den=(b.y-c.y)*(a.x-c.x)+(c.x-b.x)*(a.y-c.y);if(Math.abs(den)<1e-8)continue;
+   const [a,b,c]=tri.map(i=>ps[i]),den=(b.y-c.y)*(a.x-c.x)+(c.x-b.x)*(a.y-c.y);
+   const [A,B,C]=tri.map(i=>m.positions[i]),ux=B.x-A.x,uy=B.y-A.y,uz=(B.z||0)-(A.z||0),vx=C.x-A.x,vy=C.y-A.y,vz=(C.z||0)-(A.z||0),wx=uy*vz-uz*vy,wy=uz*vx-ux*vz,wz=ux*vy-uy*vx,wl=Math.hypot(wx,wy,wz);
+   if(wl>1e-12&&Math.abs(wx*camera.x+wy*camera.y+wz*camera.z)<=EDGE_ON*wl){side(a,b);side(b,c);side(c,a);}
+   if(Math.abs(den)<1e-8)continue;
    // The roof bias applies only against non-roof surfaces; roof against roof compares exact depths.
    const rb=roofish?roofDepthBias(a,b,c,den):0;
    const x0=Math.max(0,Math.floor(Math.min(a.x,b.x,c.x))),x1=Math.min(width-1,Math.ceil(Math.max(a.x,b.x,c.x))),y0=Math.max(0,Math.floor(Math.min(a.y,b.y,c.y))),y1=Math.min(height-1,Math.ceil(Math.max(a.y,b.y,c.y)));
@@ -192,17 +206,17 @@ function rasterScene(faces,view,width,height,iso=false,pad=30,{focus=null}={}){
     if(u< -1e-9||v< -1e-9||u+v>1+1e-9)continue;
     const raw=u*a.z+v*b.z+(1-u-v)*c.z;if(context&&raw>clip)continue;
     const z=raw+bias,index=y*width+x,other=owners[index]<0?roofish:roofOwner[index]===1;
-    if(roofish===other?z>depth[index]+1e-8:roofish?z+rb>depth[index]+1e-8:z>depth[index]+roofBias[index]+1e-8){depth[index]=z;owners[index]=id;roofOwner[index]=roofish?1:0;roofBias[index]=rb;}
+    if(roofish===other?z>depth[index]+1e-8:roofish?z+rb>depth[index]+1e-8:z>depth[index]+roofBias[index]+1e-8){depth[index]=z;owners[index]=id;roofOwner[index]=roofish?1:0;roofBias[index]=rb;lineOnly[index]=0;}
    }
   }
  });
  const counts=new Array(surfaces.length).fill(0),sums=surfaces.map(()=>({x:0,y:0})),bounds=surfaces.map(()=>({x0:Infinity,y0:Infinity,x1:-Infinity,y1:-Infinity}));
  for(let y=0;y<height;y++)for(let x=0;x<width;x++){
-  const index=y*width+x,id=owners[index];if(id<0)continue;counts[id]++;sums[id].x+=x;sums[id].y+=y;const b=bounds[id];if(x<b.x0)b.x0=x;if(x>b.x1)b.x1=x;if(y<b.y0)b.y0=y;if(y>b.y1)b.y1=y;
+  const index=y*width+x,id=owners[index];if(id<0||lineOnly[index])continue;counts[id]++;sums[id].x+=x;sums[id].y+=y;const b=bounds[id];if(x<b.x0)b.x0=x;if(x>b.x1)b.x1=x;if(y<b.y0)b.y0=y;if(y>b.y1)b.y1=y;
  }
  const labels=surfaces.map((face,id)=>({face,count:counts[id],point:null,distance:Infinity}));
  for(let y=8;y<height-8;y+=4)for(let x=12;x<width-12;x+=4){
-  const id=owners[y*width+x];if(id<0||!surfaces[id].id)continue;
+  const id=owners[y*width+x];if(id<0||!surfaces[id].id||!counts[id])continue;
   if(![-10,0,10].every(dx=>[-6,0,6].every(dy=>owners[(y+dy)*width+x+dx]===id)))continue;
   const d=(x-sums[id].x/counts[id])**2+(y-sums[id].y/counts[id])**2;
   if(d<labels[id].distance){labels[id].point={x,y};labels[id].distance=d;}
@@ -299,13 +313,17 @@ function writer(doc,colors){
 const DENSITY=8,LONG_TABLE=10;
 // Room under a wall dimension drawing for its size and material lines.
 const DIMENSION_TEXT=8;
-// Label placement. With `ids`, every listed face gets a label: inside the face when it fits
-// (full size, then smaller), otherwise beside it with a leader line to a visible point of the
-// face. Labels never overlap each other. Without `ids` (overview diagrams), faces large
-// enough for an inside label are labeled and the rest are left to the elevation pages.
+// Label placement. With `ids` (elevation pages), every listed wall face and every visible
+// opening in one of those faces gets a label (an opening's id is its Opening Schedule id):
+// inside it when it fits (full size, then smaller), otherwise beside it with a leader line to a
+// visible point of it. An opening's label that does not fit inside first tries the wall just outside
+// the opening's edges (only that wall's pixels, clear of face lines, other openings, trim and labels);
+// the leader is the last resort. Labels never overlap each other. Without `ids` (overview diagrams), faces
+// and openings large enough for an inside label are labeled and the rest are left to the
+// elevation pages.
 function placeLabels(doc,scene,rect,ids=null){
  const {width,height,owners,counts,sums,bounds,surfaces}=scene,density=DENSITY,boxes=[],placed=[],mm=(x,y)=>({x:rect.x+x/density,y:rect.y+y/density});
- const targets=surfaces.map((face,id)=>({face,id})).filter(({face,id})=>face.id&&counts[id]>0&&(ids?ids.has(face.id)&&!face.featureType:counts[id]>=150)).sort((a,b)=>counts[b.id]-counts[a.id]);
+ const targets=surfaces.map((face,id)=>({face,id})).filter(({face,id})=>face.id&&counts[id]>0&&(ids?ids.has(face.featureType?face.wall:face.id):counts[id]>=150)).sort((a,b)=>counts[b.id]-counts[a.id]);
  const measureBox=(label,size)=>{doc.setFont('Montserrat','bold');doc.setFontSize(size);return {w:(doc.getTextWidth(label)+1.4)*density,h:3.3*size/7*density};};
  const box=(cx,cy,{w,h})=>({x0:Math.round(cx-w/2),y0:Math.round(cy-h/2),x1:Math.round(cx+w/2),y1:Math.round(cy+h/2)});
  const inImage=b=>b.x0>=1&&b.y0>=1&&b.x1<width-1&&b.y1<height-1,clear=(b,gap=density*.6)=>boxes.every(q=>b.x1+gap<q.x0||q.x1+gap<b.x0||b.y1+gap<q.y0||q.y1+gap<b.y0);
@@ -319,8 +337,23 @@ function placeLabels(doc,scene,rect,ids=null){
   candidates.sort((p,q)=>p.d-q.d);target.anchor=candidates[0]||{x:Math.round(cx),y:Math.round(cy)};
   if(!candidates.length)for(let y=b.y0;y<=b.y1;y++)for(let x=b.x0;x<=b.x1;x++)if(owners[y*width+x]===id){const d=(x-cx)**2+(y-cy)**2;if(target.anchor.d==null||d<target.anchor.d)target.anchor={x,y,d};}
   let done=false;
-  for(const size of face.featureType?[5.5]:ids?[7,5.5,4.5]:[7]){const dims=measureBox(face.id,size);for(const c of candidates){const r=box(c.x,c.y,dims);if(inside(r,id)&&clear(r)){draw(face,r,size,false);done=true;break;}}if(done)break;}
+  for(const size of face.featureType?ids?[5.5,4.5]:[5.5]:ids?[7,5.5,4.5]:[7]){const dims=measureBox(face.id,size);for(const c of candidates){const r=box(c.x,c.y,dims);if(inside(r,id)&&clear(r)){draw(face,r,size,false);done=true;break;}}if(done)break;}
   if(!done&&ids)pending.push(target);
+ }
+ // Openings that did not fit: just outside an edge, on the opening's own wall. The box plus a margin
+ // must be that wall's pixels, so it never touches a face line, another opening, trim or detail.
+ const margin=3,gaps=[.8,1.4,2.2].map(g=>Math.round(g*density));
+ for(const target of pending.slice()){
+  const {face,id}=target;if(!face.featureType)continue;
+  const wall=new Set(surfaces.map((s,k)=>!s.featureType&&!s.openingTrim&&s.id&&s.id===face.wall?k:-1).filter(k=>k>=0));if(!wall.size)continue;
+  const b=bounds[id],mx=(b.x0+b.x1)/2,my=(b.y0+b.y1)/2,options=[];
+  for(const size of [5.5,4.5]){const dims=measureBox(face.id,size),hw=dims.w/2,hh=dims.h/2;
+   for(const g of gaps){
+    for(const [cx,cy]of [[mx,b.y0-g-hh],[mx,b.y1+g+hh],[b.x1+g+hw,my],[b.x0-g-hw,my],[b.x1-hw,b.y0-g-hh],[b.x0+hw,b.y0-g-hh],[b.x1-hw,b.y1+g+hh],[b.x0+hw,b.y1+g+hh]])options.push({size,r:box(cx,cy,dims)});
+   }}
+  const fits=r=>{const e={x0:r.x0-margin,y0:r.y0-margin,x1:r.x1+margin,y1:r.y1+margin};if(!inImage(e))return false;for(let y=e.y0;y<=e.y1;y++)for(let x=e.x0;x<=e.x1;x++)if(!wall.has(owners[y*width+x]))return false;return true;};
+  const hit=options.find(o=>clear(o.r)&&fits(o.r));
+  if(hit){draw(face,hit.r,hit.size,false);placed[placed.length-1].adjacent=true;pending.splice(pending.indexOf(target),1);}
  }
  const sample=(b,fn)=>{let n=0;for(let y=Math.max(0,b.y0);y<=Math.min(height-1,b.y1);y+=4)for(let x=Math.max(0,b.x0);x<=Math.min(width-1,b.x1);x+=4)n+=fn(owners[y*width+x]);return n;};
  const labeled=new Set(targets.map(t=>t.id));
@@ -488,7 +521,7 @@ function drawExteriorReportPages(doc,model,settings,begin,colors,pages={}){
    const ty=frame.y+frame.h+2;text(reportText('W ')+measure(a.width,"ft",number(a.width)+"'")+reportText("  x  H ")+measure(a.height,"ft",number(a.height)+"'"),xx+2,ty,7);doc.setFontSize(6.5);text(doc.splitTextToSize(material(a)+(a.chimney?' / Chimney':''),ww-4)[0],xx+2,ty+4.5,6.5);
   });});
  }
- if(want('openings'))paginate(begin,reportText('Opening Schedule'),[reportText('Opening'),reportText('Type'),reportText('Wall'),reportText('W x H'),(metric()?'Area m²':'Area ft2'),(metric()?'Trim m':'Trim ft')],model.openings.map(o=>[o.id,reportText(o.label),o.wall,openingSize(o),measure(o.area,"sf",number(o.area),false),(t=>t>0?measure(t,"ft",number(t),false):'-')(openingTrimLength(o))]),[1.4,1.9,1,2,1.3,1.3],reportText('Dimensions are drawn extents, not manufacturer or rough-opening sizes. Trim {value1} is measured along the outside edge of the trim; - means the opening has no trim.', {value1:unit('ft','ft')}));
+ if(want('openings'))paginate(begin,reportText('Opening Schedule'),[reportText('Opening'),reportText('Type'),reportText('Wall'),reportText('W x H'),(metric()?'Area m²':'Area ft2'),(metric()?'Trim m':'Trim ft')],model.openings.map(o=>[o.id,reportText(o.label)+(o.glass?', '+reportText('glass'):''),o.wall,openingSize(o),measure(o.area,"sf",number(o.area),false),(t=>t>0?measure(t,"ft",number(t),false):'-')(openingTrimLength(o))]),[1.4,1.9,1,2,1.3,1.3],reportText('Dimensions are drawn extents, not manufacturer or rough-opening sizes. Trim {value1} is measured along the outside edge of the trim; - means the opening has no trim.', {value1:unit('ft','ft')}));
  const byMaterial={};model.walls.forEach(a=>byMaterial[material(a)]=(byMaterial[material(a)]||0)+a.net);
  if(want('quantities')){begin(reportText('Exterior Quantities'));
  // Measured lengths on the left, trim by kind on the right.
@@ -509,15 +542,14 @@ function drawExteriorReportPages(doc,model,settings,begin,colors,pages={}){
 }
 /* The Wall Notes page has the Roof Notes page's layout and notes card (pdf.js pdfNotesLayout and
  drawPdfNotesCard): the four elevations as reference images (2 x 2) on the left, the ruled notes card
- on the right in landscape; stacked in portrait. The report's notes and model warnings are written on
- the card's rules; whatever does not fit continues on a page with a full notes card. */
+ on the right in landscape; stacked in portrait. The card is left blank for the customer's own notes,
+ like Roof Notes: nothing the system produces (model warnings, review text, exteriorSettings.notes) is
+ ever written on it (FM-311). */
 function drawExteriorNotes(doc,model,settings,begin,colors){
  const {text}=writer(doc,colors),heading=reportText('Wall Notes');begin(heading);
  const {cells,notes}=root.pdfNotesLayout(doc,4);
  houseDirections(settings).slice(0,4).forEach((view,i)=>{const c=cells[i];root.drawPdfCard(doc,c.x,c.y,c.w,c.h);text(reportText(view.name),c.x+4,c.y+6,9,true);drawDiagram(doc,houseFaces(model),{x:c.x+2,y:c.y+8,w:c.w-4,h:c.h-10},view);});
- const written=String(settings.notes||'').trim(),paragraphs=[...(written?[written]:[]),...(model.warnings||[]).map(n=>reportText('Review: ')+reportText(n))];
- let rest=root.drawPdfNotesCard(doc,notes,paragraphs,colors);
- while(rest.length){begin(heading+reportText(' - continued'));rest=root.drawPdfNotesCard(doc,root.pdfNotesLayout(doc,0).page,rest,colors);}
+ root.drawPdfNotesCard(doc,notes,[],colors);
 }
 async function loadReportImage(item,state){
  const img=new Image();img.crossOrigin='anonymous';

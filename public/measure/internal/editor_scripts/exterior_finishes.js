@@ -271,13 +271,13 @@ function texture(type){
  if(type==='soffit'){for(let x=0;x<256;x+=32){c.fillStyle='#9ca0a2';c.fillRect(x,0,2,256);c.fillStyle='#fafafa';c.fillRect(x+2,0,2,256);for(let y=8;y<256;y+=12){c.fillStyle='#9ca0a2';c.fillRect(x+13,y,2,2);c.fillRect(x+19,y,2,2);}}}
  if(type==='shingles'){c.fillStyle='#d3d3d3';c.fillRect(0,0,256,256);for(let row=0;row<4;row++){const y=row*64;for(let col=-1;col<4;col++){const x=col*85+(row%2?42:0);c.fillStyle=['#c6c6c6','#dedede','#cecece'][(col+row+3)%3];c.fillRect(x,y,84,63);c.fillStyle='#777';c.fillRect(x,y+61,85,3);c.fillStyle='#a0a0a0';c.fillRect(x,y,1,61);}}for(let i=0;i<8000;i++){c.fillStyle=i%2?'#ffffff18':'#00000018';c.fillRect((i*73)%256,(i*139+Math.floor(i/256)*31)%256,1,1);}}
  if(type==='brick'||type==='masonry'){c.strokeStyle='#a0a0a0';c.lineWidth=3;for(let y=0;y<256;y+=32){c.beginPath();c.moveTo(0,y);c.lineTo(256,y);for(let x=(y%64?32:0);x<=256;x+=64){c.moveTo(x,y);c.lineTo(x,y+32);}c.stroke();}}
- if(['stucco','stone','other'].includes(type)){for(let i=0;i<1800;i++){const x=(i*137)%256,y=(i*73+Math.floor(i/256)*17)%256;c.fillStyle=i%2?'#dadada':'#f8f8f8';c.fillRect(x,y,type==='stone'?7:1,type==='stone'?5:1);}}
+ if(['stucco','concrete','stone','other'].includes(type)){for(let i=0;i<1800;i++){const x=(i*137)%256,y=(i*73+Math.floor(i/256)*17)%256;c.fillStyle=i%2?'#dadada':'#f8f8f8';c.fillRect(x,y,type==='stone'?7:1,type==='stone'?5:1);}}
  const t=new THREE.CanvasTexture(canvas);t.wrapS=t.wrapT=THREE.RepeatWrapping;if(type==='opening-trim')t.wrapT=THREE.ClampToEdgeWrapping;t.anisotropy=4;if(THREE.SRGBColorSpace)t.colorSpace=THREE.SRGBColorSpace;else if(THREE.sRGBEncoding)t.encoding=THREE.sRGBEncoding;cache.set(type,t);return t;
 }
 // Opening maps cover one whole opening instead of repeating wall-sized tiles.
 const openingMaps=new Map();
 function openingTexture(finish){
- const type=finish.featureType,w=Math.max(.25,Math.round(finish.width*4)/4),h=Math.max(.25,Math.round(finish.height*4)/4),color=finish.color||(type==='door'||type==='garage'?stickerColor(type,'main'):type==='window'?stickerColor(type,'trim'):null)||({window:'#e8e7e1',skylight:'#41494e',door:'#c8c3b9',garage:'#deddd6',vent:'#d5d5ce'})[type]||'#deddd6',key=[type,w,h,color].join(':');
+ const type=finish.featureType,w=Math.max(.25,Math.round(finish.width*4)/4),h=Math.max(.25,Math.round(finish.height*4)/4),color=finish.color||(type==='door'||type==='garage'?stickerColor(type,'main'):type==='window'?stickerColor(type,'trim'):null)||({window:'#e8e7e1',skylight:'#41494e',door:'#c8c3b9',garage:'#deddd6',vent:'#d5d5ce'})[type]||'#deddd6',glass=!!finish.glass&&(type==='door'||type==='garage'),key=[type,w,h,color,glass?'glass':''].join(':');
  if(openingMaps.has(key)){const t=openingMaps.get(key);openingMaps.delete(key);openingMaps.set(key,t);return t;}
  const canvas=document.createElement('canvas');canvas.width=canvas.height=512;const c=canvas.getContext('2d'),N=512;
  const fill=(x,y,w,h,color)=>{c.fillStyle=color;c.fillRect(x,y,w,h);};
@@ -285,8 +285,9 @@ function openingTexture(finish){
  const bevel=(x,y,w,h,b=5)=>{fill(x,y,w,h,'#777d7c');fill(x+b,y+b,w-2*b,h-2*b,color);fill(x+1,y+1,w-2,Math.max(1,b/2),'#ffffffa0');fill(x+1,y+1,Math.max(1,b/2),h-2,'#ffffff70');fill(x+b,y+h-b,w-b,b,'#00000036');fill(x+w-b,y+b,b,h-b,'#00000028');};
  const bx=Math.min(40,Math.max(5,.045/w*N)),by=Math.min(40,Math.max(5,.045/h*N));
  fill(0,0,N,N,'#343a3c');fill(bx*.4,by*.4,N-bx*.8,N-by*.8,color);
- if(type==='window'||type==='skylight'){
-  const cols=type==='skylight'?1:Math.max(1,Math.min(4,Math.round(w/.95))),rows=type==='skylight'?1:h>1.05?2:1,gx=bx*.8,gy=by*.8,inner={x:bx*1.6,y:by*1.6,w:N-bx*3.2,h:N-by*3.2};
+ if(type==='window'||type==='skylight'||glass){
+  // A glass door is glazed like a window in its own frame colour: a pane per leaf, a garage door a pane per section.
+  const cols=type==='skylight'?1:type==='door'?(w>1.35?2:1):type==='garage'?Math.max(2,Math.min(8,Math.round(w/.65))):Math.max(1,Math.min(4,Math.round(w/.95))),rows=type==='skylight'||type==='door'?1:type==='garage'?Math.max(3,Math.min(6,Math.round(h/.52))):h>1.05?2:1,gx=bx*.8,gy=by*.8,inner={x:bx*1.6,y:by*1.6,w:N-bx*3.2,h:N-by*3.2};
   for(let row=0;row<rows;row++)for(let col=0;col<cols;col++){
    const x=inner.x+col*inner.w/cols+gx/2,y=inner.y+row*inner.h/rows+gy/2,pw=inner.w/cols-gx,ph=inner.h/rows-gy;
    fill(x-3,y-3,pw+6,ph+6,'#616c6e');
@@ -300,7 +301,7 @@ function openingTexture(finish){
    fill(x,y,2,ph,'#101e2355');fill(x,y,pw,2,'#101e2366');fill(x+pw-1,y,1,ph,'#d5e6e977');
   }
   gradient(bx, N-by*1.5,N-bx*2,by,[[0,'#ffffff88'],[.3,'#ffffff22'],[1,'#00000055']]);
-  if(rows===2){fill(N/2-8,N/2-2,16,4,'#a5a8a5');fill(N/2-4,N/2-4,8,3,'#ebede6');}
+  if(type==='window'&&rows===2){fill(N/2-8,N/2-2,16,4,'#a5a8a5');fill(N/2-4,N/2-4,8,3,'#ebede6');}
  }else if(type==='door'){
   const leaves=w>1.35?2:1;for(let leaf=0;leaf<leaves;leaf++){
    const x0=bx+leaf*(N-2*bx)/leaves,lw=(N-2*bx)/leaves;
@@ -342,7 +343,9 @@ function prepare(mesh,face,points,parameters){
  if(face.feature)mesh.userData.renderedOpening={points:face.points||points,feature:face.feature,color:face.finishColor||null};
  const W=root.WallSolidGeometry;
  if(face.feature&&['window','skylight','door','garage','vent'].includes(face.feature.type)){
-  const d=root.WallFeatures?.dimensions(face.points||points,face.feature);if(d){const uv=points.flatMap(p=>{const q=W.inFrame(d.frame,p);return [(q.x-d.bounds.left)/Math.max(1e-8,d.bounds.right-d.bounds.left),(q.y-d.bounds.bottom)/Math.max(1e-8,d.bounds.top-d.bounds.bottom)];});mesh.geometry.setAttribute('uv',new THREE.Float32BufferAttribute(uv,2));mesh.userData.exteriorFinish={feature:true,featureType:face.feature.type,width:d.width*.3048,height:d.height*.3048,color:face.finishColor||null,normal:d.frame.n};return;}
+  // A sticker on a curved face is laid out in metres on the surface, not across its chord.
+  const chart=face.curvedSurface?.logical&&parameters?root.ExteriorGeometry.surfaceChart(face.curvedSurface):null,laid=chart&&parameters.map(chart.toChart),span=laid&&{left:Math.min(...laid.map(p=>p.x)),right:Math.max(...laid.map(p=>p.x)),bottom:Math.min(...laid.map(p=>p.y)),top:Math.max(...laid.map(p=>p.y))};
+  let d=root.WallFeatures?.dimensions(face.points||points,face.feature);if(d&&span)d={...d,width:(span.right-span.left)/.3048,height:(span.top-span.bottom)/.3048,bounds:span};if(d){const uv=points.flatMap((p,i)=>{const q=laid?laid[i]:W.inFrame(d.frame,p);return [(q.x-d.bounds.left)/Math.max(1e-8,d.bounds.right-d.bounds.left),(q.y-d.bounds.bottom)/Math.max(1e-8,d.bounds.top-d.bounds.bottom)];});mesh.geometry.setAttribute('uv',new THREE.Float32BufferAttribute(uv,2));mesh.userData.exteriorFinish={feature:true,featureType:face.feature.type,width:d.width*.3048,height:d.height*.3048,color:face.finishColor||null,normal:d.frame.n,...(root.WallFeatures?.isGlass?.(face.feature)?{glass:true}:{})};return;}
  }
  if(face.openingTrim){
   const fr=W.faceFrame(face),a=face.points[0],b=face.points[1],length=Math.hypot(b.x-a.x,b.y-a.y,b.z-a.z),u={x:(b.x-a.x)/length,y:(b.y-a.y)/length,z:(b.z-a.z)/length},v={x:fr.n.y*u.z-fr.n.z*u.y,y:fr.n.z*u.x-fr.n.x*u.z,z:fr.n.x*u.y-fr.n.y*u.x},dot=(p,axis)=>(p.x-a.x)*axis.x+(p.y-a.y)*axis.y+(p.z-a.z)*axis.z,ys=points.map(p=>dot(p,v)),lo=Math.min(...ys),span=Math.max(...ys)-lo;

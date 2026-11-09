@@ -302,5 +302,22 @@ function summary(r){
  const edited=list([r.drafts?.removed?n(r.drafts.removed,'edited wall was','edited walls were')+(r.drafts.removed===1?' removed with its roof line':' removed with their roof lines'):'',r.drafts?.rebuilt?n(r.drafts.rebuilt,'edited wall was','edited walls were')+' rebuilt from the roof':'',r.drafts?.split?n(r.drafts.split,'edited wall was','edited walls were')+' split where the roof moved part of it':'']);
  return 'Roof change applied to the walls'+(lines?' ('+lines+')':'')+': '+(walls||'no walls changed')+'; everything else was kept.'+(edited?' '+edited[0].toUpperCase()+edited.slice(1)+'.':'')+(lost?' Removed with them: '+lost+'.':'')+' Undo restores the previous walls.';
 }
-const api={identify,diffWalls,patchWalls,matchChimneys,motion,carry,roofTrim,rebuild,summary,STAGES};if(node)module.exports=api;else root.WallRoofRebuild=api;
+// What following the change would take away: walls, edited walls, windows, doors, stickers and
+// faces. Empty when it only moves things. Wall mode asks before it follows a roof change that came
+// with the saved project and discards any of this (FM-347).
+function discards(r){
+ if(!r||r.unchanged)return [];
+ const n=(k,one,many=one+'s')=>k?k+' '+(k===1?one:many):'',counts={};for(const f of r.features||[])counts[f]=(counts[f]||0)+1;
+ return [n(r.walls?.removed,'wall'),n(r.drafts?.removed,'edited wall'),...Object.entries(counts).map(([k,v])=>n(v,k)),n(r.surfaces?.removed,'drawn face')].filter(Boolean);
+}
+// The offset most roof points moved by together (a select-all drag), with how many of them did;
+// null when no offset is shared by at least half the points, or nothing moved.
+function roofShift(before,after){
+ const a=before?.points||[],b=after?.points||[];if(!a.length||a.length!==b.length)return null;
+ const groups=new Map();
+ a.forEach((p,i)=>{const d={x:b[i].x-p.x,y:b[i].y-p.y,z:b[i].z-p.z},k=[d.x,d.y,d.z].map(v=>Math.round(v*1e3)).join(',');const g=groups.get(k);if(g)g.count++;else groups.set(k,{...d,count:1});});
+ const best=[...groups.values()].sort((x,y)=>y.count-x.count)[0];
+ return best.count*2>=a.length&&Math.hypot(best.x,best.y,best.z)>=.01?{x:best.x,y:best.y,z:best.z,count:best.count,of:a.length}:null;
+}
+const api={identify,diffWalls,patchWalls,matchChimneys,motion,carry,roofTrim,rebuild,summary,discards,roofShift,STAGES};if(node)module.exports=api;else root.WallRoofRebuild=api;
 })(typeof window==='undefined'?globalThis:window);

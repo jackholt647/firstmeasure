@@ -81,6 +81,47 @@ test('drawing-plane midpoint snapping respects the line center toggle',()=>{
  }
 });
 
+test('plane line centers keep their own bright batch and join the plane move snap',()=>{
+ for(const enabled of [true,false]){
+  const p=(x,z)=>({x,y:0,z}),a=p(1,1.5),b=p(3,1.5),face={id:'face',points:[p(0,0),p(4,0),p(4,4),p(0,4)]},side={id:'side',points:[{x:0,y:0,z:0},{x:0,y:3,z:0},{x:0,y:3,z:3},{x:0,y:0,z:3}]},f=fixture({state:{lineCenters:enabled,wallEdits:{$surfaces:[face,side],$loose:{points:[a,b],edges:[[a,b]]}}},walls:[],selected:null,globals:renderGlobals()});
+  f.editor.togglePlane(face);const objects=[];f.editor.draw3D({add:o=>objects.push(o)},q=>q);
+  const markers=objects.filter(o=>o.userData?.lineCenters),plane=markers.filter(o=>o.userData.planeGuide),other=markers.filter(o=>!o.userData.planeGuide);
+  assert.equal(plane.length,enabled?1:0);assert.equal(other.length,enabled?1:0);
+  if(enabled){assert.ok(plane[0].geometry.points.every(q=>Math.abs(q.y)<1e-9));assert.ok(plane[0].geometry.points.some(q=>q.x===2&&q.z===1.5),'a loose plane line has its center');assert.ok(other[0].geometry.points.every(q=>q.y>0));}
+  f.editor.doubleClick(f.e(1.94,1.53));const point=f.editor.pointSelection()[0];assert.ok(Math.abs(point.x-(enabled?2:1.94))<1e-6);assert.equal(point.z,1.5);
+ }
+});
+
+test('shift-click keeps a draft curve with other lines and V makes one ruled surface from the four',()=>{
+ const f=fixture({state:{lineCenters:true,wallEdits:{$surfaces:[],$loose:{points:[],edges:[]}}},walls:[],selected:null,globals:renderGlobals()}),K=require('../public/measure/internal/editor_scripts/exterior_geometry.js'),Sketch=require('../public/measure/internal/editor_scripts/base_sketch_geometry.js');
+ const arc=z=>K.arcPreview({x:2,y:0,z},{x:0,y:0,z},{x:-2,y:0,z},{x:0,y:0,z:1},{},false);
+ const d={constructionPlane:true,frame:{origin:{x:0,y:0,z:0},u:{x:1,y:0,z:0},v:{x:0,y:1,z:0},n:{x:0,y:0,z:1}},members:[],faces:[],sketch:{version:2,next:0,nodes:[],edges:[],outlines:[]}};Sketch.addCurve(d,arc(0));f.state.wallEdits.$drafts={'plane-curves-0':d};
+ const top={...arc(3),id:'top'},v=x=>[{x,y:0,z:0},{x,y:0,z:3}],vertical=x=>({id:'v'+x,pair:v(x)});f.state.wallEdits.$surfaces.push({id:'cap',points:K.curveSamples(top).map(({x,y,z})=>({x,y,z})),holes:[],curves:[top]});
+ const samples=K.curveSamples(top),pairs=samples.slice(1).map((p,i)=>[samples[i],p]);
+ const edgeIds=d.sketch.edges.map(e=>e.id);f.editor.restoreSelection({activeDraftKey:'plane-curves-0',pickedLines:edgeIds,lineSelection:[vertical(2),vertical(-2),{id:'spline:top',pair:pairs[0],pairs}]});
+ assert.equal(f.editor.createFaceFromLines(),true,f.message());
+ const face=f.state.wallEdits.$surfaces.at(-1);assert.equal(face.curvedSurface.type,'conic-ruled');assert.equal(face.points.length,4);assert.ok(Math.abs(K.surfaceArea(face)-Math.PI*2*3)<.05);
+});
+
+test('E on floating lines: a curve sweeps a real surface, a connected line offers planes, a lone line asks for one',()=>{
+ const K=require('../public/measure/internal/editor_scripts/exterior_geometry.js'),Sketch=require('../public/measure/internal/editor_scripts/base_sketch_geometry.js');
+ const arc=K.arcPreview({x:2,y:0,z:0},{x:0,y:0,z:0},{x:-2,y:0,z:0},{x:0,y:0,z:1},{},false),d={constructionPlane:true,frame:{origin:{x:0,y:0,z:0},u:{x:1,y:0,z:0},v:{x:0,y:1,z:0},n:{x:0,y:0,z:1}},members:[],faces:[],sketch:{version:2,next:0,nodes:[],edges:[],outlines:[]}};Sketch.addCurve(d,arc);
+ const up=[{x:2,y:0,z:0},{x:2,y:0,z:3}],lone=[{x:6,y:0,z:1},{x:7,y:0,z:1}],state={lineCenters:true,wallEdits:{$drafts:{a:d},$loose:{points:[...up,...lone],edges:[up,lone]}}};
+ const f=fixture({state,walls:[],selected:null,globals:renderGlobals()}),before=JSON.stringify(state.wallEdits);f.listeners.pointermove(f.e(1,1));
+ f.editor.restoreSelection({activeDraftKey:'a',pickedLines:d.sketch.edges.map(e=>e.id)});f.editor.key({key:'e'});assert.match(f.message(),/Perpendicular to its plane/);f.editor.distanceInput().set(3);
+ const wall=state.wallEdits.$surfaces.at(-1);assert.equal(wall.curvedSurface.type,'ellipse-extrusion');assert.equal(wall.curvedSurface.logical,true);assert.ok(Math.abs(K.surfaceArea(wall)-Math.PI*2*3)<.05);assert.equal(wall.curvedSurface.offset.z,3);
+ f.editor.key({key:'Escape'});assert.equal(JSON.stringify(state.wallEdits),before);
+ f.editor.restoreSelection({lineSelection:[{id:'up',pair:up}]});f.editor.key({key:'e'});assert.match(f.message(),/Plane of a connected line/);f.editor.distanceInput().set(1);const side=state.wallEdits.$surfaces.at(-1);assert.ok(side.points.every(p=>Math.abs(p.x-2)<1e-6||p.y!==0));f.editor.key({key:'Escape'});
+ f.editor.restoreSelection({lineSelection:[{id:'lone',pair:lone}]});f.editor.key({key:'e'});assert.match(f.message(),/no connected lines/);assert.equal(f.editor.planeActive(),true);f.editor.key({key:'Escape'});assert.equal(f.editor.planeActive(),false);assert.equal(JSON.stringify(state.wallEdits),before);
+});
+
+test('a nudged point on a curved face stays on the surface and stays selected',()=>{
+ const K=require('../public/measure/internal/editor_scripts/exterior_geometry.js'),arc=K.arcPreview({x:2,y:0,z:0},{x:0,y:0,z:0},{x:-2,y:0,z:0},{x:0,y:0,z:-1},{},false),domains=[{points:[{x:0,y:0},{x:1,y:0},{x:1,y:1},{x:0,y:1}],holes:[]}],c={type:'ellipse-extrusion',curve:arc,offset:{x:0,y:0,z:3},logical:true,domains},bay={id:'bay',holes:[],points:domains[0].points.map(p=>K.surfacePoint(c,p.x,p.y)),curvedSurface:c},state={lineCenters:true,wallEdits:{$surfaces:[bay]}};
+ const f=fixture({state,walls:[],selected:null,globals:renderGlobals()}),corner=bay.points[0],key=[corner.x,corner.y,corner.z].map(v=>v.toFixed(6)).join(',');f.editor.restoreSelection({solidPoints:[key]});
+ const press=key=>f.editor.key({key,shiftKey:true,preventDefault(){},stopPropagation(){}}),inside=()=>state.wallEdits.$surfaces[0].curvedSurface.domains[0].points.some(p=>p.y===0&&p.x>0&&p.x<1);press('ArrowRight');if(!inside())press('ArrowLeft');const first=state.wallEdits.$surfaces[0].points.map(p=>p.x);press(inside()?'ArrowLeft':'ArrowRight');
+ const moved=state.wallEdits.$surfaces[0];assert.ok(moved.points.every(p=>Math.abs(Math.hypot(p.x,p.y)-2)<1e-6),'every corner is still on the circle');const travelled=moved.curvedSurface.domains[0].points.some(p=>p.y===0&&p.x>0&&p.x<1);assert.ok(travelled,f.message());
+});
+
 test('repeated M never commits or rebases point moves before placement',()=>{
  for(const z of [2,4]){
   const f=fixture({globals:{isFreeMove:true}});f.editor.doubleClick(f.e(2,z),f.w);f.listeners.pointermove(f.e(2,z));const before=JSON.stringify(f.state.wallEdits),count=f.history.length;
@@ -714,7 +755,7 @@ test('library placement creates editable geometry and cancellation leaves no sti
  let f;f=fixture({featureHost:()=>{const d=f.d();return {d,f:d.faces[0],points:d.faces[0].points.map(p=>({x:p.x,y:0,z:p.y}))};},globals:renderGlobals(),projectPoint:(d,e)=>d.frame?require('../public/measure/internal/editor_scripts/wall_solid_geometry.js').inFrame(d.frame,{x:e.clientX/100,y:0,z:e.clientY/100}):({x:e.clientX/100,y:e.clientY/100,z:0})});f.editor.beginFace(f.e(2,2),f.w);f.listeners.pointerup(f.e(2,2));const before=JSON.stringify(f.state.wallEdits);f.editor.featureCommand('window',0,true);f.listeners.pointermove(f.e(2,2));f.editor.key({key:'escape'});assert.equal(JSON.stringify(f.state.wallEdits),before);
  f.editor.featureCommand('window',0,true);f.listeners.pointermove(f.e(2,2));f.editor.down(f.e(2,2));assert.ok(f.d().faces.some(f=>f.feature?.type==='window'),f.message());assert.equal(f.editor.busy(),false);assert.ok(f.d().sketch.edges.some(e=>!e.fixed));
 });
-function stickerFixture(type='window',point=[2,2],options={}){let f;const W=require('../public/measure/internal/editor_scripts/wall_solid_geometry.js');f=fixture({...options,featureHost:()=>{const d=f.d();return {d,f:d.faces[0],points:d.faces[0].points.map(p=>({x:p.x,y:0,z:p.y}))};},globals:renderGlobals(),projectPoint:(d,e)=>d.frame?W.inFrame(d.frame,{x:e.clientX/100,y:0,z:e.clientY/100}):({x:e.clientX/100,y:e.clientY/100,z:0})});f.editor.beginFace(f.e(2,2),f.w);f.listeners.pointerup(f.e(2,2));f.editor.featureCommand(type,0,true);f.listeners.pointermove(f.e(...point));f.editor.down(f.e(...point));return f;}
+function stickerFixture(type='window',point=[2,2],options={}){let f;const W=require('../public/measure/internal/editor_scripts/wall_solid_geometry.js');f=fixture({...options,featureHost:()=>{const d=f.d();return {d,f:d.faces[0],points:d.faces[0].points.map(p=>({x:p.x,y:0,z:p.y}))};},globals:renderGlobals(),projectPoint:(d,e)=>d.frame?W.inFrame(d.frame,{x:e.clientX/100,y:0,z:e.clientY/100}):({x:e.clientX/100,y:e.clientY/100,z:0})});f.editor.beginFace(f.e(2,2),f.w);f.listeners.pointerup(f.e(2,2));f.editor.featureCommand(type,0,true);options.beforePlace?.(f);f.listeners.pointermove(f.e(...point));f.editor.down({...f.e(...point),shiftKey:!!options.keepPlacing});return f;}
 test('door resizing keeps its floor anchor and corner with boundary split points intact',()=>{const F=require('../public/measure/internal/editor_scripts/wall_features.js'),f=stickerFixture('door',[.4572,1.04]);let door=()=>f.d().faces.find(f=>f.feature);assert.ok(door(),f.message());assert.ok(Math.abs(F.bounds(door().points).bottom)<1e-8);assert.ok(Math.abs(F.bounds(door().points).left)<1e-8);f.editor.key({key:'D',shiftKey:true});assert.equal(door().feature.preset,1,f.message());assert.ok(Math.abs(F.bounds(door().points).bottom)<1e-8);assert.ok(Math.abs(F.bounds(door().points).left)<1e-8);assert.ok(f.d().faces.length>1);});
 test('vent cycles rectangle square circle and back without losing the host face',()=>{const f=stickerFixture('vent');for(const index of [1,2,0]){f.editor.featureCommand('vent',index);const vent=f.d().faces.find(f=>f.feature);assert.equal(vent?.feature.preset,index,f.message());// A round vent is two elliptical arcs (wall_stickers.js), not a 48-point polygon.
  assert.ok(index===2?vent.curves?.length===2&&vent.curves.every(c=>c.type==='ellipse'):vent.points.length>=4&&!vent.curves?.length,JSON.stringify(vent.curves));assert.ok(f.d().faces.some(f=>!f.feature));}});
@@ -2445,6 +2486,27 @@ test('the reconciled lower-tower junction remains editable with Resoffit',()=>{
  f.editor.restoreSelection({lineSelection:[{pair:line.pair}]});assert.equal(f.editor.resoffit(.1524),true,f.message());assert.equal(f.history.length,1);assert.equal(JSON.stringify(f.history[0]),before);
  const contacts=f.editor.soffitEdges().filter(c=>c.source.id===line.source.id);assert.ok(contacts.length);assert.ok(contacts.every(c=>Math.abs(c.inset-.1524)<.002));
 });
+// Renz, Nov 4 (training house with three octagonal turrets): two turret lines at 0.5 ft were
+// refused with "The split wall needs a connected sketch point", and so was every other edit.
+// Each edit drafts the walls it builds its scene from. Two surveyed runs beside the turrets
+// end where the survey clean-up moved the outline's far corners 1.5 mm off the walls, so
+// keeping only the walls' own outline vertices left a crossed (bow-tie) ring.
+test('Resoffit on a turret is not refused because a neighbouring run drafts a crossed outline',()=>{
+ const R=require('../public/measure/internal/editor_scripts/wall_resoffit'),C=require('../public/measure/internal/editor_scripts/wall_chimneys'),K=require('../public/measure/internal/editor_scripts/exterior_geometry');
+ const state=structuredClone(require('./fixtures/turret-house-sliver-run.json')),f=fixture({state,walls:state.alignedWalls,selected:null,globals:{WallResoffit:R,WallChimneys:C}}),before=JSON.stringify(state.wallEdits);
+ const lines=f.editor.soffitEdges().filter(c=>['R31.0','R32.0'].includes(c.source.id));assert.equal(lines.length,2);
+ f.editor.restoreSelection({lineSelection:lines.map(c=>({pair:c.pair}))});assert.equal(f.editor.resoffit(.1524),true,f.message());
+ assert.equal(f.history.length,1);assert.equal(JSON.stringify(f.history[0]),before);
+ assert.ok(f.editor.soffitEdges().filter(c=>['R31.0','R32.0'].includes(c.source.id)).every(c=>Math.abs(c.inset-.1524)<.002),'both turret walls sit 0.5 ft in');
+ // The two runs are drafted, each as one simple region that keeps all four corners.
+ for(const run of ['R117','R127']){const [key,d]=Object.entries(state.wallEdits.$drafts).find(([k])=>k.startsWith(run+':0:body-1'));const live=d.faces.filter(r=>!r.boundaryHole&&!r.solidId&&!r.feature);
+  assert.ok(live.length,key);for(const r of live){assert.equal(K.normalizeFaces(structuredClone(r)).length,1,key+' '+JSON.stringify(r.points));}
+  const xs=d.faces.filter(r=>!r.boundaryHole).flatMap(r=>r.points.map(p=>p.x));assert.ok(Math.max(...xs)-Math.min(...xs)>1,key+' spans the whole run');}
+ // Validation is unchanged: a new draft whose region crosses itself is still refused.
+ const ring=[[.0516,63.71],[.0516,66.5593],[0,66.611],[0,66.9261]],nodes=ring.map(([x,y],i)=>({id:'p'+i,x,y,z:0}));
+ const M=require('../public/measure/internal/editor_scripts/exterior_model'),crossed={$drafts:{x:{origin:{x:0,y:0,z:0},u:{x:1,y:0},members:['x'],sketch:{nodes,edges:[]},faces:[{id:'wall-region-0',points:nodes.map(n=>({x:n.x,y:n.y,z:0,nodeId:n.id}))}]}}};
+ assert.throws(()=>M.validateEdits(crossed,{}),/connected sketch point/);
+});
 
 
 test('roof-contact highlights use screen coordinates and render above the roof only when visible',()=>{
@@ -2602,6 +2664,59 @@ test('reload repairs stale consumed Resoffit masks without moving replacement fa
  const repaired=JSON.stringify(saved.wallEdits);f.normalize();assert.equal(JSON.stringify(saved.wallEdits),repaired,'repair is idempotent');
 });
 
+
+// A line move that pulls a notch edge onto the outline (as on a chimney side,
+// Nov 4) simplifies the replacement face. Its consumed mask follows the sketch
+// nodes and once kept a repeated corner and a zero-width spike, which the
+// triangulation can refuse if the region is ever shown again.
+test('a line move that closes an outline notch leaves a consumed mask matching its replacement face',()=>{
+ const K=require('../public/measure/internal/editor_scripts/exterior_geometry.js'),P=(x,z)=>({x,y:0,z});
+ const walls=[{id:'a',mergeGroup:'g',bottom:[P(0,1),P(3,1)],top:[P(0,4),P(3,4)]},{id:'b',mergeGroup:'g',bottom:[P(3,0),P(4,0)],top:[P(3,4),P(4,4)]}];
+ const state={wallEdits:{$surfaces:[{id:'beside',points:[P(0,0),P(3,0),P(3,1),P(0,1)]}]}},f=fixture({state,walls,selected:null,globals:renderGlobals()});
+ f.editor.doubleClick(f.e(2,3),walls[0]);f.editor.key({key:'Escape'});f.editor.clear();const drafted=f.history.length;
+ let d=state.wallEdits.$drafts.g;const ring=ps=>ps.map(p=>[p.x,p.y].map(v=>(+v.toFixed(6)+0).toFixed(6)).join(','));
+ assert.deepEqual(ring(d.faces[0].points),ring([[0,1],[3,1],[3,0],[4,0],[4,4],[3,4],[0,4]].map(([x,y])=>({x,y}))),'the outline steps down into a tab');
+ // The notch edge goes onto the tab's outer edge: the tab closes to zero width.
+ f.editor.restoreSelection({lineSelection:[{pair:[P(3,0),P(3,1)]}]});f.listeners.pointermove(f.e(3,.5));f.editor.key({key:'m'});f.editor.distanceInput().set(-1);f.editor.key({key:'Enter'});
+ assert.equal(f.history.length,drafted+1,f.message());
+ d=state.wallEdits.$drafts.g;const mask=d.faces.find(r=>r.solidId),replacement=state.wallEdits.$surfaces.find(s=>s.id===mask?.solidId&&!s.deleted);assert.ok(replacement,'the region is consumed by a replacement face');
+ const local=p=>({x:(p.x-d.origin.x)*d.u.x+(p.y-d.origin.y)*d.u.y,y:p.z});
+ assert.deepEqual(ring(mask.points).sort(),ring(replacement.points.map(local)).sort(),'no repeated corner or zero-width spike');
+ assert.equal(new Set(ring(mask.points)).size,mask.points.length);assert.ok(mask.points.every(p=>d.sketch.nodes.some(n=>n.id===p.nodeId)),'the mask still follows sketch nodes');
+ // Shown again by any later edit, it triangulates.
+ K.triangles(mask.points,mask.holes||[]);
+ const lines=[];f.editor.draw3D({add:o=>{if(o.material?.color==='#6ce4ed'&&o.geometry?.points?.length===2)lines.push(o);}},p=>p);assert.equal(lines.length,0,'the closed tab leaves no loose wire');
+});
+
+// Renz's and Joanne's training projects (Nov 4) hold masks like these: a
+// zero-width spike on a chimney side and a 1 cm wall pulled to zero width.
+// Revealed, either one stopped every wall from showing after a reload.
+test('regions a line move collapsed load and show, whether still consumed or revealed again',()=>{
+ const K=require('../public/measure/internal/editor_scripts/exterior_geometry.js'),P=(x,z)=>({x,y:0,z});
+ const spike=[[0,64.97900299072265],[0,63.709999],[-1.3530569261637878e-7,63.709999084472706],[-1.3530569261637878e-7,64.97900299072265],[0.681644,65.659003],[0.681644,69.39753205946121],[0.378044,69.094]];
+ const sliver=[[0.038641459804510614,69.23138826993251],[0.038641459804510614,69.23138826993251],[0.038641459804510614,67.10521887924413],[0.038641459804510614,67.10521887924413]];
+ const saved=consumed=>{const nodes=[],region=(id,ps,dx)=>{const points=ps.map(([x,y])=>{const n={x:x+dx,y,z:0,id:'p'+nodes.length,fixed:true};nodes.push(n);return {x:n.x,y:n.y,z:0,nodeId:n.id};});return {id,points,holes:[],opening:false,...(consumed?{solidId:'line-move-draft:w:'+id+'-1'}:{})};};
+  const faces=[region('wall-region-0',spike,0),region('wall-region-1',sliver,2)],edges=faces.flatMap(f=>f.points.map((p,i)=>({id:'e'+p.nodeId,a:p.nodeId,b:f.points[(i+1)%f.points.length].nodeId,fixed:true})));
+  const d={members:['w'],origin:{x:0,y:0,z:0},u:{x:1,y:0},faces,sketch:{nodes,edges,outlines:[[{x:-1,y:63,z:0},{x:4,y:63,z:0},{x:4,y:70,z:0},{x:-1,y:70,z:0}]],next:nodes.length}};
+  // The spike's replacement is live; the 1 cm wall's was deleted afterwards.
+  const surfaces=consumed?[{id:faces[0].solidId,points:[P(0,63.71),P(.681644,63.71),P(.681644,69.397532),P(0,69.397532)],draftKey:'w',regionId:'wall-region-0'},{id:faces[1].solidId,deleted:true,points:[P(2,67.105219),P(2.009654,67.105219),P(2.009654,69.273836),P(2,69.273836)],draftKey:'w',regionId:'wall-region-1'}]:[];
+  return {wallEdits:{$drafts:{w:d},$surfaces:surfaces}};
+ };
+ const w={id:'w',bottom:[P(-1,63),P(4,63)],top:[P(-1,70),P(4,70)]},draw=f=>f.editor.draw3D({add(){}},p=>p);
+ // Revealed: the saved model cannot be drawn as it is.
+ let state=saved(false),f=fixture({state,walls:[w],selected:null,globals:renderGlobals()});
+ assert.throws(()=>draw(f),/does not define a valid planar region/);
+ f.normalize();assert.doesNotThrow(()=>draw(f));
+ const d=state.wallEdits.$drafts.w,signature=r=>r.points.map(p=>p.nodeId).sort().join('|'),shown=d.faces.filter(r=>!(d.deletedFaces||[]).includes(signature(r)));
+ assert.deepEqual(shown.map(r=>r.id),['wall-region-0'],'the zero-area wall shows nothing and is marked deleted');
+ assert.equal(new Set(shown[0].points.map(p=>p.x.toFixed(6)+','+p.y.toFixed(6))).size,shown[0].points.length,'the spike is gone');
+ assert.ok(Math.abs(K.area(shown[0])-K.area({points:spike.map(([x,y])=>({x,y,z:0}))}))<1e-6,'the region keeps its area');
+ const repaired=JSON.stringify(state.wallEdits);f.normalize();assert.equal(JSON.stringify(state.wallEdits),repaired,'repair is idempotent');
+ // Still consumed: nothing the person sees changes and the masks become showable.
+ state=saved(true);f=fixture({state,walls:[w],selected:null,globals:renderGlobals()});const surfaces=JSON.stringify(state.wallEdits.$surfaces);
+ assert.doesNotThrow(()=>draw(f));f.normalize();assert.doesNotThrow(()=>draw(f));assert.equal(JSON.stringify(state.wallEdits.$surfaces),surfaces);
+ for(const r of state.wallEdits.$drafts.w.faces){assert.ok(r.solidId);if(!(state.wallEdits.$drafts.w.deletedFaces||[]).includes(signature(r)))K.triangles(r.points,r.holes||[]);}
+});
 
 test('Q crosses the top and side of a wall without discarding existing draft points',()=>{
  const f=fixture({globals:{isFreeMove:true}});f.editor.doubleClick(f.e(2,4),f.w);
@@ -4066,4 +4181,50 @@ for(const fresh of [false,true])for(const keep of [false,true])for(const corner 
  const now=arched();assert.ok(now,'the arched window is still a window: '+f.message());assert.equal(ring(now),ring(start),'with the same outline');assert.ok(now.curves.length>=1,'and its arch');
  assert.ok(d().sketch.nodes.some(n=>n.id==='p650'),'the arch top stays');assert.ok(!d().sketch.nodes.some(n=>n.id===corner),'the corner is gone');
  assert.ok(d().sketch.edges.filter(e=>e.curveId).length>=2,'both arch segments stay');
+});
+test('glass doors: the selected door or garage door turns glass and back as one undo step each; windows have no glass option',()=>{
+ const F=require('../public/measure/internal/editor_scripts/wall_features.js');
+ for(const type of ['door','garage']){const f=stickerFixture('door',[2,1.04]),sticker=()=>f.d().faces.find(face=>face.feature),b=F.bounds(sticker().points),at=f.e((b.left+b.right)/2,(b.top+b.bottom)/2);
+  // Every garage preset is wider than the test wall: retype the placed door, keeping its size.
+  f.editor.pickSolid(at);f.listeners.pointerup(at);if(type==='garage')f.editor.featureCommand('garage',null);assert.equal(f.editor.featureSelection()?.feature?.type,type,f.message());assert.equal(sticker().feature.glass,undefined,'off until turned on');
+  const steps=f.history.length;assert.equal(f.editor.glassCommand(true),true,f.message());assert.equal(sticker().feature.glass,true);assert.equal(f.history.length,steps+1);assert.match(f.message(),/set to glass/);
+  assert.equal(f.editor.glassCommand(false),true);assert.equal('glass' in sticker().feature,false,'off is stored as absent');assert.equal(f.history.length,steps+2);}
+ const f=stickerFixture('window',[2,2]),win=()=>f.d().faces.find(face=>face.feature),b=F.bounds(win().points),at=f.e((b.left+b.right)/2,(b.top+b.bottom)/2);f.editor.pickSolid(at);f.listeners.pointerup(at);const steps=f.history.length;
+ assert.equal(f.editor.glassCommand(true),false);assert.equal(win().feature.glass,undefined);assert.equal(f.history.length,steps);assert.match(f.message(),/Select a door or garage door/);
+ // Every section of a divided door shares its material.
+ const p=(x,y,z)=>({x,y,z}),back={id:'back',points:[p(-5,0,-5),p(5,0,-5),p(5,0,5),p(-5,0,5)]},sections=F.divideSticker([{id:'d',points:[p(-3,0,0),p(-1,0,0),p(-1,0,2),p(-3,0,2)],feature:{type:'door'},holes:[]}],'vertical',1).faces,state={wallEdits:{$surfaces:[back,...sections]}},g=fixture({state,walls:[],selected:null});
+ g.editor.restoreSelection({selectedSolid:sections[0].id});assert.equal(g.editor.glassCommand(true),true,g.message());const doors=state.wallEdits.$surfaces.filter(s=>s.feature?.type==='door');assert.equal(doors.length,2);assert.ok(doors.every(s=>s.feature.glass===true),'both sections are glass');
+});
+test('the placement menu Glass box makes every door placed in that placement session glass, then resets',()=>{
+ const F=require('../public/measure/internal/editor_scripts/wall_features.js');
+ const f=stickerFixture('door',[1,1.04],{keepPlacing:true,beforePlace(f){assert.equal(f.editor.featurePlacement().glass,false,'off by default');assert.equal(f.editor.setPlacementGlass(true),true);}});
+ const doors=f.d().faces.filter(x=>x.feature?.type==='door');assert.equal(doors.length,1,f.message());assert.equal(F.isGlass(doors[0].feature),true,'placed as glass');
+ assert.equal(f.editor.featurePlacement()?.glass,true,'Shift-click keeps placing with glass on');
+ f.editor.featureCommand('window',0,true);assert.equal(f.editor.featurePlacement().glass,true,'switching type in the same session keeps the box');
+ f.editor.key({key:'escape'});assert.equal(f.editor.featurePlacement(),null);assert.equal(f.editor.setPlacementGlass(true),false,'nothing to set without a placement session');
+ f.editor.featureCommand('door',0,true);assert.equal(f.editor.featurePlacement().glass,false,'a new placement session starts without glass');
+ const plain=stickerFixture('door',[1,1.04]);assert.equal('glass' in plain.d().faces.find(x=>x.feature?.type==='door').feature,false,'without the box a door has no glass key');
+});
+test('a chimney piece of a drafted wall belongs to that draft, not an undeletable extra wall',()=>{
+ // Distilled from exteriors_c0db68879966185ccd88f0df6701e340 (QA, Nov 3 2026). The rake draft
+ // listed envelope-0-6-1 before a chimney side was moved onto that wall; WallChimneys.compose then
+ // split off envelope-0-6-1:chimney-cut-1. No draft listed the piece, so it was drawn again as a
+ // generated wall, and a click on it reached the merged draft, whose only region is consumed.
+ const M=require('../public/measure/internal/editor_scripts/exterior_model.js');
+ const key='envelope-0-6-1|envelope-0-6-5:roof-2',origin={x:-8.2946,y:-4.2681,z:0},u={x:-.018,y:.99984},piece='envelope-0-6-1:chimney-cut-1';
+ const outline=[[9.4106,169.8179],[5.1698,171.2636],[4.2408,171.2636],[0,169.8178],[0,164.27],[9.4106,164.27]].map(([x,y])=>({x,y,z:0})),nodes=outline.map((p,i)=>({...p,id:'p'+i,fixed:true}));
+ const world=p=>({x:origin.x+u.x*p.x,y:origin.y+u.y*p.x,z:p.y}),wall=(id,a,b,za,zb,extra={})=>({id,kind:'perimeter',type:'rake',sourceId:'R12.0',...extra,bottom:[{...a,z:164.27},{...b,z:164.27}],top:[{...a,z:za},{...b,z:zb}]});
+ const walls=[wall('envelope-0-6-1',{x:-8.464,y:5.141},{x:-8.4142,y:2.3757},169.8179,170.7608,{mergeGroup:key}),wall(piece,{x:-8.3977,y:1.4614},{x:-8.3876,y:.9009},171.0725,171.2636,{mergeGroup:key}),wall('envelope-0-6-5:roof-2',{x:-8.3876,y:.9009},{x:-8.3709,y:-.0279},171.2636,171.2636,{mergeGroup:key})];
+ const state={wallEdits:{$drafts:{[key]:{origin,u,members:['envelope-0-6-1','envelope-0-6-5:roof-2'],faces:[{id:'wall-region-0',points:nodes.map(n=>({x:n.x,y:n.y,z:0,nodeId:n.id})),holes:[],solidId:'rake-wall'}],sketch:{version:2,next:nodes.length,nodes,edges:[],outlines:[outline]}}},$surfaces:[{id:'rake-wall',points:outline.map(world)}]}};
+ const f=fixture({state,walls,selected:null});
+ assert.equal(f.editor.has(piece),true,'wall mode draws only walls without a draft');
+ assert.deepEqual(M.collect(state,walls).filter(face=>face.id.startsWith('wall:')).map(face=>face.id),[],'no duplicate face reaches the report');
+ // A piece outside the draft's outline (the draft was made after the cut) stays its own wall and deletes.
+ const p=(x,z)=>({x,y:0,z}),opts={selectedId:'wall-x',select:id=>opts.selectedId=id};
+ const separate={wallEdits:{$drafts:{'wall-x':{origin:p(0,0),u:{x:1,y:0},members:['wall-x'],faces:[{id:'wall-region-0',points:[{x:0,y:0,z:0,nodeId:'a'},{x:2,y:0,z:0,nodeId:'b'},{x:2,y:4,z:0,nodeId:'c'},{x:0,y:4,z:0,nodeId:'d'}]}],sketch:{version:2,next:4,nodes:[{id:'a',x:0,y:0,fixed:true},{id:'b',x:2,y:0,fixed:true},{id:'c',x:2,y:4,fixed:true},{id:'d',x:0,y:4,fixed:true}],edges:[],outlines:[[{x:0,y:0},{x:2,y:0},{x:2,y:4},{x:0,y:4}]]}}}}};
+ const cut={id:'wall-x:chimney-cut-1',bottom:[p(3,0),p(4,0)],top:[p(3,4),p(4,4)]},g=fixture(Object.assign(opts,{state:separate,walls:[{id:'wall-x',bottom:[p(0,0),p(2,0)],top:[p(0,4),p(2,4)]},cut]}));
+ assert.equal(g.editor.has(cut.id),false);
+ // The draft projection is face-local: the new draft starts at the piece.
+ g.editor.beginFace(g.e(.5,2),cut);g.listeners.pointerup(g.e(.5,2));assert.match(g.message(),/1 face selected/);
+ g.editor.key({key:'Delete'});assert.equal(g.history.length,1,g.message());assert.equal(separate.wallEdits.$drafts[cut.id].deletedFaces.length,1);assert.equal(separate.wallEdits.$drafts['wall-x'].deletedFaces,undefined);
 });

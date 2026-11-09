@@ -2383,7 +2383,7 @@
 
   /* ───────────── IMPERSONATE USER ───────────── */
 
-  async function impersonateUser(email, displayName, userId){
+  async function impersonateUser(email, displayName, userId, orgId){
     if (!confirm(
       'Switch to "' + displayName + '" (' + email + ')?\n\n' +
       'A new tab will open with the customer portal as this user.\n' +
@@ -2402,7 +2402,7 @@
         action: 'admin_impersonate_user',
         email,
         user_id: userId || '',
-        org_id: (currentOrg && currentOrg.id) ? currentOrg.id : '',
+        org_id: orgId || ((currentOrg && currentOrg.id) ? currentOrg.id : ''),
         actor_email: actor.email || actor.user_email || '',
         actor_name: actor.name || actor.user_name || '',
         actor_role: actor.role || actor.user_role || '',
@@ -2972,7 +2972,9 @@
               userPermission,
               (user.orderCount || 0) > 0 ? 'Yes' : 'No',
               user.orderCount || 0,
-              userEmail && String(orgContact.email || '').trim().toLowerCase() === String(userEmail).trim().toLowerCase() ? 'Yes' : 'No'
+              userEmail && String(orgContact.email || '').trim().toLowerCase() === String(userEmail).trim().toLowerCase() ? 'Yes' : 'No',
+              org.country || '',
+              org.country_name || ''
             ]);
           });
       });
@@ -3044,7 +3046,9 @@
       'user_permission_level',
       'user_has_orders',
       'user_order_count',
-      'user_matches_org_contact_email'
+      'user_matches_org_contact_email',
+      'organization_country',
+      'organization_country_name'
     ];
     const tsv = [header, ...rows]
       .map(cols => cols.map(tsvCell).join('\t'))
@@ -3253,7 +3257,7 @@
     },
     async onShow(){ await loadCustomers(); },
     openOrgDetail(orgId){ openOrgDetail(orgId); },
-    impersonateUser(email, name){ impersonateUser(email, name); }
+    impersonateUser(email, name, userId, orgId){ impersonateUser(email, name, userId, orgId); }
   };
 
   const origSwitch = Portal.switchView ? Portal.switchView.bind(Portal) : null;

@@ -29,16 +29,17 @@ test('From Roof resolves chimney heights once, shares them with the base, and pr
  const fresh=fixture(true,{imageWidth:width,imageHeight:height,getMetersPerPx:()=>mpp,activeGeometry});fresh.ctx.WallMode.restore('fixture',{exteriorsWalls:saved});
  assert.equal(fresh.ctx.WallMode.serialize().chimneys.items[0].extension.distance,saved.chimneys.items[0].extension.distance,'saved inference survives without a loaded height map');
 });
-function fixture(withBase=false,editors={}){
+function fixture(withBase=false,editors={},{bodyClasses=[]}={}){
     const elements=new Map(),listeners={},storage=new Map(),timers=new Map();let timerId=0;
     const el=(id='')=>({id,hidden:false,disabled:false,value:'',textContent:'',dataset:{},style:{},
         classList:{toggle(){},add(){},remove(){}},attributes:{},setAttribute(k,v){this.attributes[k]=v;},addEventListener(){},
-        prepend(...children){children.forEach(c=>this.appendChild(c));},append(...children){children.forEach(c=>this.appendChild(c));},querySelector(){return null;},appendChild(child){if(child.id)elements.set(child.id,child);},remove(){elements.delete(this.id);},
+        prepend(...children){children.forEach(c=>this.appendChild(c));},append(...children){children.forEach(c=>this.appendChild(c));},querySelector(){return null;},appendChild(child){(this.children||=[]).push(child);if(child.id)elements.set(child.id,child);},remove(){elements.delete(this.id);},
         querySelectorAll(selector){return selector==='[data-stage]'?stages:selector==='[data-soffit]'?soffits:selector==='[data-resoffit]'?resoffits:[];}});
     const stages=[1,2,3,4,5,6,7].map(n=>({...el(),dataset:{stage:String(n)}}));
     const soffits=['auto','12','18','24'].map(n=>({...el(),dataset:{soffit:n}}));
     const resoffits=['0','0.5','1','1.5','2','wallless'].map(n=>({...el(),dataset:{resoffit:n}}));
-    const document={readyState:'loading',head:el(),body:el(),createElement:()=>el(),
+    const body=el();body.classList={...body.classList,contains:name=>bodyClasses.includes(name)};
+    const document={readyState:'loading',head:el(),body,createElement:()=>el(),
         addEventListener:(name,fn)=>listeners[name]=fn,querySelectorAll:()=>[],
         getElementById(id){if(id==='geoSvg'||id==='measurement-panel')return elements.get(id)||null;if(!elements.has(id))elements.set(id,el(id));return elements.get(id);}};
     const points=[{x:0,y:0,z:8},{x:10,y:0,z:8},{x:10,y:10,z:8},{x:0,y:10,z:8}];
@@ -53,10 +54,38 @@ function fixture(withBase=false,editors={}){
     listeners.DOMContentLoaded();ctx.WallMode.restore('fixture',{});
     return {ctx,elements,stages,soffits,resoffits,el,listeners,flushTimers(){for(const [id,fn] of [...timers]){timers.delete(id);fn();}}};
 }
+// FM-322: walls resume from the browser backup after a reload, the roof drawing only from the last Save. A house
+// with no roof drawing could not run Measurements or submit its report; the roof the walls were built from comes back.
+test('walls restored over an empty roof drawing bring back the roof they were built from',()=>{
+ const f=fixture(true);f.ctx.activeGeometry.connections[0].type='eave';f.ctx.WallMode.setEnabled(true);f.soffits[1].onclick();
+ const saved=f.ctx.WallMode.serialize(),drawn=f.ctx.activeGeometry,shape=g=>JSON.parse(JSON.stringify({points:g.points.map(p=>[p.x,p.y,p.z]),connections:g.connections.map(c=>[g.points.indexOf(c.start),g.points.indexOf(c.end),c.type]),manualFaces:g.manualFaces.map(m=>m.points.map(p=>g.points.indexOf(p)))})),warn=console.warn;
+ assert.ok(saved.roofSignature&&saved.base,'walls were built');
+ console.warn=()=>{};
+ try{
+  const reloaded=fixture(true);reloaded.ctx.activeGeometry={points:[],connections:[],vents:[]};
+  reloaded.ctx.WallMode.restore('fixture',{exteriorsWalls:JSON.parse(JSON.stringify(saved)),geometry:{points:[],connections:[]}});
+  const roof=reloaded.ctx.activeGeometry;
+  assert.deepEqual(shape(roof),shape(drawn),'same points, lines, types and manual faces as the drawing');
+  assert.ok(roof.manualFaces[0].points.every(p=>roof.points.includes(p)),'manual faces share the restored points');
+  assert.ok(reloaded.ctx.WallMode.serialize().base,'the walls are kept');
+  assert.equal(reloaded.ctx.WallMode.serialize().roofSignature,saved.roofSignature);
+
+  // Another image context (a different calibration): the drawing is placed where it was on the ground.
+  const moved=fixture(true,{getMetersPerPx:()=>.5,imageWidth:20,imageHeight:20});moved.ctx.activeGeometry={points:[],connections:[],vents:[]};
+  moved.ctx.WallMode.restore('fixture',{exteriorsWalls:JSON.parse(JSON.stringify(saved))});
+  assert.deepEqual(JSON.parse(JSON.stringify(moved.ctx.activeGeometry.points.map(p=>[p.x,p.y,p.z]))),drawn.points.map(p=>[10+(p.x-5)*2,10+(p.y-5)*2,p.z]));
+
+  // A roof drawing that is there is never replaced.
+  const kept=fixture(true),own=kept.ctx.activeGeometry,before=JSON.stringify(own);
+  kept.ctx.WallMode.restore('fixture',{exteriorsWalls:JSON.parse(JSON.stringify(saved))});
+  assert.equal(kept.ctx.activeGeometry,own);assert.equal(JSON.stringify(kept.ctx.activeGeometry),before);
+ }finally{console.warn=warn;}
+});
 test('Show Dev Controls settings checkbox gates the panel across roof/wall mode switches',()=>{
  let panel;
  const perf={controlsVisible:false,mount(target){panel=target;},setControlsVisible(value){this.controlsVisible=value;panel.hidden=!value;}};
- const {ctx,elements}=fixture(false,{ExteriorPerf:perf});
+ const {ctx,elements}=fixture(false,{ExteriorPerf:perf,FIRSTMEASURE_DEV_TOOLS:true});
+ assert.match(panel.innerHTML,/id="wall-show-dev-controls"/);
  const checkbox=elements.get('wall-show-dev-controls');
  assert.equal(checkbox.checked,false);
  ctx.WallMode.setEnabled(true);assert.equal(panel.hidden,true);
@@ -65,8 +94,29 @@ test('Show Dev Controls settings checkbox gates the panel across roof/wall mode 
  ctx.WallMode.setEnabled(true);assert.equal(panel.hidden,false);
  checkbox.checked=false;checkbox.onchange();assert.equal(panel.hidden,true);
  ctx.WallMode.setEnabled(false);ctx.WallMode.setEnabled(true);assert.equal(panel.hidden,true);
- const restored=fixture(false,{ExteriorPerf:{...perf,controlsVisible:true}});
+ const restored=fixture(false,{ExteriorPerf:{...perf,controlsVisible:true},FIRSTMEASURE_DEV_TOOLS:true});
  assert.equal(restored.elements.get('wall-show-dev-controls').checked,true);
+});
+
+// FM-340: QA opens the editor embedded with its header hidden (editor.php hide_header -> body.editor-embedded), so a
+// toggle in the address bar could not be seen and QA had no way back from wall mode to the roof.
+test('FM-340: with the header hidden the Wall mode / Return to roof toggle is in the toolbar',()=>{
+ const toggle=elements=>elements.get('wall-mode-toggle'),parentOf=(elements,id)=>['toolbar-action-group','addressBarContainer'].find(p=>(elements.get(p)?.children||[]).includes(toggle(elements)));
+ const qa=fixture(false,{},{bodyClasses:['editor-embedded']});
+ assert.equal(parentOf(qa.elements,'wall-mode-toggle'),'toolbar-action-group');
+ qa.ctx.WallMode.setEnabled(true);assert.equal(toggle(qa.elements).textContent,'Return to roof');assert.equal(toggle(qa.elements).attributes['aria-pressed'],'true');
+ qa.ctx.WallMode.setEnabled(false);assert.equal(toggle(qa.elements).textContent,'Wall mode');
+ const tech=fixture();assert.equal(parentOf(tech.elements,'wall-mode-toggle'),'addressBarContainer','with the header shown it stays in the address bar');
+});
+
+test('FM-336: off development the settings menu has no Show Dev Controls toggle and the panel stays hidden',()=>{
+ let panel;
+ const perf={controlsVisible:false,mount(target){panel=target;},setControlsVisible(){throw Error('nothing may turn dev controls on');}};
+ const {ctx,elements}=fixture(false,{ExteriorPerf:perf});
+ assert.doesNotMatch(panel.innerHTML,/wall-show-dev-controls|Show Dev Controls/);
+ assert.match(panel.innerHTML,/id="wall-auto-parapets"/,'the other settings stay');
+ assert.equal(elements.has('wall-show-dev-controls'),false);
+ ctx.WallMode.setEnabled(true);assert.equal(panel.hidden,true);
 });
 
 test('confirmed exterior reset keeps the roof, survives stale saved metadata, and supports undo, redo and regeneration',()=>{
@@ -830,8 +880,8 @@ test('DSM sampling restores image visibility on completion, cancellation and lea
 });
 
 test('From Roof uses a supported automatic ground plane when DSM evidence exists',()=>{
- const width=100,height=100,mpp=1,data=new Float32Array(width*height);for(let y=0;y<height;y++)for(let x=0;x<width;x++)data[y*width+x]=2+.02*(x-50)+.01*(y-50);
- const f=fixture(true,{imageWidth:width,imageHeight:height,layerData:{dsm:[data]}}),points=[{x:45,y:45,z:8},{x:55,y:45,z:8},{x:55,y:55,z:8},{x:45,y:55,z:8}];f.ctx.activeGeometry={points,connections:[{start:points[0],end:points[1],type:'eave'}],manualFaces:[{points}]};f.ctx.WallMode.setEnabled(true);f.soffits[1].onclick();const s=f.ctx.WallMode.serialize();assert.equal(s.ground.source,'DSM');assert.ok(Math.abs(s.ground.plane.dx-.02)<1e-5);assert.ok(Math.abs(s.ground.plane.dy-.01)<1e-5);assert.ok(s.base.faces.every(f=>f.points.every(p=>Math.abs(p.z-(2+.02*p.x+.01*p.y))<1e-5)));
+ const width=100,height=100,mpp=1,data=new Float32Array(width*height);for(let y=0;y<height;y++)for(let x=0;x<width;x++)data[y*width+x]=2+.05*(x-50)+.03*(y-50);
+ const f=fixture(true,{imageWidth:width,imageHeight:height,layerData:{dsm:[data]}}),points=[{x:45,y:45,z:8},{x:55,y:45,z:8},{x:55,y:55,z:8},{x:45,y:55,z:8}];f.ctx.activeGeometry={points,connections:[{start:points[0],end:points[1],type:'eave'}],manualFaces:[{points}]};f.ctx.WallMode.setEnabled(true);f.soffits[1].onclick();const s=f.ctx.WallMode.serialize();assert.equal(s.ground.source,'DSM');assert.ok(Math.abs(s.ground.plane.dx-.05)<1e-5);assert.ok(Math.abs(s.ground.plane.dy-.03)<1e-5);assert.ok(s.base.faces.every(f=>f.points.every(p=>Math.abs(p.z-(2+.05*p.x+.03*p.y))<1e-5)));
 });
 
 

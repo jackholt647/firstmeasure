@@ -1152,7 +1152,16 @@
                     let e=r.map((id,i)=>[id,r[(i+1)%r.length]]);
                     if(sourced)e=simplifyGeneratedEdges(points,e,junctions,1e-5,corrections);
                     const kept=new Set(e.flat());return r.filter(i=>kept.has(i));
-                },result=plan.result||rings.map(clean),outside=result.flatMap(r=>r.map((id,i)=>[id,r[(i+1)%r.length]]));
+                },triangulate=r=>K.triangles(r[0].map(i=>local(points[i])),r.slice(1).map(s=>s.map(i=>local(points[i]))));
+                // A roof edit can leave a junction vertex a fraction of a micron
+                // from a region corner: a sub-grid twist no triangulation accepts.
+                // One such region must not stop the walls from drawing, saving or
+                // loading (FM-312). Weld those vertices; if the ring still cannot
+                // be filled, keep the union's own rings, else draw the outline only.
+                const apart=(a,b)=>{const p=local(points[a]),q=local(points[b]);return Math.hypot(p.x-q.x,p.y-q.y)>K.CONTACT;},weld=r=>r.filter((id,i)=>i===0||apart(id,r[i-1])&&(i<r.length-1||apart(id,r[0]))),filled=r=>{try{return triangulate(r);}catch(_){return null;}};
+                let result=plan.result||rings.map(clean),mesh=filled(result);
+                if(!mesh){for(const next of [result.map(weld),rings.map(weld),rings])if(next.every(r=>r.length>=3)&&(mesh=filled(next))){result=next;break;}if(!mesh){result=rings;mesh={triangles:[]};}if(typeof console==='object')console.warn('[Walls] A merged wall region had a degenerate outline; '+(mesh.triangles.length?'welded it.':'drawing its outline only.'));}
+                const outside=result.flatMap(r=>r.map((id,i)=>[id,r[(i+1)%r.length]]));
                 // Boolean union also removes collinear stations. Carry every
                 // original boundary sample onto its surviving run, including
                 // samples that disappeared before simplification.
@@ -1164,7 +1173,7 @@
                     for(const [a,b]of outside){const v=local(points[a]),w=local(points[b]),dx=w.x-v.x;if(Math.abs(dx)<1e-8)continue;const t=(q.x-v.x)/dx,z=origin.z+v.y+(w.y-v.y)*t;if(t>=0&&t<=1&&Math.abs(z-p.z)<=tolerance){if(Math.abs(z-p.z)>1e-9)corrections.set(id,{...p,z});break;}}
                 }
                 boundary.push(...outside);
-                const mesh=K.triangles(result[0].map(i=>local(points[i])),result.slice(1).map(r=>r.map(i=>local(points[i])))),flat=result.flat();
+                const flat=result.flat();
                 output.push({...owner,pointIndices:result[0],...(result.length>1?{holes:result.slice(1)}:{}),boundary:outside,triangles:mesh.triangles.map(t=>t.map(i=>flat[i])),area:K.area(region)});
             }
             const ordinary=output.filter(f=>!f.mergeGroup).flatMap(f=>f.pointIndices.map((id,i)=>[id,f.pointIndices[(i+1)%f.pointIndices.length]]));
@@ -1200,7 +1209,25 @@
         }
         return group.map(w=>w.id);
     }
-    const api={canonicalGeneratedWalls,chimneyContact,layerSetback,roofLayers:roof=>roofLayers(roof,surfaces(roof)),soffitWithoutSources,splitParameters,mergeCoplanar,build,buildSources,extrude,deduplicate,topology,simplifyGeneratedRing,surveyedGeneratedRun,cleanSurveyRings,cleanSurveyedFaces,generatedGroupOutline,plane,contains,onEdge,generatedMoveGroup,INCH};
+    // A chimney splits a generated wall into `<id>:chimney-cut-N` pieces
+    // (WallChimneys.compose). A draft made before the chimney reached that
+    // wall lists only <id>, but its outline already covers the new pieces:
+    // they belong to the draft. Otherwise a piece is drawn a second time as a
+    // generated wall that no selection reaches, so it cannot be deleted. A
+    // piece outside the draft's outline stays a wall of its own.
+    function draftOwnsWall(d,w) {
+        if(!d||!w) return false;
+        const members=d.members||[];if(members.includes(w.id)) return true;
+        const cut=String(w.id).indexOf(':chimney-cut-');
+        if(cut<0||d.frame||!d.origin||!d.u||!members.includes(w.id.slice(0,cut))) return false;
+        const outlines=d.sketch?.outlines||[];if(!outlines.length) return false;
+        const ps=[w.bottom[0],w.bottom[1],w.top[1],w.top[0]];
+        if(ps.some(p=>Math.abs((p.x-d.origin.x)*d.u.y-(p.y-d.origin.y)*d.u.x)>.01)) return false;
+        const qs=ps.map(p=>({x:(p.x-d.origin.x)*d.u.x+(p.y-d.origin.y)*d.u.y,y:p.z}));
+        const centre={x:qs.reduce((s,p)=>s+p.x,0)/qs.length,y:qs.reduce((s,p)=>s+p.y,0)/qs.length};
+        return [...qs,centre].every(p=>outlines.some(points=>inside(p,points)));
+    }
+    const api={canonicalGeneratedWalls,chimneyContact,layerSetback,roofLayers:roof=>roofLayers(roof,surfaces(roof)),soffitWithoutSources,splitParameters,mergeCoplanar,build,buildSources,extrude,deduplicate,topology,simplifyGeneratedRing,surveyedGeneratedRun,cleanSurveyRings,cleanSurveyedFaces,generatedGroupOutline,plane,contains,onEdge,generatedMoveGroup,draftOwnsWall,INCH};
     if(typeof module!=='undefined'&&module.exports)module.exports=api;
     else root.WallGeometry=api;
 })(typeof window!=='undefined'?window:globalThis);

@@ -1225,7 +1225,8 @@ function surfaceWire(edits){const curved=K.compactSurfaces(edits.$surfaces||[]).
  for(const f of curved){const mesh=K.surfaceMesh(f),anchors=new Set(f.points.map(vertexKey));
   const onBoundary=p=>{const uv=K.surfaceUV(f.curvedSurface,p);if(!Number.isFinite(uv.x)||Math.hypot(...Object.values(sub(K.surfacePoint(f.curvedSurface,uv.x,uv.y),p)))>.002)return false;return f.curvedSurface.domains.some(d=>[d.points,...(d.holes||[])].some(r=>r.some((a,i)=>pointOnEdge(uv,{...a,z:0},{...r[(i+1)%r.length],z:0}))));};
   for(const n of nodes.values())if(!anchors.has(n.id)&&onBoundary(n))n.curveSample=true;
-  for(const [id,e]of edges)if(onBoundary(nodes.get(e.a))&&onBoundary(nodes.get(e.b)))edges.delete(id);
+  // A chord across the surface joins two boundary points without being boundary.
+  for(const [id,e]of edges){const a=nodes.get(e.a),b=nodes.get(e.b);if(onBoundary(a)&&onBoundary(b)&&onBoundary(mix3(a,b,.5)))edges.delete(id);}
   for(const [index,ps]of mesh.boundaries.entries()){const id=f.id+'~curve-'+index;for(let i=0;i<ps.length;i++){const p=ps[i],key=vertexKey(p);nodes.set(key,{...p,id:key,curveSample:!anchors.has(key)});if(i){const a=vertexKey(ps[i-1]);edges.set(id+':'+i,{id,a,b:key,curve:true,surfaceId:f.id});}}}
  }
  // Analytic arch boundaries remain one selectable curve. Tessellation vertices

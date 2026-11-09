@@ -61,7 +61,7 @@ function collect(state,rawWalls=[]){
  for(const f of edits.$surfaces||[])if(!f.deleted&&!f.drafted)faces.push({...f});
  for(const [key,d]of drafts)for(const f of d.faces||[]){const signature=f.points.map(p=>p.nodeId).sort().join('|');if(f.solidId||f.boundaryHole||(d.deletedFaces||[]).includes(signature)||f.points.some(p=>(d.removedPoints||[]).includes(p.nodeId)))continue;
  faces.push(draftFace(d,f,{id:'draft:'+key+':'+f.id,draft:true,draftKey:key,regionId:f.id}));}
- for(const w of rawWalls)if(!claimed.has(w.id))faces.push({id:'wall:'+w.id,points:[...w.bottom,...w.top.slice().reverse()],chimney:w.chimney});
+ for(const w of rawWalls)if(!claimed.has(w.id)&&!drafts.some(([,d])=>G.draftOwnsWall(d,w)))faces.push({id:'wall:'+w.id,points:[...w.bottom,...w.top.slice().reverse()],chimney:w.chimney});
  return faces;
 }
 // Resolve openings from current geometry, without baking stale cutouts into a
@@ -77,7 +77,15 @@ function indexOpenings(features){
  return {query(box){const bins=keys(box);return bins?[...new Set([...oversized,...bins.flatMap(key=>cells.get(key)||[])])]:features;}};
 }
 
+// A sticker on a curved face is the same surface trimmed to its outline, so the cut is in (u,v).
+function cutSurfaceOpenings(face,features){
+ const c=face.curvedSurface,key=JSON.stringify(K.surfaceDefinition(c));if(!Array.isArray(features))features=features.query(openingBounds(K.surfaceMesh(face).positions));
+ const cuts=features.filter(f=>f!==face&&f.feature&&!f.deleted&&!f.drafted&&f.curvedSurface?.logical&&JSON.stringify(K.surfaceDefinition(f.curvedSurface))===key).flatMap(f=>f.curvedSurface.domains);
+ if(!cuts.length)return [face];
+ const domains=c.domains.flatMap(d=>K.difference(d,cuts));return domains.length?[{...face,curvedSurface:{...c,domains}}]:[];
+}
 function cutOpenings(face,features){
+ if(face.curvedSurface?.logical&&!face.feature&&!face.deleted)return cutSurfaceOpenings(face,features);
  if(face.feature||face.curvedSurface||face.deleted)return [face];
  const frame=W.faceFrame(face);if(!frame)return [face];
  const local=p=>K.local(frame,p),shape=f=>({points:f.points.map(local),holes:(f.holes||[]).map(r=>r.map(local))});

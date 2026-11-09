@@ -144,8 +144,11 @@ function normalizeDrafts(edits){
   if(group.some(id=>!id.startsWith(d.chimney.id+':'))){
    d.members=group;d.joinedChimneys=[...new Set([...(d.joinedChimneys||[]),d.chimney.id])];delete d.chimney;continue;
   }
+  // A side's own walls are the side, its parts, or (exposure-clipped sides,
+  // generatedSide) its cells. Dropping a cell detaches the person's edit and
+  // the generated side shows again on every reload.
   const prefix=d.chimney.id+':side-'+d.chimney.side,fragmented=(d.members||[]).some(id=>id.startsWith(prefix+':part-'));
-  d.members=(d.members||[]).filter(id=>id===prefix||id.startsWith(prefix+':part-'));
+  d.members=(d.members||[]).filter(id=>id===prefix||id.startsWith(prefix+':part-')||id.startsWith(prefix+':cell-'));
   if(!fragmented)continue;
   for(const n of d.sketch?.nodes||[]){if(n.fixed||n.userDraftPoint||d.sketch.edges.some(e=>e.a===n.id||e.b===n.id))continue;
    if(d.sketch.outlines.some(r=>r.some((a,i)=>G.onEdge(n,a,r[(i+1)%r.length],1e-6))))n.generatedBoundary=true;
@@ -193,7 +196,7 @@ function updateScene(walls,state,cs){
  const drafts=Object.values(edits.$drafts||{}).filter(d=>!d.chimney&&!d.mergedInto),claimed=new Set(drafts.flatMap(d=>d.members||[]).map(id=>id.split(':chimney-cut-')[0]));
  const world=(d,p)=>d.frame?W.fromFrame(d.frame,p):{x:d.origin.x+d.u.x*p.x,y:d.origin.y+d.u.y*p.x,z:p.y},faces=[...surfaces];
  for(const d of drafts)for(const f of d.faces||[]){const signature=f.points.map(p=>p.nodeId).sort().join('|');if(f.boundaryHole||f.solidId||(d.deletedFaces||[]).includes(signature))continue;faces.push({...f,points:f.points.map(p=>world(d,p)),holes:(f.holes||[]).map(r=>r.map(p=>world(d,p)))});}
- for(const w of walls){const face={points:[w.bottom[0],w.bottom[1],w.top[1],w.top[0]]};if(!claimed.has(w.id)){faces.push(face);continue;}
+ for(const w of walls){const face={points:[w.bottom[0],w.bottom[1],w.top[1],w.top[0]]};if(!claimed.has(w.id)&&!drafts.some(d=>G.draftOwnsWall(d,w))){faces.push(face);continue;}
   // Drafts created on either side of a chimney omit its covered siding.
   // Restore that covered interval solely for the building-inside query.
   for(const c of cs)for(const [lo,hi]of volumeIntervals(...w.bottom,c)){const p=sliceWall(w,lo,hi,w.id);faces.push({points:[p.bottom[0],p.bottom[1],p.top[1],p.top[0]]});}}

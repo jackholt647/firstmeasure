@@ -121,6 +121,52 @@ test('every face in an elevation table is labeled in its drawing, and every labe
  assert.ok(xs.length&&xs.every(x=>Math.abs(x-31)<1e-9||Math.abs(x-(25+(170-5)/2+5+6))<1e-9),'wall ids sit in the left or right column: '+xs);
  for(const p of elevations)assert.equal(p.text.filter(t=>/^Total/.test(t.value)).length,1,p.title+' has one totals box');
 });
+// FM-337: elevation pages label the openings of the faces they count, with the Opening Schedule ids.
+test('every opening of a face counted on an elevation is labeled in its drawing with its Opening Schedule id',()=>{
+ const fs=require('fs'),vm=require('vm'),K=require('../public/measure/internal/editor_scripts/exterior_geometry.js'),context={ExteriorGeometry:K};context.window=context;vm.createContext(context);
+ vm.runInContext(fs.readFileSync('public/measure/internal/editor_scripts/exterior_pdf.js','utf8'),context);
+ const model=boxHouse(),byId=Object.fromEntries(model.walls.map(w=>[w.id,w]));
+ // W03 is the front (y=6, facing +y), W01 the back (y=0, facing -y); the small window needs a leader line.
+ const opening=(wall,type,x0,x1,z0,z1)=>{const w=byId[wall],y=w.points[0].y,o={type,label:type,points:[{x:x0,y,z:z0},{x:x1,y,z:z0},{x:x1,y,z:z1},{x:x0,y,z:z1}],trimFaces:[],width:3,height:3,area:9,perimeter:12};o.id=wall+'-'+(w.openings.length+1);o.wall=wall;w.openings.push(o);model.openings.push(o);return o;};
+ opening('W03','Window',2,3.2,1,2.2);opening('W03','Window',6,6.15,1.5,1.65);opening('W03','Door',4,5,0,2.1);opening('W01','Window',3,4.5,1,2.2);
+ const pages=[];let page,font='normal',size=9;
+ const doc=new Proxy({internal:{pageSize:{getWidth:()=>210,getHeight:()=>297}},getTextWidth:s=>String(s).length,splitTextToSize:s=>[s],setFont:(f,style)=>{font=style;},setFontSize:s=>{size=s;},text:(value,x,y)=>page.text.push({value:String(value),bold:font==='bold',size,x,y}),line:(...a)=>page.lines.push(a),circle:()=>page.circles++},{get:(o,k)=>k in o?o[k]:()=>{}});
+ context.drawExteriorReportPages(doc,model,{frontBearing:180},title=>{page={title,text:[],lines:[],circles:0};pages.push(page);},{});
+ const labels=p=>p.text.filter(t=>t.bold&&t.size<=7&&/^W\d+-\d+$/.test(t.value)).map(t=>t.value).sort();
+ const elevation=name=>pages.find(p=>p.title===name+' Elevation');
+ assert.deepEqual(labels(elevation('Front')),['W03-1','W03-2','W03-3']);
+ assert.deepEqual(labels(elevation('Back')),['W01-1']);
+ assert.deepEqual(labels(elevation('Left')),[]);assert.deepEqual(labels(elevation('Right')),[]);
+ // Same label style as the Exterior Summary (bold, 5.5 when it fits inside the opening).
+ assert.ok(elevation('Front').text.some(t=>t.value==='W03-1'&&t.size===5.5));
+ // Each opening is labeled on exactly one elevation, and every labeled id is a row in the Opening Schedule.
+ const all=['Front','Back','Left','Right'].flatMap(n=>labels(elevation(n))).sort(),schedule=pages.find(p=>p.title==='Opening Schedule').text.filter(t=>/^W\d+-\d+$/.test(t.value)).map(t=>t.value).sort();
+ assert.deepEqual(all,model.openings.map(o=>o.id).sort());assert.deepEqual(schedule,all);
+ // Wall labels are unchanged: every wall label is still a table row.
+ for(const p of pages.filter(p=>/ Elevation$/.test(p.title))){const walls=p.text.filter(t=>t.bold&&t.size<=7&&/^W\d+$/.test(t.value)).map(t=>t.value).sort(),rows=p.text.filter(t=>!t.bold&&t.size===8&&/^W\d+$/.test(t.value)).map(t=>t.value).sort();assert.deepEqual(walls,rows,p.title);}
+});
+// FM-337 follow-up: a label too big for its window sits just outside the window, on the same wall,
+// clear of face lines, other openings, trim and labels; the leader line is the last resort.
+test('an opening label that does not fit inside sits just outside the opening on its own wall, without a leader',()=>{
+ const wall=box('W20',{x:0,y:0},{x:12,y:0},0,7,{x:0,y:-1,z:0}),lines=[],circles=[];
+ // Small windows (one framed by trim) on a big wall, and a big door whose label fits inside.
+ const opening=(id,x0,x1,z0,z1,trim)=>{const o={id,wall:'W20',type:'Window',label:'Window',points:[{x:x0,y:0,z:z0},{x:x1,y:0,z:z0},{x:x1,y:0,z:z1},{x:x0,y:0,z:z1}],trimFaces:trim?[{points:[{x:x0-.06,y:-.01,z:z0-.06},{x:x1+.06,y:-.01,z:z0-.06},{x:x1+.06,y:-.01,z:z1+.06},{x:x0-.06,y:-.01,z:z1+.06}],holes:[[{x:x0,y:-.01,z:z0},{x:x1,y:-.01,z:z0},{x:x1,y:-.01,z:z1},{x:x0,y:-.01,z:z1}]]}]:[]};wall.openings.push(o);return o;};
+ opening('W20-1',2,2.6,4,4.8,true);opening('W20-2',8,8.6,1.5,2.1);opening('W20-3',8,8.6,4,4.6);opening('W20-4',4.5,6.5,0,2.5).type='Door';
+ const doc=new Proxy({getTextWidth:s=>String(s).length*1.6,line:(...a)=>lines.push(a),circle:(...a)=>circles.push(a)},{get:(o,k)=>k in o?o[k]:()=>{}});
+ const rect={x:0,y:0,w:150,h:90},scene=PDF.rasterScene([wall],{x:0,y:-1},rect.w*8,rect.h*8,false,40),placed=PDF.placeLabels(doc,scene,rect,new Set(['W20']));
+ const by=Object.fromEntries(placed.map(p=>[p.id,p])),wallIds=new Set(scene.surfaces.map((s,k)=>s.id==='W20'&&!s.featureType?k:-1));
+ assert.deepEqual(Object.keys(by).sort(),['W20','W20-1','W20-2','W20-3','W20-4']);
+ assert.equal(lines.length,0,'no leader line');assert.equal(circles.length,0,'no leader dot');assert.ok(placed.every(p=>!p.leader));
+ assert.ok(!by['W20-4'].adjacent,'the door label fits inside the door');
+ for(const id of ['W20-1','W20-2','W20-3']){
+  const {box:r,adjacent}=by[id],k=scene.surfaces.findIndex(s=>s.id===id),o=scene.bounds[k];assert.ok(adjacent,id+' sits beside its window');
+  // Every pixel under the label (and a margin) is the window's wall: no face line, opening or trim.
+  for(let y=r.y0-2;y<=r.y1+2;y++)for(let x=r.x0-2;x<=r.x1+2;x++)assert.ok(wallIds.has(scene.owners[y*scene.width+x]),id+' covers only its wall');
+  // Just outside an edge: within 3 mm of the window's visible bounds.
+  const gap=Math.max(o.x0-r.x1,r.x0-o.x1,o.y0-r.y1,r.y0-o.y1);assert.ok(gap>0&&gap<=3*8,id+' gap '+gap);
+ }
+ for(const a of placed)for(const b of placed)if(a!==b)assert.ok(a.box.x1<b.box.x0||b.box.x1<a.box.x0||a.box.y1<b.box.y0||b.box.y1<a.box.y0,a.id+' overlaps '+b.id);
+});
 test('a landscape elevation side panel is only as wide as its table, its rows are never cut, and the drawing gets the rest',()=>{
  const ctx=loadPDF(),pages=[];let page,font='normal',size=9;
  const doc=new Proxy({internal:{pageSize:{getWidth:()=>279.4,getHeight:()=>215.9}},getTextWidth:s=>String(s).length*size*.16,splitTextToSize:s=>[s],setFont:(f,style)=>{font=style;},setFontSize:s=>{size=s;},text:(value,x,y)=>page.text.push({value:String(value),bold:font==='bold',size,x,y}),roundedRect:(...a)=>page.rounded.push(a)},{get:(o,k)=>k in o?o[k]:()=>{}});
@@ -344,4 +390,19 @@ test('trim is measured: opening boards along their outside edge by kind, wall tr
  assert.ok(near(totals.door,doorLength)&&near(totals.garage,doorLength)&&totals.window===0);
  assert.ok(near(totals.wallHorizontal,12)&&near(totals.wallVertical,9)&&near(totals.roof,10));
  assert.ok(near(totals.total,2*doorLength+12+9+10));
+});
+test('a face seen exactly edge-on still prints its edge line (FM-323): an overhang past the wall shows, a hidden one stays hidden',()=>{
+ const P=(x,y,z)=>({x,y,z}),front=wall('W',0),pixel=(scene,p)=>{const q=scene.at(p),i=Math.floor(q.y)*scene.width+Math.floor(q.x);return {owner:scene.surfaces[scene.owners[i]],rgb:[...scene.pixels.subarray(i*4,i*4+3)]};};
+ // A flat roof slab 50 cm past both ends of the wall, and a soffit-like slab behind the wall: both horizontal, so edge-on in an elevation.
+ const roof={id:'',surface:'roof',points:[P(-.5,-.5,4),P(4.5,-.5,4),P(4.5,3,4),P(-.5,3,4)],openings:[]},hidden={id:'',points:[P(1,1,2),P(3,1,2),P(3,3,2),P(1,3,2)],openings:[]};
+ for(const order of [[front,roof,hidden],[hidden,roof,front]]){const s=PDF.rasterScene(order,{x:0,y:-1},400,400,false,20);
+  for(const x of [-.4,-.25,4.25,4.4]){const p=pixel(s,P(x,0,4));assert.equal(p.owner,roof,'overhang at x='+x+' is drawn');assert.deepEqual(p.rgb,[34,41,49],'overhang at x='+x+' prints as an edge line');}
+  assert.equal(pixel(s,P(2,1,2)).owner?.id,'W','an edge-on face behind the wall stays hidden');
+  assert.equal(s.counts[s.surfaces.indexOf(roof)],0,'an edge-on line is not visible area');assert.ok(s.counts[s.surfaces.indexOf(front)]>1000);
+ }
+ // A gable roof seen from its gable end: both planes are edge-on and overhang the gable wall by 40 cm on each side.
+ const gable={id:'G',points:[P(0,0,0),P(0,4,0),P(0,4,3),P(0,2,4),P(0,0,3)],openings:[]},left={id:'',surface:'roof',points:[P(-.3,-.4,2.8),P(5,-.4,2.8),P(5,2,4),P(-.3,2,4)],openings:[]},right={id:'',surface:'roof',points:[P(-.3,2,4),P(5,2,4),P(5,4.4,2.8),P(-.3,4.4,2.8)],openings:[]};
+ const s=PDF.rasterScene([gable,left,right],{x:-1,y:0},400,400,false,20);
+ for(const p of [P(0,-.2,2.9),P(0,4.2,2.9)])assert.equal(pixel(s,p).owner?.surface,'roof','the rake overhang past the gable wall is drawn');
+ assert.equal(pixel(s,P(0,2,1.5)).owner?.id,'G');
 });

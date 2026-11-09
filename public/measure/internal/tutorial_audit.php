@@ -251,5 +251,6 @@ $raw = json_encode($audit, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES);
         </section>
     <?php endif; ?>
 </main>
+<script src="portal_scripts/flag_console.js?v=<?=@filemtime(__DIR__ . '/portal_scripts/flag_console.js')?>"></script>
 </body>
 </html>

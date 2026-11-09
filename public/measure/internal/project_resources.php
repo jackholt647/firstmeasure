@@ -28,9 +28,11 @@ if (strpos($project, 'tutorial_') === 0) {
     $tutorialOwner = fm_editor_tutorial_request_user_email($_SESSION['user_email'], $project, $tutorialCourse);
     $tutorialResource = fm_tutorial_find_project($project, $tutorialOwner, $tutorialCourse);
     if (!$tutorialResource || ($tutorialResource['manifest']['measurement_scope'] ?? '') !== 'full_house') resource_error(404, 'Not found.');
+    // The editor's resource requests name no course; use the one the project was found in (FM-318).
+    $tutorialCourse = $tutorialResource['course_id'];
     if ($customerOrder) resource_error(403, 'Student uploads cannot replace customer references.');
     if ($_SERVER['REQUEST_METHOD'] === 'POST' && (!empty($tutorialResource['manifest']['locked_for_student']) || $tutorialOwner !== strtolower($_SESSION['user_email']))) resource_error(403, 'This training project is read only.');
-} elseif (!fm_is_full_house_id($project) || !fm_full_house_allowed()) resource_error(404, 'Not found.');
+} elseif (!fm_is_customer_full_house_id($project) && (!fm_is_full_house_id($project) || !fm_full_house_allowed())) resource_error(404, 'Not found.');
 if (!preg_match('/^[a-zA-Z0-9_-]{1,100}$/D', $project)) resource_error(400, 'Open a saved project first.');
 if (strlen($name) > 100 || ($name !== '' && !preg_match('/^internal-(resource|markup)-[a-zA-Z0-9._-]+$/D', $name))) resource_error(400, 'Invalid resource name.');
 $method = $_SERVER['REQUEST_METHOD'];
@@ -88,6 +90,18 @@ function resource_api($name = '', $body = null) {
     if ($status < 200 || $status >= 300) resource_error($status, 'Resource storage request failed (' . $status . ').');
     return $result;
 }
+// Streams one stored file to disk: a customer's walkthrough can be larger than PHP's memory limit.
+function resource_api_download($name, $path) {
+    global $artifactBase;
+    $url = $artifactBase . '/' . rawurlencode($name);
+    $headers = array_merge(fm_full_house_headers(), fm_node_identity_headers('session', 'GET', $url, null, false));
+    $out = fopen($path, 'wb');
+    if (!$out) throw new RuntimeException('Frame workspace is unavailable.');
+    $ch = curl_init($url);
+    curl_setopt_array($ch, fm_node_curl_options() + [CURLOPT_FILE=>$out, CURLOPT_HTTPHEADER=>$headers, CURLOPT_TIMEOUT=>600]);
+    $ok = curl_exec($ch); $status = (int)curl_getinfo($ch, CURLINFO_HTTP_CODE); curl_close($ch); fclose($out);
+    if ($ok === false || $status < 200 || $status >= 300) { @unlink($path); throw new RuntimeException('The video could not be read from storage (' . $status . ').'); }
+}
 function resource_part_name($id, $index) { return 'internal-markup-part-' . $id . '-' . str_pad((string)$index, 8, '0', STR_PAD_LEFT) . '.bin'; }
 function resource_index($name, $raw) {
     if (!preg_match('/^internal-resource-v2-([0-9a-f-]{36})-/', $name, $match)) return null;
@@ -120,7 +134,10 @@ if ($method === 'POST' && ($_GET['action'] ?? '') === 'frame') {
     }
     $originalName = $request['original_name'] ?? '';
     $originalName = is_string($originalName) && $originalName !== '' && strlen($originalName) <= 255 ? preg_replace('/[ -]/', ' ', $originalName) : 'Video frame.png';
-    resource_api($source); // The source must exist before a job is accepted.
+    // The source must exist before a job is accepted (read from the listing: a customer video can be large).
+    $stored = null;
+    foreach (json_decode(resource_api(), true)['files'] ?? [] as $file) if (($file['name'] ?? '') === $source) $stored = $file;
+    if (!$stored) resource_error(404, 'The video is no longer stored. Refresh project files.');
     $jobName = fm_resource_frame_job_name($name);
     $jobRecord = ['version'=>1, 'status'=>'running', 'frame'=>$name, 'source'=>$source, 'time'=>(float)$time, 'started_at'=>gmdate('c')];
     resource_api($jobName, json_encode($jobRecord));
@@ -136,7 +153,7 @@ if ($method === 'POST' && ($_GET['action'] ?? '') === 'frame') {
         $result = fm_resource_frame_run($job, fn($part) => resource_api($part), function ($part, $bytes, $digest) {
             resource_api($part, $bytes);
             if ($digest !== null && !hash_equals($digest, hash('sha256', resource_api($part)))) throw new RuntimeException('Stored frame checksum mismatch.');
-        });
+        }, $tutorialResource ? [] : ['download' => 'resource_api_download', 'version' => ['size' => (int)($stored['size'] ?? 0), 'tag' => (string)($stored['updated_at'] ?? $stored['etag'] ?? '')]]);
     } catch (Throwable $error) { $result = ['status'=>'failed', 'error'=>$error->getMessage(), 'finished_at'=>gmdate('c')]; }
     try { resource_api($jobName, json_encode($result + $jobRecord)); } catch (Throwable $error) { error_log('Resource frame job record failed: ' . $error->getMessage()); }
     exit;

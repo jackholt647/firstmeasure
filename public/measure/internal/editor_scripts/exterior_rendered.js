@@ -135,14 +135,14 @@ function openingDetails(source,target,context){
  if(ahead!==null&&ahead!==behind?ahead:n.dot(center.clone().sub(context.center))<0){n.negate();u.negate();origin.copy(world({x:b.right,y:b.bottom}));}
 
  const matrix=new THREE.Matrix4().makeBasis(u,v,n),q=new THREE.Quaternion().setFromRotationMatrix(matrix),group=new THREE.Group();group.position.copy(origin);group.quaternion.copy(q);group.scale.set(su,sv,(su+sv)/2);target.add(group);
- const width=b.right-b.left,height=b.top-b.bottom,type=data.feature.type,glazed=type==='window'||type==='skylight';
+ const width=b.right-b.left,height=b.top-b.bottom,type=data.feature.type,glazed=type==='window'||type==='skylight'||!!root.WallFeatures.isGlass?.(data.feature);
  // Non-rectangular openings keep their exact source silhouette; don't add rectangular framing over them.
  const rect=data.points.length===4&&data.points.every(p=>{const a=W.inFrame(frame,p);return [b.left,b.right].some(x=>Math.abs(a.x-x)<1e-4)&&[b.top,b.bottom].some(y=>Math.abs(a.y-y)<1e-4);});
  const glass=glazed?new THREE.MeshPhysicalMaterial({color:color('#88a5ad'),roughness:.045,metalness:0,transmission:.25,ior:1.5,clearcoat:1,clearcoatRoughness:.025,transparent:true,opacity:.83,envMapIntensity:2.0,side:THREE.DoubleSide}):null;
  if(glazed){target.material.dispose();target.material=glass;target.position.addScaledVector(n,.004*(su+sv)/2);target.castShadow=false;}
  // Doors of any outline: the default door material in the door's color, with recessed grooves traced in its own shape.
  const F=root.ExteriorFinishes,doorSpec=F?.doorFinishes?.[type];
- if(doorSpec){
+ if(doorSpec&&!glazed){
   const outline=data.points.map(p=>{const a=W.inFrame(frame,p);return {x:a.x-b.left,y:a.y-b.bottom};}),inset=F.doorNormalMap(outline,type,rect);
   target.material.dispose();target.material=new THREE.MeshStandardMaterial({color:color(data.color||F.stickerColor?.(type,'main')||doorSpec.color),roughness:doorSpec.roughness,metalness:0,side:THREE.DoubleSide,envMapIntensity:.7});
   if(inset){target.material.normalMap=inset;target.material.normalScale=new THREE.Vector2(1,1);}
@@ -163,9 +163,13 @@ function openingDetails(source,target,context){
   for(const y of [frameWidth/2,height-frameWidth/2])box(width/2,y,0,width,frameWidth,.126);
   for(const x of [frameWidth,width-frameWidth])box(x,height/2,0,.012,height-frameWidth,.035,rubber);
   for(const y of [frameWidth,height-frameWidth])box(width/2,y,0,width-frameWidth,.012,.035,rubber);
+  // A glass garage door keeps its sections as rails and stiles across the glass; a glass door keeps its handle.
+  if(type==='garage'){const rows=Math.max(3,Math.min(6,Math.round(height/.52))),cols=Math.max(2,Math.min(8,Math.round(width/.65)));for(let i=1;i<rows;i++)box(width/2,height*i/rows,0,width,frameWidth*.7,.096);for(let i=1;i<cols;i++)box(width*i/cols,height/2,0,frameWidth*.6,height,.096);}
+  const metal=type==='door'?new THREE.MeshStandardMaterial({color:color('#b5b8bb'),metalness:.95,roughness:.2}):null;
   for(const {s,g}of faces){
    // A shaded recess behind the glass gives the glazing depth rather than painting a blue rectangle.
    fromFront(box(width/2,height/2,-.16,width-.04,height-.04,.015,new THREE.MeshStandardMaterial({color:color('#262b2c'),roughness:1}),g),s);
+   if(metal){box(width-.1,Math.min(1,height*.48),.054,.035,.18,.018,metal,g);box(width-.14,Math.min(1,height*.48),.075,.13,.016,.022,metal,g);}
    if(type==='skylight')continue;
    box(width/2,-.012,.04,width+.045,.035,.13,white,g);
    // Thin warm interior floor catches light behind the glass without affecting model geometry.

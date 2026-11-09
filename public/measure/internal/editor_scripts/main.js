@@ -1150,9 +1150,14 @@ function initHeaderAutocomplete() {
 async function initCesium() {
     if (!Cesium) return console.error("Cesium not loaded");
 
-    // Initialize Viewer
+    // Initialize Viewer. Without a WebGL context the 3D Tiles view is unavailable; the editor carries on.
+    // requestRenderMode: draw only when the camera, tiles or size change, not every frame while hidden
+    // (it runs in every editor, including QA's preloaded next project).
+    try {
     cesiumViewer = new Cesium.Viewer('google-map-container', {
-        terrainProvider: undefined, 
+        requestRenderMode: true,
+        maximumRenderTimeChange: Infinity,
+        terrainProvider: undefined,
         imageryProvider: false,      
         baseLayerPicker: false,
         geocoder: false,
@@ -1166,6 +1171,11 @@ async function initCesium() {
         skyBox: false,
         creditContainer: document.createElement('div')
     });
+    } catch (error) {
+        console.error("3D Tiles view unavailable (no WebGL context):", error);
+        cesiumViewer = null;
+        return;
+    }
 
     // --- FIX START: Disable the "Gray Plane" (Globe Surface) ---
     
@@ -4461,7 +4471,13 @@ async function loadProjectFromFolder(folderHash) {
         // The local model backup may be newer than this Save; its matching undo history lives in the browser too.
         const localWallHistory = await window.EditorHistory?.loadLocal?.('walls:' + requestedProjectId).catch(e => { console.warn('[History] Local wall undo history unavailable:', e); return null; });
         if (String(window.currentProjectId) !== requestedProjectId) return;
-        window.WallMode?.restore(requestedProjectId, meta, savedEditorHistory?.walls, localWallHistory);
+        // Walls that cannot be shown must not stop the roof and the rest of the project from loading (FM-312).
+        try {
+            window.WallMode?.restore(requestedProjectId, meta, savedEditorHistory?.walls, localWallHistory);
+        } catch (wallError) {
+            console.error('[Walls] Saved walls could not be shown:', wallError);
+            alert("The walls could not be shown: " + wallError.message + "\n\nThe roof and the rest of the project are loaded; the saved walls are kept.");
+        }
         window.HeightMapMask?.restore(requestedProjectId, meta.exteriorsHeightMask);
         window.__editorHistoryReady=true;
         console.log("Project loaded.");
