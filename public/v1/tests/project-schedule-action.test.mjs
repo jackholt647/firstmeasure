@@ -20,3 +20,9 @@ test('nothing mounts the schedule over an offered Schedule tab welcome', () => {
   const request = source('libraries/apps/project-request/app.js');
   assert.match(request, /if \(!app\?\.mount \|\| projectScheduleOffered\(\)\) return null;/);
 });
+
+test('an offered Scheduling page stays registered so its welcome can show', () => {
+  const scheduling = source('libraries/apps/scheduling/app.js');
+  assert.match(scheduling, /app\?\.id === 'portal\.scheduling' && app\.offered === true/);
+  assert.match(scheduling, /const enabled = offered \|\|/);
+});

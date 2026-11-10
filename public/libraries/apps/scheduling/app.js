@@ -11770,7 +11770,9 @@
   let tabRegistered = false;
   async function syncSchedulingTab(){
     if (window.Portal?.appFlags?.load) await window.Portal.appFlags.load().catch(() => null);
-    const enabled = window.Portal?.appFlags?.has ? window.Portal.appFlags.has('platform', 'scheduling') : false;
+    // An offered Scheduling page holds its switch off until started; it stays registered so the runtime shows its welcome.
+    const offered = (window.Portal?.currentUser?.appEntitlements || []).some?.((app) => app?.id === 'portal.scheduling' && app.offered === true);
+    const enabled = offered || (window.Portal?.appFlags?.has ? window.Portal.appFlags.has('platform', 'scheduling') : false);
     if (!enabled) {
       if (tabRegistered) {
         tabRegistered = false;
@@ -11895,6 +11897,7 @@
     else scheduleLoad();
   });
   window.addEventListener('fm:app-flags:updated', () => syncSchedulingTab().catch(() => null));
+  window.addEventListener('fm:capabilities:updated', () => syncSchedulingTab().catch(() => null));
   document.addEventListener('DOMContentLoaded', () => syncSchedulingTab().catch(() => null));
   syncSchedulingTab().catch(() => null);
 })();
