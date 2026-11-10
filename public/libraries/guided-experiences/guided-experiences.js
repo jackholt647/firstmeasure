@@ -841,8 +841,10 @@
           const mine = ++move;
           clickTarget?.removeEventListener('click', onTargetClick, true); clickTarget = null;
           for (let i = to; i >= 0 && i < list.length; i += direction) {
-            const step = list[i];
-            const selectors = array(step.targets);
+            let step = list[i];
+            // A step with cases points at, and says, whichever case is on the page: the first one found.
+            const cases = array(step.cases);
+            const selectors = cases.length ? cases.flatMap((entry) => array(entry.targets)) : array(step.targets);
             let found = [];
             if (selectors.length) {
               const wait = !waitedForPage && direction > 0 ? Number(step.wait_ms ?? 1500) : 0;
@@ -850,7 +852,9 @@
               const first = await waitFor(selectors, wait);
               if (ended || mine !== move) return;
               if (!first) { options.onStep?.({ type: 'step_skip', step: step.id, missing: true }); continue; }
-              found = selectors.map(visible).filter(Boolean);
+              const chosen = cases.find((entry) => array(entry.targets).some(visible));
+              if (chosen) step = { ...step, ...(chosen.title ? { title: chosen.title } : {}), ...(chosen.body ? { body: chosen.body } : {}), targets: array(chosen.targets) };
+              found = array(step.targets).map(visible).filter(Boolean);
               found.sort((a, b) => (a === first ? -1 : b === first ? 1 : 0));
               first.scrollIntoView?.({ block: 'nearest', inline: 'nearest', behavior: reducedMotion() ? 'auto' : 'smooth' });
             }

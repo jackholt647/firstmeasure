@@ -240,7 +240,7 @@ function ensureSkeletonStyles(){
  * The measurement ordering widget: Order measurement report and Add measurements manually, or why neither is possible. The
  * Operations Measurements view and the project details tray both start a report order here; ordering itself is the
  * host's existing order session (onOrder) and is unchanged. `data-measurement-options` lists what it offers (`order`,
- * `manual`), so a tour's copy can say only what is on screen (the project details tour has a step for each).
+ * `manual`), so a tour's copy can say only what is on screen (the project details tour's Measurements step has a case for each).
  */
 export function mountMeasurementStart(node,{canOrder=false,pending=false,canEnter=false,orderBlocked='',onOrder,onEnter}={}){
   // Once a report is ordered, the widget is its order status (the project window's processing card, with expedite

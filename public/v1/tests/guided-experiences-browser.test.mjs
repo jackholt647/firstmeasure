@@ -920,3 +920,39 @@ test('nested targets of a step light one area: the inner target is never dimmed 
     assert.deepEqual(errors, []);
   } finally { await browser.close(); }
 });
+
+// FM-363: a widget that offers different buttons is described by one step with a case per state. The case on the page
+// decides the copy and the target, and the step keeps one dot whichever case shows.
+test('a step with cases says what the case on the page says, and is one dot', async () => {
+  const browser = await launch();
+  try {
+    const { page, errors } = await panelPage(browser);
+    const play = (offers) => page.evaluate((offers) => {
+      document.querySelector('.gx-pop')?.querySelector('[data-gx=close]')?.click();
+      document.getElementById('panel').hidden = false;
+      document.getElementById('field').innerHTML = `<div data-offers="${offers}">Get measurements</div>`;
+      const copy = (key, text) => ({ key, text });
+      FirstMateGuides.overlay.run([
+        { id: 'intro', targets: ['#close'], placement: 'auto', title: copy('i', 'Intro'), body: copy('ib', 'Intro'), advance: 'next', wait_ms: 500 },
+        { id: 'measurements', targets: [], placement: 'auto', title: copy('m', 'Measurements'), body: copy('mb', 'Order a report or add them yourself.'), advance: 'next', wait_ms: 500,
+          cases: [{ targets: ['#field:has([data-offers="order manual"])'] }, { targets: ['#field:has([data-offers="order"])'], body: copy('mo', 'Order a report.') }, { targets: ['#field:has([data-offers="manual"])'], body: copy('mm', 'Add them yourself.') }] },
+        { id: 'done', targets: ['#close'], placement: 'auto', title: copy('d', 'Done'), body: copy('db', 'Done'), advance: 'next', wait_ms: 500 }
+      ], {});
+    }, offers);
+    for (const [offers, body] of [['order', 'Order a report.'], ['manual', 'Add them yourself.'], ['order manual', 'Order a report or add them yourself.']]) {
+      await play(offers);
+      await tourStep(page, 'Intro');
+      await page.click('.gx-pop [data-gx=next]');
+      await tourStep(page, 'Measurements');
+      assert.equal(await page.locator('.gx-pop p').innerText(), body, offers);
+      assert.equal(await page.locator('.gx-pop .gx-dots i').count(), 3, 'one dot for the step: ' + offers);
+      assert.equal(await page.locator('.gx-pop .gx-arrow').count(), 1, 'it points at the case on the page: ' + offers);
+    }
+    // No case on the page: the step is skipped like a step whose target is missing.
+    await play('');
+    await tourStep(page, 'Intro');
+    await page.click('.gx-pop [data-gx=next]');
+    await tourStep(page, 'Done');
+    assert.deepEqual(errors, []);
+  } finally { await browser.close(); }
+});
