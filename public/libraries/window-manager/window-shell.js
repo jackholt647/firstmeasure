@@ -71,6 +71,8 @@
 .fm-entity-window .fm-shell-header:is(.r-window-bar,.fm-project-loading-header)[data-window-mobile=true]>.fm-shell-tabs>button i{font-size:15px;line-height:16px}
 .fm-entity-window .fm-shell-header:is(.r-window-bar,.fm-project-loading-header)[data-window-mobile=true]>.fm-shell-tabs>button .pv-tab-label{display:block!important;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:10px!important;line-height:12px;font-weight:600;letter-spacing:0}
 .fm-entity-window .fm-shell-header:is(.r-window-bar,.fm-project-loading-header)[data-window-mobile=true]>.fm-shell-tabs>button .pv-tab-badge{position:absolute;top:2px;right:3px;margin:0;font-size:8px;line-height:12px;padding:0 4px}
+/* New and Setup required are a round badge on the icon's top-right corner (tab-guides.js, FM-362). */
+.fm-entity-window .fm-shell-header:is(.r-window-bar,.fm-project-loading-header)[data-window-mobile=true]>.fm-shell-tabs>button .pv-tab-badge:is(.pv-tab-badge--new,.pv-tab-badge--setup){top:0;right:auto;left:50%;margin:0 0 0 3px}
 .fm-entity-window .fm-shell-header.r-window-bar[data-window-mobile=true] :is(#rMeasureTabs,#rOpeningReportTabs){height:40px!important;min-height:40px!important}
 .fm-entity-window .fm-shell-header.r-window-bar[data-window-mobile=true] :is(#rMeasureTabs,#rOpeningReportTabs) .r-measure-tab{height:40px!important;min-height:40px!important;flex-direction:column;gap:2px!important}
 .fm-entity-window .fm-shell-header.r-window-bar[data-window-mobile=true] :is(#rMeasureTabs,#rOpeningReportTabs) .r-measure-tab i{font-size:14px!important}
