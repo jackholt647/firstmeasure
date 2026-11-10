@@ -36,7 +36,8 @@ export const AREAS = [
   [[/^public\/v1\/platform\/realtime/, `${LIB}platform-realtime/`], ["v1:tests/realtime-single-stream.test.ts", "v1:tests/view-presence-client.test.mjs"]],
   [[`${V1}session-replay/`, `${LIB}session-replay/`], ["v1:tests/session-replay.test.ts", "v1:tests/session-replay-archive.test.ts", "v1:tests/session-replay-agent-access.test.ts"]],
   [[`${V1}platform/localization/`, `${LIB}platform-language/`], ["v1:cmd:localization-check"]],
-  [[/^public\/portal\/.*\.php$/], ["root:tests/portal-tracking-pixels.test.mjs"]]
+  [[/^public\/portal\/.*\.php$/], ["root:tests/portal-tracking-pixels.test.mjs"]],
+  [[`${V1}firstmeasure/pdf_runtime.ts`], ["v1:tests/pdf-runtime-transfer.test.ts"]]
 ];
 
 /**
