@@ -83,6 +83,7 @@
    tech:'<path d="M14 6a5 5 0 0 0-6 6L3 17l4 4 5-5a5 5 0 0 0 6-6l-3 3-4-4z"/>',
    customer:'<circle cx="12" cy="7" r="4"/><path d="M4 21v-3a8 8 0 0 1 16 0v3"/>',
    expand:'<path d="M8 3H3v5m13-5h5v5M3 16v5h5m13-5v5h-5"/>',
+   ratio:'<path d="M3 12h18M3 8v8M21 8v8M9 10v4M15 10v4"/>',
    perspective:'<path d="M7 5h10l4 14H3z"/><circle cx="7" cy="5" r="1.6" fill="currentColor"/><circle cx="17" cy="5" r="1.6" fill="currentColor"/><circle cx="21" cy="19" r="1.6" fill="currentColor"/><circle cx="3" cy="19" r="1.6" fill="currentColor"/>'
   }[name]||'')+'</svg>';
   const panel = document.createElement('section'); panel.id = 'project-resources'; panel.hidden = true; panel.setAttribute('aria-label', 'Internal project resources');
@@ -96,6 +97,7 @@
     <button data-action="overlay" disabled title="Use this still image behind the 3D model" aria-label="Use image as 3D background">${icon('overlay')}<span>Overlay</span></button>
     <button data-action="markup" aria-expanded="false" aria-controls="resource-inspector" title="Open markup tools">${icon('markup')} <span class="resource-action-label">Markup</span></button>
     <button data-action="perspective" aria-expanded="false" aria-controls="resource-inspector" title="Correct perspective: drag four corners and save a straightened copy">${icon('perspective')} <span class="resource-action-label">Perspective</span></button>
+    <button data-action="ratio" title="Ratio line: split a line into parts and see each as a percentage (R)">${icon('ratio')} <span class="resource-action-label">Ratio</span></button>
     <button data-action="favorites" aria-expanded="false" title="Saved video frames">${icon('frames')} <span class="resource-action-label">Frames</span></button>
     <button data-action="notes" aria-expanded="false" aria-controls="resource-inspector" title="Reference notes">${icon('notes')} <span class="resource-action-label">Notes</span><span class="resource-notes-dot" hidden>•</span></button>
     <button data-action="save" class="resource-save" hidden>Save</button>
@@ -133,6 +135,7 @@
      <div class="resource-tray-heading"><strong class="resource-inspector-title">Markup</strong><button data-action="closeInspector" aria-label="Close tools">×</button></div>
      <div class="resource-favorites-pane" hidden><p class="resource-help">Click ☆ Note or press N within Resources, type a label, then press Enter. Select a frame to mark it up, or its timestamp to jump to the video.</p><div class="resource-favorites-list"></div></div>
      <div class="resource-markup-pane">
+      <p class="resource-temp-note" hidden>Order photos can't keep markup: these marks go away when you open another file. To keep them, save a copy with Perspective first.</p>
       <div class="resource-frame-help" hidden><span>Draw on a still frame. The source video stays unchanged.</span><button data-action="frame">Mark this frame</button></div>
       <div class="resource-tools" role="toolbar" aria-label="Markup tools">
        <button data-tool="select">↖ Select</button><button data-tool="pen">✎ Pen</button><button data-tool="circle">○ Circle</button><button data-tool="arrow">↗ Arrow</button><button data-tool="line">╱ Line</button><button data-tool="rect">□ Box</button><button data-tool="note">T Text</button><button data-tool="ratio">⟷ Ratio</button>
@@ -147,7 +150,8 @@
       <p class="resource-help resource-persp-intro">Drag the four corners onto the corners of something rectangular in real life, such as a wall, window or door. Wheel to zoom in for accuracy; drag elsewhere to pan.</p>
       <label class="resource-check"><input type="checkbox" class="resource-persp-crop"> <span>Crop to the largest rectangle inside</span></label>
       <p class="resource-help resource-persp-crop-help">Off: the whole photo is warped to the new shape, leaving empty corners. On: only the largest upright rectangle the photo fills is kept.</p>
-      <div class="resource-persp-actions resource-persp-adjust"><button data-action="perspPreview" class="resource-primary">Preview</button><button data-action="perspReset">Reset corners</button></div>
+      <div class="resource-persp-actions resource-persp-adjust"><button data-action="perspSave" class="resource-primary">Save as new file</button><button data-action="perspDownload">Download</button><button data-action="perspPreview">View full size</button><button data-action="perspReset">Reset corners</button></div>
+      <p class="resource-help resource-persp-live-help">The live view in the corner of the photo updates as you drag. Click it to see the result full size.</p>
       <div class="resource-persp-actions resource-persp-result" hidden><button data-action="perspSave" class="resource-primary">Save as new file</button><button data-action="perspDownload">Download</button><button data-action="perspAdjust">Adjust corners</button></div>
       <p class="resource-help resource-persp-size"></p>
      </div>
@@ -248,7 +252,9 @@
    $('[data-action="overlay"]').setAttribute('aria-label',current&&window.Resource3DOverlay?.imageName===current.name?'Remove image from 3D background':'Use image as 3D background');
    // Any still photo can sit behind the model, a customer's or QA's reference as much as the tech's upload (FM-344).
    $('[data-action="overlay"]').disabled = busy || !image || !!media || !window.Resource3DOverlay;
-   $('[data-action="markup"]').disabled = !current || busy || !!current.reference || (!image && !media?.videoWidth);
+   $('[data-action="markup"]').disabled = !current || busy || (!image && !media?.videoWidth);
+   $('[data-action="ratio"]').disabled = $('[data-action="markup"]').disabled; $('[data-action="ratio"]').setAttribute('aria-pressed', String(inspector === 'markup' && tool === 'ratio'));
+   $('.resource-temp-note').hidden = !current?.reference;
    $('[data-action="perspective"]').disabled = !current || busy || !image || !!media || !window.ResourcePerspective;
    perspControls(); ratioReadout();
    $('[data-action="notes"]').disabled = !current; $('[data-action="download"]').disabled = !current;
@@ -260,7 +266,8 @@
    $('[data-action="undo"]').disabled = !history.length; $('[data-action="redo"]').disabled = !redo.length; $('[data-action="delete"]').disabled = selected < 0;
    panel.classList.toggle('is-busy', busy || uploading);
   }
-  function changed() { dirty = true; controls(); }
+  // Order photos (references) are read-only: marks on them are kept only until another file opens.
+  function changed() { dirty = !current?.reference; controls(); }
   function snapshot() { history.push(JSON.stringify(marks)); if (history.length > 100) history.shift(); redo = []; changed(); }
   function updateDrawers() {
    const opening=inspector==='markup';if(opening!==markupOpen){markupOpen=opening;gesture=null;setTool(opening?'pen':'pan');}
@@ -619,11 +626,52 @@
    list.replaceChildren(...ts.slice(1).map((t, i) => { const item = document.createElement('li'); item.textContent = percent(t - ts[i]); return item; }));
   }
   // Perspective: four corners in image pixels over the photo; the preview replaces the photo until saved or adjusted.
-  function startPerspective() { const w = image.width, h = image.height, ix = w * .12, iy = h * .12; persp = { corners: [{ x: ix, y: iy }, { x: w - ix, y: iy }, { x: w - ix, y: h - iy }, { x: ix, y: h - iy }], preview: null, rendering: false }; fit(); }
+  function startPerspective() {
+   const w = image.width, h = image.height, ix = w * .12, iy = h * .12;
+   persp = { corners: [{ x: ix, y: iy }, { x: w - ix, y: iy }, { x: w - ix, y: h - iy }, { x: ix, y: h - iy }], preview: null, rendering: false, live: null, liveKey: '', liveError: '', px: null, rect: null };
+   try { persp.px = window.ResourcePerspective.pixels(image, 1000); } catch (error) { persp.liveError = error.message; }
+   fit();
+  }
+  const perspKey = () => JSON.stringify([persp.corners, perspCrop]);
+  // The live corrected view: recomputed (small, synchronously) only when the corners or the crop choice change.
+  function liveView() {
+   if (!persp.px) return null; const key = perspKey(); if (key === persp.liveKey) return persp.live;
+   persp.liveKey = key; persp.liveError = '';
+   const side = Math.round(Math.min(560, Math.max(stage.clientWidth * .38, stage.clientHeight * .45)) * (window.devicePixelRatio || 1));
+   try { persp.live = window.ResourcePerspective.renderLive(persp.px, { corners: persp.corners, crop: perspCrop, maxSide: side }); }
+   catch (error) { persp.live = null; persp.liveError = error.message; }
+   return persp.live;
+  }
+  // Puts the live view in whichever corner of the viewer covers the least of the corner handles.
+  function liveRect(live) {
+   const W = stage.clientWidth, H = stage.clientHeight, maxW = W * .38, maxH = H * .45, k = live ? Math.min(maxW / live.width, maxH / live.height) : 1;
+   const w = live ? live.width * k : Math.min(maxW, 240), h = live ? live.height * k : 64, m = 12;
+   const q = persp.corners.map(c => ({ x: ox + c.x * scale, y: oy + c.y * scale }));
+   const spots = [[W - w - m, m], [m, m], [W - w - m, H - h - m - 44], [m, H - h - m - 44]];
+   const cost = ([x, y]) => q.reduce((n, c) => n + (c.x > x - 20 && c.x < x + w + 20 && c.y > y - 20 && c.y < y + h + 20 ? 1 : 0), 0);
+   const [x, y] = spots.reduce((best, spot) => cost(spot) < cost(best) ? spot : best);
+   return { x, y, w, h };
+  }
+  function drawLive() {
+   const live = liveView(), r = persp.rect = liveRect(live);
+   ctx.save(); ctx.shadowColor = 'rgba(15,23,42,.35)'; ctx.shadowBlur = 12; ctx.fillStyle = '#1f2937'; ctx.fillRect(r.x, r.y, r.w, r.h); ctx.restore();
+   ctx.save();
+   if (live) { // checks behind the transparent corners
+    ctx.beginPath(); ctx.rect(r.x, r.y, r.w, r.h); ctx.clip(); ctx.fillStyle = '#374151';
+    for (let y = 0; y < r.h; y += 10) for (let x = (y / 10) % 2 ? 10 : 0; x < r.w; x += 20) ctx.fillRect(r.x + x, r.y + y, 10, 10);
+    ctx.imageSmoothingQuality = 'high'; ctx.drawImage(live, r.x, r.y, r.w, r.h);
+   } else { ctx.fillStyle = '#fff'; ctx.font = '12px system-ui,sans-serif'; ctx.textBaseline = 'middle'; ctx.fillText(persp.liveError || 'Corners must outline a rectangle.', r.x + 10, r.y + r.h / 2, r.w - 20); }
+   ctx.strokeStyle = '#fff'; ctx.lineWidth = 2; ctx.strokeRect(r.x, r.y, r.w, r.h);
+   const tag = 'Live view · click to enlarge'; ctx.font = '600 11px system-ui,sans-serif'; const tw = ctx.measureText(tag).width + 12;
+   ctx.fillStyle = 'rgba(17,24,39,.8)'; ctx.fillRect(r.x, r.y, tw, 20); ctx.fillStyle = '#fff'; ctx.textBaseline = 'middle'; ctx.fillText(tag, r.x + 6, r.y + 10);
+   ctx.restore();
+  }
+  const inLive = event => { const r = persp?.rect, b = stage.getBoundingClientRect(), x = event.clientX - b.left, y = event.clientY - b.top; return !!r && x >= r.x && x <= r.x + r.w && y >= r.y && y <= r.y + r.h; };
   function nearestCorner(event) { const r = stage.getBoundingClientRect(), x = event.clientX - r.left, y = event.clientY - r.top; let best = -1, distance = 18; persp.corners.forEach((c, i) => { const d = Math.hypot(ox + c.x * scale - x, oy + c.y * scale - y); if (d < distance) { distance = d; best = i; } }); return best; }
   function hoverCursor(event) {
    let cursor = !image || tool === 'pan' || inspector !== 'markup' ? 'grab' : 'crosshair';
    if (persp && !persp.preview && nearestCorner(event) >= 0) cursor = 'move';
+   else if (persp && !persp.preview && inLive(event)) cursor = 'zoom-in';
    else if (inspector === 'markup' && image && tool === 'ratio') { const hit = ratioHit(pos(event)); if (hit) cursor = hit.stop >= 0 || hit.end >= 0 ? 'move' : 'copy'; }
    if (stage.style.cursor !== cursor) stage.style.cursor = cursor;
   }
@@ -638,6 +686,7 @@
     for (const t of [1 / 3, 2 / 3]) { for (const [u, v] of [[[t, 0], [t, 1]], [[0, t], [1, t]]]) { const s = P.apply(H, { x: u[0], y: u[1] }), e = P.apply(H, { x: v[0], y: v[1] }); ctx.moveTo(s.x, s.y); ctx.lineTo(e.x, e.y); } }
     ctx.stroke(); ctx.setLineDash([]);
    }
+   drawLive();
    for (const [i, c] of q.entries()) { const active = gesture?.corner === i; ctx.beginPath(); ctx.arc(c.x, c.y, active ? 9 : 7, 0, Math.PI * 2); ctx.fillStyle = active ? '#1a73e8' : '#fff'; ctx.fill(); ctx.strokeStyle = ok ? '#1a73e8' : '#d92d20'; ctx.lineWidth = 2; ctx.stroke(); }
    if (gesture?.corner != null) { // magnifier beside the corner being dragged
     const c = persp.corners[gesture.corner], s = q[gesture.corner], R = 64, z = 3; let lx = s.x + R + 28, ly = s.y - R - 28;
@@ -652,41 +701,49 @@
   const canUpload = () => !!project; // same rule as the Upload button
   function perspControls() {
    const preview = !!persp?.preview, rendering = !!persp?.rendering;
-   $('.resource-persp-adjust').hidden = preview; $('.resource-persp-result').hidden = !preview; $('.resource-persp-intro').hidden = preview;
-   $('[data-action="perspPreview"]').disabled = !persp || rendering; $('[data-action="perspPreview"]').textContent = rendering ? 'Working…' : 'Preview';
-   $('[data-action="perspSave"]').disabled = !preview || rendering || uploading || !canUpload(); $('[data-action="perspSave"]').textContent = uploading && preview ? 'Saving…' : 'Save as new file';
-   $('[data-action="perspSave"]').title = canUpload() ? 'Upload the corrected image to this project as a new file' : 'This project cannot take uploads; use Download';
-   $('[data-action="perspDownload"]').disabled = !preview || rendering; $('[data-action="perspReset"]').disabled = !persp || rendering;
+   $('.resource-persp-adjust').hidden = preview; $('.resource-persp-result').hidden = !preview; $('.resource-persp-intro').hidden = preview; $('.resource-persp-live-help').hidden = preview;
+   $('[data-action="perspPreview"]').disabled = !persp || rendering;
+   for (const button of panel.querySelectorAll('[data-action="perspSave"]')) { button.disabled = !persp || rendering || uploading || !canUpload(); button.textContent = uploading && persp ? 'Saving…' : rendering ? 'Working…' : 'Save as new file'; button.title = canUpload() ? 'Upload the corrected image to this project as a new file' : 'This project cannot take uploads; use Download'; }
+   for (const button of panel.querySelectorAll('[data-action="perspDownload"]')) button.disabled = !persp || rendering;
+   $('[data-action="perspReset"]').disabled = !persp || rendering;
    $('.resource-persp-crop').checked = perspCrop;
    $('.resource-persp-size').textContent = preview ? `Corrected image: ${persp.preview.width} × ${persp.preview.height} px` : '';
   }
-  async function perspPreview() {
-   if (!persp || persp.rendering || !image) return; const job = persp; job.rendering = true; controls();
+  // The corrected image at full resolution for the current corners (reused while they do not change).
+  async function perspFull() {
+   const job = persp, key = perspKey(); if (job.full?.key === key) return job.full.canvas;
+   job.rendering = true; controls();
    try {
     const plan = window.ResourcePerspective.plan({ width: image.width, height: image.height, corners: job.corners, crop: perspCrop });
     const canvas = await window.ResourcePerspective.render(image, plan, { onProgress: f => { if (persp === job) message(`Correcting perspective… ${Math.round(f * 100)}%`); } });
-    if (persp !== job) return; job.preview = canvas; fit(); message('Preview ready. Save it as a new file, download it, or adjust the corners.');
-   } catch (error) { message(error.message, true); }
-   finally { job.rendering = false; controls(); }
+    job.full = { key, canvas }; return canvas;
+   } finally { job.rendering = false; controls(); }
   }
-  const perspBlob = () => new Promise(resolve => persp.preview.toBlob(resolve, perspCrop ? 'image/jpeg' : 'image/png', .92));
+  async function perspPreview() {
+   if (!persp || persp.rendering || !image) return; const job = persp;
+   try { const canvas = await perspFull(); if (persp !== job) return; job.preview = canvas; fit(); message('Full-size result. Save it, download it, or go back to adjust the corners.'); }
+   catch (error) { message(error.message, true); }
+   finally { controls(); }
+  }
+  const perspBlob = canvas => new Promise(resolve => canvas.toBlob(resolve, perspCrop ? 'image/jpeg' : 'image/png', .92));
   const perspFileName = () => (label(current.name).replace(/\.[^.]+$/, '') || 'image') + ' (perspective).' + (perspCrop ? 'jpg' : 'png');
   async function perspSave() {
-   if (!persp?.preview || uploading || !canUpload()) return;
-   const id = project, ticket = projectEpoch, fileName = perspFileName(), blob = await perspBlob(); if (!blob) throw Error('Could not encode the corrected image.');
+   if (!persp || persp.rendering || uploading || !canUpload()) return;
+   const id = project, ticket = projectEpoch, fileName = perspFileName(), blob = await perspBlob(await perspFull()); if (!blob) throw Error('Could not encode the corrected image.');
    const name = prefix + 'v2-' + uuid() + '-' + (safeName(fileName).slice(-42) || 'perspective'); uploading = true; controls();
    try { await uploadFile(id, name, new File([blob], fileName, { type: blob.type })); } finally { uploading = false; controls(); }
    if (ticket !== projectEpoch) return; await refresh({ quiet: true });
    const saved = files.find(f => f.name === name); message('Saved ' + fileName + ' to the project.');
    if (saved) { inspector = ''; await open(saved); }
   }
-  async function perspDownload() { if (!persp?.preview) return; const fileName = perspFileName(), blob = await perspBlob(); if (!blob) throw Error('Could not encode the corrected image.'); const link = document.createElement('a'); link.href = URL.createObjectURL(blob); link.download = fileName; link.click(); setTimeout(() => URL.revokeObjectURL(link.href), 60000); }
+  async function perspDownload() { if (!persp || persp.rendering) return; const fileName = perspFileName(), blob = await perspBlob(await perspFull()); if (!blob) throw Error('Could not encode the corrected image.'); const link = document.createElement('a'); link.href = URL.createObjectURL(blob); link.download = fileName; link.click(); setTimeout(() => URL.revokeObjectURL(link.href), 60000); }
   const pos = event => { const r = stage.getBoundingClientRect(); return { x: (event.clientX - r.left - ox) / scale, y: (event.clientY - r.top - oy) / scale }; };
   const isControl = target => !!target.closest('button,input,select,textarea,a');
   stage.addEventListener('pointerdown', event => {
    if (isControl(event.target) || !dimensions().w || busy || ![0, 1, 2].includes(event.button)) return;
    event.preventDefault(); stage.focus({ preventScroll: true }); stage.setPointerCapture(event.pointerId);
    const p = pos(event);
+   if (persp && !persp.preview && event.button === 0 && !spaceDown && nearestCorner(event) < 0 && inLive(event)) { gesture = null; perspPreview(); return; }
    if (persp && !persp.preview && event.button === 0 && !spaceDown) { const corner = nearestCorner(event); if (corner >= 0) { gesture = { id: event.pointerId, corner }; stage.style.cursor = 'grabbing'; draw(); return; } }
    if (inspector === 'markup' && image && tool === 'ratio' && !spaceDown && (event.button === 0 || event.button === 2)) {
     const hit = ratioHit(p);
@@ -933,6 +990,7 @@
    coreViews:showCoreViews,
    upload: () => $('.resource-files').click(), refresh,
    markup: () => showInspector('markup'), perspective: () => showInspector('perspective'),
+   ratio: async () => { if (inspector !== 'markup') await showInspector('markup'); if (inspector === 'markup') await chooseTool('ratio', false); },
    perspPreview, perspSave, perspDownload,
    perspReset: () => { if (persp && !persp.rendering) { startPerspective(); controls(); } },
    perspAdjust: () => { if (persp) { persp.preview = null; fit(); controls(); } }, notes: () => showInspector('notes'), closeInspector: () => { inspector = ''; updateDrawers(); },
@@ -955,7 +1013,7 @@
    if (button.dataset.action !== 'more') { $('.resource-more').hidden = true; $('[data-action="more"]').setAttribute('aria-expanded', 'false'); }
    Promise.resolve().then(() => button.dataset.tool ? chooseTool(button.dataset.tool) : actions[button.dataset.action]?.()).catch(error => message(error.message, true));
   });
-  $('.resource-persp-crop').addEventListener('change', event => { perspCrop = event.target.checked; if (persp?.preview) { persp.preview = null; perspPreview(); } else controls(); });
+  $('.resource-persp-crop').addEventListener('change', event => { perspCrop = event.target.checked; if (persp?.preview) { persp.preview = null; perspPreview(); } else { controls(); draw(); } });
   const seek = $('.resource-seek');
   seek.addEventListener('pointerdown', event => {
    if (event.button !== 0 || favoriteDraft) return; stepQueue = 0; beginScrub(true);
