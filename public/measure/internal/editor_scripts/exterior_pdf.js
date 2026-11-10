@@ -78,10 +78,9 @@ const FEET=1/.3048,span=(a,b)=>Math.hypot(a.x-b.x,a.y-b.y,(a.z||0)-(b.z||0))*FEE
 const openingTrimLength=o=>(o?.trimFaces||[]).reduce((sum,f)=>sum+(f.points?.length===4?span(f.points[2],f.points[3]):0),0);
 const openingTrimKind={Window:'window',Door:'door','Garage door':'garage','Gable vent':'vent'};
 // Opening sizes are written the way the trade orders them: windows and entry/patio doors in inches (36" x 60",
-// to the nearest 1/4"), garage doors in feet and inches (16' 0" x 7' 0"), anything else in decimal feet.
+// to the nearest whole inch: the drawn extents are not tape-measure exact), garage doors in feet and inches (16' 0" x 7' 0"), anything else in decimal feet.
 // Metric reports give windows and doors in millimetres and everything else in metres. Inputs are feet.
-const FRACTIONS={1:'1/4',2:'1/2',3:'3/4'};
-const inchText=feet=>{const quarters=Math.round(feet*48),whole=Math.floor(quarters/4),part=FRACTIONS[quarters%4];return (part?(whole?whole+' '+part:part):String(whole))+'"';};
+const inchText=feet=>Math.round(feet*12)+'"';
 const feetInchText=feet=>{const total=Math.round(feet*12);return Math.floor(total/12)+"' "+total%12+'"';};
 function openingSize(o){
  const kind=openingTrimKind[o.label],inches=kind==='window'||kind==='door';
