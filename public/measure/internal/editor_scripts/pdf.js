@@ -6260,8 +6260,8 @@ function drawPdfStatRow(doc, row, x, y, width, size) {
 // =============================================================================
 // Holiday Lights (a free add-on chosen when the report is ordered: manifest.include_holiday_lights)
 // Lights along every eave and rake: the total, the length on each side of the house and, where a side has more than
-// one roofline, on each roofline (lower, middle, upper), tagged on the drawing as in the table (N, NL, NU, ...), and
-// bulbs and clips at common spacings. Everything comes from the roof model (the same geometry as model_data.xml);
+// one roofline, on each roofline (lower, middle, upper); on the drawing each side is in its colour (as in the table)
+// and each unbroken stretch is labelled with its length; and bulbs and clips at common spacings. Everything comes from the roof model (the same geometry as model_data.xml);
 // nothing is entered in the editor. The browser's Holiday Lights tab (libraries/apps/measurements/holiday-lights.js)
 // groups the same way. The model travels with the PDF snapshot (holidayLightsModel) because the server render has
 // no XML generator.
@@ -6476,12 +6476,11 @@ function buildPdfHolidayLightsMetrics(model) {
     });
     const lit = Object.fromEntries(PDF_HOLIDAY_LIGHT_EDGES.map((edge) => [edge.type, edge.lit]));
     const layout = groupHolidayLights(edges, faces, lit);
-    // Names and tags: "North, Upper" is tagged NU on the drawing; one roofline leaves just the side (N).
+    // Names and colours: "North", "Upper"; one roofline leaves the level unnamed.
     const groups = layout.groups.map((group) => {
         const sideName = pdfLabel(PDF_HOLIDAY_SIDE_NAMES[group.side]);
         const levelName = !group.levelKey ? '' : PDF_HOLIDAY_LEVEL_NAMES[group.levelKey] ? pdfLabel(PDF_HOLIDAY_LEVEL_NAMES[group.levelKey]) : pdfLabel('Roofline {number}', { number: group.levelKey });
-        const tag = sideName.charAt(0).toUpperCase() + (!group.levelKey ? '' : PDF_HOLIDAY_LEVEL_NAMES[group.levelKey] ? levelName.charAt(0).toUpperCase() : group.levelKey);
-        return { ...group, sideName, levelName, tag, color: PDF_HOLIDAY_SIDE_COLORS[group.side] };
+        return { ...group, sideName, levelName, color: PDF_HOLIDAY_SIDE_COLORS[group.side] };
     });
     const sides = layout.sides.map((side) => ({ ...side, name: groups.find((group) => group.side === side.side).sideName, color: PDF_HOLIDAY_SIDE_COLORS[side.side] }));
     const litEdges = groups.flatMap((group) => group.edges);
@@ -6524,7 +6523,7 @@ function triangulateHolidayFace(pts) {
 }
 
 /** The roof from the south-east on white, each side in its colour with alternating red and green bulbs, each stretch
- *  tagged as in the table, and a north arrow.
+ *  labelled with its length, and a north arrow.
  *  Roofs go into a depth buffer, and every piece of a run line, outline and bulb is drawn only where nothing on
  *  the roof is in front of it, so a roof that sits over another hides the lights beneath it. */
 function createHolidayLightsCanvas(model, metrics, { width = 1600, height = 1000 } = {}) {
@@ -6628,9 +6627,9 @@ function createHolidayLightsCanvas(model, metrics, { width = 1600, height = 1000
 
     roofs.forEach((roof) => roof.lines.forEach((line) => strokeVisible(screen(roof.points[line.a]), screen(roof.points[line.b]), '#a3abb8', 1.5)));
 
-    // Every lit line's group and stretch. A group's longest stretch is tagged, and every other one 12 ft or longer.
+    // Every lit line's stretch (an unbroken run of one side and roofline) and its side's colour.
     const runOf = new Map();
-    (metrics?.groups || []).forEach((group) => group.pieces.forEach((piece, index) => piece.edges.forEach((edge) => runOf.set(edge.line, { color: group.color, tag: group.tag, piece: index && piece.length < 12 ? null : piece }))));
+    (metrics?.groups || []).forEach((group) => group.pieces.forEach((piece) => piece.edges.forEach((edge) => runOf.set(edge.line, { color: group.color, piece }))));
     const lineW = Math.max(5, Math.min(12, width / 150));
     const bulbR = Math.max(3.5, Math.min(7, width / 260));
     const badgeSpots = new Map();
@@ -6653,24 +6652,45 @@ function createHolidayLightsCanvas(model, metrics, { width = 1600, height = 1000
             ctx.lineWidth = 1;
             ctx.stroke();
         }
-        // A stretch's tag goes on its longest visible edge, nearest the middle.
-        if (!run.piece) return;
-        for (let i = 0; i <= 20; i++) {
-            const t = 0.5 + (i % 2 ? 1 : -1) * Math.ceil(i / 2) * 0.025;
+        // Where this edge could carry its stretch's length: visible spots, the middle of long edges first.
+        if (!badgeSpots.has(run.piece)) badgeSpots.set(run.piece, { run, spots: [] });
+        for (const t of [0.5, 0.35, 0.65, 0.2, 0.8]) {
             const p = lerp(sa, sb, t);
-            if (!visible(p)) continue;
-            const score = length * (1 - Math.abs(t - 0.5));
-            if (!badgeSpots.has(run.piece) || badgeSpots.get(run.piece).score < score) badgeSpots.set(run.piece, { p, score, run });
-            break;
+            if (visible(p)) badgeSpots.get(run.piece).spots.push({ p, score: length * (1 - Math.abs(t - 0.5)) });
         }
     }));
 
-    const badgeR = Math.max(14, Math.min(24, width / 66));
+    // Every stretch of 3 ft or more carries its length in its side's colour (shorter ones are corner returns, still
+    // counted in the table), longest first, each where it overlaps no label already placed: on the stretch if it can,
+    // else moved off it with a leader line. A stretch hidden behind the roof has no label.
+    const badgeR = Math.max(12, Math.min(20, width / 80));
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
-    badgeSpots.forEach(({ p, run }) => {
-        ctx.font = `700 ${Math.round(badgeR * 1.05)}px Arial`;
-        const half = Math.max(badgeR, ctx.measureText(run.tag).width / 2 + badgeR * 0.55);
+    ctx.font = `700 ${Math.round(badgeR * 1.05)}px Arial`;
+    const placed = [];
+    [...badgeSpots.entries()].sort(([p], [q]) => q.length - p.length).forEach(([piece, { run, spots }]) => {
+        if (!spots.length || piece.length < 3) return;
+        const text = pdfMeasure(piece.length, 'ft', `${Math.round(piece.length).toLocaleString('en-US')} ft`);
+        const half = Math.max(badgeR, ctx.measureText(text).width / 2 + badgeR * 0.55);
+        const box = (p) => ({ x0: p.x - half - 3, x1: p.x + half + 3, y0: p.y - badgeR - 3, y1: p.y + badgeR + 3 });
+        const free = (b) => placed.every((o) => b.x1 < o.x0 || b.x0 > o.x1 || b.y1 < o.y0 || b.y0 > o.y1);
+        spots.sort((a, b) => b.score - a.score);
+        const at = spots.find((spot) => free(box(spot.p)))?.p;
+        let p = at;
+        if (!p) {
+            const from = spots[0].p, step = badgeR * 2 + 8;
+            const moves = [];
+            for (let k = 1; k <= 6; k++) moves.push([0, -k], [0, k], [k * 2, 0], [-k * 2, 0]);
+            const move = moves.map(([dx, dy]) => ({ x: from.x + dx * half, y: from.y + dy * step }))
+                .find((q) => q.x - half > 0 && q.x + half < width && q.y - badgeR > 0 && q.y + badgeR < height && free(box(q)));
+            p = move || from;
+            if (move) {
+                ctx.strokeStyle = run.color;
+                ctx.lineWidth = 2;
+                ctx.beginPath(); ctx.moveTo(from.x, from.y); ctx.lineTo(p.x, p.y); ctx.stroke();
+            }
+        }
+        placed.push(box(p));
         ctx.fillStyle = run.color;
         ctx.beginPath();
         ctx.arc(p.x - half + badgeR, p.y, badgeR, Math.PI / 2, Math.PI * 1.5);
@@ -6681,10 +6701,10 @@ function createHolidayLightsCanvas(model, metrics, { width = 1600, height = 1000
         ctx.lineWidth = 2.5;
         ctx.stroke();
         ctx.fillStyle = '#ffffff';
-        ctx.fillText(run.tag, p.x, p.y + 1);
+        ctx.fillText(text, p.x, p.y + 1);
     });
 
-    // North arrow, top right: the tags' N, E, S and W read against it.
+    // North arrow, top right: the sides in the table read against it.
     const origin = view([0, 0, 0]), north = view([0, 1, 0]);
     const nx = north.sx - origin.sx, ny = north.sy - origin.sy, nl = Math.hypot(nx, ny) || 1;
     const arrow = Math.max(22, width / 40), ax = width - arrow * 2, ay = arrow * 2.2;
@@ -6707,15 +6727,11 @@ async function drawHolidayLightsPage(doc, state, model, x, y, w, h, brandingColo
     const gap = 5;
     const pColor = (brandingColors && brandingColors.primary) ? brandingColors.primary : { r: 200, g: 40, b: 40 };
     const feet = (value) => pdfMeasure(value, 'ft', `${Math.round(value).toLocaleString('en-US')} ft`);
-    const tagPill = (group, cx, cy, size) => {
+    // A row's side colour, as on the drawing.
+    const swatch = (group, cx, cy) => {
         const rgb = hexToRgbReport(group.color);
-        doc.setFont("Montserrat", "bold");
-        doc.setFontSize(size);
-        const pillH = size * 0.5, pillW = Math.max(pillH * 1.25, doc.getTextWidth(group.tag) + pillH * 0.8);
         doc.setFillColor(rgb.r, rgb.g, rgb.b);
-        doc.roundedRect(cx - pillW / 2, cy - pillH / 2, pillW, pillH, pillH / 2, pillH / 2, 'F');
-        doc.setTextColor(255, 255, 255);
-        doc.text(group.tag, cx, cy + size * 0.13, { align: 'center' });
+        doc.roundedRect(cx - 1.7, cy - 1.7, 3.4, 3.4, 0.8, 0.8, 'F');
     };
 
     // Top row, kept short so the drawing gets the page: lights needed, and the length on each side, in its colour.
@@ -6762,7 +6778,7 @@ async function drawHolidayLightsPage(doc, state, model, x, y, w, h, brandingColo
     const listX = wide ? x + w - listW : x, listY = wide ? midY : midY + midH - listH;
     const viewW = wide ? w - listW - gap : w, viewH = wide ? midH : midH - listH - gap;
     drawSummaryBox(doc, listX, listY, listW, listH, showLevel ? "Lights By Side And Roofline" : "Lights By Side");
-    const cells = [['', 0.13, 'center'], ['Side', 0.22, 'left'], ...(showLevel ? [['Roofline', 0.2, 'left']] : []), ['Eaves', 0.15, 'right'], ['Rakes', 0.15, 'right'], ['Length', 0.15, 'right']];
+    const cells = [['', 0.07, 'center'], ['Side', 0.22, 'left'], ...(showLevel ? [['Roofline', 0.2, 'left']] : []), ['Eaves', 0.15, 'right'], ['Rakes', 0.15, 'right'], ['Length', 0.15, 'right']];
     const weight = cells.reduce((sum, cell) => sum + cell[1], 0);
     const listColW = (listW - 12) / columns;
     const value = (group, label) => label === 'Side' ? group.sideName : label === 'Roofline' ? group.levelName
@@ -6787,7 +6803,7 @@ async function drawHolidayLightsPage(doc, state, model, x, y, w, h, brandingColo
             doc.setLineWidth(firstOfSide ? 0.35 : 0.25);
             doc.line(left, rowY - listRowH + 1.6, left + listColW - (columns > 1 ? 3 : 0), rowY - listRowH + 1.6);
             spots.forEach((spot) => {
-                if (!spot.label) { tagPill(group, spot.at, rowY - 1, 7.5); return; }
+                if (!spot.label) { swatch(group, spot.at, rowY - 1); return; }
                 if (spot.label === 'Side' && !firstOfSide) return;
                 doc.setFont("Montserrat", spot.label === 'Length' || spot.label === 'Side' ? "bold" : "normal");
                 doc.setFontSize(8.5);
