@@ -51,6 +51,7 @@ test('designed welcome screens fit phones and desktops and only activate on Get 
       await page.evaluate(({appId,welcome})=>window.handle=window.mountWelcome({appId,orgId:'org_test',roots:{main:document.getElementById('root')},entitlement:{offered:true,welcome}}),{appId,welcome});
       assert.equal(await page.locator('h1').textContent(),welcome.headline.text);
       assert.equal(await page.locator('.faw-benefits li').count(),3);
+      if(!welcome.setup)assert.equal(await page.locator('.faw-free').textContent(),'Free Forever','the pill never suggests a trial (FM-364)');
       assert.equal(await page.evaluate(()=>window.activations),0,'reading the advertisement never activates the app');
       assert.equal(await page.evaluate(()=>document.querySelector('.fm-app-welcome').scrollWidth<=innerWidth),true);
       await page.screenshot({path:new URL(`${welcome.theme}-${width}.png`,output).pathname.replace(/^\/([A-Z]:)/,'$1'),fullPage:true});
