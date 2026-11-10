@@ -1215,10 +1215,11 @@
         .mt-phone-lists .mt-list-head button{width:36px;height:36px;font-size:12px}
         .mt-phone-lists .mt-list-head>input{min-height:36px;font-size:13px}
         .mt-phone-lists .mt-list-add-item,.mt-phone-lists .mt-resource-add{min-height:36px;font-size:12px}
-        .mt-phone-lists .mt-material-grid>.mt-req-tray{flex:0 0 100%;width:100%;margin-left:0}
+        .mt-phone-lists .mt-material-grid>.mt-req-tray{flex:0 0 100%;width:100%;box-sizing:border-box;margin-left:0}
         .mt-phone-lists .mt-req-tray .mt-req-bar{display:none}
         .mt-phone-lists .mt-req-tray .mt-req-panel{flex:1;width:auto;opacity:1;transition:none}
         .mt-phone-lists .mt-req-tray .mt-req-panel-inner{width:100%}
+        .mt-phone-lists .mt-req-tray .mt-req-scroll{overflow-x:hidden}
         .mt-phone-strip{position:relative;flex:0 0 auto;display:flex;align-items:center;gap:4px;padding:2px 8px;overflow-x:auto;scrollbar-width:none;border-top:1px solid #eaecf0;background:#fff;--mt-fade-start:0px;--mt-fade-end:0px}
         .mt-phone-strip>.mt-phone-pill:first-child{margin-left:auto}.mt-phone-strip>.mt-phone-pill:last-child{margin-right:auto}
         .mt-phone-strip.is-more-before{--mt-fade-start:28px}.mt-phone-strip.is-more-after{--mt-fade-end:28px}
