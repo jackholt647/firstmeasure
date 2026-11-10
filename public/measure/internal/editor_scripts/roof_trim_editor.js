@@ -112,7 +112,18 @@ root.createRoofTrimEditor=function(host){
   for(const button of grid.querySelectorAll('button'))button.setAttribute('aria-pressed',String(materialChoices.get(button.dataset.material)));
  }
  // The host follows the menu: while it is open, the views select lines for trim.
- function update(){if(announced!==open){announced=open;host.openChanged?.(open);}mount();if(!control)return;if(open){refreshMaterials();refreshSelection();}
+ // Textured view renders its own scene of finished surfaces only, so a selected eave or rake is outlined
+ // on top of the view in page space instead, following the camera each frame while anything is selected.
+ let outline=null,outlineFrame=0;
+ function paintOutline(){outlineFrame=0;const wrapper=document.getElementById?.('three-view-wrapper');const show=selected.size&&host.textured?.()&&(host.enabled?.()??host.visible())&&wrapper;
+  if(!show){if(outline)outline.style.display='none';return;}
+  if(!outline||outline.parentElement!==wrapper){outline?.remove();outline=document.createElementNS('http://www.w3.org/2000/svg','svg');outline.setAttribute('aria-hidden','true');outline.style.cssText='position:absolute;inset:0;width:100%;height:100%;pointer-events:none;z-index:6;overflow:visible';wrapper.appendChild(outline);}
+  const r=wrapper.getBoundingClientRect(),lines=[];
+  for(const p of panels){if(!selected.has(p.id))continue;const a=host.screen(p.a),b=host.screen(p.b);if(!a||!b)continue;const xy=`x1="${a.x-r.left}" y1="${a.y-r.top}" x2="${b.x-r.left}" y2="${b.y-r.top}"`;lines.push(`<line ${xy} stroke="#1f2937" stroke-width="7" stroke-linecap="round" opacity=".55"/><line ${xy} stroke="#ffd84d" stroke-width="4" stroke-linecap="round"/>`);}
+  outline.innerHTML=lines.join('');outline.style.display='';outlineFrame=requestAnimationFrame(paintOutline);
+ }
+ function outlineSoon(){if(!outlineFrame&&typeof requestAnimationFrame==='function')outlineFrame=requestAnimationFrame(paintOutline);}
+ function update(){outlineSoon();if(announced!==open){announced=open;host.openChanged?.(open);}mount();if(!control)return;if(open){refreshMaterials();refreshSelection();}
   control.hidden=!(host.enabled?.()??host.visible());control.style.display=control.hidden?'none':'flex';control.querySelector('#roof-trim-options').hidden=!open;control.querySelector('#roof-trim-tool').setAttribute('aria-pressed',String(open));}
  function refresh(roof){panels=root.RoofTrim.panels(roof,host.settings());selected=new Set([...selected].filter(id=>panels.some(p=>p.id===id)));update();return panels;}
  function clear(){openingType=null;selected.clear();buffer='';open=false;update();host.redraw();}
