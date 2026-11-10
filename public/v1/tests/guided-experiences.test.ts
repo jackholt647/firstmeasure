@@ -212,3 +212,13 @@ test("Operations uses the shared document workflow and optional setup hub before
  assert.equal(nextPerson.experiences.find(item=>item.id==='operations.setup')?.progress?.status,'completed','setup progress belongs to the organization');
  assert.equal(nextPerson.experiences.find(item=>item.id==='materials.tab_tutorial')!.triggers.some(trigger=>trigger.kind==='tab_opened'),true,'the tour can run once scope setup is complete');
 });
+
+test("the Operations tour every organization sees uses no roofing-only words", async () => {
+  // FM-368: its units step said "Squares or bundles"; the tour plays for every trade.
+  const { readSnapshot } = await import("../config-library/library.js");
+  const entry = readSnapshot().find((file: { kind: string; id: string }) => file.kind === "guided_experience" && file.id === "materials.tab_tutorial") as { data: { steps: Array<{ id: string; title: { text: string }; body: { text: string } }> } } | undefined;
+  assert.ok(entry, "materials.tab_tutorial is in the snapshot");
+  for (const step of entry.data.steps) assert.doesNotMatch(`${step.title.text} ${step.body.text}`, /\b(squares?|shingles?|roof(s|ing)?)\b/i, `step ${step.id}`);
+  const units = entry.data.steps.find((step) => step.id === "units")!;
+  assert.equal(units.title.text, "Measured or order units");
+});
