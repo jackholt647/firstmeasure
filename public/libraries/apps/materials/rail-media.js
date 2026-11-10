@@ -39,6 +39,14 @@ function projectEnv(ctx = {}) {
     project,
     orgId: () => first(target.organizationId, host?.projectOrgId?.(), window.projectOrgId?.(), window.Portal?.cfg?.userOrgId, window.__APP?.userOrgId),
     projectId: () => first(target.projectId, project()?.id),
+    // A write on a new project saves it first through the project window (FM-374); returns the id or ''.
+    ensureProjectId: async () => {
+      const id = first(target.projectId, project()?.id);
+      if (id) return id;
+      const ensure = host?.ensureProject || window.ensureActiveProject;
+      if (typeof ensure === 'function') await Promise.resolve(ensure()).catch((error) => console.warn('Project could not be saved.', error));
+      return first(target.projectId, project()?.id);
+    },
     title: () => first(project()?.title, project()?.name, project()?.address)
   };
 }
@@ -456,7 +464,7 @@ async function trashPhoto(api, photo) {
 }
 async function uploadPhotos(api, files) {
   const add = window.addPhotoFiles || ((list, options) => window.Portal?.ProjectPhotosTab?.invoke?.('addPhotoFiles', [list, options]));
-  if (!api.env.projectId()) { toast(T('rail_media_upload_unavailable', 'Upload unavailable'), T('rail_media_save_first', 'Save the project before uploading.'), false); return; }
+  if (!(await api.env.ensureProjectId())) { toast(T('rail_media_upload_unavailable', 'Upload unavailable'), T('rail_media_save_first', 'Save the project before uploading.'), false); return; }
   const accepted = files.filter((file) => /^(image|video)\//.test(file.type || ''));
   if (!accepted.length) { toast(T('rail_photos_upload_type', 'Not a photo or video'), T('rail_photos_upload_type_body', 'Choose photos or videos to upload here.'), false); return; }
   api.frame.setChip(T('rail_photos_uploading', `Uploading ${accepted.length} ${plural(accepted.length, 'item', 'items')}…`, { count: accepted.length }));
@@ -681,7 +689,7 @@ async function openEngineDocument(api, doc) {
   window.open(enginePdfUrl(api.env, record, doc.snapshotId), '_blank', 'noopener');
 }
 async function uploadDocuments(api, files) {
-  const { env } = api, orgId = env.orgId(), projectId = env.projectId();
+  const { env } = api, orgId = env.orgId(), projectId = await env.ensureProjectId();
   if (!orgId || !projectId || !window.PlatformAPI?.projectDocuments?.upload) { toast(docsText('m_920aa9d1b0216a', 'Upload unavailable'), docsText('m_546d652f15f847', 'Save the project before uploading documents.'), false); return; }
   api.frame.setChip(T('rail_docs_uploading', `Uploading ${files.length} ${plural(files.length, 'file', 'files')}…`, { count: files.length }));
   let uploaded = null, done = 0;

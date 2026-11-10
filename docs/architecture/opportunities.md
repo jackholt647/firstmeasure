@@ -67,6 +67,20 @@ baseline and later saves are PATCHes (must exist) of the changed fields.
 `tests/project-open-no-overwrite.test.ts` and
 `tests/project-window-phone-browser.test.mjs` cover this.
 
+A **new** project window is not saved until its first write, and every write
+counts, whichever app makes it (FM-374). The window has one hook for it,
+`ensureProjectForWrite` in `project-request/app.js`: it turns the unsaved
+window into a `draft` project, waits until the server has it, and returns it.
+Apps call it as `host.ensureProject` before a project-scoped write (a photo
+or document upload, a note, a to-do, an app's own data; the trays get it as
+`options.ensureProject`, page code without a host as
+`window.ensureActiveProject`); typing into the project's own fields (title, a
+contact, a custom field) saves the draft too, the address once it is chosen.
+Opening and reading never call it, so an untouched new project is still not
+kept. A new app that writes asks this hook for its project; it never refuses
+a write because the project is unsaved, and never adds its own trigger.
+`tests/project-first-write-browser.test.mjs` covers it.
+
 ## New leads
 
 A project is a **new lead** while it arrived as a lead (`receiveLead`

@@ -4962,7 +4962,7 @@ window.PlatformCommerce.onReady(async function(){
   // report model and entries made by hand), or the measurement ordering widget when there are none. Hidden while
   // a report order or the new-project picker is using the form.
   const trayMeasurements={key:'',loadedAt:0,loading:null,documents:[],error:'',overrides:{}};
-  const scopeWorkspaceModuleUrl='/libraries/apps/materials/scope-of-work.js?v=20261110-phone-no-rail';
+  const scopeWorkspaceModuleUrl='/libraries/apps/materials/scope-of-work.js?v=20261110-fm374-first-write';
   function syncTrayMeasurements(){
     const details=document.querySelector('#rOverlay .r-overview-details');
     if(!details)return;
@@ -5628,6 +5628,7 @@ window.PlatformCommerce.onReady(async function(){
       queueAutosaveNotice: (...args) => queueAutosaveNotice(...args),
       persistActiveBaseProject: (...args) => persistActiveBaseProject(...args),
       ensureDraftBaseProject: (...args) => ensureDraftBaseProject(...args),
+      ensureActiveProject: () => ensureProjectForWrite(),
       trackRequestActivity: (...args) => trackRequestActivity(...args),
       storageLimitsEnabled: (...args) => storageLimitsEnabled(...args),
       purchasableStorageEnabled: (...args) => purchasableStorageEnabled(...args),
@@ -7640,12 +7641,7 @@ window.PlatformCommerce.onReady(async function(){
       },
       persistProject: () => persistActiveBaseProject(),
       // A tab app's first write on a new project saves it here, as the trays do; reads never call this.
-      ensureProject: async () => {
-        const project = ensureDraftBaseProject({ allowEmpty:true });
-        if (!project) throw Error((globalThis.PlatformLanguage?.text("project-request","project_save_failed","Project could not be saved.") ?? "Project could not be saved."));
-        await window.Portal.ProjectStore.saveRemote(project);
-        return activeBaseProject;
-      },
+      ensureProject: () => ensureProjectForWrite(),
       saveContactEmail: async ({ contact_id: contactId = '', index = 0, email = '' } = {}) => {
         const cards = [...($('#rContactList')?.querySelectorAll('.r-contact-card') || [])];
         const normalizedId = projectText(contactId);
@@ -9241,7 +9237,8 @@ window.PlatformCommerce.onReady(async function(){
     const input = $('#rProjectNotes');
     const text = (input?.value || '').trim();
     if (!api || (!text && !pendingProjectAudio?.attachment)) return;
-    if (!activeBaseProject) ensureContactDraftBaseProject() || ensureDraftBaseProject();
+    if (!activeBaseProject) ensureContactDraftBaseProject();
+    await ensureProjectForWrite().catch((error) => console.warn('Project could not be saved for the note', error));
     if (!activeBaseProject) return;
     const mentionUsers = projectNoteMentionController?.selectedMentions?.() || [];
     const note = editingProjectNoteId
@@ -9276,7 +9273,7 @@ window.PlatformCommerce.onReady(async function(){
   let projectPresenceUsers = [];
   function syncProjectPresence(){
     const trayShell = document.getElementById("rMapWrap");
-    if (!projectContentPane && !projectTrays && trayShell && window.FirstMateProjectTrays) projectTrays = window.FirstMateProjectTrays.mount(trayShell, {content:$('#rOverlay .r-project-body'),getProject:() => activeBaseProject, getActiveTab:()=>activePreviewTab, isMinimized:()=>projectModalWindow?.state?.mode==='minimized', ensureProject:async() => { const project=ensureDraftBaseProject({allowEmpty:true}); if (!project) throw Error((globalThis.PlatformLanguage?.text("project-request","project_save_failed","Project could not be saved.") ?? "Project could not be saved.")); await window.Portal.ProjectStore.saveRemote(project); return activeBaseProject; }, orgId:projectOrgId()});
+    if (!projectContentPane && !projectTrays && trayShell && window.FirstMateProjectTrays) projectTrays = window.FirstMateProjectTrays.mount(trayShell, {content:$('#rOverlay .r-project-body'),getProject:() => activeBaseProject, getActiveTab:()=>activePreviewTab, isMinimized:()=>projectModalWindow?.state?.mode==='minimized', ensureProject:() => ensureProjectForWrite(), orgId:projectOrgId()});
     projectTrays?.update();
     $('#rOverlay')?.classList.toggle('has-project-trays',!!projectTrays);
     const projectId = activeProjectRouteId();
@@ -9410,7 +9407,7 @@ window.PlatformCommerce.onReady(async function(){
     renderProjectStageBar();
   }
 
-  function persistActiveBaseProject(){
+  function persistActiveBaseProject(options = {}){
     // Routed shells, provisional records and contact hydration contain
     // incomplete field values. They must never overwrite the saved project.
     if (projectShellLoading || projectFormHydrating || projectRecordPending) return;
@@ -9420,6 +9417,8 @@ window.PlatformCommerce.onReady(async function(){
     // Only a new project starts a draft here. A window opened for an existing project (an order whose record has not
     // loaded yet, or failed to) must not save a new draft over the order's address (1M8-234).
     if (!activeBaseProject && addressSelected && !viewingExistingProject) ensureDraftBaseProject();
+    // A person typing into the project's own fields (title, a contact, a custom field) is a write (FM-374).
+    if (!activeBaseProject && options.edited === true && !viewingExistingProject) ensureDraftBaseProject({ allowEmpty:true });
     if (!activeBaseProject || !window.Portal.ProjectStore) return;
     syncProjectPhotosFromLibrary();
     // Without the Overview details form there are no edited values to read;
@@ -9536,6 +9535,24 @@ window.PlatformCommerce.onReady(async function(){
       'project',
       runtime.editorValues(mount, activeBaseProject, 'project')
     );
+    return activeBaseProject;
+  }
+
+  // FM-374: the one way a write makes a new project real. Every project-scoped write (a photo, a document, a note, a
+  // to-do, an app's own data) asks for its project here first: a new window with nothing saved yet becomes a stored
+  // draft, saved on the server before the write runs, so what the write points at survives a refresh. Opening the
+  // window and reading never call this, so an untouched new project is still not kept. Apps reach it as
+  // host.ensureProject (trays: options.ensureProject); page code without a host as window.ensureActiveProject.
+  async function ensureProjectForWrite(){
+    const store = window.Portal?.ProjectStore;
+    const loading = projectShellLoading || projectFormHydrating || projectRecordPending || !!activeBaseProject?.__projectShellLoading;
+    // A window opened for an existing project whose record has not loaded must not start a new draft (1M8-234).
+    if (!activeBaseProject && (loading || viewingExistingProject)) throw Error((globalThis.PlatformLanguage?.text("project-request","project_still_loading","The project is still loading. Try again in a moment.") ?? "The project is still loading. Try again in a moment."));
+    // A saved project with nothing queued is already on the server.
+    if (activeBaseProject && (loading || !store?.hasPendingSave?.(activeBaseProject))) return activeBaseProject;
+    const project = activeBaseProject || ensureDraftBaseProject({ allowEmpty:true });
+    if (!project || !store?.saveRemote) throw Error((globalThis.PlatformLanguage?.text("project-request","project_save_failed","Project could not be saved.") ?? "Project could not be saved."));
+    await store.saveRemote(project);
     return activeBaseProject;
   }
 
@@ -9984,6 +10001,13 @@ window.PlatformCommerce.onReady(async function(){
       return [];
     });
     return docPickerRowsCache.promise;
+  }
+
+  // The project's own fields, the ones persistActiveBaseProject saves. The address is not one until it is chosen
+  // (addressSelected); a composer (notes, the agent prompt) writes through its own save.
+  function isProjectFieldEdit(target){
+    if (!target?.matches?.('#rProjectTitleInput, #rContactList [data-field], [data-fm-cf-input], #rTechNotes')) return false;
+    return target.type === 'checkbox' || target.type === 'radio' ? !!target.checked : !!projectText(target.value);
   }
 
   function contactHasContent(contact = {}){
@@ -11000,7 +11024,7 @@ window.PlatformCommerce.onReady(async function(){
       if (e.target.matches('#rProjectTitleInput, #rAddress, [data-field="name"], [data-field="phone"], [data-field="email"]')) updateModalTitle();
       if (hasReportOrdered()) renderProjectViewerSummary();
       if (e.target.matches('[data-fm-cf-input]')) syncProjectCustomFieldValues();
-      persistActiveBaseProject();
+      persistActiveBaseProject({ edited:isProjectFieldEdit(e.target) });
     }, { signal: projectFormListeners.signal });
     $('#rOverlay')?.addEventListener('change', (e) => {
       if(!e.target.closest('#rForm,#rProjectCustomFields,.r-project-identity-popover'))return;
@@ -11008,7 +11032,7 @@ window.PlatformCommerce.onReady(async function(){
       if (e.target.matches('#rProjectTitleInput, #rAddress, [data-field="name"], [data-field="phone"], [data-field="email"]')) updateModalTitle();
       if (hasReportOrdered()) renderProjectViewerSummary();
       if (e.target.matches('[data-fm-cf-input]')) syncProjectCustomFieldValues();
-      persistActiveBaseProject();
+      persistActiveBaseProject({ edited:isProjectFieldEdit(e.target) });
     }, { signal: projectFormListeners.signal });
     document.addEventListener('keydown', handleGalleryKeydown, { signal: projectFormListeners.signal });
     document.addEventListener('keydown', handleProposalPreviewKeydown, { signal: projectFormListeners.signal });
