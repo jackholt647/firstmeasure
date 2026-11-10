@@ -432,6 +432,7 @@ ${C} [data-fma=closeSurface]{width:34px;height:34px;border-radius:10px}
       root.dispatchEvent(new CustomEvent('fm:project-agent:state',{detail:{...agentState,pinned:manualPin || agentState.voice}}));
       agent?.setWorkspaceContext?.();
       syncAgentCompact();
+      syncKeyboard();
     }
     // On a phone the agent is not a full tray: the same assistant (same conversation, voice
     // and auto-pin) slides up from the bottom as its input bar, with the conversation folded
@@ -465,8 +466,44 @@ ${C} [data-fma=closeSurface]{width:34px;height:34px;border-radius:10px}
 .fm-project-content[data-tray-mode=sheet]>.fm-project-tray>header{padding:0 10px 8px 16px;touch-action:none;cursor:grab}
 .fm-project-content[data-tray-mode=sheet]>.fm-project-tray>header strong{font-size:15px;color:#101828}
 .fm-project-content[data-tray-mode=sheet] .fm-project-tray-close{display:grid;place-items:center;width:34px;height:34px;padding:0;border-radius:10px;background:#f2f4f7;font-size:15px}
-@media(prefers-reduced-motion:reduce){.fm-project-content.fm-project-content[data-tray-mode=sheet]>.fm-project-tray,.fm-project-tray-scrim{transition:none!important}.fm-project-tray-tabs[data-placement=footer]>button>i{animation:none!important;transition:none}}`;
+@media(prefers-reduced-motion:reduce){.fm-project-content.fm-project-content[data-tray-mode=sheet]>.fm-project-tray,.fm-project-tray-scrim{transition:none!important}.fm-project-tray-tabs[data-placement=footer]>button>i{animation:none!important;transition:none}}
+.fm-project-content[data-keyboard=true]>.fm-project-tray:not([data-pin-only=true]){bottom:var(--fm-keyboard-lift,0px)!important;max-height:calc(100% - 12px - var(--fm-keyboard-lift,0px))!important}`;
     document.head.append(phoneStyle);
+    // Typing in an open tray on a phone: the keyboard covers the window and only the tray (a sheet or the agent bar)
+    // rises above it, so the app and the tray bar behind it stay where they were. The top page asks the browser to lay
+    // the keyboard over the content (VirtualKeyboard API: no resize, no panning the page to the field) only while a
+    // text field in the tray has focus; anywhere else, and in browsers without the API, the browser's own behaviour stays.
+    const virtualKeyboard=(()=>{try{return root.top.navigator.virtualKeyboard || null;}catch(_){return null;}})();
+    let keyboardOverlay=false;
+    function typesText(node){
+      if(!node || node.nodeType!==1)return false;
+      return node.isContentEditable || node.matches('textarea,input:not([type=button],[type=checkbox],[type=radio],[type=submit],[type=reset],[type=file],[type=range],[type=color],[type=hidden])');
+    }
+    function syncKeyboardLift(){
+      const rect=keyboardOverlay ? virtualKeyboard.boundingRect : null;
+      let lift=0;
+      if(rect && rect.height>0){
+        let frameTop=0;try{frameTop=root.frameElement?.getBoundingClientRect().top || 0;}catch(_){}
+        lift=Math.max(0,Math.round(content.getBoundingClientRect().bottom+frameTop-rect.y));
+      }
+      if(lift){content.dataset.keyboard='true';content.style.setProperty('--fm-keyboard-lift',lift+'px');}
+      else{delete content.dataset.keyboard;content.style.removeProperty('--fm-keyboard-lift');}
+    }
+    function setKeyboardOverlay(on){
+      if(!virtualKeyboard || on===keyboardOverlay)return;
+      keyboardOverlay=on;
+      try{virtualKeyboard.overlaysContent=on;}catch(_){}
+      if(on)virtualKeyboard.addEventListener('geometrychange',syncKeyboardLift);else virtualKeyboard.removeEventListener('geometrychange',syncKeyboardLift);
+      syncKeyboardLift();
+    }
+    function syncKeyboard(focused=document.activeElement){
+      setKeyboardOverlay(!disposed && !!selected && trayPhone() && tray.contains(focused) && typesText(focused));
+    }
+    tray.addEventListener('focusin',event=>syncKeyboard(event.target));
+    tray.addEventListener('focusout',event=>syncKeyboard(event.relatedTarget));
+    // The window's frame can go away with a field still focused; the top page must not keep the overlay.
+    const keyboardPageHide=()=>setKeyboardOverlay(false);
+    root.addEventListener('pagehide',keyboardPageHide);
     let drag=null, dragEnded=0;
     const T=(key,fallback)=>globalThis.PlatformLanguage?.text?.('project-trays',key,fallback) ?? fallback;
     const sheetOpen=()=>content.dataset.trayMode==='sheet' && !!selected;
@@ -527,7 +564,7 @@ ${agentBarCss({host:'.fm-project-content',bar:'.fm-project-tray',panel:'.fm-proj
     }
     const agentViewport=()=>{cancelAnimationFrame(agentResize);agentResize=requestAnimationFrame(()=>{if(!disposed){syncPlacement();syncAgentCompact();}});};
     root.addEventListener('resize',agentViewport);
-    const agentCleanup=()=>{cancelAnimationFrame(agentResize);clearTimeout(lingerTimer);drag=null;document.removeEventListener('pointermove',moveDrag);document.removeEventListener('pointerup',endDrag);document.removeEventListener('pointercancel',endDrag);placementObserver.disconnect();root.removeEventListener('resize',agentViewport);agentStyle.remove();phoneStyle.remove();scrim.remove();};
+    const agentCleanup=()=>{setKeyboardOverlay(false);root.removeEventListener('pagehide',keyboardPageHide);cancelAnimationFrame(agentResize);clearTimeout(lingerTimer);drag=null;document.removeEventListener('pointermove',moveDrag);document.removeEventListener('pointerup',endDrag);document.removeEventListener('pointercancel',endDrag);placementObserver.disconnect();root.removeEventListener('resize',agentViewport);agentStyle.remove();phoneStyle.remove();scrim.remove();};
     function requestClose(done){
       const agent=handles.get('agent');
       if(!agentState.voice && !agentState.pending && !manualPin)return true;

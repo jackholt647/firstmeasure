@@ -248,7 +248,7 @@ test('With no order, the measurement widget offers the order, or manual entry, o
       const { mountMeasurementStart } = await import('/libraries/apps/materials/scope-of-work.js');
       const node = document.querySelector('#start');
       mountMeasurementStart(node, options);
-      return { text: node.innerText.replace(/\s+/g, ' '), buttons: [...node.querySelectorAll('button')].map(b => [b.textContent, b.disabled]) };
+      return { text: node.innerText.replace(/\s+/g, ' '), buttons: [...node.querySelectorAll('button')].map(b => [b.textContent, b.disabled]), offers: node.querySelector('[data-measurement-start]')?.dataset.measurementOptions };
     }, options);
     const order = 'Order measurement report', manual = 'Add measurements manually';
     const cases = [
@@ -263,6 +263,8 @@ test('With no order, the measurement widget offers the order, or manual entry, o
     for (const [options, buttons, message] of cases) {
       const shown = await draw(options);
       assert.deepEqual(shown.buttons, buttons, JSON.stringify(options));
+      // The project details tour reads what the widget offers, so its copy never names a button that is not there (FM-363).
+      assert.equal(shown.offers, buttons.map(([label]) => label === order ? 'order' : 'manual').join(' '), JSON.stringify(options));
       assert.match(shown.text, message, JSON.stringify(options));
       assert.doesNotMatch(shown.text, /No measurements/, JSON.stringify(options));
     }

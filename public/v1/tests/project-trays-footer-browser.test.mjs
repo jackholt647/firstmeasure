@@ -11,7 +11,7 @@ const phoneAgent='Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWe
 const BRANDS=[{primary:'#0e7490',rgb:'14,116,144',secondary:'#f59e0b',primaryCss:'rgb(14, 116, 144)',secondaryCss:'rgb(245, 158, 11)'},
   {primary:'#7c2d12',rgb:'124,45,18',secondary:'#16a34a',primaryCss:'rgb(124, 45, 18)',secondaryCss:'rgb(22, 163, 74)'}];
 const shots=process.env.TRAY_SHOTS;
-async function project(browser,{width,height,mobile}){
+async function project(browser,{width,height,mobile,keyboard=false}){
   const page=await browser.newPage({viewport:{width,height},...(mobile?{userAgent:phoneAgent,isMobile:true,hasTouch:true}:{})});const errors=[];
   page.on('pageerror',e=>errors.push(e.message));page.on('console',m=>m.type()==='error'&&errors.push('console '+m.text()));
   await page.route('http://trays.test/**',async route=>{const path=new URL(route.request().url()).pathname;if(path.startsWith('/libraries/'))return route.fulfill({contentType:'application/javascript',body:await asset(path.slice('/libraries/'.length))});return route.fulfill({contentType:'text/html',body:'<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head><body></body></html>'});});
@@ -21,6 +21,12 @@ async function project(browser,{width,height,mobile}){
     window.__APP={userOrgId:'org'};window.Portal={can:()=>true,tabs:{activateTab(){}},util:{currentBranchId:()=>'default'}};
     const threads={main:{id:'main',subject_id:'main'},p1:{id:'p1',subject_id:'project:1'}},messages={main:[],p1:[{role:'user',content:'Earlier question'},{role:'assistant',content:'Earlier answer'}]};
     window.AssistantAPI={context:async()=>({main_thread:threads.main,threads:[threads.main],agents:[],dashboard:[]}),projectConversation:async()=>({thread:threads.p1}),thread:async(_o,t)=>({thread:threads[t],messages:messages[t]}),send:async()=>({actions:[]})};
+  });
+  // A stand-in for Chrome's VirtualKeyboard API on the top page: what the window asks of it, and a keyboard of a given height.
+  if(keyboard)await page.evaluate(()=>{
+    const kb=new EventTarget();kb.overlaysContent=false;kb.boundingRect=new DOMRect(0,0,0,0);
+    Object.defineProperty(Navigator.prototype,'virtualKeyboard',{configurable:true,get:()=>kb});
+    window.showKeyboard=height=>{kb.boundingRect=new DOMRect(0,innerHeight-height,innerWidth,height);kb.dispatchEvent(new Event('geometrychange'));};
   });
   for(const f of ['doc-markdown/firstmate-markdown.js','window-manager/window-manager.js','platform-assistant/platform-assistant.js'])await page.addScriptTag({content:await asset(f)});
   const frame=page.frames().find(f=>f!==page.mainFrame());
@@ -148,6 +154,72 @@ test('phone: the trays are a footer bar, open as bottom sheets, the agent bar an
     await settled(frame);
     assert.equal(await frame.locator('.fm-project-tray').isVisible(),false);
     assert.equal(await frame.locator('.fm-project-tray-tabs').getAttribute('data-agent-compact'),'false');
+    assert.deepEqual(errors,[]);
+  }finally{await browser.close();}
+});
+
+test('phone keyboard: typing in a tray lifts only the tray; the app and the footer behind it stay put (FM-363)',async()=>{
+  const browser=await chromium.launch({channel:'chrome',headless:true});
+  try{
+    const {page,frame,errors}=await project(browser,{width:390,height:844,mobile:true,keyboard:true});
+    const overlays=()=>page.evaluate(()=>navigator.virtualKeyboard.overlaysContent);
+    const footer=await box(frame,'.fm-project-tray-tabs'),content=await box(frame,'.fm-project-content'),app=await box(frame,'.r-preview');
+    const stays=async what=>{
+      assert.deepEqual(await box(frame,'.fm-project-tray-tabs'),footer,'the footer stays put '+what);
+      assert.deepEqual(await box(frame,'.fm-project-content'),content,'the window keeps its height '+what);
+      assert.deepEqual(await box(frame,'.r-preview'),app,'the app behind stays put '+what);
+    };
+    await frame.getByRole('tab',{name:'Notes',exact:true}).click();await settled(frame);
+    const sheet=await box(frame,'.fm-project-tray');
+    assert.equal(await overlays(),false,'nothing changes before a field is focused');
+    await frame.getByRole('textbox',{name:'Note'}).click();
+    assert.equal(await overlays(),true,'a text field in an open tray lays the keyboard over the window');
+    await page.evaluate(()=>showKeyboard(320));
+    let lifted=await box(frame,'.fm-project-tray');
+    assert.equal(lifted.bottom,844-320,'the sheet sits on the keyboard: '+JSON.stringify(lifted));
+    assert.equal(lifted.height,Math.min(sheet.height,844-320-content.top-12),'at its own height, or the room above the keyboard');
+    await stays('with the keyboard up');
+    await shot(page,'phone-keyboard-sheet');
+    // A full-height sheet is cut to the room above the keyboard.
+    await frame.evaluate(()=>document.querySelector('.fm-project-tray').dataset.sheetSize='full');
+    lifted=await box(frame,'.fm-project-tray');
+    assert.equal(lifted.bottom,844-320);assert.ok(lifted.top>=content.top,'the sheet stays inside the window: '+JSON.stringify(lifted));
+    await frame.evaluate(()=>delete document.querySelector('.fm-project-tray').dataset.sheetSize);
+    // The keyboard going away (Android back) drops the sheet onto the footer; leaving the field hands the keyboard back.
+    await page.evaluate(()=>showKeyboard(0));
+    assert.equal((await box(frame,'.fm-project-tray')).bottom,footer.top);
+    await page.evaluate(()=>showKeyboard(320));
+    await frame.locator('.fm-project-tray>header strong').click();
+    assert.equal(await overlays(),false,'leaving the field restores the browser\'s own keyboard handling');
+    assert.equal((await box(frame,'.fm-project-tray')).bottom,footer.top,'and the sheet sits on the footer again');
+    await stays('after typing');
+    // Closing the tray with the field focused hands the keyboard back too.
+    await frame.getByRole('textbox',{name:'Note'}).click();
+    assert.equal(await overlays(),true);
+    await frame.evaluate(()=>trays.close());
+    assert.equal(await overlays(),false,'a closed tray never keeps the overlay');
+    // The agent bar rises the same way.
+    await frame.getByRole('tab',{name:'Agent',exact:true}).click();
+    await frame.waitForSelector('.fma-msg',{state:'attached'});await settled(frame);
+    await frame.locator('.fm-project-tray-panel:not([hidden]) textarea').first().click();
+    assert.equal(await overlays(),true);
+    await page.evaluate(()=>showKeyboard(300));
+    assert.equal((await box(frame,'.fm-project-tray')).bottom,844-300,'the agent bar sits on the keyboard');
+    await stays('with the agent bar up');
+    await shot(page,'phone-keyboard-agent');
+    await frame.evaluate(()=>trays.destroy());
+    assert.equal(await overlays(),false,'a destroyed window hands the keyboard back');
+    assert.deepEqual(errors,[]);
+  }finally{await browser.close();}
+});
+
+test('desktop: focusing a tray field leaves the keyboard to the browser',async()=>{
+  const browser=await chromium.launch({channel:'chrome',headless:true});
+  try{
+    const {page,frame,errors}=await project(browser,{width:1600,height:1000,mobile:false,keyboard:true});
+    await frame.getByRole('tab',{name:'Notes',exact:true}).click();await settled(frame);
+    await frame.getByRole('textbox',{name:'Note'}).click();
+    assert.equal(await page.evaluate(()=>navigator.virtualKeyboard.overlaysContent),false);
     assert.deepEqual(errors,[]);
   }finally{await browser.close();}
 });

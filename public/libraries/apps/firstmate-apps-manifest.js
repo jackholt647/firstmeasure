@@ -44,7 +44,7 @@
     versionedBundle('../channels-ui/channels-ui.js', '20261026-consolidated'),
     versionedBundle('../project-notes/project-notes.js', '20261027-viewer-2'),
     versionedBundle('../project-trays/activity-presenter.js', '20261012-notes-separation-v1'),
-    versionedBundle('../project-trays/project-trays.js', '20261026-shared-agent-bar')
+    versionedBundle('../project-trays/project-trays.js', '20261110-keyboard-over-window')
   ];
   const fieldApprovalBundles = [
     versionedBundle('../crew-api/crew-api.js', '20261101-prod-sync'),
