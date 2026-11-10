@@ -3088,22 +3088,37 @@ window.PlatformCommerce.onReady(async function(){
     if (!tabs || tabs.__headerFit) return;
     tabs.__headerFit = true;
     let pending = 0;
-    const fit = () => {
-      pending = 0;
-      if (!tabs.isConnected || !tabs.clientWidth) return;
-      // Measure labels at their natural width, independent of the current fit
-      // state. The tab strip's actual width already excludes every header action.
+    // Labels at their natural width, independent of the current fit state; with short, every tab that has a
+    // short name (FM-371) uses it. The tab strip's actual width already excludes every header action.
+    const naturalWidth = short => {
       const probe = tabs.cloneNode(true);
       probe.removeAttribute('id');
       probe.querySelectorAll('[id]').forEach(el => el.removeAttribute('id'));
-      probe.classList.remove('r-header-icons');
+      probe.classList.remove('r-header-icons', 'r-header-short');
+      probe.classList.toggle('r-header-short', short);
       probe.classList.add('r-tabbar-fit-probe');
       probe.setAttribute('aria-hidden', 'true');
       probe.inert = true;
       tabs.parentElement.parentElement.append(probe);
-      const required = probe.getBoundingClientRect().width;
+      const width = probe.getBoundingClientRect().width;
       probe.remove();
-      tabs.classList.toggle('r-header-icons', required > tabs.clientWidth + 1);
+      return width;
+    };
+    const fit = () => {
+      pending = 0;
+      if (!tabs.isConnected || !tabs.clientWidth) return;
+      const room = tabs.clientWidth + 1;
+      const hasShort = !!tabs.querySelector('.pv-tab-short');
+      // Three steps: full labels, then short labels, then icons only.
+      let short = hasShort && naturalWidth(false) > room;
+      const icons = naturalWidth(short) > room;
+      if (hasShort && tabs.closest('[data-window-mobile=true]')) {
+        // A phone gives every tab an equal column with its label under the icon: short labels once a full one is cut off.
+        tabs.classList.remove('r-header-short');
+        short = [...tabs.querySelectorAll('.pv-tab-label')].some(label => label.scrollWidth > label.clientWidth + 1);
+      }
+      tabs.classList.toggle('r-header-short', short);
+      tabs.classList.toggle('r-header-icons', icons);
     };
     const schedule = () => { if (!pending) pending = requestAnimationFrame(fit); };
     const resize = new ResizeObserver(schedule);
@@ -3160,6 +3175,8 @@ window.PlatformCommerce.onReady(async function(){
       .r-overlay.window-managed .r-tabbar.r-header-icons .r-tab:has(i){font-size:0;gap:0;min-width:36px;padding:0 10px}
       .r-overlay.window-managed .r-header-icons .r-tab:has(i) .pv-tab-label{display:none}
       .r-overlay.window-managed .r-header-icons .r-tab i{font-size:15px}
+      .r-overlay.window-managed .r-tabbar.r-header-short .pv-tab-label:has(.pv-tab-short)>.pv-tab-long{display:none}
+      .r-overlay.window-managed .r-tabbar.r-header-short .pv-tab-short{display:inline}
       .r-overlay.window-managed .modal-shell-actions{position:static;flex:0 0 auto}
       .r-tabbar.r-tabbar-fit-probe{position:fixed!important;visibility:hidden!important;pointer-events:none!important;inset:0 auto auto 0!important;width:max-content!important;max-width:none!important;display:flex!important;flex:none!important}
       .r-tabbar-fit-probe .r-tab{flex:0 0 auto!important}
@@ -7980,6 +7997,7 @@ window.PlatformCommerce.onReady(async function(){
         terminologyKey:meta.app?.terminologyKey || meta.terminologyKey || '',
         label:window.PlatformTerminology?.appLabel?.(meta, meta.label || meta.title || projectModalTabId(meta)) || meta.label || meta.title || projectModalTabId(meta),
         title:window.PlatformTerminology?.appLabel?.(meta, meta.title || meta.label || projectModalTabId(meta)) || meta.title || meta.label || projectModalTabId(meta),
+        shortLabel:window.PlatformTerminology?.appShortLabel?.(meta) || '',
         icon: meta.icon || '',
         params: meta.params || {},
         layout: meta.layout || {},
@@ -8302,6 +8320,7 @@ window.PlatformCommerce.onReady(async function(){
         tabs.push({
           id: tab.id,
           label: tab.id === 'map' ? (window.Portal.ExteriorOrder?.active() ? 'Map' : projectOverviewTabLabel()) : (tab.label || tab.title || tab.id),
+          shortLabel: tab.id === 'map' ? '' : (tab.shortLabel || ''),
           icon: tab.id === 'map' ? 'fa-map-location-dot' : (tab.icon || ''),
           pending: !!tab.pending,
           badge: pill?.label || tab.app?.promoBadge || '',

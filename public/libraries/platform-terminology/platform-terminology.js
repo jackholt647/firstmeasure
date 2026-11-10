@@ -47,6 +47,15 @@
     const key = clean(appOrMeta.terminologyKey || app?.terminologyKey);
     return key ? get(key, fallback || appOrMeta.title || appOrMeta.label || app?.title || app?.label) : clean(fallback || appOrMeta.title || appOrMeta.label || app?.title || app?.label);
   }
+  // The shorter name a surface falls back to when its full label does not fit (FM-371): the term
+  // `<terminology key>_short`, only where the library declares one; '' otherwise.
+  function appShortLabel(appOrMeta = {}){
+    const app = appOrMeta.app || appOrMeta;
+    const key = clean(appOrMeta.terminologyKey || app?.terminologyKey);
+    if (!key) return '';
+    const [namespace, term] = splitKey(`${key}_short`);
+    return namespace && Object.hasOwn(object(DEFAULT_LABELS[namespace]), term) ? get(`${key}_short`) : '';
+  }
   function setConfig(config = {}, options = {}){
     current = {
       orgId:clean(options.orgId || config.org_id || current.orgId),
@@ -121,6 +130,7 @@
     sections,
     get,
     appLabel,
+    appShortLabel,
     setConfig,
     load,
     ready,
