@@ -47,15 +47,20 @@
   const css = `
     .pv-tab-badge.pv-tab-badge--new{background:#e8f5ee;color:#0f6b3a;border-color:#9bd3b3}
     .pv-tab-badge.pv-tab-badge--coming_soon,.pv-tab-badge.pv-tab-badge--setup{background:#fff0cb;color:#794c00;border-color:#f2ca72}
-    .icon-only .pv-tab-badge--new,
-    .r-overlay.entitlement-tab-icons .r-tab .pv-tab-badge--new,
-    .r-overlay.mobile-info-navigation:not(.mobile-order) .r-tab .pv-tab-badge--new,
-    .r-overlay.window-managed .r-header-icons .r-tab .pv-tab-badge--new,
-    .icon-only .pv-tab-badge--setup,
-    .r-overlay.entitlement-tab-icons .r-tab .pv-tab-badge--setup,
-    .r-overlay.mobile-info-navigation:not(.mobile-order) .r-tab .pv-tab-badge--setup,
-    .r-overlay.window-managed .r-header-icons .r-tab .pv-tab-badge--setup{font-size:0!important;width:8px;height:8px;min-width:8px;padding:0;margin-left:-4px;align-self:flex-start;margin-top:-2px;background:#16a34a;border:2px solid #fff;box-sizing:content-box}
-    .icon-only .pv-tab-badge--setup,.r-overlay.entitlement-tab-icons .r-tab .pv-tab-badge--setup,.r-overlay.mobile-info-navigation:not(.mobile-order) .r-tab .pv-tab-badge--setup,.r-overlay.window-managed .r-header-icons .r-tab .pv-tab-badge--setup{background:#d97706}
+    /* Icon-only tabs and phone tab strips have no room for the words (FM-362): the pill becomes a round badge at the
+       icon's corner, a star for New and "!" for Setup required. The words stay in the button's aria-label and title. */
+    .icon-only .pv-tab-badge:is(.pv-tab-badge--new,.pv-tab-badge--setup),
+    .r-overlay.entitlement-tab-icons .r-tab .pv-tab-badge:is(.pv-tab-badge--new,.pv-tab-badge--setup),
+    .r-overlay.mobile-info-navigation:not(.mobile-order) .r-tab .pv-tab-badge:is(.pv-tab-badge--new,.pv-tab-badge--setup),
+    .r-overlay.window-managed .r-header-icons .r-tab .pv-tab-badge:is(.pv-tab-badge--new,.pv-tab-badge--setup),
+    .fm-shell-header[data-window-mobile=true]>.fm-shell-tabs>button .pv-tab-badge:is(.pv-tab-badge--new,.pv-tab-badge--setup){font-size:0!important;line-height:0;display:inline-flex!important;align-items:center;justify-content:center;width:13px;height:13px;min-width:13px;padding:0!important;margin-left:-5px;align-self:flex-start;margin-top:-4px;border-radius:50%;background:var(--pv-tab-badge-dot);border:1.5px solid #fff;box-sizing:content-box;box-shadow:0 1px 2px rgba(15,23,42,.18)}
+    .icon-only .pv-tab-badge:is(.pv-tab-badge--new,.pv-tab-badge--setup)::before,
+    .r-overlay.entitlement-tab-icons .r-tab .pv-tab-badge:is(.pv-tab-badge--new,.pv-tab-badge--setup)::before,
+    .r-overlay.mobile-info-navigation:not(.mobile-order) .r-tab .pv-tab-badge:is(.pv-tab-badge--new,.pv-tab-badge--setup)::before,
+    .r-overlay.window-managed .r-header-icons .r-tab .pv-tab-badge:is(.pv-tab-badge--new,.pv-tab-badge--setup)::before,
+    .fm-shell-header[data-window-mobile=true]>.fm-shell-tabs>button .pv-tab-badge:is(.pv-tab-badge--new,.pv-tab-badge--setup)::before{content:"";width:9px;height:9px;background:#fff;-webkit-mask:var(--pv-tab-badge-glyph) center/contain no-repeat;mask:var(--pv-tab-badge-glyph) center/contain no-repeat}
+    .pv-tab-badge.pv-tab-badge--new{--pv-tab-badge-dot:#16a34a;--pv-tab-badge-glyph:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M12 1.5l3.2 6.9 7.5.9-5.5 5.2 1.4 7.5L12 18.3 5.4 22l1.4-7.5L1.3 9.3l7.5-.9z'/%3E%3C/svg%3E")}
+    .pv-tab-badge.pv-tab-badge--setup{--pv-tab-badge-dot:#d97706;--pv-tab-badge-glyph:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M9.6 2h4.8l-.8 13.5h-3.2z'/%3E%3Ccircle cx='12' cy='19.8' r='2.4'/%3E%3C/svg%3E")}
     .fm-tab-help{position:absolute;left:12px;bottom:12px;z-index:40;width:30px;height:30px;border-radius:50%;border:1px solid rgba(15,23,42,.14);background:rgba(255,255,255,.94);color:#475467;display:inline-flex;align-items:center;justify-content:center;font-size:14px;cursor:pointer;box-shadow:0 6px 18px rgba(15,23,42,.12)}
     .fm-tab-help:hover{color:#101828;background:#fff}
     .fm-tab-help:focus-visible{outline:2px solid var(--primary,#d93025);outline-offset:2px}
