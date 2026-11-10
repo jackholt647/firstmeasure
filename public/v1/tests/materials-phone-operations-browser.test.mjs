@@ -54,6 +54,27 @@ test('a phone shows the lists as a carousel: one at a time, a strip of names, sw
     assert.deepEqual(view.inert, [false, true, true], 'only the list on screen can take focus');
     assert.ok(view.widths.every((width) => width === view.grid), `each list fills the width: ${view.widths} of ${view.grid}`);
     assert.equal(view.label, 'Lists');
+    // The strip starts at its first pill, with no half-screen inset. Pills that fit sit centred with no fade; pills that
+    // don't start at the left edge and fade only on the side with more to scroll to.
+    const stripAt = async (width) => {
+      await tab.setViewportSize({ width, height: 700 });
+      return tab.evaluate(() => {
+        t.goPhoneList(document.querySelector('[data-materials-root]'), 0);
+        const strip = document.querySelector('[data-mt-phone-strip]'), box = strip.getBoundingClientRect(), style = getComputedStyle(strip);
+        const first = strip.firstElementChild.getBoundingClientRect(), last = strip.lastElementChild.getBoundingClientRect();
+        return { scrolls: strip.scrollWidth > strip.clientWidth, before: Math.round(first.left - box.left), after: Math.round(box.right - last.right), faded: (style.maskImage || style.webkitMaskImage) !== 'none', fadeBefore: strip.classList.contains('is-more-before'), fadeAfter: strip.classList.contains('is-more-after') };
+      });
+    };
+    const narrow = await stripAt(260);
+    assert.ok(narrow.scrolls && narrow.before <= 12, `a crowded strip starts at its first pill: ${JSON.stringify(narrow)}`);
+    assert.deepEqual([narrow.faded, narrow.fadeBefore, narrow.fadeAfter], [true, false, true], 'only the side with more fades');
+    await tab.evaluate(() => t.goPhoneList(document.querySelector('[data-materials-root]'), 2)); await tab.waitForTimeout(450);
+    const end = await tab.evaluate(() => { const strip = document.querySelector('[data-mt-phone-strip]'), box = strip.getBoundingClientRect(), last = strip.lastElementChild.getBoundingClientRect(); return { inView: last.right <= box.right + 1 && last.left >= box.left, fadeBefore: strip.classList.contains('is-more-before'), fadeAfter: strip.classList.contains('is-more-after') }; });
+    assert.deepEqual(end, { inView: true, fadeBefore: true, fadeAfter: false }, 'the last pill scrolls fully into view');
+    const roomy = await stripAt(700);
+    assert.ok(!roomy.scrolls && !roomy.faded && Math.abs(roomy.before - roomy.after) <= 2, `pills that fit are centred, with no scroll or fade: ${JSON.stringify(roomy)}`);
+    await tab.setViewportSize({ width: 390, height: 700 });
+    await tab.evaluate(() => t.goPhoneList(document.querySelector('[data-materials-root]'), 0));
     // Tapping a name jumps to it.
     await tab.locator('[data-mt-carousel-to="2"]').click(); await tab.waitForTimeout(450);
     assert.equal(await current(), 'Requirements3');
