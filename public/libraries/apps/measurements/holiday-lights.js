@@ -2,8 +2,8 @@
    Holiday Lights page (measure/internal/editor_scripts/pdf.js drawHolidayLightsPage). Read-only and free. Everything
    comes from the report's model_data.xml (parsed by FirstMeasureRoofViewer): nobody enters anything in the editor.
    Eaves and rakes are lit; ridges and hips can be added. Lights are counted by side of the house and, on a side with
-   more than one roofline, by roofline (lower, middle, upper): each side has its own colour, and each stretch on the
-   roof carries the tag (NL, NU, E, ...) of its row in the list. Bulbs alternate red and green and bulbs and clips are
+   more than one roofline, by roofline (lower, middle, upper): each side has its own colour, on the roof and in the
+   list, and each unbroken stretch on the roof shows its length. Bulbs alternate red and green and bulbs and clips are
    counted at common spacings. Nothing is saved. */
 (function(){
   const t = (key, fallback, values) => globalThis.PlatformLanguage?.text('measurements', key, fallback, values) ?? fallback;
@@ -145,15 +145,13 @@
     return { levels: count, groups: list, sides, length: list.reduce((sum, group) => sum + group.length, 0) };
   }
 
-  // Names and tags for a grouping: "North · Upper" is tagged NU on the roof; one roofline leaves just the side (N).
+  // Names and colours for a grouping: "North", "Upper"; one roofline leaves the level unnamed.
   function nameGroups(layout){
     const sideName = (side) => t(...SIDE_NAMES[side]);
     const levelName = (key) => LEVEL_NAMES[key] ? t(...LEVEL_NAMES[key]) : t('hl_level_number', `Roofline ${key}`, { number: key });
-    return layout.groups.map((group) => {
-      const side = sideName(group.side), level = group.levelKey ? levelName(group.levelKey) : '';
-      const tag = side.charAt(0).toUpperCase() + (!group.levelKey ? '' : LEVEL_NAMES[group.levelKey] ? level.charAt(0).toUpperCase() : group.levelKey);
-      return { ...group, sideName: side, levelName: level, tag, color: SIDE_COLORS[group.side] };
-    });
+    return layout.groups.map((group) => ({
+      ...group, sideName: sideName(group.side), levelName: group.levelKey ? levelName(group.levelKey) : '', color: SIDE_COLORS[group.side]
+    }));
   }
 
   let libraries;
@@ -210,10 +208,9 @@
       .fm-hl-side:first-child{border-top:0;padding-top:0}
       .fm-hl-side-head,.fm-hl-group{display:grid;grid-template-columns:auto 1fr auto;align-items:center;gap:10px;font-size:13px;padding:3px 2px}
       .fm-hl-side-head{font-weight:650}
-      .fm-hl-side-head>i:not(.fm-hl-tag){width:12px;height:12px;border-radius:3px;margin:0 6px 0 7px}
       .fm-hl-group{padding-left:2px}
       .fm-hl-group small,.fm-hl-side-head small{display:block;font-size:11px;color:#667085;font-weight:400}
-      .fm-hl-tag{min-width:26px;height:20px;padding:0 6px;border-radius:10px;display:inline-flex;align-items:center;justify-content:center;color:#fff;font-style:normal;font-size:11px;font-weight:700;letter-spacing:.02em}
+      .fm-hl-swatch{width:12px;height:12px;border-radius:3px;display:inline-block}
       .fm-hl-side-head b,.fm-hl-group b{font-weight:600;font-variant-numeric:tabular-nums;white-space:nowrap}
       .fm-hl-empty{font-size:12px;color:#667085}
       .fm-hl-spacing{display:flex;flex-direction:column;gap:4px;font-variant-numeric:tabular-nums}
@@ -279,7 +276,7 @@
     heads[0].textContent = t('hl_col_spacing', 'Spacing');
     heads[1].textContent = t('hl_col_bulbs', 'Bulbs');
     heads[2].textContent = t('hl_col_clips', 'Clips');
-    root.querySelector('.fm-hl-note').textContent = t('hl_note_sides', 'Lengths are measured along each roof edge from the report. Each side faces its compass direction; a side with eaves at more than one height is split into rooflines. Tags on the roof match the list. Clips: one per bulb.');
+    root.querySelector('.fm-hl-note').textContent = t('hl_note_lengths', 'Lengths are measured along each roof edge from the report. Each side faces its compass direction and has its own colour; a side with eaves at more than one height is split into rooflines. Each stretch on the roof shows its length. Clips: one per bulb.');
     const touch = matchMedia?.('(hover: none)').matches;
     root.querySelector('.fm-hl-hint').textContent = touch ? t('hl_hint_touch', 'Drag to orbit · Pinch to zoom') : t('hl_hint', 'Drag to orbit · Scroll to zoom · Right-drag to pan');
     resetButton.innerHTML = `<i class="fa-solid fa-arrows-rotate" aria-hidden="true"></i>${t('hl_reset', 'Reset view')}`;
@@ -317,11 +314,10 @@
       const total = groups.reduce((sum, group) => sum + group.length, 0);
       panel.querySelector('[data-hl-total]').textContent = feet(total);
       panel.querySelector('[data-hl-total-label]').textContent = t('hl_total_all', 'of lights in total');
-      const tag = (group) => {
+      const swatch = (group) => {
         const el = document.createElement('i');
-        el.className = 'fm-hl-tag';
+        el.className = 'fm-hl-swatch';
         el.style.background = group.color;
-        el.textContent = group.tag;
         return el;
       };
       const kinds = (group) => EDGES.filter((edge) => group.lengths[edge.type])
@@ -337,24 +333,22 @@
         const name = document.createElement('span');
         const length = document.createElement('b');
         length.textContent = feet(list.reduce((sum, group) => sum + group.length, 0));
-        // One roofline: the side is its own row, with its tag.
+        // One roofline: the side is its own row.
         if (list.length === 1 && !list[0].levelKey) {
           name.textContent = list[0].sideName;
           const small = document.createElement('small');
           small.textContent = kinds(list[0]);
           name.append(small);
-          head.append(tag(list[0]), name, length);
+          head.append(swatch(list[0]), name, length);
           block.append(head);
         } else {
-          const swatch = document.createElement('i');
-          swatch.style.background = list[0].color;
           name.textContent = list[0].sideName;
-          head.append(swatch, name, length);
+          head.append(swatch(list[0]), name, length);
           block.append(head);
           for (const group of list) {
             const row = document.createElement('div');
             row.className = 'fm-hl-group';
-            row.dataset.hlGroup = group.tag;
+            row.dataset.hlGroup = group.id;
             const label = document.createElement('span');
             label.textContent = group.levelName;
             const small = document.createElement('small');
@@ -362,7 +356,7 @@
             label.append(small);
             const value = document.createElement('b');
             value.textContent = feet(group.length);
-            row.append(tag(group), label, value);
+            row.append(swatch(group), label, value);
             block.append(row);
           }
         }
@@ -410,8 +404,8 @@
       draw();
     }
 
-    // A rounded tag in the side's colour with the group's tag (N, NL, NU, ...), as in the list.
-    function tagTexture(T, color, text){
+    // A rounded label in the side's colour with a stretch's length.
+    function labelTexture(T, color, text){
       const height = 96, c = document.createElement('canvas');
       const ctx = c.getContext('2d');
       ctx.font = '700 50px Arial';
@@ -437,8 +431,8 @@
       });
       runGroup = null;
     }
-    // Each side is a tube in its colour with red and green bulbs on it at the selected spacing. A group's longest
-    // stretch carries its tag above it, and so does every other stretch of it 12 ft or longer.
+    // Each side is a tube in its colour with red and green bulbs on it at the selected spacing. Every unbroken stretch
+    // of 3 ft or more shows its length above its longest edge (shorter ones are corner returns, still counted).
     function buildRunScene(groups){
       const T = window.THREE;
       disposeRuns();
@@ -456,17 +450,20 @@
           const count = bulbsOn(edge.length, spacingIn);
           for (let i = 0; i < count; i++) bulbs.push({ at: a.clone().lerp(b, (i + 0.5) / count), color: n++ % 2 ? green : red });
         }
-        const { map, aspect } = tagTexture(T, group.color, group.tag);
-        group.pieces.forEach((piece, index) => {
-          if (index && piece.length < 12) return;
+        for (const piece of group.pieces) {
+          if (piece.length < 3) continue;
+          const text = feet(piece.length);
+          const { map, aspect } = labelTexture(T, group.color, text);
           const longest = piece.edges.reduce((best, edge) => (!best || edge.length > best.length ? edge : best), null);
-          const badge = new T.Sprite(new T.SpriteMaterial({ map, depthTest: false }));
+          // One size on screen at any zoom, so near labels don't cover the roof and far ones stay legible.
+          const badge = new T.Sprite(new T.SpriteMaterial({ map, depthTest: false, sizeAttenuation: false }));
           const mid = point(longest.a).lerp(point(longest.b), 0.5);
-          badge.position.set(mid.x, mid.y + 2.2 * scale, mid.z);
-          badge.scale.set(2.6 * scale * aspect, 2.6 * scale, 1);
+          badge.position.set(mid.x, mid.y + 0.6 * scale, mid.z);
+          badge.scale.set(0.03 * aspect, 0.03, 1);
           badge.renderOrder = 5;
+          badge.userData = { label: text, color: group.color };
           runGroup.add(badge);
-        });
+        }
       }
       if (bulbs.length) {
         // Small spheres centred on the line: one size at every spacing, always wider than the line.
@@ -548,7 +545,7 @@
         roofGroup.add(new T.LineSegments(own(new T.BufferGeometry().setFromPoints(outline)), own(new T.LineBasicMaterial({ color: '#98a2b3' }))));
       }
       scene.add(roofGroup);
-      // Compass letters on the ground beyond each side, so N, E, S and W on the tags read against the house.
+      // Compass letters on the ground beyond each side, so the sides in the list read against the house.
       const centre = point(min.map((v, i) => (v + max[i]) / 2));
       const ground = (min[2] - (min[2] + max[2]) / 2) * scale;
       for (const [side, dx, dy] of [['north', 0, 1], ['east', 1, 0], ['south', 0, -1], ['west', -1, 0]]) {
