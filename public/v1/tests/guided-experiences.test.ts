@@ -192,6 +192,11 @@ test("Operations uses the shared document workflow and optional setup hub before
  assert.deepEqual(proposal.eligibility.capabilities,['platform.documents'],'eligibility, never a configuration check');
  for(const step of proposal.steps as any[])for(const target of step.targets)assert.match(target,/^\[data-fmdw-root\] /,`${step.id} points into any document workflow`);
  assert.equal(experienceSchema.safeParse({...proposal,triggers:[{kind:'workflow_opened'}]}).success,false,'a workflow_opened trigger names the kind of document');
+ // Panel triggers (FM-360): the project details tray opening, or the person closing it, optionally only where it covers the page.
+ const panelTour={...proposal,triggers:[{kind:'panel_opened',panel:'project.details',covering:true},{kind:'panel_closed',panel:'project.details'}]};
+ assert.deepEqual(experienceSchema.parse(panelTour).triggers,[{kind:'panel_opened',panel:'project.details',covering:true,once:true},{kind:'panel_closed',panel:'project.details',once:true}]);
+ assert.equal(experienceSchema.safeParse({...proposal,triggers:[{kind:'panel_closed'}]}).success,false,'a panel trigger names the panel');
+ assert.equal(experienceSchema.safeParse({...proposal,triggers:[{kind:'panel_opened',panel:'project.details',delay_ms:100}]}).success,false,'a panel trigger plays at once');
  const operator=person('operations-editor',{permissions:{manage_projects:true}});
  const listed=await service.availableExperiences(operator,{tab:'project.materials'});
  assert.ok(listed.experiences.some(item=>item.id==='operations.setup'),'a project editor does not need company-settings permission to build a scope');

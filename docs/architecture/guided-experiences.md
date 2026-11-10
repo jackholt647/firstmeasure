@@ -43,7 +43,10 @@ An **experience** (`experienceSchema`):
 - `triggers`: `before_action` (a selector; the click is held, the experience
   plays, then the click goes through), `tab_opened` (a project tab app id),
   `after_experience`, `app_loaded`, `workflow_opened` (a `document_type`: a document
-  workflow opened for that kind of document), `manual`. Each has `once` and optional `when`.
+  workflow opened for that kind of document), `panel_opened` and `panel_closed` (a
+  project window `panel` that is not a tab, `project.details` for the details tray,
+  opened, or closed by the person; optional `covering`: only where it does, or does
+  not, cover the page), `manual`. Each has `once` and optional `when`.
 - `variants`: `id`, `weight`, `when`, optional `kind` (a modal where the assistant
   is off), `steps` (an order or a subset) and `content` (options merged per step).
 - `steps`. Overlay steps: `title`, `body`, `targets` (selectors left undimmed;
@@ -235,7 +238,20 @@ dispatches in its own frame with the document its host names (`document: { id, t
 documents app passes the document's `document_type`). It plays once that workflow is laid out
 and nothing covers it (checked with `elementFromPoint`), so the documents New dialog (z-index
 2147483530, above the tour layer) closes first; a hidden host never starts it, and a play still
-queued when the workflow goes away is dropped (`options.showing`).
+queued when the workflow goes away is dropped (`options.showing`). `panel_opened` and
+`panel_closed` listen for `fm:project-panel:opened` and `fm:project-panel:closed`, which the
+project window dispatches when the details tray opens or closes (`project-request/app.js`
+`announceDetailsTray`) with `{ panel, covers, user, isOpen(), covering() }`. `panel_closed`
+plays only on the person's close (`user`), and a play is dropped if the panel is open again
+before it starts.
+
+**A panel that covers the page holds the tab's tour.** On a phone the details tray is a
+sheet over the whole window, so the tab under it is not what the person sees. While a
+panel's `covering()` is true, a tab announced meanwhile is not armed, and a visit already
+armed is suspended exactly as leaving it would (its timer and queued play cancelled, a tour
+on screen ended quietly, so it plays again); when the panel closes, the visit is armed
+again. What the close plays (its `panel_closed` experience) is asked for first, so the
+tab's tour follows it in the queue.
 
 **Preload and instant tab tours.** As soon as a frame knows its project (the
 first read, `fm:project-modal:hydrated`, or `FirstMateGuides.preload(projectId)`)
@@ -558,6 +574,20 @@ there would be hidden behind it. `tests/guided-tab-tours.test.ts` checks the dat
 that every target's hooks are in the tab's source;
 `tests/guided-tab-tours-browser.test.ts` plays each tour against the real
 service.
+
+## Project window tours: the details tray, then the window
+
+Two short per-person overlay tours, phone only (`covering: true`), both config library
+entries with their copy, no tab: `project.details_tutorial` plays the first time the
+details tray opens as a sheet (`panel_opened`, a new project opens it): the customer,
+the address, measurements, and last the tray's close arrows, which the person presses
+(`advance: click`). Their first close of the sheet plays `project.window_tutorial`
+(`panel_closed`): the title and its arrows reopen the tray, the tabs along the top, and the
+buttons along the bottom (notes, to-dos, activity, the agent), named together rather than
+one by one. A skipped tray tour leaves the window tour waiting for that first close. The
+tab's own tour (Photos on a new project) waits under the tray and plays after them. On a
+phone a tour card sits along the top when its target is in the lower half of the screen,
+so it never covers the bottom buttons it points at.
 
 ## Agents can press the buttons
 

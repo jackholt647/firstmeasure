@@ -158,7 +158,11 @@
     .pm-root.is-tray-open .pm-reopen{opacity:0;transform:translateX(-12px);pointer-events:none}
 
     @container pm (max-width: 700px){
-      .pm-tray{left:8px;right:8px;top:auto;bottom:8px;width:auto;max-width:none;height:min(56%,440px);max-height:calc(100% - var(--pm-top,0px) - 20px);border-radius:18px;transform:none}
+      /* The sheet is as tall as its list, up to its cap; a longer list scrolls inside it. With no projects it is
+         only as tall as the empty state. */
+      .pm-tray{left:8px;right:8px;top:auto;bottom:8px;width:auto;max-width:none;height:auto;max-height:min(56%,440px,calc(100% - var(--pm-top,0px) - 20px));border-radius:18px;transform:none}
+      .pm-empty.is-view{padding:16px 18px 18px}
+      .pm-empty.is-view > i{margin-bottom:8px}
       .pm-root:not(.is-tray-open) .pm-tray{transform:translateY(calc(100% - 62px));opacity:1;pointer-events:auto}
       .pm-root:not(.is-tray-open) .pm-legend,.pm-root:not(.is-tray-open) .pm-list{visibility:hidden;transition:visibility 0s linear .34s}
       .pm-tray-head{position:relative;padding-top:16px;cursor:pointer;touch-action:none}

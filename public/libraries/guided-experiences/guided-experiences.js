@@ -16,7 +16,9 @@
  * Triggers are data: `before_action` holds a click on a matching button, plays the experience and then lets the
  * click through; `tab_opened` plays when a project tab opens; `after_experience` follows another experience;
  * `app_loaded` plays once when the portal loads, for announcements; `workflow_opened` plays when a document workflow
- * opens for a kind of document (`document_type`). What
+ * opens for a kind of document (`document_type`); `panel_opened` and `panel_closed` play when a project window panel
+ * that is not a tab (the details tray, `project.details`) opens or the person closes it. While such a panel covers the
+ * page (the tray on a phone) a tab's tour waits, and plays when it closes. What
  * someone has seen is kept on the server (progress), never in this page. The overlay and every popover are left out
  * of session replays (data-fmr-ignore).
  */
@@ -437,9 +439,14 @@
     const isActive = typeof event.detail?.isActive === 'function' ? event.detail.isActive : null;
     if (state.visit.key !== key) { leave(tab, projectId); Object.assign(state.visit, { key, tab, projectId, isActive }); }
     else if (isActive) state.visit.isActive = isActive;
+    armVisit();
+  }
+  /** Arms this frame's visit once, unless a panel covers the page: then it waits for the panel to close (panelClosed). */
+  function armVisit(){
     // The host announces the same tab again when it redraws: one arming per visit.
-    if (state.visit.armed) return;
+    if (!state.visit.key || state.visit.armed || covered()) return;
     state.visit.armed = true;
+    const { tab, projectId, isActive } = state.visit;
     const bound = { generation: state.visit.generation, isActive, projectId, activated: activatedTabs.delete(tab) };
     // From the preload when this frame has it (synchronously), else once the project's list has been read.
     const snapshot = snapshots.get(snapshotKey(projectId));
@@ -502,6 +509,59 @@
     return here.projectId === clean(bound.projectId);
   }
   root.addEventListener?.('fm:project-tab:opened', onTabOpened);
+
+  /*
+   * panel_opened / panel_closed: a project window panel that is not a tab (the details tray, `project.details`) opened,
+   * or the person closed it, in this frame. The host announces `fm:project-panel:opened` and `fm:project-panel:closed`
+   * with { panel, covers, user, isOpen(), covering() }: `covers` says whether it covers the page (the tray is a sheet
+   * over everything on a phone; on a close, whether it did while open). A trigger with `covering` plays only when that
+   * agrees. While a panel covers the page, the tab under it is not what the person sees, so its tour waits: a visit
+   * announced meanwhile is not armed, and one already armed is suspended (its timers and queued play cancelled, its
+   * tour ended quietly) and armed again when the panel closes. What the close plays (its own `panel_closed`
+   * experience) is asked for first, so the tab's tour follows it in the queue.
+   */
+  const panels = new Map();
+  function covered(){
+    for (const panel of panels.values()) { try { if (panel.covering?.()) return true; } catch (_) {} }
+    return false;
+  }
+  function suspendVisit(){
+    if (!state.visit.key || !state.visit.armed) return;
+    const { key, tab, projectId, isActive } = state.visit;
+    leave();
+    Object.assign(state.visit, { key, tab, projectId, isActive });
+  }
+  function playPanelTrigger(kind, detail, showing){
+    const start = () => {
+      for (const experience of state.experiences.values()) {
+        const trigger = array(experience.triggers).find((entry) => entry.kind === kind && entry.panel === detail.panel && (entry.covering === undefined || entry.covering === !!detail.covers));
+        if (!trigger || (experience.progress && experience.progress.status !== 'started')) continue;
+        play(experience.id, { trigger, showing });
+        return true;
+      }
+      return false;
+    };
+    if (state.loaded) return start();
+    refresh().then((loaded) => { if (loaded) start(); });
+    return false;
+  }
+  root.addEventListener?.('fm:project-panel:opened', (event) => {
+    const detail = object(event?.detail), panel = clean(detail.panel);
+    if (!panel) return;
+    const isOpen = typeof detail.isOpen === 'function' ? detail.isOpen : () => true;
+    const covering = typeof detail.covering === 'function' ? detail.covering : () => !!detail.covers && isOpen();
+    panels.set(panel, { isOpen, covering });
+    if (covered()) suspendVisit(); else armVisit();
+    playPanelTrigger('panel_opened', { ...detail, panel }, () => { try { return !!isOpen(); } catch (_) { return false; } });
+  });
+  root.addEventListener?.('fm:project-panel:closed', (event) => {
+    const detail = object(event?.detail), panel = clean(detail.panel);
+    if (!panel) return;
+    const known = panels.get(panel);
+    panels.delete(panel);
+    if (detail.user) playPanelTrigger('panel_closed', { ...detail, panel }, () => { try { return !known?.isOpen?.(); } catch (_) { return true; } });
+    armVisit();
+  });
   // The route only refreshes what is offered (questions for the tab); it never starts anything. When the host says
   // the announced tab is no longer showing (another tab, the project window closed), that visit is over.
   root.addEventListener?.('fm:route-state:updated', () => {
@@ -591,7 +651,7 @@
     .gx-pop.gx-center{left:50%!important;top:50%!important;transform:translate(-50%,-50%)}
     .gx-pop.gx-center.gx-enter{animation:gxCenterIn .4s cubic-bezier(.22,1,.36,1)}
     @keyframes gxCenterIn{from{opacity:0;transform:translate(-50%,-46%) scale(.96)}to{opacity:1;transform:translate(-50%,-50%)}}
-    @media(max-width:640px){.gx-pop:not(.gx-center){left:12px!important;right:12px;top:auto!important;bottom:12px;width:auto}.gx-pop:not(.gx-center) .gx-arrow{display:none}}
+    @media(max-width:640px){.gx-pop:not(.gx-center){left:12px!important;right:12px;top:auto!important;bottom:12px;width:auto}.gx-pop:not(.gx-center) .gx-arrow{display:none}.gx-pop.gx-sheet-top:not(.gx-center){top:12px!important;bottom:auto}}
     @media(prefers-reduced-motion:reduce){.gx-ov-ring,.gx-pop,.gx-ov-dim{transition:none!important;animation:none!important}}
   `;
   /** Styles go into the document that shows the element: the project tray's assistant lives in a project window frame. */
@@ -665,6 +725,9 @@
           if (!main || step.placement === 'center') { arrow?.remove(); ring.hidden = !main; if (!main) return; }
           if (!main) { ring.hidden = true; return; }
           const r = main.getBoundingClientRect(), p = pop.getBoundingClientRect(), gap = 16, W = root.innerWidth, H = root.innerHeight;
+          // On a phone the card is a sheet along the bottom edge; it goes to the top when the target is in the lower half
+          // (the project window's bottom buttons), so it never covers what it points at.
+          pop.classList.toggle('gx-sheet-top', W <= 640 && r.top + r.height / 2 > H / 2);
           ring.hidden = false; Object.assign(ring.style, { left: `${r.left - 6}px`, top: `${r.top - 6}px`, width: `${r.width + 12}px`, height: `${r.height + 12}px` });
           let placement = step.placement && step.placement !== 'auto' ? step.placement : (H - r.bottom > p.height + gap ? 'bottom' : r.top > p.height + gap ? 'top' : W - r.right > p.width + gap ? 'right' : 'left');
           let left, top;
