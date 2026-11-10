@@ -111,6 +111,41 @@ test('a publication failure stays in the workflow, and a successful retry advanc
   }finally{await browser.close();}
 });
 
+// FM-367: the setup played over a new project's Operations tab, before the project was saved, had no project and
+// stopped on "Create or open a project first". Building the scope is the first write: it saves the project.
+test('a new project window that is not saved yet is saved, and the scope is built on it',async()=>{
+  const browser=await chromium.launch({channel:'chrome',headless:true});
+  try{
+    const page=await open(browser,'scope',360);
+    await page.evaluate(()=>{
+      window.drafts=[];window.saves=[];
+      window.ensureDraftBaseProject=options=>{drafts.push(options);return {id:'p_new',title:''};};
+      Portal.ProjectStore={saveRemote:async project=>{saves.push(project.id);return {...project};}};
+      operations.mountWidget('operations-document',document.getElementById('host'),{...widgetContext,where:{projectId:'',tab:'project.materials'}});
+    });
+    await page.locator('[data-fmdw-piece-type=roof_replacement]').waitFor();
+    const result=await page.evaluate(()=>({drafts,saves,calls,selections,error:document.querySelector('.ops-error').textContent}));
+    assert.deepEqual(result.drafts,[{allowEmpty:true}]);
+    assert.deepEqual(result.saves,['p_new'],'the draft is saved once before anything is written to it');
+    const prepare=result.calls.find(call=>call.action==='operations.document.prepare');
+    assert.equal(prepare.input.project_id,'p_new');
+    assert.equal(prepare.target.projectId,'p_new');
+    assert.equal(result.selections.operations_project_id,'p_new');
+    assert.equal(result.error,'');
+  }finally{await browser.close();}
+});
+
+test('with no project and no project window to save one, the step says so and offers to try again',async()=>{
+  const browser=await chromium.launch({channel:'chrome',headless:true});
+  try{
+    const page=await open(browser);
+    await page.evaluate(()=>operations.mountWidget('operations-document',document.getElementById('host'),{...widgetContext,where:{projectId:'',tab:''}}));
+    await page.getByText('Create or open a project first, then set up its scope of work.').waitFor();
+    assert.equal(await page.locator('[data-retry]').count(),1);
+    assert.equal(await page.evaluate(()=>calls.length),0,'nothing is written without a project');
+  }finally{await browser.close();}
+});
+
 test('the checklist refreshes saved completion after an optional setup and generates only on request',async()=>{
   const browser=await chromium.launch({channel:'chrome',headless:true});
   try{
