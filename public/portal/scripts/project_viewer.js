@@ -52,7 +52,7 @@
     }
 
     render(){
-      const renderKey=JSON.stringify([this.tabs.map(tab=>[tab.id,tab.label,tab.icon,tab.iconBadge,tab.className,tab.buttonId,tab.domId,tab.idAttr,tab.badge,tab.badgeKind,tab.pending,tab.disabled]),this.activeTab,this.iconOnly,this.tabClass,this.activeClass,this.pendingClass]);
+      const renderKey=JSON.stringify([this.tabs.map(tab=>[tab.id,tab.label,tab.shortLabel,tab.icon,tab.iconBadge,tab.className,tab.buttonId,tab.domId,tab.idAttr,tab.badge,tab.badgeKind,tab.pending,tab.disabled]),this.activeTab,this.iconOnly,this.tabClass,this.activeClass,this.pendingClass]);
       // Repeated shell/hydration updates with identical tabs must retain focus
       // and any entrance animation rather than replacing all the buttons.
       if(this.tabRenderKey!==renderKey){
@@ -119,7 +119,10 @@
         const badgeHtml = tab.badge ? `<span class="pv-tab-badge${badgeKind ? ` pv-tab-badge--${badgeKind}` : ''}">${escapeHtml(tab.badge)}</span>` : '';
         // Icon-only tabs keep a "New" pill beside the icon without spelling out the label.
         const hideLabel = iconOnly && tab.icon && (!tab.badge || badgeKind === 'new');
-        const labelHtml = (hideLabel ? '' : `<span class="pv-tab-label">${escapeHtml(label)}</span>`) + badgeHtml;
+        // A tab with a shorter name (FM-371) carries both; the short one stays hidden until its strip (r-header-short) runs out of room.
+        const shortLabel = String(tab.shortLabel || '').trim();
+        const labelText = shortLabel && shortLabel !== label ? `<span class="pv-tab-long">${escapeHtml(label)}</span><span class="pv-tab-short" hidden>${escapeHtml(shortLabel)}</span>` : escapeHtml(label);
+        const labelHtml = (hideLabel ? '' : `<span class="pv-tab-label">${labelText}</span>`) + badgeHtml;
         return `<button type="button" class="${escapeHtml(classes)}"${idAttr} data-tab="${escapeHtml(tab.id)}" aria-label="${escapeHtml(tab.badge ? label + ", " + tab.badge : label)}" title="${escapeHtml(tab.badge ? label + ", " + tab.badge : label)}"${disabledAttr}>${iconHtml}${labelHtml}</button>`;
       }).join('');
       if (options.hideWhenEmpty) {
