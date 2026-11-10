@@ -14,6 +14,12 @@ const block = source.slice(start, end);
 const cssStart = source.indexOf('/* Phones: the Operations tab'), cssEnd = source.indexOf('\n    `;', cssStart);
 assert.ok(cssStart > 0 && cssEnd > cssStart, 'the phone styles are found');
 const phoneCss = source.slice(cssStart, cssEnd);
+// The lists' own scrollers, as every width styles them: what they allow decides whether a sideways drag reaches the carousel.
+const scrollerCss = ['.mt-resource-scroll{', '.mt-resource-column .mt-resource-scroll{', '.mt-req-tray{', '.mt-req-panel{', '.mt-req-panel-inner{', '.mt-req-scroll{'].map((rule) => {
+  const at = source.indexOf(`      ${rule}`);
+  assert.ok(at > 0, `${rule} is styled`);
+  return source.slice(at, source.indexOf('}', at) + 1).trim();
+}).join('\n');
 
 const page = `<!doctype html><html><head><meta name="viewport" content="width=device-width,initial-scale=1"></head><body style="margin:0">
 <div class="mt-app" data-materials-root style="height:600px;display:flex;flex-direction:column"><main class="mt-main" style="flex:1;min-height:0;display:flex;flex-direction:column">
@@ -21,7 +27,7 @@ const page = `<!doctype html><html><head><meta name="viewport" content="width=de
 <section class="mt-resource-column" data-resource-type="material"><h3 class="mt-resource-heading"><input value="Materials"></h3><div class="mt-resource-scroll" style="height:300px;overflow:auto"><div style="height:1200px">rows</div></div></section>
 <button type="button" class="mt-column-divider"></button>
 <section class="mt-resource-column" data-resource-type="labor"><h3 class="mt-resource-heading"><span class="mt-column-title">Work order</span></h3></section>
-<aside class="mt-req-tray" data-mt-req-tray><button class="mt-req-bar"></button><div class="mt-req-panel"><span class="mt-req-badge is-open">3</span></div></aside>
+<aside class="mt-req-tray" data-mt-req-tray><button class="mt-req-bar"></button><div class="mt-req-panel"><div class="mt-req-panel-inner"><header class="mt-req-title"><strong>Requirements</strong><span class="mt-req-badge is-open">3</span></header><div class="mt-req-scroll"><div style="height:1200px">requirement rows</div></div></div></div></aside>
 </div></div></main></div>
 <script>
   const state = { active: false }, rootWindow = window, draftText = (key, fallback) => fallback;
@@ -31,7 +37,7 @@ const page = `<!doctype html><html><head><meta name="viewport" content="width=de
   const resourceCategories = () => [{ id: 'material', name: 'Materials', icon: 'fa-boxes-stacked', color: '#d92d20' }, { id: 'labor', name: 'Labor', icon: 'fa-helmet-safety', color: '#175cd3' }];
   const leftContentRoot = () => null, syncMaterialsGrid = () => false, scopeWorkspace = null;
   ${block.replace(/<\/script/g, '<\\/script')}
-  const style = document.createElement('style'); style.textContent = ${JSON.stringify(phoneCss)}; document.head.append(style);
+  const style = document.createElement('style'); style.textContent = ${JSON.stringify(`${scrollerCss}\n${phoneCss}`)}; document.head.append(style);
   window.t = { state, syncPhoneLists, goPhoneList, phoneListsView, setProject: (id) => { project = id; } };
 </script></body></html>`;
 
@@ -88,7 +94,8 @@ test('a phone shows the lists as a carousel: one at a time, a strip of names, sw
       await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
       await tab.waitForTimeout(500);
     };
-    await swipe(120, 200, 200, 4);
+    // Swiping back from the requirements starts over their own scrolling list (FM-372: it used to start, then snap back).
+    await swipe(120, 300, 200, 4);
     assert.equal(await current(), 'Work order', 'swiping right goes back one list');
     await swipe(300, 200, -200, 4);
     assert.equal(await current(), 'Requirements3', 'swiping left goes forward one list');
