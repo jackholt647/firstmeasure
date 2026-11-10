@@ -102,6 +102,22 @@ test('full-house qualifications, reviewed PDFs, QA and quality audits; roof comp
     assert.equal(delivery?.type, 'report.delivery');
     assert.equal(delivery?.payload.pdf_sync_revision, revision);
     assert.deepEqual((await storage.readStoredPdf(id, 'main')).content, pdf);
+    // FM-357: regenerating the completed report approves the new revision only for someone who could approve it in QA.
+    const regenerate = (as: string, regenerated: string) => staffInject({ as, method: 'POST', url: `/v1/firstmeasure/projects/${id}/pdfs/sync`, payload: {
+      source: 'inline', snapshot: { ...snapshot, pdfSyncRevision: regenerated }, pdf_sync_revision: regenerated,
+      pdf_render_recipe_version: '2026-10-06.1', outputs: [{ slot: 'main', mode: 'full', persist: true }] } });
+    const regenerationStamp = async () => (await storage.readManifest(id)).full_house_regeneration_review as Record<string, unknown> | undefined;
+    const byTech = await regenerate(tech.email, 'tech-regenerated');
+    assert.equal(byTech.statusCode, 202, byTech.body);
+    assert.equal(await regenerationStamp(), undefined, 'a technician regeneration is not an approval');
+    const byQa = await regenerate(qa.email, 'qa-regenerated');
+    assert.equal(byQa.statusCode, 202, byQa.body);
+    assert.deepEqual({ ...await regenerationStamp(), reviewed_at: null },
+      { revision: 'qa-regenerated', reviewed_by: qa.email, reviewed_at: null, source: 'pdf_regeneration' });
+    await users.saveInternalUser({ ...qa, role: 'qa', can_qa_full_house: false });
+    assert.equal((await regenerate(qa.email, 'unqualified-regenerated')).statusCode, 202);
+    assert.equal((await regenerationStamp())?.revision, 'qa-regenerated', 'QA without the full-house qualification does not approve');
+    await users.saveInternalUser({ ...qa, role: 'qa', can_qa_full_house: true });
     await users.saveInternalUser({ ...qa, permissions: { perform_manager_review: true } });
     const audit = await staffInject({ method: 'POST', url: '/v1/internal/legacy-action', payload: { action: 'manager_audit_mark', actor: qa, folder: id, audit_status: 'flagged', issue_categories: ['missing_or_incorrect_gutters'], severity: 'major' } });
     assert.equal(audit.statusCode, 200, audit.body);
