@@ -6057,17 +6057,6 @@ function drawSummaryPageLayout(doc, report, imgData, imgRatio, x, y, w, facetCou
     let statsY = cursorY + 5;
     let rowHeight = 8;
 
-    // --- UPDATED HELPER: Accepts 'showLine' parameter (defaults to true) ---
-    const addStat = (l, v, showLine = true) => {
-        drawPdfStatRow(doc, pdfLabel(l), v, statsX, statsY, statsW, rowHeight < 7 ? 8 : 9);
-        
-        if (showLine) {
-            doc.setDrawColor(230, 230, 230); 
-            doc.line(statsX, statsY + 2, statsX + statsW, statsY + 2);
-        }
-        statsY += rowHeight;
-    };
-    
     statsY += 3;
     const lin = report.materials.linear;
     
@@ -6114,18 +6103,29 @@ function drawSummaryPageLayout(doc, report, imgData, imgRatio, x, y, w, facetCou
     // Counter Flashing — only if non-zero
     if (counterFlashing > 0) statRows.push([pdfLabel("Counter Flashing"), pdfMeasure((lin.chimney_edge || 0) + (lin.chimney_back || 0) + (lin.chimney_front || 0), 'ft', counterFlashing + " ft")]);
 
-    // --- Size the card dynamically to fit rows (rows tighten only when they would reach the footer note) ---
-    if (landscape) rowHeight = Math.max(5.5, Math.min(8, (pageH - 34 - statsY) / Math.max(1, statRows.length - 1)));
+    // --- Size the card to fit its rows (rows tighten only when they would reach the footer note) ---
+    // Every label and value in the card has one type size (FM-380); a label too long for one line takes two lines and
+    // its row grows by a line. 9 pt, or 8 pt once rows are tighter than 7 mm.
+    const statLabels = statRows.map(([l, v]) => [pdfLabel(l), v]);
+    const fitRowHeight = (card) => Math.max(5.5, Math.min(8, (pageH - 34 - statsY - card.extra) / Math.max(1, statRows.length - 1)));
+    let card = layoutPdfStatCard(doc, statLabels, statsW, 9);
+    rowHeight = fitRowHeight(card);
+    if (rowHeight < 7) { card = layoutPdfStatCard(doc, statLabels, statsW, 8); rowHeight = fitRowHeight(card); }
     const cardPad = 6;  // equal padding top and bottom
-    const cardH = cardPad + ((statRows.length - 1) * rowHeight) + cardPad;
+    const cardH = cardPad + ((statRows.length - 1) * rowHeight) + card.extra + cardPad;
     const cardTopY = statsY - cardPad;
 
     drawPdfCard(doc, statsX - 2, cardTopY, statsW + 4, cardH, 3);
 
-    // --- Draw all rows ---
-    statRows.forEach((row, idx) => {
-        const isLast = (idx === statRows.length - 1);
-        addStat(row[0], row[1], !isLast);
+    // --- Draw all rows: a two-line row is centred on its value, half a line further down ---
+    card.rows.forEach((row, idx) => {
+        statsY += row.extra / 2;
+        drawPdfStatRow(doc, row, statsX, statsY, statsW, card.size);
+        if (idx < card.rows.length - 1) {
+            doc.setDrawColor(230, 230, 230);
+            doc.line(statsX, statsY + 2 + row.extra / 2, statsX + statsW, statsY + 2 + row.extra / 2);
+        }
+        statsY += rowHeight + row.extra / 2;
     });
 
 
@@ -6138,28 +6138,53 @@ function drawSummaryPageLayout(doc, report, imgData, imgRatio, x, y, w, facetCou
 
 
 /**
- * One label/value row of the summary page's totals card (1M8-256). The value keeps its width at the right; a label
- * that would reach it shrinks (down to 6 pt), then wraps onto two lines within the row, so long labels (Headwall
- * Flashing, and longer in other languages) never overlap their values. A word is broken inside only when it is
- * wider than the label at 6 pt, and nothing is cut off (FM-305). Returns what was laid out.
+ * The summary page's totals card (1M8-256, FM-305, FM-380): one type size for every label and value in the card, so the
+ * rows read as one list. The value keeps its width at the right; a label that would reach it wraps onto two lines
+ * between words, so long labels (Headwall Flashing, and longer in other languages) never overlap their values. The card
+ * is `size` unless some label needs more than two lines at it: then every row gets smaller together, down to 7.5 pt. A
+ * word still too wide is broken inside with a hyphen (then down to 6 pt), and nothing is cut off. `rows` are [label, value]; returns { size, extra, rows: [{ lines, value, extra }] }, `extra` being the height the
+ * second lines add (the card's total, and each row's).
  */
-function drawPdfStatRow(doc, label, value, x, y, width, size = 9) {
-    const text = String(label ?? '').trim(), shown = String(value ?? '');
+function layoutPdfStatCard(doc, rows, width, size = 9) {
+    const lineHeight = s => s * 0.3528 * 1.15;
+    const layoutAt = (s, breakWords) => rows.map(([label, value]) => {
+        const text = String(label ?? '').trim(), shown = String(value ?? '');
+        doc.setFont("Montserrat", "normal"); doc.setFontSize(s);
+        const labelW = Math.max(8, width - doc.getTextWidth(shown) - 2);
+        doc.setFont("Montserrat", "bold");
+        return { lines: wrapPdfStatLabel(doc, text, labelW, breakWords), value: shown, labelW };
+    });
+    const fitsTwo = laid => laid.every(r => r.lines.length <= 2 && r.lines.every(line => doc.getTextWidth(line) <= r.labelW));
+    // Between words, the largest size down to 7.5 pt; then with words broken inside, the largest size down to 6 pt (a
+    // long compound such as Firstwandanschlussblech is hyphenated rather than every row made small).
+    let labelSize = null, laid = null;
+    for (const [breakWords, min] of [[false, 7.5], [true, 6]]) {
+        for (let s = size; s >= min && !laid; s -= 0.5) {
+            doc.setFontSize(s);
+            const at = layoutAt(s, breakWords);
+            if (fitsTwo(at)) { labelSize = s; laid = at; }
+        }
+        if (laid) break;
+    }
+    // A label that needs a third line even then: the card gets smaller only while it does.
+    if (!laid) for (labelSize = 6; ; labelSize -= 0.5) {
+        laid = layoutAt(labelSize, true);
+        if (laid.every(r => r.lines.length <= 2) || labelSize <= 4) break;
+    }
+    const lineH = lineHeight(labelSize);
+    const out = laid.map(r => ({ lines: r.lines, value: r.value, extra: (r.lines.length - 1) * lineH }));
     doc.setFont("Montserrat", "normal"); doc.setFontSize(size);
-    const valueW = doc.getTextWidth(shown);
-    const labelW = Math.max(8, width - valueW - 2);
-    doc.setFont("Montserrat", "bold");
+    return { size: labelSize, lineH, extra: out.reduce((sum, r) => sum + r.extra, 0), rows: out };
+}
+
+/** A label as lines no wider than `labelW` at the current font: broken at spaces and after hyphens (German compounds),
+ * and with `breakWords` a piece wider than the label broken inside with a hyphen, into two halves as even as possible,
+ * or (a piece too long for two lines) where each line reaches the edge. */
+function wrapPdfStatLabel(doc, text, labelW, breakWords) {
     const fits = line => doc.getTextWidth(line) <= labelW;
-    // Lines break at spaces and after hyphens (German compounds); `space` is whether a space comes before a piece.
-    const words = text.split(/\s+/).filter(Boolean).flatMap(word => word.split(/(?<=-)/).map((part, i) => ({ part, space: i === 0 })));
-    const wrap = pieces => pieces.reduce((lines, { part, space }) => {
-        const joined = lines.length ? lines[lines.length - 1] + (space ? ' ' : '') + part : null;
-        if (joined != null && fits(joined)) lines[lines.length - 1] = joined; else lines.push(part);
-        return lines;
-    }, []);
-    // A piece wider than the label is broken inside with a hyphen: into two halves as even as possible, or (a piece
-    // too long for two lines) where each line reaches the edge.
-    const broken = () => words.flatMap(({ part, space }) => {
+    // `space` is whether a space comes before a piece.
+    let pieces = text.split(/\s+/).filter(Boolean).flatMap(word => word.split(/(?<=-)/).map((part, i) => ({ part, space: i === 0 })));
+    if (breakWords) pieces = pieces.flatMap(({ part, space }) => {
         if (fits(part)) return [{ part, space }];
         let even = null;
         for (let n = 1; n < part.length; n++) {
@@ -6180,24 +6205,20 @@ function drawPdfStatRow(doc, label, value, x, y, width, size = 9) {
         out.push({ part: rest, space: out.length ? false : space });
         return out;
     });
-    // One line down to 7.5 pt; then one line or two lines broken between words, down to 6 pt.
-    let labelSize, lines = null;
-    for (labelSize = size; labelSize >= 6; labelSize -= 0.5) {
-        doc.setFontSize(labelSize);
-        if (fits(text)) { lines = [text]; break; }
-        if (labelSize <= 7.5) { const wrapped = wrap(words); if (wrapped.length <= 2 && wrapped.every(fits)) { lines = wrapped; break; } }
-    }
-    // Otherwise a word too wide is broken inside at 6 pt, and the label gets smaller only while it needs a third line.
-    if (!lines) for (labelSize = 6; ; labelSize -= 0.5) {
-        doc.setFontSize(labelSize);
-        lines = wrap(broken());
-        if (lines.length <= 2 || labelSize <= 4) break;
-    }
-    const lineH = labelSize * 0.3528 * 1.05;
-    lines.forEach((line, i) => doc.text(line, x, y - ((lines.length - 1) * lineH / 2) + i * lineH));
-    doc.setFont("Montserrat", "normal"); doc.setFontSize(size);
-    doc.text(shown, x + width, y, { align: 'right' });
-    return { lines, labelSize, labelW, valueW };
+    return pieces.reduce((lines, { part, space }) => {
+        const joined = lines.length ? lines[lines.length - 1] + (space ? ' ' : '') + part : null;
+        if (joined != null && fits(joined)) lines[lines.length - 1] = joined; else lines.push(part);
+        return lines;
+    }, []);
+}
+
+/** One row of the card as layoutPdfStatCard laid it out: the label's lines centred on the value's baseline `y`. */
+function drawPdfStatRow(doc, row, x, y, width, size) {
+    const lineH = size * 0.3528 * 1.15;
+    doc.setFont("Montserrat", "bold"); doc.setFontSize(size);
+    row.lines.forEach((line, i) => doc.text(line, x, y - ((row.lines.length - 1) * lineH / 2) + i * lineH));
+    doc.setFont("Montserrat", "normal");
+    doc.text(row.value, x + width, y, { align: 'right' });
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
