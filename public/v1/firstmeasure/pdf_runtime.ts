@@ -4,7 +4,7 @@ import path from "node:path";
 import { access } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
 
-import { chromium } from "playwright-core";
+import { chromium, type Page } from "playwright-core";
 
 import type { ProjectManifest } from "./storage.js";
 
@@ -188,10 +188,14 @@ export async function renderSharedProjectPdfs(request: SharedPdfBatchRequest): P
     }
     await page.addScriptTag({ path: scripts.pdfStandalonePath });
 
-    const outputs = await page.evaluate(async ({ snapshot, manifest, organization, outputs }) => {
+    const snapshotKey = await sendJsonToPage(page, request.snapshot);
+    const outputs = await page.evaluate(async ({ snapshotKey, manifest, organization, outputs }) => {
         if (!window.FirstMatePDFStandalone) {
           throw new Error("Shared PDF runtime failed to initialize.");
         }
+        const pageStore = window as unknown as Record<string, unknown>;
+        const snapshot = JSON.parse(String(pageStore[snapshotKey] ?? "null")) as unknown;
+        delete pageStore[snapshotKey];
         const snapshotObj = (snapshot && typeof snapshot === "object")
           ? snapshot as Record<string, unknown>
           : {};
@@ -224,6 +228,8 @@ export async function renderSharedProjectPdfs(request: SharedPdfBatchRequest): P
             reader.onerror = () => reject(reader.error || new Error("Failed to serialize generated PDF blob."));
             reader.readAsDataURL(blob);
           });
+          const base64Key = `__fmPdfOutput${serialized.length}`;
+          pageStore[base64Key] = base64;
           serialized.push({
             slot: item.slot || null,
             mode: item.mode || "full",
@@ -231,12 +237,12 @@ export async function renderSharedProjectPdfs(request: SharedPdfBatchRequest): P
             renderChecksum: typeof item.renderChecksum === "string" ? item.renderChecksum : null,
             persist: item.persist !== false,
             updateStatus: !!item.updateStatus,
-            base64
+            base64Key
           });
         }
         return serialized;
       }, {
-        snapshot: request.snapshot,
+        snapshotKey,
         manifest: request.manifest,
         organization: request.organization || null,
         outputs: request.outputs
@@ -246,21 +252,68 @@ export async function renderSharedProjectPdfs(request: SharedPdfBatchRequest): P
         throw new Error(recentDebug ? `Shared PDF runtime failed: ${message} | ${recentDebug}` : `Shared PDF runtime failed: ${message}`);
       });
 
-    return {
-      outputs: (outputs as Array<Record<string, unknown>>).map((item) => ({
+    const rendered: SharedPdfRenderResult[] = [];
+    for (const item of outputs as Array<Record<string, unknown>>) {
+      rendered.push({
         slot: item.slot === "summary" ? "summary" : "main",
         mode: item.mode === "summary" ? "summary" : "full",
         fileName: typeof item.fileName === "string" ? item.fileName : "report.pdf",
         renderChecksum: typeof item.renderChecksum === "string" ? item.renderChecksum : null,
-        bytes: Buffer.from(typeof item.base64 === "string" ? item.base64 : "", "base64"),
+        bytes: Buffer.from(await readStringFromPage(page, String(item.base64Key)), "base64"),
         persist: item.persist !== false,
         updateStatus: !!item.updateStatus
-      })),
+      });
+    }
+    return {
+      outputs: rendered,
       debug: debugEntries
     };
   } finally {
     await browser.close();
   }
+}
+
+// Chrome closes its DevTools pipe, and with it the browser, when one message passes 100 MB
+// ("Connection closed, not enough capacity"), and Playwright serializing a large object argument blocks
+// this process's event loop for as long. A project with many photos has a snapshot of tens of MB, so the
+// snapshot goes to the page as JSON text in pieces, and each PDF comes back the same way.
+export const PAGE_TRANSFER_CHUNK_CHARS = 4 * 1024 * 1024;
+
+export async function sendJsonToPage(page: Page, value: unknown, chunkChars = PAGE_TRANSFER_CHUNK_CHARS) {
+  const json = JSON.stringify(value ?? null) ?? "null";
+  const key = `__fmPdfInput${Date.now().toString(36)}${Math.random().toString(36).slice(2)}`;
+  await page.evaluate((key) => {
+    (window as unknown as Record<string, unknown>)[key] = "";
+  }, key);
+  for (let start = 0; start < json.length;) {
+    let end = Math.min(json.length, start + chunkChars);
+    // Never split a surrogate pair: half of one would arrive as U+FFFD.
+    const last = json.charCodeAt(end - 1);
+    if (end < json.length && end - start > 1 && last >= 0xd800 && last <= 0xdbff) end -= 1;
+    await page.evaluate(({ key, part }) => {
+      const store = window as unknown as Record<string, unknown>;
+      store[key] = String(store[key]) + part;
+    }, { key, part: json.slice(start, end) });
+    start = end;
+  }
+  return key;
+}
+
+export async function readStringFromPage(page: Page, key: string, chunkChars = PAGE_TRANSFER_CHUNK_CHARS) {
+  const length = await page.evaluate((key) => {
+    const value = (window as unknown as Record<string, unknown>)[key];
+    return typeof value === "string" ? value.length : 0;
+  }, key);
+  const parts: string[] = [];
+  for (let start = 0; start < length; start += chunkChars) {
+    parts.push(await page.evaluate(({ key, start, end }) => {
+      return String((window as unknown as Record<string, unknown>)[key]).slice(start, end);
+    }, { key, start, end: start + chunkChars }));
+  }
+  await page.evaluate((key) => {
+    delete (window as unknown as Record<string, unknown>)[key];
+  }, key);
+  return parts.join("");
 }
 
 export async function getSharedPdfRuntimeAsset(name: SharedPdfClientAssetName): Promise<SharedPdfClientAsset> {
