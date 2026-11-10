@@ -1,8 +1,10 @@
 # Live layer: frontend changes on dev.1m8.ai the moment they are saved
 
 The **instant iteration system**. A browser file saved in a checkout running `live-sync` is served by dev.1m8.ai within about a second, to
-everyone, and every open dev page swaps it in: stylesheets and images in place, anything else by reloading only
-the frame that ran it. No rollout, no restart. Server code (`public/v1/**`), PHP and HTML pages still need a
+everyone, and every open dev page swaps it in: stylesheets and images in place. Anything else waits for the
+person: a pill says an update is ready and refreshes only when they tap it. **Nothing ever reloads a page by
+itself** (Jack, 2026-11-09: a forced reload threw away workflows he was halfway through testing). No rollout, no
+restart. Server code (`public/v1/**`), PHP and HTML pages still need a
 rollout. Development only: production has no layer, no receiver and no channel.
 
 The [frontend bridge](frontend-bridge.md) is the private variant: one person's Chrome, files from their own
@@ -86,22 +88,22 @@ overlay survived while its host callbacks disappeared. See the
    `live-assets` channel of every connected page.
 6. The page swaps changed stylesheet `<link>`s and `<img>`s in place, and a script's injected `<style>` when the
    edit touched only that CSS (the template's `${...}` values are kept; the swap survives the app's re-renders).
-   For anything else a frame loaded it
-   refetches those URLs past the browser cache and reloads that frame (the whole page only when the page itself
-   ran it). A small "Live: …" pill shows what changed. On connect (`hello`) a frame that ran a cached older copy
-   of a layer file reloads once.
+   A small "Live: …" pill shows what was swapped. For anything else a frame loaded it refetches those URLs past
+   the browser cache (so the next refresh runs the new copy) and shows the **refresh pill** (`offerRefresh`):
+   "Update ready: <file>", with Refresh and ×. It stays until tapped; Refresh reloads that frame (the whole page
+   only when the page itself ran it), × hides it until the next update. On connect (`hello`) a frame that ran a
+   cached older copy of a layer file gets the same offer.
 
-## A new release reloads open pages
+## A new release is offered, never forced
 
 The same channel tells each page which platform release its host serves: the directory
 `/opt/firstmeasure/current` points at (`FIRSTMEASURE_CURRENT_RELEASE_LINK`), checked every second, in `hello` and
 as a `release` frame when `fm-release activate` switches it. It cannot be the server's `RELEASE_ID`, because a
 browser-only release keeps the server running (`activate --keep-server`). A page keeps the release of its first
-`hello` and reloads onto a different one at the first quiet moment (`createReleaseWatch` in `live-assets.js`): the
-page visible, no text field focused (in any of its frames), and no key, touch or wheel for four seconds. A
-reconnect that reports the page's own release again cancels the wait. So every open dev page, the Android
-development app included (it is the dev site in a WebView), runs what was just shipped; an app in the background
-reloads when it comes back. Measure-internal lane releases do not switch `current` and reload nothing.
+`hello`; when its host reports a different one (`createReleaseWatch` in `live-assets.js`) the refresh pill
+says "New release ready" and the page reloads only when the person taps Refresh. A reconnect that reports the
+page's own release again withdraws the offer. This replaced FM-294's reload at the first quiet moment, which
+still landed mid-test. Measure-internal lane releases do not switch `current` and offer nothing.
 
 ## What keeps it honest
 
@@ -149,5 +151,6 @@ On dev web, `sudo -u fmlive /usr/local/bin/fm-live-receive list` prints the mani
 - One shared layer: everyone on dev sees every live file. Two checkouts editing the same file take turns (the
   first one's copy stays until it leaves the layer).
 - Only the web role serves it. A second web node would need the layer too (or the receiver on each).
-- Scripts guarded against running twice cannot be hot-swapped, so scripts reload their frame.
+- Scripts guarded against running twice cannot be hot-swapped, so a script change waits for the person to tap
+  Refresh.
 - Copy changes still need new language keys (the catalog's English overrides inline text).

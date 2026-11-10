@@ -148,7 +148,8 @@ widgets, CSS, images), use the **instant iteration system**, the
 [live layer](docs/architecture/live-layer.md). It is the fast loop, not the only
 way to ship frontend work. A file you save is served by dev.1m8.ai within about
 a second, to everyone, and every open dev page swaps it in (stylesheets and
-images in place; a changed script reloads the frame that ran it). The release
+images in place; anything else shows a pill and waits for the person to tap
+Refresh). Never reload a page by itself: not for a live file, not for a release. The release
 itself is untouched until you commit and submit as usual.
 
 1. **Checkout.** Work in your own clean checkout at the canonical tip: a session
