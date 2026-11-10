@@ -45,8 +45,8 @@ test('a one-story house turned on its lot: sides square to its walls, no rooflin
 function fakeDoc(){
  const calls=[];let size=10;
  const doc={calls,setFont(){},setFontSize(v){size=v;},getFontSize:()=>size,setTextColor(){},setFillColor(){},setDrawColor(){},setLineWidth(){},setLineDashPattern(){},setGState(){},GState:function(){},
-  getTextWidth:t=>String(t).length*size*0.2,
-  text(t,x,y,o={}){const w=String(t).length*size*0.2,left=o.align==='center'?x-w/2:o.align==='right'?x-w:x;calls.push({kind:'text',t,x0:left,x1:left+w,y0:y-size*0.3,y1:y});},
+  getTextWidth:t=>String(t).length*size*0.22,
+  text(t,x,y,o={}){const w=String(t).length*size*0.22,left=o.align==='center'?x-w/2:o.align==='right'?x-w:x;calls.push({kind:'text',t,x0:left,x1:left+w,y0:y-size*0.3,y1:y});},
   rect(x,y,w,h){calls.push({kind:'rect',x0:x,x1:x+w,y0:y,y1:y+h});},
   roundedRect(x,y,w,h){calls.push({kind:'rect',x0:x,x1:x+w,y0:y,y1:y+h});},
   line(x1,y1,x2,y2){calls.push({kind:'line',x0:Math.min(x1,x2),x1:Math.max(x1,x2),y0:Math.min(y1,y2),y1:Math.max(y1,y2)});},
@@ -73,6 +73,10 @@ for(const [name,w,h] of [['portrait',190,219],['landscape',250,150]]){
   await pdf.drawHolidayLightsPage(doc,{},model,x,y,w,h,null);
   const out=doc.calls.filter(c=>c.x0<x-1.6||c.x1>x+w+1.6||c.y0<y-0.01||c.y1>y+h+1.6);
   assert.deepEqual(out,[]);
+  // Words on one line stay at least 2 mm apart (the column headers were crowded in two columns).
+  const texts=doc.calls.filter(c=>c.kind==='text');
+  const crowded=texts.flatMap((a,i)=>texts.slice(i+1).filter(b=>Math.abs(a.y1-b.y1)<0.5&&a.x0<b.x1+2&&b.x0<a.x1+2).map(b=>`${a.t} | ${b.t}`));
+  assert.deepEqual(crowded,[]);
   assert.equal(doc.calls.filter(c=>c.kind==='text'&&/^Roofline [1-4]$/.test(c.t)).length,16,'every row names its roofline');
   const image=doc.calls.find(c=>c.kind==='image');
   assert.ok(image&&image.y1-image.y0>30,'the drawing keeps a usable height');
