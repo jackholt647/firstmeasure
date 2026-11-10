@@ -143,7 +143,7 @@ test('two checkouts share the layer: each keeps its own files and cannot overwri
   } finally { rmSync(one.dir, { recursive: true, force: true }); }
 });
 
-test('a script edit that only touches its injected CSS swaps that <style> in place; anything else reloads', async () => {
+test('a script edit that only touches its injected CSS swaps that <style> in place; anything else waits for a refresh', async () => {
   const { swapInlineStyle } = await import('../public/libraries/live-assets/live-assets.js');
   const source = (css, extra = '') => `const COLOR = '#667085';\nconst STYLES = \`\n  .tray{border:1px solid ${'${COLOR}'};padding:12px}\n  .title{color:${css}}\n\`;\nfunction draw(){ return 1${extra}; }\n`;
   const run = async (before, after) => {
@@ -163,50 +163,57 @@ test('a script edit that only touches its injected CSS swaps that <style> in pla
   assert.equal((await run(source('#101828'), source('#101828'))).swapped, false, 'nothing changed');
 });
 
-test('an open page reloads onto a new platform release at the first quiet moment, never while someone types', async () => {
+test('a new platform release is offered as a refresh, never loaded by itself', async () => {
   const { createReleaseWatch } = await import('../public/libraries/live-assets/live-assets.js');
-  let clock = 0;
-  const intervals = [];
-  const listeners = {};
-  const doc = { visibilityState: 'visible', activeElement: null, querySelectorAll: () => [], addEventListener: (type, fn) => { listeners[type] = fn; }, removeEventListener: () => {} };
-  const win = {
-    document: doc, location: { pathname: '/portal/' },
-    addEventListener: (type, fn) => { listeners[type] = fn; },
-    setInterval: (fn) => intervals.push(fn), clearInterval: () => intervals.splice(0)
-  };
-  let reloads = 0;
-  const watch = createReleaseWatch(win, { quietMs: 4000, now: () => clock, reload: () => { reloads += 1; }, say: () => {} });
-  clock = 10000;
+  const offered = [];
+  let withdrawn = 0;
+  const win = { location: { pathname: '/portal/', reload: () => assert.fail('a release must never reload the page') } };
+  const watch = createReleaseWatch(win, { offer: (release) => offered.push(release), withdraw: () => { withdrawn += 1; } });
   assert.equal(watch.note('r1'), false, "the first release is the page's own");
   assert.equal(watch.note('r1'), false);
-  assert.equal(reloads, 0);
+  assert.deepEqual(offered, []);
 
-  listeners.keydown();
-  doc.activeElement = { tagName: 'TEXTAREA' };
-  assert.equal(watch.note('r2'), false, 'typing: wait');
-  clock += 60000;
-  assert.equal(watch.check(), false, 'still in the field');
-  doc.activeElement = { tagName: 'INPUT', type: 'checkbox' };
-  doc.visibilityState = 'hidden';
-  assert.equal(watch.check(), false, 'hidden (the app is in the background): wait for it to come back');
-  doc.visibilityState = 'visible';
-  listeners.pointerdown();
-  assert.equal(watch.check(), false, 'just touched');
-  clock += 4000;
-  assert.equal(watch.check(), true);
-  assert.equal(reloads, 1);
+  assert.equal(watch.note('r2'), true, 'a new release waits for the person');
+  assert.equal(watch.note('r2'), true);
+  assert.deepEqual(offered, ['r2'], 'offered once');
+  assert.equal(watch.note('r3'), true);
+  assert.deepEqual(offered, ['r2', 'r3']);
+  assert.equal(watch.note('r1'), false);
+  assert.equal(watch.state().waiting, '', "a reconnect that reports the page's own release again withdraws the offer");
+  assert.equal(withdrawn, 1);
+});
 
-  const other = createReleaseWatch(win, { now: () => clock, reload: () => { reloads += 1; }, say: () => {} });
-  other.note('r2');
-  doc.activeElement = { tagName: 'DIV', isContentEditable: true };
-  other.note('r3');
-  assert.equal(other.state().waiting, 'r3');
-  other.note('r2');
-  assert.equal(other.state().waiting, '', "a reconnect that reports the page's own release again cancels the wait");
-  doc.activeElement = null;
-  clock += 10000;
-  assert.equal(other.check(), undefined);
-  assert.equal(reloads, 1);
+test('a script change that cannot be swapped in place never reloads: it refetches and offers a refresh', async () => {
+  const live = await import('../public/libraries/live-assets/live-assets.js');
+  const realFetch = globalThis.fetch;
+  const realWindow = globalThis.window;
+  const realLocation = globalThis.location;
+  const before = 'function draw(){ return 1; }\n';
+  const after = 'function draw(){ return 2; }\n';
+  const fetched = [];
+  globalThis.fetch = async (url, { cache } = {}) => { fetched.push(cache); return { ok: true, text: async () => (cache === 'force-cache' ? before : after) }; };
+  const url = 'https://dev.1m8.ai/libraries/apps/x/app.js?v=1';
+  const appended = [];
+  const el = () => ({ style: {}, setAttribute() {}, append(...kids) { this.kids = kids; this.firstChild = kids[0]; }, addEventListener() {}, remove() {} });
+  const doc = { querySelectorAll: (sel) => (sel.startsWith('link[href]') ? [{ src: url }] : []), getElementById: () => null, createElement: el, body: { append: (node) => appended.push(node) } };
+  const win = { document: doc, performance: { getEntriesByType: () => [] }, location: { href: 'https://dev.1m8.ai/portal/', pathname: '/portal/', reload: () => assert.fail('must not reload') } };
+  win.top = win; win.parent = win;
+  globalThis.window = win;
+  globalThis.location = { origin: 'https://dev.1m8.ai', href: win.location.href };
+  try {
+    const done = await live.apply([{ path: 'libraries/apps/x/app.js', sha: null }]);
+    assert.deepEqual(done.swapped, []);
+    assert.deepEqual(done.needsRefresh, ['page']);
+    assert.ok(fetched.includes('reload'), 'the new copy is refetched past the cache so the person\'s refresh runs it');
+    assert.equal(live.pendingRefresh().frames, 1);
+    assert.deepEqual(live.pendingRefresh().names, ['app.js']);
+    assert.equal(appended.length, 1, 'one pill');
+    assert.equal(appended[0].firstChild.textContent, 'Update ready: app.js');
+  } finally {
+    globalThis.fetch = realFetch;
+    if (realWindow === undefined) delete globalThis.window; else globalThis.window = realWindow;
+    if (realLocation === undefined) delete globalThis.location; else globalThis.location = realLocation;
+  }
 });
 
 const hash = (rel, text) => liveHash(rel, Buffer.from(text));

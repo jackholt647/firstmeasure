@@ -13,7 +13,7 @@ import { registerRealtimeChannelKind, type RealtimeChannelSend } from "./realtim
  * writes: the receiver on the web host (tools/live-layer/fm-live-receive.py) owns the folder.
  *
  * The channel also says which platform release this host serves (`release` in `hello`, and a `release` frame
- * when `fm-release activate` switches `current`), so an open dev page reloads onto a new release. A browser-only
+ * when `fm-release activate` switches `current`), so an open dev page can offer a refresh onto a new release (it never reloads by itself). A browser-only
  * release keeps the server running (`activate --keep-server`), so the server's own RELEASE_ID cannot tell.
  */
 

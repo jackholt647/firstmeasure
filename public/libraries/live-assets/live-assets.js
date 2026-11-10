@@ -6,15 +6,18 @@
  *   changed { gen, files: [{ path, sha|null }] } files written, or gone back to the release (sha null)
  *   release { release }                          the host switched to another platform release
  *
- * A page remembers the release it was loaded on (`release` in its first hello) and reloads onto a newer one
- * at the first quiet moment (createReleaseWatch): visible, nobody typing in a field, no touch or key for a few
- * seconds. Open dev pages, the Android development app's among them, so run what was just shipped.
+ * NOTHING HERE EVER RELOADS A PAGE BY ITSELF. Someone may be halfway through testing a workflow, and a forced
+ * reload throws that away. What cannot be applied in place waits for them: a pill (offerRefresh) says an update
+ * is ready and refreshes only when they tap it.
+ *
+ * A page remembers the release it was loaded on (`release` in its first hello); when its host switches to
+ * another one (createReleaseWatch) the pill says a new release is ready.
  *
  * For every frame of this page (the page and its same-origin frames that have no receiver of their own):
  * a changed stylesheet <link> or <img> is swapped in place, and so is a script's injected <style> when the
- * edit touched only that CSS (swapInlineStyle); anything else the frame loaded (script logic, modules, JSON)
- * reloads that frame only, after the browser's cached copies of those URLs are refetched so the reload cannot
- * run an old copy. Files a frame never loaded are left alone.
+ * edit touched only that CSS (swapInlineStyle); for anything else the frame loaded (script logic, modules, JSON)
+ * the browser's cached copies of those URLs are refetched, so the next refresh cannot run an old copy, and the
+ * pill offers that refresh. Files a frame never loaded are left alone.
  */
 
 // Hashed with line endings folded, as the receiver and tools/frontend-bridge do.
@@ -101,6 +104,81 @@ function notice(text) {
     pill.style.opacity = '1';
     clearTimeout(notice.timer);
     notice.timer = setTimeout(() => { pill.style.opacity = '0'; }, 2500);
+  } catch { /* a foreign top window */ }
+}
+
+/**
+ * The one way an update that needs a refresh reaches the person: a pill that stays until they tap Refresh
+ * (or close it). `frames` are the frames whose code changed; `release` is a new platform release, which needs
+ * the whole page. Tapping reloads the page when it is among them, else only those frames.
+ */
+const waiting = { frames: new Set(), release: '', names: new Set() };
+export function offerRefresh({ frames: wins = [], release = '', names = [] } = {}) {
+  for (const win of wins) waiting.frames.add(win);
+  if (release) waiting.release = release;
+  for (const name of names) waiting.names.add(name);
+  drawRefresh();
+}
+/** A reconnect that reports the page's own release again: that release is no longer waiting. */
+export function withdrawRelease() {
+  if (!waiting.release) return;
+  waiting.release = '';
+  drawRefresh();
+}
+export function pendingRefresh() { return { frames: waiting.frames.size, release: waiting.release, names: [...waiting.names] }; }
+
+function refreshTargets() {
+  if (waiting.release || waiting.frames.has(window)) return [window];
+  const list = [...waiting.frames].filter((win) => { try { return !win.closed && !!win.document; } catch { return false; } });
+  return list.filter((win) => {
+    for (let parent = win.parent; parent && parent !== win; parent = parent.parent) {
+      if (list.includes(parent)) return false;
+      if (parent === parent.parent) break;
+    }
+    return true;
+  });
+}
+
+function refreshLabel() {
+  if (waiting.release) return 'New release ready';
+  const names = [...waiting.names];
+  if (!names.length) return 'Update ready';
+  return 'Update ready: ' + names.slice(0, 2).join(', ') + (names.length > 2 ? ' +' + (names.length - 2) : '');
+}
+
+function drawRefresh() {
+  try {
+    const doc = window.top.document;
+    let pill = doc.getElementById('fm-live-assets-refresh');
+    if (!waiting.frames.size && !waiting.release) { pill?.remove(); return; }
+    if (!pill) {
+      pill = doc.createElement('div');
+      pill.id = 'fm-live-assets-refresh';
+      pill.setAttribute('data-fmr-ignore', '');
+      pill.setAttribute('role', 'status');
+      pill.style.cssText = 'position:fixed;left:50%;bottom:12px;transform:translateX(-50%);z-index:2147483600;display:flex;align-items:center;gap:4px;max-width:calc(100vw - 24px);box-sizing:border-box;padding:4px 4px 4px 14px;border-radius:999px;background:#111827;color:#fff;font:600 12px/1.4 system-ui,sans-serif;box-shadow:0 4px 12px rgba(0,0,0,.25)';
+      const label = doc.createElement('span');
+      label.style.cssText = 'overflow:hidden;text-overflow:ellipsis;white-space:nowrap';
+      const button = (text, title) => {
+        const b = doc.createElement('button');
+        b.type = 'button'; b.textContent = text; b.title = title;
+        b.style.cssText = 'border:0;border-radius:999px;padding:6px 12px;font:inherit;cursor:pointer;background:#fff;color:#111827;flex:none';
+        return b;
+      };
+      const refresh = button('Refresh', 'Load the update now');
+      const close = button('×', 'Not now: refresh yourself whenever you like');
+      close.style.background = 'transparent'; close.style.color = '#fff'; close.style.padding = '6px 10px';
+      refresh.addEventListener('click', () => {
+        const targets = refreshTargets();
+        waiting.frames.clear(); waiting.release = ''; waiting.names.clear();
+        pill.remove();
+        for (const win of targets) { try { win.location.reload(); } catch { /* gone */ } }
+      });
+      close.addEventListener('click', () => { pill.remove(); });
+      pill.append(label, refresh, close);
+      doc.body.append(pill);
+    }
+    pill.firstChild.textContent = refreshLabel();
   } catch { /* a foreign top window */ }
 }
 
@@ -298,7 +376,7 @@ function guardStyle(style, original) {
 export function apply(changes) { return enqueue(() => applyChanges(changes)); }
 
 async function applyChanges(changes) {
-  const done = { swapped: [], reloaded: [] };
+  const done = { swapped: [], needsRefresh: [] };
   const all = frames();
   const reloads = [];
   const texts = new Map();
@@ -353,7 +431,7 @@ async function applyChanges(changes) {
         record(win, path, 'reload-resource-change');
       }
       reload = true;
-      // The reload must not take these from the browser's cache: refetch each URL the frame used.
+      // The person's refresh must not take these from the browser's cache: refetch each URL the frame used.
       await Promise.all([...urls.get(path)].map((url) => fetch(url, { cache: 'reload', credentials: 'same-origin' }).catch(() => null)));
     }
     if (reload && win.document === doc) reloads.push(win);
@@ -366,16 +444,17 @@ async function applyChanges(changes) {
     }
     return true;
   });
-  for (const win of targets) { done.reloaded.push(win === window ? 'page' : win.location.pathname); }
-  const names = changes.map((change) => change.path.split('/').pop());
-  if (done.swapped.length || targets.length) notice(`Live: ${names.slice(0, 3).join(', ')}${names.length > 3 ? ` +${names.length - 3}` : ''}`);
-  for (const win of targets) { documentState(win.document).reloading = true; win.location.reload(); }
+  for (const win of targets) { done.needsRefresh.push(win === window ? 'page' : win.location.pathname); }
+  const file = (path) => path.split('/').pop();
+  if (done.swapped.length) notice('Live: ' + [...new Set(done.swapped.map(file))].slice(0, 3).join(', '));
+  // Never reload: the person may be mid-test. Offer the refresh and wait for them.
+  if (targets.length) offerRefresh({ frames: targets, names: changes.filter(({ path }) => !done.swapped.includes(path)).map(({ path }) => file(path)) });
   return done;
 }
 
 /**
  * On connect: a frame that ran a cached copy of a layer file (the release's copy is cached for up to an hour
- * under its ?v= URL) refetches it past the cache and reloads once for that version.
+ * under its ?v= URL) refetches it past the cache and offers a refresh for that version.
  */
 async function verify() {
   const stale = new Map();
@@ -396,62 +475,26 @@ async function verify() {
   if (stale.size) await applyChanges([...stale.values()]);
 }
 
-const EDITABLE_INPUT = /^(?!button$|submit$|reset$|checkbox$|radio$|range$|color$|file$|image$|hidden$)/i;
-/** The focused field someone may be typing in, following focus into same-origin frames. */
-function editing(doc) {
-  let el = doc?.activeElement;
-  for (let depth = 0; el && depth < 5; depth += 1) {
-    if (el.isContentEditable || el.tagName === 'TEXTAREA' || el.tagName === 'SELECT') return true;
-    if (el.tagName === 'INPUT') return EDITABLE_INPUT.test(el.type || 'text');
-    if (el.tagName !== 'IFRAME') return false;
-    try { el = el.contentDocument?.activeElement; } catch { return false; }
-  }
-  return false;
-}
-
 /**
- * Reloads `win` onto a new platform release once it is quiet. `note(release)` takes each release the stream
- * reports: the first is the page's own; a different one waits for quiet, and the page's own again (a reconnect
- * that reached a web host still switching) cancels the wait.
+ * Watches the platform release the stream reports. `note(release)`: the first is the page's own; a different one
+ * is offered as a refresh (never loaded by itself); the page's own again (a reconnect that reached a web host
+ * still switching) withdraws the offer. Returns true while a new release is waiting.
  */
-export function createReleaseWatch(win, { quietMs = 4000, everyMs = 1000, now = () => Date.now(), reload = () => win.location.reload(), say = notice } = {}) {
+export function createReleaseWatch(win, { offer = (release) => offerRefresh({ release }), withdraw = withdrawRelease } = {}) {
   let own = '';
-  let waiting = '';
-  let lastInput = now();
-  let timer = null;
-  const listened = new WeakSet();
-  const touched = () => { lastInput = now(); };
-  const listen = () => {
-    for (const frame of frames(win)) {
-      if (listened.has(frame)) continue;
-      listened.add(frame);
-      for (const type of ['keydown', 'pointerdown', 'wheel', 'touchstart']) frame.addEventListener?.(type, touched, { capture: true, passive: true });
-    }
-  };
-  const quiet = () => win.document.visibilityState !== 'hidden' && !editing(win.document) && now() - lastInput >= quietMs;
-  const stop = () => { if (timer) win.clearInterval(timer); timer = null; win.document.removeEventListener?.('visibilitychange', check); };
-  function check() {
-    if (!waiting) return stop();
-    listen();
-    if (!quiet()) return false;
-    stop();
-    record(win, waiting, 'reload-release');
-    say(`New release · reloading`);
-    reload();
-    return true;
-  }
+  let waitingFor = '';
   function note(release) {
     release = String(release || '');
     if (!release) return false;
-    listen();
     if (!own) { own = release; return false; }
-    if (release === own) { waiting = ''; stop(); return false; }
-    if (waiting === release) return false;
-    waiting = release;
-    if (!timer) { timer = win.setInterval(check, everyMs); win.document.addEventListener?.('visibilitychange', check); }
-    return check();
+    if (release === own) { if (waitingFor) { waitingFor = ''; withdraw(); } return false; }
+    if (waitingFor === release) return true;
+    waitingFor = release;
+    record(win, release, 'release-offered');
+    offer(release);
+    return true;
   }
-  return { note, check, state: () => ({ own, waiting }) };
+  return { note, state: () => ({ own, waiting: waitingFor }) };
 }
 let releaseWatch = null;
 
@@ -467,7 +510,7 @@ async function receiveEvent(event, data) {
     const removed = [...known.keys()].filter((path) => !Object.hasOwn(data?.files || {}, path)).map((path) => ({ path, sha: null }));
     known.clear();
     for (const [path, sha] of Object.entries(data?.files || {})) known.set(path, sha);
-    window.FirstMateLiveAssets = { files: () => Object.fromEntries(known), apply, frames, loadedUrls, diagnostics: () => recent.map((entry) => ({ ...entry })) };
+    window.FirstMateLiveAssets = { files: () => Object.fromEntries(known), apply, frames, loadedUrls, pendingRefresh, diagnostics: () => recent.map((entry) => ({ ...entry })) };
     window.dispatchEvent(new CustomEvent('fm:live-assets', { detail: { event } }));
     if (removed.length) await applyChanges(removed);
     await verify();
