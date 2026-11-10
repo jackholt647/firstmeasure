@@ -190,3 +190,34 @@ test('a phone types the order address above the map, so the keyboard never cover
     await browser.close();
   } finally { if(browser.isConnected()) await browser.close(); }
 });
+
+test('a long delivery label never runs into its price in a narrow panel, in any language (FM-376)', async () => {
+  const browser = await chromium.launch({channel:'chrome', headless:true});
+  try {
+    const page = await browser.newPage({viewport:{width:1280,height:900}});
+    const btn = (name, when, price, standard) => `<button type="button" class="r-expedite-btn${standard?' r-expedite-default':''}"><span class="r-expedite-copy"><span class="r-expedite-name">${name}</span><span class="r-expedite-window">${when}</span>${standard?'':'<span class="r-expedite-pill">Accéléré</span>'}</span><span class="r-expedite-price">${standard?'':'<span class="r-expedite-price-plus">+</span>'}<span class="r-expedite-price-dollars">${price}</span></span></button>`;
+    const languages = {
+      fr: [btn('Livraison standard - Moins de 7 heures','D’ici 16:55','28&nbsp;$US',true),btn('Moins de 3 heures','D’ici 12:55','2,32&nbsp;$US'),btn('Moins d’une heure','D’ici 10:55','6,96&nbsp;$US')],
+      en: [btn('Standard Delivery - Under 7 hours','By 4:55 PM','$28',true),btn('Under 3 hours','By 12:55 PM','$2.32'),btn('Under 1 hour','By 10:55 AM','$6.96')],
+    };
+    let panels = '';
+    for (const width of [300,330,360,420]) for (const [language, buttons] of Object.entries(languages)) panels += `<div class="r-overlay" data-case="${language} ${width}px" style="width:${width}px;font-family:Arial"><div id="rExpeditePanel" class="r-expedite-panel visible"><div id="rExpediteOptions" class="r-expedite-options">${buttons.join('')}</div></div></div>`;
+    await page.setContent(`<!doctype html><body>${panels}</body>`);
+    await page.addStyleTag({content:css});
+    // Compare the rendered text itself (a Range), not the label's box: overflowing text spills past its box.
+    const problems = await page.evaluate(() => {
+      const textBoxes = (el) => { const range = document.createRange(); range.selectNodeContents(el); return [...range.getClientRects()].filter(r => r.width > 0); };
+      const hits = (a, b) => a.right > b.left + .5 && a.left < b.right - .5 && a.bottom > b.top + .5 && a.top < b.bottom - .5;
+      const found = [];
+      for (const panel of document.querySelectorAll('[data-case]')) for (const button of panel.querySelectorAll('.r-expedite-btn')) {
+        const own = button.getBoundingClientRect();
+        const label = textBoxes(button.querySelector('.r-expedite-copy'));
+        const price = textBoxes(button.querySelector('.r-expedite-price'));
+        if (label.some(l => price.some(p => hits(l, p)))) found.push(`${panel.dataset.case}: "${button.querySelector('.r-expedite-name').textContent}" overlaps its price`);
+        if ([...label, ...price].some(r => r.left < own.left - .5 || r.right > own.right + .5)) found.push(`${panel.dataset.case}: "${button.querySelector('.r-expedite-name').textContent}" spills out of its button`);
+      }
+      return found;
+    });
+    assert.deepEqual(problems, []);
+  } finally { await browser.close(); }
+});
