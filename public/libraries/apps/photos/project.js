@@ -171,6 +171,12 @@
     });
   }
 
+  // The project window's one first-write hook (host.ensureProject) saves a new project; older hosts only start a draft.
+  function ensureProjectForWrite(){
+    const ensure = state.host?.ensureProject || window.ensureActiveProject;
+    return Promise.resolve(typeof ensure === 'function' ? ensure() : window.ensureDraftBaseProject?.({ allowEmpty:true }));
+  }
+
   function activeProject(){
     return callHost('getProject') || state.model?.state?.activeBaseProject || window.activeBaseProject || null;
   }
@@ -1503,7 +1509,12 @@
       if (options.rethrow) throw new Error(globalThis.PlatformLanguage?.text("photos","camera_storage_full","There is no storage space left for photos.") ?? "There is no storage space left for photos.");
       return [];
     }
-    window.ensureDraftBaseProject?.();
+    // A new project is saved before its first photo uploads, so the photo has a project to belong to (FM-374).
+    try { await ensureProjectForWrite(); }
+    catch (error) {
+      if (options.rethrow) throw error;
+      console.warn('Project could not be saved before uploading photos.', error);
+    }
     const hadPhotos = projectPhotosList().length > 0;
     let added = [];
     const placeholders = files.map((file, index) => uploadPlaceholderPhoto(file, projectPhotosList().length + index));
@@ -1513,7 +1524,8 @@
     }));
     renderPhotoGallery();
     const orgId = window.projectOrgId?.();
-    const projectId = window.activeBaseProject?.id || '';
+    const uploadProject = activeProject() || {};
+    const projectId = String(uploadProject.id || '').trim();
     const library = projectPhotoLibrary();
     if (orgId && projectId && (library?.uploadMedia || library?.uploadPhoto)) {
       for (const [index, file] of files.entries()) {
@@ -1521,7 +1533,7 @@
         try {
           const upload = library.uploadMedia || library.uploadPhoto;
           const persistedPhotos = projectPhotosList().filter((entry) => !entry?.uploading).map(serializablePhoto);
-          const result = await upload.call(library, orgId, projectId, { ...window.activeBaseProject, photos: persistedPhotos }, file, {
+          const result = await upload.call(library, orgId, projectId, { ...(activeProject() || uploadProject), photos: persistedPhotos }, file, {
             thumbnails: true,
             compression: isVideoMedia({ mime_type: file.type }) ? undefined : { quality: 0.88, max_width: 2400, max_height: 2400 }
           });

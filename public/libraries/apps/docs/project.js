@@ -974,6 +974,8 @@
   }
   async function addFiles(files){
     const oid = orgId();
+    // The first upload on a new project saves it through the project window (FM-374).
+    if (!projectId()) await Promise.resolve(callHost('ensureProject') ?? window.ensureActiveProject?.()).catch((error) => console.warn('Project could not be saved before uploading documents.', error));
     const pid = projectId();
     if (!oid || !pid || !window.PlatformAPI?.projectDocuments?.upload) {
       showToast((globalThis.PlatformLanguage?.text("docs","m_920aa9d1b0216a","Upload unavailable") ?? "Upload unavailable"), (globalThis.PlatformLanguage?.text("docs","m_546d652f15f847","Save the project before uploading documents.") ?? "Save the project before uploading documents."), false);

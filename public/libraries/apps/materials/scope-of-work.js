@@ -144,7 +144,7 @@ export function mountSidebar(root,documents,error,contextKey,options={}) {
     root.querySelectorAll('[data-scope-panel]').forEach(panel=>panel.setAttribute('role','tabpanel'));
     state.measurementViewers=new Set();
     // Photos and Documents are the shared media carousel (rail-media.js), given the project window's host for its tabs and uploads.
-    const railMedia=()=>import(new URL('./rail-media.js?v=20261027-rail-media',import.meta.url).href),railHost=options.scheduleContext?.projectWorkspace||options.scheduleContext?.host||null;
+    const railMedia=()=>import(new URL('./rail-media.js?v=20261110-fm374-first-write',import.meta.url).href),railHost=options.scheduleContext?.projectWorkspace||options.scheduleContext?.host||null;
     // Mount both report views once, before the user selects them. Their DOM,
     // network results and viewer state survive all local tab changes.
     for(const key of only?['roof']:['roof','aerial']){

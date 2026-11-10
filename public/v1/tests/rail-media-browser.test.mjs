@@ -94,7 +94,7 @@ test('the rail shows the project photos and documents as the shared carousel, re
     const labels = await docs.evaluateAll((nodes) => nodes.map((n) => n.getAttribute('aria-label')));
     assert.deepEqual(labels.filter((label) => label !== 'Roof Measurement Report'), ['Draft proposal', 'Roof contract', 'INV-1', 'Permit.pdf']);
     assert.ok(labels.includes('Roof Measurement Report'));
-    const items = await tab.evaluate(async () => { const mod = await import('/libraries/apps/materials/rail-media.js?v=20261027-rail-media'); return mod ? 'ok' : ''; });
+    const items = await tab.evaluate(async () => { const mod = await import('/libraries/apps/materials/rail-media.js?v=20261110-fm374-first-write'); return mod ? 'ok' : ''; });
     assert.equal(items, 'ok');
     // A PDF is only asked for when one is stored: the signed contract's snapshot PDF; never the draft's.
     const requested = await tab.evaluate(() => performance.getEntriesByType('resource').map((entry) => entry.name).filter((name) => /\/pdf/.test(name)));
@@ -130,7 +130,7 @@ test('without the shared carousel the rail falls back to its own stage and films
     await tab.goto(`http://127.0.0.1:${server.address().port}/plain`);
     await tab.evaluate(fixture);
     await tab.evaluate(async () => {
-      const mod = await import('/libraries/apps/materials/rail-media.js?v=20261027-rail-media');
+      const mod = await import('/libraries/apps/materials/rail-media.js?v=20261110-fm374-first-write');
       const stage = document.createElement('div'); stage.style.cssText = 'position:relative;height:700px'; document.querySelector('aside').append(stage);
       window.view = mod.mountRailPhotos(stage, { context: widgetContext, host });
       view.setVisible(true);
@@ -145,7 +145,7 @@ test('without the shared carousel the rail falls back to its own stage and films
     await tab.evaluate(async () => {
       PlatformAPI.media.list = async () => ({ media: [] });
       widgetContext.read = async () => ({ status: 'ready', value: { media: [] } });
-      const mod = await import('/libraries/apps/materials/rail-media.js?v=20261027-rail-media');
+      const mod = await import('/libraries/apps/materials/rail-media.js?v=20261110-fm374-first-write');
       const stage = document.createElement('div'); stage.style.cssText = 'position:relative;height:700px'; document.querySelector('aside').append(stage);
       window.view = mod.mountRailPhotos(stage, { context: widgetContext, host });
       view.setVisible(true);
