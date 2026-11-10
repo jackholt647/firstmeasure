@@ -8191,11 +8191,18 @@ function getSubmissionSourceActorLabel() {
     return 'Technician';
 }
 
-function getSubmissionSourceMetadataBase() {
+async function getSubmissionSourceMetadataBase(folderId) {
     const current = (window.currentProjectLoadedAppMetadata && typeof window.currentProjectLoadedAppMetadata === 'object')
-        ? window.currentProjectLoadedAppMetadata
+        ? cloneSubmissionSourcesValue(window.currentProjectLoadedAppMetadata, {}) || {}
         : {};
-    return cloneSubmissionSourcesValue(current, {}) || {};
+    if (current.geometry) return current;
+    // The save below replaces the whole file. A loaded copy without the model (FM-357: only
+    // the QA drafts) would delete the roof and walls, so start from what is stored instead.
+    const stored = await window.firstMeasureFetchJson(
+        `/projects/${encodeURIComponent(folderId)}/artifacts/app_metadata.json`,
+        { method: 'GET', headers: { 'Accept': 'application/json' }, cache: 'no-store' }
+    );
+    return { ...(stored && typeof stored === 'object' && !Array.isArray(stored) ? stored : {}), ...current };
 }
 
 async function persistSubmissionSourceMetadata(folderId, payload) {
@@ -8203,7 +8210,7 @@ async function persistSubmissionSourceMetadata(folderId, payload) {
         throw new Error('Unable to save submission note metadata for this project.');
     }
 
-    const nextMeta = getSubmissionSourceMetadataBase();
+    const nextMeta = await getSubmissionSourceMetadataBase(folderId);
     nextMeta.submission_sources = payload && typeof payload === 'object'
         ? cloneSubmissionSourcesValue(payload, {})
         : {};

@@ -101,6 +101,21 @@
     return { ...cloneJson(bundleMeta, {}), ...cloneJson(loaded, {}) };
   }
 
+  // The feedback bundle's app_metadata holds only the QA drafts. Merge those into the
+  // project the editor loaded; never replace it, because saves post the loaded copy
+  // back as the whole file (FM-357: a focus refresh before "save submission notes"
+  // wiped the roof and walls of 26 orders).
+  function adoptFeedbackDrafts(folderId, bundleMeta){
+    const draftKey = getDraftMetaKey();
+    if (!bundleMeta || typeof bundleMeta !== 'object' || !Object.prototype.hasOwnProperty.call(bundleMeta, draftKey)) return;
+    if (String(window.currentProjectId || '') !== String(folderId || '')) return;
+    const loaded = (window.currentProjectLoadedAppMetadata && typeof window.currentProjectLoadedAppMetadata === 'object')
+      ? cloneJson(window.currentProjectLoadedAppMetadata, {})
+      : {};
+    loaded[draftKey] = cloneJson(bundleMeta[draftKey], null);
+    window.currentProjectLoadedAppMetadata = loaded;
+  }
+
   let qaThreadDraftSaveQueue = Promise.resolve();
 
   function queueQaThreadDraftSave(operation){
@@ -1916,9 +1931,7 @@
     currentBundleMeta = (bundle && bundle.app_metadata && typeof bundle.app_metadata === 'object')
       ? cloneJson(bundle.app_metadata, {})
       : {};
-    if (Object.keys(currentBundleMeta).length) {
-      window.currentProjectLoadedAppMetadata = cloneJson(currentBundleMeta, {});
-    }
+    adoptFeedbackDrafts(folderId, currentBundleMeta);
     activeThreadScope = getThreadScopeForManifest(manifest);
     
     // Keep the active correction scope editable, while also showing feedback
