@@ -3,7 +3,7 @@
    comes from the report's model_data.xml (parsed by FirstMeasureRoofViewer): nobody enters anything in the editor.
    Eaves and rakes are lit; ridges and hips can be added. Lights are counted by side of the house and, on a side with
    more than one roofline, by roofline (lower, middle, upper): each side has its own colour, on the roof and in the
-   list, and each unbroken stretch on the roof shows its length. Bulbs alternate red and green and bulbs and clips are
+   list, and each unbroken stretch on the roof shows its length. A side can be switched off like an edge kind. Bulbs alternate red and green and bulbs and clips are
    counted at common spacings. Nothing is saved. */
 (function(){
   const t = (key, fallback, values) => globalThis.PlatformLanguage?.text('measurements', key, fallback, values) ?? fallback;
@@ -207,8 +207,10 @@
       .fm-hl-side{display:flex;flex-direction:column;gap:2px;padding:6px 0;border-top:1px solid #f2f4f7}
       .fm-hl-side:first-child{border-top:0;padding-top:0}
       .fm-hl-side-head,.fm-hl-group{display:grid;grid-template-columns:auto 1fr auto;align-items:center;gap:10px;font-size:13px;padding:3px 2px}
-      .fm-hl-side-head{font-weight:650}
-      .fm-hl-group{padding-left:2px}
+      .fm-hl-side-head{grid-template-columns:auto auto 1fr auto;font-weight:650;cursor:pointer}
+      .fm-hl-side-head input{margin:0;width:16px;height:16px;accent-color:#344054}
+      .fm-hl-group{margin-left:26px}
+      .fm-hl-side.is-off .fm-hl-side-head>:not(input),.fm-hl-side.is-off .fm-hl-group{opacity:.45}
       .fm-hl-group small,.fm-hl-side-head small{display:block;font-size:11px;color:#667085;font-weight:400}
       .fm-hl-swatch{width:12px;height:12px;border-radius:3px;display:inline-block}
       .fm-hl-side-head b,.fm-hl-group b{font-weight:600;font-variant-numeric:tabular-nums;white-space:nowrap}
@@ -234,6 +236,8 @@
     injectStyle();
     let disposed = false, renderer, scene, camera, controls, observer, runGroup, scale = 1, point = null, spacingIn = STANDARD_SPACING;
     const enabled = Object.fromEntries(EDGES.map((edge) => [edge.type, edge.on]));
+    // Sides switched off (north, east, south, west, peak: false); every side starts on.
+    const sideOn = {};
     const controller = new AbortController();
     const owned = [];
     const own = (object) => { owned.push(object); return object; };
@@ -269,14 +273,14 @@
     root.querySelector('.fm-hl-panel h3 span').textContent = t('hl_title', 'Holiday Lights');
     root.querySelector('[data-hl-legend]').textContent = t('hl_legend_sides', 'Bulbs · one colour per side of the house');
     root.querySelector('[data-hl-edges] h4').textContent = t('hl_edges_title', 'Edges to light');
-    root.querySelector('[data-hl-runs-title]').textContent = t('hl_sides_title', 'By side and roofline');
+    root.querySelector('[data-hl-runs-title]').textContent = t('hl_sides_toggle_title', 'Sides to light');
     root.querySelector('[data-hl-spacing-title]').textContent = t('hl_spacing_table_title', 'Bulbs and clips by spacing');
     const heads = root.querySelectorAll('.fm-hl-spacing-head span');
     root.querySelector('[data-hl-spacing]').setAttribute('aria-label', t('hl_spacing_choose', 'Bulb spacing shown on the roof'));
     heads[0].textContent = t('hl_col_spacing', 'Spacing');
     heads[1].textContent = t('hl_col_bulbs', 'Bulbs');
     heads[2].textContent = t('hl_col_clips', 'Clips');
-    root.querySelector('.fm-hl-note').textContent = t('hl_note_lengths', 'Lengths are measured along each roof edge from the report. Each side faces its compass direction and has its own colour; a side with eaves at more than one height is split into rooflines. Each stretch on the roof shows its length. Clips: one per bulb.');
+    root.querySelector('.fm-hl-note').textContent = t('hl_note_sides_off', 'Lengths are measured along each roof edge from the report. Each side faces its compass direction and has its own colour; a side with eaves at more than one height is split into rooflines. Switch off a side the customer is not lighting. Each stretch on the roof shows its length. Clips: one per bulb.');
     const touch = matchMedia?.('(hover: none)').matches;
     root.querySelector('.fm-hl-hint').textContent = touch ? t('hl_hint_touch', 'Drag to orbit · Pinch to zoom') : t('hl_hint', 'Drag to orbit · Scroll to zoom · Right-drag to pan');
     resetButton.innerHTML = `<i class="fa-solid fa-arrows-rotate" aria-hidden="true"></i>${t('hl_reset', 'Reset view')}`;
@@ -289,7 +293,8 @@
       return nameGroups(groupHolidayLights(all, faces, enabled));
     }
 
-    function renderPanel(groups){
+    // groups: every lit edge kind's groups; shown: those on sides that are switched on.
+    function renderPanel(groups, shown = groups){
       const host = panel.querySelector('[data-hl-edges]');
       host.querySelectorAll('.fm-hl-edge').forEach((row) => row.remove());
       for (const edge of EDGES) {
@@ -311,7 +316,7 @@
         row.append(input, text, value);
         host.append(row);
       }
-      const total = groups.reduce((sum, group) => sum + group.length, 0);
+      const total = shown.reduce((sum, group) => sum + group.length, 0);
       panel.querySelector('[data-hl-total]').textContent = feet(total);
       panel.querySelector('[data-hl-total-label]').textContent = t('hl_total_all', 'of lights in total');
       const swatch = (group) => {
@@ -326,10 +331,16 @@
       for (const side of [...new Set(groups.map((group) => group.side))]) {
         const list = groups.filter((group) => group.side === side);
         const block = document.createElement('div');
-        block.className = 'fm-hl-side';
+        block.className = 'fm-hl-side' + (sideOn[side] === false ? ' is-off' : '');
         block.dataset.hlSide = side;
-        const head = document.createElement('div');
+        // Each side switches on and off like an edge kind; one that is off keeps its length, greyed, and lights nothing.
+        const head = document.createElement('label');
         head.className = 'fm-hl-side-head';
+        const input = document.createElement('input');
+        input.type = 'checkbox';
+        input.checked = sideOn[side] !== false;
+        input.onchange = () => { sideOn[side] = input.checked; update(); };
+        head.append(input);
         const name = document.createElement('span');
         const length = document.createElement('b');
         length.textContent = feet(list.reduce((sum, group) => sum + group.length, 0));
@@ -369,7 +380,7 @@
         sideRows.push(empty);
       }
       panel.querySelector('[data-hl-runs]').replaceChildren(...sideRows);
-      const lit = groups.flatMap((group) => group.edges);
+      const lit = shown.flatMap((group) => group.edges);
       // Each spacing is a choice: the selected one is what the roof shows.
       panel.querySelector('[data-hl-spacing]').replaceChildren(...SPACINGS.map((inches) => {
         const bulbs = lit.reduce((sum, edge) => sum + bulbsOn(edge.length, inches), 0);
@@ -477,7 +488,11 @@
       }
       draw();
     }
-    function update(){ const groups = buildGroups(); renderPanel(groups); if (scene) buildRunScene(groups); }
+    function update(){
+      const groups = buildGroups(), shown = groups.filter((group) => sideOn[group.side] !== false);
+      renderPanel(groups, shown);
+      if (scene) buildRunScene(shown);
+    }
 
     resetButton.onclick = reset;
 
