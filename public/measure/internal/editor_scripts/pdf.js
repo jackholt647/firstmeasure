@@ -2695,35 +2695,6 @@ async function generatePDFFromState(state, mode = 'full', updateStatusCallback, 
             const layerFlowTypes = Object.keys(layerTotals).filter(type => !['unknown', 'skylight', 'chimney_edge', 'chimney_back', 'chimney_front'].includes(type));
             const layerFlowLabel = (type) => `${formatLineType(type)}: ${pdfMeasure(layerTotals[type], 'ft', `${Math.round(layerTotals[type])}'`)}`;
             const detailsX = landscape ? sideX : marginLeft, detailsW = landscape ? sideW : availableW;
-            // Landscape: the layer drawing fills the left. The details box is as tall as its contents
-            // (the totals one per line, then the line lengths in as many rows as they wrap to) and the
-            // key sits under it in two aligned columns of the box's width; the two together are centred
-            // beside the drawing. Portrait: the drawing, the legend, then the details box at the bottom.
-            let detailsH = 50, bottomBoxY = pageHeight - 25 - 50, legendY = bottomBoxY - 20;
-            if (landscape) {
-                doc.setFont("Montserrat", "normal"); doc.setFontSize(9);
-                let flowRows = layerFlowTypes.length ? 1 : 0, flowX = detailsX + pad;
-                layerFlowTypes.forEach(type => {
-                    const textW = doc.getTextWidth(layerFlowLabel(type));
-                    if (flowX + textW > detailsX + detailsW - pad && flowX > detailsX + pad) { flowX = detailsX + pad; flowRows++; }
-                    flowX += textW + 8;
-                });
-                detailsH = 36 + Math.max(0, flowRows - 1) * 8 + 7;
-                const blockH = detailsH + 8 + pdfLegendGridHeight(state.report, 2);
-                bottomBoxY = Math.max(topY - 10, topY - 10 + (pageHeight - 25 - (topY - 10) - blockH) / 2);
-                legendY = bottomBoxY + detailsH + 8;
-            }
-
-            placeImageCentered(doc, layerImg, imgRatio, marginLeft, landscape ? topY - 10 : topY, landscape ? pageHeight - 25 : legendY - 5, mainW);
-            if (landscape) drawLegendGrid(doc, state.report, detailsX, legendY, detailsW, 2);
-            else drawLegend(doc, state.report, detailsX, legendY);
-
-            drawSummaryBox(doc, detailsX, bottomBoxY, detailsW, detailsH, `Layer ${layerNum} Details`, {
-                forceDefault: forceDefaultBoxes,
-                colors: brandingColors,
-                pad
-            });
-            
             let layerAreaSq = 0;
             let layerFacetCount = 0;
             const autoExcludedLayerFaces = getReportAutoExcludedFaceIndexSet(state);
@@ -2771,24 +2742,69 @@ async function generatePDFFromState(state, mode = 'full', updateStatusCallback, 
                 layerAreaSq += areaSq;
             });
 
+            const wasteFactor = 1 + ((typeof state.manualWastePct === 'number' ? state.manualWastePct : 10) / 100);
+            const layerTotalTexts = [
+                pdfLabel("Facets: {value1}", {value1: layerFacetCount}),
+                pdfLabel("{value1}: {value2}", {value1: pdfAreaHeading("Squares Without Waste"), value2: pdfMeasure(layerAreaSq, "sq", Math.round(layerAreaSq * 10) / 10, false)}),
+                pdfLabel("{value1}: {value2}", {value1: pdfAreaHeading("Squares With Waste"), value2: pdfMeasure(layerAreaSq * wasteFactor, "sq", Math.round(layerAreaSq * wasteFactor * 10) / 10, false)})
+            ];
+            // The three totals, measured. Portrait: on one line at their usual columns, moved right
+            // when a translation or a metric value is wider than the gap, and onto the next line
+            // (6 below) when the line is full. Landscape: one per line in the narrower box. A total
+            // wider than the box wraps inside it. y is below the first line; FM-378.
+            const layoutLayerTotals = (left, right) => {
+                doc.setFont("Montserrat", "bold"); doc.setFontSize(9);
+                const columns = landscape ? [0, 0, 0] : [0, 34, 90], placed = [];
+                let rowY = 0, rowH = 0, nextX = left;
+                layerTotalTexts.forEach((text, i) => {
+                    const lines = doc.getTextWidth(text) > right - left ? doc.splitTextToSize(text, right - left) : [text];
+                    const w = Math.max(...lines.map(line => doc.getTextWidth(line)));
+                    let x = Math.max(left + columns[i], nextX);
+                    if (placed.length && (landscape || x + w > right)) { rowY += rowH + 6; rowH = 0; x = left; }
+                    lines.forEach((line, n) => placed.push({text: line, x, y: rowY + n * 4.5}));
+                    rowH = Math.max(rowH, (lines.length - 1) * 4.5);
+                    nextX = x + w + 8;
+                });
+                return {placed, height: rowY + rowH};
+            };
+            // Landscape: the layer drawing fills the left. The details box is as tall as its contents
+            // (the totals, then the line lengths in as many rows as they wrap to) and the key sits
+            // under it in two aligned columns of the box's width; the two together are centred beside
+            // the drawing. Portrait: the drawing, the legend, then the details box at the bottom, at
+            // least 50 tall and taller when the totals or line lengths need more rows.
+            doc.setFont("Montserrat", "normal"); doc.setFontSize(9);
+            let flowRows = layerFlowTypes.length ? 1 : 0, rowX = detailsX + pad;
+            layerFlowTypes.forEach(type => {
+                const textW = doc.getTextWidth(layerFlowLabel(type));
+                if (rowX + textW > detailsX + detailsW - pad && rowX > detailsX + pad) { rowX = detailsX + pad; flowRows++; }
+                rowX += textW + 8;
+            });
+            const contentH = 16 + layoutLayerTotals(detailsX + pad, detailsX + detailsW - pad).height + 8 + Math.max(0, flowRows - 1) * 8 + 7;
+            let detailsH = landscape ? contentH : Math.max(50, contentH), bottomBoxY = pageHeight - 25 - detailsH, legendY = bottomBoxY - 20;
+            if (landscape) {
+                const blockH = detailsH + 8 + pdfLegendGridHeight(state.report, 2);
+                bottomBoxY = Math.max(topY - 10, topY - 10 + (pageHeight - 25 - (topY - 10) - blockH) / 2);
+                legendY = bottomBoxY + detailsH + 8;
+            }
+
+            placeImageCentered(doc, layerImg, imgRatio, marginLeft, landscape ? topY - 10 : topY, landscape ? pageHeight - 25 : legendY - 5, mainW);
+            if (landscape) drawLegendGrid(doc, state.report, detailsX, legendY, detailsW, 2);
+            else drawLegend(doc, state.report, detailsX, legendY);
+
+            drawSummaryBox(doc, detailsX, bottomBoxY, detailsW, detailsH, `Layer ${layerNum} Details`, {
+                forceDefault: forceDefaultBoxes,
+                colors: brandingColors,
+                pad
+            });
+            
             doc.setFontSize(9);
             const innerLeft  = detailsX + pad;
             const innerRight = detailsX + detailsW - pad;
 
             let lyCursor = bottomBoxY + 16;
-            const wasteFactor = 1 + ((typeof state.manualWastePct === 'number' ? state.manualWastePct : 10) / 100);
-
-            doc.setFont("Montserrat", "bold");
-            // Portrait: the three totals on one line. Landscape: one per line in the narrower box.
-            const c1 = innerLeft;
-            const c2 = landscape ? innerLeft : innerLeft + 34;
-            const c3 = landscape ? innerLeft : innerLeft + 90;
-            const stackStep = landscape ? 6 : 0;
-
-            doc.text(pdfLabel("Facets: {value1}", {value1: layerFacetCount}), c1, lyCursor);
-            doc.text(pdfLabel("{value1}: {value2}", {value1: pdfAreaHeading("Squares Without Waste"), value2: pdfMeasure(layerAreaSq, "sq", Math.round(layerAreaSq * 10) / 10, false)}), c2, lyCursor + stackStep);
-            doc.text(pdfLabel("{value1}: {value2}", {value1: pdfAreaHeading("Squares With Waste"), value2: pdfMeasure(layerAreaSq * wasteFactor, "sq", Math.round(layerAreaSq * wasteFactor * 10) / 10, false)}), c3, lyCursor + stackStep * 2);
-            lyCursor += stackStep * 2;
+            const layerTotalsLayout = layoutLayerTotals(innerLeft, innerRight);
+            layerTotalsLayout.placed.forEach(item => doc.text(item.text, item.x, lyCursor + item.y));
+            lyCursor += layerTotalsLayout.height;
 
             doc.setFont("Montserrat", "normal");
             lyCursor += 8;
