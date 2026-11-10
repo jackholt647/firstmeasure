@@ -20,7 +20,7 @@ function house(stored=fixture.walls,facesOf=null,{opened=null,confirm=null}={}){
  const toPixel=p=>({x:p.x/C.mpp+C.width/2,y:p.y/C.mpp+C.height/2,z:p.z}),shared=p=>{const q=toPixel(p);return points.find(r=>Math.hypot(r.x-q.x,r.y-q.y)<1e-6&&Math.abs(r.z-q.z)<1e-9)||q;};
  const manualFaces=(facesOf?facesOf(W.roof.faces):W.roof.faces).map(f=>({points:f.points.map(shared),holes:(f.holes||[]).map(r=>r.map(shared))}));
  opened?.(points);
- const ctx={console,performance,setTimeout:fn=>{timers.set(++timerId,fn);return timerId;},clearTimeout:id=>timers.delete(id),setInterval:()=>0,clearInterval(){},document,location:{origin:'http://rebuild-test'},localStorage:{getItem:k=>storage.get(k)||null,setItem:(k,v)=>storage.set(k,v)},
+ const ctx={console,performance,setTimeout:fn=>{timers.set(++timerId,fn);return timerId;},clearTimeout:id=>timers.delete(id),setInterval:()=>0,clearInterval(){},document,location:{origin:'http://rebuild-test'},localStorage:{getItem:k=>storage.get(k)||null,setItem:(k,v)=>storage.set(k,v),removeItem:k=>storage.delete(k)},
   activeGeometry:{points,connections,manualFaces},imageWidth:C.width,imageHeight:C.height,mapCenterLat:C.lat,mapCenterLng:C.lng,dsmMin:0,viewRotation:0,currentZoom:1,selectedPoints:new Set(),selectedLines:new Set(),tempPoint:null,layerData:{},isMeasurementMode:false,
   addEventListener:(name,fn)=>listeners['window:'+name]=fn,currentProjectId:'ce52',getMetersPerPx:()=>C.mpp,confirm:confirm||(()=>{throw Error('A smart rebuild never asks to discard work.');}),
   ExteriorGeometry:req('exterior_geometry.js'),ExteriorModel:req('exterior_model.js'),WallGeometry:G,WallChimneyCleanup:req('wall_chimney_cleanup.js'),WallRakeCleanup:req('wall_rake_cleanup.js'),WallChimneys:req('wall_chimneys.js'),WallGaps:req('wall_gaps.js'),GroundGeometry:req('ground_geometry.js'),
@@ -38,7 +38,7 @@ function house(stored=fixture.walls,facesOf=null,{opened=null,confirm=null}={}){
  const toWalls=()=>ctx.WallMode.setEnabled(true),toRoof=()=>ctx.WallMode.setEnabled(false),key=k=>listeners['window:keydown']({key:k,ctrlKey:true,target:{closest:()=>false},preventDefault(){},stopImmediatePropagation(){}});
  // Move roof points (plan metres; height from the given roof plane, as a drag on the roof does).
  const movePoints=(ids,dx,dy,plane=null)=>{for(const i of ids){const p=points[i];p.x+=dx/C.mpp;p.y+=dy/C.mpp;if(plane){const m={x:(p.x-C.width/2)*C.mpp,y:(p.y-C.height/2)*C.mpp};p.z=plane.dx*m.x+plane.dy*m.y+plane.k;}}};
- return {ctx,W,soffitButtons,points,connections,manualFaces,elements,toWalls,toRoof,key,movePoints,state:()=>host.state(),saved:()=>ctx.WallMode.serialize(),note:()=>elements.get('base-status')?.textContent||''};
+ return {ctx,W,storage,soffitButtons,points,connections,manualFaces,elements,toWalls,toRoof,key,movePoints,state:()=>host.state(),saved:()=>ctx.WallMode.serialize(),note:()=>elements.get('base-status')?.textContent||''};
 }
 // A window, door or sticker drawn on a drafted wall, as Plane mode stores it.
 let featureId=0;
@@ -228,6 +228,23 @@ test('a roof face that is its own hole is left out of the walls instead of stopp
  const f=house(fixture.walls,selfHoled,{confirm:()=>true});f.soffitButtons[0].onclick();
  assert.doesNotMatch(f.elements.get('wall-status')?.textContent||'',/Could not rebuild/);
  assert.ok(f.state().alignedWalls.length>0,'From Roof built walls');assert.ok(!f.state().roof.faces.some(f=>(f.holes||[]).some(h=>h.length&&h[0].x===f.points[0].x&&h.length===f.points.length)));
+});
+
+// Renz and Joanne (Nov 4): an edit left the browser's local wall backup unshowable, so every reload
+// stopped with "The walls could not be shown" although the last Save was fine.
+test('a local wall backup that cannot be shown falls back to the last Save and is set aside',()=>{
+ const h=house(),backupKey='firstmeasure:exteriors:walls:v1:http://rebuild-test:ce52',solid=h.ctx.WallSolidGeometry;
+ h.ctx.WallSolidGeometry={...solid,cleanupSweepRemnants(e){if(e?.$unshowable)throw Error('The face does not define a valid planar region.');return solid.cleanupSweepRemnants(e);}};
+ const local={...copy(h.W),savedAt:(h.W.savedAt||0)+60000};local.wallEdits={...local.wallEdits,$unshowable:true};
+ const raw=JSON.stringify(local),alerts=[];h.storage.set(backupKey,raw);h.ctx.alert=m=>alerts.push(m);
+ assert.doesNotThrow(()=>h.ctx.WallMode.restore('ce52',{exteriorsWalls:h.W}));
+ assert.equal(h.saved().wallEdits.$unshowable,undefined,'the walls of the last Save are loaded');
+ assert.ok(h.state().alignedWalls.length>0,'walls are shown');
+ assert.equal(h.storage.get(backupKey+':unshown'),raw,'the unshowable backup is kept aside');
+ assert.match(alerts.join(' '),/could not be shown.*last Save are loaded/,'the person is told');
+ // A Save that cannot be shown itself still reports the error (the editor keeps the roof).
+ const broken={...copy(h.W),wallEdits:{...h.W.wallEdits,$unshowable:true}};h.storage.delete(backupKey);
+ assert.throws(()=>h.ctx.WallMode.restore('ce52',{exteriorsWalls:broken}),/valid planar region/);
 });
 
 // FM-347: a drafter's whole roof drawing was dragged 3.6 m down in roof mode and saved without

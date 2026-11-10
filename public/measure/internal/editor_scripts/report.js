@@ -7600,6 +7600,12 @@ async function renderFinalizePage(container) {
                 <div class="pdf-preview-toolbar">
                     <div class="pdf-preview-title"><i class="fas fa-file-pdf"></i> Report PDF</div>
                     <div class="pdf-preview-status" id="pdfPreviewStatus">Preparing preview...</div>
+                    <button type="button" class="pdf-preview-refresh" id="pdfPreviewOpen" disabled title="Open the PDF in a new tab">
+                        <i class="fas fa-external-link-alt"></i> Open
+                    </button>
+                    <button type="button" class="pdf-preview-refresh" id="pdfPreviewDownload" disabled title="Download the PDF">
+                        <i class="fas fa-download"></i> Download
+                    </button>
                     <button type="button" class="pdf-preview-refresh" id="pdfPreviewRefresh">
                         <i class="fas fa-sync-alt"></i> Regenerate
                     </button>
@@ -7659,6 +7665,25 @@ async function renderFinalizePage(container) {
     const previewFrame = container.querySelector('#pdfPreviewFrame');
     const placeholder = container.querySelector('#pdfPreviewPlaceholder');
     const refreshBtn = container.querySelector('#pdfPreviewRefresh');
+    // Chrome hides its own PDF toolbar once the preview scrolls, so the preview
+    // has its own Open and Download, enabled whenever a preview is showing.
+    const openBtn = container.querySelector('#pdfPreviewOpen');
+    const downloadBtn = container.querySelector('#pdfPreviewDownload');
+    const syncPreviewFileButtons = () => {
+        [openBtn, downloadBtn].forEach((button) => { if (button) button.disabled = !_pdfPreviewUrl; });
+    };
+    if (openBtn) openBtn.addEventListener('click', () => {
+        if (_pdfPreviewUrl) window.open(_pdfPreviewUrl, '_blank', 'noopener');
+    });
+    if (downloadBtn) downloadBtn.addEventListener('click', () => {
+        if (!_pdfPreviewUrl) return;
+        const link = document.createElement('a');
+        link.href = _pdfPreviewUrl;
+        link.download = `${String(state.address || 'Report').replace(/[^a-zA-Z0-9]+/g, '_').replace(/^_+|_+$/g, '') || 'Report'}.pdf`;
+        document.body.appendChild(link);
+        link.click();
+        link.remove();
+    });
     let previewSyncReady = false;
     if (qaPdfReviewMode) wireQaSubmissionSourcesReview(container, state);
 
@@ -7789,6 +7814,7 @@ async function renderFinalizePage(container) {
                             previewFrame.src = `${_pdfPreviewUrl}#toolbar=1&navpanes=0&view=FitH`;
                             previewFrame.style.display = 'block';
                             placeholder.style.display = 'none';
+                            syncPreviewFileButtons();
                             setPreviewStatus('Main report ready; verifying summary...');
                         }
                     }
@@ -7847,6 +7873,7 @@ async function renderFinalizePage(container) {
             setPreviewStatus('Preview failed', true);
         } finally {
             finishPreviewTracking();
+            syncPreviewFileButtons();
             if (typeof refreshSubmitState === 'function') refreshSubmitState();
             if (refreshBtn) {
                 refreshBtn.disabled = false;

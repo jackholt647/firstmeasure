@@ -77,7 +77,15 @@ function indexOpenings(features){
  return {query(box){const bins=keys(box);return bins?[...new Set([...oversized,...bins.flatMap(key=>cells.get(key)||[])])]:features;}};
 }
 
+// A sticker on a curved face is the same surface trimmed to its outline, so the cut is in (u,v).
+function cutSurfaceOpenings(face,features){
+ const c=face.curvedSurface,key=JSON.stringify(K.surfaceDefinition(c));if(!Array.isArray(features))features=features.query(openingBounds(K.surfaceMesh(face).positions));
+ const cuts=features.filter(f=>f!==face&&f.feature&&!f.deleted&&!f.drafted&&f.curvedSurface?.logical&&JSON.stringify(K.surfaceDefinition(f.curvedSurface))===key).flatMap(f=>f.curvedSurface.domains);
+ if(!cuts.length)return [face];
+ const domains=c.domains.flatMap(d=>K.difference(d,cuts));return domains.length?[{...face,curvedSurface:{...c,domains}}]:[];
+}
 function cutOpenings(face,features){
+ if(face.curvedSurface?.logical&&!face.feature&&!face.deleted)return cutSurfaceOpenings(face,features);
  if(face.feature||face.curvedSurface||face.deleted)return [face];
  const frame=W.faceFrame(face);if(!frame)return [face];
  const local=p=>K.local(frame,p),shape=f=>({points:f.points.map(local),holes:(f.holes||[]).map(r=>r.map(local))});

@@ -52,7 +52,27 @@ test('server extracts the displayed video frame and publishes it as a chunked re
    for(const [n,time,expected]of [[10,1.5,15],[11,0,0]]){
     fs.rmSync(log,{force:true});const result=run({ffmpeg:shim,job:job(n,time)});assert.equal(result.status,'done',result.error);assert.ok(Math.abs(red(frameName(n)).red-expected*12)<=3);
     for(const line of fs.readFileSync(log,'utf8').trim().split('\n'))if(/-c:v png/.test(line))assert.match(line,/-frames:v 1 /,'a PNG encode of more than one frame: '+line);
+    // The first decode is a quarter-second window, not three seconds (FM-343: 7-10 s of ffmpeg per save on production).
+    const window=fs.readFileSync(log,'utf8').split('\n').find(line=>/-c:v pam/.test(line));assert.ok(Number((window.match(/trim=end=([\d.]+)/)||[])[1])<=0.2505,'first decode window too wide: '+window);
    }
+  }
+  // Exact at 59.94 fps (frame k at k*1001/60000 s): just before a frame gives the one before it, just after gives it.
+  // Frame k is red mod(k,16)*16, green floor(k/16)*16.
+  const ntsc='internal-resource-v2-88888888-8888-4888-8888-888888888888-Walk_ntsc.mp4',ntscFile=path.join(dir,'ntsc.mp4');
+  assert.equal(spawnSync(ffmpeg,['-v','error','-f','lavfi','-i','color=c=black:s=64x48:r=60000/1001:d=2','-vf',"format=rgb24,geq=r='mod(N,16)*16':g='floor(N/16)*16':b=0",'-c:v','libx264','-pix_fmt','yuv444p','-qp','0','-g','56',ntscFile]).status,0);
+  run({publish:{name:ntsc,file:ntscFile}});
+  const frameIndex=name=>{const index=JSON.parse(fs.readFileSync(path.join(store,name),'utf8')),pngFile=path.join(dir,'ntsc.png');fs.writeFileSync(pngFile,Buffer.concat(Array.from({length:index.parts},(_,i)=>fs.readFileSync(path.join(store,`internal-markup-part-${index.id}-${String(i).padStart(8,'0')}.bin`)))));
+   const raw=spawnSync(ffmpeg,['-v','error','-i',pngFile,'-f','rawvideo','-pix_fmt','rgb24','-']).stdout;return Math.round(raw[0]/16)+16*Math.round(raw[1]/16);};
+  for(const [n,k,offset]of [[12,57,-.002],[13,57,.0002],[14,90,-.002],[15,31,-.004],[16,100,.008],[17,111,-.002]]){
+   const time=Number((k*1001/60000+offset).toFixed(4)),expected=offset<0?k-1:k,result=run({job:job(n,time,{source:ntsc})});assert.equal(result.status,'done',result.error);
+   assert.equal(frameIndex(frameName(n)),expected,`t=${time}: frame ${expected} expected`);
+  }
+  // A video slower than 4 fps has no frame in the quarter-second window: the three-second window finds it.
+  const slow='internal-resource-v2-99999999-9999-4999-8999-999999999999-Walk_slow.mp4',slowFile=path.join(dir,'slow.mp4');
+  assert.equal(spawnSync(ffmpeg,['-v','error','-f','lavfi','-i','color=c=black:s=64x48:r=2:d=4','-vf',"format=rgb24,geq=r='N*24':g=0:b=0",'-c:v','libx264','-pix_fmt','yuv444p','-qp','0',slowFile]).status,0);
+  run({publish:{name:slow,file:slowFile}});
+  for(const [n,time,expected]of [[18,1.3,2],[19,3.9,7],[20,.2,0]]){
+   const result=run({job:job(n,time,{source:slow})});assert.equal(result.status,'done',result.error);assert.ok(Math.abs(red(frameName(n)).red-expected*24)<=3,`t=${time}: frame ${expected} expected`);
   }
   // A customer's walkthrough is a plain stored file: streamed to disk once, never held in PHP memory.
   assert.deepEqual(run({valid:['customer-reference-0.webm','customer-reference-12.MP4','customer-reference-x.webm','customer-reference-0.webm.php','manifest.json']}),[true,true,false,false,false]);

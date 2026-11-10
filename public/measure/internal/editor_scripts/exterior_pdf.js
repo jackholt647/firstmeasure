@@ -316,7 +316,9 @@ const DIMENSION_TEXT=8;
 // Label placement. With `ids` (elevation pages), every listed wall face and every visible
 // opening in one of those faces gets a label (an opening's id is its Opening Schedule id):
 // inside it when it fits (full size, then smaller), otherwise beside it with a leader line to a
-// visible point of it. Labels never overlap each other. Without `ids` (overview diagrams), faces
+// visible point of it. An opening's label that does not fit inside first tries the wall just outside
+// the opening's edges (only that wall's pixels, clear of face lines, other openings, trim and labels);
+// the leader is the last resort. Labels never overlap each other. Without `ids` (overview diagrams), faces
 // and openings large enough for an inside label are labeled and the rest are left to the
 // elevation pages.
 function placeLabels(doc,scene,rect,ids=null){
@@ -337,6 +339,21 @@ function placeLabels(doc,scene,rect,ids=null){
   let done=false;
   for(const size of face.featureType?ids?[5.5,4.5]:[5.5]:ids?[7,5.5,4.5]:[7]){const dims=measureBox(face.id,size);for(const c of candidates){const r=box(c.x,c.y,dims);if(inside(r,id)&&clear(r)){draw(face,r,size,false);done=true;break;}}if(done)break;}
   if(!done&&ids)pending.push(target);
+ }
+ // Openings that did not fit: just outside an edge, on the opening's own wall. The box plus a margin
+ // must be that wall's pixels, so it never touches a face line, another opening, trim or detail.
+ const margin=3,gaps=[.8,1.4,2.2].map(g=>Math.round(g*density));
+ for(const target of pending.slice()){
+  const {face,id}=target;if(!face.featureType)continue;
+  const wall=new Set(surfaces.map((s,k)=>!s.featureType&&!s.openingTrim&&s.id&&s.id===face.wall?k:-1).filter(k=>k>=0));if(!wall.size)continue;
+  const b=bounds[id],mx=(b.x0+b.x1)/2,my=(b.y0+b.y1)/2,options=[];
+  for(const size of [5.5,4.5]){const dims=measureBox(face.id,size),hw=dims.w/2,hh=dims.h/2;
+   for(const g of gaps){
+    for(const [cx,cy]of [[mx,b.y0-g-hh],[mx,b.y1+g+hh],[b.x1+g+hw,my],[b.x0-g-hw,my],[b.x1-hw,b.y0-g-hh],[b.x0+hw,b.y0-g-hh],[b.x1-hw,b.y1+g+hh],[b.x0+hw,b.y1+g+hh]])options.push({size,r:box(cx,cy,dims)});
+   }}
+  const fits=r=>{const e={x0:r.x0-margin,y0:r.y0-margin,x1:r.x1+margin,y1:r.y1+margin};if(!inImage(e))return false;for(let y=e.y0;y<=e.y1;y++)for(let x=e.x0;x<=e.x1;x++)if(!wall.has(owners[y*width+x]))return false;return true;};
+  const hit=options.find(o=>clear(o.r)&&fits(o.r));
+  if(hit){draw(face,hit.r,hit.size,false);placed[placed.length-1].adjacent=true;pending.splice(pending.indexOf(target),1);}
  }
  const sample=(b,fn)=>{let n=0;for(let y=Math.max(0,b.y0);y<=Math.min(height-1,b.y1);y+=4)for(let x=Math.max(0,b.x0);x<=Math.min(width-1,b.x1);x+=4)n+=fn(owners[y*width+x]);return n;};
  const labeled=new Set(targets.map(t=>t.id));
