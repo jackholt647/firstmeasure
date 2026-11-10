@@ -514,16 +514,18 @@ window.PlatformCommerce.onReady(async function(){
     .r-expedite-bar{display:block;width:100%;position:relative;height:9px;border-radius:999px;background:linear-gradient(90deg,#22c55e 0%,#f59e0b 52%,#ef4444 100%);box-shadow:inset 0 0 0 1px rgba(15,23,42,.08)}
     .r-expedite-marker{position:absolute;top:50%;left:var(--wait-position,50%);width:17px;height:17px;border-radius:999px;background:#fff;border:3px solid var(--primary-readable,var(--primary,#d93025));box-shadow:0 5px 14px rgba(15,23,42,.22);transform:translate(-50%,-50%)}
     .r-expedite-bar-labels{display:flex;justify-content:space-between;font-size:10px;font-weight:950;color:#98a2b3;line-height:1}
-    .r-expedite-btn{appearance:none;border:1px solid rgba(15,23,42,.10);border-radius:14px;background:#fff;padding:10px 11px;display:grid;grid-template-columns:minmax(0,1fr) auto;grid-template-rows:auto auto;align-items:center;gap:9px;cursor:pointer;text-align:left;color:#344054;min-height:64px;position:relative;transition:transform .16s ease,border-color .16s ease,box-shadow .16s ease,filter .16s ease,background .16s ease}
+    /* The label wraps beside the price; when even its longest word and the price don't fit on one line (French
+       "Moins de 3 heures" + "+2,32 $US" in a half-width button), the price moves under the label (FM-376). */
+    .r-expedite-btn{appearance:none;border:1px solid rgba(15,23,42,.10);border-radius:14px;background:#fff;padding:10px 11px;display:flex;flex-wrap:wrap;align-items:center;gap:6px 9px;cursor:pointer;text-align:left;color:#344054;min-height:64px;position:relative;transition:transform .16s ease,border-color .16s ease,box-shadow .16s ease,filter .16s ease,background .16s ease}
     .r-expedite-btn:hover{transform:translateY(-1px);filter:none;border-color:rgba(15,23,42,.22);box-shadow:0 14px 28px rgba(15,23,42,.08)}
     .r-expedite-btn:disabled{opacity:.55;cursor:not-allowed;transform:none;box-shadow:none}
     .r-expedite-btn.selected{transform:translateY(-1px);border-color:rgba(var(--primary-rgb,217,48,37),.42);background:#fff;box-shadow:inset 0 0 0 2px rgba(var(--primary-rgb,217,48,37),.12),0 0 0 4px rgba(var(--primary-rgb,217,48,37),.10),0 16px 30px rgba(15,23,42,.10);filter:none}
-    .r-expedite-copy{grid-column:1;grid-row:1 / span 2;min-width:0;display:flex;flex-direction:column;gap:3px}
+    .r-expedite-copy{flex:1 1 7em;min-width:min-content;display:flex;flex-direction:column;gap:3px}
     .r-expedite-name{font-size:12px;font-weight:1000;color:#101828;line-height:1.15}
     .r-expedite-window{font-size:11px;font-weight:900;color:#667085;line-height:1.15;white-space:nowrap;overflow:visible;letter-spacing:0}
     .r-expedite-window.compact{font-size:10px}
     .r-expedite-pill{display:inline-flex;align-items:center;align-self:flex-start;margin-top:1px;padding:2px 6px;border-radius:999px;background:rgba(var(--primary-rgb,217,48,37),.10);color:var(--primary-readable,var(--primary,#d93025));font-size:9px;font-weight:1000;line-height:1;text-transform:uppercase}
-    .r-expedite-price{grid-column:2;grid-row:1 / span 2;align-self:center;font-size:24px;font-weight:1000;color:var(--primary-readable,var(--primary,#d93025));line-height:.95;letter-spacing:0;white-space:nowrap;display:inline-flex;align-items:baseline;justify-content:flex-end;min-width:max-content}
+    .r-expedite-price{flex:none;margin-left:auto;align-self:center;font-size:24px;font-weight:1000;color:var(--primary-readable,var(--primary,#d93025));line-height:.95;letter-spacing:0;white-space:nowrap;display:inline-flex;align-items:baseline;justify-content:flex-end;min-width:max-content}
     .r-expedite-price.is-loading{min-width:58px;height:28px;border-radius:999px;background:rgba(var(--primary-rgb,217,48,37),.07);align-items:center;justify-content:center;font-size:12px}
     .r-expedite-price.is-loading::before{content:'';width:14px;height:14px;border-radius:999px;border:2px solid currentColor;border-right-color:transparent;animation:fa-spin .75s linear infinite;opacity:.78}
     .r-expedite-price-cents{font-size:.5em;line-height:1;vertical-align:baseline}
