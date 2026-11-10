@@ -5927,6 +5927,18 @@ window.ensurePdfWireframesForState = ensurePdfWireframesForState;
 
 
 
+// The row-label column of a summary table (FM-379): as wide as its longest label, translated ("Marge de perte",
+// "Powierzchnia (m²)"), and at least `minW`, but never so wide a value column has no room for its widest value; past that
+// the labels shrink. `inset` is where the labels start in the column.
+function pdfSummaryLabelColumn(doc, labels, values, tableW, count, minW, inset) {
+    doc.setFont("Montserrat", "bold");
+    const widest = list => Math.max(0, ...list.map(t => doc.getTextWidth(String(t))));
+    const labelTextW = widest(labels), needed = labelTextW + inset + 2;
+    const width = Math.min(Math.max(minW, tableW - Math.max(1, count) * (widest(values) + 3)), Math.max(minW, needed));
+    const size = doc.getFontSize();
+    return { width, valueW: (tableW - width) / Math.max(1, count), labelSize: needed > width ? size * (width - inset - 2) / labelTextW : size };
+}
+
 function drawSummaryPageLayout(doc, report, imgData, imgRatio, x, y, w, facetCount, manualWastePct) {
     const hasManualWaste = manualWastePct !== null && typeof manualWastePct !== 'undefined' && Number.isFinite(Number(manualWastePct));
     manualWastePct = hasManualWaste
@@ -5954,37 +5966,49 @@ function drawSummaryPageLayout(doc, report, imgData, imgRatio, x, y, w, facetCou
 
     // --- PITCH TABLE (Card Style) ---
     const colCount = pitches.length + 1;
-    const pitchTableW = Math.min(landscape ? w * 0.42 : w, colCount * 25);
+    const pitchLabels = [pdfLabel("Pitch"), window.ReportUnits?.current().metric ? pdfLabel("Area (m²)") : pdfLabel("Area (sq ft)"), pdfLabel("Percent")];
+    // A longer (translated) label widens the card rather than narrowing its 25 mm value columns, where there is room.
+    doc.setFontSize(9); doc.setFont("Montserrat", "bold");
+    const pitchLabelNeed = Math.max(...pitchLabels.map(t => doc.getTextWidth(t))) + 6;
+    const pitchTableW = Math.min(landscape ? w * 0.42 : w, colCount * 25 + Math.max(0, pitchLabelNeed - 25));
     const pitchTableX = landscape ? x : x + (w - pitchTableW) / 2;
     const colW = pitchTableW / colCount;
-    // The row labels get a fixed 22 mm in landscape (equal columns in portrait, as before).
-    const pitchLabelW = landscape ? 22 : colW, pitchValW = landscape ? (pitchTableW - pitchLabelW) / Math.max(1, colCount - 1) : colW;
+    const pitchTexts = pitches.map(p => pdfPitch(p));
+    const pitchAreaTexts = pitches.map(p => {
+        const val = squaresData[p];
+        return (typeof val === 'number') ? pdfMeasure(val * 100, "sf", Math.round(val*100).toLocaleString('en-US'), false) : "0";
+    });
+    const pitchPctTexts = pitches.map(p => {
+        const val = squaresData[p];
+        return ((totalSq > 0 && typeof val === 'number') ? Math.round((val/totalSq)*100) : 0) + "%";
+    });
+    // The row labels get at least 22 mm in landscape (equal columns in portrait, as before), wider for longer labels.
+    doc.setFontSize(9);
+    const pitchCols = pdfSummaryLabelColumn(doc, pitchLabels, [...pitchTexts, ...pitchAreaTexts, ...pitchPctTexts], pitchTableW, colCount - 1, landscape ? 22 : colW, 4);
+    const pitchLabelW = pitchCols.width, pitchValW = pitchCols.valueW;
     const pitchValX = (i) => pitchTableX + pitchLabelW + (i * pitchValW) + (pitchValW / 2);
+    const pitchLabel = (text) => { doc.setFontSize(pitchCols.labelSize); doc.text(text, pitchTableX+4, cursorY+5); doc.setFontSize(9); };
     const pitchTableH = 27;
 
     // Draw card behind pitch table — sized to table, not full width
     drawPdfCard(doc, pitchTableX, cursorY - 2, pitchTableW, pitchTableH, 3);
 
     doc.setFontSize(9); doc.setTextColor(0);
-    doc.setFont("Montserrat", "bold"); doc.text(pdfLabel("Pitch"), pitchTableX+4, cursorY+5);
-    pitches.forEach((p,i)=>doc.text(pdfPitch(p), pitchValX(i), cursorY+5, {align:'center'}));
+    doc.setFont("Montserrat", "bold"); pitchLabel(pitchLabels[0]);
+    pitches.forEach((p,i)=>doc.text(pitchTexts[i], pitchValX(i), cursorY+5, {align:'center'}));
     cursorY += 8;
     
-    doc.text(window.ReportUnits?.current().metric ? pdfLabel("Area (m²)") : pdfLabel("Area (sq ft)"), pitchTableX+4, cursorY+5); doc.setFont("Montserrat", "normal");
+    pitchLabel(pitchLabels[1]); doc.setFont("Montserrat", "normal");
     pitches.forEach((p,i)=>{
         if(p===domPitch) doc.setFont("Montserrat","bold"); else doc.setFont("Montserrat","normal");
-        const val = squaresData[p];
-        const disp = (typeof val === 'number') ? pdfMeasure(val * 100, "sf", Math.round(val*100).toLocaleString('en-US'), false) : "0";
-        doc.text(disp, pitchValX(i), cursorY+5, {align:'center'});
+        doc.text(pitchAreaTexts[i], pitchValX(i), cursorY+5, {align:'center'});
     });
     cursorY += 8;
 
-    doc.setFont("Montserrat","bold"); doc.text(pdfLabel("Percent"), pitchTableX+4, cursorY+5); doc.setFont("Montserrat","normal");
+    doc.setFont("Montserrat","bold"); pitchLabel(pitchLabels[2]); doc.setFont("Montserrat","normal");
     pitches.forEach((p,i)=>{
         if(p===domPitch) doc.setFont("Montserrat","bold"); else doc.setFont("Montserrat","normal");
-        const val = squaresData[p];
-        const pct = (totalSq > 0 && typeof val === 'number') ? Math.round((val/totalSq)*100) : 0;
-        doc.text(pct+"%", pitchValX(i), cursorY+5, {align:'center'});
+        doc.text(pitchPctTexts[i], pitchValX(i), cursorY+5, {align:'center'});
     });
     cursorY += 16;
 
@@ -5999,10 +6023,17 @@ function drawSummaryPageLayout(doc, report, imgData, imgRatio, x, y, w, facetCou
     const wasteInnerW = wasteW - (wastePad * 2);
     const wasteColW = wasteInnerW / (wastes.length + 1);
     const wasteContentX = wasteX + wastePad; // Content starts with padding
-    const wasteLabelW = landscape ? 22 : wasteColW, wasteValW = landscape ? (wasteInnerW - wasteLabelW) / wastes.length : wasteColW;
-    const wasteValX = (i) => wasteContentX + wasteLabelW + (i * wasteValW) + (wasteValW / 2);
-    const highlightX = wasteContentX + wasteLabelW + (suggestedIdx * wasteValW);
     const metricUnits = !!window.ReportUnits?.current().metric;
+    const wasteLabels = [pdfLabel("Waste"), metricUnits ? pdfLabel("Area (m²)") : pdfLabel("Area (sq ft)"), ...(metricUnits ? [] : [pdfUnit("sq", "Squares")])];
+    const wastePctTexts = wastes.map(v => v + "%");
+    const wasteAreaTexts = wastes.map(v => pdfMeasure(totalSq*100*(1+v/100), "sf", Math.round(totalSq*100*(1+v/100)).toLocaleString('en-US'), false));
+    const wasteSquareTexts = metricUnits ? [] : wastes.map(v => pdfMeasure(totalSq*(1+v/100), "sq", Math.ceil(totalSq*(1+v/100)).toString(), false));
+    // The label column gets at least 22 mm in landscape (equal columns in portrait), wider for longer (translated) labels.
+    const wasteCols = pdfSummaryLabelColumn(doc, wasteLabels, [...wastePctTexts, ...wasteAreaTexts, ...wasteSquareTexts], wasteInnerW, wastes.length, landscape ? 22 : wasteColW, 2);
+    const wasteLabelW = wasteCols.width, wasteValW = wasteCols.valueW;
+    const wasteValX = (i) => wasteContentX + wasteLabelW + (i * wasteValW) + (wasteValW / 2);
+    const wasteLabel = (text) => { doc.setFontSize(wasteCols.labelSize); doc.text(text, wasteContentX+2, cursorY+5); doc.setFontSize(9); };
+    const highlightX = wasteContentX + wasteLabelW + (suggestedIdx * wasteValW);
     const wasteTableH = metricUnits ? 20 : 28;
     
     // Draw card behind waste table
@@ -6027,22 +6058,22 @@ function drawSummaryPageLayout(doc, report, imgData, imgRatio, x, y, w, facetCou
         doc.roundedRect(highlightX, cursorY - 1, wasteValW, metricUnits ? 18 : 26, 1, 1, 'S');
     }
 
-    doc.setFont("Montserrat","bold"); doc.setTextColor(0); doc.text(pdfLabel("Waste"), wasteContentX+2, cursorY+5);
-    wastes.forEach((v,i)=>doc.text(v+"%", wasteValX(i), cursorY+5, {align:'center'}));
+    doc.setFont("Montserrat","bold"); doc.setTextColor(0); wasteLabel(wasteLabels[0]);
+    wastes.forEach((v,i)=>doc.text(wastePctTexts[i], wasteValX(i), cursorY+5, {align:'center'}));
     cursorY+=8;
     
-    doc.text(window.ReportUnits?.current().metric ? pdfLabel("Area (m²)") : pdfLabel("Area (sq ft)"), wasteContentX+2, cursorY+5); doc.setFont("Montserrat","normal");
+    wasteLabel(wasteLabels[1]); doc.setFont("Montserrat","normal");
     wastes.forEach((v,i)=>{
         if(i===suggestedIdx) doc.setFont("Montserrat","bold"); else doc.setFont("Montserrat","normal");
-        doc.text(pdfMeasure(totalSq*100*(1+v/100), "sf", Math.round(totalSq*100*(1+v/100)).toLocaleString('en-US'), false), wasteValX(i), cursorY+5, {align:'center'});
+        doc.text(wasteAreaTexts[i], wasteValX(i), cursorY+5, {align:'center'});
     });
     cursorY+=8;
 
     if (!metricUnits) {
-    doc.setFont("Montserrat","bold"); doc.text(pdfUnit("sq", "Squares"), wasteContentX+2, cursorY+5); doc.setFont("Montserrat","normal");
+    doc.setFont("Montserrat","bold"); wasteLabel(wasteLabels[2]); doc.setFont("Montserrat","normal");
     wastes.forEach((v,i)=>{
         if(i===suggestedIdx) doc.setFont("Montserrat","bold"); else doc.setFont("Montserrat","normal");
-        doc.text(pdfMeasure(totalSq*(1+v/100), "sq", Math.ceil(totalSq*(1+v/100)).toString(), false), wasteValX(i), cursorY+5, {align:'center'});
+        doc.text(wasteSquareTexts[i], wasteValX(i), cursorY+5, {align:'center'});
     });
     }
     cursorY += metricUnits ? 8 : 16;
