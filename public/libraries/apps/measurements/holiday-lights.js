@@ -1,8 +1,10 @@
 /* Holiday Lights: the measured roof with string lights along the edges an installer lights, matching the report's
    Holiday Lights page (measure/internal/editor_scripts/pdf.js drawHolidayLightsPage). Read-only and free. Everything
    comes from the report's model_data.xml (parsed by FirstMeasureRoofViewer): nobody enters anything in the editor.
-   Eaves and rakes are lit; ridges and hips can be added. Each separate run has its own colour and number, bulbs
-   alternate red and green, and bulbs and clips are counted at common spacings. Nothing is saved. */
+   Eaves and rakes are lit; ridges and hips can be added. Lights are counted by side of the house and, on a side with
+   more than one roofline, by roofline (lower, middle, upper): each side has its own colour, and each stretch on the
+   roof carries the tag (NL, NU, E, ...) of its row in the list. Bulbs alternate red and green and bulbs and clips are
+   counted at common spacings. Nothing is saved. */
 (function(){
   const t = (key, fallback, values) => globalThis.PlatformLanguage?.text('measurements', key, fallback, values) ?? fallback;
   // Edges an installer may light, in panel order. Eaves and rakes are the roofline; ridges and hips outline the peaks.
@@ -12,12 +14,147 @@
     { type: 'RIDGE', key: 'hl_edge_ridges', label: 'Ridges', hint: 'hl_edge_ridges_optional', hintText: 'Optional: outlines the peaks', on: false },
     { type: 'HIP', key: 'hl_edge_hips', label: 'Hips', hint: 'hl_edge_hips_optional', hintText: 'Optional: sloped corners of hip roofs', on: false }
   ];
-  // Same spacings, bulb colours and run colours as the report page.
+  // Same spacings, bulb colours and side colours as the report page.
   const SPACINGS = [6, 8, 12, 15, 18];
   const STANDARD_SPACING = 12;
   const BULB_RED = '#d93025', BULB_GREEN = '#188038';
-  const RUN_COLORS = ['#1a73e8', '#f29900', '#9334e6', '#12b5cb', '#e52592', '#795548', '#3949ab', '#5f6368'];
+  // One colour per side, as on the report; they avoid the bulbs' red and green.
+  const SIDE_COLORS = { north: '#1a73e8', east: '#f29900', south: '#9334e6', west: '#12b5cb', peak: '#e52592' };
+  const SIDE_NAMES = {
+    north: ['hl_side_north', 'North'], east: ['hl_side_east', 'East'], south: ['hl_side_south', 'South'], west: ['hl_side_west', 'West'],
+    peak: ['hl_side_peak', 'Ridges and hips']
+  };
+  const LEVEL_NAMES = { lower: ['hl_level_lower', 'Lower'], middle: ['hl_level_middle', 'Middle'], upper: ['hl_level_upper', 'Upper'] };
   const LIFT_FT = 0.2;
+
+  // Lights by side and roofline (FM-375). Each lit edge is on one side of the house (the compass side it faces, squared
+  // to the house's own walls) and one roofline (eave heights in bands at least a story apart: lower, middle, upper, or
+  // numbered above three). Edges: [{type, roof, a:[x,y,z], b:[x,y,z], length, keys}] in feet (x east, y north, z up),
+  // all four kinds whether lit or not, so a side or roofline never changes when an edge kind is switched on or off.
+  // faces: [{roof, ring:[[x,y,z], ...]}]. The same function is in holiday-lights.js and pdf.js; keep them identical.
+  function groupHolidayLights(edges, faces, lit){
+    const SIDES = ['north', 'east', 'south', 'west', 'peak'];
+    const PEAK = { RIDGE: 1, HIP: 1 };
+    const near = (p, q) => Math.abs(p[0] - q[0]) < 0.02 && Math.abs(p[1] - q[1]) < 0.02 && Math.abs(p[2] - q[2]) < 0.02;
+    const inside = ([x, y], ring) => {
+      let hit = false;
+      for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
+        const [xi, yi] = ring[i], [xj, yj] = ring[j];
+        if ((yi > y) !== (yj > y) && x < (xj - xi) * (y - yi) / (yj - yi) + xi) hit = !hit;
+      }
+      return hit;
+    };
+    const facesOf = (edge) => faces.filter((face) => face.roof === edge.roof && face.ring.some((p, i) => {
+      const q = face.ring[(i + 1) % face.ring.length];
+      return (near(p, edge.a) && near(q, edge.b)) || (near(p, edge.b) && near(q, edge.a));
+    }));
+    // The house's axes: the plan direction most eaves and rakes run in, folded to a quarter turn.
+    let c = 0, s = 0;
+    for (const edge of edges) {
+      if (PEAK[edge.type]) continue;
+      const dx = edge.b[0] - edge.a[0], dy = edge.b[1] - edge.a[1], run = Math.hypot(dx, dy);
+      if (!run) continue;
+      const angle = Math.atan2(dy, dx) * 4;
+      c += run * Math.cos(angle); s += run * Math.sin(angle);
+    }
+    const axis = c || s ? Math.atan2(s, c) / 4 : 0;
+    // Rooflines: eave heights, sorted, split where they jump more than 3.5 ft, then bands closer than a story (7 ft)
+    // merged, nearest first. A sloping lot or a porch a few feet down stays on the same roofline.
+    const bands = [];
+    edges.filter((edge) => edge.type === 'EAVE')
+      .map((edge) => ({ z: (edge.a[2] + edge.b[2]) / 2, w: edge.length }))
+      .sort((p, q) => p.z - q.z)
+      .forEach(({ z, w }) => {
+        const last = bands[bands.length - 1];
+        if (last && z - last.hi < 3.5) { last.hi = z; last.sum += z * w; last.w += w; }
+        else bands.push({ lo: z, hi: z, sum: z * w, w });
+      });
+    for (;;) {
+      let best = -1, gap = 7;
+      for (let i = 0; i + 1 < bands.length; i++) {
+        const d = bands[i + 1].sum / bands[i + 1].w - bands[i].sum / bands[i].w;
+        if (d < gap) { gap = d; best = i; }
+      }
+      if (best < 0) break;
+      const [p, q] = bands.splice(best, 2);
+      bands.splice(best, 0, { lo: p.lo, hi: q.hi, sum: p.sum + q.sum, w: p.w + q.w });
+    }
+    const levelAt = (z) => {
+      let level = 0, best = Infinity;
+      bands.forEach((band, i) => { const d = z < band.lo ? band.lo - z : z > band.hi ? z - band.hi : 0; if (d < best) { best = d; level = i; } });
+      return level;
+    };
+    const groups = new Map();
+    for (const edge of edges) {
+      if (!lit[edge.type]) continue;
+      const own = facesOf(edge);
+      let side = 'peak', z = Math.min(edge.a[2], edge.b[2]);
+      if (PEAK[edge.type]) {
+        // A ridge sits above its roofs' eaves: it takes the roofline of the lowest corner of the faces beside it.
+        const corners = own.flatMap((face) => face.ring.map((p) => p[2]));
+        if (corners.length) z = Math.min(...corners);
+      } else {
+        // Outward: square to the edge in plan, away from the face it bounds.
+        const dx = edge.b[0] - edge.a[0], dy = edge.b[1] - edge.a[1], run = Math.hypot(dx, dy) || 1;
+        let nx = dy / run, ny = -dx / run;
+        const mid = [(edge.a[0] + edge.b[0]) / 2, (edge.a[1] + edge.b[1]) / 2];
+        const face = own[0];
+        const ahead = !!face && inside([mid[0] + nx * 0.25, mid[1] + ny * 0.25], face.ring);
+        const behind = !!face && inside([mid[0] - nx * 0.25, mid[1] - ny * 0.25], face.ring);
+        if (ahead && !behind) { nx = -nx; ny = -ny; }
+        else if (ahead === behind) {
+          // No face, or one too thin to tell: away from the middle of the face, else of the whole roof.
+          const ring = face ? face.ring : edges.filter((other) => other.roof === edge.roof).flatMap((other) => [other.a, other.b]);
+          const centre = [0, 1].map((i) => ring.reduce((sum, p) => sum + p[i], 0) / ring.length);
+          if ((centre[0] - mid[0]) * nx + (centre[1] - mid[1]) * ny > 0) { nx = -nx; ny = -ny; }
+        }
+        const u = nx * Math.cos(axis) + ny * Math.sin(axis), v = -nx * Math.sin(axis) + ny * Math.cos(axis);
+        side = Math.abs(u) > Math.abs(v) ? (u > 0 ? 'east' : 'west') : (v > 0 ? 'north' : 'south');
+      }
+      const level = levelAt(z);
+      const id = `${side}:${level}`;
+      if (!groups.has(id)) groups.set(id, { id, side, level, edges: [], length: 0, lengths: {} });
+      const group = groups.get(id);
+      group.edges.push(edge);
+      group.length += edge.length;
+      group.lengths[edge.type] = (group.lengths[edge.type] || 0) + edge.length;
+    }
+    // Pieces: the unbroken stretches of a group (each its own string), longest first.
+    for (const group of groups.values()) {
+      const parent = new Map();
+      const find = (key) => { while (parent.get(key) !== key) { parent.set(key, parent.get(parent.get(key))); key = parent.get(key); } return key; };
+      for (const edge of group.edges) for (const key of edge.keys) if (!parent.has(key)) parent.set(key, key);
+      for (const edge of group.edges) parent.set(find(edge.keys[0]), find(edge.keys[1]));
+      const pieces = new Map();
+      for (const edge of group.edges) {
+        const root = find(edge.keys[0]);
+        if (!pieces.has(root)) pieces.set(root, { edges: [], length: 0 });
+        pieces.get(root).edges.push(edge);
+        pieces.get(root).length += edge.length;
+      }
+      group.pieces = [...pieces.values()].sort((p, q) => q.length - p.length);
+    }
+    const count = Math.max(1, bands.length);
+    const levelKey = (level) => count === 1 ? '' : count === 2 ? ['lower', 'upper'][level] : count === 3 ? ['lower', 'middle', 'upper'][level] : String(level + 1);
+    const list = [...groups.values()]
+      .sort((p, q) => SIDES.indexOf(p.side) - SIDES.indexOf(q.side) || p.level - q.level)
+      .map((group) => ({ ...group, levelKey: levelKey(group.level) }));
+    const sides = SIDES.map((side) => ({ side, groups: list.filter((group) => group.side === side) }))
+      .filter((side) => side.groups.length)
+      .map((side) => ({ ...side, length: side.groups.reduce((sum, group) => sum + group.length, 0) }));
+    return { levels: count, groups: list, sides, length: list.reduce((sum, group) => sum + group.length, 0) };
+  }
+
+  // Names and tags for a grouping: "North · Upper" is tagged NU on the roof; one roofline leaves just the side (N).
+  function nameGroups(layout){
+    const sideName = (side) => t(...SIDE_NAMES[side]);
+    const levelName = (key) => LEVEL_NAMES[key] ? t(...LEVEL_NAMES[key]) : t('hl_level_number', `Roofline ${key}`, { number: key });
+    return layout.groups.map((group) => {
+      const side = sideName(group.side), level = group.levelKey ? levelName(group.levelKey) : '';
+      const tag = side.charAt(0).toUpperCase() + (!group.levelKey ? '' : LEVEL_NAMES[group.levelKey] ? level.charAt(0).toUpperCase() : group.levelKey);
+      return { ...group, sideName: side, levelName: level, tag, color: SIDE_COLORS[group.side] };
+    });
+  }
 
   let libraries;
   function script(src){
@@ -69,9 +206,15 @@
       .fm-hl-edge small{display:block;font-size:11px;color:#667085;margin-top:1px}
       .fm-hl-edge b{font-weight:600;font-variant-numeric:tabular-nums;white-space:nowrap}
       .fm-hl-edge.is-empty{opacity:.55;cursor:default}
-      .fm-hl-run{display:grid;grid-template-columns:auto 1fr auto;align-items:center;gap:10px;font-size:13px;padding:3px 2px}
-      .fm-hl-run i{width:20px;height:20px;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;color:#fff;font-style:normal;font-size:11px;font-weight:700}
-      .fm-hl-run b{font-weight:600;font-variant-numeric:tabular-nums}
+      .fm-hl-side{display:flex;flex-direction:column;gap:2px;padding:6px 0;border-top:1px solid #f2f4f7}
+      .fm-hl-side:first-child{border-top:0;padding-top:0}
+      .fm-hl-side-head,.fm-hl-group{display:grid;grid-template-columns:auto 1fr auto;align-items:center;gap:10px;font-size:13px;padding:3px 2px}
+      .fm-hl-side-head{font-weight:650}
+      .fm-hl-side-head>i:not(.fm-hl-tag){width:12px;height:12px;border-radius:3px;margin:0 6px 0 7px}
+      .fm-hl-group{padding-left:2px}
+      .fm-hl-group small,.fm-hl-side-head small{display:block;font-size:11px;color:#667085;font-weight:400}
+      .fm-hl-tag{min-width:26px;height:20px;padding:0 6px;border-radius:10px;display:inline-flex;align-items:center;justify-content:center;color:#fff;font-style:normal;font-size:11px;font-weight:700;letter-spacing:.02em}
+      .fm-hl-side-head b,.fm-hl-group b{font-weight:600;font-variant-numeric:tabular-nums;white-space:nowrap}
       .fm-hl-empty{font-size:12px;color:#667085}
       .fm-hl-spacing{display:flex;flex-direction:column;gap:4px;font-variant-numeric:tabular-nums}
       .fm-hl-spacing-head,.fm-hl-spacing button{display:grid;grid-template-columns:1fr 1fr 1fr;align-items:center;gap:6px;padding:7px 10px}
@@ -97,8 +240,10 @@
     const controller = new AbortController();
     const owned = [];
     const own = (object) => { owned.push(object); return object; };
-    // Edges by type, in feet: [{a:[x,y,z], b:[x,y,z], length, keys:[pointKey, pointKey]}]
+    // Edges by type, in feet: [{type, roof, a:[x,y,z], b:[x,y,z], length, keys:[pointKey, pointKey]}], and the roof faces
+    // they bound ({roof, ring}), which tell an edge's outside.
     const edges = Object.fromEntries(EDGES.map((edge) => [edge.type, []]));
+    const faces = [];
 
     root.innerHTML = `<div class="fm-hl-host">
       <div class="fm-hl">
@@ -125,39 +270,29 @@
     const resetButton = root.querySelector('[data-hl-reset]');
     root.querySelector('.fm-hl-panel').setAttribute('aria-label', t('hl_panel_label', 'Holiday lights'));
     root.querySelector('.fm-hl-panel h3 span').textContent = t('hl_title', 'Holiday Lights');
-    root.querySelector('[data-hl-legend]').textContent = t('hl_legend_runs', 'Bulbs · each coloured line is one run');
+    root.querySelector('[data-hl-legend]').textContent = t('hl_legend_sides', 'Bulbs · one colour per side of the house');
     root.querySelector('[data-hl-edges] h4').textContent = t('hl_edges_title', 'Edges to light');
-    root.querySelector('[data-hl-runs-title]').textContent = t('hl_runs_title', 'Separate runs');
+    root.querySelector('[data-hl-runs-title]').textContent = t('hl_sides_title', 'By side and roofline');
     root.querySelector('[data-hl-spacing-title]').textContent = t('hl_spacing_table_title', 'Bulbs and clips by spacing');
     const heads = root.querySelectorAll('.fm-hl-spacing-head span');
     root.querySelector('[data-hl-spacing]').setAttribute('aria-label', t('hl_spacing_choose', 'Bulb spacing shown on the roof'));
     heads[0].textContent = t('hl_col_spacing', 'Spacing');
     heads[1].textContent = t('hl_col_bulbs', 'Bulbs');
     heads[2].textContent = t('hl_col_clips', 'Clips');
-    root.querySelector('.fm-hl-note').textContent = t('hl_note_runs', 'Lengths are measured along each roof edge from the report. A run is one unbroken string, and each needs its own power. Clips: one per bulb.');
+    root.querySelector('.fm-hl-note').textContent = t('hl_note_sides', 'Lengths are measured along each roof edge from the report. Each side faces its compass direction; a side with eaves at more than one height is split into rooflines. Tags on the roof match the list. Clips: one per bulb.');
     const touch = matchMedia?.('(hover: none)').matches;
     root.querySelector('.fm-hl-hint').textContent = touch ? t('hl_hint_touch', 'Drag to orbit · Pinch to zoom') : t('hl_hint', 'Drag to orbit · Scroll to zoom · Right-drag to pan');
     resetButton.innerHTML = `<i class="fa-solid fa-arrows-rotate" aria-hidden="true"></i>${t('hl_reset', 'Reset view')}`;
     message.textContent = t('hl_loading', 'Loading the roof…');
 
     function lengthOf(type){ return edges[type].reduce((sum, edge) => sum + edge.length, 0); }
-    function litEdges(){ return EDGES.filter((edge) => enabled[edge.type]).flatMap((edge) => edges[edge.type]); }
-    // Runs: connected stretches of lit edges, each one continuous string, longest first, coloured like the report.
-    function buildRuns(){
-      const list = litEdges();
-      const parent = new Map();
-      const find = (key) => { while (parent.get(key) !== key) { parent.set(key, parent.get(parent.get(key))); key = parent.get(key); } return key; };
-      for (const edge of list) for (const key of edge.keys) if (!parent.has(key)) parent.set(key, key);
-      for (const edge of list) parent.set(find(edge.keys[0]), find(edge.keys[1]));
-      const groups = new Map();
-      for (const edge of list) { const key = find(edge.keys[0]); if (!groups.has(key)) groups.set(key, []); groups.get(key).push(edge); }
-      return [...groups.values()]
-        .map((group) => ({ edges: group, length: group.reduce((sum, edge) => sum + edge.length, 0) }))
-        .sort((p, q) => q.length - p.length)
-        .map((run, index) => ({ ...run, number: index + 1, color: RUN_COLORS[index % RUN_COLORS.length] }));
+    // Groups: the lit edges by side and roofline (groupHolidayLights), named and coloured, in list order.
+    function buildGroups(){
+      const all = EDGES.flatMap((edge) => edges[edge.type]);
+      return nameGroups(groupHolidayLights(all, faces, enabled));
     }
 
-    function renderPanel(runs){
+    function renderPanel(groups){
       const host = panel.querySelector('[data-hl-edges]');
       host.querySelectorAll('.fm-hl-edge').forEach((row) => row.remove());
       for (const edge of EDGES) {
@@ -179,32 +314,68 @@
         row.append(input, text, value);
         host.append(row);
       }
-      const total = runs.reduce((sum, run) => sum + run.length, 0);
+      const total = groups.reduce((sum, group) => sum + group.length, 0);
       panel.querySelector('[data-hl-total]').textContent = feet(total);
-      panel.querySelector('[data-hl-total-label]').textContent = runs.length === 1
-        ? t('hl_total_one_run', 'of lights in 1 run')
-        : t('hl_total_runs', `of lights in ${runs.length} separate runs`, { count: runs.length });
-      const runRows = runs.map((run) => {
-        const row = document.createElement('div');
-        row.className = 'fm-hl-run';
-        const badge = document.createElement('i');
-        badge.style.background = run.color;
-        badge.textContent = String(run.number);
+      panel.querySelector('[data-hl-total-label]').textContent = t('hl_total_all', 'of lights in total');
+      const tag = (group) => {
+        const el = document.createElement('i');
+        el.className = 'fm-hl-tag';
+        el.style.background = group.color;
+        el.textContent = group.tag;
+        return el;
+      };
+      const kinds = (group) => EDGES.filter((edge) => group.lengths[edge.type])
+        .map((edge) => `${t(edge.key, edge.label)} ${feet(group.lengths[edge.type])}`).join(' · ');
+      const sideRows = [];
+      for (const side of [...new Set(groups.map((group) => group.side))]) {
+        const list = groups.filter((group) => group.side === side);
+        const block = document.createElement('div');
+        block.className = 'fm-hl-side';
+        block.dataset.hlSide = side;
+        const head = document.createElement('div');
+        head.className = 'fm-hl-side-head';
         const name = document.createElement('span');
-        name.textContent = t('hl_run_name', `Run ${run.number}`, { number: run.number });
-        const value = document.createElement('b');
-        value.textContent = feet(run.length);
-        row.append(badge, name, value);
-        return row;
-      });
-      if (!runRows.length) {
+        const length = document.createElement('b');
+        length.textContent = feet(list.reduce((sum, group) => sum + group.length, 0));
+        // One roofline: the side is its own row, with its tag.
+        if (list.length === 1 && !list[0].levelKey) {
+          name.textContent = list[0].sideName;
+          const small = document.createElement('small');
+          small.textContent = kinds(list[0]);
+          name.append(small);
+          head.append(tag(list[0]), name, length);
+          block.append(head);
+        } else {
+          const swatch = document.createElement('i');
+          swatch.style.background = list[0].color;
+          name.textContent = list[0].sideName;
+          head.append(swatch, name, length);
+          block.append(head);
+          for (const group of list) {
+            const row = document.createElement('div');
+            row.className = 'fm-hl-group';
+            row.dataset.hlGroup = group.tag;
+            const label = document.createElement('span');
+            label.textContent = group.levelName;
+            const small = document.createElement('small');
+            small.textContent = kinds(group);
+            label.append(small);
+            const value = document.createElement('b');
+            value.textContent = feet(group.length);
+            row.append(tag(group), label, value);
+            block.append(row);
+          }
+        }
+        sideRows.push(block);
+      }
+      if (!sideRows.length) {
         const empty = document.createElement('div');
         empty.className = 'fm-hl-empty';
         empty.textContent = t('hl_runs_none', 'No edges are lit.');
-        runRows.push(empty);
+        sideRows.push(empty);
       }
-      panel.querySelector('[data-hl-runs]').replaceChildren(...runRows);
-      const lit = runs.flatMap((run) => run.edges);
+      panel.querySelector('[data-hl-runs]').replaceChildren(...sideRows);
+      const lit = groups.flatMap((group) => group.edges);
       // Each spacing is a choice: the selected one is what the roof shows.
       panel.querySelector('[data-hl-spacing]').replaceChildren(...SPACINGS.map((inches) => {
         const bulbs = lit.reduce((sum, edge) => sum + bulbsOn(edge.length, inches), 0);
@@ -239,16 +410,23 @@
       draw();
     }
 
-    function badgeTexture(T, color, number){
-      const size = 96, c = document.createElement('canvas');
-      c.width = c.height = size;
+    // A rounded tag in the side's colour with the group's tag (N, NL, NU, ...), as in the list.
+    function tagTexture(T, color, text){
+      const height = 96, c = document.createElement('canvas');
       const ctx = c.getContext('2d');
+      ctx.font = '700 50px Arial';
+      const width = Math.max(height, Math.ceil(ctx.measureText(text).width) + 52);
+      c.width = width; c.height = height;
+      const r = height / 2 - 6;
       ctx.fillStyle = color;
-      ctx.beginPath(); ctx.arc(size / 2, size / 2, size / 2 - 6, 0, Math.PI * 2); ctx.fill();
+      ctx.beginPath();
+      ctx.moveTo(6 + r, 6); ctx.lineTo(width - 6 - r, 6); ctx.arc(width - 6 - r, height / 2, r, -Math.PI / 2, Math.PI / 2);
+      ctx.lineTo(6 + r, height - 6); ctx.arc(6 + r, height / 2, r, Math.PI / 2, Math.PI * 1.5); ctx.closePath();
+      ctx.fill();
       ctx.lineWidth = 6; ctx.strokeStyle = '#fff'; ctx.stroke();
-      ctx.fillStyle = '#fff'; ctx.font = '700 46px Arial'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-      ctx.fillText(String(number), size / 2, size / 2 + 2);
-      return new T.CanvasTexture(c);
+      ctx.fillStyle = '#fff'; ctx.font = '700 50px Arial'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      ctx.fillText(text, width / 2, height / 2 + 3);
+      return { map: new T.CanvasTexture(c), aspect: width / height };
     }
     function disposeRuns(){
       if (!runGroup) return;
@@ -259,8 +437,9 @@
       });
       runGroup = null;
     }
-    // Each run is a tube in its colour with red and green bulbs on it at the selected spacing, and its number above it.
-    function buildRunScene(runs){
+    // Each side is a tube in its colour with red and green bulbs on it at the selected spacing. A group's longest
+    // stretch carries its tag above it, and so does every other stretch of it 12 ft or longer.
+    function buildRunScene(groups){
       const T = window.THREE;
       disposeRuns();
       runGroup = new T.Group();
@@ -268,22 +447,26 @@
       const red = new T.Color(BULB_RED), green = new T.Color(BULB_GREEN);
       const bulbs = [];
       let n = 0;
-      for (const run of runs) {
-        const material = new T.MeshBasicMaterial({ color: run.color });
-        for (const edge of run.edges) {
+      for (const group of groups) {
+        const material = new T.MeshBasicMaterial({ color: group.color });
+        for (const edge of group.edges) {
           const a = point(edge.a), b = point(edge.b);
           a.y += LIFT_FT * scale; b.y += LIFT_FT * scale;
           runGroup.add(new T.Mesh(new T.TubeGeometry(new T.LineCurve3(a, b), 1, 0.1 * scale, 6, false), material));
           const count = bulbsOn(edge.length, spacingIn);
           for (let i = 0; i < count; i++) bulbs.push({ at: a.clone().lerp(b, (i + 0.5) / count), color: n++ % 2 ? green : red });
         }
-        const longest = run.edges.reduce((best, edge) => (!best || edge.length > best.length ? edge : best), null);
-        const badge = new T.Sprite(new T.SpriteMaterial({ map: badgeTexture(T, run.color, run.number), depthTest: false }));
-        const mid = point(longest.a).lerp(point(longest.b), 0.5);
-        badge.position.set(mid.x, mid.y + 2.2 * scale, mid.z);
-        badge.scale.setScalar(3.2 * scale);
-        badge.renderOrder = 5;
-        runGroup.add(badge);
+        const { map, aspect } = tagTexture(T, group.color, group.tag);
+        group.pieces.forEach((piece, index) => {
+          if (index && piece.length < 12) return;
+          const longest = piece.edges.reduce((best, edge) => (!best || edge.length > best.length ? edge : best), null);
+          const badge = new T.Sprite(new T.SpriteMaterial({ map, depthTest: false }));
+          const mid = point(longest.a).lerp(point(longest.b), 0.5);
+          badge.position.set(mid.x, mid.y + 2.2 * scale, mid.z);
+          badge.scale.set(2.6 * scale * aspect, 2.6 * scale, 1);
+          badge.renderOrder = 5;
+          runGroup.add(badge);
+        });
       }
       if (bulbs.length) {
         // Small spheres centred on the line: one size at every spacing, always wider than the line.
@@ -297,7 +480,7 @@
       }
       draw();
     }
-    function update(){ const runs = buildRuns(); renderPanel(runs); if (scene) buildRunScene(runs); }
+    function update(){ const groups = buildGroups(); renderPanel(groups); if (scene) buildRunScene(groups); }
 
     resetButton.onclick = reset;
 
@@ -320,8 +503,9 @@
           const length = Math.hypot(a[0] - b[0], a[1] - b[1], a[2] - b[2]);
           if (seen.has(key) || !(length > 0.01)) continue;
           seen.add(key);
-          edges[line.type].push({ a, b, length, keys: line.ids.map((id) => `${r}:${id}`) });
+          edges[line.type].push({ type: line.type, roof: r, a, b, length, keys: line.ids.map((id) => `${r}:${id}`) });
         }
+        for (const face of roof.faces) faces.push({ roof: r, ring: face.points });
       }
       const all = roofs.flatMap((roof) => [...roof.points.values()]);
       const min = [0, 1, 2].map((i) => Math.min(...all.map((p) => p[i])));
@@ -364,6 +548,22 @@
         roofGroup.add(new T.LineSegments(own(new T.BufferGeometry().setFromPoints(outline)), own(new T.LineBasicMaterial({ color: '#98a2b3' }))));
       }
       scene.add(roofGroup);
+      // Compass letters on the ground beyond each side, so N, E, S and W on the tags read against the house.
+      const centre = point(min.map((v, i) => (v + max[i]) / 2));
+      const ground = (min[2] - (min[2] + max[2]) / 2) * scale;
+      for (const [side, dx, dy] of [['north', 0, 1], ['east', 1, 0], ['south', 0, -1], ['west', -1, 0]]) {
+        const c = document.createElement('canvas');
+        c.width = c.height = 96;
+        const ctx = c.getContext('2d');
+        ctx.font = '700 64px Arial'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+        ctx.lineWidth = 10; ctx.strokeStyle = '#ffffff'; ctx.strokeText(t(...SIDE_NAMES[side]).charAt(0).toUpperCase(), 48, 52);
+        ctx.fillStyle = '#98a2b3'; ctx.fillText(t(...SIDE_NAMES[side]).charAt(0).toUpperCase(), 48, 52);
+        const letter = new T.Sprite(own(new T.SpriteMaterial({ map: own(new T.CanvasTexture(c)), depthTest: false })));
+        const reach = (dx ? max[0] - min[0] : max[1] - min[1]) / 2 + Math.max(10, (max[0] - min[0] + max[1] - min[1]) * 0.12);
+        letter.position.set(centre.x + dx * reach * scale, ground, centre.z - dy * reach * scale);
+        letter.scale.set(3.4 * scale, 3.4 * scale, 1);
+        scene.add(letter);
+      }
 
       // Eaves and rakes are on by default; a roof without one starts with what it has.
       if (!lengthOf('EAVE') && !lengthOf('RAKE')) for (const edge of EDGES) enabled[edge.type] = lengthOf(edge.type) > 0;
@@ -397,5 +597,5 @@
     };
   }
 
-  window.FirstMeasureHolidayLights = { mount };
+  window.FirstMeasureHolidayLights = { mount, groupHolidayLights };
 })();
