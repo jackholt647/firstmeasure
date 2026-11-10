@@ -6766,49 +6766,65 @@ async function drawHolidayLightsPage(doc, state, model, x, y, w, h, brandingColo
     const midY = y + topH + gap, midH = tableY - gap - midY;
 
     // The table of sides and rooflines: one row per side, or per roofline on a side with more than one. Beside the
-    // drawing on a landscape page; under it on a portrait one, in two columns when it is long.
+    // drawing on a landscape page; under it on a portrait one, in two columns when it is long. Spaced like the bulbs
+    // and clips table below it: 8 mm in from the box, a header row, 6.5 mm rows, numbers centred in equal columns.
     const groups = metrics.groups;
     const showLevel = metrics.levels > 1;
     const wide = w > h;
-    const listRowH = 5.6;
     const columns = !wide && groups.length > 8 ? 2 : 1;
     const perColumn = Math.max(1, Math.ceil(groups.length / columns));
+    const listRowH = 6.5;
     const listW = wide ? Math.min(w * 0.42, 110) : w;
-    const listH = wide ? midH : 17 + perColumn * listRowH;
+    const listH = wide ? midH : 13 + listRowH * (perColumn + 1);
     const listX = wide ? x + w - listW : x, listY = wide ? midY : midY + midH - listH;
     const viewW = wide ? w - listW - gap : w, viewH = wide ? midH : midH - listH - gap;
     drawSummaryBox(doc, listX, listY, listW, listH, showLevel ? "Lights By Side And Roofline" : "Lights By Side");
-    const cells = [['', 0.07, 'center'], ['Side', 0.22, 'left'], ...(showLevel ? [['Roofline', 0.2, 'left']] : []), ['Eaves', 0.15, 'right'], ['Rakes', 0.15, 'right'], ['Length', 0.15, 'right']];
-    const weight = cells.reduce((sum, cell) => sum + cell[1], 0);
-    const listColW = (listW - 12) / columns;
-    const value = (group, label) => label === 'Side' ? group.sideName : label === 'Roofline' ? group.levelName
-        : label === 'Eaves' ? (group.lengths.EAVE ? feet(group.lengths.EAVE) : '—') : label === 'Rakes' ? (group.lengths.RAKE ? feet(group.lengths.RAKE) : '—') : feet(group.length);
+    const compact = columns > 1 || listW < 150;
+    const textSize = compact ? 9 : 10.5, headSize = compact ? 8 : 9;
+    const blockGap = 8, blockW = (listW - 16 - blockGap * (columns - 1)) / columns;
+    // The side and roofline columns are as wide as their longest (translated) label, the numbers share the rest.
+    const widest = (texts, style) => { doc.setFont("Montserrat", style); doc.setFontSize(textSize); return Math.max(0, ...texts.map((text) => doc.getTextWidth(text))); };
+    const nameColW = Math.max(compact ? 20 : 34, 5.5 + widest(groups.map((group) => group.sideName), "bold") + 4);
+    const levelColW = showLevel ? Math.max(compact ? 16 : 30, widest([pdfLabel('Roofline'), ...groups.map((group) => group.levelName)], "normal") + 4) : 0;
+    const numbers = [
+        ['Eaves', (group) => group.lengths.EAVE ? feet(group.lengths.EAVE) : '—'],
+        ['Rakes', (group) => group.lengths.RAKE ? feet(group.lengths.RAKE) : '—'],
+        ['Length', (group) => feet(group.length)]
+    ];
     for (let column = 0; column < columns; column++) {
-        const left = listX + 6 + column * listColW;
-        let cx = left;
-        const spots = cells.map(([label, share, align]) => {
-            const cw = (listColW - (columns > 1 ? 3 : 0)) * share / weight;
-            const spot = { label, align, at: align === 'center' ? cx + cw / 2 : align === 'right' ? cx + cw - 1 : cx + 1 };
-            cx += cw;
-            return spot;
-        });
+        const left = listX + 8 + column * (blockW + blockGap), right = left + blockW;
+        const nameX = left + 5.5, levelX = left + nameColW, numW = (blockW - nameColW - levelColW) / numbers.length;
+        const numX = (i) => left + nameColW + levelColW + numW * (i + 0.5);
+        const headY = listY + 15;
         doc.setFont("Montserrat", "bold");
-        doc.setFontSize(7.5);
+        doc.setFontSize(headSize);
         doc.setTextColor(120);
-        spots.forEach((spot) => { if (spot.label) doc.text(pdfLabel(spot.label), spot.at, listY + 15, { align: spot.align }); });
-        groups.slice(column * perColumn, (column + 1) * perColumn).forEach((group, index, list) => {
-            const rowY = listY + 15 + (index + 1) * listRowH;
-            const firstOfSide = index === 0 || list[index - 1].side !== group.side;
-            doc.setDrawColor(...(firstOfSide ? [205, 205, 205] : [236, 236, 236]));
-            doc.setLineWidth(firstOfSide ? 0.35 : 0.25);
-            doc.line(left, rowY - listRowH + 1.6, left + listColW - (columns > 1 ? 3 : 0), rowY - listRowH + 1.6);
-            spots.forEach((spot) => {
-                if (!spot.label) { swatch(group, spot.at, rowY - 1); return; }
-                if (spot.label === 'Side' && !firstOfSide) return;
-                doc.setFont("Montserrat", spot.label === 'Length' || spot.label === 'Side' ? "bold" : "normal");
-                doc.setFontSize(8.5);
-                doc.setTextColor(spot.label === 'Length' ? 30 : 60);
-                doc.text(value(group, spot.label), spot.at, rowY, { align: spot.align });
+        doc.text(pdfLabel('Side'), nameX, headY);
+        if (showLevel) doc.text(pdfLabel('Roofline'), levelX, headY);
+        numbers.forEach(([label], i) => doc.text(pdfLabel(label), numX(i), headY, { align: 'center' }));
+        const rows = groups.slice(column * perColumn, (column + 1) * perColumn);
+        rows.forEach((group, index) => {
+            const rowY = headY + (index + 1) * listRowH;
+            // A line under the header and between rows; darker where a new side starts.
+            const newSide = index === 0 || rows[index - 1].side !== group.side;
+            doc.setDrawColor(...(newSide ? [215, 215, 215] : [236, 236, 236]));
+            doc.setLineWidth(0.25);
+            doc.line(left, rowY - listRowH + 2.3, right, rowY - listRowH + 2.3);
+            if (newSide) {
+                swatch(group, left + 1.7, rowY - 1.1);
+                doc.setFont("Montserrat", "bold");
+                doc.setFontSize(textSize);
+                doc.setTextColor(50);
+                doc.text(group.sideName, nameX, rowY);
+            }
+            doc.setFont("Montserrat", "normal");
+            doc.setFontSize(textSize);
+            doc.setTextColor(70);
+            if (showLevel) doc.text(group.levelName, levelX, rowY);
+            numbers.forEach(([label, value], i) => {
+                doc.setFont("Montserrat", label === 'Length' ? "bold" : "normal");
+                doc.setTextColor(label === 'Length' ? 30 : 70);
+                doc.text(value(group), numX(i), rowY, { align: 'center' });
             });
         });
     }
