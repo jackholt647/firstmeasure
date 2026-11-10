@@ -56,7 +56,7 @@ test('a Stripe return reopens the project window the order was placed from', asy
 });
 
 test('a Stripe return without the order in this browser takes it from the checkout, once', async () => {
-  const start = source.indexOf('  function readPending(');
+  const start = source.indexOf('  let pendingInMemory');
   const block = source.slice(start, source.indexOf('  /* A Stripe return lands on a page', start));
   const store = {};
   const taken = [];
@@ -74,6 +74,7 @@ test('a Stripe return without the order in this browser takes it from the checko
   assert.equal(JSON.parse(store.fm_pending_order_v1).organization_id, 'org-1');
   // Reloading the return page finds nothing left on the server and keeps what this browser has.
   delete store.fm_pending_order_v1;
+  vm.runInContext('pendingInMemory = null', context);
   assert.equal(await context.restore('cs_1'), null);
   assert.deepEqual(taken, ['cs_1', 'cs_1']);
   // An order this page already placed is never restored from the checkout's copy.
@@ -81,6 +82,40 @@ test('a Stripe return without the order in this browser takes it from the checko
   context.placed.add(JSON.stringify(serverOrder.fields));
   assert.equal(await context.restore('cs_2'), null);
   assert.equal(store.fm_pending_order_v1, undefined);
+});
+
+test('FM-381: a Stripe return places the checkout\'s order even when this browser\'s storage refuses it', async () => {
+  const start = source.indexOf('  let pendingInMemory');
+  const block = source.slice(start, source.indexOf('  /* A Stripe return lands on a page', start));
+  const store = { fm_pending_order_v1: JSON.stringify({ organization_id: 'org-1', user_id: 'user-1', fields: { address: 'Older order St' } }) };
+  const context = {
+    PENDING_ORDER_KEY: 'fm_pending_order_v1', inFlightAutoSubmit: false, wait: async () => {}, console: { warn() {} },
+    localStorage: { getItem: key => store[key] ?? null, setItem: () => { throw Error('QuotaExceededError'); }, removeItem: key => { delete store[key]; } },
+    postAction: async () => ({ data: { success: true, order: { fields: { address: '1 Test St', platform_project_id: 'project-9' } } } }),
+    window: { __APP: { userOrgId: 'org-1', userId: 'user-1' } }
+  };
+  vm.createContext(context);
+  vm.runInContext(block + '\nthis.restore = stripePendingOrderFromCheckout; this.read = readPending; this.save = savePending; this.clear = clearPending;', context);
+  // An order the gate handed over is kept although storage refused it, and an older stored order is dropped.
+  context.save({ organization_id: 'org-1', user_id: 'user-1', fields: { address: '2 Gate St', platform_project_id: 'project-2' } });
+  assert.equal(context.read().fields.address, '2 Gate St');
+  assert.equal(store.fm_pending_order_v1, undefined);
+  context.clear();
+  assert.equal(context.read(), null);
+  // Back from Stripe on a page with nothing: the checkout's order is restored in memory, ready to place.
+  const restored = await context.restore('cs_1');
+  assert.equal(restored.fields.platform_project_id, 'project-9');
+  assert.equal(context.read().fields.address, '1 Test St');
+  // Where storage takes it, storage alone holds it, so a tab or frame that places or discards it is never undone.
+  context.localStorage.setItem = (key, value) => { store[key] = String(value); };
+  context.save({ organization_id: 'org-1', user_id: 'user-1', fields: { address: '3 Stored St' } });
+  assert.equal(vm.runInContext('pendingInMemory', context), null);
+  delete store.fm_pending_order_v1;
+  assert.equal(context.read(), null);
+  // An order the order window places itself drops billing's copy as well.
+  const request = await readFile(new URL('../../libraries/apps/project-request/app.js', import.meta.url), 'utf8');
+  assert.match(source, /addEventListener\('fm:billing:pending-order-placed', clearPending\)/);
+  assert.match(request, /localStorage\.removeItem\(PENDING_ORDER_KEY\); \} catch \(ex\) \{\}\n[^\n]*\n[^\n]*\n\s*billingOwner\.dispatchEvent\(new billingOwner\.CustomEvent\('fm:billing:pending-order-placed'\)\)/);
 });
 
 test('an order another page already placed is not reported as short of credit', async () => {

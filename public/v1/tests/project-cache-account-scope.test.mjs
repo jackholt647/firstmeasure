@@ -98,12 +98,12 @@ test('the cache falls back to the email when the session has no platform user id
   assert.equal(other.store.get('project_email'), null);
 });
 
-function readPendingFrom(app, stored) {
+function readPendingFrom(app, stored, memory = null) {
   const start = billing.indexOf('  function readPending(');
   const end = billing.indexOf('\n  function ', start + 1);
   assert.ok(start > 0 && end > start, 'billing readPending is present');
   const local = new Map(stored === undefined ? [] : [['fm_pending_order_v1', JSON.stringify(stored)]]);
-  const context = { window: { __APP: app }, localStorage: browser(local).localStorage, PENDING_ORDER_KEY: 'fm_pending_order_v1' };
+  const context = { window: { __APP: app }, localStorage: browser(local).localStorage, PENDING_ORDER_KEY: 'fm_pending_order_v1', pendingInMemory: memory };
   vm.createContext(context);
   vm.runInContext(billing.slice(start, end), context);
   return context.readPending();
@@ -118,6 +118,9 @@ test('a pending report order is only ever offered to the account that placed it'
   assert.equal(readPendingFrom({ userOrgId: 'org_first', userId: 'user_first' }, { v: 3, fields: { address: '1 First Street' } }), null);
   assert.equal(readPendingFrom({}, order), null);
   assert.equal(readPendingFrom({ userOrgId: 'org_first', userId: 'user_first' }, undefined), null);
+  // The copy billing keeps in memory when storage refuses it (FM-381) is held to the same rule.
+  assert.equal(readPendingFrom({ userOrgId: 'org_first', userId: 'user_first' }, undefined, order)?.fields.address, '1 First Street');
+  assert.equal(readPendingFrom({ userOrgId: 'org_second', userId: 'user_second' }, undefined, order), null);
 });
 
 test('the order form records whose pending order it is', () => {

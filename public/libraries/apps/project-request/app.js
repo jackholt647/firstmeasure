@@ -3558,7 +3558,7 @@ window.PlatformCommerce.onReady(async function(){
       required: Number.isFinite(required) ? Math.round(required * 100) / 100 : null
     };
   }
-  function openCreditTopupForPurchase({ label, required, balance = null, context = 'paid_action_credit_gate', firstReportCheckout = false, reportCreditView = '' } = {}){
+  function openCreditTopupForPurchase({ label, required, balance = null, context = 'paid_action_credit_gate', firstReportCheckout = false, reportCreditView = '', pendingOrder = null } = {}){
     const currentBalance = Number.isFinite(Number(balance))
       ? Math.round(Number(balance) * 100) / 100
       : (Number.isFinite(Number(window.Portal?.credits?.lastCredits)) ? Math.round(Number(window.Portal.credits.lastCredits) * 100) / 100 : null);
@@ -3571,6 +3571,8 @@ window.PlatformCommerce.onReady(async function(){
         context,
         firstReportCheckout: !!firstReportCheckout,
         reportCreditView: reportCreditViewOverride() || reportCreditView || (firstReportCheckout ? 'initial' : ''),
+        // The report order waiting on this credit; billing keeps it even when this browser's storage could not.
+        ...(pendingOrder ? { pendingOrder } : {}),
         purchase: {
           label: label || (globalThis.PlatformLanguage?.text("project-request","audit_06ecd0fafc34d4","this purchase") ?? "this purchase"),
           required: requiredAmount,
@@ -8239,7 +8241,7 @@ window.PlatformCommerce.onReady(async function(){
       void mountProjectModalApp(app);
     }));
   }
-  async function openReportCreditGateTopup({ label, required, balance = null, context = 'credit_gate' } = {}){
+  async function openReportCreditGateTopup({ label, required, balance = null, context = 'credit_gate', pendingOrder = null } = {}){
     const firstReportCheckout = reportCreditViewOverride()
       ? false
       : await firstReportCheckoutEligible({ honorForce: false }).catch(() => false);
@@ -8249,7 +8251,8 @@ window.PlatformCommerce.onReady(async function(){
       balance,
       context,
       firstReportCheckout,
-      reportCreditView: firstReportCheckout ? 'initial' : 'normal'
+      reportCreditView: firstReportCheckout ? 'initial' : 'normal',
+      pendingOrder
     });
   }
 
@@ -11061,11 +11064,10 @@ window.PlatformCommerce.onReady(async function(){
     const obj = {
       v: 3,
       ts: Date.now(),
-      // Whose order it is: another account signed in on this browser must never see or submit it (billing readPending).
+      // Whose order it is: another account signed in on this browser must never see or submit it (billing readPending,
+      // 1M8-204).
       organization_id: String(window.__APP?.userOrgId || '').trim(),
       user_id: String(window.__APP?.userId || '').trim() || String(window.__APP?.userEmail || '').trim().toLowerCase(),
-      // The account that placed it: another account signed in on this browser must never submit it (1M8-204).
-      organization_id: String(window.__APP?.userOrgId || '').trim(),
       fields: {
         // Names this order to the server, which places it once however many copies of it are submitted.
         client_order_id: `order_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 10)}`,
@@ -11106,7 +11108,11 @@ window.PlatformCommerce.onReady(async function(){
         order_quoted_amount: String(currentPrice() ?? ''),
       }
     };
-    try { localStorage.setItem(PENDING_ORDER_KEY, JSON.stringify(obj)); } catch (e) {}
+    // Storage can be full or refuse the write: the gate also hands this order to billing itself (FM-381), and an older
+    // order is never left behind for a later page to place instead.
+    try { localStorage.setItem(PENDING_ORDER_KEY, JSON.stringify(obj)); }
+    catch (e) { try { localStorage.removeItem(PENDING_ORDER_KEY); } catch (_) {} }
+    return obj;
   }
 
   async function ensureCreditsOrGate(){
@@ -11119,13 +11125,14 @@ window.PlatformCommerce.onReady(async function(){
       if (fresh?.ok) cachedBalance = Number(window.Portal.credits.lastCredits);
     }
     if (Number.isFinite(cachedBalance) && cachedBalance < price) {
-      capturePendingOrder();
+      const pendingOrder = capturePendingOrder();
       showToast((globalThis.PlatformLanguage?.text("project-request","m_a394c59c2a89db_currency","No credits") ?? "No credits"), ((v0) => globalThis.PlatformLanguage?.text("project-request","m_b97feb346e3fae_currency",`You need ${v0} to place this report order.`,{v0}) ?? `You need ${v0} to place this report order.`)(fmtCredit(price)), false);
       await openReportCreditGateTopup({
         label: window.Portal.ExteriorOrder?.active() ? (globalThis.PlatformLanguage?.text("project-request","this_full_exterior_report","this Full Exterior report") ?? "this Full Exterior report") : (globalThis.PlatformLanguage?.text("project-request","audit_3f50e8ab670539","this roof report") ?? "this roof report"),
         required: price,
         balance: cachedBalance,
-        context: 'credit_gate'
+        context: 'credit_gate',
+        pendingOrder
       });
       return false;
     }
@@ -11133,13 +11140,14 @@ window.PlatformCommerce.onReady(async function(){
     if (!refreshed?.ok) return true;
     const bal = window.Portal.credits.lastCredits ?? 0;
     if (bal >= price) return true;
-    capturePendingOrder();
+    const pendingOrder = capturePendingOrder();
     showToast((globalThis.PlatformLanguage?.text("project-request","m_a394c59c2a89db_currency","No credits") ?? "No credits"), ((v0) => globalThis.PlatformLanguage?.text("project-request","m_b97feb346e3fae_currency",`You need ${v0} to place this report order.`,{v0}) ?? `You need ${v0} to place this report order.`)(fmtCredit(price)), false);
     await openReportCreditGateTopup({
       label: window.Portal.ExteriorOrder?.active() ? (globalThis.PlatformLanguage?.text("project-request","this_full_exterior_report","this Full Exterior report") ?? "this Full Exterior report") : (globalThis.PlatformLanguage?.text("project-request","audit_3f50e8ab670539","this roof report") ?? "this roof report"),
       required: price,
       balance: bal,
-      context: 'credit_gate'
+      context: 'credit_gate',
+      pendingOrder
     });
     return false;
   }
@@ -11518,12 +11526,13 @@ window.PlatformCommerce.onReady(async function(){
         btn.disabled = false;
         updateSubmitLabel();
         if (String(msg).toLowerCase().includes('credit')) {
-          capturePendingOrder();
+          const pendingOrder = capturePendingOrder();
           await openReportCreditGateTopup({
             label: window.Portal.ExteriorOrder?.active() ? (globalThis.PlatformLanguage?.text("project-request","this_full_exterior_report","this Full Exterior report") ?? "this Full Exterior report") : (globalThis.PlatformLanguage?.text("project-request","audit_3f50e8ab670539","this roof report") ?? "this roof report"),
             required: currentPrice(),
             balance: Number(window.Portal?.credits?.lastCredits),
-            context: 'server_credit_reject'
+            context: 'server_credit_reject',
+            pendingOrder
           });
           showToast((globalThis.PlatformLanguage?.text("project-request","m_a394c59c2a89db","No credits") ?? "No credits"), (globalThis.PlatformLanguage?.text("project-request","m_1c14a09330064b","Top up to submit this exact roof report order.") ?? "Top up to submit this exact roof report order."), false);
           return;
@@ -11532,6 +11541,9 @@ window.PlatformCommerce.onReady(async function(){
         return;
       }
       try { localStorage.removeItem(PENDING_ORDER_KEY); } catch (ex) {}
+      // Billing may hold the order in memory when storage refused it (FM-381): it is placed, so drop that copy too.
+      const billingOwner = projectWindowBridge ? window.parent : window;
+      billingOwner.dispatchEvent(new billingOwner.CustomEvent('fm:billing:pending-order-placed'));
       showToast(data.development_report ? (globalThis.PlatformLanguage?.text("project-request","audit_88430f2c58bbce","Development report ready") ?? "Development report ready") : (payload.measurement_scope === 'full_house' ? (globalThis.PlatformLanguage?.text("project-request","full_exterior_report_ordered","Full Exterior report ordered") ?? "Full Exterior report ordered") : (globalThis.PlatformLanguage?.text("project-request","roof_report_ordered","Roof report ordered") ?? "Roof report ordered")), data.development_report ? (globalThis.PlatformLanguage?.text("project-request","audit_7cf4af8eebae35","Existing report files are ready to view.") ?? "Existing report files are ready to view.") : (getAfterHoursMessage() || (globalThis.PlatformLanguage?.text("project-request","report_processing","Report is now processing.") ?? "Report is now processing.")), true);
       const shouldUpdateExistingProject = !!String(payload.platform_project_id || payload.base_project_id || '').trim();
       reorderMeasurementProjectId = '';
