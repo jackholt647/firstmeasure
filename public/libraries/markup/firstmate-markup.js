@@ -393,6 +393,7 @@
         detail: {
           orgId: selectedOrgId,
           mediaId,
+          hasMarkup: Array.isArray(items) && items.length > 0,
           revision: result?.layer?.revision || result?.media?.markup_thumbnail?.revision || '',
           updatedAt: result?.layer?.updated_at || result?.media?.markup_thumbnail?.updated_at || ''
         }
@@ -2169,12 +2170,14 @@
       const videoEditDock = this.el.querySelector('[data-video-editdock]');
       if (videoEditDock) videoEditDock.hidden = !isVideo || !root.FirstMateVideoEditor?.isSupported?.() || !url;
       this.markup?.setItems([]);
+      this.refreshDownloadButtons();
       if (!isImage) this.markup?.setActive(false);
       this.mountPhotoComments(photo);
       if (photo.media_id && isImage) {
         const items=await loadMarkup(orgId(),photo.media_id);
         if(this.current()!==photo || token!==this.showToken || !this.el?.isConnected)return;
         this.markup?.setItems(items);
+        this.refreshDownloadButtons();
       }
       if (typeof this.onChange === 'function') this.onChange({ photo, index: this.index, project, isVideo, mediaKind:kind });
     }
@@ -2412,7 +2415,9 @@
       const kind = mediaKind(this.current());
       const plain = this.el.querySelector('[data-photo-download-plain]');
       const marked = this.el.querySelector('[data-photo-download-markup]');
-      if (kind === 'image') {
+      // An image offers "with" and "without markup" only when it has markup; otherwise one plain Download.
+      const marksImage = kind === 'image' && !!this.markup?.items?.length;
+      if (marksImage) {
         if (marked) { marked.hidden = false; marked.innerHTML = `<i class="fas fa-download"></i>${(globalThis.PlatformLanguage?.htmlText("markup","m_f3ad10eaad3ccf"," Download") ?? " Download")}`; }
         if (plain) plain.innerHTML = `<i class="far fa-image"></i>${(globalThis.PlatformLanguage?.htmlText("markup","m_42f3ea50e49555"," Download without Markup") ?? " Download without Markup")}`;
       } else {
@@ -2422,10 +2427,10 @@
           marked.innerHTML = `<i class="fas fa-pen-to-square"></i>${(globalThis.PlatformLanguage?.htmlText("markup","m_viewer_download_with_markup"," Download with markup") ?? " Download with markup")}`;
         }
       }
-      // Images list "with markup" first (the default download); other files list the plain download first.
+      // Marked-up images list "with markup" first (the default download); other files list the plain download first.
       if (plain && marked && plain.parentElement === marked.parentElement) {
-        if (kind === 'image' && plain.previousElementSibling !== marked) marked.after(plain);
-        else if (kind !== 'image' && marked.previousElementSibling !== plain) plain.after(marked);
+        if (marksImage && plain.previousElementSibling !== marked) marked.after(plain);
+        else if (!marksImage && marked.previousElementSibling !== plain) plain.after(marked);
       }
     }
     // ---- PDFs ----------------------------------------------------------------------------------------------
@@ -2895,6 +2900,7 @@
         onChange: (items) => {
           const photo = this.current();
           this.scheduleMarkupSave(photo, items);
+          this.refreshDownloadButtons();
         }
       });
       this.bindLayoutObserver();
