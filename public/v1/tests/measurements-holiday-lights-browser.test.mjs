@@ -5,7 +5,7 @@ import {chromium} from 'playwright-core';
 
 // FM-375: a two-story house, its main gable roof's eaves at 10 ft, with a shed porch roof on the south side whose eave
 // is at 0 ft. The report's Holiday Lights page (pdf.js, dev/holiday-lights-sides.test.cjs) checks the same house to
-// the same tags and lengths: keep the two in step.
+// the same groups and lengths: keep the two in step.
 const point=(id,x,y,z)=>`<POINT id="${id}" data="${x},${y},${z}"/>`;
 const line=(id,a,b,type)=>`<LINE id="${id}" path="${a},${b}" type="${type}"/>`;
 const face=(id,path)=>`<FACE id="${id}" type="ROOF"><POLYGON path="${path}" pitch="6"/></FACE>`;
@@ -19,10 +19,11 @@ const xml='<DATA_EXPORT><STRUCTURES><ROOF id="ROOF1">'
   +'</ROOF></STRUCTURES></DATA_EXPORT>';
 const rake=Math.hypot(15,8),porchRake=Math.hypot(8,4);
 const expected=[
-  ['NU',40],['EL',porchRake],['EU',2*rake],['SL',20],['SU',40],['WL',porchRake],['WU',2*rake]
+  ['north','Upper',40],['east','Lower',porchRake],['east','Upper',2*rake],['south','Lower',20],['south','Upper',40],['west','Lower',porchRake],['west','Upper',2*rake]
 ];
+const colors={north:'#1a73e8',east:'#f29900',south:'#9334e6',west:'#12b5cb',peak:'#e52592'};
 
-test('holiday lights count by side and roofline, tagged on the roof as in the list',async()=>{
+test('holiday lights count by side and roofline, in side colours, with the length of every stretch on the roof',async()=>{
   const browser=await chromium.launch({executablePath:process.env.CHROME_PATH||'C:/Program Files/Google/Chrome/Application/chrome.exe',headless:true,args:['--enable-webgl','--use-angle=swiftshader']});
   try{
     const page=await browser.newPage({viewport:{width:1200,height:760}}),errors=[];
@@ -34,23 +35,30 @@ test('holiday lights count by side and roofline, tagged on the roof as in the li
     await page.evaluate(()=>{const Renderer=THREE.WebGLRenderer;THREE.WebGLRenderer=function(options){const renderer=new Renderer(options),render=renderer.render;renderer.render=function(scene,camera){window.drawnScene=scene;return render.call(renderer,scene,camera);};return renderer;};});
     for(const file of ['roof-viewer.js','holiday-lights.js'])await page.addScriptTag({content:await readFile(new URL('../../libraries/apps/measurements/'+file,import.meta.url),'utf8')});
     await page.evaluate(()=>{window.lights=FirstMeasureHolidayLights.mount(document.querySelector('#lights'),{xmlUrl:'/model.xml'});});
-    await page.waitForFunction(()=>document.querySelector('.fm-hl-canvas canvas')&&document.querySelector('.fm-hl-message').hidden&&document.querySelector('.fm-hl-tag'),{},{timeout:45000});
-    const rows=()=>page.evaluate(()=>[...document.querySelectorAll('.fm-hl-tag')].map(tag=>[tag.textContent,tag.closest('div').querySelector('b').textContent,tag.closest('[data-hl-side]').querySelector('.fm-hl-side-head span').firstChild.textContent]));
+    await page.waitForFunction(()=>document.querySelector('.fm-hl-canvas canvas')&&document.querySelector('.fm-hl-message').hidden&&document.querySelector('.fm-hl-group'),{},{timeout:45000});
+    // One row per roofline of a side (or the side itself when it has one): [side, roofline, length, colour, side name].
+    const rows=()=>page.evaluate(()=>[...document.querySelectorAll('.fm-hl-group, .fm-hl-side:not(:has(.fm-hl-group)) .fm-hl-side-head')].map(row=>{
+      const side=row.closest('[data-hl-side]'),hex=c=>'#'+c.match(/\d+/g).slice(0,3).map(n=>(+n).toString(16).padStart(2,'0')).join('');
+      return [side.dataset.hlSide,row.classList.contains('fm-hl-group')?row.querySelector('span').firstChild.textContent:'',row.querySelector('b').textContent,hex(getComputedStyle(row.querySelector('.fm-hl-swatch')).backgroundColor),side.querySelector('.fm-hl-side-head span').firstChild.textContent];
+    }));
     const listed=await rows();
-    assert.deepEqual(listed.map(([tag])=>tag),expected.map(([tag])=>tag),'Sides in compass order, rooflines lower to upper');
-    listed.forEach(([tag,length],i)=>assert.equal(length,`${Math.round(expected[i][1])} ft`,tag));
-    assert.deepEqual([...new Set(listed.map(row=>row[2]))],['North','East','South','West']);
-    const total=expected.reduce((sum,[,length])=>sum+length,0);
+    assert.deepEqual(listed.map(([side,level])=>[side,level]),expected.map(([side,level])=>[side,level]),'Sides in compass order, rooflines lower to upper');
+    listed.forEach(([side,level,length,color],i)=>{assert.equal(length,`${Math.round(expected[i][2])} ft`,side+level);assert.equal(color,colors[side]);});
+    assert.deepEqual([...new Set(listed.map(row=>row[4]))],['North','East','South','West']);
+    const total=expected.reduce((sum,[,,length])=>sum+length,0);
     assert.equal(await page.textContent('[data-hl-total]'),`${Math.round(total)} ft`);
     assert.deepEqual(await page.evaluate(()=>[...document.querySelectorAll('.fm-hl-group span')].slice(0,3).map(el=>el.firstChild.textContent)),['Upper','Lower','Upper']);
-    // The roof carries every tag in the list, in the side's colour.
-    const sprites=await page.evaluate(()=>{let tags=0,letters=0;drawnScene.traverse(o=>{if(o.isSprite)o.parent===drawnScene?letters++:tags++;});return {tags,letters};});
-    assert.deepEqual(sprites,{tags:expected.length,letters:4},'One tag per group here (every group is one unbroken stretch), and N, E, S, W on the ground');
+    // Every stretch shows its length on the roof in its side's colour (here every group is one unbroken stretch), and
+    // N, E, S and W stand on the ground.
+    const sprites=await page.evaluate(()=>{const labels=[];let letters=0;drawnScene.traverse(o=>{if(o.isSprite)o.parent===drawnScene?letters++:labels.push([o.userData.label,o.userData.color]);});return {labels,letters};});
+    assert.equal(sprites.letters,4);
+    assert.deepEqual(sprites.labels.sort(),expected.map(([side,,length])=>[`${Math.round(length)} ft`,colors[side]]).sort());
     // Ridges go in their own group, on the roofline of the faces beside them; switching them on moves nothing else.
     await page.evaluate(()=>[...document.querySelectorAll('.fm-hl-edge')].find(row=>row.textContent.startsWith('Ridges')).querySelector('input').click());
     const withRidges=await rows();
-    assert.deepEqual(withRidges.map(([tag])=>tag),[...expected.map(([tag])=>tag),'RU']);
-    assert.equal(withRidges.at(-1)[1],'40 ft');
+    assert.deepEqual(withRidges.map(([side,level])=>[side,level]),[...expected.map(([side,level])=>[side,level]),['peak','Upper']]);
+    assert.equal(withRidges.at(-1)[2],'40 ft');
+    assert.equal(withRidges.at(-1)[4],'Ridges and hips');
     assert.deepEqual(errors,[]);
     const layout=await page.evaluate(()=>{
       const p=(x,y,z)=>[x,y,z],edge=(type,a,b,keys)=>({type,roof:0,a,b,length:Math.hypot(a[0]-b[0],a[1]-b[1],a[2]-b[2]),keys});
