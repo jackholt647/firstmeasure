@@ -88,7 +88,7 @@
  #project-resources.has-video footer{bottom:80px}
 }
 
-@container resources (max-width:440px){#project-resources .resource-action-label{display:none}}
+@container resources (max-width:860px){#project-resources .resource-action-label{display:none}}
 
 #project-resources .resource-favorite-entry{position:absolute;left:50%;top:14px;transform:translateX(-50%);z-index:9;width:min(360px,90%);padding:12px;background:#fffffff5;border:1px solid #1a73e8;border-radius:8px;box-shadow:0 4px 20px #26334324;cursor:default}
 #project-resources .resource-favorite-entry input{font:14px system-ui;width:100%;padding:9px;background:#fff;color:#344054;border:1px solid #cbd5e1;border-radius:4px}
@@ -222,3 +222,5 @@
 #project-resources .resource-ratio strong{font-size:11px;font-weight:600}
 #project-resources .resource-ratio .resource-help{margin-top:8px}
 #project-resources .resource-ratio-segments{margin:6px 0 0;padding-left:22px;font:600 12px/1.7 system-ui,sans-serif;color:#1d2939;font-variant-numeric:tabular-nums}
+#project-resources .resource-temp-note{margin:0 0 10px;padding:7px 9px;border:1px solid #f5d38a;border-radius:5px;background:#fffaeb;color:#7a4b00;font-size:10px;line-height:1.5}
+#project-resources .resource-temp-note[hidden],#project-resources .resource-persp-live-help[hidden]{display:none}

@@ -82,16 +82,18 @@
   return {inverse,side,area,scale,width:Math.max(1,Math.round(aw*scale)),height:Math.max(1,Math.round(ah*scale)),rect:{w,h},corners:q};
  }
 
- // Draws the corrected picture into a new canvas (bilinear sampling, transparent where the photo does not reach).
- async function render(source,p,{onProgress}={}){
-  const sw=source.naturalWidth||source.width,sh=source.naturalHeight||source.height;
-  const read=document.createElement('canvas');read.width=sw;read.height=sh;const rc=read.getContext('2d',{willReadFrequently:true});rc.drawImage(source,0,0);
-  let src;try{src=rc.getImageData(0,0,sw,sh).data;}catch{throw Error('This image comes from another site and cannot be corrected here. Upload a copy to the project first.');}
-  read.width=read.height=0;
-  const out=document.createElement('canvas');out.width=p.width;out.height=p.height;const oc=out.getContext('2d');
-  const image=oc.createImageData(p.width,p.height),dst=image.data,H=p.inverse,step=1/p.scale,side=p.side;
-  const dx=H[0]*step,dy=H[3]*step,dw=H[6]*step;
-  for(let v=0;v<p.height;v++){
+ // The photo's pixels, optionally scaled down so its longer side is at most `maxSide` (for the live view).
+ function pixels(source,maxSide=Infinity){
+  const nw=source.naturalWidth||source.width,nh=source.naturalHeight||source.height,k=Math.min(1,maxSide/Math.max(nw,nh)),sw=Math.max(1,Math.round(nw*k)),sh=Math.max(1,Math.round(nh*k));
+  const read=document.createElement('canvas');read.width=sw;read.height=sh;const rc=read.getContext('2d',{willReadFrequently:true});rc.drawImage(source,0,0,sw,sh);
+  try{return {data:rc.getImageData(0,0,sw,sh).data,width:sw,height:sh,scale:k};}
+  catch{throw Error('This image comes from another site and cannot be corrected here. Upload a copy to the project first.');}
+  finally{read.width=read.height=0;}
+ }
+ // Fills rows [from, to) of `dst` (RGBA, p.width wide) from `src` pixels: bilinear, transparent where the photo does not reach.
+ function warpRows(src,sw,sh,p,dst,from,to){
+  const H=p.inverse,step=1/p.scale,side=p.side,dx=H[0]*step,dy=H[3]*step,dw=H[6]*step;
+  for(let v=from;v<to;v++){
    const y=p.area.y0+(v+.5)*step,x=p.area.x0+.5*step;
    let X=H[0]*x+H[1]*y+H[2],Y=H[3]*x+H[4]*y+H[5],W=H[6]*x+H[7]*y+H[8],o=v*p.width*4;
    for(let u=0;u<p.width;u++,X+=dx,Y+=dy,W+=dw,o+=4){
@@ -103,11 +105,24 @@
     dst[o]=src[a]*wa+src[b]*wb+src[c]*wc+src[d]*wd;dst[o+1]=src[a+1]*wa+src[b+1]*wb+src[c+1]*wc+src[d+1]*wd;
     dst[o+2]=src[a+2]*wa+src[b+2]*wb+src[c+2]*wc+src[d+2]*wd;dst[o+3]=src[a+3]*wa+src[b+3]*wb+src[c+3]*wc+src[d+3]*wd;
    }
-   if(v%48===47){onProgress?.(v/p.height);await new Promise(resolve=>setTimeout(resolve));}
   }
+ }
+ const newCanvas=(w,h)=>{const c=document.createElement('canvas');c.width=w;c.height=h;return c;};
+ // Draws the corrected picture into a new canvas at full resolution, yielding between bands of rows.
+ async function render(source,p,{onProgress}={}){
+  const {data:src,width:sw,height:sh}=pixels(source);
+  const out=newCanvas(p.width,p.height),oc=out.getContext('2d'),image=oc.createImageData(p.width,p.height);
+  for(let v=0;v<p.height;v+=48){warpRows(src,sw,sh,p,image.data,v,Math.min(p.height,v+48));onProgress?.(v/p.height);await new Promise(resolve=>setTimeout(resolve));}
   oc.putImageData(image,0,0);onProgress?.(1);
   return out;
  }
+ // Synchronous small version for the live view: `px` from pixels(source, n), corners in full-size photo pixels.
+ function renderLive(px,{corners,crop,maxSide}){
+  const p=plan({width:px.width,height:px.height,corners:corners.map(c=>({x:c.x*px.scale,y:c.y*px.scale})),crop,maxSide,maxPixels:maxSide*maxSide});
+  const out=newCanvas(p.width,p.height),oc=out.getContext('2d'),image=oc.createImageData(p.width,p.height);
+  warpRows(px.data,px.width,px.height,p,image.data,0,p.height);oc.putImageData(image,0,0);
+  return out;
+ }
 
- root.ResourcePerspective={orderQuad,usableQuad,homography,apply,largestRect,plan,render};
+ root.ResourcePerspective={orderQuad,usableQuad,homography,apply,largestRect,plan,pixels,render,renderLive};
 })(typeof window==='undefined'?globalThis:window);
