@@ -79,6 +79,7 @@
   let registered = false;
   let branchProjectConfig = { title_mode: 'all_contacts' };
   const markupThumbnailRevisions = new Map();
+  const markupPresence = new Map();
   let state = {
     root: null,
     projects: [],
@@ -4131,9 +4132,11 @@
       setSelectionMode(false);
       render();
     });
-    rootEl.querySelector('[data-selection-download]')?.addEventListener('click', () => {
-      state.downloadMenuOpen = !state.downloadMenuOpen;
-      render();
+    const selectionDownload = rootEl.querySelector('[data-selection-download]');
+    selectionDownload?.addEventListener('pointerenter', () => { selectionHasMarkup(selectedItems()); });
+    selectionDownload?.addEventListener('click', () => {
+      if (state.downloadMenuOpen) { state.downloadMenuOpen = false; render(); return; }
+      selectionDownloadClick(selectionDownload, selectedItems(), () => { state.downloadMenuOpen = true; render(); }, downloadSelected);
     });
     rootEl.querySelector('[data-selection-delete]')?.addEventListener('click', async () => {
       await trashItems(selectedItems().filter((item) => !item.unassigned));
@@ -4356,6 +4359,45 @@
       }, { root: rootEl.querySelector('[data-feed-scroll]'), rootMargin:`0px 0px ${Math.max(400,Math.min(900,rootEl.querySelector('[data-feed-scroll]')?.clientHeight || 600))}px 0px`, threshold: 0.1 });
       state.observer.observe(sentinel);
     }
+  }
+  // Whether a photo has markup, fetched once per media and kept current by fm:media-markup-saved. The Download
+  // menus offer "with" and "without markup" only when something selected has markup; otherwise Download downloads.
+  function photoHasMarkup(photo = {}){
+    const mediaId = cleanText(photo.media_id);
+    const load = window.FirstMateMarkup?.loadMarkup;
+    if (!mediaId || galleryMediaType(photo) !== 'photo' || typeof load !== 'function') return Promise.resolve(false);
+    if (!markupPresence.has(mediaId)) {
+      const pending = Promise.resolve(load(orgId(), mediaId)).then((items) => Array.isArray(items) && items.length > 0, () => false);
+      markupPresence.set(mediaId, pending);
+      pending.then((value) => { if (markupPresence.get(mediaId) === pending) markupPresence.set(mediaId, value); });
+    }
+    return Promise.resolve(markupPresence.get(mediaId));
+  }
+  async function selectionHasMarkup(items = []){
+    const photos = items.map((item) => item?.photo).filter(Boolean);
+    let found = false;
+    let next = 0;
+    const worker = async () => {
+      while (!found && next < photos.length) {
+        if (await photoHasMarkup(photos[next++])) found = true;
+      }
+    };
+    await Promise.all(Array.from({ length: Math.min(6, photos.length) }, worker));
+    return found;
+  }
+  // The Download button: opens the markup menu when a selected photo has markup, otherwise downloads at once.
+  async function selectionDownloadClick(button, items, openMenu, download){
+    if (!items.length || button.getAttribute('aria-busy') === 'true') return;
+    button.setAttribute('aria-busy', 'true');
+    const icon = button.querySelector('.fa-download');
+    icon?.classList.replace('fa-download', 'fa-spinner');
+    icon?.classList.add('fa-spin');
+    const marked = await selectionHasMarkup(items);
+    button.removeAttribute('aria-busy');
+    icon?.classList.remove('fa-spin');
+    icon?.classList.replace('fa-spinner', 'fa-download');
+    if (marked) openMenu();
+    else download(false);
   }
   async function downloadSelected(withMarkup){
     const items = selectedItems();
@@ -4862,7 +4904,12 @@
         local.selectionMode = local.selected.size > 0;
         renderLocal();
       });
-      el.querySelector('[data-selection-download]')?.addEventListener('click', () => { local.downloadMenuOpen = !local.downloadMenuOpen; syncDock(); });
+      const selectionDownload = el.querySelector('[data-selection-download]');
+      selectionDownload?.addEventListener('pointerenter', () => { selectionHasMarkup(selectedLocalItems()); });
+      selectionDownload?.addEventListener('click', () => {
+        if (local.downloadMenuOpen) { local.downloadMenuOpen = false; syncDock(); return; }
+        selectionDownloadClick(selectionDownload, selectedLocalItems(), () => { local.downloadMenuOpen = true; syncDock(); }, downloadLocal);
+      });
       el.querySelector('[data-download-selected-plain]')?.addEventListener('click', () => downloadLocal(false));
       el.querySelector('[data-download-selected-markup]')?.addEventListener('click', () => downloadLocal(true));
       el.querySelector('[data-selection-delete]')?.addEventListener('click', () => mutateLocal('trash'));
@@ -5413,6 +5460,8 @@
   });
   window.addEventListener('fm:media-markup-saved', (event) => {
     const mediaId = cleanText(event?.detail?.mediaId);
+    if (mediaId && typeof event.detail.hasMarkup === 'boolean') markupPresence.set(mediaId, event.detail.hasMarkup);
+    else if (mediaId) markupPresence.delete(mediaId);
     if (!mediaId || !window.PlatformAPI?.media?.markupThumbnailUrl) return;
     const revision = cleanText(event?.detail?.revision || event?.detail?.updatedAt || Date.now());
     markupThumbnailRevisions.set(mediaId, revision);
