@@ -388,7 +388,7 @@
       surfaces: ['portal_tab'],
       portalTabId: 'scheduling',
       settingsTabId: 'scheduling',
-      bundles: [bookingBundle, versionedBundle('scheduling/app.js', '20261015-contacts-store-v1')]
+      bundles: [bookingBundle, versionedBundle('scheduling/app.js', '20261110-fm382-offered-page')]
     },
     {
       id: 'portal.training',
