@@ -216,7 +216,9 @@ no report or entered dataset. **Order measurement report** enters the same
 configured FirstMeasure order session as the project details tray, preserving the project and
 asking for its address when missing; it does not submit an order. The tray's measurement ordering widget is the
 same entry point. **Add measurements manually** opens the existing schema-based
-editor; without measurement schemas it is disabled, with no explanatory line.
+editor; without measurement schemas it is not offered. The widget lists what it offers in
+`data-measurement-options` (`order`, `manual`), and the project details tour has a Measurements step for each
+combination, so its copy names only the buttons on screen.
 Existing manual values open in the editor, and completed reports keep their model.
 
 The project's main Documents gallery also lists the delivered Customer Roof
@@ -288,7 +290,13 @@ time. Closing slides the sheet away with its content in place. The Agent is the
 compact input bar described in [global assistant architecture](global-assistant.md#project-tray-session-lifetime).
 The content sets `--fm-safe-bottom: 0px` while the footer is shown, so bars
 inside it (the Take photos bar, the agent composer) leave the device's bottom
-inset to the footer. Desktop keeps the header icons and right-hand trays.
+inset to the footer. Typing in an open tray (a sheet or the agent bar) lifts only
+that tray onto the keyboard: while a text field in it has focus, the top page asks
+the browser to lay the keyboard over the content (`navigator.virtualKeyboard.overlaysContent`,
+so nothing is resized or panned to the field) and the tray rises by the keyboard's overlap
+(`data-keyboard`, `--fm-keyboard-lift`); the app and the footer behind it stay put. Leaving
+the field or closing the tray hands the keyboard back to the browser; browsers without the
+API keep their own behaviour. Desktop keeps the header icons and right-hand trays.
 Test: `tests/project-trays-footer-browser.test.mjs`.
 
 ### Phone layout of the Project tab
