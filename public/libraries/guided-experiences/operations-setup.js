@@ -50,13 +50,31 @@ function installStyle(){
 }
 function environment(ctx){
   const orgId=String(window.__APP?.userOrgId||window.Portal?.currentUser?.orgId||'');
-  const projectId=String(ctx.where?.projectId||'');
-  const target={scope:'project',organizationId:orgId,projectId};
-  const invoke=async(action,input={},key)=>{
-    const result=await window.PlatformAPI.publication.invoke(orgId,action,target,input,key?{idempotencyKey:key}:{});
+  // Where the setup started, else where the page is now: a new project saved since then is in the route.
+  const env={orgId,projectId:String(ctx.where?.projectId||window.FirstMateGuides?.where?.()?.projectId||'')};
+  env.invoke=async(action,input={},key)=>{
+    const result=await window.PlatformAPI.publication.invoke(orgId,action,{scope:'project',organizationId:orgId,projectId:env.projectId},input,key?{idempotencyKey:key}:{});
     return result.value??result.result??result;
   };
-  return {orgId,projectId,target,invoke};
+  return env;
+}
+// A new project window (not saved yet) has no project. Building its scope is the first write, so it saves the
+// project there first, as a tab's or tray's first write does (ensureDraftBaseProject, then saveRemote).
+async function ensureProject(env){
+  if(env.projectId)return env.projectId;
+  env.projectId=String(window.FirstMateGuides?.where?.()?.projectId||'');
+  if(env.projectId)return env.projectId;
+  const required=()=>Error(copy('gx_ops_project_required','Create or open a project first, then set up its scope of work.'));
+  window.Portal?.modules?.request?.ensureProposalContext?.();
+  const store=window.Portal?.ProjectStore;
+  if(typeof window.ensureDraftBaseProject!=='function'||typeof store?.saveRemote!=='function')throw required();
+  const draft=window.ensureDraftBaseProject({allowEmpty:true});
+  if(!draft)throw required();
+  const saved=await store.saveRemote(draft);
+  if(!saved)throw Error(copy('gx_ops_project_save_error','The project could not be saved. Please try again.'));
+  env.projectId=String(saved.id||draft.id||'');
+  if(!env.projectId)throw required();
+  return env.projectId;
 }
 // Reaching the ready step is what offers Equipment (APP_OFFER_PREREQUISITES): show it in this and the top window's sidebar now.
 async function syncSessions(){const wins=new Set([window]);try{if(window.top.location.origin===location.origin)wins.add(window.top);}catch{}await Promise.all([...wins].map(win=>win.Portal?.auth?.syncPlatformSession?.()?.catch?.(()=>null)));}
@@ -133,7 +151,7 @@ function documentWidget(el,ctx){
     else service.openPresentation();
   }
   async function open(){
-    if(!env.projectId)throw Error(copy('gx_ops_project_required','Create or open a project first, then set up its scope of work.'));
+    await ensureProject(env);if(!alive)return;
     if(path==='proposal')await activate('project.docs',env.orgId);
     const previous=ctx.selections.operations_project_id===env.projectId?ctx.selections.operations_document_id:undefined;
     const [runtime,initial]=await Promise.all([workflowRuntime(),env.invoke('operations.document.prepare',{project_id:env.projectId,path,...(previous?{document_id:previous}:{})},`operations.prepare:${env.projectId}:${path}:${previous?previous+':'+crypto.randomUUID():'first'}`)]);
