@@ -118,11 +118,21 @@
     }
     else {
       ensureMounted(context);
-      renderPhotoGallery();
+      // Coming back to the tab keeps the gallery as it was left (scroll, search, density, selection); the media read
+      // below redraws it only when the project's photos changed while it was away.
+      if (!galleryShown()) renderPhotoGallery();
       hydrateOwnedProjectMedia();
       ensureSavedSatellite();
       loadPinnedFields();
     }
+  }
+
+  // The gallery is drawn for this project. Its own changes (uploads, tags, trash) keep it up to date as they happen.
+  function galleryShown(){
+    return state.galleryProjectId === activeProjectId() && !!resolveGalleryRoot()?.querySelector('#rPhotoFeedMount')?.childElementCount;
+  }
+  function photosKey(photos){
+    return JSON.stringify((photos || []).map(serializablePhoto));
   }
 
   // The satellite image is saved into the library as an ordinary photo the first time a saved project needs it
@@ -136,8 +146,9 @@
     if (library.savedSatellitePhoto?.(projectPhotosList())) return null;
     const result = await library.ensureSatelliteMedia(orgId, projectId).catch(() => null);
     if (!result || activeProjectId() !== projectId) return result;
+    const before = photosKey(projectPhotosList());
     applySatelliteResult(result);
-    if (state.active) renderPhotoGallery();
+    if (state.active && (!galleryShown() || photosKey(projectPhotosList()) !== before)) renderPhotoGallery();
     return result;
   }
 
@@ -255,6 +266,7 @@
         return projectPhotosList();
       }
 
+      const before = photosKey(projectPhotosList());
       const photos = [];
       const mediaIds = new Set();
       const ownedById = new Map(owned.map((photo) => [projectPhotoId(photo), photo]));
@@ -272,7 +284,7 @@
       });
       setProjectPhotosList(photos);
       project.photos = photos.map(serializablePhoto);
-      renderPhotoGallery();
+      if (!galleryShown() || photosKey(photos) !== before) renderPhotoGallery();
       return photos;
     })();
     state.mediaHydrationPromise = request;
@@ -1194,6 +1206,9 @@
     const photos = projectPhotosList();
     if (Portal.PhotoFeed?.mountProjectGallery) {
       const project = callHost('getProject') || state.model?.state?.activeBaseProject || window.activeBaseProject || {};
+      // Drawn again for the same project (photos added, changed or removed): the gallery stays where it was scrolled.
+      const scrollTop = state.galleryProjectId === activeProjectId(project) ? root.querySelector('.pf-scroll')?.scrollTop || 0 : 0;
+      state.galleryProjectId = activeProjectId(project);
       root.innerHTML = `
         <div id="rPhotoFeedMount" style="height:100%;min-height:0"></div>
         <input type="file" id="rPhotoInput" accept="${PHOTO_ACCEPT}" multiple style="display:none">
@@ -1258,6 +1273,7 @@
         },
         onUpload: () => input?.click()
       });
+      if (scrollTop) { const scroller = root.querySelector('.pf-scroll'); if (scroller) scroller.scrollTop = scrollTop; }
       mountProjectCamera(root);
       return;
     }
