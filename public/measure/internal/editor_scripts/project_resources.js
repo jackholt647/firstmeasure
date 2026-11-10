@@ -902,9 +902,10 @@
   }
   // A busy server can drop or stall one status check while the job keeps
   // running, so only a definite answer ends polling before the deadline.
+  // A frame takes a few seconds, so checks are at most a second apart.
   async function pollFrameJob(job) {
    for (let attempt = 0; ; attempt++) {
-    await new Promise(resolve => setTimeout(resolve, Math.min(2000, 400 + attempt * 200)));
+    await new Promise(resolve => setTimeout(resolve, Math.min(1000, 300 + attempt * 150)));
     const abort = new AbortController(), timer = setTimeout(() => abort.abort(), 20000);
     const response = await fetch(url(job.project, job.record), { cache: 'no-store', signal: abort.signal }).catch(() => null).finally(() => clearTimeout(timer));
     if (response?.ok) {
