@@ -50,7 +50,9 @@ loaded by `portal/index.php`): `order(apps)`, `pill(appId)` and
 tab becomes active; it returns true when a pill cleared so the host redraws its
 tabs. `ProjectViewer.renderTabs` (`portal/scripts/project_viewer.js`) draws a
 tab's `badge` with `badgeKind` (`pv-tab-badge--new`, `--coming_soon`); on
-icon-only tabs a New pill becomes a dot beside the icon.
+icon-only tabs and phone tab strips the pill becomes a round badge on the
+icon's corner: a star for New, "!" for Setup required (the words stay in the
+button's `aria-label`).
 
 A tab's label is terminology: the Project tab is `scope.project_tab`, renamed
 per organization in the `variable_mappings` branch module

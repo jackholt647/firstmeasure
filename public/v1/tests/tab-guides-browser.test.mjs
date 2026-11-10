@@ -126,6 +126,9 @@ test('tab pills, order, first-open tutorials and the renamed Project tab',async(
     await page.evaluate(()=>window.render(true));
     const photos=(await state()).find(tab=>tab.tab==='photos');
     assert.deepEqual([photos.label,photos.pill,photos.kind],['','New','pv-tab-badge--new']);
+    // Without room for the word, New is a round badge with a star glyph (FM-362), not a bare dot or a wordless pill.
+    const badge=await page.evaluate(()=>{const pill=document.querySelector('#tabs [data-tab="photos"] .pv-tab-badge'),style=getComputedStyle(pill),glyph=getComputedStyle(pill,'::before');return {round:style.borderRadius==='50%' && style.width===style.height,fontSize:style.fontSize,glyph:/svg/.test(glyph.maskImage||glyph.webkitMaskImage||''),label:pill.closest('button').getAttribute('aria-label')};});
+    assert.deepEqual(badge,{round:true,fontSize:'0px',glyph:true,label:'Photos, New'});
     assert.deepEqual(errors,[]);
     await page.close();
   }finally{
