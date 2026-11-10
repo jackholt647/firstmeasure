@@ -12,6 +12,8 @@
  *     attachAssistant(drawer, api)  draws those questions above an assistant composer (platform-assistant.js)
  *     overlay                       the overlay tutorial engine, run(steps, options)
  *     registerKind(kind, player)    a player for a kind of experience (guided-setup.js registers modal and agentic)
+ *     holdPage(cover)               while a player's cover is up, the page does not scroll and the cover is the visible
+ *                                   screen (--gx-vh): one scroller on a phone, even with its keyboard open; returns release
  *
  * Triggers are data: `before_action` holds a click on a matching button, plays the experience and then lets the
  * click through; `tab_opened` plays when a project tab opens; `after_experience` follows another experience;
@@ -659,6 +661,46 @@
     if (!doc?.head || doc.getElementById(id)) return;
     const style = doc.createElement('style'); style.id = id; style.textContent = css; doc.head.appendChild(style);
   }
+  /**
+   * One scroller while a guide covers the page (a setup sheet, an announcement). The page under it does not scroll,
+   * and the cover is the screen the person actually sees: the visual viewport, which a phone's keyboard shrinks while
+   * the page keeps its height. Without this a phone has two scrollers, the page panning behind the keyboard and the
+   * step, and a drag that lands on the one already at its end moves nothing. The cover's CSS sizes itself from
+   * `--gx-vh` (the visible height) and makes its panes `overscroll-behavior: contain`, so a pane at its end never hands
+   * the drag on. A pinch-zoomed page is left to the browser. Returns the release; covers can overlap.
+   */
+  const pageHolds = new Set();
+  let pageStyles = null;
+  function holdPage(cover){
+    const html = document.documentElement, body = document.body;
+    if (!pageHolds.size) {
+      pageStyles = [html, body].map((el) => [el, el.style.overflow, el.style.overscrollBehavior, el.style.scrollbarGutter]);
+      // The page keeps its width: a scrollbar it had leaves its gutter rather than letting the page jump sideways.
+      if (root.innerWidth - html.clientWidth > 0) html.style.scrollbarGutter = 'stable';
+      [html, body].forEach((el) => { el.style.overflow = 'hidden'; el.style.overscrollBehavior = 'none'; });
+    }
+    const viewport = root.visualViewport;
+    const follow = () => {
+      if (!cover.isConnected) return release();
+      if (!viewport || Math.abs(viewport.scale - 1) > 0.01) { cover.style.removeProperty('top'); cover.style.removeProperty('height'); cover.style.removeProperty('--gx-vh'); return; }
+      cover.style.top = `${viewport.offsetTop}px`;
+      cover.style.height = `${viewport.height}px`;
+      cover.style.setProperty('--gx-vh', `${viewport.height}px`);
+    };
+    function release(){
+      if (!pageHolds.delete(release)) return;
+      viewport?.removeEventListener('resize', follow);
+      viewport?.removeEventListener('scroll', follow);
+      if (pageHolds.size || !pageStyles) return;
+      pageStyles.forEach(([el, overflow, overscroll, gutter]) => { el.style.overflow = overflow; el.style.overscrollBehavior = overscroll; el.style.scrollbarGutter = gutter; });
+      pageStyles = null;
+    }
+    pageHolds.add(release);
+    viewport?.addEventListener('resize', follow);
+    viewport?.addEventListener('scroll', follow);
+    follow();
+    return release;
+  }
   const visible = (selector) => { try { const el = document.querySelector(selector); if (!el) return null; const r = el.getBoundingClientRect(); return r.width > 0 && r.height > 0 && el.offsetParent !== null ? el : null; } catch (_) { return null; } };
   const waitFor = (selectors, timeout) => new Promise((resolve) => {
     const started = Date.now();
@@ -1163,7 +1205,7 @@
     experience: (id) => state.experiences.get(id) || null,
     experiences: () => [...state.experiences.values()],
     isPlaying: () => !!shared.active,
-    L, esc, api, injectCss, reducedMotion
+    L, esc, api, injectCss, holdPage, reducedMotion
   };
   if (document?.readyState === 'loading') document.addEventListener('DOMContentLoaded', () => refresh(), { once: true }); else setTimeout(() => refresh(), 0);
 })(window);

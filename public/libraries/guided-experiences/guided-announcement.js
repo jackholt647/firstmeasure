@@ -21,6 +21,8 @@
   }
   const css = `
     .gxa-host{position:fixed;inset:0;z-index:2147483300;display:flex;align-items:center;justify-content:center;padding:16px;box-sizing:border-box;background:rgba(16,24,40,.62);opacity:0;transition:opacity .22s ease}
+    /* One scroller (FirstMateGuides.holdPage): the page under the card is held still. */
+    .gxa-host,.gxa-host *{overscroll-behavior:contain}
     .gxa-host.gxa-in{opacity:1}
     .gxa-host[hidden],.gxa-foot[hidden]{display:none}
     .gxa-card{outline:none;position:relative;display:flex;flex-direction:column;width:min(760px,100%);height:min(560px,100%);background:#fff;border-radius:18px;overflow:hidden;box-shadow:0 24px 60px rgba(16,24,40,.35);transform:translateY(10px) scale(.98);transition:transform .28s cubic-bezier(.22,1,.36,1)}
@@ -60,7 +62,7 @@
     const frame = host.querySelector('iframe'), foot = host.querySelector('.gxa-foot'), card = host.querySelector('.gxa-card');
     document.body.append(host);
     return new Promise((resolve) => {
-      let finished = false, shown = false;
+      let finished = false, shown = false, releasePage = () => {};
       const previousFocus = document.activeElement;
       const onResize = () => fitCard(card);
       const remove = () => {
@@ -69,6 +71,7 @@
         document.removeEventListener('keydown', onKey, true);
         clearTimeout(timer);
         host.remove();
+        releasePage();
         try { previousFocus?.focus?.({ preventScroll: true }); } catch (_) {}
       };
       const finish = async (type) => {
@@ -88,6 +91,7 @@
         // The page has no button by the expected id: it still works, with the platform's own.
         if (!buttonFound) { foot.hidden = false; console.warn(`Announcement ${experience.id}: the billboard has no button with the expected id.`); }
         host.hidden = false;
+        if (G().holdPage) releasePage = G().holdPage(host);
         requestAnimationFrame(() => { host.classList.add('gxa-in'); host.querySelector('.gxa-card').focus({ preventScroll: true }); });
       };
       // Only this frame's window: the page has an opaque origin, so its origin says nothing.
