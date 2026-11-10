@@ -1,5 +1,6 @@
-// Summary page totals card (1M8-256, FM-305): a long line-type label (Headwall Flashing, Sidewall Flashing, longer
-// in other languages) never runs into its right-aligned value. Renders the real summary page in a local fixture and
+// Summary page totals card (1M8-256, FM-305, FM-380): a long line-type label (Headwall Flashing, Sidewall Flashing,
+// longer in other languages) never runs into its right-aligned value, and every label and value in the card has one
+// type size: a long label wraps instead of shrinking on its own. Renders the real summary page in a local fixture and
 // checks every label/value row of the card; requests are fulfilled from checked-in assets (as dev/pdf-landscape.test.cjs).
 const test=require('node:test'),assert=require('node:assert/strict');
 const {chromium}=require('../public/v1/node_modules/playwright-core');
@@ -54,21 +55,29 @@ async function render({orientation='portrait',manifest={},labels={}}={}){
   const full={id:'summary-card-fixture',project_type:'residential',measurement_system:'metric',report_language:'en-GB',...manifest};
   if(Object.keys(labels).length)full.language_snapshot={locale:full.report_language,report_dictionary:labels,catalog_versions:{reports:'fixture-'+full.report_language}};
   await FirstMatePDFStandalone.generateProjectPdfFromSnapshot(snapshot,{folderId:full.id,manifest:full},{mode:'summary',updateStatus:false,pageConfigOverride:{page_summary:true,report_orientation:orientation}});
-  return {W:window.__doc.internal.pageSize.getWidth(),calls:window.__calls};
+  return {W:window.__doc.internal.pageSize.getWidth(),H:window.__doc.internal.pageSize.getHeight(),calls:window.__calls};
  },{orientation,manifest,labels});
 }
 // The card's rows: right-aligned values in the right-hand column, each with the label drawn level with it (a wrapped
 // label is two lines centred on the value's baseline).
 function cardRows(r,labels){
- const page=r.calls.find(c=>c.value===labels.roofArea)?.page;
+ // The first row's label, whole or (wrapped) its first line.
+ const isFirst=c=>c.align==='left'&&(c.value===labels.roofArea||labels.roofArea.startsWith(c.value+' '));
+ const page=r.calls.find(isFirst)?.page;
  assert.ok(page,'summary card drawn');
- const onPage=r.calls.filter(c=>c.page===page),first=onPage.find(c=>c.value===labels.roofArea);
- const right=onPage.find(c=>c.align==='right'&&c.x>first.x&&Math.abs(c.y-first.y)<.01),edge=right.x+right.w;
- const values=onPage.filter(c=>c.align==='right'&&Math.abs(c.x+c.w-edge)<.01&&c.y>=first.y-.01&&c.y<first.y+20*8);
- return values.map(v=>({value:v,label:onPage.filter(c=>c.align==='left'&&Math.abs(c.x-first.x)<.01&&Math.abs(c.y-v.y)<3.2)}));
+ const onPage=r.calls.filter(c=>c.page===page),first=onPage.find(isFirst);
+ const right=onPage.find(c=>c.align==='right'&&c.x>first.x&&Math.abs(c.y-first.y)<3.2),edge=right.x+right.w;
+ const values=onPage.filter(c=>c.align==='right'&&Math.abs(c.x+c.w-edge)<.01&&c.y>=right.y-.01&&c.y<right.y+20*8);
+ return Object.assign(values.map(v=>({value:v,label:onPage.filter(c=>c.align==='left'&&Math.abs(c.x-first.x)<.01&&Math.abs(c.y-v.y)<3.2)})),{H:r.H});
 }
-function assertNoOverlap(rows,where){
- assert.ok(rows.length>=15,where+': every row of the card is drawn ('+rows.length+')');
+function assertNoOverlap(rows,where,count=15){
+ assert.ok(rows.length>=count,where+': every row of the card is drawn ('+rows.length+')');
+ // One type size for the whole card (FM-380): no label is made smaller than the rest.
+ const sizes=new Set(rows.flatMap(({value,label})=>[value,...label].map(c=>c.size)));
+ assert.equal(sizes.size,1,where+': one type size in the card, not '+JSON.stringify([...sizes]));
+ // The card ends above the footer note.
+ const last=rows[rows.length-1],bottom=Math.max(last.value.y,...last.label.map(l=>l.y));
+ assert.ok(bottom<rows.H-30,where+': the card ends above the footer note ('+bottom.toFixed(1)+' mm)');
  for(const {value,label} of rows){
   assert.ok(label.length>=1&&label.length<=2,where+': '+value.value+' has a label on one or two lines');
   for(const line of label){
@@ -95,6 +104,16 @@ test('metric summary card: Headwall and Sidewall Flashing never overlap their va
 });
 // The card's names as the shipped language packs translate them (public/v1/platform/localization/packs, 2026-10-29).
 const PACKS={"de-DE": {"Roof Area": "Dachfläche", "Facets": "Dachflächen", "Pitch": "Dachneigung", "Skylights": "Dachfenster", "Chimneys": "Schornsteine", "Ridge": "First", "Hip": "Grat", "Valley": "Kehle", "Rake": "Ortgang", "Eave": "Traufe", "Headwall Flashing": "Firstwandanschlussblech", "Sidewall Flashing": "Seitenwandanschlussblech", "Transition": "Übergang", "Parapet Wall": "Attika", "Protrusion": "Dachaufbau", "Chimney Back Pan": "Kamin-Rückblech", "Chimney Step": "Kamin-Stufenblech", "Chimney Apron": "Kamin-Frontblech", "Counter Flashing": "Gegenblech"}, "nl-NL": {"Roof Area": "Dakoppervlakte", "Facets": "Dakvlakken", "Pitch": "Dakhelling", "Skylights": "Dakramen", "Chimneys": "Schoorstenen", "Ridge": "Nok", "Hip": "Hoekkeper", "Valley": "Kilgoot", "Rake": "Gevelrand", "Eave": "Dakrand", "Headwall Flashing": "Aansluiting tegen opgaande wand", "Sidewall Flashing": "Zijaansluiting", "Transition": "Overgang", "Parapet Wall": "Attikamuur", "Protrusion": "Uitstekend deel", "Chimney Back Pan": "Achterplaat schoorsteen", "Chimney Step": "Trapsgewijze aansluiting schoorsteen", "Chimney Apron": "Voorplaat schoorsteen", "Counter Flashing": "Tegenflitsing"}, "da-DK": {"Roof Area": "Tagareal", "Facets": "Tagflader", "Pitch": "Hældning", "Skylights": "Ovenlysvinduer", "Chimneys": "Skorstene", "Ridge": "Tagryg", "Hip": "Valm", "Valley": "Skotrende", "Rake": "Vindskede", "Eave": "Tagfod", "Headwall Flashing": "Inddækning ved gavl", "Sidewall Flashing": "Inddækning ved sidevæg", "Transition": "Overgang", "Parapet Wall": "Brystning", "Protrusion": "Fremspring", "Chimney Back Pan": "Baginddækning ved skorsten", "Chimney Step": "Trininddækning ved skorsten", "Chimney Apron": "Forkantsinddækning ved skorsten", "Counter Flashing": "Modinddækning"}, "sv-SE": {"Roof Area": "Takyta", "Facets": "Takytor", "Pitch": "Taklutning", "Skylights": "Takfönster", "Chimneys": "Skorstenar", "Ridge": "Nock", "Hip": "Höft", "Valley": "Ränndal", "Rake": "Gavelkant", "Eave": "Takfot", "Headwall Flashing": "Anslutningsbeslag vid vägg", "Sidewall Flashing": "Sidoväggsbeslag", "Transition": "Övergång", "Parapet Wall": "Parapetvägg", "Protrusion": "Utskjutande del", "Chimney Back Pan": "Skorstensbeslag, bakstycke", "Chimney Step": "Skorstensstegbeslag", "Chimney Apron": "Skorstensbeslag, framstycke", "Counter Flashing": "Motbeslag"}};
+// The reported card (FM-380): French, metric. Its long flashing names wrap at the card's size; the card stays 9 pt.
+const FR={"Roof Area": "Surface de toiture", "Facets": "Facettes", "Pitch": "Pente", "Skylights": "Lucarnes", "Chimneys": "Cheminées", "Ridge": "Faîte", "Hip": "Arêtier", "Valley": "Noue", "Rake": "Rive", "Eave": "Égout", "Headwall Flashing": "Solin de mur en amont", "Sidewall Flashing": "Solin de mur latéral", "Transition": "Transition", "Parapet Wall": "Mur d’acrotère", "Protrusion": "Saillie", "Chimney Back Pan": "Solin arrière de cheminée", "Chimney Step": "Solin à gradins de cheminée", "Chimney Apron": "Solin de base de cheminée", "Counter Flashing": "Contre-solin"};
+test('French summary card: long labels wrap at the size of every other row (FM-380)',async t=>{
+ if(!browser)return t.skip(noBrowser);
+ const rows=assertNoOverlap(cardRows(await render({manifest:{report_language:'fr-FR'},labels:FR}),{roofArea:FR['Roof Area']}),'fr-FR portrait');
+ assert.equal(rows[0].value.size,9,'fr-FR portrait: the card keeps 9 pt');
+ const amont=label(rows,'Solin de mur en amont');
+ assert.ok(amont&&amont.label.length===2,'fr-FR portrait: Solin de mur en amont wraps onto two lines');
+ assert.ok(label(rows,'Facettes'),'fr-FR portrait: Facettes row');
+});
 // Nothing of the label is lost: the lines read as the label once spaces and hyphens are set aside.
 const letters=s=>s.replace(/[\s-]/g,'');
 test('translated line-type names are used in the card, long ones wrap between words and nothing is cut off',async t=>{
