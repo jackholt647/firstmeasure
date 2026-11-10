@@ -605,7 +605,8 @@
   }
   function ratioMark(m) {
    const [a, b] = m.points, dx = b.x - a.x, dy = b.y - a.y, len = Math.hypot(dx, dy); if (len < 1e-6) return;
-   const k = 1 / scale, lw = Math.max(m.width, 1.5 * k), ts = [0, ...ratioStops(m), 1], at = t => ({ x: a.x + dx * t, y: a.y + dy * t });
+   // Drawn at a fixed size on screen (like its labels), so zooming never makes it thick or faint.
+   const k = 1 / scale, lw = 2.5 * k, ts = [0, ...ratioStops(m), 1], at = t => ({ x: a.x + dx * t, y: a.y + dy * t });
    let nx = -dy / len, ny = dx / len; if (ny > 0 || (ny === 0 && nx > 0)) { nx = -nx; ny = -ny; } // labels sit above (or left of) the line
    ctx.save(); ctx.strokeStyle = m.color; ctx.lineWidth = lw; ctx.lineCap = 'round'; ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(b.x, b.y);
    ts.forEach((t, i) => { const p = at(t), n = (i === 0 || i === ts.length - 1 ? 11 : 8) * k + lw / 2; ctx.moveTo(p.x - nx * n, p.y - ny * n); ctx.lineTo(p.x + nx * n, p.y + ny * n); }); ctx.stroke();
