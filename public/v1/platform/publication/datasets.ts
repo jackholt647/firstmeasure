@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { readDocument, listDocuments, upsertDocument } from "../storage.js";
-import { badRequest, conflict, forbidden, PlatformError } from "../errors.js";
+import { badRequest, conflict, forbidden, notFound, PlatformError } from "../errors.js";
 import type { JsonSchema, PublicationContext, TargetRef, SourceRef } from "./contracts.js";
 import { authorizePublication } from "./context.js";
 import { contentHash, jsonClone, validateJson } from "./validation.js";
@@ -19,11 +19,21 @@ const writeAccess={scopes:["project"] as const,permissions:["manage_project_data
 type Revision={revision:string;value:unknown;provenance:Obj;createdAt:string;overrides:Obj};
 type Dataset={id:string;projectId:string;name:string;type:string;schemaVersion:string;role:string;head:string;history:Revision[];valueSchema?:JsonSchema};
 function obj(v:unknown):Obj{return v&&typeof v==="object"&&!Array.isArray(v)?v as Obj:{};}
+/** A FirstMeasure report's dataset does not exist while the report is held for its release window (FM-383). Completion
+ * publishes it a moment before delivery decides to hold the report; until the release the project must look exactly as
+ * it did while the report was on order, so nothing reveals that a held report is finished. */
+async function withheld(role:string){
+  if(!role.startsWith("firstmeasure:"))return false;
+  const {readManifest}=await import("../../firstmeasure/storage.js");const {reportHeldForRelease}=await import("./firstmeasure-datasets.js");
+  const manifest=await readManifest(role.slice("firstmeasure:".length)).catch(()=>null);
+  return !!manifest&&reportHeldForRelease(manifest);
+}
 async function row(ctx:PublicationContext,target:TargetRef){
   if(!target.id)throw badRequest("dataset_id_required","Dataset identity is required.");
   const r=await readDocument(ctx.organizationId,"project_datasets",target.id);
   const d=r.data as unknown as Dataset;
   if(d.projectId!==target.projectId)throw forbidden("dataset_project_denied","Dataset belongs to another project.");
+  if(await withheld(String(d.role||"")))throw notFound("not_found","The requested platform record was not found.");
   return {r,d};
 }
 export async function authorizeDataset(ctx:PublicationContext,target:TargetRef){await row(ctx,target);}
@@ -68,7 +78,9 @@ export async function readProjectDataset(ctx:PublicationContext,target:TargetRef
 }
 export async function listProjectDatasets(ctx:PublicationContext,target:TargetRef){
   await authorizePublication(ctx,target,readAccess,"datasets.value");
-  return (await listDocuments(ctx.organizationId,"project_datasets")).filter(r=>obj(r.data).projectId===target.projectId).map(r=>{const d=r.data as unknown as Dataset;return {id:r.id,name:d.name,type:d.type,schemaVersion:d.schemaVersion,role:d.role,revision:d.head,storeRevision:r.revision};}).sort((a,b)=>a.id.localeCompare(b.id));
+  const rows=(await listDocuments(ctx.organizationId,"project_datasets")).filter(r=>obj(r.data).projectId===target.projectId);
+  const shown=await Promise.all(rows.map(async r=>!await withheld(String(obj(r.data).role||""))));
+  return rows.filter((_,index)=>shown[index]).map(r=>{const d=r.data as unknown as Dataset;return {id:r.id,name:d.name,type:d.type,schemaVersion:d.schemaVersion,role:d.role,revision:d.head,storeRevision:r.revision};}).sort((a,b)=>a.id.localeCompare(b.id));
 }
 /** Role defaults reside on the project, avoiding competing per-dataset boolean defaults. */
 export async function selectProjectDataset(ctx:PublicationContext,target:TargetRef,role:string,datasetId:string,expectedProjectRevision:number){

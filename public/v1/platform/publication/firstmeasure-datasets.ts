@@ -139,9 +139,10 @@ export async function importProjectFirstMeasure(ctx:PublicationContext,projectId
 export async function effectiveProjectMeasurements(ctx:PublicationContext,projectId:string){
  const target={scope:"project" as const,organizationId:ctx.organizationId,projectId};
  // Authorize through list even if this project has no default yet.
- await listProjectDatasets(ctx,target);
+ const rows=await listProjectDatasets(ctx,target);
  const project=await readDocument(ctx.organizationId,"projects",projectId);const datasetId=String(obj(obj(project.data).dataset_defaults).measurements||"");
- if(!datasetId)return {status:"missing",code:"measurement_dataset_unselected",legacyFallback:true};
+ // A selected report held for its release window is not listed: the project reads as if nothing were selected yet.
+ if(!datasetId||!rows.some(row=>row.id===datasetId))return {status:"missing",code:"measurement_dataset_unselected",legacyFallback:true};
  const dataset=await readProjectDataset(ctx,{...target,id:datasetId});
  return {status:"ready",datasetId,revision:dataset.revision,provenance:dataset.provenance,value:dataset.value,legacyFallback:false};
 }
