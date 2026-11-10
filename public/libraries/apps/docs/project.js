@@ -429,7 +429,7 @@
           onReady: (api) => { state.engineApi = api; render(); },
           onDocsChanged: (docs) => {
             syncEngineEntries(docs);
-            if (!state.viewerOpen) render();
+            if (!state.viewerOpen) renderIfChanged();
           },
           onDocScreen: () => engineHostVisible(true),
           onListView: () => engineHostVisible(false)
@@ -800,14 +800,17 @@
     if (!candidate.querySelector('[data-docs-root]')) candidate.innerHTML = panelHtml();
     return candidate.querySelector('[data-docs-root]');
   }
-  function mount(context = {}){
-    injectStyles();
+  function adoptContext(context = {}){
     state.context = context;
     state.model = context.projectModel || context.model || state.model || window.FirstMateAppContext?.modelFromContext?.(context) || null;
     if (state.model && window.FirstMateAppContext?.installProjectContextAccessors) {
       window.FirstMateAppContext.installProjectContextAccessors(state.model, { overwrite: false });
     }
     state.host = context.host || (state.model && window.FirstMateAppContext?.createProjectHost?.(state.model)) || state.host || null;
+  }
+  function mount(context = {}){
+    injectStyles();
+    adoptContext(context);
     state.panelRoot = context.panelRoot || context.roots?.main || state.panelRoot;
     state.mounted = !!resolveRoot(state.panelRoot);
     state.active = context.active === true;
@@ -826,15 +829,20 @@
   }
   function setActive(active, context = {}){
     state.active = !!active;
-    if (context.panelRoot || !state.mounted) mount({ ...context, active: state.active });
+    // The project window hands the same panel back on every visit: only a new panel (or none yet) is a fresh mount.
+    const panelRoot = context.panelRoot || context.roots?.main;
+    if (!state.mounted || (panelRoot && panelRoot !== state.panelRoot)) mount({ ...context, active: state.active });
+    else if (Object.keys(context).length) adoptContext(context);
     // Forward tab activation to the embedded engine so it can release its
     // fullscreen/editor focus treatment when the user leaves this tab.
     try { state.engineHandle?.setActive?.(state.active); } catch (error) { /* engine optional */ }
     if (!state.active) closeViewer(false, { fromRoute:true });
     else if (state.loadedForProjectId !== projectId()) loadDocs({ quiet: true });
     else {
+      // Coming back keeps the gallery as it was left (scroll, previews); the engine's quiet read redraws it only when
+      // the documents changed.
       ensureEngine();
-      render();
+      renderIfChanged();
     }
   }
   function setDocumentViewerFocus(active, viewer = null){
@@ -1343,6 +1351,17 @@
     renderGrid(root);
     bind(root);
     mountDocumentPreviews(root);
+    state.renderedKey = galleryKey();
+  }
+  // Everything the gallery is drawn from; the embedded documents' own records are left out (their entries carry what shows).
+  function galleryKey(){
+    try { return JSON.stringify([projectId(), state.loading, state.viewMode, state.galleryDensity, state.categoryMenuOpen, [...state.visibleDocumentCategories], state.measurements, state.docs, galleryEntries()], (key, value) => key.startsWith('__') ? undefined : value); }
+    catch { return ''; }
+  }
+  // A read that changed nothing leaves the gallery alone, so its scroll, previews and selection stay.
+  function renderIfChanged(){
+    if (state.renderedKey && state.renderedKey === galleryKey() && resolveRoot()?.querySelector('[data-doc-gallery]')) return;
+    render();
   }
   function reset(){
     closeViewer(false, { fromRoute:true });

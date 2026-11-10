@@ -5796,6 +5796,23 @@
     }));
   }
 
+  // Where the Schedule tab was scrolled, kept while another tab shows: the panel is hidden then (its scrollers read 0)
+  // and it is drawn again on the way back, which would otherwise start it at the top.
+  let scheduleTabScroll = null;
+  const scheduleTabScrollKey = () => `${String(currentSchedulingProject()?.id || '')}:${scheduleViewMode}`;
+  function trackScheduleTabScroll(root){
+    if (!root || root.__scheduleTabScroll) return;
+    root.__scheduleTabScroll = true;
+    root.addEventListener('scroll', () => {
+      if (!state.active || scheduleIsWidget()) return;
+      const position = captureScheduleScroll();
+      if (position) scheduleTabScroll = { ...position, key: scheduleTabScrollKey() };
+    }, { capture: true, passive: true });
+  }
+  function restoreScheduleTabScroll(){
+    if (scheduleTabScroll && scheduleTabScroll.key === scheduleTabScrollKey()) restoreScheduleScroll(scheduleTabScroll);
+  }
+
   function renderSchedulePanelPreservingScroll(){
     const scrollPosition = captureScheduleScroll();
     renderSchedulePanel();
@@ -7456,6 +7473,7 @@
     state.panelRoot = resolveRoot(context);
     state.sidebarRoot = context.sidebarRoot || context.roots?.sidebar || state.sidebarRoot;
     state.mounted = !!state.panelRoot;
+    trackScheduleTabScroll(state.panelRoot);
     state.active = contextScheduleActive(context);
     const route = window.Portal?.navigation?.read?.() || {};
     if (['day','4day','week','month','scheduling-week','scheduling-day','gantt'].includes(route.projectScheduleView)
@@ -7482,6 +7500,7 @@
     state.active = true;
     setScheduleWorkspaceChrome(true);
     renderSchedulePanel();
+    restoreScheduleTabScroll();
     // A retained window or cached project may be behind the server; re-read
     // its items (re-rendering only when something changed).
     if (Date.now() - scheduleLastServerRefreshAt > 15000) refreshProjectFromServer({ render:true });
@@ -7503,6 +7522,7 @@
     setScheduleWorkspaceChrome(state.active);
     if (state.active) {
       renderSchedulePanel();
+      restoreScheduleTabScroll();
       if (Date.now() - scheduleLastServerRefreshAt > 15000) refreshProjectFromServer({ render:true });
     } else {
       closeWorkAssignmentMenu();

@@ -15,7 +15,7 @@ The Scope app's standard tab label is **Project**, resolved through the existing
 width by default; Materials, Labor and Equipment occupy the remaining two thirds.
 An app-owned draggable, keyboard accessible divider remembers the proportion
 locally. A narrow window (up to 850px) stacks the rail above the resource
-content; a phone shows them as one set of tabs (see
+content; a phone shows the lists alone, with no rail (see
 [phone layout of the Project tab](#phone-layout-of-the-project-tab)). There is
 no shared rail API.
 
@@ -303,17 +303,19 @@ Test: `tests/project-trays-footer-browser.test.mjs`.
 
 On a phone (the project window at most 760px wide, the same width as the
 window shell's mobile layout) the Project tab (Materials app, named Operations
-or Project through terminology) is one tab bar across its top: Measurements,
-Documents, Photos, Lists, and Schedule when scheduling is on. It is the rail's
-own tab nav (`mountSidebar` in `materials/scope-of-work.js`) with a Lists view
-the host adds through `options.listsView`; the rail draws no panel for it, and
-while it is chosen the host shows its lists in the space under the tabs and the
-rail keeps only its tabs. The Lists tab is hidden at wider widths, and a window
-that widens while on Lists goes back to Measurements. Tabs use the window
-shell's mobile look (icon over a short label). The view chosen is remembered
-per project for the session in memory only.
+or Project through terminology) is its lists and nothing else: no rail and no
+set of tabs, so no Lists label. Measurements, documents, photos and the
+schedule are the project window's own tabs (the details tray, Docs, Photos and
+Schedule); the platform MVP turns the Schedule tab on
+(`sandbox_configuration/swf_mvp_platform`). `renderLeft` in
+`materials/project.js` does not mount the rail on a phone (nothing of it is
+read) and the phone styles hide its column and divider; a window that widens
+mounts it, and one that narrows takes it away. A list's or the job's Schedule
+button, which on a wider window shows the rail's Schedule view beside the
+lists, starts placing on a phone and the schedule (`focusMaterialDelivery`)
+opens the project window's Schedule tab (`showScheduleBesideLists`).
 
-Lists is a carousel (`syncPhoneLists` in `materials/project.js`): every
+The lists are a carousel (`syncPhoneLists` in `materials/project.js`): every
 category column (Materials, the Work order, any custom category, minimized or
 not) and the Requirements tray, opened, are each one full-width item, in that
 order. The action header (projected total, + Category, units, Regenerate,
@@ -326,6 +328,19 @@ drags scroll the list. Tapping a pill jumps to it. Only the list on screen is
 focusable. The list shown is remembered per project for the session. Line
 controls are at least 36px tall on a phone. Nothing of this applies above
 760px. Test: `tests/materials-phone-operations-browser.test.mjs`.
+
+### Switching tabs keeps each tab as it was
+
+Every tab's panel stays mounted while another tab shows, and coming back to a
+tab shows it as it was left: its scroll, what was open and what it had loaded,
+on a phone and on a desktop. A tab app's `activate` must not mount itself again
+or read everything again when it already has the project. Operations reads its
+lists once quietly (`refreshWorkspace`) and redraws only when they changed;
+Docs keeps its gallery unless the documents changed (`renderIfChanged`); Photos
+keeps its gallery and redraws it, still where it was scrolled, only when the
+media read finds a change; Schedule draws again on the way back (it may have
+changed from another tab) and restores where it was scrolled. Test:
+`tests/project-tab-keep-alive-browser.test.mjs`.
 
 Scheduling uses its full tab width, with one + Appointment button opening the shared booking widget. It declares no content sidebar; department, delivery and recurrence configuration belongs to the booking form. See [appointment planning](appointment-planning.md).
 

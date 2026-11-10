@@ -8,7 +8,7 @@
   let draftSave = null;
   let refreshTimer;
   const draftText = (key, fallback) => globalThis.PlatformLanguage?.text("materials", key, fallback) ?? fallback;
-  const scopeWorkspaceUrl = new URL('./scope-of-work.js?v=20261110-measurement-options', document.currentScript?.src || `${location.origin}/libraries/apps/materials/project.js`).href;
+  const scopeWorkspaceUrl = new URL('./scope-of-work.js?v=20261110-phone-no-rail', document.currentScript?.src || `${location.origin}/libraries/apps/materials/project.js`).href;
   const calculusAdapterUrl = new URL('./calculus-native.js?v=20261026-package-cost', document.currentScript?.src || `${location.origin}/libraries/apps/materials/project.js`).href;
   const closeoutUrl = new URL('./closeout.js?v=20261019-closeout-partial', document.currentScript?.src || `${location.origin}/libraries/apps/materials/project.js`).href;
   const runtime = window.FirstMateEmbeddableApps;
@@ -75,6 +75,7 @@
     scopeDocuments: [],
     scopeDocumentsError: '',
     lists: [],
+    listsLoadedFor: '',
     activeListId: '',
     activeList: null,
     visibleListIds: new Set(),
@@ -288,6 +289,12 @@
       projectId: projectId(),
       branchId: branchId()
     };
+  }
+  function loadKey(context){ return `${context.orgId}:${context.projectId}:${context.branchId}`; }
+  // The project's lists are here and drawn: coming back to the tab shows them as they were left.
+  function listsLoadedHere(){
+    return !state.loading && !state.lastError && !!projectId() && state.listsLoadedFor === loadKey({ orgId: orgId(), projectId: projectId(), branchId: branchId() })
+      && !!materialRoot()?.querySelector?.('[data-mt-material-grid]');
   }
   function loadContextIsCurrent(loadContext){
     return !loadContext || (
@@ -1179,19 +1186,9 @@
       .mt-shop-share{min-height:0;overflow:auto;display:flex;flex-direction:column;gap:12px;padding:12px;border:1px solid #e4e7ec;border-radius:11px;background:#f9fafb}.mt-shop-share section{display:flex;flex-direction:column;gap:8px}.mt-shop-share h4{margin:0;font-size:11px;text-transform:uppercase;letter-spacing:.03em;color:#667085}.mt-shop-share .mt-btn{min-height:34px;padding:0 12px}.mt-shop-share-actions{display:flex;gap:8px}.mt-shop-share-actions .mt-btn{flex:1}.mt-shop-link{margin:0;font-size:12px}.mt-shop-link a{color:var(--primary-readable,var(--primary,#d93025));font-weight:600}.mt-shop-progress{margin:0}.mt-link-btn{border:0;background:none;padding:0;color:var(--primary-readable,var(--primary,#d93025));font:inherit;font-weight:600;cursor:pointer}
       @media (max-width:900px){.mt-po-layout,.mt-shop-panel{grid-template-columns:1fr;overflow:auto}.mt-po-preview{min-height:420px}.mt-supplier-cards{overflow:visible}}
       .mt-autofill strong{flex:1 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:12px;font-weight:600}.mt-autofill em{flex:none;font-style:normal;font-size:10px;color:#98a2b3;white-space:nowrap}.mt-autofill span{flex:none;min-width:84px;text-align:right;font-size:11px;font-variant-numeric:tabular-nums;color:#344054;white-space:nowrap}
-      /* Phones: the Operations tab as one set of tabs, its lists a carousel (syncPhoneLists). */
-      .sw-tabs [data-scope-view="lists"]{display:none}
+      /* Phones: the Operations tab is its lists, a carousel (syncPhoneLists); there is no rail and no set of tabs. */
       @media(max-width:760px){
-        .r-overlay.materials-workspace .r-tab-sidebar.mt-widget-sidebar{flex:1 1 auto!important;max-height:none;height:auto;border-right:0}
-        .r-overlay.materials-workspace .r-tab-sidebar.mt-widget-sidebar:has([data-scope-shown="lists"]){flex:0 0 auto!important}
-        .r-overlay.materials-workspace .r-tab-sidebar.mt-widget-sidebar [data-scope-shown="lists"]>:not(.sw-tabs){display:none!important}
-        .r-overlay.materials-workspace :has(> .r-tab-sidebar.mt-widget-sidebar [data-scope-shown]:not([data-scope-shown="lists"])) > .r-tab-main{display:none!important}
-        .sw-tabs{order:-1;flex:0 0 42px;border-top:0;border-bottom:1px solid #eaecf0}
-        .sw-tabs [data-scope-view="lists"]{display:flex}
-        .sw-tabs button{flex-direction:column;gap:2px;min-height:42px;padding:3px 2px 2px;font-size:10px;line-height:12px;font-weight:600;transition:color .18s ease,box-shadow .2s ease}
-        .sw-tabs button span{display:block;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-        .sw-tabs i{font-size:15px;line-height:16px}
-        .sw-tabs button[aria-selected=true]{background:none}
+        .r-overlay.materials-workspace .r-tab-sidebar.mt-widget-sidebar,.r-overlay.materials-workspace .mt-scope-divider{display:none!important}
         .mt-phone-lists .mt-main{padding:8px 0 0;gap:8px}
         .mt-phone-lists .mt-workspace-header{flex-wrap:nowrap;padding:0 10px}
         .mt-phone-lists .mt-workspace-actions{flex:0 1 auto;min-width:0;overflow-x:auto;scrollbar-width:none}
@@ -2343,7 +2340,8 @@
       ]);
       if (!projectOperationIsCurrent(operation) || !state.active || workspaceIsEditing()) return;
       const lists = result.material_lists || [];
-      const categoriesChanged=JSON.stringify(result.resource_types||[])!==JSON.stringify(state.resourceTypes);
+      // The categories carry what was last saved (__saved, resourceCategories) besides what the server sends.
+      const categoriesChanged=JSON.stringify(result.resource_types||[])!==JSON.stringify(state.resourceTypes,(key,value)=>key.startsWith('__')?undefined:value);
       if(result.resource_types)state.resourceTypes=result.resource_types;
       const listsChanged = fingerprint(lists) !== fingerprint(state.lists);
       const documentsChanged = JSON.stringify(documents.documents) !== JSON.stringify(state.scopeDocuments) || documents.error !== state.scopeDocumentsError;
@@ -2421,6 +2419,7 @@
       if (!loadContextIsCurrent(loadContext)) return;
       state.resourceTypes=Array.isArray(result.resource_types)?result.resource_types:[];
       applyMaterialLists(Array.isArray(result.material_lists) ? result.material_lists : []);
+      state.listsLoadedFor = loadKey(loadContext);
       state.loading = false;
       render();
       renderLeft();
@@ -2862,9 +2861,9 @@
     try {
       const ensured = await ensureScheduleEventForList(list);
       const event = ensured.event;
-      // The Schedule view beside the lists, as the job's Schedule button opens it; never the project window's Schedule tab.
-      scopeWorkspace?.showSidebarView?.(leftContentRoot(), 'schedule');
-      makeRoomForSchedule();
+      // The Schedule view beside the lists, as the job's Schedule button opens it; never the project window's Schedule tab
+      // (on a phone, which has no rail, placing opens the Schedule tab).
+      showScheduleBesideLists();
       const parentId = cleanText(event?.parent_event_id), parent = parentId ? (Array.isArray(state.project?.events) ? state.project.events : []).find((entry) => cleanText(entry?.id) === parentId) : null;
       // Under a job that is not on the calendar yet, the job is placed, with everything under it.
       const payload = parentId && !(parent && eventDateParts(parent).date) ? { event_id: parentId } : schedulingFocusPayload(ensured.list || list, event);
@@ -4479,6 +4478,12 @@
   // material, a work order made here) are given their events first: the server puts them under the job their scope
   // defines, and that job is what is placed. Only when nothing groups them is each list placed by hand, which is said
   // first.
+  // A phone has no rail to show it in: placing (focusMaterialDelivery) opens the project window's Schedule tab instead.
+  function showScheduleBesideLists(){
+    if (phoneLayout()) return;
+    scopeWorkspace?.showSidebarView?.(leftContentRoot(), 'schedule');
+    makeRoomForSchedule();
+  }
   // Placing needs the calendar to be easy to see: the left side slides to 60% and the Requirements tray closes.
   function makeRoomForSchedule(){
     scopeWorkspace?.widenSidebar?.(state.sidebarRoot, 60);
@@ -4492,9 +4497,8 @@
   async function scheduleJob(){
     if (state.schedulingJob || !schedulingOn()) return;
     const job = jobSchedule(), operation = captureProjectOperation();
-    scopeWorkspace?.showSidebarView?.(leftContentRoot(), 'schedule');
-    makeRoomForSchedule();
-    if (job.done) { showToast('Already scheduled', 'Everything on this job has dates. Move it on the schedule if it needs to change.'); return; }
+    showScheduleBesideLists();
+    if (job.done) { if (phoneLayout()) callHost('setActivePreviewTab', 'schedule'); showToast('Already scheduled', 'Everything on this job has dates. Move it on the schedule if it needs to change.'); return; }
     state.schedulingJob = true;
     syncResourceHeader();
     let payload = job.waiting ? { event_id: cleanText(job.waiting.id) } : null, span = cleanText(job.waiting?.id);
@@ -6304,7 +6308,14 @@
       label.hidden = true;
     }
     disposeScopeWidgets();
-    if(scopeWorkspace)scopeWorkspace.mountSidebar(target,state.scopeDocuments,state.scopeDocumentsError,`${orgId()}:${projectId()}`,{draft:!projectId(),canOrderMeasurements:callHost('canOrderMeasurements')===true,reportPending:state.context?.reportOrderPending===true,onOrderMeasurements:()=>callHost('orderMeasurements'),scheduling:schedulingOn(),listsView:typeof phoneListsView==='undefined'?undefined:phoneListsView,widgetContext:scopeWidgetContext(),scheduleContext:state.context,measurementOverrides:state.measurementOverrides,onMeasurementChange:(key,value)=>{state.measurementOverrides={...state.measurementOverrides,[key]:value};syncMaterialsGrid();}});
+    // A phone has no rail: nothing of it is mounted or read, and the lists fill the tab.
+    if (phoneLayout()) {
+      scopeWorkspace?.disposeSidebar?.(target);
+      scopeWorkspace?.removeDivider?.(state.sidebarRoot);
+      target.replaceChildren();
+      return;
+    }
+    if(scopeWorkspace)scopeWorkspace.mountSidebar(target,state.scopeDocuments,state.scopeDocumentsError,`${orgId()}:${projectId()}`,{draft:!projectId(),canOrderMeasurements:callHost('canOrderMeasurements')===true,reportPending:state.context?.reportOrderPending===true,onOrderMeasurements:()=>callHost('orderMeasurements'),scheduling:schedulingOn(),widgetContext:scopeWidgetContext(),scheduleContext:state.context,measurementOverrides:state.measurementOverrides,onMeasurementChange:(key,value)=>{state.measurementOverrides={...state.measurementOverrides,[key]:value};syncMaterialsGrid();}});
     else renderRailState(target);
     scopeWorkspace?.installDivider(state.sidebarRoot, railLayout());
     timingMark('renderLeft:end', { active: state.active }, timingStart);
@@ -7052,23 +7063,13 @@
     if (typeof syncPhoneLists === 'function') syncPhoneLists();
   }
 
-  // Phones (the project window at most 760px wide, the platform's mobile width): the Operations tab is one set of tabs.
-  // The rail's tabs gain Lists, and while it is chosen the lists fill the window as a carousel: one list (or the
-  // requirements) at a time, a strip of their names beneath, swiped or tapped between. Nothing here applies at wider
-  // widths. See docs/architecture/project-content-layout.md.
+  // Phones (the project window at most 760px wide, the platform's mobile width): the Operations tab is its lists and
+  // nothing else. There is no rail and no set of tabs: Measurements, Docs, Photos and Schedule are the project window's
+  // own tabs. The lists fill the tab as a carousel: one list (or the requirements) at a time, a strip of their names
+  // beneath, swiped or tapped between. Nothing here applies at wider widths. See docs/architecture/project-content-layout.md.
   const PHONE_QUERY = '(max-width:760px)';
   const phoneListKeys = new Map();
-  function phoneLayout(){ return !!rootWindow.matchMedia?.('(max-width:760px)')?.matches; }
-  const phoneListsView = {
-    get label(){ return draftText('mt_phone_lists_tab', 'Lists'); },
-    icon: 'fa-layer-group',
-    phone: phoneLayout,
-    setVisible(visible){
-      state.phoneListsShown = !!visible;
-      const root = visible ? materialRoot() : null;
-      if (root) { syncPhoneLists(root); requestAnimationFrame(() => centerPhoneStrip(root, false)); }
-    }
-  };
+  function phoneLayout(){ return !!rootWindow.matchMedia?.(PHONE_QUERY)?.matches; }
   const phoneProjectKey = () => `${orgId()}:${projectId()}`;
   function phoneListItems(root){
     const grid = root?.querySelector?.('[data-mt-material-grid]');
@@ -7106,7 +7107,7 @@
       if (rootWindow.ResizeObserver) new rootWindow.ResizeObserver(() => markPhoneStripEdges(strip)).observe(strip);
     }
     if (scroll.nextElementSibling !== strip) scroll.after(strip);
-    if (strip.__html !== html) { strip.innerHTML = html; strip.__html = html; if (state.phoneListsShown) centerPhoneStrip(root, false); }
+    if (strip.__html !== html) { strip.innerHTML = html; strip.__html = html; centerPhoneStrip(root, false); }
     markPhoneStripEdges(strip);
     bindPhoneLists(root);
   }
@@ -7211,12 +7212,11 @@
     root.addEventListener('pointerup', end);
     root.addEventListener('pointercancel', end);
   }
-  // Turning a phone, or resizing the window across the mobile width, redraws the lists for the other arrangement; the
-  // Lists view exists only on a phone, so a wider window goes back to Measurements.
+  // Turning a phone, or resizing the window across the mobile width, redraws the lists for the other arrangement and
+  // mounts (or takes away) the rail.
   rootWindow.matchMedia?.(PHONE_QUERY)?.addEventListener?.('change', () => {
     if (!state.active || !state.panelRoot) return;
-    const rail = leftContentRoot();
-    if (!phoneLayout() && rail?.dataset?.scopeShown === 'lists') scopeWorkspace?.showSidebarView?.(rail, 'roof');
+    renderLeft();
     if (!syncMaterialsGrid()) syncPhoneLists();
   });
   // Taking work off a work order, or giving it back, builds that list again from its pay sheet without or with it.
@@ -8010,7 +8010,10 @@
     if (state.active) {
       scopeWorkspace?.setSidebarVisible(leftContentRoot(),true);
       renderLeft();
-      if (!state.loading) loadData();
+      // Coming back to the tab keeps it as it was left (scroll, the list on screen, what is open) and only reads the
+      // lists again quietly, redrawing if something changed while it was away.
+      if (listsLoadedHere()) void refreshWorkspace();
+      else if (!state.loading) loadData();
       else render();
     } else {
       scopeWidgetLibrary?.setVisible(false);
@@ -8029,6 +8032,7 @@
     state.scopeDocumentsError = '';
     scopeWorkspace?.disposeSidebar(leftContentRoot());
     scopeWorkspace?.removeDivider(state.sidebarRoot);
+    state.listsLoadedFor = '';
     state.lists = [];
     state.resourceTypes = [];
     state.activeListId = '';

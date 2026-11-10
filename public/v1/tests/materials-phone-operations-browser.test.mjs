@@ -1,5 +1,6 @@
-// The Operations tab on a phone: the rail's tabs gain Lists, and the lists are a carousel with a strip of their names.
-// Desktop widths keep the rail and the lists side by side (no Lists tab, no strip, no carousel).
+// The Operations tab on a phone is its lists alone: no rail and no set of tabs (Measurements, Docs, Photos and Schedule
+// are the project window's own tabs), the lists a carousel with a strip of their names. Desktop widths keep the rail
+// and the lists side by side (no strip, no carousel).
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import {readFile} from 'node:fs/promises';
@@ -22,6 +23,7 @@ const scrollerCss = ['.mt-resource-scroll{', '.mt-resource-column .mt-resource-s
 }).join('\n');
 
 const page = `<!doctype html><html><head><meta name="viewport" content="width=device-width,initial-scale=1"></head><body style="margin:0">
+<div class="r-overlay materials-workspace"><div class="r-tab-layout" style="display:flex"><aside class="r-tab-sidebar mt-widget-sidebar" style="display:flex">rail</aside><button type="button" class="mt-scope-divider" style="width:6px"></button><div class="r-tab-main" style="flex:1;min-width:0">
 <div class="mt-app" data-materials-root style="height:600px;display:flex;flex-direction:column"><main class="mt-main" style="flex:1;min-height:0;display:flex;flex-direction:column">
 <div class="mt-material-scroll" data-mt-material-scroll style="flex:1;min-height:0"><div class="mt-material-grid" data-mt-material-grid style="display:flex;height:100%">
 <section class="mt-resource-column" data-resource-type="material"><h3 class="mt-resource-heading"><input value="Materials"></h3><div class="mt-resource-scroll" style="height:300px;overflow:auto"><div style="height:1200px">rows</div></div></section>
@@ -29,6 +31,7 @@ const page = `<!doctype html><html><head><meta name="viewport" content="width=de
 <section class="mt-resource-column" data-resource-type="labor"><h3 class="mt-resource-heading"><span class="mt-column-title">Work order</span></h3></section>
 <aside class="mt-req-tray" data-mt-req-tray><button class="mt-req-bar"></button><div class="mt-req-panel"><div class="mt-req-panel-inner"><header class="mt-req-title"><strong>Requirements</strong><span class="mt-req-badge is-open">3</span></header><div class="mt-req-scroll"><div style="height:1200px">requirement rows</div></div></div></div></aside>
 </div></div></main></div>
+</div></div></div>
 <script>
   const state = { active: false }, rootWindow = window, draftText = (key, fallback) => fallback;
   const cleanText = (v) => String(v ?? '').trim(), escapeHtml = (v) => String(v ?? '').replace(/[&<>"']/g, (c) => '&#' + c.charCodeAt(0) + ';');
@@ -38,10 +41,10 @@ const page = `<!doctype html><html><head><meta name="viewport" content="width=de
   const leftContentRoot = () => null, syncMaterialsGrid = () => false, scopeWorkspace = null;
   ${block.replace(/<\/script/g, '<\\/script')}
   const style = document.createElement('style'); style.textContent = ${JSON.stringify(`${scrollerCss}\n${phoneCss}`)}; document.head.append(style);
-  window.t = { state, syncPhoneLists, goPhoneList, phoneListsView, setProject: (id) => { project = id; } };
+  window.t = { state, syncPhoneLists, goPhoneList, setProject: (id) => { project = id; } };
 </script></body></html>`;
 
-test('a phone shows the lists as a carousel: one at a time, a strip of names, swipes and taps move between them', async () => {
+test('a phone shows the lists alone, as a carousel: one at a time, a strip of names, swipes and taps move between them', async () => {
   const server = createServer((req, res) => { res.setHeader('Content-Type', 'text/html'); res.end(page); });
   await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve));
   const browser = await chromium.launch({ channel: 'chrome', headless: true });
@@ -52,14 +55,14 @@ test('a phone shows the lists as a carousel: one at a time, a strip of names, sw
     await tab.goto(`http://127.0.0.1:${server.address().port}`);
     const current = () => tab.evaluate(() => document.querySelector('[data-mt-carousel-to][aria-current="true"]')?.textContent.trim());
     const view = await tab.evaluate(() => {
-      t.phoneListsView.setVisible(true); t.syncPhoneLists();
-      const items = [...document.querySelectorAll('[data-mt-phone-item]')];
-      return { pills: [...document.querySelectorAll('[data-mt-carousel-to]')].map((pill) => pill.textContent.trim()), inert: items.map((el) => el.inert), widths: items.map((el) => Math.round(el.getBoundingClientRect().width)), grid: Math.round(document.querySelector('[data-mt-material-grid]').getBoundingClientRect().width), label: t.phoneListsView.label };
+      t.syncPhoneLists();
+      const items = [...document.querySelectorAll('[data-mt-phone-item]')], shown = (selector) => getComputedStyle(document.querySelector(selector)).display !== 'none';
+      return { pills: [...document.querySelectorAll('[data-mt-carousel-to]')].map((pill) => pill.textContent.trim()), inert: items.map((el) => el.inert), widths: items.map((el) => Math.round(el.getBoundingClientRect().width)), grid: Math.round(document.querySelector('[data-mt-material-grid]').getBoundingClientRect().width), rail: shown('.r-tab-sidebar'), divider: shown('.mt-scope-divider'), main: Math.round(document.querySelector('.r-tab-main').getBoundingClientRect().width) };
     });
     assert.deepEqual(view.pills, ['Materials', 'Work order', 'Requirements3'], 'every list and the requirements are in the strip');
     assert.deepEqual(view.inert, [false, true, true], 'only the list on screen can take focus');
     assert.ok(view.widths.every((width) => width === view.grid), `each list fills the width: ${view.widths} of ${view.grid}`);
-    assert.equal(view.label, 'Lists');
+    assert.deepEqual([view.rail, view.divider, view.main], [false, false, 390], 'no rail: the lists fill the tab');
     // The strip starts at its first pill, with no half-screen inset. Pills that fit sit centred with no fade; pills that
     // don't start at the left edge and fade only on the side with more to scroll to.
     const stripAt = async (width) => {
@@ -110,13 +113,13 @@ test('a phone shows the lists as a carousel: one at a time, a strip of names, sw
     assert.deepEqual(remembered, { other: 'Materials', back: 'Work order' });
     // At a desktop width nothing of this remains.
     await tab.setViewportSize({ width: 1200, height: 700 });
-    const desktop = await tab.evaluate(() => { t.syncPhoneLists(); return { strip: !!document.querySelector('[data-mt-phone-strip]'), phone: document.querySelector('[data-materials-root]').classList.contains('mt-phone-lists'), inert: [...document.querySelectorAll('.mt-resource-column,[data-mt-req-tray]')].some((el) => el.inert || el.hasAttribute('aria-hidden')), transform: getComputedStyle(document.querySelector('[data-mt-material-grid]')).transform }; });
-    assert.deepEqual(desktop, { strip: false, phone: false, inert: false, transform: 'none' });
+    const desktop = await tab.evaluate(() => { t.syncPhoneLists(); return { strip: !!document.querySelector('[data-mt-phone-strip]'), phone: document.querySelector('[data-materials-root]').classList.contains('mt-phone-lists'), inert: [...document.querySelectorAll('.mt-resource-column,[data-mt-req-tray]')].some((el) => el.inert || el.hasAttribute('aria-hidden')), transform: getComputedStyle(document.querySelector('[data-mt-material-grid]')).transform, rail: getComputedStyle(document.querySelector('.r-tab-sidebar')).display }; });
+    assert.deepEqual(desktop, { strip: false, phone: false, inert: false, transform: 'none', rail: 'flex' });
     assert.deepEqual(errors, []);
   } finally { await browser.close(); server.close(); }
 });
 
-test('the rail offers Lists only when the host passes it, before Schedule, and restores a phone view per project', async () => {
+test('the rail has no Lists view: Measurements, Documents, Photos and Schedule (when scheduling is on)', async () => {
   const server = createServer((req, res) => { res.setHeader('Content-Type', req.url.includes('helper') ? 'text/javascript' : 'text/html'); res.end(req.url.includes('helper') ? helper : '<html><head></head><body><aside></aside></body></html>'); });
   await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve));
   const browser = await chromium.launch({ channel: 'chrome', headless: true });
@@ -126,25 +129,28 @@ test('the rail offers Lists only when the host passes it, before Schedule, and r
     const result = await tab.evaluate(async () => {
       const helper = await import('/helper.js'), root = document.querySelector('aside');
       window.FirstMateWidgets = { mount: () => ({ setVisible() {}, destroy() {} }) };
-      const shown = [];
-      const listsView = { label: 'Lists', icon: 'fa-layer-group', phone: () => true, setVisible: (value) => shown.push(value) };
       const tabs = () => [...root.querySelectorAll('[data-scope-view]')].map((button) => button.dataset.scopeView);
-      helper.mountSidebar(root, [], '', 'org:a', { scheduling: true, listsView });
-      const order = tabs();
-      helper.showSidebarView(root, 'lists');
-      const lists = { attribute: root.dataset.scopeShown, shown: shown.at(-1), panels: [...root.querySelectorAll('[data-scope-panel]')].filter((panel) => !panel.hidden).length };
-      helper.mountSidebar(root, [], '', 'org:b', { scheduling: true, listsView });
-      const other = root.dataset.scopeShown;
-      helper.mountSidebar(root, [], '', 'org:a', { scheduling: true, listsView });
-      const back = root.dataset.scopeShown;
+      helper.mountSidebar(root, [], '', 'org:a', { scheduling: true, listsView: { label: 'Lists', phone: () => true, setVisible() {} } });
+      const order = tabs(), lists = helper.showSidebarView(root, 'lists');
       helper.mountSidebar(root, [], '', 'org:a', { scheduling: false });
-      return { order, lists, other, back, without: tabs() };
+      return { order, lists, without: tabs() };
     });
-    assert.deepEqual(result.order, ['roof', 'documents', 'aerial', 'lists', 'schedule']);
-    assert.deepEqual(result.lists, { attribute: 'lists', shown: true, panels: 0 }, 'the rail keeps only its tabs while the host shows the lists');
-    assert.equal(result.other, 'roof', 'another project starts on Measurements');
-    assert.equal(result.back, 'lists', 'coming back to a project on a phone shows the view it was on');
-    assert.deepEqual(result.without, ['roof', 'documents', 'aerial'], 'no Lists tab without the host');
+    assert.deepEqual(result.order, ['roof', 'documents', 'aerial', 'schedule']);
+    assert.equal(result.lists, false, 'there is no Lists view to show');
+    assert.deepEqual(result.without, ['roof', 'documents', 'aerial']);
     assert.deepEqual(errors, []);
   } finally { await browser.close(); server.close(); }
+});
+
+// The pieces of the Operations tab outside the phone block: on a phone the rail is never mounted, the lists' Schedule
+// buttons go to the project window's Schedule tab, and coming back to the tab keeps the loaded lists.
+test('on a phone the rail is not mounted, scheduling opens the Schedule tab, and a return does not reload the lists', () => {
+  const renderLeft = source.slice(source.indexOf('  function renderLeft(){'), source.indexOf('  function renderRailState('));
+  assert.ok(renderLeft.indexOf('if (phoneLayout())') > 0 && renderLeft.indexOf('if (phoneLayout())') < renderLeft.indexOf('mountSidebar('), 'renderLeft leaves the rail out on a phone before mounting it');
+  const beside = source.slice(source.indexOf('  function showScheduleBesideLists(){'), source.indexOf('  function makeRoomForSchedule(){'));
+  assert.match(beside, /if \(phoneLayout\(\)\) return;/);
+  assert.doesNotMatch(source.replace(beside, ''), /showSidebarView\?\.\(leftContentRoot\(\), 'schedule'\)/, 'every Schedule button goes through showScheduleBesideLists');
+  const setActive = source.slice(source.indexOf('  function setActive(active){'), source.indexOf('  function reset(){', source.indexOf('  function setActive(active){')));
+  assert.match(setActive, /if \(listsLoadedHere\(\)\) void refreshWorkspace\(\);\s*else if \(!state\.loading\) loadData\(\);/);
+  assert.doesNotMatch(source, /listsView/);
 });
