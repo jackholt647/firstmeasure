@@ -952,7 +952,7 @@
       rootEl.classList.remove('fm-app-welcome-host');
     }
     const handle = policy.entitlement?.offered
-      ? await (await import(new URL('./app-welcome.js?v=20261027-welcome-reveal', runtimeScriptUrl).href)).mountWelcome(context)
+      ? await (await import(new URL('./app-welcome.js?v=20261110-fm382-scheduling', runtimeScriptUrl).href)).mountWelcome(context)
       : await (typeof app.mount === 'function'
       ? app.mount(context)
       : (typeof app.render === 'function' ? app.render(context) : null)) || {};

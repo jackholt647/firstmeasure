@@ -81,7 +81,7 @@ test("changing a state writes only the switches, offers and placement it means",
   const offered = await applyAppChange(start, "project.photos", { state: "offered" });
   assert.deepEqual(offered.defaults.settings.app_offers, ["project.money", "portal.financials", "project.photos"]);
   assert.equal(find(await configurationApps(offered), "project.photos").state, "offered");
-  await assert.rejects(applyAppChange(start, "portal.scheduling", { state: "offered" }), /cannot be offered/);
+  await assert.rejects(applyAppChange(start, "portal.training", { state: "offered" }), /cannot be offered/);
 
   // On from off turns on what the switch depends on; a hidden app is shown again.
   const scheduling = await applyAppChange(start, "portal.scheduling", { state: "on" });

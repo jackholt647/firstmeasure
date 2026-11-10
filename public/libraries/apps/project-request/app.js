@@ -3321,7 +3321,9 @@ window.PlatformCommerce.onReady(async function(){
     if (action === 'roof') return firstMeasureReportOrdersEnabled() && !hasReportOrdered();
     if (action === 'proposal') return proposalsEnabled();
     if (action === 'document') return documentsEngineEnabled();
-    if (action === 'schedule') return schedulingEnabled() && !hasAppointmentScheduled();
+    // Appointments are booked in the Schedule tab; a project offers no schedule action of its own. Only the New
+    // button's "New Appointment" workflow still starts one from here.
+    if (action === 'schedule') return schedulingEnabled() && requestedWorkflow === 'appointment' && !hasAppointmentScheduled();
     return false;
   }
   function availableProjectActions(){
@@ -8903,9 +8905,15 @@ window.PlatformCommerce.onReady(async function(){
     return window.Portal?.modules?.projectSchedule || window.Portal?.ProjectScheduleApp || null;
   }
 
+  // An offered Schedule tab shows its welcome until someone starts it: nothing may mount the schedule over it.
+  function projectScheduleOffered(){
+    const entitlements = window.Portal?.currentUser?.appEntitlements;
+    return Array.isArray(entitlements) && entitlements.some((entry) => entry?.id === 'project.schedule' && entry.offered === true);
+  }
+
   function mountProjectScheduleApp(context = {}){
     const app = projectScheduleModule();
-    if (!app?.mount) return null;
+    if (!app?.mount || projectScheduleOffered()) return null;
     const panelRoot = context.panelRoot || document.querySelector('#rOverlay .r-preview-panel[data-panel="schedule"]');
     app.mount({
       ...projectModalTabContext(),
@@ -10218,11 +10226,12 @@ window.PlatformCommerce.onReady(async function(){
     overlay.classList.toggle('firstmeasure-unordered-overview',requestedWorkflow==='project' && !expandedPlatformEnabled() && !hasReportOrdered());
     actions.hidden=requestedWorkflow!=='project' || !addressSelected || !selectedType;
     // A report order starts from the measurement ordering widget beneath these fields, not from here.
-    const choices=[['roof',(globalThis.PlatformLanguage?.text('project-request','overview_order_report','Order report') ?? 'Order report'),false],['proposal',(globalThis.PlatformLanguage?.text('project-request','overview_build_proposal','Build proposal') ?? 'Build proposal'),actionAvailable('proposal')],['schedule',(globalThis.PlatformLanguage?.text('project-request','overview_schedule_appointment','Schedule appointment') ?? 'Schedule appointment'),actionAvailable('schedule')]].filter(item=>item[2]);
+    // Appointments are booked in the Schedule tab, not from here.
+    const choices=[['roof',(globalThis.PlatformLanguage?.text('project-request','overview_order_report','Order report') ?? 'Order report'),false],['proposal',(globalThis.PlatformLanguage?.text('project-request','overview_build_proposal','Build proposal') ?? 'Build proposal'),actionAvailable('proposal')]].filter(item=>item[2]);
     const signature=choices.map(item=>item[0]+':'+item[1]).join(',');
     if (actions.dataset.choices!==signature) {
       actions.dataset.choices=signature;actions.replaceChildren();
-      for (const [key,label] of choices) {const button=document.createElement('button');button.type='button';button.className='r-toggle-btn';const icon=document.createElement('i');icon.className='fas '+({roof:'fa-ruler-combined',proposal:'fa-file-signature',schedule:'fa-calendar-days'}[key]);icon.setAttribute('aria-hidden','true');button.append(icon,document.createTextNode(label));
+      for (const [key,label] of choices) {const button=document.createElement('button');button.type='button';button.className='r-toggle-btn';const icon=document.createElement('i');icon.className='fas '+({roof:'fa-ruler-combined',proposal:'fa-file-signature'}[key]);icon.setAttribute('aria-hidden','true');button.append(icon,document.createTextNode(label));
         button.onclick=()=>{
           if (key==='roof') {
             startMeasurementOrder();

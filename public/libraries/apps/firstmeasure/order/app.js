@@ -35,7 +35,6 @@
     const expanded = Portal?.capabilities?.value?.('platform.expanded_access', false) === true;
     const buildTypeButtons = () => call(context, 'buildTypeButtons', '');
     const proposalsEnabled = () => !!call(context, 'proposalsEnabled', false);
-    const schedulingEnabled = () => !!call(context, 'schedulingEnabled', false);
     const proposalAgentEnabled = () => !!call(context, 'proposalAgentEnabled', false);
     const infoTip = (text) => call(context, 'infoTip', () => '<span class="r-info-tip"><i class="fas fa-info"></i><span class="r-tip-bubble">' + escapeHtml(text) + '</span></span>', text);
     const addonInfoIcon = (name) => call(context, 'addonInfoIcon', '', name);
@@ -107,7 +106,6 @@ ${String(expanded ? `    <section class="r-step is-open" id="rStepCustomer" data
       <div class="r-step-shell" style="grid-template-rows:1fr"><div class="r-step-inner"><div class="r-step-body" style="padding-top:2px"><div class="r-inline-label">${(globalThis.PlatformLanguage?.htmlText("firstmeasure","m_6067958dea3386","Actions") ?? "Actions")}</div><div class="r-choice-row r-report-choice-row">
         <button type="button" class="r-toggle-btn" data-report-choice="roof"><div class="r-toggle-icon"><i class="fas fa-file-lines"></i></div><div class="r-toggle-label">${(globalThis.PlatformLanguage?.htmlText("firstmeasure","m_337907c426ef7c","Order a Report") ?? "Order a Report")}</div><div class="r-toggle-sub" id="rRoofOnlySub">${(globalThis.PlatformLanguage?.htmlText("firstmeasure","m_c4478c7a101b86","Choose a project type first") ?? "Choose a project type first")}</div></button>
         ${String(proposalsEnabled() ? `<button type="button" class="r-toggle-btn" data-report-choice="proposal"><div class="r-toggle-icon"><i class="fas fa-file-signature"></i></div><div class="r-toggle-label">${(globalThis.PlatformLanguage?.htmlText("firstmeasure","m_5c6d435494fefd","Build a Proposal") ?? "Build a Proposal")}</div><div class="r-toggle-sub"></div></button>` : '')}
-        ${String(schedulingEnabled() ? `<button type="button" class="r-toggle-btn" data-report-choice="schedule"><div class="r-toggle-icon"><i class="fas fa-calendar-plus"></i></div><div class="r-toggle-label">${(globalThis.PlatformLanguage?.htmlText("firstmeasure","m_e5aee059bf2f35","Schedule Appointment") ?? "Schedule Appointment")}</div><div class="r-toggle-sub"></div></button>` : '')}
       </div>
       <div class="r-report-order-group" id="rReportOptionGroup">
         <div class="r-addon-list" id="rReportAddons"></div>

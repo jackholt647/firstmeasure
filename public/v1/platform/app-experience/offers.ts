@@ -13,7 +13,10 @@ export const APP_OFFERS = {
   // Money's project tab and its Financials page are one app: offers with the same switches start together.
   "project.money": ["platform.money"],
   "portal.financials": ["platform.money"],
-  "project.checklists": ["apps.checklists"]
+  "project.checklists": ["apps.checklists"],
+  // Scheduling's project tab and its Scheduling page are one app, like Money.
+  "project.schedule": ["platform.scheduling"],
+  "portal.scheduling": ["platform.scheduling"]
 } as const;
 
 export type OfferedAppId = keyof typeof APP_OFFERS;
