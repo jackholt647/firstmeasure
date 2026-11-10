@@ -27,6 +27,9 @@ test('ticking a photo floats the selection toolbar in without moving the grid; c
    window.__APP={userOrgId:'org',userId:'sam'};
    window.Portal={cfg:window.__APP,modules:{},util:{escapeHtml,injectCSS(id,css){let el=document.getElementById('css_'+id);if(!el){el=document.createElement('style');el.id='css_'+id;document.head.append(el);}el.textContent=css;}},ui:{showToast(){}}};
    window.PlatformAPI={media:{fileUrl:(org,id)=>'/media/'+id+'.svg',thumbnailUrl:(org,id)=>'/media/'+id+'.svg'}};
+   // Every photo but the first has markup.
+   window.downloads=[];
+   window.FirstMateMarkup={loadMarkup:async(org,id)=>id==='p0'?[]:[{id:'s1',type:'stroke',points:[{x:.1,y:.1},{x:.5,y:.5}]}],downloadPhotoZip:async(photos,options)=>{window.downloads.push([photos.map(photo=>photo.media_id),!!options.withMarkup]);}};
   });
   await page.addScriptTag({url:'/libraries/apps/photos/feed.js'});
   await page.evaluate(()=>{
@@ -68,6 +71,11 @@ test('ticking a photo floats the selection toolbar in without moving the grid; c
   assert.ok(dockBox.y+dockBox.height<=mountBox.y+mountBox.height-8&&dockBox.y>mountBox.y+mountBox.height-90,'anchored to the bottom of the tab');
   assert.ok(Math.abs((dockBox.x+dockBox.width/2)-(mountBox.x+mountBox.width/2))<2,'centred');
   if(shots){await mkdir(shots,{recursive:true});await page.waitForTimeout(400);await page.screenshot({path:`${shots}/selection-one.png`});}
+  // Nothing selected has markup: Download downloads at once, with no "with/without markup" menu.
+  await page.locator('[data-selection-download]').click();
+  await page.waitForFunction(()=>window.downloads.length===1);
+  assert.deepEqual(await page.evaluate(()=>window.downloads),[[['p0'],false]]);
+  assert.equal(await page.locator('[data-selection-download-menu].visible').count(),0,'no markup menu without markup');
 
   // Ticking more updates the toolbar in place, keeps the scroll position and does not replay the entrance.
   const scrolled=await page.locator('[data-feed-scroll]').evaluate(el=>{el.scrollTop=120;return el.scrollTop;});
@@ -80,8 +88,11 @@ test('ticking a photo floats the selection toolbar in without moving the grid; c
   assert.equal(await page.locator('[data-feed-scroll]').evaluate(el=>el.scrollTop),scrolled,'ticking does not scroll the gallery');
   assert.equal(await page.evaluate(()=>document.querySelector('.pf-seldock')===window.dockNode),true,'the same toolbar stays');
   assert.equal((await dock.locator('[data-selection-count]').textContent()).trim(),'2 selected');
+  // A selected photo has markup: Download opens the with/without markup menu.
   await page.locator('[data-selection-download]').click();
+  await page.waitForSelector('[data-selection-download-menu].visible');
   assert.equal(await page.locator('[data-selection-download-menu].visible').count(),1);
+  assert.equal(await page.evaluate(()=>window.downloads.length),1,'opening the menu downloads nothing');
   const menu=await page.locator('[data-selection-download-menu]').boundingBox();
   assert.ok(menu.y+menu.height<=(await dock.boundingBox()).y+1,'the download menu opens upwards');
   if(shots)await page.screenshot({path:`${shots}/selection-download-menu.png`});
@@ -122,6 +133,45 @@ test('ticking a photo floats the selection toolbar in without moving the grid; c
    await page.waitForTimeout(400);
    await page.screenshot({path:`${shots}/selection-phone.png`});
   }
+  assert.deepEqual(errors,[]);
+ }finally{await browser.close();}
+});
+
+// The photo viewer's actions menu offers "Download without Markup" only on a photo that has markup.
+test('the photo viewer offers a download without markup only when the photo has markup',async()=>{
+ const browser=await chromium.launch({executablePath:process.env.CHROME_PATH||'C:/Program Files/Google/Chrome/Application/chrome.exe',headless:true});
+ try{
+  const page=await browser.newPage({viewport:{width:1200,height:820}}),errors=[];
+  page.on('pageerror',e=>errors.push(e.message));
+  await page.route('http://photos.test/**',async route=>{
+   const pathname=new URL(route.request().url()).pathname;
+   if(pathname.startsWith('/libraries/'))return route.fulfill({contentType:'application/javascript; charset=utf-8',body:await readFile(new URL(pathname.slice('/libraries/'.length),libraries))});
+   if(pathname.startsWith('/media/'))return route.fulfill({contentType:'image/svg+xml',body:svg(Number(pathname.match(/\d+/)?.[0]||0)*29%360)});
+   return route.fulfill({contentType:'text/html; charset=utf-8',body:'<!doctype html><meta charset="utf-8"><main id="mainPanels" style="position:fixed;inset:60px 0 0 0"></main>'});
+  });
+  await page.goto('http://photos.test/');
+  await page.evaluate(()=>{
+   window.__APP={userOrgId:'org',userId:'sam'};
+   const stroke={id:'s1',type:'stroke',color:'#d92d20',size:2,points:[{x:.1,y:.1},{x:.5,y:.5}]};
+   window.PlatformAPI={media:{getMarkup:async(org,id,layer)=>({layer:{data:{items:layer==='photo_markup'&&id==='m1'?[stroke]:[]}}})}};
+  });
+  await page.addScriptTag({url:'/libraries/markup/firstmate-markup.js'});
+  await page.evaluate(()=>{window.viewer=FirstMateMarkup.openPhotoViewer({photos:[0,1].map(i=>({media_id:'m'+i,url:'/media/'+i+'.svg',content_type:'image/svg+xml',label:'Roof '+(i+1)})),index:0,project:{title:'12 Stage Street'}});});
+  await page.waitForSelector('.fm-photo-modal [data-photo-img]');
+  const offered=()=>page.evaluate(()=>[...document.querySelectorAll('[data-photo-actions-menu] [data-photo-download-markup], [data-photo-actions-menu] [data-photo-download-plain]')].filter(b=>!b.hidden).map(b=>b.textContent.trim()));
+  await page.locator('[data-photo-actions]').click();
+  assert.deepEqual(await offered(),['Download'],'no markup: one plain Download');
+  // The next photo has markup: Download (with markup) first, then without.
+  await page.evaluate(()=>window.viewer.show(1));
+  await page.waitForFunction(()=>window.viewer.markup.items.length===1);
+  assert.deepEqual(await offered(),['Download','Download without Markup']);
+  // Back to the first, then drawing on it offers the plain download too.
+  await page.evaluate(()=>window.viewer.show(0));
+  await page.waitForFunction(()=>window.viewer.index===0&&!window.viewer.markup.items.length);
+  await page.waitForTimeout(50);
+  assert.deepEqual(await offered(),['Download']);
+  await page.evaluate(()=>{window.viewer.markup.items=[{id:'s2',type:'stroke',points:[{x:.2,y:.2},{x:.6,y:.6}]}];window.viewer.markup.emitChange();});
+  assert.deepEqual(await offered(),['Download','Download without Markup']);
   assert.deepEqual(errors,[]);
  }finally{await browser.close();}
 });
