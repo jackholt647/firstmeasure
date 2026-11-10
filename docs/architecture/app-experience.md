@@ -92,7 +92,9 @@ Feed (`platform.photos_feed`) is an independent app: an offered project Photos
 app never disables the organization Feed.
 
 Money (its project tab `project.money` and its Financials page
-`portal.financials`) and Checklists (`project.checklists`) can also be offered,
+`portal.financials`), Scheduling (its project tab `project.schedule` and its
+Scheduling page `portal.scheduling`, one switch `platform.scheduling`) and
+Checklists (`project.checklists`) can also be offered,
 but no new organization starts with them (`NEW_ORGANIZATION_APP_OFFERS`). A
 signup sandbox configuration names its own offers as data
 (`settings.app_offers`, written after the demo content is seeded); the MVP

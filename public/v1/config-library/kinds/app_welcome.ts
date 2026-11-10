@@ -13,7 +13,7 @@ export const APP_WELCOME = "app_welcome";
 
 const schema = z.object({
   /** The illustration and colours (app-welcome.js `icons`). */
-  theme: z.enum(["photos", "documents", "portal", "equipment", "materials", "money", "checklists"]),
+  theme: z.enum(["photos", "documents", "portal", "equipment", "materials", "money", "checklists", "scheduling"]),
   /** `page`: one full-width page (the copy, then the illustration below it) instead of the default two sides. */
   layout: z.enum(["page"]).optional(),
   /** A switch whose required setup workflow Get Started continues into (app-setup-workflows.js). */

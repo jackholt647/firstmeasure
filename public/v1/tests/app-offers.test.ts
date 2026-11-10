@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { maskOfferedCapabilities, offeredAppIds } from "../platform/app-experience/offers.js";
+import { maskOfferedCapabilities, offerSiblings, offeredAppIds } from "../platform/app-experience/offers.js";
 import { resolveCapabilities } from "../platform/capabilities.js";
 import "../platform/capability_defs.js";
 import { resolveAppEntitlements } from "../workforce/access.js";
@@ -76,4 +76,19 @@ test("Equipment is discoverable globally but operationally off until its offer i
  assert.equal(equipment?.offered,true);
  assert.equal(equipment?.welcome?.theme,'equipment');
  assert.equal(hasAppAccess({appEntitlements} as PlatformAuthContext,'portal.equipment'),false);
+});
+
+test("Scheduling is offered as one app: its project tab and its page hold back scheduling until started", () => {
+  assert.deepEqual(offerSiblings("project.schedule"), ["project.schedule", "portal.scheduling"]);
+  const configured = { "platform.expanded_access": true, "platform.scheduling": true, "scheduling.appointment_slots": true };
+  const masked = resolveCapabilities(maskOfferedCapabilities(configured, ["project.schedule", "portal.scheduling"])).effectiveByKey;
+  assert.equal(masked["platform.scheduling"], false);
+  assert.notEqual(masked["scheduling.appointment_slots"], true);
+  const appEntitlements = resolveAppEntitlements({ effectiveByKey: masked, offeredAppIds: ["project.schedule", "portal.scheduling"] });
+  for (const id of ["project.schedule", "portal.scheduling"]) {
+    const app = appEntitlements.find(entry => entry.id === id);
+    assert.equal(app?.allowed, true, id);
+    assert.equal(app?.offered, true, id);
+    assert.equal(hasAppAccess({ appEntitlements } as PlatformAuthContext, id), false, id);
+  }
 });

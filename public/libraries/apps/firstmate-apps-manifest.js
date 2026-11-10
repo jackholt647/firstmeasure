@@ -303,7 +303,7 @@
       kind: 'modal_app',
       surfaces: ['modal', 'project_modal'],
       dependencies: ['firstmeasure.order', 'project.map', 'project.photos', 'project.proposal', 'project.materials', 'project.money', 'project.customer_portal', 'project.schedule', 'project.measurements', 'project.checklists'],
-      bundles: [...channelsLibBundles, versionedBundle('../window-manager/project-windows.js', '20261026-open-link-safe'), versionedBundle('project-request/app.js', '20261110-fm371-short-tab-labels')]
+      bundles: [...channelsLibBundles, versionedBundle('../window-manager/project-windows.js', '20261026-open-link-safe'), versionedBundle('project-request/app.js', '20261110-fm382-schedule-offer')]
     },
     {
       id: 'firstmeasure.order',
@@ -312,7 +312,7 @@
       kind: 'overview_details',
       surfaces: ['project_modal'],
       regions: ['main'],
-      bundles: [...channelsLibBundles, versionedBundle('firstmeasure/order/app.js', '20261030-holiday-lights-order')]
+      bundles: [...channelsLibBundles, versionedBundle('firstmeasure/order/app.js', '20261110-fm382-no-schedule-action')]
     },
     {
       id: 'project.map',
