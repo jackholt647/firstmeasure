@@ -888,7 +888,9 @@ window.PlatformCommerce.onReady(async function(){
        control on a phone is the same arrows, pointing back). */
     :is(#rProjectIdentityTrigger,.r-project-identity-trigger)::after{content:'\\f101';flex:none;font-family:'Font Awesome 6 Free','Font Awesome 5 Free';font-weight:900;font-size:12px;line-height:1;color:#98a2b3;transition:color .16s ease}
     #rProjectIdentityTrigger[aria-expanded=true]::after{content:'\\f100'}
-    :is(#rProjectIdentityTrigger,.r-project-identity-trigger):hover::after{color:var(--primary-readable,var(--primary,#d93025))}
+    @media(hover:hover){:is(#rProjectIdentityTrigger,.r-project-identity-trigger):hover::after{color:var(--primary-readable,var(--primary,#d93025))}}
+    /* The arrows follow the title's last letter, also where the title row is the phone header's full width. */
+    #rProjectIdentityTrigger #rWindowProjectTitle,.r-project-identity-trigger .r-window-project-title{flex:0 1 auto}
     .r-window-identity .r-project-tag i{color:inherit;flex:none}
     /* Project details tray: the one owner of the project's contact, address and measurements. Open, it joins the
        header's left end into one white column, and the tabs and content slide right (pushed, not covered). */
