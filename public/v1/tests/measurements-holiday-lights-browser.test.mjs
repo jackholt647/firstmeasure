@@ -53,6 +53,18 @@ test('holiday lights count by side and roofline, in side colours, with the lengt
     const sprites=await page.evaluate(()=>{const labels=[];let letters=0;drawnScene.traverse(o=>{if(o.isSprite)o.parent===drawnScene?letters++:labels.push([o.userData.label,o.userData.color]);});return {labels,letters};});
     assert.equal(sprites.letters,4);
     assert.deepEqual(sprites.labels.sort(),expected.map(([side,,length])=>[`${Math.round(length)} ft`,colors[side]]).sort());
+    // A side switches off like an edge kind: its lights, labels, length in the total and bulbs go; it stays listed.
+    const bulbs12=()=>page.evaluate(()=>+[...document.querySelectorAll('[data-hl-spacing] button')].find(b=>b.textContent.startsWith('12'))?.children[1].textContent.replace(/\D/g,''));
+    const bulbsAll=await bulbs12();
+    await page.evaluate(()=>document.querySelector('[data-hl-side="south"] .fm-hl-side-head input').click());
+    assert.equal(await page.textContent('[data-hl-total]'),`${Math.round(total-60)} ft`);
+    assert.ok(await page.evaluate(()=>document.querySelector('[data-hl-side="south"]').classList.contains('is-off')&&!document.querySelector('[data-hl-side="south"] input').checked));
+    assert.equal(await bulbs12(),bulbsAll-60,'one bulb a foot at 12 in: the south side\'s 60 ft are gone');
+    const southOff=await page.evaluate(()=>{const labels=[];drawnScene.traverse(o=>{if(o.isSprite&&o.userData.label)labels.push(o.userData.color);});return labels;});
+    assert.equal(southOff.length,expected.length-2);
+    assert.ok(!southOff.includes(colors.south));
+    await page.evaluate(()=>document.querySelector('[data-hl-side="south"] .fm-hl-side-head input').click());
+    assert.equal(await page.textContent('[data-hl-total]'),`${Math.round(total)} ft`);
     // Ridges go in their own group, on the roofline of the faces beside them; switching them on moves nothing else.
     await page.evaluate(()=>[...document.querySelectorAll('.fm-hl-edge')].find(row=>row.textContent.startsWith('Ridges')).querySelector('input').click());
     const withRidges=await rows();
