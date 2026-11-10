@@ -1,11 +1,11 @@
 {
   "kind": "guided_experience",
   "id": "materials.tab_tutorial",
-  "revision": 1,
-  "sha256": "d78f13d8f67534d918bc36ee39a36fc5e7c70b79ac2045d6784d9f4fb7d92f7d",
+  "revision": 3,
+  "sha256": "1ee011a8e0061396b23afddbc94204756d8fc3c0007c97bfc2ed73b32721a532",
   "title": "Operations tour",
-  "updated_at": "2026-10-28T00:40:02.983Z",
-  "updated_by": "generator",
+  "updated_at": "2026-11-10T05:56:28.942Z",
+  "updated_by": "key:ck_1e1f09bdc222484f agents:fm-agents-1",
   "data": {
     "id": "materials.tab_tutorial",
     "version": 1,
@@ -146,12 +146,12 @@
       {
         "id": "units",
         "title": {
-          "key": "gx_mt_units_title",
-          "text": "Squares or bundles"
+          "key": "gx_mt_order_units_title",
+          "text": "Measured or order units"
         },
         "body": {
-          "key": "gx_mt_units_body",
-          "text": "Switch between the measured amounts and what you actually order: bundles, rolls and boxes."
+          "key": "gx_mt_order_units_body",
+          "text": "Switch between the amounts that were measured and the units you actually order in, like boxes, rolls or pieces."
         },
         "targets": [
           "[data-mt-units-toggle]"
