@@ -480,9 +480,13 @@ window.PlatformCommerce.onReady(function(){
 
   /* A pending order belongs to the organization and person who placed it; another account signed in on this
      browser never sees or submits it, and an order that does not say whose it is is ignored. */
+  /* Storage is where the order lives (every frame and tab sees it placed or discarded). Only when storage refuses it
+     (a full browser) is it kept in this page's memory, so it still goes to the checkout and is placed on the return
+     (FM-381). */
+  let pendingInMemory = null;
   function readPending(){
     try{
-      const pending = JSON.parse(localStorage.getItem(PENDING_ORDER_KEY) || 'null');
+      const pending = pendingInMemory || JSON.parse(localStorage.getItem(PENDING_ORDER_KEY) || 'null');
       const app = window.__APP || {};
       const orgId = String(app.userOrgId || '').trim();
       const userId = String(app.userId || '').trim() || String(app.userEmail || '').trim().toLowerCase();
@@ -490,7 +494,17 @@ window.PlatformCommerce.onReady(function(){
       return String(pending.organization_id || '') === orgId && String(pending.user_id || '') === userId ? pending : null;
     }catch(e){ return null; }
   }
-  function clearPending(){ try{ localStorage.removeItem(PENDING_ORDER_KEY); }catch(e){} }
+  function savePending(order){
+    if (!order?.fields?.address) return;
+    const copy = JSON.parse(JSON.stringify(order));
+    try{ localStorage.setItem(PENDING_ORDER_KEY, JSON.stringify(copy)); pendingInMemory = null; }
+    catch(e){
+      pendingInMemory = copy;
+      // Never leave an older order in storage for a later page to place instead of this one.
+      try{ localStorage.removeItem(PENDING_ORDER_KEY); }catch(_){}
+    }
+  }
+  function clearPending(){ pendingInMemory = null; try{ localStorage.removeItem(PENDING_ORDER_KEY); }catch(e){} }
   // Back from Stripe without the order in this browser: take it from the checkout (once) and keep it here.
   async function stripePendingOrderFromCheckout(sessionId){
     const sid = String(sessionId || '').trim();
@@ -503,7 +517,7 @@ window.PlatformCommerce.onReady(function(){
       if (readPending() || !order?.fields?.address || submittedOrders.has(JSON.stringify(order.fields))) return readPending();
       const app = window.__APP || {};
       const restored = { ...order, organization_id: String(app.userOrgId || '').trim(), user_id: String(app.userId || '').trim() || String(app.userEmail || '').trim().toLowerCase() };
-      localStorage.setItem(PENDING_ORDER_KEY, JSON.stringify(restored));
+      savePending(restored);
       return readPending();
     } catch (error) {
       console.warn('The order waiting on this checkout could not be read', error);
@@ -1814,7 +1828,10 @@ window.PlatformCommerce.onReady(function(){
   // Re-check visibility if permissions reload
   window.addEventListener('fm:perms:updated', updateButtonVisibility);
 
-  window.addEventListener('fm:billing:open', (e)=>{ open(e?.detail || e?.detail?.context || ''); });
+  // A report order that needs credit comes with its order, so the checkout carries it whatever the storage did.
+  window.addEventListener('fm:billing:open', (e)=>{ if (e?.detail?.pendingOrder) savePending(e.detail.pendingOrder); open(e?.detail || e?.detail?.context || ''); });
+  // The order window placed the order itself: nothing is waiting any more, here either.
+  window.addEventListener('fm:billing:pending-order-placed', clearPending);
 
   window.Portal.modules = window.Portal.modules || {};
   window.Portal.modules.billing = { open, close, tryAutoSubmitPending, reconcileStripeCheckout };
