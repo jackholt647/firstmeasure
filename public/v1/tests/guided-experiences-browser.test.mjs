@@ -887,3 +887,23 @@ test('a tab tour ends quietly when a covering panel opens over it and plays agai
     assert.deepEqual(errors, []);
   } finally { await browser.close(); }
 });
+
+// FM-360: a step whose targets nest (the contact fields, and the section around them as a fallback) lights them as
+// one area. The dim is even-odd, so a hole inside a hole used to be dimmed again: the fields dark, the rest of the
+// section lit.
+test('nested targets of a step light one area: the inner target is never dimmed again', async () => {
+  const browser = await launch();
+  try {
+    const { page, errors } = await panelPage(browser);
+    await page.evaluate(() => {
+      document.getElementById('field').innerHTML = '<div id="inner" style="height:40px">Name</div><div style="height:40px">Address</div>';
+      FirstMateGuides.overlay.run([{ id: 'customer', targets: ['#inner', '#field'], placement: 'auto', title: { key: 'k', text: 'The customer' }, body: { key: 'b', text: 'b' }, advance: 'next', wait_ms: 500 }], {});
+    });
+    await page.evaluate(() => { document.getElementById('panel').hidden = false; });
+    await tourStep(page, 'The customer');
+    await page.waitForTimeout(600);
+    const hit = await page.evaluate(() => ['#inner', '#field'].map((selector) => { const r = document.querySelector(selector).getBoundingClientRect(); return document.elementFromPoint(r.left + 20, r.bottom - 8)?.closest('#field') ? 'lit' : 'dimmed'; }));
+    assert.deepEqual(hit, ['lit', 'lit']);
+    assert.deepEqual(errors, []);
+  } finally { await browser.close(); }
+});

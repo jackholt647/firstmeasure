@@ -701,6 +701,9 @@
         };
         const rectOf = (el) => { const r = el.getBoundingClientRect(), pad = 6; return { x: r.left - pad, y: r.top - pad, w: r.width + pad * 2, h: r.height + pad * 2, r: Math.min(14, parseFloat(getComputedStyle(el).borderTopLeftRadius || '0') + 4) }; };
         const rr = (h) => { const r = Math.min(h.r, h.w / 2, h.h / 2); return `M${h.x + r},${h.y}h${h.w - 2 * r}a${r},${r} 0 0 1 ${r},${r}v${h.h - 2 * r}a${r},${r} 0 0 1 -${r},${r}h-${h.w - 2 * r}a${r},${r} 0 0 1 -${r},-${r}v-${h.h - 2 * r}a${r},${r} 0 0 1 ${r},-${r}z`; };
+        // One hole per target, except a target inside another found target: the dim is drawn even-odd, so a hole
+        // inside a hole would be dimmed again (the inner target dark, the rest of the outer one lit).
+        const holesOf = (list) => list.filter((el) => !list.some((other) => other !== el && other.contains(el))).map(rectOf);
         const draw = (list) => { path.setAttribute('d', `M0,0H${root.innerWidth}V${root.innerHeight}H0Z` + list.map(rr).join('')); };
         // The hole slides from the last target to the next one.
         const animateTo = (next) => {
@@ -742,7 +745,7 @@
             Object.assign(arrow.style, placement === 'bottom' ? { left: `${ax}px`, top: '-7px' } : placement === 'top' ? { left: `${ax}px`, top: `${p.height - 7}px` } : placement === 'right' ? { left: '-7px', top: `${ay}px` } : { left: `${p.width - 7}px`, top: `${ay}px` });
           }
         }
-        function redraw(){ if (ended) return; holes = targets.map(rectOf); draw(holes); place(); }
+        function redraw(){ if (ended) return; holes = holesOf(targets); draw(holes); place(); }
         /**
          * Follows the target while a step shows: what the person does can move it (a bar appearing above it, a list
          * growing), so its box is compared every frame and the spotlight, ring and popover follow it. A target that
@@ -812,7 +815,7 @@
             if (mine !== move) return;
             index = i; current = step; targets = found; shown += 1; trackedKey = '';
             render(step);
-            animateTo(targets.map(rectOf));
+            animateTo(holesOf(targets));
             requestAnimationFrame(place);
             if (step.advance === 'click' && targets[0]) { clickTarget = targets[0]; clickTarget.addEventListener('click', onTargetClick, true); }
             options.onStep?.({ type: 'step_view', step: step.id, index: i });
