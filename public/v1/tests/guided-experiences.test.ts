@@ -37,6 +37,11 @@ test("definitions are checked when registered", async () => {
   bad({ kind: "agentic" }, /does not suit/);
   bad({ eligibility: { when: { field: "organization.size.users", operator: "greater_than", value: "lots" } } }, /must be a number/);
   bad({ title: { key: "not-a-key", text: "x" } }, /key/);
+  // A step with cases (FM-363) names its targets only in them, and each case points somewhere.
+  const cases = [{ targets: ["#a"] }, { targets: ["#b"], body: t("gx_test_1c", "Other") }];
+  assert.equal(experienceSchema.safeParse({ ...TOUR, steps: [{ ...TOUR.steps[0], targets: [], cases }] }).success, true);
+  bad({ steps: [{ ...TOUR.steps[0], cases }] }, /targets and cases/);
+  bad({ steps: [{ ...TOUR.steps[0], targets: [], cases: [{ targets: [] }] }] }, /too_small|at least/i);
 });
 
 test("the chooser is deterministic, splits by weight, filters by conditions and keeps a remembered variant", async () => {

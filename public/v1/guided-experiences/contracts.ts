@@ -41,6 +41,12 @@ const overlayStep = z.object({
   body: copySchema,
   /** Elements left undimmed. The first one found is highlighted and the popover sits beside it; none means a centred card. */
   targets: z.array(selector).max(6).default([]),
+  /**
+   * For an element that can be in more than one state (a widget that offers different buttons): the first case with a
+   * target on the page decides where the step points and what it says (its title and body, else the step's). It is still
+   * one step, so the tour shows one dot for it; a step with cases names its targets only in them.
+   */
+  cases: z.array(z.object({ targets: z.array(selector).min(1).max(6), title: copySchema.optional(), body: copySchema.optional() }).strict()).min(1).max(6).optional(),
   placement: z.enum(["auto", "top", "bottom", "left", "right", "center"]).default("auto"),
   /** `click`: the step advances when the person presses the highlighted element. */
   advance: z.enum(["next", "click"]).default("next"),
@@ -198,6 +204,7 @@ export const experienceSchema = z.object({
     if (ids.has(step.id)) context.addIssue({ code: z.ZodIssueCode.custom, message: `Two steps are called ${step.id}.` });
     ids.add(step.id);
     const overlay = "targets" in step;
+    if (overlay && step.cases && step.targets.length) context.addIssue({ code: z.ZodIssueCode.custom, message: `Step ${step.id} has targets and cases: name its targets in its cases.` });
     if ((value.kind === "overlay") !== overlay) context.addIssue({ code: z.ZodIssueCode.custom, message: `Step ${step.id} does not suit a ${value.kind} experience.` });
   }
   const refs = (step: { next?: unknown }) => {

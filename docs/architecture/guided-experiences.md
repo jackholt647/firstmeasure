@@ -51,7 +51,12 @@ An **experience** (`experienceSchema`):
   is off), `steps` (an order or a subset) and `content` (options merged per step).
 - `steps`. Overlay steps: `title`, `body`, `targets` (selectors left undimmed;
   the first found is highlighted), `placement`, `advance` (`next` or `click`),
-  `wait_ms`. Setup steps: `widget` (a registered browser renderer), `title`,
+  `wait_ms`, and `cases` for an element that can be in more than one state: each
+  case has its own `targets` and optional `title`/`body`, and the first case found
+  on the page decides where the step points and what it says, so the copy names
+  only what is on screen and the tour still shows one dot for the step (the
+  project details tour's Measurements step has a case for each set of buttons the
+  ordering widget offers, `data-measurement-options`). Setup steps: `widget` (a registered browser renderer), `title`,
   `subtitle`, `say` (the agent's lines, programmatic), `options` (fixed data) or
   `source` (filled on the server), `selects` (the keys it writes), `required`.
   Either kind may have `next`: a step id, or `branches` whose `when` reads

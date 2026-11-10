@@ -217,7 +217,7 @@ configured FirstMeasure order session as the project details tray, preserving th
 asking for its address when missing; it does not submit an order. The tray's measurement ordering widget is the
 same entry point. **Add measurements manually** opens the existing schema-based
 editor; without measurement schemas it is not offered. The widget lists what it offers in
-`data-measurement-options` (`order`, `manual`), and the project details tour has a Measurements step for each
+`data-measurement-options` (`order`, `manual`), and the project details tour's Measurements step has a case for each
 combination, so its copy names only the buttons on screen.
 Existing manual values open in the editor, and completed reports keep their model.
 
