@@ -1,7 +1,7 @@
 import { isTransientProviderFailure } from './transient_failure.js';
 import { catalogState, catalogReadsEnabled } from "../src/storage/artifact_catalog.js";
 import { projectPageChanges } from "./project_refresh.js";
-import { assertFullHouseEligible, assertFullHouseSnapshot, fullHouseEligible, isCustomerFullHouse } from './full_house_workflow.js';
+import { assertFullHouseEligible, assertFullHouseSnapshot, fullHouseEligible, fullHouseRegenerationReview, isCustomerFullHouse } from './full_house_workflow.js';
 import { computeFullHousePoints, countFullHouseModel } from './full_house_points.js';
 import { withReportPropertyMarket } from "../commerce/property-market.js";
 import { reportPrice, assertCommercialRevision } from "../commerce/profile.js";
@@ -7911,6 +7911,8 @@ export const registerFirstMeasureApi: FastifyPluginAsync = async (app) => {
 
     const requestedAt = new Date().toISOString();
 
+    const regenerationReview = await fullHouseRegenerationReview(await readManifest(projectId), await requestPrincipal(request), revision, requestedAt);
+
     const jobId = createHash("sha256")
 
       .update(`pdf.sync:${projectId}:${revision}:${Date.now()}:${Math.random()}`)
@@ -7924,6 +7926,8 @@ export const registerFirstMeasureApi: FastifyPluginAsync = async (app) => {
     await savePdfState(projectId, snapshot);
 
     await patchManifest(projectId, {
+
+      ...(regenerationReview ? { full_house_regeneration_review: regenerationReview } : {}),
 
       pdf_sync: {
 
@@ -14548,8 +14552,10 @@ async function sendProjectEmail(projectId: string, force: boolean) {
   const manifest = await readManifest(projectId);
   if (isCustomerFullHouse(manifest)) {
     const sync = await resolveProjectPdfSyncReference(projectId);
-    // QA and manager approval stamp the PDF revision they approved (there is no checklist since FM-345).
-    const review = [manifest.manager_full_house_review, manifest.qa_full_house_review].map(asRecord).find(value => value.revision === sync?.revision);
+    // QA and manager approval stamp the PDF revision they approved (there is no checklist since FM-345);
+    // a qualified reviewer's regeneration of the completed report stamps its new revision (FM-357).
+    const review = [manifest.manager_full_house_review, manifest.qa_full_house_review, manifest.full_house_regeneration_review]
+      .map(asRecord).find(value => value.revision === sync?.revision);
     if (manifest.status !== 'completed' || !review) throw conflict('full_house_qa_required', 'The current full-house PDF must pass QA before delivery.');
   }
 

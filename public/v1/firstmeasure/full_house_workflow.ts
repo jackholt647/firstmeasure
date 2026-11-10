@@ -1,4 +1,5 @@
 import { readInternalUser } from '../internal/storage.js';
+import type { Principal } from '../platform/security/principal.js';
 import { FirstMeasureError, conflict } from './errors.js';
 
 type RecordValue = Record<string, unknown>;
@@ -23,6 +24,16 @@ export async function assertFullHouseEligible(manifest: RecordValue, email: unkn
     throw new FirstMeasureError('full_house_qualification_required', 403,
       work === 'draft' ? 'This technician is not enabled to draft full-house reports.' : 'This reviewer is not enabled to QA full-house reports.');
   }
+}
+
+// FM-357: regenerating a completed full-house PDF approves the new revision when the person could
+// approve it in QA (a manager or admin, or QA qualified for full-house), so a quick change after QA is
+// still emailed and released. Anyone else's regeneration stays unapproved and delivery refuses it.
+export async function fullHouseRegenerationReview(manifest: RecordValue, principal: Principal, revision: string, reviewedAt: string) {
+  if (!isCustomerFullHouse(manifest) || manifest.status !== 'completed' || !revision) return null;
+  if (principal.kind !== 'staff' || !principal.staff.qa) return null;
+  if (!principal.staff.manager && !await fullHouseEligible(principal.staff.email, 'qa')) return null;
+  return { revision, reviewed_by: principal.staff.email, reviewed_at: reviewedAt, source: 'pdf_regeneration' };
 }
 
 // Validate the exact snapshot pinned to the reviewed PDF job, not mutable editor metadata.
