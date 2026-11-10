@@ -1219,7 +1219,10 @@
         .mt-phone-lists .mt-req-tray .mt-req-bar{display:none}
         .mt-phone-lists .mt-req-tray .mt-req-panel{flex:1;width:auto;opacity:1;transition:none}
         .mt-phone-lists .mt-req-tray .mt-req-panel-inner{width:100%}
-        .mt-phone-strip{position:relative;flex:0 0 auto;display:flex;align-items:center;gap:4px;padding:2px 50%;overflow-x:auto;scrollbar-width:none;border-top:1px solid #eaecf0;background:#fff;-webkit-mask-image:linear-gradient(90deg,transparent,#000 24%,#000 76%,transparent);mask-image:linear-gradient(90deg,transparent,#000 24%,#000 76%,transparent)}
+        .mt-phone-strip{position:relative;flex:0 0 auto;display:flex;align-items:center;gap:4px;padding:2px 8px;overflow-x:auto;scrollbar-width:none;border-top:1px solid #eaecf0;background:#fff;--mt-fade-start:0px;--mt-fade-end:0px}
+        .mt-phone-strip>.mt-phone-pill:first-child{margin-left:auto}.mt-phone-strip>.mt-phone-pill:last-child{margin-right:auto}
+        .mt-phone-strip.is-more-before{--mt-fade-start:28px}.mt-phone-strip.is-more-after{--mt-fade-end:28px}
+        .mt-phone-strip:is(.is-more-before,.is-more-after){-webkit-mask-image:linear-gradient(90deg,transparent,#000 var(--mt-fade-start),#000 calc(100% - var(--mt-fade-end)),transparent);mask-image:linear-gradient(90deg,transparent,#000 var(--mt-fade-start),#000 calc(100% - var(--mt-fade-end)),transparent)}
         .mt-phone-strip::-webkit-scrollbar{display:none}
         .mt-phone-pill{flex:none;display:flex;align-items:center;min-height:36px;padding:0;border:0;background:none;font:inherit;cursor:pointer;-webkit-tap-highlight-color:transparent}
         .mt-phone-pill>span{display:inline-flex;align-items:center;gap:6px;max-width:58vw;height:28px;padding:0 12px;border-radius:999px;background:#f2f4f7;color:#667085;font-size:12px;font-weight:700;white-space:nowrap;transition:background-color .2s ease,color .2s ease,box-shadow .2s ease}
@@ -7098,14 +7101,27 @@
       strip.dataset.mtPhoneStrip = '';
       strip.setAttribute('role', 'tablist');
       strip.setAttribute('aria-label', draftText('mt_phone_lists_label', 'Lists'));
+      strip.addEventListener('scroll', () => markPhoneStripEdges(strip), { passive: true });
+      if (rootWindow.ResizeObserver) new rootWindow.ResizeObserver(() => markPhoneStripEdges(strip)).observe(strip);
     }
     if (scroll.nextElementSibling !== strip) scroll.after(strip);
     if (strip.__html !== html) { strip.innerHTML = html; strip.__html = html; if (state.phoneListsShown) centerPhoneStrip(root, false); }
+    markPhoneStripEdges(strip);
     bindPhoneLists(root);
   }
+  // The strip starts at its first pill. When the pills fit they sit centred, with no fade and nothing to scroll;
+  // when they don't, an edge fades only on the side that has more to scroll to.
+  function markPhoneStripEdges(strip){
+    const max = strip.scrollWidth - strip.clientWidth;
+    strip.classList.toggle('is-more-before', max > 1 && strip.scrollLeft > 1);
+    strip.classList.toggle('is-more-after', max > 1 && strip.scrollLeft < max - 1);
+  }
+  // Where the strip scrolls to bring a pill to the middle, kept within what it can scroll.
   function phoneStripLeft(strip, index){
     const pill = strip.children[index];
-    return pill ? pill.offsetLeft + pill.offsetWidth / 2 - strip.clientWidth / 2 : strip.scrollLeft;
+    if (!pill) return strip.scrollLeft;
+    const max = Math.max(0, strip.scrollWidth - strip.clientWidth);
+    return Math.max(0, Math.min(max, pill.offsetLeft + pill.offsetWidth / 2 - strip.clientWidth / 2));
   }
   function centerPhoneStrip(root, smooth){
     const strip = root?.querySelector?.('[data-mt-phone-strip]');
@@ -7113,6 +7129,7 @@
     const left = phoneStripLeft(strip, state.phoneListIndex || 0);
     if (smooth && !rootWindow.matchMedia?.('(prefers-reduced-motion: reduce)')?.matches) strip.scrollTo({ left, behavior: 'smooth' });
     else strip.scrollLeft = left;
+    markPhoneStripEdges(strip);
   }
   function goPhoneList(root, index){
     const items = phoneListItems(root);
