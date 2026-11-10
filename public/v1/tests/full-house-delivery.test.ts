@@ -45,8 +45,15 @@ test('delivery attaches the saved full report, records receipt, and refuses an u
   manifest.qa_full_house_review.revision = 'older';
   await assert.rejects(vm.runInContext('sendProjectEmail("fixture", true)', context), { code: 'full_house_qa_required' });
   assert.equal(messages.length, 1, 'force resend cannot bypass full-house QA');
+  // FM-357: a qualified reviewer regenerated the completed report after QA; that revision is approved and delivered.
+  manifest.full_house_regeneration_review = { ...review, revision: 'reviewed', source: 'pdf_regeneration' };
+  await vm.runInContext('sendProjectEmail("fixture", true)', context);
+  assert.equal(messages.length, 2, 'a regeneration approved by a qualified reviewer is delivered');
+  manifest.full_house_regeneration_review.revision = 'older';
+  await assert.rejects(vm.runInContext('sendProjectEmail("fixture", true)', context), { code: 'full_house_qa_required' });
+  assert.equal(messages.length, 2);
   manifest.id = 'roof'; manifest.measurement_scope = 'roof'; manifest.email_state = {};
   await vm.runInContext('sendProjectEmail("roof", false)', context);
-  assert.equal(messages[1].subject, 'Roof Report - Synthetic house');
-  assert.match(messages[1].textBody, /Your roof report is ready!/);
+  assert.equal(messages[2].subject, 'Roof Report - Synthetic house');
+  assert.match(messages[2].textBody, /Your roof report is ready!/);
 });
