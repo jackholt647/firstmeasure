@@ -29,6 +29,7 @@ test.before(async()=>{
    wrap('text',a=>{const lines=Array.isArray(a[0])?a[0]:[String(a[0])],opts=a[3]&&typeof a[3]==='object'?a[3]:{};const width=Math.max(0,...lines.map(l=>doc.getTextWidth(String(l))));let x0=a[1];if(opts.align==='right')x0-=width;else if(opts.align==='center')x0-=width/2;
     window.__calls.push({kind:'text',page:pageNo(),value:lines.join(' '),x:x0,y:a[2]-size()*0.75,w:width,h:size()*(1+(lines.length-1)*1.15)});});
    wrap('addImage',a=>{if(typeof a[2]==='number')window.__calls.push({kind:'image',page:pageNo(),x:a[2],y:a[3],w:a[4],h:a[5]});});
+   wrap('line',a=>window.__calls.push({kind:'line',page:pageNo(),x:Math.min(a[0],a[2]),y:Math.min(a[1],a[3]),w:Math.abs(a[2]-a[0]),h:Math.abs(a[3]-a[1])}));
    for(const name of ['rect','roundedRect'])wrap(name,a=>window.__calls.push({kind:name,page:pageNo(),x:a[0],y:a[1],w:a[2],h:a[3],style:name==='roundedRect'?a[6]:a[4]}));
    window.__doc=doc;return doc;
   };
@@ -36,12 +37,12 @@ test.before(async()=>{
 });
 test.after(async()=>{await browser?.close();});
 // A box house with a hip roof, its exterior model and every roof page turned on.
-async function render({mode='full',override={},exteriorSettings={include:true,frontBearing:180},organization=null,exterior=true}={}){
- return page.evaluate(async({mode,override,exteriorSettings,organization,exterior})=>{
+async function render({mode='full',override={},exteriorSettings={include:true,frontBearing:180},organization=null,exterior=true,preferences={},squares={'4/12':10}}={}){
+ return page.evaluate(async({mode,override,exteriorSettings,organization,exterior,preferences,squares})=>{
   window.__calls=[];window.projectOrganization=organization;
   const points=[{x:20,y:20,z:0},{x:120,y:20,z:0},{x:120,y:120,z:3},{x:20,y:120,z:3}];
   const lines=points.map((p,i)=>({points:[p,points[(i+1)%4]],layer:1,start:p,end:points[(i+1)%4],type:i%2?'rake':'eave',length:Math.hypot((p.x-points[(i+1)%4].x)*.1,(p.y-points[(i+1)%4].y)*.1,p.z-points[(i+1)%4].z)/.3048}));
-  const snapshot={folderId:'landscape-fixture',address:'10 Test Road',savedAt:'2026-09-21T12:00:00Z',pdfGeneratedAt:'2026-09-21T12:00:00Z',pdfSyncRevision:'landscape-fixture',pdfRenderDateLabel:'9/21/2026',imageMetersPerPx:.1,radiusMeters:10,dims:{w:200,h:200},cropRegion:{minX:0,minY:0,width:140,height:140},geometry:{points,connections:lines},facesData:[{points,layer:1}],report:{lines,materials:{squares:{'4/12':10},totalSquares:10,linear:{eave:65.6168,rake:68.5}}},customLabels:[{id:'face1',faceIndex:0,x:70,y:70,anchorX:70,anchorY:70,areaText:'1124',pitchText:'4/12',text:'4/12',layer:1}],manualWastePct:10,manualTotalFacets:1,pdfConfig:{full:{page_top_view:false,page_elevations:false,page_3d:false,page_gutters:false,page_notes:false},summary:{page_top_view:false,page_elevations:false,page_3d:false,page_gutters:false,page_notes:false}}};
+  const snapshot={folderId:'landscape-fixture',address:'10 Test Road',savedAt:'2026-09-21T12:00:00Z',pdfGeneratedAt:'2026-09-21T12:00:00Z',pdfSyncRevision:'landscape-fixture',pdfRenderDateLabel:'9/21/2026',imageMetersPerPx:.1,radiusMeters:10,dims:{w:200,h:200},cropRegion:{minX:0,minY:0,width:140,height:140},geometry:{points,connections:lines},facesData:[{points,layer:1}],report:{lines,materials:{squares,totalSquares:Object.values(squares).reduce((a,b)=>a+b,0),linear:{eave:65.6168,rake:68.5}}},customLabels:[{id:'face1',faceIndex:0,x:70,y:70,anchorX:70,anchorY:70,areaText:'1124',pitchText:'4/12',text:'4/12',layer:1}],manualWastePct:10,manualTotalFacets:1,pdfConfig:{full:{page_top_view:false,page_elevations:false,page_3d:false,page_gutters:false,page_notes:false},summary:{page_top_view:false,page_elevations:false,page_3d:false,page_gutters:false,page_notes:false}}};
   const box=(x0,y0,x1,y1,h)=>({points:[{x:x0,y:y0,z:0},{x:x1,y:y1,z:0},{x:x1,y:y1,z:h},{x:x0,y:y0,z:h}],material:'brick'});
   const walls=[box(0,0,12,0,3),box(12,0,12,8,3),box(12,8,0,8,3),box(0,8,0,0,3)];
   // Many small faces on the front so the elevation table is long.
@@ -50,12 +51,12 @@ async function render({mode='full',override={},exteriorSettings={include:true,fr
   if(exterior)snapshot.exteriorReport=ExteriorReportModel.build({faces:walls,roof,base:{faces:[{points:[{x:0,y:0,z:0},{x:12,y:0,z:0},{x:12,y:8,z:0},{x:0,y:8,z:0}]}]}});
   if(exterior)snapshot.exteriorReport.openings.push({id:'W01-1',label:'Window',wall:'W01',width:3,height:4,area:12,perimeter:14});
   snapshot.exteriorSettings=exteriorSettings;
-  const manifest={id:'landscape-fixture',project_type:'residential'};
+  const manifest={id:'landscape-fixture',project_type:'residential',...preferences};
   await FirstMatePDFStandalone.generateProjectPdfFromSnapshot(snapshot,{folderId:'landscape-fixture',manifest,organization},{mode,updateStatus:false,pageConfigOverride:{page_materials:true,page_ventilation:true,page_pitch:true,page_area:true,page_layers:true,page_summary:true,...override}});
   const doc=window.__doc,W=doc.internal.pageSize.getWidth(),H=doc.internal.pageSize.getHeight(),pages=doc.getNumberOfPages(),titles={};
   for(const c of window.__calls)if(c.kind==='text'&&c.y<22&&c.x>W/2&&!titles[c.page])titles[c.page]=c.value;
   return {W,H,pages,titles,calls:window.__calls};
- },{mode,override,exteriorSettings,organization,exterior});
+ },{mode,override,exteriorSettings,organization,exterior,preferences,squares});
 }
 // A Full Exterior organization that chose portrait pages.
 const PORTRAIT={report_settings:{general:{exterior_report_orientation:'portrait'}}};
@@ -167,4 +168,42 @@ test('landscape layer page: the details box and a two-column key of its width ar
  assert.ok(diagram,'a tall diagram card in the right half');const image=r.calls.filter(c=>c.page===vent&&c.kind==='image').sort((a,b)=>b.w*b.h-a.w*a.h)[0];
  assert.ok(image.x>=diagram.x&&image.x+image.w<=diagram.x+diagram.w&&image.y>=diagram.y&&image.y+image.h<=diagram.y+diagram.h,'the diagram is inside its card');assert.ok(image.h>60,'the diagram is a meaningful size: '+image.h);
  const key=r.calls.find(c=>c.page===vent&&c.kind==='text'&&c.value==='Key');assert.ok(key.x>=diagram.x&&key.y>diagram.y&&key.y<image.y,'the key is in the card, above the diagram');
+});
+// FM-379: translated row labels of the summary page's pitch and waste tables stay in their own column, and the value
+// columns, the waste table's dividers and its highlighted (suggested) column stay aligned with them.
+test('summary pitch and waste tables keep long translated row labels inside the label column, in either orientation',async()=>{
+ const languages={
+  'fr-FR':{Waste:'Marge de perte','Area (m²)':'Surface (m²)','Area (sq ft)':'Surface (pi²)',Percent:'Pourcentage',Pitch:'Pente',Squares:'Carrés'},
+  'pl-PL':{Waste:'Zapas','Area (m²)':'Powierzchnia (m²)','Area (sq ft)':'Powierzchnia (sq ft)',Percent:'Procent',Pitch:'Nachylenie',Squares:'Kwadraty'},
+  'lt-LT':{Waste:'Atliekų atsarga','Area (m²)':'Plotas (m²)','Area (sq ft)':'Plotas (sq ft)',Percent:'Procentai',Pitch:'Nuolydis',Squares:'Kvadratai'}
+ };
+ let checked=0;
+ for(const [locale,dictionary] of Object.entries(languages))for(const measurement_system of ['metric','imperial'])for(const orientation of ['landscape','portrait'])for(const squares of [{'4/12':10},{'4/12':9.1,'6/12':6.2,'8/12':3.3,'10/12':1.4}]){
+  const label=locale+' '+measurement_system+' '+orientation+' '+Object.keys(squares).length+' pitches';
+  const r=await render({mode:'summary',exterior:false,exteriorSettings:{},override:{report_orientation:orientation},squares,preferences:{measurement_system,report_language:locale+'-'+measurement_system,language_snapshot:{locale,report_dictionary:dictionary}}});
+  const summary=Number(Object.entries(r.titles).find(([,t])=>/Summary/.test(t))[0]),texts=r.calls.filter(c=>c.page===summary&&c.kind==='text');
+  const rows=[...new Set(Object.values(dictionary))].map(v=>texts.filter(c=>c.value===v)).flat();
+  assert.ok(rows.some(c=>c.value===dictionary.Waste)&&rows.some(c=>c.value===dictionary.Percent),label+': the translated labels are drawn');
+  for(const row of rows){
+   // The row's values: text right of the label, on its baseline, before the next card.
+   const values=texts.filter(c=>c!==row&&Math.abs(c.y+c.h*.75-(row.y+row.h*.75))<.05&&c.x>row.x&&/\d/.test(c.value)).sort((a,b)=>a.x-b.x);
+   const next=texts.find(c=>c!==row&&rows.includes(c)&&Math.abs(c.y-row.y)<.05&&c.x>row.x);
+   const own=values.filter(c=>!next||c.x<next.x);
+   if(own.length<2)continue;
+   const centre=c=>c.x+c.w/2,pitch=centre(own[1])-centre(own[0]),edge=centre(own[0])-pitch/2;
+   assert.ok(row.x+row.w<=edge-.5,label+': "'+row.value+'" ends at '+(row.x+row.w).toFixed(2)+', past the value column at '+edge.toFixed(2));
+   for(const v of own)assert.ok(v.w<=pitch-1,label+': "'+v.value+'" fits its column');
+   if(row.value===dictionary.Waste){
+    const dividers=r.calls.filter(c=>c.page===summary&&c.kind==='line'&&c.w<.01&&c.h>10&&c.y<=row.y+row.h&&c.y+c.h>=row.y&&c.x>row.x-1).map(c=>c.x).sort((a,b)=>a-b);
+    assert.ok(Math.abs(dividers[0]-edge)<.05,label+': the first divider is the value column edge');
+    for(let i=0;i<own.length;i++)assert.ok(Math.abs(dividers[i]-(centre(own[i])-pitch/2))<.05,label+': divider '+i+' aligned');
+    const highlight=r.calls.find(c=>c.page===summary&&c.kind==='roundedRect'&&c.style==='S'&&c.y<row.y+row.h&&c.y+c.h>row.y);
+    const suggested=own.find(c=>c.value==='10%');
+    assert.ok(highlight&&suggested&&Math.abs(highlight.x+highlight.w/2-centre(suggested))<.05&&Math.abs(highlight.w-pitch)<.05,label+': the highlight frames the 10% column');
+   }
+   checked++;
+  }
+  assert.deepEqual(overflow(r),[],label+': stays inside the page');
+ }
+ assert.ok(checked>=48,'rows checked: '+checked);
 });
