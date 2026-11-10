@@ -584,6 +584,8 @@ test('at phone width the setup fills the screen with the conversation folded bel
   const browser=await launch();
   try{
     const {page,errors}=await load(browser,{width:390,height:780,reduced:true});
+    // The visual viewport, which a phone's keyboard shrinks: a stand-in the test can move.
+    await page.evaluate(()=>{const vv=new EventTarget();Object.assign(vv,{width:390,height:780,offsetTop:0,offsetLeft:0,scale:1});Object.defineProperty(window,'visualViewport',{configurable:true,get:()=>vv});window.fakeViewport=vv;});
     await page.click('[data-mt-generate-materials]');
     await page.waitForSelector('.gxs-sheet');
     const box=await page.locator('.gxs-sheet').boundingBox();
@@ -595,6 +597,16 @@ test('at phone width the setup fills the screen with the conversation folded bel
     await page.waitForFunction(()=>document.querySelector('.gxs-chat').getBoundingClientRect().height>200);
     assert.ok(await page.locator('.gxs-assistant [data-fma=input]').isVisible(),'the assistant composer, unfolded');
     await page.click('.gxs-chat-handle');
+    // One scroller (FM-365): the page under the setup is held, and a pane at its end never hands the drag on to it.
+    const held=()=>page.evaluate(()=>[document.documentElement,document.body].map(el=>`${getComputedStyle(el).overflowY}/${getComputedStyle(el).overscrollBehaviorY}`).join());
+    assert.equal(await held(),'hidden/none,hidden/none','the page does not scroll under the setup');
+    assert.equal(await page.evaluate(()=>getComputedStyle(document.querySelector('.gxs-step:not(.gxs-above)')).overscrollBehaviorY),'contain');
+    // The keyboard opens: the visible screen is 380px tall, panned 300px down the page. The sheet is that screen.
+    await page.evaluate(()=>{const vv=window.fakeViewport;Object.assign(vv,{height:380,offsetTop:300});vv.dispatchEvent(new Event('resize'));});
+    await page.waitForFunction(()=>{const r=document.querySelector('.gxs-sheet').getBoundingClientRect();return Math.abs(r.top-300)<=1&&Math.abs(r.bottom-680)<=1;});
+    const step=await page.evaluate(()=>{const pane=document.querySelector('.gxs-step:not(.gxs-above)'),r=pane.getBoundingClientRect();return {top:r.top,bottom:r.bottom,scrolls:pane.scrollHeight>pane.clientHeight};});
+    assert.ok(step.top>=300&&step.bottom<=680&&step.scrolls,'the step is the one scroller, inside the visible screen: '+JSON.stringify(step));
+    await page.evaluate(()=>{const vv=window.fakeViewport;Object.assign(vv,{height:780,offsetTop:0});vv.dispatchEvent(new Event('resize'));});
     await page.click('[data-gxs=close]');
     // At phone width the dialog fits the screen, its two buttons side by side.
     await page.waitForSelector('.gxs-ask-box');
@@ -604,6 +616,7 @@ test('at phone width the setup fills the screen with the conversation folded bel
     await shot(page,'7b-phone-skip');
     await page.click('[data-gxs=dismiss]');
     await page.waitForFunction(()=>!document.querySelector('.gxs'));
+    assert.equal(await held(),'visible/auto,visible/auto','closing gives the page its scroll back');
     await page.waitForFunction(()=>window.generated===1,null,{timeout:3000});
     assert.ok(await page.evaluate(()=>window.calls.some(c=>c.body?.type==='dismiss'&&c.path.includes('pricebook_setup'))),'skipping the setup is recorded and lets Generate run');
     assert.deepEqual(errors,[]);

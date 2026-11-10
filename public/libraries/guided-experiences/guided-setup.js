@@ -38,17 +38,20 @@
     .gxs [hidden]{display:none!important}
     .gxs-settled .gxs-card,.gxs-settled .gxs-rule{animation:none}
     .gxs{position:fixed;inset:0;z-index:2147483250;display:grid;place-items:center;font:14px/1.5 system-ui,-apple-system,Segoe UI,Roboto,sans-serif;color:#101828}
+    /* One scroller (FirstMateGuides.holdPage): the page under the sheet is held still, the sheet is the visible screen
+       (--gx-vh, which a phone's keyboard shrinks), and a pane at the end of its scroll never hands the drag on. */
+    .gxs,.gxs *{overscroll-behavior:contain}
     .gxs-scrim{position:absolute;inset:0;background:rgba(16,24,40,.55);backdrop-filter:blur(3px);animation:gxsFade .35s ease both}
     /* The sheet is a landscape rectangle as tall as the step on screen needs (--gxs-fit, measured by the player), up to
        the cap; a step that fills (logos, supplier columns, a workflow) has no fit and takes the full height. */
-    .gxs-sheet{position:relative;display:grid;grid-template-columns:minmax(0,1fr) 360px;width:min(1120px,calc(100vw - 32px));height:min(var(--gxs-fit,760px),calc(100vh - 32px));background:#fff;border-radius:20px;box-shadow:0 40px 100px rgba(16,24,40,.45);overflow:hidden;animation:gxsRise .5s cubic-bezier(.22,1,.36,1) both}
+    .gxs-sheet{position:relative;display:grid;grid-template-columns:minmax(0,1fr) 360px;width:min(1120px,calc(100vw - 32px));height:min(var(--gxs-fit,760px),calc(var(--gx-vh,100vh) - 32px));background:#fff;border-radius:20px;box-shadow:0 40px 100px rgba(16,24,40,.45);overflow:hidden;animation:gxsRise .5s cubic-bezier(.22,1,.36,1) both}
     .gxs[data-kind=modal] .gxs-sheet{grid-template-columns:minmax(0,1fr);width:min(960px,calc(100vw - 32px))}
     /* The conversation beside the steps needs room of its own, however short the step. */
-    .gxs[data-kind=agentic] .gxs-sheet{min-height:min(600px,calc(100vh - 32px))}
+    .gxs[data-kind=agentic] .gxs-sheet{min-height:min(600px,calc(var(--gx-vh,100vh) - 32px))}
     .gxs.gxs-fit-now .gxs-sheet{transition:none}
     /* The price book after the finish needs room for its list and an item side by side: the sheet widens to show it. */
     .gxs-sheet{transition:width .45s cubic-bezier(.22,1,.36,1),height .45s cubic-bezier(.22,1,.36,1)}
-    .gxs.gxs-wide .gxs-sheet{width:min(1480px,calc(100vw - 32px));height:min(880px,calc(100vh - 32px))}
+    .gxs.gxs-wide .gxs-sheet{width:min(1480px,calc(100vw - 32px));height:min(880px,calc(var(--gx-vh,100vh) - 32px))}
     .gxs[data-kind=modal] .gxs-chat{display:none}
     @keyframes gxsFade{from{opacity:0}to{opacity:1}}
     @keyframes gxsRise{from{opacity:0;transform:translateY(24px) scale(.98)}to{opacity:1;transform:none}}
@@ -138,13 +141,13 @@
     .gxs.gxs-leaving .gxs-widget{opacity:0;transform:translateX(-30px);transition:opacity .35s,transform .45s}
     .gxs.gxs-leaving[data-kind=modal] .gxs-sheet{opacity:0;transform:scale(.97);transition:opacity .3s,transform .3s}
     @media(max-width:760px){
-      .gxs-sheet{grid-template-columns:minmax(0,1fr);grid-template-rows:minmax(0,1fr) auto;width:100vw;height:100dvh;border-radius:0}
+      .gxs-sheet,.gxs.gxs-wide .gxs-sheet{grid-template-columns:minmax(0,1fr);grid-template-rows:minmax(0,1fr) auto;width:100vw;height:var(--gx-vh,100dvh);border-radius:0}
       /* On a phone a modal setup is a sheet from the bottom edge, as tall as its step; the agentic one keeps the screen. */
       .gxs[data-kind=modal]{place-items:end center}
-      .gxs[data-kind=modal] .gxs-sheet{width:100vw;height:min(var(--gxs-fit,100dvh),calc(100dvh - 12px));border-radius:18px 18px 0 0}
+      .gxs[data-kind=modal] .gxs-sheet{width:100vw;height:min(var(--gxs-fit,100dvh),calc(var(--gx-vh,100dvh) - 12px));border-radius:18px 18px 0 0}
       .gxs[data-kind=agentic] .gxs-sheet{min-height:0}
       .gxs-chat{border-left:0;border-top:1px solid #eaecf0;max-height:48px;overflow:hidden;transition:max-height .35s cubic-bezier(.22,1,.36,1)}
-      .gxs-chat[data-open=true]{max-height:58dvh}
+      .gxs-chat[data-open=true]{max-height:calc(var(--gx-vh,100dvh) * .58)}
       .gxs-chat-handle{display:flex;align-items:center;gap:8px;flex:none;height:48px;padding:0 16px;border:0;background:#fff;font:inherit;font-weight:700;color:#101828;cursor:pointer;text-align:left}
       .gxs-chat-handle .gxs-chevron{margin-left:auto;transition:transform .3s}
       .gxs-chat[data-open=true] .gxs-chat-handle .gxs-chevron{transform:rotate(180deg)}
@@ -223,6 +226,7 @@
           </aside>
         </section>`;
       document.body.appendChild(host);
+      const releasePage = G()?.holdPage ? G().holdPage(host) : () => {};
       const $ = (selector) => host.querySelector(selector);
       const stage = $('.gxs-stage'), status = $('.gxs-status'), chat = $('.gxs-chat');
       /**
@@ -632,6 +636,7 @@
         try { assistant?.destroy?.(); } catch (_) {}
         assistant = null;
         host.remove();
+        releasePage();
         try { previousFocus?.focus?.({ preventScroll: true }); } catch (_) {}
       }
       /**

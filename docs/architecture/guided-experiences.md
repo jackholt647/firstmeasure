@@ -169,12 +169,25 @@ do nothing, so fast Back/Continue never stacks steps.
 The sheet is a wide landscape rectangle (960px modal, 1120px agentic) as tall as
 the step on screen: the player measures the step's own content (the pane let go of
 the stage's bottom edge) into `--gxs-fit` whenever it changes size, and the CSS
-caps it at `min(760px, 100vh - 32px)`, past which the step scrolls. A step that
+caps it at `min(760px, --gx-vh - 32px)` (the visible height, below), past which the step scrolls. A step that
 fills (`data-fill`) has no fit and takes the full height; the agentic sheet keeps
 at least 600px for the conversation. Under 760px a modal setup is a sheet from the
 bottom edge, as tall as its step; the agentic one fills the screen and the
 assistant folds below it behind an Agent handle. `prefers-reduced-motion` turns every animation off. Without the
 assistant (or without a project) the same steps play as a modal.
+
+**One scroller.** A player that covers the page (a setup sheet, an announcement)
+calls `FirstMateGuides.holdPage(cover)` while it is up. The page under it no longer
+scrolls (`html` and `body` `overflow: hidden`, `overscroll-behavior: none`), and
+the cover follows the visual viewport: on a phone the keyboard shrinks what is
+visible but not the page, so the cover's `top` and `height` and its CSS variable
+`--gx-vh` become the visible screen, and every sheet height is calculated from
+`--gx-vh`, never `100vh`/`100dvh`. Every element inside a cover is
+`overscroll-behavior: contain`, so a step at the end of its scroll never hands the
+drag on. Before this (FM-365) a phone had two scrollers, the page panning behind
+the keyboard and the step, and a drag that landed on the one already at its end
+moved nothing. A new kind that covers the page uses the same hold; overlay tours
+do not, because they point at the page and it must scroll to their targets.
 
 **Preprogrammed workflows in the assistant** (`platform-assistant.js`). A host
 passes `workflow` when it mounts an instance (`mountProject`, `mountSurface`):
