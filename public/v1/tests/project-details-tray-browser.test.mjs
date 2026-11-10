@@ -13,6 +13,7 @@ const harness=`
   const projectOpenId=()=>activeBaseProject?.id||'';
   const hasReportOrdered=()=>ordered;
   const isMobileProjectOrder=()=>phone;
+  const shouldUseMobileOrderPagination=()=>isMobileProjectOrder() && requestedWorkflow==='report' && !hasReportOrdered();
   const syncTrayMeasurements=()=>{};
   ${tray}
   window.t={
@@ -130,4 +131,42 @@ test('the window wiring reapplies the default per project and implicit report la
   assert.equal(source.includes('firstmate.project.detailsTray'),false);
   assert.match(source,/if \(!options\.preferredTab\) setActivePreviewTab\('measurements',\{keepTrayClosed:true\}\);/);
   assert.match(source,/!validPreviewTabs\(\)\.includes\(activePreviewTab\)\) \{\n\s+setActivePreviewTab\('measurements',\{keepTrayClosed:true\}\);/);
+});
+
+// FM-360: guided experiences hear the tray (panel `project.details`): a tab's tour waits while the sheet covers a phone,
+// the tray's tour plays when it opens and the window's tour on the person's first close.
+test('the tray announces opening and closing to guided experiences, whether it covers the page and who closed it',async()=>{
+  const browser=await launch();
+  try{
+    const {run,page,errors}=await mount(browser,390);
+    await page.evaluate(()=>{window.panelEvents=[];for(const type of ['opened','closed'])addEventListener('fm:project-panel:'+type,e=>panelEvents.push({type,panel:e.detail.panel,covers:e.detail.covers,user:e.detail.user,covering:e.detail.covering()}));document.getElementById('rOverlay').classList.add('active');});
+    const take=()=>page.evaluate(()=>panelEvents.splice(0));
+    await run('openProject','');
+    assert.deepEqual(await take(),[{type:'opened',panel:'project.details',covers:true,user:false,covering:true}],'a new project on a phone opens the sheet');
+    assert.equal(await page.evaluate(()=>document.getElementById('rProjectIdentityTrigger').getAttribute('aria-expanded')),'true');
+    await run('userSet',false);
+    assert.deepEqual(await take(),[{type:'closed',panel:'project.details',covers:true,user:true,covering:false}]);
+    assert.equal(await page.evaluate(()=>document.getElementById('rProjectIdentityTrigger').getAttribute('aria-expanded')),'false');
+    await run('userSet',false);
+    assert.deepEqual(await take(),[],'nothing changed, nothing announced');
+    // A hidden window announces nothing; it announces the open tray once it shows.
+    await page.evaluate(()=>document.getElementById('rOverlay').classList.remove('active'));
+    await run('userSet',true);
+    assert.deepEqual(await take(),[]);
+    await page.evaluate(()=>document.getElementById('rOverlay').classList.add('active'));
+    await page.waitForFunction(()=>panelEvents.length===1);
+    assert.deepEqual(await take(),[{type:'opened',panel:'project.details',covers:true,user:false,covering:true}]);
+    // Widened to a desktop it stays open beside the content: it no longer covers the page.
+    await run('setPhone',false);
+    await page.setViewportSize({width:1280,height:800});
+    await page.waitForFunction(()=>panelEvents.length===1);
+    assert.deepEqual(await take(),[{type:'opened',panel:'project.details',covers:false,user:false,covering:false}]);
+    assert.deepEqual(errors,[]);
+  }finally{await browser.close();}
+});
+
+test('the title carries arrows pointing the way the tray will go',()=>{
+  assert.match(source,/#rProjectIdentityTrigger,\.r-project-identity-trigger\)::after\{content:'\\\\f101'/,'closed: arrows pointing right, to open');
+  assert.match(source,/#rProjectIdentityTrigger\[aria-expanded=true\]::after\{content:'\\\\f100'\}/,'open: arrows pointing left, as the sheet\'s close');
+  assert.match(source,/close\.innerHTML='<i class="fas fa-angles-left"/);
 });

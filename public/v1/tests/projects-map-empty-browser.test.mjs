@@ -88,3 +88,23 @@ test('on a phone the empty tray peeks over the map without overflowing', async (
     assert.deepEqual(errors, []);
   } finally { await browser.close(); }
 });
+
+// FM-360: on a phone the sheet is only as tall as the empty state, while a long list fills it up to its cap and scrolls inside.
+test('on a phone the empty sheet is short and a long list is capped and scrolls inside the sheet', async () => {
+  const { browser, page, errors } = await setup(390);
+  try {
+    await draw(page, { items:[], empty:'none' });
+    await page.locator('.pm-empty.is-view').getByText('No projects yet', { exact:true }).waitFor({ state:'visible' });
+    const host = await page.locator('#host').boundingBox();
+    const empty = await page.locator('.pm-tray').boundingBox();
+    assert.ok(empty.height < 240, `the empty sheet is short (${empty.height}px)`);
+    const items = Array.from({ length:40 }, (_, i) => ({ id:'p' + i, title:'Project ' + i, line1:i + ' Main St', address:i + ' Main St', groupId:'lead', groupTitle:'Lead', color:'#f59e0b', point:{ lat:30 + i / 100, lng:-97.74 } }));
+    await draw(page, { items, groups:[{ id:'lead', title:'Lead', color:'#f59e0b' }] });
+    await page.locator('.pm-row').first().waitFor();
+    const full = await page.locator('.pm-tray').boundingBox();
+    const cap = Math.min((host.height - 24) * 0.56, 440);
+    assert.ok(Math.abs(full.height - cap) <= 2, `a long list fills the sheet to its cap (${full.height}px, cap ${cap}px)`);
+    assert.equal(await page.locator('.pm-list').evaluate((list) => list.scrollHeight > list.clientHeight + 20 && getComputedStyle(list).overflowY === 'auto'), true, 'the list scrolls inside the sheet');
+    assert.deepEqual(errors, []);
+  } finally { await browser.close(); }
+});

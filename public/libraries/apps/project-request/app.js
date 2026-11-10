@@ -884,8 +884,11 @@ window.PlatformCommerce.onReady(async function(){
     .fm-shell-header[data-window-mobile=true]>.r-window-bar-actions{border:0;width:auto;flex:none}
     .fm-shell-header[data-window-mobile=true] :is(#rProjectStageBar,.r-project-stage-bar){display:none}
 
-    :is(#rProjectIdentityTrigger,.r-project-identity-trigger)::after{content:'';width:6px;height:6px;flex:none;border-right:1.5px solid #8491a3;border-bottom:1.5px solid #8491a3;transform:translateY(-2px) rotate(45deg)}
-    #rProjectIdentityTrigger[aria-expanded=true]::after{transform:translateY(2px) rotate(225deg)}
+    /* The title opens and closes the details tray: arrows beside it point the way it will go (the tray's own close
+       control on a phone is the same arrows, pointing back). */
+    :is(#rProjectIdentityTrigger,.r-project-identity-trigger)::after{content:'\\f101';flex:none;font-family:'Font Awesome 6 Free','Font Awesome 5 Free';font-weight:900;font-size:12px;line-height:1;color:#98a2b3;transition:color .16s ease}
+    #rProjectIdentityTrigger[aria-expanded=true]::after{content:'\\f100'}
+    :is(#rProjectIdentityTrigger,.r-project-identity-trigger):hover::after{color:var(--primary-readable,var(--primary,#d93025))}
     .r-window-identity .r-project-tag i{color:inherit;flex:none}
     /* Project details tray: the one owner of the project's contact, address and measurements. Open, it joins the
        header's left end into one white column, and the tabs and content slide right (pushed, not covered). */
@@ -4832,6 +4835,9 @@ window.PlatformCommerce.onReady(async function(){
     const scrim=document.createElement('button');scrim.type='button';scrim.className='r-details-tray-scrim';scrim.tabIndex=-1;
     scrim.setAttribute('aria-label',hide);scrim.onclick=()=>setDetailsTrayOpen(false,{user:true});
     win.append(scrim,tray);
+    // The window showing or hiding, or turning into a phone layout, changes what the tray does to the page.
+    const overlay=document.getElementById('rOverlay');
+    if(overlay)new MutationObserver(()=>announceDetailsTray()).observe(overlay,{attributes:true,attributeFilter:['class']});
     syncDetailsTrayTitle();
     const title=document.getElementById('rWindowProjectTitle');
     if(title)new MutationObserver(syncDetailsTrayTitle).observe(title,{childList:true,subtree:true,characterData:true});
@@ -4865,11 +4871,12 @@ window.PlatformCommerce.onReady(async function(){
     const sheet=detailsTraySheet();overlay.classList.toggle('details-tray-sheet',sheet);
     syncDetailsTrayTop();
     if(open)placeOverviewDetails();
-    if(open===detailsTrayOpen && overlay.classList.contains('details-tray-open')===open)return;
+    if(open===detailsTrayOpen && overlay.classList.contains('details-tray-open')===open){announceDetailsTray(options);return;}
     detailsTrayOpen=open;
     overlay.classList.toggle('details-tray-open',open);
     document.getElementById('rProjectIdentityTrigger')?.setAttribute('aria-expanded',String(open));
     tray.toggleAttribute('inert',!open);
+    announceDetailsTray(options);
     if(open && sheet)tray.querySelector('[data-details-tray-close]')?.focus({preventScroll:true});
     if(open)syncTrayMeasurements();
     setTimeout(()=>{
@@ -4878,6 +4885,20 @@ window.PlatformCommerce.onReady(async function(){
       if(tabs && tabs.scrollWidth<=tabs.clientWidth+1)tabs.scrollLeft=0;
       window.dispatchEvent(new Event('resize'));
     },360);
+  }
+  // Guided experiences hear the tray open and close (`panel_opened` / `panel_closed` triggers, panel
+  // `project.details`) and hold a tab's tour while it covers the page, as it does on a phone, until it closes
+  // (docs/architecture/guided-experiences.md). `covers` on a close says whether it covered the page while open; `user`
+  // whether the person closed it.
+  let detailsTrayAnnounced={open:false,covers:false};
+  function announceDetailsTray(options={}){
+    const overlay=document.getElementById('rOverlay');if(!overlay)return;
+    const isOpen=()=>detailsTrayOpen && overlay.classList.contains('active');
+    const covering=()=>isOpen() && overlay.classList.contains('details-tray-sheet');
+    const open=isOpen(),covers=covering(),was=detailsTrayAnnounced;
+    if(open===was.open && covers===was.covers)return;
+    detailsTrayAnnounced={open,covers};
+    window.dispatchEvent(new CustomEvent(open?'fm:project-panel:opened':'fm:project-panel:closed',{detail:{panel:'project.details',covers:open?covers:was.covers,user:!!options.user,isOpen,covering}}));
   }
   // Runs with the Overview workflow render: applies the default for a project the window has just shown.
   function syncDetailsTray(){

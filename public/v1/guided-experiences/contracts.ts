@@ -103,6 +103,13 @@ const trigger = z.discriminatedUnion("kind", [
   z.object({ kind: z.literal("app_loaded"), once: z.boolean().default(true), delay_ms: z.number().int().min(0).max(10000).default(800), when: conditions.optional() }).strict(),
   /** A document workflow opens for a kind of document (document_type, such as proposal), wherever it is built; plays once it is on screen. */
   z.object({ kind: z.literal("workflow_opened"), document_type: id, once: z.boolean().default(true), delay_ms: z.number().int().min(0).max(10000).default(400), when: conditions.optional() }).strict(),
+  /**
+   * A project window panel that is not a tab opens (the details tray, `project.details`). With `covering`, only when it
+   * does (true: it covers the page, the tray on a phone) or does not cover it (false).
+   */
+  z.object({ kind: z.literal("panel_opened"), panel: id, covering: z.boolean().optional(), once: z.boolean().default(true), when: conditions.optional() }).strict(),
+  /** The person closes that panel; with `covering`, only a panel that did (or did not) cover the page while open. */
+  z.object({ kind: z.literal("panel_closed"), panel: id, covering: z.boolean().optional(), once: z.boolean().default(true), when: conditions.optional() }).strict(),
   z.object({ kind: z.literal("manual") }).strict()
 ]);
 
