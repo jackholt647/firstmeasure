@@ -140,8 +140,8 @@ function start() {
       return async () => { await boot; const plan = FM.api.plan(request, identityOf(event.clientId), options); return plan ? plan() : fetch(request); };
     }
     if (request.method !== 'GET') return null;
-    if (S.loaded) return fileHandler(event, url);
-    return async () => { await boot; const handler = fileHandler(event, url); return handler ? handler() : fetch(request); };
+    if (S.loaded) return fileHandler(event, url) || looseHandler(event, url);
+    return async () => { await boot; const handler = fileHandler(event, url) || looseHandler(event, url); return handler ? handler() : fetch(request); };
   }
 
   // --- pages ---
@@ -327,12 +327,13 @@ function start() {
     if (!manifest.release || !manifest.files || typeof manifest.files !== 'object') return S.code;
     const files = {};
     for (const [path, value] of Object.entries(manifest.files)) files[path] = String(Array.isArray(value) ? value[0] : value);
-    const wanted = { release: String(manifest.release), files, shells: Array.isArray(manifest.shells) && manifest.shells.length ? manifest.shells : DEFAULT_SHELLS, external: Array.isArray(manifest.external) ? manifest.external : [] };
+    const wanted = { release: String(manifest.release), files, shells: Array.isArray(manifest.shells) && manifest.shells.length ? manifest.shells : DEFAULT_SHELLS, external: Array.isArray(manifest.external) ? manifest.external : [], loose: Array.isArray(manifest.loose) ? manifest.loose.filter((path) => typeof path === 'string' && path.startsWith('/') && !path.startsWith('/v1/')) : [] };
     if (wanted.release === S.sets.active) {
       // The active set: make sure the person signed in now has their shells, and the listed external files.
       const cache = await caches.open(setName(wanted.release));
       for (const shell of wanted.shells) if (S.identity && !(await cache.match(shellKey(S.identity, shell)))) await fetchShell(cache, wanted.release, shell).catch(() => false);
       await keepExternal(wanted.external).catch(() => {});
+      await keepLoose(wanted.loose).catch(() => {});
       setCode({ release: wanted.release, status: 'ready', progress: 1 });
       return S.code;
     }
@@ -374,6 +375,7 @@ function start() {
     await pruneSets();
     setCode({ release, status: 'ready', progress: 1 });
     await keepExternal(wanted.external).catch(() => {});
+    await keepLoose(wanted.loose).catch(() => {});
     return true;
   }
 
@@ -419,6 +421,40 @@ function start() {
       let response = null;
       try { response = await fetch(url, { mode: 'cors', credentials: 'omit' }); } catch (_) { try { response = await fetch(url, { mode: 'no-cors', credentials: 'omit' }); } catch (__) { response = null; } }
       if (response && (response.ok || response.type === 'opaque')) await cache.put(url, response);
+    });
+  }
+
+  // --- loose files: this site's files that another release lane ships (the manifest's `loose`) ---
+
+  const looseKey = (path) => self.location.origin + path;
+  function loosePaths() { return (S.sets.active && S.manifests[S.sets.active] && S.manifests[S.sets.active].loose) || []; }
+
+  /** Network first, so the lane's newest file is used; its copy when the network cannot be reached. */
+  function looseHandler(event, url) {
+    if (!loosePaths().includes(url.pathname)) return null;
+    return async () => {
+      const cache = await caches.open(EXTERNAL_CACHE);
+      try {
+        const response = await fetch(event.request);
+        FM.net.ok();
+        if (response.ok) event.waitUntil(cache.put(looseKey(url.pathname), response.clone()).catch(() => {}));
+        return response;
+      } catch (error) {
+        FM.net.fail();
+        const hit = await cache.match(looseKey(url.pathname));
+        if (hit) return hit;
+        throw networkFailure(error);
+      }
+    };
+  }
+
+  /** Keeps each listed file once, so a page that needs one without a connection has it even if it never asked. */
+  async function keepLoose(paths) {
+    const cache = await caches.open(EXTERNAL_CACHE);
+    await FM.util.pool(paths, 4, async (path) => {
+      if (await cache.match(looseKey(path))) return;
+      const response = await fetch(path, { credentials: 'same-origin', cache: 'no-cache' }).catch(() => null);
+      if (response && response.ok) await cache.put(looseKey(path), response);
     });
   }
 

@@ -101,7 +101,8 @@ hashes) answers
 { "enabled": true, "release": "<release id>", "generated_at": "...",
   "files": { "/libraries/platform-api/platform-api.js": ["<sha256>", 12345], "...": ["...", 0] },
   "shells": ["/portal/"],
-  "external": ["https://cdnjs.cloudflare.com/.../all.min.css"] }
+  "external": ["https://cdnjs.cloudflare.com/.../all.min.css"],
+  "loose": ["/measure/internal/editor_scripts/exterior_geometry.js"] }
 ```
 
 - `release` is the name of the release the web node is serving (the same value
@@ -152,6 +153,14 @@ hashes) answers
   when the page gains an outside file that is in neither list.
   An entry that ends with `*` is a prefix: files under it are cached when
   first used. External files are best effort and never hold a set back.
+- `loose` is files of this site that a portal page loads but that are not in
+  the release's set, because another release lane ships them: the report
+  window's 3D model is built by eight of the measure editor's own scripts
+  (`roof-viewer.js`, `editorScripts`). They are not hashed, since their lane
+  may change them between two platform releases. The worker keeps each one
+  when a set becomes active and whenever it is served, asks the network
+  first, falls back to its copy, and matches without the `?v=`. The test
+  fails when the viewer names a script that is not listed.
 - The list is computed once per release per process (hashing the set takes
   about a third of a second; see
   [the backlog](../optimization-backlog.md#the-offline-asset-manifest-hashes-every-file-once-per-release-in-every-process))
@@ -231,6 +240,7 @@ requested under several of them.
 | Navigation to a shell (`/portal/`, `/portal/index.php`, with any query) | network; the answer replaces the stored shell when it is a 200 for the release of the active set (`X-FirstMate-Release` header) | the stored shell, when someone is signed in on this device; otherwise the built-in "connect once" page |
 | File in the set | network, falling back to the set if the request fails | the set first, then the network |
 | Listed external file (fonts, icon CSS) | cache, refreshed in the background | cache |
+| Loose file (another lane's script a portal page loads) | network, kept as served | its copy |
 | Anything else | not answered by the worker | - |
 
 A navigation waits for the network 8 seconds (3.5 seconds when the last

@@ -38,7 +38,8 @@ export async function registerOfflineApi(app: FastifyInstance) {
       generated_at: set.generated_at,
       files: set.files,
       shells: ASSET_RULES.shells,
-      external: ASSET_RULES.external
+      external: ASSET_RULES.external,
+      loose: ASSET_RULES.loose
     };
   });
 }

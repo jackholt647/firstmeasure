@@ -64,7 +64,8 @@ test("the manifest lists this checkout's browser files with their hashes, and no
   const response = await manifest();
   assert.equal(response.statusCode, 200);
   const body = response.json();
-  assert.deepEqual(Object.keys(body), ["enabled", "release", "generated_at", "files", "shells", "external"]);
+  assert.deepEqual(Object.keys(body), ["enabled", "release", "generated_at", "files", "shells", "external", "loose"]);
+  assert.deepEqual(body.loose, [...assets.ASSET_RULES.loose]);
   assert.equal(typeof body.enabled, "boolean");
   assert.equal(body.release, "fixture-checkout", "without a release link: the server's own release id");
   assert.ok(Number.isFinite(Date.parse(body.generated_at)));
@@ -123,6 +124,17 @@ test("the manifest lists this checkout's browser files with their hashes, and no
   assert.ok(bytes < assets.ASSET_BUDGET_BYTES, `the set is ${(bytes / 1048576).toFixed(1)} MB, over its ${assets.ASSET_BUDGET_BYTES / 1048576} MB budget`);
   t.diagnostic(`offline set: ${names.length} files, ${(bytes / 1048576).toFixed(2)} MB (${bytes} bytes); manifest ${(response.body.length / 1024).toFixed(0)} KB`);
   for (const rule of set.excluded) t.diagnostic(`left out by ${rule.match}: ${rule.files} files, ${(rule.bytes / 1048576).toFixed(2)} MB`);
+});
+
+test("the scripts the report window's 3D model borrows from the measure editor are kept as loose files", () => {
+  const viewer = fs.readFileSync(path.join(PUBLIC_ROOT, "libraries", "apps", "measurements", "roof-viewer.js"), "utf8");
+  const list = /const editorScripts=\[(.*?)\];/s.exec(viewer);
+  assert.ok(list, "roof-viewer.js names its editor scripts");
+  const named = [...list![1]!.matchAll(/\['[^']+','([^']+\.js)'\]/g)].map((match) => `/measure/internal/editor_scripts/${match[1]}`);
+  assert.ok(named.length >= 3, named.join(", "));
+  const loose = new Set<string>(assets.ASSET_RULES.loose);
+  for (const file of named) assert.ok(loose.has(file), `${file} is not in ASSET_RULES.loose`);
+  for (const file of loose) assert.ok(file.startsWith("/") && !file.startsWith("/v1/") && !file.includes("?"), `${file} is a path of this site`);
 });
 
 test("every outside file the portal page loads is either saved or left out on purpose", () => {

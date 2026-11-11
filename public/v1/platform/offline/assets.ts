@@ -77,6 +77,24 @@ export const ASSET_RULES = {
     "https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js",
     "https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"
   ],
+  /**
+   * Files of this site that a portal page loads but that are not in this release's set, because another
+   * release lane ships them: the report window's 3D model is built by the measure editor's own scripts
+   * (libraries/apps/measurements/roof-viewer.js, `editorScripts`). The service worker keeps each one as it is
+   * served, asks the network first and falls back to its copy, and matches without the `?v=`. They are not
+   * hashed: the lane that owns them may change them between two platform releases.
+   * tests/offline-assets.test.ts fails when the viewer names a script that is not listed here.
+   */
+  loose: [
+    "/measure/internal/editor_scripts/vendor/clipper-lib-6.4.2-clipper.js",
+    "/measure/internal/editor_scripts/vendor/earcut-3.2.3-earcut.dev.js",
+    "/measure/internal/editor_scripts/exterior_geometry.js",
+    "/measure/internal/editor_scripts/wall_solid_geometry.js",
+    "/measure/internal/editor_scripts/wall_features.js",
+    "/measure/internal/editor_scripts/roof_trim.js",
+    "/measure/internal/editor_scripts/exterior_finishes.js",
+    "/measure/internal/editor_scripts/exterior_rendered.js"
+  ],
   /** Outside hosts the page loads from that are never saved. */
   externalLeftOut: [
     { host: "www.googletagmanager.com", reason: "Analytics." },
