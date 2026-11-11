@@ -15605,7 +15605,11 @@
     "offline_payments_need_connection": "Payments and money figures need a connection. They are not kept on this device.",
     "offline_document_not_saved": "This document is not saved on this device. Connect to the internet to open it.",
     "offline_documents_need_connection": "This needs a connection. Without one, documents can be read but not created, changed, sent or signed.",
-    "offline_change_needs_connection": "This needs a connection. Nothing was saved."
+    "offline_change_needs_connection": "This needs a connection. Nothing was saved.",
+    "offline_not_on_device": "This is not saved on this device. Connect to the internet to see it.",
+    "offline_send_needs_connection": "Sending needs a connection. Your message is still here; send it when you are back online.",
+    "offline_older_messages_not_on_device": "Older messages are not saved on this device.",
+    "offline_project_messages_not_on_device": "This project's messages are not saved on this device. Connect to the internet to see them."
   },
   "account-switcher": {
     "m_b5e633539db02a": "Choose an account",

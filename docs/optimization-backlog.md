@@ -710,6 +710,22 @@ Until then, conditional requests (`ETag` on the larger reads) would at least mak
 **Why it can wait.** The reads are the ones a person opening the project makes anyway, the refresh runs only for
 people who pinned projects, and offline is on development only.
 
+## Messages kept for offline are downloaded again at every start
+
+**Today.** So that messages read without a connection, a page load downloads the newest page of up to 25 channels
+the person is in, the channel list, the directory and the Communications inbox
+([offline](architecture/offline.md#messages)), at most every ten minutes per device: about 55 requests, most of
+which answer what the device already has. Each kept project adds its two newest pages of messages, up to ten threads
+and its Comms tab to the refresh above. The realtime stream already says which channels got a message; the download
+does not use it.
+
+**Where the change goes.** The same change feed as above, or sooner: `after=<last seq>` on the messages read (the
+route takes it) merged into the saved page by a contract effect, and skipping channels whose `message_seq` in the
+channel list equals the one already saved.
+
+**Why it can wait.** One page of messages is a few kilobytes, the run is throttled and in the background, and
+offline is on development only.
+
 ## The offline asset manifest hashes every file once per release in every process
 
 **Today.** `offlineAssetSet` in `platform/offline/assets.ts` walks the served release's browser files (547 files,
