@@ -1550,8 +1550,10 @@ window.PlatformCommerce.onReady(function(){
       event.preventDefault();
       const same = (a, b) => { try { const x = new URL(a, location.href), y = new URL(b, location.href); return x.pathname + x.search === y.pathname + y.search; } catch (_) { return false; } };
       const assets = primeMeasurementAssetCacheFromKnownUrls(activeMeasurementProjectId()) || {};
-      if (assets.reportUrl && same(link.href, assets.reportUrl)) { setActiveMeasurementTab('standard', { user: true }); return; }
-      if (assets.summaryUrl && same(link.href, assets.summaryUrl)) { setActiveMeasurementTab('customer', { user: true }); return; }
+      // (The tab's own button, where the header has one: it also brings the report views to the front.)
+      const show = (tab, buttonId) => { const button = document.getElementById(buttonId); if (button) button.click(); else setActiveMeasurementTab(tab, { user: true }); };
+      if (assets.reportUrl && same(link.href, assets.reportUrl)) { show('standard', 'rSubTabStandard'); return; }
+      if (assets.summaryUrl && same(link.href, assets.summaryUrl)) { show('customer', 'rSubTabCustomer'); return; }
       saveReportFileFromDevice(link);
     }, true);
   }
