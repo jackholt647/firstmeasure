@@ -1217,6 +1217,9 @@
         const item=arr(list?.items).find((entry)=>entry.id===itemId);
         if(!list||!item)return;
         const drawer=state(itemId);
+        // A change to this item made without a connection: the offline UI's mark, until the server has it.
+        const waiting=window.PlatformOfflineUI?.waitingBadge?.({record:itemId,compact:true});
+        if(waiting)row.querySelector('.crew-cl-main')?.appendChild(waiting);
         const blockForEvidence=()=>{
           drawer.evidenceHint=true;
           showToast((globalThis.PlatformLanguage?.text("crew","m_998cedfec4e568","Evidence required") ?? "Evidence required"),(globalThis.PlatformLanguage?.text("crew","m_802fda24f54002","Add the required files before completing this item.") ?? "Add the required files before completing this item."),false);
