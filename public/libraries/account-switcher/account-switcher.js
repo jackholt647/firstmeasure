@@ -85,6 +85,22 @@
     return next;
   }
 
+  /**
+   * Signing out while changes made offline still wait on this device: the person is asked about those first
+   * (docs/architecture/offline.md, "What people see"); otherwise the usual question.
+   */
+  async function confirmOfflineSignOut(wording) {
+    const offline = window.PlatformOffline?.state?.();
+    const waiting = offline ? (offline.pending || 0) + (offline.failed || 0) + (offline.conflicts || 0) : 0;
+    if (waiting && window.PlatformOfflineUI?.confirmSignOut) return window.PlatformOfflineUI.confirmSignOut();
+    return window.confirm(wording);
+  }
+
+  /** These sign-outs never visit logout.php, so the offline worker hears it here: saved data leaves the device, waiting changes stay. */
+  async function offlineSignedOut() {
+    try { await Promise.race([window.PlatformOffline?.signedOut?.(), new Promise((resolve) => setTimeout(resolve, 3000))]); } catch (_) { /* offline is not in use */ }
+  }
+
   class AccountSwitcher {
     constructor(button) {
       this.button = button;
@@ -330,9 +346,11 @@
         return;
       }
       const wording = account?.active ? 'Sign out of this account?' : 'Remove this account from this device?';
-      if (!window.confirm(wording)) return;
+      if (account?.active) { if (!(await confirmOfflineSignOut(wording))) return; }
+      else if (!window.confirm(wording)) return;
       try {
         await this.request('/auth/accounts/remove', { method: 'POST', body: JSON.stringify({ account_id: accountId }) });
+        if (account?.active) await offlineSignedOut();
         this.accounts = this.accounts.filter((item) => item.account_id !== accountId);
         writeCachedAccounts(this.accounts);
         if (account?.active) this.reloadForAccount(true);
@@ -343,9 +361,10 @@
     }
 
     async logoutAll() {
-      if (!window.confirm((globalThis.PlatformLanguage?.text("account-switcher","m_094189125cc8c4","Sign out of every remembered account on this device?") ?? "Sign out of every remembered account on this device?"))) return;
+      if (!(await confirmOfflineSignOut((globalThis.PlatformLanguage?.text("account-switcher","m_094189125cc8c4","Sign out of every remembered account on this device?") ?? "Sign out of every remembered account on this device?")))) return;
       try {
         await this.request('/auth/accounts/logout-all', { method: 'POST', body: '{}' });
+        await offlineSignedOut();
         try { localStorage.removeItem(cacheKey); } catch (_) {}
         this.reloadForAccount(true);
       } catch (error) {
