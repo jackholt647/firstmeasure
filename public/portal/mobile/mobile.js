@@ -438,6 +438,13 @@
   function openProject(project, event = null){
     state.activeProject = project;
     state.activeEvent = event;
+    // Offline (docs/architecture/offline.md): an opened project is kept on the device, the ten most recent ones.
+    try {
+      const offline = window.PlatformOffline;
+      const orgId = String(window.__APP?.userOrgId || window.__APP?.orgId || '');
+      const projectId = String(project?.id || project?.project_id || '');
+      if (orgId && projectId && offline?.pinProject && offline.state?.().controlled) Promise.resolve(offline.pinProject(orgId, projectId, { auto: true })).catch(() => {});
+    } catch (error) {}
     $('#sheetProjectTitle').textContent = projectTitle(project);
     $('#sheetProjectMeta').textContent = event ? fmtDateTime(eventStart(event)) : projectAddress(project);
     renderProjectHome(project);

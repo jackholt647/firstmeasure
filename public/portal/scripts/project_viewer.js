@@ -502,7 +502,12 @@
     if (ensureOrgPromise) return ensureOrgPromise;
     ensureOrgPromise = (async () => {
       const orgId = await authenticatedOrgId();
-      await window.PlatformAPI.orgs.get(orgId);
+      await window.PlatformAPI.orgs.get(orgId).catch((error) => {
+        // No answer at all and nothing saved for this read: the page was served to a member of this organization,
+        // so the save goes on and is queued until the connection returns (docs/architecture/offline.md).
+        if (!Number(error?.status || 0) && window.PlatformOffline?.state?.().controlled) return null;
+        throw error;
+      });
       return orgId;
     })().finally(() => { ensureOrgPromise = null; });
     return ensureOrgPromise;
