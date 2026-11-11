@@ -932,7 +932,8 @@ Photos: `tests/offline-photos.test.mjs` (the media contract case by case, with
 the real engine), `tests/offline-photos-browser.test.mjs` (the real worker,
 engine, contract and `platform-api.js` in headless Chrome with real
 pictures: queued, shown, closed and reopened, sent once, the small copy and
-its eviction, a small picture, an online retry, a device short on space),
+its eviction, a small picture, an online retry, a photo stored on its side,
+a device short on space),
 `tests/offline-native-uploads.test.mjs` (`native-uploads.js` against a
 stand-in for the app's host: the answer table, order, and closing the page
 between steps), `public/v1/tests/offline-photos.test.ts` (the device's id,

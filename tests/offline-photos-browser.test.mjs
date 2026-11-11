@@ -340,6 +340,32 @@ test('with a connection the same photo sent again replaces its record; another o
   });
 });
 
+test('the small copy is drawn the way the picture is shown: a phone photo stored on its side comes out upright', async () => {
+  // A phone keeps a portrait photo as landscape pixels with an EXIF orientation. Here: 1600x1200 stored, red on
+  // the stored left and blue on the stored right, orientation 6 (shown turned a quarter clockwise: red on top).
+  const sharp = createRequire(new URL('../public/v1/package.json', import.meta.url))('sharp');
+  const half = (color) => sharp({ create: { width: 800, height: 1200, channels: 3, background: color } }).png().toBuffer();
+  const stored = await sharp({ create: { width: 1600, height: 1200, channels: 3, background: '#000' } })
+    .composite([{ input: await half('#e11d48'), left: 0, top: 0 }, { input: await half('#1d4ed8'), left: 800, top: 0 }])
+    .withMetadata({ orientation: 6 }).jpeg({ quality: 90 }).toBuffer();
+  await withBrowser(async (s, context) => {
+    const page = await openPortal(context, s);
+    const copy = await page.evaluate(async (base64) => {
+      const bytes = Uint8Array.from(atob(base64), (char) => char.charCodeAt(0));
+      const file = new File([bytes], 'portrait.jpg', { type: 'image/jpeg' });
+      const made = await window.PlatformAPI.media.smallImageCopy(file);
+      const bitmap = await createImageBitmap(made.blob);
+      const canvas = document.createElement('canvas');
+      canvas.width = bitmap.width; canvas.height = bitmap.height;
+      const context = canvas.getContext('2d');
+      context.drawImage(bitmap, 0, 0);
+      const at = (x, y) => { const [r, , b] = context.getImageData(x, y, 1, 1).data; return r > b ? 'red' : 'blue'; };
+      return { picture: [made.width, made.height], copy: [bitmap.width, bitmap.height], type: made.blob.type, top: at(240, 100), bottom: at(240, 540) };
+    }, stored.toString('base64'));
+    assert.deepEqual(copy, { picture: [1200, 1600], copy: [480, 640], type: 'image/jpeg', top: 'red', bottom: 'blue' });
+  });
+});
+
 test('a device short on space refuses the photo and says what the person can do', async () => {
   await withBrowser(async (s, context) => {
     const page = await openPortal(context, s);
