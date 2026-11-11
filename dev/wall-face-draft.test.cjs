@@ -188,8 +188,8 @@ test('clicking a generated chimney-support face creates a draft without reopenin
  assert.deepEqual(C.compose(r.aligned.walls,r.state).filter(w=>w.chimney),before);
 });
 test('plane parallel, face creation and subtraction operate in local plane coordinates',()=>{
- const p=(x,z)=>({x,y:0,z}),points=[p(6,0),p(9,0),p(6,2),p(7,3)],state={wallEdits:{$loose:{points,edges:[points.slice(0,2),points.slice(2)]}}},f=fixture({state,globals:{isFreeMove:true},screen:p=>({x:p.x*100,y:-p.z*100})});f.editor.key({key:'p'});planeSelection(f,points);f.listeners.pointermove(f.e(8,2));f.editor.key({key:'l'});const moved=f.editor.pointSelection();assert.ok(Math.abs(moved[2].z-moved[3].z)<1e-9);assert.ok(Math.abs(Math.hypot(moved[2].x-moved[3].x,moved[2].z-moved[3].z)-Math.SQRT2)<1e-9);assert.equal(f.history.length,1);
- const outer=[p(10,0),p(14,0),p(14,4),p(10,4)];planeSelection(f,outer);f.editor.key({key:'v'});assert.ok(state.wallEdits.$surfaces.some(f=>f.id.startsWith('filled-face')));planeSelection(f,[p(11,1),p(13,1),p(13,3),p(11,3)]);f.editor.key({key:'b'});const cut=state.wallEdits.$surfaces.find(f=>f.id.startsWith('plane-cut'));assert.ok(cut,JSON.stringify(state.wallEdits));assert.equal(cut.holes.length,1);const frame=require('../public/measure/internal/editor_scripts/exterior_geometry.js').frame(cut);assert.equal(require('../public/measure/internal/editor_scripts/exterior_geometry.js').area({points:cut.points.map(p=>require('../public/measure/internal/editor_scripts/exterior_geometry.js').local(frame,p)),holes:cut.holes.map(r=>r.map(p=>require('../public/measure/internal/editor_scripts/exterior_geometry.js').local(frame,p)))}),12);
+ const p=(x,z)=>({x,y:0,z}),points=[p(6,0),p(9,0),p(6,2),p(7,3)],outer=[p(10,0),p(14,0),p(14,4),p(10,4)],state={wallEdits:{$loose:{points:[...points,...outer],edges:[points.slice(0,2),points.slice(2),...outer.map((q,i)=>[q,outer[(i+1)%4]])]}}},f=fixture({state,globals:{isFreeMove:true},screen:p=>({x:p.x*100,y:-p.z*100})});f.editor.key({key:'p'});planeSelection(f,points);f.listeners.pointermove(f.e(8,2));f.editor.key({key:'l'});const moved=f.editor.pointSelection();assert.ok(Math.abs(moved[2].z-moved[3].z)<1e-9);assert.ok(Math.abs(Math.hypot(moved[2].x-moved[3].x,moved[2].z-moved[3].z)-Math.SQRT2)<1e-9);assert.equal(f.history.length,1);
+ planeSelection(f,outer);f.editor.key({key:'v'});assert.ok(state.wallEdits.$surfaces.some(f=>f.id.startsWith('filled-face')));planeSelection(f,[p(11,1),p(13,1),p(13,3),p(11,3)]);f.editor.key({key:'b'});const cut=state.wallEdits.$surfaces.find(f=>f.id.startsWith('plane-cut'));assert.ok(cut,JSON.stringify(state.wallEdits));assert.equal(cut.holes.length,1);const frame=require('../public/measure/internal/editor_scripts/exterior_geometry.js').frame(cut);assert.equal(require('../public/measure/internal/editor_scripts/exterior_geometry.js').area({points:cut.points.map(p=>require('../public/measure/internal/editor_scripts/exterior_geometry.js').local(frame,p)),holes:cut.holes.map(r=>r.map(p=>require('../public/measure/internal/editor_scripts/exterior_geometry.js').local(frame,p)))}),12);
 });
 test('near-plane point snapping retains the existing vertex without an almost coincident duplicate',()=>{
  const point={x:6,y:.015,z:1},state={wallEdits:{$loose:{points:[point],edges:[]}}},f=fixture({state});f.editor.key({key:'p'});f.editor.doubleClick(f.e(6,1));assert.equal(state.wallEdits.$loose.points.length,1);assert.ok(Math.abs(f.editor.pointSelection()[0].y-.015)<1e-8);f.editor.key({key:'m'});f.listeners.pointermove(f.e(7,2));f.editor.key({key:'Escape'});assert.equal(state.wallEdits.$loose.points.length,1);
@@ -1419,9 +1419,12 @@ test('Delete on the saved overlapping chimney seam keeps both the union and its 
  const live=state.wallEdits.$surfaces.filter(f=>!f.deleted),merged=live.find(f=>f.id.startsWith('line-merge-'));assert.ok(merged);assert.equal(live.length,2);assert.ok(live.some(f=>f.id===input.faces[2].id));assert.equal(f.history.length,1);assert.ok(!state.wallEdits.$removedSurfaceEdges.includes(W.edgeKey(a,b)),'do not erase the entire roof-crossing edge');assert.ok(W.sharedIntervals(a,b,[merged]).length);
 });
 
-test('V fills selected coplanar points without adding unselected nodes and supports undo',()=>{
+test('V fills selected coplanar points along their lines without adding unselected nodes and supports undo',()=>{
  const f=fixture();f.editor.doubleClick(f.e(1,1),f.w);for(const [x,y]of [[3,1],[3,3],[1,3]])f.editor.doubleClick(f.e(x,y),f.w);
- const chosen=f.d().sketch.nodes.filter(n=>!n.fixed),points=chosen.map(n=>({x:n.x,y:0,z:n.y})),before=JSON.stringify(f.state.wallEdits);assert.equal(points.length,4);points.forEach((p,i)=>{const e=f.e(p.x,p.z,i>0);f.editor.down(e);f.listeners.pointerup(e);});f.editor.key({key:'v'});const face=f.state.wallEdits.$surfaces.at(-1);assert.equal(face.points.length,4);assert.equal(face.holes.length,0);assert.equal(f.history.at(-1)&&JSON.stringify(f.history.at(-1)),before);
+ const chosen=f.d().sketch.nodes.filter(n=>!n.fixed),points=chosen.map(n=>({x:n.x,y:0,z:n.y}));assert.equal(points.length,4);points.forEach((p,i)=>{const e=f.e(p.x,p.z,i>0);f.editor.down(e);f.listeners.pointerup(e);});
+ // FM-384: lone points have no lines to close a face along.
+ const lone=JSON.stringify(f.state.wallEdits);f.editor.key({key:'v'});assert.equal(JSON.stringify(f.state.wallEdits),lone);assert.match(f.message(),/not joined into a closed outline/);
+ f.state.wallEdits={...f.state.wallEdits,$loose:{points,edges:points.map((p,i)=>[p,points[(i+1)%4]])}};const before=JSON.stringify(f.state.wallEdits);f.editor.key({key:'v'});const face=f.state.wallEdits.$surfaces.at(-1);assert.equal(face.points.length,4);assert.equal(face.holes.length,0);assert.equal(f.history.at(-1)&&JSON.stringify(f.history.at(-1)),before);
  const old=JSON.stringify(f.state.wallEdits);f.editor.createSelectedFace({points:[...points.slice(0,3),{x:1,y:.1,z:3}]});assert.equal(JSON.stringify(f.state.wallEdits),old);assert.match(f.message(),/one plane/);
 });
 test('deleting a corner shared by filled coplanar regions heals their union rather than deleting it',()=>{
@@ -1480,12 +1483,33 @@ test('point picking an edited surface activates walls and removes face selection
  assert.equal(f.state.wallEdits.$surfaces.filter(f=>!f.deleted&&!f.drafted).length,1);
 });
 
-test('duplicate boundary deletion removes the face and V closes it again from all four points',()=>{
+test('duplicate boundary deletion removes the face and V does not close it across the deleted line',()=>{
  const points=[{x:0,y:0,z:0},{x:4,y:0,z:0},{x:4,y:0,z:4},{x:0,y:0,z:4}],f=fixture({walls:[],selected:null,state:{wallEdits:{$surfaces:['a','b'].map(id=>({id,points:structuredClone(points)}))}},globals:renderGlobals()});
  f.editor.pickLine3D(f.e(0,2));f.listeners.pointerup(f.e(0,2));f.editor.key({key:'Delete'});
  assert.equal(f.state.wallEdits.$surfaces.filter(f=>!f.deleted&&!f.drafted).length,0);
  f.editor.startBox(f.e(-.1,-.1));f.listeners.pointerup(f.e(4.1,4.1));assert.equal(f.editor.pointSelection().length,4);assert.equal(f.editor.featureSelection(),null);
- f.editor.key({key:'v'});const live=f.state.wallEdits.$surfaces.filter(f=>!f.deleted&&!f.drafted);assert.equal(live.length,1);assert.equal(live[0].points.length,4);
+ // FM-384: the deleted line is gone, so the remaining three no longer close a face.
+ const W=require('../public/measure/internal/editor_scripts/wall_solid_geometry.js');assert.equal(W.surfaceWire(f.state.wallEdits).edges.length,3);
+ const deleted=JSON.stringify(f.state.wallEdits);f.editor.key({key:'v'});assert.equal(JSON.stringify(f.state.wallEdits),deleted);assert.match(f.message(),/not joined into a closed outline/);
+});
+
+// FM-384: a gable wall with a garage door. The door's bottom edge joins two of
+// the selected points, so the old exact-edge walk gave up and V sorted the
+// points by angle into a bent face across the door.
+for(const split of [true,false])test(`V closes a garage-door wall along its lines and leaves the door open (${split?'split':'unsplit'} bottom edge)`,()=>{
+ const p=(x,z)=>({x,y:0,z}),outline=[p(0,0),p(16,0),p(16,9),p(8,12),p(0,9)],door=[p(2,0),p(14,0),p(14,7),p(2,7)],expected=[p(0,0),p(2,0),p(2,7),p(14,7),p(14,0),p(16,0),p(16,9),p(8,12),p(0,9)];
+ const wall=split?{id:'wall',points:expected}:{id:'wall',points:outline},gable={id:'gable-window',feature:{type:'window'},points:[p(6,8.5),p(10,8.5),p(10,10),p(6,10)]},f=fixture({walls:[],selected:null,state:{wallEdits:{$surfaces:[wall,{id:'door',feature:{type:'door'},points:door},gable]}},globals:renderGlobals()});
+ const shuffled=[expected[4],expected[0],expected[7],expected[2],expected[5],expected[8],expected[1],expected[6],expected[3]],before=JSON.stringify(f.state.wallEdits);
+ f.editor.createSelectedFace({points:shuffled});assert.match(f.message(),/Face created from 9/);
+ const face=f.state.wallEdits.$surfaces.find(f=>f.id.startsWith('filled-face-')),key=q=>q.x+','+q.z,ring=face.points.map(key),start=ring.indexOf('0,0'),forward=[...ring.slice(start),...ring.slice(0,start)],want=expected.map(key);
+ assert.ok(JSON.stringify(forward)===JSON.stringify(want)||JSON.stringify([forward[0],...forward.slice(1).reverse()])===JSON.stringify(want),'the face follows the wall and door lines: '+ring.join(' '));
+ assert.ok(f.state.wallEdits.$surfaces.find(f=>f.id==='gable-window'&&!f.deleted),'the window on the filled wall stays');assert.ok(f.state.wallEdits.$surfaces.find(f=>f.id==='door'&&!f.deleted));
+ assert.equal(f.history.length,1);assert.equal(JSON.stringify(f.history[0]),before);
+});
+test('V refuses points whose existing lines do not close a face',()=>{
+ const p=(x,z)=>({x,y:0,z}),f=fixture({walls:[],selected:null,state:{wallEdits:{$loose:{points:[p(0,0),p(4,0),p(4,4),p(0,4),p(10,0),p(14,0),p(14,4),p(10,4)],edges:[[p(0,0),p(4,0)],[p(4,0),p(4,4)],[p(4,4),p(0,4)]]}}},globals:renderGlobals()}),before=JSON.stringify(f.state.wallEdits);
+ for(const points of [[p(0,0),p(4,0),p(4,4),p(0,4)],[p(10,0),p(14,0),p(14,4),p(10,4)]]){f.editor.createSelectedFace({points});assert.equal(JSON.stringify(f.state.wallEdits),before);assert.match(f.message(),/not joined into a closed outline by existing lines/);}
+ assert.equal(f.history.length,0);
 });
 
 test('captured seven-point wall keeps every selected anchor when filled',()=>{
@@ -1509,6 +1533,8 @@ test('V creates a visible four-point patch inside a chimney cutout, with selecta
  const C=require('../public/measure/internal/editor_scripts/wall_chimneys.js'),W=require('../public/measure/internal/editor_scripts/wall_solid_geometry.js'),state=structuredClone(require('./fixtures/merged-chimney-roof-contact.json'));
  const c=C.definitions(state)[0],a=c.points[2],b=c.points[3],points=[{...a,z:161},{...b,z:161},{...b,z:162},{...a,z:162}];
  assert.equal(C.visibleParts({points},state).length,0,'reproduces the hidden patch without an explicit fill');
+ // FM-384: V closes a face only along drawn lines.
+ state.wallEdits.$loose={points:[...(state.wallEdits.$loose?.points||[]),...points],edges:[...(state.wallEdits.$loose?.edges||[]),...points.map((p,i)=>[p,points[(i+1)%4]])]};
  const f=fixture({state,walls:[],selected:null,globals:{...renderGlobals(),WallChimneys:C}});f.editor.createSelectedFace({points});
  assert.match(f.message(),/Face created from 4/);const face=state.wallEdits.$surfaces.find(f=>f.id.startsWith('filled-face-'));
  assert.ok(face);assert.equal(face.points.length,4);assert.deepEqual(C.visibleParts(face,state),[face]);const rendered=[];f.editor.draw3D({add(mesh){rendered.push(mesh);}},p=>p);assert.ok(rendered.some(mesh=>mesh.userData?.solidId===face.id),'renderer emits the filled face mesh');
