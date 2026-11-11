@@ -1394,14 +1394,36 @@ function adoptMergedFaceSources(edits){
  }
  return changed;
 }
-function faceFromPoints(selected,edges=[]){
+// V fills a face only along lines that already exist. Two selected points are
+// sides of the face when drawn edges cover the whole segment between them and
+// no other selected point lies on it; the face is a closed, non-crossing loop
+// through every selected point over those sides. Without one there is no face:
+// never guess an order from the points (that bent faces across a garage door).
+// Without alongLines (B subtracting a plane region) a loop of exact edges is
+// used when there is one, else the points' angular order.
+function faceFromPoints(selected,edges=[],{alongLines=false}={}){
  const points=[...new Map(selected.map(p=>[vertexKey(p),{x:p.x,y:p.y,z:p.z}])).values()];if(points.length<3)throw Error('Select at least three coplanar points.');
  let triple=null,best=0;for(let i=1;i<points.length;i++)for(let j=i+1;j<points.length;j++){const n=cross(sub(points[i],points[0]),sub(points[j],points[0])),size=dot(n,n);if(size>best){best=size;triple=[points[0],points[i],points[j]];}}
  const frame=triple&&faceFrame({points:triple});if(!frame||best<1e-16)throw Error('The selected points must enclose an area.');if(points.some(p=>Math.abs(dot(sub(p,frame.origin),frame.n))>K.CONTACT))throw Error('Select points on one plane.');
- const neighbors=points.map(()=>new Set());for(const [a,b]of edges){const i=points.findIndex(p=>vertexKey(p)===vertexKey(a)),j=points.findIndex(p=>vertexKey(p)===vertexKey(b));if(i>=0&&j>=0&&i!==j){neighbors[i].add(j);neighbors[j].add(i);}}
- let ordered=[];if(neighbors.every(n=>n.size===2)){let previous=-1,current=0;do{ordered.push(points[current]);const next=[...neighbors[current]].find(i=>i!==previous);previous=current;current=next;}while(current!==0&&ordered.length<points.length);if(current!==0||ordered.length!==points.length)ordered=[];}
- if(!ordered.length){const local=points.map(p=>inFrame(frame,p)),center={x:local.reduce((s,p)=>s+p.x,0)/points.length,y:local.reduce((s,p)=>s+p.y,0)/points.length};ordered=points.map((p,i)=>({p,angle:Math.atan2(local[i].y-center.y,local[i].x-center.x)})).sort((a,b)=>a.angle-b.angle).map(v=>v.p);}
- const face={points:ordered,holes:[]};K.validateFace(face);return face;
+ if(!alongLines){const neighbors=points.map(()=>new Set());for(const [a,b]of edges){const i=points.findIndex(p=>vertexKey(p)===vertexKey(a)),j=points.findIndex(p=>vertexKey(p)===vertexKey(b));if(i>=0&&j>=0&&i!==j){neighbors[i].add(j);neighbors[j].add(i);}}
+  let ordered=[];if(neighbors.every(n=>n.size===2)){let previous=-1,current=0;do{ordered.push(points[current]);const next=[...neighbors[current]].find(i=>i!==previous);previous=current;current=next;}while(current!==0&&ordered.length<points.length);if(current!==0||ordered.length!==points.length)ordered=[];}
+  if(!ordered.length){const local=points.map(p=>inFrame(frame,p)),center={x:local.reduce((s,p)=>s+p.x,0)/points.length,y:local.reduce((s,p)=>s+p.y,0)/points.length};ordered=points.map((p,i)=>({p,angle:Math.atan2(local[i].y-center.y,local[i].x-center.x)})).sort((a,b)=>a.angle-b.angle).map(v=>v.p);}
+  const face={points:ordered,holes:[]};K.validateFace(face);return face;}
+ const onPlane=p=>Math.abs(dot(sub(p,frame.origin),frame.n))<=K.CONTACT,lines=edges.filter(pair=>pair?.length===2&&pair.every(onPlane)).map(pair=>({points:pair})),count=points.length,local=points.map(p=>inFrame(frame,p)),sides=points.map(()=>[]);
+ const between=(p,a,b)=>pointOnEdge(p,a,b)&&Math.hypot(...Object.values(sub(p,a)))>K.CONTACT&&Math.hypot(...Object.values(sub(p,b)))>K.CONTACT;
+ for(let i=0;i<count;i++)for(let j=i+1;j<count;j++){if(points.some((p,k)=>k!==i&&k!==j&&between(p,points[i],points[j])))continue;const covered=sharedIntervals(points[i],points[j],lines);if(covered.length===1&&covered[0][0]<=1e-6&&covered[0][1]>=1-1e-6){sides[i].push(j);sides[j].push(i);}}
+ const none=Error('The selected points are not joined into a closed outline by existing lines. Select points whose lines close the face, or draw the missing lines, then press V.');
+ if(sides.some(s=>s.length<2))throw none;
+ const orient=(a,b,c)=>(b.x-a.x)*(c.y-a.y)-(b.y-a.y)*(c.x-a.x),near=(p,a,b)=>{const dx=b.x-a.x,dy=b.y-a.y,l2=dx*dx+dy*dy,t=l2?Math.max(0,Math.min(1,((p.x-a.x)*dx+(p.y-a.y)*dy)/l2)):0;return Math.hypot(a.x+dx*t-p.x,a.y+dy*t-p.y)<=K.CONTACT;};
+ // Sides that share a corner may only meet there; any other pair may not meet at all.
+ const meets=(a,b,c,d)=>{const o1=orient(a,b,c),o2=orient(a,b,d),o3=orient(c,d,a),o4=orient(c,d,b);return o1*o2<0&&o3*o4<0||near(c,a,b)||near(d,a,b)||near(a,c,d)||near(b,c,d);},folds=(a,v,b)=>near(b,a,v)||near(a,v,b);
+ const fits=(path,next)=>{const last=path.at(-1),closing=next===path[0];if(path.length>1&&folds(local[path.at(-2)],local[last],local[next]))return false;if(closing&&folds(local[last],local[next],local[path[1]]))return false;for(let k=closing?1:0;k<path.length-2;k++)if(meets(local[path[k]],local[path[k+1]],local[last],local[next]))return false;return true;};
+ let loop=null,area=0,steps=0;const path=[0],used=new Set(path);
+ const walk=()=>{if(++steps>200000)return;const last=path.at(-1);
+  if(path.length===count){if(!sides[last].includes(0)||!fits(path,0))return;const a=Math.abs(signedArea(path.map(i=>local[i])));if(a>area+1e-9){area=a;loop=path.slice();}return;}
+  for(const next of sides[last])if(!used.has(next)&&fits(path,next)){path.push(next);used.add(next);walk();path.pop();used.delete(next);}};
+ walk();if(!loop||area<1e-9)throw none;
+ const face={points:loop.map(i=>points[i]),holes:[]};K.validateFace(face);return face;
 }
 function mergeAtPoints(scene,points){
  const wanted=new Set(points.map(vertexKey)),touches=f=>rings(f).some(r=>r.some((a,i)=>points.some(p=>pointOnEdge(p,a,r[(i+1)%r.length]))));
