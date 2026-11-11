@@ -4324,3 +4324,20 @@ test('Resoffit of a lower roof wall keeps the end of the taller wall above it ve
   assert.deepEqual(leaning(r.state),[]);for(const face of r.state.wallEdits.$surfaces.filter(f=>!f.deleted))K.validateFace(face);
  }
 });
+test('B turns a selected flat face into a base face, and refuses steep, holed or overlapping ones',()=>{
+ const p=(x,y,z)=>({x,y,z}),base={faces:[{id:'base-1',points:[p(0,0,0),p(4,0,0),p(4,3,0),p(0,3,0)]}]};
+ const floor={id:'floor',points:[p(4,0,0),p(7,0,0),p(7,3,0),p(4,3,0)],holes:[]},steep={id:'steep',points:[p(0,5,0),p(4,5,0),p(4,5,3),p(0,5,3)],holes:[]};
+ const over={id:'over',points:[p(1,1,0),p(3,1,0),p(3,2,0),p(1,2,0)],holes:[]},holed={id:'holed',points:[p(10,0,0),p(14,0,0),p(14,4,0),p(10,4,0)],holes:[[p(11,1,0),p(12,1,0),p(12,2,0),p(11,2,0)]]};
+ const state={base,wallEdits:{$surfaces:[floor,steep,over,holed]}},f=fixture({state,walls:[],selected:null});
+ for(const [id,reason]of [['steep',/too steep/],['over',/overlaps the base/],['holed',/cannot have a hole/]]){
+  const before=JSON.stringify(state.wallEdits);f.editor.restoreSelection({selectedSolid:id});assert.equal(f.editor.key({key:'b'}),true);
+  assert.match(f.message(),reason);assert.equal(JSON.stringify(state.wallEdits),before);assert.equal(f.history.length,0);
+ }
+ f.editor.restoreSelection({selectedSolid:'floor'});assert.equal(f.editor.key({key:'b'}),true,f.message());assert.match(f.message(),/now a base face/);
+ assert.equal(f.history.length,1);assert.equal(state.wallEdits.$surfaces.find(s=>s.id==='floor').deleted,true);
+ const made=state.wallEdits.$base.faces.filter(b=>b.id!=='base-1');assert.equal(made.length,1);
+ assert.deepEqual(made[0].points.map(q=>[q.x,q.y,q.z]),floor.points.map(q=>[q.x,q.y,q.z]));
+ assert.ok(state.wallEdits.$base.faces.some(b=>b.id==='base-1'));
+ // With nothing selected B is not handled here, and plane mode keeps B for Subtract.
+ f.editor.restoreSelection({});assert.notEqual(f.editor.key({key:'b'}),true);
+});

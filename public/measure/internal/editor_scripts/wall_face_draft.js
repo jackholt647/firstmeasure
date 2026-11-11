@@ -301,6 +301,28 @@ window.createWallFaceDraft=function(host){
    }
   });if(ok){plane.selectedFaces=[];refreshPlane();host.message('Selected region subtracted.');host.redraw();}return true;
  }
+ // B turns the selected regular faces into base faces, so a base can be drawn
+ // like any other face and then handed to the base controls. B on the Base
+ // layer turns a base face back (base_editor.js). The outline of a base is
+ // fixed there; as a regular face it can be reshaped or deleted.
+ function facesToBase(){
+  const refs=selectedFaces(),K=window.ExteriorGeometry,plan=ps=>({points:ps.map(p=>({x:p.x,y:p.y,z:0})),holes:[]});
+  const ok=transaction(()=>{const edits=host.state().wallEdits,before=copy(edits.$base||host.state().base||{faces:[]}),after=copy(before);after.faces||=[];let next=0;
+   for(const {d,f}of refs){
+    if(f.feature||f.trim||f.chimney||f.curvedSurface||f.curves?.length)throw Error('Only a plain face can become a base face.');
+    if(f.holes?.length)throw Error('A base face cannot have a hole. Divide the face or remove the opening first.');
+    const points=f.points.map(p=>{const q=d?world(d,p):p;return {x:q.x,y:q.y,z:q.z};}),n=W.normal(points);
+    if(!n||Math.abs(n.z)<.2)throw Error('This face is too steep to be a base face.');
+    if(after.faces.some(b=>K.intersection([plan(points)],[plan(b.points)]).reduce((sum,r)=>sum+K.area(r),0)>1e-4))throw Error('This face overlaps the base. Subtract the overlap first.');
+    let id;do{id='base-face-b'+Date.now()+'-'+next++;}while(after.faces.some(b=>b.id===id));
+    after.faces.push(B.validate({id,points}));
+    if(d)d.deletedFaces=[...new Set([...(d.deletedFaces||[]),signature(f)])];else edits.$surfaces.find(s=>s.id===f.id).deleted=true;
+   }
+   S.rebind(before,after);edits.$base=after;
+  });
+  if(ok){selectedSolid=null;preferredSolid=null;selectedRegion=null;faceSelection=[];host.message((refs.length===1?'Face is now a base face.':refs.length+' faces are now base faces.')+' On the Base layer, B turns a base face back.');host.redraw();}
+  return true;
+ }
  // Committed plane geometry lands exactly on the plane geometry it nearly
  // touches (W.conformPlanePoints: model centimetres, not pixels), so a corner
  // a few millimetres off the base leaves no sliver face. F (free move) turns
@@ -3096,6 +3118,7 @@ function perf_nudge(e){const step=(e.altKey ? .25 : e.shiftKey ? 6 : 1)*F.FT/12*
    if(k==='f'&&e.shiftKey){transaction(()=>{if(solidPoints.length>=3)W.restoreSurface(host.state().wallEdits,solidPoints);for(const [key,ids]of groups){const d=all()[key],set=new Set(ids);for(const f of d.faces)if(f.points.length===set.size&&f.points.every(p=>set.has(p.nodeId)))d.deletedFaces=(d.deletedFaces||[]).filter(key=>key!==signature(f));}});return true;}
    if(['delete','backspace'].includes(k)){transaction(()=>{removeSolidPoints(solidPoints,solidEdges);for(const [key,ids]of groups){const d=all()[key];if(ids.length)removeDraftPoints(d,ids);}});draftSelection={};picked=[];solidPoints=[];host.redraw();return true;}
   }
+  if(!tool&&!workingPlane&&k==='b'&&!e.ctrlKey&&!e.metaKey&&!e.altKey&&selectedFaces().length){if(!e.repeat)facesToBase();return true;}
   if(!tool&&(k==='delete'||k==='backspace')){
    if(deleteSelectedStickers())return true;
    if(deleteStickerControls())return true;

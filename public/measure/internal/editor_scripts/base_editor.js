@@ -268,11 +268,28 @@ window.createBaseEditor=function(host){
   return keyDown({key:'n',preventDefault(){},stopImmediatePropagation(){}});
  }
 
+ // B turns the selected base faces into regular faces (and B on a regular
+ // face in the Walls layer turns it into a base face). Attached walls stay
+ // exactly where they are; only the base under them changes.
+ function facesToRegular(){
+  const ids=selectedFaces.length?selectedFaces:selectedFace!=null?[selectedFace]:[];
+  if(!ids.length||points.length||sketchEditor?.singlePoint()||sketchEditor?.singleLine())throw Error('Select one or more base faces to turn into regular faces.');
+  const before=copy(base()),wallEditsBefore=copy(state().wallEdits||{}),next=copy(before),moving=next.faces.filter(f=>ids.includes(f.id));
+  if(!moving.length)throw Error('Select one or more base faces to turn into regular faces.');
+  if(moving.some(f=>f.curves?.length))throw Error('A base face with a curved edge cannot become a regular face.');
+  next.faces=next.faces.filter(f=>!ids.includes(f.id));window.BaseSketchGeometry?.rebind(before,next);
+  const edits=copy(wallEditsBefore),used=new Set((edits.$surfaces||[]).map(f=>f.id));let serial=0;
+  edits.$surfaces=[...(edits.$surfaces||[]),...moving.map(f=>{let id;do{id='base-surface-'+Date.now()+'-'+serial++;}while(used.has(id));used.add(id);return {id,points:f.points.map(p=>({x:p.x,y:p.y,z:p.z})),holes:[]};})];
+  if(edits.$base)edits.$base=next;if(edits.$baseCuts)edits.$baseCuts=B.followCuts(edits.$baseCuts,next);
+  history.push({baseBefore:before,wallEditsBefore});host.recordHistory?.({base:copy(before),wallEdits:copy(wallEditsBefore)});
+  state().wallEdits=edits;state().base=next;
+  select(null);sketchEditor?.clear();message=(moving.length===1?'Base face is now a regular face.':moving.length+' base faces are now regular faces.')+' On the Walls layer, B turns a face into a base face.';changed(false);
+ }
  function keyDown(e){
 
   if(!active())return false;
 
-  const k=e.key.toLowerCase();if(k==='l'&&(e.ctrlKey||e.metaKey||e.altKey))return false;if(k==='s'&&(e.ctrlKey||e.metaKey))return false;if(!['a','f','c','u','n','m','h','l','y','escape','enter','z','delete','backspace','tab','s'].includes(k))return false;
+  const k=e.key.toLowerCase();if(k==='l'&&(e.ctrlKey||e.metaKey||e.altKey))return false;if(k==='s'&&(e.ctrlKey||e.metaKey))return false;if(k==='b'&&(e.ctrlKey||e.metaKey||e.altKey))return false;if(!['a','b','f','c','u','n','m','h','l','y','escape','enter','z','delete','backspace','tab','s'].includes(k))return false;
 
   e.preventDefault();e.stopImmediatePropagation();
 
@@ -297,6 +314,7 @@ window.createBaseEditor=function(host){
    if(k==='enter'){if(tool?.numericInvalid)return true;if(tool?.kind==='path')finishPath();else if(tool?.original&&(tool.kind==='height'||tool.direction)){record(tool.original);tool=null;changed();}return true;}
 
    if(k==='c'){finishPath();return true;}
+   if(k==='b'){if(!e.repeat&&!tool)facesToRegular();return true;}
 
    if(!face())throw Error('Select a base face or one of its points first.');
 
