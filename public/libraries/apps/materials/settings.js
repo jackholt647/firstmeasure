@@ -10,9 +10,11 @@
  *   Calculations         FirstMateMeasurementDefaults.mount (settings/measurement-defaults.js)
  *   Resource categories  the Materials tab's own category writers, handed in by project.js; in Settings, the same
  *                        resource type writers (MaterialsAPI.resourceTypes) for the organization
- * A sub-tab shows only when the organization has its feature on and the person holds the permission its server
- * routes require; the checks match Settings. Resource categories is also an organization switch
- * (materials.resource_categories). No configuration is ever checked.
+ * These are the Materials app's settings: with the app off (platform.materials) there are none, so Settings has no
+ * Materials section (FM-394: Calculations alone showed it to FirstMeasure organizations without the app; they keep it
+ * in Settings › Reports). With the app on, a sub-tab shows only when the organization has its feature on and the person
+ * holds the permission its server routes require; the checks match Settings. Resource categories is also an
+ * organization switch (materials.resource_categories). No configuration is ever checked.
  * The global assistant is docked on the right of every sub-tab, in the person's private `materials-settings`
  * conversation (v1/materials/settings-assistant.ts); it can be collapsed.
  */
@@ -70,6 +72,7 @@
   ];
 
   function sections(options = {}){
+    if (!flag('platform', 'materials')) return [];
     return SECTIONS.filter((section) => { try { return section.allowed(options); } catch (error) { return false; } }).map((section) => section.id);
   }
 
