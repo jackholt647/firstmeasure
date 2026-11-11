@@ -275,7 +275,8 @@
         records: async (ctx) => {
           const saved = await ctx.saved(projectUrl(ctx));
           const known = new Set(list(obj(documentOf(saved).data).photos).map(photoId));
-          return [...new Set(list(ctx.body.photos).map(photoId).filter((id) => id && !known.has(id)).concat(list(ctx.body.remove).map(text).filter(Boolean)))];
+          // (Only library photos: the generated satellite stand-in in a list is not a record anyone waits for.)
+          return [...new Set(list(ctx.body.photos).filter((photo) => text(obj(photo).media_id)).map(photoId).filter((id) => id && !known.has(id)).concat(list(ctx.body.remove).map(text).filter(Boolean)))];
         },
         respond: async (ctx) => {
           const saved = await ctx.saved(projectUrl(ctx));

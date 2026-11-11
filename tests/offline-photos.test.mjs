@@ -172,18 +172,18 @@ test('the queued photo is in the project\'s photo list and media lists on every 
   const upload = await t.json('POST', `${ORG}/media`, { body: photoForm('media_b') });
   const record = upload.data.media;
   // The page's list save: every photo as the page has it, the new one last (projectMedia.upsertPhoto).
-  const body = { photos: [ref('media_a', { label: 'First', thumb: '/thumb-a' }), ref('media_b', { label: 'Roof front.jpg' })], remove: [] };
+  const body = { photos: [{ id: 'top_down_thumbnail', src: '/v1/firstmeasure/projects/p1/thumbnail' }, ref('media_a', { label: 'First', thumb: '/thumb-a' }), ref('media_b', { label: 'Roof front.jpg' })], remove: [] };
   const save = await t.json('POST', `${ORG}/projects/p1/photos`, { json: body });
   assert.match(save.queued, /^fmo1-/);
-  eq(save.data.photos.map((photo) => photo.id), ['media_a', 'media_b']);
+  eq(save.data.photos.map((photo) => photo.id), ['top_down_thumbnail', 'media_a', 'media_b']);
   eq([save.data.ok, save.data.project_id, save.data.project_revision, save.data.thumbnail_photo_id, save.data.document.id, save.data.document.data.title], [true, 'p1', 4, 'media_a', 'p1', 'Oak St']);
-  eq(save.data.document.data.photos.map((photo) => photo.id), ['media_a', 'media_b']);
+  eq(save.data.document.data.photos.map((photo) => photo.id), ['top_down_thumbnail', 'media_a', 'media_b']);
   eq((await t.entries()).map((entry) => [entry.write, entry.kind, entry.scope, entry.records]), [['media.upload', 'upload', 'project:p1', ['media_b']], ['photos.save', 'patch', 'project:p1', ['media_b']]]);
 
   // Every read shows it while it waits.
   const project = await t.json('GET', `${ORG}/projects/p1`);
-  eq([project.response.headers.get('x-fm-offline'), project.data.document.data.photos.map((photo) => photo.id)], ['saved', ['media_a', 'media_b']]);
-  eq((await t.json('GET', `${ORG}/projects`)).data.documents.map((document) => document.data.photos.length), [2, 0]);
+  eq([project.response.headers.get('x-fm-offline'), project.data.document.data.photos.map((photo) => photo.id)], ['saved', ['top_down_thumbnail', 'media_a', 'media_b']]);
+  eq((await t.json('GET', `${ORG}/projects`)).data.documents.map((document) => document.data.photos.length), [3, 0]);
   eq((await t.json('GET', `${ORG}/media`)).data.media.map((item) => item.id), ['media_a', 'media_b']);
   eq((await t.json('GET', `${ORG}/media?project_id=p1`)).data.media.at(-1), record);
   eq((await t.json('GET', `${ORG}/media?project_id=p2`)).data.media.map((item) => item.id), ['media_a'], 'the scripted list is not filtered; the queued photo is not added to another project\'s list');
@@ -205,7 +205,7 @@ test('the queued photo is in the project\'s photo list and media lists on every 
   const [list] = t.server.sent(`POST ${ORG}/projects/p1/photos`);
   // Merged photo by photo: the office's tag is kept, the satellite photo is kept, the new photo is added. Nothing is removed.
   eq(list.body.remove, []);
-  eq(list.body.photos.map((photo) => photo.id).sort(), ['media_a', 'media_b', 'media_sat']);
+  eq(list.body.photos.map((photo) => photo.id).sort(), ['media_a', 'media_b', 'media_sat', 'top_down_thumbnail']);
   eq(list.body.photos.find((photo) => photo.id === 'media_a'), ref('media_a', { label: 'First', tags: ['damage'], thumb: '/thumb-a' }));
   assert.match(list.headers['idempotency-key'], /^fmo1-/);
   assert.notEqual(list.headers['idempotency-key'], save.queued, 'a body the server has not seen has its own key');
@@ -214,7 +214,7 @@ test('the queued photo is in the project\'s photo list and media lists on every 
   eq(await t.FM.db.list('blobs'), [], 'the original left the device');
   // The reads it touched were read again: the saved copies are the server's.
   t.server.down = true;
-  eq((await t.json('GET', `${ORG}/projects/p1`)).data.document.data.photos.map((photo) => photo.id).sort(), ['media_a', 'media_b', 'media_sat']);
+  eq((await t.json('GET', `${ORG}/projects/p1`)).data.document.data.photos.map((photo) => photo.id).sort(), ['media_a', 'media_b', 'media_sat', 'top_down_thumbnail']);
   eq((await t.json('GET', `${ORG}/media`)).data.media.map((item) => item.id), ['media_a', 'media_b']);
 });
 

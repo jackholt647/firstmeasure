@@ -1473,7 +1473,8 @@
         .then((result) => {
           if (queued && result && typeof result === 'object') {
             result.queued = queued;
-            result.offlineCopy = keepOfflineCopy(orgId, result.media || result, file);
+            // Resolves when the small copy is kept. Not enumerable: an upload answer may be copied or posted on.
+            Object.defineProperty(result, 'offlineCopy', { value: keepOfflineCopy(orgId, result.media || result, file), enumerable: false });
           }
           return result;
         }, (error) => { throw offlineUploadError(error); });
