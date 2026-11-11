@@ -515,7 +515,7 @@ Note: Our coverage is based on individual structure, not area - so we may have c
         if (ms !== null && (latest === null || ms > latest)) latest = ms;
       }
       for (const ev of events) {
-        if (ev.event === 'project_reopened_for_edits' && (latest === null || ev.ms > latest)) latest = ev.ms;
+        if ((ev.event === 'project_reopened_for_edits' || ev.event === 'reordered_rejected_project') && (latest === null || ev.ms > latest)) latest = ev.ms;
       }
       return latest;
     },
