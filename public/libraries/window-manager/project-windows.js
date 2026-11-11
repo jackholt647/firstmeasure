@@ -160,6 +160,16 @@
     if (record.api && record.api.close({skipHistory:true}) === false) {record.controller?.restore();return false;}
     closed(token);
   }
+  // Offline (docs/architecture/offline.md): a project that is opened is kept on the device, the ten most recent
+  // ones. The service worker downloads what its tabs read; asked at most once every two minutes per project.
+  const offlinePins = new Map();
+  function keepOnDevice(projectId){
+    const offline = root.PlatformOffline;
+    if (!projectId || !offline?.pinProject || !offline.state?.().controlled) return;
+    if (Date.now() - (offlinePins.get(projectId) || 0) < 120000) return;
+    offlinePins.set(projectId, Date.now());
+    try { Promise.resolve(offline.pinProject(sessionOrgId(), projectId, {auto:true})).catch(() => { offlinePins.delete(projectId); }); } catch (error) { offlinePins.delete(projectId); }
+  }
   function open(project, options = {}){
     if (!host() || !root.FirstMateWindows) return null;
     styles();
@@ -167,6 +177,7 @@
     root.FirstMateWindows.ensureStyles?.();
     root.FirstMateWindowShell?.ensureStyles?.();
     const projectId = identity(project);
+    keepOnDevice(projectId);
     if (options.fromRoute && reloadOrderSession?.projectId === projectId && reloadOrderSession.orgId === sessionOrgId()) {
       options = {...options, workflow:'report', orderSession:reloadOrderSession.state};
       reloadOrderSession = null;

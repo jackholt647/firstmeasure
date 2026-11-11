@@ -1059,6 +1059,20 @@ export async function ensureProjectChannel(ctx: PlatformAuthContext, projectId: 
   return channelView(ctx, channel);
 }
 
+/**
+ * The project's channel as this member sees it, without creating or joining anything; null when there is no
+ * channel yet or they are not in it (then `ensureProjectChannel` is the way in). A device with no connection
+ * reads its saved copy of this to find a project's notes (docs/architecture/offline.md).
+ */
+export async function findProjectChannel(ctx: PlatformAuthContext, projectId: string) {
+  if (!canAccessProjectChannels(ctx)) {
+    throw forbidden("permission_denied", "You do not have access to projects.");
+  }
+  const existing = await findChannelByProject(ctx.orgId, projectId);
+  if (!existing || !(await readChannelMember(existing.id, ctx.userId))) return null;
+  return channelView(ctx, existing);
+}
+
 export async function getChannel(ctx: PlatformAuthContext, channelId: string) {
   const { channel } = await requireChannelAccess(ctx, channelId);
   return channelView(ctx, channel);

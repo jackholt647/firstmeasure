@@ -411,7 +411,7 @@
     return query;
   }
 
-  /** The contract ctx (see the doc): { method, url, params, query, body, headers, user, org, now, id, response, saved(url) }. */
+  /** The contract ctx (see the doc): { method, url, params, query, body, headers, user, org, now, id, response, base, saved(url), find(pattern), queued(record) }. */
   function makeCtx(parts) {
     const url = new URL(parts.url, ORIGIN);
     return {
@@ -426,7 +426,17 @@
       now: parts.now,
       id: parts.id || '',
       response: parts.response === undefined ? null : parts.response,
-      saved: (target) => reads.peek(parts.identity, target, parts.before === undefined ? Infinity : parts.before)
+      // A queued `patch`: the record as it was when the change was made (what conflict.pick gave), else null.
+      base: parts.base === undefined ? null : parts.base,
+      saved: (target) => reads.peek(parts.identity, target, parts.before === undefined ? Infinity : parts.before),
+      // Every saved GET of a route, as the person would see it: [{ url, query, params, json }]. For a record that
+      // is only known from lists (a to-do), whatever their filters were.
+      find: (pattern) => reads.find(parts.identity, pattern, parts.before === undefined ? Infinity : parts.before),
+      // Earlier changes still on the device that name a record, oldest first: [{ id, contract, write, kind, scope, state }].
+      // A change to a record made on this device takes the scope of the change that made it.
+      queued: async (record) => (await queue.list(parts.identity))
+        .filter((entry) => (parts.before === undefined || entry.seq < parts.before) && (entry.records || []).includes(String(record)))
+        .map((entry) => ({ id: entry.id, contract: entry.contract, write: entry.write, kind: entry.kind, scope: entry.scope, state: entry.state }))
     };
   }
 
@@ -477,23 +487,37 @@
 
     row: (identity, key) => db.get('responses', [identity.user, identity.org, key]),
 
-    /** The saved answer as a response (with the queue's effects), or null. */
+    /**
+     * The saved answer as a response (with the queue's effects), or null. A read nothing was saved for is
+     * answered from a queued change that seeds it: a record made on this device exists nowhere else yet.
+     */
     async respond(identity, key, info) {
       const row = await reads.row(identity, key);
-      if (!row) return null;
+      const effects = await queue.effects(identity, info);
+      if (!row) {
+        const made = await seeded(effects);
+        return made === undefined ? null : jsonResponse(200, made, { 'X-FM-Offline': 'queued' });
+      }
       const now = config.now();
       if (now - row.usedAt > limits.touchMs) db.put('responses', Object.assign({}, row, { usedAt: now })).catch(() => {});
       let body = row.body;
-      const effects = await queue.effects(identity, info);
       if (effects.length) { try { body = JSON.stringify(await applyEffects(effects, JSON.parse(row.body))); } catch (_) { body = row.body; } }
       return new Response(body, { status: row.status, headers: { 'Content-Type': row.type, 'Cache-Control': 'no-store', 'X-FM-Offline': 'saved', 'X-FM-Saved-At': new Date(row.savedAt).toISOString() } });
     },
 
-    /** A network answer with the queue's effects applied; the same response when nothing applies. */
+    /**
+     * A network answer with the queue's effects applied; the same response when nothing applies. A 404 for a
+     * record whose create still waits on this device is answered from that change's seed.
+     */
     async overlay(identity, info, response) {
-      if (!response.ok || !isJson(response)) return response;
+      const missing = response.status === 404;
+      if (!missing && (!response.ok || !isJson(response))) return response;
       const effects = await queue.effects(identity, info);
       if (!effects.length) return response;
+      if (missing) {
+        const made = await seeded(effects);
+        return made === undefined ? response : jsonResponse(200, made, { 'X-FM-Offline': 'queued' });
+      }
       let json;
       try { json = await applyEffects(effects, await response.clone().json()); } catch (_) { return response; }
       const headers = new Headers(response.headers);
@@ -507,8 +531,27 @@
       const url = new URL(target, ORIGIN);
       const key = readKey('GET', url);
       const row = await reads.row(identity, key);
-      if (!row) return null;
-      try { return await applyEffects(await queue.effects(identity, readInfo('GET', url, key), before), JSON.parse(row.body)); } catch (_) { return null; }
+      try {
+        const effects = await queue.effects(identity, readInfo('GET', url, key), before);
+        if (!row) { const made = await seeded(effects); return made === undefined ? null : made; }
+        return await applyEffects(effects, JSON.parse(row.body));
+      } catch (_) { return null; }
+    },
+
+    /** Saved GET answers whose route matches `pattern`, with the queue's effects: [{ url, query, params, json }]. */
+    async find(identity, pattern, before) {
+      const compiled = compile(pattern);
+      const out = [];
+      for (const key of await db.keys('responses', [identity.user, identity.org])) {
+        const name = String(key[2]);
+        if (!name.startsWith('GET ')) continue;
+        const url = new URL(name.slice(4), ORIGIN);
+        const params = compiled.match('GET', url.pathname);
+        if (!params) continue;
+        const json = await reads.peek(identity, url.pathname + url.search, before);
+        if (json) out.push({ url: url.pathname + url.search, query: queryOf(url), params, json });
+      }
+      return out;
     },
 
     /** Reads a saved GET or declared POST read again and stores the answer. Used after a change synced. */
@@ -556,9 +599,23 @@
   async function applyEffects(effects, json) {
     let value = json;
     for (const effect of effects) {
+      if (typeof effect.apply !== 'function') continue;
       try { const next = await effect.apply(value); if (next !== undefined) value = next; } catch (_) { /* one contract's mistake never breaks a read */ }
     }
     return value;
+  }
+
+  /**
+   * The answer of a read nothing was saved for, from the first queued change that seeds it (`seed` on an
+   * effect), with the later changes applied; undefined when no change seeds it.
+   */
+  async function seeded(effects) {
+    const at = effects.findIndex((effect) => effect.seed !== undefined);
+    if (at < 0) return undefined;
+    let value;
+    try { value = typeof effects[at].seed === 'function' ? await effects[at].seed() : copy(effects[at].seed); } catch (_) { return undefined; }
+    if (value === undefined || value === null) return undefined;
+    return applyEffects(effects.slice(at + 1), value);
   }
 
   /**
@@ -642,7 +699,7 @@
 
     /** The contract ctx an entry was queued with. */
     async ctx(entry) {
-      return makeCtx({ method: entry.method, url: entry.url, params: entry.params, parsed: await queue.parsed(entry), headers: entry.headers, identity: { user: entry.user, org: entry.org }, now: entry.createdAt, id: entry.id, response: entry.response, before: entry.seq });
+      return makeCtx({ method: entry.method, url: entry.url, params: entry.params, parsed: await queue.parsed(entry), headers: entry.headers, identity: { user: entry.user, org: entry.org }, now: entry.createdAt, id: entry.id, response: entry.response, base: entry.base ? entry.base.doc : null, before: entry.seq });
     },
 
     /** The entry's effects on reads, computed once: [{ patterns, when, apply }]. */
@@ -652,7 +709,7 @@
           const found = contracts.write(entry.contract, entry.write);
           if (!found || typeof found.write.effects !== 'function') return [];
           const list = await found.write.effects(await queue.ctx(entry));
-          return (list || []).filter((effect) => effect && effect.match && typeof effect.apply === 'function').map((effect) => ({ patterns: compileAll(effect.match), when: effect.when, apply: effect.apply }));
+          return (list || []).filter((effect) => effect && effect.match && (typeof effect.apply === 'function' || effect.seed !== undefined)).map((effect) => ({ patterns: compileAll(effect.match), when: effect.when, apply: effect.apply, seed: effect.seed }));
         })().catch(() => []));
       }
       return queueCache.derived.get(entry.id);
@@ -802,7 +859,7 @@
       let base = null;
       if (write.kind === 'patch' && write.conflict) {
         const saved = await ctx.saved(await write.conflict.current(ctx));
-        if (saved) { const picked = await write.conflict.pick(saved); if (picked && picked.doc) base = { doc: picked.doc, revision: picked.revision === undefined ? null : picked.revision }; }
+        if (saved) { const picked = await write.conflict.pick(saved, ctx); if (picked && picked.doc) base = { doc: picked.doc, revision: picked.revision === undefined ? null : picked.revision }; }
       }
       entry = {
         id: ctx.id, key: ctx.id, keyBody: null, seq: nextSeq(), user: identity.user, org: identity.org,
@@ -1119,7 +1176,30 @@
       const urls = new Set();
       const readKeys = new Set();
       const mediaKeys = new Set();
+      // A declared POST read ({ url, body }): sent only when a contract declares it as a read, saved under that read's key.
+      const fetchPost = async (target) => {
+        const url = new URL(target.url, ORIGIN);
+        if (url.origin !== ORIGIN || contracts.denied('POST', url.pathname)) return null;
+        const text = JSON.stringify(target.body === undefined ? {} : target.body);
+        const parsed = { type: 'json', text, value: JSON.parse(text) };
+        for (const found of contracts.reads('POST', url.pathname)) {
+          const readCtx = makeCtx({ method: 'POST', url: url.href, params: found.params, parsed, headers: {}, identity, now: config.now() });
+          if (found.read.when && !(await found.read.when(readCtx))) continue;
+          const key = readKey('POST', url, found.read.id + ' ' + stable(found.read.key ? await found.read.key(readCtx) : readCtx.body));
+          const headers = { accept: 'application/json', 'content-type': 'application/json', 'x-fm-offline-replay': '1' };
+          const token = await config.csrf();
+          if (token) headers['x-platform-csrf'] = token;
+          const response = await config.fetch(url.href, { method: 'POST', credentials: 'include', cache: 'no-store', headers, body: text });
+          if (!reads.savable(response)) return null;
+          readKeys.add(key);
+          const json = await readJson(response);
+          await reads.store(identity, key, response, { boot: true, req: { text, contentType: 'application/json', fields: null } });
+          return json;
+        }
+        return null;
+      };
       const fetchOne = async (target) => {
+        if (target && typeof target === 'object') return fetchPost(target);
         const url = new URL(target, ORIGIN);
         if (url.origin !== ORIGIN || contracts.denied('GET', url.pathname)) return null;
         const response = await config.fetch(url.href, { credentials: 'include', headers: { accept: 'application/json', 'x-fm-offline-replay': '1' } });
@@ -1363,7 +1443,7 @@
     if (current.status === 401) { await pause(run, 'sign-in'); return { outcome: 'stop' }; }
     if (current.status >= 500) return { outcome: await serverError(entry, current.status, '') };
     if (!current.ok) return { outcome: await fail(entry, current.status, errorCode(await readJson(current)), 'The record could not be read') };
-    const picked = await rule.pick(await current.json());
+    const picked = await rule.pick(await current.json(), ctx);
     const theirs = (picked && picked.doc) || {};
     const revision = picked ? picked.revision : undefined;
     const fields = [].concat(rule.fields ? await rule.fields(ctx) : Object.keys(isObject(ctx.body) ? ctx.body : {}));
@@ -1417,6 +1497,25 @@
       return later(entry, backoff(entry.attempts));
     }
     if (status >= 500) return serverError(entry, status, code);
+    // A refusal that means the server already has this change (a create whose first answer was lost) is done.
+    const found = contracts.write(entry.contract, entry.write);
+    // A refusal that asks for the same change in another form (a publication action whose own key the server
+    // will not take twice): the contract gives the body to send, once per attempt, under a new key.
+    if (found && typeof found.write.resend === 'function' && !flags.resent) {
+      let next;
+      try { next = await found.write.resend(await queue.ctx(entry), { status, code, body }); } catch (_) { next = undefined; }
+      if (next !== undefined && next !== null) {
+        flags.resent = true;
+        Object.assign(entry, { body: { type: 'json', text: JSON.stringify(next) }, key: newId() });
+        await queue.save(entry);
+        return 'again';
+      }
+    }
+    if (found && typeof found.write.duplicate === 'function') {
+      let done = false;
+      try { done = !!(await found.write.duplicate(await queue.ctx(entry), { status, code, body })); } catch (_) { done = false; }
+      if (done) return succeed(run, entry, 200, null);
+    }
     return fail(entry, status, code, body && (body.message || (body.error && body.error.message)));
   }
 
