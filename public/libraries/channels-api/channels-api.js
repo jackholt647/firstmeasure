@@ -50,6 +50,14 @@
     catch { return ''; }
   }
 
+  /** What a person is told when the server cannot be reached: a read is not on the device, a change was not made. */
+  function noConnectionText(method){
+    const words = (key, english) => root.PlatformLanguage?.text?.('shared', key, english) ?? english;
+    return ['GET', 'HEAD'].includes(method)
+      ? words('offline_not_on_device', 'This is not saved on this device. Connect to the internet to see it.')
+      : words('offline_change_needs_connection', 'This needs a connection. Nothing was saved.');
+  }
+
   async function request(path, options = {}){
     const method = cleanText(options.method || 'GET').toUpperCase();
     const isForm = options.body instanceof FormData;
@@ -63,19 +71,31 @@
     };
     const csrf = csrfToken();
     if (csrf && !['GET', 'HEAD', 'OPTIONS'].includes(method)) headers['X-Platform-CSRF'] = csrf;
-    const res = await fetch(`${baseUrl()}/${cleanText(path).replace(/^\/+/, '')}`, {
-      method,
-      body,
-      headers,
-      cache: 'no-store',
-      credentials: 'include',
-      signal: options.signal
-    });
+    let res;
+    try {
+      res = await fetch(`${baseUrl()}/${cleanText(path).replace(/^\/+/, '')}`, {
+        method,
+        body,
+        headers,
+        cache: 'no-store',
+        credentials: 'include',
+        signal: options.signal
+      });
+    } catch (failure) {
+      // No answer at all (docs/architecture/offline.md): say what a person can act on instead of "Failed to fetch".
+      // The error keeps no status, which is how unreachable() knows it.
+      if (failure?.name === 'AbortError') throw failure;
+      const error = new Error(noConnectionText(method));
+      error.offline = true;
+      error.cause = failure;
+      throw error;
+    }
     const text = await res.text();
     let data = null;
     try { data = text ? JSON.parse(text) : null; } catch (e) {}
     if (!res.ok || data?.ok === false) {
-      const error = new Error(cleanText(data?.message || data?.error) || `Channels API request failed (${res.status})`);
+      const error = new Error((cleanText(data?.error) === 'offline_unavailable' ? noConnectionText(method) : cleanText(data?.message || data?.error)) || `Channels API request failed (${res.status})`);
+      if (cleanText(data?.error) === 'offline_unavailable') error.offline = true;
       error.status = res.status;
       error.data = data;
       throw error;
