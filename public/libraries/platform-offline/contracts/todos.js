@@ -127,7 +127,7 @@
           return waiting.some((entry) => entry.kind === 'create') ? 'project:' + project : 'todo:' + (await idsFor(ctx)).node;
         },
         records: async (ctx) => [(await idsFor(ctx)).node, text(ctx.body.id)],
-        label: (ctx) => ({ key: 'sync_todo_new', title: 'New to-do', detail: text(ctx.body.title) }),
+        label: (ctx) => (FMOffline.label('sync_todo_new', 'New to-do', text(ctx.body.title))),
         respond: async (ctx) => Object.assign({ ok: true }, await madeTodo(ctx)),
         effects: (ctx) => {
           const todo = ctx.response.todo;
@@ -173,7 +173,7 @@
         kind: 'patch',
         scope: (ctx) => scopeOf(ctx, ctx.params.node),
         records: (ctx) => [ctx.params.node],
-        label: async (ctx) => ({ key: 'sync_todo_edit', title: 'To-do change', detail: text(ctx.body.title) || text(((await knownTodo(ctx, ctx.params.node)) || {}).title) }),
+        label: async (ctx) => (FMOffline.label('sync_todo_edit', 'To-do change', text(ctx.body.title) || text(((await knownTodo(ctx, ctx.params.node)) || {}).title))),
         respond: async (ctx) => ({ ok: true, node: Object.assign({}, await knownTodo(ctx, ctx.params.node), ctx.body, { id: ctx.params.node, updated_at: iso(ctx) }) }),
         effects: (ctx) => {
           const change = (todo) => Object.assign({}, todo, ctx.body, { updated_at: iso(ctx) });

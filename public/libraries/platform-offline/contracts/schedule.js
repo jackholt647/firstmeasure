@@ -102,7 +102,7 @@
         kind: 'action',
         scope: (ctx) => 'project:' + ctx.params.project,
         records: (ctx) => [text(eventOf(ctx.body).id)],
-        label: (ctx) => ({ key: 'sync_event_new', title: 'Schedule event', detail: detail(ctx) }),
+        label: (ctx) => (FMOffline.label('sync_event_new', 'Schedule event', detail(ctx))),
         respond,
         effects
       },
@@ -113,7 +113,7 @@
         kind: 'patch',
         scope: (ctx) => 'project:' + ctx.params.project,
         records: (ctx) => [text(eventOf(ctx.body).id)],
-        label: (ctx) => ({ key: 'sync_event_edit', title: 'Schedule change', detail: detail(ctx) }),
+        label: (ctx) => (FMOffline.label('sync_event_edit', 'Schedule change', detail(ctx))),
         respond,
         effects,
         conflict: {

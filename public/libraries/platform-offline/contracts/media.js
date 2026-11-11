@@ -270,7 +270,7 @@
         // removed it.
         kind: 'patch',
         scope: (ctx) => 'project:' + ctx.params.project,
-        label: (ctx) => (list(ctx.body.remove).length ? { key: 'sync_project_photos_removed', title: 'Photos removed from the project', detail: '' } : { key: 'sync_project_photos', title: 'Project photos', detail: '' }),
+        label: (ctx) => (list(ctx.body.remove).length ? FMOffline.label('sync_project_photos_removed', 'Photos removed from the project', '') : FMOffline.label('sync_project_photos', 'Project photos', '')),
         // To a person one photo is one change: a save that only adds photos whose uploads wait here is not counted
         // or listed beside them (it still shows when it is the only thing waiting, fails or conflicts).
         quiet: async (ctx) => {
@@ -320,7 +320,7 @@
         kind: 'action',
         // Behind this person's own waiting photos, which are what the phone camera pairs.
         scope: (ctx) => 'user:' + ctx.user,
-        label: () => ({ key: 'sync_photo_assign', title: 'Photos added to a project', detail: '' }),
+        label: () => (FMOffline.label('sync_photo_assign', 'Photos added to a project', '')),
         records: (ctx) => list(ctx.body.media_ids).map(text).filter(Boolean),
         respond: async (ctx) => {
           const project = text(ctx.body.project_id);

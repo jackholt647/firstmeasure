@@ -132,7 +132,7 @@
         kind: 'create',
         scope: (ctx) => 'contact:' + idOf(ctx.body),
         records: (ctx) => [idOf(ctx.body)],
-        label: (ctx) => ({ key: 'sync_contact_new', title: 'New contact', detail: nameOf(ctx.body) || text(ctx.body.email) || text(ctx.body.phone) }),
+        label: (ctx) => (FMOffline.label('sync_contact_new', 'New contact', nameOf(ctx.body) || text(ctx.body.email) || text(ctx.body.phone))),
         respond: (ctx) => ({ ok: true, contact: madeContact(ctx, ctx.body) }),
         duplicate: (ctx, answer) => answer.status === 409 && answer.code === 'contact_exists',
         effects: (ctx) => {
@@ -155,7 +155,7 @@
         records: (ctx) => [ctx.params.contact],
         label: async (ctx) => {
           const saved = await ctx.saved(contactUrl(ctx, ctx.params.contact));
-          return { key: 'sync_contact_edit', title: 'Contact change', detail: nameOf(Object.assign({}, saved && saved.contact, patchOf(ctx.body))) };
+          return FMOffline.label('sync_contact_edit', 'Contact change', nameOf(Object.assign({}, saved && saved.contact, patchOf(ctx.body))));
         },
         respond: async (ctx) => {
           const saved = await ctx.saved(contactUrl(ctx, ctx.params.contact));
@@ -185,7 +185,7 @@
         kind: 'patch',
         scope: (ctx) => 'project:' + ctx.params.project,
         records: (ctx) => [ctx.params.project],
-        label: async (ctx) => ({ key: 'sync_project_contacts', title: 'Project contacts', detail: (await knownPeople(ctx)).map((person) => person.name).filter(Boolean).join(', ') }),
+        label: async (ctx) => (FMOffline.label('sync_project_contacts', 'Project contacts', (await knownPeople(ctx)).map((person) => person.name).filter(Boolean).join(', '))),
         respond: (ctx) => ({ ok: true, contacts: linksOf(ctx.body.contacts).map((link) => ({ contact_id: link.contact_id, role: link.role, primary: link.primary })) }),
         effects: async (ctx) => {
           const people = await knownPeople(ctx);

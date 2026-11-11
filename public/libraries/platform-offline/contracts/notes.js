@@ -72,7 +72,7 @@
     ];
   }
 
-  const label = (ctx) => ({ key: 'sync_note_new', title: 'Note', detail: text(ctx.body.text).slice(0, 80) });
+  const label = (ctx) => (FMOffline.label('sync_note_new', 'Note', text(ctx.body.text).slice(0, 80)));
 
   FMOffline.contracts.add({
     id: 'notes',
