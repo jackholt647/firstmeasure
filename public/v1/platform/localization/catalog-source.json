@@ -20158,7 +20158,9 @@
     "invalid_percent": "A percentage is from 0 to 100.",
     "flag_introduce_needs_on": "Only turning a flag on can introduce it.",
     "no_organizations": "Choose at least one organization.",
-    "sandbox_app_state": "An app's state is on, offered or off."
+    "sandbox_app_state": "An app's state is on, offered or off.",
+    "checklist_exists": "This checklist already exists.",
+    "checklist_item_exists": "This checklist item already exists."
   },
   "notifications": {
     "document_greeting": {
