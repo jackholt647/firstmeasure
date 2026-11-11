@@ -802,9 +802,28 @@
     }
     return discarded;
   }
-  window.PlatformOffline?.on?.('synced', (entry) => { (entry?.records || []).forEach((record) => offlineWaiting.delete(cleanText(record))); });
+  // The photos among `ids` whose upload itself still waits on this device. A photo the server has, with only a
+  // rename or a tag waiting, is not one: deleting it goes to the trash like any other.
+  async function uploadsWaiting(ids = []){
+    const out = new Set();
+    for (const value of ids) {
+      const id = cleanText(value);
+      if (!id || !isWaitingMedia(id)) continue;
+      if (offlineWaiting.has(id)) { out.add(id); continue; }
+      const entries = (await Promise.resolve(window.PlatformOffline?.pending?.({ record:id })).catch(() => [])) || [];
+      if (entries.some((entry) => entry.kind === 'upload')) out.add(id);
+    }
+    return out;
+  }
+  window.PlatformOffline?.on?.('synced', (entry) => { if (entry?.write !== 'media.update') (entry?.records || []).forEach((record) => offlineWaiting.delete(cleanText(record))); });
   window.PlatformOffline?.on?.('discarded', (entry) => {
-    (entry?.records || []).forEach((record) => offlineWaiting.delete(cleanText(record)));
+    if (entry?.write !== 'media.update') (entry?.records || []).forEach((record) => offlineWaiting.delete(cleanText(record)));
+    // A rename or a tag made on a photo whose upload was thrown away has nothing left to change.
+    if (entry?.contract === 'media' && entry.write === 'media.upload') {
+      (entry.records || []).forEach((record) => {
+        Promise.resolve(window.PlatformOffline?.pending?.({ record })).then((entries) => (entries || []).filter((other) => other.write === 'media.update').forEach((other) => window.PlatformOffline.discard(other.id))).catch(() => {});
+      });
+    }
     // A photo with no project that was thrown away from the sync list leaves the Unassigned group.
     if (entry?.contract === 'media' && entry.write === 'media.upload' && state.loaded && state.root?.isConnected && (state.unassigned || []).some((item) => (entry.records || []).includes(item.mediaId))) {
       state.unassigned = state.unassigned.filter((item) => !(entry.records || []).includes(item.mediaId));
@@ -4547,7 +4566,8 @@
       const targets = new Set(projectItems.map((item) => photoIdentity(item.photo)).filter(Boolean));
       const sourcePhotos = projectPhotosRaw(project).length ? projectPhotosRaw(project) : normalizePhotos(project);
       // A photo that never left this device: deleting it takes back its upload. Nothing goes to the trash.
-      const waiting = action === 'restore' ? new Set() : new Set(sourcePhotos.filter((photo) => targets.has(photoIdentity(photo)) && isWaitingMedia(photo)).map((photo) => photoIdentity(photo)));
+      const uploading = action === 'restore' ? new Set() : await uploadsWaiting(sourcePhotos.filter((photo) => targets.has(photoIdentity(photo))).map(offlineMediaId));
+      const waiting = new Set(sourcePhotos.filter((photo) => targets.has(photoIdentity(photo)) && uploading.has(offlineMediaId(photo))).map((photo) => photoIdentity(photo)));
       const nextPhotos = [];
       sourcePhotos.forEach((photo) => {
         const isTarget = targets.has(photoIdentity(photo));
@@ -5165,7 +5185,8 @@
       const items = selectedLocalItems();
       if (!items.length) return;
       const mutationOptions = { onProjectPhotosChanged: options.onProjectPhotosChanged };
-      const waiting = action === 'restore' ? new Set() : new Set(items.filter((item) => isWaitingMedia(item.photo)).map((item) => item.id));
+      const uploading = action === 'restore' ? new Set() : await uploadsWaiting(items.map((item) => offlineMediaId(item.photo)));
+      const waiting = new Set(items.filter((item) => uploading.has(offlineMediaId(item.photo))).map((item) => item.id));
       let result = null;
       if (action === 'trash') result = await trashItems(items, mutationOptions);
       if (action === 'restore') result = await restoreItems(items, mutationOptions);

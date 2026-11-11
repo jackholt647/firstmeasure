@@ -552,6 +552,10 @@ async function insertChecklist(
 ) {
   const now = nowIso();
   const id = cleanText(definition.id) || `checklist_${randomUUID()}`;
+  // An id a device made (offline): a repeat whose first answer was lost is told the checklist is there.
+  if (cleanText(definition.id) && (await getWorkforceDatabase().prepare("SELECT id FROM crew_checklists WHERE id=?").get(id))) {
+    throw conflict("checklist_exists", "This checklist already exists.", { checklist_id: id });
+  }
   const metadata = {
     ...asObject(definition.metadata),
     ...(definition.department_ids ? { department_ids: definition.department_ids } : {}),
@@ -713,6 +717,16 @@ export async function listDeletedProjectChecklists(orgId: string, projectId: str
   });
 }
 
+/**
+ * A record id made on a device before the server had the record (docs/architecture/offline.md, "Ids are made on
+ * the device"): 8 to 80 lowercase letters, digits, `_` or `-`, starting with a letter or digit, used as sent.
+ */
+function deviceMadeId(value: unknown, what: "checklist" | "checklist_item") {
+  const id = cleanText(value);
+  if (!/^[a-z0-9][a-z0-9_-]{7,79}$/.test(id)) throw badRequest(`invalid_${what}_id`, "The id is not valid.");
+  return id;
+}
+
 export async function createProjectChecklist(orgId: string, projectId: string, inputValue: unknown, actorUserId: string) {
   return (await getWorkforceDatabase().transaction(async () => {
   ensureCrewSchema();
@@ -720,6 +734,7 @@ export async function createProjectChecklist(orgId: string, projectId: string, i
   const title = cleanText(input.title || input.name);
   if (!title) throw badRequest("checklist_title_required", "A checklist title is required.");
   return (await insertChecklist(orgId, projectId, {
+    ...(cleanText(input.id) ? { id: deviceMadeId(input.id, "checklist") } : {}),
     title,
     description: cleanText(input.description),
     kind: cleanText(input.kind),
@@ -859,6 +874,9 @@ export async function createProjectChecklistItem(
     : input.completed === true || cleanText(input.status) === "completed";
   const now = nowIso();
   const id = cleanText(input.id) || `checklist_item_${randomUUID()}`;
+  if (cleanText(input.id) && (await getWorkforceDatabase().prepare("SELECT id FROM crew_checklist_items WHERE id=?").get(id))) {
+    throw conflict("checklist_item_exists", "This checklist item already exists.", { item_id: id });
+  }
   (await getWorkforceDatabase().prepare(`INSERT INTO crew_checklist_items
     (id, organization_id, project_id, checklist_id, title, description, status, item_type, rating, note,
       sort_order, created_by_user_id, completed_by_user_id, completed_at, metadata_json, revision, created_at, updated_at)

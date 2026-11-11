@@ -1127,10 +1127,23 @@
     const mount=$('#fmContactProfile');if(!mount)return;
     const id=state.contact.profile_media_id || state.contact.custom_field_values?.profile_photo?.media_id;
     mount.innerHTML=`<button type="button" class="fm-contact-photo-tile" id="fmContactPhotoEdit" aria-label="${id?'Edit profile photo':'Upload profile photo'}">${id?`<img src="${escapeHtml(window.PlatformAPI.media.fileUrl(orgId(),id))}" alt="Contact profile photo">`:'<i class="fas fa-camera"></i><span>Upload</span>'}</button><input type="file" accept="image/jpeg,image/png,image/webp,image/gif" hidden id="fmContactPhotoUpload">${id?'<button class="fm-contact-photo-remove" type="button" id="fmContactPhotoRemove" aria-label="Remove profile photo" title="Remove photo"><i class="fas fa-trash-can"></i></button>':''}`;
+    if(id){mount.setAttribute('data-offline-record',id);mount.setAttribute('data-offline-compact','');markWaiting(mount.parentElement);}else mount.removeAttribute('data-offline-record');
     $('#fmContactPhotoEdit').addEventListener('click',()=>id?editProfilePhoto(id):$('#fmContactPhotoUpload').click());
     $('#fmContactPhotoUpload')?.addEventListener('change',event=>uploadContactFiles(event.target.files,true));
     $('#fmContactPhotoRemove')?.addEventListener('click',()=>{
       state.contact.custom_field_values={...state.contact.custom_field_values,profile_photo:null};state.contact.profile_media_id='';setProfileInput(null);renderProfile();scheduleAutosave();
+    });
+  }
+  // A file kept on this device until it uploads carries the offline UI's mark (docs/architecture/offline.md).
+  function markWaiting(root){
+    root?.querySelectorAll?.('[data-offline-record]').forEach(node=>{
+      if(node.querySelector('[data-contact-waiting]'))return;
+      let badge=null;
+      try{badge=window.PlatformOfflineUI?.waitingBadge?.({record:node.dataset.offlineRecord,compact:node.hasAttribute('data-offline-compact')})||null;}catch(_){badge=null;}
+      if(!badge)return;
+      badge.setAttribute('data-contact-waiting','');
+      const before=node.querySelector('small');
+      if(before)before.before(badge);else node.append(badge);
     });
   }
   async function uploadContactFiles(files,profile=false,slot='media'){
@@ -1176,7 +1189,8 @@
       const result=state.stored?await window.PlatformAPI.contacts.media(orgId(),identity):{media:draftMedia};
       if(!state.open||state.contact.id!==identity)return;
       const docs=(result.media||[]).filter(isContactDoc);
-      mount.innerHTML=docs.length?docs.map(row=>`<a class="fm-contact-doc" href="${escapeHtml(window.PlatformAPI.media.fileUrl(orgId(),row.id))}" target="_blank" rel="noopener noreferrer"><i class="fas fa-file-lines" aria-hidden="true"></i><span>${escapeHtml(row.file_name || 'Document')}</span><small>Open</small></a>`).join(''):'<div class="fm-contact-empty">No docs for this contact yet.</div>';
+      mount.innerHTML=docs.length?docs.map(row=>`<a class="fm-contact-doc" data-offline-record="${escapeHtml(row.id)}" href="${escapeHtml(window.PlatformAPI.media.fileUrl(orgId(),row.id))}" target="_blank" rel="noopener noreferrer"><i class="fas fa-file-lines" aria-hidden="true"></i><span>${escapeHtml(row.file_name || 'Document')}</span><small>Open</small></a>`).join(''):'<div class="fm-contact-empty">No docs for this contact yet.</div>';
+      markWaiting(mount);
     }catch(error){mount.textContent=error.message||'Could not load contact docs.';}
   }
   async function mountContactGallery(){

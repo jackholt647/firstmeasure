@@ -663,7 +663,8 @@
         const next = await task();
         if (next && next.resolved_definition) payload = next;
         changed = true;
-        setState(t("as_sent_saved", "Saved"));
+        // A change kept on the device (no connection): the page is the last calculated one with the change applied.
+        setState(payload && isObject(payload.offline) && payload.offline.pending ? t("as_sent_saved_on_device", "Saved on this device. Amounts and totals update when you reconnect.") : t("as_sent_saved", "Saved"));
         render();
         return true;
       } catch (error) {
@@ -713,7 +714,8 @@
         const path = binding.path;
         const order = inputSpans().indexOf(span);
         closePop();
-        const ok = await run(() => opts.writeInputs([{ path, text }]));
+        // `parsed` is the value as it is stored: the server works it out itself; a change kept on the device uses it.
+        const ok = await run(() => opts.writeInputs([{ path, text, parsed: parsed.value }]));
         if (ok && moveBy) {
           const spans = inputSpans();
           const next = spans[order + moveBy];
@@ -985,7 +987,7 @@
       setState(t("as_sent_loading_short", "Loading…"));
       try {
         payload = await opts.load();
-        setState("");
+        setState(payload && isObject(payload.offline) && payload.offline.pending ? t("as_sent_offline_view", "Changes are saved on this device. Amounts and totals update when you reconnect.") : "");
         render();
       } catch (error) {
         stage.innerHTML = `<div class="fmse-loading">${esc(errorText(error))}</div>`;

@@ -1206,3 +1206,255 @@ test('a patch\'s effects can merge over a newer answer with the record as it was
   items = [{ id: 'a', n: 1 }, { id: 'b', n: 1 }, { id: 'c', n: 9 }];
   eq((await t.json('GET', '/v1/lists/l1')).data.list.items, [{ id: 'a', n: 2 }, { id: 'b', n: 1 }, { id: 'c', n: 9 }]);
 });
+
+/** TEST ONLY: a record saved whole (an upsert), with a delete: what `replaces`, `explain` and send's `theirs` are for. */
+function addSlotContract(FM) {
+  const earlier = async (ctx) => (await ctx.queued(ctx.params.id)).filter((entry) => entry.contract === 'slots');
+  FM.contracts.add({
+    id: 'slots',
+    writes: [
+      {
+        id: 'slot.save', match: 'PUT /v1/slots/:id', kind: 'action', when: (ctx) => !ctx.body.expected_revision, scope: (ctx) => `slot:${ctx.params.id}`, records: (ctx) => [ctx.params.id],
+        label: () => ({ title: 'Slot' }), respond: (ctx) => ({ ok: true, slot: { id: ctx.params.id, ...ctx.body } }),
+        effects: (ctx) => [{ match: 'GET /v1/slots', apply: (json) => ({ ...json, slots: [...json.slots.filter((slot) => slot.id !== ctx.params.id), ctx.response.slot] }) }],
+        explain: (ctx, answer) => (answer.code === 'slot_taken' ? FM.label('fail_slot_taken', 'That time is taken.', (answer.body.details || {}).by) : null),
+        replaces: async (ctx) => (await earlier(ctx)).filter((entry) => entry.state === 'failed').map((entry) => entry.id)
+      },
+      {
+        id: 'slot.edit', match: 'PUT /v1/slots/:id', kind: 'patch', scope: (ctx) => `slot:${ctx.params.id}`, records: (ctx) => [ctx.params.id],
+        label: () => ({ title: 'Slot change' }), respond: (ctx) => ({ ok: true, slot: { id: ctx.params.id, ...ctx.body } }),
+        conflict: {
+          current: (ctx) => `/v1/slots/${ctx.params.id}`, pick: (json) => ({ doc: json.slot, revision: json.slot.revision }), fields: () => ['title', 'at'],
+          // The route replaces the whole record: what is sent is the server's record with the merged fields.
+          send: (ctx, merged, revision, theirs) => ({ ...theirs, ...merged, expected_revision: revision })
+        }
+      },
+      {
+        id: 'slot.delete', match: 'DELETE /v1/slots/:id', kind: 'delete', scope: (ctx) => `slot:${ctx.params.id}`, records: (ctx) => [ctx.params.id],
+        label: () => ({ title: 'Slot deleted' }), respond: () => ({ ok: true, deleted: true }),
+        effects: (ctx) => [{ match: 'GET /v1/slots', apply: (json) => ({ ...json, slots: json.slots.filter((slot) => slot.id !== ctx.params.id) }) }],
+        replaces: async (ctx) => (await earlier(ctx)).map((entry) => entry.id)
+      }
+    ]
+  });
+}
+
+test('a refusal a contract can explain keeps its label; the next save of the record replaces the refused one', async () => {
+  const t = engine();
+  addSlotContract(t.FM);
+  t.server.on('GET /v1/slots', () => ({ json: { slots: [] } }));
+  await t.json('GET', '/v1/slots');
+  t.server.down = true;
+  await t.json('PUT', '/v1/slots/slot_aaaaaaa1', { json: { title: 'Visit', at: 9 } });
+  t.server.down = false;
+  t.server.on('PUT /v1/slots/slot_aaaaaaa1', (entry) => (entry.body.at === 9 ? { status: 409, json: { ok: false, error: 'slot_taken', message: 'Slot 9 is taken.', details: { by: 'North team' } } } : { json: { ok: true, slot: { id: 'slot_aaaaaaa1', ...entry.body } } }));
+  await t.FM.replay.run();
+  const failed = (await t.entries())[0];
+  eq([failed.state, failed.error.status, failed.error.code, failed.error.message, failed.error.label], ['failed', 409, 'slot_taken', 'Slot 9 is taken.', { key: 'fail_slot_taken', title: 'That time is taken.', detail: 'North team' }]);
+  eq((await t.json('GET', '/v1/slots')).data.slots.map((slot) => slot.at), [9], 'the refused save still shows until the person deals with it');
+  // The person moves it, with a connection: the server takes the new save and the refused one is gone with it.
+  const moved = await t.json('PUT', '/v1/slots/slot_aaaaaaa1', { json: { title: 'Visit', at: 11 } });
+  eq([moved.response.status, moved.response.headers.get('x-fm-offline-queued'), moved.data.slot.at], [200, null, 11]);
+  eq(await t.entries(), []);
+  assert.ok(t.events.some((event) => event.type === 'discarded' && event.detail.id === failed.id), 'pages hear that the refused change was dropped');
+  // Without a connection the new save is queued and replaces the refused one the same way; a waiting save is kept.
+  t.server.down = true;
+  await t.json('PUT', '/v1/slots/slot_bbbbbbb2', { json: { title: 'Other', at: 9 } });
+  t.server.down = false;
+  t.server.on('PUT /v1/slots/slot_bbbbbbb2', () => ({ status: 409, json: { ok: false, error: 'slot_closed' } }));
+  await t.FM.replay.run();
+  eq((await t.entries()).map((entry) => [entry.state, entry.error.label || null]), [['failed', null]], 'a refusal the contract has no words for keeps only what the server said');
+  t.server.down = true;
+  await t.json('PUT', '/v1/slots/slot_bbbbbbb2', { json: { title: 'Other', at: 12 } });
+  await t.json('PUT', '/v1/slots/slot_bbbbbbb2', { json: { title: 'Other', at: 13 } });
+  eq((await t.entries()).map((entry) => [entry.state, entry.write]), [['waiting', 'slot.save'], ['waiting', 'slot.save']]);
+  eq((await t.json('GET', '/v1/slots')).data.slots.filter((slot) => slot.id === 'slot_bbbbbbb2').map((slot) => slot.at), [13]);
+});
+
+test('a delete replaces every change to its record still on the device, and is still sent', async () => {
+  const t = engine();
+  addSlotContract(t.FM);
+  t.server.on('GET /v1/slots', () => ({ json: { slots: [{ id: 'slot_ccccccc3', title: 'Kept', at: 1 }] } }));
+  t.server.on('DELETE /v1/slots/', () => ({ json: { ok: true, deleted: false } }));
+  t.server.on('PUT /v1/slots/', (entry) => ({ json: { ok: true, slot: entry.body } }));
+  await t.json('GET', '/v1/slots');
+  t.server.down = true;
+  await t.json('PUT', '/v1/slots/slot_ddddddd4', { json: { title: 'Made here', at: 2 } });
+  await t.json('PUT', '/v1/slots/slot_ddddddd4', { json: { title: 'Made here, moved', at: 3 } });
+  await t.json('PUT', '/v1/slots/slot_ccccccc3', { json: { title: 'Kept, renamed', at: 1 } });
+  const removed = await t.json('DELETE', '/v1/slots/slot_ddddddd4');
+  eq([removed.response.status, !!removed.response.headers.get('x-fm-offline-queued'), removed.data], [200, true, { ok: true, deleted: true }]);
+  eq((await t.entries()).map((entry) => [entry.write, entry.records[0]]), [['slot.save', 'slot_ccccccc3'], ['slot.delete', 'slot_ddddddd4']], 'the other record keeps its change');
+  eq((await t.json('GET', '/v1/slots')).data.slots.map((slot) => slot.title), ['Kept, renamed']);
+  t.server.down = false;
+  await t.FM.replay.run();
+  eq(await t.entries(), []);
+  eq(t.server.sent('PUT /v1/slots/slot_ddddddd4').length, 0, 'the saves it replaced were never sent');
+  eq(t.server.sent('DELETE /v1/slots/slot_ddddddd4').length, 1, 'the first save may have arrived, so the delete always goes');
+});
+
+test('a patch of a record the route replaces whole is sent as the server record with the merged fields (send gets theirs)', async () => {
+  const t = engine();
+  addSlotContract(t.FM);
+  let slot = { id: 'slot_eeeeeee5', revision: 1, title: 'Visit', at: 9, note: 'bring ladder' };
+  t.server.on('GET /v1/slots/slot_eeeeeee5', () => ({ json: { slot } }));
+  t.server.on('PUT /v1/slots/slot_eeeeeee5', (entry) => { slot = { ...entry.body, id: slot.id, revision: slot.revision + 1 }; delete slot.expected_revision; return { json: { ok: true, slot } }; });
+  await t.json('GET', '/v1/slots/slot_eeeeeee5');
+  t.server.down = true;
+  await t.json('PUT', '/v1/slots/slot_eeeeeee5', { json: { title: 'Visit', at: 11, expected_revision: 1 } });
+  t.server.down = false;
+  slot = { ...slot, revision: 2, title: 'Site visit', note: 'bring two ladders' };
+  await t.FM.replay.run();
+  eq(await t.entries(), []);
+  eq(t.server.sent('PUT /v1/slots/slot_eeeeeee5')[0].body, { id: 'slot_eeeeeee5', revision: 2, title: 'Site visit', at: 11, note: 'bring two ladders', expected_revision: 2 });
+  eq([slot.title, slot.at, slot.note], ['Site visit', 11, 'bring two ladders'], 'nothing the server had is lost to the replace');
+});
+
+// ---------------------------------------------------------------------------------------------------------------
+// Reads that name more reads, and start-up reads (messages: a channel's newest page names the page before it)
+// ---------------------------------------------------------------------------------------------------------------
+
+/** TEST ONLY: a room list whose rooms each have pages of lines; the newest page names the page before it. */
+function addRoomsContract(FM) {
+  const page = (room) => ({ url: `/v1/rooms/${room}/lines?limit=2`, each: (json) => (json.lines.length ? [`/v1/rooms/${room}/lines?before=${json.lines[0].seq}&limit=2`] : []) });
+  FM.contracts.add({
+    id: 'rooms',
+    boot: ['GET /v1/rooms'],
+    prefetch: [{ url: (ctx) => `/v1/projects/${ctx.project}/room`, each: (json) => [page(json.room), `/v1/rooms/${json.room}/pins`] }],
+    startup: [
+      () => ['/v1/people', '/v1/media/m1/file?variant=thumb_320', '/v1/payments/cards'],
+      { url: '/v1/rooms', each: (json) => json.rooms.map((room) => `/v1/rooms/${room}/lines?limit=2`) }
+    ]
+  });
+}
+
+function roomsServer() {
+  const server = fakeServer();
+  server.on('GET /v1/projects/p1/room', () => ({ json: { ok: true, room: 'r1' } }));
+  server.on('GET /v1/rooms', () => ({ json: { ok: true, rooms: ['r1', 'r2'] } }));
+  server.on('GET /v1/people', () => ({ json: { ok: true, people: ['Ada'] } }));
+  server.on('GET /v1/payments/cards', () => ({ json: { ok: true, cards: ['never kept'] } }));
+  server.on('GET /v1/media/m1/file', () => ({ body: 'picture', headers: { 'Content-Type': 'image/jpeg' } }));
+  for (const room of ['r1', 'r2']) {
+    server.on(`GET /v1/rooms/${room}/pins`, () => ({ json: { ok: true, pins: [] } }));
+    server.on(`GET /v1/rooms/${room}/lines`, (entry) => ({ json: { ok: true, lines: entry.query.includes('before=3') ? [{ seq: 1 }, { seq: 2 }] : [{ seq: 3 }, { seq: 4 }] } }));
+  }
+  return server;
+}
+
+test('a prefetch read may name further reads that are followed too: a kept project holds the page before its newest', async () => {
+  const t = engine({ server: roomsServer() });
+  addRoomsContract(t.FM);
+  const pin = await t.FM.pins.pin(ME, 'p1');
+  assert.equal(pin.reads, 4, 'the room, its newest page, the page before it and its pins');
+  t.server.down = true;
+  eq((await t.json('GET', '/v1/rooms/r1/lines?limit=2')).data.lines, [{ seq: 3 }, { seq: 4 }]);
+  const older = await t.json('GET', '/v1/rooms/r1/lines?before=3&limit=2');
+  assert.equal(older.response.headers.get('x-fm-offline'), 'saved');
+  eq(older.data.lines, [{ seq: 1 }, { seq: 2 }]);
+  // Kept with the project: not evicted with a budget of nothing.
+  await t.FM.settings.set('readsBudgetMb', 0);
+  await t.FM.reads.enforce();
+  eq((await t.json('GET', '/v1/rooms/r1/lines?before=3&limit=2')).data.lines, [{ seq: 1 }, { seq: 2 }]);
+});
+
+test('start-up reads are downloaded for the person, at most every ten minutes, as ordinary saved reads', async () => {
+  const t = engine({ server: roomsServer() });
+  addRoomsContract(t.FM);
+  eq(await t.FM.startup.run(null), null);
+  const first = await t.FM.startup.run(ME);
+  eq(first, { skipped: false, reads: 4, failed: 0 });                       // people, the rooms, a page of each room
+  assert.equal(t.server.sent('GET /v1/payments').length, 0, 'a denied route is never asked for');
+  assert.equal(t.server.sent('GET /v1/media').length, 0, 'pictures are kept as they are shown, not ahead');
+  // Again within ten minutes: nothing is asked.
+  const asked = t.server.log.length;
+  eq((await t.FM.startup.run(ME)).skipped, true);
+  assert.equal(t.server.log.length, asked);
+  t.clock.now += 11 * 60000;
+  eq((await t.FM.startup.run(ME)).skipped, false);
+  // Without a connection each is answered from the device, for this person only.
+  t.server.down = true;
+  eq((await t.json('GET', '/v1/rooms/r2/lines?limit=2')).data.lines, [{ seq: 3 }, { seq: 4 }]);
+  eq((await t.json('GET', '/v1/people')).data.people, ['Ada']);
+  await assert.rejects(t.request('GET', '/v1/people', {}, { user: 'user_2', org: 'org_1' }));
+  // Ordinary saved reads: over the budget they go, least recently used first; a boot read (the room list) stays.
+  await t.FM.settings.set('readsBudgetMb', 0);
+  await t.FM.reads.enforce();
+  await assert.rejects(t.request('GET', '/v1/rooms/r2/lines?limit=2'));
+  eq((await t.json('GET', '/v1/rooms')).data.rooms, ['r1', 'r2']);
+});
+
+test('start-up reads that got no answer are tried again at the next page load, and are forgotten at sign-out', async () => {
+  const t = engine({ server: roomsServer() });
+  addRoomsContract(t.FM);
+  t.server.down = true;
+  const none = await t.FM.startup.run(ME);
+  assert.equal(none.reads, 0);
+  assert.ok(none.failed > 0);
+  t.server.down = false;
+  eq((await t.FM.startup.run(ME)).reads, 4);
+  await t.FM.identity.signOut(ME.user);
+  eq((await t.FM.startup.run(ME)).skipped, false, 'after a sign-out the next sign-in downloads again');
+});
+
+test('a patch of a record the device only knows from a list takes its base from the contract (conflict.base)', async () => {
+  const t = engine();
+  t.FM.contracts.add({
+    id: 'things',
+    writes: [{
+      id: 'thing.patch', match: 'PATCH /v1/things/:id', kind: 'patch', scope: (ctx) => `thing:${ctx.params.id}`, records: (ctx) => [ctx.params.id],
+      label: () => ({ title: 'Thing' }),
+      respond: (ctx) => ({ ok: true, thing: { id: ctx.params.id, ...ctx.body } }),
+      conflict: {
+        current: (ctx) => `/v1/things/${ctx.params.id}`,
+        pick: (json) => ({ doc: json.thing, revision: json.thing.revision }),
+        // The thing's own read was never made: the list that showed it has it.
+        base: async (ctx) => { const thing = ((await ctx.saved('/v1/things')) || { things: [] }).things.find((item) => item.id === ctx.params.id); return thing ? { doc: thing, revision: thing.revision } : null; },
+        send: (ctx, merged) => merged
+      }
+    }]
+  });
+  let thing = { id: 't1', revision: 1, name: 'One', colour: 'red' };
+  t.server.on('GET /v1/things', () => ({ json: { things: [thing] } }));
+  t.server.on('GET /v1/things/t1', () => ({ json: { thing } }));
+  t.server.on('PATCH /v1/things/t1', (request) => { thing = { ...thing, ...request.body }; return { json: { ok: true, thing } }; });
+  await t.json('GET', '/v1/things');
+  t.server.down = true;
+  await t.json('PATCH', '/v1/things/t1', { json: { name: 'Uno' } });
+  await t.json('PATCH', '/v1/things/t2', { json: { name: 'Dos' } });
+  eq((await t.entries()).map((entry) => entry.base), [{ doc: { id: 't1', revision: 1, name: 'One', colour: 'red' }, revision: 1 }, null], 'a record no list has keeps no base');
+  // The server changed another field and then the same one: the first merges, the second asks.
+  thing = { ...thing, revision: 2, colour: 'blue' };
+  t.server.down = false;
+  await t.FM.replay.run();
+  eq([t.server.sent('PATCH /v1/things/t1').at(-1).body, thing.colour], [{ name: 'Uno' }, 'blue']);
+  await t.json('GET', '/v1/things');
+  t.server.down = true;
+  await t.json('PATCH', '/v1/things/t1', { json: { name: 'Eins' } });
+  thing = { ...thing, name: 'Un' };
+  t.server.down = false;
+  await t.FM.replay.run();
+  eq((await t.entries()).filter((entry) => entry.state === 'conflict').map((entry) => entry.conflict.fields.map((field) => [field.path, field.base, field.mine, field.theirs])), [[['name', 'Uno', 'Eins', 'Un']]]);
+});
+
+test('ctx.queued gives what an earlier change answered the page, so a change can carry on the record it made', async () => {
+  const t = engine();
+  t.FM.contracts.add({
+    id: 'files',
+    writes: [
+      { id: 'file.add', match: 'POST /v1/files', kind: 'create', scope: (ctx) => `file:${ctx.body.id}`, records: (ctx) => [ctx.body.id], label: () => ({ title: 'File' }), respond: (ctx) => ({ ok: true, file: { id: ctx.body.id, name: ctx.body.name } }) },
+      {
+        id: 'post.add', match: 'POST /v1/posts', kind: 'action', scope: () => 'posts', label: () => ({ title: 'Post' }),
+        respond: async (ctx) => ({ ok: true, files: (await Promise.all(ctx.body.file_ids.map((id) => ctx.queued(id)))).flat().filter((entry) => entry.write === 'file.add').map((entry) => entry.response.file) })
+      }
+    ]
+  });
+  t.server.down = true;
+  await t.json('POST', '/v1/files', { json: { id: 'file_aaaa1111', name: 'plan.pdf' } });
+  const post = await t.json('POST', '/v1/posts', { json: { text: 'See the plan', file_ids: ['file_aaaa1111', 'file_unknown1'] } });
+  eq(post.data, { ok: true, files: [{ id: 'file_aaaa1111', name: 'plan.pdf' }] });
+  // The copy is the contract's own: changing it does not change what the queue keeps.
+  const [first] = await t.entries();
+  eq(first.response, { ok: true, file: { id: 'file_aaaa1111', name: 'plan.pdf' } });
+  eq((await t.entries())[1].after, [first.id], 'and the post, which names the file, is sent after it');
+});

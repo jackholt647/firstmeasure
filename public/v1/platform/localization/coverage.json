@@ -1,7 +1,7 @@
 {
-  "files": 312,
+  "files": 314,
   "namespaces": 119,
-  "messages": 17252,
+  "messages": 17298,
   "migration": [
     {
       "file": "public/libraries/account-switcher/account-switcher.js",
@@ -391,7 +391,7 @@
     {
       "file": "public/libraries/apps/measurements/project.js",
       "namespace": "measurements",
-      "references": 304,
+      "references": 305,
       "candidates": 0,
       "edits": 0
     },
@@ -678,7 +678,7 @@
     {
       "file": "public/libraries/apps/projects/map-view.js",
       "namespace": "projects",
-      "references": 38,
+      "references": 37,
       "candidates": 0,
       "edits": 0
     },
@@ -1642,11 +1642,18 @@
       "edits": 0
     },
     {
+      "file": "public/libraries/platform-offline/contracts/checklists.js",
+      "namespace": "platform-offline",
+      "references": 0,
+      "candidates": 0,
+      "edits": 0
+    },
+    {
       "file": "public/libraries/platform-offline/contracts/contacts.js",
       "namespace": "platform-offline",
       "references": 0,
-      "candidates": 3,
-      "edits": 3
+      "candidates": 0,
+      "edits": 0
     },
     {
       "file": "public/libraries/platform-offline/contracts/core.js",
@@ -1673,15 +1680,22 @@
       "file": "public/libraries/platform-offline/contracts/media.js",
       "namespace": "platform-offline",
       "references": 0,
-      "candidates": 3,
-      "edits": 3
+      "candidates": 9,
+      "edits": 9
+    },
+    {
+      "file": "public/libraries/platform-offline/contracts/messages.js",
+      "namespace": "platform-offline",
+      "references": 0,
+      "candidates": 0,
+      "edits": 0
     },
     {
       "file": "public/libraries/platform-offline/contracts/notes.js",
       "namespace": "platform-offline",
       "references": 0,
-      "candidates": 1,
-      "edits": 1
+      "candidates": 0,
+      "edits": 0
     },
     {
       "file": "public/libraries/platform-offline/contracts/portal.js",
@@ -1694,8 +1708,8 @@
       "file": "public/libraries/platform-offline/contracts/projects.js",
       "namespace": "platform-offline",
       "references": 0,
-      "candidates": 3,
-      "edits": 3
+      "candidates": 0,
+      "edits": 0
     },
     {
       "file": "public/libraries/platform-offline/contracts/reports.js",
@@ -1708,15 +1722,15 @@
       "file": "public/libraries/platform-offline/contracts/schedule.js",
       "namespace": "platform-offline",
       "references": 0,
-      "candidates": 2,
-      "edits": 2
+      "candidates": 0,
+      "edits": 0
     },
     {
       "file": "public/libraries/platform-offline/contracts/todos.js",
       "namespace": "platform-offline",
       "references": 0,
-      "candidates": 2,
-      "edits": 2
+      "candidates": 0,
+      "edits": 0
     },
     {
       "file": "public/libraries/platform-offline/native-uploads.js",
@@ -1729,8 +1743,8 @@
       "file": "public/libraries/platform-offline/offline-core.js",
       "namespace": "platform-offline",
       "references": 0,
-      "candidates": 1,
-      "edits": 1
+      "candidates": 0,
+      "edits": 0
     },
     {
       "file": "public/libraries/platform-offline/offline-ui.js",

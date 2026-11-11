@@ -87,6 +87,20 @@
     return data;
   }
 
+  const evidenceIds = new WeakMap();
+  function evidenceMediaId(file, target){
+    const made = () => {
+      const bytes = new Uint8Array(8);
+      if (window.crypto?.getRandomValues) window.crypto.getRandomValues(bytes); else bytes.forEach((_, index) => { bytes[index] = Math.floor(Math.random() * 256); });
+      return `media_${[...bytes].map((value) => value.toString(16).padStart(2, '0')).join('')}`;
+    };
+    if (!file || typeof file !== 'object') return made();
+    if (!evidenceIds.has(file)) evidenceIds.set(file, new Map());
+    const byTarget = evidenceIds.get(file);
+    if (!byTarget.has(target)) byTarget.set(target, made());
+    return byTarget.get(target);
+  }
+
   function orgPath(orgId, suffix = ''){
     return `/organizations/${enc(orgId)}${suffix}`;
   }
@@ -226,6 +240,10 @@
       const form = new FormData();
       form.append('file', file, file.name || 'checklist-evidence');
       if (requirementId) form.append('requirement_id', requirementId);
+      // The media is named here, so evidence added without a connection is kept and shown until it is uploaded
+      // (docs/architecture/offline.md, "Uploads of other apps"). The same file sent again to the same item
+      // carries the same id.
+      form.append('media_id', evidenceMediaId(file, `${projectId}|${checklistId}|${itemId}|${requirementId}`));
       return request(projectPath(orgId, projectId, `/checklists/${enc(checklistId)}/items/${enc(itemId)}/attachments`), { method:'POST', body:form });
     },
     sendChecklistToCrew(orgId, projectId, checklistId, assignees = []){

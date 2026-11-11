@@ -407,6 +407,7 @@ FMOffline.contracts.add({
   boot: [],                                   // GET patterns of boot reads, never evicted
   reads: [ /* POST reads: { id, match, when(ctx), key(ctx) } */ ],
   prefetch: [ /* (ctx:{org,project,user}) => urls, or { url, each(json, ctx) => urls } */ ],
+  startup: [ /* the same entries, with no project: downloaded when a page of the person loads */ ],
   writes: [{
     id: 'notes.post',
     match: 'POST /v1/channels/organizations/:org/channels/:channel/messages',
@@ -424,11 +425,17 @@ FMOffline.contracts.add({
                        { match: 'GET /v1/things/:id', when: (m) => m.id === ctx.body.id, seed: () => ({ ok: true, thing: ctx.response.thing }) }],
     // optional: a refusal that means the server already has this change (answer is { status, code, body })
     duplicate: (ctx, answer) => answer.status === 409 && answer.code === 'thing_exists',
+    // optional: the ids of earlier entries this change stands in for, once it is sent or queued
+    replaces: async (ctx) => (await ctx.queued(ctx.params.id)).filter((entry) => entry.state === 'failed').map((entry) => entry.id),
+    // optional: a refusal in words a person can act on (a label, shown in the tray as the reason)
+    explain: (ctx, answer) => answer.code === 'thing_taken' ? FMOffline.label('fail_thing_taken', 'Not saved: …') : null,
     // kind 'upload' only, optional: which media ids the form's files stand for
     media: (ctx) => [{ id: ctx.body.id, field: 'file' }],
     // kind 'patch' only:
     conflict: { current: (ctx) => url, pick: (json) => ({ doc, revision }),
-                fields: (ctx) => ['title', 'address'], send: (ctx, merged, revision) => body }
+                fields: (ctx) => ['title', 'address'], send: (ctx, merged, revision, theirs) => body,
+                // optional: the record as it is now, where its own read was never saved
+                base: (ctx) => ({ doc, revision }) }
   }]
 });
 ```
@@ -449,9 +456,11 @@ async; they run in the worker, and in the top-level page when it replays.
   `[{ url, query, params, json }]`, for a record that is only known from
   lists, whatever their filters were (a to-do).
 - `queued(record)` resolves the earlier changes still on the device that name
-  a record, as `[{ id, contract, write, kind, scope, state }]`. A change to a
-  record that was made on this device takes the scope of the change that
-  made it, so it is sent after it.
+  a record, as `[{ id, contract, write, kind, scope, state, response }]`. A
+  change to a record that was made on this device takes the scope of the
+  change that made it, so it is sent after it. `response` is what that change
+  answered the page: the record it made, for a change that carries it on (a
+  note shows the attachment its waiting upload answered).
 - **Seeds.** An effect may carry `seed` (a value or a function) instead of, or
   beside, `apply`. A read that has no saved answer is then answered from the
   first queued change that seeds it, with later changes applied on top
@@ -470,6 +479,41 @@ async; they run in the worker, and in the top-level page when it replays.
   that is missing these reads are saved when the tab is first opened instead.
 - `conflict.pick(json, ctx)` also gets `ctx`, for a record that is one item
   of a larger answer (one event of a project).
+- `conflict.send(ctx, merged, revision, theirs)` also gets the server's
+  document as it is when the change is sent. `merged` holds only the fields
+  that differ from it, which is what a route that merges wants; a route that
+  replaces the whole record (a calendar event's `PUT`) sends `theirs` with
+  `merged` over it, so nothing the server had is lost.
+- **Replaced changes.** `replaces(ctx)` names earlier entries (from
+  `ctx.queued(record)`) that this change stands in for. They are discarded
+  when the server takes this change (with a connection) or when it is queued,
+  and pages hear `discarded` for each. Two uses: a save that carries the
+  whole record replaces a save of that record the server refused, so a
+  person who corrects a refused change is not left with it in the tray and
+  its effects no longer show over the newer answer; a delete replaces every
+  change to its record still on the device, and is itself always sent,
+  because an earlier save may have arrived without its answer.
+- **A refusal in a person's words.** `explain(ctx, answer)` returns a label
+  (`FMOffline.label(key, english, detail)`) for a refusal it knows
+  (`answer` is `{ status, code, body }`), or nothing. It is kept as
+  `entry.error.label` beside the server's own `message`, and the tray shows
+  it as the reason (with the detail in brackets) in place of "The server
+  refused this change".
+- **A read that names more reads.** What `each` returns may again be
+  `{ url, each }`: that read is fetched and its `each` followed, three deep
+  (`limits.prefetchDepth`). A channel's newest page of messages names the
+  page before it this way, with the address the list itself asks for when it
+  is scrolled up.
+- **Start-up reads.** `startup` takes the same entries as `prefetch`; `ctx`
+  has no project. `FMOffline.startup.run(identity)` downloads them when a
+  page of the person loads (the worker's `identity` message) and after each
+  refresh of the kept projects, at most every ten minutes
+  (`limits.startupEveryMs`; `{ force: true }` skips the wait). The answers
+  are ordinary saved reads: within the budget, least recently used first,
+  unless a `boot` pattern names them. A media file or declared file is never
+  downloaded this way, a denied route is never asked for, and a run that got
+  no answer at all is tried again at the next page load. Sign-out forgets
+  when it last ran.
 
 - **Patterns** are `[METHOD ]/path`: `:name` and `*` match one segment, `**`
   any number. A `deny` pattern without a method covers every method;
@@ -636,6 +680,11 @@ never conflict.
   when the change is made, so a second offline edit of a record starts from
   the first. Where the record was never saved there is no base: the person's
   values are sent with the server's current revision.
+- `conflict.base(ctx)` is asked when that read was never saved: it resolves
+  `{ doc, revision }` from what the device does hold. A photo is mostly known
+  from lists (a project's media, the Feed's catalog), not from its own read,
+  so its rename starts from the list's copy and a change the server also made
+  to the same field is still noticed.
 
 ## Photos and files
 
@@ -654,21 +703,81 @@ project Photos tab (`apps/photos/project.js`), the Feed (`apps/photos/feed.js`) 
 | a photo with no project yet (the Feed camera) | the same route, owner `organization`, slot `photos` | `upload` | `user:<id>` |
 | the project's photo list: add, trash, restore, remove | `POST .../projects/:project/photos` | `patch` | `project:<id>` |
 | pairing photos with a project | `POST .../media/assign` | `action` | `user:<id>` |
+| a photo's or file's name and tags | `PATCH .../media/:id` | `patch` | `media:<id>` |
+| a contact's picture, media and documents | `POST .../media` (owner `contact`) | `upload` | `contact:<id>` |
+| a file added to a project's documents list | `POST .../projects/:project/documents` | `upload` | `project:<id>` |
+| a photo or file added to a checklist item | `POST /v1/workforce/.../checklists/:checklist/items/:item/attachments` | `upload` | `project:<id>` |
+| a note's file (`notes.js`) | `POST /v1/channels/.../uploads` | `upload` | `attachment:<id>` |
 
 - A project photo is two entries, the upload and then the list save. Both are in the project's scope, so they
   follow the project's own create when that still waits. A photo with no project and its pairing are in the
   person's scope, so the pairing follows the upload. Pairing with a project that itself still waits to be created
   is refused by the server (404) and waits for the person to send it again.
-- **Not queued**, answered `offline_unavailable`:
-  - an upload that replaces a slot (a logo, an avatar): the server names it by its slot;
-  - every other upload (contact media, note and message attachments, documents, receipts, FirstMeasure order
-    reference photos): each is followed by a write of its own app in another scope, which would have to wait
-    behind the file. Add them to that app's contract together with that write;
-  - renaming and tagging (`PATCH .../media/:id`). The route replaces the whole name or tag list with the device's
-    copy and has no revision, so a replay hours later would undo a newer edit; and the request names only the
-    media id, so the scope of a photo that still waits cannot be told from it and the change could be sent
-    before its upload. Both need a connection.
-  - A video, a PDF or another file in a project's `photos` slot is queued like a photo, within the limits below.
+- A video, a PDF or another file in a project's `photos` slot is queued like a photo, within the limits below.
+- **Not queued**, answered `offline_unavailable` and shown as "needs a connection":
+  - **an upload that replaces a slot** (a company logo, a person's avatar: `org_upload_logo_my` and
+    `org_users_upload_avatar_my` through `portal-action`, where the server sets `replace_slot`). A slot holds one
+    picture under one id, so a replay hours later would put the old picture over one chosen since, and there is
+    no revision to tell which is newer. A contact's picture is not such a slot: each upload makes its own
+    record and the contact names the one it shows, so it is queued;
+  - **receipts** (`/v1/payments/.../receipts`). Every route under `/v1/payments` is on the worker's deny list:
+    payments data is never kept on a device, so the lists that show a receipt (the money summary, the receipt
+    lists) are not saved either and a waiting receipt would have nowhere to be shown after a reload. The route
+    also reads the receipt on the server (its total, the expense summary it answers) and tells a retry by the
+    page's own `Idempotency-Key`, which is the one header the queue uses for its key. `payments-api.js` says
+    "Payments and money figures need a connection. They are not kept on this device.";
+  - **voice notes and audio evidence that is transcribed** (the server transcribes while it stores), **replies**,
+    and a note's file on a project made on this device (its channel does not exist yet);
+  - **the uploads of apps without a contract**: message attachments in Channels, feed posts, equipment, document
+    templates and the document media library, training, the web editor, SMS pictures, FirstMeasure order
+    reference photos.
+
+### Renaming and tagging
+
+`PATCH .../media/:id` replaces the whole name or the whole tag list and has no revision. So the change is a
+`patch` in the scope `media:<id>` and is merged when it is sent:
+
+- **The record it starts from** is the photo as the device shows it, with the changes queued before this one
+  (`knownMedia`: its own read, else the media lists and the Feed's catalog that show it). Two offline edits of one
+  photo therefore start one from the other and never conflict with each other.
+- **When it is sent** the record is read again and merged per field: a name only this change set is sent, a name
+  the server also changed is a conflict in the sync list, and a change the server already has is not sent again.
+  **Tags merge tag by tag**: a tag added here and another added in the office both stay, and a tag taken off
+  here stays off. Tags never conflict.
+- **A photo that still waits to upload** is renamed and tagged like any other. The upload's effects answer the
+  record's own read (`seed`), and the request's URL names the photo, so the engine sends the edit after that
+  upload, whatever scope the upload is in (`after`). Throwing the upload away throws its edits away with it
+  (`feed.js`).
+- **While it waits** the change is applied to every read that lists the record (`GET .../media/:id`,
+  `GET .../media`, the Feed's catalog), so every gallery shows the new name and tags on any later load, with the
+  waiting mark on the tile. Deleting a photo that only has an edit waiting moves it to the trash like any other;
+  only a photo whose upload itself still waits is taken back instead (`uploadsWaiting` in `feed.js`).
+
+### Uploads of other apps
+
+Each of these names its file on the device, so the file is shown from the device while it waits (its media URL
+is answered from the stored file) and a repeat replaces the same record:
+
+| Upload | Id the device makes | What follows it | Where it shows while it waits |
+|---|---|---|---|
+| a contact's picture (slot `profile`), media and documents (`contacts/modal.js`) | the media id (`media.upload`) | for the picture, the contact's own save (`contact.patch` or `contact.create`), in the same scope and so after it | the picture tile, the contact's gallery and Docs list (`GET .../media?contact_id=`) |
+| a file in a project's documents list (`projectDocuments.upload`) | the media id, sent as `id` | nothing: the route stores the file and writes the list in one request (the Docs tab's whole-project save is the project's own contract) | the Docs tab (`GET .../projects/:id/documents`), the project's `documents` |
+| checklist evidence (`CrewAPI.projects.attachChecklistEvidence`) | the media id, sent as `media_id` | nothing: the route puts the file on the item in one request | the item's evidence in the Checklists tab and the crew app (`GET .../crew/projects/:id/checklists`); a photo is also among the project's media |
+| a note's file (`ChannelsAPI.uploads.send` with `deviceIds`) | the attachment id and the media id, sent as `attachment_id` and `media_id` | the note (`note.post`), which names the attachment | the composer and the note in the Notes tray |
+
+- **A note and its file.** The file is in a scope of its own (`attachment:<id>`) and the note names the
+  attachment in its body, so the engine holds the note until the file has arrived (`after`): a file the server
+  refuses waits for the person together with its note, instead of the note arriving without it. A note whose
+  file the device does not hold (it was uploaded with a connection that then dropped) is not queued. The photo
+  of a note is added to the project's photos by the server when the file arrives, not before.
+- **A picture the server would refuse** (a contact's picture that is not a JPEG, PNG, WebP or GIF under 10 MB)
+  is not kept to be refused later.
+- **Checklist evidence is queued in the checklist's scope**, so an item that requires a photo can have its photo
+  taken and be completed offline; the completion (`contracts/checklists.js`) is sent after the upload.
+- **The server** checks each device-made id (below, "Server"): an id that belongs to something else is refused
+  (`media_id_taken`, `attachment_id_taken`), never overwritten.
+- These browser files and their server routes go out in one release. A page that names a note's attachment while
+  the server still names it itself would send the note without its file.
 
 ### Ids and the time a photo was taken
 
@@ -920,6 +1029,19 @@ routes in `files`, and a declared file is kept like a picture:
 - The media upload takes the record id a device made, keeps
   `metadata.taken_at`, and a replayed photo list save never adds a photo
   whose upload did not arrive: see [Photos and files](#photos-and-files).
+- Three more upload routes take ids a device made, each checked before
+  anything is stored (see "Uploads of other apps"):
+  - `POST /v1/channels/.../uploads`: `attachment_id` (`att_` and 16 to 64
+    lowercase letters, digits or hyphens) with `media_id` (`media_` and 16 hex
+    digits), both or neither. The same person's same upload again answers the
+    attachment it made; another person's id, or one that names other media,
+    is `409 attachment_id_taken` or `media_id_taken`.
+  - `POST /v1/workforce/.../checklists/:checklist/items/:item/attachments`:
+    `media_id`. Only the same item's evidence may be stored again under it;
+    the item keeps one attachment per media id.
+  - `POST .../projects/:project/documents`: `id`, as before, now refused
+    (`409 media_id_taken`) when it names anything but this project's own
+    document.
 
 ### Receipts in detail
 
@@ -1199,8 +1321,8 @@ fallback in the code.
 ## What works offline
 
 The contracts are in `contracts/`: `portal.js` (start-up and lists),
-`projects.js`, `notes.js`, `todos.js`, `contacts.js`, `schedule.js`,
-`documents.js`. "Reads" means: shown as it was last seen, or as downloaded for
+`projects.js`, `notes.js`, `messages.js`, `todos.js`, `contacts.js`, `schedule.js`,
+`checklists.js`, `documents.js` (which also loads the document model into the worker). "Reads" means: shown as it was last seen, or as downloaded for
 a pinned project. A project that is opened is pinned automatically
 (`project-windows.js`, `mobile.js`), so its tabs are on the device even if
 they were never clicked.
@@ -1210,16 +1332,18 @@ they were never clicked.
 | Start-up, sidebar, top bar | everything a start reads; the person's apps and permissions come from their saved profile (`GET /me`) when the session read cannot be reached | | | the account switcher's list and sign-in (always the server's); the bonus offer and referral status (reading them writes) |
 | My Projects | the project list; for an account that only orders reports, its FirstMeasure orders | a project (`Portal.ProjectStore`, id made on the device); a lead with `project_id` (`PlatformAPI.leads.create`) | a project's own fields, merged per field | ordering a report (it charges, and FirstMeasure measures); order thumbnails unless the browser still holds them; an order list that carries a refresh cursor |
 | Project: Overview | the project, report widgets, data sets, measurement schema, custom fields, assignable people | | contact fields and address through the project and its contacts | the map (Google), report orders |
-| Project: Notes tray | notes, pins, authors | a note (text) | | replies, attachments, editing, pinning and deleting a note; notes of a project whose channel is not on the device (see below) |
+| Project: Notes tray | notes, pins, authors | a note, with pictures and files | | replies, voice notes, editing, pinning and deleting a note; a file on a project made on this device; notes of a project whose channel is not on the device (see below) |
 | Project: To Do tray, top bar To Do, to-do widget | the lists | a to-do added by hand | complete, reopen, claim, cancel; title, description, due date, priority, who it is assigned to | follow-ups (the server makes them and their outcomes) |
-| Contacts | the list, a contact, a contact's projects | a contact | a contact's fields (`expected_revision`, merged per field); which contacts a project has | merging, importing, duplicate suggestions |
-| Schedule (project tab and Scheduling) | events, calendar, resources, settings | an event on a project | an event's fields (`expected_event_revision`, merged per field) | events that belong to no project, deleting, recurring series; whether the assignee is free (the server checks when the event is sent) |
-| Documents | the list, a document, its preview and editor view, workflow, sent versions | | | creating, editing, sending, signing, PDF: see "Documents" below |
+| Contacts | the list, a contact, a contact's projects, a contact's media and documents (for the contacts of a kept project) | a contact; a contact's picture, media and documents | a contact's fields (`expected_revision`, merged per field); which contacts a project has | merging, importing, duplicate suggestions; opening a contact's document in a new tab |
+| Schedule (project tab and Scheduling) | events, calendar, resources, settings | an event on a project; an event that belongs to no project | an event's fields, its time (a move) and its status (`expected_event_revision`, merged per field); deleting an event | recurring series and their occurrences; unlocking a locked item; re-placing an event's children and checking equipment (the server does both when the save is sent). See "Schedule events" below |
+| Documents | the list, a document, its preview and editor views, workflow, sent versions | a document from a template that is on the device; a file added to the project's documents list | a draft's title, data, layout, theme and contacts; values and text typed into it as sent (merged per part) | invoices, change orders and other documents the server makes; sending, signing, PDF, outputs and workflow steps: see "Documents" below; removing a file from the list |
 | Operations (materials and labor) | the ledger, requirements and coverage, suppliers, price book | | | changing or generating lists, orders (the server prices and computes) |
-| Financials | | | | everything: payments data is never kept on a device. The tab says so |
-| Comms, Messages tray, Channels | what was last shown | | | sending (no contract yet); calls |
-| Checklists, Activity, Feed | what was last shown | | | completing checklist items, comments and reactions (no contract yet) |
-| Photos | see the photos contract (`media.js`) | | | |
+| Financials | | | | everything, receipts included: payments data is never kept on a device. The tab says so |
+| Channels, the project's Messages tray, the top bar's message list | the channel list, the directory, the top bar's list and the newest 60 messages of the 25 channels with the newest messages (downloaded at start-up); for a kept project its newest 120 messages, the threads of the newest ten that have replies, and pins; anything else as last shown | | | sending, replying, reacting, editing, deleting, pinning, marking read: see "Messages" below. Unreads, Activity, Threads and Later are as last shown |
+| Communications (inbox, texts, email threads, call log) and the project's Comms tab | the inbox and its settings (start-up); for a kept project its email threads, texts, portal chat and calls; anything else as last shown | | | sending a text, an email or a chat reply; calls; call recordings and voicemail audio, which are never kept on a device; the website chat inbox unless it was opened (reading it shows visitors the person as present) |
+| Checklists (project tab and the assignee's checklist tab) | every checklist of the project with its items, also for a project that was only pinned | an item; a checklist, blank or with items; a photo or file on an item | check, uncheck, rate, note and rename an item (merged per field under the item's revision); the sign-off of a finished checklist | renaming or deleting a checklist, its settings and assignment; deleting an item; sending, voice explanations, the document. See "Checklists" below |
+| Activity, Feed | what was last shown | | | comments and reactions (no contract yet) |
+| Photos | see [Photos and files](#photos-and-files) | photos and videos | name and tags, also of a photo still waiting to upload | markup, comments |
 
 How each kind of change is sent:
 
@@ -1271,49 +1395,352 @@ How each kind of change is sent:
   apps ask with: a read that is asked differently is saved the first time
   the tab is opened, not by the pin.
 
+### Schedule events
+
+`contracts/schedule.js`. A project's event is one upsert
+(`POST .../projects/:project/events`); an event with no project is a
+`calendar_events` document saved whole (`PUT .../calendar_events/:id`). Both
+carry an id the page makes.
+
+| Change | Write | Kind | Scope |
+|---|---|---|---|
+| a new event on a project | `event.create` | `action` | `project:<id>` |
+| an edit, a move, a cancel or unschedule of a project's event | `event.edit` | `patch` | `project:<id>` |
+| deleting a project's event | `event.delete` | `delete` | `project:<id>` |
+| a new event with no project | `calendar.create` | `action` | `event:<id>` |
+| an edit or a move of one | `calendar.edit` | `patch` | `event:<id>` |
+| deleting one | `calendar.delete` | `delete` | `event:<id>` |
+
+- **An event made on this device is saved whole until the server has it.**
+  The page is answered revision 1, which the server never gave. While the
+  device's first save of an event still waits, or was refused, a further
+  save of it is a `create` again and is sent without the revision check
+  (`prepare` removes it); once the first save has arrived, a save is an
+  edit under the server's revision.
+- **An edit is merged per field** with the event as the server has it when
+  it is sent. A calendar event's `PUT` replaces the whole event, so what is
+  sent is the server's event with the merged fields.
+- **A delete** shows at once, replaces every change to that event still on
+  the device (`replaces`), and is always sent. The server's "not there"
+  (`deleted: false` for a project's event, `404` for a calendar event) is
+  done. Deleting a parent leaves its children on the project, as online.
+- **Double-booking.** Only the server can say whether an assignee is free,
+  and what an overlap does is the organization's setting. So:
+  - *On the device, a warning.* The answer a page gets while the save waits
+    carries, in `assignee_conflicts`, the overlaps that the events saved on
+    this device already show (`overlapsOnDevice`: the project list, opened
+    projects and the calendar, as the person sees them, queued changes
+    included), in the server's shape with `offline: true` and
+    `mode: 'warn'`. The schedule apps show it the way they show the
+    server's. It counts one job at a time per assignee and per unit, so it
+    can warn where the server, which knows the assignee's units, will not;
+    it never stops a save.
+  - *At sync, the server's answer.* Where the organization (or the
+    assignee) blocks an overlap, the save is refused with
+    `409 assignee_conflict`. The entry fails and waits in the tray with
+    `fail_event_booked` and the assignee's name; the event stays on the
+    calendar where the person put it. When they open it and change its
+    time or assignee, that save replaces the refused one. Discard removes
+    it. Equipment (`equipment_conflict`) and a locked item
+    (`project_event_locked`) are explained the same way.
+- **Recurring series need a connection**, and so does a save or a delete of
+  one occurrence: the server makes every occurrence and its id, and records
+  a changed or deleted occurrence as an exception of its series, so a
+  queued change could reach an occurrence that a series edit has since made
+  again or removed. They answer `offline_unavailable`.
+- Children of a moved event are re-placed by the server when the move is
+  sent; until then they show where they were.
+
+### Checklists
+
+`contracts/checklists.js`. Both checklist apps read one answer,
+`GET .../crew/projects/:project/checklists`, which a pinned project
+downloads.
+
+| Change | Write | Kind |
+|---|---|---|
+| a checklist, blank or with items | `checklist.create` | `create` |
+| an item | `checklist.item.create` | `create` |
+| check, uncheck, rate, note, rename an item | `checklist.item.patch` | `patch` |
+| the sign-off | `checklist.sign` | `action` |
+
+- **Scope** is `checklist:<id>`: everything in one checklist is sent in
+  order. A checklist on a project that was made on this device takes the
+  project's scope.
+- **Ids.** A new checklist and each of its items get an id on the device
+  (`checklist_<uuid>`, `checklist_item_<uuid>`, the server's own format),
+  made in the contract's `prepare` when the page sent none, so an item can
+  be checked before the server has it. The routes take the id as sent
+  (`400 invalid_checklist_id` for one that is not 8 to 80 lowercase
+  letters, digits, `_` or `-`) and answer a repeat with
+  `409 checklist_exists` / `checklist_item_exists`, which the contract
+  names as done.
+- **Items merge per field.** A queued item change keeps the item as it was;
+  when it is sent it is merged with the item as the server has it and sent
+  with `expected_revision` (a `409 checklist_revision_conflict` repeats the
+  merge). Two people who check different items never meet. The same item
+  checked by both is not sent again. The same field changed differently
+  (two notes) asks the person.
+- **What is not queued** is refused at once with `offline_unavailable`
+  instead of failing later: an item the device does not have, an item of a
+  checklist the server said this person may not complete (`can_complete`),
+  a bad rating without its note, a change to an item's settings, a sign-off while an item
+  is open, and completing an item that asks for evidence the device does
+  not see on it.
+- **Item photos and files.** Evidence is an upload
+  (`POST .../items/:item/attachments`) and is queued by `checklist.evidence`
+  in `contracts/media.js` (see "Uploads of other apps"). It takes its scope
+  from `FMOffline.checklists.scopeOf(ctx, checklistId)`, names the item in
+  `records`, and adds the attachment to the item's `metadata.attachments`
+  in its effects. Completing the item then passes the evidence check on
+  the device and is sent after the upload.
+- **The sign-off's time.** `signed_at` is when the server recorded it. The
+  time on the device goes with it (`device_signed_at`, added in `prepare`)
+  and is kept in the signature's evidence.
+- A waiting item or checklist carries `PlatformOfflineUI.waitingBadge`.
+- There is no template picker in the checklist apps today: a checklist is
+  added blank. The create is queued with whatever items the page sends, so
+  a picker that reads templates the device has needs nothing more here.
+
+### Messages
+
+Messages can be read offline; they are never sent from the queue
+(`contracts/messages.js`, which has no `writes` on purpose). A message that
+arrives hours late lands out of order with the answers to it, so a send that
+got no answer is refused in words and its text stays in the box. A project
+note is the exception and is queued (`notes.js`).
+
+- **What is downloaded.** At start-up (`startup`): the channel list, the
+  directory, collaboration preferences, sidebar sections, the top bar's
+  message list, the newest page (60) and the draft of each of the 25 channels
+  with the newest messages that the person is in, and the Communications
+  inbox and settings. For a kept project (`prefetch`): its channel, the
+  newest page and the page before it (120 messages), the threads of the ten
+  newest messages that have replies, pins, the draft, and its Comms tab
+  (email threads and each thread, texts, portal chat, its calls). The
+  addresses are the ones the apps ask with (`?limit=60`, then
+  `?before=<oldest seq>&limit=60`); changing a page size in `channels-ui.js`
+  must be changed in the contract too.
+- **Older messages.** A page that is not on the device shows one line at
+  the top of the list, "Older messages are not saved on this device."
+  (`loadOlder` in `channels-ui.js`).
+- **Attachments** are media files: kept as they are shown (thumbnails
+  always, other variants up to 8 MB), never downloaded ahead. Channel
+  attachments are asked for without a `variant` and answered `no-cache`, so
+  they come from the network when there is one and from the device when not.
+- **Never on a device:** call recordings, voicemail audio and transcripts
+  (`/calls/:call/artifacts/**` is on the deny list), huddles, who is typing,
+  and everything under payments.
+- **Reads that also write on the server** are only made ahead where the page
+  makes the same read by itself at start-up or on a timer: the channel list
+  (makes the general channel and the assistant conversation when missing),
+  scheduled messages (delivers what is due) and the Communications inbox
+  (reopens a closed thread that got a new message). The website chat inbox
+  and a website chat conversation are not downloaded ahead: reading them
+  marks the person present and the conversation read.
+- **Words.** `ChannelsAPI`, `CommsAPI` and the chat app's request turn "no
+  answer" and `offline_unavailable` into a sentence a person can act on,
+  with `error.offline = true` and no `status` (`unreachable(error)`): a read
+  says "This is not saved on this device. Connect to the internet to see
+  it.", a send "Sending needs a connection. Your message is still here; send
+  it when you are back online.", any other change "This needs a connection.
+  Nothing was saved." The keys are in the `shared` namespace. A list that
+  was still loading shows the sentence in place of its spinner, and the
+  project's Messages tray says the project's messages are not saved on this
+  device when its channel is not there. Marking read, typing and draft saves
+  fail silently, as they did.
+
 ### Documents
 
-Documents can be read offline; they cannot be made or changed. What is
-missing before that is safe:
+A draft can be made from a template and edited without a connection. The
+contract is `contracts/documents.js`; the page side is `documents-api.js`,
+the documents app (`apps/documents/project.js`), the as-sent editor and the
+document renderer.
 
-1. **Create replaces.** `POST .../projects/:project/documents` accepts an
-   `id`, but a repeat with the same id replaces the document (status back to
-   draft, overrides and outputs emptied) instead of answering "already
-   there". The route must refuse an existing id (`document_exists`, which
-   the store already has) before a device may name a document. The browser
-   does not send an id today.
-2. **The server makes what the page shows.** The preview and the editor
-   render what `POST .../documents/:id/resolve` returns: line rows, totals,
-   account figures and widget data are computed there and never stored.
-   After an offline change to a document's data the saved resolve is stale,
-   and a document made on the device has none. The enrichment
-   (`enrichLineItemParams`, pricing, `deriveAccountParams`) would have to
-   run on the device too.
-3. **Some documents are only the server's to make**: invoices, change orders
-   and completion certificates get their numbers and amounts at create, and
-   a template with a program runs in the module sandbox.
-4. **Edits merge all or nothing.** The editor saves its whole list of
-   overrides, whose items have no ids, so two people's edits cannot be
-   merged per item: one side's list wins or the person is asked.
-5. **Steps and outputs do things.** `workflow/state` can make further
-   documents, and `outputs/:key` records signatures and payments; neither
-   may be answered by a device.
-6. **History** (`saveDocumentInstance`) would record one revision at the
-   time of the sync for everything done offline.
+| Change | Route | Kind | Scope |
+|---|---|---|---|
+| a new document, in a project or with none | `POST .../projects/:project/documents`, `POST .../documents`, with the id the page made | `create` | `document:<id>` |
+| title, data (`params`), layout overrides, theme, contacts, tags | `PATCH .../documents/:id` | `patch` | `document:<id>` |
+| a value or a node's text typed into the document as sent | `POST .../documents/:id/as-sent` | `patch` | `document:<id>` |
+
+A document in a project that was itself made on the device is sent after
+that project (its address names it).
+
+**Needs a connection, and says so** (`offline_unavailable`; `documents-api.js`
+turns it into one plain sentence): invoices, change orders, completion
+certificates and payment receipts (their numbers and amounts are worked out
+when they are made); a template with custom behavior (it runs in the
+server's sandbox); a create that names no template (the server picks one);
+sending, presenting, signing, PDF, snapshots, voiding; outputs
+(`outputs/:key` records signatures and payments); workflow step state
+(`workflow/state` can make further documents); changing a document's
+template, workflow, project or status; and editing a document that is no
+longer a draft.
+
+#### The document model in the worker
+
+The contract works with `FMDocModel` (parameter defaults, overrides, binding
+resolution, fingerprints), so `documents.js` loads
+`/libraries/doc-model/firstmate-doc-model.js` with `importScripts` when it
+runs in the worker. If that file cannot be loaded the worker still installs:
+every document write then behaves as if it had no contract and reads keep
+working. The top-level page already has the model (it replays the queue).
+
+#### Making a document
+
+- **The id is the page's.** `DocumentsAPI.documents.createForProject` and
+  `createStandalone` send `id: doc_<20 hex>` (the server's own format) when
+  the caller gives none, with or without a connection.
+- **The create is safe to repeat** (`createDocumentInstance`,
+  `options.repeatSafe`, set by the two routes). A create that names an id
+  that exists is answered with the document that is there when the same
+  person sent the same request (the document keeps a hash of it,
+  `create_fingerprint`), and refused with `409 document_exists` otherwise;
+  it is never replaced. Two tries at the same moment make one document (the
+  write is create-only). The contract names `document_exists` as a
+  duplicate, so either answer ends the entry. Callers inside the server that
+  name an id keep their own rule.
+- **What must be on the device**: the catalog (types and themes), the
+  template list, the template's published version and, when the template or
+  type names one, its workflow. A kept project downloads the published
+  version of every active template (40 at most) and every workflow the
+  catalog lists
+  ([backlog](../optimization-backlog.md#a-kept-project-downloads-every-document-template-and-resolves-each-document-twice)).
+  Anything missing means the create is not queued.
+- **The answer** (`madeDocument`) is the document the route would make, as
+  far as a device can: parameter defaults with `{{...}}` filled from the
+  project, its primary contact and the organization, the template's and
+  type's field definitions (a payment schedule is marked off where payments
+  are off), the workflow and its first step, theme, tags and title. The
+  contract test compares it with the real route's document key by key and,
+  for the fields above, value by value. Three things are the server's alone
+  and arrive with the sync: `create_fingerprint`, signature fields inferred
+  from the layout (`output_defs`), and the defaults for how a customer is
+  shown the document (`metadata.customer_presentation`).
+- **Its reads are seeded**: the document, its place in the project's list,
+  its workflow, empty sent versions and events, and the resolved view below.
+
+#### Editing
+
+- **A patch** is merged three ways when it is sent (`expected_revision`):
+  `title`, `theme_ref`, `theme_overrides`, `contact_ids` and `tags` as whole
+  values, `params` by key and, inside a key, by object key and by row id
+  (line items have ids), `overrides` by item id.
+- **Override items have ids.** `FMDocModel.withOverrideIds` names a set by
+  what it sets (`doc:<prop>`, `node:<node id>:<prop>`, `page:<page id>:<prop>`)
+  and any other op by its content (`op:<fingerprint>`). The server gives
+  every saved item its id (`patchDocumentInstance`); the contract adds them
+  before a patch is sent and when it reads a document saved before ids
+  existed. The id is derived, so it is the same everywhere and old documents
+  load unchanged. Two people editing different nodes both keep their edit;
+  the same node's text changed on both sides asks.
+- **A value typed into the document as sent** names its data by position
+  (`params.scope_items.1.quantity`). When it is sent the row is found again
+  by its id, so a line another person added or removed above it does not
+  move the edit to another line, and the write goes to the row's place as it
+  is then. What is compared is that one value; for a typed amount or unit
+  price, the line's price fields (the server stores an amount as a price). A
+  row that is gone, or the same value changed on both sides, asks. Rows
+  without ids are trusted only while their list has the length it had. The
+  as-sent editor also sends `parsed`, the value as it is stored; the server
+  ignores it and the device uses it to apply plain values and to recognise
+  a value the server already has.
+- **A node's text** typed as sent is one override item and merges like one.
+
+#### What the page shows
+
+The preview and the editors render what `POST .../resolve` returns, and line
+rows, totals, account figures and widget data are computed there and never
+stored. So while a change waits, the resolve read is answered by
+`deviceResolve`:
+
+1. the template's published version from the device, with the document's
+   overrides as the person left them;
+2. the scope the server last resolved with, with the stored data laid over
+   it: plain values take the stored one, rows are matched by id, the rows
+   the server projects from line lists show the plain fields (quantity,
+   name, description, unit) of the line they come from, and everything the
+   server added (cents, totals, `account`) stays as it last was;
+3. `FMDocModel.resolveBindings` over that, the same call the server makes.
+
+Each text run then says what it is: `offline: "stale"` on a value only the
+server computes (`computed.*`, an expression, a line amount) when data
+changed on the device, and `offline: "pending"` on a typed value the device
+does not store itself (a typed amount, shown as typed). Widgets carry
+`offline: "stale"` the same way and show their last data. The renderer draws
+a stale figure with a dotted underline and the title "Updates when you
+reconnect"; the preview, the workflow's live preview and the editor say above
+the page that it is the last calculated copy with the person's changes, and
+the as-sent editor says so in its status line. Nothing on the page is a
+total the device made up: a computed value is the last one the server gave
+(`computed_values` of its last resolve, which the answer carries unchanged),
+and a figure it never worked out for this document (the document was made
+here, or its line was added here) is shown as "…". The documents app's top
+bar total waits the same way on a document made here.
+The answer carries `offline: { pending, made, data, layout, writes }`; the
+server never sends it, and after the sync its resolve is read again and
+replaces the view.
+
+A document made on the device has no resolve to start from: its scope is its
+own data, the project and its primary contact, and the organization's name.
+Its line rows and totals are the server's to make, so they are empty or
+marked until the sync, and the note above the page says that.
+
+Whether a value can be typed into follows the server's last traced resolve
+where there is one; on a document made on the device only plain stored
+values are inputs (a line's quantity, name, description, unit; not its
+amount).
+
+However many changes wait, the view is resolved once per read, by the newest
+one; earlier ones only add what changed. Without the template on the device
+the last resolved copy is shown as it was, with `offline.whole`.
+
+#### History
+
+Each change is sent as its own request, in order, through
+`saveDocumentInstance`: a document made and edited offline has one revision
+trail, written when it syncs (edits one person makes close together are one
+revision, as they are online). The times are those of the sync.
+
+#### Limits
+
+- The device does not price lines or compute totals, tax, payment schedules
+  or account figures.
+- Workflow steps that only change data are queued as a patch; a step that
+  records an output or moves the step state needs a connection, so a
+  workflow can be filled in but not advanced on the server until then.
+- A layout edit made in the editor is saved as the whole override list, as
+  online; it merges by item when it is sent.
+- An edit to a document whose record is not on the device is not queued.
 
 ## Not built yet
 
-- Offline document creation and editing (above).
 - A read the server answers with `404` is not saved, so an app sees "no
   connection" where it saw "does not exist" online (for example a branch
   record that was never made).
-- Sending messages, checklist items, feed comments, events without a
-  project and deletes have no contract.
+- Sending messages, texts and emails is online-only by decision (see
+  "Messages"). Messages older than the two newest pages of a kept project,
+  channels beyond the 25 with the newest messages, message search, and the
+  Unreads, Activity, Threads and Later views are on the device only as last
+  shown. A message that arrives while the device is offline is seen at the
+  next refresh; there is no notice that the saved list is old beyond the
+  offline indicator.
+- Feed comments have no contract.
+- Schedule: recurring series and their occurrences; a waiting mark on an
+  event in the schedule views (the tray lists it); the roster warnings and
+  equipment checks of a waiting event.
+- Checklists: renaming or deleting a checklist, its settings and
+  assignment, deleting an item.
 - A change feed for refreshing pinned projects without re-reading them
   ([backlog](../optimization-backlog.md#pinned-offline-projects-are-refreshed-by-reading-everything-again)).
 - Resumable uploads for very large files (a failed upload starts again).
-- Renaming and tagging a photo without a connection, and queueing the uploads
-  of other apps (see [What is queued](#what-is-queued)).
+- Uploads that are still online-only, and why: see
+  [What is queued](#what-is-queued) (slot pictures, receipts, voice notes,
+  apps without a contract).
+- A contact's or a project's document opened in a new tab is not the
+  worker's to answer (as for reports): show the device's copy in the page.
+- Each rename or tag in the Photos tab is followed by the tab's whole-project
+  save, so the sync list counts two changes for one.
 - Offline sign-in (a person must have signed in on the device while online).
 - Re-reading a declared `POST` read after a sync sends its text fields
   URL-encoded, also when the app sent them as a multipart form.
@@ -1348,10 +1775,26 @@ route, each write has `respond`, `scope` and `label`, each `POST` read is on
 the checked list; then every write is made with the server unreachable, its
 answer compared key by key with the real route's, and the queue replayed
 against the real routes, including a lost first answer and an edit the server
-also changed).
+also changed; events with no project, moves, deletes, the warning the
+device gives and a blocked double booking; checklists added, checked, noted
+and signed off, merged with another person's changes).
+
+Messages: `tests/offline-core.test.mjs` (a read that names more reads,
+start-up reads, their budget and sign-out) and
+`public/v1/tests/offline-contracts.test.ts` ("messages:" cases: nothing that
+sends has a contract and each such route exists, recordings and payments are
+denied; then, against the real app, a kept project and a start download what
+the apps ask for, all of it reads with the server unreachable, and a send,
+reply, reaction, edit, delete, text and email are refused and never reach the
+server).
+
+Documents: `public/v1/tests/offline-contracts.test.ts` (a document made from
+a template, edited, synced once, its create repeated, then merged with the
+server's copy part by part).
 
 Photos: `tests/offline-photos.test.mjs` (the media contract case by case, with
-the real engine), `tests/offline-photos-browser.test.mjs` (the real worker,
+the real engine: photos, renaming and tagging, a contact's files, project
+documents, checklist evidence, a note's file), `tests/offline-photos-browser.test.mjs` (the real worker,
 engine, contract and `platform-api.js` in headless Chrome with real
 pictures: queued, shown, closed and reopened, sent once, the small copy and
 its eviction, a small picture, an online retry, a photo stored on its side,

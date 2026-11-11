@@ -31,7 +31,7 @@
   const channelsLibBundles = [
     ...widgetBundles, bookingBundle, priorityFieldsBundle,
     versionedBundle('../platform-realtime/platform-realtime.js', '20261026-live-layer'),
-    versionedBundle('../channels-api/channels-api.js', '20261111-offline'),
+    versionedBundle('../channels-api/channels-api.js', '20261111-offline-wave3'),
     versionedBundle('../audio-notes/audio-notes.js', '20260929-presence-controls-v3'),
     versionedBundle('../audio-structure/audio-structure.js', '20260725-checklist-voice-v1'),
     versionedBundle('../window-manager/window-manager.js', '20261006-firstmeasure-localization-v1'),
@@ -39,15 +39,15 @@
     versionedBundle('../agent-chat/agent-chat.js', '20261002-widget-controls'),
     versionedBundle('../assistant-api/assistant-api.js', '20261002-agent-persistence-v1'),
     versionedBundle('../platform-assistant/platform-assistant.js', '20261026-mobile-agent'),
-    versionedBundle('photos/feed.js', '20261111-offline-photos'),
+    versionedBundle('photos/feed.js', '20261111-offline-uploads'),
     versionedBundle('../markup/firstmate-markup.js', '20261111-offline-photos'),
-    versionedBundle('../channels-ui/channels-ui.js', '20261026-consolidated'),
-    versionedBundle('../project-notes/project-notes.js', '20261111-offline'),
+    versionedBundle('../channels-ui/channels-ui.js', '20261111-offline-messages'),
+    versionedBundle('../project-notes/project-notes.js', '20261111-offline-uploads'),
     versionedBundle('../project-trays/activity-presenter.js', '20261012-notes-separation-v1'),
-    versionedBundle('../project-trays/project-trays.js', '20261110-keyboard-over-window')
+    versionedBundle('../project-trays/project-trays.js', '20261111-offline-messages')
   ];
   const fieldApprovalBundles = [
-    versionedBundle('../crew-api/crew-api.js', '20261101-prod-sync'),
+    versionedBundle('../crew-api/crew-api.js', '20261111-offline-uploads'),
     versionedBundle('../field-visit/field-visit.js', '20260803-compact-arrival-v13'),
     versionedBundle('../doc-model/firstmate-doc-model.js', '20261022-as-sent-inputs'),
     versionedBundle('../payment-intake/payment-intake.js', '20261026-ach-link-wait'),
@@ -67,7 +67,7 @@
     versionedBundle('../payments-api/payments-api.js', '20261111-offline'),
     versionedBundle('../proposals-api/proposals-api.js', '20261019-forward-cert'),
     versionedBundle('payroll/my-pay.js', '20261019-people-gaps-v1'),
-    versionedBundle('crew/app.js', '20261111-offline-checklists')
+    versionedBundle('crew/app.js', '20261111-offline-wave3')
   ];
   const crewSignatureBundles = [...fieldApprovalBundles];
   const salesBundles = [
@@ -120,7 +120,7 @@
       surfaces: ['portal_tab'],
       portalTabId: 'contacts',
       settingsTabId: 'contacts',
-      bundles: [versionedBundle('partners/shared-list.js','20261001-sharing-polish-v1'), versionedBundle('contacts/modal.js', '20261026-mobile-contacts-2'), versionedBundle('settings/crm.js', '20261019-payroll-closeout-v1'), versionedBundle('settings/contacts.js', '20261101-prod-sync'), versionedBundle('contacts/app.js', '20261026-mobile-contacts-2')]
+      bundles: [versionedBundle('partners/shared-list.js','20261001-sharing-polish-v1'), versionedBundle('contacts/modal.js', '20261111-offline-uploads'), versionedBundle('settings/crm.js', '20261019-payroll-closeout-v1'), versionedBundle('settings/contacts.js', '20261101-prod-sync'), versionedBundle('contacts/app.js', '20261026-mobile-contacts-2')]
     },
     {
       id: 'portal.photos_feed',
@@ -130,7 +130,7 @@
       kind: 'portal_tab',
       surfaces: ['portal_tab'],
       portalTabId: 'photos_feed',
-      bundles: [gifDisplayBundle,versionedBundle('../payments-api/payments-api.js', '20261111-offline'), versionedBundle('../channels-ui/channels-ui.js', '20261026-consolidated'), versionedBundle('photos/feed.js', '20261111-offline-photos')]
+      bundles: [gifDisplayBundle,versionedBundle('../payments-api/payments-api.js', '20261111-offline'), versionedBundle('../channels-ui/channels-ui.js', '20261111-offline-messages'), versionedBundle('photos/feed.js', '20261111-offline-uploads')]
     },
     {
       id: 'portal.receipts',
@@ -141,7 +141,7 @@
       kind: 'portal_tab',
       surfaces: ['portal_tab'],
       portalTabId: 'receipts',
-      bundles: [gifDisplayBundle,versionedBundle('../payments-api/payments-api.js', '20261111-offline'), versionedBundle('photos/feed.js', '20261111-offline-photos'), versionedBundle('receipts/app.js', '20260714-receipt-pdf-preview')]
+      bundles: [gifDisplayBundle,versionedBundle('../payments-api/payments-api.js', '20261111-offline'), versionedBundle('photos/feed.js', '20261111-offline-uploads'), versionedBundle('receipts/app.js', '20260714-receipt-pdf-preview')]
     },
     {
       // DEPRECATED (2026-08): legacy proposals surface — hidden by its bundle
@@ -213,11 +213,11 @@
         versionedBundle('../doc-renderer/firstmate-doc-renderer.js', '20261022-as-sent-inputs'),
         versionedBundle('../doc-editor/firstmate-doc-editor.js', '20261022-document-history'),
         versionedBundle('../doc-sent-editor/firstmate-doc-sent-editor.js', '20261026-mobile-documents-2'),
-        versionedBundle('photos/feed.js', '20261111-offline-photos'),
+        versionedBundle('photos/feed.js', '20261111-offline-uploads'),
         bundle('../agents-api/agents-api.js'),
         versionedBundle('../agent-chat/agent-chat.js', '20261002-widget-controls'),
         versionedBundle('../doc-agent/doc-agent.js', '20260812-agent-command-actions'),
-        versionedBundle('documents/project.js', '20261103-measure-sections')
+        versionedBundle('documents/project.js', '20261111-offline-documents')
       ]
     },
     {
@@ -241,7 +241,7 @@
         versionedBundle('../doc-widgets/firstmate-doc-widgets.js', '20261026-sign-own-choices'),
         versionedBundle('../doc-renderer/firstmate-doc-renderer.js', '20261022-as-sent-inputs'),
         versionedBundle('../doc-editor/firstmate-doc-editor.js', '20261022-document-history'),
-        versionedBundle('photos/feed.js', '20261111-offline-photos'),
+        versionedBundle('photos/feed.js', '20261111-offline-uploads'),
         bundle('../agents-api/agents-api.js'),
         versionedBundle('../agent-chat/agent-chat.js', '20261002-widget-controls'),
         versionedBundle('../doc-agent/doc-agent.js', '20260812-agent-command-actions'),
@@ -294,7 +294,7 @@
       surfaces: ['project_modal'],
       requiresContext: ['project'],
       dependencies: ['project.proposal', 'project.materials'],
-      bundles: [gifDisplayBundle,versionedBundle('../payments-api/payments-api.js', '20261111-offline'), versionedBundle('../payroll-api/payroll-api.js', '20261019-payroll-closeout-v1'), versionedBundle('../documents-api/documents-api.js', '20261111-offline'), versionedBundle('photos/feed.js', '20261111-offline-photos'), versionedBundle('receipts/app.js', '20260714-receipt-pdf-preview'), versionedBundle('money/project.js', '20261103-metrics-one-row')]
+      bundles: [gifDisplayBundle,versionedBundle('../payments-api/payments-api.js', '20261111-offline'), versionedBundle('../payroll-api/payroll-api.js', '20261019-payroll-closeout-v1'), versionedBundle('../documents-api/documents-api.js', '20261111-offline'), versionedBundle('photos/feed.js', '20261111-offline-uploads'), versionedBundle('receipts/app.js', '20260714-receipt-pdf-preview'), versionedBundle('money/project.js', '20261103-metrics-one-row')]
     },
     {
       id: 'project.request',
@@ -353,7 +353,7 @@
       kind: 'project_modal_app',
       surfaces: ['project_modal'],
       requiresContext: ['project'],
-      bundles: [versionedBundle('../comms-api/comms-api.js', '20261011-phone-second-pass-v1'), versionedBundle('../window-manager/window-shell.js', '20261026-mobile-trays'), versionedBundle('../agent-chat/agent-chat.js', '20261002-widget-controls'), versionedBundle('comms/communications-ui.js', '20261011-voicemail-download-v2'), versionedBundle('comms/phone-tray.js', '20261101-prod-sync'), versionedBundle('comms/calling-runtime.js', '20261011-conference-history-v2'), versionedBundle('comms/phone-modal.js', '20261101-prod-sync'), versionedBundle('comms/workspace.js', '20261008-voicemail-settings-v1'), versionedBundle('comms/project.js', '20261002-dropdown-polish-v1')]
+      bundles: [versionedBundle('../comms-api/comms-api.js', '20261111-offline-messages'), versionedBundle('../window-manager/window-shell.js', '20261026-mobile-trays'), versionedBundle('../agent-chat/agent-chat.js', '20261002-widget-controls'), versionedBundle('comms/communications-ui.js', '20261011-voicemail-download-v2'), versionedBundle('comms/phone-tray.js', '20261101-prod-sync'), versionedBundle('comms/calling-runtime.js', '20261011-conference-history-v2'), versionedBundle('comms/phone-modal.js', '20261101-prod-sync'), versionedBundle('comms/workspace.js', '20261008-voicemail-settings-v1'), versionedBundle('comms/project.js', '20261002-dropdown-polish-v1')]
     },
     {
       id: 'project.measurements',
@@ -375,8 +375,8 @@
       surfaces: ['project_modal'],
       requiresContext: ['project'],
       bundles: [
-        versionedBundle('../crew-api/crew-api.js', '20261101-prod-sync'),
-        versionedBundle('checklists/app.js', '20261111-offline-checklists')
+        versionedBundle('../crew-api/crew-api.js', '20261111-offline-uploads'),
+        versionedBundle('checklists/app.js', '20261111-offline-wave3')
       ]
     },
     {
@@ -514,14 +514,14 @@
       surfaces: ['portal_tab'],
       portalTabId: 'chat',
       bundles: [
-        versionedBundle('../comms-api/comms-api.js', '20261011-phone-second-pass-v1'),
+        versionedBundle('../comms-api/comms-api.js', '20261111-offline-messages'),
         bundle('../agents-api/agents-api.js'),
         versionedBundle('../agent-chat/agent-chat.js', '20261002-widget-controls'),
         versionedBundle('comms/communications-ui.js', '20261011-voicemail-download-v2'),
         versionedBundle('../window-manager/window-shell.js', '20261026-mobile-trays'),
         versionedBundle('comms/phone-tray.js', '20261101-prod-sync'), versionedBundle('comms/calling-runtime.js', '20261011-conference-history-v2'), versionedBundle('comms/phone-modal.js', '20261101-prod-sync'),
         versionedBundle('comms/workspace.js', '20261008-voicemail-settings-v1'),
-        versionedBundle('chat/app.js', '20260930-phone-tray-v1')
+        versionedBundle('chat/app.js', '20261111-offline-messages')
       ]
     },
     {
@@ -537,16 +537,16 @@
       order: 44,
       bundles: [
         versionedBundle('../platform-realtime/platform-realtime.js', '20261026-live-layer'),
-        versionedBundle('../channels-api/channels-api.js', '20261111-offline'),
+        versionedBundle('../channels-api/channels-api.js', '20261111-offline-wave3'),
         versionedBundle('../audio-notes/audio-notes.js', '20260929-presence-controls-v3'),
         versionedBundle('../window-manager/window-manager.js', '20261006-firstmeasure-localization-v1'),
         versionedBundle('../window-manager/window-shell.js', '20261026-mobile-trays'),
         versionedBundle('../assistant-api/assistant-api.js', '20261002-agent-persistence-v1'),
         ...widgetBundles, bookingBundle, priorityFieldsBundle, versionedBundle('../platform-assistant/platform-assistant.js', '20261026-mobile-agent'),
-        versionedBundle('photos/feed.js', '20261111-offline-photos'),
+        versionedBundle('photos/feed.js', '20261111-offline-uploads'),
     versionedBundle('../markup/firstmate-markup.js', '20261111-offline-photos'),
-    versionedBundle('../channels-ui/channels-ui.js', '20261026-consolidated'),
-    versionedBundle('../project-notes/project-notes.js', '20261111-offline'),
+    versionedBundle('../channels-ui/channels-ui.js', '20261111-offline-messages'),
+    versionedBundle('../project-notes/project-notes.js', '20261111-offline-uploads'),
         versionedBundle('partners/shared-list.js','20261001-sharing-polish-v1'),
         versionedBundle('partners/share-dialog.js','20261001-sharing-polish-v1'),versionedBundle('channels/app.js', '20260930-native-sharing-v2')
       ]

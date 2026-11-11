@@ -710,6 +710,37 @@ Until then, conditional requests (`ETag` on the larger reads) would at least mak
 **Why it can wait.** The reads are the ones a person opening the project makes anyway, the refresh runs only for
 people who pinned projects, and offline is on development only.
 
+## Messages kept for offline are downloaded again at every start
+
+**Today.** So that messages read without a connection, a page load downloads the newest page of up to 25 channels
+the person is in, the channel list, the directory and the Communications inbox
+([offline](architecture/offline.md#messages)), at most every ten minutes per device: about 55 requests, most of
+which answer what the device already has. Each kept project adds its two newest pages of messages, up to ten threads
+and its Comms tab to the refresh above. The realtime stream already says which channels got a message; the download
+does not use it.
+
+**Where the change goes.** The same change feed as above, or sooner: `after=<last seq>` on the messages read (the
+route takes it) merged into the saved page by a contract effect, and skipping channels whose `message_seq` in the
+channel list equals the one already saved.
+
+**Why it can wait.** One page of messages is a few kilobytes, the run is throttled and in the background, and
+offline is on development only.
+
+## A kept project downloads every document template and resolves each document twice
+
+**Today.** So that a document can be made and edited without a connection, each project kept on a device downloads
+the published version of every active document template (40 at most), every document workflow the catalog lists, and
+two resolves of each of its documents: the plain one the preview and editor ask for and the traced one "Edit
+manually" asks for ([offline](architecture/offline.md#documents)). Templates and workflows are the same for every
+project of an organization, and they are fetched again for each kept project at every refresh.
+
+**Where the change goes.** Keep organization-wide reads once per person instead of once per kept project (a prefetch
+entry that is not tied to a project), and let one saved resolve answer both forms: a traced resolve renders the same
+page, so the plain one can be served from it.
+
+**Why it can wait.** A template version is a small JSON read, a project has a handful of documents, and offline is on
+development only.
+
 ## The offline asset manifest hashes every file once per release in every process
 
 **Today.** `offlineAssetSet` in `platform/offline/assets.ts` walks the served release's browser files (547 files,

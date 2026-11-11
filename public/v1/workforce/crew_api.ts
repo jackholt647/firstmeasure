@@ -15,9 +15,9 @@ import {
 } from "../materials/storage.js";
 import type { PlatformAuthContext } from "../platform/auth.js";
 import { appOptionEnabled, hasPermission, requirePlatformAuth } from "../platform/auth.js";
-import { badRequest, forbidden, notFound } from "../platform/errors.js";
+import { PlatformError, badRequest, conflict, forbidden, notFound } from "../platform/errors.js";
 import { updateProjectData } from "../platform/project_document_mutation.js";
-import { listDocuments, readDocument, storeMediaUpload, upsertDocument, type JsonObject } from "../platform/storage.js";
+import { listDocuments, readDocument, readMediaMetadata, storeMediaUpload, upsertDocument, type JsonObject } from "../platform/storage.js";
 import { sendProjectSms } from "../comms/service.js";
 import { projectExpenseSummary, readReceipt } from "../payments/expenses.js";
 import { associateReceiptWithProject, receiptView } from "../payments/receipts.js";
@@ -2903,6 +2903,9 @@ export const registerCrewApi: FastifyPluginAsync = async (app) => {
     let fileName = "checklist-evidence";
     let contentType = "application/octet-stream";
     let requirementId = "";
+    // The media id a device made (docs/architecture/offline.md, "Uploads of other apps"): evidence added without a
+    // connection is shown under it before it is uploaded, and a repeat replaces the same record.
+    let givenMediaId = "";
     for await (const part of parts) {
       if (part.type === "file" && !bytes) {
         bytes = await part.toBuffer?.() ?? null;
@@ -2910,15 +2913,30 @@ export const registerCrewApi: FastifyPluginAsync = async (app) => {
         contentType = cleanText(part.mimetype || contentType).toLowerCase();
       } else if (part.type === "field" && part.fieldname === "requirement_id") {
         requirementId = cleanText(part.value);
+      } else if (part.type === "field" && part.fieldname === "media_id") {
+        givenMediaId = cleanText(part.value);
       }
     }
     if (!bytes) throw badRequest("checklist_attachment_missing", "Choose a file to attach.");
     if (bytes.length > 128 * 1024 * 1024) throw badRequest("checklist_attachment_too_large", "Checklist evidence cannot exceed 128 MB.");
+    if (givenMediaId) {
+      if (!/^media_[a-f0-9]{16}$/.test(givenMediaId)) throw badRequest("invalid_media_id", "A media id is media_ and 16 hexadecimal digits.");
+      const taken = await readMediaMetadata(orgId, givenMediaId).catch((error: unknown) => {
+        if (error instanceof PlatformError && error.statusCode === 404) return null;
+        throw error;
+      });
+      // Only the same evidence of the same item may be stored again under the id.
+      const takenMeta = asObject(taken?.metadata);
+      if (taken && (cleanText(takenMeta.source) !== "checklist_evidence" || cleanText(takenMeta.checklist_item_id) !== item.id || cleanText(asObject(taken.owner).id) !== projectId)) {
+        throw conflict("media_id_taken", "This media id is already in use.");
+      }
+    }
     const kind = contentType.startsWith("image/") ? "photo"
       : contentType.startsWith("video/") ? "video"
         : contentType.startsWith("audio/") ? "audio"
           : "document";
     const media = await storeMediaUpload(orgId, {
+      ...(givenMediaId ? { id: givenMediaId } : {}),
       bytes,
       fileName,
       contentType,
@@ -3007,11 +3025,15 @@ export const registerCrewApi: FastifyPluginAsync = async (app) => {
     }
     const body = requestBody(request);
     const typed = request as unknown as { ip?: string; headers?: Record<string, unknown> };
+    // A sign-off made without a connection arrives later: `signed_at` stays the time the server recorded it, and
+    // the time the device says it was signed is kept beside it as evidence (never a time still to come).
+    const deviceSignedAt = Date.parse(cleanText(asObject(body.signature ?? body).device_signed_at));
     const signature = normalizePortalSignature(body.signature ?? body, {
       ip: cleanText(typed.ip),
       user_agent: cleanText(typed.headers?.["user-agent"]),
       captured_at: new Date().toISOString(),
-      source: "crew_app"
+      source: "crew_app",
+      ...(Number.isFinite(deviceSignedAt) && deviceSignedAt <= Date.now() + 5 * 60000 ? { device_signed_at: new Date(deviceSignedAt).toISOString() } : {})
     });
     const signed = (await signProjectChecklist(orgId, projectId, checklist.id, signature, actor.ctx.userId));
     return { ok: true, checklist: signed };

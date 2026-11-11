@@ -156,6 +156,18 @@ underline are run and block properties of the same override.
 
 "Use template text" on any edited node removes its override.
 
+## Without a connection
+
+A draft that is on the device can be edited as sent with no connection
+([offline](offline.md#documents)). The editor sends each typed value with
+`parsed`, the value as it is stored (`FMDocModel.parseBoundInput`); the
+server ignores it and works the value out itself, as above. The edit waits
+on the device, the page shows the last resolved document with the typed
+value in place and everything derived from it marked "updates when you
+reconnect", and when it is sent it is checked against the document as it is
+then: the row is found by its id, and only the same value changed by someone
+else asks.
+
 ## The PDF is the page
 
 The editor renders the traced resolution with `FMDocRenderer` in static mode,
