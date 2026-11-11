@@ -1603,8 +1603,8 @@
     const offlineBar = el('div', 'fm-ch-offline-bar');
     offlineBar.setAttribute('role', 'status');
     offlineBar.hidden = true;
-    offlineBar.style.cssText = 'padding:4px 16px;font-size:12px;line-height:1.4;color:#b54708;white-space:nowrap;overflow:hidden;text-overflow:ellipsis';
-    offlineBar.innerHTML = `<i class="fas fa-cloud-arrow-up" aria-hidden="true" style="margin-right:6px"></i>${esc((globalThis.PlatformLanguage?.text?.("shared","offline_messages_send_later","You're offline. Messages will send when you reconnect.") ?? "You're offline. Messages will send when you reconnect."))}`;
+    offlineBar.style.cssText = 'padding:4px 12px;font-size:11.5px;letter-spacing:-.01em;line-height:1.4;color:#b54708;white-space:nowrap;overflow:hidden;text-overflow:ellipsis';
+    offlineBar.innerHTML = `<i class="fas fa-cloud-arrow-up" aria-hidden="true" style="margin-right:5px;font-size:10.5px"></i>${esc((globalThis.PlatformLanguage?.text?.("shared","offline_messages_send_later","You're offline. Messages will send when you reconnect.") ?? "You're offline. Messages will send when you reconnect."))}`;
     listWrap.append(list, typingBar, offlineBar, composer);
     bodyWrap.append(listWrap, panel);
     main.append(header);
