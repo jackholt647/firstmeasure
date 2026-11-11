@@ -118,7 +118,11 @@
     let data = null;
     try { data = text ? JSON.parse(text) : null; } catch(e) {}
     if (!res.ok || data?.ok === false) {
-      const fallback = cleanText(data?.message || data?.error) || `Platform API request failed (${res.status})`;
+      // The service worker's answer for a change it cannot queue (docs/architecture/offline.md): plain words, not a code.
+      const refusedOffline = res.status === 503 && data?.error === 'offline_unavailable';
+      const fallback = refusedOffline
+        ? (window.PlatformLanguage?.text?.('shared', 'offline_change_needs_connection', 'This needs a connection. Nothing was saved.') ?? 'This needs a connection. Nothing was saved.')
+        : cleanText(data?.message || data?.error) || `Platform API request failed (${res.status})`;
       const error = new Error(window.PlatformLanguage?.error?.(data?.code || data?.error, fallback) || fallback);
       error.status = res.status;
       error.data = data;
@@ -347,6 +351,12 @@
     session(){
       return request('/auth/session').catch((error) => {
         if (isMissingRecord(error)) return { ok: false, authenticated: false, missing: true };
+        // No answer at all (no connection): the session read is never kept on the device, but the person's
+        // own profile is (GET /me carries the same fields). A page that runs from the device then shows the
+        // apps and permissions they last had (docs/architecture/offline.md). Any HTTP answer is still final.
+        if (!error?.status && window.PlatformOffline) {
+          return request('/me').then((saved) => ({ ...saved, offline: true })).catch(() => { throw error; });
+        }
         throw error;
       });
     },
