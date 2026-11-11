@@ -653,13 +653,18 @@ test('signing out asks first while changes wait', async () => {
   assert.equal(await dialog.getAttribute('role'), 'alertdialog');
   assert.match(await dialog.innerText(), /2 changes have not been sent yet\. If you sign out now they stay on this device and are sent the next time you sign in here\./);
   assert.equal(await tab.evaluate(() => document.activeElement.textContent), 'Stay signed in');
+  assert.equal(await tab.locator('.fmo-tray').count(), 0, 'the question stands alone');
   await shot('signout');
   await tab.keyboard.press('Escape');
   await tab.waitForFunction(() => !document.querySelector('.fmo-dialog'));
   assert.match(tab.url(), /\/portal\/$/, 'staying keeps the page');
 
-  // Code that signs out without a link asks the same question.
+  // Code that signs out without a link asks the same question; a tray that was opened and closed stays closed behind it.
+  await tab.locator('.fmo-pill').click();
+  await tab.keyboard.press('Escape');
   const answer = tab.evaluate(() => window.PlatformOfflineUI.confirmSignOut());
+  await dialog.waitFor();
+  assert.equal(await tab.locator('.fmo-tray').isVisible(), false);
   await dialog.locator('button', { hasText: 'Stay signed in' }).click();
   assert.equal(await answer, false);
 

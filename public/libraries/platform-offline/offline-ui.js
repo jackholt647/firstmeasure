@@ -75,7 +75,7 @@
     tray_sign_in: 'Sign in',
     tray_storage_warning_title: 'This browser may clear waiting changes',
     tray_storage_warning: 'This browser has not promised to keep what FirstMate saves. It can clear it when the device runs low on space, and Safari clears a site\'s storage after seven days without a visit. Changes still waiting here would be lost, so connect and send them soon. The FirstMate app does not have this limit.',
-    tray_saved_copy: 'This page is the copy saved on this device. Load the latest when you are ready.',
+    tray_saved_copy_note: 'It may be older than what the server has now. Load the latest when you are ready.',
     tray_offline_note: 'Changes you make are saved on this device and sent when you reconnect.',
     tray_load_latest: 'Load the latest',
 
@@ -282,7 +282,7 @@
   }
 
   const CSS = `
-.fmo-ico{flex:none;line-height:1}
+.fmo-ico{flex:none;line-height:1;align-self:center}
 .fmo-ico-off{position:relative}
 .fmo-ico-off::after{content:"";position:absolute;left:50%;top:50%;width:135%;height:1.5px;background:currentColor;box-shadow:0 0 0 1px var(--fmo-cut,#111827);transform:translate(-50%,-50%) rotate(-45deg);border-radius:1px}
 @keyframes fmo-spin{to{transform:rotate(360deg)}}
@@ -327,7 +327,7 @@
 @container fmo-slot (max-width:110px){.fmo-slot .fmo-pill{justify-content:center!important;width:32px!important;height:32px;min-height:0;padding:0;margin:0 auto;display:flex}.fmo-pill .fmo-text,.fmo-pill .fmo-bar{display:none}}
 
 /* The mark apps put on a waiting record. */
-.fmo-badge{display:inline-flex;align-items:center;gap:4px;max-width:100%;box-sizing:border-box;padding:2px 7px;border-radius:999px;border:1px solid rgba(15,23,42,.08);background:#f2f4f7;color:#475467;font-size:10.5px;font-weight:700;line-height:1.5;white-space:nowrap;vertical-align:middle;cursor:default}
+.fmo-badge{display:inline-flex;align-items:center;gap:4px;width:fit-content;max-width:100%;box-sizing:border-box;padding:2px 7px;border-radius:999px;border:1px solid rgba(15,23,42,.08);background:#f2f4f7;color:#475467;font-size:10.5px;font-weight:700;line-height:1.5;white-space:nowrap;vertical-align:middle;cursor:default}
 .fmo-badge[hidden]{display:none!important}
 .fmo-badge .fmo-ico{font-size:9.5px}
 .fmo-badge>span{overflow:hidden;text-overflow:ellipsis}
@@ -351,6 +351,7 @@
 .fmo-layer[hidden]{display:none!important}
 .fmo-scrim{position:absolute;inset:0;pointer-events:auto;background:transparent;transition:background-color .18s ease}
 .fmo-tray{position:absolute;pointer-events:auto;display:flex;flex-direction:column;box-sizing:border-box;width:min(400px,calc(100% - 24px));max-height:calc(100% - 24px);background:#fff;border:1px solid rgba(15,23,42,.10);border-radius:16px;box-shadow:0 24px 60px rgba(15,23,42,.18);overflow:hidden;container:fmo-tray/inline-size}
+.fmo-tray[hidden],.fmo-scrim[hidden]{display:none!important}
 .fmo-tray[data-view=conflict]{width:min(620px,calc(100% - 24px))}
 .fmo-tray *{box-sizing:border-box}
 .fmo-head{flex:none;display:flex;align-items:center;gap:8px;padding:11px 10px 11px 14px;border-bottom:1px solid rgba(15,23,42,.08)}
@@ -360,7 +361,7 @@
 .fmo-iconbtn:hover{background:#f2f4f7;color:#101828}
 .fmo-body{flex:1 1 auto;min-height:0;overflow:auto;overscroll-behavior:contain}
 .fmo-status{display:flex;gap:10px;padding:13px 14px;border-bottom:1px solid rgba(15,23,42,.06)}
-.fmo-status>.fmo-ico{margin-top:2px;font-size:14px;color:#475467;--fmo-cut:#fff}
+.fmo-status>.fmo-ico{align-self:flex-start;margin-top:3px;font-size:14px;color:#475467;--fmo-cut:#fff}
 .fmo-status[data-tone=attention]>.fmo-ico{color:#b42318}
 .fmo-status[data-tone=signin]>.fmo-ico{color:#b54708}
 .fmo-status[data-tone=good]>.fmo-ico{color:#079455}
@@ -578,9 +579,9 @@
     syncedAt = 0;
     flash('sent');
   }
-  function onState(next) {
+  function onState() {
     const before = state;
-    state = next || PO.state();
+    state = PO.state();
     maybeSent();
     const code = state.code || {};
     if (code.status === 'downloading' && !code.release) sawFirstDownload = true;
@@ -738,6 +739,7 @@
     if (!layer) return;
     const any = view.open || !!popover || !!dialog;
     layer.hidden = !any;
+    if (tray) tray.hidden = !view.open;             // a dialog shows the layer without the closed tray
     scrim.hidden = !(view.open || popover);
     if (view.open) layer.dataset.open = ''; else delete layer.dataset.open;
   }
@@ -894,7 +896,7 @@
     const actions = h('div', { class: 'fmo-actions' });
     if (state.blocked === 'sign-in') actions.append(h('button', { type: 'button', class: 'fmo-btn primary', 'data-fk': 'signin', text: T('tray_sign_in'), on: { click: () => { window.location.assign('/portal/login.php'); } } }));
     if (state.savedPage && state.online && code.status !== 'downloading') {
-      words.append(h('small', { text: T('tray_saved_copy') }));
+      words.append(h('small', { text: T('tray_saved_copy_note') }));
       // A reload a person asks for. Nothing else in this file loads a page.
       actions.append(h('button', { type: 'button', class: 'fmo-btn', 'data-fk': 'latest', text: T('tray_load_latest'), on: { click: () => { window.location.reload(); } } }));
     }
