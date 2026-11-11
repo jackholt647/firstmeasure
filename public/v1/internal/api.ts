@@ -110,6 +110,7 @@ import {
 import { createPublicFirstMeasureKeyDelivery } from "../public-firstmeasure/key_delivery.js";
 import { hasPublicFirstMeasureApiKeySecret } from "../public-firstmeasure/key_secret_vault.js";
 import { knownPrincipal, principalActor, systemPrincipal } from "../platform/security/principal.js";
+import { admitClaimAttempt, legacyQueueEmptyResult } from "../firstmeasure/claim-rate-limit.js";
 import { serviceInject } from "../platform/security/service.js";
 import { impersonationMark, recordSecurityEvent, startImpersonation, stopImpersonation } from "../platform/security/impersonation.js";
 import { identityIsStaffMember, staffAuthority } from "../platform/security/staff.js";
@@ -5745,6 +5746,8 @@ async function handleLegacyAction(app: FastifyInstance, body: JsonObject, reques
       return { ok: true, success: true, projects, count: projects.length, source: "queue_status" };
     }
     case "claim_next_for_me": {
+      // Flood protection (FM-387): counted before the status read; refused like an empty queue.
+      if (!(await admitClaimAttempt(request))) return legacyQueueEmptyResult();
       // "Next" must first resume work already owned by this actor. The legacy
       // bridge previously skipped this and claimed only from the unassigned queue,
       // which stranded active work whenever the new-work queue was empty.
@@ -5786,6 +5789,7 @@ async function handleLegacyAction(app: FastifyInstance, body: JsonObject, reques
     case "check_hot_swap":
       return { ok: true, success: true, has_swap: false, reason: "node_monitor_no_swap_needed" };
     case "execute_hot_swap":
+      if (!(await admitClaimAttempt(request))) return legacyQueueEmptyResult();
       return await injectJson(app, "POST", "/v1/firstmeasure/queue/claim-next/compat", {
         ...body,
         actor,
