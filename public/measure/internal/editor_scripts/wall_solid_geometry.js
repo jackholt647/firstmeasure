@@ -1325,6 +1325,106 @@ function loadBearingIndex(faces){
   edgeCache.set(key,yes);return yes;
  }};
 }
+// Weld: points within the weld distance of each other become one point.
+//
+// Edits leave a corner's twin a hair away (a face corner, a loose point, a base
+// corner). They look like one point, are picked together and behave like
+// several. A weld moves them to one position, and only when nothing else has
+// to give:
+//  - every face a point belongs to stays flat: the shared position lies on
+//    all of those planes (two walls and the base meet in exactly one point);
+//  - no edge of a face is shortened: two corners of the same outline are a
+//    deliberate small step and are never merged with each other;
+//  - a fixed point (a generated wall, a sticker, a curve) does not move: the
+//    others come to it, or the group is left alone.
+//
+// The same wall is often stored as several faces whose planes lie a tenth of
+// a millimetre apart, and no point can lie on both. So planes weld first: a
+// face that is parallel to another within the flatness the kernel demands, and
+// no further from it than PLANE_WELD at any of its points, is laid onto that
+// plane (weldPlanes). PLANE_WELD is half a millimetre whatever the point distance
+// is: it removes storage noise, never a drawn inset. The corners that
+// leaves a hair from their neighbours are then welded like any others.
+//
+// Each item is one use of a point: {point, owner, planes:[{n,k}], ring, fixed}.
+// owners: id -> {plane:{n,k}, fixed, soft}. weldPlan returns the moves
+// [{from,to,owner}] and how many groups could not be welded. A move belongs to
+// one owner: another face with a corner at the same spot may have to stay.
+// WELD_ON: a point this close to a plane is on it. Well inside the kernel flatness (CONTACT), and loose enough that
+// a corner where four stored planes meet within a micron or two is still one point.
+// WELD_SAME: a drawing keeps its points on a one-micron grid of its own (item.grid). Such a point within this
+// distance of the shared position is there already and is not moved again; the shared position is one a drawing
+// already holds where there is one, and every other use of the point is put on it exactly.
+const PLANE_WELD=5e-4,WELD_ON=2e-6,WELD_SAME=2e-6;
+// Faces of one wall share one plane. weldPlanes groups the owners whose points all lie within PLANE_WELD of a
+// plane (so an offset and a slight tilt are both storage noise) and returns
+//   planes: owner id -> the group's plane, the one every member is welded against; and
+//   lay: the owners that are off it by more than a point may be, whose points are all put on it.
+// The plane of a group is that of its widest member: a wide face fixes a plane far better than a narrow one, and
+// the choice does not change from one weld to the next. Fixed planes come first.
+function weldPlanes(items,owners){
+ const height=(pl,p)=>dot(pl.n,p)-pl.k,points=new Map(),lay=new Map(),planes=new Map();for(const item of items)if(item.owner!=null&&owners.has(item.owner)){if(!points.has(item.owner))points.set(item.owner,[]);points.get(item.owner).push(item.point);}
+ const width=id=>{const ps=points.get(id)||[];let w=0;for(const a of ps)for(const b of ps)w=Math.max(w,Math.hypot(a.x-b.x,a.y-b.y,a.z-b.z));return w;},widths=new Map([...owners.keys()].map(id=>[id,width(id)])),canonical=[];
+ for(const [id,o]of [...owners].sort((a,b)=>(b[1].fixed?1:0)-(a[1].fixed?1:0)||widths.get(b[0])-widths.get(a[0])||String(a[0]).localeCompare(String(b[0])))){
+  // A soft plane (a deleted face) neither gives nor takes a plane: its points only follow the corners they share.
+  if(o.soft)continue;const ps=points.get(id)||[];let found=null;
+  if(!o.fixed&&ps.length)for(const c of canonical){if(Math.abs(dot(c.n,o.plane.n))>.9999&&ps.every(q=>Math.abs(height(c,q))<=PLANE_WELD)){found=c;break;}}
+  if(!found){canonical.push(o.plane);planes.set(id,o.plane);continue;}
+  // A drawing stores its points in its own plane, so it is on the group's plane exactly or it is laid onto it.
+  planes.set(id,found);if(ps.some(q=>Math.abs(height(found,q))>(o.exact?1e-7:WELD_ON)))lay.set(id,found);
+ }
+ return {lay,planes};
+}
+function weldPlan(items,distance,explain=null,owners=null){
+ const apart=(a,b)=>Math.hypot(a.x-b.x,a.y-b.y,a.z-b.z),height=(pl,p)=>dot(pl.n,p)-pl.k;
+ if(!(distance>0))return {moves:[],skipped:0};
+ owners=owners||new Map();const planeOf=id=>owners.get(id)?.plane||null,moves=[],used=new Array(items.length).fill(false),order=items.map((_,i)=>i).sort((a,b)=>(items[b].fixed?1:0)-(items[a].fixed?1:0));let skipped=0;
+ // A soft plane (a deleted face's) is kept when it can be; hard is true once it has been given up.
+ let hard=false;const planesOf=m=>hard&&m.soft?[]:[...(m.planes||[]),...(planeOf(m.owner)?[planeOf(m.owner)]:[])];
+ // One position for these uses of a point, on every plane they belong to. null when there is none.
+ const position=(members,reach)=>{
+  // Faces of one wall carry planes that agree here to within the flatness the kernel allows: one constraint.
+  const here=members[0].point,planes=[];for(const m of members)for(const pl of planesOf(m))if(!planes.some(q=>Math.abs(dot(q.n,pl.n))>.999999&&Math.abs(height(q,here)*Math.sign(dot(q.n,pl.n))-height(pl,here))<=WELD_ON))planes.push(pl);
+  const on=q=>planes.every(pl=>Math.abs(height(pl,q))<=WELD_ON),fixed=members.filter(m=>m.fixed).map(m=>m.point);
+  if(fixed.some(q=>apart(q,fixed[0])>1e-9))return {reason:'fixed',planes};
+  // Prefer a position some of them already have (most used first), so exact geometry does not drift.
+  const counts=members.map(m=>({p:m.point,grid:m.grid?1:0,n:members.filter(o=>apart(o.point,m.point)<=1e-9).length})).sort((a,b)=>b.grid-a.grid||b.n-a.n||a.p.x-b.p.x||a.p.y-b.p.y||a.p.z-b.p.z);
+  let target=fixed.length?(on(fixed[0])?fixed[0]:null):counts.map(c=>c.p).find(on)||null,odd=null;
+  if(!target&&!fixed.length){
+   // The point of all their planes nearest to where they sit now.
+   const centre=members.reduce((t,m)=>({x:t.x+m.point.x/members.length,y:t.y+m.point.y/members.length,z:t.z+m.point.z/members.length}),{x:0,y:0,z:0}),basis=[];let q={...centre};
+   for(const pl of planes){let v={...pl.n},value=pl.k-dot(pl.n,centre);for(const b of basis){const t=dot(v,b.v);v={x:v.x-t*b.v.x,y:v.y-t*b.v.y,z:v.z-t*b.v.z};value-=t*b.value;}const l=Math.hypot(v.x,v.y,v.z);
+    // Planes within a milliradian of each other, or of the line two others meet in, do not fix a point between
+    // them (it would lie metres away): either they agree here, or one of them is the odd one out.
+    if(l<1e-3){if(Math.abs(value)>WELD_ON&&!odd)odd=pl;continue;}basis.push({v:{x:v.x/l,y:v.y/l,z:v.z/l},value:value/l});}
+   if(!odd){for(const b of basis)q={x:q.x+b.v.x*b.value,y:q.y+b.v.y*b.value,z:q.z+b.v.z*b.value};if(on(q))target={x:q.x,y:q.y,z:q.z};}
+  }
+  if(!target)return {reason:'planes',planes,odd};
+  return members.some(m=>apart(m.point,target)>reach*2)?{reason:'far',planes}:{target};
+ };
+ const place=(members,reach)=>{
+  // Where the planes cannot all meet (a fourth plane a hair off the corner of three), the uses on the odd plane
+  // stay where they are and the others still become one point.
+  let rest=members,result=null;hard=false;
+  for(let pass=0;pass<5&&rest.length;pass++){
+   const first=rest[0].point;result=position(rest,reach);
+   if(result.target){for(const m of rest)if(apart(m.point,result.target)>(m.grid?WELD_SAME:1e-9)&&!moves.some(o=>o.owner===(m.owner??null)&&apart(o.from,m.point)<=1e-9))moves.push({from:{x:m.point.x,y:m.point.y,z:m.point.z},to:{x:result.target.x,y:result.target.y,z:result.target.z},owner:m.owner??null});hard=false;return rest.length===members.length;}
+   if(result.reason==='planes'&&!hard&&rest.some(m=>m.soft)){hard=true;continue;}
+   if(result.reason!=='planes'||!result.odd)break;
+   const odd=result.odd,keep=rest.filter(m=>m.fixed||!planesOf(m).some(pl=>Math.abs(dot(pl.n,odd.n))>.999999&&Math.abs(height(pl,m.point)-height(odd,m.point)*Math.sign(dot(pl.n,odd.n)))<=1e-9));
+   if(keep.length===rest.length||keep.length<1)break;rest=keep;
+  }
+  explain?.push({reason:result?.reason||'planes',members,planes:result?.planes});hard=false;return false;
+ };
+ for(const seed of order){if(used[seed])continue;const group=[];for(let i=0;i<items.length;i++)if(!used[i]&&apart(items[i].point,items[seed].point)<=distance)group.push(i);
+  for(const i of group)used[i]=true;const members=group.map(i=>items[i]);
+  // Two corners of one outline: a real short edge. They are not merged; each still goes onto its planes.
+  const rings=new Map();let step=false;for(const m of members){if(m.ring==null)continue;const prior=rings.get(m.ring);if(prior&&apart(prior,m.point)>K.CONTACT)step=true;rings.set(m.ring,m.point);}
+  if(!step){if(!place(members,distance))skipped++;continue;}
+  skipped++;explain?.push({reason:'step',members});const rest=members.slice();while(rest.length){const at=rest[0].point,same=rest.filter(m=>apart(m.point,at)<=1e-9);for(const m of same)rest.splice(rest.indexOf(m),1);place(same,PLANE_WELD);}
+ }
+ return {moves,skipped};
+}
 function structuralEdge(a,b,faces){return sharedIntervals(a,b,faces.filter(f=>!f.deleted&&!f.drafted).flatMap(f=>K.normalizeFaces(f))).length>0;}
 function deleteSurfaceElements(edits,pointIds=[],edgeIds=[]){const points=new Set(pointIds),edges=new Set(edgeIds);edits.$removedSurfacePoints=[...new Set([...(edits.$removedSurfacePoints||[]),...points])];edits.$removedSurfaceEdges=[...new Set([...(edits.$removedSurfaceEdges||[]),...edges])];
  for(const f of edits.$surfaces||[]){if(f.drafted)continue;if(!f.deleted)Object.assign(f,K.normalizeFace(f));const selected=rings(f).flat().filter(p=>points.has(vertexKey(p))),defines=selected.length>0&&K.pointRemovalChangesRegion(f,selected.map(K.pointKey));if(defines||rings(f).some(r=>r.some((p,i)=>edges.has(edgeKey(p,r[(i+1)%r.length])))))f.deleted=true;else if(selected.length){f.points=f.points.filter(p=>!points.has(vertexKey(p)));f.holes=(f.holes||[]).map(r=>r.filter(p=>!points.has(vertexKey(p))));}}
@@ -1589,5 +1689,5 @@ function flattenedCurveSamples(before,after){
   const keys=new Set([...ordinary].filter(key=>!carried.has(key)));for(const p of state.points){const key=vertexKey(p);if(samples.has(key))keys.add(key);}return keys;};
  const already=flat(before);return [...flat(after)].filter(key=>!already.has(key));
 }
-const api={loadBearingFaces,loadBearingIndex,flattenedCurveSamples,exactPoints,PLANE_CONFORM,conformPlanePoints,horizontalSweep,ownsPoint,followTrim,pointRangeIndex,stickerAlignmentTargets,faceCenterTarget,planeAlignment,planeAlignmentGuides,adoptMergedFaceSources,faceFromPoints,mergeAtPoints,fillet,validTranslation,boundedTranslation,geometryScale,snapGeometryScale,snapGeometryOnPlane,transformGeometry,transformSelection,clipboardFrame,copyGeometry,pasteGeometry,mergeConnectedFaces,pointChamferSnap,chamferSnap,chamfer,roofExtrusion,inwardSign,cleanupSweepRemnants,sweepRemnant,motionSnapCandidates,structuralIndex,joinFragments,motionSnap,slideLines,attachedLengths,unionPlanar,trimExtrusion,moveFabric,radialDraftSnap,quadDraftSnap,normal,extrusionDirections,extrusionReference,extrude,snapDirection,bridges,dragAmount,subtract,snapBase,baseScope,belowBase,draftSnap,vertexKey,edgeKey,jsonEqual,contactBox,inContactBox,surfaceWire,restoreCreatedSurfaceWire,structuralPoint,structuralEdge,deleteSurfaceElements,removeFaceEdges,restoreSurface,sharedIntervals,freeEdges,moveSurface,faceFrame,inFrame,fromFrame,containedBy,coplanarContact,containedSnap,importDraft};if(typeof module!=='undefined'&&module.exports)module.exports=api;else root.WallSolidGeometry=api;
+const api={weldPlan,weldPlanes,loadBearingFaces,loadBearingIndex,flattenedCurveSamples,exactPoints,PLANE_CONFORM,conformPlanePoints,horizontalSweep,ownsPoint,followTrim,pointRangeIndex,stickerAlignmentTargets,faceCenterTarget,planeAlignment,planeAlignmentGuides,adoptMergedFaceSources,faceFromPoints,mergeAtPoints,fillet,validTranslation,boundedTranslation,geometryScale,snapGeometryScale,snapGeometryOnPlane,transformGeometry,transformSelection,clipboardFrame,copyGeometry,pasteGeometry,mergeConnectedFaces,pointChamferSnap,chamferSnap,chamfer,roofExtrusion,inwardSign,cleanupSweepRemnants,sweepRemnant,motionSnapCandidates,structuralIndex,joinFragments,motionSnap,slideLines,attachedLengths,unionPlanar,trimExtrusion,moveFabric,radialDraftSnap,quadDraftSnap,normal,extrusionDirections,extrusionReference,extrude,snapDirection,bridges,dragAmount,subtract,snapBase,baseScope,belowBase,draftSnap,vertexKey,edgeKey,jsonEqual,contactBox,inContactBox,surfaceWire,restoreCreatedSurfaceWire,structuralPoint,structuralEdge,deleteSurfaceElements,removeFaceEdges,restoreSurface,sharedIntervals,freeEdges,moveSurface,faceFrame,inFrame,fromFrame,containedBy,coplanarContact,containedSnap,importDraft};if(typeof module!=='undefined'&&module.exports)module.exports=api;else root.WallSolidGeometry=api;
 })(typeof window!=='undefined'?window:globalThis);

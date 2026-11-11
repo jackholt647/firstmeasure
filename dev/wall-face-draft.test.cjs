@@ -4400,3 +4400,30 @@ test('C between points up a wall that stands over the base makes a wall line, no
  const drafts=Object.values(state.wallEdits.$drafts||{}).flatMap(d=>d.sketch.edges.length);
  assert.ok(wire.edges.some(e=>Math.abs(at.get(e.a).z-at.get(e.b).z)>2.8)||drafts.some(n=>n>0),'the line exists where wall tools can select it');
 });
+test('point weld: stacked corners across faces, loose points, deleted faces and the base become one point at the set distance',()=>{
+ const W=require('../public/measure/internal/editor_scripts/wall_solid_geometry.js'),K=require('../public/measure/internal/editor_scripts/exterior_geometry.js'),p=(x,y,z)=>({x,y,z});
+ const model=()=>({base:{faces:[{id:'base-1',points:[p(0,0,0),p(4.001,.0005,0),p(4,3,0),p(0,3,0)]}]},wallEdits:{$surfaces:[
+  {id:'front',points:[p(0,0,0),p(4,0,0),p(4,0,3),p(0,0,3)],holes:[]},
+  // The side wall's corner sits 1.4 mm from the front wall's, and a second piece of the front wall lies 0.1 mm off its plane.
+  {id:'side',points:[p(4.0000004,.0014,0),p(4,3,0),p(4,3,3),p(4.0000004,.0014,3)],holes:[]},
+  {id:'front-2',points:[p(-3,.0001,0),p(-.002,.0001,0),p(-.002,.0001,3),p(-3,.0001,3)],holes:[]},
+  // A deleted face still carries wire at the corner.
+  {id:'gone',deleted:true,points:[p(4.0008,.0003,0),p(6,.0003,0),p(6,.0003,3),p(4.0008,.0003,3)],holes:[]}],
+  $loose:{points:[p(4.002,.001,3.003),p(2,0,1.5)],edges:[]}}});
+ const spots=state=>{const g=W.surfaceWire(state.wallEdits);return g.nodes.filter(n=>Math.hypot(n.x-4,n.y)<.01).map(n=>W.vertexKey(n));};
+ // No setting, and zero, weld nothing.
+ for(const inches of [undefined,0]){const state=model();if(inches!==undefined)state.pointWeldInches=inches;const f=fixture({state,walls:[],selected:null}),before=JSON.stringify(state);assert.equal(f.editor.weldPoints(),0);assert.equal(JSON.stringify(state),before);}
+ const state=model();state.pointWeldInches=.25;const f=fixture({state,walls:[],selected:null});
+ assert.ok(new Set(spots(state)).size>4,'several positions at the corner before');
+ assert.ok(f.editor.weldPoints()>0);
+ assert.deepEqual([...new Set(spots(state))].sort(),[W.vertexKey(p(4,0,0)),W.vertexKey(p(4,0,3))],'one point at the foot of the corner and one at its top');
+ for(const face of state.wallEdits.$surfaces.filter(s=>!s.deleted))K.validateFace(face);
+ const front2=state.wallEdits.$surfaces.find(s=>s.id==='front-2');assert.ok(front2.points.every(q=>Math.abs(q.y)<1e-9),'the second piece of the front wall lies in the front wall\'s plane');
+ assert.ok(Math.abs(front2.points[1].x)<1e-9,'and its end meets the front wall\'s corner');
+ const baseFace=(state.wallEdits.$base||state.base).faces[0];assert.ok(baseFace.points.some(q=>Math.hypot(q.x-4,q.y,q.z)<1e-9),'the base corner is the wall corner');
+ assert.ok(state.wallEdits.$loose.points.some(q=>Math.hypot(q.x-2,q.y,q.z-1.5)<1e-12),'a loose point in the open is not touched');
+ // Welded, a second weld changes nothing.
+ const settled=JSON.stringify(state);assert.equal(f.editor.weldPoints(),0);assert.equal(JSON.stringify(state),settled);
+ // A sixteenth of an inch leaves the 2 mm twins alone.
+ const fine=model();fine.pointWeldInches=.0625;const g=fixture({state:fine,walls:[],selected:null});g.editor.weldPoints();assert.ok(new Set(spots(fine)).size>2);
+});
