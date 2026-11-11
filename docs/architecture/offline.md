@@ -75,8 +75,12 @@ contract, or how the native hosts store files and upload in the background.
 The service worker loads the engine and contracts with `importScripts`, and
 the registration uses `updateViaCache: 'none'` so a changed engine or contract
 file is picked up at the next update check. `contracts/index.js` sets
-`self.FM_OFFLINE_CONTRACTS`, the contract file names in load order; a contract
-file that fails to load is skipped and the rest still work.
+`self.FM_OFFLINE_CONTRACTS`, the contract file names in load order. The
+engine and every listed contract are part of the worker: when one cannot be
+loaded the worker script throws, so the install fails and the browser keeps
+the worker it had (or none) and tries again at its next update check. (Found
+on dev: a worker that installed without its engine stayed that way for good,
+because no later update check saw a changed file.)
 
 Only the top-level page registers the worker and replays the queue; project
 window frames use the same `PlatformOffline` and the same worker. The
@@ -224,7 +228,7 @@ requested under several of them.
 
 | Request | With a connection | Without |
 |---|---|---|
-| Navigation to a shell (`/portal/`, `/portal/index.php`, `/portal/mobile/`, with any query) | network; the answer replaces the stored shell when it is a 200 for the release of the active set (`X-FirstMate-Release` header) | the stored shell, when someone is signed in on this device; otherwise the built-in "connect once" page |
+| Navigation to a shell (`/portal/`, `/portal/index.php`, with any query) | network; the answer replaces the stored shell when it is a 200 for the release of the active set (`X-FirstMate-Release` header) | the stored shell, when someone is signed in on this device; otherwise the built-in "connect once" page |
 | File in the set | network, falling back to the set if the request fails | the set first, then the network |
 | Listed external file (fonts, icon CSS) | cache, refreshed in the background | cache |
 | Anything else | not answered by the worker | - |
@@ -441,6 +445,12 @@ async; they run in the worker, and in the top-level page when it replays.
   first file stands for `records(ctx)[0]`. Without `conflict.fields`, the
   body's keys; `conflict.mine(ctx, base)` may build the person's document
   when the body is not a plain set of fields.
+- `quiet` (a boolean or `quiet(ctx)`) marks the second half of a change a
+  person made once, like a photo's place in the project's list behind its
+  upload. A quiet entry is sent like any other; it is left out of the number
+  people are told (`state().shown`) and of the tray's waiting list while a
+  change that is not quiet waits, and shows like any other when it is the
+  only thing waiting, fails or conflicts.
 - A contract function that throws while a request is handled makes that
   request behave as if there were no contract. An effect that throws is
   skipped; it never breaks a read.
@@ -787,7 +797,9 @@ background `URLSession` on iOS), also after the app is closed. The queue stays t
   which the account switcher calls because its sign-outs go to the login
   page directly. It removes that person's
   shells, saved reads, media files and pinned downloads from the device, in
-  every organization, also when the server cannot be reached. The list of
+  every organization, also when the server cannot be reached.
+  `PlatformOffline.signedOut({ all: true })` (Sign out of all accounts) does
+  the same for everyone who has saved data or a shell on the device. The list of
   pinned projects stays and is downloaded again after sign-in. Queued
   changes stay and are sent only after the same person signs in again; the
   sign-out flow warns when changes are waiting.
@@ -926,7 +938,8 @@ PlatformOffline.engine()                          // top-level page only: resolv
   when the browser says so or the last request got no answer. `pending`
   counts entries that will be sent without the person (`waiting`,
   `delegated`), `failed` those waiting for them (`failed`, `parked`),
-  `conflicts` those waiting on a choice. `blocked` is `'sign-in'` while the
+  `conflicts` those waiting on a choice. `shown` is `pending` as people are
+  told it (quiet entries left out, see contracts); logic uses `pending`. `blocked` is `'sign-in'` while the
   queue is paused, else `null`. `code.status` is `none`, `downloading`,
   `ready` or `disabled`; while a newer set downloads, `code.release` is still
   the active one and `code.next` names the new one.
@@ -1238,6 +1251,12 @@ missing before that is safe:
 - Re-reading a declared `POST` read after a sync sends its text fields
   URL-encoded, also when the app sent them as a multipart form.
 - The measure editor (`/measure/internal`) and pages outside `/portal/`.
+- `/portal/mobile/` is not stored as a shell (the manifest's `shells` is
+  `/portal/` only, which is what the app and phone browsers open): with a
+  connection it saves, queues and shows the indicator like any portal page,
+  but it does not open without one. Listing it would fetch a second page for
+  every person at every release; store it on first visit instead when it is
+  needed.
 
 ## Tests
 

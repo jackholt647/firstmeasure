@@ -6,7 +6,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import http from 'node:http';
-import { readFileSync, mkdirSync } from 'node:fs';
+import { readFileSync, readdirSync, mkdirSync } from 'node:fs';
 import { createRequire } from 'node:module';
 
 const { chromium } = createRequire(new URL('../public/v1/package.json', import.meta.url))('playwright-core');
@@ -696,6 +696,10 @@ test('every string goes through PlatformLanguage in the platform-offline namespa
   const english = Object.fromEntries(Object.entries(source).map(([key, value]) => [key, typeof value === 'string' ? value : value.message]));
   for (const [key, text] of Object.entries(strings)) assert.equal(english[key], text, 'catalog English for ' + key);
   for (const [key, value] of Object.entries(source)) if (/\{/.test(typeof value === 'string' ? value : value.message)) assert.equal(value.format, 'icu', key + ' takes values, so it is an ICU message');
+  // The labels of the contracts (`label: { key, title }`) are in the same namespace: every key a contract names has its English.
+  const contracts = new URL('../public/libraries/platform-offline/contracts/', import.meta.url);
+  const named = new Set(readdirSync(contracts).filter((file) => file.endsWith('.js')).flatMap((file) => [...readFileSync(new URL(file, contracts), 'utf8').matchAll(/'(sync_[a-z0-9_]+)'/g)].map((match) => match[1])));
+  for (const key of named) assert.ok(english[key], 'the catalog source has the contract label ' + key);
 
   // The two reloads in the file are inside click handlers: the tray's "Load the latest" and nothing else.
   const code = readFileSync(UI_FILE, 'utf8');

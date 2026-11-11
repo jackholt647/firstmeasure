@@ -179,6 +179,10 @@ test('the queued photo is in the project\'s photo list and media lists on every 
   eq([save.data.ok, save.data.project_id, save.data.project_revision, save.data.thumbnail_photo_id, save.data.document.id, save.data.document.data.title], [true, 'p1', 4, 'media_a', 'p1', 'Oak St']);
   eq(save.data.document.data.photos.map((photo) => photo.id), ['top_down_thumbnail', 'media_a', 'media_b']);
   eq((await t.entries()).map((entry) => [entry.write, entry.kind, entry.scope, entry.records]), [['media.upload', 'upload', 'project:p1', ['media_b']], ['photos.save', 'patch', 'project:p1', ['media_b']]]);
+  // One photo is one change to a person: the list save is quiet beside its upload.
+  eq((await t.entries()).map((entry) => !!entry.quiet), [false, true]);
+  const told = await t.FM.state.queue({ user: 'user_1', org: 'org_1' });
+  eq([told.pending, told.shown], [2, 1]);
 
   // Every read shows it while it waits.
   const project = await t.json('GET', `${ORG}/projects/p1`);

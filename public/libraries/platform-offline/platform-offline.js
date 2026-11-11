@@ -41,7 +41,7 @@
 
   const current = {
     supported, controlled: false, online: navigator.onLine !== false,
-    pending: 0, failed: 0, conflicts: 0, syncing: false, blocked: null, lastSyncAt: null, savedPage: false,
+    pending: 0, shown: 0, failed: 0, conflicts: 0, syncing: false, blocked: null, lastSyncAt: null, savedPage: false,
     code: { release: null, status: 'none', progress: 0 },
     storage: null
   };
@@ -69,7 +69,7 @@
     if (detail.storage) current.storage = Object.assign({}, detail.storage, { persisted });
     const queue = detail.queue;
     if (queue && queue.user === identity.user && queue.org === identity.org) {
-      Object.assign(current, { pending: queue.pending, failed: queue.failed, conflicts: queue.conflicts, blocked: queue.blocked || null, lastSyncAt: queue.lastSyncAt || null });
+      Object.assign(current, { pending: queue.pending, shown: queue.shown == null ? queue.pending : queue.shown, failed: queue.failed, conflicts: queue.conflicts, blocked: queue.blocked || null, lastSyncAt: queue.lastSyncAt || null });
       records = new Set((queue.records || []).map(String));
     }
     current.online = navigator.onLine !== false && workerOnline;
@@ -313,7 +313,7 @@
   window.PlatformOffline = {
     /** Resolves with state() once the worker knows who is signed in (at once where offline is not available). */
     ready,
-    /** { supported, controlled, online, pending, failed, conflicts, syncing, blocked, lastSyncAt, savedPage, code, storage } */
+    /** { supported, controlled, online, pending, shown, failed, conflicts, syncing, blocked, lastSyncAt, savedPage, code, storage } */
     state: snapshot,
     /** 'state' | 'queued' | 'synced' | 'failed' | 'conflict' | 'discarded' | 'code'. Returns a function that stops listening. */
     on(event, handler) {
@@ -345,7 +345,7 @@
       set(name, value) { settings = Object.assign({}, settings, { [name]: value }); return ask('setting', { name, value }); }
     },
     /** Removes this person's shells and saved reads from the device. Their queued changes stay. */
-    signedOut: () => ask('signedOut'),
+    signedOut: (options) => ask('signedOut', { all: !!(options && options.all) }),
     /**
      * The same removal for someone who stays signed in (device settings): saved reads, media and shells go, queued
      * changes stay, and the page says again who it is so it keeps saving and queueing. Resolves with state().

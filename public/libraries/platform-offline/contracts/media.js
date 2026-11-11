@@ -271,6 +271,17 @@
         kind: 'patch',
         scope: (ctx) => 'project:' + ctx.params.project,
         label: (ctx) => (list(ctx.body.remove).length ? { key: 'sync_project_photos_removed', title: 'Photos removed from the project', detail: '' } : { key: 'sync_project_photos', title: 'Project photos', detail: '' }),
+        // To a person one photo is one change: a save that only adds photos whose uploads wait here is not counted
+        // or listed beside them (it still shows when it is the only thing waiting, fails or conflicts).
+        quiet: async (ctx) => {
+          if (list(ctx.body.remove).length) return false;
+          const saved = await ctx.saved(projectUrl(ctx));
+          const known = new Set(list(obj(documentOf(saved).data).photos).map(photoId));
+          const added = list(ctx.body.photos).filter((photo) => text(obj(photo).media_id)).map(photoId).filter((id) => id && !known.has(id));
+          if (!added.length) return false;
+          for (const id of added) if (!(await ctx.queued(id)).some((entry) => entry.kind === 'upload')) return false;
+          return true;
+        },
         // The photos this save adds or removes: what an app asks about with isPending.
         records: async (ctx) => {
           const saved = await ctx.saved(projectUrl(ctx));
