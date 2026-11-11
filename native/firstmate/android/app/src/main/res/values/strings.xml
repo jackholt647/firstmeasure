@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Text the native host shows by itself. Everything else is the portal's and is translated there.
+     Add a values-<language> copy of this file to translate it. -->
+<resources>
+    <string name="offline_no_connection">No connection yet. Connect once to set this device up for offline use.</string>
+    <string name="offline_unavailable">FirstMate is temporarily unavailable. Please try again.</string>
+    <string name="offline_retry">Retry</string>
+</resources>
