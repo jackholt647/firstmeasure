@@ -686,6 +686,15 @@ delivered with retries, never inline in checkout; the access token is
 `TIKTOK_EVENTS_TEST_EVENT_CODE`. Run `tests/tiktok-events.test.ts` and
 `tests/stripe-credit-fulfillment.test.ts` for changes here.
 
+## Shared PDF runtime
+
+The worker renders report PDFs in headless Chrome (`firstmeasure/pdf_runtime.ts`).
+Chrome closes its DevTools connection, and the browser with it, on any message
+over 100 MB, and a snapshot with many photos is tens of MB. Send large values
+to the page with `sendJsonToPage` and read them back with `readStringFromPage`;
+never pass a snapshot or a PDF as one `page.evaluate` argument or result. Run
+`tests/pdf-runtime-transfer.test.ts` (with `CHROME_PATH`) for changes here.
+
 ## Project window content ownership
 
 Read [project content layout](docs/architecture/project-content-layout.md) before changing project modal tabs or sidebars. The project details tray (`#rDetailsTray`) owns the project-details form and measurements; Overview is just the overview. Other apps own their own content rails. There is no configurable shared modal left region or left-column override API; do not recreate one.
