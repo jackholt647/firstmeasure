@@ -78,6 +78,7 @@ async function site() {
     live: new Set(),                           // paths served with X-FirstMate-Live: 1
     broken: new Set(),                         // paths answered 500
     log: [],
+    loose: {},                                 // this site's files outside the release's set (path -> text), the manifest's `loose`
     api: () => null
   };
   const fixed = {
@@ -89,14 +90,14 @@ async function site() {
     '/libraries/platform-offline/contracts/test.js': Buffer.from(TEST_CONTRACT)
   };
   const type = (path) => (path.endsWith('.js') ? 'text/javascript' : path.endsWith('.css') ? 'text/css' : 'text/plain');
-  const bytesOf = (path) => (path in s.files ? Buffer.from(s.files[path]) : fixed[path]);
+  const bytesOf = (path) => (path in s.files ? Buffer.from(s.files[path]) : path in s.loose ? Buffer.from(s.loose[path]) : fixed[path]);
   const manifest = () => {
     const files = {};
     for (const path of [...Object.keys(fixed).filter((item) => item !== '/portal/sw.js'), ...Object.keys(s.files)]) {
       const bytes = s.listed && path in s.listed ? Buffer.from(s.listed[path]) : bytesOf(path);
       files[path] = [sha(bytes), bytes.length];
     }
-    return { enabled: s.enabled, release: s.release, generated_at: new Date().toISOString(), files, shells: ['/portal/'], external: [] };
+    return { enabled: s.enabled, release: s.release, generated_at: new Date().toISOString(), files, shells: ['/portal/'], external: [], loose: Object.keys(s.loose) };
   };
   const shell = () => `<!doctype html><html><head><meta charset="utf-8"><title>Portal</title>
 <script>window.__APP = { userId: ${JSON.stringify(s.user.id)}, userOrgId: ${JSON.stringify(s.user.org)}, platformSessionCookieName: 'fm_platform_session' };</script>
@@ -735,6 +736,26 @@ test('files a contract declares are kept like pictures; a page names the files o
     assert.deepEqual(kept.map((pin) => [pin.project, pin.media]), [['p1', 2]]);
     await page.evaluate(() => window.PlatformOffline.unpinProject('org_1', 'p1'));
     assert.deepEqual(await page.evaluate(() => window.PlatformOffline.pinned()), []);
+  });
+});
+
+test('loose files, which another release lane ships, are kept as served: the network\'s when there is one, the copy when not', async () => {
+  await withBrowser(async (s, context) => {
+    s.loose = { '/measure/kernel.js': "window.kernel = 'one';", '/measure/never-asked.js': "window.other = 'kept';" };
+    const page = await openPortal(context, s);
+    await check(page);
+    await until(async () => (await state(page)).code.status === 'ready', 'the set is ready');
+    const load = (path) => page.evaluate(async (path) => { try { const response = await fetch(path); return { status: response.status, text: await response.text() }; } catch (error) { return { error: String(error) }; } }, path);
+    assert.deepEqual(await load('/measure/kernel.js?v=1'), { status: 200, text: "window.kernel = 'one';" });
+    // The lane changes its file between two platform releases: with a connection the page gets the new one.
+    s.loose['/measure/kernel.js'] = "window.kernel = 'two';";
+    assert.deepEqual(await load('/measure/kernel.js?v=1'), { status: 200, text: "window.kernel = 'two';" });
+    await until(async () => (await device(page)).caches['fm-ext-v1'].length === 2, 'both loose files are kept, one of them never asked for');
+    s.down = true;
+    assert.deepEqual(await load('/measure/kernel.js?v=2'), { status: 200, text: "window.kernel = 'two';" }, 'matched without the ?v=');
+    assert.deepEqual(await load('/measure/never-asked.js'), { status: 200, text: "window.other = 'kept';" });
+    assert.ok((await load('/measure/unlisted.js')).error, 'a file that is not listed is the browser\'s');
+    s.down = false;
   });
 });
 
