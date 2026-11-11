@@ -29,3 +29,9 @@ FMOffline.contracts.add({
     '/v1/development/**'
   ]
 });
+
+// DEMO ONLY, never committed (offline photos, 2026-11-11): contracts/index.js on the dev live layer belongs to another
+// checkout and does not list the media contract yet, so for the length of the demo it is loaded from here: by the
+// worker directly, and by a page through the list it reads next.
+if (typeof importScripts === 'function') { try { importScripts('/libraries/platform-offline/contracts/media.js'); } catch (error) { console.warn('[offline] media contract not loaded', error); } }
+else if (Array.isArray(self.FM_OFFLINE_CONTRACTS) && !self.FM_OFFLINE_CONTRACTS.includes('media.js')) self.FM_OFFLINE_CONTRACTS.push('media.js');
