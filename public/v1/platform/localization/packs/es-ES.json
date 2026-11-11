@@ -115,7 +115,8 @@
       "message": "{price} (ahorra {saving})",
       "format": "icu"
     },
-    "catalog_load_failed": "No se ha podido cargar la información de facturación. Inténtalo de nuevo."
+    "catalog_load_failed": "No se ha podido cargar la información de facturación. Inténtalo de nuevo.",
+    "full_exterior": "Exterior completo"
   },
   "canvassing": {
     "m_61df468d92e238": "Todos",
@@ -2201,7 +2202,10 @@
       "format": "icu"
     },
     "m_e05fb49213187a": "Grabar",
-    "review_full_structural_report": "Revisar el informe estructural completo"
+    "review_full_structural_report": "Revisar el informe estructural completo",
+    "ext_scope_roof": "Tejado",
+    "ext_full_exterior": "Exterior completo",
+    "ext_full_exterior_info": "Información del informe de exterior completo"
   },
   "help": {
     "m_0db6efc53ab2ed": "¿Necesitas ayuda?",
@@ -2939,7 +2943,16 @@
       "message": "{count, plural, one {# marcador} other {# marcadores}}",
       "format": "icu"
     },
-    "main_pitch_degrees": "Inclinación principal (grados)"
+    "main_pitch_degrees": "Inclinación principal (grados)",
+    "report_kind_roof": "Tejado",
+    "report_kind_roof_and_gutters": "Tejado y canalones",
+    "report_kind_full_exterior": "Exterior completo",
+    "report_kind_ordered": "Pedido",
+    "report_kind_structures": {
+      "message": "{structures, plural, one {# edificio} other {# edificios}}",
+      "format": "icu"
+    },
+    "report_kind_full_exterior_includes": "Incluye tejado, paredes, ventanas, puertas y canalones."
   },
   "money": {
     "m_487adb3f2ba511": "Cargando datos financieros...",
@@ -4081,7 +4094,12 @@
     "audit_35266cd2f21aca": "Realizando pedido",
     "audit_2d31976e9d17e4": "Error al enviar la solicitud.",
     "audit_88430f2c58bbce": "Informe de desarrollo listo",
-    "audit_7cf4af8eebae35": "Los archivos del informe existente ya se pueden consultar."
+    "audit_7cf4af8eebae35": "Los archivos del informe existente ya se pueden consultar.",
+    "full_exterior_report": "Informe de exterior completo",
+    "roof_report_title": "Informe del tejado",
+    "order_full_exterior": "Pedir exterior completo",
+    "this_full_exterior_report": "este informe de exterior completo",
+    "full_exterior_report_ordered": "Informe de exterior completo pedido"
   },
   "project-schedule": {
     "m_88e13d64071885": "Horario bloqueado",
@@ -4639,7 +4657,10 @@
     "audit_5dbc6dff430e8d": "CAMBIOS PENDIENTES",
     "audit_1c4b7f4ada5422": "INFORME CORREGIDO LISTO",
     "audit_843f745c483e81": "INSTANTÁNEO + COMPLETO",
-    "audit_76bf93df451d48": "INFORME LISTO"
+    "audit_76bf93df451d48": "INFORME LISTO",
+    "report_kind_roof": "Tejado",
+    "report_kind_roof_and_gutters": "Tejado y canalones",
+    "report_kind_full_exterior": "Exterior completo"
   },
   "promo-inject": {
     "m_9f35fbe4f31045": {

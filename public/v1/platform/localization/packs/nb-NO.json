@@ -115,7 +115,8 @@
       "message": "{price} (spar {saving})",
       "format": "icu"
     },
-    "catalog_load_failed": "Kunne ikke laste inn betalingsinformasjonen. Prøv igjen."
+    "catalog_load_failed": "Kunne ikke laste inn betalingsinformasjonen. Prøv igjen.",
+    "full_exterior": "Hele utsiden"
   },
   "canvassing": {
     "m_61df468d92e238": "Alle",
@@ -2197,7 +2198,10 @@
     "m_0889f650508793": "OPPTAK",
     "m_1ddd588108e13d": "Hel runde",
     "m_e05fb49213187a": "Spill inn",
-    "review_full_structural_report": "Gjennomgå den komplette bygningstekniske rapporten"
+    "review_full_structural_report": "Gjennomgå den komplette bygningstekniske rapporten",
+    "ext_scope_roof": "Tak",
+    "ext_full_exterior": "Hele utsiden",
+    "ext_full_exterior_info": "Informasjon om rapporten for hele utsiden"
   },
   "help": {
     "m_0db6efc53ab2ed": "Trenger du hjelp?",
@@ -2935,7 +2939,16 @@
       "message": "{count, plural, one {# nål} other {# nåler}}",
       "format": "icu"
     },
-    "main_pitch_degrees": "Hovedvinkel (grader)"
+    "main_pitch_degrees": "Hovedvinkel (grader)",
+    "report_kind_roof": "Tak",
+    "report_kind_roof_and_gutters": "Tak og takrenner",
+    "report_kind_full_exterior": "Hele utsiden",
+    "report_kind_ordered": "Bestilt",
+    "report_kind_structures": {
+      "message": "{structures, plural, one {# bygning} other {# bygninger}}",
+      "format": "icu"
+    },
+    "report_kind_full_exterior_includes": "Tak, vegger, vinduer, dører og takrenner er inkludert."
   },
   "money": {
     "m_487adb3f2ba511": "Laster inn betalinger...",
@@ -4089,7 +4102,12 @@
     "audit_35266cd2f21aca": "Bestiller",
     "audit_2d31976e9d17e4": "Innsendingen mislyktes.",
     "audit_88430f2c58bbce": "Utviklingsrapporten er klar",
-    "audit_7cf4af8eebae35": "Eksisterende rapportfiler er klare til visning."
+    "audit_7cf4af8eebae35": "Eksisterende rapportfiler er klare til visning.",
+    "full_exterior_report": "Rapport for hele utsiden",
+    "roof_report_title": "Takrapport",
+    "order_full_exterior": "Bestill hele utsiden",
+    "this_full_exterior_report": "denne rapporten for hele utsiden",
+    "full_exterior_report_ordered": "Rapport for hele utsiden bestilt"
   },
   "project-schedule": {
     "m_88e13d64071885": "Planlegging låst",
@@ -4647,7 +4665,10 @@
     "audit_5dbc6dff430e8d": "ENDRINGER VENTER",
     "audit_1c4b7f4ada5422": "KORRIGERT RAPPORT KLAR",
     "audit_843f745c483e81": "UMIDDELBAR + KOMPLETT",
-    "audit_76bf93df451d48": "RAPPORT KLAR"
+    "audit_76bf93df451d48": "RAPPORT KLAR",
+    "report_kind_roof": "Tak",
+    "report_kind_roof_and_gutters": "Tak og takrenner",
+    "report_kind_full_exterior": "Hele utsiden"
   },
   "promo-inject": {
     "m_9f35fbe4f31045": {

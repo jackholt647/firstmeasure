@@ -115,7 +115,8 @@
       "message": "{price} (säästä {saving})",
       "format": "icu"
     },
-    "catalog_load_failed": "Laskutustietoja ei voitu ladata. Yritä uudelleen."
+    "catalog_load_failed": "Laskutustietoja ei voitu ladata. Yritä uudelleen.",
+    "full_exterior": "Koko ulkopuoli"
   },
   "canvassing": {
     "m_61df468d92e238": "Kaikki",
@@ -2197,7 +2198,10 @@
     "m_0889f650508793": "REC",
     "m_1ddd588108e13d": "Koko kierros",
     "m_e05fb49213187a": "Tallenna",
-    "review_full_structural_report": "Tarkista koko rakennuksen raportti"
+    "review_full_structural_report": "Tarkista koko rakennuksen raportti",
+    "ext_scope_roof": "Katto",
+    "ext_full_exterior": "Koko ulkopuoli",
+    "ext_full_exterior_info": "Tietoja koko ulkopuolen raportista"
   },
   "help": {
     "m_0db6efc53ab2ed": "Tarvitsetko apua?",
@@ -2931,7 +2935,16 @@
       "message": "{count, plural, one {# karttamerkki} other {# karttamerkkiä}}",
       "format": "icu"
     },
-    "main_pitch_degrees": "Pääkaltevuus (asteina)"
+    "main_pitch_degrees": "Pääkaltevuus (asteina)",
+    "report_kind_roof": "Katto",
+    "report_kind_roof_and_gutters": "Katto ja rännit",
+    "report_kind_full_exterior": "Koko ulkopuoli",
+    "report_kind_ordered": "Tilattu",
+    "report_kind_structures": {
+      "message": "{structures, plural, one {# rakennus} other {# rakennusta}}",
+      "format": "icu"
+    },
+    "report_kind_full_exterior_includes": "Sisältää katon, seinät, ikkunat, ovet ja rännit."
   },
   "money": {
     "m_487adb3f2ba511": "Ladataan taloustietoja...",
@@ -4081,7 +4094,12 @@
     "audit_35266cd2f21aca": "Lähetetään tilausta…",
     "audit_2d31976e9d17e4": "Lähettäminen epäonnistui.",
     "audit_88430f2c58bbce": "Kehitysraportti valmis",
-    "audit_7cf4af8eebae35": "Olemassa olevat raporttitiedostot ovat valmiita katseltaviksi."
+    "audit_7cf4af8eebae35": "Olemassa olevat raporttitiedostot ovat valmiita katseltaviksi.",
+    "full_exterior_report": "Koko ulkopuolen raportti",
+    "roof_report_title": "Kattoraportti",
+    "order_full_exterior": "Tilaa koko ulkopuoli",
+    "this_full_exterior_report": "tämä koko ulkopuolen raportti",
+    "full_exterior_report_ordered": "Koko ulkopuolen raportti tilattu"
   },
   "project-schedule": {
     "m_88e13d64071885": "Aikataulu lukittu",
@@ -4639,7 +4657,10 @@
     "audit_5dbc6dff430e8d": "MUUTOKSIA ODOTTAA",
     "audit_1c4b7f4ada5422": "KORJATTU RAPORTTI VALMIS",
     "audit_843f745c483e81": "PIKA- JA KOKO RAPORTTI",
-    "audit_76bf93df451d48": "RAPORTTI VALMIS"
+    "audit_76bf93df451d48": "RAPORTTI VALMIS",
+    "report_kind_roof": "Katto",
+    "report_kind_roof_and_gutters": "Katto ja rännit",
+    "report_kind_full_exterior": "Koko ulkopuoli"
   },
   "promo-inject": {
     "m_9f35fbe4f31045": {
