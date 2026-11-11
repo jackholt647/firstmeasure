@@ -541,6 +541,8 @@ function start() {
         return { engine: FM.version, state: await fullState({ user, org }), settings: await FM.settings.all(), offline: S.clients[clientId].offline || null };
       }
       case 'state': return fullState(identityOf(clientId));
+      // The reads a page made before this worker could see them (its first load on a device): asked for again and saved.
+      case 'warm': return FM.reads.warm(who(), Array.isArray(message.requests) ? message.requests : []);
       case 'check': {
         const check = checkForUpdate(message.manifest);
         if (message.wait) return check;

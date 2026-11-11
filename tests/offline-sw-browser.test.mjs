@@ -101,6 +101,20 @@ async function site() {
 <script>window.__APP = { userId: ${JSON.stringify(s.user.id)}, userOrgId: ${JSON.stringify(s.user.org)}, platformSessionCookieName: 'fm_platform_session' };</script>
 ${s.early ? `<script>window.__early = fetch('/v1/early').then((r) => r.json().then((json) => ({ json, offline: r.headers.get('X-FM-Offline') }))).catch((error) => ({ error: String(error) }));</script>` : ''}
 <script src="/libraries/platform-offline/platform-offline.js?v=${Math.random().toString(36).slice(2)}"></script>
+${s.first ? `<script>
+  // What a portal page does while it starts: reads with fetch and XMLHttpRequest, a read made with POST, and a change.
+  (function () {
+    const read = (r) => r.json().then((json) => ({ json, offline: r.headers.get('X-FM-Offline') }));
+    const failed = (error) => ({ error: String(error) });
+    const post = (path, body) => fetch(path, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }).then(read, failed);
+    window.__first = Promise.all([
+      fetch('/v1/first').then(read, failed),
+      post('/v1/platform/portal-action', { action: 'list_notes', project_id: 'p9' }),
+      new Promise((resolve) => { const x = new XMLHttpRequest(); x.open('GET', '/v1/first-xhr?b=2&a=1'); x.onload = () => resolve({ json: JSON.parse(x.responseText), offline: x.getResponseHeader('X-FM-Offline') }); x.onerror = () => resolve({ error: 'no answer' }); x.send(); }),
+      post('/v1/first-write', { made: 1 })
+    ]);
+  })();
+</script>` : ''}
 <script src="/libraries/demo/app.js?v=${Math.random().toString(36).slice(2)}"></script>
 </head><body><div id="render">${s.render}</div></body></html>`;
 
@@ -633,6 +647,42 @@ test('the first requests of a page, made before it says who is signed in, are sa
     s.down = true;
     await page.reload();
     assert.deepEqual(await page.evaluate(() => window.__early), { json: { early: 'second' }, offline: 'saved' });
+    s.down = false;
+  });
+});
+
+test('a first visit: what the page read before the worker took charge is on the device after that one load', async () => {
+  await withBrowser(async (s, context) => {
+    s.first = true;
+    const asked = [];
+    s.api = (request) => {
+      asked.push(`${request.method} ${request.path}`);
+      if (request.method === 'GET' && request.path === '/v1/first') return { json: { first: s.render } };
+      if (request.method === 'GET' && request.path === '/v1/first-xhr') return { json: { xhr: true } };
+      if (request.path === '/v1/platform/portal-action') return { json: { success: true, notes: [request.body.project_id + ' note'] } };
+      if (request.path === '/v1/first-write') return { json: { ok: true } };
+      return null;
+    };
+    const page = await openPortal(context, s);
+    assert.deepEqual((await page.evaluate(() => window.__first)).map((answer) => answer.offline), [null, null, null, null], 'the first load itself is the network\'s');
+    // The worker asks for the same reads once it is in charge; the change is never sent a second time.
+    await until(async () => (await device(page)).responses.length === 3, 'the first load\'s reads are saved');
+    assert.deepEqual((await device(page)).responses.map((key) => key[2]), ['GET /v1/first', 'GET /v1/first-xhr?a=1&b=2', 'POST /v1/platform/portal-action actions {"action":"list_notes","project":"p9"}']);
+    assert.equal(asked.filter((line) => line === 'POST /v1/first-write').length, 1);
+    assert.equal(await page.evaluate(() => /\[native code\]/.test(String(window.fetch)) && /\[native code\]/.test(String(XMLHttpRequest.prototype.send))), true, 'the page has its own fetch and XMLHttpRequest back');
+    await check(page);
+    await until(async () => (await state(page)).code.status === 'ready', 'the set is ready');
+    // No second visit with a connection: the next open is without one, and the page starts from the device.
+    const rendered = s.render;
+    s.down = true;
+    await page.reload();
+    const offline = await page.evaluate(() => window.__first);
+    assert.deepEqual(offline.slice(0, 3), [
+      { json: { first: rendered }, offline: 'saved' },
+      { json: { success: true, notes: ['p9 note'] }, offline: 'saved' },
+      { json: { xhr: true }, offline: 'saved' }
+    ]);
+    assert.equal(offline[3].json.error, 'offline_unavailable');
     s.down = false;
   });
 });

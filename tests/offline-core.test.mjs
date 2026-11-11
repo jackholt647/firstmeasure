@@ -934,6 +934,38 @@ test('an entry something else will send (configure external) is never sent by re
 // Identity, budgets, pins
 // ---------------------------------------------------------------------------------------------------------------
 
+test('reads a page made before the worker could see them are asked for again and saved: GETs and declared POST reads only', async () => {
+  const t = engine();
+  t.server.on('GET /v1/boot', () => ({ json: { boot: 1 } }));
+  t.server.on('GET /v1/projects/p1', () => ({ json: { project: { id: 'p1' } } }));
+  t.server.on('GET /v1/platform/auth/session', () => ({ json: { session: 1 } }));
+  t.server.on('POST /v1/platform/portal-action', (request) => ({ json: { success: true, action: request.body.action, project: request.body.project_id, csrf: request.headers['x-platform-csrf'] } }));
+  t.server.on('POST /v1/projects/p1/notes', () => ({ json: { ok: true } }));
+  await t.json('GET', '/v1/projects/p1');                                   // already on the device
+  const mark = t.server.log.length;
+  const result = await t.FM.reads.warm(ME, [
+    { method: 'GET', url: '/v1/boot?b=2&a=1' },
+    { method: 'GET', url: '/v1/boot?a=1&b=2' },                             // the same read
+    { method: 'GET', url: '/v1/projects/p1' },                              // saved already
+    { method: 'GET', url: '/v1/platform/auth/session' },                    // denied
+    { method: 'GET', url: 'https://elsewhere.test/v1/boot' },               // another origin
+    { method: 'POST', url: '/v1/platform/portal-action', body: JSON.stringify({ action: 'list_notes', project_id: 'p1' }), contentType: 'application/json' },
+    { method: 'POST', url: '/v1/platform/portal-action', fields: [['action', 'list_notes'], ['project_id', 'p2']] },
+    { method: 'POST', url: '/v1/platform/portal-action', body: JSON.stringify({ action: 'save_thing' }) },     // a change: never sent
+    { method: 'POST', url: '/v1/projects/p1/notes', body: JSON.stringify({ id: 'n1', text: 'x' }) },           // a change: never sent
+    { method: 'DELETE', url: '/v1/projects/p1' }
+  ]);
+  eq(result.saved, 3);
+  eq(t.server.log.slice(mark).map((entry) => `${entry.method} ${entry.path}${entry.query}`).sort(), ['GET /v1/boot?b=2&a=1', 'POST /v1/platform/portal-action', 'POST /v1/platform/portal-action']);
+  // With no connection the page's own requests are answered from what was saved, under the keys its requests have.
+  t.server.down = true;
+  eq((await t.json('GET', '/v1/boot?a=1&b=2')).data, { boot: 1 });
+  const first = await t.json('POST', '/v1/platform/portal-action', { json: { action: 'list_notes', project_id: 'p1' } });
+  eq([first.response.headers.get('x-fm-offline'), first.data.project, first.data.csrf], ['saved', 'p1', 'csrf-1']);
+  const second = await t.json('POST', '/v1/platform/portal-action', { body: new URLSearchParams({ action: 'list_notes', project_id: 'p2' }), headers: { 'Content-Type': 'application/x-www-form-urlencoded' } });
+  eq([second.response.headers.get('x-fm-offline'), second.data.action === undefined], ['saved', true], 'the form read is answered under its own key (the scripted server does not parse forms)');
+});
+
 test('sign-out removes a person\'s saved reads and keeps their queued changes', async () => {
   const t = engine();
   const other = { user: 'user_2', org: 'org_1' };
