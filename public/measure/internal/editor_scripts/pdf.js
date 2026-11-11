@@ -9,6 +9,8 @@ function pdfMaterialKind(unit) { return ({SQ:'sq',SF:'sf',LF:'ft',FT:'ft',GAL:'g
 function pdfMaterialUnit(unit) { const kind=pdfMaterialKind(unit); return kind ? pdfUnit(kind,unit) : unit; }
 function pdfMaterialAmount(n,unit,legacy) { const kind=pdfMaterialKind(unit); return kind ? pdfMeasure(n,kind,legacy,false) : legacy; }
 function pdfLabel(text, values = {}) { return window.ReportUnits?.current().label(text, values) ?? text.replace(/\{(\w+)\}/g, (all, key) => Object.hasOwn(values, key) ? String(values[key]) : all); }
+// A line type's name in the report language. Look the name up itself: passed as a {value} it stays English (FM-390).
+function pdfLineTypeLabel(typeId) { return pdfLabel(formatLineType(typeId)); }
 
 /* pdf.js - Complete PDF Generation Logic & Helpers (DROP-IN REPLACEMENT)
    - Uses a single "Roof Diagram (Labels & Pitch)" page.
@@ -2406,10 +2408,9 @@ async function generatePDFFromState(state, mode = 'full', updateStatusCallback, 
         } else Object.keys(state.report.materials.linear || {}).forEach(key => {
             if (key.toLowerCase() === 'unknown' || key.toLowerCase() === 'skylight back' || key.toLowerCase() === 'skylight sides') return;
             if (yCursor > box2Y + coverBoxH - 5) return;
-            const label = formatLineType(key);
             const val = Math.round(state.report.materials.linear[key]);
 
-            doc.text(pdfLabel("{value1}:", {value1: label}), box2X + pad, yCursor);
+            doc.text(pdfLineTypeLabel(key) + ':', box2X + pad, yCursor);
             doc.text(pdfLabel("{value1}", {value1: pdfMeasure(state.report.materials.linear[key], 'ft', `${val}'`)}), box2X + boxWidth - pad, yCursor, { align: 'right' });
 
             yCursor += 5;
@@ -2693,7 +2694,7 @@ async function generatePDFFromState(state, mode = 'full', updateStatusCallback, 
                 layerTotals[item.type] += item.length;
             });
             const layerFlowTypes = Object.keys(layerTotals).filter(type => !['unknown', 'skylight', 'chimney_edge', 'chimney_back', 'chimney_front'].includes(type));
-            const layerFlowLabel = (type) => `${formatLineType(type)}: ${pdfMeasure(layerTotals[type], 'ft', `${Math.round(layerTotals[type])}'`)}`;
+            const layerFlowLabel = (type) => `${pdfLineTypeLabel(type)}: ${pdfMeasure(layerTotals[type], 'ft', `${Math.round(layerTotals[type])}'`)}`;
             const detailsX = landscape ? sideX : marginLeft, detailsW = landscape ? sideW : availableW;
             // Landscape: the layer drawing fills the left. The details box is as tall as its contents
             // (the totals one per line, then the line lengths in as many rows as they wrap to) and the
