@@ -301,3 +301,145 @@ test('a pinned project downloads its photo list and the thumbnail its grid shows
     `${ORG}/media/media_owned/file?variant=original`, `${ORG}/media/media_small/file?variant=original`
   ]);
 });
+
+// ---------------------------------------------------------------------------------------------------------------
+// Renaming and tagging (PATCH .../media/:id)
+// ---------------------------------------------------------------------------------------------------------------
+
+const mediaItem = (id, extra = {}) => ({ id, organization_id: 'org_1', owner: { type: 'project', id: 'p1', slot: 'photos' }, kind: 'image', content_type: 'image/jpeg', file_name: 'IMG_0001.jpg', variants: { original: { file_name: 'IMG_0001.jpg' }, thumb_320: { file_name: 'thumb_320.webp' } }, metadata: { project_id: 'p1' }, updated_at: '2026-11-10T10:00:00.000Z', ...extra });
+
+/** A scripted media library that renames and tags the way the route does. */
+function library(t, items) {
+  const state = { items };
+  const find = (request) => state.items.find((item) => request.path.endsWith('/' + item.id));
+  t.server.on(`GET ${ORG}/media`, () => ({ json: { ok: true, media: state.items } }));
+  t.server.on('GET /v1/channels/organizations/org_1/feed/catalog', () => ({ json: { ok: true, media: state.items, unassigned_media: [] } }));
+  t.server.on(`GET ${ORG}/media/`, (request) => { const item = find(request); return item ? { json: { ok: true, media: item } } : { status: 404, json: { ok: false, error: 'not_found' } }; });
+  t.server.on(`PATCH ${ORG}/media/`, (request) => {
+    const item = find(request);
+    if (!item) return { status: 404, json: { ok: false, error: 'not_found' } };
+    if (request.body.name !== undefined) Object.assign(item, { label: request.body.name, file_name: request.body.name + '.jpg' });
+    if (request.body.tags !== undefined) Object.assign(item, { tags: request.body.tags, metadata: { ...item.metadata, tags: request.body.tags } });
+    item.updated_at = '2026-11-11T16:00:00.000Z';
+    return { json: { ok: true, media: item } };
+  });
+  return state;
+}
+
+test('renaming and tagging a photo without a connection shows in every list at once, and the two edits do not conflict with each other', async () => {
+  const t = engine();
+  const lib = library(t, [mediaItem('media_aaaa1111'), mediaItem('media_bbbb2222', { file_name: 'IMG_0002.jpg' })]);
+  // With a connection the request reaches the server as sent.
+  const online = await t.json('PATCH', `${ORG}/media/media_bbbb2222`, { json: { tags: ['gutter'] } });
+  eq([online.queued, online.data.media.tags, t.server.sent('PATCH').at(-1).body], [null, ['gutter'], { tags: ['gutter'] }]);
+  for (const path of [`${ORG}/media`, `${ORG}/media?project_id=p1`, '/v1/channels/organizations/org_1/feed/catalog']) await t.json('GET', path);
+
+  t.server.down = true;
+  const renamed = await t.json('PATCH', `${ORG}/media/media_aaaa1111`, { json: { name: 'Front: elevation' } });
+  assert.match(renamed.queued, /^fmo1-/);
+  // The route's answer: the name it keeps, the file name with the old extension, each variant renamed with its own.
+  eq([renamed.data.ok, renamed.data.media.label, renamed.data.media.file_name, renamed.data.media.metadata.label, renamed.data.media.variants.original.file_name, renamed.data.media.variants.thumb_320.file_name, renamed.data.media.updated_at],
+    [true, 'Front- elevation', 'Front- elevation.jpg', 'Front- elevation', 'Front- elevation.jpg', 'Front- elevation.webp', '2026-11-11T15:00:00.000Z']);
+  const tagged = await t.json('PATCH', `${ORG}/media/media_aaaa1111`, { json: { tags: ['#Damage', 'north side', 'damage'] } });
+  eq([tagged.data.media.tags, tagged.data.media.metadata.tags, tagged.data.media.label], [['damage', 'north_side'], ['damage', 'north_side'], 'Front- elevation'], 'the second edit starts from the first');
+  eq((await t.entries()).map((entry) => [entry.write, entry.kind, entry.scope, entry.records, entry.label.key, entry.label.detail, entry.after]), [
+    ['media.update', 'patch', 'media:media_aaaa1111', ['media_aaaa1111'], 'sync_photo_renamed', 'Front- elevation', []],
+    ['media.update', 'patch', 'media:media_aaaa1111', ['media_aaaa1111'], 'sync_photo_tagged', '#damage #north_side', []]
+  ]);
+  // Every list that shows the photo, on any later load.
+  for (const path of [`${ORG}/media`, `${ORG}/media?project_id=p1`]) {
+    const shown = (await t.json('GET', path)).data.media.map((item) => [item.id, item.label || '', item.tags || []]);
+    eq(shown, [['media_aaaa1111', 'Front- elevation', ['damage', 'north_side']], ['media_bbbb2222', '', ['gutter']]], path);
+  }
+  eq((await t.json('GET', '/v1/channels/organizations/org_1/feed/catalog')).data.media[0].label, 'Front- elevation');
+  // An empty name, or a body with neither, is not a change this contract knows.
+  eq((await t.json('PATCH', `${ORG}/media/media_aaaa1111`, { json: { name: '  ' } })).data.error, 'offline_unavailable');
+
+  // Sent one after the other; each sends only its own field.
+  t.server.down = false;
+  eq((await t.FM.replay.run()).sent, 2);
+  eq(t.server.sent('PATCH').slice(1).map((request) => request.body), [{ name: 'Front- elevation' }, { tags: ['damage', 'north_side'] }]);
+  eq(t.of('conflict'), []);
+  eq([lib.items[0].label, lib.items[0].tags], ['Front- elevation', ['damage', 'north_side']]);
+  eq(await t.entries(), []);
+});
+
+test('an edit the server also changed is merged per field and per tag; only the same name changed on both sides asks', async () => {
+  const t = engine();
+  const lib = library(t, [mediaItem('media_aaaa1111', { tags: ['roof'], metadata: { project_id: 'p1', tags: ['roof'] } })]);
+  await t.json('GET', `${ORG}/media`);
+  t.server.down = true;
+  await t.json('PATCH', `${ORG}/media/media_aaaa1111`, { json: { tags: ['roof', 'damage'] } });
+  // Meanwhile the office renamed it and added a tag of its own.
+  Object.assign(lib.items[0], { label: 'Ridge', file_name: 'Ridge.jpg', tags: ['roof', 'ridge'] });
+  t.server.down = false;
+  eq((await t.FM.replay.run()).sent, 1);
+  eq(t.server.sent('PATCH').at(-1).body, { tags: ['roof', 'ridge', 'damage'] }, 'both tags are kept, and the name is not sent');
+  eq(lib.items[0].label, 'Ridge');
+
+  // A tag taken off here while the office added another: the removal and the addition both hold.
+  await t.json('GET', `${ORG}/media`);
+  t.server.down = true;
+  await t.json('PATCH', `${ORG}/media/media_aaaa1111`, { json: { tags: ['ridge', 'damage'] } });
+  lib.items[0].tags = ['roof', 'ridge', 'damage', 'chimney'];
+  t.server.down = false;
+  await t.FM.replay.run();
+  eq(t.server.sent('PATCH').at(-1).body, { tags: ['ridge', 'damage', 'chimney'] });
+
+  // The first answer was lost: sent again, the server already has it and nothing is sent.
+  await t.json('GET', `${ORG}/media`);
+  t.server.down = true;
+  await t.json('PATCH', `${ORG}/media/media_aaaa1111`, { json: { tags: ['ridge', 'damage', 'chimney'] } });
+  t.server.down = false;
+  const before = t.server.sent('PATCH').length;
+  eq((await t.FM.replay.run()).sent, 1);
+  assert.equal(t.server.sent('PATCH').length, before);
+
+  // The same field on both sides: the name asks, and the person's choice is sent.
+  await t.json('GET', `${ORG}/media`);
+  t.server.down = true;
+  await t.json('PATCH', `${ORG}/media/media_aaaa1111`, { json: { name: 'Ridge cap' } });
+  Object.assign(lib.items[0], { label: 'Ridge vent', file_name: 'Ridge vent.jpg' });
+  t.server.down = false;
+  await t.FM.replay.run();
+  const [entry] = await t.entries();
+  eq([entry.state, entry.conflict.fields.map((field) => [field.path, field.base, field.mine, field.theirs])], ['conflict', [['name', 'Ridge', 'Ridge cap', 'Ridge vent']]]);
+  await t.FM.queue.resolve(entry.id, { name: 'mine' });
+  await t.FM.replay.run();
+  eq([t.server.sent('PATCH').at(-1).body, await t.entries()], [{ name: 'Ridge cap' }, []]);
+});
+
+test('a photo that still waits to upload is renamed and tagged on the device, and the edits are sent after its upload', async () => {
+  const t = engine();
+  const lib = library(t, []);
+  t.server.on(`GET ${ORG}/projects/p1`, () => ({ json: projectDocument([]) }));
+  for (const path of [`${ORG}/media`, `${ORG}/projects/p1`]) await t.json('GET', path);
+  t.server.down = true;
+  await t.json('POST', `${ORG}/media`, { body: photoForm('media_00112233aabbccdd') });
+  await t.json('POST', `${ORG}/projects/p1/photos`, { json: { photos: [ref('media_00112233aabbccdd')], remove: [] } });
+  // The record's own read is answered from the waiting upload.
+  const own = await t.json('GET', `${ORG}/media/media_00112233aabbccdd`);
+  eq([own.response.headers.get('x-fm-offline'), own.data.media.file_name], ['queued', 'Roof-front.jpg']);
+  const renamed = await t.json('PATCH', `${ORG}/media/media_00112233aabbccdd`, { json: { name: 'Front elevation' } });
+  eq([renamed.data.media.label, renamed.data.media.file_name, renamed.data.media.owner, renamed.data.media.metadata.taken_at], ['Front elevation', 'Front elevation.jpg', { type: 'project', id: 'p1', slot: 'photos' }, '2026-11-11T14:58:00.000Z']);
+  await t.json('PATCH', `${ORG}/media/media_00112233aabbccdd`, { json: { tags: ['damage'] } });
+  const [upload, , rename, tag] = await t.entries();
+  eq([rename.scope, rename.after, tag.after], ['media:media_00112233aabbccdd', [upload.id], [upload.id]], 'held behind the upload, which is in the scope of its project');
+  eq((await t.json('GET', `${ORG}/media`)).data.media.map((item) => [item.id, item.label, item.tags]), [['media_00112233aabbccdd', 'Front elevation', ['damage']]]);
+  eq((await t.json('GET', `${ORG}/media/media_00112233aabbccdd`)).data.media.label, 'Front elevation');
+
+  // With a connection again but the upload still waiting, a further edit is queued behind it, not sent ahead.
+  t.server.down = false;
+  t.server.on(`POST ${ORG}/media`, (request) => { lib.items.push(mediaItem(request.body.id, { file_name: 'Roof-front.jpg' })); return { status: 201, json: { ok: true, media: lib.items.at(-1) } }; });
+  t.server.on(`POST ${ORG}/projects/p1/photos`, (request) => ({ json: { ok: true, project_id: 'p1', photos: request.body.photos } }));
+  const mark = t.server.log.length;
+  const again = await t.json('PATCH', `${ORG}/media/media_00112233aabbccdd`, { json: { tags: ['damage', 'front'] } });
+  assert.match(again.queued, /^fmo1-/);
+  eq(t.server.log.slice(mark).filter((request) => request.method === 'PATCH'), []);
+
+  await t.FM.replay.run();
+  const order = t.server.log.slice(mark).filter((request) => request.method !== 'GET').map((request) => `${request.method} ${request.path.replace(ORG, '')}`);
+  eq(order.indexOf('POST /media') < order.indexOf('PATCH /media/media_00112233aabbccdd'), true, order.join(', '));
+  eq(t.server.sent('PATCH').map((request) => request.body), [{ name: 'Front elevation' }, { tags: ['damage'] }, { tags: ['damage', 'front'] }]);
+  eq([lib.items[0].label, lib.items[0].tags, await t.entries()], ['Front elevation', ['damage', 'front'], []]);
+});

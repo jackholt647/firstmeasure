@@ -1206,3 +1206,43 @@ test('a patch\'s effects can merge over a newer answer with the record as it was
   items = [{ id: 'a', n: 1 }, { id: 'b', n: 1 }, { id: 'c', n: 9 }];
   eq((await t.json('GET', '/v1/lists/l1')).data.list.items, [{ id: 'a', n: 2 }, { id: 'b', n: 1 }, { id: 'c', n: 9 }]);
 });
+
+test('a patch of a record the device only knows from a list takes its base from the contract (conflict.base)', async () => {
+  const t = engine();
+  t.FM.contracts.add({
+    id: 'things',
+    writes: [{
+      id: 'thing.patch', match: 'PATCH /v1/things/:id', kind: 'patch', scope: (ctx) => `thing:${ctx.params.id}`, records: (ctx) => [ctx.params.id],
+      label: () => ({ title: 'Thing' }),
+      respond: (ctx) => ({ ok: true, thing: { id: ctx.params.id, ...ctx.body } }),
+      conflict: {
+        current: (ctx) => `/v1/things/${ctx.params.id}`,
+        pick: (json) => ({ doc: json.thing, revision: json.thing.revision }),
+        // The thing's own read was never made: the list that showed it has it.
+        base: async (ctx) => { const thing = ((await ctx.saved('/v1/things')) || { things: [] }).things.find((item) => item.id === ctx.params.id); return thing ? { doc: thing, revision: thing.revision } : null; },
+        send: (ctx, merged) => merged
+      }
+    }]
+  });
+  let thing = { id: 't1', revision: 1, name: 'One', colour: 'red' };
+  t.server.on('GET /v1/things', () => ({ json: { things: [thing] } }));
+  t.server.on('GET /v1/things/t1', () => ({ json: { thing } }));
+  t.server.on('PATCH /v1/things/t1', (request) => { thing = { ...thing, ...request.body }; return { json: { ok: true, thing } }; });
+  await t.json('GET', '/v1/things');
+  t.server.down = true;
+  await t.json('PATCH', '/v1/things/t1', { json: { name: 'Uno' } });
+  await t.json('PATCH', '/v1/things/t2', { json: { name: 'Dos' } });
+  eq((await t.entries()).map((entry) => entry.base), [{ doc: { id: 't1', revision: 1, name: 'One', colour: 'red' }, revision: 1 }, null], 'a record no list has keeps no base');
+  // The server changed another field and then the same one: the first merges, the second asks.
+  thing = { ...thing, revision: 2, colour: 'blue' };
+  t.server.down = false;
+  await t.FM.replay.run();
+  eq([t.server.sent('PATCH /v1/things/t1').at(-1).body, thing.colour], [{ name: 'Uno' }, 'blue']);
+  await t.json('GET', '/v1/things');
+  t.server.down = true;
+  await t.json('PATCH', '/v1/things/t1', { json: { name: 'Eins' } });
+  thing = { ...thing, name: 'Un' };
+  t.server.down = false;
+  await t.FM.replay.run();
+  eq((await t.entries()).filter((entry) => entry.state === 'conflict').map((entry) => entry.conflict.fields.map((field) => [field.path, field.base, field.mine, field.theirs])), [[['name', 'Uno', 'Eins', 'Un']]]);
+});

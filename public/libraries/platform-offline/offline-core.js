@@ -960,6 +960,8 @@
       if (write.kind === 'patch' && write.conflict) {
         const saved = await ctx.saved(await write.conflict.current(ctx));
         if (saved) { const picked = await write.conflict.pick(saved, ctx); if (picked && picked.doc) base = { doc: picked.doc, revision: picked.revision === undefined ? null : picked.revision }; }
+        // A record the device only knows from lists (a photo) has no saved read of its own: the contract finds it.
+        if (!base && typeof write.conflict.base === 'function') { const picked = await write.conflict.base(ctx); if (picked && picked.doc) base = { doc: picked.doc, revision: picked.revision === undefined ? null : picked.revision }; }
       }
       entry = {
         id: ctx.id, key: ctx.id, keyBody: null, seq: nextSeq(), user: identity.user, org: identity.org,

@@ -219,6 +219,91 @@
     ];
   }
 
+  // ---------------------------------------------------------------------------------------------------------
+  // Renaming and tagging
+  // ---------------------------------------------------------------------------------------------------------
+
+  const CATALOG = '/v1/channels/organizations/:org/feed/catalog';
+  /** The server's tag rule (platform/storage.ts: normalizeMediaTags). */
+  const cleanTags = (value) => [...new Set((Array.isArray(value) ? value : String(value == null ? '' : value).split(','))
+    .map((tag) => String(tag == null ? '' : tag).trim().replace(/^#+/, '').toLowerCase().replace(/\s+/g, '_').replace(/[^a-z0-9_-]/g, '').replace(/^[_-]+|[_-]+$/g, '').slice(0, 64)).filter(Boolean))].slice(0, 50);
+  /** The name the server keeps for a requested one (platform/storage.ts: renameMedia). */
+  const cleanLabel = (value) => String(value == null ? '' : value).replace(/[\r\n\t]+/g, ' ').replace(/[\\/:*?"<>|]+/g, '-').replace(/\.{2,}/g, '.').replace(/^[.\-\s]+/, '').trim().slice(0, 160);
+  const has = (body, key) => Object.prototype.hasOwnProperty.call(obj(body), key);
+  const nameKey = (body) => ['name', 'file_name', 'label'].find((key) => has(body, key));
+  const tagsOf = (media) => cleanTags(list(obj(media).tags).length ? media.tags : obj(obj(media).metadata).tags);
+  /** A photo's name as people see it: what it was renamed to, else its file name. */
+  const nameOf = (media) => text(obj(media).label || obj(obj(media).metadata).label || obj(media).file_name);
+  // Tags are kept as a set while two copies are merged, so a tag added here and another added in the office both stay.
+  const tagSet = (tags) => Object.fromEntries(cleanTags(tags).map((tag) => [tag, true]));
+  const mergeDoc = (media) => ({ name: nameOf(media), tags: tagSet(tagsOf(media)) });
+
+  /** What the rename and tag route leaves of a record (platform/storage.ts: renameMedia, updateMediaTags). */
+  function editedRecord(media, change, now) {
+    let next = Object.assign({}, media);
+    if (change.name !== undefined) {
+      const requested = cleanLabel(change.name);
+      const previous = text(media.file_name);
+      const ext = (/\.([a-z0-9]{1,8})$/i.exec(previous) || [])[1] || '';
+      const fileName = ext && !new RegExp('\\.' + ext + '$', 'i').test(requested) ? requested + '.' + ext : requested;
+      const stem = fileName.replace(/\.[a-z0-9]{1,8}$/i, '') || requested;
+      const variants = {};
+      for (const [key, value] of Object.entries(obj(media.variants))) {
+        const entry = obj(value);
+        const own = (/\.([a-z0-9]{1,8})$/i.exec(text(entry.file_name)) || [])[1] || ext;
+        variants[key] = text(entry.file_name) ? Object.assign({}, entry, { file_name: own ? stem + '.' + own : stem }) : value;
+      }
+      next = Object.assign(next, { file_name: fileName, label: requested, variants, metadata: Object.assign({}, obj(next.metadata), { file_name: fileName, label: requested }) });
+      if (Array.isArray(media.renditions)) next.renditions = media.renditions.map((item) => (variants[obj(item).variant] ? Object.assign({}, item, { file_name: variants[item.variant].file_name }) : item));
+    }
+    if (change.tags !== undefined) {
+      const tags = cleanTags(change.tags);
+      next = Object.assign(next, { tags, metadata: Object.assign({}, obj(next.metadata), { tags }) });
+    }
+    next.updated_at = now;
+    return next;
+  }
+
+  /** The change a rename or tag request makes: { name?, tags? }. */
+  function editOf(ctx) {
+    const body = obj(ctx.body);
+    const key = nameKey(body);
+    const change = {};
+    if (key && cleanLabel(body[key])) change.name = cleanLabel(body[key]);
+    if (has(body, 'tags')) change.tags = cleanTags(body.tags);
+    return change;
+  }
+
+  /**
+   * A media record as this device knows it, with the changes queued before this one: its own read, else the
+   * lists that show it (a photo is mostly known from a project's media list or the Feed's catalog).
+   */
+  async function knownMedia(ctx, id) {
+    const own = obj(obj(await ctx.saved(path(ctx.org, '/media/' + encodeURIComponent(id)))).media);
+    if (text(own.id) === id) return own;
+    for (const read of await ctx.find('GET ' + ORG + '/media')) {
+      const found = list(obj(read.json).media).find((item) => text(obj(item).id) === id);
+      if (found) return found;
+    }
+    const catalog = obj(await ctx.saved('/v1/channels/organizations/' + encodeURIComponent(ctx.org) + '/feed/catalog'));
+    return list(catalog.media).concat(list(catalog.unassigned_media)).find((item) => text(obj(item).id) === id) || null;
+  }
+
+  /** `change(record)` on that record wherever a read lists it. */
+  function mediaRecordEffects(org, id, change) {
+    const inList = (items) => items.map((item) => (text(obj(item).id) === id ? change(obj(item)) : item));
+    return [
+      { match: 'GET ' + ORG + '/media/:media', when: (m) => m.org === org && m.media === id, apply: (json) => (text(obj(obj(json).media).id) === id ? Object.assign({}, json, { media: change(json.media) }) : json) },
+      { match: 'GET ' + ORG + '/media', when: (m) => m.org === org, apply: (json) => (Array.isArray(obj(json).media) ? Object.assign({}, json, { media: inList(json.media) }) : json) },
+      { match: 'GET ' + CATALOG, when: (m) => m.org === org, apply: (json) => {
+        const catalog = obj(json);
+        const next = Object.assign({}, json);
+        for (const key of ['media', 'unassigned_media']) if (Array.isArray(catalog[key])) next[key] = inList(catalog[key]);
+        return next;
+      } }
+    ];
+  }
+
   FMOffline.contracts.add({
     id: 'media',
 
@@ -251,6 +336,8 @@
           const record = obj(obj(ctx.response).media);
           if (!record.id) return [];
           return [
+            // The record's own read, which the server cannot answer yet: what a rename or a tag made meanwhile starts from.
+            { match: 'GET ' + ORG + '/media/:media', when: (m) => m.org === ctx.org && m.media === record.id, seed: () => ({ ok: true, media: record }) },
             { match: 'GET ' + ORG + '/media', when: (m, read) => m.org === ctx.org && listShows(read, record), apply: (json) => (Array.isArray(obj(json).media) ? Object.assign({}, json, { media: upsertById(json.media, record) }) : json) },
             // The Photos Feed reads one catalog: project media in `media`, photos with no project in `unassigned_media`.
             { match: 'GET /v1/channels/organizations/:org/feed/catalog', when: (m) => m.org === ctx.org, apply: (json) => {
@@ -309,6 +396,36 @@
           mine: (ctx, base) => ({ photos: withIds(applyList(base ? base.photos : [], ctx.body.photos, ctx.body.remove)) }),
           // The merged list, and of the photos this change removed only those the merge agreed to drop.
           send: (ctx, merged) => { const kept = new Set(list(merged.photos).map(photoId)); return { photos: list(merged.photos), remove: list(ctx.body.remove).map(text).filter((id) => id && !kept.has(id)) }; }
+        }
+      },
+
+      {
+        id: 'media.update',
+        match: 'PATCH ' + ORG + '/media/:media',
+        when: (ctx) => { const change = editOf(ctx); return change.name !== undefined || change.tags !== undefined; },
+        // A `patch`: the route replaces the whole name or tag list and has no revision, so when it is sent the name
+        // and each tag are merged with the record as the server has it then.
+        kind: 'patch',
+        // One photo's edits in order. A photo whose upload still waits is named in the URL, so the engine sends
+        // this after that upload (`after`), whatever scope the upload is in.
+        scope: (ctx) => 'media:' + ctx.params.media,
+        label: (ctx) => {
+          const change = editOf(ctx);
+          return change.name !== undefined ? FMOffline.label('sync_photo_renamed', 'Photo renamed', change.name) : FMOffline.label('sync_photo_tagged', 'Photo tags', change.tags.map((tag) => '#' + tag).join(' '));
+        },
+        records: (ctx) => [ctx.params.media],
+        // The whole record with the change, as the route answers. A record this device never read is answered
+        // with what the change itself says (the apps read the name and the tags from it).
+        respond: async (ctx) => ({ ok: true, media: editedRecord((await knownMedia(ctx, ctx.params.media)) || { id: ctx.params.media, organization_id: ctx.org, metadata: {} }, editOf(ctx), iso(ctx.now)) }),
+        effects: (ctx) => { const change = editOf(ctx); const now = iso(ctx.now); return mediaRecordEffects(ctx.org, ctx.params.media, (record) => editedRecord(record, change, now)); },
+        conflict: {
+          current: (ctx) => path(ctx.org, '/media/' + encodeURIComponent(ctx.params.media)),
+          pick: (json) => { const media = obj(obj(json).media); return { doc: mergeDoc(media), revision: text(media.updated_at) }; },
+          // The record as the lists show it, where its own read was never saved.
+          base: async (ctx) => { const media = await knownMedia(ctx, ctx.params.media); return media ? { doc: mergeDoc(media), revision: text(media.updated_at) } : null; },
+          fields: (ctx) => Object.keys(editOf(ctx)),
+          mine: (ctx, base) => { const change = editOf(ctx); return Object.assign({}, base || {}, change.name !== undefined ? { name: change.name } : {}, change.tags !== undefined ? { tags: tagSet(change.tags) } : {}); },
+          send: (ctx, merged) => Object.assign({}, merged.name != null ? { name: merged.name } : {}, merged.tags != null ? { tags: Object.keys(obj(merged.tags)) } : {})
         }
       },
 
