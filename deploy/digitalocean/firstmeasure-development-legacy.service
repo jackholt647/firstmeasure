@@ -20,6 +20,8 @@ Environment=CLUSTER_NODE_ROLE=legacy
 Environment=FIRSTMEASURE_PROCESS_ROLE=web
 Environment=FIRSTMEASURE_JOB_WORKERS=0
 ExecStart=/usr/bin/env V1_HOST=0.0.0.0 V1_PORT=3201 V1_WEB_WORKERS=1 CLUSTER_NODE_ROLE=legacy FIRSTMEASURE_PROCESS_ROLE=web FIRSTMEASURE_JOB_WORKERS=0 /usr/bin/node --experimental-sqlite dist/src/server.js
+# SIGHUP: the cluster primary replaces its workers one at a time from `current` (FM-389).
+ExecReload=/bin/kill -HUP $MAINPID
 Restart=always
 RestartSec=3
 TimeoutStopSec=45

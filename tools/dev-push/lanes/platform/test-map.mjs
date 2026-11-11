@@ -37,7 +37,9 @@ export const AREAS = [
   [[`${V1}session-replay/`, `${LIB}session-replay/`], ["v1:tests/session-replay.test.ts", "v1:tests/session-replay-archive.test.ts", "v1:tests/session-replay-agent-access.test.ts"]],
   [[`${V1}platform/localization/`, `${LIB}platform-language/`], ["v1:cmd:localization-check"]],
   [[/^public\/portal\/.*\.php$/], ["root:tests/portal-tracking-pixels.test.mjs"]],
-  [[`${V1}firstmeasure/pdf_runtime.ts`], ["v1:tests/pdf-runtime-transfer.test.ts"]]
+  [[`${V1}firstmeasure/pdf_runtime.ts`], ["v1:tests/pdf-runtime-transfer.test.ts"]],
+  [[`${V1}src/server.ts`, `${V1}src/worker_warmup.ts`, `${V1}tests/helpers/server-cluster-fixture.mjs`], ["v1:tests/server-cluster-drain.test.mjs", "v1:tests/server-rolling-replace.test.mjs"]],
+  [["deploy/digitalocean/activate-release.sh"], ["root:tests/release-legacy-rolling-activation.test.mjs"]]
 ];
 
 /**
