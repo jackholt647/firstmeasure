@@ -574,6 +574,8 @@ function start() {
         await sweepClients();
         // A page of this person just loaded, so they are signed in: lift a sign-in pause and send what was parked.
         await FM.queue.resume({ user, org });
+        // What the contracts list under `startup` (the channel list and its newest messages): downloaded in the background.
+        if (self.navigator.onLine !== false) event.waitUntil(FM.startup.run({ user, org }).catch(() => null));
         return { engine: FM.version, state: await fullState({ user, org }), settings: await FM.settings.all(), offline: S.clients[clientId].offline || null };
       }
       case 'state': return fullState(identityOf(clientId));
@@ -596,7 +598,7 @@ function start() {
       case 'unpin': return FM.pins.unpin({ user: who().user, org: String(message.org || who().org) }, String(message.project));
       case 'pinFiles': return FM.pins.files({ user: who().user, org: String(message.org || who().org) }, String(message.project), Array.isArray(message.urls) ? message.urls.slice(0, 40) : []);
       case 'pinned': return FM.pins.list(who());
-      case 'refreshPins': return FM.pins.refresh(who());
+      case 'refreshPins': return FM.pins.refresh(who()).then(() => FM.startup.run(who()).catch(() => null));
       case 'settings': return FM.settings.all();
       case 'setting': return FM.settings.set(String(message.name), message.value);
       case 'signedOut': return message.all ? signOutEveryone() : signOut(identityOf(clientId) || S.identity);

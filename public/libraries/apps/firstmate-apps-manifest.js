@@ -95,7 +95,7 @@
         { id: 'tiles', label: (globalThis.PlatformLanguage?.text("firstmate-apps-manifest","subview_projects_tiles","Tiles") ?? "Tiles"), icon: 'fa-grip', route: { projectView: 'tiles' } },
         { id: 'map', label: (globalThis.PlatformLanguage?.text("firstmate-apps-manifest","subview_projects_map","Map") ?? "Map"), icon: 'fa-map-location-dot', route: { projectView: 'map' }, requires: { appFlags: [['apps', 'project_map']] } }
       ],
-      bundles: [versionedBundle('partners/shared-list.js','20261001-sharing-polish-v1'), versionedBundle('projects/map-view.js', '20261103-map-cover'), versionedBundle('projects/viewer.js', '20261111-fm374-real-projects')]
+      bundles: [versionedBundle('partners/shared-list.js','20261001-sharing-polish-v1'), versionedBundle('projects/map-view.js', '20261111-fm392-no-location-card'), versionedBundle('projects/viewer.js', '20261111-fm374-real-projects')]
     },
     {
       id: 'portal.crm',

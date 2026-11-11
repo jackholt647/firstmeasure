@@ -44,6 +44,8 @@
     rereadLimit: 25,
     namedIdMinLength: 8,          // a shorter id could be part of any text: never taken as naming a record
     prefetchAtOnce: 4,
+    prefetchDepth: 3,             // how far one prefetch entry may follow what it read ({ url, each } returned by each)
+    startupEveryMs: 600000,       // the start-up reads (contracts' `startup`) are downloaded at most this often
     warmLimit: 300,               // reads of one first page load that are asked for again (reads.warm)
     autoPins: 10,
     touchMs: 3600000,
@@ -310,10 +312,10 @@
   // Contracts
   // ---------------------------------------------------------------------------------------------------------
 
-  const registry = { contracts: new Map(), extraDeny: [], deny: [], writes: [], reads: [], boot: [], prefetch: [], files: [] };
+  const registry = { contracts: new Map(), extraDeny: [], deny: [], writes: [], reads: [], boot: [], prefetch: [], startup: [], files: [] };
 
   function rebuildRegistry() {
-    registry.deny = registry.extraDeny.slice(); registry.writes = []; registry.reads = []; registry.boot = []; registry.prefetch = [];
+    registry.deny = registry.extraDeny.slice(); registry.writes = []; registry.reads = []; registry.boot = []; registry.prefetch = []; registry.startup = [];
     for (const contract of registry.contracts.values()) {
       registry.deny.push(...compileAll(contract.deny));
       registry.boot.push(...compileAll(contract.boot));
@@ -321,6 +323,7 @@
       for (const write of contract.writes || []) registry.writes.push({ contract, write, patterns: compileAll(write.match) });
       for (const read of contract.reads || []) registry.reads.push({ contract, read, patterns: compileAll(read.match) });
       for (const item of contract.prefetch || []) registry.prefetch.push({ contract, item });
+      for (const item of contract.startup || []) registry.startup.push({ contract, item });
     }
   }
 
@@ -358,6 +361,7 @@
       return write ? { contract, write } : null;
     },
     prefetch: () => registry.prefetch.slice(),
+    startup: () => registry.startup.slice(),
     list: () => [...registry.contracts.keys()]
   };
 
@@ -1364,6 +1368,44 @@
     /** Downloads everything the contracts' `prefetch` entries name for the project. */
     async prefetch(identity, project) {
       const ctx = { org: identity.org, project: String(project), user: identity.user };
+      const named = ((await pins.load(identity))[project] || {}).files || [];       // what a page named (pins.files)
+      const { readKeys, mediaKeys, failed } = await download(identity, ctx, contracts.prefetch().map(({ item }) => item), named, true);
+      const all = Object.assign({}, await pins.load(identity));
+      if (all[project]) {
+        // A read that could not be fetched this time stays pinned from the last time.
+        // (A file a page named while this ran is the pin's too: it was fetched by pins.files, not here.)
+        const named = (all[project].media || []).filter((key) => (all[project].files || []).includes(key));
+        all[project] = Object.assign({}, all[project], { reads: [...new Set([...(failed ? all[project].reads || [] : []), ...readKeys])], media: [...new Set([...(failed ? all[project].media || [] : []), ...named, ...mediaKeys])], refreshedAt: failed ? all[project].refreshedAt || null : config.now() });
+        await pins.save(identity, all);
+      }
+      return { reads: readKeys.size, media: mediaKeys.size, failed };
+    },
+
+    async refresh(identity) {
+      for (const pin of await pins.list(identity)) await pins.prefetch(identity, pin.project).catch(() => {});
+    },
+
+    /** Sign-out: the list of pinned projects stays, what was downloaded for them does not. */
+    async clearFor(user) {
+      pins.forget();
+      for (const row of await db.list('meta')) {
+        if (typeof row.k === 'string' && row.k.startsWith('startup:' + user + '|')) { await meta.del(row.k); continue; }
+        if (typeof row.k !== 'string' || !row.k.startsWith('pins:' + user + '|')) continue;
+        const value = {};
+        for (const [project, pin] of Object.entries(row.v || {})) value[project] = Object.assign({}, pin, { reads: [], media: [], files: [], refreshedAt: null });
+        await meta.set(row.k, value);
+      }
+    }
+  };
+
+  /**
+   * Fetches and saves what a list of `prefetch` or `startup` entries names. An entry is a function (ctx) => urls,
+   * or { url, each(json, ctx) }: `each` returns further urls, declared POST reads ({ url, body }) or again
+   * { url, each } (followed `limits.prefetchDepth` deep). `keep` true: the reads and files are a kept project's
+   * and are never evicted; false: they are saved like any read a page made, within the budget.
+   */
+  async function download(identity, ctx, items, named, keep) {
+    {
       const urls = new Set();
       const readKeys = new Set();
       const mediaKeys = new Set();
@@ -1384,7 +1426,7 @@
           if (!reads.savable(response)) return null;
           readKeys.add(key);
           const json = await readJson(response);
-          await reads.store(identity, key, response, { boot: true, req: { text, contentType: 'application/json', fields: null } });
+          await reads.store(identity, key, response, { boot: keep || contracts.boot('POST', url.pathname), req: { text, contentType: 'application/json', fields: null } });
           return json;
         }
         return null;
@@ -1393,6 +1435,7 @@
         if (target && typeof target === 'object') return fetchPost(target);
         const url = new URL(target, ORIGIN);
         if (url.origin !== ORIGIN || contracts.denied('GET', url.pathname)) return null;
+        if (!keep && media.match(url.pathname)) return null;            // pictures and files are only downloaded ahead for a kept project
         const response = await config.fetch(url.href, { credentials: 'include', headers: { accept: 'application/json', 'x-fm-offline-replay': '1' } });
         if (media.match(url.pathname)) {
           if (response.status === 200) { mediaKeys.add(media.urlKey(url)); await media.store(identity, url, response, { keep: true, limit: media.match(url.pathname).declared ? limits.maxFileBytes : limits.maxMediaBytes }); }
@@ -1402,46 +1445,56 @@
         const key = readKey('GET', url);
         readKeys.add(key);
         const json = await readJson(response);
-        await reads.store(identity, key, response, { boot: true });
+        await reads.store(identity, key, response, { boot: keep || contracts.boot('GET', url.pathname) });
         return json;
       };
-      const each = [];
-      for (const { item } of contracts.prefetch()) {
+      let level = [];
+      for (const item of items) {
         try {
           if (typeof item === 'function') { for (const target of [].concat((await item(ctx)) || [])) urls.add(target); continue; }
-          for (const target of [].concat((typeof item.url === 'function' ? await item.url(ctx) : item.url) || [])) each.push({ target, item });
+          for (const target of [].concat((typeof item.url === 'function' ? await item.url(ctx) : item.url) || [])) level.push({ target, item });
         } catch (_) { /* one contract's mistake never stops the others */ }
       }
-      for (const file of ((await pins.load(identity))[project] || {}).files || []) urls.add(file);      // what a page named (pins.files)
+      for (const file of named || []) urls.add(file);
       let failed = 0;
-      await pool(each, limits.prefetchAtOnce, async ({ target, item }) => {
-        try { const json = await fetchOne(target); if (json && item.each) for (const next of [].concat((await item.each(json, ctx)) || [])) urls.add(next); } catch (_) { failed++; }
-      });
+      for (let depth = 0; level.length && depth < limits.prefetchDepth; depth++) {
+        const further = [];
+        await pool(level, limits.prefetchAtOnce, async ({ target, item }) => {
+          try {
+            const json = await fetchOne(target);
+            if (!json || !item.each) return;
+            for (const next of [].concat((await item.each(json, ctx)) || [])) {
+              // { url, each }: a read whose answer names more reads (a channel's newest page names the page before it).
+              if (next && typeof next === 'object' && typeof next.each === 'function') further.push({ target: next.url, item: next });
+              else if (next) urls.add(next);
+            }
+          } catch (_) { failed++; }
+        });
+        level = further;
+      }
       await pool([...urls], limits.prefetchAtOnce, async (target) => { try { await fetchOne(target); } catch (_) { failed++; } });
-      const all = Object.assign({}, await pins.load(identity));
-      if (all[project]) {
-        // A read that could not be fetched this time stays pinned from the last time.
-        // (A file a page named while this ran is the pin's too: it was fetched by pins.files, not here.)
-        const named = (all[project].media || []).filter((key) => (all[project].files || []).includes(key));
-        all[project] = Object.assign({}, all[project], { reads: [...new Set([...(failed ? all[project].reads || [] : []), ...readKeys])], media: [...new Set([...(failed ? all[project].media || [] : []), ...named, ...mediaKeys])], refreshedAt: failed ? all[project].refreshedAt || null : config.now() });
-        await pins.save(identity, all);
-      }
-      return { reads: readKeys.size, media: mediaKeys.size, failed };
-    },
+      return { readKeys, mediaKeys, failed };
+    }
+  }
 
-    async refresh(identity) {
-      for (const pin of await pins.list(identity)) await pins.prefetch(identity, pin.project).catch(() => {});
-    },
-
-    /** Sign-out: the list of pinned projects stays, what was downloaded for them does not. */
-    async clearFor(user) {
-      pins.forget();
-      for (const row of await db.list('meta')) {
-        if (typeof row.k !== 'string' || !row.k.startsWith('pins:' + user + '|')) continue;
-        const value = {};
-        for (const [project, pin] of Object.entries(row.v || {})) value[project] = Object.assign({}, pin, { reads: [], media: [], files: [], refreshedAt: null });
-        await meta.set(row.k, value);
-      }
+  /**
+   * Start-up reads: what a contract lists under `startup` (the same entries as `prefetch`, with no project in
+   * `ctx`) is downloaded when a page of the person loads and with every refresh of the kept projects, at most
+   * every `limits.startupEveryMs`. The answers are ordinary saved reads: within the budget, least recently used
+   * first, unless a `boot` pattern names them. Nothing here is a picture or a file.
+   */
+  const startup = {
+    async run(identity, options) {
+      if (!identity || !identity.user || !identity.org) return null;
+      const items = contracts.startup().map(({ item }) => item);
+      if (!items.length) return null;
+      const key = 'startup:' + ownerKey(identity);
+      const last = await meta.get(key, 0);
+      if (!(options && options.force) && last && config.now() - last < limits.startupEveryMs) return { skipped: true, reads: 0, failed: 0 };
+      await meta.set(key, config.now());
+      const { readKeys, failed } = await download(identity, { org: identity.org, project: '', user: identity.user }, items, [], false);
+      if (!readKeys.size && failed) await meta.set(key, last);          // no connection: the next page load tries again
+      return { skipped: false, reads: readKeys.size, failed };
     }
   };
 
@@ -1888,7 +1941,7 @@
     version: VERSION, origin: ORIGIN, limits, configure,
     // How a contract names a waiting change for people: the language key (platform-offline catalog), its English, and what it is about.
     label: (key, english, detail) => ({ key: String(key || ''), title: String(english || ''), detail: detail == null ? '' : String(detail) }),
-    db, meta, events, net, contracts, api, reads, queue, replay, merge3, media, pins, state, storage, settings, identity,
+    db, meta, events, net, contracts, api, reads, queue, replay, merge3, media, pins, startup, state, storage, settings, identity,
     util: { compile, readKey, stable, same, newId, readBody, jsonResponse, race, pool, backoff }
   };
 })(typeof self !== 'undefined' ? self : globalThis);
