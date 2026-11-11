@@ -820,7 +820,7 @@ September 22 layered roof generation: [Chimney, turret and foundation fixes](dep
 
 September 22 mobile apps: [Development mobile hosts and private downloads](deploy/digitalocean/development-mobile-apps-20260922.md) records `af30bfaac0af4d5605a5c00524ebc75c25be1aa5` on all development roles (App download defaults off; Test Company is opted in), preserving the concurrent `18a81ab` wall/plane editor release. Android and iPhone simulator CI passed; physical iPhone distribution awaits Apple signing. Production is unchanged.
 
-September 21 PHP release compatibility: [Prevent mixed portal releases](deploy/digitalocean/development-php-release-compatibility-20260921.md) records the development correction for stale PHP pages mixed with new JavaScript. PHP-serving NGINX hosts must use resolved release filenames; refresh PHP-FPM on both web and compatibility activation and rollback. Organization data and flags were unchanged.
+September 21 PHP release compatibility: [Prevent mixed portal releases](deploy/digitalocean/development-php-release-compatibility-20260921.md) records the development correction for stale PHP pages mixed with new JavaScript. PHP-serving NGINX hosts must use resolved release filenames; refresh PHP-FPM on both web and compatibility activation and rollback. Organization data and flags were unchanged. The production fast path's switch reloads PHP-FPM the same way ([Production run fast path](#production-run-fast-path-no-node-change)).
 
 September 21 co-branding default: [Standard FirstMeasure sidebar branding](deploy/digitalocean/development-cobrand-default-20260921.md) records `9ee0e68ba5c8671468d121629ac97be00e7336c6` on development. Co-branding is default-on without expanded apps; saved organization opt-outs remain respected. Production is unchanged.
 
@@ -1044,7 +1044,7 @@ release identity and content verification take precedence over historical notes.
 3. **Test the change.** Run appropriate tests and exercise the affected workflow. `.github/workflows/ci.yml` runs smoke and PostgreSQL integration suites. Read current `public/v1/package.json` for commands. A health endpoint does not prove checkout, email, or PDF correctness.
 4. **Test in development.** Submit the exact version to the dev push router (`node tools/dev-push/submit.mjs --wait`); it runs on isolated development with development data and provider settings. Keep its databases, storage, credentials, and sessions separate from production. Do not use the former prerelease environment as development.
 5. **Prepare the release.** Record commit/release ID, changed roles, dependencies, database/configuration changes, validation, and rollback steps. Confirm the bundle includes PHP/editor assets as well as Node code. Keep secrets and runtime data out of source bundles.
-6. **Activate within the user's authorization.** If production deployment is not authorized, finish preparation and present the concrete tested release first. Do not ask again when the session already authorizes it. Coordinate roles, database compatibility, and the autoscale template.
+6. **Activate within the user's authorization.** If production deployment is not authorized, finish preparation and present the concrete tested release first. Do not ask again when the session already authorizes it. Coordinate roles, database compatibility, and the autoscale template. A release that changes nothing Node runs or reads (most editor, portal PHP and record-only releases) takes the [fast path](#production-run-fast-path-no-node-change): no Node restart and no compatibility gate.
 7. **Verify and record.** Verify release identity, actual process configuration, affected workflows, errors, and jobs. Record the outcome and limitations. Do not send test messages or create charges without authorization.
 
 Typical instruction: “Fix this locally and deploy to development for testing; hold production.” After testing: “Deploy that tested release to production and verify it.” Codex handles the individual hosts.
@@ -1118,6 +1118,64 @@ Stage web releases first. Drain/withdraw one node, activate it, verify readiness
 **Update the autoscale image/template/bootstrap to the intended release as well.** Otherwise new nodes can reintroduce old code. Pool configuration changes can replace the fleet and overlap old/new nodes; inspect the behavior and connection budget first. When changing template/image behavior, verify a newly provisioned node, not only a patched existing host.
 
 Run database migrations once through a controlled process. Use additive/backward-compatible changes while old/new code coexist. Normal `POSTGRES_AUTO_MIGRATE` should remain false; web images must not contain database administrator credentials. Destructive schema changes need a separate data recovery plan.
+
+## Production run fast path (no Node change)
+
+Since FM-388 (2026-11-11). Every full production run restarts Node on compatibility, the worker and the six
+web nodes, and waits at the compatibility gate (legacy-action under about 420 a minute and load under 10) because
+restarting both compatibility Node workers at once is what overloads it (FM-335). A release whose Node side is
+byte-identical to what Node is running does not need any of that: activate it by switching `current` and
+reloading PHP-FPM. NGINX and PHP read through `current` on every request; Node keeps running the code it would
+restart into.
+
+**What counts as Node's side.** Node resolves its release directory once, at start (systemd's
+`WorkingDirectory` and module paths are real paths), and keeps reading files from there: not only
+`public/v1/dist` and its dependencies, but the PDF runtime's editor scripts (`pdf.js`, `pdf_standalone.js`,
+`exterior_*.js`, `editor_scripts/vendor/`), libraries, fonts, portal landing pages and the solar key in
+`editor.php`. So `deploy/digitalocean/release-node-fingerprint.py` treats every file of a release as Node's
+except what only NGINX and PHP-FPM serve (`public/measure/internal/`, `public/portal/`, `deploy/`), minus the
+files Node reads there; an unknown file always means the full procedure. It also refuses when the release's
+own `public/v1` sources read another file under those folders. Comparing only `dist` is not enough: the
+FM-378/379/380 batch had an identical server and changed `pdf.js`, which the worker's PDF renders load
+through Node. A release that needs an environment, `/etc`, NGINX, database or provider change is never
+fast path, whatever the fingerprint says.
+
+**Decide** before the compatibility gate, from the archives:
+`python3 deploy/digitalocean/release-node-fingerprint.py compare <rollback target archive> <new archive>`.
+Exit 0 is the fast path; exit 3 is the full procedure and lists the Node files that changed. Record the
+output (server, dependencies, configuration, changed files) in the plan and the release record.
+
+**Run** (driver: `deploy/digitalocean/release-tooling-20261029/fastpath/fastpath.sh` on branch
+`codex/prod-release-tooling-20261029`, from the run's folder):
+
+1. Build, fetch, install on compatibility and the worker, publish the signed web channel and install on the
+   web nodes exactly as for a full release. Nothing is activated yet; new pool nodes boot the new archive,
+   whose Node side is the same.
+2. Copy `release-node-fingerprint.py` and `switch-release-files.py` to `/root/fm-fastpath/` on all eight hosts
+   and run `switch-release-files.py --check NEW OLD` on each. It compares the new release with the directory
+   each running Node service actually started in (`/proc/<pid>/cwd`, which can be older than `current` after
+   an earlier fast path). Any refusal: full procedure for the whole release, nothing switched.
+3. Switch with `switch-release-files.py NEW OLD`: compatibility first (it serves `/measure/internal/` to every
+   web node), then the web nodes one at a time, then the worker. No load balancer withdrawal, no job wait,
+   no gate. Each host switches `current`, reloads PHP-FPM, then checks that no Node service restarted, that
+   Node is ready on 3101, that NGINX serves every changed static file with the new bytes and that a PHP page
+   answers; on any failure it switches itself back and reloads again.
+4. Verify: `current` on all eight hosts; readiness 10/10 (it keeps reporting the release Node started in,
+   because Node did not restart; a pool node that boots later reports the new one); sha256 over HTTPS of every
+   changed static file from `https://app.1m8.ai`, 12 requests each so the load balancer spreads them over the
+   web nodes; then the plan's own checks.
+5. Watch 5xx for at least 10 minutes: every host's NGINX against the 30 minutes before (`rates.py`), and
+   compatibility's Node 500s, watchdog kills and pool timeouts (Node did not restart, so they should stay at
+   baseline).
+6. Rollback is the same switch back (`switch-release-files.py OLD NEW` in the same order) and republishing
+   the channel with the rollback target's archive. Nothing restarts.
+
+PHP-FPM reload: production keeps PHP-FPM's default `process_control_timeout = 0`, so a reload, like the
+restart `activate-release.sh` does, can end PHP requests in flight at that moment. Never delete the release
+directory a running Node started in (`readlink /proc/<MainPID>/cwd`), and treat a fast-path host's next Node
+restart (the next full release, a reboot) as starting `current`. Tests: `tests/release-fast-path.test.mjs`,
+`tests/release-node-readers.test.mjs` (the second fails on canonical when server code starts reading another
+file under those folders).
 
 ## Production fixes future releases must preserve
 

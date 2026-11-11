@@ -695,6 +695,18 @@ to the page with `sendJsonToPage` and read them back with `readStringFromPage`;
 never pass a snapshot or a PDF as one `page.evaluate` argument or result. Run
 `tests/pdf-runtime-transfer.test.ts` (with `CHROME_PATH`) for changes here.
 
+## Production run fast path
+
+A production release that changes nothing Node runs or reads is activated by
+switching `current` and reloading PHP-FPM, without restarting Node or waiting at
+the compatibility gate ([DEPLOYMENT.md](DEPLOYMENT.md#production-run-fast-path-no-node-change)).
+Node keeps reading files from the release it started in, including some under
+`public/measure/internal` and `public/portal` (the PDF runtime's editor scripts,
+landing pages); `deploy/digitalocean/release-node-fingerprint.py` lists them.
+When server code starts reading another file there, add it to that list. Run
+`tests/release-node-readers.test.mjs` and `tests/release-fast-path.test.mjs`
+for changes here.
+
 ## Project window content ownership
 
 Read [project content layout](docs/architecture/project-content-layout.md) before changing project modal tabs or sidebars. The project details tray (`#rDetailsTray`) owns the project-details form and measurements; Overview is just the overview. Other apps own their own content rails. There is no configurable shared modal left region or left-column override API; do not recreate one.
