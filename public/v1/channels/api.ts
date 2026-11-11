@@ -934,7 +934,7 @@ export const registerChannelsApi: FastifyPluginAsync = async (app) => {
       }
     }
     const attachment = (await createAttachmentRecord({
-      ...(attachmentId ? { id: attachmentId } : {}),
+      ...(attachmentId ? { device_made_id: attachmentId } : {}),
       organization_id: orgId,
       channel_id: channelId || null,
       media_id: mediaId,
