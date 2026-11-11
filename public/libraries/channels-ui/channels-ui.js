@@ -4661,7 +4661,7 @@
       const audioMount = el('div', 'fm-ch-audio-mount');
       const dictationMount = el('div', 'fm-ch-audio-mount');
       textarea = createMessageEditor(cleanText(options.composerPlaceholder)
-        || (state.activeChannel.type === 'project' ? 'Add a note…' : `Message ${state.activeChannel.display_name || '#' + state.activeChannel.name}`));
+        || (state.activeChannel.type === 'project' ? (globalThis.PlatformLanguage?.text?.("shared","message_composer_project_placeholder","Write a message…") ?? "Write a message…") : `Message ${state.activeChannel.display_name || '#' + state.activeChannel.name}`));
       const composerInput=textarea;
       if (features.richMessages) box.appendChild(messageFormatBar(composerInput));
       box.appendChild(composerInput);
