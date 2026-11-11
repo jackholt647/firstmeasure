@@ -126,6 +126,12 @@ export const env = {
   webWorkerRestartMaxDelayMs: readNumber("V1_WORKER_RESTART_MAX_DELAY_MS", 30_000),
   webWorkerCrashWindowMs: readNumber("V1_WORKER_CRASH_WINDOW_MS", 60_000),
   webWorkerCrashLimit: readNumber("V1_WORKER_CRASH_LIMIT", 20),
+  // SIGHUP to the cluster primary replaces its workers one at a time from the release this
+  // directory points at (FM-389); where it does not exist, the workers are replaced with the
+  // code the primary started with.
+  webWorkerReleaseDir: String(process.env.V1_ROLLING_RELEASE_DIR ?? "/opt/firstmeasure/current/public/v1").trim(),
+  // Database connections a replacement worker opens before it listens (capped by POSTGRES_POOL_MAX).
+  webWorkerWarmupConnections: readOptionalNonNegativeInteger("V1_WORKER_WARMUP_CONNECTIONS") ?? 4,
   firstmeasureJobWorkers: readOptionalNonNegativeInteger("FIRSTMEASURE_JOB_WORKERS"),
   firstmeasureStorageRoot: process.env.FIRSTMEASURE_STORAGE_ROOT ?? "./storage/firstmeasure",
   weatherStorageRoot: process.env.WEATHER_STORAGE_ROOT ?? "./storage/weather",

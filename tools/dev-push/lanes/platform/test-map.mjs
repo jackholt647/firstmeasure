@@ -39,6 +39,8 @@ export const AREAS = [
   [[/^public\/portal\/.*\.php$/], ["root:tests/portal-tracking-pixels.test.mjs"]],
   [[`${V1}firstmeasure/pdf_runtime.ts`], ["v1:tests/pdf-runtime-transfer.test.ts"]],
   [["deploy/digitalocean/release-node-fingerprint.py", "deploy/digitalocean/switch-release-files.py"], ["root:tests/release-fast-path.test.mjs", "root:tests/release-node-readers.test.mjs"]],
+  [[`${V1}src/server.ts`, `${V1}src/worker_warmup.ts`, `${V1}tests/helpers/server-cluster-fixture.mjs`], ["v1:tests/server-cluster-drain.test.mjs", "v1:tests/server-rolling-replace.test.mjs"]],
+  [["deploy/digitalocean/activate-release.sh"], ["root:tests/release-legacy-rolling-activation.test.mjs"]],
   [[/^public\/v1\/(?!tests\/|scripts\/|src\/scripts\/).*\.(?:ts|mts|mjs|js|cjs)$/], ["root:tests/release-node-readers.test.mjs"]]
 ];
 
