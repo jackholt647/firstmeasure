@@ -357,7 +357,9 @@
         ...(await audio.prepareFile(orgId(), entry.channelId, file, options))
       };
     }
-    const uploaded = await api.uploads.send(orgId(), file, entry.channelId);
+    // The attachment and its media are named on this device, so the file can wait here with its note when there
+    // is no connection (docs/architecture/offline.md, "Uploads of other apps").
+    const uploaded = await api.uploads.send(orgId(), file, entry.channelId, { deviceIds: !localChannel(entry.channelId) });
     if ((contentType.startsWith('image/') || contentType.startsWith('video/')) && uploaded?.attachment?.media_id) {
       window.dispatchEvent(new CustomEvent('fm:project-note-media-uploaded', {
         detail:{
@@ -1069,7 +1071,7 @@
     form.onsubmit=event=>{event.preventDefault();void submit();};form.querySelector('[data-pin-send]').onclick=()=>submit(true);text.oninput=()=>{delete form.dataset.operationId;syncSendState();};
     form.querySelector('[type=file]').onchange=async event=>{
       uploading++;syncSendState();say();try{await ensureSavedProject();for(const file of event.target.files){const result=await prepareUpload(project,file);if(disposed)return;prepared.push(result);const node=document.createElement('div');uploadBox.append(node);mountPreparedUpload(node,result,()=>{prepared=prepared.filter(item=>item!==result);node.remove();delete form.dataset.operationId;syncSendState();});}delete form.dataset.operationId;}
-      catch(error){say(error.message);}finally{uploading--;syncSendState();event.target.value='';}
+      catch(error){say(failureText(error,error.message));}finally{uploading--;syncSendState();event.target.value='';}
     };
     async function capture(mode){
       if(capturing){if(captureMode===mode)recorderControl?.stop();return;}if(busy || disposed)return;capturing=true;captureMode=mode;syncSendState();dictateButton.disabled=audioButton.disabled=true;const button=mode==='dictation' ? dictateButton : audioButton,node=document.createElement('div');uploadBox.append(node);let result;

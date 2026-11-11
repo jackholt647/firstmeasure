@@ -437,11 +437,12 @@
       // Every saved GET of a route, as the person would see it: [{ url, query, params, json }]. For a record that
       // is only known from lists (a to-do), whatever their filters were.
       find: (pattern) => reads.find(parts.identity, pattern, parts.before === undefined ? Infinity : parts.before),
-      // Earlier changes still on the device that name a record, oldest first: [{ id, contract, write, kind, scope, state }].
-      // A change to a record made on this device takes the scope of the change that made it.
+      // Earlier changes still on the device that name a record, oldest first: [{ id, contract, write, kind, scope, state, response }].
+      // A change to a record made on this device takes the scope of the change that made it; `response` is what
+      // that change answered the page (the record it made), for a change that carries it on (a note and its file).
       queued: async (record) => (await queue.list(parts.identity))
         .filter((entry) => (parts.before === undefined || entry.seq < parts.before) && (entry.records || []).includes(String(record)))
-        .map((entry) => ({ id: entry.id, contract: entry.contract, write: entry.write, kind: entry.kind, scope: entry.scope, state: entry.state }))
+        .map((entry) => ({ id: entry.id, contract: entry.contract, write: entry.write, kind: entry.kind, scope: entry.scope, state: entry.state, response: copy(entry.response) }))
     };
   }
 

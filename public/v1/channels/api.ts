@@ -4,8 +4,8 @@ import type { FastifyPluginAsync } from "fastify";
 import { z, ZodError } from "zod";
 
 import { requirePlatformAuth } from "../platform/auth.js";
-import { PlatformError, badRequest } from "../platform/errors.js";
-import { readDocument, storeMediaUpload, upsertDocument } from "../platform/storage.js";
+import { PlatformError, badRequest, conflict } from "../platform/errors.js";
+import { readDocument, readMediaMetadata, storeMediaUpload, upsertDocument } from "../platform/storage.js";
 import {
   addMembersSchema,
   attentionPatchSchema,
@@ -41,7 +41,7 @@ import * as service from "./service.js";
 import { polishChannelDraft } from "./polish.js";
 import * as collaboration from "./collaboration.js";
 import { startChannelAgentScheduler } from "./agent.js";
-import { createAttachmentRecord } from "./storage.js";
+import { createAttachmentRecord, readAttachmentRecord } from "./storage.js";
 
 const APP_CAPABILITY = "apps.channels";
 
@@ -835,6 +835,9 @@ export const registerChannelsApi: FastifyPluginAsync = async (app) => {
     let fileName = "upload";
     let contentType = "application/octet-stream";
     let channelId = "";
+    // Ids a device made (docs/architecture/offline.md, "Uploads of other apps"): an upload kept without a
+    // connection is shown and named by the note that follows it before the server has seen either.
+    let attachmentId = "", givenMediaId = "";
     for await (const part of parts) {
       if (part.type === "file") {
         const buffer = await part.toBuffer?.();
@@ -846,12 +849,36 @@ export const registerChannelsApi: FastifyPluginAsync = async (app) => {
         continue;
       }
       if (part.fieldname === "channel_id") channelId = String(part.value ?? "").trim();
+      if (part.fieldname === "attachment_id") attachmentId = String(part.value ?? "").trim();
+      if (part.fieldname === "media_id") givenMediaId = String(part.value ?? "").trim();
     }
     if (!bytes) throw badRequest("missing_file", "A file field is required.");
+    if (attachmentId && !/^att_[a-z0-9-]{16,64}$/.test(attachmentId)) throw badRequest("invalid_attachment_id", "An attachment id is att_ and 16 to 64 lowercase letters, digits or hyphens.");
+    if (givenMediaId && !/^media_[a-f0-9]{16}$/.test(givenMediaId)) throw badRequest("invalid_media_id", "A media id is media_ and 16 hexadecimal digits.");
+    if (!attachmentId !== !givenMediaId) throw badRequest("upload_ids_required", "A device names both the attachment and its media, or neither.");
     const channelAccess = channelId ? await service.requireChannelAccess(ctx, channelId, { write: true }) : null;
     const projectId = channelAccess?.channel.project_id || "";
+    if (attachmentId) {
+      // Sent again without its receipt: the same person's same upload is answered as it was, and nothing is
+      // stored twice. An id someone else holds, or one that names other media, is refused.
+      const existing = await readAttachmentRecord(orgId, attachmentId);
+      if (existing) {
+        if (existing.uploaded_by !== ctx.userId || existing.media_id !== givenMediaId) throw conflict("attachment_id_taken", "This attachment id is already in use.");
+        reply.code(201);
+        return { ok: true, attachment: existing };
+      }
+      const taken = await readMediaMetadata(orgId, givenMediaId).catch((error: unknown) => {
+        if (error instanceof PlatformError && error.statusCode === 404) return null;
+        throw error;
+      });
+      // The media may be there without its attachment (the first try stopped between the two): it is this
+      // person's upload from this route, and is stored again under the same id.
+      const takenMeta = taken && typeof taken.metadata === "object" && taken.metadata ? taken.metadata as Record<string, unknown> : {};
+      if (taken && (String(takenMeta.uploaded_by ?? "") !== ctx.userId || !["project_notes", "channels"].includes(String(takenMeta.source ?? "")))) throw conflict("media_id_taken", "This media id is already in use.");
+    }
 
     const media = await storeMediaUpload(orgId, {
+      ...(givenMediaId ? { id: givenMediaId } : {}),
       ownerType: projectId ? "project" : "channel",
       ownerId: projectId || channelId || orgId,
       slot: projectId ? "photos" : "attachment",
@@ -907,6 +934,7 @@ export const registerChannelsApi: FastifyPluginAsync = async (app) => {
       }
     }
     const attachment = (await createAttachmentRecord({
+      ...(attachmentId ? { id: attachmentId } : {}),
       organization_id: orgId,
       channel_id: channelId || null,
       media_id: mediaId,

@@ -6,7 +6,11 @@
  * answers a repeat of it with the message it already has, so a queued note arrives once. Two routes carry a
  * note: by channel, when the device knows the channel, and by project, for a project made on this device whose
  * channel the server has not made yet (its notes are kept under a local channel id, `chan_local_<project>`).
- * Replies, attachments, edits and pins need a connection.
+ *
+ * A note's file is an upload of its own (`note.upload`) with ids the page made, in a scope of its own; the note
+ * names the attachment, so the engine sends the note after the file (`after`) and holds it while the file has
+ * not arrived. Replies, voice notes, edits and pins need a connection, and so do files on a project made on this
+ * device (its channel does not exist yet).
  */
 (function () {
   'use strict';
@@ -33,11 +37,32 @@
     ];
   }
 
-  /** A plain note: text the page wrote, with its own id, that is not a reply and carries no uploaded file. */
-  function plainNote(ctx) {
+  const attachmentIds = (body) => (Array.isArray(body && body.attachment_ids) ? body.attachment_ids.map(text).filter(Boolean) : []);
+  /** The waiting upload that makes an attachment, as it answered the page, or null. */
+  async function waitingAttachment(ctx, id) {
+    const made = (await ctx.queued(id)).find((entry) => entry.write === 'note.upload' && entry.response && entry.response.attachment);
+    return made ? made.response.attachment : null;
+  }
+  /**
+   * A note this device can keep: text the page wrote, with its own id, that is not a reply. Its files, if any,
+   * are uploads still waiting here (a file the server already has is named by an id the device knows nothing of).
+   */
+  async function plainNote(ctx) {
     const body = ctx.body;
-    return isObject(body) && body.project_note === true && !!text(body.client_msg_id) && !body.parent_id
-      && !(Array.isArray(body.attachment_ids) && body.attachment_ids.length);
+    if (!(isObject(body) && body.project_note === true && !!text(body.client_msg_id) && !body.parent_id)) return false;
+    for (const id of attachmentIds(body)) if (!(await waitingAttachment(ctx, id))) return false;
+    return true;
+  }
+  /** A plain note of a project made on this device: its channel does not exist yet, so it carries no file. */
+  const plainNoteNoFiles = (ctx) => { const body = ctx.body; return isObject(body) && body.project_note === true && !!text(body.client_msg_id) && !body.parent_id && !attachmentIds(body).length; };
+
+  /** The form of a note's file as the page sends it (channels-api.js uploads.send with deviceIds), or null. */
+  function noteFile(ctx) {
+    const body = isObject(ctx.body) ? ctx.body : {};
+    const field = Object.keys(body).find((name) => body[name] && typeof body[name] === 'object' && body[name].blob);
+    const attachment = text(body.attachment_id), media = text(body.media_id), channel = text(body.channel_id);
+    if (!field || !/^att_[a-z0-9-]{16,64}$/.test(attachment) || !/^media_[a-f0-9]{16}$/.test(media) || !channel || channel.startsWith('chan_local_')) return null;
+    return { field, file: body[field], attachment, media, channel };
   }
 
   /** The message the post route answers with, as far as the device can know it. It cannot be edited until it is sent. */
@@ -57,8 +82,18 @@
       language_code: 'und', language_confidence: 0, translation: { available: false },
       text: text(body.text), mention_users: Array.isArray(body.mention_users) ? body.mention_users : [],
       metadata: Object.assign({ department_ids: Array.isArray(body.department_ids) ? body.department_ids : [], mention_broadcasts: [] }, isObject(body.metadata) ? body.metadata : {}, { project_note: true }),
-      reactions: [], attachments: [], reply_participants: [], thread_muted: false
+      reactions: [], attachments: await noteAttachments(ctx, channel), reply_participants: [], thread_muted: false
     };
+  }
+
+  /** The note's files as the message will carry them: each waiting upload's attachment, now on this message. */
+  async function noteAttachments(ctx, channel) {
+    const out = [];
+    for (const id of attachmentIds(ctx.body)) {
+      const attachment = await waitingAttachment(ctx, id);
+      if (attachment) out.push(Object.assign({}, attachment, { message_id: text(ctx.body.client_msg_id), channel_id: channel }));
+    }
+    return out;
   }
 
   /** The note in every list of that channel that shows notes. */
@@ -89,6 +124,27 @@
     ],
     writes: [
       {
+        // A file for a note (project-notes.js prepareUpload). The page names the attachment and its media, so the
+        // file is shown from the device and the note that follows names it. It is in a scope of its own: the
+        // note is held behind it by what it names, and a file the server refuses holds only its own note.
+        id: 'note.upload',
+        match: 'POST ' + CHANNELS + '/uploads',
+        when: (ctx) => !!noteFile(ctx),
+        kind: 'upload',
+        scope: (ctx) => 'attachment:' + noteFile(ctx).attachment,
+        records: (ctx) => { const upload = noteFile(ctx); return [upload.attachment, upload.media]; },
+        media: (ctx) => { const upload = noteFile(ctx); return [{ id: upload.media, field: upload.field }]; },
+        label: (ctx) => FMOffline.label('sync_note_file', 'Note attachment', text(noteFile(ctx).file.name)),
+        respond: (ctx) => {
+          const upload = noteFile(ctx);
+          return { ok: true, attachment: {
+            id: upload.attachment, organization_id: ctx.org, channel_id: upload.channel, message_id: null, media_id: upload.media,
+            file_name: text(upload.file.name) || 'upload', content_type: text(upload.file.type) || 'application/octet-stream', size_bytes: upload.file.size,
+            uploaded_by: ctx.user, created_at: new Date(ctx.now).toISOString()
+          } };
+        }
+      },
+      {
         id: 'note.post',
         match: 'POST ' + CHANNELS + '/channels/:channel/messages',
         when: plainNote,
@@ -108,7 +164,7 @@
       {
         id: 'note.post.project',
         match: 'POST ' + CHANNELS + '/channels/project/:project/messages',
-        when: plainNote,
+        when: plainNoteNoFiles,
         // Nothing that is queued depends on a note, so a note the server refuses does not hold the project's other changes.
         kind: 'action',
         scope: (ctx) => 'project:' + ctx.params.project,

@@ -2385,11 +2385,19 @@
         source: options.source || 'project_document_upload',
         ...(options.metadata || {})
       }));
-      if (options.id) fd.append('id', options.id);
+      // The file's media id is made here (the same file sent again to the same project carries the same one), so
+      // a file added without a connection is kept and listed until it is uploaded; `queued` then names the
+      // waiting change (docs/architecture/offline.md, "Uploads of other apps").
+      fd.append('id', cleanText(options.id) || uploadIdFor(file, `project-documents|${cleanText(projectId)}`));
+      let queued = '';
       return request(orgPath(orgId, `/projects/${enc(projectId)}/documents`), {
         method: 'POST',
-        body: fd
-      });
+        body: fd,
+        onResponse: (response) => { queued = cleanText(response.headers.get('X-FM-Offline-Queued')); }
+      }).then((result) => {
+        if (queued && result && typeof result === 'object') result.queued = queued;
+        return result;
+      }, (error) => { throw offlineUploadError(error); });
     },
     patch(orgId, projectId, documentId, patch = {}){
       return request(orgPath(orgId, `/projects/${enc(projectId)}/documents/${enc(documentId)}`), {

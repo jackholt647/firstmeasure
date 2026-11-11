@@ -101,6 +101,17 @@
    * lookup by project (saved, or made for a project that was created on this device), else the channel list.
    * With neither, the failure of the request that was tried is thrown, as before.
    */
+  const hex = (bytes) => { const values = new Uint8Array(bytes); if (window.crypto?.getRandomValues) window.crypto.getRandomValues(values); else values.forEach((_, index) => { values[index] = Math.floor(Math.random() * 256); }); return [...values].map((value) => value.toString(16).padStart(2, '0')).join(''); };
+  const uploadIds = new WeakMap();
+  function uploadIdsFor(file, channelId){
+    const made = () => ({ attachment: `att_${hex(16)}`, media: `media_${hex(8)}` });
+    if (!file || typeof file !== 'object') return made();
+    if (!uploadIds.has(file)) uploadIds.set(file, new Map());
+    const byChannel = uploadIds.get(file);
+    const key = cleanText(channelId);
+    if (!byChannel.has(key)) byChannel.set(key, made());
+    return byChannel.get(key);
+  }
   const LOCAL_CHANNEL = 'chan_local_';
   const isLocalChannel = (channelId) => cleanText(channelId).startsWith(LOCAL_CHANNEL);
   const unreachable = (error) => !Number(error?.status || 0) || cleanText(error?.data?.error) === 'offline_unavailable';
@@ -288,10 +299,18 @@
     search: (orgId, q, params = {}) => request(orgPath(orgId, `/search${queryString({ q, ...params })}`)),
 
     uploads: {
-      send: (orgId, file, channelId) => {
+      // options.deviceIds: the attachment and its media are named here, not by the server, so the file can be
+      // kept without a connection and the note that follows can name it (docs/architecture/offline.md,
+      // "Uploads of other apps"). The same file sent again to the same channel carries the same ids.
+      send: (orgId, file, channelId, options = {}) => {
         const form = new FormData();
         form.append('file', file, file.name || 'upload');
         if (channelId) form.append('channel_id', channelId);
+        if (options.deviceIds) {
+          const ids = uploadIdsFor(file, channelId);
+          form.append('attachment_id', ids.attachment);
+          form.append('media_id', ids.media);
+        }
         return request(orgPath(orgId, '/uploads'), { method: 'POST', body: form });
       }
     },
