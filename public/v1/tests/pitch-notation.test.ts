@@ -77,14 +77,20 @@ test("the editor's report XML keeps pitch and adds pitch_degrees", async t => {
 test("the PDF writes pitch in the project's notation", async t => {
   const source = await editorFile(t, "pdf.js", "function pdfPitch(");
   if (!source) return;
-  const line = source.split("\n").find(l => l.startsWith("function pdfPitch("))!;
-  for (const [preferences, expected] of [[{ measurement_system: "metric" }, "26.6°"], [{}, "6/12"]] as const) {
+  // The pdfPitch helpers: from the first of them to the end of pdfPitch (one line, or a body closed by "}" at column 0).
+  const first = source.search(/^function pdfPitch(InDegrees)?\(/m), own = source.indexOf("function pdfPitch(", first);
+  const oneLine = source.slice(own, source.indexOf("\n", own)).trimEnd().endsWith("}");
+  const helpers = source.slice(first, oneLine ? source.indexOf("\n", own) : source.indexOf("\n}", own) + 2);
+  for (const [preferences, expected] of [[{ measurement_system: "metric" }, "26.6°"], [{}, "6/12"],
+    // FM-397: a metric report ordered with rise over 12 still writes degrees.
+    [{ measurement_system: "metric", pitch_notation: "rise_12" }, "26.6°"]] as const) {
     const context = vm.createContext({ window: { ReportUnits: { current: () => ReportUnits.create(preferences) } } });
-    vm.runInContext(line, context);
+    vm.runInContext(helpers, context);
     assert.equal(vm.runInContext("pdfPitch('6/12')", context), expected);
   }
-  // Every place the PDF prints a pitch goes through pdfPitch.
-  for (const needle of ['{value1: pdfPitch(domPitch)}', 'doc.text(pdfPitch(p), pitchValX(i)', 'pdfPitch(structureMetrics.predominantPitch', 'String(pdfPitch(r.pitch))', "pdfPitch(String(lbl.pitchText ?? lbl.text ?? ''), 0)"]) {
+  // Every place the PDF prints a pitch goes through pdfPitch (FM-397 added the notes pill and the low-slope note).
+  for (const needle of ['{value1: pdfPitch(domPitch)}', 'pitches.map(p => pdfPitch(p))', 'pdfPitch(structureMetrics.predominantPitch', 'String(pdfPitch(r.pitch))',
+    "pdfPitch(String(lbl.pitchText ?? lbl.text ?? ''), 0)", 'value2: pdfPitch(domPitch)', ".replace('2/12', pdfPitch('2/12'))"]) {
     assert.ok(source.includes(needle), needle);
   }
 });
