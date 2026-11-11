@@ -67,7 +67,7 @@
     versionedBundle('../payments-api/payments-api.js', '20261111-offline'),
     versionedBundle('../proposals-api/proposals-api.js', '20261019-forward-cert'),
     versionedBundle('payroll/my-pay.js', '20261019-people-gaps-v1'),
-    versionedBundle('crew/app.js', '20261101-prod-sync')
+    versionedBundle('crew/app.js', '20261111-offline-checklists')
   ];
   const crewSignatureBundles = [...fieldApprovalBundles];
   const salesBundles = [
@@ -376,7 +376,7 @@
       requiresContext: ['project'],
       bundles: [
         versionedBundle('../crew-api/crew-api.js', '20261101-prod-sync'),
-        versionedBundle('checklists/app.js', '20261101-prod-sync')
+        versionedBundle('checklists/app.js', '20261111-offline-checklists')
       ]
     },
     {

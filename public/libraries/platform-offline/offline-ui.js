@@ -851,7 +851,7 @@
     const error = entry.error || {};
     // The contract's own words for this refusal (`explain` on a write), when it has them.
     const told = error.label && typeof error.label === 'object' ? labelText(error.label.key, error.label.title) : '';
-    if (told) return error.label.detail ? told + ' ' + String(error.label.detail) : told;
+    if (told) return error.label.detail ? told + ' (' + String(error.label.detail) + ')' : told;
     const status = Number(error.status) || 0;
     const reason = status === 404 || status === 410 ? T('error_not_found') : status === 403 ? T('error_forbidden') : status >= 500 ? T('error_server') : T('error_refused', { status: status || '?' });
     const said = error.message && !/^[a-z0-9_.-]+$/i.test(String(error.message)) ? String(error.message) : '';

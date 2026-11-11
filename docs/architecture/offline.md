@@ -424,11 +424,15 @@ FMOffline.contracts.add({
                        { match: 'GET /v1/things/:id', when: (m) => m.id === ctx.body.id, seed: () => ({ ok: true, thing: ctx.response.thing }) }],
     // optional: a refusal that means the server already has this change (answer is { status, code, body })
     duplicate: (ctx, answer) => answer.status === 409 && answer.code === 'thing_exists',
+    // optional: the ids of earlier entries this change stands in for, once it is sent or queued
+    replaces: async (ctx) => (await ctx.queued(ctx.params.id)).filter((entry) => entry.state === 'failed').map((entry) => entry.id),
+    // optional: a refusal in words a person can act on (a label, shown in the tray as the reason)
+    explain: (ctx, answer) => answer.code === 'thing_taken' ? FMOffline.label('fail_thing_taken', 'Not saved: …') : null,
     // kind 'upload' only, optional: which media ids the form's files stand for
     media: (ctx) => [{ id: ctx.body.id, field: 'file' }],
     // kind 'patch' only:
     conflict: { current: (ctx) => url, pick: (json) => ({ doc, revision }),
-                fields: (ctx) => ['title', 'address'], send: (ctx, merged, revision) => body }
+                fields: (ctx) => ['title', 'address'], send: (ctx, merged, revision, theirs) => body }
   }]
 });
 ```
@@ -470,6 +474,26 @@ async; they run in the worker, and in the top-level page when it replays.
   that is missing these reads are saved when the tab is first opened instead.
 - `conflict.pick(json, ctx)` also gets `ctx`, for a record that is one item
   of a larger answer (one event of a project).
+- `conflict.send(ctx, merged, revision, theirs)` also gets the server's
+  document as it is when the change is sent. `merged` holds only the fields
+  that differ from it, which is what a route that merges wants; a route that
+  replaces the whole record (a calendar event's `PUT`) sends `theirs` with
+  `merged` over it, so nothing the server had is lost.
+- **Replaced changes.** `replaces(ctx)` names earlier entries (from
+  `ctx.queued(record)`) that this change stands in for. They are discarded
+  when the server takes this change (with a connection) or when it is queued,
+  and pages hear `discarded` for each. Two uses: a save that carries the
+  whole record replaces a save of that record the server refused, so a
+  person who corrects a refused change is not left with it in the tray and
+  its effects no longer show over the newer answer; a delete replaces every
+  change to its record still on the device, and is itself always sent,
+  because an earlier save may have arrived without its answer.
+- **A refusal in a person's words.** `explain(ctx, answer)` returns a label
+  (`FMOffline.label(key, english, detail)`) for a refusal it knows
+  (`answer` is `{ status, code, body }`), or nothing. It is kept as
+  `entry.error.label` beside the server's own `message`, and the tray shows
+  it as the reason (with the detail in brackets) in place of "The server
+  refused this change".
 
 - **Patterns** are `[METHOD ]/path`: `:name` and `*` match one segment, `**`
   any number. A `deny` pattern without a method covers every method;
@@ -1200,7 +1224,7 @@ fallback in the code.
 
 The contracts are in `contracts/`: `portal.js` (start-up and lists),
 `projects.js`, `notes.js`, `todos.js`, `contacts.js`, `schedule.js`,
-`documents.js`. "Reads" means: shown as it was last seen, or as downloaded for
+`checklists.js`, `documents.js`. "Reads" means: shown as it was last seen, or as downloaded for
 a pinned project. A project that is opened is pinned automatically
 (`project-windows.js`, `mobile.js`), so its tabs are on the device even if
 they were never clicked.
@@ -1213,12 +1237,13 @@ they were never clicked.
 | Project: Notes tray | notes, pins, authors | a note (text) | | replies, attachments, editing, pinning and deleting a note; notes of a project whose channel is not on the device (see below) |
 | Project: To Do tray, top bar To Do, to-do widget | the lists | a to-do added by hand | complete, reopen, claim, cancel; title, description, due date, priority, who it is assigned to | follow-ups (the server makes them and their outcomes) |
 | Contacts | the list, a contact, a contact's projects | a contact | a contact's fields (`expected_revision`, merged per field); which contacts a project has | merging, importing, duplicate suggestions |
-| Schedule (project tab and Scheduling) | events, calendar, resources, settings | an event on a project | an event's fields (`expected_event_revision`, merged per field) | events that belong to no project, deleting, recurring series; whether the assignee is free (the server checks when the event is sent) |
+| Schedule (project tab and Scheduling) | events, calendar, resources, settings | an event on a project; an event that belongs to no project | an event's fields, its time (a move) and its status (`expected_event_revision`, merged per field); deleting an event | recurring series and their occurrences; unlocking a locked item; re-placing an event's children and checking equipment (the server does both when the save is sent). See "Schedule events" below |
 | Documents | the list, a document, its preview and editor view, workflow, sent versions | | | creating, editing, sending, signing, PDF: see "Documents" below |
 | Operations (materials and labor) | the ledger, requirements and coverage, suppliers, price book | | | changing or generating lists, orders (the server prices and computes) |
 | Financials | | | | everything: payments data is never kept on a device. The tab says so |
 | Comms, Messages tray, Channels | what was last shown | | | sending (no contract yet); calls |
-| Checklists, Activity, Feed | what was last shown | | | completing checklist items, comments and reactions (no contract yet) |
+| Checklists (project tab and the assignee's checklist tab) | every checklist of the project with its items, also for a project that was only pinned | an item; a checklist, blank or with items | check, uncheck, rate, note and rename an item (merged per field under the item's revision); the sign-off of a finished checklist | item photos and files, and completing an item that asks for one the device does not have; renaming or deleting a checklist, its settings and assignment; deleting an item; sending, voice, the document. See "Checklists" below |
+| Activity, Feed | what was last shown | | | comments and reactions (no contract yet) |
 | Photos | see the photos contract (`media.js`) | | | |
 
 How each kind of change is sent:
@@ -1271,6 +1296,113 @@ How each kind of change is sent:
   apps ask with: a read that is asked differently is saved the first time
   the tab is opened, not by the pin.
 
+### Schedule events
+
+`contracts/schedule.js`. A project's event is one upsert
+(`POST .../projects/:project/events`); an event with no project is a
+`calendar_events` document saved whole (`PUT .../calendar_events/:id`). Both
+carry an id the page makes.
+
+| Change | Write | Kind | Scope |
+|---|---|---|---|
+| a new event on a project | `event.create` | `action` | `project:<id>` |
+| an edit, a move, a cancel or unschedule of a project's event | `event.edit` | `patch` | `project:<id>` |
+| deleting a project's event | `event.delete` | `delete` | `project:<id>` |
+| a new event with no project | `calendar.create` | `action` | `event:<id>` |
+| an edit or a move of one | `calendar.edit` | `patch` | `event:<id>` |
+| deleting one | `calendar.delete` | `delete` | `event:<id>` |
+
+- **An event made on this device is saved whole until the server has it.**
+  The page is answered revision 1, which the server never gave. While the
+  device's first save of an event still waits, or was refused, a further
+  save of it is a `create` again and is sent without the revision check
+  (`prepare` removes it); once the first save has arrived, a save is an
+  edit under the server's revision.
+- **An edit is merged per field** with the event as the server has it when
+  it is sent. A calendar event's `PUT` replaces the whole event, so what is
+  sent is the server's event with the merged fields.
+- **A delete** shows at once, replaces every change to that event still on
+  the device (`replaces`), and is always sent. The server's "not there"
+  (`deleted: false` for a project's event, `404` for a calendar event) is
+  done. Deleting a parent leaves its children on the project, as online.
+- **Double-booking.** Only the server can say whether an assignee is free,
+  and what an overlap does is the organization's setting. So:
+  - *On the device, a warning.* The answer a page gets while the save waits
+    carries, in `assignee_conflicts`, the overlaps that the events saved on
+    this device already show (`overlapsOnDevice`: the project list, opened
+    projects and the calendar, as the person sees them, queued changes
+    included), in the server's shape with `offline: true` and
+    `mode: 'warn'`. The schedule apps show it the way they show the
+    server's. It counts one job at a time per assignee and per unit, so it
+    can warn where the server, which knows the assignee's units, will not;
+    it never stops a save.
+  - *At sync, the server's answer.* Where the organization (or the
+    assignee) blocks an overlap, the save is refused with
+    `409 assignee_conflict`. The entry fails and waits in the tray with
+    `fail_event_booked` and the assignee's name; the event stays on the
+    calendar where the person put it. When they open it and change its
+    time or assignee, that save replaces the refused one. Discard removes
+    it. Equipment (`equipment_conflict`) and a locked item
+    (`project_event_locked`) are explained the same way.
+- **Recurring series need a connection**, and so does a save or a delete of
+  one occurrence: the server makes every occurrence and its id, and records
+  a changed or deleted occurrence as an exception of its series, so a
+  queued change could reach an occurrence that a series edit has since made
+  again or removed. They answer `offline_unavailable`.
+- Children of a moved event are re-placed by the server when the move is
+  sent; until then they show where they were.
+
+### Checklists
+
+`contracts/checklists.js`. Both checklist apps read one answer,
+`GET .../crew/projects/:project/checklists`, which a pinned project
+downloads.
+
+| Change | Write | Kind |
+|---|---|---|
+| a checklist, blank or with items | `checklist.create` | `create` |
+| an item | `checklist.item.create` | `create` |
+| check, uncheck, rate, note, rename an item | `checklist.item.patch` | `patch` |
+| the sign-off | `checklist.sign` | `action` |
+
+- **Scope** is `checklist:<id>`: everything in one checklist is sent in
+  order. A checklist on a project that was made on this device takes the
+  project's scope.
+- **Ids.** A new checklist and each of its items get an id on the device
+  (`checklist_<uuid>`, `checklist_item_<uuid>`, the server's own format),
+  made in the contract's `prepare` when the page sent none, so an item can
+  be checked before the server has it. The routes take the id as sent
+  (`400 invalid_checklist_id` for one that is not 8 to 80 lowercase
+  letters, digits, `_` or `-`) and answer a repeat with
+  `409 checklist_exists` / `checklist_item_exists`, which the contract
+  names as done.
+- **Items merge per field.** A queued item change keeps the item as it was;
+  when it is sent it is merged with the item as the server has it and sent
+  with `expected_revision` (a `409 checklist_revision_conflict` repeats the
+  merge). Two people who check different items never meet. The same item
+  checked by both is not sent again. The same field changed differently
+  (two notes) asks the person.
+- **What is not queued** is refused at once with `offline_unavailable`
+  instead of failing later: an item the device does not have, a bad rating
+  without its note, a change to an item's settings, a sign-off while an item
+  is open, and completing an item that asks for evidence the device does
+  not see on it.
+- **The seam for item photos.** Evidence is an upload
+  (`POST .../items/:item/attachments`) and belongs with the other uploads.
+  A contract that queues it takes its scope from
+  `FMOffline.checklists.scopeOf(ctx, checklistId)`, names the item in
+  `records`, and adds the attachment to the item's `metadata.attachments`
+  in its effects with `FMOffline.checklists.withItem`. Completing the item
+  then passes the evidence check on the device and is sent after the
+  upload.
+- **The sign-off's time.** `signed_at` is when the server recorded it. The
+  time on the device goes with it (`device_signed_at`, added in `prepare`)
+  and is kept in the signature's evidence.
+- A waiting item or checklist carries `PlatformOfflineUI.waitingBadge`.
+- There is no template picker in the checklist apps today: a checklist is
+  added blank. The create is queued with whatever items the page sends, so
+  a picker that reads templates the device has needs nothing more here.
+
 ### Documents
 
 Documents can be read offline; they cannot be made or changed. What is
@@ -1307,8 +1439,13 @@ missing before that is safe:
 - A read the server answers with `404` is not saved, so an app sees "no
   connection" where it saw "does not exist" online (for example a branch
   record that was never made).
-- Sending messages, checklist items, feed comments, events without a
-  project and deletes have no contract.
+- Sending messages and feed comments have no contract.
+- Schedule: recurring series and their occurrences; a waiting mark on an
+  event in the schedule views (the tray lists it); the roster warnings and
+  equipment checks of a waiting event.
+- Checklists: item photos and files (the seam is described under
+  "Checklists"), renaming or deleting a checklist, its settings and
+  assignment, deleting an item.
 - A change feed for refreshing pinned projects without re-reading them
   ([backlog](../optimization-backlog.md#pinned-offline-projects-are-refreshed-by-reading-everything-again)).
 - Resumable uploads for very large files (a failed upload starts again).
@@ -1348,7 +1485,9 @@ route, each write has `respond`, `scope` and `label`, each `POST` read is on
 the checked list; then every write is made with the server unreachable, its
 answer compared key by key with the real route's, and the queue replayed
 against the real routes, including a lost first answer and an edit the server
-also changed).
+also changed; events with no project, moves, deletes, the warning the
+device gives and a blocked double booking; checklists added, checked, noted
+and signed off, merged with another person's changes).
 
 Photos: `tests/offline-photos.test.mjs` (the media contract case by case, with
 the real engine), `tests/offline-photos-browser.test.mjs` (the real worker,

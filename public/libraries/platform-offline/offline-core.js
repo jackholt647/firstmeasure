@@ -19,7 +19,7 @@
 (function (root) {
   'use strict';
 
-  const VERSION = '1';
+  const VERSION = '2';
   const DB_NAME = 'fm-offline-v1';
   const MEDIA_CACHE = 'fm-media-v1';
   const MB = 1024 * 1024;

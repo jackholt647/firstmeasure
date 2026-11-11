@@ -364,6 +364,8 @@
           fields: (ctx) => [...new Set(Object.keys(fieldsOf(ctx.body.data)).concat(Object.keys(fieldsOf(ctx.base || {}))))].filter((field) => !['updated_at', 'event_revision'].includes(field)),
           mine: (ctx) => fieldsOf(ctx.body.data),
           send: (ctx, merged, revision, theirs) => {
+            // An engine that does not hand over the server's event (version 1) must not send a part of one as the whole.
+            if (!isObject(theirs)) throw new Error('The engine did not give the event as the server has it');
             const data = Object.assign(fieldsOf(theirs || {}), merged);
             for (const name of Object.keys(data)) if (data[name] === null && !(name in ctx.body.data)) delete data[name];
             delete data.event_revision;
