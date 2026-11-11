@@ -37,7 +37,9 @@ export const AREAS = [
   [[`${V1}session-replay/`, `${LIB}session-replay/`], ["v1:tests/session-replay.test.ts", "v1:tests/session-replay-archive.test.ts", "v1:tests/session-replay-agent-access.test.ts"]],
   [[`${V1}platform/localization/`, `${LIB}platform-language/`], ["v1:cmd:localization-check"]],
   [[/^public\/portal\/.*\.php$/], ["root:tests/portal-tracking-pixels.test.mjs"]],
-  [[`${V1}firstmeasure/pdf_runtime.ts`], ["v1:tests/pdf-runtime-transfer.test.ts"]]
+  [[`${V1}firstmeasure/pdf_runtime.ts`], ["v1:tests/pdf-runtime-transfer.test.ts"]],
+  [["deploy/digitalocean/release-node-fingerprint.py", "deploy/digitalocean/switch-release-files.py"], ["root:tests/release-fast-path.test.mjs", "root:tests/release-node-readers.test.mjs"]],
+  [[/^public\/v1\/(?!tests\/|scripts\/|src\/scripts\/).*\.(?:ts|mts|mjs|js|cjs)$/], ["root:tests/release-node-readers.test.mjs"]]
 ];
 
 /**
@@ -52,7 +54,8 @@ export const ALWAYS = new Set([
   "v1:tests/assignee-roster.test.ts", // 0.74 s
   "v1:tests/view-presence-client.test.mjs", // 0.78 s
   "root:tests/frontend-bridge.test.mjs", // 1.6 s
-  "root:tests/portal-tracking-pixels.test.mjs" // 0.1 s, reads files only
+  "root:tests/portal-tracking-pixels.test.mjs", // 0.1 s, reads files only
+  "root:tests/release-node-readers.test.mjs" // 0.9 s on fm-agents-1, reads files only (FM-388)
 ]);
 
 /** Cheap checks that need no test file: what `cmd:` ids run, from public/v1. */
