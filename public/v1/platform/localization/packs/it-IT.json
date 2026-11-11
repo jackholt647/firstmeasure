@@ -115,7 +115,8 @@
       "message": "{price} (risparmia {saving})",
       "format": "icu"
     },
-    "catalog_load_failed": "Impossibile caricare i dati di fatturazione. Riprova."
+    "catalog_load_failed": "Impossibile caricare i dati di fatturazione. Riprova.",
+    "full_exterior": "Esterno completo"
   },
   "canvassing": {
     "m_61df468d92e238": "Tutti",
@@ -2141,7 +2142,10 @@
     "m_0889f650508793": "REC",
     "m_1ddd588108e13d": "Giro completo",
     "m_e05fb49213187a": "Registra",
-    "review_full_structural_report": "Rivedi il tuo report completo della struttura"
+    "review_full_structural_report": "Rivedi il tuo report completo della struttura",
+    "ext_scope_roof": "Tetto",
+    "ext_full_exterior": "Esterno completo",
+    "ext_full_exterior_info": "Informazioni sul report esterno completo"
   },
   "help": {
     "m_0db6efc53ab2ed": "Ti serve una mano?",
@@ -2843,7 +2847,16 @@
       "message": "{count, plural, one {# segnaposto} other {# segnaposti}}",
       "format": "icu"
     },
-    "main_pitch_degrees": "Pendenza principale (gradi)"
+    "main_pitch_degrees": "Pendenza principale (gradi)",
+    "report_kind_roof": "Tetto",
+    "report_kind_roof_and_gutters": "Tetto e grondaie",
+    "report_kind_full_exterior": "Esterno completo",
+    "report_kind_ordered": "Ordinato",
+    "report_kind_structures": {
+      "message": "{structures, plural, one {# edificio} other {# edifici}}",
+      "format": "icu"
+    },
+    "report_kind_full_exterior_includes": "Tetto, pareti, finestre, porte e grondaie inclusi."
   },
   "money": {
     "m_487adb3f2ba511": "Caricamento dei dati finanziari...",
@@ -3909,7 +3922,12 @@
     "audit_35266cd2f21aca": "Invio in corso",
     "audit_2d31976e9d17e4": "Invio non riuscito.",
     "audit_88430f2c58bbce": "Report di sviluppo pronto",
-    "audit_7cf4af8eebae35": "I file del report esistente sono pronti per la consultazione."
+    "audit_7cf4af8eebae35": "I file del report esistente sono pronti per la consultazione.",
+    "full_exterior_report": "Report esterno completo",
+    "roof_report_title": "Report del tetto",
+    "order_full_exterior": "Ordina esterno completo",
+    "this_full_exterior_report": "questo report esterno completo",
+    "full_exterior_report_ordered": "Report esterno completo ordinato"
   },
   "project-schedule": {
     "m_88e13d64071885": "Calendario bloccato",
@@ -4467,7 +4485,10 @@
     "audit_5dbc6dff430e8d": "MODIFICHE IN ATTESA",
     "audit_1c4b7f4ada5422": "REPORT CORRETTO PRONTO",
     "audit_843f745c483e81": "ISTANTANEO + COMPLETO",
-    "audit_76bf93df451d48": "REPORT PRONTO"
+    "audit_76bf93df451d48": "REPORT PRONTO",
+    "report_kind_roof": "Tetto",
+    "report_kind_roof_and_gutters": "Tetto e grondaie",
+    "report_kind_full_exterior": "Esterno completo"
   },
   "promo-inject": {
     "m_9f35fbe4f31045": {

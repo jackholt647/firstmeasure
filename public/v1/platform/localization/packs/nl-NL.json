@@ -115,7 +115,8 @@
       "message": "{price} (bespaar {saving})",
       "format": "icu"
     },
-    "catalog_load_failed": "Factuurgegevens laden is mislukt. Probeer het opnieuw."
+    "catalog_load_failed": "Factuurgegevens laden is mislukt. Probeer het opnieuw.",
+    "full_exterior": "Volledige buitenkant"
   },
   "canvassing": {
     "m_61df468d92e238": "Alles",
@@ -2197,7 +2198,10 @@
     "m_0889f650508793": "OPN",
     "m_1ddd588108e13d": "Volledige ronde",
     "m_e05fb49213187a": "Opnemen",
-    "review_full_structural_report": "Bekijk je volledige structuur- en exterieurmetingsrapport"
+    "review_full_structural_report": "Bekijk je volledige structuur- en exterieurmetingsrapport",
+    "ext_scope_roof": "Dak",
+    "ext_full_exterior": "Volledige buitenkant",
+    "ext_full_exterior_info": "Informatie over het rapport volledige buitenkant"
   },
   "help": {
     "m_0db6efc53ab2ed": "Hulp nodig?",
@@ -2935,7 +2939,16 @@
       "message": "{count, plural, one {# pin} other {# pins}}",
       "format": "icu"
     },
-    "main_pitch_degrees": "Hoofdhelling (graden)"
+    "main_pitch_degrees": "Hoofdhelling (graden)",
+    "report_kind_roof": "Dak",
+    "report_kind_roof_and_gutters": "Dak en dakgoten",
+    "report_kind_full_exterior": "Volledige buitenkant",
+    "report_kind_ordered": "Besteld",
+    "report_kind_structures": {
+      "message": "{structures, plural, one {# gebouw} other {# gebouwen}}",
+      "format": "icu"
+    },
+    "report_kind_full_exterior_includes": "Dak, muren, ramen, deuren en dakgoten inbegrepen."
   },
   "money": {
     "m_487adb3f2ba511": "Financiële gegevens laden...",
@@ -4089,7 +4102,12 @@
     "audit_35266cd2f21aca": "Bestellen",
     "audit_2d31976e9d17e4": "Indienen is mislukt.",
     "audit_88430f2c58bbce": "Ontwikkelrapport gereed",
-    "audit_7cf4af8eebae35": "Bestaande rapportbestanden zijn klaar om te bekijken."
+    "audit_7cf4af8eebae35": "Bestaande rapportbestanden zijn klaar om te bekijken.",
+    "full_exterior_report": "Rapport volledige buitenkant",
+    "roof_report_title": "Dakrapport",
+    "order_full_exterior": "Volledige buitenkant bestellen",
+    "this_full_exterior_report": "dit rapport van de volledige buitenkant",
+    "full_exterior_report_ordered": "Rapport volledige buitenkant besteld"
   },
   "project-schedule": {
     "m_88e13d64071885": "Planning vergrendeld",
@@ -4647,7 +4665,10 @@
     "audit_5dbc6dff430e8d": "WIJZIGINGEN IN BEHANDELING",
     "audit_1c4b7f4ada5422": "GECORRIGEERD RAPPORT GEREED",
     "audit_843f745c483e81": "DIRECT + VOLLEDIG",
-    "audit_76bf93df451d48": "RAPPORT GEREED"
+    "audit_76bf93df451d48": "RAPPORT GEREED",
+    "report_kind_roof": "Dak",
+    "report_kind_roof_and_gutters": "Dak en dakgoten",
+    "report_kind_full_exterior": "Volledige buitenkant"
   },
   "promo-inject": {
     "m_9f35fbe4f31045": {

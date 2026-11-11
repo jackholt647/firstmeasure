@@ -115,7 +115,8 @@
       "message": "{price} (spar {saving})",
       "format": "icu"
     },
-    "catalog_load_failed": "Kunne ikke indlæse faktureringsoplysninger. Prøv igen."
+    "catalog_load_failed": "Kunne ikke indlæse faktureringsoplysninger. Prøv igen.",
+    "full_exterior": "Hele ydersiden"
   },
   "canvassing": {
     "m_61df468d92e238": "Alle",
@@ -2197,7 +2198,10 @@
     "m_0889f650508793": "REC",
     "m_1ddd588108e13d": "Hel omgang",
     "m_e05fb49213187a": "Optag",
-    "review_full_structural_report": "Gennemse din fulde bygningsrapport"
+    "review_full_structural_report": "Gennemse din fulde bygningsrapport",
+    "ext_scope_roof": "Tag",
+    "ext_full_exterior": "Hele ydersiden",
+    "ext_full_exterior_info": "Oplysninger om rapporten over hele ydersiden"
   },
   "help": {
     "m_0db6efc53ab2ed": "Brug for hjælp?",
@@ -2931,7 +2935,16 @@
       "message": "{count, plural, one {# nål} other {# nåle}}",
       "format": "icu"
     },
-    "main_pitch_degrees": "Primær hældning (grader)"
+    "main_pitch_degrees": "Primær hældning (grader)",
+    "report_kind_roof": "Tag",
+    "report_kind_roof_and_gutters": "Tag og tagrender",
+    "report_kind_full_exterior": "Hele ydersiden",
+    "report_kind_ordered": "Bestilt",
+    "report_kind_structures": {
+      "message": "{structures, plural, one {# bygning} other {# bygninger}}",
+      "format": "icu"
+    },
+    "report_kind_full_exterior_includes": "Tag, vægge, vinduer, døre og tagrender er inkluderet."
   },
   "money": {
     "m_487adb3f2ba511": "Indlæser økonomi...",
@@ -4081,7 +4094,12 @@
     "audit_35266cd2f21aca": "Bestiller",
     "audit_2d31976e9d17e4": "Indsendelse mislykkedes.",
     "audit_88430f2c58bbce": "Udviklingsrapport klar",
-    "audit_7cf4af8eebae35": "Eksisterende rapportfiler er klar til visning."
+    "audit_7cf4af8eebae35": "Eksisterende rapportfiler er klar til visning.",
+    "full_exterior_report": "Rapport over hele ydersiden",
+    "roof_report_title": "Tagrapport",
+    "order_full_exterior": "Bestil hele ydersiden",
+    "this_full_exterior_report": "denne rapport over hele ydersiden",
+    "full_exterior_report_ordered": "Rapport over hele ydersiden bestilt"
   },
   "project-schedule": {
     "m_88e13d64071885": "Tidsplan låst",
@@ -4639,7 +4657,10 @@
     "audit_5dbc6dff430e8d": "ÆNDRINGER AFVENTER",
     "audit_1c4b7f4ada5422": "RETTET RAPPORT KLAR",
     "audit_843f745c483e81": "INSTANT + FULD",
-    "audit_76bf93df451d48": "RAPPORT KLAR"
+    "audit_76bf93df451d48": "RAPPORT KLAR",
+    "report_kind_roof": "Tag",
+    "report_kind_roof_and_gutters": "Tag og tagrender",
+    "report_kind_full_exterior": "Hele ydersiden"
   },
   "promo-inject": {
     "m_9f35fbe4f31045": {

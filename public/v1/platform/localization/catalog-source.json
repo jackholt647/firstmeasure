@@ -115,7 +115,8 @@
       "message": "{price} (save {saving})",
       "format": "icu"
     },
-    "catalog_load_failed": "Could not load billing. Please try again."
+    "catalog_load_failed": "Could not load billing. Please try again.",
+    "full_exterior": "Full Exterior"
   },
   "canvassing": {
     "m_61df468d92e238": "All",
@@ -3811,7 +3812,10 @@
     },
     "m_e05fb49213187a": "Record",
     "review_full_structural_report": "Review your full structural report",
-    "m_c3839bf54e2f6b": "Full loop"
+    "m_c3839bf54e2f6b": "Full loop",
+    "ext_scope_roof": "Roof",
+    "ext_full_exterior": "Full Exterior",
+    "ext_full_exterior_info": "Full Exterior report information"
   },
   "help": {
     "m_0db6efc53ab2ed": "Need a hand?",
@@ -5048,7 +5052,16 @@
     "m_c1b810cb6841fe": "Reading material lists…",
     "m_df13f4ec78c9b6": "No roof, siding, trim or door products with a color were found on this project’s material lists.",
     "main_pitch_degrees": "Main pitch (degrees)",
-    "m_906d58f5ce0ae8": "Use the roof, siding, trim and door products on this project’s material lists"
+    "m_906d58f5ce0ae8": "Use the roof, siding, trim and door products on this project’s material lists",
+    "report_kind_roof": "Roof",
+    "report_kind_roof_and_gutters": "Roof & Gutters",
+    "report_kind_full_exterior": "Full Exterior",
+    "report_kind_ordered": "Ordered",
+    "report_kind_structures": {
+      "message": "{structures, plural, one {# structure} other {# structures}}",
+      "format": "icu"
+    },
+    "report_kind_full_exterior_includes": "Roof, walls, windows, doors and gutters included."
   },
   "money": {
     "m_487adb3f2ba511": "Loading money...",
@@ -6621,7 +6634,12 @@
       "message": "Change board stage, currently {v1}",
       "format": "icu"
     },
-    "m_ae873abaa56707": "Measurements"
+    "m_ae873abaa56707": "Measurements",
+    "full_exterior_report": "Full Exterior report",
+    "roof_report_title": "Roof report",
+    "order_full_exterior": "Order Full Exterior",
+    "this_full_exterior_report": "this Full Exterior report",
+    "full_exterior_report_ordered": "Full Exterior report ordered"
   },
   "project-schedule": {
     "m_88e13d64071885": "Schedule locked",
@@ -7339,7 +7357,10 @@
     "m_63261a6895811f": "List order",
     "m_05a97c3490fbb9": "Pins are coloured by stage, or by board when all boards are shown. Use the chips above the map's list to show only some stages.",
     "m_af2632c7a0ecb8": "The map could not be loaded. The list still shows every project.",
-    "m_637e00d5e1780c": "None of these projects has a location yet."
+    "m_637e00d5e1780c": "None of these projects has a location yet.",
+    "report_kind_roof": "Roof",
+    "report_kind_roof_and_gutters": "Roof & Gutters",
+    "report_kind_full_exterior": "Full Exterior"
   },
   "promo-inject": {
     "m_9f35fbe4f31045": {

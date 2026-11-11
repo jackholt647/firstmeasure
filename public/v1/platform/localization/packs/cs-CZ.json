@@ -115,7 +115,8 @@
       "message": "{price} (ušetříte {saving})",
       "format": "icu"
     },
-    "catalog_load_failed": "Nepodařilo se načíst fakturaci. Zkuste to prosím znovu."
+    "catalog_load_failed": "Nepodařilo se načíst fakturaci. Zkuste to prosím znovu.",
+    "full_exterior": "Celý exteriér"
   },
   "canvassing": {
     "m_61df468d92e238": "Vše",
@@ -2121,7 +2122,10 @@
     "m_0889f650508793": "NAHRÁVÁNÍ",
     "m_1ddd588108e13d": "Celý okruh",
     "m_e05fb49213187a": "Nahrávat",
-    "review_full_structural_report": "Zkontrolovat úplnou zprávu o konstrukci"
+    "review_full_structural_report": "Zkontrolovat úplnou zprávu o konstrukci",
+    "ext_scope_roof": "Střecha",
+    "ext_full_exterior": "Celý exteriér",
+    "ext_full_exterior_info": "Informace o zprávě o celém exteriéru"
   },
   "help": {
     "m_0db6efc53ab2ed": "Potřebujete pomoct?",
@@ -2815,7 +2819,16 @@
       "message": "{count, plural, one {# značka} few {# značky} many {# značek} other {# značky}}",
       "format": "icu"
     },
-    "main_pitch_degrees": "Hlavní sklon (stupně)"
+    "main_pitch_degrees": "Hlavní sklon (stupně)",
+    "report_kind_roof": "Střecha",
+    "report_kind_roof_and_gutters": "Střecha a okapy",
+    "report_kind_full_exterior": "Celý exteriér",
+    "report_kind_ordered": "Objednáno",
+    "report_kind_structures": {
+      "message": "{structures, plural, one {# stavba} few {# stavby} many {# stavby} other {# staveb}}",
+      "format": "icu"
+    },
+    "report_kind_full_exterior_includes": "Zahrnuje střechu, stěny, okna, dveře a okapy."
   },
   "money": {
     "m_487adb3f2ba511": "Načítání financí...",
@@ -3861,7 +3874,12 @@
     "audit_35266cd2f21aca": "Objednávání",
     "audit_2d31976e9d17e4": "Odeslání se nezdařilo.",
     "audit_88430f2c58bbce": "Vývojová zpráva je připravena",
-    "audit_7cf4af8eebae35": "Soubory existující zprávy jsou připraveny k zobrazení."
+    "audit_7cf4af8eebae35": "Soubory existující zprávy jsou připraveny k zobrazení.",
+    "full_exterior_report": "Zpráva o celém exteriéru",
+    "roof_report_title": "Zpráva o střeše",
+    "order_full_exterior": "Objednat celý exteriér",
+    "this_full_exterior_report": "tuto zprávu o celém exteriéru",
+    "full_exterior_report_ordered": "Zpráva o celém exteriéru objednána"
   },
   "project-schedule": {
     "m_88e13d64071885": "Rozvrh je uzamčen",
@@ -4415,7 +4433,10 @@
     "audit_5dbc6dff430e8d": "ČEKAJÍCÍ ZMĚNY",
     "audit_1c4b7f4ada5422": "OPRAVENÁ ZPRÁVA JE PŘIPRAVENA",
     "audit_843f745c483e81": "OKAMŽITÁ + ÚPLNÁ",
-    "audit_76bf93df451d48": "ZPRÁVA JE PŘIPRAVENA"
+    "audit_76bf93df451d48": "ZPRÁVA JE PŘIPRAVENA",
+    "report_kind_roof": "Střecha",
+    "report_kind_roof_and_gutters": "Střecha a okapy",
+    "report_kind_full_exterior": "Celý exteriér"
   },
   "promo-inject": {
     "m_9f35fbe4f31045": {

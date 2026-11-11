@@ -68,6 +68,8 @@ The builder accepts registered locales with reviewed overrides and rejects unkno
 
 `catalog-source.json` holds US messages. `catalog-overrides.json` contains reviewed locale-specific overrides; its British entries take precedence over the initial English spelling map. The build emits content-hashed catalog files plus a manifest under `public/libraries/platform-language/catalogs`. Keep old hashed files that issued snapshots reference. Do not edit generated bundles directly.
 
+The build only registers the generated `m_…` keys it finds. A hand-named key (`PlatformLanguage.text("projects", "report_kind_roof", "Roof")`) is not added for you: put its US text in `catalog-source.json` and its translation in every `packs/<locale>.json`, then build. Otherwise every language shows the English fallback (FM-396). `tests/report-type-labels-localization.test.mjs` enforces this for report type names.
+
 The current inventory scans 151 portal/library files and contains 8,560 messages across 87 namespaces, including shared errors and terminology. The source migration intentionally recognizes conservative UI patterns; this count is not a claim that every arbitrary English expression in the repository is internationalized. Complex conditionals, special renderers and new app surfaces need explicit message keys during review. CSS, identifiers, paths and customer data are excluded. US baselines are kept verbatim.
 
 From `public/v1`:

@@ -115,7 +115,8 @@
       "message": "{price} (économisez {saving})",
       "format": "icu"
     },
-    "catalog_load_failed": "Impossible de charger les informations de facturation. Veuillez réessayer."
+    "catalog_load_failed": "Impossible de charger les informations de facturation. Veuillez réessayer.",
+    "full_exterior": "Extérieur complet"
   },
   "canvassing": {
     "m_61df468d92e238": "Tout",
@@ -2117,7 +2118,10 @@
       "format": "icu"
     },
     "m_e05fb49213187a": "Enregistrer",
-    "review_full_structural_report": "Vérifier votre rapport structurel complet"
+    "review_full_structural_report": "Vérifier votre rapport structurel complet",
+    "ext_scope_roof": "Toiture",
+    "ext_full_exterior": "Extérieur complet",
+    "ext_full_exterior_info": "Informations sur le rapport extérieur complet"
   },
   "help": {
     "m_0db6efc53ab2ed": "Besoin d’aide ?",
@@ -2823,7 +2827,16 @@
       "message": "{count, plural, one {# épingle} other {# épingles}}",
       "format": "icu"
     },
-    "main_pitch_degrees": "Pente principale (degrés)"
+    "main_pitch_degrees": "Pente principale (degrés)",
+    "report_kind_roof": "Toiture",
+    "report_kind_roof_and_gutters": "Toiture et gouttières",
+    "report_kind_full_exterior": "Extérieur complet",
+    "report_kind_ordered": "Commandé",
+    "report_kind_structures": {
+      "message": "{structures, plural, one {# bâtiment} other {# bâtiments}}",
+      "format": "icu"
+    },
+    "report_kind_full_exterior_includes": "Toiture, murs, fenêtres, portes et gouttières inclus."
   },
   "money": {
     "m_487adb3f2ba511": "Chargement des données financières...",
@@ -3941,7 +3954,12 @@
     "audit_35266cd2f21aca": "Commande en cours",
     "audit_2d31976e9d17e4": "Échec de l’envoi.",
     "audit_88430f2c58bbce": "Rapport de développement prêt",
-    "audit_7cf4af8eebae35": "Les fichiers du rapport existant sont prêts à être consultés."
+    "audit_7cf4af8eebae35": "Les fichiers du rapport existant sont prêts à être consultés.",
+    "full_exterior_report": "Rapport extérieur complet",
+    "roof_report_title": "Rapport de toiture",
+    "order_full_exterior": "Commander l’extérieur complet",
+    "this_full_exterior_report": "ce rapport extérieur complet",
+    "full_exterior_report_ordered": "Rapport extérieur complet commandé"
   },
   "project-schedule": {
     "m_88e13d64071885": "Calendrier verrouillé",
@@ -4495,7 +4513,10 @@
     "audit_5dbc6dff430e8d": "MODIFICATIONS EN ATTENTE",
     "audit_1c4b7f4ada5422": "RAPPORT CORRIGÉ DISPONIBLE",
     "audit_843f745c483e81": "INSTANTANÉ + COMPLET",
-    "audit_76bf93df451d48": "RAPPORT PRÊT"
+    "audit_76bf93df451d48": "RAPPORT PRÊT",
+    "report_kind_roof": "Toiture",
+    "report_kind_roof_and_gutters": "Toiture et gouttières",
+    "report_kind_full_exterior": "Extérieur complet"
   },
   "promo-inject": {
     "m_9f35fbe4f31045": {

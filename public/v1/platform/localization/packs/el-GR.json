@@ -115,7 +115,8 @@
       "message": "{price} (εξοικονομείτε {saving})",
       "format": "icu"
     },
-    "catalog_load_failed": "Δεν ήταν δυνατή η φόρτωση των στοιχείων χρέωσης. Δοκιμάστε ξανά."
+    "catalog_load_failed": "Δεν ήταν δυνατή η φόρτωση των στοιχείων χρέωσης. Δοκιμάστε ξανά.",
+    "full_exterior": "Πλήρες εξωτερικό"
   },
   "canvassing": {
     "m_61df468d92e238": "Όλα",
@@ -2201,7 +2202,10 @@
       "format": "icu"
     },
     "m_e05fb49213187a": "Εγγραφή",
-    "review_full_structural_report": "Ελέγξτε την πλήρη αναφορά κατασκευής σας"
+    "review_full_structural_report": "Ελέγξτε την πλήρη αναφορά κατασκευής σας",
+    "ext_scope_roof": "Στέγη",
+    "ext_full_exterior": "Πλήρες εξωτερικό",
+    "ext_full_exterior_info": "Πληροφορίες αναφοράς πλήρους εξωτερικού"
   },
   "help": {
     "m_0db6efc53ab2ed": "Χρειάζεστε βοήθεια;",
@@ -2939,7 +2943,16 @@
       "message": "{count, plural, one {# καρφίτσα} other {# καρφίτσες}}",
       "format": "icu"
     },
-    "main_pitch_degrees": "Κύρια κλίση (μοίρες)"
+    "main_pitch_degrees": "Κύρια κλίση (μοίρες)",
+    "report_kind_roof": "Στέγη",
+    "report_kind_roof_and_gutters": "Στέγη και υδρορροές",
+    "report_kind_full_exterior": "Πλήρες εξωτερικό",
+    "report_kind_ordered": "Παραγγέλθηκε",
+    "report_kind_structures": {
+      "message": "{structures, plural, one {# κτίριο} other {# κτίρια}}",
+      "format": "icu"
+    },
+    "report_kind_full_exterior_includes": "Περιλαμβάνονται στέγη, τοίχοι, παράθυρα, πόρτες και υδρορροές."
   },
   "money": {
     "m_487adb3f2ba511": "Φόρτωση οικονομικών στοιχείων...",
@@ -4093,7 +4106,12 @@
     "audit_35266cd2f21aca": "Υποβολή παραγγελίας",
     "audit_2d31976e9d17e4": "Η υποβολή απέτυχε.",
     "audit_88430f2c58bbce": "Η αναφορά ανάπτυξης είναι έτοιμη",
-    "audit_7cf4af8eebae35": "Τα υπάρχοντα αρχεία αναφοράς είναι έτοιμα για προβολή."
+    "audit_7cf4af8eebae35": "Τα υπάρχοντα αρχεία αναφοράς είναι έτοιμα για προβολή.",
+    "full_exterior_report": "Αναφορά πλήρους εξωτερικού",
+    "roof_report_title": "Αναφορά στέγης",
+    "order_full_exterior": "Παραγγελία πλήρους εξωτερικού",
+    "this_full_exterior_report": "αυτήν την αναφορά πλήρους εξωτερικού",
+    "full_exterior_report_ordered": "Η αναφορά πλήρους εξωτερικού παραγγέλθηκε"
   },
   "project-schedule": {
     "m_88e13d64071885": "Το πρόγραμμα είναι κλειδωμένο",
@@ -4651,7 +4669,10 @@
     "audit_5dbc6dff430e8d": "ΕΚΚΡΕΜΟΥΝ ΑΛΛΑΓΕΣ",
     "audit_1c4b7f4ada5422": "Η ΔΙΟΡΘΩΜΕΝΗ ΑΝΑΦΟΡΑ ΕΙΝΑΙ ΕΤΟΙΜΗ",
     "audit_843f745c483e81": "ΑΜΕΣΗ + ΠΛΗΡΗΣ",
-    "audit_76bf93df451d48": "Η ΑΝΑΦΟΡΑ ΕΙΝΑΙ ΕΤΟΙΜΗ"
+    "audit_76bf93df451d48": "Η ΑΝΑΦΟΡΑ ΕΙΝΑΙ ΕΤΟΙΜΗ",
+    "report_kind_roof": "Στέγη",
+    "report_kind_roof_and_gutters": "Στέγη και υδρορροές",
+    "report_kind_full_exterior": "Πλήρες εξωτερικό"
   },
   "promo-inject": {
     "m_9f35fbe4f31045": {
