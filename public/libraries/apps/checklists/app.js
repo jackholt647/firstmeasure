@@ -700,6 +700,9 @@
           }, 280);
         });
         if (deleted) return;
+        // A checklist added, or signed off, without a connection.
+        const listWaiting = window.PlatformOfflineUI?.waitingBadge?.({ record:checklistId, compact:true });
+        if (listWaiting) section.querySelector('.fmcl-cl-tools')?.prepend(listWaiting);
         const titleInput = section.querySelector('[data-fmcl-rename]');
         const saveTitle = async () => {
           const title = clean(titleInput?.value);
@@ -884,6 +887,9 @@
           const item = arr(checklist.items).find((entry) => entry.id === itemId);
           if (!item) return;
           const drawer = state(itemId);
+          // A change to this item made without a connection: the offline UI's mark, until the server has it.
+          const waiting = window.PlatformOfflineUI?.waitingBadge?.({ record:itemId, compact:true });
+          if (waiting) row.querySelector('.fmcl-item-main')?.insertBefore(waiting, row.querySelector('.fmcl-item-tools'));
           const itemMetadata = obj(item.metadata);
           const itemRequirements = arr(itemMetadata.required_attachments);
           const isMediaRequirement = (entry) => clean(entry.kind) === 'media'
