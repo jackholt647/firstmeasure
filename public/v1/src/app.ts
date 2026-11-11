@@ -66,6 +66,8 @@ import { env } from "./config/env.js";
 import { installRouteAccess } from "../platform/security/route-access.js";
 import { corsDelegator, installBrowserProtections } from "../platform/security/browser.js";
 import { setServiceApp } from "../platform/security/service.js";
+import { installOfflineIdempotency } from "../platform/offline/idempotency.js";
+import { registerOfflineApi } from "../platform/offline/api.js";
 import "../platform/security/route-access-tables.js";
 import { devConsoleRoutes } from "./routes/dev_console.js";
 import { rootRoutes } from "./routes/root.js";
@@ -107,6 +109,8 @@ export async function buildApp() {
   installRouteAccess(app);
   installBrowserProtections(app);
   setServiceApp(app);
+  // After the route gate, before every plugin: a queued offline change that is sent twice runs once (docs/architecture/offline.md#server).
+  installOfflineIdempotency(app);
   installFullHouseAccess(app);
   void app.register(registerPlatformBillingApi, { prefix: "/v1/platform-billing" });
   installDiagnostics(app);
@@ -211,6 +215,7 @@ export async function buildApp() {
   void app.register(registerMaterialsApi, { prefix: "/v1/materials" });
   void app.register(registerPaymentsApi, { prefix: "/v1/payments" });
   void app.register(registerPlatformApi, { prefix: "/v1/platform" });
+  void app.register(registerOfflineApi, { prefix: "/v1/platform/offline" });
   void app.register(registerMobileApi, { prefix: "/v1/mobile" });
   void app.register(registerProposalsApi, { prefix: "/v1/proposals" });
   void app.register(registerPublicFirstMeasureApi, { prefix: "/v1/public/firstmeasure" });

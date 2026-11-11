@@ -88,6 +88,8 @@ const definitions: CapabilityDefinition[] = [
   { key: "platform.people_access", kind: "feature", label: "Platform People & Access", description: "Use the platform people, workforce and access management UI instead of the familiar FirstMeasure Users screen.", requires: ["platform.expanded_access"] },
   // Branches and regions (docs/architecture/branches.md). Off: the organization has one implicit branch and nothing about branches shows.
   { key: "platform.multiple_branches", kind: "feature", category: "Platform & Appearance", label: "Multiple Branches", description: "Run more than one branch, group branches into regions, and limit what people see and manage to their own branches.", requires: ["platform.expanded_access"] },
+  // Offline (docs/architecture/offline.md). Read by the asset manifest: where it is off, a device removes its saved code and stops queueing.
+  { key: "platform.offline", kind: "feature", category: "Platform & Appearance", label: "Offline", description: "Keep the app, the data people have seen and the changes they make on the device, so the portal works without a connection." },
   // --- Apps: top-level product surfaces -----------------------------------
   {
     key: "apps.notifications",
