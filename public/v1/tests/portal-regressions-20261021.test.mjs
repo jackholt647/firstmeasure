@@ -212,33 +212,55 @@ test('1M8-202: tile and list patches write the same contact placeholders as the 
   assert.match(viewer, /data-col="resident"[^`]*\$\{escapeHtml\(resident\.name \|\| '\\u2014'\)\}/);
 });
 
+// FM-374 replaced 1M8-206's "a draft stays a draft until it has an order, proposal or appointment": a project with data
+// of any kind is a real project. What the platform makes by itself (the satellite image, the work plan a scope starts)
+// is still not data. One rule, PlatformAPI.projectContent, decides for the viewer and the portal list alike.
+const platformApi = vm.createContext({ window: { __APP: { platformApiBase: '/v1/platform' } }, location: { hostname: 'localhost', href: 'http://localhost/' }, URL, URLSearchParams, console });
+vm.runInContext(read('libraries/platform-api/platform-api.js'), platformApi);
+const satellite = { id: 'top_down_thumbnail', designator: 'top_down_thumbnail', source: 'google_static_map', is_top_down_thumbnail: true };
+const savedSatellite = { id: 'sat', media_id: 'sat', source: 'satellite_top_down', metadata: { source: 'satellite_top_down' } };
 const drafts = [
+  [{ workflow_state: 'draft' }, true, 'an untouched draft'],
   [{ workflow_state: 'draft', work_plan_ids: ['plan_1'], work_projection: { plans: [{ id: 'plan_1' }] } }, true, 'auto-created work plans'],
-  [{ workflow_state: 'draft', photos: [{ id: 'p' }], notes: 'gate code 1234' }, true, 'an explicit draft with photos and notes'],
+  [{ workflow_state: 'draft', photos: [satellite, savedSatellite], thumbnail_photo: satellite }, true, 'only the generated satellite image'],
+  [{ workflow_state: 'draft', contacts: [{ id: 'c', name: '', phone: '', email: '' }] }, true, 'an empty contact card'],
+  [{ workflow_state: 'project', work_plan_ids: ['plan_1'] }, true, 'a new project with only an auto-created plan'],
+  [{ workflow_state: 'draft', photos: [satellite, { id: 'p', media_id: 'p' }] }, false, 'a draft with a photo someone took'],
+  [{ workflow_state: 'draft', notes: 'gate code 1234' }, false, 'a draft with notes'],
+  [{ workflow_state: 'draft', contacts: [{ id: 'c', name: 'Ann' }] }, false, 'a draft with a contact'],
+  [{ workflow_state: 'draft', address: '12 Main St' }, false, 'a draft with an address'],
+  [{ workflow_state: 'draft', title: 'Smith roof' }, false, 'a draft with a title'],
+  [{ workflow_state: 'draft', document_ids: ['d'] }, false, 'a draft with a document'],
+  [{ workflow_state: 'draft', events: [{ id: 'e', status: 'scheduled' }] }, false, 'a draft with an event'],
+  [{ workflow_state: 'draft', has_meaningful_activity: true }, false, 'a draft a write marked (a note or to-do kept in another store)'],
   [{ workflow_state: 'draft', proposals: [{ id: 'proposal_1' }] }, false, 'a draft with a proposal'],
   [{ workflow_state: 'draft', measurement_project: { id: 'measurement-1' } }, false, 'a draft with an order'],
-  [{ workflow_state: 'project', work_plan_ids: ['plan_1'] }, true, 'a new project with only an auto-created plan'],
-  [{ workflow_state: 'project', photos: [{ id: 'p' }] }, false, 'a project with photos'],
+  [{ workflow_state: 'project', photos: [{ id: 'p', media_id: 'p' }] }, false, 'a project with photos'],
 ];
 
-test('1M8-206: drafts stay drafts in the projects viewer', () => {
+test('FM-374: the projects viewer leaves out only drafts with no data', () => {
   const ctx = vm.createContext({
+    window: platformApi.window,
     hasProjectProposals: p => !!p?.proposals?.length, hasScheduledAppointment: () => false,
     hasMeasurementOrder: p => !!(p?.measurement_project?.id || p?.measurement?.id)
   });
-  vm.runInContext(fn(viewer, 'hasMeaningfulProjectActivity') + fn(viewer, 'isDraftProject'), ctx);
+  vm.runInContext(fn(viewer, 'isDraftProject'), ctx);
   for (const [project, draft, label] of drafts) assert.equal(ctx.isDraftProject(project), draft, label);
   // Shared records carry no activity of their own, so the draft filter leaves them in.
   assert.match(viewer, /project\._shared \|\| !isDraftProject\(project\)/);
+  // Without the shared rule nothing is hidden: real data is never left out by a missing library.
+  assert.equal(vm.runInNewContext(fn(viewer, 'isDraftProject') + ';isDraftProject({workflow_state:"draft"})', { window: {}, hasProjectProposals: () => false, hasScheduledAppointment: () => false, hasMeasurementOrder: () => false }), false);
 });
 
-test('1M8-206: drafts stay drafts in the portal project list', () => {
+test('FM-374: the portal project list uses the same rule', () => {
   const ctx = vm.createContext({
-    cleanText: text, hasProjectProposals: p => !!p?.proposals?.length, hasScheduledAppointment: () => false,
+    window: platformApi.window,
+    hasProjectProposals: p => !!p?.proposals?.length, hasScheduledAppointment: () => false,
     projectMeasurementKeys: p => [p?.measurement_project?.id, p?.measurement?.id].filter(Boolean)
   });
-  vm.runInContext(between(core, '  const hasMeaningfulProjectActivity =', '  const projectMatchesSearch =').replace('const hasMeaningfulProjectActivity', 'var hasMeaningfulProjectActivity'), ctx);
+  vm.runInContext(fn(core, 'isDraftPlatformProject'), ctx);
   for (const [project, draft, label] of drafts) assert.equal(ctx.isDraftPlatformProject(project), draft, label);
+  assert.doesNotMatch(viewer + core, /hasMeaningfulProjectActivity/, 'no second copy of the rule');
 });
 
 test('1M8-211: the impersonation banner offsets the sidebar only on mobile', () => {

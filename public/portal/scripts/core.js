@@ -1301,28 +1301,12 @@
     });
   };
 
-  const hasMeaningfulProjectActivity = (project = {}) => {
-    if (hasProjectProposals(project) || hasScheduledAppointment(project)) return true;
-    if (project.has_meaningful_activity === true || project.meaningful_activity === true) return true;
-    const workflow = cleanText(project.workflow_state).toLowerCase();
-    if (['proposal_only', 'document_only', 'drafting_proposal', 'proposal_sent', 'newly_sold', 'measurement_ordered'].includes(workflow)) return true;
-    // Work plans are created automatically when a project starts a scope, so they are not activity.
-    const populatedArrays = ['photos', 'documents', 'document_ids', 'material_lists', 'material_list_ids', 'todos', 'action_items'];
-    if (populatedArrays.some((key) => Array.isArray(project[key]) && project[key].length)) return true;
-    const scope = project.scope && typeof project.scope === 'object' ? project.scope : {};
-    if ((Array.isArray(scope.root_items) && scope.root_items.length) || (Array.isArray(scope.pieces) && scope.pieces.length)) return true;
-    return !!cleanText(project.project_notes, project.notes, project.tech_notes);
-  };
-
+  // Left out of the list only while nothing was ever written to it: PlatformAPI.projectContent (FM-374), the same
+  // rule the projects viewer uses.
   function isDraftPlatformProject(project = {}){
-    const status = cleanText(project.status, project.measurement_project?.status, project.measurement?.status, project.workflow_state).toLowerCase();
-    if (projectMeasurementKeys(project).length && ['queued', 'processing', 'in_progress', 'awaiting_review', 'awaiting_manager_review', 'pending_rejection'].includes(status)) return false;
-    // A project saved as a draft stays one until it has an order, a proposal or an appointment.
-    if (cleanText(project.workflow_state).toLowerCase() === 'draft') {
-      return !projectMeasurementKeys(project).length && !hasProjectProposals(project) && !hasScheduledAppointment(project);
-    }
-    return !projectMeasurementKeys(project).length
-      && !hasMeaningfulProjectActivity(project);
+    if (projectMeasurementKeys(project).length || hasProjectProposals(project) || hasScheduledAppointment(project)) return false;
+    const content = window.PlatformAPI?.projectContent;
+    return !!content && content.isEmptyDraft(project);
   }
 
   const projectMatchesSearch = (project, search) => {

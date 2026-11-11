@@ -43,6 +43,7 @@ test('the first write on a blank new project saves it on the server before the w
   const { context, calls, ensure } = windowHarness();
   const project = await ensure();
   assert.equal(project.id, 'project_new');
+  assert.equal(project.has_meaningful_activity, true, 'a write makes it a real project (PlatformAPI.projectContent)');
   assert.equal(calls.drafts, 1);
   assert.deepEqual(calls.remote, ['project_new'], 'the draft is on the server when the write starts');
   // The next write reuses it and saves nothing again.
@@ -52,14 +53,19 @@ test('the first write on a blank new project saves it on the server before the w
   assert.equal(context.activeBaseProject.id, 'project_new');
 });
 
-test('a draft whose first save is still queued is saved before the write; a saved project is left alone', async () => {
-  const queued = windowHarness({ activeBaseProject: { id: 'project_contact' }, pending: new Set(['project_contact']) });
+test('a draft whose first save is still queued is saved before the write; a saved, marked project is left alone', async () => {
+  const queued = windowHarness({ activeBaseProject: { id: 'project_contact', has_meaningful_activity: true }, pending: new Set(['project_contact']) });
   assert.equal((await queued.ensure()).id, 'project_contact');
   assert.deepEqual(queued.calls.remote, ['project_contact']);
   assert.equal(queued.calls.drafts, 0);
-  const saved = windowHarness({ activeBaseProject: { id: 'project_saved' }, viewingExistingProject: true });
+  const saved = windowHarness({ activeBaseProject: { id: 'project_saved', has_meaningful_activity: true }, viewingExistingProject: true });
   assert.equal((await saved.ensure()).id, 'project_saved');
   assert.deepEqual(saved.calls.remote, []);
+  // A saved draft no write has marked yet (an address-only draft) is marked and saved once, then left alone.
+  const unmarked = windowHarness({ activeBaseProject: { id: 'project_address', address: '12 Main St' }, viewingExistingProject: true });
+  assert.equal((await unmarked.ensure()).has_meaningful_activity, true);
+  assert.equal((await unmarked.ensure()).id, 'project_address');
+  assert.deepEqual(unmarked.calls.remote, ['project_address']);
 });
 
 test('a window for an existing project that has not loaded never starts a new draft (1M8-234)', async () => {
@@ -96,6 +102,16 @@ test('upload paths in other tabs ask for the project instead of refusing an unsa
   const rail = await read('materials/rail-media.js');
   assert.match(rail.slice(rail.indexOf('async function uploadPhotos(')), /^[\s\S]{0,400}ensureProjectId\(\)/, 'Materials rail photos');
   assert.match(rail.slice(rail.indexOf('async function uploadDocuments(')), /^[\s\S]{0,200}ensureProjectId\(\)/, 'Materials rail documents');
+});
+
+test('a photo-only project is a real project in every list (one shared rule)', async () => {
+  const context = vm.createContext({ window: { __APP: { platformApiBase: '/v1/platform' } }, location: { hostname: 'localhost', href: 'http://localhost/' }, URL, URLSearchParams, console });
+  vm.runInContext(await readFile(new URL('../../libraries/platform-api/platform-api.js', import.meta.url), 'utf8'), context);
+  const rule = context.window.PlatformAPI.projectContent;
+  const satellite = { id: 'top_down_thumbnail', designator: 'top_down_thumbnail', is_top_down_thumbnail: true, source: 'google_static_map' };
+  assert.equal(rule.isEmptyDraft({ workflow_state: 'draft', photos: [satellite] }), true, 'opened, nothing added');
+  assert.equal(rule.isEmptyDraft({ workflow_state: 'draft', photos: [satellite, { id: 'media_1', media_id: 'media_1' }] }), false, 'a photo was taken');
+  assert.equal(rule.isEmptyDraft({ workflow_state: 'draft', has_meaningful_activity: true }), false, 'a note or to-do was written');
 });
 
 test('a photo taken in a blank new project uploads to the project its first write saved', async () => {
