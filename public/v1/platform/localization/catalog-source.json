@@ -5047,7 +5047,8 @@
     "m_e839e628a5c743": "Close design",
     "m_c1b810cb6841fe": "Reading material lists…",
     "m_df13f4ec78c9b6": "No roof, siding, trim or door products with a color were found on this project’s material lists.",
-    "main_pitch_degrees": "Main pitch (degrees)"
+    "main_pitch_degrees": "Main pitch (degrees)",
+    "m_906d58f5ce0ae8": "Use the roof, siding, trim and door products on this project’s material lists"
   },
   "money": {
     "m_487adb3f2ba511": "Loading money...",
@@ -6172,7 +6173,11 @@
     "m_f6c18a9bc9fb27": "Post is too long",
     "m_9e0cad6720003c": "Keep the post under 5,000 characters.",
     "m_43fc960df3ae8a": "Could not post",
-    "m_c7a97e0bb50632": "Upload photos"
+    "m_c7a97e0bb50632": "Upload photos",
+    "offline_waiting_upload": "Waiting to upload",
+    "offline_device_full_title": "This device is out of space",
+    "upload_failed_title": "Photo not added",
+    "upload_failed_body": "It could not be uploaded. Try again."
   },
   "project-map": {
     "m_85092cc71d4661": "Shrink",
@@ -15594,7 +15599,11 @@
     "item_count": {
       "message": "{count, plural, =0 {No items} one {# item} other {# items}}",
       "format": "icu"
-    }
+    },
+    "offline_payments_need_connection": "Payments and money figures need a connection. They are not kept on this device.",
+    "offline_document_not_saved": "This document is not saved on this device. Connect to the internet to open it.",
+    "offline_documents_need_connection": "This needs a connection. Without one, documents can be read but not created, changed, sent or signed.",
+    "offline_change_needs_connection": "This needs a connection. Nothing was saved."
   },
   "account-switcher": {
     "m_b5e633539db02a": "Choose an account",
@@ -16790,7 +16799,9 @@
     "m_17bb11ec04c41f": "Appointments",
     "m_3742924668fb10": "Close",
     "m_222d26f8c0e181": "Tomorrow's Appointments",
-    "m_3bf910f0c97215": "Today's Appointments"
+    "m_3bf910f0c97215": "Today's Appointments",
+    "offline_storage_full": "This device is out of space, so this was not saved. Connect to the internet so the photos that are waiting can upload, or lower the picture storage in the offline settings.",
+    "offline_upload_unavailable": "There is no connection, and this file cannot wait on this device. Try again when you are back online."
   },
   "platform-assistant": {
     "m_8a1a2ff14a50f1": "Assistant",
@@ -17349,7 +17360,8 @@
       "message": "Current: {v0}. Select an audience to update.",
       "format": "icu"
     },
-    "m_9417f96a1856fa": "Apply"
+    "m_9417f96a1856fa": "Apply",
+    "offline_needs_connection": "This needs a connection. It is not saved on this device."
   },
   "settings-pages": {
     "m_a446c433a4d6f0": {
@@ -20143,7 +20155,8 @@
     "audit_entry_not_found": "That audit entry was not found.",
     "invalid_percent": "A percentage is from 0 to 100.",
     "flag_introduce_needs_on": "Only turning a flag on can introduce it.",
-    "no_organizations": "Choose at least one organization."
+    "no_organizations": "Choose at least one organization.",
+    "sandbox_app_state": "An app's state is on, offered or off."
   },
   "notifications": {
     "document_greeting": {
@@ -21610,6 +21623,41 @@
     "set_choice_more": "More",
     "set_choice_current": "Current",
     "tray_offline_note": "Changes you make are saved on this device and sent when you reconnect.",
-    "tray_saved_copy_note": "It may be older than what the server has now. Load the latest when you are ready."
+    "tray_saved_copy_note": "It may be older than what the server has now. Load the latest when you are ready.",
+    "sync_project_new": "New project",
+    "sync_lead_new": "New lead",
+    "sync_project_edit": "Project change",
+    "sync_project_contacts": "Project contacts",
+    "sync_note_new": "Note",
+    "sync_todo_new": "New to-do",
+    "sync_todo_done": "To-do completed",
+    "sync_todo_status": "To-do changed",
+    "sync_todo_edit": "To-do change",
+    "sync_contact_new": "New contact",
+    "sync_contact_edit": "Contact change",
+    "sync_event_new": "Schedule event",
+    "sync_event_edit": "Schedule change",
+    "sync_photo_new": "Photo",
+    "sync_video_new": "Video",
+    "sync_project_photos": "Project photos",
+    "sync_project_photos_removed": "Photos removed from the project",
+    "sync_photo_assign": "Photos added to a project",
+    "m_9ed0a85dcdfd8e": "New contact",
+    "m_206bfa6edd9098": "Contact change",
+    "m_9055821aaeb2d8": "Project contacts",
+    "m_68684e843563de": "Photos removed from the project",
+    "m_0bd4327f96a29a": "Project photos",
+    "m_4c93fc6da6696f": "Photos added to a project",
+    "m_963906ea70bf9a": "Note",
+    "m_491241b9a33521": "New project",
+    "m_00e270cb959287": "New lead",
+    "m_6d766d65318a2f": "Project change",
+    "m_2cf343aee670c7": "Schedule event",
+    "m_9d2ab780aa1fbd": "Schedule change",
+    "m_16fe02df6543be": "New to-do",
+    "m_bac89e96d4e3f8": "To-do change"
+  },
+  "camera-capture": {
+    "waiting_upload": "Saved on this device. Uploads when you are back online."
   }
 }

@@ -612,10 +612,12 @@ waiting record with `PlatformOfflineUI.waitingBadge({ record })` and opens the
 tray with `PlatformOfflineUI.open()`, and never draws its own offline banner
 or sync list. Run
 `tests/offline-core.test.mjs`, `tests/offline-sw-browser.test.mjs`,
-`tests/offline-ui-browser.test.mjs`,
+`tests/offline-ui-browser.test.mjs`, `tests/offline-photos.test.mjs`,
+`tests/offline-photos-browser.test.mjs`,
+`tests/offline-native-uploads.test.mjs`,
 `tests/offline-idempotency.test.ts`, `tests/offline-assets.test.ts`,
-`tests/offline-routes.test.ts` and `tests/offline-contracts.test.ts` for
-changes here.
+`tests/offline-routes.test.ts`, `tests/offline-photos.test.ts` and
+`tests/offline-contracts.test.ts` for changes here.
 
 ## Realtime: one stream per page
 
