@@ -167,7 +167,9 @@
     }
   } catch (_) { channel = null; }
 
-  window.addEventListener('online', () => { apply({}); if (top) { replayNow({ force: true }); ask('refreshPins').catch(() => {}); } });
+  // Back online: what the person changed goes first. The kept projects are read again only after it (hundreds of
+  // reads at once beside the queue kept a waiting upload from being sent for minutes).
+  window.addEventListener('online', () => { apply({}); if (top) replayNow({ force: true }).then(() => ask('refreshPins')).catch(() => {}); });
   window.addEventListener('offline', () => apply({}));
 
   // ---------------------------------------------------------------------------------------------------------
@@ -363,7 +365,7 @@
     if (top) {
       ask('check', { manifest }).then((code) => apply({ code })).catch(() => {});
       setInterval(() => { checkForUpdate().catch(() => {}); }, CHECK_EVERY_MS);
-      setInterval(() => { if (navigator.onLine !== false) ask('refreshPins').catch(() => {}); }, PINS_EVERY_MS);
+      setInterval(() => { if (navigator.onLine !== false && !replaying) ask('refreshPins').catch(() => {}); }, PINS_EVERY_MS);
       setInterval(() => { if (current.pending > 0 && navigator.onLine !== false) replayNow(); }, REPLAY_EVERY_MS);
       if (current.pending > 0 && navigator.onLine !== false) replayNow();
       // On dev the platform stream reconnects when a release switches; look for the new set then.
