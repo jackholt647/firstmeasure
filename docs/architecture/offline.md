@@ -92,17 +92,77 @@ hashes) answers
 
 - `release` is the name of the release the web node is serving (the same value
   as `servedRelease()` in `platform/live_assets.ts`); a browser-only release
-  that keeps the Node process changes it.
-- `files` is every browser file an offline portal can need, chosen by the
-  rules in `platform/offline/assets.ts` (`ASSET_RULES`: include
-  `/libraries/**`, `/portal/scripts/**`, portal styles and images, fonts;
-  exclude marketing pages, samples, PHP, Markdown, language catalogs that the
-  catalog manifest no longer names, the call effects WASM and
-  `/measure/internal`). The list is computed once per release per process and
-  answered with an `ETag`.
-- `enabled: false` is the kill switch (`OFFLINE_ENABLED=0`, or the
-  `platform.offline` flag): the service worker removes its caches and
-  unregisters, and pages stop registering it.
+  that keeps the Node process changes it. The files are read through the same
+  `current` link NGINX serves from, never from the release Node started in,
+  so the list and the files always belong together; a production release that
+  skips the Node restart is picked up the same way
+  (`release-node-fingerprint.py` lists the reader, with nothing for Node to
+  keep). While a rollout moves from one web
+  node to the next, two nodes can name different releases for a moment; each
+  file's hash is still checked by the device.
+- `files` is every browser file an offline portal can need, as
+  `[sha256, bytes]`, chosen by `ASSET_RULES` in `platform/offline/assets.ts`
+  (the include and exclude lists are data, in that one place):
+
+  | In the set | |
+  |---|---|
+  | `/libraries/**` | every library and app bundle |
+  | `/portal/scripts/**`, `/portal/mobile/**` | the portal's own scripts and the mobile shell's script and style |
+  | `/portal/landing/shared/**` | the signup widget the portal page loads |
+  | `/portal/signup-sandbox/**`, `/portal/media/**`, `/portal/manifest.webmanifest` | sandbox bar, sample images, the web app manifest |
+  | `/fonts.css`, `/fonts/**`, `/images/**`, `/favicon.ico` | fonts and images |
+
+  | Left out | Why | Size on 2026-11-10 |
+  |---|---|---|
+  | language catalogs the catalog manifest no longer names | older hashed files stay on disk; only `manifest.json` and the files it names are current | 406 files, 77.2 MB |
+  | `/libraries/calls-runtime/effects/**` | call background effects (WASM and models); a call needs a connection | 12 files, 34.5 MB |
+  | `*-sample.json` under `/libraries` | the report settings preview's sample report | 3.2 MB |
+  | `.php` | server pages; a person's shell is saved by the service worker | |
+  | `.md`, `.txt`, licences, `.map`, `package.json`, `package-lock.json` | not browser files | 0.5 MB |
+  | `.html`, `/libraries/apps/smoke/**` | development previews, embed pages and smoke pages; no portal page needs one offline | 0.3 MB |
+  | `.eot` | a font format no supported browser asks for | |
+  | everything else under `/portal/` (landing and marketing pages, samples), `/measure/`, `/v1/` | not included in the first place | |
+
+  Measured on 2026-11-10: **547 files, 40.2 MB** (42,112,314 bytes); the
+  manifest itself is 68 KB. The budget is 60 MB (`ASSET_BUDGET_BYTES`):
+  `tests/offline-assets.test.ts` fails over it, and the route logs a warning
+  and still answers. A file left out is not broken online: the worker does not
+  answer for it, so it loads from the network as before.
+- `shells` is `["/portal/"]`.
+- `external` is the other-origin stylesheets and scripts
+  `public/portal/index.php` needs to render: the Font Awesome stylesheet, the
+  four font files it loads (and their folder as a prefix, `.../webfonts/*`,
+  for any other format a browser asks for), three.js, OrbitControls and
+  geotiff. Analytics,
+  pixels and Google Maps are never listed (`externalLeftOut`). The test fails
+  when the page gains an outside file that is in neither list.
+- The list is computed once per release per process (hashing the set takes
+  about a third of a second; see
+  [the backlog](../optimization-backlog.md#the-offline-asset-manifest-hashes-every-file-once-per-release-in-every-process))
+  and answered with a weak `ETag` and `Cache-Control: private, no-cache`, so a
+  check that finds nothing new is a `304` with no body. A checkout without a
+  release link (a developer's machine) is checked by file size and time on
+  every request instead, because its files change in place.
+- `enabled: false` is the kill switch: the service worker removes its caches
+  and unregisters, and pages stop registering it. Two switches, either of
+  which turns it off (`platform/offline/switch.ts`):
+  - `OFFLINE_ENABLED=0` on a host: off for everyone that host serves.
+  - the `platform.offline` [flag](feature-flags.md), an organization switch
+    like any other: the flag console turns it on or off for one organization,
+    by percentage, or **Off for everyone**, which every web process reads
+    within 15 seconds and needs no release. Its default is data
+    (`capability_defaults/platform` in the config library) and is off until
+    that entry names it: development's entry gets `"platform.offline": true`
+    once this is released there (`tools/config-library/cli.mjs`: `get`, add
+    the value, `put`), production's does not name it. Like every platform
+    feature it needs expanded access.
+
+  The route is public; when the request carries a session, `enabled` is that
+  person's organization's flag. A request without a session (a device whose
+  session ran out still checks for updates) is answered `true` unless the
+  flag is Off for everyone, so that device keeps its code and its queued
+  changes until someone signs in. The `ETag` covers `enabled`, so a device
+  holding an old tag still hears a switch.
 
 ### Sets
 
@@ -167,8 +227,34 @@ contract names.
   `fm-media-v1` and served from it first (a variant never changes; a markup
   variant carries its revision). Thumbnails are always kept; larger variants
   only up to 8 MB each. Default budget 300 MB, least recently used first,
-  pinned projects exempt. The server sends `Cache-Control: private,
-  max-age=31536000, immutable` for a variant.
+  pinned projects exempt. The server says how long each answer may be kept
+  (`mediaFileCaching` in `platform/media_variants.ts`), always `private`,
+  always with an `ETag`, and only after the same access checks as before
+  (a `304` is never sent to someone who may not read the file):
+
+  | Request | `Cache-Control` |
+  |---|---|
+  | a rendition (`thumb_320`, `display_2400`, ...): made once, at upload | `private, max-age=31536000, immutable` |
+  | a markup thumbnail with its revision in the URL (`thumb_320_markup&v=<markup revision>`) | the same |
+  | a markup thumbnail without `v`, or with any other value (the photo feed sends a timestamp) | `private, no-cache` |
+  | the original (`variant=original` or none) | `private, no-cache` |
+  | any variant of a slot record (a logo, an avatar: `replace_slot` makes the id from the slot) | `private, no-cache` |
+  | a receipt | `private, no-store`, as before |
+
+  `no-cache` answers are asked about every time and cost a `304` when
+  nothing changed; the tag follows the bytes (a new upload under the id, a
+  markup thumbnail rendered again), not a rename or a tag. The original is
+  never `immutable` because a later upload naming the same id replaces the
+  record. That also replaces its renditions, which a browser that already
+  kept them will not ask about again: nothing does this today (an upload
+  makes a new id, a slot upload is never kept, and an offline retry sends the
+  same file), and a feature that replaces a picture in place must give it a
+  new id. An error answer carries neither header. So the worker serves from
+  its media cache first only what was answered `immutable`; anything answered
+  `no-cache` (an avatar, a logo, an original) goes to the network first and
+  falls back to the cache. On the Postgres store a markup thumbnail is not
+  rendered (the plain thumbnail is served in its place), so it is always
+  `no-cache` there.
 - **Pinned projects.** `PlatformOffline.pinProject(org, project)` runs every
   contract's `prefetch` for that project (the project, its lists, its
   documents, its thumbnails) and repeats it when the connection returns and
@@ -176,7 +262,7 @@ contract names.
   projects are pinned automatically (setting `autoPinRecent`).
 
 There is no change feed yet: a refresh re-reads the pinned set
-(see the optimization backlog).
+(see [the backlog](../optimization-backlog.md#pinned-offline-projects-are-refreshed-by-reading-everything-again)).
 
 ## Queued changes
 
@@ -328,18 +414,79 @@ never conflict.
 ## Server
 
 - **Idempotency receipts** (`platform/offline/idempotency.ts`): a root hook
-  for every mutating request that carries `Idempotency-Key: fmo1-...` and a
-  session. The first request runs and its status and JSON body are stored
-  (key, user, organization, method, path, body hash for JSON bodies) for 30
-  days in the SQL store `offline_idempotency`; a repeat answers the stored
-  response with `Idempotency-Replayed: true`. A repeat while the first is
-  still running answers `409 idempotency_in_progress`; a key reused with a
-  different method, path or body answers `422 idempotency_key_reused`; a
-  session other than `X-FM-Offline-User`/`-Org` answers
-  `409 offline_identity_mismatch`. Only 2xx and 4xx answers are stored; a 5xx
-  or a crash frees the key.
+  for every mutating request (`POST`, `PUT`, `PATCH`, `DELETE`) that carries
+  `Idempotency-Key: fmo1-<uuid>` and a session. The first request runs and
+  its status and JSON body are stored (key, user, organization, method, path,
+  body hash for JSON bodies) for 30 days in the SQL store
+  `offline_idempotency`; a repeat answers the stored response with
+  `Idempotency-Replayed: true` and the handler does not run. A repeat while
+  the first is still running answers `409 idempotency_in_progress` (with
+  `Retry-After: 2`); a key reused with a different method, path or body
+  answers `422 idempotency_key_reused`; a session other than
+  `X-FM-Offline-User`/`-Org` answers `409 offline_identity_mismatch`. Only
+  2xx and 4xx answers are stored; a 5xx or a crash frees the key. The details
+  below are settled in the code and its tests.
 - **Assets** (`platform/offline/assets.ts`): the manifest above.
-- `POST /organizations/:org/leads` accepts a device-made `project_id`.
+- `POST /organizations/:org/leads` accepts a device-made `project_id`: 8 to
+  80 lowercase letters, digits, `_` or `-`, starting with a letter or digit,
+  used exactly as sent (`400 invalid_project_id` otherwise). A repeat with
+  its receipt is the first answer. Without its receipt (the first try
+  answered 5xx after the project was written) it is refused with
+  `409 project_exists` before any contact is created a second time.
+- A photo's display rendition is encoded at the quality the app asked for:
+  browser code sends `compression.quality` as a fraction (`0.88`), which is
+  read as 88, not as a percentage rounded up to the lowest quality allowed.
+
+### Receipts in detail
+
+- **Whose keys.** Only keys that start with `fmo1-` are ours; one that does
+  not continue with a UUID answers `400 idempotency_key_invalid`. Any other
+  `Idempotency-Key` is passed through untouched, so routes that read the
+  header themselves (payment receipts, the public FirstMeasure API) work as
+  before. The worker must not replace a key the page set.
+- **Whose receipts.** A receipt belongs to the session's user and
+  organization; the same key from another person is another change. Without
+  a session nothing is claimed or replayed and the handler answers as always
+  (401), so the queue waits for a sign-in. The identity headers are checked
+  on every mutating request that carries one, with or without a key, and can
+  only refuse.
+- **One runner.** The key is claimed by inserting its row, which fails when
+  the row exists; nothing reads first, and nothing is remembered in the
+  process, so two web nodes never both run the handler. The hook runs at
+  `preHandler`: the body is parsed, the route gate has passed, and the
+  handler's own checks (CSRF, permission) have not run yet, which is safe
+  because a replay only gives a person the answer they were already given.
+- **The same request** means the same method, the same path with its query,
+  and the same body. A parsed body (JSON, or a form's fields) is hashed with
+  its keys in order, so the same content written differently still matches.
+  A multipart body is a stream the handler has not read yet: it is compared
+  by `Content-Length`, within 2 KB, because the page and the native uploader
+  choose different boundaries for the same file and fields. A JSON body over
+  8 MB is compared by length too.
+- **What is kept.** The answer is captured as it is sent (before
+  compression), so an answer the device never received is still the answer a
+  repeat gets. An answer over 1 MB, or one that is not JSON, is kept as its
+  status with `{ ok: true, replayed: true }`; an empty answer (204) stays
+  empty.
+- **What frees the key instead.** A 5xx or a thrown error. A 4xx that is
+  about the moment and not the request: 401, 403, 408, 409, 423, 425 and 429
+  (a session that ran out, a stale CSRF token, a revision that moved, a rate
+  limit), so the same entry runs again after a sign-in, a fresh token or a
+  merge, under the same key and, after a merge, with a new body. Any 4xx
+  when the connection dropped before the request had fully arrived, because
+  that error may be about half an upload. Other 4xx answers (400, 404, 422)
+  are kept: sending the same change again gets the same refusal, so a manual
+  retry that should run again needs a new key.
+- **A request that never answers.** A running request marks its claim every
+  30 seconds, so a long upload is not taken for dead; a claim not marked for
+  two minutes (its process was killed) is taken over by the next repeat, and
+  the first request finishing late does not overwrite the taker's answer.
+- **Proxied routes.** On a web node `/v1/communications` and `/v1/internal`
+  are forwarded to the compatibility host, which runs the handler and keeps
+  the receipt; the web node only checks the identity headers.
+- **Cleaning up.** Each web process removes expired receipts 500 at a time,
+  at most every ten minutes, when a keyed request arrives
+  ([backlog](../optimization-backlog.md#offline-idempotency-receipts-are-pruned-by-whichever-web-process-sees-a-keyed-request)).
 
 ## Native hosts
 
@@ -385,7 +532,8 @@ PlatformOffline.signedOut()
 
 ## Not built yet
 
-- A change feed for refreshing pinned projects without re-reading them.
+- A change feed for refreshing pinned projects without re-reading them
+  ([backlog](../optimization-backlog.md#pinned-offline-projects-are-refreshed-by-reading-everything-again)).
 - Resumable uploads for very large files (a failed upload starts again).
 - Offline sign-in (a person must have signed in on the device while online).
 - The measure editor (`/measure/internal`) and pages outside `/portal/`.
@@ -393,6 +541,10 @@ PlatformOffline.signedOut()
 ## Tests
 
 `tests/offline-core.test.mjs`, `tests/offline-sw-browser.test.mjs` (root),
-`public/v1/tests/offline-idempotency.test.ts`,
+`public/v1/tests/offline-idempotency.test.ts` (also on PostgreSQL:
+`node tests/run-embedded-postgres.mjs tests/offline-idempotency.test.ts`),
 `public/v1/tests/offline-assets.test.ts`,
+`public/v1/tests/offline-routes.test.ts` (media caching, the lead route and
+the receipts hook through the real app),
+`public/v1/tests/media-quality.test.ts`,
 `public/v1/tests/offline-contracts.test.ts`.

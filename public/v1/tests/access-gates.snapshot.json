@@ -1,7 +1,7 @@
 {
   "summary": {
     "routes": {
-      "total": 1986,
+      "total": 1987,
       "by_kind": {
         "any:login_only": 170,
         "any:login_only+handler_checks": 385,
@@ -31,7 +31,7 @@
         "mixed(any:login_only,any:permission)": 7,
         "mixed(any:permission,app(contact.media|portal.photos_feed|portal.viewer|project.photos):login_only)": 2,
         "mixed(app(documents.studio|portal.proposals|project.docs|project.documents|project.proposal):login_only,app(documents.studio|portal.proposals|project.docs|project.documents|project.proposal):permission)": 5,
-        "no_platform_session": 389,
+        "no_platform_session": 390,
         "publication_policy": 6
       }
     },
@@ -746,6 +746,7 @@
     "GET /v1/platform/me": {"file":"platform/api.ts","gates":[{"app":"any"}],"kind":"any:login_only"},
     "GET /v1/platform/me/localization": {"file":"platform/api.ts","gates":[{"app":"any"}],"kind":"any:login_only"},
     "GET /v1/platform/me/preferences": {"file":"platform/api.ts","gates":[{"app":"any"}],"kind":"any:login_only"},
+    "GET /v1/platform/offline/assets": {"file":"platform/offline/api.ts","checks":["authContextFromRequest"],"kind":"no_platform_session"},
     "GET /v1/platform/organizations": {"file":"platform/api.ts","gates":[{"app":"any"}],"kind":"any:login_only"},
     "GET /v1/platform/organizations/:orgId": {"file":"platform/api.ts","gates":[{"app":"any"}],"kind":"any:login_only"},
     "GET /v1/platform/organizations/:orgId/:collection": {"file":"platform/api.ts","gates":[{"app":"any","permission":{"dynamic":"collectionReadPermission(collection)"},"scoped":{"dynamic":"collection==='calendar_events'"}}],"checks":["hasPermission(dynamic)"],"kind":"any:permission"},
