@@ -255,9 +255,10 @@ function device(me: Awaited<ReturnType<typeof owner>>) {
       const url = new URL(request.url);
       const headers: Record<string, string> = {};
       request.headers.forEach((value, name) => { if (name !== "cookie" && name !== "x-platform-csrf") headers[name] = value; });
-      const payload = ["GET", "HEAD"].includes(request.method) ? undefined : await request.text();
+      // (Bytes, not text: an uploaded picture must arrive as it was.)
+      const payload = ["GET", "HEAD"].includes(request.method) ? undefined : Buffer.from(await request.arrayBuffer());
       net.sent.push(`${request.method} ${url.pathname}`);
-      const response = await me.raw(request.method, url.pathname + url.search, payload || undefined, headers);
+      const response = await me.raw(request.method, url.pathname + url.search, payload && payload.length ? payload : undefined, headers);
       return new Response(response.statusCode === 204 ? null : response.body, { status: response.statusCode, headers: { "content-type": String(response.headers["content-type"] || "application/json") } });
     }
   });
@@ -508,4 +509,192 @@ test("the to-do widget's published actions are queued with their own key and run
   // The same key again is the first answer, not a second run.
   const repeat = await real("POST", `${publication}/actions/invoke`, body);
   assert.deepEqual([repeat.status, repeat.json.receipt.replayed], [200, true]);
+});
+
+test("photo edits and the uploads of other apps answer offline as their routes would, and arrive once", async () => {
+  const me = await owner();
+  const { enableExpandedPlatformFixture } = await import("./helpers/platform-fixture.js");
+  await enableExpandedPlatformFixture(me.orgId, { "platform.contacts": true, "apps.channels": true, "channels.project_notes": true, "platform.project_docs": true, "platform.project_photos": true });
+  const d = device(me);
+  const org = `/v1/platform/organizations/${me.orgId}`;
+  const channels = `/v1/channels/organizations/${me.orgId}`;
+  const real = async (method: string, target: string, payload?: unknown) => { const response = await me.raw(method, target, payload); return { status: response.statusCode, json: response.json() as Json }; };
+  const hex = (length: number) => { let out = ""; while (out.length < length) out += Math.random().toString(16).slice(2); return out.slice(0, length); };
+  const mediaId = () => `media_${hex(16)}`;
+  /** One multipart request as the service worker would answer it: sent when there is a connection, kept when not. */
+  const askForm = async (target: string, fields: Record<string, unknown>, file: { name: string; type: string; text?: string; bytes?: Buffer }) => {
+    const body = new FormData();
+    body.append("file", new File([file.bytes ? new Uint8Array(file.bytes) : String(file.text)], file.name, { type: file.type }));
+    for (const [name, value] of Object.entries(fields)) if (value !== undefined) body.append(name, typeof value === "object" ? JSON.stringify(value) : String(value));
+    const waits: Promise<unknown>[] = [];
+    const plan = d.FM.api.plan(new Request(ORIGIN + target, { method: "POST", body }), d.identity, { waitUntil: (promise: Promise<unknown>) => waits.push(promise) });
+    assert.ok(plan, `POST ${target} is answered by the worker`);
+    const response: Response = await plan();
+    const data = await response.json().catch(() => null);
+    while (waits.length) await waits.shift();
+    return { status: response.status, queued: response.headers.get("x-fm-offline-queued"), data: data as Json };
+  };
+  const jpeg = (name: string) => ({ name, type: "image/jpeg", text: `not-really-a-jpeg ${name}` });
+  const pdf = (name: string) => ({ name, type: "application/pdf", text: `%PDF-1.4 ${name}` });
+
+  // ---- records made the ordinary way ----
+  const project = `project_${hex(12)}`;
+  assert.equal((await real("PUT", `${org}/projects/${project}`, { data: { id: project, title: "Uploads", address: "4 Queue Street" }, metadata: { kind: "platform_project", workflow_state: "", measurement_keys: [] }, create_only: true })).status, 200);
+  const contact = `contact_${hex(12)}`;
+  assert.equal((await real("POST", `${org}/contacts`, { id: contact, contact_kind: "human", name: "Uma Pload" })).status, 200);
+  const channel = (await real("POST", `${channels}/channels/project/${project}`)).json.channel.id as string;
+  const checklistsUrl = `/v1/workforce/organizations/${me.orgId}/crew/projects/${project}/checklists`;
+  const madeChecklist = await real("POST", checklistsUrl, { title: "Site photos", assignment_policy: { schema_version: 1, mode: "any", allow_unassigned: true, rules: [] }, items: [{ title: "Photograph the deck" }, { title: "Photograph the gutters" }] });
+  assert.equal(madeChecklist.status, 201, JSON.stringify(madeChecklist.json));
+  const checklist = madeChecklist.json.checklist.id as string;
+  const items = (await real("GET", checklistsUrl)).json.checklists.find((entry: Json) => entry.id === checklist).items as Json[];
+  const photoForm = (id: string) => ({ id, owner_type: "project", owner_id: project, slot: "photos", collection: "projects", scope: "projects", replace_slot: "false", thumbnails: "true", metadata: { field: "photos", source: "project_photo_upload" } });
+  const contactForm = (id: string, slot: string) => ({ id, owner_type: "contact", owner_id: contact, slot, collection: "contacts", scope: "contact", metadata: { contact_draft: false } });
+  const docForm = (id: string, title: string) => ({ id, metadata: { title, label: title, document_type: "document", source: "project_document_upload" } });
+  const notesUrl = `${channels}/channels/${channel}/messages?limit=200&view=notes`;
+  const noteBody = (text: string, attachment: string) => ({ text, project_note: true, pin: false, client_msg_id: `note_${hex(12)}`, audience: [], tags: [], mention_users: [], attachment_ids: [attachment], metadata: {} });
+
+  // ---- what the real routes answer, with a connection (the worker passes these through) ----
+  const realPhoto = await askForm(`${org}/media`, photoForm(mediaId()), jpeg("Ridge.jpg"));
+  assert.deepEqual([realPhoto.status, realPhoto.queued], [201, null], JSON.stringify(realPhoto.data));
+  const photo = realPhoto.data.media.id as string;
+  const realRename = await d.ask("PATCH", `${org}/media/${photo}`, { name: "Ridge line" });
+  assert.deepEqual([realRename.status, realRename.queued, realRename.data.media.label, realRename.data.media.file_name], [200, null, "Ridge line", "Ridge line.jpg"]);
+  const realContactFile = await askForm(`${org}/media`, contactForm(mediaId(), "document"), pdf("Old warranty.pdf"));
+  assert.equal(realContactFile.status, 201, JSON.stringify(realContactFile.data));
+  const realDocument = await askForm(`${org}/projects/${project}/documents`, docForm(mediaId(), "Permit.pdf"), pdf("Permit.pdf"));
+  assert.equal(realDocument.status, 201, JSON.stringify(realDocument.data));
+  const realEvidence = await askForm(`${checklistsUrl}/${checklist}/items/${items[1]!.id}/attachments`, { media_id: mediaId() }, jpeg("Gutters.jpg"));
+  assert.equal(realEvidence.status, 200, JSON.stringify(realEvidence.data));
+  const realUpload = await askForm(`${channels}/uploads`, { channel_id: channel, attachment_id: `att_${hex(32)}`, media_id: mediaId() }, jpeg("Before.jpg"));
+  assert.equal(realUpload.status, 201, JSON.stringify(realUpload.data));
+  const realNote = await real("POST", `${channels}/channels/${channel}/messages`, noteBody("With a file", realUpload.data.attachment.id));
+  assert.equal(realNote.status, 201, JSON.stringify(realNote.json));
+  assert.equal(realNote.json.message.attachments.length, 1);
+
+  // The page read these while it had a connection.
+  for (const target of ["/v1/platform/me", `${org}/projects/${project}`, `${org}/media`, `${org}/media?contact_id=${contact}`, `${org}/projects/${project}/documents`, checklistsUrl, notesUrl, `${org}/contacts/${contact}`]) {
+    assert.equal((await d.ask("GET", target)).status, 200, target);
+  }
+
+  // ---- no connection ----
+  d.net.down = true;
+  const before = (await d.entries()).length;
+
+  // Renaming and tagging: a photo the server has, and one that is itself still waiting.
+  const tagged = await d.ask("PATCH", `${org}/media/${photo}`, { tags: ["Storm Damage", "#ridge"] });
+  assert.ok(tagged.queued);
+  assert.deepEqual(keyDifference(tagged.data, realRename.data), NONE);
+  assert.deepEqual(keyDifference(tagged.data.media, realRename.data.media), { missing: [], extra: ["tags"] }, "a record that was never tagged has no tags yet");
+  assert.deepEqual([tagged.data.media.tags, tagged.data.media.metadata.tags, tagged.data.media.label], [["storm_damage", "ridge"], ["storm_damage", "ridge"], "Ridge line"]);
+  const newPhoto = mediaId();
+  const waitingPhoto = await askForm(`${org}/media`, photoForm(newPhoto), jpeg("Valley.jpg"));
+  assert.ok(waitingPhoto.queued);
+  const renamedWaiting = await d.ask("PATCH", `${org}/media/${newPhoto}`, { name: "North valley" });
+  assert.deepEqual([!!renamedWaiting.queued, renamedWaiting.data.media.label, renamedWaiting.data.media.file_name, renamedWaiting.data.media.owner.id], [true, "North valley", "North valley.jpg", project]);
+  assert.deepEqual((await d.ask("GET", `${org}/media`)).data.media.filter((item: Json) => [photo, newPhoto].includes(item.id)).map((item: Json) => [item.id, item.label, item.tags || []]), [[photo, "Ridge line", ["storm_damage", "ridge"]], [newPhoto, "North valley", []]]);
+
+  // A contact's picture and a contact's file.
+  const picture = mediaId(), contactFile = mediaId();
+  // (A real picture: the route checks that a contact's picture decodes.)
+  const png = await (await import("sharp")).default({ create: { width: 64, height: 64, channels: 3, background: { r: 30, g: 120, b: 200 } } }).png().toBuffer();
+  const offPicture = await askForm(`${org}/media`, contactForm(picture, "profile"), { name: "profile-photo.png", type: "image/png", bytes: png });
+  assert.ok(offPicture.queued);
+  const offContactFile = await askForm(`${org}/media`, contactForm(contactFile, "document"), pdf("Warranty.pdf"));
+  assert.deepEqual(keyDifference(offContactFile.data, realContactFile.data), NONE);
+  // (Who uploaded it by name and e-mail, and the checksum of the stored bytes, are the server's to add.)
+  const mediaServerOnly = Object.keys(realContactFile.data.media).filter((key) => !(key in offContactFile.data.media));
+  assert.deepEqual(mediaServerOnly.filter((key) => !["checksum", "sha256", "etag", "storage"].includes(key)), [], `server-only media fields: ${mediaServerOnly.join(", ")}`);
+  assert.deepEqual(keyDifference(offContactFile.data.media, realContactFile.data.media, mediaServerOnly).extra, []);
+  assert.deepEqual([offContactFile.data.media.owner, offContactFile.data.media.kind, offContactFile.data.media.file_name], [{ type: "contact", id: contact, slot: "document" }, realContactFile.data.media.kind, "Warranty.pdf"]);
+  const patched = await d.ask("PATCH", `${org}/contacts/${contact}`, { contact: { custom_field_values: { profile_photo: { media_id: picture } } } });
+  assert.ok(patched.queued, "the contact's own save follows in the contact's scope");
+  assert.deepEqual((await d.ask("GET", `${org}/media?contact_id=${contact}`)).data.media.map((item: Json) => item.id).sort(), [realContactFile.data.media.id, picture, contactFile].sort());
+
+  // A file added to the project's documents list.
+  const documentId = mediaId();
+  const offDocument = await askForm(`${org}/projects/${project}/documents`, docForm(documentId, "Signed contract.pdf"), pdf("Signed contract.pdf"));
+  assert.ok(offDocument.queued);
+  assert.deepEqual(keyDifference(offDocument.data, realDocument.data), NONE);
+  assert.deepEqual(keyDifference(offDocument.data.document, realDocument.data.document), NONE);
+  assert.deepEqual(Object.keys(offDocument.data.document.metadata).sort(), Object.keys(realDocument.data.document.metadata).filter((key) => key !== "uploaded_by_email").sort());
+  assert.deepEqual([offDocument.data.document.title, offDocument.data.document.type_label, offDocument.data.document.icon, offDocument.data.document.color], ["Signed contract.pdf", realDocument.data.document.type_label, realDocument.data.document.icon, realDocument.data.document.color]);
+  assert.deepEqual(offDocument.data.uploaded_documents.map((item: Json) => item.id), [realDocument.data.document.id, documentId]);
+  assert.deepEqual((await d.ask("GET", `${org}/projects/${project}/documents`)).data.uploaded_documents.map((item: Json) => item.id), [realDocument.data.document.id, documentId]);
+
+  // Checklist evidence.
+  const evidenceId = mediaId();
+  const evidenceUrl = `${checklistsUrl}/${checklist}/items/${items[0]!.id}/attachments`;
+  const offEvidence = await askForm(evidenceUrl, { media_id: evidenceId }, jpeg("Deck.jpg"));
+  assert.ok(offEvidence.queued);
+  assert.deepEqual(keyDifference(offEvidence.data, realEvidence.data), NONE);
+  assert.deepEqual(keyDifference(offEvidence.data.attachment, realEvidence.data.attachment), NONE);
+  assert.deepEqual(keyDifference(offEvidence.data.item, realEvidence.data.item), NONE, "the item as the checklist read gave it");
+  assert.deepEqual(Object.keys(offEvidence.data.item.metadata.attachments[0]).sort(), Object.keys(realEvidence.data.item.metadata.attachments[0]).sort());
+  const shownItem = (await d.ask("GET", checklistsUrl)).data.checklists.find((entry: Json) => entry.id === checklist).items.find((item: Json) => item.id === items[0]!.id);
+  assert.deepEqual(shownItem.metadata.attachments.map((attachment: Json) => attachment.media_id), [evidenceId]);
+
+  // A note with a file.
+  const attachmentId = `att_${hex(32)}`, noteMedia = mediaId();
+  const offUpload = await askForm(`${channels}/uploads`, { channel_id: channel, attachment_id: attachmentId, media_id: noteMedia }, jpeg("Leak.jpg"));
+  assert.ok(offUpload.queued);
+  assert.deepEqual(keyDifference(offUpload.data, realUpload.data), NONE);
+  assert.deepEqual(keyDifference(offUpload.data.attachment, realUpload.data.attachment), NONE);
+  const offNoteBody = noteBody("Leak by the chimney", attachmentId);
+  const offNote = await d.ask("POST", `${channels}/channels/${channel}/messages`, offNoteBody);
+  assert.ok(offNote.queued);
+  assert.deepEqual(keyDifference(offNote.data.message, realNote.json.message), NONE);
+  assert.deepEqual(keyDifference(offNote.data.message.attachments[0], realNote.json.message.attachments[0]), NONE);
+  assert.deepEqual((await d.ask("GET", notesUrl)).data.messages.map((message: Json) => [message.text, message.attachments.length]), [["With a file", 1], ["Leak by the chimney", 1]]);
+  // A note on a file the device does not hold, and a receipt, need a connection.
+  assert.equal((await d.ask("POST", `${channels}/channels/${channel}/messages`, noteBody("No file here", `att_${hex(32)}`))).data.error, "offline_unavailable");
+  assert.equal(d.FM.api.plan(new Request(`${ORIGIN}/v1/payments/organizations/${me.orgId}/projects/${project}/receipts`, { method: "POST", body: new FormData() }), d.identity, {}), null, "payments routes are never answered by the worker");
+
+  const queued = await d.FM.queue.list(d.identity);
+  for (const entry of queued) {
+    assert.ok(entry.label && entry.label.key && entry.label.title, `${entry.contract}/${entry.write} has a label`);
+    assert.match(entry.scope, /^(project|contact|media|attachment):/, `${entry.write} scope`);
+  }
+  assert.equal(queued.length - before, 10);
+
+  // ---- the connection returns ----
+  d.net.down = false;
+  await d.FM.replay.run();
+  for (let round = 0; round < 4 && (await d.entries()).some((entry: string) => entry.startsWith("waiting")); round++) await d.FM.replay.run({ force: true });
+  assert.deepEqual(await d.entries(), [], "everything was sent");
+
+  const library = (await real("GET", `${org}/media`)).json.media as Json[];
+  const stored = (id: string) => library.filter((item) => item.id === id);
+  assert.deepEqual(stored(photo).map((item) => [item.label, item.tags]), [["Ridge line", ["storm_damage", "ridge"]]]);
+  assert.deepEqual(stored(newPhoto).map((item) => [item.label, item.file_name, item.owner.id]), [["North valley", "North valley.jpg", project]], "the rename was sent after the photo's own upload");
+  assert.deepEqual((await real("GET", `${org}/media?contact_id=${contact}`)).json.media.map((item: Json) => item.id).sort(), [realContactFile.data.media.id, picture, contactFile].sort());
+  assert.equal((await real("GET", `${org}/contacts/${contact}`)).json.contact.profile_media_id, picture);
+  const documents = (await real("GET", `${org}/projects/${project}/documents`)).json;
+  assert.deepEqual(documents.uploaded_documents.map((item: Json) => [item.id, item.title]), [[realDocument.data.document.id, "Permit.pdf"], [documentId, "Signed contract.pdf"]]);
+  const serverItem = (await real("GET", checklistsUrl)).json.checklists.find((entry: Json) => entry.id === checklist).items.find((item: Json) => item.id === items[0]!.id);
+  assert.deepEqual(serverItem.metadata.attachments.map((attachment: Json) => [attachment.media_id, attachment.kind]), [[evidenceId, "photo"]]);
+  assert.equal(stored(evidenceId).length, 1);
+  const notes = (await real("GET", notesUrl)).json.messages as Json[];
+  assert.deepEqual(notes.map((message) => [message.text, message.attachments.map((attachment: Json) => [attachment.id, attachment.media_id])]), [["With a file", [[realUpload.data.attachment.id, realUpload.data.attachment.media_id]]], ["Leak by the chimney", [[attachmentId, noteMedia]]]]);
+
+  // ---- each upload again, as a retry whose first answer was lost: nothing is there twice ----
+  d.net.down = true;
+  await askForm(`${org}/projects/${project}/documents`, docForm(documentId, "Signed contract.pdf"), pdf("Signed contract.pdf"));
+  await askForm(evidenceUrl, { media_id: evidenceId }, jpeg("Deck.jpg"));
+  await askForm(`${channels}/uploads`, { channel_id: channel, attachment_id: attachmentId, media_id: noteMedia }, jpeg("Leak.jpg"));
+  await askForm(`${org}/media`, contactForm(contactFile, "document"), pdf("Warranty.pdf"));
+  d.net.down = false;
+  await d.FM.replay.run({ force: true });
+  assert.deepEqual(await d.entries(), []);
+  assert.equal((await real("GET", `${org}/projects/${project}/documents`)).json.uploaded_documents.length, 2);
+  assert.equal((await real("GET", checklistsUrl)).json.checklists.find((entry: Json) => entry.id === checklist).items.find((item: Json) => item.id === items[0]!.id).metadata.attachments.length, 1);
+  assert.deepEqual((await real("GET", notesUrl)).json.messages.map((message: Json) => message.attachments.length), [1, 1]);
+  assert.equal((await real("GET", `${org}/media?contact_id=${contact}`)).json.media.length, 3);
+  // Ids someone else holds are refused, not overwritten.
+  const stolen = await askForm(`${channels}/uploads`, { channel_id: channel, attachment_id: attachmentId, media_id: mediaId() }, jpeg("Other.jpg"));
+  assert.deepEqual([stolen.status, stolen.data.error], [409, "attachment_id_taken"]);
+  const wrongOwner = await askForm(`${org}/projects/${project}/documents`, docForm(photo, "Not a document"), pdf("x.pdf"));
+  assert.deepEqual([wrongOwner.status, wrongOwner.data.error], [409, "media_id_taken"]);
+  const wrongItem = await askForm(`${checklistsUrl}/${checklist}/items/${items[1]!.id}/attachments`, { media_id: evidenceId }, jpeg("Deck.jpg"));
+  assert.deepEqual([wrongItem.status, wrongItem.data.error], [409, "media_id_taken"]);
 });

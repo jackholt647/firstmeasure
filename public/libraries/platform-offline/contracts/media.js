@@ -569,7 +569,10 @@
           const attachment = evidenceOf(ctx, found);
           const lists = list(obj(await ctx.saved(checklistsUrl(ctx))).checklists);
           const item = lists.flatMap((checklist) => list(obj(checklist).items)).find((entry) => text(obj(entry).id) === ctx.params.item) || { id: ctx.params.item, checklist_id: ctx.params.checklist, project_id: ctx.params.project, metadata: {} };
-          return { ok: true, attachment, item: withEvidence(item, attachment, ctx) };
+          // (The list read adds who completed the item by name; the route's own answer does not carry it.)
+          const answered = withEvidence(item, attachment, ctx);
+          delete answered.completed_by_name;
+          return { ok: true, attachment, item: answered };
         },
         effects: async (ctx) => {
           const found = namedFile(ctx, 'media_id');
