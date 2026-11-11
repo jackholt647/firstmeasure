@@ -15602,6 +15602,7 @@
       "message": "{count, plural, =0 {No items} one {# item} other {# items}}",
       "format": "icu"
     },
+    "message_composer_project_placeholder": "Write a message…",
     "offline_payments_need_connection": "Payments and money figures need a connection. They are not kept on this device.",
     "offline_document_not_saved": "This document is not saved on this device. Connect to the internet to open it.",
     "offline_documents_need_connection": "This needs a connection. Without one, documents can be read but not created, changed, sent or signed.",
@@ -20176,7 +20177,8 @@
     "invalid_attachment_id": "An attachment id is att_ and 16 to 64 lowercase letters, digits or hyphens.",
     "invalid_media_id": "A media id is media_ and 16 hexadecimal digits.",
     "upload_ids_required": "A device names both the attachment and its media, or neither.",
-    "attachment_id_taken": "This attachment id is already in use."
+    "attachment_id_taken": "This attachment id is already in use.",
+    "acquisition_export_running": "An acquisition export is already being prepared. Try again when it has downloaded."
   },
   "notifications": {
     "document_greeting": {
