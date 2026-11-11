@@ -4437,3 +4437,15 @@ test('a line drawn where another line was deleted earlier can be clicked: an old
  assert.equal(pick(),1,'the drawing still holds the line, so it is still selectable');
  f.editor.key({key:'Delete'});assert.ok(!f.d().sketch.edges.some(e=>e.userConnection),'and it can be deleted: '+f.message());
 });
+test('point weld joins a twin corner inside one drawing and never changes which regions a drawing has',()=>{
+ // The top right corner of the wall stored twice, 0.1 mm apart, as a cut that stopped a hair short of the corner
+ // leaves it: the outline runs through both.
+ const f=drawDraftLines([0,1],[[4,1]]),d=()=>f.d(),s=d().sketch,at=id=>s.nodes.find(n=>n.id===id),corner=s.nodes.find(n=>Math.hypot(n.x-4,n.y-4)<1e-9),down=s.edges.find(e=>[e.a,e.b].includes(corner.id)&&Math.abs(at(e.a===corner.id?e.b:e.a).x-4)<1e-9);
+ const twin={...corner,id:'p-twin',y:3.9999};s.nodes.push(twin);if(down.a===corner.id)down.a=twin.id;else down.b=twin.id;s.edges.push({id:'e-twin',a:corner.id,b:twin.id,fixed:true});
+ for(const r of d().faces){const i=r.points.findIndex(q=>q.nodeId===corner.id);if(i<0)continue;const next=r.points[(i+1)%r.points.length];r.points.splice(Math.abs(next.x-4)<1e-9?i+1:i,0,{x:twin.x,y:twin.y,nodeId:twin.id});}
+ const twins=()=>d().sketch.nodes.filter(n=>Math.hypot(n.x-4,n.y-4)<.001).length,regions=()=>d().faces.length,before=d().sketch.nodes.length,shape=regions();
+ assert.equal(twins(),2);f.state.pointWeldInches=.25;assert.ok(f.editor.weldPoints()>0,f.message());
+ assert.equal(twins(),1,'one point at the corner');assert.equal(d().sketch.nodes.length,before-1);assert.equal(regions(),shape,'the same regions');
+ assert.ok(d().sketch.edges.some(e=>e.userConnection),'the cut is still there');assert.ok(!d().sketch.edges.some(e=>e.a===e.b));
+ assert.equal(f.editor.weldPoints(),0);
+});

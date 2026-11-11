@@ -54,3 +54,9 @@ test('a drawing keeps its points on its own micron grid: it is not nudged again,
  const items=[{point:p(1,0,0),planes:[Y],ring:'d1',grid:true},{point:p(1.0000008,0,0),planes:[Y],ring:'d2',grid:true},{point:p(1.0000015,0,.0000004),planes:[Y],ring:'s'}];
  const {moves}=W.weldPlan(items,QUARTER);assert.equal(moves.length,1,'only the face corner moves');assert.ok(far(moves[0].to,p(1,0,0))<=1e-12);
 });
+test('two corners of one outline a tenth of a millimetre apart are one corner stored twice, and weld',()=>{
+ const items=[{point:p(0,0,0),planes:[Y],ring:'a'},{point:p(.0001,0,0),planes:[Y],ring:'a'},{point:p(.00005,0,0),planes:[],ring:null}];
+ const {moves,skipped}=W.weldPlan(items,QUARTER);assert.equal(skipped,0);assert.equal(moves.length,2);assert.ok(moves.every(m=>far(m.to,p(0,0,0))<=1e-12));
+ // Past half a millimetre they are a step again, at any weld distance.
+ assert.deepEqual(W.weldPlan([{point:p(0,0,0),planes:[Y],ring:'a'},{point:p(.0006,0,0),planes:[Y],ring:'a'}],.02).moves,[]);
+});

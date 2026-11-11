@@ -1333,8 +1333,9 @@ function loadBearingIndex(faces){
 // to give:
 //  - every face a point belongs to stays flat: the shared position lies on
 //    all of those planes (two walls and the base meet in exactly one point);
-//  - no edge of a face is shortened: two corners of the same outline are a
-//    deliberate small step and are never merged with each other;
+//  - no drawn edge of a face is removed: two corners of the same outline are a
+//    deliberate small step and are never merged with each other, unless they
+//    are closer than PLANE_WELD, which nobody draws;
 //  - a fixed point (a generated wall, a sticker, a curve) does not move: the
 //    others come to it, or the group is left alone.
 //
@@ -1418,8 +1419,10 @@ function weldPlan(items,distance,explain=null,owners=null){
  };
  for(const seed of order){if(used[seed])continue;const group=[];for(let i=0;i<items.length;i++)if(!used[i]&&apart(items[i].point,items[seed].point)<=distance)group.push(i);
   for(const i of group)used[i]=true;const members=group.map(i=>items[i]);
-  // Two corners of one outline: a real short edge. They are not merged; each still goes onto its planes.
-  const rings=new Map();let step=false;for(const m of members){if(m.ring==null)continue;const prior=rings.get(m.ring);if(prior&&apart(prior,m.point)>K.CONTACT)step=true;rings.set(m.ring,m.point);}
+  // Two corners of one outline: a real short edge. They are not merged; each still goes onto its planes. Closer
+  // than PLANE_WELD they are not a drawn step but one corner stored twice (a cut that ended a hair from the
+  // corner it was aimed at), and they weld like any other twins.
+  const rings=new Map();let step=false;for(const m of members){if(m.ring==null)continue;const prior=rings.get(m.ring)||[];if(prior.some(q=>apart(q,m.point)>PLANE_WELD))step=true;prior.push(m.point);rings.set(m.ring,prior);}
   if(!step){if(!place(members,distance))skipped++;continue;}
   skipped++;explain?.push({reason:'step',members});const rest=members.slice();while(rest.length){const at=rest[0].point,same=rest.filter(m=>apart(m.point,at)<=1e-9);for(const m of same)rest.splice(rest.indexOf(m),1);place(same,PLANE_WELD);}
  }

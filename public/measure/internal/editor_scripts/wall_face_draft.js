@@ -604,7 +604,20 @@ window.createWallFaceDraft=function(host){
    const first=weldItems(),taken=W.weldPlanes(first.items,first.owners).lay,onto=(pl,p)=>{const h=pl.n.x*p.x+pl.n.y*p.y+pl.n.z*p.z-pl.k;return {...p,x:p.x-pl.n.x*h,y:p.y-pl.n.y*h,z:p.z-pl.n.z*h};};let laid=0;
    // A drawing left open by earlier deletes has no closed region to resolve: its regions keep their corners and
    // simply follow the moved points.
-   const settle=(d,old)=>{try{S.resolve(d);restoreMovedRegions(d,old);classify(d);}catch(e){const at=new Map(d.sketch.nodes.map(n=>[n.id,n])),follow=q=>{const n=at.get(q.nodeId);return n?{...q,x:n.x,y:n.y}:q;};d.faces=old.map(f=>({...f,points:f.points.map(follow),holes:(f.holes||[]).map(r=>r.map(follow))}));}};
+   // Two points of one drawing welded onto one position are one point: its lines and regions use the one that
+   // stays (a fixed one where there is one), and a line between the two is gone.
+   const joinNodes=(d,old)=>{const kept=[],alias=new Map();for(const n of d.sketch.nodes){const twin=n.curveSample||n.curveCenter||n.curveControl?null:kept.find(k=>!k.curveSample&&!k.curveCenter&&!k.curveControl&&Math.hypot(k.x-n.x,k.y-n.y)<=1e-9);if(!twin){kept.push(n);continue;}if(n.fixed)twin.fixed=true;if(n.userDraftPoint)twin.userDraftPoint=true;alias.set(n.id,twin.id);}
+    if(!alias.size)return;const id=x=>alias.get(x)||x,lines=new Map(),curves=[];
+    for(const e of d.sketch.edges.map(e=>({...e,a:id(e.a),b:id(e.b)}))){if(e.curveId){curves.push(e);continue;}if(e.a===e.b)continue;const key=[e.a,e.b].sort().join('|'),prior=lines.get(key);if(!prior||e.fixed&&!prior.fixed)lines.set(key,prior?{...e,id:prior.id}:e);}
+    d.sketch.nodes=kept;d.sketch.edges=[...lines.values(),...curves];
+    const ring=ps=>ps.map(p=>({...p,nodeId:id(p.nodeId)})).filter((p,i,all)=>all.length<2||p.nodeId!==all[(i+1)%all.length].nodeId),face=f=>({...f,points:ring(f.points),holes:(f.holes||[]).map(ring)});
+    d.faces=d.faces.map(face);old.splice(0,old.length,...old.map(face));
+    const resign=key=>[...new Set(String(key).split('|').map(id))].sort().join('|');if(d.deletedFaces)d.deletedFaces=[...new Set(d.deletedFaces.map(resign))];if(d.removedPoints)d.removedPoints=[...new Set(d.removedPoints.map(id))];};
+   // A weld moves points; it never makes or removes a region. An older drawing can hold regions its lines no longer
+   // outline (both consumed by faces since): resolving it would merge them into one live region and bring a wall
+   // back. If the regions do not come out the same, the drawing keeps the ones it had.
+   const outline=f=>[...new Set(f.points.map(q=>q.nodeId))].sort().join("|"),same=(a,b)=>a.length===b.length&&a.map(outline).sort().join(";")===b.map(outline).sort().join(";");
+   const settle=(d,old)=>{try{S.resolve(d);if(!same(d.faces,old))throw Error("regions changed");restoreMovedRegions(d,old);classify(d);}catch(e){const at=new Map(d.sketch.nodes.map(n=>[n.id,n])),follow=q=>{const n=at.get(q.nodeId);return n?{...q,x:n.x,y:n.y}:q;};d.faces=old.map(f=>({...f,points:f.points.map(follow),holes:(f.holes||[]).map(r=>r.map(follow))}));}};
    for(const f of edits.$surfaces||[]){const pl=taken.get('s:'+f.id);if(!pl)continue;f.points=f.points.map(p=>onto(pl,p));if(f.holes)f.holes=f.holes.map(r=>r.map(p=>onto(pl,p)));if(f.retainedPoints)f.retainedPoints=f.retainedPoints.map(p=>onto(pl,p));laid++;}
    // A drawing keeps its points where they are on the wall and takes the plane: its frame turns onto it.
    for(const [key,d]of Object.entries(all())){let pl=taken.get('d:'+key);if(!pl||!weldDraft(d))continue;
@@ -628,7 +641,7 @@ window.createWallFaceDraft=function(host){
     const targets=d.sketch.nodes.map(n=>{if(n.curveSample||n.curveCenter||n.curveControl)return null;const p=world(d,n),move=moveAt(p,'d:'+key);return move?move.to:null;});
     if(!targets.some(Boolean))continue;
     d.sketch.nodes.forEach((n,i)=>{const q=targets[i];if(!q)return;if(d.frame){const local=W.inFrame(d.frame,q);n.x=local.x;n.y=local.y;}else{n.x=(q.x-d.origin.x)*d.u.x+(q.y-d.origin.y)*d.u.y;n.y=q.z;}});
-    settle(d,old);}
+    joinNodes(d,old);settle(d,old);}
    if(edits.$loose){const points=new Map(),lines=new Map();for(const p of (edits.$loose.points||[]).map(p=>moved(p,null)))points.set(W.vertexKey(p),p);for(const pair of (edits.$loose.edges||[]).map(pair=>pair.map(p=>moved(p,null))))if(far(...pair)>K.CONTACT)lines.set(W.edgeKey(...pair),pair);edits.$loose={...edits.$loose,points:[...points.values()],edges:[...lines.values()]};}
    const base=edits.$base||state.base;if(base?.faces?.some(f=>f.points.some(p=>moveAt(p,'b:'+f.id)))){const next=copy(base),onBase=p=>{const m=moves.find(m=>String(m.owner).startsWith('b:')&&far(m.from,p)<=K.CONTACT);return m?{...p,x:m.to.x,y:m.to.y,z:m.to.z}:p;};for(const f of next.faces)if(!f.curves?.length)f.points=ring(f.points,'b:'+f.id);const source=copy(base);source.faces=copy(next.faces);if(source.sketch)source.sketch.nodes=source.sketch.nodes.map(n=>n.fixed?onBase(n):n);S.rebind(source,next);edits.$base=next;}
    const parse=key=>{const [x,y,z]=key.split(',').map(Number);return {x,y,z};},at=p=>{const m=anyAt(p);return m?m.to:p;},rekey=key=>{const p=parse(key);return [p.x,p.y,p.z].every(Number.isFinite)?W.vertexKey(at(p)):key;};
