@@ -109,6 +109,9 @@
     });
   }
 
+  /** Published to-do actions that set a status or fields: sending one twice changes nothing more. */
+  const TODO_ACTIONS = ['work.todos.transition', 'work.todos.patch'];
+
   FMOffline.contracts.add({
     id: 'todos',
     writes: [
@@ -117,7 +120,12 @@
         match: 'POST ' + WORK + '/todos',
         when: manualTodo,
         kind: 'create',
-        scope: async (ctx) => (projectOf(ctx.body) ? 'project:' + projectOf(ctx.body) : 'todo:' + (await idsFor(ctx)).node),
+        // A to-do on a project that was made on this device waits for that project; any other to-do has its own order.
+        scope: async (ctx) => {
+          const project = projectOf(ctx.body);
+          const waiting = project ? await ctx.queued(project) : [];
+          return waiting.some((entry) => entry.kind === 'create') ? 'project:' + project : 'todo:' + (await idsFor(ctx)).node;
+        },
         records: async (ctx) => [(await idsFor(ctx)).node, text(ctx.body.id)],
         label: (ctx) => ({ key: 'sync_todo_new', title: 'New to-do', detail: text(ctx.body.title) }),
         respond: async (ctx) => Object.assign({ ok: true }, await madeTodo(ctx)),
@@ -181,6 +189,49 @@
           pick: (json) => ({ doc: json && json.node ? json.node : null, revision: json && json.node ? json.node.updated_at : undefined }),
           fields: (ctx) => Object.keys(ctx.body),
           send: (ctx, merged) => merged
+        }
+      },
+      {
+        // The to-do widget (platform-widgets/todo-widgets.js) completes, reopens and edits a to-do through a
+        // published action, which carries its own `idempotencyKey`. The queued action is sent with that key, so the
+        // server runs it once. If the server answers `action_outcome_uncertain` (it started the action under that
+        // key and does not know how it ended; the key is then refused for good), the action is sent again once
+        // under a new key: setting a to-do's status or fields a second time changes nothing more.
+        id: 'todo.action',
+        match: 'POST /v1/publication/organizations/:org/actions/invoke',
+        when: (ctx) => isObject(ctx.body) && TODO_ACTIONS.includes(text(ctx.body.action)) && !!text(ctx.body.idempotencyKey)
+          && isObject(ctx.body.target) && !!text(ctx.body.target.id) && isObject(ctx.body.input)
+          && (text(ctx.body.action) !== 'work.todos.transition' || ['completed', 'ready', 'active', 'canceled'].includes(text(ctx.body.input.status))),
+        kind: 'action',
+        scope: (ctx) => scopeOf(ctx, text(ctx.body.target.id)),
+        records: (ctx) => [text(ctx.body.target.id)],
+        label: async (ctx) => {
+          const todo = await knownTodo(ctx, text(ctx.body.target.id));
+          const done = text(ctx.body.input.status) === 'completed';
+          const edit = text(ctx.body.action) === 'work.todos.patch';
+          return { key: edit ? 'sync_todo_edit' : done ? 'sync_todo_done' : 'sync_todo_status', title: edit ? 'To-do change' : done ? 'To-do completed' : 'To-do changed', detail: text(ctx.body.input.title) || text(todo && todo.title) };
+        },
+        respond: (ctx) => ({
+          value: Object.assign({ id: text(ctx.body.target.id) }, ctx.body.input),
+          receipt: { id: 'offline_' + ctx.id, status: 'succeeded', replayed: false, action: text(ctx.body.action), version: text(ctx.body.version) || '1', implementation: '' }
+        }),
+        resend: (ctx, answer) => (answer.status === 409 && answer.code === 'action_outcome_uncertain' ? Object.assign({}, ctx.body, { idempotencyKey: 'todo-offline-' + crypto.randomUUID() }) : null),
+        effects: (ctx) => {
+          const id = text(ctx.body.target.id), input = ctx.body.input, at = iso(ctx);
+          const transition = text(ctx.body.action) === 'work.todos.transition';
+          const change = (todo) => (transition ? moved(todo, input, at) : Object.assign({}, todo, input, { updated_at: at }));
+          // The widget's own list: published items, where a to-do that can be done is `open` and `workflow_status` is the raw status.
+          const item = (todo) => (transition
+            ? Object.assign({}, todo, { status: text(input.status) === 'ready' ? 'open' : text(input.status), workflow_status: text(input.status), completed_at: text(input.status) === 'completed' ? at : null, updated_at: at })
+            : Object.assign({}, todo, input, { updated_at: at }));
+          return [
+            { match: 'GET ' + WORK + '/todos', apply: (json) => withChanged(json, id, change) },
+            { match: 'GET ' + WORK + '/nodes/:node', when: (m) => m.node === id, apply: (json) => (json && json.node ? Object.assign({}, json, { node: change(json.node) }) : json) },
+            {
+              match: 'POST /v1/publication/organizations/:org/data/read', when: (m, read) => isObject(read.body) && text(read.body.provider) === 'todos',
+              apply: (json) => (json && Array.isArray(json.value) && json.value.some((todo) => todo && todo.id === id) ? Object.assign({}, json, { value: json.value.map((todo) => (todo && todo.id === id ? item(todo) : todo)) }) : json)
+            }
+          ];
         }
       }
     ]

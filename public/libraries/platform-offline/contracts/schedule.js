@@ -97,7 +97,9 @@
         id: 'event.create',
         match: 'POST ' + ORG + '/projects/:project/events',
         when: (ctx) => when(ctx) && !expectedOf(ctx.body),
-        kind: 'create',
+        // The save is an upsert, so a later edit does not need this one to have arrived: an event the server
+        // refuses (double-booking where the organization blocks it) does not hold the project's other changes.
+        kind: 'action',
         scope: (ctx) => 'project:' + ctx.params.project,
         records: (ctx) => [text(eventOf(ctx.body).id)],
         label: (ctx) => ({ key: 'sync_event_new', title: 'Schedule event', detail: detail(ctx) }),
@@ -122,6 +124,7 @@
             return { doc: event, revision: event ? Number(event.event_revision) || 0 : undefined };
           },
           fields: (ctx) => Object.keys(fieldsOf(eventOf(ctx.body))).filter((field) => field !== 'updated_at'),
+          mine: (ctx, base) => Object.assign({}, base, fieldsOf(eventOf(ctx.body))),
           send: (ctx, merged, revision) => ({ event: Object.assign({ id: text(eventOf(ctx.body).id) }, merged, revision ? { expected_event_revision: revision } : {}), branch_id: text(ctx.body.branch_id) })
         }
       }

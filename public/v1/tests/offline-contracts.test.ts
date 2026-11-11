@@ -46,9 +46,7 @@ const READ_ONLY_POST_ROUTES: Record<string, string> = {
   // platform/api.ts handlePortalAction: only the actions in PORTAL_READ_ACTIONS (checked below).
   "POST /v1/platform/portal-action": "platform/api.ts",
   // documents/api.ts resolve: bindings and widget data for display; nothing is saved.
-  "POST /v1/documents/organizations/:p/documents/:p/resolve": "documents/api.ts",
-  // platform/publication/api.ts actions/invoke: only actions registered with effect "read" (checked below).
-  "POST /v1/publication/organizations/:p/actions/invoke": "platform/publication/actions.ts"
+  "POST /v1/documents/organizations/:p/documents/:p/resolve": "documents/api.ts"
 };
 
 /**
@@ -181,7 +179,7 @@ test("a read made with POST only names a route that changes nothing", () => {
         const route = routeOf(pattern);
         if (route.method === "GET") continue;
         assert.ok(READ_ONLY_POST_ROUTES[route.key], `${contract.id}/${read.id}: ${pattern} is not on the list of POST routes checked to change nothing`);
-        if (route.key === "POST /v1/platform/portal-action" || route.key === "POST /v1/publication/organizations/:p/actions/invoke") {
+        if (route.key === "POST /v1/platform/portal-action") {
           assert.equal(typeof read.when, "function", `${contract.id}/${read.id}: a route that carries several actions needs when(ctx)`);
         }
       }
@@ -438,8 +436,21 @@ test("each write answers offline as its route would, and reaches the server once
   assert.equal((await real("GET", `${org}/projects/${project}`)).json.document.data.title, "Made offline, renamed", "the repeat changed nothing");
 
   // ---- an edit made offline while the server's copy changed: different fields merge, the same field asks ----
-  await d.ask("GET", `${org}/projects/${project}`);
+  const shown = (await d.ask("GET", `${org}/projects/${project}`)).data.document.data.events[0];
   await d.ask("GET", `${org}/contacts/${contact}`);
+  d.net.down = true;
+  // An event edit carries the revision the page saw; the server's event moved on meanwhile (its start changed).
+  const editedEvent = await d.ask("POST", `${org}/projects/${project}/events`, { event: { id: eventId, title: "Offline visit, renamed", expected_event_revision: shown.event_revision }, branch_id: "default" });
+  assert.deepEqual([!!editedEvent.queued, editedEvent.data.event.title, editedEvent.data.event.start_at, editedEvent.data.event.event_revision], [true, "Offline visit, renamed", shown.start_at, shown.event_revision + 1]);
+  d.net.down = false;
+  assert.equal((await real("POST", `${org}/projects/${project}/events`, { event: { id: eventId, start_at: "2027-01-07T15:00:00.000Z", end_at: "2027-01-07T16:30:00.000Z", expected_event_revision: shown.event_revision }, branch_id: "default" })).status, 200);
+  const stale = await real("POST", `${org}/projects/${project}/events`, { event: { id: eventId, title: "Stale", expected_event_revision: shown.event_revision }, branch_id: "default" });
+  assert.deepEqual([stale.status, stale.json.error], [409, "stale_event"], "the route refuses a revision the event has moved past");
+  await d.FM.replay.run({ force: true });
+  assert.deepEqual(await d.entries(), []);
+  const serverEvent = (await real("GET", `${org}/projects/${project}`)).json.document.data.events[0];
+  assert.deepEqual([serverEvent.title, serverEvent.start_at, serverEvent.event_revision], ["Offline visit, renamed", "2027-01-07T15:00:00.000Z", shown.event_revision + 2], "the rename is merged onto the moved event");
+  await d.ask("GET", `${org}/projects/${project}`);
   d.net.down = true;
   await d.ask("PATCH", `${org}/projects/${project}`, { data: { title: "Renamed on the device" }, metadata: {} });
   await d.ask("PATCH", `${org}/contacts/${contact}`, { contact: { company: "Device Co", notes: "From the device" } });
@@ -457,4 +468,44 @@ test("each write answers offline as its route would, and reaches the server once
   const settled = (await real("GET", `${org}/contacts/${contact}`)).json.contact;
   assert.deepEqual([settled.company, settled.notes, settled.birthday], ["Server Co", "From the device", "1990-01-01"]);
   assert.deepEqual(await d.entries(), []);
+});
+
+test("the to-do widget's published actions are queued with their own key and run once", async () => {
+  const me = await owner();
+  const d = device(me);
+  const work = `/v1/work/organizations/${me.orgId}`;
+  const publication = `/v1/publication/organizations/${me.orgId}`;
+  const real = async (method: string, target: string, payload?: unknown) => { const response = await me.raw(method, target, payload); return { status: response.statusCode, json: response.json() as Json }; };
+  const made = await real("POST", `${work}/todos`, { id: `action_item_manual_${Date.now().toString(36)}_widget01`, kind: "manual", title: "Widget to-do", body: "", branch_id: "default", source: "manual", frontend_action: { kind: "manual" }, metadata: {} });
+  assert.equal(made.status, 201, JSON.stringify(made.json));
+  const id = made.json.todo.id;
+  const target = { scope: "organization", organizationId: me.orgId };
+  const read = { provider: "todos", export: "items", target, args: { includeCompleted: true, includeFuture: true } };
+  const items = await d.ask("POST", `${publication}/data/read`, read);
+  assert.equal(items.data.status, "ready", JSON.stringify(items.data));
+  assert.equal(items.data.value.find((item: Json) => item.id === id).status, "open");
+  // What the real route answers for the same action on another to-do.
+  const other = await real("POST", `${work}/todos`, { id: `action_item_manual_${Date.now().toString(36)}_widget02`, kind: "manual", title: "Other", body: "", branch_id: "default", source: "manual", frontend_action: { kind: "manual" }, metadata: {} });
+  const realAction = await real("POST", `${publication}/actions/invoke`, { action: "work.todos.transition", target: { ...target, id: other.json.todo.id }, input: { status: "completed" }, idempotencyKey: "todo-widget-real-1" });
+  assert.equal(realAction.status, 200, JSON.stringify(realAction.json));
+
+  d.net.down = true;
+  const body = { action: "work.todos.transition", target: { ...target, id }, input: { status: "completed" }, idempotencyKey: "todo-widget-offline-1" };
+  const queued = await d.ask("POST", `${publication}/actions/invoke`, body);
+  assert.ok(queued.queued, "the action is queued");
+  assert.deepEqual(keyDifference(queued.data, realAction.json), NONE);
+  assert.deepEqual(keyDifference(queued.data.receipt, realAction.json.receipt), NONE);
+  assert.equal(queued.data.receipt.status, "succeeded", "the widget reads the receipt");
+  assert.equal((await d.ask("POST", `${publication}/data/read`, read)).data.value.find((item: Json) => item.id === id).status, "completed", "the widget's list shows it done");
+  // Any other published action needs a connection.
+  assert.equal((await d.ask("POST", `${publication}/actions/invoke`, { ...body, action: "work.configuration.save", idempotencyKey: "x" })).data.error, "offline_unavailable");
+
+  d.net.down = false;
+  await d.FM.replay.run({ force: true });
+  assert.deepEqual(await d.entries(), []);
+  const after = await real("GET", `${work}/nodes/${id}`);
+  assert.equal(after.json.node.status, "completed");
+  // The same key again is the first answer, not a second run.
+  const repeat = await real("POST", `${publication}/actions/invoke`, body);
+  assert.deepEqual([repeat.status, repeat.json.receipt.replayed], [200, true]);
 });

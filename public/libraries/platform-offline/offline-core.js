@@ -1488,6 +1488,18 @@
     if (status >= 500) return serverError(entry, status, code);
     // A refusal that means the server already has this change (a create whose first answer was lost) is done.
     const found = contracts.write(entry.contract, entry.write);
+    // A refusal that asks for the same change in another form (a publication action whose own key the server
+    // will not take twice): the contract gives the body to send, once per attempt, under a new key.
+    if (found && typeof found.write.resend === 'function' && !flags.resent) {
+      let next;
+      try { next = await found.write.resend(await queue.ctx(entry), { status, code, body }); } catch (_) { next = undefined; }
+      if (next !== undefined && next !== null) {
+        flags.resent = true;
+        Object.assign(entry, { body: { type: 'json', text: JSON.stringify(next) }, key: newId() });
+        await queue.save(entry);
+        return 'again';
+      }
+    }
     if (found && typeof found.write.duplicate === 'function') {
       let done = false;
       try { done = !!(await found.write.duplicate(await queue.ctx(entry), { status, code, body })); } catch (_) { done = false; }

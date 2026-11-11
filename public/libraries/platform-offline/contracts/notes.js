@@ -92,7 +92,8 @@
         id: 'note.post',
         match: 'POST ' + CHANNELS + '/channels/:channel/messages',
         when: plainNote,
-        kind: 'create',
+        // Nothing that is queued depends on a note, so a note the server refuses does not hold the project's other changes.
+        kind: 'action',
         // The channel's project, from the notes list the tray read; a channel the device knows nothing about keeps its own order.
         scope: async (ctx) => {
           const list = await ctx.saved(notesUrl(ctx, ctx.params.channel));
@@ -108,7 +109,8 @@
         id: 'note.post.project',
         match: 'POST ' + CHANNELS + '/channels/project/:project/messages',
         when: plainNote,
-        kind: 'create',
+        // Nothing that is queued depends on a note, so a note the server refuses does not hold the project's other changes.
+        kind: 'action',
         scope: (ctx) => 'project:' + ctx.params.project,
         records: (ctx) => [text(ctx.body.client_msg_id)],
         label,

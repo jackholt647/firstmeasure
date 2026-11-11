@@ -1002,3 +1002,78 @@ test('a pinned project also downloads the POST reads its contracts name, and onl
   assert.equal(saved.response.headers.get('x-fm-offline'), 'saved');
   eq(saved.data, { found: ['p7'] });
 });
+
+/** TEST ONLY: an action that carries its own key in the body, as a publication action does. */
+function addActionContract(FM, safeToRepeat) {
+  FM.contracts.add({
+    id: 'actions',
+    writes: [{
+      id: 'act', match: 'POST /v1/actions/invoke', kind: 'action', scope: (ctx) => `thing:${ctx.body.target}`, records: (ctx) => [ctx.body.target],
+      label: () => ({ title: 'Action' }),
+      respond: () => ({ receipt: { status: 'succeeded' } }),
+      ...(safeToRepeat ? { resend: (ctx, answer) => (answer.status === 409 && answer.code === 'action_outcome_uncertain' ? { ...ctx.body, idempotencyKey: ctx.body.idempotencyKey + '-again' } : null) } : {})
+    }]
+  });
+}
+
+test('an action whose own key the server will not take twice is sent again once, in the form its contract gives', async () => {
+  const t = engine();
+  addActionContract(t.FM, true);
+  t.server.down = true;
+  await t.json('POST', '/v1/actions/invoke', { json: { action: 'set', target: 't1', input: { done: true }, idempotencyKey: 'k1' } });
+  t.server.down = false;
+  // The server started the action under k1 once and does not know how it ended: that key is refused for good.
+  t.server.on('POST /v1/actions/invoke', (request) => (request.body.idempotencyKey === 'k1' ? { status: 409, json: { error: 'action_outcome_uncertain' } } : { json: { receipt: { status: 'succeeded' } } }));
+  assert.equal((await t.FM.replay.run()).sent, 1);
+  const posts = t.server.sent('POST /v1/actions/invoke');
+  eq(posts.map((post) => post.body.idempotencyKey), ['k1', 'k1-again']);
+  assert.notEqual(posts[0].headers['idempotency-key'], posts[1].headers['idempotency-key'], 'a new body goes under a new key');
+  eq(await t.entries(), []);
+  // Refused again in its new form: it waits for the person, it is not sent in a loop.
+  t.server.down = true;
+  await t.json('POST', '/v1/actions/invoke', { json: { action: 'set', target: 't2', input: {}, idempotencyKey: 'k2' } });
+  t.server.down = false;
+  t.server.on('POST /v1/actions/invoke', () => ({ status: 409, json: { error: 'action_outcome_uncertain' } }));
+  await t.FM.replay.run();
+  eq((await t.entries()).map((entry) => [entry.state, entry.error.code]), [['failed', 'action_outcome_uncertain']]);
+  assert.equal(t.server.sent('POST /v1/actions/invoke').length, 4);
+});
+
+test('without a contract that says an action may be repeated, an uncertain outcome waits for the person', async () => {
+  const t = engine();
+  addActionContract(t.FM, false);
+  t.server.down = true;
+  await t.json('POST', '/v1/actions/invoke', { json: { action: 'charge', target: 't1', input: {}, idempotencyKey: 'k1' } });
+  t.server.down = false;
+  t.server.on('POST /v1/actions/invoke', () => ({ status: 409, json: { error: 'action_outcome_uncertain' } }));
+  await t.FM.replay.run();
+  eq((await t.entries()).map((entry) => [entry.state, entry.error.status, entry.error.code]), [['failed', 409, 'action_outcome_uncertain']]);
+  assert.equal(t.server.sent('POST /v1/actions/invoke').length, 1, 'sent once, with the key it was made with');
+  assert.equal(t.server.sent('POST /v1/actions/invoke')[0].body.idempotencyKey, 'k1');
+});
+
+test('a patch\'s effects can merge over a newer answer with the record as it was (ctx.base), and find and queued see the device', async () => {
+  const t = engine();
+  t.FM.contracts.add({
+    id: 'lists',
+    writes: [{
+      id: 'list.patch', match: 'PATCH /v1/lists/:id', kind: 'patch', scope: (ctx) => `list:${ctx.params.id}`, records: (ctx) => [ctx.params.id],
+      label: () => ({ title: 'List' }),
+      respond: async (ctx) => ({ ok: true, found: (await ctx.find('GET /v1/lists/:id')).map((read) => read.params.id), earlier: (await ctx.queued(ctx.params.id)).map((entry) => entry.write) }),
+      effects: (ctx) => [{ match: 'GET /v1/lists/:id', when: (m) => m.id === ctx.params.id, apply: (json) => ({ ...json, list: { ...json.list, items: t.FM.merge3(ctx.base.items, ctx.body.items, json.list.items).value } }) }],
+      conflict: { current: (ctx) => `/v1/lists/${ctx.params.id}`, pick: (json, ctx) => ({ doc: json.list, revision: json.list.revision, asked: ctx.params.id }), send: (ctx, merged, revision) => ({ ...merged, expected_revision: revision }) }
+    }]
+  });
+  let items = [{ id: 'a', n: 1 }, { id: 'b', n: 1 }];
+  t.server.on('GET /v1/lists/l1', () => ({ json: { list: { id: 'l1', revision: 1, items } } }));
+  await t.json('GET', '/v1/lists/l1');
+  t.server.down = true;
+  const first = await t.json('PATCH', '/v1/lists/l1', { json: { items: [{ id: 'a', n: 2 }, { id: 'b', n: 1 }] } });
+  eq(first.data, { ok: true, found: ['l1'], earlier: [] });
+  eq((await t.json('PATCH', '/v1/lists/l1', { json: { items: [{ id: 'a', n: 3 }, { id: 'b', n: 1 }] } })).data.earlier, ['list.patch'], 'the second change sees the first');
+  await t.FM.queue.discard((await t.entries())[1].id);
+  // The server gained an item meanwhile: the waiting change is shown over it, not instead of it.
+  t.server.down = false;
+  items = [{ id: 'a', n: 1 }, { id: 'b', n: 1 }, { id: 'c', n: 9 }];
+  eq((await t.json('GET', '/v1/lists/l1')).data.list.items, [{ id: 'a', n: 2 }, { id: 'b', n: 1 }, { id: 'c', n: 9 }]);
+});

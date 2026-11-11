@@ -264,9 +264,20 @@ Every same-origin `GET` under `/v1/` that answers JSON is saved, unless a
 contract's deny list names it (`FMOffline.contracts.deny`: auth, the realtime
 stream and poll, payments checkout and processor data, session replay,
 assistant streams). A read made with `POST` is saved only when a contract
-declares it (`reads`: `portal-action` read actions, publication
-`data/read`, `data/list`, `widgets/resolve`), keyed by the body fields the
-contract names.
+declares it (`reads`: `portal-action` read actions, the FirstMeasure order
+list, publication `data/read`, `data/list`, `widgets/resolve`, assignable
+subjects, feed sources, a project's requirements, a document's resolve),
+keyed by the body fields the contract names. Each such route was read in the
+server to change nothing; `tests/offline-contracts.test.ts` keeps the list
+and fails on a route outside it. Portal actions that write when they are
+read (`portal_bonus_upfront_match_status`, `portal_customer_referral_status`)
+and `auth_status` are not declared.
+
+- **The session read** (`GET /v1/platform/auth/session`) is on the deny list
+  and is never saved. Without a connection `PlatformAPI.auth.session()`
+  falls back to the person's saved profile (`GET /v1/platform/me`, the same
+  fields), so a page that runs from the device shows the apps and
+  permissions they last had. Any HTTP answer is still final.
 
 - **Whose read it is.** A request is saved, answered or queued under the
   identity its own page declared (the worker keeps identity per client id).
@@ -364,7 +375,11 @@ FMOffline.contracts.add({
     respond: (ctx) => ({ ok: true, message: { /* what the route would answer */ } }),
     effects: (ctx) => [{ match: 'GET /v1/channels/organizations/:org/channels/:channel/messages',
                          when: (m) => m.channel === ctx.params.channel,
-                         apply: (json) => ({ ...json, messages: [...json.messages, ctx.response.message] }) }],
+                         apply: (json) => ({ ...json, messages: [...json.messages, ctx.response.message] }) },
+                       // a read nothing was saved for: what a record made on this device answers
+                       { match: 'GET /v1/things/:id', when: (m) => m.id === ctx.body.id, seed: () => ({ ok: true, thing: ctx.response.thing }) }],
+    // optional: a refusal that means the server already has this change (answer is { status, code, body })
+    duplicate: (ctx, answer) => answer.status === 409 && answer.code === 'thing_exists',
     // kind 'upload' only, optional: which media ids the form's files stand for
     media: (ctx) => [{ id: ctx.body.id, field: 'file' }],
     // kind 'patch' only:
@@ -375,13 +390,42 @@ FMOffline.contracts.add({
 ```
 
 `ctx` is `{ method, url, params, query, body, headers, user, org, now, id,
-response, saved(url) }`: `url` is the path and query, `body` is the parsed
-JSON or the form fields (files as `{ name, type, size, blob }`), `headers`
-has lower-case names, `id` is the entry's idempotency key, `response` is what
-`respond` returned, `saved(url)` resolves the saved answer of a `GET` as the
-person would see it (earlier queued changes applied) or `null`. Contract
-functions are pure and may be async; they run in the worker, and in the
-top-level page when it replays.
+response, base, saved(url), find(pattern), queued(record) }`: `url` is the
+path and query, `body` is the parsed JSON or the form fields (files as
+`{ name, type, size, blob }`), `headers` has lower-case names, `id` is the
+entry's idempotency key, `response` is what `respond` returned, `saved(url)`
+resolves the saved answer of a `GET` as the person would see it (earlier
+queued changes applied) or `null`. Contract functions are pure and may be
+async; they run in the worker, and in the top-level page when it replays.
+
+- `base` is, for a queued `patch`, the record as it was when the change was
+  made (what `conflict.pick` gave), else `null`. An effect uses it to merge
+  the change over a newer answer instead of replacing whole lists.
+- `find(pattern)` resolves every saved `GET` of a route as
+  `[{ url, query, params, json }]`, for a record that is only known from
+  lists, whatever their filters were (a to-do).
+- `queued(record)` resolves the earlier changes still on the device that name
+  a record, as `[{ id, contract, write, kind, scope, state }]`. A change to a
+  record that was made on this device takes the scope of the change that
+  made it, so it is sent after it.
+- **Seeds.** An effect may carry `seed` (a value or a function) instead of, or
+  beside, `apply`. A read that has no saved answer is then answered from the
+  first queued change that seeds it, with later changes applied on top
+  (`X-FM-Offline: queued`). The same happens when the server answers `404`
+  while that change still waits. This is how a project made without a
+  connection opens: nothing was ever saved for its reads. A seeded answer is
+  never stored as a saved read.
+- **Duplicates.** `duplicate(ctx, answer)` names the refusal that means the
+  server already has the change (`project_exists`, `contact_exists` for an
+  id the device made: the first try arrived and its answer was lost). The
+  entry is then done, as after a 2xx, and `synced` has `response: null`.
+- **POST reads of a pinned project.** A `prefetch` entry may name a read made
+  with `POST` as `{ url, body }`. It is sent only when a contract declares
+  that route and body as a read, with the CSRF token, and saved under that
+  read's key. In the worker the token comes from the Cookie Store API; where
+  that is missing these reads are saved when the tab is first opened instead.
+- `conflict.pick(json, ctx)` also gets `ctx`, for a record that is one item
+  of a larger answer (one event of a project).
 
 - **Patterns** are `[METHOD ]/path`: `:name` and `*` match one segment, `**`
   any number. A `deny` pattern without a method covers every method;
@@ -447,6 +491,8 @@ through by the worker.
 | 409 `offline_identity_mismatch` | parked; never sent under another identity |
 | 409 `idempotency_in_progress` | retried after 2 s |
 | 409 on a `patch` entry | three-way merge (below); unresolved → `conflict` |
+| a refusal the contract names as a duplicate (`duplicate`) | done: the server already has it |
+| a refusal the contract answers with another body (`resend`) | sent again once under a new key |
 | other 4xx | `failed`, waits for the person (retry or discard) |
 | 5xx | retried like no answer, eight times, then `failed` |
 
@@ -608,6 +654,12 @@ never conflict.
   its receipt is the first answer. Without its receipt (the first try
   answered 5xx after the project was written) it is refused with
   `409 project_exists` before any contact is created a second time.
+- `GET /v1/channels/organizations/:org/channels/project/:projectId` answers
+  the project's channel for a member of it and creates nothing
+  (`404 channel_not_found` otherwise; the `POST` on the same address still
+  makes and joins it). `POST .../channels/project/:projectId/messages` finds
+  or makes the channel and posts the message to it, with the same body and
+  `client_msg_id` rule as the post by channel, and also answers `channel`.
 - A photo's display rendition is encoded at the quality the app asked for:
   browser code sends `compression.quality` as a fraction (`0.88`), which is
   read as 88, not as a percentage rounded up to the lowest quality allowed.
@@ -736,8 +788,122 @@ PlatformOffline.signedOut()
 4. Add the contract file to `contracts/index.js` and a case to the contract
    test.
 
+## What works offline
+
+The contracts are in `contracts/`: `portal.js` (start-up and lists),
+`projects.js`, `notes.js`, `todos.js`, `contacts.js`, `schedule.js`,
+`documents.js`. "Reads" means: shown as it was last seen, or as downloaded for
+a pinned project. A project that is opened is pinned automatically
+(`project-windows.js`, `mobile.js`), so its tabs are on the device even if
+they were never clicked.
+
+| App | Reads | Adds | Edits | Not offline, and why |
+|---|---|---|---|---|
+| Start-up, sidebar, top bar | everything a start reads; the person's apps and permissions come from their saved profile (`GET /me`) when the session read cannot be reached | | | the account switcher's list and sign-in (always the server's); the bonus offer and referral status (reading them writes) |
+| My Projects | the project list; for an account that only orders reports, its FirstMeasure orders | a project (`Portal.ProjectStore`, id made on the device); a lead with `project_id` (`PlatformAPI.leads.create`) | a project's own fields, merged per field | ordering a report (it charges, and FirstMeasure measures); order thumbnails unless the browser still holds them; an order list that carries a refresh cursor |
+| Project: Overview | the project, report widgets, data sets, measurement schema, custom fields, assignable people | | contact fields and address through the project and its contacts | the map (Google), report orders |
+| Project: Notes tray | notes, pins, authors | a note (text) | | replies, attachments, editing, pinning and deleting a note; notes of a project whose channel is not on the device (see below) |
+| Project: To Do tray, top bar To Do, to-do widget | the lists | a to-do added by hand | complete, reopen, claim, cancel; title, description, due date, priority, who it is assigned to | follow-ups (the server makes them and their outcomes) |
+| Contacts | the list, a contact, a contact's projects | a contact | a contact's fields (`expected_revision`, merged per field); which contacts a project has | merging, importing, duplicate suggestions |
+| Schedule (project tab and Scheduling) | events, calendar, resources, settings | an event on a project | an event's fields (`expected_event_revision`, merged per field) | events that belong to no project, deleting, recurring series; whether the assignee is free (the server checks when the event is sent) |
+| Documents | the list, a document, its preview and editor view, workflow, sent versions | | | creating, editing, sending, signing, PDF: see "Documents" below |
+| Operations (materials and labor) | the ledger, requirements and coverage, suppliers, price book | | | changing or generating lists, orders (the server prices and computes) |
+| Financials | | | | everything: payments data is never kept on a device. The tab says so |
+| Comms, Messages tray, Channels | what was last shown | | | sending (no contract yet); calls |
+| Checklists, Activity, Feed | what was last shown | | | completing checklist items, comments and reactions (no contract yet) |
+| Photos | see the photos contract (`media.js`) | | | |
+
+How each kind of change is sent:
+
+- **Scopes.** A project made on the device is `project:<id>`; its notes,
+  contacts, events and to-dos take that scope and are sent after it. A
+  contact is `contact:<id>`. A to-do on a project the server already has is
+  `todo:<id>` (so a to-do the server refuses holds nothing else), and a
+  change to a to-do takes the scope of the change that made it.
+- **Already there.** `project_exists` and `contact_exists` for an id the
+  device made mean the first try arrived: the entry is done. A manual to-do
+  and a note repeat safely by themselves (the server answers with the record
+  it has). An event save is an upsert.
+- **To-do ids.** The server derives a manual to-do's plan and id from the
+  page's id (`work/service.ts` `stableId`), and `todos.js` derives the same,
+  so completing a to-do that was made offline addresses the right record.
+  A change in that derivation must be made in both places; the contract test
+  compares them.
+- **Notes.** A note goes to the project's channel. The channel of a project
+  is made by a `POST`, which cannot be sent without a connection, so the
+  page then finds the channel on the device: `GET
+  /v1/channels/organizations/:org/channels/project/:project` (read-only;
+  saved for pinned projects), else the channel list, which names project
+  channels that have messages. A project made on the device has no channel
+  yet: its notes are kept under `chan_local_<project>` and sent with `POST
+  .../channels/project/:project/messages`, where the server makes the
+  channel and posts. A note the server refuses does not hold the project's
+  other changes.
+- **Published actions.** The to-do widget changes a to-do with
+  `actions/invoke`, which carries its own `idempotencyKey`. The queued action
+  is sent with the key it was made with, so the server runs it once and
+  answers a repeat with the first result. `action_outcome_uncertain` means
+  the server started the action under that key and does not know how it
+  ended; the key is then refused for good. A contract may say such an action
+  can be repeated (`resend`: setting a to-do's status or fields twice changes
+  nothing more); it is then sent again once under a new key. Any other
+  action fails and waits for the person. Only the two to-do actions are
+  queued; every other published action needs a connection.
+- **Edits.** A project edit sends only the top-level fields the page changed
+  (`Portal.ProjectStore` compares with what it first read). The queued edit
+  keeps the project as it was, and on replay each field is merged three ways
+  and sent with `expected_revision`; lists whose items have ids merge by id.
+  While it waits, the same merge is shown over newer answers (`ctx.base`), so
+  a reload does not put an old whole list over a newer one, and the page's
+  next edit again sends only what changed. A to-do edit has no revision to
+  check: it is merged per field against the to-do as it is when it is sent.
+- **What a pinned project downloads** is listed in `projects.js`
+  (`projectReads`, `branchReads`), `notes.js`, `contacts.js`, `schedule.js`
+  and `documents.js`. The addresses and bodies there must stay the ones the
+  apps ask with: a read that is asked differently is saved the first time
+  the tab is opened, not by the pin.
+
+### Documents
+
+Documents can be read offline; they cannot be made or changed. What is
+missing before that is safe:
+
+1. **Create replaces.** `POST .../projects/:project/documents` accepts an
+   `id`, but a repeat with the same id replaces the document (status back to
+   draft, overrides and outputs emptied) instead of answering "already
+   there". The route must refuse an existing id (`document_exists`, which
+   the store already has) before a device may name a document. The browser
+   does not send an id today.
+2. **The server makes what the page shows.** The preview and the editor
+   render what `POST .../documents/:id/resolve` returns: line rows, totals,
+   account figures and widget data are computed there and never stored.
+   After an offline change to a document's data the saved resolve is stale,
+   and a document made on the device has none. The enrichment
+   (`enrichLineItemParams`, pricing, `deriveAccountParams`) would have to
+   run on the device too.
+3. **Some documents are only the server's to make**: invoices, change orders
+   and completion certificates get their numbers and amounts at create, and
+   a template with a program runs in the module sandbox.
+4. **Edits merge all or nothing.** The editor saves its whole list of
+   overrides, whose items have no ids, so two people's edits cannot be
+   merged per item: one side's list wins or the person is asked.
+5. **Steps and outputs do things.** `workflow/state` can make further
+   documents, and `outputs/:key` records signatures and payments; neither
+   may be answered by a device.
+6. **History** (`saveDocumentInstance`) would record one revision at the
+   time of the sync for everything done offline.
+
 ## Not built yet
 
+- Offline document creation and editing (above).
+- Order thumbnails and report images (`/v1/firstmeasure/projects/:id/thumbnail`,
+  `/artifacts/*`) are not kept by the worker; My Projects shows them only
+  while the browser's own cache has them.
+- A read the server answers with `404` is not saved, so an app sees "no
+  connection" where it saw "does not exist" online (for example a branch
+  record that was never made).
+- Sending messages, checklist items, feed comments, events without a
+  project and deletes have no contract.
 - A change feed for refreshing pinned projects without re-reading them
   ([backlog](../optimization-backlog.md#pinned-offline-projects-are-refreshed-by-reading-everything-again)).
 - Resumable uploads for very large files (a failed upload starts again).
@@ -760,4 +926,10 @@ installed and `CHROME_PATH` where Chrome is elsewhere),
 `public/v1/tests/offline-routes.test.ts` (media caching, the lead route and
 the receipts hook through the real app),
 `public/v1/tests/media-quality.test.ts`,
-`public/v1/tests/offline-contracts.test.ts`.
+`public/v1/tests/offline-contracts.test.ts` (every contract file in
+`contracts/index.js` against the real app: each `match` is a registered
+route, each write has `respond`, `scope` and `label`, each `POST` read is on
+the checked list; then every write is made with the server unreachable, its
+answer compared key by key with the real route's, and the queue replayed
+against the real routes, including a lost first answer and an edit the server
+also changed).
