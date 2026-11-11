@@ -115,7 +115,8 @@
       "message": "{price}（{saving}お得）",
       "format": "icu"
     },
-    "catalog_load_failed": "請求情報を読み込めませんでした。もう一度お試しください。"
+    "catalog_load_failed": "請求情報を読み込めませんでした。もう一度お試しください。",
+    "full_exterior": "外装全体"
   },
   "canvassing": {
     "m_61df468d92e238": "すべて",
@@ -2201,7 +2202,10 @@
       "format": "icu"
     },
     "m_e05fb49213187a": "録画",
-    "review_full_structural_report": "建物全体の測定レポートを確認"
+    "review_full_structural_report": "建物全体の測定レポートを確認",
+    "ext_scope_roof": "屋根",
+    "ext_full_exterior": "外装全体",
+    "ext_full_exterior_info": "外装全体レポートの詳細"
   },
   "help": {
     "m_0db6efc53ab2ed": "お困りですか？",
@@ -2939,7 +2943,16 @@
       "message": "{count, plural, one {# 個のピン} other {# 個のピン}}",
       "format": "icu"
     },
-    "main_pitch_degrees": "主勾配 (度)"
+    "main_pitch_degrees": "主勾配 (度)",
+    "report_kind_roof": "屋根",
+    "report_kind_roof_and_gutters": "屋根と雨どい",
+    "report_kind_full_exterior": "外装全体",
+    "report_kind_ordered": "注文済み",
+    "report_kind_structures": {
+      "message": "{structures, plural, other {#棟}}",
+      "format": "icu"
+    },
+    "report_kind_full_exterior_includes": "屋根、外壁、窓、ドア、雨どいを含みます。"
   },
   "money": {
     "m_487adb3f2ba511": "金額データを読み込み中...",
@@ -4093,7 +4106,12 @@
     "audit_35266cd2f21aca": "注文中",
     "audit_2d31976e9d17e4": "送信に失敗しました。",
     "audit_88430f2c58bbce": "開発レポートの準備ができました",
-    "audit_7cf4af8eebae35": "既存のレポートファイルを表示できます。"
+    "audit_7cf4af8eebae35": "既存のレポートファイルを表示できます。",
+    "full_exterior_report": "外装全体レポート",
+    "roof_report_title": "屋根レポート",
+    "order_full_exterior": "外装全体を注文",
+    "this_full_exterior_report": "この外装全体レポート",
+    "full_exterior_report_ordered": "外装全体レポートを注文しました"
   },
   "project-schedule": {
     "m_88e13d64071885": "スケジュールがロックされています",
@@ -4651,7 +4669,10 @@
     "audit_5dbc6dff430e8d": "変更を保留中",
     "audit_1c4b7f4ada5422": "修正版レポートの準備完了",
     "audit_843f745c483e81": "即時 + 建物全体",
-    "audit_76bf93df451d48": "レポート準備完了"
+    "audit_76bf93df451d48": "レポート準備完了",
+    "report_kind_roof": "屋根",
+    "report_kind_roof_and_gutters": "屋根と雨どい",
+    "report_kind_full_exterior": "外装全体"
   },
   "promo-inject": {
     "m_9f35fbe4f31045": {

@@ -115,7 +115,8 @@
       "message": "{price} (oszczędzasz {saving})",
       "format": "icu"
     },
-    "catalog_load_failed": "Nie udało się wczytać danych rozliczeniowych. Spróbuj ponownie."
+    "catalog_load_failed": "Nie udało się wczytać danych rozliczeniowych. Spróbuj ponownie.",
+    "full_exterior": "Cały budynek z zewnątrz"
   },
   "canvassing": {
     "m_61df468d92e238": "Wszystkie",
@@ -2153,7 +2154,10 @@
       "format": "icu"
     },
     "m_e05fb49213187a": "Nagrywaj",
-    "review_full_structural_report": "Sprawdź pełny raport konstrukcji"
+    "review_full_structural_report": "Sprawdź pełny raport konstrukcji",
+    "ext_scope_roof": "Dach",
+    "ext_full_exterior": "Cały budynek z zewnątrz",
+    "ext_full_exterior_info": "Informacje o raporcie całego budynku z zewnątrz"
   },
   "help": {
     "m_0db6efc53ab2ed": "Potrzebujesz pomocy?",
@@ -2863,7 +2867,16 @@
       "message": "{count, plural, one {# pinezka} few {# pinezki} many {# pinezek} other {# pinezki}}",
       "format": "icu"
     },
-    "main_pitch_degrees": "Główne nachylenie (stopnie)"
+    "main_pitch_degrees": "Główne nachylenie (stopnie)",
+    "report_kind_roof": "Dach",
+    "report_kind_roof_and_gutters": "Dach i rynny",
+    "report_kind_full_exterior": "Cały budynek z zewnątrz",
+    "report_kind_ordered": "Zamówiono",
+    "report_kind_structures": {
+      "message": "{structures, plural, one {# budynek} few {# budynki} many {# budynków} other {# budynku}}",
+      "format": "icu"
+    },
+    "report_kind_full_exterior_includes": "Obejmuje dach, ściany, okna, drzwi i rynny."
   },
   "money": {
     "m_487adb3f2ba511": "Wczytywanie finansów...",
@@ -3921,7 +3934,12 @@
     "audit_35266cd2f21aca": "Składanie zamówienia",
     "audit_2d31976e9d17e4": "Nie udało się złożyć zamówienia.",
     "audit_88430f2c58bbce": "Raport rozwojowy gotowy",
-    "audit_7cf4af8eebae35": "Istniejące pliki raportu są gotowe do wyświetlenia."
+    "audit_7cf4af8eebae35": "Istniejące pliki raportu są gotowe do wyświetlenia.",
+    "full_exterior_report": "Raport całego budynku z zewnątrz",
+    "roof_report_title": "Raport dachowy",
+    "order_full_exterior": "Zamów raport całego budynku z zewnątrz",
+    "this_full_exterior_report": "ten raport całego budynku z zewnątrz",
+    "full_exterior_report_ordered": "Zamówiono raport całego budynku z zewnątrz"
   },
   "project-schedule": {
     "m_88e13d64071885": "Harmonogram zablokowany",
@@ -4475,7 +4493,10 @@
     "audit_5dbc6dff430e8d": "OCZEKUJĄ ZMIANY",
     "audit_1c4b7f4ada5422": "POPRAWIONY RAPORT GOTOWY",
     "audit_843f745c483e81": "NATYCHMIASTOWY + PEŁNY",
-    "audit_76bf93df451d48": "RAPORT GOTOWY"
+    "audit_76bf93df451d48": "RAPORT GOTOWY",
+    "report_kind_roof": "Dach",
+    "report_kind_roof_and_gutters": "Dach i rynny",
+    "report_kind_full_exterior": "Cały budynek z zewnątrz"
   },
   "promo-inject": {
     "m_9f35fbe4f31045": {

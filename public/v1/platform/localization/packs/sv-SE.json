@@ -115,7 +115,8 @@
       "message": "{price} (spara {saving})",
       "format": "icu"
     },
-    "catalog_load_failed": "Det gick inte att läsa in faktureringsuppgifterna. Försök igen."
+    "catalog_load_failed": "Det gick inte att läsa in faktureringsuppgifterna. Försök igen.",
+    "full_exterior": "Hela exteriören"
   },
   "canvassing": {
     "m_61df468d92e238": "Alla",
@@ -2157,7 +2158,10 @@
     "m_0889f650508793": "INSPELNING",
     "m_1ddd588108e13d": "Ett helt varv",
     "m_e05fb49213187a": "Spela in",
-    "review_full_structural_report": "Granska den fullständiga rapporten för byggnaden"
+    "review_full_structural_report": "Granska den fullständiga rapporten för byggnaden",
+    "ext_scope_roof": "Tak",
+    "ext_full_exterior": "Hela exteriören",
+    "ext_full_exterior_info": "Information om rapporten för hela exteriören"
   },
   "help": {
     "m_0db6efc53ab2ed": "Behöver du hjälp?",
@@ -2863,7 +2867,16 @@
       "message": "{count, plural, one {# nål} other {# nålar}}",
       "format": "icu"
     },
-    "main_pitch_degrees": "Huvudsaklig lutning (grader)"
+    "main_pitch_degrees": "Huvudsaklig lutning (grader)",
+    "report_kind_roof": "Tak",
+    "report_kind_roof_and_gutters": "Tak och hängrännor",
+    "report_kind_full_exterior": "Hela exteriören",
+    "report_kind_ordered": "Beställd",
+    "report_kind_structures": {
+      "message": "{structures, plural, one {# byggnad} other {# byggnader}}",
+      "format": "icu"
+    },
+    "report_kind_full_exterior_includes": "Tak, väggar, fönster, dörrar och hängrännor ingår."
   },
   "money": {
     "m_487adb3f2ba511": "Läser in ekonomi...",
@@ -3913,7 +3926,12 @@
     "audit_35266cd2f21aca": "Beställer",
     "audit_2d31976e9d17e4": "Det gick inte att skicka.",
     "audit_88430f2c58bbce": "Utvecklingsrapporten är klar",
-    "audit_7cf4af8eebae35": "Befintliga rapportfiler är redo att visas."
+    "audit_7cf4af8eebae35": "Befintliga rapportfiler är redo att visas.",
+    "full_exterior_report": "Rapport för hela exteriören",
+    "roof_report_title": "Takrapport",
+    "order_full_exterior": "Beställ hela exteriören",
+    "this_full_exterior_report": "den här rapporten för hela exteriören",
+    "full_exterior_report_ordered": "Rapport för hela exteriören beställd"
   },
   "project-schedule": {
     "m_88e13d64071885": "Schemat är låst",
@@ -4467,7 +4485,10 @@
     "audit_5dbc6dff430e8d": "ÄNDRINGAR VÄNTAR",
     "audit_1c4b7f4ada5422": "KORRIGERAD RAPPORT KLAR",
     "audit_843f745c483e81": "SNABB + FULLSTÄNDIG",
-    "audit_76bf93df451d48": "RAPPORT KLAR"
+    "audit_76bf93df451d48": "RAPPORT KLAR",
+    "report_kind_roof": "Tak",
+    "report_kind_roof_and_gutters": "Tak och hängrännor",
+    "report_kind_full_exterior": "Hela exteriören"
   },
   "promo-inject": {
     "m_9f35fbe4f31045": {

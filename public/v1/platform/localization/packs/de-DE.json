@@ -115,7 +115,8 @@
       "message": "{price} (du sparst {saving})",
       "format": "icu"
     },
-    "catalog_load_failed": "Die Abrechnungsdaten konnten nicht geladen werden. Bitte versuche es erneut."
+    "catalog_load_failed": "Die Abrechnungsdaten konnten nicht geladen werden. Bitte versuche es erneut.",
+    "full_exterior": "Gebäudehülle"
   },
   "canvassing": {
     "m_61df468d92e238": "Alle",
@@ -2197,7 +2198,10 @@
     "m_0889f650508793": "REC",
     "m_1ddd588108e13d": "Vollständiger Rundgang",
     "m_e05fb49213187a": "Aufnehmen",
-    "review_full_structural_report": "Vollständigen Bericht für die gesamte Struktur prüfen"
+    "review_full_structural_report": "Vollständigen Bericht für die gesamte Struktur prüfen",
+    "ext_scope_roof": "Dach",
+    "ext_full_exterior": "Gebäudehülle",
+    "ext_full_exterior_info": "Informationen zum Gebäudehüllenbericht"
   },
   "help": {
     "m_0db6efc53ab2ed": "Brauchen Sie Hilfe?",
@@ -2931,7 +2935,16 @@
       "message": "{count, plural, one {# Markierung} other {# Markierungen}}",
       "format": "icu"
     },
-    "main_pitch_degrees": "Hauptneigung (Grad)"
+    "main_pitch_degrees": "Hauptneigung (Grad)",
+    "report_kind_roof": "Dach",
+    "report_kind_roof_and_gutters": "Dach und Dachrinnen",
+    "report_kind_full_exterior": "Gebäudehülle",
+    "report_kind_ordered": "Bestellt",
+    "report_kind_structures": {
+      "message": "{structures, plural, one {# Gebäude} other {# Gebäude}}",
+      "format": "icu"
+    },
+    "report_kind_full_exterior_includes": "Dach, Wände, Fenster, Türen und Dachrinnen inbegriffen."
   },
   "money": {
     "m_487adb3f2ba511": "Finanzen werden geladen …",
@@ -4081,7 +4094,12 @@
     "audit_35266cd2f21aca": "Wird bestellt",
     "audit_2d31976e9d17e4": "Übermittlung fehlgeschlagen.",
     "audit_88430f2c58bbce": "Entwicklungsbericht bereit",
-    "audit_7cf4af8eebae35": "Vorhandene Berichtsdateien können jetzt angesehen werden."
+    "audit_7cf4af8eebae35": "Vorhandene Berichtsdateien können jetzt angesehen werden.",
+    "full_exterior_report": "Gebäudehüllenbericht",
+    "roof_report_title": "Dachbericht",
+    "order_full_exterior": "Gebäudehülle bestellen",
+    "this_full_exterior_report": "diesen Gebäudehüllenbericht",
+    "full_exterior_report_ordered": "Gebäudehüllenbericht bestellt"
   },
   "project-schedule": {
     "m_88e13d64071885": "Termin gesperrt",
@@ -4639,7 +4657,10 @@
     "audit_5dbc6dff430e8d": "ÄNDERUNGEN AUSSTEHEND",
     "audit_1c4b7f4ada5422": "KORRIGIERTER BERICHT BEREIT",
     "audit_843f745c483e81": "SOFORT + VOLLSTÄNDIG",
-    "audit_76bf93df451d48": "BERICHT BEREIT"
+    "audit_76bf93df451d48": "BERICHT BEREIT",
+    "report_kind_roof": "Dach",
+    "report_kind_roof_and_gutters": "Dach und Dachrinnen",
+    "report_kind_full_exterior": "Gebäudehülle"
   },
   "promo-inject": {
     "m_9f35fbe4f31045": {
