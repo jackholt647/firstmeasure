@@ -2927,6 +2927,7 @@
       state.workflowTouched = false;
       state.workflowWrites = { params: {}, outputs: {} };
       state.cardTotalCents = null;
+      state.cardTotalWaits = false;
       renderDocScreen();
       // Attach the instance's workflow when the caller didn't hand one over
       // (silent — reveals the [Workflow | Editor] toggle when found).
@@ -3357,6 +3358,10 @@
      *  true when a total was captured. */
     function captureResolvedTotal(payload){
       const computed = objectValue(objectValue(objectValue(payload).resolved_definition).computed_values);
+      // A view made without a connection for a document the server has not priced yet carries no total: the
+      // top bar waits for it too, instead of showing this page's own estimate of the lines.
+      state.cardTotalWaits = objectValue(objectValue(payload).offline).pending === true && !Object.keys(computed).length;
+      if (state.cardTotalWaits) { updateDocCardTotal(); return false; }
       for (const key of ['total_cents', 'contract_total_cents', 'subtotal_cents']) {
         const value = Number(computed[key]);
         if (computed[key] !== null && computed[key] !== undefined && Number.isFinite(value)) {
@@ -3376,6 +3381,13 @@
     function updateDocCardTotal(){
       const el = root.querySelector('[data-fmdx-editor-screen] [data-card-total]');
       if (!el) return;
+      if (state.cardTotalWaits) {
+        const waits = 'Updates when you reconnect';
+        el.textContent = '…';
+        el.title = globalThis.PlatformLanguage?.text?.('shared', 'offline_document_value_stale', waits) ?? waits;
+        return;
+      }
+      el.removeAttribute('title');
       const total = docCardTotalCents();
       el.textContent = total ? moneyFromCents(total) : '—';
     }
@@ -3559,6 +3571,7 @@
       state.working = null;
       state.resolved = null;
       state.cardTotalCents = null;
+      state.cardTotalWaits = false;
       state.workflowTouched = false;
       state.baseOverrides = arrayValue(state.doc.overrides).map((op) => clone(op));
       state.pendingOps = [];

@@ -1390,9 +1390,14 @@ changed on the device, and `offline: "pending"` on a typed value the device
 does not store itself (a typed amount, shown as typed). Widgets carry
 `offline: "stale"` the same way and show their last data. The renderer draws
 a stale figure with a dotted underline and the title "Updates when you
-reconnect"; the preview and the editor say above the page that it is the
-last calculated copy with the person's changes, and the as-sent editor says
-so in its status line. Nothing on the page is a total the device made up.
+reconnect"; the preview, the workflow's live preview and the editor say above
+the page that it is the last calculated copy with the person's changes, and
+the as-sent editor says so in its status line. Nothing on the page is a
+total the device made up: a computed value is the last one the server gave
+(`computed_values` of its last resolve, which the answer carries unchanged),
+and a figure it never worked out for this document (the document was made
+here, or its line was added here) is shown as "…". The documents app's top
+bar total waits the same way on a document made here.
 The answer carries `offline: { pending, made, data, layout, writes }`; the
 server never sends it, and after the sync its resolve is read again and
 replaces the view.

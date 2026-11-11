@@ -227,6 +227,19 @@
     return 'input';
   }
 
+  /**
+   * True for a value the server works out from the document's lines (an amount, a total, account figures), as
+   * far as its expression tells. On a document made here those have no last value; other text made from data
+   * (a name with a fallback) is as right on the device as anywhere.
+   */
+  function isFigure(binding) {
+    const path = binding.path ? segments(binding.path) : null;
+    if (path && path[0] === 'computed') return true;
+    if (path && path[0] === 'params' && RESOLUTION_ONLY.has(String(path[1]))) return true;
+    const named = path ? String(path[path.length - 1]) : String(binding.expr || '');
+    return /computed\.|_cents|account|amount|total|price|balance|(scope_rows|line_rows|scope_packages|pricing_rows)/i.test(named);
+  }
+
   /** A value as the document formats it where the value is shown. */
   function formatted(value, binding) {
     if (binding.format && !list(binding.format_args).length) {
@@ -297,7 +310,7 @@
           // What is shown is the server's last figure, never one the device worked out: a computed value is the
           // last one the server gave, and a figure it never worked out for this document (the document was made
           // here, or its line was added here) is a placeholder.
-          if (!lastScope) run.text = WAITING_FIGURE;
+          if (!lastScope) { if (isFigure(binding)) run.text = WAITING_FIGURE; else delete run.offline; }
           else if (path && path[0] === 'computed') { const value = at({ computed: lastComputed || {} }, path); run.text = value === undefined || value === null ? WAITING_FIGURE : formatted(value, binding); }
           else if (path && at(lastScope, path) === undefined) run.text = WAITING_FIGURE;
         }
