@@ -93,7 +93,11 @@
         `${channels(ctx)}/directory`,
         `${channels(ctx)}/collaboration-preferences`,
         `${channels(ctx)}/sidebar-sections`,
-        `${channels(ctx)}/inbox`
+        `${channels(ctx)}/inbox`,
+        // The Communications inbox (email, texts and calls) and its settings. The website chat inbox is not
+        // asked for ahead: reading it tells visitors this person is there to answer.
+        `${comms(ctx)}/inbox`,
+        `${comms(ctx)}/settings`
       ],
       {
         // The channel list, then the newest page of the channels with the newest messages.
