@@ -370,6 +370,12 @@ test('sub-tabs follow the organization features and the person; with none allowe
     const onlyCategories = await browser.newPage({ viewport: { width: 1500, height: 900 } });
     await stub(onlyCategories, server.address().port, { flags: ['platform.materials'], off: ['materials.resource_categories'], supplierTools: 'none', assistant: false });
     assert.deepEqual(await onlyCategories.evaluate(() => window.FirstMateMaterialsSettings.sections({ surface: 'settings' })), [], 'no Settings section when nothing is allowed');
+    // FM-394: the settings belong to the Materials app. A FirstMeasure organization without it (every customer today) has
+    // no Materials section, though Calculations stays in Settings › Reports and the price book is on.
+    const noApp = await browser.newPage({ viewport: { width: 1500, height: 900 } });
+    await stub(noApp, server.address().port, { flags: ['platform.pricebook', 'apps.firstmeasure', 'apps.assistant'], off: ['platform.materials'], supplierTools: 'none', assistant: false });
+    assert.deepEqual(await noApp.evaluate(() => window.FirstMateMaterialsSettings.sections({ surface: 'settings' })), [], 'no Settings › Materials without the Materials app');
+    assert.equal(await noApp.evaluate(() => window.FirstMateMaterialsSettings.mountInline(document.getElementById('settingsPane'), { orgId: () => 'org' })), null);
 
     const denied = await browser.newPage({ viewport: { width: 1500, height: 900 } });
     await stub(denied, server.address().port, { perms: false, supplierTools: 'none' });
