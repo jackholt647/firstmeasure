@@ -99,6 +99,7 @@ async function site() {
   };
   const shell = () => `<!doctype html><html><head><meta charset="utf-8"><title>Portal</title>
 <script>window.__APP = { userId: ${JSON.stringify(s.user.id)}, userOrgId: ${JSON.stringify(s.user.org)}, platformSessionCookieName: 'fm_platform_session' };</script>
+${s.early ? `<script>window.__early = fetch('/v1/early').then((r) => r.json().then((json) => ({ json, offline: r.headers.get('X-FM-Offline') }))).catch((error) => ({ error: String(error) }));</script>` : ''}
 <script src="/libraries/platform-offline/platform-offline.js?v=${Math.random().toString(36).slice(2)}"></script>
 <script src="/libraries/demo/app.js?v=${Math.random().toString(36).slice(2)}"></script>
 </head><body><div id="render">${s.render}</div></body></html>`;
@@ -614,6 +615,25 @@ test('identity: nothing before a page says who is signed in; sign-out removes sh
     await until(async () => posts.length === 1, 'sent after the same person signed in');
     assert.equal(posts[0].headers['x-fm-offline-user'], 'user_1');
     assert.equal(posts[0].headers['idempotency-key'], queued.queued);
+  });
+});
+
+test('the first requests of a page, made before it says who is signed in, are saved and answered as its own', async () => {
+  await withBrowser(async (s, context) => {
+    s.early = true;
+    s.api = (request) => (request.method === 'GET' && request.path === '/v1/early' ? { json: { early: s.render } } : null);
+    const page = await openPortal(context, s);
+    await check(page);
+    await until(async () => (await state(page)).code.status === 'ready', 'the set is ready');
+    // The worker now controls the page from its first request: this load's early read is saved.
+    s.render = 'second';
+    await page.reload();
+    assert.deepEqual(await page.evaluate(() => window.__early), { json: { early: 'second' }, offline: null });
+    await until(async () => (await device(page)).responses.length === 1, 'the early read is saved');
+    s.down = true;
+    await page.reload();
+    assert.deepEqual(await page.evaluate(() => window.__early), { json: { early: 'second' }, offline: 'saved' });
+    s.down = false;
   });
 });
 
