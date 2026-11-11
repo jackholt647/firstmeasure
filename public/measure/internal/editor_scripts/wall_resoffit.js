@@ -166,6 +166,21 @@ function apply(faces,pairs,depth,roof,sources,options={}){
    const old=moves.find(m=>same(m.from,p));if(old){old.to=to;old.pivot=true;}else moves.push({from:p,to,junction:0,pivot:true});
   }
  }
+ // The end of a wall is a vertical line. When a moving wall meets only part
+ // of it (a lower roof's wall under a taller one), the corner they share
+ // slides and the rest of that end goes with it. Left behind, it would lean
+ // and open a wedge between the wall and the piece beside it.
+ for(let changed=true;changed;){changed=false;for(const f of faces){if(f.deleted||consumed.has(f.id)||flexible.has(f.id)||f.baseId||f.chimney||f.trim||f.feature||Math.abs(K.normal(f.points)?.z??1)>.02)continue;
+  for(const ring of rings(f))for(let i=0;i<ring.length;i++){const ends=[ring[i],ring[(i+1)%ring.length]];if(Math.hypot(ends[0].x-ends[1].x,ends[0].y-ends[1].y)>.002||Math.abs(ends[0].z-ends[1].z)<.002)continue;
+   for(const [from,p]of [ends,[ends[1],ends[0]]]){const lead=moves.find(m=>!m.pivot&&same(m.from,from)),dx=lead&&lead.to.x-lead.from.x,dy=lead&&lead.to.y-lead.from.y;if(!lead||Math.hypot(dx,dy)<1e-6||moves.some(m=>same(m.from,p)))continue;
+    // Only along the planes this corner already lies in.
+    if(faces.some(o=>{const n=!o.deleted&&!o.baseId&&!o.trim&&!o.feature&&K.normal(o.points);return n&&Math.abs(n.z)<.02&&Math.abs(dx*n.x+dy*n.y)>.002&&rings(o).some(r=>r.some((q,j)=>on(p,q,r[(j+1)%r.length])));}))continue;
+    const to={...p,x:p.x+dx,y:p.y+dy},supports=planes.filter(r=>G.contains(r,p)&&Math.abs(p.z-r.plane.dx*p.x-r.plane.dy*p.y-r.plane.k)<ROOF_CONTACT);
+    if(supports.length)to.z=followRoof(p,to,supports,planes);
+    moves.push({from:p,to,junction:0});changed=true;
+   }
+  }
+ }}
  // Generated boundaries can retain millimetre-wide survey seams at a junction.
  // Move the coincident end of that seam with its corner, rather than folding
  // the tiny strip over when the corner slides along the neighboring plane.

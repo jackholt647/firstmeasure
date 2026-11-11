@@ -84,6 +84,14 @@
     }
     // Connected roof pitches form one support layer. Flashing and chimney
     // boundaries separate layers even when their measured endpoints coincide.
+    // Where short roof lines meet, the face resolver can leave a leftover a
+    // few pixels across. It is not a roof plane: walls built around it stand
+    // as a pillar under the real roof. Ids of the remaining faces are kept.
+    const MIN_ROOF_FACE=.025;
+    function roofPlanesOnly(faces) {
+        const area=ps=>Math.abs(ps.reduce((s,p,i)=>{const q=ps[(i+1)%ps.length];return s+p.x*q.y-q.x*p.y;},0)/2);
+        return faces.filter(f=>area(f.points)>=MIN_ROOF_FACE);
+    }
     function roofLayers(roof,faces) {
         const groups=faces.map(f=>[f]),same=(a,b)=>distance(a,b)<.002&&Math.abs(a.z-b.z)<.02;
         const edges=(roof.connections||[]).filter(e=>isFlashing(e.type)||['eave','rake'].includes(e.type)||String(e.type).startsWith('chimney')).map(e=>[roof.points[e.startIdx],roof.points[e.endIdx]]);
@@ -1227,7 +1235,7 @@
         const centre={x:qs.reduce((s,p)=>s+p.x,0)/qs.length,y:qs.reduce((s,p)=>s+p.y,0)/qs.length};
         return [...qs,centre].every(p=>outlines.some(points=>inside(p,points)));
     }
-    const api={canonicalGeneratedWalls,chimneyContact,layerSetback,roofLayers:roof=>roofLayers(roof,surfaces(roof)),soffitWithoutSources,splitParameters,mergeCoplanar,build,buildSources,extrude,deduplicate,topology,simplifyGeneratedRing,surveyedGeneratedRun,cleanSurveyRings,cleanSurveyedFaces,generatedGroupOutline,plane,contains,onEdge,generatedMoveGroup,draftOwnsWall,INCH};
+    const api={roofPlanesOnly,canonicalGeneratedWalls,chimneyContact,layerSetback,roofLayers:roof=>roofLayers(roof,surfaces(roof)),soffitWithoutSources,splitParameters,mergeCoplanar,build,buildSources,extrude,deduplicate,topology,simplifyGeneratedRing,surveyedGeneratedRun,cleanSurveyRings,cleanSurveyedFaces,generatedGroupOutline,plane,contains,onEdge,generatedMoveGroup,draftOwnsWall,INCH};
     if(typeof module!=='undefined'&&module.exports)module.exports=api;
     else root.WallGeometry=api;
 })(typeof window!=='undefined'?window:globalThis);

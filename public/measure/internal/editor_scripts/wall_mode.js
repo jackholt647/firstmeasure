@@ -234,7 +234,8 @@ function perf_finishEdit(){
     }
     // Roof mode's Subtract Face on a face's whole outline leaves that face as its own hole: no surface, and
     // nothing to triangulate. Roof mode shows and measures no surface there, so the walls leave it out too (FM-320).
-    function usableRoofFaces(faces){return faces.filter(f=>{try{window.ExteriorGeometry?.triangles(f.points,f.holes||[]);return true;}catch(error){console.warn('[Walls] Roof face '+f.id+' has no surface and is left out of the walls.',error);return false;}});}
+    // A leftover face a few pixels across is not a roof plane either (WallGeometry.roofPlanesOnly).
+    function usableRoofFaces(faces){return G.roofPlanesOnly(faces).filter(f=>{try{window.ExteriorGeometry?.triangles(f.points,f.holes||[]);return true;}catch(error){console.warn('[Walls] Roof face '+f.id+' has no surface and is left out of the walls.',error);return false;}});}
     function captureRoof(force=false) {
         if(!activeGeometry?.points?.length)throw new Error('Finish the roof points and resolved faces first.');
         const ctx=currentContext(); if(!(ctx.mpp>0))throw new Error('Load calibrated project imagery first.');

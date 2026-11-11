@@ -4301,3 +4301,26 @@ test('Resoffit brings a gable into line with the wing wall beside it and keeps e
  apply(['R4.0'],.3048);assert.ok(near(insets('R5.0')[0],.3048));apply(['R13.0'],.3048);assert.ok(near(insets('R11.0')[0],.3048));
  assert.deepEqual([...before].filter(id=>!lines().some(c=>c.source.id===id)),[]);
 });
+test('a leftover roof face a few pixels across is not a roof plane and builds no pillar',()=>{
+ // Where the gable, the wing rake and two short side walls meet, the face
+ // resolver left a 0.013 m2 staircase face. Walls were built around it.
+ const G=require('../public/measure/internal/editor_scripts/wall_geometry'),R=require('../public/measure/internal/editor_scripts/wall_resoffit'),build=require('./roof-generation-fixture.cjs').build,source=require('./fixtures/gable-wing-inline-roof.json');
+ const pillar=w=>[...w.bottom,...w.top].every(p=>Math.hypot(p.x-1.25,p.y+6.95)<.2);
+ assert.ok(build(source,'24').composed.some(pillar));
+ const clean=structuredClone(source);clean.roof.faces=G.roofPlanesOnly(clean.roof.faces);
+ assert.deepEqual(clean.roof.faces.map(f=>f.id),[0,1,2,3,4]);
+ const r=build(clean,'24');assert.equal(r.state.base.faces.length,1);assert.ok(!r.composed.some(pillar));assert.deepEqual(r.open,[]);
+ const f=fixture({state:r.state,walls:r.composed,selected:null,globals:{WallResoffit:R}}),line=f.editor.soffitEdges().find(c=>c.source.id==='R3.0');
+ f.editor.restoreSelection({lineSelection:[{pair:line.pair}]});assert.equal(f.editor.resoffit(.3048),true,f.message());
+});
+test('Resoffit of a lower roof wall keeps the end of the taller wall above it vertical',()=>{
+ // The lower roof's back wall meets only the bottom of the gable piece above
+ // it. Moving it dragged that corner alone and opened a wedge up to the rake.
+ const R=require('../public/measure/internal/editor_scripts/wall_resoffit'),K=require('../public/measure/internal/editor_scripts/exterior_geometry'),build=require('./roof-generation-fixture.cjs').build,source=require('./fixtures/gable-wing-inline-roof.json');
+ const leaning=state=>state.wallEdits.$surfaces.filter(g=>!g.deleted&&Math.abs(K.normal(g.points)?.z??1)<.02).flatMap(g=>g.points.filter((a,i)=>{const b=g.points[(i+1)%g.points.length],d=Math.hypot(a.x-b.x,a.y-b.y);return d>.01&&Math.abs(a.z-b.z)/d>3;}));
+ for(const steps of [[[['R16.0'],.1524]],[[['R16.0','R18.0','R19.0'],.1524],[['R3.0'],.3048]],[[['R3.0'],.3048],[['R16.0','R18.0','R19.0'],.1524]]]){
+  const r=build(source,'24'),f=fixture({state:r.state,walls:r.composed,selected:null,globals:{WallResoffit:R}});
+  for(const [ids,depth]of steps){f.editor.restoreSelection({lineSelection:f.editor.soffitEdges().filter(c=>ids.includes(c.source.id)).map(c=>({pair:c.pair}))});assert.equal(f.editor.resoffit(depth),true,f.message());}
+  assert.deepEqual(leaning(r.state),[]);for(const face of r.state.wallEdits.$surfaces.filter(f=>!f.deleted))K.validateFace(face);
+ }
+});
