@@ -1819,12 +1819,19 @@
       if (!state.messages.length) return;
       const oldest = state.messages[0];
       try {
-        const data = await api.messages.list(orgId, state.activeChannelId, { before: oldest.seq, limit: 60 });
+        const channelId = state.activeChannelId;
+        const data = await api.messages.list(orgId, channelId, { before: oldest.seq, limit: 60 });
+        if (state.olderMissingFor === channelId) { state.olderMissingFor = ''; list.querySelector(':scope > .fm-ch-older-missing')?.remove(); }
         if (!data.messages?.length) return;
         const prevHeight = list.scrollHeight;
         state.messages = [...data.messages, ...state.messages];
         renderMessages({ keepScroll: true, prevHeight });
-      } catch (error) {}
+      } catch (error) {
+        // Without a connection an older page is only there if it was read before: say so in one line, once.
+        if (!api.unreachable?.(error) || Number(oldest.seq) <= 1 || state.olderMissingFor === state.activeChannelId) return;
+        state.olderMissingFor = state.activeChannelId;
+        renderMessages({ keepScroll: true });
+      }
     }
 
     // --- realtime ------------------------------------------------------------------
@@ -4407,6 +4414,11 @@
       }
       let lastDay = '';
       let dividerPlaced = false;
+      if (state.olderMissingFor && state.olderMissingFor === state.activeChannelId) {
+        const missing = el('div', 'fm-ch-empty fm-ch-older-missing', esc((globalThis.PlatformLanguage?.text?.("shared","offline_older_messages_not_on_device","Older messages are not saved on this device.") ?? "Older messages are not saved on this device.")));
+        missing.style.cssText = 'padding:10px 16px;font-size:12.5px';
+        list.appendChild(missing);
+      }
       for (const message of state.messages) {
         const day = dayKey(message.created_at);
         if (day !== lastDay) {
@@ -4894,7 +4906,7 @@
           autosize();
           composerInput.mentionUsers=[];mentionApi?.setSelectedMentions?.([]);
         } catch (error) {
-          showError(error);
+          showError(sendFailure(error));
         } finally {
           send.disabled = false;
           composerInput.focus();
@@ -5213,7 +5225,7 @@
           stopTyping(); threadInput.value = '';
           threadInput.mentionUsers=[];threadMentionApi?.setSelectedMentions?.([]);
         } catch (error) {
-          showError(error);
+          showError(sendFailure(error));
         } finally {
           send.disabled = false;
         }
@@ -6198,9 +6210,16 @@
 
     // --- errors -----------------------------------------------------------------------------
 
+    /** A send that got no answer: nothing is queued (sending needs a connection) and the text stays in the box. */
+    function sendFailure(error){
+      return api.unreachable?.(error) ? Object.assign(new Error((globalThis.PlatformLanguage?.text?.("shared","offline_send_needs_connection","Sending needs a connection. Your message is still here; send it when you are back online.") ?? "Sending needs a connection. Your message is still here; send it when you are back online.")), { offline:true }) : error;
+    }
+
     function showError(error){
       console.warn('[FirstMateChannels]', error);
       const message = cleanText(error?.message) || 'Something went wrong.';
+      // A list that was still loading says why it did not, instead of spinning for good.
+      if (list.querySelector(':scope > .fm-ch-empty > .fa-spin')) list.innerHTML = `<div class="fm-ch-empty">${esc(message)}</div>`;
       if (root.Portal?.toast) { root.Portal.toast(message, (globalThis.PlatformLanguage?.text("channels-ui","m_7e784f9b5540ab","error") ?? "error")); return; }
       const note = el('div', 'fm-ch-empty', esc(message));
       note.style.color = '#d92d20';

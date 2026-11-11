@@ -627,7 +627,8 @@ ${window.FirstMateAgentBar.css({ host:'.ptb-agent-host', bar:'.ptb-agent-bar', p
     } catch (error) {
       openedMessageEntries.delete(entry.entry_id);
       await loadMessagesInbox();
-      window.Portal?.ui?.showToast?.('Could not open message', error.message);
+      // The message opened; marking it read needs a connection and is not worth a failure notice without one.
+      if (!window.ChannelsAPI?.unreachable?.(error)) window.Portal?.ui?.showToast?.('Could not open message', error.message);
     }
   }
 

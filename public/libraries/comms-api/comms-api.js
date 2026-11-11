@@ -40,6 +40,19 @@
     catch { return ''; }
   }
 
+  /**
+   * What a person is told when the server cannot be reached (docs/architecture/offline.md): a read is not on the
+   * device, a message was not sent (sending is never queued), any other change was not made.
+   */
+  function noConnectionText(method, path){
+    const words = (key, english) => root.PlatformLanguage?.text?.('shared', key, english) ?? english;
+    if (['GET', 'HEAD'].includes(method)) return words('offline_not_on_device', 'This is not saved on this device. Connect to the internet to see it.');
+    if (method === 'POST' && /\/(reply|send|messages|private-replies)$/.test(clean(path).split('?')[0])) return words('offline_send_needs_connection', 'Sending needs a connection. Your message is still here; send it when you are back online.');
+    return words('offline_change_needs_connection', 'This needs a connection. Nothing was saved.');
+  }
+  /** True for a failure that is "no connection": no answer at all, or the offline worker's refusal of a change it cannot keep. */
+  const unreachable = (error) => !Number(error?.status || 0) || clean(error?.code || error?.data?.error) === 'offline_unavailable';
+
   async function request(path, options = {}){
     const method = clean(options.method || 'GET').toUpperCase();
     const headers = { Accept:'application/json', ...state.defaultHeaders, ...object(options.headers) };
@@ -53,19 +66,31 @@
       if (token) headers['X-Platform-CSRF'] = token;
     }
     const { apiBase, ...fetchOptions } = options;
-    const response = await fetch(`${apiBase || baseUrl()}/${clean(path).replace(/^\/+/, '')}`, {
-      ...fetchOptions,
-      method,
-      body,
-      cache:options.cache || 'no-store',
-      credentials:options.credentials || 'include',
-      headers
-    });
+    let response;
+    try {
+      response = await fetch(`${apiBase || baseUrl()}/${clean(path).replace(/^\/+/, '')}`, {
+        ...fetchOptions,
+        method,
+        body,
+        cache:options.cache || 'no-store',
+        credentials:options.credentials || 'include',
+        headers
+      });
+    } catch (failure) {
+      // No answer at all: words a person can act on instead of "Failed to fetch". No status, which is how unreachable() knows it.
+      if (failure?.name === 'AbortError') throw failure;
+      const error = new Error(noConnectionText(method, path));
+      error.offline = true;
+      error.cause = failure;
+      throw error;
+    }
     const text = await response.text();
     let data = null;
     try { data = text ? JSON.parse(text) : null; } catch (_) {}
     if (!response.ok || data?.ok === false) {
-      const error = new Error(clean(data?.message || data?.error) || `Comms API request failed (${response.status})`);
+      const offline = clean(data?.error) === 'offline_unavailable';
+      const error = new Error((offline ? noConnectionText(method, path) : clean(data?.message || data?.error)) || `Comms API request failed (${response.status})`);
+      if (offline) error.offline = true;
       error.status = response.status;
       error.code = clean(data?.error);
       error.data = data;
@@ -94,6 +119,7 @@
     version:1,
     configure,
     baseUrl,
+    unreachable,
     customer(orgId, path, body, method){
       return request(`organizations/${enc(orgId)}/${path}`, { method:method || (body === undefined ? 'GET' : 'POST'), ...(body === undefined ? {} : { body }) });
     },
